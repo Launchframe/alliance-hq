@@ -6,6 +6,7 @@ import {
   DEFAULT_ORIGIN_URL,
   parseConnectionInput,
 } from "@/lib/connectionString";
+import { ASHED_LOGOUT_WARNING } from "@/lib/jwt/messages";
 import {
   getOrCreateSession,
   getSessionState,
@@ -33,6 +34,7 @@ export async function POST(request: Request) {
       input?: string;
       appId?: string;
       originUrl?: string;
+      expiryReminderDays?: number;
     };
 
     const parsed = parseConnectionInput(body.input ?? "", {
@@ -49,12 +51,21 @@ export async function POST(request: Request) {
       me.email ?? me.full_name ?? me.id ?? "Connected user";
 
     const session = await getOrCreateSession();
-    await storeAshedConnection(session.id, parsed.connection, userLabel);
+    const ashed = await storeAshedConnection(
+      session.id,
+      parsed.connection,
+      userLabel,
+      body.expiryReminderDays !== undefined
+        ? { expiryReminderDays: body.expiryReminderDays }
+        : undefined,
+    );
 
     return NextResponse.json({
       ok: true,
       userLabel,
       isConnected: true,
+      ashed,
+      logoutWarning: ASHED_LOGOUT_WARNING,
     });
   } catch (error) {
     return NextResponse.json(

@@ -8,6 +8,13 @@
       "when": 1781381345684,
       "tag": "0000_shallow_kat_farrell",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1781384870767,
+      "tag": "0001_chunky_golden_guardian",
+      "breakpoints": true
     }
   ]
 }

@@ -1,0 +1,2 @@
+ALTER TABLE "ashed_credentials" ADD COLUMN "token_expires_at" timestamp with time zone;--> statement-breakpoint
+ALTER TABLE "ashed_credentials" ADD COLUMN "expiry_reminder_days" integer DEFAULT 14 NOT NULL;

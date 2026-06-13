@@ -20,6 +20,8 @@ export const ashedCredentials = pgTable("ashed_credentials", {
   appId: text("app_id").notNull(),
   originUrl: text("origin_url").notNull(),
   encryptedToken: text("encrypted_token").notNull(),
+  tokenExpiresAt: timestamp("token_expires_at", { withTimezone: true }),
+  expiryReminderDays: integer("expiry_reminder_days").notNull().default(14),
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
     .notNull(),

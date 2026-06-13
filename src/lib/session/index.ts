@@ -7,7 +7,13 @@ import { redirect } from "next/navigation";
 import { decryptSecret, encryptSecret } from "@/lib/crypto/encrypt";
 import type { ParsedConnection } from "@/lib/connectionString";
 import { getDb, schema } from "@/lib/db";
-import type { Session } from "@/lib/db/schema";
+import type { AshedCredential, Session } from "@/lib/db/schema";
+import {
+  buildAshedConnectionMeta,
+  resolveTokenExpiresAt,
+  type AshedConnectionMeta,
+} from "@/lib/jwt/connection-meta";
+import { DEFAULT_EXPIRY_REMINDER_DAYS } from "@/lib/jwt/decode";
 
 export const SESSION_COOKIE = "alliance_hq_session";
 const SESSION_DAYS = 90;
@@ -122,6 +128,18 @@ export async function getOrCreateSession(): Promise<Session> {
   };
 }
 
+export async function getAshedCredentialRecord(
+  sessionId: string,
+): Promise<AshedCredential | null> {
+  const db = getDb();
+  const [cred] = await db
+    .select()
+    .from(schema.ashedCredentials)
+    .where(eq(schema.ashedCredentials.sessionId, sessionId))
+    .limit(1);
+  return cred ?? null;
+}
+
 export async function getAshedConnection(
   sessionId: string,
 ): Promise<ParsedConnection | null> {
@@ -143,17 +161,40 @@ export async function getAshedConnection(
   };
 }
 
+export async function getAshedConnectionMeta(
+  sessionId: string,
+): Promise<AshedConnectionMeta | null> {
+  const cred = await getAshedCredentialRecord(sessionId);
+  if (!cred) {
+    return null;
+  }
+  return buildAshedConnectionMeta(cred);
+}
+
+export async function updateExpiryReminderDays(
+  sessionId: string,
+  expiryReminderDays: number,
+) {
+  const db = getDb();
+  await db
+    .update(schema.ashedCredentials)
+    .set({ expiryReminderDays, updatedAt: new Date() })
+    .where(eq(schema.ashedCredentials.sessionId, sessionId));
+}
+
 export async function storeAshedConnection(
   sessionId: string,
   connection: ParsedConnection,
   userLabel: string | null,
+  options?: { expiryReminderDays?: number },
 ) {
   const db = getDb();
   const now = new Date();
   const encryptedToken = encryptSecret(connection.token);
+  const tokenExpiresAt = resolveTokenExpiresAt(connection.token);
 
   const [existing] = await db
-    .select({ id: schema.ashedCredentials.id })
+    .select()
     .from(schema.ashedCredentials)
     .where(eq(schema.ashedCredentials.sessionId, sessionId))
     .limit(1);
@@ -165,7 +206,11 @@ export async function storeAshedConnection(
         appId: connection.appId,
         originUrl: connection.originUrl,
         encryptedToken,
+        tokenExpiresAt,
         updatedAt: now,
+        ...(options?.expiryReminderDays !== undefined
+          ? { expiryReminderDays: options.expiryReminderDays }
+          : {}),
       })
       .where(eq(schema.ashedCredentials.id, existing.id));
   } else {
@@ -175,6 +220,9 @@ export async function storeAshedConnection(
       appId: connection.appId,
       originUrl: connection.originUrl,
       encryptedToken,
+      tokenExpiresAt,
+      expiryReminderDays:
+        options?.expiryReminderDays ?? DEFAULT_EXPIRY_REMINDER_DAYS,
       createdAt: now,
       updatedAt: now,
     });
@@ -186,6 +234,14 @@ export async function storeAshedConnection(
       .set({ userLabel, updatedAt: now })
       .where(eq(schema.sessions.id, sessionId));
   }
+
+  return buildAshedConnectionMeta({
+    tokenExpiresAt,
+    expiryReminderDays:
+      options?.expiryReminderDays ??
+      existing?.expiryReminderDays ??
+      DEFAULT_EXPIRY_REMINDER_DAYS,
+  });
 }
 
 export async function clearAshedConnection(sessionId: string) {
@@ -202,12 +258,14 @@ export async function clearAshedConnection(sessionId: string) {
 
 export async function getSessionStateFor(session: Session) {
   const connection = await getAshedConnection(session.id);
+  const ashed = await getAshedConnectionMeta(session.id);
 
   return {
     sessionId: session.id,
     userLabel: session.userLabel,
     isConnected: connection !== null,
     expiresAt: session.expiresAt.toISOString(),
+    ashed,
   };
 }
 

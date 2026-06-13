@@ -4,14 +4,17 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { NAV_ROUTES } from "@/lib/nav/routes";
+import type { AshedConnectionMeta } from "@/lib/jwt/connection-meta";
+import { TokenExpiryBanner } from "@/components/TokenExpiryNotice";
 
 type Props = {
   userLabel: string | null;
   isConnected: boolean;
+  ashed: AshedConnectionMeta | null;
   children: React.ReactNode;
 };
 
-export function AshedShell({ userLabel, isConnected, children }: Props) {
+export function AshedShell({ userLabel, isConnected, ashed, children }: Props) {
   const pathname = usePathname();
 
   return (
@@ -97,6 +100,8 @@ export function AshedShell({ userLabel, isConnected, children }: Props) {
             )}
           </div>
         </header>
+
+        {ashed && <TokenExpiryBanner ashed={ashed} />}
 
         <main className="flex-1 p-6">{children}</main>
       </div>

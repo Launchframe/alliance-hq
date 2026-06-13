@@ -61,11 +61,11 @@ Open [http://localhost:5175](http://localhost:5175) → follow **Connect Ashed**
 ## Connect Ashed
 
 1. Log into [ashed.online](https://ashed.online)
-2. DevTools → Network → filter `base44`
-3. Copy `authorization: Bearer …` from any `base44.app` request
-4. Paste into Alliance HQ connect wizard
+2. DevTools → **Network** → click any `base44.app` request
+3. **Right-click → Copy → Copy as cURL** (Chrome, Firefox, Edge, Brave, Safari)
+4. Paste into Alliance HQ connect wizard — we extract your token automatically
 
-Accepted formats: raw JWT, `Bearer …`, `authorization:` header line, curl command, or `base44://…` connection string.
+Also accepted: raw JWT, `Bearer …`, `authorization:` header line, or `base44://…` connection string.
 
 ## Repository
 

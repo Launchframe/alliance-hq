@@ -62,7 +62,11 @@ export default async function AppLayout({
   }
 
   return (
-    <AshedShell userLabel={state.userLabel} isConnected={state.isConnected}>
+    <AshedShell
+      userLabel={state.userLabel}
+      isConnected={state.isConnected}
+      ashed={state.ashed}
+    >
       {children}
     </AshedShell>
   );
