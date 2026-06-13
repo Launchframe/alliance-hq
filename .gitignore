@@ -39,7 +39,6 @@ yarn-error.log*
 
 # local captures (may contain auth tokens)
 /har/
-/drizzle/
 
 # typescript
 *.tsbuildinfo
