@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { and, desc, eq } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { writeAuditLog } from "@/lib/bff/audit";

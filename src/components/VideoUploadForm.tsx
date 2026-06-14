@@ -77,16 +77,18 @@ export function VideoUploadForm({ initialJobs }: Props) {
   const selectedTarget = scoreTargets.find((t) => t.id === scoreTarget);
   const needsBoardPicker =
     selectedTarget?.leaderboardModel === "multi-board";
+  const effectiveBoardKey =
+    boardKey || selectedTarget?.boardTypes?.[0] || "";
 
-  useEffect(() => {
-    if (!needsBoardPicker) {
+  function handleScoreTargetChange(nextId: string) {
+    setScoreTarget(nextId);
+    const next = scoreTargets.find((target) => target.id === nextId);
+    if (next?.leaderboardModel === "multi-board") {
+      setBoardKey(next.boardTypes?.[0] ?? "");
+    } else {
       setBoardKey("");
-      return;
     }
-    if (selectedTarget?.boardTypes?.[0] && !boardKey) {
-      setBoardKey(selectedTarget.boardTypes[0]);
-    }
-  }, [needsBoardPicker, selectedTarget, boardKey]);
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -102,8 +104,8 @@ export function VideoUploadForm({ initialJobs }: Props) {
     const formData = new FormData();
     formData.set("video", file);
     formData.set("scoreTarget", scoreTarget);
-    if (boardKey) {
-      formData.set("boardKey", boardKey);
+    if (effectiveBoardKey) {
+      formData.set("boardKey", effectiveBoardKey);
     }
 
     try {
@@ -148,7 +150,7 @@ export function VideoUploadForm({ initialJobs }: Props) {
           </span>
           <select
             value={scoreTarget}
-            onChange={(e) => setScoreTarget(e.target.value)}
+            onChange={(e) => handleScoreTargetChange(e.target.value)}
             className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 text-sm"
           >
             {GROUP_ORDER.map((group) => {
@@ -173,7 +175,7 @@ export function VideoUploadForm({ initialJobs }: Props) {
               {t("boardLabel")}
             </span>
             <select
-              value={boardKey}
+              value={effectiveBoardKey}
               onChange={(e) => setBoardKey(e.target.value)}
               className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 text-sm"
             >
