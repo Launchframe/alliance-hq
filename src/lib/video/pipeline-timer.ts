@@ -1,3 +1,8 @@
+import {
+  logPipelineStep,
+  type PipelineStepMeta,
+} from "@/lib/video/pipeline-step-log";
+
 export type PhaseTimings = Record<string, number>;
 
 export class PipelineTimer {
@@ -31,6 +36,33 @@ export class PipelineTimer {
 
   addPhase(name: string, ms: number) {
     this.phases.set(name, (this.phases.get(name) ?? 0) + ms);
+  }
+
+  /** Log one hop immediately and roll it into phase totals. */
+  logStep(step: string, ms: number, extra: PipelineStepMeta = {}) {
+    logPipelineStep(step, ms, extra);
+    this.addPhase(step, ms);
+  }
+
+  async measureStep<T>(
+    step: string,
+    fn: () => Promise<T>,
+    extra?: PipelineStepMeta | ((result: T) => PipelineStepMeta),
+  ): Promise<T> {
+    const started = Date.now();
+    try {
+      const result = await fn();
+      const meta =
+        typeof extra === "function" ? extra(result) : (extra ?? {});
+      this.logStep(step, Date.now() - started, meta);
+      return result;
+    } catch (error) {
+      this.logStep(step, Date.now() - started, {
+        ...(typeof extra === "object" && extra ? extra : {}),
+        error: error instanceof Error ? error.message : "failed",
+      });
+      throw error;
+    }
   }
 
   getPhases(): PhaseTimings {

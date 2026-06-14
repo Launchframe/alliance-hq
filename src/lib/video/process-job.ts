@@ -142,6 +142,9 @@ export async function processVideoJob(
   let rowCount = 0;
   let matchedCount = 0;
   let ocrFrameMs: number[] = [];
+  let ocrConcurrency = 0;
+  let ashedUploadTotalMs: number | null = null;
+  let ashedExtractTotalMs: number | null = null;
 
   try {
     await setStatus("extracting");
@@ -155,28 +158,36 @@ export async function processVideoJob(
       metadata: { fileName: job.fileName },
     });
 
-    const videoBuffer = await timer.measure("load_video", () =>
+    const videoBuffer = await timer.measureStep("storage.load_video", () =>
       getObject(job.storageKey!),
+      (buffer) => ({ bytes: buffer.length }),
     );
     const tmpVideo = path.join(
       os.tmpdir(),
       `hq-video-${jobId}${path.extname(job.fileName ?? ".mp4")}`,
     );
-    await fs.writeFile(tmpVideo, videoBuffer);
+    await timer.measureStep(
+      "storage.write_temp_video",
+      () => fs.writeFile(tmpVideo, videoBuffer),
+      { bytes: videoBuffer.length },
+    );
 
     let frames: Awaited<ReturnType<typeof extractLeaderboardFrames>> = [];
     try {
-      frames = await timer.measure("ffmpeg_extract", () =>
+      frames = await timer.measureStep("ffmpeg.extract", () =>
         extractLeaderboardFrames(tmpVideo),
+        (result) => ({ frameCount: result.length }),
       );
     } finally {
-      await fs.unlink(tmpVideo).catch(() => undefined);
+      await timer.measureStep("storage.delete_temp_video", () =>
+        fs.unlink(tmpVideo).catch(() => undefined),
+      );
     }
 
     frameCount = frames.length;
 
-    await timer.measure("store_frames", async () => {
-      for (const frame of frames) {
+    for (const frame of frames) {
+      await timer.measureStep("storage.put_frame", async () => {
         const key = frameStorageKey(jobId, frame.index);
         await putObject(key, frame.buffer);
         await db.insert(schema.videoFrames).values({
@@ -186,101 +197,135 @@ export async function processVideoJob(
           storageKey: key,
           createdAt: now,
         });
-      }
-    });
+      }, { frameIndex: frame.index, bytes: frame.buffer.length });
+    }
 
     await setStatus("parsing", {
       frameCount: frames.length,
       uploadedFrameCount: 0,
     });
 
-    const allianceId = await timer.measure("resolve_alliance", () =>
+    const allianceId = await timer.measureStep("alliance.resolve", () =>
       resolveSessionAllianceId(job.sessionId, connection),
     );
 
-    const { entries: rawEntries, frameTimings } = await timer.measure("ocr_total", () =>
-      ocrAllFrames(
-        connection,
-        target,
-        frames.map((f) => ({ index: f.index, buffer: f.buffer })),
-      ),
-    );
+    const { entries: rawEntries, frameTimings, concurrency } =
+      await timer.measureStep(
+        "ashed.ocr_total",
+        () =>
+          ocrAllFrames(
+            connection,
+            target,
+            frames.map((f) => ({ index: f.index, buffer: f.buffer })),
+            { timer, jobId },
+          ),
+        (result) => ({
+          frameCount: frames.length,
+          concurrency: result.concurrency,
+          rowCount: result.entries.length,
+        }),
+      );
     ocrFrameMs = frameTimings.map((f) => f.ms);
+    ocrConcurrency = concurrency;
+    ashedUploadTotalMs = frameTimings.reduce((sum, f) => sum + f.uploadMs, 0);
+    ashedExtractTotalMs = frameTimings.reduce((sum, f) => sum + f.extractMs, 0);
 
-    const allianceTag = await getSessionAllianceTag(job.sessionId);
-    const { entries, unresolvedConflicts } = collapseEntriesBySanitizedName(
-      rawEntries,
-      allianceTag,
+    const allianceTag = await timer.measureStep("alliance.load_tag", () =>
+      getSessionAllianceTag(job.sessionId),
+    );
+    const { entries, unresolvedConflicts } = await timer.measureStep(
+      "parse.collapse_rows",
+      async () =>
+        collapseEntriesBySanitizedName(rawEntries, allianceTag),
+      (result) => ({
+        inputRows: rawEntries.length,
+        outputRows: result.entries.length,
+        conflicts: result.unresolvedConflicts,
+      }),
     );
     rowCount = entries.length;
 
-    await cleanupFrameTempDir(frames);
+    await timer.measureStep("storage.cleanup_frame_temp", () =>
+      cleanupFrameTempDir(frames),
+      { frameCount: frames.length },
+    );
 
     await setStatus("parsing", { uploadedFrameCount: frames.length });
 
     let members: AshedMember[] = [];
     try {
-      members = await timer.measure("member_fetch", () =>
-        base44ListMembers(connection, allianceId),
+      members = await timer.measureStep(
+        "ashed.list_members",
+        () => base44ListMembers(connection, allianceId),
+        (result) => ({ count: result.length }),
       );
     } catch {
       members = [];
     }
 
     const parseSessionId = nanoid(16);
-    await db.insert(schema.parseSessions).values({
-      id: parseSessionId,
-      jobId,
-      sessionId: job.sessionId,
-      scoreTarget: scoreTargetId,
-      allianceId,
-      rowCount: entries.length,
-      matchedCount: 0,
-      status: "open",
-      createdAt: now,
-      updatedAt: now,
-    });
+    await timer.measureStep("db.create_parse_session", async () => {
+      await db.insert(schema.parseSessions).values({
+        id: parseSessionId,
+        jobId,
+        sessionId: job.sessionId,
+        scoreTarget: scoreTargetId,
+        allianceId,
+        rowCount: entries.length,
+        matchedCount: 0,
+        status: "open",
+        createdAt: now,
+        updatedAt: now,
+      });
+    }, { rowCount: entries.length });
 
     const memberIndex = members.length ? buildMemberIndex(members) : null;
 
-    await timer.measure("member_match_persist", async () => {
-      matchedCount = 0;
-      for (const entry of entries) {
-        const match = memberIndex
-          ? matchMemberName(entry.name, memberIndex, { allianceTag })
-          : {
-              ocrName: entry.name,
-              memberId: null,
-              memberName: null,
-              confidence: 0,
-              matchMethod: "none" as const,
-            };
-        if (match.memberId) matchedCount++;
+    await timer.measureStep(
+      "parse.match_and_persist",
+      async () => {
+        matchedCount = 0;
+        for (const entry of entries) {
+          const match = memberIndex
+            ? matchMemberName(entry.name, memberIndex, { allianceTag })
+            : {
+                ocrName: entry.name,
+                memberId: null,
+                memberName: null,
+                confidence: 0,
+                matchMethod: "none" as const,
+              };
+          if (match.memberId) matchedCount++;
 
-        await db.insert(schema.parsedRows).values({
-          id: nanoid(16),
-          parseSessionId,
-          ocrName: entry.name,
-          score: String(entry.score),
-          rank: entry.rank ?? null,
-          memberId: match.memberId,
-          memberName: match.memberName,
-          matchConfidence: match.confidence,
-          matchMethod: match.matchMethod,
-          scoreConflict: entry.scoreConflict ? 1 : 0,
-          frameIndex: null,
-          deleted: 0,
-          edited: 0,
-          createdAt: now,
-          updatedAt: now,
-        });
-      }
+          await db.insert(schema.parsedRows).values({
+            id: nanoid(16),
+            parseSessionId,
+            ocrName: entry.name,
+            score: String(entry.score),
+            rank: entry.rank ?? null,
+            memberId: match.memberId,
+            memberName: match.memberName,
+            matchConfidence: match.confidence,
+            matchMethod: match.matchMethod,
+            scoreConflict: entry.scoreConflict ? 1 : 0,
+            frameIndex: null,
+            deleted: 0,
+            edited: 0,
+            createdAt: now,
+            updatedAt: now,
+          });
+        }
+        return matchedCount;
+      },
+      (count) => ({ matchedCount: count, rowCount: entries.length }),
+    );
+
+    await timer.measureStep("db.update_parse_session", async () => {
+      await db
+        .update(schema.parseSessions)
+        .set({ matchedCount, rowCount: entries.length, updatedAt: new Date() })
+        .where(eq(schema.parseSessions.id, parseSessionId));
     });
-
-    await db
-      .update(schema.parseSessions)
-      .set({ matchedCount, rowCount: entries.length, updatedAt: new Date() })
-      .where(eq(schema.parseSessions.id, parseSessionId));
 
     await setStatus(
       "review",
@@ -308,6 +353,9 @@ export async function processVideoJob(
       phases,
       ocrFrameMs,
       ocrFrameAvgMs,
+      ocrConcurrency,
+      ashedUploadTotalMs,
+      ashedExtractTotalMs,
     };
 
     timer.log(`job ${jobId} complete`, {
@@ -315,6 +363,9 @@ export async function processVideoJob(
       frameCount,
       rowCount,
       matchedCount,
+      ocrConcurrency,
+      ashedUploadTotalMs,
+      ashedExtractTotalMs,
       ocrFrameMs,
     });
 
@@ -335,6 +386,9 @@ export async function processVideoJob(
           totalMs: timings.totalMs,
           phases,
           ocrFrameAvgMs,
+          ocrConcurrency,
+          ashedUploadTotalMs,
+          ashedExtractTotalMs,
         },
       },
     });

@@ -90,8 +90,8 @@
     "continue": "Continue to Alliance HQ",
     "allianceResolved": "Alliance linked: {tag} ({name})",
     "embeddedLoginSuccess": {
-      "title": "First time in an embedded Ashed page?",
-      "body": "If you sign into Ashed with Google, use your <strong>email and Ashed password</strong> inside Alliance HQ — not the Google button. Google Sign-In is blocked inside embedded pages."
+      "title": "Logging in to an embedded Ashed page",
+      "body": "Use your <strong>email and Ashed password</strong> inside Alliance HQ — sign-in with Google is unavailable. Use 'Reset Password' if you don't have a password set."
     },
     "steps": {
       "login": {

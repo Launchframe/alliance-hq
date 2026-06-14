@@ -21,6 +21,9 @@ export type VideoProcessTimings = {
   phases: Record<string, number>;
   ocrFrameMs: number[];
   ocrFrameAvgMs: number | null;
+  ocrConcurrency: number;
+  ashedUploadTotalMs: number | null;
+  ashedExtractTotalMs: number | null;
 };
 
 function analyticsEnabled(): boolean {
@@ -79,6 +82,13 @@ export async function trackVideoPipelineTimings(
     await trackEvent("Video Pipeline OCR", {
       frames: timings.frameCount,
       avgMs: Math.round(timings.ocrFrameAvgMs),
+    });
+  }
+
+  if (timings.ocrConcurrency > 0) {
+    await trackEvent("Video Pipeline OCR Concurrency", {
+      concurrency: timings.ocrConcurrency,
+      frames: timings.frameCount,
     });
   }
 

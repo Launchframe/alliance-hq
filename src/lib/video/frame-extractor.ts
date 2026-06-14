@@ -5,6 +5,8 @@ import path from "node:path";
 import { promisify } from "node:util";
 import ffmpegStatic from "ffmpeg-static";
 
+import { logPipelineStep } from "@/lib/video/pipeline-step-log";
+
 const execFileAsync = promisify(execFile);
 
 export type ExtractedFrame = {
@@ -48,6 +50,7 @@ export async function extractLeaderboardFrames(
 
   const ffmpeg = resolveFfmpegBinary();
 
+  const sceneStarted = Date.now();
   try {
     await execFileAsync(
       ffmpeg,
@@ -65,7 +68,11 @@ export async function extractLeaderboardFrames(
       ],
       { maxBuffer: 10 * 1024 * 1024 },
     );
+    logPipelineStep("ffmpeg.scene_detect", Date.now() - sceneStarted, {
+      mode: "scene",
+    });
   } catch {
+    const fallbackStarted = Date.now();
     await execFileAsync(
       ffmpeg,
       [
@@ -80,6 +87,9 @@ export async function extractLeaderboardFrames(
       ],
       { maxBuffer: 10 * 1024 * 1024 },
     );
+    logPipelineStep("ffmpeg.fps_fallback", Date.now() - fallbackStarted, {
+      fps: sampleFps,
+    });
   }
 
   const files = (await fs.readdir(tmpDir))
@@ -90,12 +100,16 @@ export async function extractLeaderboardFrames(
     throw new Error("No frames extracted from video.");
   }
 
+  const readStarted = Date.now();
   const frames: ExtractedFrame[] = [];
   for (let i = 0; i < files.length; i++) {
     const filePath = path.join(tmpDir, files[i]!);
     const buffer = await fs.readFile(filePath);
     frames.push({ index: i, filePath, buffer });
   }
+  logPipelineStep("ffmpeg.read_frames", Date.now() - readStarted, {
+    frameCount: frames.length,
+  });
 
   return frames;
 }
