@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 
+import { FormattedDateTime } from "@/components/timezone/TimezoneProvider";
+
 import {
   canReprocessVideoJob,
   canRequeueVideoJob,
@@ -87,7 +89,7 @@ export default function AdminVideoJobsPage() {
               return (
                 <tr key={job.id} className="border-t border-[#30363d]">
                   <td className="px-4 py-2 whitespace-nowrap text-[#8b949e]">
-                    {new Date(job.createdAt).toLocaleString()}
+                    <FormattedDateTime value={job.createdAt} />
                   </td>
                   <td className="px-4 py-2">{job.status}</td>
                   <td className="px-4 py-2">{job.scoreTarget ?? "—"}</td>

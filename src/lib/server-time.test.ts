@@ -24,10 +24,9 @@ describe("serverCalendarDateToUtcEnd", () => {
 
 describe("formatServerDateTime", () => {
   it("displays UTC instants in Server Time", () => {
-    const formatted = formatServerDateTime(
-      "2026-06-11T02:00:00.000Z",
-      "en-US",
-    );
+    const formatted = formatServerDateTime("2026-06-11T02:00:00.000Z", {
+      locale: "en-US",
+    });
     expect(formatted).toContain("6/11/2026");
     expect(formatted).toMatch(/12:00/);
   });

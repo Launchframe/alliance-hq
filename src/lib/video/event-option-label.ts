@@ -1,3 +1,10 @@
+import type { AccountTimezoneId } from "@/lib/timezone/constants";
+import { DEFAULT_ACCOUNT_TIMEZONE_ID } from "@/lib/timezone/constants";
+import {
+  accountCalendarDateToUtcStart,
+  formatAccountDate,
+} from "@/lib/timezone/format";
+
 /** Parse YYYY-MM-DD (and ISO datetime prefixes) into a local calendar date. */
 export function parseEventDateString(
   raw: string | null | undefined,
@@ -24,8 +31,31 @@ export function formatEventOptionLabel(options: {
   eventTypeLabel: string;
   eventDate?: string | Date | null;
   locale: string;
+  timezoneId?: AccountTimezoneId;
 }): string {
-  const { eventTypeLabel, eventDate, locale } = options;
+  const {
+    eventTypeLabel,
+    eventDate,
+    locale,
+    timezoneId = DEFAULT_ACCOUNT_TIMEZONE_ID,
+  } = options;
+
+  if (typeof eventDate === "string") {
+    const datePart = eventDate.trim().slice(0, 10);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(datePart)) {
+      const utcInstant = accountCalendarDateToUtcStart(
+        datePart,
+        DEFAULT_ACCOUNT_TIMEZONE_ID,
+      );
+      if (utcInstant) {
+        return `${eventTypeLabel} ${formatAccountDate(utcInstant, {
+          locale,
+          timezoneId,
+        })}`;
+      }
+    }
+  }
+
   const date =
     eventDate instanceof Date
       ? eventDate
@@ -37,13 +67,7 @@ export function formatEventOptionLabel(options: {
     return eventTypeLabel;
   }
 
-  const formattedDate = new Intl.DateTimeFormat(locale, {
-    month: "2-digit",
-    day: "2-digit",
-    year: "2-digit",
-  }).format(date);
-
-  return `${eventTypeLabel} ${formattedDate}`;
+  return `${eventTypeLabel} ${formatAccountDate(date, { locale, timezoneId })}`;
 }
 
 export type AshedEventLike = {
@@ -78,11 +102,13 @@ export function formatAshedEventOptionLabel(options: {
   eventTypeLabel: string;
   event: AshedEventLike;
   locale: string;
+  timezoneId?: AccountTimezoneId;
 }): string {
   return formatEventOptionLabel({
     eventTypeLabel: options.eventTypeLabel,
     eventDate: resolveAshedEventDate(options.event),
     locale: options.locale,
+    timezoneId: options.timezoneId,
   });
 }
 
@@ -97,10 +123,12 @@ export function formatHqEventOptionLabel(options: {
   eventTypeLabel: string;
   event: HqEventLike;
   locale: string;
+  timezoneId?: AccountTimezoneId;
 }): string {
   return formatEventOptionLabel({
     eventTypeLabel: options.eventTypeLabel,
     eventDate: options.event.startDate ?? options.event.endDate ?? null,
     locale: options.locale,
+    timezoneId: options.timezoneId,
   });
 }

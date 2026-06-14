@@ -4,6 +4,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Link } from "@/i18n/navigation";
+import { useAccountTimezone } from "@/components/timezone/TimezoneProvider";
 import { useVideoJob } from "@/components/video/VideoJobEventsProvider";
 import {
   formatAshedEventOptionLabel,
@@ -15,6 +16,7 @@ import {
   duplicateMemberRowIds,
   findDuplicateMemberAssignments,
 } from "@/lib/video/review-validation";
+import { accountTodayCalendarDate } from "@/lib/timezone/format";
 
 type ParsedRow = {
   id: string;
@@ -68,6 +70,7 @@ export function ReviewExtractedData({ jobId }: Props) {
   const tc = useTranslations("common");
   const tNav = useTranslations("nav");
   const locale = useLocale();
+  const { timezoneId } = useAccountTimezone();
   const liveJob = useVideoJob(jobId);
 
   const [rows, setRows] = useState<ParsedRow[]>([]);
@@ -81,8 +84,8 @@ export function ReviewExtractedData({ jobId }: Props) {
   const [hqEventId, setHqEventId] = useState("");
   const [boardKey, setBoardKey] = useState("");
   const [team, setTeam] = useState<"A" | "B">("A");
-  const [recordedDate, setRecordedDate] = useState(
-    () => new Date().toISOString().slice(0, 10),
+  const [recordedDate, setRecordedDate] = useState(() =>
+    accountTodayCalendarDate(timezoneId),
   );
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -249,6 +252,7 @@ export function ReviewExtractedData({ jobId }: Props) {
               eventTypeLabel,
               event: ev,
               locale,
+              timezoneId,
             }),
           }));
           setEvents(list);
@@ -276,6 +280,7 @@ export function ReviewExtractedData({ jobId }: Props) {
             eventTypeLabel,
             event: ev,
             locale,
+            timezoneId,
           }),
         }));
         setEvents(list);
@@ -292,6 +297,7 @@ export function ReviewExtractedData({ jobId }: Props) {
     hqEventId,
     eventTypeLabel,
     locale,
+    timezoneId,
   ]);
 
   const activeRows = useMemo(
@@ -546,6 +552,7 @@ export function ReviewExtractedData({ jobId }: Props) {
                       eventTypeLabel,
                       eventDate: recordedDate,
                       locale,
+                      timezoneId,
                     });
                     const res = await fetch("/api/hq-events", {
                       method: "POST",

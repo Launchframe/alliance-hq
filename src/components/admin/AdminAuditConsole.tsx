@@ -1,18 +1,21 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useLocale, useTranslations } from "next-intl";
+import { useTranslations } from "next-intl";
 
+import {
+  FormattedDateTime,
+  useAccountTimezone,
+} from "@/components/timezone/TimezoneProvider";
 import {
   AUDIT_ACTION_FILTER_OPTIONS,
   buildAuditLogSearchParams,
   type AuditLogFilters,
 } from "@/lib/admin/audit-query";
 import {
-  formatServerDateTime,
-  serverCalendarDateToUtcEnd,
-  serverCalendarDateToUtcStart,
-} from "@/lib/server-time";
+  accountCalendarDateToUtcEnd,
+  accountCalendarDateToUtcStart,
+} from "@/lib/timezone/format";
 
 type Alliance = {
   id: string;
@@ -57,13 +60,15 @@ function buildAllianceTagLookup(alliances: Alliance[]): Map<string, string> {
 export function AdminAuditConsole() {
   const t = useTranslations("admin");
   const tAudit = useTranslations("admin.auditPage");
-  const locale = useLocale();
+  const { timezoneId } = useAccountTimezone();
   const [alliances, setAlliances] = useState<Alliance[]>([]);
   const [entries, setEntries] = useState<AuditEntry[]>([]);
-  const [filters, setFilters] = useState<AuditLogFilters>(DEFAULT_FILTERS);
+  const [allianceId, setAllianceId] = useState<string | undefined>();
+  const [action, setAction] = useState<string | undefined>();
   const [sinceDate, setSinceDate] = useState("");
   const [untilDate, setUntilDate] = useState("");
   const [hqUserIdInput, setHqUserIdInput] = useState("");
+  const [hqUserId, setHqUserId] = useState<string | undefined>();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -72,16 +77,26 @@ export function AdminAuditConsole() {
     [alliances],
   );
 
+  const queryFilters = useMemo(
+    (): AuditLogFilters => ({
+      limit: DEFAULT_FILTERS.limit,
+      allianceId,
+      action,
+      hqUserId,
+      since: sinceDate
+        ? accountCalendarDateToUtcStart(sinceDate, timezoneId)
+        : undefined,
+      until: untilDate
+        ? accountCalendarDateToUtcEnd(untilDate, timezoneId)
+        : undefined,
+    }),
+    [action, allianceId, hqUserId, sinceDate, timezoneId, untilDate],
+  );
+
   useEffect(() => {
     const handle = window.setTimeout(() => {
       const trimmed = hqUserIdInput.trim();
-      setFilters((prev) => {
-        const hqUserId = trimmed || undefined;
-        if (prev.hqUserId === hqUserId) {
-          return prev;
-        }
-        return { ...prev, hqUserId };
-      });
+      setHqUserId(trimmed || undefined);
     }, HQ_USER_FILTER_DEBOUNCE_MS);
 
     return () => window.clearTimeout(handle);
@@ -94,7 +109,7 @@ export function AdminAuditConsole() {
       setLoading(true);
       setError(null);
       try {
-        const qs = buildAuditLogSearchParams(filters);
+        const qs = buildAuditLogSearchParams(queryFilters);
         const res = await fetch(`/api/admin/audit?${qs}`);
         if (!res.ok) {
           const data = (await res.json()) as { error?: string };
@@ -119,7 +134,7 @@ export function AdminAuditConsole() {
     return () => {
       cancelled = true;
     };
-  }, [filters, tAudit]);
+  }, [queryFilters, tAudit]);
 
   useEffect(() => {
     void (async () => {
@@ -134,27 +149,13 @@ export function AdminAuditConsole() {
     })();
   }, []);
 
-  function updateSinceDate(value: string) {
-    setSinceDate(value);
-    setFilters((prev) => ({
-      ...prev,
-      since: value ? serverCalendarDateToUtcStart(value) : undefined,
-    }));
-  }
-
-  function updateUntilDate(value: string) {
-    setUntilDate(value);
-    setFilters((prev) => ({
-      ...prev,
-      until: value ? serverCalendarDateToUtcEnd(value) : undefined,
-    }));
-  }
-
   function clearFilters() {
     setSinceDate("");
     setUntilDate("");
     setHqUserIdInput("");
-    setFilters(DEFAULT_FILTERS);
+    setHqUserId(undefined);
+    setAllianceId(undefined);
+    setAction(undefined);
   }
 
   return (
@@ -164,13 +165,8 @@ export function AdminAuditConsole() {
           <span className="text-[#8b949e]">{tAudit("filters.alliance")}</span>
           <select
             className="block min-w-[12rem] rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 font-mono text-sm"
-            value={filters.allianceId ?? ""}
-            onChange={(e) =>
-              setFilters((prev) => ({
-                ...prev,
-                allianceId: e.target.value || undefined,
-              }))
-            }
+            value={allianceId ?? ""}
+            onChange={(e) => setAllianceId(e.target.value || undefined)}
           >
             <option value="">{tAudit("filters.allAlliances")}</option>
             {alliances.map((alliance) => (
@@ -185,13 +181,8 @@ export function AdminAuditConsole() {
           <span className="text-[#8b949e]">{tAudit("filters.action")}</span>
           <select
             className="block min-w-[12rem] rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 text-sm"
-            value={filters.action ?? ""}
-            onChange={(e) =>
-              setFilters((prev) => ({
-                ...prev,
-                action: e.target.value || undefined,
-              }))
-            }
+            value={action ?? ""}
+            onChange={(e) => setAction(e.target.value || undefined)}
           >
             {AUDIT_ACTION_FILTER_OPTIONS.map((option) => (
               <option key={option.value || "all"} value={option.value}>
@@ -207,7 +198,7 @@ export function AdminAuditConsole() {
             type="date"
             className="block rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 text-sm"
             value={sinceDate}
-            onChange={(e) => updateSinceDate(e.target.value)}
+            onChange={(e) => setSinceDate(e.target.value)}
           />
         </label>
 
@@ -217,7 +208,7 @@ export function AdminAuditConsole() {
             type="date"
             className="block rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 text-sm"
             value={untilDate}
-            onChange={(e) => updateUntilDate(e.target.value)}
+            onChange={(e) => setUntilDate(e.target.value)}
           />
         </label>
 
@@ -241,8 +232,6 @@ export function AdminAuditConsole() {
         </button>
       </div>
 
-      <p className="text-xs text-[#8b949e]">{tAudit("serverTimeNote")}</p>
-
       {error ? <p className="text-sm text-red-400">{error}</p> : null}
 
       {loading ? (
@@ -265,7 +254,7 @@ export function AdminAuditConsole() {
               {entries.map((entry) => (
                 <tr key={entry.id} className="border-t border-[#30363d]">
                   <td className="px-4 py-2 whitespace-nowrap text-[#8b949e]">
-                    {formatServerDateTime(entry.createdAt, locale)}
+                    <FormattedDateTime value={entry.createdAt} />
                   </td>
                   <td className="px-4 py-2">{entry.action}</td>
                   <td className="px-4 py-2">

@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 
+import { FormattedDateTime } from "@/components/timezone/TimezoneProvider";
+
 type HqEvent = {
   id: string;
   name: string;
@@ -93,7 +95,7 @@ export default function AdminHqEventsPage() {
               {events.map((event) => (
                 <tr key={event.id} className="border-t border-[#30363d]">
                   <td className="px-4 py-2 whitespace-nowrap text-[#8b949e]">
-                    {new Date(event.createdAt).toLocaleString()}
+                    <FormattedDateTime value={event.createdAt} />
                   </td>
                   <td className="px-4 py-2">{event.name}</td>
                   <td className="px-4 py-2">{event.scoreTarget}</td>
