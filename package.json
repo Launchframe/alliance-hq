@@ -12,11 +12,20 @@
     "db:push": "drizzle-kit push",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "node scripts/db-migrate.mjs",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "har:catalog": "node scripts/har/extract-catalog.mjs",
+    "video:worker": "node scripts/workers/video-processor.mjs",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "prepare": "husky"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1068.0",
     "@base44/sdk": "^0.8.32",
+    "@vercel/analytics": "^1.6.1",
     "drizzle-orm": "^0.45.2",
+    "ffmpeg-static": "^5.3.0",
     "nanoid": "^5.1.11",
     "next": "16.2.9",
     "next-intl": "^4.13.0",
@@ -30,11 +39,14 @@
     "@types/node": "^20.19.43",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@vitest/coverage-v8": "^4.1.8",
     "dotenv": "^17.4.2",
     "drizzle-kit": "^0.31.10",
     "eslint": "^9",
     "eslint-config-next": "16.2.9",
+    "husky": "^9.1.7",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.8"
   }
 }
