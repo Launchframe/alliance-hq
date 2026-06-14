@@ -43,7 +43,7 @@
   },
   "shell": {
     "brand": "Alliance HQ",
-    "domain": "alliance-hq.online",
+    "domain": "alliance-hq.vercel.app",
     "dataPoweredBy": "Dados fornecidos por <link>Ashed</link>",
     "connectedAs": "Conectado como {user}",
     "defaultUser": "Usuário Ashed",
@@ -120,7 +120,7 @@
   "privacy": {
     "backToConnect": "← Voltar ao Connect",
     "title": "Política de Privacidade",
-    "intro": "O Alliance HQ, em alliance-hq.online, é uma ferramenta comunitária para oficiais de alianças do jogo Last War. Esta página explica o que armazenamos e como protegemos essas informações.",
+    "intro": "O Alliance HQ, em alliance-hq.vercel.app, é uma ferramenta comunitária para oficiais de alianças do jogo Last War. Esta página explica o que armazenamos e como protegemos essas informações.",
     "noSellTitle": "Não vendemos seus dados",
     "noSellBody1": "O Alliance HQ existe para ajudar sua aliança a utilizar o <link>ashed.online</link> com mais facilidade. Nós <strong>nunca</strong> venderemos, alugaremos ou negociaremos suas informações pessoais ou dados da aliança com terceiros. Não utilizamos seus dados para publicidade, nem criamos perfis de marketing com base em sua atividade.",
     "noSellBody2": "Utilizamos apenas as informações necessárias para fornecer o serviço solicitado — por exemplo, manter sua sessão ativa e interagir com o Ashed em seu nome ao utilizar os recursos do Alliance HQ.",
@@ -159,7 +159,7 @@
     "disconnectButton": "Desconectar Ashed",
     "reminderSaved": "Preferência de lembrete salva",
     "reminderSaveFailed": "Não foi possível salvar a preferência de lembrete",
-    "aboutBody": "O Alliance HQ, em <strong>alliance-hq.online</strong>, é uma interface comunitária para o <link>ashed.online</link>. Todos os créditos pelos dados da aliança pertencem ao Ashed."
+    "aboutBody": "O Alliance HQ, em <strong>alliance-hq.vercel.app</strong>, é uma interface comunitária para o <link>ashed.online</link>. Todos os créditos pelos dados da aliança pertencem ao Ashed."
   },
   "tokenExpiry": {
     "logoutWarning": "Encerrar a sessão no ashed.online pode interromper sua conexão com o Alliance HQ, mesmo que seu token ainda não tenha expirado.",

@@ -34,7 +34,7 @@ export async function generateMetadata({ params }: Props) {
     },
     description: t("description"),
     metadataBase: new URL(
-      process.env.NEXT_PUBLIC_APP_URL ?? "https://alliance-hq.online",
+      process.env.NEXT_PUBLIC_APP_URL ?? "https://alliance-hq.vercel.app",
     ),
   };
 }

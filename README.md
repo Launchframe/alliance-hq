@@ -2,7 +2,7 @@
 
 A portal shell for [ashed.online](https://ashed.online) — alliance tools for Last War built on the Base44 backend, with custom features like video-to-screenshot upload.
 
-**Production domain:** [alliance-hq.online](https://alliance-hq.online)
+**Production domain:** [alliance-hq.vercel.app](https://alliance-hq.vercel.app)
 
 ## What this is
 
@@ -87,7 +87,7 @@ npm install
 |----------|------------------|
 | `DATABASE_URL` | Neon Postgres connection string (required at **build** time — migrations run before `next build`) |
 | `TOKEN_ENCRYPTION_KEY` | Same 64-char hex key for all environments, or generate once and store in a password manager |
-| `NEXT_PUBLIC_APP_URL` | `https://alliance-hq.online` |
+| `NEXT_PUBLIC_APP_URL` | `https://alliance-hq.vercel.app` |
 
 Do **not** set `LOCAL_DATABASE_URL` on Vercel.
 
@@ -97,10 +97,10 @@ For local schema changes: `npm run db:generate` → commit new files under `driz
 
 Optional one-off (without redeploying): `DATABASE_URL="postgresql://…neon…" npm run db:migrate`
 
-4. Add custom domain **alliance-hq.online** in Vercel → Settings → Domains
+4. Add custom domain **alliance-hq.vercel.app** in Vercel → Settings → Domains
 5. At your DNS provider, point the domain to Vercel (A/CNAME records shown in the Vercel UI)
 
-Health check after deploy: `https://alliance-hq.online/api/health/db`
+Health check after deploy: `https://alliance-hq.vercel.app/api/health/db`
 
 ## Project structure
 

@@ -43,7 +43,7 @@
   },
   "shell": {
     "brand": "Alliance HQ",
-    "domain": "alliance-hq.online",
+    "domain": "alliance-hq.vercel.app",
     "dataPoweredBy": "Data powered by <link>Ashed</link>",
     "connectedAs": "Connected as {user}",
     "defaultUser": "Ashed user",
@@ -120,7 +120,7 @@
   "privacy": {
     "backToConnect": "← Back to Connect",
     "title": "Privacy Policy",
-    "intro": "Alliance HQ at alliance-hq.online is a community tool for Last War alliance officers. This page explains what we store and how we protect it.",
+    "intro": "Alliance HQ at alliance-hq.vercel.app is a community tool for Last War alliance officers. This page explains what we store and how we protect it.",
     "noSellTitle": "We do not sell your data",
     "noSellBody1": "Alliance HQ exists to help your alliance use <link>ashed.online</link> more easily. We will <strong>never</strong> sell, rent, or trade your personal information or alliance data to third parties. We do not use your data for advertising, and we do not build marketing profiles from your activity.",
     "noSellBody2": "We only use the information needed to run the service you asked for — for example, keeping you signed in and calling Ashed on your behalf when you use Alliance HQ features.",
@@ -159,7 +159,7 @@
     "disconnectButton": "Disconnect Ashed",
     "reminderSaved": "Reminder preference saved",
     "reminderSaveFailed": "Could not save reminder preference",
-    "aboutBody": "Alliance HQ at <strong>alliance-hq.online</strong> is a community wrapper for <link>ashed.online</link>. All alliance data credit belongs to Ashed."
+    "aboutBody": "Alliance HQ at <strong>alliance-hq.vercel.app</strong> is a community wrapper for <link>ashed.online</link>. All alliance data credit belongs to Ashed."
   },
   "tokenExpiry": {
     "logoutWarning": "Logging out of ashed.online could break your Alliance HQ connection, even if your token has not reached its expiration yet.",
