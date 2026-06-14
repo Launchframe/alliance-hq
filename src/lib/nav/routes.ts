@@ -1,61 +1,242 @@
-export type NavRouteKind = "native" | "ashed" | "external";
+export type NavRouteKind = "iframe" | "native" | "external";
 
-export type NavRouteDef = {
-  href: string;
+export type NavPageDef = {
+  id: string;
   labelKey: string;
+  href: string;
   kind: NavRouteKind;
+  /**
+   * Override for ashed.online iframe src when it is not trainwreckCase(href).
+   * Normally omit — HQ kebab-case routes map by stripping hyphens.
+   */
   ashedPath?: string;
-  externalUrl?: string;
   descriptionKey?: string;
 };
 
-export const NAV_ROUTE_DEFS: NavRouteDef[] = [
+export type NavGroupDef = {
+  id: string;
+  labelKey: string;
+  pages: NavPageDef[];
+};
+
+/**
+ * Ashed SPA paths: take HQ kebab-case and remove hyphens.
+ * e.g. /desert-storm → /desertstorm, /waiting-list → /waitinglist
+ */
+export function trainwreckCase(hqPath: string): string {
+  const segment = hqPath.replace(/^\//, "").replace(/-/g, "");
+  return `/${segment}`;
+}
+
+export function resolveAshedPath(page: NavPageDef): string | undefined {
+  if (page.kind !== "iframe") {
+    return undefined;
+  }
+  return page.ashedPath ?? trainwreckCase(page.href);
+}
+
+/** Sidebar groups mirroring docs/ashed-api-catalog.json navGroups */
+export const NAV_GROUPS: NavGroupDef[] = [
   {
-    href: "/",
-    labelKey: "dashboard",
-    kind: "native",
-    descriptionKey: "dashboardDescription",
+    id: "alliance-management",
+    labelKey: "allianceManagement",
+    pages: [
+      {
+        id: "dashboard",
+        labelKey: "dashboard",
+        href: "/dashboard",
+        kind: "iframe",
+      },
+      {
+        id: "alliances",
+        labelKey: "alliances",
+        href: "/alliances",
+        kind: "iframe",
+      },
+      {
+        id: "members",
+        labelKey: "members",
+        href: "/members",
+        kind: "native",
+        descriptionKey: "membersDescription",
+      },
+      {
+        id: "waiting-list",
+        labelKey: "waitingList",
+        href: "/waiting-list",
+        kind: "iframe",
+      },
+      {
+        id: "alliance-tasks",
+        labelKey: "allianceTasks",
+        href: "/alliance-tasks",
+        kind: "iframe",
+      },
+      {
+        id: "merge-manager",
+        labelKey: "mergeManager",
+        href: "/merge-manager",
+        kind: "iframe",
+      },
+    ],
   },
   {
-    href: "/tools/video-upload",
-    labelKey: "videoUpload",
-    kind: "native",
-    descriptionKey: "videoUploadDescription",
+    id: "performance-reporting",
+    labelKey: "performanceReporting",
+    pages: [
+      {
+        id: "vs-performance",
+        labelKey: "vsPerformance",
+        href: "/vs-performance",
+        kind: "iframe",
+      },
+      {
+        id: "donations",
+        labelKey: "donations",
+        href: "/donations",
+        kind: "iframe",
+      },
+      {
+        id: "alliance-exercise",
+        labelKey: "allianceExercise",
+        href: "/alliance-exercise",
+        kind: "iframe",
+      },
+      {
+        id: "reports",
+        labelKey: "reports",
+        href: "/reports",
+        kind: "iframe",
+      },
+    ],
   },
   {
-    href: "/ashed/reports",
-    labelKey: "reports",
-    kind: "ashed",
-    ashedPath: "/reports",
+    id: "events-operations",
+    labelKey: "eventsOperations",
+    pages: [
+      {
+        id: "desert-storm",
+        labelKey: "desertStorm",
+        href: "/desert-storm",
+        kind: "iframe",
+      },
+      {
+        id: "canyon-storm",
+        labelKey: "canyonStorm",
+        href: "/canyon-storm",
+        kind: "iframe",
+      },
+      {
+        id: "other-events",
+        labelKey: "otherEvents",
+        href: "/seasonal-events",
+        kind: "iframe",
+      },
+      {
+        id: "zombie-siege",
+        labelKey: "zombieSiege",
+        href: "/zombie-siege",
+        kind: "iframe",
+      },
+    ],
   },
   {
-    href: "/ashed/members",
-    labelKey: "members",
-    kind: "ashed",
-    ashedPath: "/members",
+    id: "admin-settings",
+    labelKey: "adminSettings",
+    pages: [
+      {
+        id: "data-management",
+        labelKey: "dataManagement",
+        href: "/data-management",
+        kind: "iframe",
+      },
+      {
+        id: "unmatched-names",
+        labelKey: "unmatchedNames",
+        href: "/unmatched-names",
+        kind: "iframe",
+      },
+    ],
   },
   {
-    href: "/ashed/violations",
-    labelKey: "violations",
-    kind: "ashed",
-    ashedPath: "/violations",
+    id: "hq-native",
+    labelKey: "hqNative",
+    pages: [
+      {
+        id: "video-upload",
+        labelKey: "videoUpload",
+        href: "/tools/video-upload",
+        kind: "native",
+        descriptionKey: "videoUploadDescription",
+      },
+      {
+        id: "settings",
+        labelKey: "settings",
+        href: "/settings",
+        kind: "native",
+      },
+    ],
   },
+];
+
+export const FOOTER_NAV: NavPageDef[] = [
   {
-    href: "https://ashed.online",
+    id: "open-ashed",
     labelKey: "openAshed",
+    href: "https://ashed.online",
     kind: "external",
-    externalUrl: "https://ashed.online",
-  },
-  {
-    href: "/settings",
-    labelKey: "settings",
-    kind: "native",
   },
 ];
 
 export const ASHED_ORIGIN = "https://ashed.online";
 
+const IFRAME_PAGES = NAV_GROUPS.flatMap((g) => g.pages).filter(
+  (p) => p.kind === "iframe",
+);
+
+/** Segment after locale, e.g. "members" for /members */
+export const IFRAME_ROUTE_SEGMENTS = new Set(
+  IFRAME_PAGES.map((p) => p.href.replace(/^\//, "")),
+);
+
+/** @deprecated Use NAV_GROUPS — kept for any legacy imports */
+export const NAV_ROUTE_DEFS: NavPageDef[] = [
+  ...NAV_GROUPS.flatMap((g) => g.pages),
+  ...FOOTER_NAV,
+];
+
+const LEGACY_ASHED_REDIRECTS: Record<string, string> = {
+  reports: "/reports",
+  members: "/members",
+  violations: "/members",
+};
+
+/** Old HQ paths before trainwreckCase wiring */
+const LEGACY_IFRAME_HQ_SEGMENTS: Record<string, string> = {
+  "other-events": "/seasonal-events",
+};
+
 export function ashedUrlForPath(path: string): string {
   const normalized = path.startsWith("/") ? path : `/${path}`;
   return `${ASHED_ORIGIN}${normalized}`;
+}
+
+export function resolveIframePage(segment: string): NavPageDef | null {
+  const href = LEGACY_IFRAME_HQ_SEGMENTS[segment] ?? `/${segment}`;
+  return IFRAME_PAGES.find((p) => p.href === href) ?? null;
+}
+
+export function legacyAshedRedirect(pathSegments: string[]): string | null {
+  if (pathSegments.length !== 1) {
+    return null;
+  }
+  const target = LEGACY_ASHED_REDIRECTS[pathSegments[0]!];
+  return target ?? null;
+}
+
+export function isNavActive(pathname: string, href: string): boolean {
+  if (href === "/") {
+    return pathname === "/";
+  }
+  return pathname === href || pathname.startsWith(`${href}/`);
 }

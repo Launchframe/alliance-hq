@@ -1,5 +1,11 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
+# working files
+.cursor/
+## Ashed data exports
+LFgo_export*
+OMFG_export*
+
 # dependencies
 /node_modules
 /.pnp
@@ -39,6 +45,9 @@ yarn-error.log*
 
 # local captures (may contain auth tokens)
 /har/
+
+# local upload storage (dev fallback when R2 is not configured)
+/.data/
 
 # typescript
 *.tsbuildinfo

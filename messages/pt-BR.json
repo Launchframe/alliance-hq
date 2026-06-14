@@ -16,6 +16,8 @@
     "appId": "ID do aplicativo",
     "originUrl": "URL de origem",
     "pasteHere": "Cole aqui",
+    "optional": "Opcional",
+    "skip": "Pular",
     "connectionFailed": "Falha na conexão",
     "uploadFailed": "Falha no upload",
     "disconnectFailed": "Falha ao desconectar",
@@ -30,14 +32,33 @@
     "attribution": "O Alliance HQ é uma interface comunitária para <link>ashed.online</link>. Os créditos pelos dados da Alliance pertencem a Ashed.",
     "privacyPolicy": "Política de Privacidade"
   },
+  "navGroups": {
+    "allianceManagement": "Gestão da Aliança",
+    "performanceReporting": "Desempenho e Relatórios",
+    "eventsOperations": "Eventos e Operações",
+    "adminSettings": "Administração e Configurações",
+    "hqNative": "Alliance HQ"
+  },
   "nav": {
     "dashboard": "Painel",
-    "dashboardDescription": "Visão geral e atividades recentes",
+    "alliances": "Alianças",
+    "members": "Membros",
+    "membersDescription": "Elenco ao vivo do Ashed para correspondência de pontuações",
+    "waitingList": "Lista de Espera",
+    "allianceTasks": "Tarefas da Aliança",
+    "mergeManager": "Gerenciador de Fusão",
+    "vsPerformance": "Desempenho VS",
+    "donations": "Doações",
+    "allianceExercise": "Exercício da Aliança",
+    "reports": "Relatórios",
+    "desertStorm": "Desert Storm",
+    "canyonStorm": "Canyon Storm",
+    "otherEvents": "Outros Eventos",
+    "zombieSiege": "Zombie Siege",
+    "dataManagement": "Gerenciamento de Dados",
+    "unmatchedNames": "Nomes Não Correspondidos",
     "videoUpload": "Upload de vídeo",
     "videoUploadDescription": "Extrair capturas de tela do placar a partir de uma gravação de tela",
-    "reports": "Relatórios",
-    "members": "Membros",
-    "violations": "Violações",
     "openAshed": "Abra o Ashed",
     "settings": "Configurações"
   },
@@ -67,6 +88,11 @@
     "signedInAsBefore": "Conectado como",
     "noExpiryRead": "Conectado, mas não conseguimos ler uma data de expiração neste token. Ainda assim, notificaremos você se o Ashed parar de aceitá-lo.",
     "continue": "Continuar para o Alliance HQ",
+    "allianceResolved": "Aliança vinculada: {tag} ({name})",
+    "embeddedLoginSuccess": {
+      "title": "Primeira vez em uma página Ashed incorporada?",
+      "body": "Se você entra no Ashed com Google, use seu <strong>e-mail e senha do Ashed</strong> dentro do Alliance HQ — não o botão do Google. O login com Google é bloqueado em páginas incorporadas."
+    },
     "steps": {
       "login": {
         "title": "Faça login no ashed.online",
@@ -92,9 +118,16 @@
         "title": "Copiar cabeçalho de autorização",
         "checklist": "Copiei o cabeçalho de autorização"
       },
+      "embeddedLogin": {
+        "title": "Login Ashed incorporado",
+        "checklist": "Defini uma senha no Ashed (ou já entro com e-mail)"
+      },
       "paste": {
         "title": "Colar e conectar",
         "intro": "Cole seu comando <strong>Copiar como cURL</strong> aqui (recomendado). Também aceitamos um token Bearer, uma linha de cabeçalho de autorização ou uma string de conexão completa.",
+        "allianceTagLabel": "Tag da aliança",
+        "allianceTagPlaceholder": "LFgo",
+        "allianceTagHint": "A tag in-game da sua aliança em ashed.online → Alliances. Usamos isso na lista global de alianças para limitar membros e pontuações à sua aliança.",
         "placeholder": "curl 'https://base44.app/api/apps/…' \\\n  -H 'authorization: Bearer eyJhbGci…' \\\n  -H 'x-origin-url: https://ashed.online' …",
         "tokenExpires": "O token expira em <date></date> (via JWT)",
         "checklist": "Pronto para conectar"
@@ -115,6 +148,18 @@
       "authorizationScreenshotCaption": "Aba Headers → role até authorization e copie o valor completo do Bearer",
       "authorizationExample": "authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.…",
       "tryCurlInstead": "Tente copiar como uma solicitação cURL"
+    },
+    "embeddedLogin": {
+      "optionalLabel": "Opcional:",
+      "optionalBody": "Pule esta etapa se você já entra no ashed.online com e-mail e senha.",
+      "problemIntro": "O Alliance HQ incorpora o <link>ashed.online</link> dentro do aplicativo. Se você entra no Ashed com o <strong>Google</strong>, o Google bloqueia esse login em páginas incorporadas — você pode ver um erro 403 quando o iframe pedir login.",
+      "workaroundIntro": "Você pode adicionar uma senha à sua conta Ashed uma vez. Depois disso, use e-mail + senha nas páginas incorporadas do Alliance HQ. Seu login com Google continua funcionando quando você abre o ashed.online diretamente.",
+      "stepForgotPassword": "No <link>ashed.online</link> (mesma aba da etapa 1), abra a tela de login e escolha <strong>Esqueci a senha</strong>. Informe o e-mail da sua conta Ashed.",
+      "stepResetEmail": "Abra o link de redefinição no seu e-mail e escolha uma nova senha.",
+      "stepChoosePassword": "Confirme que a senha foi salva — você a usará dentro do Alliance HQ, não sua conta Google.",
+      "stepFirstEmbedLogin": "Depois de conectar abaixo, a primeira página Ashed incorporada pode pedir login. Use <strong>e-mail + senha</strong> — não clique em Entrar com Google.",
+      "googleStillWorksNote": "Isso não remove o login com Google do ashed.online quando você o visita em uma aba própria.",
+      "checklistHint": "Não é obrigatório — use Pular se isso não se aplicar a você."
     }
   },
   "privacy": {
@@ -149,6 +194,16 @@
   "settings": {
     "title": "Configurações",
     "subtitle": "Gerencie sua conexão com o Ashed e as preferências do Alliance HQ.",
+    "allianceSection": "Sua aliança",
+    "allianceBody": "O Alliance HQ limita correspondência de membros e envio de pontuações a uma aliança. Informe a tag exibida em ashed.online → Alliances (ex.: LFgo).",
+    "allianceTagLabel": "Tag da aliança",
+    "allianceTagPlaceholder": "LFgo",
+    "allianceTagSave": "Salvar tag da aliança",
+    "allianceTagSaving": "Salvando…",
+    "allianceTagRequired": "A tag da aliança é obrigatória.",
+    "allianceTagSaved": "Vinculado a {tag} ({name}). Execute o OCR novamente em jobs abertos se os membros estiverem errados.",
+    "allianceTagSavedGeneric": "Tag da aliança salva.",
+    "allianceTagSaveFailed": "Não foi possível salvar a tag da aliança.",
     "tokenSection": "Token do Ashed",
     "remindMe": "Lembre-me",
     "reminderOption": "{days, plural, one {# dia} other {# dias}} antes da expiração",
@@ -170,9 +225,33 @@
     "reconnectLink": "Reconectar com um novo comando cURL",
     "updateLink": "Atualizar conexão"
   },
+  "members": {
+    "title": "Membros",
+    "subtitle": "Elenco sincronizado do Ashed para a tag da sua aliança. Use isto para confirmar que o OCR de vídeo e a correspondência de nomes estão corretos.",
+    "allianceLine": "Aliança {tag} ({name})",
+    "counts": "{active} ativos · {former} ex-membros · {total} total",
+    "search": "Buscar",
+    "searchPlaceholder": "Nome ou nome anterior…",
+    "showFormer": "Mostrar ex-membros",
+    "refresh": "Atualizar do Ashed",
+    "refreshing": "Atualizando…",
+    "openInAshed": "Abrir no Ashed ↗",
+    "lastSynced": "Última sincronização {time}",
+    "colName": "Nome atual",
+    "colPreviousNames": "Nomes anteriores",
+    "colStatus": "Status",
+    "statusActive": "Ativo",
+    "statusFormer": "Ex-membro",
+    "noPreviousNames": "—",
+    "empty": "Nenhum membro corresponde aos filtros.",
+    "loadFailed": "Não foi possível atualizar os membros.",
+    "missingTag": "Defina a tag da aliança em Configurações para sabermos qual elenco carregar do Ashed.",
+    "goToSettings": "Ir para Configurações"
+  },
   "video": {
     "title": "Enviar a partir de vídeo",
-    "subtitle": "Envie uma gravação de tela do Last War. Extrairemos capturas de tela do placar e as enviaremos ao Ashed para OCR — o mesmo processo dos envios manuais, mas mais rápido.",
+    "subtitle": "Grave a rolagem de um placar do Last War. Extraímos frames, OCR e você revisa antes de enviar ao Ashed.",
+    "scoreTargetLabel": "Qual placar é este?",
     "categoryLabel": "Que tipo de placar é este?",
     "categories": {
       "vs": "VS / pontuações semanais",
@@ -181,24 +260,68 @@
       "general": "Outros"
     },
     "fileLabel": "Arquivo de vídeo",
-    "fileHint": "MP4 ou MOV; vídeos com menos de 3 minutos funcionam melhor. Máximo de 200 MB por enquanto.",
+    "fileHint": "MP4 ou MOV gravando a rolagem do placar. Requer ffmpeg no servidor.",
     "selectedFile": "Selecionado: {name} ({size})",
     "chooseFileFirst": "Escolha um arquivo de vídeo primeiro.",
     "uploading": "Enviando…",
     "uploadButton": "Enviar vídeo",
     "queuedSuccess": "Vídeo colocado na fila para processamento.",
     "recentUploads": "Envios recentes",
+    "reviewLink": "Revisar",
     "status": {
-      "pending": "pendente",
-      "processing": "processando",
+      "queued": "na fila",
+      "extracting": "extraindo frames",
+      "parsing": "OCR em andamento",
+      "review": "pronto para revisar",
+      "submitting": "enviando",
       "complete": "concluído",
-      "failed": "falha"
+      "failed": "falha",
+      "pending": "pendente",
+      "processing": "processando"
     }
+  },
+  "videoJobs": {
+    "readyBanner": "\"{fileName}\" está pronto para revisão.",
+    "readyBannerWithCounts": "\"{fileName}\" está pronto — {matched} de {total} nomes correspondidos.",
+    "readyBannerCta": "Revisar resultados",
+    "failedBanner": "Falha no processamento de \"{fileName}\".",
+    "failedBannerCta": "Ver uploads",
+    "dismiss": "Dispensar"
+  },
+  "videoReview": {
+    "title": "Revisar dados extraídos",
+    "loading": "Carregando…",
+    "processing": "Processando ({status})… esta página atualiza automaticamente.",
+    "processingFailed": "Falha no processamento. Tente enviar novamente.",
+    "backToUploads": "← Voltar aos envios",
+    "summary": "{matched} correspondidos · {total} entradas",
+    "noEntriesHint": "O OCR terminou, mas nenhuma linha foi interpretada. Geralmente era um bug de formato de resposta — tente executar o OCR novamente.",
+    "reprocess": "Executar OCR novamente",
+    "reprocessing": "Executando OCR novamente…",
+    "rematchingMembers": "Atualizando correspondências de membros para sua aliança atual…",
+    "eventLabel": "Evento Desert Storm",
+    "teamLabel": "Equipe",
+    "dateLabel": "Data registrada",
+    "colName": "Nome",
+    "colMember": "Membro correspondido",
+    "colScore": "Pontuação",
+    "unmatched": "Selecionar membro…",
+    "deleteRow": "Excluir",
+    "saveScores": "Salvar {count} pontuações",
+    "submitting": "Enviando…",
+    "submitSuccess": "{count} pontuações salvas no Ashed.",
+    "scoreConflictHint": "Alguns jogadores foram lidos com pontuações conflitantes entre frames do vídeo. Escolha a pontuação correta e exclua a linha extra de cada jogador.",
+    "scoreConflictRow": "Pontuações conflitantes — verifique e exclua a linha duplicada.",
+    "duplicateMemberTitle": "Várias linhas correspondem ao mesmo membro",
+    "duplicateMemberItem": "{member} aparece em {count} linhas",
+    "duplicateMemberHint": "Cada membro só pode ter uma pontuação neste placar. Verifique nome e pontuação, depois exclua linhas duplicadas ou alucinadas.",
+    "duplicateMemberRow": "Atribuição duplicada ao membro",
+    "duplicateMemberBlocked": "Corrija as linhas duplicadas de membros antes de salvar."
   },
   "ashedEmbed": {
     "description": "Esta página está hospedada no Ashed. Abra-a abaixo ou em uma nova aba — a barra lateral do seu Alliance HQ permanece aqui.",
     "openInAshed": "Abrir no Ashed ↗",
-    "iframeHint": "Se o quadro estiver em branco, o Ashed pode estar bloqueando a incorporação — use \"Abrir no Ashed\" acima.",
+    "iframeHint": "Páginas incorporadas exigem login separado no Ashed. Se você usa login com Google no ashed.online, entre aqui com e-mail + senha. Se o quadro ficar em branco, use \"Abrir no Ashed\" acima.",
     "iframeTitle": "Ashed — {path}"
   },
   "devErrors": {

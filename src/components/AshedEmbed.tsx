@@ -6,18 +6,19 @@ import { ashedUrlForPath } from "@/lib/nav/routes";
 
 type Props = {
   path: string;
+  labelKey?: string;
 };
 
-export function AshedEmbed({ path }: Props) {
+export function AshedEmbed({ path, labelKey }: Props) {
   const t = useTranslations("ashedEmbed");
+  const tNav = useTranslations("nav");
   const url = ashedUrlForPath(path);
+  const title = labelKey ? tNav(labelKey) : path;
 
   return (
     <div className="space-y-4">
       <div className="rounded-xl border border-[#30363d] bg-[#161b22] p-5">
-        <h1 className="text-xl font-semibold capitalize">
-          {path.replace(/^\//, "").replace(/-/g, " ") || "Ashed"}
-        </h1>
+        <h1 className="text-xl font-semibold">{title}</h1>
         <p className="mt-2 text-sm text-[#8b949e]">{t("description")}</p>
         <div className="mt-4 flex flex-wrap gap-2">
           <a
@@ -34,7 +35,7 @@ export function AshedEmbed({ path }: Props) {
       <div className="overflow-hidden rounded-xl border border-[#30363d] bg-[#0d1117]">
         <iframe
           src={url}
-          title={t("iframeTitle", { path })}
+          title={t("iframeTitle", { path: title })}
           className="h-[min(70vh,720px)] w-full"
           sandbox="allow-same-origin allow-scripts allow-forms allow-popups"
         />

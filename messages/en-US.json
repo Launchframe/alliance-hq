@@ -16,6 +16,8 @@
     "appId": "App id",
     "originUrl": "Origin URL",
     "pasteHere": "Paste here",
+    "optional": "Optional",
+    "skip": "Skip",
     "connectionFailed": "Connection failed",
     "uploadFailed": "Upload failed",
     "disconnectFailed": "Disconnect failed",
@@ -30,14 +32,33 @@
     "attribution": "Alliance HQ is a community wrapper for <link>ashed.online</link>. Alliance data credit belongs to Ashed.",
     "privacyPolicy": "Privacy Policy"
   },
+  "navGroups": {
+    "allianceManagement": "Alliance Management",
+    "performanceReporting": "Performance & Reporting",
+    "eventsOperations": "Events & Operations",
+    "adminSettings": "Admin & Settings",
+    "hqNative": "Alliance HQ"
+  },
   "nav": {
     "dashboard": "Dashboard",
-    "dashboardDescription": "Overview and recent activity",
+    "alliances": "Alliances",
+    "members": "Members",
+    "membersDescription": "Live roster from Ashed for score matching",
+    "waitingList": "Waiting List",
+    "allianceTasks": "Alliance Tasks",
+    "mergeManager": "Merge Manager",
+    "vsPerformance": "VS Performance",
+    "donations": "Donations",
+    "allianceExercise": "Alliance Exercise",
+    "reports": "Reports",
+    "desertStorm": "Desert Storm",
+    "canyonStorm": "Canyon Storm",
+    "otherEvents": "Other Events",
+    "zombieSiege": "Zombie Siege",
+    "dataManagement": "Data Management",
+    "unmatchedNames": "Unmatched Names",
     "videoUpload": "Upload from video",
     "videoUploadDescription": "Extract scoreboard screenshots from a screen recording",
-    "reports": "Reports",
-    "members": "Members",
-    "violations": "Violations",
     "openAshed": "Open Ashed",
     "settings": "Settings"
   },
@@ -67,6 +88,11 @@
     "signedInAsBefore": "Signed in as",
     "noExpiryRead": "Connected, but we couldn't read an expiry date from this token. We'll still notify you if Ashed stops accepting it.",
     "continue": "Continue to Alliance HQ",
+    "allianceResolved": "Alliance linked: {tag} ({name})",
+    "embeddedLoginSuccess": {
+      "title": "First time in an embedded Ashed page?",
+      "body": "If you sign into Ashed with Google, use your <strong>email and Ashed password</strong> inside Alliance HQ — not the Google button. Google Sign-In is blocked inside embedded pages."
+    },
     "steps": {
       "login": {
         "title": "Log into ashed.online",
@@ -92,9 +118,16 @@
         "title": "Copy authorization header",
         "checklist": "I copied the authorization header"
       },
+      "embeddedLogin": {
+        "title": "Embedded Ashed login",
+        "checklist": "I set an Ashed password (or I sign in with email already)"
+      },
       "paste": {
         "title": "Paste and connect",
         "intro": "Paste your <strong>Copy as cURL</strong> command here (recommended). We also accept a Bearer token, authorization header line, or full connection string.",
+        "allianceTagLabel": "Alliance tag",
+        "allianceTagPlaceholder": "LFgo",
+        "allianceTagHint": "Your in-game alliance tag from ashed.online → Alliances. We look this up in the global alliance list to scope members and scores to your alliance only.",
         "placeholder": "curl 'https://base44.app/api/apps/…' \\\n  -H 'authorization: Bearer eyJhbGci…' \\\n  -H 'x-origin-url: https://ashed.online' …",
         "tokenExpires": "Token expires <date></date> (from JWT)",
         "checklist": "Ready to connect"
@@ -115,6 +148,18 @@
       "authorizationScreenshotCaption": "Headers tab → scroll to authorization and copy the full Bearer value",
       "authorizationExample": "authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.…",
       "tryCurlInstead": "Try copying as a cURL request instead"
+    },
+    "embeddedLogin": {
+      "optionalLabel": "Optional:",
+      "optionalBody": "Skip this step if you already sign into ashed.online with email and password.",
+      "problemIntro": "Alliance HQ embeds <link>ashed.online</link> inside the app. If you sign into Ashed with <strong>Google</strong>, Google blocks that login inside embedded pages — you may see a 403 error when the iframe asks you to sign in.",
+      "workaroundIntro": "You can add a password to your Ashed account once. After that, use email + password for embedded pages in Alliance HQ. Your Google login still works when you open ashed.online directly.",
+      "stepForgotPassword": "On <link>ashed.online</link> (same tab from step 1), open the login screen and choose <strong>Forgot password?</strong> Enter the email on your Ashed account.",
+      "stepResetEmail": "Open the reset link from your email and choose a new password.",
+      "stepChoosePassword": "Confirm the password is saved — you will use it inside Alliance HQ, not your Google account.",
+      "stepFirstEmbedLogin": "After you connect below, the first embedded Ashed page may ask you to log in. Use <strong>email + password</strong> — do not click Sign in with Google.",
+      "googleStillWorksNote": "This does not remove Google Sign-In from ashed.online when you visit it in its own tab.",
+      "checklistHint": "Not required — use Skip if this does not apply to you."
     }
   },
   "privacy": {
@@ -149,6 +194,16 @@
   "settings": {
     "title": "Settings",
     "subtitle": "Manage your Ashed connection and Alliance HQ preferences.",
+    "allianceSection": "Your alliance",
+    "allianceBody": "Alliance HQ scopes member matching and score uploads to one alliance. Enter the tag shown on ashed.online → Alliances (e.g. LFgo).",
+    "allianceTagLabel": "Alliance tag",
+    "allianceTagPlaceholder": "LFgo",
+    "allianceTagSave": "Save alliance tag",
+    "allianceTagSaving": "Saving…",
+    "allianceTagRequired": "Alliance tag is required.",
+    "allianceTagSaved": "Linked to {tag} ({name}). Re-run OCR on open video jobs if members were wrong.",
+    "allianceTagSavedGeneric": "Alliance tag saved.",
+    "allianceTagSaveFailed": "Could not save alliance tag.",
     "tokenSection": "Ashed token",
     "remindMe": "Remind me",
     "reminderOption": "{days, plural, one {# day} other {# days}} before expiration",
@@ -170,9 +225,33 @@
     "reconnectLink": "Reconnect with a fresh cURL command",
     "updateLink": "Update connection"
   },
+  "members": {
+    "title": "Members",
+    "subtitle": "Roster synced from Ashed for your alliance tag. Use this to confirm video OCR and commendation matching see the right names.",
+    "allianceLine": "Alliance {tag} ({name})",
+    "counts": "{active} active · {former} former · {total} total",
+    "search": "Search",
+    "searchPlaceholder": "Name or previous name…",
+    "showFormer": "Show former members",
+    "refresh": "Refresh from Ashed",
+    "refreshing": "Refreshing…",
+    "openInAshed": "Open in Ashed ↗",
+    "lastSynced": "Last synced {time}",
+    "colName": "Current name",
+    "colPreviousNames": "Previous names",
+    "colStatus": "Status",
+    "statusActive": "Active",
+    "statusFormer": "Former",
+    "noPreviousNames": "—",
+    "empty": "No members match your filters.",
+    "loadFailed": "Could not refresh members.",
+    "missingTag": "Set your alliance tag in Settings so we know which roster to load from Ashed.",
+    "goToSettings": "Go to Settings"
+  },
   "video": {
     "title": "Upload from video",
-    "subtitle": "Drop a screen recording from Last War. We will extract scoreboard screenshots and send them to Ashed for OCR — same as manual uploads, but faster.",
+    "subtitle": "Record yourself scrolling a Last War leaderboard. We extract frames, OCR scores, and let you review before submitting to Ashed.",
+    "scoreTargetLabel": "What leaderboard is this?",
     "categoryLabel": "What kind of scoreboard is this?",
     "categories": {
       "vs": "VS / weekly scores",
@@ -181,24 +260,68 @@
       "general": "Other"
     },
     "fileLabel": "Video file",
-    "fileHint": "MP4 or MOV, under 3 minutes works best. Max 200 MB for now.",
+    "fileHint": "MP4 or MOV screen recording while scrolling the full leaderboard. Requires ffmpeg on the server.",
     "selectedFile": "Selected: {name} ({size})",
     "chooseFileFirst": "Choose a video file first.",
     "uploading": "Uploading…",
     "uploadButton": "Upload video",
     "queuedSuccess": "Video queued for processing.",
     "recentUploads": "Recent uploads",
+    "reviewLink": "Review",
     "status": {
-      "pending": "pending",
-      "processing": "processing",
+      "queued": "queued",
+      "extracting": "extracting frames",
+      "parsing": "OCR running",
+      "review": "ready to review",
+      "submitting": "submitting",
       "complete": "complete",
-      "failed": "failed"
+      "failed": "failed",
+      "pending": "pending",
+      "processing": "processing"
     }
+  },
+  "videoJobs": {
+    "readyBanner": "\"{fileName}\" is ready to review.",
+    "readyBannerWithCounts": "\"{fileName}\" is ready — {matched} of {total} names matched.",
+    "readyBannerCta": "Review results",
+    "failedBanner": "Processing failed for \"{fileName}\".",
+    "failedBannerCta": "View uploads",
+    "dismiss": "Dismiss"
+  },
+  "videoReview": {
+    "title": "Review extracted data",
+    "loading": "Loading…",
+    "processing": "Processing ({status})… this page refreshes automatically.",
+    "processingFailed": "Processing failed. Try uploading again.",
+    "backToUploads": "← Back to uploads",
+    "summary": "{matched} matched · {total} entries",
+    "noEntriesHint": "OCR finished but no rows were parsed. This was usually a response-format bug — try re-running OCR.",
+    "reprocess": "Re-run OCR",
+    "reprocessing": "Re-running OCR…",
+    "rematchingMembers": "Updating member matches for your current alliance…",
+    "eventLabel": "Desert Storm event",
+    "teamLabel": "Team",
+    "dateLabel": "Recorded date",
+    "colName": "Name",
+    "colMember": "Matched member",
+    "colScore": "Score",
+    "unmatched": "Select member…",
+    "deleteRow": "Delete",
+    "saveScores": "Save {count} scores",
+    "submitting": "Submitting…",
+    "submitSuccess": "Saved {count} scores to Ashed.",
+    "scoreConflictHint": "Some players were read with conflicting scores across video frames. Pick the correct score and delete the extra row for each player.",
+    "scoreConflictRow": "Conflicting scores — verify and delete the duplicate row.",
+    "duplicateMemberTitle": "Multiple rows map to the same member",
+    "duplicateMemberItem": "{member} appears on {count} rows",
+    "duplicateMemberHint": "Each member can only have one score on this leaderboard. Check that the name and score are correct, then delete any duplicate or hallucinated row.",
+    "duplicateMemberRow": "Duplicate member assignment",
+    "duplicateMemberBlocked": "Fix duplicate member rows before saving."
   },
   "ashedEmbed": {
     "description": "This page lives on Ashed. Open it below or in a new tab — your Alliance HQ sidebar stays here.",
     "openInAshed": "Open in Ashed ↗",
-    "iframeHint": "If the frame is blank, Ashed may block embedding — use \"Open in Ashed\" above.",
+    "iframeHint": "Embedded pages need a separate Ashed login. If you use Google Sign-In on ashed.online, log in here with email + password instead. If the frame stays blank, use \"Open in Ashed\" above.",
     "iframeTitle": "Ashed — {path}"
   },
   "devErrors": {

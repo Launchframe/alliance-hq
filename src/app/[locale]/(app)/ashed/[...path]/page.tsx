@@ -1,17 +1,16 @@
-import { AshedEmbed } from "@/components/AshedEmbed";
+import { redirect } from "@/i18n/navigation";
+import { legacyAshedRedirect } from "@/lib/nav/routes";
 import { notFound } from "next/navigation";
 
 type Props = {
-  params: Promise<{ path?: string[] }>;
+  params: Promise<{ locale: string; path?: string[] }>;
 };
 
-export default async function AshedPage({ params }: Props) {
-  const { path = [] } = await params;
-  if (path.length === 0) {
+export default async function LegacyAshedPage({ params }: Props) {
+  const { locale, path = [] } = await params;
+  const target = legacyAshedRedirect(path);
+  if (!target) {
     notFound();
   }
-
-  const ashedPath = `/${path.join("/")}`;
-
-  return <AshedEmbed path={ashedPath} />;
+  redirect({ href: target, locale });
 }

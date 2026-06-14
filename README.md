@@ -88,6 +88,11 @@ npm install
 | `DATABASE_URL` | Neon Postgres connection string (required at **build** time — migrations run before `next build`) |
 | `TOKEN_ENCRYPTION_KEY` | Same 64-char hex key for all environments, or generate once and store in a password manager |
 | `NEXT_PUBLIC_APP_URL` | `https://alliance-hq.vercel.app` |
+| `VIDEO_WORKER_SECRET` | Random secret (same value if you run the optional backup worker) |
+| `R2_ACCOUNT_ID` | Cloudflare account ID |
+| `R2_ACCESS_KEY_ID` | R2 API token access key |
+| `R2_SECRET_ACCESS_KEY` | R2 API token secret |
+| `R2_BUCKET` | Bucket name for uploaded videos and frames |
 
 Do **not** set `LOCAL_DATABASE_URL` on Vercel.
 
@@ -101,6 +106,66 @@ Optional one-off (without redeploying): `DATABASE_URL="postgresql://…neon…" 
 5. At your DNS provider, point the domain to Vercel (A/CNAME records shown in the Vercel UI)
 
 Health check after deploy: `https://alliance-hq.vercel.app/api/health/db`
+
+## Ashed API catalog
+
+Place HAR captures in `har/` (gitignored — they contain JWTs). Record one file per Ashed nav group while browsing [ashed.online](https://ashed.online):
+
+```
+har/
+  ashed.online-alliance_management.har
+  ashed.online-performance_and_reporting.har
+  ashed.online-events_and_operations.har
+  ashed.online-admin_and_settings.har
+  ashed.online-profile.har
+```
+
+Regenerate the committed, sanitized catalog:
+
+```bash
+npm run har:catalog
+```
+
+Output: [`docs/ashed-api-catalog.json`](docs/ashed-api-catalog.json) — entities, functions, nav groups, and RBAC matrix (no auth headers or bodies).
+
+Related design docs:
+
+- [`docs/multi-tenant-schema.md`](docs/multi-tenant-schema.md) — alliances, HQ users, roles, alliance-scoped tokens
+- [`docs/bff-spec.md`](docs/bff-spec.md) — BFF route layout and deny-by-default proxy rules
+- [`docs/rbac-matrix.md`](docs/rbac-matrix.md) — permission and role template summary
+
+## Video upload (Phase 1)
+
+Upload a Desert Storm leaderboard scroll-recording at **Tools → Upload from video**. The pipeline:
+
+1. Stores video in **Cloudflare R2** on Vercel (or `.data/uploads/` locally when R2 is unset)
+2. Extracts frames with **ffmpeg** (`ffmpeg-static` on Vercel; `brew install ffmpeg` for local dev)
+3. OCRs each frame via Base44 `UploadFile` + `ExtractDataFromUploadedFile` (BFF proxy)
+4. Fuzzy-matches names against Ashed `Member` list
+5. Review UI → submit to `DesertStormScore/bulk`
+
+**Requirements for local dev:**
+
+```bash
+brew install ffmpeg   # macOS
+```
+
+Add to `.env.local`:
+
+```
+VIDEO_WORKER_SECRET=dev-secret
+```
+
+After `npm run dev`, either:
+
+- Processing starts automatically after upload (fire-and-forget to `/api/internal/video-process/{jobId}` on **localhost**), or
+- Run a poller in another terminal: `npm run video:worker` (auto-targets localhost when `LOCAL_DATABASE_URL` is local — do not point at Vercel; ffmpeg and uploads live on your machine)
+
+Open **Review** on a job when status is `ready to review`. Pick event, team, date, fix matches, then **Save scores**.
+
+**Production (Vercel):** With R2 env vars set, uploads land in R2 and processing runs on Vercel via `/api/internal/video-process/{jobId}` (300s function timeout, bundled ffmpeg). Optionally run `npm run video:worker` on a machine with DB access as a backup poller — set `VIDEO_WORKER_BASE_URL=https://alliance-hq.vercel.app` and the same `VIDEO_WORKER_SECRET`.
+
+**Timing / bottlenecks:** Each run logs phase timings to stdout (`[video-pipeline]`) and stores them in `audit_log` on `video.parse_complete`. On Vercel production, custom events go to **Web Analytics** (`Video Pipeline Phase`, `Video Pipeline Complete`, etc.). The worker prints a JSON summary after each job; the process API returns a `timings` object. Typical bottleneck: sequential Base44 OCR (~5–10s per frame).
 
 ## Project structure
 
@@ -124,10 +189,11 @@ src/
 
 ## Roadmap
 
-- [ ] Ingest Ashed DOM captures for pixel-perfect UI parity
-- [ ] R2 storage + ffmpeg worker for video frame extraction
-- [ ] Wire OCR upload to Ashed via BFF
-- [ ] Optional `/admin/debug` entity explorer (from ashed-shell)
+- [x] Phase 1 video parser — Desert Storm upload → OCR → review → Ashed bulk submit
+- [ ] Phase 2 Admin Portal
+- [ ] Phase 3 Alliance Star, Frontline Breakthrough, remaining score targets
+- [x] R2 storage for production video pipeline
+- [ ] Adaptive scroll profile learning
 
 ## License
 
