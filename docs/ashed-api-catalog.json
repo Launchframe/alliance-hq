@@ -1,0 +1,1939 @@
+{
+  "generatedAt": "2026-06-14T02:40:18.384Z",
+  "source": "har/*.har (local, gitignored)",
+  "appId": "692b7e16a524fdd9dff3332d",
+  "baseUrl": "https://base44.app",
+  "notes": [
+    "Sanitized catalog — no auth headers, cookies, or request/response bodies.",
+    "ashed.online is a SPA; page context from log-user-in-app/{PageName} in HAR.",
+    "HAR gaps: MergeManager, some event pages — see navGroups pages with ashedPageLog null.",
+    "Ashed iframe paths use trainwreckcase: remove hyphens from hqRoute (e.g. /desert-storm → /desertstorm)."
+  ],
+  "harFiles": [
+    "ashed.online-admin_and_settings.har",
+    "ashed.online-alliance_management.har",
+    "ashed.online-events_and_operations.har",
+    "ashed.online-performance_and_reporting.har",
+    "ashed.online-profile.har"
+  ],
+  "appLogPages": [
+    "AllianceExercise",
+    "AllianceTasks",
+    "Alliances",
+    "Dashboard",
+    "DataManagement",
+    "Donations",
+    "HistoricalImport",
+    "Members",
+    "Profile",
+    "Reports",
+    "UnmatchedNames",
+    "VSPerformance",
+    "WaitingList"
+  ],
+  "navGroups": [
+    {
+      "id": "alliance-management",
+      "label": "Alliance Management",
+      "pages": [
+        {
+          "id": "dashboard",
+          "label": "Dashboard",
+          "hqRoute": "/dashboard",
+          "ashedPageLog": "Dashboard",
+          "entities": [
+            "Member",
+            "Alliance"
+          ],
+          "functions": [],
+          "integrations": [],
+          "ashedRoute": "/dashboard"
+        },
+        {
+          "id": "alliances",
+          "label": "Alliances",
+          "hqRoute": "/alliances",
+          "ashedPageLog": "Alliances",
+          "entities": [
+            "Alliance",
+            "Partner"
+          ],
+          "functions": [
+            "recordPartnerEngagement"
+          ],
+          "integrations": [],
+          "ashedRoute": "/alliances"
+        },
+        {
+          "id": "members",
+          "label": "Members",
+          "hqRoute": "/members",
+          "ashedPageLog": "Members",
+          "entities": [
+            "Member",
+            "Commendation",
+            "Violation",
+            "ExcusedRecord"
+          ],
+          "functions": [
+            "setJoinedDate"
+          ],
+          "integrations": [],
+          "ashedRoute": "/members"
+        },
+        {
+          "id": "waiting-list",
+          "label": "Waiting List",
+          "hqRoute": "/waiting-list",
+          "ashedPageLog": "WaitingList",
+          "entities": [
+            "WaitingListMember"
+          ],
+          "functions": [],
+          "integrations": [],
+          "ashedRoute": "/waitinglist"
+        },
+        {
+          "id": "alliance-tasks",
+          "label": "Alliance Tasks",
+          "hqRoute": "/alliance-tasks",
+          "ashedPageLog": "AllianceTasks",
+          "entities": [
+            "AllianceTask"
+          ],
+          "functions": [],
+          "integrations": [],
+          "ashedRoute": "/alliancetasks"
+        },
+        {
+          "id": "merge-manager",
+          "label": "Merge Manager",
+          "hqRoute": "/merge-manager",
+          "ashedPageLog": null,
+          "ashedPageLogNote": "TBD — MergeSession entity seen in HAR; no log-user-in-app hit",
+          "entities": [
+            "MergeSession"
+          ],
+          "functions": [],
+          "integrations": [],
+          "ashedRoute": "/mergemanager"
+        }
+      ]
+    },
+    {
+      "id": "performance-reporting",
+      "label": "Performance & Reporting",
+      "pages": [
+        {
+          "id": "vs-performance",
+          "label": "VS Performance",
+          "hqRoute": "/vs-performance",
+          "ashedPageLog": "VSPerformance",
+          "entities": [
+            "VSScore",
+            "VSCompetitionMeta"
+          ],
+          "functions": [
+            "getAvailableVSWeeks"
+          ],
+          "integrations": [],
+          "ashedRoute": "/vsperformance"
+        },
+        {
+          "id": "donations",
+          "label": "Donations",
+          "hqRoute": "/donations",
+          "ashedPageLog": "Donations",
+          "entities": [
+            "Donation"
+          ],
+          "functions": [],
+          "integrations": [],
+          "ashedRoute": "/donations"
+        },
+        {
+          "id": "alliance-exercise",
+          "label": "Alliance Exercise",
+          "hqRoute": "/alliance-exercise",
+          "ashedPageLog": "AllianceExercise",
+          "entities": [
+            "AllianceExercise",
+            "AllianceExerciseScore"
+          ],
+          "functions": [],
+          "integrations": [],
+          "ashedRoute": "/allianceexercise"
+        },
+        {
+          "id": "reports",
+          "label": "Reports",
+          "hqRoute": "/reports",
+          "ashedPageLog": "Reports",
+          "entities": [
+            "WeeklyVSReport",
+            "WeeklyAllianceReport"
+          ],
+          "functions": [
+            "generateWeeklyAllianceReport"
+          ],
+          "integrations": [],
+          "ashedRoute": "/reports"
+        }
+      ]
+    },
+    {
+      "id": "events-operations",
+      "label": "Events & Operations",
+      "pages": [
+        {
+          "id": "desert-storm",
+          "label": "Desert Storm",
+          "hqRoute": "/desert-storm",
+          "ashedRoute": "/desertstorm",
+          "ashedPageLog": null,
+          "ashedPageLogNote": "No log-user-in-app hit in events HAR — ashedRoute via trainwreckcase",
+          "entities": [
+            "DesertStormEvent",
+            "DesertStormScore",
+            "DesertStormRoster",
+            "DesertStormMapAssignment"
+          ],
+          "functions": [],
+          "integrations": []
+        },
+        {
+          "id": "canyon-storm",
+          "label": "Canyon Storm",
+          "hqRoute": "/canyon-storm",
+          "ashedRoute": "/canyonstorm",
+          "ashedPageLog": null,
+          "ashedPageLogNote": "No log-user-in-app hit in events HAR — ashedRoute via trainwreckcase",
+          "entities": [
+            "CanyonStormEvent",
+            "CanyonStormScore",
+            "CanyonStormRoster"
+          ],
+          "functions": [],
+          "integrations": []
+        },
+        {
+          "id": "other-events",
+          "label": "Other Events",
+          "hqRoute": "/seasonal-events",
+          "ashedRoute": "/seasonalevents",
+          "ashedPageLog": null,
+          "ashedPageLogNote": "No log-user-in-app hit in events HAR — ashedRoute via trainwreckcase",
+          "entities": [
+            "SeasonalEvent",
+            "SeasonalScore",
+            "EventSeries"
+          ],
+          "functions": [
+            "getSeasonalEvents"
+          ],
+          "integrations": []
+        },
+        {
+          "id": "zombie-siege",
+          "label": "Zombie Siege",
+          "hqRoute": "/zombie-siege",
+          "ashedRoute": "/zombiesiege",
+          "ashedPageLog": null,
+          "ashedPageLogNote": "No log-user-in-app hit in events HAR — ashedRoute via trainwreckcase",
+          "entities": [
+            "ZombieSiegeEvent",
+            "ZombieSiegeScore"
+          ],
+          "functions": [
+            "extractZombieSiegeData"
+          ],
+          "integrations": []
+        }
+      ]
+    },
+    {
+      "id": "admin-settings",
+      "label": "Admin & Settings",
+      "pages": [
+        {
+          "id": "data-management",
+          "label": "Data Management",
+          "hqRoute": "/data-management",
+          "ashedPageLog": "DataManagement",
+          "entities": [
+            "VSScore",
+            "Donation",
+            "KillScore",
+            "AllianceExerciseScore",
+            "DesertStormScore",
+            "SeasonalScore",
+            "ZombieSiegeScore",
+            "SeasonReward"
+          ],
+          "functions": [
+            "bulkDeleteByDate",
+            "bulkMoveByDate",
+            "manageSquadPowerData"
+          ],
+          "integrations": [
+            "Core/UploadFile",
+            "Core/ExtractDataFromUploadedFile",
+            "Core/InvokeLLM"
+          ],
+          "ashedRoute": "/datamanagement"
+        },
+        {
+          "id": "unmatched-names",
+          "label": "Unmatched Names",
+          "hqRoute": "/unmatched-names",
+          "ashedPageLog": "UnmatchedNames",
+          "entities": [
+            "UnmatchedName"
+          ],
+          "functions": [],
+          "integrations": [],
+          "ashedRoute": "/unmatchednames"
+        },
+        {
+          "id": "historical-import",
+          "label": "Historical Import",
+          "hqRoute": null,
+          "ashedPageLog": "HistoricalImport",
+          "ashedPageLogNote": "Ashed modal — only one app-log hit in admin HAR",
+          "entities": [],
+          "functions": [],
+          "integrations": [
+            "Core/UploadFile",
+            "Core/ExtractDataFromUploadedFile"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "hq-native",
+      "label": "Alliance HQ (native)",
+      "pages": [
+        {
+          "id": "video-upload",
+          "label": "Upload from video",
+          "hqRoute": "/tools/video-upload",
+          "ashedPageLog": null,
+          "entities": [],
+          "functions": [],
+          "integrations": [
+            "Core/UploadFile",
+            "Core/ExtractDataFromUploadedFile"
+          ],
+          "ashedRoute": "/tools/videoupload"
+        },
+        {
+          "id": "settings",
+          "label": "Settings",
+          "hqRoute": "/settings",
+          "ashedPageLog": null,
+          "entities": [],
+          "functions": [],
+          "integrations": [],
+          "ashedRoute": "/settings"
+        }
+      ]
+    },
+    {
+      "id": "profile",
+      "label": "Profile (Ashed header menu)",
+      "pages": [
+        {
+          "id": "profile",
+          "label": "Profile",
+          "hqRoute": null,
+          "ashedPageLog": "Profile",
+          "entities": [
+            "User",
+            "UserProfile",
+            "EntitlementSnapshot",
+            "Referral"
+          ],
+          "functions": [],
+          "integrations": []
+        }
+      ]
+    }
+  ],
+  "entities": [
+    {
+      "name": "Alliance",
+      "methods": [
+        "GET"
+      ],
+      "harFiles": [
+        "ashed.online-alliance_management.har",
+        "ashed.online-performance_and_reporting.har"
+      ],
+      "navGroups": [
+        "alliance-management",
+        "performance-reporting"
+      ],
+      "supportsById": false,
+      "bffPath": "/api/bff/v1/entities/Alliance",
+      "permissions": {
+        "read": "alliance:read",
+        "write": "alliance:write"
+      }
+    },
+    {
+      "name": "AllianceExercise",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "harFiles": [
+        "ashed.online-admin_and_settings.har",
+        "ashed.online-performance_and_reporting.har"
+      ],
+      "navGroups": [
+        "admin-settings",
+        "performance-reporting"
+      ],
+      "supportsById": false,
+      "bffPath": "/api/bff/v1/entities/AllianceExercise",
+      "permissions": {
+        "read": "scores:read",
+        "write": "scores:write"
+      }
+    },
+    {
+      "name": "AllianceExerciseScore",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "harFiles": [
+        "ashed.online-admin_and_settings.har",
+        "ashed.online-performance_and_reporting.har"
+      ],
+      "navGroups": [
+        "admin-settings",
+        "performance-reporting"
+      ],
+      "supportsById": false,
+      "bffPath": "/api/bff/v1/entities/AllianceExerciseScore",
+      "permissions": {
+        "read": "scores:read",
+        "write": "scores:write"
+      }
+    },
+    {
+      "name": "AllianceTask",
+      "methods": [
+        "GET",
+        "POST",
+        "PUT"
+      ],
+      "harFiles": [
+        "ashed.online-alliance_management.har"
+      ],
+      "navGroups": [
+        "alliance-management"
+      ],
+      "supportsById": true,
+      "bffPath": "/api/bff/v1/entities/AllianceTask",
+      "permissions": {
+        "read": "tasks:read",
+        "write": "tasks:write"
+      }
+    },
+    {
+      "name": "CanyonStormEvent",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "harFiles": [
+        "ashed.online-events_and_operations.har",
+        "ashed.online-performance_and_reporting.har"
+      ],
+      "navGroups": [
+        "events-operations",
+        "performance-reporting"
+      ],
+      "supportsById": false,
+      "bffPath": "/api/bff/v1/entities/CanyonStormEvent",
+      "permissions": {
+        "read": "events:read",
+        "write": "events:write"
+      }
+    },
+    {
+      "name": "CanyonStormRoster",
+      "methods": [
+        "GET"
+      ],
+      "harFiles": [
+        "ashed.online-performance_and_reporting.har"
+      ],
+      "navGroups": [
+        "performance-reporting"
+      ],
+      "supportsById": false,
+      "bffPath": "/api/bff/v1/entities/CanyonStormRoster",
+      "permissions": {
+        "read": "events:read",
+        "write": "events:write"
+      }
+    },
+    {
+      "name": "CanyonStormScore",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "harFiles": [
+        "ashed.online-events_and_operations.har",
+        "ashed.online-performance_and_reporting.har"
+      ],
+      "navGroups": [
+        "events-operations",
+        "performance-reporting"
+      ],
+      "supportsById": false,
+      "bffPath": "/api/bff/v1/entities/CanyonStormScore",
+      "permissions": {
+        "read": "events:read",
+        "write": "events:write"
+      }
+    },
+    {
+      "name": "Commendation",
+      "methods": [
+        "DELETE",
+        "GET",
+        "POST"
+      ],
+      "harFiles": [
+        "ashed.online-alliance_management.har",
+        "ashed.online-performance_and_reporting.har"
+      ],
+      "navGroups": [
+        "alliance-management",
+        "performance-reporting"
+      ],
+      "supportsById": true,
+      "bffPath": "/api/bff/v1/entities/Commendation",
+      "permissions": {
+        "read": "members:read",
+        "write": "members:write"
+      }
+    },
+    {
+      "name": "DesertStormEvent",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "harFiles": [
+        "ashed.online-admin_and_settings.har",
+        "ashed.online-events_and_operations.har",
+        "ashed.online-performance_and_reporting.har"
+      ],
+      "navGroups": [
+        "admin-settings",
+        "events-operations",
+        "performance-reporting"
+      ],
+      "supportsById": false,
+      "bffPath": "/api/bff/v1/entities/DesertStormEvent",
+      "permissions": {
+        "read": "events:read",
+        "write": "events:write"
+      }
+    },
+    {
+      "name": "DesertStormMapAssignment",
+      "methods": [
+        "GET"
+      ],
+      "harFiles": [
+        "ashed.online-events_and_operations.har"
+      ],
+      "navGroups": [
+        "events-operations"
+      ],
+      "supportsById": false,
+      "bffPath": "/api/bff/v1/entities/DesertStormMapAssignment",
+      "permissions": {
+        "read": "events:read",
+        "write": "events:write"
+      }
+    },
+    {
+      "name": "DesertStormRoster",
+      "methods": [
+        "GET"
+      ],
+      "harFiles": [
+        "ashed.online-events_and_operations.har",
+        "ashed.online-performance_and_reporting.har"
+      ],
+      "navGroups": [
+        "events-operations",
+        "performance-reporting"
+      ],
+      "supportsById": false,
+      "bffPath": "/api/bff/v1/entities/DesertStormRoster",
+      "permissions": {
+        "read": "events:read",
+        "write": "events:write"
+      }
+    },
+    {
+      "name": "DesertStormScore",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "harFiles": [
+        "ashed.online-admin_and_settings.har",
+        "ashed.online-alliance_management.har",
+        "ashed.online-events_and_operations.har",
+        "ashed.online-performance_and_reporting.har"
+      ],
+      "navGroups": [
+        "admin-settings",
+        "alliance-management",
+        "events-operations",
+        "performance-reporting"
+      ],
+      "supportsById": false,
+      "bffPath": "/api/bff/v1/entities/DesertStormScore",
+      "permissions": {
+        "read": "events:read",
+        "write": "events:write"
+      }
+    },
+    {
+      "name": "Donation",
+      "methods": [
+        "GET"
+      ],
+      "harFiles": [
+        "ashed.online-admin_and_settings.har",
+        "ashed.online-alliance_management.har",
+        "ashed.online-performance_and_reporting.har"
+      ],
+      "navGroups": [
+        "admin-settings",
+        "alliance-management",
+        "performance-reporting"
+      ],
+      "supportsById": false,
+      "bffPath": "/api/bff/v1/entities/Donation",
+      "permissions": {
+        "read": "scores:read",
+        "write": "scores:write"
+      }
+    },
+    {
+      "name": "EntitlementSnapshot",
+      "methods": [
+        "GET"
+      ],
+      "harFiles": [
+        "ashed.online-admin_and_settings.har",
+        "ashed.online-profile.har"
+      ],
+      "navGroups": [
+        "admin-settings",
+        "profile"
+      ],
+      "supportsById": false,
+      "bffPath": "/api/bff/v1/entities/EntitlementSnapshot",
+      "permissions": {
+        "read": "alliance:read",
+        "write": "alliance:write"
+      }
+    },
+    {
+      "name": "EventSeries",
+      "methods": [
+        "GET"
+      ],
+      "harFiles": [
+        "ashed.online-events_and_operations.har",
+        "ashed.online-performance_and_reporting.har"
+      ],
+      "navGroups": [
+        "events-operations",
+        "performance-reporting"
+      ],
+      "supportsById": false,
+      "bffPath": "/api/bff/v1/entities/EventSeries",
+      "permissions": {
+        "read": "events:read",
+        "write": "events:write"
+      }
+    },
+    {
+      "name": "ExcusedRecord",
+      "methods": [
+        "GET"
+      ],
+      "harFiles": [
+        "ashed.online-alliance_management.har",
+        "ashed.online-performance_and_reporting.har"
+      ],
+      "navGroups": [
+        "alliance-management",
+        "performance-reporting"
+      ],
+      "supportsById": false,
+      "bffPath": "/api/bff/v1/entities/ExcusedRecord",
+      "permissions": {
+        "read": "members:read",
+        "write": "members:write"
+      }
+    },
+    {
+      "name": "KillScore",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "harFiles": [
+        "ashed.online-admin_and_settings.har",
+        "ashed.online-performance_and_reporting.har"
+      ],
+      "navGroups": [
+        "admin-settings",
+        "performance-reporting"
+      ],
+      "supportsById": false,
+      "bffPath": "/api/bff/v1/entities/KillScore",
+      "permissions": {
+        "read": "scores:read",
+        "write": "scores:write"
+      }
+    },
+    {
+      "name": "Member",
+      "methods": [
+        "GET",
+        "PUT"
+      ],
+      "harFiles": [
+        "ashed.online-admin_and_settings.har",
+        "ashed.online-alliance_management.har",
+        "ashed.online-events_and_operations.har",
+        "ashed.online-performance_and_reporting.har"
+      ],
+      "navGroups": [
+        "admin-settings",
+        "alliance-management",
+        "events-operations",
+        "performance-reporting"
+      ],
+      "supportsById": true,
+      "bffPath": "/api/bff/v1/entities/Member",
+      "permissions": {
+        "read": "members:read",
+        "write": "members:write"
+      }
+    },
+    {
+      "name": "MergeSession",
+      "methods": [
+        "GET"
+      ],
+      "harFiles": [
+        "ashed.online-alliance_management.har"
+      ],
+      "navGroups": [
+        "alliance-management"
+      ],
+      "supportsById": false,
+      "bffPath": "/api/bff/v1/entities/MergeSession",
+      "permissions": {
+        "read": "merge:read",
+        "write": "merge:write"
+      }
+    },
+    {
+      "name": "Partner",
+      "methods": [
+        "GET"
+      ],
+      "harFiles": [
+        "ashed.online-alliance_management.har",
+        "ashed.online-performance_and_reporting.har"
+      ],
+      "navGroups": [
+        "alliance-management",
+        "performance-reporting"
+      ],
+      "supportsById": false,
+      "bffPath": "/api/bff/v1/entities/Partner",
+      "permissions": {
+        "read": "alliance:read",
+        "write": "alliance:write"
+      }
+    },
+    {
+      "name": "Referral",
+      "methods": [
+        "GET"
+      ],
+      "harFiles": [
+        "ashed.online-admin_and_settings.har",
+        "ashed.online-profile.har"
+      ],
+      "navGroups": [
+        "admin-settings",
+        "profile"
+      ],
+      "supportsById": false,
+      "bffPath": "/api/bff/v1/entities/Referral",
+      "permissions": {
+        "read": "auth:read",
+        "write": "auth:write"
+      }
+    },
+    {
+      "name": "SeasonalEvent",
+      "methods": [
+        "GET",
+        "POST",
+        "PUT"
+      ],
+      "harFiles": [
+        "ashed.online-admin_and_settings.har",
+        "ashed.online-events_and_operations.har",
+        "ashed.online-performance_and_reporting.har"
+      ],
+      "navGroups": [
+        "admin-settings",
+        "events-operations",
+        "performance-reporting"
+      ],
+      "supportsById": true,
+      "bffPath": "/api/bff/v1/entities/SeasonalEvent",
+      "permissions": {
+        "read": "events:read",
+        "write": "events:write"
+      }
+    },
+    {
+      "name": "SeasonalScore",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "harFiles": [
+        "ashed.online-admin_and_settings.har",
+        "ashed.online-events_and_operations.har",
+        "ashed.online-performance_and_reporting.har"
+      ],
+      "navGroups": [
+        "admin-settings",
+        "events-operations",
+        "performance-reporting"
+      ],
+      "supportsById": false,
+      "bffPath": "/api/bff/v1/entities/SeasonalScore",
+      "permissions": {
+        "read": "events:read",
+        "write": "events:write"
+      }
+    },
+    {
+      "name": "SeasonReward",
+      "methods": [
+        "GET"
+      ],
+      "harFiles": [
+        "ashed.online-admin_and_settings.har"
+      ],
+      "navGroups": [
+        "admin-settings"
+      ],
+      "supportsById": false,
+      "bffPath": "/api/bff/v1/entities/SeasonReward",
+      "permissions": {
+        "read": "scores:read",
+        "write": "scores:write"
+      }
+    },
+    {
+      "name": "TrainRoster",
+      "methods": [
+        "GET"
+      ],
+      "harFiles": [
+        "ashed.online-performance_and_reporting.har"
+      ],
+      "navGroups": [
+        "performance-reporting"
+      ],
+      "supportsById": false,
+      "bffPath": "/api/bff/v1/entities/TrainRoster",
+      "permissions": {
+        "read": "scores:read",
+        "write": "scores:write"
+      }
+    },
+    {
+      "name": "UnmatchedName",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "harFiles": [
+        "ashed.online-admin_and_settings.har",
+        "ashed.online-alliance_management.har",
+        "ashed.online-events_and_operations.har",
+        "ashed.online-performance_and_reporting.har"
+      ],
+      "navGroups": [
+        "admin-settings",
+        "alliance-management",
+        "events-operations",
+        "performance-reporting"
+      ],
+      "supportsById": false,
+      "bffPath": "/api/bff/v1/entities/UnmatchedName",
+      "permissions": {
+        "read": "data:read",
+        "write": "data:write"
+      }
+    },
+    {
+      "name": "User",
+      "methods": [
+        "GET"
+      ],
+      "harFiles": [
+        "ashed.online-alliance_management.har",
+        "ashed.online-performance_and_reporting.har",
+        "ashed.online-profile.har"
+      ],
+      "navGroups": [
+        "alliance-management",
+        "performance-reporting",
+        "profile"
+      ],
+      "supportsById": false,
+      "bffPath": "/api/bff/v1/entities/User",
+      "permissions": {
+        "read": "auth:read",
+        "write": "auth:write"
+      }
+    },
+    {
+      "name": "UserProfile",
+      "methods": [
+        "GET"
+      ],
+      "harFiles": [
+        "ashed.online-alliance_management.har"
+      ],
+      "navGroups": [
+        "alliance-management"
+      ],
+      "supportsById": false,
+      "bffPath": "/api/bff/v1/entities/UserProfile",
+      "permissions": {
+        "read": "auth:read",
+        "write": "auth:write"
+      }
+    },
+    {
+      "name": "Violation",
+      "methods": [
+        "DELETE",
+        "GET",
+        "POST"
+      ],
+      "harFiles": [
+        "ashed.online-admin_and_settings.har",
+        "ashed.online-alliance_management.har",
+        "ashed.online-performance_and_reporting.har"
+      ],
+      "navGroups": [
+        "admin-settings",
+        "alliance-management",
+        "performance-reporting"
+      ],
+      "supportsById": true,
+      "bffPath": "/api/bff/v1/entities/Violation",
+      "permissions": {
+        "read": "members:read",
+        "write": "members:write"
+      }
+    },
+    {
+      "name": "VSCompetitionMeta",
+      "methods": [
+        "GET",
+        "PUT"
+      ],
+      "harFiles": [
+        "ashed.online-performance_and_reporting.har"
+      ],
+      "navGroups": [
+        "performance-reporting"
+      ],
+      "supportsById": true,
+      "bffPath": "/api/bff/v1/entities/VSCompetitionMeta",
+      "permissions": {
+        "read": "scores:read",
+        "write": "scores:write"
+      }
+    },
+    {
+      "name": "VSScore",
+      "methods": [
+        "GET",
+        "PUT"
+      ],
+      "harFiles": [
+        "ashed.online-admin_and_settings.har",
+        "ashed.online-alliance_management.har",
+        "ashed.online-performance_and_reporting.har"
+      ],
+      "navGroups": [
+        "admin-settings",
+        "alliance-management",
+        "performance-reporting"
+      ],
+      "supportsById": true,
+      "bffPath": "/api/bff/v1/entities/VSScore",
+      "permissions": {
+        "read": "scores:read",
+        "write": "scores:write"
+      }
+    },
+    {
+      "name": "WaitingListMember",
+      "methods": [
+        "GET"
+      ],
+      "harFiles": [
+        "ashed.online-alliance_management.har"
+      ],
+      "navGroups": [
+        "alliance-management"
+      ],
+      "supportsById": false,
+      "bffPath": "/api/bff/v1/entities/WaitingListMember",
+      "permissions": {
+        "read": "members:read",
+        "write": "members:write"
+      }
+    },
+    {
+      "name": "WeeklyAllianceReport",
+      "methods": [
+        "GET"
+      ],
+      "harFiles": [
+        "ashed.online-performance_and_reporting.har"
+      ],
+      "navGroups": [
+        "performance-reporting"
+      ],
+      "supportsById": false,
+      "bffPath": "/api/bff/v1/entities/WeeklyAllianceReport",
+      "permissions": {
+        "read": "reports:read",
+        "write": "reports:write"
+      }
+    },
+    {
+      "name": "WeeklyVSReport",
+      "methods": [
+        "GET"
+      ],
+      "harFiles": [
+        "ashed.online-performance_and_reporting.har"
+      ],
+      "navGroups": [
+        "performance-reporting"
+      ],
+      "supportsById": false,
+      "bffPath": "/api/bff/v1/entities/WeeklyVSReport",
+      "permissions": {
+        "read": "reports:read",
+        "write": "reports:write"
+      }
+    },
+    {
+      "name": "ZombieSiegeEvent",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "harFiles": [
+        "ashed.online-events_and_operations.har"
+      ],
+      "navGroups": [
+        "events-operations"
+      ],
+      "supportsById": false,
+      "bffPath": "/api/bff/v1/entities/ZombieSiegeEvent",
+      "permissions": {
+        "read": "events:read",
+        "write": "events:write"
+      }
+    },
+    {
+      "name": "ZombieSiegeScore",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "harFiles": [
+        "ashed.online-admin_and_settings.har",
+        "ashed.online-events_and_operations.har"
+      ],
+      "navGroups": [
+        "admin-settings",
+        "events-operations"
+      ],
+      "supportsById": false,
+      "bffPath": "/api/bff/v1/entities/ZombieSiegeScore",
+      "permissions": {
+        "read": "events:read",
+        "write": "events:write"
+      }
+    }
+  ],
+  "functions": [
+    {
+      "name": "bulkDeleteByDate",
+      "method": "POST",
+      "harFiles": [
+        "ashed.online-admin_and_settings.har"
+      ],
+      "navGroups": [
+        "admin-settings"
+      ],
+      "requestCount": 3,
+      "bffPath": "/api/bff/v1/functions/bulkDeleteByDate",
+      "permissions": {
+        "read": "data:bulk_delete",
+        "write": "data:bulk_delete"
+      },
+      "destructive": true
+    },
+    {
+      "name": "bulkMoveByDate",
+      "method": "POST",
+      "harFiles": [
+        "ashed.online-admin_and_settings.har"
+      ],
+      "navGroups": [
+        "admin-settings"
+      ],
+      "requestCount": 2,
+      "bffPath": "/api/bff/v1/functions/bulkMoveByDate",
+      "permissions": {
+        "read": "data:bulk_move",
+        "write": "data:bulk_move"
+      },
+      "destructive": true
+    },
+    {
+      "name": "extractZombieSiegeData",
+      "method": "POST",
+      "harFiles": [
+        "ashed.online-events_and_operations.har"
+      ],
+      "navGroups": [
+        "events-operations"
+      ],
+      "requestCount": 1,
+      "bffPath": "/api/bff/v1/functions/extractZombieSiegeData",
+      "permissions": {
+        "read": "events:read",
+        "write": "events:write"
+      },
+      "destructive": false
+    },
+    {
+      "name": "generateWeeklyAllianceReport",
+      "method": "POST",
+      "harFiles": [
+        "ashed.online-performance_and_reporting.har"
+      ],
+      "navGroups": [
+        "performance-reporting"
+      ],
+      "requestCount": 1,
+      "bffPath": "/api/bff/v1/functions/generateWeeklyAllianceReport",
+      "permissions": {
+        "read": "reports:generate",
+        "write": "reports:generate"
+      },
+      "destructive": false
+    },
+    {
+      "name": "getAvailableVSWeeks",
+      "method": "POST",
+      "harFiles": [
+        "ashed.online-alliance_management.har",
+        "ashed.online-performance_and_reporting.har"
+      ],
+      "navGroups": [
+        "alliance-management",
+        "performance-reporting"
+      ],
+      "requestCount": 6,
+      "bffPath": "/api/bff/v1/functions/getAvailableVSWeeks",
+      "permissions": {
+        "read": "scores:read"
+      },
+      "destructive": false
+    },
+    {
+      "name": "getSeasonalEvents",
+      "method": "POST",
+      "harFiles": [
+        "ashed.online-events_and_operations.har"
+      ],
+      "navGroups": [
+        "events-operations"
+      ],
+      "requestCount": 2,
+      "bffPath": "/api/bff/v1/functions/getSeasonalEvents",
+      "permissions": {
+        "read": "events:read"
+      },
+      "destructive": false
+    },
+    {
+      "name": "manageSquadPowerData",
+      "method": "POST",
+      "harFiles": [
+        "ashed.online-admin_and_settings.har"
+      ],
+      "navGroups": [
+        "admin-settings"
+      ],
+      "requestCount": 2,
+      "bffPath": "/api/bff/v1/functions/manageSquadPowerData",
+      "permissions": {
+        "read": "scores:read",
+        "write": "scores:write"
+      },
+      "destructive": false
+    },
+    {
+      "name": "recordPartnerEngagement",
+      "method": "POST",
+      "harFiles": [
+        "ashed.online-alliance_management.har",
+        "ashed.online-performance_and_reporting.har"
+      ],
+      "navGroups": [
+        "alliance-management",
+        "performance-reporting"
+      ],
+      "requestCount": 2,
+      "bffPath": "/api/bff/v1/functions/recordPartnerEngagement",
+      "permissions": {
+        "read": "alliance:read",
+        "write": "alliance:write"
+      },
+      "destructive": false
+    },
+    {
+      "name": "setJoinedDate",
+      "method": "POST",
+      "harFiles": [
+        "ashed.online-alliance_management.har",
+        "ashed.online-performance_and_reporting.har"
+      ],
+      "navGroups": [
+        "alliance-management",
+        "performance-reporting"
+      ],
+      "requestCount": 2,
+      "bffPath": "/api/bff/v1/functions/setJoinedDate",
+      "permissions": {
+        "read": "members:write",
+        "write": "members:write"
+      },
+      "destructive": false
+    }
+  ],
+  "integrations": [
+    {
+      "name": "Core/ExtractDataFromUploadedFile",
+      "method": "POST",
+      "harFiles": [
+        "ashed.online-admin_and_settings.har",
+        "ashed.online-events_and_operations.har"
+      ],
+      "navGroups": [
+        "admin-settings",
+        "events-operations"
+      ],
+      "requestCount": 11,
+      "bffPath": "/api/bff/v1/integration/Core--ExtractDataFromUploadedFile",
+      "permissions": {
+        "read": "upload:write",
+        "write": "upload:write"
+      }
+    },
+    {
+      "name": "Core/InvokeLLM",
+      "method": "POST",
+      "harFiles": [
+        "ashed.online-admin_and_settings.har"
+      ],
+      "navGroups": [
+        "admin-settings"
+      ],
+      "requestCount": 2,
+      "bffPath": "/api/bff/v1/integration/Core--InvokeLLM",
+      "permissions": {
+        "read": "upload:write",
+        "write": "upload:write"
+      }
+    },
+    {
+      "name": "Core/UploadFile",
+      "method": "POST",
+      "harFiles": [
+        "ashed.online-admin_and_settings.har",
+        "ashed.online-events_and_operations.har"
+      ],
+      "navGroups": [
+        "admin-settings",
+        "events-operations"
+      ],
+      "requestCount": 14,
+      "bffPath": "/api/bff/v1/integration/Core--UploadFile",
+      "permissions": {
+        "read": "upload:write",
+        "write": "upload:write"
+      }
+    }
+  ],
+  "analytics": [
+    {
+      "pathPattern": "/api/apps/{appId}/analytics/track/batch",
+      "harFiles": [
+        "ashed.online-admin_and_settings.har",
+        "ashed.online-alliance_management.har",
+        "ashed.online-events_and_operations.har",
+        "ashed.online-performance_and_reporting.har",
+        "ashed.online-profile.har"
+      ],
+      "requestCount": 39,
+      "proxyPriority": "low",
+      "note": "Telemetry — optional to proxy; not required for alliance data features"
+    }
+  ],
+  "publicEndpoints": [
+    {
+      "method": "GET",
+      "path": "/api/apps/public/prod/public-settings/by-id/{appId}",
+      "permissions": {
+        "read": "public",
+        "write": "public"
+      },
+      "note": "No auth — may proxy as-is for app bootstrap"
+    }
+  ],
+  "rbac": {
+    "permissions": [
+      {
+        "id": "members:read",
+        "description": "View members, waiting list, excused records"
+      },
+      {
+        "id": "members:write",
+        "description": "Update members, commendations, violations, joined dates"
+      },
+      {
+        "id": "tasks:read",
+        "description": "View alliance tasks"
+      },
+      {
+        "id": "tasks:write",
+        "description": "Create and update alliance tasks"
+      },
+      {
+        "id": "merge:read",
+        "description": "View merge sessions"
+      },
+      {
+        "id": "merge:write",
+        "description": "Manage merge sessions"
+      },
+      {
+        "id": "alliance:read",
+        "description": "View alliance and partner data"
+      },
+      {
+        "id": "alliance:write",
+        "description": "Update alliance/partner engagement"
+      },
+      {
+        "id": "scores:read",
+        "description": "View VS, donations, exercise, kill scores"
+      },
+      {
+        "id": "scores:write",
+        "description": "Create/update score entities and squad power data"
+      },
+      {
+        "id": "reports:read",
+        "description": "View generated reports"
+      },
+      {
+        "id": "reports:generate",
+        "description": "Trigger weekly alliance report generation"
+      },
+      {
+        "id": "events:read",
+        "description": "View event rosters and scores"
+      },
+      {
+        "id": "events:write",
+        "description": "Create/update event data and extractions"
+      },
+      {
+        "id": "data:read",
+        "description": "View unmatched names and data management lists"
+      },
+      {
+        "id": "data:write",
+        "description": "Bulk unmatched name updates"
+      },
+      {
+        "id": "data:bulk_delete",
+        "description": "bulkDeleteByDate — destructive, high privilege"
+      },
+      {
+        "id": "data:bulk_move",
+        "description": "bulkMoveByDate — destructive, high privilege"
+      },
+      {
+        "id": "upload:write",
+        "description": "File upload and OCR/LLM integration endpoints"
+      },
+      {
+        "id": "auth:read",
+        "description": "User/me and profile reads"
+      },
+      {
+        "id": "alliance:admin",
+        "description": "Connect/disconnect Ashed token, manage HQ roles"
+      }
+    ],
+    "roleTemplates": {
+      "owner": {
+        "description": "Alliance owner — full HQ access including token and RBAC admin",
+        "permissions": [
+          "members:read",
+          "members:write",
+          "tasks:read",
+          "tasks:write",
+          "merge:read",
+          "merge:write",
+          "alliance:read",
+          "alliance:write",
+          "scores:read",
+          "scores:write",
+          "reports:read",
+          "reports:generate",
+          "events:read",
+          "events:write",
+          "data:read",
+          "data:write",
+          "data:bulk_delete",
+          "data:bulk_move",
+          "upload:write",
+          "auth:read",
+          "alliance:admin"
+        ]
+      },
+      "officer": {
+        "description": "Senior officer — all data except bulk delete and alliance admin",
+        "permissions": [
+          "members:read",
+          "members:write",
+          "tasks:read",
+          "tasks:write",
+          "merge:read",
+          "merge:write",
+          "alliance:read",
+          "alliance:write",
+          "scores:read",
+          "scores:write",
+          "reports:read",
+          "reports:generate",
+          "events:read",
+          "events:write",
+          "data:read",
+          "data:write",
+          "upload:write",
+          "auth:read"
+        ]
+      },
+      "data_entry": {
+        "description": "Score upload and member updates — no destructive ops",
+        "permissions": [
+          "members:read",
+          "members:write",
+          "scores:read",
+          "scores:write",
+          "events:read",
+          "events:write",
+          "upload:write",
+          "data:read",
+          "tasks:read",
+          "reports:read"
+        ]
+      },
+      "viewer": {
+        "description": "Read-only across alliance data",
+        "permissions": [
+          "members:read",
+          "tasks:read",
+          "merge:read",
+          "alliance:read",
+          "scores:read",
+          "reports:read",
+          "events:read",
+          "data:read",
+          "auth:read"
+        ]
+      }
+    },
+    "operationMap": [
+      {
+        "type": "entity",
+        "name": "Alliance",
+        "method": "GET",
+        "permission": "alliance:read"
+      },
+      {
+        "type": "entity",
+        "name": "AllianceExercise",
+        "method": "GET",
+        "permission": "scores:read"
+      },
+      {
+        "type": "entity",
+        "name": "AllianceExercise",
+        "method": "POST",
+        "permission": "scores:write"
+      },
+      {
+        "type": "entity",
+        "name": "AllianceExerciseScore",
+        "method": "GET",
+        "permission": "scores:read"
+      },
+      {
+        "type": "entity",
+        "name": "AllianceExerciseScore",
+        "method": "POST",
+        "permission": "scores:write"
+      },
+      {
+        "type": "entity",
+        "name": "AllianceTask",
+        "method": "GET",
+        "permission": "tasks:read"
+      },
+      {
+        "type": "entity",
+        "name": "AllianceTask",
+        "method": "POST",
+        "permission": "tasks:write"
+      },
+      {
+        "type": "entity",
+        "name": "AllianceTask",
+        "method": "PUT",
+        "permission": "tasks:write"
+      },
+      {
+        "type": "entity",
+        "name": "CanyonStormEvent",
+        "method": "GET",
+        "permission": "events:read"
+      },
+      {
+        "type": "entity",
+        "name": "CanyonStormEvent",
+        "method": "POST",
+        "permission": "events:write"
+      },
+      {
+        "type": "entity",
+        "name": "CanyonStormRoster",
+        "method": "GET",
+        "permission": "events:read"
+      },
+      {
+        "type": "entity",
+        "name": "CanyonStormScore",
+        "method": "GET",
+        "permission": "events:read"
+      },
+      {
+        "type": "entity",
+        "name": "CanyonStormScore",
+        "method": "POST",
+        "permission": "events:write"
+      },
+      {
+        "type": "entity",
+        "name": "Commendation",
+        "method": "DELETE",
+        "permission": "members:write"
+      },
+      {
+        "type": "entity",
+        "name": "Commendation",
+        "method": "GET",
+        "permission": "members:read"
+      },
+      {
+        "type": "entity",
+        "name": "Commendation",
+        "method": "POST",
+        "permission": "members:write"
+      },
+      {
+        "type": "entity",
+        "name": "DesertStormEvent",
+        "method": "GET",
+        "permission": "events:read"
+      },
+      {
+        "type": "entity",
+        "name": "DesertStormEvent",
+        "method": "POST",
+        "permission": "events:write"
+      },
+      {
+        "type": "entity",
+        "name": "DesertStormMapAssignment",
+        "method": "GET",
+        "permission": "events:read"
+      },
+      {
+        "type": "entity",
+        "name": "DesertStormRoster",
+        "method": "GET",
+        "permission": "events:read"
+      },
+      {
+        "type": "entity",
+        "name": "DesertStormScore",
+        "method": "GET",
+        "permission": "events:read"
+      },
+      {
+        "type": "entity",
+        "name": "DesertStormScore",
+        "method": "POST",
+        "permission": "events:write"
+      },
+      {
+        "type": "entity",
+        "name": "Donation",
+        "method": "GET",
+        "permission": "scores:read"
+      },
+      {
+        "type": "entity",
+        "name": "EntitlementSnapshot",
+        "method": "GET",
+        "permission": "alliance:read"
+      },
+      {
+        "type": "entity",
+        "name": "EventSeries",
+        "method": "GET",
+        "permission": "events:read"
+      },
+      {
+        "type": "entity",
+        "name": "ExcusedRecord",
+        "method": "GET",
+        "permission": "members:read"
+      },
+      {
+        "type": "entity",
+        "name": "KillScore",
+        "method": "GET",
+        "permission": "scores:read"
+      },
+      {
+        "type": "entity",
+        "name": "KillScore",
+        "method": "POST",
+        "permission": "scores:write"
+      },
+      {
+        "type": "entity",
+        "name": "Member",
+        "method": "GET",
+        "permission": "members:read"
+      },
+      {
+        "type": "entity",
+        "name": "Member",
+        "method": "PUT",
+        "permission": "members:write"
+      },
+      {
+        "type": "entity",
+        "name": "MergeSession",
+        "method": "GET",
+        "permission": "merge:read"
+      },
+      {
+        "type": "entity",
+        "name": "Partner",
+        "method": "GET",
+        "permission": "alliance:read"
+      },
+      {
+        "type": "entity",
+        "name": "Referral",
+        "method": "GET",
+        "permission": "auth:read"
+      },
+      {
+        "type": "entity",
+        "name": "SeasonalEvent",
+        "method": "GET",
+        "permission": "events:read"
+      },
+      {
+        "type": "entity",
+        "name": "SeasonalEvent",
+        "method": "POST",
+        "permission": "events:write"
+      },
+      {
+        "type": "entity",
+        "name": "SeasonalEvent",
+        "method": "PUT",
+        "permission": "events:write"
+      },
+      {
+        "type": "entity",
+        "name": "SeasonalScore",
+        "method": "GET",
+        "permission": "events:read"
+      },
+      {
+        "type": "entity",
+        "name": "SeasonalScore",
+        "method": "POST",
+        "permission": "events:write"
+      },
+      {
+        "type": "entity",
+        "name": "SeasonReward",
+        "method": "GET",
+        "permission": "scores:read"
+      },
+      {
+        "type": "entity",
+        "name": "TrainRoster",
+        "method": "GET",
+        "permission": "scores:read"
+      },
+      {
+        "type": "entity",
+        "name": "UnmatchedName",
+        "method": "GET",
+        "permission": "data:read"
+      },
+      {
+        "type": "entity",
+        "name": "UnmatchedName",
+        "method": "POST",
+        "permission": "data:write"
+      },
+      {
+        "type": "entity",
+        "name": "User",
+        "method": "GET",
+        "permission": "auth:read"
+      },
+      {
+        "type": "entity",
+        "name": "UserProfile",
+        "method": "GET",
+        "permission": "auth:read"
+      },
+      {
+        "type": "entity",
+        "name": "Violation",
+        "method": "DELETE",
+        "permission": "members:write"
+      },
+      {
+        "type": "entity",
+        "name": "Violation",
+        "method": "GET",
+        "permission": "members:read"
+      },
+      {
+        "type": "entity",
+        "name": "Violation",
+        "method": "POST",
+        "permission": "members:write"
+      },
+      {
+        "type": "entity",
+        "name": "VSCompetitionMeta",
+        "method": "GET",
+        "permission": "scores:read"
+      },
+      {
+        "type": "entity",
+        "name": "VSCompetitionMeta",
+        "method": "PUT",
+        "permission": "scores:write"
+      },
+      {
+        "type": "entity",
+        "name": "VSScore",
+        "method": "GET",
+        "permission": "scores:read"
+      },
+      {
+        "type": "entity",
+        "name": "VSScore",
+        "method": "PUT",
+        "permission": "scores:write"
+      },
+      {
+        "type": "entity",
+        "name": "WaitingListMember",
+        "method": "GET",
+        "permission": "members:read"
+      },
+      {
+        "type": "entity",
+        "name": "WeeklyAllianceReport",
+        "method": "GET",
+        "permission": "reports:read"
+      },
+      {
+        "type": "entity",
+        "name": "WeeklyVSReport",
+        "method": "GET",
+        "permission": "reports:read"
+      },
+      {
+        "type": "entity",
+        "name": "ZombieSiegeEvent",
+        "method": "GET",
+        "permission": "events:read"
+      },
+      {
+        "type": "entity",
+        "name": "ZombieSiegeEvent",
+        "method": "POST",
+        "permission": "events:write"
+      },
+      {
+        "type": "entity",
+        "name": "ZombieSiegeScore",
+        "method": "GET",
+        "permission": "events:read"
+      },
+      {
+        "type": "entity",
+        "name": "ZombieSiegeScore",
+        "method": "POST",
+        "permission": "events:write"
+      },
+      {
+        "type": "function",
+        "name": "bulkDeleteByDate",
+        "method": "POST",
+        "permission": "data:bulk_delete"
+      },
+      {
+        "type": "function",
+        "name": "bulkMoveByDate",
+        "method": "POST",
+        "permission": "data:bulk_move"
+      },
+      {
+        "type": "function",
+        "name": "extractZombieSiegeData",
+        "method": "POST",
+        "permission": "events:write"
+      },
+      {
+        "type": "function",
+        "name": "generateWeeklyAllianceReport",
+        "method": "POST",
+        "permission": "reports:generate"
+      },
+      {
+        "type": "function",
+        "name": "getAvailableVSWeeks",
+        "method": "POST",
+        "permission": "scores:read"
+      },
+      {
+        "type": "function",
+        "name": "getSeasonalEvents",
+        "method": "POST",
+        "permission": "events:read"
+      },
+      {
+        "type": "function",
+        "name": "manageSquadPowerData",
+        "method": "POST",
+        "permission": "scores:write"
+      },
+      {
+        "type": "function",
+        "name": "recordPartnerEngagement",
+        "method": "POST",
+        "permission": "alliance:write"
+      },
+      {
+        "type": "function",
+        "name": "setJoinedDate",
+        "method": "POST",
+        "permission": "members:write"
+      },
+      {
+        "type": "integration",
+        "name": "Core/ExtractDataFromUploadedFile",
+        "method": "POST",
+        "permission": "upload:write"
+      },
+      {
+        "type": "integration",
+        "name": "Core/InvokeLLM",
+        "method": "POST",
+        "permission": "upload:write"
+      },
+      {
+        "type": "integration",
+        "name": "Core/UploadFile",
+        "method": "POST",
+        "permission": "upload:write"
+      }
+    ],
+    "denyByDefault": true,
+    "note": "BFF must check permission before forwarding any catalogued operation to Base44"
+  }
+}
