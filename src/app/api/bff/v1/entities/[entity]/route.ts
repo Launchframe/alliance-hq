@@ -1,15 +1,14 @@
 import { NextResponse } from "next/server";
 
 import { writeAuditLog } from "@/lib/bff/audit";
-import {
-  isAllowedPermission,
-  resolveEntityPermission,
-} from "@/lib/bff/catalog";
+import { resolveEntityPermission } from "@/lib/bff/catalog";
 import {
   forwardJson,
   requireBffSession,
   sanitizeUpstreamResponse,
 } from "@/lib/bff/session";
+import { requireSessionPermission } from "@/lib/rbac/require-permission";
+import { loadSession } from "@/lib/session";
 
 type Props = {
   params: Promise<{ entity: string }>;
@@ -21,8 +20,9 @@ export async function GET(request: Request, { params }: Props) {
 
   const { entity } = await params;
   const permission = resolveEntityPermission(entity, "GET");
-  if (!permission || !isAllowedPermission(permission)) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  const denied = await requireSessionPermission(ctx.sessionId, permission);
+  if (!permission || denied) {
+    return denied ?? NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
   const url = new URL(request.url);
@@ -30,8 +30,11 @@ export async function GET(request: Request, { params }: Props) {
   const path = `/entities/${entity}${query ? `?${query}` : ""}`;
 
   const upstream = await forwardJson(ctx.connection, path, { method: "GET" });
+  const session = await loadSession(ctx.sessionId);
   await writeAuditLog({
     sessionId: ctx.sessionId,
+    allianceId: session?.allianceId ?? undefined,
+    hqUserId: session?.hqUserId ?? undefined,
     action: "bff.entity.read",
     resourceType: "entity",
     resourceName: entity,
@@ -47,8 +50,9 @@ export async function POST(request: Request, { params }: Props) {
 
   const { entity } = await params;
   const permission = resolveEntityPermission(entity, "POST");
-  if (!permission || !isAllowedPermission(permission)) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  const denied = await requireSessionPermission(ctx.sessionId, permission);
+  if (!permission || denied) {
+    return denied ?? NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
   const body = await request.text();
@@ -57,8 +61,11 @@ export async function POST(request: Request, { params }: Props) {
     body,
   });
 
+  const session = await loadSession(ctx.sessionId);
   await writeAuditLog({
     sessionId: ctx.sessionId,
+    allianceId: session?.allianceId ?? undefined,
+    hqUserId: session?.hqUserId ?? undefined,
     action: "bff.entity.write",
     resourceType: "entity",
     resourceName: entity,

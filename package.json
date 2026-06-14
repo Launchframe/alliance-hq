@@ -5,7 +5,7 @@
   "packageManager": "npm@11.17.0",
   "scripts": {
     "dev": "next dev -p 5175",
-    "build": "npm run db:migrate && next build",
+    "build": "npm run db:prepare && next build",
     "start": "next start",
     "lint": "eslint",
     "i18n:validate": "node scripts/i18n/validate.mjs",
@@ -13,6 +13,9 @@
     "db:push": "drizzle-kit push",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "node scripts/db-migrate.mjs",
+    "db:seed": "node scripts/db-seed.mjs",
+    "db:seed-rbac": "node scripts/rbac/seed.mjs",
+    "db:prepare": "npm run db:migrate && npm run db:seed",
     "db:studio": "drizzle-kit studio",
     "har:catalog": "node scripts/har/extract-catalog.mjs",
     "video:worker": "node scripts/workers/video-processor.mjs",

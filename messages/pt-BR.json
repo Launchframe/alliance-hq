@@ -68,7 +68,166 @@
     "videoUpload": "Upload de vídeo",
     "videoUploadDescription": "Extrair capturas de tela do placar a partir de uma gravação de tela",
     "openAshed": "Abra o Ashed",
-    "settings": "Configurações"
+    "settings": "Configurações",
+    "team": "Acesso da equipe",
+    "adminPortal": "Portal admin"
+  },
+  "admin": {
+    "title": "Portal Admin HQ",
+    "subtitle": "Observabilidade entre alianças para mantenedores da plataforma.",
+    "loadFailed": "Falha ao carregar dados.",
+    "yes": "Sim",
+    "no": "Não",
+    "nav": {
+      "overview": "Visão geral",
+      "system": "Sistema",
+      "alliances": "Alianças",
+      "audit": "Log de auditoria",
+      "videoJobs": "Jobs de vídeo",
+      "hqEvents": "Eventos HQ",
+      "commendations": "Comendações",
+      "users": "Usuários HQ"
+    },
+    "systemTitle": "Saúde do sistema",
+    "systemDesc": "Status do banco, contagens, config e catálogo de funções RBAC.",
+    "alliancesTitle": "Alianças",
+    "alliancesDesc": "Tenants HQ sincronizados do Ashed com cache de proprietário e colaboradores.",
+    "commendationsTitle": "Comendações",
+    "commendationsDesc": "Tipos de pódio Alliance Star para upload de vídeo (quando habilitado).",
+    "auditTitle": "Log de auditoria",
+    "auditDesc": "Ações BFF e de integração em todas as alianças.",
+    "videoJobsTitle": "Jobs de vídeo",
+    "videoJobsDesc": "Status do pipeline de upload, erros e alvos.",
+    "hqEventsTitle": "Eventos HQ",
+    "hqEventsDesc": "Ocorrências e séries de eventos nativos.",
+    "usersTitle": "Usuários HQ",
+    "usersDesc": "Ver funções de aliança e atribuir substituições manuais.",
+    "usersPage": {
+      "loading": "Carregando usuários…",
+      "loadFailed": "Falha ao carregar usuários.",
+      "saveFailed": "Não foi possível salvar as alterações.",
+      "saved": "Alterações salvas.",
+      "selectUser": "Selecione um usuário para editar funções.",
+      "editorHint": "Atribuições manuais usam origem \"manual\" e não são sobrescritas pela sincronização do Ashed.",
+      "platformMaintainer": "Mantenedor da plataforma (acesso /admin entre alianças)",
+      "savePlatform": "Salvar flag da plataforma",
+      "membershipsTitle": "Membros da aliança",
+      "noMemberships": "Nenhuma associação de aliança ainda.",
+      "roleLabel": "Função",
+      "saveRole": "Salvar função",
+      "assignTitle": "Atribuir função na aliança",
+      "assignHint": "Criar ou substituir uma associação deste usuário em uma aliança.",
+      "allianceLabel": "Aliança",
+      "chooseAlliance": "Escolher aliança…",
+      "assignRole": "Atribuir função",
+      "table": {
+        "email": "Usuário",
+        "roles": "Funções"
+      }
+    },
+    "systemPage": {
+      "loading": "Carregando estatísticas do sistema…",
+      "loadFailed": "Falha ao carregar estatísticas do sistema.",
+      "databaseTitle": "Banco de dados",
+      "databaseOk": "Conectado",
+      "databaseBad": "Inacessível",
+      "countsTitle": "Contagens de recursos",
+      "configTitle": "Ambiente (definido / ausente)",
+      "bootstrapHint": "Defina PLATFORM_BOOTSTRAP_EMAIL na Vercel — o primeiro connect desse e-mail vira mantenedor quando nenhum existir.",
+      "queuedTitle": "Jobs de vídeo recentes na fila",
+      "rolesTitle": "Funções e permissões do sistema",
+      "counts": {
+        "hqUsers": "Usuários HQ",
+        "platformMaintainers": "Mantenedores da plataforma",
+        "alliances": "Alianças",
+        "memberships": "Associações",
+        "videoJobs": "Jobs de vídeo",
+        "videoJobsQueued": "Jobs na fila",
+        "videoJobsFailed": "Jobs com falha",
+        "auditLogEntries": "Entradas de auditoria",
+        "hqEvents": "Eventos HQ",
+        "hqEventSeries": "Séries de eventos",
+        "commendations": "Comendações"
+      },
+      "config": {
+        "platformBootstrapEmailConfigured": "PLATFORM_BOOTSTRAP_EMAIL",
+        "videoWorkerSecretConfigured": "VIDEO_WORKER_SECRET",
+        "cronSecretConfigured": "CRON_SECRET",
+        "r2Configured": "Armazenamento R2",
+        "tokenEncryptionConfigured": "TOKEN_ENCRYPTION_KEY"
+      }
+    },
+    "alliancesPage": {
+      "loadFailed": "Falha ao carregar alianças.",
+      "table": {
+        "alliance": "Aliança",
+        "owner": "E-mail do proprietário",
+        "collaborators": "Colaboradores",
+        "members": "Membros HQ",
+        "synced": "Funções sincronizadas"
+      }
+    },
+    "commendationsPage": {
+      "loadFailed": "Falha ao carregar comendações.",
+      "saveFailed": "Não foi possível salvar a comendação.",
+      "createTitle": "Adicionar comendação",
+      "slugPlaceholder": "slug (ex.: valor)",
+      "labelPlaceholder": "Rótulo exibido",
+      "createButton": "Criar",
+      "activeYes": "Ativa",
+      "activeNo": "Inativa",
+      "table": {
+        "slug": "Slug",
+        "label": "Rótulo",
+        "order": "Ordem",
+        "active": "Ativa"
+      }
+    },
+    "videoJobsPage": {
+      "actions": "Ações",
+      "requeue": "Recolocar na fila",
+      "reprocess": "Reprocessar",
+      "actionFailed": "Ação falhou"
+    },
+    "hqEventsPage": {
+      "tabs": {
+        "events": "Eventos",
+        "series": "Séries",
+        "boards": "Boards"
+      },
+      "boardKey": "Board",
+      "eventId": "ID do evento"
+    },
+    "table": {
+      "time": "Hora",
+      "action": "Ação",
+      "resource": "Recurso",
+      "alliance": "Aliança",
+      "status": "Status",
+      "target": "Alvo",
+      "file": "Arquivo",
+      "error": "Erro",
+      "name": "Nome",
+      "email": "E-mail",
+      "displayName": "Nome exibido",
+      "platform": "Mantenedor da plataforma"
+    }
+  },
+  "team": {
+    "title": "Acesso da equipe",
+    "description": "Funções sincronizadas do proprietário e colaboradores da aliança no Ashed.",
+    "backToSettings": "Configurações",
+    "refreshFromAshed": "Atualizar do Ashed",
+    "refreshing": "Atualizando…",
+    "loadFailed": "Não foi possível carregar a equipe.",
+    "refreshFailed": "Falha na atualização — verifique seu token Ashed.",
+    "forbidden": "Acesso de admin da aliança necessário.",
+    "ashedNote": "Para adicionar ou remover mantenedores, atualize colaboradores no Ashed → Alianças e atualize aqui.",
+    "table": {
+      "user": "Usuário",
+      "role": "Função",
+      "source": "Origem"
+    }
   },
   "shell": {
     "brand": "Alliance HQ",
@@ -133,9 +292,11 @@
       "paste": {
         "title": "Colar e conectar",
         "intro": "Cole seu comando <strong>Copiar como cURL</strong> aqui (recomendado). Também aceitamos um token Bearer, uma linha de cabeçalho de autorização ou uma string de conexão completa.",
-        "allianceTagLabel": "Tag da aliança",
-        "allianceTagPlaceholder": "LFgo",
-        "allianceTagHint": "A tag in-game da sua aliança em ashed.online → Alliances. Usamos isso na lista global de alianças para limitar membros e pontuações à sua aliança.",
+        "alliancePickerLabel": "Sua aliança",
+        "alliancePickerHint": "Carregamos alianças em que você é proprietário ou colaborador no Ashed.",
+        "allianceLoading": "Carregando suas alianças…",
+        "allianceNone": "Nenhum acesso de admin de aliança encontrado nesta conta Ashed.",
+        "allianceLoadFailed": "Não foi possível carregar alianças do Ashed.",
         "placeholder": "curl 'https://base44.app/api/apps/…' \\\n  -H 'authorization: Bearer eyJhbGci…' \\\n  -H 'x-origin-url: https://ashed.online' …",
         "tokenExpires": "O token expira em <date></date> (via JWT)",
         "checklist": "Pronto para conectar"
@@ -203,15 +364,18 @@
     "title": "Configurações",
     "subtitle": "Gerencie sua conexão com o Ashed e as preferências do Alliance HQ.",
     "allianceSection": "Sua aliança",
-    "allianceBody": "O Alliance HQ limita correspondência de membros e envio de pontuações a uma aliança. Informe a tag exibida em ashed.online → Alliances (ex.: LFgo).",
-    "allianceTagLabel": "Tag da aliança",
-    "allianceTagPlaceholder": "LFgo",
-    "allianceTagSave": "Salvar tag da aliança",
-    "allianceTagSaving": "Salvando…",
-    "allianceTagRequired": "A tag da aliança é obrigatória.",
-    "allianceTagSaved": "Vinculado a {tag} ({name}). Execute o OCR novamente em jobs abertos se os membros estiverem errados.",
-    "allianceTagSavedGeneric": "Tag da aliança salva.",
-    "allianceTagSaveFailed": "Não foi possível salvar a tag da aliança.",
+    "allianceBody": "O Alliance HQ limita correspondência de membros e envio de pontuações a uma aliança. Detectamos alianças em que você é proprietário ou colaborador no Ashed.",
+    "alliancePickerLabel": "Aliança",
+    "alliancePickerHint": "Mudanças de função acontecem no Ashed → Alianças (proprietário ou colaboradores).",
+    "allianceLoading": "Carregando suas alianças…",
+    "allianceNone": "Nenhum acesso de admin de aliança encontrado nesta conta Ashed.",
+    "allianceLoadFailed": "Não foi possível carregar alianças do Ashed.",
+    "allianceSave": "Salvar aliança",
+    "allianceSaving": "Salvando…",
+    "allianceRequired": "Selecione uma aliança.",
+    "allianceSaved": "Vinculado a {tag} ({name}). Execute o OCR novamente em jobs abertos se os membros estiverem errados.",
+    "allianceSavedGeneric": "Aliança salva.",
+    "allianceSaveFailed": "Não foi possível salvar a aliança.",
     "tokenSection": "Token do Ashed",
     "remindMe": "Lembre-me",
     "reminderOption": "{days, plural, one {# dia} other {# dias}} antes da expiração",

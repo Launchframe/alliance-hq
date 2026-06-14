@@ -1,11 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 
+import { AlliancePicker } from "@/components/AlliancePicker";
 import { useRouter } from "@/i18n/navigation";
 import { TokenExpiryNotice } from "@/components/TokenExpiryNotice";
 import { ashedLink, strongText } from "@/components/i18n/richText";
+import type { AccessibleAlliance } from "@/lib/alliance/types";
 import type { AshedConnectionMeta } from "@/lib/jwt/connection-meta";
 import { DEFAULT_EXPIRY_REMINDER_DAYS } from "@/lib/jwt/decode";
 
@@ -13,12 +15,12 @@ const REMINDER_OPTIONS = [7, 14, 21, 30];
 
 type Props = {
   initialAshed: AshedConnectionMeta | null;
-  initialAllianceTag?: string | null;
+  initialAllianceId?: string | null;
 };
 
 export function SettingsConnectionForm({
   initialAshed,
-  initialAllianceTag,
+  initialAllianceId,
 }: Props) {
   const t = useTranslations("settings");
   const tToken = useTranslations("tokenExpiry");
@@ -31,13 +33,60 @@ export function SettingsConnectionForm({
   const [reminderDays, setReminderDays] = useState(
     initialAshed?.expiryReminderDays ?? DEFAULT_EXPIRY_REMINDER_DAYS,
   );
-  const [allianceTag, setAllianceTag] = useState(initialAllianceTag ?? "");
+  const [accessibleAlliances, setAccessibleAlliances] = useState<
+    AccessibleAlliance[]
+  >([]);
+  const [selectedAllianceId, setSelectedAllianceId] = useState(
+    initialAllianceId ?? "",
+  );
+  const [alliancesLoading, setAlliancesLoading] = useState(true);
+  const [alliancesError, setAlliancesError] = useState<string | null>(null);
   const [allianceSaving, setAllianceSaving] = useState(false);
 
-  async function saveAllianceTag() {
-    const tag = allianceTag.trim();
-    if (!tag) {
-      setMessage(t("allianceTagRequired"));
+  useEffect(() => {
+    let cancelled = false;
+
+    void (async () => {
+      setAlliancesLoading(true);
+      setAlliancesError(null);
+
+      try {
+        const res = await fetch("/api/settings/connection");
+        const data = (await res.json()) as {
+          error?: string;
+          accessibleAlliances?: AccessibleAlliance[];
+          selectedAllianceId?: string | null;
+        };
+        if (!res.ok) {
+          throw new Error(data.error ?? t("allianceLoadFailed"));
+        }
+        if (cancelled) return;
+        setAccessibleAlliances(data.accessibleAlliances ?? []);
+        if (data.selectedAllianceId) {
+          setSelectedAllianceId(data.selectedAllianceId);
+        } else if (data.accessibleAlliances?.length === 1) {
+          setSelectedAllianceId(data.accessibleAlliances[0].id);
+        }
+      } catch (err) {
+        if (cancelled) return;
+        setAlliancesError(
+          err instanceof Error ? err.message : t("allianceLoadFailed"),
+        );
+      } finally {
+        if (!cancelled) {
+          setAlliancesLoading(false);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [t]);
+
+  async function saveAlliance() {
+    if (!selectedAllianceId) {
+      setMessage(t("allianceRequired"));
       return;
     }
     setAllianceSaving(true);
@@ -46,30 +95,27 @@ export function SettingsConnectionForm({
       const res = await fetch("/api/settings/connection", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ allianceTag: tag }),
+        body: JSON.stringify({ allianceId: selectedAllianceId }),
       });
       const data = (await res.json()) as {
         error?: string;
-        allianceTag?: string;
         alliance?: { tag: string; name?: string };
       };
       if (!res.ok) {
-        setMessage(data.error ?? t("allianceTagSaveFailed"));
+        setMessage(data.error ?? t("allianceSaveFailed"));
         return;
-      }
-      if (data.allianceTag) {
-        setAllianceTag(data.allianceTag);
       }
       setMessage(
         data.alliance
-          ? t("allianceTagSaved", {
+          ? t("allianceSaved", {
               tag: data.alliance.tag,
               name: data.alliance.name ?? data.alliance.tag,
             })
-          : t("allianceTagSavedGeneric"),
+          : t("allianceSavedGeneric"),
       );
+      router.refresh();
     } catch {
-      setMessage(t("allianceTagSaveFailed"));
+      setMessage(t("allianceSaveFailed"));
     } finally {
       setAllianceSaving(false);
     }
@@ -119,6 +165,11 @@ export function SettingsConnectionForm({
     }
   }
 
+  const canSaveAlliance =
+    !!selectedAllianceId &&
+    (accessibleAlliances.length === 1 ||
+      selectedAllianceId !== initialAllianceId);
+
   return (
     <div className="mx-auto max-w-lg space-y-6">
       <div>
@@ -129,24 +180,25 @@ export function SettingsConnectionForm({
       <section className="rounded-xl border border-[#30363d] bg-[#161b22] p-5">
         <h2 className="font-medium">{t("allianceSection")}</h2>
         <p className="mt-2 text-sm text-[#8b949e]">{t("allianceBody")}</p>
-        <label className="mt-4 block text-sm">
-          <span className="mb-1 block text-[#8b949e]">{t("allianceTagLabel")}</span>
-          <input
-            value={allianceTag}
-            onChange={(e) => setAllianceTag(e.target.value)}
-            placeholder={t("allianceTagPlaceholder")}
-            className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
-            autoComplete="off"
-            spellCheck={false}
+        <div className="mt-4">
+          <AlliancePicker
+            alliances={accessibleAlliances}
+            selectedAllianceId={selectedAllianceId}
+            onSelect={setSelectedAllianceId}
+            label={t("alliancePickerLabel")}
+            hint={t("alliancePickerHint")}
+            emptyMessage={alliancesError ?? t("allianceNone")}
+            loading={alliancesLoading}
+            loadingMessage={t("allianceLoading")}
           />
-        </label>
+        </div>
         <button
           type="button"
-          onClick={() => void saveAllianceTag()}
-          disabled={allianceSaving || !allianceTag.trim()}
+          onClick={() => void saveAlliance()}
+          disabled={allianceSaving || !canSaveAlliance || alliancesLoading}
           className="mt-4 rounded-lg border border-[#238636] bg-[#238636] px-4 py-2 text-sm text-white disabled:opacity-50"
         >
-          {allianceSaving ? t("allianceTagSaving") : t("allianceTagSave")}
+          {allianceSaving ? t("allianceSaving") : t("allianceSave")}
         </button>
       </section>
 
@@ -199,7 +251,13 @@ export function SettingsConnectionForm({
 
       {message && (
         <p
-          className={`text-sm ${message === t("reminderSaved") ? "text-[#3fb950]" : "text-[#f85149]"}`}
+          className={`text-sm ${
+            message === t("reminderSaved") ||
+            message === t("allianceSavedGeneric") ||
+            message.includes("Linked to")
+              ? "text-[#3fb950]"
+              : "text-[#f85149]"
+          }`}
         >
           {message}
         </p>

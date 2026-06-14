@@ -5,6 +5,7 @@ type EntityOp = { entity: string; method: string; permission: string };
 const ENTITY_OPS: EntityOp[] = [
   { entity: "Member", method: "GET", permission: "members:read" },
   { entity: "Alliance", method: "GET", permission: "alliance:read" },
+  { entity: "User", method: "GET", permission: "auth:read" },
   { entity: "DesertStormEvent", method: "GET", permission: "events:read" },
   { entity: "DesertStormScore", method: "GET", permission: "events:read" },
   { entity: "DesertStormScore", method: "POST", permission: "events:write" },
@@ -67,8 +68,9 @@ export function resolveIntegrationPermission(action: string): string | null {
   return INTEGRATION_OPS.find((op) => op.name === action)?.permission ?? null;
 }
 
-/** Phase 1: allow all authenticated sessions with Ashed connection (RBAC in Phase 2). */
-export function isAllowedPermission(_permission: string | null): boolean {
+/** @deprecated Use sessionHasPermission from @/lib/rbac/context in route handlers. */
+export function isAllowedPermission(permission: string | null): boolean {
+  void permission;
   return true;
 }
 

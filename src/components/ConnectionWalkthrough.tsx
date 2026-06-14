@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 
 import {
@@ -12,6 +12,7 @@ import {
   type ParsedConnection,
 } from "@/lib/connectionString";
 import { Kbd, KbdCombo, KbdOr } from "@/components/ui/Kbd";
+import { AlliancePicker } from "@/components/AlliancePicker";
 import { ConnectStepScreenshot } from "@/components/ConnectStepScreenshot";
 import {
   CopyConnectMethodStep,
@@ -28,6 +29,7 @@ import {
 } from "@/components/i18n/richText";
 import { useRouter } from "@/i18n/navigation";
 import type { AshedConnectionMeta } from "@/lib/jwt/connection-meta";
+import type { AccessibleAlliance } from "@/lib/alliance/types";
 import {
   DEFAULT_EXPIRY_REMINDER_DAYS,
   formatTokenExpiryDate,
@@ -65,7 +67,12 @@ export function ConnectionWalkthrough({ onConnected }: Props) {
     alliance?: { id: string; tag: string; name?: string };
   } | null>(null);
   const [copyMethod, setCopyMethod] = useState<CopyConnectMethod>("curl");
-  const [allianceTag, setAllianceTag] = useState("");
+  const [accessibleAlliances, setAccessibleAlliances] = useState<
+    AccessibleAlliance[]
+  >([]);
+  const [selectedAllianceId, setSelectedAllianceId] = useState("");
+  const [alliancesLoading, setAlliancesLoading] = useState(false);
+  const [alliancesError, setAlliancesError] = useState<string | null>(null);
 
   const stepId = STEP_IDS[stepIndex];
   const isPasteStep = stepId === "paste";
@@ -147,6 +154,71 @@ export function ConnectionWalkthrough({ onConnected }: Props) {
   const previewConnectionString =
     parsePreview?.ok ? formatConnectionString(parsePreview.connection) : null;
 
+  const alliancesForUi = parsePreview?.ok ? accessibleAlliances : [];
+  const selectedForUi = parsePreview?.ok ? selectedAllianceId : "";
+
+  useEffect(() => {
+    if (!parsePreview?.ok) {
+      return;
+    }
+
+    let cancelled = false;
+
+    void (async () => {
+      setAlliancesLoading(true);
+      setAlliancesError(null);
+
+      try {
+        const res = await fetch("/api/auth/accessible-alliances", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            input: pasteInput,
+            appId,
+            originUrl,
+          }),
+        });
+        const data = (await res.json()) as {
+          error?: string;
+          alliances?: AccessibleAlliance[];
+          autoSelected?: AccessibleAlliance | null;
+        };
+        if (!res.ok) {
+          throw new Error(data.error ?? t("steps.paste.allianceLoadFailed"));
+        }
+        if (cancelled) return;
+        const alliances = data.alliances ?? [];
+        setAccessibleAlliances(alliances);
+        if (data.autoSelected) {
+          setSelectedAllianceId(data.autoSelected.id);
+        } else {
+          setSelectedAllianceId("");
+        }
+      } catch (err) {
+        if (cancelled) return;
+        setAccessibleAlliances([]);
+        setSelectedAllianceId("");
+        setAlliancesError(
+          err instanceof Error ? err.message : t("steps.paste.allianceLoadFailed"),
+        );
+      } finally {
+        if (!cancelled) {
+          setAlliancesLoading(false);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [appId, originUrl, parsePreview?.ok, pasteInput, t]);
+
+  const canConnect =
+    !!parsePreview?.ok &&
+    !alliancesLoading &&
+    alliancesForUi.length > 0 &&
+    (alliancesForUi.length === 1 || !!selectedForUi);
+
   const canAdvance =
     isOptionalStep || isPasteStep || !stepChecklist || checked[stepId];
 
@@ -169,7 +241,9 @@ export function ConnectionWalkthrough({ onConnected }: Props) {
           input: pasteInput,
           appId,
           originUrl,
-          allianceTag: allianceTag.trim(),
+          allianceId:
+            selectedForUi ||
+            (alliancesForUi.length === 1 ? alliancesForUi[0]?.id : undefined),
         }),
       });
 
@@ -204,7 +278,16 @@ export function ConnectionWalkthrough({ onConnected }: Props) {
     } finally {
       setConnecting(false);
     }
-  }, [allianceTag, appId, onConnected, originUrl, pasteInput, router, tc]);
+  }, [
+    alliancesForUi,
+    appId,
+    onConnected,
+    originUrl,
+    pasteInput,
+    router,
+    selectedForUi,
+    tc,
+  ]);
 
   const renderStepBody = () => {
     switch (stepId) {
@@ -273,22 +356,16 @@ export function ConnectionWalkthrough({ onConnected }: Props) {
         return (
           <div className="space-y-4">
             <p>{t.rich("steps.paste.intro", { strong: strongText })}</p>
-            <label className="block">
-              <span className="mb-1 block text-xs text-[#8b949e]">
-                {t("steps.paste.allianceTagLabel")}
-              </span>
-              <input
-                value={allianceTag}
-                onChange={(e) => setAllianceTag(e.target.value)}
-                placeholder={t("steps.paste.allianceTagPlaceholder")}
-                className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 text-sm"
-                autoComplete="off"
-                spellCheck={false}
-              />
-              <p className="mt-1 text-xs text-[#8b949e]">
-                {t("steps.paste.allianceTagHint")}
-              </p>
-            </label>
+            <AlliancePicker
+              alliances={alliancesForUi}
+              selectedAllianceId={selectedForUi}
+              onSelect={setSelectedAllianceId}
+              label={t("steps.paste.alliancePickerLabel")}
+              hint={t("steps.paste.alliancePickerHint")}
+              emptyMessage={alliancesError ?? t("steps.paste.allianceNone")}
+              loading={alliancesLoading}
+              loadingMessage={t("steps.paste.allianceLoading")}
+            />
             <label className="block">
               <span className="mb-1 block text-xs text-[#8b949e]">
                 {tc("pasteHere")}
@@ -510,9 +587,7 @@ export function ConnectionWalkthrough({ onConnected }: Props) {
             <button
               type="button"
               onClick={() => void connect()}
-              disabled={
-                connecting || !parsePreview?.ok || !allianceTag.trim()
-              }
+              disabled={connecting || !canConnect}
               className="rounded-lg border border-[#238636] bg-[#238636] px-4 py-2 text-sm text-white disabled:opacity-50"
             >
               {connecting ? tc("connecting") : tc("connect")}

@@ -3,11 +3,15 @@ import { and, desc, eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { getDb, schema } from "@/lib/db";
+import { requireSessionPermission } from "@/lib/rbac/require-permission";
 import { getOrCreateSession } from "@/lib/session";
 
 export async function GET(request: Request) {
   try {
     const session = await getOrCreateSession();
+    const denied = await requireSessionPermission(session.id, "events:read");
+    if (denied) return denied;
+
     const url = new URL(request.url);
     const scoreTarget = url.searchParams.get("scoreTarget");
     const allianceId = session.allianceId;
@@ -43,6 +47,9 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const session = await getOrCreateSession();
+    const denied = await requireSessionPermission(session.id, "hq:events:write");
+    if (denied) return denied;
+
     const allianceId = session.allianceId;
     if (!allianceId) {
       return NextResponse.json(

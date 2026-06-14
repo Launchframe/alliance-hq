@@ -15,6 +15,7 @@ import {
   type AshedConnectionMeta,
 } from "@/lib/jwt/connection-meta";
 import { DEFAULT_EXPIRY_REMINDER_DAYS } from "@/lib/jwt/decode";
+import { getRbacContext } from "@/lib/rbac/context";
 
 export const SESSION_COOKIE = "alliance_hq_session";
 const SESSION_DAYS = 90;
@@ -125,6 +126,8 @@ export async function getOrCreateSession(): Promise<Session> {
     userLabel: null,
     allianceId: null,
     allianceTag: null,
+    hqUserId: null,
+    currentAllianceId: null,
     createdAt: now,
     updatedAt: now,
     expiresAt,
@@ -282,6 +285,8 @@ export async function clearAshedConnection(sessionId: string) {
       userLabel: null,
       allianceId: null,
       allianceTag: null,
+      hqUserId: null,
+      currentAllianceId: null,
       updatedAt: new Date(),
     })
     .where(eq(schema.sessions.id, sessionId));
@@ -293,6 +298,7 @@ export async function getSessionStateFor(
 ) {
   const connection = await getAshedConnection(session.id);
   const ashed = await getAshedConnectionMeta(session.id, locale);
+  const rbac = await getRbacContext(session.id);
 
   return {
     sessionId: session.id,
@@ -302,6 +308,14 @@ export async function getSessionStateFor(
     isConnected: connection !== null,
     expiresAt: session.expiresAt.toISOString(),
     ashed,
+    rbac: rbac
+      ? {
+          roleName: rbac.roleName,
+          isPlatformMaintainer: rbac.isPlatformMaintainer,
+          isAllianceAdmin: rbac.permissions.has("alliance:admin"),
+          email: rbac.email,
+        }
+      : null,
   };
 }
 

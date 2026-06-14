@@ -68,7 +68,166 @@
     "videoUpload": "Upload from video",
     "videoUploadDescription": "Extract scoreboard screenshots from a screen recording",
     "openAshed": "Open Ashed",
-    "settings": "Settings"
+    "settings": "Settings",
+    "team": "Team access",
+    "adminPortal": "Admin portal"
+  },
+  "admin": {
+    "title": "HQ Admin Portal",
+    "subtitle": "Cross-alliance observability for platform maintainers.",
+    "loadFailed": "Failed to load data.",
+    "yes": "Yes",
+    "no": "No",
+    "nav": {
+      "overview": "Overview",
+      "system": "System",
+      "alliances": "Alliances",
+      "audit": "Audit log",
+      "videoJobs": "Video jobs",
+      "hqEvents": "HQ events",
+      "commendations": "Commendations",
+      "users": "HQ users"
+    },
+    "systemTitle": "System health",
+    "systemDesc": "Database status, resource counts, env config, and RBAC role catalog.",
+    "alliancesTitle": "Alliances",
+    "alliancesDesc": "HQ tenant rows synced from Ashed with owner and collaborator cache.",
+    "commendationsTitle": "Commendations",
+    "commendationsDesc": "Alliance Star podium types for video upload (when enabled).",
+    "auditTitle": "Audit log",
+    "auditDesc": "BFF and integration actions across all alliances.",
+    "videoJobsTitle": "Video jobs",
+    "videoJobsDesc": "Upload pipeline status, errors, and targets.",
+    "hqEventsTitle": "HQ events",
+    "hqEventsDesc": "Native event occurrences and series.",
+    "usersTitle": "HQ users",
+    "usersDesc": "View alliance roles and assign manual overrides.",
+    "usersPage": {
+      "loading": "Loading users…",
+      "loadFailed": "Failed to load users.",
+      "saveFailed": "Could not save changes.",
+      "saved": "Changes saved.",
+      "selectUser": "Select a user to edit roles.",
+      "editorHint": "Manual assignments use source \"manual\" and are not overwritten by Ashed sync.",
+      "platformMaintainer": "Platform maintainer (cross-alliance /admin access)",
+      "savePlatform": "Save platform flag",
+      "membershipsTitle": "Alliance memberships",
+      "noMemberships": "No alliance memberships yet.",
+      "roleLabel": "Role",
+      "saveRole": "Save role",
+      "assignTitle": "Assign alliance role",
+      "assignHint": "Create or replace a membership for this user on an alliance.",
+      "allianceLabel": "Alliance",
+      "chooseAlliance": "Choose alliance…",
+      "assignRole": "Assign role",
+      "table": {
+        "email": "User",
+        "roles": "Roles"
+      }
+    },
+    "systemPage": {
+      "loading": "Loading system stats…",
+      "loadFailed": "Failed to load system stats.",
+      "databaseTitle": "Database",
+      "databaseOk": "Connected",
+      "databaseBad": "Unreachable",
+      "countsTitle": "Resource counts",
+      "configTitle": "Environment (set / missing only)",
+      "bootstrapHint": "Set PLATFORM_BOOTSTRAP_EMAIL in Vercel — the first connect from that email becomes platform maintainer when none exist yet.",
+      "queuedTitle": "Recent queued video jobs",
+      "rolesTitle": "System roles & permissions",
+      "counts": {
+        "hqUsers": "HQ users",
+        "platformMaintainers": "Platform maintainers",
+        "alliances": "Alliances",
+        "memberships": "Memberships",
+        "videoJobs": "Video jobs",
+        "videoJobsQueued": "Queued jobs",
+        "videoJobsFailed": "Failed jobs",
+        "auditLogEntries": "Audit log entries",
+        "hqEvents": "HQ events",
+        "hqEventSeries": "Event series",
+        "commendations": "Commendations"
+      },
+      "config": {
+        "platformBootstrapEmailConfigured": "PLATFORM_BOOTSTRAP_EMAIL",
+        "videoWorkerSecretConfigured": "VIDEO_WORKER_SECRET",
+        "cronSecretConfigured": "CRON_SECRET",
+        "r2Configured": "R2 storage",
+        "tokenEncryptionConfigured": "TOKEN_ENCRYPTION_KEY"
+      }
+    },
+    "alliancesPage": {
+      "loadFailed": "Failed to load alliances.",
+      "table": {
+        "alliance": "Alliance",
+        "owner": "Owner email",
+        "collaborators": "Collaborators",
+        "members": "HQ members",
+        "synced": "Roles synced"
+      }
+    },
+    "commendationsPage": {
+      "loadFailed": "Failed to load commendations.",
+      "saveFailed": "Could not save commendation.",
+      "createTitle": "Add commendation",
+      "slugPlaceholder": "slug (e.g. valor)",
+      "labelPlaceholder": "Display label",
+      "createButton": "Create",
+      "activeYes": "Active",
+      "activeNo": "Inactive",
+      "table": {
+        "slug": "Slug",
+        "label": "Label",
+        "order": "Order",
+        "active": "Active"
+      }
+    },
+    "videoJobsPage": {
+      "actions": "Actions",
+      "requeue": "Requeue",
+      "reprocess": "Reprocess",
+      "actionFailed": "Action failed"
+    },
+    "hqEventsPage": {
+      "tabs": {
+        "events": "Events",
+        "series": "Series",
+        "boards": "Boards"
+      },
+      "boardKey": "Board",
+      "eventId": "Event ID"
+    },
+    "table": {
+      "time": "Time",
+      "action": "Action",
+      "resource": "Resource",
+      "alliance": "Alliance",
+      "status": "Status",
+      "target": "Target",
+      "file": "File",
+      "error": "Error",
+      "name": "Name",
+      "email": "Email",
+      "displayName": "Display name",
+      "platform": "Platform maintainer"
+    }
+  },
+  "team": {
+    "title": "Team access",
+    "description": "Roles synced from Ashed alliance owner and collaborators.",
+    "backToSettings": "Settings",
+    "refreshFromAshed": "Refresh from Ashed",
+    "refreshing": "Refreshing…",
+    "loadFailed": "Could not load team roster.",
+    "refreshFailed": "Refresh failed — check your Ashed token.",
+    "forbidden": "Alliance admin access required.",
+    "ashedNote": "To add or remove maintainers, update collaborators in Ashed → Alliances, then refresh here.",
+    "table": {
+      "user": "User",
+      "role": "Role",
+      "source": "Source"
+    }
   },
   "shell": {
     "brand": "Alliance HQ",
@@ -133,9 +292,11 @@
       "paste": {
         "title": "Paste and connect",
         "intro": "Paste your <strong>Copy as cURL</strong> command here (recommended). We also accept a Bearer token, authorization header line, or full connection string.",
-        "allianceTagLabel": "Alliance tag",
-        "allianceTagPlaceholder": "LFgo",
-        "allianceTagHint": "Your in-game alliance tag from ashed.online → Alliances. We look this up in the global alliance list to scope members and scores to your alliance only.",
+        "alliancePickerLabel": "Your alliance",
+        "alliancePickerHint": "We load alliances where you are owner or collaborator on Ashed.",
+        "allianceLoading": "Loading your alliances…",
+        "allianceNone": "No alliance admin access found on this Ashed account.",
+        "allianceLoadFailed": "Could not load alliances from Ashed.",
         "placeholder": "curl 'https://base44.app/api/apps/…' \\\n  -H 'authorization: Bearer eyJhbGci…' \\\n  -H 'x-origin-url: https://ashed.online' …",
         "tokenExpires": "Token expires <date></date> (from JWT)",
         "checklist": "Ready to connect"
@@ -203,15 +364,18 @@
     "title": "Settings",
     "subtitle": "Manage your Ashed connection and Alliance HQ preferences.",
     "allianceSection": "Your alliance",
-    "allianceBody": "Alliance HQ scopes member matching and score uploads to one alliance. Enter the tag shown on ashed.online → Alliances (e.g. LFgo).",
-    "allianceTagLabel": "Alliance tag",
-    "allianceTagPlaceholder": "LFgo",
-    "allianceTagSave": "Save alliance tag",
-    "allianceTagSaving": "Saving…",
-    "allianceTagRequired": "Alliance tag is required.",
-    "allianceTagSaved": "Linked to {tag} ({name}). Re-run OCR on open video jobs if members were wrong.",
-    "allianceTagSavedGeneric": "Alliance tag saved.",
-    "allianceTagSaveFailed": "Could not save alliance tag.",
+    "allianceBody": "Alliance HQ scopes member matching and score uploads to one alliance. We detect alliances where you are owner or collaborator on Ashed.",
+    "alliancePickerLabel": "Alliance",
+    "alliancePickerHint": "Role changes happen in Ashed → Alliances (owner or collaborators).",
+    "allianceLoading": "Loading your alliances…",
+    "allianceNone": "No alliance admin access found on this Ashed account.",
+    "allianceLoadFailed": "Could not load alliances from Ashed.",
+    "allianceSave": "Save alliance",
+    "allianceSaving": "Saving…",
+    "allianceRequired": "Select an alliance.",
+    "allianceSaved": "Linked to {tag} ({name}). Re-run OCR on open video jobs if members were wrong.",
+    "allianceSavedGeneric": "Alliance saved.",
+    "allianceSaveFailed": "Could not save alliance.",
     "tokenSection": "Ashed token",
     "remindMe": "Remind me",
     "reminderOption": "{days, plural, one {# day} other {# days}} before expiration",
