@@ -3,6 +3,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 
+import {
+  canReprocessVideoJob,
+  canRequeueVideoJob,
+} from "@/lib/video/admin-job-actions";
+
 type VideoJob = {
   id: string;
   status: string;
@@ -76,7 +81,10 @@ export default function AdminVideoJobsPage() {
             </tr>
           </thead>
           <tbody>
-            {jobs.map((job) => (
+            {jobs.map((job) => {
+              const canRequeue = canRequeueVideoJob(job.status);
+              const canReprocess = canReprocessVideoJob(job.status);
+              return (
               <tr key={job.id} className="border-t border-[#30363d]">
                 <td className="px-4 py-2 whitespace-nowrap text-[#8b949e]">
                   {new Date(job.createdAt).toLocaleString()}
@@ -91,24 +99,31 @@ export default function AdminVideoJobsPage() {
                   <div className="flex flex-wrap gap-2">
                     <button
                       type="button"
-                      disabled={actingJobId === job.id}
+                      disabled={actingJobId === job.id || !canRequeue}
+                      title={
+                        canRequeue ? undefined : tJobs("actionUnavailable")
+                      }
                       onClick={() => void runAction(job.id, "requeue")}
-                      className="text-xs text-[#58a6ff] hover:underline disabled:opacity-50"
+                      className="text-xs text-[#58a6ff] hover:underline disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {tJobs("requeue")}
                     </button>
                     <button
                       type="button"
-                      disabled={actingJobId === job.id}
+                      disabled={actingJobId === job.id || !canReprocess}
+                      title={
+                        canReprocess ? undefined : tJobs("actionUnavailable")
+                      }
                       onClick={() => void runAction(job.id, "reprocess")}
-                      className="text-xs text-[#58a6ff] hover:underline disabled:opacity-50"
+                      className="text-xs text-[#58a6ff] hover:underline disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {tJobs("reprocess")}
                     </button>
                   </div>
                 </td>
               </tr>
-            ))}
+            );
+            })}
           </tbody>
         </table>
       </div>

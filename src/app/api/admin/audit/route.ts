@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
-import { desc, eq } from "drizzle-orm";
+import { desc } from "drizzle-orm";
 
+import {
+  buildAuditLogWhere,
+  parseAuditLogQueryParams,
+} from "@/lib/admin/audit-query";
 import { getDb, schema } from "@/lib/db";
 import { requirePlatformMaintainer } from "@/lib/rbac/require-permission";
 import { readSessionId } from "@/lib/session";
@@ -15,22 +19,26 @@ export async function GET(request: Request) {
   if (denied) return denied;
 
   const url = new URL(request.url);
-  const allianceId = url.searchParams.get("allianceId");
-  const limit = Math.min(Number(url.searchParams.get("limit") ?? 100), 500);
+  const parsed = parseAuditLogQueryParams(url.searchParams);
+  if (!parsed.ok) {
+    return NextResponse.json({ error: parsed.error }, { status: 400 });
+  }
 
+  const where = buildAuditLogWhere(parsed.filters);
   const db = getDb();
-  const rows = allianceId
+
+  const rows = where
     ? await db
         .select()
         .from(schema.auditLog)
-        .where(eq(schema.auditLog.allianceId, allianceId))
+        .where(where)
         .orderBy(desc(schema.auditLog.createdAt))
-        .limit(limit)
+        .limit(parsed.filters.limit)
     : await db
         .select()
         .from(schema.auditLog)
         .orderBy(desc(schema.auditLog.createdAt))
-        .limit(limit);
+        .limit(parsed.filters.limit);
 
   return NextResponse.json({ entries: rows });
 }

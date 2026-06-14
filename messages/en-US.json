@@ -187,7 +187,36 @@
       "actions": "Actions",
       "requeue": "Requeue",
       "reprocess": "Reprocess",
-      "actionFailed": "Action failed"
+      "actionFailed": "Action failed",
+      "actionUnavailable": "Not available for this job status"
+    },
+    "auditPage": {
+      "loading": "Loading audit log…",
+      "loadFailed": "Failed to load audit log.",
+      "empty": "No audit entries match these filters.",
+      "filters": {
+        "alliance": "Alliance",
+        "allAlliances": "All alliances",
+        "action": "Action",
+        "since": "From",
+        "until": "To",
+        "hqUserId": "HQ user ID",
+        "hqUserIdPlaceholder": "Filter by actor…",
+        "apply": "Apply",
+        "clear": "Clear filters",
+        "allActions": "All actions",
+        "actions": {
+          "allActions": "All actions",
+          "bffEntity": "BFF entity (read/write)",
+          "bffIntegration": "BFF integration",
+          "bffFunction": "BFF function",
+          "video": "Video pipeline",
+          "feedback": "Feedback"
+        }
+      },
+      "table": {
+        "hqUser": "HQ user"
+      }
     },
     "hqEventsPage": {
       "tabs": {

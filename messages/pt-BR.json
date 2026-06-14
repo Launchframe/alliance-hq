@@ -187,7 +187,36 @@
       "actions": "Ações",
       "requeue": "Recolocar na fila",
       "reprocess": "Reprocessar",
-      "actionFailed": "Ação falhou"
+      "actionFailed": "Ação falhou",
+      "actionUnavailable": "Indisponível para este status do job"
+    },
+    "auditPage": {
+      "loading": "Carregando log de auditoria…",
+      "loadFailed": "Falha ao carregar log de auditoria.",
+      "empty": "Nenhuma entrada corresponde a estes filtros.",
+      "filters": {
+        "alliance": "Aliança",
+        "allAlliances": "Todas as alianças",
+        "action": "Ação",
+        "since": "De",
+        "until": "Até",
+        "hqUserId": "ID do usuário HQ",
+        "hqUserIdPlaceholder": "Filtrar por ator…",
+        "apply": "Aplicar",
+        "clear": "Limpar filtros",
+        "allActions": "Todas as ações",
+        "actions": {
+          "allActions": "Todas as ações",
+          "bffEntity": "Entidade BFF (leitura/escrita)",
+          "bffIntegration": "Integração BFF",
+          "bffFunction": "Função BFF",
+          "video": "Pipeline de vídeo",
+          "feedback": "Feedback"
+        }
+      },
+      "table": {
+        "hqUser": "Usuário HQ"
+      }
     },
     "hqEventsPage": {
       "tabs": {
