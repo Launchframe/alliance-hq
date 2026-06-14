@@ -16,6 +16,7 @@ jobs:
           node-version: "20"
           cache: npm
 
+      - run: corepack enable
       - run: npm ci
       - run: npm run test
       - run: npm run i18n:validate
