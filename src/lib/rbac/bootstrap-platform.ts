@@ -1,21 +1,16 @@
 import { eq, sql } from "drizzle-orm";
 
-import { normalizeAshedEmail } from "@/lib/alliance/accessible";
 import { getDb, schema } from "@/lib/db";
 
 import { setPlatformMaintainer } from "./admin-users";
+import { isBootstrapEmailMatch } from "./bootstrap-platform.helpers";
 
 /** Promote the bootstrap email when no platform maintainer exists yet (one-time). */
 export async function maybeBootstrapPlatformMaintainer(
   hqUserId: string,
   email: string,
 ): Promise<boolean> {
-  const bootstrapEmail = process.env.PLATFORM_BOOTSTRAP_EMAIL?.trim();
-  if (!bootstrapEmail) {
-    return false;
-  }
-
-  if (normalizeAshedEmail(email) !== normalizeAshedEmail(bootstrapEmail)) {
+  if (!isBootstrapEmailMatch(email, process.env.PLATFORM_BOOTSTRAP_EMAIL)) {
     return false;
   }
 

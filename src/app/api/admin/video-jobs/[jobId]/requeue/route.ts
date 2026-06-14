@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { requirePlatformMaintainer } from "@/lib/rbac/require-permission";
 import { readSessionId } from "@/lib/session";
+import { canRequeueVideoJob } from "@/lib/video/admin-job-actions";
 import { dispatchVideoProcessing } from "@/lib/video/trigger-processing";
 
 type Props = {
@@ -22,13 +23,22 @@ export async function POST(_request: Request, { params }: Props) {
   const { jobId } = await params;
   const db = getDb();
   const [job] = await db
-    .select({ id: schema.videoJobs.id })
+    .select({ id: schema.videoJobs.id, status: schema.videoJobs.status })
     .from(schema.videoJobs)
     .where(eq(schema.videoJobs.id, jobId))
     .limit(1);
 
   if (!job) {
     return NextResponse.json({ error: "Job not found" }, { status: 404 });
+  }
+
+  if (!canRequeueVideoJob(job.status)) {
+    return NextResponse.json(
+      {
+        error: `Cannot requeue job in status "${job.status}". Use reprocess for review jobs or wait until processing finishes.`,
+      },
+      { status: 409 },
+    );
   }
 
   await db

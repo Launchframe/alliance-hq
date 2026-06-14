@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { getDb, schema } from "@/lib/db";
@@ -106,11 +106,49 @@ export async function loadAdminUsersDirectory(): Promise<{
   };
 }
 
+export async function countPlatformMaintainers(): Promise<number> {
+  const db = getDb();
+  const [row] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(schema.hqUsers)
+    .where(eq(schema.hqUsers.isPlatformMaintainer, 1));
+  return row?.count ?? 0;
+}
+
+/** Prevent demoting the final platform maintainer and locking out /admin. */
+export function canDemotePlatformMaintainer(
+  targetIsMaintainer: boolean,
+  maintainerCount: number,
+): boolean {
+  if (!targetIsMaintainer) {
+    return true;
+  }
+  return maintainerCount > 1;
+}
+
 export async function setPlatformMaintainer(
   hqUserId: string,
   isPlatformMaintainer: boolean,
 ) {
   const db = getDb();
+
+  if (!isPlatformMaintainer) {
+    const [user] = await db
+      .select({ isPlatformMaintainer: schema.hqUsers.isPlatformMaintainer })
+      .from(schema.hqUsers)
+      .where(eq(schema.hqUsers.id, hqUserId))
+      .limit(1);
+
+    if (
+      !canDemotePlatformMaintainer(
+        user?.isPlatformMaintainer === 1,
+        await countPlatformMaintainers(),
+      )
+    ) {
+      throw new Error("Cannot remove the last platform maintainer.");
+    }
+  }
+
   await db
     .update(schema.hqUsers)
     .set({

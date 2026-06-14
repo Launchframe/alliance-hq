@@ -5,6 +5,10 @@ import {
   resolveSystemRoleForAlliance,
   normalizeAshedEmail,
 } from "@/lib/alliance/accessible";
+import {
+  buildAllianceRosterEmails,
+  shouldRevokeAshedMembership,
+} from "@/lib/rbac/sync-ashed-roles.helpers";
 import type { AshedAllianceRow, AshedUserRef } from "@/lib/alliance/types";
 import { base44ListAlliances } from "@/lib/base44/fetch";
 import type { ParsedConnection } from "@/lib/connectionString";
@@ -164,6 +168,44 @@ async function upsertAshedMembership(
   });
 }
 
+async function revokeStaleAshedMemberships(
+  allianceId: string,
+  rosterEmails: Set<string>,
+) {
+  const db = getDb();
+  const now = new Date();
+
+  const members = await db
+    .select({
+      membershipId: schema.allianceMemberships.id,
+      email: schema.hqUsers.email,
+      source: schema.allianceMemberships.source,
+    })
+    .from(schema.allianceMemberships)
+    .innerJoin(
+      schema.hqUsers,
+      eq(schema.hqUsers.id, schema.allianceMemberships.hqUserId),
+    )
+    .where(
+      and(
+        eq(schema.allianceMemberships.allianceId, allianceId),
+        eq(schema.allianceMemberships.status, "active"),
+        eq(schema.allianceMemberships.source, "ashed"),
+      ),
+    );
+
+  for (const member of members) {
+    if (
+      shouldRevokeAshedMembership(member.email, rosterEmails, member.source)
+    ) {
+      await db
+        .update(schema.allianceMemberships)
+        .set({ status: "revoked", updatedAt: now })
+        .where(eq(schema.allianceMemberships.id, member.membershipId));
+    }
+  }
+}
+
 export async function syncAshedAllianceRoles(options: {
   connection: ParsedConnection;
   sessionId: string;
@@ -179,13 +221,7 @@ export async function syncAshedAllianceRoles(options: {
   const hqAllianceId = await upsertAllianceFromAshed(ashedAlliance, allianceTag);
   const hqUserId = await upsertHqUser(currentUser);
 
-  const rosterEmails = new Set<string>();
-  if (ashedAlliance.owner_email) {
-    rosterEmails.add(normalizeAshedEmail(ashedAlliance.owner_email));
-  }
-  for (const email of ashedAlliance.collaborators ?? []) {
-    rosterEmails.add(normalizeAshedEmail(email));
-  }
+  const rosterEmails = buildAllianceRosterEmails(ashedAlliance);
 
   for (const email of rosterEmails) {
     const stubUserId = await upsertHqUserStub(email);
@@ -195,6 +231,8 @@ export async function syncAshedAllianceRoles(options: {
 
   const currentRole = resolveSystemRoleForAlliance(ashedAlliance, currentUser);
   await upsertAshedMembership(hqAllianceId, hqUserId, currentRole);
+
+  await revokeStaleAshedMemberships(hqAllianceId, rosterEmails);
 
   const db = getDb();
   await db
