@@ -7,22 +7,8 @@ import { emitVideoJobStatus } from "@/lib/events/video-jobs";
 import { getDb, schema } from "@/lib/db";
 import { putObject, videoStorageKey } from "@/lib/storage";
 import { getOrCreateSession } from "@/lib/session";
+import { dispatchVideoProcessing } from "@/lib/video/trigger-processing";
 import { getScoreTarget, ENABLED_SCORE_TARGETS } from "@/lib/video/score-targets";
-
-async function triggerProcessing(jobId: string) {
-  const base =
-    process.env.VIDEO_WORKER_BASE_URL ??
-    (process.env.VERCEL_URL
-      ? `https://${process.env.VERCEL_URL}`
-      : "http://localhost:5175");
-  const secret = process.env.VIDEO_WORKER_SECRET ?? "dev-secret";
-  const url = `${base}/api/internal/video-process/${jobId}`;
-
-  void fetch(url, {
-    method: "POST",
-    headers: { authorization: `Bearer ${secret}` },
-  }).catch(() => undefined);
-}
 
 export async function POST(request: Request) {
   try {
@@ -100,7 +86,7 @@ export async function POST(request: Request) {
       errorMessage: null,
     });
 
-    triggerProcessing(jobId);
+    dispatchVideoProcessing(jobId, { source: "upload" });
 
     return NextResponse.json({
       ok: true,

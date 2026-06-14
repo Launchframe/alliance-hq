@@ -163,7 +163,7 @@ After `npm run dev`, either:
 
 Open **Review** on a job when status is `ready to review`. Pick event, team, date, fix matches, then **Save scores**.
 
-**Production (Vercel):** With R2 env vars set, uploads land in R2 and processing runs on Vercel via `/api/internal/video-process/{jobId}` (300s function timeout, bundled ffmpeg). Optionally run `npm run video:worker` on a machine with DB access as a backup poller — set `VIDEO_WORKER_BASE_URL=https://alliance-hq.vercel.app` and the same `VIDEO_WORKER_SECRET`.
+**Production (Vercel):** With R2 env vars set, uploads land in R2. Processing is triggered via `waitUntil` after upload (`/api/internal/video-process/{jobId}`). A **Vercel Cron** (`/api/internal/video-process/queue`, every minute) drains any job still `queued` if the trigger was dropped. Set `CRON_SECRET` in Vercel (Cron sends `Authorization: Bearer $CRON_SECRET`). Optionally run `npm run video:worker` locally as another backup poller.
 
 **Timing / bottlenecks:** Each run logs phase timings to stdout (`[video-pipeline]` summary and `[video-pipeline] step` per hop). On Vercel production, custom events go to **Web Analytics** (`Video Pipeline Phase`, `Video Pipeline Complete`, etc.). Ashed frame uploads run in parallel — set `VIDEO_ASHED_FRAME_CONCURRENCY` (default 4, max 8). Compare `ashed.ocr_total` wall time vs summed `ashed.upload`/`ashed.extract` phases to see parallel speedup.
 
