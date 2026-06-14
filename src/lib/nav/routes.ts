@@ -1,54 +1,54 @@
 export type NavRouteKind = "native" | "ashed" | "external";
 
-export type NavRoute = {
+export type NavRouteDef = {
   href: string;
-  label: string;
+  labelKey: string;
   kind: NavRouteKind;
   ashedPath?: string;
   externalUrl?: string;
-  description?: string;
+  descriptionKey?: string;
 };
 
-export const NAV_ROUTES: NavRoute[] = [
+export const NAV_ROUTE_DEFS: NavRouteDef[] = [
   {
     href: "/",
-    label: "Dashboard",
+    labelKey: "dashboard",
     kind: "native",
-    description: "Overview and recent activity",
+    descriptionKey: "dashboardDescription",
   },
   {
     href: "/tools/video-upload",
-    label: "Upload from video",
+    labelKey: "videoUpload",
     kind: "native",
-    description: "Extract scoreboard screenshots from a screen recording",
+    descriptionKey: "videoUploadDescription",
   },
   {
     href: "/ashed/reports",
-    label: "Reports",
+    labelKey: "reports",
     kind: "ashed",
     ashedPath: "/reports",
   },
   {
     href: "/ashed/members",
-    label: "Members",
+    labelKey: "members",
     kind: "ashed",
     ashedPath: "/members",
   },
   {
     href: "/ashed/violations",
-    label: "Violations",
+    labelKey: "violations",
     kind: "ashed",
     ashedPath: "/violations",
   },
   {
     href: "https://ashed.online",
-    label: "Open Ashed",
+    labelKey: "openAshed",
     kind: "external",
     externalUrl: "https://ashed.online",
   },
   {
     href: "/settings",
-    label: "Settings",
+    labelKey: "settings",
     kind: "native",
   },
 ];

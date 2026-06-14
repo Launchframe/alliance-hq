@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getLocale } from "next-intl/server";
 
 import { verifyBase44Connection } from "@/lib/base44/server";
 import {
@@ -6,7 +7,6 @@ import {
   DEFAULT_ORIGIN_URL,
   parseConnectionInput,
 } from "@/lib/connectionString";
-import { ASHED_LOGOUT_WARNING } from "@/lib/jwt/messages";
 import {
   getOrCreateSession,
   getSessionState,
@@ -15,7 +15,8 @@ import {
 
 export async function GET() {
   try {
-    const state = await getSessionState();
+    const locale = await getLocale();
+    const state = await getSessionState(locale);
     return NextResponse.json(state);
   } catch (error) {
     return NextResponse.json(
@@ -30,6 +31,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    const locale = await getLocale();
     const body = (await request.json()) as {
       input?: string;
       appId?: string;
@@ -55,9 +57,12 @@ export async function POST(request: Request) {
       session.id,
       parsed.connection,
       userLabel,
-      body.expiryReminderDays !== undefined
-        ? { expiryReminderDays: body.expiryReminderDays }
-        : undefined,
+      {
+        ...(body.expiryReminderDays !== undefined
+          ? { expiryReminderDays: body.expiryReminderDays }
+          : {}),
+        locale,
+      },
     );
 
     return NextResponse.json({
@@ -65,7 +70,6 @@ export async function POST(request: Request) {
       userLabel,
       isConnected: true,
       ashed,
-      logoutWarning: ASHED_LOGOUT_WARNING,
     });
   } catch (error) {
     return NextResponse.json(

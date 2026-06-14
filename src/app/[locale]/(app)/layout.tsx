@@ -1,25 +1,26 @@
-import { redirect } from "next/navigation";
+import { getLocale, getTranslations } from "next-intl/server";
 
+import { redirect } from "@/i18n/navigation";
 import { AshedShell } from "@/components/ashed-shell/AshedShell";
 import { rethrowNavigationError } from "@/lib/navigation";
 import { getPageSessionState } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
-function isDevDatabaseHint(error: unknown): string | null {
+function isDevDatabaseHint(error: unknown, t: Awaited<ReturnType<typeof getTranslations>>): string | null {
   if (!(error instanceof Error)) return null;
   const msg = error.message;
   if (msg.includes("LOCAL_DATABASE_URL") || msg.includes("DATABASE_URL")) {
-    return "Set LOCAL_DATABASE_URL in .env.local (no ?schema=public — that is Prisma-only).";
+    return t("localDatabaseUrl");
   }
   if (msg.includes("TOKEN_ENCRYPTION_KEY")) {
-    return "Set TOKEN_ENCRYPTION_KEY in .env.local (openssl rand -hex 32).";
+    return t("tokenEncryptionKey");
   }
   if (msg.includes('relation "sessions" does not exist')) {
-    return "Tables missing — run npm run db:push against your local database.";
+    return t("tablesMissing");
   }
   if (msg.includes("ECONNREFUSED") || msg.includes("connect")) {
-    return "Cannot reach Postgres — is the server running on localhost:5432?";
+    return t("postgresUnreachable");
   }
   if (process.env.NODE_ENV === "development") {
     return msg;
@@ -32,25 +33,35 @@ export default async function AppLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const locale = await getLocale();
+  const t = await getTranslations("devErrors");
+
   let state;
   try {
-    state = await getPageSessionState();
+    state = await getPageSessionState("/", locale);
   } catch (error) {
     rethrowNavigationError(error);
-    const hint = isDevDatabaseHint(error);
+    const hint = isDevDatabaseHint(error, t);
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#0d1117] p-6 text-[#e6edf3]">
         <div className="max-w-md rounded-xl border border-[#30363d] bg-[#161b22] p-6 text-center">
-          <h1 className="text-lg font-semibold">Database not configured</h1>
+          <h1 className="text-lg font-semibold">{t("databaseNotConfigured")}</h1>
           <p className="mt-2 text-sm text-[#8b949e]">
-            {hint ?? (
-              <>
-                Set <code className="text-[#58a6ff]">LOCAL_DATABASE_URL</code> and{" "}
-                <code className="text-[#58a6ff]">TOKEN_ENCRYPTION_KEY</code> in{" "}
-                <code className="text-[#58a6ff]">.env.local</code>, then run{" "}
-                <code className="text-[#58a6ff]">npm run db:push</code>.
-              </>
-            )}
+            {hint ??
+              t.rich("defaultHint", {
+                localDb: (chunks) => (
+                  <code className="text-[#58a6ff]">{chunks}</code>
+                ),
+                encKey: (chunks) => (
+                  <code className="text-[#58a6ff]">{chunks}</code>
+                ),
+                envFile: (chunks) => (
+                  <code className="text-[#58a6ff]">{chunks}</code>
+                ),
+                dbPush: (chunks) => (
+                  <code className="text-[#58a6ff]">{chunks}</code>
+                ),
+              })}
           </p>
         </div>
       </div>
@@ -58,7 +69,7 @@ export default async function AppLayout({
   }
 
   if (!state.isConnected) {
-    redirect("/connect");
+    redirect({ href: "/connect", locale });
   }
 
   return (

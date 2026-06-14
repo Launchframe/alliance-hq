@@ -1,0 +1,212 @@
+{
+  "metadata": {
+    "title": "Alliance HQ",
+    "titleTemplate": "%s · Alliance HQ",
+    "description": "Alliance tools for Last War — built on ashed.online with video upload and more.",
+    "privacyTitle": "Privacy Policy",
+    "privacyDescription": "How Alliance HQ handles your data and protects your Ashed connection key."
+  },
+  "common": {
+    "back": "Back",
+    "next": "Next",
+    "connect": "Connect",
+    "connecting": "Connecting…",
+    "preview": "Preview",
+    "note": "Note",
+    "appId": "App id",
+    "originUrl": "Origin URL",
+    "pasteHere": "Paste here",
+    "connectionFailed": "Connection failed",
+    "uploadFailed": "Upload failed",
+    "disconnectFailed": "Disconnect failed",
+    "externalLink": "{label} ↗"
+  },
+  "language": {
+    "label": "Language",
+    "en-US": "English (US)",
+    "pt-BR": "Português (Brasil)"
+  },
+  "footer": {
+    "attribution": "Alliance HQ is a community wrapper for <link>ashed.online</link>. Alliance data credit belongs to Ashed.",
+    "privacyPolicy": "Privacy Policy"
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "dashboardDescription": "Overview and recent activity",
+    "videoUpload": "Upload from video",
+    "videoUploadDescription": "Extract scoreboard screenshots from a screen recording",
+    "reports": "Reports",
+    "members": "Members",
+    "violations": "Violations",
+    "openAshed": "Open Ashed",
+    "settings": "Settings"
+  },
+  "shell": {
+    "brand": "Alliance HQ",
+    "domain": "alliance-hq.online",
+    "dataPoweredBy": "Data powered by <link>Ashed</link>",
+    "connectedAs": "Connected as {user}",
+    "defaultUser": "Ashed user",
+    "connectPrompt": "Connect your Ashed account →"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "subtitle": "Alliance tools built on top of Ashed. Upload videos, manage scores, and jump to native Ashed pages from the sidebar.",
+    "videoCardTitle": "Upload from video",
+    "videoCardDescription": "Drop a screen recording — we extract scoreboard frames and send them to Ashed.",
+    "reportsCardTitle": "View reports on Ashed ↗",
+    "reportsCardDescription": "Open the full Ashed reports dashboard in a new tab.",
+    "aboutTitle": "About Alliance HQ",
+    "aboutBody": "This app extends <link>ashed.online</link> with alliance-specific tools. All core data and OCR processing remain on Ashed — we add convenience features the main app does not ship yet."
+  },
+  "connect": {
+    "progressLabel": "Setup progress",
+    "title": "Connect your Ashed account",
+    "subtitle": "Alliance HQ uses <link>ashed.online</link> for alliance data. You'll copy one network request as a cURL command — we handle the rest.",
+    "successTitle": "Connected to Ashed",
+    "signedInAsBefore": "Signed in as",
+    "noExpiryRead": "Connected, but we couldn't read an expiry date from this token. We'll still notify you if Ashed stops accepting it.",
+    "continue": "Continue to Alliance HQ",
+    "steps": {
+      "login": {
+        "title": "Log into ashed.online",
+        "body": "Open <link>ashed.online</link> in another tab and sign in with the same account you use for alliance data.",
+        "storageNote": "Your connection key carries the same access as that logged-in browser tab. We store it encrypted on our server — not in your browser.",
+        "checklist": "I am logged into ashed.online"
+      },
+      "devtoolsNetwork": {
+        "title": "Open Network in DevTools",
+        "intro": "With ashed.online still open, open your browser's developer tools and click the <network>Network</network> tab.",
+        "devToolsMac": "Open DevTools — Mac:",
+        "devToolsWin": "Windows / Linux:",
+        "emptyListHint": "If the request list is empty, refresh the page or open <reports>Reports</reports>. Optional: filter by <code>base44</code>.",
+        "screenshotAlt": "Ashed alliances page with Chrome DevTools open on the Network tab, filtered by base44",
+        "screenshotCaption": "Network tab selected, recording on, filter set to base44",
+        "checklist": "Network tab is open and showing requests"
+      },
+      "copyCurl": {
+        "title": "Copy as cURL",
+        "checklist": "I copied a cURL command"
+      },
+      "copyAuthorization": {
+        "title": "Copy authorization header",
+        "checklist": "I copied the authorization header"
+      },
+      "paste": {
+        "title": "Paste and connect",
+        "intro": "Paste your <strong>Copy as cURL</strong> command here (recommended). We also accept a Bearer token, authorization header line, or full connection string.",
+        "placeholder": "curl 'https://base44.app/api/apps/…' \\\n  -H 'authorization: Bearer eyJhbGci…' \\\n  -H 'x-origin-url: https://ashed.online' …",
+        "tokenExpires": "Token expires <date></date> (from JWT)",
+        "checklist": "Ready to connect"
+      }
+    },
+    "copyMethod": {
+      "easiestMethodLabel": "Easiest method:",
+      "easiestMethodBody": "copy the whole request in one step — we pull out your login token automatically.",
+      "stepClickRequest": "Click any request whose URL contains <code>base44.app</code>",
+      "stepRightClick": "<strong>Right-click</strong> that request (or use the row menu)",
+      "stepCopyCurl": "Choose <strong>Copy</strong> → <strong>Copy as cURL</strong> <muted>(Chrome, Edge, Brave, and Firefox; Safari includes this too)</muted>",
+      "curlBashHint": "Some browsers label it <strong>Copy as cURL (bash)</strong> — either works. Paste the full command on the next step.",
+      "curlScreenshotAlt": "Chrome DevTools Network tab with right-click menu open on a UserProfile request, Copy as cURL highlighted",
+      "curlScreenshotCaption": "Right-click a base44 request → Copy → Copy as cURL",
+      "alternateAuthorization": "Alternate: copy only the authorization header",
+      "authorizationIntro": "Open the request's <headers>Headers</headers> tab and copy the <code>authorization</code> line (or just the long token after <code>Bearer</code>).",
+      "authorizationScreenshotAlt": "Chrome DevTools Headers tab showing the authorization request header with Bearer token highlighted",
+      "authorizationScreenshotCaption": "Headers tab → scroll to authorization and copy the full Bearer value",
+      "authorizationExample": "authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.…",
+      "tryCurlInstead": "Try copying as a cURL request instead"
+    }
+  },
+  "privacy": {
+    "backToConnect": "← Back to Connect",
+    "title": "Privacy Policy",
+    "intro": "Alliance HQ at alliance-hq.online is a community tool for Last War alliance officers. This page explains what we store and how we protect it.",
+    "noSellTitle": "We do not sell your data",
+    "noSellBody1": "Alliance HQ exists to help your alliance use <link>ashed.online</link> more easily. We will <strong>never</strong> sell, rent, or trade your personal information or alliance data to third parties. We do not use your data for advertising, and we do not build marketing profiles from your activity.",
+    "noSellBody2": "We only use the information needed to run the service you asked for — for example, keeping you signed in and calling Ashed on your behalf when you use Alliance HQ features.",
+    "whatWeStoreTitle": "What we store",
+    "whatWeStoreItems": {
+      "session": "A random session identifier in an httpOnly cookie in your browser (not your Ashed login token).",
+      "token": "Your Ashed connection key (JWT), encrypted on our server — see below.",
+      "metadata": "Basic connection metadata, such as when your token expires and your reminder preferences.",
+      "label": "An optional display label (for example, your Ashed account name) so we can show who is connected."
+    },
+    "whatWeStoreFooter": "Alliance reports, member lists, and other alliance content stay on Ashed's systems. Alliance HQ does not copy that data into a separate database for resale or unrelated purposes.",
+    "encryptionTitle": "How your Ashed connection key is protected",
+    "encryptionIntro": "When you connect Alliance HQ to ashed.online, you paste a network request that contains a login token (JWT). That token is the key that lets Alliance HQ talk to Ashed as you. We treat it like a password.",
+    "encryptionSteps": {
+      "encrypted": "<strong>Encrypted before storage.</strong> As soon as we receive your token, we encrypt it with <strong>AES-256-GCM</strong> (industry-standard authenticated encryption) before writing anything to our database.",
+      "separateKey": "<strong>Separate encryption key.</strong> The key used to encrypt your token lives only in our server environment — it is never stored in the database alongside your encrypted token, and it is never sent to your browser.",
+      "uniqueIv": "<strong>Unique ciphertext each time.</strong> Each encryption uses a fresh random value (IV), so even identical tokens would not produce identical stored data.",
+      "serverSide": "<strong>Server-side only.</strong> Your browser receives a short-lived session cookie. The Ashed JWT itself stays on our server and is decrypted only when Alliance HQ needs to call Ashed for you.",
+      "disconnect": "<strong>You can disconnect.</strong> Settings → Disconnect removes your stored connection key from our server."
+    },
+    "whereDataTitle": "Where data lives",
+    "whereDataBody": "Alliance HQ runs on managed cloud hosting (Vercel for the app, Neon Postgres for encrypted credentials and session data). Data is transmitted over HTTPS.",
+    "questionsTitle": "Questions",
+    "questionsBody": "This policy may be updated as Alliance HQ grows. If you have questions about your data, open an issue on our <githubLink>GitHub repository</githubLink>."
+  },
+  "settings": {
+    "title": "Settings",
+    "subtitle": "Manage your Ashed connection and Alliance HQ preferences.",
+    "tokenSection": "Ashed token",
+    "remindMe": "Remind me",
+    "reminderOption": "{days, plural, one {# day} other {# days}} before expiration",
+    "reconnectHint": "Reconnect to refresh your token and see its expiration date.",
+    "disconnectSection": "Disconnect",
+    "disconnectBody": "Clears your stored connection key from our server. You can reconnect anytime using the setup walkthrough.",
+    "disconnecting": "Disconnecting…",
+    "disconnectButton": "Disconnect Ashed",
+    "reminderSaved": "Reminder preference saved",
+    "reminderSaveFailed": "Could not save reminder preference",
+    "aboutBody": "Alliance HQ at <strong>alliance-hq.online</strong> is a community wrapper for <link>ashed.online</link>. All alliance data credit belongs to Ashed."
+  },
+  "tokenExpiry": {
+    "logoutWarning": "Logging out of ashed.online could break your Alliance HQ connection, even if your token has not reached its expiration yet.",
+    "connectedNotice": "Your Ashed token is set to expire on <date></date>. We'll remind you <days></days> before it's time to get a fresh token.",
+    "reminderDaysCount": "{days, plural, one {# day} other {# days}}",
+    "reminderBanner": "Your Ashed token expires on {date}. Copy a fresh cURL command from ashed.online to stay connected.",
+    "expiredBanner": "Your Ashed token expired on <date></date>.",
+    "reconnectLink": "Reconnect with a fresh cURL command",
+    "updateLink": "Update connection"
+  },
+  "video": {
+    "title": "Upload from video",
+    "subtitle": "Drop a screen recording from Last War. We will extract scoreboard screenshots and send them to Ashed for OCR — same as manual uploads, but faster.",
+    "categoryLabel": "What kind of scoreboard is this?",
+    "categories": {
+      "vs": "VS / weekly scores",
+      "donations": "Donations",
+      "storm": "Storm / event",
+      "general": "Other"
+    },
+    "fileLabel": "Video file",
+    "fileHint": "MP4 or MOV, under 3 minutes works best. Max 200 MB for now.",
+    "selectedFile": "Selected: {name} ({size})",
+    "chooseFileFirst": "Choose a video file first.",
+    "uploading": "Uploading…",
+    "uploadButton": "Upload video",
+    "queuedSuccess": "Video queued for processing.",
+    "recentUploads": "Recent uploads",
+    "status": {
+      "pending": "pending",
+      "processing": "processing",
+      "complete": "complete",
+      "failed": "failed"
+    }
+  },
+  "ashedEmbed": {
+    "description": "This page lives on Ashed. Open it below or in a new tab — your Alliance HQ sidebar stays here.",
+    "openInAshed": "Open in Ashed ↗",
+    "iframeHint": "If the frame is blank, Ashed may block embedding — use \"Open in Ashed\" above.",
+    "iframeTitle": "Ashed — {path}"
+  },
+  "devErrors": {
+    "databaseNotConfigured": "Database not configured",
+    "localDatabaseUrl": "Set LOCAL_DATABASE_URL in .env.local (no ?schema=public — that is Prisma-only).",
+    "tokenEncryptionKey": "Set TOKEN_ENCRYPTION_KEY in .env.local (openssl rand -hex 32).",
+    "tablesMissing": "Tables missing — run npm run db:push against your local database.",
+    "postgresUnreachable": "Cannot reach Postgres — is the server running on localhost:5432?",
+    "defaultHint": "Set <localDb>LOCAL_DATABASE_URL</localDb> and <encKey>TOKEN_ENCRYPTION_KEY</encKey> in <envFile>.env.local</envFile>, then run <dbPush>npm run db:push</dbPush>."
+  }
+}

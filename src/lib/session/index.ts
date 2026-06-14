@@ -163,12 +163,13 @@ export async function getAshedConnection(
 
 export async function getAshedConnectionMeta(
   sessionId: string,
+  locale = "en-US",
 ): Promise<AshedConnectionMeta | null> {
   const cred = await getAshedCredentialRecord(sessionId);
   if (!cred) {
     return null;
   }
-  return buildAshedConnectionMeta(cred);
+  return buildAshedConnectionMeta(cred, locale);
 }
 
 export async function updateExpiryReminderDays(
@@ -186,9 +187,10 @@ export async function storeAshedConnection(
   sessionId: string,
   connection: ParsedConnection,
   userLabel: string | null,
-  options?: { expiryReminderDays?: number },
+  options?: { expiryReminderDays?: number; locale?: string },
 ) {
   const db = getDb();
+  const locale = options?.locale ?? "en-US";
   const now = new Date();
   const encryptedToken = encryptSecret(connection.token);
   const tokenExpiresAt = resolveTokenExpiresAt(connection.token);
@@ -235,13 +237,16 @@ export async function storeAshedConnection(
       .where(eq(schema.sessions.id, sessionId));
   }
 
-  return buildAshedConnectionMeta({
-    tokenExpiresAt,
-    expiryReminderDays:
-      options?.expiryReminderDays ??
-      existing?.expiryReminderDays ??
-      DEFAULT_EXPIRY_REMINDER_DAYS,
-  });
+  return buildAshedConnectionMeta(
+    {
+      tokenExpiresAt,
+      expiryReminderDays:
+        options?.expiryReminderDays ??
+        existing?.expiryReminderDays ??
+        DEFAULT_EXPIRY_REMINDER_DAYS,
+    },
+    locale,
+  );
 }
 
 export async function clearAshedConnection(sessionId: string) {
@@ -256,9 +261,12 @@ export async function clearAshedConnection(sessionId: string) {
     .where(eq(schema.sessions.id, sessionId));
 }
 
-export async function getSessionStateFor(session: Session) {
+export async function getSessionStateFor(
+  session: Session,
+  locale = "en-US",
+) {
   const connection = await getAshedConnection(session.id);
-  const ashed = await getAshedConnectionMeta(session.id);
+  const ashed = await getAshedConnectionMeta(session.id, locale);
 
   return {
     sessionId: session.id,
@@ -269,12 +277,12 @@ export async function getSessionStateFor(session: Session) {
   };
 }
 
-export async function getSessionState() {
+export async function getSessionState(locale = "en-US") {
   const session = await getOrCreateSession();
-  return getSessionStateFor(session);
+  return getSessionStateFor(session, locale);
 }
 
-export async function getPageSessionState(returnTo = "/") {
+export async function getPageSessionState(returnTo = "/", locale = "en-US") {
   const session = await requirePageSession(returnTo);
-  return getSessionStateFor(session);
+  return getSessionStateFor(session, locale);
 }

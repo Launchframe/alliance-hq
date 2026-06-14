@@ -1,18 +1,17 @@
 "use client";
 
-import Link from "next/link";
+import { useTranslations } from "next-intl";
 
+import { Link } from "@/i18n/navigation";
 import type { AshedConnectionMeta } from "@/lib/jwt/connection-meta";
-import {
-  ASHED_LOGOUT_WARNING,
-  tokenExpiryReminderMessage,
-} from "@/lib/jwt/messages";
 
 type Props = {
   ashed: AshedConnectionMeta;
 };
 
 export function TokenExpiryBanner({ ashed }: Props) {
+  const t = useTranslations("tokenExpiry");
+
   if (!ashed.showExpiryReminder || !ashed.tokenExpiresAtFormatted) {
     return null;
   }
@@ -28,18 +27,21 @@ export function TokenExpiryBanner({ ashed }: Props) {
       <p>
         {ashed.isTokenExpired ? (
           <>
-            Your Ashed token expired on{" "}
-            <strong>{ashed.tokenExpiresAtFormatted}</strong>.{" "}
+            {t.rich("expiredBanner", {
+              date: () => (
+                <strong>{ashed.tokenExpiresAtFormatted}</strong>
+              ),
+            })}{" "}
             <Link href="/connect" className="text-[#58a6ff] hover:underline">
-              Reconnect with a fresh cURL command
+              {t("reconnectLink")}
             </Link>
             .
           </>
         ) : (
           <>
-            {tokenExpiryReminderMessage(ashed.tokenExpiresAtFormatted)}{" "}
+            {t("reminderBanner", { date: ashed.tokenExpiresAtFormatted })}{" "}
             <Link href="/connect" className="text-[#58a6ff] hover:underline">
-              Update connection
+              {t("updateLink")}
             </Link>
             .
           </>
@@ -58,19 +60,28 @@ export function TokenExpiryNotice({
   reminderDays: number;
   className?: string;
 }) {
+  const t = useTranslations("tokenExpiry");
+  const tc = useTranslations("common");
+
   return (
     <div
       className={`rounded-lg border border-[#30363d] bg-[#0d1117] px-4 py-3 text-sm ${className ?? ""}`}
     >
       <p>
-        Your Ashed token is set to expire on{" "}
-        <strong className="text-[#e6edf3]">{formattedDate}</strong>. We&apos;ll
-        remind you{" "}
-        <strong className="text-[#e6edf3]">{reminderDays} days</strong>{" "}before
-        it&apos;s time to get a fresh token.
+        {t.rich("connectedNotice", {
+          date: () => (
+            <strong className="text-[#e6edf3]">{formattedDate}</strong>
+          ),
+          days: () => (
+            <strong className="text-[#e6edf3]">
+              {t("reminderDaysCount", { days: reminderDays })}
+            </strong>
+          ),
+        })}
       </p>
       <p className="mt-2 text-[#8b949e]">
-        <strong className="text-[#d29922]">Note:</strong> {ASHED_LOGOUT_WARNING}
+        <strong className="text-[#d29922]">{tc("note")}:</strong>{" "}
+        {t("logoutWarning")}
       </p>
     </div>
   );

@@ -1,12 +1,13 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 
+import { useRouter } from "@/i18n/navigation";
 import { TokenExpiryNotice } from "@/components/TokenExpiryNotice";
+import { ashedLink, strongText } from "@/components/i18n/richText";
 import type { AshedConnectionMeta } from "@/lib/jwt/connection-meta";
 import { DEFAULT_EXPIRY_REMINDER_DAYS } from "@/lib/jwt/decode";
-import { ASHED_LOGOUT_WARNING } from "@/lib/jwt/messages";
 
 const REMINDER_OPTIONS = [7, 14, 21, 30];
 
@@ -15,6 +16,9 @@ type Props = {
 };
 
 export function SettingsConnectionForm({ initialAshed }: Props) {
+  const t = useTranslations("settings");
+  const tToken = useTranslations("tokenExpiry");
+  const tc = useTranslations("common");
   const router = useRouter();
   const [saving, setSaving] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
@@ -35,15 +39,15 @@ export function SettingsConnectionForm({ initialAshed }: Props) {
       });
       if (!res.ok) {
         const data = (await res.json()) as { error?: string };
-        setMessage(data.error ?? "Could not save reminder preference");
+        setMessage(data.error ?? t("reminderSaveFailed"));
         return;
       }
       const data = (await res.json()) as { ashed: AshedConnectionMeta };
       setAshed(data.ashed);
       setReminderDays(data.ashed.expiryReminderDays);
-      setMessage("Reminder preference saved");
+      setMessage(t("reminderSaved"));
     } catch {
-      setMessage("Could not save reminder preference");
+      setMessage(t("reminderSaveFailed"));
     } finally {
       setSaving(false);
     }
@@ -56,13 +60,13 @@ export function SettingsConnectionForm({ initialAshed }: Props) {
       const res = await fetch("/api/auth/disconnect", { method: "POST" });
       if (!res.ok) {
         const data = (await res.json()) as { error?: string };
-        setMessage(data.error ?? "Disconnect failed");
+        setMessage(data.error ?? tc("disconnectFailed"));
         return;
       }
       router.push("/connect");
       router.refresh();
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : "Disconnect failed");
+      setMessage(e instanceof Error ? e.message : tc("disconnectFailed"));
     } finally {
       setDisconnecting(false);
     }
@@ -71,14 +75,12 @@ export function SettingsConnectionForm({ initialAshed }: Props) {
   return (
     <div className="mx-auto max-w-lg space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold">Settings</h1>
-        <p className="mt-1 text-sm text-[#8b949e]">
-          Manage your Ashed connection and Alliance HQ preferences.
-        </p>
+        <h1 className="text-2xl font-semibold">{t("title")}</h1>
+        <p className="mt-1 text-sm text-[#8b949e]">{t("subtitle")}</p>
       </div>
 
       <section className="rounded-xl border border-[#30363d] bg-[#161b22] p-5">
-        <h2 className="font-medium">Ashed token</h2>
+        <h2 className="font-medium">{t("tokenSection")}</h2>
         {ashed?.tokenExpiresAtFormatted ? (
           <div className="mt-3 space-y-4">
             <TokenExpiryNotice
@@ -86,9 +88,7 @@ export function SettingsConnectionForm({ initialAshed }: Props) {
               reminderDays={reminderDays}
             />
             <label className="block text-sm">
-              <span className="mb-2 block text-[#8b949e]">
-                Remind me
-              </span>
+              <span className="mb-2 block text-[#8b949e]">{t("remindMe")}</span>
               <select
                 value={reminderDays}
                 onChange={(e) => {
@@ -101,39 +101,34 @@ export function SettingsConnectionForm({ initialAshed }: Props) {
               >
                 {REMINDER_OPTIONS.map((days) => (
                   <option key={days} value={days}>
-                    {days} days before expiration
+                    {t("reminderOption", { days })}
                   </option>
                 ))}
               </select>
             </label>
           </div>
         ) : (
-          <p className="mt-2 text-sm text-[#8b949e]">
-            Reconnect to refresh your token and see its expiration date.
-          </p>
+          <p className="mt-2 text-sm text-[#8b949e]">{t("reconnectHint")}</p>
         )}
       </section>
 
       <section className="rounded-xl border border-[#30363d] bg-[#161b22] p-5">
-        <h2 className="font-medium">Disconnect</h2>
-        <p className="mt-2 text-sm text-[#8b949e]">
-          Clears your stored connection key from our server. You can reconnect
-          anytime using the setup walkthrough.
-        </p>
-        <p className="mt-2 text-sm text-[#8b949e]">{ASHED_LOGOUT_WARNING}</p>
+        <h2 className="font-medium">{t("disconnectSection")}</h2>
+        <p className="mt-2 text-sm text-[#8b949e]">{t("disconnectBody")}</p>
+        <p className="mt-2 text-sm text-[#8b949e]">{tToken("logoutWarning")}</p>
         <button
           type="button"
           onClick={() => void disconnect()}
           disabled={disconnecting}
           className="mt-4 rounded-lg border border-[#f85149] px-4 py-2 text-sm text-[#f85149] hover:bg-[#f8514920] disabled:opacity-50"
         >
-          {disconnecting ? "Disconnecting…" : "Disconnect Ashed"}
+          {disconnecting ? t("disconnecting") : t("disconnectButton")}
         </button>
       </section>
 
       {message && (
         <p
-          className={`text-sm ${message.includes("saved") ? "text-[#3fb950]" : "text-[#f85149]"}`}
+          className={`text-sm ${message === t("reminderSaved") ? "text-[#3fb950]" : "text-[#f85149]"}`}
         >
           {message}
         </p>
@@ -141,18 +136,10 @@ export function SettingsConnectionForm({ initialAshed }: Props) {
 
       <section className="rounded-xl border border-[#30363d] bg-[#161b22] p-5 text-sm text-[#8b949e]">
         <p>
-          Alliance HQ at{" "}
-          <strong className="text-[#e6edf3]">alliance-hq.online</strong> is a
-          community wrapper for{" "}
-          <a
-            href="https://ashed.online"
-            target="_blank"
-            rel="noreferrer"
-            className="text-[#58a6ff] hover:underline"
-          >
-            ashed.online
-          </a>
-          . All alliance data credit belongs to Ashed.
+          {t.rich("aboutBody", {
+            strong: strongText,
+            link: ashedLink,
+          })}
         </p>
       </section>
     </div>

@@ -1,11 +1,12 @@
 "use client";
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { useTranslations } from "next-intl";
 
-import { NAV_ROUTES } from "@/lib/nav/routes";
+import { Link, usePathname } from "@/i18n/navigation";
+import { NAV_ROUTE_DEFS } from "@/lib/nav/routes";
 import type { AshedConnectionMeta } from "@/lib/jwt/connection-meta";
 import { TokenExpiryBanner } from "@/components/TokenExpiryNotice";
+import { ashedLink } from "@/components/i18n/richText";
 
 type Props = {
   userLabel: string | null;
@@ -16,6 +17,9 @@ type Props = {
 
 export function AshedShell({ userLabel, isConnected, ashed, children }: Props) {
   const pathname = usePathname();
+  const t = useTranslations("shell");
+  const tNav = useTranslations("nav");
+  const tc = useTranslations("common");
 
   return (
     <div className="flex min-h-screen bg-[#0d1117] text-[#e6edf3]">
@@ -23,16 +27,18 @@ export function AshedShell({ userLabel, isConnected, ashed, children }: Props) {
         <div className="border-b border-[#30363d] px-4 py-4">
           <Link href="/" className="block">
             <span className="text-lg font-semibold tracking-tight">
-              Alliance HQ
+              {t("brand")}
             </span>
             <span className="mt-0.5 block text-xs text-[#8b949e]">
-              alliance-hq.online
+              {t("domain")}
             </span>
           </Link>
         </div>
 
         <nav className="flex-1 space-y-0.5 p-2">
-          {NAV_ROUTES.map((route) => {
+          {NAV_ROUTE_DEFS.map((route) => {
+            const label = tNav(route.labelKey);
+
             if (route.kind === "external") {
               return (
                 <a
@@ -42,7 +48,7 @@ export function AshedShell({ userLabel, isConnected, ashed, children }: Props) {
                   rel="noreferrer"
                   className="block rounded-lg px-3 py-2 text-sm text-[#8b949e] hover:bg-[#21262d] hover:text-[#e6edf3]"
                 >
-                  {route.label} ↗
+                  {tc("externalLink", { label })}
                 </a>
               );
             }
@@ -62,7 +68,7 @@ export function AshedShell({ userLabel, isConnected, ashed, children }: Props) {
                     : "text-[#8b949e] hover:bg-[#21262d] hover:text-[#e6edf3]"
                 }`}
               >
-                {route.label}
+                {label}
               </Link>
             );
           })}
@@ -70,15 +76,7 @@ export function AshedShell({ userLabel, isConnected, ashed, children }: Props) {
 
         <div className="border-t border-[#30363d] p-3 text-xs text-[#8b949e]">
           <p>
-            Data powered by{" "}
-            <a
-              href="https://ashed.online"
-              target="_blank"
-              rel="noreferrer"
-              className="text-[#58a6ff] hover:underline"
-            >
-              Ashed
-            </a>
+            {t.rich("dataPoweredBy", { link: ashedLink })}
           </p>
         </div>
       </aside>
@@ -88,14 +86,13 @@ export function AshedShell({ userLabel, isConnected, ashed, children }: Props) {
           <div className="text-sm text-[#8b949e]">
             {isConnected ? (
               <>
-                Connected as{" "}
-                <span className="font-medium text-[#3fb950]">
-                  {userLabel ?? "Ashed user"}
-                </span>
+                {t("connectedAs", {
+                  user: userLabel ?? t("defaultUser"),
+                })}
               </>
             ) : (
               <Link href="/connect" className="text-[#58a6ff] hover:underline">
-                Connect your Ashed account →
+                {t("connectPrompt")}
               </Link>
             )}
           </div>

@@ -48,8 +48,8 @@ export function getJwtExpiryDate(token: string): Date | null {
   return null;
 }
 
-export function formatTokenExpiryDate(date: Date): string {
-  return new Intl.DateTimeFormat("en-US", {
+export function formatTokenExpiryDate(date: Date, locale = "en-US"): string {
+  return new Intl.DateTimeFormat(locale, {
     dateStyle: "long",
     timeZone: "UTC",
   }).format(date);

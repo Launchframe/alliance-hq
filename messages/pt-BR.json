@@ -1,0 +1,212 @@
+{
+  "metadata": {
+    "title": "Alliance HQ",
+    "titleTemplate": "%s · Alliance HQ",
+    "description": "Ferramentas de aliança para Last War — criadas no ashed.online, com upload de vídeo e muito mais.",
+    "privacyTitle": "Política de Privacidade",
+    "privacyDescription": "Como o Alliance HQ lida com seus dados e protege sua chave de conexão do Ashed."
+  },
+  "common": {
+    "back": "Voltar",
+    "next": "Próximo",
+    "connect": "Conectar",
+    "connecting": "Conectando…",
+    "preview": "Pré-visualização",
+    "note": "Nota",
+    "appId": "ID do aplicativo",
+    "originUrl": "URL de origem",
+    "pasteHere": "Cole aqui",
+    "connectionFailed": "Falha na conexão",
+    "uploadFailed": "Falha no upload",
+    "disconnectFailed": "Falha ao desconectar",
+    "externalLink": "{label} ↗"
+  },
+  "language": {
+    "label": "Idioma",
+    "en-US": "English (US)",
+    "pt-BR": "Português (Brasil)"
+  },
+  "footer": {
+    "attribution": "O Alliance HQ é uma interface comunitária para <link>ashed.online</link>. Os créditos pelos dados da Alliance pertencem a Ashed.",
+    "privacyPolicy": "Política de Privacidade"
+  },
+  "nav": {
+    "dashboard": "Painel",
+    "dashboardDescription": "Visão geral e atividades recentes",
+    "videoUpload": "Upload de vídeo",
+    "videoUploadDescription": "Extrair capturas de tela do placar a partir de uma gravação de tela",
+    "reports": "Relatórios",
+    "members": "Membros",
+    "violations": "Violações",
+    "openAshed": "Abra o Ashed",
+    "settings": "Configurações"
+  },
+  "shell": {
+    "brand": "Alliance HQ",
+    "domain": "alliance-hq.online",
+    "dataPoweredBy": "Dados fornecidos por <link>Ashed</link>",
+    "connectedAs": "Conectado como {user}",
+    "defaultUser": "Usuário Ashed",
+    "connectPrompt": "Conecte sua conta Ashed →"
+  },
+  "dashboard": {
+    "title": "Painel de Controle",
+    "subtitle": "Ferramentas da Alliance construídas sobre o Ashed. Envie vídeos, gerencie pontuações e acesse páginas nativas do Ashed a partir da barra lateral.",
+    "videoCardTitle": "Enviar vídeo",
+    "videoCardDescription": "Grave a tela — extraímos os frames do placar e os enviamos para o Ashed.",
+    "reportsCardTitle": "Ver relatórios no Ashed ↗",
+    "reportsCardDescription": "Abra o painel de relatórios completo do Ashed em uma nova aba.",
+    "aboutTitle": "Sobre a Alliance HQ",
+    "aboutBody": "Este aplicativo complementa o <link>ashed.online</link> com ferramentas específicas para alianças. Todos os dados principais e o processamento via OCR permanecem no Ashed — nós adicionamos recursos de conveniência que o aplicativo principal ainda não oferece."
+  },
+  "connect": {
+    "progressLabel": "Progresso da configuração",
+    "title": "Conecte sua conta Ashed",
+    "subtitle": "O Alliance HQ usa o <link>ashed.online</link> para dados da aliança. Você copiará uma solicitação de rede como um comando cURL — nós cuidamos do resto.",
+    "successTitle": "Conectado ao Ashed",
+    "signedInAsBefore": "Conectado como",
+    "noExpiryRead": "Conectado, mas não conseguimos ler uma data de expiração neste token. Ainda assim, notificaremos você se o Ashed parar de aceitá-lo.",
+    "continue": "Continuar para o Alliance HQ",
+    "steps": {
+      "login": {
+        "title": "Faça login no ashed.online",
+        "body": "Abra o <link>ashed.online</link> em outra aba e faça login com a mesma conta que você usa para dados da aliança.",
+        "storageNote": "Sua chave de conexão possui as mesmas permissões de acesso da aba do navegador onde você fez login. Nós a armazenamos criptografada em nosso servidor — e não no seu navegador.",
+        "checklist": "Estou logado no ashed.online"
+      },
+      "devtoolsNetwork": {
+        "title": "Abrir a aba Network no DevTools",
+        "intro": "Com o ashed.online aberto, abra as ferramentas de desenvolvedor do seu navegador e clique na aba <network>Network</network>.",
+        "devToolsMac": "Abrir DevTools — Mac:",
+        "devToolsWin": "Windows / Linux:",
+        "emptyListHint": "Se a lista de requisições estiver vazia, atualize a página ou abra <reports>Reports</reports>. Opcional: filtre por <code>base44</code>.",
+        "screenshotAlt": "Página de alianças do Ashed com o Chrome DevTools aberto na aba Network, filtrada por base44",
+        "screenshotCaption": "Aba Network selecionada, gravação ativada, filtro definido como base44",
+        "checklist": "A aba Network está aberta e exibindo requisições"
+      },
+      "copyCurl": {
+        "title": "Copiar como cURL",
+        "checklist": "Copiei um comando cURL"
+      },
+      "copyAuthorization": {
+        "title": "Copiar cabeçalho de autorização",
+        "checklist": "Copiei o cabeçalho de autorização"
+      },
+      "paste": {
+        "title": "Colar e conectar",
+        "intro": "Cole seu comando <strong>Copiar como cURL</strong> aqui (recomendado). Também aceitamos um token Bearer, uma linha de cabeçalho de autorização ou uma string de conexão completa.",
+        "placeholder": "curl 'https://base44.app/api/apps/…' \\\n  -H 'authorization: Bearer eyJhbGci…' \\\n  -H 'x-origin-url: https://ashed.online' …",
+        "tokenExpires": "O token expira em <date></date> (via JWT)",
+        "checklist": "Pronto para conectar"
+      }
+    },
+    "copyMethod": {
+      "easiestMethodLabel": "Método mais fácil:",
+      "easiestMethodBody": "copie a solicitação inteira de uma só vez — nós extraímos seu token de login automaticamente.",
+      "stepClickRequest": "Clique em qualquer solicitação cuja URL contenha <code>base44.app</code>",
+      "stepRightClick": "<strong>Clique com o botão direito</strong> nessa solicitação (ou use o menu da linha)",
+      "stepCopyCurl": "Escolha <strong>Copiar</strong> → <strong>Copiar como cURL</strong> <muted>(Chrome, Edge, Brave e Firefox; o Safari também inclui essa opção)</muted>",
+      "curlBashHint": "Alguns navegadores exibem a opção como <strong>Copiar como cURL (bash)</strong> — qualquer uma serve. Cole o comando completo na próxima etapa.",
+      "curlScreenshotAlt": "Aba Network (Rede) do Chrome DevTools com o menu de clique com o botão direito aberto em uma solicitação UserProfile; a opção 'Copiar como cURL' está destacada",
+      "curlScreenshotCaption": "Clique com o botão direito em uma solicitação base44 → Copiar → Copiar como cURL",
+      "alternateAuthorization": "Alternativa: copie apenas o cabeçalho de autorização",
+      "authorizationIntro": "Abra a aba <headers>Headers</headers> (Cabeçalhos) da solicitação e copie a linha <code>authorization</code> (ou apenas o token longo após <code>Bearer</code>).",
+      "authorizationScreenshotAlt": "Aba Headers do Chrome DevTools mostrando o cabeçalho de solicitação de autorização com o token Bearer destacado",
+      "authorizationScreenshotCaption": "Aba Headers → role até authorization e copie o valor completo do Bearer",
+      "authorizationExample": "authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.…",
+      "tryCurlInstead": "Tente copiar como uma solicitação cURL"
+    }
+  },
+  "privacy": {
+    "backToConnect": "← Voltar ao Connect",
+    "title": "Política de Privacidade",
+    "intro": "O Alliance HQ, em alliance-hq.online, é uma ferramenta comunitária para oficiais de alianças do jogo Last War. Esta página explica o que armazenamos e como protegemos essas informações.",
+    "noSellTitle": "Não vendemos seus dados",
+    "noSellBody1": "O Alliance HQ existe para ajudar sua aliança a utilizar o <link>ashed.online</link> com mais facilidade. Nós <strong>nunca</strong> venderemos, alugaremos ou negociaremos suas informações pessoais ou dados da aliança com terceiros. Não utilizamos seus dados para publicidade, nem criamos perfis de marketing com base em sua atividade.",
+    "noSellBody2": "Utilizamos apenas as informações necessárias para fornecer o serviço solicitado — por exemplo, manter sua sessão ativa e interagir com o Ashed em seu nome ao utilizar os recursos do Alliance HQ.",
+    "whatWeStoreTitle": "O que armazenamos",
+    "whatWeStoreItems": {
+      "session": "Um identificador de sessão aleatório em um cookie 'httpOnly' no seu navegador (não é o seu token de login do Ashed).",
+      "token": "Sua chave de conexão do Ashed (JWT), criptografada em nosso servidor — veja abaixo.",
+      "metadata": "Metadados básicos de conexão, como a data de expiração do seu token e suas preferências de lembrete.",
+      "label": "Um rótulo de exibição opcional (por exemplo, o nome da sua conta no Ashed) para que possamos mostrar quem está conectado."
+    },
+    "whatWeStoreFooter": "Relatórios da aliança, listas de membros e outros conteúdos da aliança permanecem nos sistemas da Ashed. O Alliance HQ não copia esses dados para um banco de dados separado para revenda ou fins não relacionados.",
+    "encryptionTitle": "Como sua chave de conexão com a Ashed é protegida",
+    "encryptionIntro": "Ao conectar o Alliance HQ ao ashed.online, você insere uma solicitação de rede que contém um token de login (JWT). Esse token é a chave que permite ao Alliance HQ comunicar-se com a Ashed em seu nome. Nós o tratamos como uma senha.",
+    "encryptionSteps": {
+      "encrypted": "<strong>Criptografado antes do armazenamento.</strong> Assim que recebemos seu token, nós o criptografamos usando <strong>AES-256-GCM</strong> (criptografia autenticada padrão da indústria) antes de gravar qualquer coisa em nosso banco de dados.",
+      "separateKey": "<strong>Chave de criptografia separada.</strong> A chave usada para criptografar seu token reside apenas em nosso ambiente de servidor — ela nunca é armazenada no banco de dados junto com seu token criptografado e nunca é enviada para o seu navegador.",
+      "uniqueIv": "<strong>Texto cifrado único a cada vez.</strong> Cada criptografia utiliza um novo valor aleatório (IV); portanto, mesmo tokens idênticos não produziriam dados armazenados idênticos.",
+      "serverSide": "<strong>Somente no lado do servidor.</strong> Seu navegador recebe um cookie de sessão de curta duração. O JWT da Ashed em si permanece em nosso servidor e é descriptografado apenas quando o Alliance HQ precisa fazer uma chamada à Ashed em seu nome.",
+      "disconnect": "<strong>Você pode desconectar.</strong> A opção Configurações → Desconectar remove sua chave de conexão armazenada de nosso servidor."
+    },
+    "whereDataTitle": "Onde os dados ficam armazenados",
+    "whereDataBody": "O Alliance HQ opera em hospedagem em nuvem gerenciada (Vercel para o aplicativo, Neon Postgres para credenciais criptografadas e dados de sessão). Os dados são transmitidos via HTTPS.",
+    "questionsTitle": "Dúvidas",
+    "questionsBody": "Esta política pode ser atualizada à medida que o Alliance HQ cresce. Se você tiver dúvidas sobre seus dados, abra uma issue em nosso <githubLink>repositório no GitHub</githubLink>."
+  },
+  "settings": {
+    "title": "Configurações",
+    "subtitle": "Gerencie sua conexão com o Ashed e as preferências do Alliance HQ.",
+    "tokenSection": "Token do Ashed",
+    "remindMe": "Lembre-me",
+    "reminderOption": "{days, plural, one {# dia} other {# dias}} antes da expiração",
+    "reconnectHint": "Reconecte-se para atualizar seu token e ver a data de expiração.",
+    "disconnectSection": "Desconectar",
+    "disconnectBody": "Remove a chave de conexão armazenada do nosso servidor. Você pode se reconectar a qualquer momento usando o guia de configuração.",
+    "disconnecting": "Desconectando…",
+    "disconnectButton": "Desconectar Ashed",
+    "reminderSaved": "Preferência de lembrete salva",
+    "reminderSaveFailed": "Não foi possível salvar a preferência de lembrete",
+    "aboutBody": "O Alliance HQ, em <strong>alliance-hq.online</strong>, é uma interface comunitária para o <link>ashed.online</link>. Todos os créditos pelos dados da aliança pertencem ao Ashed."
+  },
+  "tokenExpiry": {
+    "logoutWarning": "Encerrar a sessão no ashed.online pode interromper sua conexão com o Alliance HQ, mesmo que seu token ainda não tenha expirado.",
+    "connectedNotice": "Seu token Ashed expira em <date></date>. Avisaremos você com <days></days> de antecedência quando chegar a hora de obter um novo token.",
+    "reminderDaysCount": "{days, plural, one {# dia} other {# dias}}",
+    "reminderBanner": "Seu token Ashed expira em {date}. Copie um novo comando cURL do ashed.online para manter a conexão.",
+    "expiredBanner": "Seu token Ashed expirou em <date></date>.",
+    "reconnectLink": "Reconectar com um novo comando cURL",
+    "updateLink": "Atualizar conexão"
+  },
+  "video": {
+    "title": "Enviar a partir de vídeo",
+    "subtitle": "Envie uma gravação de tela do Last War. Extrairemos capturas de tela do placar e as enviaremos ao Ashed para OCR — o mesmo processo dos envios manuais, mas mais rápido.",
+    "categoryLabel": "Que tipo de placar é este?",
+    "categories": {
+      "vs": "VS / pontuações semanais",
+      "donations": "Doações",
+      "storm": "Storm / evento",
+      "general": "Outros"
+    },
+    "fileLabel": "Arquivo de vídeo",
+    "fileHint": "MP4 ou MOV; vídeos com menos de 3 minutos funcionam melhor. Máximo de 200 MB por enquanto.",
+    "selectedFile": "Selecionado: {name} ({size})",
+    "chooseFileFirst": "Escolha um arquivo de vídeo primeiro.",
+    "uploading": "Enviando…",
+    "uploadButton": "Enviar vídeo",
+    "queuedSuccess": "Vídeo colocado na fila para processamento.",
+    "recentUploads": "Envios recentes",
+    "status": {
+      "pending": "pendente",
+      "processing": "processando",
+      "complete": "concluído",
+      "failed": "falha"
+    }
+  },
+  "ashedEmbed": {
+    "description": "Esta página está hospedada no Ashed. Abra-a abaixo ou em uma nova aba — a barra lateral do seu Alliance HQ permanece aqui.",
+    "openInAshed": "Abrir no Ashed ↗",
+    "iframeHint": "Se o quadro estiver em branco, o Ashed pode estar bloqueando a incorporação — use \"Abrir no Ashed\" acima.",
+    "iframeTitle": "Ashed — {path}"
+  },
+  "devErrors": {
+    "databaseNotConfigured": "Banco de dados não configurado",
+    "localDatabaseUrl": "Defina LOCAL_DATABASE_URL no .env.local (sem ?schema=public — isso é exclusivo do Prisma).",
+    "tokenEncryptionKey": "Defina TOKEN_ENCRYPTION_KEY no .env.local (openssl rand -hex 32).",
+    "tablesMissing": "Tabelas ausentes — execute npm run db:push no seu banco de dados local.",
+    "postgresUnreachable": "Não foi possível conectar ao Postgres — o servidor está rodando em localhost:5432?",
+    "defaultHint": "Defina <localDb>LOCAL_DATABASE_URL</localDb> e <encKey>TOKEN_ENCRYPTION_KEY</encKey> em <envFile>.env.local</envFile> e, em seguida, execute <dbPush>npm run db:push</dbPush>."
+  }
+}

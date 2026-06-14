@@ -20,6 +20,7 @@ export function buildAshedConnectionMeta(
     AshedCredential,
     "tokenExpiresAt" | "expiryReminderDays"
   > | null,
+  locale = "en-US",
 ): AshedConnectionMeta {
   if (!cred?.tokenExpiresAt) {
     return {
@@ -37,7 +38,7 @@ export function buildAshedConnectionMeta(
 
   return {
     tokenExpiresAt: expiresAt.toISOString(),
-    tokenExpiresAtFormatted: formatTokenExpiryDate(expiresAt),
+    tokenExpiresAtFormatted: formatTokenExpiryDate(expiresAt, locale),
     expiryReminderDays: reminderDays,
     showExpiryReminder:
       expired || isWithinExpiryReminderWindow(expiresAt, reminderDays),

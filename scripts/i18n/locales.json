@@ -1,0 +1,12 @@
+{
+  "source": "en-US",
+  "targets": ["pt-BR"],
+  "googleSourceCode": "en",
+  "googleTargetCodes": {
+    "pt-BR": "pt-BR",
+    "ko": "ko",
+    "ja": "ja",
+    "zh-CN": "zh-CN",
+    "es": "es"
+  }
+}
