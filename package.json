@@ -13,6 +13,7 @@
     "db:push": "drizzle-kit push",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "node scripts/db-migrate.mjs",
+    "db:seed-rbac": "node scripts/rbac/seed.mjs",
     "db:studio": "drizzle-kit studio",
     "har:catalog": "node scripts/har/extract-catalog.mjs",
     "video:worker": "node scripts/workers/video-processor.mjs",

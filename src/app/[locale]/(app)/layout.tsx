@@ -77,6 +77,8 @@ export default async function AppLayout({
       userLabel={state.userLabel}
       isConnected={state.isConnected}
       ashed={state.ashed}
+      showAdminPortal={state.rbac?.isPlatformMaintainer ?? false}
+      showTeamSettings={state.rbac?.isAllianceAdmin ?? false}
     >
       {children}
     </AshedShell>

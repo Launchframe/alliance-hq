@@ -68,7 +68,61 @@
     "videoUpload": "Upload de vídeo",
     "videoUploadDescription": "Extrair capturas de tela do placar a partir de uma gravação de tela",
     "openAshed": "Abra o Ashed",
-    "settings": "Configurações"
+    "settings": "Configurações",
+    "team": "Acesso da equipe",
+    "adminPortal": "Portal admin"
+  },
+  "admin": {
+    "title": "Portal Admin HQ",
+    "subtitle": "Observabilidade entre alianças para mantenedores da plataforma.",
+    "loadFailed": "Falha ao carregar dados.",
+    "yes": "Sim",
+    "no": "Não",
+    "nav": {
+      "overview": "Visão geral",
+      "audit": "Log de auditoria",
+      "videoJobs": "Jobs de vídeo",
+      "hqEvents": "Eventos HQ",
+      "users": "Usuários HQ"
+    },
+    "auditTitle": "Log de auditoria",
+    "auditDesc": "Ações BFF e de integração em todas as alianças.",
+    "videoJobsTitle": "Jobs de vídeo",
+    "videoJobsDesc": "Status do pipeline de upload, erros e alvos.",
+    "hqEventsTitle": "Eventos HQ",
+    "hqEventsDesc": "Ocorrências e séries de eventos nativos.",
+    "usersTitle": "Usuários HQ",
+    "usersDesc": "Usuários registrados e flag de mantenedor da plataforma.",
+    "table": {
+      "time": "Hora",
+      "action": "Ação",
+      "resource": "Recurso",
+      "alliance": "Aliança",
+      "status": "Status",
+      "target": "Alvo",
+      "file": "Arquivo",
+      "error": "Erro",
+      "name": "Nome",
+      "email": "E-mail",
+      "displayName": "Nome exibido",
+      "platform": "Mantenedor da plataforma"
+    }
+  },
+  "team": {
+    "title": "Acesso da equipe",
+    "description": "Funções sincronizadas do proprietário e colaboradores da aliança no Ashed.",
+    "backToSettings": "Configurações",
+    "refreshFromAshed": "Atualizar do Ashed",
+    "refreshing": "Atualizando…",
+    "loadFailed": "Não foi possível carregar a equipe.",
+    "refreshFailed": "Falha na atualização — verifique seu token Ashed.",
+    "forbidden": "Acesso de admin da aliança necessário.",
+    "ashedNote": "Para adicionar ou remover mantenedores, atualize colaboradores no Ashed → Alianças e atualize aqui.",
+    "table": {
+      "user": "Usuário",
+      "role": "Função",
+      "source": "Origem"
+    }
   },
   "shell": {
     "brand": "Alliance HQ",

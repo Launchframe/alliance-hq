@@ -3,7 +3,6 @@ import { NextResponse } from "next/server";
 import { writeAuditLog } from "@/lib/bff/audit";
 import {
   decodeIntegrationAction,
-  isAllowedPermission,
   resolveIntegrationPermission,
 } from "@/lib/bff/catalog";
 import {
@@ -12,6 +11,8 @@ import {
   requireBffSession,
   sanitizeUpstreamResponse,
 } from "@/lib/bff/session";
+import { requireSessionPermission } from "@/lib/rbac/require-permission";
+import { loadSession } from "@/lib/session";
 
 type Props = {
   params: Promise<{ action: string }>;
@@ -24,8 +25,9 @@ export async function POST(request: Request, { params }: Props) {
   const { action: encoded } = await params;
   const action = decodeIntegrationAction(encoded);
   const permission = resolveIntegrationPermission(action);
-  if (!permission || !isAllowedPermission(permission)) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  const denied = await requireSessionPermission(ctx.sessionId, permission);
+  if (!permission || denied) {
+    return denied ?? NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
   const contentType = request.headers.get("Content-Type") ?? "";
@@ -52,8 +54,11 @@ export async function POST(request: Request, { params }: Props) {
     });
   }
 
+  const session = await loadSession(ctx.sessionId);
   await writeAuditLog({
     sessionId: ctx.sessionId,
+    allianceId: session?.allianceId ?? undefined,
+    hqUserId: session?.hqUserId ?? undefined,
     action: "bff.integration",
     resourceType: "integration",
     resourceName: action,

@@ -7,9 +7,8 @@ import {
   DEFAULT_ORIGIN_URL,
   parseConnectionInput,
 } from "@/lib/connectionString";
+import { syncAshedAllianceRoles } from "@/lib/rbac/sync-ashed-roles";
 import {
-  getAshedConnection,
-  getAshedConnectionMeta,
   getOrCreateSession,
   getSessionState,
   storeAshedConnection,
@@ -83,6 +82,17 @@ export async function POST(request: Request) {
       allianceTag,
     );
 
+    const rbac = await syncAshedAllianceRoles({
+      connection: parsed.connection,
+      sessionId: session.id,
+      allianceTag: alliance.tag,
+      currentUser: {
+        id: me.id,
+        email: me.email ?? userLabel,
+        full_name: me.full_name,
+      },
+    });
+
     return NextResponse.json({
       ok: true,
       userLabel,
@@ -92,6 +102,10 @@ export async function POST(request: Request) {
         id: alliance.id,
         tag: alliance.tag,
         name: alliance.name,
+      },
+      rbac: {
+        roleName: rbac.roleName,
+        hqUserId: rbac.hqUserId,
       },
     });
   } catch (error) {

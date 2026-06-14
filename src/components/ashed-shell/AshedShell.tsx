@@ -13,6 +13,8 @@ type Props = {
   userLabel: string | null;
   isConnected: boolean;
   ashed: AshedConnectionMeta | null;
+  showAdminPortal?: boolean;
+  showTeamSettings?: boolean;
   children: React.ReactNode;
 };
 
@@ -39,7 +41,14 @@ function NavLink({
   );
 }
 
-export function AshedShell({ userLabel, isConnected, ashed, children }: Props) {
+export function AshedShell({
+  userLabel,
+  isConnected,
+  ashed,
+  showAdminPortal = false,
+  showTeamSettings = false,
+  children,
+}: Props) {
   const pathname = usePathname();
   const t = useTranslations("shell");
   const tNav = useTranslations("nav");
@@ -62,7 +71,20 @@ export function AshedShell({ userLabel, isConnected, ashed, children }: Props) {
         </div>
 
         <nav className="flex-1 overflow-y-auto p-2">
-          {NAV_GROUPS.map((group) => (
+          {NAV_GROUPS.map((group) => {
+            const extraPages =
+              group.id === "hq-native"
+                ? [
+                    ...(showTeamSettings
+                      ? [{ href: "/settings/team", labelKey: "team" as const }]
+                      : []),
+                    ...(showAdminPortal
+                      ? [{ href: "/admin", labelKey: "adminPortal" as const }]
+                      : []),
+                  ]
+                : [];
+
+            return (
             <div key={group.id} className="mb-4 last:mb-0">
               <p className="px-3 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wider text-[#6e7681]">
                 {tNavGroups(group.labelKey)}
@@ -76,9 +98,22 @@ export function AshedShell({ userLabel, isConnected, ashed, children }: Props) {
                     active={isNavActive(pathname, page.href)}
                   />
                 ))}
+                {extraPages.map((page) => (
+                  <NavLink
+                    key={page.href}
+                    href={page.href}
+                    label={tNav(page.labelKey)}
+                    active={
+                      page.href === "/admin"
+                        ? pathname.startsWith("/admin")
+                        : isNavActive(pathname, page.href)
+                    }
+                  />
+                ))}
               </div>
             </div>
-          ))}
+            );
+          })}
 
           <div className="mt-2 border-t border-[#30363d] pt-2">
             {FOOTER_NAV.map((route) => (

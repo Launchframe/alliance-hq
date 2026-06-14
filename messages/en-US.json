@@ -68,7 +68,61 @@
     "videoUpload": "Upload from video",
     "videoUploadDescription": "Extract scoreboard screenshots from a screen recording",
     "openAshed": "Open Ashed",
-    "settings": "Settings"
+    "settings": "Settings",
+    "team": "Team access",
+    "adminPortal": "Admin portal"
+  },
+  "admin": {
+    "title": "HQ Admin Portal",
+    "subtitle": "Cross-alliance observability for platform maintainers.",
+    "loadFailed": "Failed to load data.",
+    "yes": "Yes",
+    "no": "No",
+    "nav": {
+      "overview": "Overview",
+      "audit": "Audit log",
+      "videoJobs": "Video jobs",
+      "hqEvents": "HQ events",
+      "users": "HQ users"
+    },
+    "auditTitle": "Audit log",
+    "auditDesc": "BFF and integration actions across all alliances.",
+    "videoJobsTitle": "Video jobs",
+    "videoJobsDesc": "Upload pipeline status, errors, and targets.",
+    "hqEventsTitle": "HQ events",
+    "hqEventsDesc": "Native event occurrences and series.",
+    "usersTitle": "HQ users",
+    "usersDesc": "Registered users and platform maintainer flag.",
+    "table": {
+      "time": "Time",
+      "action": "Action",
+      "resource": "Resource",
+      "alliance": "Alliance",
+      "status": "Status",
+      "target": "Target",
+      "file": "File",
+      "error": "Error",
+      "name": "Name",
+      "email": "Email",
+      "displayName": "Display name",
+      "platform": "Platform maintainer"
+    }
+  },
+  "team": {
+    "title": "Team access",
+    "description": "Roles synced from Ashed alliance owner and collaborators.",
+    "backToSettings": "Settings",
+    "refreshFromAshed": "Refresh from Ashed",
+    "refreshing": "Refreshing…",
+    "loadFailed": "Could not load team roster.",
+    "refreshFailed": "Refresh failed — check your Ashed token.",
+    "forbidden": "Alliance admin access required.",
+    "ashedNote": "To add or remove maintainers, update collaborators in Ashed → Alliances, then refresh here.",
+    "table": {
+      "user": "User",
+      "role": "Role",
+      "source": "Source"
+    }
   },
   "shell": {
     "brand": "Alliance HQ",

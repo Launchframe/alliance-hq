@@ -3,9 +3,105 @@ import {
   integer,
   jsonb,
   pgTable,
+  primaryKey,
   text,
   timestamp,
+  unique,
 } from "drizzle-orm/pg-core";
+
+export const alliances = pgTable("alliances", {
+  id: text("id").primaryKey(),
+  slug: text("slug").notNull().unique(),
+  name: text("name").notNull(),
+  ashedAllianceId: text("ashed_alliance_id").unique(),
+  ownerAshedUserId: text("owner_ashed_user_id"),
+  ownerEmail: text("owner_email"),
+  collaboratorsJson: jsonb("collaborators_json").$type<string[]>(),
+  rolesSyncedAt: timestamp("roles_synced_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+export const hqUsers = pgTable("hq_users", {
+  id: text("id").primaryKey(),
+  email: text("email").notNull().unique(),
+  displayName: text("display_name"),
+  ashedUserId: text("ashed_user_id"),
+  isPlatformMaintainer: integer("is_platform_maintainer").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+export const roles = pgTable(
+  "roles",
+  {
+    id: text("id").primaryKey(),
+    allianceId: text("alliance_id"),
+    name: text("name").notNull(),
+    description: text("description"),
+    isSystem: integer("is_system").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [unique("roles_alliance_name_unique").on(table.allianceId, table.name)],
+);
+
+export const permissions = pgTable("permissions", {
+  id: text("id").primaryKey(),
+  description: text("description"),
+});
+
+export const rolePermissions = pgTable(
+  "role_permissions",
+  {
+    roleId: text("role_id")
+      .notNull()
+      .references(() => roles.id, { onDelete: "cascade" }),
+    permissionId: text("permission_id")
+      .notNull()
+      .references(() => permissions.id, { onDelete: "cascade" }),
+  },
+  (table) => [primaryKey({ columns: [table.roleId, table.permissionId] })],
+);
+
+export const allianceMemberships = pgTable(
+  "alliance_memberships",
+  {
+    id: text("id").primaryKey(),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    hqUserId: text("hq_user_id")
+      .notNull()
+      .references(() => hqUsers.id, { onDelete: "cascade" }),
+    roleId: text("role_id")
+      .notNull()
+      .references(() => roles.id, { onDelete: "restrict" }),
+    source: text("source").notNull().default("ashed"),
+    status: text("status").notNull().default("active"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    unique("alliance_memberships_alliance_user_unique").on(
+      table.allianceId,
+      table.hqUserId,
+    ),
+  ],
+);
 
 export const sessions = pgTable("sessions", {
   id: text("id").primaryKey(),
@@ -13,6 +109,13 @@ export const sessions = pgTable("sessions", {
   allianceId: text("alliance_id"),
   /** In-game alliance tag, e.g. LFgo — resolves allianceId from global Alliance list */
   allianceTag: text("alliance_tag"),
+  hqUserId: text("hq_user_id").references(() => hqUsers.id, {
+    onDelete: "set null",
+  }),
+  /** HQ tenant row — distinct from Ashed alliance id on allianceId */
+  currentAllianceId: text("current_alliance_id").references(() => alliances.id, {
+    onDelete: "set null",
+  }),
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
     .notNull(),
@@ -45,6 +148,9 @@ export const videoJobs = pgTable("video_jobs", {
   sessionId: text("session_id")
     .notNull()
     .references(() => sessions.id, { onDelete: "cascade" }),
+  hqUserId: text("hq_user_id").references(() => hqUsers.id, {
+    onDelete: "set null",
+  }),
   status: text("status").notNull(),
   fileName: text("file_name"),
   fileSizeBytes: integer("file_size_bytes"),
@@ -147,6 +253,7 @@ export const auditLog = pgTable("audit_log", {
   id: text("id").primaryKey(),
   sessionId: text("session_id"),
   allianceId: text("alliance_id"),
+  hqUserId: text("hq_user_id"),
   action: text("action").notNull(),
   resourceType: text("resource_type"),
   resourceName: text("resource_name"),
@@ -240,6 +347,11 @@ export const hqEventMembers = pgTable("hq_event_members", {
 });
 
 export type Session = typeof sessions.$inferSelect;
+export type Alliance = typeof alliances.$inferSelect;
+export type HqUser = typeof hqUsers.$inferSelect;
+export type AllianceMembership = typeof allianceMemberships.$inferSelect;
+export type Role = typeof roles.$inferSelect;
+export type Permission = typeof permissions.$inferSelect;
 export type AshedCredential = typeof ashedCredentials.$inferSelect;
 export type VideoJob = typeof videoJobs.$inferSelect;
 export type VideoFrame = typeof videoFrames.$inferSelect;
