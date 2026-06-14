@@ -36,10 +36,8 @@ export async function POST(request: Request) {
       );
     }
 
-    const serverResolved = resolveTranslationKeys(locale, displayedText);
     const resolved = mergeServerTranslationKeyResolution(
-      serverResolved,
-      body.i18nKey,
+      resolveTranslationKeys(locale, displayedText),
     );
 
     const id = nanoid(16);

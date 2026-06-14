@@ -123,26 +123,6 @@ export function resolveTranslationKeysFromClient(
 
 export function mergeServerTranslationKeyResolution(
   serverResolved: { i18nKey: string | null; candidateKeys: string[] },
-  clientKey?: string | null,
 ): { i18nKey: string | null; candidateKeys: string[] } {
-  const candidateKeys =
-    serverResolved.candidateKeys.length > 0
-      ? serverResolved.candidateKeys
-      : clientKey
-        ? [clientKey]
-        : [];
-
-  if (serverResolved.i18nKey) {
-    return { i18nKey: serverResolved.i18nKey, candidateKeys };
-  }
-
-  if (
-    clientKey &&
-    candidateKeys.includes(clientKey) &&
-    candidateKeys.length === 1
-  ) {
-    return { i18nKey: clientKey, candidateKeys };
-  }
-
-  return { i18nKey: null, candidateKeys };
+  return serverResolved;
 }

@@ -77,33 +77,18 @@ describe("translation-key-resolve", () => {
     ).toBe(false);
   });
 
-  it("mergeServerTranslationKeyResolution prefers server unique key", () => {
+  it("mergeServerTranslationKeyResolution returns server resolution only", () => {
     expect(
-      mergeServerTranslationKeyResolution(
-        { i18nKey: "a.key", candidateKeys: ["a.key"] },
-        "spoof.key",
-      ),
+      mergeServerTranslationKeyResolution({
+        i18nKey: "a.key",
+        candidateKeys: ["a.key"],
+      }),
     ).toEqual({ i18nKey: "a.key", candidateKeys: ["a.key"] });
-  });
-
-  it("mergeServerTranslationKeyResolution rejects spoofed client-only keys", () => {
     expect(
-      mergeServerTranslationKeyResolution(
-        { i18nKey: null, candidateKeys: ["real.key", "other.key"] },
-        "spoof.key",
-      ),
+      mergeServerTranslationKeyResolution({
+        i18nKey: null,
+        candidateKeys: ["real.key", "other.key"],
+      }),
     ).toEqual({ i18nKey: null, candidateKeys: ["real.key", "other.key"] });
-  });
-
-  it("mergeServerTranslationKeyResolution accepts client key when server agrees uniquely", () => {
-    expect(
-      mergeServerTranslationKeyResolution(
-        { i18nKey: null, candidateKeys: ["feedback.fab.reportBug"] },
-        "feedback.fab.reportBug",
-      ),
-    ).toEqual({
-      i18nKey: "feedback.fab.reportBug",
-      candidateKeys: ["feedback.fab.reportBug"],
-    });
   });
 });
