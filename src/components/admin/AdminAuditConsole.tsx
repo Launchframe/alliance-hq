@@ -1,13 +1,18 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 import {
   AUDIT_ACTION_FILTER_OPTIONS,
   buildAuditLogSearchParams,
   type AuditLogFilters,
 } from "@/lib/admin/audit-query";
+import {
+  formatServerDateTime,
+  serverCalendarDateToUtcEnd,
+  serverCalendarDateToUtcStart,
+} from "@/lib/server-time";
 
 type Alliance = {
   id: string;
@@ -31,6 +36,8 @@ const DEFAULT_FILTERS: AuditLogFilters = {
   limit: 200,
 };
 
+const HQ_USER_FILTER_DEBOUNCE_MS = 300;
+
 function allianceTagLabel(alliance: Alliance): string {
   return alliance.tag?.trim() || alliance.slug;
 }
@@ -47,19 +54,10 @@ function buildAllianceTagLookup(alliances: Alliance[]): Map<string, string> {
   return lookup;
 }
 
-function dateInputToIsoStart(date: string): Date | undefined {
-  if (!date) return undefined;
-  return new Date(`${date}T00:00:00.000Z`);
-}
-
-function dateInputToIsoEnd(date: string): Date | undefined {
-  if (!date) return undefined;
-  return new Date(`${date}T23:59:59.999Z`);
-}
-
 export function AdminAuditConsole() {
   const t = useTranslations("admin");
   const tAudit = useTranslations("admin.auditPage");
+  const locale = useLocale();
   const [alliances, setAlliances] = useState<Alliance[]>([]);
   const [entries, setEntries] = useState<AuditEntry[]>([]);
   const [filters, setFilters] = useState<AuditLogFilters>(DEFAULT_FILTERS);
@@ -73,6 +71,21 @@ export function AdminAuditConsole() {
     () => buildAllianceTagLookup(alliances),
     [alliances],
   );
+
+  useEffect(() => {
+    const handle = window.setTimeout(() => {
+      const trimmed = hqUserIdInput.trim();
+      setFilters((prev) => {
+        const hqUserId = trimmed || undefined;
+        if (prev.hqUserId === hqUserId) {
+          return prev;
+        }
+        return { ...prev, hqUserId };
+      });
+    }, HQ_USER_FILTER_DEBOUNCE_MS);
+
+    return () => window.clearTimeout(handle);
+  }, [hqUserIdInput]);
 
   useEffect(() => {
     let cancelled = false;
@@ -121,12 +134,19 @@ export function AdminAuditConsole() {
     })();
   }, []);
 
-  function applyDateAndUserFilters() {
+  function updateSinceDate(value: string) {
+    setSinceDate(value);
     setFilters((prev) => ({
       ...prev,
-      since: dateInputToIsoStart(sinceDate),
-      until: dateInputToIsoEnd(untilDate),
-      hqUserId: hqUserIdInput.trim() || undefined,
+      since: value ? serverCalendarDateToUtcStart(value) : undefined,
+    }));
+  }
+
+  function updateUntilDate(value: string) {
+    setUntilDate(value);
+    setFilters((prev) => ({
+      ...prev,
+      until: value ? serverCalendarDateToUtcEnd(value) : undefined,
     }));
   }
 
@@ -187,7 +207,7 @@ export function AdminAuditConsole() {
             type="date"
             className="block rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 text-sm"
             value={sinceDate}
-            onChange={(e) => setSinceDate(e.target.value)}
+            onChange={(e) => updateSinceDate(e.target.value)}
           />
         </label>
 
@@ -197,7 +217,7 @@ export function AdminAuditConsole() {
             type="date"
             className="block rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 text-sm"
             value={untilDate}
-            onChange={(e) => setUntilDate(e.target.value)}
+            onChange={(e) => updateUntilDate(e.target.value)}
           />
         </label>
 
@@ -209,19 +229,8 @@ export function AdminAuditConsole() {
             value={hqUserIdInput}
             placeholder={tAudit("filters.hqUserIdPlaceholder")}
             onChange={(e) => setHqUserIdInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") applyDateAndUserFilters();
-            }}
           />
         </label>
-
-        <button
-          type="button"
-          className="rounded-lg bg-[#238636] px-3 py-2 text-sm text-white hover:bg-[#2ea043]"
-          onClick={applyDateAndUserFilters}
-        >
-          {tAudit("filters.apply")}
-        </button>
 
         <button
           type="button"
@@ -231,6 +240,8 @@ export function AdminAuditConsole() {
           {tAudit("filters.clear")}
         </button>
       </div>
+
+      <p className="text-xs text-[#8b949e]">{tAudit("serverTimeNote")}</p>
 
       {error ? <p className="text-sm text-red-400">{error}</p> : null}
 
@@ -254,7 +265,7 @@ export function AdminAuditConsole() {
               {entries.map((entry) => (
                 <tr key={entry.id} className="border-t border-[#30363d]">
                   <td className="px-4 py-2 whitespace-nowrap text-[#8b949e]">
-                    {new Date(entry.createdAt).toLocaleString()}
+                    {formatServerDateTime(entry.createdAt, locale)}
                   </td>
                   <td className="px-4 py-2">{entry.action}</td>
                   <td className="px-4 py-2">

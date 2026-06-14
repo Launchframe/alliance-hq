@@ -197,6 +197,7 @@
       "loading": "Carregando log de auditoria…",
       "loadFailed": "Falha ao carregar log de auditoria.",
       "empty": "Nenhuma entrada corresponde a estes filtros.",
+      "serverTimeNote": "Datas e horários usam Horário do Servidor (UTC−02:00, sem horário de verão). Armazenados em UTC; exibidos no Horário do Servidor.",
       "filters": {
         "alliance": "Tag da aliança",
         "allAlliances": "Todas as tags",
@@ -205,7 +206,6 @@
         "until": "Até",
         "hqUserId": "ID do usuário HQ",
         "hqUserIdPlaceholder": "Filtrar por ator…",
-        "apply": "Aplicar",
         "clear": "Limpar filtros",
         "allActions": "Todas as ações",
         "actions": {
