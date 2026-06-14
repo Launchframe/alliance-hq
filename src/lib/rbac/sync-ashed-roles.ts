@@ -81,6 +81,7 @@ async function upsertAllianceFromAshed(
   const db = getDb();
   const now = new Date();
   const slug = slugFromTag(allianceTag);
+  const tag = ashedAlliance.tag?.trim() || allianceTag.trim();
   const collaborators = (ashedAlliance.collaborators ?? []).map(normalizeAshedEmail);
 
   const [existing] = await db
@@ -94,6 +95,7 @@ async function upsertAllianceFromAshed(
       .update(schema.alliances)
       .set({
         slug,
+        tag,
         name: ashedAlliance.name ?? existing.name,
         ownerAshedUserId: ashedAlliance.owner_id ?? null,
         ownerEmail: ashedAlliance.owner_email
@@ -111,6 +113,7 @@ async function upsertAllianceFromAshed(
   await db.insert(schema.alliances).values({
     id,
     slug,
+    tag,
     name: ashedAlliance.name ?? allianceTag,
     ashedAllianceId: ashedAlliance.id ?? null,
     ownerAshedUserId: ashedAlliance.owner_id ?? null,

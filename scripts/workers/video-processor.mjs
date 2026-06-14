@@ -60,7 +60,8 @@ let lastIdleLogAt = 0;
 
 async function poll() {
   const rows = await sql`
-    SELECT id FROM video_jobs
+    SELECT id, file_name, score_target, created_at
+    FROM video_jobs
     WHERE status = 'queued'
     ORDER BY created_at ASC
     LIMIT 1
@@ -75,9 +76,13 @@ async function poll() {
     return;
   }
 
-  const jobId = rows[0].id;
+  const job = rows[0];
+  const jobId = job.id;
+  console.log(
+    `[video-worker] pulled job ${jobId} from queue (file=${job.file_name ?? "unknown"}, target=${job.score_target ?? "unknown"}, queuedAt=${job.created_at?.toISOString?.() ?? job.created_at})`,
+  );
+
   const workerStarted = Date.now();
-  console.log(`[video-worker] processing job ${jobId}…`);
 
   const processUrl = `${base}/api/internal/video-process/${jobId}`;
   const res = await fetch(processUrl, {

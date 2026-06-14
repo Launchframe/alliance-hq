@@ -3,11 +3,11 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildAuditLogSearchParams,
-  buildAuditLogWhere,
   escapeLikePrefix,
   normalizeAuditActionFilter,
   parseAuditLogQueryParams,
 } from "@/lib/admin/audit-query";
+import { buildAuditLogWhere } from "@/lib/admin/audit-query-server";
 
 const dialect = new PgDialect();
 
@@ -136,6 +136,16 @@ describe("parseAuditLogQueryParams", () => {
 describe("buildAuditLogWhere", () => {
   it("returns undefined when no filters are set", () => {
     expect(buildAuditLogWhere({ limit: 100 })).toBeUndefined();
+  });
+
+  it("matches HQ and Ashed alliance ids when allianceMatchIds is set", () => {
+    const query = whereSql({
+      allianceMatchIds: ["hq-1", "ashed-1"],
+      limit: 100,
+    });
+    expect(query?.sql).toContain("in");
+    expect(query?.params).toContain("hq-1");
+    expect(query?.params).toContain("ashed-1");
   });
 
   it("combines alliance, user, action, and date predicates", () => {

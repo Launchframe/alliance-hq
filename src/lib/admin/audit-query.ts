@@ -1,7 +1,3 @@
-import { and, eq, gte, lte, sql, type SQL } from "drizzle-orm";
-
-import { schema } from "@/lib/db";
-
 const LIKE_ESCAPE = "\\";
 
 /** Escape `%`, `_`, and `\` so prefix filters cannot broaden SQL LIKE matches. */
@@ -23,6 +19,8 @@ export const AUDIT_ACTION_FILTER_OPTIONS = [
 
 export type AuditLogFilters = {
   allianceId?: string;
+  /** Resolved server-side: HQ row id + Ashed alliance id for audit_log matching */
+  allianceMatchIds?: string[];
   action?: string;
   since?: Date;
   until?: Date;
@@ -111,44 +109,6 @@ export function parseAuditLogQueryParams(
       limit,
     },
   };
-}
-
-export function buildAuditLogWhere(filters: AuditLogFilters): SQL | undefined {
-  const conditions: SQL[] = [];
-
-  if (filters.allianceId) {
-    conditions.push(eq(schema.auditLog.allianceId, filters.allianceId));
-  }
-
-  if (filters.hqUserId) {
-    conditions.push(eq(schema.auditLog.hqUserId, filters.hqUserId));
-  }
-
-  if (filters.action) {
-    const normalized = normalizeAuditActionFilter(filters.action);
-    if (normalized.kind === "prefix") {
-      const pattern = `${escapeLikePrefix(normalized.value)}%`;
-      conditions.push(
-        sql`${schema.auditLog.action} like ${pattern} escape ${LIKE_ESCAPE}`,
-      );
-    } else {
-      conditions.push(eq(schema.auditLog.action, normalized.value));
-    }
-  }
-
-  if (filters.since) {
-    conditions.push(gte(schema.auditLog.createdAt, filters.since));
-  }
-
-  if (filters.until) {
-    conditions.push(lte(schema.auditLog.createdAt, filters.until));
-  }
-
-  if (conditions.length === 0) {
-    return undefined;
-  }
-
-  return and(...conditions);
 }
 
 export function buildAuditLogSearchParams(filters: AuditLogFilters): string {

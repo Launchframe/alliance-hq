@@ -29,7 +29,12 @@ export async function GET(request: Request) {
 
   const db = getDb();
   const [job] = await db
-    .select({ id: schema.videoJobs.id })
+    .select({
+      id: schema.videoJobs.id,
+      fileName: schema.videoJobs.fileName,
+      scoreTarget: schema.videoJobs.scoreTarget,
+      createdAt: schema.videoJobs.createdAt,
+    })
     .from(schema.videoJobs)
     .where(eq(schema.videoJobs.status, "queued"))
     .orderBy(asc(schema.videoJobs.createdAt))
@@ -38,6 +43,10 @@ export async function GET(request: Request) {
   if (!job) {
     return NextResponse.json({ ok: true, processed: false, reason: "idle" });
   }
+
+  console.log(
+    `[video-worker] pulled job ${job.id} from queue (file=${job.fileName ?? "unknown"}, target=${job.scoreTarget ?? "unknown"}, queuedAt=${job.createdAt.toISOString()})`,
+  );
 
   try {
     const timings = await processVideoJob(job.id, { analyticsSource: "worker" });

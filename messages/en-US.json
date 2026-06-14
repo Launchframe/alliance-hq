@@ -188,15 +188,18 @@
       "requeue": "Requeue",
       "reprocess": "Reprocess",
       "actionFailed": "Action failed",
-      "actionUnavailable": "Not available for this job status"
+      "actionUnavailable": "Not available for this job status",
+      "viewError": "View error",
+      "errorDialogTitle": "Processing error",
+      "close": "Close"
     },
     "auditPage": {
       "loading": "Loading audit log…",
       "loadFailed": "Failed to load audit log.",
       "empty": "No audit entries match these filters.",
       "filters": {
-        "alliance": "Alliance",
-        "allAlliances": "All alliances",
+        "alliance": "Alliance tag",
+        "allAlliances": "All tags",
         "action": "Action",
         "since": "From",
         "until": "To",
@@ -215,6 +218,7 @@
         }
       },
       "table": {
+        "allianceTag": "Tag",
         "hqUser": "HQ user"
       }
     },

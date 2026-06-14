@@ -12,6 +12,8 @@ import {
 export const alliances = pgTable("alliances", {
   id: text("id").primaryKey(),
   slug: text("slug").notNull().unique(),
+  /** In-game tag, e.g. LFgo */
+  tag: text("tag"),
   name: text("name").notNull(),
   ashedAllianceId: text("ashed_alliance_id").unique(),
   ownerAshedUserId: text("owner_ashed_user_id"),

@@ -188,15 +188,18 @@
       "requeue": "Recolocar na fila",
       "reprocess": "Reprocessar",
       "actionFailed": "Ação falhou",
-      "actionUnavailable": "Indisponível para este status do job"
+      "actionUnavailable": "Indisponível para este status do job",
+      "viewError": "Ver erro",
+      "errorDialogTitle": "Erro de processamento",
+      "close": "Fechar"
     },
     "auditPage": {
       "loading": "Carregando log de auditoria…",
       "loadFailed": "Falha ao carregar log de auditoria.",
       "empty": "Nenhuma entrada corresponde a estes filtros.",
       "filters": {
-        "alliance": "Aliança",
-        "allAlliances": "Todas as alianças",
+        "alliance": "Tag da aliança",
+        "allAlliances": "Todas as tags",
         "action": "Ação",
         "since": "De",
         "until": "Até",
@@ -215,6 +218,7 @@
         }
       },
       "table": {
+        "allianceTag": "Tag",
         "hqUser": "Usuário HQ"
       }
     },

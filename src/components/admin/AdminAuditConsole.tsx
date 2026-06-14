@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import {
@@ -13,6 +13,8 @@ type Alliance = {
   id: string;
   name: string;
   slug: string;
+  tag: string | null;
+  ashedAllianceId: string | null;
 };
 
 type AuditEntry = {
@@ -28,6 +30,22 @@ type AuditEntry = {
 const DEFAULT_FILTERS: AuditLogFilters = {
   limit: 200,
 };
+
+function allianceTagLabel(alliance: Alliance): string {
+  return alliance.tag?.trim() || alliance.slug;
+}
+
+function buildAllianceTagLookup(alliances: Alliance[]): Map<string, string> {
+  const lookup = new Map<string, string>();
+  for (const alliance of alliances) {
+    const label = allianceTagLabel(alliance);
+    lookup.set(alliance.id, label);
+    if (alliance.ashedAllianceId) {
+      lookup.set(alliance.ashedAllianceId, label);
+    }
+  }
+  return lookup;
+}
 
 function dateInputToIsoStart(date: string): Date | undefined {
   if (!date) return undefined;
@@ -50,6 +68,11 @@ export function AdminAuditConsole() {
   const [hqUserIdInput, setHqUserIdInput] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const allianceTagLookup = useMemo(
+    () => buildAllianceTagLookup(alliances),
+    [alliances],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -120,7 +143,7 @@ export function AdminAuditConsole() {
         <label className="space-y-1 text-sm">
           <span className="text-[#8b949e]">{tAudit("filters.alliance")}</span>
           <select
-            className="block min-w-[12rem] rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 text-sm"
+            className="block min-w-[12rem] rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 font-mono text-sm"
             value={filters.allianceId ?? ""}
             onChange={(e) =>
               setFilters((prev) => ({
@@ -132,7 +155,7 @@ export function AdminAuditConsole() {
             <option value="">{tAudit("filters.allAlliances")}</option>
             {alliances.map((alliance) => (
               <option key={alliance.id} value={alliance.id}>
-                {alliance.name || alliance.slug}
+                {allianceTagLabel(alliance)}
               </option>
             ))}
           </select>
@@ -223,7 +246,7 @@ export function AdminAuditConsole() {
                 <th className="px-4 py-2">{t("table.time")}</th>
                 <th className="px-4 py-2">{t("table.action")}</th>
                 <th className="px-4 py-2">{t("table.resource")}</th>
-                <th className="px-4 py-2">{t("table.alliance")}</th>
+                <th className="px-4 py-2">{tAudit("table.allianceTag")}</th>
                 <th className="px-4 py-2">{tAudit("table.hqUser")}</th>
               </tr>
             </thead>
@@ -238,7 +261,10 @@ export function AdminAuditConsole() {
                     {entry.resourceType}/{entry.resourceName}
                   </td>
                   <td className="px-4 py-2 font-mono text-xs">
-                    {entry.allianceId ?? "—"}
+                    {entry.allianceId
+                      ? (allianceTagLookup.get(entry.allianceId) ??
+                        entry.allianceId)
+                      : "—"}
                   </td>
                   <td className="px-4 py-2 font-mono text-xs">
                     {entry.hqUserId ?? "—"}
