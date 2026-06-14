@@ -553,6 +553,11 @@
       "leaveFeedback": "Deixar feedback",
       "getInTouch": "Entrar em contato"
     },
+    "discord": {
+      "unavailableTitle": "Discord ainda não está configurado",
+      "unavailableDescription": "O chat da comunidade não está disponível neste ambiente. Tente novamente mais tarde ou use outra opção de feedback.",
+      "dismiss": "OK"
+    },
     "experience": {
       "unsolicitedTitle": "Compartilhe seu feedback",
       "solicitedFirstTitle": "Como foi seu primeiro envio?",
@@ -644,7 +649,8 @@
     "displayed": "Texto exibido",
     "saved": "Atualizado.",
     "saveFailed": "Falha ao atualizar.",
-    "awarded": "Comendações concedidas: {badges}"
+    "awarded": "Comendações concedidas: {badges}",
+    "localePatched": "Gravou \"{value}\" em messages/{locale}.json ({key})."
   },
   "ashedEmbed": {
     "description": "Esta página está hospedada no Ashed. Abra-a abaixo ou em uma nova aba — a barra lateral do seu Alliance HQ permanece aqui.",

@@ -67,13 +67,29 @@ export default function AdminTranslationReportsPage() {
       const data = (await res.json()) as {
         error?: string;
         commendations?: { awarded?: string[] };
+        localePatch?: {
+          locale: string;
+          i18nKey: string;
+          newValue: string;
+        };
       };
       if (!res.ok) throw new Error(data.error ?? t("saveFailed"));
-      if (data.commendations?.awarded?.length) {
-        setMessage(t("awarded", { badges: data.commendations.awarded.join(", ") }));
-      } else {
-        setMessage(t("saved"));
+      const parts: string[] = [];
+      if (data.localePatch) {
+        parts.push(
+          t("localePatched", {
+            locale: data.localePatch.locale,
+            key: data.localePatch.i18nKey,
+            value: data.localePatch.newValue,
+          }),
+        );
       }
+      if (data.commendations?.awarded?.length) {
+        parts.push(
+          t("awarded", { badges: data.commendations.awarded.join(", ") }),
+        );
+      }
+      setMessage(parts.length > 0 ? parts.join(" ") : t("saved"));
       await load(filter);
       setSelectedId(null);
       setNotes("");

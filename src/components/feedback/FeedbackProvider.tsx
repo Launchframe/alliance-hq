@@ -1,14 +1,16 @@
 "use client";
 
 import * as React from "react";
-import { useLocale } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { usePathname } from "@/i18n/navigation";
 
+import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { ExperienceFeedbackDialog } from "@/components/feedback/ExperienceFeedbackDialog";
 import { FeedbackFab } from "@/components/feedback/FeedbackFab";
 import { ReportIssueDialog } from "@/components/feedback/ReportIssueDialog";
 import { TranslationCorrectionOverlay } from "@/components/feedback/TranslationCorrectionOverlay";
+import { resolveDiscordInviteAction } from "@/lib/feedback/discord-invite";
 import type { SurveyFeedbackSource } from "@/lib/feedback/constants";
 
 type ExperienceOptions = {
@@ -45,10 +47,12 @@ function shouldHideFab(pathname: string) {
 export function FeedbackProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const locale = useLocale();
+  const tDiscord = useTranslations("feedback.discord");
 
   const [experienceOpen, setExperienceOpen] = React.useState(false);
   const [reportOpen, setReportOpen] = React.useState(false);
   const [translationMode, setTranslationMode] = React.useState(false);
+  const [discordNoticeOpen, setDiscordNoticeOpen] = React.useState(false);
   const [experienceOptions, setExperienceOptions] =
     React.useState<ExperienceOptions>({});
   const delayTimerRef = React.useRef<number | null>(null);
@@ -57,7 +61,8 @@ export function FeedbackProvider({ children }: { children: React.ReactNode }) {
     shouldHideFab(pathname) ||
     experienceOpen ||
     reportOpen ||
-    translationMode;
+    translationMode ||
+    discordNoticeOpen;
 
   const showExperienceFeedback = React.useCallback(
     (options: ExperienceOptions = {}) => {
@@ -94,12 +99,14 @@ export function FeedbackProvider({ children }: { children: React.ReactNode }) {
   );
 
   function openDiscord() {
-    const url = process.env.NEXT_PUBLIC_DISCORD_INVITE_URL;
-    if (url) {
-      window.open(url, "_blank", "noopener,noreferrer");
+    const action = resolveDiscordInviteAction(
+      process.env.NEXT_PUBLIC_DISCORD_INVITE_URL,
+    );
+    if (action.type === "open") {
+      window.open(action.url, "_blank", "noopener,noreferrer");
       return;
     }
-    window.alert("Discord invite URL is not configured.");
+    setDiscordNoticeOpen(true);
   }
 
   return (
@@ -144,6 +151,20 @@ export function FeedbackProvider({ children }: { children: React.ReactNode }) {
         title="Report a bug"
       >
         <ReportIssueDialog onClose={() => setReportOpen(false)} />
+      </Dialog>
+
+      <Dialog
+        open={discordNoticeOpen}
+        onOpenChange={setDiscordNoticeOpen}
+        title={tDiscord("unavailableTitle")}
+      >
+        <p className="text-sm text-[#8b949e]">{tDiscord("unavailableDescription")}</p>
+        <Button
+          className="mt-4 w-full"
+          onClick={() => setDiscordNoticeOpen(false)}
+        >
+          {tDiscord("dismiss")}
+        </Button>
       </Dialog>
     </FeedbackContext.Provider>
   );

@@ -5,6 +5,13 @@ import { writeAuditLog } from "@/lib/bff/audit";
 import { getDb, schema } from "@/lib/db";
 import { awardTranslationCommendations } from "@/lib/feedback/solicited-eligibility";
 import { feedbackErrorResponse } from "@/lib/feedback/api-errors";
+import {
+  applyLocaleMessagePatch,
+  I18nKeyNotFoundError,
+  I18nKeyNotStringLeafError,
+  UnsupportedLocaleError,
+  type LocaleMessagePatchResult,
+} from "@/lib/i18n/apply-locale-message";
 import { readSessionId } from "@/lib/session";
 import { requirePlatformMaintainer } from "@/lib/rbac/require-permission";
 
@@ -42,6 +49,32 @@ export async function PATCH(request: Request, { params }: Props) {
 
     if (!existing) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+
+    let localePatch: LocaleMessagePatchResult | null = null;
+    if (status === "applied") {
+      if (!existing.i18nKey?.trim()) {
+        return NextResponse.json(
+          { error: "Report has no translation key" },
+          { status: 400 },
+        );
+      }
+      try {
+        localePatch = await applyLocaleMessagePatch({
+          locale: existing.locale,
+          i18nKey: existing.i18nKey,
+          suggestedTranslation: existing.suggestedTranslation,
+        });
+      } catch (err) {
+        if (
+          err instanceof UnsupportedLocaleError ||
+          err instanceof I18nKeyNotFoundError ||
+          err instanceof I18nKeyNotStringLeafError
+        ) {
+          return NextResponse.json({ error: err.message }, { status: 400 });
+        }
+        throw err;
+      }
     }
 
     const session = await db
@@ -85,6 +118,7 @@ export async function PATCH(request: Request, { params }: Props) {
     return NextResponse.json({
       ok: true,
       commendations: commendationResult,
+      localePatch,
     });
   } catch {
     return feedbackErrorResponse("Update failed");
