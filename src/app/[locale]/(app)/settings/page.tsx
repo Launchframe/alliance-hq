@@ -10,5 +10,5 @@ export default async function SettingsPage() {
   const session = await requirePageSession("/settings");
   const ashed = await getAshedConnectionMeta(session.id, locale);
 
-  return <SettingsConnectionForm initialAshed={ashed} />;
+  return <SettingsConnectionForm initialAshed={ashed} initialAllianceTag={session.allianceTag} />;
 }

@@ -19,6 +19,7 @@ import {
   getCopyMethodTitleKey,
   type CopyConnectMethod,
 } from "@/components/CopyConnectMethodStep";
+import { EmbeddedLoginStep } from "@/components/EmbeddedLoginStep";
 import { TokenExpiryNotice } from "@/components/TokenExpiryNotice";
 import {
   ashedLink,
@@ -33,7 +34,13 @@ import {
   getJwtExpiryDate,
 } from "@/lib/jwt/decode";
 
-const STEP_IDS = ["login", "devtools-network", "copy-curl", "paste"] as const;
+const STEP_IDS = [
+  "login",
+  "devtools-network",
+  "copy-curl",
+  "embedded-login",
+  "paste",
+] as const;
 type StepId = (typeof STEP_IDS)[number];
 
 type Props = {
@@ -55,11 +62,14 @@ export function ConnectionWalkthrough({ onConnected }: Props) {
   const [connectSuccess, setConnectSuccess] = useState<{
     ashed: AshedConnectionMeta;
     userLabel: string;
+    alliance?: { id: string; tag: string; name?: string };
   } | null>(null);
   const [copyMethod, setCopyMethod] = useState<CopyConnectMethod>("curl");
+  const [allianceTag, setAllianceTag] = useState("");
 
   const stepId = STEP_IDS[stepIndex];
   const isPasteStep = stepId === "paste";
+  const isOptionalStep = stepId === "embedded-login";
 
   const stepTitle = useMemo(() => {
     switch (stepId) {
@@ -69,6 +79,8 @@ export function ConnectionWalkthrough({ onConnected }: Props) {
         return t("steps.devtoolsNetwork.title");
       case "copy-curl":
         return t(getCopyMethodTitleKey(copyMethod));
+      case "embedded-login":
+        return t("steps.embeddedLogin.title");
       case "paste":
         return t("steps.paste.title");
     }
@@ -82,6 +94,8 @@ export function ConnectionWalkthrough({ onConnected }: Props) {
         return t("steps.devtoolsNetwork.checklist");
       case "copy-curl":
         return t(getCopyMethodChecklistKey(copyMethod));
+      case "embedded-login":
+        return t("steps.embeddedLogin.checklist");
       case "paste":
         return t("steps.paste.checklist");
       default:
@@ -101,6 +115,8 @@ export function ConnectionWalkthrough({ onConnected }: Props) {
         return t("steps.login.title");
       case "devtools-network":
         return t("steps.devtoolsNetwork.title");
+      case "embedded-login":
+        return t("steps.embeddedLogin.title");
       case "paste":
         return t("steps.paste.title");
     }
@@ -131,7 +147,8 @@ export function ConnectionWalkthrough({ onConnected }: Props) {
   const previewConnectionString =
     parsePreview?.ok ? formatConnectionString(parsePreview.connection) : null;
 
-  const canAdvance = !stepChecklist || checked[stepId] || isPasteStep;
+  const canAdvance =
+    isOptionalStep || isPasteStep || !stepChecklist || checked[stepId];
 
   const connect = useCallback(async () => {
     setConnecting(true);
@@ -152,6 +169,7 @@ export function ConnectionWalkthrough({ onConnected }: Props) {
           input: pasteInput,
           appId,
           originUrl,
+          allianceTag: allianceTag.trim(),
         }),
       });
 
@@ -160,6 +178,7 @@ export function ConnectionWalkthrough({ onConnected }: Props) {
         ok?: boolean;
         userLabel?: string;
         ashed?: AshedConnectionMeta;
+        alliance?: { id: string; tag: string; name?: string };
       };
 
       if (!res.ok) {
@@ -168,7 +187,11 @@ export function ConnectionWalkthrough({ onConnected }: Props) {
       }
 
       if (data.ashed && data.userLabel) {
-        setConnectSuccess({ ashed: data.ashed, userLabel: data.userLabel });
+        setConnectSuccess({
+          ashed: data.ashed,
+          userLabel: data.userLabel,
+          alliance: data.alliance,
+        });
         onConnected?.(parsed.connection);
         return;
       }
@@ -181,7 +204,7 @@ export function ConnectionWalkthrough({ onConnected }: Props) {
     } finally {
       setConnecting(false);
     }
-  }, [appId, onConnected, originUrl, pasteInput, router, tc]);
+  }, [allianceTag, appId, onConnected, originUrl, pasteInput, router, tc]);
 
   const renderStepBody = () => {
     switch (stepId) {
@@ -244,10 +267,28 @@ export function ConnectionWalkthrough({ onConnected }: Props) {
             onMethodChange={setCopyMethod}
           />
         );
+      case "embedded-login":
+        return <EmbeddedLoginStep />;
       case "paste":
         return (
           <div className="space-y-4">
             <p>{t.rich("steps.paste.intro", { strong: strongText })}</p>
+            <label className="block">
+              <span className="mb-1 block text-xs text-[#8b949e]">
+                {t("steps.paste.allianceTagLabel")}
+              </span>
+              <input
+                value={allianceTag}
+                onChange={(e) => setAllianceTag(e.target.value)}
+                placeholder={t("steps.paste.allianceTagPlaceholder")}
+                className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 text-sm"
+                autoComplete="off"
+                spellCheck={false}
+              />
+              <p className="mt-1 text-xs text-[#8b949e]">
+                {t("steps.paste.allianceTagHint")}
+              </p>
+            </label>
             <label className="block">
               <span className="mb-1 block text-xs text-[#8b949e]">
                 {tc("pasteHere")}
@@ -308,7 +349,7 @@ export function ConnectionWalkthrough({ onConnected }: Props) {
   };
 
   if (connectSuccess) {
-    const { ashed, userLabel } = connectSuccess;
+    const { ashed, userLabel, alliance } = connectSuccess;
     return (
       <div className="mx-auto max-w-2xl">
         <header className="mb-6">
@@ -319,6 +360,14 @@ export function ConnectionWalkthrough({ onConnected }: Props) {
             {t("signedInAsBefore")}{" "}
             <strong className="text-[#e6edf3]">{userLabel}</strong>.
           </p>
+          {alliance && (
+            <p className="mt-2 text-sm text-[#8b949e]">
+              {t("allianceResolved", {
+                tag: alliance.tag,
+                name: alliance.name ?? alliance.tag,
+              })}
+            </p>
+          )}
         </header>
 
         <section className="space-y-4 rounded-xl border border-[#30363d] bg-[#161b22] p-5 text-sm">
@@ -332,6 +381,15 @@ export function ConnectionWalkthrough({ onConnected }: Props) {
           ) : (
             <p className="text-[#8b949e]">{t("noExpiryRead")}</p>
           )}
+
+          <div className="rounded-lg border border-[#d29922]/30 bg-[#d29922]/5 px-4 py-3">
+            <p className="font-medium text-[#e3b341]">
+              {t("embeddedLoginSuccess.title")}
+            </p>
+            <p className="mt-2 text-[#8b949e]">
+              {t.rich("embeddedLoginSuccess.body", { strong: strongText })}
+            </p>
+          </div>
 
           <button
             type="button"
@@ -386,7 +444,14 @@ export function ConnectionWalkthrough({ onConnected }: Props) {
       </ol>
 
       <section className="rounded-xl border border-[#30363d] bg-[#161b22] p-5">
-        <h2 className="text-lg font-medium">{stepTitle}</h2>
+        <div className="flex flex-wrap items-center gap-2">
+          <h2 className="text-lg font-medium">{stepTitle}</h2>
+          {isOptionalStep && (
+            <span className="rounded-full border border-[#d29922]/50 bg-[#d29922]/10 px-2 py-0.5 text-xs text-[#e3b341]">
+              {tc("optional")}
+            </span>
+          )}
+        </div>
         <div className="mt-3 text-sm">{renderStepBody()}</div>
 
         {stepChecklist && !isPasteStep && (
@@ -399,7 +464,14 @@ export function ConnectionWalkthrough({ onConnected }: Props) {
               }
               className="mt-1"
             />
-            {stepChecklist}
+            <span>
+              {stepChecklist}
+              {isOptionalStep && (
+                <span className="mt-0.5 block text-xs text-[#8b949e]">
+                  {t("embeddedLogin.checklistHint")}
+                </span>
+              )}
+            </span>
           </label>
         )}
 
@@ -415,19 +487,32 @@ export function ConnectionWalkthrough({ onConnected }: Props) {
             {tc("back")}
           </button>
           {!isPasteStep ? (
-            <button
-              type="button"
-              onClick={() => changeStep((i) => i + 1)}
-              disabled={!canAdvance}
-              className="rounded-lg border border-[#238636] bg-[#238636] px-4 py-2 text-sm text-white disabled:opacity-50"
-            >
-              {tc("next")}
-            </button>
+            <>
+              {isOptionalStep && (
+                <button
+                  type="button"
+                  onClick={() => changeStep((i) => i + 1)}
+                  className="rounded-lg border border-[#30363d] bg-[#21262d] px-4 py-2 text-sm"
+                >
+                  {tc("skip")}
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => changeStep((i) => i + 1)}
+                disabled={!canAdvance}
+                className="rounded-lg border border-[#238636] bg-[#238636] px-4 py-2 text-sm text-white disabled:opacity-50"
+              >
+                {tc("next")}
+              </button>
+            </>
           ) : (
             <button
               type="button"
               onClick={() => void connect()}
-              disabled={connecting || !parsePreview?.ok}
+              disabled={
+                connecting || !parsePreview?.ok || !allianceTag.trim()
+              }
               className="rounded-lg border border-[#238636] bg-[#238636] px-4 py-2 text-sm text-white disabled:opacity-50"
             >
               {connecting ? tc("connecting") : tc("connect")}

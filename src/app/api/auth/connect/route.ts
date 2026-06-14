@@ -8,9 +8,12 @@ import {
   parseConnectionInput,
 } from "@/lib/connectionString";
 import {
+  getAshedConnection,
+  getAshedConnectionMeta,
   getOrCreateSession,
   getSessionState,
   storeAshedConnection,
+  updateSessionAlliance,
 } from "@/lib/session";
 
 export async function GET() {
@@ -37,7 +40,16 @@ export async function POST(request: Request) {
       appId?: string;
       originUrl?: string;
       expiryReminderDays?: number;
+      allianceTag?: string;
     };
+
+    const allianceTag = body.allianceTag?.trim();
+    if (!allianceTag) {
+      return NextResponse.json(
+        { error: "Alliance tag is required (e.g. LFgo)." },
+        { status: 400 },
+      );
+    }
 
     const parsed = parseConnectionInput(body.input ?? "", {
       appId: body.appId ?? DEFAULT_APP_ID,
@@ -65,11 +77,22 @@ export async function POST(request: Request) {
       },
     );
 
+    const alliance = await updateSessionAlliance(
+      session.id,
+      parsed.connection,
+      allianceTag,
+    );
+
     return NextResponse.json({
       ok: true,
       userLabel,
       isConnected: true,
       ashed,
+      alliance: {
+        id: alliance.id,
+        tag: alliance.tag,
+        name: alliance.name,
+      },
     });
   } catch (error) {
     return NextResponse.json(

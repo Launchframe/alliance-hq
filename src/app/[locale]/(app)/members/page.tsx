@@ -1,0 +1,32 @@
+import { getTranslations } from "next-intl/server";
+
+import { MembersListViewOrSetup } from "@/components/members/MembersListView";
+import { loadAllianceMembers } from "@/lib/members/load";
+import { requirePageSession } from "@/lib/session";
+
+export const dynamic = "force-dynamic";
+
+export async function generateMetadata() {
+  const t = await getTranslations("members");
+  return { title: t("title") };
+}
+
+export default async function MembersPage() {
+  const session = await requirePageSession("/members");
+
+  if (!session.allianceTag) {
+    return <MembersListViewOrSetup missingTag />;
+  }
+
+  try {
+    const initial = await loadAllianceMembers(session.id);
+    return <MembersListViewOrSetup initial={initial} />;
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Failed to load members";
+    if (message.includes("Alliance tag")) {
+      return <MembersListViewOrSetup missingTag />;
+    }
+    throw error;
+  }
+}

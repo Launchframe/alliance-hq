@@ -3,14 +3,23 @@ import { getLocale } from "next-intl/server";
 import { z } from "zod";
 
 import {
+  getAshedConnection,
   getAshedConnectionMeta,
   getOrCreateSession,
   updateExpiryReminderDays,
+  updateSessionAlliance,
 } from "@/lib/session";
 
-const patchSchema = z.object({
-  expiryReminderDays: z.number().int().min(1).max(90),
-});
+const patchSchema = z
+  .object({
+    expiryReminderDays: z.number().int().min(1).max(90).optional(),
+    allianceTag: z.string().trim().min(1).max(32).optional(),
+  })
+  .refine(
+    (data) =>
+      data.expiryReminderDays !== undefined || data.allianceTag !== undefined,
+    { message: "No settings to update" },
+  );
 
 export async function GET() {
   try {
@@ -22,7 +31,11 @@ export async function GET() {
       return NextResponse.json({ error: "Not connected to Ashed" }, { status: 404 });
     }
 
-    return NextResponse.json({ ashed });
+    return NextResponse.json({
+      ashed,
+      allianceTag: session.allianceTag,
+      allianceId: session.allianceId,
+    });
   } catch (error) {
     return NextResponse.json(
       {
@@ -45,14 +58,40 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: "Not connected to Ashed" }, { status: 404 });
     }
 
-    await updateExpiryReminderDays(session.id, body.expiryReminderDays);
-    const ashed = await getAshedConnectionMeta(session.id, locale);
+    let alliance:
+      | { id: string; tag: string; name?: string }
+      | undefined;
 
-    return NextResponse.json({ ok: true, ashed });
+    if (body.allianceTag) {
+      const connection = await getAshedConnection(session.id);
+      if (!connection) {
+        return NextResponse.json({ error: "Not connected to Ashed" }, { status: 404 });
+      }
+      alliance = await updateSessionAlliance(
+        session.id,
+        connection,
+        body.allianceTag,
+      );
+    }
+
+    if (body.expiryReminderDays !== undefined) {
+      await updateExpiryReminderDays(session.id, body.expiryReminderDays);
+    }
+
+    const ashed = await getAshedConnectionMeta(session.id, locale);
+    const updatedSession = await getOrCreateSession();
+
+    return NextResponse.json({
+      ok: true,
+      ashed,
+      allianceTag: updatedSession.allianceTag,
+      allianceId: updatedSession.allianceId,
+      alliance,
+    });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: "Reminder must be between 1 and 90 days" },
+        { error: "Invalid settings payload" },
         { status: 400 },
       );
     }

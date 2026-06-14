@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { redirect } from "next/navigation";
 
+import { resolveAllianceByTag } from "@/lib/alliance/resolve";
 import { decryptSecret, encryptSecret } from "@/lib/crypto/encrypt";
 import type { ParsedConnection } from "@/lib/connectionString";
 import { getDb, schema } from "@/lib/db";
@@ -122,6 +123,8 @@ export async function getOrCreateSession(): Promise<Session> {
   return {
     id,
     userLabel: null,
+    allianceId: null,
+    allianceTag: null,
     createdAt: now,
     updatedAt: now,
     expiresAt,
@@ -249,6 +252,24 @@ export async function storeAshedConnection(
   );
 }
 
+export async function updateSessionAlliance(
+  sessionId: string,
+  connection: ParsedConnection,
+  allianceTag: string,
+) {
+  const resolved = await resolveAllianceByTag(connection, allianceTag);
+  const db = getDb();
+  await db
+    .update(schema.sessions)
+    .set({
+      allianceTag: resolved.tag,
+      allianceId: resolved.id,
+      updatedAt: new Date(),
+    })
+    .where(eq(schema.sessions.id, sessionId));
+  return resolved;
+}
+
 export async function clearAshedConnection(sessionId: string) {
   const db = getDb();
   await db
@@ -257,7 +278,12 @@ export async function clearAshedConnection(sessionId: string) {
 
   await db
     .update(schema.sessions)
-    .set({ userLabel: null, updatedAt: new Date() })
+    .set({
+      userLabel: null,
+      allianceId: null,
+      allianceTag: null,
+      updatedAt: new Date(),
+    })
     .where(eq(schema.sessions.id, sessionId));
 }
 
@@ -271,6 +297,8 @@ export async function getSessionStateFor(
   return {
     sessionId: session.id,
     userLabel: session.userLabel,
+    allianceId: session.allianceId,
+    allianceTag: session.allianceTag,
     isConnected: connection !== null,
     expiresAt: session.expiresAt.toISOString(),
     ashed,
