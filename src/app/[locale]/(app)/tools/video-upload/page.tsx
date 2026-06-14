@@ -22,8 +22,10 @@ export default async function VideoUploadPage() {
     fileName: job.fileName,
     fileSizeBytes: job.fileSizeBytes,
     category: job.category,
+    scoreTarget: job.scoreTarget,
     frameCount: job.frameCount,
     uploadedFrameCount: job.uploadedFrameCount,
+    parseSessionId: job.parseSessionId,
     errorMessage: job.errorMessage,
     createdAt: job.createdAt.toISOString(),
   }));

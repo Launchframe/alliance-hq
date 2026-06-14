@@ -1,9 +1,10 @@
 "use client";
 
 import { useTranslations } from "next-intl";
+import { useEffect, useState } from "react";
 
-import { useState } from "react";
-
+import { Link } from "@/i18n/navigation";
+import { useMergedVideoJobs } from "@/components/video/VideoJobEventsProvider";
 import type { VideoJobRow } from "@/lib/types/video";
 
 function formatBytes(bytes: number | null): string {
@@ -12,27 +13,60 @@ function formatBytes(bytes: number | null): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+type ScoreTargetOption = {
+  id: string;
+  labelKey: string;
+  group: string;
+};
+
 type Props = {
   initialJobs: VideoJobRow[];
 };
 
+function statusLabel(
+  t: ReturnType<typeof useTranslations<"video">>,
+  status: string,
+): string {
+  const known = [
+    "queued",
+    "extracting",
+    "parsing",
+    "review",
+    "submitting",
+    "complete",
+    "failed",
+  ] as const;
+  if ((known as readonly string[]).includes(status)) {
+    return t(`status.${status as (typeof known)[number]}`);
+  }
+  return status;
+}
+
 export function VideoUploadForm({ initialJobs }: Props) {
   const t = useTranslations("video");
+  const tNav = useTranslations("nav");
   const tc = useTranslations("common");
 
-  const CATEGORIES = [
-    { value: "vs", label: t("categories.vs") },
-    { value: "donations", label: t("categories.donations") },
-    { value: "storm", label: t("categories.storm") },
-    { value: "general", label: t("categories.general") },
-  ];
-
+  const [scoreTargets, setScoreTargets] = useState<ScoreTargetOption[]>([
+    { id: "desert-storm", labelKey: "desertStorm", group: "events" },
+  ]);
   const [file, setFile] = useState<File | null>(null);
-  const [category, setCategory] = useState("vs");
+  const [scoreTarget, setScoreTarget] = useState("desert-storm");
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [jobs, setJobs] = useState(initialJobs);
+  const jobs = useMergedVideoJobs(initialJobs);
+
+  useEffect(() => {
+    void fetch("/api/tools/video-upload")
+      .then((r) => r.json())
+      .then((data: { scoreTargets?: ScoreTargetOption[] }) => {
+        if (data.scoreTargets?.length) {
+          setScoreTargets(data.scoreTargets);
+        }
+      })
+      .catch(() => undefined);
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -47,7 +81,7 @@ export function VideoUploadForm({ initialJobs }: Props) {
 
     const formData = new FormData();
     formData.set("video", file);
-    formData.set("category", category);
+    formData.set("scoreTarget", scoreTarget);
 
     try {
       const res = await fetch("/api/tools/video-upload", {
@@ -57,6 +91,7 @@ export function VideoUploadForm({ initialJobs }: Props) {
       const data = (await res.json()) as {
         error?: string;
         message?: string;
+        jobId?: string;
       };
 
       if (!res.ok) {
@@ -66,12 +101,6 @@ export function VideoUploadForm({ initialJobs }: Props) {
 
       setSuccess(data.message ?? t("queuedSuccess"));
       setFile(null);
-
-      const listRes = await fetch("/api/tools/video-upload");
-      if (listRes.ok) {
-        const listData = (await listRes.json()) as { jobs: VideoJobRow[] };
-        setJobs(listData.jobs);
-      }
     } catch (err) {
       setError(err instanceof Error ? err.message : tc("uploadFailed"));
     } finally {
@@ -92,16 +121,16 @@ export function VideoUploadForm({ initialJobs }: Props) {
       >
         <label className="block">
           <span className="mb-2 block text-sm text-[#8b949e]">
-            {t("categoryLabel")}
+            {t("scoreTargetLabel")}
           </span>
           <select
-            value={category}
-            onChange={(e) => setCategory(e.target.value)}
+            value={scoreTarget}
+            onChange={(e) => setScoreTarget(e.target.value)}
             className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 text-sm"
           >
-            {CATEGORIES.map((c) => (
-              <option key={c.value} value={c.value}>
-                {c.label}
+            {scoreTargets.map((target) => (
+              <option key={target.id} value={target.id}>
+                {tNav(target.labelKey)}
               </option>
             ))}
           </select>
@@ -155,20 +184,31 @@ export function VideoUploadForm({ initialJobs }: Props) {
                     {job.fileName ?? job.id}
                   </p>
                   <p className="text-xs text-[#8b949e]">
-                    {job.category} · {formatBytes(job.fileSizeBytes)}
+                    {job.scoreTarget ?? job.category} ·{" "}
+                    {formatBytes(job.fileSizeBytes)}
                   </p>
                 </div>
-                <span
-                  className={`shrink-0 rounded-full px-2 py-0.5 text-xs ${
-                    job.status === "complete"
-                      ? "bg-[#23863633] text-[#3fb950]"
-                      : job.status === "failed"
-                        ? "bg-[#f8514933] text-[#f85149]"
-                        : "bg-[#1f3d5c] text-[#58a6ff]"
-                  }`}
-                >
-                  {t(`status.${job.status as "pending" | "processing" | "complete" | "failed"}`)}
-                </span>
+                <div className="flex shrink-0 items-center gap-2">
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-xs ${
+                      job.status === "complete"
+                        ? "bg-[#23863633] text-[#3fb950]"
+                        : job.status === "failed"
+                          ? "bg-[#f8514933] text-[#f85149]"
+                          : "bg-[#1f3d5c] text-[#58a6ff]"
+                    }`}
+                  >
+                    {statusLabel(t, job.status)}
+                  </span>
+                  {(job.status === "review" || job.status === "complete") && (
+                    <Link
+                      href={`/tools/video-upload/${job.id}/review`}
+                      className="text-xs text-[#58a6ff] hover:underline"
+                    >
+                      {t("reviewLink")}
+                    </Link>
+                  )}
+                </div>
               </li>
             ))}
           </ul>

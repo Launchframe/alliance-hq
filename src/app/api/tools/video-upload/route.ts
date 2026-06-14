@@ -1,9 +1,28 @@
 import { NextResponse } from "next/server";
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
+import { writeAuditLog } from "@/lib/bff/audit";
+import { emitVideoJobStatus } from "@/lib/events/video-jobs";
 import { getDb, schema } from "@/lib/db";
+import { putObject, videoStorageKey } from "@/lib/storage";
 import { getOrCreateSession } from "@/lib/session";
+import { getScoreTarget, ENABLED_SCORE_TARGETS } from "@/lib/video/score-targets";
+
+async function triggerProcessing(jobId: string) {
+  const base =
+    process.env.VIDEO_WORKER_BASE_URL ??
+    (process.env.VERCEL_URL
+      ? `https://${process.env.VERCEL_URL}`
+      : "http://localhost:5175");
+  const secret = process.env.VIDEO_WORKER_SECRET ?? "dev-secret";
+  const url = `${base}/api/internal/video-process/${jobId}`;
+
+  void fetch(url, {
+    method: "POST",
+    headers: { authorization: `Bearer ${secret}` },
+  }).catch(() => undefined);
+}
 
 export async function POST(request: Request) {
   try {
@@ -18,7 +37,17 @@ export async function POST(request: Request) {
       );
     }
 
-    const category = String(formData.get("category") ?? "general");
+    const scoreTarget = String(
+      formData.get("scoreTarget") ?? formData.get("category") ?? "desert-storm",
+    );
+    const target = getScoreTarget(scoreTarget);
+    if (!target?.enabled) {
+      return NextResponse.json(
+        { error: "Score target is not available yet." },
+        { status: 400 },
+      );
+    }
+
     const maxBytes = 200 * 1024 * 1024;
     if (file.size > maxBytes) {
       return NextResponse.json(
@@ -28,6 +57,10 @@ export async function POST(request: Request) {
     }
 
     const jobId = nanoid(16);
+    const storageKey = videoStorageKey(jobId, file.name);
+    const buffer = Buffer.from(await file.arrayBuffer());
+    await putObject(storageKey, buffer);
+
     const db = getDb();
     const now = new Date();
 
@@ -37,28 +70,48 @@ export async function POST(request: Request) {
       status: "queued",
       fileName: file.name,
       fileSizeBytes: file.size,
-      category,
+      category: scoreTarget,
+      scoreTarget,
+      storageKey,
+      ingestMethod: "video",
       frameCount: null,
       uploadedFrameCount: 0,
       createdAt: now,
       updatedAt: now,
     });
 
-    // TODO: push to object storage + ffmpeg worker (Inngest/Railway)
-    // For now the job is recorded; processing will be wired when worker lands.
+    await writeAuditLog({
+      sessionId: session.id,
+      action: "video.upload",
+      resourceType: "video_job",
+      resourceName: scoreTarget,
+      resourceId: jobId,
+      metadata: { fileName: file.name, bytes: file.size },
+    });
+
+    await emitVideoJobStatus({
+      sessionId: session.id,
+      jobId,
+      status: "queued",
+      fileName: file.name,
+      scoreTarget,
+      frameCount: null,
+      uploadedFrameCount: 0,
+      errorMessage: null,
+    });
+
+    triggerProcessing(jobId);
 
     return NextResponse.json({
       ok: true,
       jobId,
       status: "queued",
-      message:
-        "Video received. Frame extraction and Ashed upload will run when the worker is connected.",
+      message: "Video uploaded. Processing started — refresh or open review when ready.",
     });
   } catch (error) {
     return NextResponse.json(
       {
-        error:
-          error instanceof Error ? error.message : "Upload failed",
+        error: error instanceof Error ? error.message : "Upload failed",
       },
       { status: 500 },
     );
@@ -81,18 +134,23 @@ export async function GET() {
         status: job.status,
         fileName: job.fileName,
         fileSizeBytes: job.fileSizeBytes,
-        category: job.category,
+        scoreTarget: job.scoreTarget ?? job.category,
         frameCount: job.frameCount,
         uploadedFrameCount: job.uploadedFrameCount,
+        parseSessionId: job.parseSessionId,
         errorMessage: job.errorMessage,
         createdAt: job.createdAt.toISOString(),
+      })),
+      scoreTargets: ENABLED_SCORE_TARGETS.map((t) => ({
+        id: t.id,
+        labelKey: t.labelKey,
+        group: t.group,
       })),
     });
   } catch (error) {
     return NextResponse.json(
       {
-        error:
-          error instanceof Error ? error.message : "Failed to list jobs",
+        error: error instanceof Error ? error.message : "Failed to list jobs",
       },
       { status: 500 },
     );
