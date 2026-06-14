@@ -1,6 +1,16 @@
-import { and, eq, gte, like, lte, type SQL } from "drizzle-orm";
+import { and, eq, gte, lte, sql, type SQL } from "drizzle-orm";
 
 import { schema } from "@/lib/db";
+
+const LIKE_ESCAPE = "\\";
+
+/** Escape `%`, `_`, and `\` so prefix filters cannot broaden SQL LIKE matches. */
+export function escapeLikePrefix(value: string): string {
+  return value
+    .replace(/\\/g, `${LIKE_ESCAPE}\\`)
+    .replace(/%/g, `${LIKE_ESCAPE}%`)
+    .replace(/_/g, `${LIKE_ESCAPE}_`);
+}
 
 export const AUDIT_ACTION_FILTER_OPTIONS = [
   { value: "", labelKey: "allActions" as const },
@@ -83,6 +93,13 @@ export function parseAuditLogQueryParams(
     500,
   );
 
+  if (action) {
+    const normalized = normalizeAuditActionFilter(action);
+    if (normalized.kind === "prefix" && normalized.value.length === 0) {
+      return { ok: false, error: "Invalid action filter" };
+    }
+  }
+
   return {
     ok: true,
     filters: {
@@ -110,7 +127,10 @@ export function buildAuditLogWhere(filters: AuditLogFilters): SQL | undefined {
   if (filters.action) {
     const normalized = normalizeAuditActionFilter(filters.action);
     if (normalized.kind === "prefix") {
-      conditions.push(like(schema.auditLog.action, `${normalized.value}%`));
+      const pattern = `${escapeLikePrefix(normalized.value)}%`;
+      conditions.push(
+        sql`${schema.auditLog.action} like ${pattern} escape ${LIKE_ESCAPE}`,
+      );
     } else {
       conditions.push(eq(schema.auditLog.action, normalized.value));
     }
