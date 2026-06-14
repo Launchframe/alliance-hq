@@ -1,4 +1,5 @@
 import { MAX_BUG_REPORT_CONSOLE_LOG_CHARS } from "@/lib/feedback/constants";
+import { sanitizeBugReportConsoleText } from "@/lib/feedback/bug-report-log-sanitize";
 
 export type BugReportConsoleLogLevel =
   | "debug"
@@ -47,7 +48,9 @@ function recordConsoleEntry(level: BugReportConsoleLogLevel, args: unknown[]) {
   entries.push({
     level,
     timestamp: Date.now(),
-    message: args.map(formatConsoleArg).join(" "),
+    message: sanitizeBugReportConsoleText(
+      args.map(formatConsoleArg).join(" "),
+    ),
   });
 
   if (entries.length > MAX_CONSOLE_LOG_ENTRIES) {

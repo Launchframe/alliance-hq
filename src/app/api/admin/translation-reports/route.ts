@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { desc, eq } from "drizzle-orm";
 
 import { getDb, schema } from "@/lib/db";
+import { feedbackErrorResponse } from "@/lib/feedback/api-errors";
 import { readSessionId } from "@/lib/session";
 import { requirePlatformMaintainer } from "@/lib/rbac/require-permission";
 
@@ -56,10 +57,7 @@ export async function GET(request: Request) {
           .limit(200);
 
     return NextResponse.json({ reports: rows });
-  } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Load failed" },
-      { status: 500 },
-    );
+  } catch {
+    return feedbackErrorResponse("Load failed");
   }
 }

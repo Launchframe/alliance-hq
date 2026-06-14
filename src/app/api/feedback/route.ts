@@ -9,6 +9,7 @@ import {
   SURVEY_FEEDBACK_SOURCES,
   type SurveyFeedbackSource,
 } from "@/lib/feedback/constants";
+import { feedbackErrorResponse } from "@/lib/feedback/api-errors";
 import { getOrCreateSession } from "@/lib/session";
 
 type FeedbackBody = {
@@ -146,10 +147,7 @@ export async function POST(request: Request) {
     });
 
     return NextResponse.json({ id }, { status: 201 });
-  } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Feedback failed" },
-      { status: 500 },
-    );
+  } catch {
+    return feedbackErrorResponse("Feedback failed");
   }
 }

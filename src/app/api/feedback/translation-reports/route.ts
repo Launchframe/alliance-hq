@@ -3,6 +3,8 @@ import { nanoid } from "nanoid";
 
 import { writeAuditLog } from "@/lib/bff/audit";
 import { getDb, schema } from "@/lib/db";
+import { feedbackErrorResponse } from "@/lib/feedback/api-errors";
+import { mergeServerTranslationKeyResolution } from "@/lib/feedback/translation-key-resolve";
 import { resolveTranslationKeys } from "@/lib/feedback/translation-key-resolve-server";
 import { getOrCreateSession } from "@/lib/session";
 
@@ -34,10 +36,11 @@ export async function POST(request: Request) {
       );
     }
 
-    const resolved =
-      body.i18nKey != null && body.i18nKey.length > 0
-        ? { i18nKey: body.i18nKey, candidateKeys: body.candidateKeys ?? [body.i18nKey] }
-        : resolveTranslationKeys(locale, displayedText);
+    const serverResolved = resolveTranslationKeys(locale, displayedText);
+    const resolved = mergeServerTranslationKeyResolution(
+      serverResolved,
+      body.i18nKey,
+    );
 
     const id = nanoid(16);
     const now = new Date();
@@ -64,19 +67,13 @@ export async function POST(request: Request) {
       hqUserId: session.hqUserId,
       action: "feedback.translation",
       resourceType: "translation_correction_report",
-      resourceName: resolved.i18nKey ?? displayedText.slice(0, 48),
+      resourceName: resolved.i18nKey ?? "translation_report",
       resourceId: id,
       metadata: { locale },
     });
 
     return NextResponse.json({ id }, { status: 201 });
-  } catch (error) {
-    return NextResponse.json(
-      {
-        error:
-          error instanceof Error ? error.message : "Translation report failed",
-      },
-      { status: 500 },
-    );
+  } catch {
+    return feedbackErrorResponse("Translation report failed");
   }
 }

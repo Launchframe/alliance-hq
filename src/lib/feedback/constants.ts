@@ -25,6 +25,8 @@ export const BUG_REPORT_SEVERITY_OPTIONS = [
 
 export const MAX_BUG_REPORT_SCREENSHOTS = 3;
 export const MAX_BUG_REPORT_SCREENSHOT_BYTES = 2 * 1024 * 1024;
+import { sanitizeBugReportConsoleText } from "@/lib/feedback/bug-report-log-sanitize";
+
 export const MAX_BUG_REPORT_CONSOLE_LOG_CHARS = 32_000;
 
 export type CapturedScreenshot = {
@@ -52,11 +54,12 @@ export function truncateBugReportConsoleLogs(
     return undefined;
   }
 
-  if (text.length <= MAX_BUG_REPORT_CONSOLE_LOG_CHARS) {
-    return text;
+  const sanitized = sanitizeBugReportConsoleText(text);
+  if (sanitized.length <= MAX_BUG_REPORT_CONSOLE_LOG_CHARS) {
+    return sanitized;
   }
 
-  return `${text.slice(text.length - MAX_BUG_REPORT_CONSOLE_LOG_CHARS)}\n…(truncated)`;
+  return `${sanitized.slice(sanitized.length - MAX_BUG_REPORT_CONSOLE_LOG_CHARS)}\n…(truncated)`;
 }
 
 export const APP_VERSION =

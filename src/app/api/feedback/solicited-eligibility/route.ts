@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { and, eq } from "drizzle-orm";
 
 import { getDb, schema } from "@/lib/db";
+import { feedbackErrorResponse } from "@/lib/feedback/api-errors";
 import { getSolicitedEligibility } from "@/lib/feedback/solicited-eligibility";
 import { getOrCreateSession } from "@/lib/session";
 
@@ -43,13 +44,7 @@ export async function GET(request: Request) {
     });
 
     return NextResponse.json(eligibility);
-  } catch (error) {
-    return NextResponse.json(
-      {
-        error:
-          error instanceof Error ? error.message : "Eligibility check failed",
-      },
-      { status: 500 },
-    );
+  } catch {
+    return feedbackErrorResponse("Eligibility check failed");
   }
 }

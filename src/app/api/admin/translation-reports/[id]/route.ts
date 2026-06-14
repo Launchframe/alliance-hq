@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import { writeAuditLog } from "@/lib/bff/audit";
 import { getDb, schema } from "@/lib/db";
 import { awardTranslationCommendations } from "@/lib/feedback/solicited-eligibility";
+import { feedbackErrorResponse } from "@/lib/feedback/api-errors";
 import { readSessionId } from "@/lib/session";
 import { requirePlatformMaintainer } from "@/lib/rbac/require-permission";
 
@@ -85,10 +86,7 @@ export async function PATCH(request: Request, { params }: Props) {
       ok: true,
       commendations: commendationResult,
     });
-  } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Update failed" },
-      { status: 500 },
-    );
+  } catch {
+    return feedbackErrorResponse("Update failed");
   }
 }

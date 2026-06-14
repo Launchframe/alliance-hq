@@ -14,6 +14,7 @@ import {
   MAX_BUG_REPORT_SCREENSHOT_BYTES,
   truncateBugReportConsoleLogs,
 } from "@/lib/feedback/constants";
+import { feedbackErrorResponse } from "@/lib/feedback/api-errors";
 import { getOrCreateSession } from "@/lib/session";
 import { putObject } from "@/lib/storage";
 
@@ -146,10 +147,7 @@ export async function POST(request: Request) {
     });
 
     return NextResponse.json({ id: reportId }, { status: 201 });
-  } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Bug report failed" },
-      { status: 500 },
-    );
+  } catch {
+    return feedbackErrorResponse("Bug report failed");
   }
 }

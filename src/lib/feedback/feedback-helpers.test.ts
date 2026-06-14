@@ -1,10 +1,18 @@
 import { describe, expect, it } from "vitest";
 
+import { truncateBugReportConsoleLogs } from "@/lib/feedback/constants";
 import { resolveSolicitedSource } from "@/lib/feedback/solicited-eligibility";
 import {
   bugReportStorageKey,
   isAllowedBugReportScreenshotMime,
 } from "@/lib/feedback/bug-report-upload";
+
+describe("truncateBugReportConsoleLogs", () => {
+  it("sanitizes secrets before persisting", () => {
+    const input = 'failed token="abc123"';
+    expect(truncateBugReportConsoleLogs(input)).toBe("failed token=[redacted]");
+  });
+});
 
 describe("solicited-eligibility helpers", () => {
   it("returns first and third upload sources", () => {
