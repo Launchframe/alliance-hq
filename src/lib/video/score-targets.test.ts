@@ -7,9 +7,14 @@ import {
 } from "@/lib/video/score-targets";
 
 describe("score targets", () => {
-  it("returns enabled desert storm target", () => {
+  it("returns enabled targets including canyon storm", () => {
     expect(getScoreTarget("desert-storm")?.enabled).toBe(true);
+    expect(getScoreTarget("canyon-storm")?.enabled).toBe(true);
+    expect(getScoreTarget("alliance-star")?.enabled).toBe(false);
     expect(ENABLED_SCORE_TARGETS.some((target) => target.id === "desert-storm")).toBe(
+      true,
+    );
+    expect(ENABLED_SCORE_TARGETS.some((target) => target.id === "seasonal")).toBe(
       true,
     );
   });

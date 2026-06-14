@@ -1,0 +1,101 @@
+{
+  "generatedFrom": "har captures + custom_event_frontline_breakthrough.har",
+  "entities": {
+    "DesertStormScore": {
+      "method": "bulk",
+      "fields": [
+        "alliance_id",
+        "event_id",
+        "member_id",
+        "member_name",
+        "team",
+        "score",
+        "recorded_date"
+      ]
+    },
+    "CanyonStormScore": {
+      "method": "bulk",
+      "fields": [
+        "alliance_id",
+        "event_id",
+        "member_id",
+        "member_name",
+        "team",
+        "score",
+        "recorded_date"
+      ]
+    },
+    "ZombieSiegeScore": {
+      "method": "bulk",
+      "fields": [
+        "alliance_id",
+        "event_id",
+        "member_id",
+        "member_name",
+        "score",
+        "recorded_date"
+      ]
+    },
+    "AllianceExerciseScore": {
+      "method": "bulk",
+      "fields": [
+        "alliance_id",
+        "event_id",
+        "member_id",
+        "member_name",
+        "score",
+        "recorded_date"
+      ]
+    },
+    "Donation": {
+      "method": "bulk",
+      "fields": [
+        "alliance_id",
+        "member_id",
+        "member_name",
+        "score",
+        "recorded_date"
+      ]
+    },
+    "VSScore": {
+      "method": "upsert",
+      "fields": [
+        "alliance_id",
+        "member_id",
+        "member_name",
+        "score",
+        "rank",
+        "recorded_date"
+      ]
+    },
+    "SeasonalScore": {
+      "method": "row-post",
+      "fields": [
+        "alliance_id",
+        "member_id",
+        "member_name",
+        "score",
+        "recorded_date",
+        "event_id"
+      ]
+    },
+    "EventSeries": {
+      "method": "row-post",
+      "fields": ["name", "description", "score_type", "alliance_id"]
+    },
+    "SeasonalEvent": {
+      "method": "row-post",
+      "fields": [
+        "name",
+        "description",
+        "start_date",
+        "end_date",
+        "status",
+        "score_type",
+        "minimum_participation",
+        "series_id",
+        "alliance_id"
+      ]
+    }
+  }
+}

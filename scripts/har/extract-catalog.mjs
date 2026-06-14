@@ -38,6 +38,7 @@ const HAR_FILE_TO_NAV_GROUP = {
   "ashed.online-events_and_operations.har": "events-operations",
   "ashed.online-admin_and_settings.har": "admin-settings",
   "ashed.online-profile.har": "profile",
+  "ashed.online-custom_event_frontline_breakthrough.har": "events-operations",
 };
 
 /** Nav mirror: Alliance HQ sidebar groups and pages (from ashed.online screenshot + HAR app-logs). */
@@ -359,6 +360,7 @@ const ENTITY_WRITE_PERMISSIONS = {
   AllianceExercise: { read: "scores:read", write: "scores:write" },
   AllianceExerciseScore: { read: "scores:read", write: "scores:write" },
   UnmatchedName: { read: "data:read", write: "data:write" },
+  EventSeries: { read: "events:read", write: "events:write" },
   SeasonalEvent: { read: "events:read", write: "events:write" },
   SeasonalScore: { read: "events:read", write: "events:write" },
   DesertStormEvent: { read: "events:read", write: "events:write" },

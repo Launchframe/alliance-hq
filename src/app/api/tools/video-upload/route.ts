@@ -26,6 +26,8 @@ export async function POST(request: Request) {
     const scoreTarget = String(
       formData.get("scoreTarget") ?? formData.get("category") ?? "desert-storm",
     );
+    const boardKey = formData.get("boardKey");
+    const hqEventId = formData.get("hqEventId");
     const target = getScoreTarget(scoreTarget);
     if (!target?.enabled) {
       return NextResponse.json(
@@ -58,6 +60,8 @@ export async function POST(request: Request) {
       fileSizeBytes: file.size,
       category: scoreTarget,
       scoreTarget,
+      boardKey: boardKey ? String(boardKey) : null,
+      hqEventId: hqEventId ? String(hqEventId) : null,
       storageKey,
       ingestMethod: "video",
       frameCount: null,
@@ -131,6 +135,9 @@ export async function GET() {
         id: t.id,
         labelKey: t.labelKey,
         group: t.group,
+        leaderboardModel: t.leaderboardModel,
+        boardTypes: t.boardTypes,
+        usesHqEvents: t.seriesEntity === "EventSeries",
       })),
     });
   } catch (error) {

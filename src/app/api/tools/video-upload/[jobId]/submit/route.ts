@@ -4,10 +4,19 @@ import { and, eq } from "drizzle-orm";
 import { writeAuditLog } from "@/lib/bff/audit";
 import { emitVideoJobStatus } from "@/lib/events/video-jobs";
 import { getDb, schema } from "@/lib/db";
+import {
+  resolveAshedEventId,
+  upsertHqEventMemberMetadata,
+} from "@/lib/hq-events/provision-ashed";
 import { getAshedConnection, getOrCreateSession } from "@/lib/session";
-import { base44BulkInsert } from "@/lib/base44/fetch";
-import { parseScoreNumber } from "@/lib/video/normalize-rows";
 import { findDuplicateMemberAssignments } from "@/lib/video/review-validation";
+import { getScoreTargetOrThrow, usesHqEventStore } from "@/lib/video/score-targets";
+import { dispatchScoreSubmit } from "@/lib/video/submit-dispatch";
+import {
+  buildSubmitPayloads,
+  validateSubmitContext,
+  type SubmitContext,
+} from "@/lib/video/submit-schemas";
 
 type Props = {
   params: Promise<{ jobId: string }>;
@@ -18,13 +27,17 @@ type SubmitRow = {
   memberId: string;
   memberName: string;
   score: string;
+  rank?: number | null;
   deleted?: boolean;
 };
 
 type SubmitBody = {
-  eventId: string;
-  team: "A" | "B";
+  eventId?: string;
+  team?: "A" | "B";
   recordedDate: string;
+  hqEventId?: string;
+  boardKey?: string;
+  commendationId?: string;
   rows: SubmitRow[];
 };
 
@@ -34,9 +47,9 @@ export async function POST(request: Request, { params }: Props) {
     const { jobId } = await params;
     const body = (await request.json()) as SubmitBody;
 
-    if (!body.eventId || !body.team || !body.recordedDate) {
+    if (!body.recordedDate) {
       return NextResponse.json(
-        { error: "eventId, team, and recordedDate are required." },
+        { error: "recordedDate is required." },
         { status: 400 },
       );
     }
@@ -64,6 +77,9 @@ export async function POST(request: Request, { params }: Props) {
       );
     }
 
+    const scoreTargetId = job.scoreTarget ?? job.category ?? "desert-storm";
+    const target = getScoreTargetOrThrow(scoreTargetId);
+
     const connection = await getAshedConnection(session.id);
     if (!connection) {
       return NextResponse.json({ error: "Ashed not connected" }, { status: 503 });
@@ -87,6 +103,24 @@ export async function POST(request: Request, { params }: Props) {
       );
     }
 
+    const submitContext: SubmitContext = {
+      eventId: body.eventId,
+      team: body.team,
+      recordedDate: body.recordedDate,
+      hqEventId: body.hqEventId ?? job.hqEventId ?? undefined,
+      boardKey: body.boardKey ?? job.boardKey ?? undefined,
+      commendationId: body.commendationId ?? job.commendationId ?? undefined,
+    };
+
+    const contextError = validateSubmitContext(
+      target,
+      submitContext,
+      activeRows.length,
+    );
+    if (contextError) {
+      return NextResponse.json({ error: contextError }, { status: 400 });
+    }
+
     const duplicateMembers = findDuplicateMemberAssignments(
       activeRows.map((row) => ({
         id: row.id,
@@ -105,15 +139,37 @@ export async function POST(request: Request, { params }: Props) {
       );
     }
 
-    const payload = activeRows.map((row) => ({
-      alliance_id: allianceId,
-      event_id: body.eventId,
-      member_id: row.memberId,
-      member_name: row.memberName,
-      team: body.team,
-      score: parseScoreNumber(row.score),
-      recorded_date: body.recordedDate,
-    }));
+    let ashedEventId = submitContext.eventId;
+    if (usesHqEventStore(target)) {
+      if (!submitContext.hqEventId) {
+        return NextResponse.json(
+          { error: "hqEventId is required for this score target." },
+          { status: 400 },
+        );
+      }
+      const provisioned = await resolveAshedEventId(connection, {
+        allianceId,
+        scoreTargetId: target.id,
+        hqEventId: submitContext.hqEventId,
+        boardKey: submitContext.boardKey,
+        commendationId: submitContext.commendationId,
+        recordedDate: submitContext.recordedDate,
+      });
+      ashedEventId = provisioned.ashedEventId;
+    }
+
+    const payloads = buildSubmitPayloads(
+      target,
+      allianceId,
+      submitContext,
+      activeRows.map((row) => ({
+        memberId: row.memberId,
+        memberName: row.memberName,
+        score: row.score,
+        rank: row.rank,
+      })),
+      ashedEventId,
+    );
 
     await db
       .update(schema.videoJobs)
@@ -125,11 +181,24 @@ export async function POST(request: Request, { params }: Props) {
       jobId,
       status: "submitting",
       fileName: job.fileName,
-      scoreTarget: job.scoreTarget ?? job.category,
+      scoreTarget: scoreTargetId,
       errorMessage: null,
     });
 
-    await base44BulkInsert(connection, "DesertStormScore", payload);
+    await dispatchScoreSubmit(connection, target, payloads);
+
+    if (submitContext.hqEventId) {
+      for (const row of activeRows) {
+        await upsertHqEventMemberMetadata(submitContext.hqEventId, row.memberId, {
+          score: row.score,
+          rank: row.rank ?? null,
+          recordedDate: submitContext.recordedDate,
+          boardKey: submitContext.boardKey ?? null,
+          commendationId: submitContext.commendationId ?? null,
+          submittedAt: new Date().toISOString(),
+        });
+      }
+    }
 
     for (const row of body.rows) {
       await db
@@ -138,6 +207,7 @@ export async function POST(request: Request, { params }: Props) {
           memberId: row.memberId,
           memberName: row.memberName,
           score: row.score,
+          rank: row.rank ?? null,
           deleted: row.deleted ? 1 : 0,
           edited: 1,
           updatedAt: new Date(),
@@ -155,7 +225,7 @@ export async function POST(request: Request, { params }: Props) {
       jobId,
       status: "complete",
       fileName: job.fileName,
-      scoreTarget: job.scoreTarget ?? job.category,
+      scoreTarget: scoreTargetId,
       errorMessage: null,
     });
 
@@ -171,9 +241,14 @@ export async function POST(request: Request, { params }: Props) {
       allianceId,
       action: "video.submit",
       resourceType: "entity",
-      resourceName: "DesertStormScore",
+      resourceName: target.submitEntity,
       resourceId: jobId,
-      metadata: { rowCount: activeRows.length, eventId: body.eventId },
+      metadata: {
+        rowCount: activeRows.length,
+        scoreTarget: scoreTargetId,
+        eventId: ashedEventId,
+        hqEventId: submitContext.hqEventId,
+      },
     });
 
     return NextResponse.json({

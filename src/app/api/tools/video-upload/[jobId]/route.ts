@@ -3,6 +3,10 @@ import { and, eq } from "drizzle-orm";
 
 import { getDb, schema } from "@/lib/db";
 import { getOrCreateSession } from "@/lib/session";
+import {
+  getScoreTarget,
+  toScoreTargetClientMeta,
+} from "@/lib/video/score-targets";
 
 type Props = {
   params: Promise<{ jobId: string }>;
@@ -80,17 +84,24 @@ export async function GET(_request: Request, { params }: Props) {
       }
     }
 
+    const scoreTargetId = job.scoreTarget ?? job.category ?? "desert-storm";
+    const target = getScoreTarget(scoreTargetId);
+
     return NextResponse.json({
       job: {
         id: job.id,
         status: job.status,
         fileName: job.fileName,
-        scoreTarget: job.scoreTarget ?? job.category,
+        scoreTarget: scoreTargetId,
+        boardKey: job.boardKey,
+        commendationId: job.commendationId,
+        hqEventId: job.hqEventId,
         frameCount: job.frameCount,
         errorMessage: job.errorMessage,
         parseSessionId: job.parseSessionId,
         allianceId: job.allianceId,
       },
+      scoreTargetMeta: target ? toScoreTargetClientMeta(target) : null,
       alliance: {
         jobId: job.allianceId,
         currentId: session.allianceId,

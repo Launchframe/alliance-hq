@@ -54,6 +54,12 @@ export const videoJobs = pgTable("video_jobs", {
   storageKey: text("storage_key"),
   allianceId: text("alliance_id"),
   parseSessionId: text("parse_session_id"),
+  /** Multi-board seasonal: kills | resources | points */
+  boardKey: text("board_key"),
+  /** Alliance Star commendation (when enabled) */
+  commendationId: text("commendation_id"),
+  /** HQ native event occurrence */
+  hqEventId: text("hq_event_id"),
   ingestMethod: text("ingest_method").notNull().default("video"),
   frameCount: integer("frame_count"),
   uploadedFrameCount: integer("uploaded_frame_count"),
@@ -151,6 +157,88 @@ export const auditLog = pgTable("audit_log", {
     .notNull(),
 });
 
+export const hqEventSeries = pgTable("hq_event_series", {
+  id: text("id").primaryKey(),
+  allianceId: text("alliance_id").notNull(),
+  scoreTarget: text("score_target").notNull(),
+  name: text("name").notNull(),
+  description: text("description"),
+  scoreType: text("score_type"),
+  ashedSeriesId: text("ashed_series_id"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+export const hqEvents = pgTable("hq_events", {
+  id: text("id").primaryKey(),
+  seriesId: text("series_id").references(() => hqEventSeries.id, {
+    onDelete: "set null",
+  }),
+  allianceId: text("alliance_id").notNull(),
+  scoreTarget: text("score_target").notNull(),
+  name: text("name").notNull(),
+  startDate: text("start_date"),
+  endDate: text("end_date"),
+  status: text("status").notNull().default("active"),
+  ashedEventId: text("ashed_event_id"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+export const hqCommendations = pgTable("hq_commendations", {
+  id: text("id").primaryKey(),
+  slug: text("slug").notNull().unique(),
+  label: text("label").notNull(),
+  sortOrder: integer("sort_order").notNull().default(0),
+  active: integer("active").notNull().default(1),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+export const hqEventBoards = pgTable("hq_event_boards", {
+  id: text("id").primaryKey(),
+  hqEventId: text("hq_event_id")
+    .notNull()
+    .references(() => hqEvents.id, { onDelete: "cascade" }),
+  boardKey: text("board_key").notNull(),
+  name: text("name"),
+  scoreType: text("score_type"),
+  commendationId: text("commendation_id").references(() => hqCommendations.id, {
+    onDelete: "set null",
+  }),
+  ashedEventId: text("ashed_event_id"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+export const hqEventMembers = pgTable("hq_event_members", {
+  id: text("id").primaryKey(),
+  hqEventId: text("hq_event_id")
+    .notNull()
+    .references(() => hqEvents.id, { onDelete: "cascade" }),
+  memberId: text("member_id").notNull(),
+  metadata: jsonb("metadata"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
 export type Session = typeof sessions.$inferSelect;
 export type AshedCredential = typeof ashedCredentials.$inferSelect;
 export type VideoJob = typeof videoJobs.$inferSelect;
@@ -158,3 +246,8 @@ export type VideoFrame = typeof videoFrames.$inferSelect;
 export type ParseSession = typeof parseSessions.$inferSelect;
 export type ParsedRow = typeof parsedRows.$inferSelect;
 export type AuditLogEntry = typeof auditLog.$inferInsert;
+export type HqEventSeries = typeof hqEventSeries.$inferSelect;
+export type HqEvent = typeof hqEvents.$inferSelect;
+export type HqEventBoard = typeof hqEventBoards.$inferSelect;
+export type HqCommendation = typeof hqCommendations.$inferSelect;
+export type HqEventMember = typeof hqEventMembers.$inferSelect;

@@ -28,6 +28,19 @@ type MemberOption = {
   current_name: string;
 };
 
+type ScoreTargetMeta = {
+  id: string;
+  labelKey: string;
+  leaderboardModel: string;
+  eventEntity: string | null;
+  submitContext: string[];
+  boardTypes?: string[];
+  maxSubmitRows?: number;
+  usesHqEvents: boolean;
+  showRankColumn: boolean;
+  showTeamSelector: boolean;
+};
+
 type Props = {
   jobId: string;
 };
@@ -49,9 +62,13 @@ export function ReviewExtractedData({ jobId }: Props) {
   const [events, setEvents] = useState<Array<{ id: string; name?: string }>>(
     [],
   );
+  const [scoreTargetMeta, setScoreTargetMeta] =
+    useState<ScoreTargetMeta | null>(null);
   const [jobStatus, setJobStatus] = useState<string>("loading");
   const [allianceId, setAllianceId] = useState<string | null>(null);
   const [eventId, setEventId] = useState("");
+  const [hqEventId, setHqEventId] = useState("");
+  const [boardKey, setBoardKey] = useState("");
   const [team, setTeam] = useState<"A" | "B">("A");
   const [recordedDate, setRecordedDate] = useState(
     () => new Date().toISOString().slice(0, 10),
@@ -93,7 +110,13 @@ export function ReviewExtractedData({ jobId }: Props) {
       const res = await fetch(`/api/tools/video-upload/${jobId}`);
       const data = (await res.json()) as {
         error?: string;
-        job?: { status: string; allianceId?: string | null };
+        job?: {
+          status: string;
+          allianceId?: string | null;
+          boardKey?: string | null;
+          hqEventId?: string | null;
+        };
+        scoreTargetMeta?: ScoreTargetMeta | null;
         alliance?: {
           currentId?: string | null;
           currentTag?: string | null;
@@ -116,6 +139,13 @@ export function ReviewExtractedData({ jobId }: Props) {
       }
 
       setJobStatus(data.job?.status ?? "unknown");
+      setScoreTargetMeta(data.scoreTargetMeta ?? null);
+      if (data.job?.hqEventId) {
+        setHqEventId(data.job.hqEventId);
+      }
+      if (data.job?.boardKey) {
+        setBoardKey(data.job.boardKey);
+      }
       setAllianceId(
         data.alliance?.currentId ??
           data.job?.allianceId ??
@@ -183,10 +213,36 @@ export function ReviewExtractedData({ jobId }: Props) {
 
   useEffect(() => {
     async function fetchEvents() {
-      if (!allianceId) return;
+      if (!allianceId || !scoreTargetMeta) return;
+
+      if (scoreTargetMeta.usesHqEvents) {
+        const res = await fetch(
+          `/api/hq-events?scoreTarget=${encodeURIComponent(scoreTargetMeta.id)}`,
+        );
+        if (res.ok) {
+          const data = (await res.json()) as {
+            events?: Array<{ id: string; name: string }>;
+          };
+          const list = (data.events ?? []).map((ev) => ({
+            id: ev.id,
+            name: ev.name,
+          }));
+          setEvents(list);
+          if (list[0] && !hqEventId) {
+            setHqEventId(list[0].id);
+          }
+        }
+        return;
+      }
+
+      if (!scoreTargetMeta.eventEntity) {
+        setEvents([]);
+        return;
+      }
+
       const q = encodeURIComponent(JSON.stringify({ alliance_id: allianceId }));
       const res = await fetch(
-        `/api/bff/v1/entities/DesertStormEvent?q=${q}`,
+        `/api/bff/v1/entities/${scoreTargetMeta.eventEntity}?q=${q}`,
       );
       if (res.ok) {
         const data = (await res.json()) as Array<{ id: string; name?: string }>;
@@ -197,7 +253,7 @@ export function ReviewExtractedData({ jobId }: Props) {
       }
     }
     void fetchEvents();
-  }, [allianceId, eventId]);
+  }, [allianceId, scoreTargetMeta, eventId, hqEventId]);
 
   const activeRows = useMemo(
     () => rows.filter((r) => !r.deleted),
@@ -226,11 +282,23 @@ export function ReviewExtractedData({ jobId }: Props) {
 
   const hasScoreConflicts = activeRows.some((row) => row.scoreConflict);
   const hasDuplicateMembers = duplicateMemberIssues.length > 0;
+  const needsEventPicker =
+    scoreTargetMeta?.usesHqEvents ||
+    Boolean(scoreTargetMeta?.eventEntity);
+  const needsBoardPicker =
+    scoreTargetMeta?.leaderboardModel === "multi-board";
+  const selectedEventId = scoreTargetMeta?.usesHqEvents ? hqEventId : eventId;
+
   const canSubmit =
     activeRows.length > 0 &&
-    eventId &&
+    (!needsEventPicker || selectedEventId) &&
+    (!needsBoardPicker || boardKey) &&
     !hasDuplicateMembers &&
-    !submitting;
+    !submitting &&
+    !(
+      scoreTargetMeta?.maxSubmitRows != null &&
+      activeRows.length > scoreTargetMeta.maxSubmitRows
+    );
 
   function updateRow(id: string, patch: Partial<ParsedRow>) {
     setRows((prev) =>
@@ -256,14 +324,17 @@ export function ReviewExtractedData({ jobId }: Props) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          eventId,
-          team,
+          eventId: scoreTargetMeta?.usesHqEvents ? undefined : eventId,
+          hqEventId: scoreTargetMeta?.usesHqEvents ? hqEventId : undefined,
+          boardKey: needsBoardPicker ? boardKey : undefined,
+          team: scoreTargetMeta?.showTeamSelector ? team : undefined,
           recordedDate,
           rows: activeRows.map((r) => ({
             id: r.id,
             memberId: r.memberId,
             memberName: r.memberName ?? r.ocrName,
             score: r.score,
+            rank: r.rank,
             deleted: false,
           })),
         }),
@@ -403,31 +474,93 @@ export function ReviewExtractedData({ jobId }: Props) {
       )}
 
       <div className="grid gap-4 rounded-xl border border-[#30363d] bg-[#161b22] p-4 sm:grid-cols-3">
-        <label className="block text-sm">
-          <span className="mb-1 block text-[#8b949e]">{t("eventLabel")}</span>
-          <select
-            value={eventId}
-            onChange={(e) => setEventId(e.target.value)}
-            className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
-          >
-            {events.map((ev) => (
-              <option key={ev.id} value={ev.id}>
-                {ev.name ?? ev.id}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="block text-sm">
-          <span className="mb-1 block text-[#8b949e]">{t("teamLabel")}</span>
-          <select
-            value={team}
-            onChange={(e) => setTeam(e.target.value as "A" | "B")}
-            className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
-          >
-            <option value="A">Team A</option>
-            <option value="B">Team B</option>
-          </select>
-        </label>
+        {needsEventPicker ? (
+          <label className="block text-sm sm:col-span-2">
+            <span className="mb-1 block text-[#8b949e]">{t("eventLabel")}</span>
+            <select
+              value={scoreTargetMeta?.usesHqEvents ? hqEventId : eventId}
+              onChange={(e) => {
+                if (scoreTargetMeta?.usesHqEvents) {
+                  setHqEventId(e.target.value);
+                } else {
+                  setEventId(e.target.value);
+                }
+              }}
+              className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
+            >
+              {events.length === 0 ? (
+                <option value="">{t("noEventsOption")}</option>
+              ) : null}
+              {events.map((ev) => (
+                <option key={ev.id} value={ev.id}>
+                  {ev.name ?? ev.id}
+                </option>
+              ))}
+            </select>
+            {scoreTargetMeta?.usesHqEvents && events.length === 0 ? (
+              <button
+                type="button"
+                className="mt-2 text-xs text-[#58a6ff] hover:underline"
+                onClick={() => {
+                  void (async () => {
+                    const name = `${scoreTargetMeta.labelKey} ${recordedDate}`;
+                    const res = await fetch("/api/hq-events", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        scoreTarget: scoreTargetMeta.id,
+                        name,
+                        startDate: recordedDate,
+                        endDate: recordedDate,
+                      }),
+                    });
+                    if (res.ok) {
+                      const data = (await res.json()) as {
+                        event?: { id: string };
+                      };
+                      if (data.event?.id) {
+                        setHqEventId(data.event.id);
+                        setEvents([{ id: data.event.id, name }]);
+                      }
+                    }
+                  })();
+                }}
+              >
+                {t("createHqEvent")}
+              </button>
+            ) : null}
+          </label>
+        ) : null}
+        {needsBoardPicker ? (
+          <label className="block text-sm">
+            <span className="mb-1 block text-[#8b949e]">{t("boardLabel")}</span>
+            <select
+              value={boardKey}
+              onChange={(e) => setBoardKey(e.target.value)}
+              className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
+            >
+              <option value="">{t("boardPlaceholder")}</option>
+              {(scoreTargetMeta?.boardTypes ?? []).map((board) => (
+                <option key={board} value={board}>
+                  {t(`boardTypes.${board}`)}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
+        {scoreTargetMeta?.showTeamSelector ? (
+          <label className="block text-sm">
+            <span className="mb-1 block text-[#8b949e]">{t("teamLabel")}</span>
+            <select
+              value={team}
+              onChange={(e) => setTeam(e.target.value as "A" | "B")}
+              className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
+            >
+              <option value="A">Team A</option>
+              <option value="B">Team B</option>
+            </select>
+          </label>
+        ) : null}
         <label className="block text-sm">
           <span className="mb-1 block text-[#8b949e]">{t("dateLabel")}</span>
           <input
@@ -445,6 +578,9 @@ export function ReviewExtractedData({ jobId }: Props) {
             <tr>
               <th className="px-4 py-3">{t("colName")}</th>
               <th className="px-4 py-3">{t("colMember")}</th>
+              {scoreTargetMeta?.showRankColumn ? (
+                <th className="px-4 py-3">{t("colRank")}</th>
+              ) : null}
               <th className="px-4 py-3">{t("colScore")}</th>
               <th className="px-4 py-3" />
             </tr>
@@ -499,6 +635,24 @@ export function ReviewExtractedData({ jobId }: Props) {
                     ))}
                   </select>
                 </td>
+                {scoreTargetMeta?.showRankColumn ? (
+                  <td className="px-4 py-3">
+                    <input
+                      type="number"
+                      min={1}
+                      max={3}
+                      value={row.rank ?? ""}
+                      onChange={(e) =>
+                        updateRow(row.id, {
+                          rank: e.target.value
+                            ? Number(e.target.value)
+                            : null,
+                        })
+                      }
+                      className="w-16 rounded-lg border border-[#30363d] bg-[#0d1117] px-2 py-1.5"
+                    />
+                  </td>
+                ) : null}
                 <td className="px-4 py-3">
                   <input
                     type="text"

@@ -17,7 +17,12 @@ type ScoreTargetOption = {
   id: string;
   labelKey: string;
   group: string;
+  leaderboardModel?: string;
+  boardTypes?: string[];
+  usesHqEvents?: boolean;
 };
+
+const GROUP_ORDER = ["events", "recurring", "hq-native"] as const;
 
 type Props = {
   initialJobs: VideoJobRow[];
@@ -52,6 +57,7 @@ export function VideoUploadForm({ initialJobs }: Props) {
   ]);
   const [file, setFile] = useState<File | null>(null);
   const [scoreTarget, setScoreTarget] = useState("desert-storm");
+  const [boardKey, setBoardKey] = useState("");
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -68,6 +74,20 @@ export function VideoUploadForm({ initialJobs }: Props) {
       .catch(() => undefined);
   }, []);
 
+  const selectedTarget = scoreTargets.find((t) => t.id === scoreTarget);
+  const needsBoardPicker =
+    selectedTarget?.leaderboardModel === "multi-board";
+
+  useEffect(() => {
+    if (!needsBoardPicker) {
+      setBoardKey("");
+      return;
+    }
+    if (selectedTarget?.boardTypes?.[0] && !boardKey) {
+      setBoardKey(selectedTarget.boardTypes[0]);
+    }
+  }, [needsBoardPicker, selectedTarget, boardKey]);
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!file) {
@@ -82,6 +102,9 @@ export function VideoUploadForm({ initialJobs }: Props) {
     const formData = new FormData();
     formData.set("video", file);
     formData.set("scoreTarget", scoreTarget);
+    if (boardKey) {
+      formData.set("boardKey", boardKey);
+    }
 
     try {
       const res = await fetch("/api/tools/video-upload", {
@@ -128,13 +151,40 @@ export function VideoUploadForm({ initialJobs }: Props) {
             onChange={(e) => setScoreTarget(e.target.value)}
             className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 text-sm"
           >
-            {scoreTargets.map((target) => (
-              <option key={target.id} value={target.id}>
-                {tNav(target.labelKey)}
-              </option>
-            ))}
+            {GROUP_ORDER.map((group) => {
+              const options = scoreTargets.filter((t) => t.group === group);
+              if (options.length === 0) return null;
+              return (
+                <optgroup key={group} label={tNav(`groups.${group}`)}>
+                  {options.map((target) => (
+                    <option key={target.id} value={target.id}>
+                      {tNav(target.labelKey)}
+                    </option>
+                  ))}
+                </optgroup>
+              );
+            })}
           </select>
         </label>
+
+        {needsBoardPicker ? (
+          <label className="mt-4 block">
+            <span className="mb-2 block text-sm text-[#8b949e]">
+              {t("boardLabel")}
+            </span>
+            <select
+              value={boardKey}
+              onChange={(e) => setBoardKey(e.target.value)}
+              className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 text-sm"
+            >
+              {(selectedTarget?.boardTypes ?? []).map((board) => (
+                <option key={board} value={board}>
+                  {t(`boardTypes.${board}`)}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
 
         <label className="mt-4 block">
           <span className="mb-2 block text-sm text-[#8b949e]">

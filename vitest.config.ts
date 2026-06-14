@@ -6,6 +6,7 @@ export const COVERED_LIB_FILES = [
   "src/lib/video/member-matcher.ts",
   "src/lib/video/review-validation.ts",
   "src/lib/video/score-targets.ts",
+  "src/lib/video/submit-schemas.ts",
   "src/lib/video/pipeline-timer.ts",
   "src/lib/alliance/resolve.ts",
   "src/lib/events/video-jobs-types.ts",

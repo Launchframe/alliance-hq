@@ -2,15 +2,43 @@
 
 export type ScoreTargetGroup = "events" | "recurring" | "hq-native";
 
+export type LeaderboardModel =
+  | "linear-full"
+  | "multi-board"
+  | "podium-commendation";
+
+export type SubmitMethod = "bulk" | "row-post" | "upsert";
+
+export type SubmitContextField =
+  | "eventId"
+  | "team"
+  | "recordedDate"
+  | "boardKey"
+  | "commendationId"
+  | "hqEventId";
+
+export type SeasonalBoardType = "kills" | "resources" | "points";
+
 export type ScoreTargetDef = {
   id: string;
   labelKey: string;
   group: ScoreTargetGroup;
-  /** Base44 entity for bulk submit; null = HQ-only (Phase 3) */
-  submitEntity: string | null;
+  submitEntity: string;
   ocrSchema: Record<string, unknown>;
-  /** Phase 1: only desert-storm is fully wired */
   enabled: boolean;
+  leaderboardModel: LeaderboardModel;
+  /** Base44 entity for event picker (null = use hq_events or no picker) */
+  eventEntity: string | null;
+  seriesEntity: "EventSeries" | null;
+  submitMethod: SubmitMethod;
+  submitContext: SubmitContextField[];
+  boardTypes?: SeasonalBoardType[];
+  /** Default EventSeries name when provisioning custom events */
+  defaultSeriesName?: string;
+  /** Default score_type on EventSeries / SeasonalEvent */
+  defaultScoreType?: string;
+  /** Max active rows at submit (podium) */
+  maxSubmitRows?: number;
 };
 
 const ENTRIES_NUMBER_SCHEMA = {
@@ -31,6 +59,31 @@ const ENTRIES_NUMBER_SCHEMA = {
   required: ["entries"],
 };
 
+const ENTRIES_RANK_SCHEMA = {
+  type: "object",
+  properties: {
+    entries: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          name: { type: "string" },
+          score: { type: "number" },
+          rank: { type: "number" },
+        },
+        required: ["name", "score", "rank"],
+      },
+    },
+  },
+  required: ["entries"],
+};
+
+const STORM_SUBMIT_CONTEXT: SubmitContextField[] = [
+  "eventId",
+  "team",
+  "recordedDate",
+];
+
 export const SCORE_TARGETS: ScoreTargetDef[] = [
   {
     id: "desert-storm",
@@ -39,6 +92,11 @@ export const SCORE_TARGETS: ScoreTargetDef[] = [
     submitEntity: "DesertStormScore",
     ocrSchema: ENTRIES_NUMBER_SCHEMA,
     enabled: true,
+    leaderboardModel: "linear-full",
+    eventEntity: "DesertStormEvent",
+    seriesEntity: null,
+    submitMethod: "bulk",
+    submitContext: STORM_SUBMIT_CONTEXT,
   },
   {
     id: "canyon-storm",
@@ -46,15 +104,25 @@ export const SCORE_TARGETS: ScoreTargetDef[] = [
     group: "events",
     submitEntity: "CanyonStormScore",
     ocrSchema: ENTRIES_NUMBER_SCHEMA,
-    enabled: false,
+    enabled: true,
+    leaderboardModel: "linear-full",
+    eventEntity: "CanyonStormEvent",
+    seriesEntity: null,
+    submitMethod: "bulk",
+    submitContext: STORM_SUBMIT_CONTEXT,
   },
   {
     id: "alliance-exercise",
     labelKey: "allianceExercise",
-    group: "events",
+    group: "recurring",
     submitEntity: "AllianceExerciseScore",
     ocrSchema: ENTRIES_NUMBER_SCHEMA,
-    enabled: false,
+    enabled: true,
+    leaderboardModel: "linear-full",
+    eventEntity: "AllianceExercise",
+    seriesEntity: null,
+    submitMethod: "bulk",
+    submitContext: ["eventId", "recordedDate"],
   },
   {
     id: "zombie-siege",
@@ -62,7 +130,12 @@ export const SCORE_TARGETS: ScoreTargetDef[] = [
     group: "events",
     submitEntity: "ZombieSiegeScore",
     ocrSchema: ENTRIES_NUMBER_SCHEMA,
-    enabled: false,
+    enabled: true,
+    leaderboardModel: "linear-full",
+    eventEntity: "ZombieSiegeEvent",
+    seriesEntity: null,
+    submitMethod: "bulk",
+    submitContext: ["eventId", "recordedDate"],
   },
   {
     id: "vs-performance",
@@ -87,7 +160,12 @@ export const SCORE_TARGETS: ScoreTargetDef[] = [
       },
       required: ["entries"],
     },
-    enabled: false,
+    enabled: true,
+    leaderboardModel: "linear-full",
+    eventEntity: null,
+    seriesEntity: null,
+    submitMethod: "upsert",
+    submitContext: ["recordedDate"],
   },
   {
     id: "donations",
@@ -95,7 +173,59 @@ export const SCORE_TARGETS: ScoreTargetDef[] = [
     group: "recurring",
     submitEntity: "Donation",
     ocrSchema: ENTRIES_NUMBER_SCHEMA,
+    enabled: true,
+    leaderboardModel: "linear-full",
+    eventEntity: null,
+    seriesEntity: null,
+    submitMethod: "bulk",
+    submitContext: ["recordedDate"],
+  },
+  {
+    id: "frontline-breakthrough",
+    labelKey: "frontlineBreakthrough",
+    group: "hq-native",
+    submitEntity: "SeasonalScore",
+    ocrSchema: ENTRIES_NUMBER_SCHEMA,
+    enabled: true,
+    leaderboardModel: "linear-full",
+    eventEntity: "SeasonalEvent",
+    seriesEntity: "EventSeries",
+    submitMethod: "row-post",
+    submitContext: ["hqEventId", "recordedDate"],
+    defaultSeriesName: "Frontline Breakthrough",
+    defaultScoreType: "points",
+  },
+  {
+    id: "seasonal",
+    labelKey: "seasonal",
+    group: "hq-native",
+    submitEntity: "SeasonalScore",
+    ocrSchema: ENTRIES_NUMBER_SCHEMA,
+    enabled: true,
+    leaderboardModel: "multi-board",
+    eventEntity: "SeasonalEvent",
+    seriesEntity: "EventSeries",
+    submitMethod: "row-post",
+    submitContext: ["hqEventId", "boardKey", "recordedDate"],
+    boardTypes: ["kills", "resources", "points"],
+    defaultSeriesName: "Seasonal",
+    defaultScoreType: "points",
+  },
+  {
+    id: "alliance-star",
+    labelKey: "allianceStar",
+    group: "hq-native",
+    submitEntity: "SeasonalScore",
+    ocrSchema: ENTRIES_RANK_SCHEMA,
     enabled: false,
+    leaderboardModel: "podium-commendation",
+    eventEntity: "SeasonalEvent",
+    seriesEntity: "EventSeries",
+    submitMethod: "row-post",
+    submitContext: ["hqEventId", "commendationId", "recordedDate"],
+    defaultSeriesName: "Alliance Star",
+    defaultScoreType: "points",
+    maxSubmitRows: 3,
   },
 ];
 
@@ -113,9 +243,48 @@ export function getScoreTargetOrThrow(id: string): ScoreTargetDef {
   return target;
 }
 
-/** Extra fields required on submit for event score types */
-export type DesertStormSubmitContext = {
-  eventId: string;
-  team: "A" | "B";
-  recordedDate: string;
+export function usesHqEventStore(target: ScoreTargetDef): boolean {
+  return target.seriesEntity === "EventSeries";
+}
+
+export function requiresBoardKey(target: ScoreTargetDef): boolean {
+  return target.leaderboardModel === "multi-board";
+}
+
+export function requiresCommendation(target: ScoreTargetDef): boolean {
+  return target.leaderboardModel === "podium-commendation";
+}
+
+export type ScoreTargetClientMeta = {
+  id: string;
+  labelKey: string;
+  group: ScoreTargetGroup;
+  leaderboardModel: LeaderboardModel;
+  eventEntity: string | null;
+  submitContext: SubmitContextField[];
+  boardTypes?: SeasonalBoardType[];
+  maxSubmitRows?: number;
+  usesHqEvents: boolean;
+  showRankColumn: boolean;
+  showTeamSelector: boolean;
 };
+
+export function toScoreTargetClientMeta(
+  target: ScoreTargetDef,
+): ScoreTargetClientMeta {
+  return {
+    id: target.id,
+    labelKey: target.labelKey,
+    group: target.group,
+    leaderboardModel: target.leaderboardModel,
+    eventEntity: target.eventEntity,
+    submitContext: target.submitContext,
+    boardTypes: target.boardTypes,
+    maxSubmitRows: target.maxSubmitRows,
+    usesHqEvents: usesHqEventStore(target),
+    showRankColumn:
+      target.id === "vs-performance" ||
+      target.leaderboardModel === "podium-commendation",
+    showTeamSelector: target.submitContext.includes("team"),
+  };
+}

@@ -131,3 +131,25 @@ export async function base44BulkInsert<T>(
     body: JSON.stringify(rows),
   });
 }
+
+export async function base44EntityPost<T>(
+  connection: ParsedConnection,
+  entity: string,
+  row: T,
+): Promise<unknown> {
+  return base44Json(connection, `/entities/${entity}`, {
+    method: "POST",
+    body: JSON.stringify(row),
+  });
+}
+
+export async function base44CallFunction<TBody extends Record<string, unknown>, TResult>(
+  connection: ParsedConnection,
+  name: string,
+  body: TBody,
+): Promise<TResult> {
+  return base44Json<TResult>(connection, `/functions/${name}`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}

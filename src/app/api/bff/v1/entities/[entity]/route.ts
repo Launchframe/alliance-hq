@@ -40,3 +40,30 @@ export async function GET(request: Request, { params }: Props) {
 
   return sanitizeUpstreamResponse(upstream);
 }
+
+export async function POST(request: Request, { params }: Props) {
+  const ctx = await requireBffSession();
+  if (ctx instanceof NextResponse) return ctx;
+
+  const { entity } = await params;
+  const permission = resolveEntityPermission(entity, "POST");
+  if (!permission || !isAllowedPermission(permission)) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  const body = await request.text();
+  const upstream = await forwardJson(ctx.connection, `/entities/${entity}`, {
+    method: "POST",
+    body,
+  });
+
+  await writeAuditLog({
+    sessionId: ctx.sessionId,
+    action: "bff.entity.write",
+    resourceType: "entity",
+    resourceName: entity,
+    metadata: { method: "POST" },
+  });
+
+  return sanitizeUpstreamResponse(upstream);
+}

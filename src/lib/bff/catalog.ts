@@ -1,4 +1,4 @@
-/** Phase 1 BFF allowlist — expand from docs/ashed-api-catalog.json as routes grow. */
+/** BFF allowlist — expand from docs/ashed-api-catalog.json as routes grow. */
 
 type EntityOp = { entity: string; method: string; permission: string };
 
@@ -8,6 +8,31 @@ const ENTITY_OPS: EntityOp[] = [
   { entity: "DesertStormEvent", method: "GET", permission: "events:read" },
   { entity: "DesertStormScore", method: "GET", permission: "events:read" },
   { entity: "DesertStormScore", method: "POST", permission: "events:write" },
+  { entity: "CanyonStormEvent", method: "GET", permission: "events:read" },
+  { entity: "CanyonStormScore", method: "GET", permission: "events:read" },
+  { entity: "CanyonStormScore", method: "POST", permission: "events:write" },
+  { entity: "ZombieSiegeEvent", method: "GET", permission: "events:read" },
+  { entity: "ZombieSiegeScore", method: "GET", permission: "events:read" },
+  { entity: "ZombieSiegeScore", method: "POST", permission: "events:write" },
+  { entity: "SeasonalEvent", method: "GET", permission: "events:read" },
+  { entity: "SeasonalEvent", method: "POST", permission: "events:write" },
+  { entity: "SeasonalEvent", method: "PUT", permission: "events:write" },
+  { entity: "SeasonalScore", method: "GET", permission: "events:read" },
+  { entity: "SeasonalScore", method: "POST", permission: "events:write" },
+  { entity: "EventSeries", method: "GET", permission: "events:read" },
+  { entity: "EventSeries", method: "POST", permission: "events:write" },
+  { entity: "AllianceExercise", method: "GET", permission: "scores:read" },
+  { entity: "AllianceExerciseScore", method: "GET", permission: "scores:read" },
+  { entity: "AllianceExerciseScore", method: "POST", permission: "scores:write" },
+  { entity: "VSScore", method: "GET", permission: "scores:read" },
+  { entity: "VSScore", method: "POST", permission: "scores:write" },
+  { entity: "VSScore", method: "PUT", permission: "scores:write" },
+  { entity: "Donation", method: "GET", permission: "scores:read" },
+  { entity: "Donation", method: "POST", permission: "scores:write" },
+];
+
+const FUNCTION_OPS: Array<{ name: string; permission: string }> = [
+  { name: "getSeasonalEvents", permission: "events:read" },
 ];
 
 const INTEGRATION_OPS: Array<{ name: string; permission: string }> = [
@@ -32,6 +57,10 @@ export function resolveEntityPermission(
 
 export function resolveBulkPermission(entity: string): string | null {
   return resolveEntityPermission(entity, "POST");
+}
+
+export function resolveFunctionPermission(name: string): string | null {
+  return FUNCTION_OPS.find((op) => op.name === name)?.permission ?? null;
 }
 
 export function resolveIntegrationPermission(action: string): string | null {
