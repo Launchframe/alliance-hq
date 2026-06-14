@@ -1,0 +1,1 @@
+ALTER TABLE "parsed_rows" ADD COLUMN "score_conflict" integer DEFAULT 0 NOT NULL;

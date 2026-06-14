@@ -15,6 +15,27 @@
       "when": 1781384870767,
       "tag": "0001_chunky_golden_guardian",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1781408825981,
+      "tag": "0002_fat_madrox",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1781414366044,
+      "tag": "0003_condemned_eternity",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1781416393218,
+      "tag": "0004_solid_warpath",
+      "breakpoints": true
     }
   ]
 }

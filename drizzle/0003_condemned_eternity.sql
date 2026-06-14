@@ -1,0 +1,1 @@
+ALTER TABLE "sessions" ADD COLUMN "alliance_tag" text;
