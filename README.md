@@ -89,6 +89,7 @@ npm install
 | `TOKEN_ENCRYPTION_KEY` | Same 64-char hex key for all environments, or generate once and store in a password manager |
 | `NEXT_PUBLIC_APP_URL` | `https://alliance-hq.vercel.app` |
 | `VIDEO_WORKER_SECRET` | Random secret (same value if you run the optional backup worker) |
+| `PLATFORM_BOOTSTRAP_EMAIL` | Your Ashed email — auto-promoted to platform maintainer on first connect when none exist |
 | `R2_ACCOUNT_ID` | Cloudflare account ID |
 | `R2_ACCESS_KEY_ID` | R2 API token access key |
 | `R2_SECRET_ACCESS_KEY` | R2 API token secret |
@@ -96,11 +97,11 @@ npm install
 
 Do **not** set `LOCAL_DATABASE_URL` on Vercel.
 
-3. Deploy — `npm run build` runs `drizzle-kit migrate` automatically, creating/updating tables on Neon.
+3. Deploy — `npm run build` runs migrations and idempotent DB seeds automatically before `next build` (requires `DATABASE_URL` at build time).
 
-For local schema changes: `npm run db:generate` → commit new files under `drizzle/` → deploy.
+For local schema changes: `npm run db:generate` → commit new files under `drizzle/` → deploy. After `db:push` locally, run `npm run db:seed` once if you have not run a full build.
 
-Optional one-off (without redeploying): `DATABASE_URL="postgresql://…neon…" npm run db:migrate`
+Optional one-off (without redeploying): `DATABASE_URL="postgresql://…neon…" npm run db:prepare`
 
 4. Add custom domain **alliance-hq.vercel.app** in Vercel → Settings → Domains
 5. At your DNS provider, point the domain to Vercel (A/CNAME records shown in the Vercel UI)

@@ -80,11 +80,20 @@
     "no": "No",
     "nav": {
       "overview": "Overview",
+      "system": "System",
+      "alliances": "Alliances",
       "audit": "Audit log",
       "videoJobs": "Video jobs",
       "hqEvents": "HQ events",
+      "commendations": "Commendations",
       "users": "HQ users"
     },
+    "systemTitle": "System health",
+    "systemDesc": "Database status, resource counts, env config, and RBAC role catalog.",
+    "alliancesTitle": "Alliances",
+    "alliancesDesc": "HQ tenant rows synced from Ashed with owner and collaborator cache.",
+    "commendationsTitle": "Commendations",
+    "commendationsDesc": "Alliance Star podium types for video upload (when enabled).",
     "auditTitle": "Audit log",
     "auditDesc": "BFF and integration actions across all alliances.",
     "videoJobsTitle": "Video jobs",
@@ -92,7 +101,103 @@
     "hqEventsTitle": "HQ events",
     "hqEventsDesc": "Native event occurrences and series.",
     "usersTitle": "HQ users",
-    "usersDesc": "Registered users and platform maintainer flag.",
+    "usersDesc": "View alliance roles and assign manual overrides.",
+    "usersPage": {
+      "loading": "Loading users…",
+      "loadFailed": "Failed to load users.",
+      "saveFailed": "Could not save changes.",
+      "saved": "Changes saved.",
+      "selectUser": "Select a user to edit roles.",
+      "editorHint": "Manual assignments use source \"manual\" and are not overwritten by Ashed sync.",
+      "platformMaintainer": "Platform maintainer (cross-alliance /admin access)",
+      "savePlatform": "Save platform flag",
+      "membershipsTitle": "Alliance memberships",
+      "noMemberships": "No alliance memberships yet.",
+      "roleLabel": "Role",
+      "saveRole": "Save role",
+      "assignTitle": "Assign alliance role",
+      "assignHint": "Create or replace a membership for this user on an alliance.",
+      "allianceLabel": "Alliance",
+      "chooseAlliance": "Choose alliance…",
+      "assignRole": "Assign role",
+      "table": {
+        "email": "User",
+        "roles": "Roles"
+      }
+    },
+    "systemPage": {
+      "loading": "Loading system stats…",
+      "loadFailed": "Failed to load system stats.",
+      "databaseTitle": "Database",
+      "databaseOk": "Connected",
+      "databaseBad": "Unreachable",
+      "countsTitle": "Resource counts",
+      "configTitle": "Environment (set / missing only)",
+      "bootstrapHint": "Set PLATFORM_BOOTSTRAP_EMAIL in Vercel — the first connect from that email becomes platform maintainer when none exist yet.",
+      "queuedTitle": "Recent queued video jobs",
+      "rolesTitle": "System roles & permissions",
+      "counts": {
+        "hqUsers": "HQ users",
+        "platformMaintainers": "Platform maintainers",
+        "alliances": "Alliances",
+        "memberships": "Memberships",
+        "videoJobs": "Video jobs",
+        "videoJobsQueued": "Queued jobs",
+        "videoJobsFailed": "Failed jobs",
+        "auditLogEntries": "Audit log entries",
+        "hqEvents": "HQ events",
+        "hqEventSeries": "Event series",
+        "commendations": "Commendations"
+      },
+      "config": {
+        "platformBootstrapEmailConfigured": "PLATFORM_BOOTSTRAP_EMAIL",
+        "videoWorkerSecretConfigured": "VIDEO_WORKER_SECRET",
+        "cronSecretConfigured": "CRON_SECRET",
+        "r2Configured": "R2 storage",
+        "tokenEncryptionConfigured": "TOKEN_ENCRYPTION_KEY"
+      }
+    },
+    "alliancesPage": {
+      "loadFailed": "Failed to load alliances.",
+      "table": {
+        "alliance": "Alliance",
+        "owner": "Owner email",
+        "collaborators": "Collaborators",
+        "members": "HQ members",
+        "synced": "Roles synced"
+      }
+    },
+    "commendationsPage": {
+      "loadFailed": "Failed to load commendations.",
+      "saveFailed": "Could not save commendation.",
+      "createTitle": "Add commendation",
+      "slugPlaceholder": "slug (e.g. valor)",
+      "labelPlaceholder": "Display label",
+      "createButton": "Create",
+      "activeYes": "Active",
+      "activeNo": "Inactive",
+      "table": {
+        "slug": "Slug",
+        "label": "Label",
+        "order": "Order",
+        "active": "Active"
+      }
+    },
+    "videoJobsPage": {
+      "actions": "Actions",
+      "requeue": "Requeue",
+      "reprocess": "Reprocess",
+      "actionFailed": "Action failed"
+    },
+    "hqEventsPage": {
+      "tabs": {
+        "events": "Events",
+        "series": "Series",
+        "boards": "Boards"
+      },
+      "boardKey": "Board",
+      "eventId": "Event ID"
+    },
     "table": {
       "time": "Time",
       "action": "Action",

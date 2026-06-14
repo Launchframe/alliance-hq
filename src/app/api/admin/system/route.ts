@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
-import { desc } from "drizzle-orm";
 
-import { getDb, schema } from "@/lib/db";
+import {
+  loadAdminRolesWithPermissions,
+  loadSystemStats,
+} from "@/lib/admin/system-stats";
 import { requirePlatformMaintainer } from "@/lib/rbac/require-permission";
 import { readSessionId } from "@/lib/session";
 
@@ -14,16 +16,19 @@ export async function GET() {
   const denied = await requirePlatformMaintainer(sessionId);
   if (denied) return denied;
 
-  const db = getDb();
-  const [events, series, boards] = await Promise.all([
-    db
-      .select()
-      .from(schema.hqEvents)
-      .orderBy(desc(schema.hqEvents.createdAt))
-      .limit(500),
-    db.select().from(schema.hqEventSeries).limit(500),
-    db.select().from(schema.hqEventBoards).limit(500),
+  const [stats, roles] = await Promise.all([
+    loadSystemStats(),
+    loadAdminRolesWithPermissions(),
   ]);
 
-  return NextResponse.json({ events, series, boards });
+  return NextResponse.json({
+    stats: {
+      ...stats,
+      recentQueuedJobs: stats.recentQueuedJobs.map((job) => ({
+        ...job,
+        createdAt: job.createdAt.toISOString(),
+      })),
+    },
+    roles,
+  });
 }

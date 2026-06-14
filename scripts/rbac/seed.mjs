@@ -127,9 +127,9 @@ async function main() {
     `Seeded ${permissions.length} permissions and ${systemRoles.length} system roles.`,
   );
   console.log("");
-  console.log("Platform maintainer bootstrap (run after first connect):");
+  console.log("Platform maintainer bootstrap:");
   console.log(
-    "  UPDATE hq_users SET is_platform_maintainer = 1 WHERE email = 'you@example.com';",
+    "  Set PLATFORM_BOOTSTRAP_EMAIL in env — first connect from that email when no maintainer exists.",
   );
 
   await client.end();

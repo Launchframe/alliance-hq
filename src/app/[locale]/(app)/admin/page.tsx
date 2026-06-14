@@ -6,6 +6,9 @@ export default async function AdminOverviewPage() {
   const t = await getTranslations("admin");
 
   const cards = [
+    { href: "/admin/system", titleKey: "systemTitle", descKey: "systemDesc" },
+    { href: "/admin/alliances", titleKey: "alliancesTitle", descKey: "alliancesDesc" },
+    { href: "/admin/users", titleKey: "usersTitle", descKey: "usersDesc" },
     { href: "/admin/audit", titleKey: "auditTitle", descKey: "auditDesc" },
     {
       href: "/admin/video-jobs",
@@ -17,7 +20,11 @@ export default async function AdminOverviewPage() {
       titleKey: "hqEventsTitle",
       descKey: "hqEventsDesc",
     },
-    { href: "/admin/users", titleKey: "usersTitle", descKey: "usersDesc" },
+    {
+      href: "/admin/commendations",
+      titleKey: "commendationsTitle",
+      descKey: "commendationsDesc",
+    },
   ] as const;
 
   return (

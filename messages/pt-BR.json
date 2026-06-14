@@ -80,11 +80,20 @@
     "no": "Não",
     "nav": {
       "overview": "Visão geral",
+      "system": "Sistema",
+      "alliances": "Alianças",
       "audit": "Log de auditoria",
       "videoJobs": "Jobs de vídeo",
       "hqEvents": "Eventos HQ",
+      "commendations": "Comendações",
       "users": "Usuários HQ"
     },
+    "systemTitle": "Saúde do sistema",
+    "systemDesc": "Status do banco, contagens, config e catálogo de funções RBAC.",
+    "alliancesTitle": "Alianças",
+    "alliancesDesc": "Tenants HQ sincronizados do Ashed com cache de proprietário e colaboradores.",
+    "commendationsTitle": "Comendações",
+    "commendationsDesc": "Tipos de pódio Alliance Star para upload de vídeo (quando habilitado).",
     "auditTitle": "Log de auditoria",
     "auditDesc": "Ações BFF e de integração em todas as alianças.",
     "videoJobsTitle": "Jobs de vídeo",
@@ -92,7 +101,103 @@
     "hqEventsTitle": "Eventos HQ",
     "hqEventsDesc": "Ocorrências e séries de eventos nativos.",
     "usersTitle": "Usuários HQ",
-    "usersDesc": "Usuários registrados e flag de mantenedor da plataforma.",
+    "usersDesc": "Ver funções de aliança e atribuir substituições manuais.",
+    "usersPage": {
+      "loading": "Carregando usuários…",
+      "loadFailed": "Falha ao carregar usuários.",
+      "saveFailed": "Não foi possível salvar as alterações.",
+      "saved": "Alterações salvas.",
+      "selectUser": "Selecione um usuário para editar funções.",
+      "editorHint": "Atribuições manuais usam origem \"manual\" e não são sobrescritas pela sincronização do Ashed.",
+      "platformMaintainer": "Mantenedor da plataforma (acesso /admin entre alianças)",
+      "savePlatform": "Salvar flag da plataforma",
+      "membershipsTitle": "Membros da aliança",
+      "noMemberships": "Nenhuma associação de aliança ainda.",
+      "roleLabel": "Função",
+      "saveRole": "Salvar função",
+      "assignTitle": "Atribuir função na aliança",
+      "assignHint": "Criar ou substituir uma associação deste usuário em uma aliança.",
+      "allianceLabel": "Aliança",
+      "chooseAlliance": "Escolher aliança…",
+      "assignRole": "Atribuir função",
+      "table": {
+        "email": "Usuário",
+        "roles": "Funções"
+      }
+    },
+    "systemPage": {
+      "loading": "Carregando estatísticas do sistema…",
+      "loadFailed": "Falha ao carregar estatísticas do sistema.",
+      "databaseTitle": "Banco de dados",
+      "databaseOk": "Conectado",
+      "databaseBad": "Inacessível",
+      "countsTitle": "Contagens de recursos",
+      "configTitle": "Ambiente (definido / ausente)",
+      "bootstrapHint": "Defina PLATFORM_BOOTSTRAP_EMAIL na Vercel — o primeiro connect desse e-mail vira mantenedor quando nenhum existir.",
+      "queuedTitle": "Jobs de vídeo recentes na fila",
+      "rolesTitle": "Funções e permissões do sistema",
+      "counts": {
+        "hqUsers": "Usuários HQ",
+        "platformMaintainers": "Mantenedores da plataforma",
+        "alliances": "Alianças",
+        "memberships": "Associações",
+        "videoJobs": "Jobs de vídeo",
+        "videoJobsQueued": "Jobs na fila",
+        "videoJobsFailed": "Jobs com falha",
+        "auditLogEntries": "Entradas de auditoria",
+        "hqEvents": "Eventos HQ",
+        "hqEventSeries": "Séries de eventos",
+        "commendations": "Comendações"
+      },
+      "config": {
+        "platformBootstrapEmailConfigured": "PLATFORM_BOOTSTRAP_EMAIL",
+        "videoWorkerSecretConfigured": "VIDEO_WORKER_SECRET",
+        "cronSecretConfigured": "CRON_SECRET",
+        "r2Configured": "Armazenamento R2",
+        "tokenEncryptionConfigured": "TOKEN_ENCRYPTION_KEY"
+      }
+    },
+    "alliancesPage": {
+      "loadFailed": "Falha ao carregar alianças.",
+      "table": {
+        "alliance": "Aliança",
+        "owner": "E-mail do proprietário",
+        "collaborators": "Colaboradores",
+        "members": "Membros HQ",
+        "synced": "Funções sincronizadas"
+      }
+    },
+    "commendationsPage": {
+      "loadFailed": "Falha ao carregar comendações.",
+      "saveFailed": "Não foi possível salvar a comendação.",
+      "createTitle": "Adicionar comendação",
+      "slugPlaceholder": "slug (ex.: valor)",
+      "labelPlaceholder": "Rótulo exibido",
+      "createButton": "Criar",
+      "activeYes": "Ativa",
+      "activeNo": "Inativa",
+      "table": {
+        "slug": "Slug",
+        "label": "Rótulo",
+        "order": "Ordem",
+        "active": "Ativa"
+      }
+    },
+    "videoJobsPage": {
+      "actions": "Ações",
+      "requeue": "Recolocar na fila",
+      "reprocess": "Reprocessar",
+      "actionFailed": "Ação falhou"
+    },
+    "hqEventsPage": {
+      "tabs": {
+        "events": "Eventos",
+        "series": "Séries",
+        "boards": "Boards"
+      },
+      "boardKey": "Board",
+      "eventId": "ID do evento"
+    },
     "table": {
       "time": "Hora",
       "action": "Ação",

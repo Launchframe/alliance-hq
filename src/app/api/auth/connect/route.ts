@@ -13,6 +13,7 @@ import {
   parseConnectionInput,
 } from "@/lib/connectionString";
 import { syncAshedAllianceRoles } from "@/lib/rbac/sync-ashed-roles";
+import { maybeBootstrapPlatformMaintainer } from "@/lib/rbac/bootstrap-platform";
 import {
   getOrCreateSession,
   getSessionState,
@@ -107,6 +108,11 @@ export async function POST(request: Request) {
       },
     });
 
+    const bootstrappedMaintainer = await maybeBootstrapPlatformMaintainer(
+      rbac.hqUserId,
+      me.email,
+    );
+
     return NextResponse.json({
       ok: true,
       userLabel,
@@ -121,6 +127,7 @@ export async function POST(request: Request) {
         roleName: rbac.roleName,
         hqUserId: rbac.hqUserId,
         accessRole: selected.accessRole,
+        bootstrappedPlatformMaintainer: bootstrappedMaintainer,
       },
     });
   } catch (error) {
