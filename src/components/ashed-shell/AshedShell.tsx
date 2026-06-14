@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { Link, usePathname } from "@/i18n/navigation";
 import { FOOTER_NAV, NAV_GROUPS, isNavActive } from "@/lib/nav/routes";
 import type { AshedConnectionMeta } from "@/lib/jwt/connection-meta";
+import { FeedbackProvider } from "@/components/feedback";
 import { TokenExpiryBanner } from "@/components/TokenExpiryNotice";
 import { VideoJobEventsProvider, VideoJobStatusBanners } from "@/components/video/VideoJobEventsProvider";
 import { ashedLink } from "@/components/i18n/richText";
@@ -57,15 +58,23 @@ export function AshedShell({
 
   return (
     <VideoJobEventsProvider>
+      <FeedbackProvider>
       <div className="flex min-h-screen bg-[#0d1117] text-[#e6edf3]">
       <aside className="flex w-60 shrink-0 flex-col border-r border-[#30363d] bg-[#161b22]">
         <div className="border-b border-[#30363d] px-4 py-4">
-          <Link href="/dashboard" className="block">
+          <Link href="/dashboard" className="flex items-center gap-3">
+            <img
+              src="/brand/hq-icon-mark.svg"
+              alt=""
+              className="h-9 w-9 shrink-0 rounded-lg"
+            />
+            <span>
             <span className="text-lg font-semibold tracking-tight">
               {t("brand")}
             </span>
             <span className="mt-0.5 block text-xs text-[#8b949e]">
               {t("domain")}
+            </span>
             </span>
           </Link>
         </div>
@@ -155,9 +164,10 @@ export function AshedShell({
         {ashed && <TokenExpiryBanner ashed={ashed} />}
         <VideoJobStatusBanners />
 
-        <main className="flex-1 p-6">{children}</main>
+        <main id="hq-app-shell" className="flex-1 p-6">{children}</main>
       </div>
     </div>
+      </FeedbackProvider>
     </VideoJobEventsProvider>
   );
 }

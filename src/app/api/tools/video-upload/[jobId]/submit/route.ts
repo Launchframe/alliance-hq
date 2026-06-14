@@ -11,6 +11,9 @@ import {
 import { getAshedConnection, getOrCreateSession } from "@/lib/session";
 import { findDuplicateMemberAssignments } from "@/lib/video/review-validation";
 import { getScoreTargetOrThrow, usesHqEventStore } from "@/lib/video/score-targets";
+import {
+  getSolicitedEligibility,
+} from "@/lib/feedback/solicited-eligibility";
 import { dispatchScoreSubmit } from "@/lib/video/submit-dispatch";
 import {
   buildSubmitPayloads,
@@ -251,9 +254,26 @@ export async function POST(request: Request, { params }: Props) {
       },
     });
 
+    let solicitedPayload: {
+      showSolicitedFeedback: boolean;
+      solicitedSource?: string;
+      completedUploadCount: number;
+    } = {
+      showSolicitedFeedback: false,
+      completedUploadCount: 0,
+    };
+
+    if (session.hqUserId) {
+      solicitedPayload = await getSolicitedEligibility({
+        hqUserId: session.hqUserId,
+        videoJobId: jobId,
+      });
+    }
+
     return NextResponse.json({
       ok: true,
       submitted: activeRows.length,
+      ...solicitedPayload,
     });
   } catch (error) {
     return NextResponse.json(

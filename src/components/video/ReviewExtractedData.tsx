@@ -4,6 +4,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Link } from "@/i18n/navigation";
+import { useFeedback } from "@/components/feedback";
 import { useAccountTimezone } from "@/components/timezone/TimezoneProvider";
 import { useVideoJob } from "@/components/video/VideoJobEventsProvider";
 import {
@@ -71,6 +72,7 @@ export function ReviewExtractedData({ jobId }: Props) {
   const tNav = useTranslations("nav");
   const locale = useLocale();
   const { timezoneId } = useAccountTimezone();
+  const { showExperienceFeedback } = useFeedback();
   const liveJob = useVideoJob(jobId);
 
   const [rows, setRows] = useState<ParsedRow[]>([]);
@@ -388,6 +390,8 @@ export function ReviewExtractedData({ jobId }: Props) {
         error?: string;
         submitted?: number;
         duplicateMembers?: Array<{ memberName: string }>;
+        showSolicitedFeedback?: boolean;
+        solicitedSource?: "solicited_first_upload" | "solicited_third_upload";
       };
       if (!res.ok) {
         setError(data.error ?? tc("uploadFailed"));
@@ -395,6 +399,14 @@ export function ReviewExtractedData({ jobId }: Props) {
       }
       setSuccess(t("submitSuccess", { count: data.submitted ?? 0 }));
       setJobStatus("complete");
+      if (data.showSolicitedFeedback && data.solicitedSource) {
+        showExperienceFeedback({
+          videoJobId: jobId,
+          source: data.solicitedSource,
+          isSolicited: true,
+          delayMs: 1500,
+        });
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : tc("uploadFailed"));
     } finally {

@@ -37,6 +37,12 @@ export async function generateMetadata({ params }: Props) {
     metadataBase: new URL(
       process.env.NEXT_PUBLIC_APP_URL ?? "https://alliance-hq.vercel.app",
     ),
+    icons: {
+      icon: [{ url: "/brand/hq-icon-app.svg", type: "image/svg+xml" }],
+      apple: [{ url: "/brand/hq-icon-app.svg", type: "image/svg+xml" }],
+    },
+    manifest: "/manifest.webmanifest",
+    themeColor: "#0d1117",
   };
 }
 
