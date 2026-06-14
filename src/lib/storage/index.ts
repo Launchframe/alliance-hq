@@ -10,7 +10,7 @@ import {
 
 const LOCAL_ROOT = path.join(process.cwd(), ".data", "uploads");
 
-function useLocalStorage(): boolean {
+function prefersLocalStorage(): boolean {
   return !r2Configured();
 }
 
@@ -22,7 +22,7 @@ export async function putObject(
   storageKey: string,
   body: Buffer | Uint8Array,
 ): Promise<void> {
-  if (useLocalStorage()) {
+  if (prefersLocalStorage()) {
     const filePath = localPath(storageKey);
     await fs.mkdir(path.dirname(filePath), { recursive: true });
     await fs.writeFile(filePath, body);
@@ -33,14 +33,14 @@ export async function putObject(
 }
 
 export async function getObject(storageKey: string): Promise<Buffer> {
-  if (useLocalStorage()) {
+  if (prefersLocalStorage()) {
     return fs.readFile(localPath(storageKey));
   }
   return getR2Object(storageKey);
 }
 
 export async function deleteObject(storageKey: string): Promise<void> {
-  if (useLocalStorage()) {
+  if (prefersLocalStorage()) {
     try {
       await fs.unlink(localPath(storageKey));
     } catch {
@@ -60,4 +60,4 @@ export function frameStorageKey(jobId: string, index: number): string {
   return `videos/${jobId}/frames/${String(index).padStart(4, "0")}.jpg`;
 }
 
-export { r2Configured, useLocalStorage };
+export { prefersLocalStorage, r2Configured };

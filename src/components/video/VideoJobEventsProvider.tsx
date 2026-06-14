@@ -137,7 +137,6 @@ export function VideoJobStatusBanners() {
 export function VideoJobEventsProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const pathnameRef = useRef(pathname);
-  pathnameRef.current = pathname;
 
   const [jobsById, setJobsById] = useState<Record<string, VideoJobStatusEvent>>(
     {},
@@ -148,7 +147,14 @@ export function VideoJobEventsProvider({ children }: { children: ReactNode }) {
     () => new Set(),
   );
   const dismissedRef = useRef(dismissedJobIds);
-  dismissedRef.current = dismissedJobIds;
+
+  useEffect(() => {
+    pathnameRef.current = pathname;
+  }, [pathname]);
+
+  useEffect(() => {
+    dismissedRef.current = dismissedJobIds;
+  }, [dismissedJobIds]);
 
   const pushBanner = useCallback((event: VideoJobStatusEvent) => {
     if (event.status !== "review" && event.status !== "failed") {

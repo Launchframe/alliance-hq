@@ -29,7 +29,7 @@ vi.mock("@aws-sdk/client-s3", () => ({
 import {
   frameStorageKey,
   r2Configured,
-  useLocalStorage,
+  prefersLocalStorage,
   videoStorageKey,
 } from "@/lib/storage/index";
 import {
@@ -72,10 +72,10 @@ describe("r2Configured", () => {
   });
 });
 
-describe("useLocalStorage", () => {
+describe("prefersLocalStorage", () => {
   it("uses local storage when R2 is not configured", () => {
     delete process.env.R2_BUCKET;
-    expect(useLocalStorage()).toBe(true);
+    expect(prefersLocalStorage()).toBe(true);
   });
 });
 

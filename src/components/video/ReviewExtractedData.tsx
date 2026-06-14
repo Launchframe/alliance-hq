@@ -1,7 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Link } from "@/i18n/navigation";
 import { useVideoJob } from "@/components/video/VideoJobEventsProvider";
@@ -84,6 +84,10 @@ export function ReviewExtractedData({ jobId }: Props) {
     }
   }, [jobId, tc]);
 
+  const loadRef = useRef<
+    (options?: { skipRematch?: boolean }) => Promise<void>
+  >(() => Promise.resolve());
+
   const load = useCallback(
     async (options?: { skipRematch?: boolean }) => {
       const res = await fetch(`/api/tools/video-upload/${jobId}`);
@@ -106,7 +110,7 @@ export function ReviewExtractedData({ jobId }: Props) {
       if (data.alliance?.stale && !options?.skipRematch) {
         const ok = await rematchMembers();
         if (ok) {
-          await load({ skipRematch: true });
+          await loadRef.current({ skipRematch: true });
           return;
         }
       }
@@ -131,21 +135,36 @@ export function ReviewExtractedData({ jobId }: Props) {
   );
 
   useEffect(() => {
-    void load();
+    loadRef.current = load;
   }, [load]);
+
+  useEffect(() => {
+    queueMicrotask(() => {
+      void load();
+    });
+  }, [load]);
+
+  const displayJobStatus = useMemo(() => {
+    if (
+      liveJob &&
+      (liveJob.status === "queued" ||
+        liveJob.status === "extracting" ||
+        liveJob.status === "parsing")
+    ) {
+      return liveJob.status;
+    }
+    return jobStatus;
+  }, [jobStatus, liveJob]);
 
   useEffect(() => {
     if (!liveJob) {
       return;
     }
 
-    if (liveJob.status === "queued" || liveJob.status === "extracting" || liveJob.status === "parsing") {
-      setJobStatus(liveJob.status);
-      return;
-    }
-
     if (liveJob.status === "review" || liveJob.status === "failed") {
-      void load();
+      queueMicrotask(() => {
+        void load();
+      });
     }
   }, [liveJob, load]);
 
@@ -289,7 +308,7 @@ export function ReviewExtractedData({ jobId }: Props) {
     }
   }
 
-  if (jobStatus === "loading" || rematching) {
+  if (displayJobStatus === "loading" || rematching) {
     return (
       <p className="text-sm text-[#8b949e]">
         {rematching ? t("rematchingMembers") : t("loading")}
@@ -299,16 +318,16 @@ export function ReviewExtractedData({ jobId }: Props) {
 
   if (
     reprocessing ||
-    jobStatus === "queued" ||
-    jobStatus === "extracting" ||
-    jobStatus === "parsing"
+    displayJobStatus === "queued" ||
+    displayJobStatus === "extracting" ||
+    displayJobStatus === "parsing"
   ) {
     return (
       <div className="space-y-4">
         <p className="text-sm text-[#8b949e]">
           {reprocessing
             ? t("reprocessing")
-            : t("processing", { status: jobStatus })}
+            : t("processing", { status: displayJobStatus })}
         </p>
         <Link href="/tools/video-upload" className="text-sm text-[#58a6ff] hover:underline">
           {t("backToUploads")}
@@ -317,7 +336,7 @@ export function ReviewExtractedData({ jobId }: Props) {
     );
   }
 
-  if (jobStatus === "failed") {
+  if (displayJobStatus === "failed") {
     return (
       <div className="space-y-4">
         <p className="text-sm text-[#f85149]">{t("processingFailed")}</p>

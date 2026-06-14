@@ -18,9 +18,9 @@ export default async function MembersPage() {
     return <MembersListViewOrSetup missingTag />;
   }
 
+  let initial;
   try {
-    const initial = await loadAllianceMembers(session.id);
-    return <MembersListViewOrSetup initial={initial} />;
+    initial = await loadAllianceMembers(session.id);
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Failed to load members";
@@ -29,4 +29,6 @@ export default async function MembersPage() {
     }
     throw error;
   }
+
+  return <MembersListViewOrSetup initial={initial} />;
 }
