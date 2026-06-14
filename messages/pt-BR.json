@@ -51,6 +51,8 @@
     "donations": "Doações",
     "allianceExercise": "Exercício da Aliança",
     "reports": "Relatórios",
+    "viralResistance": "Resistência Viral",
+    "viralResistanceDescription": "VR base da temporada via Discord, ordenado com poder de herói",
     "desertStorm": "Desert Storm",
     "canyonStorm": "Canyon Storm",
     "otherEvents": "Outros Eventos",
@@ -610,6 +612,34 @@
     "loadFailed": "Não foi possível atualizar os membros.",
     "missingTag": "Defina a tag da aliança em Configurações para sabermos qual elenco carregar do Ashed.",
     "goToSettings": "Ir para Configurações"
+  },
+  "viralResistance": {
+    "title": "Resistência Viral",
+    "subtitle": "Maior VR base reportada nesta temporada pelo Discord. Desempate usa poder total de herói do Ashed.",
+    "seasonLine": "Temporada {season}",
+    "loading": "Carregando ranking…",
+    "loadFailed": "Não foi possível carregar o ranking de VR.",
+    "refresh": "Atualizar",
+    "refreshing": "Atualizando…",
+    "empty": "Nenhum report de VR nesta temporada ainda.",
+    "colRank": "#",
+    "colMember": "Membro",
+    "colVr": "VR base",
+    "colThp": "Poder de herói",
+    "flagged": "Revisar",
+    "officer": {
+      "title": "Revisão de oficiais",
+      "subtitle": "Anomalias e correções manuais desta temporada.",
+      "noFlags": "Nenhum valor sinalizado no momento.",
+      "memberId": "ID do membro no Ashed",
+      "baseVr": "VR base",
+      "reason": "Motivo (opcional)",
+      "save": "Salvar correção",
+      "saving": "Salvando…",
+      "saved": "Correção salva.",
+      "saveFailed": "Não foi possível salvar a correção.",
+      "invalid": "Informe um id de membro e um VR base válido."
+    }
   },
   "video": {
     "title": "Enviar a partir de vídeo",

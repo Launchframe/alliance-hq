@@ -51,6 +51,8 @@
     "donations": "Donations",
     "allianceExercise": "Alliance Exercise",
     "reports": "Reports",
+    "viralResistance": "Viral Resistance",
+    "viralResistanceDescription": "Season base VR from Discord, sorted with hero power",
     "desertStorm": "Desert Storm",
     "canyonStorm": "Canyon Storm",
     "otherEvents": "Other Events",
@@ -610,6 +612,34 @@
     "loadFailed": "Could not refresh members.",
     "missingTag": "Set your alliance tag in Settings so we know which roster to load from Ashed.",
     "goToSettings": "Go to Settings"
+  },
+  "viralResistance": {
+    "title": "Viral Resistance",
+    "subtitle": "Highest reported base VR this season from Discord. Tie-breaker uses total hero power from Ashed.",
+    "seasonLine": "Season {season}",
+    "loading": "Loading standings…",
+    "loadFailed": "Could not load VR standings.",
+    "refresh": "Refresh",
+    "refreshing": "Refreshing…",
+    "empty": "No VR reports yet this season.",
+    "colRank": "#",
+    "colMember": "Member",
+    "colVr": "Base VR",
+    "colThp": "Hero power",
+    "flagged": "Review",
+    "officer": {
+      "title": "Officer review",
+      "subtitle": "Anomalies and manual corrections for this season.",
+      "noFlags": "No flagged values right now.",
+      "memberId": "Ashed member id",
+      "baseVr": "Base VR",
+      "reason": "Reason (optional)",
+      "save": "Save override",
+      "saving": "Saving…",
+      "saved": "Override saved.",
+      "saveFailed": "Could not save override.",
+      "invalid": "Enter a member id and a valid base VR."
+    }
   },
   "video": {
     "title": "Upload from video",

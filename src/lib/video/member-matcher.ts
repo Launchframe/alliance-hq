@@ -6,6 +6,10 @@ export type AshedMember = {
   previous_names?: string[];
   alliance_id?: string;
   status?: string;
+  /** Total hero power from Ashed Member entity (field name may vary). */
+  total_hero_power?: number;
+  totalHeroPower?: number;
+  hero_power?: number;
 };
 
 export type MemberMatch = {
@@ -132,4 +136,33 @@ export function matchAllNames(
 ): MemberMatch[] {
   const index = buildMemberIndex(members);
   return ocrNames.map((name) => matchMemberName(name, index, options));
+}
+
+export function findFuzzyMemberCandidates(
+  name: string,
+  members: AshedMember[],
+  options?: MemberMatchOptions & { limit?: number; minConfidence?: number },
+): Array<{ memberId: string; name: string; confidence: number }> {
+  const normalized = nameForMatching(name, options?.allianceTag);
+  const limit = options?.limit ?? 5;
+  const minConfidence = options?.minConfidence ?? 0.55;
+  const active = members.filter((m) => m.status !== "former");
+
+  return active
+    .map((member) => {
+      const candidates = [member.current_name, ...(member.previous_names ?? [])];
+      let bestScore = 0;
+      for (const candidate of candidates) {
+        const score = similarity(normalized, normalizeForMatch(candidate));
+        if (score > bestScore) bestScore = score;
+      }
+      return {
+        memberId: member.id,
+        name: member.current_name,
+        confidence: bestScore,
+      };
+    })
+    .filter((row) => row.confidence >= minConfidence)
+    .sort((a, b) => b.confidence - a.confidence)
+    .slice(0, limit);
 }

@@ -20,6 +20,8 @@ export const alliances = pgTable("alliances", {
   ownerEmail: text("owner_email"),
   collaboratorsJson: jsonb("collaborators_json").$type<string[]>(),
   rolesSyncedAt: timestamp("roles_synced_at", { withTimezone: true }),
+  /** Active game season key for VR tracking (e.g. "42"). */
+  currentSeasonKey: text("current_season_key"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
     .notNull(),
@@ -398,6 +400,99 @@ export const hqEventMembers = pgTable("hq_event_members", {
     .notNull(),
 });
 
+/** Maps a Discord user to an Ashed member within an alliance. */
+export const discordMemberLinks = pgTable(
+  "discord_member_links",
+  {
+    id: text("id").primaryKey(),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    discordUserId: text("discord_user_id").notNull(),
+    discordUsername: text("discord_username"),
+    ashedMemberId: text("ashed_member_id").notNull(),
+    memberDisplayName: text("member_display_name"),
+    gameUid: text("game_uid").notNull(),
+    linkedAt: timestamp("linked_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    unique("discord_member_links_alliance_discord_unique").on(
+      table.allianceId,
+      table.discordUserId,
+    ),
+    unique("discord_member_links_alliance_member_unique").on(
+      table.allianceId,
+      table.ashedMemberId,
+    ),
+  ],
+);
+
+/** Highest self-reported base VR per member per game season. */
+export const memberSeasonVr = pgTable(
+  "member_season_vr",
+  {
+    id: text("id").primaryKey(),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    ashedMemberId: text("ashed_member_id").notNull(),
+    seasonKey: text("season_key").notNull(),
+    highestBaseVr: integer("highest_base_vr").notNull(),
+    flaggedAt: timestamp("flagged_at", { withTimezone: true }),
+    flagReason: text("flag_reason"),
+    updatedByDiscordUserId: text("updated_by_discord_user_id"),
+    updatedByHqUserId: text("updated_by_hq_user_id").references(() => hqUsers.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    unique("member_season_vr_alliance_member_season_unique").on(
+      table.allianceId,
+      table.ashedMemberId,
+      table.seasonKey,
+    ),
+  ],
+);
+
+/** Short-lived Discord bot state (/link walkthrough, anomaly confirm, char picker). */
+export const discordBotPending = pgTable("discord_bot_pending", {
+  discordUserId: text("discord_user_id").primaryKey(),
+  allianceId: text("alliance_id")
+    .notNull()
+    .references(() => alliances.id, { onDelete: "cascade" }),
+  pendingJson: jsonb("pending_json").$type<Record<string, unknown>>(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+/** Audit trail for all Discord bot interactions. */
+export const discordBotAudit = pgTable("discord_bot_audit", {
+  id: text("id").primaryKey(),
+  allianceId: text("alliance_id")
+    .notNull()
+    .references(() => alliances.id, { onDelete: "cascade" }),
+  discordUserId: text("discord_user_id"),
+  command: text("command").notNull(),
+  payloadJson: jsonb("payload_json"),
+  resultJson: jsonb("result_json"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
 export type Session = typeof sessions.$inferSelect;
 export type Alliance = typeof alliances.$inferSelect;
 export type HqUser = typeof hqUsers.$inferSelect;
@@ -561,3 +656,7 @@ export type TranslationCorrectionReport =
 export type HqPlatformCommendation = typeof hqPlatformCommendations.$inferSelect;
 export type HqUserPlatformCommendation =
   typeof hqUserPlatformCommendations.$inferSelect;
+export type DiscordMemberLink = typeof discordMemberLinks.$inferSelect;
+export type MemberSeasonVr = typeof memberSeasonVr.$inferSelect;
+export type DiscordBotPending = typeof discordBotPending.$inferSelect;
+export type DiscordBotAudit = typeof discordBotAudit.$inferSelect;

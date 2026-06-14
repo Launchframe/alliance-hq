@@ -1,0 +1,217 @@
+import nacl from "tweetnacl";
+
+function hexToUint8Array(hex: string): Uint8Array {
+  const bytes = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < hex.length; i += 2) {
+    bytes[i / 2] = Number.parseInt(hex.slice(i, i + 2), 16);
+  }
+  return bytes;
+}
+
+export function verifyDiscordInteractionRequest(
+  rawBody: string,
+  signature: string | null,
+  timestamp: string | null,
+  publicKeyHex: string,
+): boolean {
+  if (!signature || !timestamp || !publicKeyHex) return false;
+  try {
+    return nacl.sign.detached.verify(
+      Buffer.from(timestamp + rawBody),
+      hexToUint8Array(signature),
+      hexToUint8Array(publicKeyHex),
+    );
+  } catch {
+    return false;
+  }
+}
+
+export type DiscordInteractionPayload = {
+  type: number;
+  data?: {
+    name?: string;
+    options?: Array<{ name: string; type: number; value?: unknown }>;
+    custom_id?: string;
+  };
+  member?: {
+    user?: { id?: string; username?: string };
+  };
+  user?: { id?: string; username?: string };
+};
+
+export function interactionDiscordUserId(
+  payload: DiscordInteractionPayload,
+): string | null {
+  return payload.member?.user?.id ?? payload.user?.id ?? null;
+}
+
+export function interactionDiscordUsername(
+  payload: DiscordInteractionPayload,
+): string | undefined {
+  return payload.member?.user?.username ?? payload.user?.username;
+}
+
+export function parseSlashOptionString(
+  payload: DiscordInteractionPayload,
+  name: string,
+): string | undefined {
+  const option = payload.data?.options?.find((o) => o.name === name);
+  return typeof option?.value === "string" ? option.value : undefined;
+}
+
+export function parseVrSlashLevel(
+  payload: DiscordInteractionPayload,
+): number | null | undefined {
+  const option = payload.data?.options?.find((o) => o.name === "level");
+  if (!option) return undefined;
+  if (typeof option.value === "number") return option.value;
+  return null;
+}
+
+export function parseLinkSlashOptions(payload: DiscordInteractionPayload): {
+  name?: string;
+  uid?: string;
+} {
+  return {
+    name: parseSlashOptionString(payload, "name"),
+    uid: parseSlashOptionString(payload, "uid"),
+  };
+}
+
+export type ParsedButton =
+  | { kind: "vr_confirm"; answer: "yes" | "no" }
+  | { kind: "link_pick"; memberId: string }
+  | { kind: "link_walkthrough_done" }
+  | { kind: "vr_character"; linkId: string }
+  | { kind: "link_start_over" }
+  | { kind: "link_ask_officer" };
+
+export function parseButtonCustomId(
+  customId: string | undefined,
+): ParsedButton | null {
+  if (!customId) return null;
+  const vrConfirm = /^vr:confirm:(\d+):(yes|no)$/.exec(customId);
+  if (vrConfirm) {
+    return { kind: "vr_confirm", answer: vrConfirm[2] as "yes" | "no" };
+  }
+  const linkPick = /^link:pick:(.+)$/.exec(customId);
+  if (linkPick) return { kind: "link_pick", memberId: linkPick[1]! };
+  if (customId === "link:walkthrough:done") {
+    return { kind: "link_walkthrough_done" };
+  }
+  if (customId === "link:start_over") return { kind: "link_start_over" };
+  if (customId === "link:ask_officer") return { kind: "link_ask_officer" };
+  const charPick = /^vr:character:(.+)$/.exec(customId);
+  if (charPick) return { kind: "vr_character", linkId: charPick[1]! };
+  return null;
+}
+
+export function buildVrConfirmButtons(proposedVr: number) {
+  return [
+    {
+      type: 1,
+      components: [
+        {
+          type: 2,
+          style: 3,
+          label: "Yes",
+          custom_id: `vr:confirm:${proposedVr}:yes`,
+        },
+        {
+          type: 2,
+          style: 4,
+          label: "No",
+          custom_id: `vr:confirm:${proposedVr}:no`,
+        },
+      ],
+    },
+  ];
+}
+
+export function buildLinkFuzzyButtons(
+  candidates: Array<{ memberId: string; name: string }>,
+) {
+  return [
+    {
+      type: 1,
+      components: candidates.slice(0, 5).map((c) => ({
+        type: 2,
+        style: 1,
+        label: c.name.slice(0, 80),
+        custom_id: `link:pick:${c.memberId}`,
+      })),
+    },
+  ];
+}
+
+export function buildCharacterPickerButtons(
+  links: Array<{ linkId: string; label: string }>,
+) {
+  return [
+    {
+      type: 1,
+      components: links.slice(0, 5).map((l) => ({
+        type: 2,
+        style: 1,
+        label: l.label.slice(0, 80),
+        custom_id: `vr:character:${l.linkId}`,
+      })),
+    },
+  ];
+}
+
+export function buildWalkthroughDoneButton() {
+  return [
+    {
+      type: 1,
+      components: [
+        {
+          type: 2,
+          style: 1,
+          label: "Done",
+          custom_id: "link:walkthrough:done",
+        },
+      ],
+    },
+  ];
+}
+
+export function buildLinkFailureButtons() {
+  return [
+    {
+      type: 1,
+      components: [
+        {
+          type: 2,
+          style: 2,
+          label: "Start over",
+          custom_id: "link:start_over",
+        },
+        {
+          type: 2,
+          style: 4,
+          label: "Ask an officer",
+          custom_id: "link:ask_officer",
+        },
+      ],
+    },
+  ];
+}
+
+type DiscordComponentRow = ReturnType<typeof buildVrConfirmButtons>;
+
+export function discordMessageResponse(
+  content: string,
+  components?: DiscordComponentRow,
+) {
+  return {
+    type: 4,
+    data: {
+      content,
+      flags: 64,
+      ...(components ? { components } : {}),
+    },
+  };
+}
+
+export const DISCORD_PING_RESPONSE = { type: 1 };
