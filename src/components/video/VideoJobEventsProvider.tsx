@@ -204,6 +204,14 @@ export function VideoJobEventsProvider({ children }: { children: ReactNode }) {
     let retryMs = 1_000;
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
     let unmounted = false;
+    let plannedReconnect = false;
+
+    function scheduleConnect(delayMs: number) {
+      if (retryTimer) {
+        clearTimeout(retryTimer);
+      }
+      retryTimer = setTimeout(connect, delayMs);
+    }
 
     function connect() {
       source = new EventSource("/api/events/video-jobs");
@@ -227,17 +235,31 @@ export function VideoJobEventsProvider({ children }: { children: ReactNode }) {
         applyJobEvent(event, { notify: true });
       });
 
+      source.addEventListener("reconnect", () => {
+        plannedReconnect = true;
+        setConnected(false);
+        source?.close();
+        source = null;
+        if (!unmounted) {
+          scheduleConnect(50);
+        }
+      });
+
       source.addEventListener("open", () => {
         retryMs = 1_000;
         setConnected(true);
       });
 
       source.onerror = () => {
+        if (plannedReconnect) {
+          plannedReconnect = false;
+          return;
+        }
         setConnected(false);
         source?.close();
         source = null;
         if (!unmounted) {
-          retryTimer = setTimeout(connect, retryMs);
+          scheduleConnect(retryMs);
           retryMs = Math.min(retryMs * 2, 30_000);
         }
       };

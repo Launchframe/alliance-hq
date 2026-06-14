@@ -4,13 +4,15 @@ import {
   parseVideoJobStatusEvent,
   VIDEO_JOB_NOTIFY_CHANNEL,
 } from "@/lib/events/video-jobs";
-import type { VideoJobStatusEvent } from "@/lib/events/video-jobs-types";
 import { getRecentSessionVideoJobs } from "@/lib/events/video-jobs-query";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-function sseChunk(event: string, data: unknown): string {
+/** Close before Vercel's 300s function limit to avoid runtime timeout errors. */
+export const SSE_MAX_CONNECTION_MS = 240_000;
+
+export function sseChunk(event: string, data: unknown): string {
   return `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
 }
 
@@ -22,6 +24,7 @@ export async function GET(request: Request) {
   let closed = false;
   let listenClient: ReturnType<typeof createVideoJobListenClient> | null = null;
   let heartbeat: ReturnType<typeof setInterval> | null = null;
+  let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
   const stream = new ReadableStream({
     async start(controller) {
@@ -30,6 +33,26 @@ export async function GET(request: Request) {
           return;
         }
         controller.enqueue(encoder.encode(sseChunk(event, data)));
+      };
+
+      const closeStream = (options?: { reconnect?: boolean }) => {
+        if (closed) {
+          return;
+        }
+        if (options?.reconnect) {
+          send("reconnect", { t: Date.now() });
+        }
+        closed = true;
+        if (heartbeat) {
+          clearInterval(heartbeat);
+          heartbeat = null;
+        }
+        if (reconnectTimer) {
+          clearTimeout(reconnectTimer);
+          reconnectTimer = null;
+        }
+        void listenClient?.end({ timeout: 0 }).catch(() => undefined);
+        controller.close();
       };
 
       try {
@@ -44,7 +67,16 @@ export async function GET(request: Request) {
 
       listenClient = createVideoJobListenClient();
 
-      await listenClient.listen(VIDEO_JOB_NOTIFY_CHANNEL, (payload) => {
+      reconnectTimer = setTimeout(
+        () => closeStream({ reconnect: true }),
+        SSE_MAX_CONNECTION_MS,
+      );
+
+      heartbeat = setInterval(() => {
+        send("ping", { t: Date.now() });
+      }, 25_000);
+
+      void listenClient.listen(VIDEO_JOB_NOTIFY_CHANNEL, (payload) => {
         const event = parseVideoJobStatusEvent(payload);
         if (!event || event.sessionId !== sessionId) {
           return;
@@ -52,23 +84,19 @@ export async function GET(request: Request) {
         send("job", event);
       });
 
-      heartbeat = setInterval(() => {
-        send("ping", { t: Date.now() });
-      }, 25_000);
-
       request.signal.addEventListener("abort", () => {
-        closed = true;
-        if (heartbeat) {
-          clearInterval(heartbeat);
-        }
-        void listenClient?.end({ timeout: 0 }).catch(() => undefined);
-        controller.close();
+        closeStream();
       });
     },
     cancel() {
       closed = true;
       if (heartbeat) {
         clearInterval(heartbeat);
+        heartbeat = null;
+      }
+      if (reconnectTimer) {
+        clearTimeout(reconnectTimer);
+        reconnectTimer = null;
       }
       void listenClient?.end({ timeout: 0 }).catch(() => undefined);
     },
