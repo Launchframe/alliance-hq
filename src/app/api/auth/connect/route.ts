@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { getLocale } from "next-intl/server";
 
+import {
+  AllianceSelectionError,
+  allianceSelectionErrorStatus,
+  resolveConnectAlliance,
+} from "@/lib/alliance/connect-alliance";
 import { verifyBase44Connection } from "@/lib/base44/server";
 import {
   DEFAULT_APP_ID,
@@ -39,16 +44,9 @@ export async function POST(request: Request) {
       appId?: string;
       originUrl?: string;
       expiryReminderDays?: number;
+      allianceId?: string;
       allianceTag?: string;
     };
-
-    const allianceTag = body.allianceTag?.trim();
-    if (!allianceTag) {
-      return NextResponse.json(
-        { error: "Alliance tag is required (e.g. LFgo)." },
-        { status: 400 },
-      );
-    }
 
     const parsed = parseConnectionInput(body.input ?? "", {
       appId: body.appId ?? DEFAULT_APP_ID,
@@ -62,6 +60,22 @@ export async function POST(request: Request) {
     const me = await verifyBase44Connection(parsed.connection);
     const userLabel =
       me.email ?? me.full_name ?? me.id ?? "Connected user";
+
+    if (!me.email) {
+      return NextResponse.json(
+        { error: "Ashed account email is required to connect." },
+        { status: 502 },
+      );
+    }
+
+    const selected = await resolveConnectAlliance(
+      parsed.connection,
+      { email: me.email, id: me.id },
+      {
+        allianceId: body.allianceId,
+        allianceTag: body.allianceTag,
+      },
+    );
 
     const session = await getOrCreateSession();
     const ashed = await storeAshedConnection(
@@ -79,7 +93,7 @@ export async function POST(request: Request) {
     const alliance = await updateSessionAlliance(
       session.id,
       parsed.connection,
-      allianceTag,
+      selected.tag,
     );
 
     const rbac = await syncAshedAllianceRoles({
@@ -88,7 +102,7 @@ export async function POST(request: Request) {
       allianceTag: alliance.tag,
       currentUser: {
         id: me.id,
-        email: me.email ?? userLabel,
+        email: me.email,
         full_name: me.full_name,
       },
     });
@@ -106,9 +120,17 @@ export async function POST(request: Request) {
       rbac: {
         roleName: rbac.roleName,
         hqUserId: rbac.hqUserId,
+        accessRole: selected.accessRole,
       },
     });
   } catch (error) {
+    if (error instanceof AllianceSelectionError) {
+      return NextResponse.json(
+        { error: error.message, code: error.code },
+        { status: allianceSelectionErrorStatus(error.code) },
+      );
+    }
+
     return NextResponse.json(
       {
         error:

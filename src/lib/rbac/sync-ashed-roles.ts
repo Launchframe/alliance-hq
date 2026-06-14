@@ -1,72 +1,30 @@
 import { and, eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
-import { forwardJson } from "@/lib/bff/session";
+import {
+  resolveSystemRoleForAlliance,
+  normalizeAshedEmail,
+} from "@/lib/alliance/accessible";
+import type { AshedAllianceRow, AshedUserRef } from "@/lib/alliance/types";
+import { base44ListAlliances } from "@/lib/base44/fetch";
 import type { ParsedConnection } from "@/lib/connectionString";
 import { getDb, schema } from "@/lib/db";
 
 import { ROLE_IDS, type SystemRoleName } from "./constants";
 
-type AshedAllianceRow = {
-  id?: string;
-  tag?: string;
-  name?: string;
-  owner_id?: string;
-  owner_email?: string;
-  collaborators?: string[];
-};
-
-export type AshedUserInfo = {
-  id?: string;
-  email: string;
+export type AshedUserInfo = AshedUserRef & {
   full_name?: string;
 };
 
-function normalizeEmail(email: string): string {
-  return email.trim().toLowerCase();
-}
-
 function slugFromTag(tag: string): string {
   return tag.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-");
-}
-
-function resolveRoleForEmail(
-  email: string,
-  ashedUserId: string | undefined,
-  alliance: AshedAllianceRow,
-): SystemRoleName {
-  const normalized = normalizeEmail(email);
-  const ownerEmail = alliance.owner_email
-    ? normalizeEmail(alliance.owner_email)
-    : null;
-
-  if (
-    (ownerEmail && normalized === ownerEmail) ||
-    (alliance.owner_id && ashedUserId && alliance.owner_id === ashedUserId)
-  ) {
-    return "owner";
-  }
-
-  const collaborators = (alliance.collaborators ?? []).map(normalizeEmail);
-  if (collaborators.includes(normalized)) {
-    return "maintainer";
-  }
-
-  return "viewer";
 }
 
 async function fetchAllianceByTag(
   connection: ParsedConnection,
   allianceTag: string,
 ): Promise<AshedAllianceRow | null> {
-  const upstream = await forwardJson(connection, "/entities/Alliance", {
-    method: "GET",
-  });
-  if (!upstream.ok) {
-    throw new Error(`Failed to fetch Alliance list (${upstream.status})`);
-  }
-
-  const rows = (await upstream.json()) as AshedAllianceRow[];
+  const rows = await base44ListAlliances(connection);
   const tagLower = allianceTag.trim().toLowerCase();
   return (
     rows.find((row) => row.tag?.trim().toLowerCase() === tagLower) ?? null
@@ -75,7 +33,7 @@ async function fetchAllianceByTag(
 
 export async function upsertHqUser(user: AshedUserInfo) {
   const db = getDb();
-  const email = normalizeEmail(user.email);
+  const email = normalizeAshedEmail(user.email);
   const now = new Date();
 
   const [existing] = await db
@@ -119,7 +77,7 @@ async function upsertAllianceFromAshed(
   const db = getDb();
   const now = new Date();
   const slug = slugFromTag(allianceTag);
-  const collaborators = (ashedAlliance.collaborators ?? []).map(normalizeEmail);
+  const collaborators = (ashedAlliance.collaborators ?? []).map(normalizeAshedEmail);
 
   const [existing] = await db
     .select()
@@ -135,7 +93,7 @@ async function upsertAllianceFromAshed(
         name: ashedAlliance.name ?? existing.name,
         ownerAshedUserId: ashedAlliance.owner_id ?? null,
         ownerEmail: ashedAlliance.owner_email
-          ? normalizeEmail(ashedAlliance.owner_email)
+          ? normalizeAshedEmail(ashedAlliance.owner_email)
           : null,
         collaboratorsJson: collaborators,
         rolesSyncedAt: now,
@@ -153,7 +111,7 @@ async function upsertAllianceFromAshed(
     ashedAllianceId: ashedAlliance.id ?? null,
     ownerAshedUserId: ashedAlliance.owner_id ?? null,
     ownerEmail: ashedAlliance.owner_email
-      ? normalizeEmail(ashedAlliance.owner_email)
+      ? normalizeAshedEmail(ashedAlliance.owner_email)
       : null,
     collaboratorsJson: collaborators,
     rolesSyncedAt: now,
@@ -223,23 +181,19 @@ export async function syncAshedAllianceRoles(options: {
 
   const rosterEmails = new Set<string>();
   if (ashedAlliance.owner_email) {
-    rosterEmails.add(normalizeEmail(ashedAlliance.owner_email));
+    rosterEmails.add(normalizeAshedEmail(ashedAlliance.owner_email));
   }
   for (const email of ashedAlliance.collaborators ?? []) {
-    rosterEmails.add(normalizeEmail(email));
+    rosterEmails.add(normalizeAshedEmail(email));
   }
 
   for (const email of rosterEmails) {
     const stubUserId = await upsertHqUserStub(email);
-    const roleName = resolveRoleForEmail(email, undefined, ashedAlliance);
+    const roleName = resolveSystemRoleForAlliance(ashedAlliance, { email });
     await upsertAshedMembership(hqAllianceId, stubUserId, roleName);
   }
 
-  const currentRole = resolveRoleForEmail(
-    currentUser.email,
-    currentUser.id,
-    ashedAlliance,
-  );
+  const currentRole = resolveSystemRoleForAlliance(ashedAlliance, currentUser);
   await upsertAshedMembership(hqAllianceId, hqUserId, currentRole);
 
   const db = getDb();

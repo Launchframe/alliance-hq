@@ -110,7 +110,9 @@ export type AshedAlliance = {
   id: string;
   tag?: string;
   name?: string;
+  owner_id?: string;
   owner_email?: string;
+  collaborators?: string[];
 };
 
 export async function base44ListAlliances(
