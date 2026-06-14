@@ -145,6 +145,7 @@ export async function loadAdminAlliances() {
   return alliances.map((alliance) => ({
     id: alliance.id,
     slug: alliance.slug,
+    tag: alliance.tag,
     name: alliance.name,
     ashedAllianceId: alliance.ashedAllianceId,
     ownerEmail: alliance.ownerEmail,

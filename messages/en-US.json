@@ -187,7 +187,39 @@
       "actions": "Actions",
       "requeue": "Requeue",
       "reprocess": "Reprocess",
-      "actionFailed": "Action failed"
+      "actionFailed": "Action failed",
+      "actionUnavailable": "Not available for this job status",
+      "viewError": "View error",
+      "errorDialogTitle": "Processing error",
+      "close": "Close"
+    },
+    "auditPage": {
+      "loading": "Loading audit log…",
+      "loadFailed": "Failed to load audit log.",
+      "empty": "No audit entries match these filters.",
+      "filters": {
+        "alliance": "Alliance tag",
+        "allAlliances": "All tags",
+        "action": "Action",
+        "since": "From",
+        "until": "To",
+        "hqUserId": "HQ user ID",
+        "hqUserIdPlaceholder": "Filter by actor…",
+        "clear": "Clear filters",
+        "allActions": "All actions",
+        "actions": {
+          "allActions": "All actions",
+          "bffEntity": "BFF entity (read/write)",
+          "bffIntegration": "BFF integration",
+          "bffFunction": "BFF function",
+          "video": "Video pipeline",
+          "feedback": "Feedback"
+        }
+      },
+      "table": {
+        "allianceTag": "Tag",
+        "hqUser": "HQ user"
+      }
     },
     "hqEventsPage": {
       "tabs": {
@@ -386,6 +418,12 @@
     "disconnectButton": "Disconnect Ashed",
     "reminderSaved": "Reminder preference saved",
     "reminderSaveFailed": "Could not save reminder preference",
+    "timezoneSection": "Time zone",
+    "timezoneBody": "Dates and times across Alliance HQ use your account time zone. Server Time (UTC−02:00) matches the in-game clock and is the default until you choose another zone.",
+    "timezoneLabel": "Display time zone",
+    "timezoneServerTime": "Server Time",
+    "timezoneSaved": "Time zone saved",
+    "timezoneSaveFailed": "Could not save time zone",
     "aboutBody": "Alliance HQ at <strong>alliance-hq.vercel.app</strong> is a community wrapper for <link>ashed.online</link>. All alliance data credit belongs to Ashed."
   },
   "tokenExpiry": {

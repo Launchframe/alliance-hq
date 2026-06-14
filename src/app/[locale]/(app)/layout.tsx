@@ -1,5 +1,6 @@
 import { getLocale, getTranslations } from "next-intl/server";
 
+import { TimezoneProvider } from "@/components/timezone/TimezoneProvider";
 import { redirect } from "@/i18n/navigation";
 import { AshedShell } from "@/components/ashed-shell/AshedShell";
 import { rethrowNavigationError } from "@/lib/navigation";
@@ -73,14 +74,16 @@ export default async function AppLayout({
   }
 
   return (
-    <AshedShell
-      userLabel={state.userLabel}
-      isConnected={state.isConnected}
-      ashed={state.ashed}
-      showAdminPortal={state.rbac?.isPlatformMaintainer ?? false}
-      showTeamSettings={state.rbac?.isAllianceAdmin ?? false}
-    >
-      {children}
-    </AshedShell>
+    <TimezoneProvider initialTimezoneId={state.timezone}>
+      <AshedShell
+        userLabel={state.userLabel}
+        isConnected={state.isConnected}
+        ashed={state.ashed}
+        showAdminPortal={state.rbac?.isPlatformMaintainer ?? false}
+        showTeamSettings={state.rbac?.isAllianceAdmin ?? false}
+      >
+        {children}
+      </AshedShell>
+    </TimezoneProvider>
   );
 }

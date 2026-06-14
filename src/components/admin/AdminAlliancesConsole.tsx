@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 
+import { FormattedDateTime } from "@/components/timezone/TimezoneProvider";
+
 type Alliance = {
   id: string;
   slug: string;
@@ -67,7 +69,7 @@ export function AdminAlliancesConsole() {
               <td className="px-4 py-2">{alliance.memberCount}</td>
               <td className="px-4 py-2 whitespace-nowrap text-xs text-[#8b949e]">
                 {alliance.rolesSyncedAt
-                  ? new Date(alliance.rolesSyncedAt).toLocaleString()
+                  ? <FormattedDateTime value={alliance.rolesSyncedAt} />
                   : "—"}
               </td>
             </tr>

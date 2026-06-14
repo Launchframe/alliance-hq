@@ -13,14 +13,21 @@ import {
   ocrAllFrames,
 } from "@/lib/video/ocr-pipeline";
 import { PipelineTimer } from "@/lib/video/pipeline-timer";
+import type { ScoreTargetDef } from "@/lib/video/score-targets";
 
 const target = {
   id: "desert-storm",
   labelKey: "x",
-  group: "ds",
+  group: "events",
   enabled: true,
   ocrSchema: { type: "object" },
-} as const;
+  submitEntity: "DesertStormScore",
+  leaderboardModel: "linear-full",
+  eventEntity: "DesertStormEvent",
+  seriesEntity: null,
+  submitMethod: "bulk",
+  submitContext: ["eventId", "recordedDate"],
+} satisfies ScoreTargetDef;
 
 describe("ocrAllFrames", () => {
   beforeEach(() => {

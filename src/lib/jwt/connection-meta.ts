@@ -1,11 +1,12 @@
 import type { AshedCredential } from "@/lib/db/schema";
 import {
   DEFAULT_EXPIRY_REMINDER_DAYS,
-  formatTokenExpiryDate,
   getJwtExpiryDate,
   isTokenExpired,
   isWithinExpiryReminderWindow,
 } from "@/lib/jwt/decode";
+import type { AccountTimezoneId } from "@/lib/timezone/constants";
+import { formatAccountDateTime } from "@/lib/timezone/format";
 
 export type AshedConnectionMeta = {
   tokenExpiresAt: string | null;
@@ -21,6 +22,7 @@ export function buildAshedConnectionMeta(
     "tokenExpiresAt" | "expiryReminderDays"
   > | null,
   locale = "en-US",
+  timezoneId?: AccountTimezoneId,
 ): AshedConnectionMeta {
   if (!cred?.tokenExpiresAt) {
     return {
@@ -38,7 +40,11 @@ export function buildAshedConnectionMeta(
 
   return {
     tokenExpiresAt: expiresAt.toISOString(),
-    tokenExpiresAtFormatted: formatTokenExpiryDate(expiresAt, locale),
+    tokenExpiresAtFormatted: formatAccountDateTime(expiresAt, {
+      locale,
+      timezoneId,
+      dateStyle: "long",
+    }),
     expiryReminderDays: reminderDays,
     showExpiryReminder:
       expired || isWithinExpiryReminderWindow(expiresAt, reminderDays),

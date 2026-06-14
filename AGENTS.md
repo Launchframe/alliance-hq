@@ -4,6 +4,16 @@
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
 <!-- END:nextjs-agent-rules -->
 
+## Pre-commit gates
+
+Before creating a commit, all checks in [`PRE-COMMIT.md`](./PRE-COMMIT.md) must pass, in order:
+
+1. `npx tsc --noEmit`
+2. `npm run lint`
+3. `npm run test`
+
+Do not commit while any gate is failing.
+
 ## Real Steel review focus
 
 Apply on every Real Steel pass for this repo:

@@ -3,6 +3,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 
+import { useFormatAccountDateTime } from "@/components/timezone/TimezoneProvider";
 import { Link } from "@/i18n/navigation";
 import type { AllianceMembersPayload } from "@/lib/members/load";
 import type { AshedMember } from "@/lib/video/member-matcher";
@@ -36,6 +37,7 @@ function memberStatusBadgeClass(status?: string): string {
 
 export function MembersListView({ initial }: Props) {
   const t = useTranslations("members");
+  const formatDateTime = useFormatAccountDateTime();
   const [data, setData] = useState(initial);
   const [query, setQuery] = useState("");
   const [showFormer, setShowFormer] = useState(false);
@@ -147,7 +149,7 @@ export function MembersListView({ initial }: Props) {
 
       <p className="text-xs text-[#8b949e]">
         {t("lastSynced", {
-          time: new Date(data.fetchedAt).toLocaleString(),
+          time: formatDateTime(data.fetchedAt),
         })}
       </p>
 

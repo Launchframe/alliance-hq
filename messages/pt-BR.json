@@ -187,7 +187,39 @@
       "actions": "Ações",
       "requeue": "Recolocar na fila",
       "reprocess": "Reprocessar",
-      "actionFailed": "Ação falhou"
+      "actionFailed": "Ação falhou",
+      "actionUnavailable": "Indisponível para este status do job",
+      "viewError": "Ver erro",
+      "errorDialogTitle": "Erro de processamento",
+      "close": "Fechar"
+    },
+    "auditPage": {
+      "loading": "Carregando log de auditoria…",
+      "loadFailed": "Falha ao carregar log de auditoria.",
+      "empty": "Nenhuma entrada corresponde a estes filtros.",
+      "filters": {
+        "alliance": "Tag da aliança",
+        "allAlliances": "Todas as tags",
+        "action": "Ação",
+        "since": "De",
+        "until": "Até",
+        "hqUserId": "ID do usuário HQ",
+        "hqUserIdPlaceholder": "Filtrar por ator…",
+        "clear": "Limpar filtros",
+        "allActions": "Todas as ações",
+        "actions": {
+          "allActions": "Todas as ações",
+          "bffEntity": "Entidade BFF (leitura/escrita)",
+          "bffIntegration": "Integração BFF",
+          "bffFunction": "Função BFF",
+          "video": "Pipeline de vídeo",
+          "feedback": "Feedback"
+        }
+      },
+      "table": {
+        "allianceTag": "Tag",
+        "hqUser": "Usuário HQ"
+      }
     },
     "hqEventsPage": {
       "tabs": {
@@ -386,6 +418,12 @@
     "disconnectButton": "Desconectar Ashed",
     "reminderSaved": "Preferência de lembrete salva",
     "reminderSaveFailed": "Não foi possível salvar a preferência de lembrete",
+    "timezoneSection": "Fuso horário",
+    "timezoneBody": "Datas e horários no Alliance HQ usam o fuso horário da sua conta. Horário do Servidor (UTC−02:00) corresponde ao relógio do jogo e é o padrão até você escolher outro fuso.",
+    "timezoneLabel": "Fuso horário de exibição",
+    "timezoneServerTime": "Horário do Servidor",
+    "timezoneSaved": "Fuso horário salvo",
+    "timezoneSaveFailed": "Não foi possível salvar o fuso horário",
     "aboutBody": "O Alliance HQ, em <strong>alliance-hq.vercel.app</strong>, é uma interface comunitária para o <link>ashed.online</link>. Todos os créditos pelos dados da aliança pertencem ao Ashed."
   },
   "tokenExpiry": {

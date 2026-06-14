@@ -43,6 +43,20 @@
       "when": 1781430000000,
       "tag": "0006_rbac",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1781435000000,
+      "tag": "0007_alliance_tag",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1781440000000,
+      "tag": "0008_hq_user_timezone",
+      "breakpoints": true
     }
   ]
 }

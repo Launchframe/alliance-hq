@@ -1,31 +1,41 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 import { AlliancePicker } from "@/components/AlliancePicker";
+import { useAccountTimezone } from "@/components/timezone/TimezoneProvider";
 import { useRouter } from "@/i18n/navigation";
 import { TokenExpiryNotice } from "@/components/TokenExpiryNotice";
 import { ashedLink, strongText } from "@/components/i18n/richText";
 import type { AccessibleAlliance } from "@/lib/alliance/types";
 import type { AshedConnectionMeta } from "@/lib/jwt/connection-meta";
 import { DEFAULT_EXPIRY_REMINDER_DAYS } from "@/lib/jwt/decode";
+import type { AccountTimezoneId } from "@/lib/timezone/constants";
+import {
+  ACCOUNT_TIMEZONE_OPTION_IDS,
+  formatTimezoneOptionLabel,
+} from "@/lib/timezone/options";
 
 const REMINDER_OPTIONS = [7, 14, 21, 30];
 
 type Props = {
   initialAshed: AshedConnectionMeta | null;
   initialAllianceId?: string | null;
+  initialTimezoneId?: AccountTimezoneId;
 };
 
 export function SettingsConnectionForm({
   initialAshed,
   initialAllianceId,
+  initialTimezoneId,
 }: Props) {
   const t = useTranslations("settings");
   const tToken = useTranslations("tokenExpiry");
   const tc = useTranslations("common");
+  const locale = useLocale();
   const router = useRouter();
+  const { timezoneId, setTimezoneId } = useAccountTimezone();
   const [saving, setSaving] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -42,6 +52,13 @@ export function SettingsConnectionForm({
   const [alliancesLoading, setAlliancesLoading] = useState(true);
   const [alliancesError, setAlliancesError] = useState<string | null>(null);
   const [allianceSaving, setAllianceSaving] = useState(false);
+  const [timezoneSaving, setTimezoneSaving] = useState(false);
+
+  useEffect(() => {
+    if (initialTimezoneId) {
+      setTimezoneId(initialTimezoneId);
+    }
+  }, [initialTimezoneId, setTimezoneId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -83,6 +100,39 @@ export function SettingsConnectionForm({
       cancelled = true;
     };
   }, [t]);
+
+  async function saveTimezone(nextTimezone: AccountTimezoneId) {
+    setTimezoneSaving(true);
+    setMessage(null);
+    try {
+      const res = await fetch("/api/settings/timezone", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ timezone: nextTimezone }),
+      });
+      const data = (await res.json()) as {
+        error?: string;
+        timezone?: AccountTimezoneId;
+        ashed?: AshedConnectionMeta;
+      };
+      if (!res.ok) {
+        setMessage(data.error ?? t("timezoneSaveFailed"));
+        return;
+      }
+      if (data.timezone) {
+        setTimezoneId(data.timezone);
+      }
+      if (data.ashed) {
+        setAshed(data.ashed);
+      }
+      setMessage(t("timezoneSaved"));
+      router.refresh();
+    } catch {
+      setMessage(t("timezoneSaveFailed"));
+    } finally {
+      setTimezoneSaving(false);
+    }
+  }
 
   async function saveAlliance() {
     if (!selectedAllianceId) {
@@ -203,6 +253,34 @@ export function SettingsConnectionForm({
       </section>
 
       <section className="rounded-xl border border-[#30363d] bg-[#161b22] p-5">
+        <h2 className="font-medium">{t("timezoneSection")}</h2>
+        <p className="mt-2 text-sm text-[#8b949e]">{t("timezoneBody")}</p>
+        <label className="mt-4 block text-sm">
+          <span className="mb-2 block text-[#8b949e]">{t("timezoneLabel")}</span>
+          <select
+            value={timezoneId}
+            onChange={(e) => {
+              const nextTimezone = e.target.value as AccountTimezoneId;
+              setTimezoneId(nextTimezone);
+              void saveTimezone(nextTimezone);
+            }}
+            disabled={timezoneSaving}
+            className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
+          >
+            {ACCOUNT_TIMEZONE_OPTION_IDS.map((optionId) => (
+              <option key={optionId} value={optionId}>
+                {formatTimezoneOptionLabel(
+                  optionId,
+                  locale,
+                  t("timezoneServerTime"),
+                )}
+              </option>
+            ))}
+          </select>
+        </label>
+      </section>
+
+      <section className="rounded-xl border border-[#30363d] bg-[#161b22] p-5">
         <h2 className="font-medium">{t("tokenSection")}</h2>
         {ashed?.tokenExpiresAtFormatted ? (
           <div className="mt-3 space-y-4">
@@ -253,6 +331,7 @@ export function SettingsConnectionForm({
         <p
           className={`text-sm ${
             message === t("reminderSaved") ||
+            message === t("timezoneSaved") ||
             message === t("allianceSavedGeneric") ||
             message.includes("Linked to")
               ? "text-[#3fb950]"

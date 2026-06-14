@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 
+import { useFormatAccountDateTime } from "@/components/timezone/TimezoneProvider";
+
 type Stats = {
   database: { ok: boolean; error?: string };
   counts: Record<string, number>;
@@ -19,6 +21,7 @@ type Role = {
 
 export function AdminSystemConsole() {
   const t = useTranslations("admin.systemPage");
+  const formatDateTime = useFormatAccountDateTime();
   const [stats, setStats] = useState<Stats | null>(null);
   const [roles, setRoles] = useState<Role[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -81,7 +84,7 @@ export function AdminSystemConsole() {
           <ul className="mt-3 space-y-2 text-sm">
             {stats.recentQueuedJobs.map((job) => (
               <li key={job.id} className="font-mono text-xs text-[#8b949e]">
-                {job.fileName ?? job.id} · {new Date(job.createdAt).toLocaleString()}
+                {job.fileName ?? job.id} · {formatDateTime(job.createdAt)}
               </li>
             ))}
           </ul>

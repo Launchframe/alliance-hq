@@ -1,14 +1,22 @@
 "use client";
 
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Link } from "@/i18n/navigation";
+import { useAccountTimezone } from "@/components/timezone/TimezoneProvider";
 import { useVideoJob } from "@/components/video/VideoJobEventsProvider";
+import {
+  formatAshedEventOptionLabel,
+  formatEventOptionLabel,
+  formatHqEventOptionLabel,
+  type AshedEventLike,
+} from "@/lib/video/event-option-label";
 import {
   duplicateMemberRowIds,
   findDuplicateMemberAssignments,
 } from "@/lib/video/review-validation";
+import { accountTodayCalendarDate } from "@/lib/timezone/format";
 
 type ParsedRow = {
   id: string;
@@ -26,6 +34,11 @@ type ParsedRow = {
 type MemberOption = {
   id: string;
   current_name: string;
+};
+
+type EventOption = {
+  id: string;
+  label: string;
 };
 
 type ScoreTargetMeta = {
@@ -55,13 +68,14 @@ function confidenceClass(confidence: number | null): string {
 export function ReviewExtractedData({ jobId }: Props) {
   const t = useTranslations("videoReview");
   const tc = useTranslations("common");
+  const tNav = useTranslations("nav");
+  const locale = useLocale();
+  const { timezoneId } = useAccountTimezone();
   const liveJob = useVideoJob(jobId);
 
   const [rows, setRows] = useState<ParsedRow[]>([]);
   const [members, setMembers] = useState<MemberOption[]>([]);
-  const [events, setEvents] = useState<Array<{ id: string; name?: string }>>(
-    [],
-  );
+  const [events, setEvents] = useState<EventOption[]>([]);
   const [scoreTargetMeta, setScoreTargetMeta] =
     useState<ScoreTargetMeta | null>(null);
   const [jobStatus, setJobStatus] = useState<string>("loading");
@@ -70,8 +84,8 @@ export function ReviewExtractedData({ jobId }: Props) {
   const [hqEventId, setHqEventId] = useState("");
   const [boardKey, setBoardKey] = useState("");
   const [team, setTeam] = useState<"A" | "B">("A");
-  const [recordedDate, setRecordedDate] = useState(
-    () => new Date().toISOString().slice(0, 10),
+  const [recordedDate, setRecordedDate] = useState(() =>
+    accountTodayCalendarDate(timezoneId),
   );
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -211,6 +225,10 @@ export function ReviewExtractedData({ jobId }: Props) {
     void fetchMembers();
   }, [allianceId]);
 
+  const eventTypeLabel = scoreTargetMeta?.labelKey
+    ? tNav(scoreTargetMeta.labelKey)
+    : "";
+
   useEffect(() => {
     async function fetchEvents() {
       if (!allianceId || !scoreTargetMeta) return;
@@ -221,11 +239,21 @@ export function ReviewExtractedData({ jobId }: Props) {
         );
         if (res.ok) {
           const data = (await res.json()) as {
-            events?: Array<{ id: string; name: string }>;
+            events?: Array<{
+              id: string;
+              name: string;
+              startDate?: string | null;
+              endDate?: string | null;
+            }>;
           };
           const list = (data.events ?? []).map((ev) => ({
             id: ev.id,
-            name: ev.name,
+            label: formatHqEventOptionLabel({
+              eventTypeLabel,
+              event: ev,
+              locale,
+              timezoneId,
+            }),
           }));
           setEvents(list);
           if (list[0] && !hqEventId) {
@@ -245,15 +273,32 @@ export function ReviewExtractedData({ jobId }: Props) {
         `/api/bff/v1/entities/${scoreTargetMeta.eventEntity}?q=${q}`,
       );
       if (res.ok) {
-        const data = (await res.json()) as Array<{ id: string; name?: string }>;
-        setEvents(data);
-        if (data[0] && !eventId) {
-          setEventId(data[0].id);
+        const data = (await res.json()) as AshedEventLike[];
+        const list = data.map((ev) => ({
+          id: ev.id,
+          label: formatAshedEventOptionLabel({
+            eventTypeLabel,
+            event: ev,
+            locale,
+            timezoneId,
+          }),
+        }));
+        setEvents(list);
+        if (list[0] && !eventId) {
+          setEventId(list[0].id);
         }
       }
     }
     void fetchEvents();
-  }, [allianceId, scoreTargetMeta, eventId, hqEventId]);
+  }, [
+    allianceId,
+    scoreTargetMeta,
+    eventId,
+    hqEventId,
+    eventTypeLabel,
+    locale,
+    timezoneId,
+  ]);
 
   const activeRows = useMemo(
     () => rows.filter((r) => !r.deleted),
@@ -493,7 +538,7 @@ export function ReviewExtractedData({ jobId }: Props) {
               ) : null}
               {events.map((ev) => (
                 <option key={ev.id} value={ev.id}>
-                  {ev.name ?? ev.id}
+                  {ev.label}
                 </option>
               ))}
             </select>
@@ -503,13 +548,18 @@ export function ReviewExtractedData({ jobId }: Props) {
                 className="mt-2 text-xs text-[#58a6ff] hover:underline"
                 onClick={() => {
                   void (async () => {
-                    const name = `${scoreTargetMeta.labelKey} ${recordedDate}`;
+                    const label = formatEventOptionLabel({
+                      eventTypeLabel,
+                      eventDate: recordedDate,
+                      locale,
+                      timezoneId,
+                    });
                     const res = await fetch("/api/hq-events", {
                       method: "POST",
                       headers: { "Content-Type": "application/json" },
                       body: JSON.stringify({
                         scoreTarget: scoreTargetMeta.id,
-                        name,
+                        name: label,
                         startDate: recordedDate,
                         endDate: recordedDate,
                       }),
@@ -520,7 +570,7 @@ export function ReviewExtractedData({ jobId }: Props) {
                       };
                       if (data.event?.id) {
                         setHqEventId(data.event.id);
-                        setEvents([{ id: data.event.id, name }]);
+                        setEvents([{ id: data.event.id, label }]);
                       }
                     }
                   })();
