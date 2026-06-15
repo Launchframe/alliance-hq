@@ -533,7 +533,7 @@
     "enforcementTitle": "Aplicação das regras",
     "enforcementBody": "Os operadores desta implantação <strong>hospedada</strong> reservam-se o direito de revogar ou bloquear o acesso — incluindo sessões, dispositivos vinculados e vínculo com o bot do Discord — por violações <strong>sem aviso prévio</strong>. Cópias auto-hospedadas do Alliance HQ estão fora do nosso controle; estes termos de aplicação valem apenas para implantações que operamos (como alliance-hq.vercel.app).",
     "openSourceTitle": "Código aberto e auto-hospedagem",
-    "openSourceBody1": "O código-fonte do Alliance HQ é aberto sob a <strong>Licença MIT</strong>. Você pode inspecionar, modificar e auto-hospedar o software sem limitação.",
+    "openSourceBody1": "O código-fonte do Alliance HQ é aberto sob a <strong>Licença MIT</strong>. Você pode inspecionar, modificar e auto-hospedar o software conforme essa licença.",
     "openSourceBody2": "Consulte o arquivo <licenseLink>LICENSE</licenseLink> em nosso <githubLink>repositório no GitHub</githubLink>. Estes Termos de Uso aplicam-se ao nosso serviço hospedado, não a instâncias auto-hospedadas que você executa por conta própria.",
     "disclaimerTitle": "Isenção de responsabilidade",
     "disclaimerBody": "O Alliance HQ é uma interface comunitária em torno do Ashed, fornecida <strong>no estado em que se encontra</strong>, sem garantias. O uso direto do ashed.online continua sujeito aos termos e políticas do próprio Ashed.",

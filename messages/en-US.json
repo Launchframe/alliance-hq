@@ -533,7 +533,7 @@
     "enforcementTitle": "Enforcement",
     "enforcementBody": "Operators of this <strong>hosted</strong> deployment reserve the right to revoke or block access — including sessions, linked devices, and Discord bot linkage — for violations <strong>without prior warning</strong>. Self-hosted copies of Alliance HQ are outside our control; these enforcement terms apply only to deployments we operate (such as alliance-hq.vercel.app).",
     "openSourceTitle": "Open source and self-hosting",
-    "openSourceBody1": "Alliance HQ source code is open under the <strong>MIT License</strong>. You may inspect, modify, and self-host the software without limitation.",
+    "openSourceBody1": "Alliance HQ source code is open under the <strong>MIT License</strong>. You may inspect, modify, and self-host the software under that license.",
     "openSourceBody2": "See the <licenseLink>LICENSE</licenseLink> file in our <githubLink>GitHub repository</githubLink>. These Terms of Service apply to our hosted service, not to independent self-hosted instances you run yourself.",
     "disclaimerTitle": "Disclaimer",
     "disclaimerBody": "Alliance HQ is a community wrapper around Ashed, provided <strong>as is</strong> without warranties. Using ashed.online directly remains subject to Ashed’s own terms and policies.",
