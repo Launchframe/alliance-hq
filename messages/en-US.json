@@ -375,7 +375,8 @@
     "defaultUser": "Ashed user",
     "connectPrompt": "Connect your Ashed account →",
     "openMenu": "Open navigation menu",
-    "closeMenu": "Close navigation menu"
+    "closeMenu": "Close navigation menu",
+    "version": "v{version}"
   },
   "dashboard": {
     "title": "Dashboard",
@@ -858,6 +859,24 @@
     "openInAshed": "Open in Ashed ↗",
     "iframeHint": "Embedded pages need a separate Ashed login. If you use Google Sign-In on ashed.online, log in here with email + password instead. If the frame stays blank, use \"Open in Ashed\" above.",
     "iframeTitle": "Ashed — {path}"
+  },
+  "releaseNotes": {
+    "bannerPrefix": "Alliance HQ was updated — see what's new in",
+    "bannerVersionLink": "this release",
+    "dismissBanner": "Dismiss release notice",
+    "drawerTitle": "What's new",
+    "drawerSubtitle": "Release v{version}",
+    "breakingHeading": "Breaking changes",
+    "maintainerHeading": "Platform maintainer notes",
+    "gotIt": "Got it",
+    "historyLink": "See full release note history",
+    "expandDrawer": "Expand release notes",
+    "peekExpandDesktop": "What's new · tap to expand",
+    "peekExpandMobile": "What's new · swipe up or tap to expand",
+    "closeDrawer": "Close release notes",
+    "pageTitle": "Release notes",
+    "pageDescription": "A running history of Alliance HQ updates.",
+    "emptyHistory": "No release notes have been published yet."
   },
   "devErrors": {
     "databaseNotConfigured": "Database not configured",

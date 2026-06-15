@@ -10,12 +10,15 @@ import { FeedbackProvider } from "@/components/feedback";
 import { SidebarNav } from "@/components/ashed-shell/SidebarNav";
 import { findActiveNavGroupId } from "@/lib/nav/routes";
 import { TokenExpiryBanner } from "@/components/TokenExpiryNotice";
+import { ReleaseNoticeBanner } from "@/components/release-notes/ReleaseNoticeBanner";
+import { ReleaseNotesProvider } from "@/components/release-notes/ReleaseNotesProvider";
 import {
   VideoJobEventsProvider,
   VideoJobStatusBanners,
 } from "@/components/video/VideoJobEventsProvider";
 
 type Props = {
+  sessionId: string;
   userLabel: string | null;
   isConnected: boolean;
   ashed: AshedConnectionMeta | null;
@@ -29,6 +32,7 @@ function cn(...parts: Array<string | false | null | undefined>) {
 }
 
 export function AshedShell({
+  sessionId,
   userLabel,
   isConnected,
   ashed,
@@ -79,8 +83,9 @@ export function AshedShell({
 
   return (
     <VideoJobEventsProvider>
-      <FeedbackProvider>
-        <div className="flex min-h-screen min-h-[100dvh] bg-[#0d1117] text-[#e6edf3]">
+      <ReleaseNotesProvider sessionId={sessionId}>
+        <FeedbackProvider>
+          <div className="flex min-h-screen min-h-[100dvh] bg-[#0d1117] text-[#e6edf3]">
           <div
             className={cn(
               "fixed inset-0 z-40 bg-black/60 transition-opacity duration-300 ease-out md:hidden",
@@ -147,6 +152,7 @@ export function AshedShell({
               </div>
             </header>
 
+            <ReleaseNoticeBanner />
             {ashed ? <TokenExpiryBanner ashed={ashed} /> : null}
             <VideoJobStatusBanners />
 
@@ -157,8 +163,9 @@ export function AshedShell({
               {children}
             </main>
           </div>
-        </div>
-      </FeedbackProvider>
+          </div>
+        </FeedbackProvider>
+      </ReleaseNotesProvider>
     </VideoJobEventsProvider>
   );
 }

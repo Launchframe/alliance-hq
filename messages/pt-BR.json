@@ -375,7 +375,8 @@
     "defaultUser": "Usuário Ashed",
     "connectPrompt": "Conecte sua conta Ashed →",
     "openMenu": "Abrir menu de navegação",
-    "closeMenu": "Fechar menu de navegação"
+    "closeMenu": "Fechar menu de navegação",
+    "version": "v{version}"
   },
   "dashboard": {
     "title": "Painel de Controle",
@@ -858,6 +859,24 @@
     "openInAshed": "Abrir no Ashed ↗",
     "iframeHint": "Páginas incorporadas exigem login separado no Ashed. Se você usa login com Google no ashed.online, entre aqui com e-mail + senha. Se o quadro ficar em branco, use \"Abrir no Ashed\" acima.",
     "iframeTitle": "Ashed — {path}"
+  },
+  "releaseNotes": {
+    "bannerPrefix": "O Alliance HQ foi atualizado — veja as novidades desta",
+    "bannerVersionLink": "versão",
+    "dismissBanner": "Dispensar aviso de versão",
+    "drawerTitle": "Novidades",
+    "drawerSubtitle": "Versão v{version}",
+    "breakingHeading": "Mudanças importantes",
+    "maintainerHeading": "Notas para mantenedores da plataforma",
+    "gotIt": "Entendi",
+    "historyLink": "Ver histórico completo de versões",
+    "expandDrawer": "Expandir notas da versão",
+    "peekExpandDesktop": "Novidades · toque para expandir",
+    "peekExpandMobile": "Novidades · deslize para cima ou toque para expandir",
+    "closeDrawer": "Fechar notas da versão",
+    "pageTitle": "Notas de versão",
+    "pageDescription": "Histórico de atualizações do Alliance HQ.",
+    "emptyHistory": "Nenhuma nota de versão foi publicada ainda."
   },
   "devErrors": {
     "databaseNotConfigured": "Banco de dados não configurado",
