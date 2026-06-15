@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import { getLocale } from "next-intl/server";
 
 import {
+  collectDatabaseErrorText,
+  isMissingSchemaError,
+} from "@/lib/db/error-message";
+import {
   AllianceSelectionError,
   allianceSelectionErrorStatus,
   resolveConnectAlliance,
@@ -135,6 +139,20 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { error: error.message, code: error.code },
         { status: allianceSelectionErrorStatus(error.code) },
+      );
+    }
+
+    if (isMissingSchemaError(error)) {
+      return NextResponse.json(
+        {
+          error:
+            "Database schema is out of date. Redeploy the app or run npm run db:migrate against production.",
+          code: "schema_out_of_date",
+          ...(process.env.NODE_ENV === "development"
+            ? { detail: collectDatabaseErrorText(error).slice(0, 800) }
+            : {}),
+        },
+        { status: 503 },
       );
     }
 

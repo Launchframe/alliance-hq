@@ -31,6 +31,13 @@
       "breakpoints": true
     },
     {
+      "idx": 4,
+      "version": "7",
+      "when": 1781421000000,
+      "tag": "0004_solid_warpath",
+      "breakpoints": true
+    },
+    {
       "idx": 5,
       "version": "7",
       "when": 1781427000000,
@@ -77,6 +84,13 @@
       "version": "7",
       "when": 1781455000000,
       "tag": "0011_linked_devices",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1781460000000,
+      "tag": "0012_viral_resistance",
       "breakpoints": true
     }
   ]
