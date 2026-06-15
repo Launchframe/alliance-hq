@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 
 import { resolveSessionAllianceId, getSessionAllianceTag } from "@/lib/alliance/session-alliance";
 import {
@@ -10,7 +10,8 @@ import { writeAuditLog } from "@/lib/bff/audit";
 import { base44ListMembers } from "@/lib/base44/fetch";
 import { getAshedConnection } from "@/lib/session";
 import { getDb, schema } from "@/lib/db";
-import { getObject, putObject, frameStorageKey } from "@/lib/storage";
+import { getObject, putObject, frameStorageKey, prefersLocalStorage, r2Configured } from "@/lib/storage";
+import { logPipelineStep } from "@/lib/video/pipeline-step-log";
 import {
   cleanupFrameTempDir,
   extractLeaderboardFrames,
@@ -20,7 +21,7 @@ import {
   matchMemberName,
   type AshedMember,
 } from "@/lib/video/member-matcher";
-import { ocrAllFrames } from "@/lib/video/ocr-pipeline";
+import { ocrAllFrames, defaultAshFrameConcurrency } from "@/lib/video/ocr-pipeline";
 import { collapseEntriesBySanitizedName } from "@/lib/video/normalize-rows";
 import { PipelineTimer } from "@/lib/video/pipeline-timer";
 import { getScoreTargetOrThrow } from "@/lib/video/score-targets";
@@ -63,6 +64,8 @@ export async function resetVideoJobForReprocess(jobId: string): Promise<void> {
       frameCount: null,
       uploadedFrameCount: 0,
       errorMessage: null,
+      timingsJson: null,
+      totalFileSizeBytes: null,
       updatedAt: new Date(),
     })
     .where(eq(schema.videoJobs.id, jobId));
@@ -185,6 +188,17 @@ export async function processVideoJob(
     }
 
     frameCount = frames.length;
+    const totalFrameBytes = frames.reduce((sum, frame) => sum + frame.buffer.length, 0);
+    const avgFrameBytes =
+      frames.length > 0 ? Math.round(totalFrameBytes / frames.length) : 0;
+
+    logPipelineStep("frames.summary", 0, {
+      frameCount: frames.length,
+      totalBytes: totalFrameBytes,
+      avgBytes: avgFrameBytes,
+      concurrency: defaultAshFrameConcurrency(),
+      jobId,
+    });
 
     for (const frame of frames) {
       await timer.measureStep("storage.put_frame", async () => {
@@ -198,6 +212,27 @@ export async function processVideoJob(
           createdAt: now,
         });
       }, { frameIndex: frame.index, bytes: frame.buffer.length });
+    }
+
+    const storageBucket = prefersLocalStorage()
+      ? "local .data/uploads"
+      : "R2 hq-videos";
+    logPipelineStep("storage.frames_written", 0, {
+      frameCount: frames.length,
+      totalBytes: totalFrameBytes,
+      bucket: storageBucket,
+      jobId,
+    });
+    if (prefersLocalStorage()) {
+      logPipelineStep("storage.frames_local", 0, {
+        path: path.join(process.cwd(), ".data", "uploads", "videos", jobId, "frames"),
+        jobId,
+      });
+    } else if (r2Configured()) {
+      logPipelineStep("storage.frames_local", 0, {
+        path: `r2://${process.env.R2_BUCKET ?? "hq-videos"}/videos/${jobId}/frames/`,
+        jobId,
+      });
     }
 
     await setStatus("parsing", {
@@ -229,6 +264,26 @@ export async function processVideoJob(
     ocrConcurrency = concurrency;
     ashedUploadTotalMs = frameTimings.reduce((sum, f) => sum + f.uploadMs, 0);
     ashedExtractTotalMs = frameTimings.reduce((sum, f) => sum + f.extractMs, 0);
+
+    await Promise.all(
+      frameTimings.map((timing) =>
+        db
+          .update(schema.videoFrames)
+          .set({
+            uploadMs: timing.uploadMs,
+            extractMs: timing.extractMs,
+            ocrEntryCount: timing.entryCount,
+            ocrError: timing.error,
+            ocrRawJson: timing.rawResult ?? null,
+          })
+          .where(
+            and(
+              eq(schema.videoFrames.jobId, jobId),
+              eq(schema.videoFrames.frameIndex, timing.frameIndex),
+            ),
+          ),
+      ),
+    );
 
     const allianceTag = await timer.measureStep("alliance.load_tag", () =>
       getSessionAllianceTag(job.sessionId),
@@ -398,6 +453,14 @@ export async function processVideoJob(
       scoreTarget: scoreTargetId,
       source: options?.analyticsSource ?? "api",
     });
+
+    await db
+      .update(schema.videoJobs)
+      .set({
+        timingsJson: timings,
+        totalFileSizeBytes: totalFrameBytes,
+      })
+      .where(eq(schema.videoJobs.id, jobId));
 
     return timings;
   } catch (error) {

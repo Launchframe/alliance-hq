@@ -10,10 +10,13 @@ import {
   ResponsiveRecordViews,
 } from "@/components/ui/ResponsiveRecordViews";
 
+import { Link } from "@/i18n/navigation";
+
 import {
   canReprocessVideoJob,
   canRequeueVideoJob,
 } from "@/lib/video/admin-job-actions";
+import type { VideoProcessTimings } from "@/lib/analytics/video-pipeline";
 
 type VideoJob = {
   id: string;
@@ -22,8 +25,26 @@ type VideoJob = {
   scoreTarget: string | null;
   allianceId: string | null;
   errorMessage: string | null;
+  frameCount: number | null;
+  timingsJson: VideoProcessTimings | Record<string, unknown> | null;
   createdAt: string;
 };
+
+function formatJobDuration(ms: number | null | undefined): string {
+  if (ms == null || !Number.isFinite(ms)) return "—";
+  if (ms < 1000) return `${Math.round(ms)}ms`;
+  return `${(ms / 1000).toFixed(1)}s`;
+}
+
+function readTimings(
+  raw: VideoJob["timingsJson"],
+): VideoProcessTimings | null {
+  if (!raw || typeof raw !== "object") return null;
+  if ("totalMs" in raw && typeof raw.totalMs === "number") {
+    return raw as VideoProcessTimings;
+  }
+  return null;
+}
 
 export default function AdminVideoJobsPage() {
   const t = useTranslations("admin");
@@ -98,8 +119,25 @@ export default function AdminVideoJobsPage() {
                   {job.fileName ?? job.id}
                 </span>
               </RecordDetailField>
+              <RecordDetailField label={tJobs("frameCount")}>
+                {job.frameCount ?? "—"}
+              </RecordDetailField>
+              <RecordDetailField label={tJobs("totalTime")}>
+                {formatJobDuration(readTimings(job.timingsJson)?.totalMs)}
+              </RecordDetailField>
+              <RecordDetailField label={tJobs("ocrTime")}>
+                {formatJobDuration(
+                  readTimings(job.timingsJson)?.phases?.["ashed.ocr_total"],
+                )}
+              </RecordDetailField>
               <RecordDetailField label={tJobs("actions")}>
                 <div className="flex flex-wrap items-center gap-2 text-sm font-normal">
+                  <Link
+                    href={`/admin/video-jobs/${job.id}`}
+                    className="text-[#58a6ff] hover:underline"
+                  >
+                    {tJobs("inspect")}
+                  </Link>
                   {job.errorMessage ? (
                     <button
                       type="button"
@@ -145,6 +183,9 @@ export default function AdminVideoJobsPage() {
                   <th className="px-4 py-2">{t("table.status")}</th>
                   <th className="px-4 py-2">{t("table.target")}</th>
                   <th className="px-4 py-2">{t("table.file")}</th>
+                  <th className="px-4 py-2">{tJobs("frameCount")}</th>
+                  <th className="px-4 py-2">{tJobs("totalTime")}</th>
+                  <th className="px-4 py-2">{tJobs("ocrTime")}</th>
                   <th className="px-4 py-2">{tJobs("actions")}</th>
                 </tr>
               </thead>
@@ -162,8 +203,25 @@ export default function AdminVideoJobsPage() {
                       <td className="max-w-xs truncate px-4 py-2">
                         {job.fileName ?? job.id}
                       </td>
+                      <td className="px-4 py-2">{job.frameCount ?? "—"}</td>
+                      <td className="px-4 py-2 whitespace-nowrap">
+                        {formatJobDuration(readTimings(job.timingsJson)?.totalMs)}
+                      </td>
+                      <td className="px-4 py-2 whitespace-nowrap">
+                        {formatJobDuration(
+                          readTimings(job.timingsJson)?.phases?.[
+                            "ashed.ocr_total"
+                          ],
+                        )}
+                      </td>
                       <td className="px-4 py-2">
                         <div className="flex flex-wrap items-center gap-2">
+                          <Link
+                            href={`/admin/video-jobs/${job.id}`}
+                            className="text-xs text-[#58a6ff] hover:underline"
+                          >
+                            {tJobs("inspect")}
+                          </Link>
                           {job.errorMessage ? (
                             <button
                               type="button"
