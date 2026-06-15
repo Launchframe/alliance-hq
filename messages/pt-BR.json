@@ -4,7 +4,9 @@
     "titleTemplate": "%s · Alliance HQ",
     "description": "Ferramentas de aliança para Last War — criadas no ashed.online, com upload de vídeo e muito mais.",
     "privacyTitle": "Política de Privacidade",
-    "privacyDescription": "Como o Alliance HQ lida com seus dados e protege sua chave de conexão do Ashed."
+    "privacyDescription": "Como o Alliance HQ lida com seus dados e protege sua chave de conexão do Ashed.",
+    "termsTitle": "Termos de Uso",
+    "termsDescription": "Regras para usar o Alliance HQ hospedado, aplicação das regras e licenciamento de código aberto."
   },
   "common": {
     "back": "Voltar",
@@ -30,7 +32,8 @@
   },
   "footer": {
     "attribution": "O Alliance HQ é uma interface comunitária para <link>ashed.online</link>. Os créditos pelos dados da Alliance pertencem a Ashed.",
-    "privacyPolicy": "Política de Privacidade"
+    "privacyPolicy": "Política de Privacidade",
+    "termsOfService": "Termos de Uso"
   },
   "navGroups": {
     "allianceManagement": "Gestão da Aliança",
@@ -515,6 +518,29 @@
     "whereDataBody": "O Alliance HQ opera em hospedagem em nuvem gerenciada (Vercel para o aplicativo, Neon Postgres para credenciais criptografadas e dados de sessão). Os dados são transmitidos via HTTPS.",
     "questionsTitle": "Dúvidas",
     "questionsBody": "Esta política pode ser atualizada à medida que o Alliance HQ cresce. Se você tiver dúvidas sobre seus dados, abra uma issue em nosso <githubLink>repositório no GitHub</githubLink>."
+  },
+  "terms": {
+    "backToConnect": "← Voltar para Conectar",
+    "title": "Termos de Uso",
+    "intro": "O Alliance HQ em alliance-hq.vercel.app é uma ferramenta comunitária para oficiais de aliança de Last War. Ao usar este serviço hospedado, você concorda com estes termos.",
+    "acceptableUseTitle": "Uso aceitável",
+    "acceptableUseBody1": "Use o Alliance HQ e o <link>ashed.online</link> de forma razoável e dentro da lei. O Alliance HQ é uma camada de conveniência sobre o Ashed — não concede direitos além dos que você já tem no próprio Ashed.",
+    "acceptableUseItems": {
+      "noAbuse": "Não abuse, sobrecarregue ou interrompa o Alliance HQ ou o Ashed (por exemplo, scraping automatizado além do uso normal, tentativas de invasão de credenciais ou contornar medidas de segurança).",
+      "noHarm": "Não assedie outros usuários, oficiais de aliança ou operadores deste serviço.",
+      "noMisuse": "Não use o Alliance HQ de formas que prejudiquem alianças, o Ashed ou outros jogadores."
+    },
+    "enforcementTitle": "Aplicação das regras",
+    "enforcementBody": "Os operadores desta implantação <strong>hospedada</strong> reservam-se o direito de revogar ou bloquear o acesso — incluindo sessões, dispositivos vinculados e vínculo com o bot do Discord — por violações <strong>sem aviso prévio</strong>. Cópias auto-hospedadas do Alliance HQ estão fora do nosso controle; estes termos de aplicação valem apenas para implantações que operamos (como alliance-hq.vercel.app).",
+    "openSourceTitle": "Código aberto e auto-hospedagem",
+    "openSourceBody1": "O código-fonte do Alliance HQ é aberto sob a <strong>Licença MIT</strong>. Você pode inspecionar, modificar e auto-hospedar o software sem limitação.",
+    "openSourceBody2": "Consulte o arquivo <licenseLink>LICENSE</licenseLink> em nosso <githubLink>repositório no GitHub</githubLink>. Estes Termos de Uso aplicam-se ao nosso serviço hospedado, não a instâncias auto-hospedadas que você executa por conta própria.",
+    "disclaimerTitle": "Isenção de responsabilidade",
+    "disclaimerBody": "O Alliance HQ é uma interface comunitária em torno do Ashed, fornecida <strong>no estado em que se encontra</strong>, sem garantias. O uso direto do ashed.online continua sujeito aos termos e políticas do próprio Ashed.",
+    "changesTitle": "Alterações",
+    "changesBody": "Podemos atualizar estes termos conforme o Alliance HQ evolui. O uso continuado do serviço hospedado após a publicação de alterações constitui aceitação dos termos atualizados.",
+    "questionsTitle": "Dúvidas",
+    "questionsBody": "Se você tiver dúvidas sobre estes termos, abra uma issue em nosso <githubLink>repositório no GitHub</githubLink>."
   },
   "settings": {
     "title": "Configurações",

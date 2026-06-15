@@ -4,7 +4,9 @@
     "titleTemplate": "%s · Alliance HQ",
     "description": "Alliance tools for Last War — built on ashed.online with video upload and more.",
     "privacyTitle": "Privacy Policy",
-    "privacyDescription": "How Alliance HQ handles your data and protects your Ashed connection key."
+    "privacyDescription": "How Alliance HQ handles your data and protects your Ashed connection key.",
+    "termsTitle": "Terms of Service",
+    "termsDescription": "Rules for using the hosted Alliance HQ service, enforcement, and open-source licensing."
   },
   "common": {
     "back": "Back",
@@ -30,7 +32,8 @@
   },
   "footer": {
     "attribution": "Alliance HQ is a community wrapper for <link>ashed.online</link>. Alliance data credit belongs to Ashed.",
-    "privacyPolicy": "Privacy Policy"
+    "privacyPolicy": "Privacy Policy",
+    "termsOfService": "Terms of Service"
   },
   "navGroups": {
     "allianceManagement": "Alliance Management",
@@ -515,6 +518,29 @@
     "whereDataBody": "Alliance HQ runs on managed cloud hosting (Vercel for the app, Neon Postgres for encrypted credentials and session data). Data is transmitted over HTTPS.",
     "questionsTitle": "Questions",
     "questionsBody": "This policy may be updated as Alliance HQ grows. If you have questions about your data, open an issue on our <githubLink>GitHub repository</githubLink>."
+  },
+  "terms": {
+    "backToConnect": "← Back to Connect",
+    "title": "Terms of Service",
+    "intro": "Alliance HQ at alliance-hq.vercel.app is a community tool for Last War alliance officers. By using this hosted service, you agree to these terms.",
+    "acceptableUseTitle": "Acceptable use",
+    "acceptableUseBody1": "Use Alliance HQ and <link>ashed.online</link> reasonably and lawfully. Alliance HQ is a convenience layer on top of Ashed — it does not grant rights beyond what you already have on Ashed itself.",
+    "acceptableUseItems": {
+      "noAbuse": "Do not abuse, overload, or disrupt Alliance HQ or Ashed (for example automated scraping beyond normal use, credential stuffing, or attempts to bypass security).",
+      "noHarm": "Do not harass other users, alliance officers, or operators of this service.",
+      "noMisuse": "Do not use Alliance HQ in ways that harm alliances, Ashed, or other players."
+    },
+    "enforcementTitle": "Enforcement",
+    "enforcementBody": "Operators of this <strong>hosted</strong> deployment reserve the right to revoke or block access — including sessions, linked devices, and Discord bot linkage — for violations <strong>without prior warning</strong>. Self-hosted copies of Alliance HQ are outside our control; these enforcement terms apply only to deployments we operate (such as alliance-hq.vercel.app).",
+    "openSourceTitle": "Open source and self-hosting",
+    "openSourceBody1": "Alliance HQ source code is open under the <strong>MIT License</strong>. You may inspect, modify, and self-host the software without limitation.",
+    "openSourceBody2": "See the <licenseLink>LICENSE</licenseLink> file in our <githubLink>GitHub repository</githubLink>. These Terms of Service apply to our hosted service, not to independent self-hosted instances you run yourself.",
+    "disclaimerTitle": "Disclaimer",
+    "disclaimerBody": "Alliance HQ is a community wrapper around Ashed, provided <strong>as is</strong> without warranties. Using ashed.online directly remains subject to Ashed’s own terms and policies.",
+    "changesTitle": "Changes",
+    "changesBody": "We may update these terms as Alliance HQ evolves. Continued use of the hosted service after changes are posted constitutes acceptance of the updated terms.",
+    "questionsTitle": "Questions",
+    "questionsBody": "If you have questions about these terms, open an issue on our <githubLink>GitHub repository</githubLink>."
   },
   "settings": {
     "title": "Settings",
