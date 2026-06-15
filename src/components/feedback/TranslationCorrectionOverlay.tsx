@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { createPortal } from "react-dom";
+import { Pencil } from "lucide-react";
 import { useLocale, useMessages, useTranslations } from "next-intl";
 import { usePathname } from "@/i18n/navigation";
 
@@ -109,15 +110,23 @@ export function TranslationCorrectionOverlay({
 
   return (
     <>
-      <div className="fixed inset-x-0 top-0 z-[90] border-b border-[#58a6ff]/40 bg-[#0d1117]/95 px-4 py-2 text-center text-sm text-[#e6edf3]">
-        {t("selectPrompt")}{" "}
-        <button
-          type="button"
-          className="ml-2 text-[#58a6ff] underline"
+      <div
+        role="status"
+        aria-live="polite"
+        className="fixed inset-x-0 top-0 z-[120] flex flex-wrap items-center justify-center gap-x-4 gap-y-2 border-b-2 border-[#9e6a03] bg-[#d29922] px-4 py-3 text-center shadow-[0_4px_24px_rgba(0,0,0,0.5)] sm:px-6 sm:py-3.5"
+      >
+        <span className="inline-flex max-w-3xl items-center gap-2 text-base font-semibold text-[#0d1117] sm:text-lg">
+          <Pencil className="h-5 w-5 shrink-0" aria-hidden />
+          {t("selectPrompt")}
+        </span>
+        <Button
+          variant="outline"
+          size="sm"
+          className="shrink-0 border-[#0d1117]/35 bg-[#0d1117]/10 text-[#0d1117] hover:bg-[#0d1117]/20"
           onClick={() => onActiveChange(false)}
         >
           {t("cancelMode")}
-        </button>
+        </Button>
       </div>
 
       {dialogOpen && anchor && mounted

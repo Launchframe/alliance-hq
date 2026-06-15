@@ -38,7 +38,11 @@ Fill in `.env.local`:
 | `TOKEN_ENCRYPTION_KEY` | `openssl rand -hex 32` |
 | `NEXT_PUBLIC_APP_URL` | `http://localhost:5175` for local dev |
 
-When `NODE_ENV` is not `production`, **`LOCAL_DATABASE_URL` takes precedence** over `DATABASE_URL`, so you can keep a Neon URL in `DATABASE_URL` for deploy previews without touching local dev.
+When **`LOCAL_DATABASE_URL` is set**, it wins over `DATABASE_URL` on your machine — including `next start` and `vercel dev`. The only exception is **Vercel production** (`VERCEL=1` + `NODE_ENV=production`), where `DATABASE_URL` is always used.
+
+If you ran `vercel env pull`, Neon lands in `.env.development.local` alongside your local URL — that is fine; local Postgres is still selected. Do **not** set `LOCAL_DATABASE_URL` on Vercel.
+
+To run migrations against Neon from your laptop: unset `LOCAL_DATABASE_URL` for that command (e.g. `LOCAL_DATABASE_URL= DATABASE_URL="postgresql://…" npm run db:migrate`).
 
 Create the local database if needed:
 

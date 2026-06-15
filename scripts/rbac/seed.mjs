@@ -2,8 +2,13 @@ import { readFileSync } from "node:fs";
 import { config } from "dotenv";
 import postgres from "postgres";
 
-config({ path: ".env.local" });
+import { getDatabaseUrlFromProcessEnv } from "../lib/database-url.mjs";
+
 config({ path: ".env" });
+config({ path: ".env.local" });
+if (process.env.NODE_ENV !== "production") {
+  config({ path: ".env.development.local" });
+}
 
 const ROLE_IDS = {
   owner: "role-owner",
@@ -21,18 +26,7 @@ const HQ_PERMISSIONS = [
 ];
 
 function getDatabaseUrl() {
-  const isProduction = process.env.NODE_ENV === "production";
-  const local = process.env.LOCAL_DATABASE_URL?.trim();
-  let raw =
-    !isProduction && local ? local : (process.env.DATABASE_URL?.trim() ?? local);
-  if (!raw) throw new Error("DATABASE_URL / LOCAL_DATABASE_URL not set");
-  try {
-    const url = new URL(raw);
-    url.searchParams.delete("schema");
-    return url.toString();
-  } catch {
-    return raw;
-  }
+  return getDatabaseUrlFromProcessEnv();
 }
 
 async function main() {

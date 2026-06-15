@@ -53,6 +53,9 @@ export function FeedbackProvider({ children }: { children: React.ReactNode }) {
   const [reportOpen, setReportOpen] = React.useState(false);
   const [translationMode, setTranslationMode] = React.useState(false);
   const [discordNoticeOpen, setDiscordNoticeOpen] = React.useState(false);
+  const [reportScreenshotMode, setReportScreenshotMode] = React.useState(false);
+  const [reportScreenshotPreviewOpen, setReportScreenshotPreviewOpen] =
+    React.useState(false);
   const [experienceOptions, setExperienceOptions] =
     React.useState<ExperienceOptions>({});
   const delayTimerRef = React.useRef<number | null>(null);
@@ -61,6 +64,7 @@ export function FeedbackProvider({ children }: { children: React.ReactNode }) {
     shouldHideFab(pathname) ||
     experienceOpen ||
     reportOpen ||
+    reportScreenshotMode ||
     translationMode ||
     discordNoticeOpen;
 
@@ -146,11 +150,20 @@ export function FeedbackProvider({ children }: { children: React.ReactNode }) {
 
       <Dialog
         open={reportOpen}
-        onOpenChange={setReportOpen}
-        ignoreOutsideDismiss={false}
+        onOpenChange={(open) => {
+          if (!open && reportScreenshotPreviewOpen) return;
+          setReportOpen(open);
+        }}
+        ignoreOutsideDismiss={reportScreenshotPreviewOpen}
+        presentationHidden={reportScreenshotMode || reportScreenshotPreviewOpen}
         title="Report a bug"
       >
-        <ReportIssueDialog onClose={() => setReportOpen(false)} />
+        <ReportIssueDialog
+          onClose={() => setReportOpen(false)}
+          onScreenshotModeChange={setReportScreenshotMode}
+          onScreenshotPreviewOpenChange={setReportScreenshotPreviewOpen}
+          onJoinDiscord={openDiscord}
+        />
       </Dialog>
 
       <Dialog

@@ -10,6 +10,8 @@ type DialogProps = {
   title?: string;
   className?: string;
   ignoreOutsideDismiss?: boolean;
+  /** Keep children mounted but hide the dialog chrome (e.g. bug-report screenshot mode). */
+  presentationHidden?: boolean;
 };
 
 export function Dialog({
@@ -19,11 +21,12 @@ export function Dialog({
   title,
   className = "",
   ignoreOutsideDismiss = false,
+  presentationHidden = false,
 }: DialogProps) {
   const [mounted] = React.useState(() => typeof document !== "undefined");
 
   React.useEffect(() => {
-    if (!open) return;
+    if (!open || presentationHidden) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape" && !ignoreOutsideDismiss) {
         event.preventDefault();
@@ -32,7 +35,7 @@ export function Dialog({
     };
     window.addEventListener("keydown", onKeyDown, true);
     return () => window.removeEventListener("keydown", onKeyDown, true);
-  }, [ignoreOutsideDismiss, onOpenChange, open]);
+  }, [ignoreOutsideDismiss, onOpenChange, open, presentationHidden]);
 
   if (!open || !mounted) {
     return null;
@@ -40,7 +43,9 @@ export function Dialog({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[100] flex items-end justify-center p-4 sm:items-center"
+      className={`fixed inset-0 z-[100] flex items-end justify-center p-4 sm:items-center${
+        presentationHidden ? " invisible pointer-events-none" : ""
+      }`}
       role="dialog"
       aria-modal="true"
       aria-label={title}

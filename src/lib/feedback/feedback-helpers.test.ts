@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { truncateBugReportConsoleLogs } from "@/lib/feedback/constants";
+import { truncateBugReportConsoleLogs, inferBugReportArea } from "@/lib/feedback/constants";
 import { resolveSolicitedSource } from "@/lib/feedback/solicited-eligibility";
 import {
   bugReportStorageKey,
@@ -11,6 +11,27 @@ describe("truncateBugReportConsoleLogs", () => {
   it("sanitizes secrets before persisting", () => {
     const input = 'failed token="abc123"';
     expect(truncateBugReportConsoleLogs(input)).toBe("failed token=[redacted]");
+  });
+});
+
+describe("inferBugReportArea", () => {
+  it("maps nav group pages and native routes", () => {
+    expect(inferBugReportArea("/dashboard")).toBe("alliance_management");
+    expect(inferBugReportArea("/alliances")).toBe("alliance_management");
+    expect(inferBugReportArea("/members")).toBe("members");
+    expect(inferBugReportArea("/donations")).toBe("donations");
+    expect(inferBugReportArea("/vs-performance")).toBe("performance_reporting");
+    expect(inferBugReportArea("/desert-storm")).toBe("events_operations");
+    expect(inferBugReportArea("/seasonal-events")).toBe("events_operations");
+    expect(inferBugReportArea("/data-management")).toBe("admin_settings");
+    expect(inferBugReportArea("/tools/video-upload")).toBe("video_upload");
+    expect(
+      inferBugReportArea("/tools/video-upload/job-1/review"),
+    ).toBe("video_upload");
+    expect(inferBugReportArea("/settings")).toBe("settings");
+    expect(inferBugReportArea("/settings/team")).toBe("settings");
+    expect(inferBugReportArea("/admin/users")).toBe("admin");
+    expect(inferBugReportArea("/viral-resistance")).toBe("alliance_management");
   });
 });
 

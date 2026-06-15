@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { desc, eq } from "drizzle-orm";
 
+import {
+  isoOrNull,
+  loadReporterSummariesByIds,
+  reporterLabel,
+} from "@/lib/admin/feedback-reports";
 import { getDb, schema } from "@/lib/db";
 import { feedbackErrorResponse } from "@/lib/feedback/api-errors";
 import { readSessionId } from "@/lib/session";
@@ -21,42 +26,47 @@ export async function GET(request: Request) {
     const db = getDb();
     const rows = status
       ? await db
-          .select({
-            id: schema.translationCorrectionReports.id,
-            locale: schema.translationCorrectionReports.locale,
-            i18nKey: schema.translationCorrectionReports.i18nKey,
-            displayedText: schema.translationCorrectionReports.displayedText,
-            suggestedTranslation:
-              schema.translationCorrectionReports.suggestedTranslation,
-            pagePath: schema.translationCorrectionReports.pagePath,
-            status: schema.translationCorrectionReports.status,
-            hqUserId: schema.translationCorrectionReports.hqUserId,
-            createdAt: schema.translationCorrectionReports.createdAt,
-            adminNotes: schema.translationCorrectionReports.adminNotes,
-          })
+          .select()
           .from(schema.translationCorrectionReports)
           .where(eq(schema.translationCorrectionReports.status, status))
           .orderBy(desc(schema.translationCorrectionReports.createdAt))
           .limit(200)
       : await db
-          .select({
-            id: schema.translationCorrectionReports.id,
-            locale: schema.translationCorrectionReports.locale,
-            i18nKey: schema.translationCorrectionReports.i18nKey,
-            displayedText: schema.translationCorrectionReports.displayedText,
-            suggestedTranslation:
-              schema.translationCorrectionReports.suggestedTranslation,
-            pagePath: schema.translationCorrectionReports.pagePath,
-            status: schema.translationCorrectionReports.status,
-            hqUserId: schema.translationCorrectionReports.hqUserId,
-            createdAt: schema.translationCorrectionReports.createdAt,
-            adminNotes: schema.translationCorrectionReports.adminNotes,
-          })
+          .select()
           .from(schema.translationCorrectionReports)
           .orderBy(desc(schema.translationCorrectionReports.createdAt))
           .limit(200);
 
-    return NextResponse.json({ reports: rows });
+    const reporters = await loadReporterSummariesByIds([
+      ...rows.map((row) => row.hqUserId),
+      ...rows.map((row) => row.reviewedBy).filter(Boolean) as string[],
+    ]);
+
+    return NextResponse.json({
+      reports: rows.map((row) => ({
+        id: row.id,
+        locale: row.locale,
+        i18nKey: row.i18nKey,
+        candidateKeys: row.candidateKeys ?? [],
+        displayedText: row.displayedText,
+        suggestedTranslation: row.suggestedTranslation,
+        pagePath: row.pagePath,
+        status: row.status,
+        hqUserId: row.hqUserId,
+        reporterLabel: reporterLabel(
+          reporters.get(row.hqUserId),
+          row.hqUserId,
+        ),
+        reviewedBy: row.reviewedBy,
+        reviewerLabel: reporterLabel(
+          row.reviewedBy ? reporters.get(row.reviewedBy) : undefined,
+          row.reviewedBy,
+        ),
+        reviewedAt: isoOrNull(row.reviewedAt),
+        createdAt: isoOrNull(row.createdAt),
+        adminNotes: row.adminNotes,
+      })),
+    });
   } catch {
     return feedbackErrorResponse("Load failed");
   }

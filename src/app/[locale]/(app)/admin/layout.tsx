@@ -16,6 +16,8 @@ const ADMIN_LINKS = [
   { href: "/admin/video-jobs", labelKey: "videoJobs" as const },
   { href: "/admin/hq-events", labelKey: "hqEvents" as const },
   { href: "/admin/commendations", labelKey: "commendations" as const },
+  { href: "/admin/bug-reports", labelKey: "bugReports" as const },
+  { href: "/admin/experience-feedback", labelKey: "experienceFeedback" as const },
   { href: "/admin/translation-reports", labelKey: "translationReports" as const },
 ];
 

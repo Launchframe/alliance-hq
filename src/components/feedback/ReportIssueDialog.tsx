@@ -1,6 +1,8 @@
 "use client";
 
 import * as React from "react";
+import { createPortal } from "react-dom";
+import { X } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { usePathname } from "@/i18n/navigation";
 
@@ -28,12 +30,24 @@ import {
 } from "@/lib/feedback/bug-report-console-capture";
 import { ScreenshotModeOverlay } from "@/components/feedback/ScreenshotModeOverlay";
 
+const DISCORD_ICON_SRC =
+  "/discord-communication-interaction-message-network.svg";
+
 type Props = {
   onClose: () => void;
   onSubmitSuccess?: () => void;
+  onScreenshotModeChange?: (open: boolean) => void;
+  onScreenshotPreviewOpenChange?: (open: boolean) => void;
+  onJoinDiscord?: () => void;
 };
 
-export function ReportIssueDialog({ onClose, onSubmitSuccess }: Props) {
+export function ReportIssueDialog({
+  onClose,
+  onSubmitSuccess,
+  onScreenshotModeChange,
+  onScreenshotPreviewOpenChange,
+  onJoinDiscord,
+}: Props) {
   const t = useTranslations("feedback.bugReport");
   const locale = useLocale();
   const pathname = usePathname();
@@ -50,6 +64,37 @@ export function ReportIssueDialog({ onClose, onSubmitSuccess }: Props) {
   const [submitting, setSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [submitted, setSubmitted] = React.useState(false);
+  const [expandedScreenshotId, setExpandedScreenshotId] = React.useState<
+    string | null
+  >(null);
+  const [isPreviewMounted] = React.useState(() => typeof document !== "undefined");
+
+  const expandedScreenshot = expandedScreenshotId
+    ? screenshots.find((shot) => shot.id === expandedScreenshotId)
+    : undefined;
+
+  React.useEffect(() => {
+    onScreenshotPreviewOpenChange?.(Boolean(expandedScreenshot));
+  }, [expandedScreenshot, onScreenshotPreviewOpenChange]);
+
+  React.useEffect(() => {
+    if (!expandedScreenshot) return;
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      event.stopPropagation();
+      setExpandedScreenshotId(null);
+    };
+
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
+  }, [expandedScreenshot]);
+
+  const closeScreenshotPreview = React.useCallback(() => {
+    onScreenshotPreviewOpenChange?.(false);
+    setExpandedScreenshotId(null);
+  }, [onScreenshotPreviewOpenChange]);
 
   React.useEffect(() => {
     installBugReportConsoleCapture();
@@ -59,6 +104,17 @@ export function ReportIssueDialog({ onClose, onSubmitSuccess }: Props) {
   React.useEffect(
     () => () => revokeCapturedScreenshotUrls(screenshots),
     [screenshots],
+  );
+
+  React.useEffect(() => {
+    onScreenshotModeChange?.(screenshotModeOpen);
+  }, [onScreenshotModeChange, screenshotModeOpen]);
+
+  React.useEffect(
+    () => () => {
+      onScreenshotModeChange?.(false);
+    },
+    [onScreenshotModeChange],
   );
 
   async function ensureCaptureSession() {
@@ -113,11 +169,33 @@ export function ReportIssueDialog({ onClose, onSubmitSuccess }: Props) {
 
   if (submitted) {
     return (
-      <div className="space-y-4">
-        <h2 className="text-lg font-semibold">{t("thankYouTitle")}</h2>
-        <p className="text-sm text-[#8b949e]">{t("thankYouDescription")}</p>
+      <div className="space-y-5">
+        <div className="text-center">
+          <h2 className="text-lg font-semibold">{t("thankYouTitle")}</h2>
+          <p className="mt-2 text-sm text-[#8b949e]">{t("thankYouDescription")}</p>
+        </div>
+
+        <div className="rounded-xl border border-[#30363d] bg-[#0d1117] px-4 py-6 text-center">
+          <img
+            src={DISCORD_ICON_SRC}
+            alt=""
+            aria-hidden
+            className="mx-auto h-20 w-20"
+          />
+          <p className="mt-4 text-sm leading-relaxed text-[#e6edf3]">
+            {t("discordFollowUp")}
+          </p>
+          {onJoinDiscord ? (
+            <Button className="mt-4" onClick={onJoinDiscord}>
+              {t("joinDiscord")}
+            </Button>
+          ) : null}
+        </div>
+
         <div className="flex justify-end">
-          <Button onClick={onClose}>{t("done")}</Button>
+          <Button variant="ghost" onClick={onClose}>
+            {t("done")}
+          </Button>
         </div>
       </div>
     );
@@ -182,12 +260,20 @@ export function ReportIssueDialog({ onClose, onSubmitSuccess }: Props) {
         <div className="space-y-2">
           <div className="flex flex-wrap gap-2">
             {screenshots.map((shot) => (
-              <img
+              <button
                 key={shot.id}
-                src={shot.previewUrl}
-                alt=""
-                className="h-16 w-16 rounded border border-[#30363d] object-cover"
-              />
+                type="button"
+                className="overflow-hidden rounded border border-[#30363d] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#58a6ff]"
+                aria-label={t("viewScreenshotFullSize")}
+                onClick={() => setExpandedScreenshotId(shot.id)}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={shot.previewUrl}
+                  alt={t("screenshotThumbnailAlt")}
+                  className="h-16 w-16 object-cover"
+                />
+              </button>
             ))}
           </div>
           {screenshots.length < MAX_BUG_REPORT_SCREENSHOTS ? (
@@ -216,6 +302,52 @@ export function ReportIssueDialog({ onClose, onSubmitSuccess }: Props) {
           setScreenshots((prev) => [...prev, shot].slice(0, MAX_BUG_REPORT_SCREENSHOTS));
         }}
       />
+
+      {isPreviewMounted && expandedScreenshot
+        ? createPortal(
+            <div
+              className="fixed inset-0 z-[250] flex items-center justify-center bg-black/90 p-4"
+              data-bug-report-screenshot-preview
+              role="dialog"
+              aria-modal="true"
+              aria-label={t("screenshotPreview")}
+              onPointerDown={(event) => {
+                event.stopPropagation();
+              }}
+              onClick={(event) => {
+                event.stopPropagation();
+                if (event.target === event.currentTarget) {
+                  closeScreenshotPreview();
+                }
+              }}
+            >
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="pointer-events-auto absolute right-4 top-4 z-[251] h-11 w-11 rounded-full border-2 border-white/90 bg-black/70 text-white shadow-lg hover:border-white hover:bg-black/90 hover:text-white"
+                onPointerDown={(event) => {
+                  event.stopPropagation();
+                }}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  closeScreenshotPreview();
+                }}
+                aria-label={t("closePreview")}
+              >
+                <X className="h-6 w-6" strokeWidth={2.75} />
+              </Button>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={expandedScreenshot.previewUrl}
+                alt={t("screenshotPreview")}
+                className="max-h-full max-w-full object-contain"
+                onClick={(event) => event.stopPropagation()}
+              />
+            </div>,
+            document.body,
+          )
+        : null}
     </>
   );
 }

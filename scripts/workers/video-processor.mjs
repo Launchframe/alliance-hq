@@ -10,14 +10,19 @@ import process from "node:process";
 import postgres from "postgres";
 import dotenv from "dotenv";
 
+import { getDatabaseUrlFromProcessEnv } from "../lib/database-url.mjs";
+
+dotenv.config({ path: ".env" });
 dotenv.config({ path: ".env.local" });
+if (process.env.NODE_ENV !== "production") {
+  dotenv.config({ path: ".env.development.local" });
+}
 
 function resolveWorkerBaseUrl() {
   if (process.env.VIDEO_WORKER_BASE_URL) {
     return process.env.VIDEO_WORKER_BASE_URL;
   }
-  const dbUrl =
-    process.env.LOCAL_DATABASE_URL ?? process.env.DATABASE_URL ?? "";
+  const dbUrl = getDatabaseUrlFromProcessEnv();
   if (/localhost|127\.0\.0\.1/.test(dbUrl)) {
     return "http://localhost:5175";
   }
@@ -47,8 +52,7 @@ const IDLE_LOG_EVERY_MS = Number(
 );
 const base = resolveWorkerBaseUrl();
 const secret = process.env.VIDEO_WORKER_SECRET ?? "dev-secret";
-const dbUrl =
-  process.env.LOCAL_DATABASE_URL ?? process.env.DATABASE_URL ?? "";
+const dbUrl = getDatabaseUrlFromProcessEnv();
 
 if (!dbUrl) {
   console.error("Set LOCAL_DATABASE_URL or DATABASE_URL");

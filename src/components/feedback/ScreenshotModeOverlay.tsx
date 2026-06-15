@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { createPortal } from "react-dom";
+import { Camera, Loader2, X } from "lucide-react";
 import { domToCanvas } from "modern-screenshot";
 import { useTranslations } from "next-intl";
 
@@ -91,35 +92,55 @@ export function ScreenshotModeOverlay({ open, onClose, onCapture }: Props) {
       aria-label={t("screenshotMode")}
     >
       {isCapturing ? (
-        <div className="pointer-events-auto fixed inset-0 z-[202] flex items-center justify-center bg-black/70 px-6">
-          <p className="text-center text-sm text-white">{t("capturing")}</p>
+        <div
+          className="pointer-events-auto fixed inset-0 z-[202] flex items-center justify-center bg-black/70 px-6 backdrop-blur-sm"
+          aria-live="polite"
+          aria-busy="true"
+        >
+          <div className="max-w-md space-y-3 text-center">
+            <Loader2
+              className="mx-auto h-10 w-10 animate-spin text-white"
+              aria-hidden
+            />
+            <p className="text-base font-medium text-white">{t("capturing")}</p>
+          </div>
         </div>
       ) : (
         <>
-          <div className="absolute inset-x-0 top-0 z-[201] bg-black/70 px-4 py-3">
+          <div className="absolute inset-x-0 top-0 z-[201] bg-gradient-to-b from-black/70 via-black/25 to-transparent px-4 py-3">
             <div className="mx-auto flex max-w-3xl items-start justify-between gap-3">
               <Button
                 variant="outline"
                 size="icon"
-                className="pointer-events-auto shrink-0"
+                className="pointer-events-auto shrink-0 border-[#484f58] bg-[#161b22]/90 text-white shadow-sm backdrop-blur-sm hover:bg-[#21262d]"
                 onClick={onClose}
+                aria-label={t("cancel")}
               >
-                ✕
+                <X className="h-4 w-4" aria-hidden />
               </Button>
-              <p className="pointer-events-auto text-sm text-white">
+              <p className="pointer-events-auto min-w-0 text-sm font-medium text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.85)]">
                 {t("screenshotHint")}
               </p>
             </div>
             {captureError ? (
-              <p className="mt-2 text-center text-sm text-red-300">{captureError}</p>
+              <p className="mt-2 text-center text-sm font-medium text-red-300">
+                {captureError}
+              </p>
             ) : null}
           </div>
+
+          <div
+            className="pointer-events-none absolute inset-x-4 top-16 bottom-24 rounded-lg border-2 border-dashed border-[#238636]/70"
+            aria-hidden
+          />
+
           <Button
-            className="pointer-events-auto fixed bottom-4 left-4 z-[201] h-14 w-14 rounded-full"
+            size="icon"
+            className="pointer-events-auto fixed bottom-4 left-4 z-[201] h-14 w-14 rounded-full border-2 border-[#30363d] bg-[#238636] p-0 text-white shadow-lg hover:bg-[#2ea043]"
             onClick={handleCapture}
             aria-label={t("takeScreenshot")}
           >
-            📷
+            <Camera className="h-6 w-6" aria-hidden />
           </Button>
         </>
       )}
