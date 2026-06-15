@@ -7,6 +7,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { usePathname } from "@/i18n/navigation";
 
 import { Button } from "@/components/ui/button";
+import { AppSelect } from "@/components/ui/AppSelect";
 import { Textarea } from "@/components/ui/textarea";
 import {
   APP_VERSION,
@@ -211,32 +212,28 @@ export function ReportIssueDialog({
 
         <label className="block space-y-1 text-sm">
           <span className="text-[#8b949e]">{t("area")}</span>
-          <select
-            className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
+          <AppSelect
             value={area}
-            onChange={(e) => setArea(e.target.value as typeof area)}
-          >
-            {BUG_REPORT_AREAS.map((value) => (
-              <option key={value} value={value}>
-                {t(`areas.${value}`)}
-              </option>
-            ))}
-          </select>
+            onChange={(next) => setArea(next as typeof area)}
+            aria-label={t("area")}
+            options={BUG_REPORT_AREAS.map((value) => ({
+              value,
+              label: t(`areas.${value}`),
+            }))}
+          />
         </label>
 
         <label className="block space-y-1 text-sm">
           <span className="text-[#8b949e]">{t("severity")}</span>
-          <select
-            className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
-            value={severity}
-            onChange={(e) => setSeverity(Number(e.target.value))}
-          >
-            {BUG_REPORT_SEVERITY_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {t(option.labelKey)}
-              </option>
-            ))}
-          </select>
+          <AppSelect
+            value={String(severity)}
+            onChange={(next) => setSeverity(Number(next))}
+            aria-label={t("severity")}
+            options={BUG_REPORT_SEVERITY_OPTIONS.map((option) => ({
+              value: String(option.value),
+              label: t(option.labelKey),
+            }))}
+          />
         </label>
 
         <label className="block space-y-1 text-sm">

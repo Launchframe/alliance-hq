@@ -4,6 +4,11 @@ import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { FormattedDateTime } from "@/components/timezone/TimezoneProvider";
+import {
+  RecordDetailCard,
+  RecordDetailField,
+  ResponsiveRecordViews,
+} from "@/components/ui/ResponsiveRecordViews";
 
 type HqEvent = {
   id: string;
@@ -62,8 +67,8 @@ export default function AdminHqEventsPage() {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex gap-2">
+    <div className="min-w-0 space-y-4">
+      <div className="flex flex-wrap gap-2">
         {(["events", "series", "boards"] as const).map((key) => (
           <button
             key={key}
@@ -80,34 +85,58 @@ export default function AdminHqEventsPage() {
         ))}
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-[#30363d]">
-        {tab === "events" ? (
-          <table className="min-w-full text-left text-sm">
-            <thead className="bg-[#161b22] text-[#8b949e]">
-              <tr>
-                <th className="px-4 py-2">{t("table.time")}</th>
-                <th className="px-4 py-2">{t("table.name")}</th>
-                <th className="px-4 py-2">{t("table.target")}</th>
-                <th className="px-4 py-2">{t("table.status")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {events.map((event) => (
-                <tr key={event.id} className="border-t border-[#30363d]">
-                  <td className="px-4 py-2 whitespace-nowrap text-[#8b949e]">
-                    <FormattedDateTime value={event.createdAt} />
-                  </td>
-                  <td className="px-4 py-2">{event.name}</td>
-                  <td className="px-4 py-2">{event.scoreTarget}</td>
-                  <td className="px-4 py-2">{event.status}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        ) : null}
+      {tab === "events" ? (
+        <ResponsiveRecordViews
+          isEmpty={events.length === 0}
+          emptyMessage={tEvents("emptyEvents")}
+          mobileCards={events.map((event) => (
+            <RecordDetailCard key={event.id}>
+              <RecordDetailField label={t("table.time")}>
+                <FormattedDateTime value={event.createdAt} />
+              </RecordDetailField>
+              <RecordDetailField label={t("table.name")}>
+                {event.name}
+              </RecordDetailField>
+              <RecordDetailField label={t("table.target")}>
+                {event.scoreTarget}
+              </RecordDetailField>
+              <RecordDetailField label={t("table.status")}>
+                {event.status}
+              </RecordDetailField>
+            </RecordDetailCard>
+          ))}
+          desktopTable={
+            <div className="overflow-x-auto rounded-xl border border-[#30363d]">
+              <table className="min-w-full text-left text-sm">
+                <thead className="bg-[#161b22] text-[#8b949e]">
+                  <tr>
+                    <th className="px-4 py-2">{t("table.time")}</th>
+                    <th className="px-4 py-2">{t("table.name")}</th>
+                    <th className="px-4 py-2">{t("table.target")}</th>
+                    <th className="px-4 py-2">{t("table.status")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {events.map((event) => (
+                    <tr key={event.id} className="border-t border-[#30363d]">
+                      <td className="px-4 py-2 whitespace-nowrap text-[#8b949e]">
+                        <FormattedDateTime value={event.createdAt} />
+                      </td>
+                      <td className="px-4 py-2">{event.name}</td>
+                      <td className="px-4 py-2">{event.scoreTarget}</td>
+                      <td className="px-4 py-2">{event.status}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          }
+        />
+      ) : null}
 
-        {tab === "series" ? (
-          <table className="min-w-full text-left text-sm">
+      {tab === "series" ? (
+        <div className="overflow-hidden rounded-xl border border-[#30363d]">
+          <table className="w-full min-w-0 table-fixed text-left text-sm md:table-auto">
             <thead className="bg-[#161b22] text-[#8b949e]">
               <tr>
                 <th className="px-4 py-2">{t("table.name")}</th>
@@ -118,17 +147,21 @@ export default function AdminHqEventsPage() {
             <tbody>
               {series.map((row) => (
                 <tr key={row.id} className="border-t border-[#30363d]">
-                  <td className="px-4 py-2">{row.name}</td>
+                  <td className="wrap-break-word px-4 py-2">{row.name}</td>
                   <td className="px-4 py-2">{row.scoreTarget}</td>
-                  <td className="px-4 py-2 font-mono text-xs">{row.allianceId}</td>
+                  <td className="wrap-break-word px-4 py-2 font-mono text-xs">
+                    {row.allianceId}
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
-        ) : null}
+        </div>
+      ) : null}
 
-        {tab === "boards" ? (
-          <table className="min-w-full text-left text-sm">
+      {tab === "boards" ? (
+        <div className="overflow-hidden rounded-xl border border-[#30363d]">
+          <table className="w-full min-w-0 table-fixed text-left text-sm md:table-auto">
             <thead className="bg-[#161b22] text-[#8b949e]">
               <tr>
                 <th className="px-4 py-2">{tEvents("boardKey")}</th>
@@ -140,14 +173,18 @@ export default function AdminHqEventsPage() {
               {boards.map((board) => (
                 <tr key={board.id} className="border-t border-[#30363d]">
                   <td className="px-4 py-2">{board.boardKey}</td>
-                  <td className="px-4 py-2">{board.name ?? "—"}</td>
-                  <td className="px-4 py-2 font-mono text-xs">{board.hqEventId}</td>
+                  <td className="wrap-break-word px-4 py-2">
+                    {board.name ?? "—"}
+                  </td>
+                  <td className="wrap-break-word px-4 py-2 font-mono text-xs">
+                    {board.hqEventId}
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
-        ) : null}
-      </div>
+        </div>
+      ) : null}
     </div>
   );
 }

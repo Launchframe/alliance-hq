@@ -1,6 +1,7 @@
 "use client";
 
 import type { AccessibleAlliance } from "@/lib/alliance/types";
+import { AppSelect } from "@/components/ui/AppSelect";
 
 type Props = {
   alliances: AccessibleAlliance[];
@@ -57,23 +58,18 @@ export function AlliancePicker({
   }
 
   return (
-    <label className="block">
+    <label className="block min-w-0">
       <span className="mb-1 block text-xs text-[#8b949e]">{label}</span>
-      <select
+      <AppSelect
         value={selectedAllianceId}
-        onChange={(e) => onSelect(e.target.value)}
-        className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 text-sm"
-      >
-        <option value="" disabled>
-          Select an alliance…
-        </option>
-        {alliances.map((alliance) => (
-          <option key={alliance.id} value={alliance.id}>
-            {alliance.tag}
-            {alliance.name ? ` — ${alliance.name}` : ""} ({alliance.accessRole})
-          </option>
-        ))}
-      </select>
+        onChange={onSelect}
+        placeholder="Select an alliance…"
+        aria-label={label}
+        options={alliances.map((alliance) => ({
+          value: alliance.id,
+          label: `${alliance.tag}${alliance.name ? ` — ${alliance.name}` : ""} (${alliance.accessRole})`,
+        }))}
+      />
       {hint ? <p className="mt-1 text-xs text-[#8b949e]">{hint}</p> : null}
     </label>
   );

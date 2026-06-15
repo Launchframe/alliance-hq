@@ -89,7 +89,10 @@
       "bugReports": "Bug reports",
       "experienceFeedback": "Experience feedback",
       "translationReports": "Translation reports",
-      "users": "HQ users"
+      "users": "HQ users",
+      "openSections": "Admin sections",
+      "closeSections": "Close admin menu",
+      "sectionsTitle": "Sections"
     },
     "systemTitle": "System health",
     "systemDesc": "Database status, resource counts, env config, and RBAC role catalog.",
@@ -126,6 +129,7 @@
       "filterAll": "All statuses",
       "filterArea": "Area",
       "filterAllAreas": "All areas",
+      "empty": "No bug reports match these filters.",
       "colTime": "Submitted",
       "colSeverity": "Severity",
       "colArea": "Area",
@@ -163,6 +167,7 @@
       "title": "Experience feedback",
       "subtitle": "Survey responses from the feedback FAB and upload prompts.",
       "loadFailed": "Failed to load feedback.",
+      "empty": "No feedback matches these filters.",
       "selectRow": "Select a row to view details.",
       "filterAllSources": "All sources",
       "filterAllSentiment": "All sentiment",
@@ -251,6 +256,7 @@
     },
     "alliancesPage": {
       "loadFailed": "Failed to load alliances.",
+      "empty": "No alliances registered yet.",
       "table": {
         "alliance": "Alliance",
         "owner": "Owner email",
@@ -262,6 +268,7 @@
     "commendationsPage": {
       "loadFailed": "Failed to load commendations.",
       "saveFailed": "Could not save commendation.",
+      "empty": "No commendations yet.",
       "createTitle": "Add commendation",
       "slugPlaceholder": "slug (e.g. valor)",
       "labelPlaceholder": "Display label",
@@ -277,6 +284,7 @@
     },
     "videoJobsPage": {
       "actions": "Actions",
+      "empty": "No video jobs yet.",
       "requeue": "Requeue",
       "reprocess": "Reprocess",
       "actionFailed": "Action failed",
@@ -314,6 +322,7 @@
       }
     },
     "hqEventsPage": {
+      "emptyEvents": "No HQ events yet.",
       "tabs": {
         "events": "Events",
         "series": "Series",
@@ -345,6 +354,7 @@
     "refreshing": "Refreshing…",
     "loadFailed": "Could not load team roster.",
     "refreshFailed": "Refresh failed — check your Ashed token.",
+    "empty": "No team members synced yet.",
     "forbidden": "Alliance admin access required.",
     "ashedNote": "To add or remove maintainers, update collaborators in Ashed → Alliances, then refresh here.",
     "table": {
@@ -359,7 +369,9 @@
     "dataPoweredBy": "Data powered by <link>Ashed</link>",
     "connectedAs": "Connected as {user}",
     "defaultUser": "Ashed user",
-    "connectPrompt": "Connect your Ashed account →"
+    "connectPrompt": "Connect your Ashed account →",
+    "openMenu": "Open navigation menu",
+    "closeMenu": "Close navigation menu"
   },
   "dashboard": {
     "title": "Dashboard",
@@ -735,6 +747,7 @@
     "title": "Translation reports",
     "subtitle": "Review member-submitted translation corrections.",
     "loadFailed": "Failed to load reports.",
+    "empty": "No translation reports match these filters.",
     "filterAll": "All",
     "filterPending": "Pending",
     "filterApplied": "Applied",

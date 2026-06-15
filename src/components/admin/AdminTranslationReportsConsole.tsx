@@ -12,6 +12,11 @@ import {
 } from "@/components/admin/AdminFeedbackUi";
 import { FormattedDateTime } from "@/components/timezone/TimezoneProvider";
 import { Button } from "@/components/ui/button";
+import {
+  RecordDetailCard,
+  RecordDetailField,
+  ResponsiveRecordViews,
+} from "@/components/ui/ResponsiveRecordViews";
 import { Textarea } from "@/components/ui/textarea";
 
 type Report = {
@@ -143,47 +148,88 @@ export function AdminTranslationReportsConsole() {
 
       <AdminFeedbackMasterDetail
         table={
-          <AdminFeedbackTableShell>
-            <thead className="bg-[#161b22] text-[#8b949e]">
-              <tr>
-                <th className="px-4 py-2">{t("colTime")}</th>
-                <th className="px-4 py-2">{t("colLocale")}</th>
-                <th className="px-4 py-2">{t("colKey")}</th>
-                <th className="px-4 py-2">{t("colReporter")}</th>
-                <th className="px-4 py-2">{t("colStatus")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {reports.map((report) => (
-                <tr
-                  key={report.id}
-                  className={`cursor-pointer border-t border-[#30363d] hover:bg-[#21262d]/60 ${selectedId === report.id ? "bg-[#21262d]" : ""}`}
-                  onClick={() => {
-                    setSelectedId(report.id);
-                    setNotes(report.adminNotes ?? "");
-                  }}
+          <ResponsiveRecordViews
+            isEmpty={reports.length === 0}
+            emptyMessage={t("empty")}
+            mobileCards={reports.map((report) => (
+              <RecordDetailCard
+                key={report.id}
+                selected={selectedId === report.id}
+                onClick={() => {
+                  setSelectedId(report.id);
+                  setNotes(report.adminNotes ?? "");
+                }}
+              >
+                <RecordDetailField label={t("colTime")}>
+                  {report.createdAt ? (
+                    <FormattedDateTime value={report.createdAt} />
+                  ) : (
+                    "—"
+                  )}
+                </RecordDetailField>
+                <RecordDetailField label={t("colLocale")}>
+                  {report.locale}
+                </RecordDetailField>
+                <RecordDetailField
+                  label={t("colKey")}
+                  valueClassName="font-mono text-sm"
                 >
-                  <td className="px-4 py-2 whitespace-nowrap text-[#8b949e]">
-                    {report.createdAt ? (
-                      <FormattedDateTime value={report.createdAt} />
-                    ) : (
-                      "—"
-                    )}
-                  </td>
-                  <td className="px-4 py-2">{report.locale}</td>
-                  <td className="max-w-xs truncate px-4 py-2 font-mono text-xs">
+                  <span className="wrap-break-word">
                     {report.i18nKey ?? report.displayedText}
-                  </td>
-                  <td className="max-w-[10rem] truncate px-4 py-2">
-                    {report.reporterLabel}
-                  </td>
-                  <td className="px-4 py-2">
-                    <AdminStatusPill>{report.status}</AdminStatusPill>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </AdminFeedbackTableShell>
+                  </span>
+                </RecordDetailField>
+                <RecordDetailField label={t("colReporter")}>
+                  <span className="wrap-break-word">{report.reporterLabel}</span>
+                </RecordDetailField>
+                <RecordDetailField label={t("colStatus")}>
+                  <AdminStatusPill>{report.status}</AdminStatusPill>
+                </RecordDetailField>
+              </RecordDetailCard>
+            ))}
+            desktopTable={
+              <AdminFeedbackTableShell>
+                <thead className="bg-[#161b22] text-[#8b949e]">
+                  <tr>
+                    <th className="px-4 py-2">{t("colTime")}</th>
+                    <th className="px-4 py-2">{t("colLocale")}</th>
+                    <th className="px-4 py-2">{t("colKey")}</th>
+                    <th className="px-4 py-2">{t("colReporter")}</th>
+                    <th className="px-4 py-2">{t("colStatus")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {reports.map((report) => (
+                    <tr
+                      key={report.id}
+                      className={`cursor-pointer border-t border-[#30363d] hover:bg-[#21262d]/60 ${selectedId === report.id ? "bg-[#21262d]" : ""}`}
+                      onClick={() => {
+                        setSelectedId(report.id);
+                        setNotes(report.adminNotes ?? "");
+                      }}
+                    >
+                      <td className="px-4 py-2 whitespace-nowrap text-[#8b949e]">
+                        {report.createdAt ? (
+                          <FormattedDateTime value={report.createdAt} />
+                        ) : (
+                          "—"
+                        )}
+                      </td>
+                      <td className="px-4 py-2">{report.locale}</td>
+                      <td className="max-w-xs truncate px-4 py-2 font-mono text-xs">
+                        {report.i18nKey ?? report.displayedText}
+                      </td>
+                      <td className="max-w-[10rem] truncate px-4 py-2">
+                        {report.reporterLabel}
+                      </td>
+                      <td className="px-4 py-2">
+                        <AdminStatusPill>{report.status}</AdminStatusPill>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </AdminFeedbackTableShell>
+            }
+          />
         }
         detail={
           selected ? (

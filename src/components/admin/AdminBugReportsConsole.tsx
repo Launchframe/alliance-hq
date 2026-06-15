@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import {
@@ -14,6 +14,13 @@ import {
 } from "@/components/admin/AdminFeedbackUi";
 import { FormattedDateTime } from "@/components/timezone/TimezoneProvider";
 import { Button } from "@/components/ui/button";
+import { AppSelect } from "@/components/ui/AppSelect";
+import { ScreenshotLightbox } from "@/components/ui/ScreenshotLightbox";
+import {
+  RecordDetailCard,
+  RecordDetailField,
+  ResponsiveRecordViews,
+} from "@/components/ui/ResponsiveRecordViews";
 import { BUG_REPORT_AREAS } from "@/lib/feedback/constants";
 
 type BugReportSummary = {
@@ -69,8 +76,8 @@ export function AdminBugReportsConsole() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  const [expandedScreenshotUrl, setExpandedScreenshotUrl] = useState<
-    string | null
+  const [screenshotLightboxIndex, setScreenshotLightboxIndex] = useState<
+    number | null
   >(null);
 
   async function loadList() {
@@ -85,6 +92,7 @@ export function AdminBugReportsConsole() {
     if (selectedId && !data.reports.some((row) => row.id === selectedId)) {
       setSelectedId(null);
       setDetail(null);
+      setScreenshotLightboxIndex(null);
     }
   }
 
@@ -105,6 +113,16 @@ export function AdminBugReportsConsole() {
 
   const activeDetail =
     selectedId && detail?.id === selectedId ? detail : null;
+
+  const screenshotSlides = useMemo(
+    () => (activeDetail?.screenshots ?? []).map((shot) => ({ src: shot.url })),
+    [activeDetail?.screenshots],
+  );
+
+  function selectReport(reportId: string) {
+    setScreenshotLightboxIndex(null);
+    setSelectedId(reportId);
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -212,20 +230,21 @@ export function AdminBugReportsConsole() {
         ))}
       </div>
 
-      <label className="block max-w-xs text-sm">
+      <label className="block w-full min-w-0 text-sm sm:max-w-xs">
         <span className="text-[#8b949e]">{t("filterArea")}</span>
-        <select
-          className="mt-1 w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
+        <AppSelect
+          className="mt-1"
           value={areaFilter}
-          onChange={(e) => setAreaFilter(e.target.value)}
-        >
-          <option value="all">{t("filterAllAreas")}</option>
-          {BUG_REPORT_AREAS.map((area) => (
-            <option key={area} value={area}>
-              {tAreas(area)}
-            </option>
-          ))}
-        </select>
+          onChange={setAreaFilter}
+          aria-label={t("filterArea")}
+          options={[
+            { value: "all", label: t("filterAllAreas") },
+            ...BUG_REPORT_AREAS.map((area) => ({
+              value: area,
+              label: tAreas(area),
+            })),
+          ]}
+        />
       </label>
 
       {error ? <p className="text-sm text-red-400">{error}</p> : null}
@@ -233,44 +252,79 @@ export function AdminBugReportsConsole() {
 
       <AdminFeedbackMasterDetail
         table={
-          <AdminFeedbackTableShell>
-            <thead className="bg-[#161b22] text-[#8b949e]">
-              <tr>
-                <th className="px-4 py-2">{t("colTime")}</th>
-                <th className="px-4 py-2">{t("colSeverity")}</th>
-                <th className="px-4 py-2">{t("colArea")}</th>
-                <th className="px-4 py-2">{t("colReporter")}</th>
-                <th className="px-4 py-2">{t("colStatus")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {reports.map((report) => (
-                <tr
-                  key={report.id}
-                  className={`cursor-pointer border-t border-[#30363d] hover:bg-[#21262d]/60 ${selectedId === report.id ? "bg-[#21262d]" : ""}`}
-                  onClick={() => setSelectedId(report.id)}
-                >
-                  <td className="px-4 py-2 whitespace-nowrap text-[#8b949e]">
-                    {report.createdAt ? (
-                      <FormattedDateTime value={report.createdAt} />
-                    ) : (
-                      "—"
-                    )}
-                  </td>
-                  <td className="px-4 py-2">{severityLabel(report.severity)}</td>
-                  <td className="max-w-[10rem] truncate px-4 py-2">
-                    {areaLabel(report.area)}
-                  </td>
-                  <td className="max-w-[12rem] truncate px-4 py-2">
-                    {report.reporterLabel}
-                  </td>
-                  <td className="px-4 py-2">
-                    <AdminStatusPill>{report.status}</AdminStatusPill>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </AdminFeedbackTableShell>
+          <ResponsiveRecordViews
+            isEmpty={reports.length === 0}
+            emptyMessage={t("empty")}
+            mobileCards={reports.map((report) => (
+              <RecordDetailCard
+                key={report.id}
+                selected={selectedId === report.id}
+                onClick={() => selectReport(report.id)}
+              >
+                <RecordDetailField label={t("colTime")}>
+                  {report.createdAt ? (
+                    <FormattedDateTime value={report.createdAt} />
+                  ) : (
+                    "—"
+                  )}
+                </RecordDetailField>
+                <RecordDetailField label={t("colSeverity")}>
+                  {severityLabel(report.severity)}
+                </RecordDetailField>
+                <RecordDetailField label={t("colArea")}>
+                  {areaLabel(report.area)}
+                </RecordDetailField>
+                <RecordDetailField label={t("colReporter")}>
+                  <span className="wrap-break-word">{report.reporterLabel}</span>
+                </RecordDetailField>
+                <RecordDetailField label={t("colStatus")}>
+                  <AdminStatusPill>{report.status}</AdminStatusPill>
+                </RecordDetailField>
+              </RecordDetailCard>
+            ))}
+            desktopTable={
+              <AdminFeedbackTableShell>
+                <thead className="bg-[#161b22] text-[#8b949e]">
+                  <tr>
+                    <th className="px-4 py-2">{t("colTime")}</th>
+                    <th className="px-4 py-2">{t("colSeverity")}</th>
+                    <th className="px-4 py-2">{t("colArea")}</th>
+                    <th className="px-4 py-2">{t("colReporter")}</th>
+                    <th className="px-4 py-2">{t("colStatus")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {reports.map((report) => (
+                    <tr
+                      key={report.id}
+                      className={`cursor-pointer border-t border-[#30363d] hover:bg-[#21262d]/60 ${selectedId === report.id ? "bg-[#21262d]" : ""}`}
+                      onClick={() => selectReport(report.id)}
+                    >
+                      <td className="px-4 py-2 whitespace-nowrap text-[#8b949e]">
+                        {report.createdAt ? (
+                          <FormattedDateTime value={report.createdAt} />
+                        ) : (
+                          "—"
+                        )}
+                      </td>
+                      <td className="px-4 py-2">
+                        {severityLabel(report.severity)}
+                      </td>
+                      <td className="max-w-[10rem] truncate px-4 py-2">
+                        {areaLabel(report.area)}
+                      </td>
+                      <td className="max-w-[12rem] truncate px-4 py-2">
+                        {report.reporterLabel}
+                      </td>
+                      <td className="px-4 py-2">
+                        <AdminStatusPill>{report.status}</AdminStatusPill>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </AdminFeedbackTableShell>
+            }
+          />
         }
         detail={
           activeDetail || (selectedId && detailLoading) ? (
@@ -349,12 +403,12 @@ export function AdminBugReportsConsole() {
                   {activeDetail.screenshots.length > 0 ? (
                     <AdminDetailField label={t("screenshots")}>
                       <div className="flex flex-wrap gap-2">
-                        {activeDetail.screenshots.map((shot) => (
+                        {activeDetail.screenshots.map((shot, index) => (
                           <button
                             key={shot.id}
                             type="button"
                             className="overflow-hidden rounded border border-[#30363d] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#58a6ff]"
-                            onClick={() => setExpandedScreenshotUrl(shot.url)}
+                            onClick={() => setScreenshotLightboxIndex(index)}
                           >
                             {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img
@@ -396,30 +450,17 @@ export function AdminBugReportsConsole() {
         }
       />
 
-      {expandedScreenshotUrl ? (
-        <div
-          className="fixed inset-0 z-[200] flex items-center justify-center bg-black/90 p-4"
-          role="dialog"
-          aria-modal="true"
-          aria-label={t("screenshotPreview")}
-          onClick={() => setExpandedScreenshotUrl(null)}
-        >
-          <button
-            type="button"
-            className="absolute right-4 top-4 rounded-full border border-white/30 px-3 py-1 text-sm text-white"
-            onClick={() => setExpandedScreenshotUrl(null)}
-          >
-            {t("closePreview")}
-          </button>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={expandedScreenshotUrl}
-            alt=""
-            className="max-h-full max-w-full object-contain"
-            onClick={(e) => e.stopPropagation()}
-          />
-        </div>
-      ) : null}
+      <ScreenshotLightbox
+        open={
+          screenshotLightboxIndex !== null &&
+          activeDetail !== null &&
+          screenshotLightboxIndex < screenshotSlides.length
+        }
+        index={screenshotLightboxIndex ?? 0}
+        slides={screenshotSlides}
+        onClose={() => setScreenshotLightboxIndex(null)}
+        closeLabel={t("closePreview")}
+      />
     </div>
   );
 }

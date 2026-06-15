@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 
+import { AppSelect } from "@/components/ui/AppSelect";
+
 type RoleOption = {
   id: string;
   name: string;
@@ -224,26 +226,26 @@ export function AdminUsersConsole() {
                           {membership.allianceSlug} · {membership.source}
                         </p>
                       </div>
-                      <label className="block text-sm">
+                      <label className="block min-w-0 text-sm">
                         <span className="mb-1 block text-xs text-[#8b949e]">
                           {t("roleLabel")}
                         </span>
-                        <select
-                          value={membershipRoles[membership.id] ?? membership.roleId}
-                          onChange={(e) =>
+                        <AppSelect
+                          value={
+                            membershipRoles[membership.id] ?? membership.roleId
+                          }
+                          onChange={(next) =>
                             setMembershipRoles((current) => ({
                               ...current,
-                              [membership.id]: e.target.value,
+                              [membership.id]: next,
                             }))
                           }
-                          className="rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
-                        >
-                          {directory.roles.map((role) => (
-                            <option key={role.id} value={role.id}>
-                              {role.name}
-                            </option>
-                          ))}
-                        </select>
+                          aria-label={t("roleLabel")}
+                          options={directory.roles.map((role) => ({
+                            value: role.id,
+                            label: role.name,
+                          }))}
+                        />
                       </label>
                       <button
                         type="button"
@@ -271,38 +273,34 @@ export function AdminUsersConsole() {
               <h3 className="font-medium">{t("assignTitle")}</h3>
               <p className="mt-1 text-sm text-[#8b949e]">{t("assignHint")}</p>
               <div className="mt-3 flex flex-wrap gap-3">
-                <label className="block min-w-40 text-sm">
+                <label className="block min-w-0 text-sm sm:min-w-40">
                   <span className="mb-1 block text-xs text-[#8b949e]">
                     {t("allianceLabel")}
                   </span>
-                  <select
+                  <AppSelect
                     value={newAllianceId}
-                    onChange={(e) => setNewAllianceId(e.target.value)}
-                    className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
-                  >
-                    <option value="">{t("chooseAlliance")}</option>
-                    {directory.alliances.map((alliance) => (
-                      <option key={alliance.id} value={alliance.id}>
-                        {alliance.slug} — {alliance.name}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={setNewAllianceId}
+                    placeholder={t("chooseAlliance")}
+                    aria-label={t("allianceLabel")}
+                    options={directory.alliances.map((alliance) => ({
+                      value: alliance.id,
+                      label: `${alliance.slug} — ${alliance.name}`,
+                    }))}
+                  />
                 </label>
-                <label className="block min-w-32 text-sm">
+                <label className="block min-w-0 text-sm sm:min-w-32">
                   <span className="mb-1 block text-xs text-[#8b949e]">
                     {t("roleLabel")}
                   </span>
-                  <select
+                  <AppSelect
                     value={newRoleId}
-                    onChange={(e) => setNewRoleId(e.target.value)}
-                    className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
-                  >
-                    {directory.roles.map((role) => (
-                      <option key={role.id} value={role.id}>
-                        {role.name}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={setNewRoleId}
+                    aria-label={t("roleLabel")}
+                    options={directory.roles.map((role) => ({
+                      value: role.id,
+                      label: role.name,
+                    }))}
+                  />
                 </label>
                 <button
                   type="button"

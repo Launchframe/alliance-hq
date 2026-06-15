@@ -13,6 +13,11 @@ import {
 } from "@/components/admin/AdminFeedbackUi";
 import { FormattedDateTime } from "@/components/timezone/TimezoneProvider";
 import { Button } from "@/components/ui/button";
+import {
+  RecordDetailCard,
+  RecordDetailField,
+  ResponsiveRecordViews,
+} from "@/components/ui/ResponsiveRecordViews";
 import { Link } from "@/i18n/navigation";
 
 type SurveyFeedbackRow = {
@@ -158,40 +163,70 @@ export function AdminSurveyFeedbackConsole() {
 
       <AdminFeedbackMasterDetail
         table={
-          <AdminFeedbackTableShell>
-            <thead className="bg-[#161b22] text-[#8b949e]">
-              <tr>
-                <th className="px-4 py-2">{t("colTime")}</th>
-                <th className="px-4 py-2">{t("colSource")}</th>
-                <th className="px-4 py-2">{t("colSentiment")}</th>
-                <th className="px-4 py-2">{t("colReporter")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => (
-                <tr
-                  key={row.id}
-                  className={`cursor-pointer border-t border-[#30363d] hover:bg-[#21262d]/60 ${selectedId === row.id ? "bg-[#21262d]" : ""}`}
-                  onClick={() => setSelectedId(row.id)}
-                >
-                  <td className="px-4 py-2 whitespace-nowrap text-[#8b949e]">
-                    {row.createdAt ? (
-                      <FormattedDateTime value={row.createdAt} />
-                    ) : (
-                      "—"
-                    )}
-                  </td>
-                  <td className="px-4 py-2">{sourceLabel(row.source)}</td>
-                  <td className="px-4 py-2">
-                    {sentimentLabel(row.positiveExperience)}
-                  </td>
-                  <td className="max-w-[12rem] truncate px-4 py-2">
-                    {row.reporterLabel}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </AdminFeedbackTableShell>
+          <ResponsiveRecordViews
+            isEmpty={rows.length === 0}
+            emptyMessage={t("empty")}
+            mobileCards={rows.map((row) => (
+              <RecordDetailCard
+                key={row.id}
+                selected={selectedId === row.id}
+                onClick={() => setSelectedId(row.id)}
+              >
+                <RecordDetailField label={t("colTime")}>
+                  {row.createdAt ? (
+                    <FormattedDateTime value={row.createdAt} />
+                  ) : (
+                    "—"
+                  )}
+                </RecordDetailField>
+                <RecordDetailField label={t("colSource")}>
+                  {sourceLabel(row.source)}
+                </RecordDetailField>
+                <RecordDetailField label={t("colSentiment")}>
+                  {sentimentLabel(row.positiveExperience)}
+                </RecordDetailField>
+                <RecordDetailField label={t("colReporter")}>
+                  <span className="wrap-break-word">{row.reporterLabel}</span>
+                </RecordDetailField>
+              </RecordDetailCard>
+            ))}
+            desktopTable={
+              <AdminFeedbackTableShell>
+                <thead className="bg-[#161b22] text-[#8b949e]">
+                  <tr>
+                    <th className="px-4 py-2">{t("colTime")}</th>
+                    <th className="px-4 py-2">{t("colSource")}</th>
+                    <th className="px-4 py-2">{t("colSentiment")}</th>
+                    <th className="px-4 py-2">{t("colReporter")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((row) => (
+                    <tr
+                      key={row.id}
+                      className={`cursor-pointer border-t border-[#30363d] hover:bg-[#21262d]/60 ${selectedId === row.id ? "bg-[#21262d]" : ""}`}
+                      onClick={() => setSelectedId(row.id)}
+                    >
+                      <td className="px-4 py-2 whitespace-nowrap text-[#8b949e]">
+                        {row.createdAt ? (
+                          <FormattedDateTime value={row.createdAt} />
+                        ) : (
+                          "—"
+                        )}
+                      </td>
+                      <td className="px-4 py-2">{sourceLabel(row.source)}</td>
+                      <td className="px-4 py-2">
+                        {sentimentLabel(row.positiveExperience)}
+                      </td>
+                      <td className="max-w-[12rem] truncate px-4 py-2">
+                        {row.reporterLabel}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </AdminFeedbackTableShell>
+            }
+          />
         }
         detail={
           selected ? (

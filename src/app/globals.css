@@ -5,6 +5,13 @@
   --foreground: #e6edf3;
 }
 
+/* yet-another-react-lightbox — match Alliance HQ dark chrome */
+.yarl__root {
+  --yarl__color_backdrop: rgb(1 4 9 / 0.92);
+  --yarl__color_button: #e6edf3;
+  --yarl__color_button_active: #58a6ff;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);

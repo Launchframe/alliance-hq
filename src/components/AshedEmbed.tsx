@@ -16,8 +16,8 @@ export function AshedEmbed({ path, labelKey }: Props) {
   const title = labelKey ? tNav(labelKey) : path;
 
   return (
-    <div className="space-y-4">
-      <div className="rounded-xl border border-[#30363d] bg-[#161b22] p-5">
+    <div className="-mx-4 -mb-4 flex min-h-0 flex-1 flex-col md:mx-0 md:mb-0 md:space-y-4">
+      <div className="hidden rounded-xl border border-[#30363d] bg-[#161b22] p-5 md:block">
         <h1 className="text-xl font-semibold">{title}</h1>
         <p className="mt-2 text-sm text-[#8b949e]">{t("description")}</p>
         <div className="mt-4 flex flex-wrap gap-2">
@@ -32,14 +32,14 @@ export function AshedEmbed({ path, labelKey }: Props) {
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-[#30363d] bg-[#0d1117]">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-[#0d1117] md:rounded-xl md:border md:border-[#30363d]">
         <iframe
           src={url}
           title={t("iframeTitle", { path: title })}
-          className="h-[min(70vh,720px)] w-full"
+          className="min-h-0 w-full flex-1 md:h-[min(70vh,720px)] md:flex-none"
           sandbox="allow-same-origin allow-scripts allow-forms allow-popups"
         />
-        <p className="border-t border-[#30363d] px-4 py-2 text-xs text-[#8b949e]">
+        <p className="hidden border-t border-[#30363d] px-4 py-2 text-xs text-[#8b949e] md:block">
           {t("iframeHint")}
         </p>
       </div>

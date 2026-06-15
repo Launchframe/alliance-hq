@@ -4,6 +4,11 @@ import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { FormattedDateTime } from "@/components/timezone/TimezoneProvider";
+import {
+  RecordDetailCard,
+  RecordDetailField,
+  ResponsiveRecordViews,
+} from "@/components/ui/ResponsiveRecordViews";
 
 type Alliance = {
   id: string;
@@ -37,45 +42,93 @@ export function AdminAlliancesConsole() {
   if (error) return <p className="text-sm text-red-400">{error}</p>;
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-[#30363d]">
-      <table className="min-w-full text-left text-sm">
-        <thead className="bg-[#161b22] text-[#8b949e]">
-          <tr>
-            <th className="px-4 py-2">{t("table.alliance")}</th>
-            <th className="px-4 py-2">{t("table.owner")}</th>
-            <th className="px-4 py-2">{t("table.collaborators")}</th>
-            <th className="px-4 py-2">{t("table.members")}</th>
-            <th className="px-4 py-2">{t("table.synced")}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {alliances.map((alliance) => (
-            <tr key={alliance.id} className="border-t border-[#30363d] align-top">
-              <td className="px-4 py-2">
-                <div className="font-medium">{alliance.name}</div>
-                <div className="text-xs text-[#8b949e]">
-                  {alliance.slug}
-                  {alliance.ashedAllianceId
-                    ? ` · ${alliance.ashedAllianceId}`
-                    : ""}
-                </div>
-              </td>
-              <td className="px-4 py-2 text-xs">{alliance.ownerEmail ?? "—"}</td>
-              <td className="max-w-xs px-4 py-2 text-xs text-[#8b949e]">
-                {alliance.collaborators.length
-                  ? alliance.collaborators.join(", ")
-                  : "—"}
-              </td>
-              <td className="px-4 py-2">{alliance.memberCount}</td>
-              <td className="px-4 py-2 whitespace-nowrap text-xs text-[#8b949e]">
-                {alliance.rolesSyncedAt
-                  ? <FormattedDateTime value={alliance.rolesSyncedAt} />
-                  : "—"}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <ResponsiveRecordViews
+      isEmpty={alliances.length === 0}
+      emptyMessage={t("empty")}
+      mobileCards={alliances.map((alliance) => (
+        <RecordDetailCard key={alliance.id}>
+          <RecordDetailField label={t("table.alliance")}>
+            <div className="space-y-1">
+              <div>{alliance.name}</div>
+              <div className="text-sm font-normal text-[#8b949e]">
+                {alliance.slug}
+                {alliance.ashedAllianceId
+                  ? ` · ${alliance.ashedAllianceId}`
+                  : ""}
+              </div>
+            </div>
+          </RecordDetailField>
+          <RecordDetailField label={t("table.owner")}>
+            {alliance.ownerEmail ?? "—"}
+          </RecordDetailField>
+          <RecordDetailField label={t("table.collaborators")}>
+            <span className="wrap-break-word text-sm font-normal">
+              {alliance.collaborators.length
+                ? alliance.collaborators.join(", ")
+                : "—"}
+            </span>
+          </RecordDetailField>
+          <RecordDetailField label={t("table.members")}>
+            {alliance.memberCount}
+          </RecordDetailField>
+          <RecordDetailField label={t("table.synced")}>
+            {alliance.rolesSyncedAt ? (
+              <FormattedDateTime value={alliance.rolesSyncedAt} />
+            ) : (
+              "—"
+            )}
+          </RecordDetailField>
+        </RecordDetailCard>
+      ))}
+      desktopTable={
+        <div className="overflow-x-auto rounded-xl border border-[#30363d]">
+          <table className="min-w-full text-left text-sm">
+            <thead className="bg-[#161b22] text-[#8b949e]">
+              <tr>
+                <th className="px-4 py-2">{t("table.alliance")}</th>
+                <th className="px-4 py-2">{t("table.owner")}</th>
+                <th className="px-4 py-2">{t("table.collaborators")}</th>
+                <th className="px-4 py-2">{t("table.members")}</th>
+                <th className="px-4 py-2">{t("table.synced")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {alliances.map((alliance) => (
+                <tr
+                  key={alliance.id}
+                  className="border-t border-[#30363d] align-top"
+                >
+                  <td className="px-4 py-2">
+                    <div className="font-medium">{alliance.name}</div>
+                    <div className="text-xs text-[#8b949e]">
+                      {alliance.slug}
+                      {alliance.ashedAllianceId
+                        ? ` · ${alliance.ashedAllianceId}`
+                        : ""}
+                    </div>
+                  </td>
+                  <td className="px-4 py-2 text-xs">
+                    {alliance.ownerEmail ?? "—"}
+                  </td>
+                  <td className="max-w-xs px-4 py-2 text-xs text-[#8b949e]">
+                    {alliance.collaborators.length
+                      ? alliance.collaborators.join(", ")
+                      : "—"}
+                  </td>
+                  <td className="px-4 py-2">{alliance.memberCount}</td>
+                  <td className="px-4 py-2 whitespace-nowrap text-xs text-[#8b949e]">
+                    {alliance.rolesSyncedAt ? (
+                      <FormattedDateTime value={alliance.rolesSyncedAt} />
+                    ) : (
+                      "—"
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      }
+    />
   );
 }

@@ -89,7 +89,10 @@
       "bugReports": "Relatórios de bugs",
       "experienceFeedback": "Feedback de experiência",
       "translationReports": "Relatórios de tradução",
-      "users": "Usuários HQ"
+      "users": "Usuários HQ",
+      "openSections": "Seções do admin",
+      "closeSections": "Fechar menu admin",
+      "sectionsTitle": "Seções"
     },
     "systemTitle": "Saúde do sistema",
     "systemDesc": "Status do banco, contagens, config e catálogo de funções RBAC.",
@@ -126,6 +129,7 @@
       "filterAll": "Todos os status",
       "filterArea": "Área",
       "filterAllAreas": "Todas as áreas",
+      "empty": "Nenhum relatório de bug corresponde a estes filtros.",
       "colTime": "Enviado",
       "colSeverity": "Gravidade",
       "colArea": "Área",
@@ -163,6 +167,7 @@
       "title": "Feedback de experiência",
       "subtitle": "Respostas de pesquisa do FAB de feedback e prompts de upload.",
       "loadFailed": "Falha ao carregar feedback.",
+      "empty": "Nenhum feedback corresponde a estes filtros.",
       "selectRow": "Selecione uma linha para ver detalhes.",
       "filterAllSources": "Todas as origens",
       "filterAllSentiment": "Todo sentimento",
@@ -251,6 +256,7 @@
     },
     "alliancesPage": {
       "loadFailed": "Falha ao carregar alianças.",
+      "empty": "Nenhuma aliança registrada ainda.",
       "table": {
         "alliance": "Aliança",
         "owner": "E-mail do proprietário",
@@ -262,6 +268,7 @@
     "commendationsPage": {
       "loadFailed": "Falha ao carregar comendações.",
       "saveFailed": "Não foi possível salvar a comendação.",
+      "empty": "Nenhuma comendação ainda.",
       "createTitle": "Adicionar comendação",
       "slugPlaceholder": "slug (ex.: valor)",
       "labelPlaceholder": "Rótulo exibido",
@@ -277,6 +284,7 @@
     },
     "videoJobsPage": {
       "actions": "Ações",
+      "empty": "Nenhum job de vídeo ainda.",
       "requeue": "Recolocar na fila",
       "reprocess": "Reprocessar",
       "actionFailed": "Ação falhou",
@@ -314,6 +322,7 @@
       }
     },
     "hqEventsPage": {
+      "emptyEvents": "Nenhum evento HQ ainda.",
       "tabs": {
         "events": "Eventos",
         "series": "Séries",
@@ -345,6 +354,7 @@
     "refreshing": "Atualizando…",
     "loadFailed": "Não foi possível carregar a equipe.",
     "refreshFailed": "Falha na atualização — verifique seu token Ashed.",
+    "empty": "Nenhum membro da equipe sincronizado ainda.",
     "forbidden": "Acesso de admin da aliança necessário.",
     "ashedNote": "Para adicionar ou remover mantenedores, atualize colaboradores no Ashed → Alianças e atualize aqui.",
     "table": {
@@ -359,7 +369,9 @@
     "dataPoweredBy": "Dados fornecidos por <link>Ashed</link>",
     "connectedAs": "Conectado como {user}",
     "defaultUser": "Usuário Ashed",
-    "connectPrompt": "Conecte sua conta Ashed →"
+    "connectPrompt": "Conecte sua conta Ashed →",
+    "openMenu": "Abrir menu de navegação",
+    "closeMenu": "Fechar menu de navegação"
   },
   "dashboard": {
     "title": "Painel de Controle",
@@ -735,6 +747,7 @@
     "title": "Relatórios de tradução",
     "subtitle": "Revise correções de tradução enviadas por membros.",
     "loadFailed": "Falha ao carregar relatórios.",
+    "empty": "Nenhum relatório de tradução corresponde a estes filtros.",
     "filterAll": "Todos",
     "filterPending": "Pendentes",
     "filterApplied": "Aplicados",
