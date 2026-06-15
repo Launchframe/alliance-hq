@@ -1,4 +1,4 @@
-import { and, desc, eq, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, isNull, lt, or } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import {
@@ -170,7 +170,10 @@ export async function touchLinkedDeviceAccess(sessionId: string): Promise<void> 
       and(
         eq(schema.linkedDevices.sessionId, sessionId),
         isNull(schema.linkedDevices.revokedAt),
-        sql`(${schema.linkedDevices.lastAccessAt} IS NULL OR ${schema.linkedDevices.lastAccessAt} < ${cutoff})`,
+        or(
+          isNull(schema.linkedDevices.lastAccessAt),
+          lt(schema.linkedDevices.lastAccessAt, cutoff),
+        ),
       ),
     );
 }
