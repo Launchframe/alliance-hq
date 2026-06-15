@@ -1,7 +1,6 @@
 import { eq } from "drizzle-orm";
 
 import { getDb, schema } from "@/lib/db";
-import { loadSession } from "@/lib/session";
 
 import { normalizeAccountTimezoneId } from "@/lib/timezone/account";
 import {
@@ -9,11 +8,10 @@ import {
   type AccountTimezoneId,
 } from "@/lib/timezone/constants";
 
-export async function getAccountTimezoneIdForSession(
-  sessionId: string,
+export async function getAccountTimezoneIdForHqUser(
+  hqUserId: string | null | undefined,
 ): Promise<AccountTimezoneId> {
-  const session = await loadSession(sessionId);
-  if (!session?.hqUserId) {
+  if (!hqUserId) {
     return DEFAULT_ACCOUNT_TIMEZONE_ID;
   }
 
@@ -21,10 +19,24 @@ export async function getAccountTimezoneIdForSession(
   const [user] = await db
     .select({ timezone: schema.hqUsers.timezone })
     .from(schema.hqUsers)
-    .where(eq(schema.hqUsers.id, session.hqUserId))
+    .where(eq(schema.hqUsers.id, hqUserId))
     .limit(1);
 
   return normalizeAccountTimezoneId(user?.timezone);
+}
+
+/** Resolve timezone for a session without importing @/lib/session (avoids circular deps). */
+export async function getAccountTimezoneIdForSession(
+  sessionId: string,
+): Promise<AccountTimezoneId> {
+  const db = getDb();
+  const [session] = await db
+    .select({ hqUserId: schema.sessions.hqUserId })
+    .from(schema.sessions)
+    .where(eq(schema.sessions.id, sessionId))
+    .limit(1);
+
+  return getAccountTimezoneIdForHqUser(session?.hqUserId);
 }
 
 export async function updateAccountTimezone(

@@ -122,18 +122,28 @@ export function formatAccountDateTime(
   const { locale, timezoneId = DEFAULT_ACCOUNT_TIMEZONE_ID, ...formatOptions } =
     options;
   const date = typeof value === "string" ? new Date(value) : value;
-  return new Intl.DateTimeFormat(locale, {
-    timeZone: resolveAccountTimeZoneIana(
-      normalizeAccountTimezoneId(timezoneId),
-    ),
-    year: "numeric",
-    month: "numeric",
-    day: "numeric",
-    hour: "numeric",
-    minute: "numeric",
-    second: "numeric",
-    ...formatOptions,
-  }).format(date);
+  const timeZone = resolveAccountTimeZoneIana(
+    normalizeAccountTimezoneId(timezoneId),
+  );
+  const usesStyleOption =
+    formatOptions.dateStyle !== undefined ||
+    formatOptions.timeStyle !== undefined;
+
+  return new Intl.DateTimeFormat(
+    locale,
+    usesStyleOption
+      ? { timeZone, ...formatOptions }
+      : {
+          timeZone,
+          year: "numeric",
+          month: "numeric",
+          day: "numeric",
+          hour: "numeric",
+          minute: "numeric",
+          second: "numeric",
+          ...formatOptions,
+        },
+  ).format(date);
 }
 
 export function formatAccountDate(
@@ -146,15 +156,25 @@ export function formatAccountDate(
   const { locale, timezoneId = DEFAULT_ACCOUNT_TIMEZONE_ID, ...formatOptions } =
     options;
   const date = typeof value === "string" ? new Date(value) : value;
-  return new Intl.DateTimeFormat(locale, {
-    timeZone: resolveAccountTimeZoneIana(
-      normalizeAccountTimezoneId(timezoneId),
-    ),
-    month: "2-digit",
-    day: "2-digit",
-    year: "2-digit",
-    ...formatOptions,
-  }).format(date);
+  const timeZone = resolveAccountTimeZoneIana(
+    normalizeAccountTimezoneId(timezoneId),
+  );
+  const usesStyleOption =
+    formatOptions.dateStyle !== undefined ||
+    formatOptions.timeStyle !== undefined;
+
+  return new Intl.DateTimeFormat(
+    locale,
+    usesStyleOption
+      ? { timeZone, ...formatOptions }
+      : {
+          timeZone,
+          month: "2-digit",
+          day: "2-digit",
+          year: "2-digit",
+          ...formatOptions,
+        },
+  ).format(date);
 }
 
 /** Today's calendar date (YYYY-MM-DD) in the account timezone. */

@@ -61,6 +61,16 @@ describe("formatAccountDateTime", () => {
     expect(formatted).toContain("1/15/2026");
     expect(formatted).toMatch(/12:00/);
   });
+
+  it("allows dateStyle without mixing granular date/time fields", () => {
+    expect(() =>
+      formatAccountDateTime("2026-06-11T02:00:00.000Z", {
+        locale: "en-US",
+        timezoneId: DEFAULT_ACCOUNT_TIMEZONE_ID,
+        dateStyle: "long",
+      }),
+    ).not.toThrow();
+  });
 });
 
 describe("formatAccountDate", () => {

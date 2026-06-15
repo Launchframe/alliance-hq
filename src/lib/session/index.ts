@@ -16,7 +16,7 @@ import {
 } from "@/lib/jwt/connection-meta";
 import { DEFAULT_EXPIRY_REMINDER_DAYS } from "@/lib/jwt/decode";
 import { getRbacContext } from "@/lib/rbac/context";
-import { getAccountTimezoneIdForSession } from "@/lib/timezone/server";
+import { getAccountTimezoneIdForHqUser } from "@/lib/timezone/server";
 
 export const SESSION_COOKIE = "alliance_hq_session";
 const SESSION_DAYS = 90;
@@ -176,7 +176,8 @@ export async function getAshedConnectionMeta(
   if (!cred) {
     return null;
   }
-  const timezone = await getAccountTimezoneIdForSession(sessionId);
+  const session = await loadSession(sessionId);
+  const timezone = await getAccountTimezoneIdForHqUser(session?.hqUserId);
   return buildAshedConnectionMeta(cred, locale, timezone);
 }
 
@@ -299,7 +300,7 @@ export async function getSessionStateFor(
   locale = "en-US",
 ) {
   const connection = await getAshedConnection(session.id);
-  const timezone = await getAccountTimezoneIdForSession(session.id);
+  const timezone = await getAccountTimezoneIdForHqUser(session.hqUserId);
   const ashed = await getAshedConnectionMeta(session.id, locale);
   const rbac = await getRbacContext(session.id);
 
