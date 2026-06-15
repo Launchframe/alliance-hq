@@ -2,6 +2,8 @@
 
 # working files
 .cursor/
+.working_files/
+
 ## Ashed data exports
 LFgo_export*
 OMFG_export*

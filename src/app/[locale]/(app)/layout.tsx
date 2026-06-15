@@ -73,6 +73,7 @@ export default async function AppLayout({
   return (
     <TimezoneProvider initialTimezoneId={state.timezone}>
       <AshedShell
+        sessionId={state.sessionId}
         userLabel={state.userLabel}
         isConnected={state.isConnected}
         ashed={state.ashed}

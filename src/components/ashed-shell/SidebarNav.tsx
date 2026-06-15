@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 
 import { Link, usePathname } from "@/i18n/navigation";
 import { ashedLink } from "@/components/i18n/richText";
+import { APP_VERSION } from "@/lib/feedback/constants";
 import {
   FOOTER_NAV,
   NAV_GROUPS,
@@ -198,6 +199,9 @@ export function SidebarNav({
 
       <div className="border-t border-[#30363d] p-3 text-xs text-[#8b949e]">
         <p>{t.rich("dataPoweredBy", { link: ashedLink })}</p>
+        <p className="mt-1.5 font-mono text-[10px] text-[#6e7681]">
+          {t("version", { version: APP_VERSION })}
+        </p>
       </div>
     </>
   );
