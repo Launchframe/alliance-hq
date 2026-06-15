@@ -1,8 +1,23 @@
 "use client";
 
+import { useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { ashedUrlForPath } from "@/lib/nav/routes";
+import { strongText } from "@/components/i18n/richText";
+
+const LOGIN_HINT_DISMISSED_KEY = "ashed-embed-login-hint-dismissed";
+
+function readLoginHintDismissed(): boolean {
+  if (typeof window === "undefined") {
+    return false;
+  }
+  try {
+    return window.localStorage.getItem(LOGIN_HINT_DISMISSED_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
 
 type Props = {
   path: string;
@@ -14,6 +29,16 @@ export function AshedEmbed({ path, labelKey }: Props) {
   const tNav = useTranslations("nav");
   const url = ashedUrlForPath(path);
   const title = labelKey ? tNav(labelKey) : path;
+  const [hintDismissed, setHintDismissed] = useState(readLoginHintDismissed);
+
+  function dismissHint() {
+    setHintDismissed(true);
+    try {
+      window.localStorage.setItem(LOGIN_HINT_DISMISSED_KEY, "1");
+    } catch {
+      // ignore storage failures
+    }
+  }
 
   return (
     <div className="-mx-4 -mb-4 flex min-h-0 flex-1 flex-col md:mx-0 md:mb-0 md:space-y-4">
@@ -33,6 +58,27 @@ export function AshedEmbed({ path, labelKey }: Props) {
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-[#0d1117] md:rounded-xl md:border md:border-[#30363d]">
+        {!hintDismissed ? (
+          <div className="border-b border-[#d29922]/30 bg-[#d29922]/10 px-4 py-3">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0 text-sm">
+                <p className="font-medium text-[#e3b341]">
+                  {t("loginHint.title")}
+                </p>
+                <p className="mt-1 text-[#8b949e]">
+                  {t.rich("loginHint.body", { strong: strongText })}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={dismissHint}
+                className="shrink-0 rounded-lg border border-[#30363d] bg-[#21262d] px-3 py-1.5 text-xs text-[#e6edf3] hover:bg-[#30363d]"
+              >
+                {t("loginHint.dismiss")}
+              </button>
+            </div>
+          </div>
+        ) : null}
         <iframe
           src={url}
           title={t("iframeTitle", { path: title })}

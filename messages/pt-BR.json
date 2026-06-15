@@ -397,9 +397,9 @@
     "noExpiryRead": "Conectado, mas não conseguimos ler uma data de expiração neste token. Ainda assim, notificaremos você se o Ashed parar de aceitá-lo.",
     "continue": "Continuar para o Alliance HQ",
     "allianceResolved": "Aliança vinculada: {tag} ({name})",
-    "embeddedLoginSuccess": {
-      "title": "Primeira vez em uma página Ashed incorporada?",
-      "body": "Se você entra no Ashed com Google, use seu <strong>e-mail e senha do Ashed</strong> dentro do Alliance HQ — não o botão do Google. O login com Google é bloqueado em páginas incorporadas."
+    "setupComplete": {
+      "title": "Você está conectado",
+      "body": "Revise a data de expiração abaixo e clique em Continuar."
     },
     "steps": {
       "login": {
@@ -409,11 +409,12 @@
         "checklist": "Estou logado no ashed.online"
       },
       "devtoolsNetwork": {
-        "title": "Abrir a aba Network no DevTools",
-        "intro": "Com o ashed.online aberto, abra as ferramentas de desenvolvedor do seu navegador e clique na aba <network>Network</network>.",
+        "title": "Abrir a aba Network",
+        "intro": "Com o ashed.online aberto, abra as ferramentas de desenvolvedor do seu navegador.",
         "devToolsMac": "Abrir DevTools — Mac:",
         "devToolsWin": "Windows / Linux:",
-        "emptyListHint": "Se a lista de requisições estiver vazia, atualize a página ou abra <reports>Reports</reports>. Opcional: filtre por <code>base44</code>.",
+        "emptyListHint": "Se a lista de requisições estiver vazia, atualize a página ou abra <reports>Reports</reports>. Dica: digite <code>base44</code> no filtro — cada linha que aparecer servirá para a próxima etapa.",
+        "openNetworkTab": "Em seguida, clique na aba <network>Network</network>. Verifique se o ícone de gravação está ativado (geralmente vermelho).",
         "screenshotAlt": "Página de alianças do Ashed com o Chrome DevTools aberto na aba Network, filtrada por base44",
         "screenshotCaption": "Aba Network selecionada, gravação ativada, filtro definido como base44",
         "checklist": "A aba Network está aberta e exibindo requisições"
@@ -426,10 +427,6 @@
         "title": "Copiar cabeçalho de autorização",
         "checklist": "Copiei o cabeçalho de autorização"
       },
-      "embeddedLogin": {
-        "title": "Login Ashed incorporado",
-        "checklist": "Defini uma senha no Ashed (ou já entro com e-mail)"
-      },
       "paste": {
         "title": "Colar e conectar",
         "intro": "Cole seu comando <strong>Copiar como cURL</strong> aqui (recomendado). Também aceitamos um token Bearer, uma linha de cabeçalho de autorização ou uma string de conexão completa.",
@@ -439,17 +436,35 @@
         "allianceNone": "Nenhum acesso de admin de aliança encontrado nesta conta Ashed.",
         "allianceLoadFailed": "Não foi possível carregar alianças do Ashed.",
         "placeholder": "curl 'https://base44.app/api/apps/…' \\\n  -H 'authorization: Bearer eyJhbGci…' \\\n  -H 'x-origin-url: https://ashed.online' …",
-        "tokenExpires": "O token expira em <date></date> (via JWT)",
-        "checklist": "Pronto para conectar"
+        "advancedSettingsSummary": "Configurações avançadas",
+        "advancedSettingsHint": "Deixe estes campos como estão, a menos que o suporte peça para alterá-los.",
+        "tokenExpires": "A chave de conexão expira em <date></date>",
+        "checklist": "Pronto para conectar",
+        "continue": "Continuar"
+      },
+      "linkPhone": {
+        "title": "Vincular seu celular",
+        "intro": "Escaneie este código QR com o celular em que você joga Last War.",
+        "revealQr": "Mostrar código QR",
+        "hideQr": "Ocultar código QR",
+        "linkedTitle": "Celular vinculado!",
+        "linkedBody": "Seu celular agora tem o mesmo acesso ao Alliance HQ que este navegador. Para vincular mais dispositivos, abra Configurações → Dispositivos vinculados.",
+        "errorTitle": "Algo deu errado",
+        "errorBody": "O código QR expirou ou não pôde ser usado. Tente novamente quando estiver pronto.",
+        "tryAgain": "Tentar novamente",
+        "skip": "Pular por enquanto",
+        "skippedBody": "Sem problemas. Você pode conectar outro dispositivo em <settingsLink>Configurações</settingsLink> a qualquer momento.",
+        "continueWithoutPhone": "Continuar para o Alliance HQ",
+        "continueToHq": "Continuar para o Alliance HQ",
+        "privacyNote": "NÃO COMPARTILHE este código QR com ninguém. O código nele contido é um link de curta duração para sua conta — quem obtiver esse código poderá assumir o controle total da sua conta."
       }
     },
     "copyMethod": {
       "easiestMethodLabel": "Método mais fácil:",
       "easiestMethodBody": "copie a solicitação inteira de uma só vez — nós extraímos seu token de login automaticamente.",
-      "stepClickRequest": "Clique em qualquer solicitação cuja URL contenha <code>base44.app</code>",
-      "stepRightClick": "<strong>Clique com o botão direito</strong> nessa solicitação (ou use o menu da linha)",
+      "stepClickRequest": "<strong>Clique com o botão direito</strong> em qualquer solicitação da lista (se você filtrou por <code>base44</code>, cada linha visível serve)",
       "stepCopyCurl": "Escolha <strong>Copiar</strong> → <strong>Copiar como cURL</strong> <muted>(Chrome, Edge, Brave e Firefox; o Safari também inclui essa opção)</muted>",
-      "curlBashHint": "Alguns navegadores exibem a opção como <strong>Copiar como cURL (bash)</strong> — qualquer uma serve. Cole o comando completo na próxima etapa.",
+      "curlBashHint": "Alguns navegadores, como o Firefox, exibem duas opções: <strong>Copiar como cURL (bash)</strong> e <strong>Copiar como cURL (cmd)</strong> — escolha <strong>bash</strong> se tiver a opção. Cole o comando completo na próxima etapa.",
       "curlScreenshotAlt": "Aba Network (Rede) do Chrome DevTools com o menu de clique com o botão direito aberto em uma solicitação UserProfile; a opção 'Copiar como cURL' está destacada",
       "curlScreenshotCaption": "Clique com o botão direito em uma solicitação base44 → Copiar → Copiar como cURL",
       "alternateAuthorization": "Alternativa: copie apenas o cabeçalho de autorização",
@@ -858,7 +873,12 @@
     "description": "Esta página está hospedada no Ashed. Abra-a abaixo ou em uma nova aba — a barra lateral do seu Alliance HQ permanece aqui.",
     "openInAshed": "Abrir no Ashed ↗",
     "iframeHint": "Páginas incorporadas exigem login separado no Ashed. Se você usa login com Google no ashed.online, entre aqui com e-mail + senha. Se o quadro ficar em branco, use \"Abrir no Ashed\" acima.",
-    "iframeTitle": "Ashed — {path}"
+    "iframeTitle": "Ashed — {path}",
+    "loginHint": {
+      "title": "Entrando no Ashed aqui?",
+      "body": "Use <strong>e-mail + senha</strong> — o login com Google é bloqueado em páginas incorporadas. Use <strong>Esqueci a senha</strong> na tela de login do Ashed se ainda não definiu uma senha.",
+      "dismiss": "Dispensar"
+    }
   },
   "releaseNotes": {
     "bannerPrefix": "O Alliance HQ foi atualizado — veja as novidades desta",
