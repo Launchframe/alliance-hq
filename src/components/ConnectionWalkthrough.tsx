@@ -96,9 +96,9 @@ export function ConnectionWalkthrough({ onConnected }: Props) {
       case "paste":
         return t("steps.paste.title");
       case "link-phone":
-        return connectSuccess ? t("successTitle") : t("steps.linkPhone.title");
+        return t("steps.linkPhone.title");
     }
-  }, [connectSuccess, copyMethod, stepId, t]);
+  }, [copyMethod, stepId, t]);
 
   const stepChecklist = useMemo(() => {
     switch (stepId) {
@@ -479,6 +479,10 @@ export function ConnectionWalkthrough({ onConnected }: Props) {
               <p className="text-sm text-[#8b949e]">{t("noExpiryRead")}</p>
             )}
 
+            <div className="border-t border-[#30363d] pt-4">
+              <LinkPhoneStep onLinked={() => setPhoneLinked(true)} />
+            </div>
+
             <div className="rounded-lg border border-[#d29922]/30 bg-[#d29922]/5 px-4 py-3">
               <p className="font-medium text-[#e3b341]">
                 {t("embeddedLoginSuccess.title")}
@@ -486,24 +490,6 @@ export function ConnectionWalkthrough({ onConnected }: Props) {
               <p className="mt-2 text-sm text-[#8b949e]">
                 {t.rich("embeddedLoginSuccess.body", { strong: strongText })}
               </p>
-            </div>
-
-            <div className="rounded-lg border border-[#238636]/40 bg-[#238636]/10 px-4 py-3">
-              <p className="font-medium text-[#3fb950]">
-                {t("setupComplete.title")}
-              </p>
-              <p className="mt-2 text-sm text-[#8b949e]">
-                {t("setupComplete.body")}
-              </p>
-            </div>
-
-            <div className="border-t border-[#30363d] pt-4">
-              <h3 className="text-base font-medium">
-                {t("steps.linkPhone.title")}
-              </h3>
-              <div className="mt-3">
-                <LinkPhoneStep onLinked={() => setPhoneLinked(true)} />
-              </div>
             </div>
           </div>
         );
@@ -523,7 +509,7 @@ export function ConnectionWalkthrough({ onConnected }: Props) {
         </h1>
         <p className="mt-2 text-[#8b949e]">
           {isLinkPhoneStep && connectSuccess
-            ? t("steps.linkPhone.intro")
+            ? t("setupComplete.body")
             : t.rich("subtitle", { link: ashedLink })}
         </p>
       </header>

@@ -63,7 +63,7 @@ export function LinkPhoneStep({ onLinked }: Props) {
       ) : null}
 
       {phase === "error" ? (
-        <div className="space-y-3 rounded-lg border border-[#f85149]/40 bg-[#f8514910] px-4 py-3">
+        <div className="space-y-3 rounded-lg border border-[#f85149]/40 bg-[#f85149]/10 px-4 py-3">
           <p className="font-medium text-[#f85149]">{t("errorTitle")}</p>
           <p className="text-sm text-[#8b949e]">{t("errorBody")}</p>
           <button

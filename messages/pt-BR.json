@@ -410,7 +410,7 @@
         "checklist": "Estou logado no ashed.online"
       },
       "devtoolsNetwork": {
-        "title": "Abrir a aba Network no DevTools",
+        "title": "Abrir a aba Network",
         "intro": "Com o ashed.online aberto, abra as ferramentas de desenvolvedor do seu navegador.",
         "devToolsMac": "Abrir DevTools — Mac:",
         "devToolsWin": "Windows / Linux:",
