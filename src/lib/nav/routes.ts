@@ -108,6 +108,13 @@ export const NAV_GROUPS: NavGroupDef[] = [
         href: "/reports",
         kind: "iframe",
       },
+      {
+        id: "viral-resistance",
+        labelKey: "viralResistance",
+        href: "/viral-resistance",
+        kind: "native",
+        descriptionKey: "viralResistanceDescription",
+      },
     ],
   },
   {

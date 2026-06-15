@@ -3,6 +3,10 @@
     {
       "path": "/api/internal/video-process/queue",
       "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/internal/vr/daily-report",
+      "schedule": "0 2 * * *"
     }
   ]
 }

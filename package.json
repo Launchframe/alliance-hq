@@ -18,6 +18,7 @@
     "db:prepare": "npm run db:migrate && npm run db:seed",
     "db:studio": "drizzle-kit studio",
     "har:catalog": "node scripts/har/extract-catalog.mjs",
+    "discord:register-commands": "node scripts/discord/register-commands.mjs",
     "video:worker": "node scripts/workers/video-processor.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -40,6 +41,7 @@
     "qrcode.react": "^4.2.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",
+    "tweetnacl": "^1.0.3",
     "yet-another-react-lightbox": "^3.32.0",
     "zod": "^4.4.3"
   },
