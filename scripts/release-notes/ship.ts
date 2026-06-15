@@ -36,7 +36,7 @@ import {
   readPackageVersion,
   writePackageVersion,
   type VersionBumpKind,
-} from "../../src/lib/release-notes/version";
+} from "../../src/lib/release-notes/package-version-io";
 
 type ShipArgs = {
   dryRun: boolean;

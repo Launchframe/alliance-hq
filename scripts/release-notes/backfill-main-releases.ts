@@ -23,7 +23,7 @@ import { RELEASE_NOTES_DIR } from "../../src/lib/release-notes/types";
 import {
   readPackageVersion,
   writePackageVersion,
-} from "../../src/lib/release-notes/version";
+} from "../../src/lib/release-notes/package-version-io";
 
 type BackfillRange = {
   version: string;

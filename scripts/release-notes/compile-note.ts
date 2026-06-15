@@ -22,7 +22,7 @@ import {
   resolveLatestTag,
   tryFetchGhReleaseBody,
 } from "../../src/lib/release-notes/git";
-import { readPackageVersion } from "../../src/lib/release-notes/version";
+import { readPackageVersion } from "../../src/lib/release-notes/package-version-io";
 import { RELEASE_NOTES_DIR } from "../../src/lib/release-notes/types";
 
 function parseArgs(argv: string[]) {

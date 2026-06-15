@@ -13,7 +13,7 @@ import path from "node:path";
 import "dotenv/config";
 
 import { publishReleaseNotesToEdgeConfig } from "../../src/lib/release-notes/publish";
-import { readPackageVersion } from "../../src/lib/release-notes/version";
+import { readPackageVersion } from "../../src/lib/release-notes/package-version-io";
 
 function parseArgs(argv: string[]) {
   const options = {

@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import type { ReleaseNoteEntry } from "./types";
+import { bumpVersion } from "./package-version-io";
 import {
   compareAppVersions,
   filterReleaseNotesSince,
   hasUnreadReleaseNotes,
-  bumpVersion,
 } from "./version";
 
 const notes: ReleaseNoteEntry[] = [
