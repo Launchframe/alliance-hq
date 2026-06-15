@@ -12,6 +12,13 @@ export const deviceLinkStrategy: PairingStrategy = {
   purpose: "device_link",
 
   async validateCreate({ sourceSession }) {
+    if (!sourceSession.hqUserId) {
+      throw new PairingError(
+        "Reconnect on your desktop before linking a mobile device.",
+        "NOT_CONNECTED",
+      );
+    }
+
     const connection = await getAshedConnection(sourceSession.id);
     if (!connection) {
       throw new PairingError(
@@ -22,6 +29,13 @@ export const deviceLinkStrategy: PairingStrategy = {
   },
 
   async onComplete({ sourceSession, targetSessionId, pairingCodeId, clientInfo }) {
+    if (!sourceSession.hqUserId) {
+      throw new PairingError(
+        "Reconnect on your desktop before linking a mobile device.",
+        "NOT_CONNECTED",
+      );
+    }
+
     const connection = await getAshedConnection(sourceSession.id);
     if (!connection) {
       throw new PairingError(
@@ -53,13 +67,6 @@ export const deviceLinkStrategy: PairingStrategy = {
         updatedAt: new Date(),
       })
       .where(eq(schema.sessions.id, targetSessionId));
-
-    if (!sourceSession.hqUserId) {
-      throw new PairingError(
-        "Reconnect on your desktop before linking a mobile device.",
-        "NOT_CONNECTED",
-      );
-    }
 
     await registerLinkedDevice({
       hqUserId: sourceSession.hqUserId,

@@ -1,4 +1,4 @@
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, gt, isNull } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { resolveAppOrigin } from "@/lib/app-origin";
@@ -129,12 +129,14 @@ export async function getPairingStatus(
   };
 }
 
-async function loadPairingRow(code: string): Promise<{
+type ClaimedPairingRow = {
   id: string;
   purpose: PairingPurpose;
   sourceSessionId: string;
   metadataJson: Record<string, unknown> | null;
-}> {
+};
+
+export async function pairingClaimFailure(code: string): Promise<PairingError> {
   const db = getDb();
   const [row] = await db
     .select()
@@ -143,28 +145,70 @@ async function loadPairingRow(code: string): Promise<{
     .limit(1);
 
   if (!row) {
-    throw new PairingError("This link is invalid or has already been used.", "INVALID");
+    return new PairingError(
+      "This link is invalid or has already been used.",
+      "INVALID",
+    );
   }
 
   if (row.consumedAt) {
-    throw new PairingError("This link has already been used.", "CONSUMED");
+    return new PairingError("This link has already been used.", "CONSUMED");
   }
 
   if (row.expiresAt <= new Date()) {
-    throw new PairingError("This link expired. Generate a new QR code.", "EXPIRED");
+    return new PairingError(
+      "This link expired. Generate a new QR code.",
+      "EXPIRED",
+    );
   }
 
-  if (!isPairingPurpose(row.purpose)) {
+  return new PairingError(
+    "This link is invalid or has already been used.",
+    "INVALID",
+  );
+}
+
+/** Atomically claim an unconsumed, unexpired pairing code before side effects. */
+export async function claimPairingCode(
+  code: string,
+  targetSessionId: string,
+  now = new Date(),
+): Promise<ClaimedPairingRow> {
+  const db = getDb();
+
+  const [claimed] = await db
+    .update(schema.credentialPairingCodes)
+    .set({
+      consumedAt: now,
+      consumedBySessionId: targetSessionId,
+    })
+    .where(
+      and(
+        eq(schema.credentialPairingCodes.code, code),
+        isNull(schema.credentialPairingCodes.consumedAt),
+        gt(schema.credentialPairingCodes.expiresAt, now),
+      ),
+    )
+    .returning({
+      id: schema.credentialPairingCodes.id,
+      purpose: schema.credentialPairingCodes.purpose,
+      sourceSessionId: schema.credentialPairingCodes.sourceSessionId,
+      metadataJson: schema.credentialPairingCodes.metadataJson,
+    });
+
+  if (!claimed) {
+    throw await pairingClaimFailure(code);
+  }
+
+  if (!isPairingPurpose(claimed.purpose)) {
     throw new PairingError("Invalid pairing purpose.", "INVALID");
   }
 
-  const purpose = row.purpose;
-
   return {
-    id: row.id,
-    purpose,
-    sourceSessionId: row.sourceSessionId,
-    metadataJson: row.metadataJson,
+    id: claimed.id,
+    purpose: claimed.purpose,
+    sourceSessionId: claimed.sourceSessionId,
+    metadataJson: claimed.metadataJson,
   };
 }
 
@@ -173,15 +217,28 @@ export async function completePairing(
   targetSessionId: string,
   options?: { clientInfo?: PairingClientInfo },
 ): Promise<PairingCompleteResult> {
-  const row = await loadPairingRow(code);
-  const purpose = row.purpose;
+  const db = getDb();
+  const [preview] = await db
+    .select({ sourceSessionId: schema.credentialPairingCodes.sourceSessionId })
+    .from(schema.credentialPairingCodes)
+    .where(eq(schema.credentialPairingCodes.code, code))
+    .limit(1);
+
+  if (preview?.sourceSessionId === targetSessionId) {
+    throw new PairingError(
+      "Scan this QR code on a different device than the one that created it.",
+      "INVALID",
+    );
+  }
+
+  const row = await claimPairingCode(code, targetSessionId);
 
   const sourceSession = await loadSession(row.sourceSessionId);
   if (!sourceSession) {
     throw new PairingError("The pairing session is no longer valid.", "INVALID");
   }
 
-  const strategy = getPairingStrategy(purpose);
+  const strategy = getPairingStrategy(row.purpose);
   const metadata = (row.metadataJson ?? {}) as PairingMetadata;
 
   await strategy.onComplete({
@@ -192,16 +249,5 @@ export async function completePairing(
     clientInfo: options?.clientInfo,
   });
 
-  const db = getDb();
-  const consumedAt = new Date();
-
-  await db
-    .update(schema.credentialPairingCodes)
-    .set({
-      consumedAt,
-      consumedBySessionId: targetSessionId,
-    })
-    .where(eq(schema.credentialPairingCodes.id, row.id));
-
-  return { ok: true, purpose };
+  return { ok: true, purpose: row.purpose };
 }
