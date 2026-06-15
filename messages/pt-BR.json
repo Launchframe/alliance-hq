@@ -407,10 +407,11 @@
       },
       "devtoolsNetwork": {
         "title": "Abrir a aba Network no DevTools",
-        "intro": "Com o ashed.online aberto, abra as ferramentas de desenvolvedor do seu navegador e clique na aba <network>Network</network>.",
+        "intro": "Com o ashed.online aberto, abra as ferramentas de desenvolvedor do seu navegador.",
         "devToolsMac": "Abrir DevTools — Mac:",
         "devToolsWin": "Windows / Linux:",
-        "emptyListHint": "Se a lista de requisições estiver vazia, atualize a página ou abra <reports>Reports</reports>. Opcional: filtre por <code>base44</code>.",
+        "emptyListHint": "Se a lista de requisições estiver vazia, atualize a página ou abra <reports>Reports</reports>. Dica: digite <code>base44</code> no filtro — cada linha que aparecer servirá para a próxima etapa.",
+        "openNetworkTab": "Clique na aba <network>Network</network>.",
         "screenshotAlt": "Página de alianças do Ashed com o Chrome DevTools aberto na aba Network, filtrada por base44",
         "screenshotCaption": "Aba Network selecionada, gravação ativada, filtro definido como base44",
         "checklist": "A aba Network está aberta e exibindo requisições"
@@ -438,15 +439,29 @@
         "placeholder": "curl 'https://base44.app/api/apps/…' \\\n  -H 'authorization: Bearer eyJhbGci…' \\\n  -H 'x-origin-url: https://ashed.online' …",
         "tokenExpires": "O token expira em <date></date> (via JWT)",
         "checklist": "Pronto para conectar"
+      },
+      "linkPhone": {
+        "title": "Vincular seu celular (opcional)",
+        "intro": "Pule esta etapa se você já está no celular ou se não precisa de acesso móvel.",
+        "revealQr": "Mostrar código QR",
+        "hideQr": "Ocultar código QR",
+        "linkedTitle": "Celular vinculado!",
+        "linkedBody": "Seu celular agora tem o mesmo acesso ao Alliance HQ que este navegador. Para vincular mais dispositivos, abra Configurações → Dispositivos vinculados.",
+        "errorTitle": "Algo deu errado",
+        "errorBody": "O código QR expirou ou não pôde ser usado. Tente novamente quando estiver pronto.",
+        "tryAgain": "Tentar novamente",
+        "skip": "Pular por enquanto",
+        "continueToHq": "Continuar para o Alliance HQ",
+        "privacyNote": "O código QR contém apenas um link de curta duração — não sua chave de conexão."
       }
     },
     "copyMethod": {
       "easiestMethodLabel": "Método mais fácil:",
       "easiestMethodBody": "copie a solicitação inteira de uma só vez — nós extraímos seu token de login automaticamente.",
-      "stepClickRequest": "Clique em qualquer solicitação cuja URL contenha <code>base44.app</code>",
+      "stepClickRequest": "Clique em qualquer solicitação da lista (se você filtrou por <code>base44</code>, cada linha visível serve)",
       "stepRightClick": "<strong>Clique com o botão direito</strong> nessa solicitação (ou use o menu da linha)",
       "stepCopyCurl": "Escolha <strong>Copiar</strong> → <strong>Copiar como cURL</strong> <muted>(Chrome, Edge, Brave e Firefox; o Safari também inclui essa opção)</muted>",
-      "curlBashHint": "Alguns navegadores exibem a opção como <strong>Copiar como cURL (bash)</strong> — qualquer uma serve. Cole o comando completo na próxima etapa.",
+      "curlBashHint": "Alguns navegadores, como o Firefox, exibem duas opções: <strong>Copiar como cURL (bash)</strong> e <strong>Copiar como cURL (cmd)</strong> — escolha <strong>bash</strong> se tiver a opção. Cole o comando completo na próxima etapa.",
       "curlScreenshotAlt": "Aba Network (Rede) do Chrome DevTools com o menu de clique com o botão direito aberto em uma solicitação UserProfile; a opção 'Copiar como cURL' está destacada",
       "curlScreenshotCaption": "Clique com o botão direito em uma solicitação base44 → Copiar → Copiar como cURL",
       "alternateAuthorization": "Alternativa: copie apenas o cabeçalho de autorização",
@@ -827,7 +842,12 @@
     "description": "Esta página está hospedada no Ashed. Abra-a abaixo ou em uma nova aba — a barra lateral do seu Alliance HQ permanece aqui.",
     "openInAshed": "Abrir no Ashed ↗",
     "iframeHint": "Páginas incorporadas exigem login separado no Ashed. Se você usa login com Google no ashed.online, entre aqui com e-mail + senha. Se o quadro ficar em branco, use \"Abrir no Ashed\" acima.",
-    "iframeTitle": "Ashed — {path}"
+    "iframeTitle": "Ashed — {path}",
+    "loginHint": {
+      "title": "Entrando no Ashed aqui?",
+      "body": "Use <strong>e-mail + senha</strong> — o login com Google é bloqueado em páginas incorporadas. Use <strong>Esqueci a senha</strong> na tela de login do Ashed se ainda não definiu uma senha.",
+      "dismiss": "Dispensar"
+    }
   },
   "devErrors": {
     "databaseNotConfigured": "Banco de dados não configurado",

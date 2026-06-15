@@ -407,10 +407,11 @@
       },
       "devtoolsNetwork": {
         "title": "Open Network in DevTools",
-        "intro": "With ashed.online still open, open your browser's developer tools and click the <network>Network</network> tab.",
+        "intro": "With ashed.online still open, open your browser's developer tools.",
         "devToolsMac": "Open DevTools — Mac:",
         "devToolsWin": "Windows / Linux:",
-        "emptyListHint": "If the request list is empty, refresh the page or open <reports>Reports</reports>. Optional: filter by <code>base44</code>.",
+        "emptyListHint": "If the request list is empty, refresh the page or open <reports>Reports</reports>. Tip: type <code>base44</code> in the filter box — every row that appears will work for the next step.",
+        "openNetworkTab": "click the <network>Network</network> tab",
         "screenshotAlt": "Ashed alliances page with Chrome DevTools open on the Network tab, filtered by base44",
         "screenshotCaption": "Network tab selected, recording on, filter set to base44",
         "checklist": "Network tab is open and showing requests"
@@ -438,15 +439,29 @@
         "placeholder": "curl 'https://base44.app/api/apps/…' \\\n  -H 'authorization: Bearer eyJhbGci…' \\\n  -H 'x-origin-url: https://ashed.online' …",
         "tokenExpires": "Token expires <date></date> (from JWT)",
         "checklist": "Ready to connect"
+      },
+      "linkPhone": {
+        "title": "Link your phone (optional)",
+        "intro": "Skip this step if you're on your phone now, or if you don't need mobile access.",
+        "revealQr": "Reveal QR code",
+        "hideQr": "Hide QR code",
+        "linkedTitle": "Phone linked!",
+        "linkedBody": "Your phone now has the same Alliance HQ access as this browser. To link more devices, open Settings → Linked devices.",
+        "errorTitle": "Something went wrong",
+        "errorBody": "The QR code expired or could not be claimed. Try again when you're ready.",
+        "tryAgain": "Try again",
+        "skip": "Skip for now",
+        "continueToHq": "Continue to Alliance HQ",
+        "privacyNote": "The QR code contains only a short-lived link — not your connection key."
       }
     },
     "copyMethod": {
       "easiestMethodLabel": "Easiest method:",
       "easiestMethodBody": "copy the whole request in one step — we pull out your login token automatically.",
-      "stepClickRequest": "Click any request whose URL contains <code>base44.app</code>",
+      "stepClickRequest": "Click any request in the list (if you filtered by <code>base44</code>, every visible row works)",
       "stepRightClick": "<strong>Right-click</strong> that request (or use the row menu)",
       "stepCopyCurl": "Choose <strong>Copy</strong> → <strong>Copy as cURL</strong> <muted>(Chrome, Edge, Brave, and Firefox; Safari includes this too)</muted>",
-      "curlBashHint": "Some browsers label it <strong>Copy as cURL (bash)</strong> — either works. Paste the full command on the next step.",
+      "curlBashHint": "Some browsers like Firefox show two options: <strong>Copy as cURL (bash)</strong> and <strong>Copy as cURL (cmd)</strong> — choose <strong>bash</strong> if you have the choice. Paste the full command on the next step.",
       "curlScreenshotAlt": "Chrome DevTools Network tab with right-click menu open on a UserProfile request, Copy as cURL highlighted",
       "curlScreenshotCaption": "Right-click a base44 request → Copy → Copy as cURL",
       "alternateAuthorization": "Alternate: copy only the authorization header",
@@ -827,7 +842,12 @@
     "description": "This page lives on Ashed. Open it below or in a new tab — your Alliance HQ sidebar stays here.",
     "openInAshed": "Open in Ashed ↗",
     "iframeHint": "Embedded pages need a separate Ashed login. If you use Google Sign-In on ashed.online, log in here with email + password instead. If the frame stays blank, use \"Open in Ashed\" above.",
-    "iframeTitle": "Ashed — {path}"
+    "iframeTitle": "Ashed — {path}",
+    "loginHint": {
+      "title": "Signing in to Ashed here?",
+      "body": "Use <strong>email + password</strong> — Google Sign-In is blocked inside embedded pages. Use <strong>Forgot password?</strong> on the Ashed login screen if you haven't set a password yet.",
+      "dismiss": "Dismiss"
+    }
   },
   "devErrors": {
     "databaseNotConfigured": "Database not configured",

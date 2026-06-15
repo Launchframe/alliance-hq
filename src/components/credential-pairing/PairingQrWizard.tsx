@@ -18,6 +18,8 @@ type PairingStatusResponse = {
   linkedAt?: string;
 };
 
+export type PairingErrorReason = "expired" | "invalid" | "create_failed";
+
 export type PairingWizardStrings = {
   showQr: string;
   generating: string;
@@ -33,6 +35,9 @@ type Props = {
   purpose: PairingPurpose;
   createBody?: Record<string, unknown>;
   onLinked?: () => void;
+  onError?: (reason: PairingErrorReason) => void;
+  onHide?: () => void;
+  autoStart?: boolean;
   strings: PairingWizardStrings;
 };
 
@@ -50,9 +55,12 @@ export function PairingQrWizard({
   purpose,
   createBody,
   onLinked,
+  onError,
+  onHide,
+  autoStart = false,
   strings,
 }: Props) {
-  const [active, setActive] = useState(false);
+  const [active, setActive] = useState(autoStart);
   const [creating, setCreating] = useState(false);
   const [pairing, setPairing] = useState<PairingCreateResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -61,6 +69,16 @@ export function PairingQrWizard({
   );
   const [nowMs, setNowMs] = useState(() => Date.now());
   const linkedRef = useRef(false);
+  const errorNotifiedRef = useRef(false);
+
+  const notifyError = useCallback(
+    (reason: PairingErrorReason) => {
+      if (errorNotifiedRef.current) return;
+      errorNotifiedRef.current = true;
+      onError?.(reason);
+    },
+    [onError],
+  );
 
   const reset = useCallback(() => {
     setActive(false);
@@ -68,13 +86,16 @@ export function PairingQrWizard({
     setError(null);
     setStatus(null);
     linkedRef.current = false;
-  }, []);
+    errorNotifiedRef.current = false;
+    onHide?.();
+  }, [onHide]);
 
-  async function startPairing() {
+  const startPairing = useCallback(async () => {
     setCreating(true);
     setError(null);
     setStatus(null);
     linkedRef.current = false;
+    errorNotifiedRef.current = false;
 
     try {
       const res = await fetch("/api/pairing/create", {
@@ -92,21 +113,37 @@ export function PairingQrWizard({
       setPairing(data);
       setActive(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : strings.createFailed);
+      const message = err instanceof Error ? err.message : strings.createFailed;
+      setError(message);
+      notifyError("create_failed");
     } finally {
       setCreating(false);
     }
-  }
+  }, [createBody, notifyError, purpose, strings.createFailed]);
+
+  useEffect(() => {
+    if (!autoStart) return;
+    const id = window.setTimeout(() => {
+      void startPairing();
+    }, 0);
+    return () => window.clearTimeout(id);
+  }, [autoStart, startPairing]);
 
   useEffect(() => {
     if (!active || !pairing) return;
 
     const tick = window.setInterval(() => {
-      setNowMs(Date.now());
+      const nextNow = Date.now();
+      setNowMs(nextNow);
+      if (linkedRef.current || errorNotifiedRef.current) return;
+      const rem = secondsRemaining(pairing.expiresAt, nextNow);
+      if (rem <= 0) {
+        notifyError("expired");
+      }
     }, 1000);
 
     return () => window.clearInterval(tick);
-  }, [active, pairing]);
+  }, [active, notifyError, pairing]);
 
   const remaining =
     pairing && active ? secondsRemaining(pairing.expiresAt, nowMs) : 0;
@@ -134,6 +171,7 @@ export function PairingQrWizard({
 
           if (data.status === "expired" || data.status === "invalid") {
             setStatus(data.status);
+            notifyError(data.status);
           }
         } catch {
           // keep polling until expiry
@@ -145,7 +183,7 @@ export function PairingQrWizard({
       cancelled = true;
       window.clearInterval(poll);
     };
-  }, [active, pairing, remaining, onLinked]);
+  }, [active, notifyError, onLinked, pairing, remaining]);
 
   const showExpired =
     status === "expired" ||
@@ -155,7 +193,7 @@ export function PairingQrWizard({
 
   return (
     <div className="space-y-3">
-      {!active ? (
+      {!active && !autoStart ? (
         <button
           type="button"
           onClick={() => void startPairing()}
@@ -221,6 +259,10 @@ export function PairingQrWizard({
             </button>
           ) : null}
         </div>
+      ) : null}
+
+      {creating && autoStart && !pairing ? (
+        <p className="text-sm text-[#8b949e]">{strings.generating}</p>
       ) : null}
     </div>
   );
