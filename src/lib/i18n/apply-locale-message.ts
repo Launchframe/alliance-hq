@@ -19,6 +19,27 @@ export class UnsupportedLocaleError extends Error {
   }
 }
 
+export class LocalePatchNotAvailableError extends Error {
+  constructor() {
+    super(
+      "Locale message files cannot be patched on this deployment. Apply corrections from a local checkout.",
+    );
+    this.name = "LocalePatchNotAvailableError";
+  }
+}
+
+export type LocaleMessagePatchEnv = {
+  VERCEL?: string;
+  NODE_ENV?: string;
+};
+
+/** Runtime patches mutate repo message files — not writable on Vercel production. */
+export function isLocaleMessagePatchWritable(
+  env: LocaleMessagePatchEnv = process.env,
+): boolean {
+  return !(env.VERCEL === "1" && env.NODE_ENV === "production");
+}
+
 export type LocaleMessagePatchResult = {
   locale: AppLocale;
   i18nKey: string;
@@ -42,6 +63,10 @@ function isAppLocale(locale: string): locale is AppLocale {
 export async function applyLocaleMessagePatch(
   input: ApplyLocaleMessagePatchInput,
 ): Promise<LocaleMessagePatchResult> {
+  if (!isLocaleMessagePatchWritable()) {
+    throw new LocalePatchNotAvailableError();
+  }
+
   const { locale, i18nKey, suggestedTranslation } = input;
   if (!isAppLocale(locale)) {
     throw new UnsupportedLocaleError(locale);

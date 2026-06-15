@@ -109,19 +109,34 @@ export function AppSelect({
       closeMenu();
     }
 
-    function handleScrollOrResize() {
-      closeMenu();
+    function isScrollInsideMenu(event: Event) {
+      const target = event.target;
+      return (
+        target instanceof Element &&
+        target.closest(`[data-app-select-menu="${listboxId}"]`) !== null
+      );
+    }
+
+    function handleScroll(event: Event) {
+      if (isScrollInsideMenu(event)) return;
+      const next = updateMenuRect();
+      if (next) setMenuRect(next);
+    }
+
+    function handleResize() {
+      const next = updateMenuRect();
+      if (next) setMenuRect(next);
     }
 
     document.addEventListener("mousedown", handlePointerDown);
-    window.addEventListener("resize", handleScrollOrResize);
-    window.addEventListener("scroll", handleScrollOrResize, true);
+    window.addEventListener("resize", handleResize);
+    window.addEventListener("scroll", handleScroll, true);
     return () => {
       document.removeEventListener("mousedown", handlePointerDown);
-      window.removeEventListener("resize", handleScrollOrResize);
-      window.removeEventListener("scroll", handleScrollOrResize, true);
+      window.removeEventListener("resize", handleResize);
+      window.removeEventListener("scroll", handleScroll, true);
     };
-  }, [listboxId, open]);
+  }, [listboxId, open, updateMenuRect]);
 
   function selectOption(option: AppSelectOption) {
     if (option.disabled) return;

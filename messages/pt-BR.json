@@ -740,7 +740,8 @@
       "submitFailed": "Não foi possível enviar a correção.",
       "cancel": "Cancelar",
       "thankYou": "Obrigado — um mantenedor revisará sua sugestão.",
-      "done": "Concluir"
+      "done": "Concluir",
+      "suggestTooltip": "Sugerir outra tradução"
     }
   },
   "adminTranslationReports": {

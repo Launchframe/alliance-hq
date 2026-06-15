@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { applyLocaleMessagePatch } from "@/lib/i18n/apply-locale-message";
+import { applyLocaleMessagePatch, isLocaleMessagePatchWritable } from "@/lib/i18n/apply-locale-message";
 
 describe("applyLocaleMessagePatch", () => {
   it("writes the suggested translation into the locale messages file", async () => {
@@ -74,5 +74,42 @@ describe("applyLocaleMessagePatch", () => {
         messagesDir: "/tmp/messages",
       }),
     ).rejects.toThrow(/does not exist/i);
+  });
+
+  it("rejects runtime patch on Vercel production", async () => {
+    vi.stubEnv("VERCEL", "1");
+    vi.stubEnv("NODE_ENV", "production");
+    try {
+      await expect(
+        applyLocaleMessagePatch({
+          locale: "pt-BR",
+          i18nKey: "feedback.fab.reportBug",
+          suggestedTranslation: "Reportar bug",
+          readFile: vi.fn(),
+          writeFile: vi.fn(),
+          messagesDir: "/tmp/messages",
+        }),
+      ).rejects.toThrow(/cannot be patched on this deployment/i);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+});
+
+describe("isLocaleMessagePatchWritable", () => {
+  it("allows patch on local and preview runtimes", () => {
+    expect(isLocaleMessagePatchWritable({})).toBe(true);
+    expect(
+      isLocaleMessagePatchWritable({ VERCEL: "1", NODE_ENV: "development" }),
+    ).toBe(true);
+    expect(
+      isLocaleMessagePatchWritable({ NODE_ENV: "production" }),
+    ).toBe(true);
+  });
+
+  it("blocks patch on Vercel production", () => {
+    expect(
+      isLocaleMessagePatchWritable({ VERCEL: "1", NODE_ENV: "production" }),
+    ).toBe(false);
   });
 });

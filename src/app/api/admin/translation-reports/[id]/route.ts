@@ -9,6 +9,7 @@ import {
   applyLocaleMessagePatch,
   I18nKeyNotFoundError,
   I18nKeyNotStringLeafError,
+  LocalePatchNotAvailableError,
   UnsupportedLocaleError,
   type LocaleMessagePatchResult,
 } from "@/lib/i18n/apply-locale-message";
@@ -72,6 +73,9 @@ export async function PATCH(request: Request, { params }: Props) {
           err instanceof I18nKeyNotStringLeafError
         ) {
           return NextResponse.json({ error: err.message }, { status: 400 });
+        }
+        if (err instanceof LocalePatchNotAvailableError) {
+          return NextResponse.json({ error: err.message }, { status: 503 });
         }
         throw err;
       }

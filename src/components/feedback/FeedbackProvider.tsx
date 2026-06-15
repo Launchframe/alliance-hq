@@ -10,6 +10,7 @@ import { ExperienceFeedbackDialog } from "@/components/feedback/ExperienceFeedba
 import { FeedbackFab } from "@/components/feedback/FeedbackFab";
 import { ReportIssueDialog } from "@/components/feedback/ReportIssueDialog";
 import { TranslationCorrectionOverlay } from "@/components/feedback/TranslationCorrectionOverlay";
+import { TranslationSelectionTooltip } from "@/components/feedback/TranslationSelectionTooltip";
 import { resolveDiscordInviteAction } from "@/lib/feedback/discord-invite";
 import type { SurveyFeedbackSource } from "@/lib/feedback/constants";
 
@@ -66,6 +67,16 @@ export function FeedbackProvider({ children }: { children: React.ReactNode }) {
     reportOpen ||
     reportScreenshotMode ||
     translationMode ||
+    discordNoticeOpen;
+
+  const passiveTranslationTooltipEnabled =
+    locale !== "en-US" && !shouldHideFab(pathname);
+  const passiveTranslationTooltipBlocked =
+    translationMode ||
+    experienceOpen ||
+    reportOpen ||
+    reportScreenshotMode ||
+    reportScreenshotPreviewOpen ||
     discordNoticeOpen;
 
   const showExperienceFeedback = React.useCallback(
@@ -132,6 +143,13 @@ export function FeedbackProvider({ children }: { children: React.ReactNode }) {
         active={translationMode}
         onActiveChange={setTranslationMode}
       />
+
+      {passiveTranslationTooltipEnabled ? (
+        <TranslationSelectionTooltip
+          key={String(passiveTranslationTooltipBlocked)}
+          blocked={passiveTranslationTooltipBlocked}
+        />
+      ) : null}
 
       <Dialog
         open={experienceOpen}
