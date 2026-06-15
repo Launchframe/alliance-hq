@@ -520,7 +520,7 @@
     "questionsBody": "Esta política pode ser atualizada à medida que o Alliance HQ cresce. Se você tiver dúvidas sobre seus dados, abra uma issue em nosso <githubLink>repositório no GitHub</githubLink>."
   },
   "terms": {
-    "backToConnect": "← Voltar para Conectar",
+    "backToConnect": "← Voltar ao Connect",
     "title": "Termos de Uso",
     "intro": "O Alliance HQ em alliance-hq.vercel.app é uma ferramenta comunitária para oficiais de aliança de Last War. Ao usar este serviço hospedado, você concorda com estes termos.",
     "acceptableUseTitle": "Uso aceitável",
