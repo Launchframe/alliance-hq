@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 
 import { AlliancePicker } from "@/components/AlliancePicker";
+import { PairingQrWizard } from "@/components/credential-pairing/PairingQrWizard";
+import { LinkedDevicesSettings } from "@/components/credential-pairing/LinkedDevicesSettings";
 import { AppSelect } from "@/components/ui/AppSelect";
 import { useAccountTimezone } from "@/components/timezone/TimezoneProvider";
 import { useRouter } from "@/i18n/navigation";
@@ -32,6 +34,7 @@ export function SettingsConnectionForm({
   initialTimezoneId,
 }: Props) {
   const t = useTranslations("settings");
+  const tDevice = useTranslations("deviceLink");
   const tToken = useTranslations("tokenExpiry");
   const tc = useTranslations("common");
   const locale = useLocale();
@@ -54,6 +57,7 @@ export function SettingsConnectionForm({
   const [alliancesError, setAlliancesError] = useState<string | null>(null);
   const [allianceSaving, setAllianceSaving] = useState(false);
   const [timezoneSaving, setTimezoneSaving] = useState(false);
+  const [linkedDevicesRefresh, setLinkedDevicesRefresh] = useState(0);
 
   useEffect(() => {
     if (initialTimezoneId) {
@@ -308,6 +312,29 @@ export function SettingsConnectionForm({
         ) : (
           <p className="mt-2 text-sm text-[#8b949e]">{t("reconnectHint")}</p>
         )}
+      </section>
+
+      <section className="rounded-xl border border-[#30363d] bg-[#161b22] p-5">
+        <h2 className="font-medium">{tDevice("sectionTitle")}</h2>
+        <p className="mt-2 text-sm text-[#8b949e]">{tDevice("sectionBody")}</p>
+        <p className="mt-2 text-sm text-[#8b949e]">{tDevice("storageNote")}</p>
+        <div className="mt-4">
+          <PairingQrWizard
+            purpose="device_link"
+            onLinked={() => setLinkedDevicesRefresh((value) => value + 1)}
+            strings={{
+              showQr: tDevice("showQr"),
+              generating: tDevice("generating"),
+              scanHint: tDevice("scanHint"),
+              expiresIn: tDevice("expiresIn"),
+              expired: tDevice("expired"),
+              linked: tDevice("linked"),
+              createFailed: tDevice("createFailed"),
+              hideQr: tDevice("hideQr"),
+            }}
+          />
+          <LinkedDevicesSettings refreshToken={linkedDevicesRefresh} />
+        </div>
       </section>
 
       <section className="rounded-xl border border-[#30363d] bg-[#161b22] p-5">

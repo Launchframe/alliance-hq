@@ -35,6 +35,7 @@ type AdminUser = {
   displayName: string | null;
   isPlatformMaintainer: boolean;
   createdAt: string;
+  linkedDeviceCount: number;
   memberships: Membership[];
 };
 
@@ -141,6 +142,7 @@ export function AdminUsersConsole() {
           <thead className="bg-[#161b22] text-[#8b949e]">
             <tr>
               <th className="px-4 py-2">{t("table.email")}</th>
+              <th className="px-4 py-2">{t("table.linkedDevices")}</th>
               <th className="px-4 py-2">{t("table.roles")}</th>
             </tr>
           </thead>
@@ -158,6 +160,9 @@ export function AdminUsersConsole() {
                   {user.displayName ? (
                     <div className="text-xs text-[#8b949e]">{user.displayName}</div>
                   ) : null}
+                </td>
+                <td className="px-4 py-2 font-mono text-xs text-[#8b949e]">
+                  {user.linkedDeviceCount}
                 </td>
                 <td className="px-4 py-2 text-xs text-[#8b949e]">
                   {user.isPlatformMaintainer ? (
@@ -188,6 +193,11 @@ export function AdminUsersConsole() {
             <div>
               <h2 className="text-lg font-medium">{selectedUser.email}</h2>
               <p className="mt-1 text-sm text-[#8b949e]">{t("editorHint")}</p>
+              <p className="mt-2 text-sm text-[#8b949e]">
+                {t("linkedDevicesSummary", {
+                  count: selectedUser.linkedDeviceCount,
+                })}
+              </p>
             </div>
 
             <label className="flex items-center gap-2 text-sm">

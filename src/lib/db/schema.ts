@@ -129,6 +129,54 @@ export const sessions = pgTable("sessions", {
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
 });
 
+export const credentialPairingCodes = pgTable("credential_pairing_codes", {
+  id: text("id").primaryKey(),
+  code: text("code").notNull().unique(),
+  purpose: text("purpose").notNull(),
+  sourceSessionId: text("source_session_id")
+    .notNull()
+    .references(() => sessions.id, { onDelete: "cascade" }),
+  sourceHqUserId: text("source_hq_user_id").references(() => hqUsers.id, {
+    onDelete: "set null",
+  }),
+  allianceId: text("alliance_id").references(() => alliances.id, {
+    onDelete: "set null",
+  }),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  consumedAt: timestamp("consumed_at", { withTimezone: true }),
+  consumedBySessionId: text("consumed_by_session_id").references(
+    () => sessions.id,
+    { onDelete: "set null" },
+  ),
+  metadataJson: jsonb("metadata_json").$type<Record<string, unknown>>(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+export const linkedDevices = pgTable("linked_devices", {
+  id: text("id").primaryKey(),
+  hqUserId: text("hq_user_id")
+    .notNull()
+    .references(() => hqUsers.id, { onDelete: "cascade" }),
+  sessionId: text("session_id")
+    .notNull()
+    .unique()
+    .references(() => sessions.id, { onDelete: "cascade" }),
+  pairingCodeId: text("pairing_code_id").references(
+    () => credentialPairingCodes.id,
+    { onDelete: "set null" },
+  ),
+  deviceName: text("device_name").notNull(),
+  userAgent: text("user_agent"),
+  osLabel: text("os_label"),
+  linkedAt: timestamp("linked_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  lastAccessAt: timestamp("last_access_at", { withTimezone: true }),
+  revokedAt: timestamp("revoked_at", { withTimezone: true }),
+});
+
 export const ashedCredentials = pgTable("ashed_credentials", {
   id: text("id").primaryKey(),
   sessionId: text("session_id")
@@ -356,6 +404,8 @@ export type HqUser = typeof hqUsers.$inferSelect;
 export type AllianceMembership = typeof allianceMemberships.$inferSelect;
 export type Role = typeof roles.$inferSelect;
 export type Permission = typeof permissions.$inferSelect;
+export type CredentialPairingCode = typeof credentialPairingCodes.$inferSelect;
+export type LinkedDevice = typeof linkedDevices.$inferSelect;
 export type AshedCredential = typeof ashedCredentials.$inferSelect;
 export type VideoJob = typeof videoJobs.$inferSelect;
 export type VideoFrame = typeof videoFrames.$inferSelect;

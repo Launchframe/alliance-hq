@@ -5,6 +5,7 @@ import { nanoid } from "nanoid";
 import { redirect } from "next/navigation";
 
 import { resolveAllianceByTag } from "@/lib/alliance/resolve";
+import { touchLinkedDeviceAccess } from "@/lib/credential-pairing/linked-devices";
 import { decryptSecret, encryptSecret } from "@/lib/crypto/encrypt";
 import type { ParsedConnection } from "@/lib/connectionString";
 import { getDb, schema } from "@/lib/db";
@@ -53,6 +54,8 @@ export async function loadSession(sessionId: string): Promise<Session | null> {
   if (!row || row.expiresAt <= new Date()) {
     return null;
   }
+
+  void touchLinkedDeviceAccess(sessionId);
 
   return row;
 }
