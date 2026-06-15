@@ -411,7 +411,7 @@
         "devToolsMac": "Abrir DevTools — Mac:",
         "devToolsWin": "Windows / Linux:",
         "emptyListHint": "Se a lista de requisições estiver vazia, atualize a página ou abra <reports>Reports</reports>. Dica: digite <code>base44</code> no filtro — cada linha que aparecer servirá para a próxima etapa.",
-        "openNetworkTab": "Clique na aba <network>Network</network>.",
+        "openNetworkTab": "Em seguida, clique na aba <network>Network</network>. Verifique se o ícone de gravação está ativado (geralmente vermelho).",
         "screenshotAlt": "Página de alianças do Ashed com o Chrome DevTools aberto na aba Network, filtrada por base44",
         "screenshotCaption": "Aba Network selecionada, gravação ativada, filtro definido como base44",
         "checklist": "A aba Network está aberta e exibindo requisições"

@@ -411,7 +411,7 @@
         "devToolsMac": "Open DevTools — Mac:",
         "devToolsWin": "Windows / Linux:",
         "emptyListHint": "If the request list is empty, refresh the page or open <reports>Reports</reports>. Tip: type <code>base44</code> in the filter box — every row that appears will work for the next step.",
-        "openNetworkTab": "click the <network>Network</network> tab",
+        "openNetworkTab": "Then click the <network>Network</network> tab. Check that the Recording icon is on (it will be red on most browsers).",
         "screenshotAlt": "Ashed alliances page with Chrome DevTools open on the Network tab, filtered by base44",
         "screenshotCaption": "Network tab selected, recording on, filter set to base44",
         "checklist": "Network tab is open and showing requests"
