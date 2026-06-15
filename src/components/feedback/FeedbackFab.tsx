@@ -5,6 +5,7 @@ import { Bug, MessageSquareText, Pencil } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { Button } from "@/components/ui/button";
+import { FEEDBACK_FAB_FIXED_CLASSES } from "@/lib/feedback/fab-layout";
 
 const DISCORD_ICON_SRC =
   "/discord-communication-interaction-message-network.svg";
@@ -38,9 +39,9 @@ export function FeedbackFab({
   if (!visible) return null;
 
   return (
-    <div className="fixed bottom-4 left-4 z-[55] md:bottom-5 md:left-5">
+    <div className={FEEDBACK_FAB_FIXED_CLASSES}>
       {open ? (
-        <div className="absolute bottom-16 left-0 w-56 rounded-xl border-2 border-[#484f58] bg-[#21262d] p-2 shadow-2xl shadow-black/60 ring-1 ring-white/10">
+        <div className="pointer-events-auto absolute bottom-16 right-0 w-56 rounded-xl border-2 border-[#484f58] bg-[#21262d] p-2 shadow-2xl shadow-black/60 ring-1 ring-white/10">
           <div className="grid gap-1">
             <Button
               variant="ghost"
@@ -105,7 +106,7 @@ export function FeedbackFab({
 
       <Button
         size="icon"
-        className="h-14 w-14 rounded-full shadow-lg"
+        className="pointer-events-auto h-14 w-14 rounded-full shadow-lg"
         aria-label={t("openMenu")}
         aria-expanded={open}
         onClick={() => setOpen((value) => !value)}
