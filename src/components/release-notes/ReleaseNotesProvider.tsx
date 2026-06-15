@@ -282,7 +282,7 @@ export function ReleaseNotesProvider({ sessionId, children }: ProviderProps) {
             <div className="shrink-0 space-y-3 border-t border-[#30363d] px-4 py-4">
               <Link
                 href="/releases"
-                className="block text-center text-sm font-medium text-[#58a6ff] hover:underline"
+                className="block text-center text-sm font-medium underline text-[#58a6ff] hover:text-[#ffd58d]"
                 onClick={() => {
                   fullyDismissRef.current = true;
                   setDrawerOpen(false);

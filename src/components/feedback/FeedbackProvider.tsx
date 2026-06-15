@@ -104,15 +104,6 @@ export function FeedbackProvider({ children }: { children: React.ReactNode }) {
     [],
   );
 
-  const value = React.useMemo(
-    () => ({
-      showExperienceFeedback,
-      showReportIssue: () => setReportOpen(true),
-      startTranslationCorrection: () => setTranslationMode(true),
-    }),
-    [showExperienceFeedback],
-  );
-
   function openDiscord() {
     const action = resolveDiscordInviteAction(
       process.env.NEXT_PUBLIC_DISCORD_INVITE_URL,
@@ -123,6 +114,15 @@ export function FeedbackProvider({ children }: { children: React.ReactNode }) {
     }
     setDiscordNoticeOpen(true);
   }
+
+  const value = React.useMemo(
+    () => ({
+      showExperienceFeedback,
+      showReportIssue: () => setReportOpen(true),
+      startTranslationCorrection: () => setTranslationMode(true),
+    }),
+    [showExperienceFeedback],
+  );
 
   return (
     <FeedbackContext.Provider value={value}>

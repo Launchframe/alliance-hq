@@ -7,6 +7,7 @@ import { domToCanvas } from "modern-screenshot";
 import { useTranslations } from "next-intl";
 
 import { Button } from "@/components/ui/button";
+import { FEEDBACK_FAB_FIXED_CLASSES } from "@/lib/feedback/fab-layout";
 import {
   canvasToPngBlob,
   computeBugReportScreenshotCaptureBand,
@@ -134,14 +135,18 @@ export function ScreenshotModeOverlay({ open, onClose, onCapture }: Props) {
             aria-hidden
           />
 
-          <Button
-            size="icon"
-            className="pointer-events-auto fixed bottom-4 left-4 z-[201] h-14 w-14 rounded-full border-2 border-[#30363d] bg-[#238636] p-0 text-white shadow-lg hover:bg-[#2ea043]"
-            onClick={handleCapture}
-            aria-label={t("takeScreenshot")}
+          <div
+            className={`${FEEDBACK_FAB_FIXED_CLASSES} z-[201]`}
           >
-            <Camera className="h-6 w-6" aria-hidden />
-          </Button>
+            <Button
+              size="icon"
+              className="pointer-events-auto h-14 w-14 rounded-full border-2 border-[#30363d] bg-[#238636] p-0 text-white shadow-lg hover:bg-[#2ea043]"
+              onClick={handleCapture}
+              aria-label={t("takeScreenshot")}
+            >
+              <Camera className="h-6 w-6" aria-hidden />
+            </Button>
+          </div>
         </>
       )}
     </div>,
