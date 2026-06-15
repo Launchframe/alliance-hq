@@ -37,3 +37,9 @@ export function reduceLinkPhonePhase(
 export function shouldShowAlliancePicker(parsePreviewOk: boolean | undefined): boolean {
   return parsePreviewOk === true;
 }
+
+export function getContinueToHqLabelKey(phoneLinked: boolean): string {
+  return phoneLinked
+    ? "steps.linkPhone.continueToHq"
+    : "steps.linkPhone.continueWithoutPhone";
+}

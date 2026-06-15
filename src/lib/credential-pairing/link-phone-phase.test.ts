@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  getContinueToHqLabelKey,
   reduceLinkPhonePhase,
   shouldShowAlliancePicker,
 } from "./link-phone-phase";
@@ -44,5 +45,17 @@ describe("shouldShowAlliancePicker", () => {
 
   it("shows picker only when parse preview is ok", () => {
     expect(shouldShowAlliancePicker(true)).toBe(true);
+  });
+});
+
+describe("getContinueToHqLabelKey", () => {
+  it("uses a done-state label when phone linking is skipped", () => {
+    expect(getContinueToHqLabelKey(false)).toBe(
+      "steps.linkPhone.continueWithoutPhone",
+    );
+  });
+
+  it("uses the linked-state label after phone linking succeeds", () => {
+    expect(getContinueToHqLabelKey(true)).toBe("steps.linkPhone.continueToHq");
   });
 });

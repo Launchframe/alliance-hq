@@ -35,7 +35,10 @@ import {
   formatTokenExpiryDate,
   getJwtExpiryDate,
 } from "@/lib/jwt/decode";
-import { shouldShowAlliancePicker } from "@/lib/credential-pairing/link-phone-phase";
+import {
+  getContinueToHqLabelKey,
+  shouldShowAlliancePicker,
+} from "@/lib/credential-pairing/link-phone-phase";
 
 const STEP_IDS = [
   "login",
@@ -161,7 +164,10 @@ export function ConnectionWalkthrough({ onConnected }: Props) {
   const previewConnectionString =
     parsePreview?.ok ? formatConnectionString(parsePreview.connection) : null;
 
-  const alliancesForUi = parsePreview?.ok ? accessibleAlliances : [];
+  const alliancesForUi = useMemo(
+    () => (parsePreview?.ok ? accessibleAlliances : []),
+    [accessibleAlliances, parsePreview?.ok],
+  );
   const selectedForUi = parsePreview?.ok ? selectedAllianceId : "";
   const showAlliancePicker = shouldShowAlliancePicker(parsePreview?.ok);
 
@@ -388,28 +394,36 @@ export function ConnectionWalkthrough({ onConnected }: Props) {
                 loadingMessage={t("steps.paste.allianceLoading")}
               />
             ) : null}
-            <div className="grid gap-3 sm:grid-cols-2">
-              <label className="block">
-                <span className="mb-1 block text-xs text-[#8b949e]">
-                  {tc("appId")}
-                </span>
-                <input
-                  value={appId}
-                  onChange={(e) => setAppId(e.target.value)}
-                  className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 text-sm"
-                />
-              </label>
-              <label className="block">
-                <span className="mb-1 block text-xs text-[#8b949e]">
-                  {tc("originUrl")}
-                </span>
-                <input
-                  value={originUrl}
-                  onChange={(e) => setOriginUrl(e.target.value)}
-                  className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 text-sm"
-                />
-              </label>
-            </div>
+            <details className="rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 text-sm">
+              <summary className="cursor-pointer text-[#e6edf3]">
+                {t("steps.paste.advancedSettingsSummary")}
+              </summary>
+              <p className="mt-2 text-xs text-[#8b949e]">
+                {t("steps.paste.advancedSettingsHint")}
+              </p>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <label className="block">
+                  <span className="mb-1 block text-xs text-[#8b949e]">
+                    {tc("appId")}
+                  </span>
+                  <input
+                    value={appId}
+                    onChange={(e) => setAppId(e.target.value)}
+                    className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 text-sm"
+                  />
+                </label>
+                <label className="block">
+                  <span className="mb-1 block text-xs text-[#8b949e]">
+                    {tc("originUrl")}
+                  </span>
+                  <input
+                    value={originUrl}
+                    onChange={(e) => setOriginUrl(e.target.value)}
+                    className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 text-sm"
+                  />
+                </label>
+              </div>
+            </details>
             {parsePreview && !parsePreview.ok && (
               <p className="text-sm text-[#f85149]">{parsePreview.error}</p>
             )}
@@ -471,6 +485,15 @@ export function ConnectionWalkthrough({ onConnected }: Props) {
               </p>
               <p className="mt-2 text-sm text-[#8b949e]">
                 {t.rich("embeddedLoginSuccess.body", { strong: strongText })}
+              </p>
+            </div>
+
+            <div className="rounded-lg border border-[#238636]/40 bg-[#238636]/10 px-4 py-3">
+              <p className="font-medium text-[#3fb950]">
+                {t("setupComplete.title")}
+              </p>
+              <p className="mt-2 text-sm text-[#8b949e]">
+                {t("setupComplete.body")}
               </p>
             </div>
 
@@ -570,24 +593,13 @@ export function ConnectionWalkthrough({ onConnected }: Props) {
             {tc("back")}
           </button>
           {isLinkPhoneStep ? (
-            <>
-              <button
-                type="button"
-                onClick={continueToApp}
-                className="rounded-lg border border-[#30363d] bg-[#21262d] px-4 py-2 text-sm"
-              >
-                {t("steps.linkPhone.skip")}
-              </button>
-              {phoneLinked ? (
-                <button
-                  type="button"
-                  onClick={continueToApp}
-                  className="rounded-lg border border-[#238636] bg-[#238636] px-4 py-2 text-sm text-white"
-                >
-                  {t("steps.linkPhone.continueToHq")}
-                </button>
-              ) : null}
-            </>
+            <button
+              type="button"
+              onClick={continueToApp}
+              className="rounded-lg border border-[#238636] bg-[#238636] px-4 py-2 text-sm text-white"
+            >
+              {t(getContinueToHqLabelKey(phoneLinked))}
+            </button>
           ) : !isPasteStep ? (
             <button
               type="button"

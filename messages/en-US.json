@@ -394,6 +394,10 @@
     "noExpiryRead": "Connected, but we couldn't read an expiry date from this token. We'll still notify you if Ashed stops accepting it.",
     "continue": "Continue to Alliance HQ",
     "allianceResolved": "Alliance linked: {tag} ({name})",
+    "setupComplete": {
+      "title": "You're connected",
+      "body": "You can start using Alliance HQ now. Linking a phone is optional and can also be done later from Settings."
+    },
     "embeddedLoginSuccess": {
       "title": "Logging in to an embedded Ashed page",
       "body": "Use your <strong>email and Ashed password</strong> inside Alliance HQ — sign-in with Google is unavailable. Use 'Reset Password' if you don't have a password set."
@@ -437,13 +441,15 @@
         "allianceNone": "No alliance admin access found on this Ashed account.",
         "allianceLoadFailed": "Could not load alliances from Ashed.",
         "placeholder": "curl 'https://base44.app/api/apps/…' \\\n  -H 'authorization: Bearer eyJhbGci…' \\\n  -H 'x-origin-url: https://ashed.online' …",
-        "tokenExpires": "Token expires <date></date> (from JWT)",
+        "advancedSettingsSummary": "Advanced settings",
+        "advancedSettingsHint": "Leave these alone unless support asks you to change them.",
+        "tokenExpires": "Connection key expires <date></date>",
         "checklist": "Ready to connect"
       },
       "linkPhone": {
         "title": "Link your phone (optional)",
         "intro": "Skip this step if you're on your phone now, or if you don't need mobile access.",
-        "revealQr": "Reveal QR code",
+        "revealQr": "Show QR code",
         "hideQr": "Hide QR code",
         "linkedTitle": "Phone linked!",
         "linkedBody": "Your phone now has the same Alliance HQ access as this browser. To link more devices, open Settings → Linked devices.",
@@ -451,6 +457,7 @@
         "errorBody": "The QR code expired or could not be claimed. Try again when you're ready.",
         "tryAgain": "Try again",
         "skip": "Skip for now",
+        "continueWithoutPhone": "Continue to Alliance HQ",
         "continueToHq": "Continue to Alliance HQ",
         "privacyNote": "The QR code contains only a short-lived link — not your connection key."
       }

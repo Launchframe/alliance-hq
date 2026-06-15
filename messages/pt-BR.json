@@ -394,6 +394,10 @@
     "noExpiryRead": "Conectado, mas não conseguimos ler uma data de expiração neste token. Ainda assim, notificaremos você se o Ashed parar de aceitá-lo.",
     "continue": "Continuar para o Alliance HQ",
     "allianceResolved": "Aliança vinculada: {tag} ({name})",
+    "setupComplete": {
+      "title": "Você está conectado",
+      "body": "Você já pode começar a usar o Alliance HQ. Vincular um celular é opcional e também pode ser feito depois em Configurações."
+    },
     "embeddedLoginSuccess": {
       "title": "Primeira vez em uma página Ashed incorporada?",
       "body": "Se você entra no Ashed com Google, use seu <strong>e-mail e senha do Ashed</strong> dentro do Alliance HQ — não o botão do Google. O login com Google é bloqueado em páginas incorporadas."
@@ -437,7 +441,9 @@
         "allianceNone": "Nenhum acesso de admin de aliança encontrado nesta conta Ashed.",
         "allianceLoadFailed": "Não foi possível carregar alianças do Ashed.",
         "placeholder": "curl 'https://base44.app/api/apps/…' \\\n  -H 'authorization: Bearer eyJhbGci…' \\\n  -H 'x-origin-url: https://ashed.online' …",
-        "tokenExpires": "O token expira em <date></date> (via JWT)",
+        "advancedSettingsSummary": "Configurações avançadas",
+        "advancedSettingsHint": "Deixe estes campos como estão, a menos que o suporte peça para alterá-los.",
+        "tokenExpires": "A chave de conexão expira em <date></date>",
         "checklist": "Pronto para conectar"
       },
       "linkPhone": {
@@ -451,6 +457,7 @@
         "errorBody": "O código QR expirou ou não pôde ser usado. Tente novamente quando estiver pronto.",
         "tryAgain": "Tentar novamente",
         "skip": "Pular por enquanto",
+        "continueWithoutPhone": "Continuar para o Alliance HQ",
         "continueToHq": "Continuar para o Alliance HQ",
         "privacyNote": "O código QR contém apenas um link de curta duração — não sua chave de conexão."
       }
