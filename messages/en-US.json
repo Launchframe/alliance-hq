@@ -395,12 +395,8 @@
     "continue": "Continue to Alliance HQ",
     "allianceResolved": "Alliance linked: {tag} ({name})",
     "setupComplete": {
-      "title": "You're connected",
-      "body": "You can start using Alliance HQ now. Linking a phone is optional and can also be done later from Settings."
-    },
-    "embeddedLoginSuccess": {
-      "title": "Logging in to an embedded Ashed page",
-      "body": "Use your <strong>email and Ashed password</strong> inside Alliance HQ — sign-in with Google is unavailable. Use 'Reset Password' if you don't have a password set."
+      "title": "You're connected!",
+      "body": "Review the expiry date below, then click Continue."
     },
     "steps": {
       "login": {
@@ -428,10 +424,6 @@
         "title": "Copy authorization header",
         "checklist": "I copied the authorization header"
       },
-      "embeddedLogin": {
-        "title": "Embedded Ashed login",
-        "checklist": "I set an Ashed password (or I sign in with email already)"
-      },
       "paste": {
         "title": "Paste and connect",
         "intro": "Paste your <strong>Copy as cURL</strong> command here (recommended). We also accept a Bearer token, authorization header line, or full connection string.",
@@ -444,11 +436,12 @@
         "advancedSettingsSummary": "Advanced settings",
         "advancedSettingsHint": "Leave these alone unless support asks you to change them.",
         "tokenExpires": "Connection key expires <date></date>",
-        "checklist": "Ready to connect"
+        "checklist": "Ready to connect",
+        "continue": "Continue"
       },
       "linkPhone": {
-        "title": "Link your phone (optional)",
-        "intro": "Skip this step if you're on your phone now, or if you don't need mobile access.",
+        "title": "Link your phone",
+        "intro": "Scan this QR code with the phone that you play Last War on.",
         "revealQr": "Show QR code",
         "hideQr": "Hide QR code",
         "linkedTitle": "Phone linked!",
@@ -457,16 +450,16 @@
         "errorBody": "The QR code expired or could not be claimed. Try again when you're ready.",
         "tryAgain": "Try again",
         "skip": "Skip for now",
+        "skippedBody": "No problem. You can connect another device from <settingsLink>Settings</settingsLink> at any time.",
         "continueWithoutPhone": "Continue to Alliance HQ",
         "continueToHq": "Continue to Alliance HQ",
-        "privacyNote": "The QR code contains only a short-lived link — not your connection key."
+        "privacyNote": "DO NOT SHARE this QR code with anyone. The code contained in it is a short-lived link to your account — anybody who gets this code will be able to take full control of your account."
       }
     },
     "copyMethod": {
       "easiestMethodLabel": "Easiest method:",
       "easiestMethodBody": "copy the whole request in one step — we pull out your login token automatically.",
-      "stepClickRequest": "Click any request in the list (if you filtered by <code>base44</code>, every visible row works)",
-      "stepRightClick": "<strong>Right-click</strong> that request (or use the row menu)",
+      "stepClickRequest": "<strong>Right-click</strong> any request in the list (if you filtered by <code>base44</code>, every visible row works)",
       "stepCopyCurl": "Choose <strong>Copy</strong> → <strong>Copy as cURL</strong> <muted>(Chrome, Edge, Brave, and Firefox; Safari includes this too)</muted>",
       "curlBashHint": "Some browsers like Firefox show two options: <strong>Copy as cURL (bash)</strong> and <strong>Copy as cURL (cmd)</strong> — choose <strong>bash</strong> if you have the choice. Paste the full command on the next step.",
       "curlScreenshotAlt": "Chrome DevTools Network tab with right-click menu open on a UserProfile request, Copy as cURL highlighted",

@@ -396,11 +396,7 @@
     "allianceResolved": "Aliança vinculada: {tag} ({name})",
     "setupComplete": {
       "title": "Você está conectado",
-      "body": "Você já pode começar a usar o Alliance HQ. Vincular um celular é opcional e também pode ser feito depois em Configurações."
-    },
-    "embeddedLoginSuccess": {
-      "title": "Primeira vez em uma página Ashed incorporada?",
-      "body": "Se você entra no Ashed com Google, use seu <strong>e-mail e senha do Ashed</strong> dentro do Alliance HQ — não o botão do Google. O login com Google é bloqueado em páginas incorporadas."
+      "body": "Revise a data de expiração abaixo e clique em Continuar."
     },
     "steps": {
       "login": {
@@ -428,10 +424,6 @@
         "title": "Copiar cabeçalho de autorização",
         "checklist": "Copiei o cabeçalho de autorização"
       },
-      "embeddedLogin": {
-        "title": "Login Ashed incorporado",
-        "checklist": "Defini uma senha no Ashed (ou já entro com e-mail)"
-      },
       "paste": {
         "title": "Colar e conectar",
         "intro": "Cole seu comando <strong>Copiar como cURL</strong> aqui (recomendado). Também aceitamos um token Bearer, uma linha de cabeçalho de autorização ou uma string de conexão completa.",
@@ -444,11 +436,12 @@
         "advancedSettingsSummary": "Configurações avançadas",
         "advancedSettingsHint": "Deixe estes campos como estão, a menos que o suporte peça para alterá-los.",
         "tokenExpires": "A chave de conexão expira em <date></date>",
-        "checklist": "Pronto para conectar"
+        "checklist": "Pronto para conectar",
+        "continue": "Continuar"
       },
       "linkPhone": {
-        "title": "Vincular seu celular (opcional)",
-        "intro": "Pule esta etapa se você já está no celular ou se não precisa de acesso móvel.",
+        "title": "Vincular seu celular",
+        "intro": "Escaneie este código QR com o celular em que você joga Last War.",
         "revealQr": "Mostrar código QR",
         "hideQr": "Ocultar código QR",
         "linkedTitle": "Celular vinculado!",
@@ -457,16 +450,16 @@
         "errorBody": "O código QR expirou ou não pôde ser usado. Tente novamente quando estiver pronto.",
         "tryAgain": "Tentar novamente",
         "skip": "Pular por enquanto",
+        "skippedBody": "Sem problemas. Você pode conectar outro dispositivo em <settingsLink>Configurações</settingsLink> a qualquer momento.",
         "continueWithoutPhone": "Continuar para o Alliance HQ",
         "continueToHq": "Continuar para o Alliance HQ",
-        "privacyNote": "O código QR contém apenas um link de curta duração — não sua chave de conexão."
+        "privacyNote": "NÃO COMPARTILHE este código QR com ninguém. O código nele contido é um link de curta duração para sua conta — quem obtiver esse código poderá assumir o controle total da sua conta."
       }
     },
     "copyMethod": {
       "easiestMethodLabel": "Método mais fácil:",
       "easiestMethodBody": "copie a solicitação inteira de uma só vez — nós extraímos seu token de login automaticamente.",
-      "stepClickRequest": "Clique em qualquer solicitação da lista (se você filtrou por <code>base44</code>, cada linha visível serve)",
-      "stepRightClick": "<strong>Clique com o botão direito</strong> nessa solicitação (ou use o menu da linha)",
+      "stepClickRequest": "<strong>Clique com o botão direito</strong> em qualquer solicitação da lista (se você filtrou por <code>base44</code>, cada linha visível serve)",
       "stepCopyCurl": "Escolha <strong>Copiar</strong> → <strong>Copiar como cURL</strong> <muted>(Chrome, Edge, Brave e Firefox; o Safari também inclui essa opção)</muted>",
       "curlBashHint": "Alguns navegadores, como o Firefox, exibem duas opções: <strong>Copiar como cURL (bash)</strong> e <strong>Copiar como cURL (cmd)</strong> — escolha <strong>bash</strong> se tiver a opção. Cole o comando completo na próxima etapa.",
       "curlScreenshotAlt": "Aba Network (Rede) do Chrome DevTools com o menu de clique com o botão direito aberto em uma solicitação UserProfile; a opção 'Copiar como cURL' está destacada",

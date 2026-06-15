@@ -57,6 +57,7 @@ function isLikelyEnglishLeak(value, locale) {
     "chrome",
     "firefox",
     "safari",
+    "feedback",
     "connect",
     "upload",
     "upload de",

@@ -57,8 +57,7 @@ export function CopyConnectMethodStep({ method, onMethodChange }: Props) {
         {t("easiestMethodBody")}
       </p>
       <ol className="mt-4 list-decimal space-y-3 pl-5 text-sm">
-        <li>{t.rich("stepClickRequest", { code: inlineCode })}</li>
-        <li>{t.rich("stepRightClick", { strong: strongText })}</li>
+        <li>{t.rich("stepClickRequest", { code: inlineCode, strong: strongText })}</li>
         <li>
           {t.rich("stepCopyCurl", {
             strong: strongText,

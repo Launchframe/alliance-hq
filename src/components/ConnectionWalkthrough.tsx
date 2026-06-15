@@ -21,13 +21,14 @@ import {
   type CopyConnectMethod,
 } from "@/components/CopyConnectMethodStep";
 import { LinkPhoneStep } from "@/components/credential-pairing/LinkPhoneStep";
+import { Checkbox } from "@/components/ui/checkbox";
 import { TokenExpiryNotice } from "@/components/TokenExpiryNotice";
 import {
   ashedLink,
   inlineCode,
   strongText,
 } from "@/components/i18n/richText";
-import { useRouter } from "@/i18n/navigation";
+import { useRouter, Link } from "@/i18n/navigation";
 import type { AshedConnectionMeta } from "@/lib/jwt/connection-meta";
 import type { AccessibleAlliance } from "@/lib/alliance/types";
 import {
@@ -73,6 +74,7 @@ export function ConnectionWalkthrough({ onConnected }: Props) {
     alliance?: { id: string; tag: string; name?: string };
   } | null>(null);
   const [phoneLinked, setPhoneLinked] = useState(false);
+  const [phoneLinkSkipped, setPhoneLinkSkipped] = useState(false);
   const [copyMethod, setCopyMethod] = useState<CopyConnectMethod>("curl");
   const [accessibleAlliances, setAccessibleAlliances] = useState<
     AccessibleAlliance[]
@@ -84,6 +86,7 @@ export function ConnectionWalkthrough({ onConnected }: Props) {
   const stepId = STEP_IDS[stepIndex];
   const isPasteStep = stepId === "paste";
   const isLinkPhoneStep = stepId === "link-phone";
+  const isPasteSuccess = isPasteStep && connectSuccess !== null;
 
   const stepTitle = useMemo(() => {
     switch (stepId) {
@@ -94,11 +97,13 @@ export function ConnectionWalkthrough({ onConnected }: Props) {
       case "copy-curl":
         return t(getCopyMethodTitleKey(copyMethod));
       case "paste":
-        return t("steps.paste.title");
+        return isPasteSuccess
+          ? t("setupComplete.title")
+          : t("steps.paste.title");
       case "link-phone":
         return t("steps.linkPhone.title");
     }
-  }, [copyMethod, stepId, t]);
+  }, [copyMethod, isPasteSuccess, stepId, t]);
 
   const stepChecklist = useMemo(() => {
     switch (stepId) {
@@ -281,7 +286,6 @@ export function ConnectionWalkthrough({ onConnected }: Props) {
           alliance: data.alliance,
         });
         onConnected?.(parsed.connection);
-        setStepIndex(LINK_PHONE_STEP_INDEX);
         return;
       }
 
@@ -367,6 +371,37 @@ export function ConnectionWalkthrough({ onConnected }: Props) {
           />
         );
       case "paste":
+        if (isPasteSuccess) {
+          const { ashed, userLabel, alliance } = connectSuccess;
+
+          return (
+            <div className="space-y-4">
+              <p className="text-[#8b949e]">
+                {t("signedInAsBefore")}{" "}
+                <strong className="text-[#e6edf3]">{userLabel}</strong>.
+              </p>
+              {alliance ? (
+                <p className="text-sm text-[#8b949e]">
+                  {t("allianceResolved", {
+                    tag: alliance.tag,
+                    name: alliance.name ?? alliance.tag,
+                  })}
+                </p>
+              ) : null}
+              {ashed.tokenExpiresAtFormatted ? (
+                <TokenExpiryNotice
+                  formattedDate={ashed.tokenExpiresAtFormatted}
+                  reminderDays={
+                    ashed.expiryReminderDays ?? DEFAULT_EXPIRY_REMINDER_DAYS
+                  }
+                />
+              ) : (
+                <p className="text-sm text-[#8b949e]">{t("noExpiryRead")}</p>
+              )}
+            </div>
+          );
+        }
+
         return (
           <div className="space-y-4">
             <p>{t.rich("steps.paste.intro", { strong: strongText })}</p>
@@ -446,54 +481,24 @@ export function ConnectionWalkthrough({ onConnected }: Props) {
             )}
           </div>
         );
-      case "link-phone": {
-        if (!connectSuccess) {
-          return null;
-        }
-
-        const { ashed, userLabel, alliance } = connectSuccess;
-
-        return (
-          <div className="space-y-4">
-            <p className="text-[#8b949e]">
-              {t("signedInAsBefore")}{" "}
-              <strong className="text-[#e6edf3]">{userLabel}</strong>.
+      case "link-phone":
+        if (phoneLinkSkipped) {
+          return (
+            <p className="text-sm text-[#8b949e]">
+              {t.rich("steps.linkPhone.skippedBody", {
+                settingsLink: (chunks) => (
+                  <Link
+                    href="/settings"
+                    className="text-[#58a6ff] hover:underline"
+                  >
+                    {chunks}
+                  </Link>
+                ),
+              })}
             </p>
-            {alliance ? (
-              <p className="text-sm text-[#8b949e]">
-                {t("allianceResolved", {
-                  tag: alliance.tag,
-                  name: alliance.name ?? alliance.tag,
-                })}
-              </p>
-            ) : null}
-
-            {ashed.tokenExpiresAtFormatted ? (
-              <TokenExpiryNotice
-                formattedDate={ashed.tokenExpiresAtFormatted}
-                reminderDays={
-                  ashed.expiryReminderDays ?? DEFAULT_EXPIRY_REMINDER_DAYS
-                }
-              />
-            ) : (
-              <p className="text-sm text-[#8b949e]">{t("noExpiryRead")}</p>
-            )}
-
-            <div className="border-t border-[#30363d] pt-4">
-              <LinkPhoneStep onLinked={() => setPhoneLinked(true)} />
-            </div>
-
-            <div className="rounded-lg border border-[#d29922]/30 bg-[#d29922]/5 px-4 py-3">
-              <p className="font-medium text-[#e3b341]">
-                {t("embeddedLoginSuccess.title")}
-              </p>
-              <p className="mt-2 text-sm text-[#8b949e]">
-                {t.rich("embeddedLoginSuccess.body", { strong: strongText })}
-              </p>
-            </div>
-          </div>
-        );
-      }
+          );
+        }
+        return <LinkPhoneStep onLinked={() => setPhoneLinked(true)} />;
     }
   };
 
@@ -501,14 +506,14 @@ export function ConnectionWalkthrough({ onConnected }: Props) {
     <div className="mx-auto max-w-2xl">
       <header className="mb-6">
         <h1 className="text-2xl font-semibold">
-          {isLinkPhoneStep && connectSuccess ? (
-            <span className="text-[#3fb950]">{t("successTitle")}</span>
+          {isPasteSuccess ? (
+            <span className="text-[#3fb950]">{t("setupComplete.title")}</span>
           ) : (
             t("title")
           )}
         </h1>
         <p className="mt-2 text-[#8b949e]">
-          {isLinkPhoneStep && connectSuccess
+          {isPasteSuccess
             ? t("setupComplete.body")
             : t.rich("subtitle", { link: ashedLink })}
         </p>
@@ -554,14 +559,17 @@ export function ConnectionWalkthrough({ onConnected }: Props) {
         <div className="mt-3 text-sm">{renderStepBody()}</div>
 
         {stepChecklist && !isPasteStep && !isLinkPhoneStep && (
-          <label className="mt-4 flex items-start gap-2 text-sm">
-            <input
-              type="checkbox"
+          <label
+            htmlFor={`connect-step-${stepId}`}
+            className="mt-4 flex cursor-pointer items-start gap-3 text-sm"
+          >
+            <Checkbox
+              id={`connect-step-${stepId}`}
               checked={checked[stepId] ?? false}
-              onChange={(e) =>
-                setChecked((prev) => ({ ...prev, [stepId]: e.target.checked }))
+              onCheckedChange={(value) =>
+                setChecked((prev) => ({ ...prev, [stepId]: value }))
               }
-              className="mt-1"
+              className="mt-0.5"
             />
             <span>{stepChecklist}</span>
           </label>
@@ -573,18 +581,37 @@ export function ConnectionWalkthrough({ onConnected }: Props) {
           <button
             type="button"
             onClick={() => changeStep((i) => Math.max(0, i - 1))}
-            disabled={stepIndex === 0 || isLinkPhoneStep}
+            disabled={stepIndex === 0 || isLinkPhoneStep || isPasteSuccess}
             className="rounded-lg border border-[#30363d] bg-[#21262d] px-4 py-2 text-sm disabled:opacity-50"
           >
             {tc("back")}
           </button>
           {isLinkPhoneStep ? (
+            <>
+              {!phoneLinkSkipped && !phoneLinked ? (
+                <button
+                  type="button"
+                  onClick={() => setPhoneLinkSkipped(true)}
+                  className="rounded-lg border border-[#30363d] bg-[#21262d] px-4 py-2 text-sm"
+                >
+                  {t("steps.linkPhone.skip")}
+                </button>
+              ) : null}
+              <button
+                type="button"
+                onClick={continueToApp}
+                className="rounded-lg border border-[#238636] bg-[#238636] px-4 py-2 text-sm text-white"
+              >
+                {t(getContinueToHqLabelKey(phoneLinked))}
+              </button>
+            </>
+          ) : isPasteSuccess ? (
             <button
               type="button"
-              onClick={continueToApp}
+              onClick={() => setStepIndex(LINK_PHONE_STEP_INDEX)}
               className="rounded-lg border border-[#238636] bg-[#238636] px-4 py-2 text-sm text-white"
             >
-              {t(getContinueToHqLabelKey(phoneLinked))}
+              {t("steps.paste.continue")}
             </button>
           ) : !isPasteStep ? (
             <button
