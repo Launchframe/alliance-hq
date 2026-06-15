@@ -11,7 +11,7 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import "dotenv/config";
+import "./load-env";
 
 import {
   compileReleaseNoteDraft,

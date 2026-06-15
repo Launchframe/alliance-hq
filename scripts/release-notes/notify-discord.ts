@@ -9,7 +9,7 @@
 
 import path from "node:path";
 
-import "dotenv/config";
+import "./load-env";
 
 import { collectShippedReleaseNoteEntries } from "../../src/lib/release-notes/publish";
 import { postReleaseNoteToDiscord } from "../../src/lib/release-notes/discord";

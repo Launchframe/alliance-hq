@@ -12,7 +12,7 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 
-import "dotenv/config";
+import "./load-env";
 
 import { compileBackfillReleaseNoteDraft } from "../../src/lib/release-notes/compile";
 import {

@@ -52,6 +52,8 @@ Author release notes in markdown under this directory, compile them from git his
 | `DISCORD_BOT_TOKEN` + `DISCORD_RELEASE_NOTES_CHANNEL_ID` | Discord announcement |
 | `NEXT_PUBLIC_APP_URL` | Link to `/releases` in Discord |
 
+Ship/publish scripts load `.env`, then `.env.local` (and `.env.development.local` in non-production), same as `db:migrate`.
+
 ## Re-publish only
 
 ```bash

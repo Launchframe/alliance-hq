@@ -10,7 +10,7 @@
 
 import path from "node:path";
 
-import "dotenv/config";
+import "./load-env";
 
 import { publishReleaseNotesToEdgeConfig } from "../../src/lib/release-notes/publish";
 import { readPackageVersion } from "../../src/lib/release-notes/package-version-io";
