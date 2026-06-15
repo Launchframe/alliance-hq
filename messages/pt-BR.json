@@ -552,10 +552,16 @@
   },
   "devErrors": {
     "databaseNotConfigured": "Banco de dados não configurado",
+    "serviceUnavailable": "Banco de dados temporariamente indisponível",
+    "connectionPoolExhausted": "Limite de conexões do banco de dados atingido",
     "localDatabaseUrl": "Defina LOCAL_DATABASE_URL no .env.local (sem ?schema=public — isso é exclusivo do Prisma).",
     "tokenEncryptionKey": "Defina TOKEN_ENCRYPTION_KEY no .env.local (openssl rand -hex 32).",
     "tablesMissing": "Tabelas ausentes — execute npm run db:push no seu banco de dados local.",
     "postgresUnreachable": "Não foi possível conectar ao Postgres — o servidor está rodando em localhost:5432?",
+    "connectionPoolExhaustedHint": "O Postgres recusou novas conexões (too many clients). Tente novamente em instantes. Se persistir, verifique as conexões no Neon e reduza o pool da aplicação.",
+    "schemaMigrationHint": "O schema do banco está desatualizado (tabela ou coluna ausente). Faça redeploy para rodar migrations ou execute npm run db:migrate em produção.",
+    "encryptionKeyMismatchHint": "Não foi possível descriptografar as credenciais Ashed — TOKEN_ENCRYPTION_KEY pode ter mudado desde a conexão. Desconecte e reconecte em Configurações, ou restaure a chave original.",
+    "productionDetail": "Algo deu errado ao carregar sua sessão. Verifique os logs de runtime na Vercel (busque por app-layout). Código Postgres: <pgCode></pgCode>.",
     "defaultHint": "Defina <localDb>LOCAL_DATABASE_URL</localDb> e <encKey>TOKEN_ENCRYPTION_KEY</encKey> em <envFile>.env.local</envFile> e, em seguida, execute <dbPush>npm run db:push</dbPush>."
   }
 }

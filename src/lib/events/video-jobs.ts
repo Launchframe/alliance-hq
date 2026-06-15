@@ -1,5 +1,6 @@
 import postgres from "postgres";
 
+import { getSqlClient } from "@/lib/db";
 import { getDatabaseUrl } from "@/lib/db/url";
 import type { VideoJobStatusEvent } from "@/lib/events/video-jobs-types";
 
@@ -13,15 +14,7 @@ export {
 
 export const VIDEO_JOB_NOTIFY_CHANNEL = "hq_video_jobs";
 
-let notifyClient: ReturnType<typeof postgres> | null = null;
-
-function getNotifyClient() {
-  if (!notifyClient) {
-    notifyClient = postgres(getDatabaseUrl(), { prepare: false, max: 1 });
-  }
-  return notifyClient;
-}
-
+/** Dedicated connection for LISTEN — do not share with the query pool (SSE). */
 export function createVideoJobListenClient() {
   return postgres(getDatabaseUrl(), { prepare: false, max: 1 });
 }
@@ -35,7 +28,7 @@ export async function emitVideoJobStatus(
   };
 
   try {
-    const sql = getNotifyClient();
+    const sql = getSqlClient();
     await sql`SELECT pg_notify(${VIDEO_JOB_NOTIFY_CHANNEL}, ${JSON.stringify(event)})`;
   } catch (error) {
     console.error("[video-jobs] pg_notify failed:", error);

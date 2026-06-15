@@ -3,31 +3,15 @@ import { getLocale, getTranslations } from "next-intl/server";
 import { TimezoneProvider } from "@/components/timezone/TimezoneProvider";
 import { redirect } from "@/i18n/navigation";
 import { AshedShell } from "@/components/ashed-shell/AshedShell";
+import {
+  collectDatabaseErrorText,
+  postgresErrorCode,
+  resolveDatabaseErrorPresentation,
+} from "@/lib/db/error-message";
 import { rethrowNavigationError } from "@/lib/navigation";
 import { getPageSessionState } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
-
-function isDevDatabaseHint(error: unknown, t: Awaited<ReturnType<typeof getTranslations>>): string | null {
-  if (!(error instanceof Error)) return null;
-  const msg = error.message;
-  if (msg.includes("LOCAL_DATABASE_URL") || msg.includes("DATABASE_URL")) {
-    return t("localDatabaseUrl");
-  }
-  if (msg.includes("TOKEN_ENCRYPTION_KEY")) {
-    return t("tokenEncryptionKey");
-  }
-  if (msg.includes('relation "sessions" does not exist')) {
-    return t("tablesMissing");
-  }
-  if (msg.includes("ECONNREFUSED") || msg.includes("connect")) {
-    return t("postgresUnreachable");
-  }
-  if (process.env.NODE_ENV === "development") {
-    return msg;
-  }
-  return null;
-}
 
 export default async function AppLayout({
   children,
@@ -42,14 +26,19 @@ export default async function AppLayout({
     state = await getPageSessionState("/", locale);
   } catch (error) {
     rethrowNavigationError(error);
-    const hint = isDevDatabaseHint(error, t);
+    console.error("[app-layout] session bootstrap failed:", error);
+
+    const { titleKey, hintKey, devDetail } =
+      resolveDatabaseErrorPresentation(error);
+    const pgCode = postgresErrorCode(error);
+
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#0d1117] p-6 text-[#e6edf3]">
         <div className="max-w-md rounded-xl border border-[#30363d] bg-[#161b22] p-6 text-center">
-          <h1 className="text-lg font-semibold">{t("databaseNotConfigured")}</h1>
+          <h1 className="text-lg font-semibold">{t(titleKey)}</h1>
           <p className="mt-2 text-sm text-[#8b949e]">
-            {hint ??
-              t.rich("defaultHint", {
+            {devDetail ??
+              t.rich(hintKey, {
                 localDb: (chunks) => (
                   <code className="text-[#58a6ff]">{chunks}</code>
                 ),
@@ -62,8 +51,16 @@ export default async function AppLayout({
                 dbPush: (chunks) => (
                   <code className="text-[#58a6ff]">{chunks}</code>
                 ),
+                pgCode: () => (
+                  <code className="text-[#58a6ff]">{pgCode ?? "unknown"}</code>
+                ),
               })}
           </p>
+          {process.env.NODE_ENV === "development" && devDetail ? (
+            <p className="mt-3 break-all text-left font-mono text-xs text-[#6e7681]">
+              {collectDatabaseErrorText(error).slice(0, 1200)}
+            </p>
+          ) : null}
         </div>
       </div>
     );

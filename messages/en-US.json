@@ -552,10 +552,16 @@
   },
   "devErrors": {
     "databaseNotConfigured": "Database not configured",
+    "serviceUnavailable": "Database temporarily unavailable",
+    "connectionPoolExhausted": "Database connection limit reached",
     "localDatabaseUrl": "Set LOCAL_DATABASE_URL in .env.local (no ?schema=public — that is Prisma-only).",
     "tokenEncryptionKey": "Set TOKEN_ENCRYPTION_KEY in .env.local (openssl rand -hex 32).",
     "tablesMissing": "Tables missing — run npm run db:push against your local database.",
     "postgresUnreachable": "Cannot reach Postgres — is the server running on localhost:5432?",
+    "connectionPoolExhaustedHint": "Postgres refused new connections (too many clients). Retry in a moment. If this persists, check Neon connection settings and reduce app pool size.",
+    "schemaMigrationHint": "The database schema is out of date (missing table or column). Redeploy so migrations run, or run npm run db:migrate against production.",
+    "encryptionKeyMismatchHint": "Stored Ashed credentials could not be decrypted — TOKEN_ENCRYPTION_KEY may have changed since connect. Disconnect and reconnect in Settings, or restore the original key.",
+    "productionDetail": "Something went wrong loading your session. Check Vercel runtime logs for details (search for app-layout). Postgres code: <pgCode></pgCode>.",
     "defaultHint": "Set <localDb>LOCAL_DATABASE_URL</localDb> and <encKey>TOKEN_ENCRYPTION_KEY</encKey> in <envFile>.env.local</envFile>, then run <dbPush>npm run db:push</dbPush>."
   }
 }
