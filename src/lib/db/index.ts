@@ -1,21 +1,17 @@
 import { drizzle } from "drizzle-orm/postgres-js";
-import postgres from "postgres";
 
 import * as schema from "./schema";
-import { getDatabaseUrl } from "./url";
+import { getSqlClient } from "./postgres-client";
 
-let client: ReturnType<typeof postgres> | null = null;
 let db: ReturnType<typeof drizzle<typeof schema>> | null = null;
 
 export function getDb() {
-  const url = getDatabaseUrl();
-
   if (!db) {
-    client = postgres(url, { prepare: false, max: 10 });
-    db = drizzle(client, { schema });
+    db = drizzle(getSqlClient(), { schema });
   }
 
   return db;
 }
 
+export { getSqlClient, isServerlessPostgresRuntime, postgresClientOptions } from "./postgres-client";
 export { schema };
