@@ -6,7 +6,7 @@ import { useTranslations } from "next-intl";
 import { useFormatAccountDateTime } from "@/components/timezone/TimezoneProvider";
 
 type Stats = {
-  database: { ok: boolean; error?: string };
+  database: { ok: boolean; host: string; error?: string };
   counts: Record<string, number>;
   config: Record<string, boolean>;
   recentQueuedJobs: Array<{ id: string; fileName: string | null; createdAt: string }>;
@@ -51,6 +51,9 @@ export function AdminSystemConsole() {
         <h2 className="font-medium">{t("databaseTitle")}</h2>
         <p className={`mt-2 text-sm ${stats.database.ok ? "text-[#3fb950]" : "text-red-400"}`}>
           {stats.database.ok ? t("databaseOk") : stats.database.error ?? t("databaseBad")}
+        </p>
+        <p className="mt-1 font-mono text-xs text-[#8b949e]">
+          {t("databaseHost", { host: stats.database.host })}
         </p>
       </section>
 

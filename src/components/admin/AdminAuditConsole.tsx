@@ -8,6 +8,12 @@ import {
   useAccountTimezone,
 } from "@/components/timezone/TimezoneProvider";
 import {
+  RecordDetailCard,
+  RecordDetailField,
+  ResponsiveRecordViews,
+} from "@/components/ui/ResponsiveRecordViews";
+import { AppSelect } from "@/components/ui/AppSelect";
+import {
   AUDIT_ACTION_FILTER_OPTIONS,
   buildAuditLogSearchParams,
   type AuditLogFilters,
@@ -161,35 +167,34 @@ export function AdminAuditConsole() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-end gap-3 rounded-xl border border-[#30363d] bg-[#161b22] p-4">
-        <label className="space-y-1 text-sm">
+        <label className="min-w-0 space-y-1 text-sm sm:min-w-[12rem]">
           <span className="text-[#8b949e]">{tAudit("filters.alliance")}</span>
-          <select
-            className="block min-w-[12rem] rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 font-mono text-sm"
+          <AppSelect
             value={allianceId ?? ""}
-            onChange={(e) => setAllianceId(e.target.value || undefined)}
-          >
-            <option value="">{tAudit("filters.allAlliances")}</option>
-            {alliances.map((alliance) => (
-              <option key={alliance.id} value={alliance.id}>
-                {allianceTagLabel(alliance)}
-              </option>
-            ))}
-          </select>
+            onChange={(next) => setAllianceId(next || undefined)}
+            aria-label={tAudit("filters.alliance")}
+            triggerClassName="font-mono"
+            options={[
+              { value: "", label: tAudit("filters.allAlliances") },
+              ...alliances.map((alliance) => ({
+                value: alliance.id,
+                label: allianceTagLabel(alliance),
+              })),
+            ]}
+          />
         </label>
 
-        <label className="space-y-1 text-sm">
+        <label className="min-w-0 space-y-1 text-sm sm:min-w-[12rem]">
           <span className="text-[#8b949e]">{tAudit("filters.action")}</span>
-          <select
-            className="block min-w-[12rem] rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 text-sm"
+          <AppSelect
             value={action ?? ""}
-            onChange={(e) => setAction(e.target.value || undefined)}
-          >
-            {AUDIT_ACTION_FILTER_OPTIONS.map((option) => (
-              <option key={option.value || "all"} value={option.value}>
-                {tAudit(`filters.actions.${option.labelKey}`)}
-              </option>
-            ))}
-          </select>
+            onChange={(next) => setAction(next || undefined)}
+            aria-label={tAudit("filters.action")}
+            options={AUDIT_ACTION_FILTER_OPTIONS.map((option) => ({
+              value: option.value,
+              label: tAudit(`filters.actions.${option.labelKey}`),
+            }))}
+          />
         </label>
 
         <label className="space-y-1 text-sm">
@@ -239,41 +244,69 @@ export function AdminAuditConsole() {
       ) : entries.length === 0 ? (
         <p className="text-sm text-[#8b949e]">{tAudit("empty")}</p>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-[#30363d]">
-          <table className="min-w-full text-left text-sm">
-            <thead className="bg-[#161b22] text-[#8b949e]">
-              <tr>
-                <th className="px-4 py-2">{t("table.time")}</th>
-                <th className="px-4 py-2">{t("table.action")}</th>
-                <th className="px-4 py-2">{t("table.resource")}</th>
-                <th className="px-4 py-2">{tAudit("table.allianceTag")}</th>
-                <th className="px-4 py-2">{tAudit("table.hqUser")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {entries.map((entry) => (
-                <tr key={entry.id} className="border-t border-[#30363d]">
-                  <td className="px-4 py-2 whitespace-nowrap text-[#8b949e]">
-                    <FormattedDateTime value={entry.createdAt} />
-                  </td>
-                  <td className="px-4 py-2">{entry.action}</td>
-                  <td className="px-4 py-2">
-                    {entry.resourceType}/{entry.resourceName}
-                  </td>
-                  <td className="px-4 py-2 font-mono text-xs">
-                    {entry.allianceId
-                      ? (allianceTagLookup.get(entry.allianceId) ??
-                        entry.allianceId)
-                      : "—"}
-                  </td>
-                  <td className="px-4 py-2 font-mono text-xs">
-                    {entry.hqUserId ?? "—"}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <ResponsiveRecordViews
+          mobileCards={entries.map((entry) => (
+            <RecordDetailCard key={entry.id}>
+              <RecordDetailField label={t("table.time")}>
+                <FormattedDateTime value={entry.createdAt} />
+              </RecordDetailField>
+              <RecordDetailField label={t("table.action")}>
+                {entry.action}
+              </RecordDetailField>
+              <RecordDetailField label={t("table.resource")}>
+                {entry.resourceType}/{entry.resourceName}
+              </RecordDetailField>
+              <RecordDetailField label={tAudit("table.allianceTag")}>
+                {entry.allianceId
+                  ? (allianceTagLookup.get(entry.allianceId) ?? entry.allianceId)
+                  : "—"}
+              </RecordDetailField>
+              <RecordDetailField
+                label={tAudit("table.hqUser")}
+                valueClassName="font-mono text-sm"
+              >
+                {entry.hqUserId ?? "—"}
+              </RecordDetailField>
+            </RecordDetailCard>
+          ))}
+          desktopTable={
+            <div className="overflow-x-auto rounded-xl border border-[#30363d]">
+              <table className="min-w-full text-left text-sm">
+                <thead className="bg-[#161b22] text-[#8b949e]">
+                  <tr>
+                    <th className="px-4 py-2">{t("table.time")}</th>
+                    <th className="px-4 py-2">{t("table.action")}</th>
+                    <th className="px-4 py-2">{t("table.resource")}</th>
+                    <th className="px-4 py-2">{tAudit("table.allianceTag")}</th>
+                    <th className="px-4 py-2">{tAudit("table.hqUser")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {entries.map((entry) => (
+                    <tr key={entry.id} className="border-t border-[#30363d]">
+                      <td className="px-4 py-2 whitespace-nowrap text-[#8b949e]">
+                        <FormattedDateTime value={entry.createdAt} />
+                      </td>
+                      <td className="px-4 py-2">{entry.action}</td>
+                      <td className="px-4 py-2">
+                        {entry.resourceType}/{entry.resourceName}
+                      </td>
+                      <td className="px-4 py-2 font-mono text-xs">
+                        {entry.allianceId
+                          ? (allianceTagLookup.get(entry.allianceId) ??
+                            entry.allianceId)
+                          : "—"}
+                      </td>
+                      <td className="px-4 py-2 font-mono text-xs">
+                        {entry.hqUserId ?? "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          }
+        />
       )}
     </div>
   );

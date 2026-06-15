@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Alliance HQ">
+  <defs>
+    <linearGradient id="gold" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#E8C547"/>
+      <stop offset="100%" stop-color="#8B6914"/>
+    </linearGradient>
+    <linearGradient id="body" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#C4B896"/>
+      <stop offset="100%" stop-color="#8A8270"/>
+    </linearGradient>
+  </defs>
+  <rect width="1024" height="1024" rx="220" fill="#161b22"/>
+  <rect x="112" y="112" width="800" height="800" rx="180" fill="none" stroke="#30363d" stroke-width="16"/>
+  <!-- sloped base -->
+  <path d="M260 760 L764 760 L820 860 L204 860 Z" fill="#30363d"/>
+  <!-- main body -->
+  <path d="M300 420 L724 420 L764 760 L260 760 Z" fill="url(#body)"/>
+  <!-- upper tier -->
+  <path d="M340 300 L684 300 L724 420 L300 420 Z" fill="#B8AE94"/>
+  <!-- roof platform -->
+  <path d="M320 260 L704 260 L684 300 L340 300 Z" fill="#8A8270"/>
+  <!-- vault door -->
+  <circle cx="512" cy="620" r="72" fill="#4A5568" stroke="url(#gold)" stroke-width="14"/>
+  <circle cx="512" cy="620" r="18" fill="url(#gold)"/>
+  <!-- status strip -->
+  <rect x="452" y="500" width="120" height="18" rx="4" fill="#58a6ff"/>
+  <!-- wing emblem -->
+  <path d="M472 470 L512 440 L552 470 L532 490 L492 490 Z" fill="url(#gold)"/>
+  <!-- turret base -->
+  <rect x="430" y="180" width="164" height="80" rx="8" fill="url(#gold)"/>
+  <!-- barrels -->
+  <rect x="360" y="210" width="120" height="28" rx="8" fill="#C0C0C0"/>
+  <rect x="544" y="210" width="120" height="28" rx="8" fill="#C0C0C0"/>
+  <!-- spotlight -->
+  <circle cx="512" cy="200" r="22" fill="#E8C547" stroke="#8B6914" stroke-width="6"/>
+</svg>

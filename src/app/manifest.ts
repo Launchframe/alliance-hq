@@ -1,0 +1,20 @@
+import type { MetadataRoute } from "next";
+
+export default function manifest(): MetadataRoute.Manifest {
+  return {
+    name: "Alliance HQ",
+    short_name: "Alliance HQ",
+    description: "Alliance tools for Last War — built on ashed.online.",
+    start_url: "/",
+    display: "standalone",
+    background_color: "#161b22",
+    theme_color: "#0d1117",
+    icons: [
+      {
+        src: "/brand/hq-icon-app.svg",
+        sizes: "any",
+        type: "image/svg+xml",
+      },
+    ],
+  };
+}

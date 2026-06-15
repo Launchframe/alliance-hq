@@ -4,6 +4,11 @@ import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { FormattedDateTime } from "@/components/timezone/TimezoneProvider";
+import {
+  RecordDetailCard,
+  RecordDetailField,
+  ResponsiveRecordViews,
+} from "@/components/ui/ResponsiveRecordViews";
 
 import {
   canReprocessVideoJob,
@@ -69,74 +74,139 @@ export default function AdminVideoJobsPage() {
   }
 
   return (
-    <div className="space-y-3">
+    <div className="min-w-0 space-y-3">
       {error ? <p className="text-sm text-red-400">{error}</p> : null}
-      <div className="overflow-x-auto rounded-xl border border-[#30363d]">
-        <table className="min-w-full text-left text-sm">
-          <thead className="bg-[#161b22] text-[#8b949e]">
-            <tr>
-              <th className="px-4 py-2">{t("table.time")}</th>
-              <th className="px-4 py-2">{t("table.status")}</th>
-              <th className="px-4 py-2">{t("table.target")}</th>
-              <th className="px-4 py-2">{t("table.file")}</th>
-              <th className="px-4 py-2">{tJobs("actions")}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {jobs.map((job) => {
-              const canRequeue = canRequeueVideoJob(job.status);
-              const canReprocess = canReprocessVideoJob(job.status);
-              return (
-                <tr key={job.id} className="border-t border-[#30363d]">
-                  <td className="px-4 py-2 whitespace-nowrap text-[#8b949e]">
-                    <FormattedDateTime value={job.createdAt} />
-                  </td>
-                  <td className="px-4 py-2">{job.status}</td>
-                  <td className="px-4 py-2">{job.scoreTarget ?? "—"}</td>
-                  <td className="max-w-xs truncate px-4 py-2">
-                    {job.fileName ?? job.id}
-                  </td>
-                  <td className="px-4 py-2">
-                    <div className="flex flex-wrap items-center gap-2">
-                      {job.errorMessage ? (
-                        <button
-                          type="button"
-                          onClick={() => setErrorDialogJob(job)}
-                          className="text-xs text-red-400 hover:underline"
-                        >
-                          {tJobs("viewError")}
-                        </button>
-                      ) : null}
-                      <button
-                        type="button"
-                        disabled={actingJobId === job.id || !canRequeue}
-                        title={
-                          canRequeue ? undefined : tJobs("actionUnavailable")
-                        }
-                        onClick={() => void runAction(job.id, "requeue")}
-                        className="text-xs text-[#58a6ff] hover:underline disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        {tJobs("requeue")}
-                      </button>
-                      <button
-                        type="button"
-                        disabled={actingJobId === job.id || !canReprocess}
-                        title={
-                          canReprocess ? undefined : tJobs("actionUnavailable")
-                        }
-                        onClick={() => void runAction(job.id, "reprocess")}
-                        className="text-xs text-[#58a6ff] hover:underline disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        {tJobs("reprocess")}
-                      </button>
-                    </div>
-                  </td>
+      <ResponsiveRecordViews
+        isEmpty={jobs.length === 0}
+        emptyMessage={tJobs("empty")}
+        mobileCards={jobs.map((job) => {
+          const canRequeue = canRequeueVideoJob(job.status);
+          const canReprocess = canReprocessVideoJob(job.status);
+          return (
+            <RecordDetailCard key={job.id}>
+              <RecordDetailField label={t("table.time")}>
+                <FormattedDateTime value={job.createdAt} />
+              </RecordDetailField>
+              <RecordDetailField label={t("table.status")}>
+                {job.status}
+              </RecordDetailField>
+              <RecordDetailField label={t("table.target")}>
+                {job.scoreTarget ?? "—"}
+              </RecordDetailField>
+              <RecordDetailField label={t("table.file")}>
+                <span className="wrap-break-word">
+                  {job.fileName ?? job.id}
+                </span>
+              </RecordDetailField>
+              <RecordDetailField label={tJobs("actions")}>
+                <div className="flex flex-wrap items-center gap-2 text-sm font-normal">
+                  {job.errorMessage ? (
+                    <button
+                      type="button"
+                      onClick={() => setErrorDialogJob(job)}
+                      className="text-red-400 hover:underline"
+                    >
+                      {tJobs("viewError")}
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    disabled={actingJobId === job.id || !canRequeue}
+                    title={
+                      canRequeue ? undefined : tJobs("actionUnavailable")
+                    }
+                    onClick={() => void runAction(job.id, "requeue")}
+                    className="text-[#58a6ff] hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {tJobs("requeue")}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={actingJobId === job.id || !canReprocess}
+                    title={
+                      canReprocess ? undefined : tJobs("actionUnavailable")
+                    }
+                    onClick={() => void runAction(job.id, "reprocess")}
+                    className="text-[#58a6ff] hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {tJobs("reprocess")}
+                  </button>
+                </div>
+              </RecordDetailField>
+            </RecordDetailCard>
+          );
+        })}
+        desktopTable={
+          <div className="overflow-x-auto rounded-xl border border-[#30363d]">
+            <table className="min-w-full text-left text-sm">
+              <thead className="bg-[#161b22] text-[#8b949e]">
+                <tr>
+                  <th className="px-4 py-2">{t("table.time")}</th>
+                  <th className="px-4 py-2">{t("table.status")}</th>
+                  <th className="px-4 py-2">{t("table.target")}</th>
+                  <th className="px-4 py-2">{t("table.file")}</th>
+                  <th className="px-4 py-2">{tJobs("actions")}</th>
                 </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+              </thead>
+              <tbody>
+                {jobs.map((job) => {
+                  const canRequeue = canRequeueVideoJob(job.status);
+                  const canReprocess = canReprocessVideoJob(job.status);
+                  return (
+                    <tr key={job.id} className="border-t border-[#30363d]">
+                      <td className="px-4 py-2 whitespace-nowrap text-[#8b949e]">
+                        <FormattedDateTime value={job.createdAt} />
+                      </td>
+                      <td className="px-4 py-2">{job.status}</td>
+                      <td className="px-4 py-2">{job.scoreTarget ?? "—"}</td>
+                      <td className="max-w-xs truncate px-4 py-2">
+                        {job.fileName ?? job.id}
+                      </td>
+                      <td className="px-4 py-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                          {job.errorMessage ? (
+                            <button
+                              type="button"
+                              onClick={() => setErrorDialogJob(job)}
+                              className="text-xs text-red-400 hover:underline"
+                            >
+                              {tJobs("viewError")}
+                            </button>
+                          ) : null}
+                          <button
+                            type="button"
+                            disabled={actingJobId === job.id || !canRequeue}
+                            title={
+                              canRequeue ? undefined : tJobs("actionUnavailable")
+                            }
+                            onClick={() => void runAction(job.id, "requeue")}
+                            className="text-xs text-[#58a6ff] hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {tJobs("requeue")}
+                          </button>
+                          <button
+                            type="button"
+                            disabled={actingJobId === job.id || !canReprocess}
+                            title={
+                              canReprocess
+                                ? undefined
+                                : tJobs("actionUnavailable")
+                            }
+                            onClick={() => void runAction(job.id, "reprocess")}
+                            className="text-xs text-[#58a6ff] hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {tJobs("reprocess")}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        }
+      />
 
       {errorDialogJob ? (
         <div

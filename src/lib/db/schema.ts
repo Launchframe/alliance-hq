@@ -367,3 +367,147 @@ export type HqEvent = typeof hqEvents.$inferSelect;
 export type HqEventBoard = typeof hqEventBoards.$inferSelect;
 export type HqCommendation = typeof hqCommendations.$inferSelect;
 export type HqEventMember = typeof hqEventMembers.$inferSelect;
+
+export const surveyFeedback = pgTable("survey_feedback", {
+  id: text("id").primaryKey(),
+  hqUserId: text("hq_user_id").references(() => hqUsers.id, {
+    onDelete: "set null",
+  }),
+  allianceId: text("alliance_id"),
+  videoJobId: text("video_job_id").references(() => videoJobs.id, {
+    onDelete: "set null",
+  }),
+  source: text("source").notNull(),
+  positiveExperience: integer("positive_experience"),
+  feedback: text("feedback"),
+  outreachConsent: integer("outreach_consent"),
+  isComplete: integer("is_complete").notNull().default(0),
+  dismissedAt: timestamp("dismissed_at", { withTimezone: true }),
+  locale: text("locale"),
+  pagePath: text("page_path"),
+  appVersion: text("app_version"),
+  browserVersion: text("browser_version"),
+  osVersion: text("os_version"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+export const userFeedbackReport = pgTable("user_feedback_report", {
+  id: text("id").primaryKey(),
+  type: text("type").notNull().default("bug"),
+  status: text("status").notNull().default("open"),
+  hqUserId: text("hq_user_id").references(() => hqUsers.id, {
+    onDelete: "set null",
+  }),
+  allianceId: text("alliance_id"),
+  subject: text("subject"),
+  description: text("description").notNull(),
+  area: text("area"),
+  severity: integer("severity"),
+  pageUrl: text("page_url"),
+  locale: text("locale"),
+  appVersion: text("app_version"),
+  browserVersion: text("browser_version"),
+  osVersion: text("os_version"),
+  consoleLogs: text("console_logs"),
+  captureSessionId: text("capture_session_id"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+export const bugReportScreenshot = pgTable("bug_report_screenshot", {
+  id: text("id").primaryKey(),
+  reportId: text("report_id")
+    .notNull()
+    .references(() => userFeedbackReport.id, { onDelete: "cascade" }),
+  storageKey: text("storage_key").notNull(),
+  width: integer("width"),
+  height: integer("height"),
+  capturedAt: timestamp("captured_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+export const translationCorrectionReports = pgTable(
+  "translation_correction_reports",
+  {
+    id: text("id").primaryKey(),
+    hqUserId: text("hq_user_id")
+      .notNull()
+      .references(() => hqUsers.id, { onDelete: "cascade" }),
+    allianceId: text("alliance_id"),
+    locale: text("locale").notNull(),
+    i18nKey: text("i18n_key"),
+    candidateKeys: jsonb("candidate_keys").$type<string[]>(),
+    displayedText: text("displayed_text").notNull(),
+    suggestedTranslation: text("suggested_translation").notNull(),
+    pagePath: text("page_path"),
+    status: text("status").notNull().default("pending"),
+    reviewedBy: text("reviewed_by").references(() => hqUsers.id, {
+      onDelete: "set null",
+    }),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+    adminNotes: text("admin_notes"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+);
+
+export const hqPlatformCommendations = pgTable("hq_platform_commendations", {
+  id: text("id").primaryKey(),
+  slug: text("slug").notNull().unique(),
+  label: text("label").notNull(),
+  description: text("description"),
+  category: text("category").notNull().default("translation"),
+  thresholdType: text("threshold_type").notNull(),
+  thresholdValue: integer("threshold_value").notNull(),
+  sortOrder: integer("sort_order").notNull().default(0),
+  active: integer("active").notNull().default(1),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+export const hqUserPlatformCommendations = pgTable(
+  "hq_user_platform_commendations",
+  {
+    id: text("id").primaryKey(),
+    hqUserId: text("hq_user_id")
+      .notNull()
+      .references(() => hqUsers.id, { onDelete: "cascade" }),
+    commendationId: text("commendation_id")
+      .notNull()
+      .references(() => hqPlatformCommendations.id, { onDelete: "cascade" }),
+    awardedAt: timestamp("awarded_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    metadata: jsonb("metadata"),
+  },
+  (table) => [
+    unique("hq_user_platform_commendations_user_slug_unique").on(
+      table.hqUserId,
+      table.commendationId,
+    ),
+  ],
+);
+
+export type SurveyFeedback = typeof surveyFeedback.$inferSelect;
+export type UserFeedbackReport = typeof userFeedbackReport.$inferSelect;
+export type BugReportScreenshot = typeof bugReportScreenshot.$inferSelect;
+export type TranslationCorrectionReport =
+  typeof translationCorrectionReports.$inferSelect;
+export type HqPlatformCommendation = typeof hqPlatformCommendations.$inferSelect;
+export type HqUserPlatformCommendation =
+  typeof hqUserPlatformCommendations.$inferSelect;

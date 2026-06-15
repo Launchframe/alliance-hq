@@ -1,29 +1,32 @@
+import { resolveDatabaseUrl } from "./resolve-database-url";
+
+export type { DatabaseUrlEnv } from "./resolve-database-url";
+export {
+  resolveDatabaseUrl,
+  shouldPreferLocalDatabaseUrl,
+} from "./resolve-database-url";
+
 /**
  * Local dev: set LOCAL_DATABASE_URL (e.g. postgresql://localhost/alliance_hq).
  * Production / Neon: set DATABASE_URL.
  *
- * When NODE_ENV is not production, LOCAL_DATABASE_URL wins if set.
+ * LOCAL_DATABASE_URL wins whenever set, except on Vercel production (VERCEL=1).
  */
 export function getDatabaseUrl(): string {
-  const isProduction = process.env.NODE_ENV === "production";
-  const local = process.env.LOCAL_DATABASE_URL?.trim();
+  return normalizePostgresUrl(resolveDatabaseUrl(process.env));
+}
 
-  let raw: string | undefined;
-  if (!isProduction && local) {
-    raw = local;
-  } else {
-    raw = process.env.DATABASE_URL?.trim() ?? local;
+/** Hostname only — safe to show in admin UI (no credentials). */
+export function databaseHostFromUrl(raw: string): string {
+  try {
+    return new URL(raw).hostname;
+  } catch {
+    return "unknown";
   }
+}
 
-  if (!raw) {
-    throw new Error(
-      isProduction
-        ? "DATABASE_URL is not set"
-        : "Set LOCAL_DATABASE_URL (local Postgres) or DATABASE_URL in .env.local",
-    );
-  }
-
-  return normalizePostgresUrl(raw);
+export function getDatabaseHost(): string {
+  return databaseHostFromUrl(getDatabaseUrl());
 }
 
 /** Strip Prisma-style query params that libpq / postgres.js reject. */

@@ -25,6 +25,21 @@ export default async function AdminOverviewPage() {
       titleKey: "commendationsTitle",
       descKey: "commendationsDesc",
     },
+    {
+      href: "/admin/bug-reports",
+      titleKey: "bugReportsTitle",
+      descKey: "bugReportsDesc",
+    },
+    {
+      href: "/admin/experience-feedback",
+      titleKey: "experienceFeedbackTitle",
+      descKey: "experienceFeedbackDesc",
+    },
+    {
+      href: "/admin/translation-reports",
+      titleKey: "translationReportsTitle",
+      descKey: "translationReportsDesc",
+    },
   ] as const;
 
   return (

@@ -4,6 +4,7 @@ import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 
 import { Link } from "@/i18n/navigation";
+import { AppSelect } from "@/components/ui/AppSelect";
 import { useMergedVideoJobs } from "@/components/video/VideoJobEventsProvider";
 import type { VideoJobRow } from "@/lib/types/video";
 
@@ -134,39 +135,36 @@ export function VideoUploadForm({ initialJobs }: Props) {
   }
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
-      <div>
+    <div className="mx-auto w-full min-w-0 max-w-2xl space-y-6">
+      <div className="min-w-0">
         <h1 className="text-2xl font-semibold">{t("title")}</h1>
         <p className="mt-1 text-sm text-[#8b949e]">{t("subtitle")}</p>
       </div>
 
       <form
         onSubmit={(e) => void handleSubmit(e)}
-        className="rounded-xl border border-[#30363d] bg-[#161b22] p-5"
+        className="min-w-0 rounded-xl border border-[#30363d] bg-[#161b22] p-4 sm:p-5"
       >
         <label className="block">
           <span className="mb-2 block text-sm text-[#8b949e]">
             {t("scoreTargetLabel")}
           </span>
-          <select
+          <AppSelect
             value={scoreTarget}
-            onChange={(e) => handleScoreTargetChange(e.target.value)}
-            className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 text-sm"
-          >
-            {GROUP_ORDER.map((group) => {
-              const options = scoreTargets.filter((t) => t.group === group);
-              if (options.length === 0) return null;
-              return (
-                <optgroup key={group} label={tNav(`groups.${group}`)}>
-                  {options.map((target) => (
-                    <option key={target.id} value={target.id}>
-                      {tNav(target.labelKey)}
-                    </option>
-                  ))}
-                </optgroup>
-              );
-            })}
-          </select>
+            onChange={handleScoreTargetChange}
+            aria-label={t("scoreTargetLabel")}
+            groups={GROUP_ORDER.map((group) => {
+              const groupOptions = scoreTargets.filter((t) => t.group === group);
+              if (groupOptions.length === 0) return null;
+              return {
+                label: tNav(`groups.${group}`),
+                options: groupOptions.map((target) => ({
+                  value: target.id,
+                  label: tNav(target.labelKey),
+                })),
+              };
+            }).filter((group): group is NonNullable<typeof group> => group !== null)}
+          />
         </label>
 
         {needsBoardPicker ? (
@@ -174,17 +172,15 @@ export function VideoUploadForm({ initialJobs }: Props) {
             <span className="mb-2 block text-sm text-[#8b949e]">
               {t("boardLabel")}
             </span>
-            <select
+            <AppSelect
               value={effectiveBoardKey}
-              onChange={(e) => setBoardKey(e.target.value)}
-              className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 text-sm"
-            >
-              {(selectedTarget?.boardTypes ?? []).map((board) => (
-                <option key={board} value={board}>
-                  {t(`boardTypes.${board}`)}
-                </option>
-              ))}
-            </select>
+              onChange={setBoardKey}
+              aria-label={t("boardLabel")}
+              options={(selectedTarget?.boardTypes ?? []).map((board) => ({
+                value: board,
+                label: t(`boardTypes.${board}`),
+              }))}
+            />
           </label>
         ) : null}
 
@@ -196,13 +192,13 @@ export function VideoUploadForm({ initialJobs }: Props) {
             type="file"
             accept="video/mp4,video/quicktime,video/webm,video/*"
             onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-            className="block w-full text-sm text-[#8b949e] file:mr-4 file:rounded-lg file:border-0 file:bg-[#238636] file:px-4 file:py-2 file:text-sm file:text-white"
+            className="block w-full max-w-full text-sm text-[#8b949e] file:mb-2 file:block file:w-full file:rounded-lg file:border-0 file:bg-[#238636] file:px-4 file:py-2 file:text-sm file:text-white sm:file:mb-0 sm:file:mr-4 sm:file:inline-block sm:file:w-auto"
           />
           <p className="mt-2 text-xs text-[#8b949e]">{t("fileHint")}</p>
         </label>
 
         {file && (
-          <p className="mt-2 text-sm">
+          <p className="mt-2 break-all text-sm">
             {t("selectedFile", {
               name: file.name,
               size: formatBytes(file.size),
@@ -216,23 +212,23 @@ export function VideoUploadForm({ initialJobs }: Props) {
         <button
           type="submit"
           disabled={uploading || !file}
-          className="mt-4 rounded-lg border border-[#238636] bg-[#238636] px-4 py-2 text-sm text-white disabled:opacity-50"
+          className="mt-4 w-full rounded-lg border border-[#238636] bg-[#238636] px-4 py-2 text-sm text-white disabled:opacity-50 sm:w-auto"
         >
           {uploading ? t("uploading") : t("uploadButton")}
         </button>
       </form>
 
       {jobs.length > 0 && (
-        <section className="rounded-xl border border-[#30363d] bg-[#161b22] p-5">
+        <section className="min-w-0 rounded-xl border border-[#30363d] bg-[#161b22] p-4 sm:p-5">
           <h2 className="font-medium">{t("recentUploads")}</h2>
           <ul className="mt-3 space-y-2">
             {jobs.map((job) => (
               <li
                 key={job.id}
-                className="flex items-center justify-between gap-4 rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 text-sm"
+                className="flex flex-col gap-2 rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 text-sm sm:flex-row sm:items-center sm:justify-between sm:gap-4"
               >
-                <div className="min-w-0">
-                  <p className="truncate font-medium">
+                <div className="min-w-0 w-full">
+                  <p className="break-all font-medium sm:truncate">
                     {job.fileName ?? job.id}
                   </p>
                   <p className="text-xs text-[#8b949e]">
@@ -240,7 +236,7 @@ export function VideoUploadForm({ initialJobs }: Props) {
                     {formatBytes(job.fileSizeBytes)}
                   </p>
                 </div>
-                <div className="flex shrink-0 items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2 sm:shrink-0">
                   <span
                     className={`rounded-full px-2 py-0.5 text-xs ${
                       job.status === "complete"

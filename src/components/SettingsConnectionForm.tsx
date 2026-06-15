@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 
 import { AlliancePicker } from "@/components/AlliancePicker";
+import { AppSelect } from "@/components/ui/AppSelect";
 import { useAccountTimezone } from "@/components/timezone/TimezoneProvider";
 import { useRouter } from "@/i18n/navigation";
 import { TokenExpiryNotice } from "@/components/TokenExpiryNotice";
@@ -257,26 +258,24 @@ export function SettingsConnectionForm({
         <p className="mt-2 text-sm text-[#8b949e]">{t("timezoneBody")}</p>
         <label className="mt-4 block text-sm">
           <span className="mb-2 block text-[#8b949e]">{t("timezoneLabel")}</span>
-          <select
+          <AppSelect
             value={timezoneId}
-            onChange={(e) => {
-              const nextTimezone = e.target.value as AccountTimezoneId;
+            onChange={(next) => {
+              const nextTimezone = next as AccountTimezoneId;
               setTimezoneId(nextTimezone);
               void saveTimezone(nextTimezone);
             }}
             disabled={timezoneSaving}
-            className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
-          >
-            {ACCOUNT_TIMEZONE_OPTION_IDS.map((optionId) => (
-              <option key={optionId} value={optionId}>
-                {formatTimezoneOptionLabel(
-                  optionId,
-                  locale,
-                  t("timezoneServerTime"),
-                )}
-              </option>
-            ))}
-          </select>
+            aria-label={t("timezoneLabel")}
+            options={ACCOUNT_TIMEZONE_OPTION_IDS.map((optionId) => ({
+              value: optionId,
+              label: formatTimezoneOptionLabel(
+                optionId,
+                locale,
+                t("timezoneServerTime"),
+              ),
+            }))}
+          />
         </label>
       </section>
 
@@ -290,22 +289,20 @@ export function SettingsConnectionForm({
             />
             <label className="block text-sm">
               <span className="mb-2 block text-[#8b949e]">{t("remindMe")}</span>
-              <select
-                value={reminderDays}
-                onChange={(e) => {
-                  const days = Number(e.target.value);
+              <AppSelect
+                value={String(reminderDays)}
+                onChange={(next) => {
+                  const days = Number(next);
                   setReminderDays(days);
                   void saveReminderDays(days);
                 }}
                 disabled={saving}
-                className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
-              >
-                {REMINDER_OPTIONS.map((days) => (
-                  <option key={days} value={days}>
-                    {t("reminderOption", { days })}
-                  </option>
-                ))}
-              </select>
+                aria-label={t("remindMe")}
+                options={REMINDER_OPTIONS.map((days) => ({
+                  value: String(days),
+                  label: t("reminderOption", { days }),
+                }))}
+              />
             </label>
           </div>
         ) : (

@@ -1,9 +1,10 @@
 import { count, desc, eq } from "drizzle-orm";
 
 import { getDb, schema } from "@/lib/db";
+import { getDatabaseHost } from "@/lib/db/url";
 
 export type SystemStats = {
-  database: { ok: boolean; error?: string };
+  database: { ok: boolean; host: string; error?: string };
   counts: {
     hqUsers: number;
     platformMaintainers: number;
@@ -35,6 +36,13 @@ export async function loadSystemStats(): Promise<SystemStats> {
   const db = getDb();
   let databaseOk = true;
   let databaseError: string | undefined;
+
+  let databaseHost = "unknown";
+  try {
+    databaseHost = getDatabaseHost();
+  } catch {
+    // env not configured — host stays unknown
+  }
 
   try {
     await db.select({ id: schema.sessions.id }).from(schema.sessions).limit(1);
@@ -91,7 +99,7 @@ export async function loadSystemStats(): Promise<SystemStats> {
   ]);
 
   return {
-    database: { ok: databaseOk, error: databaseError },
+    database: { ok: databaseOk, host: databaseHost, error: databaseError },
     counts: {
       hqUsers: hqUsers[0]?.count ?? 0,
       platformMaintainers: platformMaintainers[0]?.count ?? 0,

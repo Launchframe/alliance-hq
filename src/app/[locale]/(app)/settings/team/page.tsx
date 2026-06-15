@@ -27,7 +27,7 @@ export default async function SettingsTeamPage({
     : [];
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
+    <div className="mx-auto w-full min-w-0 max-w-3xl space-y-6">
       <div>
         <Link href="/settings" className="text-sm text-[#58a6ff] hover:underline">
           ← {t("backToSettings")}

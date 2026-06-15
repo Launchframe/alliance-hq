@@ -3,6 +3,12 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 
+import {
+  RecordDetailCard,
+  RecordDetailField,
+  ResponsiveRecordViews,
+} from "@/components/ui/ResponsiveRecordViews";
+
 type Commendation = {
   id: string;
   slug: string;
@@ -78,37 +84,67 @@ export function AdminCommendationsConsole() {
 
   return (
     <div className="space-y-6">
-      <div className="overflow-x-auto rounded-xl border border-[#30363d]">
-        <table className="min-w-full text-left text-sm">
-          <thead className="bg-[#161b22] text-[#8b949e]">
-            <tr>
-              <th className="px-4 py-2">{t("table.slug")}</th>
-              <th className="px-4 py-2">{t("table.label")}</th>
-              <th className="px-4 py-2">{t("table.order")}</th>
-              <th className="px-4 py-2">{t("table.active")}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {commendations.map((row) => (
-              <tr key={row.id} className="border-t border-[#30363d]">
-                <td className="px-4 py-2 font-mono text-xs">{row.slug}</td>
-                <td className="px-4 py-2">{row.label}</td>
-                <td className="px-4 py-2">{row.sortOrder}</td>
-                <td className="px-4 py-2">
-                  <button
-                    type="button"
-                    disabled={saving}
-                    onClick={() => void toggleActive(row.id, row.active !== 1)}
-                    className="text-[#58a6ff] hover:underline disabled:opacity-50"
-                  >
-                    {row.active === 1 ? t("activeYes") : t("activeNo")}
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <ResponsiveRecordViews
+        isEmpty={commendations.length === 0}
+        emptyMessage={t("empty")}
+        mobileCards={commendations.map((row) => (
+          <RecordDetailCard key={row.id}>
+            <RecordDetailField
+              label={t("table.slug")}
+              valueClassName="font-mono text-sm"
+            >
+              {row.slug}
+            </RecordDetailField>
+            <RecordDetailField label={t("table.label")}>{row.label}</RecordDetailField>
+            <RecordDetailField label={t("table.order")}>
+              {row.sortOrder}
+            </RecordDetailField>
+            <RecordDetailField label={t("table.active")}>
+              <button
+                type="button"
+                disabled={saving}
+                onClick={() => void toggleActive(row.id, row.active !== 1)}
+                className="text-base font-medium text-[#58a6ff] hover:underline disabled:opacity-50"
+              >
+                {row.active === 1 ? t("activeYes") : t("activeNo")}
+              </button>
+            </RecordDetailField>
+          </RecordDetailCard>
+        ))}
+        desktopTable={
+          <div className="overflow-x-auto rounded-xl border border-[#30363d]">
+            <table className="min-w-full text-left text-sm">
+              <thead className="bg-[#161b22] text-[#8b949e]">
+                <tr>
+                  <th className="px-4 py-2">{t("table.slug")}</th>
+                  <th className="px-4 py-2">{t("table.label")}</th>
+                  <th className="px-4 py-2">{t("table.order")}</th>
+                  <th className="px-4 py-2">{t("table.active")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {commendations.map((row) => (
+                  <tr key={row.id} className="border-t border-[#30363d]">
+                    <td className="px-4 py-2 font-mono text-xs">{row.slug}</td>
+                    <td className="px-4 py-2">{row.label}</td>
+                    <td className="px-4 py-2">{row.sortOrder}</td>
+                    <td className="px-4 py-2">
+                      <button
+                        type="button"
+                        disabled={saving}
+                        onClick={() => void toggleActive(row.id, row.active !== 1)}
+                        className="text-[#58a6ff] hover:underline disabled:opacity-50"
+                      >
+                        {row.active === 1 ? t("activeYes") : t("activeNo")}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        }
+      />
 
       <section className="rounded-xl border border-[#30363d] bg-[#161b22] p-5">
         <h2 className="font-medium">{t("createTitle")}</h2>

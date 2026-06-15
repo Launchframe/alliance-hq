@@ -2,6 +2,7 @@
 
 import { useLocale, useTranslations } from "next-intl";
 import { usePathname, useRouter } from "@/i18n/navigation";
+import { AppSelect } from "@/components/ui/AppSelect";
 import { locales, type AppLocale } from "@/i18n/routing";
 
 export function LanguageSwitcher() {
@@ -13,19 +14,18 @@ export function LanguageSwitcher() {
   return (
     <label className="inline-flex items-center gap-2 text-xs text-[#8b949e]">
       <span className="sr-only">{t("label")}</span>
-      <select
+      <AppSelect
         value={locale}
-        onChange={(e) => {
-          router.replace(pathname, { locale: e.target.value as AppLocale });
+        onChange={(next) => {
+          router.replace(pathname, { locale: next as AppLocale });
         }}
-        className="rounded border border-[#30363d] bg-[#0d1117] px-2 py-1 text-xs text-[#e6edf3]"
-      >
-        {locales.map((code) => (
-          <option key={code} value={code}>
-            {t(code)}
-          </option>
-        ))}
-      </select>
+        aria-label={t("label")}
+        triggerClassName="rounded border border-[#30363d] bg-[#0d1117] px-2 py-1 text-xs"
+        options={locales.map((code) => ({
+          value: code,
+          label: t(code),
+        }))}
+      />
     </label>
   );
 }

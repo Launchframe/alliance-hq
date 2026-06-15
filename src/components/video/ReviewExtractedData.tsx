@@ -4,6 +4,8 @@ import { useLocale, useTranslations } from "next-intl";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Link } from "@/i18n/navigation";
+import { useFeedback } from "@/components/feedback";
+import { AppSelect } from "@/components/ui/AppSelect";
 import { useAccountTimezone } from "@/components/timezone/TimezoneProvider";
 import { useVideoJob } from "@/components/video/VideoJobEventsProvider";
 import {
@@ -71,6 +73,7 @@ export function ReviewExtractedData({ jobId }: Props) {
   const tNav = useTranslations("nav");
   const locale = useLocale();
   const { timezoneId } = useAccountTimezone();
+  const { showExperienceFeedback } = useFeedback();
   const liveJob = useVideoJob(jobId);
 
   const [rows, setRows] = useState<ParsedRow[]>([]);
@@ -388,6 +391,8 @@ export function ReviewExtractedData({ jobId }: Props) {
         error?: string;
         submitted?: number;
         duplicateMembers?: Array<{ memberName: string }>;
+        showSolicitedFeedback?: boolean;
+        solicitedSource?: "solicited_first_upload" | "solicited_third_upload";
       };
       if (!res.ok) {
         setError(data.error ?? tc("uploadFailed"));
@@ -395,6 +400,14 @@ export function ReviewExtractedData({ jobId }: Props) {
       }
       setSuccess(t("submitSuccess", { count: data.submitted ?? 0 }));
       setJobStatus("complete");
+      if (data.showSolicitedFeedback && data.solicitedSource) {
+        showExperienceFeedback({
+          videoJobId: jobId,
+          source: data.solicitedSource,
+          isSolicited: true,
+          delayMs: 1500,
+        });
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : tc("uploadFailed"));
     } finally {
@@ -522,26 +535,26 @@ export function ReviewExtractedData({ jobId }: Props) {
         {needsEventPicker ? (
           <label className="block text-sm sm:col-span-2">
             <span className="mb-1 block text-[#8b949e]">{t("eventLabel")}</span>
-            <select
+            <AppSelect
               value={scoreTargetMeta?.usesHqEvents ? hqEventId : eventId}
-              onChange={(e) => {
+              onChange={(next) => {
                 if (scoreTargetMeta?.usesHqEvents) {
-                  setHqEventId(e.target.value);
+                  setHqEventId(next);
                 } else {
-                  setEventId(e.target.value);
+                  setEventId(next);
                 }
               }}
-              className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
-            >
-              {events.length === 0 ? (
-                <option value="">{t("noEventsOption")}</option>
-              ) : null}
-              {events.map((ev) => (
-                <option key={ev.id} value={ev.id}>
-                  {ev.label}
-                </option>
-              ))}
-            </select>
+              aria-label={t("eventLabel")}
+              options={[
+                ...(events.length === 0
+                  ? [{ value: "", label: t("noEventsOption"), disabled: true }]
+                  : []),
+                ...events.map((ev) => ({
+                  value: ev.id,
+                  label: ev.label,
+                })),
+              ]}
+            />
             {scoreTargetMeta?.usesHqEvents && events.length === 0 ? (
               <button
                 type="button"
@@ -584,31 +597,30 @@ export function ReviewExtractedData({ jobId }: Props) {
         {needsBoardPicker ? (
           <label className="block text-sm">
             <span className="mb-1 block text-[#8b949e]">{t("boardLabel")}</span>
-            <select
+            <AppSelect
               value={boardKey}
-              onChange={(e) => setBoardKey(e.target.value)}
-              className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
-            >
-              <option value="">{t("boardPlaceholder")}</option>
-              {(scoreTargetMeta?.boardTypes ?? []).map((board) => (
-                <option key={board} value={board}>
-                  {t(`boardTypes.${board}`)}
-                </option>
-              ))}
-            </select>
+              onChange={setBoardKey}
+              placeholder={t("boardPlaceholder")}
+              aria-label={t("boardLabel")}
+              options={(scoreTargetMeta?.boardTypes ?? []).map((board) => ({
+                value: board,
+                label: t(`boardTypes.${board}`),
+              }))}
+            />
           </label>
         ) : null}
         {scoreTargetMeta?.showTeamSelector ? (
           <label className="block text-sm">
             <span className="mb-1 block text-[#8b949e]">{t("teamLabel")}</span>
-            <select
+            <AppSelect
               value={team}
-              onChange={(e) => setTeam(e.target.value as "A" | "B")}
-              className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
-            >
-              <option value="A">Team A</option>
-              <option value="B">Team B</option>
-            </select>
+              onChange={(next) => setTeam(next as "A" | "B")}
+              aria-label={t("teamLabel")}
+              options={[
+                { value: "A", label: "Team A" },
+                { value: "B", label: "Team B" },
+              ]}
+            />
           </label>
         ) : null}
         <label className="block text-sm">
@@ -660,30 +672,32 @@ export function ReviewExtractedData({ jobId }: Props) {
                   ) : null}
                 </td>
                 <td className="px-4 py-3">
-                  <select
+                  <AppSelect
                     value={row.memberId ?? ""}
-                    onChange={(e) => {
-                      const member = members.find((m) => m.id === e.target.value);
+                    onChange={(next) => {
+                      const member = members.find((m) => m.id === next);
                       updateRow(row.id, {
-                        memberId: e.target.value || null,
+                        memberId: next || null,
                         memberName: member?.current_name ?? null,
-                        matchConfidence: e.target.value ? 1 : 0,
+                        matchConfidence: next ? 1 : 0,
                       });
                     }}
-                    className={`w-full min-w-[12rem] rounded-lg border bg-[#0d1117] px-2 py-1.5 ${confidenceClass(row.matchConfidence)}`}
-                  >
-                    <option value="">{t("unmatched")}</option>
-                    {members.map((m) => (
-                      <option key={m.id} value={m.id}>
-                        {m.current_name}
-                        {row.memberId === m.id &&
-                        row.matchConfidence != null &&
-                        row.matchConfidence < 1
-                          ? ` (${Math.round(row.matchConfidence * 100)}%)`
-                          : ""}
-                      </option>
-                    ))}
-                  </select>
+                    aria-label={t("colMember")}
+                    triggerClassName={`px-2 py-1.5 ${confidenceClass(row.matchConfidence)}`}
+                    options={[
+                      { value: "", label: t("unmatched") },
+                      ...members.map((m) => ({
+                        value: m.id,
+                        label: `${m.current_name}${
+                          row.memberId === m.id &&
+                          row.matchConfidence != null &&
+                          row.matchConfidence < 1
+                            ? ` (${Math.round(row.matchConfidence * 100)}%)`
+                            : ""
+                        }`,
+                      })),
+                    ]}
+                  />
                 </td>
                 {scoreTargetMeta?.showRankColumn ? (
                   <td className="px-4 py-3">

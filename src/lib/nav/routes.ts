@@ -240,3 +240,40 @@ export function isNavActive(pathname: string, href: string): boolean {
   }
   return pathname === href || pathname.startsWith(`${href}/`);
 }
+
+export function findActiveNavGroupId(
+  pathname: string,
+  options: {
+    showAdminPortal?: boolean;
+    showTeamSettings?: boolean;
+  } = {},
+): string | null {
+  const { showAdminPortal = false, showTeamSettings = false } = options;
+
+  for (const group of NAV_GROUPS) {
+    if (group.pages.some((page) => isNavActive(pathname, page.href))) {
+      return group.id;
+    }
+
+    if (group.id !== "hq-native") {
+      continue;
+    }
+
+    const extraHrefs = [
+      ...(showTeamSettings ? ["/settings/team"] : []),
+      ...(showAdminPortal ? ["/admin"] : []),
+    ];
+
+    if (
+      extraHrefs.some((href) =>
+        href === "/admin"
+          ? pathname.startsWith("/admin")
+          : isNavActive(pathname, href),
+      )
+    ) {
+      return group.id;
+    }
+  }
+
+  return null;
+}

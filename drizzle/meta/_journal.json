@@ -57,6 +57,13 @@
       "when": 1781440000000,
       "tag": "0008_hq_user_timezone",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1781445000000,
+      "tag": "0009_community_feedback",
+      "breakpoints": true
     }
   ]
 }
