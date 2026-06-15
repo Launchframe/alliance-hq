@@ -1,6 +1,7 @@
 import { and, desc, eq, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
+import { countCompletedDeviceLinksByHqUser } from "@/lib/credential-pairing/device-link-stats";
 import { getDb, schema } from "@/lib/db";
 
 import { isSystemRoleId } from "./system-roles";
@@ -23,6 +24,8 @@ export type AdminUserRow = {
   displayName: string | null;
   isPlatformMaintainer: boolean;
   createdAt: Date;
+  /** Successful device_link pairings issued by this user (additional devices). */
+  linkedDeviceCount: number;
   memberships: AdminMembershipRow[];
 };
 
@@ -45,7 +48,8 @@ export async function loadAdminUsersDirectory(): Promise<{
 }> {
   const db = getDb();
 
-  const [users, membershipRows, roles, alliances] = await Promise.all([
+  const [users, membershipRows, roles, alliances, deviceLinkCounts] =
+    await Promise.all([
     db.select().from(schema.hqUsers).orderBy(desc(schema.hqUsers.createdAt)),
     db
       .select({
@@ -81,6 +85,7 @@ export async function loadAdminUsersDirectory(): Promise<{
       })
       .from(schema.alliances)
       .orderBy(schema.alliances.name),
+    countCompletedDeviceLinksByHqUser(),
   ]);
 
   const membershipsByUser = new Map<string, AdminMembershipRow[]>();
@@ -97,6 +102,7 @@ export async function loadAdminUsersDirectory(): Promise<{
       displayName: user.displayName,
       isPlatformMaintainer: user.isPlatformMaintainer === 1,
       createdAt: user.createdAt,
+      linkedDeviceCount: deviceLinkCounts.get(user.id) ?? 0,
       memberships: (membershipsByUser.get(user.id) ?? []).sort((a, b) =>
         a.allianceName.localeCompare(b.allianceName),
       ),

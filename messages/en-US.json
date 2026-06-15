@@ -216,8 +216,10 @@
       "allianceLabel": "Alliance",
       "chooseAlliance": "Choose alliance…",
       "assignRole": "Assign role",
+      "linkedDevicesSummary": "{count, plural, =0 {No additional mobile devices linked via QR.} one {# additional mobile device linked via QR.} other {# additional mobile devices linked via QR.}}",
       "table": {
         "email": "User",
+        "linkedDevices": "Linked devices",
         "roles": "Roles"
       }
     },
@@ -529,6 +531,53 @@
     "timezoneSaved": "Time zone saved",
     "timezoneSaveFailed": "Could not save time zone",
     "aboutBody": "Alliance HQ at <strong>alliance-hq.vercel.app</strong> is a community wrapper for <link>ashed.online</link>. All alliance data credit belongs to Ashed."
+  },
+  "deviceLink": {
+    "sectionTitle": "Link a mobile device",
+    "sectionBody": "Already connected on a computer? Show a QR code here and scan it with your phone camera to use the same connection on mobile — no DevTools step.",
+    "storageNote": "Your connection key stays encrypted on our server — the QR code only contains a short-lived link, not the key itself.",
+    "showQr": "Show QR code",
+    "generating": "Generating…",
+    "scanHint": "Open your phone camera and scan this code.",
+    "expiresIn": "Expires in",
+    "expired": "This QR code expired. Generate a new one.",
+    "linked": "Mobile device linked.",
+    "createFailed": "Could not start device linking.",
+    "hideQr": "Hide QR code",
+    "landing": {
+      "title": "Linking your device",
+      "linking": "Connecting your phone to Alliance HQ…",
+      "success": "Your phone is now connected.",
+      "continue": "Continue to Alliance HQ",
+      "failed": "This link is invalid or expired.",
+      "retryHint": "On your computer, open Settings and generate a new QR code."
+    },
+    "devices": {
+      "listTitle": "Linked devices",
+      "listBody": "Phones and tablets you connected with a QR code. Revoking removes Alliance HQ access on that device only.",
+      "loading": "Loading linked devices…",
+      "loadFailed": "Could not load linked devices.",
+      "empty": "No linked mobile devices yet.",
+      "nameLabel": "Device name",
+      "saveName": "Save name",
+      "savingName": "Saving…",
+      "renamed": "Device name saved.",
+      "renameFailed": "Could not save device name.",
+      "nameRequired": "Enter a device name.",
+      "thisDevice": "This device",
+      "unknownOs": "Unknown OS",
+      "linkedAt": "Linked {when}",
+      "lastAccessAt": "Last active {when}",
+      "neverAccessed": "Not yet used",
+      "revoke": "Revoke access",
+      "revokeTitle": "Revoke device access?",
+      "revokeBody": "Remove Alliance HQ access from \"{name}\"? That device will need a new QR link to reconnect.",
+      "cancelRevoke": "Cancel",
+      "confirmRevoke": "Revoke access",
+      "revoking": "Revoking…",
+      "revoked": "Device access revoked.",
+      "revokeFailed": "Could not revoke device access."
+    }
   },
   "tokenExpiry": {
     "logoutWarning": "Logging out of ashed.online could break your Alliance HQ connection, even if your token has not reached its expiration yet.",

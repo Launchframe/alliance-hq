@@ -1,18 +1,13 @@
 import { waitUntil } from "@vercel/functions";
 
+import { resolveAppOrigin } from "@/lib/app-origin";
 import { logPipelineStep } from "@/lib/video/pipeline-step-log";
 
 export function resolveVideoProcessBaseUrl(): string {
   if (process.env.VIDEO_WORKER_BASE_URL) {
     return process.env.VIDEO_WORKER_BASE_URL.replace(/\/$/, "");
   }
-  if (process.env.NEXT_PUBLIC_APP_URL) {
-    return process.env.NEXT_PUBLIC_APP_URL.replace(/\/$/, "");
-  }
-  if (process.env.VERCEL_URL) {
-    return `https://${process.env.VERCEL_URL}`;
-  }
-  return "http://localhost:5175";
+  return resolveAppOrigin();
 }
 
 export async function dispatchVideoProcessing(

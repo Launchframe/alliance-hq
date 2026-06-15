@@ -216,8 +216,10 @@
       "allianceLabel": "Aliança",
       "chooseAlliance": "Escolher aliança…",
       "assignRole": "Atribuir função",
+      "linkedDevicesSummary": "{count, plural, =0 {Nenhum dispositivo móvel adicional vinculado via QR.} one {# dispositivo móvel adicional vinculado via QR.} other {# dispositivos móveis adicionais vinculados via QR.}}",
       "table": {
         "email": "Usuário",
+        "linkedDevices": "Dispositivos vinculados",
         "roles": "Funções"
       }
     },
@@ -529,6 +531,53 @@
     "timezoneSaved": "Fuso horário salvo",
     "timezoneSaveFailed": "Não foi possível salvar o fuso horário",
     "aboutBody": "O Alliance HQ, em <strong>alliance-hq.vercel.app</strong>, é uma interface comunitária para o <link>ashed.online</link>. Todos os créditos pelos dados da aliança pertencem ao Ashed."
+  },
+  "deviceLink": {
+    "sectionTitle": "Vincular dispositivo móvel",
+    "sectionBody": "Já conectou no computador? Mostre um QR code aqui e escaneie com a câmera do celular para usar a mesma conexão no mobile — sem o passo do DevTools.",
+    "storageNote": "Sua chave de conexão continua criptografada no nosso servidor — o QR code contém apenas um link de curta duração, não a chave em si.",
+    "showQr": "Mostrar QR code",
+    "generating": "Gerando…",
+    "scanHint": "Abra a câmera do celular e escaneie este código.",
+    "expiresIn": "Expira em",
+    "expired": "Este QR code expirou. Gere um novo.",
+    "linked": "Dispositivo móvel vinculado.",
+    "createFailed": "Não foi possível iniciar a vinculação do dispositivo.",
+    "hideQr": "Ocultar QR code",
+    "landing": {
+      "title": "Vinculando seu dispositivo",
+      "linking": "Conectando seu celular ao Alliance HQ…",
+      "success": "Seu celular agora está conectado.",
+      "continue": "Continuar para o Alliance HQ",
+      "failed": "Este link é inválido ou expirou.",
+      "retryHint": "No computador, abra Configurações e gere um novo QR code."
+    },
+    "devices": {
+      "listTitle": "Dispositivos vinculados",
+      "listBody": "Celulares e tablets conectados com QR code. Revogar remove o acesso ao Alliance HQ apenas nesse dispositivo.",
+      "loading": "Carregando dispositivos vinculados…",
+      "loadFailed": "Não foi possível carregar dispositivos vinculados.",
+      "empty": "Nenhum dispositivo móvel vinculado ainda.",
+      "nameLabel": "Nome do dispositivo",
+      "saveName": "Salvar nome",
+      "savingName": "Salvando…",
+      "renamed": "Nome do dispositivo salvo.",
+      "renameFailed": "Não foi possível salvar o nome do dispositivo.",
+      "nameRequired": "Digite um nome para o dispositivo.",
+      "thisDevice": "Este dispositivo",
+      "unknownOs": "SO desconhecido",
+      "linkedAt": "Vinculado em {when}",
+      "lastAccessAt": "Último acesso {when}",
+      "neverAccessed": "Ainda não usado",
+      "revoke": "Revogar acesso",
+      "revokeTitle": "Revogar acesso do dispositivo?",
+      "revokeBody": "Remover o acesso ao Alliance HQ de \"{name}\"? Esse dispositivo precisará de um novo QR code para reconectar.",
+      "cancelRevoke": "Cancelar",
+      "confirmRevoke": "Revogar acesso",
+      "revoking": "Revogando…",
+      "revoked": "Acesso do dispositivo revogado.",
+      "revokeFailed": "Não foi possível revogar o acesso do dispositivo."
+    }
   },
   "tokenExpiry": {
     "logoutWarning": "Encerrar a sessão no ashed.online pode interromper sua conexão com o Alliance HQ, mesmo que seu token ainda não tenha expirado.",
