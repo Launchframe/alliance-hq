@@ -4,6 +4,7 @@ import { and, eq } from "drizzle-orm";
 import { emitVideoJobStatus } from "@/lib/events/video-jobs";
 import { getDb, schema } from "@/lib/db";
 import { getOrCreateSession } from "@/lib/session";
+import { computeQualityScore } from "@/lib/video/quality-score";
 
 type Props = { params: Promise<{ jobId: string }> };
 
@@ -34,9 +35,46 @@ export async function PATCH(_request: Request, { params }: Props) {
     );
   }
 
+  let qualityScore: number | undefined;
+  let qualityBucket: string | undefined;
+
+  if (job.parseSessionId) {
+    const parsedRows = await db
+      .select({
+        deleted: schema.parsedRows.deleted,
+        edited: schema.parsedRows.edited,
+        manuallyAdded: schema.parsedRows.manuallyAdded,
+      })
+      .from(schema.parsedRows)
+      .where(eq(schema.parsedRows.parseSessionId, job.parseSessionId));
+
+    const activeRows = parsedRows.filter((row) => row.deleted !== 1);
+    const result = computeQualityScore({
+      rowsSaved: activeRows.length,
+      rowsEdited: activeRows.filter(
+        (row) => row.edited === 1 && row.manuallyAdded !== 1,
+      ).length,
+      rowsDeleted: parsedRows.filter((row) => row.deleted === 1).length,
+      rowsAdded: activeRows.filter((row) => row.manuallyAdded === 1).length,
+      status: "discarded",
+    });
+    qualityScore = result.qualityScore;
+    qualityBucket = result.qualityBucket;
+  }
+
   await db
     .update(schema.videoJobs)
-    .set({ status: "discarded", updatedAt: new Date() })
+    .set({
+      status: "discarded",
+      updatedAt: new Date(),
+      ...(qualityScore != null && qualityBucket != null
+        ? {
+            qualityScore,
+            qualityBucket,
+            qualityComputedAt: new Date(),
+          }
+        : {}),
+    })
     .where(eq(schema.videoJobs.id, jobId));
 
   await emitVideoJobStatus({

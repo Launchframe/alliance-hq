@@ -303,7 +303,8 @@
       "inspect": "Inspect",
       "frameCount": "Frames",
       "totalTime": "Total time",
-      "ocrTime": "OCR time"
+      "ocrTime": "OCR time",
+      "bucketFilter": "Bucket"
     },
     "videoJobDetailPage": {
       "loading": "Loading job details…",
@@ -356,7 +357,8 @@
       "videoPlay": "▶ Play",
       "videoPause": "⏸ Pause",
       "videoFps": "Speed (fps)",
-      "videoDuration": "Est. duration: {duration}"
+      "videoDuration": "Est. duration: {duration}",
+      "qualityBucket": "Quality bucket"
     },
     "auditPage": {
       "loading": "Loading audit log…",

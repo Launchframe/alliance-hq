@@ -21,6 +21,7 @@ import {
   validateSubmitContext,
   type SubmitContext,
 } from "@/lib/video/submit-schemas";
+import { computeQualityScore } from "@/lib/video/quality-score";
 
 type Props = {
   params: Promise<{ jobId: string }>;
@@ -28,8 +29,8 @@ type Props = {
 
 type SubmitRow = {
   id: string;
-  memberId: string;
-  memberName: string;
+  memberId?: string | null;
+  memberName?: string | null;
   score: string;
   rank?: number | null;
   deleted?: boolean;
@@ -98,7 +99,12 @@ export async function POST(request: Request, { params }: Props) {
     }
 
     const activeRows = body.rows.filter(
-      (r) => !r.deleted && r.memberId && r.memberName,
+      (
+        r,
+      ): r is SubmitRow & {
+        memberId: string;
+        memberName: string;
+      } => !r.deleted && Boolean(r.memberId) && Boolean(r.memberName),
     );
     if (activeRows.length === 0) {
       return NextResponse.json(
@@ -182,6 +188,40 @@ export async function POST(request: Request, { params }: Props) {
       ashedEventId = provisioned.ashedEventId;
     }
 
+    const originalRows = job.parseSessionId
+      ? await db
+          .select({
+            id: schema.parsedRows.id,
+            score: schema.parsedRows.score,
+            rank: schema.parsedRows.rank,
+            memberId: schema.parsedRows.memberId,
+            memberName: schema.parsedRows.memberName,
+            manuallyAdded: schema.parsedRows.manuallyAdded,
+          })
+          .from(schema.parsedRows)
+          .where(eq(schema.parsedRows.parseSessionId, job.parseSessionId))
+      : [];
+    const originalRowById = new Map(originalRows.map((row) => [row.id, row]));
+
+    const rowsEdited = activeRows.filter((row) => {
+      const original = originalRowById.get(row.id);
+      if (!original || original.manuallyAdded === 1) return false;
+      return (
+        original.score !== row.score ||
+        original.rank !== (row.rank ?? null) ||
+        original.memberId !== row.memberId ||
+        original.memberName !== row.memberName
+      );
+    }).length;
+    const rowsDeleted = body.rows.filter(
+      (row) => row.deleted && originalRowById.has(row.id),
+    ).length;
+    const rowsSaved = activeRows.length;
+    const rowsAdded = activeRows.filter((row) => {
+      const original = originalRowById.get(row.id);
+      return original?.manuallyAdded === 1;
+    }).length;
+
     const payloads = buildSubmitPayloads(
       target,
       allianceId,
@@ -225,15 +265,25 @@ export async function POST(request: Request, { params }: Props) {
     }
 
     for (const row of body.rows) {
+      const original = originalRowById.get(row.id);
+      const rowEdited =
+        !row.deleted &&
+        original != null &&
+        original.manuallyAdded !== 1 &&
+        (original.score !== row.score ||
+          original.rank !== (row.rank ?? null) ||
+          original.memberId !== (row.memberId ?? null) ||
+          original.memberName !== (row.memberName ?? null));
+
       await db
         .update(schema.parsedRows)
         .set({
-          memberId: row.memberId,
-          memberName: row.memberName,
+          memberId: row.memberId ?? null,
+          memberName: row.memberName ?? null,
           score: row.score,
           rank: row.rank ?? null,
           deleted: row.deleted ? 1 : 0,
-          edited: 1,
+          edited: rowEdited ? 1 : 0,
           updatedAt: new Date(),
         })
         .where(eq(schema.parsedRows.id, row.id));
@@ -258,6 +308,19 @@ export async function POST(request: Request, { params }: Props) {
         .update(schema.parseSessions)
         .set({ status: "submitted", updatedAt: new Date() })
         .where(eq(schema.parseSessions.id, job.parseSessionId));
+
+      const { qualityScore, qualityBucket } = computeQualityScore({
+        rowsSaved,
+        rowsEdited,
+        rowsDeleted,
+        rowsAdded,
+        status: "complete",
+      });
+
+      await db
+        .update(schema.videoJobs)
+        .set({ qualityScore, qualityBucket, qualityComputedAt: new Date() })
+        .where(eq(schema.videoJobs.id, jobId));
     }
 
     await writeAuditLog({

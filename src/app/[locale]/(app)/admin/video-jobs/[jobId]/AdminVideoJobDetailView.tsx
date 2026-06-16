@@ -19,7 +19,31 @@ type JobDetail = {
   timingsJson: VideoProcessTimings | null;
   totalFileSizeBytes: number | null;
   rating?: string | null;
+  qualityBucket?: string | null;
+  qualityScore?: number | null;
 };
+
+const QUALITY_BUCKET_COLORS: Record<string, string> = {
+  perfect: "bg-[#3fb95020] text-[#3fb950] border-[#3fb950]",
+  q1: "bg-[#3fb95010] text-[#3fb950] border-[#3fb950]",
+  q2: "bg-[#d2992210] text-[#d29922] border-[#d29922]",
+  q3: "bg-[#d2992210] text-[#d29922] border-[#d29922]",
+  q4: "bg-[#f8514910] text-[#f85149] border-[#f85149]",
+  q5: "bg-[#f8514910] text-[#f85149] border-[#f85149]",
+  dropped_the_ball: "bg-[#f8514920] text-[#f85149] border-[#f85149]",
+};
+
+function QualityBadge({ bucket }: { bucket: string | null | undefined }) {
+  if (!bucket) return null;
+  const cls =
+    QUALITY_BUCKET_COLORS[bucket] ??
+    "bg-[#21262d] text-[#8b949e] border-[#30363d]";
+  return (
+    <span className={`rounded-full border px-2 py-0.5 text-xs ${cls}`}>
+      {bucket}
+    </span>
+  );
+}
 
 type FrameRow = {
   frameIndex: number;
@@ -261,6 +285,20 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
                 ? "👎"
                 : "—"}
           </p>
+        </div>
+        <div>
+          <p className="text-xs text-[#8b949e]">{tDetail("qualityBucket")}</p>
+          <div className="flex items-center gap-1.5">
+            <QualityBadge bucket={job.qualityBucket} />
+            {job.qualityScore != null ? (
+              <span className="text-xs text-[#8b949e]">
+                ({(job.qualityScore * 100).toFixed(0)}%)
+              </span>
+            ) : null}
+            {!job.qualityBucket ? (
+              <span className="text-sm">—</span>
+            ) : null}
+          </div>
         </div>
       </div>
 

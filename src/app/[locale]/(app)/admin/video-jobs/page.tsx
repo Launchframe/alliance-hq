@@ -17,6 +17,7 @@ import {
   canRequeueVideoJob,
 } from "@/lib/video/admin-job-actions";
 import type { VideoProcessTimings } from "@/lib/analytics/video-pipeline";
+import type { QualityBucket } from "@/lib/video/quality-score";
 
 type VideoJob = {
   id: string;
@@ -27,8 +28,43 @@ type VideoJob = {
   errorMessage: string | null;
   frameCount: number | null;
   timingsJson: VideoProcessTimings | Record<string, unknown> | null;
+  qualityBucket: QualityBucket | null;
+  qualityScore: number | null;
   createdAt: string;
 };
+
+const BUCKET_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: "", label: "All buckets" },
+  { value: "perfect", label: "perfect" },
+  { value: "q1", label: "q1" },
+  { value: "q2", label: "q2" },
+  { value: "q3", label: "q3" },
+  { value: "q4", label: "q4" },
+  { value: "q5", label: "q5" },
+  { value: "dropped_the_ball", label: "dropped_the_ball" },
+];
+
+const QUALITY_BUCKET_COLORS: Record<string, string> = {
+  perfect: "bg-[#3fb95020] text-[#3fb950] border-[#3fb950]",
+  q1: "bg-[#3fb95010] text-[#3fb950] border-[#3fb950]",
+  q2: "bg-[#d2992210] text-[#d29922] border-[#d29922]",
+  q3: "bg-[#d2992210] text-[#d29922] border-[#d29922]",
+  q4: "bg-[#f8514910] text-[#f85149] border-[#f85149]",
+  q5: "bg-[#f8514910] text-[#f85149] border-[#f85149]",
+  dropped_the_ball: "bg-[#f8514920] text-[#f85149] border-[#f85149]",
+};
+
+function QualityBadge({ bucket }: { bucket: string | null | undefined }) {
+  if (!bucket) return null;
+  const cls =
+    QUALITY_BUCKET_COLORS[bucket] ??
+    "bg-[#21262d] text-[#8b949e] border-[#30363d]";
+  return (
+    <span className={`rounded-full border px-2 py-0.5 text-xs ${cls}`}>
+      {bucket}
+    </span>
+  );
+}
 
 function formatJobDuration(ms: number | null | undefined): string {
   if (ms == null || !Number.isFinite(ms)) return "—";
@@ -53,23 +89,29 @@ export default function AdminVideoJobsPage() {
   const [error, setError] = useState<string | null>(null);
   const [actingJobId, setActingJobId] = useState<string | null>(null);
   const [errorDialogJob, setErrorDialogJob] = useState<VideoJob | null>(null);
+  const [selectedBucket, setSelectedBucket] = useState<string>("");
 
-  const loadJobs = useCallback(async () => {
-    const res = await fetch("/api/admin/video-jobs?limit=200");
-    if (!res.ok) throw new Error(await res.text());
-    const data = (await res.json()) as { jobs: VideoJob[] };
-    setJobs(data.jobs);
-  }, []);
+  const loadJobs = useCallback(
+    async (bucket: string) => {
+      const params = new URLSearchParams({ limit: "200" });
+      if (bucket) params.set("bucket", bucket);
+      const res = await fetch(`/api/admin/video-jobs?${params.toString()}`);
+      if (!res.ok) throw new Error(await res.text());
+      const data = (await res.json()) as { jobs: VideoJob[] };
+      setJobs(data.jobs);
+    },
+    [],
+  );
 
   useEffect(() => {
     void (async () => {
       try {
-        await loadJobs();
+        await loadJobs(selectedBucket);
       } catch (err) {
         setError(err instanceof Error ? err.message : t("loadFailed"));
       }
     })();
-  }, [loadJobs, t]);
+  }, [loadJobs, selectedBucket, t]);
 
   async function runAction(jobId: string, action: "requeue" | "reprocess") {
     setActingJobId(jobId);
@@ -82,7 +124,7 @@ export default function AdminVideoJobsPage() {
         const data = (await res.json()) as { error?: string };
         throw new Error(data.error ?? tJobs("actionFailed"));
       }
-      await loadJobs();
+      await loadJobs(selectedBucket);
     } catch (err) {
       setError(err instanceof Error ? err.message : tJobs("actionFailed"));
     } finally {
@@ -97,6 +139,22 @@ export default function AdminVideoJobsPage() {
   return (
     <div className="min-w-0 space-y-3">
       {error ? <p className="text-sm text-red-400">{error}</p> : null}
+      <div className="flex flex-wrap items-center gap-2">
+        <label className="text-xs text-[#8b949e]">
+          {tJobs("bucketFilter")}
+        </label>
+        <select
+          value={selectedBucket}
+          onChange={(e) => setSelectedBucket(e.target.value)}
+          className="rounded-lg border border-[#30363d] bg-[#161b22] px-2 py-1 text-xs text-[#e6edf3]"
+        >
+          {BUCKET_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
+      </div>
       <ResponsiveRecordViews
         isEmpty={jobs.length === 0}
         emptyMessage={tJobs("empty")}
@@ -129,6 +187,16 @@ export default function AdminVideoJobsPage() {
                 {formatJobDuration(
                   readTimings(job.timingsJson)?.phases?.["ashed.ocr_total"],
                 )}
+              </RecordDetailField>
+              <RecordDetailField label={tJobs("bucketFilter")}>
+                <div className="flex items-center gap-1.5">
+                  <QualityBadge bucket={job.qualityBucket} />
+                  {job.qualityScore != null ? (
+                    <span className="text-xs text-[#8b949e]">
+                      ({(job.qualityScore * 100).toFixed(0)}%)
+                    </span>
+                  ) : null}
+                </div>
               </RecordDetailField>
               <RecordDetailField label={tJobs("actions")}>
                 <div className="flex flex-wrap items-center gap-2 text-sm font-normal">
@@ -186,6 +254,7 @@ export default function AdminVideoJobsPage() {
                   <th className="px-4 py-2">{tJobs("frameCount")}</th>
                   <th className="px-4 py-2">{tJobs("totalTime")}</th>
                   <th className="px-4 py-2">{tJobs("ocrTime")}</th>
+                  <th className="px-4 py-2">{tJobs("bucketFilter")}</th>
                   <th className="px-4 py-2">{tJobs("actions")}</th>
                 </tr>
               </thead>
@@ -213,6 +282,16 @@ export default function AdminVideoJobsPage() {
                             "ashed.ocr_total"
                           ],
                         )}
+                      </td>
+                      <td className="px-4 py-2">
+                        <div className="flex items-center gap-1.5">
+                          <QualityBadge bucket={job.qualityBucket} />
+                          {job.qualityScore != null ? (
+                            <span className="text-xs text-[#8b949e]">
+                              ({(job.qualityScore * 100).toFixed(0)}%)
+                            </span>
+                          ) : null}
+                        </div>
                       </td>
                       <td className="px-4 py-2">
                         <div className="flex flex-wrap items-center gap-2">

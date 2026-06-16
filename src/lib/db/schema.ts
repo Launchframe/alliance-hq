@@ -6,6 +6,7 @@ import {
   jsonb,
   pgTable,
   primaryKey,
+  real,
   text,
   timestamp,
   unique,
@@ -230,6 +231,9 @@ export const videoJobs = pgTable("video_jobs", {
   totalFileSizeBytes: bigint("total_file_size_bytes", { mode: "number" }),
   rating: text("rating"),
   ratingAt: timestamp("rating_at", { withTimezone: true }),
+  qualityScore: real("quality_score"),
+  qualityBucket: text("quality_bucket"),
+  qualityComputedAt: timestamp("quality_computed_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
     .notNull(),
