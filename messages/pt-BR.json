@@ -354,11 +354,13 @@
       },
       "galleryPrev": "Frame anterior",
       "galleryNext": "Próximo frame",
+      "frameZoom": "Zoom",
       "videoPlay": "▶ Reproduzir",
       "videoPause": "⏸ Pausar",
       "videoFps": "Velocidade (fps)",
       "videoDuration": "Duração estimada: {duration}",
-      "qualityBucket": "Categoria de qualidade"
+      "qualityBucket": "Categoria de qualidade",
+      "siblingPasses": "Passagens do grupo de upload"
     },
     "auditPage": {
       "loading": "Carregando log de auditoria…",
@@ -845,6 +847,18 @@
     "ratingThumbsDown": "Precisa melhorar",
     "ratingSkip": "Pular",
     "addRow": "Adicionar linha",
+    "comparisonPromptTitle": "Tentamos uma abordagem diferente que pode ter obtido melhores resultados.",
+    "comparisonPromptBody": "Uma segunda passagem encontrou mais linhas únicas. Deseja usar esses resultados?",
+    "comparisonUseBetter": "Usar resultados com mais linhas",
+    "comparisonSideBySide": "Ver lado a lado",
+    "comparisonDismiss": "Manter atual",
+    "comparisonSheetTitle": "Comparar passagens",
+    "comparisonAccuracyPrompt": "Qual foi mais precisa?",
+    "comparisonPassA": "Passagem A",
+    "comparisonPassB": "Passagem B",
+    "comparisonAboutSame": "Praticamente igual",
+    "comparisonUseA": "Usar Passagem A",
+    "comparisonUseB": "Usar Passagem B",
     "statsNerds": {
       "button": "Estatísticas avançadas",
       "title": "Estatísticas avançadas",
@@ -872,7 +886,13 @@
       "framesSelected": "Frames selecionados",
       "framesBaseline": "Frames de referência",
       "framesSkipped": "Frames ignorados",
-      "ocrOverlap": "Deduplicação OCR"
+      "ocrOverlap": "Deduplicação OCR",
+      "passComparisonTitle": "Comparação de passagens",
+      "passRows": "Linhas",
+      "passMatched": "Correspondidas",
+      "passFrames": "Frames",
+      "passTime": "Tempo",
+      "passOverlap": "{overlap} linhas em ambas · {onlyA} só em A · {onlyB} só em B"
     }
   },
   "feedback": {

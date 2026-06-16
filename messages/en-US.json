@@ -354,11 +354,13 @@
       },
       "galleryPrev": "Previous frame",
       "galleryNext": "Next frame",
+      "frameZoom": "Zoom",
       "videoPlay": "▶ Play",
       "videoPause": "⏸ Pause",
       "videoFps": "Speed (fps)",
       "videoDuration": "Est. duration: {duration}",
-      "qualityBucket": "Quality bucket"
+      "qualityBucket": "Quality bucket",
+      "siblingPasses": "Upload group passes"
     },
     "auditPage": {
       "loading": "Loading audit log…",
@@ -845,6 +847,18 @@
     "ratingThumbsDown": "Needs work",
     "ratingSkip": "Skip",
     "addRow": "Add row",
+    "comparisonPromptTitle": "We tried a different approach that may have gotten better results.",
+    "comparisonPromptBody": "A second pass found more unique rows. Would you like to use those results?",
+    "comparisonUseBetter": "Use results with more rows",
+    "comparisonSideBySide": "See side by side",
+    "comparisonDismiss": "Keep current",
+    "comparisonSheetTitle": "Compare passes",
+    "comparisonAccuracyPrompt": "Which was more accurate?",
+    "comparisonPassA": "Pass A",
+    "comparisonPassB": "Pass B",
+    "comparisonAboutSame": "About the same",
+    "comparisonUseA": "Use Pass A",
+    "comparisonUseB": "Use Pass B",
     "statsNerds": {
       "button": "Stats for nerds",
       "title": "Stats for nerds",
@@ -872,7 +886,13 @@
       "framesSelected": "Frames selected",
       "framesBaseline": "Baseline frame count",
       "framesSkipped": "Frames skipped",
-      "ocrOverlap": "OCR deduplication"
+      "ocrOverlap": "OCR deduplication",
+      "passComparisonTitle": "Pass comparison",
+      "passRows": "Rows",
+      "passMatched": "Matched",
+      "passFrames": "Frames",
+      "passTime": "Time",
+      "passOverlap": "{overlap} rows in both · {onlyA} only in A · {onlyB} only in B"
     }
   },
   "feedback": {

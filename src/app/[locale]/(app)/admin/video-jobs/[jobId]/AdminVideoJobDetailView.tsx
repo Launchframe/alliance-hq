@@ -72,6 +72,13 @@ type SurveyData = {
   aboveAverageScroll: boolean | null;
 };
 
+type GroupPass = {
+  id: string;
+  passKey: string | null;
+  passRole: string | null;
+  status: string;
+};
+
 type DetailResponse = {
   job: JobDetail;
   frames: FrameRow[];
@@ -81,10 +88,19 @@ type DetailResponse = {
   addCount: number;
   sameFileResubmits: number;
   survey: SurveyData | null;
+  groupPasses?: GroupPass[];
 };
 
 type TabId = "frames" | "parse" | "timings";
 type FrameViewMode = "list" | "gallery" | "video";
+
+const BASE_FRAME_HEIGHT_PX = 192;
+const FRAME_ZOOM_MIN = 0.5;
+const FRAME_ZOOM_MAX = 4;
+const FRAME_ZOOM_STEP = 0.25;
+const VIDEO_FPS_MIN = 0.5;
+const VIDEO_FPS_MAX = 3;
+const VIDEO_FPS_STEP = 0.25;
 
 function formatMs(ms: number | null | undefined): string {
   if (ms == null || !Number.isFinite(ms)) return "—";
@@ -125,13 +141,20 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
 
   // Gallery mode state
   const [currentGalleryIndex, setCurrentGalleryIndex] = useState(0);
-  const galleryVelocityRef = useRef(0);
   const galleryDragStartRef = useRef<number | null>(null);
+  const galleryDragSamplesRef = useRef<Array<{ x: number; t: number }>>([]);
+  const galleryMomentumAnimRef = useRef<number | null>(null);
+  const galleryPositionRef = useRef(0);
+  const galleryVelocityRef = useRef(0);
+  const galleryLastTickRef = useRef<number | null>(null);
+
+  // Shared frame zoom for gallery + slideshow (does not affect page layout elsewhere)
+  const [frameZoom, setFrameZoom] = useState(1.5);
 
   // Video / slideshow mode state
   const [videoModeIndex, setVideoModeIndex] = useState(0);
   const [videoModePlaying, setVideoModePlaying] = useState(false);
-  const [videoModeFps, setVideoModeFps] = useState(3);
+  const [videoModeFps, setVideoModeFps] = useState(1);
   const videoModeTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const loadDetail = useCallback(async () => {
@@ -151,6 +174,109 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
   }, [jobId, loadDetail, t]);
 
   const frames = data?.frames ?? [];
+  const frameDisplayHeight = Math.round(BASE_FRAME_HEIGHT_PX * frameZoom);
+
+  const stopGalleryMomentum = useCallback(() => {
+    if (galleryMomentumAnimRef.current != null) {
+      cancelAnimationFrame(galleryMomentumAnimRef.current);
+      galleryMomentumAnimRef.current = null;
+    }
+    galleryLastTickRef.current = null;
+    galleryVelocityRef.current = 0;
+  }, []);
+
+  const setGalleryIndex = useCallback(
+    (index: number) => {
+      const clamped = Math.max(0, Math.min(frames.length - 1, index));
+      galleryPositionRef.current = clamped;
+      setCurrentGalleryIndex(clamped);
+    },
+    [frames.length],
+  );
+
+  const startGalleryMomentum = useCallback(
+    (initialVelocityFramesPerSec: number) => {
+      if (frames.length <= 1) return;
+      stopGalleryMomentum();
+      galleryVelocityRef.current = initialVelocityFramesPerSec;
+      galleryPositionRef.current = Math.min(
+        frames.length - 1,
+        Math.max(0, currentGalleryIndex),
+      );
+
+      const tick = (now: number) => {
+        const last = galleryLastTickRef.current ?? now;
+        galleryLastTickRef.current = now;
+        const dt = Math.min(0.05, (now - last) / 1000);
+
+        galleryPositionRef.current += galleryVelocityRef.current * dt;
+        galleryVelocityRef.current *= 0.9;
+
+        if (galleryPositionRef.current < 0) {
+          galleryPositionRef.current = 0;
+          galleryVelocityRef.current = 0;
+        } else if (galleryPositionRef.current > frames.length - 1) {
+          galleryPositionRef.current = frames.length - 1;
+          galleryVelocityRef.current = 0;
+        }
+
+        setCurrentGalleryIndex(Math.round(galleryPositionRef.current));
+
+        if (Math.abs(galleryVelocityRef.current) > 0.08) {
+          galleryMomentumAnimRef.current = requestAnimationFrame(tick);
+        } else {
+          galleryMomentumAnimRef.current = null;
+          galleryVelocityRef.current = 0;
+          galleryPositionRef.current = Math.round(galleryPositionRef.current);
+        }
+      };
+
+      galleryMomentumAnimRef.current = requestAnimationFrame(tick);
+    },
+    [currentGalleryIndex, frames.length, stopGalleryMomentum],
+  );
+
+  const finishGalleryDrag = useCallback(() => {
+    const samples = galleryDragSamplesRef.current;
+    galleryDragStartRef.current = null;
+    galleryDragSamplesRef.current = [];
+
+    if (samples.length < 2 || frames.length <= 1) return;
+
+    const first = samples[0]!;
+    const last = samples[samples.length - 1]!;
+    const dx = last.x - first.x;
+    const dt = Math.max(last.t - first.t, 16);
+    const pxPerMs = dx / dt;
+    const framesPerSec = -pxPerMs * 0.018;
+
+    if (Math.abs(framesPerSec) < 0.15) {
+      if (Math.abs(dx) > 30) {
+        setGalleryIndex(currentGalleryIndex + (dx < 0 ? 1 : -1));
+      }
+      return;
+    }
+
+    startGalleryMomentum(
+      Math.max(-24, Math.min(24, framesPerSec)),
+    );
+  }, [currentGalleryIndex, frames.length, setGalleryIndex, startGalleryMomentum]);
+
+  const recordGalleryDrag = useCallback((clientX: number) => {
+    const now = performance.now();
+    galleryDragSamplesRef.current.push({ x: clientX, t: now });
+    if (galleryDragSamplesRef.current.length > 8) {
+      galleryDragSamplesRef.current.shift();
+    }
+  }, []);
+
+  useEffect(() => {
+    return () => stopGalleryMomentum();
+  }, [stopGalleryMomentum]);
+
+  useEffect(() => {
+    galleryPositionRef.current = currentGalleryIndex;
+  }, [currentGalleryIndex]);
 
   // Clamp gallery index to valid range (derived at render, no effect needed)
   const safeGalleryIndex = frames.length > 0
@@ -223,7 +349,7 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
     return <p className="text-sm text-[#8b949e]">{tDetail("loading")}</p>;
   }
 
-  const { job, parsedRows, editCount, deleteCount, addCount, sameFileResubmits } =
+  const { job, parsedRows, editCount, deleteCount, addCount, sameFileResubmits, groupPasses } =
     data;
   const timings = job.timingsJson;
 
@@ -330,6 +456,31 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
         </div>
       ) : null}
 
+      {groupPasses && groupPasses.length > 1 ? (
+        <div className="rounded-xl border border-[#30363d] bg-[#161b22] p-4">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[#8b949e]">
+            {tDetail("siblingPasses")}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {groupPasses.map((pass) => (
+              <Link
+                key={pass.id}
+                href={`/admin/video-jobs/${pass.id}`}
+                className={`rounded-lg border px-3 py-1.5 text-sm ${
+                  pass.id === jobId
+                    ? "border-[#58a6ff] text-[#58a6ff]"
+                    : "border-[#30363d] text-[#8b949e] hover:text-[#e6edf3]"
+                }`}
+              >
+                {pass.passKey ?? pass.passRole ?? pass.id.slice(0, 8)}
+                {" · "}
+                {pass.status}
+              </Link>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
       {job.errorMessage ? (
         <pre className="overflow-auto rounded-xl border border-red-900/50 bg-red-950/30 p-3 text-xs text-red-300">
           {job.errorMessage}
@@ -359,21 +510,42 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
         ) : (
           <div className="space-y-4">
             {/* View mode switcher */}
-            <div className="flex gap-1">
-              {(["list", "gallery", "video"] as const).map((mode) => (
-                <button
-                  key={mode}
-                  type="button"
-                  onClick={() => setFrameViewMode(mode)}
-                  className={`rounded-lg px-3 py-1.5 text-xs ${
-                    frameViewMode === mode
-                      ? "bg-[#21262d] text-[#e6edf3]"
-                      : "text-[#8b949e] hover:text-[#e6edf3]"
-                  }`}
-                >
-                  {tDetail(`viewMode.${mode}`)}
-                </button>
-              ))}
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex gap-1">
+                {(["list", "gallery", "video"] as const).map((mode) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    onClick={() => setFrameViewMode(mode)}
+                    className={`rounded-lg px-3 py-1.5 text-xs ${
+                      frameViewMode === mode
+                        ? "bg-[#21262d] text-[#e6edf3]"
+                        : "text-[#8b949e] hover:text-[#e6edf3]"
+                    }`}
+                  >
+                    {tDetail(`viewMode.${mode}`)}
+                  </button>
+                ))}
+              </div>
+              {frameViewMode !== "list" ? (
+                <label className="flex min-w-0 flex-1 items-center gap-2 text-xs sm:max-w-xs">
+                  <span className="shrink-0 text-[#8b949e]">
+                    {tDetail("frameZoom")}
+                  </span>
+                  <input
+                    type="range"
+                    min={FRAME_ZOOM_MIN}
+                    max={FRAME_ZOOM_MAX}
+                    step={FRAME_ZOOM_STEP}
+                    value={frameZoom}
+                    onChange={(e) => setFrameZoom(Number(e.target.value))}
+                    className="min-w-0 flex-1"
+                  />
+                  <span className="w-10 shrink-0 text-center text-[#e6edf3]">
+                    {Math.round(frameZoom * 100)}%
+                  </span>
+                </label>
+              ) : null}
             </div>
 
             {/* List mode */}
@@ -446,56 +618,40 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
             {frameViewMode === "gallery" ? (
               <div className="relative select-none overflow-hidden py-8">
                 <div
-                  className="relative mx-auto h-48 w-full"
-                  style={{ perspective: "800px" }}
+                  className="relative mx-auto w-full"
+                  style={{
+                    height: `${frameDisplayHeight + 72}px`,
+                    perspective: "800px",
+                  }}
                   onMouseDown={(e) => {
                     e.preventDefault();
+                    stopGalleryMomentum();
                     galleryDragStartRef.current = e.clientX;
+                    galleryDragSamplesRef.current = [{ x: e.clientX, t: performance.now() }];
                   }}
                   onMouseMove={(e) => {
                     if (galleryDragStartRef.current == null) return;
-                    const delta = e.clientX - galleryDragStartRef.current;
-                    galleryVelocityRef.current = delta;
+                    recordGalleryDrag(e.clientX);
                   }}
-                  onMouseUp={() => {
-                    const vel = galleryVelocityRef.current;
-                    galleryDragStartRef.current = null;
-                    if (Math.abs(vel) > 30) {
-                      setCurrentGalleryIndex((prev) =>
-                        Math.max(
-                          0,
-                          Math.min(frames.length - 1, prev + (vel < 0 ? 1 : -1)),
-                        ),
-                      );
-                    }
-                    galleryVelocityRef.current = 0;
-                  }}
+                  onMouseUp={() => finishGalleryDrag()}
                   onMouseLeave={() => {
-                    galleryDragStartRef.current = null;
-                    galleryVelocityRef.current = 0;
+                    if (galleryDragStartRef.current != null) finishGalleryDrag();
                   }}
                   onTouchStart={(e) => {
-                    galleryDragStartRef.current =
-                      e.touches[0]?.clientX ?? null;
-                  }}
-                  onTouchEnd={(e) => {
-                    const startX = galleryDragStartRef.current;
-                    galleryDragStartRef.current = null;
-                    if (startX == null) return;
-                    const endX = e.changedTouches[0]?.clientX ?? startX;
-                    const delta = endX - startX;
-                    if (Math.abs(delta) > 40) {
-                      setCurrentGalleryIndex((prev) =>
-                        Math.max(
-                          0,
-                          Math.min(
-                            frames.length - 1,
-                            prev + (delta < 0 ? 1 : -1),
-                          ),
-                        ),
-                      );
+                    stopGalleryMomentum();
+                    const x = e.touches[0]?.clientX ?? null;
+                    galleryDragStartRef.current = x;
+                    if (x != null) {
+                      galleryDragSamplesRef.current = [{ x, t: performance.now() }];
                     }
                   }}
+                  onTouchMove={(e) => {
+                    if (galleryDragStartRef.current == null) return;
+                    const x = e.touches[0]?.clientX;
+                    if (x != null) recordGalleryDrag(x);
+                  }}
+                  onTouchEnd={() => finishGalleryDrag()}
+                  onTouchCancel={() => finishGalleryDrag()}
                 >
                   {frames.map((frame, i) => {
                     const offset = i - safeGalleryIndex;
@@ -516,11 +672,17 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
                           zIndex,
                           transformStyle: "preserve-3d",
                         }}
-                        onClick={() => setCurrentGalleryIndex(i)}
+                        onClick={() => {
+                          stopGalleryMomentum();
+                          setGalleryIndex(i);
+                        }}
                         role="button"
                         tabIndex={0}
                         onKeyDown={(e) => {
-                          if (e.key === "Enter") setCurrentGalleryIndex(i);
+                          if (e.key === "Enter") {
+                            stopGalleryMomentum();
+                            setGalleryIndex(i);
+                          }
                         }}
                       >
                         {/* eslint-disable-next-line @next/next/no-img-element -- admin gallery */}
@@ -529,7 +691,11 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
                           alt={tDetail("frameThumbnail", {
                             index: frame.frameIndex,
                           })}
-                          className="h-48 w-auto max-w-xs rounded border border-[#30363d] object-contain"
+                          className="w-auto max-w-none rounded border border-[#30363d] object-contain"
+                          style={{
+                            height: `${frameDisplayHeight}px`,
+                            maxWidth: `${Math.round(frameDisplayHeight * 1.6)}px`,
+                          }}
                         />
                         {i === safeGalleryIndex ? (
                           <div className="absolute bottom-0 left-0 right-0 rounded-b border border-t-0 border-[#30363d] bg-[#161b22]/90 px-2 py-1 text-xs text-[#8b949e]">
@@ -569,9 +735,10 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
                 <div className="mt-6 flex items-center justify-center gap-3">
                   <button
                     type="button"
-                    onClick={() =>
-                      setCurrentGalleryIndex((prev) => Math.max(0, prev - 1))
-                    }
+                    onClick={() => {
+                      stopGalleryMomentum();
+                      setGalleryIndex(safeGalleryIndex - 1);
+                    }}
                     disabled={safeGalleryIndex === 0}
                     className="rounded px-3 py-1 text-sm text-[#8b949e] hover:text-[#e6edf3] disabled:opacity-30"
                   >
@@ -582,11 +749,10 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
                   </span>
                   <button
                     type="button"
-                    onClick={() =>
-                      setCurrentGalleryIndex((prev) =>
-                        Math.min(frames.length - 1, prev + 1),
-                      )
-                    }
+                    onClick={() => {
+                      stopGalleryMomentum();
+                      setGalleryIndex(safeGalleryIndex + 1);
+                    }}
                     disabled={safeGalleryIndex === frames.length - 1}
                     className="rounded px-3 py-1 text-sm text-[#8b949e] hover:text-[#e6edf3] disabled:opacity-30"
                   >
@@ -599,7 +765,7 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
             {/* Video / slideshow mode */}
             {frameViewMode === "video" ? (
               <div className="space-y-4">
-                <div className="relative mx-auto max-w-md">
+                <div className="relative mx-auto w-full max-w-none">
                   {videoModeFrame ? (
                     // eslint-disable-next-line @next/next/no-img-element -- admin slideshow
                     <img
@@ -607,7 +773,12 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
                       alt={tDetail("frameThumbnail", {
                         index: videoModeFrame.frameIndex,
                       })}
-                      className="w-full rounded-lg border border-[#30363d] object-contain"
+                      className="mx-auto w-auto max-w-full rounded-lg border border-[#30363d] object-contain"
+                      style={{
+                        height: `${frameDisplayHeight}px`,
+                        maxHeight: "85vh",
+                        maxWidth: "100%",
+                      }}
                     />
                   ) : null}
                   {videoModeFrame ? (
@@ -652,20 +823,21 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
                       ? tDetail("videoPause")
                       : tDetail("videoPlay")}
                   </button>
-                  <label className="flex items-center gap-3 text-sm">
+                  <label className="flex flex-wrap items-center justify-center gap-3 text-sm">
                     <span className="text-[#8b949e]">
                       {tDetail("videoFps")}
                     </span>
                     <input
                       type="range"
-                      min={1}
-                      max={15}
+                      min={VIDEO_FPS_MIN}
+                      max={VIDEO_FPS_MAX}
+                      step={VIDEO_FPS_STEP}
                       value={videoModeFps}
                       onChange={(e) => setVideoModeFps(Number(e.target.value))}
-                      className="w-32"
+                      className="w-40"
                     />
-                    <span className="w-8 text-center text-[#e6edf3]">
-                      {videoModeFps}
+                    <span className="w-10 text-center text-[#e6edf3]">
+                      {videoModeFps.toFixed(2).replace(/\.?0+$/, "")}
                     </span>
                     <span className="text-xs text-[#8b949e]">
                       {tDetail("videoDuration", {

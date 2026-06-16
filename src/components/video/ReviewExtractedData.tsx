@@ -23,6 +23,8 @@ import type { VideoProcessTimings } from "@/lib/analytics/video-pipeline";
 import { isVideoProcessTimings } from "@/lib/video/pipeline-stats-display";
 import { VideoPipelineStatsButton } from "@/components/video/VideoPipelineStatsDialog";
 import { accountTodayCalendarDate } from "@/lib/timezone/format";
+import { PassComparisonSheet } from "@/components/video/PassComparisonSheet";
+import type { PassComparison } from "@/lib/video/compare-pass-results";
 
 type ParsedRow = {
   id: string;
@@ -66,6 +68,25 @@ type Props = {
   jobId: string;
 };
 
+type GroupInfo = {
+  group: {
+    id: string;
+    primaryJobId: string | null;
+    selectedJobId: string | null;
+    accuracyJobId: string | null;
+    comparisonJson: PassComparison | null;
+  } | null;
+  passes: Array<{
+    id: string;
+    passKey: string | null;
+    passIndex: number | null;
+    passRole: string | null;
+    status: string;
+    frameCount: number | null;
+    parseSessionId: string | null;
+  }>;
+};
+
 function confidenceClass(confidence: number | null): string {
   if (confidence == null || confidence === 0) return "border-[#f85149]";
   if (confidence >= 0.9) return "border-[#3fb950]";
@@ -107,6 +128,10 @@ export function ReviewExtractedData({ jobId }: Props) {
   const [showRatingPrompt, setShowRatingPrompt] = useState(false);
   const [jobRating, setJobRating] = useState<"thumbs_up" | "thumbs_down" | null>(null);
   const [discarding, setDiscarding] = useState(false);
+  const [groupInfo, setGroupInfo] = useState<GroupInfo | null>(null);
+  const [showComparisonPrompt, setShowComparisonPrompt] = useState(false);
+  const [showComparisonSheet, setShowComparisonSheet] = useState(false);
+  const [comparisonDismissed, setComparisonDismissed] = useState(false);
 
   const rematchMembers = useCallback(async () => {
     setRematching(true);
@@ -332,6 +357,39 @@ export function ReviewExtractedData({ jobId }: Props) {
     locale,
     timezoneId,
   ]);
+
+  useEffect(() => {
+    if (jobStatus !== "review") return;
+    void (async () => {
+      const res = await fetch(`/api/tools/video-upload/${jobId}/group`);
+      if (res.ok) {
+        const data = (await res.json()) as GroupInfo;
+        setGroupInfo(data);
+        const comp = data.group?.comparisonJson;
+        if (
+          comp?.recommendedJobId &&
+          comp.recommendedJobId !== data.group?.selectedJobId &&
+          !comparisonDismissed
+        ) {
+          setShowComparisonPrompt(true);
+        }
+      }
+    })();
+  }, [jobId, jobStatus, comparisonDismissed]);
+
+  const handleUseBetterPass = useCallback(async () => {
+    const comp = groupInfo?.group?.comparisonJson;
+    const recommendedId = comp?.recommendedJobId;
+    if (!recommendedId || !groupInfo?.group) return;
+    await fetch(`/api/tools/video-upload/groups/${groupInfo.group.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ selectedJobId: recommendedId }),
+    });
+    setShowComparisonPrompt(false);
+    setComparisonDismissed(true);
+    window.location.href = `/tools/video-upload/${recommendedId}/review`;
+  }, [groupInfo]);
 
   const zeroScoreWarningDisabled = isZeroScoreWarningDisabled(
     scoreTargetMeta?.id ?? "",
@@ -591,7 +649,11 @@ export function ReviewExtractedData({ jobId }: Props) {
           >
             {t("backToUploads")}
           </Link>
-          <VideoPipelineStatsButton timings={timings} fileName={fileName} />
+          <VideoPipelineStatsButton
+            timings={timings}
+            fileName={fileName}
+            comparisonJson={groupInfo?.group?.comparisonJson ?? null}
+          />
         </div>
         <h1 className="mt-2 text-2xl font-semibold">{t("title")}</h1>
         <p className="mt-1 text-sm text-[#8b949e]">
@@ -638,6 +700,39 @@ export function ReviewExtractedData({ jobId }: Props) {
           <p className="mt-2 text-[#e6edf3]">{t("duplicateMemberHint")}</p>
         </div>
       )}
+
+      {showComparisonPrompt && groupInfo?.group && !showComparisonSheet ? (
+        <div className="rounded-xl border border-[#58a6ff] bg-[#58a6ff10] p-4">
+          <p className="font-medium text-[#e6edf3]">{t("comparisonPromptTitle")}</p>
+          <p className="mt-1 text-sm text-[#8b949e]">{t("comparisonPromptBody")}</p>
+          <div className="mt-3 flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={() => void handleUseBetterPass()}
+              className="rounded-lg border border-[#238636] bg-[#238636] px-3 py-1.5 text-sm text-white"
+            >
+              {t("comparisonUseBetter")}
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowComparisonSheet(true)}
+              className="hidden rounded-lg border border-[#30363d] px-3 py-1.5 text-sm hover:bg-[#21262d] sm:inline-flex"
+            >
+              {t("comparisonSideBySide")}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setShowComparisonPrompt(false);
+                setComparisonDismissed(true);
+              }}
+              className="text-sm text-[#8b949e] hover:text-[#e6edf3]"
+            >
+              {t("comparisonDismiss")}
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       <div className="grid gap-4 rounded-xl border border-[#30363d] bg-[#161b22] p-4 sm:grid-cols-3">
         {needsEventPicker ? (
@@ -988,6 +1083,28 @@ export function ReviewExtractedData({ jobId }: Props) {
             </button>
           </div>
         </div>
+      ) : null}
+
+      {showComparisonSheet && groupInfo?.group?.comparisonJson ? (
+        <PassComparisonSheet
+          groupId={groupInfo.group.id}
+          comparison={groupInfo.group.comparisonJson}
+          passes={groupInfo.passes}
+          onClose={() => setShowComparisonSheet(false)}
+          onSelectJob={(selectedJobId: string) => {
+            setShowComparisonSheet(false);
+            setShowComparisonPrompt(false);
+            setComparisonDismissed(true);
+            window.location.href = `/tools/video-upload/${selectedJobId}/review`;
+          }}
+          onAccuracyVote={(accuracyJobId: string) => {
+            void fetch(`/api/tools/video-upload/groups/${groupInfo.group!.id}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ accuracyJobId }),
+            });
+          }}
+        />
       ) : null}
     </div>
   );
