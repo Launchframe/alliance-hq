@@ -198,7 +198,6 @@ export function ReviewExtractedData({ jobId }: Props) {
       );
       setRows(
         (data.rows ?? [])
-          .filter((r) => !r.deleted)
           .map((row) => ({
             ...row,
             scoreConflict: row.scoreConflict ?? 0,
@@ -411,7 +410,9 @@ export function ReviewExtractedData({ jobId }: Props) {
   }
 
   function deleteRow(id: string) {
-    setRows((prev) => prev.filter((r) => r.id !== id));
+    setRows((prev) =>
+      prev.map((r) => (r.id === id ? { ...r, deleted: 1 } : r)),
+    );
   }
 
   async function handleSubmit() {
@@ -433,13 +434,14 @@ export function ReviewExtractedData({ jobId }: Props) {
           boardKey: needsBoardPicker ? boardKey : undefined,
           team: scoreTargetMeta?.showTeamSelector ? team : undefined,
           recordedDate,
-          rows: activeRows.map((r) => ({
+          rows: rows.map((r) => ({
             id: r.id,
             memberId: r.memberId,
-            memberName: r.memberName ?? r.ocrName,
+            memberName:
+              r.deleted === 1 ? r.memberName : r.memberName ?? r.ocrName,
             score: r.score,
             rank: r.rank,
-            deleted: false,
+            deleted: r.deleted === 1,
           })),
         }),
       });

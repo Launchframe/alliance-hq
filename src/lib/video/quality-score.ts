@@ -46,7 +46,12 @@ export function computeQualityScore(inputs: QualityInputs): QualityScoreResult {
   const qualityScore = Math.max(-1, Math.min(1, raw));
 
   // Perfect: >= 0.95 AND no manual corrections at all
-  if (qualityScore >= 0.95 && rowsDeleted === 0 && rowsAdded === 0) {
+  if (
+    qualityScore >= 0.95 &&
+    rowsEdited === 0 &&
+    rowsDeleted === 0 &&
+    rowsAdded === 0
+  ) {
     return { qualityScore, qualityBucket: "perfect" };
   }
 

@@ -117,4 +117,16 @@ describe("computeQualityScore", () => {
     // score = (20 - 0 - 1 - 0) / 20 = 0.95 — but deleted > 0 so not perfect
     expect(result.qualityBucket).toBe("q1");
   });
+
+  it("perfect requires no edits even with high score", () => {
+    const result = computeQualityScore({
+      rowsSaved: 20,
+      rowsEdited: 1,
+      rowsDeleted: 0,
+      rowsAdded: 0,
+      status: "complete",
+    });
+    expect(result.qualityScore).toBe(0.95);
+    expect(result.qualityBucket).toBe("q1");
+  });
 });

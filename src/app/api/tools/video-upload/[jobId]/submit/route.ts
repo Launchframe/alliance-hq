@@ -29,8 +29,8 @@ type Props = {
 
 type SubmitRow = {
   id: string;
-  memberId: string;
-  memberName: string;
+  memberId?: string | null;
+  memberName?: string | null;
   score: string;
   rank?: number | null;
   deleted?: boolean;
@@ -99,7 +99,12 @@ export async function POST(request: Request, { params }: Props) {
     }
 
     const activeRows = body.rows.filter(
-      (r) => !r.deleted && r.memberId && r.memberName,
+      (
+        r,
+      ): r is SubmitRow & {
+        memberId: string;
+        memberName: string;
+      } => !r.deleted && Boolean(r.memberId) && Boolean(r.memberName),
     );
     if (activeRows.length === 0) {
       return NextResponse.json(
@@ -183,6 +188,36 @@ export async function POST(request: Request, { params }: Props) {
       ashedEventId = provisioned.ashedEventId;
     }
 
+    const originalRows = job.parseSessionId
+      ? await db
+          .select({
+            id: schema.parsedRows.id,
+            score: schema.parsedRows.score,
+            rank: schema.parsedRows.rank,
+            memberId: schema.parsedRows.memberId,
+            memberName: schema.parsedRows.memberName,
+          })
+          .from(schema.parsedRows)
+          .where(eq(schema.parsedRows.parseSessionId, job.parseSessionId))
+      : [];
+    const originalRowById = new Map(originalRows.map((row) => [row.id, row]));
+
+    const rowsEdited = activeRows.filter((row) => {
+      const original = originalRowById.get(row.id);
+      if (!original) return true;
+      return (
+        original.score !== row.score ||
+        original.rank !== (row.rank ?? null) ||
+        original.memberId !== row.memberId ||
+        original.memberName !== row.memberName
+      );
+    }).length;
+    const rowsDeleted = body.rows.filter(
+      (row) => row.deleted && originalRowById.has(row.id),
+    ).length;
+    const rowsSaved = activeRows.length;
+    const rowsAdded = 0;
+
     const payloads = buildSubmitPayloads(
       target,
       allianceId,
@@ -226,15 +261,24 @@ export async function POST(request: Request, { params }: Props) {
     }
 
     for (const row of body.rows) {
+      const original = originalRowById.get(row.id);
+      const rowEdited =
+        !row.deleted &&
+        (!original ||
+          original.score !== row.score ||
+          original.rank !== (row.rank ?? null) ||
+          original.memberId !== (row.memberId ?? null) ||
+          original.memberName !== (row.memberName ?? null));
+
       await db
         .update(schema.parsedRows)
         .set({
-          memberId: row.memberId,
-          memberName: row.memberName,
+          memberId: row.memberId ?? null,
+          memberName: row.memberName ?? null,
           score: row.score,
           rank: row.rank ?? null,
           deleted: row.deleted ? 1 : 0,
-          edited: 1,
+          edited: rowEdited ? 1 : 0,
           updatedAt: new Date(),
         })
         .where(eq(schema.parsedRows.id, row.id));
@@ -259,22 +303,6 @@ export async function POST(request: Request, { params }: Props) {
         .update(schema.parseSessions)
         .set({ status: "submitted", updatedAt: new Date() })
         .where(eq(schema.parseSessions.id, job.parseSessionId));
-
-      const allRows = await db
-        .select({
-          deleted: schema.parsedRows.deleted,
-          edited: schema.parsedRows.edited,
-        })
-        .from(schema.parsedRows)
-        .where(eq(schema.parsedRows.parseSessionId, job.parseSessionId));
-
-      const rowsSaved = allRows.filter((r) => !r.deleted).length;
-      const rowsDeleted = allRows.filter((r) => r.deleted === 1).length;
-      const rowsEdited = allRows.filter(
-        (r) => r.edited === 1 && !r.deleted,
-      ).length;
-      // manuallyAdded column added in Phase 1 (0014); default to 0 until merged
-      const rowsAdded = 0;
 
       const { qualityScore, qualityBucket } = computeQualityScore({
         rowsSaved,
