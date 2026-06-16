@@ -91,6 +91,26 @@ function allOtherScoresAreLossyAliases(
 }
 
 /** Collapse OCR rows that share the same sanitized player name (one member per leaderboard). */
+function minSourceFrameIndex(group: OcrEntry[]): number | undefined {
+  let min: number | undefined;
+  for (const entry of group) {
+    if (entry._sourceFrameIndex == null) continue;
+    min =
+      min == null
+        ? entry._sourceFrameIndex
+        : Math.min(min, entry._sourceFrameIndex);
+  }
+  return min;
+}
+
+function withEarliestFrameIndex(
+  entry: OcrEntry,
+  group: OcrEntry[],
+): OcrEntry {
+  const frameIndex = minSourceFrameIndex(group);
+  return frameIndex == null ? entry : { ...entry, _sourceFrameIndex: frameIndex };
+}
+
 export function collapseEntriesBySanitizedName(
   entries: OcrEntry[],
   allianceTag?: string | null,
@@ -120,10 +140,15 @@ export function collapseEntriesBySanitizedName(
     const rankedScores = [...scoreCounts.entries()].sort((a, b) => b[1] - a[1]);
 
     if (rankedScores.length === 1) {
-      collapsed.push({
-        ...pickBestDisplayEntry(group, allianceTag),
-        score: rankedScores[0]![0],
-      });
+      collapsed.push(
+        withEarliestFrameIndex(
+          {
+            ...pickBestDisplayEntry(group, allianceTag),
+            score: rankedScores[0]![0],
+          },
+          group,
+        ),
+      );
       continue;
     }
 
@@ -131,10 +156,15 @@ export function collapseEntriesBySanitizedName(
     const preferred = pickPreferredScore(distinctScores);
 
     if (allOtherScoresAreLossyAliases(distinctScores, preferred)) {
-      collapsed.push({
-        ...pickBestDisplayEntry(group, allianceTag),
-        score: preferred,
-      });
+      collapsed.push(
+        withEarliestFrameIndex(
+          {
+            ...pickBestDisplayEntry(group, allianceTag),
+            score: preferred,
+          },
+          group,
+        ),
+      );
       continue;
     }
 
@@ -145,10 +175,15 @@ export function collapseEntriesBySanitizedName(
       const winners = group.filter(
         (entry) => normalizeScoreValue(entry.score) === topScore,
       );
-      collapsed.push({
-        ...pickBestDisplayEntry(winners, allianceTag),
-        score: topScore,
-      });
+      collapsed.push(
+        withEarliestFrameIndex(
+          {
+            ...pickBestDisplayEntry(winners, allianceTag),
+            score: topScore,
+          },
+          winners,
+        ),
+      );
       continue;
     }
 
@@ -158,12 +193,17 @@ export function collapseEntriesBySanitizedName(
       const scoreEntries = group.filter(
         (entry) => normalizeScoreValue(entry.score) === score,
       );
-      collapsed.push({
-        ...pickBestDisplayEntry(scoreEntries, allianceTag),
-        score,
-        scoreConflict: true,
-        conflictingScores: distinctScores.filter((value) => value !== score),
-      });
+      collapsed.push(
+        withEarliestFrameIndex(
+          {
+            ...pickBestDisplayEntry(scoreEntries, allianceTag),
+            score,
+            scoreConflict: true,
+            conflictingScores: distinctScores.filter((value) => value !== score),
+          },
+          scoreEntries,
+        ),
+      );
     }
   }
 

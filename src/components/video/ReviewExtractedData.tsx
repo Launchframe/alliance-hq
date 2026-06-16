@@ -145,6 +145,7 @@ export function ReviewExtractedData({ jobId }: Props) {
           allianceId?: string | null;
           boardKey?: string | null;
           hqEventId?: string | null;
+          rating?: string | null;
           timingsJson?: VideoProcessTimings | null;
         };
         scoreTargetMeta?: ScoreTargetMeta | null;
@@ -170,6 +171,12 @@ export function ReviewExtractedData({ jobId }: Props) {
       }
 
       setJobStatus(data.job?.status ?? "unknown");
+      if (
+        data.job?.rating === "thumbs_up" ||
+        data.job?.rating === "thumbs_down"
+      ) {
+        setJobRating(data.job.rating);
+      }
       setFileName(data.job?.fileName ?? null);
       setTimings(
         isVideoProcessTimings(data.job?.timingsJson)
@@ -492,25 +499,35 @@ export function ReviewExtractedData({ jobId }: Props) {
     setDiscarding(true);
     setError(null);
     try {
-      await fetch(`/api/tools/video-upload/${jobId}/discard`, {
+      const res = await fetch(`/api/tools/video-upload/${jobId}/discard`, {
         method: "PATCH",
       });
+      if (!res.ok) {
+        const data = (await res.json()) as { error?: string };
+        setError(data.error ?? tc("uploadFailed"));
+        return;
+      }
       setJobStatus("discarded");
       setShowRatingPrompt(true);
-    } catch {
-      // silently fail discard
+    } catch (err) {
+      setError(err instanceof Error ? err.message : tc("uploadFailed"));
     } finally {
       setDiscarding(false);
     }
   }
 
   async function handleRate(rating: "thumbs_up" | "thumbs_down") {
-    setJobRating(rating);
-    await fetch(`/api/tools/video-upload/${jobId}/rating`, {
+    const res = await fetch(`/api/tools/video-upload/${jobId}/rating`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ rating }),
     });
+    if (!res.ok) {
+      const data = (await res.json()) as { error?: string };
+      setError(data.error ?? tc("uploadFailed"));
+      return;
+    }
+    setJobRating(rating);
     setShowRatingPrompt(false);
   }
 

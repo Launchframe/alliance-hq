@@ -111,6 +111,7 @@ export async function GET(_request: Request, { params }: Props) {
         errorMessage: job.errorMessage,
         parseSessionId: job.parseSessionId,
         allianceId: job.allianceId,
+        rating: job.rating,
         timingsJson,
       },
       scoreTargetMeta: target ? toScoreTargetClientMeta(target) : null,

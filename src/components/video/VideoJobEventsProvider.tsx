@@ -324,7 +324,9 @@ export function useMergedVideoJobs<T extends { id: string; status: string }>(
   const { jobsById } = useVideoJobEvents();
 
   return useMemo(() => {
-    const merged = initialJobs.map((job) => {
+    const merged = initialJobs
+      .filter((job) => job.status !== "discarded")
+      .map((job) => {
       const live = jobsById[job.id];
       if (!live) {
         return job;
@@ -345,7 +347,8 @@ export function useMergedVideoJobs<T extends { id: string; status: string }>(
           live.errorMessage ??
           ("errorMessage" in job ? job.errorMessage : null),
       } as T;
-    });
+    })
+      .filter((job) => job.status !== "discarded");
 
     for (const live of Object.values(jobsById)) {
       if (merged.some((job) => job.id === live.jobId)) {

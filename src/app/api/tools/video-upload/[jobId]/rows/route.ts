@@ -23,10 +23,21 @@ export async function POST(_request: Request, { params }: Props) {
     )
     .limit(1);
 
-  if (!job?.parseSessionId) {
+  if (!job) {
+    return NextResponse.json({ error: "Job not found" }, { status: 404 });
+  }
+
+  if (job.status !== "review") {
     return NextResponse.json(
-      { error: "Job not found or not ready" },
-      { status: 404 },
+      { error: "Manual rows can only be added during review." },
+      { status: 400 },
+    );
+  }
+
+  if (!job.parseSessionId) {
+    return NextResponse.json(
+      { error: "Job is not ready for manual rows." },
+      { status: 400 },
     );
   }
 
