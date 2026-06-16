@@ -163,10 +163,10 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
     if (!videoModePlaying || frameViewMode !== "video" || frames.length <= 1)
       return;
     if (videoModeIndex < frames.length - 1) return;
-    const t = setTimeout(() => {
+    const tid = setTimeout(() => {
       setVideoModeIndex(0);
     }, 1000);
-    return () => clearTimeout(t);
+    return () => clearTimeout(tid);
   }, [videoModeIndex, videoModePlaying, frameViewMode, frames.length]);
 
   const phaseBars = useMemo(() => {
