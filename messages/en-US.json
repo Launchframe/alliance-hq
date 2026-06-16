@@ -1072,13 +1072,11 @@
       "unknownCommand": "Unknown command.",
       "serverError": "Something went wrong on our side. Try again in a moment.",
       "guildNotRegistered": "This Discord server is not linked to an alliance yet. The alliance owner should run `/link-alliance` with your tag (for example LFgo).",
-      "tagNotFound": "No alliance found with tag **{tag}**. Check the spelling on ashed.online, or run `/link-with-authentication` if your alliance is not in Alliance HQ yet.",
+      "tagNotFound": "No alliance found with tag **{tag}**. Check the spelling on ashed.online, or run `/link-to-ashed-seat` if your alliance is not in Alliance HQ yet.",
+      "tagNotEligible": "Alliance tag **{tag}** is not currently eligible for bot setup on this deployment.",
       "tagAmbiguous": "We found multiple alliances with tag **{tag}**. Reply with `/link-alliance tag:{tag} name:Your Alliance Name` to pick the right one.",
       "notOwner": "Only the alliance owner can register this server. Complete `/link` first, then try again.",
       "linkFirst": "Complete `/link` with your in-game name and UID before registering the server.",
-      "invalidConnection": "That connection key did not work: {error}",
-      "notAllianceOwner": "Your Ashed account must be the alliance owner for tag **{tag}**.",
-      "invalidSeason": "Season must be a whole number (for example 4).",
       "invalidLanguage": "Choose English or Português.",
       "nothingPending": "Nothing to pick right now.",
       "noWalkthrough": "No walkthrough in progress.",
@@ -1118,9 +1116,8 @@
       "anomalyConfirm": "Are you *sure* your VR is {vr}? That would be way ahead of the pack for base VR. Tap Yes if you're serious — we believe you (probably)."
     },
     "setup": {
-      "linkAllianceSuccess": "This server is registered for **{tag}**. Next, the owner should run `/link-with-authentication` with an Ashed connection key so we can read your roster.",
-      "linkAuthSuccess": "Authentication saved for **{tag}**. Members can use `/link` and `/vr` on this server.",
-      "setSeasonSuccess": "Season for **{tag}** is now **{season}**.",
+      "linkAllianceSuccess": "This server is registered for **{tag}**. Members can now `/link` their in-game profile and use `/vr`.",
+      "linkAshedSeatPrompt": "Click the link below to securely connect your Ashed credentials for **{tag}** (expires in 30 min):\n{url}\n\nAfter connecting, run `/link` with your in-game name and UID, then `/link-alliance tag:{tag}`.",
       "languageSuccess": "Language updated."
     },
     "buttons": {
@@ -1132,15 +1129,15 @@
     },
     "officerNotified": "An officer has been notified on Alliance HQ. They can reach out to you here on Discord.",
     "help": {
-      "dmGeneral": "**Alliance HQ bot** — run these in your alliance Discord server:\n• `/help` — this guide\n• `/link` — connect your in-game profile\n• `/vr` or `/immunity` — report base VR\n• `/language` — English or Português\n\nOwners also use `/link-with-authentication`, `/link-alliance`, and `/set-season`.",
-      "setupOwnerAuth": "This server is not set up yet. **Alliance owner:** run `/link-with-authentication` with your tag and Ashed connection key (ephemeral). Then `/link-alliance tag:YourTag`. Members can `/link` after that.",
-      "setupLinkAlliance": "This server is not registered to an alliance yet. **Owner:** run `/link-alliance tag:YourTag` (you must `/link` your in-game profile first). If the alliance is new to HQ, use `/link-with-authentication` first.",
-      "waitForOwnerAuth": "This server is waiting for the alliance owner to connect Ashed (`/link-with-authentication`). Then you can `/link` your in-game name and UID.",
+      "dmGeneral": "**Alliance HQ bot** — run these in your alliance Discord server:\n• `/help` — this guide\n• `/link` — connect your in-game profile\n• `/vr` or `/immunity` — report base VR\n• `/language` — English or Português\n\nOwners (Ashed seat holders) use `/link-to-ashed-seat` and `/link-alliance`.",
+      "setupOwnerAuth": "This server is not set up yet. **Alliance owner (Ashed seat holder):** run `/link-to-ashed-seat tag:YourTag` to get a secure link for connecting your Ashed credentials. Then run `/link` and `/link-alliance tag:YourTag`. Members can `/link` after that.",
+      "setupLinkAlliance": "This server is not registered to an alliance yet. **Owner:** run `/link-alliance tag:YourTag` (you must `/link` and complete `/link-to-ashed-seat` first).",
+      "waitForOwnerAuth": "Waiting for the alliance owner to connect Ashed (`/link-to-ashed-seat`). After that you can `/link` your in-game name and UID.",
       "linkProfile": "Link your in-game profile: `/link name:… uid:…` (copy name and UID from your profile in-game). Need steps? Run `/link` with a wrong name once and tap **Done** for a walkthrough.",
       "memberReady": "You're linked. Use `/vr` or `/immunity` when your base VR changes. `/help` anytime. `/language` for Português.",
       "memberReadyMulti": "You have **{count}** linked characters. Use `/vr` or `/immunity` — the bot will ask which character. `/unlink` removes one; `/link` adds another.",
-      "ownerReady": "You're linked as alliance owner (**{tag}**). Members use `/link` and `/vr`. You can `/set-season season:…`. `/link-with-authentication` again if roster sync fails.",
-      "ownerReadyMulti": "You're linked as owner with **{count}** characters. `/vr` asks which character. `/set-season` updates the season for **{tag}**. `/unlink` or `/link replace:true` to manage links."
+      "ownerReady": "You're linked as alliance owner (**{tag}**). Members use `/link` and `/vr`. Run `/link-to-ashed-seat` again if roster sync fails.",
+      "ownerReadyMulti": "You're linked as owner with **{count}** characters. `/vr` asks which character. `/unlink` or `/link replace:true` to manage links."
     },
     "unlink": {
       "none": "You don't have any linked characters on this server. Run `/link` first.",
@@ -1149,5 +1146,20 @@
       "nameNotFound": "No linked character matches **{name}**. Run `/unlink` without a name to pick from a list.",
       "expired": "That unlink option expired. Run `/unlink` again."
     }
+  },
+  "discordAuthorize": {
+    "heading": "Connect Ashed Credentials",
+    "subheading": "Enter your Ashed connection key below. It is submitted securely over HTTPS and never sent through Discord.",
+    "tagLabel": "Alliance tag",
+    "keyLabel": "Ashed connection key",
+    "keyHint": "Find this on ashed.online under Settings → Connection Key. Treat it like a password.",
+    "submit": "Connect",
+    "submitting": "Verifying…",
+    "successHeading": "Connected!",
+    "successBody": "Ashed credentials for {tag} are saved. Return to Discord, run `/link` with your in-game name and UID, then `/link-alliance tag:{tag}`.",
+    "errorPrefix": "Something went wrong:",
+    "missingNonce": "No authorization link found. Return to Discord and run `/link-to-ashed-seat` to get a new link.",
+    "expiredHeading": "Link expired or already used",
+    "expiredBody": "Return to Discord and run `/link-to-ashed-seat` again to get a fresh link."
   }
 }

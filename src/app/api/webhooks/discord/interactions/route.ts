@@ -32,8 +32,7 @@ import {
   handleDiscordLinkFuzzyPick,
   handleDiscordLinkSlash,
   handleDiscordLinkStartOver,
-  handleDiscordLinkWithAuthentication,
-  handleDiscordSetSeason,
+  handleDiscordLinkToAshedSeat,
   handleDiscordUnlinkPick,
   handleDiscordUnlinkWithContext,
   handleDiscordVrButtonConfirm,
@@ -113,33 +112,15 @@ async function handleSlashCommand(payload: DiscordInteractionPayload) {
     return discordMessageResponse(result.reply);
   }
 
-  if (commandName === "link-with-authentication") {
+  if (commandName === "link-to-ashed-seat") {
     if (!guildId) {
       return discordMessageResponse(t("errors.guildNotRegistered"));
     }
     const tag = parseSlashOptionString(payload, "tag");
-    const key = parseSlashOptionString(payload, "key");
-    const result = await handleDiscordLinkWithAuthentication({
+    const result = await handleDiscordLinkToAshedSeat({
       guildId,
       discordUserId,
       tag: tag ?? "",
-      connectionKey: key ?? "",
-      locale,
-    });
-    return discordMessageResponse(result.reply);
-  }
-
-  if (commandName === "set-season") {
-    if (!guildId) {
-      return discordMessageResponse(t("errors.guildNotRegistered"));
-    }
-    const seasonOption = payload.data?.options?.find((o) => o.name === "season");
-    const season =
-      typeof seasonOption?.value === "number" ? seasonOption.value : NaN;
-    const result = await handleDiscordSetSeason({
-      guildId,
-      discordUserId,
-      season,
       locale,
     });
     return discordMessageResponse(result.reply);

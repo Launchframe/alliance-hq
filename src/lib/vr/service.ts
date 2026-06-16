@@ -40,8 +40,7 @@ export {
 export {
   handleDiscordLanguage,
   handleDiscordLinkAlliance,
-  handleDiscordLinkWithAuthentication,
-  handleDiscordSetSeason,
+  handleDiscordLinkToAshedSeat,
 } from "@/lib/vr/bot-setup";
 export { resolveDiscordAllianceId, resolveAllianceForGuild } from "@/lib/vr/repository";
 

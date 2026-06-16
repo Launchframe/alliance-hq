@@ -142,11 +142,11 @@ const commandBody = [
     ],
   },
   {
-    name: "link-with-authentication",
-    description: "Connect an Ashed owner key so the bot can read your roster.",
+    name: "link-to-ashed-seat",
+    description: "Connect your Ashed seat so the bot can read your alliance roster (owner only).",
     description_localizations: {
       "pt-BR":
-        "Conecte uma chave de dono Ashed para o bot ler o roster da aliança.",
+        "Conecte seu assento Ashed para o bot ler o roster (somente dono).",
     },
     options: [
       {
@@ -156,36 +156,6 @@ const commandBody = [
           "pt-BR": "Tag da aliança no ashed.online (por exemplo LFgo).",
         },
         type: 3,
-        required: true,
-      },
-      {
-        name: "key",
-        description: "Ashed connection string or Bearer token (shown only to you).",
-        description_localizations: {
-          "pt-BR":
-            "String de conexão Ashed ou token Bearer (visível só para você).",
-        },
-        type: 3,
-        required: true,
-      },
-    ],
-  },
-  {
-    name: "set-season",
-    description: "Set the current VR season for this server (owner only).",
-    description_localizations: {
-      "pt-BR": "Defina a temporada de VR deste servidor (somente dono).",
-    },
-    options: [
-      {
-        name: "season",
-        description: "Season number (for example 4).",
-        description_localizations: {
-          "pt-BR": "Número da temporada (por exemplo 4).",
-        },
-        type: 4,
-        min_value: 1,
-        max_value: 99,
         required: true,
       },
     ],

@@ -1072,13 +1072,11 @@
       "unknownCommand": "Comando desconhecido.",
       "serverError": "Algo deu errado do nosso lado. Tente novamente em instantes.",
       "guildNotRegistered": "Este servidor do Discord ainda não está vinculado a uma aliança. O dono deve executar `/link-alliance` com a tag (por exemplo LFgo).",
-      "tagNotFound": "Nenhuma aliança encontrada com a tag **{tag}**. Confira a grafia no ashed.online ou use `/link-with-authentication` se a aliança ainda não estiver no Alliance HQ.",
+      "tagNotFound": "Nenhuma aliança encontrada com a tag **{tag}**. Confira a grafia no ashed.online ou use `/link-to-ashed-seat` se a aliança ainda não estiver no Alliance HQ.",
+      "tagNotEligible": "A tag **{tag}** não está habilitada para configuração do bot nesta implantação.",
       "tagAmbiguous": "Encontramos várias alianças com a tag **{tag}**. Use `/link-alliance tag:{tag} name:Nome da Aliança` para escolher a correta.",
       "notOwner": "Somente o dono da aliança pode registrar este servidor. Complete `/link` primeiro e tente de novo.",
       "linkFirst": "Complete `/link` com seu nome e UID no jogo antes de registrar o servidor.",
-      "invalidConnection": "Essa chave de conexão não funcionou: {error}",
-      "notAllianceOwner": "Sua conta Ashed precisa ser dona da aliança com tag **{tag}**.",
-      "invalidSeason": "A temporada deve ser um número inteiro (por exemplo 4).",
       "invalidLanguage": "Escolha English ou Português.",
       "nothingPending": "Nada para escolher agora.",
       "noWalkthrough": "Nenhum tutorial em andamento.",
@@ -1118,9 +1116,8 @@
       "anomalyConfirm": "Tem *certeza* que seu VR é {vr}? Isso ficaria bem à frente do grupo em VR base. Toque Sim se for sério — acreditamos em você (provavelmente)."
     },
     "setup": {
-      "linkAllianceSuccess": "Este servidor está registrado para **{tag}**. Em seguida, o dono deve executar `/link-with-authentication` com uma chave de conexão Ashed para ler o roster.",
-      "linkAuthSuccess": "Autenticação salva para **{tag}**. Membros podem usar `/link` e `/vr` neste servidor.",
-      "setSeasonSuccess": "A temporada de **{tag}** agora é **{season}**.",
+      "linkAllianceSuccess": "Este servidor está registrado para **{tag}**. Membros já podem usar `/link` e `/vr`.",
+      "linkAshedSeatPrompt": "Clique no link abaixo para conectar suas credenciais Ashed com segurança para **{tag}** (expira em 30 min):\n{url}\n\nApós conectar, execute `/link` com seu nome e UID no jogo, depois `/link-alliance tag:{tag}`.",
       "languageSuccess": "Idioma atualizado."
     },
     "buttons": {
@@ -1132,15 +1129,15 @@
     },
     "officerNotified": "Um oficial foi notificado no Alliance HQ. Eles podem falar com você aqui no Discord.",
     "help": {
-      "dmGeneral": "**Bot Alliance HQ** — use no servidor da aliança:\n• `/help` — este guia\n• `/link` — vincule seu perfil no jogo\n• `/vr` ou `/immunity` — informe VR base\n• `/language` — English ou Português\n\nDonos também usam `/link-with-authentication`, `/link-alliance` e `/set-season`.",
-      "setupOwnerAuth": "Este servidor ainda não está configurado. **Dono da aliança:** execute `/link-with-authentication` com tag e chave Ashed (ephemeral). Depois `/link-alliance tag:SuaTag`. Membros usam `/link` em seguida.",
-      "setupLinkAlliance": "Este servidor ainda não está registrado. **Dono:** `/link-alliance tag:SuaTag` (faça `/link` antes). Aliança nova no HQ? Use `/link-with-authentication` primeiro.",
-      "waitForOwnerAuth": "Aguardando o dono conectar o Ashed (`/link-with-authentication`). Depois você pode `/link` com nome e UID do jogo.",
+      "dmGeneral": "**Bot Alliance HQ** — use no servidor da aliança:\n• `/help` — este guia\n• `/link` — vincule seu perfil no jogo\n• `/vr` ou `/immunity` — informe VR base\n• `/language` — English ou Português\n\nDonos (com assento Ashed) usam `/link-to-ashed-seat` e `/link-alliance`.",
+      "setupOwnerAuth": "Este servidor ainda não está configurado. **Dono (com assento Ashed):** execute `/link-to-ashed-seat tag:SuaTag` para receber um link seguro de conexão Ashed. Depois `/link` e `/link-alliance tag:SuaTag`. Membros usam `/link` após isso.",
+      "setupLinkAlliance": "Este servidor ainda não está registrado. **Dono:** `/link-alliance tag:SuaTag` (complete `/link` e `/link-to-ashed-seat` antes).",
+      "waitForOwnerAuth": "Aguardando o dono conectar o Ashed (`/link-to-ashed-seat`). Depois você pode `/link` com nome e UID do jogo.",
       "linkProfile": "Vincule seu perfil: `/link name:… uid:…` (copie do jogo). Precisa de passos? Use `/link` com nome errado e toque **Concluído** no tutorial.",
       "memberReady": "Você está vinculado. Use `/vr` ou `/immunity` quando o VR base mudar. `/help` a qualquer momento.",
       "memberReadyMulti": "Você tem **{count}** personagens vinculados. `/vr` pedirá qual personagem. `/unlink` remove um; `/link` adiciona outro.",
-      "ownerReady": "Você está vinculado como dono (**{tag}**). Membros usam `/link` e `/vr`. Você pode `/set-season season:…`.",
-      "ownerReadyMulti": "Dono com **{count}** personagens. `/vr` pergunta qual personagem. `/set-season` para **{tag}**. `/unlink` ou `/link replace:true` para gerenciar vínculos."
+      "ownerReady": "Você está vinculado como dono (**{tag}**). Membros usam `/link` e `/vr`. Execute `/link-to-ashed-seat` novamente se a sincronização falhar.",
+      "ownerReadyMulti": "Dono com **{count}** personagens. `/vr` pergunta qual personagem. `/unlink` ou `/link replace:true` para gerenciar vínculos."
     },
     "unlink": {
       "none": "Nenhum personagem vinculado neste servidor. Execute `/link` primeiro.",
@@ -1149,5 +1146,20 @@
       "nameNotFound": "Nenhum personagem vinculado corresponde a **{name}**. Use `/unlink` sem nome para escolher na lista.",
       "expired": "Essa opção expirou. Execute `/unlink` novamente."
     }
+  },
+  "discordAuthorize": {
+    "heading": "Conectar Credenciais Ashed",
+    "subheading": "Insira sua chave de conexão Ashed abaixo. Ela é enviada com segurança via HTTPS e nunca passa pelo Discord.",
+    "tagLabel": "Tag da aliança",
+    "keyLabel": "Chave de conexão Ashed",
+    "keyHint": "Encontre em ashed.online em Configurações → Chave de Conexão. Trate como uma senha.",
+    "submit": "Conectar",
+    "submitting": "Verificando…",
+    "successHeading": "Conectado!",
+    "successBody": "Credenciais Ashed para {tag} salvas. Volte ao Discord, execute `/link` com seu nome e UID no jogo, depois `/link-alliance tag:{tag}`.",
+    "errorPrefix": "Algo deu errado:",
+    "missingNonce": "Nenhum link de autorização encontrado. Volte ao Discord e execute `/link-to-ashed-seat` para obter um novo link.",
+    "expiredHeading": "Link expirado ou já usado",
+    "expiredBody": "Volte ao Discord e execute `/link-to-ashed-seat` novamente para obter um link novo."
   }
 }
