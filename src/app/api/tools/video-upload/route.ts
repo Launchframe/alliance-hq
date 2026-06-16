@@ -9,6 +9,10 @@ import { putObject, videoStorageKey } from "@/lib/storage";
 import { getOrCreateSession } from "@/lib/session";
 import { dispatchVideoProcessing } from "@/lib/video/trigger-processing";
 import { getScoreTarget, ENABLED_SCORE_TARGETS } from "@/lib/video/score-targets";
+import {
+  MAX_VIDEO_UPLOAD_BYTES,
+  MAX_VIDEO_UPLOAD_MB,
+} from "@/lib/video/upload-limit";
 
 export async function POST(request: Request) {
   try {
@@ -36,10 +40,11 @@ export async function POST(request: Request) {
       );
     }
 
-    const maxBytes = 200 * 1024 * 1024;
-    if (file.size > maxBytes) {
+    if (file.size > MAX_VIDEO_UPLOAD_BYTES) {
       return NextResponse.json(
-        { error: "Video must be under 200 MB for now." },
+        {
+          error: `Video must be under ${MAX_VIDEO_UPLOAD_MB} MB. Crop, trim, or downscale the recording and try again.`,
+        },
         { status: 400 },
       );
     }

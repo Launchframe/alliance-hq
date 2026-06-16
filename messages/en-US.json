@@ -734,7 +734,13 @@
       "general": "Other"
     },
     "fileLabel": "Video file",
-    "fileHint": "MP4 or MOV screen recording while scrolling the full leaderboard. Requires ffmpeg on the server.",
+    "fileHint": "MP4 or MOV screen recording while scrolling the full leaderboard.",
+    "fileSizeLimit": "Maximum size: 4 MB.",
+    "fileSizeTipsIntro": "If the file is too large, try:",
+    "fileSizeTipCrop": "Crop to the narrowest frame that still shows full leaderboard rows (names and scores).",
+    "fileSizeTipTrim": "Trim the beginning and end if the leaderboard is not moving.",
+    "fileSizeTipDownscale": "As a last resort, downscale the video resolution.",
+    "fileTooLarge": "This file is {size}. Videos must be under 4 MB — see the tips below.",
     "selectedFile": "Selected: {name} ({size})",
     "chooseFileFirst": "Choose a video file first.",
     "uploading": "Uploading…",
@@ -806,7 +812,30 @@
     "duplicateMemberItem": "{member} appears on {count} rows",
     "duplicateMemberHint": "Each member can only have one score on this leaderboard. Check that the name and score are correct, then delete any duplicate or hallucinated row.",
     "duplicateMemberRow": "Duplicate member assignment",
-    "duplicateMemberBlocked": "Fix duplicate member rows before saving."
+    "duplicateMemberBlocked": "Fix duplicate member rows before saving.",
+    "statsNerds": {
+      "button": "Stats for nerds",
+      "title": "Stats for nerds",
+      "empty": "No timing data yet. Stats appear after OCR finishes.",
+      "close": "Close",
+      "outcomesTitle": "Outcomes",
+      "fileSize": "File size",
+      "frames": "Frames sent to OCR",
+      "rows": "Rows parsed",
+      "matched": "Members matched",
+      "ocrConcurrency": "OCR parallelism",
+      "ocrFrameAvg": "Avg time per frame",
+      "timelineTitle": "Where the time went",
+      "section": {
+        "extract": "Load video + extract frames",
+        "alliance": "Alliance context",
+        "ocr": "Ashed OCR (wall clock)",
+        "parse": "Match members + save"
+      },
+      "total": "Total",
+      "ocrParallelNote": "OCR ran frames in parallel: wall clock {wall} vs summed upload {uploadSum} + extract {extractSum} across all frames.",
+      "allPhasesTitle": "Every phase"
+    }
   },
   "feedback": {
     "fab": {

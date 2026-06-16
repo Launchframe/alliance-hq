@@ -18,6 +18,9 @@ import {
   duplicateMemberRowIds,
   findDuplicateMemberAssignments,
 } from "@/lib/video/review-validation";
+import type { VideoProcessTimings } from "@/lib/analytics/video-pipeline";
+import { isVideoProcessTimings } from "@/lib/video/pipeline-stats-display";
+import { VideoPipelineStatsButton } from "@/components/video/VideoPipelineStatsDialog";
 import { accountTodayCalendarDate } from "@/lib/timezone/format";
 
 type ParsedRow = {
@@ -95,6 +98,8 @@ export function ReviewExtractedData({ jobId }: Props) {
   const [reprocessing, setReprocessing] = useState(false);
   const [rematching, setRematching] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
+  const [timings, setTimings] = useState<VideoProcessTimings | null>(null);
+  const [fileName, setFileName] = useState<string | null>(null);
 
   const rematchMembers = useCallback(async () => {
     setRematching(true);
@@ -129,9 +134,11 @@ export function ReviewExtractedData({ jobId }: Props) {
         error?: string;
         job?: {
           status: string;
+          fileName?: string | null;
           allianceId?: string | null;
           boardKey?: string | null;
           hqEventId?: string | null;
+          timingsJson?: VideoProcessTimings | null;
         };
         scoreTargetMeta?: ScoreTargetMeta | null;
         alliance?: {
@@ -156,6 +163,12 @@ export function ReviewExtractedData({ jobId }: Props) {
       }
 
       setJobStatus(data.job?.status ?? "unknown");
+      setFileName(data.job?.fileName ?? null);
+      setTimings(
+        isVideoProcessTimings(data.job?.timingsJson)
+          ? data.job.timingsJson
+          : null,
+      );
       setScoreTargetMeta(data.scoreTargetMeta ?? null);
       if (data.job?.hqEventId) {
         setHqEventId(data.job.hqEventId);
@@ -479,12 +492,15 @@ export function ReviewExtractedData({ jobId }: Props) {
   return (
     <div className="mx-auto max-w-5xl space-y-6">
       <div>
-        <Link
-          href="/tools/video-upload"
-          className="text-sm text-[#58a6ff] hover:underline"
-        >
-          {t("backToUploads")}
-        </Link>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <Link
+            href="/tools/video-upload"
+            className="text-sm text-[#58a6ff] hover:underline"
+          >
+            {t("backToUploads")}
+          </Link>
+          <VideoPipelineStatsButton timings={timings} fileName={fileName} />
+        </div>
         <h1 className="mt-2 text-2xl font-semibold">{t("title")}</h1>
         <p className="mt-1 text-sm text-[#8b949e]">
           {t("summary", {
