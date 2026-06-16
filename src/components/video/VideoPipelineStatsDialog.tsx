@@ -161,7 +161,7 @@ export function VideoPipelineStatsButton({ timings, fileName, comparisonJson }: 
                         <dd className="font-mono">
                           {timings.framesSkipped}
                           {frameSkipRate != null
-                            ? ` (${frameSkipRate}% skip rate)`
+                            ? ` ${t("frameSkipRate", { rate: frameSkipRate })}`
                             : ""}
                         </dd>
                       </>
@@ -171,9 +171,14 @@ export function VideoPipelineStatsButton({ timings, fileName, comparisonJson }: 
                       <>
                         <dt className="text-[#8b949e]">{t("ocrOverlap")}</dt>
                         <dd className="font-mono">
-                          {timings.totalRawOcrRows} raw → {timings.rowCount}{" "}
-                          unique
-                          {ocrOverlap != null ? ` (${ocrOverlap}% overlap)` : ""}
+                          {t("ocrOverlapSummary", {
+                            raw: timings.totalRawOcrRows,
+                            unique: timings.rowCount,
+                            overlap:
+                              ocrOverlap != null
+                                ? t("ocrOverlapRate", { rate: ocrOverlap })
+                                : "",
+                          })}
                         </dd>
                       </>
                     ) : null}

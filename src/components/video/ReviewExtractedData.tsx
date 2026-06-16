@@ -377,19 +377,34 @@ export function ReviewExtractedData({ jobId }: Props) {
     })();
   }, [jobId, jobStatus, comparisonDismissed]);
 
+  const updateGroupSelection = useCallback(
+    async (patch: { selectedJobId?: string; accuracyJobId?: string }) => {
+      if (!groupInfo?.group) return false;
+      const res = await fetch(`/api/tools/video-upload/groups/${groupInfo.group.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch),
+      });
+      if (!res.ok) {
+        const data = (await res.json()) as { error?: string };
+        setError(data.error ?? tc("uploadFailed"));
+        return false;
+      }
+      return true;
+    },
+    [groupInfo, tc],
+  );
+
   const handleUseBetterPass = useCallback(async () => {
     const comp = groupInfo?.group?.comparisonJson;
     const recommendedId = comp?.recommendedJobId;
     if (!recommendedId || !groupInfo?.group) return;
-    await fetch(`/api/tools/video-upload/groups/${groupInfo.group.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ selectedJobId: recommendedId }),
-    });
+    const ok = await updateGroupSelection({ selectedJobId: recommendedId });
+    if (!ok) return;
     setShowComparisonPrompt(false);
     setComparisonDismissed(true);
     window.location.href = `/tools/video-upload/${recommendedId}/review`;
-  }, [groupInfo]);
+  }, [groupInfo, updateGroupSelection]);
 
   const zeroScoreWarningDisabled = isZeroScoreWarningDisabled(
     scoreTargetMeta?.id ?? "",
@@ -1092,17 +1107,17 @@ export function ReviewExtractedData({ jobId }: Props) {
           passes={groupInfo.passes}
           onClose={() => setShowComparisonSheet(false)}
           onSelectJob={(selectedJobId: string) => {
-            setShowComparisonSheet(false);
-            setShowComparisonPrompt(false);
-            setComparisonDismissed(true);
-            window.location.href = `/tools/video-upload/${selectedJobId}/review`;
+            void (async () => {
+              const ok = await updateGroupSelection({ selectedJobId });
+              if (!ok) return;
+              setShowComparisonSheet(false);
+              setShowComparisonPrompt(false);
+              setComparisonDismissed(true);
+              window.location.href = `/tools/video-upload/${selectedJobId}/review`;
+            })();
           }}
           onAccuracyVote={(accuracyJobId: string) => {
-            void fetch(`/api/tools/video-upload/groups/${groupInfo.group!.id}`, {
-              method: "PATCH",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ accuracyJobId }),
-            });
+            void updateGroupSelection({ accuracyJobId });
           }}
         />
       ) : null}

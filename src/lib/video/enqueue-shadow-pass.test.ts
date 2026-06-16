@@ -1,5 +1,63 @@
-import { describe, expect, it } from "vitest";
-import { isShadowEligible } from "@/lib/video/enqueue-shadow-pass";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const mockState = vi.hoisted(() => ({
+  selectResult: [] as Array<{ id: string }>,
+  insertedValues: [] as unknown[],
+}));
+
+const mockDb = vi.hoisted(() => ({
+  select: vi.fn(() => ({
+    from: vi.fn(() => ({
+      where: vi.fn(() => ({
+        limit: vi.fn(async () => mockState.selectResult),
+      })),
+    })),
+  })),
+  insert: vi.fn(() => ({
+    values: vi.fn(async (values: unknown) => {
+      mockState.insertedValues.push(values);
+    }),
+  })),
+}));
+
+const dispatchVideoProcessing = vi.hoisted(() => vi.fn(async () => undefined));
+
+vi.mock("drizzle-orm", () => ({
+  and: vi.fn((...clauses: unknown[]) => clauses),
+  eq: vi.fn((left: unknown, right: unknown) => ({ left, right })),
+}));
+
+vi.mock("nanoid", () => ({
+  nanoid: () => "shadow-job-id",
+}));
+
+vi.mock("@/lib/db", () => ({
+  getDb: () => mockDb,
+  schema: {
+    videoJobs: {
+      id: "videoJobs.id",
+      groupId: "videoJobs.groupId",
+      passKey: "videoJobs.passKey",
+    },
+  },
+}));
+
+vi.mock("@/lib/video/trigger-processing", () => ({
+  dispatchVideoProcessing,
+}));
+
+import {
+  isShadowEligible,
+  maybeEnqueueShadowPass,
+} from "@/lib/video/enqueue-shadow-pass";
+
+beforeEach(() => {
+  mockState.selectResult = [];
+  mockState.insertedValues = [];
+  mockDb.select.mockClear();
+  mockDb.insert.mockClear();
+  dispatchVideoProcessing.mockClear();
+});
 
 describe("isShadowEligible", () => {
   it("is eligible for fast primary jobs with few frames", () => {
@@ -46,5 +104,33 @@ describe("isShadowEligible", () => {
     const result = isShadowEligible({ totalMs: 99_999, frameCount: 99, passRole: "shadow" });
     expect(result.eligible).toBe(false);
     expect(result.reason).toBe("not_primary");
+  });
+});
+
+describe("maybeEnqueueShadowPass", () => {
+  const primaryJob = {
+    id: "primary-job",
+    sessionId: "session-1",
+    allianceId: "alliance-1",
+    scoreTarget: "desert-storm",
+    category: "desert-storm",
+    storageKey: "videos/primary/source.mp4",
+    boardKey: null,
+    hqEventId: null,
+    groupId: "group-1",
+    passRole: "primary",
+    frameCount: null,
+    hqUserId: "user-1",
+  };
+
+  it("uses the extracted frame count when the loaded job row is stale", async () => {
+    await maybeEnqueueShadowPass({
+      job: primaryJob,
+      totalMs: 5000,
+      frameCount: 12,
+    });
+
+    expect(mockDb.insert).not.toHaveBeenCalled();
+    expect(dispatchVideoProcessing).not.toHaveBeenCalled();
   });
 });

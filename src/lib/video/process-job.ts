@@ -492,6 +492,7 @@ export async function processVideoJob(
           hqUserId: job.hqUserId ?? null,
         },
         totalMs: timings.totalMs,
+        frameCount,
       });
     } catch {
       // Shadow pass failure must not fail primary job

@@ -43,12 +43,13 @@ export async function maybeEnqueueShadowPass(params: {
     hqUserId: string | null;
   };
   totalMs: number;
+  frameCount?: number | null;
 }): Promise<void> {
   const { job, totalMs } = params;
 
   const eligibility = isShadowEligible({
     totalMs,
-    frameCount: job.frameCount ?? 0,
+    frameCount: params.frameCount ?? job.frameCount ?? 0,
     passRole: job.passRole,
   });
 

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { getOrCreateSession } from "@/lib/session";
 
@@ -31,9 +31,48 @@ export async function PATCH(request: Request, { params }: Props) {
       return NextResponse.json({ error: "Group not found" }, { status: 404 });
     }
 
-    const patch: Record<string, unknown> = { updatedAt: new Date() };
-    if (typeof body.selectedJobId === "string") patch.selectedJobId = body.selectedJobId;
-    if (typeof body.accuracyJobId === "string") patch.accuracyJobId = body.accuracyJobId;
+    const selectedJobId =
+      typeof body.selectedJobId === "string" ? body.selectedJobId : undefined;
+    const accuracyJobId =
+      typeof body.accuracyJobId === "string" ? body.accuracyJobId : undefined;
+
+    if (selectedJobId === "same") {
+      return NextResponse.json({ error: "Invalid selected job" }, { status: 400 });
+    }
+
+    const jobIdsToValidate = [
+      ...new Set(
+        [selectedJobId, accuracyJobId].filter(
+          (id): id is string => Boolean(id) && id !== "same",
+        ),
+      ),
+    ];
+
+    if (jobIdsToValidate.length > 0) {
+      const siblingJobs = await db
+        .select({ id: schema.videoJobs.id })
+        .from(schema.videoJobs)
+        .where(
+          and(
+            eq(schema.videoJobs.groupId, groupId),
+            eq(schema.videoJobs.sessionId, session.id),
+            inArray(schema.videoJobs.id, jobIdsToValidate),
+          ),
+        );
+      const siblingIds = new Set(siblingJobs.map((job) => job.id));
+      const invalidJobId = jobIdsToValidate.find((id) => !siblingIds.has(id));
+      if (invalidJobId) {
+        return NextResponse.json({ error: "Invalid group job" }, { status: 400 });
+      }
+    }
+
+    const patch: {
+      updatedAt: Date;
+      selectedJobId?: string;
+      accuracyJobId?: string;
+    } = { updatedAt: new Date() };
+    if (selectedJobId) patch.selectedJobId = selectedJobId;
+    if (accuracyJobId) patch.accuracyJobId = accuracyJobId;
 
     await db
       .update(schema.videoUploadGroups)

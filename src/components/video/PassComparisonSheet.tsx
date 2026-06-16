@@ -77,6 +77,9 @@ export function PassComparisonSheet(props: Props) {
     onAccuracyVote(jobId);
   }
 
+  const primaryKey = primaryPass?.passKey ?? t("comparisonPrimaryFallback");
+  const shadowKey = shadowPass?.passKey ?? t("comparisonShadowFallback");
+
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-[#0d1117]">
       <div className="flex items-center justify-between border-b border-[#30363d] px-4 py-3">
@@ -86,7 +89,7 @@ export function PassComparisonSheet(props: Props) {
           onClick={onClose}
           className="text-sm text-[#8b949e] hover:text-[#e6edf3]"
         >
-          ✕ Close
+          {t("comparisonClose")}
         </button>
       </div>
 
@@ -94,10 +97,18 @@ export function PassComparisonSheet(props: Props) {
         {/* Column headers */}
         <div className="grid grid-cols-2 divide-x divide-[#30363d] border-b border-[#30363d]">
           <div className="bg-[#161b22] px-3 py-2 text-center text-xs text-[#8b949e]">
-            Pass A ({primaryPass?.passKey ?? "primary"}) · {primaryRows.length} rows
+            {t("comparisonPassHeader", {
+              pass: t("comparisonPassA"),
+              key: primaryKey,
+              count: primaryRows.length,
+            })}
           </div>
           <div className="bg-[#161b22] px-3 py-2 text-center text-xs text-[#8b949e]">
-            Pass B ({shadowPass?.passKey ?? "shadow"}) · {shadowRows.length} rows
+            {t("comparisonPassHeader", {
+              pass: t("comparisonPassB"),
+              key: shadowKey,
+              count: shadowRows.length,
+            })}
           </div>
         </div>
 
@@ -159,7 +170,11 @@ export function PassComparisonSheet(props: Props) {
               }`}
             >
               {i === 0 ? t("comparisonPassA") : t("comparisonPassB")} (
-              {pass.passKey ?? (i === 0 ? "primary" : "shadow")})
+              {pass.passKey ??
+                (i === 0
+                  ? t("comparisonPrimaryFallback")
+                  : t("comparisonShadowFallback"))}
+              )
             </button>
           ))}
           <button
