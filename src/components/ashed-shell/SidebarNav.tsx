@@ -69,8 +69,8 @@ export function SidebarNav({
   const tc = useTranslations("common");
 
   return (
-    <>
-      <div className="flex items-center justify-between border-b border-[#30363d] px-4 py-4">
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="flex shrink-0 items-center justify-between border-b border-[#30363d] px-4 py-4">
         <Link
           href="/dashboard"
           className="flex min-w-0 items-center gap-3"
@@ -102,7 +102,7 @@ export function SidebarNav({
         ) : null}
       </div>
 
-      <nav className="flex-1 overflow-y-auto p-2">
+      <nav className="min-h-0 flex-1 overflow-y-auto p-2">
         {NAV_GROUPS.map((group) => {
           const extraPages =
             group.id === "hq-native"
@@ -197,12 +197,12 @@ export function SidebarNav({
         </div>
       </nav>
 
-      <div className="border-t border-[#30363d] p-3 text-xs text-[#8b949e]">
+      <div className="shrink-0 border-t border-[#30363d] p-3 text-xs text-[#8b949e]">
         <p>{t.rich("dataPoweredBy", { link: ashedLink })}</p>
         <p className="mt-1.5 font-mono text-[10px] text-[#6e7681]">
           {t("version", { version: APP_VERSION })}
         </p>
       </div>
-    </>
+    </div>
   );
 }

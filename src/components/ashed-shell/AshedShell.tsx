@@ -99,7 +99,7 @@ export function AshedShell({
 
           <aside
             className={cn(
-              "fixed inset-y-0 left-0 z-50 flex w-full max-w-[min(100vw,20rem)] flex-col border-r border-[#30363d] bg-[#161b22] transition-transform duration-300 ease-out md:static md:z-auto md:w-60 md:max-w-none md:shrink-0 md:translate-x-0",
+              "fixed inset-y-0 left-0 z-50 flex h-screen max-h-[100dvh] w-full max-w-[min(100vw,20rem)] flex-col border-r border-[#30363d] bg-[#161b22] transition-transform duration-300 ease-out md:sticky md:top-0 md:z-auto md:w-60 md:max-w-none md:shrink-0 md:self-start md:translate-x-0",
               mobileNavOpen
                 ? "translate-x-0"
                 : "-translate-x-full max-md:pointer-events-none",
