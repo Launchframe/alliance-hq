@@ -720,30 +720,39 @@ export function ReviewExtractedData({ jobId }: Props) {
         <div className="rounded-xl border border-[#58a6ff] bg-[#58a6ff10] p-4">
           <p className="font-medium text-[#e6edf3]">{t("comparisonPromptTitle")}</p>
           <p className="mt-1 text-sm text-[#8b949e]">{t("comparisonPromptBody")}</p>
-          <div className="mt-3 flex flex-wrap gap-3">
-            <button
-              type="button"
-              onClick={() => void handleUseBetterPass()}
-              className="rounded-lg border border-[#238636] bg-[#238636] px-3 py-1.5 text-sm text-white"
-            >
-              {t("comparisonUseBetter")}
-            </button>
+          <div className="mt-3 flex flex-col gap-2">
+            <div className="flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={() => void handleUseBetterPass()}
+                className="rounded-lg border border-[#238636] bg-[#238636] px-3 py-1.5 text-sm text-white"
+              >
+                {t("comparisonUseBetter")}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowComparisonSheet(true)}
+                className="hidden rounded-lg border border-[#30363d] px-3 py-1.5 text-sm hover:bg-[#21262d] sm:inline-flex"
+              >
+                {t("comparisonSideBySide")}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowComparisonPrompt(false);
+                  setComparisonDismissed(true);
+                }}
+                className="text-sm text-[#8b949e] hover:text-[#e6edf3]"
+              >
+                {t("comparisonDismiss")}
+              </button>
+            </div>
             <button
               type="button"
               onClick={() => setShowComparisonSheet(true)}
-              className="hidden rounded-lg border border-[#30363d] px-3 py-1.5 text-sm hover:bg-[#21262d] sm:inline-flex"
+              className="self-start text-sm text-[#58a6ff] hover:underline sm:hidden"
             >
               {t("comparisonSideBySide")}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setShowComparisonPrompt(false);
-                setComparisonDismissed(true);
-              }}
-              className="text-sm text-[#8b949e] hover:text-[#e6edf3]"
-            >
-              {t("comparisonDismiss")}
             </button>
           </div>
         </div>
