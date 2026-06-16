@@ -10,6 +10,11 @@ export type AshedMember = {
   total_hero_power?: number;
   totalHeroPower?: number;
   hero_power?: number;
+  alliance_rank?: number;
+  allianceRank?: number;
+  /** Ashed stores in-game rank as "R1"–"R5" or "" when unset. */
+  rank?: number | string;
+  member_rank?: number;
 };
 
 export type MemberMatch = {

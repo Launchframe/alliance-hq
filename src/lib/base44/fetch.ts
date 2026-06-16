@@ -83,6 +83,10 @@ export async function base44ListMembers(
     total_hero_power?: number;
     totalHeroPower?: number;
     hero_power?: number;
+    alliance_rank?: number;
+    allianceRank?: number;
+    rank?: number | string;
+    member_rank?: number;
   }>
 > {
   if (!allianceId) {
@@ -99,6 +103,10 @@ export async function base44ListMembers(
       total_hero_power?: number;
       totalHeroPower?: number;
       hero_power?: number;
+      alliance_rank?: number;
+      allianceRank?: number;
+      rank?: number;
+      member_rank?: number;
     }>
   >(connection, path, {
     method: "GET",

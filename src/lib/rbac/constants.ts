@@ -15,7 +15,10 @@ export const HQ_PERMISSIONS = [
   { id: "hq:audit:read", description: "Read alliance audit log" },
   { id: "hq:video:read", description: "List alliance video jobs" },
   { id: "hq:events:write", description: "Manage HQ native events" },
+  { id: "trains:write", description: "Manage train conductor schedule, rolls, and locks" },
 ] as const;
+
+export const TRAINS_WRITE_PERMISSION = "trains:write";
 
 /** Permissions that satisfy alliance admin UI gates */
 export const ALLIANCE_ADMIN_PERMISSION = "alliance:admin";

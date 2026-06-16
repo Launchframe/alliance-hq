@@ -33,4 +33,10 @@ export async function requireAllianceAdmin(
   return requireSessionPermission(sessionId, "alliance:admin");
 }
 
+export async function requireTrainOfficer(
+  sessionId: string,
+): Promise<NextResponse | null> {
+  return requireSessionPermission(sessionId, "trains:write");
+}
+
 export { getRbacContext };

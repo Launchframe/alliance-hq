@@ -115,6 +115,13 @@ export const NAV_GROUPS: NavGroupDef[] = [
         kind: "native",
         descriptionKey: "viralResistanceDescription",
       },
+      {
+        id: "trains",
+        labelKey: "trains",
+        href: "/trains",
+        kind: "native",
+        descriptionKey: "trainsDescription",
+      },
     ],
   },
   {
