@@ -200,4 +200,15 @@ describe("collapseEntriesBySanitizedName", () => {
     expect(unresolvedConflicts).toEqual([]);
     expect(entries).toEqual([{ name: "Redd", score: "4858994" }]);
   });
+
+  it("does not collapse tied integer scores just because one has more digits", () => {
+    const { entries, unresolvedConflicts } = collapseEntriesBySanitizedName([
+      { name: "Redd", score: "4858994" },
+      { name: "Redd", score: "485899" },
+    ]);
+
+    expect(unresolvedConflicts).toEqual(["redd"]);
+    expect(entries).toHaveLength(2);
+    expect(entries.every((entry) => entry.scoreConflict)).toBe(true);
+  });
 });

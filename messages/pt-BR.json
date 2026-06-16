@@ -817,8 +817,8 @@
     "duplicateMemberRow": "Atribuição duplicada ao membro",
     "duplicateMemberBlocked": "Corrija as linhas duplicadas de membros antes de salvar.",
     "statsNerds": {
-      "button": "Stats for nerds",
-      "title": "Stats for nerds",
+      "button": "Estatísticas avançadas",
+      "title": "Estatísticas avançadas",
       "empty": "Ainda não há tempos. Os dados aparecem depois que o OCR termina.",
       "close": "Fechar",
       "outcomesTitle": "Resultado",

@@ -73,9 +73,19 @@ function allOtherScoresAreLossyAliases(
   distinctScores: string[],
   preferred: string,
 ): boolean {
+  if (normalizeScoreValue(preferred).includes(".")) {
+    return false;
+  }
+
   return distinctScores
     .filter((score) => score !== preferred)
-    .every((score) => compareScoreRepresentationRank(score, preferred) < 0);
+    .every((score) => {
+      const normalized = normalizeScoreValue(score);
+      return (
+        normalized.includes(".") &&
+        compareScoreRepresentationRank(score, preferred) < 0
+      );
+    });
 }
 
 /** Collapse OCR rows that share the same sanitized player name (one member per leaderboard). */

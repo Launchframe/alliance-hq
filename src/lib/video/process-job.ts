@@ -382,15 +382,6 @@ export async function processVideoJob(
         .where(eq(schema.parseSessions.id, parseSessionId));
     });
 
-    await setStatus(
-      "review",
-      {
-        parseSessionId,
-        allianceId,
-      },
-      { rowCount: entries.length, matchedCount },
-    );
-
     const phases = timer.getPhases();
     const ocrFrameAvgMs =
       ocrFrameMs.length > 0
@@ -412,6 +403,17 @@ export async function processVideoJob(
       ashedUploadTotalMs,
       ashedExtractTotalMs,
     };
+
+    await setStatus(
+      "review",
+      {
+        parseSessionId,
+        allianceId,
+        timingsJson: timings,
+        totalFileSizeBytes: totalFrameBytes,
+      },
+      { rowCount: entries.length, matchedCount },
+    );
 
     timer.log(`job ${jobId} complete`, {
       scoreTarget: scoreTargetId,
@@ -453,14 +455,6 @@ export async function processVideoJob(
       scoreTarget: scoreTargetId,
       source: options?.analyticsSource ?? "api",
     });
-
-    await db
-      .update(schema.videoJobs)
-      .set({
-        timingsJson: timings,
-        totalFileSizeBytes: totalFrameBytes,
-      })
-      .where(eq(schema.videoJobs.id, jobId));
 
     return timings;
   } catch (error) {
