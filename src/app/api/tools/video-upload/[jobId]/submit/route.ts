@@ -196,6 +196,7 @@ export async function POST(request: Request, { params }: Props) {
             rank: schema.parsedRows.rank,
             memberId: schema.parsedRows.memberId,
             memberName: schema.parsedRows.memberName,
+            manuallyAdded: schema.parsedRows.manuallyAdded,
           })
           .from(schema.parsedRows)
           .where(eq(schema.parsedRows.parseSessionId, job.parseSessionId))
@@ -204,7 +205,7 @@ export async function POST(request: Request, { params }: Props) {
 
     const rowsEdited = activeRows.filter((row) => {
       const original = originalRowById.get(row.id);
-      if (!original) return true;
+      if (!original || original.manuallyAdded === 1) return false;
       return (
         original.score !== row.score ||
         original.rank !== (row.rank ?? null) ||
@@ -216,7 +217,10 @@ export async function POST(request: Request, { params }: Props) {
       (row) => row.deleted && originalRowById.has(row.id),
     ).length;
     const rowsSaved = activeRows.length;
-    const rowsAdded = 0;
+    const rowsAdded = activeRows.filter((row) => {
+      const original = originalRowById.get(row.id);
+      return original?.manuallyAdded === 1;
+    }).length;
 
     const payloads = buildSubmitPayloads(
       target,
@@ -264,8 +268,9 @@ export async function POST(request: Request, { params }: Props) {
       const original = originalRowById.get(row.id);
       const rowEdited =
         !row.deleted &&
-        (!original ||
-          original.score !== row.score ||
+        original != null &&
+        original.manuallyAdded !== 1 &&
+        (original.score !== row.score ||
           original.rank !== (row.rank ?? null) ||
           original.memberId !== (row.memberId ?? null) ||
           original.memberName !== (row.memberName ?? null));

@@ -129,4 +129,28 @@ describe("computeQualityScore", () => {
     expect(result.qualityScore).toBe(0.95);
     expect(result.qualityBucket).toBe("q1");
   });
+
+  it("perfect requires no manually added rows", () => {
+    const result = computeQualityScore({
+      rowsSaved: 20,
+      rowsEdited: 0,
+      rowsDeleted: 0,
+      rowsAdded: 1,
+      status: "complete",
+    });
+    expect(result.qualityScore).toBe(0.95);
+    expect(result.qualityBucket).toBe("q1");
+  });
+
+  it("penalizes manually added rows in the formula", () => {
+    const result = computeQualityScore({
+      rowsSaved: 10,
+      rowsEdited: 0,
+      rowsDeleted: 0,
+      rowsAdded: 2,
+      status: "complete",
+    });
+    expect(result.qualityScore).toBe(0.8);
+    expect(result.qualityBucket).toBe("q1");
+  });
 });
