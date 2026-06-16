@@ -133,7 +133,7 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
     ? Math.min(currentGalleryIndex, frames.length - 1)
     : 0;
 
-  // Video slideshow interval
+  // Video slideshow interval — only advances; never side-effects inside the updater
   useEffect(() => {
     if (!videoModePlaying || frameViewMode !== "video") {
       if (videoModeTimerRef.current) {
@@ -143,22 +143,26 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
       return;
     }
     videoModeTimerRef.current = setInterval(() => {
-      setVideoModeIndex((prev) => {
-        if (prev >= frames.length - 1) {
-          setVideoModePlaying(false);
-          setTimeout(() => {
-            setVideoModeIndex(0);
-            setVideoModePlaying(true);
-          }, 1000);
-          return prev;
-        }
-        return prev + 1;
-      });
+      setVideoModeIndex((prev) =>
+        prev >= frames.length - 1 ? prev : prev + 1,
+      );
     }, Math.round(1000 / videoModeFps));
     return () => {
       if (videoModeTimerRef.current) clearInterval(videoModeTimerRef.current);
     };
   }, [videoModePlaying, videoModeFps, frameViewMode, frames.length]);
+
+  // End-of-sequence loop — pauses 1 s then resets index; interval self-clamps while waiting.
+  // No synchronous setState: timeout cleanup handles unmount safely.
+  useEffect(() => {
+    if (!videoModePlaying || frameViewMode !== "video" || frames.length <= 1)
+      return;
+    if (videoModeIndex < frames.length - 1) return;
+    const t = setTimeout(() => {
+      setVideoModeIndex(0);
+    }, 1000);
+    return () => clearTimeout(t);
+  }, [videoModeIndex, videoModePlaying, frameViewMode, frames.length]);
 
   const phaseBars = useMemo(() => {
     const phases = data?.job.timingsJson?.phases;
@@ -190,8 +194,7 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
     return <p className="text-sm text-[#8b949e]">{tDetail("loading")}</p>;
   }
 
-  const { job, frames, parsedRows, editCount, deleteCount, addCount, sameFileResubmits } =
-    data;
+  const { job, parsedRows, editCount, deleteCount, addCount, sameFileResubmits } = data;
   const timings = job.timingsJson;
 
   return (
@@ -506,9 +509,8 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
                     }
                     disabled={safeGalleryIndex === 0}
                     className="rounded px-3 py-1 text-sm text-[#8b949e] hover:text-[#e6edf3] disabled:opacity-30"
-                    aria-label={tDetail("galleryPrev")}
                   >
-                    ← Prev
+                    ← {tDetail("galleryPrev")}
                   </button>
                   <span className="text-xs text-[#8b949e]">
                     {safeGalleryIndex + 1} / {frames.length}
@@ -522,9 +524,8 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
                     }
                     disabled={safeGalleryIndex === frames.length - 1}
                     className="rounded px-3 py-1 text-sm text-[#8b949e] hover:text-[#e6edf3] disabled:opacity-30"
-                    aria-label={tDetail("galleryNext")}
                   >
-                    Next →
+                    {tDetail("galleryNext")} →
                   </button>
                 </div>
               </div>
