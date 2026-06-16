@@ -21,6 +21,7 @@ import {
   validateSubmitContext,
   type SubmitContext,
 } from "@/lib/video/submit-schemas";
+import { computeQualityScore } from "@/lib/video/quality-score";
 
 type Props = {
   params: Promise<{ jobId: string }>;
@@ -258,6 +259,35 @@ export async function POST(request: Request, { params }: Props) {
         .update(schema.parseSessions)
         .set({ status: "submitted", updatedAt: new Date() })
         .where(eq(schema.parseSessions.id, job.parseSessionId));
+
+      const allRows = await db
+        .select({
+          deleted: schema.parsedRows.deleted,
+          edited: schema.parsedRows.edited,
+        })
+        .from(schema.parsedRows)
+        .where(eq(schema.parsedRows.parseSessionId, job.parseSessionId));
+
+      const rowsSaved = allRows.filter((r) => !r.deleted).length;
+      const rowsDeleted = allRows.filter((r) => r.deleted === 1).length;
+      const rowsEdited = allRows.filter(
+        (r) => r.edited === 1 && !r.deleted,
+      ).length;
+      // manuallyAdded column added in Phase 1 (0014); default to 0 until merged
+      const rowsAdded = 0;
+
+      const { qualityScore, qualityBucket } = computeQualityScore({
+        rowsSaved,
+        rowsEdited,
+        rowsDeleted,
+        rowsAdded,
+        status: "complete",
+      });
+
+      await db
+        .update(schema.videoJobs)
+        .set({ qualityScore, qualityBucket, qualityComputedAt: new Date() })
+        .where(eq(schema.videoJobs.id, jobId));
     }
 
     await writeAuditLog({
