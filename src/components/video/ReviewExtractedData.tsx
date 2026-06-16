@@ -29,12 +29,14 @@ type ParsedRow = {
   ocrName: string;
   score: string;
   rank: number | null;
+  frameIndex?: number | null;
   memberId: string | null;
   memberName: string | null;
   matchConfidence: number | null;
   matchMethod: string | null;
   scoreConflict: number;
   deleted: number;
+  manuallyAdded?: number;
 };
 
 type MemberOption = {
@@ -94,6 +96,7 @@ export function ReviewExtractedData({ jobId }: Props) {
   const [recordedDate, setRecordedDate] = useState(() =>
     accountTodayCalendarDate(timezoneId),
   );
+  const [filterQuery, setFilterQuery] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [reprocessing, setReprocessing] = useState(false);
@@ -101,6 +104,9 @@ export function ReviewExtractedData({ jobId }: Props) {
   const [success, setSuccess] = useState<string | null>(null);
   const [timings, setTimings] = useState<VideoProcessTimings | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
+  const [showRatingPrompt, setShowRatingPrompt] = useState(false);
+  const [jobRating, setJobRating] = useState<"thumbs_up" | "thumbs_down" | null>(null);
+  const [discarding, setDiscarding] = useState(false);
 
   const rematchMembers = useCallback(async () => {
     setRematching(true);
@@ -330,6 +336,19 @@ export function ReviewExtractedData({ jobId }: Props) {
     [rows],
   );
 
+  const filteredRows = useMemo(
+    () =>
+      filterQuery.trim()
+        ? activeRows.filter(
+            (r) =>
+              r.ocrName.toLowerCase().includes(filterQuery.toLowerCase()) ||
+              (r.memberName?.toLowerCase().includes(filterQuery.toLowerCase()) ??
+                false),
+          )
+        : activeRows,
+    [activeRows, filterQuery],
+  );
+
   const matchedCount = activeRows.filter((r) => r.memberId).length;
 
   const duplicateMemberIssues = useMemo(
@@ -437,6 +456,8 @@ export function ReviewExtractedData({ jobId }: Props) {
           isSolicited: true,
           delayMs: 1500,
         });
+      } else {
+        setShowRatingPrompt(true);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : tc("uploadFailed"));
@@ -465,6 +486,41 @@ export function ReviewExtractedData({ jobId }: Props) {
     } finally {
       setReprocessing(false);
     }
+  }
+
+  async function handleDiscard() {
+    setDiscarding(true);
+    setError(null);
+    try {
+      await fetch(`/api/tools/video-upload/${jobId}/discard`, {
+        method: "PATCH",
+      });
+      setJobStatus("discarded");
+      setShowRatingPrompt(true);
+    } catch {
+      // silently fail discard
+    } finally {
+      setDiscarding(false);
+    }
+  }
+
+  async function handleRate(rating: "thumbs_up" | "thumbs_down") {
+    setJobRating(rating);
+    await fetch(`/api/tools/video-upload/${jobId}/rating`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ rating }),
+    });
+    setShowRatingPrompt(false);
+  }
+
+  async function handleAddRow() {
+    const res = await fetch(`/api/tools/video-upload/${jobId}/rows`, {
+      method: "POST",
+    });
+    if (!res.ok) return;
+    const data = (await res.json()) as { row: ParsedRow };
+    setRows((prev) => [...prev, data.row]);
   }
 
   if (displayJobStatus === "loading" || rematching) {
@@ -676,6 +732,31 @@ export function ReviewExtractedData({ jobId }: Props) {
         </label>
       </div>
 
+      <div className="flex items-center gap-3">
+        <input
+          type="search"
+          value={filterQuery}
+          onChange={(e) => setFilterQuery(e.target.value)}
+          placeholder={t("filterPlaceholder")}
+          className="flex-1 rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 text-sm placeholder:text-[#8b949e]"
+        />
+        {filterQuery && (
+          <p className="shrink-0 text-xs text-[#8b949e]">
+            {t("filterCount", {
+              shown: filteredRows.length,
+              total: activeRows.length,
+            })}
+          </p>
+        )}
+        <button
+          type="button"
+          onClick={() => void handleAddRow()}
+          className="shrink-0 rounded-lg border border-[#30363d] px-3 py-2 text-sm hover:bg-[#21262d]"
+        >
+          {t("addRow")}
+        </button>
+      </div>
+
       <div className="overflow-x-auto rounded-xl border border-[#30363d]">
         <table className="min-w-full text-sm">
           <thead className="bg-[#161b22] text-left text-[#8b949e]">
@@ -690,7 +771,7 @@ export function ReviewExtractedData({ jobId }: Props) {
             </tr>
           </thead>
           <tbody>
-            {activeRows.map((row) => {
+            {filteredRows.map((row) => {
               const isDuplicateMember = duplicateRowIds.has(row.id);
               const rowClass = isDuplicateMember
                 ? "border-t border-[#30363d] bg-[#f8514910]"
@@ -818,7 +899,7 @@ export function ReviewExtractedData({ jobId }: Props) {
       {error && <p className="text-sm text-[#f85149]">{error}</p>}
       {success && <p className="text-sm text-[#3fb950]">{success}</p>}
 
-      <div className="flex gap-3">
+      <div className="flex flex-wrap gap-3">
         <Link
           href="/tools/video-upload"
           className="rounded-lg border border-[#30363d] px-4 py-2 text-sm hover:bg-[#21262d]"
@@ -835,7 +916,60 @@ export function ReviewExtractedData({ jobId }: Props) {
             ? t("submitting")
             : t("saveScores", { count: activeRows.length })}
         </button>
+        <button
+          type="button"
+          disabled={
+            discarding ||
+            jobStatus === "discarded" ||
+            jobStatus === "complete"
+          }
+          onClick={() => void handleDiscard()}
+          className="rounded-lg border border-[#30363d] px-4 py-2 text-sm text-[#f85149] hover:bg-[#f8514910] disabled:opacity-50"
+        >
+          {discarding ? tc("loading") : t("discardResults")}
+        </button>
       </div>
+
+      {showRatingPrompt && !jobRating ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
+          <div className="mx-4 w-full max-w-sm rounded-2xl border border-[#30363d] bg-[#161b22] p-8 text-center">
+            <p className="mb-6 text-lg font-medium text-[#e6edf3]">
+              {t("ratingPrompt")}
+            </p>
+            <div className="flex justify-center gap-6">
+              <button
+                type="button"
+                onClick={() => void handleRate("thumbs_up")}
+                className="flex flex-col items-center gap-2 rounded-xl border border-[#30363d] p-4 text-3xl transition-colors hover:border-[#3fb950] hover:bg-[#3fb95010]"
+                aria-label={t("ratingThumbsUp")}
+              >
+                👍
+                <span className="text-xs text-[#8b949e]">
+                  {t("ratingThumbsUp")}
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleRate("thumbs_down")}
+                className="flex flex-col items-center gap-2 rounded-xl border border-[#30363d] p-4 text-3xl transition-colors hover:border-[#f85149] hover:bg-[#f8514910]"
+                aria-label={t("ratingThumbsDown")}
+              >
+                👎
+                <span className="text-xs text-[#8b949e]">
+                  {t("ratingThumbsDown")}
+                </span>
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowRatingPrompt(false)}
+              className="mt-6 text-sm text-[#8b949e] hover:text-[#e6edf3]"
+            >
+              {t("ratingSkip")}
+            </button>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

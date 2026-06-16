@@ -17,6 +17,7 @@ type JobDetail = {
   createdAt: string;
   timingsJson: VideoProcessTimings | null;
   totalFileSizeBytes: number | null;
+  rating?: string | null;
 };
 
 type FrameRow = {
@@ -37,6 +38,7 @@ type ParsedRow = {
   matchConfidence: number | null;
   deleted: number;
   edited: number;
+  manuallyAdded: number;
 };
 
 type DetailResponse = {
@@ -45,6 +47,7 @@ type DetailResponse = {
   parsedRows: ParsedRow[];
   editCount: number;
   deleteCount: number;
+  addCount: number;
   sameFileResubmits: number;
 };
 
@@ -117,7 +120,7 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
     return <p className="text-sm text-[#8b949e]">{tDetail("loading")}</p>;
   }
 
-  const { job, frames, parsedRows, editCount, deleteCount, sameFileResubmits } =
+  const { job, frames, parsedRows, editCount, deleteCount, addCount, sameFileResubmits } =
     data;
   const timings = job.timingsJson;
 
@@ -169,6 +172,16 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
         <div>
           <p className="text-xs text-[#8b949e]">{tDetail("sameFileResubmits")}</p>
           <p>{sameFileResubmits}</p>
+        </div>
+        <div>
+          <p className="text-xs text-[#8b949e]">{tDetail("rating")}</p>
+          <p>
+            {job.rating === "thumbs_up"
+              ? "👍"
+              : job.rating === "thumbs_down"
+                ? "👎"
+                : "—"}
+          </p>
         </div>
       </div>
 
@@ -268,6 +281,9 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
         <div className="space-y-3">
           <p className="text-sm text-[#8b949e]">
             {tDetail("parseSummary", { editCount, deleteCount })}
+            {addCount > 0 && (
+              <> · {tDetail("addCount", { count: addCount })}</>
+            )}
           </p>
           {parsedRows.length === 0 ? (
             <p className="text-sm text-[#8b949e]">{tDetail("parseEmpty")}</p>
@@ -304,10 +320,12 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
                           : "—"}
                       </td>
                       <td className="px-3 py-2 text-xs text-[#8b949e]">
+                        {row.manuallyAdded === 1 ? tDetail("added") : null}
+                        {row.manuallyAdded === 1 && (row.edited === 1 || row.deleted === 1) ? " · " : null}
                         {row.edited === 1 ? tDetail("edited") : null}
                         {row.edited === 1 && row.deleted === 1 ? " · " : null}
                         {row.deleted === 1 ? tDetail("deleted") : null}
-                        {row.edited !== 1 && row.deleted !== 1 ? "—" : null}
+                        {row.manuallyAdded !== 1 && row.edited !== 1 && row.deleted !== 1 ? "—" : null}
                       </td>
                     </tr>
                   ))}

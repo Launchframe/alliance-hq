@@ -227,6 +227,8 @@ export const videoJobs = pgTable("video_jobs", {
   errorMessage: text("error_message"),
   timingsJson: jsonb("timings_json").$type<Record<string, unknown>>(),
   totalFileSizeBytes: bigint("total_file_size_bytes", { mode: "number" }),
+  rating: text("rating"),
+  ratingAt: timestamp("rating_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
     .notNull(),
@@ -291,6 +293,8 @@ export const parsedRows = pgTable("parsed_rows", {
   frameIndex: integer("frame_index"),
   deleted: integer("deleted").notNull().default(0),
   edited: integer("edited").notNull().default(0),
+  /** 1 when row was manually added by the user on the review page */
+  manuallyAdded: integer("manually_added").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
     .notNull(),

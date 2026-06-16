@@ -6,6 +6,8 @@ export type OcrEntry = {
   scoreConflict?: boolean;
   /** Other score values seen for the same sanitized name. */
   conflictingScores?: string[];
+  /** Internal: source frame index for DB ordering; stripped before returning to callers. */
+  _sourceFrameIndex?: number;
 };
 
 export function sanitizedNameKey(

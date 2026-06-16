@@ -52,6 +52,7 @@ export async function GET(_request: Request, { params }: RouteParams) {
     matchConfidence: number | null;
     deleted: number;
     edited: number;
+    manuallyAdded: number;
   }> = [];
 
   if (job.parseSessionId) {
@@ -65,6 +66,7 @@ export async function GET(_request: Request, { params }: RouteParams) {
         matchConfidence: schema.parsedRows.matchConfidence,
         deleted: schema.parsedRows.deleted,
         edited: schema.parsedRows.edited,
+        manuallyAdded: schema.parsedRows.manuallyAdded,
       })
       .from(schema.parsedRows)
       .where(eq(schema.parsedRows.parseSessionId, job.parseSessionId))
@@ -73,6 +75,7 @@ export async function GET(_request: Request, { params }: RouteParams) {
 
   const editCount = parsedRows.filter((row) => row.edited === 1).length;
   const deleteCount = parsedRows.filter((row) => row.deleted === 1).length;
+  const addCount = parsedRows.filter((row) => row.manuallyAdded === 1).length;
 
   let sameFileResubmits = 0;
   if (job.fileName && job.hqUserId) {
@@ -98,6 +101,7 @@ export async function GET(_request: Request, { params }: RouteParams) {
     parsedRows,
     editCount,
     deleteCount,
+    addCount,
     sameFileResubmits,
   });
 }

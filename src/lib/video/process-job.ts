@@ -363,7 +363,7 @@ export async function processVideoJob(
             matchConfidence: match.confidence,
             matchMethod: match.matchMethod,
             scoreConflict: entry.scoreConflict ? 1 : 0,
-            frameIndex: null,
+            frameIndex: entry._sourceFrameIndex ?? null,
             deleted: 0,
             edited: 0,
             createdAt: now,
