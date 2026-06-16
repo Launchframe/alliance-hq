@@ -18,6 +18,7 @@ import {
   duplicateMemberRowIds,
   findDuplicateMemberAssignments,
 } from "@/lib/video/review-validation";
+import { isZeroScoreWarningDisabled } from "@/lib/video/score-targets";
 import type { VideoProcessTimings } from "@/lib/analytics/video-pipeline";
 import { isVideoProcessTimings } from "@/lib/video/pipeline-stats-display";
 import { VideoPipelineStatsButton } from "@/components/video/VideoPipelineStatsDialog";
@@ -320,6 +321,10 @@ export function ReviewExtractedData({ jobId }: Props) {
     timezoneId,
   ]);
 
+  const zeroScoreWarningDisabled = isZeroScoreWarningDisabled(
+    scoreTargetMeta?.id ?? "",
+  );
+
   const activeRows = useMemo(
     () => rows.filter((r) => !r.deleted),
     [rows],
@@ -567,7 +572,7 @@ export function ReviewExtractedData({ jobId }: Props) {
                 auto-create note instead of a broken empty dropdown.
                 The server will provision an event entity automatically. */}
             {!scoreTargetMeta?.usesHqEvents && events.length === 0 ? (
-              <p className="mt-1 text-xs text-[#8b949e]">
+              <p className="mt-1 text-xs text-[#8b949e] max-w-xs">
                 {t("noEventsAutoCreate")}
               </p>
             ) : (
@@ -761,6 +766,7 @@ export function ReviewExtractedData({ jobId }: Props) {
                     );
                     const isZero =
                       !Number.isNaN(scoreNum) && scoreNum === 0;
+                    const showZeroWarning = isZero && !zeroScoreWarningDisabled;
                     const isNegative =
                       !Number.isNaN(scoreNum) && scoreNum < 0;
                     return (
@@ -774,12 +780,12 @@ export function ReviewExtractedData({ jobId }: Props) {
                           className={`w-28 rounded-lg border bg-[#0d1117] px-2 py-1.5 ${
                             isNegative
                               ? "border-[#f85149]"
-                              : isZero
+                              : showZeroWarning
                                 ? "border-[#d29922]"
                                 : "border-[#30363d]"
                           }`}
                         />
-                        {isZero && (
+                        {showZeroWarning && (
                           <p className="mt-1 text-xs text-[#d29922]">
                             {t("scoreZeroWarning")}
                           </p>

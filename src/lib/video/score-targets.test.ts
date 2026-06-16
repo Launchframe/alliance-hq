@@ -4,6 +4,7 @@ import {
   ENABLED_SCORE_TARGETS,
   getScoreTarget,
   getScoreTargetOrThrow,
+  isZeroScoreWarningDisabled,
 } from "@/lib/video/score-targets";
 
 describe("score targets", () => {
@@ -31,5 +32,11 @@ describe("score targets", () => {
     expect(() => getScoreTargetOrThrow("missing")).toThrow(
       "Unknown score target: missing",
     );
+  });
+
+  it("disables zero-score review warning only for listed targets", () => {
+    expect(isZeroScoreWarningDisabled("zombie-siege")).toBe(true);
+    expect(isZeroScoreWarningDisabled("alliance-exercise")).toBe(false);
+    expect(isZeroScoreWarningDisabled("desert-storm")).toBe(false);
   });
 });

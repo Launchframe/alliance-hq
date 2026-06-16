@@ -231,6 +231,18 @@ export const SCORE_TARGETS: ScoreTargetDef[] = [
 
 export const ENABLED_SCORE_TARGETS = SCORE_TARGETS.filter((t) => t.enabled);
 
+/** Score targets where zero is a normal score — no review-page zero warning. */
+export const ZERO_SCORE_WARNING_DISABLED_SCORE_TARGETS = [
+  "vs-performance",
+  "zombie-siege",
+] as const;
+
+export function isZeroScoreWarningDisabled(scoreTargetId: string): boolean {
+  return (ZERO_SCORE_WARNING_DISABLED_SCORE_TARGETS as readonly string[]).includes(
+    scoreTargetId,
+  );
+}
+
 export function getScoreTarget(id: string): ScoreTargetDef | undefined {
   return SCORE_TARGETS.find((t) => t.id === id);
 }
