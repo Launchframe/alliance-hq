@@ -341,7 +341,11 @@
       "rating": "Rating",
       "addCount": "Rows added: {count}",
       "timingsEmpty": "No timing data recorded for this job.",
-      "timingsSummary": "Total {total} · ffmpeg {ffmpeg} · OCR {ocr} · {frames} frames"
+      "timingsSummary": "Total {total} · ffmpeg {ffmpeg} · OCR {ocr} · {frames} frames",
+      "surveyTitle": "Pre-upload survey",
+      "surveyRowCount": "Row count estimate",
+      "surveyScrollStyle": "Scroll style",
+      "surveyAboveAvg": "Faster than usual"
     },
     "auditPage": {
       "loading": "Loading audit log…",
@@ -1020,5 +1024,25 @@
     "encryptionKeyMismatchHint": "Stored Ashed credentials could not be decrypted — TOKEN_ENCRYPTION_KEY may have changed since connect. Disconnect and reconnect in Settings, or restore the original key.",
     "productionDetail": "Something went wrong loading your session. Check Vercel runtime logs for details (search for app-layout). Postgres code: <pgCode></pgCode>.",
     "defaultHint": "Set <localDb>LOCAL_DATABASE_URL</localDb> and <encKey>TOKEN_ENCRYPTION_KEY</encKey> in <envFile>.env.local</envFile>, then run <dbPush>npm run db:push</dbPush>."
+  },
+  "videoSurvey": {
+    "title": "While you wait…",
+    "processingNote": "Your video is processing in the background. If you have a moment, a few optional notes help us tune the pipeline.",
+    "optionalHint": "All questions are optional.",
+    "q1Label": "Roughly how many rows were on the leaderboard?",
+    "q1Placeholder": "e.g. 50",
+    "q2Label": "How did you scroll through the leaderboard?",
+    "scrollStyle": {
+      "slow_steady": "Slow & steady",
+      "fast": "Quickly",
+      "page_by_page": "Page by page",
+      "chaotic": "Fast / erratic"
+    },
+    "q3Label": "Was the scrolling faster than usual for you?",
+    "q3Yes": "Yes, faster than usual",
+    "q3No": "No, my normal pace",
+    "skip": "Skip for now",
+    "submit": "Share notes",
+    "submitting": "Saving…"
   }
 }

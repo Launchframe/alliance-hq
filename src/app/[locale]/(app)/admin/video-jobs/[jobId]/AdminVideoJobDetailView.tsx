@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { FormattedDateTime } from "@/components/timezone/TimezoneProvider";
 import { Link } from "@/i18n/navigation";
 import type { VideoProcessTimings } from "@/lib/analytics/video-pipeline";
+import { SURVEY_SCROLL_STYLES, type SurveyScrollStyle } from "@/lib/video/survey";
 
 type JobDetail = {
   id: string;
@@ -41,6 +42,12 @@ type ParsedRow = {
   manuallyAdded: number;
 };
 
+type SurveyData = {
+  rowCountEstimate: number | null;
+  scrollStyle: string | null;
+  aboveAverageScroll: boolean | null;
+};
+
 type DetailResponse = {
   job: JobDetail;
   frames: FrameRow[];
@@ -49,6 +56,7 @@ type DetailResponse = {
   deleteCount: number;
   addCount: number;
   sameFileResubmits: number;
+  survey: SurveyData | null;
 };
 
 type TabId = "frames" | "parse" | "timings";
@@ -66,9 +74,22 @@ function formatBytes(bytes: number | null | undefined): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function formatSurveyScrollStyle(
+  scrollStyle: string | null,
+  tSurvey: ReturnType<typeof useTranslations<"videoSurvey">>,
+): string {
+  if (!scrollStyle) return "—";
+  if ((SURVEY_SCROLL_STYLES as readonly string[]).includes(scrollStyle)) {
+    return tSurvey(`scrollStyle.${scrollStyle as SurveyScrollStyle}`);
+  }
+  return scrollStyle;
+}
+
 export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
   const t = useTranslations("admin");
   const tDetail = useTranslations("admin.videoJobDetailPage");
+  const tSurvey = useTranslations("videoSurvey");
+  const tc = useTranslations("common");
   const [data, setData] = useState<DetailResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<TabId>("frames");
@@ -184,6 +205,34 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
           </p>
         </div>
       </div>
+
+      {data.survey ? (
+        <div className="rounded-xl border border-[#30363d] bg-[#161b22] p-4">
+          <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-[#8b949e]">
+            {tDetail("surveyTitle")}
+          </p>
+          <div className="grid gap-2 text-sm sm:grid-cols-3">
+            <div>
+              <p className="text-xs text-[#8b949e]">{tDetail("surveyRowCount")}</p>
+              <p>{data.survey.rowCountEstimate ?? "—"}</p>
+            </div>
+            <div>
+              <p className="text-xs text-[#8b949e]">{tDetail("surveyScrollStyle")}</p>
+              <p>{formatSurveyScrollStyle(data.survey.scrollStyle, tSurvey)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-[#8b949e]">{tDetail("surveyAboveAvg")}</p>
+              <p>
+                {data.survey.aboveAverageScroll === true
+                  ? tc("yes")
+                  : data.survey.aboveAverageScroll === false
+                    ? tc("no")
+                    : "—"}
+              </p>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {job.errorMessage ? (
         <pre className="overflow-auto rounded-xl border border-red-900/50 bg-red-950/30 p-3 text-xs text-red-300">

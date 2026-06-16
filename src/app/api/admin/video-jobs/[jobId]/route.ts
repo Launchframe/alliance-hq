@@ -92,6 +92,25 @@ export async function GET(_request: Request, { params }: RouteParams) {
     sameFileResubmits = row?.count ?? 0;
   }
 
+  // Load survey
+  let survey: {
+    rowCountEstimate: number | null;
+    scrollStyle: string | null;
+    aboveAverageScroll: boolean | null;
+  } | null = null;
+
+  const [surveyRow] = await db
+    .select({
+      rowCountEstimate: schema.videoJobSurveys.rowCountEstimate,
+      scrollStyle: schema.videoJobSurveys.scrollStyle,
+      aboveAverageScroll: schema.videoJobSurveys.aboveAverageScroll,
+    })
+    .from(schema.videoJobSurveys)
+    .where(eq(schema.videoJobSurveys.jobId, jobId))
+    .limit(1);
+
+  survey = surveyRow ?? null;
+
   return NextResponse.json({
     job: {
       ...job,
@@ -103,5 +122,6 @@ export async function GET(_request: Request, { params }: RouteParams) {
     deleteCount,
     addCount,
     sameFileResubmits,
+    survey,
   });
 }

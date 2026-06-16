@@ -1,5 +1,6 @@
 import {
   bigint,
+  boolean,
   doublePrecision,
   integer,
   jsonb,
@@ -254,6 +255,22 @@ export const videoFrames = pgTable("video_frames", {
     .defaultNow()
     .notNull(),
 });
+
+export const videoJobSurveys = pgTable(
+  "video_job_surveys",
+  {
+    id: text("id").primaryKey(),
+    jobId: text("job_id")
+      .notNull()
+      .references(() => videoJobs.id, { onDelete: "cascade" }),
+    rowCountEstimate: integer("row_count_estimate"),
+    scrollStyle: text("scroll_style"),
+    aboveAverageScroll: boolean("above_average_scroll"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [unique("video_job_surveys_job_id_unique").on(table.jobId)],
+);
 
 export const parseSessions = pgTable("parse_sessions", {
   id: text("id").primaryKey(),
@@ -672,3 +689,4 @@ export type DiscordMemberLink = typeof discordMemberLinks.$inferSelect;
 export type MemberSeasonVr = typeof memberSeasonVr.$inferSelect;
 export type DiscordBotPending = typeof discordBotPending.$inferSelect;
 export type DiscordBotAudit = typeof discordBotAudit.$inferSelect;
+export type VideoJobSurvey = typeof videoJobSurveys.$inferSelect;
