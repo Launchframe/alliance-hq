@@ -854,6 +854,7 @@
     "comparisonDismiss": "Keep current",
     "comparisonSheetTitle": "Compare passes",
     "comparisonClose": "Close",
+    "comparisonLoadingRows": "Loading…",
     "comparisonPassHeader": "{pass} ({key}) · {count, plural, one {# row} other {# rows}}",
     "comparisonPrimaryFallback": "primary",
     "comparisonShadowFallback": "shadow",

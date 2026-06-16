@@ -126,7 +126,7 @@ export function PassComparisonSheet(props: Props) {
         <div className="h-full overflow-y-auto">
           {loadingRows ? (
             <div className="flex items-center justify-center py-12 text-sm text-[#8b949e]">
-              Loading…
+              {t("comparisonLoadingRows")}
             </div>
           ) : null}
           <div className="grid grid-cols-2 divide-x divide-[#30363d]">

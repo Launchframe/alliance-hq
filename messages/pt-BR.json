@@ -854,6 +854,7 @@
     "comparisonDismiss": "Manter atual",
     "comparisonSheetTitle": "Comparar passagens",
     "comparisonClose": "Fechar",
+    "comparisonLoadingRows": "Carregando…",
     "comparisonPassHeader": "{pass} ({key}) · {count, plural, one {# linha} other {# linhas}}",
     "comparisonPrimaryFallback": "primária",
     "comparisonShadowFallback": "sombra",
