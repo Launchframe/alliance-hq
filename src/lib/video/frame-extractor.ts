@@ -6,6 +6,10 @@ import { promisify } from "node:util";
 import ffmpegStatic from "ffmpeg-static";
 
 import { logPipelineStep } from "@/lib/video/pipeline-step-log";
+import {
+  computeFramesSkipped,
+  estimateDenseFrameCount,
+} from "@/lib/video/pipeline-stats-display";
 
 const execFileAsync = promisify(execFile);
 
@@ -19,11 +23,8 @@ export type ExtractLeaderboardFramesResult = {
   frames: ExtractedFrame[];
   videoDurationSeconds: number | null;
   denseFrameCount: number | null;
-  framesSkipped: number;
+  framesSkipped: number | null;
 };
-
-/** Baseline FPS used to estimate how many frames a uniform sample would produce. */
-const REFERENCE_BASE_FPS = 2;
 
 /**
  * Probe a video file with ffprobe to get its duration in seconds.
@@ -43,22 +44,44 @@ export async function probeVideoDurationSeconds(
 
   return new Promise((resolve) => {
     const args = [
-      "-v", "quiet",
-      "-print_format", "json",
+      "-v",
+      "quiet",
+      "-print_format",
+      "json",
+      "-show_format",
       "-show_streams",
       videoPath,
     ];
 
     const proc = spawn(ffprobePath, args);
     let stdout = "";
-    proc.stdout.on("data", (chunk: Buffer) => { stdout += chunk.toString(); });
+    proc.stdout.on("data", (chunk: Buffer) => {
+      stdout += chunk.toString();
+    });
     proc.on("close", (code) => {
-      if (code !== 0) { resolve(null); return; }
+      if (code !== 0) {
+        resolve(null);
+        return;
+      }
       try {
-        const parsed = JSON.parse(stdout) as { streams?: Array<{ duration?: string }> };
-        const stream = parsed.streams?.find((s) => s.duration);
-        const seconds = stream?.duration ? parseFloat(stream.duration) : null;
-        resolve(Number.isFinite(seconds) ? seconds : null);
+        const parsed = JSON.parse(stdout) as {
+          format?: { duration?: string };
+          streams?: Array<{ duration?: string; codec_type?: string }>;
+        };
+        const fromFormat = parsed.format?.duration
+          ? parseFloat(parsed.format.duration)
+          : null;
+        if (Number.isFinite(fromFormat) && fromFormat! > 0) {
+          resolve(fromFormat);
+          return;
+        }
+        const videoStream = parsed.streams?.find(
+          (s) => s.codec_type === "video" && s.duration,
+        );
+        const fromStream = videoStream?.duration
+          ? parseFloat(videoStream.duration)
+          : null;
+        resolve(Number.isFinite(fromStream) && fromStream! > 0 ? fromStream : null);
       } catch {
         resolve(null);
       }
@@ -272,13 +295,11 @@ export async function extractLeaderboardFrames(
     mode,
   });
 
-  const denseFrameCount = videoDurationSeconds != null
-    ? Math.round(videoDurationSeconds * REFERENCE_BASE_FPS)
-    : null;
-  const framesSkipped =
-    denseFrameCount != null && denseFrameCount > frames.length
-      ? denseFrameCount - frames.length
-      : 0;
+  const denseFrameCount =
+    videoDurationSeconds != null
+      ? estimateDenseFrameCount(videoDurationSeconds)
+      : null;
+  const framesSkipped = computeFramesSkipped(denseFrameCount, frames.length);
 
   return { frames, videoDurationSeconds, denseFrameCount, framesSkipped };
 }

@@ -8,10 +8,13 @@ import type { VideoProcessTimings } from "@/lib/analytics/video-pipeline";
 import {
   buildPipelineStatsSections,
   formatPipelineDuration,
+  frameSkipRatePercent,
   listPipelinePhaseBars,
+  ocrOverlapPercent,
   ocrSummedExtractMs,
   ocrSummedUploadMs,
   ocrWallMs,
+  shouldShowExtractionQualitySection,
 } from "@/lib/video/pipeline-stats-display";
 
 type Props = {
@@ -46,6 +49,15 @@ export function VideoPipelineStatsButton({ timings, fileName }: Props) {
   const ocrWall = timings ? ocrWallMs(timings.phases) : 0;
   const ocrUploadSum = timings ? ocrSummedUploadMs(timings.phases) : 0;
   const ocrExtractSum = timings ? ocrSummedExtractMs(timings.phases) : 0;
+  const showExtractionQuality = timings
+    ? shouldShowExtractionQualitySection(timings)
+    : false;
+  const frameSkipRate = timings
+    ? frameSkipRatePercent(timings.framesSkipped, timings.denseFrameCount)
+    : null;
+  const ocrOverlap = timings?.totalRawOcrRows != null && timings.rowCount != null
+    ? ocrOverlapPercent(timings.totalRawOcrRows, timings.rowCount)
+    : null;
   const showOcrParallelNote =
     timings != null &&
     ocrWall > 0 &&
@@ -115,10 +127,8 @@ export function VideoPipelineStatsButton({ timings, fileName }: Props) {
                 </dl>
               </section>
 
-              {(timings.videoDurationSeconds != null ||
-                timings.framesSkipped != null ||
-                timings.totalRawOcrRows != null) ? (
-                <section className="rounded-lg border border-[#30363d] bg-[#0d1117] p-3">
+              {showExtractionQuality ? (
+                <section className="min-w-0 rounded-lg border border-[#30363d] bg-[#0d1117] p-3">
                   <h3 className="text-xs font-medium uppercase tracking-wide text-[#8b949e]">
                     {t("extractionTitle")}
                   </h3>
@@ -126,7 +136,9 @@ export function VideoPipelineStatsButton({ timings, fileName }: Props) {
                     {timings.videoDurationSeconds != null ? (
                       <>
                         <dt className="text-[#8b949e]">{t("videoDuration")}</dt>
-                        <dd className="font-mono">{timings.videoDurationSeconds.toFixed(1)}s</dd>
+                        <dd className="font-mono">
+                          {timings.videoDurationSeconds.toFixed(1)}s
+                        </dd>
                       </>
                     ) : null}
                     {timings.frameCount != null ? (
@@ -146,20 +158,20 @@ export function VideoPipelineStatsButton({ timings, fileName }: Props) {
                         <dt className="text-[#8b949e]">{t("framesSkipped")}</dt>
                         <dd className="font-mono">
                           {timings.framesSkipped}
-                          {timings.denseFrameCount
-                            ? ` (${Math.round((timings.framesSkipped / timings.denseFrameCount) * 100)}% skip rate)`
+                          {frameSkipRate != null
+                            ? ` (${frameSkipRate}% skip rate)`
                             : ""}
                         </dd>
                       </>
                     ) : null}
-                    {timings.totalRawOcrRows != null && timings.rowCount != null ? (
+                    {timings.totalRawOcrRows != null &&
+                    timings.rowCount != null ? (
                       <>
                         <dt className="text-[#8b949e]">{t("ocrOverlap")}</dt>
                         <dd className="font-mono">
-                          {timings.totalRawOcrRows} raw → {timings.rowCount} unique
-                          {timings.totalRawOcrRows > 0
-                            ? ` (${Math.round(((timings.totalRawOcrRows - timings.rowCount) / timings.totalRawOcrRows) * 100)}% overlap)`
-                            : ""}
+                          {timings.totalRawOcrRows} raw → {timings.rowCount}{" "}
+                          unique
+                          {ocrOverlap != null ? ` (${ocrOverlap}% overlap)` : ""}
                         </dd>
                       </>
                     ) : null}
