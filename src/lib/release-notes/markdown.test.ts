@@ -57,6 +57,33 @@ describe("release note markdown", () => {
     expect(entry?.bodyMarkdown).not.toContain("Working notes");
   });
 
+  it("distills multi-line Summary sections", () => {
+    const content = stringifyReleaseNoteMarkdown(
+      {
+        title: "Big release",
+        status: "shipped",
+        release_version: "0.7.0",
+      },
+      [
+        "## Summary",
+        "",
+        "- First user-facing change",
+        "- Second user-facing change",
+        "",
+        "## Platform maintainer notes",
+        "",
+        "- Run migration",
+      ].join("\n"),
+    );
+
+    const entry = distillReleaseNoteMarkdown("docs/release-notes/test.md", content);
+    expect(entry?.summary).toBe(
+      "- First user-facing change\n- Second user-facing change",
+    );
+    expect(entry?.bodyMarkdown).toContain("- Second user-facing change");
+    expect(entry?.maintainerNotes).toEqual(["Run migration"]);
+  });
+
   it("skips non-shipped notes", () => {
     const content = stringifyReleaseNoteMarkdown(
       { title: "Draft", status: "draft" },

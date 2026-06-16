@@ -143,13 +143,23 @@ export function extractMarkdownSection(
   body: string,
   heading: string,
 ): string | null {
-  const escaped = heading.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const re = new RegExp(
-    `^## ${escaped}\\s*\\r?\\n([\\s\\S]*?)(?=^## |$)`,
-    "m",
-  );
-  const match = body.match(re);
-  return match ? match[1].trim() : null;
+  const headingLine = `## ${heading}`;
+  const lines = body.split(/\r?\n/);
+  const startIdx = lines.findIndex((line) => line.trim() === headingLine);
+  if (startIdx === -1) {
+    return null;
+  }
+
+  const contentLines: string[] = [];
+  for (let i = startIdx + 1; i < lines.length; i++) {
+    if (/^## /.test(lines[i]!)) {
+      break;
+    }
+    contentLines.push(lines[i]!);
+  }
+
+  const section = contentLines.join("\n").trim();
+  return section || null;
 }
 
 export function extractMarkdownBullets(section: string | null): string[] {
@@ -170,12 +180,22 @@ export function replaceOrInsertMarkdownSection(
   heading: string,
   sectionContent: string,
 ): string {
-  const escaped = heading.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const headingLine = `## ${heading}`;
   const sectionBlock = `## ${heading}\n\n${sectionContent.trim()}\n`;
-  const re = new RegExp(`^## ${escaped}\\s*\\r?\\n[\\s\\S]*?(?=^## |$)`, "m");
+  const lines = body.split(/\r?\n/);
+  const startIdx = lines.findIndex((line) => line.trim() === headingLine);
 
-  if (re.test(body)) {
-    return body.replace(re, sectionBlock);
+  if (startIdx !== -1) {
+    let endIdx = startIdx + 1;
+    while (endIdx < lines.length && !/^## /.test(lines[endIdx]!)) {
+      endIdx++;
+    }
+    const before = lines.slice(0, startIdx).join("\n");
+    const after = lines.slice(endIdx).join("\n");
+    return [before, sectionBlock.trimEnd(), after]
+      .filter((part) => part.length > 0)
+      .join("\n\n")
+      .trim();
   }
 
   const workingNotesHeading = `## ${RELEASE_NOTE_SECTION_HEADINGS.workingNotes}`;
