@@ -1,4 +1,4 @@
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq, ne } from "drizzle-orm";
 
 import { VideoUploadForm } from "@/components/VideoUploadForm";
 import { getDb, schema } from "@/lib/db";
@@ -13,7 +13,12 @@ export default async function VideoUploadPage() {
   const rows = await db
     .select()
     .from(schema.videoJobs)
-    .where(eq(schema.videoJobs.sessionId, session.id))
+    .where(
+      and(
+        eq(schema.videoJobs.sessionId, session.id),
+        ne(schema.videoJobs.status, "discarded"),
+      ),
+    )
     .orderBy(desc(schema.videoJobs.createdAt));
 
   const initialJobs: VideoJobRow[] = rows.map((job) => ({

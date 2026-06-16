@@ -67,6 +67,17 @@ async function applyMissingJournalMigrations(client) {
   }
 }
 
+async function ensureDrizzleMigrationsTable(client) {
+  await client.unsafe(`CREATE SCHEMA IF NOT EXISTS drizzle`);
+  await client.unsafe(`
+    CREATE TABLE IF NOT EXISTS drizzle.__drizzle_migrations (
+      id SERIAL PRIMARY KEY,
+      hash text NOT NULL,
+      created_at bigint
+    )
+  `);
+}
+
 async function baselinePushCreatedSchema(client) {
   const applied = await client`
     SELECT hash FROM drizzle.__drizzle_migrations
@@ -91,6 +102,7 @@ async function main() {
   const client = postgres(url, { max: 1, prepare: false });
   const db = drizzle(client);
 
+  await ensureDrizzleMigrationsTable(client);
   await baselinePushCreatedSchema(client);
   await applyMissingJournalMigrations(client);
   await migrate(db, { migrationsFolder: "drizzle" });

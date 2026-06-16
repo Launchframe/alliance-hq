@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq, ne } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { writeAuditLog } from "@/lib/bff/audit";
@@ -120,7 +120,12 @@ export async function GET() {
     const jobs = await db
       .select()
       .from(schema.videoJobs)
-      .where(eq(schema.videoJobs.sessionId, session.id))
+      .where(
+        and(
+          eq(schema.videoJobs.sessionId, session.id),
+          ne(schema.videoJobs.status, "discarded"),
+        ),
+      )
       .orderBy(desc(schema.videoJobs.createdAt));
 
     return NextResponse.json({

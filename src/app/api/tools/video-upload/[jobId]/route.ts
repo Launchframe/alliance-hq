@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { and, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 
 import { getDb, schema } from "@/lib/db";
 import { getOrCreateSession } from "@/lib/session";
@@ -41,12 +41,14 @@ export async function GET(_request: Request, { params }: Props) {
       ocrName: string;
       score: string;
       rank: number | null;
+      frameIndex: number | null;
       memberId: string | null;
       memberName: string | null;
       matchConfidence: number | null;
       matchMethod: string | null;
       scoreConflict: number;
       deleted: number;
+      manuallyAdded: number;
     }> = [];
 
     if (job.parseSessionId) {
@@ -70,18 +72,21 @@ export async function GET(_request: Request, { params }: Props) {
         const dbRows = await db
           .select()
           .from(schema.parsedRows)
-          .where(eq(schema.parsedRows.parseSessionId, ps.id));
+          .where(eq(schema.parsedRows.parseSessionId, ps.id))
+          .orderBy(asc(schema.parsedRows.rank), asc(schema.parsedRows.frameIndex));
         rows = dbRows.map((r) => ({
           id: r.id,
           ocrName: r.ocrName,
           score: r.score,
           rank: r.rank,
+          frameIndex: r.frameIndex,
           memberId: r.memberId,
           memberName: r.memberName,
           matchConfidence: r.matchConfidence,
           matchMethod: r.matchMethod,
           scoreConflict: r.scoreConflict,
           deleted: r.deleted,
+          manuallyAdded: r.manuallyAdded,
         }));
       }
     }
@@ -106,6 +111,7 @@ export async function GET(_request: Request, { params }: Props) {
         errorMessage: job.errorMessage,
         parseSessionId: job.parseSessionId,
         allianceId: job.allianceId,
+        rating: job.rating,
         timingsJson,
       },
       scoreTargetMeta: target ? toScoreTargetClientMeta(target) : null,

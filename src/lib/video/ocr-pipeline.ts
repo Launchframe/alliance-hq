@@ -174,7 +174,12 @@ export async function ocrAllFrames(
   const frameTimings: OcrFrameTiming[] = sortedResults
     .map((result) => {
       if (result.entries.length > 0) {
-        batches.push(result.entries);
+        batches.push(
+          result.entries.map((e) => ({
+            ...e,
+            _sourceFrameIndex: result.frameIndex,
+          })),
+        );
       }
       return {
         frameIndex: result.frameIndex,

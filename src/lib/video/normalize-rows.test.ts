@@ -119,9 +119,31 @@ describe("mergeOcrResults", () => {
     ]);
     expect(merged).toHaveLength(2);
   });
+
+  it("threads _sourceFrameIndex through mergeOcrResults and preserves first-seen frame", () => {
+    const merged = mergeOcrResults([
+      [{ name: "Alice", score: "100", _sourceFrameIndex: 2 }],
+      [{ name: "Alice", score: "100", _sourceFrameIndex: 5 }],
+      [{ name: "Bob", score: "200", _sourceFrameIndex: 3 }],
+    ]);
+    const alice = merged.find((e) => e.name === "Alice");
+    const bob = merged.find((e) => e.name === "Bob");
+    expect(alice?._sourceFrameIndex).toBe(2);
+    expect(bob?._sourceFrameIndex).toBe(3);
+  });
 });
 
 describe("collapseEntriesBySanitizedName", () => {
+  it("preserves earliest _sourceFrameIndex when picking display entry", () => {
+    const { entries } = collapseEntriesBySanitizedName([
+      { name: "[TAG] Alice", score: "100", _sourceFrameIndex: 2 },
+      { name: "Alice", score: "100", _sourceFrameIndex: 5 },
+    ]);
+    expect(entries).toHaveLength(1);
+    expect(entries[0]?._sourceFrameIndex).toBe(2);
+    expect(entries[0]?.name).toBe("Alice");
+  });
+
   it("collapses tag variants with plurality score winner", () => {
     const { entries, unresolvedConflicts } = collapseEntriesBySanitizedName(
       [
