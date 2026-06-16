@@ -41,6 +41,12 @@ type ParsedRow = {
   manuallyAdded: number;
 };
 
+type SurveyData = {
+  rowCountEstimate: number | null;
+  scrollStyle: string | null;
+  aboveAverageScroll: boolean | null;
+};
+
 type DetailResponse = {
   job: JobDetail;
   frames: FrameRow[];
@@ -49,6 +55,7 @@ type DetailResponse = {
   deleteCount: number;
   addCount: number;
   sameFileResubmits: number;
+  survey: SurveyData | null;
 };
 
 type TabId = "frames" | "parse" | "timings";
@@ -184,6 +191,34 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
           </p>
         </div>
       </div>
+
+      {data.survey ? (
+        <div className="rounded-xl border border-[#30363d] bg-[#161b22] p-4">
+          <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-[#8b949e]">
+            {tDetail("surveyTitle")}
+          </p>
+          <div className="grid gap-2 text-sm sm:grid-cols-3">
+            <div>
+              <p className="text-xs text-[#8b949e]">{tDetail("surveyRowCount")}</p>
+              <p>{data.survey.rowCountEstimate ?? "—"}</p>
+            </div>
+            <div>
+              <p className="text-xs text-[#8b949e]">{tDetail("surveyScrollStyle")}</p>
+              <p>{data.survey.scrollStyle ?? "—"}</p>
+            </div>
+            <div>
+              <p className="text-xs text-[#8b949e]">{tDetail("surveyAboveAvg")}</p>
+              <p>
+                {data.survey.aboveAverageScroll === true
+                  ? "Yes"
+                  : data.survey.aboveAverageScroll === false
+                    ? "No"
+                    : "—"}
+              </p>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {job.errorMessage ? (
         <pre className="overflow-auto rounded-xl border border-red-900/50 bg-red-950/30 p-3 text-xs text-red-300">
