@@ -21,12 +21,8 @@ import {
   upsertMemberSeasonVr,
   writeDiscordBotAudit,
 } from "@/lib/vr/repository";
-import type { LinkCommandResult, LinkPendingState, VrCommandResult, VrPendingState } from "@/lib/vr/types";
-import { peerMaxExcludingMember } from "@/lib/vr/anomaly";
 
-export function resolveDiscordAllianceId(): string | null {
-  return process.env.DISCORD_ALLIANCE_ID?.trim() || null;
-}
+export { resolveDiscordAllianceId } from "@/lib/vr/repository";
 
 async function audit(
   allianceId: string,
@@ -35,13 +31,17 @@ async function audit(
   payload: unknown,
   result: unknown,
 ) {
-  await writeDiscordBotAudit({
-    allianceId,
-    discordUserId,
-    command,
-    payload,
-    result,
-  });
+  try {
+    await writeDiscordBotAudit({
+      allianceId,
+      discordUserId,
+      command,
+      payload,
+      result,
+    });
+  } catch (error) {
+    console.error("[discord-bot] audit log failed", error);
+  }
 }
 
 export async function handleDiscordLinkSlash(input: {

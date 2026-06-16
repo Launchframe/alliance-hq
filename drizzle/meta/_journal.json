@@ -120,6 +120,13 @@
       "when": 1781480000000,
       "tag": "0016_quality_buckets",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1781485000000,
+      "tag": "0017_discord_multitenancy",
+      "breakpoints": true
     }
   ]
 }

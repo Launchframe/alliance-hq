@@ -1,4 +1,4 @@
-import { and, desc, eq, lt, sql } from "drizzle-orm";
+import { and, desc, eq, lt, or, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { getDb, schema } from "@/lib/db";
@@ -39,6 +39,37 @@ function parseLinkPending(value: unknown): LinkPendingState | null {
     };
   }
   return null;
+}
+
+/** Match DISCORD_ALLIANCE_ID to HQ alliances.id (direct id or ashed_alliance_id). */
+export function matchAllianceIdEnvValue(
+  raw: string,
+  candidates: ReadonlyArray<{ id: string; ashedAllianceId: string | null }>,
+): string | null {
+  const trimmed = raw.trim();
+  const byId = candidates.find((row) => row.id === trimmed);
+  if (byId) return byId.id;
+  const byAshed = candidates.find((row) => row.ashedAllianceId === trimmed);
+  return byAshed?.id ?? null;
+}
+
+export async function resolveDiscordAllianceId(): Promise<string | null> {
+  const raw = process.env.DISCORD_ALLIANCE_ID?.trim();
+  if (!raw) return null;
+
+  const db = getDb();
+  const [row] = await db
+    .select({ id: schema.alliances.id })
+    .from(schema.alliances)
+    .where(
+      or(
+        eq(schema.alliances.id, raw),
+        eq(schema.alliances.ashedAllianceId, raw),
+      ),
+    )
+    .limit(1);
+
+  return row?.id ?? null;
 }
 
 export async function resolveSeasonKey(allianceId: string): Promise<string> {

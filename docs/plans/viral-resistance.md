@@ -5,6 +5,7 @@ Alliance HQ tracks **base viral resistance** (multiples of 250, max 12750) via D
 ## Season
 
 - Configure **`alliances.current_season_key`** (game season number) in admin or `DISCORD_ALLIANCE_SEASON_KEY` for bot-only deploys.
+- **`DISCORD_ALLIANCE_ID`** may be either **`alliances.id`** (HQ nanoid) or **`ashed_alliance_id`** (24-char hex from `/admin/alliances`); the bot resolves to the HQ row before writing audit/links.
 - We store **highest base VR per member per season**, not a full within-season timeline.
 
 ## Discord commands

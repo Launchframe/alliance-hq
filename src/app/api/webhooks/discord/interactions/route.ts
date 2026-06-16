@@ -31,16 +31,24 @@ import {
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
+function discordAllianceConfigMessage(): string {
+  if (process.env.DISCORD_ALLIANCE_ID?.trim()) {
+    return (
+      "Discord VR tracking is misconfigured: DISCORD_ALLIANCE_ID does not match an Alliance HQ alliance. " +
+      "Use the HQ alliance id or Ashed alliance id from /admin/alliances."
+    );
+  }
+  return "Discord VR tracking is not configured for this server yet.";
+}
+
 async function handleSlashCommand(payload: DiscordInteractionPayload) {
   const commandName = payload.data?.name;
-  const allianceId = resolveDiscordAllianceId();
+  const allianceId = await resolveDiscordAllianceId();
   const discordUserId = interactionDiscordUserId(payload);
   const discordUsername = interactionDiscordUsername(payload);
 
   if (!allianceId) {
-    return discordMessageResponse(
-      "Discord VR tracking is not configured for this server yet.",
-    );
+    return discordMessageResponse(discordAllianceConfigMessage());
   }
   if (!discordUserId) {
     return discordMessageResponse("Could not identify your Discord account.");
@@ -104,11 +112,13 @@ async function handleButton(payload: DiscordInteractionPayload) {
   const parsed = parseButtonCustomId(payload.data?.custom_id);
   if (!parsed) return discordMessageResponse("Unknown button.");
 
-  const allianceId = resolveDiscordAllianceId();
+  const allianceId = await resolveDiscordAllianceId();
   const discordUserId = interactionDiscordUserId(payload);
   const discordUsername = interactionDiscordUsername(payload);
   if (!allianceId || !discordUserId) {
-    return discordMessageResponse("Discord VR tracking is not configured.");
+    return discordMessageResponse(
+      allianceId ? "Could not identify your Discord account." : discordAllianceConfigMessage(),
+    );
   }
 
   if (parsed.kind === "vr_confirm") {
@@ -203,10 +213,28 @@ export async function POST(request: Request) {
     return NextResponse.json(DISCORD_PING_RESPONSE);
   }
   if (payload.type === 2) {
-    return NextResponse.json(await handleSlashCommand(payload));
+    try {
+      return NextResponse.json(await handleSlashCommand(payload));
+    } catch (error) {
+      console.error("[discord] slash command failed", error);
+      return NextResponse.json(
+        discordMessageResponse(
+          "Something went wrong on our side. Try again in a moment.",
+        ),
+      );
+    }
   }
   if (payload.type === 3) {
-    return NextResponse.json(await handleButton(payload));
+    try {
+      return NextResponse.json(await handleButton(payload));
+    } catch (error) {
+      console.error("[discord] button interaction failed", error);
+      return NextResponse.json(
+        discordMessageResponse(
+          "Something went wrong on our side. Try again in a moment.",
+        ),
+      );
+    }
   }
 
   return NextResponse.json({ error: "Unsupported interaction type." }, { status: 400 });

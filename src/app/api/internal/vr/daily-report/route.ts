@@ -5,6 +5,7 @@ import { loadAllianceMembersForBot } from "@/lib/vr/member-roster";
 import {
   listDiscordLinksByAlliance,
   listLeaderboardRows,
+  resolveDiscordAllianceId,
   resolveSeasonKey,
 } from "@/lib/vr/repository";
 
@@ -44,9 +45,12 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const allianceId = process.env.DISCORD_ALLIANCE_ID?.trim();
+  const allianceId = await resolveDiscordAllianceId();
   if (!allianceId) {
-    return NextResponse.json({ error: "DISCORD_ALLIANCE_ID not set." }, { status: 503 });
+    return NextResponse.json(
+      { error: "DISCORD_ALLIANCE_ID not set or not found in alliances." },
+      { status: 503 },
+    );
   }
 
   const seasonKey = await resolveSeasonKey(allianceId);

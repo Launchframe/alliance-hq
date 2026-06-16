@@ -22,13 +22,13 @@ const commandBody = [
     options: [
       {
         name: "name",
-        description: "Your in-game name (exact copy from profile)",
+        description: "Your in-game name. This must match your profile name exactly - please copy it from your in-game profile.",
         type: 3,
         required: true,
       },
       {
         name: "uid",
-        description: "Your 12–16 digit UID ending in 1203",
+        description: "Your 12–16 digit player ID, ending in your server number. Copy it from your in-game profile.",
         type: 3,
         required: true,
       },
@@ -36,7 +36,7 @@ const commandBody = [
   },
   {
     name: "vr",
-    description: "Report or bump your base viral resistance",
+    description: "Bump your base viral resistance (VR) when you level up. Or pass the exact number.",
     options: [
       {
         name: "level",

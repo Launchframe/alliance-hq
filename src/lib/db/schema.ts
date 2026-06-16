@@ -511,6 +511,50 @@ export const discordBotPending = pgTable("discord_bot_pending", {
     .notNull(),
 });
 
+/** Maps a Discord server to an HQ alliance (multi-tenant bot). */
+export const discordGuildAlliances = pgTable("discord_guild_alliances", {
+  guildId: text("guild_id").primaryKey(),
+  allianceId: text("alliance_id")
+    .notNull()
+    .references(() => alliances.id, { onDelete: "cascade" }),
+  registeredAt: timestamp("registered_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+/** Per-alliance Ashed connection for bot roster sync (encrypted token). */
+export const allianceAshedCredentials = pgTable("alliance_ashed_credentials", {
+  id: text("id").primaryKey(),
+  allianceId: text("alliance_id")
+    .notNull()
+    .unique()
+    .references(() => alliances.id, { onDelete: "cascade" }),
+  appId: text("app_id").notNull(),
+  originUrl: text("origin_url").notNull(),
+  encryptedToken: text("encrypted_token").notNull(),
+  tokenExpiresAt: timestamp("token_expires_at", { withTimezone: true }),
+  registeredByDiscordUserId: text("registered_by_discord_user_id"),
+  registeredByHqUserId: text("registered_by_hq_user_id").references(
+    () => hqUsers.id,
+    { onDelete: "set null" },
+  ),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+/** Per-Discord-user bot preferences (locale). */
+export const discordUserPrefs = pgTable("discord_user_prefs", {
+  discordUserId: text("discord_user_id").primaryKey(),
+  locale: text("locale").notNull().default("en-US"),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
 /** Audit trail for all Discord bot interactions. */
 export const discordBotAudit = pgTable("discord_bot_audit", {
   id: text("id").primaryKey(),
@@ -693,4 +737,7 @@ export type DiscordMemberLink = typeof discordMemberLinks.$inferSelect;
 export type MemberSeasonVr = typeof memberSeasonVr.$inferSelect;
 export type DiscordBotPending = typeof discordBotPending.$inferSelect;
 export type DiscordBotAudit = typeof discordBotAudit.$inferSelect;
+export type DiscordGuildAlliance = typeof discordGuildAlliances.$inferSelect;
+export type AllianceAshedCredential = typeof allianceAshedCredentials.$inferSelect;
+export type DiscordUserPref = typeof discordUserPrefs.$inferSelect;
 export type VideoJobSurvey = typeof videoJobSurveys.$inferSelect;
