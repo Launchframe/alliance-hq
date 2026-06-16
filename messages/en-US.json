@@ -345,7 +345,18 @@
       "surveyTitle": "Pre-upload survey",
       "surveyRowCount": "Row count estimate",
       "surveyScrollStyle": "Scroll style",
-      "surveyAboveAvg": "Faster than usual"
+      "surveyAboveAvg": "Faster than usual",
+      "viewMode": {
+        "list": "List",
+        "gallery": "Gallery",
+        "video": "Slideshow"
+      },
+      "galleryPrev": "Previous frame",
+      "galleryNext": "Next frame",
+      "videoPlay": "▶ Play",
+      "videoPause": "⏸ Pause",
+      "videoFps": "Speed (fps)",
+      "videoDuration": "Est. duration: {duration}"
     },
     "auditPage": {
       "loading": "Loading audit log…",
