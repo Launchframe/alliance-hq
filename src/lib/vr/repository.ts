@@ -38,6 +38,17 @@ function parseLinkPending(value: unknown): LinkPendingState | null {
       reportedName: String(r.reportedName),
     };
   }
+  if (r.kind === "pick_alliance_by_name" && Array.isArray(r.candidates)) {
+    return {
+      kind: "pick_alliance_by_name",
+      tag: String(r.tag),
+      candidates: r.candidates as Array<{
+        allianceId: string;
+        name: string;
+        tag: string;
+      }>,
+    };
+  }
   return null;
 }
 
@@ -407,4 +418,151 @@ export async function getAllianceById(allianceId: string) {
     .where(eq(schema.alliances.id, allianceId))
     .limit(1);
   return row ?? null;
+}
+
+export async function resolveAllianceForGuild(
+  guildId: string | null | undefined,
+): Promise<string | null> {
+  if (guildId) {
+    const registered = await getGuildAllianceId(guildId);
+    if (registered) return registered;
+  }
+  return resolveDiscordAllianceId();
+}
+
+export async function getGuildAllianceId(guildId: string): Promise<string | null> {
+  const db = getDb();
+  const [row] = await db
+    .select({ allianceId: schema.discordGuildAlliances.allianceId })
+    .from(schema.discordGuildAlliances)
+    .where(eq(schema.discordGuildAlliances.guildId, guildId))
+    .limit(1);
+  return row?.allianceId ?? null;
+}
+
+export async function upsertGuildAlliance(
+  guildId: string,
+  allianceId: string,
+): Promise<void> {
+  const db = getDb();
+  await db
+    .insert(schema.discordGuildAlliances)
+    .values({
+      guildId,
+      allianceId,
+      registeredAt: new Date(),
+    })
+    .onConflictDoUpdate({
+      target: schema.discordGuildAlliances.guildId,
+      set: { allianceId, registeredAt: new Date() },
+    });
+}
+
+export async function getDiscordUserLocale(
+  discordUserId: string,
+): Promise<"en-US" | "pt-BR" | null> {
+  const db = getDb();
+  const [row] = await db
+    .select({ locale: schema.discordUserPrefs.locale })
+    .from(schema.discordUserPrefs)
+    .where(eq(schema.discordUserPrefs.discordUserId, discordUserId))
+    .limit(1);
+  if (!row?.locale) return null;
+  return row.locale === "pt-BR" ? "pt-BR" : "en-US";
+}
+
+export async function upsertDiscordUserLocale(
+  discordUserId: string,
+  locale: "en-US" | "pt-BR",
+): Promise<void> {
+  const db = getDb();
+  await db
+    .insert(schema.discordUserPrefs)
+    .values({
+      discordUserId,
+      locale,
+      updatedAt: new Date(),
+    })
+    .onConflictDoUpdate({
+      target: schema.discordUserPrefs.discordUserId,
+      set: { locale, updatedAt: new Date() },
+    });
+}
+
+export async function getAllianceAshedCredential(allianceId: string) {
+  const db = getDb();
+  const [row] = await db
+    .select()
+    .from(schema.allianceAshedCredentials)
+    .where(eq(schema.allianceAshedCredentials.allianceId, allianceId))
+    .limit(1);
+  return row ?? null;
+}
+
+export async function upsertAllianceAshedCredential(input: {
+  allianceId: string;
+  appId: string;
+  originUrl: string;
+  encryptedToken: string;
+  tokenExpiresAt?: Date | null;
+  registeredByDiscordUserId?: string | null;
+  registeredByHqUserId?: string | null;
+}): Promise<void> {
+  const db = getDb();
+  const now = new Date();
+  await db
+    .insert(schema.allianceAshedCredentials)
+    .values({
+      id: nanoid(),
+      allianceId: input.allianceId,
+      appId: input.appId,
+      originUrl: input.originUrl,
+      encryptedToken: input.encryptedToken,
+      tokenExpiresAt: input.tokenExpiresAt ?? null,
+      registeredByDiscordUserId: input.registeredByDiscordUserId ?? null,
+      registeredByHqUserId: input.registeredByHqUserId ?? null,
+      createdAt: now,
+      updatedAt: now,
+    })
+    .onConflictDoUpdate({
+      target: schema.allianceAshedCredentials.allianceId,
+      set: {
+        appId: input.appId,
+        originUrl: input.originUrl,
+        encryptedToken: input.encryptedToken,
+        tokenExpiresAt: input.tokenExpiresAt ?? null,
+        registeredByDiscordUserId: input.registeredByDiscordUserId ?? null,
+        registeredByHqUserId: input.registeredByHqUserId ?? null,
+        updatedAt: now,
+      },
+    });
+}
+
+export async function updateAllianceSeasonKey(
+  allianceId: string,
+  seasonKey: string,
+): Promise<void> {
+  const db = getDb();
+  await db
+    .update(schema.alliances)
+    .set({ currentSeasonKey: seasonKey, updatedAt: new Date() })
+    .where(eq(schema.alliances.id, allianceId));
+}
+
+export async function listDiscordLinksForUserAnyAlliance(discordUserId: string) {
+  const db = getDb();
+  return db
+    .select()
+    .from(schema.discordMemberLinks)
+    .where(eq(schema.discordMemberLinks.discordUserId, discordUserId));
+}
+
+export async function callerIsAllianceOwner(input: {
+  allianceId: string;
+  discordUserId: string;
+}): Promise<boolean> {
+  const alliance = await getAllianceById(input.allianceId);
+  if (!alliance?.ownerAshedUserId) return false;
+  const links = await listDiscordLinksForUser(input.allianceId, input.discordUserId);
+  return links.some((link) => link.ashedMemberId === alliance.ownerAshedUserId);
 }

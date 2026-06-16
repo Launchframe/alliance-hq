@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
+import { createDiscordTranslator } from "@/lib/discord/i18n";
 import { processVrCommand, processVrConfirmation } from "@/lib/vr/command";
+
+const translate = createDiscordTranslator("en-US");
 
 describe("processVrCommand", () => {
   const base = {
@@ -8,6 +11,7 @@ describe("processVrCommand", () => {
     reporterCount: 10,
     peerMax: 7250,
     pending: null,
+    translate,
   };
 
   it("increments from season high by 250", () => {
@@ -62,6 +66,7 @@ describe("processVrConfirmation", () => {
         proposedVr: 8000,
         ashedMemberId: "member-1",
       },
+      translate,
     });
     expect(result.action).toMatchObject({ type: "set_vr", vr: 8000 });
   });

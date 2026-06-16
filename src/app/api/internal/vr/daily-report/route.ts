@@ -5,6 +5,7 @@ import { loadAllianceMembersForBot } from "@/lib/vr/member-roster";
 import {
   listDiscordLinksByAlliance,
   listLeaderboardRows,
+  resolveAllianceForGuild,
   resolveDiscordAllianceId,
   resolveSeasonKey,
 } from "@/lib/vr/repository";
@@ -45,10 +46,16 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const allianceId = await resolveDiscordAllianceId();
+  const guildId = process.env.DISCORD_GUILD_ID?.trim();
+  const allianceId = guildId
+    ? await resolveAllianceForGuild(guildId)
+    : await resolveDiscordAllianceId();
   if (!allianceId) {
     return NextResponse.json(
-      { error: "DISCORD_ALLIANCE_ID not set or not found in alliances." },
+      {
+        error:
+          "No alliance configured. Register the guild with /link-alliance or set DISCORD_GUILD_ID with a registered server.",
+      },
       { status: 503 },
     );
   }

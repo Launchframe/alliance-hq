@@ -28,6 +28,8 @@ export function verifyDiscordInteractionRequest(
 
 export type DiscordInteractionPayload = {
   type: number;
+  guild_id?: string;
+  locale?: string;
   data?: {
     name?: string;
     options?: Array<{ name: string; type: number; value?: unknown }>;
@@ -38,6 +40,12 @@ export type DiscordInteractionPayload = {
   };
   user?: { id?: string; username?: string };
 };
+
+export function interactionGuildId(
+  payload: DiscordInteractionPayload,
+): string | null {
+  return payload.guild_id?.trim() || null;
+}
 
 export function interactionDiscordUserId(
   payload: DiscordInteractionPayload,
@@ -106,7 +114,10 @@ export function parseButtonCustomId(
   return null;
 }
 
-export function buildVrConfirmButtons(proposedVr: number) {
+export function buildVrConfirmButtons(
+  proposedVr: number,
+  labels: { yes: string; no: string },
+) {
   return [
     {
       type: 1,
@@ -114,13 +125,13 @@ export function buildVrConfirmButtons(proposedVr: number) {
         {
           type: 2,
           style: 3,
-          label: "Yes",
+          label: labels.yes.slice(0, 80),
           custom_id: `vr:confirm:${proposedVr}:yes`,
         },
         {
           type: 2,
           style: 4,
-          label: "No",
+          label: labels.no.slice(0, 80),
           custom_id: `vr:confirm:${proposedVr}:no`,
         },
       ],
@@ -160,7 +171,7 @@ export function buildCharacterPickerButtons(
   ];
 }
 
-export function buildWalkthroughDoneButton() {
+export function buildWalkthroughDoneButton(label = "Done") {
   return [
     {
       type: 1,
@@ -168,7 +179,7 @@ export function buildWalkthroughDoneButton() {
         {
           type: 2,
           style: 1,
-          label: "Done",
+          label: label.slice(0, 80),
           custom_id: "link:walkthrough:done",
         },
       ],
@@ -176,7 +187,10 @@ export function buildWalkthroughDoneButton() {
   ];
 }
 
-export function buildLinkFailureButtons() {
+export function buildLinkFailureButtons(labels: {
+  startOver: string;
+  askOfficer: string;
+}) {
   return [
     {
       type: 1,
@@ -184,13 +198,13 @@ export function buildLinkFailureButtons() {
         {
           type: 2,
           style: 2,
-          label: "Start over",
+          label: labels.startOver.slice(0, 80),
           custom_id: "link:start_over",
         },
         {
           type: 2,
           style: 4,
-          label: "Ask an officer",
+          label: labels.askOfficer.slice(0, 80),
           custom_id: "link:ask_officer",
         },
       ],

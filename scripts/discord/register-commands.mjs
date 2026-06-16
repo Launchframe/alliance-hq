@@ -15,20 +15,45 @@ if (!token || !applicationId) {
   process.exit(1);
 }
 
+const vrLevelOption = {
+  name: "level",
+  description: "Base VR (multiple of 250)",
+  description_localizations: {
+    "pt-BR": "VR base (múltiplo de 250)",
+  },
+  type: 4,
+  min_value: 250,
+  max_value: 12750,
+  required: false,
+};
+
 const commandBody = [
   {
     name: "link",
     description: "Link your Discord account to your in-game member",
+    description_localizations: {
+      "pt-BR": "Vincule sua conta do Discord ao seu membro no jogo",
+    },
     options: [
       {
         name: "name",
-        description: "Your in-game name. This must match your profile name exactly - please copy it from your in-game profile.",
+        description:
+          "Your in-game name. Copy it exactly from your in-game profile.",
+        description_localizations: {
+          "pt-BR":
+            "Seu nome no jogo. Copie exatamente do perfil dentro do jogo.",
+        },
         type: 3,
         required: true,
       },
       {
         name: "uid",
-        description: "Your 12–16 digit player ID, ending in your server number. Copy it from your in-game profile.",
+        description:
+          "Your 12–16 digit player ID, ending in your server number.",
+        description_localizations: {
+          "pt-BR":
+            "Seu ID de jogador com 12–16 dígitos, terminando no número do servidor.",
+        },
         type: 3,
         required: true,
       },
@@ -36,29 +61,117 @@ const commandBody = [
   },
   {
     name: "vr",
-    description: "Bump your base viral resistance (VR) when you level up. Or pass the exact number.",
+    description: "Bump your base viral resistance (VR) when you level up.",
+    description_localizations: {
+      "pt-BR": "Atualize seu VR base quando subir de nível.",
+    },
+    options: [vrLevelOption],
+  },
+  {
+    name: "immunity",
+    description: "Alias for /vr",
+    description_localizations: {
+      "pt-BR": "Atalho para /vr",
+    },
+    options: [vrLevelOption],
+  },
+  {
+    name: "link-alliance",
+    description: "Register this Discord server for your alliance (owner only).",
+    description_localizations: {
+      "pt-BR": "Registre este servidor do Discord para sua aliança (somente dono).",
+    },
     options: [
       {
-        name: "level",
-        description: "Base VR (multiple of 250)",
-        type: 4,
-        min_value: 250,
-        max_value: 12750,
+        name: "tag",
+        description: "Alliance tag on ashed.online (for example LFgo).",
+        description_localizations: {
+          "pt-BR": "Tag da aliança no ashed.online (por exemplo LFgo).",
+        },
+        type: 3,
+        required: true,
+      },
+      {
+        name: "name",
+        description:
+          "Alliance display name — only if multiple alliances share the same tag.",
+        description_localizations: {
+          "pt-BR":
+            "Nome da aliança — somente se várias alianças usarem a mesma tag.",
+        },
+        type: 3,
         required: false,
       },
     ],
   },
   {
-    name: "immunity",
-    description: "Alias for /vr",
+    name: "link-with-authentication",
+    description: "Connect an Ashed owner key so the bot can read your roster.",
+    description_localizations: {
+      "pt-BR":
+        "Conecte uma chave de dono Ashed para o bot ler o roster da aliança.",
+    },
     options: [
       {
-        name: "level",
-        description: "Base VR (multiple of 250)",
+        name: "tag",
+        description: "Alliance tag on ashed.online (for example LFgo).",
+        description_localizations: {
+          "pt-BR": "Tag da aliança no ashed.online (por exemplo LFgo).",
+        },
+        type: 3,
+        required: true,
+      },
+      {
+        name: "key",
+        description: "Ashed connection string or Bearer token (shown only to you).",
+        description_localizations: {
+          "pt-BR":
+            "String de conexão Ashed ou token Bearer (visível só para você).",
+        },
+        type: 3,
+        required: true,
+      },
+    ],
+  },
+  {
+    name: "set-season",
+    description: "Set the current VR season for this server (owner only).",
+    description_localizations: {
+      "pt-BR": "Defina a temporada de VR deste servidor (somente dono).",
+    },
+    options: [
+      {
+        name: "season",
+        description: "Season number (for example 4).",
+        description_localizations: {
+          "pt-BR": "Número da temporada (por exemplo 4).",
+        },
         type: 4,
-        min_value: 250,
-        max_value: 12750,
-        required: false,
+        min_value: 1,
+        max_value: 99,
+        required: true,
+      },
+    ],
+  },
+  {
+    name: "language",
+    description: "Choose bot reply language.",
+    description_localizations: {
+      "pt-BR": "Escolha o idioma das respostas do bot.",
+    },
+    options: [
+      {
+        name: "locale",
+        description: "Bot language",
+        description_localizations: {
+          "pt-BR": "Idioma do bot",
+        },
+        type: 3,
+        required: true,
+        choices: [
+          { name: "English", value: "English" },
+          { name: "Português (Brasil)", value: "Português" },
+        ],
       },
     ],
   },

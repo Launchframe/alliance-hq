@@ -250,6 +250,37 @@ export async function syncAshedAllianceRoles(options: {
   return { hqUserId, hqAllianceId, roleName: currentRole };
 }
 
+/** Bot onboarding: sync alliance roles without mutating web sessions. */
+export async function syncAshedAllianceForBot(options: {
+  connection: ParsedConnection;
+  allianceTag: string;
+  currentUser: AshedUserInfo;
+}): Promise<{ hqUserId: string; hqAllianceId: string; roleName: SystemRoleName }> {
+  const { connection, allianceTag, currentUser } = options;
+  const ashedAlliance = await fetchAllianceByTag(connection, allianceTag);
+  if (!ashedAlliance?.id) {
+    throw new Error(`Alliance "${allianceTag}" not found in Ashed.`);
+  }
+
+  const hqAllianceId = await upsertAllianceFromAshed(ashedAlliance, allianceTag);
+  const hqUserId = await upsertHqUser(currentUser);
+
+  const rosterEmails = buildAllianceRosterEmails(ashedAlliance);
+
+  for (const email of rosterEmails) {
+    const stubUserId = await upsertHqUserStub(email);
+    const roleName = resolveSystemRoleForAlliance(ashedAlliance, { email });
+    await upsertAshedMembership(hqAllianceId, stubUserId, roleName);
+  }
+
+  const currentRole = resolveSystemRoleForAlliance(ashedAlliance, currentUser);
+  await upsertAshedMembership(hqAllianceId, hqUserId, currentRole);
+
+  await revokeStaleAshedMemberships(hqAllianceId, rosterEmails);
+
+  return { hqUserId, hqAllianceId, roleName: currentRole };
+}
+
 export type TeamMember = {
   email: string;
   displayName: string | null;

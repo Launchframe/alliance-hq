@@ -1063,5 +1063,68 @@
     "skip": "Pular por agora",
     "submit": "Enviar notas",
     "submitting": "Salvando…"
+  },
+  "discordBot": {
+    "errors": {
+      "guildNotConfigured": "O rastreamento de VR no Discord ainda não está configurado neste servidor. O dono da aliança deve executar `/link-alliance` com a tag da aliança.",
+      "legacyMisconfigured": "O rastreamento de VR no Discord está mal configurado. Fale com o mantenedor do Alliance HQ.",
+      "unknownUser": "Não foi possível identificar sua conta do Discord.",
+      "unknownCommand": "Comando desconhecido.",
+      "serverError": "Algo deu errado do nosso lado. Tente novamente em instantes.",
+      "guildNotRegistered": "Este servidor do Discord ainda não está vinculado a uma aliança. O dono deve executar `/link-alliance` com a tag (por exemplo LFgo).",
+      "tagNotFound": "Nenhuma aliança encontrada com a tag **{tag}**. Confira a grafia no ashed.online ou use `/link-with-authentication` se a aliança ainda não estiver no Alliance HQ.",
+      "tagAmbiguous": "Encontramos várias alianças com a tag **{tag}**. Use `/link-alliance tag:{tag} name:Nome da Aliança` para escolher a correta.",
+      "notOwner": "Somente o dono da aliança pode registrar este servidor. Complete `/link` primeiro e tente de novo.",
+      "linkFirst": "Complete `/link` com seu nome e UID no jogo antes de registrar o servidor.",
+      "invalidConnection": "Essa chave de conexão não funcionou: {error}",
+      "notAllianceOwner": "Sua conta Ashed precisa ser dona da aliança com tag **{tag}**.",
+      "invalidSeason": "A temporada deve ser um número inteiro (por exemplo 4).",
+      "invalidLanguage": "Escolha English ou Português.",
+      "nothingPending": "Nada para escolher agora.",
+      "noWalkthrough": "Nenhum tutorial em andamento.",
+      "noConfirm": "Nada para confirmar agora."
+    },
+    "link": {
+      "usage": "Uso: `/link` com seu nome no jogo e UID (12–16 dígitos, terminando em 1203).",
+      "linked": "Vinculado a **{name}**. Você já pode usar /vr.",
+      "fuzzyPrompt": "Verificamos **{gameName}**, mas não achamos uma correspondência exata no roster. Escolha seu membro:",
+      "rosterMiss": "Não encontramos esse nome no roster. Toque em **Começar de novo** para instruções de cópia ou peça ajuda a um oficial.",
+      "pickExpired": "Essa opção expirou. Execute `/link` novamente.",
+      "walkthroughDone": "Ótimo. Execute `/link` de novo com o nome e UID copiados quando estiver pronto.",
+      "walkthroughIntro": "Vamos recomeçar.",
+      "walkthroughTapDone": "Toque em **Concluído** quando terminar esta etapa.",
+      "nameMismatchIntro": "Toque em **Concluído** quando terminar esta etapa.",
+      "steps": [
+        "Abra o jogo.",
+        "Toque na foto do avatar para abrir o menu Perfil do Jogador.",
+        "Toque no menu \"...\" no canto superior direito para abrir o menu Perfil.",
+        "Toque em \"Copiar\" ao lado do seu nome nessa tela.",
+        "Execute `/link` de novo e cole o nome copiado com seu UID."
+      ]
+    },
+    "vr": {
+      "notLinked": "Sua conta do Discord ainda não está vinculada. Execute `/link` com seu nome e UID no jogo primeiro.",
+      "pickCharacter": "Para qual personagem é este VR?",
+      "success": "Entendido! Parabéns por {vr} VR.",
+      "downgradeLimit": "O VR base não pode cair mais de um degrau (250) abaixo do seu recorde da temporada ({seasonHigh}).",
+      "maxVr": "Você está no VR base máximo que rastreamos ({max}).",
+      "stillWaiting": "Ainda aguardando: tem certeza que é {vr}? Toque Sim ou Não.",
+      "declined": "Sem problemas. Envie /vr com o VR base corrigido quando estiver pronto.",
+      "anomalyConfirm": "Tem *certeza* que seu VR é {vr}? Isso ficaria bem à frente do grupo em VR base. Toque Sim se for sério — acreditamos em você (provavelmente)."
+    },
+    "setup": {
+      "linkAllianceSuccess": "Este servidor está registrado para **{tag}**. Em seguida, o dono deve executar `/link-with-authentication` com uma chave de conexão Ashed para ler o roster.",
+      "linkAuthSuccess": "Autenticação salva para **{tag}**. Membros podem usar `/link` e `/vr` neste servidor.",
+      "setSeasonSuccess": "A temporada de **{tag}** agora é **{season}**.",
+      "languageSuccess": "Idioma atualizado."
+    },
+    "buttons": {
+      "yes": "Sim",
+      "no": "Não",
+      "done": "Concluído",
+      "startOver": "Começar de novo",
+      "askOfficer": "Pedir ajuda a um oficial"
+    },
+    "officerNotified": "Um oficial foi notificado no Alliance HQ. Eles podem falar com você aqui no Discord."
   }
 }
