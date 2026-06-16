@@ -18,6 +18,9 @@ export function ConnectPageFooter() {
         <Link href="/privacy" className="text-[#58a6ff] hover:underline">
           {t("privacyPolicy")}
         </Link>
+        <Link href="/terms" className="text-[#58a6ff] hover:underline">
+          {t("termsOfService")}
+        </Link>
         <LanguageSwitcher />
       </div>
     </footer>

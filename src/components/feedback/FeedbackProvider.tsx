@@ -41,7 +41,8 @@ function shouldHideFab(pathname: string) {
   return (
     pathname.startsWith("/admin") ||
     pathname.startsWith("/connect") ||
-    pathname.startsWith("/privacy")
+    pathname.startsWith("/privacy") ||
+    pathname.startsWith("/terms")
   );
 }
 
