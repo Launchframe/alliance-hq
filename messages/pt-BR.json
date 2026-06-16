@@ -345,7 +345,17 @@
       "surveyTitle": "Pesquisa pré-upload",
       "surveyRowCount": "Estimativa de linhas",
       "surveyScrollStyle": "Estilo de rolagem",
-      "surveyAboveAvg": "Mais rápido que o habitual"
+      "surveyAboveAvg": "Mais rápido que o habitual",
+      "viewMode": {
+        "list": "Lista",
+        "gallery": "Galeria",
+        "video": "Apresentação"
+      },
+      "galleryPrev": "Frame anterior",
+      "galleryNext": "Próximo frame",
+      "videoPlay": "▶ Reproduzir",
+      "videoPause": "⏸ Pausar",
+      "videoFps": "Velocidade (fps)"
     },
     "auditPage": {
       "loading": "Carregando log de auditoria…",
