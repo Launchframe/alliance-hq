@@ -355,7 +355,8 @@
       "galleryNext": "Next frame",
       "videoPlay": "▶ Play",
       "videoPause": "⏸ Pause",
-      "videoFps": "Speed (fps)"
+      "videoFps": "Speed (fps)",
+      "videoDuration": "Est. duration: {duration}"
     },
     "auditPage": {
       "loading": "Loading audit log…",

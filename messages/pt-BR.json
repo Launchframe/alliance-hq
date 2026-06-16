@@ -355,7 +355,8 @@
       "galleryNext": "Próximo frame",
       "videoPlay": "▶ Reproduzir",
       "videoPause": "⏸ Pausar",
-      "videoFps": "Velocidade (fps)"
+      "videoFps": "Velocidade (fps)",
+      "videoDuration": "Duração estimada: {duration}"
     },
     "auditPage": {
       "loading": "Carregando log de auditoria…",

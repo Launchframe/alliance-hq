@@ -132,6 +132,11 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
   const safeGalleryIndex = frames.length > 0
     ? Math.min(currentGalleryIndex, frames.length - 1)
     : 0;
+  const safeVideoModeIndex = frames.length > 0
+    ? Math.min(videoModeIndex, frames.length - 1)
+    : 0;
+  const videoModeFrame = frames[safeVideoModeIndex];
+  const videoDurationEstimate = formatMs((frames.length / videoModeFps) * 1000);
 
   // Video slideshow interval — only advances; never side-effects inside the updater
   useEffect(() => {
@@ -194,7 +199,8 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
     return <p className="text-sm text-[#8b949e]">{tDetail("loading")}</p>;
   }
 
-  const { job, parsedRows, editCount, deleteCount, addCount, sameFileResubmits } = data;
+  const { job, parsedRows, editCount, deleteCount, addCount, sameFileResubmits } =
+    data;
   const timings = job.timingsJson;
 
   return (
@@ -488,13 +494,34 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
                           className="h-48 w-auto max-w-xs rounded border border-[#30363d] object-contain"
                         />
                         {i === safeGalleryIndex ? (
-                          <div className="absolute bottom-0 left-0 right-0 rounded-b border border-t-0 border-[#30363d] bg-[#161b22]/90 px-2 py-1 text-center text-xs text-[#8b949e]">
-                            {tDetail("frameLabel", { index: frame.frameIndex })}
-                            {" · "}
-                            {tDetail("entryCount", {
-                              count: frame.ocrEntryCount ?? 0,
-                            })}
-                            {frame.ocrError ? ` · ⚠ ${frame.ocrError}` : ""}
+                          <div className="absolute bottom-0 left-0 right-0 rounded-b border border-t-0 border-[#30363d] bg-[#161b22]/90 px-2 py-1 text-xs text-[#8b949e]">
+                            <p className="text-center text-[#e6edf3]">
+                              {tDetail("frameLabel", {
+                                index: frame.frameIndex,
+                              })}
+                            </p>
+                            <div className="mt-1 flex flex-wrap justify-center gap-1">
+                              <span className="rounded bg-[#21262d] px-1.5 py-0.5">
+                                {tDetail("uploadMs", {
+                                  ms: formatMs(frame.uploadMs),
+                                })}
+                              </span>
+                              <span className="rounded bg-[#21262d] px-1.5 py-0.5">
+                                {tDetail("extractMs", {
+                                  ms: formatMs(frame.extractMs),
+                                })}
+                              </span>
+                              <span className="rounded bg-[#21262d] px-1.5 py-0.5">
+                                {tDetail("entryCount", {
+                                  count: frame.ocrEntryCount ?? 0,
+                                })}
+                              </span>
+                              {frame.ocrError ? (
+                                <span className="rounded bg-red-950/50 px-1.5 py-0.5 text-red-300">
+                                  {frame.ocrError}
+                                </span>
+                              ) : null}
+                            </div>
                           </div>
                         ) : null}
                       </div>
@@ -535,25 +562,47 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
             {frameViewMode === "video" ? (
               <div className="space-y-4">
                 <div className="relative mx-auto max-w-md">
-                  {frames[videoModeIndex] ? (
+                  {videoModeFrame ? (
                     // eslint-disable-next-line @next/next/no-img-element -- admin slideshow
                     <img
-                      src={`/api/admin/video-jobs/${jobId}/frames/${frames[videoModeIndex]!.frameIndex}`}
+                      src={`/api/admin/video-jobs/${jobId}/frames/${videoModeFrame.frameIndex}`}
                       alt={tDetail("frameThumbnail", {
-                        index: frames[videoModeIndex]!.frameIndex,
+                        index: videoModeFrame.frameIndex,
                       })}
                       className="w-full rounded-lg border border-[#30363d] object-contain"
                     />
                   ) : null}
-                  <div className="mt-2 text-center text-xs text-[#8b949e]">
-                    {tDetail("frameLabel", {
-                      index: frames[videoModeIndex]?.frameIndex ?? 0,
-                    })}
-                    {" · "}
-                    {tDetail("entryCount", {
-                      count: frames[videoModeIndex]?.ocrEntryCount ?? 0,
-                    })}
-                  </div>
+                  {videoModeFrame ? (
+                    <div className="mt-2 space-y-1 text-center text-xs text-[#8b949e]">
+                      <p className="text-[#e6edf3]">
+                        {tDetail("frameLabel", {
+                          index: videoModeFrame.frameIndex,
+                        })}
+                      </p>
+                      <div className="flex flex-wrap justify-center gap-1">
+                        <span className="rounded bg-[#21262d] px-1.5 py-0.5">
+                          {tDetail("uploadMs", {
+                            ms: formatMs(videoModeFrame.uploadMs),
+                          })}
+                        </span>
+                        <span className="rounded bg-[#21262d] px-1.5 py-0.5">
+                          {tDetail("extractMs", {
+                            ms: formatMs(videoModeFrame.extractMs),
+                          })}
+                        </span>
+                        <span className="rounded bg-[#21262d] px-1.5 py-0.5">
+                          {tDetail("entryCount", {
+                            count: videoModeFrame.ocrEntryCount ?? 0,
+                          })}
+                        </span>
+                        {videoModeFrame.ocrError ? (
+                          <span className="rounded bg-red-950/50 px-1.5 py-0.5 text-red-300">
+                            {videoModeFrame.ocrError}
+                          </span>
+                        ) : null}
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
                 <div className="flex flex-col items-center gap-3">
                   <button
@@ -580,13 +629,18 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
                     <span className="w-8 text-center text-[#e6edf3]">
                       {videoModeFps}
                     </span>
+                    <span className="text-xs text-[#8b949e]">
+                      {tDetail("videoDuration", {
+                        duration: videoDurationEstimate,
+                      })}
+                    </span>
                   </label>
                   <div className="flex items-center gap-3">
                     <input
                       type="range"
                       min={0}
                       max={frames.length - 1}
-                      value={videoModeIndex}
+                      value={safeVideoModeIndex}
                       onChange={(e) => {
                         setVideoModeIndex(Number(e.target.value));
                         setVideoModePlaying(false);
@@ -594,7 +648,7 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
                       className="w-64"
                     />
                     <span className="text-xs text-[#8b949e]">
-                      {videoModeIndex + 1} / {frames.length}
+                      {safeVideoModeIndex + 1} / {frames.length}
                     </span>
                   </div>
                 </div>
