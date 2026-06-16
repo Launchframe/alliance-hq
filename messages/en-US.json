@@ -1027,7 +1027,8 @@
   },
   "videoSurvey": {
     "title": "While you wait…",
-    "processingNote": "Your video is being processed — fill this in to help us improve.",
+    "processingNote": "Your video is processing in the background. If you have a moment, a few optional notes help us tune the pipeline.",
+    "optionalHint": "All questions are optional.",
     "q1Label": "Roughly how many rows were on the leaderboard?",
     "q1Placeholder": "e.g. 50",
     "q2Label": "How did you scroll through the leaderboard?",
@@ -1040,8 +1041,8 @@
     "q3Label": "Was the scrolling faster than usual for you?",
     "q3Yes": "Yes, faster than usual",
     "q3No": "No, my normal pace",
-    "skip": "Skip",
-    "submit": "Submit",
+    "skip": "Skip for now",
+    "submit": "Share notes",
     "submitting": "Saving…"
   }
 }
