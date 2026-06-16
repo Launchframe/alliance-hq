@@ -133,4 +133,40 @@ describe("maybeEnqueueShadowPass", () => {
     expect(mockDb.insert).not.toHaveBeenCalled();
     expect(dispatchVideoProcessing).not.toHaveBeenCalled();
   });
+
+  it("inserts shadow job and dispatches when all eligibility criteria are met", async () => {
+    // No existing shadow job in the group
+    mockState.selectResult = [];
+
+    await maybeEnqueueShadowPass({
+      job: primaryJob,
+      totalMs: 5000,
+      frameCount: 5,
+    });
+
+    expect(mockDb.insert).toHaveBeenCalledOnce();
+    const insertedValues = mockState.insertedValues[0] as Record<string, unknown>;
+    expect(insertedValues.passRole).toBe("shadow");
+    expect(insertedValues.passKey).toBe("scene_0.1");
+    expect(insertedValues.groupId).toBe("group-1");
+    expect(insertedValues.sessionId).toBe("session-1");
+    expect(insertedValues.status).toBe("queued");
+
+    // dispatch is fire-and-forget (void), so we just check it was called
+    await Promise.resolve(); // flush microtasks
+    expect(dispatchVideoProcessing).toHaveBeenCalledWith("shadow-job-id", { source: "shadow_pass" });
+  });
+
+  it("skips insert when an existing shadow job already exists for the group", async () => {
+    mockState.selectResult = [{ id: "existing-shadow-id" }];
+
+    await maybeEnqueueShadowPass({
+      job: primaryJob,
+      totalMs: 5000,
+      frameCount: 5,
+    });
+
+    expect(mockDb.insert).not.toHaveBeenCalled();
+    expect(dispatchVideoProcessing).not.toHaveBeenCalled();
+  });
 });

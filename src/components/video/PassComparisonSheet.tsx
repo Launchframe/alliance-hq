@@ -38,11 +38,14 @@ export function PassComparisonSheet(props: Props) {
   const [primaryRows, setPrimaryRows] = useState<ParsedRow[]>([]);
   const [shadowRows, setShadowRows] = useState<ParsedRow[]>([]);
   const [accuracyVoted, setAccuracyVoted] = useState<string | null>(null);
+  const [loadingRows, setLoadingRows] = useState(true);
 
   const primaryPass = comparison.passes[0];
   const shadowPass = comparison.passes[1];
 
   useEffect(() => {
+    let cancelled = false;
+
     async function loadRows(jobId: string): Promise<ParsedRow[]> {
       const res = await fetch(`/api/tools/video-upload/${jobId}`);
       if (!res.ok) return [];
@@ -50,12 +53,19 @@ export function PassComparisonSheet(props: Props) {
       return (data.rows ?? []).filter((r) => !r.deleted);
     }
 
-    if (primaryPass?.jobId) {
-      void loadRows(primaryPass.jobId).then(setPrimaryRows);
-    }
-    if (shadowPass?.jobId) {
-      void loadRows(shadowPass.jobId).then(setShadowRows);
-    }
+    void Promise.all([
+      primaryPass?.jobId ? loadRows(primaryPass.jobId) : Promise.resolve([]),
+      shadowPass?.jobId ? loadRows(shadowPass.jobId) : Promise.resolve([]),
+    ]).then(([pRows, sRows]) => {
+      if (cancelled) return;
+      setPrimaryRows(pRows);
+      setShadowRows(sRows);
+      setLoadingRows(false);
+    });
+
+    return () => {
+      cancelled = true;
+    };
   }, [primaryPass?.jobId, shadowPass?.jobId]);
 
   function rowKey(r: ParsedRow): string {
@@ -114,8 +124,13 @@ export function PassComparisonSheet(props: Props) {
 
         {/* Aligned rows */}
         <div className="h-full overflow-y-auto">
+          {loadingRows ? (
+            <div className="flex items-center justify-center py-12 text-sm text-[#8b949e]">
+              Loading…
+            </div>
+          ) : null}
           <div className="grid grid-cols-2 divide-x divide-[#30363d]">
-            {allKeys.map((key) => {
+            {!loadingRows && allKeys.map((key) => {
               const p = primaryByKey.get(key);
               const s = shadowByKey.get(key);
               const onlyInP = p && !s;

@@ -83,9 +83,12 @@ export async function computePassComparison(
       recommendedJobId = shadowJobId;
     } else if (primaryKeys.size > shadowKeys.size) {
       recommendedJobId = primaryJobId;
-    } else {
-      recommendedJobId = shadowMatched >= primaryMatched ? shadowJobId : primaryJobId;
+    } else if (shadowMatched > primaryMatched) {
+      recommendedJobId = shadowJobId;
+    } else if (primaryMatched > shadowMatched) {
+      recommendedJobId = primaryJobId;
     }
+    // exact tie on both row count and matched count → no recommendation (prompt suppressed)
   }
 
   function getTimingsMs(job: typeof primaryData.job): number | null {

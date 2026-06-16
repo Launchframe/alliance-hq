@@ -262,7 +262,7 @@ export function VideoPipelineStatsButton({ timings, fileName, comparisonJson }: 
                 {comparisonJson.passes.map((pass) => (
                   <div key={pass.jobId} className="rounded-lg border border-[#30363d] p-3">
                     <p className="text-xs font-medium text-[#8b949e]">
-                      {pass.passKey ?? pass.passRole}
+                      {pass.passKey ?? pass.passRole ?? "—"}
                     </p>
                     <dl className="mt-2 space-y-1 text-xs">
                       <div className="flex justify-between">

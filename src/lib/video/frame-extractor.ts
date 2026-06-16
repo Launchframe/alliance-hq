@@ -182,8 +182,14 @@ export async function extractLeaderboardFrames(
   extractionConfig?: ExtractionConfig,
 ): Promise<ExtractLeaderboardFramesResult> {
   const config = extractionConfig ?? { mode: "scene", sceneThreshold: 0.25, sampleFps: 1 };
-  const sceneThreshold = config.sceneThreshold ?? 0.25;
-  const sampleFps = config.sampleFps ?? 1;
+  const sceneThreshold =
+    Number.isFinite(config.sceneThreshold) && (config.sceneThreshold as number) > 0
+      ? (config.sceneThreshold as number)
+      : 0.25;
+  const sampleFps =
+    Number.isFinite(config.sampleFps) && (config.sampleFps as number) > 0
+      ? (config.sampleFps as number)
+      : 1;
 
   if (!(await ffmpegAvailable())) {
     throw new Error(
