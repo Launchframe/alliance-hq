@@ -3,6 +3,7 @@ import { nanoid } from "nanoid";
 
 import { getDb, schema } from "@/lib/db";
 import { buildFlagReason, peerMaxExcludingMember } from "@/lib/vr/anomaly";
+import { MAX_DISCORD_LINKS_PER_USER } from "@/lib/vr/constants";
 import type { LinkPendingState, VrPendingState } from "@/lib/vr/types";
 
 const PENDING_TTL_MS = 30 * 60 * 1000;
@@ -202,16 +203,81 @@ export async function getLinkedMemberIds(allianceId: string): Promise<Set<string
   return new Set(links.map((l) => l.ashedMemberId));
 }
 
-export async function upsertDiscordMemberLink(input: {
+export async function getDiscordLinkByAllianceAndMember(
+  allianceId: string,
+  ashedMemberId: string,
+) {
+  const db = getDb();
+  const [row] = await db
+    .select()
+    .from(schema.discordMemberLinks)
+    .where(
+      and(
+        eq(schema.discordMemberLinks.allianceId, allianceId),
+        eq(schema.discordMemberLinks.ashedMemberId, ashedMemberId),
+      ),
+    )
+    .limit(1);
+  return row ?? null;
+}
+
+export type LinkDiscordMemberResult =
+  | { ok: true; link: typeof schema.discordMemberLinks.$inferSelect; mode: "created" | "updated" | "replaced" }
+  | { ok: false; reason: "cap_reached" | "member_linked_to_other_discord" };
+
+export async function linkDiscordMember(input: {
   allianceId: string;
   discordUserId: string;
   discordUsername?: string | null;
   ashedMemberId: string;
   memberDisplayName?: string | null;
   gameUid: string;
-}) {
+  replaceAll?: boolean;
+}): Promise<LinkDiscordMemberResult> {
   const db = getDb();
   const now = new Date();
+
+  if (input.replaceAll) {
+    await deleteDiscordMemberLinksForUser(input.allianceId, input.discordUserId);
+  }
+
+  const existingMemberLink = await getDiscordLinkByAllianceAndMember(
+    input.allianceId,
+    input.ashedMemberId,
+  );
+  if (
+    existingMemberLink &&
+    existingMemberLink.discordUserId !== input.discordUserId
+  ) {
+    return { ok: false, reason: "member_linked_to_other_discord" };
+  }
+
+  const userLinks = await listDiscordLinksForUser(
+    input.allianceId,
+    input.discordUserId,
+  );
+  const existingPair = userLinks.find(
+    (row) => row.ashedMemberId === input.ashedMemberId,
+  );
+
+  if (existingPair) {
+    const [row] = await db
+      .update(schema.discordMemberLinks)
+      .set({
+        memberDisplayName: input.memberDisplayName ?? null,
+        gameUid: input.gameUid,
+        discordUsername: input.discordUsername ?? null,
+        updatedAt: now,
+      })
+      .where(eq(schema.discordMemberLinks.id, existingPair.id))
+      .returning();
+    return { ok: true, link: row!, mode: input.replaceAll ? "replaced" : "updated" };
+  }
+
+  if (userLinks.length >= MAX_DISCORD_LINKS_PER_USER) {
+    return { ok: false, reason: "cap_reached" };
+  }
+
   const [row] = await db
     .insert(schema.discordMemberLinks)
     .values({
@@ -225,21 +291,49 @@ export async function upsertDiscordMemberLink(input: {
       linkedAt: now,
       updatedAt: now,
     })
-    .onConflictDoUpdate({
-      target: [
-        schema.discordMemberLinks.allianceId,
-        schema.discordMemberLinks.discordUserId,
-      ],
-      set: {
-        ashedMemberId: input.ashedMemberId,
-        memberDisplayName: input.memberDisplayName ?? null,
-        gameUid: input.gameUid,
-        discordUsername: input.discordUsername ?? null,
-        updatedAt: now,
-      },
-    })
     .returning();
-  return row;
+
+  return {
+    ok: true,
+    link: row!,
+    mode: input.replaceAll ? "replaced" : "created",
+  };
+}
+
+/** @deprecated Use linkDiscordMember — kept for admin paths that expect upsert semantics. */
+export async function upsertDiscordMemberLink(input: {
+  allianceId: string;
+  discordUserId: string;
+  discordUsername?: string | null;
+  ashedMemberId: string;
+  memberDisplayName?: string | null;
+  gameUid: string;
+}) {
+  const result = await linkDiscordMember(input);
+  if (!result.ok) {
+    throw new Error(result.reason);
+  }
+  return result.link;
+}
+
+export async function deleteDiscordMemberLinksForUser(
+  allianceId: string,
+  discordUserId: string,
+  ashedMemberId?: string,
+): Promise<number> {
+  const db = getDb();
+  const conditions = [
+    eq(schema.discordMemberLinks.allianceId, allianceId),
+    eq(schema.discordMemberLinks.discordUserId, discordUserId),
+  ];
+  if (ashedMemberId) {
+    conditions.push(eq(schema.discordMemberLinks.ashedMemberId, ashedMemberId));
+  }
+  const deleted = await db
+    .delete(schema.discordMemberLinks)
+    .where(and(...conditions))
+    .returning({ id: schema.discordMemberLinks.id });
+  return deleted.length;
 }
 
 export async function getMemberSeasonHigh(

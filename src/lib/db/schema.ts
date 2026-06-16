@@ -454,9 +454,10 @@ export const discordMemberLinks = pgTable(
       .notNull(),
   },
   (table) => [
-    unique("discord_member_links_alliance_discord_unique").on(
+    unique("discord_member_links_alliance_discord_member_unique").on(
       table.allianceId,
       table.discordUserId,
+      table.ashedMemberId,
     ),
     unique("discord_member_links_alliance_member_unique").on(
       table.allianceId,

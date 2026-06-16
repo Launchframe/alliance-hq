@@ -61,5 +61,11 @@ export async function loadAllianceMembersForBot(
   return base44ListMembers(connection, alliance.ashedAllianceId);
 }
 
+export async function allianceHasBotCredentials(allianceId: string): Promise<boolean> {
+  const alliance = await getAllianceById(allianceId);
+  if (!alliance?.ashedAllianceId) return false;
+  return (await resolveBotAshedConnection(allianceId)) != null;
+}
+
 /** @deprecated Use loadAllianceMembersForBot — kept for tests importing buildBotAshedConnection */
 export const buildBotAshedConnection = buildLegacyBotAshedConnection;
