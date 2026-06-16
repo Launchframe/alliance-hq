@@ -2,9 +2,14 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildPipelineStatsSections,
+  computeFramesSkipped,
+  estimateDenseFrameCount,
   formatPipelineDuration,
+  frameSkipRatePercent,
   isVideoProcessTimings,
+  ocrOverlapPercent,
   ocrWallMs,
+  shouldShowExtractionQualitySection,
   sumPhaseMs,
 } from "@/lib/video/pipeline-stats-display";
 
@@ -59,5 +64,56 @@ describe("pipeline-stats-display", () => {
   it("validates timings shape", () => {
     expect(isVideoProcessTimings(null)).toBe(false);
     expect(isVideoProcessTimings({ totalMs: 1, phases: {} })).toBe(true);
+  });
+
+  describe("extraction quality metrics", () => {
+    it("estimates dense frame count with ceil(duration * 2)", () => {
+      expect(estimateDenseFrameCount(10)).toBe(20);
+      expect(estimateDenseFrameCount(10.1)).toBe(21);
+      expect(estimateDenseFrameCount(0.4)).toBe(1);
+    });
+
+    it("computes frames skipped vs selected count", () => {
+      expect(computeFramesSkipped(20, 8)).toBe(12);
+      expect(computeFramesSkipped(8, 10)).toBe(0);
+      expect(computeFramesSkipped(null, 8)).toBeNull();
+    });
+
+    it("formats skip rate without divide-by-zero", () => {
+      expect(frameSkipRatePercent(12, 20)).toBe(60);
+      expect(frameSkipRatePercent(0, 20)).toBe(0);
+      expect(frameSkipRatePercent(1, 0)).toBeNull();
+      expect(frameSkipRatePercent(null, 20)).toBeNull();
+    });
+
+    it("formats OCR overlap percent", () => {
+      expect(ocrOverlapPercent(100, 40)).toBe(60);
+      expect(ocrOverlapPercent(40, 40)).toBe(0);
+      expect(ocrOverlapPercent(0, 0)).toBeNull();
+    });
+
+    it("shows extraction section only when phase-3 fields exist", () => {
+      expect(
+        shouldShowExtractionQualitySection({
+          videoDurationSeconds: null,
+          denseFrameCount: null,
+          totalRawOcrRows: null,
+        }),
+      ).toBe(false);
+      expect(
+        shouldShowExtractionQualitySection({
+          videoDurationSeconds: 12.5,
+          denseFrameCount: 25,
+          totalRawOcrRows: null,
+        }),
+      ).toBe(true);
+      expect(
+        shouldShowExtractionQualitySection({
+          videoDurationSeconds: null,
+          denseFrameCount: null,
+          totalRawOcrRows: 48,
+        }),
+      ).toBe(true);
+    });
   });
 });

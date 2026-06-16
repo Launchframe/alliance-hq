@@ -39,6 +39,7 @@
     "@vercel/functions": "^3.4.3",
     "drizzle-orm": "^0.45.2",
     "ffmpeg-static": "^5.3.0",
+    "ffprobe-static": "^3.1.0",
     "lucide-react": "^1.18.0",
     "marked": "^15.0.12",
     "modern-screenshot": "^4.7.0",
@@ -57,6 +58,7 @@
   "devDependencies": {
     "@swc/helpers": "^0.5.23",
     "@tailwindcss/postcss": "^4",
+    "@types/ffprobe-static": "^2.0.3",
     "@types/node": "^20.19.43",
     "@types/react": "^19",
     "@types/react-dom": "^19",

@@ -24,6 +24,10 @@ export type VideoProcessTimings = {
   ocrConcurrency: number;
   ashedUploadTotalMs: number | null;
   ashedExtractTotalMs: number | null;
+  videoDurationSeconds?: number | null;
+  denseFrameCount?: number | null;
+  framesSkipped?: number | null;
+  totalRawOcrRows?: number | null;
 };
 
 function analyticsEnabled(): boolean {

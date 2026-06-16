@@ -8,10 +8,13 @@ import type { VideoProcessTimings } from "@/lib/analytics/video-pipeline";
 import {
   buildPipelineStatsSections,
   formatPipelineDuration,
+  frameSkipRatePercent,
   listPipelinePhaseBars,
+  ocrOverlapPercent,
   ocrSummedExtractMs,
   ocrSummedUploadMs,
   ocrWallMs,
+  shouldShowExtractionQualitySection,
 } from "@/lib/video/pipeline-stats-display";
 
 type Props = {
@@ -46,6 +49,15 @@ export function VideoPipelineStatsButton({ timings, fileName }: Props) {
   const ocrWall = timings ? ocrWallMs(timings.phases) : 0;
   const ocrUploadSum = timings ? ocrSummedUploadMs(timings.phases) : 0;
   const ocrExtractSum = timings ? ocrSummedExtractMs(timings.phases) : 0;
+  const showExtractionQuality = timings
+    ? shouldShowExtractionQualitySection(timings)
+    : false;
+  const frameSkipRate = timings
+    ? frameSkipRatePercent(timings.framesSkipped, timings.denseFrameCount)
+    : null;
+  const ocrOverlap = timings?.totalRawOcrRows != null && timings.rowCount != null
+    ? ocrOverlapPercent(timings.totalRawOcrRows, timings.rowCount)
+    : null;
   const showOcrParallelNote =
     timings != null &&
     ocrWall > 0 &&
@@ -114,6 +126,58 @@ export function VideoPipelineStatsButton({ timings, fileName }: Props) {
                   ) : null}
                 </dl>
               </section>
+
+              {showExtractionQuality ? (
+                <section className="min-w-0 rounded-lg border border-[#30363d] bg-[#0d1117] p-3">
+                  <h3 className="text-xs font-medium uppercase tracking-wide text-[#8b949e]">
+                    {t("extractionTitle")}
+                  </h3>
+                  <dl className="mt-2 grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-3">
+                    {timings.videoDurationSeconds != null ? (
+                      <>
+                        <dt className="text-[#8b949e]">{t("videoDuration")}</dt>
+                        <dd className="font-mono">
+                          {timings.videoDurationSeconds.toFixed(1)}s
+                        </dd>
+                      </>
+                    ) : null}
+                    {timings.frameCount != null ? (
+                      <>
+                        <dt className="text-[#8b949e]">{t("framesSelected")}</dt>
+                        <dd className="font-mono">{timings.frameCount}</dd>
+                      </>
+                    ) : null}
+                    {timings.denseFrameCount != null ? (
+                      <>
+                        <dt className="text-[#8b949e]">{t("framesBaseline")}</dt>
+                        <dd className="font-mono">{timings.denseFrameCount}</dd>
+                      </>
+                    ) : null}
+                    {timings.framesSkipped != null ? (
+                      <>
+                        <dt className="text-[#8b949e]">{t("framesSkipped")}</dt>
+                        <dd className="font-mono">
+                          {timings.framesSkipped}
+                          {frameSkipRate != null
+                            ? ` (${frameSkipRate}% skip rate)`
+                            : ""}
+                        </dd>
+                      </>
+                    ) : null}
+                    {timings.totalRawOcrRows != null &&
+                    timings.rowCount != null ? (
+                      <>
+                        <dt className="text-[#8b949e]">{t("ocrOverlap")}</dt>
+                        <dd className="font-mono">
+                          {timings.totalRawOcrRows} raw → {timings.rowCount}{" "}
+                          unique
+                          {ocrOverlap != null ? ` (${ocrOverlap}% overlap)` : ""}
+                        </dd>
+                      </>
+                    ) : null}
+                  </dl>
+                </section>
+              ) : null}
 
               <section>
                 <h3 className="text-xs font-medium uppercase tracking-wide text-[#8b949e]">

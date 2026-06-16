@@ -148,6 +148,10 @@ export async function processVideoJob(
   let ocrConcurrency = 0;
   let ashedUploadTotalMs: number | null = null;
   let ashedExtractTotalMs: number | null = null;
+  let videoDurationSeconds: number | null = null;
+  let denseFrameCount: number | null = null;
+  let framesSkipped: number | null = null;
+  let totalRawOcrRows: number | null = null;
 
   try {
     await setStatus("extracting");
@@ -175,12 +179,16 @@ export async function processVideoJob(
       { bytes: videoBuffer.length },
     );
 
-    let frames: Awaited<ReturnType<typeof extractLeaderboardFrames>> = [];
+    let frames: import("@/lib/video/frame-extractor").ExtractedFrame[] = [];
     try {
-      frames = await timer.measureStep("ffmpeg.extract", () =>
+      const extractResult = await timer.measureStep("ffmpeg.extract", () =>
         extractLeaderboardFrames(tmpVideo),
-        (result) => ({ frameCount: result.length }),
+        (result) => ({ frameCount: result.frames.length }),
       );
+      frames = extractResult.frames;
+      videoDurationSeconds = extractResult.videoDurationSeconds;
+      denseFrameCount = extractResult.denseFrameCount;
+      framesSkipped = extractResult.framesSkipped;
     } finally {
       await timer.measureStep("storage.delete_temp_video", () =>
         fs.unlink(tmpVideo).catch(() => undefined),
@@ -264,6 +272,7 @@ export async function processVideoJob(
     ocrConcurrency = concurrency;
     ashedUploadTotalMs = frameTimings.reduce((sum, f) => sum + f.uploadMs, 0);
     ashedExtractTotalMs = frameTimings.reduce((sum, f) => sum + f.extractMs, 0);
+    totalRawOcrRows = frameTimings.reduce((sum, f) => sum + (f.entryCount ?? 0), 0);
 
     await Promise.all(
       frameTimings.map((timing) =>
@@ -402,6 +411,10 @@ export async function processVideoJob(
       ocrConcurrency,
       ashedUploadTotalMs,
       ashedExtractTotalMs,
+      videoDurationSeconds: videoDurationSeconds ?? null,
+      denseFrameCount: denseFrameCount ?? null,
+      framesSkipped: framesSkipped ?? null,
+      totalRawOcrRows,
     };
 
     await setStatus(

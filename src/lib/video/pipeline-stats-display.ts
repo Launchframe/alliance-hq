@@ -127,3 +127,65 @@ export function ocrSummedExtractMs(phases: Record<string, number>): number {
 export function ocrWallMs(phases: Record<string, number>): number {
   return firstPhaseMs(phases, OCR_WALL_PHASES);
 }
+
+/** Baseline FPS used to estimate how many frames a uniform 2fps sample would produce. */
+export const REFERENCE_BASE_FPS = 2;
+
+export function estimateDenseFrameCount(
+  videoDurationSeconds: number,
+  baseFps = REFERENCE_BASE_FPS,
+): number {
+  if (!Number.isFinite(videoDurationSeconds) || videoDurationSeconds <= 0) {
+    return 0;
+  }
+  return Math.ceil(videoDurationSeconds * baseFps);
+}
+
+export function computeFramesSkipped(
+  denseFrameCount: number | null | undefined,
+  selectedFrameCount: number,
+): number | null {
+  if (denseFrameCount == null) {
+    return null;
+  }
+  return Math.max(0, denseFrameCount - selectedFrameCount);
+}
+
+export function frameSkipRatePercent(
+  framesSkipped: number | null | undefined,
+  denseFrameCount: number | null | undefined,
+): number | null {
+  if (
+    framesSkipped == null ||
+    denseFrameCount == null ||
+    denseFrameCount <= 0
+  ) {
+    return null;
+  }
+  return Math.round((framesSkipped / denseFrameCount) * 100);
+}
+
+export function ocrOverlapPercent(
+  totalRawOcrRows: number,
+  uniqueRowCount: number,
+): number | null {
+  if (totalRawOcrRows <= 0) {
+    return null;
+  }
+  return Math.round(
+    ((totalRawOcrRows - uniqueRowCount) / totalRawOcrRows) * 100,
+  );
+}
+
+export function shouldShowExtractionQualitySection(
+  timings: Pick<
+    VideoProcessTimings,
+    "videoDurationSeconds" | "denseFrameCount" | "totalRawOcrRows"
+  >,
+): boolean {
+  return (
+    timings.videoDurationSeconds != null ||
+    timings.denseFrameCount != null ||
+    timings.totalRawOcrRows != null
+  );
+}
