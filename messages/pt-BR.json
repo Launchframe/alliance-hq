@@ -1027,7 +1027,8 @@
   },
   "videoSurvey": {
     "title": "Enquanto aguarda…",
-    "processingNote": "Seu vídeo está sendo processado — preencha isto para nos ajudar a melhorar.",
+    "processingNote": "Seu vídeo está sendo processado em segundo plano. Se tiver um momento, algumas notas opcionais nos ajudam a ajustar o pipeline.",
+    "optionalHint": "Todas as perguntas são opcionais.",
     "q1Label": "Quantas linhas havia aproximadamente no placar?",
     "q1Placeholder": "ex.: 50",
     "q2Label": "Como você rolou o placar?",
@@ -1040,8 +1041,8 @@
     "q3Label": "A rolagem foi mais rápida que o habitual para você?",
     "q3Yes": "Sim, mais rápido que o habitual",
     "q3No": "Não, meu ritmo normal",
-    "skip": "Pular",
-    "submit": "Enviar",
+    "skip": "Pular por agora",
+    "submit": "Enviar notas",
     "submitting": "Salvando…"
   }
 }

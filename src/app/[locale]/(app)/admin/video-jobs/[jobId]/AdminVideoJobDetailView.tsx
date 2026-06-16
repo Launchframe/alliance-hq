@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { FormattedDateTime } from "@/components/timezone/TimezoneProvider";
 import { Link } from "@/i18n/navigation";
 import type { VideoProcessTimings } from "@/lib/analytics/video-pipeline";
+import { SURVEY_SCROLL_STYLES, type SurveyScrollStyle } from "@/lib/video/survey";
 
 type JobDetail = {
   id: string;
@@ -73,9 +74,22 @@ function formatBytes(bytes: number | null | undefined): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function formatSurveyScrollStyle(
+  scrollStyle: string | null,
+  tSurvey: ReturnType<typeof useTranslations<"videoSurvey">>,
+): string {
+  if (!scrollStyle) return "—";
+  if ((SURVEY_SCROLL_STYLES as readonly string[]).includes(scrollStyle)) {
+    return tSurvey(`scrollStyle.${scrollStyle as SurveyScrollStyle}`);
+  }
+  return scrollStyle;
+}
+
 export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
   const t = useTranslations("admin");
   const tDetail = useTranslations("admin.videoJobDetailPage");
+  const tSurvey = useTranslations("videoSurvey");
+  const tc = useTranslations("common");
   const [data, setData] = useState<DetailResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<TabId>("frames");
@@ -204,15 +218,15 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
             </div>
             <div>
               <p className="text-xs text-[#8b949e]">{tDetail("surveyScrollStyle")}</p>
-              <p>{data.survey.scrollStyle ?? "—"}</p>
+              <p>{formatSurveyScrollStyle(data.survey.scrollStyle, tSurvey)}</p>
             </div>
             <div>
               <p className="text-xs text-[#8b949e]">{tDetail("surveyAboveAvg")}</p>
               <p>
                 {data.survey.aboveAverageScroll === true
-                  ? "Yes"
+                  ? tc("yes")
                   : data.survey.aboveAverageScroll === false
-                    ? "No"
+                    ? tc("no")
                     : "—"}
               </p>
             </div>

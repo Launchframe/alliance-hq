@@ -7,3 +7,5 @@ CREATE TABLE IF NOT EXISTS video_job_surveys (
   created_at timestamptz NOT NULL,
   updated_at timestamptz NOT NULL
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS video_job_surveys_job_id_unique ON video_job_surveys (job_id);

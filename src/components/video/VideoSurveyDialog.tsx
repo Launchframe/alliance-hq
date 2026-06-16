@@ -3,6 +3,12 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 
+import {
+  SURVEY_SCROLL_STYLES,
+  hasSurveyAnswers,
+  type SurveyScrollStyle,
+} from "@/lib/video/survey";
+
 type Props = {
   jobId: string;
   file: File;
@@ -12,8 +18,8 @@ type Props = {
 
 type SurveyAnswers = {
   rowCountEstimate: string;
-  scrollStyle: string;
-  aboveAverageScroll: string; // "yes" | "no" | ""
+  scrollStyle: SurveyScrollStyle | "";
+  aboveAverageScroll: string;
 };
 
 export function VideoSurveyDialog({ jobId, file, open, onClose }: Props) {
@@ -43,22 +49,29 @@ export function VideoSurveyDialog({ jobId, file, open, onClose }: Props) {
   if (!open) return null;
 
   async function handleSubmit() {
+    const rowCount = parseInt(answers.rowCountEstimate, 10);
+    const payload = {
+      rowCountEstimate: Number.isFinite(rowCount) ? rowCount : null,
+      scrollStyle: answers.scrollStyle || null,
+      aboveAverageScroll:
+        answers.aboveAverageScroll === "yes"
+          ? true
+          : answers.aboveAverageScroll === "no"
+            ? false
+            : null,
+    };
+
+    if (!hasSurveyAnswers(payload)) {
+      onClose();
+      return;
+    }
+
     setSubmitting(true);
     try {
-      const rowCount = parseInt(answers.rowCountEstimate, 10);
       await fetch(`/api/tools/video-upload/${jobId}/survey`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          rowCountEstimate: Number.isFinite(rowCount) ? rowCount : null,
-          scrollStyle: answers.scrollStyle || null,
-          aboveAverageScroll:
-            answers.aboveAverageScroll === "yes"
-              ? true
-              : answers.aboveAverageScroll === "no"
-                ? false
-                : null,
-        }),
+        body: JSON.stringify(payload),
       });
     } finally {
       setSubmitting(false);
@@ -72,19 +85,21 @@ export function VideoSurveyDialog({ jobId, file, open, onClose }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-      <div className="flex w-full max-w-lg flex-col gap-4 rounded-2xl border border-[#30363d] bg-[#161b22] p-6">
-        <div className="flex items-start justify-between">
-          <h2 className="text-base font-semibold text-[#e6edf3]">{t("title")}</h2>
+      <div className="flex min-w-0 w-full max-w-lg flex-col gap-4 rounded-2xl border border-[#30363d] bg-[#161b22] p-6">
+        <div className="flex min-w-0 items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h2 className="text-base font-semibold text-[#e6edf3]">{t("title")}</h2>
+            <p className="mt-1 text-xs text-[#8b949e]">{t("processingNote")}</p>
+          </div>
           <button
             type="button"
             onClick={handleSkip}
-            className="text-sm text-[#8b949e] hover:text-[#e6edf3]"
+            aria-label={t("skip")}
+            className="shrink-0 text-sm text-[#8b949e] hover:text-[#e6edf3]"
           >
             ✕
           </button>
         </div>
-
-        <p className="text-xs text-[#8b949e]">{t("processingNote")}</p>
 
         {objectUrl ? (
           <video
@@ -92,12 +107,13 @@ export function VideoSurveyDialog({ jobId, file, open, onClose }: Props) {
             src={objectUrl}
             controls
             muted
-            className="max-h-48 w-full rounded-lg border border-[#30363d] bg-black object-contain"
+            className="max-h-48 w-full min-w-0 rounded-lg border border-[#30363d] bg-black object-contain"
           />
         ) : null}
 
-        <div className="space-y-4">
-          {/* Q1: row count estimate */}
+        <p className="text-xs text-[#8b949e]">{t("optionalHint")}</p>
+
+        <div className="min-w-0 space-y-4">
           <label className="block text-sm">
             <span className="mb-1.5 block font-medium text-[#e6edf3]">{t("q1Label")}</span>
             <input
@@ -109,15 +125,14 @@ export function VideoSurveyDialog({ jobId, file, open, onClose }: Props) {
                 setAnswers((prev) => ({ ...prev, rowCountEstimate: e.target.value }))
               }
               placeholder={t("q1Placeholder")}
-              className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 text-sm text-[#e6edf3] placeholder:text-[#8b949e]"
+              className="w-full min-w-0 rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 text-sm text-[#e6edf3] placeholder:text-[#8b949e]"
             />
           </label>
 
-          {/* Q2: scroll style */}
-          <fieldset>
+          <fieldset className="min-w-0">
             <legend className="mb-1.5 text-sm font-medium text-[#e6edf3]">{t("q2Label")}</legend>
             <div className="flex flex-wrap gap-2">
-              {(["slow_steady", "fast", "page_by_page", "chaotic"] as const).map((style) => (
+              {SURVEY_SCROLL_STYLES.map((style) => (
                 <label key={style} className="flex cursor-pointer items-center gap-2 text-sm text-[#e6edf3]">
                   <input
                     type="radio"
@@ -135,10 +150,9 @@ export function VideoSurveyDialog({ jobId, file, open, onClose }: Props) {
             </div>
           </fieldset>
 
-          {/* Q3: above average scroll */}
-          <fieldset>
+          <fieldset className="min-w-0">
             <legend className="mb-1.5 text-sm font-medium text-[#e6edf3]">{t("q3Label")}</legend>
-            <div className="flex gap-4 text-sm">
+            <div className="flex flex-wrap gap-4 text-sm">
               <label className="flex cursor-pointer items-center gap-2 text-[#e6edf3]">
                 <input
                   type="radio"
@@ -169,7 +183,7 @@ export function VideoSurveyDialog({ jobId, file, open, onClose }: Props) {
           </fieldset>
         </div>
 
-        <div className="flex justify-end gap-3 pt-2">
+        <div className="flex flex-wrap justify-end gap-3 pt-2">
           <button
             type="button"
             onClick={handleSkip}
