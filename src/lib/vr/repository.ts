@@ -2,6 +2,7 @@ import { and, desc, eq, lt, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { getDb, schema } from "@/lib/db";
+import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
 import { buildFlagReason, peerMaxExcludingMember } from "@/lib/vr/anomaly";
 import type { LinkPendingState, VrPendingState } from "@/lib/vr/types";
 
@@ -45,13 +46,8 @@ export async function resolveSeasonKey(allianceId: string): Promise<string> {
   const envKey = process.env.DISCORD_ALLIANCE_SEASON_KEY?.trim();
   if (envKey) return envKey;
 
-  const db = getDb();
-  const [row] = await db
-    .select({ currentSeasonKey: schema.alliances.currentSeasonKey })
-    .from(schema.alliances)
-    .where(eq(schema.alliances.id, allianceId))
-    .limit(1);
-  return row?.currentSeasonKey?.trim() || "1";
+  const effective = await getEffectiveSeasonForAlliance(allianceId);
+  return effective.seasonKey;
 }
 
 export async function writeDiscordBotAudit(input: {

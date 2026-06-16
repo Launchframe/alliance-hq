@@ -5,6 +5,8 @@ export type AshedAllianceRow = {
   owner_id?: string;
   owner_email?: string;
   collaborators?: string[];
+  /** Last War state server number (Ashed Alliance entity). */
+  server_number?: number | string | null;
 };
 
 export type AshedUserRef = {

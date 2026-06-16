@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
 import { resolveTrainRequestContext } from "@/lib/trains/api-context";
 import {
   getConductorRecord,
@@ -30,7 +31,9 @@ export async function POST(request: Request) {
   const date = body.date?.trim() || getServerCalendarDate();
 
   try {
-    let record = await getConductorRecord(ctx.allianceId, date);
+    const seasonKey = (await getEffectiveSeasonForAlliance(ctx.allianceId))
+      .seasonKey;
+    let record = await getConductorRecord(ctx.allianceId, date, seasonKey);
 
     if (body.memberId && body.memberName) {
       const rankEvent = await getMemberRankAsOf(
@@ -41,6 +44,7 @@ export async function POST(request: Request) {
       record = await upsertConductorDraft({
         allianceId: ctx.allianceId,
         date,
+        seasonKey,
         conductorMemberId: body.memberId,
         conductorMemberName: body.memberName,
         conductorRankEventId: rankEvent?.id ?? null,

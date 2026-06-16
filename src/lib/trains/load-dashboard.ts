@@ -1,4 +1,5 @@
 import { resolveAllianceByTag } from "@/lib/alliance/resolve";
+import { getEffectiveSeasonForAlliance, loadAllianceSeasonRow } from "@/lib/game-season/sync";
 import { getAshedConnection, loadSession } from "@/lib/session";
 import { sessionHasPermission } from "@/lib/rbac/context";
 import {
@@ -13,12 +14,24 @@ import {
 } from "@/lib/trains/service";
 import { getPoolSummary } from "@/lib/trains/pool";
 import { conductorMechanismPoolType } from "@/lib/trains/templates";
+import type { SeasonKeySource } from "@/lib/game-season/types";
 import type { ConductorMechanismType } from "@/lib/trains/types";
+
+export type TrainsSeasonPayload = {
+  seasonKey: string;
+  source: SeasonKeySource;
+  isPostSeason: boolean;
+  week: number | null;
+  gameServerNumber: number | null;
+  seasonKeyOverride: string | null;
+  canManageSeason: boolean;
+};
 
 export type TrainsDashboardPayload = {
   today: string;
   weekStart: string;
   canManageTrains: boolean;
+  season: TrainsSeasonPayload | null;
   schedule: {
     id: string;
     weekStart: string;
@@ -70,12 +83,14 @@ export async function loadTrainsDashboard(
   const today = getServerCalendarDate();
   const weekStart = getWeekStartMonday(today);
   const canManageTrains = await sessionHasPermission(sessionId, "trains:write");
+  const canManageSeason = await sessionHasPermission(sessionId, "alliance:admin");
 
   if (!allianceId) {
     return {
       today,
       weekStart,
       canManageTrains,
+      season: null,
       schedule: null,
       dayConfigs: [],
       conductorRecord: null,
@@ -91,7 +106,13 @@ export async function loadTrainsDashboard(
     weekStart,
   );
 
-  const record = await getConductorRecord(allianceId, today);
+  const effectiveSeason = await getEffectiveSeasonForAlliance(allianceId);
+  const seasonRow = await loadAllianceSeasonRow(allianceId);
+  const record = await getConductorRecord(
+    allianceId,
+    today,
+    effectiveSeason.seasonKey,
+  );
   const todayDayConfig =
     dayConfigs.find((d) => d.date === today) ?? null;
 
@@ -115,6 +136,15 @@ export async function loadTrainsDashboard(
     today,
     weekStart,
     canManageTrains,
+    season: {
+      seasonKey: effectiveSeason.seasonKey,
+      source: effectiveSeason.source,
+      isPostSeason: effectiveSeason.isPostSeason,
+      week: effectiveSeason.week,
+      gameServerNumber: effectiveSeason.gameServerNumber,
+      seasonKeyOverride: seasonRow?.seasonKeyOverride ?? null,
+      canManageSeason,
+    },
     schedule: {
       id: schedule.id,
       weekStart: schedule.weekStart,

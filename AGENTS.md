@@ -43,7 +43,7 @@ Apply on every Real Steel pass for this repo:
 - **i18n** — new UI strings in en-US and pt-BR; run `npm run i18n:validate`
 - **Video pipeline** — admin requeue/reprocess must not double-process or lose job state
 - **No prod SQL for ops** — admin UI should cover role assignment, commendations, and job recovery without ad-hoc queries
-- **Trains** — GET routes use `scores:read`; mutations use `trains:write` via `requireTrainOfficer`; tenant-scoped by session alliance; conductor lock is immutable without audited override
+- **Trains** — GET routes use `scores:read`; mutations use `trains:write` via `requireTrainOfficer`; tenant-scoped by session alliance; conductor lock is immutable without audited override; season + ritual detail in [`.cursor/rules/trains.mdc`](.cursor/rules/trains.mdc)
 
 ## Last War domain (game mechanics)
 
@@ -51,5 +51,6 @@ Alliance HQ models **in-game** alliance mechanics (trains, VS weeks, R1–R5 ran
 
 - Alliance ranks **R1–R5** are stored in immutable **`member_alliance_rank_events`**; confirmed changes dual-write to Ashed `Member` and update **`alliance_members`** (locally synced roster with normalized rank/title). Members page refresh syncs from Ashed; train pools read local roster, not live Ashed queries.
 - Train conductor mutations require **`trains:write`** (owner/maintainer/officer — not `data_entry`).
-- Full terminology and train rules: [`.cursor/rules/alliance-affairs.mdc`](.cursor/rules/alliance-affairs.mdc).
+- **Game season** — owner override → Monday cpt-hedge cron → age fallback (caps S4) → default `"1"`; see [`.cursor/rules/trains.mdc`](.cursor/rules/trains.mdc).
+- Full terminology and train rules: [`.cursor/rules/trains.mdc`](.cursor/rules/trains.mdc) (ranks + server time: [`.cursor/rules/alliance-affairs.mdc`](.cursor/rules/alliance-affairs.mdc)).
 

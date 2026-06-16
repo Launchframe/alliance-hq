@@ -24,6 +24,21 @@ export const alliances = pgTable("alliances", {
   rolesSyncedAt: timestamp("roles_synced_at", { withTimezone: true }),
   /** Active game season key for VR tracking (e.g. "42"). */
   currentSeasonKey: text("current_season_key"),
+  /** Last War state server number from Ashed Alliance.server_number (e.g. 1203). */
+  gameServerNumber: integer("game_server_number"),
+  /** Server open time (ms epoch) from cpt-hedge — used for age fallback. */
+  gameServerOpenTimestamp: bigint("game_server_open_timestamp", {
+    mode: "number",
+  }),
+  /** Owner manual season; when set, cron does not overwrite effective season. */
+  seasonKeyOverride: text("season_key_override"),
+  /** Last auto-synced season from cpt-hedge or age fallback. */
+  seasonKeySynced: text("season_key_synced"),
+  /** override | cpt-hedge | age-fallback | default */
+  seasonKeySource: text("season_key_source"),
+  seasonSyncedAt: timestamp("season_synced_at", { withTimezone: true }),
+  seasonIsPostSeason: integer("season_is_post_season").notNull().default(0),
+  seasonWeek: integer("season_week"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
     .notNull(),
@@ -758,6 +773,7 @@ export const trainWeekSchedules = pgTable(
       .notNull()
       .references(() => alliances.id, { onDelete: "cascade" }),
     weekStart: text("week_start").notNull(),
+    seasonKey: text("season_key"),
     templateType: text("template_type").notNull(),
     notes: text("notes"),
     isPivot: integer("is_pivot").notNull().default(0),
@@ -813,6 +829,7 @@ export const trainConductorRecords = pgTable(
       .notNull()
       .references(() => alliances.id, { onDelete: "cascade" }),
     date: text("date").notNull(),
+    seasonKey: text("season_key"),
     conductorMemberId: text("conductor_member_id"),
     conductorMemberName: text("conductor_member_name"),
     conductorRankEventId: text("conductor_rank_event_id").references(

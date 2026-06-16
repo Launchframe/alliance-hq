@@ -10,6 +10,7 @@ const SLOTS_PER_CAR = 6;
 export async function getWeekSchedule(
   allianceId: string,
   weekStart: string,
+  seasonKey?: string | null,
 ): Promise<(typeof schema.trainWeekSchedules.$inferSelect) | null> {
   const db = getDb();
   const [row] = await db
@@ -22,18 +23,34 @@ export async function getWeekSchedule(
       ),
     )
     .limit(1);
-  return row ?? null;
+
+  if (!row) return null;
+
+  if (seasonKey && row.seasonKey && row.seasonKey !== seasonKey) {
+    await db
+      .update(schema.trainWeekSchedules)
+      .set({ seasonKey, updatedAt: new Date() })
+      .where(eq(schema.trainWeekSchedules.id, row.id));
+    return { ...row, seasonKey };
+  }
+
+  return row;
 }
 
 export async function upsertWeekSchedule(input: {
   allianceId: string;
   weekStart: string;
   templateType: WeekTemplateType;
+  seasonKey?: string | null;
   notes?: string | null;
   isPivot?: boolean;
 }): Promise<(typeof schema.trainWeekSchedules.$inferSelect)> {
   const db = getDb();
-  const existing = await getWeekSchedule(input.allianceId, input.weekStart);
+  const existing = await getWeekSchedule(
+    input.allianceId,
+    input.weekStart,
+    input.seasonKey,
+  );
 
   if (existing) {
     await db
@@ -42,6 +59,7 @@ export async function upsertWeekSchedule(input: {
         templateType: input.templateType,
         notes: input.notes ?? null,
         isPivot: input.isPivot ? 1 : 0,
+        ...(input.seasonKey ? { seasonKey: input.seasonKey } : {}),
         updatedAt: new Date(),
       })
       .where(eq(schema.trainWeekSchedules.id, existing.id));
@@ -53,6 +71,7 @@ export async function upsertWeekSchedule(input: {
     id,
     allianceId: input.allianceId,
     weekStart: input.weekStart,
+    seasonKey: input.seasonKey ?? null,
     templateType: input.templateType,
     notes: input.notes ?? null,
     isPivot: input.isPivot ? 1 : 0,
@@ -143,6 +162,7 @@ export async function listDayConfigsForWeek(
 export async function getConductorRecord(
   allianceId: string,
   date: string,
+  seasonKey?: string | null,
 ): Promise<(typeof schema.trainConductorRecords.$inferSelect) | null> {
   const db = getDb();
   const [row] = await db
@@ -155,12 +175,18 @@ export async function getConductorRecord(
       ),
     )
     .limit(1);
-  return row ?? null;
+
+  if (!row) return null;
+  if (seasonKey && row.seasonKey && row.seasonKey !== seasonKey) {
+    return null;
+  }
+  return row;
 }
 
 export async function upsertConductorDraft(input: {
   allianceId: string;
   date: string;
+  seasonKey?: string | null;
   conductorMemberId?: string | null;
   conductorMemberName?: string | null;
   conductorRankEventId?: string | null;
@@ -173,7 +199,11 @@ export async function upsertConductorDraft(input: {
   guardianIsVip?: number | null;
 }): Promise<(typeof schema.trainConductorRecords.$inferSelect)> {
   const db = getDb();
-  const existing = await getConductorRecord(input.allianceId, input.date);
+  const existing = await getConductorRecord(
+    input.allianceId,
+    input.date,
+    input.seasonKey,
+  );
 
   if (existing?.lockedAt) {
     throw new Error("Conductor is already locked for this day.");
@@ -216,6 +246,7 @@ export async function upsertConductorDraft(input: {
     id,
     allianceId: input.allianceId,
     date: input.date,
+    seasonKey: input.seasonKey ?? null,
     conductorMemberId: input.conductorMemberId ?? null,
     conductorMemberName: input.conductorMemberName ?? null,
     conductorRankEventId: input.conductorRankEventId ?? null,

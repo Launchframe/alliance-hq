@@ -127,6 +127,13 @@
       "when": 1781485000000,
       "tag": "0017_alliance_members",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1781490000000,
+      "tag": "0018_game_season",
+      "breakpoints": true
     }
   ]
 }
