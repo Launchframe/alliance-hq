@@ -168,4 +168,47 @@ describe("collapseEntriesBySanitizedName", () => {
     );
     expect(entries).toEqual([]);
   });
+
+  it("collapses lossy decimal score with full integer for same player", () => {
+    const { entries, unresolvedConflicts } = collapseEntriesBySanitizedName([
+      { name: "Bat Pig", score: "46.69" },
+      { name: "Bat Pig", score: "46690000000" },
+    ]);
+
+    expect(unresolvedConflicts).toEqual([]);
+    expect(entries).toEqual([{ name: "Bat Pig", score: "46690000000" }]);
+  });
+
+  it("prefers full integer over lossy decimal even when decimal has plurality", () => {
+    const { entries, unresolvedConflicts } = collapseEntriesBySanitizedName([
+      { name: "Bat Pig", score: "46.69" },
+      { name: "Bat Pig", score: "46.69" },
+      { name: "Bat Pig", score: "46690000000" },
+    ]);
+
+    expect(unresolvedConflicts).toEqual([]);
+    expect(entries).toEqual([{ name: "Bat Pig", score: "46690000000" }]);
+  });
+
+  it("still uses plurality when all scores are integers", () => {
+    const { entries, unresolvedConflicts } = collapseEntriesBySanitizedName([
+      { name: "Redd", score: "4858994" },
+      { name: "Redd", score: "4858994" },
+      { name: "Redd", score: "4848800" },
+    ]);
+
+    expect(unresolvedConflicts).toEqual([]);
+    expect(entries).toEqual([{ name: "Redd", score: "4858994" }]);
+  });
+
+  it("does not collapse tied integer scores just because one has more digits", () => {
+    const { entries, unresolvedConflicts } = collapseEntriesBySanitizedName([
+      { name: "Redd", score: "4858994" },
+      { name: "Redd", score: "485899" },
+    ]);
+
+    expect(unresolvedConflicts).toEqual(["redd"]);
+    expect(entries).toHaveLength(2);
+    expect(entries.every((entry) => entry.scoreConflict)).toBe(true);
+  });
 });

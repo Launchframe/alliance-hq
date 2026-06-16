@@ -3,10 +3,12 @@ import { and, eq } from "drizzle-orm";
 
 import { getDb, schema } from "@/lib/db";
 import { getOrCreateSession } from "@/lib/session";
+import type { VideoProcessTimings } from "@/lib/analytics/video-pipeline";
 import {
   getScoreTarget,
   toScoreTargetClientMeta,
 } from "@/lib/video/score-targets";
+import { isVideoProcessTimings } from "@/lib/video/pipeline-stats-display";
 
 type Props = {
   params: Promise<{ jobId: string }>;
@@ -87,6 +89,10 @@ export async function GET(_request: Request, { params }: Props) {
     const scoreTargetId = job.scoreTarget ?? job.category ?? "desert-storm";
     const target = getScoreTarget(scoreTargetId);
 
+    const timingsJson = isVideoProcessTimings(job.timingsJson)
+      ? (job.timingsJson as VideoProcessTimings)
+      : null;
+
     return NextResponse.json({
       job: {
         id: job.id,
@@ -100,6 +106,7 @@ export async function GET(_request: Request, { params }: Props) {
         errorMessage: job.errorMessage,
         parseSessionId: job.parseSessionId,
         allianceId: job.allianceId,
+        timingsJson,
       },
       scoreTargetMeta: target ? toScoreTargetClientMeta(target) : null,
       alliance: {

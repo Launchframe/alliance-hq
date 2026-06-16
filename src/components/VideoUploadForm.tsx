@@ -7,6 +7,7 @@ import { Link } from "@/i18n/navigation";
 import { AppSelect } from "@/components/ui/AppSelect";
 import { useMergedVideoJobs } from "@/components/video/VideoJobEventsProvider";
 import type { VideoJobRow } from "@/lib/types/video";
+import { MAX_VIDEO_UPLOAD_BYTES } from "@/lib/video/upload-limit";
 
 function formatBytes(bytes: number | null): string {
   if (!bytes) return "—";
@@ -91,10 +92,21 @@ export function VideoUploadForm({ initialJobs }: Props) {
     }
   }
 
+  const fileTooLarge = file !== null && file.size > MAX_VIDEO_UPLOAD_BYTES;
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!file) {
       setError(t("chooseFileFirst"));
+      return;
+    }
+
+    if (file.size > MAX_VIDEO_UPLOAD_BYTES) {
+      setError(
+        t("fileTooLarge", {
+          size: formatBytes(file.size),
+        }),
+      );
       return;
     }
 
@@ -195,6 +207,13 @@ export function VideoUploadForm({ initialJobs }: Props) {
             className="block w-full max-w-full text-sm text-[#8b949e] file:mb-2 file:block file:w-full file:rounded-lg file:border-0 file:bg-[#238636] file:px-4 file:py-2 file:text-sm file:text-white sm:file:mb-0 sm:file:mr-4 sm:file:inline-block sm:file:w-auto"
           />
           <p className="mt-2 text-xs text-[#8b949e]">{t("fileHint")}</p>
+          <p className="mt-2 text-xs text-[#8b949e]">{t("fileSizeLimit")}</p>
+          <p className="mt-2 text-xs text-[#8b949e]">{t("fileSizeTipsIntro")}</p>
+          <ul className="mt-1 list-disc space-y-1 pl-4 text-xs text-[#8b949e]">
+            <li>{t("fileSizeTipCrop")}</li>
+            <li>{t("fileSizeTipTrim")}</li>
+            <li>{t("fileSizeTipDownscale")}</li>
+          </ul>
         </label>
 
         {file && (
@@ -206,12 +225,18 @@ export function VideoUploadForm({ initialJobs }: Props) {
           </p>
         )}
 
+        {fileTooLarge && (
+          <p className="mt-2 text-sm text-[#f85149]">
+            {t("fileTooLarge", { size: formatBytes(file.size) })}
+          </p>
+        )}
+
         {error && <p className="mt-4 text-sm text-[#f85149]">{error}</p>}
         {success && <p className="mt-4 text-sm text-[#3fb950]">{success}</p>}
 
         <button
           type="submit"
-          disabled={uploading || !file}
+          disabled={uploading || !file || fileTooLarge}
           className="mt-4 w-full rounded-lg border border-[#238636] bg-[#238636] px-4 py-2 text-sm text-white disabled:opacity-50 sm:w-auto"
         >
           {uploading ? t("uploading") : t("uploadButton")}

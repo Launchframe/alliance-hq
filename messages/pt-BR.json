@@ -298,7 +298,46 @@
       "actionUnavailable": "Indisponível para este status do job",
       "viewError": "Ver erro",
       "errorDialogTitle": "Erro de processamento",
-      "close": "Fechar"
+      "close": "Fechar",
+      "inspect": "Inspecionar",
+      "frameCount": "Frames",
+      "totalTime": "Tempo total",
+      "ocrTime": "Tempo OCR"
+    },
+    "videoJobDetailPage": {
+      "loading": "Carregando detalhes do job…",
+      "backToList": "← Jobs de vídeo",
+      "frameCount": "Frames",
+      "totalTime": "Tempo total",
+      "ocrTime": "Tempo OCR",
+      "frameBytes": "Tamanho dos frames",
+      "sameFileResubmits": "Conclusões do mesmo arquivo",
+      "tabs": {
+        "frames": "Frames",
+        "parse": "Resultados",
+        "timings": "Tempos"
+      },
+      "framesEmpty": "Nenhum frame armazenado para este job.",
+      "frameLabel": "Frame {index}",
+      "frameThumbnail": "Miniatura do frame {index}",
+      "uploadMs": "Upload {ms}",
+      "extractMs": "Extração {ms}",
+      "entryCount": "{count} entradas",
+      "showRaw": "Mostrar JSON bruto",
+      "hideRaw": "Ocultar JSON bruto",
+      "parseEmpty": "Nenhuma linha parseada para este job.",
+      "parseSummary": "{editCount} editadas · {deleteCount} excluídas",
+      "colOcrName": "Nome OCR",
+      "colScore": "Pontuação",
+      "colConflict": "Conflito",
+      "colMember": "Membro correspondente",
+      "colConfidence": "Confiança",
+      "colFlags": "Marcadores",
+      "yes": "Sim",
+      "edited": "Editada",
+      "deleted": "Excluída",
+      "timingsEmpty": "Nenhum dado de tempo registrado para este job.",
+      "timingsSummary": "Total {total} · ffmpeg {ffmpeg} · OCR {ocr} · {frames} frames"
     },
     "auditPage": {
       "loading": "Carregando log de auditoria…",
@@ -695,7 +734,13 @@
       "general": "Outros"
     },
     "fileLabel": "Arquivo de vídeo",
-    "fileHint": "MP4 ou MOV gravando a rolagem do placar. Requer ffmpeg no servidor.",
+    "fileHint": "MP4 ou MOV gravando a rolagem do placar completo.",
+    "fileSizeLimit": "Tamanho máximo: 4 MB.",
+    "fileSizeTipsIntro": "Se o arquivo é grande, tente:",
+    "fileSizeTipCrop": "Cortar ao frame mais estreito que ainda mostre as linhas completas do placar (nomes e pontuações).",
+    "fileSizeTipTrim": "Cortar o início e o fim se o placar não está se movendo.",
+    "fileSizeTipDownscale": "Como último recurso, reduza a resolução do vídeo.",
+    "fileTooLarge": "Este arquivo é {size}. O vídeo deve ter menos de 4 MB — veja as dicas abaixo.",
     "selectedFile": "Selecionado: {name} ({size})",
     "chooseFileFirst": "Escolha um arquivo de vídeo primeiro.",
     "uploading": "Enviando…",
@@ -744,7 +789,10 @@
     "boardLabel": "Tipo de placar",
     "boardPlaceholder": "Selecione o placar…",
     "noEventsOption": "Nenhum evento ainda",
+    "noEventsAutoCreate": "Nenhum evento encontrado. Um novo evento será criado automaticamente para a data registrada ao salvar.",
     "createHqEvent": "Criar evento para esta data",
+    "scoreZeroWarning": "Pontuação é 0 — verifique se está correto",
+    "scoreNegativeWarning": "Pontuação é negativa",
     "boardTypes": {
       "kills": "Abates",
       "resources": "Recursos",
@@ -767,7 +815,30 @@
     "duplicateMemberItem": "{member} aparece em {count} linhas",
     "duplicateMemberHint": "Cada membro só pode ter uma pontuação neste placar. Verifique nome e pontuação, depois exclua linhas duplicadas ou alucinadas.",
     "duplicateMemberRow": "Atribuição duplicada ao membro",
-    "duplicateMemberBlocked": "Corrija as linhas duplicadas de membros antes de salvar."
+    "duplicateMemberBlocked": "Corrija as linhas duplicadas de membros antes de salvar.",
+    "statsNerds": {
+      "button": "Estatísticas avançadas",
+      "title": "Estatísticas avançadas",
+      "empty": "Ainda não há tempos. Os dados aparecem depois que o OCR termina.",
+      "close": "Fechar",
+      "outcomesTitle": "Resultado",
+      "fileSize": "Tamanho do arquivo",
+      "frames": "Frames enviados ao OCR",
+      "rows": "Linhas parseadas",
+      "matched": "Membros correspondidos",
+      "ocrConcurrency": "Paralelismo do OCR",
+      "ocrFrameAvg": "Tempo médio por frame",
+      "timelineTitle": "Onde foi o tempo",
+      "section": {
+        "extract": "Carregar vídeo + extrair frames",
+        "alliance": "Contexto da aliança",
+        "ocr": "OCR Ashed (tempo real)",
+        "parse": "Corresponder membros + salvar"
+      },
+      "total": "Total",
+      "ocrParallelNote": "O OCR rodou frames em paralelo: tempo real {wall} vs upload somado {uploadSum} + extract {extractSum} em todos os frames.",
+      "allPhasesTitle": "Todas as fases"
+    }
   },
   "feedback": {
     "fab": {

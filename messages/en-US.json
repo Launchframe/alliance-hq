@@ -298,7 +298,46 @@
       "actionUnavailable": "Not available for this job status",
       "viewError": "View error",
       "errorDialogTitle": "Processing error",
-      "close": "Close"
+      "close": "Close",
+      "inspect": "Inspect",
+      "frameCount": "Frames",
+      "totalTime": "Total time",
+      "ocrTime": "OCR time"
+    },
+    "videoJobDetailPage": {
+      "loading": "Loading job details…",
+      "backToList": "← Video jobs",
+      "frameCount": "Frames",
+      "totalTime": "Total time",
+      "ocrTime": "OCR time",
+      "frameBytes": "Frame data size",
+      "sameFileResubmits": "Same-file completions",
+      "tabs": {
+        "frames": "Frames",
+        "parse": "Parse results",
+        "timings": "Timings"
+      },
+      "framesEmpty": "No frames stored for this job.",
+      "frameLabel": "Frame {index}",
+      "frameThumbnail": "Frame {index} thumbnail",
+      "uploadMs": "Upload {ms}",
+      "extractMs": "Extract {ms}",
+      "entryCount": "{count} entries",
+      "showRaw": "Show raw JSON",
+      "hideRaw": "Hide raw JSON",
+      "parseEmpty": "No parsed rows for this job.",
+      "parseSummary": "{editCount} edited · {deleteCount} deleted",
+      "colOcrName": "OCR name",
+      "colScore": "Score",
+      "colConflict": "Conflict",
+      "colMember": "Matched member",
+      "colConfidence": "Confidence",
+      "colFlags": "Flags",
+      "yes": "Yes",
+      "edited": "Edited",
+      "deleted": "Deleted",
+      "timingsEmpty": "No timing data recorded for this job.",
+      "timingsSummary": "Total {total} · ffmpeg {ffmpeg} · OCR {ocr} · {frames} frames"
     },
     "auditPage": {
       "loading": "Loading audit log…",
@@ -695,7 +734,13 @@
       "general": "Other"
     },
     "fileLabel": "Video file",
-    "fileHint": "MP4 or MOV screen recording while scrolling the full leaderboard. Requires ffmpeg on the server.",
+    "fileHint": "MP4 or MOV screen recording while scrolling the full leaderboard.",
+    "fileSizeLimit": "Maximum size: 4 MB.",
+    "fileSizeTipsIntro": "If the file is too large, try:",
+    "fileSizeTipCrop": "Crop to the narrowest frame that still shows full leaderboard rows (names and scores).",
+    "fileSizeTipTrim": "Trim the beginning and end if the leaderboard is not moving.",
+    "fileSizeTipDownscale": "As a last resort, downscale the video resolution.",
+    "fileTooLarge": "This file is {size}. Videos must be under 4 MB — see the tips below.",
     "selectedFile": "Selected: {name} ({size})",
     "chooseFileFirst": "Choose a video file first.",
     "uploading": "Uploading…",
@@ -744,7 +789,10 @@
     "boardLabel": "Leaderboard type",
     "boardPlaceholder": "Select board…",
     "noEventsOption": "No events yet",
+    "noEventsAutoCreate": "No existing events found. A new event will be created automatically for the recorded date when you save.",
     "createHqEvent": "Create event for this date",
+    "scoreZeroWarning": "Score is 0 — verify this is correct",
+    "scoreNegativeWarning": "Score is negative",
     "boardTypes": {
       "kills": "Kills",
       "resources": "Resources",
@@ -767,7 +815,30 @@
     "duplicateMemberItem": "{member} appears on {count} rows",
     "duplicateMemberHint": "Each member can only have one score on this leaderboard. Check that the name and score are correct, then delete any duplicate or hallucinated row.",
     "duplicateMemberRow": "Duplicate member assignment",
-    "duplicateMemberBlocked": "Fix duplicate member rows before saving."
+    "duplicateMemberBlocked": "Fix duplicate member rows before saving.",
+    "statsNerds": {
+      "button": "Stats for nerds",
+      "title": "Stats for nerds",
+      "empty": "No timing data yet. Stats appear after OCR finishes.",
+      "close": "Close",
+      "outcomesTitle": "Outcomes",
+      "fileSize": "File size",
+      "frames": "Frames sent to OCR",
+      "rows": "Rows parsed",
+      "matched": "Members matched",
+      "ocrConcurrency": "OCR parallelism",
+      "ocrFrameAvg": "Avg time per frame",
+      "timelineTitle": "Where the time went",
+      "section": {
+        "extract": "Load video + extract frames",
+        "alliance": "Alliance context",
+        "ocr": "Ashed OCR (wall clock)",
+        "parse": "Match members + save"
+      },
+      "total": "Total",
+      "ocrParallelNote": "OCR ran frames in parallel: wall clock {wall} vs summed upload {uploadSum} + extract {extractSum} across all frames.",
+      "allPhasesTitle": "Every phase"
+    }
   },
   "feedback": {
     "fab": {

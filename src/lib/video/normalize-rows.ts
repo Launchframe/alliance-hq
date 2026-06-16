@@ -44,6 +44,50 @@ export type CollapseEntriesResult = {
   unresolvedConflicts: string[];
 };
 
+/** Prefer integer OCR scores over lossy decimal forms; break ties by digit count. */
+export function scoreRepresentationRank(
+  score: string,
+): [integerFirst: number, digitCount: number] {
+  const normalized = normalizeScoreValue(score);
+  const hasDecimal = normalized.includes(".");
+  const digitCount = normalized.replace(/\D/g, "").length;
+  return [hasDecimal ? 0 : 1, digitCount];
+}
+
+function compareScoreRepresentationRank(a: string, b: string): number {
+  const [aInt, aDigits] = scoreRepresentationRank(a);
+  const [bInt, bDigits] = scoreRepresentationRank(b);
+  if (aInt !== bInt) {
+    return aInt - bInt;
+  }
+  return aDigits - bDigits;
+}
+
+function pickPreferredScore(distinctScores: string[]): string {
+  return distinctScores
+    .slice()
+    .sort((a, b) => compareScoreRepresentationRank(b, a))[0]!;
+}
+
+function allOtherScoresAreLossyAliases(
+  distinctScores: string[],
+  preferred: string,
+): boolean {
+  if (normalizeScoreValue(preferred).includes(".")) {
+    return false;
+  }
+
+  return distinctScores
+    .filter((score) => score !== preferred)
+    .every((score) => {
+      const normalized = normalizeScoreValue(score);
+      return (
+        normalized.includes(".") &&
+        compareScoreRepresentationRank(score, preferred) < 0
+      );
+    });
+}
+
 /** Collapse OCR rows that share the same sanitized player name (one member per leaderboard). */
 export function collapseEntriesBySanitizedName(
   entries: OcrEntry[],
@@ -81,6 +125,17 @@ export function collapseEntriesBySanitizedName(
       continue;
     }
 
+    const distinctScores = rankedScores.map(([score]) => score);
+    const preferred = pickPreferredScore(distinctScores);
+
+    if (allOtherScoresAreLossyAliases(distinctScores, preferred)) {
+      collapsed.push({
+        ...pickBestDisplayEntry(group, allianceTag),
+        score: preferred,
+      });
+      continue;
+    }
+
     const [topScore, topCount] = rankedScores[0]!;
     const secondCount = rankedScores[1]?.[1] ?? 0;
 
@@ -96,7 +151,6 @@ export function collapseEntriesBySanitizedName(
     }
 
     unresolvedConflicts.push(key);
-    const distinctScores = rankedScores.map(([score]) => score);
 
     for (const score of distinctScores) {
       const scoreEntries = group.filter(

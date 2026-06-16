@@ -18,6 +18,8 @@ export type OcrFrameTiming = {
   uploadMs: number;
   extractMs: number;
   entryCount: number;
+  error: string | null;
+  rawResult: unknown;
 };
 
 export type OcrAllFramesResult = {
@@ -40,37 +42,56 @@ export async function ocrFrameBuffer(
   buffer: Buffer,
   frameIndex: number,
   timer?: PipelineTimer,
-): Promise<{ entries: OcrEntry[]; uploadMs: number; extractMs: number }> {
+): Promise<{
+  entries: OcrEntry[];
+  uploadMs: number;
+  extractMs: number;
+  rawResult: unknown;
+  error: string | null;
+}> {
   const fileName = `frame_${String(frameIndex).padStart(4, "0")}.jpg`;
 
-  const uploadStarted = Date.now();
-  const { file_url } = await base44UploadFile(
-    connection,
-    fileName,
-    "image/jpeg",
-    buffer,
-  );
-  const uploadMs = Date.now() - uploadStarted;
-  timer?.logStep("ashed.upload", uploadMs, { frameIndex });
+  try {
+    const uploadStarted = Date.now();
+    const { file_url } = await base44UploadFile(
+      connection,
+      fileName,
+      "image/jpeg",
+      buffer,
+    );
+    const uploadMs = Date.now() - uploadStarted;
+    timer?.logStep("ashed.upload", uploadMs, { frameIndex });
 
-  const extractStarted = Date.now();
-  const result = await base44ExtractData(
-    connection,
-    file_url,
-    target.ocrSchema,
-  );
-  const extractMs = Date.now() - extractStarted;
-  timer?.logStep("ashed.extract", extractMs, { frameIndex });
+    const extractStarted = Date.now();
+    const result = await base44ExtractData(
+      connection,
+      file_url,
+      target.ocrSchema,
+    );
+    const extractMs = Date.now() - extractStarted;
+    timer?.logStep("ashed.extract", extractMs, { frameIndex });
 
-  const entries = extractEntries(result);
-  timer?.logStep("ashed.frame", uploadMs + extractMs, {
-    frameIndex,
-    uploadMs,
-    extractMs,
-    entryCount: entries.length,
-  });
+    const entries = extractEntries(result);
+    timer?.logStep("ashed.frame", uploadMs + extractMs, {
+      frameIndex,
+      uploadMs,
+      extractMs,
+      entryCount: entries.length,
+    });
 
-  return { entries, uploadMs, extractMs };
+    return { entries, uploadMs, extractMs, rawResult: result, error: null };
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "OCR frame failed";
+    timer?.logStep("ashed.frame", 0, { frameIndex, error: message });
+    return {
+      entries: [],
+      uploadMs: 0,
+      extractMs: 0,
+      rawResult: null,
+      error: message,
+    };
+  }
 }
 
 export async function ocrAllFrames(
@@ -94,27 +115,54 @@ export async function ocrAllFrames(
   });
 
   const batchStarted = Date.now();
+
   const frameResults = await mapWithConcurrency(
     frames,
     concurrency,
     async (frame) => {
       const frameStarted = Date.now();
-      const { entries, uploadMs, extractMs } = await ocrFrameBuffer(
-        connection,
-        target,
-        frame.buffer,
-        frame.index,
-        timer,
-      );
+      const wallTimestampMs = Date.now();
+
+      const { entries, uploadMs, extractMs, rawResult, error } =
+        await ocrFrameBuffer(
+          connection,
+          target,
+          frame.buffer,
+          frame.index,
+          timer,
+        );
+
       return {
         frameIndex: frame.index,
         entries,
         ms: Date.now() - frameStarted,
         uploadMs,
         extractMs,
+        rawResult,
+        error,
+        wallTimestampMs,
       };
     },
   );
+
+  const sortedResults = frameResults.sort((a, b) => a.frameIndex - b.frameIndex);
+  let prevWallTimestampMs: number | null = null;
+  for (const result of sortedResults) {
+    const deltaFromPrevMs =
+      prevWallTimestampMs == null
+        ? null
+        : result.wallTimestampMs - prevWallTimestampMs;
+    prevWallTimestampMs = result.wallTimestampMs;
+    timer?.logStep("ashed.frame_wall", result.ms, {
+      frameIndex: result.frameIndex,
+      wallTimestampMs: result.wallTimestampMs,
+      deltaFromPrevMs,
+      uploadMs: result.uploadMs,
+      extractMs: result.extractMs,
+      entryCount: result.entries.length,
+      error: result.error,
+    });
+  }
 
   timer?.logStep("ashed.batch_complete", Date.now() - batchStarted, {
     jobId,
@@ -123,8 +171,7 @@ export async function ocrAllFrames(
   });
 
   const batches: OcrEntry[][] = [];
-  const frameTimings: OcrFrameTiming[] = frameResults
-    .sort((a, b) => a.frameIndex - b.frameIndex)
+  const frameTimings: OcrFrameTiming[] = sortedResults
     .map((result) => {
       if (result.entries.length > 0) {
         batches.push(result.entries);
@@ -135,6 +182,8 @@ export async function ocrAllFrames(
         uploadMs: result.uploadMs,
         extractMs: result.extractMs,
         entryCount: result.entries.length,
+        error: result.error,
+        rawResult: result.rawResult,
       };
     });
 

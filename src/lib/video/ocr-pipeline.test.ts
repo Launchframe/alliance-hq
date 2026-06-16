@@ -113,4 +113,28 @@ describe("ocrAllFrames", () => {
 
     logSpy.mockRestore();
   });
+
+  it("continues batch when a single frame OCR fails", async () => {
+    extract
+      .mockRejectedValueOnce(new Error("extract failed"))
+      .mockResolvedValue({
+        entries: [{ name: "Player", score: 100 }],
+      });
+
+    const result = await ocrAllFrames(
+      {} as never,
+      target,
+      [
+        { index: 0, buffer: Buffer.from("a") },
+        { index: 1, buffer: Buffer.from("b") },
+      ],
+      { concurrency: 1 },
+    );
+
+    expect(result.frameTimings).toHaveLength(2);
+    expect(result.frameTimings[0]?.error).toBe("extract failed");
+    expect(result.frameTimings[0]?.entryCount).toBe(0);
+    expect(result.frameTimings[1]?.error).toBeNull();
+    expect(result.entries).toHaveLength(1);
+  });
 });

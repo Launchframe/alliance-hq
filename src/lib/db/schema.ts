@@ -1,4 +1,5 @@
 import {
+  bigint,
   doublePrecision,
   integer,
   jsonb,
@@ -224,6 +225,8 @@ export const videoJobs = pgTable("video_jobs", {
   frameCount: integer("frame_count"),
   uploadedFrameCount: integer("uploaded_frame_count"),
   errorMessage: text("error_message"),
+  timingsJson: jsonb("timings_json").$type<Record<string, unknown>>(),
+  totalFileSizeBytes: bigint("total_file_size_bytes", { mode: "number" }),
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
     .notNull(),
@@ -240,6 +243,11 @@ export const videoFrames = pgTable("video_frames", {
   frameIndex: integer("frame_index").notNull(),
   storageKey: text("storage_key").notNull(),
   ssimScore: doublePrecision("ssim_score"),
+  uploadMs: integer("upload_ms"),
+  extractMs: integer("extract_ms"),
+  ocrEntryCount: integer("ocr_entry_count"),
+  ocrError: text("ocr_error"),
+  ocrRawJson: jsonb("ocr_raw_json"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
     .notNull(),
