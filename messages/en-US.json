@@ -789,7 +789,10 @@
     "boardLabel": "Leaderboard type",
     "boardPlaceholder": "Select board…",
     "noEventsOption": "No events yet",
+    "noEventsAutoCreate": "No existing events found. A new event will be created automatically for the recorded date when you save.",
     "createHqEvent": "Create event for this date",
+    "scoreZeroWarning": "Score is 0 — verify this is correct",
+    "scoreNegativeWarning": "Score is negative",
     "boardTypes": {
       "kills": "Kills",
       "resources": "Resources",

@@ -789,7 +789,10 @@
     "boardLabel": "Tipo de placar",
     "boardPlaceholder": "Selecione o placar…",
     "noEventsOption": "Nenhum evento ainda",
+    "noEventsAutoCreate": "Nenhum evento encontrado. Um novo evento será criado automaticamente para a data registrada ao salvar.",
     "createHqEvent": "Criar evento para esta data",
+    "scoreZeroWarning": "Pontuação é 0 — verifique se está correto",
+    "scoreNegativeWarning": "Pontuação é negativa",
     "boardTypes": {
       "kills": "Abates",
       "resources": "Recursos",

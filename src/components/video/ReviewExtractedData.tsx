@@ -235,7 +235,11 @@ export function ReviewExtractedData({ jobId }: Props) {
       const res = await fetch(`/api/bff/v1/entities/Member?q=${q}&sort=current_name`);
       if (res.ok) {
         const data = (await res.json()) as MemberOption[];
-        setMembers(data);
+        setMembers(
+          [...data].sort((a, b) =>
+            a.current_name.localeCompare(b.current_name),
+          ),
+        );
       }
     }
     void fetchMembers();
@@ -350,9 +354,17 @@ export function ReviewExtractedData({ jobId }: Props) {
     scoreTargetMeta?.leaderboardModel === "multi-board";
   const selectedEventId = scoreTargetMeta?.usesHqEvents ? hqEventId : eventId;
 
+  // For non-HQ-native event targets (e.g. alliance-exercise, zombie-siege),
+  // the server auto-provisions an Ashed event entity when none is selected —
+  // so we don't block save when the events list is empty.
+  const eventGateSatisfied =
+    !needsEventPicker ||
+    selectedEventId !== "" ||
+    (!scoreTargetMeta?.usesHqEvents && events.length === 0);
+
   const canSubmit =
     activeRows.length > 0 &&
-    (!needsEventPicker || selectedEventId) &&
+    eventGateSatisfied &&
     (!needsBoardPicker || boardKey) &&
     !hasDuplicateMembers &&
     !submitting &&
@@ -551,26 +563,35 @@ export function ReviewExtractedData({ jobId }: Props) {
         {needsEventPicker ? (
           <label className="block text-sm sm:col-span-2">
             <span className="mb-1 block text-[#8b949e]">{t("eventLabel")}</span>
-            <AppSelect
-              value={scoreTargetMeta?.usesHqEvents ? hqEventId : eventId}
-              onChange={(next) => {
-                if (scoreTargetMeta?.usesHqEvents) {
-                  setHqEventId(next);
-                } else {
-                  setEventId(next);
-                }
-              }}
-              aria-label={t("eventLabel")}
-              options={[
-                ...(events.length === 0
-                  ? [{ value: "", label: t("noEventsOption"), disabled: true }]
-                  : []),
-                ...events.map((ev) => ({
-                  value: ev.id,
-                  label: ev.label,
-                })),
-              ]}
-            />
+            {/* Non-HQ event target with no existing events: show an
+                auto-create note instead of a broken empty dropdown.
+                The server will provision an event entity automatically. */}
+            {!scoreTargetMeta?.usesHqEvents && events.length === 0 ? (
+              <p className="mt-1 text-xs text-[#8b949e]">
+                {t("noEventsAutoCreate")}
+              </p>
+            ) : (
+              <AppSelect
+                value={scoreTargetMeta?.usesHqEvents ? hqEventId : eventId}
+                onChange={(next) => {
+                  if (scoreTargetMeta?.usesHqEvents) {
+                    setHqEventId(next);
+                  } else {
+                    setEventId(next);
+                  }
+                }}
+                aria-label={t("eventLabel")}
+                options={[
+                  ...(events.length === 0
+                    ? [{ value: "", label: t("noEventsOption"), disabled: true }]
+                    : []),
+                  ...events.map((ev) => ({
+                    value: ev.id,
+                    label: ev.label,
+                  })),
+                ]}
+              />
+            )}
             {scoreTargetMeta?.usesHqEvents && events.length === 0 ? (
               <button
                 type="button"
@@ -734,12 +755,43 @@ export function ReviewExtractedData({ jobId }: Props) {
                   </td>
                 ) : null}
                 <td className="px-4 py-3">
-                  <input
-                    type="text"
-                    value={row.score}
-                    onChange={(e) => updateRow(row.id, { score: e.target.value })}
-                    className="w-28 rounded-lg border border-[#30363d] bg-[#0d1117] px-2 py-1.5"
-                  />
+                  {(() => {
+                    const scoreNum = parseFloat(
+                      row.score.replace(/,/g, ""),
+                    );
+                    const isZero =
+                      !Number.isNaN(scoreNum) && scoreNum === 0;
+                    const isNegative =
+                      !Number.isNaN(scoreNum) && scoreNum < 0;
+                    return (
+                      <>
+                        <input
+                          type="text"
+                          value={row.score}
+                          onChange={(e) =>
+                            updateRow(row.id, { score: e.target.value })
+                          }
+                          className={`w-28 rounded-lg border bg-[#0d1117] px-2 py-1.5 ${
+                            isNegative
+                              ? "border-[#f85149]"
+                              : isZero
+                                ? "border-[#d29922]"
+                                : "border-[#30363d]"
+                          }`}
+                        />
+                        {isZero && (
+                          <p className="mt-1 text-xs text-[#d29922]">
+                            {t("scoreZeroWarning")}
+                          </p>
+                        )}
+                        {isNegative && (
+                          <p className="mt-1 text-xs text-[#f85149]">
+                            {t("scoreNegativeWarning")}
+                          </p>
+                        )}
+                      </>
+                    );
+                  })()}
                 </td>
                 <td className="px-4 py-3">
                   <button

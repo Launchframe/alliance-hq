@@ -4,6 +4,7 @@ import { and, eq } from "drizzle-orm";
 import { writeAuditLog } from "@/lib/bff/audit";
 import { emitVideoJobStatus } from "@/lib/events/video-jobs";
 import { getDb, schema } from "@/lib/db";
+import { base44EntityPost } from "@/lib/base44/fetch";
 import {
   resolveAshedEventId,
   upsertHqEventMemberMetadata,
@@ -106,7 +107,7 @@ export async function POST(request: Request, { params }: Props) {
       );
     }
 
-    const submitContext: SubmitContext = {
+    let submitContext: SubmitContext = {
       eventId: body.eventId,
       team: body.team,
       recordedDate: body.recordedDate,
@@ -114,6 +115,26 @@ export async function POST(request: Request, { params }: Props) {
       boardKey: body.boardKey ?? job.boardKey ?? undefined,
       commendationId: body.commendationId ?? job.commendationId ?? undefined,
     };
+
+    // Auto-provision an Ashed event entity when the target needs one but the
+    // client did not (or could not) select one from the dropdown because none
+    // exist yet.  This handles recurring types like alliance-exercise that
+    // have no pre-existing events for new alliances, and event types like
+    // zombie-siege where the user has no prior events in Ashed.
+    if (
+      target.eventEntity &&
+      !usesHqEventStore(target) &&
+      !submitContext.eventId
+    ) {
+      const newEvent = (await base44EntityPost(connection, target.eventEntity, {
+        alliance_id: allianceId,
+        start_date: submitContext.recordedDate,
+        end_date: submitContext.recordedDate,
+      })) as { id?: string };
+      if (newEvent?.id) {
+        submitContext = { ...submitContext, eventId: newEvent.id };
+      }
+    }
 
     const contextError = validateSubmitContext(
       target,
