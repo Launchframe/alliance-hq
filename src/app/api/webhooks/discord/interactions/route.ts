@@ -26,6 +26,7 @@ import {
 } from "@/lib/discord/interactions";
 import { emitAdminAlert } from "@/lib/events/admin-alerts";
 import {
+  handleDiscordHelp,
   handleDiscordLanguage,
   handleDiscordLinkAlliance,
   handleDiscordLinkFuzzyPick,
@@ -33,6 +34,8 @@ import {
   handleDiscordLinkStartOver,
   handleDiscordLinkWithAuthentication,
   handleDiscordSetSeason,
+  handleDiscordUnlinkPick,
+  handleDiscordUnlinkWithContext,
   handleDiscordVrButtonConfirm,
   handleDiscordVrCharacterPick,
   handleDiscordVrSlash,
@@ -70,6 +73,15 @@ async function handleSlashCommand(payload: DiscordInteractionPayload) {
 
   if (!discordUserId) {
     return discordMessageResponse(t("errors.unknownUser"));
+  }
+
+  if (commandName === "help") {
+    const result = await handleDiscordHelp({
+      guildId,
+      discordUserId,
+      locale,
+    });
+    return discordMessageResponse(result.reply);
   }
 
   if (commandName === "language") {
@@ -133,18 +145,36 @@ async function handleSlashCommand(payload: DiscordInteractionPayload) {
     return discordMessageResponse(result.reply);
   }
 
+  if (commandName === "unlink") {
+    const name = parseSlashOptionString(payload, "name");
+    const result = await handleDiscordUnlinkWithContext({
+      guildId,
+      discordUserId,
+      locale,
+      memberName: name,
+    });
+    if (result.picker?.length) {
+      return discordMessageResponse(
+        result.reply,
+        buildCharacterPickerButtons(result.picker, "unlink"),
+      );
+    }
+    return discordMessageResponse(result.reply);
+  }
+
   if (!allianceId) {
     return discordMessageResponse(guildConfigMessage(locale));
   }
 
   if (commandName === "link") {
-    const { name, uid } = parseLinkSlashOptions(payload);
+    const { name, uid, replace } = parseLinkSlashOptions(payload);
     const result = await handleDiscordLinkSlash({
       allianceId,
       discordUserId,
       discordUsername,
       reportedName: name,
       gameUid: uid,
+      replaceAll: replace,
       locale,
     });
 
@@ -272,6 +302,16 @@ async function handleButton(payload: DiscordInteractionPayload) {
         }),
       );
     }
+    return discordMessageResponse(result.reply);
+  }
+
+  if (parsed.kind === "link_unlink") {
+    const result = await handleDiscordUnlinkPick({
+      allianceId,
+      discordUserId,
+      linkId: parsed.linkId,
+      locale,
+    });
     return discordMessageResponse(result.reply);
   }
 

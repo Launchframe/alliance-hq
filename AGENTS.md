@@ -35,6 +35,8 @@ Apply on every Real Steel pass for this repo:
 - **Credentials:** per-alliance Ashed JWT in `alliance_ashed_credentials` (encrypted with `TOKEN_ENCRYPTION_KEY`). Resolve via `getAllianceAshedCredential` → `loadAllianceMembersForBot`.
 - **JWT scope:** never call Ashed with a credential for a different alliance. `loadAllianceMembersForBot` is the sole member-read entry point for bot code. Legacy `VR_BOT_ASHED_BEARER_TOKEN` requires matching `VR_BOT_ASHED_ALLIANCE_TAG`.
 - **Setup flow:** owner `/link` → `/link-alliance tag:…` → `/link-with-authentication tag key:…` (ephemeral; never audit plaintext keys). `/set-season` updates `alliances.current_season_key` for the guild's alliance.
+- **Multi-link:** up to 5 in-game characters per Discord user per alliance (`discord_member_links` unique on `(alliance_id, discord_user_id, ashed_member_id)`). `/link` adds or updates; `replace:true` clears then links one character; `/unlink` removes a link. `/vr` prompts when multiple links exist.
+- **`/help`:** context-aware next steps via `resolveDiscordBotUserContext` + `pickHelpMessageKey` — guild registration, credentials, owner vs member, link count.
 - **i18n:** bot reply strings in `messages/*/discordBot`; slash command `description_localizations` pt-BR in `scripts/discord/register-commands.mjs`; per-user locale in `discord_user_prefs` via `/language`.
 - **Deprecation:** do not reintroduce `DISCORD_ALLIANCE_ID` for new bot paths; `resolveAllianceForGuild` may fall back only for legacy deployments.
 

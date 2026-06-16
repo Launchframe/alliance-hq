@@ -79,10 +79,13 @@ export function parseVrSlashLevel(
 export function parseLinkSlashOptions(payload: DiscordInteractionPayload): {
   name?: string;
   uid?: string;
+  replace?: boolean;
 } {
+  const replaceOption = payload.data?.options?.find((o) => o.name === "replace");
   return {
     name: parseSlashOptionString(payload, "name"),
     uid: parseSlashOptionString(payload, "uid"),
+    replace: replaceOption?.value === true,
   };
 }
 
@@ -91,6 +94,7 @@ export type ParsedButton =
   | { kind: "link_pick"; memberId: string }
   | { kind: "link_walkthrough_done" }
   | { kind: "vr_character"; linkId: string }
+  | { kind: "link_unlink"; linkId: string }
   | { kind: "link_start_over" }
   | { kind: "link_ask_officer" };
 
@@ -111,6 +115,8 @@ export function parseButtonCustomId(
   if (customId === "link:ask_officer") return { kind: "link_ask_officer" };
   const charPick = /^vr:character:(.+)$/.exec(customId);
   if (charPick) return { kind: "vr_character", linkId: charPick[1]! };
+  const unlinkPick = /^link:unlink:(.+)$/.exec(customId);
+  if (unlinkPick) return { kind: "link_unlink", linkId: unlinkPick[1]! };
   return null;
 }
 
@@ -157,15 +163,16 @@ export function buildLinkFuzzyButtons(
 
 export function buildCharacterPickerButtons(
   links: Array<{ linkId: string; label: string }>,
+  prefix: "vr" | "unlink" = "vr",
 ) {
   return [
     {
       type: 1,
       components: links.slice(0, 5).map((l) => ({
         type: 2,
-        style: 1,
+        style: prefix === "unlink" ? 4 : 1,
         label: l.label.slice(0, 80),
-        custom_id: `vr:character:${l.linkId}`,
+        custom_id: `${prefix === "unlink" ? "link:unlink" : "vr:character"}:${l.linkId}`,
       })),
     },
   ];

@@ -1085,8 +1085,13 @@
       "noConfirm": "Nothing to confirm right now."
     },
     "link": {
-      "usage": "Usage: `/link` with your in-game name and UID (12–16 digits, ends in 1203).",
+      "usage": "Usage: `/link name:… uid:…`. Add another character anytime; use `replace:true` to switch your only link. Use `/unlink` to remove one.",
       "linked": "Linked to **{name}**. You're ready to use /vr.",
+      "linkedAdditional": "Linked another character: **{name}**. Use /vr and pick which character when you have more than one.",
+      "updated": "Updated your link for **{name}**.",
+      "replaced": "Switched your link to **{name}**.",
+      "capReached": "You already have the maximum number of linked characters ({max}). Use `/unlink` first or `/link replace:true` to switch.",
+      "memberTaken": "That in-game member is already linked to a different Discord account.",
       "fuzzyPrompt": "We verified **{gameName}** but couldn't find an exact roster match. Pick your member:",
       "rosterMiss": "We couldn't match that name to anyone on the roster. Try **Start over** for copy instructions, or ask an officer for help.",
       "pickExpired": "That member option expired. Run `/link` again.",
@@ -1125,6 +1130,24 @@
       "startOver": "Start over",
       "askOfficer": "Ask an officer"
     },
-    "officerNotified": "An officer has been notified on Alliance HQ. They can reach out to you here on Discord."
+    "officerNotified": "An officer has been notified on Alliance HQ. They can reach out to you here on Discord.",
+    "help": {
+      "dmGeneral": "**Alliance HQ bot** — run these in your alliance Discord server:\n• `/help` — this guide\n• `/link` — connect your in-game profile\n• `/vr` or `/immunity` — report base VR\n• `/language` — English or Português\n\nOwners also use `/link-with-authentication`, `/link-alliance`, and `/set-season`.",
+      "setupOwnerAuth": "This server is not set up yet. **Alliance owner:** run `/link-with-authentication` with your tag and Ashed connection key (ephemeral). Then `/link-alliance tag:YourTag`. Members can `/link` after that.",
+      "setupLinkAlliance": "This server is not registered to an alliance yet. **Owner:** run `/link-alliance tag:YourTag` (you must `/link` your in-game profile first). If the alliance is new to HQ, use `/link-with-authentication` first.",
+      "waitForOwnerAuth": "This server is waiting for the alliance owner to connect Ashed (`/link-with-authentication`). Then you can `/link` your in-game name and UID.",
+      "linkProfile": "Link your in-game profile: `/link name:… uid:…` (copy name and UID from your profile in-game). Need steps? Run `/link` with a wrong name once and tap **Done** for a walkthrough.",
+      "memberReady": "You're linked. Use `/vr` or `/immunity` when your base VR changes. `/help` anytime. `/language` for Português.",
+      "memberReadyMulti": "You have **{count}** linked characters. Use `/vr` or `/immunity` — the bot will ask which character. `/unlink` removes one; `/link` adds another.",
+      "ownerReady": "You're linked as alliance owner (**{tag}**). Members use `/link` and `/vr`. You can `/set-season season:…`. `/link-with-authentication` again if roster sync fails.",
+      "ownerReadyMulti": "You're linked as owner with **{count}** characters. `/vr` asks which character. `/set-season` updates the season for **{tag}**. `/unlink` or `/link replace:true` to manage links."
+    },
+    "unlink": {
+      "none": "You don't have any linked characters on this server. Run `/link` first.",
+      "pickCharacter": "Which linked character should I remove?",
+      "success": "Unlinked **{name}**. Run `/link` again to connect a character.",
+      "nameNotFound": "No linked character matches **{name}**. Run `/unlink` without a name to pick from a list.",
+      "expired": "That unlink option expired. Run `/unlink` again."
+    }
   }
 }

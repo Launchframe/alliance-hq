@@ -1085,8 +1085,13 @@
       "noConfirm": "Nada para confirmar agora."
     },
     "link": {
-      "usage": "Uso: `/link` com seu nome no jogo e UID (12–16 dígitos, terminando em 1203).",
+      "usage": "Uso: `/link name:… uid:…`. Adicione outro personagem quando quiser; use `replace:true` para trocar o vínculo. `/unlink` remove um.",
       "linked": "Vinculado a **{name}**. Você já pode usar /vr.",
+      "linkedAdditional": "Outro personagem vinculado: **{name}**. Com mais de um, use /vr e escolha qual personagem.",
+      "updated": "Vínculo atualizado para **{name}**.",
+      "replaced": "Vínculo trocado para **{name}**.",
+      "capReached": "Você já atingiu o máximo de personagens vinculados ({max}). Use `/unlink` ou `/link replace:true`.",
+      "memberTaken": "Esse membro no jogo já está vinculado a outra conta do Discord.",
       "fuzzyPrompt": "Verificamos **{gameName}**, mas não achamos uma correspondência exata no roster. Escolha seu membro:",
       "rosterMiss": "Não encontramos esse nome no roster. Toque em **Começar de novo** para instruções de cópia ou peça ajuda a um oficial.",
       "pickExpired": "Essa opção expirou. Execute `/link` novamente.",
@@ -1125,6 +1130,24 @@
       "startOver": "Começar de novo",
       "askOfficer": "Pedir ajuda a um oficial"
     },
-    "officerNotified": "Um oficial foi notificado no Alliance HQ. Eles podem falar com você aqui no Discord."
+    "officerNotified": "Um oficial foi notificado no Alliance HQ. Eles podem falar com você aqui no Discord.",
+    "help": {
+      "dmGeneral": "**Bot Alliance HQ** — use no servidor da aliança:\n• `/help` — este guia\n• `/link` — vincule seu perfil no jogo\n• `/vr` ou `/immunity` — informe VR base\n• `/language` — English ou Português\n\nDonos também usam `/link-with-authentication`, `/link-alliance` e `/set-season`.",
+      "setupOwnerAuth": "Este servidor ainda não está configurado. **Dono da aliança:** execute `/link-with-authentication` com tag e chave Ashed (ephemeral). Depois `/link-alliance tag:SuaTag`. Membros usam `/link` em seguida.",
+      "setupLinkAlliance": "Este servidor ainda não está registrado. **Dono:** `/link-alliance tag:SuaTag` (faça `/link` antes). Aliança nova no HQ? Use `/link-with-authentication` primeiro.",
+      "waitForOwnerAuth": "Aguardando o dono conectar o Ashed (`/link-with-authentication`). Depois você pode `/link` com nome e UID do jogo.",
+      "linkProfile": "Vincule seu perfil: `/link name:… uid:…` (copie do jogo). Precisa de passos? Use `/link` com nome errado e toque **Concluído** no tutorial.",
+      "memberReady": "Você está vinculado. Use `/vr` ou `/immunity` quando o VR base mudar. `/help` a qualquer momento.",
+      "memberReadyMulti": "Você tem **{count}** personagens vinculados. `/vr` pedirá qual personagem. `/unlink` remove um; `/link` adiciona outro.",
+      "ownerReady": "Você está vinculado como dono (**{tag}**). Membros usam `/link` e `/vr`. Você pode `/set-season season:…`.",
+      "ownerReadyMulti": "Dono com **{count}** personagens. `/vr` pergunta qual personagem. `/set-season` para **{tag}**. `/unlink` ou `/link replace:true` para gerenciar vínculos."
+    },
+    "unlink": {
+      "none": "Nenhum personagem vinculado neste servidor. Execute `/link` primeiro.",
+      "pickCharacter": "Qual personagem devo desvincular?",
+      "success": "Desvinculado **{name}**. Execute `/link` para conectar de novo.",
+      "nameNotFound": "Nenhum personagem vinculado corresponde a **{name}**. Use `/unlink` sem nome para escolher na lista.",
+      "expired": "Essa opção expirou. Execute `/unlink` novamente."
+    }
   }
 }

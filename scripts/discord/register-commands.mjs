@@ -57,6 +57,43 @@ const commandBody = [
         type: 3,
         required: true,
       },
+      {
+        name: "replace",
+        description:
+          "Replace all your linked characters with this one (switch main character).",
+        description_localizations: {
+          "pt-BR":
+            "Substitui todos os personagens vinculados por este (trocar personagem principal).",
+        },
+        type: 5,
+        required: false,
+      },
+    ],
+  },
+  {
+    name: "help",
+    description: "Show what to do next based on your setup progress",
+    description_localizations: {
+      "pt-BR": "Mostra o próximo passo conforme seu progresso de configuração",
+    },
+  },
+  {
+    name: "unlink",
+    description: "Remove a linked in-game character from your Discord account",
+    description_localizations: {
+      "pt-BR": "Remove um personagem vinculado da sua conta do Discord",
+    },
+    options: [
+      {
+        name: "name",
+        description: "Character name to unlink (optional if you have several).",
+        description_localizations: {
+          "pt-BR":
+            "Nome do personagem a desvincular (opcional se você tiver vários).",
+        },
+        type: 3,
+        required: false,
+      },
     ],
   },
   {

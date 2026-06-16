@@ -29,7 +29,7 @@ describe("discord interactions", () => {
           ],
         },
       }),
-    ).toEqual({ name: "PlayerOne", uid: "1234567890121203" });
+    ).toEqual({ name: "PlayerOne", uid: "1234567890121203", replace: false });
   });
 
   it("parses button custom ids", () => {

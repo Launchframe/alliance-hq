@@ -6,6 +6,7 @@ import {
 } from "@/lib/discord/i18n";
 import { lookupPlayerByUid } from "@/lib/lastwar/player-lookup";
 import { peerMaxExcludingMember } from "@/lib/vr/anomaly";
+import { MAX_DISCORD_LINKS_PER_USER } from "@/lib/vr/constants";
 import { processVrCommand, processVrConfirmation } from "@/lib/vr/command";
 import {
   processLinkCommand,
@@ -21,14 +22,21 @@ import {
   getMemberSeasonHigh,
   listDiscordLinksForUser,
   listSeasonVrRows,
+  linkDiscordMember,
   resolveSeasonKey,
   saveDiscordBotPending,
-  upsertDiscordMemberLink,
   upsertMemberSeasonVr,
   writeDiscordBotAudit,
 } from "@/lib/vr/repository";
 import type { LinkCommandResult, LinkPendingState, VrCommandResult, VrPendingState } from "@/lib/vr/types";
 
+export {
+  handleDiscordHelp,
+} from "@/lib/vr/bot-help";
+export {
+  handleDiscordUnlinkPick,
+  handleDiscordUnlinkWithContext,
+} from "@/lib/vr/bot-unlink";
 export {
   handleDiscordLanguage,
   handleDiscordLinkAlliance,
@@ -63,12 +71,87 @@ function botContext(locale: DiscordBotLocale) {
   return { translate, walkthroughSteps };
 }
 
+function linkSuccessReply(
+  translate: ReturnType<typeof createDiscordTranslator>,
+  mode: "created" | "updated" | "replaced",
+  name: string,
+  hadExistingLinks: boolean,
+  replaceAll?: boolean,
+): string {
+  if (mode === "replaced" || replaceAll) {
+    return translate("link.replaced", { name });
+  }
+  if (mode === "updated") {
+    return translate("link.updated", { name });
+  }
+  if (hadExistingLinks) {
+    return translate("link.linkedAdditional", { name });
+  }
+  return translate("link.linked", { name });
+}
+
+async function persistLinkTarget(input: {
+  allianceId: string;
+  discordUserId: string;
+  discordUsername?: string;
+  linkTarget: {
+    ashedMemberId: string;
+    memberDisplayName: string;
+    gameUid: string;
+  };
+  replaceAll?: boolean;
+  translate: ReturnType<typeof createDiscordTranslator>;
+}): Promise<LinkCommandResult> {
+  const existingLinks = await listDiscordLinksForUser(
+    input.allianceId,
+    input.discordUserId,
+  );
+  const linked = await linkDiscordMember({
+    allianceId: input.allianceId,
+    discordUserId: input.discordUserId,
+    discordUsername: input.discordUsername,
+    ashedMemberId: input.linkTarget.ashedMemberId,
+    memberDisplayName: input.linkTarget.memberDisplayName,
+    gameUid: input.linkTarget.gameUid,
+    replaceAll: input.replaceAll,
+  });
+
+  if (!linked.ok) {
+    if (linked.reason === "cap_reached") {
+      return {
+        reply: input.translate("link.capReached", {
+          max: MAX_DISCORD_LINKS_PER_USER,
+        }),
+        pending: null,
+      };
+    }
+    return {
+      reply: input.translate("link.memberTaken"),
+      pending: null,
+    };
+  }
+
+  return {
+    reply: linkSuccessReply(
+      input.translate,
+      linked.mode,
+      input.linkTarget.memberDisplayName,
+      existingLinks.length > 0,
+      input.replaceAll,
+    ),
+    pending: null,
+    linked: true,
+    linkTarget: input.linkTarget,
+  };
+}
+
 export async function handleDiscordLinkSlash(input: {
   allianceId: string;
   discordUserId: string;
   discordUsername?: string;
   reportedName?: string;
   gameUid?: string;
+  replaceAll?: boolean;
   locale: DiscordBotLocale;
 }): Promise<LinkCommandResult> {
   const { translate, walkthroughSteps } = botContext(input.locale);
@@ -121,15 +204,24 @@ export async function handleDiscordLinkSlash(input: {
   });
 
   if ("linkTarget" in result && result.linkTarget) {
-    await upsertDiscordMemberLink({
+    const persisted = await persistLinkTarget({
       allianceId: input.allianceId,
       discordUserId: input.discordUserId,
       discordUsername: input.discordUsername,
-      ashedMemberId: result.linkTarget.ashedMemberId,
-      memberDisplayName: result.linkTarget.memberDisplayName,
-      gameUid: result.linkTarget.gameUid,
+      linkTarget: result.linkTarget,
+      replaceAll: input.replaceAll,
+      translate,
     });
     await saveDiscordBotPending(input.allianceId, input.discordUserId, null);
+    if (result.needsOfficerAttention) {
+      await emitAdminAlert({
+        type: "vr_link_attention",
+        count: 1,
+        handles: [input.discordUsername ?? input.discordUserId],
+      });
+    }
+    await audit(input.allianceId, input.discordUserId, "link", input, persisted);
+    return persisted;
   } else if (result.pending) {
     await saveDiscordBotPending(input.allianceId, input.discordUserId, result.pending);
   } else {
@@ -169,15 +261,18 @@ export async function handleDiscordLinkFuzzyPick(input: {
 
   const result = processLinkFuzzyPick({ pending, memberId: input.memberId, translate });
   if (result.linkTarget) {
-    await upsertDiscordMemberLink({
+    const persisted = await persistLinkTarget({
       allianceId: input.allianceId,
       discordUserId: input.discordUserId,
       discordUsername: input.discordUsername,
-      ashedMemberId: result.linkTarget.ashedMemberId,
-      memberDisplayName: result.linkTarget.memberDisplayName,
-      gameUid: result.linkTarget.gameUid,
+      linkTarget: result.linkTarget,
+      translate,
     });
-    await saveDiscordBotPending(input.allianceId, input.discordUserId, null);
+    if (persisted) {
+      await saveDiscordBotPending(input.allianceId, input.discordUserId, null);
+      await audit(input.allianceId, input.discordUserId, "link_pick", input, persisted);
+      return persisted;
+    }
   }
 
   await audit(input.allianceId, input.discordUserId, "link_pick", input, result);
