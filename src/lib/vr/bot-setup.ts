@@ -13,6 +13,7 @@ import {
 } from "@/lib/vr/repository";
 import { resolveAllianceByTag } from "@/lib/vr/resolve-alliance-tag";
 import { createDiscordAuthNonce } from "@/lib/vr/auth-nonce";
+import { allianceHasBotCredentials } from "@/lib/vr/member-roster";
 import type { LinkPendingState } from "@/lib/vr/types";
 
 export type BotReply = { reply: string };
@@ -193,6 +194,15 @@ export async function handleDiscordLinkAlliance(input: {
   });
   if (!isOwner) {
     const reply = t("errors.notOwner");
+    await audit(resolved.allianceId, input.discordUserId, "link_alliance", input, {
+      reply,
+    });
+    return { reply };
+  }
+
+  const hasCredentials = await allianceHasBotCredentials(resolved.allianceId);
+  if (!hasCredentials) {
+    const reply = t("errors.credentialsRequired", { tag: resolved.tag });
     await audit(resolved.allianceId, input.discordUserId, "link_alliance", input, {
       reply,
     });

@@ -1074,6 +1074,7 @@
       "guildNotRegistered": "Este servidor do Discord ainda não está vinculado a uma aliança. O dono deve executar `/link-alliance` com a tag (por exemplo LFgo).",
       "tagNotFound": "Nenhuma aliança encontrada com a tag **{tag}**. Confira a grafia no ashed.online ou use `/link-to-ashed-seat` se a aliança ainda não estiver no Alliance HQ.",
       "tagNotEligible": "A tag **{tag}** não está habilitada para configuração do bot nesta implantação.",
+      "credentialsRequired": "Conecte as credenciais Ashed primeiro com `/link-to-ashed-seat tag:{tag}`.",
       "tagAmbiguous": "Encontramos várias alianças com a tag **{tag}**. Use `/link-alliance tag:{tag} name:Nome da Aliança` para escolher a correta.",
       "notOwner": "Somente o dono da aliança pode registrar este servidor. Complete `/link` primeiro e tente de novo.",
       "linkFirst": "Complete `/link` com seu nome e UID no jogo antes de registrar o servidor.",

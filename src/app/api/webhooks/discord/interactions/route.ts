@@ -46,6 +46,9 @@ import {
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
+/** Link flows may include UIDs; keep those replies ephemeral-only. */
+const EPHEMERAL = { ephemeral: true } as const;
+
 async function resolveInteractionContext(payload: DiscordInteractionPayload) {
   const discordUserId = interactionDiscordUserId(payload);
   const guildId = interactionGuildId(payload);
@@ -124,7 +127,7 @@ async function handleSlashCommand(payload: DiscordInteractionPayload) {
       tag: tag ?? "",
       locale,
     });
-    return discordMessageResponse(result.reply);
+    return discordMessageResponse(result.reply, undefined, EPHEMERAL);
   }
 
   if (commandName === "link") {
@@ -153,12 +156,14 @@ async function handleSlashCommand(payload: DiscordInteractionPayload) {
       return discordMessageResponse(
         result.reply,
         buildLinkFuzzyButtons(result.pending.candidates),
+        EPHEMERAL,
       );
     }
     if (result.pending?.kind === "link_walkthrough") {
       return discordMessageResponse(
         result.reply,
         buildWalkthroughDoneButton(t("buttons.done")),
+        EPHEMERAL,
       );
     }
     if (result.needsOfficerAttention) {
@@ -168,9 +173,10 @@ async function handleSlashCommand(payload: DiscordInteractionPayload) {
           startOver: t("buttons.startOver"),
           askOfficer: t("buttons.askOfficer"),
         }),
+        EPHEMERAL,
       );
     }
-    return discordMessageResponse(result.reply);
+    return discordMessageResponse(result.reply, undefined, EPHEMERAL);
   }
 
   if (commandName === "unlink") {
@@ -260,7 +266,7 @@ async function handleButton(payload: DiscordInteractionPayload) {
       memberId: parsed.memberId,
       locale,
     });
-    return discordMessageResponse(result.reply);
+    return discordMessageResponse(result.reply, undefined, EPHEMERAL);
   }
 
   if (parsed.kind === "link_walkthrough_done") {
@@ -273,9 +279,10 @@ async function handleButton(payload: DiscordInteractionPayload) {
       return discordMessageResponse(
         result.reply,
         buildWalkthroughDoneButton(t("buttons.done")),
+        EPHEMERAL,
       );
     }
-    return discordMessageResponse(result.reply);
+    return discordMessageResponse(result.reply, undefined, EPHEMERAL);
   }
 
   if (parsed.kind === "vr_character") {
@@ -316,6 +323,7 @@ async function handleButton(payload: DiscordInteractionPayload) {
     return discordMessageResponse(
       result.reply,
       buildWalkthroughDoneButton(t("buttons.done")),
+      EPHEMERAL,
     );
   }
 
@@ -325,7 +333,7 @@ async function handleButton(payload: DiscordInteractionPayload) {
       count: 1,
       handles: [discordUsername ?? discordUserId],
     });
-    return discordMessageResponse(t("officerNotified"));
+    return discordMessageResponse(t("officerNotified"), undefined, EPHEMERAL);
   }
 
   return discordMessageResponse(t("errors.unknownCommand"));

@@ -224,12 +224,14 @@ type DiscordComponentRow = ReturnType<typeof buildVrConfirmButtons>;
 export function discordMessageResponse(
   content: string,
   components?: DiscordComponentRow,
+  options?: { ephemeral?: boolean },
 ) {
+  const ephemeral = options?.ephemeral ?? false;
   return {
     type: 4,
     data: {
       content,
-      flags: 64,
+      ...(ephemeral ? { flags: 64 } : {}),
       ...(components ? { components } : {}),
     },
   };

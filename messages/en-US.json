@@ -1074,6 +1074,7 @@
       "guildNotRegistered": "This Discord server is not linked to an alliance yet. The alliance owner should run `/link-alliance` with your tag (for example LFgo).",
       "tagNotFound": "No alliance found with tag **{tag}**. Check the spelling on ashed.online, or run `/link-to-ashed-seat` if your alliance is not in Alliance HQ yet.",
       "tagNotEligible": "Alliance tag **{tag}** is not currently eligible for bot setup on this deployment.",
+      "credentialsRequired": "Connect Ashed credentials first with `/link-to-ashed-seat tag:{tag}`.",
       "tagAmbiguous": "We found multiple alliances with tag **{tag}**. Reply with `/link-alliance tag:{tag} name:Your Alliance Name` to pick the right one.",
       "notOwner": "Only the alliance owner can register this server. Complete `/link` first, then try again.",
       "linkFirst": "Complete `/link` with your in-game name and UID before registering the server.",
