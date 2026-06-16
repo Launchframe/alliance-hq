@@ -341,7 +341,11 @@
       "rating": "Avaliação",
       "addCount": "Linhas adicionadas: {count}",
       "timingsEmpty": "Nenhum dado de tempo registrado para este job.",
-      "timingsSummary": "Total {total} · ffmpeg {ffmpeg} · OCR {ocr} · {frames} frames"
+      "timingsSummary": "Total {total} · ffmpeg {ffmpeg} · OCR {ocr} · {frames} frames",
+      "surveyTitle": "Pesquisa pré-upload",
+      "surveyRowCount": "Estimativa de linhas",
+      "surveyScrollStyle": "Estilo de rolagem",
+      "surveyAboveAvg": "Mais rápido que o habitual"
     },
     "auditPage": {
       "loading": "Carregando log de auditoria…",
@@ -1020,5 +1024,24 @@
     "encryptionKeyMismatchHint": "Não foi possível descriptografar as credenciais Ashed — TOKEN_ENCRYPTION_KEY pode ter mudado desde a conexão. Desconecte e reconecte em Configurações, ou restaure a chave original.",
     "productionDetail": "Algo deu errado ao carregar sua sessão. Verifique os logs de runtime na Vercel (busque por app-layout). Código Postgres: <pgCode></pgCode>.",
     "defaultHint": "Defina <localDb>LOCAL_DATABASE_URL</localDb> e <encKey>TOKEN_ENCRYPTION_KEY</encKey> em <envFile>.env.local</envFile> e, em seguida, execute <dbPush>npm run db:push</dbPush>."
+  },
+  "videoSurvey": {
+    "title": "Enquanto aguarda…",
+    "processingNote": "Seu vídeo está sendo processado — preencha isto para nos ajudar a melhorar.",
+    "q1Label": "Quantas linhas havia aproximadamente no placar?",
+    "q1Placeholder": "ex.: 50",
+    "q2Label": "Como você rolou o placar?",
+    "scrollStyle": {
+      "slow_steady": "Devagar e com calma",
+      "fast": "Rapidamente",
+      "page_by_page": "Página por página",
+      "chaotic": "Rápido / errático"
+    },
+    "q3Label": "A rolagem foi mais rápida que o habitual para você?",
+    "q3Yes": "Sim, mais rápido que o habitual",
+    "q3No": "Não, meu ritmo normal",
+    "skip": "Pular",
+    "submit": "Enviar",
+    "submitting": "Salvando…"
   }
 }

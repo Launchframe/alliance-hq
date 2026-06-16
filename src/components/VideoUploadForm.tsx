@@ -3,9 +3,11 @@
 import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 
+import { useRouter } from "@/i18n/navigation";
 import { Link } from "@/i18n/navigation";
 import { AppSelect } from "@/components/ui/AppSelect";
 import { useMergedVideoJobs } from "@/components/video/VideoJobEventsProvider";
+import { VideoSurveyDialog } from "@/components/video/VideoSurveyDialog";
 import type { VideoJobRow } from "@/lib/types/video";
 import { MAX_VIDEO_UPLOAD_BYTES } from "@/lib/video/upload-limit";
 
@@ -53,6 +55,7 @@ export function VideoUploadForm({ initialJobs }: Props) {
   const t = useTranslations("video");
   const tNav = useTranslations("nav");
   const tc = useTranslations("common");
+  const router = useRouter();
 
   const [scoreTargets, setScoreTargets] = useState<ScoreTargetOption[]>([
     { id: "desert-storm", labelKey: "desertStorm", group: "events" },
@@ -63,6 +66,8 @@ export function VideoUploadForm({ initialJobs }: Props) {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [surveyJobId, setSurveyJobId] = useState<string | null>(null);
+  const [surveyFile, setSurveyFile] = useState<File | null>(null);
   const jobs = useMergedVideoJobs(initialJobs);
 
   useEffect(() => {
@@ -138,11 +143,24 @@ export function VideoUploadForm({ initialJobs }: Props) {
       }
 
       setSuccess(data.message ?? t("queuedSuccess"));
+      if (data.jobId) {
+        setSurveyJobId(data.jobId);
+        setSurveyFile(file);
+      }
       setFile(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : tc("uploadFailed"));
     } finally {
       setUploading(false);
+    }
+  }
+
+  function handleSurveyClose() {
+    const jobId = surveyJobId;
+    setSurveyJobId(null);
+    setSurveyFile(null);
+    if (jobId) {
+      router.push(`/tools/video-upload/${jobId}/review`);
     }
   }
 
@@ -287,6 +305,15 @@ export function VideoUploadForm({ initialJobs }: Props) {
           </ul>
         </section>
       )}
+
+      {surveyJobId && surveyFile ? (
+        <VideoSurveyDialog
+          jobId={surveyJobId}
+          file={surveyFile}
+          open={true}
+          onClose={handleSurveyClose}
+        />
+      ) : null}
     </div>
   );
 }
