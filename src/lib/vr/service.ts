@@ -42,7 +42,7 @@ export {
   handleDiscordLinkAlliance,
   handleDiscordLinkToAshedSeat,
 } from "@/lib/vr/bot-setup";
-export { resolveDiscordAllianceId, resolveAllianceForGuild } from "@/lib/vr/repository";
+export { resolveDiscordAllianceId, resolveAllianceForGuild, resolveOwnerSetupAllianceId } from "@/lib/vr/repository";
 
 async function audit(
   allianceId: string,

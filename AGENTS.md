@@ -37,9 +37,9 @@ Apply on every Real Steel pass for this repo:
 - **Setup flow (secure):**
   1. Owner: `/link-to-ashed-seat tag:LFgo` → bot creates a 30-min nonce → returns ephemeral HQ URL.
   2. Owner: opens `NEXT_PUBLIC_APP_URL/discord/authorize?nonce=…` in browser; signs in to HQ if needed; enters connection key on the HTTPS form — key never travels through Discord.
-  3. HQ `POST /api/discord/authorize`: verifies key, checks Ashed owner role, calls `syncAshedAllianceForBot`, stores encrypted credential, registers guild (`upsertGuildAlliance`).
+  3. HQ `POST /api/discord/authorize`: verifies key, checks Ashed owner role, calls `syncAshedAllianceForBot`, stores encrypted credential (does **not** register guild — that is `/link-alliance` only).
   4. Owner: `/link name:… uid:…` → links their in-game character (now `callerIsAllianceOwner` becomes true since `ownerAshedUserId` is set).
-  5. Owner: `/link-alliance tag:LFgo` → confirms guild registration (required before members can `/link`).
+  5. Owner: `/link-alliance tag:LFgo` → registers guild (`upsertGuildAlliance`); required before members can `/link`.
   6. Members: `/link name:… uid:…` → links character via lastwar UID lookup + Ashed roster match.
 - **`/set-season` removed** — season is derived from server age; do not reintroduce.
 - **Feature flag:** `ELIGIBLE_BOT_ALLIANCE_LINK_TAGS` (comma-delimited; unset = allow all) gates `/link-to-ashed-seat` and `/link-alliance`. Check via `isTagEligible()` in `bot-setup.ts`.

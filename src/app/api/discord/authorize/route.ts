@@ -10,11 +10,7 @@ import { parseConnectionInput } from "@/lib/connectionString";
 import { encryptSecret } from "@/lib/crypto/encrypt";
 import { syncAshedAllianceForBot } from "@/lib/rbac/sync-ashed-roles";
 import { getOrCreateSession } from "@/lib/session";
-import { requireSessionPermission } from "@/lib/rbac/require-permission";
-import {
-  upsertAllianceAshedCredential,
-  upsertGuildAlliance,
-} from "@/lib/vr/repository";
+import { upsertAllianceAshedCredential } from "@/lib/vr/repository";
 import {
   consumeDiscordAuthNonce,
   getValidDiscordAuthNonce,
@@ -27,9 +23,7 @@ import {
  *  Body: { nonce: string; connectionKey: string }
  */
 export async function POST(request: Request) {
-  const session = await getOrCreateSession();
-  const denied = await requireSessionPermission(session.id, "alliance:admin");
-  if (denied) return denied;
+  await getOrCreateSession();
 
   let body: { nonce?: string; connectionKey?: string };
   try {
@@ -127,17 +121,11 @@ export async function POST(request: Request) {
     registeredByHqUserId: hqUserId ?? null,
   });
 
-  // Register the guild if the nonce carried one.
-  if (nonceRow.guildId) {
-    await upsertGuildAlliance(nonceRow.guildId, hqAllianceId);
-  }
-
   // Consume the nonce — must happen after all writes succeed.
   await consumeDiscordAuthNonce(nonceRow.id);
 
   return NextResponse.json({
     ok: true,
     tag: ashedAlliance.tag,
-    guildRegistered: nonceRow.guildId != null,
   });
 }

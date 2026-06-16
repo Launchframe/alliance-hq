@@ -27,13 +27,37 @@ describe("pickHelpMessageKey", () => {
 
   it("prompts owner auth when guild is not registered", () => {
     expect(
-      pickHelpMessageKey(ctx({ guildRegistered: false, hasAnyMemberLink: false })),
+      pickHelpMessageKey(
+        ctx({
+          guildRegistered: false,
+          hasCredentials: false,
+          hasAnyMemberLink: false,
+        }),
+      ),
     ).toBe("help.setupOwnerAuth");
+  });
+
+  it("prompts owner to link after credentials when guild not registered", () => {
+    expect(
+      pickHelpMessageKey(
+        ctx({
+          guildRegistered: false,
+          hasCredentials: true,
+          memberLinkCount: 0,
+        }),
+      ),
+    ).toBe("help.setupOwnerLinkAfterAuth");
   });
 
   it("prompts link-alliance when user already linked elsewhere", () => {
     expect(
-      pickHelpMessageKey(ctx({ guildRegistered: false, hasAnyMemberLink: true })),
+      pickHelpMessageKey(
+        ctx({
+          guildRegistered: false,
+          hasCredentials: false,
+          hasAnyMemberLink: true,
+        }),
+      ),
     ).toBe("help.setupLinkAlliance");
   });
 

@@ -7,6 +7,7 @@ import {
   listDiscordLinksForUser,
   listDiscordLinksForUserAnyAlliance,
   resolveAllianceForGuild,
+  resolveOwnerSetupAllianceId,
 } from "@/lib/vr/repository";
 
 export type DiscordBotUserContext = {
@@ -31,28 +32,34 @@ export async function resolveDiscordBotUserContext(input: {
     ? (await getGuildAllianceId(guildId)) != null
     : false;
 
+  const setupAllianceId =
+    guildId && !guildRegistered && input.discordUserId
+      ? await resolveOwnerSetupAllianceId(guildId, input.discordUserId)
+      : null;
+  const effectiveAllianceId = allianceId ?? setupAllianceId;
+
   const [alliance, anyLinks, memberLinks] = await Promise.all([
-    allianceId ? getAllianceById(allianceId) : Promise.resolve(null),
+    effectiveAllianceId ? getAllianceById(effectiveAllianceId) : Promise.resolve(null),
     listDiscordLinksForUserAnyAlliance(input.discordUserId),
-    allianceId
-      ? listDiscordLinksForUser(allianceId, input.discordUserId)
+    effectiveAllianceId
+      ? listDiscordLinksForUser(effectiveAllianceId, input.discordUserId)
       : Promise.resolve([]),
   ]);
 
-  const hasCredentials = allianceId
-    ? await allianceHasBotCredentials(allianceId)
+  const hasCredentials = effectiveAllianceId
+    ? await allianceHasBotCredentials(effectiveAllianceId)
     : false;
   const isOwner =
-    allianceId != null
+    effectiveAllianceId != null
       ? await callerIsAllianceOwner({
-          allianceId,
+          allianceId: effectiveAllianceId,
           discordUserId: input.discordUserId,
         })
       : false;
 
   return {
     guildId,
-    allianceId,
+    allianceId: effectiveAllianceId,
     allianceTag: alliance?.tag ?? null,
     guildRegistered,
     hasCredentials,
@@ -68,6 +75,11 @@ export function pickHelpMessageKey(ctx: DiscordBotUserContext): string {
     return "help.dmGeneral";
   }
   if (!ctx.guildRegistered) {
+    if (ctx.hasCredentials) {
+      return ctx.memberLinkCount > 0
+        ? "help.setupLinkAlliance"
+        : "help.setupOwnerLinkAfterAuth";
+    }
     return ctx.hasAnyMemberLink ? "help.setupLinkAlliance" : "help.setupOwnerAuth";
   }
   if (!ctx.hasCredentials) {

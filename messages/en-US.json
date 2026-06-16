@@ -1132,6 +1132,7 @@
       "dmGeneral": "**Alliance HQ bot** — run these in your alliance Discord server:\n• `/help` — this guide\n• `/link` — connect your in-game profile\n• `/vr` or `/immunity` — report base VR\n• `/language` — English or Português\n\nOwners (Ashed seat holders) use `/link-to-ashed-seat` and `/link-alliance`.",
       "setupOwnerAuth": "This server is not set up yet. **Alliance owner (Ashed seat holder):** run `/link-to-ashed-seat tag:YourTag` to get a secure link for connecting your Ashed credentials. Then run `/link` and `/link-alliance tag:YourTag`. Members can `/link` after that.",
       "setupLinkAlliance": "This server is not registered to an alliance yet. **Owner:** run `/link-alliance tag:YourTag` (you must `/link` and complete `/link-to-ashed-seat` first).",
+      "setupOwnerLinkAfterAuth": "Ashed credentials are connected. **Owner:** run `/link name:… uid:…` with your in-game profile, then `/link-alliance tag:YourTag` so members can link.",
       "waitForOwnerAuth": "Waiting for the alliance owner to connect Ashed (`/link-to-ashed-seat`). After that you can `/link` your in-game name and UID.",
       "linkProfile": "Link your in-game profile: `/link name:… uid:…` (copy name and UID from your profile in-game). Need steps? Run `/link` with a wrong name once and tap **Done** for a walkthrough.",
       "memberReady": "You're linked. Use `/vr` or `/immunity` when your base VR changes. `/help` anytime. `/language` for Português.",

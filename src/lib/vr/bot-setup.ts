@@ -20,7 +20,7 @@ export type BotReply = { reply: string };
 /** Returns true when the tag is permitted to use bot setup commands.
  *  When ELIGIBLE_BOT_ALLIANCE_LINK_TAGS is unset every tag is allowed.
  *  When set, only comma-separated tags in the list may proceed. */
-function isTagEligible(tag: string): boolean {
+export function isTagEligible(tag: string): boolean {
   const raw = process.env.ELIGIBLE_BOT_ALLIANCE_LINK_TAGS;
   if (!raw?.trim()) return true;
   const allowed = raw

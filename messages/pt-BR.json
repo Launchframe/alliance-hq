@@ -1132,6 +1132,7 @@
       "dmGeneral": "**Bot Alliance HQ** — use no servidor da aliança:\n• `/help` — este guia\n• `/link` — vincule seu perfil no jogo\n• `/vr` ou `/immunity` — informe VR base\n• `/language` — English ou Português\n\nDonos (com assento Ashed) usam `/link-to-ashed-seat` e `/link-alliance`.",
       "setupOwnerAuth": "Este servidor ainda não está configurado. **Dono (com assento Ashed):** execute `/link-to-ashed-seat tag:SuaTag` para receber um link seguro de conexão Ashed. Depois `/link` e `/link-alliance tag:SuaTag`. Membros usam `/link` após isso.",
       "setupLinkAlliance": "Este servidor ainda não está registrado. **Dono:** `/link-alliance tag:SuaTag` (complete `/link` e `/link-to-ashed-seat` antes).",
+      "setupOwnerLinkAfterAuth": "Credenciais Ashed conectadas. **Dono:** `/link name:… uid:…` com seu perfil no jogo, depois `/link-alliance tag:SuaTag` para membros poderem vincular.",
       "waitForOwnerAuth": "Aguardando o dono conectar o Ashed (`/link-to-ashed-seat`). Depois você pode `/link` com nome e UID do jogo.",
       "linkProfile": "Vincule seu perfil: `/link name:… uid:…` (copie do jogo). Precisa de passos? Use `/link` com nome errado e toque **Concluído** no tutorial.",
       "memberReady": "Você está vinculado. Use `/vr` ou `/immunity` quando o VR base mudar. `/help` a qualquer momento.",

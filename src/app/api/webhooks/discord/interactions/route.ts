@@ -40,6 +40,7 @@ import {
   handleDiscordVrSlash,
   handleDiscordWalkthroughDone,
   resolveAllianceForGuild,
+  resolveOwnerSetupAllianceId,
 } from "@/lib/vr/service";
 
 export const dynamic = "force-dynamic";
@@ -126,31 +127,20 @@ async function handleSlashCommand(payload: DiscordInteractionPayload) {
     return discordMessageResponse(result.reply);
   }
 
-  if (commandName === "unlink") {
-    const name = parseSlashOptionString(payload, "name");
-    const result = await handleDiscordUnlinkWithContext({
-      guildId,
-      discordUserId,
-      locale,
-      memberName: name,
-    });
-    if (result.picker?.length) {
-      return discordMessageResponse(
-        result.reply,
-        buildCharacterPickerButtons(result.picker, "unlink"),
-      );
-    }
-    return discordMessageResponse(result.reply);
-  }
-
-  if (!allianceId) {
-    return discordMessageResponse(guildConfigMessage(locale));
-  }
-
   if (commandName === "link") {
+    if (!guildId) {
+      return discordMessageResponse(t("errors.guildNotRegistered"));
+    }
+    let linkAllianceId = allianceId;
+    if (!linkAllianceId) {
+      linkAllianceId = await resolveOwnerSetupAllianceId(guildId, discordUserId);
+    }
+    if (!linkAllianceId) {
+      return discordMessageResponse(guildConfigMessage(locale));
+    }
     const { name, uid, replace } = parseLinkSlashOptions(payload);
     const result = await handleDiscordLinkSlash({
-      allianceId,
+      allianceId: linkAllianceId,
       discordUserId,
       discordUsername,
       reportedName: name,
@@ -181,6 +171,27 @@ async function handleSlashCommand(payload: DiscordInteractionPayload) {
       );
     }
     return discordMessageResponse(result.reply);
+  }
+
+  if (commandName === "unlink") {
+    const name = parseSlashOptionString(payload, "name");
+    const result = await handleDiscordUnlinkWithContext({
+      guildId,
+      discordUserId,
+      locale,
+      memberName: name,
+    });
+    if (result.picker?.length) {
+      return discordMessageResponse(
+        result.reply,
+        buildCharacterPickerButtons(result.picker, "unlink"),
+      );
+    }
+    return discordMessageResponse(result.reply);
+  }
+
+  if (!allianceId) {
+    return discordMessageResponse(guildConfigMessage(locale));
   }
 
   if (commandName === "vr" || commandName === "immunity") {

@@ -534,6 +534,26 @@ export async function getGuildAllianceId(guildId: string): Promise<string | null
   return row?.allianceId ?? null;
 }
 
+/** Owner setup phase: credentials saved via HQ authorize, guild not linked yet. */
+export async function resolveOwnerSetupAllianceId(
+  guildId: string,
+  discordUserId: string,
+): Promise<string | null> {
+  const registered = await getGuildAllianceId(guildId);
+  if (registered) return null;
+
+  const db = getDb();
+  const [cred] = await db
+    .select({ allianceId: schema.allianceAshedCredentials.allianceId })
+    .from(schema.allianceAshedCredentials)
+    .where(
+      eq(schema.allianceAshedCredentials.registeredByDiscordUserId, discordUserId),
+    )
+    .orderBy(desc(schema.allianceAshedCredentials.updatedAt))
+    .limit(1);
+  return cred?.allianceId ?? null;
+}
+
 export async function upsertGuildAlliance(
   guildId: string,
   allianceId: string,
