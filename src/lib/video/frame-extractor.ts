@@ -1,4 +1,4 @@
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -14,6 +14,58 @@ export type ExtractedFrame = {
   filePath: string;
   buffer: Buffer;
 };
+
+export type ExtractLeaderboardFramesResult = {
+  frames: ExtractedFrame[];
+  videoDurationSeconds: number | null;
+  denseFrameCount: number | null;
+  framesSkipped: number;
+};
+
+/** Baseline FPS used to estimate how many frames a uniform sample would produce. */
+const REFERENCE_BASE_FPS = 2;
+
+/**
+ * Probe a video file with ffprobe to get its duration in seconds.
+ * Returns null if ffprobe-static is not available or the probe fails.
+ */
+export async function probeVideoDurationSeconds(
+  videoPath: string,
+): Promise<number | null> {
+  let ffprobePath: string;
+  try {
+    const ffprobeStatic = await import("ffprobe-static");
+    ffprobePath = (ffprobeStatic as unknown as { path: string }).path ?? (ffprobeStatic.default as unknown as { path: string })?.path;
+    if (!ffprobePath) return null;
+  } catch {
+    return null;
+  }
+
+  return new Promise((resolve) => {
+    const args = [
+      "-v", "quiet",
+      "-print_format", "json",
+      "-show_streams",
+      videoPath,
+    ];
+
+    const proc = spawn(ffprobePath, args);
+    let stdout = "";
+    proc.stdout.on("data", (chunk: Buffer) => { stdout += chunk.toString(); });
+    proc.on("close", (code) => {
+      if (code !== 0) { resolve(null); return; }
+      try {
+        const parsed = JSON.parse(stdout) as { streams?: Array<{ duration?: string }> };
+        const stream = parsed.streams?.find((s) => s.duration);
+        const seconds = stream?.duration ? parseFloat(stream.duration) : null;
+        resolve(Number.isFinite(seconds) ? seconds : null);
+      } catch {
+        resolve(null);
+      }
+    });
+    proc.on("error", () => resolve(null));
+  });
+}
 
 export type FrameExtractMode = "scene" | "fps";
 
@@ -98,16 +150,19 @@ async function probeVideo(ffmpeg: string, videoPath: string): Promise<string> {
 /**
  * Extract frames from video using ffmpeg scene detection.
  * Falls back to fixed fps sampling when scene detection yields no frames or errors.
+ * Also probes video duration and computes frame-skip stats relative to a baseline fps.
  */
 export async function extractLeaderboardFrames(
   videoPath: string,
   sampleFps = 1,
-): Promise<ExtractedFrame[]> {
+): Promise<ExtractLeaderboardFramesResult> {
   if (!(await ffmpegAvailable())) {
     throw new Error(
       "ffmpeg is not installed. Install ffmpeg to process videos locally.",
     );
   }
+
+  const videoDurationSeconds = await probeVideoDurationSeconds(videoPath);
 
   const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "hq-frames-"));
   const pattern = path.join(tmpDir, "frame_%04d.jpg");
@@ -217,7 +272,15 @@ export async function extractLeaderboardFrames(
     mode,
   });
 
-  return frames;
+  const denseFrameCount = videoDurationSeconds != null
+    ? Math.round(videoDurationSeconds * REFERENCE_BASE_FPS)
+    : null;
+  const framesSkipped =
+    denseFrameCount != null && denseFrameCount > frames.length
+      ? denseFrameCount - frames.length
+      : 0;
+
+  return { frames, videoDurationSeconds, denseFrameCount, framesSkipped };
 }
 
 export async function cleanupFrameTempDir(frames: ExtractedFrame[]) {

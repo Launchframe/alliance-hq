@@ -853,7 +853,13 @@
       },
       "total": "Total",
       "ocrParallelNote": "OCR ran frames in parallel: wall clock {wall} vs summed upload {uploadSum} + extract {extractSum} across all frames.",
-      "allPhasesTitle": "Every phase"
+      "allPhasesTitle": "Every phase",
+      "extractionTitle": "Extraction quality",
+      "videoDuration": "Video duration",
+      "framesSelected": "Frames selected",
+      "framesBaseline": "Baseline frame count",
+      "framesSkipped": "Frames skipped",
+      "ocrOverlap": "OCR deduplication"
     }
   },
   "feedback": {

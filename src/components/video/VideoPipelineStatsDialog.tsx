@@ -115,6 +115,58 @@ export function VideoPipelineStatsButton({ timings, fileName }: Props) {
                 </dl>
               </section>
 
+              {(timings.videoDurationSeconds != null ||
+                timings.framesSkipped != null ||
+                timings.totalRawOcrRows != null) ? (
+                <section className="rounded-lg border border-[#30363d] bg-[#0d1117] p-3">
+                  <h3 className="text-xs font-medium uppercase tracking-wide text-[#8b949e]">
+                    {t("extractionTitle")}
+                  </h3>
+                  <dl className="mt-2 grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-3">
+                    {timings.videoDurationSeconds != null ? (
+                      <>
+                        <dt className="text-[#8b949e]">{t("videoDuration")}</dt>
+                        <dd className="font-mono">{timings.videoDurationSeconds.toFixed(1)}s</dd>
+                      </>
+                    ) : null}
+                    {timings.frameCount != null ? (
+                      <>
+                        <dt className="text-[#8b949e]">{t("framesSelected")}</dt>
+                        <dd className="font-mono">{timings.frameCount}</dd>
+                      </>
+                    ) : null}
+                    {timings.denseFrameCount != null ? (
+                      <>
+                        <dt className="text-[#8b949e]">{t("framesBaseline")}</dt>
+                        <dd className="font-mono">{timings.denseFrameCount}</dd>
+                      </>
+                    ) : null}
+                    {timings.framesSkipped != null ? (
+                      <>
+                        <dt className="text-[#8b949e]">{t("framesSkipped")}</dt>
+                        <dd className="font-mono">
+                          {timings.framesSkipped}
+                          {timings.denseFrameCount
+                            ? ` (${Math.round((timings.framesSkipped / timings.denseFrameCount) * 100)}% skip rate)`
+                            : ""}
+                        </dd>
+                      </>
+                    ) : null}
+                    {timings.totalRawOcrRows != null && timings.rowCount != null ? (
+                      <>
+                        <dt className="text-[#8b949e]">{t("ocrOverlap")}</dt>
+                        <dd className="font-mono">
+                          {timings.totalRawOcrRows} raw → {timings.rowCount} unique
+                          {timings.totalRawOcrRows > 0
+                            ? ` (${Math.round(((timings.totalRawOcrRows - timings.rowCount) / timings.totalRawOcrRows) * 100)}% overlap)`
+                            : ""}
+                        </dd>
+                      </>
+                    ) : null}
+                  </dl>
+                </section>
+              ) : null}
+
               <section>
                 <h3 className="text-xs font-medium uppercase tracking-wide text-[#8b949e]">
                   {t("timelineTitle")}
