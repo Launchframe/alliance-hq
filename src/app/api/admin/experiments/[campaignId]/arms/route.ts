@@ -8,6 +8,10 @@ import { readSessionId } from "@/lib/session";
 
 type RouteParams = { params: Promise<{ campaignId: string }> };
 
+function validTrafficWeight(value: number | undefined): value is number {
+  return typeof value === "number" && Number.isInteger(value) && value > 0;
+}
+
 export async function POST(request: Request, { params }: RouteParams) {
   const sessionId = await readSessionId();
   if (!sessionId) {
@@ -39,6 +43,15 @@ export async function POST(request: Request, { params }: RouteParams) {
 
   if (!body.name?.trim()) {
     return NextResponse.json({ error: "name is required." }, { status: 400 });
+  }
+  if (
+    body.trafficWeight !== undefined &&
+    !validTrafficWeight(body.trafficWeight)
+  ) {
+    return NextResponse.json(
+      { error: "trafficWeight must be a positive integer." },
+      { status: 400 },
+    );
   }
 
   if (body.isControl) {

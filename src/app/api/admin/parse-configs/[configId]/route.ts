@@ -8,6 +8,26 @@ import { readSessionId } from "@/lib/session";
 
 type RouteParams = { params: Promise<{ configId: string }> };
 
+const CONFIG_STATUSES = new Set(["draft", "active", "archived"]);
+
+function isValidExtractionConfig(config: ExtractionConfig): boolean {
+  if (config.mode === "scene") {
+    return (
+      typeof config.sceneThreshold === "number" &&
+      config.sceneThreshold > 0 &&
+      config.sceneThreshold <= 1 &&
+      (config.sampleFps === undefined ||
+        (typeof config.sampleFps === "number" && config.sampleFps > 0))
+    );
+  }
+
+  return (
+    config.mode === "fps" &&
+    typeof config.sampleFps === "number" &&
+    config.sampleFps > 0
+  );
+}
+
 export async function GET(_request: Request, { params }: RouteParams) {
   const sessionId = await readSessionId();
   if (!sessionId) {
@@ -66,6 +86,13 @@ export async function PATCH(request: Request, { params }: RouteParams) {
 
   // Validate status transitions
   if (body.status !== undefined) {
+    if (!CONFIG_STATUSES.has(body.status)) {
+      return NextResponse.json(
+        { error: "status must be draft, active, or archived." },
+        { status: 400 },
+      );
+    }
+
     if (existing.status === "archived" && body.status === "active") {
       return NextResponse.json(
         { error: "Cannot move from archived to active directly. Transition to draft first." },
@@ -99,9 +126,12 @@ export async function PATCH(request: Request, { params }: RouteParams) {
     }
   }
 
-  if (body.configJson !== undefined && !body.configJson.mode) {
+  if (
+    body.configJson !== undefined &&
+    !isValidExtractionConfig(body.configJson)
+  ) {
     return NextResponse.json(
-      { error: "configJson must include a mode field." },
+      { error: "configJson must include valid mode and sampling values." },
       { status: 400 },
     );
   }

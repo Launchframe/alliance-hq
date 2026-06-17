@@ -1,11 +1,23 @@
 import { NextResponse } from "next/server";
-import { and, eq, isNull, ne } from "drizzle-orm";
+import { and, eq, inArray, isNull, ne } from "drizzle-orm";
 
 import { getDb, schema } from "@/lib/db";
 import { requirePlatformMaintainer } from "@/lib/rbac/require-permission";
 import { readSessionId } from "@/lib/session";
+import { buildExperimentDetailAnalytics } from "@/lib/video/experiment-detail-analytics";
 
 type RouteParams = { params: Promise<{ campaignId: string }> };
+
+const CAMPAIGN_STATUSES = new Set(["draft", "active", "paused", "concluded"]);
+
+function validTrafficPercent(value: number | undefined): value is number {
+  return (
+    typeof value === "number" &&
+    Number.isInteger(value) &&
+    value >= 1 &&
+    value <= 100
+  );
+}
 
 export async function GET(_request: Request, { params }: RouteParams) {
   const sessionId = await readSessionId();
@@ -56,7 +68,43 @@ export async function GET(_request: Request, { params }: RouteParams) {
         : null,
   }));
 
-  return NextResponse.json({ campaign, arms });
+  const groups = await db
+    .select({
+      id: schema.videoUploadGroups.id,
+      experimentArmId: schema.videoUploadGroups.experimentArmId,
+      scoreTarget: schema.videoUploadGroups.scoreTarget,
+      boardKey: schema.videoUploadGroups.boardKey,
+      hqEventId: schema.videoUploadGroups.hqEventId,
+    })
+    .from(schema.videoUploadGroups)
+    .where(eq(schema.videoUploadGroups.experimentCampaignId, campaignId));
+
+  const groupIds = groups.map((group) => group.id);
+  const jobs =
+    groupIds.length > 0
+      ? await db
+          .select({
+            id: schema.videoJobs.id,
+            groupId: schema.videoJobs.groupId,
+            passRole: schema.videoJobs.passRole,
+            passKey: schema.videoJobs.passKey,
+            rating: schema.videoJobs.rating,
+            qualityScore: schema.videoJobs.qualityScore,
+            qualityBucket: schema.videoJobs.qualityBucket,
+            createdAt: schema.videoJobs.createdAt,
+          })
+          .from(schema.videoJobs)
+          .where(inArray(schema.videoJobs.groupId, groupIds))
+      : [];
+
+  const analytics = buildExperimentDetailAnalytics({ arms, groups, jobs });
+
+  return NextResponse.json({
+    campaign,
+    arms: analytics.arms,
+    dailySeries: analytics.dailySeries,
+    population: analytics.population,
+  });
 }
 
 export async function PATCH(request: Request, { params }: RouteParams) {
@@ -93,6 +141,22 @@ export async function PATCH(request: Request, { params }: RouteParams) {
 
   const newStatus = body.status;
   const now = new Date();
+
+  if (newStatus !== undefined && !CAMPAIGN_STATUSES.has(newStatus)) {
+    return NextResponse.json(
+      { error: "status must be draft, active, paused, or concluded." },
+      { status: 400 },
+    );
+  }
+  if (
+    body.trafficPercent !== undefined &&
+    !validTrafficPercent(body.trafficPercent)
+  ) {
+    return NextResponse.json(
+      { error: "trafficPercent must be an integer from 1 to 100." },
+      { status: 400 },
+    );
+  }
 
   // Validate status transitions
   if (newStatus !== undefined && newStatus !== existing.status) {

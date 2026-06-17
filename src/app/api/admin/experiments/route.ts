@@ -6,6 +6,15 @@ import { getDb, schema } from "@/lib/db";
 import { requirePlatformMaintainer } from "@/lib/rbac/require-permission";
 import { readSessionId } from "@/lib/session";
 
+function validTrafficPercent(value: number | undefined): value is number {
+  return (
+    typeof value === "number" &&
+    Number.isInteger(value) &&
+    value >= 1 &&
+    value <= 100
+  );
+}
+
 export async function GET(request: Request) {
   const sessionId = await readSessionId();
   if (!sessionId) {
@@ -72,6 +81,15 @@ export async function POST(request: Request) {
   }
   if (!body.scoreTarget?.trim()) {
     return NextResponse.json({ error: "scoreTarget is required." }, { status: 400 });
+  }
+  if (
+    body.trafficPercent !== undefined &&
+    !validTrafficPercent(body.trafficPercent)
+  ) {
+    return NextResponse.json(
+      { error: "trafficPercent must be an integer from 1 to 100." },
+      { status: 400 },
+    );
   }
 
   const db = getDb();

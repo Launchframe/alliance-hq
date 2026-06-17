@@ -43,6 +43,9 @@ const EMPTY_FORM = {
   trafficPercent: "100",
 };
 
+const INPUT_CLASS =
+  "w-full rounded border border-[#30363d] bg-[#0d1117] px-3 py-1.5 text-sm text-[#e6edf3] focus:border-[#58a6ff] focus:outline-none";
+
 export function AdminExperimentsView() {
   const t = useTranslations("admin.experimentsPage");
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
@@ -136,7 +139,7 @@ export function AdminExperimentsView() {
                 required
                 value={form.name}
                 onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                className="input-base"
+                className={INPUT_CLASS}
               />
             </Field>
             <Field label={`${t("form.scoreTarget")} *`}>
@@ -145,7 +148,7 @@ export function AdminExperimentsView() {
                 placeholder="e.g. alliance_exercise"
                 value={form.scoreTarget}
                 onChange={(e) => setForm((f) => ({ ...f, scoreTarget: e.target.value }))}
-                className="input-base font-mono"
+                className={`${INPUT_CLASS} font-mono`}
               />
             </Field>
           </div>
@@ -155,7 +158,7 @@ export function AdminExperimentsView() {
                 placeholder={t("form.boardKeyPlaceholder")}
                 value={form.boardKey}
                 onChange={(e) => setForm((f) => ({ ...f, boardKey: e.target.value }))}
-                className="input-base font-mono"
+                className={`${INPUT_CLASS} font-mono`}
               />
             </Field>
             <Field label={t("form.trafficPercent")}>
@@ -165,7 +168,7 @@ export function AdminExperimentsView() {
                 max="100"
                 value={form.trafficPercent}
                 onChange={(e) => setForm((f) => ({ ...f, trafficPercent: e.target.value }))}
-                className="input-base"
+                className={INPUT_CLASS}
               />
             </Field>
           </div>
@@ -175,7 +178,7 @@ export function AdminExperimentsView() {
               placeholder={t("form.hypothesisPlaceholder")}
               value={form.hypothesis}
               onChange={(e) => setForm((f) => ({ ...f, hypothesis: e.target.value }))}
-              className="input-base"
+              className={INPUT_CLASS}
             />
           </Field>
           <Field label={t("form.description")}>
@@ -183,7 +186,7 @@ export function AdminExperimentsView() {
               rows={2}
               value={form.description}
               onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-              className="input-base"
+              className={INPUT_CLASS}
             />
           </Field>
           {error && <p className="text-sm text-[#f85149]">{error}</p>}

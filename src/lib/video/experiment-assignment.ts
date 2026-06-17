@@ -1,7 +1,64 @@
-import { and, asc, desc, eq, isNull, or } from "drizzle-orm";
+import { and, asc, eq, isNull, or } from "drizzle-orm";
 
 import { getDb, schema } from "@/lib/db";
 import type { ExtractionConfig } from "@/lib/video/pass-definitions";
+
+export type ExperimentAssignmentCampaign = {
+  id: string;
+  boardKey: string | null;
+  createdAt: Date;
+  trafficPercent: number;
+};
+
+export type ExperimentAssignmentArm = {
+  id: string;
+  trafficWeight: number;
+};
+
+export function pickExperimentCampaign(
+  campaigns: ExperimentAssignmentCampaign[],
+  boardKey: string | null,
+): ExperimentAssignmentCampaign | null {
+  const matchingCampaigns = boardKey
+    ? campaigns.filter((campaign) => campaign.boardKey === boardKey)
+    : campaigns.filter((campaign) => campaign.boardKey === null);
+  const fallbackCampaigns = campaigns.filter((campaign) => campaign.boardKey === null);
+
+  const candidates =
+    matchingCampaigns.length > 0 ? matchingCampaigns : fallbackCampaigns;
+
+  return (
+    [...candidates].sort(
+      (a, b) => a.createdAt.getTime() - b.createdAt.getTime(),
+    )[0] ?? null
+  );
+}
+
+export function pickExperimentArm(
+  arms: ExperimentAssignmentArm[],
+  randomValue: number,
+): ExperimentAssignmentArm | null {
+  const eligibleArms = arms.filter((arm) => arm.trafficWeight > 0);
+  const totalWeight = eligibleArms.reduce(
+    (sum, arm) => sum + arm.trafficWeight,
+    0,
+  );
+  if (totalWeight <= 0) {
+    return null;
+  }
+
+  let roll = randomValue * totalWeight;
+  let chosenArm = eligibleArms[eligibleArms.length - 1];
+  for (const arm of eligibleArms) {
+    roll -= arm.trafficWeight;
+    if (roll <= 0) {
+      chosenArm = arm;
+      break;
+    }
+  }
+
+  return chosenArm;
+}
 
 /**
  * Given a new upload's scoreTarget + boardKey, find the active campaign
@@ -19,8 +76,8 @@ export async function assignExperiment(params: {
 
   const db = getDb();
 
-  // Find most-specific active campaign: boardKey match beats null boardKey;
-  // among ties, oldest active campaign wins.
+  // Fetch eligible campaigns and pick specificity in TypeScript so Postgres
+  // NULL ordering cannot make a global campaign beat a board-specific one.
   const campaigns = await db
     .select()
     .from(schema.experimentCampaigns)
@@ -36,16 +93,12 @@ export async function assignExperiment(params: {
         ),
       ),
     )
-    .orderBy(
-      desc(schema.experimentCampaigns.boardKey),
-      asc(schema.experimentCampaigns.createdAt),
-    );
+    .orderBy(asc(schema.experimentCampaigns.createdAt));
 
-  if (campaigns.length === 0) {
+  const campaign = pickExperimentCampaign(campaigns, params.boardKey);
+  if (!campaign) {
     return null;
   }
-
-  const campaign = campaigns[0];
 
   // Traffic percent gate
   if (Math.random() * 100 >= campaign.trafficPercent) {
@@ -61,20 +114,8 @@ export async function assignExperiment(params: {
     return null;
   }
 
-  const totalWeight = arms.reduce((sum, arm) => sum + arm.trafficWeight, 0);
-  if (totalWeight <= 0) {
-    return null;
-  }
-
-  let roll = Math.random() * totalWeight;
-  let chosenArm = arms[arms.length - 1];
-  for (const arm of arms) {
-    roll -= arm.trafficWeight;
-    if (roll <= 0) {
-      chosenArm = arm;
-      break;
-    }
-  }
+  const chosenArm = pickExperimentArm(arms, Math.random());
+  if (!chosenArm) return null;
 
   return { campaignId: campaign.id, armId: chosenArm.id };
 }

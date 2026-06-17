@@ -7,6 +7,24 @@ import type { ExtractionConfig } from "@/lib/db/schema";
 import { requirePlatformMaintainer } from "@/lib/rbac/require-permission";
 import { readSessionId } from "@/lib/session";
 
+function isValidExtractionConfig(config: ExtractionConfig): boolean {
+  if (config.mode === "scene") {
+    return (
+      typeof config.sceneThreshold === "number" &&
+      config.sceneThreshold > 0 &&
+      config.sceneThreshold <= 1 &&
+      (config.sampleFps === undefined ||
+        (typeof config.sampleFps === "number" && config.sampleFps > 0))
+    );
+  }
+
+  return (
+    config.mode === "fps" &&
+    typeof config.sampleFps === "number" &&
+    config.sampleFps > 0
+  );
+}
+
 export async function GET(request: Request) {
   const sessionId = await readSessionId();
   if (!sessionId) {
@@ -58,9 +76,9 @@ export async function POST(request: Request) {
   if (!body.passKey?.trim()) {
     return NextResponse.json({ error: "passKey is required." }, { status: 400 });
   }
-  if (!body.configJson || !body.configJson.mode) {
+  if (!body.configJson || !isValidExtractionConfig(body.configJson)) {
     return NextResponse.json(
-      { error: "configJson must include a mode field." },
+      { error: "configJson must include valid mode and sampling values." },
       { status: 400 },
     );
   }
