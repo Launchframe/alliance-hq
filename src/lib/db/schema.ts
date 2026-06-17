@@ -215,6 +215,10 @@ export const videoUploadGroups = pgTable("video_upload_groups", {
   selectedJobId: text("selected_job_id"),
   accuracyJobId: text("accuracy_job_id"),
   comparisonJson: jsonb("comparison_json"),
+  /** Experiment platform: which campaign this group is assigned to */
+  experimentCampaignId: text("experiment_campaign_id"),
+  /** Experiment platform: which arm within the campaign */
+  experimentArmId: text("experiment_arm_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
 });
@@ -786,3 +790,107 @@ export type DiscordGuildAlliance = typeof discordGuildAlliances.$inferSelect;
 export type AllianceAshedCredential = typeof allianceAshedCredentials.$inferSelect;
 export type DiscordUserPref = typeof discordUserPrefs.$inferSelect;
 export type VideoJobSurvey = typeof videoJobSurveys.$inferSelect;
+
+// ---------------------------------------------------------------------------
+// Experiment platform
+// ---------------------------------------------------------------------------
+
+export type ExtractionConfig = {
+  mode: "scene" | "fps";
+  sceneThreshold?: number;
+  sampleFps?: number;
+};
+
+export const parseConfigs = pgTable("parse_configs", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  /** Machine key used in analytics grouping, e.g. "scene_0.33" */
+  passKey: text("pass_key").notNull(),
+  description: text("description"),
+  configJson: jsonb("config_json").$type<ExtractionConfig>().notNull(),
+  /** draft | active | archived */
+  status: text("status").notNull().default("draft"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  createdByUserId: text("created_by_user_id").references(() => hqUsers.id, {
+    onDelete: "set null",
+  }),
+});
+
+export const experimentCampaigns = pgTable("experiment_campaigns", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description"),
+  hypothesis: text("hypothesis"),
+  /** Required. Must match a known hqEvents.scoreTarget value. */
+  scoreTarget: text("score_target").notNull(),
+  /** null = all boards within the scoreTarget */
+  boardKey: text("board_key"),
+  /** draft | active | paused | concluded */
+  status: text("status").notNull().default("draft"),
+  /** 1–100: % of eligible uploads that enter this experiment */
+  trafficPercent: integer("traffic_percent").notNull().default(100),
+  startedAt: timestamp("started_at", { withTimezone: true }),
+  concludedAt: timestamp("concluded_at", { withTimezone: true }),
+  conclusion: text("conclusion"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  createdByUserId: text("created_by_user_id").references(() => hqUsers.id, {
+    onDelete: "set null",
+  }),
+});
+
+export const experimentArms = pgTable("experiment_arms", {
+  id: text("id").primaryKey(),
+  campaignId: text("campaign_id")
+    .notNull()
+    .references(() => experimentCampaigns.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  isControl: boolean("is_control").notNull().default(false),
+  /** null = arm uses default shadow behavior (no extra shadow pass) */
+  configId: text("config_id").references(() => parseConfigs.id, {
+    onDelete: "set null",
+  }),
+  /** Relative weight for arm assignment within the campaign */
+  trafficWeight: integer("traffic_weight").notNull().default(50),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+/**
+ * Production primary-pass overrides. Maps (scoreTarget, boardKey) → parseConfig.
+ * Unique constraint enforced at the DB level. Null scoreTarget = global default.
+ */
+export const configAssignments = pgTable("config_assignments", {
+  id: text("id").primaryKey(),
+  scoreTarget: text("score_target"),
+  boardKey: text("board_key"),
+  configId: text("config_id")
+    .notNull()
+    .references(() => parseConfigs.id, { onDelete: "restrict" }),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  createdByUserId: text("created_by_user_id").references(() => hqUsers.id, {
+    onDelete: "set null",
+  }),
+});
+
+export type ParseConfig = typeof parseConfigs.$inferSelect;
+export type ExperimentCampaign = typeof experimentCampaigns.$inferSelect;
+export type ExperimentArm = typeof experimentArms.$inferSelect;
+export type ConfigAssignment = typeof configAssignments.$inferSelect;

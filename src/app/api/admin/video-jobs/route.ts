@@ -17,6 +17,10 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const status = url.searchParams.get("status");
   const bucket = url.searchParams.get("bucket");
+  const passKey = url.searchParams.get("passKey");
+  const rating = url.searchParams.get("rating");
+  const ratingReason = url.searchParams.get("ratingReason");
+  const scoreTarget = url.searchParams.get("scoreTarget");
   const limit = Math.min(Number(url.searchParams.get("limit") ?? 100), 500);
 
   const db = getDb();
@@ -24,6 +28,10 @@ export async function GET(request: Request) {
   const conditions = [
     status ? eq(schema.videoJobs.status, status) : undefined,
     bucket ? eq(schema.videoJobs.qualityBucket, bucket) : undefined,
+    passKey ? eq(schema.videoJobs.passKey, passKey) : undefined,
+    rating ? eq(schema.videoJobs.rating, rating) : undefined,
+    ratingReason ? eq(schema.videoJobs.ratingReason, ratingReason) : undefined,
+    scoreTarget ? eq(schema.videoJobs.scoreTarget, scoreTarget) : undefined,
   ].filter(Boolean) as Parameters<typeof and>;
 
   const rows =

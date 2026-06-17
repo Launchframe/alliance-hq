@@ -14,6 +14,10 @@ import {
   MAX_VIDEO_UPLOAD_MB,
 } from "@/lib/video/upload-limit";
 import { DEFAULT_PRIMARY_PASS } from "@/lib/video/pass-definitions";
+import {
+  assignExperiment,
+  lookupConfigAssignment,
+} from "@/lib/video/experiment-assignment";
 
 export async function POST(request: Request) {
   try {
@@ -59,6 +63,16 @@ export async function POST(request: Request) {
     const db = getDb();
     const now = new Date();
 
+    const boardKeyStr = boardKey ? String(boardKey) : null;
+
+    const [configAssignment, expAssignment] = await Promise.all([
+      lookupConfigAssignment({ scoreTarget, boardKey: boardKeyStr }),
+      assignExperiment({ scoreTarget, boardKey: boardKeyStr }),
+    ]);
+
+    const primaryConfig = configAssignment?.configJson ?? DEFAULT_PRIMARY_PASS;
+    const primaryPassKey = configAssignment?.passKey ?? "scene_0.25";
+
     // Insert upload group first (primary_job_id set after job insert)
     await db.insert(schema.videoUploadGroups).values({
       id: groupId,
@@ -68,12 +82,14 @@ export async function POST(request: Request) {
       fileName: file.name,
       fileSizeBytes: file.size,
       scoreTarget,
-      boardKey: boardKey ? String(boardKey) : null,
+      boardKey: boardKeyStr,
       hqEventId: hqEventId ? String(hqEventId) : null,
       primaryJobId: null,
       selectedJobId: null,
       accuracyJobId: null,
       comparisonJson: null,
+      experimentCampaignId: expAssignment?.campaignId ?? null,
+      experimentArmId: expAssignment?.armId ?? null,
       createdAt: now,
       updatedAt: now,
     });
@@ -86,17 +102,17 @@ export async function POST(request: Request) {
       fileSizeBytes: file.size,
       category: scoreTarget,
       scoreTarget,
-      boardKey: boardKey ? String(boardKey) : null,
+      boardKey: boardKeyStr,
       hqEventId: hqEventId ? String(hqEventId) : null,
       storageKey,
       ingestMethod: "video",
       frameCount: null,
       uploadedFrameCount: 0,
       groupId,
-      passKey: "scene_0.25",
+      passKey: primaryPassKey,
       passIndex: 0,
       passRole: "primary",
-      extractionConfigJson: DEFAULT_PRIMARY_PASS,
+      extractionConfigJson: primaryConfig,
       createdAt: now,
       updatedAt: now,
     });
