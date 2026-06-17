@@ -16,11 +16,13 @@ import {
   getSolicitedEligibility,
 } from "@/lib/feedback/solicited-eligibility";
 import { dispatchScoreSubmit } from "@/lib/video/submit-dispatch";
+import { buildAshedEventProvisionBody } from "@/lib/video/ashed-event-provision";
 import {
   buildSubmitPayloads,
   validateSubmitContext,
   type SubmitContext,
 } from "@/lib/video/submit-schemas";
+import { computeQualityScore } from "@/lib/video/quality-score";
 
 type Props = {
   params: Promise<{ jobId: string }>;
@@ -28,8 +30,8 @@ type Props = {
 
 type SubmitRow = {
   id: string;
-  memberId: string;
-  memberName: string;
+  memberId?: string | null;
+  memberName?: string | null;
   score: string;
   rank?: number | null;
   deleted?: boolean;
@@ -46,9 +48,18 @@ type SubmitBody = {
 };
 
 export async function POST(request: Request, { params }: Props) {
+  const session = await getOrCreateSession();
+  const { jobId } = await params;
+  let advancedToSubmitting = false;
+  let jobSnapshot: {
+    fileName: string | null;
+    scoreTarget: string | null;
+    category: string | null;
+    /** Status before we wrote "submitting" — used for rollback so event-view re-submits roll back to "complete", not "review". */
+    originalStatus: string;
+  } | null = null;
+
   try {
-    const session = await getOrCreateSession();
-    const { jobId } = await params;
     const body = (await request.json()) as SubmitBody;
 
     if (!body.recordedDate) {
@@ -74,12 +85,20 @@ export async function POST(request: Request, { params }: Props) {
       return NextResponse.json({ error: "Job not found" }, { status: 404 });
     }
 
-    if (job.status !== "review" && job.status !== "complete") {
+    const submitAllowedStatuses = new Set(["review", "complete", "submitting"]);
+    if (!submitAllowedStatuses.has(job.status)) {
       return NextResponse.json(
         { error: "Job is not ready for submit." },
         { status: 400 },
       );
     }
+
+    jobSnapshot = {
+      fileName: job.fileName,
+      scoreTarget: job.scoreTarget,
+      category: job.category,
+      originalStatus: job.status,
+    };
 
     const scoreTargetId = job.scoreTarget ?? job.category ?? "desert-storm";
     const target = getScoreTargetOrThrow(scoreTargetId);
@@ -98,7 +117,12 @@ export async function POST(request: Request, { params }: Props) {
     }
 
     const activeRows = body.rows.filter(
-      (r) => !r.deleted && r.memberId && r.memberName,
+      (
+        r,
+      ): r is SubmitRow & {
+        memberId: string;
+        memberName: string;
+      } => !r.deleted && Boolean(r.memberId) && Boolean(r.memberName),
     );
     if (activeRows.length === 0) {
       return NextResponse.json(
@@ -126,11 +150,16 @@ export async function POST(request: Request, { params }: Props) {
       !usesHqEventStore(target) &&
       !submitContext.eventId
     ) {
-      const newEvent = (await base44EntityPost(connection, target.eventEntity, {
-        alliance_id: allianceId,
-        start_date: submitContext.recordedDate,
-        end_date: submitContext.recordedDate,
-      })) as { id?: string };
+      const provisionBody = buildAshedEventProvisionBody(
+        target.eventEntity,
+        allianceId,
+        submitContext.recordedDate,
+      );
+      const newEvent = (await base44EntityPost(
+        connection,
+        target.eventEntity,
+        provisionBody,
+      )) as { id?: string };
       if (newEvent?.id) {
         submitContext = { ...submitContext, eventId: newEvent.id };
       }
@@ -182,6 +211,40 @@ export async function POST(request: Request, { params }: Props) {
       ashedEventId = provisioned.ashedEventId;
     }
 
+    const originalRows = job.parseSessionId
+      ? await db
+          .select({
+            id: schema.parsedRows.id,
+            score: schema.parsedRows.score,
+            rank: schema.parsedRows.rank,
+            memberId: schema.parsedRows.memberId,
+            memberName: schema.parsedRows.memberName,
+            manuallyAdded: schema.parsedRows.manuallyAdded,
+          })
+          .from(schema.parsedRows)
+          .where(eq(schema.parsedRows.parseSessionId, job.parseSessionId))
+      : [];
+    const originalRowById = new Map(originalRows.map((row) => [row.id, row]));
+
+    const rowsEdited = activeRows.filter((row) => {
+      const original = originalRowById.get(row.id);
+      if (!original || original.manuallyAdded === 1) return false;
+      return (
+        original.score !== row.score ||
+        original.rank !== (row.rank ?? null) ||
+        original.memberId !== row.memberId ||
+        original.memberName !== row.memberName
+      );
+    }).length;
+    const rowsDeleted = body.rows.filter(
+      (row) => row.deleted && originalRowById.has(row.id),
+    ).length;
+    const rowsSaved = activeRows.length;
+    const rowsAdded = activeRows.filter((row) => {
+      const original = originalRowById.get(row.id);
+      return original?.manuallyAdded === 1;
+    }).length;
+
     const payloads = buildSubmitPayloads(
       target,
       allianceId,
@@ -199,6 +262,8 @@ export async function POST(request: Request, { params }: Props) {
       .update(schema.videoJobs)
       .set({ status: "submitting", updatedAt: new Date() })
       .where(eq(schema.videoJobs.id, jobId));
+
+    advancedToSubmitting = true;
 
     await emitVideoJobStatus({
       sessionId: session.id,
@@ -225,15 +290,25 @@ export async function POST(request: Request, { params }: Props) {
     }
 
     for (const row of body.rows) {
+      const original = originalRowById.get(row.id);
+      const rowEdited =
+        !row.deleted &&
+        original != null &&
+        original.manuallyAdded !== 1 &&
+        (original.score !== row.score ||
+          original.rank !== (row.rank ?? null) ||
+          original.memberId !== (row.memberId ?? null) ||
+          original.memberName !== (row.memberName ?? null));
+
       await db
         .update(schema.parsedRows)
         .set({
-          memberId: row.memberId,
-          memberName: row.memberName,
+          memberId: row.memberId ?? null,
+          memberName: row.memberName ?? null,
           score: row.score,
           rank: row.rank ?? null,
           deleted: row.deleted ? 1 : 0,
-          edited: 1,
+          edited: rowEdited ? 1 : 0,
           updatedAt: new Date(),
         })
         .where(eq(schema.parsedRows.id, row.id));
@@ -258,6 +333,19 @@ export async function POST(request: Request, { params }: Props) {
         .update(schema.parseSessions)
         .set({ status: "submitted", updatedAt: new Date() })
         .where(eq(schema.parseSessions.id, job.parseSessionId));
+
+      const { qualityScore, qualityBucket } = computeQualityScore({
+        rowsSaved,
+        rowsEdited,
+        rowsDeleted,
+        rowsAdded,
+        status: "complete",
+      });
+
+      await db
+        .update(schema.videoJobs)
+        .set({ qualityScore, qualityBucket, qualityComputedAt: new Date() })
+        .where(eq(schema.videoJobs.id, jobId));
     }
 
     await writeAuditLog({
@@ -297,6 +385,29 @@ export async function POST(request: Request, { params }: Props) {
       ...solicitedPayload,
     });
   } catch (error) {
+    if (advancedToSubmitting && jobSnapshot) {
+      try {
+        const db = getDb();
+        const rollbackStatus = jobSnapshot.originalStatus === "complete"
+          ? "complete"
+          : "review";
+        await db
+          .update(schema.videoJobs)
+          .set({ status: rollbackStatus, updatedAt: new Date() })
+          .where(eq(schema.videoJobs.id, jobId));
+        await emitVideoJobStatus({
+          sessionId: session.id,
+          jobId,
+          status: rollbackStatus,
+          fileName: jobSnapshot.fileName ?? null,
+          scoreTarget:
+            jobSnapshot.scoreTarget ?? jobSnapshot.category ?? null,
+          errorMessage: null,
+        });
+      } catch {
+        // Best-effort rollback so the user can retry submit.
+      }
+    }
     return NextResponse.json(
       {
         error: error instanceof Error ? error.message : "Submit failed",

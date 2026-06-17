@@ -6,6 +6,7 @@ import {
   jsonb,
   pgTable,
   primaryKey,
+  real,
   text,
   timestamp,
   unique,
@@ -199,6 +200,29 @@ export const ashedCredentials = pgTable("ashed_credentials", {
     .notNull(),
 });
 
+export const videoUploadGroups = pgTable("video_upload_groups", {
+  id: text("id").primaryKey(),
+  sessionId: text("session_id").notNull(),
+  allianceId: text("alliance_id"),
+  storageKey: text("storage_key"),
+  fileName: text("file_name"),
+  fileSizeBytes: bigint("file_size_bytes", { mode: "number" }),
+  scoreTarget: text("score_target"),
+  boardKey: text("board_key"),
+  hqEventId: text("hq_event_id"),
+  /** FK to video_jobs.id — not enforced by Drizzle to avoid circular dep */
+  primaryJobId: text("primary_job_id"),
+  selectedJobId: text("selected_job_id"),
+  accuracyJobId: text("accuracy_job_id"),
+  comparisonJson: jsonb("comparison_json"),
+  /** Experiment platform: which campaign this group is assigned to */
+  experimentCampaignId: text("experiment_campaign_id"),
+  /** Experiment platform: which arm within the campaign */
+  experimentArmId: text("experiment_arm_id"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+});
+
 export const videoJobs = pgTable("video_jobs", {
   id: text("id").primaryKey(),
   sessionId: text("session_id")
@@ -230,6 +254,16 @@ export const videoJobs = pgTable("video_jobs", {
   totalFileSizeBytes: bigint("total_file_size_bytes", { mode: "number" }),
   rating: text("rating"),
   ratingAt: timestamp("rating_at", { withTimezone: true }),
+  ratingReason: text("rating_reason"),
+  qualityScore: real("quality_score"),
+  qualityBucket: text("quality_bucket"),
+  qualityComputedAt: timestamp("quality_computed_at", { withTimezone: true }),
+  /** Phase 6: upload group linkage */
+  groupId: text("group_id"),
+  passKey: text("pass_key"),
+  passIndex: integer("pass_index"),
+  passRole: text("pass_role"),
+  extractionConfigJson: jsonb("extraction_config_json"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
     .notNull(),
@@ -450,9 +484,10 @@ export const discordMemberLinks = pgTable(
       .notNull(),
   },
   (table) => [
-    unique("discord_member_links_alliance_discord_unique").on(
+    unique("discord_member_links_alliance_discord_member_unique").on(
       table.allianceId,
       table.discordUserId,
+      table.ashedMemberId,
     ),
     unique("discord_member_links_alliance_member_unique").on(
       table.allianceId,
@@ -507,6 +542,66 @@ export const discordBotPending = pgTable("discord_bot_pending", {
     .notNull(),
 });
 
+/** Maps a Discord server to an HQ alliance (multi-tenant bot). */
+export const discordGuildAlliances = pgTable("discord_guild_alliances", {
+  guildId: text("guild_id").primaryKey(),
+  allianceId: text("alliance_id")
+    .notNull()
+    .references(() => alliances.id, { onDelete: "cascade" }),
+  registeredAt: timestamp("registered_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+/** Per-alliance Ashed connection for bot roster sync (encrypted token). */
+export const allianceAshedCredentials = pgTable("alliance_ashed_credentials", {
+  id: text("id").primaryKey(),
+  allianceId: text("alliance_id")
+    .notNull()
+    .unique()
+    .references(() => alliances.id, { onDelete: "cascade" }),
+  appId: text("app_id").notNull(),
+  originUrl: text("origin_url").notNull(),
+  encryptedToken: text("encrypted_token").notNull(),
+  tokenExpiresAt: timestamp("token_expires_at", { withTimezone: true }),
+  registeredByDiscordUserId: text("registered_by_discord_user_id"),
+  registeredByHqUserId: text("registered_by_hq_user_id").references(
+    () => hqUsers.id,
+    { onDelete: "set null" },
+  ),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+/** Per-Discord-user bot preferences (locale). */
+export const discordUserPrefs = pgTable("discord_user_prefs", {
+  discordUserId: text("discord_user_id").primaryKey(),
+  locale: text("locale").notNull().default("en-US"),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+/** Short-lived one-time nonces for the /discord/authorize HQ web redirect (Ashed credential setup). */
+export const discordAuthNonces = pgTable("discord_auth_nonces", {
+  id: text("id").primaryKey(),
+  nonce: text("nonce").notNull().unique(),
+  discordUserId: text("discord_user_id").notNull(),
+  /** Discord guild that initiated the setup flow. */
+  guildId: text("guild_id"),
+  /** Normalized lowercase alliance tag this nonce was issued for. */
+  tag: text("tag").notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  usedAt: timestamp("used_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
 /** Audit trail for all Discord bot interactions. */
 export const discordBotAudit = pgTable("discord_bot_audit", {
   id: text("id").primaryKey(),
@@ -531,11 +626,13 @@ export type Permission = typeof permissions.$inferSelect;
 export type CredentialPairingCode = typeof credentialPairingCodes.$inferSelect;
 export type LinkedDevice = typeof linkedDevices.$inferSelect;
 export type AshedCredential = typeof ashedCredentials.$inferSelect;
+export type VideoUploadGroup = typeof videoUploadGroups.$inferSelect;
 export type VideoJob = typeof videoJobs.$inferSelect;
 export type VideoFrame = typeof videoFrames.$inferSelect;
 export type ParseSession = typeof parseSessions.$inferSelect;
 export type ParsedRow = typeof parsedRows.$inferSelect;
 export type AuditLogEntry = typeof auditLog.$inferInsert;
+export type DiscordAuthNonce = typeof discordAuthNonces.$inferSelect;
 export type HqEventSeries = typeof hqEventSeries.$inferSelect;
 export type HqEvent = typeof hqEvents.$inferSelect;
 export type HqEventBoard = typeof hqEventBoards.$inferSelect;
@@ -689,6 +786,9 @@ export type DiscordMemberLink = typeof discordMemberLinks.$inferSelect;
 export type MemberSeasonVr = typeof memberSeasonVr.$inferSelect;
 export type DiscordBotPending = typeof discordBotPending.$inferSelect;
 export type DiscordBotAudit = typeof discordBotAudit.$inferSelect;
+export type DiscordGuildAlliance = typeof discordGuildAlliances.$inferSelect;
+export type AllianceAshedCredential = typeof allianceAshedCredentials.$inferSelect;
+export type DiscordUserPref = typeof discordUserPrefs.$inferSelect;
 export type VideoJobSurvey = typeof videoJobSurveys.$inferSelect;
 
 /** Locally synced Ashed roster — normalized ranks for trains and Members UI. */
@@ -1058,3 +1158,108 @@ export type TrainCarCargoItem = typeof trainCarCargoItems.$inferSelect;
 export type TrainCargoSnapshot = typeof trainCargoSnapshots.$inferSelect;
 export type TrainPlunderEvent = typeof trainPlunderEvents.$inferSelect;
 export type TrainRider = typeof trainRiders.$inferSelect;
+
+// ---------------------------------------------------------------------------
+// Experiment platform
+// ---------------------------------------------------------------------------
+
+export type ExtractionConfig = {
+  mode: "scene" | "fps";
+  sceneThreshold?: number;
+  sampleFps?: number;
+};
+
+export const parseConfigs = pgTable("parse_configs", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  /** Machine key used in analytics grouping, e.g. "scene_0.33" */
+  passKey: text("pass_key").notNull(),
+  description: text("description"),
+  configJson: jsonb("config_json").$type<ExtractionConfig>().notNull(),
+  /** draft | active | archived */
+  status: text("status").notNull().default("draft"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  createdByUserId: text("created_by_user_id").references(() => hqUsers.id, {
+    onDelete: "set null",
+  }),
+});
+
+export const experimentCampaigns = pgTable("experiment_campaigns", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description"),
+  hypothesis: text("hypothesis"),
+  /** Required. Must match a known hqEvents.scoreTarget value. */
+  scoreTarget: text("score_target").notNull(),
+  /** null = all boards within the scoreTarget */
+  boardKey: text("board_key"),
+  /** draft | active | paused | concluded */
+  status: text("status").notNull().default("draft"),
+  /** 1–100: % of eligible uploads that enter this experiment */
+  trafficPercent: integer("traffic_percent").notNull().default(100),
+  startedAt: timestamp("started_at", { withTimezone: true }),
+  concludedAt: timestamp("concluded_at", { withTimezone: true }),
+  conclusion: text("conclusion"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  createdByUserId: text("created_by_user_id").references(() => hqUsers.id, {
+    onDelete: "set null",
+  }),
+});
+
+export const experimentArms = pgTable("experiment_arms", {
+  id: text("id").primaryKey(),
+  campaignId: text("campaign_id")
+    .notNull()
+    .references(() => experimentCampaigns.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  isControl: boolean("is_control").notNull().default(false),
+  /** null = arm uses default shadow behavior (no extra shadow pass) */
+  configId: text("config_id").references(() => parseConfigs.id, {
+    onDelete: "set null",
+  }),
+  /** Relative weight for arm assignment within the campaign */
+  trafficWeight: integer("traffic_weight").notNull().default(50),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+/**
+ * Production primary-pass overrides. Maps (scoreTarget, boardKey) → parseConfig.
+ * Unique constraint enforced at the DB level. Null scoreTarget = global default.
+ */
+export const configAssignments = pgTable("config_assignments", {
+  id: text("id").primaryKey(),
+  scoreTarget: text("score_target"),
+  boardKey: text("board_key"),
+  configId: text("config_id")
+    .notNull()
+    .references(() => parseConfigs.id, { onDelete: "restrict" }),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  createdByUserId: text("created_by_user_id").references(() => hqUsers.id, {
+    onDelete: "set null",
+  }),
+});
+
+export type ParseConfig = typeof parseConfigs.$inferSelect;
+export type ExperimentCampaign = typeof experimentCampaigns.$inferSelect;
+export type ExperimentArm = typeof experimentArms.$inferSelect;
+export type ConfigAssignment = typeof configAssignments.$inferSelect;
+

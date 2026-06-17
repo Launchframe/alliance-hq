@@ -16,10 +16,13 @@ import {
   ocrWallMs,
   shouldShowExtractionQualitySection,
 } from "@/lib/video/pipeline-stats-display";
+import type { PassComparison } from "@/lib/video/compare-pass-results";
 
 type Props = {
   timings: VideoProcessTimings | null;
   fileName?: string | null;
+  comparisonJson?: PassComparison | null;
+  onOpenComparison?: () => void;
 };
 
 function formatBytes(bytes: number | null | undefined): string {
@@ -32,7 +35,12 @@ function formatBytes(bytes: number | null | undefined): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-export function VideoPipelineStatsButton({ timings, fileName }: Props) {
+export function VideoPipelineStatsButton({
+  timings,
+  fileName,
+  comparisonJson,
+  onOpenComparison,
+}: Props) {
   const t = useTranslations("videoReview.statsNerds");
   const [open, setOpen] = useState(false);
 
@@ -159,7 +167,7 @@ export function VideoPipelineStatsButton({ timings, fileName }: Props) {
                         <dd className="font-mono">
                           {timings.framesSkipped}
                           {frameSkipRate != null
-                            ? ` (${frameSkipRate}% skip rate)`
+                            ? ` ${t("frameSkipRate", { rate: frameSkipRate })}`
                             : ""}
                         </dd>
                       </>
@@ -169,9 +177,14 @@ export function VideoPipelineStatsButton({ timings, fileName }: Props) {
                       <>
                         <dt className="text-[#8b949e]">{t("ocrOverlap")}</dt>
                         <dd className="font-mono">
-                          {timings.totalRawOcrRows} raw → {timings.rowCount}{" "}
-                          unique
-                          {ocrOverlap != null ? ` (${ocrOverlap}% overlap)` : ""}
+                          {t("ocrOverlapSummary", {
+                            raw: timings.totalRawOcrRows,
+                            unique: timings.rowCount,
+                            overlap:
+                              ocrOverlap != null
+                                ? t("ocrOverlapRate", { rate: ocrOverlap })
+                                : "",
+                          })}
                         </dd>
                       </>
                     ) : null}
@@ -245,6 +258,62 @@ export function VideoPipelineStatsButton({ timings, fileName }: Props) {
               </section>
             </>
           )}
+
+          {comparisonJson ? (
+            <section>
+              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-[#8b949e]">
+                {t("passComparisonTitle")}
+              </h3>
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                {comparisonJson.passes.map((pass) => (
+                  <div key={pass.jobId} className="rounded-lg border border-[#30363d] p-3">
+                    <p className="text-xs font-medium text-[#8b949e]">
+                      {pass.passKey ?? pass.passRole ?? "—"}
+                    </p>
+                    <dl className="mt-2 space-y-1 text-xs">
+                      <div className="flex justify-between">
+                        <dt className="text-[#8b949e]">{t("passRows")}</dt>
+                        <dd className="font-mono">{pass.rowCount}</dd>
+                      </div>
+                      <div className="flex justify-between">
+                        <dt className="text-[#8b949e]">{t("passMatched")}</dt>
+                        <dd className="font-mono">{pass.matchedCount}</dd>
+                      </div>
+                      <div className="flex justify-between">
+                        <dt className="text-[#8b949e]">{t("passFrames")}</dt>
+                        <dd className="font-mono">{pass.frameCount ?? "—"}</dd>
+                      </div>
+                      {pass.totalMs != null ? (
+                        <div className="flex justify-between">
+                          <dt className="text-[#8b949e]">{t("passTime")}</dt>
+                          <dd className="font-mono">{(pass.totalMs / 1000).toFixed(1)}s</dd>
+                        </div>
+                      ) : null}
+                    </dl>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-2 text-xs text-[#8b949e]">
+                {t("passOverlap", {
+                  overlap: comparisonJson.overlapCount,
+                  onlyA: comparisonJson.onlyInPrimary,
+                  onlyB: comparisonJson.onlyInShadow,
+                })}
+              </div>
+              {onOpenComparison ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOpen(false);
+                    onOpenComparison();
+                  }}
+                  className="mt-3 rounded-lg border border-[#30363d] px-3 py-1.5 text-sm text-[#58a6ff] hover:bg-[#21262d]"
+                >
+                  {t("openPassComparison")}
+                </button>
+              ) : null}
+            </section>
+          ) : null}
 
           <div className="flex justify-end">
             <button

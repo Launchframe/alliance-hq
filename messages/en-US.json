@@ -92,6 +92,9 @@
       "alliances": "Alliances",
       "audit": "Audit log",
       "videoJobs": "Video jobs",
+      "videoJobAnalytics": "Analytics",
+      "parseConfigs": "Parse configs",
+      "experiments": "Experiments",
       "hqEvents": "HQ events",
       "commendations": "Commendations",
       "bugReports": "Bug reports",
@@ -305,7 +308,13 @@
       "inspect": "Inspect",
       "frameCount": "Frames",
       "totalTime": "Total time",
-      "ocrTime": "OCR time"
+      "ocrTime": "OCR time",
+      "bucketFilter": "Bucket",
+      "ratingFilter": "Rating",
+      "allRatings": "All ratings",
+      "passFilter": "Pass",
+      "allPasses": "All passes",
+      "analyticsLink": "Analytics"
     },
     "videoJobDetailPage": {
       "loading": "Loading job details…",
@@ -347,7 +356,30 @@
       "surveyTitle": "Pre-upload survey",
       "surveyRowCount": "Row count estimate",
       "surveyScrollStyle": "Scroll style",
-      "surveyAboveAvg": "Faster than usual"
+      "surveyAboveAvg": "Faster than usual",
+      "viewMode": {
+        "list": "List",
+        "gallery": "Gallery",
+        "video": "Slideshow"
+      },
+      "galleryPrev": "Previous frame",
+      "galleryNext": "Next frame",
+      "frameZoom": "Zoom",
+      "videoPlay": "▶ Play",
+      "videoPause": "⏸ Pause",
+      "videoFps": "Speed (fps)",
+      "videoDuration": "Est. duration: {duration}",
+      "qualityBucket": "Quality bucket",
+      "siblingPasses": "Upload group passes",
+      "passSelected": "User selected",
+      "passAccuracyVoted": "Accuracy vote",
+      "passRecommended": "System pick",
+      "galleryStatsTitle": "Current frame stats",
+      "statsColFrame": "Frame",
+      "statsColUpload": "Upload",
+      "statsColExtract": "Extract",
+      "statsColEntries": "Entries",
+      "statsColError": "OCR error"
     },
     "auditPage": {
       "loading": "Loading audit log…",
@@ -400,6 +432,180 @@
       "email": "Email",
       "displayName": "Display name",
       "platform": "Platform maintainer"
+    },
+    "parseConfigsPage": {
+      "title": "Parse Configs",
+      "subtitle": "DB-managed parse configurations for video processing passes.",
+      "newConfig": "New config",
+      "cancel": "Cancel",
+      "create": "Create config",
+      "saving": "Saving…",
+      "saveFailed": "Save failed",
+      "loadFailed": "Failed to load configs",
+      "loading": "Loading…",
+      "empty": "No parse configs yet.",
+      "statusFilter": "Status",
+      "allStatuses": "All statuses",
+      "changeStatus": "Change status",
+      "viewExperiments": "View experiments",
+      "form": {
+        "name": "Name",
+        "passKey": "Pass key",
+        "passKeyHelp": "Short machine identifier used in analytics (e.g. scene_0.33). Must be unique.",
+        "description": "Description",
+        "mode": "Mode",
+        "modeHelp": "Scene detection extracts frames only when the image changes significantly — good for scoreboards. FPS extracts a fixed number of frames per second — simpler but may miss or duplicate frames.",
+        "sceneThreshold": "Scene threshold (0.01–1.0)",
+        "sceneThresholdHelp": "How different two frames must be for a new frame to be captured. Lower values (e.g. 0.1) = more frames, slower, catches subtle changes. Higher values (e.g. 0.5) = fewer frames, faster, may miss small score updates.",
+        "sampleFps": "Sample FPS",
+        "sampleFpsHelp": "Frames captured per second (for FPS mode, or as a cap for scene mode). Higher = more thorough but more storage and processing cost.",
+        "notes": "Notes"
+      },
+      "col": {
+        "name": "Name",
+        "passKey": "Pass key",
+        "config": "Config",
+        "status": "Status",
+        "actions": "Actions"
+      }
+    },
+    "experimentsPage": {
+      "title": "Experiments",
+      "subtitle": "A/B campaigns for testing parse configurations against a baseline.",
+      "newCampaign": "New campaign",
+      "cancel": "Cancel",
+      "create": "Create campaign",
+      "saving": "Saving…",
+      "saveFailed": "Save failed",
+      "loadFailed": "Failed to load",
+      "loading": "Loading…",
+      "empty": "No experiments yet.",
+      "statusFilter": "Status",
+      "all": "All",
+      "arms": {
+        "title": "Arms",
+        "add": "Add arm",
+        "deltaNote": "Δ vs control shows thumbs-up percentage-point difference relative to the control arm.",
+        "col": {
+          "name": "Arm",
+          "config": "Config",
+          "weight": "Weight",
+          "jobs": "Jobs",
+          "rated": "Rated",
+          "thumbsUp": "👍 %",
+          "avgQuality": "Avg quality",
+          "delta": "Δ vs ctrl",
+          "buckets": "Buckets"
+        },
+        "form": {
+          "name": "Arm name",
+          "configId": "Config ID",
+          "configIdPlaceholder": "parseConfig id (leave blank for default)",
+          "weight": "Weight",
+          "isControl": "Control arm",
+          "save": "Add arm"
+        }
+      },
+      "started": "Started",
+      "concluded": "Concluded",
+      "startCampaign": "Start campaign",
+      "pause": "Pause",
+      "resume": "Resume",
+      "conclude": "Conclude",
+      "concludeTitle": "Conclude experiment",
+      "concludeHint": "Write a summary of what this experiment found before concluding. This is required.",
+      "conclusionPlaceholder": "e.g. scene_0.33 showed 12pp higher thumbs-up rate on zombie_siege vs control across 80 rated jobs…",
+      "confirmConclude": "Confirm conclude",
+      "outcome": "Outcome",
+      "backToList": "Back to experiments",
+      "form": {
+        "name": "Name",
+        "scoreTarget": "Score target (event format)",
+        "boardKey": "Board key (optional)",
+        "boardKeyPlaceholder": "kills, resources, points — leave blank for all",
+        "trafficPercent": "Traffic %",
+        "hypothesis": "Hypothesis",
+        "hypothesisPlaceholder": "e.g. scene_0.33 will improve OCR accuracy on Zombie Siege leaderboards",
+        "description": "Description",
+        "scopeWarning": "⚠ Score target is required and must match a single event format. Results across different event types are not comparable. Run separate campaigns for each event format."
+      },
+      "population": {
+        "title": "Population",
+        "hint": "Upload groups assigned to this experiment, broken down by event type and board. Verify this matches the intended scope before concluding.",
+        "mixedWarning": "Multiple event types detected in this experiment's sample. Results may not be comparable across formats.",
+        "noData": "No uploads assigned to this experiment yet.",
+        "col": {
+          "scoreTarget": "Score target",
+          "boardKey": "Board",
+          "hqEvent": "HQ event",
+          "jobs": "Groups"
+        }
+      },
+      "chart": {
+        "title": "Thumbs-up % over time",
+        "hint": "Rolling thumbs-up rate per arm since campaign start. Dashed blue line marks when the campaign became active.",
+        "started": "Started",
+        "noData": "Not enough data points to render a timeline yet."
+      },
+      "promote": {
+        "title": "Promote winning arm to primary pass",
+        "hint": "Creating a config assignment makes the selected arm's parse config the default for new uploads with this score target. Existing uploaded videos are not re-processed.",
+        "selectArm": "Select arm to promote",
+        "notes": "Notes (optional)",
+        "notesPlaceholder": "e.g. scene_0.33 outperformed baseline by 12pp on zombie_siege — promoting for production use",
+        "confirmCta": "Create assignment",
+        "successTitle": "Config assignment created",
+        "successHint": "New uploads for this score target will now use the promoted config as their primary pass.",
+        "conflictError": "An assignment already exists for this scope. Go to Parse Configs to update it.",
+        "noVariantArms": "No variant arms with a config are available to promote."
+      },
+      "lowSampleWarning": "Only {count} rated group(s) in this arm. Aim for at least 30 rated groups per arm before concluding to reduce noise.",
+      "arms": {
+        "loadConfigs": "Loading configs…",
+        "configDefault": "Default (no extra shadow pass — control arm behavior)",
+        "configPickerLabel": "Parse config"
+      }
+    },
+    "analyticsPage": {
+      "title": "Video Job Analytics",
+      "subtitle": "Aggregate pass performance across event types. Select a specific score target for actionable data.",
+      "loading": "Loading…",
+      "loadFailed": "Failed to load analytics",
+      "noData": "No data for the selected filters.",
+      "experimentsLink": "Experiments",
+      "mixedWarning": "Showing results across multiple event types — metrics are not directly comparable between formats. Select a specific score target to filter.",
+      "passKeyPerformance": "pass performance",
+      "ratingReasons": "Rating reasons (thumbs down)",
+      "filter": {
+        "scoreTarget": "Event type",
+        "allTargets": "All types",
+        "passKey": "Pass",
+        "allPasses": "All passes",
+        "window": "Window",
+        "allTime": "All"
+      },
+      "kpi": {
+        "totalRated": "Total rated",
+        "of": "of",
+        "jobs": "jobs",
+        "thumbsUpRate": "Thumbs-up rate",
+        "mixed": "mixed types",
+        "recommendationAccuracy": "Recommendation accuracy",
+        "decided": "groups decided",
+        "overrideRate": "Override rate",
+        "overrides": "user overrides"
+      },
+      "col": {
+        "pass": "Pass",
+        "jobs": "Jobs",
+        "rated": "Rated",
+        "thumbsUp": "👍 %",
+        "avgQuality": "Avg quality",
+        "userSelected": "User selected",
+        "sysRecommended": "Sys recommended",
+        "agreement": "Agreement",
+        "buckets": "Buckets"
+      }
     }
   },
   "team": {
@@ -903,6 +1109,23 @@
     "ratingThumbsDown": "Needs work",
     "ratingSkip": "Skip",
     "addRow": "Add row",
+    "comparisonPromptTitle": "We tried a different approach that may have gotten better results.",
+    "comparisonPromptBody": "A second pass found more unique rows. Would you like to use those results?",
+    "comparisonUseBetter": "Use results with more rows",
+    "comparisonSideBySide": "See side by side",
+    "comparisonDismiss": "Keep current",
+    "comparisonSheetTitle": "Compare passes",
+    "comparisonClose": "Close",
+    "comparisonLoadingRows": "Loading…",
+    "comparisonPassHeader": "{pass} ({key}) · {count, plural, one {# row} other {# rows}}",
+    "comparisonPrimaryFallback": "primary",
+    "comparisonShadowFallback": "shadow",
+    "comparisonAccuracyPrompt": "Which was more accurate?",
+    "comparisonPassA": "Pass A",
+    "comparisonPassB": "Pass B",
+    "comparisonAboutSame": "About the same",
+    "comparisonUseA": "Use Pass A",
+    "comparisonUseB": "Use Pass B",
     "statsNerds": {
       "button": "Stats for nerds",
       "title": "Stats for nerds",
@@ -930,8 +1153,30 @@
       "framesSelected": "Frames selected",
       "framesBaseline": "Baseline frame count",
       "framesSkipped": "Frames skipped",
-      "ocrOverlap": "OCR deduplication"
-    }
+      "ocrOverlap": "OCR deduplication",
+      "frameSkipRate": "({rate}% skip rate)",
+      "ocrOverlapSummary": "{raw} raw → {unique} unique{overlap}",
+      "ocrOverlapRate": " ({rate}% overlap)",
+      "passComparisonTitle": "Pass comparison",
+      "passRows": "Rows",
+      "passMatched": "Matched",
+      "passFrames": "Frames",
+      "passTime": "Time",
+      "passOverlap": "{overlap} rows in both · {onlyA} only in A · {onlyB} only in B",
+      "openPassComparison": "Open side-by-side comparison"
+    },
+    "eventTitle": "Event scores",
+    "eventSubtitle": "These scores were saved to Ashed. Fix member matches or scores below, then update.",
+    "updateScores": "Update {count} scores in Ashed",
+    "updateSuccess": "Updated {count} scores in Ashed.",
+    "ratingThankYou": "We appreciate your feedback.",
+    "ratingClose": "Close",
+    "ratingReasonPrompt": "What went wrong with the OCR?",
+    "ratingReason_member_match": "Wrong member matches",
+    "ratingReason_score_parse": "Incorrect scores",
+    "ratingReason_wrong_event": "Wrong event type",
+    "ratingReason_frame_quality": "Frame extraction issues",
+    "ratingReason_other": "Other"
   },
   "feedback": {
     "fab": {
@@ -1121,5 +1366,105 @@
     "skip": "Skip for now",
     "submit": "Share notes",
     "submitting": "Saving…"
+  },
+  "discordBot": {
+    "errors": {
+      "guildNotConfigured": "Discord VR tracking is not configured for this server yet. An alliance owner should run `/link-alliance` with your alliance tag.",
+      "legacyMisconfigured": "Discord VR tracking is misconfigured. Contact your Alliance HQ maintainer.",
+      "unknownUser": "Could not identify your Discord account.",
+      "unknownCommand": "Unknown command.",
+      "serverError": "Something went wrong on our side. Try again in a moment.",
+      "guildNotRegistered": "This Discord server is not linked to an alliance yet. The alliance owner should run `/link-alliance` with your tag (for example LFgo).",
+      "tagNotFound": "No alliance found with tag **{tag}**. Check the spelling on ashed.online, or run `/link-to-ashed-seat` if your alliance is not in Alliance HQ yet.",
+      "tagNotEligible": "Alliance tag **{tag}** is not currently eligible for bot setup on this deployment.",
+      "credentialsRequired": "Connect Ashed credentials first with `/link-to-ashed-seat tag:{tag}`.",
+      "tagAmbiguous": "We found multiple alliances with tag **{tag}**. Reply with `/link-alliance tag:{tag} name:Your Alliance Name` to pick the right one.",
+      "notOwner": "Only the alliance owner can register this server. Complete `/link` first, then try again.",
+      "linkFirst": "Complete `/link` with your in-game name and UID before registering the server.",
+      "invalidLanguage": "Choose English or Português.",
+      "nothingPending": "Nothing to pick right now.",
+      "noWalkthrough": "No walkthrough in progress.",
+      "noConfirm": "Nothing to confirm right now."
+    },
+    "link": {
+      "usage": "Usage: `/link name:… uid:…`. Add another character anytime; use `replace:true` to switch your only link. Use `/unlink` to remove one.",
+      "linked": "Linked to **{name}**. You're ready to use /vr.",
+      "linkedAdditional": "Linked another character: **{name}**. Use /vr and pick which character when you have more than one.",
+      "updated": "Updated your link for **{name}**.",
+      "replaced": "Switched your link to **{name}**.",
+      "capReached": "You already have the maximum number of linked characters ({max}). Use `/unlink` first or `/link replace:true` to switch.",
+      "memberTaken": "That in-game member is already linked to a different Discord account.",
+      "fuzzyPrompt": "We verified **{gameName}** but couldn't find an exact roster match. Pick your member:",
+      "rosterMiss": "We couldn't match that name to anyone on the roster. Try **Start over** for copy instructions, or ask an officer for help.",
+      "pickExpired": "That member option expired. Run `/link` again.",
+      "walkthroughDone": "Great. Run `/link` again with your copied name and UID when ready.",
+      "walkthroughIntro": "Let's start over.",
+      "walkthroughTapDone": "Tap **Done** when you've finished this step.",
+      "nameMismatchIntro": "Tap **Done** when you've finished this step.",
+      "steps": [
+        "Open the game.",
+        "Tap your avatar picture to open your Player's Profile menu.",
+        "Tap the \"...\" menu in the top right to open the Profile menu.",
+        "Tap \"Copy\" next to your name on that screen.",
+        "Run `/link` again and paste that copied name with your UID."
+      ]
+    },
+    "vr": {
+      "notLinked": "Your Discord account isn't linked yet. Run `/link` with your in-game name and UID first.",
+      "pickCharacter": "Which character is this VR for?",
+      "success": "Got it! Congrats on {vr} VR.",
+      "downgradeLimit": "Base VR can't drop more than one step (250) below your season high of {seasonHigh}.",
+      "maxVr": "You're at the max base VR we track ({max}).",
+      "stillWaiting": "Still waiting: are you sure it's {vr}? Tap Yes or No.",
+      "declined": "No problem. Send /vr with your corrected base VR when ready.",
+      "anomalyConfirm": "Are you *sure* your VR is {vr}? That would be way ahead of the pack for base VR. Tap Yes if you're serious — we believe you (probably)."
+    },
+    "setup": {
+      "linkAllianceSuccess": "This server is registered for **{tag}**. Members can now `/link` their in-game profile and use `/vr`.",
+      "linkAshedSeatPrompt": "Click the link below to securely connect your Ashed credentials for **{tag}** (expires in 30 min):\n{url}\n\nAfter connecting, run `/link` with your in-game name and UID, then `/link-alliance tag:{tag}`.",
+      "languageSuccess": "Language updated."
+    },
+    "buttons": {
+      "yes": "Yes",
+      "no": "No",
+      "done": "Done",
+      "startOver": "Start over",
+      "askOfficer": "Ask an officer"
+    },
+    "officerNotified": "An officer has been notified on Alliance HQ. They can reach out to you here on Discord.",
+    "help": {
+      "dmGeneral": "**Alliance HQ bot** — run these in your alliance Discord server:\n• `/help` — this guide\n• `/link` — connect your in-game profile\n• `/vr` or `/immunity` — report base VR\n• `/language` — English or Português\n\nOwners (Ashed seat holders) use `/link-to-ashed-seat` and `/link-alliance`.",
+      "setupOwnerAuth": "This server is not set up yet. **Alliance owner (Ashed seat holder):** run `/link-to-ashed-seat tag:YourTag` to get a secure link for connecting your Ashed credentials. Then run `/link` and `/link-alliance tag:YourTag`. Members can `/link` after that.",
+      "setupLinkAlliance": "This server is not registered to an alliance yet. **Owner:** run `/link-alliance tag:YourTag` (you must `/link` and complete `/link-to-ashed-seat` first).",
+      "setupOwnerLinkAfterAuth": "Ashed credentials are connected. **Owner:** run `/link name:… uid:…` with your in-game profile, then `/link-alliance tag:YourTag` so members can link.",
+      "waitForOwnerAuth": "Waiting for the alliance owner to connect Ashed (`/link-to-ashed-seat`). After that you can `/link` your in-game name and UID.",
+      "linkProfile": "Link your in-game profile: `/link name:… uid:…` (copy name and UID from your profile in-game). Need steps? Run `/link` with a wrong name once and tap **Done** for a walkthrough.",
+      "memberReady": "You're linked. Use `/vr` or `/immunity` when your base VR changes. `/help` anytime. `/language` for Português.",
+      "memberReadyMulti": "You have **{count}** linked characters. Use `/vr` or `/immunity` — the bot will ask which character. `/unlink` removes one; `/link` adds another.",
+      "ownerReady": "You're linked as alliance owner (**{tag}**). Members use `/link` and `/vr`. Run `/link-to-ashed-seat` again if roster sync fails.",
+      "ownerReadyMulti": "You're linked as owner with **{count}** characters. `/vr` asks which character. `/unlink` or `/link replace:true` to manage links."
+    },
+    "unlink": {
+      "none": "You don't have any linked characters on this server. Run `/link` first.",
+      "pickCharacter": "Which linked character should I remove?",
+      "success": "Unlinked **{name}**. Run `/link` again to connect a character.",
+      "nameNotFound": "No linked character matches **{name}**. Run `/unlink` without a name to pick from a list.",
+      "expired": "That unlink option expired. Run `/unlink` again."
+    }
+  },
+  "discordAuthorize": {
+    "heading": "Connect Ashed Credentials",
+    "subheading": "Enter your Ashed connection key below. It is submitted securely over HTTPS and never sent through Discord.",
+    "tagLabel": "Alliance tag",
+    "keyLabel": "Ashed connection key",
+    "keyHint": "Find this on ashed.online under Settings → Connection Key. Treat it like a password.",
+    "submit": "Connect",
+    "submitting": "Verifying…",
+    "successHeading": "Connected!",
+    "successBody": "Ashed credentials for {tag} are saved. Return to Discord, run `/link` with your in-game name and UID, then `/link-alliance tag:{tag}`.",
+    "errorPrefix": "Something went wrong:",
+    "missingNonce": "No authorization link found. Return to Discord and run `/link-to-ashed-seat` to get a new link.",
+    "expiredHeading": "Link expired or already used",
+    "expiredBody": "Return to Discord and run `/link-to-ashed-seat` again to get a fresh link."
   }
 }

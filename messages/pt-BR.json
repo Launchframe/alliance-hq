@@ -100,7 +100,10 @@
       "users": "Usuários HQ",
       "openSections": "Seções do admin",
       "closeSections": "Fechar menu admin",
-      "sectionsTitle": "Seções"
+      "sectionsTitle": "Seções",
+      "videoJobAnalytics": "Análises",
+      "parseConfigs": "Configurações de análise",
+      "experiments": "Experimentos"
     },
     "systemTitle": "Saúde do sistema",
     "systemDesc": "Status do banco, contagens, config e catálogo de funções RBAC.",
@@ -305,7 +308,13 @@
       "inspect": "Inspecionar",
       "frameCount": "Frames",
       "totalTime": "Tempo total",
-      "ocrTime": "Tempo OCR"
+      "ocrTime": "Tempo OCR",
+      "bucketFilter": "Categoria",
+      "ratingFilter": "Avaliação",
+      "allRatings": "Todas",
+      "passFilter": "Passagem",
+      "allPasses": "Todas as passagens",
+      "analyticsLink": "Análises"
     },
     "videoJobDetailPage": {
       "loading": "Carregando detalhes do job…",
@@ -347,7 +356,30 @@
       "surveyTitle": "Pesquisa pré-upload",
       "surveyRowCount": "Estimativa de linhas",
       "surveyScrollStyle": "Estilo de rolagem",
-      "surveyAboveAvg": "Mais rápido que o habitual"
+      "surveyAboveAvg": "Mais rápido que o habitual",
+      "viewMode": {
+        "list": "Lista",
+        "gallery": "Galeria",
+        "video": "Apresentação"
+      },
+      "galleryPrev": "Frame anterior",
+      "galleryNext": "Próximo frame",
+      "frameZoom": "Zoom",
+      "videoPlay": "▶ Reproduzir",
+      "videoPause": "⏸ Pausar",
+      "videoFps": "Velocidade (fps)",
+      "videoDuration": "Duração estimada: {duration}",
+      "qualityBucket": "Categoria de qualidade",
+      "siblingPasses": "Passagens do grupo de upload",
+      "passSelected": "Selecionado pelo usuário",
+      "passAccuracyVoted": "Voto de precisão",
+      "passRecommended": "Escolha do sistema",
+      "galleryStatsTitle": "Stats do frame atual",
+      "statsColFrame": "Frame",
+      "statsColUpload": "Upload",
+      "statsColExtract": "Extração",
+      "statsColEntries": "Entradas",
+      "statsColError": "Erro OCR"
     },
     "auditPage": {
       "loading": "Carregando log de auditoria…",
@@ -400,6 +432,180 @@
       "email": "E-mail",
       "displayName": "Nome exibido",
       "platform": "Mantenedor da plataforma"
+    },
+    "parseConfigsPage": {
+      "title": "Configurações de análise",
+      "subtitle": "Configurações de análise para passagens de processamento de vídeo.",
+      "newConfig": "Nova configuração",
+      "cancel": "Cancelar",
+      "create": "Criar configuração",
+      "saving": "Salvando…",
+      "saveFailed": "Falha ao salvar",
+      "loadFailed": "Falha ao carregar",
+      "loading": "Carregando…",
+      "empty": "Nenhuma configuração ainda.",
+      "statusFilter": "Status",
+      "allStatuses": "Todos os status",
+      "changeStatus": "Alterar status",
+      "viewExperiments": "Ver experimentos",
+      "form": {
+        "name": "Nome",
+        "passKey": "Chave da passagem",
+        "passKeyHelp": "Identificador de máquina usado em análises (ex.: scene_0.33). Deve ser único.",
+        "description": "Descrição",
+        "mode": "Modo",
+        "modeHelp": "Detecção de cena extrai frames apenas quando a imagem muda significativamente — bom para placares. FPS extrai um número fixo de frames por segundo — mais simples, mas pode perder ou duplicar frames.",
+        "sceneThreshold": "Limiar de cena (0,01–1,0)",
+        "sceneThresholdHelp": "Quão diferentes dois frames precisam ser para capturar um novo frame. Valores baixos (ex.: 0,1) = mais frames, mais lento, capta mudanças sutis. Valores altos (ex.: 0,5) = menos frames, mais rápido, pode perder atualizações de pontuação.",
+        "sampleFps": "FPS de amostra",
+        "sampleFpsHelp": "Frames capturados por segundo (para modo FPS, ou como limite no modo cena). Maior = mais completo, porém maior custo de armazenamento e processamento.",
+        "notes": "Notas"
+      },
+      "col": {
+        "name": "Nome",
+        "passKey": "Chave",
+        "config": "Config",
+        "status": "Status",
+        "actions": "Ações"
+      }
+    },
+    "experimentsPage": {
+      "title": "Experimentos",
+      "subtitle": "Campanhas A/B para testar configurações de análise.",
+      "newCampaign": "Nova campanha",
+      "cancel": "Cancelar",
+      "create": "Criar campanha",
+      "saving": "Salvando…",
+      "saveFailed": "Falha ao salvar",
+      "loadFailed": "Falha ao carregar",
+      "loading": "Carregando…",
+      "empty": "Nenhum experimento ainda.",
+      "statusFilter": "Status",
+      "all": "Todos",
+      "arms": {
+        "title": "Grupos",
+        "add": "Adicionar grupo",
+        "deltaNote": "Δ vs controle mostra a diferença em pontos percentuais de 👍.",
+        "col": {
+          "name": "Grupo",
+          "config": "Config",
+          "weight": "Peso",
+          "jobs": "Jobs",
+          "rated": "Avaliados",
+          "thumbsUp": "👍 %",
+          "avgQuality": "Qualidade média",
+          "delta": "Δ vs ctrl",
+          "buckets": "Baldes"
+        },
+        "form": {
+          "name": "Nome do grupo",
+          "configId": "ID da config",
+          "configIdPlaceholder": "id do parseConfig",
+          "weight": "Peso",
+          "isControl": "Grupo de controle",
+          "save": "Adicionar grupo"
+        }
+      },
+      "started": "Iniciado",
+      "concluded": "Concluído",
+      "startCampaign": "Iniciar campanha",
+      "pause": "Pausar",
+      "resume": "Retomar",
+      "conclude": "Concluir",
+      "concludeTitle": "Concluir experimento",
+      "concludeHint": "Escreva um resumo dos resultados antes de concluir.",
+      "conclusionPlaceholder": "Ex.: scene_0.33 mostrou taxa 12pp maior no zombie_siege vs controle…",
+      "confirmConclude": "Confirmar conclusão",
+      "outcome": "Resultado",
+      "backToList": "Voltar aos experimentos",
+      "form": {
+        "name": "Nome",
+        "scoreTarget": "Alvo de pontuação (formato do evento)",
+        "boardKey": "Chave do quadro (opcional)",
+        "boardKeyPlaceholder": "kills, resources, points — deixe em branco para todos",
+        "trafficPercent": "Tráfego %",
+        "hypothesis": "Hipótese",
+        "hypothesisPlaceholder": "Ex.: scene_0.33 melhorará a precisão no Zombie Siege",
+        "description": "Descrição",
+        "scopeWarning": "⚠ O alvo de pontuação é obrigatório e deve corresponder a um único formato de evento."
+      },
+      "population": {
+        "title": "População",
+        "hint": "Grupos de envio atribuídos a este experimento. Verifique o escopo antes de concluir.",
+        "mixedWarning": "Múltiplos tipos de evento detectados. Os resultados podem não ser comparáveis.",
+        "noData": "Nenhum envio atribuído ainda.",
+        "col": {
+          "scoreTarget": "Alvo",
+          "boardKey": "Quadro",
+          "hqEvent": "Evento HQ",
+          "jobs": "Grupos"
+        }
+      },
+      "chart": {
+        "title": "% de 👍 ao longo do tempo",
+        "hint": "Taxa de 👍 por grupo desde o início da campanha.",
+        "started": "Iniciado",
+        "noData": "Dados insuficientes para renderizar o gráfico."
+      },
+      "promote": {
+        "title": "Promover grupo vencedor como passagem principal",
+        "hint": "Criar uma atribuição de configuração torna a configuração do grupo selecionado o padrão para novos uploads com este score target. Vídeos já processados não serão reprocessados.",
+        "selectArm": "Selecionar grupo para promover",
+        "notes": "Notas (opcional)",
+        "notesPlaceholder": "ex.: scene_0.33 superou o controle em 12pp no zombie_siege",
+        "confirmCta": "Criar atribuição",
+        "successTitle": "Atribuição de configuração criada",
+        "successHint": "Novos uploads para este score target usarão a configuração promovida como passagem principal.",
+        "conflictError": "Já existe uma atribuição para este escopo. Acesse Configurações de análise para atualizá-la.",
+        "noVariantArms": "Nenhum grupo variante com configuração disponível para promover."
+      },
+      "lowSampleWarning": "Apenas {count} grupo(s) avaliado(s) neste grupo. Tente obter pelo menos 30 grupos avaliados por grupo antes de concluir.",
+      "arms": {
+        "loadConfigs": "Carregando configurações…",
+        "configDefault": "Padrão (sem passagem shadow — comportamento do grupo controle)",
+        "configPickerLabel": "Configuração de análise"
+      }
+    },
+    "analyticsPage": {
+      "title": "Análises de jobs de vídeo",
+      "subtitle": "Desempenho agregado de passagens por tipo de evento.",
+      "loading": "Carregando…",
+      "loadFailed": "Falha ao carregar análises",
+      "noData": "Sem dados para os filtros selecionados.",
+      "experimentsLink": "Experimentos",
+      "mixedWarning": "Exibindo resultados de múltiplos tipos de evento — as métricas não são diretamente comparáveis. Selecione um tipo específico.",
+      "passKeyPerformance": "desempenho de passagem",
+      "ratingReasons": "Motivos de avaliação negativa",
+      "filter": {
+        "scoreTarget": "Tipo de evento",
+        "allTargets": "Todos os tipos",
+        "passKey": "Passagem",
+        "allPasses": "Todas",
+        "window": "Período",
+        "allTime": "Tudo"
+      },
+      "kpi": {
+        "totalRated": "Total avaliado",
+        "of": "de",
+        "jobs": "jobs",
+        "thumbsUpRate": "Taxa de 👍",
+        "mixed": "tipos mistos",
+        "recommendationAccuracy": "Precisão da recomendação",
+        "decided": "grupos decididos",
+        "overrideRate": "Taxa de substituição",
+        "overrides": "substituições do usuário"
+      },
+      "col": {
+        "pass": "Passagem",
+        "jobs": "Jobs",
+        "rated": "Avaliados",
+        "thumbsUp": "👍 %",
+        "avgQuality": "Qualidade média",
+        "userSelected": "Selecionado",
+        "sysRecommended": "Recomendado",
+        "agreement": "Concordância",
+        "buckets": "Baldes"
+      }
     }
   },
   "team": {
@@ -903,6 +1109,23 @@
     "ratingThumbsDown": "Precisa melhorar",
     "ratingSkip": "Pular",
     "addRow": "Adicionar linha",
+    "comparisonPromptTitle": "Tentamos uma abordagem diferente que pode ter obtido melhores resultados.",
+    "comparisonPromptBody": "Uma segunda passagem encontrou mais linhas únicas. Deseja usar esses resultados?",
+    "comparisonUseBetter": "Usar resultados com mais linhas",
+    "comparisonSideBySide": "Ver lado a lado",
+    "comparisonDismiss": "Manter atual",
+    "comparisonSheetTitle": "Comparar passagens",
+    "comparisonClose": "Fechar",
+    "comparisonLoadingRows": "Carregando…",
+    "comparisonPassHeader": "{pass} ({key}) · {count, plural, one {# linha} other {# linhas}}",
+    "comparisonPrimaryFallback": "primária",
+    "comparisonShadowFallback": "sombra",
+    "comparisonAccuracyPrompt": "Qual foi mais precisa?",
+    "comparisonPassA": "Passagem A",
+    "comparisonPassB": "Passagem B",
+    "comparisonAboutSame": "Praticamente igual",
+    "comparisonUseA": "Usar Passagem A",
+    "comparisonUseB": "Usar Passagem B",
     "statsNerds": {
       "button": "Estatísticas avançadas",
       "title": "Estatísticas avançadas",
@@ -930,8 +1153,30 @@
       "framesSelected": "Frames selecionados",
       "framesBaseline": "Frames de referência",
       "framesSkipped": "Frames ignorados",
-      "ocrOverlap": "Deduplicação OCR"
-    }
+      "ocrOverlap": "Deduplicação OCR",
+      "frameSkipRate": "({rate}% ignorados)",
+      "ocrOverlapSummary": "{raw} brutas → {unique} únicas{overlap}",
+      "ocrOverlapRate": " ({rate}% sobreposição)",
+      "passComparisonTitle": "Comparação de passagens",
+      "passRows": "Linhas",
+      "passMatched": "Correspondidas",
+      "passFrames": "Frames",
+      "passTime": "Tempo",
+      "passOverlap": "{overlap} linhas em ambas · {onlyA} só em A · {onlyB} só em B",
+      "openPassComparison": "Abrir comparação lado a lado"
+    },
+    "eventTitle": "Pontuações do evento",
+    "eventSubtitle": "Estas pontuações foram salvas no Ashed. Corrija membros ou pontuações abaixo e atualize.",
+    "updateScores": "Atualizar {count} pontuações no Ashed",
+    "updateSuccess": "{count} pontuações atualizadas no Ashed.",
+    "ratingThankYou": "Agradecemos seu feedback.",
+    "ratingClose": "Fechar",
+    "ratingReasonPrompt": "O que deu errado no OCR?",
+    "ratingReason_member_match": "Membros identificados incorretamente",
+    "ratingReason_score_parse": "Pontuações incorretas",
+    "ratingReason_wrong_event": "Tipo de evento errado",
+    "ratingReason_frame_quality": "Problemas na extração de frames",
+    "ratingReason_other": "Outro"
   },
   "feedback": {
     "fab": {
@@ -1121,5 +1366,105 @@
     "skip": "Pular por agora",
     "submit": "Enviar notas",
     "submitting": "Salvando…"
+  },
+  "discordBot": {
+    "errors": {
+      "guildNotConfigured": "O rastreamento de VR no Discord ainda não está configurado neste servidor. O dono da aliança deve executar `/link-alliance` com a tag da aliança.",
+      "legacyMisconfigured": "O rastreamento de VR no Discord está mal configurado. Fale com o mantenedor do Alliance HQ.",
+      "unknownUser": "Não foi possível identificar sua conta do Discord.",
+      "unknownCommand": "Comando desconhecido.",
+      "serverError": "Algo deu errado do nosso lado. Tente novamente em instantes.",
+      "guildNotRegistered": "Este servidor do Discord ainda não está vinculado a uma aliança. O dono deve executar `/link-alliance` com a tag (por exemplo LFgo).",
+      "tagNotFound": "Nenhuma aliança encontrada com a tag **{tag}**. Confira a grafia no ashed.online ou use `/link-to-ashed-seat` se a aliança ainda não estiver no Alliance HQ.",
+      "tagNotEligible": "A tag **{tag}** não está habilitada para configuração do bot nesta implantação.",
+      "credentialsRequired": "Conecte as credenciais Ashed primeiro com `/link-to-ashed-seat tag:{tag}`.",
+      "tagAmbiguous": "Encontramos várias alianças com a tag **{tag}**. Use `/link-alliance tag:{tag} name:Nome da Aliança` para escolher a correta.",
+      "notOwner": "Somente o dono da aliança pode registrar este servidor. Complete `/link` primeiro e tente de novo.",
+      "linkFirst": "Complete `/link` com seu nome e UID no jogo antes de registrar o servidor.",
+      "invalidLanguage": "Escolha English ou Português.",
+      "nothingPending": "Nada para escolher agora.",
+      "noWalkthrough": "Nenhum tutorial em andamento.",
+      "noConfirm": "Nada para confirmar agora."
+    },
+    "link": {
+      "usage": "Uso: `/link name:… uid:…`. Adicione outro personagem quando quiser; use `replace:true` para trocar o vínculo. `/unlink` remove um.",
+      "linked": "Vinculado a **{name}**. Você já pode usar /vr.",
+      "linkedAdditional": "Outro personagem vinculado: **{name}**. Com mais de um, use /vr e escolha qual personagem.",
+      "updated": "Vínculo atualizado para **{name}**.",
+      "replaced": "Vínculo trocado para **{name}**.",
+      "capReached": "Você já atingiu o máximo de personagens vinculados ({max}). Use `/unlink` ou `/link replace:true`.",
+      "memberTaken": "Esse membro no jogo já está vinculado a outra conta do Discord.",
+      "fuzzyPrompt": "Verificamos **{gameName}**, mas não achamos uma correspondência exata no roster. Escolha seu membro:",
+      "rosterMiss": "Não encontramos esse nome no roster. Toque em **Começar de novo** para instruções de cópia ou peça ajuda a um oficial.",
+      "pickExpired": "Essa opção expirou. Execute `/link` novamente.",
+      "walkthroughDone": "Ótimo. Execute `/link` de novo com o nome e UID copiados quando estiver pronto.",
+      "walkthroughIntro": "Vamos recomeçar.",
+      "walkthroughTapDone": "Toque em **Concluído** quando terminar esta etapa.",
+      "nameMismatchIntro": "Toque em **Concluído** quando terminar esta etapa.",
+      "steps": [
+        "Abra o jogo.",
+        "Toque na foto do avatar para abrir o menu Perfil do Jogador.",
+        "Toque no menu \"...\" no canto superior direito para abrir o menu Perfil.",
+        "Toque em \"Copiar\" ao lado do seu nome nessa tela.",
+        "Execute `/link` de novo e cole o nome copiado com seu UID."
+      ]
+    },
+    "vr": {
+      "notLinked": "Sua conta do Discord ainda não está vinculada. Execute `/link` com seu nome e UID no jogo primeiro.",
+      "pickCharacter": "Para qual personagem é este VR?",
+      "success": "Entendido! Parabéns por {vr} VR.",
+      "downgradeLimit": "O VR base não pode cair mais de um degrau (250) abaixo do seu recorde da temporada ({seasonHigh}).",
+      "maxVr": "Você está no VR base máximo que rastreamos ({max}).",
+      "stillWaiting": "Ainda aguardando: tem certeza que é {vr}? Toque Sim ou Não.",
+      "declined": "Sem problemas. Envie /vr com o VR base corrigido quando estiver pronto.",
+      "anomalyConfirm": "Tem *certeza* que seu VR é {vr}? Isso ficaria bem à frente do grupo em VR base. Toque Sim se for sério — acreditamos em você (provavelmente)."
+    },
+    "setup": {
+      "linkAllianceSuccess": "Este servidor está registrado para **{tag}**. Membros já podem usar `/link` e `/vr`.",
+      "linkAshedSeatPrompt": "Clique no link abaixo para conectar suas credenciais Ashed com segurança para **{tag}** (expira em 30 min):\n{url}\n\nApós conectar, execute `/link` com seu nome e UID no jogo, depois `/link-alliance tag:{tag}`.",
+      "languageSuccess": "Idioma atualizado."
+    },
+    "buttons": {
+      "yes": "Sim",
+      "no": "Não",
+      "done": "Concluído",
+      "startOver": "Começar de novo",
+      "askOfficer": "Pedir ajuda a um oficial"
+    },
+    "officerNotified": "Um oficial foi notificado no Alliance HQ. Eles podem falar com você aqui no Discord.",
+    "help": {
+      "dmGeneral": "**Bot Alliance HQ** — use no servidor da aliança:\n• `/help` — este guia\n• `/link` — vincule seu perfil no jogo\n• `/vr` ou `/immunity` — informe VR base\n• `/language` — English ou Português\n\nDonos (com assento Ashed) usam `/link-to-ashed-seat` e `/link-alliance`.",
+      "setupOwnerAuth": "Este servidor ainda não está configurado. **Dono (com assento Ashed):** execute `/link-to-ashed-seat tag:SuaTag` para receber um link seguro de conexão Ashed. Depois `/link` e `/link-alliance tag:SuaTag`. Membros usam `/link` após isso.",
+      "setupLinkAlliance": "Este servidor ainda não está registrado. **Dono:** `/link-alliance tag:SuaTag` (complete `/link` e `/link-to-ashed-seat` antes).",
+      "setupOwnerLinkAfterAuth": "Credenciais Ashed conectadas. **Dono:** `/link name:… uid:…` com seu perfil no jogo, depois `/link-alliance tag:SuaTag` para membros poderem vincular.",
+      "waitForOwnerAuth": "Aguardando o dono conectar o Ashed (`/link-to-ashed-seat`). Depois você pode `/link` com nome e UID do jogo.",
+      "linkProfile": "Vincule seu perfil: `/link name:… uid:…` (copie do jogo). Precisa de passos? Use `/link` com nome errado e toque **Concluído** no tutorial.",
+      "memberReady": "Você está vinculado. Use `/vr` ou `/immunity` quando o VR base mudar. `/help` a qualquer momento.",
+      "memberReadyMulti": "Você tem **{count}** personagens vinculados. `/vr` pedirá qual personagem. `/unlink` remove um; `/link` adiciona outro.",
+      "ownerReady": "Você está vinculado como dono (**{tag}**). Membros usam `/link` e `/vr`. Execute `/link-to-ashed-seat` novamente se a sincronização falhar.",
+      "ownerReadyMulti": "Dono com **{count}** personagens. `/vr` pergunta qual personagem. `/unlink` ou `/link replace:true` para gerenciar vínculos."
+    },
+    "unlink": {
+      "none": "Nenhum personagem vinculado neste servidor. Execute `/link` primeiro.",
+      "pickCharacter": "Qual personagem devo desvincular?",
+      "success": "Desvinculado **{name}**. Execute `/link` para conectar de novo.",
+      "nameNotFound": "Nenhum personagem vinculado corresponde a **{name}**. Use `/unlink` sem nome para escolher na lista.",
+      "expired": "Essa opção expirou. Execute `/unlink` novamente."
+    }
+  },
+  "discordAuthorize": {
+    "heading": "Conectar Credenciais Ashed",
+    "subheading": "Insira sua chave de conexão Ashed abaixo. Ela é enviada com segurança via HTTPS e nunca passa pelo Discord.",
+    "tagLabel": "Tag da aliança",
+    "keyLabel": "Chave de conexão Ashed",
+    "keyHint": "Encontre em ashed.online em Configurações → Chave de Conexão. Trate como uma senha.",
+    "submit": "Conectar",
+    "submitting": "Verificando…",
+    "successHeading": "Conectado!",
+    "successBody": "Credenciais Ashed para {tag} salvas. Volte ao Discord, execute `/link` com seu nome e UID no jogo, depois `/link-alliance tag:{tag}`.",
+    "errorPrefix": "Algo deu errado:",
+    "missingNonce": "Nenhum link de autorização encontrado. Volte ao Discord e execute `/link-to-ashed-seat` para obter um novo link.",
+    "expiredHeading": "Link expirado ou já usado",
+    "expiredBody": "Volte ao Discord e execute `/link-to-ashed-seat` novamente para obter um link novo."
   }
 }
