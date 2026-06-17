@@ -28,6 +28,11 @@ export type LinkPendingState =
       gameUid: string;
       gameUserName: string;
       reportedName: string;
+    }
+  | {
+      kind: "pick_alliance_by_name";
+      tag: string;
+      candidates: Array<{ allianceId: string; name: string; tag: string }>;
     };
 
 export type LinkCommandResult = {

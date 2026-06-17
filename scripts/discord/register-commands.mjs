@@ -15,50 +15,170 @@ if (!token || !applicationId) {
   process.exit(1);
 }
 
+const vrLevelOption = {
+  name: "level",
+  description: "Base VR (multiple of 250)",
+  description_localizations: {
+    "pt-BR": "VR base (múltiplo de 250)",
+  },
+  type: 4,
+  min_value: 250,
+  max_value: 12750,
+  required: false,
+};
+
 const commandBody = [
   {
     name: "link",
     description: "Link your Discord account to your in-game member",
+    description_localizations: {
+      "pt-BR": "Vincule sua conta do Discord ao seu membro no jogo",
+    },
     options: [
       {
         name: "name",
-        description: "Your in-game name (exact copy from profile)",
+        description:
+          "Your in-game name. Copy it exactly from your in-game profile.",
+        description_localizations: {
+          "pt-BR":
+            "Seu nome no jogo. Copie exatamente do perfil dentro do jogo.",
+        },
         type: 3,
         required: true,
       },
       {
         name: "uid",
-        description: "Your 12–16 digit UID ending in 1203",
+        description:
+          "Your 12–16 digit player ID, ending in your server number.",
+        description_localizations: {
+          "pt-BR":
+            "Seu ID de jogador com 12–16 dígitos, terminando no número do servidor.",
+        },
+        type: 3,
+        required: true,
+      },
+      {
+        name: "replace",
+        description:
+          "Replace all your linked characters with this one (switch main character).",
+        description_localizations: {
+          "pt-BR":
+            "Substitui todos os personagens vinculados por este (trocar personagem principal).",
+        },
+        type: 5,
+        required: false,
+      },
+    ],
+  },
+  {
+    name: "help",
+    description: "Show what to do next based on your setup progress",
+    description_localizations: {
+      "pt-BR": "Mostra o próximo passo conforme seu progresso de configuração",
+    },
+  },
+  {
+    name: "unlink",
+    description: "Remove a linked in-game character from your Discord account",
+    description_localizations: {
+      "pt-BR": "Remove um personagem vinculado da sua conta do Discord",
+    },
+    options: [
+      {
+        name: "name",
+        description: "Character name to unlink (optional if you have several).",
+        description_localizations: {
+          "pt-BR":
+            "Nome do personagem a desvincular (opcional se você tiver vários).",
+        },
+        type: 3,
+        required: false,
+      },
+    ],
+  },
+  {
+    name: "vr",
+    description: "Bump your base viral resistance (VR) when you level up.",
+    description_localizations: {
+      "pt-BR": "Atualize seu VR base quando subir de nível.",
+    },
+    options: [vrLevelOption],
+  },
+  {
+    name: "immunity",
+    description: "Alias for /vr",
+    description_localizations: {
+      "pt-BR": "Atalho para /vr",
+    },
+    options: [vrLevelOption],
+  },
+  {
+    name: "link-alliance",
+    description: "Register this Discord server for your alliance (owner only).",
+    description_localizations: {
+      "pt-BR": "Registre este servidor do Discord para sua aliança (somente dono).",
+    },
+    options: [
+      {
+        name: "tag",
+        description: "Alliance tag on ashed.online (for example LFgo).",
+        description_localizations: {
+          "pt-BR": "Tag da aliança no ashed.online (por exemplo LFgo).",
+        },
+        type: 3,
+        required: true,
+      },
+      {
+        name: "name",
+        description:
+          "Alliance display name — only if multiple alliances share the same tag.",
+        description_localizations: {
+          "pt-BR":
+            "Nome da aliança — somente se várias alianças usarem a mesma tag.",
+        },
+        type: 3,
+        required: false,
+      },
+    ],
+  },
+  {
+    name: "link-to-ashed-seat",
+    description: "Connect your Ashed seat so the bot can read your alliance roster (owner only).",
+    description_localizations: {
+      "pt-BR":
+        "Conecte seu assento Ashed para o bot ler o roster (somente dono).",
+    },
+    options: [
+      {
+        name: "tag",
+        description: "Alliance tag on ashed.online (for example LFgo).",
+        description_localizations: {
+          "pt-BR": "Tag da aliança no ashed.online (por exemplo LFgo).",
+        },
         type: 3,
         required: true,
       },
     ],
   },
   {
-    name: "vr",
-    description: "Report or bump your base viral resistance",
+    name: "language",
+    description: "Choose bot reply language.",
+    description_localizations: {
+      "pt-BR": "Escolha o idioma das respostas do bot.",
+    },
     options: [
       {
-        name: "level",
-        description: "Base VR (multiple of 250)",
-        type: 4,
-        min_value: 250,
-        max_value: 12750,
-        required: false,
-      },
-    ],
-  },
-  {
-    name: "immunity",
-    description: "Alias for /vr",
-    options: [
-      {
-        name: "level",
-        description: "Base VR (multiple of 250)",
-        type: 4,
-        min_value: 250,
-        max_value: 12750,
-        required: false,
+        name: "locale",
+        description: "Bot language",
+        description_localizations: {
+          "pt-BR": "Idioma do bot",
+        },
+        type: 3,
+        required: true,
+        choices: [
+          { name: "English", value: "English" },
+          { name: "Português (Brasil)", value: "Português" },
+        ],
       },
     ],
   },

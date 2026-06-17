@@ -1,6 +1,8 @@
 import type { AshedMember } from "@/lib/video/member-matcher";
 import { findFuzzyMemberCandidates } from "@/lib/video/member-matcher";
 
+import type { DiscordTranslate } from "@/lib/discord/i18n";
+
 export function normalizeName(value: string): string {
   return value.trim().toLowerCase().replace(/\s+/g, " ");
 }
@@ -31,18 +33,14 @@ export function fuzzyUnlinkedCandidates(
   return findFuzzyMemberCandidates(reportedName, unlinked, { limit });
 }
 
-export const LINK_WALKTHROUGH_STEPS = [
-  "Open the game.",
-  "Tap your avatar picture to open your Player's Profile menu.",
-  'Tap the "..." menu in the top right to open the Profile menu.',
-  'Tap "Copy" next to your name on that screen.',
-  "Run `/link` again and paste that copied name with your UID.",
-] as const;
-
-export function walkthroughMessage(step: number): string {
-  const index = Math.max(0, Math.min(step, LINK_WALKTHROUGH_STEPS.length - 1));
-  const lines = LINK_WALKTHROUGH_STEPS.map((text, i) =>
+export function walkthroughMessage(
+  step: number,
+  translate: DiscordTranslate,
+  steps: readonly string[],
+): string {
+  const index = Math.max(0, Math.min(step, steps.length - 1));
+  const lines = steps.map((text, i) =>
     i === index ? `→ ${text}` : `${i + 1}. ${text}`,
   );
-  return `Let's start over.\n\n${lines.join("\n")}\n\nTap **Done** when you've finished this step.`;
+  return `${translate("link.walkthroughIntro")}\n\n${lines.join("\n")}\n\n${translate("link.walkthroughTapDone")}`;
 }

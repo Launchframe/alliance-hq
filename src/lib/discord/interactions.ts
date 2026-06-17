@@ -28,6 +28,8 @@ export function verifyDiscordInteractionRequest(
 
 export type DiscordInteractionPayload = {
   type: number;
+  guild_id?: string;
+  locale?: string;
   data?: {
     name?: string;
     options?: Array<{ name: string; type: number; value?: unknown }>;
@@ -38,6 +40,12 @@ export type DiscordInteractionPayload = {
   };
   user?: { id?: string; username?: string };
 };
+
+export function interactionGuildId(
+  payload: DiscordInteractionPayload,
+): string | null {
+  return payload.guild_id?.trim() || null;
+}
 
 export function interactionDiscordUserId(
   payload: DiscordInteractionPayload,
@@ -71,10 +79,13 @@ export function parseVrSlashLevel(
 export function parseLinkSlashOptions(payload: DiscordInteractionPayload): {
   name?: string;
   uid?: string;
+  replace?: boolean;
 } {
+  const replaceOption = payload.data?.options?.find((o) => o.name === "replace");
   return {
     name: parseSlashOptionString(payload, "name"),
     uid: parseSlashOptionString(payload, "uid"),
+    replace: replaceOption?.value === true,
   };
 }
 
@@ -83,6 +94,7 @@ export type ParsedButton =
   | { kind: "link_pick"; memberId: string }
   | { kind: "link_walkthrough_done" }
   | { kind: "vr_character"; linkId: string }
+  | { kind: "link_unlink"; linkId: string }
   | { kind: "link_start_over" }
   | { kind: "link_ask_officer" };
 
@@ -103,10 +115,15 @@ export function parseButtonCustomId(
   if (customId === "link:ask_officer") return { kind: "link_ask_officer" };
   const charPick = /^vr:character:(.+)$/.exec(customId);
   if (charPick) return { kind: "vr_character", linkId: charPick[1]! };
+  const unlinkPick = /^link:unlink:(.+)$/.exec(customId);
+  if (unlinkPick) return { kind: "link_unlink", linkId: unlinkPick[1]! };
   return null;
 }
 
-export function buildVrConfirmButtons(proposedVr: number) {
+export function buildVrConfirmButtons(
+  proposedVr: number,
+  labels: { yes: string; no: string },
+) {
   return [
     {
       type: 1,
@@ -114,13 +131,13 @@ export function buildVrConfirmButtons(proposedVr: number) {
         {
           type: 2,
           style: 3,
-          label: "Yes",
+          label: labels.yes.slice(0, 80),
           custom_id: `vr:confirm:${proposedVr}:yes`,
         },
         {
           type: 2,
           style: 4,
-          label: "No",
+          label: labels.no.slice(0, 80),
           custom_id: `vr:confirm:${proposedVr}:no`,
         },
       ],
@@ -146,21 +163,22 @@ export function buildLinkFuzzyButtons(
 
 export function buildCharacterPickerButtons(
   links: Array<{ linkId: string; label: string }>,
+  prefix: "vr" | "unlink" = "vr",
 ) {
   return [
     {
       type: 1,
       components: links.slice(0, 5).map((l) => ({
         type: 2,
-        style: 1,
+        style: prefix === "unlink" ? 4 : 1,
         label: l.label.slice(0, 80),
-        custom_id: `vr:character:${l.linkId}`,
+        custom_id: `${prefix === "unlink" ? "link:unlink" : "vr:character"}:${l.linkId}`,
       })),
     },
   ];
 }
 
-export function buildWalkthroughDoneButton() {
+export function buildWalkthroughDoneButton(label = "Done") {
   return [
     {
       type: 1,
@@ -168,7 +186,7 @@ export function buildWalkthroughDoneButton() {
         {
           type: 2,
           style: 1,
-          label: "Done",
+          label: label.slice(0, 80),
           custom_id: "link:walkthrough:done",
         },
       ],
@@ -176,7 +194,10 @@ export function buildWalkthroughDoneButton() {
   ];
 }
 
-export function buildLinkFailureButtons() {
+export function buildLinkFailureButtons(labels: {
+  startOver: string;
+  askOfficer: string;
+}) {
   return [
     {
       type: 1,
@@ -184,13 +205,13 @@ export function buildLinkFailureButtons() {
         {
           type: 2,
           style: 2,
-          label: "Start over",
+          label: labels.startOver.slice(0, 80),
           custom_id: "link:start_over",
         },
         {
           type: 2,
           style: 4,
-          label: "Ask an officer",
+          label: labels.askOfficer.slice(0, 80),
           custom_id: "link:ask_officer",
         },
       ],
@@ -203,12 +224,14 @@ type DiscordComponentRow = ReturnType<typeof buildVrConfirmButtons>;
 export function discordMessageResponse(
   content: string,
   components?: DiscordComponentRow,
+  options?: { ephemeral?: boolean },
 ) {
+  const ephemeral = options?.ephemeral ?? false;
   return {
     type: 4,
     data: {
       content,
-      flags: 64,
+      ...(ephemeral ? { flags: 64 } : {}),
       ...(components ? { components } : {}),
     },
   };

@@ -42,11 +42,13 @@ export async function POST(request: Request) {
           allianceId,
           discordUserId,
           answer: body.confirm,
+          locale: "en-US",
         })
       : await handleDiscordVrSlash({
           allianceId,
           discordUserId,
           explicitLevel: body.explicitLevel,
+          locale: "en-US",
         });
 
   return NextResponse.json(result);

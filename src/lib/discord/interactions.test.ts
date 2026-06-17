@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildVrConfirmButtons,
+  discordMessageResponse,
   parseButtonCustomId,
   parseLinkSlashOptions,
   parseVrSlashLevel,
@@ -29,7 +30,7 @@ describe("discord interactions", () => {
           ],
         },
       }),
-    ).toEqual({ name: "PlayerOne", uid: "1234567890121203" });
+    ).toEqual({ name: "PlayerOne", uid: "1234567890121203", replace: false });
   });
 
   it("parses button custom ids", () => {
@@ -48,8 +49,18 @@ describe("discord interactions", () => {
   });
 
   it("builds yes/no buttons for a proposed VR level", () => {
-    const components = buildVrConfirmButtons(7425);
+    const components = buildVrConfirmButtons(7425, { yes: "Yes", no: "No" });
     expect(components[0]?.components).toHaveLength(2);
     expect(components[0]?.components[0]?.custom_id).toBe("vr:confirm:7425:yes");
+  });
+
+  it("defaults discord responses to non-ephemeral", () => {
+    expect(discordMessageResponse("hello").data.flags).toBeUndefined();
+  });
+
+  it("supports ephemeral link replies (UID privacy)", () => {
+    expect(discordMessageResponse("linked", undefined, { ephemeral: true }).data.flags).toBe(
+      64,
+    );
   });
 });

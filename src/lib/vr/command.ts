@@ -1,7 +1,5 @@
-import {
-  anomalyConfirmMessage,
-  shouldAnomalyConfirm,
-} from "@/lib/vr/anomaly";
+import type { DiscordTranslate } from "@/lib/discord/i18n";
+import { shouldAnomalyConfirm } from "@/lib/vr/anomaly";
 import type { VrCommandResult, VrPendingState } from "@/lib/vr/types";
 import {
   formatVrValidationError,
@@ -18,25 +16,24 @@ export type ProcessVrCommandInput = {
   pending: VrPendingState | null;
   reporterCount: number;
   peerMax: number;
+  translate: DiscordTranslate;
 };
 
 export type ProcessVrConfirmationInput = {
   answer: "yes" | "no";
   pending: VrPendingState;
+  translate: DiscordTranslate;
 };
-
-function successReply(vr: number): string {
-  return `Got it! Congrats on ${vr} VR.`;
-}
 
 function applyExplicitLevel(
   value: number,
   input: ProcessVrCommandInput,
 ): VrCommandResult {
+  const { translate: t } = input;
   const seasonHigh = input.seasonHigh ?? 0;
   if (value < maxAllowedDowngrade(seasonHigh)) {
     return {
-      reply: `Base VR can't drop more than one step (250) below your season high of ${seasonHigh}.`,
+      reply: t("vr.downgradeLimit", { seasonHigh }),
       pending: null,
       action: { type: "none" },
     };
@@ -50,7 +47,7 @@ function applyExplicitLevel(
     })
   ) {
     return {
-      reply: anomalyConfirmMessage(value),
+      reply: t("vr.anomalyConfirm", { vr: value }),
       pending: {
         kind: "anomaly_confirm",
         proposedVr: value,
@@ -63,7 +60,7 @@ function applyExplicitLevel(
   }
 
   return {
-    reply: successReply(value),
+    reply: t("vr.success", { vr: value }),
     pending: null,
     action: {
       type: "set_vr",
@@ -74,11 +71,11 @@ function applyExplicitLevel(
 }
 
 export function processVrCommand(input: ProcessVrCommandInput): VrCommandResult {
-  const { explicitLevel, seasonHigh, pending } = input;
+  const { explicitLevel, seasonHigh, pending, translate: t } = input;
 
   if (pending?.kind === "anomaly_confirm" && explicitLevel == null) {
     return {
-      reply: `Still waiting: are you sure it's ${pending.proposedVr}? Tap Yes or No.`,
+      reply: t("vr.stillWaiting", { vr: pending.proposedVr }),
       pending,
       action: { type: "none" },
       needsConfirmation: true,
@@ -102,7 +99,7 @@ export function processVrCommand(input: ProcessVrCommandInput): VrCommandResult 
     current <= 0 ? initialBaseVrForBump() : nextBaseVr(current);
   if (!isValidBaseVr(next)) {
     return {
-      reply: `You're at the max base VR we track (${next - 250}).`,
+      reply: t("vr.maxVr", { max: next - 250 }),
       pending: null,
       action: { type: "none" },
     };
@@ -117,10 +114,10 @@ export function processVrCommand(input: ProcessVrCommandInput): VrCommandResult 
 export function processVrConfirmation(
   input: ProcessVrConfirmationInput,
 ): VrCommandResult {
-  const { answer, pending } = input;
+  const { answer, pending, translate: t } = input;
   if (pending.kind !== "anomaly_confirm") {
     return {
-      reply: "Nothing to confirm right now.",
+      reply: t("errors.noConfirm"),
       pending: null,
       action: { type: "none" },
     };
@@ -128,14 +125,14 @@ export function processVrConfirmation(
 
   if (answer === "no") {
     return {
-      reply: "No problem. Send /vr with your corrected base VR when ready.",
+      reply: t("vr.declined"),
       pending: null,
       action: { type: "none" },
     };
   }
 
   return {
-    reply: successReply(pending.proposedVr),
+    reply: t("vr.success", { vr: pending.proposedVr }),
     pending: null,
     action: {
       type: "set_vr",
