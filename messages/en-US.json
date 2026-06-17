@@ -361,6 +361,9 @@
       "videoDuration": "Est. duration: {duration}",
       "qualityBucket": "Quality bucket",
       "siblingPasses": "Upload group passes",
+      "passSelected": "User selected",
+      "passAccuracyVoted": "Accuracy vote",
+      "passRecommended": "System pick",
       "galleryStatsTitle": "Current frame stats",
       "statsColFrame": "Frame",
       "statsColUpload": "Upload",
@@ -913,8 +916,20 @@
     "eventSubtitle": "These scores were saved to Ashed. Fix member matches or scores below, then update.",
     "updateScores": "Update {count} scores in Ashed",
     "updateSuccess": "Updated {count} scores in Ashed.",
-    "ratingThankYou": "We appreciate your feedback.",
-    "ratingClose": "Close"
+      "ratingThankYou": "We appreciate your feedback.",
+      "ratingClose": "Close",
+      "ratingReasonPrompt": "What needs work?",
+      "ratingReason_member_match": "Wrong member matched",
+      "ratingReason_score_parse": "Score parsed incorrectly",
+      "ratingReason_wrong_event": "Wrong event type",
+      "ratingReason_frame_quality": "Frame too blurry / cropped",
+      "ratingReason_other": "Something else",
+    "ratingReasonPrompt": "What went wrong with the OCR?",
+    "ratingReason_member_match": "Wrong member matches",
+    "ratingReason_score_parse": "Incorrect scores",
+    "ratingReason_wrong_event": "Wrong event type",
+    "ratingReason_frame_quality": "Frame extraction issues",
+    "ratingReason_other": "Other"
   },
   "feedback": {
     "fab": {

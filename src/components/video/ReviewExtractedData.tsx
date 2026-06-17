@@ -24,7 +24,7 @@ import { isVideoProcessTimings } from "@/lib/video/pipeline-stats-display";
 import { VideoPipelineStatsButton } from "@/components/video/VideoPipelineStatsDialog";
 import { accountTodayCalendarDate } from "@/lib/timezone/format";
 import { PassComparisonSheet } from "@/components/video/PassComparisonSheet";
-import { OcrRatingPrompt } from "@/components/video/OcrRatingPrompt";
+import { OcrRatingPrompt, type OcrRatingReason } from "@/components/video/OcrRatingPrompt";
 import type { PassComparison } from "@/lib/video/compare-pass-results";
 
 type ParsedRow = {
@@ -654,13 +654,14 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
 
   async function persistJobRating(
     rating: "thumbs_up" | "thumbs_down",
+    reason?: OcrRatingReason,
   ): Promise<boolean> {
     setJobRating(rating);
     try {
       const res = await fetch(`/api/tools/video-upload/${jobId}/rating`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rating }),
+        body: JSON.stringify({ rating, ratingReason: reason }),
       });
       if (!res.ok) {
         const data = (await res.json()) as { error?: string };

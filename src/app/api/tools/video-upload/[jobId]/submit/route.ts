@@ -55,6 +55,8 @@ export async function POST(request: Request, { params }: Props) {
     fileName: string | null;
     scoreTarget: string | null;
     category: string | null;
+    /** Status before we wrote "submitting" — used for rollback so event-view re-submits roll back to "complete", not "review". */
+    originalStatus: string;
   } | null = null;
 
   try {
@@ -95,6 +97,7 @@ export async function POST(request: Request, { params }: Props) {
       fileName: job.fileName,
       scoreTarget: job.scoreTarget,
       category: job.category,
+      originalStatus: job.status,
     };
 
     const scoreTargetId = job.scoreTarget ?? job.category ?? "desert-storm";
@@ -382,20 +385,23 @@ export async function POST(request: Request, { params }: Props) {
       ...solicitedPayload,
     });
   } catch (error) {
-    if (advancedToSubmitting) {
+    if (advancedToSubmitting && jobSnapshot) {
       try {
         const db = getDb();
+        const rollbackStatus = jobSnapshot.originalStatus === "complete"
+          ? "complete"
+          : "review";
         await db
           .update(schema.videoJobs)
-          .set({ status: "review", updatedAt: new Date() })
+          .set({ status: rollbackStatus, updatedAt: new Date() })
           .where(eq(schema.videoJobs.id, jobId));
         await emitVideoJobStatus({
           sessionId: session.id,
           jobId,
-          status: "review",
-          fileName: jobSnapshot?.fileName ?? null,
+          status: rollbackStatus,
+          fileName: jobSnapshot.fileName ?? null,
           scoreTarget:
-            jobSnapshot?.scoreTarget ?? jobSnapshot?.category ?? null,
+            jobSnapshot.scoreTarget ?? jobSnapshot.category ?? null,
           errorMessage: null,
         });
       } catch {

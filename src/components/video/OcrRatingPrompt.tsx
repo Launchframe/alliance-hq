@@ -8,16 +8,27 @@ import { fireCelebrationConfetti } from "@/lib/client/celebration-confetti";
 
 export type OcrJobRating = "thumbs_up" | "thumbs_down";
 
+/** Preset reason buckets for negative OCR ratings. */
+export const OCR_RATING_REASONS = [
+  "member_match",
+  "score_parse",
+  "wrong_event",
+  "frame_quality",
+  "other",
+] as const;
+
+export type OcrRatingReason = (typeof OCR_RATING_REASONS)[number];
+
 type Props = {
   onClose: () => void;
-  onRate: (rating: OcrJobRating) => Promise<boolean>;
+  onRate: (rating: OcrJobRating, reason?: OcrRatingReason) => Promise<boolean>;
 };
 
 const AUTO_CLOSE_MS = 5000;
 
 export function OcrRatingPrompt({ onClose, onRate }: Props) {
   const t = useTranslations("videoReview");
-  const [phase, setPhase] = useState<"pick" | "thanks">("pick");
+  const [phase, setPhase] = useState<"pick" | "reason" | "thanks">("pick");
 
   useEffect(() => {
     if (phase !== "thanks") return;
@@ -27,13 +38,27 @@ export function OcrRatingPrompt({ onClose, onRate }: Props) {
 
   const handlePick = useCallback(
     async (rating: OcrJobRating) => {
-      setPhase("thanks");
-      if (rating === "thumbs_up") {
-        fireCelebrationConfetti();
+      if (rating === "thumbs_down") {
+        setPhase("reason");
+        return;
       }
+      // thumbs_up: go straight to thanks + confetti
+      setPhase("thanks");
+      fireCelebrationConfetti();
       const ok = await onRate(rating);
       if (!ok) {
         setPhase("pick");
+      }
+    },
+    [onRate],
+  );
+
+  const handleReason = useCallback(
+    async (reason: OcrRatingReason) => {
+      setPhase("thanks");
+      const ok = await onRate("thumbs_down", reason);
+      if (!ok) {
+        setPhase("reason");
       }
     },
     [onRate],
@@ -75,6 +100,31 @@ export function OcrRatingPrompt({ onClose, onRate }: Props) {
               type="button"
               onClick={onClose}
               className="mt-6 text-sm text-[#8b949e] hover:text-[#e6edf3]"
+            >
+              {t("ratingSkip")}
+            </button>
+          </>
+        ) : phase === "reason" ? (
+          <>
+            <p className="mb-5 text-lg font-medium text-[#e6edf3]">
+              {t("ratingReasonPrompt")}
+            </p>
+            <div className="flex flex-col gap-2">
+              {OCR_RATING_REASONS.map((reason) => (
+                <button
+                  key={reason}
+                  type="button"
+                  onClick={() => void handleReason(reason)}
+                  className="w-full rounded-xl border border-[#30363d] px-4 py-2.5 text-left text-sm text-[#e6edf3] transition-colors hover:border-[#58a6ff] hover:bg-[#58a6ff10]"
+                >
+                  {t(`ratingReason_${reason}`)}
+                </button>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="mt-5 text-sm text-[#8b949e] hover:text-[#e6edf3]"
             >
               {t("ratingSkip")}
             </button>

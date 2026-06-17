@@ -19,6 +19,7 @@ type JobDetail = {
   timingsJson: VideoProcessTimings | null;
   totalFileSizeBytes: number | null;
   rating?: string | null;
+  ratingReason?: string | null;
   qualityBucket?: string | null;
   qualityScore?: number | null;
 };
@@ -79,6 +80,12 @@ type GroupPass = {
   status: string;
 };
 
+type GroupInfo = {
+  selectedJobId: string | null;
+  accuracyJobId: string | null;
+  recommendedJobId: string | null;
+};
+
 type DetailResponse = {
   job: JobDetail;
   frames: FrameRow[];
@@ -89,6 +96,7 @@ type DetailResponse = {
   sameFileResubmits: number;
   survey: SurveyData | null;
   groupPasses?: GroupPass[];
+  groupInfo?: GroupInfo | null;
 };
 
 type TabId = "frames" | "parse" | "timings";
@@ -578,7 +586,7 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
     return <p className="text-sm text-[#8b949e]">{tDetail("loading")}</p>;
   }
 
-  const { job, parsedRows, editCount, deleteCount, addCount, sameFileResubmits, groupPasses } =
+  const { job, parsedRows, editCount, deleteCount, addCount, sameFileResubmits, groupPasses, groupInfo } =
     data;
   const timings = job.timingsJson;
 
@@ -637,7 +645,7 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
             {job.rating === "thumbs_up"
               ? "👍"
               : job.rating === "thumbs_down"
-                ? "👎"
+                ? `👎${job.ratingReason ? ` · ${job.ratingReason}` : ""}`
                 : "—"}
           </p>
         </div>
@@ -691,21 +699,46 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
             {tDetail("siblingPasses")}
           </p>
           <div className="flex flex-wrap gap-2">
-            {groupPasses.map((pass) => (
-              <Link
-                key={pass.id}
-                href={`/admin/video-jobs/${pass.id}`}
-                className={`rounded-lg border px-3 py-1.5 text-sm ${
-                  pass.id === jobId
-                    ? "border-[#58a6ff] text-[#58a6ff]"
-                    : "border-[#30363d] text-[#8b949e] hover:text-[#e6edf3]"
-                }`}
-              >
-                {pass.passKey ?? pass.passRole ?? pass.id.slice(0, 8)}
-                {" · "}
-                {pass.status}
-              </Link>
-            ))}
+            {groupPasses.map((pass) => {
+              const isSelected = groupInfo?.selectedJobId === pass.id;
+              const isAccuracy = groupInfo?.accuracyJobId === pass.id;
+              const isRecommended = groupInfo?.recommendedJobId === pass.id;
+              return (
+                <div key={pass.id} className="flex flex-col gap-1">
+                  <Link
+                    href={`/admin/video-jobs/${pass.id}`}
+                    className={`rounded-lg border px-3 py-1.5 text-sm ${
+                      pass.id === jobId
+                        ? "border-[#58a6ff] text-[#58a6ff]"
+                        : "border-[#30363d] text-[#8b949e] hover:text-[#e6edf3]"
+                    }`}
+                  >
+                    {pass.passKey ?? pass.passRole ?? pass.id.slice(0, 8)}
+                    {" · "}
+                    {pass.status}
+                  </Link>
+                  {(isSelected || isAccuracy || isRecommended) ? (
+                    <div className="flex flex-wrap gap-1">
+                      {isSelected ? (
+                        <span className="rounded px-1.5 py-0.5 text-[10px] font-medium bg-[#3fb95020] text-[#3fb950]">
+                          {tDetail("passSelected")}
+                        </span>
+                      ) : null}
+                      {isAccuracy ? (
+                        <span className="rounded px-1.5 py-0.5 text-[10px] font-medium bg-[#58a6ff20] text-[#58a6ff]">
+                          {tDetail("passAccuracyVoted")}
+                        </span>
+                      ) : null}
+                      {isRecommended ? (
+                        <span className="rounded px-1.5 py-0.5 text-[10px] font-medium bg-[#d2992220] text-[#d29922]">
+                          {tDetail("passRecommended")}
+                        </span>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
+              );
+            })}
           </div>
         </div>
       ) : null}
