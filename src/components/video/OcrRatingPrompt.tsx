@@ -9,28 +9,21 @@ import { fireCelebrationConfetti } from "@/lib/client/celebration-confetti";
 export type OcrJobRating = "thumbs_up" | "thumbs_down";
 
 type Props = {
-  open: boolean;
   onClose: () => void;
   onRate: (rating: OcrJobRating) => Promise<boolean>;
 };
 
 const AUTO_CLOSE_MS = 5000;
 
-export function OcrRatingPrompt({ open, onClose, onRate }: Props) {
+export function OcrRatingPrompt({ onClose, onRate }: Props) {
   const t = useTranslations("videoReview");
   const [phase, setPhase] = useState<"pick" | "thanks">("pick");
 
   useEffect(() => {
-    if (open) {
-      setPhase("pick");
-    }
-  }, [open]);
-
-  useEffect(() => {
-    if (!open || phase !== "thanks") return;
+    if (phase !== "thanks") return;
     const timer = window.setTimeout(() => onClose(), AUTO_CLOSE_MS);
     return () => window.clearTimeout(timer);
-  }, [open, phase, onClose]);
+  }, [phase, onClose]);
 
   const handlePick = useCallback(
     async (rating: OcrJobRating) => {
@@ -45,8 +38,6 @@ export function OcrRatingPrompt({ open, onClose, onRate }: Props) {
     },
     [onRate],
   );
-
-  if (!open) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">

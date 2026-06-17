@@ -441,9 +441,9 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   useEffect(() => {
     if (!canComparePasses) return;
     const params = new URLSearchParams(window.location.search);
-    if (params.get("compare") === "1") {
-      setShowComparisonSheet(true);
-    }
+    if (params.get("compare") !== "1") return;
+    const frame = requestAnimationFrame(() => setShowComparisonSheet(true));
+    return () => cancelAnimationFrame(frame);
   }, [canComparePasses, jobId, groupInfo]);
 
   const handleUseBetterPass = useCallback(async () => {
@@ -597,7 +597,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           isSolicited: true,
           delayMs: 1500,
         });
-      } else {
+      } else if (!jobRating) {
         setShowRatingPrompt(true);
       }
     } catch (err) {
@@ -642,7 +642,9 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         return;
       }
       setJobStatus("discarded");
-      setShowRatingPrompt(true);
+      if (!jobRating) {
+        setShowRatingPrompt(true);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : tc("uploadFailed"));
     } finally {
@@ -1159,11 +1161,12 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         ) : null}
       </div>
 
-      <OcrRatingPrompt
-        open={showRatingPrompt}
-        onClose={() => setShowRatingPrompt(false)}
-        onRate={persistJobRating}
-      />
+      {showRatingPrompt ? (
+        <OcrRatingPrompt
+          onClose={() => setShowRatingPrompt(false)}
+          onRate={persistJobRating}
+        />
+      ) : null}
 
       {showComparisonSheet && groupInfo?.group?.comparisonJson ? (
         <PassComparisonSheet

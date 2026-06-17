@@ -55,6 +55,14 @@ export function buildSubmitPayloads(
       });
 
     case "alliance-exercise":
+      return rows.map((row) => ({
+        alliance_id: allianceId,
+        event_id: eventId,
+        member_id: row.memberId,
+        member_name: row.memberName,
+        score: parseScoreNumber(row.score),
+        recorded_date: recordedDate,
+      }));
 
     case "donations":
       return rows.map((row) => ({
