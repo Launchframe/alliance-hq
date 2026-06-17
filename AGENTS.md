@@ -49,3 +49,19 @@ Apply on every Real Steel pass for this repo:
 - **i18n:** bot reply strings in `messages/*/discordBot`; HQ authorize page strings in `messages/*/discordAuthorize`; slash command `description_localizations` pt-BR in `scripts/discord/register-commands.mjs`; per-user locale in `discord_user_prefs` via `/language`.
 - **Deprecation:** do not reintroduce `DISCORD_ALLIANCE_ID` for new bot paths; `resolveAllianceForGuild` may fall back only for legacy deployments. Do not reintroduce a `key:` option on any slash command.
 
+## Discord bot — identity and auth layers
+
+Do **not** conflate **Discord user**, **`discord_member_links` (in-game member)**, **HQ user / session RBAC**, and **Ashed JWT / roster**. They answer different questions on different entry paths (Discord webhook, HQ web, cron/internal).
+
+| Layer | Identity | Typical entry |
+| --- | --- | --- |
+| Discord bot | `discord_user_id` + member link row(s) per alliance | `/api/webhooks/discord/interactions` |
+| HQ web | `hq_users` + `alliance_memberships` / session permission | BFF routes with `requireSessionPermission` |
+| Ashed | Roster, owner, collaborators — **source of truth** for in-game membership | User connect JWT (web) or `alliance_ashed_credentials` (bot roster reads) |
+
+- **Member actions** (`/link`, `/vr`, future quick tasks): prove Discord user ↔ in-game character via `/link` + optional multi-character picker.
+- **Owner setup** (`/link-alliance`, `/link-with-authentication`): prove alliance owner via linked `ownerAshedUserId` or Ashed owner JWT — not merely “has an HQ login.”
+- **Cron / web-triggered jobs:** service or session auth; resolve `allianceId` explicitly; do not impersonate a Discord user.
+
+Detail: [`.cursor/rules/discord-identity-auth-layers.mdc`](.cursor/rules/discord-identity-auth-layers.mdc) (architecture) and [`.cursor/rules/discord-bot-multitenancy.mdc`](.cursor/rules/discord-bot-multitenancy.mdc) (tenant + credentials guardrails).
+
