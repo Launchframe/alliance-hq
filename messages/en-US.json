@@ -360,7 +360,13 @@
       "videoFps": "Speed (fps)",
       "videoDuration": "Est. duration: {duration}",
       "qualityBucket": "Quality bucket",
-      "siblingPasses": "Upload group passes"
+      "siblingPasses": "Upload group passes",
+      "galleryStatsTitle": "Current frame stats",
+      "statsColFrame": "Frame",
+      "statsColUpload": "Upload",
+      "statsColExtract": "Extract",
+      "statsColEntries": "Entries",
+      "statsColError": "OCR error"
     },
     "auditPage": {
       "loading": "Loading audit log…",
@@ -900,8 +906,15 @@
       "passMatched": "Matched",
       "passFrames": "Frames",
       "passTime": "Time",
-      "passOverlap": "{overlap} rows in both · {onlyA} only in A · {onlyB} only in B"
-    }
+      "passOverlap": "{overlap} rows in both · {onlyA} only in A · {onlyB} only in B",
+      "openPassComparison": "Open side-by-side comparison"
+    },
+    "eventTitle": "Event scores",
+    "eventSubtitle": "These scores were saved to Ashed. Fix member matches or scores below, then update.",
+    "updateScores": "Update {count} scores in Ashed",
+    "updateSuccess": "Updated {count} scores in Ashed.",
+    "ratingThankYou": "We appreciate your feedback.",
+    "ratingClose": "Close"
   },
   "feedback": {
     "fab": {

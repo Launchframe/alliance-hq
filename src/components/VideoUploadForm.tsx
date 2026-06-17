@@ -293,10 +293,16 @@ export function VideoUploadForm({ initialJobs }: Props) {
                   </span>
                   {(job.status === "review" || job.status === "complete") && (
                     <Link
-                      href={`/tools/video-upload/${job.id}/review`}
+                      href={
+                        job.status === "complete"
+                          ? `/tools/video-upload/${job.id}/event`
+                          : `/tools/video-upload/${job.id}/review`
+                      }
                       className="text-xs text-[#58a6ff] hover:underline"
                     >
-                      {t("reviewLink")}
+                      {job.status === "complete"
+                        ? t("eventLink")
+                        : t("reviewLink")}
                     </Link>
                   )}
                 </div>

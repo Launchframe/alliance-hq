@@ -3,7 +3,7 @@
 import { useLocale, useTranslations } from "next-intl";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { Link } from "@/i18n/navigation";
+import { Link, useRouter } from "@/i18n/navigation";
 import { useFeedback } from "@/components/feedback";
 import { AppSelect } from "@/components/ui/AppSelect";
 import { useAccountTimezone } from "@/components/timezone/TimezoneProvider";
@@ -24,6 +24,7 @@ import { isVideoProcessTimings } from "@/lib/video/pipeline-stats-display";
 import { VideoPipelineStatsButton } from "@/components/video/VideoPipelineStatsDialog";
 import { accountTodayCalendarDate } from "@/lib/timezone/format";
 import { PassComparisonSheet } from "@/components/video/PassComparisonSheet";
+import { OcrRatingPrompt } from "@/components/video/OcrRatingPrompt";
 import type { PassComparison } from "@/lib/video/compare-pass-results";
 
 type ParsedRow = {
@@ -66,6 +67,7 @@ type ScoreTargetMeta = {
 
 type Props = {
   jobId: string;
+  viewMode?: "review" | "event";
 };
 
 type GroupInfo = {
@@ -94,7 +96,8 @@ function confidenceClass(confidence: number | null): string {
   return "border-[#f85149]";
 }
 
-export function ReviewExtractedData({ jobId }: Props) {
+export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
+  const router = useRouter();
   const t = useTranslations("videoReview");
   const tc = useTranslations("common");
   const tNav = useTranslations("nav");
@@ -132,6 +135,23 @@ export function ReviewExtractedData({ jobId }: Props) {
   const [showComparisonPrompt, setShowComparisonPrompt] = useState(false);
   const [showComparisonSheet, setShowComparisonSheet] = useState(false);
   const [comparisonDismissed, setComparisonDismissed] = useState(false);
+  const isEventView = viewMode === "event";
+
+  useEffect(() => {
+    if (jobStatus === "loading") return;
+    const search = window.location.search;
+    if (viewMode === "review" && jobStatus === "complete") {
+      router.replace(`/tools/video-upload/${jobId}/event${search}`);
+      return;
+    }
+    if (
+      viewMode === "event" &&
+      jobStatus !== "complete" &&
+      jobStatus !== "discarded"
+    ) {
+      router.replace(`/tools/video-upload/${jobId}/review${search}`);
+    }
+  }, [jobId, jobStatus, router, viewMode]);
 
   const rematchMembers = useCallback(async () => {
     setRematching(true);
@@ -359,7 +379,8 @@ export function ReviewExtractedData({ jobId }: Props) {
   ]);
 
   useEffect(() => {
-    if (jobStatus !== "review") return;
+    const groupFetchStatuses = new Set(["review", "complete", "discarded"]);
+    if (!groupFetchStatuses.has(jobStatus)) return;
     void (async () => {
       const res = await fetch(`/api/tools/video-upload/${jobId}/group`);
       if (res.ok) {
@@ -367,6 +388,8 @@ export function ReviewExtractedData({ jobId }: Props) {
         setGroupInfo(data);
         const comp = data.group?.comparisonJson;
         if (
+          viewMode === "review" &&
+          jobStatus === "review" &&
           comp?.recommendedJobId &&
           comp.recommendedJobId !== data.group?.selectedJobId &&
           !comparisonDismissed
@@ -375,7 +398,7 @@ export function ReviewExtractedData({ jobId }: Props) {
         }
       }
     })();
-  }, [jobId, jobStatus, comparisonDismissed]);
+  }, [jobId, jobStatus, comparisonDismissed, viewMode]);
 
   const updateGroupSelection = useCallback(
     async (patch: { selectedJobId?: string; accuracyJobId?: string }) => {
@@ -394,6 +417,34 @@ export function ReviewExtractedData({ jobId }: Props) {
     },
     [groupInfo, tc],
   );
+
+  const canComparePasses = useMemo(
+    () =>
+      (groupInfo?.group?.comparisonJson?.passes.length ?? 0) >= 2,
+    [groupInfo],
+  );
+
+  const openComparisonSheet = useCallback(() => {
+    setShowComparisonSheet(true);
+    const url = new URL(window.location.href);
+    url.searchParams.set("compare", "1");
+    window.history.replaceState({}, "", url);
+  }, []);
+
+  const closeComparisonSheet = useCallback(() => {
+    setShowComparisonSheet(false);
+    const url = new URL(window.location.href);
+    url.searchParams.delete("compare");
+    window.history.replaceState({}, "", url);
+  }, []);
+
+  useEffect(() => {
+    if (!canComparePasses) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("compare") === "1") {
+      setShowComparisonSheet(true);
+    }
+  }, [canComparePasses, jobId, groupInfo]);
 
   const handleUseBetterPass = useCallback(async () => {
     const comp = groupInfo?.group?.comparisonJson;
@@ -529,9 +580,17 @@ export function ReviewExtractedData({ jobId }: Props) {
         setError(data.error ?? tc("uploadFailed"));
         return;
       }
-      setSuccess(t("submitSuccess", { count: data.submitted ?? 0 }));
+      setSuccess(
+        isEventView
+          ? t("updateSuccess", { count: data.submitted ?? 0 })
+          : t("submitSuccess", { count: data.submitted ?? 0 }),
+      );
       setJobStatus("complete");
-      if (data.showSolicitedFeedback && data.solicitedSource) {
+      if (
+        !isEventView &&
+        data.showSolicitedFeedback &&
+        data.solicitedSource
+      ) {
         showExperienceFeedback({
           videoJobId: jobId,
           source: data.solicitedSource,
@@ -591,19 +650,28 @@ export function ReviewExtractedData({ jobId }: Props) {
     }
   }
 
-  async function handleRate(rating: "thumbs_up" | "thumbs_down") {
-    const res = await fetch(`/api/tools/video-upload/${jobId}/rating`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ rating }),
-    });
-    if (!res.ok) {
-      const data = (await res.json()) as { error?: string };
-      setError(data.error ?? tc("uploadFailed"));
-      return;
-    }
+  async function persistJobRating(
+    rating: "thumbs_up" | "thumbs_down",
+  ): Promise<boolean> {
     setJobRating(rating);
-    setShowRatingPrompt(false);
+    try {
+      const res = await fetch(`/api/tools/video-upload/${jobId}/rating`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rating }),
+      });
+      if (!res.ok) {
+        const data = (await res.json()) as { error?: string };
+        setJobRating(null);
+        setError(data.error ?? tc("uploadFailed"));
+        return false;
+      }
+      return true;
+    } catch (err) {
+      setJobRating(null);
+      setError(err instanceof Error ? err.message : tc("uploadFailed"));
+      return false;
+    }
   }
 
   async function handleAddRow() {
@@ -664,22 +732,38 @@ export function ReviewExtractedData({ jobId }: Props) {
           >
             {t("backToUploads")}
           </Link>
-          <VideoPipelineStatsButton
-            timings={timings}
-            fileName={fileName}
-            comparisonJson={groupInfo?.group?.comparisonJson ?? null}
-          />
+          <div className="flex flex-wrap items-center gap-2">
+            {canComparePasses ? (
+              <button
+                type="button"
+                onClick={openComparisonSheet}
+                className="rounded-lg border border-[#30363d] px-3 py-1.5 text-sm text-[#e6edf3] hover:bg-[#21262d]"
+              >
+                {t("comparisonSideBySide")}
+              </button>
+            ) : null}
+            <VideoPipelineStatsButton
+              timings={timings}
+              fileName={fileName}
+              comparisonJson={groupInfo?.group?.comparisonJson ?? null}
+              onOpenComparison={canComparePasses ? openComparisonSheet : undefined}
+            />
+          </div>
         </div>
-        <h1 className="mt-2 text-2xl font-semibold">{t("title")}</h1>
+        <h1 className="mt-2 text-2xl font-semibold">
+          {isEventView ? t("eventTitle") : t("title")}
+        </h1>
         <p className="mt-1 text-sm text-[#8b949e]">
-          {t("summary", {
-            matched: matchedCount,
-            total: activeRows.length,
-          })}
+          {isEventView
+            ? t("eventSubtitle")
+            : t("summary", {
+                matched: matchedCount,
+                total: activeRows.length,
+              })}
         </p>
       </div>
 
-      {activeRows.length === 0 && (
+      {activeRows.length === 0 && !isEventView && (
         <div className="rounded-xl border border-[#d29922]/40 bg-[#d29922]/10 p-4 text-sm">
           <p className="text-[#e3b341]">{t("noEntriesHint")}</p>
           <button
@@ -716,7 +800,10 @@ export function ReviewExtractedData({ jobId }: Props) {
         </div>
       )}
 
-      {showComparisonPrompt && groupInfo?.group && !showComparisonSheet ? (
+      {showComparisonPrompt &&
+        !isEventView &&
+        groupInfo?.group &&
+        !showComparisonSheet ? (
         <div className="rounded-xl border border-[#58a6ff] bg-[#58a6ff10] p-4">
           <p className="font-medium text-[#e6edf3]">{t("comparisonPromptTitle")}</p>
           <p className="mt-1 text-sm text-[#8b949e]">{t("comparisonPromptBody")}</p>
@@ -731,7 +818,7 @@ export function ReviewExtractedData({ jobId }: Props) {
               </button>
               <button
                 type="button"
-                onClick={() => setShowComparisonSheet(true)}
+                onClick={openComparisonSheet}
                 className="hidden rounded-lg border border-[#30363d] px-3 py-1.5 text-sm hover:bg-[#21262d] sm:inline-flex"
               >
                 {t("comparisonSideBySide")}
@@ -749,7 +836,7 @@ export function ReviewExtractedData({ jobId }: Props) {
             </div>
             <button
               type="button"
-              onClick={() => setShowComparisonSheet(true)}
+              onClick={openComparisonSheet}
               className="self-start text-sm text-[#58a6ff] hover:underline sm:hidden"
             >
               {t("comparisonSideBySide")}
@@ -1052,8 +1139,11 @@ export function ReviewExtractedData({ jobId }: Props) {
         >
           {submitting
             ? t("submitting")
-            : t("saveScores", { count: activeRows.length })}
+            : isEventView
+              ? t("updateScores", { count: activeRows.length })
+              : t("saveScores", { count: activeRows.length })}
         </button>
+        {!isEventView ? (
         <button
           type="button"
           disabled={
@@ -1066,55 +1156,21 @@ export function ReviewExtractedData({ jobId }: Props) {
         >
           {discarding ? tc("loading") : t("discardResults")}
         </button>
+        ) : null}
       </div>
 
-      {showRatingPrompt && !jobRating ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
-          <div className="mx-4 w-full max-w-sm rounded-2xl border border-[#30363d] bg-[#161b22] p-8 text-center">
-            <p className="mb-6 text-lg font-medium text-[#e6edf3]">
-              {t("ratingPrompt")}
-            </p>
-            <div className="flex justify-center gap-6">
-              <button
-                type="button"
-                onClick={() => void handleRate("thumbs_up")}
-                className="flex flex-col items-center gap-2 rounded-xl border border-[#30363d] p-4 text-3xl transition-colors hover:border-[#3fb950] hover:bg-[#3fb95010]"
-                aria-label={t("ratingThumbsUp")}
-              >
-                👍
-                <span className="text-xs text-[#8b949e]">
-                  {t("ratingThumbsUp")}
-                </span>
-              </button>
-              <button
-                type="button"
-                onClick={() => void handleRate("thumbs_down")}
-                className="flex flex-col items-center gap-2 rounded-xl border border-[#30363d] p-4 text-3xl transition-colors hover:border-[#f85149] hover:bg-[#f8514910]"
-                aria-label={t("ratingThumbsDown")}
-              >
-                👎
-                <span className="text-xs text-[#8b949e]">
-                  {t("ratingThumbsDown")}
-                </span>
-              </button>
-            </div>
-            <button
-              type="button"
-              onClick={() => setShowRatingPrompt(false)}
-              className="mt-6 text-sm text-[#8b949e] hover:text-[#e6edf3]"
-            >
-              {t("ratingSkip")}
-            </button>
-          </div>
-        </div>
-      ) : null}
+      <OcrRatingPrompt
+        open={showRatingPrompt}
+        onClose={() => setShowRatingPrompt(false)}
+        onRate={persistJobRating}
+      />
 
       {showComparisonSheet && groupInfo?.group?.comparisonJson ? (
         <PassComparisonSheet
           groupId={groupInfo.group.id}
           comparison={groupInfo.group.comparisonJson}
           passes={groupInfo.passes}
-          onClose={() => setShowComparisonSheet(false)}
+          onClose={closeComparisonSheet}
           onSelectJob={(selectedJobId: string) => {
             void (async () => {
               const ok = await updateGroupSelection({ selectedJobId });

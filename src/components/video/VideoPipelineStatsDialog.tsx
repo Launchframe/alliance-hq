@@ -22,6 +22,7 @@ type Props = {
   timings: VideoProcessTimings | null;
   fileName?: string | null;
   comparisonJson?: PassComparison | null;
+  onOpenComparison?: () => void;
 };
 
 function formatBytes(bytes: number | null | undefined): string {
@@ -34,7 +35,12 @@ function formatBytes(bytes: number | null | undefined): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-export function VideoPipelineStatsButton({ timings, fileName, comparisonJson }: Props) {
+export function VideoPipelineStatsButton({
+  timings,
+  fileName,
+  comparisonJson,
+  onOpenComparison,
+}: Props) {
   const t = useTranslations("videoReview.statsNerds");
   const [open, setOpen] = useState(false);
 
@@ -294,6 +300,18 @@ export function VideoPipelineStatsButton({ timings, fileName, comparisonJson }: 
                   onlyB: comparisonJson.onlyInShadow,
                 })}
               </div>
+              {onOpenComparison ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOpen(false);
+                    onOpenComparison();
+                  }}
+                  className="mt-3 rounded-lg border border-[#30363d] px-3 py-1.5 text-sm text-[#58a6ff] hover:bg-[#21262d]"
+                >
+                  {t("openPassComparison")}
+                </button>
+              ) : null}
             </section>
           ) : null}
 

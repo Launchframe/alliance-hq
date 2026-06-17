@@ -95,12 +95,63 @@ type TabId = "frames" | "parse" | "timings";
 type FrameViewMode = "list" | "gallery" | "video";
 
 const BASE_FRAME_HEIGHT_PX = 192;
-const FRAME_ZOOM_MIN = 0.5;
-const FRAME_ZOOM_MAX = 4;
-const FRAME_ZOOM_STEP = 0.25;
+/** Internal scale at 100% display (formerly shown as 300% before zoom rebaseline). */
+const FRAME_ZOOM_BASELINE = 3;
+const FRAME_DISPLAY_ZOOM_MIN = 15;
+const FRAME_DISPLAY_ZOOM_MAX = 150;
+const FRAME_DISPLAY_ZOOM_STEP = 5;
+const FRAME_ZOOM_STORAGE_KEY = "admin-video-job-frame-zoom-percent";
+const FRAME_VIEW_MODE_STORAGE_KEY = "admin-video-job-frame-view-mode";
+const FRAME_VIEW_MODES: FrameViewMode[] = ["list", "gallery", "video"];
+/** Fixed gallery stage height at 100% zoom so zooming does not resize the page. */
+const GALLERY_VIEWPORT_HEIGHT_PX =
+  Math.round(BASE_FRAME_HEIGHT_PX * FRAME_ZOOM_BASELINE) + 72;
+/** Horizontal drag (px) that advances one frame in the carousel. */
+const GALLERY_PIXELS_PER_FRAME_RATIO = 0.42;
+const GALLERY_MOMENTUM_FRICTION = 0.94;
+const GALLERY_MOMENTUM_MIN_VELOCITY = 0.04;
+const GALLERY_SNAP_DURATION_MS = 220;
 const VIDEO_FPS_MIN = 0.5;
 const VIDEO_FPS_MAX = 3;
 const VIDEO_FPS_STEP = 0.25;
+
+function clampFrameZoomPercent(percent: number): number {
+  return Math.min(
+    FRAME_DISPLAY_ZOOM_MAX,
+    Math.max(FRAME_DISPLAY_ZOOM_MIN, percent),
+  );
+}
+
+function readStoredFrameZoomPercent(): number {
+  if (typeof window === "undefined") return 100;
+  try {
+    const raw = localStorage.getItem(FRAME_ZOOM_STORAGE_KEY);
+    if (raw == null) return 100;
+    const percent = Number(raw);
+    if (!Number.isFinite(percent)) return 100;
+    return clampFrameZoomPercent(percent);
+  } catch {
+    return 100;
+  }
+}
+
+function displayZoomPercentToScale(percent: number): number {
+  return (percent / 100) * FRAME_ZOOM_BASELINE;
+}
+
+function readStoredFrameViewMode(): FrameViewMode {
+  if (typeof window === "undefined") return "list";
+  try {
+    const raw = localStorage.getItem(FRAME_VIEW_MODE_STORAGE_KEY);
+    if (raw == null) return "list";
+    if ((FRAME_VIEW_MODES as readonly string[]).includes(raw)) {
+      return raw as FrameViewMode;
+    }
+    return "list";
+  } catch {
+    return "list";
+  }
+}
 
 function formatMs(ms: number | null | undefined): string {
   if (ms == null || !Number.isFinite(ms)) return "—";
@@ -126,30 +177,125 @@ function formatSurveyScrollStyle(
   return scrollStyle;
 }
 
+type FrameStatsTableProps = {
+  frame: FrameRow;
+  tDetail: ReturnType<typeof useTranslations<"admin.videoJobDetailPage">>;
+};
+
+function GalleryFrameStatsTable({ frame, tDetail }: FrameStatsTableProps) {
+  return (
+    <div className="overflow-hidden rounded-xl border border-[#30363d] bg-[#161b22]">
+      <p className="border-b border-[#30363d] px-3 py-2 text-xs font-semibold uppercase tracking-wide text-[#8b949e]">
+        {tDetail("galleryStatsTitle")}
+      </p>
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-[#30363d] text-left text-xs text-[#8b949e]">
+            <th className="px-3 py-2">{tDetail("statsColFrame")}</th>
+            <th className="px-3 py-2">{tDetail("statsColUpload")}</th>
+            <th className="px-3 py-2">{tDetail("statsColExtract")}</th>
+            <th className="px-3 py-2">{tDetail("statsColEntries")}</th>
+            <th className="px-3 py-2">{tDetail("statsColError")}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr className="text-[#e6edf3]">
+            <td className="px-3 py-2 font-medium">
+              {tDetail("frameLabel", { index: frame.frameIndex })}
+            </td>
+            <td className="px-3 py-2 font-mono text-xs">
+              {formatMs(frame.uploadMs)}
+            </td>
+            <td className="px-3 py-2 font-mono text-xs">
+              {formatMs(frame.extractMs)}
+            </td>
+            <td className="px-3 py-2 font-mono text-xs">
+              {frame.ocrEntryCount ?? 0}
+            </td>
+            <td className="px-3 py-2 text-xs">
+              {frame.ocrError ? (
+                <span className="rounded bg-red-950/50 px-2 py-0.5 text-red-300">
+                  {frame.ocrError}
+                </span>
+              ) : (
+                <span className="text-[#8b949e]">—</span>
+              )}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function estimateGalleryReleaseVelocityPxPerMs(
+  samples: Array<{ x: number; t: number }>,
+): number {
+  if (samples.length < 2) return 0;
+  const last = samples[samples.length - 1]!;
+  const windowMs = 120;
+  let start = samples[0]!;
+  for (let i = samples.length - 2; i >= 0; i--) {
+    const sample = samples[i]!;
+    if (last.t - sample.t <= windowMs) {
+      start = sample;
+    } else {
+      break;
+    }
+  }
+  const dt = Math.max(last.t - start.t, 8);
+  return (last.x - start.x) / dt;
+}
+
 export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
   const t = useTranslations("admin");
   const tDetail = useTranslations("admin.videoJobDetailPage");
   const tSurvey = useTranslations("videoSurvey");
-  const tc = useTranslations("common");
   const [data, setData] = useState<DetailResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<TabId>("frames");
   const [expandedFrames, setExpandedFrames] = useState<Set<number>>(new Set());
 
   // Frame view mode
-  const [frameViewMode, setFrameViewMode] = useState<FrameViewMode>("list");
+  const [frameViewMode, setFrameViewMode] = useState<FrameViewMode>(() =>
+    readStoredFrameViewMode(),
+  );
 
-  // Gallery mode state
-  const [currentGalleryIndex, setCurrentGalleryIndex] = useState(0);
-  const galleryDragStartRef = useRef<number | null>(null);
+  const persistFrameViewMode = useCallback((mode: FrameViewMode) => {
+    setFrameViewMode(mode);
+    try {
+      localStorage.setItem(FRAME_VIEW_MODE_STORAGE_KEY, mode);
+    } catch {
+      // ignore quota / private mode
+    }
+  }, []);
+
+  // Gallery mode state — continuous position (frame units) for drag + momentum
+  const [galleryPosition, setGalleryPosition] = useState(0);
+  const [galleryInteracting, setGalleryInteracting] = useState(false);
+  const galleryDragAnchorXRef = useRef<number | null>(null);
+  const galleryDragAnchorPositionRef = useRef(0);
   const galleryDragSamplesRef = useRef<Array<{ x: number; t: number }>>([]);
   const galleryMomentumAnimRef = useRef<number | null>(null);
+  const gallerySnapAnimRef = useRef<number | null>(null);
   const galleryPositionRef = useRef(0);
   const galleryVelocityRef = useRef(0);
   const galleryLastTickRef = useRef<number | null>(null);
 
   // Shared frame zoom for gallery + slideshow (does not affect page layout elsewhere)
-  const [frameZoom, setFrameZoom] = useState(1.5);
+  const [frameZoomPercent, setFrameZoomPercent] = useState(() =>
+    readStoredFrameZoomPercent(),
+  );
+
+  const persistFrameZoomPercent = useCallback((percent: number) => {
+    const clamped = clampFrameZoomPercent(percent);
+    setFrameZoomPercent(clamped);
+    try {
+      localStorage.setItem(FRAME_ZOOM_STORAGE_KEY, String(clamped));
+    } catch {
+      // ignore quota / private mode
+    }
+  }, []);
 
   // Video / slideshow mode state
   const [videoModeIndex, setVideoModeIndex] = useState(0);
@@ -174,7 +320,19 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
   }, [jobId, loadDetail, t]);
 
   const frames = data?.frames ?? [];
+  const frameZoom = displayZoomPercentToScale(frameZoomPercent);
   const frameDisplayHeight = Math.round(BASE_FRAME_HEIGHT_PX * frameZoom);
+  const galleryPixelsPerFrame = Math.max(
+    72,
+    frameDisplayHeight * GALLERY_PIXELS_PER_FRAME_RATIO,
+  );
+
+  const stopGallerySnap = useCallback(() => {
+    if (gallerySnapAnimRef.current != null) {
+      cancelAnimationFrame(gallerySnapAnimRef.current);
+      gallerySnapAnimRef.current = null;
+    }
+  }, []);
 
   const stopGalleryMomentum = useCallback(() => {
     if (galleryMomentumAnimRef.current != null) {
@@ -185,24 +343,70 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
     galleryVelocityRef.current = 0;
   }, []);
 
-  const setGalleryIndex = useCallback(
-    (index: number) => {
-      const clamped = Math.max(0, Math.min(frames.length - 1, index));
+  const setGalleryPositionClamped = useCallback(
+    (position: number) => {
+      const max = Math.max(0, frames.length - 1);
+      const clamped = Math.max(0, Math.min(max, position));
       galleryPositionRef.current = clamped;
-      setCurrentGalleryIndex(clamped);
+      setGalleryPosition(clamped);
     },
     [frames.length],
+  );
+
+  const snapGalleryToNearest = useCallback(() => {
+    if (frames.length <= 1) return;
+    stopGalleryMomentum();
+    stopGallerySnap();
+
+    const target = Math.round(galleryPositionRef.current);
+    const start = galleryPositionRef.current;
+    if (Math.abs(target - start) < 0.001) {
+      setGalleryPositionClamped(target);
+      setGalleryInteracting(false);
+      return;
+    }
+
+    const startTime = performance.now();
+    const tick = (now: number) => {
+      const t = Math.min(1, (now - startTime) / GALLERY_SNAP_DURATION_MS);
+      const eased = 1 - (1 - t) ** 3;
+      const next = start + (target - start) * eased;
+      galleryPositionRef.current = next;
+      setGalleryPosition(next);
+      if (t < 1) {
+        gallerySnapAnimRef.current = requestAnimationFrame(tick);
+      } else {
+        gallerySnapAnimRef.current = null;
+        setGalleryPositionClamped(target);
+        setGalleryInteracting(false);
+      }
+    };
+    gallerySnapAnimRef.current = requestAnimationFrame(tick);
+  }, [
+    frames.length,
+    setGalleryPositionClamped,
+    stopGalleryMomentum,
+    stopGallerySnap,
+  ]);
+
+  const setGalleryIndex = useCallback(
+    (index: number) => {
+      stopGalleryMomentum();
+      stopGallerySnap();
+      setGalleryInteracting(false);
+      setGalleryPositionClamped(index);
+    },
+    [setGalleryPositionClamped, stopGalleryMomentum, stopGallerySnap],
   );
 
   const startGalleryMomentum = useCallback(
     (initialVelocityFramesPerSec: number) => {
       if (frames.length <= 1) return;
       stopGalleryMomentum();
+      stopGallerySnap();
+      setGalleryInteracting(true);
       galleryVelocityRef.current = initialVelocityFramesPerSec;
-      galleryPositionRef.current = Math.min(
-        frames.length - 1,
-        Math.max(0, currentGalleryIndex),
-      );
+      galleryLastTickRef.current = null;
 
       const tick = (now: number) => {
         const last = galleryLastTickRef.current ?? now;
@@ -210,78 +414,103 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
         const dt = Math.min(0.05, (now - last) / 1000);
 
         galleryPositionRef.current += galleryVelocityRef.current * dt;
-        galleryVelocityRef.current *= 0.9;
+        galleryVelocityRef.current *= GALLERY_MOMENTUM_FRICTION ** (dt * 60);
 
+        const max = frames.length - 1;
         if (galleryPositionRef.current < 0) {
           galleryPositionRef.current = 0;
           galleryVelocityRef.current = 0;
-        } else if (galleryPositionRef.current > frames.length - 1) {
-          galleryPositionRef.current = frames.length - 1;
+        } else if (galleryPositionRef.current > max) {
+          galleryPositionRef.current = max;
           galleryVelocityRef.current = 0;
         }
 
-        setCurrentGalleryIndex(Math.round(galleryPositionRef.current));
+        setGalleryPosition(galleryPositionRef.current);
 
-        if (Math.abs(galleryVelocityRef.current) > 0.08) {
+        if (Math.abs(galleryVelocityRef.current) > GALLERY_MOMENTUM_MIN_VELOCITY) {
           galleryMomentumAnimRef.current = requestAnimationFrame(tick);
         } else {
           galleryMomentumAnimRef.current = null;
           galleryVelocityRef.current = 0;
-          galleryPositionRef.current = Math.round(galleryPositionRef.current);
+          snapGalleryToNearest();
         }
       };
 
       galleryMomentumAnimRef.current = requestAnimationFrame(tick);
     },
-    [currentGalleryIndex, frames.length, stopGalleryMomentum],
+    [frames.length, snapGalleryToNearest, stopGalleryMomentum, stopGallerySnap],
   );
 
   const finishGalleryDrag = useCallback(() => {
     const samples = galleryDragSamplesRef.current;
-    galleryDragStartRef.current = null;
+    galleryDragAnchorXRef.current = null;
     galleryDragSamplesRef.current = [];
 
-    if (samples.length < 2 || frames.length <= 1) return;
-
-    const first = samples[0]!;
-    const last = samples[samples.length - 1]!;
-    const dx = last.x - first.x;
-    const dt = Math.max(last.t - first.t, 16);
-    const pxPerMs = dx / dt;
-    const framesPerSec = -pxPerMs * 0.018;
-
-    if (Math.abs(framesPerSec) < 0.15) {
-      if (Math.abs(dx) > 30) {
-        setGalleryIndex(currentGalleryIndex + (dx < 0 ? 1 : -1));
-      }
+    if (frames.length <= 1) {
+      setGalleryInteracting(false);
       return;
     }
 
-    startGalleryMomentum(
-      Math.max(-24, Math.min(24, framesPerSec)),
-    );
-  }, [currentGalleryIndex, frames.length, setGalleryIndex, startGalleryMomentum]);
+    const pxPerMs = estimateGalleryReleaseVelocityPxPerMs(samples);
+    const framesPerSec = (-pxPerMs * 1000) / galleryPixelsPerFrame;
 
-  const recordGalleryDrag = useCallback((clientX: number) => {
-    const now = performance.now();
-    galleryDragSamplesRef.current.push({ x: clientX, t: now });
-    if (galleryDragSamplesRef.current.length > 8) {
-      galleryDragSamplesRef.current.shift();
+    if (Math.abs(framesPerSec) < 0.25) {
+      snapGalleryToNearest();
+      return;
     }
-  }, []);
+
+    startGalleryMomentum(Math.max(-36, Math.min(36, framesPerSec)));
+  }, [
+    frames.length,
+    galleryPixelsPerFrame,
+    snapGalleryToNearest,
+    startGalleryMomentum,
+  ]);
+
+  const recordGalleryDrag = useCallback(
+    (clientX: number) => {
+      const anchorX = galleryDragAnchorXRef.current;
+      if (anchorX == null) return;
+
+      const now = performance.now();
+      galleryDragSamplesRef.current.push({ x: clientX, t: now });
+      if (galleryDragSamplesRef.current.length > 12) {
+        galleryDragSamplesRef.current.shift();
+      }
+
+      const deltaFrames =
+        -(clientX - anchorX) / galleryPixelsPerFrame;
+      const next =
+        galleryDragAnchorPositionRef.current + deltaFrames;
+      setGalleryPositionClamped(next);
+    },
+    [galleryPixelsPerFrame, setGalleryPositionClamped],
+  );
+
+  const beginGalleryDrag = useCallback(
+    (clientX: number) => {
+      stopGalleryMomentum();
+      stopGallerySnap();
+      setGalleryInteracting(true);
+      galleryDragAnchorXRef.current = clientX;
+      galleryDragAnchorPositionRef.current = galleryPositionRef.current;
+      galleryDragSamplesRef.current = [{ x: clientX, t: performance.now() }];
+    },
+    [stopGalleryMomentum, stopGallerySnap],
+  );
 
   useEffect(() => {
-    return () => stopGalleryMomentum();
-  }, [stopGalleryMomentum]);
-
-  useEffect(() => {
-    galleryPositionRef.current = currentGalleryIndex;
-  }, [currentGalleryIndex]);
+    return () => {
+      stopGalleryMomentum();
+      stopGallerySnap();
+    };
+  }, [stopGalleryMomentum, stopGallerySnap]);
 
   // Clamp gallery index to valid range (derived at render, no effect needed)
   const safeGalleryIndex = frames.length > 0
-    ? Math.min(currentGalleryIndex, frames.length - 1)
+    ? Math.min(Math.round(galleryPosition), frames.length - 1)
     : 0;
+  const galleryFrame = frames[safeGalleryIndex];
   const safeVideoModeIndex = frames.length > 0
     ? Math.min(videoModeIndex, frames.length - 1)
     : 0;
@@ -446,9 +675,9 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
               <p className="text-xs text-[#8b949e]">{tDetail("surveyAboveAvg")}</p>
               <p>
                 {data.survey.aboveAverageScroll === true
-                  ? tc("yes")
+                  ? t("yes")
                   : data.survey.aboveAverageScroll === false
-                    ? tc("no")
+                    ? t("no")
                     : "—"}
               </p>
             </div>
@@ -510,13 +739,13 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
         ) : (
           <div className="space-y-4">
             {/* View mode switcher */}
-            <div className="flex flex-wrap items-center gap-3">
+            <div className="flex flex-col md:flex-wrap items-center gap-3">
               <div className="flex gap-1">
                 {(["list", "gallery", "video"] as const).map((mode) => (
                   <button
                     key={mode}
                     type="button"
-                    onClick={() => setFrameViewMode(mode)}
+                    onClick={() => persistFrameViewMode(mode)}
                     className={`rounded-lg px-3 py-1.5 text-xs ${
                       frameViewMode === mode
                         ? "bg-[#21262d] text-[#e6edf3]"
@@ -534,15 +763,17 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
                   </span>
                   <input
                     type="range"
-                    min={FRAME_ZOOM_MIN}
-                    max={FRAME_ZOOM_MAX}
-                    step={FRAME_ZOOM_STEP}
-                    value={frameZoom}
-                    onChange={(e) => setFrameZoom(Number(e.target.value))}
+                    min={FRAME_DISPLAY_ZOOM_MIN}
+                    max={FRAME_DISPLAY_ZOOM_MAX}
+                    step={FRAME_DISPLAY_ZOOM_STEP}
+                    value={frameZoomPercent}
+                    onChange={(e) =>
+                      persistFrameZoomPercent(Number(e.target.value))
+                    }
                     className="min-w-0 flex-1"
                   />
                   <span className="w-10 shrink-0 text-center text-[#e6edf3]">
-                    {Math.round(frameZoom * 100)}%
+                    {frameZoomPercent}%
                   </span>
                 </label>
               ) : null}
@@ -616,37 +847,33 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
 
             {/* Gallery mode — 3D CSS carousel */}
             {frameViewMode === "gallery" ? (
-              <div className="relative select-none overflow-hidden py-8">
+              <div className="space-y-4">
                 <div
-                  className="relative mx-auto w-full"
-                  style={{
-                    height: `${frameDisplayHeight + 72}px`,
-                    perspective: "800px",
-                  }}
+                  className="relative select-none overflow-hidden rounded-xl border border-[#30363d] bg-[#0d1117]"
+                  style={{ height: `${GALLERY_VIEWPORT_HEIGHT_PX}px` }}
+                >
+                  <div
+                    className="relative mx-auto h-full w-full"
+                    style={{ perspective: "800px" }}
                   onMouseDown={(e) => {
                     e.preventDefault();
-                    stopGalleryMomentum();
-                    galleryDragStartRef.current = e.clientX;
-                    galleryDragSamplesRef.current = [{ x: e.clientX, t: performance.now() }];
+                    beginGalleryDrag(e.clientX);
                   }}
                   onMouseMove={(e) => {
-                    if (galleryDragStartRef.current == null) return;
+                    if (galleryDragAnchorXRef.current == null) return;
                     recordGalleryDrag(e.clientX);
                   }}
                   onMouseUp={() => finishGalleryDrag()}
                   onMouseLeave={() => {
-                    if (galleryDragStartRef.current != null) finishGalleryDrag();
+                    if (galleryDragAnchorXRef.current != null) finishGalleryDrag();
                   }}
                   onTouchStart={(e) => {
-                    stopGalleryMomentum();
-                    const x = e.touches[0]?.clientX ?? null;
-                    galleryDragStartRef.current = x;
-                    if (x != null) {
-                      galleryDragSamplesRef.current = [{ x, t: performance.now() }];
-                    }
+                    const x = e.touches[0]?.clientX;
+                    if (x == null) return;
+                    beginGalleryDrag(x);
                   }}
                   onTouchMove={(e) => {
-                    if (galleryDragStartRef.current == null) return;
+                    if (galleryDragAnchorXRef.current == null) return;
                     const x = e.touches[0]?.clientX;
                     if (x != null) recordGalleryDrag(x);
                   }}
@@ -654,7 +881,7 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
                   onTouchCancel={() => finishGalleryDrag()}
                 >
                   {frames.map((frame, i) => {
-                    const offset = i - safeGalleryIndex;
+                    const offset = i - galleryPosition;
                     const visibleRange = 2;
                     if (Math.abs(offset) > visibleRange) return null;
                     const translateX = offset * 60;
@@ -665,15 +892,20 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
                     return (
                       <div
                         key={frame.frameIndex}
-                        className="absolute left-1/2 top-0 -translate-x-1/2 cursor-pointer transition-transform duration-300"
+                        className={`absolute left-1/2 top-1/2 cursor-pointer ${
+                          galleryInteracting
+                            ? ""
+                            : "transition-transform duration-300"
+                        }`}
                         style={{
-                          transform: `translateX(${translateX}%) rotateY(${rotateY}deg) scale(${scale})`,
+                          transform: `translate(-50%, -50%) translateX(${translateX}%) rotateY(${rotateY}deg) scale(${scale})`,
                           opacity,
                           zIndex,
                           transformStyle: "preserve-3d",
                         }}
                         onClick={() => {
                           stopGalleryMomentum();
+                          stopGallerySnap();
                           setGalleryIndex(i);
                         }}
                         role="button"
@@ -681,6 +913,7 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
                         onKeyDown={(e) => {
                           if (e.key === "Enter") {
                             stopGalleryMomentum();
+                            stopGallerySnap();
                             setGalleryIndex(i);
                           }
                         }}
@@ -697,46 +930,17 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
                             maxWidth: `${Math.round(frameDisplayHeight * 1.6)}px`,
                           }}
                         />
-                        {i === safeGalleryIndex ? (
-                          <div className="absolute bottom-0 left-0 right-0 rounded-b border border-t-0 border-[#30363d] bg-[#161b22]/90 px-2 py-1 text-xs text-[#8b949e]">
-                            <p className="text-center text-[#e6edf3]">
-                              {tDetail("frameLabel", {
-                                index: frame.frameIndex,
-                              })}
-                            </p>
-                            <div className="mt-1 flex flex-wrap justify-center gap-1">
-                              <span className="rounded bg-[#21262d] px-1.5 py-0.5">
-                                {tDetail("uploadMs", {
-                                  ms: formatMs(frame.uploadMs),
-                                })}
-                              </span>
-                              <span className="rounded bg-[#21262d] px-1.5 py-0.5">
-                                {tDetail("extractMs", {
-                                  ms: formatMs(frame.extractMs),
-                                })}
-                              </span>
-                              <span className="rounded bg-[#21262d] px-1.5 py-0.5">
-                                {tDetail("entryCount", {
-                                  count: frame.ocrEntryCount ?? 0,
-                                })}
-                              </span>
-                              {frame.ocrError ? (
-                                <span className="rounded bg-red-950/50 px-1.5 py-0.5 text-red-300">
-                                  {frame.ocrError}
-                                </span>
-                              ) : null}
-                            </div>
-                          </div>
-                        ) : null}
                       </div>
                     );
                   })}
                 </div>
-                <div className="mt-6 flex items-center justify-center gap-3">
+                </div>
+                <div className="flex items-center justify-center gap-3">
                   <button
                     type="button"
                     onClick={() => {
                       stopGalleryMomentum();
+                      stopGallerySnap();
                       setGalleryIndex(safeGalleryIndex - 1);
                     }}
                     disabled={safeGalleryIndex === 0}
@@ -751,6 +955,7 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
                     type="button"
                     onClick={() => {
                       stopGalleryMomentum();
+                      stopGallerySnap();
                       setGalleryIndex(safeGalleryIndex + 1);
                     }}
                     disabled={safeGalleryIndex === frames.length - 1}
@@ -759,6 +964,9 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
                     {tDetail("galleryNext")} →
                   </button>
                 </div>
+                {galleryFrame ? (
+                  <GalleryFrameStatsTable frame={galleryFrame} tDetail={tDetail} />
+                ) : null}
               </div>
             ) : null}
 

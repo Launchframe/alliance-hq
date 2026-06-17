@@ -16,6 +16,7 @@ import {
   getSolicitedEligibility,
 } from "@/lib/feedback/solicited-eligibility";
 import { dispatchScoreSubmit } from "@/lib/video/submit-dispatch";
+import { buildAshedEventProvisionBody } from "@/lib/video/ashed-event-provision";
 import {
   buildSubmitPayloads,
   validateSubmitContext,
@@ -47,9 +48,16 @@ type SubmitBody = {
 };
 
 export async function POST(request: Request, { params }: Props) {
+  const session = await getOrCreateSession();
+  const { jobId } = await params;
+  let advancedToSubmitting = false;
+  let jobSnapshot: {
+    fileName: string | null;
+    scoreTarget: string | null;
+    category: string | null;
+  } | null = null;
+
   try {
-    const session = await getOrCreateSession();
-    const { jobId } = await params;
     const body = (await request.json()) as SubmitBody;
 
     if (!body.recordedDate) {
@@ -75,12 +83,19 @@ export async function POST(request: Request, { params }: Props) {
       return NextResponse.json({ error: "Job not found" }, { status: 404 });
     }
 
-    if (job.status !== "review" && job.status !== "complete") {
+    const submitAllowedStatuses = new Set(["review", "complete", "submitting"]);
+    if (!submitAllowedStatuses.has(job.status)) {
       return NextResponse.json(
         { error: "Job is not ready for submit." },
         { status: 400 },
       );
     }
+
+    jobSnapshot = {
+      fileName: job.fileName,
+      scoreTarget: job.scoreTarget,
+      category: job.category,
+    };
 
     const scoreTargetId = job.scoreTarget ?? job.category ?? "desert-storm";
     const target = getScoreTargetOrThrow(scoreTargetId);
@@ -132,11 +147,16 @@ export async function POST(request: Request, { params }: Props) {
       !usesHqEventStore(target) &&
       !submitContext.eventId
     ) {
-      const newEvent = (await base44EntityPost(connection, target.eventEntity, {
-        alliance_id: allianceId,
-        start_date: submitContext.recordedDate,
-        end_date: submitContext.recordedDate,
-      })) as { id?: string };
+      const provisionBody = buildAshedEventProvisionBody(
+        target.eventEntity,
+        allianceId,
+        submitContext.recordedDate,
+      );
+      const newEvent = (await base44EntityPost(
+        connection,
+        target.eventEntity,
+        provisionBody,
+      )) as { id?: string };
       if (newEvent?.id) {
         submitContext = { ...submitContext, eventId: newEvent.id };
       }
@@ -239,6 +259,8 @@ export async function POST(request: Request, { params }: Props) {
       .update(schema.videoJobs)
       .set({ status: "submitting", updatedAt: new Date() })
       .where(eq(schema.videoJobs.id, jobId));
+
+    advancedToSubmitting = true;
 
     await emitVideoJobStatus({
       sessionId: session.id,
@@ -360,6 +382,26 @@ export async function POST(request: Request, { params }: Props) {
       ...solicitedPayload,
     });
   } catch (error) {
+    if (advancedToSubmitting) {
+      try {
+        const db = getDb();
+        await db
+          .update(schema.videoJobs)
+          .set({ status: "review", updatedAt: new Date() })
+          .where(eq(schema.videoJobs.id, jobId));
+        await emitVideoJobStatus({
+          sessionId: session.id,
+          jobId,
+          status: "review",
+          fileName: jobSnapshot?.fileName ?? null,
+          scoreTarget:
+            jobSnapshot?.scoreTarget ?? jobSnapshot?.category ?? null,
+          errorMessage: null,
+        });
+      } catch {
+        // Best-effort rollback so the user can retry submit.
+      }
+    }
     return NextResponse.json(
       {
         error: error instanceof Error ? error.message : "Submit failed",
