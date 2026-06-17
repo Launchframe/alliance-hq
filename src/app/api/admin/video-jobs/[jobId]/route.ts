@@ -117,6 +117,12 @@ export async function GET(_request: Request, { params }: RouteParams) {
     status: string;
   }> = [];
 
+  let groupInfo: {
+    selectedJobId: string | null;
+    accuracyJobId: string | null;
+    recommendedJobId: string | null;
+  } | null = null;
+
   if (job.groupId) {
     groupPasses = await db
       .select({
@@ -127,6 +133,25 @@ export async function GET(_request: Request, { params }: RouteParams) {
       })
       .from(schema.videoJobs)
       .where(eq(schema.videoJobs.groupId, job.groupId));
+
+    const [group] = await db
+      .select({
+        selectedJobId: schema.videoUploadGroups.selectedJobId,
+        accuracyJobId: schema.videoUploadGroups.accuracyJobId,
+        comparisonJson: schema.videoUploadGroups.comparisonJson,
+      })
+      .from(schema.videoUploadGroups)
+      .where(eq(schema.videoUploadGroups.id, job.groupId))
+      .limit(1);
+
+    if (group) {
+      const comp = group.comparisonJson as { recommendedJobId?: string | null } | null;
+      groupInfo = {
+        selectedJobId: group.selectedJobId ?? null,
+        accuracyJobId: group.accuracyJobId ?? null,
+        recommendedJobId: comp?.recommendedJobId ?? null,
+      };
+    }
   }
 
   return NextResponse.json({
@@ -142,5 +167,6 @@ export async function GET(_request: Request, { params }: RouteParams) {
     sameFileResubmits,
     survey,
     groupPasses,
+    groupInfo,
   });
 }
