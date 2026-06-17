@@ -2,6 +2,7 @@ import { nanoid } from "nanoid";
 import { eq, and } from "drizzle-orm";
 
 import { getDb, schema } from "@/lib/db";
+import type { ExtractionConfig } from "@/lib/video/pass-definitions";
 import { dispatchVideoProcessing } from "@/lib/video/trigger-processing";
 import { SHADOW_PASS_AB } from "@/lib/video/pass-definitions";
 
@@ -59,20 +60,58 @@ export async function maybeEnqueueShadowPass(params: {
 
   const db = getDb();
 
-  const shadowPassKey = "scene_0.1";
   const [existing] = await db
     .select({ id: schema.videoJobs.id })
     .from(schema.videoJobs)
     .where(
       and(
         eq(schema.videoJobs.groupId, job.groupId),
-        eq(schema.videoJobs.passKey, shadowPassKey),
+        eq(schema.videoJobs.passRole, "shadow"),
       ),
     )
     .limit(1);
 
   if (existing) {
     return;
+  }
+
+  // Determine shadow config from experiment arm, if assigned
+  let shadowConfig: ExtractionConfig = SHADOW_PASS_AB;
+  let resolvedShadowPassKey = "scene_0.1";
+
+  const [group] = await db
+    .select({ experimentArmId: schema.videoUploadGroups.experimentArmId })
+    .from(schema.videoUploadGroups)
+    .where(eq(schema.videoUploadGroups.id, job.groupId))
+    .limit(1);
+
+  if (group?.experimentArmId) {
+    const [arm] = await db
+      .select({ configId: schema.experimentArms.configId })
+      .from(schema.experimentArms)
+      .where(eq(schema.experimentArms.id, group.experimentArmId))
+      .limit(1);
+
+    if (arm) {
+      if (arm.configId === null) {
+        // Control arm with no configId — skip shadow pass
+        return;
+      }
+
+      const [parseConfig] = await db
+        .select({
+          passKey: schema.parseConfigs.passKey,
+          configJson: schema.parseConfigs.configJson,
+        })
+        .from(schema.parseConfigs)
+        .where(eq(schema.parseConfigs.id, arm.configId))
+        .limit(1);
+
+      if (parseConfig) {
+        shadowConfig = parseConfig.configJson as ExtractionConfig;
+        resolvedShadowPassKey = parseConfig.passKey;
+      }
+    }
   }
 
   const shadowJobId = nanoid(16);
@@ -89,10 +128,10 @@ export async function maybeEnqueueShadowPass(params: {
     hqEventId: job.hqEventId,
     storageKey: job.storageKey,
     groupId: job.groupId,
-    passKey: shadowPassKey,
+    passKey: resolvedShadowPassKey,
     passIndex: 1,
     passRole: "shadow",
-    extractionConfigJson: SHADOW_PASS_AB,
+    extractionConfigJson: shadowConfig,
     status: "queued",
     fileName: null,
     fileSizeBytes: null,

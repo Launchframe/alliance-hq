@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockState = vi.hoisted(() => ({
-  selectResult: [] as Array<{ id: string }>,
+  selectResults: [] as unknown[][],
+  selectCallIndex: 0,
   insertedValues: [] as unknown[],
 }));
 
@@ -9,7 +10,11 @@ const mockDb = vi.hoisted(() => ({
   select: vi.fn(() => ({
     from: vi.fn(() => ({
       where: vi.fn(() => ({
-        limit: vi.fn(async () => mockState.selectResult),
+        limit: vi.fn(async () => {
+          const result = mockState.selectResults[mockState.selectCallIndex] ?? [];
+          mockState.selectCallIndex += 1;
+          return result;
+        }),
       })),
     })),
   })),
@@ -38,6 +43,20 @@ vi.mock("@/lib/db", () => ({
       id: "videoJobs.id",
       groupId: "videoJobs.groupId",
       passKey: "videoJobs.passKey",
+      passRole: "videoJobs.passRole",
+    },
+    videoUploadGroups: {
+      id: "videoUploadGroups.id",
+      experimentArmId: "videoUploadGroups.experimentArmId",
+    },
+    experimentArms: {
+      id: "experimentArms.id",
+      configId: "experimentArms.configId",
+    },
+    parseConfigs: {
+      id: "parseConfigs.id",
+      passKey: "parseConfigs.passKey",
+      configJson: "parseConfigs.configJson",
     },
   },
 }));
@@ -52,12 +71,18 @@ import {
 } from "@/lib/video/enqueue-shadow-pass";
 
 beforeEach(() => {
-  mockState.selectResult = [];
+  mockState.selectResults = [];
+  mockState.selectCallIndex = 0;
   mockState.insertedValues = [];
   mockDb.select.mockClear();
   mockDb.insert.mockClear();
   dispatchVideoProcessing.mockClear();
 });
+
+/** Default: no existing shadow, group has no experiment arm */
+function mockNoExperimentShadowPath() {
+  mockState.selectResults = [[], [{ experimentArmId: null }]];
+}
 
 describe("isShadowEligible", () => {
   it("is eligible for fast primary jobs with few frames", () => {
@@ -135,8 +160,7 @@ describe("maybeEnqueueShadowPass", () => {
   });
 
   it("inserts shadow job and dispatches when all eligibility criteria are met", async () => {
-    // No existing shadow job in the group
-    mockState.selectResult = [];
+    mockNoExperimentShadowPath();
 
     await maybeEnqueueShadowPass({
       job: primaryJob,
@@ -158,7 +182,7 @@ describe("maybeEnqueueShadowPass", () => {
   });
 
   it("skips insert when an existing shadow job already exists for the group", async () => {
-    mockState.selectResult = [{ id: "existing-shadow-id" }];
+    mockState.selectResults = [[{ id: "existing-shadow-id" }]];
 
     await maybeEnqueueShadowPass({
       job: primaryJob,

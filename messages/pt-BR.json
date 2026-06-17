@@ -98,7 +98,10 @@
       "users": "Usuários HQ",
       "openSections": "Seções do admin",
       "closeSections": "Fechar menu admin",
-      "sectionsTitle": "Seções"
+      "sectionsTitle": "Seções",
+      "videoJobAnalytics": "Análises",
+      "parseConfigs": "Configurações de análise",
+      "experiments": "Experimentos"
     },
     "systemTitle": "Saúde do sistema",
     "systemDesc": "Status do banco, contagens, config e catálogo de funções RBAC.",
@@ -304,7 +307,12 @@
       "frameCount": "Frames",
       "totalTime": "Tempo total",
       "ocrTime": "Tempo OCR",
-      "bucketFilter": "Categoria"
+      "bucketFilter": "Categoria",
+      "ratingFilter": "Avaliação",
+      "allRatings": "Todas",
+      "passFilter": "Passagem",
+      "allPasses": "Todas as passagens",
+      "analyticsLink": "Análises"
     },
     "videoJobDetailPage": {
       "loading": "Carregando detalhes do job…",
@@ -422,6 +430,180 @@
       "email": "E-mail",
       "displayName": "Nome exibido",
       "platform": "Mantenedor da plataforma"
+    },
+    "parseConfigsPage": {
+      "title": "Configurações de análise",
+      "subtitle": "Configurações de análise para passagens de processamento de vídeo.",
+      "newConfig": "Nova configuração",
+      "cancel": "Cancelar",
+      "create": "Criar configuração",
+      "saving": "Salvando…",
+      "saveFailed": "Falha ao salvar",
+      "loadFailed": "Falha ao carregar",
+      "loading": "Carregando…",
+      "empty": "Nenhuma configuração ainda.",
+      "statusFilter": "Status",
+      "allStatuses": "Todos os status",
+      "changeStatus": "Alterar status",
+      "viewExperiments": "Ver experimentos",
+      "form": {
+        "name": "Nome",
+        "passKey": "Chave da passagem",
+        "passKeyHelp": "Identificador de máquina usado em análises (ex.: scene_0.33). Deve ser único.",
+        "description": "Descrição",
+        "mode": "Modo",
+        "modeHelp": "Detecção de cena extrai frames apenas quando a imagem muda significativamente — bom para placares. FPS extrai um número fixo de frames por segundo — mais simples, mas pode perder ou duplicar frames.",
+        "sceneThreshold": "Limiar de cena (0,01–1,0)",
+        "sceneThresholdHelp": "Quão diferentes dois frames precisam ser para capturar um novo frame. Valores baixos (ex.: 0,1) = mais frames, mais lento, capta mudanças sutis. Valores altos (ex.: 0,5) = menos frames, mais rápido, pode perder atualizações de pontuação.",
+        "sampleFps": "FPS de amostra",
+        "sampleFpsHelp": "Frames capturados por segundo (para modo FPS, ou como limite no modo cena). Maior = mais completo, porém maior custo de armazenamento e processamento.",
+        "notes": "Notas"
+      },
+      "col": {
+        "name": "Nome",
+        "passKey": "Chave",
+        "config": "Config",
+        "status": "Status",
+        "actions": "Ações"
+      }
+    },
+    "experimentsPage": {
+      "title": "Experimentos",
+      "subtitle": "Campanhas A/B para testar configurações de análise.",
+      "newCampaign": "Nova campanha",
+      "cancel": "Cancelar",
+      "create": "Criar campanha",
+      "saving": "Salvando…",
+      "saveFailed": "Falha ao salvar",
+      "loadFailed": "Falha ao carregar",
+      "loading": "Carregando…",
+      "empty": "Nenhum experimento ainda.",
+      "statusFilter": "Status",
+      "all": "Todos",
+      "arms": {
+        "title": "Grupos",
+        "add": "Adicionar grupo",
+        "deltaNote": "Δ vs controle mostra a diferença em pontos percentuais de 👍.",
+        "col": {
+          "name": "Grupo",
+          "config": "Config",
+          "weight": "Peso",
+          "jobs": "Jobs",
+          "rated": "Avaliados",
+          "thumbsUp": "👍 %",
+          "avgQuality": "Qualidade média",
+          "delta": "Δ vs ctrl",
+          "buckets": "Baldes"
+        },
+        "form": {
+          "name": "Nome do grupo",
+          "configId": "ID da config",
+          "configIdPlaceholder": "id do parseConfig",
+          "weight": "Peso",
+          "isControl": "Grupo de controle",
+          "save": "Adicionar grupo"
+        }
+      },
+      "started": "Iniciado",
+      "concluded": "Concluído",
+      "startCampaign": "Iniciar campanha",
+      "pause": "Pausar",
+      "resume": "Retomar",
+      "conclude": "Concluir",
+      "concludeTitle": "Concluir experimento",
+      "concludeHint": "Escreva um resumo dos resultados antes de concluir.",
+      "conclusionPlaceholder": "Ex.: scene_0.33 mostrou taxa 12pp maior no zombie_siege vs controle…",
+      "confirmConclude": "Confirmar conclusão",
+      "outcome": "Resultado",
+      "backToList": "Voltar aos experimentos",
+      "form": {
+        "name": "Nome",
+        "scoreTarget": "Alvo de pontuação (formato do evento)",
+        "boardKey": "Chave do quadro (opcional)",
+        "boardKeyPlaceholder": "kills, resources, points — deixe em branco para todos",
+        "trafficPercent": "Tráfego %",
+        "hypothesis": "Hipótese",
+        "hypothesisPlaceholder": "Ex.: scene_0.33 melhorará a precisão no Zombie Siege",
+        "description": "Descrição",
+        "scopeWarning": "⚠ O alvo de pontuação é obrigatório e deve corresponder a um único formato de evento."
+      },
+      "population": {
+        "title": "População",
+        "hint": "Grupos de envio atribuídos a este experimento. Verifique o escopo antes de concluir.",
+        "mixedWarning": "Múltiplos tipos de evento detectados. Os resultados podem não ser comparáveis.",
+        "noData": "Nenhum envio atribuído ainda.",
+        "col": {
+          "scoreTarget": "Alvo",
+          "boardKey": "Quadro",
+          "hqEvent": "Evento HQ",
+          "jobs": "Grupos"
+        }
+      },
+      "chart": {
+        "title": "% de 👍 ao longo do tempo",
+        "hint": "Taxa de 👍 por grupo desde o início da campanha.",
+        "started": "Iniciado",
+        "noData": "Dados insuficientes para renderizar o gráfico."
+      },
+      "promote": {
+        "title": "Promover grupo vencedor como passagem principal",
+        "hint": "Criar uma atribuição de configuração torna a configuração do grupo selecionado o padrão para novos uploads com este score target. Vídeos já processados não serão reprocessados.",
+        "selectArm": "Selecionar grupo para promover",
+        "notes": "Notas (opcional)",
+        "notesPlaceholder": "ex.: scene_0.33 superou o controle em 12pp no zombie_siege",
+        "confirmCta": "Criar atribuição",
+        "successTitle": "Atribuição de configuração criada",
+        "successHint": "Novos uploads para este score target usarão a configuração promovida como passagem principal.",
+        "conflictError": "Já existe uma atribuição para este escopo. Acesse Configurações de análise para atualizá-la.",
+        "noVariantArms": "Nenhum grupo variante com configuração disponível para promover."
+      },
+      "lowSampleWarning": "Apenas {count} grupo(s) avaliado(s) neste grupo. Tente obter pelo menos 30 grupos avaliados por grupo antes de concluir.",
+      "arms": {
+        "loadConfigs": "Carregando configurações…",
+        "configDefault": "Padrão (sem passagem shadow — comportamento do grupo controle)",
+        "configPickerLabel": "Configuração de análise"
+      }
+    },
+    "analyticsPage": {
+      "title": "Análises de jobs de vídeo",
+      "subtitle": "Desempenho agregado de passagens por tipo de evento.",
+      "loading": "Carregando…",
+      "loadFailed": "Falha ao carregar análises",
+      "noData": "Sem dados para os filtros selecionados.",
+      "experimentsLink": "Experimentos",
+      "mixedWarning": "Exibindo resultados de múltiplos tipos de evento — as métricas não são diretamente comparáveis. Selecione um tipo específico.",
+      "passKeyPerformance": "desempenho de passagem",
+      "ratingReasons": "Motivos de avaliação negativa",
+      "filter": {
+        "scoreTarget": "Tipo de evento",
+        "allTargets": "Todos os tipos",
+        "passKey": "Passagem",
+        "allPasses": "Todas",
+        "window": "Período",
+        "allTime": "Tudo"
+      },
+      "kpi": {
+        "totalRated": "Total avaliado",
+        "of": "de",
+        "jobs": "jobs",
+        "thumbsUpRate": "Taxa de 👍",
+        "mixed": "tipos mistos",
+        "recommendationAccuracy": "Precisão da recomendação",
+        "decided": "grupos decididos",
+        "overrideRate": "Taxa de substituição",
+        "overrides": "substituições do usuário"
+      },
+      "col": {
+        "pass": "Passagem",
+        "jobs": "Jobs",
+        "rated": "Avaliados",
+        "thumbsUp": "👍 %",
+        "avgQuality": "Qualidade média",
+        "userSelected": "Selecionado",
+        "sysRecommended": "Recomendado",
+        "agreement": "Concordância",
+        "buckets": "Baldes"
+      }
     }
   },
   "team": {
@@ -916,14 +1098,8 @@
     "eventSubtitle": "Estas pontuações foram salvas no Ashed. Corrija membros ou pontuações abaixo e atualize.",
     "updateScores": "Atualizar {count} pontuações no Ashed",
     "updateSuccess": "{count} pontuações atualizadas no Ashed.",
-      "ratingThankYou": "Agradecemos seu feedback.",
-      "ratingClose": "Fechar",
-      "ratingReasonPrompt": "O que precisa de melhoria?",
-      "ratingReason_member_match": "Membro errado associado",
-      "ratingReason_score_parse": "Pontuação lida incorretamente",
-      "ratingReason_wrong_event": "Tipo de evento errado",
-      "ratingReason_frame_quality": "Frame muito borrado / cortado",
-      "ratingReason_other": "Outra coisa",
+    "ratingThankYou": "Agradecemos seu feedback.",
+    "ratingClose": "Fechar",
     "ratingReasonPrompt": "O que deu errado no OCR?",
     "ratingReason_member_match": "Membros identificados incorretamente",
     "ratingReason_score_parse": "Pontuações incorretas",
