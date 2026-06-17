@@ -9,6 +9,7 @@ import { APP_VERSION } from "@/lib/feedback/constants";
 import {
   FOOTER_NAV,
   NAV_GROUPS,
+  filterNavGroupsForOperatingMode,
   isNavActive,
 } from "@/lib/nav/routes";
 
@@ -46,6 +47,7 @@ function NavLink({
 type Props = {
   showAdminPortal?: boolean;
   showTeamSettings?: boolean;
+  operatingMode?: "ashed" | "native" | null;
   mobileCollapsible?: boolean;
   expandedGroupId: string | null;
   onToggleGroup: (groupId: string) => void;
@@ -56,6 +58,7 @@ type Props = {
 export function SidebarNav({
   showAdminPortal = false,
   showTeamSettings = false,
+  operatingMode = null,
   mobileCollapsible = false,
   expandedGroupId,
   onToggleGroup,
@@ -67,12 +70,13 @@ export function SidebarNav({
   const tNav = useTranslations("nav");
   const tNavGroups = useTranslations("navGroups");
   const tc = useTranslations("common");
+  const navGroups = filterNavGroupsForOperatingMode(NAV_GROUPS, operatingMode);
 
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex shrink-0 items-center justify-between border-b border-[#30363d] px-4 py-4">
         <Link
-          href="/dashboard"
+          href={operatingMode === "native" ? "/members" : "/dashboard"}
           className="flex min-w-0 items-center gap-3"
           onClick={onNavigate}
         >
@@ -103,7 +107,7 @@ export function SidebarNav({
       </div>
 
       <nav className="min-h-0 flex-1 overflow-y-auto p-2">
-        {NAV_GROUPS.map((group) => {
+        {navGroups.map((group) => {
           const extraPages =
             group.id === "hq-native"
               ? [

@@ -17,6 +17,11 @@ import {
 } from "@/lib/jwt/connection-meta";
 import { DEFAULT_EXPIRY_REMINDER_DAYS } from "@/lib/jwt/decode";
 import { getRbacContext } from "@/lib/rbac/context";
+import {
+  sessionHasAppAccess,
+  sessionHasNativeMembership,
+} from "@/lib/native-alliance/access";
+import { getAllianceOperatingMode } from "@/lib/native-alliance/operating-mode";
 import { getAccountTimezoneIdForHqUser } from "@/lib/timezone/server";
 
 export const SESSION_COOKIE = "alliance_hq_session";
@@ -306,14 +311,23 @@ export async function getSessionStateFor(
   const timezone = await getAccountTimezoneIdForHqUser(session.hqUserId);
   const ashed = await getAshedConnectionMeta(session.id, locale);
   const rbac = await getRbacContext(session.id);
+  const hasAppAccess = await sessionHasAppAccess(session);
+  const isNativeMembership = await sessionHasNativeMembership(session);
+  const operatingMode = session.currentAllianceId
+    ? await getAllianceOperatingMode(session.currentAllianceId)
+    : null;
 
   return {
     sessionId: session.id,
     userLabel: session.userLabel,
     allianceId: session.allianceId,
     allianceTag: session.allianceTag,
+    currentAllianceId: session.currentAllianceId,
     timezone,
     isConnected: connection !== null,
+    hasAppAccess,
+    isNativeAlliance: isNativeMembership,
+    operatingMode,
     expiresAt: session.expiresAt.toISOString(),
     ashed,
     rbac: rbac

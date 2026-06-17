@@ -5,9 +5,13 @@ import type { BulkMemberRankAction } from "@/lib/members/bulk-rank-update.shared
 import {
   clearMemberRankOnAshed,
   confirmMemberRank,
+  confirmMemberRankLocal,
 } from "@/lib/trains/rank-sync";
 import { getServerCalendarDate } from "@/lib/trains/game-time";
 import type { AshedMember } from "@/lib/video/member-matcher";
+import {
+  clearAllianceMemberRank,
+} from "@/lib/members/roster.server";
 
 export type BulkMemberRankInput = {
   memberIds: string[];
@@ -36,6 +40,7 @@ export async function applyBulkMemberRanks(
 ): Promise<BulkMemberRankOutput> {
   const effectiveDate = getServerCalendarDate();
   const results: BulkMemberRankItemResult[] = [];
+  const isNative = input.ctx.operatingMode === "native";
 
   for (const ashedMemberId of input.memberIds) {
     const member = input.membersById.get(ashedMemberId);
@@ -53,11 +58,18 @@ export async function applyBulkMemberRanks(
 
     try {
       if (input.action === "clear") {
-        await clearMemberRankOnAshed(
-          input.ctx.connection,
-          ashedMemberId,
-          input.ctx.hqAllianceId,
-        );
+        if (isNative) {
+          await clearAllianceMemberRank({
+            hqAllianceId: input.ctx.hqAllianceId,
+            ashedMemberId,
+          });
+        } else if (input.ctx.connection) {
+          await clearMemberRankOnAshed(
+            input.ctx.connection,
+            ashedMemberId,
+            input.ctx.hqAllianceId,
+          );
+        }
         results.push({ ashedMemberId, memberName, ok: true });
         continue;
       }
@@ -73,17 +85,31 @@ export async function applyBulkMemberRanks(
         continue;
       }
 
-      await confirmMemberRank({
-        allianceId: input.ctx.hqAllianceId,
-        ashedMemberId,
-        memberName,
-        allianceRank,
-        allianceRankTitle: null,
-        effectiveDate,
-        source: "manual",
-        recordedByHqUserId: input.recordedByHqUserId ?? null,
-        connection: input.ctx.connection,
-      });
+      if (isNative) {
+        await confirmMemberRankLocal({
+          allianceId: input.ctx.hqAllianceId,
+          ashedMemberId,
+          memberName,
+          allianceRank,
+          allianceRankTitle: null,
+          effectiveDate,
+          source: "manual",
+          recordedByHqUserId: input.recordedByHqUserId ?? null,
+        });
+      } else if (input.ctx.connection) {
+        await confirmMemberRank({
+          allianceId: input.ctx.hqAllianceId,
+          ashedMemberId,
+          memberName,
+          allianceRank,
+          allianceRankTitle: null,
+          effectiveDate,
+          source: "manual",
+          recordedByHqUserId: input.recordedByHqUserId ?? null,
+          connection: input.ctx.connection,
+        });
+      }
+
       results.push({ ashedMemberId, memberName, ok: true });
     } catch (error) {
       results.push({

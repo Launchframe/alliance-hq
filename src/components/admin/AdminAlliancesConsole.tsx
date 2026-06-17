@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 
+import { AdminNativeAlliancePanel } from "@/components/admin/AdminNativeAlliancePanel";
 import { FormattedDateTime } from "@/components/timezone/TimezoneProvider";
 import {
   RecordDetailCard,
@@ -15,6 +16,7 @@ type Alliance = {
   slug: string;
   name: string;
   ashedAllianceId: string | null;
+  operatingMode: string;
   ownerEmail: string | null;
   collaborators: string[];
   rolesSyncedAt: string | null;
@@ -26,23 +28,31 @@ export function AdminAlliancesConsole() {
   const [alliances, setAlliances] = useState<Alliance[]>([]);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    void (async () => {
-      try {
-        const res = await fetch("/api/admin/alliances");
-        if (!res.ok) throw new Error(await res.text());
-        const data = (await res.json()) as { alliances: Alliance[] };
-        setAlliances(data.alliances);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : t("loadFailed"));
-      }
-    })();
+  const loadAlliances = useCallback(async () => {
+    try {
+      const res = await fetch("/api/admin/alliances");
+      if (!res.ok) throw new Error(await res.text());
+      const data = (await res.json()) as { alliances: Alliance[] };
+      setAlliances(data.alliances);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("loadFailed"));
+    }
   }, [t]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void loadAlliances();
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [loadAlliances]);
 
   if (error) return <p className="text-sm text-red-400">{error}</p>;
 
   return (
-    <ResponsiveRecordViews
+    <div className="space-y-8">
+      <AdminNativeAlliancePanel onCreated={() => void loadAlliances()} />
+      <ResponsiveRecordViews
       isEmpty={alliances.length === 0}
       emptyMessage={t("empty")}
       mobileCards={alliances.map((alliance) => (
@@ -130,5 +140,6 @@ export function AdminAlliancesConsole() {
         </div>
       }
     />
+    </div>
   );
 }

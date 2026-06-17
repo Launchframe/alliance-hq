@@ -183,6 +183,13 @@
       "when": 1781525000000,
       "tag": "0025_game_season",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1781530000000,
+      "tag": "0026_native_alliance",
+      "breakpoints": true
     }
   ]
 }

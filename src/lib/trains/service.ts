@@ -1,7 +1,7 @@
 import { base44Json } from "@/lib/base44/fetch";
 import type { ParsedConnection } from "@/lib/connectionString";
 import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
-import { listActiveAllianceMembersForPoolWithSync } from "@/lib/members/roster.server";
+import { loadActiveAlliancePoolMembers } from "@/lib/members/game-roster";
 import type {
   ConductorMechanismType,
   EventTopXConfig,
@@ -113,11 +113,11 @@ async function buildPoolCandidates(input: {
   poolType: PoolType;
   date: string;
   ashedAllianceId: string;
-  connection: ParsedConnection;
+  connection: ParsedConnection | null;
 }): Promise<RollCandidate[]> {
   const [members, rankEvents] = await Promise.all([
-    listActiveAllianceMembersForPoolWithSync({
-      hqAllianceId: input.hqAllianceId,
+    loadActiveAlliancePoolMembers({
+      allianceId: input.hqAllianceId,
       ashedAllianceId: input.ashedAllianceId,
       connection: input.connection,
     }),
@@ -148,7 +148,7 @@ async function ensurePool(input: {
   ashedAllianceId: string;
   poolType: PoolType;
   date: string;
-  connection: ParsedConnection;
+  connection: ParsedConnection | null;
   useSequence: boolean;
 }): Promise<void> {
   const has = await poolHasEntries(input.hqAllianceId, input.poolType);
@@ -257,7 +257,7 @@ export async function setWeekTemplate(
 export async function rollForConductor(input: {
   allianceId: string;
   date: string;
-  connection: ParsedConnection;
+  connection: ParsedConnection | null;
   ashedAllianceId: string;
 }): Promise<RollResult> {
   const seasonKey = await resolveTrainSeasonKey(input.allianceId);
@@ -280,6 +280,11 @@ export async function rollForConductor(input: {
 
   switch (mechanism) {
     case "vs_high_score": {
+      if (!input.connection) {
+        throw new Error(
+          "VS auto-roll requires an Ashed connection. Use a roster pool mechanism for native alliances.",
+        );
+      }
       const top = await fetchVsTopScorers(
         input.connection,
         input.ashedAllianceId,
@@ -295,6 +300,11 @@ export async function rollForConductor(input: {
       break;
     }
     case "vs_top_10": {
+      if (!input.connection) {
+        throw new Error(
+          "VS auto-roll requires an Ashed connection. Use a roster pool mechanism for native alliances.",
+        );
+      }
       const top10 = await fetchVsTopScorers(
         input.connection,
         input.ashedAllianceId,
@@ -312,6 +322,11 @@ export async function rollForConductor(input: {
       break;
     }
     case "donations_top": {
+      if (!input.connection) {
+        throw new Error(
+          "Donation auto-roll requires an Ashed connection. Use a roster pool mechanism for native alliances.",
+        );
+      }
       const winner = await fetchTopDonor(
         input.connection,
         input.ashedAllianceId,
@@ -368,7 +383,7 @@ export async function rollForConductor(input: {
 export async function rollForVip(input: {
   allianceId: string;
   date: string;
-  connection: ParsedConnection;
+  connection: ParsedConnection | null;
   ashedAllianceId: string;
 }): Promise<RollResult> {
   const seasonKey = await resolveTrainSeasonKey(input.allianceId);
@@ -394,6 +409,11 @@ export async function rollForVip(input: {
 
   switch (mechanism) {
     case "donations_second": {
+      if (!input.connection) {
+        throw new Error(
+          "Donation VIP roll requires an Ashed connection. Use a roster pool mechanism for native alliances.",
+        );
+      }
       const winner = await fetchSecondDonor(
         input.connection,
         input.ashedAllianceId,
@@ -403,6 +423,11 @@ export async function rollForVip(input: {
       break;
     }
     case "event_top_x_lottery": {
+      if (!input.connection) {
+        throw new Error(
+          "Event VIP roll requires an Ashed connection. Use a roster pool mechanism for native alliances.",
+        );
+      }
       const config = (dayConfig.vipConfig ?? {
         eventKey: "capitol_war",
         topN: 10,
@@ -447,7 +472,7 @@ export async function reseedPool(input: {
   allianceId: string;
   poolType: PoolType;
   date: string;
-  connection: ParsedConnection;
+  connection: ParsedConnection | null;
   ashedAllianceId: string;
   useSequence?: boolean;
 }): Promise<{ generation: number; count: number }> {

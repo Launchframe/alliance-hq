@@ -40,6 +40,14 @@ export const alliances = pgTable("alliances", {
   seasonSyncedAt: timestamp("season_synced_at", { withTimezone: true }),
   seasonIsPostSeason: integer("season_is_post_season").notNull().default(0),
   seasonWeek: integer("season_week"),
+  /** ashed (default) — Base44 sync; native — HQ roster without Ashed seats. */
+  operatingMode: text("operating_mode").notNull().default("ashed"),
+  /** Native alliances: HQ user id for owner checks (Discord guild bind). */
+  ownerHqUserId: text("owner_hq_user_id").references(() => hqUsers.id, {
+    onDelete: "set null",
+  }),
+  /** Native alliances: game roster external id for the owner member row. */
+  ownerMemberExternalId: text("owner_member_external_id"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
     .notNull(),
@@ -824,6 +832,10 @@ export const allianceMembers = pgTable(
     allianceRankTitle: text("alliance_rank_title"),
     /** Raw Ashed Member.rank string for display / round-trip. */
     ashedRankRaw: text("ashed_rank_raw"),
+    /** Display-only hero power (millions) from roster OCR import. */
+    heroPowerM: doublePrecision("hero_power_m"),
+    /** Display-only member level from roster OCR import. */
+    memberLevel: integer("member_level"),
     syncedAt: timestamp("synced_at", { withTimezone: true }).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
@@ -839,6 +851,31 @@ export const allianceMembers = pgTable(
     ),
   ],
 );
+
+export const hqInvites = pgTable("hq_invites", {
+  id: text("id").primaryKey(),
+  allianceId: text("alliance_id")
+    .notNull()
+    .references(() => alliances.id, { onDelete: "cascade" }),
+  email: text("email").notNull(),
+  roleId: text("role_id")
+    .notNull()
+    .references(() => roles.id, { onDelete: "restrict" }),
+  tokenHash: text("token_hash").notNull().unique(),
+  invitedByHqUserId: text("invited_by_hq_user_id").references(
+    () => hqUsers.id,
+    { onDelete: "set null" },
+  ),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  acceptedAt: timestamp("accepted_at", { withTimezone: true }),
+  acceptedByHqUserId: text("accepted_by_hq_user_id").references(
+    () => hqUsers.id,
+    { onDelete: "set null" },
+  ),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
 
 /** Immutable alliance rank history (R1–R5). Append-only. */
 export const memberAllianceRankEvents = pgTable(
@@ -1162,6 +1199,7 @@ export const trainRiderCargoItems = pgTable("train_rider_cargo_item", {
 });
 
 export type AllianceMember = typeof allianceMembers.$inferSelect;
+export type HqInvite = typeof hqInvites.$inferSelect;
 export type MemberAllianceRankEvent =
   typeof memberAllianceRankEvents.$inferSelect;
 export type TrainWeekSchedule = typeof trainWeekSchedules.$inferSelect;

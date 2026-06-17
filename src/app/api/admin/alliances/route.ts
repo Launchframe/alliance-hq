@@ -17,6 +17,7 @@ export async function GET() {
   return NextResponse.json({
     alliances: alliances.map((alliance) => ({
       ...alliance,
+      operatingMode: alliance.operatingMode,
       rolesSyncedAt: alliance.rolesSyncedAt?.toISOString() ?? null,
       createdAt: alliance.createdAt.toISOString(),
       updatedAt: alliance.updatedAt.toISOString(),

@@ -21,6 +21,9 @@ type Props = {
   sessionId: string;
   userLabel: string | null;
   isConnected: boolean;
+  hasAppAccess?: boolean;
+  isNativeAlliance?: boolean;
+  operatingMode?: "ashed" | "native" | null;
   ashed: AshedConnectionMeta | null;
   showAdminPortal?: boolean;
   showTeamSettings?: boolean;
@@ -35,6 +38,9 @@ export function AshedShell({
   sessionId,
   userLabel,
   isConnected,
+  hasAppAccess = isConnected,
+  isNativeAlliance = false,
+  operatingMode = null,
   ashed,
   showAdminPortal = false,
   showTeamSettings = false,
@@ -108,6 +114,7 @@ export function AshedShell({
             <SidebarNav
               showAdminPortal={showAdminPortal}
               showTeamSettings={showTeamSettings}
+              operatingMode={operatingMode}
               mobileCollapsible
               expandedGroupId={expandedGroupId}
               onToggleGroup={toggleGroup}
@@ -130,11 +137,15 @@ export function AshedShell({
               </button>
 
               <div className="min-w-0 flex-1 truncate text-sm text-[#8b949e]">
-                {isConnected ? (
+                {hasAppAccess ? (
                   <span className="hidden sm:inline">
-                    {t("connectedAs", {
-                      user: userLabel ?? t("defaultUser"),
-                    })}
+                    {isNativeAlliance
+                      ? t("nativeSignedInAs", {
+                          user: userLabel ?? t("defaultUser"),
+                        })
+                      : t("connectedAs", {
+                          user: userLabel ?? t("defaultUser"),
+                        })}
                   </span>
                 ) : (
                   <Link
@@ -144,7 +155,7 @@ export function AshedShell({
                     {t("connectPrompt")}
                   </Link>
                 )}
-                {isConnected ? (
+                {hasAppAccess ? (
                   <span className="truncate sm:hidden">
                     {userLabel ?? t("defaultUser")}
                   </span>

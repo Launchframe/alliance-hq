@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { useFormatAccountDateTime } from "@/components/timezone/TimezoneProvider";
+import { RosterImportDialog } from "@/components/members/RosterImportDialog";
 import { Link } from "@/i18n/navigation";
 import {
   formatMemberRankDisplay,
@@ -21,6 +22,7 @@ import { ashedUrlForPath } from "@/lib/nav/routes";
 type Props = {
   initial: AllianceMembersPayload;
   canEditRanks?: boolean;
+  canImportMembers?: boolean;
 };
 
 function memberStatusLabel(
@@ -55,7 +57,11 @@ function memberRankFields(
   );
 }
 
-export function MembersListView({ initial, canEditRanks = false }: Props) {
+export function MembersListView({
+  initial,
+  canEditRanks = false,
+  canImportMembers = false,
+}: Props) {
   const t = useTranslations("members");
   const formatDateTime = useFormatAccountDateTime();
   const [data, setData] = useState(initial);
@@ -66,6 +72,9 @@ export function MembersListView({ initial, canEditRanks = false }: Props) {
   const [editMode, setEditMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [applying, setApplying] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+
+  const isNative = initial.operatingMode === "native";
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -197,7 +206,9 @@ export function MembersListView({ initial, canEditRanks = false }: Props) {
       <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold">{t("title")}</h1>
-          <p className="mt-1 text-sm text-[#8b949e]">{t("subtitle")}</p>
+          <p className="mt-1 text-sm text-[#8b949e]">
+            {isNative ? t("subtitleNative") : t("subtitle")}
+          </p>
           <p className="mt-2 text-sm">
             {t("allianceLine", {
               tag: data.alliance.tag,
@@ -213,6 +224,15 @@ export function MembersListView({ initial, canEditRanks = false }: Props) {
           </p>
         </div>
         <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap">
+          {canImportMembers && (
+            <button
+              type="button"
+              onClick={() => setImportOpen(true)}
+              className="w-full rounded-lg border border-[#238636] bg-[#238636] px-4 py-2 text-sm text-white hover:bg-[#2ea043] sm:w-auto"
+            >
+              {t("importMembers")}
+            </button>
+          )}
           {canEditRanks && (
             <button
               type="button"
@@ -228,8 +248,15 @@ export function MembersListView({ initial, canEditRanks = false }: Props) {
             disabled={refreshing}
             className="w-full rounded-lg border border-[#30363d] bg-[#21262d] px-4 py-2 text-sm disabled:opacity-50 sm:w-auto"
           >
-            {refreshing ? t("refreshing") : t("refresh")}
+            {refreshing
+              ? isNative
+                ? t("refreshingNative")
+                : t("refreshing")
+              : isNative
+                ? t("refreshNative")
+                : t("refresh")}
           </button>
+          {!isNative && (
           <a
             href={ashedMembersUrl}
             target="_blank"
@@ -238,8 +265,19 @@ export function MembersListView({ initial, canEditRanks = false }: Props) {
           >
             {t("openInAshed")}
           </a>
+          )}
         </div>
       </div>
+
+      {canImportMembers && (
+        <RosterImportDialog
+          open={importOpen}
+          onOpenChange={setImportOpen}
+          members={data.members}
+          allianceTag={data.alliance.tag}
+          onCommitted={() => void refresh()}
+        />
+      )}
 
       <div className="flex flex-col gap-3 rounded-xl border border-[#30363d] bg-[#161b22] p-4 sm:flex-row sm:flex-wrap sm:items-center">
         <label className="min-w-0 flex-1 text-sm">
@@ -490,5 +528,11 @@ export function MembersListViewOrSetup(
   if ("missingTag" in props) {
     return <MembersListMissingTag />;
   }
-  return <MembersListView initial={props.initial} canEditRanks={props.canEditRanks} />;
+  return (
+    <MembersListView
+      initial={props.initial}
+      canEditRanks={props.canEditRanks}
+      canImportMembers={props.canImportMembers}
+    />
+  );
 }
