@@ -41,6 +41,19 @@ export function buildSubmitPayloads(
       }));
 
     case "zombie-siege":
+      return rows.map((row) => {
+        const wavesSurvived = parseScoreNumber(row.score);
+        return {
+          alliance_id: allianceId,
+          event_id: eventId,
+          member_id: row.memberId,
+          member_name: row.memberName,
+          score: wavesSurvived,
+          waves_survived: wavesSurvived,
+          recorded_date: recordedDate,
+        };
+      });
+
     case "alliance-exercise":
       return rows.map((row) => ({
         alliance_id: allianceId,

@@ -6,6 +6,7 @@ import { promisify } from "node:util";
 import ffmpegStatic from "ffmpeg-static";
 
 import { logPipelineStep } from "@/lib/video/pipeline-step-log";
+import type { ExtractionConfig } from "@/lib/video/pass-definitions";
 import {
   computeFramesSkipped,
   estimateDenseFrameCount,
@@ -174,11 +175,22 @@ async function probeVideo(ffmpeg: string, videoPath: string): Promise<string> {
  * Extract frames from video using ffmpeg scene detection.
  * Falls back to fixed fps sampling when scene detection yields no frames or errors.
  * Also probes video duration and computes frame-skip stats relative to a baseline fps.
+ * Accepts an optional ExtractionConfig to parameterize the scene threshold and sample fps.
  */
 export async function extractLeaderboardFrames(
   videoPath: string,
-  sampleFps = 1,
+  extractionConfig?: ExtractionConfig,
 ): Promise<ExtractLeaderboardFramesResult> {
+  const config = extractionConfig ?? { mode: "scene", sceneThreshold: 0.25, sampleFps: 1 };
+  const sceneThreshold =
+    Number.isFinite(config.sceneThreshold) && (config.sceneThreshold as number) > 0
+      ? (config.sceneThreshold as number)
+      : 0.25;
+  const sampleFps =
+    Number.isFinite(config.sampleFps) && (config.sampleFps as number) > 0
+      ? (config.sampleFps as number)
+      : 1;
+
   if (!(await ffmpegAvailable())) {
     throw new Error(
       "ffmpeg is not installed. Install ffmpeg to process videos locally.",
@@ -191,80 +203,111 @@ export async function extractLeaderboardFrames(
   const pattern = path.join(tmpDir, "frame_%04d.jpg");
   const ffmpeg = resolveFfmpegBinary();
 
-  let mode: FrameExtractMode = "scene";
+  let mode: FrameExtractMode = config.mode === "fps" ? "fps" : "scene";
   let lastStderr = "";
 
-  const sceneStarted = Date.now();
-  try {
-    const result = await runFfmpegExtract(
-      ffmpeg,
-      videoPath,
-      pattern,
-      "select='gt(scene,0.25)',scale=720:-1",
-    );
-    lastStderr = result.stderr;
-    const sceneFrameCount = (await listExtractedFrameFiles(tmpDir)).length;
-    logPipelineStep("ffmpeg.scene_detect", Date.now() - sceneStarted, {
-      mode: "scene",
-      frameCount: sceneFrameCount,
-    });
-
-    if (sceneFrameCount === 0) {
-      mode = "fps";
-      const fallbackStarted = Date.now();
-      const fallback = await runFfmpegExtract(
-        ffmpeg,
-        videoPath,
-        pattern,
-        `fps=${sampleFps},scale=720:-1`,
-      );
-      lastStderr = fallback.stderr;
-      logPipelineStep("ffmpeg.fps_fallback", Date.now() - fallbackStarted, {
-        fps: sampleFps,
-        reason: "scene_detect_empty",
-        frameCount: (await listExtractedFrameFiles(tmpDir)).length,
-      });
-    }
-  } catch (sceneError) {
-    mode = "fps";
-    lastStderr =
-      sceneError instanceof Error ? sceneError.message : String(sceneError);
-    logPipelineStep("ffmpeg.scene_detect", Date.now() - sceneStarted, {
-      mode: "scene",
-      frameCount: 0,
-      error: lastStderr.slice(0, 200),
-    });
-
-    const fallbackStarted = Date.now();
+  // If config requests fps-only mode, skip scene detection entirely
+  if (config.mode === "fps") {
+    const fpsStarted = Date.now();
     try {
-      const fallback = await runFfmpegExtract(
+      const result = await runFfmpegExtract(
         ffmpeg,
         videoPath,
         pattern,
         `fps=${sampleFps},scale=720:-1`,
       );
-      lastStderr = fallback.stderr;
-      logPipelineStep("ffmpeg.fps_fallback", Date.now() - fallbackStarted, {
+      lastStderr = result.stderr;
+      logPipelineStep("ffmpeg.fps_extract", Date.now() - fpsStarted, {
         fps: sampleFps,
-        reason: "scene_detect_error",
         frameCount: (await listExtractedFrameFiles(tmpDir)).length,
       });
-    } catch (fallbackError) {
-      const fallbackMessage =
-        fallbackError instanceof Error
-          ? fallbackError.message
-          : String(fallbackError);
+    } catch (fpsError) {
+      const fpsMessage = fpsError instanceof Error ? fpsError.message : String(fpsError);
       const probe = await probeVideo(ffmpeg, videoPath);
       throw new Error(
         [
           "No frames extracted from video.",
-          `Scene detection failed: ${lastStderr.slice(0, 300)}`,
-          `Fps fallback failed: ${fallbackMessage.slice(0, 300)}`,
+          `Fps extraction failed: ${fpsMessage.slice(0, 300)}`,
           probe ? `Video probe: ${probe.slice(0, 400)}` : null,
         ]
           .filter(Boolean)
           .join(" "),
       );
+    }
+  } else {
+    const sceneStarted = Date.now();
+    try {
+      const result = await runFfmpegExtract(
+        ffmpeg,
+        videoPath,
+        pattern,
+        `select='gt(scene,${sceneThreshold})',scale=720:-1`,
+      );
+      lastStderr = result.stderr;
+      const sceneFrameCount = (await listExtractedFrameFiles(tmpDir)).length;
+      logPipelineStep("ffmpeg.scene_detect", Date.now() - sceneStarted, {
+        mode: "scene",
+        sceneThreshold,
+        frameCount: sceneFrameCount,
+      });
+
+      if (sceneFrameCount === 0) {
+        mode = "fps";
+        const fallbackStarted = Date.now();
+        const fallback = await runFfmpegExtract(
+          ffmpeg,
+          videoPath,
+          pattern,
+          `fps=${sampleFps},scale=720:-1`,
+        );
+        lastStderr = fallback.stderr;
+        logPipelineStep("ffmpeg.fps_fallback", Date.now() - fallbackStarted, {
+          fps: sampleFps,
+          reason: "scene_detect_empty",
+          frameCount: (await listExtractedFrameFiles(tmpDir)).length,
+        });
+      }
+    } catch (sceneError) {
+      mode = "fps";
+      lastStderr =
+        sceneError instanceof Error ? sceneError.message : String(sceneError);
+      logPipelineStep("ffmpeg.scene_detect", Date.now() - sceneStarted, {
+        mode: "scene",
+        frameCount: 0,
+        error: lastStderr.slice(0, 200),
+      });
+
+      const fallbackStarted = Date.now();
+      try {
+        const fallback = await runFfmpegExtract(
+          ffmpeg,
+          videoPath,
+          pattern,
+          `fps=${sampleFps},scale=720:-1`,
+        );
+        lastStderr = fallback.stderr;
+        logPipelineStep("ffmpeg.fps_fallback", Date.now() - fallbackStarted, {
+          fps: sampleFps,
+          reason: "scene_detect_error",
+          frameCount: (await listExtractedFrameFiles(tmpDir)).length,
+        });
+      } catch (fallbackError) {
+        const fallbackMessage =
+          fallbackError instanceof Error
+            ? fallbackError.message
+            : String(fallbackError);
+        const probe = await probeVideo(ffmpeg, videoPath);
+        throw new Error(
+          [
+            "No frames extracted from video.",
+            `Scene detection failed: ${lastStderr.slice(0, 300)}`,
+            `Fps fallback failed: ${fallbackMessage.slice(0, 300)}`,
+            probe ? `Video probe: ${probe.slice(0, 400)}` : null,
+          ]
+            .filter(Boolean)
+            .join(" "),
+        );
+      }
     }
   }
 

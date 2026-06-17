@@ -33,6 +33,7 @@
         "member_id",
         "member_name",
         "score",
+        "waves_survived",
         "recorded_date"
       ]
     },

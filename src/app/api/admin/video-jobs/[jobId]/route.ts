@@ -92,7 +92,6 @@ export async function GET(_request: Request, { params }: RouteParams) {
     sameFileResubmits = row?.count ?? 0;
   }
 
-  // Load survey
   let survey: {
     rowCountEstimate: number | null;
     scrollStyle: string | null;
@@ -111,6 +110,50 @@ export async function GET(_request: Request, { params }: RouteParams) {
 
   survey = surveyRow ?? null;
 
+  let groupPasses: Array<{
+    id: string;
+    passKey: string | null;
+    passRole: string | null;
+    status: string;
+  }> = [];
+
+  let groupInfo: {
+    selectedJobId: string | null;
+    accuracyJobId: string | null;
+    recommendedJobId: string | null;
+  } | null = null;
+
+  if (job.groupId) {
+    groupPasses = await db
+      .select({
+        id: schema.videoJobs.id,
+        passKey: schema.videoJobs.passKey,
+        passRole: schema.videoJobs.passRole,
+        status: schema.videoJobs.status,
+      })
+      .from(schema.videoJobs)
+      .where(eq(schema.videoJobs.groupId, job.groupId));
+
+    const [group] = await db
+      .select({
+        selectedJobId: schema.videoUploadGroups.selectedJobId,
+        accuracyJobId: schema.videoUploadGroups.accuracyJobId,
+        comparisonJson: schema.videoUploadGroups.comparisonJson,
+      })
+      .from(schema.videoUploadGroups)
+      .where(eq(schema.videoUploadGroups.id, job.groupId))
+      .limit(1);
+
+    if (group) {
+      const comp = group.comparisonJson as { recommendedJobId?: string | null } | null;
+      groupInfo = {
+        selectedJobId: group.selectedJobId ?? null,
+        accuracyJobId: group.accuracyJobId ?? null,
+        recommendedJobId: comp?.recommendedJobId ?? null,
+      };
+    }
+  }
+
   return NextResponse.json({
     job: {
       ...job,
@@ -123,5 +166,7 @@ export async function GET(_request: Request, { params }: RouteParams) {
     addCount,
     sameFileResubmits,
     survey,
+    groupPasses,
+    groupInfo,
   });
 }

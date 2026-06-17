@@ -1,5 +1,6 @@
 import type { AshedMember } from "@/lib/video/member-matcher";
 
+import type { DiscordTranslate } from "@/lib/discord/i18n";
 import type { LastWarPlayerLookupResult } from "@/lib/lastwar/player-lookup";
 import {
   findExactMemberByName,
@@ -17,20 +18,23 @@ export type ProcessLinkInput = {
   linkedMemberIds: Set<string>;
   pending: LinkPendingState | null;
   walkthroughStep?: number;
+  translate: DiscordTranslate;
+  walkthroughSteps: readonly string[];
 };
 
 export function processLinkCommand(input: ProcessLinkInput): LinkCommandResult {
+  const { translate: t } = input;
+
   if (input.pending?.kind === "link_walkthrough") {
     const nextStep = (input.walkthroughStep ?? input.pending.step) + 1;
-    if (nextStep >= 5) {
+    if (nextStep >= input.walkthroughSteps.length) {
       return {
-        reply:
-          "Great. Run `/link` again with your copied name and UID when ready.",
+        reply: t("link.walkthroughDone"),
         pending: null,
       };
     }
     return {
-      reply: walkthroughMessage(nextStep),
+      reply: walkthroughMessage(nextStep, t, input.walkthroughSteps),
       pending: { kind: "link_walkthrough", step: nextStep },
     };
   }
@@ -42,7 +46,7 @@ export function processLinkCommand(input: ProcessLinkInput): LinkCommandResult {
   const { gameUserName } = input.lookup;
   if (!namesMatch(input.reportedName, gameUserName)) {
     return {
-      reply: `${walkthroughMessage(0)}\n\nTap **Done** when you've finished this step.`,
+      reply: `${walkthroughMessage(0, t, input.walkthroughSteps)}\n\n${t("link.nameMismatchIntro")}`,
       pending: { kind: "link_walkthrough", step: 0 },
     };
   }
@@ -50,7 +54,7 @@ export function processLinkCommand(input: ProcessLinkInput): LinkCommandResult {
   const exact = findExactMemberByName(input.members, gameUserName);
   if (exact) {
     return {
-      reply: `Linked to **${exact.current_name}**. You're ready to use /vr.`,
+      reply: t("link.linked", { name: exact.current_name }),
       pending: null,
       linked: true,
       linkTarget: {
@@ -68,7 +72,7 @@ export function processLinkCommand(input: ProcessLinkInput): LinkCommandResult {
   );
   if (candidates.length > 0) {
     return {
-      reply: `We verified **${gameUserName}** but couldn't find an exact roster match. Pick your member:`,
+      reply: t("link.fuzzyPrompt", { gameName: gameUserName }),
       pending: {
         kind: "link_fuzzy_pick",
         candidates: candidates.map((c) => ({
@@ -83,8 +87,7 @@ export function processLinkCommand(input: ProcessLinkInput): LinkCommandResult {
   }
 
   return {
-    reply:
-      "We couldn't match that name to anyone on the roster. Try **Start over** for copy instructions, or ask an officer for help.",
+    reply: t("link.rosterMiss"),
     pending: null,
     needsOfficerAttention: true,
   };
@@ -93,18 +96,20 @@ export function processLinkCommand(input: ProcessLinkInput): LinkCommandResult {
 export function processLinkFuzzyPick(input: {
   pending: LinkPendingState;
   memberId: string;
+  translate: DiscordTranslate;
 }): LinkCommandResult {
+  const { translate: t } = input;
   if (input.pending.kind !== "link_fuzzy_pick") {
-    return { reply: "Nothing to pick right now.", pending: null };
+    return { reply: t("errors.nothingPending"), pending: null };
   }
   const candidate = input.pending.candidates.find(
     (c) => c.memberId === input.memberId,
   );
   if (!candidate) {
-    return { reply: "That member option expired. Run `/link` again.", pending: null };
+    return { reply: t("link.pickExpired"), pending: null };
   }
   return {
-    reply: `Linked to **${candidate.name}**. You're ready to use /vr.`,
+    reply: t("link.linked", { name: candidate.name }),
     pending: null,
     linked: true,
     linkTarget: {

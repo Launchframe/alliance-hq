@@ -23,6 +23,43 @@ describe("buildSubmitPayloads", () => {
     });
   });
 
+  it("builds zombie siege rows with waves_survived", () => {
+    const target = getScoreTargetOrThrow("zombie-siege");
+    const rows = buildSubmitPayloads(
+      target,
+      "alliance-1",
+      { eventId: "ev-1", recordedDate: "2026-06-16" },
+      [{ memberId: "m1", memberName: "Alice", score: "20" }],
+    );
+    expect(rows[0]).toEqual({
+      alliance_id: "alliance-1",
+      event_id: "ev-1",
+      member_id: "m1",
+      member_name: "Alice",
+      score: 20,
+      waves_survived: 20,
+      recorded_date: "2026-06-16",
+    });
+  });
+
+  it("builds alliance exercise rows with event_id", () => {
+    const target = getScoreTargetOrThrow("alliance-exercise");
+    const rows = buildSubmitPayloads(
+      target,
+      "alliance-1",
+      { eventId: "exercise-1", recordedDate: "2026-06-16" },
+      [{ memberId: "m1", memberName: "Alice", score: "12,345" }],
+    );
+    expect(rows[0]).toEqual({
+      alliance_id: "alliance-1",
+      event_id: "exercise-1",
+      member_id: "m1",
+      member_name: "Alice",
+      score: 12345,
+      recorded_date: "2026-06-16",
+    });
+  });
+
   it("builds seasonal score rows without team", () => {
     const target = getScoreTargetOrThrow("frontline-breakthrough");
     const rows = buildSubmitPayloads(

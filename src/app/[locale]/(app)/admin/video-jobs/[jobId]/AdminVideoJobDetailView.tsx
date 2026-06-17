@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { FormattedDateTime } from "@/components/timezone/TimezoneProvider";
@@ -19,7 +19,32 @@ type JobDetail = {
   timingsJson: VideoProcessTimings | null;
   totalFileSizeBytes: number | null;
   rating?: string | null;
+  ratingReason?: string | null;
+  qualityBucket?: string | null;
+  qualityScore?: number | null;
 };
+
+const QUALITY_BUCKET_COLORS: Record<string, string> = {
+  perfect: "bg-[#3fb95020] text-[#3fb950] border-[#3fb950]",
+  q1: "bg-[#3fb95010] text-[#3fb950] border-[#3fb950]",
+  q2: "bg-[#d2992210] text-[#d29922] border-[#d29922]",
+  q3: "bg-[#d2992210] text-[#d29922] border-[#d29922]",
+  q4: "bg-[#f8514910] text-[#f85149] border-[#f85149]",
+  q5: "bg-[#f8514910] text-[#f85149] border-[#f85149]",
+  dropped_the_ball: "bg-[#f8514920] text-[#f85149] border-[#f85149]",
+};
+
+function QualityBadge({ bucket }: { bucket: string | null | undefined }) {
+  if (!bucket) return null;
+  const cls =
+    QUALITY_BUCKET_COLORS[bucket] ??
+    "bg-[#21262d] text-[#8b949e] border-[#30363d]";
+  return (
+    <span className={`rounded-full border px-2 py-0.5 text-xs ${cls}`}>
+      {bucket}
+    </span>
+  );
+}
 
 type FrameRow = {
   frameIndex: number;
@@ -48,6 +73,19 @@ type SurveyData = {
   aboveAverageScroll: boolean | null;
 };
 
+type GroupPass = {
+  id: string;
+  passKey: string | null;
+  passRole: string | null;
+  status: string;
+};
+
+type GroupInfo = {
+  selectedJobId: string | null;
+  accuracyJobId: string | null;
+  recommendedJobId: string | null;
+};
+
 type DetailResponse = {
   job: JobDetail;
   frames: FrameRow[];
@@ -57,9 +95,71 @@ type DetailResponse = {
   addCount: number;
   sameFileResubmits: number;
   survey: SurveyData | null;
+  groupPasses?: GroupPass[];
+  groupInfo?: GroupInfo | null;
 };
 
 type TabId = "frames" | "parse" | "timings";
+type FrameViewMode = "list" | "gallery" | "video";
+
+const BASE_FRAME_HEIGHT_PX = 192;
+/** Internal scale at 100% display (formerly shown as 300% before zoom rebaseline). */
+const FRAME_ZOOM_BASELINE = 3;
+const FRAME_DISPLAY_ZOOM_MIN = 15;
+const FRAME_DISPLAY_ZOOM_MAX = 150;
+const FRAME_DISPLAY_ZOOM_STEP = 5;
+const FRAME_ZOOM_STORAGE_KEY = "admin-video-job-frame-zoom-percent";
+const FRAME_VIEW_MODE_STORAGE_KEY = "admin-video-job-frame-view-mode";
+const FRAME_VIEW_MODES: FrameViewMode[] = ["list", "gallery", "video"];
+/** Fixed gallery stage height at 100% zoom so zooming does not resize the page. */
+const GALLERY_VIEWPORT_HEIGHT_PX =
+  Math.round(BASE_FRAME_HEIGHT_PX * FRAME_ZOOM_BASELINE) + 72;
+/** Horizontal drag (px) that advances one frame in the carousel. */
+const GALLERY_PIXELS_PER_FRAME_RATIO = 0.42;
+const GALLERY_MOMENTUM_FRICTION = 0.94;
+const GALLERY_MOMENTUM_MIN_VELOCITY = 0.04;
+const GALLERY_SNAP_DURATION_MS = 220;
+const VIDEO_FPS_MIN = 0.5;
+const VIDEO_FPS_MAX = 3;
+const VIDEO_FPS_STEP = 0.25;
+
+function clampFrameZoomPercent(percent: number): number {
+  return Math.min(
+    FRAME_DISPLAY_ZOOM_MAX,
+    Math.max(FRAME_DISPLAY_ZOOM_MIN, percent),
+  );
+}
+
+function readStoredFrameZoomPercent(): number {
+  if (typeof window === "undefined") return 100;
+  try {
+    const raw = localStorage.getItem(FRAME_ZOOM_STORAGE_KEY);
+    if (raw == null) return 100;
+    const percent = Number(raw);
+    if (!Number.isFinite(percent)) return 100;
+    return clampFrameZoomPercent(percent);
+  } catch {
+    return 100;
+  }
+}
+
+function displayZoomPercentToScale(percent: number): number {
+  return (percent / 100) * FRAME_ZOOM_BASELINE;
+}
+
+function readStoredFrameViewMode(): FrameViewMode {
+  if (typeof window === "undefined") return "list";
+  try {
+    const raw = localStorage.getItem(FRAME_VIEW_MODE_STORAGE_KEY);
+    if (raw == null) return "list";
+    if ((FRAME_VIEW_MODES as readonly string[]).includes(raw)) {
+      return raw as FrameViewMode;
+    }
+    return "list";
+  } catch {
+    return "list";
+  }
+}
 
 function formatMs(ms: number | null | undefined): string {
   if (ms == null || !Number.isFinite(ms)) return "—";
@@ -85,15 +185,131 @@ function formatSurveyScrollStyle(
   return scrollStyle;
 }
 
+type FrameStatsTableProps = {
+  frame: FrameRow;
+  tDetail: ReturnType<typeof useTranslations<"admin.videoJobDetailPage">>;
+};
+
+function GalleryFrameStatsTable({ frame, tDetail }: FrameStatsTableProps) {
+  return (
+    <div className="overflow-hidden rounded-xl border border-[#30363d] bg-[#161b22]">
+      <p className="border-b border-[#30363d] px-3 py-2 text-xs font-semibold uppercase tracking-wide text-[#8b949e]">
+        {tDetail("galleryStatsTitle")}
+      </p>
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-[#30363d] text-left text-xs text-[#8b949e]">
+            <th className="px-3 py-2">{tDetail("statsColFrame")}</th>
+            <th className="px-3 py-2">{tDetail("statsColUpload")}</th>
+            <th className="px-3 py-2">{tDetail("statsColExtract")}</th>
+            <th className="px-3 py-2">{tDetail("statsColEntries")}</th>
+            <th className="px-3 py-2">{tDetail("statsColError")}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr className="text-[#e6edf3]">
+            <td className="px-3 py-2 font-medium">
+              {tDetail("frameLabel", { index: frame.frameIndex })}
+            </td>
+            <td className="px-3 py-2 font-mono text-xs">
+              {formatMs(frame.uploadMs)}
+            </td>
+            <td className="px-3 py-2 font-mono text-xs">
+              {formatMs(frame.extractMs)}
+            </td>
+            <td className="px-3 py-2 font-mono text-xs">
+              {frame.ocrEntryCount ?? 0}
+            </td>
+            <td className="px-3 py-2 text-xs">
+              {frame.ocrError ? (
+                <span className="rounded bg-red-950/50 px-2 py-0.5 text-red-300">
+                  {frame.ocrError}
+                </span>
+              ) : (
+                <span className="text-[#8b949e]">—</span>
+              )}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function estimateGalleryReleaseVelocityPxPerMs(
+  samples: Array<{ x: number; t: number }>,
+): number {
+  if (samples.length < 2) return 0;
+  const last = samples[samples.length - 1]!;
+  const windowMs = 120;
+  let start = samples[0]!;
+  for (let i = samples.length - 2; i >= 0; i--) {
+    const sample = samples[i]!;
+    if (last.t - sample.t <= windowMs) {
+      start = sample;
+    } else {
+      break;
+    }
+  }
+  const dt = Math.max(last.t - start.t, 8);
+  return (last.x - start.x) / dt;
+}
+
 export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
   const t = useTranslations("admin");
   const tDetail = useTranslations("admin.videoJobDetailPage");
   const tSurvey = useTranslations("videoSurvey");
-  const tc = useTranslations("common");
   const [data, setData] = useState<DetailResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<TabId>("frames");
   const [expandedFrames, setExpandedFrames] = useState<Set<number>>(new Set());
+
+  // Frame view mode
+  const [frameViewMode, setFrameViewMode] = useState<FrameViewMode>(() =>
+    readStoredFrameViewMode(),
+  );
+
+  const persistFrameViewMode = useCallback((mode: FrameViewMode) => {
+    setFrameViewMode(mode);
+    try {
+      localStorage.setItem(FRAME_VIEW_MODE_STORAGE_KEY, mode);
+    } catch {
+      // ignore quota / private mode
+    }
+  }, []);
+
+  // Gallery mode state — continuous position (frame units) for drag + momentum
+  const [galleryPosition, setGalleryPosition] = useState(0);
+  const [galleryInteracting, setGalleryInteracting] = useState(false);
+  const galleryDragAnchorXRef = useRef<number | null>(null);
+  const galleryDragAnchorPositionRef = useRef(0);
+  const galleryDragSamplesRef = useRef<Array<{ x: number; t: number }>>([]);
+  const galleryMomentumAnimRef = useRef<number | null>(null);
+  const gallerySnapAnimRef = useRef<number | null>(null);
+  const galleryPositionRef = useRef(0);
+  const galleryVelocityRef = useRef(0);
+  const galleryLastTickRef = useRef<number | null>(null);
+
+  // Shared frame zoom for gallery + slideshow (does not affect page layout elsewhere)
+  const [frameZoomPercent, setFrameZoomPercent] = useState(() =>
+    readStoredFrameZoomPercent(),
+  );
+
+  const persistFrameZoomPercent = useCallback((percent: number) => {
+    const clamped = clampFrameZoomPercent(percent);
+    setFrameZoomPercent(clamped);
+    try {
+      localStorage.setItem(FRAME_ZOOM_STORAGE_KEY, String(clamped));
+    } catch {
+      // ignore quota / private mode
+    }
+  }, []);
+
+  // Video / slideshow mode state
+  const [videoModeIndex, setVideoModeIndex] = useState(0);
+  const [videoModePlaying, setVideoModePlaying] = useState(false);
+  const [videoModeFps, setVideoModeFps] = useState(1);
+  const videoModeTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const loadDetail = useCallback(async () => {
     const res = await fetch(`/api/admin/video-jobs/${jobId}`);
@@ -110,6 +326,235 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
       }
     })();
   }, [jobId, loadDetail, t]);
+
+  const frames = data?.frames ?? [];
+  const frameZoom = displayZoomPercentToScale(frameZoomPercent);
+  const frameDisplayHeight = Math.round(BASE_FRAME_HEIGHT_PX * frameZoom);
+  const galleryPixelsPerFrame = Math.max(
+    72,
+    frameDisplayHeight * GALLERY_PIXELS_PER_FRAME_RATIO,
+  );
+
+  const stopGallerySnap = useCallback(() => {
+    if (gallerySnapAnimRef.current != null) {
+      cancelAnimationFrame(gallerySnapAnimRef.current);
+      gallerySnapAnimRef.current = null;
+    }
+  }, []);
+
+  const stopGalleryMomentum = useCallback(() => {
+    if (galleryMomentumAnimRef.current != null) {
+      cancelAnimationFrame(galleryMomentumAnimRef.current);
+      galleryMomentumAnimRef.current = null;
+    }
+    galleryLastTickRef.current = null;
+    galleryVelocityRef.current = 0;
+  }, []);
+
+  const setGalleryPositionClamped = useCallback(
+    (position: number) => {
+      const max = Math.max(0, frames.length - 1);
+      const clamped = Math.max(0, Math.min(max, position));
+      galleryPositionRef.current = clamped;
+      setGalleryPosition(clamped);
+    },
+    [frames.length],
+  );
+
+  const snapGalleryToNearest = useCallback(() => {
+    if (frames.length <= 1) return;
+    stopGalleryMomentum();
+    stopGallerySnap();
+
+    const target = Math.round(galleryPositionRef.current);
+    const start = galleryPositionRef.current;
+    if (Math.abs(target - start) < 0.001) {
+      setGalleryPositionClamped(target);
+      setGalleryInteracting(false);
+      return;
+    }
+
+    const startTime = performance.now();
+    const tick = (now: number) => {
+      const t = Math.min(1, (now - startTime) / GALLERY_SNAP_DURATION_MS);
+      const eased = 1 - (1 - t) ** 3;
+      const next = start + (target - start) * eased;
+      galleryPositionRef.current = next;
+      setGalleryPosition(next);
+      if (t < 1) {
+        gallerySnapAnimRef.current = requestAnimationFrame(tick);
+      } else {
+        gallerySnapAnimRef.current = null;
+        setGalleryPositionClamped(target);
+        setGalleryInteracting(false);
+      }
+    };
+    gallerySnapAnimRef.current = requestAnimationFrame(tick);
+  }, [
+    frames.length,
+    setGalleryPositionClamped,
+    stopGalleryMomentum,
+    stopGallerySnap,
+  ]);
+
+  const setGalleryIndex = useCallback(
+    (index: number) => {
+      stopGalleryMomentum();
+      stopGallerySnap();
+      setGalleryInteracting(false);
+      setGalleryPositionClamped(index);
+    },
+    [setGalleryPositionClamped, stopGalleryMomentum, stopGallerySnap],
+  );
+
+  const startGalleryMomentum = useCallback(
+    (initialVelocityFramesPerSec: number) => {
+      if (frames.length <= 1) return;
+      stopGalleryMomentum();
+      stopGallerySnap();
+      setGalleryInteracting(true);
+      galleryVelocityRef.current = initialVelocityFramesPerSec;
+      galleryLastTickRef.current = null;
+
+      const tick = (now: number) => {
+        const last = galleryLastTickRef.current ?? now;
+        galleryLastTickRef.current = now;
+        const dt = Math.min(0.05, (now - last) / 1000);
+
+        galleryPositionRef.current += galleryVelocityRef.current * dt;
+        galleryVelocityRef.current *= GALLERY_MOMENTUM_FRICTION ** (dt * 60);
+
+        const max = frames.length - 1;
+        if (galleryPositionRef.current < 0) {
+          galleryPositionRef.current = 0;
+          galleryVelocityRef.current = 0;
+        } else if (galleryPositionRef.current > max) {
+          galleryPositionRef.current = max;
+          galleryVelocityRef.current = 0;
+        }
+
+        setGalleryPosition(galleryPositionRef.current);
+
+        if (Math.abs(galleryVelocityRef.current) > GALLERY_MOMENTUM_MIN_VELOCITY) {
+          galleryMomentumAnimRef.current = requestAnimationFrame(tick);
+        } else {
+          galleryMomentumAnimRef.current = null;
+          galleryVelocityRef.current = 0;
+          snapGalleryToNearest();
+        }
+      };
+
+      galleryMomentumAnimRef.current = requestAnimationFrame(tick);
+    },
+    [frames.length, snapGalleryToNearest, stopGalleryMomentum, stopGallerySnap],
+  );
+
+  const finishGalleryDrag = useCallback(() => {
+    const samples = galleryDragSamplesRef.current;
+    galleryDragAnchorXRef.current = null;
+    galleryDragSamplesRef.current = [];
+
+    if (frames.length <= 1) {
+      setGalleryInteracting(false);
+      return;
+    }
+
+    const pxPerMs = estimateGalleryReleaseVelocityPxPerMs(samples);
+    const framesPerSec = (-pxPerMs * 1000) / galleryPixelsPerFrame;
+
+    if (Math.abs(framesPerSec) < 0.25) {
+      snapGalleryToNearest();
+      return;
+    }
+
+    startGalleryMomentum(Math.max(-36, Math.min(36, framesPerSec)));
+  }, [
+    frames.length,
+    galleryPixelsPerFrame,
+    snapGalleryToNearest,
+    startGalleryMomentum,
+  ]);
+
+  const recordGalleryDrag = useCallback(
+    (clientX: number) => {
+      const anchorX = galleryDragAnchorXRef.current;
+      if (anchorX == null) return;
+
+      const now = performance.now();
+      galleryDragSamplesRef.current.push({ x: clientX, t: now });
+      if (galleryDragSamplesRef.current.length > 12) {
+        galleryDragSamplesRef.current.shift();
+      }
+
+      const deltaFrames =
+        -(clientX - anchorX) / galleryPixelsPerFrame;
+      const next =
+        galleryDragAnchorPositionRef.current + deltaFrames;
+      setGalleryPositionClamped(next);
+    },
+    [galleryPixelsPerFrame, setGalleryPositionClamped],
+  );
+
+  const beginGalleryDrag = useCallback(
+    (clientX: number) => {
+      stopGalleryMomentum();
+      stopGallerySnap();
+      setGalleryInteracting(true);
+      galleryDragAnchorXRef.current = clientX;
+      galleryDragAnchorPositionRef.current = galleryPositionRef.current;
+      galleryDragSamplesRef.current = [{ x: clientX, t: performance.now() }];
+    },
+    [stopGalleryMomentum, stopGallerySnap],
+  );
+
+  useEffect(() => {
+    return () => {
+      stopGalleryMomentum();
+      stopGallerySnap();
+    };
+  }, [stopGalleryMomentum, stopGallerySnap]);
+
+  // Clamp gallery index to valid range (derived at render, no effect needed)
+  const safeGalleryIndex = frames.length > 0
+    ? Math.min(Math.round(galleryPosition), frames.length - 1)
+    : 0;
+  const galleryFrame = frames[safeGalleryIndex];
+  const safeVideoModeIndex = frames.length > 0
+    ? Math.min(videoModeIndex, frames.length - 1)
+    : 0;
+  const videoModeFrame = frames[safeVideoModeIndex];
+  const videoDurationEstimate = formatMs((frames.length / videoModeFps) * 1000);
+
+  // Video slideshow interval — only advances; never side-effects inside the updater
+  useEffect(() => {
+    if (!videoModePlaying || frameViewMode !== "video") {
+      if (videoModeTimerRef.current) {
+        clearInterval(videoModeTimerRef.current);
+        videoModeTimerRef.current = null;
+      }
+      return;
+    }
+    videoModeTimerRef.current = setInterval(() => {
+      setVideoModeIndex((prev) =>
+        prev >= frames.length - 1 ? prev : prev + 1,
+      );
+    }, Math.round(1000 / videoModeFps));
+    return () => {
+      if (videoModeTimerRef.current) clearInterval(videoModeTimerRef.current);
+    };
+  }, [videoModePlaying, videoModeFps, frameViewMode, frames.length]);
+
+  // End-of-sequence loop — pauses 1 s then resets index; interval self-clamps while waiting.
+  // No synchronous setState: timeout cleanup handles unmount safely.
+  useEffect(() => {
+    if (!videoModePlaying || frameViewMode !== "video" || frames.length <= 1)
+      return;
+    if (videoModeIndex < frames.length - 1) return;
+    const tid = setTimeout(() => {
+      setVideoModeIndex(0);
+    }, 1000);
+    return () => clearTimeout(tid);
+  }, [videoModeIndex, videoModePlaying, frameViewMode, frames.length]);
 
   const phaseBars = useMemo(() => {
     const phases = data?.job.timingsJson?.phases;
@@ -141,7 +586,7 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
     return <p className="text-sm text-[#8b949e]">{tDetail("loading")}</p>;
   }
 
-  const { job, frames, parsedRows, editCount, deleteCount, addCount, sameFileResubmits } =
+  const { job, parsedRows, editCount, deleteCount, addCount, sameFileResubmits, groupPasses, groupInfo } =
     data;
   const timings = job.timingsJson;
 
@@ -200,9 +645,23 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
             {job.rating === "thumbs_up"
               ? "👍"
               : job.rating === "thumbs_down"
-                ? "👎"
+                ? `👎${job.ratingReason ? ` · ${job.ratingReason}` : ""}`
                 : "—"}
           </p>
+        </div>
+        <div>
+          <p className="text-xs text-[#8b949e]">{tDetail("qualityBucket")}</p>
+          <div className="flex items-center gap-1.5">
+            <QualityBadge bucket={job.qualityBucket} />
+            {job.qualityScore != null ? (
+              <span className="text-xs text-[#8b949e]">
+                ({(job.qualityScore * 100).toFixed(0)}%)
+              </span>
+            ) : null}
+            {!job.qualityBucket ? (
+              <span className="text-sm">—</span>
+            ) : null}
+          </div>
         </div>
       </div>
 
@@ -224,12 +683,62 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
               <p className="text-xs text-[#8b949e]">{tDetail("surveyAboveAvg")}</p>
               <p>
                 {data.survey.aboveAverageScroll === true
-                  ? tc("yes")
+                  ? t("yes")
                   : data.survey.aboveAverageScroll === false
-                    ? tc("no")
+                    ? t("no")
                     : "—"}
               </p>
             </div>
+          </div>
+        </div>
+      ) : null}
+
+      {groupPasses && groupPasses.length > 1 ? (
+        <div className="rounded-xl border border-[#30363d] bg-[#161b22] p-4">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[#8b949e]">
+            {tDetail("siblingPasses")}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {groupPasses.map((pass) => {
+              const isSelected = groupInfo?.selectedJobId === pass.id;
+              const isAccuracy = groupInfo?.accuracyJobId === pass.id;
+              const isRecommended = groupInfo?.recommendedJobId === pass.id;
+              return (
+                <div key={pass.id} className="flex flex-col gap-1">
+                  <Link
+                    href={`/admin/video-jobs/${pass.id}`}
+                    className={`rounded-lg border px-3 py-1.5 text-sm ${
+                      pass.id === jobId
+                        ? "border-[#58a6ff] text-[#58a6ff]"
+                        : "border-[#30363d] text-[#8b949e] hover:text-[#e6edf3]"
+                    }`}
+                  >
+                    {pass.passKey ?? pass.passRole ?? pass.id.slice(0, 8)}
+                    {" · "}
+                    {pass.status}
+                  </Link>
+                  {(isSelected || isAccuracy || isRecommended) ? (
+                    <div className="flex flex-wrap gap-1">
+                      {isSelected ? (
+                        <span className="rounded px-1.5 py-0.5 text-[10px] font-medium bg-[#3fb95020] text-[#3fb950]">
+                          {tDetail("passSelected")}
+                        </span>
+                      ) : null}
+                      {isAccuracy ? (
+                        <span className="rounded px-1.5 py-0.5 text-[10px] font-medium bg-[#58a6ff20] text-[#58a6ff]">
+                          {tDetail("passAccuracyVoted")}
+                        </span>
+                      ) : null}
+                      {isRecommended ? (
+                        <span className="rounded px-1.5 py-0.5 text-[10px] font-medium bg-[#d2992220] text-[#d29922]">
+                          {tDetail("passRecommended")}
+                        </span>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
+              );
+            })}
           </div>
         </div>
       ) : null}
@@ -261,68 +770,342 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
         frames.length === 0 ? (
           <p className="text-sm text-[#8b949e]">{tDetail("framesEmpty")}</p>
         ) : (
-          <ul className="space-y-3">
-            {frames.map((frame) => (
-              <li
-                key={frame.frameIndex}
-                className="rounded-xl border border-[#30363d] bg-[#161b22] p-3"
-              >
-                <div className="flex flex-col gap-3 sm:flex-row">
-                  {/* eslint-disable-next-line @next/next/no-img-element -- admin-only JPEG from authenticated API route */}
-                  <img
-                    src={`/api/admin/video-jobs/${jobId}/frames/${frame.frameIndex}`}
-                    alt={tDetail("frameThumbnail", {
-                      index: frame.frameIndex,
-                    })}
-                    className="h-24 w-auto max-w-full rounded border border-[#30363d] object-contain"
+          <div className="space-y-4">
+            {/* View mode switcher */}
+            <div className="flex flex-col md:flex-wrap items-center gap-3">
+              <div className="flex gap-1">
+                {(["list", "gallery", "video"] as const).map((mode) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    onClick={() => persistFrameViewMode(mode)}
+                    className={`rounded-lg px-3 py-1.5 text-xs ${
+                      frameViewMode === mode
+                        ? "bg-[#21262d] text-[#e6edf3]"
+                        : "text-[#8b949e] hover:text-[#e6edf3]"
+                    }`}
+                  >
+                    {tDetail(`viewMode.${mode}`)}
+                  </button>
+                ))}
+              </div>
+              {frameViewMode !== "list" ? (
+                <label className="flex min-w-0 flex-1 items-center gap-2 text-xs sm:max-w-xs">
+                  <span className="shrink-0 text-[#8b949e]">
+                    {tDetail("frameZoom")}
+                  </span>
+                  <input
+                    type="range"
+                    min={FRAME_DISPLAY_ZOOM_MIN}
+                    max={FRAME_DISPLAY_ZOOM_MAX}
+                    step={FRAME_DISPLAY_ZOOM_STEP}
+                    value={frameZoomPercent}
+                    onChange={(e) =>
+                      persistFrameZoomPercent(Number(e.target.value))
+                    }
+                    className="min-w-0 flex-1"
                   />
-                  <div className="min-w-0 flex-1 space-y-2">
-                    <p className="font-medium text-[#e6edf3]">
-                      {tDetail("frameLabel", { index: frame.frameIndex })}
-                    </p>
-                    <div className="flex flex-wrap gap-2 text-xs">
-                      <span className="rounded bg-[#21262d] px-2 py-0.5 text-[#8b949e]">
-                        {tDetail("uploadMs", {
-                          ms: formatMs(frame.uploadMs),
+                  <span className="w-10 shrink-0 text-center text-[#e6edf3]">
+                    {frameZoomPercent}%
+                  </span>
+                </label>
+              ) : null}
+            </div>
+
+            {/* List mode */}
+            {frameViewMode === "list" ? (
+              <ul className="space-y-3">
+                {frames.map((frame) => (
+                  <li
+                    key={frame.frameIndex}
+                    className="rounded-xl border border-[#30363d] bg-[#161b22] p-3"
+                  >
+                    <div className="flex flex-col gap-3 sm:flex-row">
+                      {/* eslint-disable-next-line @next/next/no-img-element -- admin-only JPEG from authenticated API route */}
+                      <img
+                        src={`/api/admin/video-jobs/${jobId}/frames/${frame.frameIndex}`}
+                        alt={tDetail("frameThumbnail", {
+                          index: frame.frameIndex,
                         })}
-                      </span>
-                      <span className="rounded bg-[#21262d] px-2 py-0.5 text-[#8b949e]">
-                        {tDetail("extractMs", {
-                          ms: formatMs(frame.extractMs),
-                        })}
-                      </span>
-                      <span className="rounded bg-[#21262d] px-2 py-0.5 text-[#8b949e]">
-                        {tDetail("entryCount", {
-                          count: frame.ocrEntryCount ?? 0,
-                        })}
-                      </span>
-                      {frame.ocrError ? (
-                        <span className="rounded bg-red-950/50 px-2 py-0.5 text-red-300">
-                          {frame.ocrError}
-                        </span>
-                      ) : null}
+                        className="h-24 w-auto max-w-full rounded border border-[#30363d] object-contain"
+                      />
+                      <div className="min-w-0 flex-1 space-y-2">
+                        <p className="font-medium text-[#e6edf3]">
+                          {tDetail("frameLabel", { index: frame.frameIndex })}
+                        </p>
+                        <div className="flex flex-wrap gap-2 text-xs">
+                          <span className="rounded bg-[#21262d] px-2 py-0.5 text-[#8b949e]">
+                            {tDetail("uploadMs", {
+                              ms: formatMs(frame.uploadMs),
+                            })}
+                          </span>
+                          <span className="rounded bg-[#21262d] px-2 py-0.5 text-[#8b949e]">
+                            {tDetail("extractMs", {
+                              ms: formatMs(frame.extractMs),
+                            })}
+                          </span>
+                          <span className="rounded bg-[#21262d] px-2 py-0.5 text-[#8b949e]">
+                            {tDetail("entryCount", {
+                              count: frame.ocrEntryCount ?? 0,
+                            })}
+                          </span>
+                          {frame.ocrError ? (
+                            <span className="rounded bg-red-950/50 px-2 py-0.5 text-red-300">
+                              {frame.ocrError}
+                            </span>
+                          ) : null}
+                        </div>
+                        {frame.ocrRawJson != null ? (
+                          <button
+                            type="button"
+                            onClick={() => toggleFrameRaw(frame.frameIndex)}
+                            className="text-xs text-[#58a6ff] hover:underline"
+                          >
+                            {expandedFrames.has(frame.frameIndex)
+                              ? tDetail("hideRaw")
+                              : tDetail("showRaw")}
+                          </button>
+                        ) : null}
+                        {expandedFrames.has(frame.frameIndex) ? (
+                          <pre className="max-h-48 overflow-auto rounded border border-[#30363d] bg-[#0d1117] p-2 text-xs text-[#8b949e]">
+                            {JSON.stringify(frame.ocrRawJson, null, 2)}
+                          </pre>
+                        ) : null}
+                      </div>
                     </div>
-                    {frame.ocrRawJson != null ? (
-                      <button
-                        type="button"
-                        onClick={() => toggleFrameRaw(frame.frameIndex)}
-                        className="text-xs text-[#58a6ff] hover:underline"
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+
+            {/* Gallery mode — 3D CSS carousel */}
+            {frameViewMode === "gallery" ? (
+              <div className="space-y-4">
+                <div
+                  className="relative select-none overflow-hidden rounded-xl border border-[#30363d] bg-[#0d1117]"
+                  style={{ height: `${GALLERY_VIEWPORT_HEIGHT_PX}px` }}
+                >
+                  <div
+                    className="relative mx-auto h-full w-full"
+                    style={{ perspective: "800px" }}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    beginGalleryDrag(e.clientX);
+                  }}
+                  onMouseMove={(e) => {
+                    if (galleryDragAnchorXRef.current == null) return;
+                    recordGalleryDrag(e.clientX);
+                  }}
+                  onMouseUp={() => finishGalleryDrag()}
+                  onMouseLeave={() => {
+                    if (galleryDragAnchorXRef.current != null) finishGalleryDrag();
+                  }}
+                  onTouchStart={(e) => {
+                    const x = e.touches[0]?.clientX;
+                    if (x == null) return;
+                    beginGalleryDrag(x);
+                  }}
+                  onTouchMove={(e) => {
+                    if (galleryDragAnchorXRef.current == null) return;
+                    const x = e.touches[0]?.clientX;
+                    if (x != null) recordGalleryDrag(x);
+                  }}
+                  onTouchEnd={() => finishGalleryDrag()}
+                  onTouchCancel={() => finishGalleryDrag()}
+                >
+                  {frames.map((frame, i) => {
+                    const offset = i - galleryPosition;
+                    const visibleRange = 2;
+                    if (Math.abs(offset) > visibleRange) return null;
+                    const translateX = offset * 60;
+                    const rotateY = offset * -30;
+                    const scale = 1 - Math.abs(offset) * 0.15;
+                    const opacity = 1 - Math.abs(offset) * 0.35;
+                    const zIndex = visibleRange - Math.abs(offset);
+                    return (
+                      <div
+                        key={frame.frameIndex}
+                        className={`absolute left-1/2 top-1/2 cursor-pointer ${
+                          galleryInteracting
+                            ? ""
+                            : "transition-transform duration-300"
+                        }`}
+                        style={{
+                          transform: `translate(-50%, -50%) translateX(${translateX}%) rotateY(${rotateY}deg) scale(${scale})`,
+                          opacity,
+                          zIndex,
+                          transformStyle: "preserve-3d",
+                        }}
+                        onClick={() => {
+                          stopGalleryMomentum();
+                          stopGallerySnap();
+                          setGalleryIndex(i);
+                        }}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            stopGalleryMomentum();
+                            stopGallerySnap();
+                            setGalleryIndex(i);
+                          }
+                        }}
                       >
-                        {expandedFrames.has(frame.frameIndex)
-                          ? tDetail("hideRaw")
-                          : tDetail("showRaw")}
-                      </button>
-                    ) : null}
-                    {expandedFrames.has(frame.frameIndex) ? (
-                      <pre className="max-h-48 overflow-auto rounded border border-[#30363d] bg-[#0d1117] p-2 text-xs text-[#8b949e]">
-                        {JSON.stringify(frame.ocrRawJson, null, 2)}
-                      </pre>
-                    ) : null}
+                        {/* eslint-disable-next-line @next/next/no-img-element -- admin gallery */}
+                        <img
+                          src={`/api/admin/video-jobs/${jobId}/frames/${frame.frameIndex}`}
+                          alt={tDetail("frameThumbnail", {
+                            index: frame.frameIndex,
+                          })}
+                          className="w-auto max-w-none rounded border border-[#30363d] object-contain"
+                          style={{
+                            height: `${frameDisplayHeight}px`,
+                            maxWidth: `${Math.round(frameDisplayHeight * 1.6)}px`,
+                          }}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+                </div>
+                <div className="flex items-center justify-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      stopGalleryMomentum();
+                      stopGallerySnap();
+                      setGalleryIndex(safeGalleryIndex - 1);
+                    }}
+                    disabled={safeGalleryIndex === 0}
+                    className="rounded px-3 py-1 text-sm text-[#8b949e] hover:text-[#e6edf3] disabled:opacity-30"
+                  >
+                    ← {tDetail("galleryPrev")}
+                  </button>
+                  <span className="text-xs text-[#8b949e]">
+                    {safeGalleryIndex + 1} / {frames.length}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      stopGalleryMomentum();
+                      stopGallerySnap();
+                      setGalleryIndex(safeGalleryIndex + 1);
+                    }}
+                    disabled={safeGalleryIndex === frames.length - 1}
+                    className="rounded px-3 py-1 text-sm text-[#8b949e] hover:text-[#e6edf3] disabled:opacity-30"
+                  >
+                    {tDetail("galleryNext")} →
+                  </button>
+                </div>
+                {galleryFrame ? (
+                  <GalleryFrameStatsTable frame={galleryFrame} tDetail={tDetail} />
+                ) : null}
+              </div>
+            ) : null}
+
+            {/* Video / slideshow mode */}
+            {frameViewMode === "video" ? (
+              <div className="space-y-4">
+                <div className="relative mx-auto w-full max-w-none">
+                  {videoModeFrame ? (
+                    // eslint-disable-next-line @next/next/no-img-element -- admin slideshow
+                    <img
+                      src={`/api/admin/video-jobs/${jobId}/frames/${videoModeFrame.frameIndex}`}
+                      alt={tDetail("frameThumbnail", {
+                        index: videoModeFrame.frameIndex,
+                      })}
+                      className="mx-auto w-auto max-w-full rounded-lg border border-[#30363d] object-contain"
+                      style={{
+                        height: `${frameDisplayHeight}px`,
+                        maxHeight: "85vh",
+                        maxWidth: "100%",
+                      }}
+                    />
+                  ) : null}
+                  {videoModeFrame ? (
+                    <div className="mt-2 space-y-1 text-center text-xs text-[#8b949e]">
+                      <p className="text-[#e6edf3]">
+                        {tDetail("frameLabel", {
+                          index: videoModeFrame.frameIndex,
+                        })}
+                      </p>
+                      <div className="flex flex-wrap justify-center gap-1">
+                        <span className="rounded bg-[#21262d] px-1.5 py-0.5">
+                          {tDetail("uploadMs", {
+                            ms: formatMs(videoModeFrame.uploadMs),
+                          })}
+                        </span>
+                        <span className="rounded bg-[#21262d] px-1.5 py-0.5">
+                          {tDetail("extractMs", {
+                            ms: formatMs(videoModeFrame.extractMs),
+                          })}
+                        </span>
+                        <span className="rounded bg-[#21262d] px-1.5 py-0.5">
+                          {tDetail("entryCount", {
+                            count: videoModeFrame.ocrEntryCount ?? 0,
+                          })}
+                        </span>
+                        {videoModeFrame.ocrError ? (
+                          <span className="rounded bg-red-950/50 px-1.5 py-0.5 text-red-300">
+                            {videoModeFrame.ocrError}
+                          </span>
+                        ) : null}
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+                <div className="flex flex-col items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setVideoModePlaying((p) => !p)}
+                    className="rounded-lg border border-[#30363d] px-4 py-2 text-sm hover:bg-[#21262d]"
+                  >
+                    {videoModePlaying
+                      ? tDetail("videoPause")
+                      : tDetail("videoPlay")}
+                  </button>
+                  <label className="flex flex-wrap items-center justify-center gap-3 text-sm">
+                    <span className="text-[#8b949e]">
+                      {tDetail("videoFps")}
+                    </span>
+                    <input
+                      type="range"
+                      min={VIDEO_FPS_MIN}
+                      max={VIDEO_FPS_MAX}
+                      step={VIDEO_FPS_STEP}
+                      value={videoModeFps}
+                      onChange={(e) => setVideoModeFps(Number(e.target.value))}
+                      className="w-40"
+                    />
+                    <span className="w-10 text-center text-[#e6edf3]">
+                      {videoModeFps.toFixed(2).replace(/\.?0+$/, "")}
+                    </span>
+                    <span className="text-xs text-[#8b949e]">
+                      {tDetail("videoDuration", {
+                        duration: videoDurationEstimate,
+                      })}
+                    </span>
+                  </label>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="range"
+                      min={0}
+                      max={frames.length - 1}
+                      value={safeVideoModeIndex}
+                      onChange={(e) => {
+                        setVideoModeIndex(Number(e.target.value));
+                        setVideoModePlaying(false);
+                      }}
+                      className="w-64"
+                    />
+                    <span className="text-xs text-[#8b949e]">
+                      {safeVideoModeIndex + 1} / {frames.length}
+                    </span>
                   </div>
                 </div>
-              </li>
-            ))}
-          </ul>
+              </div>
+            ) : null}
+          </div>
         )
       ) : null}
 
@@ -358,7 +1141,9 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
                       }`}
                     >
                       <td className="px-3 py-2">{row.ocrName}</td>
-                      <td className="px-3 py-2 font-mono text-xs">{row.score}</td>
+                      <td className="px-3 py-2 font-mono text-xs">
+                        {row.score}
+                      </td>
                       <td className="px-3 py-2">
                         {row.scoreConflict === 1 ? tDetail("yes") : "—"}
                       </td>

@@ -1,0 +1,368 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useTranslations } from "next-intl";
+
+import { Link } from "@/i18n/navigation";
+import type { AnalyticsResponse, PassKeyRow, BucketRow } from "@/app/api/admin/video-jobs/analytics/route";
+
+const QUALITY_BUCKET_COLORS: Record<string, string> = {
+  perfect: "text-[#3fb950]",
+  q1: "text-[#3fb950]",
+  q2: "text-[#d29922]",
+  q3: "text-[#d29922]",
+  q4: "text-[#f85149]",
+  q5: "text-[#f85149]",
+  dropped_the_ball: "text-[#f85149]",
+};
+
+const BUCKET_ORDER = ["perfect", "q1", "q2", "q3", "q4", "q5", "dropped_the_ball"];
+
+const REASON_LABELS: Record<string, string> = {
+  member_match: "Member match",
+  score_parse: "Score parse",
+  wrong_event: "Wrong event",
+  frame_quality: "Frame quality",
+  other: "Other",
+};
+
+function pct(n: number | null | undefined, d: number | null | undefined): string {
+  if (!d || n == null) return "—";
+  return `${((n / d) * 100).toFixed(1)}%`;
+}
+
+function KpiCard({ label, value, sub }: { label: string; value: string; sub?: string }) {
+  return (
+    <div className="rounded-lg border border-[#30363d] bg-[#161b22] p-4">
+      <div className="text-xs uppercase tracking-wide text-[#8b949e]">{label}</div>
+      <div className="mt-1 text-2xl font-semibold text-[#e6edf3]">{value}</div>
+      {sub && <div className="mt-0.5 text-xs text-[#8b949e]">{sub}</div>}
+    </div>
+  );
+}
+
+function PassKeyTable({
+  rows,
+  bucketRows,
+  scoreTarget,
+}: {
+  rows: PassKeyRow[];
+  bucketRows: BucketRow[];
+  scoreTarget: string;
+}) {
+  const t = useTranslations("admin.analyticsPage");
+  const bucketMap = useMemo(() => {
+    const m = new Map<string, Record<string, number>>();
+    for (const b of bucketRows) {
+      if (b.scoreTarget !== scoreTarget) continue;
+      const key = b.passKey;
+      const existing = m.get(key) ?? {};
+      existing[b.qualityBucket] = (existing[b.qualityBucket] ?? 0) + b.count;
+      m.set(key, existing);
+    }
+    return m;
+  }, [bucketRows, scoreTarget]);
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-xs">
+        <thead>
+          <tr className="border-b border-[#30363d] text-[#8b949e] uppercase tracking-wide">
+            <th className="pb-2 text-left">{t("col.pass")}</th>
+            <th className="pb-2 text-right">{t("col.jobs")}</th>
+            <th className="pb-2 text-right">{t("col.rated")}</th>
+            <th className="pb-2 text-right">{t("col.thumbsUp")}</th>
+            <th className="pb-2 text-right">{t("col.avgQuality")}</th>
+            <th className="pb-2 text-right">{t("col.userSelected")}</th>
+            <th className="pb-2 text-right">{t("col.sysRecommended")}</th>
+            <th className="pb-2 text-right">{t("col.agreement")}</th>
+            <th className="pb-2 text-left">{t("col.buckets")}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => {
+            const buckets = bucketMap.get(row.passKey) ?? {};
+            return (
+              <tr key={row.passKey} className="border-b border-[#21262d] hover:bg-[#161b22] transition-colors">
+                <td className="py-2 font-mono text-[#79c0ff]">{row.passKey}</td>
+                <td className="py-2 text-right text-[#e6edf3]">{row.total}</td>
+                <td className="py-2 text-right text-[#8b949e]">{row.rated}</td>
+                <td className="py-2 text-right font-medium text-[#e6edf3]">
+                  {pct(row.thumbsUp, row.rated)}
+                </td>
+                <td className="py-2 text-right text-[#8b949e]">
+                  {row.avgQualityScore != null ? row.avgQualityScore.toFixed(2) : "—"}
+                </td>
+                <td className="py-2 text-right text-[#8b949e]">{row.userSelected}</td>
+                <td className="py-2 text-right text-[#8b949e]">{row.sysRecommended}</td>
+                <td className="py-2 text-right text-[#8b949e]">
+                  {pct(
+                    row.userSelected > 0 && row.sysRecommended > 0
+                      ? Math.min(row.userSelected, row.sysRecommended)
+                      : null,
+                    row.userSelected > 0 ? row.userSelected : null,
+                  )}
+                </td>
+                <td className="py-2">
+                  <div className="flex flex-wrap gap-1">
+                    {BUCKET_ORDER.filter((b) => buckets[b]).map((b) => (
+                      <span key={b} className={`text-[10px] ${QUALITY_BUCKET_COLORS[b]}`}>
+                        {b}:{buckets[b]}
+                      </span>
+                    ))}
+                  </div>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+export function AdminVideoAnalyticsView() {
+  const t = useTranslations("admin.analyticsPage");
+  const [data, setData] = useState<AnalyticsResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const [scoreTarget, setScoreTarget] = useState("");
+  const [passKey, setPassKey] = useState("");
+  const [days, setDays] = useState("30");
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const params = new URLSearchParams();
+      if (scoreTarget) params.set("scoreTarget", scoreTarget);
+      if (passKey) params.set("passKey", passKey);
+      if (days && days !== "0") params.set("days", days);
+      const res = await fetch(`/api/admin/video-jobs/analytics?${params}`);
+      if (!res.ok) throw new Error(await res.text());
+      setData((await res.json()) as AnalyticsResponse);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("loadFailed"));
+    } finally {
+      setLoading(false);
+    }
+  }, [scoreTarget, passKey, days, t]);
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        await load();
+      } catch {
+        // handled inside load
+      }
+    })();
+  }, [load]);
+
+  // Derive available scoreTargets and passKeys from loaded data
+  const availableTargets = useMemo(
+    () => [...new Set(data?.byPassKey.map((r) => r.scoreTarget).filter(Boolean) ?? [])].sort(),
+    [data],
+  );
+  const availablePassKeys = useMemo(
+    () =>
+      [
+        ...new Set(
+          data?.byPassKey
+            .filter((r) => !scoreTarget || r.scoreTarget === scoreTarget)
+            .map((r) => r.passKey)
+            .filter(Boolean) ?? [],
+        ),
+      ].sort(),
+    [data, scoreTarget],
+  );
+
+  // Group byPassKey rows by scoreTarget
+  const passKeyByTarget = useMemo(() => {
+    const m = new Map<string, PassKeyRow[]>();
+    for (const row of data?.byPassKey ?? []) {
+      const existing = m.get(row.scoreTarget) ?? [];
+      existing.push(row);
+      m.set(row.scoreTarget, existing);
+    }
+    return m;
+  }, [data]);
+
+  // Group ratingReasons by scoreTarget
+  const reasonsByTarget = useMemo(() => {
+    const m = new Map<string, { reason: string; count: number }[]>();
+    for (const row of data?.byRatingReason ?? []) {
+      const existing = m.get(row.scoreTarget) ?? [];
+      existing.push({ reason: row.ratingReason, count: row.count });
+      m.set(row.scoreTarget, existing);
+    }
+    return m;
+  }, [data]);
+
+  const targetList = useMemo(
+    () =>
+      scoreTarget
+        ? [scoreTarget]
+        : [...passKeyByTarget.keys()].sort(),
+    [passKeyByTarget, scoreTarget],
+  );
+
+  const { summary, recommendationAccuracy, mixedEventTypes } = data ?? {};
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-xl font-semibold text-[#e6edf3]">{t("title")}</h1>
+          <p className="mt-1 text-sm text-[#8b949e]">{t("subtitle")}</p>
+        </div>
+        <Link
+          href="/admin/experiments"
+          className="shrink-0 rounded-md border border-[#30363d] px-3 py-1.5 text-xs text-[#8b949e] hover:border-[#58a6ff] hover:text-[#58a6ff] transition-colors"
+        >
+          {t("experimentsLink")} →
+        </Link>
+      </div>
+
+      {/* Filters */}
+      <div className="flex flex-wrap items-center gap-3 rounded-lg border border-[#30363d] bg-[#161b22] p-3">
+        <div className="flex items-center gap-2">
+          <label className="text-xs text-[#8b949e]">{t("filter.scoreTarget")}</label>
+          <select
+            value={scoreTarget}
+            onChange={(e) => { setScoreTarget(e.target.value); setPassKey(""); }}
+            className="rounded border border-[#30363d] bg-[#0d1117] px-2 py-1 text-xs text-[#e6edf3] focus:border-[#58a6ff] focus:outline-none"
+          >
+            <option value="">{t("filter.allTargets")}</option>
+            {availableTargets.map((st) => (
+              <option key={st} value={st}>{st}</option>
+            ))}
+          </select>
+        </div>
+        <div className="flex items-center gap-2">
+          <label className="text-xs text-[#8b949e]">{t("filter.passKey")}</label>
+          <select
+            value={passKey}
+            onChange={(e) => setPassKey(e.target.value)}
+            className="rounded border border-[#30363d] bg-[#0d1117] px-2 py-1 text-xs font-mono text-[#e6edf3] focus:border-[#58a6ff] focus:outline-none"
+          >
+            <option value="">{t("filter.allPasses")}</option>
+            {availablePassKeys.map((pk) => (
+              <option key={pk} value={pk}>{pk}</option>
+            ))}
+          </select>
+        </div>
+        <div className="flex items-center gap-2">
+          <label className="text-xs text-[#8b949e]">{t("filter.window")}</label>
+          {(["7", "30", "90", "0"] as const).map((d) => (
+            <button
+              key={d}
+              onClick={() => setDays(d)}
+              className={`rounded-full border px-2.5 py-0.5 text-xs transition-colors ${days === d ? "border-[#58a6ff] text-[#58a6ff] bg-[#58a6ff15]" : "border-[#30363d] text-[#8b949e] hover:border-[#58a6ff] hover:text-[#58a6ff]"}`}
+            >
+              {d === "0" ? t("filter.allTime") : `${d}d`}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Mixed event types warning */}
+      {mixedEventTypes && (
+        <div className="rounded border border-[#d29922] bg-[#d2992208] px-4 py-3 text-sm text-[#d29922]">
+          ⚠ {t("mixedWarning")}
+        </div>
+      )}
+
+      {error && <p className="text-sm text-[#f85149]">{error}</p>}
+      {loading && <p className="text-sm text-[#8b949e]">{t("loading")}</p>}
+
+      {data && (
+        <>
+          {/* KPI cards */}
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <KpiCard
+              label={t("kpi.totalRated")}
+              value={String(summary?.ratedJobs ?? 0)}
+              sub={`${t("kpi.of")} ${summary?.totalJobs ?? 0} ${t("kpi.jobs")}`}
+            />
+            <KpiCard
+              label={t("kpi.thumbsUpRate")}
+              value={pct(summary?.thumbsUp, summary?.ratedJobs)}
+              sub={scoreTarget ? scoreTarget : (mixedEventTypes ? `⚠ ${t("kpi.mixed")}` : undefined)}
+            />
+            <KpiCard
+              label={t("kpi.recommendationAccuracy")}
+              value={pct(recommendationAccuracy?.accurate, recommendationAccuracy?.totalDecided)}
+              sub={`${recommendationAccuracy?.totalDecided ?? 0} ${t("kpi.decided")}`}
+            />
+            <KpiCard
+              label={t("kpi.overrideRate")}
+              value={pct(recommendationAccuracy?.overridden, recommendationAccuracy?.totalDecided)}
+              sub={`${recommendationAccuracy?.overridden ?? 0} ${t("kpi.overrides")}`}
+            />
+          </div>
+
+          {/* Per-scoreTarget sections */}
+          {targetList.map((st) => {
+            const rows = passKeyByTarget.get(st) ?? [];
+            const reasons = reasonsByTarget.get(st) ?? [];
+            const totalReasons = reasons.reduce((s, r) => s + r.count, 0);
+
+            return (
+              <section key={st} className="space-y-4 rounded-lg border border-[#30363d] bg-[#161b22] p-4">
+                <h2 className="flex items-center gap-2 text-sm font-semibold text-[#e6edf3]">
+                  <span className="font-mono text-[#79c0ff]">{st}</span>
+                  <span className="text-[#8b949e] font-normal text-xs">— {t("passKeyPerformance")}</span>
+                </h2>
+
+                {rows.length === 0 ? (
+                  <p className="text-xs text-[#8b949e]">{t("noData")}</p>
+                ) : (
+                  <PassKeyTable
+                    rows={rows}
+                    bucketRows={data.byQualityBucket}
+                    scoreTarget={st}
+                  />
+                )}
+
+                {/* Rating reason breakdown */}
+                {reasons.length > 0 && (
+                  <div className="mt-4">
+                    <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-[#8b949e]">
+                      {t("ratingReasons")}
+                    </h3>
+                    <div className="space-y-1.5">
+                      {reasons
+                        .sort((a, b) => b.count - a.count)
+                        .map((r) => (
+                          <div key={r.reason} className="flex items-center gap-3">
+                            <span className="w-28 shrink-0 text-xs text-[#8b949e]">
+                              {REASON_LABELS[r.reason] ?? r.reason}
+                            </span>
+                            <div className="flex-1 overflow-hidden rounded-full bg-[#21262d]">
+                              <div
+                                className="h-2 rounded-full bg-[#f85149]"
+                                style={{
+                                  width: `${totalReasons > 0 ? (r.count / totalReasons) * 100 : 0}%`,
+                                }}
+                              />
+                            </div>
+                            <span className="w-8 text-right text-xs text-[#8b949e]">{r.count}</span>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                )}
+              </section>
+            );
+          })}
+
+          {targetList.length === 0 && !loading && (
+            <p className="text-center py-10 text-sm text-[#8b949e]">{t("noData")}</p>
+          )}
+        </>
+      )}
+    </div>
+  );
+}

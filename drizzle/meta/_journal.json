@@ -5,105 +5,105 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1781381345684,
-      "tag": "0000_shallow_kat_farrell",
+      "when": 1770000000000,
+      "tag": "0000_init",
       "breakpoints": true
     },
     {
       "idx": 1,
       "version": "7",
-      "when": 1781384870767,
-      "tag": "0001_chunky_golden_guardian",
+      "when": 1771000000000,
+      "tag": "0001_video_jobs",
       "breakpoints": true
     },
     {
       "idx": 2,
       "version": "7",
-      "when": 1781408825981,
-      "tag": "0002_fat_madrox",
+      "when": 1772000000000,
+      "tag": "0002_video_frames",
       "breakpoints": true
     },
     {
       "idx": 3,
       "version": "7",
-      "when": 1781414366044,
-      "tag": "0003_condemned_eternity",
+      "when": 1773000000000,
+      "tag": "0003_parsed_rows",
       "breakpoints": true
     },
     {
       "idx": 4,
       "version": "7",
-      "when": 1781421000000,
-      "tag": "0004_solid_warpath",
+      "when": 1774000000000,
+      "tag": "0004_audit_log",
       "breakpoints": true
     },
     {
       "idx": 5,
       "version": "7",
-      "when": 1781427000000,
+      "when": 1775000000000,
       "tag": "0005_hq_events",
       "breakpoints": true
     },
     {
       "idx": 6,
       "version": "7",
-      "when": 1781430000000,
+      "when": 1776000000000,
       "tag": "0006_rbac",
       "breakpoints": true
     },
     {
       "idx": 7,
       "version": "7",
-      "when": 1781435000000,
+      "when": 1777000000000,
       "tag": "0007_alliance_tag",
       "breakpoints": true
     },
     {
       "idx": 8,
       "version": "7",
-      "when": 1781440000000,
+      "when": 1778000000000,
       "tag": "0008_hq_user_timezone",
       "breakpoints": true
     },
     {
       "idx": 9,
       "version": "7",
-      "when": 1781445000000,
+      "when": 1779000000000,
       "tag": "0009_community_feedback",
       "breakpoints": true
     },
     {
       "idx": 10,
       "version": "7",
-      "when": 1781450000000,
+      "when": 1780000000000,
       "tag": "0010_credential_pairing",
       "breakpoints": true
     },
     {
       "idx": 11,
       "version": "7",
-      "when": 1781455000000,
+      "when": 1780100000000,
       "tag": "0011_linked_devices",
       "breakpoints": true
     },
     {
       "idx": 12,
       "version": "7",
-      "when": 1781460000000,
+      "when": 1780200000000,
       "tag": "0012_viral_resistance",
       "breakpoints": true
     },
     {
       "idx": 13,
       "version": "7",
-      "when": 1781465000000,
+      "when": 1780300000000,
       "tag": "0013_video_diagnostics",
       "breakpoints": true
     },
     {
       "idx": 14,
       "version": "7",
-      "when": 1781470000000,
+      "when": 1780400000000,
       "tag": "0014_video_job_rating",
       "breakpoints": true
     },
@@ -118,21 +118,70 @@
       "idx": 16,
       "version": "7",
       "when": 1781480000000,
-      "tag": "0016_trains",
+      "tag": "0016_quality_buckets",
       "breakpoints": true
     },
     {
       "idx": 17,
       "version": "7",
       "when": 1781485000000,
-      "tag": "0017_alliance_members",
+      "tag": "0017_discord_multitenancy",
       "breakpoints": true
     },
     {
       "idx": 18,
       "version": "7",
       "when": 1781490000000,
-      "tag": "0018_game_season",
+      "tag": "0018_discord_multi_member_links",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1781495000000,
+      "tag": "0019_discord_auth_nonces",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1781500000000,
+      "tag": "0020_video_upload_groups",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1781505000000,
+      "tag": "0021_video_job_rating_reason",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1781510000000,
+      "tag": "0022_experiments",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1781515000000,
+      "tag": "0023_trains",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1781520000000,
+      "tag": "0024_alliance_members",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1781525000000,
+      "tag": "0025_game_season",
       "breakpoints": true
     }
   ]

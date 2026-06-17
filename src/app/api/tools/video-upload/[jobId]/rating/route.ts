@@ -9,11 +9,13 @@ type Props = { params: Promise<{ jobId: string }> };
 export async function PATCH(request: Request, { params }: Props) {
   const session = await getOrCreateSession();
   const { jobId } = await params;
-  const body = (await request.json()) as { rating?: string };
+  const body = (await request.json()) as { rating?: string; ratingReason?: string };
   const rating = body.rating;
   if (rating !== "thumbs_up" && rating !== "thumbs_down") {
     return NextResponse.json({ error: "Invalid rating" }, { status: 400 });
   }
+  const ratingReason =
+    typeof body.ratingReason === "string" ? body.ratingReason : null;
   const db = getDb();
 
   const [job] = await db
@@ -33,7 +35,7 @@ export async function PATCH(request: Request, { params }: Props) {
 
   await db
     .update(schema.videoJobs)
-    .set({ rating, ratingAt: new Date() })
+    .set({ rating, ratingAt: new Date(), ratingReason })
     .where(eq(schema.videoJobs.id, jobId));
 
   return NextResponse.json({ ok: true });

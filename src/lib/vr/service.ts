@@ -1,5 +1,12 @@
 import { emitAdminAlert } from "@/lib/events/admin-alerts";
+import {
+  createDiscordTranslator,
+  tStringArray,
+  type DiscordBotLocale,
+} from "@/lib/discord/i18n";
 import { lookupPlayerByUid } from "@/lib/lastwar/player-lookup";
+import { peerMaxExcludingMember } from "@/lib/vr/anomaly";
+import { MAX_DISCORD_LINKS_PER_USER } from "@/lib/vr/constants";
 import { processVrCommand, processVrConfirmation } from "@/lib/vr/command";
 import {
   processLinkCommand,
@@ -15,18 +22,27 @@ import {
   getMemberSeasonHigh,
   listDiscordLinksForUser,
   listSeasonVrRows,
+  linkDiscordMember,
   resolveSeasonKey,
   saveDiscordBotPending,
-  upsertDiscordMemberLink,
   upsertMemberSeasonVr,
   writeDiscordBotAudit,
 } from "@/lib/vr/repository";
 import type { LinkCommandResult, LinkPendingState, VrCommandResult, VrPendingState } from "@/lib/vr/types";
-import { peerMaxExcludingMember } from "@/lib/vr/anomaly";
 
-export function resolveDiscordAllianceId(): string | null {
-  return process.env.DISCORD_ALLIANCE_ID?.trim() || null;
-}
+export {
+  handleDiscordHelp,
+} from "@/lib/vr/bot-help";
+export {
+  handleDiscordUnlinkPick,
+  handleDiscordUnlinkWithContext,
+} from "@/lib/vr/bot-unlink";
+export {
+  handleDiscordLanguage,
+  handleDiscordLinkAlliance,
+  handleDiscordLinkToAshedSeat,
+} from "@/lib/vr/bot-setup";
+export { resolveDiscordAllianceId, resolveAllianceForGuild, resolveOwnerSetupAllianceId } from "@/lib/vr/repository";
 
 async function audit(
   allianceId: string,
@@ -35,13 +51,97 @@ async function audit(
   payload: unknown,
   result: unknown,
 ) {
-  await writeDiscordBotAudit({
-    allianceId,
-    discordUserId,
-    command,
-    payload,
-    result,
+  try {
+    await writeDiscordBotAudit({
+      allianceId,
+      discordUserId,
+      command,
+      payload,
+      result,
+    });
+  } catch (error) {
+    console.error("[discord-bot] audit log failed", error);
+  }
+}
+
+function botContext(locale: DiscordBotLocale) {
+  const translate = createDiscordTranslator(locale);
+  const walkthroughSteps = tStringArray(locale, "link.steps");
+  return { translate, walkthroughSteps };
+}
+
+function linkSuccessReply(
+  translate: ReturnType<typeof createDiscordTranslator>,
+  mode: "created" | "updated" | "replaced",
+  name: string,
+  hadExistingLinks: boolean,
+  replaceAll?: boolean,
+): string {
+  if (mode === "replaced" || replaceAll) {
+    return translate("link.replaced", { name });
+  }
+  if (mode === "updated") {
+    return translate("link.updated", { name });
+  }
+  if (hadExistingLinks) {
+    return translate("link.linkedAdditional", { name });
+  }
+  return translate("link.linked", { name });
+}
+
+async function persistLinkTarget(input: {
+  allianceId: string;
+  discordUserId: string;
+  discordUsername?: string;
+  linkTarget: {
+    ashedMemberId: string;
+    memberDisplayName: string;
+    gameUid: string;
+  };
+  replaceAll?: boolean;
+  translate: ReturnType<typeof createDiscordTranslator>;
+}): Promise<LinkCommandResult> {
+  const existingLinks = await listDiscordLinksForUser(
+    input.allianceId,
+    input.discordUserId,
+  );
+  const linked = await linkDiscordMember({
+    allianceId: input.allianceId,
+    discordUserId: input.discordUserId,
+    discordUsername: input.discordUsername,
+    ashedMemberId: input.linkTarget.ashedMemberId,
+    memberDisplayName: input.linkTarget.memberDisplayName,
+    gameUid: input.linkTarget.gameUid,
+    replaceAll: input.replaceAll,
   });
+
+  if (!linked.ok) {
+    if (linked.reason === "cap_reached") {
+      return {
+        reply: input.translate("link.capReached", {
+          max: MAX_DISCORD_LINKS_PER_USER,
+        }),
+        pending: null,
+      };
+    }
+    return {
+      reply: input.translate("link.memberTaken"),
+      pending: null,
+    };
+  }
+
+  return {
+    reply: linkSuccessReply(
+      input.translate,
+      linked.mode,
+      input.linkTarget.memberDisplayName,
+      existingLinks.length > 0,
+      input.replaceAll,
+    ),
+    pending: null,
+    linked: true,
+    linkTarget: input.linkTarget,
+  };
 }
 
 export async function handleDiscordLinkSlash(input: {
@@ -50,7 +150,10 @@ export async function handleDiscordLinkSlash(input: {
   discordUsername?: string;
   reportedName?: string;
   gameUid?: string;
+  replaceAll?: boolean;
+  locale: DiscordBotLocale;
 }): Promise<LinkCommandResult> {
+  const { translate, walkthroughSteps } = botContext(input.locale);
   const pendingRow = await getDiscordBotPending(input.discordUserId);
   const pending = pendingRow?.pending ?? null;
 
@@ -63,6 +166,8 @@ export async function handleDiscordLinkSlash(input: {
       linkedMemberIds: new Set(),
       pending,
       walkthroughStep: pending.step,
+      translate,
+      walkthroughSteps,
     });
     await saveDiscordBotPending(input.allianceId, input.discordUserId, result.pending);
     await audit(input.allianceId, input.discordUserId, "link_walkthrough", {}, result);
@@ -73,7 +178,7 @@ export async function handleDiscordLinkSlash(input: {
   const uid = input.gameUid?.trim();
   if (!name || !uid) {
     const result: LinkCommandResult = {
-      reply: "Usage: `/link` with your in-game name and UID (12–16 digits, ends in 1203).",
+      reply: translate("link.usage"),
       pending: null,
     };
     await audit(input.allianceId, input.discordUserId, "link", input, result);
@@ -93,18 +198,29 @@ export async function handleDiscordLinkSlash(input: {
     members,
     linkedMemberIds,
     pending: pending as LinkPendingState | null,
+    translate,
+    walkthroughSteps,
   });
 
   if ("linkTarget" in result && result.linkTarget) {
-    await upsertDiscordMemberLink({
+    const persisted = await persistLinkTarget({
       allianceId: input.allianceId,
       discordUserId: input.discordUserId,
       discordUsername: input.discordUsername,
-      ashedMemberId: result.linkTarget.ashedMemberId,
-      memberDisplayName: result.linkTarget.memberDisplayName,
-      gameUid: result.linkTarget.gameUid,
+      linkTarget: result.linkTarget,
+      replaceAll: input.replaceAll,
+      translate,
     });
     await saveDiscordBotPending(input.allianceId, input.discordUserId, null);
+    if (result.needsOfficerAttention) {
+      await emitAdminAlert({
+        type: "vr_link_attention",
+        count: 1,
+        handles: [input.discordUsername ?? input.discordUserId],
+      });
+    }
+    await audit(input.allianceId, input.discordUserId, "link", input, persisted);
+    return persisted;
   } else if (result.pending) {
     await saveDiscordBotPending(input.allianceId, input.discordUserId, result.pending);
   } else {
@@ -128,26 +244,34 @@ export async function handleDiscordLinkFuzzyPick(input: {
   discordUserId: string;
   discordUsername?: string;
   memberId: string;
+  locale: DiscordBotLocale;
 }): Promise<LinkCommandResult> {
+  const { translate } = botContext(input.locale);
   const pendingRow = await getDiscordBotPending(input.discordUserId);
   const pending = pendingRow?.pending;
   if (!pending || pending.kind !== "link_fuzzy_pick") {
-    const result: LinkCommandResult = { reply: "Nothing to pick right now.", pending: null };
+    const result: LinkCommandResult = {
+      reply: translate("errors.nothingPending"),
+      pending: null,
+    };
     await audit(input.allianceId, input.discordUserId, "link_pick", input, result);
     return result;
   }
 
-  const result = processLinkFuzzyPick({ pending, memberId: input.memberId });
+  const result = processLinkFuzzyPick({ pending, memberId: input.memberId, translate });
   if (result.linkTarget) {
-    await upsertDiscordMemberLink({
+    const persisted = await persistLinkTarget({
       allianceId: input.allianceId,
       discordUserId: input.discordUserId,
       discordUsername: input.discordUsername,
-      ashedMemberId: result.linkTarget.ashedMemberId,
-      memberDisplayName: result.linkTarget.memberDisplayName,
-      gameUid: result.linkTarget.gameUid,
+      linkTarget: result.linkTarget,
+      translate,
     });
-    await saveDiscordBotPending(input.allianceId, input.discordUserId, null);
+    if (persisted) {
+      await saveDiscordBotPending(input.allianceId, input.discordUserId, null);
+      await audit(input.allianceId, input.discordUserId, "link_pick", input, persisted);
+      return persisted;
+    }
   }
 
   await audit(input.allianceId, input.discordUserId, "link_pick", input, result);
@@ -176,12 +300,13 @@ export async function handleDiscordVrSlash(input: {
   discordUserId: string;
   explicitLevel?: number | null;
   linkId?: string | null;
+  locale: DiscordBotLocale;
 }): Promise<VrCommandResult> {
+  const { translate } = botContext(input.locale);
   const target = await resolveTargetLink(input);
   if (target === null) {
     const result: VrCommandResult = {
-      reply:
-        "Your Discord account isn't linked yet. Run `/link` with your in-game name and UID first.",
+      reply: translate("vr.notLinked"),
       pending: null,
       action: { type: "none" as const },
     };
@@ -191,7 +316,7 @@ export async function handleDiscordVrSlash(input: {
   if (target === "pick") {
     const links = await listDiscordLinksForUser(input.allianceId, input.discordUserId);
     const result: VrCommandResult = {
-      reply: "Which character is this VR for?",
+      reply: translate("vr.pickCharacter"),
       pending: { kind: "pick_character" as const, linkIds: links.map((l) => l.id) },
       action: { type: "none" as const },
       characterPicker: links.map((l) => ({
@@ -221,6 +346,7 @@ export async function handleDiscordVrSlash(input: {
     pending,
     reporterCount,
     peerMax,
+    translate,
   });
 
   await saveDiscordBotPending(input.allianceId, input.discordUserId, result.pending);
@@ -245,11 +371,13 @@ export async function handleDiscordVrCharacterPick(input: {
   allianceId: string;
   discordUserId: string;
   linkId: string;
+  locale: DiscordBotLocale;
 }) {
   return handleDiscordVrSlash({
     allianceId: input.allianceId,
     discordUserId: input.discordUserId,
     linkId: input.linkId,
+    locale: input.locale,
   });
 }
 
@@ -257,12 +385,14 @@ export async function handleDiscordVrButtonConfirm(input: {
   allianceId: string;
   discordUserId: string;
   answer: "yes" | "no";
+  locale: DiscordBotLocale;
 }): Promise<VrCommandResult> {
+  const { translate } = botContext(input.locale);
   const pendingRow = await getDiscordBotPending(input.discordUserId);
   const pending = pendingRow?.pending as VrPendingState | null;
   if (!pending || pending.kind !== "anomaly_confirm") {
     const result: VrCommandResult = {
-      reply: "Nothing to confirm right now.",
+      reply: translate("errors.noConfirm"),
       pending: null,
       action: { type: "none" as const },
     };
@@ -270,7 +400,7 @@ export async function handleDiscordVrButtonConfirm(input: {
     return result;
   }
 
-  const result = processVrConfirmation({ answer: input.answer, pending });
+  const result = processVrConfirmation({ answer: input.answer, pending, translate });
   await saveDiscordBotPending(input.allianceId, input.discordUserId, result.pending);
 
   if (result.action.type === "set_vr") {
@@ -293,10 +423,12 @@ export async function handleDiscordVrButtonConfirm(input: {
 export async function handleDiscordLinkStartOver(input: {
   allianceId: string;
   discordUserId: string;
+  locale: DiscordBotLocale;
 }) {
+  const { translate, walkthroughSteps } = botContext(input.locale);
   const pending: LinkPendingState = { kind: "link_walkthrough", step: 0 };
   const result: LinkCommandResult = {
-    reply: walkthroughMessage(0),
+    reply: walkthroughMessage(0, translate, walkthroughSteps),
     pending,
   };
   await saveDiscordBotPending(input.allianceId, input.discordUserId, pending);
@@ -307,11 +439,13 @@ export async function handleDiscordLinkStartOver(input: {
 export async function handleDiscordWalkthroughDone(input: {
   allianceId: string;
   discordUserId: string;
+  locale: DiscordBotLocale;
 }) {
+  const { translate, walkthroughSteps } = botContext(input.locale);
   const pendingRow = await getDiscordBotPending(input.discordUserId);
   const pending = pendingRow?.pending;
   if (!pending || pending.kind !== "link_walkthrough") {
-    return { reply: "No walkthrough in progress.", pending: null };
+    return { reply: translate("errors.noWalkthrough"), pending: null };
   }
 
   const result = processLinkCommand({
@@ -322,6 +456,8 @@ export async function handleDiscordWalkthroughDone(input: {
     linkedMemberIds: new Set(),
     pending,
     walkthroughStep: pending.step,
+    translate,
+    walkthroughSteps,
   });
 
   await saveDiscordBotPending(input.allianceId, input.discordUserId, result.pending);
