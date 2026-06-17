@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { and, desc, eq, ne } from "drizzle-orm";
+import { and, desc, eq, isNull, ne, or } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { writeAuditLog } from "@/lib/bff/audit";
@@ -13,6 +13,7 @@ import {
   MAX_VIDEO_UPLOAD_BYTES,
   MAX_VIDEO_UPLOAD_MB,
 } from "@/lib/video/upload-limit";
+import { DEFAULT_PRIMARY_PASS } from "@/lib/video/pass-definitions";
 
 export async function POST(request: Request) {
   try {
@@ -49,6 +50,7 @@ export async function POST(request: Request) {
       );
     }
 
+    const groupId = nanoid(16);
     const jobId = nanoid(16);
     const storageKey = videoStorageKey(jobId, file.name);
     const buffer = Buffer.from(await file.arrayBuffer());
@@ -56,6 +58,25 @@ export async function POST(request: Request) {
 
     const db = getDb();
     const now = new Date();
+
+    // Insert upload group first (primary_job_id set after job insert)
+    await db.insert(schema.videoUploadGroups).values({
+      id: groupId,
+      sessionId: session.id,
+      allianceId: null,
+      storageKey,
+      fileName: file.name,
+      fileSizeBytes: file.size,
+      scoreTarget,
+      boardKey: boardKey ? String(boardKey) : null,
+      hqEventId: hqEventId ? String(hqEventId) : null,
+      primaryJobId: null,
+      selectedJobId: null,
+      accuracyJobId: null,
+      comparisonJson: null,
+      createdAt: now,
+      updatedAt: now,
+    });
 
     await db.insert(schema.videoJobs).values({
       id: jobId,
@@ -71,9 +92,20 @@ export async function POST(request: Request) {
       ingestMethod: "video",
       frameCount: null,
       uploadedFrameCount: 0,
+      groupId,
+      passKey: "scene_0.25",
+      passIndex: 0,
+      passRole: "primary",
+      extractionConfigJson: DEFAULT_PRIMARY_PASS,
       createdAt: now,
       updatedAt: now,
     });
+
+    // Update group with primary job id
+    await db
+      .update(schema.videoUploadGroups)
+      .set({ primaryJobId: jobId, selectedJobId: jobId, updatedAt: now })
+      .where(eq(schema.videoUploadGroups.id, groupId));
 
     await writeAuditLog({
       sessionId: session.id,
@@ -124,6 +156,10 @@ export async function GET() {
         and(
           eq(schema.videoJobs.sessionId, session.id),
           ne(schema.videoJobs.status, "discarded"),
+          or(
+            eq(schema.videoJobs.passRole, "primary"),
+            isNull(schema.videoJobs.passRole),
+          ),
         ),
       )
       .orderBy(desc(schema.videoJobs.createdAt));

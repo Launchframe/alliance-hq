@@ -200,6 +200,25 @@ export const ashedCredentials = pgTable("ashed_credentials", {
     .notNull(),
 });
 
+export const videoUploadGroups = pgTable("video_upload_groups", {
+  id: text("id").primaryKey(),
+  sessionId: text("session_id").notNull(),
+  allianceId: text("alliance_id"),
+  storageKey: text("storage_key"),
+  fileName: text("file_name"),
+  fileSizeBytes: bigint("file_size_bytes", { mode: "number" }),
+  scoreTarget: text("score_target"),
+  boardKey: text("board_key"),
+  hqEventId: text("hq_event_id"),
+  /** FK to video_jobs.id — not enforced by Drizzle to avoid circular dep */
+  primaryJobId: text("primary_job_id"),
+  selectedJobId: text("selected_job_id"),
+  accuracyJobId: text("accuracy_job_id"),
+  comparisonJson: jsonb("comparison_json"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+});
+
 export const videoJobs = pgTable("video_jobs", {
   id: text("id").primaryKey(),
   sessionId: text("session_id")
@@ -234,6 +253,12 @@ export const videoJobs = pgTable("video_jobs", {
   qualityScore: real("quality_score"),
   qualityBucket: text("quality_bucket"),
   qualityComputedAt: timestamp("quality_computed_at", { withTimezone: true }),
+  /** Phase 6: upload group linkage */
+  groupId: text("group_id"),
+  passKey: text("pass_key"),
+  passIndex: integer("pass_index"),
+  passRole: text("pass_role"),
+  extractionConfigJson: jsonb("extraction_config_json"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
     .notNull(),
@@ -596,6 +621,7 @@ export type Permission = typeof permissions.$inferSelect;
 export type CredentialPairingCode = typeof credentialPairingCodes.$inferSelect;
 export type LinkedDevice = typeof linkedDevices.$inferSelect;
 export type AshedCredential = typeof ashedCredentials.$inferSelect;
+export type VideoUploadGroup = typeof videoUploadGroups.$inferSelect;
 export type VideoJob = typeof videoJobs.$inferSelect;
 export type VideoFrame = typeof videoFrames.$inferSelect;
 export type ParseSession = typeof parseSessions.$inferSelect;

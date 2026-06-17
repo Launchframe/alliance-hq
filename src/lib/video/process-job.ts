@@ -26,6 +26,9 @@ import { collapseEntriesBySanitizedName } from "@/lib/video/normalize-rows";
 import { PipelineTimer } from "@/lib/video/pipeline-timer";
 import { getScoreTargetOrThrow } from "@/lib/video/score-targets";
 import { emitVideoJobStatus } from "@/lib/events/video-jobs";
+import { maybeEnqueueShadowPass } from "@/lib/video/enqueue-shadow-pass";
+import { computePassComparison } from "@/lib/video/compare-pass-results";
+import type { ExtractionConfig } from "@/lib/video/pass-definitions";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -179,10 +182,12 @@ export async function processVideoJob(
       { bytes: videoBuffer.length },
     );
 
+    const extractionConfig = (job.extractionConfigJson as ExtractionConfig | null) ?? undefined;
+
     let frames: import("@/lib/video/frame-extractor").ExtractedFrame[] = [];
     try {
       const extractResult = await timer.measureStep("ffmpeg.extract", () =>
-        extractLeaderboardFrames(tmpVideo),
+        extractLeaderboardFrames(tmpVideo, extractionConfig),
         (result) => ({ frameCount: result.frames.length }),
       );
       frames = extractResult.frames;
@@ -468,6 +473,51 @@ export async function processVideoJob(
       scoreTarget: scoreTargetId,
       source: options?.analyticsSource ?? "api",
     });
+
+    // Shadow pass enqueue (primary jobs only, fire-and-forget)
+    try {
+      await maybeEnqueueShadowPass({
+        job: {
+          id: job.id,
+          sessionId: job.sessionId,
+          allianceId: job.allianceId ?? null,
+          scoreTarget: job.scoreTarget ?? null,
+          category: job.category ?? null,
+          storageKey: job.storageKey ?? null,
+          boardKey: job.boardKey ?? null,
+          hqEventId: job.hqEventId ?? null,
+          groupId: job.groupId ?? null,
+          passRole: job.passRole ?? null,
+          frameCount: job.frameCount ?? null,
+          hqUserId: job.hqUserId ?? null,
+        },
+        totalMs: timings.totalMs,
+        frameCount,
+      });
+    } catch {
+      // Shadow pass failure must not fail primary job
+    }
+
+    // If this is a shadow pass, compute cross-pass comparison and persist to group
+    if (job.passRole === "shadow" && job.groupId) {
+      try {
+        const [group] = await db
+          .select({ primaryJobId: schema.videoUploadGroups.primaryJobId })
+          .from(schema.videoUploadGroups)
+          .where(eq(schema.videoUploadGroups.id, job.groupId))
+          .limit(1);
+
+        if (group?.primaryJobId) {
+          const comparison = await computePassComparison(group.primaryJobId, job.id);
+          await db
+            .update(schema.videoUploadGroups)
+            .set({ comparisonJson: comparison, updatedAt: new Date() })
+            .where(eq(schema.videoUploadGroups.id, job.groupId));
+        }
+      } catch {
+        // Comparison failure must not fail shadow job
+      }
+    }
 
     return timings;
   } catch (error) {

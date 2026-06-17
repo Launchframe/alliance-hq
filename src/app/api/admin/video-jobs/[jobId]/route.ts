@@ -92,7 +92,6 @@ export async function GET(_request: Request, { params }: RouteParams) {
     sameFileResubmits = row?.count ?? 0;
   }
 
-  // Load survey
   let survey: {
     rowCountEstimate: number | null;
     scrollStyle: string | null;
@@ -111,6 +110,25 @@ export async function GET(_request: Request, { params }: RouteParams) {
 
   survey = surveyRow ?? null;
 
+  let groupPasses: Array<{
+    id: string;
+    passKey: string | null;
+    passRole: string | null;
+    status: string;
+  }> = [];
+
+  if (job.groupId) {
+    groupPasses = await db
+      .select({
+        id: schema.videoJobs.id,
+        passKey: schema.videoJobs.passKey,
+        passRole: schema.videoJobs.passRole,
+        status: schema.videoJobs.status,
+      })
+      .from(schema.videoJobs)
+      .where(eq(schema.videoJobs.groupId, job.groupId));
+  }
+
   return NextResponse.json({
     job: {
       ...job,
@@ -123,5 +141,6 @@ export async function GET(_request: Request, { params }: RouteParams) {
     addCount,
     sameFileResubmits,
     survey,
+    groupPasses,
   });
 }

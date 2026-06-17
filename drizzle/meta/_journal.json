@@ -134,6 +134,20 @@
       "when": 1781490000000,
       "tag": "0018_discord_multi_member_links",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1781495000000,
+      "tag": "0019_discord_auth_nonces",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1781500000000,
+      "tag": "0020_video_upload_groups",
+      "breakpoints": true
     }
   ]
 }
