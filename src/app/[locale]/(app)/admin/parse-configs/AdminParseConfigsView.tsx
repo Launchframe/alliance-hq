@@ -166,7 +166,7 @@ export function AdminParseConfigsView() {
                 className="w-full rounded border border-[#30363d] bg-[#0d1117] px-3 py-1.5 text-sm text-[#e6edf3] focus:border-[#58a6ff] focus:outline-none"
               />
             </Field>
-            <Field label={t("form.passKey")}>
+            <Field label={t("form.passKey")} help={t("form.passKeyHelp")}>
               <input
                 required
                 placeholder="scene_0.33"
@@ -184,7 +184,7 @@ export function AdminParseConfigsView() {
             />
           </Field>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <Field label={t("form.mode")}>
+            <Field label={t("form.mode")} help={t("form.modeHelp")}>
               <select
                 value={form.mode}
                 onChange={(e) => setForm((f) => ({ ...f, mode: e.target.value as "scene" | "fps" }))}
@@ -195,7 +195,7 @@ export function AdminParseConfigsView() {
               </select>
             </Field>
             {form.mode === "scene" && (
-              <Field label={t("form.sceneThreshold")}>
+              <Field label={t("form.sceneThreshold")} help={t("form.sceneThresholdHelp")}>
                 <input
                   type="number"
                   step="0.01"
@@ -207,7 +207,7 @@ export function AdminParseConfigsView() {
                 />
               </Field>
             )}
-            <Field label={t("form.sampleFps")}>
+            <Field label={t("form.sampleFps")} help={t("form.sampleFpsHelp")}>
               <input
                 type="number"
                 step="0.5"
@@ -349,11 +349,22 @@ export function AdminParseConfigsView() {
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({
+  label,
+  help,
+  children,
+}: {
+  label: string;
+  help?: string;
+  children: React.ReactNode;
+}) {
   return (
     <label className="block">
       <span className="mb-1 block text-xs text-[#8b949e]">{label}</span>
       {children}
+      {help && (
+        <span className="mt-1 block text-xs text-[#484f58] leading-relaxed">{help}</span>
+      )}
     </label>
   );
 }

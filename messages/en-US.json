@@ -449,10 +449,14 @@
       "form": {
         "name": "Name",
         "passKey": "Pass key",
+        "passKeyHelp": "Short machine identifier used in analytics (e.g. scene_0.33). Must be unique.",
         "description": "Description",
         "mode": "Mode",
-        "sceneThreshold": "Scene threshold",
+        "modeHelp": "Scene detection extracts frames only when the image changes significantly — good for scoreboards. FPS extracts a fixed number of frames per second — simpler but may miss or duplicate frames.",
+        "sceneThreshold": "Scene threshold (0.01–1.0)",
+        "sceneThresholdHelp": "How different two frames must be for a new frame to be captured. Lower values (e.g. 0.1) = more frames, slower, catches subtle changes. Higher values (e.g. 0.5) = fewer frames, faster, may miss small score updates.",
         "sampleFps": "Sample FPS",
+        "sampleFpsHelp": "Frames captured per second (for FPS mode, or as a cap for scene mode). Higher = more thorough but more storage and processing cost.",
         "notes": "Notes"
       },
       "col": {
@@ -542,9 +546,22 @@
         "noData": "Not enough data points to render a timeline yet."
       },
       "promote": {
-        "title": "Promote winning arm to primary",
-        "hint": "Create a config assignment to make the winning arm's config the primary pass for this event type.",
-        "cta": "Create config assignment"
+        "title": "Promote winning arm to primary pass",
+        "hint": "Creating a config assignment makes the selected arm's parse config the default for new uploads with this score target. Existing uploaded videos are not re-processed.",
+        "selectArm": "Select arm to promote",
+        "notes": "Notes (optional)",
+        "notesPlaceholder": "e.g. scene_0.33 outperformed baseline by 12pp on zombie_siege — promoting for production use",
+        "confirmCta": "Create assignment",
+        "successTitle": "Config assignment created",
+        "successHint": "New uploads for this score target will now use the promoted config as their primary pass.",
+        "conflictError": "An assignment already exists for this scope. Go to Parse Configs to update it.",
+        "noVariantArms": "No variant arms with a config are available to promote."
+      },
+      "lowSampleWarning": "Only {count} rated group(s) in this arm. Aim for at least 30 rated groups per arm before concluding to reduce noise.",
+      "arms": {
+        "loadConfigs": "Loading configs…",
+        "configDefault": "Default (no extra shadow pass — control arm behavior)",
+        "configPickerLabel": "Parse config"
       }
     },
     "analyticsPage": {

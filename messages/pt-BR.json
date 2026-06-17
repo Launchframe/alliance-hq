@@ -449,10 +449,14 @@
       "form": {
         "name": "Nome",
         "passKey": "Chave da passagem",
+        "passKeyHelp": "Identificador de máquina usado em análises (ex.: scene_0.33). Deve ser único.",
         "description": "Descrição",
         "mode": "Modo",
-        "sceneThreshold": "Limiar de cena",
+        "modeHelp": "Detecção de cena extrai frames apenas quando a imagem muda significativamente — bom para placares. FPS extrai um número fixo de frames por segundo — mais simples, mas pode perder ou duplicar frames.",
+        "sceneThreshold": "Limiar de cena (0,01–1,0)",
+        "sceneThresholdHelp": "Quão diferentes dois frames precisam ser para capturar um novo frame. Valores baixos (ex.: 0,1) = mais frames, mais lento, capta mudanças sutis. Valores altos (ex.: 0,5) = menos frames, mais rápido, pode perder atualizações de pontuação.",
         "sampleFps": "FPS de amostra",
+        "sampleFpsHelp": "Frames capturados por segundo (para modo FPS, ou como limite no modo cena). Maior = mais completo, porém maior custo de armazenamento e processamento.",
         "notes": "Notas"
       },
       "col": {
@@ -542,9 +546,22 @@
         "noData": "Dados insuficientes para renderizar o gráfico."
       },
       "promote": {
-        "title": "Promover grupo vencedor como principal",
-        "hint": "Crie uma atribuição de configuração para tornar esta config a passagem principal.",
-        "cta": "Criar atribuição de configuração"
+        "title": "Promover grupo vencedor como passagem principal",
+        "hint": "Criar uma atribuição de configuração torna a configuração do grupo selecionado o padrão para novos uploads com este score target. Vídeos já processados não serão reprocessados.",
+        "selectArm": "Selecionar grupo para promover",
+        "notes": "Notas (opcional)",
+        "notesPlaceholder": "ex.: scene_0.33 superou o controle em 12pp no zombie_siege",
+        "confirmCta": "Criar atribuição",
+        "successTitle": "Atribuição de configuração criada",
+        "successHint": "Novos uploads para este score target usarão a configuração promovida como passagem principal.",
+        "conflictError": "Já existe uma atribuição para este escopo. Acesse Configurações de análise para atualizá-la.",
+        "noVariantArms": "Nenhum grupo variante com configuração disponível para promover."
+      },
+      "lowSampleWarning": "Apenas {count} grupo(s) avaliado(s) neste grupo. Tente obter pelo menos 30 grupos avaliados por grupo antes de concluir.",
+      "arms": {
+        "loadConfigs": "Carregando configurações…",
+        "configDefault": "Padrão (sem passagem shadow — comportamento do grupo controle)",
+        "configPickerLabel": "Configuração de análise"
       }
     },
     "analyticsPage": {

@@ -309,6 +309,44 @@ export function AdminExperimentDetailView({ campaignId }: { campaignId: string }
   const [armError, setArmError] = useState<string | null>(null);
   const [savingArm, setSavingArm] = useState(false);
 
+  // Parse config picker for arm form
+  const [availableConfigs, setAvailableConfigs] = useState<{ id: string; name: string; passKey: string }[]>([]);
+  const [loadingConfigs, setLoadingConfigs] = useState(false);
+
+  // Promote state — promoteConfigId holds the configId of the arm being promoted
+  const [promoteConfigId, setPromoteConfigId] = useState("");
+  const [promoteNotes, setPromoteNotes] = useState("");
+  const [promoteError, setPromoteError] = useState<string | null>(null);
+  const [promoting, setPromoting] = useState(false);
+  const [promoted, setPromoted] = useState(false);
+
+  // Load available parse configs when the arm form is opened.
+  // Defined as a useCallback so the effect body does not call setState directly.
+  const loadAvailableConfigs = useCallback(async () => {
+    if (availableConfigs.length > 0) return;
+    setLoadingConfigs(true);
+    try {
+      const res = await fetch("/api/admin/parse-configs?status=active");
+      if (res.ok) {
+        const d = (await res.json()) as { configs: { id: string; name: string; passKey: string }[] };
+        setAvailableConfigs(d.configs);
+      }
+    } finally {
+      setLoadingConfigs(false);
+    }
+  }, [availableConfigs.length]);
+
+  useEffect(() => {
+    if (!showArmForm) return;
+    void (async () => {
+      try {
+        await loadAvailableConfigs();
+      } catch {
+        // silently skip — arm form degrades to no options
+      }
+    })();
+  }, [showArmForm, loadAvailableConfigs]);
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -378,6 +416,31 @@ export function AdminExperimentDetailView({ campaignId }: { campaignId: string }
     }
   }
 
+  async function promoteArm(e: React.FormEvent) {
+    e.preventDefault();
+    if (!data) return;
+    setPromoting(true);
+    setPromoteError(null);
+    try {
+      const res = await fetch("/api/admin/config-assignments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          scoreTarget: data.campaign.scoreTarget,
+          boardKey: data.campaign.boardKey ?? null,
+          configId: promoteConfigId,
+          notes: promoteNotes || null,
+        }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      setPromoted(true);
+    } catch (err) {
+      setPromoteError(err instanceof Error ? err.message : t("saveFailed"));
+    } finally {
+      setPromoting(false);
+    }
+  }
+
   if (loading) return <p className="text-sm text-[#8b949e]">{t("loading")}</p>;
   if (error) return <p className="text-sm text-[#f85149]">{error}</p>;
   if (!data) return null;
@@ -389,6 +452,13 @@ export function AdminExperimentDetailView({ campaignId }: { campaignId: string }
   // Distinct scoreTargets in population
   const popScoreTargets = new Set(population.map((p) => p.scoreTarget));
   const mixedPopulation = popScoreTargets.size > 1;
+
+  // Low-sample arms for conclude warning (threshold: 30 rated per arm)
+  const LOW_SAMPLE_THRESHOLD = 30;
+  const lowSampleArms = arms.filter((a) => a.ratedCount < LOW_SAMPLE_THRESHOLD);
+
+  // Variant arms eligible to promote (non-control, has a config)
+  const promotableArms = arms.filter((a) => !a.isControl && a.configId);
 
   return (
     <div className="space-y-6">
@@ -477,6 +547,18 @@ export function AdminExperimentDetailView({ campaignId }: { campaignId: string }
         <div className="rounded-lg border border-[#d29922] bg-[#d2992208] p-4 space-y-3">
           <h3 className="text-sm font-semibold text-[#d29922]">{t("concludeTitle")}</h3>
           <p className="text-xs text-[#8b949e]">{t("concludeHint")}</p>
+          {lowSampleArms.length > 0 && (
+            <div className="space-y-1">
+              {lowSampleArms.map((arm) => (
+                <div
+                  key={arm.id}
+                  className="rounded border border-[#d2992260] bg-[#d2992210] px-3 py-2 text-xs text-[#d29922]"
+                >
+                  ⚠ {arm.name}: {t("lowSampleWarning", { count: arm.ratedCount })}
+                </div>
+              ))}
+            </div>
+          )}
           <textarea
             rows={3}
             placeholder={t("conclusionPlaceholder")}
@@ -578,13 +660,23 @@ export function AdminExperimentDetailView({ campaignId }: { campaignId: string }
               />
             </label>
             <label className="block">
-              <span className="text-xs text-[#8b949e]">{t("arms.form.configId")}</span>
-              <input
-                placeholder={t("arms.form.configIdPlaceholder")}
-                value={armForm.configId}
-                onChange={(e) => setArmForm((f) => ({ ...f, configId: e.target.value }))}
-                className="mt-1 w-full rounded border border-[#30363d] bg-[#0d1117] px-2 py-1 text-xs font-mono text-[#e6edf3] focus:border-[#58a6ff] focus:outline-none"
-              />
+              <span className="text-xs text-[#8b949e]">{t("arms.configPickerLabel")}</span>
+              {loadingConfigs ? (
+                <p className="mt-1 text-xs text-[#484f58]">{t("arms.loadConfigs")}</p>
+              ) : (
+                <select
+                  value={armForm.configId}
+                  onChange={(e) => setArmForm((f) => ({ ...f, configId: e.target.value }))}
+                  className="mt-1 w-full rounded border border-[#30363d] bg-[#0d1117] px-2 py-1 text-xs text-[#e6edf3] focus:border-[#58a6ff] focus:outline-none"
+                >
+                  <option value="">{t("arms.configDefault")}</option>
+                  {availableConfigs.map((cfg) => (
+                    <option key={cfg.id} value={cfg.id}>
+                      {cfg.name} ({cfg.passKey})
+                    </option>
+                  ))}
+                </select>
+              )}
             </label>
             <label className="block">
               <span className="text-xs text-[#8b949e]">{t("arms.form.weight")}</span>
@@ -712,18 +804,63 @@ export function AdminExperimentDetailView({ campaignId }: { campaignId: string }
         </section>
       )}
 
-      {/* Promote CTA */}
+      {/* Promote winner */}
       {campaign.status === "concluded" && (
-        <div className="rounded-lg border border-[#30363d] bg-[#161b22] p-4">
+        <section className="rounded-lg border border-[#30363d] bg-[#161b22] p-4 space-y-3">
           <h2 className="text-sm font-semibold text-[#e6edf3]">{t("promote.title")}</h2>
-          <p className="mt-1 text-xs text-[#8b949e]">{t("promote.hint")}</p>
-          <Link
-            href={`/admin/parse-configs?promote=${campaignId}&scoreTarget=${campaign.scoreTarget}&boardKey=${campaign.boardKey ?? ""}`}
-            className="mt-3 inline-block rounded-md border border-[#238636] px-3 py-1.5 text-xs text-[#3fb950] hover:bg-[#23863620] transition-colors"
-          >
-            {t("promote.cta")} →
-          </Link>
-        </div>
+          <p className="text-xs text-[#8b949e]">{t("promote.hint")}</p>
+
+          {promoted ? (
+            <div className="rounded border border-[#3fb950] bg-[#3fb95010] px-3 py-3 space-y-1">
+              <p className="text-sm font-medium text-[#3fb950]">✓ {t("promote.successTitle")}</p>
+              <p className="text-xs text-[#8b949e]">{t("promote.successHint")}</p>
+            </div>
+          ) : promotableArms.length === 0 ? (
+            <p className="text-xs text-[#484f58]">{t("promote.noVariantArms")}</p>
+          ) : (
+            <form onSubmit={(e) => void promoteArm(e)} className="space-y-3">
+              <label className="block">
+                <span className="mb-1 block text-xs text-[#8b949e]">{t("promote.selectArm")}</span>
+                <select
+                  required
+                  value={promoteConfigId}
+                  onChange={(e) => setPromoteConfigId(e.target.value)}
+                  className="w-full rounded border border-[#30363d] bg-[#0d1117] px-3 py-1.5 text-sm text-[#e6edf3] focus:border-[#58a6ff] focus:outline-none"
+                >
+                  <option value="">—</option>
+                  {promotableArms.map((arm) => {
+                    const armRate = arm.ratedCount > 0 ? ((arm.thumbsUpCount / arm.ratedCount) * 100).toFixed(1) : null;
+                    return (
+                      <option key={arm.id} value={arm.configId!}>
+                        {arm.name} — {arm.config?.passKey ?? arm.configId}
+                        {armRate !== null ? ` (${armRate}% 👍, ${arm.ratedCount} rated)` : ""}
+                      </option>
+                    );
+                  })}
+                </select>
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-xs text-[#8b949e]">{t("promote.notes")}</span>
+                <input
+                  placeholder={t("promote.notesPlaceholder")}
+                  value={promoteNotes}
+                  onChange={(e) => setPromoteNotes(e.target.value)}
+                  className="w-full rounded border border-[#30363d] bg-[#0d1117] px-3 py-1.5 text-sm text-[#e6edf3] focus:border-[#58a6ff] focus:outline-none"
+                />
+              </label>
+              {promoteError && (
+                <p className="text-xs text-[#f85149]">{promoteError}</p>
+              )}
+              <button
+                type="submit"
+                disabled={!promoteConfigId || promoting}
+                className="rounded-md bg-[#238636] px-4 py-1.5 text-sm font-medium text-white hover:bg-[#2ea043] disabled:opacity-50 transition-colors"
+              >
+                {promoting ? t("saving") : t("promote.confirmCta")}
+              </button>
+            </form>
+          )}
+        </section>
       )}
     </div>
   );
