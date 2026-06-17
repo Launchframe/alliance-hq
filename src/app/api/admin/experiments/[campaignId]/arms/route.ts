@@ -5,6 +5,7 @@ import { nanoid } from "nanoid";
 import { getDb, schema } from "@/lib/db";
 import { requirePlatformMaintainer } from "@/lib/rbac/require-permission";
 import { readSessionId } from "@/lib/session";
+import { validateExperimentArmConfig } from "@/lib/video/experiment-arm-validation";
 
 type RouteParams = { params: Promise<{ campaignId: string }> };
 
@@ -54,6 +55,28 @@ export async function POST(request: Request, { params }: RouteParams) {
     );
   }
 
+  const configId = body.configId?.trim() || null;
+  const isControl = body.isControl ?? false;
+  let configStatus: string | null = null;
+
+  if (configId && !isControl) {
+    const [config] = await db
+      .select({ status: schema.parseConfigs.status })
+      .from(schema.parseConfigs)
+      .where(eq(schema.parseConfigs.id, configId))
+      .limit(1);
+    configStatus = config?.status ?? null;
+  }
+
+  const configError = validateExperimentArmConfig({
+    isControl,
+    configId,
+    configStatus,
+  });
+  if (configError) {
+    return NextResponse.json({ error: configError }, { status: 400 });
+  }
+
   if (body.isControl) {
     const [existingControl] = await db
       .select({ id: schema.experimentArms.id })
@@ -81,8 +104,8 @@ export async function POST(request: Request, { params }: RouteParams) {
     id,
     campaignId,
     name: body.name.trim(),
-    isControl: body.isControl ?? false,
-    configId: body.configId ?? null,
+    isControl,
+    configId,
     trafficWeight: body.trafficWeight ?? 50,
     createdAt: now,
   });

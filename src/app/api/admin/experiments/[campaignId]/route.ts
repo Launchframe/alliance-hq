@@ -4,6 +4,7 @@ import { and, eq, inArray, isNull, ne } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { requirePlatformMaintainer } from "@/lib/rbac/require-permission";
 import { readSessionId } from "@/lib/session";
+import { validateExperimentArmConfig } from "@/lib/video/experiment-arm-validation";
 import { buildExperimentDetailAnalytics } from "@/lib/video/experiment-detail-analytics";
 
 type RouteParams = { params: Promise<{ campaignId: string }> };
@@ -181,8 +182,18 @@ export async function PATCH(request: Request, { params }: RouteParams) {
     ) {
       // Validate at least 2 arms with one control
       const arms = await db
-        .select()
+        .select({
+          id: schema.experimentArms.id,
+          name: schema.experimentArms.name,
+          isControl: schema.experimentArms.isControl,
+          configId: schema.experimentArms.configId,
+          configStatus: schema.parseConfigs.status,
+        })
         .from(schema.experimentArms)
+        .leftJoin(
+          schema.parseConfigs,
+          eq(schema.experimentArms.configId, schema.parseConfigs.id),
+        )
         .where(eq(schema.experimentArms.campaignId, campaignId));
 
       if (arms.length < 2) {
@@ -196,6 +207,28 @@ export async function PATCH(request: Request, { params }: RouteParams) {
       if (!controlArm) {
         return NextResponse.json(
           { error: "Campaign must have at least one control arm to activate." },
+          { status: 400 },
+        );
+      }
+
+      const invalidArm = arms.find(
+        (arm) =>
+          validateExperimentArmConfig({
+            isControl: arm.isControl,
+            configId: arm.configId,
+            configStatus: arm.configStatus,
+          }) !== null,
+      );
+      if (invalidArm) {
+        return NextResponse.json(
+          {
+            error:
+              validateExperimentArmConfig({
+                isControl: invalidArm.isControl,
+                configId: invalidArm.configId,
+                configStatus: invalidArm.configStatus,
+              }) ?? "Campaign arms are not configured correctly.",
+          },
           { status: 400 },
         );
       }
