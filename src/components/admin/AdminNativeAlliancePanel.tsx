@@ -3,17 +3,38 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 
+import { AppSelect } from "@/components/ui/AppSelect";
+import { CopyToClipboardField } from "@/components/ui/CopyToClipboardField";
+
+function isValidInviteEmail(value: string): boolean {
+  const trimmed = value.trim();
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed);
+}
+
+export type NativeAllianceOption = {
+  id: string;
+  slug: string;
+  name: string;
+};
+
 type Props = {
+  nativeAlliances: NativeAllianceOption[];
+  selectedAllianceId: string;
+  onSelectAlliance: (allianceId: string) => void;
   onCreated: () => void;
 };
 
-export function AdminNativeAlliancePanel({ onCreated }: Props) {
+export function AdminNativeAlliancePanel({
+  nativeAlliances,
+  selectedAllianceId,
+  onSelectAlliance,
+  onCreated,
+}: Props) {
   const t = useTranslations("admin.nativeAlliance");
   const [name, setName] = useState("");
   const [tag, setTag] = useState("");
   const [ownerEmail, setOwnerEmail] = useState("");
   const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteAllianceId, setInviteAllianceId] = useState("");
   const [inviteRole, setInviteRole] = useState<"owner" | "officer">("officer");
   const [lastInviteUrl, setLastInviteUrl] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -39,7 +60,9 @@ export function AdminNativeAlliancePanel({ onCreated }: Props) {
         alliance?: { allianceId: string; tag: string; name: string };
       };
       if (!res.ok) throw new Error(body.error ?? t("createFailed"));
-      setInviteAllianceId(body.alliance?.allianceId ?? "");
+      if (body.alliance?.allianceId) {
+        onSelectAlliance(body.alliance.allianceId);
+      }
       setMessage(
         t("created", {
           name: body.alliance?.name ?? name,
@@ -54,9 +77,15 @@ export function AdminNativeAlliancePanel({ onCreated }: Props) {
     }
   }
 
+  const inviteEmailValid = isValidInviteEmail(inviteEmail);
+
   async function sendInvite() {
-    if (!inviteAllianceId.trim()) {
-      setError(t("allianceIdRequired"));
+    if (!selectedAllianceId.trim()) {
+      setError(t("chooseAllianceRequired"));
+      return;
+    }
+    if (!inviteEmailValid) {
+      setError(t("inviteEmailRequired"));
       return;
     }
     setBusy(true);
@@ -64,7 +93,7 @@ export function AdminNativeAlliancePanel({ onCreated }: Props) {
     setMessage(null);
     try {
       const res = await fetch(
-        `/api/admin/native-alliances/${encodeURIComponent(inviteAllianceId.trim())}/invites`,
+        `/api/admin/native-alliances/${encodeURIComponent(selectedAllianceId.trim())}/invites`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -131,23 +160,35 @@ export function AdminNativeAlliancePanel({ onCreated }: Props) {
 
       <div className="border-t border-[#30363d] pt-4">
         <h3 className="text-sm font-semibold">{t("inviteTitle")}</h3>
+        <p className="mt-1 text-sm text-[#8b949e]">{t("inviteTargetHint")}</p>
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
           <label className="space-y-1 text-sm sm:col-span-2">
-            <span className="text-[#8b949e]">{t("allianceId")}</span>
-            <input
-              value={inviteAllianceId}
-              onChange={(e) => setInviteAllianceId(e.target.value)}
-              className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 font-mono text-xs"
+            <span className="text-[#8b949e]">{t("chooseAlliance")}</span>
+            <AppSelect
+              value={selectedAllianceId}
+              onChange={onSelectAlliance}
+              placeholder={t("chooseAlliancePlaceholder")}
+              aria-label={t("chooseAlliance")}
+              disabled={nativeAlliances.length === 0}
+              options={nativeAlliances.map((alliance) => ({
+                value: alliance.id,
+                label: `${alliance.slug} — ${alliance.name}`,
+              }))}
             />
           </label>
           <label className="space-y-1 text-sm">
             <span className="text-[#8b949e]">{t("inviteEmail")}</span>
             <input
               type="email"
+              required
               value={inviteEmail}
               onChange={(e) => setInviteEmail(e.target.value)}
               className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
+              autoComplete="email"
             />
+            <span className="block text-xs text-[#6e7681]">
+              {t("inviteEmailHint")}
+            </span>
           </label>
           <label className="space-y-1 text-sm">
             <span className="text-[#8b949e]">{t("inviteRole")}</span>
@@ -165,16 +206,18 @@ export function AdminNativeAlliancePanel({ onCreated }: Props) {
         </div>
         <button
           type="button"
-          disabled={busy}
+          disabled={busy || !selectedAllianceId || !inviteEmailValid}
           onClick={() => void sendInvite()}
           className="mt-3 rounded-lg border border-[#388bfd] bg-[#388bfd]/10 px-4 py-2 text-sm text-[#58a6ff] disabled:opacity-50"
         >
           {t("inviteButton")}
         </button>
         {lastInviteUrl ? (
-          <p className="mt-2 break-all font-mono text-xs text-[#8b949e]">
-            {lastInviteUrl}
-          </p>
+          <CopyToClipboardField
+            className="mt-3"
+            label={t("inviteLinkLabel")}
+            value={lastInviteUrl}
+          />
         ) : null}
       </div>
 

@@ -105,7 +105,6 @@ export async function createHqInvite(
 export type HqInvitePreview = {
   allianceName: string;
   allianceTag: string | null;
-  email: string;
   roleName: SystemRoleName | null;
   expiresAt: string;
   expired: boolean;
@@ -119,7 +118,6 @@ export async function loadHqInvitePreview(
   const db = getDb();
   const [row] = await db
     .select({
-      email: schema.hqInvites.email,
       expiresAt: schema.hqInvites.expiresAt,
       acceptedAt: schema.hqInvites.acceptedAt,
       roleId: schema.hqInvites.roleId,
@@ -140,7 +138,6 @@ export async function loadHqInvitePreview(
   return {
     allianceName: row.allianceName,
     allianceTag: row.allianceTag,
-    email: row.email,
     roleName: systemRoleNameForId(row.roleId),
     expiresAt: row.expiresAt.toISOString(),
     expired: row.expiresAt <= now,

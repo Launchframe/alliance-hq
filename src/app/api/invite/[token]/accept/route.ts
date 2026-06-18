@@ -34,6 +34,12 @@ export async function POST(
 
     return NextResponse.json({ ok: true, ...result });
   } catch (error) {
+    if (
+      error instanceof Error &&
+      error.message === "Email does not match this invite."
+    ) {
+      return NextResponse.json({ code: "email_mismatch" }, { status: 400 });
+    }
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Accept failed." },
       { status: 400 },

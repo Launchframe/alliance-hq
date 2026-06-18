@@ -8,12 +8,16 @@ import { Link, useRouter } from "@/i18n/navigation";
 type InvitePreview = {
   allianceName: string;
   allianceTag: string | null;
-  email: string;
   roleName: string | null;
   expiresAt: string;
   expired: boolean;
   accepted: boolean;
 };
+
+function isValidEmail(value: string): boolean {
+  const trimmed = value.trim();
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed);
+}
 
 export function InviteAcceptClient({ token }: { token: string }) {
   const t = useTranslations("invite");
@@ -24,6 +28,8 @@ export function InviteAcceptClient({ token }: { token: string }) {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const emailValid = isValidEmail(email);
 
   useEffect(() => {
     void (async () => {
@@ -38,7 +44,6 @@ export function InviteAcceptClient({ token }: { token: string }) {
           return;
         }
         setPreview(body.invite);
-        setEmail(body.invite.email);
       } catch (e) {
         setError(e instanceof Error ? e.message : t("loadFailed"));
       } finally {
@@ -48,6 +53,10 @@ export function InviteAcceptClient({ token }: { token: string }) {
   }, [t, token]);
 
   async function acceptInvite() {
+    if (!emailValid) {
+      setError(t("emailRequired"));
+      return;
+    }
     setSubmitting(true);
     setError(null);
     try {
@@ -56,11 +65,21 @@ export function InviteAcceptClient({ token }: { token: string }) {
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, displayName: displayName || undefined }),
+          body: JSON.stringify({
+            email: email.trim(),
+            displayName: displayName.trim() || undefined,
+          }),
         },
       );
-      const body = (await res.json()) as { error?: string };
+      const body = (await res.json()) as {
+        error?: string;
+        code?: string;
+      };
       if (!res.ok) {
+        if (body.code === "email_mismatch") {
+          setError(t("emailMismatch"));
+          return;
+        }
         setError(body.error ?? t("acceptFailed"));
         return;
       }
@@ -127,11 +146,13 @@ export function InviteAcceptClient({ token }: { token: string }) {
         <span className="text-[#8b949e]">{t("email")}</span>
         <input
           type="email"
+          required
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
           autoComplete="email"
         />
+        <span className="block text-xs text-[#6e7681]">{t("emailHint")}</span>
       </label>
 
       <label className="block space-y-1 text-sm">
@@ -148,7 +169,7 @@ export function InviteAcceptClient({ token }: { token: string }) {
 
       <button
         type="button"
-        disabled={submitting}
+        disabled={submitting || !emailValid}
         onClick={() => void acceptInvite()}
         className="w-full rounded-lg border border-[#238636] bg-[#238636] px-4 py-2 text-sm text-white disabled:opacity-50"
       >
