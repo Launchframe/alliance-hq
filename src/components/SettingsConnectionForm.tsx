@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 
 import { AlliancePicker } from "@/components/AlliancePicker";
+import { AllianceSeasonSettings } from "@/components/settings/AllianceSeasonSettings";
 import { PairingQrWizard } from "@/components/credential-pairing/PairingQrWizard";
 import { LinkedDevicesSettings } from "@/components/credential-pairing/LinkedDevicesSettings";
 import { AppSelect } from "@/components/ui/AppSelect";
@@ -256,6 +257,8 @@ export function SettingsConnectionForm({
           {allianceSaving ? t("allianceSaving") : t("allianceSave")}
         </button>
       </section>
+
+      <AllianceSeasonSettings />
 
       <section className="rounded-xl border border-[#30363d] bg-[#161b22] p-5">
         <h2 className="font-medium">{t("timezoneSection")}</h2>

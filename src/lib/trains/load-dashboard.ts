@@ -1,37 +1,29 @@
 import { resolveAllianceByTag } from "@/lib/alliance/resolve";
-import { getEffectiveSeasonForAlliance, loadAllianceSeasonRow } from "@/lib/game-season/sync";
+import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
+import { loadActiveAlliancePoolMembers } from "@/lib/members/game-roster";
 import { getAshedConnection, loadSession } from "@/lib/session";
 import { sessionHasPermission } from "@/lib/rbac/context";
 import {
   getConductorRecord,
   getConductorStats,
+  getWeekSchedule,
+  listDayConfigsForWeek,
   listInventoryItems,
 } from "@/lib/trains/repository";
+import { addCalendarDays } from "@/lib/trains/game-time";
 import {
-  getOrCreateWeekSchedule,
   getServerCalendarDate,
   getWeekStartMonday,
 } from "@/lib/trains/service";
 import { getPoolSummary } from "@/lib/trains/pool";
 import { conductorMechanismPoolType } from "@/lib/trains/templates";
-import type { SeasonKeySource } from "@/lib/game-season/types";
 import type { ConductorMechanismType } from "@/lib/trains/types";
-
-export type TrainsSeasonPayload = {
-  seasonKey: string;
-  source: SeasonKeySource;
-  isPostSeason: boolean;
-  week: number | null;
-  gameServerNumber: number | null;
-  seasonKeyOverride: string | null;
-  canManageSeason: boolean;
-};
 
 export type TrainsDashboardPayload = {
   today: string;
   weekStart: string;
   canManageTrains: boolean;
-  season: TrainsSeasonPayload | null;
+  activeMemberCount: number;
   schedule: {
     id: string;
     weekStart: string;
@@ -71,6 +63,25 @@ export type TrainsDashboardPayload = {
   inventoryCount: number;
 };
 
+const EMPTY_DASHBOARD_FIELDS: Pick<
+  TrainsDashboardPayload,
+  | "schedule"
+  | "dayConfigs"
+  | "conductorRecord"
+  | "todayDayConfig"
+  | "pools"
+  | "conductorStats"
+  | "inventoryCount"
+> = {
+  schedule: null,
+  dayConfigs: [],
+  conductorRecord: null,
+  todayDayConfig: null,
+  pools: {},
+  conductorStats: null,
+  inventoryCount: 0,
+};
+
 export async function loadTrainsDashboard(
   sessionId: string,
 ): Promise<TrainsDashboardPayload> {
@@ -83,38 +94,53 @@ export async function loadTrainsDashboard(
   const today = getServerCalendarDate();
   const weekStart = getWeekStartMonday(today);
   const canManageTrains = await sessionHasPermission(sessionId, "trains:write");
-  const canManageSeason = await sessionHasPermission(sessionId, "alliance:admin");
 
   if (!allianceId) {
     return {
       today,
       weekStart,
       canManageTrains,
-      season: null,
-      schedule: null,
-      dayConfigs: [],
-      conductorRecord: null,
-      todayDayConfig: null,
-      pools: {},
-      conductorStats: null,
-      inventoryCount: 0,
+      activeMemberCount: 0,
+      ...EMPTY_DASHBOARD_FIELDS,
     };
   }
 
-  const { schedule, dayConfigs } = await getOrCreateWeekSchedule(
+  const connection = await getAshedConnection(sessionId);
+  const ashedAllianceId = await resolveAshedAllianceId(sessionId);
+  const members = await loadActiveAlliancePoolMembers({
     allianceId,
-    weekStart,
-  );
+    connection,
+    ashedAllianceId,
+  });
+  const activeMemberCount = members.length;
+
+  if (activeMemberCount === 0) {
+    return {
+      today,
+      weekStart,
+      canManageTrains,
+      activeMemberCount: 0,
+      ...EMPTY_DASHBOARD_FIELDS,
+    };
+  }
 
   const effectiveSeason = await getEffectiveSeasonForAlliance(allianceId);
-  const seasonRow = await loadAllianceSeasonRow(allianceId);
+  const scheduleRow = await getWeekSchedule(
+    allianceId,
+    weekStart,
+    effectiveSeason.seasonKey,
+  );
+  const weekEnd = addCalendarDays(weekStart, 6);
+  const dayConfigs = scheduleRow
+    ? await listDayConfigsForWeek(allianceId, weekStart, weekEnd)
+    : [];
+
   const record = await getConductorRecord(
     allianceId,
     today,
     effectiveSeason.seasonKey,
   );
-  const todayDayConfig =
-    dayConfigs.find((d) => d.date === today) ?? null;
+  const todayDayConfig = dayConfigs.find((d) => d.date === today) ?? null;
 
   const poolTypes = ["r3", "r4_plus", "all_members"] as const;
   const pools: TrainsDashboardPayload["pools"] = {};
@@ -136,21 +162,15 @@ export async function loadTrainsDashboard(
     today,
     weekStart,
     canManageTrains,
-    season: {
-      seasonKey: effectiveSeason.seasonKey,
-      source: effectiveSeason.source,
-      isPostSeason: effectiveSeason.isPostSeason,
-      week: effectiveSeason.week,
-      gameServerNumber: effectiveSeason.gameServerNumber,
-      seasonKeyOverride: seasonRow?.seasonKeyOverride ?? null,
-      canManageSeason,
-    },
-    schedule: {
-      id: schedule.id,
-      weekStart: schedule.weekStart,
-      templateType: schedule.templateType,
-      isPivot: schedule.isPivot === 1,
-    },
+    activeMemberCount,
+    schedule: scheduleRow
+      ? {
+          id: scheduleRow.id,
+          weekStart: scheduleRow.weekStart,
+          templateType: scheduleRow.templateType,
+          isPivot: scheduleRow.isPivot === 1,
+        }
+      : null,
     dayConfigs: dayConfigs.map((d) => ({
       id: d.id,
       date: d.date,

@@ -24,7 +24,11 @@
     "connectionFailed": "Connection failed",
     "uploadFailed": "Upload failed",
     "disconnectFailed": "Disconnect failed",
-    "externalLink": "{label} ↗"
+    "externalLink": "{label} ↗",
+    "copy": "Copy",
+    "copied": "Copied",
+    "copyToClipboard": "Copy to clipboard",
+    "copyFailed": "Could not copy to clipboard."
   },
   "language": {
     "label": "Language",
@@ -57,7 +61,7 @@
     "reports": "Reports",
     "viralResistance": "Viral Resistance",
     "viralResistanceDescription": "Season base VR from Discord, sorted with hero power",
-    "trains": "Trains",
+    "trains": "Alliance Train",
     "trainsDescription": "Daily Conductor schedule, wheel rolls, and train lock-in",
     "desertStorm": "Desert Storm",
     "canyonStorm": "Canyon Storm",
@@ -275,7 +279,8 @@
         "owner": "Owner email",
         "collaborators": "Collaborators",
         "members": "HQ members",
-        "synced": "Roles synced"
+        "synced": "Roles synced",
+        "nativeBadge": "Native"
       }
     },
     "nativeAlliance": {
@@ -286,15 +291,22 @@
       "ownerEmailOptional": "Owner email (optional — creates membership immediately)",
       "createButton": "Create native alliance",
       "createFailed": "Could not create alliance.",
-      "created": "Created {name} [{tag}]. Copy the alliance id below to send invites.",
+      "created": "Created {name} [{tag}]. Select it below to send invites.",
       "inviteTitle": "Invite HQ user",
-      "allianceId": "Alliance id",
-      "allianceIdRequired": "Enter the alliance id to invite someone.",
-      "inviteEmail": "Invite email",
+      "inviteTargetHint": "Choose a native alliance here or click one in the list below.",
+      "chooseAlliance": "Alliance",
+      "chooseAlliancePlaceholder": "Select a native alliance…",
+      "chooseAllianceRequired": "Select a native alliance to invite someone.",
+      "selectedForInvite": "Selected for invite",
+      "selectAllianceRow": "Select {name} ({slug}) for invite",
+      "inviteEmail": "Recipient email",
+      "inviteEmailHint": "Only this address can accept the invite. Tell them the email separately from the link — HQ does not send mail.",
+      "inviteEmailRequired": "Enter a valid recipient email.",
       "inviteRole": "Role",
       "roleOwner": "Owner",
       "roleOfficer": "Officer",
       "inviteButton": "Generate invite link",
+      "inviteLinkLabel": "Invite link",
       "inviteFailed": "Could not create invite.",
       "inviteSent": "Invite link generated (valid 14 days)."
     },
@@ -850,7 +862,30 @@
     "timezoneServerTime": "Server Time",
     "timezoneSaved": "Time zone saved",
     "timezoneSaveFailed": "Could not save time zone",
-    "aboutBody": "Alliance HQ at <strong>alliance-hq.vercel.app</strong> is a community wrapper for <link>ashed.online</link>. All alliance data credit belongs to Ashed."
+    "aboutBody": "Alliance HQ at <strong>alliance-hq.vercel.app</strong> is a community wrapper for <link>ashed.online</link>. All alliance data credit belongs to Ashed.",
+    "gameSeason": {
+      "sectionTitle": "Game season",
+      "sectionBody": "Last War season used for train records and scoring. Officers can override when auto sync is wrong.",
+      "loading": "Loading season…",
+      "loadFailed": "Could not load game season.",
+      "label": "Current season",
+      "seasonLine": "Season {season}",
+      "serverLine": "Server {server}",
+      "postSeasonWeek": "Post-season (week {week})",
+      "inSeasonWeek": "Week {week}",
+      "overrideLabel": "Manual season override",
+      "saveOverride": "Save override",
+      "clearOverride": "Use auto sync",
+      "saving": "Saving…",
+      "saveFailed": "Could not save season override.",
+      "clearFailed": "Could not clear season override.",
+      "source": {
+        "override": "Manual override",
+        "cpt-hedge": "Synced from cpt-hedge",
+        "age-fallback": "Estimated from server age",
+        "default": "Default"
+      }
+    }
   },
   "deviceLink": {
     "sectionTitle": "Link a mobile device",
@@ -983,8 +1018,11 @@
     "loadFailed": "Could not load invite.",
     "alreadyAccepted": "This invite was already used.",
     "expired": "This invite has expired. Ask your platform admin for a new link.",
-    "intro": "Join {alliance} [{tag}] as {role}. Confirm the email on your invite to continue.",
+    "intro": "Join {alliance} [{tag}] as {role}. Enter the email address your admin used for this invite.",
     "email": "Email",
+    "emailHint": "Must match the address your admin registered for this invite.",
+    "emailRequired": "Enter a valid email address.",
+    "emailMismatch": "That email doesn't match this invite. Check with your admin.",
     "displayName": "Display name (optional)",
     "accept": "Accept invite",
     "accepting": "Accepting…",
@@ -1021,8 +1059,11 @@
     }
   },
   "trains": {
-    "title": "Trains",
+    "title": "Alliance Train",
     "subtitle": "Manage the daily Conductor ritual — schedule, wheel, and lock-in.",
+    "emptyRosterBody": "Import your alliance roster before planning train schedules or rolling for Conductor.",
+    "emptyRosterCta": "Go to Members",
+    "noScheduleYet": "No week schedule yet. Choose a week template below or plan days on the calendar (coming soon).",
     "weekSchedule": "This week",
     "templateBadge": "Template: {template}",
     "todayConductor": "Today's Conductor",
@@ -1056,6 +1097,21 @@
       "officerPick": "Officer pick",
       "eventTopX": "Event top X",
       "custom": "Custom"
+    },
+    "mechanismsShort": {
+      "vsHighScore": "VS D1",
+      "vsTop10": "VS T10",
+      "r3Lottery": "R3",
+      "r4Sequence": "R4",
+      "donationsTop": "DON",
+      "officerPick": "OFF",
+      "eventTopX": "EVT",
+      "custom": "?"
+    },
+    "vipMechanismsShort": {
+      "conductorPick": "VIP",
+      "donationsSecond": "2ND",
+      "eventTopX": "EVT"
     },
     "templates": {
       "vs_push_week": "VS Push week",

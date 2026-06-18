@@ -4,13 +4,13 @@ import { useCallback, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { ConductorWheelModal } from "@/components/trains/ConductorWheelModal";
-import { TrainsSeasonBanner } from "@/components/trains/TrainsSeasonBanner";
 import { TodayConductorCard } from "@/components/trains/TodayConductorCard";
 import {
   WeekScheduleStrip,
   canSpinConductor,
   canSpinVip,
 } from "@/components/trains/WeekScheduleStrip";
+import { Link } from "@/i18n/navigation";
 import type { TrainsDashboardPayload } from "@/lib/trains/load-dashboard";
 import type { WeekTemplateType } from "@/lib/trains/types";
 
@@ -56,16 +56,25 @@ export function TrainsDashboard({ initial }: Props) {
     Array<{ memberId: string; memberName: string }>
   >([]);
 
-  const mechanismLabels = useMemo(
+  const conductorShortLabels = useMemo(
     () => ({
-      vs_high_score: t("mechanisms.vsHighScore"),
-      vs_top_10: t("mechanisms.vsTop10"),
-      r3_lottery: t("mechanisms.r3Lottery"),
-      r4_sequence: t("mechanisms.r4Sequence"),
-      donations_top: t("mechanisms.donationsTop"),
-      officer_pick: t("mechanisms.officerPick"),
-      event_top_x_lottery: t("mechanisms.eventTopX"),
-      custom: t("mechanisms.custom"),
+      vs_high_score: t("mechanismsShort.vsHighScore"),
+      vs_top_10: t("mechanismsShort.vsTop10"),
+      r3_lottery: t("mechanismsShort.r3Lottery"),
+      r4_sequence: t("mechanismsShort.r4Sequence"),
+      donations_top: t("mechanismsShort.donationsTop"),
+      officer_pick: t("mechanismsShort.officerPick"),
+      event_top_x_lottery: t("mechanismsShort.eventTopX"),
+      custom: t("mechanismsShort.custom"),
+    }),
+    [t],
+  );
+
+  const vipShortLabels = useMemo(
+    () => ({
+      conductor_pick: t("vipMechanismsShort.conductorPick"),
+      donations_second: t("vipMechanismsShort.donationsSecond"),
+      event_top_x_lottery: t("vipMechanismsShort.eventTopX"),
     }),
     [t],
   );
@@ -181,6 +190,26 @@ export function TrainsDashboard({ initial }: Props) {
     }
   };
 
+  if (data.activeMemberCount === 0) {
+    return (
+      <div className="mx-auto flex w-full max-w-lg flex-col gap-4 p-4 sm:p-6">
+        <header>
+          <h1 className="text-2xl font-semibold text-[#e6edf3]">{t("title")}</h1>
+          <p className="mt-1 text-sm text-[#8b949e]">{t("subtitle")}</p>
+        </header>
+        <section className="rounded-2xl border border-[#30363d] bg-[#161b22] p-6 text-center">
+          <p className="text-sm text-[#c9d1d9]">{t("emptyRosterBody")}</p>
+          <Link
+            href="/members"
+            className="mt-4 inline-flex rounded-lg bg-[#238636] px-4 py-2 text-sm font-medium text-white hover:bg-[#2ea043]"
+          >
+            {t("emptyRosterCta")}
+          </Link>
+        </section>
+      </div>
+    );
+  }
+
   const locked = Boolean(data.conductorRecord?.lockedAt);
   const conductorMech = data.todayDayConfig?.conductorMechanism;
   const vipMech = data.todayDayConfig?.vipMechanism;
@@ -199,31 +228,29 @@ export function TrainsDashboard({ initial }: Props) {
         ) : null}
       </header>
 
-      {data.season ? (
-        <TrainsSeasonBanner
-          season={data.season}
-          onUpdated={(season) =>
-            setData((prev) => ({ ...prev, season }))
-          }
-        />
-      ) : null}
-
       {error ? (
         <p className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-300">
           {error}
         </p>
       ) : null}
 
-      <section>
-        <h2 className="mb-2 text-sm font-medium text-[#8b949e]">
-          {t("weekSchedule")}
-        </h2>
-        <WeekScheduleStrip
-          today={data.today}
-          dayConfigs={data.dayConfigs}
-          labels={mechanismLabels}
-        />
-      </section>
+      {data.dayConfigs.length > 0 ? (
+        <section>
+          <h2 className="mb-2 text-sm font-medium text-[#8b949e]">
+            {t("weekSchedule")}
+          </h2>
+          <WeekScheduleStrip
+            today={data.today}
+            dayConfigs={data.dayConfigs}
+            conductorLabels={conductorShortLabels}
+            vipLabels={vipShortLabels}
+          />
+        </section>
+      ) : data.canManageTrains ? (
+        <section className="rounded-xl border border-dashed border-[#30363d] bg-[#161b22]/50 px-4 py-3 text-sm text-[#8b949e]">
+          {t("noScheduleYet")}
+        </section>
+      ) : null}
 
       <TodayConductorCard
         record={data.conductorRecord}

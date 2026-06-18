@@ -1,11 +1,13 @@
 "use client";
 
+import { createElement } from "react";
 import { ChevronDown, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { Link, usePathname } from "@/i18n/navigation";
 import { ashedLink } from "@/components/i18n/richText";
 import { APP_VERSION } from "@/lib/feedback/constants";
+import { navPageIcon } from "@/lib/nav/icons";
 import {
   FOOTER_NAV,
   NAV_GROUPS,
@@ -19,27 +21,37 @@ function cn(...parts: Array<string | false | null | undefined>) {
 
 function NavLink({
   href,
+  pageId,
   label,
   active,
   onNavigate,
 }: {
   href: string;
+  pageId: string;
   label: string;
   active: boolean;
   onNavigate?: () => void;
 }) {
+  const icon = navPageIcon(pageId);
+
   return (
     <Link
       href={href}
       onClick={onNavigate}
       className={cn(
-        "block rounded-lg px-3 py-1.5 text-sm",
+        "flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm",
         active
           ? "bg-[#1f3d5c] font-medium text-[#58a6ff]"
           : "text-[#8b949e] hover:bg-[#21262d] hover:text-[#e6edf3]",
       )}
     >
-      {label}
+      {icon
+        ? createElement(icon, {
+            className: "h-4 w-4 shrink-0",
+            "aria-hidden": true,
+          })
+        : null}
+      <span className="min-w-0 truncate">{label}</span>
     </Link>
   );
 }
@@ -161,6 +173,7 @@ export function SidebarNav({
                       <NavLink
                         key={page.href}
                         href={page.href}
+                        pageId={page.id}
                         label={tNav(page.labelKey)}
                         active={isNavActive(pathname, page.href)}
                         onNavigate={onNavigate}
@@ -170,6 +183,7 @@ export function SidebarNav({
                       <NavLink
                         key={page.href}
                         href={page.href}
+                        pageId={page.labelKey}
                         label={tNav(page.labelKey)}
                         active={
                           page.href === "/admin"

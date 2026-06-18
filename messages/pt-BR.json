@@ -24,7 +24,11 @@
     "connectionFailed": "Falha na conexão",
     "uploadFailed": "Falha no upload",
     "disconnectFailed": "Falha ao desconectar",
-    "externalLink": "{label} ↗"
+    "externalLink": "{label} ↗",
+    "copy": "Copiar",
+    "copied": "Copiado",
+    "copyToClipboard": "Copiar para a área de transferência",
+    "copyFailed": "Não foi possível copiar para a área de transferência."
   },
   "language": {
     "label": "Idioma",
@@ -57,7 +61,7 @@
     "reports": "Relatórios",
     "viralResistance": "Resistência Viral",
     "viralResistanceDescription": "VR base da temporada via Discord, ordenado com poder de herói",
-    "trains": "Trens",
+    "trains": "Trem da Aliança",
     "trainsDescription": "Agenda diária do Condutor, roleta e confirmação",
     "desertStorm": "Desert Storm",
     "canyonStorm": "Canyon Storm",
@@ -275,7 +279,8 @@
         "owner": "E-mail do proprietário",
         "collaborators": "Colaboradores",
         "members": "Membros HQ",
-        "synced": "Funções sincronizadas"
+        "synced": "Funções sincronizadas",
+        "nativeBadge": "Nativa"
       }
     },
     "nativeAlliance": {
@@ -286,15 +291,22 @@
       "ownerEmailOptional": "E-mail do proprietário (opcional — cria associação imediatamente)",
       "createButton": "Criar aliança nativa",
       "createFailed": "Não foi possível criar a aliança.",
-      "created": "Criada {name} [{tag}]. Copie o id da aliança abaixo para enviar convites.",
+      "created": "Criada {name} [{tag}]. Selecione-a abaixo para enviar convites.",
       "inviteTitle": "Convidar usuário HQ",
-      "allianceId": "Id da aliança",
-      "allianceIdRequired": "Informe o id da aliança para convidar alguém.",
-      "inviteEmail": "E-mail do convite",
+      "inviteTargetHint": "Escolha uma aliança nativa aqui ou clique em uma na lista abaixo.",
+      "chooseAlliance": "Aliança",
+      "chooseAlliancePlaceholder": "Selecione uma aliança nativa…",
+      "chooseAllianceRequired": "Selecione uma aliança nativa para convidar alguém.",
+      "selectedForInvite": "Selecionada para convite",
+      "selectAllianceRow": "Selecionar {name} ({slug}) para convite",
+      "inviteEmail": "E-mail do destinatário",
+      "inviteEmailHint": "Somente este endereço pode aceitar o convite. Informe o e-mail separadamente do link — o HQ não envia e-mail.",
+      "inviteEmailRequired": "Informe um e-mail válido do destinatário.",
       "inviteRole": "Função",
       "roleOwner": "Proprietário",
       "roleOfficer": "Oficial",
       "inviteButton": "Gerar link de convite",
+      "inviteLinkLabel": "Link de convite",
       "inviteFailed": "Não foi possível criar o convite.",
       "inviteSent": "Link de convite gerado (válido por 14 dias)."
     },
@@ -850,7 +862,30 @@
     "timezoneServerTime": "Horário do Servidor",
     "timezoneSaved": "Fuso horário salvo",
     "timezoneSaveFailed": "Não foi possível salvar o fuso horário",
-    "aboutBody": "O Alliance HQ, em <strong>alliance-hq.vercel.app</strong>, é uma interface comunitária para o <link>ashed.online</link>. Todos os créditos pelos dados da aliança pertencem ao Ashed."
+    "aboutBody": "O Alliance HQ, em <strong>alliance-hq.vercel.app</strong>, é uma interface comunitária para o <link>ashed.online</link>. Todos os créditos pelos dados da aliança pertencem ao Ashed.",
+    "gameSeason": {
+      "sectionTitle": "Temporada do jogo",
+      "sectionBody": "Temporada do Last War usada nos registros de trem e pontuações. Oficiais podem substituir quando a sincronização automática estiver errada.",
+      "loading": "Carregando temporada…",
+      "loadFailed": "Não foi possível carregar a temporada.",
+      "label": "Temporada atual",
+      "seasonLine": "Temporada {season}",
+      "serverLine": "Servidor {server}",
+      "postSeasonWeek": "Pós-temporada (semana {week})",
+      "inSeasonWeek": "Semana {week}",
+      "overrideLabel": "Substituição manual de temporada",
+      "saveOverride": "Salvar substituição",
+      "clearOverride": "Usar sincronização automática",
+      "saving": "Salvando…",
+      "saveFailed": "Não foi possível salvar a substituição.",
+      "clearFailed": "Não foi possível limpar a substituição.",
+      "source": {
+        "override": "Substituição manual",
+        "cpt-hedge": "Sincronizado do cpt-hedge",
+        "age-fallback": "Estimado pela idade do servidor",
+        "default": "Padrão"
+      }
+    }
   },
   "deviceLink": {
     "sectionTitle": "Vincular dispositivo móvel",
@@ -983,8 +1018,11 @@
     "loadFailed": "Não foi possível carregar o convite.",
     "alreadyAccepted": "Este convite já foi usado.",
     "expired": "Este convite expirou. Peça um novo link ao administrador.",
-    "intro": "Entrar em {alliance} [{tag}] como {role}. Confirme o e-mail do convite para continuar.",
+    "intro": "Entrar em {alliance} [{tag}] como {role}. Digite o e-mail que o administrador usou neste convite.",
     "email": "E-mail",
+    "emailHint": "Deve ser o mesmo endereço que o administrador registrou para este convite.",
+    "emailRequired": "Informe um endereço de e-mail válido.",
+    "emailMismatch": "Este e-mail não corresponde ao convite. Confira com o administrador.",
     "displayName": "Nome de exibição (opcional)",
     "accept": "Aceitar convite",
     "accepting": "Aceitando…",
@@ -1021,8 +1059,11 @@
     }
   },
   "trains": {
-    "title": "Trens",
+    "title": "Trem da Aliança",
     "subtitle": "Gerencie o ritual diário do Condutor — agenda, roleta e confirmação.",
+    "emptyRosterBody": "Importe o elenco da aliança antes de planejar agendas de trem ou sortear o Condutor.",
+    "emptyRosterCta": "Ir para Membros",
+    "noScheduleYet": "Nenhuma agenda semanal ainda. Escolha um modelo abaixo ou planeje os dias no calendário (em breve).",
     "weekSchedule": "Esta semana",
     "templateBadge": "Modelo: {template}",
     "todayConductor": "Condutor de hoje",
@@ -1056,6 +1097,21 @@
       "officerPick": "Escolha do oficial",
       "eventTopX": "Top X evento",
       "custom": "Personalizado"
+    },
+    "mechanismsShort": {
+      "vsHighScore": "VS D1",
+      "vsTop10": "VS T10",
+      "r3Lottery": "R3",
+      "r4Sequence": "R4",
+      "donationsTop": "DOA",
+      "officerPick": "OF",
+      "eventTopX": "EVT",
+      "custom": "?"
+    },
+    "vipMechanismsShort": {
+      "conductorPick": "VIP",
+      "donationsSecond": "2º",
+      "eventTopX": "EVT"
     },
     "templates": {
       "vs_push_week": "Semana push VS",
