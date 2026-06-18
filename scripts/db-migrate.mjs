@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { config } from "dotenv";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
@@ -13,8 +13,38 @@ if (process.env.NODE_ENV !== "production") {
   config({ path: ".env.development.local" });
 }
 
+/** Journal tag → on-disk SQL file (drizzle-kit names vs hand-renamed journal tags). */
+function resolveMigrationTag(tag) {
+  const exactPath = `drizzle/${tag}.sql`;
+  if (existsSync(exactPath)) {
+    return tag;
+  }
+
+  const prefix = tag.match(/^(\d{4})_/)?.[1];
+  if (!prefix) {
+    throw new Error(`No migration file for tag ${tag}`);
+  }
+
+  const matches = readdirSync("drizzle")
+    .filter((name) => name.endsWith(".sql") && name.startsWith(`${prefix}_`))
+    .sort();
+
+  if (matches.length !== 1) {
+    throw new Error(
+      `Expected one migration file for prefix ${prefix}, found ${matches.length}: ${matches.join(", ") || "(none)"}`,
+    );
+  }
+
+  return matches[0].replace(/\.sql$/, "");
+}
+
+function readMigrationSql(tag) {
+  const resolved = resolveMigrationTag(tag);
+  return readFileSync(`drizzle/${resolved}.sql`, "utf8");
+}
+
 function migrationHash(tag) {
-  const sql = readFileSync(`drizzle/${tag}.sql`, "utf8");
+  const sql = readMigrationSql(tag);
   return createHash("sha256").update(sql).digest("hex");
 }
 
@@ -40,7 +70,7 @@ async function applyMissingJournalMigrations(client) {
       continue;
     }
 
-    const sqlFile = readFileSync(`drizzle/${tag}.sql`, "utf8");
+    const sqlFile = readMigrationSql(tag);
     const statements = sqlFile
       .split("--> statement-breakpoint")
       .map((statement) => statement.trim())

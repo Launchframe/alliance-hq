@@ -1,5 +1,10 @@
 import { resolveAllianceByTag } from "@/lib/alliance/resolve";
-import { base44ListMembers } from "@/lib/base44/fetch";
+import {
+  allianceMemberRowToAshedMember,
+  listAllianceMembers,
+  resolveHqAllianceId,
+  syncAllianceMembersFromAshed,
+} from "@/lib/members/roster.server";
 import { getAshedConnection, loadSession } from "@/lib/session";
 import type { AshedMember } from "@/lib/video/member-matcher";
 
@@ -46,9 +51,19 @@ export async function loadAllianceMembers(
   }
 
   const alliance = await resolveAllianceByTag(connection, session.allianceTag);
-  const members = sortMembers(
-    await base44ListMembers(connection, alliance.id),
+  const hqAllianceId = await resolveHqAllianceId(
+    session.currentAllianceId ?? session.allianceId,
+    alliance.id,
   );
+
+  await syncAllianceMembersFromAshed({
+    hqAllianceId,
+    ashedAllianceId: alliance.id,
+    connection,
+  });
+
+  const rows = await listAllianceMembers(hqAllianceId);
+  const members = sortMembers(rows.map(allianceMemberRowToAshedMember));
 
   const active = members.filter((m) => m.status !== "former").length;
 

@@ -791,6 +791,374 @@ export type AllianceAshedCredential = typeof allianceAshedCredentials.$inferSele
 export type DiscordUserPref = typeof discordUserPrefs.$inferSelect;
 export type VideoJobSurvey = typeof videoJobSurveys.$inferSelect;
 
+/** Locally synced Ashed roster — normalized ranks for trains and Members UI. */
+export const allianceMembers = pgTable(
+  "alliance_members",
+  {
+    id: text("id").primaryKey(),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    ashedMemberId: text("ashed_member_id").notNull(),
+    ashedAllianceId: text("ashed_alliance_id").notNull(),
+    currentName: text("current_name").notNull(),
+    previousNamesJson: jsonb("previous_names_json").$type<string[]>(),
+    status: text("status").notNull().default("active"),
+    /** Normalized in-game rank (1–5) parsed at sync or rank confirm. */
+    allianceRank: integer("alliance_rank"),
+    allianceRankTitle: text("alliance_rank_title"),
+    /** Raw Ashed Member.rank string for display / round-trip. */
+    ashedRankRaw: text("ashed_rank_raw"),
+    syncedAt: timestamp("synced_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    unique("alliance_members_alliance_ashed_member_unique").on(
+      table.allianceId,
+      table.ashedMemberId,
+    ),
+  ],
+);
+
+/** Immutable alliance rank history (R1–R5). Append-only. */
+export const memberAllianceRankEvents = pgTable(
+  "member_alliance_rank_events",
+  {
+    id: text("id").primaryKey(),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    ashedMemberId: text("ashed_member_id").notNull(),
+    memberName: text("member_name").notNull(),
+    allianceRank: integer("alliance_rank").notNull(),
+    allianceRankTitle: text("alliance_rank_title"),
+    effectiveDate: text("effective_date").notNull(),
+    source: text("source").notNull(),
+    recordedAt: timestamp("recorded_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    recordedByHqUserId: text("recorded_by_hq_user_id").references(
+      () => hqUsers.id,
+      { onDelete: "set null" },
+    ),
+    ashedSyncedAt: timestamp("ashed_synced_at", { withTimezone: true }),
+  },
+);
+
+export const trainWeekSchedules = pgTable(
+  "train_week_schedules",
+  {
+    id: text("id").primaryKey(),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    weekStart: text("week_start").notNull(),
+    templateType: text("template_type").notNull(),
+    notes: text("notes"),
+    isPivot: integer("is_pivot").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    unique("train_week_schedules_alliance_week_unique").on(
+      table.allianceId,
+      table.weekStart,
+    ),
+  ],
+);
+
+export const trainDayConfigs = pgTable(
+  "train_day_configs",
+  {
+    id: text("id").primaryKey(),
+    weekScheduleId: text("week_schedule_id").references(
+      () => trainWeekSchedules.id,
+      { onDelete: "cascade" },
+    ),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    date: text("date").notNull(),
+    conductorMechanism: text("conductor_mechanism").notNull(),
+    conductorConfig: jsonb("conductor_config"),
+    vipMechanism: text("vip_mechanism"),
+    vipConfig: jsonb("vip_config"),
+    isOverride: integer("is_override").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    unique("train_day_configs_alliance_date_unique").on(
+      table.allianceId,
+      table.date,
+    ),
+  ],
+);
+
+export const trainConductorRecords = pgTable(
+  "train_conductor_records",
+  {
+    id: text("id").primaryKey(),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    date: text("date").notNull(),
+    conductorMemberId: text("conductor_member_id"),
+    conductorMemberName: text("conductor_member_name"),
+    conductorRankEventId: text("conductor_rank_event_id").references(
+      () => memberAllianceRankEvents.id,
+      { onDelete: "set null" },
+    ),
+    vipMemberId: text("vip_member_id"),
+    vipMemberName: text("vip_member_name"),
+    vipRankEventId: text("vip_rank_event_id").references(
+      () => memberAllianceRankEvents.id,
+      { onDelete: "set null" },
+    ),
+    guardianIsVip: integer("guardian_is_vip").notNull().default(0),
+    conductorMechanism: text("conductor_mechanism"),
+    vipMechanism: text("vip_mechanism"),
+    dayConfigId: text("day_config_id").references(() => trainDayConfigs.id, {
+      onDelete: "set null",
+    }),
+    lockedAt: timestamp("locked_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    unique("train_conductor_records_alliance_date_unique").on(
+      table.allianceId,
+      table.date,
+    ),
+  ],
+);
+
+export const conductorPoolEntries = pgTable(
+  "conductor_pool_entries",
+  {
+    id: text("id").primaryKey(),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    poolType: text("pool_type").notNull(),
+    generation: integer("generation").notNull().default(1),
+    memberId: text("member_id").notNull(),
+    memberName: text("member_name").notNull(),
+    allianceRank: integer("alliance_rank"),
+    sequencePosition: integer("sequence_position"),
+    selectedAt: timestamp("selected_at", { withTimezone: true }),
+    selectedForDate: text("selected_for_date"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    unique("conductor_pool_entries_unique").on(
+      table.allianceId,
+      table.poolType,
+      table.generation,
+      table.memberId,
+    ),
+  ],
+);
+
+export const inventoryItems = pgTable("inventory_item", {
+  id: text("id").primaryKey(),
+  slug: text("slug").notNull().unique(),
+  name: text("name").notNull(),
+  imageUrl: text("image_url"),
+  trainValue: integer("train_value").notNull().default(0),
+});
+
+export const trains = pgTable(
+  "train",
+  {
+    id: text("id").primaryKey(),
+    conductorRecordId: text("conductor_record_id")
+      .notNull()
+      .references(() => trainConductorRecords.id, { onDelete: "cascade" }),
+    cargoValueScore: integer("cargo_value_score").notNull().default(0),
+    tradeContractsSpent: integer("trade_contracts_spent").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    unique("train_conductor_record_unique").on(table.conductorRecordId),
+  ],
+);
+
+export const trainCars = pgTable(
+  "train_car",
+  {
+    id: text("id").primaryKey(),
+    trainId: text("train_id")
+      .notNull()
+      .references(() => trains.id, { onDelete: "cascade" }),
+    carNumber: integer("car_number").notNull(),
+  },
+  (table) => [
+    unique("train_car_train_number_unique").on(table.trainId, table.carNumber),
+  ],
+);
+
+export const trainCarCargoItems = pgTable(
+  "train_car_cargo_item",
+  {
+    id: text("id").primaryKey(),
+    trainCarId: text("train_car_id")
+      .notNull()
+      .references(() => trainCars.id, { onDelete: "cascade" }),
+    slotNumber: integer("slot_number").notNull(),
+    inventoryItemId: text("inventory_item_id").references(
+      () => inventoryItems.id,
+      { onDelete: "set null" },
+    ),
+    quantity: integer("quantity").notNull().default(0),
+  },
+  (table) => [
+    unique("train_car_cargo_item_slot_unique").on(
+      table.trainCarId,
+      table.slotNumber,
+    ),
+  ],
+);
+
+export const trainCargoSnapshots = pgTable("train_cargo_snapshot", {
+  id: text("id").primaryKey(),
+  conductorRecordId: text("conductor_record_id")
+    .notNull()
+    .references(() => trainConductorRecords.id, { onDelete: "cascade" }),
+  snapshotIndex: integer("snapshot_index").notNull(),
+  cargoValueScore: integer("cargo_value_score").notNull().default(0),
+  tradeContractsSpentCumulative: integer("trade_contracts_spent_cumulative")
+    .notNull()
+    .default(0),
+  capturedAt: timestamp("captured_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+export const trainCargoSnapshotCars = pgTable(
+  "train_cargo_snapshot_car",
+  {
+    id: text("id").primaryKey(),
+    snapshotId: text("snapshot_id")
+      .notNull()
+      .references(() => trainCargoSnapshots.id, { onDelete: "cascade" }),
+    carNumber: integer("car_number").notNull(),
+  },
+  (table) => [
+    unique("train_cargo_snapshot_car_unique").on(
+      table.snapshotId,
+      table.carNumber,
+    ),
+  ],
+);
+
+export const trainCargoSnapshotCarItems = pgTable(
+  "train_cargo_snapshot_car_item",
+  {
+    id: text("id").primaryKey(),
+    snapshotCarId: text("snapshot_car_id")
+      .notNull()
+      .references(() => trainCargoSnapshotCars.id, { onDelete: "cascade" }),
+    slotNumber: integer("slot_number").notNull(),
+    inventoryItemId: text("inventory_item_id").references(
+      () => inventoryItems.id,
+      { onDelete: "set null" },
+    ),
+    quantity: integer("quantity").notNull().default(0),
+  },
+  (table) => [
+    unique("train_cargo_snapshot_car_item_slot_unique").on(
+      table.snapshotCarId,
+      table.slotNumber,
+    ),
+  ],
+);
+
+export const trainPlunderEvents = pgTable("train_plunder_event", {
+  id: text("id").primaryKey(),
+  conductorRecordId: text("conductor_record_id")
+    .notNull()
+    .references(() => trainConductorRecords.id, { onDelete: "cascade" }),
+  plunderNumber: integer("plunder_number").notNull(),
+  plunderedAt: timestamp("plundered_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+export const trainPlunderEventItems = pgTable("train_plunder_event_item", {
+  id: text("id").primaryKey(),
+  plunderEventId: text("plunder_event_id")
+    .notNull()
+    .references(() => trainPlunderEvents.id, { onDelete: "cascade" }),
+  inventoryItemId: text("inventory_item_id")
+    .notNull()
+    .references(() => inventoryItems.id, { onDelete: "restrict" }),
+  quantity: integer("quantity").notNull(),
+  trainCarNumber: integer("train_car_number"),
+});
+
+export const trainRiders = pgTable("train_rider", {
+  id: text("id").primaryKey(),
+  conductorRecordId: text("conductor_record_id")
+    .notNull()
+    .references(() => trainConductorRecords.id, { onDelete: "cascade" }),
+  memberId: text("member_id").notNull(),
+  memberName: text("member_name").notNull(),
+  carNumber: integer("car_number").notNull(),
+  boardingResult: text("boarding_result"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+export const trainRiderCargoItems = pgTable("train_rider_cargo_item", {
+  id: text("id").primaryKey(),
+  riderId: text("rider_id")
+    .notNull()
+    .references(() => trainRiders.id, { onDelete: "cascade" }),
+  inventoryItemId: text("inventory_item_id")
+    .notNull()
+    .references(() => inventoryItems.id, { onDelete: "restrict" }),
+  quantity: integer("quantity").notNull(),
+  wasPlundered: integer("was_plundered").notNull().default(0),
+});
+
+export type AllianceMember = typeof allianceMembers.$inferSelect;
+export type MemberAllianceRankEvent =
+  typeof memberAllianceRankEvents.$inferSelect;
+export type TrainWeekSchedule = typeof trainWeekSchedules.$inferSelect;
+export type TrainDayConfig = typeof trainDayConfigs.$inferSelect;
+export type TrainConductorRecord = typeof trainConductorRecords.$inferSelect;
+export type ConductorPoolEntry = typeof conductorPoolEntries.$inferSelect;
+export type InventoryItem = typeof inventoryItems.$inferSelect;
+export type Train = typeof trains.$inferSelect;
+export type TrainCar = typeof trainCars.$inferSelect;
+export type TrainCarCargoItem = typeof trainCarCargoItems.$inferSelect;
+export type TrainCargoSnapshot = typeof trainCargoSnapshots.$inferSelect;
+export type TrainPlunderEvent = typeof trainPlunderEvents.$inferSelect;
+export type TrainRider = typeof trainRiders.$inferSelect;
+
 // ---------------------------------------------------------------------------
 // Experiment platform
 // ---------------------------------------------------------------------------
@@ -894,3 +1262,4 @@ export type ParseConfig = typeof parseConfigs.$inferSelect;
 export type ExperimentCampaign = typeof experimentCampaigns.$inferSelect;
 export type ExperimentArm = typeof experimentArms.$inferSelect;
 export type ConfigAssignment = typeof configAssignments.$inferSelect;
+

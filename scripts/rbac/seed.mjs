@@ -23,6 +23,7 @@ const HQ_PERMISSIONS = [
   { id: "hq:audit:read", description: "Read alliance audit log" },
   { id: "hq:video:read", description: "List alliance video jobs" },
   { id: "hq:events:write", description: "Manage HQ native events" },
+  { id: "trains:write", description: "Manage train conductor schedule, rolls, and locks" },
 ];
 
 function getDatabaseUrl() {
@@ -52,9 +53,13 @@ async function main() {
       "hq:audit:read",
       "hq:video:read",
       "hq:events:write",
+      "trains:write",
     ]),
   ];
   roleTemplates.maintainer.permissions = [...roleTemplates.owner.permissions];
+  roleTemplates.officer.permissions = [
+    ...new Set([...roleTemplates.officer.permissions, "trains:write"]),
+  ];
 
   const url = getDatabaseUrl();
   const client = postgres(url, { max: 1, prepare: false });

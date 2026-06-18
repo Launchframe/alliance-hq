@@ -2,6 +2,7 @@ import { getTranslations } from "next-intl/server";
 
 import { MembersListViewOrSetup } from "@/components/members/MembersListView";
 import { loadAllianceMembers } from "@/lib/members/load";
+import { sessionHasPermission } from "@/lib/rbac/context";
 import { requirePageSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -30,5 +31,10 @@ export default async function MembersPage() {
     throw error;
   }
 
-  return <MembersListViewOrSetup initial={initial} />;
+  return (
+    <MembersListViewOrSetup
+      initial={initial}
+      canEditRanks={await sessionHasPermission(session.id, "members:write")}
+    />
+  );
 }

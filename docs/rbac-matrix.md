@@ -22,6 +22,7 @@ Ashed limits shared seats to three; Alliance HQ adds **many HQ users per allianc
 | `alliance:write` | recordPartnerEngagement |
 | `scores:read` | GET VSScore, Donation, exercise/score/kill entities |
 | `scores:write` | POST/PUT score entities, manageSquadPowerData |
+| **`trains:write`** | **Train conductor schedule, rolls, lock-in (owner/maintainer/officer only)** |
 | `reports:read` | GET WeeklyVSReport, WeeklyAllianceReport |
 | `reports:generate` | generateWeeklyAllianceReport |
 | `events:read` | GET event/roster/score entities |
