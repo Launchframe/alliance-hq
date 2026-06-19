@@ -147,8 +147,20 @@ export function MembersListView({
       if (selectedIds.size === 0 || applying) return;
 
       const memberIds = [...selectedIds];
+      const patchInput = { memberIds, action, allianceRank };
+
       setApplying(true);
       setError(null);
+
+      let previousMembers: AshedMember[] = [];
+      setData((prev) => {
+        previousMembers = prev.members;
+        return {
+          ...prev,
+          members: patchMembersAfterBulkRank(prev.members, patchInput),
+        };
+      });
+      setSelectedIds(new Set());
 
       try {
         const res = await fetch("/api/members/ranks", {
@@ -159,35 +171,42 @@ export function MembersListView({
         const body = (await res.json()) as {
           error?: string;
           updated?: number;
-          results?: Array<{ ok: boolean }>;
+          results?: Array<{ ashedMemberId: string; ok: boolean }>;
         };
 
         if (!res.ok) {
+          setData((prev) => ({ ...prev, members: previousMembers }));
           setError(body.error ?? t("bulkRankFailed"));
           return;
         }
 
         const updated = body.updated ?? 0;
         const total = memberIds.length;
+        const okIds =
+          body.results?.filter((result) => result.ok).map((r) => r.ashedMemberId) ??
+          (updated === total ? memberIds : []);
 
-        setData((prev) => ({
-          ...prev,
-          members: patchMembersAfterBulkRank(prev.members, {
-            memberIds,
-            action,
-            allianceRank,
-          }),
-        }));
-        setSelectedIds(new Set());
+        if (updated < total) {
+          setData((prev) => ({
+            ...prev,
+            members: patchMembersAfterBulkRank(previousMembers, {
+              memberIds: okIds,
+              action,
+              allianceRank,
+            }),
+          }));
+        }
 
         if (updated === total) {
           setError(null);
         } else if (updated > 0) {
           setError(t("bulkRankPartial", { updated, total }));
         } else {
+          setData((prev) => ({ ...prev, members: previousMembers }));
           setError(t("bulkRankFailed"));
         }
       } catch (e) {
+        setData((prev) => ({ ...prev, members: previousMembers }));
         setError(e instanceof Error ? e.message : t("bulkRankFailed"));
       } finally {
         setApplying(false);
@@ -323,7 +342,7 @@ export function MembersListView({
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            {([1, 2, 3] as const).map((rank) => (
+            {([1, 2, 3, 4] as const).map((rank) => (
               <button
                 key={rank}
                 type="button"
@@ -331,7 +350,13 @@ export function MembersListView({
                 onClick={() => void applyBulkRank("set", rank)}
                 className="rounded-lg border border-[#238636] bg-[#238636] px-3 py-1.5 text-xs font-medium text-white disabled:opacity-40"
               >
-                {t(`setRankR${rank}` as "setRankR1" | "setRankR2" | "setRankR3")}
+                {t(
+                  `setRankR${rank}` as
+                    | "setRankR1"
+                    | "setRankR2"
+                    | "setRankR3"
+                    | "setRankR4",
+                )}
               </button>
             ))}
             <button

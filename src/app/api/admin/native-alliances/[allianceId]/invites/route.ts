@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { getRbacContext } from "@/lib/rbac/context";
 import { createHqInvite } from "@/lib/native-alliance/invites";
+import { sanitizeInternalRedirectPath } from "@/lib/navigation/safe-redirect.shared";
 import type { SystemRoleName } from "@/lib/rbac/constants";
 import { requirePlatformMaintainer } from "@/lib/rbac/require-permission";
 import { readSessionId } from "@/lib/session";
@@ -10,6 +11,7 @@ import { readSessionId } from "@/lib/session";
 const bodySchema = z.object({
   email: z.string().trim().email(),
   roleName: z.enum(["owner", "officer", "data_entry", "viewer"]).default("officer"),
+  redirectPath: z.string().trim().max(512).optional(),
 });
 
 export async function POST(
@@ -43,6 +45,7 @@ export async function POST(
       roleName: body.roleName as SystemRoleName,
       invitedByHqUserId: ctx?.hqUserId ?? null,
       origin,
+      redirectPath: sanitizeInternalRedirectPath(body.redirectPath),
     });
 
     return NextResponse.json({ ok: true, invite });

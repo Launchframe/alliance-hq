@@ -88,7 +88,7 @@ export async function startNewPoolGeneration(
   return { generation: nextGen, count: shuffled.length };
 }
 
-export async function pickNextPoolEntry(
+export async function peekNextPoolEntry(
   allianceId: string,
   poolType: PoolType,
 ): Promise<(typeof schema.conductorPoolEntries.$inferSelect) | null> {
@@ -110,6 +110,13 @@ export async function pickNextPoolEntry(
     .limit(1);
 
   return next ?? null;
+}
+
+export async function pickNextPoolEntry(
+  allianceId: string,
+  poolType: PoolType,
+): Promise<(typeof schema.conductorPoolEntries.$inferSelect) | null> {
+  return peekNextPoolEntry(allianceId, poolType);
 }
 
 export async function pickRandomPoolEntry(
@@ -149,6 +156,28 @@ export async function markPoolEntrySelected(
     .where(eq(schema.conductorPoolEntries.id, entryId));
 }
 
+/** Platform-admin unlock: return a pool slot consumed by a mistaken lock. */
+export async function releasePoolSelectionForDate(
+  allianceId: string,
+  date: string,
+  memberId: string,
+): Promise<void> {
+  const db = getDb();
+  await db
+    .update(schema.conductorPoolEntries)
+    .set({
+      selectedAt: null,
+      selectedForDate: null,
+    })
+    .where(
+      and(
+        eq(schema.conductorPoolEntries.allianceId, allianceId),
+        eq(schema.conductorPoolEntries.selectedForDate, date),
+        eq(schema.conductorPoolEntries.memberId, memberId),
+      ),
+    );
+}
+
 export async function getPoolSummary(
   allianceId: string,
   poolType: PoolType,
@@ -157,6 +186,7 @@ export async function getPoolSummary(
   total: number;
   remaining: number;
   exhausted: boolean;
+  nextInSequence: { memberId: string; memberName: string } | null;
 }> {
   const db = getDb();
   const generation = await getCurrentPoolGeneration(allianceId, poolType);
@@ -173,11 +203,15 @@ export async function getPoolSummary(
     );
 
   const remaining = rows.filter((r) => !r.selectedAt).length;
+  const nextEntry = await peekNextPoolEntry(allianceId, poolType);
   return {
     generation,
     total: rows.length,
     remaining,
     exhausted: rows.length > 0 && remaining === 0,
+    nextInSequence: nextEntry
+      ? { memberId: nextEntry.memberId, memberName: nextEntry.memberName }
+      : null,
   };
 }
 

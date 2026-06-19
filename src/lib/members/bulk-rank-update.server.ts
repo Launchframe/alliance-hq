@@ -16,7 +16,7 @@ import {
 export type BulkMemberRankInput = {
   memberIds: string[];
   action: BulkMemberRankAction;
-  /** Required when action is set — R1, R2, or R3 only for bulk roster tagging. */
+  /** Required when action is set — R1–R4 for bulk roster tagging (no officer title). */
   allianceRank?: number;
   membersById: Map<string, AshedMember>;
   ctx: MembersApiContext;

@@ -8,7 +8,10 @@ import {
   upsertConductorDraft,
 } from "@/lib/trains/repository";
 import { getMemberRankAsOf } from "@/lib/trains/rank-history";
-import { getServerCalendarDate } from "@/lib/trains/service";
+import {
+  getServerCalendarDate,
+  refreshExhaustedPoolsForDay,
+} from "@/lib/trains/service";
 import { getOrCreateSession } from "@/lib/session";
 import { requireTrainOfficer } from "@/lib/rbac/require-permission";
 
@@ -58,8 +61,16 @@ export async function POST(request: Request) {
       );
     }
 
-    const locked = await lockConductorRecord(record.id);
-    return NextResponse.json({ record: locked });
+    const locked = await lockConductorRecord(record.id, ctx.allianceId);
+    const poolsRefreshed = await refreshExhaustedPoolsForDay({
+      allianceId: ctx.allianceId,
+      date,
+      connection: ctx.connection,
+      ashedAllianceId: ctx.ashedAllianceId,
+      seasonKey,
+    });
+
+    return NextResponse.json({ record: locked, poolsRefreshed });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Lock failed.";
     const status = message.includes("already locked") ? 409 : 400;

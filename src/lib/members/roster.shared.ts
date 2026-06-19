@@ -37,6 +37,8 @@ export function allianceMemberRowToAshedMember(row: AllianceMember): AshedMember
     alliance_id: row.ashedAllianceId,
     status: row.status,
     alliance_rank: row.allianceRank ?? undefined,
+    allianceRank: row.allianceRank ?? undefined,
+    allianceRankTitle: row.allianceRankTitle,
     rank: rankValue,
   };
 }

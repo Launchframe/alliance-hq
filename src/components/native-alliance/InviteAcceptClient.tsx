@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { Link, useRouter } from "@/i18n/navigation";
+import { resolveInviteRedirect } from "@/lib/navigation/safe-redirect.shared";
 
 type InvitePreview = {
   allianceName: string;
@@ -12,6 +13,7 @@ type InvitePreview = {
   expiresAt: string;
   expired: boolean;
   accepted: boolean;
+  redirectPath: string | null;
 };
 
 function isValidEmail(value: string): boolean {
@@ -19,7 +21,13 @@ function isValidEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed);
 }
 
-export function InviteAcceptClient({ token }: { token: string }) {
+export function InviteAcceptClient({
+  token,
+  queryRedirect,
+}: {
+  token: string;
+  queryRedirect?: string;
+}) {
   const t = useTranslations("invite");
   const router = useRouter();
   const [preview, setPreview] = useState<InvitePreview | null>(null);
@@ -30,6 +38,15 @@ export function InviteAcceptClient({ token }: { token: string }) {
   const [error, setError] = useState<string | null>(null);
 
   const emailValid = isValidEmail(email);
+
+  const postAcceptHref = useMemo(
+    () =>
+      resolveInviteRedirect({
+        queryNext: queryRedirect,
+        storedPath: preview?.redirectPath,
+      }),
+    [preview?.redirectPath, queryRedirect],
+  );
 
   useEffect(() => {
     void (async () => {
@@ -68,12 +85,14 @@ export function InviteAcceptClient({ token }: { token: string }) {
           body: JSON.stringify({
             email: email.trim(),
             displayName: displayName.trim() || undefined,
+            next: queryRedirect,
           }),
         },
       );
       const body = (await res.json()) as {
         error?: string;
         code?: string;
+        redirectTo?: string;
       };
       if (!res.ok) {
         if (body.code === "email_mismatch") {
@@ -83,7 +102,7 @@ export function InviteAcceptClient({ token }: { token: string }) {
         setError(body.error ?? t("acceptFailed"));
         return;
       }
-      router.push("/connect?welcome=1");
+      router.push(body.redirectTo ?? postAcceptHref);
     } catch (e) {
       setError(e instanceof Error ? e.message : t("acceptFailed"));
     } finally {
@@ -113,7 +132,7 @@ export function InviteAcceptClient({ token }: { token: string }) {
         <h1 className="text-xl font-semibold">{t("title")}</h1>
         <p className="text-sm text-[#8b949e]">{t("alreadyAccepted")}</p>
         <Link
-          href="/connect?welcome=1"
+          href={postAcceptHref}
           className="inline-block rounded-lg border border-[#238636] bg-[#238636] px-4 py-2 text-sm text-white"
         >
           {t("goToApp")}

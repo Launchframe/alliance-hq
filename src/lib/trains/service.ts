@@ -4,8 +4,10 @@ import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
 import { loadActiveAlliancePoolMembers } from "@/lib/members/game-roster";
 import type {
   ConductorMechanismType,
+  DayConfigInput,
   EventTopXConfig,
   PoolType,
+  PoolRefreshedInfo,
   RollCandidate,
   RollResult,
   VipMechanismType,
@@ -15,16 +17,35 @@ import {
   addCalendarDays,
   getServerCalendarDate,
   getWeekStartMonday,
+  weekDatesFromMonday,
 } from "@/lib/trains/game-time";
 import {
+  throwAshedRequired,
+  throwNoWheelCandidates,
+  throwPoolEmpty,
+  throwPoolExhausted,
+  throwPoolUnavailable,
+} from "@/lib/trains/roll-errors.server";
+import { withPaintTemplateConfig } from "@/lib/trains/calendar-cell-styles.shared";
+import { resolvePaintTemplateForDay } from "@/lib/trains/week-template-registry.shared";
+import { resolveRollDayConfig } from "@/lib/trains/day-config-resolve.server";
+import {
   getPoolSummary,
+  listPoolEntries,
   markPoolEntrySelected,
   pickNextPoolEntry,
   pickRandomPoolEntry,
   poolHasEntries,
+  releasePoolSelectionForDate,
   seedPool,
   startNewPoolGeneration,
 } from "@/lib/trains/pool";
+import {
+  fetchEventTopScorers,
+} from "@/lib/trains/event-scores.server";
+import {
+  fetchVsTopScorersForTrainDate,
+} from "@/lib/trains/vs-scores.server";
 import {
   getAllianceRanksAsOf,
   getMemberRankAsOf,
@@ -32,21 +53,37 @@ import {
 } from "@/lib/trains/rank-history";
 import {
   conductorMechanismPoolType,
+  generateDayConfigForDate,
   generateWeekDayConfigs,
+  vipMechanismPoolType,
 } from "@/lib/trains/templates";
 import {
   getConductorRecord,
-  getDayConfig,
   getWeekSchedule,
+  listConductorRecordsForWeek,
   listDayConfigsForWeek,
   replaceDayConfigs,
   upsertConductorDraft,
+  upsertDayConfigOverride,
   upsertWeekSchedule,
 } from "@/lib/trains/repository";
+import { latestLockedDateInWeek } from "@/lib/trains/week-template-change.shared";
 
 async function resolveTrainSeasonKey(allianceId: string): Promise<string> {
   const effective = await getEffectiveSeasonForAlliance(allianceId);
   return effective.seasonKey;
+}
+
+function weekDayConfigsForTemplate(
+  templateType: WeekTemplateType,
+  weekStart: string,
+): DayConfigInput[] {
+  return generateWeekDayConfigs(templateType, weekStart).map((config) =>
+    withPaintTemplateConfig(
+      config,
+      resolvePaintTemplateForDay(templateType, config.date, weekStart),
+    ),
+  );
 }
 
 type AshedScoreRow = {
@@ -71,19 +108,6 @@ function memberFromScore(row: AshedScoreRow): RollCandidate | null {
 
 function scoreValue(row: AshedScoreRow): number {
   return Number(row.score ?? row.points ?? row.total ?? 0);
-}
-
-async function fetchVsTopScorers(
-  connection: ParsedConnection,
-  allianceId: string,
-  limit: number,
-): Promise<RollCandidate[]> {
-  const path = `/entities/VSScore?q=${encodeURIComponent(JSON.stringify({ alliance_id: allianceId }))}&sort=-score&limit=${limit}`;
-  const rows = await base44Json<AshedScoreRow[]>(connection, path);
-  return rows
-    .map(memberFromScore)
-    .filter((c): c is RollCandidate => c != null)
-    .slice(0, limit);
 }
 
 async function fetchTopDonor(
@@ -114,7 +138,20 @@ async function buildPoolCandidates(input: {
   date: string;
   ashedAllianceId: string;
   connection: ParsedConnection | null;
+  eventTopN?: number;
+  eventKey?: string;
 }): Promise<RollCandidate[]> {
+  if (input.poolType === "event_top_x") {
+    if (!input.connection) return [];
+    return fetchEventTopScorers(
+      input.connection,
+      input.ashedAllianceId,
+      input.eventKey ?? "capitol_war",
+      input.date,
+      input.eventTopN ?? 10,
+    );
+  }
+
   const [members, rankEvents] = await Promise.all([
     loadActiveAlliancePoolMembers({
       allianceId: input.hqAllianceId,
@@ -150,6 +187,8 @@ async function ensurePool(input: {
   date: string;
   connection: ParsedConnection | null;
   useSequence: boolean;
+  eventTopN?: number;
+  eventKey?: string;
 }): Promise<void> {
   const has = await poolHasEntries(input.hqAllianceId, input.poolType);
   if (has) return;
@@ -160,9 +199,11 @@ async function ensurePool(input: {
     date: input.date,
     ashedAllianceId: input.ashedAllianceId,
     connection: input.connection,
+    eventTopN: input.eventTopN,
+    eventKey: input.eventKey,
   });
   if (candidates.length === 0) {
-    throw new Error(`No eligible members for ${input.poolType} pool.`);
+    throwPoolEmpty(input.poolType);
   }
 
   if (input.useSequence) {
@@ -186,16 +227,28 @@ async function rollFromPool(
       : await pickRandomPoolEntry(allianceId, poolType);
 
   if (!entry && summary.exhausted) {
-    throw new Error(
-      "Pool exhausted. Re-seed the pool to start a new generation.",
-    );
+    throwPoolExhausted(poolType);
   }
 
   if (!entry) {
-    throw new Error("No pool entry available.");
+    throwPoolUnavailable();
   }
 
   await markPoolEntrySelected(entry.id, date);
+
+  const generationEntries = await listPoolEntries(allianceId, poolType);
+  const seenMemberIds = new Set<string>();
+  const wheelCandidates = generationEntries.flatMap((row) => {
+    if (seenMemberIds.has(row.memberId)) return [];
+    seenMemberIds.add(row.memberId);
+    return [
+      {
+        memberId: row.memberId,
+        memberName: row.memberName,
+        allianceRank: row.allianceRank,
+      },
+    ];
+  });
 
   return {
     memberId: entry.memberId,
@@ -203,6 +256,7 @@ async function rollFromPool(
     mechanism,
     isAutomatic: false,
     poolType,
+    wheelCandidates,
   };
 }
 
@@ -223,8 +277,11 @@ export async function getOrCreateWeekSchedule(
       templateType,
       seasonKey,
     });
-    const configs = generateWeekDayConfigs(templateType, weekStart);
-    await replaceDayConfigs(allianceId, schedule.id, configs);
+    await replaceDayConfigs(
+      allianceId,
+      schedule.id,
+      weekDayConfigsForTemplate(templateType, weekStart),
+    );
   }
 
   const weekEnd = addCalendarDays(weekStart, 6);
@@ -243,6 +300,22 @@ export async function setWeekTemplate(
   isPivot = false,
 ): Promise<void> {
   const seasonKey = await resolveTrainSeasonKey(allianceId);
+  const weekEnd = addCalendarDays(weekStart, 6);
+  const records = await listConductorRecordsForWeek(
+    allianceId,
+    weekStart,
+    weekEnd,
+    seasonKey,
+  );
+  const preserveThroughDate = latestLockedDateInWeek(
+    records.map((record) => ({
+      date: record.date,
+      lockedAt: record.lockedAt?.toISOString() ?? null,
+    })),
+    weekStart,
+    weekEnd,
+  );
+
   const schedule = await upsertWeekSchedule({
     allianceId,
     weekStart,
@@ -250,8 +323,112 @@ export async function setWeekTemplate(
     seasonKey,
     isPivot,
   });
-  const configs = generateWeekDayConfigs(templateType, weekStart);
-  await replaceDayConfigs(allianceId, schedule.id, configs);
+  const configs = weekDayConfigsForTemplate(templateType, weekStart);
+  const configsToApply = preserveThroughDate
+    ? configs.filter((config) => config.date > preserveThroughDate)
+    : configs;
+
+  if (configsToApply.length > 0) {
+    await replaceDayConfigs(allianceId, schedule.id, configsToApply);
+  }
+}
+
+export async function ensureWeekScheduleBaseline(
+  allianceId: string,
+  weekStart: string,
+  templateType: WeekTemplateType = "vs_push_week",
+): Promise<(typeof import("@/lib/db/schema").trainWeekSchedules.$inferSelect)> {
+  const seasonKey = await resolveTrainSeasonKey(allianceId);
+  let schedule = await getWeekSchedule(allianceId, weekStart, seasonKey);
+  if (!schedule) {
+    schedule = await upsertWeekSchedule({
+      allianceId,
+      weekStart,
+      templateType,
+      seasonKey,
+    });
+    await replaceDayConfigs(
+      allianceId,
+      schedule.id,
+      weekDayConfigsForTemplate(templateType, weekStart),
+    );
+  }
+  return schedule;
+}
+
+export async function recomputeWeekPivotFlag(
+  allianceId: string,
+  weekStart: string,
+): Promise<void> {
+  const seasonKey = await resolveTrainSeasonKey(allianceId);
+  const schedule = await getWeekSchedule(allianceId, weekStart, seasonKey);
+  if (!schedule || schedule.templateType !== "vs_push_week") {
+    return;
+  }
+
+  const weekEnd = addCalendarDays(weekStart, 6);
+  const configs = await listDayConfigsForWeek(allianceId, weekStart, weekEnd);
+  const hasEconomyOverride = configs.some((config) => {
+    if (config.isOverride !== 1) return false;
+    const idx = weekDatesFromMonday(weekStart).indexOf(config.date);
+    return idx >= 1 && config.conductorMechanism === "r3_lottery";
+  });
+
+  if ((schedule.isPivot === 1) === hasEconomyOverride) {
+    return;
+  }
+
+  await upsertWeekSchedule({
+    allianceId,
+    weekStart,
+    templateType: schedule.templateType as WeekTemplateType,
+    seasonKey,
+    isPivot: hasEconomyOverride,
+  });
+}
+
+export async function applyTemplateToDates(
+  allianceId: string,
+  dates: string[],
+  templateType: WeekTemplateType,
+): Promise<void> {
+  if (dates.length === 0) return;
+
+  const seasonKey = await resolveTrainSeasonKey(allianceId);
+  const uniqueDates = [...new Set(dates)].sort();
+
+  for (const date of uniqueDates) {
+    const record = await getConductorRecord(allianceId, date, seasonKey);
+    if (record?.lockedAt) {
+      throw new Error(`Cannot repaint locked day ${date}.`);
+    }
+  }
+
+  const weekStarts = [...new Set(uniqueDates.map((d) => getWeekStartMonday(d)))];
+  for (const weekStart of weekStarts) {
+    await ensureWeekScheduleBaseline(allianceId, weekStart);
+  }
+
+  for (const date of uniqueDates) {
+    const weekStart = getWeekStartMonday(date);
+    const schedule = await getWeekSchedule(allianceId, weekStart, seasonKey);
+    if (!schedule) continue;
+
+    const config = generateDayConfigForDate(templateType, date, weekStart);
+    await upsertDayConfigOverride(
+      allianceId,
+      schedule.id,
+      withPaintTemplateConfig(
+        config,
+        resolvePaintTemplateForDay(templateType, date, weekStart),
+      ),
+      true,
+    );
+  }
+
+  for (const weekStart of weekStarts) {
+    await recomputeWeekPivotFlag(allianceId, weekStart);
+  }
 }
 
 export async function rollForConductor(input: {
@@ -270,9 +447,11 @@ export async function rollForConductor(input: {
     throw new Error("Conductor is already locked for this day.");
   }
 
-  const dayConfig =
-    (await getDayConfig(input.allianceId, input.date)) ??
-    generateWeekDayConfigs("vs_push_week", getWeekStartMonday(input.date))[0]!;
+  const dayConfig = await resolveRollDayConfig(
+    input.allianceId,
+    input.date,
+    seasonKey,
+  );
 
   const mechanism = dayConfig.conductorMechanism as ConductorMechanismType;
 
@@ -281,17 +460,18 @@ export async function rollForConductor(input: {
   switch (mechanism) {
     case "vs_high_score": {
       if (!input.connection) {
-        throw new Error(
+        throwAshedRequired(
           "VS auto-roll requires an Ashed connection. Use a roster pool mechanism for native alliances.",
         );
       }
-      const top = await fetchVsTopScorers(
+      const top = await fetchVsTopScorersForTrainDate(
         input.connection,
         input.ashedAllianceId,
+        input.date,
         1,
       );
       const winner = top[0];
-      if (!winner) throw new Error("No VS scores found for Day 1.");
+      if (!winner) throw new Error("No VS scores found for the leaderboard.");
       result = {
         ...winner,
         mechanism,
@@ -301,29 +481,31 @@ export async function rollForConductor(input: {
     }
     case "vs_top_10": {
       if (!input.connection) {
-        throw new Error(
+        throwAshedRequired(
           "VS auto-roll requires an Ashed connection. Use a roster pool mechanism for native alliances.",
         );
       }
-      const top10 = await fetchVsTopScorers(
+      const top10 = await fetchVsTopScorersForTrainDate(
         input.connection,
         input.ashedAllianceId,
+        input.date,
         10,
       );
       if (top10.length === 0) {
-        throw new Error("No VS scores found for the wheel.");
+        throwNoWheelCandidates("vs", "No VS scores found for the wheel.");
       }
       const winner = top10[Math.floor(Math.random() * top10.length)]!;
       result = {
         ...winner,
         mechanism,
         isAutomatic: false,
+        wheelCandidates: top10,
       };
       break;
     }
     case "donations_top": {
       if (!input.connection) {
-        throw new Error(
+        throwAshedRequired(
           "Donation auto-roll requires an Ashed connection. Use a roster pool mechanism for native alliances.",
         );
       }
@@ -338,6 +520,13 @@ export async function rollForConductor(input: {
     case "r3_lottery":
     case "r4_sequence": {
       const poolType = conductorMechanismPoolType(mechanism)!;
+      if (record?.conductorMemberId) {
+        await releasePoolSelectionForDate(
+          input.allianceId,
+          input.date,
+          record.conductorMemberId,
+        );
+      }
       await ensurePool({
         hqAllianceId: input.allianceId,
         ashedAllianceId: input.ashedAllianceId,
@@ -353,6 +542,16 @@ export async function rollForConductor(input: {
         mechanism === "r4_sequence",
         mechanism,
       );
+      const poolRefreshed = await refreshExhaustedPoolIfNeeded({
+        allianceId: input.allianceId,
+        poolType,
+        date: input.date,
+        connection: input.connection,
+        ashedAllianceId: input.ashedAllianceId,
+      });
+      if (poolRefreshed) {
+        result = { ...result, poolRefreshed };
+      }
       break;
     }
     default:
@@ -374,7 +573,7 @@ export async function rollForConductor(input: {
     conductorRankEventId: rankEvent?.id ?? null,
     conductorMechanism: mechanism,
     vipMechanism: dayConfig.vipMechanism,
-    dayConfigId: "id" in dayConfig ? dayConfig.id : null,
+    dayConfigId: dayConfig.dayConfigId,
   });
 
   return result;
@@ -396,9 +595,11 @@ export async function rollForVip(input: {
     throw new Error("Train is locked; VIP cannot be changed.");
   }
 
-  const dayConfig =
-    (await getDayConfig(input.allianceId, input.date)) ??
-    generateWeekDayConfigs("vs_push_week", getWeekStartMonday(input.date))[0]!;
+  const dayConfig = await resolveRollDayConfig(
+    input.allianceId,
+    input.date,
+    seasonKey,
+  );
 
   const mechanism = (dayConfig.vipMechanism ?? "none") as VipMechanismType;
   if (mechanism === "none" || mechanism === "conductor_pick") {
@@ -410,7 +611,7 @@ export async function rollForVip(input: {
   switch (mechanism) {
     case "donations_second": {
       if (!input.connection) {
-        throw new Error(
+        throwAshedRequired(
           "Donation VIP roll requires an Ashed connection. Use a roster pool mechanism for native alliances.",
         );
       }
@@ -424,7 +625,7 @@ export async function rollForVip(input: {
     }
     case "event_top_x_lottery": {
       if (!input.connection) {
-        throw new Error(
+        throwAshedRequired(
           "Event VIP roll requires an Ashed connection. Use a roster pool mechanism for native alliances.",
         );
       }
@@ -432,16 +633,43 @@ export async function rollForVip(input: {
         eventKey: "capitol_war",
         topN: 10,
       }) as EventTopXConfig;
-      const top = await fetchVsTopScorers(
-        input.connection,
-        input.ashedAllianceId,
-        config.topN ?? 10,
-      );
-      if (top.length === 0) {
-        throw new Error("No event scores found for VIP wheel.");
+      const poolType: PoolType = "event_top_x";
+      if (record?.vipMemberId) {
+        await releasePoolSelectionForDate(
+          input.allianceId,
+          input.date,
+          record.vipMemberId,
+        );
       }
-      const winner = top[Math.floor(Math.random() * top.length)]!;
-      result = { ...winner, mechanism, isAutomatic: false, poolType: "event_top_x" };
+      await ensurePool({
+        hqAllianceId: input.allianceId,
+        ashedAllianceId: input.ashedAllianceId,
+        poolType,
+        date: input.date,
+        connection: input.connection,
+        useSequence: false,
+        eventTopN: config.topN ?? 10,
+        eventKey: config.eventKey,
+      });
+      result = await rollFromPool(
+        input.allianceId,
+        poolType,
+        input.date,
+        false,
+        mechanism,
+      );
+      const poolRefreshed = await refreshExhaustedPoolIfNeeded({
+        allianceId: input.allianceId,
+        poolType,
+        date: input.date,
+        connection: input.connection,
+        ashedAllianceId: input.ashedAllianceId,
+        eventTopN: config.topN ?? 10,
+        eventKey: config.eventKey,
+      });
+      if (poolRefreshed) {
+        result = { ...result, poolRefreshed };
+      }
       break;
     }
     default:
@@ -462,7 +690,7 @@ export async function rollForVip(input: {
     vipMemberName: result.memberName,
     vipRankEventId: rankEvent?.id ?? null,
     vipMechanism: mechanism,
-    dayConfigId: "id" in dayConfig ? dayConfig.id : null,
+    dayConfigId: dayConfig.dayConfigId,
   });
 
   return result;
@@ -475,6 +703,8 @@ export async function reseedPool(input: {
   connection: ParsedConnection | null;
   ashedAllianceId: string;
   useSequence?: boolean;
+  eventTopN?: number;
+  eventKey?: string;
 }): Promise<{ generation: number; count: number }> {
   const candidates = await buildPoolCandidates({
     hqAllianceId: input.allianceId,
@@ -482,11 +712,79 @@ export async function reseedPool(input: {
     poolType: input.poolType,
     date: input.date,
     connection: input.connection,
+    eventTopN: input.eventTopN,
+    eventKey: input.eventKey,
   });
   if (candidates.length === 0) {
-    throw new Error(`No eligible members for ${input.poolType} pool.`);
+    throwPoolEmpty(input.poolType);
   }
   return startNewPoolGeneration(input.allianceId, input.poolType, candidates);
+}
+
+/** After the last pool pick, start the next generation so future rolls keep working. */
+export async function refreshExhaustedPoolIfNeeded(
+  input: Parameters<typeof reseedPool>[0],
+): Promise<PoolRefreshedInfo | null> {
+  const summary = await getPoolSummary(input.allianceId, input.poolType);
+  if (!summary.exhausted) return null;
+  try {
+    const refreshed = await reseedPool(input);
+    return {
+      poolType: input.poolType,
+      generation: refreshed.generation,
+      memberCount: refreshed.count,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export async function refreshExhaustedPoolsForDay(input: {
+  allianceId: string;
+  date: string;
+  connection: ParsedConnection | null;
+  ashedAllianceId: string;
+  seasonKey: string;
+}): Promise<PoolRefreshedInfo[]> {
+  const dayConfig = await resolveRollDayConfig(
+    input.allianceId,
+    input.date,
+    input.seasonKey,
+  );
+  const refreshed: PoolRefreshedInfo[] = [];
+  const base = {
+    allianceId: input.allianceId,
+    date: input.date,
+    connection: input.connection,
+    ashedAllianceId: input.ashedAllianceId,
+  };
+
+  const conductorPool = conductorMechanismPoolType(dayConfig.conductorMechanism);
+  if (conductorPool) {
+    const next = await refreshExhaustedPoolIfNeeded({
+      ...base,
+      poolType: conductorPool,
+    });
+    if (next) refreshed.push(next);
+  }
+
+  const vipPool = vipMechanismPoolType(
+    (dayConfig.vipMechanism ?? "none") as VipMechanismType,
+  );
+  if (vipPool) {
+    const vipConfig = (dayConfig.vipConfig ?? {
+      eventKey: "capitol_war",
+      topN: 10,
+    }) as EventTopXConfig;
+    const next = await refreshExhaustedPoolIfNeeded({
+      ...base,
+      poolType: vipPool,
+      eventTopN: vipConfig.topN ?? 10,
+    });
+    if (next) refreshed.push(next);
+  }
+
+  return refreshed;
 }
 
 export { getServerCalendarDate, getWeekStartMonday };
