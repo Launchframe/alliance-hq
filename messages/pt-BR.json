@@ -390,7 +390,7 @@
       "surveyTitle": "Pesquisa pré-upload",
       "surveyRowCount": "Estimativa de linhas",
       "surveyScrollStyle": "Estilo de rolagem",
-      "surveyAboveAvg": "Mais rápido que o habitual",
+      "surveySchoolingTuition": "Mensalidade escolar",
       "viewMode": {
         "list": "Lista",
         "gallery": "Galeria",
@@ -1348,6 +1348,9 @@
     "queuedSuccess": "Vídeo colocado na fila para processamento.",
     "recentUploads": "Envios recentes",
     "reviewLink": "Revisar",
+    "surveyResumeLink": "Pesquisa",
+    "surveyResumeLoading": "Abrindo…",
+    "eventLink": "Pontuações do evento",
     "status": {
       "queued": "na fila",
       "extracting": "extraindo frames",
@@ -1435,6 +1438,9 @@
     "comparisonAboutSame": "Praticamente igual",
     "comparisonUseA": "Usar Passagem A",
     "comparisonUseB": "Usar Passagem B",
+    "previewVideo": "Pré-visualizar",
+    "closePreview": "Fechar",
+    "previewUnavailable": "O vídeo original não está disponível para este job.",
     "statsNerds": {
       "button": "Estatísticas avançadas",
       "title": "Estatísticas avançadas",
@@ -1659,21 +1665,23 @@
   "videoSurvey": {
     "title": "Enquanto aguarda…",
     "processingNote": "Seu vídeo está sendo processado em segundo plano. Se tiver um momento, algumas notas opcionais nos ajudam a ajustar o pipeline.",
-    "optionalHint": "Todas as perguntas são opcionais.",
-    "q1Label": "Quantas linhas havia aproximadamente no placar?",
+    "q1Label": "Quantas linhas do placar existem aproximadamente no seu vídeo?",
     "q1Placeholder": "ex.: 50",
-    "q2Label": "Como você rolou o placar?",
+    "q2Label": "Como você descreveria seu método de rolagem?",
     "scrollStyle": {
-      "slow_steady": "Devagar e com calma",
-      "fast": "Rapidamente",
-      "page_by_page": "Página por página",
-      "chaotic": "Rápido / errático"
+      "slow_steady": "Devagar e com calma, isso é uma arte para mim 🤌",
+      "fast": "Só quero terminar logo 🏃‍♀️",
+      "page_by_page": "Uma página de cada vez, garantindo que cada uma seja lida 📸",
+      "chaotic": "Para todo lado, deixa os robôs organizarem 🤖💥"
     },
-    "q3Label": "A rolagem foi mais rápida que o habitual para você?",
-    "q3Yes": "Sim, mais rápido que o habitual",
-    "q3No": "Não, meu ritmo normal",
-    "skip": "Pular por agora",
-    "submit": "Enviar notas",
+    "q3Label": "Se você abrisse uma escola chamada Escola de Rolagem do {memberName}, conseguiria cobrar mensalidade pelas suas aulas?",
+    "q3LabelGeneric": "Se você fosse diretor de uma escola que ensinasse rolagem profissional, conseguiria cobrar mensalidade pelas suas aulas?",
+    "q3Yes": "Sim",
+    "q3No": "Não",
+    "q3Idk": "sei lá 🤷‍♂️",
+    "stepIndicator": "Etapa {current} / {total}",
+    "skip": "Pular",
+    "next": "Próximo",
     "submitting": "Salvando…"
   },
   "discordBot": {

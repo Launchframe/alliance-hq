@@ -7,7 +7,6 @@ import { FormattedDateTime } from "@/components/timezone/TimezoneProvider";
 import { Link } from "@/i18n/navigation";
 import type { VideoProcessTimings } from "@/lib/analytics/video-pipeline";
 import { SURVEY_SCROLL_STYLES, type SurveyScrollStyle } from "@/lib/video/survey";
-
 type JobDetail = {
   id: string;
   status: string;
@@ -71,6 +70,7 @@ type SurveyData = {
   rowCountEstimate: number | null;
   scrollStyle: string | null;
   aboveAverageScroll: boolean | null;
+  schoolingTuitionAnswer: string | null;
 };
 
 type GroupPass = {
@@ -111,9 +111,8 @@ const FRAME_DISPLAY_ZOOM_STEP = 5;
 const FRAME_ZOOM_STORAGE_KEY = "admin-video-job-frame-zoom-percent";
 const FRAME_VIEW_MODE_STORAGE_KEY = "admin-video-job-frame-view-mode";
 const FRAME_VIEW_MODES: FrameViewMode[] = ["list", "gallery", "video"];
-/** Fixed gallery stage height at 100% zoom so zooming does not resize the page. */
-const GALLERY_VIEWPORT_HEIGHT_PX =
-  Math.round(BASE_FRAME_HEIGHT_PX * FRAME_ZOOM_BASELINE) + 72;
+/** Gallery stage uses 80vh; drag sensitivity scales with viewport height. */
+const GALLERY_STAGE_VH_RATIO = 0.8;
 /** Horizontal drag (px) that advances one frame in the carousel. */
 const GALLERY_PIXELS_PER_FRAME_RATIO = 0.42;
 const GALLERY_MOMENTUM_FRICTION = 0.94;
@@ -185,53 +184,45 @@ function formatSurveyScrollStyle(
   return scrollStyle;
 }
 
-type FrameStatsTableProps = {
+function formatSchoolingTuitionAnswer(
+  survey: SurveyData,
+  tSurvey: ReturnType<typeof useTranslations<"videoSurvey">>,
+): string {
+  if (survey.schoolingTuitionAnswer === "yes") return tSurvey("q3Yes");
+  if (survey.schoolingTuitionAnswer === "no") return tSurvey("q3No");
+  if (survey.schoolingTuitionAnswer === "idk") return tSurvey("q3Idk");
+  if (survey.aboveAverageScroll === true) return tSurvey("q3Yes");
+  if (survey.aboveAverageScroll === false) return tSurvey("q3No");
+  return "—";
+}
+
+type FrameLegendProps = {
   frame: FrameRow;
   tDetail: ReturnType<typeof useTranslations<"admin.videoJobDetailPage">>;
 };
 
-function GalleryFrameStatsTable({ frame, tDetail }: FrameStatsTableProps) {
+function GalleryFrameLegend({ frame, tDetail }: FrameLegendProps) {
   return (
-    <div className="overflow-hidden rounded-xl border border-[#30363d] bg-[#161b22]">
-      <p className="border-b border-[#30363d] px-3 py-2 text-xs font-semibold uppercase tracking-wide text-[#8b949e]">
-        {tDetail("galleryStatsTitle")}
+    <div className="min-h-[4.5rem] shrink-0 border-t border-[#30363d] bg-[#161b22] px-4 py-3">
+      <p className="mb-2 text-xs font-medium text-[#8b949e]">
+        {tDetail("frameLabel", { index: frame.frameIndex })}
       </p>
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b border-[#30363d] text-left text-xs text-[#8b949e]">
-            <th className="px-3 py-2">{tDetail("statsColFrame")}</th>
-            <th className="px-3 py-2">{tDetail("statsColUpload")}</th>
-            <th className="px-3 py-2">{tDetail("statsColExtract")}</th>
-            <th className="px-3 py-2">{tDetail("statsColEntries")}</th>
-            <th className="px-3 py-2">{tDetail("statsColError")}</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr className="text-[#e6edf3]">
-            <td className="px-3 py-2 font-medium">
-              {tDetail("frameLabel", { index: frame.frameIndex })}
-            </td>
-            <td className="px-3 py-2 font-mono text-xs">
-              {formatMs(frame.uploadMs)}
-            </td>
-            <td className="px-3 py-2 font-mono text-xs">
-              {formatMs(frame.extractMs)}
-            </td>
-            <td className="px-3 py-2 font-mono text-xs">
-              {frame.ocrEntryCount ?? 0}
-            </td>
-            <td className="px-3 py-2 text-xs">
-              {frame.ocrError ? (
-                <span className="rounded bg-red-950/50 px-2 py-0.5 text-red-300">
-                  {frame.ocrError}
-                </span>
-              ) : (
-                <span className="text-[#8b949e]">—</span>
-              )}
-            </td>
-          </tr>
-        </tbody>
-      </table>
+      <div className="flex flex-wrap gap-2 text-xs">
+        <span className="rounded-full bg-[#21262d] px-2.5 py-1 text-[#e6edf3]">
+          {tDetail("uploadMs", { ms: formatMs(frame.uploadMs) })}
+        </span>
+        <span className="rounded-full bg-[#21262d] px-2.5 py-1 text-[#e6edf3]">
+          {tDetail("extractMs", { ms: formatMs(frame.extractMs) })}
+        </span>
+        <span className="rounded-full bg-[#21262d] px-2.5 py-1 text-[#e6edf3]">
+          {tDetail("entryCount", { count: frame.ocrEntryCount ?? 0 })}
+        </span>
+        {frame.ocrError ? (
+          <span className="rounded-full bg-red-950/50 px-2.5 py-1 text-red-300">
+            {frame.ocrError}
+          </span>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -330,9 +321,13 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
   const frames = data?.frames ?? [];
   const frameZoom = displayZoomPercentToScale(frameZoomPercent);
   const frameDisplayHeight = Math.round(BASE_FRAME_HEIGHT_PX * frameZoom);
+  const galleryStageHeightPx =
+    typeof window !== "undefined"
+      ? Math.round(window.innerHeight * GALLERY_STAGE_VH_RATIO)
+      : 640;
   const galleryPixelsPerFrame = Math.max(
     72,
-    frameDisplayHeight * GALLERY_PIXELS_PER_FRAME_RATIO,
+    galleryStageHeightPx * GALLERY_PIXELS_PER_FRAME_RATIO,
   );
 
   const stopGallerySnap = useCallback(() => {
@@ -680,14 +675,8 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
               <p>{formatSurveyScrollStyle(data.survey.scrollStyle, tSurvey)}</p>
             </div>
             <div>
-              <p className="text-xs text-[#8b949e]">{tDetail("surveyAboveAvg")}</p>
-              <p>
-                {data.survey.aboveAverageScroll === true
-                  ? t("yes")
-                  : data.survey.aboveAverageScroll === false
-                    ? t("no")
-                    : "—"}
-              </p>
+              <p className="text-xs text-[#8b949e]">{tDetail("surveySchoolingTuition")}</p>
+              <p>{formatSchoolingTuitionAnswer(data.survey, tSurvey)}</p>
             </div>
           </div>
         </div>
@@ -880,10 +869,9 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
 
             {/* Gallery mode — 3D CSS carousel */}
             {frameViewMode === "gallery" ? (
-              <div className="space-y-4">
+              <div className="flex flex-col overflow-hidden rounded-xl border border-[#30363d] bg-[#0d1117]">
                 <div
-                  className="relative select-none overflow-hidden rounded-xl border border-[#30363d] bg-[#0d1117]"
-                  style={{ height: `${GALLERY_VIEWPORT_HEIGHT_PX}px` }}
+                  className="relative h-[80vh] min-h-0 w-full select-none overflow-hidden"
                 >
                   <div
                     className="relative mx-auto h-full w-full"
@@ -922,6 +910,7 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
                     const scale = 1 - Math.abs(offset) * 0.15;
                     const opacity = 1 - Math.abs(offset) * 0.35;
                     const zIndex = visibleRange - Math.abs(offset);
+                    const imageMaxHeight = `calc(80vh * ${scale})`;
                     return (
                       <div
                         key={frame.frameIndex}
@@ -957,10 +946,10 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
                           alt={tDetail("frameThumbnail", {
                             index: frame.frameIndex,
                           })}
-                          className="w-auto max-w-none rounded border border-[#30363d] object-contain"
+                          className="w-auto max-w-full rounded border border-[#30363d] object-contain"
                           style={{
-                            height: `${frameDisplayHeight}px`,
-                            maxWidth: `${Math.round(frameDisplayHeight * 1.6)}px`,
+                            maxHeight: imageMaxHeight,
+                            maxWidth: "min(100%, 90vw)",
                           }}
                         />
                       </div>
@@ -968,7 +957,10 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
                   })}
                 </div>
                 </div>
-                <div className="flex items-center justify-center gap-3">
+                {galleryFrame ? (
+                  <GalleryFrameLegend frame={galleryFrame} tDetail={tDetail} />
+                ) : null}
+                <div className="flex items-center justify-center gap-3 border-t border-[#30363d] px-4 py-3">
                   <button
                     type="button"
                     onClick={() => {
@@ -997,9 +989,6 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
                     {tDetail("galleryNext")} →
                   </button>
                 </div>
-                {galleryFrame ? (
-                  <GalleryFrameStatsTable frame={galleryFrame} tDetail={tDetail} />
-                ) : null}
               </div>
             ) : null}
 

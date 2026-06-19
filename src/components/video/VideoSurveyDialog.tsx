@@ -1,40 +1,93 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { useTranslations } from "next-intl";
 
+import { Dialog } from "@/components/ui/dialog";
 import {
   SURVEY_SCROLL_STYLES,
+  SURVEY_SCHOOLING_ANSWERS,
+  accumulatedFromPayload,
   hasSurveyAnswers,
+  isSurveyComplete,
+  type SurveyAccumulated,
+  type SurveyPayload,
+  type SurveySchoolingAnswer,
   type SurveyScrollStyle,
+  surveyResumeStep,
 } from "@/lib/video/survey";
+
+const TOTAL_STEPS = 3;
+
+type StepDraft = {
+  rowCountEstimate: string;
+  scrollStyle: SurveyScrollStyle | "";
+  schoolingTuitionAnswer: SurveySchoolingAnswer | "";
+};
 
 type Props = {
   jobId: string;
-  file: File;
+  file?: File | null;
+  memberName?: string | null;
   open: boolean;
-  onClose: () => void;
+  onClose: (result: { complete: boolean }) => void;
+  /** When set, restores wizard step and answers from a prior partial survey. */
+  initialSurvey?: SurveyPayload | null;
+  /** Fresh upload flow navigates to review on close; resume from list does not. */
+  navigateOnClose?: boolean;
 };
 
-type SurveyAnswers = {
-  rowCountEstimate: string;
-  scrollStyle: SurveyScrollStyle | "";
-  aboveAverageScroll: string;
-};
+function isValidRowCountInput(value: string): boolean {
+  const parsed = parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed >= 1 && parsed <= 9999;
+}
 
-export function VideoSurveyDialog({ jobId, file, open, onClose }: Props) {
+function buildPayload(accumulated: SurveyAccumulated): SurveyPayload {
+  return {
+    rowCountEstimate: accumulated.rowCountEstimate,
+    scrollStyle: accumulated.scrollStyle,
+    schoolingTuitionAnswer: accumulated.schoolingTuitionAnswer,
+    aboveAverageScroll:
+      accumulated.schoolingTuitionAnswer === "yes"
+        ? true
+        : accumulated.schoolingTuitionAnswer === "no"
+          ? false
+          : null,
+  };
+}
+
+function emptyAccumulated(): SurveyAccumulated {
+  return {
+    rowCountEstimate: null,
+    scrollStyle: null,
+    schoolingTuitionAnswer: null,
+  };
+}
+
+export function VideoSurveyDialog({
+  jobId,
+  file = null,
+  memberName = null,
+  open,
+  onClose,
+  initialSurvey = null,
+}: Props) {
   const t = useTranslations("videoSurvey");
   const videoRef = useRef<HTMLVideoElement>(null);
   const [objectUrl, setObjectUrl] = useState<string | null>(null);
-  const [answers, setAnswers] = useState<SurveyAnswers>({
+  const [step, setStep] = useState(1);
+  const [draft, setDraft] = useState<StepDraft>({
     rowCountEstimate: "",
     scrollStyle: "",
-    aboveAverageScroll: "",
+    schoolingTuitionAnswer: "",
   });
+  const [accumulated, setAccumulated] = useState<SurveyAccumulated>(emptyAccumulated);
   const [submitting, setSubmitting] = useState(false);
 
+  const storedVideoSrc = `/api/tools/video-upload/${jobId}/video`;
+
   useEffect(() => {
-    if (!open) return;
+    if (!open || !file) return;
     const url = URL.createObjectURL(file);
     const raf = requestAnimationFrame(() => {
       setObjectUrl(url);
@@ -46,23 +99,66 @@ export function VideoSurveyDialog({ jobId, file, open, onClose }: Props) {
     };
   }, [open, file]);
 
-  if (!open) return null;
+  useEffect(() => {
+    if (!open) return;
+    const raf = requestAnimationFrame(() => {
+      if (initialSurvey) {
+        const nextAccumulated = accumulatedFromPayload(initialSurvey);
+        setAccumulated(nextAccumulated);
+        setStep(surveyResumeStep(initialSurvey));
+        setDraft({
+          rowCountEstimate:
+            nextAccumulated.rowCountEstimate != null
+              ? String(nextAccumulated.rowCountEstimate)
+              : "",
+          scrollStyle: nextAccumulated.scrollStyle ?? "",
+          schoolingTuitionAnswer: nextAccumulated.schoolingTuitionAnswer ?? "",
+        });
+        return;
+      }
 
-  async function handleSubmit() {
-    const rowCount = parseInt(answers.rowCountEstimate, 10);
-    const payload = {
-      rowCountEstimate: Number.isFinite(rowCount) ? rowCount : null,
-      scrollStyle: answers.scrollStyle || null,
-      aboveAverageScroll:
-        answers.aboveAverageScroll === "yes"
-          ? true
-          : answers.aboveAverageScroll === "no"
-            ? false
-            : null,
-    };
+      setStep(1);
+      setDraft({
+        rowCountEstimate: "",
+        scrollStyle: "",
+        schoolingTuitionAnswer: "",
+      });
+      setAccumulated(emptyAccumulated());
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [open, jobId, initialSurvey]);
+
+  function stepHasValidAnswer(currentStep: number): boolean {
+    if (currentStep === 1) return isValidRowCountInput(draft.rowCountEstimate);
+    if (currentStep === 2) return draft.scrollStyle !== "";
+    return draft.schoolingTuitionAnswer !== "";
+  }
+
+  function mergeStepIntoAccumulated(currentStep: number): SurveyAccumulated {
+    if (currentStep === 1 && isValidRowCountInput(draft.rowCountEstimate)) {
+      return {
+        ...accumulated,
+        rowCountEstimate: parseInt(draft.rowCountEstimate, 10),
+      };
+    }
+    if (currentStep === 2 && draft.scrollStyle) {
+      return { ...accumulated, scrollStyle: draft.scrollStyle };
+    }
+    if (currentStep === 3 && draft.schoolingTuitionAnswer) {
+      return {
+        ...accumulated,
+        schoolingTuitionAnswer: draft.schoolingTuitionAnswer,
+      };
+    }
+    return accumulated;
+  }
+
+  async function postAndClose(nextAccumulated: SurveyAccumulated) {
+    const payload = buildPayload(nextAccumulated);
+    const complete = isSurveyComplete(payload);
 
     if (!hasSurveyAnswers(payload)) {
-      onClose();
+      onClose({ complete: false });
       return;
     }
 
@@ -71,136 +167,234 @@ export function VideoSurveyDialog({ jobId, file, open, onClose }: Props) {
       await fetch(`/api/tools/video-upload/${jobId}/survey`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          rowCountEstimate: payload.rowCountEstimate,
+          scrollStyle: payload.scrollStyle,
+          schoolingTuitionAnswer: payload.schoolingTuitionAnswer,
+          aboveAverageScroll: payload.aboveAverageScroll,
+        }),
       });
     } finally {
       setSubmitting(false);
-      onClose();
+      onClose({ complete });
     }
   }
 
+  function handleOpenChange(nextOpen: boolean) {
+    if (nextOpen) return;
+    const nextAccumulated = stepHasValidAnswer(step)
+      ? mergeStepIntoAccumulated(step)
+      : accumulated;
+    void postAndClose(nextAccumulated);
+  }
+
   function handleSkip() {
-    onClose();
+    if (stepHasValidAnswer(step)) {
+      const nextAccumulated = mergeStepIntoAccumulated(step);
+      setAccumulated(nextAccumulated);
+      if (step >= TOTAL_STEPS) {
+        void postAndClose(nextAccumulated);
+        return;
+      }
+      setStep((s) => s + 1);
+      setDraft((prev) => ({
+        ...prev,
+        rowCountEstimate:
+          nextAccumulated.rowCountEstimate != null
+            ? String(nextAccumulated.rowCountEstimate)
+            : prev.rowCountEstimate,
+        scrollStyle: nextAccumulated.scrollStyle ?? "",
+        schoolingTuitionAnswer: nextAccumulated.schoolingTuitionAnswer ?? "",
+      }));
+      return;
+    }
+
+    if (step >= TOTAL_STEPS) {
+      void postAndClose(accumulated);
+      return;
+    }
+    setStep((s) => s + 1);
+  }
+
+  function handleNext() {
+    if (!stepHasValidAnswer(step)) return;
+    const nextAccumulated = mergeStepIntoAccumulated(step);
+    setAccumulated(nextAccumulated);
+    if (step >= TOTAL_STEPS) {
+      void postAndClose(nextAccumulated);
+      return;
+    }
+    setStep((s) => s + 1);
+    setDraft((prev) => ({
+      ...prev,
+      scrollStyle: nextAccumulated.scrollStyle ?? "",
+      schoolingTuitionAnswer: nextAccumulated.schoolingTuitionAnswer ?? "",
+    }));
+  }
+
+  const q3Label =
+    memberName != null ? t("q3Label", { memberName }) : t("q3LabelGeneric");
+
+  const nextEnabled = stepHasValidAnswer(step) && !submitting;
+  const videoSrc = objectUrl ?? (file ? null : storedVideoSrc);
+
+  function handleEnterAdvance(e: KeyboardEvent<HTMLFormElement>) {
+    if (e.key !== "Enter" || e.shiftKey) return;
+    const target = e.target as HTMLElement;
+    if (target.closest("video")) return;
+    if (target.tagName === "TEXTAREA" || target.isContentEditable) return;
+    if (!nextEnabled) return;
+    e.preventDefault();
+    handleNext();
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-      <div className="flex min-w-0 w-full max-w-lg flex-col gap-4 rounded-2xl border border-[#30363d] bg-[#161b22] p-6">
-        <div className="flex min-w-0 items-start justify-between gap-3">
-          <div className="min-w-0">
-            <h2 className="text-base font-semibold text-[#e6edf3]">{t("title")}</h2>
+    <Dialog
+      open={open}
+      onOpenChange={handleOpenChange}
+      className="max-w-xl sm:max-w-2xl"
+    >
+      <form
+        className="flex min-w-0 flex-col gap-6 p-1 sm:p-2"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (nextEnabled) handleNext();
+        }}
+        onKeyDownCapture={handleEnterAdvance}
+      >
+        <div className="min-w-0">
+          <h2 className="text-base font-semibold text-[#e6edf3]">{t("title")}</h2>
+          {step === 1 ? (
             <p className="mt-1 text-xs text-[#8b949e]">{t("processingNote")}</p>
-          </div>
-          <button
-            type="button"
-            onClick={handleSkip}
-            aria-label={t("skip")}
-            className="shrink-0 text-sm text-[#8b949e] hover:text-[#e6edf3]"
-          >
-            ✕
-          </button>
+          ) : null}
         </div>
 
-        {objectUrl ? (
+        {videoSrc ? (
           <video
             ref={videoRef}
-            src={objectUrl}
+            src={videoSrc}
             controls
             muted
+            playsInline
             className="max-h-48 w-full min-w-0 rounded-lg border border-[#30363d] bg-black object-contain"
           />
         ) : null}
 
-        <p className="text-xs text-[#8b949e]">{t("optionalHint")}</p>
+        <p className="text-xs font-medium text-[#8b949e]">
+          {t("stepIndicator", { current: step, total: TOTAL_STEPS })}
+        </p>
 
         <div className="min-w-0 space-y-4">
-          <label className="block text-sm">
-            <span className="mb-1.5 block font-medium text-[#e6edf3]">{t("q1Label")}</span>
-            <input
-              type="number"
-              min={1}
-              max={9999}
-              value={answers.rowCountEstimate}
-              onChange={(e) =>
-                setAnswers((prev) => ({ ...prev, rowCountEstimate: e.target.value }))
-              }
-              placeholder={t("q1Placeholder")}
-              className="w-full min-w-0 rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 text-sm text-[#e6edf3] placeholder:text-[#8b949e]"
-            />
-          </label>
+          {step === 1 ? (
+            <label className="block text-sm">
+              <span className="mb-2 block font-medium text-[#e6edf3]">
+                {t("q1Label")}
+              </span>
+              <input
+                type="number"
+                min={1}
+                max={9999}
+                enterKeyHint="next"
+                autoFocus
+                value={draft.rowCountEstimate}
+                onChange={(e) =>
+                  setDraft((prev) => ({
+                    ...prev,
+                    rowCountEstimate: e.target.value,
+                  }))
+                }
+                placeholder={t("q1Placeholder")}
+                className="w-full min-w-0 rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2.5 text-sm text-[#e6edf3] placeholder:text-[#8b949e]"
+              />
+            </label>
+          ) : null}
 
-          <fieldset className="min-w-0">
-            <legend className="mb-1.5 text-sm font-medium text-[#e6edf3]">{t("q2Label")}</legend>
-            <div className="flex flex-wrap gap-2">
-              {SURVEY_SCROLL_STYLES.map((style) => (
-                <label key={style} className="flex cursor-pointer items-center gap-2 text-sm text-[#e6edf3]">
-                  <input
-                    type="radio"
-                    name="scrollStyle"
-                    value={style}
-                    checked={answers.scrollStyle === style}
-                    onChange={() =>
-                      setAnswers((prev) => ({ ...prev, scrollStyle: style }))
-                    }
-                    className="accent-[#58a6ff]"
-                  />
-                  {t(`scrollStyle.${style}`)}
-                </label>
-              ))}
-            </div>
-          </fieldset>
+          {step === 2 ? (
+            <fieldset className="min-w-0">
+              <legend className="mb-3 text-sm font-medium text-[#e6edf3]">
+                {t("q2Label")}
+              </legend>
+              <div className="flex flex-col gap-2">
+                {SURVEY_SCROLL_STYLES.map((style) => {
+                  const selected = draft.scrollStyle === style;
+                  return (
+                    <button
+                      key={style}
+                      type="button"
+                      onClick={() =>
+                        setDraft((prev) => ({ ...prev, scrollStyle: style }))
+                      }
+                      className={`w-full rounded-xl border px-4 py-3 text-left text-sm transition-colors ${
+                        selected
+                          ? "border-[#58a6ff] bg-[#58a6ff]/10 text-[#e6edf3]"
+                          : "border-[#30363d] bg-[#0d1117] text-[#e6edf3] hover:border-[#484f58]"
+                      }`}
+                    >
+                      {t(`scrollStyle.${style}`)}
+                    </button>
+                  );
+                })}
+              </div>
+            </fieldset>
+          ) : null}
 
-          <fieldset className="min-w-0">
-            <legend className="mb-1.5 text-sm font-medium text-[#e6edf3]">{t("q3Label")}</legend>
-            <div className="flex flex-wrap gap-4 text-sm">
-              <label className="flex cursor-pointer items-center gap-2 text-[#e6edf3]">
-                <input
-                  type="radio"
-                  name="aboveAvg"
-                  value="yes"
-                  checked={answers.aboveAverageScroll === "yes"}
-                  onChange={() =>
-                    setAnswers((prev) => ({ ...prev, aboveAverageScroll: "yes" }))
-                  }
-                  className="accent-[#58a6ff]"
-                />
-                {t("q3Yes")}
-              </label>
-              <label className="flex cursor-pointer items-center gap-2 text-[#e6edf3]">
-                <input
-                  type="radio"
-                  name="aboveAvg"
-                  value="no"
-                  checked={answers.aboveAverageScroll === "no"}
-                  onChange={() =>
-                    setAnswers((prev) => ({ ...prev, aboveAverageScroll: "no" }))
-                  }
-                  className="accent-[#58a6ff]"
-                />
-                {t("q3No")}
-              </label>
-            </div>
-          </fieldset>
+          {step === 3 ? (
+            <fieldset className="min-w-0">
+              <legend className="mb-3 text-sm font-medium text-[#e6edf3]">
+                {q3Label}
+              </legend>
+              <div className="flex flex-col gap-2">
+                {SURVEY_SCHOOLING_ANSWERS.map((answer) => {
+                  const selected = draft.schoolingTuitionAnswer === answer;
+                  const labelKey =
+                    answer === "yes"
+                      ? "q3Yes"
+                      : answer === "no"
+                        ? "q3No"
+                        : "q3Idk";
+                  return (
+                    <button
+                      key={answer}
+                      type="button"
+                      onClick={() =>
+                        setDraft((prev) => ({
+                          ...prev,
+                          schoolingTuitionAnswer: answer,
+                        }))
+                      }
+                      className={`w-full rounded-xl border px-4 py-3 text-left text-sm transition-colors ${
+                        selected
+                          ? "border-[#58a6ff] bg-[#58a6ff]/10 text-[#e6edf3]"
+                          : "border-[#30363d] bg-[#0d1117] text-[#e6edf3] hover:border-[#484f58]"
+                      }`}
+                    >
+                      {t(labelKey)}
+                    </button>
+                  );
+                })}
+              </div>
+            </fieldset>
+          ) : null}
         </div>
 
-        <div className="flex flex-wrap justify-end gap-3 pt-2">
+        <div className="flex items-center justify-between gap-3 pt-2">
           <button
             type="button"
             onClick={handleSkip}
-            className="rounded-lg border border-[#30363d] px-4 py-2 text-sm text-[#e6edf3] hover:bg-[#21262d]"
+            disabled={submitting}
+            className="rounded-lg border border-[#30363d] px-4 py-2 text-sm text-[#e6edf3] hover:bg-[#21262d] disabled:opacity-50"
           >
             {t("skip")}
           </button>
           <button
-            type="button"
-            disabled={submitting}
-            onClick={() => void handleSubmit()}
+            type="submit"
+            disabled={!nextEnabled}
             className="rounded-lg border border-[#238636] bg-[#238636] px-4 py-2 text-sm text-white disabled:opacity-50"
           >
-            {submitting ? t("submitting") : t("submit")}
+            {submitting ? t("submitting") : t("next")}
           </button>
         </div>
-      </div>
-    </div>
+      </form>
+    </Dialog>
   );
 }

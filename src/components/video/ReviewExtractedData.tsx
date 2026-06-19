@@ -22,6 +22,7 @@ import { isZeroScoreWarningDisabled } from "@/lib/video/score-targets";
 import type { VideoProcessTimings } from "@/lib/analytics/video-pipeline";
 import { isVideoProcessTimings } from "@/lib/video/pipeline-stats-display";
 import { VideoPipelineStatsButton } from "@/components/video/VideoPipelineStatsDialog";
+import { ReviewSourceVideoPanel } from "@/components/video/ReviewSourceVideoPanel";
 import { accountTodayCalendarDate } from "@/lib/timezone/format";
 import { PassComparisonSheet } from "@/components/video/PassComparisonSheet";
 import { OcrRatingPrompt, type OcrRatingReason } from "@/components/video/OcrRatingPrompt";
@@ -128,6 +129,8 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   const [success, setSuccess] = useState<string | null>(null);
   const [timings, setTimings] = useState<VideoProcessTimings | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
+  const [hasSourceVideo, setHasSourceVideo] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const [showRatingPrompt, setShowRatingPrompt] = useState(false);
   const [jobRating, setJobRating] = useState<"thumbs_up" | "thumbs_down" | null>(null);
   const [discarding, setDiscarding] = useState(false);
@@ -193,6 +196,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           rating?: string | null;
           timingsJson?: VideoProcessTimings | null;
         };
+        hasSourceVideo?: boolean;
         scoreTargetMeta?: ScoreTargetMeta | null;
         alliance?: {
           currentId?: string | null;
@@ -223,6 +227,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         setJobRating(data.job.rating);
       }
       setFileName(data.job?.fileName ?? null);
+      setHasSourceVideo(Boolean(data.hasSourceVideo));
       setTimings(
         isVideoProcessTimings(data.job?.timingsJson)
           ? data.job.timingsJson
@@ -726,7 +731,16 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   }
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6">
+    <div className="flex min-w-0 w-full max-w-full flex-col md:flex-row">
+      <div className="min-w-0 flex flex-1 flex-col">
+        <ReviewSourceVideoPanel
+          jobId={jobId}
+          open={previewOpen}
+          onClose={() => setPreviewOpen(false)}
+          unavailable={!hasSourceVideo}
+          surface="mobile"
+        />
+        <div className="mx-auto min-w-0 w-full max-w-5xl flex-1 space-y-6 px-4 pb-6 md:px-0">
       <div>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <Link
@@ -743,6 +757,19 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                 className="rounded-lg border border-[#30363d] px-3 py-1.5 text-sm text-[#e6edf3] hover:bg-[#21262d]"
               >
                 {t("comparisonSideBySide")}
+              </button>
+            ) : null}
+            {hasSourceVideo ? (
+              <button
+                type="button"
+                onClick={() => setPreviewOpen((open) => !open)}
+                className={`rounded-lg border px-3 py-1.5 text-sm ${
+                  previewOpen
+                    ? "border-[#58a6ff] text-[#58a6ff]"
+                    : "border-[#30363d] text-[#e6edf3] hover:bg-[#21262d]"
+                }`}
+              >
+                {t("previewVideo")}
               </button>
             ) : null}
             <VideoPipelineStatsButton
@@ -1190,6 +1217,15 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           }}
         />
       ) : null}
+        </div>
+      </div>
+      <ReviewSourceVideoPanel
+        jobId={jobId}
+        open={previewOpen}
+        onClose={() => setPreviewOpen(false)}
+        unavailable={!hasSourceVideo}
+        surface="desktop"
+      />
     </div>
   );
 }

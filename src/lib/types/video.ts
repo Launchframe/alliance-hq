@@ -10,4 +10,5 @@ export type VideoJobRow = {
   parseSessionId?: string | null;
   errorMessage: string | null;
   createdAt: string;
+  surveyComplete?: boolean;
 };

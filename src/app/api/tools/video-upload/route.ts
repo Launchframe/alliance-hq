@@ -10,8 +10,8 @@ import { getOrCreateSession } from "@/lib/session";
 import { dispatchVideoProcessing } from "@/lib/video/trigger-processing";
 import { getScoreTarget, ENABLED_SCORE_TARGETS } from "@/lib/video/score-targets";
 import {
-  MAX_VIDEO_UPLOAD_BYTES,
   MAX_VIDEO_UPLOAD_MB,
+  isVideoUploadOverLimit,
 } from "@/lib/video/upload-limit";
 import { DEFAULT_PRIMARY_PASS } from "@/lib/video/pass-definitions";
 import {
@@ -45,7 +45,7 @@ export async function POST(request: Request) {
       );
     }
 
-    if (file.size > MAX_VIDEO_UPLOAD_BYTES) {
+    if (isVideoUploadOverLimit(file.size)) {
       return NextResponse.json(
         {
           error: `Video must be under ${MAX_VIDEO_UPLOAD_MB} MB. Crop, trim, or downscale the recording and try again.`,
