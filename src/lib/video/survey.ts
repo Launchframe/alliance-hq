@@ -148,3 +148,19 @@ export function surveyRowToPayload(row: {
     schoolingTuitionAnswer: row.schoolingTuitionAnswer,
   });
 }
+
+/** Merge a partial client save with an existing survey row without nulling prior answers. */
+export function mergeSurveyPayload(
+  existing: SurveyPayload | null,
+  incoming: SurveyPayload,
+): SurveyPayload {
+  return parseSurveyBody({
+    rowCountEstimate:
+      incoming.rowCountEstimate ?? existing?.rowCountEstimate ?? null,
+    scrollStyle: incoming.scrollStyle ?? existing?.scrollStyle ?? null,
+    schoolingTuitionAnswer:
+      incoming.schoolingTuitionAnswer ?? existing?.schoolingTuitionAnswer ?? null,
+    aboveAverageScroll:
+      incoming.aboveAverageScroll ?? existing?.aboveAverageScroll ?? null,
+  });
+}

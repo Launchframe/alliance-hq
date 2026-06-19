@@ -7,6 +7,7 @@ import {
   accumulatedFromPayload,
   hasSurveyAnswers,
   isSurveyComplete,
+  mergeSurveyPayload,
   parseSurveyBody,
   surveyResumeStep,
   surveyRowToPayload,
@@ -85,26 +86,42 @@ export async function POST(request: Request, { params }: Props) {
       return NextResponse.json({ error: "Job not found" }, { status: 404 });
     }
 
+    const [existingRow] = await db
+      .select({
+        rowCountEstimate: schema.videoJobSurveys.rowCountEstimate,
+        scrollStyle: schema.videoJobSurveys.scrollStyle,
+        aboveAverageScroll: schema.videoJobSurveys.aboveAverageScroll,
+        schoolingTuitionAnswer: schema.videoJobSurveys.schoolingTuitionAnswer,
+      })
+      .from(schema.videoJobSurveys)
+      .where(eq(schema.videoJobSurveys.jobId, jobId))
+      .limit(1);
+
+    const merged = mergeSurveyPayload(
+      existingRow ? surveyRowToPayload(existingRow) : null,
+      payload,
+    );
+
     const now = new Date();
     await db
       .insert(schema.videoJobSurveys)
       .values({
         id: nanoid(16),
         jobId,
-        rowCountEstimate: payload.rowCountEstimate,
-        scrollStyle: payload.scrollStyle,
-        aboveAverageScroll: payload.aboveAverageScroll,
-        schoolingTuitionAnswer: payload.schoolingTuitionAnswer,
+        rowCountEstimate: merged.rowCountEstimate,
+        scrollStyle: merged.scrollStyle,
+        aboveAverageScroll: merged.aboveAverageScroll,
+        schoolingTuitionAnswer: merged.schoolingTuitionAnswer,
         createdAt: now,
         updatedAt: now,
       })
       .onConflictDoUpdate({
         target: schema.videoJobSurveys.jobId,
         set: {
-          rowCountEstimate: payload.rowCountEstimate,
-          scrollStyle: payload.scrollStyle,
-          aboveAverageScroll: payload.aboveAverageScroll,
-          schoolingTuitionAnswer: payload.schoolingTuitionAnswer,
+          rowCountEstimate: merged.rowCountEstimate,
+          scrollStyle: merged.scrollStyle,
+          aboveAverageScroll: merged.aboveAverageScroll,
+          schoolingTuitionAnswer: merged.schoolingTuitionAnswer,
           updatedAt: now,
         },
       });

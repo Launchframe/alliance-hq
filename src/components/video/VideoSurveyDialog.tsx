@@ -9,6 +9,7 @@ import {
   SURVEY_SCHOOLING_ANSWERS,
   accumulatedFromPayload,
   hasSurveyAnswers,
+  isSurveyComplete,
   type SurveyAccumulated,
   type SurveyPayload,
   type SurveySchoolingAnswer,
@@ -53,14 +54,6 @@ function buildPayload(accumulated: SurveyAccumulated): SurveyPayload {
           ? false
           : null,
   };
-}
-
-function isSurveyCompletePayload(accumulated: SurveyAccumulated): boolean {
-  return (
-    accumulated.rowCountEstimate !== null &&
-    accumulated.scrollStyle !== null &&
-    accumulated.schoolingTuitionAnswer !== null
-  );
 }
 
 function emptyAccumulated(): SurveyAccumulated {
@@ -162,7 +155,7 @@ export function VideoSurveyDialog({
 
   async function postAndClose(nextAccumulated: SurveyAccumulated) {
     const payload = buildPayload(nextAccumulated);
-    const complete = isSurveyCompletePayload(nextAccumulated);
+    const complete = isSurveyComplete(payload);
 
     if (!hasSurveyAnswers(payload)) {
       onClose({ complete: false });
@@ -189,7 +182,10 @@ export function VideoSurveyDialog({
 
   function handleOpenChange(nextOpen: boolean) {
     if (nextOpen) return;
-    void postAndClose(accumulated);
+    const nextAccumulated = stepHasValidAnswer(step)
+      ? mergeStepIntoAccumulated(step)
+      : accumulated;
+    void postAndClose(nextAccumulated);
   }
 
   function handleSkip() {

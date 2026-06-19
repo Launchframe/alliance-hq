@@ -4,6 +4,7 @@ import {
   accumulatedFromPayload,
   hasSurveyAnswers,
   isSurveyComplete,
+  mergeSurveyPayload,
   parseSurveyBody,
   schoolingAnswerToAboveAverage,
   surveyResumeStep,
@@ -149,5 +150,55 @@ describe("survey resume helpers", () => {
         schoolingTuitionAnswer: null,
       }).schoolingTuitionAnswer,
     ).toBe("yes");
+  });
+});
+
+describe("mergeSurveyPayload", () => {
+  it("preserves existing answers when the client sends a partial save", () => {
+    expect(
+      mergeSurveyPayload(
+        {
+          rowCountEstimate: 10,
+          scrollStyle: "fast",
+          aboveAverageScroll: null,
+          schoolingTuitionAnswer: null,
+        },
+        {
+          rowCountEstimate: null,
+          scrollStyle: null,
+          aboveAverageScroll: null,
+          schoolingTuitionAnswer: "yes",
+        },
+      ),
+    ).toEqual({
+      rowCountEstimate: 10,
+      scrollStyle: "fast",
+      aboveAverageScroll: true,
+      schoolingTuitionAnswer: "yes",
+    });
+  });
+
+  it("overrides existing fields when the client sends new values", () => {
+    expect(
+      mergeSurveyPayload(
+        {
+          rowCountEstimate: 10,
+          scrollStyle: "fast",
+          aboveAverageScroll: null,
+          schoolingTuitionAnswer: null,
+        },
+        {
+          rowCountEstimate: 25,
+          scrollStyle: "chaotic",
+          aboveAverageScroll: null,
+          schoolingTuitionAnswer: null,
+        },
+      ),
+    ).toEqual({
+      rowCountEstimate: 25,
+      scrollStyle: "chaotic",
+      aboveAverageScroll: null,
+      schoolingTuitionAnswer: null,
+    });
   });
 });
