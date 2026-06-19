@@ -107,19 +107,6 @@ function scoreValue(row: AshedScoreRow): number {
   return Number(row.score ?? row.points ?? row.total ?? 0);
 }
 
-async function fetchVsTopScorers(
-  connection: ParsedConnection,
-  allianceId: string,
-  limit: number,
-): Promise<RollCandidate[]> {
-  const path = `/entities/VSScore?q=${encodeURIComponent(JSON.stringify({ alliance_id: allianceId }))}&sort=-score&limit=${limit}`;
-  const rows = await base44Json<AshedScoreRow[]>(connection, path);
-  return rows
-    .map(memberFromScore)
-    .filter((c): c is RollCandidate => c != null)
-    .slice(0, limit);
-}
-
 async function fetchTopDonor(
   connection: ParsedConnection,
   allianceId: string,
@@ -470,9 +457,10 @@ export async function rollForConductor(input: {
           "VS auto-roll requires an Ashed connection. Use a roster pool mechanism for native alliances.",
         );
       }
-      const top = await fetchVsTopScorers(
+      const top = await fetchVsTopScorersForTrainDate(
         input.connection,
         input.ashedAllianceId,
+        input.date,
         1,
       );
       const winner = top[0];
@@ -490,9 +478,10 @@ export async function rollForConductor(input: {
           "VS auto-roll requires an Ashed connection. Use a roster pool mechanism for native alliances.",
         );
       }
-      const top10 = await fetchVsTopScorers(
+      const top10 = await fetchVsTopScorersForTrainDate(
         input.connection,
         input.ashedAllianceId,
+        input.date,
         10,
       );
       if (top10.length === 0) {
