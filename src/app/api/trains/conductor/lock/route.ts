@@ -61,7 +61,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const locked = await lockConductorRecord(record.id);
+    const locked = await lockConductorRecord(record.id, ctx.allianceId);
     const poolsRefreshed = await refreshExhaustedPoolsForDay({
       allianceId: ctx.allianceId,
       date,

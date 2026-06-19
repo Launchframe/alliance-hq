@@ -2,9 +2,9 @@ import { NextResponse } from "next/server";
 
 import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
 import { resolveTrainRequestContext } from "@/lib/trains/api-context";
+import { resolveRollDayConfig } from "@/lib/trains/day-config-resolve.server";
 import {
   getConductorRecord,
-  getDayConfig,
   upsertConductorDraft,
 } from "@/lib/trains/repository";
 import { getMemberRankAsOf } from "@/lib/trains/rank-history";
@@ -54,8 +54,12 @@ export async function POST(request: Request) {
       );
     }
 
-    const dayConfig = await getDayConfig(ctx.allianceId, date);
-    const mechanism = (dayConfig?.vipMechanism ?? "none") as VipMechanismType;
+    const dayConfig = await resolveRollDayConfig(
+      ctx.allianceId,
+      date,
+      seasonKey,
+    );
+    const mechanism = dayConfig.vipMechanism ?? "none";
     if (!supportsManualVipPick(mechanism)) {
       return NextResponse.json(
         { error: "Manual VIP pick is not allowed for this day." },
@@ -65,7 +69,7 @@ export async function POST(request: Request) {
 
     if (
       existing?.vipMemberId &&
-      vipMechanismPoolType(mechanism)
+      vipMechanismPoolType(mechanism as VipMechanismType)
     ) {
       await releasePoolSelectionForDate(
         ctx.allianceId,
@@ -88,7 +92,7 @@ export async function POST(request: Request) {
       vipMemberName: body.memberName.trim(),
       vipRankEventId: rankEvent?.id ?? null,
       vipMechanism: mechanism,
-      dayConfigId: dayConfig?.id ?? null,
+      dayConfigId: dayConfig.dayConfigId,
     });
 
     return NextResponse.json({

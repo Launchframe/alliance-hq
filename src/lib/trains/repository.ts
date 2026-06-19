@@ -2,6 +2,7 @@ import { and, desc, eq, gte, lte } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { getDb, schema } from "@/lib/db";
+import { getServerCalendarDate } from "@/lib/trains/game-time";
 import { releasePoolSelectionForDate } from "@/lib/trains/pool";
 import type { DayConfigInput, WeekTemplateType } from "@/lib/trains/types";
 
@@ -350,6 +351,7 @@ export async function upsertConductorDraft(input: {
 
 export async function lockConductorRecord(
   recordId: string,
+  allianceId: string,
 ): Promise<(typeof schema.trainConductorRecords.$inferSelect)> {
   const db = getDb();
   const [existing] = await db
@@ -358,7 +360,7 @@ export async function lockConductorRecord(
     .where(eq(schema.trainConductorRecords.id, recordId))
     .limit(1);
 
-  if (!existing) {
+  if (!existing || existing.allianceId !== allianceId) {
     throw new Error("Conductor record not found.");
   }
   if (existing.lockedAt) {
@@ -468,7 +470,7 @@ export async function getConductorStats(
   memberId: string,
 ): Promise<{ lastConductedDate: string | null; conductsThisYear: number }> {
   const db = getDb();
-  const year = new Date().getFullYear().toString();
+  const year = getServerCalendarDate().slice(0, 4);
   const rows = await db
     .select()
     .from(schema.trainConductorRecords)

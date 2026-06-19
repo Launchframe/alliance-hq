@@ -2,14 +2,18 @@ import { NextResponse } from "next/server";
 
 import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
 import { resolveTrainRequestContext } from "@/lib/trains/api-context";
+import { resolveRollDayConfig } from "@/lib/trains/day-config-resolve.server";
 import {
   getConductorRecord,
-  getDayConfig,
   upsertConductorDraft,
 } from "@/lib/trains/repository";
 import { getMemberRankAsOf } from "@/lib/trains/rank-history";
+import { releasePoolSelectionForDate } from "@/lib/trains/pool";
 import { getServerCalendarDate } from "@/lib/trains/service";
-import { supportsManualConductorPick } from "@/lib/trains/templates";
+import {
+  conductorMechanismPoolType,
+  supportsManualConductorPick,
+} from "@/lib/trains/templates";
 import { getOrCreateSession } from "@/lib/session";
 import { requireTrainOfficer } from "@/lib/rbac/require-permission";
 
@@ -49,12 +53,27 @@ export async function POST(request: Request) {
       );
     }
 
-    const dayConfig = await getDayConfig(ctx.allianceId, date);
-    const mechanism = dayConfig?.conductorMechanism ?? "officer_pick";
+    const dayConfig = await resolveRollDayConfig(
+      ctx.allianceId,
+      date,
+      seasonKey,
+    );
+    const mechanism = dayConfig.conductorMechanism;
     if (!supportsManualConductorPick(mechanism)) {
       return NextResponse.json(
         { error: "Manual conductor pick is not allowed for this day." },
         { status: 400 },
+      );
+    }
+
+    if (
+      existing?.conductorMemberId &&
+      conductorMechanismPoolType(mechanism)
+    ) {
+      await releasePoolSelectionForDate(
+        ctx.allianceId,
+        date,
+        existing.conductorMemberId,
       );
     }
 
@@ -72,8 +91,8 @@ export async function POST(request: Request) {
       conductorMemberName: body.memberName.trim(),
       conductorRankEventId: rankEvent?.id ?? null,
       conductorMechanism: mechanism,
-      vipMechanism: dayConfig?.vipMechanism ?? null,
-      dayConfigId: dayConfig?.id ?? null,
+      vipMechanism: dayConfig.vipMechanism ?? null,
+      dayConfigId: dayConfig.dayConfigId,
     });
 
     return NextResponse.json({
