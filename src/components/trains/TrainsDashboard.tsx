@@ -23,6 +23,7 @@ type RollResponse = {
     memberId: string;
     memberName: string;
     isAutomatic?: boolean;
+    wheelCandidates?: Array<{ memberId: string; memberName: string }>;
   };
   stats?: {
     lastConductedDate: string | null;
@@ -111,9 +112,11 @@ export function TrainsDashboard({ initial }: Props) {
         return;
       }
 
-      setWheelCandidates([
-        { memberId: body.result.memberId, memberName: body.result.memberName },
-      ]);
+      setWheelCandidates(
+        body.result.wheelCandidates?.length
+          ? body.result.wheelCandidates
+          : [{ memberId: body.result.memberId, memberName: body.result.memberName }],
+      );
       setWheelWinner(body.result);
       setWheelStats(body.stats ?? null);
       setWheelOpen(true);

@@ -18,6 +18,7 @@ import {
 } from "@/lib/trains/game-time";
 import {
   getPoolSummary,
+  listPoolEntries,
   markPoolEntrySelected,
   pickNextPoolEntry,
   pickRandomPoolEntry,
@@ -197,12 +198,20 @@ async function rollFromPool(
 
   await markPoolEntrySelected(entry.id, date);
 
+  const generationEntries = await listPoolEntries(allianceId, poolType);
+  const wheelCandidates = generationEntries.map((row) => ({
+    memberId: row.memberId,
+    memberName: row.memberName,
+    allianceRank: row.allianceRank,
+  }));
+
   return {
     memberId: entry.memberId,
     memberName: entry.memberName,
     mechanism,
     isAutomatic: false,
     poolType,
+    wheelCandidates,
   };
 }
 
@@ -318,6 +327,7 @@ export async function rollForConductor(input: {
         ...winner,
         mechanism,
         isAutomatic: false,
+        wheelCandidates: top10,
       };
       break;
     }
@@ -441,7 +451,13 @@ export async function rollForVip(input: {
         throw new Error("No event scores found for VIP wheel.");
       }
       const winner = top[Math.floor(Math.random() * top.length)]!;
-      result = { ...winner, mechanism, isAutomatic: false, poolType: "event_top_x" };
+      result = {
+        ...winner,
+        mechanism,
+        isAutomatic: false,
+        poolType: "event_top_x",
+        wheelCandidates: top,
+      };
       break;
     }
     default:

@@ -65,6 +65,8 @@ export type RollResult = {
   mechanism: ConductorMechanismType | VipMechanismType;
   isAutomatic: boolean;
   poolType?: PoolType;
+  /** Names shown on the conductor/VIP wheel (full eligible pool for this roll). */
+  wheelCandidates?: RollCandidate[];
 };
 
 export type ConductorStats = {
