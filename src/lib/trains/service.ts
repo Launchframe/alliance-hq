@@ -41,6 +41,9 @@ import {
   startNewPoolGeneration,
 } from "@/lib/trains/pool";
 import {
+  fetchEventTopScorers,
+} from "@/lib/trains/event-scores.server";
+import {
   fetchVsTopScorersForTrainDate,
 } from "@/lib/trains/vs-scores.server";
 import {
@@ -136,12 +139,14 @@ async function buildPoolCandidates(input: {
   ashedAllianceId: string;
   connection: ParsedConnection | null;
   eventTopN?: number;
+  eventKey?: string;
 }): Promise<RollCandidate[]> {
   if (input.poolType === "event_top_x") {
     if (!input.connection) return [];
-    return fetchVsTopScorersForTrainDate(
+    return fetchEventTopScorers(
       input.connection,
       input.ashedAllianceId,
+      input.eventKey ?? "capitol_war",
       input.date,
       input.eventTopN ?? 10,
     );
@@ -183,6 +188,7 @@ async function ensurePool(input: {
   connection: ParsedConnection | null;
   useSequence: boolean;
   eventTopN?: number;
+  eventKey?: string;
 }): Promise<void> {
   const has = await poolHasEntries(input.hqAllianceId, input.poolType);
   if (has) return;
@@ -194,6 +200,7 @@ async function ensurePool(input: {
     ashedAllianceId: input.ashedAllianceId,
     connection: input.connection,
     eventTopN: input.eventTopN,
+    eventKey: input.eventKey,
   });
   if (candidates.length === 0) {
     throwPoolEmpty(input.poolType);
@@ -642,6 +649,7 @@ export async function rollForVip(input: {
         connection: input.connection,
         useSequence: false,
         eventTopN: config.topN ?? 10,
+        eventKey: config.eventKey,
       });
       result = await rollFromPool(
         input.allianceId,
@@ -657,6 +665,7 @@ export async function rollForVip(input: {
         connection: input.connection,
         ashedAllianceId: input.ashedAllianceId,
         eventTopN: config.topN ?? 10,
+        eventKey: config.eventKey,
       });
       if (poolRefreshed) {
         result = { ...result, poolRefreshed };
@@ -695,6 +704,7 @@ export async function reseedPool(input: {
   ashedAllianceId: string;
   useSequence?: boolean;
   eventTopN?: number;
+  eventKey?: string;
 }): Promise<{ generation: number; count: number }> {
   const candidates = await buildPoolCandidates({
     hqAllianceId: input.allianceId,
@@ -703,6 +713,7 @@ export async function reseedPool(input: {
     date: input.date,
     connection: input.connection,
     eventTopN: input.eventTopN,
+    eventKey: input.eventKey,
   });
   if (candidates.length === 0) {
     throwPoolEmpty(input.poolType);

@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { ConductorPickModal } from "@/components/trains/ConductorPickModal";
+import { ConductorHistoryTable } from "@/components/trains/ConductorHistoryTable";
 import { ConductorWheelModal } from "@/components/trains/ConductorWheelModal";
 import { TodayConductorCard } from "@/components/trains/TodayConductorCard";
 import { WeekTemplateChangeDialog } from "@/components/trains/WeekTemplateChangeDialog";
@@ -37,6 +38,7 @@ import type {
 import { effectiveConductorMechanism } from "@/lib/trains/conductor-mechanism.shared";
 import {
   conductorSpinSource,
+  dayNeedsAshedConnection,
   isPoolSpinSource,
   vipSpinSource,
 } from "@/lib/trains/spin-source.shared";
@@ -453,7 +455,23 @@ export function TrainsDashboard({ initial }: Props) {
         return;
       }
 
-      if (body.result.isAutomatic) {
+      const rollDayConfig =
+        snapshotRef.current.data.dayConfigs.find(
+          (d) => d.date === selectedDate,
+        ) ??
+        snapshotRef.current.viewedWeek.dayConfigs.find(
+          (d) => d.date === selectedDate,
+        ) ??
+        null;
+      const rollConductorMech = effectiveConductorMechanism(
+        rollDayConfig?.conductorMechanism,
+        rollDayConfig?.paintTemplate,
+      );
+
+      if (
+        body.result.isAutomatic ||
+        (role === "conductor" && rollConductorMech === "r4_sequence")
+      ) {
         applySnapshot(
           applyOptimisticConductorRoll(
             snapshotRef.current,
@@ -560,14 +578,19 @@ export function TrainsDashboard({ initial }: Props) {
     );
   };
 
-  const pickVip = async (member: {
-    memberId: string;
-    memberName: string;
-  }) => {
+  const pickVip = async (
+    member: {
+      memberId: string;
+      memberName: string;
+    },
+    guardianIsVip: boolean,
+  ) => {
     setPickOpen(false);
     await withOptimisticMutation(
       (snap) =>
-        applyOptimisticConductorRoll(snap, selectedDate, "vip", member),
+        applyOptimisticConductorRoll(snap, selectedDate, "vip", member, {
+          guardianIsVip,
+        }),
       async () => {
         const res = await fetch("/api/trains/conductor/vip/pick", {
           method: "POST",
@@ -576,6 +599,7 @@ export function TrainsDashboard({ initial }: Props) {
             date: selectedDate,
             memberId: member.memberId,
             memberName: member.memberName,
+            guardianIsVip,
           }),
         });
         const body = (await res.json()) as { error?: string };
@@ -748,6 +772,14 @@ export function TrainsDashboard({ initial }: Props) {
     selectedRecord?.conductorMemberId === data.conductorRecord?.conductorMemberId
       ? data.conductorStats
       : null;
+  const nextInSequence = data.pools.r4_plus?.nextInSequence ?? null;
+  const showNativeAshedBanner =
+    data.operatingMode === "native" &&
+    dayNeedsAshedConnection(conductorMech, vipMech, conductorPaint);
+  const historyMechanismLabels = useMemo(
+    () => ({ ...conductorShortLabels, ...vipShortLabels }),
+    [conductorShortLabels, vipShortLabels],
+  );
 
   if (data.activeMemberCount === 0) {
     return (
@@ -886,6 +918,9 @@ export function TrainsDashboard({ initial }: Props) {
             labels={{
               awaiting: t("awaitingConductor"),
               vip: t("todayVip"),
+              guardian: t("guardian"),
+              guardianIsVip: t("guardianIsVipHint"),
+              guardianIsConductor: t("guardianIsConductorHint"),
               locked: t("locked"),
               unlocked: t("unlocked"),
               lastConducted: t("lastConducted"),
@@ -893,6 +928,12 @@ export function TrainsDashboard({ initial }: Props) {
               noneYet: t("noneYet"),
             }}
           />
+
+          {showNativeAshedBanner ? (
+            <p className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+              {t("nativeAshedBanner")}
+            </p>
+          ) : null}
 
           {/* Quick actions */}
           {data.canManageTrains && dayIsActionable ? (
@@ -919,7 +960,11 @@ export function TrainsDashboard({ initial }: Props) {
                     onClick={() => void runRoll("conductor")}
                     className="rounded-lg bg-[#8957e5] px-4 py-2 text-sm font-medium text-white hover:bg-[#9d6ff0] w-full sm:w-auto"
                   >
-                    {t("spinWheel")}
+                    {conductorMech === "r4_sequence" && nextInSequence
+                      ? t("assignNextInSequence", {
+                          name: nextInSequence.memberName,
+                        })
+                      : t("spinWheel")}
                   </button>
                 ) : null}
                 {conductorMech === "vs_high_score" ||
@@ -1040,6 +1085,25 @@ export function TrainsDashboard({ initial }: Props) {
         </section>
       ) : null}
 
+      {data.conductorHistory.length > 0 ? (
+        <ConductorHistoryTable
+          rows={data.conductorHistory}
+          mechanismLabels={historyMechanismLabels}
+          labels={{
+            title: t("conductorHistory.title"),
+            empty: t("conductorHistory.empty"),
+            date: t("conductorHistory.date"),
+            conductor: t("conductorHistory.conductor"),
+            vip: t("conductorHistory.vip"),
+            guardian: t("guardian"),
+            locked: t("conductorHistory.locked"),
+            noneYet: t("noneYet"),
+            guardianIsVip: t("guardianIsVipHint"),
+            guardianIsConductor: t("guardianIsConductorHint"),
+          }}
+        />
+      ) : null}
+
       <ConductorPickModal
         open={pickOpen}
         members={data.roster}
@@ -1059,10 +1123,17 @@ export function TrainsDashboard({ initial }: Props) {
         cancelLabel={
           pickRole === "vip" ? t("pickVipCancel") : t("pickConductorCancel")
         }
+        confirmLabel={
+          pickRole === "vip" ? t("pickVipConfirm") : t("pickConductorConfirm")
+        }
+        showGuardianToggle={pickRole === "vip"}
+        guardianIsVipLabel={
+          pickRole === "vip" ? t("guardianIsVip") : undefined
+        }
         onClose={() => setPickOpen(false)}
-        onPick={(member) =>
+        onPick={(member, guardianIsVip) =>
           void (pickRole === "vip"
-            ? pickVip(member)
+            ? pickVip(member, guardianIsVip)
             : pickConductor(member))
         }
       />

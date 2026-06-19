@@ -1127,11 +1127,19 @@
     "pickConductorSearch": "Buscar membros…",
     "pickConductorEmpty": "Nenhum membro corresponde à busca.",
     "pickConductorCancel": "Cancelar",
+    "pickConductorConfirm": "Confirmar condutor",
     "pickVipManually": "Escolher VIP",
     "pickVipTitle": "Escolher VIP · {date}",
     "pickVipSearch": "Buscar membros…",
     "pickVipEmpty": "Nenhum membro corresponde à busca.",
     "pickVipCancel": "Cancelar",
+    "pickVipConfirm": "Confirmar VIP",
+    "guardian": "Guardião",
+    "guardianIsVip": "Guardião é o VIP",
+    "guardianIsVipHint": "Esquadrões do VIP defendem",
+    "guardianIsConductorHint": "Esquadrões do condutor defendem",
+    "assignNextInSequence": "Atribuir {name}",
+    "nativeAshedBanner": "Este dia usa pontuações ao vivo de VS ou doações do Ashed. Conecte o Ashed em Configurações ou escolha condutor/VIP manualmente pelo roster.",
     "picking": "Salvando…",
     "pickFailed": "Não foi possível salvar a escolha do condutor.",
     "pickVipFailed": "Não foi possível salvar a escolha do VIP.",
@@ -1168,6 +1176,7 @@
       "viewPool": "Ver pool",
       "poolNotSeeded": "Pool ainda não criado — gire ou recrie para montá-lo.",
       "poolRemaining": "{remaining} de {total} restantes · geração {generation}",
+      "nextInSequence": "Próximo na sequência: {name}",
       "poolExhausted": "· esgotado",
       "liveLeaderboardHint": "Sorteado dos placares ao vivo, não do pool de membros.",
       "poolTypes": {
@@ -1216,6 +1225,14 @@
         "all_members": "Pool todos os membros",
         "event_top_x": "Pool top evento"
       }
+    },
+    "conductorHistory": {
+      "title": "Histórico de condutores",
+      "empty": "Dias com condutor confirmado aparecerão aqui.",
+      "date": "Data",
+      "conductor": "Condutor",
+      "vip": "VIP",
+      "locked": "Confirmado"
     },
     "wheelBlocked": {
       "title": "Não dá para girar a roleta",

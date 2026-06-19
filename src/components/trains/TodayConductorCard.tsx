@@ -4,6 +4,7 @@ type Props = {
   record: {
     conductorMemberName: string | null;
     vipMemberName: string | null;
+    guardianIsVip?: boolean;
     conductorMechanism: string | null;
     vipMechanism: string | null;
     lockedAt: string | null;
@@ -16,6 +17,9 @@ type Props = {
   labels: {
     awaiting: string;
     vip: string;
+    guardian: string;
+    guardianIsVip: string;
+    guardianIsConductor: string;
     locked: string;
     unlocked: string;
     lastConducted: string;
@@ -26,6 +30,12 @@ type Props = {
 
 export function TodayConductorCard({ record, stats, dayLabel, labels }: Props) {
   const locked = Boolean(record?.lockedAt);
+  const guardianName = record?.guardianIsVip
+    ? record.vipMemberName
+    : record?.conductorMemberName;
+  const hasGuardianContext = Boolean(
+    record?.conductorMemberName || record?.vipMemberName,
+  );
 
   return (
     <section className="rounded-2xl border border-[#30363d] bg-[#161b22] p-5">
@@ -47,7 +57,7 @@ export function TodayConductorCard({ record, stats, dayLabel, labels }: Props) {
         </span>
       </div>
 
-      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+      <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <div className="rounded-xl border border-[#30363d] bg-[#0d1117] p-3">
           <div className="text-xs uppercase tracking-wide text-[#8b949e]">
             {labels.vip}
@@ -56,8 +66,23 @@ export function TodayConductorCard({ record, stats, dayLabel, labels }: Props) {
             {record?.vipMemberName ?? labels.noneYet}
           </div>
         </div>
+        <div className="rounded-xl border border-[#30363d] bg-[#0d1117] p-3">
+          <div className="text-xs uppercase tracking-wide text-[#8b949e]">
+            {labels.guardian}
+          </div>
+          <div className="mt-1 text-lg font-medium text-[#e6edf3]">
+            {hasGuardianContext ? (guardianName ?? labels.noneYet) : labels.noneYet}
+          </div>
+          {hasGuardianContext ? (
+            <div className="mt-1 text-xs text-[#8b949e]">
+              {record?.guardianIsVip
+                ? labels.guardianIsVip
+                : labels.guardianIsConductor}
+            </div>
+          ) : null}
+        </div>
         {stats ? (
-          <div className="rounded-xl border border-[#30363d] bg-[#0d1117] p-3 text-sm text-[#8b949e]">
+          <div className="rounded-xl border border-[#30363d] bg-[#0d1117] p-3 text-sm text-[#8b949e] sm:col-span-2 lg:col-span-1">
             <div>
               {labels.lastConducted}:{" "}
               <span className="text-[#e6edf3]">

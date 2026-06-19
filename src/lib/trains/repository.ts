@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, lte } from "drizzle-orm";
+import { and, desc, eq, gte, isNotNull, lte } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { getDb, schema } from "@/lib/db";
@@ -263,6 +263,30 @@ export async function listConductorRecordsInRange(
 
   if (!seasonKey) return rows;
   return rows.filter((row) => !row.seasonKey || row.seasonKey === seasonKey);
+}
+
+export async function listLockedConductorHistory(
+  allianceId: string,
+  seasonKey: string | null | undefined,
+  limit: number,
+): Promise<Array<(typeof schema.trainConductorRecords.$inferSelect)>> {
+  const db = getDb();
+  const rows = await db
+    .select()
+    .from(schema.trainConductorRecords)
+    .where(
+      and(
+        eq(schema.trainConductorRecords.allianceId, allianceId),
+        isNotNull(schema.trainConductorRecords.lockedAt),
+      ),
+    )
+    .orderBy(desc(schema.trainConductorRecords.date))
+    .limit(limit);
+
+  const scoped = seasonKey
+    ? rows.filter((row) => !row.seasonKey || row.seasonKey === seasonKey)
+    : rows;
+  return scoped;
 }
 
 export async function upsertConductorDraft(input: {

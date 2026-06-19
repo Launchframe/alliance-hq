@@ -32,6 +32,7 @@ export async function POST(request: Request) {
     date?: string;
     memberId?: string;
     memberName?: string;
+    guardianIsVip?: boolean;
   };
 
   if (!body.memberId?.trim() || !body.memberName?.trim()) {
@@ -93,6 +94,7 @@ export async function POST(request: Request) {
       vipRankEventId: rankEvent?.id ?? null,
       vipMechanism: mechanism,
       dayConfigId: dayConfig.dayConfigId,
+      guardianIsVip: body.guardianIsVip ? 1 : 0,
     });
 
     return NextResponse.json({

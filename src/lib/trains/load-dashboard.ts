@@ -3,6 +3,8 @@ import {
 } from "@/lib/trains/day-config-resolve.server";
 import { paintTemplateFromConductorConfig } from "@/lib/trains/calendar-cell-styles.shared";
 import { resolveAllianceByTag } from "@/lib/alliance/resolve";
+import { getAllianceOperatingMode } from "@/lib/native-alliance/operating-mode";
+import type { AllianceOperatingMode } from "@/lib/native-alliance/constants";
 import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
 import { loadActiveAlliancePoolMembers } from "@/lib/members/game-roster";
 import { getAshedConnection, loadSession } from "@/lib/session";
@@ -15,6 +17,7 @@ import {
   listDayConfigsForWeek,
   listDayConfigsInRange,
   listInventoryItems,
+  listLockedConductorHistory,
 } from "@/lib/trains/repository";
 import {
   addCalendarDays,
@@ -42,6 +45,7 @@ export type WeekConductorRecordSummary = {
   vipMemberName: string | null;
   conductorMechanism: string | null;
   vipMechanism: string | null;
+  guardianIsVip: boolean;
   lockedAt: string | null;
 };
 
@@ -73,6 +77,7 @@ function mapConductorRecord(
     vipMemberName: string | null;
     conductorMechanism: string | null;
     vipMechanism: string | null;
+    guardianIsVip?: number | null;
     lockedAt: Date | null;
   },
 ): WeekConductorRecordSummary {
@@ -85,6 +90,7 @@ function mapConductorRecord(
     vipMemberName: row.vipMemberName,
     conductorMechanism: row.conductorMechanism,
     vipMechanism: row.vipMechanism,
+    guardianIsVip: row.guardianIsVip === 1,
     lockedAt: row.lockedAt?.toISOString() ?? null,
   };
 }
@@ -118,6 +124,7 @@ export type TrainsDashboardPayload = {
   canManageTrains: boolean;
   canUnlockConductor: boolean;
   activeMemberCount: number;
+  operatingMode: AllianceOperatingMode;
   schedule: {
     id: string;
     weekStart: string;
@@ -142,8 +149,15 @@ export type TrainsDashboardPayload = {
   } | null;
   pools: Record<
     string,
-    { generation: number; total: number; remaining: number; exhausted: boolean }
+    {
+      generation: number;
+      total: number;
+      remaining: number;
+      exhausted: boolean;
+      nextInSequence: { memberId: string; memberName: string } | null;
+    }
   >;
+  conductorHistory: WeekConductorRecordSummary[];
   conductorStats: {
     lastConductedDate: string | null;
     conductsThisYear: number;
@@ -160,9 +174,12 @@ const EMPTY_DASHBOARD_FIELDS: Pick<
   | "conductorRecord"
   | "todayDayConfig"
   | "pools"
+  | "conductorHistory"
   | "conductorStats"
   | "inventoryCount"
+  | "operatingMode"
 > = {
+  operatingMode: "ashed",
   schedule: null,
   dayConfigs: [],
   weekRecords: [],
@@ -170,6 +187,7 @@ const EMPTY_DASHBOARD_FIELDS: Pick<
   conductorRecord: null,
   todayDayConfig: null,
   pools: {},
+  conductorHistory: [],
   conductorStats: null,
   inventoryCount: 0,
 };
@@ -222,6 +240,7 @@ export async function loadTrainsDashboard(
   }
 
   const effectiveSeason = await getEffectiveSeasonForAlliance(allianceId);
+  const operatingMode = await getAllianceOperatingMode(allianceId);
   const scheduleRow = await getWeekSchedule(
     allianceId,
     weekStart,
@@ -262,6 +281,12 @@ export async function loadTrainsDashboard(
   }
 
   const inventory = await listInventoryItems();
+  const historyRows = await listLockedConductorHistory(
+    allianceId,
+    effectiveSeason.seasonKey,
+    30,
+  );
+  const conductorHistory = historyRows.map(mapRecord);
 
   return {
     today,
@@ -270,6 +295,7 @@ export async function loadTrainsDashboard(
     canManageTrains,
     canUnlockConductor,
     activeMemberCount,
+    operatingMode,
     schedule: scheduleRow
       ? {
           id: scheduleRow.id,
@@ -292,6 +318,7 @@ export async function loadTrainsDashboard(
         }
       : null,
     pools,
+    conductorHistory,
     conductorStats,
     inventoryCount: inventory.length,
   };

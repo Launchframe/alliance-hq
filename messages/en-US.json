@@ -1127,11 +1127,19 @@
     "pickConductorSearch": "Search members…",
     "pickConductorEmpty": "No members match your search.",
     "pickConductorCancel": "Cancel",
+    "pickConductorConfirm": "Confirm conductor",
     "pickVipManually": "Pick VIP",
     "pickVipTitle": "Pick VIP · {date}",
     "pickVipSearch": "Search members…",
     "pickVipEmpty": "No members match your search.",
     "pickVipCancel": "Cancel",
+    "pickVipConfirm": "Confirm VIP",
+    "guardian": "Guardian",
+    "guardianIsVip": "Guardian is VIP",
+    "guardianIsVipHint": "VIP squads defend",
+    "guardianIsConductorHint": "Conductor squads defend",
+    "assignNextInSequence": "Assign {name}",
+    "nativeAshedBanner": "This day uses live VS or donation scores from Ashed. Connect Ashed in Settings, or pick conductor/VIP manually from your roster.",
     "picking": "Saving…",
     "pickFailed": "Could not save conductor pick.",
     "pickVipFailed": "Could not save VIP pick.",
@@ -1168,6 +1176,7 @@
       "viewPool": "View pool",
       "poolNotSeeded": "Pool not built yet — spin or re-seed to create it.",
       "poolRemaining": "{remaining} of {total} remaining · generation {generation}",
+      "nextInSequence": "Next in sequence: {name}",
       "poolExhausted": "· exhausted",
       "liveLeaderboardHint": "Drawn from live scores, not the member pool.",
       "poolTypes": {
@@ -1216,6 +1225,14 @@
         "all_members": "All members pool",
         "event_top_x": "Event top scorers pool"
       }
+    },
+    "conductorHistory": {
+      "title": "Conductor history",
+      "empty": "Locked conductor days will appear here.",
+      "date": "Date",
+      "conductor": "Conductor",
+      "vip": "VIP",
+      "locked": "Locked"
     },
     "wheelBlocked": {
       "title": "Can't spin the wheel",
