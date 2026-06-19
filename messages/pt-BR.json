@@ -1348,6 +1348,7 @@
     "queuedSuccess": "Vídeo colocado na fila para processamento.",
     "recentUploads": "Envios recentes",
     "reviewLink": "Revisar",
+    "eventLink": "Pontuações do evento",
     "status": {
       "queued": "na fila",
       "extracting": "extraindo frames",

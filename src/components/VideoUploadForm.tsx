@@ -9,7 +9,10 @@ import { AppSelect } from "@/components/ui/AppSelect";
 import { useMergedVideoJobs } from "@/components/video/VideoJobEventsProvider";
 import { VideoSurveyDialog } from "@/components/video/VideoSurveyDialog";
 import type { VideoJobRow } from "@/lib/types/video";
-import { MAX_VIDEO_UPLOAD_BYTES } from "@/lib/video/upload-limit";
+import {
+  isVideoUploadOverLimit,
+  isVideoUploadSizeLimitEnforced,
+} from "@/lib/video/upload-limit";
 
 function formatBytes(bytes: number | null): string {
   if (!bytes) return "—";
@@ -97,7 +100,8 @@ export function VideoUploadForm({ initialJobs }: Props) {
     }
   }
 
-  const fileTooLarge = file !== null && file.size > MAX_VIDEO_UPLOAD_BYTES;
+  const uploadSizeLimitEnforced = isVideoUploadSizeLimitEnforced();
+  const fileTooLarge = file !== null && isVideoUploadOverLimit(file.size);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -106,7 +110,7 @@ export function VideoUploadForm({ initialJobs }: Props) {
       return;
     }
 
-    if (file.size > MAX_VIDEO_UPLOAD_BYTES) {
+    if (isVideoUploadOverLimit(file.size)) {
       setError(
         t("fileTooLarge", {
           size: formatBytes(file.size),
@@ -225,13 +229,19 @@ export function VideoUploadForm({ initialJobs }: Props) {
             className="block w-full max-w-full text-sm text-[#8b949e] file:mb-2 file:block file:w-full file:rounded-lg file:border-0 file:bg-[#238636] file:px-4 file:py-2 file:text-sm file:text-white sm:file:mb-0 sm:file:mr-4 sm:file:inline-block sm:file:w-auto"
           />
           <p className="mt-2 text-xs text-[#8b949e]">{t("fileHint")}</p>
-          <p className="mt-2 text-xs text-[#8b949e]">{t("fileSizeLimit")}</p>
-          <p className="mt-2 text-xs text-[#8b949e]">{t("fileSizeTipsIntro")}</p>
-          <ul className="mt-1 list-disc space-y-1 pl-4 text-xs text-[#8b949e]">
-            <li>{t("fileSizeTipCrop")}</li>
-            <li>{t("fileSizeTipTrim")}</li>
-            <li>{t("fileSizeTipDownscale")}</li>
-          </ul>
+          {uploadSizeLimitEnforced ? (
+            <>
+              <p className="mt-2 text-xs text-[#8b949e]">{t("fileSizeLimit")}</p>
+              <p className="mt-2 text-xs text-[#8b949e]">
+                {t("fileSizeTipsIntro")}
+              </p>
+              <ul className="mt-1 list-disc space-y-1 pl-4 text-xs text-[#8b949e]">
+                <li>{t("fileSizeTipCrop")}</li>
+                <li>{t("fileSizeTipTrim")}</li>
+                <li>{t("fileSizeTipDownscale")}</li>
+              </ul>
+            </>
+          ) : null}
         </label>
 
         {file && (

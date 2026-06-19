@@ -1348,6 +1348,7 @@
     "queuedSuccess": "Video queued for processing.",
     "recentUploads": "Recent uploads",
     "reviewLink": "Review",
+    "eventLink": "Event scores",
     "status": {
       "queued": "queued",
       "extracting": "extracting frames",
