@@ -5,13 +5,21 @@ import { listPoolEntries, getPoolSummary } from "@/lib/trains/pool";
 import { reseedPool } from "@/lib/trains/service";
 import { getServerCalendarDate } from "@/lib/trains/game-time";
 import type { PoolType } from "@/lib/trains/types";
+import {
+  vsScoreContextForTrainDate,
+  type VsScoreContext,
+} from "@/lib/trains/vs-week-days.shared";
+import { fetchVsScoresByRecordedDate } from "@/lib/trains/vs-scores.server";
 import { getOrCreateSession } from "@/lib/session";
 import {
   requireSessionPermission,
   requireTrainOfficer,
 } from "@/lib/rbac/require-permission";
+import { trainRollErrorResponse } from "@/lib/trains/roll-errors.server";
 
 export const dynamic = "force-dynamic";
+
+export type EventPoolContextPayload = VsScoreContext;
 
 export async function GET(request: Request) {
   const session = await getOrCreateSession();
@@ -21,15 +29,38 @@ export async function GET(request: Request) {
   const ctx = await resolveTrainRequestContext();
   if (ctx instanceof NextResponse) return ctx;
 
-  const poolType = new URL(request.url).searchParams.get(
-    "poolType",
-  ) as PoolType | null;
+  const params = new URL(request.url).searchParams;
+  const poolType = params.get("poolType") as PoolType | null;
+  const trainDate = params.get("date")?.trim() || null;
+
   if (!poolType) {
     return NextResponse.json({ error: "poolType is required." }, { status: 400 });
   }
 
   const summary = await getPoolSummary(ctx.allianceId, poolType);
   const entries = await listPoolEntries(ctx.allianceId, poolType);
+
+  if (poolType === "event_top_x" && trainDate) {
+    const eventContext = vsScoreContextForTrainDate(trainDate);
+    let scoresByMember: Map<string, number> | null = null;
+    if (ctx.connection) {
+      scoresByMember = await fetchVsScoresByRecordedDate(
+        ctx.connection,
+        ctx.ashedAllianceId,
+        eventContext.scoreDate,
+      );
+    }
+
+    return NextResponse.json({
+      summary,
+      eventContext,
+      entries: entries.map((entry) => ({
+        ...entry,
+        vsScore: scoresByMember?.get(entry.memberId) ?? null,
+      })),
+    });
+  }
+
   return NextResponse.json({ summary, entries });
 }
 
@@ -60,9 +91,7 @@ export async function POST(request: Request) {
     });
     return NextResponse.json(result);
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Pool seed failed." },
-      { status: 400 },
-    );
+    const { status, body } = trainRollErrorResponse(error);
+    return NextResponse.json(body, { status });
   }
 }

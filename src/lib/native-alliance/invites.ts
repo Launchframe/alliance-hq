@@ -13,6 +13,10 @@ import {
   ROLE_IDS,
   type SystemRoleName,
 } from "@/lib/rbac/constants";
+import {
+  resolveInviteRedirect,
+  sanitizeInternalRedirectPath,
+} from "@/lib/navigation/safe-redirect.shared";
 import { systemRoleNameForId } from "@/lib/rbac/system-roles";
 
 const INVITE_TTL_DAYS = 14;
@@ -26,9 +30,17 @@ export function generateInviteToken(): { token: string; tokenHash: string } {
   return { token, tokenHash: hashInviteToken(token) };
 }
 
-export function inviteAcceptUrl(token: string, origin: string): string {
-  const base = origin.replace(/\/$/, "");
-  return `${base}/invite/${encodeURIComponent(token)}`;
+export function inviteAcceptUrl(
+  token: string,
+  origin: string,
+  redirectPath?: string | null,
+): string {
+  const base = `${origin.replace(/\/$/, "")}/invite/${encodeURIComponent(token)}`;
+  const safeRedirect = sanitizeInternalRedirectPath(redirectPath);
+  if (!safeRedirect) {
+    return base;
+  }
+  return `${base}?next=${encodeURIComponent(safeRedirect)}`;
 }
 
 export type CreateHqInviteInput = {
@@ -37,6 +49,7 @@ export type CreateHqInviteInput = {
   roleName: SystemRoleName;
   invitedByHqUserId?: string | null;
   origin: string;
+  redirectPath?: string | null;
 };
 
 export type CreateHqInviteResult = {
@@ -73,6 +86,7 @@ export async function createHqInvite(
     throw new Error("Alliance not found.");
   }
 
+  const redirectPath = sanitizeInternalRedirectPath(input.redirectPath);
   const { token, tokenHash } = generateInviteToken();
   const now = new Date();
   const expiresAt = new Date(now);
@@ -86,13 +100,14 @@ export async function createHqInvite(
     roleId,
     tokenHash,
     invitedByHqUserId: input.invitedByHqUserId ?? null,
+    redirectPath,
     expiresAt,
     createdAt: now,
   });
 
   return {
     inviteId,
-    inviteUrl: inviteAcceptUrl(token, input.origin),
+    inviteUrl: inviteAcceptUrl(token, input.origin, redirectPath),
     expiresAt: expiresAt.toISOString(),
     email,
     roleName: input.roleName,
@@ -106,6 +121,7 @@ export type HqInvitePreview = {
   expiresAt: string;
   expired: boolean;
   accepted: boolean;
+  redirectPath: string | null;
 };
 
 export async function loadHqInvitePreview(
@@ -118,6 +134,7 @@ export async function loadHqInvitePreview(
       expiresAt: schema.hqInvites.expiresAt,
       acceptedAt: schema.hqInvites.acceptedAt,
       roleId: schema.hqInvites.roleId,
+      redirectPath: schema.hqInvites.redirectPath,
       allianceName: schema.alliances.name,
       allianceTag: schema.alliances.tag,
     })
@@ -139,7 +156,18 @@ export async function loadHqInvitePreview(
     expiresAt: row.expiresAt.toISOString(),
     expired: row.expiresAt <= now,
     accepted: row.acceptedAt != null,
+    redirectPath: row.redirectPath,
   };
+}
+
+export function resolveHqInviteAcceptRedirect(options: {
+  queryNext?: string | null;
+  storedPath?: string | null;
+}): string {
+  return resolveInviteRedirect({
+    queryNext: options.queryNext,
+    storedPath: options.storedPath,
+  });
 }
 
 async function upsertHqUserByEmail(email: string, displayName?: string | null) {
@@ -185,6 +213,7 @@ export type AcceptHqInviteResult = {
   allianceName: string;
   hqUserId: string;
   roleName: SystemRoleName | null;
+  redirectPath: string | null;
 };
 
 export async function acceptHqInvite(
@@ -278,5 +307,6 @@ export async function acceptHqInvite(
     allianceName: alliance.name,
     hqUserId,
     roleName,
+    redirectPath: invite.redirectPath,
   };
 }

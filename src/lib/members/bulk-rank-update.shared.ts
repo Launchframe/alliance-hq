@@ -29,10 +29,10 @@ export function validateBulkMemberRankInput(input: {
 
   if (input.action === "set") {
     const rank = Number(input.allianceRank);
-    if (!Number.isFinite(rank) || rank < 1 || rank > 3) {
+    if (!Number.isFinite(rank) || rank < 1 || rank > 4) {
       return {
         ok: false,
-        error: "allianceRank must be 1, 2, or 3 for bulk set.",
+        error: "allianceRank must be 1, 2, 3, or 4 for bulk set.",
       };
     }
     return { ok: true, memberIds, action: "set", allianceRank: rank };
@@ -41,7 +41,7 @@ export function validateBulkMemberRankInput(input: {
   return { ok: true, memberIds, action: "clear" };
 }
 
-/** Patch local roster rows after a successful bulk update. */
+/** Patch local roster rows after a bulk rank change (optimistic or reconciled). */
 export function patchMembersAfterBulkRank(
   members: AshedMember[],
   input: {
@@ -55,15 +55,27 @@ export function patchMembersAfterBulkRank(
     if (!idSet.has(member.id)) return member;
 
     if (input.action === "clear") {
-      return { ...member, rank: "" };
+      return {
+        ...member,
+        rank: "",
+        alliance_rank: undefined,
+        allianceRank: undefined,
+        allianceRankTitle: null,
+        member_rank: undefined,
+      };
     }
 
     const rank = input.allianceRank;
     if (rank == null) return member;
 
+    const rankValue = formatAshedMemberRankValue(rank, null);
     return {
       ...member,
-      rank: formatAshedMemberRankValue(rank, null),
+      rank: rankValue,
+      alliance_rank: rank,
+      allianceRank: rank,
+      allianceRankTitle: null,
+      member_rank: rank,
     };
   });
 }

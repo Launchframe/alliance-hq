@@ -4,9 +4,12 @@ export const dynamic = "force-dynamic";
 
 export default async function InvitePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ token: string; locale: string }>;
+  searchParams: Promise<{ next?: string }>;
 }) {
   const { token } = await params;
-  return <InviteAcceptClient token={token} />;
+  const { next } = await searchParams;
+  return <InviteAcceptClient token={token} queryRedirect={next} />;
 }

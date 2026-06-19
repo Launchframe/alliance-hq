@@ -4,6 +4,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import confetti from "canvas-confetti";
 import { useTranslations } from "next-intl";
 
+import {
+  buildConductorWheelReelSession,
+  type ReelSession,
+} from "@/lib/trains/conductor-wheel-reel.shared";
+
 type WheelCandidate = {
   memberId: string;
   memberName: string;
@@ -31,57 +36,7 @@ const FAST_SPEED = 30; // items / second during the fast phase
 const FAST_SECS = 2.5; // seconds of fast linear spinning
 const SLOW_SECS = 1.8; // seconds of ease-out deceleration
 
-type ReelSession = {
-  items: string[];
-  fastEndY: number;
-  targetY: number;
-  winnerIdx: number;
-  key: string;
-};
-
-function shuffle<T>(arr: T[]): T[] {
-  const a = [...arr];
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]] as [T, T];
-  }
-  return a;
-}
-
-function buildReelSession(
-  candidates: WheelCandidate[],
-  winner: WheelCandidate,
-): ReelSession {
-  const names = candidates.map((c) => c.memberName);
-
-  const fastItemCount = Math.ceil(FAST_SPEED * FAST_SECS);
-  const fastPasses = Math.ceil(fastItemCount / names.length);
-
-  const decelItemCount = Math.ceil((FAST_SPEED * SLOW_SECS) / 2);
-  const slowPasses = Math.max(3, Math.ceil(decelItemCount / names.length));
-
-  const items: string[] = [];
-  for (let i = 0; i < fastPasses; i++) items.push(...shuffle(names));
-  for (let i = 0; i < slowPasses; i++) items.push(...shuffle(names));
-
-  const winnerIdx = items.length;
-  items.push(winner.memberName);
-
-  for (let i = 0; i < Math.floor(VISIBLE / 2) + 1; i++) {
-    items.push(names[i % names.length]!);
-  }
-
-  const fastEndY = fastPasses * names.length * ITEM_H;
-  const targetY = winnerIdx * ITEM_H - CENTER_OFFSET;
-
-  return {
-    items,
-    fastEndY,
-    targetY,
-    winnerIdx,
-    key: `${winner.memberId}:${winnerIdx}:${items.length}`,
-  };
-}
+type ReelSessionView = ReelSession;
 
 export function ConductorWheelModal({
   open,
@@ -95,9 +50,14 @@ export function ConductorWheelModal({
   const rafRef = useRef<number | null>(null);
   const [revealedKey, setRevealedKey] = useState<string | null>(null);
 
-  const reelSession = useMemo(() => {
+  const reelSession = useMemo((): ReelSessionView | null => {
     if (!open || !winner || candidates.length === 0) return null;
-    return buildReelSession(candidates, winner);
+    return buildConductorWheelReelSession(candidates, winner, {
+      visible: VISIBLE,
+      fastSpeed: FAST_SPEED,
+      fastSecs: FAST_SECS,
+      slowSecs: SLOW_SECS,
+    });
   }, [open, winner, candidates]);
 
   const phase =

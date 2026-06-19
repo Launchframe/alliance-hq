@@ -874,6 +874,7 @@ export const hqInvites = pgTable("hq_invites", {
     () => hqUsers.id,
     { onDelete: "set null" },
   ),
+  redirectPath: text("redirect_path"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
     .notNull(),

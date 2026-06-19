@@ -35,6 +35,7 @@ export function AdminNativeAlliancePanel({
   const [tag, setTag] = useState("");
   const [ownerEmail, setOwnerEmail] = useState("");
   const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRedirectPath, setInviteRedirectPath] = useState("");
   const [inviteRole, setInviteRole] = useState<"owner" | "officer">("officer");
   const [lastInviteUrl, setLastInviteUrl] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -97,7 +98,11 @@ export function AdminNativeAlliancePanel({
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email: inviteEmail, roleName: inviteRole }),
+          body: JSON.stringify({
+            email: inviteEmail,
+            roleName: inviteRole,
+            redirectPath: inviteRedirectPath.trim() || undefined,
+          }),
         },
       );
       const body = (await res.json()) as {
@@ -202,6 +207,19 @@ export function AdminNativeAlliancePanel({
               <option value="owner">{t("roleOwner")}</option>
               <option value="officer">{t("roleOfficer")}</option>
             </select>
+          </label>
+          <label className="space-y-1 text-sm sm:col-span-2">
+            <span className="text-[#8b949e]">{t("inviteRedirectOptional")}</span>
+            <input
+              type="text"
+              value={inviteRedirectPath}
+              onChange={(e) => setInviteRedirectPath(e.target.value)}
+              placeholder="/trains"
+              className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 font-mono text-sm"
+            />
+            <span className="block text-xs text-[#6e7681]">
+              {t("inviteRedirectHint")}
+            </span>
           </label>
         </div>
         <button

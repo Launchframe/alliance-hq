@@ -19,9 +19,17 @@ export const TEMPLATE_PALETTE_STYLES: Record<
     swatch: "bg-blue-500",
     ring: "ring-blue-500",
   },
+  vs_push_weekdays: {
+    swatch: "bg-blue-500",
+    ring: "ring-blue-500",
+  },
+  r4_event_vip: {
+    swatch: "bg-slate-400",
+    ring: "ring-slate-400",
+  },
   economy_week: {
-    swatch: "bg-emerald-500",
-    ring: "ring-emerald-500",
+    swatch: "bg-red-500",
+    ring: "ring-red-500",
   },
   r3_recognition: {
     swatch: "bg-emerald-400",

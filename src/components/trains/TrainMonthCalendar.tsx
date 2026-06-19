@@ -1,8 +1,8 @@
 "use client";
 
-import type { MouseEvent } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { useCallback, useRef, useState } from "react";
+import type { PointerEvent as ReactPointerEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type {
   MonthSchedulePagePayload,
@@ -10,20 +10,23 @@ import type {
   WeekScheduleDayConfig,
 } from "@/lib/trains/load-dashboard";
 import {
-  addCalendarDays,
   addCalendarMonths,
   buildMonthGrid,
   monthEndFromKey,
   monthStartFromKey,
 } from "@/lib/trains/game-time";
+import { expandPaintRange } from "@/lib/trains/paint-range.shared";
+import { calendarCellStyleClass } from "@/lib/trains/calendar-cell-styles.shared";
+import { TemplatePaletteBadge } from "@/components/trains/TemplatePaletteBadge";
 import {
   TEMPLATE_PALETTE_STYLES,
-  mechanismStyleClass,
 } from "@/lib/trains/mechanism-styles";
 import type { WeekTemplateType } from "@/lib/trains/types";
 
 const PAINT_TEMPLATES: WeekTemplateType[] = [
   "vs_push_week",
+  "vs_push_weekdays",
+  "r4_event_vip",
   "economy_week",
   "r3_recognition",
   "r4_train_week",
@@ -52,8 +55,7 @@ type Props = {
   onSelectDate: (date: string) => void;
   onMonthChange?: (page: MonthSchedulePagePayload) => void;
   onMonthLoadError?: () => void;
-  onPaintError?: (message: string) => void;
-  onPainted?: () => void;
+  onPaintDates?: (dates: string[], template: WeekTemplateType) => void;
 };
 
 function recordForDate(
@@ -79,19 +81,6 @@ function formatMonthLabel(monthKey: string): string {
   });
 }
 
-function expandPaintRange(from: string, to: string): string[] {
-  if (from === to) return [from];
-  const dates: string[] = [];
-  const step = from <= to ? 1 : -1;
-  let cursor = from;
-  while (true) {
-    dates.push(cursor);
-    if (cursor === to) break;
-    cursor = addCalendarDays(cursor, step);
-  }
-  return dates;
-}
-
 export function TrainMonthCalendar({
   today,
   initialMonthKey,
@@ -107,8 +96,7 @@ export function TrainMonthCalendar({
   onSelectDate,
   onMonthChange,
   onMonthLoadError,
-  onPaintError,
-  onPainted,
+  onPaintDates,
 }: Props) {
   const [viewMonthKey, setViewMonthKey] = useState(initialMonthKey);
   const [page, setPage] = useState<MonthSchedulePagePayload>({
@@ -119,9 +107,23 @@ export function TrainMonthCalendar({
     monthRecords: initialMonthRecords,
   });
   const [loading, setLoading] = useState(false);
-  const [painting, setPainting] = useState(false);
   const [paintBrush, setPaintBrush] = useState<WeekTemplateType | null>(null);
+  const [dragRange, setDragRange] = useState<{
+    anchor: string;
+    focus: string;
+  } | null>(null);
   const rangeAnchorRef = useRef<string | null>(null);
+  const paintDragActiveRef = useRef(false);
+  const dragRangeRef = useRef<{ anchor: string; focus: string } | null>(null);
+  const gridRef = useRef<HTMLDivElement>(null);
+  const paintBrushRef = useRef(paintBrush);
+  const onPaintDatesRef = useRef(onPaintDates);
+  useEffect(() => {
+    paintBrushRef.current = paintBrush;
+    onPaintDatesRef.current = onPaintDates;
+  }, [onPaintDates, paintBrush]);
+
+  const paintMode = Boolean(canPaint && paintBrush && onPaintDates);
 
   const applyPage = useCallback(
     (next: MonthSchedulePagePayload) => {
@@ -173,52 +175,130 @@ export function TrainMonthCalendar({
     ],
   );
 
-  const paintDates = async (dates: string[], templateType: WeekTemplateType) => {
-    setPainting(true);
-    try {
-      const res = await fetch("/api/trains/schedule/days", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dates, templateType }),
-      });
-      const body = (await res.json()) as { error?: string };
-      if (!res.ok) {
-        onPaintError?.(body.error ?? "Could not paint days.");
-        return;
+  const resolvePaintDate = useCallback(
+    (clientX: number, clientY: number): string | null => {
+      const grid = gridRef.current;
+      if (!grid) return null;
+
+      const cells = grid.querySelectorAll<HTMLElement>(
+        '[data-paint-date][data-in-month="true"]',
+      );
+      for (const cell of cells) {
+        const rect = cell.getBoundingClientRect();
+        if (
+          clientX >= rect.left &&
+          clientX <= rect.right &&
+          clientY >= rect.top &&
+          clientY <= rect.bottom
+        ) {
+          return cell.dataset.paintDate ?? null;
+        }
       }
-      await loadMonth(viewMonthKey);
-      onPainted?.();
-    } catch {
-      onPaintError?.("Could not paint days.");
-    } finally {
-      setPainting(false);
-    }
-  };
+      return null;
+    },
+    [],
+  );
 
-  const handleDayClick = (
-    date: string,
-    inMonth: boolean,
-    event: MouseEvent,
-  ) => {
-    if (!inMonth) return;
+  const resetPaintDrag = useCallback(() => {
+    paintDragActiveRef.current = false;
+    dragRangeRef.current = null;
+    setDragRange(null);
+  }, []);
 
-    if (canPaint && paintBrush) {
-      const dates = event.shiftKey && rangeAnchorRef.current
-        ? expandPaintRange(rangeAnchorRef.current, date)
-        : [date];
+  const updateDragFocus = useCallback((date: string) => {
+    if (!dragRangeRef.current || dragRangeRef.current.focus === date) return;
+    const next = { ...dragRangeRef.current, focus: date };
+    dragRangeRef.current = next;
+    setDragRange(next);
+  }, []);
+
+  const commitPaintRange = useCallback(
+    (anchor: string, focus: string, shiftKey: boolean) => {
+      const brush = paintBrushRef.current;
+      const paint = onPaintDatesRef.current;
+      if (!brush || !paint) return;
+
+      const rangeAnchor = rangeAnchorRef.current ?? selectedDate;
+      const dates =
+        shiftKey && anchor === focus
+          ? expandPaintRange(rangeAnchor, focus)
+          : expandPaintRange(anchor, focus);
+
+      rangeAnchorRef.current = focus;
+      paint(dates, brush);
+    },
+    [selectedDate],
+  );
+
+  const handlePaintPointerDown = useCallback(
+    (date: string, event: ReactPointerEvent<HTMLButtonElement>) => {
+      if (!paintMode) return;
+
+      event.preventDefault();
+
+      paintDragActiveRef.current = true;
+      const next = { anchor: date, focus: date };
+      dragRangeRef.current = next;
+      setDragRange(next);
+
+      const pointerId = event.pointerId;
+      let committed = false;
+
+      const onMove = (e: PointerEvent) => {
+        if (e.pointerId !== pointerId || !paintDragActiveRef.current) return;
+        const hit = resolvePaintDate(e.clientX, e.clientY);
+        if (hit) updateDragFocus(hit);
+      };
+
+      const finish = (e: PointerEvent) => {
+        if (e.pointerId !== pointerId || committed) return;
+        committed = true;
+
+        window.removeEventListener("pointermove", onMove, true);
+        window.removeEventListener("pointerup", finish, true);
+        window.removeEventListener("pointercancel", finish, true);
+
+        if (!paintDragActiveRef.current || !dragRangeRef.current) return;
+
+        const { anchor, focus } = dragRangeRef.current;
+        commitPaintRange(anchor, focus, e.shiftKey);
+        resetPaintDrag();
+      };
+
+      window.addEventListener("pointermove", onMove, true);
+      window.addEventListener("pointerup", finish, true);
+      window.addEventListener("pointercancel", finish, true);
+    },
+    [
+      paintMode,
+      resolvePaintDate,
+      updateDragFocus,
+      commitPaintRange,
+      resetPaintDrag,
+    ],
+  );
+
+  const handleDaySelect = useCallback(
+    (date: string) => {
       rangeAnchorRef.current = date;
-      void paintDates(dates, paintBrush);
-      return;
-    }
-
-    rangeAnchorRef.current = date;
-    onSelectDate(date);
-  };
+      onSelectDate(date);
+    },
+    [onSelectDate],
+  );
 
   const displayPage =
     externalMonth?.monthKey === page.monthKey ? externalMonth : page;
   const { dayConfigs, monthRecords } = displayPage;
   const grid = buildMonthGrid(displayPage.monthKey);
+  const previewDates = useMemo(() => {
+    if (!dragRange) return null;
+    return new Set(
+      expandPaintRange(dragRange.anchor, dragRange.focus),
+    );
+  }, [dragRange]);
+  const previewRingClass = paintBrush
+    ? TEMPLATE_PALETTE_STYLES[paintBrush].ring
+    : "";
 
   return (
     <div className="flex flex-col gap-3">
@@ -226,7 +306,7 @@ export function TrainMonthCalendar({
         <button
           type="button"
           onClick={() => void loadMonth(addCalendarMonths(viewMonthKey, -1))}
-          disabled={loading || painting}
+          disabled={loading}
           aria-label={navLabels.previousMonth}
           className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[#30363d] text-[#e6edf3] hover:bg-[#0d1117] disabled:opacity-50"
         >
@@ -238,7 +318,7 @@ export function TrainMonthCalendar({
         <button
           type="button"
           onClick={() => void loadMonth(addCalendarMonths(viewMonthKey, 1))}
-          disabled={loading || painting}
+          disabled={loading}
           aria-label={navLabels.nextMonth}
           className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[#30363d] text-[#e6edf3] hover:bg-[#0d1117] disabled:opacity-50"
         >
@@ -274,10 +354,7 @@ export function TrainMonthCalendar({
                       : "border-[#30363d] text-[#c9d1d9] hover:bg-[#161b22]"
                   }`}
                 >
-                  <span
-                    className={`h-2.5 w-2.5 shrink-0 rounded-sm ${palette.swatch}`}
-                    aria-hidden
-                  />
+                  <TemplatePaletteBadge template={template} shape="square" />
                   {templateLabels[template] ?? template}
                 </button>
               );
@@ -287,7 +364,7 @@ export function TrainMonthCalendar({
       ) : null}
 
       <div
-        className={`transition-opacity ${loading || painting ? "opacity-50" : ""}`}
+        className={`transition-opacity ${loading ? "opacity-50" : ""}`}
       >
         <div className="mb-1 grid grid-cols-7 gap-1">
           {navLabels.weekdayHeaders.map((label) => (
@@ -300,15 +377,19 @@ export function TrainMonthCalendar({
           ))}
         </div>
 
-        <div className="grid grid-cols-7 gap-1">
+        <div
+          ref={gridRef}
+          className={`grid grid-cols-7 gap-1 ${paintMode ? "touch-none select-none" : ""}`}
+        >
           {grid.map(({ date, inMonth }) => {
             const day = configForDate(dayConfigs, date);
             const record = recordForDate(monthRecords, date);
             const isSelected = date === selectedDate;
             const isToday = date === today;
             const locked = Boolean(record?.lockedAt);
-            const style = mechanismStyleClass(
+            const style = calendarCellStyleClass(
               day?.conductorMechanism ?? "custom",
+              day?.paintTemplate,
             );
             const conductorName = record?.conductorMemberName;
             const vipName = record?.vipMemberName;
@@ -322,11 +403,14 @@ export function TrainMonthCalendar({
                 ? (vipLabels[day.vipMechanism] ?? day.vipMechanism)
                 : null;
 
-            const ringClass = isSelected
-              ? "ring-2 ring-[#58a6ff] ring-offset-1 ring-offset-[#0d1117]"
-              : isToday
-                ? "ring-1 ring-[#58a6ff]/50 ring-offset-1 ring-offset-[#0d1117]"
-                : "";
+            const inDragPreview = Boolean(previewDates?.has(date));
+            const ringClass = inDragPreview
+              ? `ring-2 ring-offset-1 ring-offset-[#0d1117] ${previewRingClass}`
+              : isSelected
+                ? "ring-2 ring-[#58a6ff] ring-offset-1 ring-offset-[#0d1117]"
+                : isToday
+                  ? "ring-1 ring-[#58a6ff]/50 ring-offset-1 ring-offset-[#0d1117]"
+                  : "";
 
             const cellClass = `flex min-h-[4.75rem] min-w-0 flex-col rounded-lg border-2 p-1 text-left ${style} ${ringClass} ${
               inMonth ? "opacity-100" : "pointer-events-none opacity-25"
@@ -386,7 +470,16 @@ export function TrainMonthCalendar({
               <button
                 key={date}
                 type="button"
-                onClick={(event) => handleDayClick(date, inMonth, event)}
+                data-paint-date={date}
+                data-in-month="true"
+                onPointerDown={
+                  paintMode
+                    ? (event) => handlePaintPointerDown(date, event)
+                    : undefined
+                }
+                onClick={
+                  paintMode ? undefined : () => handleDaySelect(date)
+                }
                 aria-pressed={isSelected}
                 aria-label={date}
                 className={`${cellClass} hover:opacity-95`}

@@ -10,6 +10,7 @@ import {
   rollForConductor,
   rollForVip,
 } from "@/lib/trains/service";
+import { trainRollErrorResponse } from "@/lib/trains/roll-errors.server";
 import { getOrCreateSession } from "@/lib/session";
 import { requireTrainOfficer } from "@/lib/rbac/require-permission";
 
@@ -55,9 +56,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ result, record, stats });
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Roll failed." },
-      { status: 400 },
-    );
+    const { status, body } = trainRollErrorResponse(error);
+    return NextResponse.json(body, { status });
   }
 }

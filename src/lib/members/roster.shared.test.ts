@@ -4,6 +4,7 @@ import {
   allianceMemberRowToAshedMember,
   normalizedRankFromAshedMember,
 } from "@/lib/members/roster.shared";
+import { parseAshedMemberAllianceRank } from "@/lib/members/alliance-rank";
 import type { AllianceMember } from "@/lib/db/schema";
 
 function rosterRow(overrides: Partial<AllianceMember> = {}): AllianceMember {
@@ -51,6 +52,25 @@ describe("allianceMemberRowToAshedMember", () => {
     expect(member.id).toBe("m1");
     expect(member.current_name).toBe("Alice");
     expect(member.alliance_rank).toBe(4);
+    expect(member.allianceRankTitle).toBe("Muse");
     expect(member.rank).toBe("Muse");
+    expect(parseAshedMemberAllianceRank(member)).toEqual({
+      rank: 4,
+      title: "Muse",
+    });
+  });
+
+  it("preserves title when alliance_rank is numeric and rank raw is plain R4", () => {
+    const member = allianceMemberRowToAshedMember(
+      rosterRow({
+        allianceRankTitle: "Warlord",
+        ashedRankRaw: "R4",
+      }),
+    );
+
+    expect(parseAshedMemberAllianceRank(member)).toEqual({
+      rank: 4,
+      title: "Warlord",
+    });
   });
 });

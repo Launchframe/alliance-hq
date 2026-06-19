@@ -22,6 +22,8 @@ export type VipMechanismType = (typeof VIP_MECHANISMS)[number];
 
 export const WEEK_TEMPLATES = [
   "vs_push_week",
+  "vs_push_weekdays",
+  "r4_event_vip",
   "economy_week",
   "r3_recognition",
   "r4_train_week",
@@ -67,6 +69,14 @@ export type RollResult = {
   poolType?: PoolType;
   /** Names shown on the conductor/VIP wheel (full eligible pool for this roll). */
   wheelCandidates?: RollCandidate[];
+  /** Set when the last pool pick exhausted the generation and a new one was seeded. */
+  poolRefreshed?: PoolRefreshedInfo;
+};
+
+export type PoolRefreshedInfo = {
+  poolType: PoolType;
+  generation: number;
+  memberCount: number;
 };
 
 export type ConductorStats = {
