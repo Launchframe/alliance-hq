@@ -42,7 +42,8 @@ import {
   isPoolSpinSource,
   vipSpinSource,
 } from "@/lib/trains/spin-source.shared";
-import type { PoolRefreshedInfo, PoolType, WeekTemplateType } from "@/lib/trains/types";
+import type { PoolRefreshedInfo, PoolType, RollResult, WeekTemplateType } from "@/lib/trains/types";
+import type { MemberQualificationPayload } from "@/lib/trains/train-conductor-minimums.shared";
 import { SELECTABLE_WEEK_TEMPLATES } from "@/lib/trains/week-template-registry.shared";
 import {
   applyOptimisticConductorPick,
@@ -67,13 +68,7 @@ type Props = {
 };
 
 type RollResponse = TrainRollErrorResponse & {
-  result?: {
-    memberId: string;
-    memberName: string;
-    isAutomatic?: boolean;
-    wheelCandidates?: Array<{ memberId: string; memberName: string }>;
-    poolRefreshed?: PoolRefreshedInfo;
-  };
+  result?: RollResult;
   stats?: {
     lastConductedDate: string | null;
     conductsThisYear: number;
@@ -125,6 +120,10 @@ export function TrainsDashboard({ initial }: Props) {
   const [wheelCandidates, setWheelCandidates] = useState<
     Array<{ memberId: string; memberName: string }>
   >([]);
+  const [wheelQualification, setWheelQualification] =
+    useState<MemberQualificationPayload | null>(null);
+  const [conductorDisqualified, setConductorDisqualified] =
+    useState<RollResult | null>(null);
   const [selectedDate, setSelectedDate] = useState(initial.today);
   const [scheduleView, setScheduleView] = useState<ScheduleView>("week");
   const [viewedWeek, setViewedWeek] = useState<WeekSchedulePagePayload>({
@@ -231,9 +230,11 @@ export function TrainsDashboard({ initial }: Props) {
 
   const handleWheelClose = useCallback(() => {
     setWheelOpen(false);
+    setWheelQualification(null);
     const pending = pendingWheelRollRef.current;
     pendingWheelRollRef.current = null;
     if (!pending) return;
+    if (pending.result.draftPersisted === false) return;
 
     applySnapshot(
       applyOptimisticConductorRoll(
@@ -472,6 +473,14 @@ export function TrainsDashboard({ initial }: Props) {
         body.result.isAutomatic ||
         (role === "conductor" && rollConductorMech === "r4_sequence")
       ) {
+        if (
+          role === "conductor" &&
+          body.result.qualification &&
+          !body.result.qualification.qualified
+        ) {
+          setConductorDisqualified(body.result);
+          return;
+        }
         applySnapshot(
           applyOptimisticConductorRoll(
             snapshotRef.current,
@@ -505,11 +514,69 @@ export function TrainsDashboard({ initial }: Props) {
       );
       setWheelWinner(body.result);
       setWheelStats(body.stats ?? null);
+      setWheelQualification(body.result.qualification ?? null);
       setWheelOpen(true);
     } catch (e) {
       setError(e instanceof Error ? e.message : t("rollFailed"));
     }
   };
+
+  const runRollRef = useRef(runRoll);
+
+  useEffect(() => {
+    runRollRef.current = runRoll;
+  });
+
+  const handleWheelSpinAgain = useCallback(() => {
+    pendingWheelRollRef.current = null;
+    setWheelOpen(false);
+    setWheelQualification(null);
+    setWheelWinner(null);
+    void runRollRef.current("conductor");
+  }, []);
+
+  const handleWheelOverride = useCallback(
+    async (overrideReason: string) => {
+      const pending = pendingWheelRollRef.current;
+      if (!pending?.result.qualification) return;
+
+      setError(null);
+      try {
+        const res = await fetch("/api/trains/conductor/roll/override", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            date: pending.date,
+            memberId: pending.result.memberId,
+            memberName: pending.result.memberName,
+            mechanism: pending.result.mechanism,
+            overrideReason,
+          }),
+        });
+        const body = (await res.json()) as RollResponse;
+        if (!res.ok || !body.result) {
+          setError(body.error ?? t("overrideFailed"));
+          return;
+        }
+
+        applySnapshot(
+          applyOptimisticConductorRoll(
+            snapshotRef.current,
+            pending.date,
+            pending.role,
+            body.result,
+          ),
+        );
+        pendingWheelRollRef.current = null;
+        setWheelOpen(false);
+        setWheelQualification(null);
+        void refreshRef.current();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : t("overrideFailed"));
+      }
+    },
+    [applySnapshot, t],
+  );
 
   const lockConductor = async () => {
     await withOptimisticMutation(
@@ -1143,8 +1210,52 @@ export function TrainsDashboard({ initial }: Props) {
         candidates={wheelCandidates}
         winner={wheelWinner}
         stats={wheelStats ?? null}
+        qualification={wheelQualification}
         onClose={handleWheelClose}
+        onSpinAgain={handleWheelSpinAgain}
+        onOverride={(reason) => void handleWheelOverride(reason)}
       />
+
+      <Dialog
+        open={conductorDisqualified != null}
+        onOpenChange={(open) => {
+          if (!open) setConductorDisqualified(null);
+        }}
+        title={t("wheel.disqualifiedTitle")}
+      >
+        {conductorDisqualified?.qualification ? (
+          <div className="space-y-2 text-sm text-[#e6edf3]">
+            <p>
+              <span className="font-medium text-[#f85149]">
+                {conductorDisqualified.memberName}
+              </span>{" "}
+              {t("wheel.disqualifiedBody")}
+            </p>
+            {conductorDisqualified.qualification.vs.minimum > 0 ? (
+              <p className="text-xs text-[#8b949e]">
+                {t("wheel.vsShortfall", {
+                  score: conductorDisqualified.qualification.vs.score,
+                  required:
+                    conductorDisqualified.qualification.vs.effectiveMinimum,
+                  shortfall: conductorDisqualified.qualification.vs.shortfall,
+                })}
+              </p>
+            ) : null}
+            {conductorDisqualified.qualification.donation.minimum > 0 ? (
+              <p className="text-xs text-[#8b949e]">
+                {t("wheel.donationShortfall", {
+                  score: conductorDisqualified.qualification.donation.score,
+                  required:
+                    conductorDisqualified.qualification.donation
+                      .effectiveMinimum,
+                  shortfall:
+                    conductorDisqualified.qualification.donation.shortfall,
+                })}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
+      </Dialog>
 
       <WheelBlockedDialog
         open={wheelBlocked != null}

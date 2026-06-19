@@ -4,12 +4,12 @@ import { useEffect, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 
 import { AlliancePicker } from "@/components/AlliancePicker";
-import { AllianceSeasonSettings } from "@/components/settings/AllianceSeasonSettings";
 import { PairingQrWizard } from "@/components/credential-pairing/PairingQrWizard";
 import { LinkedDevicesSettings } from "@/components/credential-pairing/LinkedDevicesSettings";
 import { AppSelect } from "@/components/ui/AppSelect";
 import { useAccountTimezone } from "@/components/timezone/TimezoneProvider";
-import { useRouter } from "@/i18n/navigation";
+import { Link, useRouter } from "@/i18n/navigation";
+import { allianceSettingsPath } from "@/lib/alliance/alliance-settings-path.shared";
 import { TokenExpiryNotice } from "@/components/TokenExpiryNotice";
 import { ashedLink, strongText } from "@/components/i18n/richText";
 import type { AccessibleAlliance } from "@/lib/alliance/types";
@@ -256,9 +256,26 @@ export function SettingsConnectionForm({
         >
           {allianceSaving ? t("allianceSaving") : t("allianceSave")}
         </button>
+        {accessibleAlliances.length > 0 ? (
+          <div className="mt-4 space-y-2">
+            <p className="text-xs font-medium uppercase tracking-wide text-[#8b949e]">
+              {t("allianceSettingsHeading")}
+            </p>
+            <ul className="space-y-1">
+              {accessibleAlliances.map((alliance) => (
+                <li key={alliance.id}>
+                  <Link
+                    href={allianceSettingsPath(alliance.tag)}
+                    className="text-sm text-[#58a6ff] hover:underline"
+                  >
+                    {t("allianceSettingsLink", { tag: alliance.tag })}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
       </section>
-
-      <AllianceSeasonSettings />
 
       <section className="rounded-xl border border-[#30363d] bg-[#161b22] p-5">
         <h2 className="font-medium">{t("timezoneSection")}</h2>

@@ -42,6 +42,7 @@ export const NAV_PAGE_ICONS: Record<string, LucideIcon> = {
   "unmatched-names": UserCog,
   "video-upload": Upload,
   settings: Settings,
+  allianceSettings: Settings,
   team: UserCog,
   "admin-portal": Shield,
   "open-ashed": ExternalLink,
