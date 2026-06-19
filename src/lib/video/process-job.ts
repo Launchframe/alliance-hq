@@ -23,6 +23,7 @@ import {
 } from "@/lib/video/member-matcher";
 import { ocrAllFrames, defaultAshFrameConcurrency } from "@/lib/video/ocr-pipeline";
 import { collapseEntriesBySanitizedName } from "@/lib/video/normalize-rows";
+import { dedupeMatchedParseEntries } from "@/lib/video/parse-row-dedup";
 import { PipelineTimer } from "@/lib/video/pipeline-timer";
 import { getScoreTargetOrThrow } from "@/lib/video/score-targets";
 import { emitVideoJobStatus } from "@/lib/events/video-jobs";
@@ -353,9 +354,9 @@ export async function processVideoJob(
     await timer.measureStep(
       "parse.match_and_persist",
       async () => {
-        matchedCount = 0;
-        for (const entry of entries) {
-          const match = memberIndex
+        const matchedRows = entries.map((entry) => ({
+          entry,
+          match: memberIndex
             ? matchMemberName(entry.name, memberIndex, { allianceTag })
             : {
                 ocrName: entry.name,
@@ -363,7 +364,14 @@ export async function processVideoJob(
                 memberName: null,
                 confidence: 0,
                 matchMethod: "none" as const,
-              };
+              },
+        }));
+
+        const dedupedRows = dedupeMatchedParseEntries(matchedRows, allianceTag);
+        rowCount = dedupedRows.length;
+        matchedCount = 0;
+
+        for (const { entry, match } of dedupedRows) {
           if (match.memberId) matchedCount++;
 
           await db.insert(schema.parsedRows).values({
@@ -386,13 +394,13 @@ export async function processVideoJob(
         }
         return matchedCount;
       },
-      (count) => ({ matchedCount: count, rowCount: entries.length }),
+      (count) => ({ matchedCount: count, rowCount }),
     );
 
     await timer.measureStep("db.update_parse_session", async () => {
       await db
         .update(schema.parseSessions)
-        .set({ matchedCount, rowCount: entries.length, updatedAt: new Date() })
+        .set({ matchedCount, rowCount, updatedAt: new Date() })
         .where(eq(schema.parseSessions.id, parseSessionId));
     });
 
