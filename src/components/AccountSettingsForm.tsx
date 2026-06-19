@@ -7,7 +7,8 @@ import { PairingQrWizard } from "@/components/credential-pairing/PairingQrWizard
 import { LinkedDevicesSettings } from "@/components/credential-pairing/LinkedDevicesSettings";
 import { AppSelect } from "@/components/ui/AppSelect";
 import { useAccountTimezone } from "@/components/timezone/TimezoneProvider";
-import { useRouter } from "@/i18n/navigation";
+import { Link, useRouter } from "@/i18n/navigation";
+import { allianceSettingsPath } from "@/lib/alliance/alliance-settings-path.shared";
 import { TokenExpiryNotice } from "@/components/TokenExpiryNotice";
 import { ashedLink, strongText } from "@/components/i18n/richText";
 import type { AshedConnectionMeta } from "@/lib/jwt/connection-meta";

@@ -89,6 +89,8 @@ export default async function AppLayout({
         ashed={state.ashed}
         showAdminPortal={state.rbac?.isPlatformMaintainer ?? false}
         showTeamAccess={state.showTeamAccess}
+        showAllianceSettings={Boolean(state.currentAllianceId)}
+        activeAllianceTag={state.allianceTag}
         currentAllianceId={
           state.currentAllianceId ?? state.allianceId ?? null
         }

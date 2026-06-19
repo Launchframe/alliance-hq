@@ -2,6 +2,7 @@ import "server-only";
 
 import { base44Json } from "@/lib/base44/fetch";
 import type { ParsedConnection } from "@/lib/connectionString";
+import { addCalendarDays } from "@/lib/trains/game-time";
 import type { RollCandidate } from "@/lib/trains/types";
 import { vsScoreReferenceDate } from "@/lib/trains/vs-week-days.shared";
 
@@ -102,4 +103,28 @@ export async function fetchVsTopScorersForTrainDate(
     vsScoreReferenceDate(trainDate),
     limit,
   );
+}
+
+export async function fetchVsTotalsForDateRange(
+  connection: ParsedConnection,
+  allianceId: string,
+  startDate: string,
+  endDate: string,
+): Promise<Map<string, number>> {
+  const totals = new Map<string, number>();
+  let cursor = startDate;
+
+  while (cursor <= endDate) {
+    const dayScores = await fetchVsScoresByRecordedDate(
+      connection,
+      allianceId,
+      cursor,
+    );
+    for (const [memberId, score] of dayScores) {
+      totals.set(memberId, (totals.get(memberId) ?? 0) + score);
+    }
+    cursor = addCalendarDays(cursor, 1);
+  }
+
+  return totals;
 }

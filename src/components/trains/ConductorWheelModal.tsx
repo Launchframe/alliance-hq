@@ -8,6 +8,7 @@ import {
   buildConductorWheelReelSession,
   type ReelSession,
 } from "@/lib/trains/conductor-wheel-reel.shared";
+import type { MemberQualificationPayload } from "@/lib/trains/train-conductor-minimums.shared";
 
 type WheelCandidate = {
   memberId: string;
@@ -22,19 +23,21 @@ type Props = {
     lastConductedDate: string | null;
     conductsThisYear: number;
   } | null;
+  qualification?: MemberQualificationPayload | null;
   onClose: () => void;
+  onSpinAgain?: () => void;
+  onOverride?: (overrideReason: string) => void;
 };
 
 // Slot-machine geometry
 const ITEM_H = 80;
-const VISIBLE = 3; // items showing through the slit (odd → clean center)
+const VISIBLE = 3;
 const VIEWPORT_H = ITEM_H * VISIBLE;
-const CENTER_OFFSET = Math.floor(VISIBLE / 2) * ITEM_H; // px from top to center slot
+const CENTER_OFFSET = Math.floor(VISIBLE / 2) * ITEM_H;
 
-// Animation targets (independent of candidate count)
-const FAST_SPEED = 30; // items / second during the fast phase
-const FAST_SECS = 2.5; // seconds of fast linear spinning
-const SLOW_SECS = 1.8; // seconds of ease-out deceleration
+const FAST_SPEED = 30;
+const FAST_SECS = 2.5;
+const SLOW_SECS = 1.8;
 
 type ReelSessionView = ReelSession;
 
@@ -43,12 +46,19 @@ export function ConductorWheelModal({
   candidates,
   winner,
   stats,
+  qualification,
   onClose,
+  onSpinAgain,
+  onOverride,
 }: Props) {
   const t = useTranslations("trains.wheel");
   const reelRef = useRef<HTMLDivElement>(null);
   const rafRef = useRef<number | null>(null);
   const [revealedKey, setRevealedKey] = useState<string | null>(null);
+  const [overrideReason, setOverrideReason] = useState("");
+
+  const disqualified =
+    qualification != null && qualification.qualified === false;
 
   const reelSession = useMemo((): ReelSessionView | null => {
     if (!open || !winner || candidates.length === 0) return null;
@@ -68,7 +78,15 @@ export function ConductorWheelModal({
       particleCount: 140,
       spread: 90,
       origin: { y: 0.5 },
-      colors: ["#ff0000", "#ffa500", "#ffff00", "#00ff00", "#0000ff", "#4b0082", "#ee82ee"],
+      colors: [
+        "#ff0000",
+        "#ffa500",
+        "#ffff00",
+        "#00ff00",
+        "#0000ff",
+        "#4b0082",
+        "#ee82ee",
+      ],
     });
   }, []);
 
@@ -84,6 +102,8 @@ export function ConductorWheelModal({
     if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
     reel.style.transform = "translateY(0px)";
     reel.style.filter = "";
+    setRevealedKey(null);
+    setOverrideReason("");
 
     let startTime: number | null = null;
     let cancelled = false;
@@ -99,14 +119,14 @@ export function ConductorWheelModal({
       let blurPx: number;
 
       if (progress < fastFraction) {
-        const t = progress / fastFraction;
-        translateY = t * fastEndY;
-        blurPx = 8 + Math.sin(t * Math.PI * 0.7) * 8;
+        const tFrac = progress / fastFraction;
+        translateY = tFrac * fastEndY;
+        blurPx = 8 + Math.sin(tFrac * Math.PI * 0.7) * 8;
       } else {
-        const t = (progress - fastFraction) / (1 - fastFraction);
-        const eased = 1 - Math.pow(1 - t, 4);
+        const tFrac = (progress - fastFraction) / (1 - fastFraction);
+        const eased = 1 - Math.pow(1 - tFrac, 4);
         translateY = fastEndY + eased * (targetY - fastEndY);
-        blurPx = (1 - t) * 8;
+        blurPx = (1 - tFrac) * 8;
       }
 
       reel.style.transform = `translateY(${-translateY.toFixed(2)}px)`;
@@ -118,7 +138,9 @@ export function ConductorWheelModal({
         reel.style.transform = `translateY(${-targetY}px)`;
         reel.style.filter = "";
         setRevealedKey(key);
-        fireConfetti();
+        if (!disqualified) {
+          fireConfetti();
+        }
       }
     };
 
@@ -127,11 +149,17 @@ export function ConductorWheelModal({
       cancelled = true;
       if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
     };
-  }, [reelSession, open, fireConfetti]);
+  }, [reelSession, open, fireConfetti, disqualified]);
 
   if (!open || !winner || !reelSession) return null;
 
   const { items: reelItems, winnerIdx } = reelSession;
+
+  const periodLabel =
+    qualification &&
+    (qualification.periodStart === qualification.periodEnd
+      ? qualification.periodStart
+      : `${qualification.periodStart} – ${qualification.periodEnd}`);
 
   return (
     <div
@@ -145,7 +173,7 @@ export function ConductorWheelModal({
           id="conductor-wheel-title"
           className="text-center text-sm uppercase tracking-wide text-[#8b949e]"
         >
-          {t("title")}
+          {disqualified && phase === "revealed" ? t("disqualifiedTitle") : t("title")}
         </h2>
 
         <div
@@ -155,6 +183,7 @@ export function ConductorWheelModal({
           <div ref={reelRef} style={{ willChange: "transform, filter" }}>
             {reelItems.map((name, i) => {
               const isCenter = phase === "revealed" && i === winnerIdx;
+              const centerDisqualified = isCenter && disqualified;
               return (
                 <div
                   key={i}
@@ -163,9 +192,11 @@ export function ConductorWheelModal({
                 >
                   <span
                     className={
-                      isCenter
-                        ? "text-4xl text-white"
-                        : "text-2xl opacity-75"
+                      centerDisqualified
+                        ? "text-4xl text-[#f85149] transition-colors duration-500"
+                        : isCenter
+                          ? "text-4xl text-white"
+                          : "text-2xl opacity-75"
                     }
                   >
                     {name}
@@ -176,7 +207,11 @@ export function ConductorWheelModal({
           </div>
 
           <div
-            className="pointer-events-none absolute inset-x-0 rounded-lg border border-[#388bfd]/60 bg-[#388bfd]/10 ring-1 ring-[#388bfd]/20"
+            className={`pointer-events-none absolute inset-x-0 rounded-lg border ring-1 ${
+              disqualified && phase === "revealed"
+                ? "border-[#f85149]/60 bg-[#f85149]/10 ring-[#f85149]/20"
+                : "border-[#388bfd]/60 bg-[#388bfd]/10 ring-[#388bfd]/20"
+            }`}
             style={{ top: CENTER_OFFSET, height: ITEM_H }}
           />
 
@@ -189,7 +224,34 @@ export function ConductorWheelModal({
           />
         </div>
 
-        {phase === "revealed" && stats ? (
+        {phase === "revealed" && disqualified && qualification ? (
+          <div className="mt-4 space-y-2 text-center text-sm text-[#e6edf3]">
+            <p className="text-[#f85149]">{t("disqualifiedBody")}</p>
+            <p className="text-xs text-[#8b949e]">
+              {t("evaluationPeriod", { period: periodLabel ?? "" })}
+            </p>
+            {qualification.vs.minimum > 0 ? (
+              <p className="text-xs">
+                {t("vsShortfall", {
+                  score: qualification.vs.score,
+                  required: qualification.vs.effectiveMinimum,
+                  shortfall: qualification.vs.shortfall,
+                })}
+              </p>
+            ) : null}
+            {qualification.donation.minimum > 0 ? (
+              <p className="text-xs">
+                {t("donationShortfall", {
+                  score: qualification.donation.score,
+                  required: qualification.donation.effectiveMinimum,
+                  shortfall: qualification.donation.shortfall,
+                })}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
+
+        {phase === "revealed" && !disqualified && stats ? (
           <div className="mt-6 flex flex-wrap justify-center gap-2">
             <span className="rounded-full bg-[#0d1117] px-3 py-1 text-xs text-[#8b949e] ring-1 ring-[#30363d]">
               {t("lastConducted", {
@@ -202,7 +264,38 @@ export function ConductorWheelModal({
           </div>
         ) : null}
 
-        {phase === "revealed" ? (
+        {phase === "revealed" && disqualified ? (
+          <div className="mt-6 space-y-3">
+            <label className="block text-xs text-[#8b949e]">
+              {t("overrideReasonLabel")}
+              <input
+                type="text"
+                value={overrideReason}
+                onChange={(e) => setOverrideReason(e.target.value)}
+                placeholder={t("overrideReasonPlaceholder")}
+                className="mt-1 w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 text-sm text-[#e6edf3]"
+              />
+            </label>
+            <div className="flex flex-wrap justify-center gap-2">
+              <button
+                type="button"
+                onClick={() => onSpinAgain?.()}
+                className="rounded-lg bg-[#21262d] px-4 py-2 text-sm font-medium text-[#e6edf3] ring-1 ring-[#30363d] hover:bg-[#30363d]"
+              >
+                {t("spinAgain")}
+              </button>
+              <button
+                type="button"
+                onClick={() => onOverride?.(overrideReason.trim())}
+                className="rounded-lg bg-[#238636] px-4 py-2 text-sm font-medium text-white hover:bg-[#2ea043]"
+              >
+                {t("override")}
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        {phase === "revealed" && !disqualified ? (
           <div className="mt-6 flex justify-center">
             <button
               type="button"

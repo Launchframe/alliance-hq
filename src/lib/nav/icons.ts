@@ -46,6 +46,7 @@ export const NAV_PAGE_ICONS: Record<string, LucideIcon> = {
   "alliance-settings": Settings,
   account: Settings,
   settings: Settings,
+  allianceSettings: Settings,
   team: UserCog,
   "admin-portal": Shield,
   "open-ashed": ExternalLink,

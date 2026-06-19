@@ -83,6 +83,7 @@
     "account": "Conta",
     "allianceSettings": "Configurações da aliança",
     "settings": "Configurações",
+    "allianceSettings": "Configurações da aliança",
     "team": "Acesso da equipe",
     "adminPortal": "Portal admin"
   },
@@ -725,6 +726,13 @@
       "source": "Origem"
     }
   },
+  "allianceSettings": {
+    "title": "Configurações da aliança",
+    "subtitle": "Configuração de {alliance}. Estes valores se aplicam apenas a esta aliança e diferem entre inquilinos.",
+    "backToAccountSettings": "Configurações da conta",
+    "unknownAlliance": "sua aliança",
+    "switchAlliance": "Suas alianças"
+  },
   "shell": {
     "brand": "Alliance HQ",
     "domain": "frontline.gay",
@@ -941,6 +949,8 @@
     "allianceSaved": "Vinculado a {tag} ({name}). Execute o OCR novamente em jobs abertos se os membros estiverem errados.",
     "allianceSavedGeneric": "Aliança salva.",
     "allianceSaveFailed": "Não foi possível salvar a aliança.",
+    "allianceSettingsLink": "{tag} — temporada, mínimos do trem",
+    "allianceSettingsHeading": "Configuração por aliança",
     "tokenSection": "Token do Ashed",
     "remindMe": "Lembre-me",
     "reminderOption": "{days, plural, one {# dia} other {# dias}} antes da expiração",
@@ -980,6 +990,25 @@
         "age-fallback": "Estimado pela idade do servidor",
         "default": "Padrão"
       }
+    },
+    "trainMinimums": {
+      "sectionTitle": "Mínimos do condutor do trem",
+      "sectionBody": "Membros precisam atingir metas de VS e doações para se qualificar como condutor. Desempenho abaixo do mínimo desqualifica no trem seguinte (ou no mesmo dia, na avaliação diária).",
+      "loading": "Carregando mínimos do trem…",
+      "loadFailed": "Não foi possível carregar os mínimos do condutor.",
+      "minVsLabel": "Mínimo de pontos VS",
+      "minDonationLabel": "Mínimo de pontos de doação",
+      "minimumPlaceholder": "Deixe em branco para desativar",
+      "leewayLabel": "Margem (%)",
+      "leewayHint": "Membros dentro desta porcentagem do mínimo ainda se qualificam.",
+      "windowLabel": "Avaliar mínimos",
+      "windowWeekly": "Semanal (seg–dom; afeta o trem da semana seguinte)",
+      "windowDaily": "Diário (dia anterior)",
+      "windowHint": "Na avaliação semanal, usa a semana civil anterior à semana do trem.",
+      "save": "Salvar mínimos",
+      "saving": "Salvando…",
+      "saveFailed": "Não foi possível salvar os mínimos do condutor.",
+      "officersOnly": "Somente oficiais do trem podem alterar estas configurações."
     }
   },
   "account": {
@@ -1358,6 +1387,7 @@
     },
     "loadFailed": "Não foi possível carregar o painel de trens.",
     "rollFailed": "Não foi possível sortear o Condutor.",
+    "overrideFailed": "Não foi possível anular a desqualificação.",
     "lockFailed": "Não foi possível confirmar o Condutor.",
     "scheduleFailed": "Não foi possível atualizar a agenda.",
     "poolFailed": "Não foi possível recriar o pool.",
@@ -1483,6 +1513,15 @@
     },
     "wheel": {
       "title": "Todos a bordo!",
+      "disqualifiedTitle": "Desqualificado",
+      "disqualifiedBody": "não atingiu os mínimos de VS ou doações para condutor do trem.",
+      "evaluationPeriod": "Avaliado em {period}",
+      "vsShortfall": "VS: {score} pts (precisa {required}; faltam {shortfall})",
+      "donationShortfall": "Doações: {score} pts (precisa {required}; faltam {shortfall})",
+      "spinAgain": "Girar novamente",
+      "override": "Anular desqualificação",
+      "overrideReasonLabel": "Motivo da anulação (opcional)",
+      "overrideReasonPlaceholder": "ex.: ausência justificada, semana de compensação",
       "close": "Continuar",
       "never": "nunca",
       "lastConducted": "Última: {date}",

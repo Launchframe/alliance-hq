@@ -55,6 +55,8 @@ export type DayConfigInput = {
   vipConfig?: EventTopXConfig | Record<string, unknown> | null;
 };
 
+import type { MemberQualificationPayload } from "@/lib/trains/train-conductor-minimums.shared";
+
 export type RollCandidate = {
   memberId: string;
   memberName: string;
@@ -71,6 +73,10 @@ export type RollResult = {
   wheelCandidates?: RollCandidate[];
   /** Set when the last pool pick exhausted the generation and a new one was seeded. */
   poolRefreshed?: PoolRefreshedInfo;
+  /** Conductor minimum VS/donation check for the evaluation window before train day. */
+  qualification?: MemberQualificationPayload;
+  /** False when the roll landed on a disqualified member and no draft was saved yet. */
+  draftPersisted?: boolean;
 };
 
 export type PoolRefreshedInfo = {

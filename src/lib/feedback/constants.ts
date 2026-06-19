@@ -134,6 +134,8 @@ function buildNavPathBugAreaEntries(): Array<[string, BugReportArea]> {
     }
   }
 
+  entries.push(["/settings/alliance", "settings"]);
+  entries.push(["/alliance/", "settings"]);
   entries.push(["/settings/team", "settings"]);
 
   return entries.sort((a, b) => b[0].length - a[0].length);

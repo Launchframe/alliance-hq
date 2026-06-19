@@ -83,6 +83,7 @@
     "account": "Account",
     "allianceSettings": "Alliance settings",
     "settings": "Settings",
+    "allianceSettings": "Alliance settings",
     "team": "Team access",
     "adminPortal": "Admin portal"
   },
@@ -725,6 +726,13 @@
       "source": "Source"
     }
   },
+  "allianceSettings": {
+    "title": "Alliance settings",
+    "subtitle": "Configuration for {alliance}. These values apply to this alliance only and differ across tenants.",
+    "backToAccountSettings": "Account settings",
+    "unknownAlliance": "your alliance",
+    "switchAlliance": "Your alliances"
+  },
   "shell": {
     "brand": "Alliance HQ",
     "domain": "frontline.gay",
@@ -941,6 +949,8 @@
     "allianceSaved": "Linked to {tag} ({name}). Re-run OCR on open video jobs if members were wrong.",
     "allianceSavedGeneric": "Alliance saved.",
     "allianceSaveFailed": "Could not save alliance.",
+    "allianceSettingsLink": "{tag} — season, train minimums",
+    "allianceSettingsHeading": "Per-alliance configuration",
     "tokenSection": "Ashed token",
     "remindMe": "Remind me",
     "reminderOption": "{days, plural, one {# day} other {# days}} before expiration",
@@ -980,6 +990,25 @@
         "age-fallback": "Estimated from server age",
         "default": "Default"
       }
+    },
+    "trainMinimums": {
+      "sectionTitle": "Train conductor minimums",
+      "sectionBody": "Members must meet weekly VS and donation targets to qualify as train conductor. Underperformance disqualifies them for the following train (or the same day when evaluating daily).",
+      "loading": "Loading train minimums…",
+      "loadFailed": "Could not load train conductor minimums.",
+      "minVsLabel": "Minimum VS points",
+      "minDonationLabel": "Minimum donation points",
+      "minimumPlaceholder": "Leave blank to disable",
+      "leewayLabel": "Leeway (%)",
+      "leewayHint": "Members within this percentage of a minimum still qualify.",
+      "windowLabel": "Evaluate minimums",
+      "windowWeekly": "Weekly (Mon–Sun; affects next week's train)",
+      "windowDaily": "Daily (prior day)",
+      "windowHint": "Weekly checks the previous calendar week before the train week.",
+      "save": "Save minimums",
+      "saving": "Saving…",
+      "saveFailed": "Could not save train conductor minimums.",
+      "officersOnly": "Only train officers can change these settings."
     }
   },
   "account": {
@@ -1358,6 +1387,7 @@
     },
     "loadFailed": "Could not load train dashboard.",
     "rollFailed": "Could not roll for Conductor.",
+    "overrideFailed": "Could not override disqualification.",
     "lockFailed": "Could not lock Conductor.",
     "scheduleFailed": "Could not update schedule.",
     "poolFailed": "Could not re-seed pool.",
@@ -1483,6 +1513,15 @@
     },
     "wheel": {
       "title": "All aboard!",
+      "disqualifiedTitle": "Disqualified",
+      "disqualifiedBody": "did not meet the minimum VS or donation requirements for train conductor.",
+      "evaluationPeriod": "Evaluated for {period}",
+      "vsShortfall": "VS: {score} pts (need {required}; short by {shortfall})",
+      "donationShortfall": "Donations: {score} pts (need {required}; short by {shortfall})",
+      "spinAgain": "Spin again",
+      "override": "Override disqualification",
+      "overrideReasonLabel": "Reason for override (optional)",
+      "overrideReasonPlaceholder": "e.g. excused absence, makeup week",
       "close": "Continue",
       "never": "never",
       "lastConducted": "Last: {date}",

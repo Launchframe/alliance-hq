@@ -180,6 +180,42 @@ export async function sessionHasPermission(
   return ctx.permissions.has(permission);
 }
 
+export async function sessionHasPermissionForAlliance(
+  sessionId: string,
+  allianceId: string,
+  permission: string | null,
+): Promise<boolean> {
+  if (!permission) {
+    return false;
+  }
+
+  const session = await loadSession(sessionId);
+  if (!session) {
+    return false;
+  }
+
+  if (!session.hqUserId) {
+    return true;
+  }
+
+  const db = getDb();
+  const [user] = await db
+    .select({ isPlatformMaintainer: schema.hqUsers.isPlatformMaintainer })
+    .from(schema.hqUsers)
+    .where(eq(schema.hqUsers.id, session.hqUserId))
+    .limit(1);
+
+  if (user?.isPlatformMaintainer === 1) {
+    return true;
+  }
+
+  const { permissions } = await loadUserPermissions(
+    session.hqUserId,
+    allianceId,
+  );
+  return permissions.has(permission);
+}
+
 export async function sessionIsAllianceAdmin(
   sessionId: string,
 ): Promise<boolean> {
