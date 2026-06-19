@@ -5,8 +5,15 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { ConductorPickModal } from "@/components/trains/ConductorPickModal";
+import { ConductorSwapDialog } from "@/components/trains/ConductorSwapDialog";
 import { ConductorHistoryTable } from "@/components/trains/ConductorHistoryTable";
 import { ConductorWheelModal } from "@/components/trains/ConductorWheelModal";
+import { SpinWeekConductorFlow } from "@/components/trains/SpinWeekConductorFlow";
+import { TrainPivotBanner } from "@/components/trains/TrainPivotBanner";
+import {
+  TrainsWalkthroughOverlay,
+  trainsWalkthroughSeen,
+} from "@/components/trains/TrainsWalkthroughOverlay";
 import { TodayConductorCard } from "@/components/trains/TodayConductorCard";
 import { WeekTemplateChangeDialog } from "@/components/trains/WeekTemplateChangeDialog";
 import { WheelBlockedDialog } from "@/components/trains/WheelBlockedDialog";
@@ -16,7 +23,7 @@ import {
 } from "@/components/trains/TrainPoolDetailsDialog";
 import { TrainSpinSourcePanel } from "@/components/trains/TrainSpinSourcePanel";
 import { TrainMonthCalendar } from "@/components/trains/TrainMonthCalendar";
-import { TemplatePaletteBadge, TemplatePaletteOptionLabel } from "@/components/trains/TemplatePaletteBadge";
+import { TemplatePaletteOptionLabel } from "@/components/trains/TemplatePaletteBadge";
 import {
   TrainScheduleViewToggle,
   type ScheduleView,
@@ -29,8 +36,7 @@ import {
 import { Dialog } from "@/components/ui/dialog";
 import { AppSelect } from "@/components/ui/AppSelect";
 import { Link } from "@/i18n/navigation";
-import { buildProvisionalWeekPage } from "@/lib/client/week-schedule-provisional";
-import { getMonthKey, getWeekStartMonday, addCalendarDays, monthEndFromKey, monthStartFromKey, isCalendarDateOnOrAfter } from "@/lib/trains/game-time";
+import { getMonthKey, monthEndFromKey, monthStartFromKey, addCalendarDays, getWeekStartMonday, isCalendarDateOnOrAfter, isWithinPivotWindow } from "@/lib/trains/game-time";
 import type {
   MonthSchedulePagePayload,
   TrainsDashboardPayload,
@@ -43,16 +49,17 @@ import {
   isPoolSpinSource,
   vipSpinSource,
 } from "@/lib/trains/spin-source.shared";
+import { canStartConductorSwap } from "@/lib/trains/conductor-swap.shared";
 import type { PoolRefreshedInfo, PoolType, RollResult, WeekTemplateType } from "@/lib/trains/types";
 import type { MemberQualificationPayload } from "@/lib/trains/train-conductor-minimums.shared";
 import { SELECTABLE_WEEK_TEMPLATES } from "@/lib/trains/week-template-registry.shared";
 import {
   applyOptimisticConductorPick,
   applyOptimisticConductorRoll,
+  applyOptimisticConductorSwap,
   applyOptimisticLock,
   applyOptimisticPaint,
   applyOptimisticUnlock,
-  applyOptimisticWeekTemplate,
   type TrainsDashboardSnapshot,
 } from "@/lib/trains/optimistic-dashboard.shared";
 import {
@@ -61,10 +68,8 @@ import {
   type TrainRollErrorDetails,
   type TrainRollErrorResponse,
 } from "@/lib/trains/roll-errors.shared";
-import {
-  latestLockedDateInWeek,
-  weekHasPersistedSchedule,
-} from "@/lib/trains/week-template-change.shared";
+import { latestLockedDateInWeek, pivotEconomyTargetDates } from "@/lib/trains/week-template-change.shared";
+import { spinWeekDayLabel } from "@/lib/trains/spin-week.shared";
 import { supportsManualConductorPick, supportsManualVipPick } from "@/lib/trains/templates";
 
 type Props = {
@@ -126,6 +131,7 @@ export function TrainsDashboard({ initial }: Props) {
   >([]);
   const [wheelQualification, setWheelQualification] =
     useState<MemberQualificationPayload | null>(null);
+  const [wheelDayLabel, setWheelDayLabel] = useState<string | null>(null);
   const [conductorDisqualified, setConductorDisqualified] =
     useState<RollResult | null>(null);
   const [selectedDate, setSelectedDate] = useState(initial.today);
@@ -147,10 +153,6 @@ export function TrainsDashboard({ initial }: Props) {
   });
   const viewedWeekStartRef = useRef(initial.weekStart);
   const viewedMonthKeyRef = useRef(initialMonthKey);
-  const selectedDateRef = useRef(selectedDate);
-  useEffect(() => {
-    selectedDateRef.current = selectedDate;
-  }, [selectedDate]);
   const [pickOpen, setPickOpen] = useState(false);
   const [pickRole, setPickRole] = useState<"conductor" | "vip">("conductor");
   const [reseedHintOpen, setReseedHintOpen] = useState(false);
@@ -163,11 +165,22 @@ export function TrainsDashboard({ initial }: Props) {
   const [pendingTemplateChange, setPendingTemplateChange] = useState<{
     templateType: WeekTemplateType;
     weekStart: string;
-    cutoffDate: string;
+    weekEnd: string;
+    lockedThroughDate: string | null;
   } | null>(null);
+  const [pivotBusy, setPivotBusy] = useState(false);
   const [poolDetailsOpen, setPoolDetailsOpen] = useState(false);
   const [poolDetailsInitialType, setPoolDetailsInitialType] =
     useState<PoolType | null>(null);
+  const [walkthroughOpen, setWalkthroughOpen] = useState(() => {
+    if (typeof window === "undefined") return false;
+    if (!initial.canManageTrains || initial.activeMemberCount === 0) return false;
+    return !trainsWalkthroughSeen();
+  });
+  const [walkthroughKey, setWalkthroughKey] = useState(0);
+  const [swapOpen, setSwapOpen] = useState(false);
+  const [swapBusy, setSwapBusy] = useState(false);
+  const [scheduleBusy, setScheduleBusy] = useState(false);
 
   const applySnapshot = useCallback((next: TrainsDashboardSnapshot) => {
     setData(next.data);
@@ -239,6 +252,7 @@ export function TrainsDashboard({ initial }: Props) {
   const handleWheelClose = useCallback(() => {
     setWheelOpen(false);
     setWheelQualification(null);
+    setWheelDayLabel(null);
     const pending = pendingWheelRollRef.current;
     pendingWheelRollRef.current = null;
     if (!pending) return;
@@ -280,81 +294,15 @@ export function TrainsDashboard({ initial }: Props) {
     handleMonthChange(body);
   }, [handleMonthChange, t]);
 
-  const fetchWeek = useCallback(
-    async (weekStart: string) => {
-      const res = await fetch(
-        `/api/trains/schedule/week?weekStart=${encodeURIComponent(weekStart)}`,
-      );
-      if (!res.ok) {
-        setError(t("weekLoadFailed"));
-        return;
-      }
-      const body = (await res.json()) as WeekSchedulePagePayload;
-      handleWeekChange(body);
-    },
-    [handleWeekChange, t],
-  );
-
-  const goToToday = useCallback(() => {
-    const today = data.today;
-    setSelectedDate(today);
-    if (scheduleView === "month") {
-      void fetchMonth(getMonthKey(today));
-      return;
-    }
-    void fetchWeek(getWeekStartMonday(today));
-  }, [data.today, fetchMonth, fetchWeek, scheduleView]);
-
-  const isOnTodayView = useMemo(() => {
-    if (selectedDate !== data.today) return false;
-    if (scheduleView === "month") {
-      return viewedMonth.monthKey === getMonthKey(data.today);
-    }
-    return viewedWeek.weekStart === getWeekStartMonday(data.today);
-  }, [
-    data.today,
-    scheduleView,
-    selectedDate,
-    viewedMonth.monthKey,
-    viewedWeek.weekStart,
-  ]);
-
   const handleScheduleViewChange = useCallback(
     (view: ScheduleView) => {
       setScheduleView(view);
       if (view === "month") {
-        void fetchMonth(getMonthKey(selectedDateRef.current));
-        return;
+        void fetchMonth(viewedMonthKeyRef.current);
       }
-      void fetchWeek(getWeekStartMonday(selectedDateRef.current));
     },
-    [fetchMonth, fetchWeek],
+    [fetchMonth],
   );
-
-  const selectedWeekStart = getWeekStartMonday(selectedDate);
-  const selectedWeekEnd = addCalendarDays(selectedWeekStart, 6);
-  const weekViewSeed = useMemo((): WeekSchedulePagePayload => {
-    if (viewedWeek.weekStart === selectedWeekStart) {
-      return viewedWeek;
-    }
-    const dayConfigs = viewedMonth.dayConfigs.filter(
-      (day) => day.date >= selectedWeekStart && day.date <= selectedWeekEnd,
-    );
-    const weekRecords = viewedMonth.monthRecords.filter(
-      (record) => record.date >= selectedWeekStart && record.date <= selectedWeekEnd,
-    );
-    if (dayConfigs.length === 0) {
-      return buildProvisionalWeekPage(selectedWeekStart, viewedWeek.templateType);
-    }
-    const seed = {
-      weekStart: selectedWeekStart,
-      weekEnd: selectedWeekEnd,
-      templateType: viewedWeek.templateType,
-      dayConfigs,
-      weekRecords,
-    };
-    return seed;
-  }, [selectedWeekStart, selectedWeekEnd, viewedWeek, viewedMonth]);
 
   const activeDayConfigs =
     scheduleView === "month" ? viewedMonth.dayConfigs : viewedWeek.dayConfigs;
@@ -589,6 +537,7 @@ export function TrainsDashboard({ initial }: Props) {
       setWheelWinner(body.result);
       setWheelStats(body.stats ?? null);
       setWheelQualification(body.result.qualification ?? null);
+      setWheelDayLabel(spinWeekDayLabel(selectedDate));
       setWheelOpen(true);
     } catch (e) {
       setError(e instanceof Error ? e.message : t("rollFailed"));
@@ -674,6 +623,38 @@ export function TrainsDashboard({ initial }: Props) {
     );
   };
 
+  const confirmConductorSwap = async (targetDate: string) => {
+    if (!selectedRecord?.conductorMemberId) return;
+    setSwapBusy(true);
+    const lockedAt = new Date().toISOString();
+    const ok = await withOptimisticMutation(
+      (snap) =>
+        applyOptimisticConductorSwap(
+          snap,
+          selectedDate,
+          targetDate,
+          lockedAt,
+        ),
+      async () => {
+        const res = await fetch("/api/trains/conductor/swap", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ dateA: selectedDate, dateB: targetDate }),
+        });
+        const body = (await res.json()) as { error?: string };
+        return {
+          ok: res.ok,
+          error: res.ok ? undefined : (body.error ?? t("swapFailed")),
+        };
+      },
+    );
+    setSwapBusy(false);
+    if (ok) {
+      setSwapOpen(false);
+      void refreshRef.current();
+    }
+  };
+
   const unlockConductor = async () => {
     setUnlockConfirm(false);
     await withOptimisticMutation(
@@ -754,7 +735,7 @@ export function TrainsDashboard({ initial }: Props) {
 
   const paintDates = useCallback(
     (dates: string[], templateType: WeekTemplateType) => {
-      void withOptimisticMutation(
+      return withOptimisticMutation(
         (snap) => applyOptimisticPaint(snap, dates, templateType),
         async () => {
           const res = await fetch("/api/trains/schedule/days", {
@@ -773,80 +754,95 @@ export function TrainsDashboard({ initial }: Props) {
     [t, withOptimisticMutation],
   );
 
-  const applyWeekTemplate = useCallback(
-    async (
-      templateType: WeekTemplateType,
-      weekStart: string,
-      preserveThroughDate: string | null,
-    ) => {
-      await withOptimisticMutation(
-        (snap) =>
-          applyOptimisticWeekTemplate(
-            snap,
-            weekStart,
-            templateType,
-            preserveThroughDate,
-          ),
-        async () => {
-          const res = await fetch("/api/trains/schedule", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ templateType, weekStart }),
-          });
-          const body = (await res.json()) as { error?: string };
-          return {
-            ok: res.ok,
-            error: res.ok ? undefined : (body.error ?? t("scheduleFailed")),
-          };
-        },
-      );
-    },
-    [t, withOptimisticMutation],
-  );
-
   const handleTemplateClick = useCallback(
     (templateType: WeekTemplateType) => {
       const { weekStart, weekEnd, weekRecords } = viewedWeek;
-      const hasPersistedSchedule = weekHasPersistedSchedule(
-        data.schedule,
-        weekStart,
-        viewedWeek.dayConfigs,
-      );
-      const currentTemplate = hasPersistedSchedule
-        ? viewedWeek.templateType ??
-          (weekStart === data.weekStart && data.schedule
-            ? (data.schedule.templateType as WeekTemplateType)
-            : inferWeekTemplateFromDayConfigs(viewedWeek.dayConfigs))
-        : null;
+      const currentTemplate =
+        viewedWeek.templateType ??
+        (weekStart === data.weekStart && data.schedule
+          ? (data.schedule.templateType as WeekTemplateType)
+          : inferWeekTemplateFromDayConfigs(viewedWeek.dayConfigs));
 
       if (currentTemplate === templateType) return;
 
-      const cutoffDate = latestLockedDateInWeek(
+      const lockedThroughDate = latestLockedDateInWeek(
         weekRecords,
         weekStart,
         weekEnd,
       );
 
-      if (!cutoffDate) {
-        void applyWeekTemplate(templateType, weekStart, null);
-        return;
-      }
-
       setPendingTemplateChange({
         templateType,
         weekStart,
-        cutoffDate,
+        weekEnd,
+        lockedThroughDate,
       });
     },
-    [applyWeekTemplate, data.schedule, data.weekStart, viewedWeek, setPendingTemplateChange],
+    [data.schedule?.templateType, data.weekStart, viewedWeek],
   );
 
-  const confirmPendingTemplateChange = useCallback(() => {
-    if (!pendingTemplateChange) return;
-    const { templateType, weekStart, cutoffDate } = pendingTemplateChange;
-    setPendingTemplateChange(null);
-    void applyWeekTemplate(templateType, weekStart, cutoffDate);
-  }, [applyWeekTemplate, pendingTemplateChange, setPendingTemplateChange]);
+  const confirmPendingTemplateChange = useCallback(
+    (options: { dates: string[] }) => {
+      if (!pendingTemplateChange) return;
+      const { templateType } = pendingTemplateChange;
+      setPendingTemplateChange(null);
+      if (options.dates.length === 0) {
+        setError(t("templateChangeConfirm.noDatesBody"));
+        return;
+      }
+      paintDates(options.dates, templateType);
+    },
+    [paintDates, pendingTemplateChange, setError, setPendingTemplateChange, t],
+  );
+
+  const handlePivotToEconomy = useCallback(() => {
+    const weekStart = data.weekStart;
+    const weekEnd = data.weekEnd;
+    const dates = pivotEconomyTargetDates(weekStart, weekEnd).filter(
+      (date) => date >= data.today,
+    );
+    if (dates.length === 0) return;
+
+    setPivotBusy(true);
+    void paintDates(dates, "economy_week").finally(() => setPivotBusy(false));
+  }, [data.today, data.weekEnd, data.weekStart, paintDates, setPivotBusy]);
+
+  const createCurrentWeekSchedule = useCallback(async () => {
+    setScheduleBusy(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/trains/schedule", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          weekStart: data.weekStart,
+          templateType: activeWeekTemplate,
+        }),
+      });
+      const body = (await res.json()) as { error?: string };
+      if (!res.ok) {
+        setError(body.error ?? t("scheduleFailed"));
+        return;
+      }
+      await refreshRef.current();
+      if (!trainsWalkthroughSeen()) {
+        setWalkthroughKey((key) => key + 1);
+        setWalkthroughOpen(true);
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t("scheduleFailed"));
+    } finally {
+      setScheduleBusy(false);
+    }
+  }, [
+    activeWeekTemplate,
+    data.weekStart,
+    setError,
+    setScheduleBusy,
+    setWalkthroughKey,
+    setWalkthroughOpen,
+    t,
+  ]);
 
   const openPoolDetails = useCallback((poolType: PoolType) => {
     setPoolDetailsInitialType(poolType);
@@ -898,28 +894,29 @@ export function TrainsDashboard({ initial }: Props) {
     conductorPaint,
   );
   const selectedVipSpinSource = vipSpinSource(vipMech);
-  const showConductorSpinButton = canSpinConductor(
-    selectedDayConfig?.conductorMechanism,
-    locked,
-    conductorPaint,
-  );
-  const showConductorTopScorer =
-    conductorMech === "vs_high_score" || conductorMech === "donations_top";
-  const showConductorReseed =
-    conductorMech === "r3_lottery" || conductorMech === "r4_sequence";
-  const showConductorLock = !locked && Boolean(selectedRecord?.conductorMemberId);
-  const showConductorUnlock = locked && data.canUnlockConductor;
-  const showConductorQuickSection =
-    selectedConductorSpinSource != null ||
-    showConductorSpinButton ||
-    showConductorTopScorer ||
-    canManualPick ||
-    showConductorLock ||
-    showConductorUnlock ||
-    showConductorReseed;
-  const showVipSpinButton = canSpinVip(vipMech, locked);
-  const showVipQuickSection =
-    selectedVipSpinSource != null || showVipSpinButton || canManualPickVip;
+  const spinWeekContext = useMemo(() => {
+    if (scheduleView === "week") {
+      return {
+        weekStart: viewedWeek.weekStart,
+        weekEnd: viewedWeek.weekEnd,
+        dayConfigs: viewedWeek.dayConfigs,
+        weekRecords: viewedWeek.weekRecords,
+      };
+    }
+
+    const weekStart = getWeekStartMonday(selectedDate);
+    const weekEnd = addCalendarDays(weekStart, 6);
+    return {
+      weekStart,
+      weekEnd,
+      dayConfigs: viewedMonth.dayConfigs.filter(
+        (day) => day.date >= weekStart && day.date <= weekEnd,
+      ),
+      weekRecords: viewedMonth.monthRecords.filter(
+        (record) => record.date >= weekStart && record.date <= weekEnd,
+      ),
+    };
+  }, [scheduleView, selectedDate, viewedMonth, viewedWeek]);
   const selectedPoolDetailOptions = useMemo((): PoolDetailsOption[] => {
     const options: PoolDetailsOption[] = [];
     if (isPoolSpinSource(selectedConductorSpinSource)) {
@@ -945,6 +942,14 @@ export function TrainsDashboard({ initial }: Props) {
   const showNativeAshedBanner =
     data.operatingMode === "native" &&
     dayNeedsAshedConnection(conductorMech, vipMech, conductorPaint);
+  const showNativeModeBanner =
+    data.operatingMode === "native" && data.canManageTrains;
+  const showPivotBanner =
+    data.canManageTrains &&
+    data.weekStart === viewedWeek.weekStart &&
+    activeWeekTemplate === "vs_push_week" &&
+    !data.schedule?.isPivot &&
+    isWithinPivotWindow();
   const historyMechanismLabels = useMemo(
     () => ({ ...conductorShortLabels, ...vipShortLabels }),
     [conductorShortLabels, vipShortLabels],
@@ -976,11 +981,24 @@ export function TrainsDashboard({ initial }: Props) {
         <div>
           <h1 className="text-2xl font-semibold text-[#e6edf3]">{t("title")}</h1>
           <p className="mt-1 text-sm text-[#8b949e]">{t("subtitle")}</p>
+          {data.canManageTrains && data.dayConfigs.length > 0 ? (
+            <button
+              type="button"
+              onClick={() => {
+                setWalkthroughKey((key) => key + 1);
+                setWalkthroughOpen(true);
+              }}
+              className="mt-2 text-xs font-medium text-[#58a6ff] hover:underline"
+            >
+              {t("walkthrough.takeTour")}
+            </button>
+          ) : null}
         </div>
-        {data.canManageTrains ||
-        data.schedule ||
-        viewedWeek.dayConfigs.length > 0 ? (
-          <div className="flex w-full min-w-0 flex-col gap-1 sm:w-auto sm:min-w-[15rem]">
+        {data.schedule || viewedWeek.dayConfigs.length > 0 ? (
+          <div
+            className="flex w-full min-w-0 flex-col gap-1 sm:w-auto sm:min-w-[15rem]"
+            data-testid="trains-template-selector"
+          >
             <span
               id="trains-week-template-label"
               className="text-[10px] font-medium uppercase tracking-wide text-[#8b949e]"
@@ -1008,38 +1026,40 @@ export function TrainsDashboard({ initial }: Props) {
         </p>
       ) : null}
 
+      {showNativeModeBanner ? (
+        <p className="rounded-xl border border-sky-500/30 bg-sky-500/10 px-4 py-3 text-sm text-sky-100">
+          {t("nativeModeBanner")}
+        </p>
+      ) : null}
+
+      {showPivotBanner ? (
+        <TrainPivotBanner onPivot={handlePivotToEconomy} busy={pivotBusy} />
+      ) : null}
+
       {data.dayConfigs.length > 0 ? (
-        <section className="flex flex-col gap-4 rounded-2xl border border-[#30363d] bg-[#161b22]/40 p-4">
+        <section
+          className="flex flex-col gap-4 rounded-2xl border border-[#30363d] bg-[#161b22]/40 p-4"
+          data-testid="trains-schedule-section"
+        >
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <h2 className="text-sm font-medium text-[#8b949e]">
               {t("scheduleSection")}
             </h2>
-            <div className="flex flex-wrap items-center justify-end gap-2">
-              <TrainScheduleViewToggle
-                view={scheduleView}
-                weekLabel={t("viewWeek")}
-                monthLabel={t("viewMonth")}
-                onChange={handleScheduleViewChange}
-              />
-              <button
-                type="button"
-                onClick={() => goToToday()}
-                disabled={isOnTodayView}
-                aria-label={t("goToTodayAria")}
-                className="rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-1.5 text-xs font-medium text-[#e6edf3] hover:bg-[#161b22] disabled:cursor-default disabled:opacity-50"
-              >
-                {t("goToToday")}
-              </button>
-            </div>
+            <TrainScheduleViewToggle
+              view={scheduleView}
+              weekLabel={t("viewWeek")}
+              monthLabel={t("viewMonth")}
+              onChange={handleScheduleViewChange}
+            />
           </div>
 
           {scheduleView === "week" ? (
             <WeekScheduleStrip
               today={data.today}
-              initialWeekStart={weekViewSeed.weekStart}
-              initialWeekEnd={weekViewSeed.weekEnd}
-              initialDayConfigs={weekViewSeed.dayConfigs}
-              initialWeekRecords={weekViewSeed.weekRecords}
+              initialWeekStart={data.weekStart}
+              initialWeekEnd={data.weekEnd}
+              initialDayConfigs={data.dayConfigs}
+              initialWeekRecords={data.weekRecords}
               selectedDate={selectedDate}
               conductorLabels={conductorShortLabels}
               vipLabels={vipShortLabels}
@@ -1050,11 +1070,7 @@ export function TrainsDashboard({ initial }: Props) {
                 previousDay: t("dayNavPrevious"),
                 nextDay: t("dayNavNext"),
               }}
-              externalWeek={
-                viewedWeek.weekStart === selectedWeekStart
-                  ? viewedWeek
-                  : weekViewSeed
-              }
+              externalWeek={viewedWeek}
               onSelectDate={setSelectedDate}
               onWeekChange={handleWeekChange}
               onWeekLoadError={() => setError(t("weekLoadFailed"))}
@@ -1062,7 +1078,7 @@ export function TrainsDashboard({ initial }: Props) {
           ) : (
             <TrainMonthCalendar
               today={data.today}
-              initialMonthKey={getMonthKey(selectedDate)}
+              initialMonthKey={getMonthKey(data.today)}
               initialDayConfigs={data.dayConfigs}
               initialMonthRecords={data.weekRecords}
               selectedDate={selectedDate}
@@ -1113,6 +1129,14 @@ export function TrainsDashboard({ initial }: Props) {
               conductsThisYear: t("conductsThisYear"),
               noneYet: t("noneYet"),
             }}
+            substituteBadge={
+              selectedRecord?.substituteForMemberName
+                ? t("swap.substitutingFor", {
+                    name: selectedRecord.substituteForMemberName,
+                  })
+                : null
+            }
+            data-testid="trains-conductor-card"
           />
 
           {showNativeAshedBanner ? (
@@ -1122,233 +1146,200 @@ export function TrainsDashboard({ initial }: Props) {
           ) : null}
 
           {/* Quick actions */}
-          {data.canManageTrains &&
-          dayIsActionable &&
-          (showConductorQuickSection || showVipQuickSection) ? (
-            <div className="flex flex-col gap-4 border-t border-[#30363d] pt-4">
-              {showConductorQuickSection ? (
-                <section
-                  className="flex flex-col gap-2"
-                  aria-labelledby="trains-quick-actions-conductor"
-                >
-                  <h3
-                    id="trains-quick-actions-conductor"
-                    className="text-sm font-medium text-[#c9d1d9]"
+          {data.canManageTrains && dayIsActionable ? (
+            <div
+              className="flex flex-col gap-3 border-t border-[#30363d] pt-4"
+              data-testid="trains-quick-actions"
+            >
+              <h3 className="text-sm font-medium text-[#8b949e]">
+                {t("quickActions")}
+              </h3>
+              <TrainSpinSourcePanel
+                conductorSource={selectedConductorSpinSource}
+                vipSource={selectedVipSpinSource}
+                pools={data.pools}
+                showConductorSpin={selectedConductorSpinSource != null}
+                showVipSpin={selectedVipSpinSource != null}
+                onViewPool={openPoolDetails}
+              />
+              <div className="flex flex-wrap gap-2">
+                <SpinWeekConductorFlow
+                  weekStart={spinWeekContext.weekStart}
+                  weekEnd={spinWeekContext.weekEnd}
+                  today={data.today}
+                  dayConfigs={spinWeekContext.dayConfigs}
+                  weekRecords={spinWeekContext.weekRecords}
+                  canManageTrains={data.canManageTrains}
+                  canSpinViewedWeek={spinWeekContext.weekEnd >= data.today}
+                  snapshotRef={snapshotRef}
+                  applySnapshot={applySnapshot}
+                  withOptimisticMutation={withOptimisticMutation}
+                  presentPoolRefreshedHints={presentPoolRefreshedHints}
+                  onError={setError}
+                  onRefresh={refresh}
+                />
+                {canSpinConductor(
+                  selectedDayConfig?.conductorMechanism,
+                  locked,
+                  conductorPaint,
+                ) ? (
+                  <button
+                    type="button"
+                    onClick={() => void runRoll("conductor")}
+                    className="rounded-lg bg-[#8957e5] px-4 py-2 text-sm font-medium text-white hover:bg-[#9d6ff0] w-full sm:w-auto"
                   >
-                    {t("quickActionsConductor")}
-                  </h3>
-                  <TrainSpinSourcePanel
-                    role="conductor"
-                    conductorSource={selectedConductorSpinSource}
-                    vipSource={selectedVipSpinSource}
-                    pools={data.pools}
-                    showConductorSpin={selectedConductorSpinSource != null}
-                    showVipSpin={false}
-                    onViewPool={openPoolDetails}
-                  />
-                  <div className="flex flex-wrap gap-2">
-                    {showConductorSpinButton ? (
+                    {conductorMech === "r4_sequence" && nextInSequence
+                      ? t("assignNextInSequence", {
+                          name: nextInSequence.memberName,
+                        })
+                      : t("spinWheel")}
+                  </button>
+                ) : null}
+                {conductorMech === "vs_high_score" ||
+                conductorMech === "donations_top" ? (
+                  <button
+                    type="button"
+                    disabled={locked}
+                    onClick={() => void runRoll("conductor")}
+                    className="rounded-lg bg-[#238636] px-4 py-2 text-sm font-medium text-white hover:bg-[#2ea043] disabled:opacity-50 w-full sm:w-auto"
+                  >
+                    {t("pickTopScorer")}
+                  </button>
+                ) : null}
+                {canManualPick ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPickRole("conductor");
+                      setPickOpen(true);
+                    }}
+                    className="rounded-lg border border-[#30363d] bg-[#0d1117] px-4 py-2 text-sm font-medium text-[#e6edf3] hover:bg-[#161b22] w-full sm:w-auto"
+                  >
+                    {t("pickConductorManually")}
+                  </button>
+                ) : null}
+                {canStartConductorSwap(selectedRecord) &&
+                spinWeekContext.dayConfigs.some((day) => day.date !== selectedDate) ? (
+                  <button
+                    type="button"
+                    onClick={() => setSwapOpen(true)}
+                    className="rounded-lg border border-[#8957e5]/50 bg-[#8957e5]/10 px-4 py-2 text-sm font-medium text-[#d2a8ff] hover:bg-[#8957e5]/20 w-full sm:w-auto"
+                  >
+                    {t("swap.action")}
+                  </button>
+                ) : null}
+                {canSpinVip(vipMech, locked) ? (
+                  <button
+                    type="button"
+                    onClick={() => void runRoll("vip")}
+                    className="rounded-lg bg-[#bf8700] px-4 py-2 text-sm font-medium text-white hover:bg-[#d29922] w-full sm:w-auto"
+                  >
+                    {t("spinVipWheel")}
+                  </button>
+                ) : null}
+                {canManualPickVip ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPickRole("vip");
+                      setPickOpen(true);
+                    }}
+                    className="rounded-lg border border-[#30363d] bg-[#0d1117] px-4 py-2 text-sm font-medium text-[#e6edf3] hover:bg-[#161b22] w-full sm:w-auto"
+                  >
+                    {t("pickVipManually")}
+                  </button>
+                ) : null}
+                {!locked && selectedRecord?.conductorMemberId ? (
+                  <button
+                    type="button"
+                    onClick={() => void lockConductor()}
+                    className="rounded-lg bg-[#238636] px-4 py-2 text-sm font-medium text-white hover:bg-[#2ea043] w-full sm:w-auto"
+                  >
+                    {t("lockConductor")}
+                  </button>
+                ) : null}
+                {locked && data.canUnlockConductor ? (
+                  unlockConfirm ? (
+                    <div className="flex w-full flex-wrap items-center gap-2 rounded-lg border border-[#da3633]/40 bg-[#da3633]/10 px-3 py-2">
+                      <span className="text-sm text-[#f85149]">
+                        {t("unlockConfirm")}
+                      </span>
                       <button
                         type="button"
-                        onClick={() => void runRoll("conductor")}
-                        className="w-full rounded-lg bg-[#8957e5] px-4 py-2 text-sm font-medium text-white hover:bg-[#9d6ff0] sm:w-auto"
+                        onClick={() => setUnlockConfirm(false)}
+                        className="rounded-md border border-[#30363d] px-3 py-1.5 text-xs text-[#e6edf3] hover:bg-[#0d1117]"
                       >
-                        {conductorMech === "r4_sequence" && nextInSequence
-                          ? t("assignNextInSequence", {
-                              name: nextInSequence.memberName,
-                            })
-                          : t("spinWheel")}
-                      </button>
-                    ) : null}
-                    {showConductorTopScorer ? (
-                      <button
-                        type="button"
-                        disabled={locked}
-                        onClick={() => void runRoll("conductor")}
-                        className="w-full rounded-lg bg-[#238636] px-4 py-2 text-sm font-medium text-white hover:bg-[#2ea043] disabled:opacity-50 sm:w-auto"
-                      >
-                        {t("pickTopScorer")}
-                      </button>
-                    ) : null}
-                    {canManualPick ? (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setPickRole("conductor");
-                          setPickOpen(true);
-                        }}
-                        className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-4 py-2 text-sm font-medium text-[#e6edf3] hover:bg-[#161b22] sm:w-auto"
-                      >
-                        {t("pickConductorManually")}
-                      </button>
-                    ) : null}
-                    {showConductorLock ? (
-                      <button
-                        type="button"
-                        onClick={() => void lockConductor()}
-                        className="w-full rounded-lg bg-[#238636] px-4 py-2 text-sm font-medium text-white hover:bg-[#2ea043] sm:w-auto"
-                      >
-                        {t("lockConductor")}
-                      </button>
-                    ) : null}
-                    {showConductorUnlock ? (
-                      unlockConfirm ? (
-                        <div className="flex w-full flex-wrap items-center gap-2 rounded-lg border border-[#da3633]/40 bg-[#da3633]/10 px-3 py-2">
-                          <span className="text-sm text-[#f85149]">
-                            {t("unlockConfirm")}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => setUnlockConfirm(false)}
-                            className="rounded-md border border-[#30363d] px-3 py-1.5 text-xs text-[#e6edf3] hover:bg-[#0d1117]"
-                          >
-                            {t("unlockCancel")}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => void unlockConductor()}
-                            className="rounded-md bg-[#da3633] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#f85149]"
-                          >
-                            {t("unlockConfirmAction")}
-                          </button>
-                        </div>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => setUnlockConfirm(true)}
-                          className="w-full rounded-lg border border-[#da3633]/60 bg-[#da3633]/10 px-4 py-2 text-sm font-medium text-[#f85149] hover:bg-[#da3633]/20 sm:w-auto"
-                        >
-                          {t("unlockConductor")}
-                        </button>
-                      )
-                    ) : null}
-                  </div>
-                  {showConductorReseed ? (
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          void reseedPool(
-                            conductorMech === "r3_lottery" ? "r3" : "r4_plus",
-                          )
-                        }
-                        className="rounded-md border border-[#30363d] px-3 py-1.5 text-xs text-[#8b949e] hover:text-[#e6edf3]"
-                      >
-                        {t("reseedPool")}
+                        {t("unlockCancel")}
                       </button>
                       <button
                         type="button"
-                        onClick={() => setReseedHintOpen(true)}
-                        aria-label={t("reseedPoolHint.infoLabel")}
-                        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[#8b949e] hover:bg-[#0d1117] hover:text-[#e6edf3]"
+                        onClick={() => void unlockConductor()}
+                        className="rounded-md bg-[#da3633] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#f85149]"
                       >
-                        <Info className="h-4 w-4" aria-hidden />
+                        {t("unlockConfirmAction")}
                       </button>
                     </div>
-                  ) : null}
-                </section>
-              ) : null}
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setUnlockConfirm(true)}
+                      className="rounded-lg border border-[#da3633]/60 bg-[#da3633]/10 px-4 py-2 text-sm font-medium text-[#f85149] hover:bg-[#da3633]/20"
+                    >
+                      {t("unlockConductor")}
+                    </button>
+                  )
+                ) : null}
+              </div>
 
-              {showVipQuickSection ? (
-                <section
-                  className="flex flex-col gap-2"
-                  aria-labelledby="trains-quick-actions-vip"
-                >
-                  <h3
-                    id="trains-quick-actions-vip"
-                    className="text-sm font-medium text-[#c9d1d9]"
+              {conductorMech === "r3_lottery" || conductorMech === "r4_sequence" ? (
+                <div className="flex items-center gap-1.5 self-start">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      void reseedPool(
+                        conductorMech === "r3_lottery" ? "r3" : "r4_plus",
+                      )
+                    }
+                    className="rounded-md border border-[#30363d] px-3 py-1.5 text-xs text-[#8b949e] hover:text-[#e6edf3]"
                   >
-                    {t("quickActionsVip")}
-                  </h3>
-                  <TrainSpinSourcePanel
-                    role="vip"
-                    conductorSource={selectedConductorSpinSource}
-                    vipSource={selectedVipSpinSource}
-                    pools={data.pools}
-                    showConductorSpin={false}
-                    showVipSpin={selectedVipSpinSource != null}
-                    onViewPool={openPoolDetails}
-                  />
-                  <div className="flex flex-wrap gap-2">
-                    {showVipSpinButton ? (
-                      <button
-                        type="button"
-                        onClick={() => void runRoll("vip")}
-                        className="w-full rounded-lg bg-[#bf8700] px-4 py-2 text-sm font-medium text-white hover:bg-[#d29922] sm:w-auto"
-                      >
-                        {t("spinVipWheel")}
-                      </button>
-                    ) : null}
-                    {canManualPickVip ? (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setPickRole("vip");
-                          setPickOpen(true);
-                        }}
-                        className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-4 py-2 text-sm font-medium text-[#e6edf3] hover:bg-[#161b22] sm:w-auto"
-                      >
-                        {t("pickVipManually")}
-                      </button>
-                    ) : null}
-                  </div>
-                </section>
+                    {t("reseedPool")}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setReseedHintOpen(true)}
+                    aria-label={t("reseedPoolHint.infoLabel")}
+                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[#8b949e] hover:bg-[#0d1117] hover:text-[#e6edf3]"
+                  >
+                    <Info className="h-4 w-4" aria-hidden />
+                  </button>
+                </div>
               ) : null}
             </div>
           ) : null}
         </section>
       ) : data.canManageTrains ? (
         <section
-          className="flex flex-col gap-3 rounded-xl border border-dashed border-[#30363d] bg-[#161b22]/50 px-4 py-4"
-          aria-labelledby="trains-choose-template-heading"
+          className="flex flex-col gap-3 rounded-xl border border-dashed border-[#30363d] bg-[#161b22]/50 px-4 py-3 text-sm text-[#8b949e] sm:flex-row sm:items-center sm:justify-between"
+          data-testid="trains-no-schedule-section"
         >
-          <div>
-            <h2
-              id="trains-choose-template-heading"
-              className="text-sm font-medium text-[#c9d1d9]"
-            >
-              {t("chooseTemplateTitle")}
-            </h2>
-            <p className="mt-1 text-sm text-[#8b949e]">{t("noScheduleYet")}</p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {TEMPLATE_OPTIONS.map((template) => (
-              <button
-                key={template}
-                type="button"
-                onClick={() => handleTemplateClick(template)}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 text-xs font-medium text-[#e6edf3] hover:bg-[#161b22]"
-              >
-                <TemplatePaletteBadge template={template} shape="square" />
-                {templateLabels[template]}
-              </button>
-            ))}
-          </div>
+          <span>{t("noScheduleYet")}</span>
+          <button
+            type="button"
+            disabled={scheduleBusy}
+            onClick={() => void createCurrentWeekSchedule()}
+            className="rounded-lg bg-[#238636] px-4 py-2 text-sm font-medium text-white hover:bg-[#2ea043] disabled:opacity-60"
+          >
+            {scheduleBusy ? t("creatingSchedule") : t("createSchedule")}
+          </button>
         </section>
       ) : (
-        <section className="rounded-xl border border-[#30363d] bg-[#161b22]/40 px-4 py-3 text-sm text-[#8b949e]">
-          {t("noScheduleReadOnly")}
+        <section
+          className="rounded-xl border border-dashed border-[#30363d] bg-[#161b22]/50 px-4 py-3 text-sm text-[#8b949e]"
+          data-testid="trains-no-schedule-section"
+        >
+          {t("noScheduleYetReadOnly")}
         </section>
       )}
-
-      {data.conductorHistory.length > 0 ? (
-        <ConductorHistoryTable
-          rows={data.conductorHistory}
-          mechanismLabels={historyMechanismLabels}
-          labels={{
-            title: t("conductorHistory.title"),
-            empty: t("conductorHistory.empty"),
-            date: t("conductorHistory.date"),
-            conductor: t("conductorHistory.conductor"),
-            vip: t("conductorHistory.vip"),
-            guardian: t("guardian"),
-            locked: t("conductorHistory.locked"),
-            noneYet: t("noneYet"),
-            guardianIsVip: t("guardianIsVipHint"),
-            guardianIsConductor: t("guardianIsConductorHint"),
-          }}
-        />
-      ) : null}
 
       {data.conductorHistory.length > 0 ? (
         <ConductorHistoryTable
@@ -1409,6 +1400,7 @@ export function TrainsDashboard({ initial }: Props) {
         winner={wheelWinner}
         stats={wheelStats ?? null}
         qualification={wheelQualification}
+        dayLabel={wheelDayLabel}
         onClose={handleWheelClose}
         onSpinAgain={handleWheelSpinAgain}
         onOverride={(reason) => void handleWheelOverride(reason)}
@@ -1476,7 +1468,10 @@ export function TrainsDashboard({ initial }: Props) {
       <WeekTemplateChangeDialog
         open={pendingTemplateChange != null}
         templateType={pendingTemplateChange?.templateType ?? null}
-        cutoffDate={pendingTemplateChange?.cutoffDate ?? null}
+        weekStart={pendingTemplateChange?.weekStart ?? null}
+        weekEnd={pendingTemplateChange?.weekEnd ?? null}
+        today={data.today}
+        lockedThroughDate={pendingTemplateChange?.lockedThroughDate ?? null}
         onConfirm={confirmPendingTemplateChange}
         onClose={() => setPendingTemplateChange(null)}
       />
@@ -1552,6 +1547,26 @@ export function TrainsDashboard({ initial }: Props) {
           </div>
         ) : null}
       </Dialog>
+
+      {selectedRecord?.conductorMemberId ? (
+        <ConductorSwapDialog
+          open={swapOpen}
+          sourceDate={selectedDate}
+          sourceRecord={selectedRecord}
+          dayConfigs={spinWeekContext.dayConfigs}
+          weekRecords={spinWeekContext.weekRecords}
+          busy={swapBusy}
+          onConfirm={(targetDate) => void confirmConductorSwap(targetDate)}
+          onClose={() => setSwapOpen(false)}
+        />
+      ) : null}
+
+      <TrainsWalkthroughOverlay
+        key={walkthroughKey}
+        open={walkthroughOpen}
+        dashboardReady={data.dayConfigs.length > 0}
+        onComplete={() => setWalkthroughOpen(false)}
+      />
     </div>
   );
 }

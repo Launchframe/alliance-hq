@@ -246,6 +246,13 @@
       "when": 1782245000000,
       "tag": "0034_train_conductor_minimums",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1781550000000,
+      "tag": "0030_train_conductor_substitute",
+      "breakpoints": true
     }
   ]
 }

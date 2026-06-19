@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { Dialog } from "@/components/ui/dialog";
+import { poolUsesSequenceDraw } from "@/lib/trains/pool-draw-mode.shared";
 import type { PoolType } from "@/lib/trains/types";
 
 type PoolSummary = {
@@ -198,6 +199,27 @@ export function TrainPoolDetailsDialog({
   }, [payload?.eventContext, t]);
 
   const showEventScores = activePoolType === "event_top_x";
+  const usesSequenceDraw =
+    activePoolType != null && poolUsesSequenceDraw(activePoolType);
+
+  const chosenPickOrder = useMemo(() => {
+    if (!payload || usesSequenceDraw) return new Map<string, number>();
+    const chosen = payload.entries
+      .filter((entry) => entry.selectedAt)
+      .sort((a, b) => {
+        const aDate = a.selectedForDate ?? "";
+        const bDate = b.selectedForDate ?? "";
+        if (aDate !== bDate) return aDate.localeCompare(bDate);
+        const aTime = a.selectedAt ? Date.parse(a.selectedAt) : 0;
+        const bTime = b.selectedAt ? Date.parse(b.selectedAt) : 0;
+        return aTime - bTime;
+      });
+    const order = new Map<string, number>();
+    chosen.forEach((entry, index) => {
+      order.set(entry.id, index + 1);
+    });
+    return order;
+  }, [payload, usesSequenceDraw]);
 
   const poolTitleKey = activePoolType
     ? (`poolTypes.${activePoolType}` as const)
@@ -333,16 +355,26 @@ export function TrainPoolDetailsDialog({
 
         {!loading && filteredEntries.length > 0 ? (
           <ul className="max-h-[min(50vh,24rem)] space-y-2 overflow-y-auto">
-            {filteredEntries.map((entry) => (
+            {filteredEntries.map((entry) => {
+              const listPosition =
+                showEventScores
+                  ? null
+                  : usesSequenceDraw && entry.sequencePosition != null
+                    ? entry.sequencePosition
+                    : memberTab === "chosen"
+                      ? chosenPickOrder.get(entry.id)
+                      : null;
+
+              return (
               <li
                 key={entry.id}
                 className="flex min-w-0 items-center justify-between gap-3 rounded-lg border border-[#30363d] bg-[#0d1117]/60 px-3 py-2"
               >
                 <div className="min-w-0">
                   <div className="truncate text-sm font-medium text-[#e6edf3]">
-                    {entry.sequencePosition != null && !showEventScores ? (
+                    {listPosition != null ? (
                       <span className="mr-2 tabular-nums text-[#8b949e]">
-                        #{entry.sequencePosition}
+                        #{listPosition}
                       </span>
                     ) : null}
                     {entry.memberName}
@@ -368,7 +400,8 @@ export function TrainPoolDetailsDialog({
                   ) : null}
                 </div>
               </li>
-            ))}
+              );
+            })}
           </ul>
         ) : null}
 
