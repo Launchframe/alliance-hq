@@ -276,13 +276,27 @@ export function findActiveNavGroupId(
   options: {
     showAdminPortal?: boolean;
     showTeamSettings?: boolean;
+    showAllianceSettings?: boolean;
   } = {},
 ): string | null {
-  const { showAdminPortal = false, showTeamSettings = false } = options;
+  const {
+    showAdminPortal = false,
+    showTeamSettings = false,
+    showAllianceSettings = false,
+  } = options;
 
   for (const group of NAV_GROUPS) {
     if (group.pages.some((page) => isNavActive(pathname, page.href))) {
       return group.id;
+    }
+
+    if (group.id === "alliance-management") {
+      if (
+        showAllianceSettings &&
+        /^\/alliance\/[^/]+\/settings\/?$/.test(pathname)
+      ) {
+        return group.id;
+      }
     }
 
     if (group.id !== "hq-native") {

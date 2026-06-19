@@ -14,6 +14,7 @@ import {
   filterNavGroupsForOperatingMode,
   isNavActive,
 } from "@/lib/nav/routes";
+import { allianceSettingsPath } from "@/lib/alliance/alliance-settings-path.shared";
 
 function cn(...parts: Array<string | false | null | undefined>) {
   return parts.filter(Boolean).join(" ");
@@ -59,6 +60,8 @@ function NavLink({
 type Props = {
   showAdminPortal?: boolean;
   showTeamSettings?: boolean;
+  showAllianceSettings?: boolean;
+  activeAllianceTag?: string | null;
   operatingMode?: "ashed" | "native" | null;
   mobileCollapsible?: boolean;
   expandedGroupId: string | null;
@@ -70,6 +73,8 @@ type Props = {
 export function SidebarNav({
   showAdminPortal = false,
   showTeamSettings = false,
+  showAllianceSettings = false,
+  activeAllianceTag = null,
   operatingMode = null,
   mobileCollapsible = false,
   expandedGroupId,
@@ -121,16 +126,40 @@ export function SidebarNav({
       <nav className="min-h-0 flex-1 overflow-y-auto p-2">
         {navGroups.map((group) => {
           const extraPages =
-            group.id === "hq-native"
+            group.id === "alliance-management"
               ? [
-                  ...(showTeamSettings
-                    ? [{ href: "/settings/team", labelKey: "team" as const }]
-                    : []),
-                  ...(showAdminPortal
-                    ? [{ href: "/admin", labelKey: "adminPortal" as const }]
+                  ...(showAllianceSettings && activeAllianceTag
+                    ? [
+                        {
+                          href: allianceSettingsPath(activeAllianceTag),
+                          labelKey: "allianceSettings" as const,
+                          pageId: "allianceSettings",
+                        },
+                      ]
                     : []),
                 ]
-              : [];
+              : group.id === "hq-native"
+                ? [
+                    ...(showTeamSettings
+                      ? [
+                          {
+                            href: "/settings/team",
+                            labelKey: "team" as const,
+                            pageId: "team",
+                          },
+                        ]
+                      : []),
+                    ...(showAdminPortal
+                      ? [
+                          {
+                            href: "/admin",
+                            labelKey: "adminPortal" as const,
+                            pageId: "admin-portal",
+                          },
+                        ]
+                      : []),
+                  ]
+                : [];
 
           const isExpanded =
             !mobileCollapsible || expandedGroupId === group.id;
@@ -183,10 +212,10 @@ export function SidebarNav({
                       <NavLink
                         key={page.href}
                         href={page.href}
-                        pageId={page.labelKey}
+                        pageId={page.pageId}
                         label={tNav(page.labelKey)}
                         active={
-                          page.href === "/admin"
+                          page.pageId === "admin-portal"
                             ? pathname.startsWith("/admin")
                             : isNavActive(pathname, page.href)
                         }

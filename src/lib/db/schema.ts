@@ -40,6 +40,18 @@ export const alliances = pgTable("alliances", {
   seasonSyncedAt: timestamp("season_synced_at", { withTimezone: true }),
   seasonIsPostSeason: integer("season_is_post_season").notNull().default(0),
   seasonWeek: integer("season_week"),
+  /** Minimum VS points in the evaluation window to qualify as train conductor (0 = off). */
+  trainConductorMinVsPoints: integer("train_conductor_min_vs_points"),
+  /** Minimum donation points in the evaluation window to qualify as train conductor (0 = off). */
+  trainConductorMinDonationPoints: integer("train_conductor_min_donation_points"),
+  /** Leeway % below minimums still counts as qualified (0–100). */
+  trainConductorMinimumLeewayPct: integer("train_conductor_minimum_leeway_pct")
+    .notNull()
+    .default(0),
+  /** daily | weekly — how donation/VS minimums are evaluated before a train day. */
+  trainConductorMinimumsWindow: text("train_conductor_minimums_window")
+    .notNull()
+    .default("weekly"),
   /** ashed (default) — Base44 sync; native — HQ roster without Ashed seats. */
   operatingMode: text("operating_mode").notNull().default("ashed"),
   /** Native alliances: HQ user id for owner checks (Discord guild bind). */

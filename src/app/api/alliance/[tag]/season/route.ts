@@ -2,13 +2,17 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import {
+  allianceRouteErrorResponse,
+  requireAllianceRoutePermission,
+  resolveAllianceRouteForSession,
+} from "@/lib/alliance/alliance-route-context.server";
+import {
   getEffectiveSeasonForAlliance,
   loadAllianceSeasonRow,
   setAllianceSeasonOverride,
 } from "@/lib/game-season/sync";
-import { getOrCreateSession, loadSession } from "@/lib/session";
-import { sessionHasPermission } from "@/lib/rbac/context";
-import { requireAllianceAdmin, requireSessionPermission } from "@/lib/rbac/require-permission";
+import { sessionHasPermissionForAlliance } from "@/lib/rbac/context";
+import { getOrCreateSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -16,25 +20,34 @@ const patchSchema = z.object({
   seasonKeyOverride: z.string().trim().min(1).max(8).nullable(),
 });
 
-export async function GET() {
+type RouteContext = { params: Promise<{ tag: string }> };
+
+export async function GET(_request: Request, context: RouteContext) {
   try {
     const session = await getOrCreateSession();
-    const denied = await requireSessionPermission(session.id, "scores:read");
+    const { tag } = await context.params;
+    const alliance = await resolveAllianceRouteForSession(session.id, tag);
+
+    const denied = await requireAllianceRoutePermission(
+      session.id,
+      alliance.allianceId,
+      "scores:read",
+    );
     if (denied) return denied;
 
-    const loaded = await loadSession(session.id);
-    const allianceId = loaded?.currentAllianceId ?? loaded?.allianceId;
-    if (!allianceId) {
-      return NextResponse.json({ error: "No alliance selected." }, { status: 400 });
-    }
-
     const [effective, row, canManageSeason] = await Promise.all([
-      getEffectiveSeasonForAlliance(allianceId),
-      loadAllianceSeasonRow(allianceId),
-      sessionHasPermission(session.id, "alliance:admin"),
+      getEffectiveSeasonForAlliance(alliance.allianceId),
+      loadAllianceSeasonRow(alliance.allianceId),
+      sessionHasPermissionForAlliance(
+        session.id,
+        alliance.allianceId,
+        "alliance:admin",
+      ),
     ]);
 
     return NextResponse.json({
+      allianceTag: alliance.tag,
+      allianceName: alliance.name,
       seasonKey: effective.seasonKey,
       source: effective.source,
       isPostSeason: effective.isPostSeason,
@@ -44,27 +57,22 @@ export async function GET() {
       canManageSeason,
     });
   } catch (error) {
-    return NextResponse.json(
-      {
-        error:
-          error instanceof Error ? error.message : "Failed to load season settings.",
-      },
-      { status: 500 },
-    );
+    return allianceRouteErrorResponse(error);
   }
 }
 
-export async function PATCH(request: Request) {
+export async function PATCH(request: Request, context: RouteContext) {
   try {
     const session = await getOrCreateSession();
-    const denied = await requireAllianceAdmin(session.id);
-    if (denied) return denied;
+    const { tag } = await context.params;
+    const alliance = await resolveAllianceRouteForSession(session.id, tag);
 
-    const loaded = await loadSession(session.id);
-    const allianceId = loaded?.currentAllianceId ?? loaded?.allianceId;
-    if (!allianceId) {
-      return NextResponse.json({ error: "No alliance selected." }, { status: 400 });
-    }
+    const denied = await requireAllianceRoutePermission(
+      session.id,
+      alliance.allianceId,
+      "alliance:admin",
+    );
+    if (denied) return denied;
 
     const body = patchSchema.safeParse(await request.json());
     if (!body.success) {
@@ -72,12 +80,14 @@ export async function PATCH(request: Request) {
     }
 
     const effective = await setAllianceSeasonOverride(
-      allianceId,
+      alliance.allianceId,
       body.data.seasonKeyOverride,
     );
-    const row = await loadAllianceSeasonRow(allianceId);
+    const row = await loadAllianceSeasonRow(alliance.allianceId);
 
     return NextResponse.json({
+      allianceTag: alliance.tag,
+      allianceName: alliance.name,
       seasonKey: effective.seasonKey,
       source: effective.source,
       isPostSeason: effective.isPostSeason,
@@ -87,12 +97,6 @@ export async function PATCH(request: Request) {
       canManageSeason: true,
     });
   } catch (error) {
-    return NextResponse.json(
-      {
-        error:
-          error instanceof Error ? error.message : "Failed to update season.",
-      },
-      { status: 500 },
-    );
+    return allianceRouteErrorResponse(error);
   }
 }

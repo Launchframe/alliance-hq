@@ -156,6 +156,32 @@ export async function markPoolEntrySelected(
     .where(eq(schema.conductorPoolEntries.id, entryId));
 }
 
+export async function markPoolMemberSelectedForDate(
+  allianceId: string,
+  poolType: PoolType,
+  memberId: string,
+  date: string,
+): Promise<void> {
+  const summary = await getPoolSummary(allianceId, poolType);
+  const db = getDb();
+  const [entry] = await db
+    .select({ id: schema.conductorPoolEntries.id })
+    .from(schema.conductorPoolEntries)
+    .where(
+      and(
+        eq(schema.conductorPoolEntries.allianceId, allianceId),
+        eq(schema.conductorPoolEntries.poolType, poolType),
+        eq(schema.conductorPoolEntries.generation, summary.generation),
+        eq(schema.conductorPoolEntries.memberId, memberId),
+      ),
+    )
+    .limit(1);
+
+  if (entry) {
+    await markPoolEntrySelected(entry.id, date);
+  }
+}
+
 /** Platform-admin unlock: return a pool slot consumed by a mistaken lock. */
 export async function releasePoolSelectionForDate(
   allianceId: string,

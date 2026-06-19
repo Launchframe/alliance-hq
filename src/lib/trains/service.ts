@@ -33,6 +33,7 @@ import {
   getPoolSummary,
   listPoolEntries,
   markPoolEntrySelected,
+  markPoolMemberSelectedForDate,
   pickNextPoolEntry,
   pickRandomPoolEntry,
   poolHasEntries,
@@ -41,8 +42,11 @@ import {
   startNewPoolGeneration,
 } from "@/lib/trains/pool";
 import {
-  fetchEventTopScorers,
-} from "@/lib/trains/event-scores.server";
+  evaluateConductorQualification,
+} from "@/lib/trains/train-conductor-minimums.server";
+import type { MemberQualificationPayload } from "@/lib/trains/train-conductor-minimums.shared";
+import { writeAuditLog } from "@/lib/bff/audit";
+import { fetchEventTopScorers } from "@/lib/trains/event-scores.server";
 import {
   fetchVsTopScorersForTrainDate,
 } from "@/lib/trains/vs-scores.server";
@@ -258,6 +262,149 @@ async function rollFromPool(
     poolType,
     wheelCandidates,
   };
+}
+
+async function applyConductorQualificationGate(input: {
+  allianceId: string;
+  date: string;
+  connection: ParsedConnection | null;
+  ashedAllianceId: string;
+  result: RollResult;
+}): Promise<RollResult> {
+  const qualification = await evaluateConductorQualification({
+    allianceId: input.allianceId,
+    memberId: input.result.memberId,
+    trainDate: input.date,
+    connection: input.connection,
+    ashedAllianceId: input.ashedAllianceId,
+  });
+
+  if (qualification && !qualification.qualified) {
+    if (input.result.poolType) {
+      await releasePoolSelectionForDate(
+        input.allianceId,
+        input.date,
+        input.result.memberId,
+      );
+    }
+    return {
+      ...input.result,
+      qualification,
+      draftPersisted: false,
+    };
+  }
+
+  return {
+    ...input.result,
+    qualification: qualification ?? undefined,
+    draftPersisted: true,
+  };
+}
+
+async function persistConductorRoll(input: {
+  allianceId: string;
+  date: string;
+  seasonKey: string;
+  result: RollResult;
+  mechanism: ConductorMechanismType;
+  dayConfigId: string | null;
+  vipMechanism?: VipMechanismType | null;
+}): Promise<RollResult> {
+  const rankEvent = await getMemberRankAsOf(
+    input.allianceId,
+    input.result.memberId,
+    input.date,
+  );
+
+  await upsertConductorDraft({
+    allianceId: input.allianceId,
+    date: input.date,
+    seasonKey: input.seasonKey,
+    conductorMemberId: input.result.memberId,
+    conductorMemberName: input.result.memberName,
+    conductorRankEventId: rankEvent?.id ?? null,
+    conductorMechanism: input.mechanism,
+    vipMechanism: input.vipMechanism,
+    dayConfigId: input.dayConfigId,
+  });
+
+  return { ...input.result, draftPersisted: true };
+}
+
+export async function confirmConductorMinimumOverride(input: {
+  allianceId: string;
+  date: string;
+  memberId: string;
+  memberName: string;
+  mechanism: ConductorMechanismType;
+  qualification: MemberQualificationPayload;
+  overrideReason?: string;
+  sessionId: string;
+  hqUserId?: string | null;
+}): Promise<RollResult> {
+  const seasonKey = await resolveTrainSeasonKey(input.allianceId);
+  const record = await getConductorRecord(
+    input.allianceId,
+    input.date,
+    seasonKey,
+  );
+  if (record?.lockedAt) {
+    throw new Error("Conductor is already locked for this day.");
+  }
+
+  const dayConfig = await resolveRollDayConfig(
+    input.allianceId,
+    input.date,
+    seasonKey,
+  );
+
+  const poolType = conductorMechanismPoolType(input.mechanism);
+  if (poolType) {
+    await markPoolMemberSelectedForDate(
+      input.allianceId,
+      poolType,
+      input.memberId,
+      input.date,
+    );
+  }
+
+  const result: RollResult = {
+    memberId: input.memberId,
+    memberName: input.memberName,
+    mechanism: input.mechanism,
+    isAutomatic: false,
+    poolType: poolType ?? undefined,
+    qualification: input.qualification,
+  };
+
+  const persisted = await persistConductorRoll({
+    allianceId: input.allianceId,
+    date: input.date,
+    seasonKey,
+    result,
+    mechanism: input.mechanism,
+    dayConfigId: dayConfig.dayConfigId,
+    vipMechanism: dayConfig.vipMechanism,
+  });
+
+  await writeAuditLog({
+    sessionId: input.sessionId,
+    allianceId: input.allianceId,
+    hqUserId: input.hqUserId ?? undefined,
+    action: "trains.conductor_minimum_override",
+    resourceType: "train_conductor_record",
+    resourceId: `${input.allianceId}:${input.date}`,
+    resourceName: input.memberName,
+    metadata: {
+      date: input.date,
+      memberId: input.memberId,
+      mechanism: input.mechanism,
+      overrideReason: input.overrideReason?.trim() || null,
+      qualification: input.qualification,
+    },
+  });
+
+  return persisted;
 }
 
 export async function getOrCreateWeekSchedule(
@@ -558,25 +705,27 @@ export async function rollForConductor(input: {
       throw new Error(`Conductor mechanism "${mechanism}" is not rollable yet.`);
   }
 
-  const rankEvent = await getMemberRankAsOf(
-    input.allianceId,
-    result.memberId,
-    input.date,
-  );
+  const gated = await applyConductorQualificationGate({
+    allianceId: input.allianceId,
+    date: input.date,
+    connection: input.connection,
+    ashedAllianceId: input.ashedAllianceId,
+    result,
+  });
 
-  await upsertConductorDraft({
+  if (!gated.draftPersisted) {
+    return gated;
+  }
+
+  return persistConductorRoll({
     allianceId: input.allianceId,
     date: input.date,
     seasonKey,
-    conductorMemberId: result.memberId,
-    conductorMemberName: result.memberName,
-    conductorRankEventId: rankEvent?.id ?? null,
-    conductorMechanism: mechanism,
-    vipMechanism: dayConfig.vipMechanism,
+    result: gated,
+    mechanism,
     dayConfigId: dayConfig.dayConfigId,
+    vipMechanism: dayConfig.vipMechanism,
   });
-
-  return result;
 }
 
 export async function rollForVip(input: {

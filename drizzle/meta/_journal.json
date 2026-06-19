@@ -197,6 +197,20 @@
       "when": 1781535000000,
       "tag": "0027_hq_access_granted",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1781540000000,
+      "tag": "0028_hq_invite_redirect",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1781545000000,
+      "tag": "0029_train_conductor_minimums",
+      "breakpoints": true
     }
   ]
 }

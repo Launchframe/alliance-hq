@@ -27,6 +27,8 @@ type Props = {
   ashed: AshedConnectionMeta | null;
   showAdminPortal?: boolean;
   showTeamSettings?: boolean;
+  showAllianceSettings?: boolean;
+  activeAllianceTag?: string | null;
   children: React.ReactNode;
 };
 
@@ -44,6 +46,8 @@ export function AshedShell({
   ashed,
   showAdminPortal = false,
   showTeamSettings = false,
+  showAllianceSettings = false,
+  activeAllianceTag = null,
   children,
 }: Props) {
   const pathname = usePathname();
@@ -62,10 +66,11 @@ export function AshedShell({
       findActiveNavGroupId(pathname, {
         showAdminPortal,
         showTeamSettings,
+        showAllianceSettings,
       }),
     );
     setMobileNavOpen(true);
-  }, [pathname, showAdminPortal, showTeamSettings]);
+  }, [pathname, showAdminPortal, showTeamSettings, showAllianceSettings]);
 
   const toggleGroup = React.useCallback((groupId: string) => {
     setExpandedGroupId((current) => (current === groupId ? null : groupId));
@@ -114,6 +119,8 @@ export function AshedShell({
             <SidebarNav
               showAdminPortal={showAdminPortal}
               showTeamSettings={showTeamSettings}
+              showAllianceSettings={showAllianceSettings}
+              activeAllianceTag={activeAllianceTag}
               operatingMode={operatingMode}
               mobileCollapsible
               expandedGroupId={expandedGroupId}
