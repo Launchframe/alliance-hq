@@ -1173,11 +1173,21 @@
     "pickFailed": "Could not save conductor pick.",
     "pickVipFailed": "Could not save VIP pick.",
     "changeSchedule": "Change week template",
+    "nativeModeBanner": "This alliance runs trains in native mode. VS and donation rolls need a connected Ashed roster; use manual picks when scores are unavailable.",
     "templateChangeConfirm": {
       "title": "Change week template?",
-      "body": "Days through {cutoffDate} stay unchanged because the Conductor is locked in on those days. The rest of this week will switch to the {template} template.",
+      "body": "The rest of this week ({startDate} through {endDate}) will switch to the {template} template.",
+      "bodyWithLocks": "Days through {cutoffDate} stay unchanged because the Conductor is locked on those days. {startDate} through {endDate} will switch to the {template} template.",
+      "noDatesBody": "No unlocked days remain in this week to repaint.",
+      "includeToday": "Including today ({date})?",
       "confirm": "Change template",
       "cancel": "Cancel"
+    },
+    "pivotBanner": {
+      "title": "Pivot to economy week?",
+      "body": "After Day 1 VS, you can switch Tue–Sun to economy-style R3 lottery so members stop burning inventory on a lost week.",
+      "action": "Pivot Tue–Sun to economy",
+      "applying": "Applying…"
     },
     "reseedPool": "Re-seed pool",
     "reseedPoolHint": {

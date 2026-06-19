@@ -7,6 +7,7 @@ import { useTranslations } from "next-intl";
 import { ConductorPickModal } from "@/components/trains/ConductorPickModal";
 import { ConductorHistoryTable } from "@/components/trains/ConductorHistoryTable";
 import { ConductorWheelModal } from "@/components/trains/ConductorWheelModal";
+import { TrainPivotBanner } from "@/components/trains/TrainPivotBanner";
 import { TodayConductorCard } from "@/components/trains/TodayConductorCard";
 import { WeekTemplateChangeDialog } from "@/components/trains/WeekTemplateChangeDialog";
 import { WheelBlockedDialog } from "@/components/trains/WheelBlockedDialog";
@@ -29,7 +30,7 @@ import {
 import { Dialog } from "@/components/ui/dialog";
 import { AppSelect } from "@/components/ui/AppSelect";
 import { Link } from "@/i18n/navigation";
-import { getMonthKey, monthEndFromKey, monthStartFromKey, isCalendarDateOnOrAfter } from "@/lib/trains/game-time";
+import { getMonthKey, monthEndFromKey, monthStartFromKey, isCalendarDateOnOrAfter, isWithinPivotWindow } from "@/lib/trains/game-time";
 import type {
   MonthSchedulePagePayload,
   TrainsDashboardPayload,
@@ -51,7 +52,6 @@ import {
   applyOptimisticLock,
   applyOptimisticPaint,
   applyOptimisticUnlock,
-  applyOptimisticWeekTemplate,
   type TrainsDashboardSnapshot,
 } from "@/lib/trains/optimistic-dashboard.shared";
 import {
@@ -60,7 +60,7 @@ import {
   type TrainRollErrorDetails,
   type TrainRollErrorResponse,
 } from "@/lib/trains/roll-errors.shared";
-import { latestLockedDateInWeek } from "@/lib/trains/week-template-change.shared";
+import { latestLockedDateInWeek, pivotEconomyTargetDates } from "@/lib/trains/week-template-change.shared";
 import { supportsManualConductorPick, supportsManualVipPick } from "@/lib/trains/templates";
 
 type Props = {
@@ -155,8 +155,10 @@ export function TrainsDashboard({ initial }: Props) {
   const [pendingTemplateChange, setPendingTemplateChange] = useState<{
     templateType: WeekTemplateType;
     weekStart: string;
-    cutoffDate: string;
+    weekEnd: string;
+    lockedThroughDate: string | null;
   } | null>(null);
+  const [pivotBusy, setPivotBusy] = useState(false);
   const [poolDetailsOpen, setPoolDetailsOpen] = useState(false);
   const [poolDetailsInitialType, setPoolDetailsInitialType] =
     useState<PoolType | null>(null);
@@ -680,44 +682,13 @@ export function TrainsDashboard({ initial }: Props) {
 
   const paintDates = useCallback(
     (dates: string[], templateType: WeekTemplateType) => {
-      void withOptimisticMutation(
+      return withOptimisticMutation(
         (snap) => applyOptimisticPaint(snap, dates, templateType),
         async () => {
           const res = await fetch("/api/trains/schedule/days", {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ dates, templateType }),
-          });
-          const body = (await res.json()) as { error?: string };
-          return {
-            ok: res.ok,
-            error: res.ok ? undefined : (body.error ?? t("scheduleFailed")),
-          };
-        },
-      );
-    },
-    [t, withOptimisticMutation],
-  );
-
-  const applyWeekTemplate = useCallback(
-    async (
-      templateType: WeekTemplateType,
-      weekStart: string,
-      preserveThroughDate: string | null,
-    ) => {
-      await withOptimisticMutation(
-        (snap) =>
-          applyOptimisticWeekTemplate(
-            snap,
-            weekStart,
-            templateType,
-            preserveThroughDate,
-          ),
-        async () => {
-          const res = await fetch("/api/trains/schedule", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ templateType, weekStart }),
           });
           const body = (await res.json()) as { error?: string };
           return {
@@ -741,32 +712,47 @@ export function TrainsDashboard({ initial }: Props) {
 
       if (currentTemplate === templateType) return;
 
-      const cutoffDate = latestLockedDateInWeek(
+      const lockedThroughDate = latestLockedDateInWeek(
         weekRecords,
         weekStart,
         weekEnd,
       );
 
-      if (!cutoffDate) {
-        void applyWeekTemplate(templateType, weekStart, null);
-        return;
-      }
-
       setPendingTemplateChange({
         templateType,
         weekStart,
-        cutoffDate,
+        weekEnd,
+        lockedThroughDate,
       });
     },
-    [applyWeekTemplate, data.schedule?.templateType, data.weekStart, viewedWeek],
+    [data.schedule?.templateType, data.weekStart, viewedWeek],
   );
 
-  const confirmPendingTemplateChange = useCallback(() => {
-    if (!pendingTemplateChange) return;
-    const { templateType, weekStart, cutoffDate } = pendingTemplateChange;
-    setPendingTemplateChange(null);
-    void applyWeekTemplate(templateType, weekStart, cutoffDate);
-  }, [applyWeekTemplate, pendingTemplateChange, setPendingTemplateChange]);
+  const confirmPendingTemplateChange = useCallback(
+    (options: { dates: string[] }) => {
+      if (!pendingTemplateChange) return;
+      const { templateType } = pendingTemplateChange;
+      setPendingTemplateChange(null);
+      if (options.dates.length === 0) {
+        setError(t("templateChangeConfirm.noDatesBody"));
+        return;
+      }
+      paintDates(options.dates, templateType);
+    },
+    [paintDates, pendingTemplateChange, setError, setPendingTemplateChange, t],
+  );
+
+  const handlePivotToEconomy = useCallback(() => {
+    const weekStart = data.weekStart;
+    const weekEnd = data.weekEnd;
+    const dates = pivotEconomyTargetDates(weekStart, weekEnd).filter(
+      (date) => date >= data.today,
+    );
+    if (dates.length === 0) return;
+
+    setPivotBusy(true);
+    void paintDates(dates, "economy_week").finally(() => setPivotBusy(false));
+  }, [data.today, data.weekEnd, data.weekStart, paintDates, setPivotBusy]);
 
   const openPoolDetails = useCallback((poolType: PoolType) => {
     setPoolDetailsInitialType(poolType);
@@ -843,6 +829,14 @@ export function TrainsDashboard({ initial }: Props) {
   const showNativeAshedBanner =
     data.operatingMode === "native" &&
     dayNeedsAshedConnection(conductorMech, vipMech, conductorPaint);
+  const showNativeModeBanner =
+    data.operatingMode === "native" && data.canManageTrains;
+  const showPivotBanner =
+    data.canManageTrains &&
+    data.weekStart === viewedWeek.weekStart &&
+    activeWeekTemplate === "vs_push_week" &&
+    !data.schedule?.isPivot &&
+    isWithinPivotWindow();
   const historyMechanismLabels = useMemo(
     () => ({ ...conductorShortLabels, ...vipShortLabels }),
     [conductorShortLabels, vipShortLabels],
@@ -902,6 +896,16 @@ export function TrainsDashboard({ initial }: Props) {
         <p className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-300">
           {error}
         </p>
+      ) : null}
+
+      {showNativeModeBanner ? (
+        <p className="rounded-xl border border-sky-500/30 bg-sky-500/10 px-4 py-3 text-sm text-sky-100">
+          {t("nativeModeBanner")}
+        </p>
+      ) : null}
+
+      {showPivotBanner ? (
+        <TrainPivotBanner onPivot={handlePivotToEconomy} busy={pivotBusy} />
       ) : null}
 
       {data.dayConfigs.length > 0 ? (
@@ -1278,7 +1282,10 @@ export function TrainsDashboard({ initial }: Props) {
       <WeekTemplateChangeDialog
         open={pendingTemplateChange != null}
         templateType={pendingTemplateChange?.templateType ?? null}
-        cutoffDate={pendingTemplateChange?.cutoffDate ?? null}
+        weekStart={pendingTemplateChange?.weekStart ?? null}
+        weekEnd={pendingTemplateChange?.weekEnd ?? null}
+        today={data.today}
+        lockedThroughDate={pendingTemplateChange?.lockedThroughDate ?? null}
         onConfirm={confirmPendingTemplateChange}
         onClose={() => setPendingTemplateChange(null)}
       />

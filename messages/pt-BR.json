@@ -1173,11 +1173,21 @@
     "pickFailed": "Não foi possível salvar a escolha do condutor.",
     "pickVipFailed": "Não foi possível salvar a escolha do VIP.",
     "changeSchedule": "Alterar modelo da semana",
+    "nativeModeBanner": "Esta aliança usa trens no modo nativo. Sorteios de VS e doações precisam do roster Ashed conectado; use escolhas manuais quando as pontuações não estiverem disponíveis.",
     "templateChangeConfirm": {
       "title": "Alterar modelo da semana?",
-      "body": "Os dias até {cutoffDate} permanecem iguais porque o Condutor já está confirmado nesses dias. O restante desta semana passará para o modelo {template}.",
+      "body": "O restante desta semana ({startDate} a {endDate}) passará para o modelo {template}.",
+      "bodyWithLocks": "Os dias até {cutoffDate} permanecem iguais porque o Condutor já está confirmado nesses dias. De {startDate} a {endDate} passará para o modelo {template}.",
+      "noDatesBody": "Não restam dias desbloqueados nesta semana para repintar.",
+      "includeToday": "Incluir hoje ({date})?",
       "confirm": "Alterar modelo",
       "cancel": "Cancelar"
+    },
+    "pivotBanner": {
+      "title": "Pivotar para semana economy?",
+      "body": "Depois do VS do Dia 1, você pode mudar ter–dom para loteria R3 estilo economy para que os membros parem de gastar inventário numa semana perdida.",
+      "action": "Pivotar ter–dom para economy",
+      "applying": "Aplicando…"
     },
     "reseedPool": "Recriar pool",
     "reseedPoolHint": {
