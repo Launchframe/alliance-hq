@@ -825,12 +825,24 @@ export function TrainsDashboard({ initial }: Props) {
         return;
       }
       await refreshRef.current();
+      if (!trainsWalkthroughSeen()) {
+        setWalkthroughKey((key) => key + 1);
+        setWalkthroughOpen(true);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : t("scheduleFailed"));
     } finally {
       setScheduleBusy(false);
     }
-  }, [activeWeekTemplate, data.weekStart, setError, setScheduleBusy, t]);
+  }, [
+    activeWeekTemplate,
+    data.weekStart,
+    setError,
+    setScheduleBusy,
+    setWalkthroughKey,
+    setWalkthroughOpen,
+    t,
+  ]);
 
   const openPoolDetails = useCallback((poolType: PoolType) => {
     setPoolDetailsInitialType(poolType);
@@ -969,7 +981,7 @@ export function TrainsDashboard({ initial }: Props) {
         <div>
           <h1 className="text-2xl font-semibold text-[#e6edf3]">{t("title")}</h1>
           <p className="mt-1 text-sm text-[#8b949e]">{t("subtitle")}</p>
-          {data.canManageTrains ? (
+          {data.canManageTrains && data.dayConfigs.length > 0 ? (
             <button
               type="button"
               onClick={() => {
@@ -1306,7 +1318,10 @@ export function TrainsDashboard({ initial }: Props) {
           ) : null}
         </section>
       ) : data.canManageTrains ? (
-        <section className="flex flex-col gap-3 rounded-xl border border-dashed border-[#30363d] bg-[#161b22]/50 px-4 py-3 text-sm text-[#8b949e] sm:flex-row sm:items-center sm:justify-between">
+        <section
+          className="flex flex-col gap-3 rounded-xl border border-dashed border-[#30363d] bg-[#161b22]/50 px-4 py-3 text-sm text-[#8b949e] sm:flex-row sm:items-center sm:justify-between"
+          data-testid="trains-no-schedule-section"
+        >
           <span>{t("noScheduleYet")}</span>
           <button
             type="button"

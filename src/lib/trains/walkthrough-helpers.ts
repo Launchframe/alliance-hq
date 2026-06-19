@@ -123,3 +123,37 @@ export function snapshotCapabilities(): Set<string> {
   }
   return capabilities;
 }
+
+export type WalkthroughStepDefinition = {
+  id: string;
+  targetCandidates?: readonly string[];
+  required?: boolean;
+  skipIfMissingTarget?: boolean;
+};
+
+export function filterWalkthroughSteps<T extends WalkthroughStepDefinition>(
+  steps: readonly T[],
+  capabilities: ReadonlySet<string>,
+): T[] {
+  return steps.filter((step) => {
+    if (!step.targetCandidates?.length) {
+      return true;
+    }
+
+    const hasTarget = step.targetCandidates.some((id) => capabilities.has(id));
+
+    if (step.skipIfMissingTarget && !hasTarget) {
+      return false;
+    }
+
+    if (step.required && !hasTarget) {
+      return false;
+    }
+
+    if (!step.required && !hasTarget) {
+      return false;
+    }
+
+    return true;
+  });
+}

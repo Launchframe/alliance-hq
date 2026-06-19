@@ -15,6 +15,7 @@ import {
   SCROLL_SETTLE_MS,
   computeMobileScrollDeltaAlignTop,
   computeMobileScrollTopForStep,
+  filterWalkthroughSteps,
   findTargetElement,
   isMobileWalkthroughViewport,
   mobileWalkthroughScrollPaddingPx,
@@ -152,21 +153,7 @@ export function TrainsWalkthroughOverlay({
 
   const activeSteps = useMemo(() => {
     if (domCapabilities.size === 0) return [];
-    return STEPS.filter((step) => {
-      if (step.skipIfMissingTarget && step.targetCandidates?.length) {
-        const hasTarget = step.targetCandidates.some((id) =>
-          domCapabilities.has(id),
-        );
-        if (!hasTarget) return false;
-      }
-      if (!step.required && step.targetCandidates?.length) {
-        const hasTarget = step.targetCandidates.some((id) =>
-          domCapabilities.has(id),
-        );
-        if (!hasTarget) return false;
-      }
-      return true;
-    });
+    return filterWalkthroughSteps(STEPS, domCapabilities);
   }, [domCapabilities]);
 
   const currentStep = activeSteps[stepIndex] ?? null;
