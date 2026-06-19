@@ -2,7 +2,11 @@ import type { ParsedConnection } from "@/lib/connectionString";
 import { DEFAULT_APP_ID } from "@/lib/connectionString";
 import { base44ListMembers } from "@/lib/base44/fetch";
 import { decryptSecret } from "@/lib/crypto/encrypt";
+import { getDb, schema } from "@/lib/db";
+import { eq } from "drizzle-orm";
+import { allianceMemberRowToAshedMember } from "@/lib/members/roster.shared";
 import type { AshedMember } from "@/lib/video/member-matcher";
+import { isNativeAlliance } from "@/lib/native-alliance/operating-mode";
 
 import {
   getAllianceAshedCredential,
@@ -52,6 +56,15 @@ async function resolveBotAshedConnection(
 export async function loadAllianceMembersForBot(
   allianceId: string,
 ): Promise<AshedMember[]> {
+  if (await isNativeAlliance(allianceId)) {
+    const db = getDb();
+    const rows = await db
+      .select()
+      .from(schema.allianceMembers)
+      .where(eq(schema.allianceMembers.allianceId, allianceId));
+    return rows.map(allianceMemberRowToAshedMember);
+  }
+
   const alliance = await getAllianceById(allianceId);
   if (!alliance?.ashedAllianceId) return [];
 
@@ -62,6 +75,10 @@ export async function loadAllianceMembersForBot(
 }
 
 export async function allianceHasBotCredentials(allianceId: string): Promise<boolean> {
+  if (await isNativeAlliance(allianceId)) {
+    return true;
+  }
+
   const alliance = await getAllianceById(allianceId);
   if (!alliance?.ashedAllianceId) return false;
   return (await resolveBotAshedConnection(allianceId)) != null;

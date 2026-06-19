@@ -145,11 +145,14 @@ export function AdminExperimentsView() {
             <Field label={`${t("form.scoreTarget")} *`}>
               <input
                 required
-                placeholder="e.g. alliance_exercise"
+                placeholder="e.g. alliance_exercise, member-roster-screenshot"
                 value={form.scoreTarget}
                 onChange={(e) => setForm((f) => ({ ...f, scoreTarget: e.target.value }))}
                 className={`${INPUT_CLASS} font-mono`}
               />
+              <p className="mt-1 text-xs text-[#484f58]">
+                Roster OCR: use <code className="font-mono">member-roster-screenshot</code>. Pair with a parse config of mode <code className="font-mono">roster-ocr</code>.
+              </p>
             </Field>
           </div>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

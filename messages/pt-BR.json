@@ -24,7 +24,11 @@
     "connectionFailed": "Falha na conexão",
     "uploadFailed": "Falha no upload",
     "disconnectFailed": "Falha ao desconectar",
-    "externalLink": "{label} ↗"
+    "externalLink": "{label} ↗",
+    "copy": "Copiar",
+    "copied": "Copiado",
+    "copyToClipboard": "Copiar para a área de transferência",
+    "copyFailed": "Não foi possível copiar para a área de transferência."
   },
   "language": {
     "label": "Idioma",
@@ -57,7 +61,7 @@
     "reports": "Relatórios",
     "viralResistance": "Resistência Viral",
     "viralResistanceDescription": "VR base da temporada via Discord, ordenado com poder de herói",
-    "trains": "Trens",
+    "trains": "Trem da Aliança",
     "trainsDescription": "Agenda diária do Condutor, roleta e confirmação",
     "desertStorm": "Desert Storm",
     "canyonStorm": "Canyon Storm",
@@ -275,8 +279,36 @@
         "owner": "E-mail do proprietário",
         "collaborators": "Colaboradores",
         "members": "Membros HQ",
-        "synced": "Funções sincronizadas"
+        "synced": "Funções sincronizadas",
+        "nativeBadge": "Nativa"
       }
+    },
+    "nativeAlliance": {
+      "title": "Aliança nativa (teste)",
+      "subtitle": "Provisione uma aliança sem assentos Ashed. Oficiais importam capturas de tela após aceitar o convite.",
+      "name": "Nome da aliança",
+      "tag": "Tag no jogo",
+      "ownerEmailOptional": "E-mail do proprietário (opcional — cria associação imediatamente)",
+      "createButton": "Criar aliança nativa",
+      "createFailed": "Não foi possível criar a aliança.",
+      "created": "Criada {name} [{tag}]. Selecione-a abaixo para enviar convites.",
+      "inviteTitle": "Convidar usuário HQ",
+      "inviteTargetHint": "Escolha uma aliança aqui ou clique em uma na lista abaixo. Convites são obrigatórios antes de usar o HQ em produção.",
+      "chooseAlliance": "Aliança",
+      "chooseAlliancePlaceholder": "Selecione uma aliança…",
+      "chooseAllianceRequired": "Selecione uma aliança para convidar alguém.",
+      "selectedForInvite": "Selecionada para convite",
+      "selectAllianceRow": "Selecionar {name} ({slug}) para convite",
+      "inviteEmail": "E-mail do destinatário",
+      "inviteEmailHint": "Somente este endereço pode aceitar o convite. Informe o e-mail separadamente do link — o HQ não envia e-mail.",
+      "inviteEmailRequired": "Informe um e-mail válido do destinatário.",
+      "inviteRole": "Função",
+      "roleOwner": "Proprietário",
+      "roleOfficer": "Oficial",
+      "inviteButton": "Gerar link de convite",
+      "inviteLinkLabel": "Link de convite",
+      "inviteFailed": "Não foi possível criar o convite.",
+      "inviteSent": "Link de convite gerado (válido por 14 dias)."
     },
     "commendationsPage": {
       "loadFailed": "Falha ao carregar comendações.",
@@ -630,6 +662,7 @@
     "domain": "alliance-hq.vercel.app",
     "dataPoweredBy": "Dados fornecidos por <link>Ashed</link>",
     "connectedAs": "Conectado como {user}",
+    "nativeSignedInAs": "Conectado como {user}",
     "defaultUser": "Usuário Ashed",
     "connectPrompt": "Conecte sua conta Ashed →",
     "openMenu": "Abrir menu de navegação",
@@ -650,6 +683,7 @@
     "progressLabel": "Progresso da configuração",
     "title": "Conecte sua conta Ashed",
     "subtitle": "O Alliance HQ usa o <link>ashed.online</link> para dados da aliança. Você copiará uma solicitação de rede como um comando cURL — nós cuidamos do resto.",
+    "inviteRequired": "Neste ambiente, é necessário um convite de administrador antes de conectar o Ashed. Aceite o link do convite primeiro ou peça um ao mantenedor da plataforma.",
     "successTitle": "Conectado ao Ashed",
     "signedInAsBefore": "Conectado como",
     "noExpiryRead": "Conectado, mas não conseguimos ler uma data de expiração neste token. Ainda assim, notificaremos você se o Ashed parar de aceitá-lo.",
@@ -829,7 +863,30 @@
     "timezoneServerTime": "Horário do Servidor",
     "timezoneSaved": "Fuso horário salvo",
     "timezoneSaveFailed": "Não foi possível salvar o fuso horário",
-    "aboutBody": "O Alliance HQ, em <strong>alliance-hq.vercel.app</strong>, é uma interface comunitária para o <link>ashed.online</link>. Todos os créditos pelos dados da aliança pertencem ao Ashed."
+    "aboutBody": "O Alliance HQ, em <strong>alliance-hq.vercel.app</strong>, é uma interface comunitária para o <link>ashed.online</link>. Todos os créditos pelos dados da aliança pertencem ao Ashed.",
+    "gameSeason": {
+      "sectionTitle": "Temporada do jogo",
+      "sectionBody": "Temporada do Last War usada nos registros de trem e pontuações. Oficiais podem substituir quando a sincronização automática estiver errada.",
+      "loading": "Carregando temporada…",
+      "loadFailed": "Não foi possível carregar a temporada.",
+      "label": "Temporada atual",
+      "seasonLine": "Temporada {season}",
+      "serverLine": "Servidor {server}",
+      "postSeasonWeek": "Pós-temporada (semana {week})",
+      "inSeasonWeek": "Semana {week}",
+      "overrideLabel": "Substituição manual de temporada",
+      "saveOverride": "Salvar substituição",
+      "clearOverride": "Usar sincronização automática",
+      "saving": "Salvando…",
+      "saveFailed": "Não foi possível salvar a substituição.",
+      "clearFailed": "Não foi possível limpar a substituição.",
+      "source": {
+        "override": "Substituição manual",
+        "cpt-hedge": "Sincronizado do cpt-hedge",
+        "age-fallback": "Estimado pela idade do servidor",
+        "default": "Padrão"
+      }
+    }
   },
   "deviceLink": {
     "sectionTitle": "Vincular dispositivo móvel",
@@ -924,7 +981,61 @@
     "bulkRankUpdated": "{count} membro(s) atualizado(s).",
     "bulkRankFailed": "Não foi possível atualizar as patentes.",
     "bulkRankPartial": "Atualizados {updated} de {total}; alguns falharam.",
-    "selectMember": "Selecionar {name}"
+    "selectMember": "Selecionar {name}",
+    "subtitleNative": "Elenco nativo HQ da sua aliança. Importe capturas para adicionar ou atualizar membros.",
+    "refreshNative": "Atualizar elenco",
+    "refreshingNative": "Atualizando…",
+    "importMembers": "Importar membros",
+    "import": {
+      "title": "Importar membros",
+      "uploadHint": "Envie uma captura por página de patente (oficiais e listas R1–R5). Lemos nome, poder e nível com OCR.",
+      "uploadPrompt": "Escolher capturas PNG ou JPEG",
+      "parsing": "Lendo captura…",
+      "parseFailed": "Não foi possível ler a captura.",
+      "noRows": "Nenhum membro encontrado. Tente uma captura mais nítida.",
+      "matchedBadge": "{count} correspondidos",
+      "newBadge": "{count} novos",
+      "totalBadge": "{count} total",
+      "colName": "Nome extraído",
+      "colMatch": "Correspondência",
+      "colPower": "Poder (M)",
+      "colLevel": "Nível",
+      "colActions": "Ações",
+      "createNew": "+ Criar novo",
+      "removeRow": "Remover",
+      "inactiveSweep": "Marcar membros ativos ausentes desta importação como inativos",
+      "inactiveSweepHelp": "Útil para limpeza do elenco. Membros correspondidos permanecem ativos.",
+      "back": "Voltar",
+      "commit": "Importar elenco",
+      "committing": "Importando…",
+      "commitFailed": "Falha na importação.",
+      "cancel": "Cancelar"
+    }
+  },
+  "invite": {
+    "title": "Convite Alliance HQ",
+    "loading": "Carregando convite…",
+    "notFound": "Este link de convite é inválido.",
+    "loadFailed": "Não foi possível carregar o convite.",
+    "alreadyAccepted": "Este convite já foi usado.",
+    "expired": "Este convite expirou. Peça um novo link ao administrador.",
+    "intro": "Entrar em {alliance} [{tag}] como {role}. Digite o e-mail que o administrador usou neste convite.",
+    "email": "E-mail",
+    "emailHint": "Deve ser o mesmo endereço que o administrador registrou para este convite.",
+    "emailRequired": "Informe um endereço de e-mail válido.",
+    "emailMismatch": "Este e-mail não corresponde ao convite. Confira com o administrador.",
+    "displayName": "Nome de exibição (opcional)",
+    "accept": "Aceitar convite",
+    "accepting": "Aceitando…",
+    "acceptFailed": "Não foi possível aceitar o convite.",
+    "goToApp": "Continuar configuração",
+    "home": "Voltar ao início",
+    "welcome": {
+      "title": "Você entrou",
+      "body": "Seu convite está ativo. Conecte o Ashed para ferramentas em iframe e sincronização ao vivo, ou pule e use só os recursos nativos do HQ.",
+      "connectAshed": "Conectar Ashed",
+      "nativeOnly": "Continuar sem Ashed"
+    }
   },
   "viralResistance": {
     "title": "Resistência Viral",
@@ -955,8 +1066,11 @@
     }
   },
   "trains": {
-    "title": "Trens",
+    "title": "Trem da Aliança",
     "subtitle": "Gerencie o ritual diário do Condutor — agenda, roleta e confirmação.",
+    "emptyRosterBody": "Importe o elenco da aliança antes de planejar agendas de trem ou sortear o Condutor.",
+    "emptyRosterCta": "Ir para Membros",
+    "noScheduleYet": "Nenhuma agenda semanal ainda. Escolha um modelo abaixo ou planeje os dias no calendário (em breve).",
     "weekSchedule": "Esta semana",
     "templateBadge": "Modelo: {template}",
     "todayConductor": "Condutor de hoje",
@@ -990,6 +1104,21 @@
       "officerPick": "Escolha do oficial",
       "eventTopX": "Top X evento",
       "custom": "Personalizado"
+    },
+    "mechanismsShort": {
+      "vsHighScore": "VS D1",
+      "vsTop10": "VS T10",
+      "r3Lottery": "R3",
+      "r4Sequence": "R4",
+      "donationsTop": "DOA",
+      "officerPick": "OF",
+      "eventTopX": "EVT",
+      "custom": "?"
+    },
+    "vipMechanismsShort": {
+      "conductorPick": "VIP",
+      "donationsSecond": "2º",
+      "eventTopX": "EVT"
     },
     "templates": {
       "vs_push_week": "Semana push VS",

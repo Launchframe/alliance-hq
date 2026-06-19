@@ -52,6 +52,8 @@
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "semver": "^7.8.4",
+    "sharp": "^0.35.1",
+    "tesseract.js": "^7.0.0",
     "tweetnacl": "^1.0.3",
     "yet-another-react-lightbox": "^3.32.0",
     "zod": "^4.4.3"
@@ -76,5 +78,11 @@
     "tsx": "^4.22.4",
     "typescript": "^5",
     "vitest": "^4.1.8"
+  },
+  "allowScripts": {
+    "tesseract.js@7.0.0": true,
+    "sharp@0.34.5": true,
+    "sharp@0.35.1": true,
+    "unrs-resolver@1.12.2": true
   }
 }

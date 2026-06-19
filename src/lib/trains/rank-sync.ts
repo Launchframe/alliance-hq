@@ -109,6 +109,53 @@ export async function confirmMemberRank(
   return row;
 }
 
+export type ConfirmMemberRankLocalInput = Omit<
+  ConfirmMemberRankInput,
+  "connection"
+>;
+
+/** Native alliances: persist rank locally without Ashed PUT. */
+export async function confirmMemberRankLocal(
+  input: ConfirmMemberRankLocalInput,
+): Promise<(typeof schema.memberAllianceRankEvents.$inferSelect)> {
+  if (input.allianceRank < 1 || input.allianceRank > 5) {
+    throw new Error("Alliance rank must be between 1 and 5.");
+  }
+
+  const db = getDb();
+  const eventId = nanoid();
+
+  await db.insert(schema.memberAllianceRankEvents).values({
+    id: eventId,
+    allianceId: input.allianceId,
+    ashedMemberId: input.ashedMemberId,
+    memberName: input.memberName,
+    allianceRank: input.allianceRank,
+    allianceRankTitle: input.allianceRankTitle?.trim() || null,
+    effectiveDate: input.effectiveDate,
+    source: input.source,
+    recordedByHqUserId: input.recordedByHqUserId ?? null,
+  });
+
+  await setAllianceMemberRank({
+    hqAllianceId: input.allianceId,
+    ashedMemberId: input.ashedMemberId,
+    allianceRank: input.allianceRank,
+    allianceRankTitle: input.allianceRankTitle,
+  });
+
+  const [row] = await db
+    .select()
+    .from(schema.memberAllianceRankEvents)
+    .where(eq(schema.memberAllianceRankEvents.id, eventId))
+    .limit(1);
+
+  if (!row) {
+    throw new Error("Failed to load rank event after insert.");
+  }
+  return row;
+}
+
 export async function bootstrapRanksFromAshedMembers(
   allianceId: string,
   members: Array<Record<string, unknown>>,

@@ -66,7 +66,7 @@ export default async function AppLayout({
     );
   }
 
-  if (!state.isConnected) {
+  if (!state.hasAppAccess) {
     redirect({ href: "/connect", locale });
   }
 
@@ -76,6 +76,9 @@ export default async function AppLayout({
         sessionId={state.sessionId}
         userLabel={state.userLabel}
         isConnected={state.isConnected}
+        hasAppAccess={state.hasAppAccess}
+        isNativeAlliance={state.isNativeAlliance}
+        operatingMode={state.operatingMode}
         ashed={state.ashed}
         showAdminPortal={state.rbac?.isPlatformMaintainer ?? false}
         showTeamSettings={state.rbac?.isAllianceAdmin ?? false}

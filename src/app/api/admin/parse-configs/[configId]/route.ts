@@ -5,12 +5,18 @@ import { getDb, schema } from "@/lib/db";
 import type { ExtractionConfig } from "@/lib/db/schema";
 import { requirePlatformMaintainer } from "@/lib/rbac/require-permission";
 import { readSessionId } from "@/lib/session";
+import { isValidRosterOcrConfig } from "@/lib/members/roster-ocr/roster-ocr-config";
 
 type RouteParams = { params: Promise<{ configId: string }> };
 
 const CONFIG_STATUSES = new Set(["draft", "active", "archived"]);
 
 function isValidExtractionConfig(config: ExtractionConfig): boolean {
+  // Roster OCR configs use a different shape validated by the roster module
+  if ((config as { mode?: string }).mode === "roster-ocr") {
+    return isValidRosterOcrConfig(config);
+  }
+
   if (config.mode === "scene") {
     return (
       typeof config.sceneThreshold === "number" &&

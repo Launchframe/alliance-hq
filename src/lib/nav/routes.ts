@@ -35,6 +35,22 @@ export function resolveAshedPath(page: NavPageDef): string | undefined {
   return page.ashedPath ?? trainwreckCase(page.href);
 }
 
+export function filterNavGroupsForOperatingMode(
+  groups: NavGroupDef[],
+  operatingMode: "ashed" | "native" | null,
+): NavGroupDef[] {
+  if (operatingMode !== "native") {
+    return groups;
+  }
+
+  return groups
+    .map((group) => ({
+      ...group,
+      pages: group.pages.filter((page) => page.kind !== "iframe"),
+    }))
+    .filter((group) => group.pages.length > 0);
+}
+
 /** Sidebar groups mirroring docs/ashed-api-catalog.json navGroups */
 export const NAV_GROUPS: NavGroupDef[] = [
   {

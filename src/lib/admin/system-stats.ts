@@ -156,6 +156,7 @@ export async function loadAdminAlliances() {
     tag: alliance.tag,
     name: alliance.name,
     ashedAllianceId: alliance.ashedAllianceId,
+    operatingMode: alliance.operatingMode,
     ownerEmail: alliance.ownerEmail,
     collaborators: alliance.collaboratorsJson ?? [],
     rolesSyncedAt: alliance.rolesSyncedAt,

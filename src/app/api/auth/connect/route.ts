@@ -10,6 +10,7 @@ import {
   allianceSelectionErrorStatus,
   resolveConnectAlliance,
 } from "@/lib/alliance/connect-alliance";
+import { emailHasAshedConnectAccess } from "@/lib/native-alliance/access";
 import { verifyBase44Connection } from "@/lib/base44/server";
 import {
   DEFAULT_APP_ID,
@@ -70,6 +71,17 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { error: "Ashed account email is required to connect." },
         { status: 502 },
+      );
+    }
+
+    if (!(await emailHasAshedConnectAccess(me.email))) {
+      return NextResponse.json(
+        {
+          error:
+            "Production access requires an admin invite first. Ask your platform maintainer for a link, accept it, then connect Ashed here.",
+          code: "invite_required",
+        },
+        { status: 403 },
       );
     }
 

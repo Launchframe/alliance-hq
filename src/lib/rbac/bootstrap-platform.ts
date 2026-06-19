@@ -1,5 +1,6 @@
 import { eq, sql } from "drizzle-orm";
 
+import { grantHqAccess } from "@/lib/access/invite-gate";
 import { getDb, schema } from "@/lib/db";
 
 import { setPlatformMaintainer } from "./admin-users";
@@ -25,5 +26,6 @@ export async function maybeBootstrapPlatformMaintainer(
   }
 
   await setPlatformMaintainer(hqUserId, true);
+  await grantHqAccess(hqUserId);
   return true;
 }

@@ -1,14 +1,17 @@
 "use client";
 
+import { createElement } from "react";
 import { ChevronDown, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { Link, usePathname } from "@/i18n/navigation";
 import { ashedLink } from "@/components/i18n/richText";
 import { APP_VERSION } from "@/lib/feedback/constants";
+import { navPageIcon } from "@/lib/nav/icons";
 import {
   FOOTER_NAV,
   NAV_GROUPS,
+  filterNavGroupsForOperatingMode,
   isNavActive,
 } from "@/lib/nav/routes";
 
@@ -18,27 +21,37 @@ function cn(...parts: Array<string | false | null | undefined>) {
 
 function NavLink({
   href,
+  pageId,
   label,
   active,
   onNavigate,
 }: {
   href: string;
+  pageId: string;
   label: string;
   active: boolean;
   onNavigate?: () => void;
 }) {
+  const icon = navPageIcon(pageId);
+
   return (
     <Link
       href={href}
       onClick={onNavigate}
       className={cn(
-        "block rounded-lg px-3 py-1.5 text-sm",
+        "flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm",
         active
           ? "bg-[#1f3d5c] font-medium text-[#58a6ff]"
           : "text-[#8b949e] hover:bg-[#21262d] hover:text-[#e6edf3]",
       )}
     >
-      {label}
+      {icon
+        ? createElement(icon, {
+            className: "h-4 w-4 shrink-0",
+            "aria-hidden": true,
+          })
+        : null}
+      <span className="min-w-0 truncate">{label}</span>
     </Link>
   );
 }
@@ -46,6 +59,7 @@ function NavLink({
 type Props = {
   showAdminPortal?: boolean;
   showTeamSettings?: boolean;
+  operatingMode?: "ashed" | "native" | null;
   mobileCollapsible?: boolean;
   expandedGroupId: string | null;
   onToggleGroup: (groupId: string) => void;
@@ -56,6 +70,7 @@ type Props = {
 export function SidebarNav({
   showAdminPortal = false,
   showTeamSettings = false,
+  operatingMode = null,
   mobileCollapsible = false,
   expandedGroupId,
   onToggleGroup,
@@ -67,12 +82,13 @@ export function SidebarNav({
   const tNav = useTranslations("nav");
   const tNavGroups = useTranslations("navGroups");
   const tc = useTranslations("common");
+  const navGroups = filterNavGroupsForOperatingMode(NAV_GROUPS, operatingMode);
 
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex shrink-0 items-center justify-between border-b border-[#30363d] px-4 py-4">
         <Link
-          href="/dashboard"
+          href={operatingMode === "native" ? "/members" : "/dashboard"}
           className="flex min-w-0 items-center gap-3"
           onClick={onNavigate}
         >
@@ -103,7 +119,7 @@ export function SidebarNav({
       </div>
 
       <nav className="min-h-0 flex-1 overflow-y-auto p-2">
-        {NAV_GROUPS.map((group) => {
+        {navGroups.map((group) => {
           const extraPages =
             group.id === "hq-native"
               ? [
@@ -157,6 +173,7 @@ export function SidebarNav({
                       <NavLink
                         key={page.href}
                         href={page.href}
+                        pageId={page.id}
                         label={tNav(page.labelKey)}
                         active={isNavActive(pathname, page.href)}
                         onNavigate={onNavigate}
@@ -166,6 +183,7 @@ export function SidebarNav({
                       <NavLink
                         key={page.href}
                         href={page.href}
+                        pageId={page.labelKey}
                         label={tNav(page.labelKey)}
                         active={
                           page.href === "/admin"

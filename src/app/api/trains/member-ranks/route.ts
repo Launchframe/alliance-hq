@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import { resolveTrainRequestContext } from "@/lib/trains/api-context";
 import { getAllianceRanksAsOf } from "@/lib/trains/rank-history";
-import { confirmMemberRank } from "@/lib/trains/rank-sync";
+import { confirmMemberRank, confirmMemberRankLocal } from "@/lib/trains/rank-sync";
 import { getServerCalendarDate } from "@/lib/trains/game-time";
 import { getRbacContext } from "@/lib/rbac/require-permission";
 import { getOrCreateSession } from "@/lib/session";
@@ -64,7 +64,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const event = await confirmMemberRank({
+    const rankInput = {
       allianceId: ctx.allianceId,
       ashedMemberId: body.ashedMemberId.trim(),
       memberName: body.memberName.trim(),
@@ -73,8 +73,16 @@ export async function POST(request: Request) {
       effectiveDate: body.effectiveDate?.trim() || getServerCalendarDate(),
       source: body.source ?? "manual",
       recordedByHqUserId: rbac?.hqUserId ?? null,
-      connection: ctx.connection,
-    });
+    } as const;
+
+    const event =
+      ctx.operatingMode === "native"
+        ? await confirmMemberRankLocal(rankInput)
+        : ctx.connection
+          ? await confirmMemberRank({ ...rankInput, connection: ctx.connection })
+          : (() => {
+              throw new Error("Not connected to Ashed.");
+            })();
     return NextResponse.json({ event });
   } catch (error) {
     return NextResponse.json(

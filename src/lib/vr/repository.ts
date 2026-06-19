@@ -672,7 +672,16 @@ export async function callerIsAllianceOwner(input: {
   discordUserId: string;
 }): Promise<boolean> {
   const alliance = await getAllianceById(input.allianceId);
-  if (!alliance?.ownerAshedUserId) return false;
+  if (!alliance) return false;
+
   const links = await listDiscordLinksForUser(input.allianceId, input.discordUserId);
+
+  if (alliance.ownerMemberExternalId) {
+    return links.some(
+      (link) => link.ashedMemberId === alliance.ownerMemberExternalId,
+    );
+  }
+
+  if (!alliance.ownerAshedUserId) return false;
   return links.some((link) => link.ashedMemberId === alliance.ownerAshedUserId);
 }

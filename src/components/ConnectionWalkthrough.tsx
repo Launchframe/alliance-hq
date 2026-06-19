@@ -268,6 +268,7 @@ export function ConnectionWalkthrough({ onConnected }: Props) {
 
       const data = (await res.json()) as {
         error?: string;
+        code?: string;
         ok?: boolean;
         userLabel?: string;
         ashed?: AshedConnectionMeta;
@@ -275,6 +276,10 @@ export function ConnectionWalkthrough({ onConnected }: Props) {
       };
 
       if (!res.ok) {
+        if (data.code === "invite_required") {
+          setError(t("inviteRequired"));
+          return;
+        }
         setError(data.error ?? tc("connectionFailed"));
         return;
       }

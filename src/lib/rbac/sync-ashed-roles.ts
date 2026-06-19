@@ -6,6 +6,10 @@ import {
   normalizeAshedEmail,
 } from "@/lib/alliance/accessible";
 import {
+  hqUserHasAccessGrant,
+  isAshedInviteRequired,
+} from "@/lib/access/invite-gate";
+import {
   buildAllianceRosterEmails,
   shouldRevokeAshedMembership,
 } from "@/lib/rbac/sync-ashed-roles.helpers";
@@ -74,6 +78,32 @@ export async function upsertHqUser(user: AshedUserInfo) {
 
 async function upsertHqUserStub(email: string) {
   return upsertHqUser({ email });
+}
+
+async function resolveRosterHqUserId(email: string): Promise<string | null> {
+  const normalized = normalizeAshedEmail(email);
+  const db = getDb();
+  const [existing] = await db
+    .select({ id: schema.hqUsers.id })
+    .from(schema.hqUsers)
+    .where(eq(schema.hqUsers.email, normalized))
+    .limit(1);
+
+  if (!existing) {
+    if (isAshedInviteRequired()) {
+      return null;
+    }
+    return upsertHqUserStub(email);
+  }
+
+  if (
+    isAshedInviteRequired() &&
+    !(await hqUserHasAccessGrant(existing.id))
+  ) {
+    return null;
+  }
+
+  return existing.id;
 }
 
 async function upsertAllianceFromAshed(
@@ -246,7 +276,10 @@ export async function syncAshedAllianceRoles(options: {
   const rosterEmails = buildAllianceRosterEmails(ashedAlliance);
 
   for (const email of rosterEmails) {
-    const stubUserId = await upsertHqUserStub(email);
+    const stubUserId = await resolveRosterHqUserId(email);
+    if (!stubUserId) {
+      continue;
+    }
     const roleName = resolveSystemRoleForAlliance(ashedAlliance, { email });
     await upsertAshedMembership(hqAllianceId, stubUserId, roleName);
   }
@@ -287,7 +320,10 @@ export async function syncAshedAllianceForBot(options: {
   const rosterEmails = buildAllianceRosterEmails(ashedAlliance);
 
   for (const email of rosterEmails) {
-    const stubUserId = await upsertHqUserStub(email);
+    const stubUserId = await resolveRosterHqUserId(email);
+    if (!stubUserId) {
+      continue;
+    }
     const roleName = resolveSystemRoleForAlliance(ashedAlliance, { email });
     await upsertAshedMembership(hqAllianceId, stubUserId, roleName);
   }
