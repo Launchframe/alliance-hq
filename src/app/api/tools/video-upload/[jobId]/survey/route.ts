@@ -3,9 +3,69 @@ import { and, eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { getDb, schema } from "@/lib/db";
 import { getOrCreateSession } from "@/lib/session";
-import { hasSurveyAnswers, parseSurveyBody } from "@/lib/video/survey";
+import {
+  accumulatedFromPayload,
+  hasSurveyAnswers,
+  isSurveyComplete,
+  parseSurveyBody,
+  surveyResumeStep,
+  surveyRowToPayload,
+} from "@/lib/video/survey";
 
 type Props = { params: Promise<{ jobId: string }> };
+
+async function loadOwnedJob(jobId: string, sessionId: string) {
+  const db = getDb();
+  const [job] = await db
+    .select({ id: schema.videoJobs.id })
+    .from(schema.videoJobs)
+    .where(
+      and(
+        eq(schema.videoJobs.id, jobId),
+        eq(schema.videoJobs.sessionId, sessionId),
+      ),
+    )
+    .limit(1);
+  return job ?? null;
+}
+
+export async function GET(_request: Request, { params }: Props) {
+  try {
+    const session = await getOrCreateSession();
+    const { jobId } = await params;
+
+    const job = await loadOwnedJob(jobId, session.id);
+    if (!job) {
+      return NextResponse.json({ error: "Job not found" }, { status: 404 });
+    }
+
+    const db = getDb();
+    const [surveyRow] = await db
+      .select({
+        rowCountEstimate: schema.videoJobSurveys.rowCountEstimate,
+        scrollStyle: schema.videoJobSurveys.scrollStyle,
+        aboveAverageScroll: schema.videoJobSurveys.aboveAverageScroll,
+        schoolingTuitionAnswer: schema.videoJobSurveys.schoolingTuitionAnswer,
+      })
+      .from(schema.videoJobSurveys)
+      .where(eq(schema.videoJobSurveys.jobId, jobId))
+      .limit(1);
+
+    const payload = surveyRow ? surveyRowToPayload(surveyRow) : null;
+
+    return NextResponse.json({
+      survey: payload,
+      complete: isSurveyComplete(payload),
+      resumeStep: surveyResumeStep(payload),
+      accumulated: payload ? accumulatedFromPayload(payload) : null,
+    });
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Survey load failed" },
+      { status: 500 },
+    );
+  }
+}
 
 export async function POST(request: Request, { params }: Props) {
   try {
@@ -20,17 +80,7 @@ export async function POST(request: Request, { params }: Props) {
 
     const db = getDb();
 
-    const [job] = await db
-      .select({ id: schema.videoJobs.id })
-      .from(schema.videoJobs)
-      .where(
-        and(
-          eq(schema.videoJobs.id, jobId),
-          eq(schema.videoJobs.sessionId, session.id),
-        ),
-      )
-      .limit(1);
-
+    const job = await loadOwnedJob(jobId, session.id);
     if (!job) {
       return NextResponse.json({ error: "Job not found" }, { status: 404 });
     }
@@ -44,6 +94,7 @@ export async function POST(request: Request, { params }: Props) {
         rowCountEstimate: payload.rowCountEstimate,
         scrollStyle: payload.scrollStyle,
         aboveAverageScroll: payload.aboveAverageScroll,
+        schoolingTuitionAnswer: payload.schoolingTuitionAnswer,
         createdAt: now,
         updatedAt: now,
       })
@@ -53,6 +104,7 @@ export async function POST(request: Request, { params }: Props) {
           rowCountEstimate: payload.rowCountEstimate,
           scrollStyle: payload.scrollStyle,
           aboveAverageScroll: payload.aboveAverageScroll,
+          schoolingTuitionAnswer: payload.schoolingTuitionAnswer,
           updatedAt: now,
         },
       });

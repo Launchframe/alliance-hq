@@ -325,6 +325,7 @@ export const videoJobSurveys = pgTable(
     rowCountEstimate: integer("row_count_estimate"),
     scrollStyle: text("scroll_style"),
     aboveAverageScroll: boolean("above_average_scroll"),
+    schoolingTuitionAnswer: text("schooling_tuition_answer"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },

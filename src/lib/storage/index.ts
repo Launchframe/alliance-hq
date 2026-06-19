@@ -4,6 +4,8 @@ import path from "node:path";
 import {
   deleteR2Object,
   getR2Object,
+  getR2ObjectRange,
+  headR2ObjectSize,
   putR2Object,
   r2Configured,
 } from "@/lib/storage/r2";
@@ -37,6 +39,33 @@ export async function getObject(storageKey: string): Promise<Buffer> {
     return fs.readFile(localPath(storageKey));
   }
   return getR2Object(storageKey);
+}
+
+export async function getObjectSize(storageKey: string): Promise<number> {
+  if (prefersLocalStorage()) {
+    const stat = await fs.stat(localPath(storageKey));
+    return stat.size;
+  }
+  return headR2ObjectSize(storageKey);
+}
+
+export async function getObjectRange(
+  storageKey: string,
+  start: number,
+  end: number,
+): Promise<Buffer> {
+  if (prefersLocalStorage()) {
+    const length = end - start + 1;
+    const buffer = Buffer.alloc(length);
+    const handle = await fs.open(localPath(storageKey), "r");
+    try {
+      await handle.read(buffer, 0, length, start);
+      return buffer;
+    } finally {
+      await handle.close();
+    }
+  }
+  return getR2ObjectRange(storageKey, start, end);
 }
 
 export async function deleteObject(storageKey: string): Promise<void> {

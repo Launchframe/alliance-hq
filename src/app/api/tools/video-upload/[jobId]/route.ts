@@ -9,6 +9,7 @@ import {
   toScoreTargetClientMeta,
 } from "@/lib/video/score-targets";
 import { isVideoProcessTimings } from "@/lib/video/pipeline-stats-display";
+import { resolveJobVideoStorageKey } from "@/lib/video/resolve-job-video-storage";
 
 type Props = {
   params: Promise<{ jobId: string }>;
@@ -98,6 +99,12 @@ export async function GET(_request: Request, { params }: Props) {
       ? (job.timingsJson as VideoProcessTimings)
       : null;
 
+    const storageKey = await resolveJobVideoStorageKey({
+      storageKey: job.storageKey,
+      groupId: job.groupId,
+      fileName: job.fileName,
+    });
+
     return NextResponse.json({
       job: {
         id: job.id,
@@ -114,6 +121,7 @@ export async function GET(_request: Request, { params }: Props) {
         rating: job.rating,
         timingsJson,
       },
+      hasSourceVideo: storageKey != null,
       scoreTargetMeta: target ? toScoreTargetClientMeta(target) : null,
       alliance: {
         jobId: job.allianceId,

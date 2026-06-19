@@ -96,6 +96,7 @@ export async function GET(_request: Request, { params }: RouteParams) {
     rowCountEstimate: number | null;
     scrollStyle: string | null;
     aboveAverageScroll: boolean | null;
+    schoolingTuitionAnswer: string | null;
   } | null = null;
 
   const [surveyRow] = await db
@@ -103,6 +104,7 @@ export async function GET(_request: Request, { params }: RouteParams) {
       rowCountEstimate: schema.videoJobSurveys.rowCountEstimate,
       scrollStyle: schema.videoJobSurveys.scrollStyle,
       aboveAverageScroll: schema.videoJobSurveys.aboveAverageScroll,
+      schoolingTuitionAnswer: schema.videoJobSurveys.schoolingTuitionAnswer,
     })
     .from(schema.videoJobSurveys)
     .where(eq(schema.videoJobSurveys.jobId, jobId))

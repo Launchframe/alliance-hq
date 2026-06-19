@@ -390,7 +390,7 @@
       "surveyTitle": "Pre-upload survey",
       "surveyRowCount": "Row count estimate",
       "surveyScrollStyle": "Scroll style",
-      "surveyAboveAvg": "Faster than usual",
+      "surveySchoolingTuition": "Schooling tuition",
       "viewMode": {
         "list": "List",
         "gallery": "Gallery",
@@ -1348,6 +1348,8 @@
     "queuedSuccess": "Video queued for processing.",
     "recentUploads": "Recent uploads",
     "reviewLink": "Review",
+    "surveyResumeLink": "Survey",
+    "surveyResumeLoading": "Opening…",
     "eventLink": "Event scores",
     "status": {
       "queued": "queued",
@@ -1436,6 +1438,9 @@
     "comparisonAboutSame": "About the same",
     "comparisonUseA": "Use Pass A",
     "comparisonUseB": "Use Pass B",
+    "previewVideo": "Preview",
+    "closePreview": "Close",
+    "previewUnavailable": "Source video is not available for this job.",
     "statsNerds": {
       "button": "Stats for nerds",
       "title": "Stats for nerds",
@@ -1660,21 +1665,23 @@
   "videoSurvey": {
     "title": "While you wait…",
     "processingNote": "Your video is processing in the background. If you have a moment, a few optional notes help us tune the pipeline.",
-    "optionalHint": "All questions are optional.",
-    "q1Label": "Roughly how many rows were on the leaderboard?",
+    "q1Label": "Roughly how many leaderboard rows are there in your video?",
     "q1Placeholder": "e.g. 50",
-    "q2Label": "How did you scroll through the leaderboard?",
+    "q2Label": "How would you describe your method of scrolling?",
     "scrollStyle": {
-      "slow_steady": "Slow & steady",
-      "fast": "Quickly",
-      "page_by_page": "Page by page",
-      "chaotic": "Fast / erratic"
+      "slow_steady": "Slow and steady, this is an art to me 🤌",
+      "fast": "I just want to get through it 🏃‍♀️",
+      "page_by_page": "One page at a time, make sure each one gets read 📸",
+      "chaotic": "All over the place, let the robots sort it out 🤖💥"
     },
-    "q3Label": "Was the scrolling faster than usual for you?",
-    "q3Yes": "Yes, faster than usual",
-    "q3No": "No, my normal pace",
-    "skip": "Skip for now",
-    "submit": "Share notes",
+    "q3Label": "If you opened a school called {memberName}'s Schooling on Scrolling, would you be able to charge tuition for your lessons?",
+    "q3LabelGeneric": "If you were headmaster at a school that taught professional scrolling, would you be able to charge tuition for your lessons?",
+    "q3Yes": "Yes",
+    "q3No": "No",
+    "q3Idk": "idk 🤷‍♂️",
+    "stepIndicator": "Step {current} / {total}",
+    "skip": "Skip",
+    "next": "Next",
     "submitting": "Saving…"
   },
   "discordBot": {

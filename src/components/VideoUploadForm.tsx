@@ -9,6 +9,7 @@ import { AppSelect } from "@/components/ui/AppSelect";
 import { useMergedVideoJobs } from "@/components/video/VideoJobEventsProvider";
 import { VideoSurveyDialog } from "@/components/video/VideoSurveyDialog";
 import type { VideoJobRow } from "@/lib/types/video";
+import type { SurveyPayload } from "@/lib/video/survey";
 import {
   isVideoUploadOverLimit,
   isVideoUploadSizeLimitEnforced,
@@ -31,8 +32,16 @@ type ScoreTargetOption = {
 
 const GROUP_ORDER = ["events", "recurring", "hq-native"] as const;
 
+type ActiveSurvey = {
+  jobId: string;
+  file: File | null;
+  initialSurvey: SurveyPayload | null;
+  navigateOnClose: boolean;
+};
+
 type Props = {
   initialJobs: VideoJobRow[];
+  memberName?: string | null;
 };
 
 function statusLabel(
@@ -54,7 +63,7 @@ function statusLabel(
   return status;
 }
 
-export function VideoUploadForm({ initialJobs }: Props) {
+export function VideoUploadForm({ initialJobs, memberName = null }: Props) {
   const t = useTranslations("video");
   const tNav = useTranslations("nav");
   const tc = useTranslations("common");
@@ -69,8 +78,17 @@ export function VideoUploadForm({ initialJobs }: Props) {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [surveyJobId, setSurveyJobId] = useState<string | null>(null);
-  const [surveyFile, setSurveyFile] = useState<File | null>(null);
+  const [activeSurvey, setActiveSurvey] = useState<ActiveSurvey | null>(null);
+  const [surveyCompleteByJobId, setSurveyCompleteByJobId] = useState<
+    Record<string, boolean>
+  >(() =>
+    Object.fromEntries(
+      initialJobs.map((job) => [job.id, job.surveyComplete ?? false]),
+    ),
+  );
+  const [resumingSurveyJobId, setResumingSurveyJobId] = useState<string | null>(
+    null,
+  );
   const jobs = useMergedVideoJobs(initialJobs);
 
   useEffect(() => {
@@ -148,8 +166,16 @@ export function VideoUploadForm({ initialJobs }: Props) {
 
       setSuccess(data.message ?? t("queuedSuccess"));
       if (data.jobId) {
-        setSurveyJobId(data.jobId);
-        setSurveyFile(file);
+        setSurveyCompleteByJobId((prev) => ({
+          ...prev,
+          [data.jobId!]: false,
+        }));
+        setActiveSurvey({
+          jobId: data.jobId,
+          file,
+          initialSurvey: null,
+          navigateOnClose: true,
+        });
       }
       setFile(null);
     } catch (err) {
@@ -159,13 +185,53 @@ export function VideoUploadForm({ initialJobs }: Props) {
     }
   }
 
-  function handleSurveyClose() {
-    const jobId = surveyJobId;
-    setSurveyJobId(null);
-    setSurveyFile(null);
-    if (jobId) {
-      router.push(`/tools/video-upload/${jobId}/review`);
+  function handleSurveyClose(result: { complete: boolean }) {
+    const session = activeSurvey;
+    setActiveSurvey(null);
+    if (session?.jobId) {
+      setSurveyCompleteByJobId((prev) => ({
+        ...prev,
+        [session.jobId]: result.complete,
+      }));
     }
+    if (session?.navigateOnClose && session.jobId) {
+      router.push(`/tools/video-upload/${session.jobId}/review`);
+    }
+  }
+
+  async function resumeSurvey(jobId: string) {
+    setResumingSurveyJobId(jobId);
+    try {
+      const res = await fetch(`/api/tools/video-upload/${jobId}/survey`);
+      const data = (await res.json()) as {
+        error?: string;
+        complete?: boolean;
+        survey?: SurveyPayload | null;
+      };
+      if (!res.ok) {
+        setError(data.error ?? tc("uploadFailed"));
+        return;
+      }
+      if (data.complete) {
+        setSurveyCompleteByJobId((prev) => ({ ...prev, [jobId]: true }));
+        return;
+      }
+      setActiveSurvey({
+        jobId,
+        file: null,
+        initialSurvey: data.survey ?? null,
+        navigateOnClose: false,
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : tc("uploadFailed"));
+    } finally {
+      setResumingSurveyJobId(null);
+    }
+  }
+
+  function isSurveyIncomplete(job: VideoJobRow): boolean {
+    if (job.status === "failed" || job.status === "discarded") return false;
+    return !(surveyCompleteByJobId[job.id] ?? job.surveyComplete ?? false);
   }
 
   return (
@@ -315,6 +381,18 @@ export function VideoUploadForm({ initialJobs }: Props) {
                         : t("reviewLink")}
                     </Link>
                   )}
+                  {isSurveyIncomplete(job) ? (
+                    <button
+                      type="button"
+                      disabled={resumingSurveyJobId === job.id}
+                      onClick={() => void resumeSurvey(job.id)}
+                      className="text-xs text-[#58a6ff] hover:underline disabled:opacity-50"
+                    >
+                      {resumingSurveyJobId === job.id
+                        ? t("surveyResumeLoading")
+                        : t("surveyResumeLink")}
+                    </button>
+                  ) : null}
                 </div>
               </li>
             ))}
@@ -322,10 +400,12 @@ export function VideoUploadForm({ initialJobs }: Props) {
         </section>
       )}
 
-      {surveyJobId && surveyFile ? (
+      {activeSurvey ? (
         <VideoSurveyDialog
-          jobId={surveyJobId}
-          file={surveyFile}
+          jobId={activeSurvey.jobId}
+          file={activeSurvey.file}
+          memberName={memberName}
+          initialSurvey={activeSurvey.initialSurvey}
           open={true}
           onClose={handleSurveyClose}
         />

@@ -1,6 +1,7 @@
 import {
   DeleteObjectCommand,
   GetObjectCommand,
+  HeadObjectCommand,
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
@@ -61,6 +62,42 @@ export async function getR2Object(storageKey: string): Promise<Buffer> {
     new GetObjectCommand({
       Bucket: bucket(),
       Key: storageKey,
+    }),
+  );
+
+  if (!response.Body) {
+    throw new Error(`R2 object not found: ${storageKey}`);
+  }
+
+  const bytes = await response.Body.transformToByteArray();
+  return Buffer.from(bytes);
+}
+
+export async function headR2ObjectSize(storageKey: string): Promise<number> {
+  const response = await getR2Client().send(
+    new HeadObjectCommand({
+      Bucket: bucket(),
+      Key: storageKey,
+    }),
+  );
+
+  if (response.ContentLength == null) {
+    throw new Error(`R2 object size unavailable: ${storageKey}`);
+  }
+
+  return response.ContentLength;
+}
+
+export async function getR2ObjectRange(
+  storageKey: string,
+  start: number,
+  end: number,
+): Promise<Buffer> {
+  const response = await getR2Client().send(
+    new GetObjectCommand({
+      Bucket: bucket(),
+      Key: storageKey,
+      Range: `bytes=${start}-${end}`,
     }),
   );
 
