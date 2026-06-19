@@ -180,7 +180,7 @@ describe("optimistic dashboard state", () => {
       conductorMechanism: "r3_lottery",
       vipMechanism: null,
       guardianIsVip: false,
-      lockedAt: "2026-06-10T10:00:00.000Z",
+      lockedAt: null,
       substituteForMemberId: null,
       substituteForMemberName: null,
     };
@@ -194,7 +194,7 @@ describe("optimistic dashboard state", () => {
       conductorMechanism: "r3_lottery",
       vipMechanism: null,
       guardianIsVip: false,
-      lockedAt: "2026-06-11T10:00:00.000Z",
+      lockedAt: null,
       substituteForMemberId: null,
       substituteForMemberName: null,
     };
@@ -248,7 +248,7 @@ describe("optimistic dashboard state", () => {
       conductorMechanism: "r3_lottery",
       vipMechanism: null,
       guardianIsVip: false,
-      lockedAt: "2026-06-10T10:00:00.000Z",
+      lockedAt: null,
       substituteForMemberId: null,
       substituteForMemberName: null,
     };

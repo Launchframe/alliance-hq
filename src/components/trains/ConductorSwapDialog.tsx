@@ -4,17 +4,12 @@ import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { Dialog } from "@/components/ui/dialog";
+import { conductorSwapCandidates } from "@/lib/trains/conductor-swap.shared";
 import { spinWeekDayLabel } from "@/lib/trains/spin-week.shared";
 import type {
   WeekConductorRecordSummary,
   WeekScheduleDayConfig,
 } from "@/lib/trains/load-dashboard";
-
-type SwapCandidate = {
-  date: string;
-  conductorMemberId: string | null;
-  conductorMemberName: string | null;
-};
 
 type Props = {
   open: boolean;
@@ -40,19 +35,10 @@ export function ConductorSwapDialog({
   const t = useTranslations("trains.swap");
   const [targetDate, setTargetDate] = useState<string | null>(null);
 
-  const candidates = useMemo((): SwapCandidate[] => {
-    return dayConfigs
-      .filter((day) => day.date !== sourceDate)
-      .map((day) => {
-        const record = weekRecords.find((row) => row.date === day.date);
-        return {
-          date: day.date,
-          conductorMemberId: record?.conductorMemberId ?? null,
-          conductorMemberName: record?.conductorMemberName ?? null,
-        };
-      })
-      .sort((a, b) => a.date.localeCompare(b.date));
-  }, [dayConfigs, sourceDate, weekRecords]);
+  const candidates = useMemo(
+    () => conductorSwapCandidates({ sourceDate, dayConfigs, weekRecords }),
+    [dayConfigs, sourceDate, weekRecords],
+  );
 
   const selectedTarget = candidates.find((record) => record.date === targetDate);
 

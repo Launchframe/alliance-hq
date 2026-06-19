@@ -49,6 +49,7 @@ import {
   isPoolSpinSource,
   vipSpinSource,
 } from "@/lib/trains/spin-source.shared";
+import { canStartConductorSwap } from "@/lib/trains/conductor-swap.shared";
 import type { PoolRefreshedInfo, PoolType, RollResult, WeekTemplateType } from "@/lib/trains/types";
 import type { MemberQualificationPayload } from "@/lib/trains/train-conductor-minimums.shared";
 import { SELECTABLE_WEEK_TEMPLATES } from "@/lib/trains/week-template-registry.shared";
@@ -179,6 +180,7 @@ export function TrainsDashboard({ initial }: Props) {
   const [walkthroughKey, setWalkthroughKey] = useState(0);
   const [swapOpen, setSwapOpen] = useState(false);
   const [swapBusy, setSwapBusy] = useState(false);
+  const [scheduleBusy, setScheduleBusy] = useState(false);
 
   const applySnapshot = useCallback((next: TrainsDashboardSnapshot) => {
     setData(next.data);
@@ -805,6 +807,31 @@ export function TrainsDashboard({ initial }: Props) {
     void paintDates(dates, "economy_week").finally(() => setPivotBusy(false));
   }, [data.today, data.weekEnd, data.weekStart, paintDates, setPivotBusy]);
 
+  const createCurrentWeekSchedule = useCallback(async () => {
+    setScheduleBusy(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/trains/schedule", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          weekStart: data.weekStart,
+          templateType: activeWeekTemplate,
+        }),
+      });
+      const body = (await res.json()) as { error?: string };
+      if (!res.ok) {
+        setError(body.error ?? t("scheduleFailed"));
+        return;
+      }
+      await refreshRef.current();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t("scheduleFailed"));
+    } finally {
+      setScheduleBusy(false);
+    }
+  }, [activeWeekTemplate, data.weekStart, setError, setScheduleBusy, t]);
+
   const openPoolDetails = useCallback((poolType: PoolType) => {
     setPoolDetailsInitialType(poolType);
     setPoolDetailsOpen(true);
@@ -1179,8 +1206,8 @@ export function TrainsDashboard({ initial }: Props) {
                     {t("pickConductorManually")}
                   </button>
                 ) : null}
-                {selectedRecord?.conductorMemberId &&
-                viewedWeek.dayConfigs.some((day) => day.date !== selectedDate) ? (
+                {canStartConductorSwap(selectedRecord) &&
+                spinWeekContext.dayConfigs.some((day) => day.date !== selectedDate) ? (
                   <button
                     type="button"
                     onClick={() => setSwapOpen(true)}
@@ -1279,8 +1306,16 @@ export function TrainsDashboard({ initial }: Props) {
           ) : null}
         </section>
       ) : data.canManageTrains ? (
-        <section className="rounded-xl border border-dashed border-[#30363d] bg-[#161b22]/50 px-4 py-3 text-sm text-[#8b949e]">
-          {t("noScheduleYet")}
+        <section className="flex flex-col gap-3 rounded-xl border border-dashed border-[#30363d] bg-[#161b22]/50 px-4 py-3 text-sm text-[#8b949e] sm:flex-row sm:items-center sm:justify-between">
+          <span>{t("noScheduleYet")}</span>
+          <button
+            type="button"
+            disabled={scheduleBusy}
+            onClick={() => void createCurrentWeekSchedule()}
+            className="rounded-lg bg-[#238636] px-4 py-2 text-sm font-medium text-white hover:bg-[#2ea043] disabled:opacity-60"
+          >
+            {scheduleBusy ? t("creatingSchedule") : t("createSchedule")}
+          </button>
         </section>
       ) : null}
 
@@ -1496,8 +1531,8 @@ export function TrainsDashboard({ initial }: Props) {
           open={swapOpen}
           sourceDate={selectedDate}
           sourceRecord={selectedRecord}
-          dayConfigs={viewedWeek.dayConfigs}
-          weekRecords={viewedWeek.weekRecords}
+          dayConfigs={spinWeekContext.dayConfigs}
+          weekRecords={spinWeekContext.weekRecords}
           busy={swapBusy}
           onConfirm={(targetDate) => void confirmConductorSwap(targetDate)}
           onClose={() => setSwapOpen(false)}

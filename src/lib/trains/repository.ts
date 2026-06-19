@@ -390,6 +390,7 @@ export async function clearConductorAssignment(
   date: string,
   seasonKey?: string | null,
 ): Promise<(typeof schema.trainConductorRecords.$inferSelect) | null> {
+  const db = getDb();
   const existing = await getConductorRecord(allianceId, date, seasonKey);
   if (!existing) return null;
   if (existing.lockedAt) {

@@ -73,7 +73,6 @@ import {
   listDayConfigsForWeek,
   lockConductorRecord,
   replaceDayConfigs,
-  unlockConductorRecord,
   upsertConductorDraft,
   upsertDayConfigOverride,
   upsertWeekSchedule,
@@ -1027,15 +1026,12 @@ export async function swapConductors(input: {
     throw new Error(`No conductor set for ${input.dateA}.`);
   }
 
+  if (recordA.lockedAt || recordB?.lockedAt) {
+    throw new Error("Unlock conductor days before swapping.");
+  }
+
   const targetHasConductor =
     Boolean(recordB?.conductorMemberId && recordB.conductorMemberName);
-
-  if (recordA.lockedAt) {
-    await unlockConductorRecord(recordA.id, input.allianceId);
-  }
-  if (recordB?.lockedAt) {
-    await unlockConductorRecord(recordB.id, input.allianceId);
-  }
 
   if (targetHasConductor) {
     const rankForA = await getMemberRankAsOf(
