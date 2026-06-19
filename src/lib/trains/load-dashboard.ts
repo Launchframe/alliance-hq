@@ -1,3 +1,7 @@
+import {
+  resolveAnchorTemplateType,
+} from "@/lib/trains/day-config-resolve.server";
+import { paintTemplateFromConductorConfig } from "@/lib/trains/calendar-cell-styles.shared";
 import { resolveAllianceByTag } from "@/lib/alliance/resolve";
 import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
 import { loadActiveAlliancePoolMembers } from "@/lib/members/game-roster";
@@ -46,6 +50,7 @@ export type WeekScheduleDayConfig = TrainsDashboardPayload["dayConfigs"][number]
 export type WeekSchedulePagePayload = {
   weekStart: string;
   weekEnd: string;
+  templateType: WeekTemplateType | null;
   dayConfigs: WeekScheduleDayConfig[];
   weekRecords: WeekConductorRecordSummary[];
 };
@@ -89,6 +94,7 @@ function mapDayConfigRow(
     id: string;
     date: string;
     conductorMechanism: string;
+    conductorConfig?: unknown;
     vipMechanism: string | null;
     vipConfig: unknown;
     isOverride?: number | null;
@@ -101,6 +107,7 @@ function mapDayConfigRow(
     vipMechanism: d.vipMechanism,
     vipConfig: d.vipConfig,
     isOverride: d.isOverride === 1,
+    paintTemplate: paintTemplateFromConductorConfig(d.conductorConfig),
   };
 }
 
@@ -124,6 +131,7 @@ export type TrainsDashboardPayload = {
     vipMechanism: string | null;
     vipConfig: unknown;
     isOverride: boolean;
+    paintTemplate?: WeekTemplateType | null;
   }>;
   weekRecords: WeekConductorRecordSummary[];
   roster: Array<{ memberId: string; memberName: string }>;
@@ -239,7 +247,7 @@ export async function loadTrainsDashboard(
   const record = weekRecords.find((r) => r.date === today) ?? null;
   const todayDayConfig = dayConfigs.find((d) => d.date === today) ?? null;
 
-  const poolTypes = ["r3", "r4_plus", "all_members"] as const;
+  const poolTypes = ["r3", "r4_plus", "all_members", "event_top_x"] as const;
   const pools: TrainsDashboardPayload["pools"] = {};
   for (const poolType of poolTypes) {
     pools[poolType] = await getPoolSummary(allianceId, poolType);
@@ -323,22 +331,23 @@ export async function loadWeekSchedulePage(
     ? await listDayConfigsForWeek(allianceId, weekStart, weekEnd)
     : [];
 
+  const templateType: WeekTemplateType = scheduleRow
+    ? (scheduleRow.templateType as WeekTemplateType)
+    : await resolveAnchorTemplateType(allianceId, effectiveSeason.seasonKey);
+
   let dayConfigs: WeekScheduleDayConfig[];
 
   if (dayConfigRows.length > 0) {
     dayConfigs = dayConfigRows.map(mapDayConfigRow);
   } else {
-    const anchorTemplate = await resolveAnchorTemplateType(
-      allianceId,
-      effectiveSeason.seasonKey,
-    );
-    dayConfigs = generateWeekDayConfigs(anchorTemplate, weekStart).map((d) => ({
+    dayConfigs = generateWeekDayConfigs(templateType, weekStart).map((d) => ({
       id: `preview-${d.date}`,
       date: d.date,
       conductorMechanism: d.conductorMechanism,
       vipMechanism: d.vipMechanism ?? null,
       vipConfig: d.vipConfig ?? null,
       isOverride: false,
+      paintTemplate: templateType,
     }));
   }
 
@@ -352,22 +361,10 @@ export async function loadWeekSchedulePage(
   return {
     weekStart,
     weekEnd,
+    templateType,
     dayConfigs,
     weekRecords: weekRecordRows.map(mapConductorRecord),
   };
-}
-
-async function resolveAnchorTemplateType(
-  allianceId: string,
-  seasonKey: string,
-): Promise<WeekTemplateType> {
-  const today = getServerCalendarDate();
-  const anchorSchedule = await getWeekSchedule(
-    allianceId,
-    getWeekStartMonday(today),
-    seasonKey,
-  );
-  return (anchorSchedule?.templateType ?? "vs_push_week") as WeekTemplateType;
 }
 
 export async function loadMonthSchedulePage(
@@ -422,6 +419,7 @@ export async function loadMonthSchedulePage(
       vipMechanism: preview.vipMechanism ?? null,
       vipConfig: preview.vipConfig ?? null,
       isOverride: false,
+      paintTemplate: anchorTemplate,
     });
   }
 

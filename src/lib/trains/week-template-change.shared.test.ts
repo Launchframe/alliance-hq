@@ -1,39 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  latestLockedDateInWeek,
-  weekHasPersistedSchedule,
-} from "@/lib/trains/week-template-change.shared";
-
-describe("weekHasPersistedSchedule", () => {
-  const weekStart = "2026-06-08";
-
-  it("is false when there is no schedule row and only preview configs", () => {
-    expect(
-      weekHasPersistedSchedule(null, weekStart, [
-        { id: "preview-2026-06-08" },
-      ]),
-    ).toBe(false);
-  });
-
-  it("is true when the current week has a schedule row", () => {
-    expect(
-      weekHasPersistedSchedule(
-        { weekStart },
-        weekStart,
-        [{ id: "preview-2026-06-08" }],
-      ),
-    ).toBe(true);
-  });
-
-  it("is true when day configs are persisted", () => {
-    expect(
-      weekHasPersistedSchedule(null, weekStart, [
-        { id: "day-config-abc" },
-      ]),
-    ).toBe(true);
-  });
-});
+import { latestLockedDateInWeek } from "@/lib/trains/week-template-change.shared";
 
 describe("latestLockedDateInWeek", () => {
   const weekStart = "2026-06-08";

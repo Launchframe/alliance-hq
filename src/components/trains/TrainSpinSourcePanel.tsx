@@ -12,7 +12,6 @@ type PoolSummary = {
   total: number;
   remaining: number;
   exhausted: boolean;
-  nextInSequence?: { memberId: string; memberName: string } | null;
 };
 
 type Props = {
@@ -22,8 +21,6 @@ type Props = {
   showConductorSpin: boolean;
   showVipSpin: boolean;
   onViewPool: (poolType: PoolType) => void;
-  /** When set, render only that role's spin source row (no panel heading). */
-  role?: "conductor" | "vip";
 };
 
 function sourceLabel(
@@ -54,13 +51,11 @@ function SpinSourceRow({
   source,
   poolSummary,
   onViewPool,
-  showRoleLabel = true,
 }: {
   roleLabel: string;
   source: SpinSource;
   poolSummary?: PoolSummary;
   onViewPool: (poolType: PoolType) => void;
-  showRoleLabel?: boolean;
 }) {
   const t = useTranslations("trains.spinSource");
   const label = sourceLabel(source, t);
@@ -71,16 +66,10 @@ function SpinSourceRow({
   return (
     <div className="flex min-w-0 flex-col gap-2 rounded-lg border border-[#30363d] bg-[#0d1117]/50 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between">
       <div className="min-w-0">
-        {showRoleLabel ? (
-          <div className="text-[10px] font-medium uppercase tracking-wide text-[#8b949e]">
-            {roleLabel}
-          </div>
-        ) : null}
-        <div
-          className={`text-sm font-medium text-[#e6edf3] ${showRoleLabel ? "mt-0.5" : ""}`}
-        >
-          {label}
+        <div className="text-[10px] font-medium uppercase tracking-wide text-[#8b949e]">
+          {roleLabel}
         </div>
+        <div className="mt-0.5 text-sm font-medium text-[#e6edf3]">{label}</div>
         {isPool && poolSummary ? (
           <div className="mt-1 text-xs text-[#8b949e]">
             {poolSummary.total === 0
@@ -90,13 +79,6 @@ function SpinSourceRow({
                   total: poolSummary.total,
                   generation: poolSummary.generation,
                 })}
-            {poolSummary.nextInSequence ? (
-              <span className="mt-0.5 block text-[#c9d1d9]">
-                {t("nextInSequence", {
-                  name: poolSummary.nextInSequence.memberName,
-                })}
-              </span>
-            ) : null}
             {poolSummary.exhausted ? (
               <span className="ml-1 text-[#d29922]">{t("poolExhausted")}</span>
             ) : null}
@@ -129,16 +111,12 @@ export function TrainSpinSourcePanel({
   showConductorSpin,
   showVipSpin,
   onViewPool,
-  role,
 }: Props) {
   const t = useTranslations("trains.spinSource");
 
   const rows: ReactNode[] = [];
 
-  const showConductor = role == null || role === "conductor";
-  const showVip = role == null || role === "vip";
-
-  if (showConductor && showConductorSpin && conductorSource) {
+  if (showConductorSpin && conductorSource) {
     rows.push(
       <SpinSourceRow
         key="conductor"
@@ -150,12 +128,11 @@ export function TrainSpinSourcePanel({
             : undefined
         }
         onViewPool={onViewPool}
-        showRoleLabel={role == null}
       />,
     );
   }
 
-  if (showVip && showVipSpin && vipSource) {
+  if (showVipSpin && vipSource) {
     rows.push(
       <SpinSourceRow
         key="vip"
@@ -165,16 +142,11 @@ export function TrainSpinSourcePanel({
           isPoolSpinSource(vipSource) ? pools[vipSource.poolType] : undefined
         }
         onViewPool={onViewPool}
-        showRoleLabel={role == null}
       />,
     );
   }
 
   if (rows.length === 0) return null;
-
-  if (role != null) {
-    return <div className="flex flex-col gap-2">{rows}</div>;
-  }
 
   return (
     <div className="flex flex-col gap-2">

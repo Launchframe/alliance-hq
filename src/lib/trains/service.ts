@@ -41,9 +41,6 @@ import {
   startNewPoolGeneration,
 } from "@/lib/trains/pool";
 import {
-  fetchEventTopScorers,
-} from "@/lib/trains/event-scores.server";
-import {
   fetchVsTopScorersForTrainDate,
 } from "@/lib/trains/vs-scores.server";
 import {
@@ -110,6 +107,19 @@ function scoreValue(row: AshedScoreRow): number {
   return Number(row.score ?? row.points ?? row.total ?? 0);
 }
 
+async function fetchVsTopScorers(
+  connection: ParsedConnection,
+  allianceId: string,
+  limit: number,
+): Promise<RollCandidate[]> {
+  const path = `/entities/VSScore?q=${encodeURIComponent(JSON.stringify({ alliance_id: allianceId }))}&sort=-score&limit=${limit}`;
+  const rows = await base44Json<AshedScoreRow[]>(connection, path);
+  return rows
+    .map(memberFromScore)
+    .filter((c): c is RollCandidate => c != null)
+    .slice(0, limit);
+}
+
 async function fetchTopDonor(
   connection: ParsedConnection,
   allianceId: string,
@@ -139,14 +149,12 @@ async function buildPoolCandidates(input: {
   ashedAllianceId: string;
   connection: ParsedConnection | null;
   eventTopN?: number;
-  eventKey?: string;
 }): Promise<RollCandidate[]> {
   if (input.poolType === "event_top_x") {
     if (!input.connection) return [];
-    return fetchEventTopScorers(
+    return fetchVsTopScorersForTrainDate(
       input.connection,
       input.ashedAllianceId,
-      input.eventKey ?? "capitol_war",
       input.date,
       input.eventTopN ?? 10,
     );
@@ -188,7 +196,6 @@ async function ensurePool(input: {
   connection: ParsedConnection | null;
   useSequence: boolean;
   eventTopN?: number;
-  eventKey?: string;
 }): Promise<void> {
   const has = await poolHasEntries(input.hqAllianceId, input.poolType);
   if (has) return;
@@ -200,7 +207,6 @@ async function ensurePool(input: {
     ashedAllianceId: input.ashedAllianceId,
     connection: input.connection,
     eventTopN: input.eventTopN,
-    eventKey: input.eventKey,
   });
   if (candidates.length === 0) {
     throwPoolEmpty(input.poolType);
@@ -431,93 +437,6 @@ export async function applyTemplateToDates(
   }
 }
 
-export async function ensureWeekScheduleBaseline(
-  allianceId: string,
-  weekStart: string,
-  templateType: WeekTemplateType = "vs_push_week",
-): Promise<(typeof import("@/lib/db/schema").trainWeekSchedules.$inferSelect)> {
-  const seasonKey = await resolveTrainSeasonKey(allianceId);
-  let schedule = await getWeekSchedule(allianceId, weekStart, seasonKey);
-  if (!schedule) {
-    schedule = await upsertWeekSchedule({
-      allianceId,
-      weekStart,
-      templateType,
-      seasonKey,
-    });
-    const configs = generateWeekDayConfigs(templateType, weekStart);
-    await replaceDayConfigs(allianceId, schedule.id, configs);
-  }
-  return schedule;
-}
-
-export async function recomputeWeekPivotFlag(
-  allianceId: string,
-  weekStart: string,
-): Promise<void> {
-  const seasonKey = await resolveTrainSeasonKey(allianceId);
-  const schedule = await getWeekSchedule(allianceId, weekStart, seasonKey);
-  if (!schedule || schedule.templateType !== "vs_push_week") {
-    return;
-  }
-
-  const weekEnd = addCalendarDays(weekStart, 6);
-  const configs = await listDayConfigsForWeek(allianceId, weekStart, weekEnd);
-  const hasEconomyOverride = configs.some((config) => {
-    if (config.isOverride !== 1) return false;
-    const idx = weekDatesFromMonday(weekStart).indexOf(config.date);
-    return idx >= 1 && config.conductorMechanism === "r3_lottery";
-  });
-
-  if ((schedule.isPivot === 1) === hasEconomyOverride) {
-    return;
-  }
-
-  await upsertWeekSchedule({
-    allianceId,
-    weekStart,
-    templateType: schedule.templateType as WeekTemplateType,
-    seasonKey,
-    isPivot: hasEconomyOverride,
-  });
-}
-
-export async function applyTemplateToDates(
-  allianceId: string,
-  dates: string[],
-  templateType: WeekTemplateType,
-): Promise<void> {
-  if (dates.length === 0) return;
-
-  const seasonKey = await resolveTrainSeasonKey(allianceId);
-  const uniqueDates = [...new Set(dates)].sort();
-
-  for (const date of uniqueDates) {
-    const record = await getConductorRecord(allianceId, date, seasonKey);
-    if (record?.lockedAt) {
-      throw new Error(`Cannot repaint locked day ${date}.`);
-    }
-  }
-
-  const weekStarts = [...new Set(uniqueDates.map((d) => getWeekStartMonday(d)))];
-  for (const weekStart of weekStarts) {
-    await ensureWeekScheduleBaseline(allianceId, weekStart);
-  }
-
-  for (const date of uniqueDates) {
-    const weekStart = getWeekStartMonday(date);
-    const schedule = await getWeekSchedule(allianceId, weekStart, seasonKey);
-    if (!schedule) continue;
-
-    const config = generateDayConfigForDate(templateType, date, weekStart);
-    await upsertDayConfigOverride(allianceId, schedule.id, config, true);
-  }
-
-  for (const weekStart of weekStarts) {
-    await recomputeWeekPivotFlag(allianceId, weekStart);
-  }
-}
-
 export async function rollForConductor(input: {
   allianceId: string;
   date: string;
@@ -551,10 +470,9 @@ export async function rollForConductor(input: {
           "VS auto-roll requires an Ashed connection. Use a roster pool mechanism for native alliances.",
         );
       }
-      const top = await fetchVsTopScorersForTrainDate(
+      const top = await fetchVsTopScorers(
         input.connection,
         input.ashedAllianceId,
-        input.date,
         1,
       );
       const winner = top[0];
@@ -572,10 +490,9 @@ export async function rollForConductor(input: {
           "VS auto-roll requires an Ashed connection. Use a roster pool mechanism for native alliances.",
         );
       }
-      const top10 = await fetchVsTopScorersForTrainDate(
+      const top10 = await fetchVsTopScorers(
         input.connection,
         input.ashedAllianceId,
-        input.date,
         10,
       );
       if (top10.length === 0) {
@@ -736,7 +653,6 @@ export async function rollForVip(input: {
         connection: input.connection,
         useSequence: false,
         eventTopN: config.topN ?? 10,
-        eventKey: config.eventKey,
       });
       result = await rollFromPool(
         input.allianceId,
@@ -752,7 +668,6 @@ export async function rollForVip(input: {
         connection: input.connection,
         ashedAllianceId: input.ashedAllianceId,
         eventTopN: config.topN ?? 10,
-        eventKey: config.eventKey,
       });
       if (poolRefreshed) {
         result = { ...result, poolRefreshed };
@@ -791,7 +706,6 @@ export async function reseedPool(input: {
   ashedAllianceId: string;
   useSequence?: boolean;
   eventTopN?: number;
-  eventKey?: string;
 }): Promise<{ generation: number; count: number }> {
   const candidates = await buildPoolCandidates({
     hqAllianceId: input.allianceId,
@@ -800,7 +714,6 @@ export async function reseedPool(input: {
     date: input.date,
     connection: input.connection,
     eventTopN: input.eventTopN,
-    eventKey: input.eventKey,
   });
   if (candidates.length === 0) {
     throwPoolEmpty(input.poolType);
