@@ -5,9 +5,15 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { ConductorPickModal } from "@/components/trains/ConductorPickModal";
+import { ConductorSwapDialog } from "@/components/trains/ConductorSwapDialog";
 import { ConductorHistoryTable } from "@/components/trains/ConductorHistoryTable";
 import { ConductorWheelModal } from "@/components/trains/ConductorWheelModal";
+import { SpinWeekConductorFlow } from "@/components/trains/SpinWeekConductorFlow";
 import { TrainPivotBanner } from "@/components/trains/TrainPivotBanner";
+import {
+  TrainsWalkthroughOverlay,
+  trainsWalkthroughSeen,
+} from "@/components/trains/TrainsWalkthroughOverlay";
 import { TodayConductorCard } from "@/components/trains/TodayConductorCard";
 import { WeekTemplateChangeDialog } from "@/components/trains/WeekTemplateChangeDialog";
 import { WheelBlockedDialog } from "@/components/trains/WheelBlockedDialog";
@@ -30,7 +36,7 @@ import {
 import { Dialog } from "@/components/ui/dialog";
 import { AppSelect } from "@/components/ui/AppSelect";
 import { Link } from "@/i18n/navigation";
-import { getMonthKey, monthEndFromKey, monthStartFromKey, isCalendarDateOnOrAfter, isWithinPivotWindow } from "@/lib/trains/game-time";
+import { getMonthKey, monthEndFromKey, monthStartFromKey, addCalendarDays, getWeekStartMonday, isCalendarDateOnOrAfter, isWithinPivotWindow } from "@/lib/trains/game-time";
 import type {
   MonthSchedulePagePayload,
   TrainsDashboardPayload,
@@ -49,6 +55,7 @@ import { SELECTABLE_WEEK_TEMPLATES } from "@/lib/trains/week-template-registry.s
 import {
   applyOptimisticConductorPick,
   applyOptimisticConductorRoll,
+  applyOptimisticConductorSwap,
   applyOptimisticLock,
   applyOptimisticPaint,
   applyOptimisticUnlock,
@@ -61,6 +68,7 @@ import {
   type TrainRollErrorResponse,
 } from "@/lib/trains/roll-errors.shared";
 import { latestLockedDateInWeek, pivotEconomyTargetDates } from "@/lib/trains/week-template-change.shared";
+import { spinWeekDayLabel } from "@/lib/trains/spin-week.shared";
 import { supportsManualConductorPick, supportsManualVipPick } from "@/lib/trains/templates";
 
 type Props = {
@@ -122,6 +130,7 @@ export function TrainsDashboard({ initial }: Props) {
   >([]);
   const [wheelQualification, setWheelQualification] =
     useState<MemberQualificationPayload | null>(null);
+  const [wheelDayLabel, setWheelDayLabel] = useState<string | null>(null);
   const [conductorDisqualified, setConductorDisqualified] =
     useState<RollResult | null>(null);
   const [selectedDate, setSelectedDate] = useState(initial.today);
@@ -162,6 +171,14 @@ export function TrainsDashboard({ initial }: Props) {
   const [poolDetailsOpen, setPoolDetailsOpen] = useState(false);
   const [poolDetailsInitialType, setPoolDetailsInitialType] =
     useState<PoolType | null>(null);
+  const [walkthroughOpen, setWalkthroughOpen] = useState(() => {
+    if (typeof window === "undefined") return false;
+    if (!initial.canManageTrains || initial.activeMemberCount === 0) return false;
+    return !trainsWalkthroughSeen();
+  });
+  const [walkthroughKey, setWalkthroughKey] = useState(0);
+  const [swapOpen, setSwapOpen] = useState(false);
+  const [swapBusy, setSwapBusy] = useState(false);
 
   const applySnapshot = useCallback((next: TrainsDashboardSnapshot) => {
     setData(next.data);
@@ -233,6 +250,7 @@ export function TrainsDashboard({ initial }: Props) {
   const handleWheelClose = useCallback(() => {
     setWheelOpen(false);
     setWheelQualification(null);
+    setWheelDayLabel(null);
     const pending = pendingWheelRollRef.current;
     pendingWheelRollRef.current = null;
     if (!pending) return;
@@ -517,6 +535,7 @@ export function TrainsDashboard({ initial }: Props) {
       setWheelWinner(body.result);
       setWheelStats(body.stats ?? null);
       setWheelQualification(body.result.qualification ?? null);
+      setWheelDayLabel(spinWeekDayLabel(selectedDate));
       setWheelOpen(true);
     } catch (e) {
       setError(e instanceof Error ? e.message : t("rollFailed"));
@@ -600,6 +619,38 @@ export function TrainsDashboard({ initial }: Props) {
         };
       },
     );
+  };
+
+  const confirmConductorSwap = async (targetDate: string) => {
+    if (!selectedRecord?.conductorMemberId) return;
+    setSwapBusy(true);
+    const lockedAt = new Date().toISOString();
+    const ok = await withOptimisticMutation(
+      (snap) =>
+        applyOptimisticConductorSwap(
+          snap,
+          selectedDate,
+          targetDate,
+          lockedAt,
+        ),
+      async () => {
+        const res = await fetch("/api/trains/conductor/swap", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ dateA: selectedDate, dateB: targetDate }),
+        });
+        const body = (await res.json()) as { error?: string };
+        return {
+          ok: res.ok,
+          error: res.ok ? undefined : (body.error ?? t("swapFailed")),
+        };
+      },
+    );
+    setSwapBusy(false);
+    if (ok) {
+      setSwapOpen(false);
+      void refreshRef.current();
+    }
   };
 
   const unlockConductor = async () => {
@@ -804,6 +855,29 @@ export function TrainsDashboard({ initial }: Props) {
     conductorPaint,
   );
   const selectedVipSpinSource = vipSpinSource(vipMech);
+  const spinWeekContext = useMemo(() => {
+    if (scheduleView === "week") {
+      return {
+        weekStart: viewedWeek.weekStart,
+        weekEnd: viewedWeek.weekEnd,
+        dayConfigs: viewedWeek.dayConfigs,
+        weekRecords: viewedWeek.weekRecords,
+      };
+    }
+
+    const weekStart = getWeekStartMonday(selectedDate);
+    const weekEnd = addCalendarDays(weekStart, 6);
+    return {
+      weekStart,
+      weekEnd,
+      dayConfigs: viewedMonth.dayConfigs.filter(
+        (day) => day.date >= weekStart && day.date <= weekEnd,
+      ),
+      weekRecords: viewedMonth.monthRecords.filter(
+        (record) => record.date >= weekStart && record.date <= weekEnd,
+      ),
+    };
+  }, [scheduleView, selectedDate, viewedMonth, viewedWeek]);
   const selectedPoolDetailOptions = useMemo((): PoolDetailsOption[] => {
     const options: PoolDetailsOption[] = [];
     if (isPoolSpinSource(selectedConductorSpinSource)) {
@@ -868,9 +942,24 @@ export function TrainsDashboard({ initial }: Props) {
         <div>
           <h1 className="text-2xl font-semibold text-[#e6edf3]">{t("title")}</h1>
           <p className="mt-1 text-sm text-[#8b949e]">{t("subtitle")}</p>
+          {data.canManageTrains ? (
+            <button
+              type="button"
+              onClick={() => {
+                setWalkthroughKey((key) => key + 1);
+                setWalkthroughOpen(true);
+              }}
+              className="mt-2 text-xs font-medium text-[#58a6ff] hover:underline"
+            >
+              {t("walkthrough.takeTour")}
+            </button>
+          ) : null}
         </div>
         {data.schedule || viewedWeek.dayConfigs.length > 0 ? (
-          <div className="flex w-full min-w-0 flex-col gap-1 sm:w-auto sm:min-w-[15rem]">
+          <div
+            className="flex w-full min-w-0 flex-col gap-1 sm:w-auto sm:min-w-[15rem]"
+            data-testid="trains-template-selector"
+          >
             <span
               id="trains-week-template-label"
               className="text-[10px] font-medium uppercase tracking-wide text-[#8b949e]"
@@ -909,7 +998,10 @@ export function TrainsDashboard({ initial }: Props) {
       ) : null}
 
       {data.dayConfigs.length > 0 ? (
-        <section className="flex flex-col gap-4 rounded-2xl border border-[#30363d] bg-[#161b22]/40 p-4">
+        <section
+          className="flex flex-col gap-4 rounded-2xl border border-[#30363d] bg-[#161b22]/40 p-4"
+          data-testid="trains-schedule-section"
+        >
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <h2 className="text-sm font-medium text-[#8b949e]">
               {t("scheduleSection")}
@@ -998,6 +1090,14 @@ export function TrainsDashboard({ initial }: Props) {
               conductsThisYear: t("conductsThisYear"),
               noneYet: t("noneYet"),
             }}
+            substituteBadge={
+              selectedRecord?.substituteForMemberName
+                ? t("swap.substitutingFor", {
+                    name: selectedRecord.substituteForMemberName,
+                  })
+                : null
+            }
+            data-testid="trains-conductor-card"
           />
 
           {showNativeAshedBanner ? (
@@ -1008,7 +1108,10 @@ export function TrainsDashboard({ initial }: Props) {
 
           {/* Quick actions */}
           {data.canManageTrains && dayIsActionable ? (
-            <div className="flex flex-col gap-3 border-t border-[#30363d] pt-4">
+            <div
+              className="flex flex-col gap-3 border-t border-[#30363d] pt-4"
+              data-testid="trains-quick-actions"
+            >
               <h3 className="text-sm font-medium text-[#8b949e]">
                 {t("quickActions")}
               </h3>
@@ -1021,6 +1124,21 @@ export function TrainsDashboard({ initial }: Props) {
                 onViewPool={openPoolDetails}
               />
               <div className="flex flex-wrap gap-2">
+                <SpinWeekConductorFlow
+                  weekStart={spinWeekContext.weekStart}
+                  weekEnd={spinWeekContext.weekEnd}
+                  today={data.today}
+                  dayConfigs={spinWeekContext.dayConfigs}
+                  weekRecords={spinWeekContext.weekRecords}
+                  canManageTrains={data.canManageTrains}
+                  canSpinViewedWeek={spinWeekContext.weekEnd >= data.today}
+                  snapshotRef={snapshotRef}
+                  applySnapshot={applySnapshot}
+                  withOptimisticMutation={withOptimisticMutation}
+                  presentPoolRefreshedHints={presentPoolRefreshedHints}
+                  onError={setError}
+                  onRefresh={refresh}
+                />
                 {canSpinConductor(
                   selectedDayConfig?.conductorMechanism,
                   locked,
@@ -1059,6 +1177,16 @@ export function TrainsDashboard({ initial }: Props) {
                     className="rounded-lg border border-[#30363d] bg-[#0d1117] px-4 py-2 text-sm font-medium text-[#e6edf3] hover:bg-[#161b22] w-full sm:w-auto"
                   >
                     {t("pickConductorManually")}
+                  </button>
+                ) : null}
+                {selectedRecord?.conductorMemberId &&
+                viewedWeek.dayConfigs.some((day) => day.date !== selectedDate) ? (
+                  <button
+                    type="button"
+                    onClick={() => setSwapOpen(true)}
+                    className="rounded-lg border border-[#8957e5]/50 bg-[#8957e5]/10 px-4 py-2 text-sm font-medium text-[#d2a8ff] hover:bg-[#8957e5]/20 w-full sm:w-auto"
+                  >
+                    {t("swap.action")}
                   </button>
                 ) : null}
                 {canSpinVip(vipMech, locked) ? (
@@ -1215,6 +1343,7 @@ export function TrainsDashboard({ initial }: Props) {
         winner={wheelWinner}
         stats={wheelStats ?? null}
         qualification={wheelQualification}
+        dayLabel={wheelDayLabel}
         onClose={handleWheelClose}
         onSpinAgain={handleWheelSpinAgain}
         onOverride={(reason) => void handleWheelOverride(reason)}
@@ -1361,6 +1490,26 @@ export function TrainsDashboard({ initial }: Props) {
           </div>
         ) : null}
       </Dialog>
+
+      {selectedRecord?.conductorMemberId ? (
+        <ConductorSwapDialog
+          open={swapOpen}
+          sourceDate={selectedDate}
+          sourceRecord={selectedRecord}
+          dayConfigs={viewedWeek.dayConfigs}
+          weekRecords={viewedWeek.weekRecords}
+          busy={swapBusy}
+          onConfirm={(targetDate) => void confirmConductorSwap(targetDate)}
+          onClose={() => setSwapOpen(false)}
+        />
+      ) : null}
+
+      <TrainsWalkthroughOverlay
+        key={walkthroughKey}
+        open={walkthroughOpen}
+        dashboardReady={data.dayConfigs.length > 0}
+        onComplete={() => setWalkthroughOpen(false)}
+      />
     </div>
   );
 }

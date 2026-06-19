@@ -193,7 +193,7 @@ function WeekScheduleDayCell({
   const baseClass = `flex flex-col justify-between rounded-lg border-2 text-left ${style} ${ringClass} ${className} ${
     layout === "carousel"
       ? "min-h-[7.25rem] w-[min(10.75rem,calc(100vw-8.5rem))] p-2.5"
-      : "min-h-[7.25rem] w-[min(17rem,calc(100vw-4.5rem))] p-2.5"
+      : "min-h-[7.25rem] w-full min-w-0 p-2.5"
   }`;
 
   if (selectable && onSelect) {
@@ -554,7 +554,7 @@ export function WeekScheduleStrip({
 
   const dayGrid = (
     <div
-      className={`hidden grid-cols-7 gap-1.5 md:grid ${loading ? "opacity-50" : ""}`}
+      className={`hidden grid-cols-7 gap-1.5 xl:grid ${loading ? "opacity-50" : ""}`}
     >
       {dayConfigs.map((day) => {
         const isSelected = day.date === selectedDate;
@@ -573,7 +573,7 @@ export function WeekScheduleStrip({
             conductorLabels={conductorLabels}
             vipLabels={vipLabels}
             templateShortLabels={templateShortLabels}
-            className="aspect-square min-w-0 p-1.5 min-h-0 w-auto"
+            className="aspect-square min-h-0 min-w-0 w-full p-1.5"
             onSelect={selectable ? () => onSelectDate(day.date) : undefined}
           />
         );
@@ -582,12 +582,12 @@ export function WeekScheduleStrip({
   );
 
   return (
-    <div className="flex flex-col gap-2">
-      <p className="text-center text-xs font-medium tabular-nums text-[#8b949e] md:hidden">
+    <div className="flex flex-col gap-2" data-testid="trains-week-strip">
+      <p className="text-center text-xs font-medium tabular-nums text-[#8b949e] xl:hidden">
         {formatWeekRange(carouselWeekStart, carouselWeekEnd)}
       </p>
 
-      <div className="hidden items-center justify-between gap-2 md:flex">
+      <div className="hidden items-center justify-between gap-2 xl:flex">
         <button
           type="button"
           onClick={() => shiftWeek(-1)}
@@ -611,7 +611,7 @@ export function WeekScheduleStrip({
         </button>
       </div>
 
-      <div className="md:hidden">
+      <div className="xl:hidden">
         <WeekScheduleInfiniteDayCarousel
           seedPage={mobileSeedPage}
           liveWeek={displayPage}

@@ -66,11 +66,14 @@ import {
   vipMechanismPoolType,
 } from "@/lib/trains/templates";
 import {
+  clearConductorAssignment,
   getConductorRecord,
   getWeekSchedule,
   listConductorRecordsForWeek,
   listDayConfigsForWeek,
+  lockConductorRecord,
   replaceDayConfigs,
+  unlockConductorRecord,
   upsertConductorDraft,
   upsertDayConfigOverride,
   upsertWeekSchedule,
@@ -954,6 +957,176 @@ export async function refreshExhaustedPoolsForDay(input: {
   }
 
   return refreshed;
+}
+
+export async function lockConductorsForDates(input: {
+  allianceId: string;
+  dates: string[];
+  connection: ParsedConnection | null;
+  ashedAllianceId: string;
+}): Promise<{
+  records: Awaited<ReturnType<typeof lockConductorRecord>>[];
+  poolsRefreshed: PoolRefreshedInfo[];
+}> {
+  const seasonKey = await resolveTrainSeasonKey(input.allianceId);
+  const uniqueDates = [...new Set(input.dates)].sort();
+  const records: Awaited<ReturnType<typeof lockConductorRecord>>[] = [];
+  const poolsRefreshed: PoolRefreshedInfo[] = [];
+
+  for (const date of uniqueDates) {
+    const record = await getConductorRecord(input.allianceId, date, seasonKey);
+    if (!record) {
+      throw new Error(`Roll a conductor for ${date} before locking.`);
+    }
+    if (record.lockedAt) {
+      continue;
+    }
+    if (!record.conductorMemberId || !record.conductorMemberName) {
+      throw new Error(`Select a conductor for ${date} before locking.`);
+    }
+
+    const locked = await lockConductorRecord(record.id, input.allianceId);
+    records.push(locked);
+    const refreshed = await refreshExhaustedPoolsForDay({
+      allianceId: input.allianceId,
+      date,
+      connection: input.connection,
+      ashedAllianceId: input.ashedAllianceId,
+      seasonKey,
+    });
+    poolsRefreshed.push(...refreshed);
+  }
+
+  return { records, poolsRefreshed };
+}
+
+export async function swapConductors(input: {
+  allianceId: string;
+  dateA: string;
+  dateB: string;
+}): Promise<{
+  records: Awaited<ReturnType<typeof lockConductorRecord>>[];
+}> {
+  if (input.dateA === input.dateB) {
+    throw new Error("Pick two different days to swap.");
+  }
+
+  const seasonKey = await resolveTrainSeasonKey(input.allianceId);
+  const recordA = await getConductorRecord(
+    input.allianceId,
+    input.dateA,
+    seasonKey,
+  );
+  const recordB = await getConductorRecord(
+    input.allianceId,
+    input.dateB,
+    seasonKey,
+  );
+
+  if (!recordA?.conductorMemberId || !recordA.conductorMemberName) {
+    throw new Error(`No conductor set for ${input.dateA}.`);
+  }
+
+  const targetHasConductor =
+    Boolean(recordB?.conductorMemberId && recordB.conductorMemberName);
+
+  if (recordA.lockedAt) {
+    await unlockConductorRecord(recordA.id, input.allianceId);
+  }
+  if (recordB?.lockedAt) {
+    await unlockConductorRecord(recordB.id, input.allianceId);
+  }
+
+  if (targetHasConductor) {
+    const rankForA = await getMemberRankAsOf(
+      input.allianceId,
+      recordB!.conductorMemberId!,
+      input.dateA,
+    );
+    const rankForB = await getMemberRankAsOf(
+      input.allianceId,
+      recordA.conductorMemberId,
+      input.dateB,
+    );
+
+    await upsertConductorDraft({
+      allianceId: input.allianceId,
+      date: input.dateA,
+      seasonKey,
+      conductorMemberId: recordB!.conductorMemberId,
+      conductorMemberName: recordB!.conductorMemberName,
+      conductorRankEventId: rankForA?.id ?? null,
+      substituteForMemberId: recordA.conductorMemberId,
+      substituteForMemberName: recordA.conductorMemberName,
+    });
+
+    await upsertConductorDraft({
+      allianceId: input.allianceId,
+      date: input.dateB,
+      seasonKey,
+      conductorMemberId: recordA.conductorMemberId,
+      conductorMemberName: recordA.conductorMemberName,
+      conductorRankEventId: rankForB?.id ?? null,
+      substituteForMemberId: recordB!.conductorMemberId,
+      substituteForMemberName: recordB!.conductorMemberName,
+    });
+  } else {
+    const rankForB = await getMemberRankAsOf(
+      input.allianceId,
+      recordA.conductorMemberId,
+      input.dateB,
+    );
+
+    await upsertConductorDraft({
+      allianceId: input.allianceId,
+      date: input.dateB,
+      seasonKey,
+      conductorMemberId: recordA.conductorMemberId,
+      conductorMemberName: recordA.conductorMemberName,
+      conductorRankEventId: rankForB?.id ?? null,
+      substituteForMemberId: null,
+      substituteForMemberName: null,
+    });
+
+    await clearConductorAssignment(
+      input.allianceId,
+      input.dateA,
+      seasonKey,
+    );
+  }
+
+  const draftA = await getConductorRecord(
+    input.allianceId,
+    input.dateA,
+    seasonKey,
+  );
+  const draftB = await getConductorRecord(
+    input.allianceId,
+    input.dateB,
+    seasonKey,
+  );
+
+  const lockedRecords: Awaited<ReturnType<typeof lockConductorRecord>>[] = [];
+
+  if (draftB?.conductorMemberId && draftB.conductorMemberName) {
+    lockedRecords.push(
+      await lockConductorRecord(draftB.id, input.allianceId),
+    );
+  }
+
+  if (
+    targetHasConductor &&
+    draftA?.conductorMemberId &&
+    draftA.conductorMemberName
+  ) {
+    lockedRecords.push(await lockConductorRecord(draftA.id, input.allianceId));
+  }
+
+  if (lockedRecords.length === 0) {
+    throw new Error("Swap failed to persist conductor assignment.");
+  }
+
+  return { records: lockedRecords };
 }
 
 export { getServerCalendarDate, getWeekStartMonday };

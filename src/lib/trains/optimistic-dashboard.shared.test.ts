@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  applyOptimisticConductorSwap,
   applyOptimisticLock,
   applyOptimisticPaint,
   applyOptimisticWeekTemplate,
@@ -166,5 +167,125 @@ describe("optimistic dashboard state", () => {
     );
     expect(next.viewedWeek.templateType).toBe("economy_week");
     expect(next.data.schedule?.templateType).toBe("economy_week");
+  });
+
+  it("swaps conductors and substitute metadata between two days", () => {
+    const recordA = {
+      id: "a",
+      date: "2026-06-10",
+      conductorMemberId: "m1",
+      conductorMemberName: "Alice",
+      vipMemberId: null,
+      vipMemberName: null,
+      conductorMechanism: "r3_lottery",
+      vipMechanism: null,
+      guardianIsVip: false,
+      lockedAt: "2026-06-10T10:00:00.000Z",
+      substituteForMemberId: null,
+      substituteForMemberName: null,
+    };
+    const recordB = {
+      id: "b",
+      date: "2026-06-11",
+      conductorMemberId: "m2",
+      conductorMemberName: "Bob",
+      vipMemberId: null,
+      vipMemberName: null,
+      conductorMechanism: "r3_lottery",
+      vipMechanism: null,
+      guardianIsVip: false,
+      lockedAt: "2026-06-11T10:00:00.000Z",
+      substituteForMemberId: null,
+      substituteForMemberName: null,
+    };
+    const base = {
+      data: {
+        today: "2026-06-10",
+        weekRecords: [recordA, recordB],
+        dayConfigs: [],
+        conductorRecord: recordA,
+      },
+      viewedWeek: {
+        weekStart: "2026-06-08",
+        weekEnd: "2026-06-14",
+        templateType: null,
+        dayConfigs: [],
+        weekRecords: [recordA, recordB],
+      },
+      viewedMonth: {
+        monthKey: "2026-06",
+        monthStart: "2026-06-01",
+        monthEnd: "2026-06-30",
+        dayConfigs: [],
+        monthRecords: [recordA, recordB],
+      },
+    } as unknown as Parameters<typeof applyOptimisticConductorSwap>[0];
+
+    const swapped = applyOptimisticConductorSwap(
+      base,
+      "2026-06-10",
+      "2026-06-11",
+      "2026-06-12T12:00:00.000Z",
+    );
+    const dayA = swapped.viewedWeek.weekRecords.find((r) => r.date === "2026-06-10");
+    const dayB = swapped.viewedWeek.weekRecords.find((r) => r.date === "2026-06-11");
+    expect(dayA?.conductorMemberName).toBe("Bob");
+    expect(dayA?.substituteForMemberName).toBe("Alice");
+    expect(dayB?.conductorMemberName).toBe("Alice");
+    expect(dayB?.substituteForMemberName).toBe("Bob");
+    expect(dayA?.lockedAt).toBe("2026-06-12T12:00:00.000Z");
+    expect(dayB?.lockedAt).toBe("2026-06-12T12:00:00.000Z");
+  });
+
+  it("moves a conductor onto an open day and clears the source day", () => {
+    const recordA = {
+      id: "a",
+      date: "2026-06-10",
+      conductorMemberId: "m1",
+      conductorMemberName: "Alice",
+      vipMemberId: null,
+      vipMemberName: null,
+      conductorMechanism: "r3_lottery",
+      vipMechanism: null,
+      guardianIsVip: false,
+      lockedAt: "2026-06-10T10:00:00.000Z",
+      substituteForMemberId: null,
+      substituteForMemberName: null,
+    };
+    const base = {
+      data: {
+        today: "2026-06-10",
+        weekRecords: [recordA],
+        dayConfigs: [],
+        conductorRecord: recordA,
+      },
+      viewedWeek: {
+        weekStart: "2026-06-08",
+        weekEnd: "2026-06-14",
+        templateType: null,
+        dayConfigs: [],
+        weekRecords: [recordA],
+      },
+      viewedMonth: {
+        monthKey: "2026-06",
+        monthStart: "2026-06-01",
+        monthEnd: "2026-06-30",
+        dayConfigs: [],
+        monthRecords: [recordA],
+      },
+    } as unknown as Parameters<typeof applyOptimisticConductorSwap>[0];
+
+    const swapped = applyOptimisticConductorSwap(
+      base,
+      "2026-06-10",
+      "2026-06-12",
+      "2026-06-12T12:00:00.000Z",
+    );
+    const dayA = swapped.viewedWeek.weekRecords.find((r) => r.date === "2026-06-10");
+    const dayB = swapped.viewedWeek.weekRecords.find((r) => r.date === "2026-06-12");
+    expect(dayA?.conductorMemberId).toBeNull();
+    expect(dayA?.lockedAt).toBeNull();
+    expect(dayB?.conductorMemberName).toBe("Alice");
+    expect(dayB?.lockedAt).toBe("2026-06-12T12:00:00.000Z");
   });
 });

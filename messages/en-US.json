@@ -1189,6 +1189,47 @@
       "action": "Pivot Tue–Sun to economy",
       "applying": "Applying…"
     },
+    "spinWeek": {
+      "spinForWeek": "Spin for the week",
+      "spinningProgress": "Spinning the week…",
+      "rollFailed": "Could not roll for Conductor.",
+      "lockFailed": "Could not lock conductors.",
+      "disqualifiedExhausted": "Could not find a qualified conductor after several spins. Try again or pick manually.",
+      "confirmTitle": "Lock conductors for the week?",
+      "confirmBody": "Review {count} conductors drawn from the pool. Locking spawns empty trains for each day.",
+      "confirmLockAll": "Confirm and lock all",
+      "confirmLocking": "Locking…",
+      "confirmCancel": "Keep as drafts"
+    },
+    "walkthrough": {
+      "takeTour": "Take the tour",
+      "stepCounter": "Step {current} of {total}",
+      "skip": "Skip tour",
+      "next": "Next →",
+      "done": "Done",
+      "stepSchedule": "This is your train scheduling hub — pick a week, paint day templates, and see who is conducting each day.",
+      "stepWeekStrip": "Each cell shows the day template color, conductor mechanism, and whether the conductor is locked in.",
+      "stepTemplate": "Change the whole week’s template from this dropdown — economy, lottery, VS week, and more.",
+      "stepViewToggle": "Switch between week and month view. Month view is best for painting templates ahead.",
+      "stepConductorCard": "Today’s conductor card shows the VIP, guardian, and lock status. Locking spawns the train for that day.",
+      "stepQuickActions": "Roll or spin the wheel, pick the top scorer, or choose someone manually from quick actions.",
+      "stepSpinWeek": "Spin for the Week rolls and locks every remaining wheel-eligible day in one pass."
+    },
+    "swap": {
+      "action": "Swap / Make-up day",
+      "title": "Swap conductors",
+      "body": "Move a conductor to another day or swap between two days — useful for make-up days. Assigned days will be re-locked after you confirm.",
+      "thisDay": "This day",
+      "swapWith": "Swap with",
+      "noCandidates": "No other days in this week to swap with.",
+      "noConductorYet": "No conductor yet",
+      "preview": "{dayA}: {nameA} ↔ {dayB}: {nameB}",
+      "previewMoveToOpen": "{nameA} moves to {dayB}. {dayA} will have no conductor.",
+      "cancel": "Cancel",
+      "confirm": "Confirm swap",
+      "swapping": "Swapping…",
+      "substitutingFor": "Substituting for {name}"
+    },
     "reseedPool": "Re-seed pool",
     "reseedPoolHint": {
       "infoLabel": "What does re-seed pool do?",
@@ -1207,6 +1248,7 @@
     "rollFailed": "Could not roll for Conductor.",
     "overrideFailed": "Could not override disqualification.",
     "lockFailed": "Could not lock Conductor.",
+    "swapFailed": "Could not swap conductors.",
     "scheduleFailed": "Could not update schedule.",
     "poolFailed": "Could not re-seed pool.",
     "spinSource": {

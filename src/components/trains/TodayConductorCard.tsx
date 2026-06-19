@@ -8,6 +8,7 @@ type Props = {
     conductorMechanism: string | null;
     vipMechanism: string | null;
     lockedAt: string | null;
+    substituteForMemberName?: string | null;
   } | null;
   stats: {
     lastConductedDate: string | null;
@@ -26,9 +27,18 @@ type Props = {
     conductsThisYear: string;
     noneYet: string;
   };
+  substituteBadge?: string | null;
+  "data-testid"?: string;
 };
 
-export function TodayConductorCard({ record, stats, dayLabel, labels }: Props) {
+export function TodayConductorCard({
+  record,
+  stats,
+  dayLabel,
+  labels,
+  substituteBadge,
+  "data-testid": dataTestId,
+}: Props) {
   const locked = Boolean(record?.lockedAt);
   const guardianName = record?.guardianIsVip
     ? record.vipMemberName
@@ -38,13 +48,21 @@ export function TodayConductorCard({ record, stats, dayLabel, labels }: Props) {
   );
 
   return (
-    <section className="rounded-2xl border border-[#30363d] bg-[#161b22] p-5">
+    <section
+      className="rounded-2xl border border-[#30363d] bg-[#161b22] p-5"
+      data-testid={dataTestId}
+    >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold text-[#e6edf3]">{dayLabel}</h2>
           <p className="mt-1 text-3xl font-bold tracking-tight text-[#58a6ff]">
             {record?.conductorMemberName ?? labels.awaiting}
           </p>
+          {substituteBadge ? (
+            <p className="mt-2 inline-flex rounded-full bg-[#8957e5]/15 px-3 py-1 text-xs font-medium text-[#d2a8ff]">
+              {substituteBadge}
+            </p>
+          ) : null}
         </div>
         <span
           className={`rounded-full px-3 py-1 text-xs font-medium ${

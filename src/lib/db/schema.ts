@@ -1000,6 +1000,8 @@ export const trainConductorRecords = pgTable(
     dayConfigId: text("day_config_id").references(() => trainDayConfigs.id, {
       onDelete: "set null",
     }),
+    substituteForMemberId: text("substitute_for_member_id"),
+    substituteForMemberName: text("substitute_for_member_name"),
     lockedAt: timestamp("locked_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()

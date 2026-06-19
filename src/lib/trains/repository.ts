@@ -303,6 +303,8 @@ export async function upsertConductorDraft(input: {
   vipMechanism?: string | null;
   dayConfigId?: string | null;
   guardianIsVip?: number | null;
+  substituteForMemberId?: string | null;
+  substituteForMemberName?: string | null;
 }): Promise<(typeof schema.trainConductorRecords.$inferSelect)> {
   const db = getDb();
   const existing = await getConductorRecord(
@@ -335,6 +337,14 @@ export async function upsertConductorDraft(input: {
           input.guardianIsVip != null
             ? input.guardianIsVip
             : existing.guardianIsVip,
+        substituteForMemberId:
+          input.substituteForMemberId !== undefined
+            ? input.substituteForMemberId
+            : existing.substituteForMemberId,
+        substituteForMemberName:
+          input.substituteForMemberName !== undefined
+            ? input.substituteForMemberName
+            : existing.substituteForMemberName,
         updatedAt: new Date(),
       })
       .where(eq(schema.trainConductorRecords.id, existing.id));
@@ -363,6 +373,8 @@ export async function upsertConductorDraft(input: {
     vipMechanism: input.vipMechanism ?? null,
     dayConfigId: input.dayConfigId ?? null,
     guardianIsVip: input.guardianIsVip ?? 0,
+    substituteForMemberId: input.substituteForMemberId ?? null,
+    substituteForMemberName: input.substituteForMemberName ?? null,
   });
 
   const [row] = await db
@@ -371,6 +383,45 @@ export async function upsertConductorDraft(input: {
     .where(eq(schema.trainConductorRecords.id, id))
     .limit(1);
   return row!;
+}
+
+export async function clearConductorAssignment(
+  allianceId: string,
+  date: string,
+  seasonKey?: string | null,
+): Promise<(typeof schema.trainConductorRecords.$inferSelect) | null> {
+  const existing = await getConductorRecord(allianceId, date, seasonKey);
+  if (!existing) return null;
+  if (existing.lockedAt) {
+    throw new Error("Conductor is already locked for this day.");
+  }
+
+  if (existing.conductorMemberId) {
+    await releasePoolSelectionForDate(
+      allianceId,
+      date,
+      existing.conductorMemberId,
+    );
+  }
+
+  await db
+    .update(schema.trainConductorRecords)
+    .set({
+      conductorMemberId: null,
+      conductorMemberName: null,
+      conductorRankEventId: null,
+      substituteForMemberId: null,
+      substituteForMemberName: null,
+      updatedAt: new Date(),
+    })
+    .where(eq(schema.trainConductorRecords.id, existing.id));
+
+  const [row] = await db
+    .select()
+    .from(schema.trainConductorRecords)
+    .where(eq(schema.trainConductorRecords.id, existing.id))
+    .limit(1);
+  return row ?? null;
 }
 
 export async function lockConductorRecord(

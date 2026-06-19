@@ -47,6 +47,8 @@ export type WeekConductorRecordSummary = {
   vipMechanism: string | null;
   guardianIsVip: boolean;
   lockedAt: string | null;
+  substituteForMemberId: string | null;
+  substituteForMemberName: string | null;
 };
 
 export type WeekScheduleDayConfig = TrainsDashboardPayload["dayConfigs"][number];
@@ -79,6 +81,8 @@ function mapConductorRecord(
     vipMechanism: string | null;
     guardianIsVip?: number | null;
     lockedAt: Date | null;
+    substituteForMemberId?: string | null;
+    substituteForMemberName?: string | null;
   },
 ): WeekConductorRecordSummary {
   return {
@@ -92,6 +96,8 @@ function mapConductorRecord(
     vipMechanism: row.vipMechanism,
     guardianIsVip: row.guardianIsVip === 1,
     lockedAt: row.lockedAt?.toISOString() ?? null,
+    substituteForMemberId: row.substituteForMemberId ?? null,
+    substituteForMemberName: row.substituteForMemberName ?? null,
   };
 }
 

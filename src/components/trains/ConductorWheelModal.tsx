@@ -24,6 +24,10 @@ type Props = {
     conductsThisYear: number;
   } | null;
   qualification?: MemberQualificationPayload | null;
+  dayLabel?: string | null;
+  speedMultiplier?: number;
+  automated?: boolean;
+  onAutomatedRevealComplete?: () => void;
   onClose: () => void;
   onSpinAgain?: () => void;
   onOverride?: (overrideReason: string) => void;
@@ -47,6 +51,10 @@ export function ConductorWheelModal({
   winner,
   stats,
   qualification,
+  dayLabel,
+  speedMultiplier = 1,
+  automated = false,
+  onAutomatedRevealComplete,
   onClose,
   onSpinAgain,
   onOverride,
@@ -57,6 +65,9 @@ export function ConductorWheelModal({
   const [revealedKey, setRevealedKey] = useState<string | null>(null);
   const [overrideReason, setOverrideReason] = useState("");
 
+  const fastSecs = FAST_SECS / speedMultiplier;
+  const slowSecs = SLOW_SECS / speedMultiplier;
+
   const disqualified =
     qualification != null && qualification.qualified === false;
 
@@ -65,10 +76,10 @@ export function ConductorWheelModal({
     return buildConductorWheelReelSession(candidates, winner, {
       visible: VISIBLE,
       fastSpeed: FAST_SPEED,
-      fastSecs: FAST_SECS,
-      slowSecs: SLOW_SECS,
+      fastSecs,
+      slowSecs,
     });
-  }, [open, winner, candidates]);
+  }, [open, winner, candidates, fastSecs, slowSecs]);
 
   const phase =
     reelSession && revealedKey === reelSession.key ? "revealed" : "spinning";
@@ -96,8 +107,8 @@ export function ConductorWheelModal({
     if (!reel) return;
 
     const { fastEndY, targetY, key } = reelSession;
-    const totalMs = (FAST_SECS + SLOW_SECS) * 1000;
-    const fastFraction = FAST_SECS / (FAST_SECS + SLOW_SECS);
+    const totalMs = (fastSecs + slowSecs) * 1000;
+    const fastFraction = fastSecs / (fastSecs + slowSecs);
 
     if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
     reel.style.transform = "translateY(0px)";
@@ -149,7 +160,21 @@ export function ConductorWheelModal({
       cancelled = true;
       if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
     };
-  }, [reelSession, open, fireConfetti, disqualified]);
+  }, [reelSession, open, fireConfetti, disqualified, fastSecs, slowSecs]);
+
+  useEffect(() => {
+    if (!automated || !open || phase !== "revealed" || disqualified) return;
+    const timer = window.setTimeout(() => {
+      onAutomatedRevealComplete?.();
+    }, 1500);
+    return () => window.clearTimeout(timer);
+  }, [
+    automated,
+    open,
+    phase,
+    disqualified,
+    onAutomatedRevealComplete,
+  ]);
 
   if (!open || !winner || !reelSession) return null;
 
@@ -175,6 +200,11 @@ export function ConductorWheelModal({
         >
           {disqualified && phase === "revealed" ? t("disqualifiedTitle") : t("title")}
         </h2>
+        {dayLabel ? (
+          <p className="mt-1 text-center text-base font-semibold text-[#e6edf3]">
+            {dayLabel}
+          </p>
+        ) : null}
 
         <div
           className="relative mt-6 overflow-hidden rounded-xl"
@@ -264,7 +294,7 @@ export function ConductorWheelModal({
           </div>
         ) : null}
 
-        {phase === "revealed" && disqualified ? (
+        {phase === "revealed" && disqualified && !automated ? (
           <div className="mt-6 space-y-3">
             <label className="block text-xs text-[#8b949e]">
               {t("overrideReasonLabel")}
@@ -295,7 +325,7 @@ export function ConductorWheelModal({
           </div>
         ) : null}
 
-        {phase === "revealed" && !disqualified ? (
+        {phase === "revealed" && !disqualified && !automated ? (
           <div className="mt-6 flex justify-center">
             <button
               type="button"
