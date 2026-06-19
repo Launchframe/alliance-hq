@@ -64,6 +64,22 @@ function pushWeekDay(
   };
 }
 
+export function generateDayConfigForDate(
+  templateType: WeekTemplateType,
+  date: string,
+  weekStart: string,
+  options?: WeekTemplateOptions,
+): DayConfigInput {
+  const configs = generateWeekDayConfigs(templateType, weekStart, options);
+  return (
+    configs.find((c) => c.date === date) ?? {
+      date,
+      conductorMechanism: "custom",
+      vipMechanism: "none",
+    }
+  );
+}
+
 export function generateWeekDayConfigs(
   templateType: WeekTemplateType,
   weekStart: string,
@@ -112,6 +128,22 @@ export function mechanismNeedsWheel(
     mechanism === "r3_lottery" ||
     mechanism === "r4_sequence" ||
     mechanism === "event_top_x_lottery"
+  );
+}
+
+/** Officer manual override when leaderboard data is missing or wrong. */
+export function supportsManualConductorPick(
+  mechanism: ConductorMechanismType | string | null | undefined,
+): boolean {
+  if (!mechanism) return false;
+  return (
+    mechanism === "r3_lottery" ||
+    mechanism === "vs_high_score" ||
+    mechanism === "vs_top_10" ||
+    mechanism === "donations_top" ||
+    mechanism === "r4_sequence" ||
+    mechanism === "officer_pick" ||
+    mechanism === "custom"
   );
 }
 

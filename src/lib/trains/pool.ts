@@ -149,6 +149,28 @@ export async function markPoolEntrySelected(
     .where(eq(schema.conductorPoolEntries.id, entryId));
 }
 
+/** Platform-admin unlock: return a pool slot consumed by a mistaken lock. */
+export async function releasePoolSelectionForDate(
+  allianceId: string,
+  date: string,
+  memberId: string,
+): Promise<void> {
+  const db = getDb();
+  await db
+    .update(schema.conductorPoolEntries)
+    .set({
+      selectedAt: null,
+      selectedForDate: null,
+    })
+    .where(
+      and(
+        eq(schema.conductorPoolEntries.allianceId, allianceId),
+        eq(schema.conductorPoolEntries.selectedForDate, date),
+        eq(schema.conductorPoolEntries.memberId, memberId),
+      ),
+    );
+}
+
 export async function getPoolSummary(
   allianceId: string,
   poolType: PoolType,

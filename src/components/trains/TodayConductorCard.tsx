@@ -12,9 +12,9 @@ type Props = {
     lastConductedDate: string | null;
     conductsThisYear: number;
   } | null;
+  dayLabel: string;
   labels: {
     awaiting: string;
-    conductor: string;
     vip: string;
     locked: string;
     unlocked: string;
@@ -24,16 +24,14 @@ type Props = {
   };
 };
 
-export function TodayConductorCard({ record, stats, labels }: Props) {
+export function TodayConductorCard({ record, stats, dayLabel, labels }: Props) {
   const locked = Boolean(record?.lockedAt);
 
   return (
     <section className="rounded-2xl border border-[#30363d] bg-[#161b22] p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold text-[#e6edf3]">
-            {labels.conductor}
-          </h2>
+          <h2 className="text-lg font-semibold text-[#e6edf3]">{dayLabel}</h2>
           <p className="mt-1 text-3xl font-bold tracking-tight text-[#58a6ff]">
             {record?.conductorMemberName ?? labels.awaiting}
           </p>

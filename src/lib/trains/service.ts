@@ -15,6 +15,7 @@ import {
   addCalendarDays,
   getServerCalendarDate,
   getWeekStartMonday,
+  weekDatesFromMonday,
 } from "@/lib/trains/game-time";
 import {
   getPoolSummary,
@@ -33,6 +34,7 @@ import {
 } from "@/lib/trains/rank-history";
 import {
   conductorMechanismPoolType,
+  generateDayConfigForDate,
   generateWeekDayConfigs,
 } from "@/lib/trains/templates";
 import {
@@ -42,6 +44,7 @@ import {
   listDayConfigsForWeek,
   replaceDayConfigs,
   upsertConductorDraft,
+  upsertDayConfigOverride,
   upsertWeekSchedule,
 } from "@/lib/trains/repository";
 
@@ -261,6 +264,93 @@ export async function setWeekTemplate(
   });
   const configs = generateWeekDayConfigs(templateType, weekStart);
   await replaceDayConfigs(allianceId, schedule.id, configs);
+}
+
+export async function ensureWeekScheduleBaseline(
+  allianceId: string,
+  weekStart: string,
+  templateType: WeekTemplateType = "vs_push_week",
+): Promise<(typeof import("@/lib/db/schema").trainWeekSchedules.$inferSelect)> {
+  const seasonKey = await resolveTrainSeasonKey(allianceId);
+  let schedule = await getWeekSchedule(allianceId, weekStart, seasonKey);
+  if (!schedule) {
+    schedule = await upsertWeekSchedule({
+      allianceId,
+      weekStart,
+      templateType,
+      seasonKey,
+    });
+    const configs = generateWeekDayConfigs(templateType, weekStart);
+    await replaceDayConfigs(allianceId, schedule.id, configs);
+  }
+  return schedule;
+}
+
+export async function recomputeWeekPivotFlag(
+  allianceId: string,
+  weekStart: string,
+): Promise<void> {
+  const seasonKey = await resolveTrainSeasonKey(allianceId);
+  const schedule = await getWeekSchedule(allianceId, weekStart, seasonKey);
+  if (!schedule || schedule.templateType !== "vs_push_week") {
+    return;
+  }
+
+  const weekEnd = addCalendarDays(weekStart, 6);
+  const configs = await listDayConfigsForWeek(allianceId, weekStart, weekEnd);
+  const hasEconomyOverride = configs.some((config) => {
+    if (config.isOverride !== 1) return false;
+    const idx = weekDatesFromMonday(weekStart).indexOf(config.date);
+    return idx >= 1 && config.conductorMechanism === "r3_lottery";
+  });
+
+  if ((schedule.isPivot === 1) === hasEconomyOverride) {
+    return;
+  }
+
+  await upsertWeekSchedule({
+    allianceId,
+    weekStart,
+    templateType: schedule.templateType as WeekTemplateType,
+    seasonKey,
+    isPivot: hasEconomyOverride,
+  });
+}
+
+export async function applyTemplateToDates(
+  allianceId: string,
+  dates: string[],
+  templateType: WeekTemplateType,
+): Promise<void> {
+  if (dates.length === 0) return;
+
+  const seasonKey = await resolveTrainSeasonKey(allianceId);
+  const uniqueDates = [...new Set(dates)].sort();
+
+  for (const date of uniqueDates) {
+    const record = await getConductorRecord(allianceId, date, seasonKey);
+    if (record?.lockedAt) {
+      throw new Error(`Cannot repaint locked day ${date}.`);
+    }
+  }
+
+  const weekStarts = [...new Set(uniqueDates.map((d) => getWeekStartMonday(d)))];
+  for (const weekStart of weekStarts) {
+    await ensureWeekScheduleBaseline(allianceId, weekStart);
+  }
+
+  for (const date of uniqueDates) {
+    const weekStart = getWeekStartMonday(date);
+    const schedule = await getWeekSchedule(allianceId, weekStart, seasonKey);
+    if (!schedule) continue;
+
+    const config = generateDayConfigForDate(templateType, date, weekStart);
+    await upsertDayConfigOverride(allianceId, schedule.id, config, true);
+  }
+
+  for (const weekStart of weekStarts) {
+    await recomputeWeekPivotFlag(allianceId, weekStart);
+  }
 }
 
 export async function rollForConductor(input: {

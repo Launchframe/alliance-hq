@@ -1,7 +1,8 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, gte, lte } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { getDb, schema } from "@/lib/db";
+import { releasePoolSelectionForDate } from "@/lib/trains/pool";
 import type { DayConfigInput, WeekTemplateType } from "@/lib/trains/types";
 
 const TRAIN_CAR_COUNT = 5;
@@ -144,6 +145,14 @@ export async function listDayConfigsForWeek(
   weekStart: string,
   weekEnd: string,
 ): Promise<Array<(typeof schema.trainDayConfigs.$inferSelect)>> {
+  return listDayConfigsInRange(allianceId, weekStart, weekEnd);
+}
+
+export async function listDayConfigsInRange(
+  allianceId: string,
+  rangeStart: string,
+  rangeEnd: string,
+): Promise<Array<(typeof schema.trainDayConfigs.$inferSelect)>> {
   const db = getDb();
   return db
     .select()
@@ -151,12 +160,47 @@ export async function listDayConfigsForWeek(
     .where(
       and(
         eq(schema.trainDayConfigs.allianceId, allianceId),
-        // date strings sort lexicographically for YYYY-MM-DD
+        gte(schema.trainDayConfigs.date, rangeStart),
+        lte(schema.trainDayConfigs.date, rangeEnd),
       ),
     )
-    .then((rows) =>
-      rows.filter((r) => r.date >= weekStart && r.date <= weekEnd),
-    );
+    .orderBy(schema.trainDayConfigs.date);
+}
+
+export async function upsertDayConfigOverride(
+  allianceId: string,
+  weekScheduleId: string,
+  config: DayConfigInput,
+  isOverride: boolean,
+): Promise<void> {
+  const db = getDb();
+  await db
+    .insert(schema.trainDayConfigs)
+    .values({
+      id: nanoid(),
+      weekScheduleId,
+      allianceId,
+      date: config.date,
+      conductorMechanism: config.conductorMechanism,
+      conductorConfig: config.conductorConfig ?? null,
+      vipMechanism: config.vipMechanism ?? null,
+      vipConfig: config.vipConfig ?? null,
+      isOverride: isOverride ? 1 : 0,
+    })
+    .onConflictDoUpdate({
+      target: [
+        schema.trainDayConfigs.allianceId,
+        schema.trainDayConfigs.date,
+      ],
+      set: {
+        weekScheduleId,
+        conductorMechanism: config.conductorMechanism,
+        conductorConfig: config.conductorConfig ?? null,
+        vipMechanism: config.vipMechanism ?? null,
+        vipConfig: config.vipConfig ?? null,
+        isOverride: isOverride ? 1 : 0,
+      },
+    });
 }
 
 export async function getConductorRecord(
@@ -181,6 +225,43 @@ export async function getConductorRecord(
     return null;
   }
   return row;
+}
+
+export async function listConductorRecordsForWeek(
+  allianceId: string,
+  weekStart: string,
+  weekEnd: string,
+  seasonKey?: string | null,
+): Promise<Array<(typeof schema.trainConductorRecords.$inferSelect)>> {
+  return listConductorRecordsInRange(
+    allianceId,
+    weekStart,
+    weekEnd,
+    seasonKey,
+  );
+}
+
+export async function listConductorRecordsInRange(
+  allianceId: string,
+  rangeStart: string,
+  rangeEnd: string,
+  seasonKey?: string | null,
+): Promise<Array<(typeof schema.trainConductorRecords.$inferSelect)>> {
+  const db = getDb();
+  const rows = await db
+    .select()
+    .from(schema.trainConductorRecords)
+    .where(
+      and(
+        eq(schema.trainConductorRecords.allianceId, allianceId),
+        gte(schema.trainConductorRecords.date, rangeStart),
+        lte(schema.trainConductorRecords.date, rangeEnd),
+      ),
+    )
+    .orderBy(schema.trainConductorRecords.date);
+
+  if (!seasonKey) return rows;
+  return rows.filter((row) => !row.seasonKey || row.seasonKey === seasonKey);
 }
 
 export async function upsertConductorDraft(input: {
@@ -294,6 +375,50 @@ export async function lockConductorRecord(
     .where(eq(schema.trainConductorRecords.id, recordId));
 
   await spawnEmptyTrain(recordId);
+
+  const [row] = await db
+    .select()
+    .from(schema.trainConductorRecords)
+    .where(eq(schema.trainConductorRecords.id, recordId))
+    .limit(1);
+  return row!;
+}
+
+export async function unlockConductorRecord(
+  recordId: string,
+  allianceId: string,
+): Promise<(typeof schema.trainConductorRecords.$inferSelect)> {
+  const db = getDb();
+  const [existing] = await db
+    .select()
+    .from(schema.trainConductorRecords)
+    .where(eq(schema.trainConductorRecords.id, recordId))
+    .limit(1);
+
+  if (!existing || existing.allianceId !== allianceId) {
+    throw new Error("Conductor record not found.");
+  }
+  if (!existing.lockedAt) {
+    throw new Error("Conductor is not locked.");
+  }
+
+  await db
+    .delete(schema.trains)
+    .where(eq(schema.trains.conductorRecordId, recordId));
+
+  if (existing.conductorMemberId) {
+    await releasePoolSelectionForDate(
+      allianceId,
+      existing.date,
+      existing.conductorMemberId,
+    );
+  }
+
+  const updatedAt = new Date();
+  await db
+    .update(schema.trainConductorRecords)
+    .set({ lockedAt: null, updatedAt })
+    .where(eq(schema.trainConductorRecords.id, recordId));
 
   const [row] = await db
     .select()
