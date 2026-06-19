@@ -43,8 +43,12 @@ import {
 } from "@/lib/trains/pool";
 import {
   evaluateConductorQualification,
+  loadTrainConductorMinimums,
 } from "@/lib/trains/train-conductor-minimums.server";
-import type { MemberQualificationPayload } from "@/lib/trains/train-conductor-minimums.shared";
+import {
+  assertConductorMinimumOverrideQualification,
+  minimumsEnforcementEnabled,
+} from "@/lib/trains/train-conductor-minimums.shared";
 import { writeAuditLog } from "@/lib/bff/audit";
 import { fetchEventTopScorers } from "@/lib/trains/event-scores.server";
 import {
@@ -337,11 +341,27 @@ export async function confirmConductorMinimumOverride(input: {
   memberId: string;
   memberName: string;
   mechanism: ConductorMechanismType;
-  qualification: MemberQualificationPayload;
+  connection: ParsedConnection | null;
+  ashedAllianceId: string;
   overrideReason?: string;
   sessionId: string;
   hqUserId?: string | null;
 }): Promise<RollResult> {
+  const settings = await loadTrainConductorMinimums(input.allianceId, false);
+  if (!minimumsEnforcementEnabled(settings)) {
+    throw new Error("Train conductor minimums are not enabled.");
+  }
+
+  const qualification = assertConductorMinimumOverrideQualification(
+    await evaluateConductorQualification({
+      allianceId: input.allianceId,
+      memberId: input.memberId,
+      trainDate: input.date,
+      connection: input.connection,
+      ashedAllianceId: input.ashedAllianceId,
+    }),
+  );
+
   const seasonKey = await resolveTrainSeasonKey(input.allianceId);
   const record = await getConductorRecord(
     input.allianceId,
@@ -374,7 +394,7 @@ export async function confirmConductorMinimumOverride(input: {
     mechanism: input.mechanism,
     isAutomatic: false,
     poolType: poolType ?? undefined,
-    qualification: input.qualification,
+    qualification,
   };
 
   const persisted = await persistConductorRoll({
@@ -400,7 +420,7 @@ export async function confirmConductorMinimumOverride(input: {
       memberId: input.memberId,
       mechanism: input.mechanism,
       overrideReason: input.overrideReason?.trim() || null,
-      qualification: input.qualification,
+      qualification,
     },
   });
 

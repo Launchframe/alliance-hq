@@ -122,3 +122,18 @@ export function buildMemberQualification(input: {
     },
   };
 }
+
+/** Server gate before persisting a minimums override — never trust client qualification. */
+export function assertConductorMinimumOverrideQualification(
+  qualification: MemberQualificationPayload | null,
+): MemberQualificationPayload {
+  if (!qualification) {
+    throw new Error(
+      "Cannot verify conductor qualification without score data.",
+    );
+  }
+  if (qualification.qualified) {
+    throw new Error("Member meets conductor minimums; override is not allowed.");
+  }
+  return qualification;
+}

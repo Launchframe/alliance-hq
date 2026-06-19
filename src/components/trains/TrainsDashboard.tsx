@@ -551,10 +551,6 @@ export function TrainsDashboard({ initial }: Props) {
             memberName: pending.result.memberName,
             mechanism: pending.result.mechanism,
             overrideReason,
-            qualification: {
-              ...pending.result.qualification,
-              qualified: false as const,
-            },
           }),
         });
         const body = (await res.json()) as RollResponse;

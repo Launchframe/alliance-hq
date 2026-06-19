@@ -16,24 +16,6 @@ const bodySchema = z.object({
   memberName: z.string().trim().min(1),
   mechanism: z.enum(CONDUCTOR_MECHANISMS),
   overrideReason: z.string().trim().max(500).optional(),
-  qualification: z.object({
-    qualified: z.literal(false),
-    evaluationWindow: z.enum(["daily", "weekly"]),
-    periodStart: z.string(),
-    periodEnd: z.string(),
-    vs: z.object({
-      score: z.number(),
-      minimum: z.number(),
-      effectiveMinimum: z.number(),
-      shortfall: z.number(),
-    }),
-    donation: z.object({
-      score: z.number(),
-      minimum: z.number(),
-      effectiveMinimum: z.number(),
-      shortfall: z.number(),
-    }),
-  }),
 });
 
 export async function POST(request: Request) {
@@ -56,7 +38,8 @@ export async function POST(request: Request) {
       memberId: parsed.data.memberId,
       memberName: parsed.data.memberName,
       mechanism: parsed.data.mechanism,
-      qualification: parsed.data.qualification,
+      connection: ctx.connection,
+      ashedAllianceId: ctx.ashedAllianceId,
       overrideReason: parsed.data.overrideReason,
       sessionId: session.id,
       hqUserId: session.hqUserId,

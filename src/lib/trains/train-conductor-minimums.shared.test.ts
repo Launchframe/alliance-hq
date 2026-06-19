@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  assertConductorMinimumOverrideQualification,
   buildMemberQualification,
   effectiveMinimum,
   evaluationPeriodForTrainDate,
@@ -70,5 +71,38 @@ describe("train-conductor-minimums", () => {
     expect(
       minimumsEnforcementEnabled(normalizeTrainMinimumsSettings({})),
     ).toBe(false);
+  });
+
+  it("assertConductorMinimumOverrideQualification rejects missing or qualified", () => {
+    const settings = normalizeTrainMinimumsSettings({
+      minVsPoints: 1000,
+      leewayPct: 0,
+      window: "weekly",
+    });
+    const disqualified = buildMemberQualification({
+      vsScore: 0,
+      donationScore: 0,
+      settings,
+      periodStart: "2026-06-08",
+      periodEnd: "2026-06-14",
+    });
+    expect(disqualified.qualified).toBe(false);
+    expect(assertConductorMinimumOverrideQualification(disqualified)).toBe(
+      disqualified,
+    );
+
+    const qualified = buildMemberQualification({
+      vsScore: 2000,
+      donationScore: 0,
+      settings,
+      periodStart: "2026-06-08",
+      periodEnd: "2026-06-14",
+    });
+    expect(() =>
+      assertConductorMinimumOverrideQualification(qualified),
+    ).toThrow(/override is not allowed/);
+    expect(() => assertConductorMinimumOverrideQualification(null)).toThrow(
+      /without score data/,
+    );
   });
 });
