@@ -12,6 +12,7 @@ type PoolSummary = {
   total: number;
   remaining: number;
   exhausted: boolean;
+  nextInSequence?: { memberId: string; memberName: string } | null;
 };
 
 type Props = {
@@ -79,6 +80,13 @@ function SpinSourceRow({
                   total: poolSummary.total,
                   generation: poolSummary.generation,
                 })}
+            {poolSummary.nextInSequence ? (
+              <span className="mt-0.5 block text-[#c9d1d9]">
+                {t("nextInSequence", {
+                  name: poolSummary.nextInSequence.memberName,
+                })}
+              </span>
+            ) : null}
             {poolSummary.exhausted ? (
               <span className="ml-1 text-[#d29922]">{t("poolExhausted")}</span>
             ) : null}

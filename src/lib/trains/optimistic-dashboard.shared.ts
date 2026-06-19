@@ -40,6 +40,7 @@ export function upsertRecordForDate(
       vipMemberName: null,
       conductorMechanism: dayConfig?.conductorMechanism ?? null,
       vipMechanism: dayConfig?.vipMechanism ?? null,
+      guardianIsVip: false,
       lockedAt: null,
       ...patch,
     },
@@ -91,6 +92,7 @@ export function applyOptimisticConductorRoll(
   date: string,
   role: "conductor" | "vip",
   member: { memberId: string; memberName: string },
+  options?: { guardianIsVip?: boolean },
 ): TrainsDashboardSnapshot {
   const dayConfig = dayConfigForDate(snap, date);
   if (role === "conductor") {
@@ -105,6 +107,7 @@ export function applyOptimisticConductorRoll(
     vipMemberId: member.memberId,
     vipMemberName: member.memberName,
     vipMechanism: dayConfig?.vipMechanism ?? null,
+    guardianIsVip: options?.guardianIsVip ?? false,
   });
 }
 

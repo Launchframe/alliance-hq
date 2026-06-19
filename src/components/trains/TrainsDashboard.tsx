@@ -1283,6 +1283,25 @@ export function TrainsDashboard({ initial }: Props) {
         />
       ) : null}
 
+      {data.conductorHistory.length > 0 ? (
+        <ConductorHistoryTable
+          rows={data.conductorHistory}
+          mechanismLabels={historyMechanismLabels}
+          labels={{
+            title: t("conductorHistory.title"),
+            empty: t("conductorHistory.empty"),
+            date: t("conductorHistory.date"),
+            conductor: t("conductorHistory.conductor"),
+            vip: t("conductorHistory.vip"),
+            guardian: t("guardian"),
+            locked: t("conductorHistory.locked"),
+            noneYet: t("noneYet"),
+            guardianIsVip: t("guardianIsVipHint"),
+            guardianIsConductor: t("guardianIsConductorHint"),
+          }}
+        />
+      ) : null}
+
       <ConductorPickModal
         open={pickOpen}
         members={data.roster}
