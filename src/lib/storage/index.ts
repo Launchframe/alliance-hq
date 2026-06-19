@@ -1,10 +1,13 @@
+import { createReadStream } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
+import { Readable } from "node:stream";
 
 import {
   deleteR2Object,
   getR2Object,
   getR2ObjectRange,
+  getR2ObjectStream,
   headR2ObjectSize,
   putR2Object,
   r2Configured,
@@ -39,6 +42,16 @@ export async function getObject(storageKey: string): Promise<Buffer> {
     return fs.readFile(localPath(storageKey));
   }
   return getR2Object(storageKey);
+}
+
+export async function getObjectStream(
+  storageKey: string,
+): Promise<ReadableStream<Uint8Array>> {
+  if (prefersLocalStorage()) {
+    const stream = createReadStream(localPath(storageKey));
+    return Readable.toWeb(stream) as ReadableStream<Uint8Array>;
+  }
+  return getR2ObjectStream(storageKey);
 }
 
 export async function getObjectSize(storageKey: string): Promise<number> {

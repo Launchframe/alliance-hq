@@ -73,6 +73,42 @@ export async function getR2Object(storageKey: string): Promise<Buffer> {
   return Buffer.from(bytes);
 }
 
+export async function getR2ObjectStream(
+  storageKey: string,
+): Promise<ReadableStream<Uint8Array>> {
+  const response = await getR2Client().send(
+    new GetObjectCommand({
+      Bucket: bucket(),
+      Key: storageKey,
+    }),
+  );
+
+  if (!response.Body) {
+    throw new Error(`R2 object not found: ${storageKey}`);
+  }
+
+  const body = response.Body as {
+    transformToWebStream?: () => ReadableStream<Uint8Array>;
+    transformToByteArray?: () => Promise<Uint8Array>;
+  };
+
+  if (typeof body.transformToWebStream === "function") {
+    return body.transformToWebStream();
+  }
+
+  if (typeof body.transformToByteArray !== "function") {
+    throw new Error(`R2 object body is not streamable: ${storageKey}`);
+  }
+
+  const bytes = await body.transformToByteArray();
+  return new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(bytes);
+      controller.close();
+    },
+  });
+}
+
 export async function headR2ObjectSize(storageKey: string): Promise<number> {
   const response = await getR2Client().send(
     new HeadObjectCommand({

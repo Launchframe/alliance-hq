@@ -2,7 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
 import { getDb, schema } from "@/lib/db";
-import { getObjectRange, getObjectSize } from "@/lib/storage";
+import { getObjectRange, getObjectSize, getObjectStream } from "@/lib/storage";
 import { getOrCreateSession } from "@/lib/session";
 import { parseBytesRangeHeader } from "@/lib/video/http-byte-range";
 import {
@@ -98,8 +98,8 @@ async function buildVideoResponse(
     return new Response(null, { status: 200, headers });
   }
 
-  const buffer = await getObjectRange(storageKey, 0, size - 1);
-  return new Response(new Uint8Array(buffer), { status: 200, headers });
+  const stream = await getObjectStream(storageKey);
+  return new Response(stream, { status: 200, headers });
 }
 
 export async function HEAD(request: Request, { params }: Props) {
