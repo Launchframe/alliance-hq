@@ -310,6 +310,8 @@ export const videoFrames = pgTable("video_frames", {
   ocrEntryCount: integer("ocr_entry_count"),
   ocrError: text("ocr_error"),
   ocrRawJson: jsonb("ocr_raw_json"),
+  /** Seconds into the source upload video when this frame was captured. */
+  videoTimestampSeconds: doublePrecision("video_timestamp_seconds"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
     .notNull(),

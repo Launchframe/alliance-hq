@@ -223,6 +223,7 @@ export async function processVideoJob(
           jobId,
           frameIndex: frame.index,
           storageKey: key,
+          videoTimestampSeconds: frame.videoTimestampSeconds,
           createdAt: now,
         });
       }, { frameIndex: frame.index, bytes: frame.buffer.length });

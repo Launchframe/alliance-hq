@@ -3,12 +3,15 @@
 import { useEffect, useRef } from "react";
 import { useTranslations } from "next-intl";
 
+export type VideoSeekRequest = { seconds: number; nonce: number } | null;
+
 type Props = {
   jobId: string;
   open: boolean;
   onClose: () => void;
   unavailable?: boolean;
   surface: "mobile" | "desktop";
+  seekRequest?: VideoSeekRequest;
 };
 
 export function ReviewSourceVideoPanel({
@@ -17,6 +20,7 @@ export function ReviewSourceVideoPanel({
   onClose,
   unavailable = false,
   surface,
+  seekRequest = null,
 }: Props) {
   const t = useTranslations("videoReview");
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -27,6 +31,31 @@ export function ReviewSourceVideoPanel({
     if (!el) return;
     el.pause();
   }, [open]);
+
+  useEffect(() => {
+    if (!open || !seekRequest) return;
+    const el = videoRef.current;
+    if (!el) return;
+
+    const seekTo = seekRequest.seconds;
+
+    const applySeek = () => {
+      try {
+        el.currentTime = seekTo;
+        void el.play().catch(() => undefined);
+      } catch {
+        // ignore seek failures (e.g. unbuffered range)
+      }
+    };
+
+    if (el.readyState >= 1) {
+      applySeek();
+      return;
+    }
+
+    el.addEventListener("loadedmetadata", applySeek, { once: true });
+    return () => el.removeEventListener("loadedmetadata", applySeek);
+  }, [open, seekRequest]);
 
   if (surface === "mobile") {
     return (

@@ -1440,6 +1440,7 @@
     "comparisonUseB": "Use Pass B",
     "previewVideo": "Preview",
     "closePreview": "Close",
+    "rowVideoPreview": "View in video",
     "previewUnavailable": "Source video is not available for this job.",
     "statsNerds": {
       "button": "Stats for nerds",

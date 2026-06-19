@@ -1,6 +1,7 @@
 "use client";
 
 import { useLocale, useTranslations } from "next-intl";
+import { Video } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Link, useRouter } from "@/i18n/navigation";
@@ -23,6 +24,11 @@ import type { VideoProcessTimings } from "@/lib/analytics/video-pipeline";
 import { isVideoProcessTimings } from "@/lib/video/pipeline-stats-display";
 import { VideoPipelineStatsButton } from "@/components/video/VideoPipelineStatsDialog";
 import { ReviewSourceVideoPanel } from "@/components/video/ReviewSourceVideoPanel";
+import type { VideoSeekRequest } from "@/components/video/ReviewSourceVideoPanel";
+import {
+  previewSeekSecondsForFrame,
+  type FrameTimestampMap,
+} from "@/lib/video/frame-video-seek";
 import { accountTodayCalendarDate } from "@/lib/timezone/format";
 import { PassComparisonSheet } from "@/components/video/PassComparisonSheet";
 import { OcrRatingPrompt, type OcrRatingReason } from "@/components/video/OcrRatingPrompt";
@@ -131,6 +137,9 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   const [fileName, setFileName] = useState<string | null>(null);
   const [hasSourceVideo, setHasSourceVideo] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewSeekRequest, setPreviewSeekRequest] =
+    useState<VideoSeekRequest>(null);
+  const [frameTimestamps, setFrameTimestamps] = useState<FrameTimestampMap>({});
   const [showRatingPrompt, setShowRatingPrompt] = useState(false);
   const [jobRating, setJobRating] = useState<"thumbs_up" | "thumbs_down" | null>(null);
   const [discarding, setDiscarding] = useState(false);
@@ -197,6 +206,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           timingsJson?: VideoProcessTimings | null;
         };
         hasSourceVideo?: boolean;
+        frameTimestamps?: FrameTimestampMap;
         scoreTargetMeta?: ScoreTargetMeta | null;
         alliance?: {
           currentId?: string | null;
@@ -228,6 +238,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
       }
       setFileName(data.job?.fileName ?? null);
       setHasSourceVideo(Boolean(data.hasSourceVideo));
+      setFrameTimestamps(data.frameTimestamps ?? {});
       setTimings(
         isVideoProcessTimings(data.job?.timingsJson)
           ? data.job.timingsJson
@@ -482,6 +493,22 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           )
         : activeRows,
     [activeRows, filterQuery],
+  );
+
+  const openRowVideoPreview = useCallback(
+    (row: ParsedRow) => {
+      const seconds = previewSeekSecondsForFrame(
+        row.frameIndex,
+        frameTimestamps,
+      );
+      if (seconds == null) return;
+      setPreviewSeekRequest((prev) => ({
+        seconds,
+        nonce: (prev?.nonce ?? 0) + 1,
+      }));
+      setPreviewOpen(true);
+    },
+    [frameTimestamps],
   );
 
   const matchedCount = activeRows.filter((r) => r.memberId).length;
@@ -739,6 +766,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           onClose={() => setPreviewOpen(false)}
           unavailable={!hasSourceVideo}
           surface="mobile"
+          seekRequest={previewSeekRequest}
         />
         <div className="mx-auto min-w-0 w-full max-w-5xl flex-1 space-y-6 px-4 pb-6 md:px-0">
       <div>
@@ -1028,6 +1056,10 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           <tbody>
             {filteredRows.map((row) => {
               const isDuplicateMember = duplicateRowIds.has(row.id);
+              const rowCanVideoPreview =
+                hasSourceVideo &&
+                previewSeekSecondsForFrame(row.frameIndex, frameTimestamps) !=
+                  null;
               const rowClass = isDuplicateMember
                 ? "border-t border-[#30363d] bg-[#f8514910]"
                 : row.scoreConflict
@@ -1136,13 +1168,28 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                   })()}
                 </td>
                 <td className="px-4 py-3">
-                  <button
-                    type="button"
-                    onClick={() => deleteRow(row.id)}
-                    className="text-[#f85149] hover:underline"
-                  >
-                    {t("deleteRow")}
-                  </button>
+                  <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:gap-3">
+                    {rowCanVideoPreview ? (
+                      <button
+                        type="button"
+                        onClick={() => openRowVideoPreview(row)}
+                        className="inline-flex items-center gap-1.5 text-[#58a6ff] hover:underline"
+                        aria-label={t("rowVideoPreview")}
+                      >
+                        <Video className="h-4 w-4 shrink-0" aria-hidden />
+                        <span className="hidden sm:inline">
+                          {t("rowVideoPreview")}
+                        </span>
+                      </button>
+                    ) : null}
+                    <button
+                      type="button"
+                      onClick={() => deleteRow(row.id)}
+                      className="text-[#f85149] hover:underline"
+                    >
+                      {t("deleteRow")}
+                    </button>
+                  </div>
                 </td>
               </tr>
               );
@@ -1225,6 +1272,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         onClose={() => setPreviewOpen(false)}
         unavailable={!hasSourceVideo}
         surface="desktop"
+        seekRequest={previewSeekRequest}
       />
     </div>
   );
