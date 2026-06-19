@@ -1103,6 +1103,7 @@
     "emptyRosterBody": "Import your alliance roster before planning train schedules or rolling for Conductor.",
     "emptyRosterCta": "Go to Members",
     "noScheduleYet": "No weekly schedule yet. Create this week to start planning and rolling Conductors.",
+    "noScheduleYetReadOnly": "No weekly schedule yet. A train officer can create this week before members start planning around Conductors.",
     "createSchedule": "Create this week",
     "creatingSchedule": "Creating…",
     "weekSchedule": "This week",

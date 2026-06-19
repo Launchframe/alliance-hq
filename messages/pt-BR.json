@@ -1103,6 +1103,7 @@
     "emptyRosterBody": "Importe o elenco da aliança antes de planejar agendas de trem ou sortear o Condutor.",
     "emptyRosterCta": "Ir para Membros",
     "noScheduleYet": "Nenhuma agenda semanal ainda. Crie esta semana para começar a planejar e sortear Condutores.",
+    "noScheduleYetReadOnly": "Nenhuma agenda semanal ainda. Um oficial de trens pode criar esta semana antes dos membros se planejarem em torno dos Condutores.",
     "createSchedule": "Criar esta semana",
     "creatingSchedule": "Criando…",
     "weekSchedule": "Esta semana",

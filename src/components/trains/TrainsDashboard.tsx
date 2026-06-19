@@ -1332,7 +1332,14 @@ export function TrainsDashboard({ initial }: Props) {
             {scheduleBusy ? t("creatingSchedule") : t("createSchedule")}
           </button>
         </section>
-      ) : null}
+      ) : (
+        <section
+          className="rounded-xl border border-dashed border-[#30363d] bg-[#161b22]/50 px-4 py-3 text-sm text-[#8b949e]"
+          data-testid="trains-no-schedule-section"
+        >
+          {t("noScheduleYetReadOnly")}
+        </section>
+      )}
 
       {data.conductorHistory.length > 0 ? (
         <ConductorHistoryTable
