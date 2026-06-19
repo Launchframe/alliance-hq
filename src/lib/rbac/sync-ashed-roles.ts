@@ -10,6 +10,8 @@ import {
   shouldRevokeAshedMembership,
 } from "@/lib/rbac/sync-ashed-roles.helpers";
 import type { AshedAllianceRow, AshedUserRef } from "@/lib/alliance/types";
+import { parseAshedGameServerNumber } from "@/lib/game-season/ashed";
+import { applySeasonSync } from "@/lib/game-season/sync";
 import { base44ListAlliances } from "@/lib/base44/fetch";
 import type { ParsedConnection } from "@/lib/connectionString";
 import { getDb, schema } from "@/lib/db";
@@ -83,6 +85,7 @@ async function upsertAllianceFromAshed(
   const slug = slugFromTag(allianceTag);
   const tag = ashedAlliance.tag?.trim() || allianceTag.trim();
   const collaborators = (ashedAlliance.collaborators ?? []).map(normalizeAshedEmail);
+  const gameServerNumber = parseAshedGameServerNumber(ashedAlliance);
 
   const [existing] = await db
     .select()
@@ -103,9 +106,17 @@ async function upsertAllianceFromAshed(
           : null,
         collaboratorsJson: collaborators,
         rolesSyncedAt: now,
+        ...(gameServerNumber != null ? { gameServerNumber } : {}),
         updatedAt: now,
       })
       .where(eq(schema.alliances.id, existing.id));
+    if (gameServerNumber != null) {
+      try {
+        await applySeasonSync(existing.id);
+      } catch (error) {
+        console.warn("[sync-ashed] season sync failed", existing.id, error);
+      }
+    }
     return existing.id;
   }
 
@@ -122,9 +133,17 @@ async function upsertAllianceFromAshed(
       : null,
     collaboratorsJson: collaborators,
     rolesSyncedAt: now,
+    gameServerNumber: gameServerNumber ?? undefined,
     createdAt: now,
     updatedAt: now,
   });
+  if (gameServerNumber != null) {
+    try {
+      await applySeasonSync(id);
+    } catch (error) {
+      console.warn("[sync-ashed] season sync failed", id, error);
+    }
+  }
   return id;
 }
 

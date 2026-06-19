@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { ConductorWheelModal } from "@/components/trains/ConductorWheelModal";
+import { TrainsSeasonBanner } from "@/components/trains/TrainsSeasonBanner";
 import { TodayConductorCard } from "@/components/trains/TodayConductorCard";
 import {
   WeekScheduleStrip,
@@ -197,6 +198,15 @@ export function TrainsDashboard({ initial }: Props) {
           </div>
         ) : null}
       </header>
+
+      {data.season ? (
+        <TrainsSeasonBanner
+          season={data.season}
+          onUpdated={(season) =>
+            setData((prev) => ({ ...prev, season }))
+          }
+        />
+      ) : null}
 
       {error ? (
         <p className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-300">

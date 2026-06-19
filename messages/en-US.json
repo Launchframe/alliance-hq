@@ -1005,6 +1005,25 @@
       "never": "never",
       "lastConducted": "Last: {date}",
       "conductsThisYear": "{count} this year"
+    },
+    "season": {
+      "label": "Game season",
+      "seasonLine": "Season {season}",
+      "serverLine": "Server {server}",
+      "postSeasonWeek": "Post-season (week {week})",
+      "inSeasonWeek": "Week {week}",
+      "overrideLabel": "Manual season override",
+      "saveOverride": "Save override",
+      "clearOverride": "Use auto sync",
+      "saving": "Saving…",
+      "saveFailed": "Could not save season override.",
+      "clearFailed": "Could not clear season override.",
+      "source": {
+        "override": "Manual override",
+        "cpt-hedge": "Synced from cpt-hedge",
+        "age-fallback": "Estimated from server age",
+        "default": "Default"
+      }
     }
   },
   "video": {

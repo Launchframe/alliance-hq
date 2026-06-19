@@ -127,6 +127,7 @@ export type AshedAlliance = {
   owner_id?: string;
   owner_email?: string;
   collaborators?: string[];
+  server_number?: number | string | null;
 };
 
 export async function base44ListAlliances(

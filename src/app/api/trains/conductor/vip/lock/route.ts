@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
 import { resolveTrainRequestContext } from "@/lib/trains/api-context";
 import {
   getConductorRecord,
@@ -37,7 +38,9 @@ export async function POST(request: Request) {
   const date = body.date?.trim() || getServerCalendarDate();
 
   try {
-    const existing = await getConductorRecord(ctx.allianceId, date);
+    const seasonKey = (await getEffectiveSeasonForAlliance(ctx.allianceId))
+      .seasonKey;
+    const existing = await getConductorRecord(ctx.allianceId, date, seasonKey);
     if (existing?.lockedAt) {
       return NextResponse.json(
         { error: "Conductor is already locked for this day." },
@@ -54,6 +57,7 @@ export async function POST(request: Request) {
     const record = await upsertConductorDraft({
       allianceId: ctx.allianceId,
       date,
+      seasonKey,
       vipMemberId: body.memberId.trim(),
       vipMemberName: body.memberName.trim(),
       vipRankEventId: rankEvent?.id ?? null,

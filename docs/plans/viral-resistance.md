@@ -4,7 +4,9 @@ Alliance HQ tracks **base viral resistance** (multiples of 250, max 12750) via D
 
 ## Season
 
-- Season key comes from **`alliances.current_season_key`**, optional **`DISCORD_ALLIANCE_SEASON_KEY`**, or defaults to `"1"`. **`/set-season` is removed** — future work: derive from game server age.
+- Effective season: **owner override** → **Monday 00:05 Server Time cpt-hedge cron** → **age fallback** (caps at season 4) → default `"1"`. Full rules: [`.cursor/rules/trains.mdc`](../../.cursor/rules/trains.mdc).
+- **`game_server_number`** comes from Ashed `Alliance.server_number` on connect/sync; cpt-hedge supplies `currentSeason`, post-season week, and open timestamp.
+- **`DISCORD_ALLIANCE_SEASON_KEY`** remains a dev/single-tenant env override ahead of DB for VR.
 - **`DISCORD_ALLIANCE_ID`** may be either **`alliances.id`** (HQ nanoid) or **`ashed_alliance_id`** (24-char hex from `/admin/alliances`); the bot resolves to the HQ row before writing audit/links.
 - We store **highest base VR per member per season**, not a full within-season timeline.
 

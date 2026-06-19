@@ -1005,6 +1005,25 @@
       "never": "nunca",
       "lastConducted": "Última: {date}",
       "conductsThisYear": "{count} este ano"
+    },
+    "season": {
+      "label": "Temporada do jogo",
+      "seasonLine": "Temporada {season}",
+      "serverLine": "Servidor {server}",
+      "postSeasonWeek": "Pós-temporada (semana {week})",
+      "inSeasonWeek": "Semana {week}",
+      "overrideLabel": "Substituição manual da temporada",
+      "saveOverride": "Salvar substituição",
+      "clearOverride": "Usar sincronização automática",
+      "saving": "Salvando…",
+      "saveFailed": "Não foi possível salvar a substituição da temporada.",
+      "clearFailed": "Não foi possível limpar a substituição da temporada.",
+      "source": {
+        "override": "Substituição manual",
+        "cpt-hedge": "Sincronizado do cpt-hedge",
+        "age-fallback": "Estimado pela idade do servidor",
+        "default": "Padrão"
+      }
     }
   },
   "video": {

@@ -1,5 +1,6 @@
 import { base44Json } from "@/lib/base44/fetch";
 import type { ParsedConnection } from "@/lib/connectionString";
+import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
 import { listActiveAllianceMembersForPoolWithSync } from "@/lib/members/roster.server";
 import type {
   ConductorMechanismType,
@@ -42,6 +43,11 @@ import {
   upsertConductorDraft,
   upsertWeekSchedule,
 } from "@/lib/trains/repository";
+
+async function resolveTrainSeasonKey(allianceId: string): Promise<string> {
+  const effective = await getEffectiveSeasonForAlliance(allianceId);
+  return effective.seasonKey;
+}
 
 type AshedScoreRow = {
   id?: string;
@@ -208,12 +214,14 @@ export async function getOrCreateWeekSchedule(
   schedule: Awaited<ReturnType<typeof upsertWeekSchedule>>;
   dayConfigs: Awaited<ReturnType<typeof listDayConfigsForWeek>>;
 }> {
-  let schedule = await getWeekSchedule(allianceId, weekStart);
+  const seasonKey = await resolveTrainSeasonKey(allianceId);
+  let schedule = await getWeekSchedule(allianceId, weekStart, seasonKey);
   if (!schedule) {
     schedule = await upsertWeekSchedule({
       allianceId,
       weekStart,
       templateType,
+      seasonKey,
     });
     const configs = generateWeekDayConfigs(templateType, weekStart);
     await replaceDayConfigs(allianceId, schedule.id, configs);
@@ -234,10 +242,12 @@ export async function setWeekTemplate(
   templateType: WeekTemplateType,
   isPivot = false,
 ): Promise<void> {
+  const seasonKey = await resolveTrainSeasonKey(allianceId);
   const schedule = await upsertWeekSchedule({
     allianceId,
     weekStart,
     templateType,
+    seasonKey,
     isPivot,
   });
   const configs = generateWeekDayConfigs(templateType, weekStart);
@@ -250,7 +260,12 @@ export async function rollForConductor(input: {
   connection: ParsedConnection;
   ashedAllianceId: string;
 }): Promise<RollResult> {
-  const record = await getConductorRecord(input.allianceId, input.date);
+  const seasonKey = await resolveTrainSeasonKey(input.allianceId);
+  const record = await getConductorRecord(
+    input.allianceId,
+    input.date,
+    seasonKey,
+  );
   if (record?.lockedAt) {
     throw new Error("Conductor is already locked for this day.");
   }
@@ -338,6 +353,7 @@ export async function rollForConductor(input: {
   await upsertConductorDraft({
     allianceId: input.allianceId,
     date: input.date,
+    seasonKey,
     conductorMemberId: result.memberId,
     conductorMemberName: result.memberName,
     conductorRankEventId: rankEvent?.id ?? null,
@@ -355,7 +371,12 @@ export async function rollForVip(input: {
   connection: ParsedConnection;
   ashedAllianceId: string;
 }): Promise<RollResult> {
-  const record = await getConductorRecord(input.allianceId, input.date);
+  const seasonKey = await resolveTrainSeasonKey(input.allianceId);
+  const record = await getConductorRecord(
+    input.allianceId,
+    input.date,
+    seasonKey,
+  );
   if (record?.lockedAt) {
     throw new Error("Train is locked; VIP cannot be changed.");
   }
@@ -411,6 +432,7 @@ export async function rollForVip(input: {
   await upsertConductorDraft({
     allianceId: input.allianceId,
     date: input.date,
+    seasonKey,
     vipMemberId: result.memberId,
     vipMemberName: result.memberName,
     vipRankEventId: rankEvent?.id ?? null,
