@@ -6,6 +6,7 @@ import { and, eq, isNull } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { normalizeAshedEmail } from "@/lib/alliance/accessible";
+import { grantHqAccess } from "@/lib/access/invite-gate";
 import { getDb, schema } from "@/lib/db";
 import { assignManualMembership } from "@/lib/rbac/admin-users";
 import {
@@ -63,7 +64,6 @@ export async function createHqInvite(
   const [alliance] = await db
     .select({
       id: schema.alliances.id,
-      operatingMode: schema.alliances.operatingMode,
     })
     .from(schema.alliances)
     .where(eq(schema.alliances.id, input.allianceId))
@@ -71,9 +71,6 @@ export async function createHqInvite(
 
   if (!alliance) {
     throw new Error("Alliance not found.");
-  }
-  if (alliance.operatingMode !== "native") {
-    throw new Error("Invites are only supported for native alliances.");
   }
 
   const { token, tokenHash } = generateInviteToken();
@@ -234,6 +231,7 @@ export async function acceptHqInvite(
   }
 
   const hqUserId = await upsertHqUserByEmail(submittedEmail, input.displayName);
+  await grantHqAccess(hqUserId);
   await assignManualMembership({
     hqUserId,
     allianceId: invite.allianceId,

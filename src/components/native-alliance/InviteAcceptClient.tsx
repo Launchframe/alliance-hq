@@ -83,7 +83,7 @@ export function InviteAcceptClient({ token }: { token: string }) {
         setError(body.error ?? t("acceptFailed"));
         return;
       }
-      router.push("/members");
+      router.push("/connect?welcome=1");
     } catch (e) {
       setError(e instanceof Error ? e.message : t("acceptFailed"));
     } finally {
@@ -113,7 +113,7 @@ export function InviteAcceptClient({ token }: { token: string }) {
         <h1 className="text-xl font-semibold">{t("title")}</h1>
         <p className="text-sm text-[#8b949e]">{t("alreadyAccepted")}</p>
         <Link
-          href="/members"
+          href="/connect?welcome=1"
           className="inline-block rounded-lg border border-[#238636] bg-[#238636] px-4 py-2 text-sm text-white"
         >
           {t("goToApp")}

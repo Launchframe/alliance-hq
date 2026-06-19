@@ -2,6 +2,7 @@ import { and, desc, eq, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { countCompletedDeviceLinksByHqUser } from "@/lib/credential-pairing/device-link-stats";
+import { grantHqAccess } from "@/lib/access/invite-gate";
 import { getDb, schema } from "@/lib/db";
 
 import { isSystemRoleId } from "./system-roles";
@@ -198,6 +199,7 @@ export async function assignManualMembership(options: {
         updatedAt: now,
       })
       .where(eq(schema.allianceMemberships.id, existing.id));
+    await grantHqAccess(hqUserId);
     return existing.id;
   }
 
@@ -212,6 +214,8 @@ export async function assignManualMembership(options: {
     createdAt: now,
     updatedAt: now,
   });
+
+  await grantHqAccess(hqUserId);
   return id;
 }
 

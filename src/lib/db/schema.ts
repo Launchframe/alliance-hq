@@ -64,6 +64,8 @@ export const hqUsers = pgTable("hq_users", {
   /** null = Server Time (UTC−02:00); otherwise an IANA zone id */
   timezone: text("timezone"),
   isPlatformMaintainer: integer("is_platform_maintainer").notNull().default(0),
+  /** Set when an admin invite is accepted or access is provisioned; required in production. */
+  accessGrantedAt: timestamp("access_granted_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
     .notNull(),

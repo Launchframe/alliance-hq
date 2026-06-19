@@ -34,15 +34,13 @@ export function AdminAlliancesConsole() {
   const [inviteTargetAllianceId, setInviteTargetAllianceId] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  const nativeAlliances = useMemo(
+  const inviteAllianceOptions = useMemo(
     () =>
-      alliances
-        .filter(isNativeAlliance)
-        .map((alliance) => ({
-          id: alliance.id,
-          slug: alliance.slug,
-          name: alliance.name,
-        })),
+      alliances.map((alliance) => ({
+        id: alliance.id,
+        slug: alliance.slug,
+        name: alliance.name,
+      })),
     [alliances],
   );
 
@@ -65,14 +63,14 @@ export function AdminAlliancesConsole() {
     return () => window.clearTimeout(timer);
   }, [loadAlliances]);
 
-  const effectiveInviteTargetAllianceId = nativeAlliances.some(
+  const effectiveInviteTargetAllianceId = inviteAllianceOptions.some(
     (row) => row.id === inviteTargetAllianceId,
   )
     ? inviteTargetAllianceId
     : "";
 
   function selectInviteTarget(allianceId: string) {
-    if (!nativeAlliances.some((row) => row.id === allianceId)) {
+    if (!inviteAllianceOptions.some((row) => row.id === allianceId)) {
       return;
     }
     setInviteTargetAllianceId(allianceId);
@@ -80,9 +78,6 @@ export function AdminAlliancesConsole() {
 
   function inviteRowClassName(alliance: Alliance): string {
     const base = "border-t border-[#30363d] align-top";
-    if (!isNativeAlliance(alliance)) {
-      return base;
-    }
     const selected = alliance.id === effectiveInviteTargetAllianceId;
     return [
       base,
@@ -98,7 +93,7 @@ export function AdminAlliancesConsole() {
   return (
     <div className="space-y-8">
       <AdminNativeAlliancePanel
-        nativeAlliances={nativeAlliances}
+        nativeAlliances={inviteAllianceOptions}
         selectedAllianceId={effectiveInviteTargetAllianceId}
         onSelectAlliance={setInviteTargetAllianceId}
         onCreated={() => void loadAlliances()}
@@ -112,10 +107,8 @@ export function AdminAlliancesConsole() {
           return (
             <RecordDetailCard
               key={alliance.id}
-              selected={native && selected}
-              onClick={
-                native ? () => selectInviteTarget(alliance.id) : undefined
-              }
+              selected={selected}
+              onClick={() => selectInviteTarget(alliance.id)}
             >
               <RecordDetailField label={t("table.alliance")}>
                 <div className="space-y-1">
@@ -183,32 +176,20 @@ export function AdminAlliancesConsole() {
                     <tr
                       key={alliance.id}
                       className={inviteRowClassName(alliance)}
-                      onClick={
-                        native
-                          ? () => selectInviteTarget(alliance.id)
-                          : undefined
-                      }
-                      onKeyDown={
-                        native
-                          ? (event) => {
-                              if (event.key === "Enter" || event.key === " ") {
-                                event.preventDefault();
-                                selectInviteTarget(alliance.id);
-                              }
-                            }
-                          : undefined
-                      }
-                      tabIndex={native ? 0 : undefined}
-                      role={native ? "button" : undefined}
-                      aria-label={
-                        native
-                          ? tNative("selectAllianceRow", {
-                              name: alliance.name,
-                              slug: alliance.slug,
-                            })
-                          : undefined
-                      }
-                      aria-pressed={native ? selected : undefined}
+                      onClick={() => selectInviteTarget(alliance.id)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          selectInviteTarget(alliance.id);
+                        }
+                      }}
+                      tabIndex={0}
+                      role="button"
+                      aria-label={tNative("selectAllianceRow", {
+                        name: alliance.name,
+                        slug: alliance.slug,
+                      })}
+                      aria-pressed={selected}
                     >
                       <td className="px-4 py-2">
                         <div className="font-medium">{alliance.name}</div>

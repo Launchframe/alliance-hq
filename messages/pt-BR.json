@@ -293,10 +293,10 @@
       "createFailed": "Não foi possível criar a aliança.",
       "created": "Criada {name} [{tag}]. Selecione-a abaixo para enviar convites.",
       "inviteTitle": "Convidar usuário HQ",
-      "inviteTargetHint": "Escolha uma aliança nativa aqui ou clique em uma na lista abaixo.",
+      "inviteTargetHint": "Escolha uma aliança aqui ou clique em uma na lista abaixo. Convites são obrigatórios antes de usar o HQ em produção.",
       "chooseAlliance": "Aliança",
-      "chooseAlliancePlaceholder": "Selecione uma aliança nativa…",
-      "chooseAllianceRequired": "Selecione uma aliança nativa para convidar alguém.",
+      "chooseAlliancePlaceholder": "Selecione uma aliança…",
+      "chooseAllianceRequired": "Selecione uma aliança para convidar alguém.",
       "selectedForInvite": "Selecionada para convite",
       "selectAllianceRow": "Selecionar {name} ({slug}) para convite",
       "inviteEmail": "E-mail do destinatário",
@@ -683,6 +683,7 @@
     "progressLabel": "Progresso da configuração",
     "title": "Conecte sua conta Ashed",
     "subtitle": "O Alliance HQ usa o <link>ashed.online</link> para dados da aliança. Você copiará uma solicitação de rede como um comando cURL — nós cuidamos do resto.",
+    "inviteRequired": "Neste ambiente, é necessário um convite de administrador antes de conectar o Ashed. Aceite o link do convite primeiro ou peça um ao mantenedor da plataforma.",
     "successTitle": "Conectado ao Ashed",
     "signedInAsBefore": "Conectado como",
     "noExpiryRead": "Conectado, mas não conseguimos ler uma data de expiração neste token. Ainda assim, notificaremos você se o Ashed parar de aceitá-lo.",
@@ -1027,8 +1028,14 @@
     "accept": "Aceitar convite",
     "accepting": "Aceitando…",
     "acceptFailed": "Não foi possível aceitar o convite.",
-    "goToApp": "Abrir membros",
-    "home": "Voltar ao início"
+    "goToApp": "Continuar configuração",
+    "home": "Voltar ao início",
+    "welcome": {
+      "title": "Você entrou",
+      "body": "Seu convite está ativo. Conecte o Ashed para ferramentas em iframe e sincronização ao vivo, ou pule e use só os recursos nativos do HQ.",
+      "connectAshed": "Conectar Ashed",
+      "nativeOnly": "Continuar sem Ashed"
+    }
   },
   "viralResistance": {
     "title": "Resistência Viral",
