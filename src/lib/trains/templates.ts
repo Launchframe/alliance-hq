@@ -6,29 +6,26 @@ import type {
   WeekTemplateType,
 } from "@/lib/trains/types";
 import { addCalendarDays, weekDatesFromMonday } from "@/lib/trains/game-time";
-import {
-  dayIndexInWeek,
-  isCompositeWeekTemplate,
-  segmentTemplateForDayIndex,
-} from "@/lib/trains/week-template-registry.shared";
 
 export type WeekTemplateOptions = {
   mondayVipMechanism?: VipMechanismType;
-  /** Optional event VIP config for r4_event_vip / weekend segments. */
-  weekendVipEvent?: EventTopXConfig;
-  /** @deprecated Use weekendVipEvent */
   saturdayVipEvent?: EventTopXConfig;
-  /** @deprecated Use weekendVipEvent */
   sundayVipEvent?: EventTopXConfig;
 };
 
-const DEFAULT_WEEKEND_VIP_EVENT: EventTopXConfig = {
+const DEFAULT_SAT_VIP: EventTopXConfig = {
   eventKey: "capitol_war",
   topN: 10,
 };
 
+const DEFAULT_SUN_VIP: EventTopXConfig = {
+  eventKey: "meteorite_war",
+  topN: 10,
+};
+
 function dayNameIndex(dateStr: string, weekStart: string): number {
-  return dayIndexInWeek(dateStr, weekStart);
+  const dates = weekDatesFromMonday(weekStart);
+  return dates.indexOf(dateStr);
 }
 
 function pushWeekDay(
@@ -40,58 +37,31 @@ function pushWeekDay(
   if (idx === 0) {
     return {
       date,
-      conductorMechanism: "vs_top_10",
+      conductorMechanism: "vs_high_score",
       vipMechanism: options?.mondayVipMechanism ?? "donations_second",
     };
   }
-  if (idx === 1) {
-    return {
-      date,
-      conductorMechanism: "vs_high_score",
-      vipMechanism: "conductor_pick",
-    };
-  }
-  if (idx >= 2 && idx <= 4) {
+  if (idx >= 1 && idx <= 4) {
     return {
       date,
       conductorMechanism: "vs_top_10",
       vipMechanism: "conductor_pick",
     };
   }
-  return r4EventVipDay(date, options);
-}
-
-function r4EventVipDay(
-  date: string,
-  options?: WeekTemplateOptions,
-): DayConfigInput {
-  const vipConfig =
-    options?.weekendVipEvent ??
-    options?.saturdayVipEvent ??
-    options?.sundayVipEvent ??
-    DEFAULT_WEEKEND_VIP_EVENT;
+  if (idx === 5) {
+    return {
+      date,
+      conductorMechanism: "r4_sequence",
+      vipMechanism: "event_top_x_lottery",
+      vipConfig: options?.saturdayVipEvent ?? DEFAULT_SAT_VIP,
+    };
+  }
   return {
     date,
     conductorMechanism: "r4_sequence",
     vipMechanism: "event_top_x_lottery",
-    vipConfig,
+    vipConfig: options?.sundayVipEvent ?? DEFAULT_SUN_VIP,
   };
-}
-
-function weekdayPushConfig(
-  date: string,
-  weekStart: string,
-  options?: WeekTemplateOptions,
-): DayConfigInput {
-  const idx = dayNameIndex(date, weekStart);
-  if (idx < 0 || idx > 4) {
-    return {
-      date,
-      conductorMechanism: "custom",
-      vipMechanism: "none",
-    };
-  }
-  return pushWeekDay(date, weekStart, options);
 }
 
 export function generateDayConfigForDate(
@@ -117,21 +87,9 @@ export function generateWeekDayConfigs(
 ): DayConfigInput[] {
   const dates = weekDatesFromMonday(weekStart);
 
-  if (isCompositeWeekTemplate(templateType)) {
-    return dates.map((date) => {
-      const segment = segmentTemplateForDayIndex(
-        templateType,
-        dayNameIndex(date, weekStart),
-      );
-      return generateDayConfigForDate(segment, date, weekStart, options);
-    });
-  }
-
   switch (templateType) {
-    case "vs_push_weekdays":
-      return dates.map((date) => weekdayPushConfig(date, weekStart, options));
-    case "r4_event_vip":
-      return dates.map((date) => r4EventVipDay(date, options));
+    case "vs_push_week":
+      return dates.map((date) => pushWeekDay(date, weekStart, options));
     case "economy_week":
     case "r3_recognition":
       return dates.map((date) => ({
@@ -174,16 +132,6 @@ export function mechanismNeedsWheel(
 }
 
 /** Officer manual override when leaderboard data is missing or wrong. */
-export function supportsManualVipPick(
-  mechanism: VipMechanismType | string | null | undefined,
-): boolean {
-  if (!mechanism) return false;
-  return (
-    mechanism === "donations_second" || mechanism === "event_top_x_lottery"
-  );
-}
-
-/** Officer manual override when leaderboard data is missing or wrong. */
 export function supportsManualConductorPick(
   mechanism: ConductorMechanismType | string | null | undefined,
 ): boolean {
@@ -210,13 +158,6 @@ export function conductorMechanismPoolType(
     default:
       return null;
   }
-}
-
-export function vipMechanismPoolType(
-  mechanism: VipMechanismType,
-): "event_top_x" | null {
-  if (mechanism === "event_top_x_lottery") return "event_top_x";
-  return null;
 }
 
 export { addCalendarDays };

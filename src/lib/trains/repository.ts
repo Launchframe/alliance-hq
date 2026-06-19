@@ -1,8 +1,7 @@
-import { and, desc, eq, gte, isNotNull, lte } from "drizzle-orm";
+import { and, desc, eq, gte, lte } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { getDb, schema } from "@/lib/db";
-import { getServerCalendarDate } from "@/lib/trains/game-time";
 import { releasePoolSelectionForDate } from "@/lib/trains/pool";
 import type { DayConfigInput, WeekTemplateType } from "@/lib/trains/types";
 
@@ -265,30 +264,6 @@ export async function listConductorRecordsInRange(
   return rows.filter((row) => !row.seasonKey || row.seasonKey === seasonKey);
 }
 
-export async function listLockedConductorHistory(
-  allianceId: string,
-  seasonKey: string | null | undefined,
-  limit: number,
-): Promise<Array<(typeof schema.trainConductorRecords.$inferSelect)>> {
-  const db = getDb();
-  const rows = await db
-    .select()
-    .from(schema.trainConductorRecords)
-    .where(
-      and(
-        eq(schema.trainConductorRecords.allianceId, allianceId),
-        isNotNull(schema.trainConductorRecords.lockedAt),
-      ),
-    )
-    .orderBy(desc(schema.trainConductorRecords.date))
-    .limit(limit);
-
-  const scoped = seasonKey
-    ? rows.filter((row) => !row.seasonKey || row.seasonKey === seasonKey)
-    : rows;
-  return scoped;
-}
-
 export async function upsertConductorDraft(input: {
   allianceId: string;
   date: string;
@@ -375,7 +350,6 @@ export async function upsertConductorDraft(input: {
 
 export async function lockConductorRecord(
   recordId: string,
-  allianceId: string,
 ): Promise<(typeof schema.trainConductorRecords.$inferSelect)> {
   const db = getDb();
   const [existing] = await db
@@ -384,7 +358,7 @@ export async function lockConductorRecord(
     .where(eq(schema.trainConductorRecords.id, recordId))
     .limit(1);
 
-  if (!existing || existing.allianceId !== allianceId) {
+  if (!existing) {
     throw new Error("Conductor record not found.");
   }
   if (existing.lockedAt) {
@@ -494,7 +468,7 @@ export async function getConductorStats(
   memberId: string,
 ): Promise<{ lastConductedDate: string | null; conductsThisYear: number }> {
   const db = getDb();
-  const year = getServerCalendarDate().slice(0, 4);
+  const year = new Date().getFullYear().toString();
   const rows = await db
     .select()
     .from(schema.trainConductorRecords)

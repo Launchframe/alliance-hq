@@ -14,11 +14,8 @@ type Props = {
   searchPlaceholder: string;
   emptyLabel: string;
   cancelLabel: string;
-  confirmLabel: string;
-  showGuardianToggle?: boolean;
-  guardianIsVipLabel?: string;
   onClose: () => void;
-  onPick: (member: RosterMember, guardianIsVip: boolean) => void;
+  onPick: (member: RosterMember) => void;
 };
 
 export function ConductorPickModal({
@@ -28,15 +25,10 @@ export function ConductorPickModal({
   searchPlaceholder,
   emptyLabel,
   cancelLabel,
-  confirmLabel,
-  showGuardianToggle = false,
-  guardianIsVipLabel,
   onClose,
   onPick,
 }: Props) {
   const [query, setQuery] = useState("");
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [guardianIsVip, setGuardianIsVip] = useState(false);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -44,16 +36,7 @@ export function ConductorPickModal({
     return members.filter((m) => m.memberName.toLowerCase().includes(q));
   }, [members, query]);
 
-  const selected = members.find((m) => m.memberId === selectedId) ?? null;
-
   if (!open) return null;
-
-  const handleClose = () => {
-    setQuery("");
-    setSelectedId(null);
-    setGuardianIsVip(false);
-    onClose();
-  };
 
   return (
     <div
@@ -86,60 +69,27 @@ export function ConductorPickModal({
               {emptyLabel}
             </li>
           ) : (
-            filtered.map((member) => {
-              const isSelected = member.memberId === selectedId;
-              return (
-                <li key={member.memberId}>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedId(member.memberId)}
-                    className={`w-full rounded-lg px-3 py-2.5 text-left text-sm font-medium ${
-                      isSelected
-                        ? "bg-[#58a6ff]/15 text-[#58a6ff]"
-                        : "text-[#e6edf3] hover:bg-[#0d1117]"
-                    }`}
-                  >
-                    {member.memberName}
-                  </button>
-                </li>
-              );
-            })
+            filtered.map((member) => (
+              <li key={member.memberId}>
+                <button
+                  type="button"
+                  onClick={() => onPick(member)}
+                  className="w-full rounded-lg px-3 py-2.5 text-left text-sm font-medium text-[#e6edf3] hover:bg-[#0d1117]"
+                >
+                  {member.memberName}
+                </button>
+              </li>
+            ))
           )}
         </ul>
 
-        {showGuardianToggle && guardianIsVipLabel ? (
-          <label className="flex cursor-pointer items-center gap-2 border-t border-[#30363d] px-4 py-3 text-sm text-[#c9d1d9]">
-            <input
-              type="checkbox"
-              checked={guardianIsVip}
-              onChange={(e) => setGuardianIsVip(e.target.checked)}
-              className="h-4 w-4 rounded border-[#30363d] bg-[#0d1117]"
-            />
-            {guardianIsVipLabel}
-          </label>
-        ) : null}
-
-        <div className="flex flex-col-reverse gap-2 border-t border-[#30363d] p-3 sm:flex-row sm:justify-end">
+        <div className="border-t border-[#30363d] p-3">
           <button
             type="button"
-            onClick={handleClose}
-            className="rounded-lg border border-[#30363d] px-4 py-2 text-sm text-[#e6edf3] hover:bg-[#0d1117]"
+            onClick={onClose}
+            className="w-full rounded-lg border border-[#30363d] px-4 py-2 text-sm text-[#e6edf3] hover:bg-[#0d1117]"
           >
             {cancelLabel}
-          </button>
-          <button
-            type="button"
-            disabled={!selected}
-            onClick={() => {
-              if (!selected) return;
-              onPick(selected, guardianIsVip);
-              setQuery("");
-              setSelectedId(null);
-              setGuardianIsVip(false);
-            }}
-            className="rounded-lg bg-[#238636] px-4 py-2 text-sm font-medium text-white hover:bg-[#2ea043] disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {confirmLabel}
           </button>
         </div>
       </div>
