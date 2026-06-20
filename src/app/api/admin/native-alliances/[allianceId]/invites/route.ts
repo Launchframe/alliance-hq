@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { getRbacContext } from "@/lib/rbac/context";
+import {
+  collectDatabaseErrorText,
+  isMissingSchemaError,
+} from "@/lib/db/error-message";
 import { createHqInvite } from "@/lib/native-alliance/invites";
+import { getRbacContext } from "@/lib/rbac/context";
 import { sanitizeInternalRedirectPath } from "@/lib/navigation/safe-redirect.shared";
 import type { SystemRoleName } from "@/lib/rbac/constants";
 import { requirePlatformMaintainer } from "@/lib/rbac/require-permission";
@@ -50,8 +54,24 @@ export async function POST(
 
     return NextResponse.json({ ok: true, invite });
   } catch (error) {
+    if (isMissingSchemaError(error)) {
+      return NextResponse.json(
+        {
+          error:
+            "Invite storage schema is out of date. Redeploy or run db:prepare to apply pending migrations.",
+        },
+        { status: 503 },
+      );
+    }
+    const detail = collectDatabaseErrorText(error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Invite failed." },
+      {
+        error:
+          error instanceof Error && !detail.includes("Failed query")
+            ? error.message
+            : "Invite failed.",
+        ...(process.env.NODE_ENV === "development" ? { detail } : {}),
+      },
       { status: 400 },
     );
   }
