@@ -1083,7 +1083,11 @@ export function TrainsDashboard({ initial }: Props) {
         <section className="rounded-xl border border-dashed border-[#30363d] bg-[#161b22]/50 px-4 py-3 text-sm text-[#8b949e]">
           {t("noScheduleYet")}
         </section>
-      ) : null}
+      ) : (
+        <section className="rounded-xl border border-[#30363d] bg-[#161b22]/40 px-4 py-3 text-sm text-[#8b949e]">
+          {t("noScheduleReadOnly")}
+        </section>
+      )}
 
       {data.conductorHistory.length > 0 ? (
         <ConductorHistoryTable

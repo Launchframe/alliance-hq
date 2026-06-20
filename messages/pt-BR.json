@@ -1074,6 +1074,7 @@
     "emptyRosterBody": "Importe o elenco da aliança antes de planejar agendas de trem ou sortear o Condutor.",
     "emptyRosterCta": "Ir para Membros",
     "noScheduleYet": "Nenhuma agenda semanal ainda. Escolha um modelo abaixo ou planeje os dias no calendário (em breve).",
+    "noScheduleReadOnly": "Nenhuma agenda semanal foi criada ainda. Peça a um oficial de trem para criar a agenda base desta semana.",
     "weekSchedule": "Esta semana",
     "scheduleSection": "Agenda",
     "viewWeek": "Semana",
