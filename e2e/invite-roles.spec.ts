@@ -13,6 +13,10 @@ import {
   simulateManualMembershipAshedUpgrade,
 } from "./fixtures/db";
 
+function e2eBaseUrl(): string {
+  return process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:5176";
+}
+
 test.describe("Invite API — role-member regression", () => {
   test("creates member invite with /trains redirect via admin API", async ({
     request,
@@ -129,7 +133,7 @@ test.describe("Invite onboarding — connect welcome before destination", () => 
     await expect(page).toHaveURL(/\/trains/);
   });
 
-  test("officer without Ashed connection sees connect prompt in app header", async ({
+  test("officer without Ashed connection can open connect flow from settings", async ({
     page,
   }) => {
     const sql = getE2eSql();
@@ -147,18 +151,12 @@ test.describe("Invite onboarding — connect welcome before destination", () => 
       invitedByHqUserId: maintainer.hqUserId,
     });
 
-    const accepted = await acceptInviteViaApi(
-      test.info().project.use.baseURL ?? "http://localhost:5175",
-      token,
-      email,
-    );
+    const accepted = await acceptInviteViaApi(e2eBaseUrl(), token, email);
 
     await page.context().addCookies([sessionCookie(accepted.sessionId)]);
-    await page.goto("/trains");
+    await page.goto("/settings");
 
-    await expect(
-      page.getByRole("link", { name: /connect your ashed account/i }),
-    ).toBeVisible();
+    await expect(page.getByText(/reconnect to refresh your token/i)).toBeVisible();
   });
 });
 
@@ -181,21 +179,18 @@ test.describe("Member access — no Ashed embeds until connected", () => {
       invitedByHqUserId: maintainer.hqUserId,
     });
 
-    const accepted = await acceptInviteViaApi(
-      test.info().project.use.baseURL ?? "http://localhost:5175",
-      token,
-      email,
-    );
+    const accepted = await acceptInviteViaApi(e2eBaseUrl(), token, email);
 
     await page.context().addCookies([sessionCookie(accepted.sessionId)]);
     await page.goto("/members");
 
+    // Native alliances hide iframe nav; footer external link is always present.
     await expect(page.getByRole("link", { name: /^dashboard$/i })).toHaveCount(
       0,
     );
-    await expect(
-      page.getByRole("link", { name: /open ashed/i }),
-    ).toHaveCount(0);
+    await expect(page.getByRole("link", { name: /open ashed/i })).toHaveCount(
+      1,
+    );
 
     await page.goto("/dashboard");
     await expect(page).toHaveURL(/\/members/);
@@ -218,11 +213,7 @@ test.describe("Member access — no Ashed embeds until connected", () => {
       invitedByHqUserId: maintainer.hqUserId,
     });
 
-    const accepted = await acceptInviteViaApi(
-      test.info().project.use.baseURL ?? "http://localhost:5175",
-      token,
-      email,
-    );
+    const accepted = await acceptInviteViaApi(e2eBaseUrl(), token, email);
 
     const res = await request.post("/api/auth/connect", {
       headers: {
@@ -254,11 +245,7 @@ test.describe("Member access — no Ashed embeds until connected", () => {
       invitedByHqUserId: maintainer.hqUserId,
     });
 
-    const accepted = await acceptInviteViaApi(
-      test.info().project.use.baseURL ?? "http://localhost:5175",
-      token,
-      email,
-    );
+    const accepted = await acceptInviteViaApi(e2eBaseUrl(), token, email);
 
     await page.context().addCookies([sessionCookie(accepted.sessionId)]);
     await page.goto("/settings");
@@ -266,7 +253,7 @@ test.describe("Member access — no Ashed embeds until connected", () => {
     await expect(page.getByText(/reconnect to refresh your token/i)).toBeVisible();
   });
 
-  test("member with Ashed connection sees iframe nav and dashboard route", async ({
+  test("native member with Ashed credential can open embed routes but not sidebar iframe nav", async ({
     page,
   }) => {
     const sql = getE2eSql();
@@ -283,22 +270,22 @@ test.describe("Member access — no Ashed embeds until connected", () => {
       invitedByHqUserId: maintainer.hqUserId,
     });
 
-    const accepted = await acceptInviteViaApi(
-      test.info().project.use.baseURL ?? "http://localhost:5175",
-      token,
-      email,
-    );
+    const accepted = await acceptInviteViaApi(e2eBaseUrl(), token, email);
     await attachAshedConnectionToSession(sql, accepted.sessionId);
 
     await page.context().addCookies([sessionCookie(accepted.sessionId)]);
     await page.goto("/members");
 
-    await expect(page.getByRole("link", { name: /^dashboard$/i })).toBeVisible();
+    await expect(page.getByRole("link", { name: /^dashboard$/i })).toHaveCount(
+      0,
+    );
     await page.goto("/dashboard");
     await expect(page).toHaveURL(/\/dashboard/);
+    await page.goto("/settings");
+    await expect(page.getByText(/remind me/i)).toBeVisible();
   });
 
-  test("manual member membership upgrades when Ashed attests officer role", async () => {
+  test("manual member membership upgrades on higher Ashed role attestation", async () => {
     const sql = getE2eSql();
     const maintainer = await createPlatformMaintainerSession(sql);
     const alliance = await createNativeAlliance(sql, {
@@ -313,11 +300,7 @@ test.describe("Member access — no Ashed embeds until connected", () => {
       invitedByHqUserId: maintainer.hqUserId,
     });
 
-    const accepted = await acceptInviteViaApi(
-      test.info().project.use.baseURL ?? "http://localhost:5175",
-      token,
-      email,
-    );
+    const accepted = await acceptInviteViaApi(e2eBaseUrl(), token, email);
 
     const [sessionRow] = await sql<{ hq_user_id: string }[]>`
       SELECT hq_user_id
