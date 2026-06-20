@@ -10,6 +10,7 @@ import { grantHqAccess } from "@/lib/access/invite-gate";
 import { getDb, schema } from "@/lib/db";
 import { assignManualMembership } from "@/lib/rbac/admin-users";
 import {
+  ASHED_CONNECT_PERMISSION,
   ROLE_IDS,
   type SystemRoleName,
 } from "@/lib/rbac/constants";
@@ -20,6 +21,83 @@ import {
 import { systemRoleNameForId } from "@/lib/rbac/system-roles";
 
 const INVITE_TTL_DAYS = 14;
+
+async function ensureSystemRoleSeeded(
+  roleName: SystemRoleName,
+): Promise<void> {
+  const db = getDb();
+  const roleId = ROLE_IDS[roleName];
+
+  const [existingRole] = await db
+    .select({ id: schema.roles.id })
+    .from(schema.roles)
+    .where(eq(schema.roles.id, roleId))
+    .limit(1);
+
+  if (!existingRole) {
+    await db
+      .insert(schema.roles)
+      .values({
+        id: roleId,
+        allianceId: null,
+        name: roleName,
+        description:
+          roleName === "member"
+            ? "HQ member — read-only access to alliance resources and personal account settings"
+            : `${roleName} system role`,
+        isSystem: 1,
+      })
+      .onConflictDoNothing();
+  }
+
+  if (roleName !== "member") {
+    // Non-member roles must be allowed to connect Ashed.
+    await db
+      .insert(schema.permissions)
+      .values({
+        id: ASHED_CONNECT_PERMISSION,
+        description:
+          "Connect an Ashed account — not granted to member-role accounts",
+      })
+      .onConflictDoNothing();
+
+    await db
+      .insert(schema.rolePermissions)
+      .values({ roleId, permissionId: ASHED_CONNECT_PERMISSION })
+      .onConflictDoNothing();
+    return;
+  }
+
+  // Backfill member permissions from viewer if seed drift left this role unconfigured.
+  const [existingMemberPerm] = await db
+    .select({ permissionId: schema.rolePermissions.permissionId })
+    .from(schema.rolePermissions)
+    .where(eq(schema.rolePermissions.roleId, roleId))
+    .limit(1);
+
+  if (existingMemberPerm) {
+    return;
+  }
+
+  const viewerRoleId = ROLE_IDS.viewer;
+  const viewerPerms = await db
+    .select({ permissionId: schema.rolePermissions.permissionId })
+    .from(schema.rolePermissions)
+    .where(eq(schema.rolePermissions.roleId, viewerRoleId));
+
+  if (viewerPerms.length === 0) {
+    return;
+  }
+
+  await Promise.all(
+    viewerPerms.map((row) =>
+      db
+        .insert(schema.rolePermissions)
+        .values({ roleId, permissionId: row.permissionId })
+        .onConflictDoNothing(),
+    ),
+  );
+}
 
 function hashInviteToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
@@ -72,6 +150,8 @@ export async function createHqInvite(
   if (!roleId) {
     throw new Error("Invalid invite role.");
   }
+
+  await ensureSystemRoleSeeded(input.roleName);
 
   const db = getDb();
   const [alliance] = await db

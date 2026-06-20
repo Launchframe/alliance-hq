@@ -63,3 +63,19 @@ describe("emailHasAshedConnectAccess", () => {
     expect(await emailHasAshedConnectAccess("any@example.com")).toBe(true);
   });
 });
+
+describe("emailHasAshedConnectPermission", () => {
+  afterEach(() => {
+    vi.resetModules();
+  });
+
+  it("returns false for empty email (normalization short-circuits)", async () => {
+    const { emailHasAshedConnectPermission } = await import("./invite-gate");
+    expect(await emailHasAshedConnectPermission("")).toBe(false);
+  });
+
+  it("returns false for whitespace-only email", async () => {
+    const { emailHasAshedConnectPermission } = await import("./invite-gate");
+    expect(await emailHasAshedConnectPermission("   ")).toBe(false);
+  });
+});

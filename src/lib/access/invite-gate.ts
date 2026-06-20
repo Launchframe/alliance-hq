@@ -1,6 +1,6 @@
 import "server-only";
 
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 
 import { normalizeAshedEmail } from "@/lib/alliance/accessible";
 import { getDb, schema } from "@/lib/db";
@@ -151,4 +151,47 @@ export async function emailHasAshedConnectAccess(email: string): Promise<boolean
 /** @deprecated Use emailHasAshedConnectAccess */
 export async function emailHasInvitedAccess(email: string): Promise<boolean> {
   return emailHasAshedConnectAccess(email);
+}
+
+/**
+ * Returns false when the email belongs to an HQ user who holds an active
+ * member-role membership on any alliance. Member accounts must not connect
+ * Ashed, even from a fresh session where hqUserId is not yet bound.
+ */
+export async function emailHasAshedConnectPermission(
+  email: string,
+): Promise<boolean> {
+  const normalized = normalizeAshedEmail(email.trim());
+  if (!normalized) {
+    return false;
+  }
+
+  const db = getDb();
+  const [user] = await db
+    .select({ id: schema.hqUsers.id })
+    .from(schema.hqUsers)
+    .where(eq(schema.hqUsers.email, normalized))
+    .limit(1);
+
+  if (!user) {
+    return true;
+  }
+
+  const [blocked] = await db
+    .select({ id: schema.allianceMemberships.id })
+    .from(schema.allianceMemberships)
+    .innerJoin(
+      schema.roles,
+      eq(schema.roles.id, schema.allianceMemberships.roleId),
+    )
+    .where(
+      and(
+        eq(schema.allianceMemberships.hqUserId, user.id),
+        eq(schema.allianceMemberships.status, "active"),
+        eq(schema.roles.name, "member"),
+      ),
+    )
+    .limit(1);
+
+  return !blocked;
 }

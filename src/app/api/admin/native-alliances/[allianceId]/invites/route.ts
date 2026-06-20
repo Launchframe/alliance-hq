@@ -14,7 +14,9 @@ import { readSessionId } from "@/lib/session";
 
 const bodySchema = z.object({
   email: z.string().trim().email(),
-  roleName: z.enum(["owner", "officer", "data_entry", "viewer"]).default("officer"),
+  roleName: z
+    .enum(["owner", "officer", "data_entry", "viewer", "member"])
+    .default("officer"),
   redirectPath: z.string().trim().max(512).optional(),
 });
 

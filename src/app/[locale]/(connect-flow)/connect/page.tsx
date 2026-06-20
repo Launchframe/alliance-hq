@@ -23,12 +23,14 @@ export default async function ConnectPage({ searchParams }: Props) {
 
   try {
     const session = await requirePageSession("/connect");
+    const state = await getSessionStateFor(session, locale);
+    if (state.rbac && !state.rbac.isAshedConnectAllowed) {
+      redirect({ href: "/", locale });
+    }
     const connected = await getAshedConnection(session.id);
     if (connected) {
       redirect({ href: "/", locale });
     }
-
-    const state = await getSessionStateFor(session, locale);
     showWelcomeChoice =
       welcome === "1" && state.hasAppAccess && !state.isConnected;
   } catch (error) {

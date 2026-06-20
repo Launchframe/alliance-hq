@@ -305,6 +305,7 @@
       "inviteRole": "Função",
       "roleOwner": "Proprietário",
       "roleOfficer": "Oficial",
+      "roleMember": "Membro",
       "inviteButton": "Gerar link de convite",
       "inviteRedirectOptional": "Página após aceitar (opcional)",
       "inviteRedirectHint": "Somente caminho interno, ex.: /trains ou /members. Incluído no link como ?next=…",

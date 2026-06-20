@@ -12,9 +12,12 @@ const bodySchema = z.object({
   tag: z.string().trim().min(1).max(32),
   ownerEmail: z.string().trim().email().optional(),
   ownerRole: z
-    .enum(["owner", "officer", "data_entry", "viewer"])
+    .enum(["owner", "officer", "data_entry", "viewer", "member"])
     .optional(),
-});
+}).refine(
+  (data) => !(data.ownerEmail && data.ownerRole === "member"),
+  { message: "ownerRole 'member' cannot be combined with ownerEmail — a named owner must have owner-level access." },
+);
 
 export async function POST(request: Request) {
   const sessionId = await readSessionId();
