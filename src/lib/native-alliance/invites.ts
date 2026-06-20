@@ -10,6 +10,7 @@ import { grantHqAccess } from "@/lib/access/invite-gate";
 import { getDb, schema } from "@/lib/db";
 import { assignManualMembership } from "@/lib/rbac/admin-users";
 import {
+  ASHED_CONNECT_PERMISSION,
   ROLE_IDS,
   type SystemRoleName,
 } from "@/lib/rbac/constants";
@@ -49,11 +50,25 @@ async function ensureSystemRoleSeeded(
       .onConflictDoNothing();
   }
 
-  // Backfill member permissions from viewer if seed drift left this role unconfigured.
   if (roleName !== "member") {
+    // Non-member roles must be allowed to connect Ashed.
+    await db
+      .insert(schema.permissions)
+      .values({
+        id: ASHED_CONNECT_PERMISSION,
+        description:
+          "Connect an Ashed account — not granted to member-role accounts",
+      })
+      .onConflictDoNothing();
+
+    await db
+      .insert(schema.rolePermissions)
+      .values({ roleId, permissionId: ASHED_CONNECT_PERMISSION })
+      .onConflictDoNothing();
     return;
   }
 
+  // Backfill member permissions from viewer if seed drift left this role unconfigured.
   const [existingMemberPerm] = await db
     .select({ permissionId: schema.rolePermissions.permissionId })
     .from(schema.rolePermissions)

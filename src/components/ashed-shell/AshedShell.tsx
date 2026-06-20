@@ -140,7 +140,7 @@ export function AshedShell({
               </button>
 
               <div className="min-w-0 flex-1 truncate text-sm text-[#8b949e]">
-                {hasAppAccess ? (
+                {hasAppAccess && (isConnected || !canUseAshedEmbeds) ? (
                   <span className="hidden sm:inline">
                     {isNativeAlliance
                       ? t("nativeSignedInAs", {
@@ -162,6 +162,14 @@ export function AshedShell({
                   <span className="truncate sm:hidden">
                     {userLabel ?? t("defaultUser")}
                   </span>
+                ) : null}
+                {hasAppAccess && !isConnected && canUseAshedEmbeds ? (
+                  <Link
+                    href="/connect"
+                    className="text-[#58a6ff] hover:underline"
+                  >
+                    {t("connectPrompt")}
+                  </Link>
                 ) : null}
               </div>
             </header>
