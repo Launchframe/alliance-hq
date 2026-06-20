@@ -24,6 +24,7 @@ type Props = {
   hasAppAccess?: boolean;
   isNativeAlliance?: boolean;
   operatingMode?: "ashed" | "native" | null;
+  canUseAshedEmbeds?: boolean;
   ashed: AshedConnectionMeta | null;
   showAdminPortal?: boolean;
   showTeamSettings?: boolean;
@@ -41,6 +42,7 @@ export function AshedShell({
   hasAppAccess = isConnected,
   isNativeAlliance = false,
   operatingMode = null,
+  canUseAshedEmbeds = true,
   ashed,
   showAdminPortal = false,
   showTeamSettings = false,
@@ -115,6 +117,7 @@ export function AshedShell({
               showAdminPortal={showAdminPortal}
               showTeamSettings={showTeamSettings}
               operatingMode={operatingMode}
+              canUseAshedEmbeds={canUseAshedEmbeds}
               mobileCollapsible
               expandedGroupId={expandedGroupId}
               onToggleGroup={toggleGroup}

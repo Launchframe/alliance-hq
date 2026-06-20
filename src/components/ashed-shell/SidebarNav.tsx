@@ -60,6 +60,7 @@ type Props = {
   showAdminPortal?: boolean;
   showTeamSettings?: boolean;
   operatingMode?: "ashed" | "native" | null;
+  canUseAshedEmbeds?: boolean;
   mobileCollapsible?: boolean;
   expandedGroupId: string | null;
   onToggleGroup: (groupId: string) => void;
@@ -71,6 +72,7 @@ export function SidebarNav({
   showAdminPortal = false,
   showTeamSettings = false,
   operatingMode = null,
+  canUseAshedEmbeds = true,
   mobileCollapsible = false,
   expandedGroupId,
   onToggleGroup,
@@ -82,7 +84,14 @@ export function SidebarNav({
   const tNav = useTranslations("nav");
   const tNavGroups = useTranslations("navGroups");
   const tc = useTranslations("common");
-  const navGroups = filterNavGroupsForOperatingMode(NAV_GROUPS, operatingMode);
+  const navGroups = filterNavGroupsForOperatingMode(NAV_GROUPS, operatingMode)
+    .map((group) => ({
+      ...group,
+      pages: canUseAshedEmbeds
+        ? group.pages
+        : group.pages.filter((page) => page.kind !== "iframe"),
+    }))
+    .filter((group) => group.pages.length > 0);
 
   return (
     <div className="flex h-full min-h-0 flex-col">
