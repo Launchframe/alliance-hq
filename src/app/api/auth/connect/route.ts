@@ -50,7 +50,11 @@ export async function POST(request: Request) {
     const session = await getOrCreateSession();
     const sessionRbac = await getRbacContext(session.id);
     // Bound session: deny if the user's active role lacks ashed:connect
-    if (sessionRbac && !sessionRbac.permissions.has(ASHED_CONNECT_PERMISSION)) {
+    if (
+      sessionRbac &&
+      !sessionRbac.isPlatformMaintainer &&
+      !sessionRbac.permissions.has(ASHED_CONNECT_PERMISSION)
+    ) {
       return NextResponse.json(
         {
           error:

@@ -336,7 +336,9 @@ export async function getSessionStateFor(
           roleName: rbac.roleName,
           isPlatformMaintainer: rbac.isPlatformMaintainer,
           isAllianceAdmin: rbac.permissions.has("alliance:admin"),
-          isAshedConnectAllowed: rbac.permissions.has(ASHED_CONNECT_PERMISSION),
+          isAshedConnectAllowed:
+            rbac.isPlatformMaintainer ||
+            rbac.permissions.has(ASHED_CONNECT_PERMISSION),
           email: rbac.email,
         }
       : null,
