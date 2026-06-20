@@ -6,6 +6,7 @@ import Resend from "next-auth/providers/resend";
 import { createHqAuthAdapter } from "@/lib/auth/adapter";
 import { bridgeAuthUserToBrowserSession } from "@/lib/auth/bridge-session";
 import { ensureHqUserForAuthEmail } from "@/lib/auth/resolve-hq-user";
+import { resolveBrowserSessionHqUserId } from "@/lib/session";
 
 const SESSION_MAX_AGE_SECONDS = 90 * 24 * 60 * 60;
 
@@ -29,27 +30,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   callbacks: {
     async signIn({ user }) {
       // Magic-link send also invokes signIn before hq_users exists; do not bridge here.
-      // #region agent log
-      fetch("http://127.0.0.1:7685/ingest/a19db502-b55d-438f-8e5d-f1296113f8f3", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Debug-Session-Id": "f76120",
-        },
-        body: JSON.stringify({
-          sessionId: "f76120",
-          runId: "post-fix",
-          hypothesisId: "E",
-          location: "auth/index.ts:signIn",
-          message: "signIn callback (no bridge)",
-          data: {
-            hasEmail: Boolean(user.email),
-            userIdLength: user.id?.length ?? 0,
-          },
-          timestamp: Date.now(),
-        }),
-      }).catch(() => {});
-      // #endregion
       return Boolean(user.email);
     },
     async jwt({ token, user }) {
@@ -58,29 +38,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.sub = hqUserId;
         token.email = user.email;
         token.name = user.name;
-
-        // #region agent log
-        fetch("http://127.0.0.1:7685/ingest/a19db502-b55d-438f-8e5d-f1296113f8f3", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "X-Debug-Session-Id": "f76120",
-          },
-          body: JSON.stringify({
-            sessionId: "f76120",
-            runId: "post-fix",
-            hypothesisId: "C",
-            location: "auth/index.ts:jwt",
-            message: "jwt mapped auth user to hq_user",
-            data: {
-              authUserIdLength: user.id?.length ?? 0,
-              hqUserIdLength: hqUserId.length,
-              idsMatch: user.id === hqUserId,
-            },
-            timestamp: Date.now(),
-          }),
-        }).catch(() => {});
-        // #endregion
 
         await bridgeAuthUserToBrowserSession({
           hqUserId,
@@ -124,6 +81,6 @@ export async function requireAuthSession() {
     displayName: session.user.name,
   });
 
-  session.user.id = hqUserId;
+  session.user.id = await resolveBrowserSessionHqUserId(hqUserId);
   return session;
 }

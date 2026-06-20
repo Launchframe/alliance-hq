@@ -25,25 +25,6 @@ export async function ensureHqUserForAuthEmail(
     .limit(1);
 
   if (existing) {
-    // #region agent log
-    fetch("http://127.0.0.1:7685/ingest/a19db502-b55d-438f-8e5d-f1296113f8f3", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Debug-Session-Id": "f76120",
-      },
-      body: JSON.stringify({
-        sessionId: "f76120",
-        runId: "post-fix",
-        hypothesisId: "A",
-        location: "resolve-hq-user.ts:ensureHqUserForAuthEmail",
-        message: "resolved existing hq_user by email",
-        data: { hqUserIdLength: existing.id.length },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion
-
     await db
       .update(schema.hqUsers)
       .set({
@@ -67,25 +48,6 @@ export async function ensureHqUserForAuthEmail(
     createdAt: now,
     updatedAt: now,
   });
-
-  // #region agent log
-  fetch("http://127.0.0.1:7685/ingest/a19db502-b55d-438f-8e5d-f1296113f8f3", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Debug-Session-Id": "f76120",
-    },
-    body: JSON.stringify({
-      sessionId: "f76120",
-      runId: "post-fix",
-      hypothesisId: "B",
-      location: "resolve-hq-user.ts:ensureHqUserForAuthEmail",
-      message: "created hq_user for auth email",
-      data: { hqUserIdLength: id.length },
-      timestamp: Date.now(),
-    }),
-  }).catch(() => {});
-  // #endregion
 
   return id;
 }

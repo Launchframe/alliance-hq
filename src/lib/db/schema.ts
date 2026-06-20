@@ -247,6 +247,8 @@ export const ashedCredentials = pgTable("ashed_credentials", {
   sessionId: text("session_id")
     .notNull()
     .references(() => sessions.id, { onDelete: "cascade" }),
+  /** Ashed User/me id — used to rebind duplicate HQ sessions to one canonical identity. */
+  ashedUserId: text("ashed_user_id"),
   appId: text("app_id").notNull(),
   originUrl: text("origin_url").notNull(),
   encryptedToken: text("encrypted_token").notNull(),

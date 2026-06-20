@@ -231,6 +231,7 @@ export function sessionCookie(sessionId: string) {
 export async function attachAshedConnectionToSession(
   sql: Sql,
   sessionId: string,
+  options?: { ashedUserId?: string | null },
 ): Promise<void> {
   const now = new Date();
   const credId = nanoid(24);
@@ -240,6 +241,7 @@ export async function attachAshedConnectionToSession(
     INSERT INTO ashed_credentials (
       id,
       session_id,
+      ashed_user_id,
       app_id,
       origin_url,
       encrypted_token,
@@ -250,6 +252,7 @@ export async function attachAshedConnectionToSession(
     ) VALUES (
       ${credId},
       ${sessionId},
+      ${options?.ashedUserId ?? null},
       ${DEFAULT_APP_ID},
       ${DEFAULT_ORIGIN_URL},
       ${encryptSecret("e2e-fake-ashed-token")},
@@ -312,6 +315,37 @@ export async function createAuthenticatedHqSession(
     hqUserId,
     email: normalizedEmail,
   };
+}
+
+export async function createMagicLinkSession(
+  sql: Sql,
+  email: string,
+): Promise<SessionFixture> {
+  return createAuthenticatedHqSession(sql, email);
+}
+
+export async function createCanonicalAshedHqUser(
+  sql: Sql,
+  input: { email: string; ashedUserId: string; displayName?: string },
+): Promise<{ hqUserId: string }> {
+  const now = new Date();
+  const hqUserId = nanoid(16);
+
+  await sql`
+    INSERT INTO hq_users (
+      id, email, display_name, ashed_user_id, access_granted_at, created_at, updated_at
+    ) VALUES (
+      ${hqUserId},
+      ${input.email.toLowerCase()},
+      ${input.displayName ?? "E2E Canonical"},
+      ${input.ashedUserId},
+      ${now},
+      ${now},
+      ${now}
+    )
+  `;
+
+  return { hqUserId };
 }
 
 export async function createAllianceMembership(

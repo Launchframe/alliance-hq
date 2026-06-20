@@ -232,6 +232,20 @@
       "when": 1782153000000,
       "tag": "0032_hq_auth_invite_provisioning",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1782240000000,
+      "tag": "0033_ashed_identity_rebind",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1782240000000,
+      "tag": "0033_ashed_identity_rebind",
+      "breakpoints": true
     }
   ]
 }

@@ -3,6 +3,7 @@ import { nanoid } from "nanoid";
 
 import {
   resolveSystemRoleForAlliance,
+  userAllianceAccessRole,
   normalizeAshedEmail,
 } from "@/lib/alliance/accessible";
 import {
@@ -21,6 +22,8 @@ import type { ParsedConnection } from "@/lib/connectionString";
 import { getDb, schema } from "@/lib/db";
 
 import { ROLE_IDS, type SystemRoleName } from "./constants";
+import { resolveAshedConnectRole } from "./resolve-ashed-connect-role";
+import { resolveCanonicalHqUserForAshedConnect } from "./resolve-canonical-hq-user";
 
 export type AshedUserInfo = AshedUserRef & {
   full_name?: string;
@@ -41,43 +44,20 @@ async function fetchAllianceByTag(
   );
 }
 
-export async function upsertHqUser(user: AshedUserInfo) {
-  const db = getDb();
-  const email = normalizeAshedEmail(user.email);
-  const now = new Date();
-
-  const [existing] = await db
-    .select()
-    .from(schema.hqUsers)
-    .where(eq(schema.hqUsers.email, email))
-    .limit(1);
-
-  if (existing) {
-    await db
-      .update(schema.hqUsers)
-      .set({
-        displayName: user.full_name ?? existing.displayName,
-        ashedUserId: user.id ?? existing.ashedUserId,
-        updatedAt: now,
-      })
-      .where(eq(schema.hqUsers.id, existing.id));
-    return existing.id;
-  }
-
-  const id = nanoid(16);
-  await db.insert(schema.hqUsers).values({
-    id,
-    email,
-    displayName: user.full_name ?? null,
-    ashedUserId: user.id ?? null,
-    createdAt: now,
-    updatedAt: now,
+export async function upsertHqUser(user: AshedUserInfo): Promise<string> {
+  const result = await resolveCanonicalHqUserForAshedConnect({
+    ashedUserId: user.id,
+    ashedEmail: user.email,
+    displayName: user.full_name,
   });
-  return id;
+  return result.hqUserId;
 }
 
 async function upsertHqUserStub(email: string) {
-  return upsertHqUser({ email });
+  const result = await resolveCanonicalHqUserForAshedConnect({
+    ashedEmail: email,
+  });
+  return result.hqUserId;
 }
 
 async function resolveRosterHqUserId(email: string): Promise<string | null> {
@@ -106,10 +86,38 @@ async function resolveRosterHqUserId(email: string): Promise<string | null> {
   return existing.id;
 }
 
+async function allianceHasOwner(allianceId: string): Promise<boolean> {
+  const db = getDb();
+  const [alliance] = await db
+    .select({ ownerHqUserId: schema.alliances.ownerHqUserId })
+    .from(schema.alliances)
+    .where(eq(schema.alliances.id, allianceId))
+    .limit(1);
+
+  if (alliance?.ownerHqUserId) {
+    return true;
+  }
+
+  const [ownerMembership] = await db
+    .select({ id: schema.allianceMemberships.id })
+    .from(schema.allianceMemberships)
+    .innerJoin(schema.roles, eq(schema.roles.id, schema.allianceMemberships.roleId))
+    .where(
+      and(
+        eq(schema.allianceMemberships.allianceId, allianceId),
+        eq(schema.allianceMemberships.status, "active"),
+        eq(schema.roles.name, "owner"),
+      ),
+    )
+    .limit(1);
+
+  return Boolean(ownerMembership);
+}
+
 async function upsertAllianceFromAshed(
   ashedAlliance: AshedAllianceRow,
   allianceTag: string,
-) {
+): Promise<{ allianceId: string; wasCreated: boolean }> {
   const db = getDb();
   const now = new Date();
   const slug = slugFromTag(allianceTag);
@@ -147,7 +155,7 @@ async function upsertAllianceFromAshed(
         console.warn("[sync-ashed] season sync failed", existing.id, error);
       }
     }
-    return existing.id;
+    return { allianceId: existing.id, wasCreated: false };
   }
 
   const id = nanoid(16);
@@ -174,7 +182,7 @@ async function upsertAllianceFromAshed(
       console.warn("[sync-ashed] season sync failed", id, error);
     }
   }
-  return id;
+  return { allianceId: id, wasCreated: true };
 }
 
 async function upsertAshedMembership(
@@ -258,20 +266,46 @@ async function revokeStaleAshedMemberships(
   }
 }
 
-export async function syncAshedAllianceRoles(options: {
+export type SyncAshedAllianceRolesResult = {
+  hqUserId: string;
+  hqAllianceId: string;
+  roleName: SystemRoleName;
+  mergedFromHqUserId?: string;
+};
+
+async function syncAshedAllianceRolesCore(options: {
   connection: ParsedConnection;
-  sessionId: string;
+  sessionId?: string;
   allianceTag: string;
   currentUser: AshedUserInfo;
-}): Promise<{ hqUserId: string; hqAllianceId: string; roleName: SystemRoleName }> {
-  const { connection, sessionId, allianceTag, currentUser } = options;
+  authHqUserId?: string | null;
+}): Promise<SyncAshedAllianceRolesResult> {
+  const { connection, sessionId, allianceTag, currentUser, authHqUserId } =
+    options;
   const ashedAlliance = await fetchAllianceByTag(connection, allianceTag);
   if (!ashedAlliance?.id) {
     throw new Error(`Alliance "${allianceTag}" not found in Ashed.`);
   }
 
-  const hqAllianceId = await upsertAllianceFromAshed(ashedAlliance, allianceTag);
-  const hqUserId = await upsertHqUser(currentUser);
+  const { allianceId: hqAllianceId, wasCreated } = await upsertAllianceFromAshed(
+    ashedAlliance,
+    allianceTag,
+  );
+  const hasOwner = await allianceHasOwner(hqAllianceId);
+  const ashedAccessRole = userAllianceAccessRole(ashedAlliance, currentUser);
+  const connectingRole = resolveAshedConnectRole({
+    wasAllianceCreated: wasCreated,
+    allianceHasOwner: hasOwner,
+    ashedAccessRole,
+  });
+
+  const { hqUserId, mergedFromHqUserId } =
+    await resolveCanonicalHqUserForAshedConnect({
+      ashedUserId: currentUser.id,
+      ashedEmail: currentUser.email,
+      displayName: currentUser.full_name,
+      authHqUserId,
+    });
 
   const rosterEmails = buildAllianceRosterEmails(ashedAlliance);
 
@@ -284,22 +318,38 @@ export async function syncAshedAllianceRoles(options: {
     await upsertAshedMembership(hqAllianceId, stubUserId, roleName);
   }
 
-  const currentRole = resolveSystemRoleForAlliance(ashedAlliance, currentUser);
-  await upsertAshedMembership(hqAllianceId, hqUserId, currentRole);
+  await upsertAshedMembership(hqAllianceId, hqUserId, connectingRole);
 
   await revokeStaleAshedMemberships(hqAllianceId, rosterEmails);
 
-  const db = getDb();
-  await db
-    .update(schema.sessions)
-    .set({
-      hqUserId,
-      currentAllianceId: hqAllianceId,
-      updatedAt: new Date(),
-    })
-    .where(eq(schema.sessions.id, sessionId));
+  if (sessionId) {
+    const db = getDb();
+    await db
+      .update(schema.sessions)
+      .set({
+        hqUserId,
+        currentAllianceId: hqAllianceId,
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.sessions.id, sessionId));
+  }
 
-  return { hqUserId, hqAllianceId, roleName: currentRole };
+  return {
+    hqUserId,
+    hqAllianceId,
+    roleName: connectingRole,
+    mergedFromHqUserId,
+  };
+}
+
+export async function syncAshedAllianceRoles(options: {
+  connection: ParsedConnection;
+  sessionId: string;
+  allianceTag: string;
+  currentUser: AshedUserInfo;
+  authHqUserId?: string | null;
+}): Promise<SyncAshedAllianceRolesResult> {
+  return syncAshedAllianceRolesCore(options);
 }
 
 /** Bot onboarding: sync alliance roles without mutating web sessions. */
@@ -307,33 +357,11 @@ export async function syncAshedAllianceForBot(options: {
   connection: ParsedConnection;
   allianceTag: string;
   currentUser: AshedUserInfo;
-}): Promise<{ hqUserId: string; hqAllianceId: string; roleName: SystemRoleName }> {
-  const { connection, allianceTag, currentUser } = options;
-  const ashedAlliance = await fetchAllianceByTag(connection, allianceTag);
-  if (!ashedAlliance?.id) {
-    throw new Error(`Alliance "${allianceTag}" not found in Ashed.`);
-  }
-
-  const hqAllianceId = await upsertAllianceFromAshed(ashedAlliance, allianceTag);
-  const hqUserId = await upsertHqUser(currentUser);
-
-  const rosterEmails = buildAllianceRosterEmails(ashedAlliance);
-
-  for (const email of rosterEmails) {
-    const stubUserId = await resolveRosterHqUserId(email);
-    if (!stubUserId) {
-      continue;
-    }
-    const roleName = resolveSystemRoleForAlliance(ashedAlliance, { email });
-    await upsertAshedMembership(hqAllianceId, stubUserId, roleName);
-  }
-
-  const currentRole = resolveSystemRoleForAlliance(ashedAlliance, currentUser);
-  await upsertAshedMembership(hqAllianceId, hqUserId, currentRole);
-
-  await revokeStaleAshedMemberships(hqAllianceId, rosterEmails);
-
-  return { hqUserId, hqAllianceId, roleName: currentRole };
+}): Promise<SyncAshedAllianceRolesResult> {
+  return syncAshedAllianceRolesCore({
+    ...options,
+    authHqUserId: undefined,
+  });
 }
 
 export type TeamMember = {

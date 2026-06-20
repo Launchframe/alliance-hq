@@ -210,7 +210,11 @@ export async function storeAshedConnection(
   sessionId: string,
   connection: ParsedConnection,
   userLabel: string | null,
-  options?: { expiryReminderDays?: number; locale?: string },
+  options?: {
+    expiryReminderDays?: number;
+    locale?: string;
+    ashedUserId?: string | null;
+  },
 ) {
   const db = getDb();
   const locale = options?.locale ?? "en-US";
@@ -233,6 +237,9 @@ export async function storeAshedConnection(
         encryptedToken,
         tokenExpiresAt,
         updatedAt: now,
+        ...(options?.ashedUserId !== undefined
+          ? { ashedUserId: options.ashedUserId }
+          : {}),
         ...(options?.expiryReminderDays !== undefined
           ? { expiryReminderDays: options.expiryReminderDays }
           : {}),
@@ -242,6 +249,7 @@ export async function storeAshedConnection(
     await db.insert(schema.ashedCredentials).values({
       id: nanoid(24),
       sessionId,
+      ashedUserId: options?.ashedUserId ?? null,
       appId: connection.appId,
       originUrl: connection.originUrl,
       encryptedToken,
@@ -270,6 +278,26 @@ export async function storeAshedConnection(
     },
     locale,
   );
+}
+
+/** Prefer canonical HQ user when this browser session holds an Ashed credential. */
+export async function resolveBrowserSessionHqUserId(
+  magicLinkHqUserId: string,
+): Promise<string> {
+  const session = await getOrCreateSession();
+  const cred = await getAshedCredentialRecord(session.id);
+  if (!cred?.ashedUserId) {
+    return magicLinkHqUserId;
+  }
+
+  const db = getDb();
+  const [canonical] = await db
+    .select({ id: schema.hqUsers.id })
+    .from(schema.hqUsers)
+    .where(eq(schema.hqUsers.ashedUserId, cred.ashedUserId))
+    .limit(1);
+
+  return canonical?.id ?? magicLinkHqUserId;
 }
 
 export async function updateSessionAlliance(
