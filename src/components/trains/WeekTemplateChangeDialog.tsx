@@ -36,6 +36,9 @@ export function WeekTemplateChangeDialog({
     >
       <div className="flex flex-col gap-4">
         <div>
+          <h2 className="text-lg font-semibold text-[#e6edf3]">
+            {t("templateChangeConfirm.title")}
+          </h2>
           <p className="mt-2 text-sm leading-relaxed text-[#c9d1d9]">
             {t("templateChangeConfirm.body", {
               cutoffDate: cutoffLabel,
