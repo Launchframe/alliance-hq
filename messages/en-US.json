@@ -1416,6 +1416,7 @@
     },
     "queuedSuccess": "Video queued for processing.",
     "recentUploads": "Recent uploads",
+    "viewAllUploads": "View all uploads",
     "reviewLink": "Review",
     "surveyResumeLink": "Survey",
     "surveyResumeLoading": "Opening…",
@@ -1691,6 +1692,7 @@
   },
   "ashedEmbed": {
     "description": "This page lives on Ashed. Open it below or in a new tab — your Alliance HQ sidebar stays here.",
+    "uploadVideoScores": "Upload video scores",
     "openInAshed": "Open in Ashed ↗",
     "iframeHint": "Embedded pages need a separate Ashed login. If you use Google Sign-In on ashed.online, log in here with email + password instead. If the frame stays blank, use \"Open in Ashed\" above.",
     "iframeTitle": "Ashed — {path}",

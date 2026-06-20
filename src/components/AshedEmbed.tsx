@@ -4,7 +4,10 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { ashedUrlForPath } from "@/lib/nav/routes";
+import { buildVideoUploadHref } from "@/lib/video/score-target-nav";
 import { strongText } from "@/components/i18n/richText";
+
+import { Link } from "@/i18n/navigation";
 
 const LOGIN_HINT_DISMISSED_KEY = "ashed-embed-login-hint-dismissed";
 
@@ -22,9 +25,10 @@ function readLoginHintDismissed(): boolean {
 type Props = {
   path: string;
   labelKey?: string;
+  scoreTargetId?: string | null;
 };
 
-export function AshedEmbed({ path, labelKey }: Props) {
+export function AshedEmbed({ path, labelKey, scoreTargetId = null }: Props) {
   const t = useTranslations("ashedEmbed");
   const tNav = useTranslations("nav");
   const url = ashedUrlForPath(path);
@@ -42,15 +46,38 @@ export function AshedEmbed({ path, labelKey }: Props) {
 
   return (
     <div className="-mx-4 -mb-4 flex min-h-0 flex-1 flex-col md:mx-0 md:mb-0 md:space-y-4">
+      {scoreTargetId ? (
+        <div className="border-b border-[#30363d] bg-[#161b22] px-4 py-3 md:hidden">
+          <Link
+            href={buildVideoUploadHref(scoreTargetId)}
+            className="inline-flex w-full items-center justify-center rounded-lg border border-[#238636] bg-[#238636] px-4 py-2.5 text-sm font-medium text-white hover:bg-[#2ea043]"
+          >
+            {t("uploadVideoScores")}
+          </Link>
+        </div>
+      ) : null}
+
       <div className="hidden rounded-xl border border-[#30363d] bg-[#161b22] p-5 md:block">
         <h1 className="text-xl font-semibold">{title}</h1>
         <p className="mt-2 text-sm text-[#8b949e]">{t("description")}</p>
         <div className="mt-4 flex flex-wrap gap-2">
+          {scoreTargetId ? (
+            <Link
+              href={buildVideoUploadHref(scoreTargetId)}
+              className="rounded-lg border border-[#238636] bg-[#238636] px-4 py-2 text-sm text-white hover:bg-[#2ea043]"
+            >
+              {t("uploadVideoScores")}
+            </Link>
+          ) : null}
           <a
             href={url}
             target="_blank"
             rel="noreferrer"
-            className="rounded-lg border border-[#238636] bg-[#238636] px-4 py-2 text-sm text-white hover:bg-[#2ea043]"
+            className={`rounded-lg border px-4 py-2 text-sm ${
+              scoreTargetId
+                ? "border-[#30363d] bg-[#21262d] text-[#e6edf3] hover:bg-[#30363d]"
+                : "border-[#238636] bg-[#238636] text-white hover:bg-[#2ea043]"
+            }`}
           >
             {t("openInAshed")}
           </a>

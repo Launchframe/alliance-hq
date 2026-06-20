@@ -5,10 +5,18 @@ import { verifyBase44Connection } from "@/lib/base44/server";
 import { getDb, schema } from "@/lib/db";
 import { getAshedConnection, requirePageSession } from "@/lib/session";
 import type { VideoJobRow } from "@/lib/types/video";
+import {
+  jobMatchesScoreTarget,
+  parseVideoUploadScoreTargetParam,
+} from "@/lib/video/score-target-nav";
 import { resolveSurveyPlayerNameFromSources } from "@/lib/video/survey-player-name";
 import { isSurveyComplete, surveyRowToPayload } from "@/lib/video/survey";
 
 export const dynamic = "force-dynamic";
+
+type Props = {
+  searchParams: Promise<{ scoreTarget?: string }>;
+};
 
 async function resolveSurveyMemberName(
   sessionId: string,
@@ -39,7 +47,9 @@ async function resolveSurveyMemberName(
   }
 }
 
-export default async function VideoUploadPage() {
+export default async function VideoUploadPage({ searchParams }: Props) {
+  const { scoreTarget: scoreTargetParam } = await searchParams;
+  const contextScoreTarget = parseVideoUploadScoreTargetParam(scoreTargetParam);
   const session = await requirePageSession();
   const db = getDb();
   const [rows, memberName] = await Promise.all([
@@ -72,7 +82,19 @@ export default async function VideoUploadPage() {
       : [];
   const surveyByJobId = new Map(surveyRows.map((row) => [row.jobId, row]));
 
-  const initialJobs: VideoJobRow[] = rows.map((job) => {
+  const filteredRows = contextScoreTarget
+    ? rows.filter((job) =>
+        jobMatchesScoreTarget(
+          {
+            scoreTarget: job.scoreTarget,
+            category: job.category,
+          },
+          contextScoreTarget,
+        ),
+      )
+    : rows;
+
+  const initialJobs: VideoJobRow[] = filteredRows.map((job) => {
     const surveyRow = surveyByJobId.get(job.id);
     const surveyPayload = surveyRow ? surveyRowToPayload(surveyRow) : null;
     return {
@@ -91,5 +113,11 @@ export default async function VideoUploadPage() {
     };
   });
 
-  return <VideoUploadForm initialJobs={initialJobs} memberName={memberName} />;
+  return (
+    <VideoUploadForm
+      initialJobs={initialJobs}
+      memberName={memberName}
+      contextScoreTarget={contextScoreTarget}
+    />
+  );
 }

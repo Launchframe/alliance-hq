@@ -14,6 +14,7 @@ import {
   isVideoUploadOverLimit,
   isVideoUploadSizeLimitEnforced,
 } from "@/lib/video/upload-limit";
+import { jobMatchesScoreTarget } from "@/lib/video/score-target-nav";
 
 function formatBytes(bytes: number | null): string {
   if (!bytes) return "—";
@@ -42,6 +43,8 @@ type ActiveSurvey = {
 type Props = {
   initialJobs: VideoJobRow[];
   memberName?: string | null;
+  /** When set (from event page link), pre-selects target and filters recent uploads. */
+  contextScoreTarget?: string | null;
 };
 
 function statusLabel(
@@ -63,7 +66,11 @@ function statusLabel(
   return status;
 }
 
-export function VideoUploadForm({ initialJobs, memberName = null }: Props) {
+export function VideoUploadForm({
+  initialJobs,
+  memberName = null,
+  contextScoreTarget = null,
+}: Props) {
   const t = useTranslations("video");
   const tNav = useTranslations("nav");
   const tc = useTranslations("common");
@@ -73,7 +80,9 @@ export function VideoUploadForm({ initialJobs, memberName = null }: Props) {
     { id: "desert-storm", labelKey: "desertStorm", group: "events" },
   ]);
   const [file, setFile] = useState<File | null>(null);
-  const [scoreTarget, setScoreTarget] = useState("desert-storm");
+  const [scoreTarget, setScoreTarget] = useState(
+    contextScoreTarget ?? "desert-storm",
+  );
   const [boardKey, setBoardKey] = useState("");
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -90,17 +99,26 @@ export function VideoUploadForm({ initialJobs, memberName = null }: Props) {
     null,
   );
   const jobs = useMergedVideoJobs(initialJobs);
+  const visibleJobs = contextScoreTarget
+    ? jobs.filter((job) => jobMatchesScoreTarget(job, contextScoreTarget))
+    : jobs;
 
   useEffect(() => {
     void fetch("/api/tools/video-upload")
       .then((r) => r.json())
       .then((data: { scoreTargets?: ScoreTargetOption[] }) => {
-        if (data.scoreTargets?.length) {
-          setScoreTargets(data.scoreTargets);
+        if (!data.scoreTargets?.length) return;
+        setScoreTargets(data.scoreTargets);
+        if (!contextScoreTarget) return;
+        const target = data.scoreTargets.find(
+          (row) => row.id === contextScoreTarget,
+        );
+        if (target?.leaderboardModel === "multi-board") {
+          setBoardKey(target.boardTypes?.[0] ?? "");
         }
       })
       .catch(() => undefined);
-  }, []);
+  }, [contextScoreTarget]);
 
   const selectedTarget = scoreTargets.find((t) => t.id === scoreTarget);
   const needsBoardPicker =
@@ -337,11 +355,21 @@ export function VideoUploadForm({ initialJobs, memberName = null }: Props) {
         </button>
       </form>
 
-      {jobs.length > 0 && (
+      {visibleJobs.length > 0 && (
         <section className="min-w-0 rounded-xl border border-[#30363d] bg-[#161b22] p-4 sm:p-5">
-          <h2 className="font-medium">{t("recentUploads")}</h2>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="font-medium">{t("recentUploads")}</h2>
+            {contextScoreTarget ? (
+              <Link
+                href="/tools/video-upload"
+                className="text-xs text-[#58a6ff] hover:underline"
+              >
+                {t("viewAllUploads")}
+              </Link>
+            ) : null}
+          </div>
           <ul className="mt-3 space-y-2">
-            {jobs.map((job) => (
+            {visibleJobs.map((job) => (
               <li
                 key={job.id}
                 className="flex flex-col gap-2 rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 text-sm sm:flex-row sm:items-center sm:justify-between sm:gap-4"

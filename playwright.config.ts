@@ -1,4 +1,8 @@
+import { config as loadEnv } from "dotenv";
 import { defineConfig } from "@playwright/test";
+
+loadEnv({ path: ".env" });
+loadEnv({ path: ".env.local" });
 
 const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:5176";
 const e2eDatabaseUrl =
@@ -8,19 +12,25 @@ const e2eDatabaseUrl =
 const tokenEncryptionKey =
   process.env.TOKEN_ENCRYPTION_KEY?.trim() || "a".repeat(64);
 
+// Test workers import app crypto helpers directly — not only the webServer env.
+process.env.TOKEN_ENCRYPTION_KEY = tokenEncryptionKey;
+
 /** Minimal env for Next — avoid libpq PG* vars from the developer shell. */
 function e2eServerEnv(): Record<string, string> {
-  return {
+  const env: Record<string, string> = {
     PATH: process.env.PATH ?? "",
     HOME: process.env.HOME ?? "",
     NODE_ENV: "production",
     CI: process.env.CI ?? "",
-    E2E_DATABASE_URL: e2eDatabaseUrl,
-    LOCAL_DATABASE_URL: e2eDatabaseUrl,
-    DATABASE_URL: e2eDatabaseUrl,
     TOKEN_ENCRYPTION_KEY: tokenEncryptionKey,
     HQ_ASHED_INVITE_REQUIRED: "false",
   };
+  if (e2eDatabaseUrl) {
+    env.E2E_DATABASE_URL = e2eDatabaseUrl;
+    env.LOCAL_DATABASE_URL = e2eDatabaseUrl;
+    env.DATABASE_URL = e2eDatabaseUrl;
+  }
+  return env;
 }
 
 export default defineConfig({
