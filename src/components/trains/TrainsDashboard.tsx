@@ -16,7 +16,7 @@ import {
 } from "@/components/trains/TrainPoolDetailsDialog";
 import { TrainSpinSourcePanel } from "@/components/trains/TrainSpinSourcePanel";
 import { TrainMonthCalendar } from "@/components/trains/TrainMonthCalendar";
-import { TemplatePaletteOptionLabel } from "@/components/trains/TemplatePaletteBadge";
+import { TemplatePaletteBadge, TemplatePaletteOptionLabel } from "@/components/trains/TemplatePaletteBadge";
 import {
   TrainScheduleViewToggle,
   type ScheduleView,
@@ -59,7 +59,10 @@ import {
   type TrainRollErrorDetails,
   type TrainRollErrorResponse,
 } from "@/lib/trains/roll-errors.shared";
-import { latestLockedDateInWeek } from "@/lib/trains/week-template-change.shared";
+import {
+  latestLockedDateInWeek,
+  weekHasPersistedSchedule,
+} from "@/lib/trains/week-template-change.shared";
 import { supportsManualConductorPick, supportsManualVipPick } from "@/lib/trains/templates";
 
 type Props = {
@@ -666,11 +669,17 @@ export function TrainsDashboard({ initial }: Props) {
   const handleTemplateClick = useCallback(
     (templateType: WeekTemplateType) => {
       const { weekStart, weekEnd, weekRecords } = viewedWeek;
-      const currentTemplate =
-        viewedWeek.templateType ??
-        (weekStart === data.weekStart && data.schedule
-          ? (data.schedule.templateType as WeekTemplateType)
-          : inferWeekTemplateFromDayConfigs(viewedWeek.dayConfigs));
+      const hasPersistedSchedule = weekHasPersistedSchedule(
+        data.schedule,
+        weekStart,
+        viewedWeek.dayConfigs,
+      );
+      const currentTemplate = hasPersistedSchedule
+        ? viewedWeek.templateType ??
+          (weekStart === data.weekStart && data.schedule
+            ? (data.schedule.templateType as WeekTemplateType)
+            : inferWeekTemplateFromDayConfigs(viewedWeek.dayConfigs))
+        : null;
 
       if (currentTemplate === templateType) return;
 
@@ -691,7 +700,7 @@ export function TrainsDashboard({ initial }: Props) {
         cutoffDate,
       });
     },
-    [applyWeekTemplate, data.schedule?.templateType, data.weekStart, viewedWeek],
+    [applyWeekTemplate, data.schedule, data.weekStart, viewedWeek],
   );
 
   const confirmPendingTemplateChange = useCallback(() => {
@@ -808,7 +817,9 @@ export function TrainsDashboard({ initial }: Props) {
           <h1 className="text-2xl font-semibold text-[#e6edf3]">{t("title")}</h1>
           <p className="mt-1 text-sm text-[#8b949e]">{t("subtitle")}</p>
         </div>
-        {data.schedule || viewedWeek.dayConfigs.length > 0 ? (
+        {data.canManageTrains ||
+        data.schedule ||
+        viewedWeek.dayConfigs.length > 0 ? (
           <div className="flex w-full min-w-0 flex-col gap-1 sm:w-auto sm:min-w-[15rem]">
             <span
               id="trains-week-template-label"
@@ -1080,8 +1091,32 @@ export function TrainsDashboard({ initial }: Props) {
           ) : null}
         </section>
       ) : data.canManageTrains ? (
-        <section className="rounded-xl border border-dashed border-[#30363d] bg-[#161b22]/50 px-4 py-3 text-sm text-[#8b949e]">
-          {t("noScheduleYet")}
+        <section
+          className="flex flex-col gap-3 rounded-xl border border-dashed border-[#30363d] bg-[#161b22]/50 px-4 py-4"
+          aria-labelledby="trains-choose-template-heading"
+        >
+          <div>
+            <h2
+              id="trains-choose-template-heading"
+              className="text-sm font-medium text-[#c9d1d9]"
+            >
+              {t("chooseTemplateTitle")}
+            </h2>
+            <p className="mt-1 text-sm text-[#8b949e]">{t("noScheduleYet")}</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {TEMPLATE_OPTIONS.map((template) => (
+              <button
+                key={template}
+                type="button"
+                onClick={() => handleTemplateClick(template)}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 text-xs font-medium text-[#e6edf3] hover:bg-[#161b22]"
+              >
+                <TemplatePaletteBadge template={template} shape="square" />
+                {templateLabels[template]}
+              </button>
+            ))}
+          </div>
         </section>
       ) : (
         <section className="rounded-xl border border-[#30363d] bg-[#161b22]/40 px-4 py-3 text-sm text-[#8b949e]">

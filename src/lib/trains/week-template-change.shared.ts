@@ -1,3 +1,17 @@
+export function isPreviewOrOptimisticDayConfigId(id: string): boolean {
+  return id.startsWith("preview-") || id.startsWith("optimistic-");
+}
+
+/** True when the week has a saved schedule row or persisted day configs (not preview-only). */
+export function weekHasPersistedSchedule(
+  schedule: { weekStart: string } | null,
+  weekStart: string,
+  dayConfigs: Array<{ id: string }>,
+): boolean {
+  if (schedule && schedule.weekStart === weekStart) return true;
+  return dayConfigs.some((day) => !isPreviewOrOptimisticDayConfigId(day.id));
+}
+
 export function latestLockedDateInWeek(
   records: Array<{ date: string; lockedAt?: string | null }>,
   weekStart: string,
