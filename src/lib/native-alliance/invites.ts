@@ -51,13 +51,11 @@ async function ensureSystemRoleSeeded(
   }
 
   if (roleName !== "member") {
-    // Non-member roles must be allowed to connect Ashed.
     await db
       .insert(schema.permissions)
       .values({
         id: ASHED_CONNECT_PERMISSION,
-        description:
-          "Connect an Ashed account — not granted to member-role accounts",
+        description: "Connect an Ashed account to HQ",
       })
       .onConflictDoNothing();
 
