@@ -486,8 +486,11 @@ export function WeekScheduleStrip({
   useEffect(() => {
     if (!externalWeek) return;
     if (externalWeek.weekStart === viewWeekStart) return;
-    setViewWeekStart(externalWeek.weekStart);
-    setPage(externalWeek);
+    const id = setTimeout(() => {
+      setViewWeekStart(externalWeek.weekStart);
+      setPage(externalWeek);
+    }, 0);
+    return () => clearTimeout(id);
   }, [externalWeek, viewWeekStart]);
 
   const applyPage = useCallback(

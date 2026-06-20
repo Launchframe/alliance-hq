@@ -126,8 +126,11 @@ export function TrainMonthCalendar({
   useEffect(() => {
     if (!externalMonth) return;
     if (externalMonth.monthKey === viewMonthKey) return;
-    setViewMonthKey(externalMonth.monthKey);
-    setPage(externalMonth);
+    const id = setTimeout(() => {
+      setViewMonthKey(externalMonth.monthKey);
+      setPage(externalMonth);
+    }, 0);
+    return () => clearTimeout(id);
   }, [externalMonth, viewMonthKey]);
 
   const paintMode = Boolean(canPaint && paintBrush && onPaintDates);
