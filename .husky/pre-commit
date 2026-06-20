@@ -1,3 +1,4 @@
 #!/usr/bin/env sh
 npm run test
 npm run i18n:validate
+npm run test:e2e
