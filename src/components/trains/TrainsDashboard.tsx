@@ -29,7 +29,8 @@ import {
 import { Dialog } from "@/components/ui/dialog";
 import { AppSelect } from "@/components/ui/AppSelect";
 import { Link } from "@/i18n/navigation";
-import { getMonthKey, getWeekStartMonday, monthEndFromKey, monthStartFromKey, isCalendarDateOnOrAfter } from "@/lib/trains/game-time";
+import { buildProvisionalWeekPage } from "@/lib/client/week-schedule-provisional";
+import { getMonthKey, getWeekStartMonday, addCalendarDays, monthEndFromKey, monthStartFromKey, isCalendarDateOnOrAfter } from "@/lib/trains/game-time";
 import type {
   MonthSchedulePagePayload,
   TrainsDashboardPayload,
@@ -147,6 +148,10 @@ export function TrainsDashboard({ initial }: Props) {
   });
   const viewedWeekStartRef = useRef(initial.weekStart);
   const viewedMonthKeyRef = useRef(initialMonthKey);
+  const selectedDateRef = useRef(selectedDate);
+  useEffect(() => {
+    selectedDateRef.current = selectedDate;
+  }, [selectedDate]);
   const [pickOpen, setPickOpen] = useState(false);
   const [pickRole, setPickRole] = useState<"conductor" | "vip">("conductor");
   const [reseedHintOpen, setReseedHintOpen] = useState(false);
@@ -317,11 +322,38 @@ export function TrainsDashboard({ initial }: Props) {
     (view: ScheduleView) => {
       setScheduleView(view);
       if (view === "month") {
-        void fetchMonth(viewedMonthKeyRef.current);
+        void fetchMonth(getMonthKey(selectedDateRef.current));
+        return;
       }
+      void fetchWeek(getWeekStartMonday(selectedDateRef.current));
     },
-    [fetchMonth],
+    [fetchMonth, fetchWeek],
   );
+
+  const selectedWeekStart = getWeekStartMonday(selectedDate);
+  const selectedWeekEnd = addCalendarDays(selectedWeekStart, 6);
+  const weekViewSeed = useMemo((): WeekSchedulePagePayload => {
+    if (viewedWeek.weekStart === selectedWeekStart) {
+      return viewedWeek;
+    }
+    const dayConfigs = viewedMonth.dayConfigs.filter(
+      (day) => day.date >= selectedWeekStart && day.date <= selectedWeekEnd,
+    );
+    const weekRecords = viewedMonth.monthRecords.filter(
+      (record) => record.date >= selectedWeekStart && record.date <= selectedWeekEnd,
+    );
+    if (dayConfigs.length === 0) {
+      return buildProvisionalWeekPage(selectedWeekStart, viewedWeek.templateType);
+    }
+    const seed = {
+      weekStart: selectedWeekStart,
+      weekEnd: selectedWeekEnd,
+      templateType: viewedWeek.templateType,
+      dayConfigs,
+      weekRecords,
+    };
+    return seed;
+  }, [selectedWeekStart, selectedWeekEnd, viewedWeek, viewedMonth]);
 
   const activeDayConfigs =
     scheduleView === "month" ? viewedMonth.dayConfigs : viewedWeek.dayConfigs;
@@ -938,10 +970,10 @@ export function TrainsDashboard({ initial }: Props) {
           {scheduleView === "week" ? (
             <WeekScheduleStrip
               today={data.today}
-              initialWeekStart={data.weekStart}
-              initialWeekEnd={data.weekEnd}
-              initialDayConfigs={data.dayConfigs}
-              initialWeekRecords={data.weekRecords}
+              initialWeekStart={weekViewSeed.weekStart}
+              initialWeekEnd={weekViewSeed.weekEnd}
+              initialDayConfigs={weekViewSeed.dayConfigs}
+              initialWeekRecords={weekViewSeed.weekRecords}
               selectedDate={selectedDate}
               conductorLabels={conductorShortLabels}
               vipLabels={vipShortLabels}
@@ -952,7 +984,11 @@ export function TrainsDashboard({ initial }: Props) {
                 previousDay: t("dayNavPrevious"),
                 nextDay: t("dayNavNext"),
               }}
-              externalWeek={viewedWeek}
+              externalWeek={
+                viewedWeek.weekStart === selectedWeekStart
+                  ? viewedWeek
+                  : weekViewSeed
+              }
               onSelectDate={setSelectedDate}
               onWeekChange={handleWeekChange}
               onWeekLoadError={() => setError(t("weekLoadFailed"))}
@@ -960,7 +996,7 @@ export function TrainsDashboard({ initial }: Props) {
           ) : (
             <TrainMonthCalendar
               today={data.today}
-              initialMonthKey={getMonthKey(data.today)}
+              initialMonthKey={getMonthKey(selectedDate)}
               initialDayConfigs={data.dayConfigs}
               initialMonthRecords={data.weekRecords}
               selectedDate={selectedDate}

@@ -9,7 +9,7 @@ import type {
   WeekSchedulePagePayload,
 } from "@/lib/trains/load-dashboard";
 import { addCalendarDays, isCalendarDateOnOrAfter } from "@/lib/trains/game-time";
-import { coverFlowItemStyle } from "@/lib/client/cover-flow-carousel.shared";
+import { buildProvisionalWeekPage } from "@/lib/client/week-schedule-provisional";
 import { useCoverFlowCarousel } from "@/lib/client/use-cover-flow-carousel";
 import {
   useWeekScheduleInfiniteDays,
@@ -23,6 +23,7 @@ import {
 } from "@/lib/trains/conductor-mechanism.shared";
 import type { WeekTemplateType } from "@/lib/trains/types";
 import { usesCombinedSegmentDisplay } from "@/lib/trains/week-template-registry.shared";
+import { coverFlowItemStyle } from "@/lib/client/cover-flow-carousel.shared";
 
 type Props = {
   today: string;
@@ -248,20 +249,31 @@ function WeekScheduleInfiniteDayCarousel({
 }: CarouselProps) {
   const lastWeekStartRef = useRef<string | null>(null);
   const syncingDateRef = useRef(false);
+  const daysRef = useRef<WeekCarouselDayEntry[]>([]);
+  const bufferSyncRef = useRef(0);
 
   const {
     days,
     bootstrapping,
     ensureBuffer,
-    loadAroundDate,
+    ensureDateInBuffer,
     getPageForWeek,
     findIndexForDate,
+    resolveIndexForDate,
   } = useWeekScheduleInfiniteDays({
     seedPage,
     onWeekLoadError,
   });
 
-  const selectedIndex = Math.max(0, findIndexForDate(selectedDate));
+  const [carouselFallbackIndex, setCarouselFallbackIndex] = useState(0);
+
+  useEffect(() => {
+    daysRef.current = days;
+  }, [days]);
+
+  const dateIndex = findIndexForDate(selectedDate);
+  const carouselSelectedIndex =
+    dateIndex >= 0 ? dateIndex : carouselFallbackIndex;
 
   const notifyWeekForDate = useCallback(
     (date: string) => {
@@ -278,18 +290,18 @@ function WeekScheduleInfiniteDayCarousel({
   const handleIndexChange = useCallback(
     (index: number) => {
       if (syncingDateRef.current) return;
-      const entry = days[index];
+      const entry = daysRef.current[index];
       if (!entry) return;
       notifyWeekForDate(entry.day.date);
       onSelectDate(entry.day.date);
     },
-    [days, notifyWeekForDate, onSelectDate],
+    [notifyWeekForDate, onSelectDate],
   );
 
   const {
     position,
-    safeIndex,
     interacting,
+    isAnimating,
     viewportHandlers,
     setIndex,
     shiftPosition,
@@ -297,41 +309,57 @@ function WeekScheduleInfiniteDayCarousel({
     stopSnap,
   } = useCoverFlowCarousel({
     itemCount: days.length,
-    selectedIndex: selectedIndex >= 0 ? selectedIndex : 0,
+    selectedIndex: carouselSelectedIndex,
     pixelsPerItem: WEEK_CAROUSEL_PIXELS_PER_ITEM,
     onSelectedIndexChange: handleIndexChange,
   });
 
-  useEffect(() => {
-    if (bootstrapping || days.length === 0) return;
-    void ensureBuffer(safeIndex, shiftPosition);
-  }, [bootstrapping, days.length, ensureBuffer, safeIndex, shiftPosition]);
-
-  useEffect(() => {
+  const syncCarouselToSelectedDate = useCallback(async () => {
     if (bootstrapping) return;
 
-    const index = findIndexForDate(selectedDate);
-    if (index >= 0) {
-      if (index !== safeIndex) {
-        syncingDateRef.current = true;
-        setIndex(index);
-        syncingDateRef.current = false;
-      }
-      notifyWeekForDate(selectedDate);
-      return;
+    syncingDateRef.current = true;
+    let index = resolveIndexForDate(selectedDate);
+    if (index < 0) {
+      index = await ensureDateInBuffer(selectedDate);
     }
+    if (index >= 0) {
+      index = await ensureBuffer(selectedDate, shiftPosition);
+    }
+    if (index >= 0) {
+      setCarouselFallbackIndex(index);
+      setIndex(index);
+      notifyWeekForDate(selectedDate);
+    }
+    syncingDateRef.current = false;
+  }, [
+    bootstrapping,
+    ensureBuffer,
+    ensureDateInBuffer,
+    notifyWeekForDate,
+    resolveIndexForDate,
+    selectedDate,
+    setIndex,
+    shiftPosition,
+  ]);
 
+  useEffect(() => {
+    if (interacting || isAnimating) return;
+    const syncId = ++bufferSyncRef.current;
     void (async () => {
-      syncingDateRef.current = true;
-      const nextIndex = await loadAroundDate(selectedDate);
-      if (nextIndex >= 0) {
-        setIndex(nextIndex);
-        notifyWeekForDate(selectedDate);
-      }
-      syncingDateRef.current = false;
+      await syncCarouselToSelectedDate();
+      if (syncId !== bufferSyncRef.current) return;
     })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- sync when parent selectedDate changes
-  }, [bootstrapping, selectedDate]);
+  }, [interacting, isAnimating, selectedDate, days.length, syncCarouselToSelectedDate]);
+
+  const navigateByCalendarDay = useCallback(
+    (delta: number) => {
+      stopMomentum();
+      stopSnap();
+      const target = addCalendarDays(selectedDate, delta);
+      onSelectDate(target);
+    },
+    [onSelectDate, selectedDate, stopMomentum, stopSnap],
+  );
 
   const focusedIndex = Math.round(position);
 
@@ -356,24 +384,20 @@ function WeekScheduleInfiniteDayCarousel({
       <div
         key={entry.day.date}
         className={`absolute left-1/2 top-1/2 ${
-          selectable ? "cursor-pointer" : "pointer-events-none"
+          selectable && !isAnimating ? "cursor-pointer" : "pointer-events-none"
         } ${interacting ? "" : "transition-transform duration-300"}`}
         style={{
           ...itemStyle,
           transformStyle: "preserve-3d",
         }}
         onClick={() => {
-          if (!selectable) return;
-          stopMomentum();
-          stopSnap();
+          if (!selectable || isAnimating) return;
           setIndex(index);
         }}
         role={selectable ? "button" : undefined}
         tabIndex={selectable && showDetail ? 0 : -1}
         onKeyDown={(event) => {
-          if (!selectable || event.key !== "Enter") return;
-          stopMomentum();
-          stopSnap();
+          if (!selectable || isAnimating || event.key !== "Enter") return;
           setIndex(index);
         }}
       >
@@ -410,11 +434,7 @@ function WeekScheduleInfiniteDayCarousel({
       <div className="flex items-center justify-center gap-3">
         <button
           type="button"
-          onClick={() => {
-            stopMomentum();
-            stopSnap();
-            setIndex(safeIndex - 1);
-          }}
+          onClick={() => navigateByCalendarDay(-1)}
           aria-label={navLabels.previousDay ?? "Previous day"}
           className="rounded px-2 py-1 text-xs text-[#8b949e] hover:text-[#e6edf3]"
         >
@@ -422,11 +442,7 @@ function WeekScheduleInfiniteDayCarousel({
         </button>
         <button
           type="button"
-          onClick={() => {
-            stopMomentum();
-            stopSnap();
-            setIndex(safeIndex + 1);
-          }}
+          onClick={() => navigateByCalendarDay(1)}
           aria-label={navLabels.nextDay ?? "Next day"}
           className="rounded px-2 py-1 text-xs text-[#8b949e] hover:text-[#e6edf3]"
         >
@@ -492,7 +508,6 @@ export function WeekScheduleStrip({
     }, 0);
     return () => clearTimeout(id);
   }, [externalWeek, viewWeekStart]);
-
   const applyPage = useCallback(
     (next: WeekSchedulePagePayload) => {
       setViewWeekStart(next.weekStart);
@@ -554,12 +569,17 @@ export function WeekScheduleStrip({
     void loadWeek(nextStart);
   };
 
-  if (page.dayConfigs.length === 0) {
-    return null;
-  }
+  const resolvedPage =
+    page.dayConfigs.length > 0
+      ? page
+      : buildProvisionalWeekPage(viewWeekStart, page.templateType);
 
   const displayPage =
-    externalWeek?.weekStart === page.weekStart ? externalWeek : page;
+    externalWeek &&
+    externalWeek.weekStart === resolvedPage.weekStart &&
+    externalWeek.dayConfigs.length > 0
+      ? externalWeek
+      : resolvedPage;
   const { weekEnd, dayConfigs, weekRecords } = displayPage;
 
   const dayGrid = (

@@ -12,6 +12,7 @@ import type {
 import {
   addCalendarMonths,
   buildMonthGrid,
+  getMonthKey,
   monthEndFromKey,
   monthStartFromKey,
 } from "@/lib/trains/game-time";
@@ -125,13 +126,23 @@ export function TrainMonthCalendar({
 
   useEffect(() => {
     if (!externalMonth) return;
-    if (externalMonth.monthKey === viewMonthKey) return;
+    const selectedMonthKey = getMonthKey(selectedDate);
+    if (externalMonth.monthKey !== selectedMonthKey) return;
+
+    if (
+      externalMonth.monthKey === viewMonthKey &&
+      externalMonth.dayConfigs === page.dayConfigs &&
+      externalMonth.monthRecords === page.monthRecords
+    ) {
+      return;
+    }
+
     const id = setTimeout(() => {
       setViewMonthKey(externalMonth.monthKey);
       setPage(externalMonth);
     }, 0);
     return () => clearTimeout(id);
-  }, [externalMonth, viewMonthKey]);
+  }, [externalMonth, page.dayConfigs, page.monthRecords, selectedDate, viewMonthKey]);
 
   const paintMode = Boolean(canPaint && paintBrush && onPaintDates);
 
