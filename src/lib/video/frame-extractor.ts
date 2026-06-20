@@ -18,6 +18,8 @@ export type ExtractedFrame = {
   index: number;
   filePath: string;
   buffer: Buffer;
+  /** Seconds into the source video when this frame was captured, if known. */
+  videoTimestampSeconds: number | null;
 };
 
 export type ExtractLeaderboardFramesResult = {
@@ -115,6 +117,42 @@ export function listFrameJpegFiles(files: string[]): string[] {
     .sort();
 }
 
+export function appendShowinfoFilter(vf: string): string {
+  return vf.includes("showinfo") ? vf : `${vf},showinfo`;
+}
+
+/** Parse pts_time values emitted by ffmpeg's showinfo filter (one per output frame). */
+export function parseFfmpegShowinfoPtsTimes(stderr: string): number[] {
+  const times: number[] = [];
+  const re = /pts_time:([0-9.+-eE]+)/g;
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(stderr)) !== null) {
+    const value = Number.parseFloat(match[1]!);
+    if (Number.isFinite(value)) {
+      times.push(value);
+    }
+  }
+  return times;
+}
+
+export function assignVideoTimestampsToFrames(
+  frames: Omit<ExtractedFrame, "videoTimestampSeconds">[],
+  stderr: string,
+  mode: FrameExtractMode,
+  sampleFps: number,
+): ExtractedFrame[] {
+  const ptsTimes = parseFfmpegShowinfoPtsTimes(stderr);
+  return frames.map((frame, i) => {
+    let videoTimestampSeconds: number | null = null;
+    if (ptsTimes[i] != null && Number.isFinite(ptsTimes[i])) {
+      videoTimestampSeconds = ptsTimes[i]!;
+    } else if (mode === "fps" && sampleFps > 0) {
+      videoTimestampSeconds = frame.index / sampleFps;
+    }
+    return { ...frame, videoTimestampSeconds };
+  });
+}
+
 async function listExtractedFrameFiles(tmpDir: string): Promise<string[]> {
   return listFrameJpegFiles(await fs.readdir(tmpDir));
 }
@@ -129,20 +167,21 @@ async function runFfmpegExtract(
   pattern: string,
   vf: string,
 ): Promise<FfmpegRunResult> {
+  const vfWithShowinfo = appendShowinfoFilter(vf);
   try {
     const { stderr } = await execFileAsync(
       ffmpeg,
       [
         "-hide_banner",
         "-loglevel",
-        "error",
+        "info",
         "-nostdin",
         "-y",
         "-i",
         videoPath,
         "-an",
         "-vf",
-        vf,
+        vfWithShowinfo,
         "-vsync",
         "vfr",
         pattern,
@@ -327,12 +366,18 @@ export async function extractLeaderboardFrames(
   }
 
   const readStarted = Date.now();
-  const frames: ExtractedFrame[] = [];
+  const rawFrames: Omit<ExtractedFrame, "videoTimestampSeconds">[] = [];
   for (let i = 0; i < files.length; i++) {
     const filePath = path.join(tmpDir, files[i]!);
     const buffer = await fs.readFile(filePath);
-    frames.push({ index: i, filePath, buffer });
+    rawFrames.push({ index: i, filePath, buffer });
   }
+  const frames = assignVideoTimestampsToFrames(
+    rawFrames,
+    lastStderr,
+    mode,
+    sampleFps,
+  );
   logPipelineStep("ffmpeg.read_frames", Date.now() - readStarted, {
     frameCount: frames.length,
     mode,

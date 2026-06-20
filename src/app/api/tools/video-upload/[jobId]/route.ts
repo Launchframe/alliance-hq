@@ -105,6 +105,25 @@ export async function GET(_request: Request, { params }: Props) {
       fileName: job.fileName,
     });
 
+    const dbFrames = await db
+      .select({
+        frameIndex: schema.videoFrames.frameIndex,
+        videoTimestampSeconds: schema.videoFrames.videoTimestampSeconds,
+      })
+      .from(schema.videoFrames)
+      .where(eq(schema.videoFrames.jobId, jobId))
+      .orderBy(asc(schema.videoFrames.frameIndex));
+
+    const frameTimestamps: Record<string, number> = {};
+    for (const frame of dbFrames) {
+      if (
+        frame.videoTimestampSeconds != null &&
+        Number.isFinite(frame.videoTimestampSeconds)
+      ) {
+        frameTimestamps[String(frame.frameIndex)] = frame.videoTimestampSeconds;
+      }
+    }
+
     return NextResponse.json({
       job: {
         id: job.id,
@@ -122,6 +141,7 @@ export async function GET(_request: Request, { params }: Props) {
         timingsJson,
       },
       hasSourceVideo: storageKey != null,
+      frameTimestamps,
       scoreTargetMeta: target ? toScoreTargetClientMeta(target) : null,
       alliance: {
         jobId: job.allianceId,
