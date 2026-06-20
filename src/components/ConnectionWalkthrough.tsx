@@ -493,7 +493,7 @@ export function ConnectionWalkthrough({ onConnected }: Props) {
               {t.rich("steps.linkPhone.skippedBody", {
                 settingsLink: (chunks) => (
                   <Link
-                    href="/settings"
+                    href="/account"
                     className="text-[#58a6ff] hover:underline"
                   >
                     {chunks}

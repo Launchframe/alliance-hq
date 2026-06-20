@@ -12,9 +12,13 @@ import type { TeamMember } from "@/lib/rbac/sync-ashed-roles";
 
 type Props = {
   initialTeam: TeamMember[];
+  canRefreshFromAshed?: boolean;
 };
 
-export function SettingsTeamClient({ initialTeam }: Props) {
+export function SettingsTeamClient({
+  initialTeam,
+  canRefreshFromAshed = false,
+}: Props) {
   const t = useTranslations("team");
   const [team, setTeam] = useState(initialTeam);
   const [error, setError] = useState<string | null>(null);
@@ -38,16 +42,18 @@ export function SettingsTeamClient({ initialTeam }: Props) {
 
   return (
     <>
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-        <button
-          type="button"
-          onClick={() => void refreshFromAshed()}
-          disabled={refreshing}
-          className="w-full rounded-lg bg-[#238636] px-4 py-2 text-sm font-medium text-white hover:bg-[#2ea043] disabled:opacity-50 sm:w-auto"
-        >
-          {refreshing ? t("refreshing") : t("refreshFromAshed")}
-        </button>
-      </div>
+      {canRefreshFromAshed ? (
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <button
+            type="button"
+            onClick={() => void refreshFromAshed()}
+            disabled={refreshing}
+            className="w-full rounded-lg bg-[#238636] px-4 py-2 text-sm font-medium text-white hover:bg-[#2ea043] disabled:opacity-50 sm:w-auto"
+          >
+            {refreshing ? t("refreshing") : t("refreshFromAshed")}
+          </button>
+        </div>
+      ) : null}
 
       {error ? <p className="text-sm text-red-400">{error}</p> : null}
 

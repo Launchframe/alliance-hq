@@ -7,12 +7,14 @@ import { useTranslations } from "next-intl";
 import { Link, usePathname } from "@/i18n/navigation";
 import { ashedLink } from "@/components/i18n/richText";
 import { APP_VERSION } from "@/lib/feedback/constants";
+import { SidebarAlliancePicker } from "@/components/ashed-shell/SidebarAlliancePicker";
 import { navPageIcon } from "@/lib/nav/icons";
+import type { SessionAllianceOption } from "@/lib/alliance/types";
 import {
   FOOTER_NAV,
   NAV_GROUPS,
   filterNavGroupsForOperatingMode,
-  isNavActive,
+  navLinkActive,
 } from "@/lib/nav/routes";
 
 function cn(...parts: Array<string | false | null | undefined>) {
@@ -58,9 +60,11 @@ function NavLink({
 
 type Props = {
   showAdminPortal?: boolean;
-  showTeamSettings?: boolean;
+  showTeamAccess?: boolean;
   operatingMode?: "ashed" | "native" | null;
   canUseAshedEmbeds?: boolean;
+  currentAllianceId?: string | null;
+  membershipAlliances?: SessionAllianceOption[];
   mobileCollapsible?: boolean;
   expandedGroupId: string | null;
   onToggleGroup: (groupId: string) => void;
@@ -70,9 +74,11 @@ type Props = {
 
 export function SidebarNav({
   showAdminPortal = false,
-  showTeamSettings = false,
+  showTeamAccess = false,
   operatingMode = null,
   canUseAshedEmbeds = true,
+  currentAllianceId = null,
+  membershipAlliances = [],
   mobileCollapsible = false,
   expandedGroupId,
   onToggleGroup,
@@ -127,12 +133,18 @@ export function SidebarNav({
         ) : null}
       </div>
 
+      <SidebarAlliancePicker
+        key={currentAllianceId ?? "none"}
+        initialCurrentAllianceId={currentAllianceId}
+        initialAlliances={membershipAlliances}
+      />
+
       <nav className="min-h-0 flex-1 overflow-y-auto p-2">
         {navGroups.map((group) => {
           const extraPages =
             group.id === "hq-native"
               ? [
-                  ...(showTeamSettings
+                  ...(showTeamAccess
                     ? [{ href: "/settings/team", labelKey: "team" as const }]
                     : []),
                   ...(showAdminPortal
@@ -184,7 +196,7 @@ export function SidebarNav({
                         href={page.href}
                         pageId={page.id}
                         label={tNav(page.labelKey)}
-                        active={isNavActive(pathname, page.href)}
+                        active={navLinkActive(pathname, page.href)}
                         onNavigate={onNavigate}
                       />
                     ))}
@@ -197,7 +209,7 @@ export function SidebarNav({
                         active={
                           page.href === "/admin"
                             ? pathname.startsWith("/admin")
-                            : isNavActive(pathname, page.href)
+                            : navLinkActive(pathname, page.href)
                         }
                         onNavigate={onNavigate}
                       />

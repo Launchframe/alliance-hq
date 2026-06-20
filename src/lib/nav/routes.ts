@@ -200,9 +200,15 @@ export const NAV_GROUPS: NavGroupDef[] = [
         descriptionKey: "videoUploadDescription",
       },
       {
-        id: "settings",
-        labelKey: "settings",
+        id: "alliance-settings",
+        labelKey: "allianceSettings",
         href: "/settings",
+        kind: "native",
+      },
+      {
+        id: "account",
+        labelKey: "account",
+        href: "/account",
         kind: "native",
       },
     ],
@@ -271,17 +277,31 @@ export function isNavActive(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
+/** Nav link active state — parent hubs (e.g. /settings) do not highlight on child routes. */
+export function navLinkActive(pathname: string, href: string): boolean {
+  if (href === "/") {
+    return pathname === "/";
+  }
+  if (href === "/settings") {
+    return pathname === "/settings";
+  }
+  if (href === "/account") {
+    return pathname === "/account";
+  }
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
+
 export function findActiveNavGroupId(
   pathname: string,
   options: {
     showAdminPortal?: boolean;
-    showTeamSettings?: boolean;
+    showTeamAccess?: boolean;
   } = {},
 ): string | null {
-  const { showAdminPortal = false, showTeamSettings = false } = options;
+  const { showAdminPortal = false, showTeamAccess = false } = options;
 
   for (const group of NAV_GROUPS) {
-    if (group.pages.some((page) => isNavActive(pathname, page.href))) {
+    if (group.pages.some((page) => navLinkActive(pathname, page.href))) {
       return group.id;
     }
 
@@ -290,7 +310,7 @@ export function findActiveNavGroupId(
     }
 
     const extraHrefs = [
-      ...(showTeamSettings ? ["/settings/team"] : []),
+      ...(showTeamAccess ? ["/settings/team"] : []),
       ...(showAdminPortal ? ["/admin"] : []),
     ];
 
@@ -298,7 +318,7 @@ export function findActiveNavGroupId(
       extraHrefs.some((href) =>
         href === "/admin"
           ? pathname.startsWith("/admin")
-          : isNavActive(pathname, href),
+          : navLinkActive(pathname, href),
       )
     ) {
       return group.id;

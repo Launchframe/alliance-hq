@@ -4,6 +4,7 @@ import {
   ashedUrlForPath,
   isNavActive,
   legacyAshedRedirect,
+  navLinkActive,
   resolveAshedPath,
   resolveIframePage,
   trainwreckCase,
@@ -78,5 +79,16 @@ describe("isNavActive", () => {
   it("matches root path only for home", () => {
     expect(isNavActive("/", "/")).toBe(true);
     expect(isNavActive("/members", "/")).toBe(false);
+  });
+});
+
+describe("navLinkActive", () => {
+  it("does not highlight /settings on /settings/team", () => {
+    expect(navLinkActive("/settings/team", "/settings")).toBe(false);
+    expect(navLinkActive("/settings/team", "/settings/team")).toBe(true);
+  });
+
+  it("does not highlight /account on nested paths", () => {
+    expect(navLinkActive("/account", "/account")).toBe(true);
   });
 });

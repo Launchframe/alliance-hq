@@ -22,3 +22,12 @@ export type AccessibleAlliance = {
   name?: string;
   accessRole: AllianceAccessRole;
 };
+
+/** HQ membership row for sidebar alliance picker */
+export type SessionAllianceOption = {
+  id: string;
+  tag: string | null;
+  name: string;
+  slug: string;
+  roleName: string;
+};

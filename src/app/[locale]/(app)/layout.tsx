@@ -82,7 +82,11 @@ export default async function AppLayout({
         canUseAshedEmbeds={state.rbac?.isAshedConnectAllowed ?? true}
         ashed={state.ashed}
         showAdminPortal={state.rbac?.isPlatformMaintainer ?? false}
-        showTeamSettings={state.rbac?.isAllianceAdmin ?? false}
+        showTeamAccess={state.hasActiveMembership}
+        currentAllianceId={
+          state.currentAllianceId ?? state.allianceId ?? null
+        }
+        membershipAlliances={state.membershipAlliances}
       >
         {children}
       </AshedShell>

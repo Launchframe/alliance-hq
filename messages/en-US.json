@@ -80,6 +80,8 @@
     "videoUpload": "Upload from video",
     "videoUploadDescription": "Extract scoreboard screenshots from a screen recording",
     "openAshed": "Open Ashed",
+    "account": "Account",
+    "allianceSettings": "Alliance settings",
     "settings": "Settings",
     "team": "Team access",
     "adminPortal": "Admin portal"
@@ -645,15 +647,17 @@
   },
   "team": {
     "title": "Team access",
-    "description": "Roles synced from Ashed alliance owner and collaborators.",
-    "backToSettings": "Settings",
+    "titleWithTag": "Team access — {tag}",
+    "unknownAlliance": "Alliance",
+    "description": "HQ users with access to this alliance and their roles. Roles may come from Ashed sync or manual assignment by platform maintainers.",
+    "backToSettings": "Alliance settings",
     "refreshFromAshed": "Refresh from Ashed",
     "refreshing": "Refreshing…",
     "loadFailed": "Could not load team roster.",
     "refreshFailed": "Refresh failed — check your Ashed token.",
-    "empty": "No team members synced yet.",
-    "forbidden": "Alliance admin access required.",
-    "ashedNote": "To add or remove maintainers, update collaborators in Ashed → Alliances, then refresh here.",
+    "empty": "No team members yet.",
+    "forbidden": "Alliance membership required.",
+    "ashedNote": "Alliance admins: to add or remove maintainers from Ashed sync, update collaborators in Ashed → Alliances, then refresh here.",
     "table": {
       "user": "User",
       "role": "Role",
@@ -836,7 +840,13 @@
   },
   "settings": {
     "title": "Settings",
+    "titleAlliance": "Alliance settings",
+    "titleWithTag": "Alliance settings — {tag}",
     "subtitle": "Manage your Ashed connection and Alliance HQ preferences.",
+    "subtitleAlliance": "Settings for the alliance selected in the sidebar — season, team access, and related options.",
+    "teamSectionTitle": "Team access",
+    "teamSectionBody": "View HQ users who can access this alliance and their roles.",
+    "teamSectionLink": "Open team roster",
     "allianceSection": "Your alliance",
     "allianceBody": "Alliance HQ scopes member matching and score uploads to one alliance. We detect alliances where you are owner or collaborator on Ashed.",
     "alliancePickerLabel": "Alliance",
@@ -890,6 +900,35 @@
         "default": "Default"
       }
     }
+  },
+  "account": {
+    "title": "Account",
+    "subtitle": "Your personal preferences, Ashed connection, and linked devices.",
+    "tokenSection": "Ashed token",
+    "remindMe": "Remind me",
+    "reminderOption": "{days, plural, one {# day} other {# days}} before expiration",
+    "reconnectHint": "Reconnect to refresh your token and see its expiration date.",
+    "disconnectSection": "Disconnect",
+    "disconnectBody": "Clears your stored connection key from our server. You can reconnect anytime using the setup walkthrough.",
+    "disconnecting": "Disconnecting…",
+    "disconnectButton": "Disconnect Ashed",
+    "reminderSaved": "Reminder preference saved",
+    "reminderSaveFailed": "Could not save reminder preference",
+    "timezoneSection": "Time zone",
+    "timezoneBody": "Dates and times across Alliance HQ use your account time zone. Server Time (UTC−02:00) matches the in-game clock and is the default until you choose another zone.",
+    "timezoneLabel": "Display time zone",
+    "timezoneServerTime": "Server Time",
+    "timezoneSaved": "Time zone saved",
+    "timezoneSaveFailed": "Could not save time zone",
+    "aboutBody": "Alliance HQ at <strong>alliance-hq.vercel.app</strong> is a community wrapper for <link>ashed.online</link>. All alliance data credit belongs to Ashed."
+  },
+  "alliancePicker": {
+    "label": "Alliance",
+    "placeholder": "Select an alliance…",
+    "loading": "Loading alliances…",
+    "loadFailed": "Could not load alliances.",
+    "switchFailed": "Could not switch alliance.",
+    "contextHint": "Viewing data for {tag}"
   },
   "deviceLink": {
     "sectionTitle": "Link a mobile device",

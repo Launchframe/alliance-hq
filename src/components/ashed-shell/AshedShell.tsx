@@ -5,6 +5,7 @@ import { Menu } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { Link, usePathname } from "@/i18n/navigation";
+import type { SessionAllianceOption } from "@/lib/alliance/types";
 import type { AshedConnectionMeta } from "@/lib/jwt/connection-meta";
 import { FeedbackProvider } from "@/components/feedback";
 import { SidebarNav } from "@/components/ashed-shell/SidebarNav";
@@ -27,7 +28,9 @@ type Props = {
   canUseAshedEmbeds?: boolean;
   ashed: AshedConnectionMeta | null;
   showAdminPortal?: boolean;
-  showTeamSettings?: boolean;
+  showTeamAccess?: boolean;
+  currentAllianceId?: string | null;
+  membershipAlliances?: SessionAllianceOption[];
   children: React.ReactNode;
 };
 
@@ -45,7 +48,9 @@ export function AshedShell({
   canUseAshedEmbeds = true,
   ashed,
   showAdminPortal = false,
-  showTeamSettings = false,
+  showTeamAccess = false,
+  currentAllianceId = null,
+  membershipAlliances = [],
   children,
 }: Props) {
   const pathname = usePathname();
@@ -63,11 +68,11 @@ export function AshedShell({
     setExpandedGroupId(
       findActiveNavGroupId(pathname, {
         showAdminPortal,
-        showTeamSettings,
+        showTeamAccess,
       }),
     );
     setMobileNavOpen(true);
-  }, [pathname, showAdminPortal, showTeamSettings]);
+  }, [pathname, showAdminPortal, showTeamAccess]);
 
   const toggleGroup = React.useCallback((groupId: string) => {
     setExpandedGroupId((current) => (current === groupId ? null : groupId));
@@ -115,9 +120,11 @@ export function AshedShell({
           >
             <SidebarNav
               showAdminPortal={showAdminPortal}
-              showTeamSettings={showTeamSettings}
+              showTeamAccess={showTeamAccess}
               operatingMode={operatingMode}
               canUseAshedEmbeds={canUseAshedEmbeds}
+              currentAllianceId={currentAllianceId}
+              membershipAlliances={membershipAlliances}
               mobileCollapsible
               expandedGroupId={expandedGroupId}
               onToggleGroup={toggleGroup}

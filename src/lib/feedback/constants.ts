@@ -102,11 +102,13 @@ const PAGE_BUG_AREA_OVERRIDE: Record<string, BugReportArea> = {
   "/members": "members",
   "/donations": "donations",
   "/tools/video-upload": "video_upload",
+  "/account": "settings",
   "/settings": "settings",
 };
 
 const NATIVE_PATH_PREFIX_AREAS: ReadonlyArray<[string, BugReportArea]> = [
   ["/admin", "admin"],
+  ["/account", "settings"],
   ["/settings", "settings"],
   ["/members", "members"],
   ["/tools/video-upload", "video_upload"],

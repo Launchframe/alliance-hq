@@ -3,8 +3,6 @@
 import { useEffect, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 
-import { AlliancePicker } from "@/components/AlliancePicker";
-import { AllianceSeasonSettings } from "@/components/settings/AllianceSeasonSettings";
 import { PairingQrWizard } from "@/components/credential-pairing/PairingQrWizard";
 import { LinkedDevicesSettings } from "@/components/credential-pairing/LinkedDevicesSettings";
 import { AppSelect } from "@/components/ui/AppSelect";
@@ -12,7 +10,6 @@ import { useAccountTimezone } from "@/components/timezone/TimezoneProvider";
 import { useRouter } from "@/i18n/navigation";
 import { TokenExpiryNotice } from "@/components/TokenExpiryNotice";
 import { ashedLink, strongText } from "@/components/i18n/richText";
-import type { AccessibleAlliance } from "@/lib/alliance/types";
 import type { AshedConnectionMeta } from "@/lib/jwt/connection-meta";
 import { DEFAULT_EXPIRY_REMINDER_DAYS } from "@/lib/jwt/decode";
 import type { AccountTimezoneId } from "@/lib/timezone/constants";
@@ -25,16 +22,14 @@ const REMINDER_OPTIONS = [7, 14, 21, 30];
 
 type Props = {
   initialAshed: AshedConnectionMeta | null;
-  initialAllianceId?: string | null;
   initialTimezoneId?: AccountTimezoneId;
 };
 
-export function SettingsConnectionForm({
+export function AccountSettingsForm({
   initialAshed,
-  initialAllianceId,
   initialTimezoneId,
 }: Props) {
-  const t = useTranslations("settings");
+  const t = useTranslations("account");
   const tDevice = useTranslations("deviceLink");
   const tToken = useTranslations("tokenExpiry");
   const tc = useTranslations("common");
@@ -48,15 +43,6 @@ export function SettingsConnectionForm({
   const [reminderDays, setReminderDays] = useState(
     initialAshed?.expiryReminderDays ?? DEFAULT_EXPIRY_REMINDER_DAYS,
   );
-  const [accessibleAlliances, setAccessibleAlliances] = useState<
-    AccessibleAlliance[]
-  >([]);
-  const [selectedAllianceId, setSelectedAllianceId] = useState(
-    initialAllianceId ?? "",
-  );
-  const [alliancesLoading, setAlliancesLoading] = useState(true);
-  const [alliancesError, setAlliancesError] = useState<string | null>(null);
-  const [allianceSaving, setAllianceSaving] = useState(false);
   const [timezoneSaving, setTimezoneSaving] = useState(false);
   const [linkedDevicesRefresh, setLinkedDevicesRefresh] = useState(0);
 
@@ -65,47 +51,6 @@ export function SettingsConnectionForm({
       setTimezoneId(initialTimezoneId);
     }
   }, [initialTimezoneId, setTimezoneId]);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    void (async () => {
-      setAlliancesLoading(true);
-      setAlliancesError(null);
-
-      try {
-        const res = await fetch("/api/settings/connection");
-        const data = (await res.json()) as {
-          error?: string;
-          accessibleAlliances?: AccessibleAlliance[];
-          selectedAllianceId?: string | null;
-        };
-        if (!res.ok) {
-          throw new Error(data.error ?? t("allianceLoadFailed"));
-        }
-        if (cancelled) return;
-        setAccessibleAlliances(data.accessibleAlliances ?? []);
-        if (data.selectedAllianceId) {
-          setSelectedAllianceId(data.selectedAllianceId);
-        } else if (data.accessibleAlliances?.length === 1) {
-          setSelectedAllianceId(data.accessibleAlliances[0].id);
-        }
-      } catch (err) {
-        if (cancelled) return;
-        setAlliancesError(
-          err instanceof Error ? err.message : t("allianceLoadFailed"),
-        );
-      } finally {
-        if (!cancelled) {
-          setAlliancesLoading(false);
-        }
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [t]);
 
   async function saveTimezone(nextTimezone: AccountTimezoneId) {
     setTimezoneSaving(true);
@@ -137,43 +82,6 @@ export function SettingsConnectionForm({
       setMessage(t("timezoneSaveFailed"));
     } finally {
       setTimezoneSaving(false);
-    }
-  }
-
-  async function saveAlliance() {
-    if (!selectedAllianceId) {
-      setMessage(t("allianceRequired"));
-      return;
-    }
-    setAllianceSaving(true);
-    setMessage(null);
-    try {
-      const res = await fetch("/api/settings/connection", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ allianceId: selectedAllianceId }),
-      });
-      const data = (await res.json()) as {
-        error?: string;
-        alliance?: { tag: string; name?: string };
-      };
-      if (!res.ok) {
-        setMessage(data.error ?? t("allianceSaveFailed"));
-        return;
-      }
-      setMessage(
-        data.alliance
-          ? t("allianceSaved", {
-              tag: data.alliance.tag,
-              name: data.alliance.name ?? data.alliance.tag,
-            })
-          : t("allianceSavedGeneric"),
-      );
-      router.refresh();
-    } catch {
-      setMessage(t("allianceSaveFailed"));
-    } finally {
-      setAllianceSaving(false);
     }
   }
 
@@ -221,44 +129,12 @@ export function SettingsConnectionForm({
     }
   }
 
-  const canSaveAlliance =
-    !!selectedAllianceId &&
-    (accessibleAlliances.length === 1 ||
-      selectedAllianceId !== initialAllianceId);
-
   return (
     <div className="mx-auto max-w-lg space-y-6">
       <div>
         <h1 className="text-2xl font-semibold">{t("title")}</h1>
         <p className="mt-1 text-sm text-[#8b949e]">{t("subtitle")}</p>
       </div>
-
-      <section className="rounded-xl border border-[#30363d] bg-[#161b22] p-5">
-        <h2 className="font-medium">{t("allianceSection")}</h2>
-        <p className="mt-2 text-sm text-[#8b949e]">{t("allianceBody")}</p>
-        <div className="mt-4">
-          <AlliancePicker
-            alliances={accessibleAlliances}
-            selectedAllianceId={selectedAllianceId}
-            onSelect={setSelectedAllianceId}
-            label={t("alliancePickerLabel")}
-            hint={t("alliancePickerHint")}
-            emptyMessage={alliancesError ?? t("allianceNone")}
-            loading={alliancesLoading}
-            loadingMessage={t("allianceLoading")}
-          />
-        </div>
-        <button
-          type="button"
-          onClick={() => void saveAlliance()}
-          disabled={allianceSaving || !canSaveAlliance || alliancesLoading}
-          className="mt-4 rounded-lg border border-[#238636] bg-[#238636] px-4 py-2 text-sm text-white disabled:opacity-50"
-        >
-          {allianceSaving ? t("allianceSaving") : t("allianceSave")}
-        </button>
-      </section>
-
-      <AllianceSeasonSettings />
 
       <section className="rounded-xl border border-[#30363d] bg-[#161b22] p-5">
         <h2 className="font-medium">{t("timezoneSection")}</h2>
@@ -354,20 +230,17 @@ export function SettingsConnectionForm({
         </button>
       </section>
 
-      {message && (
+      {message ? (
         <p
           className={`text-sm ${
-            message === t("reminderSaved") ||
-            message === t("timezoneSaved") ||
-            message === t("allianceSavedGeneric") ||
-            message.includes("Linked to")
+            message === t("reminderSaved") || message === t("timezoneSaved")
               ? "text-[#3fb950]"
               : "text-[#f85149]"
           }`}
         >
           {message}
         </p>
-      )}
+      ) : null}
 
       <section className="rounded-xl border border-[#30363d] bg-[#161b22] p-5 text-sm text-[#8b949e]">
         <p>
