@@ -12,7 +12,7 @@ const bodySchema = z.object({
   tag: z.string().trim().min(1).max(32),
   ownerEmail: z.string().trim().email().optional(),
   ownerRole: z
-    .enum(["owner", "officer", "data_entry", "viewer"])
+    .enum(["owner", "officer", "data_entry", "viewer", "member"])
     .optional(),
 });
 

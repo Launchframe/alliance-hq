@@ -305,6 +305,7 @@
       "inviteRole": "Role",
       "roleOwner": "Owner",
       "roleOfficer": "Officer",
+      "roleMember": "Member",
       "inviteButton": "Generate invite link",
       "inviteRedirectOptional": "Landing page after accept (optional)",
       "inviteRedirectHint": "Internal path only, e.g. /trains or /members. Appended to the invite link as ?next=…",

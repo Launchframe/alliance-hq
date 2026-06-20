@@ -16,6 +16,7 @@ const ROLE_IDS = {
   officer: "role-officer",
   data_entry: "role-data-entry",
   viewer: "role-viewer",
+  member: "role-member",
 };
 
 const HQ_PERMISSIONS = [
@@ -60,6 +61,11 @@ async function main() {
   roleTemplates.officer.permissions = [
     ...new Set([...roleTemplates.officer.permissions, "trains:write"]),
   ];
+  roleTemplates.member = {
+    description:
+      "HQ member — read-only access to alliance resources and personal account settings",
+    permissions: [...roleTemplates.viewer.permissions],
+  };
 
   const url = getDatabaseUrl();
   const client = postgres(url, { max: 1, prepare: false });
@@ -93,6 +99,11 @@ async function main() {
       id: ROLE_IDS.viewer,
       name: "viewer",
       description: roleTemplates.viewer.description,
+    },
+    {
+      id: ROLE_IDS.member,
+      name: "member",
+      description: roleTemplates.member.description,
     },
   ];
 

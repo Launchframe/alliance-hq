@@ -36,7 +36,9 @@ export function AdminNativeAlliancePanel({
   const [ownerEmail, setOwnerEmail] = useState("");
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRedirectPath, setInviteRedirectPath] = useState("");
-  const [inviteRole, setInviteRole] = useState<"owner" | "officer">("officer");
+  const [inviteRole, setInviteRole] = useState<"owner" | "officer" | "member">(
+    "officer",
+  );
   const [lastInviteUrl, setLastInviteUrl] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -200,12 +202,13 @@ export function AdminNativeAlliancePanel({
             <select
               value={inviteRole}
               onChange={(e) =>
-                setInviteRole(e.target.value as "owner" | "officer")
+                setInviteRole(e.target.value as "owner" | "officer" | "member")
               }
               className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
             >
               <option value="owner">{t("roleOwner")}</option>
               <option value="officer">{t("roleOfficer")}</option>
+              <option value="member">{t("roleMember")}</option>
             </select>
           </label>
           <label className="space-y-1 text-sm sm:col-span-2">

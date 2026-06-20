@@ -16,6 +16,7 @@ describe("system-roles", () => {
   it("maps role names and ids", () => {
     expect(systemRoleIdForName("owner")).toBe("role-owner");
     expect(systemRoleNameForId("role-viewer")).toBe("viewer");
+    expect(systemRoleNameForId("role-member")).toBe("member");
     expect(systemRoleNameForId("missing")).toBeNull();
   });
 });

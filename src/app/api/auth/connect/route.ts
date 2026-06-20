@@ -19,6 +19,7 @@ import {
 } from "@/lib/connectionString";
 import { syncAshedAllianceRoles } from "@/lib/rbac/sync-ashed-roles";
 import { maybeBootstrapPlatformMaintainer } from "@/lib/rbac/bootstrap-platform";
+import { getRbacContext } from "@/lib/rbac/context";
 import {
   getOrCreateSession,
   getSessionState,
@@ -44,6 +45,19 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    const session = await getOrCreateSession();
+    const sessionRbac = await getRbacContext(session.id);
+    if (sessionRbac?.roleName === "member") {
+      return NextResponse.json(
+        {
+          error:
+            "Your invite role does not include Ashed connection access. Ask an admin if this needs to change.",
+          code: "connect_not_allowed_for_member",
+        },
+        { status: 403 },
+      );
+    }
+
     const locale = await getLocale();
     const body = (await request.json()) as {
       input?: string;
@@ -94,7 +108,6 @@ export async function POST(request: Request) {
       },
     );
 
-    const session = await getOrCreateSession();
     const ashed = await storeAshedConnection(
       session.id,
       parsed.connection,

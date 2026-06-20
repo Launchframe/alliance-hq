@@ -5,6 +5,7 @@ export const ROLE_IDS = {
   officer: "role-officer",
   data_entry: "role-data-entry",
   viewer: "role-viewer",
+  member: "role-member",
 } as const;
 
 export type SystemRoleName = keyof typeof ROLE_IDS;
