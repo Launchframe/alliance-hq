@@ -75,6 +75,9 @@ export default async function AppLayout({
       <AshedShell
         sessionId={state.sessionId}
         userLabel={state.userLabel}
+        displayName={state.rbac?.displayName ?? null}
+        userEmail={state.rbac?.email ?? null}
+        avatarUrl={state.rbac?.avatarUrl ?? null}
         isConnected={state.isConnected}
         hasAppAccess={state.hasAppAccess}
         isNativeAlliance={state.isNativeAlliance}
@@ -82,7 +85,11 @@ export default async function AppLayout({
         canUseAshedEmbeds={state.canUseAshedEmbeds}
         ashed={state.ashed}
         showAdminPortal={state.rbac?.isPlatformMaintainer ?? false}
-        showTeamSettings={state.rbac?.isAllianceAdmin ?? false}
+        showTeamAccess={state.hasActiveMembership}
+        currentAllianceId={
+          state.currentAllianceId ?? state.allianceId ?? null
+        }
+        membershipAlliances={state.membershipAlliances}
       >
         {children}
       </AshedShell>

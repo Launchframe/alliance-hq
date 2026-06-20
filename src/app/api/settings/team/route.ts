@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 
+import { resolveSessionAllianceId } from "@/lib/alliance/session-memberships";
+import { sessionHasActiveMembership } from "@/lib/native-alliance/access";
 import { getAshedConnection, loadSession, readSessionId } from "@/lib/session";
 import { requireAllianceAdmin } from "@/lib/rbac/require-permission";
 import {
@@ -13,18 +15,25 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const denied = await requireAllianceAdmin(sessionId);
-  if (denied) return denied;
-
   const session = await loadSession(sessionId);
-  if (!session?.currentAllianceId) {
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const hasMembership = await sessionHasActiveMembership(session);
+  if (!hasMembership) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const allianceId = resolveSessionAllianceId(session);
+  if (!allianceId) {
     return NextResponse.json(
-      { error: "Alliance context required. Reconnect from Settings." },
+      { error: "Alliance context required. Select an alliance from the sidebar." },
       { status: 400 },
     );
   }
 
-  const team = await getAllianceTeam(session.currentAllianceId);
+  const team = await getAllianceTeam(allianceId);
   return NextResponse.json({ team });
 }
 
@@ -86,9 +95,10 @@ export async function POST() {
   });
 
   const refreshed = await loadSession(sessionId);
-  const team = refreshed?.currentAllianceId
-    ? await getAllianceTeam(refreshed.currentAllianceId)
-    : [];
+  const allianceId = refreshed
+    ? resolveSessionAllianceId(refreshed)
+    : null;
+  const team = allianceId ? await getAllianceTeam(allianceId) : [];
 
   return NextResponse.json({ ok: true, team });
 }

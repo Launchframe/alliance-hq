@@ -4,12 +4,14 @@ import { getDb, schema } from "@/lib/db";
 import { loadSession } from "@/lib/session";
 
 import { ALLIANCE_ADMIN_PERMISSION } from "./constants";
+import { ensureHqUserAvatarFresh } from "@/lib/profile/resolve-avatar";
 
 export type RbacContext = {
   sessionId: string;
   hqUserId: string;
   email: string;
   displayName: string | null;
+  avatarUrl: string | null;
   isPlatformMaintainer: boolean;
   currentAllianceId: string | null;
   roleName: string | null;
@@ -86,11 +88,17 @@ export async function getRbacContext(
     permissions.add("hq:admin");
   }
 
+  const avatarUrl = await ensureHqUserAvatarFresh(
+    user,
+    session.currentAllianceId,
+  );
+
   return {
     sessionId,
     hqUserId: user.id,
     email: user.email,
     displayName: user.displayName,
+    avatarUrl,
     isPlatformMaintainer,
     currentAllianceId: session.currentAllianceId,
     roleName,

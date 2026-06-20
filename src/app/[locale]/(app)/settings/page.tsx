@@ -1,25 +1,31 @@
-import { getLocale } from "next-intl/server";
+import { redirect } from "@/i18n/navigation";
 
-import { SettingsConnectionForm } from "@/components/SettingsConnectionForm";
-import {
-  getAshedConnectionMeta,
-  requirePageSession,
-} from "@/lib/session";
-import { getAccountTimezoneIdForSession } from "@/lib/timezone/server";
+import { AllianceSettingsForm } from "@/components/AllianceSettingsForm";
+import { resolveSessionAllianceId } from "@/lib/alliance/session-memberships";
+import { sessionHasActiveMembership } from "@/lib/native-alliance/access";
+import { requirePageSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
-export default async function SettingsPage() {
-  const locale = await getLocale();
+export default async function SettingsPage({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}) {
+  const { locale } = await params;
   const session = await requirePageSession("/settings");
-  const ashed = await getAshedConnectionMeta(session.id, locale);
-  const timezone = await getAccountTimezoneIdForSession(session.id);
+  const hasMembership = await sessionHasActiveMembership(session);
+
+  if (!hasMembership) {
+    redirect({ href: "/account", locale });
+  }
+
+  const allianceId = resolveSessionAllianceId(session);
 
   return (
-    <SettingsConnectionForm
-      initialAshed={ashed}
-      initialAllianceId={session.allianceId}
-      initialTimezoneId={timezone}
+    <AllianceSettingsForm
+      allianceTag={session.allianceTag}
+      showTeamLink={Boolean(allianceId)}
     />
   );
 }

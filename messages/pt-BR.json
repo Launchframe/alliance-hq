@@ -80,6 +80,8 @@
     "videoUpload": "Upload de vídeo",
     "videoUploadDescription": "Extrair capturas de tela do placar a partir de uma gravação de tela",
     "openAshed": "Abra o Ashed",
+    "account": "Conta",
+    "allianceSettings": "Configurações da aliança",
     "settings": "Configurações",
     "team": "Acesso da equipe",
     "adminPortal": "Portal admin"
@@ -645,15 +647,17 @@
   },
   "team": {
     "title": "Acesso da equipe",
-    "description": "Funções sincronizadas do proprietário e colaboradores da aliança no Ashed.",
-    "backToSettings": "Configurações",
+    "titleWithTag": "Acesso da equipe — {tag}",
+    "unknownAlliance": "Aliança",
+    "description": "Usuários HQ com acesso a esta aliança e suas funções. As funções podem vir da sincronização Ashed ou de atribuição manual por mantenedores da plataforma.",
+    "backToSettings": "Configurações da aliança",
     "refreshFromAshed": "Atualizar do Ashed",
     "refreshing": "Atualizando…",
     "loadFailed": "Não foi possível carregar a equipe.",
     "refreshFailed": "Falha na atualização — verifique seu token Ashed.",
-    "empty": "Nenhum membro da equipe sincronizado ainda.",
-    "forbidden": "Acesso de admin da aliança necessário.",
-    "ashedNote": "Para adicionar ou remover mantenedores, atualize colaboradores no Ashed → Alianças e atualize aqui.",
+    "empty": "Nenhum membro da equipe ainda.",
+    "forbidden": "Membro da aliança necessário.",
+    "ashedNote": "Admins da aliança: para adicionar ou remover mantenedores da sincronização Ashed, atualize colaboradores no Ashed → Alianças e atualize aqui.",
     "table": {
       "user": "Usuário",
       "role": "Função",
@@ -670,7 +674,18 @@
     "connectPrompt": "Conecte sua conta Ashed →",
     "openMenu": "Abrir menu de navegação",
     "closeMenu": "Fechar menu de navegação",
-    "version": "v{version}"
+    "version": "v{version}",
+    "profileMenu": {
+      "openMenu": "Abrir menu do perfil",
+      "profile": "Perfil",
+      "account": "Conta",
+      "adminPortal": "Portal admin",
+      "connect": "Conectar Ashed",
+      "disconnect": "Desconectar",
+      "disconnecting": "Desconectando…",
+      "unknownUser": "Usuário HQ",
+      "unknownEmail": "Sem e-mail cadastrado"
+    }
   },
   "dashboard": {
     "title": "Painel de Controle",
@@ -836,7 +851,13 @@
   },
   "settings": {
     "title": "Configurações",
+    "titleAlliance": "Configurações da aliança",
+    "titleWithTag": "Configurações da aliança — {tag}",
     "subtitle": "Gerencie sua conexão com o Ashed e as preferências do Alliance HQ.",
+    "subtitleAlliance": "Configurações da aliança selecionada na barra lateral — temporada, acesso da equipe e opções relacionadas.",
+    "teamSectionTitle": "Acesso da equipe",
+    "teamSectionBody": "Veja os usuários HQ que podem acessar esta aliança e suas funções.",
+    "teamSectionLink": "Abrir lista da equipe",
     "allianceSection": "Sua aliança",
     "allianceBody": "O Alliance HQ limita correspondência de membros e envio de pontuações a uma aliança. Detectamos alianças em que você é proprietário ou colaborador no Ashed.",
     "alliancePickerLabel": "Aliança",
@@ -890,6 +911,47 @@
         "default": "Padrão"
       }
     }
+  },
+  "account": {
+    "title": "Conta",
+    "subtitle": "Suas preferências pessoais, conexão Ashed e dispositivos vinculados.",
+    "tokenSection": "Token do Ashed",
+    "remindMe": "Lembre-me",
+    "reminderOption": "{days, plural, one {# dia} other {# dias}} antes da expiração",
+    "reconnectHint": "Reconecte-se para atualizar seu token e ver a data de expiração.",
+    "disconnectSection": "Desconectar",
+    "disconnectBody": "Remove a chave de conexão armazenada do nosso servidor. Você pode se reconectar a qualquer momento usando o guia de configuração.",
+    "disconnecting": "Desconectando…",
+    "disconnectButton": "Desconectar Ashed",
+    "reminderSaved": "Preferência de lembrete salva",
+    "reminderSaveFailed": "Não foi possível salvar a preferência de lembrete",
+    "timezoneSection": "Fuso horário",
+    "timezoneBody": "Datas e horários no Alliance HQ usam o fuso horário da sua conta. Horário do Servidor (UTC−02:00) corresponde ao relógio do jogo e é o padrão até você escolher outro fuso.",
+    "timezoneLabel": "Fuso horário de exibição",
+    "timezoneServerTime": "Horário do Servidor",
+    "timezoneSaved": "Fuso horário salvo",
+    "timezoneSaveFailed": "Não foi possível salvar o fuso horário",
+    "aboutBody": "O Alliance HQ, em <strong>alliance-hq.vercel.app</strong>, é uma interface comunitária para o <link>ashed.online</link>. Todos os créditos pelos dados da aliança pertencem ao Ashed."
+  },
+  "profile": {
+    "title": "Perfil",
+    "subtitle": "Sua identidade HQ na sessão atual.",
+    "displayName": "Nome de exibição",
+    "email": "E-mail",
+    "allianceRole": "Função na aliança",
+    "allianceRoleValue": "{tag} · {role}",
+    "maintainerBadge": "Mantenedor da plataforma",
+    "accountSettingsLink": "Configurações da conta",
+    "unknownUser": "Usuário HQ",
+    "unknownEmail": "Sem e-mail cadastrado"
+  },
+  "alliancePicker": {
+    "label": "Aliança",
+    "placeholder": "Selecione uma aliança…",
+    "loading": "Carregando alianças…",
+    "loadFailed": "Não foi possível carregar alianças.",
+    "switchFailed": "Não foi possível trocar de aliança.",
+    "contextHint": "Visualizando dados de {tag}"
   },
   "deviceLink": {
     "sectionTitle": "Vincular dispositivo móvel",

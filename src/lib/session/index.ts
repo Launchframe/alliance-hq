@@ -5,6 +5,10 @@ import { nanoid } from "nanoid";
 import { redirect } from "next/navigation";
 
 import { resolveAllianceByTag } from "@/lib/alliance/resolve";
+import {
+  listSessionAlliances,
+  resolveSessionAllianceId,
+} from "@/lib/alliance/session-memberships";
 import { touchLinkedDeviceAccess } from "@/lib/credential-pairing/linked-devices";
 import { decryptSecret, encryptSecret } from "@/lib/crypto/encrypt";
 import type { ParsedConnection } from "@/lib/connectionString";
@@ -19,6 +23,7 @@ import { DEFAULT_EXPIRY_REMINDER_DAYS } from "@/lib/jwt/decode";
 import { getRbacContext } from "@/lib/rbac/context";
 import { ASHED_CONNECT_PERMISSION } from "@/lib/rbac/constants";
 import {
+  sessionHasActiveMembership,
   sessionHasAppAccess,
   sessionHasNativeMembership,
 } from "@/lib/native-alliance/access";
@@ -314,6 +319,7 @@ export async function getSessionStateFor(
   const rbac = await getRbacContext(session.id);
   const hasAppAccess = await sessionHasAppAccess(session);
   const isNativeMembership = await sessionHasNativeMembership(session);
+  const hasActiveMembership = await sessionHasActiveMembership(session);
   const operatingMode = session.currentAllianceId
     ? await getAllianceOperatingMode(session.currentAllianceId)
     : null;
@@ -325,12 +331,25 @@ export async function getSessionStateFor(
     Boolean(rbac?.isPlatformMaintainer) ||
     (connection !== null && isAshedConnectAllowed);
 
+  const membershipAlliances = session.hqUserId
+    ? await listSessionAlliances(session.hqUserId)
+    : [];
+
+  const resolvedAllianceId = resolveSessionAllianceId(session);
+  const currentAlliance =
+    membershipAlliances.find((a) => a.id === resolvedAllianceId) ??
+    membershipAlliances.find((a) => a.id === session.currentAllianceId) ??
+    null;
+
   return {
     sessionId: session.id,
     userLabel: session.userLabel,
     allianceId: session.allianceId,
     allianceTag: session.allianceTag,
     currentAllianceId: session.currentAllianceId,
+    currentAllianceTag: currentAlliance?.tag ?? session.allianceTag,
+    membershipAlliances,
+    hasActiveMembership,
     timezone,
     isConnected: connection !== null,
     hasAppAccess,
@@ -346,6 +365,8 @@ export async function getSessionStateFor(
           isAllianceAdmin: rbac.permissions.has("alliance:admin"),
           isAshedConnectAllowed,
           email: rbac.email,
+          displayName: rbac.displayName,
+          avatarUrl: rbac.avatarUrl,
         }
       : null,
   };

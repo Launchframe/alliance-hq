@@ -538,7 +538,7 @@ function MembersListMissingTag() {
       <h1 className="text-xl font-semibold text-[#e3b341]">{t("title")}</h1>
       <p className="text-sm text-[#8b949e]">{t("missingTag")}</p>
       <Link
-        href="/settings"
+        href="/account"
         className="inline-block rounded-lg border border-[#238636] bg-[#238636] px-4 py-2 text-sm text-white"
       >
         {t("goToSettings")}

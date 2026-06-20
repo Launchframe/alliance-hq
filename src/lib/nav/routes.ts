@@ -94,6 +94,12 @@ export const NAV_GROUPS: NavGroupDef[] = [
         href: "/merge-manager",
         kind: "iframe",
       },
+      {
+        id: "alliance-settings",
+        labelKey: "allianceSettings",
+        href: "/settings",
+        kind: "native",
+      },
     ],
   },
   {
@@ -199,12 +205,6 @@ export const NAV_GROUPS: NavGroupDef[] = [
         kind: "native",
         descriptionKey: "videoUploadDescription",
       },
-      {
-        id: "settings",
-        labelKey: "settings",
-        href: "/settings",
-        kind: "native",
-      },
     ],
   },
 ];
@@ -271,37 +271,49 @@ export function isNavActive(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
+/** Nav link active state — parent hubs (e.g. /settings) do not highlight on child routes. */
+export function navLinkActive(pathname: string, href: string): boolean {
+  if (href === "/") {
+    return pathname === "/";
+  }
+  if (href === "/settings") {
+    return pathname === "/settings";
+  }
+  if (href === "/account") {
+    return pathname === "/account";
+  }
+  if (href === "/profile") {
+    return pathname === "/profile";
+  }
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
+
 export function findActiveNavGroupId(
   pathname: string,
   options: {
     showAdminPortal?: boolean;
-    showTeamSettings?: boolean;
+    showTeamAccess?: boolean;
   } = {},
 ): string | null {
-  const { showAdminPortal = false, showTeamSettings = false } = options;
+  const { showAdminPortal = false, showTeamAccess = false } = options;
 
   for (const group of NAV_GROUPS) {
-    if (group.pages.some((page) => isNavActive(pathname, page.href))) {
+    if (group.pages.some((page) => navLinkActive(pathname, page.href))) {
       return group.id;
     }
 
-    if (group.id !== "hq-native") {
+    if (group.id === "alliance-management") {
+      const teamHrefs = showTeamAccess ? ["/settings/team"] : [];
+      if (teamHrefs.some((href) => navLinkActive(pathname, href))) {
+        return group.id;
+      }
       continue;
     }
 
-    const extraHrefs = [
-      ...(showTeamSettings ? ["/settings/team"] : []),
-      ...(showAdminPortal ? ["/admin"] : []),
-    ];
-
-    if (
-      extraHrefs.some((href) =>
-        href === "/admin"
-          ? pathname.startsWith("/admin")
-          : isNavActive(pathname, href),
-      )
-    ) {
-      return group.id;
+    if (group.id === "hq-native") {
+      if (showAdminPortal && pathname.startsWith("/admin")) {
+        return group.id;
+      }
     }
   }
 

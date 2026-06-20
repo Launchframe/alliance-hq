@@ -12,12 +12,65 @@ export type LastWarPlayerLookupResponse = {
   data?: {
     gameUserName?: string;
     userName?: string;
+    headPic?: string;
+    avatar?: string;
+    picUrl?: string;
+    userPic?: string;
+    headImg?: string;
+    portrait?: string;
+    photo?: string;
+    avatarUrl?: string;
+    [key: string]: unknown;
   };
 };
 
 export type LastWarPlayerLookupResult =
-  | { ok: true; gameUserName: string }
+  | { ok: true; gameUserName: string; avatarUrl?: string }
   | { ok: false; reason: "invalid_uid" | "not_found" | "request_failed"; message: string };
+
+const LASTWAR_AVATAR_FIELD_KEYS = [
+  "headPic",
+  "avatar",
+  "picUrl",
+  "userPic",
+  "headImg",
+  "portrait",
+  "photo",
+  "avatarUrl",
+] as const;
+
+const LASTWAR_AVATAR_BASE_URL =
+  process.env.LASTWAR_AVATAR_BASE_URL?.trim() ??
+  "https://lastwar-h5.lastwargame.com";
+
+export function normalizeLastWarAvatarUrl(raw: string): string | undefined {
+  const trimmed = raw.trim();
+  if (!trimmed) return undefined;
+  if (trimmed.startsWith("https://") || trimmed.startsWith("http://")) {
+    return trimmed;
+  }
+  if (trimmed.startsWith("//")) {
+    return `https:${trimmed}`;
+  }
+  if (trimmed.startsWith("/")) {
+    return `${LASTWAR_AVATAR_BASE_URL}${trimmed}`;
+  }
+  return undefined;
+}
+
+export function parseLastWarAvatarUrl(
+  data: LastWarPlayerLookupResponse["data"],
+): string | undefined {
+  if (!data) return undefined;
+  for (const key of LASTWAR_AVATAR_FIELD_KEYS) {
+    const value = data[key];
+    if (typeof value === "string") {
+      const normalized = normalizeLastWarAvatarUrl(value);
+      if (normalized) return normalized;
+    }
+  }
+  return undefined;
+}
 
 export function parseLastWarLookupResponse(
   body: LastWarPlayerLookupResponse,
@@ -44,7 +97,12 @@ export function parseLastWarLookupResponse(
       message: "Player lookup returned no name.",
     };
   }
-  return { ok: true, gameUserName: gameUserName.trim() };
+  const avatarUrl = parseLastWarAvatarUrl(body.data);
+  return {
+    ok: true,
+    gameUserName: gameUserName.trim(),
+    ...(avatarUrl ? { avatarUrl } : {}),
+  };
 }
 
 export async function lookupPlayerByUid(

@@ -1,6 +1,7 @@
 {
   "code": 0,
   "data": {
-    "gameUserName": "TestCommander"
+    "gameUserName": "TestCommander",
+    "headPic": "/avatars/test-commander.png"
   }
 }
