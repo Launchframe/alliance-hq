@@ -29,7 +29,7 @@ import {
 import { Dialog } from "@/components/ui/dialog";
 import { AppSelect } from "@/components/ui/AppSelect";
 import { Link } from "@/i18n/navigation";
-import { getMonthKey, monthEndFromKey, monthStartFromKey, isCalendarDateOnOrAfter } from "@/lib/trains/game-time";
+import { getMonthKey, getWeekStartMonday, monthEndFromKey, monthStartFromKey, isCalendarDateOnOrAfter } from "@/lib/trains/game-time";
 import type {
   MonthSchedulePagePayload,
   TrainsDashboardPayload,
@@ -273,6 +273,45 @@ export function TrainsDashboard({ initial }: Props) {
     const body = (await res.json()) as MonthSchedulePagePayload;
     handleMonthChange(body);
   }, [handleMonthChange, t]);
+
+  const fetchWeek = useCallback(
+    async (weekStart: string) => {
+      const res = await fetch(
+        `/api/trains/schedule/week?weekStart=${encodeURIComponent(weekStart)}`,
+      );
+      if (!res.ok) {
+        setError(t("weekLoadFailed"));
+        return;
+      }
+      const body = (await res.json()) as WeekSchedulePagePayload;
+      handleWeekChange(body);
+    },
+    [handleWeekChange, t],
+  );
+
+  const goToToday = useCallback(() => {
+    const today = data.today;
+    setSelectedDate(today);
+    if (scheduleView === "month") {
+      void fetchMonth(getMonthKey(today));
+      return;
+    }
+    void fetchWeek(getWeekStartMonday(today));
+  }, [data.today, fetchMonth, fetchWeek, scheduleView]);
+
+  const isOnTodayView = useMemo(() => {
+    if (selectedDate !== data.today) return false;
+    if (scheduleView === "month") {
+      return viewedMonth.monthKey === getMonthKey(data.today);
+    }
+    return viewedWeek.weekStart === getWeekStartMonday(data.today);
+  }, [
+    data.today,
+    scheduleView,
+    selectedDate,
+    viewedMonth.monthKey,
+    viewedWeek.weekStart,
+  ]);
 
   const handleScheduleViewChange = useCallback(
     (view: ScheduleView) => {
@@ -700,7 +739,7 @@ export function TrainsDashboard({ initial }: Props) {
         cutoffDate,
       });
     },
-    [applyWeekTemplate, data.schedule, data.weekStart, viewedWeek],
+    [applyWeekTemplate, data.schedule, data.weekStart, viewedWeek, setPendingTemplateChange],
   );
 
   const confirmPendingTemplateChange = useCallback(() => {
@@ -760,6 +799,28 @@ export function TrainsDashboard({ initial }: Props) {
     conductorPaint,
   );
   const selectedVipSpinSource = vipSpinSource(vipMech);
+  const showConductorSpinButton = canSpinConductor(
+    selectedDayConfig?.conductorMechanism,
+    locked,
+    conductorPaint,
+  );
+  const showConductorTopScorer =
+    conductorMech === "vs_high_score" || conductorMech === "donations_top";
+  const showConductorReseed =
+    conductorMech === "r3_lottery" || conductorMech === "r4_sequence";
+  const showConductorLock = !locked && Boolean(selectedRecord?.conductorMemberId);
+  const showConductorUnlock = locked && data.canUnlockConductor;
+  const showConductorQuickSection =
+    selectedConductorSpinSource != null ||
+    showConductorSpinButton ||
+    showConductorTopScorer ||
+    canManualPick ||
+    showConductorLock ||
+    showConductorUnlock ||
+    showConductorReseed;
+  const showVipSpinButton = canSpinVip(vipMech, locked);
+  const showVipQuickSection =
+    selectedVipSpinSource != null || showVipSpinButton || canManualPickVip;
   const selectedPoolDetailOptions = useMemo((): PoolDetailsOption[] => {
     const options: PoolDetailsOption[] = [];
     if (isPoolSpinSource(selectedConductorSpinSource)) {
@@ -862,6 +923,18 @@ export function TrainsDashboard({ initial }: Props) {
             />
           </div>
 
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={() => goToToday()}
+              disabled={isOnTodayView}
+              aria-label={t("goToTodayAria")}
+              className="rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-1.5 text-xs font-medium text-[#e6edf3] hover:bg-[#161b22] disabled:cursor-default disabled:opacity-50"
+            >
+              {t("goToToday")}
+            </button>
+          </div>
+
           {scheduleView === "week" ? (
             <WeekScheduleStrip
               today={data.today}
@@ -947,145 +1020,177 @@ export function TrainsDashboard({ initial }: Props) {
           ) : null}
 
           {/* Quick actions */}
-          {data.canManageTrains && dayIsActionable ? (
-            <div className="flex flex-col gap-3 border-t border-[#30363d] pt-4">
-              <h3 className="text-sm font-medium text-[#8b949e]">
-                {t("quickActions")}
-              </h3>
-              <TrainSpinSourcePanel
-                conductorSource={selectedConductorSpinSource}
-                vipSource={selectedVipSpinSource}
-                pools={data.pools}
-                showConductorSpin={selectedConductorSpinSource != null}
-                showVipSpin={selectedVipSpinSource != null}
-                onViewPool={openPoolDetails}
-              />
-              <div className="flex flex-wrap gap-2">
-                {canSpinConductor(
-                  selectedDayConfig?.conductorMechanism,
-                  locked,
-                  conductorPaint,
-                ) ? (
-                  <button
-                    type="button"
-                    onClick={() => void runRoll("conductor")}
-                    className="rounded-lg bg-[#8957e5] px-4 py-2 text-sm font-medium text-white hover:bg-[#9d6ff0] w-full sm:w-auto"
+          {data.canManageTrains &&
+          dayIsActionable &&
+          (showConductorQuickSection || showVipQuickSection) ? (
+            <div className="flex flex-col gap-4 border-t border-[#30363d] pt-4">
+              {showConductorQuickSection ? (
+                <section
+                  className="flex flex-col gap-2"
+                  aria-labelledby="trains-quick-actions-conductor"
+                >
+                  <h3
+                    id="trains-quick-actions-conductor"
+                    className="text-sm font-medium text-[#c9d1d9]"
                   >
-                    {conductorMech === "r4_sequence" && nextInSequence
-                      ? t("assignNextInSequence", {
-                          name: nextInSequence.memberName,
-                        })
-                      : t("spinWheel")}
-                  </button>
-                ) : null}
-                {conductorMech === "vs_high_score" ||
-                conductorMech === "donations_top" ? (
-                  <button
-                    type="button"
-                    disabled={locked}
-                    onClick={() => void runRoll("conductor")}
-                    className="rounded-lg bg-[#238636] px-4 py-2 text-sm font-medium text-white hover:bg-[#2ea043] disabled:opacity-50 w-full sm:w-auto"
-                  >
-                    {t("pickTopScorer")}
-                  </button>
-                ) : null}
-                {canManualPick ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPickRole("conductor");
-                      setPickOpen(true);
-                    }}
-                    className="rounded-lg border border-[#30363d] bg-[#0d1117] px-4 py-2 text-sm font-medium text-[#e6edf3] hover:bg-[#161b22] w-full sm:w-auto"
-                  >
-                    {t("pickConductorManually")}
-                  </button>
-                ) : null}
-                {canSpinVip(vipMech, locked) ? (
-                  <button
-                    type="button"
-                    onClick={() => void runRoll("vip")}
-                    className="rounded-lg bg-[#bf8700] px-4 py-2 text-sm font-medium text-white hover:bg-[#d29922] w-full sm:w-auto"
-                  >
-                    {t("spinVipWheel")}
-                  </button>
-                ) : null}
-                {canManualPickVip ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPickRole("vip");
-                      setPickOpen(true);
-                    }}
-                    className="rounded-lg border border-[#30363d] bg-[#0d1117] px-4 py-2 text-sm font-medium text-[#e6edf3] hover:bg-[#161b22] w-full sm:w-auto"
-                  >
-                    {t("pickVipManually")}
-                  </button>
-                ) : null}
-                {!locked && selectedRecord?.conductorMemberId ? (
-                  <button
-                    type="button"
-                    onClick={() => void lockConductor()}
-                    className="rounded-lg bg-[#238636] px-4 py-2 text-sm font-medium text-white hover:bg-[#2ea043] w-full sm:w-auto"
-                  >
-                    {t("lockConductor")}
-                  </button>
-                ) : null}
-                {locked && data.canUnlockConductor ? (
-                  unlockConfirm ? (
-                    <div className="flex w-full flex-wrap items-center gap-2 rounded-lg border border-[#da3633]/40 bg-[#da3633]/10 px-3 py-2">
-                      <span className="text-sm text-[#f85149]">
-                        {t("unlockConfirm")}
-                      </span>
+                    {t("quickActionsConductor")}
+                  </h3>
+                  <TrainSpinSourcePanel
+                    role="conductor"
+                    conductorSource={selectedConductorSpinSource}
+                    vipSource={selectedVipSpinSource}
+                    pools={data.pools}
+                    showConductorSpin={selectedConductorSpinSource != null}
+                    showVipSpin={false}
+                    onViewPool={openPoolDetails}
+                  />
+                  <div className="flex flex-wrap gap-2">
+                    {showConductorSpinButton ? (
                       <button
                         type="button"
-                        onClick={() => setUnlockConfirm(false)}
-                        className="rounded-md border border-[#30363d] px-3 py-1.5 text-xs text-[#e6edf3] hover:bg-[#0d1117]"
+                        onClick={() => void runRoll("conductor")}
+                        className="w-full rounded-lg bg-[#8957e5] px-4 py-2 text-sm font-medium text-white hover:bg-[#9d6ff0] sm:w-auto"
                       >
-                        {t("unlockCancel")}
+                        {conductorMech === "r4_sequence" && nextInSequence
+                          ? t("assignNextInSequence", {
+                              name: nextInSequence.memberName,
+                            })
+                          : t("spinWheel")}
+                      </button>
+                    ) : null}
+                    {showConductorTopScorer ? (
+                      <button
+                        type="button"
+                        disabled={locked}
+                        onClick={() => void runRoll("conductor")}
+                        className="w-full rounded-lg bg-[#238636] px-4 py-2 text-sm font-medium text-white hover:bg-[#2ea043] disabled:opacity-50 sm:w-auto"
+                      >
+                        {t("pickTopScorer")}
+                      </button>
+                    ) : null}
+                    {canManualPick ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPickRole("conductor");
+                          setPickOpen(true);
+                        }}
+                        className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-4 py-2 text-sm font-medium text-[#e6edf3] hover:bg-[#161b22] sm:w-auto"
+                      >
+                        {t("pickConductorManually")}
+                      </button>
+                    ) : null}
+                    {showConductorLock ? (
+                      <button
+                        type="button"
+                        onClick={() => void lockConductor()}
+                        className="w-full rounded-lg bg-[#238636] px-4 py-2 text-sm font-medium text-white hover:bg-[#2ea043] sm:w-auto"
+                      >
+                        {t("lockConductor")}
+                      </button>
+                    ) : null}
+                    {showConductorUnlock ? (
+                      unlockConfirm ? (
+                        <div className="flex w-full flex-wrap items-center gap-2 rounded-lg border border-[#da3633]/40 bg-[#da3633]/10 px-3 py-2">
+                          <span className="text-sm text-[#f85149]">
+                            {t("unlockConfirm")}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setUnlockConfirm(false)}
+                            className="rounded-md border border-[#30363d] px-3 py-1.5 text-xs text-[#e6edf3] hover:bg-[#0d1117]"
+                          >
+                            {t("unlockCancel")}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void unlockConductor()}
+                            className="rounded-md bg-[#da3633] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#f85149]"
+                          >
+                            {t("unlockConfirmAction")}
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setUnlockConfirm(true)}
+                          className="w-full rounded-lg border border-[#da3633]/60 bg-[#da3633]/10 px-4 py-2 text-sm font-medium text-[#f85149] hover:bg-[#da3633]/20 sm:w-auto"
+                        >
+                          {t("unlockConductor")}
+                        </button>
+                      )
+                    ) : null}
+                  </div>
+                  {showConductorReseed ? (
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          void reseedPool(
+                            conductorMech === "r3_lottery" ? "r3" : "r4_plus",
+                          )
+                        }
+                        className="rounded-md border border-[#30363d] px-3 py-1.5 text-xs text-[#8b949e] hover:text-[#e6edf3]"
+                      >
+                        {t("reseedPool")}
                       </button>
                       <button
                         type="button"
-                        onClick={() => void unlockConductor()}
-                        className="rounded-md bg-[#da3633] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#f85149]"
+                        onClick={() => setReseedHintOpen(true)}
+                        aria-label={t("reseedPoolHint.infoLabel")}
+                        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[#8b949e] hover:bg-[#0d1117] hover:text-[#e6edf3]"
                       >
-                        {t("unlockConfirmAction")}
+                        <Info className="h-4 w-4" aria-hidden />
                       </button>
                     </div>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => setUnlockConfirm(true)}
-                      className="rounded-lg border border-[#da3633]/60 bg-[#da3633]/10 px-4 py-2 text-sm font-medium text-[#f85149] hover:bg-[#da3633]/20"
-                    >
-                      {t("unlockConductor")}
-                    </button>
-                  )
-                ) : null}
-              </div>
+                  ) : null}
+                </section>
+              ) : null}
 
-              {conductorMech === "r3_lottery" || conductorMech === "r4_sequence" ? (
-                <div className="flex items-center gap-1.5 self-start">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      void reseedPool(
-                        conductorMech === "r3_lottery" ? "r3" : "r4_plus",
-                      )
-                    }
-                    className="rounded-md border border-[#30363d] px-3 py-1.5 text-xs text-[#8b949e] hover:text-[#e6edf3]"
+              {showVipQuickSection ? (
+                <section
+                  className="flex flex-col gap-2"
+                  aria-labelledby="trains-quick-actions-vip"
+                >
+                  <h3
+                    id="trains-quick-actions-vip"
+                    className="text-sm font-medium text-[#c9d1d9]"
                   >
-                    {t("reseedPool")}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setReseedHintOpen(true)}
-                    aria-label={t("reseedPoolHint.infoLabel")}
-                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[#8b949e] hover:bg-[#0d1117] hover:text-[#e6edf3]"
-                  >
-                    <Info className="h-4 w-4" aria-hidden />
-                  </button>
-                </div>
+                    {t("quickActionsVip")}
+                  </h3>
+                  <TrainSpinSourcePanel
+                    role="vip"
+                    conductorSource={selectedConductorSpinSource}
+                    vipSource={selectedVipSpinSource}
+                    pools={data.pools}
+                    showConductorSpin={false}
+                    showVipSpin={selectedVipSpinSource != null}
+                    onViewPool={openPoolDetails}
+                  />
+                  <div className="flex flex-wrap gap-2">
+                    {showVipSpinButton ? (
+                      <button
+                        type="button"
+                        onClick={() => void runRoll("vip")}
+                        className="w-full rounded-lg bg-[#bf8700] px-4 py-2 text-sm font-medium text-white hover:bg-[#d29922] sm:w-auto"
+                      >
+                        {t("spinVipWheel")}
+                      </button>
+                    ) : null}
+                    {canManualPickVip ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPickRole("vip");
+                          setPickOpen(true);
+                        }}
+                        className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-4 py-2 text-sm font-medium text-[#e6edf3] hover:bg-[#161b22] sm:w-auto"
+                      >
+                        {t("pickVipManually")}
+                      </button>
+                    ) : null}
+                  </div>
+                </section>
               ) : null}
             </div>
           ) : null}

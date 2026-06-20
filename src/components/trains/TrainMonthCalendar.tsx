@@ -123,6 +123,13 @@ export function TrainMonthCalendar({
     onPaintDatesRef.current = onPaintDates;
   }, [onPaintDates, paintBrush]);
 
+  useEffect(() => {
+    if (!externalMonth) return;
+    if (externalMonth.monthKey === viewMonthKey) return;
+    setViewMonthKey(externalMonth.monthKey);
+    setPage(externalMonth);
+  }, [externalMonth, viewMonthKey]);
+
   const paintMode = Boolean(canPaint && paintBrush && onPaintDates);
 
   const applyPage = useCallback(
