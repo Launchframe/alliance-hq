@@ -225,6 +225,13 @@
       "when": 1782066000000,
       "tag": "0031_hq_user_avatars",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1782153000000,
+      "tag": "0032_hq_auth_invite_provisioning",
+      "breakpoints": true
     }
   ]
 }

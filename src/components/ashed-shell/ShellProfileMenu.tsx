@@ -38,6 +38,7 @@ export function ShellProfileMenu({
   const triggerRef = React.useRef<HTMLButtonElement>(null);
   const [open, setOpen] = React.useState(false);
   const [disconnecting, setDisconnecting] = React.useState(false);
+  const [signingOut, setSigningOut] = React.useState(false);
   const [menuRect, setMenuRect] = React.useState<{
     top: number;
     right: number;
@@ -131,7 +132,7 @@ export function ShellProfileMenu({
     return () => cancelAnimationFrame(frame);
   }, [open]);
 
-  async function disconnect() {
+  async function disconnectAshed() {
     setDisconnecting(true);
     try {
       const res = await fetch("/api/auth/disconnect", { method: "POST" });
@@ -139,10 +140,24 @@ export function ShellProfileMenu({
         return;
       }
       closeMenu();
-      router.push("/connect");
       router.refresh();
     } finally {
       setDisconnecting(false);
+    }
+  }
+
+  async function signOutHq() {
+    setSigningOut(true);
+    try {
+      const res = await fetch("/api/auth/sign-out", { method: "POST" });
+      if (!res.ok) {
+        return;
+      }
+      closeMenu();
+      router.push("/auth");
+      router.refresh();
+    } finally {
+      setSigningOut(false);
     }
   }
 
@@ -229,17 +244,31 @@ export function ShellProfileMenu({
             ) : null}
 
             <div className="mt-1 border-t border-[#30363d] pt-1">
+              {isConnected ? (
+                <button
+                  type="button"
+                  role="menuitem"
+                  className={cn(
+                    "block w-full px-3 py-2 text-left text-sm text-[#f85149] hover:bg-[#21262d]",
+                    disconnecting && "cursor-not-allowed opacity-50",
+                  )}
+                  disabled={disconnecting}
+                  onClick={() => void disconnectAshed()}
+                >
+                  {disconnecting ? t("disconnectingAshed") : t("disconnectAshed")}
+                </button>
+              ) : null}
               <button
                 type="button"
                 role="menuitem"
                 className={cn(
                   "block w-full px-3 py-2 text-left text-sm text-[#f85149] hover:bg-[#21262d]",
-                  disconnecting && "cursor-not-allowed opacity-50",
+                  signingOut && "cursor-not-allowed opacity-50",
                 )}
-                disabled={disconnecting}
-                onClick={() => void disconnect()}
+                disabled={signingOut}
+                onClick={() => void signOutHq()}
               >
-                {disconnecting ? t("disconnecting") : t("disconnect")}
+                {signingOut ? t("signingOut") : t("signOut")}
               </button>
             </div>
           </div>,

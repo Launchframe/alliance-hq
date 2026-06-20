@@ -2,6 +2,7 @@ import { getLocale } from "next-intl/server";
 
 import { ConnectFlowClient } from "@/components/ConnectFlowClient";
 import { redirect } from "@/i18n/navigation";
+import { requireAuthForPage } from "@/lib/auth/page-guard";
 import { rethrowNavigationError } from "@/lib/navigation";
 import {
   getAshedConnection,
@@ -22,6 +23,7 @@ export default async function ConnectPage({ searchParams }: Props) {
   let showWelcomeChoice = false;
 
   try {
+    await requireAuthForPage("/connect");
     const session = await requirePageSession("/connect");
     const state = await getSessionStateFor(session, locale);
     if (state.rbac && !state.rbac.isAshedConnectAllowed && state.hasAppAccess) {

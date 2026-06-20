@@ -299,11 +299,8 @@ export async function clearAshedConnection(sessionId: string) {
   await db
     .update(schema.sessions)
     .set({
-      userLabel: null,
       allianceId: null,
       allianceTag: null,
-      hqUserId: null,
-      currentAllianceId: null,
       updatedAt: new Date(),
     })
     .where(eq(schema.sessions.id, sessionId));

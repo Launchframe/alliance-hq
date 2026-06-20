@@ -14,30 +14,46 @@ type InvitePreview = {
   expired: boolean;
   accepted: boolean;
   redirectPath: string | null;
+  kind: "email" | "protected_link" | "discord_officer";
+  requiresPassphrase: boolean;
+  requiresDiscordLogin: boolean;
+  boundEmail: string | null;
 };
 
-function isValidEmail(value: string): boolean {
-  const trimmed = value.trim();
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed);
+type Props = {
+  token: string;
+  queryRedirect?: string;
+  isAuthenticated: boolean;
+  userEmail?: string | null;
+};
+
+function authCallbackPath(token: string, queryRedirect?: string): string {
+  const invitePath = `/invite/${encodeURIComponent(token)}`;
+  if (!queryRedirect) {
+    return invitePath;
+  }
+  return `${invitePath}?next=${encodeURIComponent(queryRedirect)}`;
 }
 
 export function InviteAcceptClient({
   token,
   queryRedirect,
-}: {
-  token: string;
-  queryRedirect?: string;
-}) {
+  isAuthenticated,
+  userEmail,
+}: Props) {
   const t = useTranslations("invite");
   const router = useRouter();
   const [preview, setPreview] = useState<InvitePreview | null>(null);
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(userEmail ?? "");
+  const [passphrase, setPassphrase] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const emailValid = isValidEmail(email);
+  const authHref = `/auth?callbackUrl=${encodeURIComponent(authCallbackPath(token, queryRedirect))}${
+    preview?.boundEmail ? `&email=${encodeURIComponent(preview.boundEmail)}` : ""
+  }`;
 
   const postAcceptHref = useMemo(
     () =>
@@ -70,10 +86,11 @@ export function InviteAcceptClient({
   }, [t, token]);
 
   async function acceptInvite() {
-    if (!emailValid) {
-      setError(t("emailRequired"));
+    if (!isAuthenticated) {
+      router.push(authHref);
       return;
     }
+
     setSubmitting(true);
     setError(null);
     try {
@@ -83,7 +100,10 @@ export function InviteAcceptClient({
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            email: email.trim(),
+            email: preview?.kind === "email" ? email.trim() : undefined,
+            passphrase: preview?.requiresPassphrase
+              ? passphrase.trim()
+              : undefined,
             displayName: displayName.trim() || undefined,
             next: queryRedirect,
           }),
@@ -97,6 +117,10 @@ export function InviteAcceptClient({
       if (!res.ok) {
         if (body.code === "email_mismatch") {
           setError(t("emailMismatch"));
+          return;
+        }
+        if (body.code === "auth_required") {
+          router.push(authHref);
           return;
         }
         setError(body.error ?? t("acceptFailed"));
@@ -131,12 +155,23 @@ export function InviteAcceptClient({
       <div className="mx-auto max-w-md space-y-3 rounded-xl border border-[#30363d] bg-[#161b22] p-6">
         <h1 className="text-xl font-semibold">{t("title")}</h1>
         <p className="text-sm text-[#8b949e]">{t("alreadyAccepted")}</p>
-        <Link
-          href={postAcceptHref}
-          className="inline-block rounded-lg border border-[#238636] bg-[#238636] px-4 py-2 text-sm text-white"
-        >
-          {t("goToApp")}
-        </Link>
+        {!isAuthenticated ? (
+          <Link
+            href={authHref}
+            className="inline-block rounded-lg border border-[#238636] bg-[#238636] px-4 py-2 text-sm text-white"
+          >
+            {t("signInToContinue")}
+          </Link>
+        ) : (
+          <button
+            type="button"
+            disabled={submitting}
+            onClick={() => void acceptInvite()}
+            className="inline-block rounded-lg border border-[#238636] bg-[#238636] px-4 py-2 text-sm text-white disabled:opacity-50"
+          >
+            {submitting ? t("accepting") : t("goToApp")}
+          </button>
+        )}
       </div>
     );
   }
@@ -150,29 +185,75 @@ export function InviteAcceptClient({
     );
   }
 
+  if (!isAuthenticated) {
+    return (
+      <div className="mx-auto max-w-md space-y-4 rounded-xl border border-[#30363d] bg-[#161b22] p-6">
+        <h1 className="text-xl font-semibold">{t("title")}</h1>
+        <p className="text-sm text-[#8b949e]">
+          {t("introSignIn", {
+            alliance: preview.allianceName,
+            tag: preview.allianceTag ?? "—",
+            role: preview.roleName ?? "member",
+          })}
+        </p>
+        <Link
+          href={authHref}
+          className="inline-block w-full rounded-lg border border-[#238636] bg-[#238636] px-4 py-2 text-center text-sm text-white"
+        >
+          {t("signInToAccept")}
+        </Link>
+      </div>
+    );
+  }
+
   return (
     <div className="mx-auto max-w-md space-y-4 rounded-xl border border-[#30363d] bg-[#161b22] p-6">
       <h1 className="text-xl font-semibold">{t("title")}</h1>
       <p className="text-sm text-[#8b949e]">
-        {t("intro", {
-          alliance: preview.allianceName,
-          tag: preview.allianceTag ?? "—",
-          role: preview.roleName ?? "member",
-        })}
+        {preview.requiresPassphrase
+          ? t("introPassphrase", {
+              alliance: preview.allianceName,
+              tag: preview.allianceTag ?? "—",
+              role: preview.roleName ?? "member",
+            })
+          : t("intro", {
+              alliance: preview.allianceName,
+              tag: preview.allianceTag ?? "—",
+              role: preview.roleName ?? "member",
+            })}
       </p>
 
-      <label className="block space-y-1 text-sm">
-        <span className="text-[#8b949e]">{t("email")}</span>
-        <input
-          type="email"
-          required
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
-          autoComplete="email"
-        />
-        <span className="block text-xs text-[#6e7681]">{t("emailHint")}</span>
-      </label>
+      {preview.kind === "email" ? (
+        <label className="block space-y-1 text-sm">
+          <span className="text-[#8b949e]">{t("email")}</span>
+          <input
+            type="email"
+            required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
+            autoComplete="email"
+          />
+          <span className="block text-xs text-[#6e7681]">{t("emailHint")}</span>
+        </label>
+      ) : null}
+
+      {preview.requiresPassphrase ? (
+        <label className="block space-y-1 text-sm">
+          <span className="text-[#8b949e]">{t("passphrase")}</span>
+          <input
+            type="text"
+            required
+            value={passphrase}
+            onChange={(e) => setPassphrase(e.target.value)}
+            className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 font-mono"
+            autoComplete="off"
+          />
+          <span className="block text-xs text-[#6e7681]">
+            {t("passphraseHint")}
+          </span>
+        </label>
+      ) : null}
 
       <label className="block space-y-1 text-sm">
         <span className="text-[#8b949e]">{t("displayName")}</span>
@@ -188,7 +269,7 @@ export function InviteAcceptClient({
 
       <button
         type="button"
-        disabled={submitting || !emailValid}
+        disabled={submitting}
         onClick={() => void acceptInvite()}
         className="w-full rounded-lg border border-[#238636] bg-[#238636] px-4 py-2 text-sm text-white disabled:opacity-50"
       >

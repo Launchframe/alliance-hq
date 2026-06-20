@@ -31,13 +31,13 @@ export function AccountSettingsForm({
 }: Props) {
   const t = useTranslations("account");
   const tDevice = useTranslations("deviceLink");
-  const tToken = useTranslations("tokenExpiry");
   const tc = useTranslations("common");
   const locale = useLocale();
   const router = useRouter();
   const { timezoneId, setTimezoneId } = useAccountTimezone();
   const [saving, setSaving] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [ashed, setAshed] = useState(initialAshed);
   const [reminderDays, setReminderDays] = useState(
@@ -110,7 +110,7 @@ export function AccountSettingsForm({
     }
   }
 
-  async function disconnect() {
+  async function disconnectAshed() {
     setDisconnecting(true);
     setMessage(null);
     try {
@@ -120,12 +120,31 @@ export function AccountSettingsForm({
         setMessage(data.error ?? tc("disconnectFailed"));
         return;
       }
-      router.push("/connect");
+      setAshed(null);
+      setMessage(t("disconnectedAshed"));
       router.refresh();
     } catch (e) {
       setMessage(e instanceof Error ? e.message : tc("disconnectFailed"));
     } finally {
       setDisconnecting(false);
+    }
+  }
+
+  async function signOutHq() {
+    setSigningOut(true);
+    setMessage(null);
+    try {
+      const res = await fetch("/api/auth/sign-out", { method: "POST" });
+      if (!res.ok) {
+        setMessage(t("signOutFailed"));
+        return;
+      }
+      router.push("/auth");
+      router.refresh();
+    } catch {
+      setMessage(t("signOutFailed"));
+    } finally {
+      setSigningOut(false);
     }
   }
 
@@ -216,17 +235,31 @@ export function AccountSettingsForm({
         </div>
       </section>
 
+      {ashed ? (
+        <section className="rounded-xl border border-[#30363d] bg-[#161b22] p-5">
+          <h2 className="font-medium">{t("disconnectSection")}</h2>
+          <p className="mt-2 text-sm text-[#8b949e]">{t("disconnectBody")}</p>
+          <button
+            type="button"
+            onClick={() => void disconnectAshed()}
+            disabled={disconnecting}
+            className="mt-4 rounded-lg border border-[#f85149] px-4 py-2 text-sm text-[#f85149] hover:bg-[#f8514920] disabled:opacity-50"
+          >
+            {disconnecting ? t("disconnecting") : t("disconnectButton")}
+          </button>
+        </section>
+      ) : null}
+
       <section className="rounded-xl border border-[#30363d] bg-[#161b22] p-5">
-        <h2 className="font-medium">{t("disconnectSection")}</h2>
-        <p className="mt-2 text-sm text-[#8b949e]">{t("disconnectBody")}</p>
-        <p className="mt-2 text-sm text-[#8b949e]">{tToken("logoutWarning")}</p>
+        <h2 className="font-medium">{t("signOutSection")}</h2>
+        <p className="mt-2 text-sm text-[#8b949e]">{t("signOutBody")}</p>
         <button
           type="button"
-          onClick={() => void disconnect()}
-          disabled={disconnecting}
+          onClick={() => void signOutHq()}
+          disabled={signingOut}
           className="mt-4 rounded-lg border border-[#f85149] px-4 py-2 text-sm text-[#f85149] hover:bg-[#f8514920] disabled:opacity-50"
         >
-          {disconnecting ? t("disconnecting") : t("disconnectButton")}
+          {signingOut ? t("signingOut") : t("signOutButton")}
         </button>
       </section>
 
