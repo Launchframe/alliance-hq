@@ -947,24 +947,23 @@ export function TrainsDashboard({ initial }: Props) {
             <h2 className="text-sm font-medium text-[#8b949e]">
               {t("scheduleSection")}
             </h2>
-            <TrainScheduleViewToggle
-              view={scheduleView}
-              weekLabel={t("viewWeek")}
-              monthLabel={t("viewMonth")}
-              onChange={handleScheduleViewChange}
-            />
-          </div>
-
-          <div className="flex justify-end">
-            <button
-              type="button"
-              onClick={() => goToToday()}
-              disabled={isOnTodayView}
-              aria-label={t("goToTodayAria")}
-              className="rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-1.5 text-xs font-medium text-[#e6edf3] hover:bg-[#161b22] disabled:cursor-default disabled:opacity-50"
-            >
-              {t("goToToday")}
-            </button>
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <TrainScheduleViewToggle
+                view={scheduleView}
+                weekLabel={t("viewWeek")}
+                monthLabel={t("viewMonth")}
+                onChange={handleScheduleViewChange}
+              />
+              <button
+                type="button"
+                onClick={() => goToToday()}
+                disabled={isOnTodayView}
+                aria-label={t("goToTodayAria")}
+                className="rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-1.5 text-xs font-medium text-[#e6edf3] hover:bg-[#161b22] disabled:cursor-default disabled:opacity-50"
+              >
+                {t("goToToday")}
+              </button>
+            </div>
           </div>
 
           {scheduleView === "week" ? (
