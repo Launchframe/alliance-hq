@@ -1416,6 +1416,7 @@
     },
     "queuedSuccess": "Vídeo colocado na fila para processamento.",
     "recentUploads": "Envios recentes",
+    "viewAllUploads": "Ver todos os envios",
     "reviewLink": "Revisar",
     "surveyResumeLink": "Pesquisa",
     "surveyResumeLoading": "Abrindo…",
@@ -1691,6 +1692,7 @@
   },
   "ashedEmbed": {
     "description": "Esta página está hospedada no Ashed. Abra-a abaixo ou em uma nova aba — a barra lateral do seu Alliance HQ permanece aqui.",
+    "uploadVideoScores": "Enviar pontuações por vídeo",
     "openInAshed": "Abrir no Ashed ↗",
     "iframeHint": "Páginas incorporadas exigem login separado no Ashed. Se você usa login com Google no ashed.online, entre aqui com e-mail + senha. Se o quadro ficar em branco, use \"Abrir no Ashed\" acima.",
     "iframeTitle": "Ashed — {path}",

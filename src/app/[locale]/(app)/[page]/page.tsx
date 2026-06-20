@@ -1,6 +1,7 @@
 import { AshedEmbed } from "@/components/AshedEmbed";
 import { resolveAshedPath, resolveIframePage } from "@/lib/nav/routes";
 import { getSessionStateFor, requirePageSession } from "@/lib/session";
+import { getScoreTargetIdForNavHref } from "@/lib/video/score-target-nav";
 import { notFound } from "next/navigation";
 import { getLocale } from "next-intl/server";
 import { redirect } from "@/i18n/navigation";
@@ -25,6 +26,10 @@ export default async function IframeNavPage({ params }: Props) {
   }
 
   return (
-    <AshedEmbed path={ashedPath} labelKey={route.labelKey} />
+    <AshedEmbed
+      path={ashedPath}
+      labelKey={route.labelKey}
+      scoreTargetId={getScoreTargetIdForNavHref(route.href)}
+    />
   );
 }
