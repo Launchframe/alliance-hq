@@ -11,6 +11,8 @@ import {
   addCalendarDays,
   getWeekStartMonday,
 } from "@/lib/trains/game-time";
+import { buildProvisionalWeekPage } from "@/lib/client/week-schedule-provisional";
+import type { WeekTemplateType } from "@/lib/trains/types";
 
 export type WeekCarouselDayEntry = {
   day: WeekScheduleDayConfig;
@@ -20,8 +22,26 @@ export type WeekCarouselDayEntry = {
 };
 
 const EDGE_THRESHOLD = 2;
-const MAX_CAROUSEL_DAYS = 42;
-const TRIM_DAYS = 7;
+
+function templateTypeForWeek(
+  weekStart: string,
+  cache: Map<string, WeekSchedulePagePayload>,
+): WeekTemplateType {
+  const cached = cache.get(weekStart);
+  if (cached?.templateType) return cached.templateType;
+  const prev = cache.get(addCalendarDays(weekStart, -7));
+  if (prev?.templateType) return prev.templateType;
+  const next = cache.get(addCalendarDays(weekStart, 7));
+  if (next?.templateType) return next.templateType;
+  return "vs_push_week";
+}
+
+function provisionalWeekFromCache(
+  weekStart: string,
+  cache: Map<string, WeekSchedulePagePayload>,
+): WeekSchedulePagePayload {
+  return buildProvisionalWeekPage(weekStart, templateTypeForWeek(weekStart, cache));
+}
 
 function flattenWeekPage(page: WeekSchedulePagePayload): WeekCarouselDayEntry[] {
   const recordByDate = new Map(
@@ -64,6 +84,13 @@ function pagesFromCache(
   return pages;
 }
 
+function indexForDateInEntries(
+  entries: WeekCarouselDayEntry[],
+  date: string,
+): number {
+  return entries.findIndex((entry) => entry.day.date === date);
+}
+
 type Options = {
   seedPage: WeekSchedulePagePayload;
   onWeekLoadError?: (message: string) => void;
@@ -75,10 +102,16 @@ export function useWeekScheduleInfiniteDays({
 }: Options) {
   const cacheRef = useRef(new Map<string, WeekSchedulePagePayload>());
   const loadingWeeksRef = useRef(new Set<string>());
+  const seedWeekStartRef = useRef(seedPage.weekStart);
   const [days, setDays] = useState<WeekCarouselDayEntry[]>(() =>
     flattenWeekPage(seedPage),
   );
   const [bootstrapping, setBootstrapping] = useState(true);
+  const daysRef = useRef(days);
+
+  useEffect(() => {
+    daysRef.current = days;
+  }, [days]);
 
   const rememberPage = useCallback((page: WeekSchedulePagePayload) => {
     cacheRef.current.set(page.weekStart, page);
@@ -123,9 +156,18 @@ export function useWeekScheduleInfiniteDays({
     return mergeWeekPages(pages);
   }, []);
 
+  const commitDays = useCallback((next: WeekCarouselDayEntry[]) => {
+    daysRef.current = next;
+    setDays(next);
+  }, []);
+
   useEffect(() => {
     rememberPage(seedPage);
   }, [rememberPage, seedPage]);
+
+  useEffect(() => {
+    seedWeekStartRef.current = seedPage.weekStart;
+  }, [seedPage.weekStart]);
 
   useEffect(() => {
     let cancelled = false;
@@ -134,7 +176,7 @@ export function useWeekScheduleInfiniteDays({
       setBootstrapping(true);
       rememberPage(seedPage);
 
-      const anchorStart = seedPage.weekStart;
+      const anchorStart = seedWeekStartRef.current;
       const prevStart = addCalendarDays(anchorStart, -7);
       const nextStart = addCalendarDays(anchorStart, 7);
 
@@ -143,105 +185,174 @@ export function useWeekScheduleInfiniteDays({
       if (cancelled) return;
 
       const merged = rebuildFromRange(prevStart, nextStart);
-      setDays(merged.length > 0 ? merged : flattenWeekPage(seedPage));
+      commitDays(merged.length > 0 ? merged : flattenWeekPage(seedPage));
       setBootstrapping(false);
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [fetchWeek, rebuildFromRange, rememberPage, seedPage]);
+  }, [commitDays, fetchWeek, rebuildFromRange, rememberPage, seedPage.weekStart]);
 
   const extendEarlier = useCallback(async (): Promise<number> => {
-    const first = days[0];
+    const current = daysRef.current;
+    const first = current[0];
     if (!first) return 0;
 
     const prevStart = addCalendarDays(first.weekStart, -7);
-    await fetchWeek(prevStart);
-    if (!cacheRef.current.has(prevStart)) return 0;
+    if (!cacheRef.current.has(prevStart)) {
+      rememberPage(provisionalWeekFromCache(prevStart, cacheRef.current));
+    }
 
-    const oldLength = days.length;
-    const merged = rebuildFromRange(prevStart, days[days.length - 1]!.weekStart);
+    const oldLength = current.length;
+    const merged = rebuildFromRange(prevStart, current[current.length - 1]!.weekStart);
     if (merged.length <= oldLength) return 0;
 
-    setDays(merged);
-    return merged.length - oldLength;
-  }, [days, fetchWeek, rebuildFromRange]);
+    commitDays(merged);
+    const prepended = merged.length - oldLength;
+
+    void fetchWeek(prevStart).then((page) => {
+      if (!page) return;
+      rememberPage(page);
+      const end = daysRef.current[daysRef.current.length - 1]?.weekStart;
+      if (!end) return;
+      const next = rebuildFromRange(prevStart, end);
+      if (next.length > 0) commitDays(next);
+    });
+
+    return prepended;
+  }, [commitDays, fetchWeek, rebuildFromRange, rememberPage]);
 
   const extendLater = useCallback(async () => {
-    const last = days[days.length - 1];
+    const current = daysRef.current;
+    const last = current[current.length - 1];
     if (!last) return;
 
     const nextStart = addCalendarDays(last.weekStart, 7);
-    await fetchWeek(nextStart);
-    if (!cacheRef.current.has(nextStart)) return;
-
-    const merged = rebuildFromRange(days[0]!.weekStart, nextStart);
-    if (merged.length > days.length) {
-      setDays(merged);
+    if (!cacheRef.current.has(nextStart)) {
+      rememberPage(provisionalWeekFromCache(nextStart, cacheRef.current));
     }
-  }, [days, fetchWeek, rebuildFromRange]);
 
-  const trimWindow = useCallback(
-    (focusedIndex: number, shiftPosition: (delta: number) => void) => {
-      setDays((current) => {
-        if (current.length <= MAX_CAROUSEL_DAYS) return current;
+    const merged = rebuildFromRange(current[0]!.weekStart, nextStart);
+    if (merged.length > current.length) {
+      commitDays(merged);
+    }
 
-        if (focusedIndex > current.length / 2) {
-          shiftPosition(-TRIM_DAYS);
-          return current.slice(TRIM_DAYS);
-        }
+    void fetchWeek(nextStart).then((page) => {
+      if (!page) return;
+      rememberPage(page);
+      const start = daysRef.current[0]?.weekStart;
+      if (!start) return;
+      const next = rebuildFromRange(start, nextStart);
+      if (next.length > 0) commitDays(next);
+    });
+  }, [commitDays, fetchWeek, rebuildFromRange, rememberPage]);
 
-        return current.slice(0, current.length - TRIM_DAYS);
-      });
-    },
-    [],
-  );
+  const bufferOpRef = useRef(Promise.resolve());
+
+  const resolveIndexForDate = useCallback((date: string) => {
+    return indexForDateInEntries(daysRef.current, date);
+  }, []);
 
   const ensureBuffer = useCallback(
-    async (focusedIndex: number, shiftPosition: (delta: number) => void) => {
-      if (bootstrapping || days.length === 0) return;
+    async (
+      anchorDate: string,
+      shiftPosition: (delta: number) => void,
+    ): Promise<number> => {
+      if (bootstrapping || daysRef.current.length === 0) {
+        return resolveIndexForDate(anchorDate);
+      }
 
-      if (focusedIndex <= EDGE_THRESHOLD) {
+      let anchorIndex = resolveIndexForDate(anchorDate);
+      if (anchorIndex < 0) return -1;
+
+      if (anchorIndex <= EDGE_THRESHOLD) {
         const prepended = await extendEarlier();
         if (prepended > 0) {
           shiftPosition(prepended);
+          anchorIndex = resolveIndexForDate(anchorDate);
         }
       }
 
-      if (focusedIndex >= days.length - 1 - EDGE_THRESHOLD) {
+      anchorIndex = resolveIndexForDate(anchorDate);
+      if (anchorIndex < 0) return -1;
+
+      if (anchorIndex >= daysRef.current.length - 1 - EDGE_THRESHOLD) {
         await extendLater();
+        anchorIndex = resolveIndexForDate(anchorDate);
       }
 
-      trimWindow(focusedIndex, shiftPosition);
+      return anchorIndex;
     },
-    [
-      bootstrapping,
-      days.length,
-      extendEarlier,
-      extendLater,
-      trimWindow,
-    ],
+    [bootstrapping, extendEarlier, extendLater, resolveIndexForDate],
   );
 
-  const loadAroundDate = useCallback(
-    async (date: string) => {
-      const weekStart = getWeekStartMonday(date);
-      const prevStart = addCalendarDays(weekStart, -7);
-      const nextStart = addCalendarDays(weekStart, 7);
-
-      rememberPage(seedPage);
-      await Promise.all([
-        fetchWeek(prevStart),
-        fetchWeek(weekStart),
-        fetchWeek(nextStart),
-      ]);
-
-      const merged = rebuildFromRange(prevStart, nextStart);
-      setDays(merged.length > 0 ? merged : flattenWeekPage(seedPage));
-      return merged.findIndex((entry) => entry.day.date === date);
+  const ensureBufferSerialized = useCallback(
+    (anchorDate: string, shiftPosition: (delta: number) => void) => {
+      const run = bufferOpRef.current.then(() =>
+        ensureBuffer(anchorDate, shiftPosition),
+      );
+      bufferOpRef.current = run.then(
+        () => undefined,
+        () => undefined,
+      );
+      return run;
     },
-    [fetchWeek, rebuildFromRange, rememberPage, seedPage],
+    [ensureBuffer],
+  );
+
+  const ensureDateInBuffer = useCallback(
+    async (date: string): Promise<number> => {
+      const existingIndex = resolveIndexForDate(date);
+      if (existingIndex >= 0) return existingIndex;
+
+      const current = daysRef.current;
+      const first = current[0];
+      const last = current[current.length - 1];
+      if (!first || !last) return -1;
+
+      const weekStart = getWeekStartMonday(date);
+      if (!cacheRef.current.has(weekStart)) {
+        rememberPage(provisionalWeekFromCache(weekStart, cacheRef.current));
+      }
+
+      let startWeek = first.weekStart;
+      let endWeek = last.weekStart;
+
+      if (date < first.day.date) {
+        startWeek = weekStart;
+        for (
+          let cursor = addCalendarDays(first.weekStart, -7);
+          cursor >= startWeek;
+          cursor = addCalendarDays(cursor, -7)
+        ) {
+          if (!cacheRef.current.has(cursor)) {
+            rememberPage(provisionalWeekFromCache(cursor, cacheRef.current));
+          }
+        }
+      } else if (date > last.day.date) {
+        endWeek = weekStart;
+        for (
+          let cursor = addCalendarDays(last.weekStart, 7);
+          cursor <= endWeek;
+          cursor = addCalendarDays(cursor, 7)
+        ) {
+          if (!cacheRef.current.has(cursor)) {
+            rememberPage(provisionalWeekFromCache(cursor, cacheRef.current));
+          }
+        }
+      }
+
+      const merged = rebuildFromRange(startWeek, endWeek);
+      if (merged.length > 0) {
+        commitDays(merged.length >= daysRef.current.length ? merged : daysRef.current);
+      }
+
+      void fetchWeek(weekStart);
+
+      return indexForDateInEntries(daysRef.current, date);
+    },
+    [commitDays, fetchWeek, rebuildFromRange, rememberPage, resolveIndexForDate],
   );
 
   const getPageForWeek = useCallback((weekStart: string) => {
@@ -251,9 +362,10 @@ export function useWeekScheduleInfiniteDays({
   return {
     days,
     bootstrapping,
-    ensureBuffer,
-    loadAroundDate,
+    ensureBuffer: ensureBufferSerialized,
+    ensureDateInBuffer,
     getPageForWeek,
+    resolveIndexForDate,
     findIndexForDate: (date: string) =>
       days.findIndex((entry) => entry.day.date === date),
   };

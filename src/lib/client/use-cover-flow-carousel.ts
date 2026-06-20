@@ -31,6 +31,7 @@ export function useCoverFlowCarousel({
 }: Options) {
   const [position, setPosition] = useState(selectedIndex);
   const [interacting, setInteracting] = useState(false);
+  const [isAnimating, setIsAnimating] = useState(false);
 
   const positionRef = useRef(selectedIndex);
   const dragAnchorXRef = useRef<number | null>(null);
@@ -41,6 +42,8 @@ export function useCoverFlowCarousel({
   const velocityRef = useRef(0);
   const lastTickRef = useRef<number | null>(null);
   const suppressSelectionRef = useRef(false);
+  const pendingEmittedIndexRef = useRef<number | null>(null);
+  const prevSelectedIndexRef = useRef(selectedIndex);
 
   const maxIndex = Math.max(0, itemCount - 1);
 
@@ -72,6 +75,7 @@ export function useCoverFlowCarousel({
   const emitSelection = useCallback(
     (index: number) => {
       if (suppressSelectionRef.current) return;
+      pendingEmittedIndexRef.current = index;
       onSelectedIndexChange?.(index);
     },
     [onSelectedIndexChange],
@@ -80,16 +84,19 @@ export function useCoverFlowCarousel({
   const snapToNearest = useCallback(() => {
     if (itemCount <= 1) {
       setInteracting(false);
+      setIsAnimating(false);
       return;
     }
     stopMomentum();
     stopSnap();
+    setIsAnimating(true);
 
     const target = Math.round(positionRef.current);
     const start = positionRef.current;
     if (Math.abs(target - start) < 0.001) {
       setPositionClamped(target);
       setInteracting(false);
+      setIsAnimating(false);
       emitSelection(target);
       return;
     }
@@ -107,6 +114,7 @@ export function useCoverFlowCarousel({
         snapAnimRef.current = null;
         setPositionClamped(target);
         setInteracting(false);
+        setIsAnimating(false);
         emitSelection(target);
       }
     };
@@ -125,6 +133,7 @@ export function useCoverFlowCarousel({
       stopMomentum();
       stopSnap();
       setInteracting(true);
+      setIsAnimating(true);
       velocityRef.current = initialVelocityItemsPerSec;
       lastTickRef.current = null;
 
@@ -167,6 +176,7 @@ export function useCoverFlowCarousel({
 
     if (itemCount <= 1) {
       setInteracting(false);
+      setIsAnimating(false);
       return;
     }
 
@@ -203,6 +213,7 @@ export function useCoverFlowCarousel({
       stopMomentum();
       stopSnap();
       setInteracting(true);
+      setIsAnimating(true);
       dragAnchorXRef.current = clientX;
       dragAnchorPositionRef.current = positionRef.current;
       dragSamplesRef.current = [{ x: clientX, t: performance.now() }];
@@ -215,6 +226,7 @@ export function useCoverFlowCarousel({
       stopMomentum();
       stopSnap();
       setInteracting(false);
+      setIsAnimating(false);
       setPositionClamped(index);
       emitSelection(index);
     },
@@ -235,6 +247,26 @@ export function useCoverFlowCarousel({
   );
 
   useEffect(() => {
+    const prevSelectedIndex = prevSelectedIndexRef.current;
+    prevSelectedIndexRef.current = selectedIndex;
+
+    if (interacting || isAnimating) return;
+
+    const pending = pendingEmittedIndexRef.current;
+    if (pending != null) {
+      if (selectedIndex === pending) {
+        pendingEmittedIndexRef.current = null;
+        return;
+      }
+      if (selectedIndex !== prevSelectedIndex && selectedIndex !== pending) {
+        pendingEmittedIndexRef.current = null;
+      } else {
+        return;
+      }
+    }
+
+    if (Math.round(positionRef.current) === selectedIndex) return;
+
     suppressSelectionRef.current = true;
     stopMomentum();
     stopSnap();
@@ -244,7 +276,7 @@ export function useCoverFlowCarousel({
       suppressSelectionRef.current = false;
     });
     return () => cancelAnimationFrame(frame);
-  }, [selectedIndex, setPositionClamped, stopMomentum, stopSnap]);
+  }, [interacting, isAnimating, selectedIndex, setPositionClamped, stopMomentum, stopSnap]);
 
   useEffect(
     () => () => {
@@ -288,6 +320,7 @@ export function useCoverFlowCarousel({
     position,
     safeIndex,
     interacting,
+    isAnimating,
     viewportHandlers,
     setIndex,
     shiftPosition,
