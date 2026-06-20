@@ -281,11 +281,15 @@ export async function storeAshedConnection(
 }
 
 /** Prefer canonical HQ user when this browser session holds an Ashed credential. */
-export async function resolveBrowserSessionHqUserId(
-  magicLinkHqUserId: string,
-): Promise<string> {
-  const session = await getOrCreateSession();
-  const cred = await getAshedCredentialRecord(session.id);
+export async function resolveEffectiveHqUserIdForSession(
+  sessionId: string,
+  magicLinkHqUserId: string | null,
+): Promise<string | null> {
+  if (!magicLinkHqUserId) {
+    return null;
+  }
+
+  const cred = await getAshedCredentialRecord(sessionId);
   if (!cred?.ashedUserId) {
     return magicLinkHqUserId;
   }
@@ -298,6 +302,16 @@ export async function resolveBrowserSessionHqUserId(
     .limit(1);
 
   return canonical?.id ?? magicLinkHqUserId;
+}
+
+export async function resolveBrowserSessionHqUserId(
+  magicLinkHqUserId: string,
+): Promise<string> {
+  const session = await getOrCreateSession();
+  return (
+    (await resolveEffectiveHqUserIdForSession(session.id, magicLinkHqUserId)) ??
+    magicLinkHqUserId
+  );
 }
 
 export async function updateSessionAlliance(
@@ -339,7 +353,11 @@ export async function getSessionStateFor(
   locale = "en-US",
 ) {
   const connection = await getAshedConnection(session.id);
-  const timezone = await getAccountTimezoneIdForHqUser(session.hqUserId);
+  const effectiveHqUserId = await resolveEffectiveHqUserIdForSession(
+    session.id,
+    session.hqUserId,
+  );
+  const timezone = await getAccountTimezoneIdForHqUser(effectiveHqUserId);
   const ashed = await getAshedConnectionMeta(session.id, locale);
   const rbac = await getRbacContext(session.id);
   const hasAppAccess = await sessionHasAppAccess(session);
@@ -353,8 +371,8 @@ export async function getSessionStateFor(
     Boolean(rbac?.isPlatformMaintainer) ||
     (connection !== null && isAshedConnectAllowed);
 
-  const membershipAlliances = session.hqUserId
-    ? await listSessionAlliances(session.hqUserId)
+  const membershipAlliances = effectiveHqUserId
+    ? await listSessionAlliances(effectiveHqUserId)
     : [];
 
   const resolvedAllianceId = resolveSessionAllianceId(session);

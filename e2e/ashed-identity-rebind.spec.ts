@@ -4,18 +4,14 @@ import { nanoid } from "nanoid";
 import { expect, test } from "@playwright/test";
 
 import {
-  acceptInviteViaApi,
   attachAshedConnectionToSession,
   createAllianceMembership,
   createCanonicalAshedHqUser,
-  createHqInviteRow,
   createMagicLinkSession,
   createNativeAlliance,
-  createPlatformMaintainerSession,
   fetchConnectSessionState,
   getE2eSql,
   loadMembershipRoleName,
-  sessionCookie,
   sessionHasAshedCredential,
 } from "./fixtures/db";
 import { rebindAshedIdentityForE2e } from "./fixtures/rebind-ashed-identity";
@@ -29,20 +25,16 @@ function uniqueEmail(prefix: string): string {
 }
 
 test.describe("Ashed identity rebind — permission boost prevention", () => {
-  test("magic-link stub cannot inherit Ashed officer role without canonical session binding", async ({
-    request,
-  }) => {
+  test("session with Ashed cred resolves RBAC to canonical HQ user", async () => {
     const sql = getE2eSql();
-    const maintainer = await createPlatformMaintainerSession(sql);
     const alliance = await createNativeAlliance(sql, {
       tag: `AB${nanoid(3)}`,
       name: "Ashed Boost Guard Alliance",
     });
     const ashedUserId = `ashed-${nanoid(12)}`;
-    const ashedEmail = uniqueEmail("ashed-player");
 
     const { hqUserId: canonicalId } = await createCanonicalAshedHqUser(sql, {
-      email: ashedEmail,
+      email: uniqueEmail("ashed-player"),
       ashedUserId,
     });
     await createAllianceMembership(sql, {
@@ -52,44 +44,35 @@ test.describe("Ashed identity rebind — permission boost prevention", () => {
       source: "ashed",
     });
 
-    const email = uniqueEmail("magic-stub");
-    const { token } = await createHqInviteRow(sql, {
+    const stubSession = await createMagicLinkSession(sql, uniqueEmail("magic-stub"));
+    await createAllianceMembership(sql, {
+      hqUserId: stubSession.hqUserId,
       allianceId: alliance.allianceId,
-      email,
       roleName: "member",
-      invitedByHqUserId: maintainer.hqUserId,
+      source: "manual",
     });
-    const accepted = await acceptInviteViaApi(e2eBaseUrl(), token, email);
 
-    const [sessionRow] = await sql<{ hq_user_id: string }[]>`
-      SELECT hq_user_id
-      FROM sessions
-      WHERE id = ${accepted.sessionId}
-      LIMIT 1
-    `;
-    expect(sessionRow?.hq_user_id).toBeTruthy();
-
-    await attachAshedConnectionToSession(sql, accepted.sessionId, { ashedUserId });
+    await attachAshedConnectionToSession(sql, stubSession.sessionId, { ashedUserId });
 
     await sql`
       UPDATE sessions
       SET current_alliance_id = ${alliance.allianceId}
-      WHERE id = ${accepted.sessionId}
+      WHERE id = ${stubSession.sessionId}
     `;
 
     const state = await fetchConnectSessionState(
       e2eBaseUrl(),
-      accepted.sessionId,
+      stubSession.sessionId,
     );
 
     expect(state.isConnected).toBe(true);
-    expect(state.roleName).toBe("member");
+    expect(state.roleName).toBe("officer");
     expect(state.canUseAshedEmbeds).toBe(true);
 
     expect(
       await loadMembershipRoleName(
         sql,
-        sessionRow!.hq_user_id,
+        stubSession.hqUserId,
         alliance.allianceId,
       ),
     ).toBe("member");

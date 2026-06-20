@@ -1,7 +1,10 @@
 import { and, eq } from "drizzle-orm";
 
 import { getDb, schema } from "@/lib/db";
-import { loadSession } from "@/lib/session";
+import {
+  loadSession,
+  resolveEffectiveHqUserIdForSession,
+} from "@/lib/session";
 
 import { ALLIANCE_ADMIN_PERMISSION } from "./constants";
 import { ensureHqUserAvatarFresh } from "@/lib/profile/resolve-avatar";
@@ -67,11 +70,19 @@ export async function getRbacContext(
     return null;
   }
 
+  const effectiveHqUserId = await resolveEffectiveHqUserIdForSession(
+    sessionId,
+    session.hqUserId,
+  );
+  if (!effectiveHqUserId) {
+    return null;
+  }
+
   const db = getDb();
   const [user] = await db
     .select()
     .from(schema.hqUsers)
-    .where(eq(schema.hqUsers.id, session.hqUserId))
+    .where(eq(schema.hqUsers.id, effectiveHqUserId))
     .limit(1);
 
   if (!user) {

@@ -44,6 +44,7 @@ jobs:
       LOCAL_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/alliance_hq_e2e
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/alliance_hq_e2e
       TOKEN_ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      AUTH_SECRET: e2e-test-auth-secret-min-32-characters
       HQ_ASHED_INVITE_REQUIRED: "false"
       CI: "true"
     steps:

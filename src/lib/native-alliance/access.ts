@@ -10,7 +10,10 @@ import {
 } from "@/lib/access/invite-gate";
 import { getDb, schema } from "@/lib/db";
 import type { Session } from "@/lib/db/schema";
-import { getAshedConnection } from "@/lib/session";
+import {
+  getAshedConnection,
+  resolveEffectiveHqUserIdForSession,
+} from "@/lib/session";
 
 import { getAllianceOperatingMode } from "./operating-mode";
 import { ASHED_CONNECT_PERMISSION } from "@/lib/rbac/constants";
@@ -39,7 +42,11 @@ export function rbacAllowsAshedConnect(
 export async function sessionHasActiveMembership(
   session: Session,
 ): Promise<boolean> {
-  if (!session.hqUserId || !session.currentAllianceId) {
+  const effectiveHqUserId = await resolveEffectiveHqUserIdForSession(
+    session.id,
+    session.hqUserId,
+  );
+  if (!effectiveHqUserId || !session.currentAllianceId) {
     return false;
   }
 
@@ -49,7 +56,7 @@ export async function sessionHasActiveMembership(
     .from(schema.allianceMemberships)
     .where(
       and(
-        eq(schema.allianceMemberships.hqUserId, session.hqUserId),
+        eq(schema.allianceMemberships.hqUserId, effectiveHqUserId),
         eq(schema.allianceMemberships.allianceId, session.currentAllianceId),
         eq(schema.allianceMemberships.status, "active"),
       ),
@@ -75,27 +82,27 @@ export async function sessionHasNativeMembership(
 }
 
 async function sessionPassesNativeInviteGate(
-  session: Session,
+  effectiveHqUserId: string | null,
 ): Promise<boolean> {
   if (!isNativeInviteRequired()) {
     return true;
   }
-  if (!session.hqUserId) {
+  if (!effectiveHqUserId) {
     return false;
   }
-  return hqUserHasAccessGrant(session.hqUserId);
+  return hqUserHasAccessGrant(effectiveHqUserId);
 }
 
 async function sessionPassesAshedInviteGate(
-  session: Session,
+  effectiveHqUserId: string | null,
 ): Promise<boolean> {
   if (!isAshedInviteRequired()) {
     return true;
   }
-  if (!session.hqUserId) {
+  if (!effectiveHqUserId) {
     return false;
   }
-  return hqUserHasAccessGrant(session.hqUserId);
+  return hqUserHasAccessGrant(effectiveHqUserId);
 }
 
 /**
@@ -104,7 +111,11 @@ async function sessionPassesAshedInviteGate(
  * - Ashed connection-key users need an invite only when HQ_ASHED_INVITE_REQUIRED is on.
  */
 export async function sessionHasAppAccess(session: Session): Promise<boolean> {
-  if (!session.hqUserId) {
+  const effectiveHqUserId = await resolveEffectiveHqUserIdForSession(
+    session.id,
+    session.hqUserId,
+  );
+  if (!effectiveHqUserId) {
     return false;
   }
 
@@ -112,7 +123,7 @@ export async function sessionHasAppAccess(session: Session): Promise<boolean> {
   const [user] = await db
     .select({ isPlatformMaintainer: schema.hqUsers.isPlatformMaintainer })
     .from(schema.hqUsers)
-    .where(eq(schema.hqUsers.id, session.hqUserId))
+    .where(eq(schema.hqUsers.id, effectiveHqUserId))
     .limit(1);
   if (user?.isPlatformMaintainer === 1) {
     return true;
@@ -123,21 +134,21 @@ export async function sessionHasAppAccess(session: Session): Promise<boolean> {
   const isNative = await sessionHasNativeMembership(session);
 
   if (isNative) {
-    if (!(await sessionPassesNativeInviteGate(session))) {
+    if (!(await sessionPassesNativeInviteGate(effectiveHqUserId))) {
       return false;
     }
     return true;
   }
 
   if (hasMembership) {
-    if (!(await sessionPassesAshedInviteGate(session))) {
+    if (!(await sessionPassesAshedInviteGate(effectiveHqUserId))) {
       return false;
     }
     return true;
   }
 
   if (connection !== null) {
-    if (!(await sessionPassesAshedInviteGate(session))) {
+    if (!(await sessionPassesAshedInviteGate(effectiveHqUserId))) {
       return false;
     }
     return true;
