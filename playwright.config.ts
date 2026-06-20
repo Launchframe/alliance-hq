@@ -36,10 +36,10 @@ export default defineConfig({
     trace: "on-first-retry",
   },
   webServer: {
-    command: "npx next start -p 5176",
+    command: "node scripts/e2e-server.mjs",
     url: `${baseURL}/api/auth/connect`,
     reuseExistingServer: !process.env.CI,
-    timeout: 60_000,
+    timeout: 300_000,
     env: e2eServerEnv(),
   },
   globalSetup: "./e2e/global-setup.ts",
