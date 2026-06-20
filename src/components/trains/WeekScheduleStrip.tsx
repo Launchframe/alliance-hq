@@ -327,7 +327,6 @@ function WeekScheduleInfiniteDayCarousel({
     }
     if (index >= 0) {
       setCarouselFallbackIndex(index);
-      setIndex(index);
       notifyWeekForDate(selectedDate);
     }
     syncingDateRef.current = false;
@@ -338,7 +337,6 @@ function WeekScheduleInfiniteDayCarousel({
     notifyWeekForDate,
     resolveIndexForDate,
     selectedDate,
-    setIndex,
     shiftPosition,
   ]);
 
