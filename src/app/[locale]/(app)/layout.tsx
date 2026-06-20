@@ -77,6 +77,7 @@ export default async function AppLayout({
         userLabel={state.userLabel}
         displayName={state.rbac?.displayName ?? null}
         userEmail={state.rbac?.email ?? null}
+        avatarUrl={state.rbac?.avatarUrl ?? null}
         isConnected={state.isConnected}
         hasAppAccess={state.hasAppAccess}
         isNativeAlliance={state.isNativeAlliance}

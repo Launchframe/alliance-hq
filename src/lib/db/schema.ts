@@ -66,6 +66,13 @@ export const hqUsers = pgTable("hq_users", {
   isPlatformMaintainer: integer("is_platform_maintainer").notNull().default(0),
   /** Set when an admin invite is accepted or access is provisioned; required in production. */
   accessGrantedAt: timestamp("access_granted_at", { withTimezone: true }),
+  /** Cached resolved profile image URL (OAuth or Last War). */
+  avatarUrl: text("avatar_url"),
+  /** google | discord | lastwar */
+  avatarSource: text("avatar_source"),
+  avatarRefreshedAt: timestamp("avatar_refreshed_at", { withTimezone: true }),
+  /** Last War in-game UID when linked (Discord SSO bridge or future web link). */
+  primaryGameUid: text("primary_game_uid"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
     .notNull(),
@@ -73,6 +80,32 @@ export const hqUsers = pgTable("hq_users", {
     .defaultNow()
     .notNull(),
 });
+
+/** OAuth identity rows for HQ web SSO (Google, Discord). */
+export const hqUserAuthProviders = pgTable(
+  "hq_user_auth_providers",
+  {
+    id: text("id").primaryKey(),
+    hqUserId: text("hq_user_id")
+      .notNull()
+      .references(() => hqUsers.id, { onDelete: "cascade" }),
+    provider: text("provider").notNull(),
+    providerUserId: text("provider_user_id").notNull(),
+    avatarUrl: text("avatar_url"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    unique("hq_user_auth_providers_hq_user_provider_unique").on(
+      table.hqUserId,
+      table.provider,
+    ),
+  ],
+);
 
 export const roles = pgTable(
   "roles",
@@ -648,6 +681,7 @@ export const discordBotAudit = pgTable("discord_bot_audit", {
 export type Session = typeof sessions.$inferSelect;
 export type Alliance = typeof alliances.$inferSelect;
 export type HqUser = typeof hqUsers.$inferSelect;
+export type HqUserAuthProvider = typeof hqUserAuthProviders.$inferSelect;
 export type AllianceMembership = typeof allianceMemberships.$inferSelect;
 export type Role = typeof roles.$inferSelect;
 export type Permission = typeof permissions.$inferSelect;

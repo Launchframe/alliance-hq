@@ -1,5 +1,6 @@
 import { getTranslations } from "next-intl/server";
 
+import { ProfileAvatar } from "@/components/profile/ProfileAvatar";
 import { Link } from "@/i18n/navigation";
 import { getRbacContext } from "@/lib/rbac/context";
 import { requirePageSession } from "@/lib/session";
@@ -14,6 +15,7 @@ export default async function ProfilePage() {
   const displayName =
     rbac?.displayName ?? session.userLabel ?? t("unknownUser");
   const email = rbac?.email ?? t("unknownEmail");
+  const avatarUrl = rbac?.avatarUrl ?? null;
   const allianceTag = session.allianceTag;
   const roleName = rbac?.roleName;
   const isMaintainer = rbac?.isPlatformMaintainer ?? false;
@@ -26,7 +28,22 @@ export default async function ProfilePage() {
       </div>
 
       <section className="rounded-xl border border-[#30363d] bg-[#161b22] p-5">
-        <dl className="space-y-4">
+        <div className="mb-5 flex items-center gap-4">
+          <ProfileAvatar
+            displayName={displayName}
+            email={email}
+            avatarUrl={avatarUrl}
+            size="md"
+          />
+          <div className="min-w-0">
+            <p className="truncate text-lg font-medium text-[#e6edf3]">
+              {displayName}
+            </p>
+            <p className="truncate text-sm text-[#8b949e]">{email}</p>
+          </div>
+        </div>
+
+        <dl className="space-y-4 border-t border-[#30363d] pt-4">
           <div>
             <dt className="text-xs font-medium uppercase tracking-wider text-[#6e7681]">
               {t("displayName")}

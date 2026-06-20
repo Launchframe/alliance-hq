@@ -24,6 +24,7 @@ type Props = {
   userLabel: string | null;
   displayName?: string | null;
   userEmail?: string | null;
+  avatarUrl?: string | null;
   isConnected: boolean;
   hasAppAccess?: boolean;
   isNativeAlliance?: boolean;
@@ -46,6 +47,7 @@ export function AshedShell({
   userLabel,
   displayName = null,
   userEmail = null,
+  avatarUrl = null,
   isConnected,
   hasAppAccess = isConnected,
   isNativeAlliance = false,
@@ -190,6 +192,7 @@ export function AshedShell({
                   userLabel={userLabel}
                   displayName={displayName}
                   userEmail={userEmail}
+                  avatarUrl={avatarUrl}
                   showAdminPortal={showAdminPortal}
                   isConnected={isConnected}
                   canUseAshedEmbeds={canUseAshedEmbeds}

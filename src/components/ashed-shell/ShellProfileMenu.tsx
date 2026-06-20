@@ -2,15 +2,16 @@
 
 import * as React from "react";
 import { createPortal } from "react-dom";
-import { CircleUser } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { ProfileAvatar } from "@/components/profile/ProfileAvatar";
 import { Link, useRouter } from "@/i18n/navigation";
 
 type Props = {
   userLabel: string | null;
   displayName: string | null;
   userEmail: string | null;
+  avatarUrl?: string | null;
   showAdminPortal?: boolean;
   isConnected: boolean;
   canUseAshedEmbeds?: boolean;
@@ -25,6 +26,7 @@ export function ShellProfileMenu({
   userLabel,
   displayName,
   userEmail,
+  avatarUrl = null,
   showAdminPortal = false,
   isConnected,
   canUseAshedEmbeds = true,
@@ -170,13 +172,21 @@ export function ShellProfileMenu({
             }}
           >
             <div
-              className="border-b border-[#30363d] px-3 py-2.5"
+              className="flex items-center gap-3 border-b border-[#30363d] px-3 py-2.5"
               role="presentation"
             >
-              <p className="truncate text-sm font-medium text-[#e6edf3]">
-                {headerName}
-              </p>
-              <p className="truncate text-xs text-[#8b949e]">{headerEmail}</p>
+              <ProfileAvatar
+                displayName={headerName}
+                email={headerEmail}
+                avatarUrl={avatarUrl}
+                size="sm"
+              />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium text-[#e6edf3]">
+                  {headerName}
+                </p>
+                <p className="truncate text-xs text-[#8b949e]">{headerEmail}</p>
+              </div>
             </div>
 
             <Link
@@ -242,13 +252,18 @@ export function ShellProfileMenu({
       <button
         ref={triggerRef}
         type="button"
-        className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[#30363d] bg-[#21262d] text-[#e6edf3] transition-colors hover:bg-[#30363d] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#58a6ff]"
+        className="inline-flex shrink-0 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#58a6ff]"
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label={t("openMenu")}
         onClick={() => setOpen((current) => !current)}
       >
-        <CircleUser className="h-5 w-5" aria-hidden />
+        <ProfileAvatar
+          displayName={headerName}
+          email={headerEmail}
+          avatarUrl={avatarUrl}
+          size="sm"
+        />
       </button>
       {menu}
     </>

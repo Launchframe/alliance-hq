@@ -360,6 +360,7 @@ export async function getSessionStateFor(
             rbac.permissions.has(ASHED_CONNECT_PERMISSION),
           email: rbac.email,
           displayName: rbac.displayName,
+          avatarUrl: rbac.avatarUrl,
         }
       : null,
   };

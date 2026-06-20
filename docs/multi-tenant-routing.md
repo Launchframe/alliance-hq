@@ -44,6 +44,8 @@ Maintainer gate: `src/app/[locale]/(app)/admin/layout.tsx`.
 
 Account and profile are reachable from the **header profile menu** (top-right), not the sidebar.
 
+**Profile images:** `hq_users.avatar_url` is resolved server-side with precedence Google OAuth → Discord OAuth → Last War H5 (`primary_game_uid` lookup). Until web SSO ships, most users see initials fallback; wire OAuth callbacks through `syncOAuthProviderAvatar` in `src/lib/profile/resolve-avatar.ts`.
+
 ## Alliance settings
 
 | Path | Purpose |
