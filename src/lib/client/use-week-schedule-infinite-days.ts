@@ -11,12 +11,6 @@ import {
   addCalendarDays,
   getWeekStartMonday,
 } from "@/lib/trains/game-time";
-
-import {
-  computeCarouselTrim,
-  WEEK_CAROUSEL_EDGE_THRESHOLD,
-  WEEK_CAROUSEL_TRIM_DAYS,
-} from "@/lib/client/week-schedule-carousel-window";
 import { buildProvisionalWeekPage } from "@/lib/client/week-schedule-provisional";
 import type { WeekTemplateType } from "@/lib/trains/types";
 
@@ -27,7 +21,7 @@ export type WeekCarouselDayEntry = {
   record: WeekConductorRecordSummary | undefined;
 };
 
-const EDGE_THRESHOLD = WEEK_CAROUSEL_EDGE_THRESHOLD;
+const EDGE_THRESHOLD = 2;
 
 function templateTypeForWeek(
   weekStart: string,
@@ -260,27 +254,6 @@ export function useWeekScheduleInfiniteDays({
     return indexForDateInEntries(daysRef.current, date);
   }, []);
 
-  const trimWindow = useCallback(
-    (anchorDate: string, shiftPosition: (delta: number) => void) => {
-      const current = daysRef.current;
-      const anchorIndex = indexForDateInEntries(current, anchorDate);
-      if (anchorIndex < 0) return;
-
-      const plan = computeCarouselTrim(current.length, anchorIndex);
-      if (!plan) return;
-
-      if (plan.shiftDelta !== 0) {
-        shiftPosition(plan.shiftDelta);
-      }
-
-      const next = plan.trimFromStart
-        ? current.slice(WEEK_CAROUSEL_TRIM_DAYS)
-        : current.slice(0, current.length - WEEK_CAROUSEL_TRIM_DAYS);
-      commitDays(next);
-    },
-    [commitDays],
-  );
-
   const ensureBuffer = useCallback(
     async (
       anchorDate: string,
@@ -309,16 +282,9 @@ export function useWeekScheduleInfiniteDays({
         anchorIndex = resolveIndexForDate(anchorDate);
       }
 
-      trimWindow(anchorDate, shiftPosition);
-      return resolveIndexForDate(anchorDate);
+      return anchorIndex;
     },
-    [
-      bootstrapping,
-      extendEarlier,
-      extendLater,
-      resolveIndexForDate,
-      trimWindow,
-    ],
+    [bootstrapping, extendEarlier, extendLater, resolveIndexForDate],
   );
 
   const ensureBufferSerialized = useCallback(

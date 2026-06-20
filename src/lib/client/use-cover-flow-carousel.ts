@@ -221,48 +221,16 @@ export function useCoverFlowCarousel({
     [stopMomentum, stopSnap],
   );
 
-  const animateToIndex = useCallback(
-    (index: number, options?: { emit?: boolean }) => {
-      const target = Math.max(0, Math.min(maxIndex, index));
+  const setIndex = useCallback(
+    (index: number) => {
       stopMomentum();
       stopSnap();
       setInteracting(false);
-
-      const start = positionRef.current;
-      if (Math.abs(target - start) < 0.001) {
-        setPositionClamped(target);
-        setIsAnimating(false);
-        if (options?.emit) emitSelection(target);
-        return;
-      }
-
-      setIsAnimating(true);
-      const startTime = performance.now();
-      const tick = (now: number) => {
-        const t = Math.min(1, (now - startTime) / COVER_FLOW_SNAP_DURATION_MS);
-        const eased = 1 - (1 - t) ** 3;
-        const next = start + (target - start) * eased;
-        positionRef.current = next;
-        setPosition(next);
-        if (t < 1) {
-          snapAnimRef.current = requestAnimationFrame(tick);
-        } else {
-          snapAnimRef.current = null;
-          setPositionClamped(target);
-          setIsAnimating(false);
-          if (options?.emit) emitSelection(target);
-        }
-      };
-      snapAnimRef.current = requestAnimationFrame(tick);
+      setIsAnimating(false);
+      setPositionClamped(index);
+      emitSelection(index);
     },
-    [emitSelection, maxIndex, setPositionClamped, stopMomentum, stopSnap],
-  );
-
-  const setIndex = useCallback(
-    (index: number) => {
-      animateToIndex(index, { emit: true });
-    },
-    [animateToIndex],
+    [emitSelection, setPositionClamped, stopMomentum, stopSnap],
   );
 
   const shiftPosition = useCallback(
@@ -271,20 +239,12 @@ export function useCoverFlowCarousel({
       suppressSelectionRef.current = true;
       stopMomentum();
       stopSnap();
-      // Do not clamp to maxIndex — itemCount may not have updated yet after prepend.
-      positionRef.current = Math.max(0, positionRef.current + delta);
+      positionRef.current += delta;
       setPosition(positionRef.current);
       suppressSelectionRef.current = false;
     },
     [stopMomentum, stopSnap],
   );
-
-  useEffect(() => {
-    if (positionRef.current <= maxIndex) return;
-    suppressSelectionRef.current = true;
-    setPositionClamped(maxIndex);
-    suppressSelectionRef.current = false;
-  }, [maxIndex, setPositionClamped]);
 
   useEffect(() => {
     const prevSelectedIndex = prevSelectedIndexRef.current;
@@ -308,14 +268,15 @@ export function useCoverFlowCarousel({
     if (Math.round(positionRef.current) === selectedIndex) return;
 
     suppressSelectionRef.current = true;
-    animateToIndex(selectedIndex);
-    suppressSelectionRef.current = false;
-  }, [
-    animateToIndex,
-    interacting,
-    isAnimating,
-    selectedIndex,
-  ]);
+    stopMomentum();
+    stopSnap();
+    const frame = requestAnimationFrame(() => {
+      setInteracting(false);
+      setPositionClamped(selectedIndex);
+      suppressSelectionRef.current = false;
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [interacting, isAnimating, selectedIndex, setPositionClamped, stopMomentum, stopSnap]);
 
   useEffect(
     () => () => {

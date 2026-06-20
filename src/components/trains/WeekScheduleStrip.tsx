@@ -327,6 +327,7 @@ function WeekScheduleInfiniteDayCarousel({
     }
     if (index >= 0) {
       setCarouselFallbackIndex(index);
+      setIndex(index);
       notifyWeekForDate(selectedDate);
     }
     syncingDateRef.current = false;
@@ -337,6 +338,7 @@ function WeekScheduleInfiniteDayCarousel({
     notifyWeekForDate,
     resolveIndexForDate,
     selectedDate,
+    setIndex,
     shiftPosition,
   ]);
 
@@ -359,8 +361,6 @@ function WeekScheduleInfiniteDayCarousel({
     [onSelectDate, selectedDate, stopMomentum, stopSnap],
   );
 
-  const focusedIndex = Math.round(position);
-
   const renderEntry = (entry: WeekCarouselDayEntry, index: number) => {
     const offset = index - position;
     if (Math.abs(offset) > WEEK_CAROUSEL_VISIBLE_RANGE) return null;
@@ -371,7 +371,7 @@ function WeekScheduleInfiniteDayCarousel({
       WEEK_CAROUSEL_VISIBLE_RANGE,
       WEEK_CAROUSEL_TRANSLATE_X_PERCENT,
     );
-    const showDetail = index === focusedIndex;
+    const showDetail = entry.day.date === selectedDate;
     const selectable = isCalendarDateOnOrAfter(entry.day.date, today);
     const record =
       liveWeek?.weekStart === entry.weekStart
