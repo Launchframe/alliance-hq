@@ -31,7 +31,10 @@ export default async function ConnectPage({ searchParams }: Props) {
     }
     const connected = await getAshedConnection(session.id);
     if (connected) {
-      redirect({ href: "/", locale });
+      if (state.hasAppAccess) {
+        redirect({ href: "/", locale });
+      }
+      redirect({ href: "/get-started", locale });
     }
     showWelcomeChoice =
       welcome === "1" && state.hasAppAccess && !state.isConnected;

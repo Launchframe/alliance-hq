@@ -10,7 +10,11 @@ import {
   allianceSelectionErrorStatus,
   resolveConnectAlliance,
 } from "@/lib/alliance/connect-alliance";
-import { emailHasAshedConnectAccess } from "@/lib/native-alliance/access";
+import {
+  emailHasAshedConnectAccess,
+  rbacAllowsAshedConnect,
+  sessionHasActiveMembership,
+} from "@/lib/native-alliance/access";
 import { emailHasAshedConnectPermission } from "@/lib/access/invite-gate";
 import { verifyBase44Connection } from "@/lib/base44/server";
 import {
@@ -21,7 +25,6 @@ import {
 import { syncAshedAllianceRoles } from "@/lib/rbac/sync-ashed-roles";
 import { maybeBootstrapPlatformMaintainer } from "@/lib/rbac/bootstrap-platform";
 import { getRbacContext } from "@/lib/rbac/context";
-import { ASHED_CONNECT_PERMISSION } from "@/lib/rbac/constants";
 import {
   getOrCreateSession,
   getSessionState,
@@ -49,11 +52,11 @@ export async function POST(request: Request) {
   try {
     const session = await getOrCreateSession();
     const sessionRbac = await getRbacContext(session.id);
+    const hasActiveMembership = await sessionHasActiveMembership(session);
     // Bound session: deny if the user's active role lacks ashed:connect
     if (
       sessionRbac &&
-      !sessionRbac.isPlatformMaintainer &&
-      !sessionRbac.permissions.has(ASHED_CONNECT_PERMISSION)
+      !rbacAllowsAshedConnect(sessionRbac, hasActiveMembership)
     ) {
       return NextResponse.json(
         {

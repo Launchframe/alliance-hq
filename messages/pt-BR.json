@@ -1123,7 +1123,7 @@
     "inviteTitle": "Convite de admin",
     "inviteBody": "Abra o link que o administrador enviou. Convites protegidos também exigem uma senha enviada separadamente.",
     "joinCodeTitle": "Código da aliança",
-    "joinCodeBody": "Tem um código do Discord ou do chat no jogo? Resgate aqui após entrar.",
+    "joinCodeBody": "Tem um código do Discord ou do chat no jogo? Resgate abaixo.",
     "joinCodeButton": "Resgatar código",
     "connectTitle": "Conectar Ashed",
     "connectBody": "Cole sua chave de conexão Ashed para sincronizar elenco e usar ferramentas em iframe.",

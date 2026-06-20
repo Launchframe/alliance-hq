@@ -13,6 +13,28 @@ import type { Session } from "@/lib/db/schema";
 import { getAshedConnection } from "@/lib/session";
 
 import { getAllianceOperatingMode } from "./operating-mode";
+import { ASHED_CONNECT_PERMISSION } from "@/lib/rbac/constants";
+
+/**
+ * Ashed connect UI/API is blocked only for bound sessions whose active alliance
+ * role lacks `ashed:connect` (e.g. member-only invites). Fresh sign-ins with
+ * hqUserId but no membership must still reach /connect from get-started.
+ */
+export function rbacAllowsAshedConnect(
+  rbac: { isPlatformMaintainer: boolean; permissions: Set<string> } | null,
+  hasActiveMembership: boolean,
+): boolean {
+  if (!rbac) {
+    return true;
+  }
+  if (rbac.isPlatformMaintainer) {
+    return true;
+  }
+  if (!hasActiveMembership) {
+    return true;
+  }
+  return rbac.permissions.has(ASHED_CONNECT_PERMISSION);
+}
 
 export async function sessionHasActiveMembership(
   session: Session,

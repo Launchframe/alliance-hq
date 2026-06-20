@@ -21,8 +21,8 @@ import {
 } from "@/lib/jwt/connection-meta";
 import { DEFAULT_EXPIRY_REMINDER_DAYS } from "@/lib/jwt/decode";
 import { getRbacContext } from "@/lib/rbac/context";
-import { ASHED_CONNECT_PERMISSION } from "@/lib/rbac/constants";
 import {
+  rbacAllowsAshedConnect,
   sessionHasActiveMembership,
   sessionHasAppAccess,
   sessionHasNativeMembership,
@@ -82,7 +82,7 @@ export async function requirePageSession(returnTo = "/"): Promise<Session> {
   }
 
   const next = returnTo.startsWith("/") ? returnTo : `/${returnTo}`;
-  redirect(`/api/auth/session?next=${encodeURIComponent(next)}`);
+  redirect(`/api/auth/bootstrap?next=${encodeURIComponent(next)}`);
 }
 
 /** For Route Handlers — creates DB row and sets cookie on the response. */
@@ -320,10 +320,7 @@ export async function getSessionStateFor(
   const operatingMode = session.currentAllianceId
     ? await getAllianceOperatingMode(session.currentAllianceId)
     : null;
-  const isAshedConnectAllowed = rbac
-    ? rbac.isPlatformMaintainer ||
-      rbac.permissions.has(ASHED_CONNECT_PERMISSION)
-    : true;
+  const isAshedConnectAllowed = rbacAllowsAshedConnect(rbac, hasActiveMembership);
   const canUseAshedEmbeds =
     Boolean(rbac?.isPlatformMaintainer) ||
     (connection !== null && isAshedConnectAllowed);
