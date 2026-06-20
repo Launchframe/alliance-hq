@@ -13,11 +13,48 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "22"
           cache: npm
 
       - run: corepack enable
       - run: npm ci
+      - run: npx tsc --noEmit
       - run: npm run test
       - run: npm run i18n:validate
       - run: npm run lint
+
+  e2e:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: alliance_hq_e2e
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      E2E_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/alliance_hq_e2e
+      LOCAL_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/alliance_hq_e2e
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/alliance_hq_e2e
+      TOKEN_ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      HQ_ASHED_INVITE_REQUIRED: "false"
+      CI: "true"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - run: corepack enable
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e

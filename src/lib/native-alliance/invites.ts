@@ -16,6 +16,7 @@ import {
 } from "@/lib/rbac/constants";
 import {
   resolveInviteRedirect,
+  resolvePostInviteOnboardingRedirect,
   sanitizeInternalRedirectPath,
 } from "@/lib/navigation/safe-redirect.shared";
 import { systemRoleNameForId } from "@/lib/rbac/system-roles";
@@ -51,13 +52,11 @@ async function ensureSystemRoleSeeded(
   }
 
   if (roleName !== "member") {
-    // Non-member roles must be allowed to connect Ashed.
     await db
       .insert(schema.permissions)
       .values({
         id: ASHED_CONNECT_PERMISSION,
-        description:
-          "Connect an Ashed account — not granted to member-role accounts",
+        description: "Connect an Ashed account to HQ",
       })
       .onConflictDoNothing();
 
@@ -244,10 +243,7 @@ export function resolveHqInviteAcceptRedirect(options: {
   queryNext?: string | null;
   storedPath?: string | null;
 }): string {
-  return resolveInviteRedirect({
-    queryNext: options.queryNext,
-    storedPath: options.storedPath,
-  });
+  return resolvePostInviteOnboardingRedirect(options);
 }
 
 async function upsertHqUserByEmail(email: string, displayName?: string | null) {

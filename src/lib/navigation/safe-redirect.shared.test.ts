@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import {
   DEFAULT_INVITE_ACCEPT_REDIRECT,
+  DEFAULT_POST_INVITE_APP_PATH,
   resolveInviteRedirect,
+  resolvePostInviteOnboardingRedirect,
   sanitizeInternalRedirectPath,
 } from "@/lib/navigation/safe-redirect.shared";
 
@@ -36,5 +38,21 @@ describe("resolveInviteRedirect", () => {
   it("falls back to stored path then default", () => {
     expect(resolveInviteRedirect({ storedPath: "/members" })).toBe("/members");
     expect(resolveInviteRedirect({})).toBe(DEFAULT_INVITE_ACCEPT_REDIRECT);
+  });
+});
+
+describe("resolvePostInviteOnboardingRedirect", () => {
+  it("always routes through connect welcome with next destination", () => {
+    expect(
+      resolvePostInviteOnboardingRedirect({
+        storedPath: "/trains",
+      }),
+    ).toBe("/connect?welcome=1&next=%2Ftrains");
+  });
+
+  it("defaults next to members when no custom redirect", () => {
+    expect(resolvePostInviteOnboardingRedirect({})).toBe(
+      `/connect?welcome=1&next=${encodeURIComponent(DEFAULT_POST_INVITE_APP_PATH)}`,
+    );
   });
 });
