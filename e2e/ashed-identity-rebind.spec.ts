@@ -115,9 +115,15 @@ test.describe("Ashed identity rebind — permission boost prevention", () => {
       source: "ashed",
     });
 
+    await sql`
+      UPDATE sessions
+      SET hq_user_id = ${canonicalId}, current_alliance_id = ${alliance.allianceId}
+      WHERE id = ${sessionA.sessionId}
+    `;
     await attachAshedConnectionToSession(sql, sessionA.sessionId, {
       ashedUserId,
     });
+
     await attachAshedConnectionToSession(sql, sessionB.sessionId, {
       ashedUserId,
     });
@@ -136,8 +142,28 @@ test.describe("Ashed identity rebind — permission boost prevention", () => {
       allianceId: alliance.allianceId,
     });
 
+    await sql`
+      UPDATE sessions
+      SET hq_user_id = ${canonicalId}, current_alliance_id = ${alliance.allianceId}
+      WHERE id = ${sessionB.sessionId}
+    `;
+
     expect(await sessionHasAshedCredential(sql, sessionA.sessionId)).toBe(false);
     expect(await sessionHasAshedCredential(sql, sessionB.sessionId)).toBe(true);
+
+    const loserState = await fetchConnectSessionState(
+      e2eBaseUrl(),
+      sessionA.sessionId,
+    );
+    expect(loserState.isConnected).toBe(false);
+    expect(loserState.roleName).toBeNull();
+
+    const winnerState = await fetchConnectSessionState(
+      e2eBaseUrl(),
+      sessionB.sessionId,
+    );
+    expect(winnerState.isConnected).toBe(true);
+    expect(winnerState.roleName).toBe("officer");
     expect(
       await loadMembershipRoleName(
         sql,
@@ -208,6 +234,6 @@ test.describe("Ashed identity rebind — permission boost prevention", () => {
     );
     expect(disconnected.isConnected).toBe(false);
     expect(disconnected.canUseAshedEmbeds).toBe(false);
-    expect(disconnected.roleName).toBe("officer");
+    expect(disconnected.roleName).toBeNull();
   });
 });

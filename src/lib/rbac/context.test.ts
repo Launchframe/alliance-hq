@@ -30,6 +30,14 @@ vi.mock("@/lib/profile/resolve-avatar", () => ({
   ensureHqUserAvatarFresh: vi.fn().mockResolvedValue(null),
 }));
 
+vi.mock("@/lib/rbac/ashed-session-membership", () => ({
+  sessionHoldsAshedIdentityForHqUser: vi.fn().mockResolvedValue(true),
+  ashedSourcedMembershipIsActiveForSession: (
+    source: string,
+    holdsAshedIdentity: boolean,
+  ) => source !== "ashed" || holdsAshedIdentity,
+}));
+
 function chainSelectWithLimit(rows: unknown[]) {
   return {
     from: vi.fn().mockReturnValue({
@@ -86,7 +94,7 @@ describe("getRbacContext", () => {
       )
       .mockReturnValueOnce(
         chainSelectWithLimit([
-          { roleName: "officer", roleId: "role-officer" },
+          { roleName: "officer", roleId: "role-officer", source: "ashed" },
         ]),
       )
       .mockReturnValueOnce(
