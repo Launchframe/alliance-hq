@@ -17,14 +17,14 @@ export const HQ_PERMISSIONS = [
   { id: "hq:video:read", description: "List alliance video jobs" },
   { id: "hq:events:write", description: "Manage HQ native events" },
   { id: "trains:write", description: "Manage train conductor schedule, rolls, and locks" },
-  { id: "ashed:connect", description: "Connect an Ashed account — not granted to member-role accounts" },
+  { id: "ashed:connect", description: "Connect an Ashed account to HQ" },
 ] as const;
 
 export const TRAINS_WRITE_PERMISSION = "trains:write";
 
 /**
- * Permission that gates Ashed connection. All roles except `member` receive it
- * at seed time; checking this permission is preferred over checking roleName directly.
+ * Permission that gates Ashed connection attempts. All system roles receive it
+ * at seed time; embed routes still require an active Ashed credential.
  */
 export const ASHED_CONNECT_PERMISSION = "ashed:connect";
 

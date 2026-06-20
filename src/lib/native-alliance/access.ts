@@ -82,6 +82,18 @@ async function sessionPassesAshedInviteGate(
  * - Ashed connection-key users need an invite only when HQ_ASHED_INVITE_REQUIRED is on.
  */
 export async function sessionHasAppAccess(session: Session): Promise<boolean> {
+  if (session.hqUserId) {
+    const db = getDb();
+    const [user] = await db
+      .select({ isPlatformMaintainer: schema.hqUsers.isPlatformMaintainer })
+      .from(schema.hqUsers)
+      .where(eq(schema.hqUsers.id, session.hqUserId))
+      .limit(1);
+    if (user?.isPlatformMaintainer === 1) {
+      return true;
+    }
+  }
+
   const connection = await getAshedConnection(session.id);
   const hasMembership = await sessionHasActiveMembership(session);
   const isNative = await sessionHasNativeMembership(session);

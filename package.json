@@ -29,6 +29,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "test:e2e": "playwright test",
+    "test:e2e:install": "playwright install chromium",
     "prepare": "husky"
   },
   "dependencies": {
@@ -59,6 +61,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@playwright/test": "^1.51.1",
     "@swc/helpers": "^0.5.23",
     "@tailwindcss/postcss": "^4",
     "@types/canvas-confetti": "^1.9.0",

@@ -13,7 +13,7 @@ export default async function IframeNavPage({ params }: Props) {
   const locale = await getLocale();
   const session = await requirePageSession("/");
   const state = await getSessionStateFor(session, locale);
-  if (state.rbac && !state.rbac.isAshedConnectAllowed) {
+  if (!state.canUseAshedEmbeds) {
     redirect({ href: "/members", locale });
   }
 

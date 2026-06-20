@@ -317,6 +317,13 @@ export async function getSessionStateFor(
   const operatingMode = session.currentAllianceId
     ? await getAllianceOperatingMode(session.currentAllianceId)
     : null;
+  const isAshedConnectAllowed = rbac
+    ? rbac.isPlatformMaintainer ||
+      rbac.permissions.has(ASHED_CONNECT_PERMISSION)
+    : true;
+  const canUseAshedEmbeds =
+    Boolean(rbac?.isPlatformMaintainer) ||
+    (connection !== null && isAshedConnectAllowed);
 
   return {
     sessionId: session.id,
@@ -327,6 +334,7 @@ export async function getSessionStateFor(
     timezone,
     isConnected: connection !== null,
     hasAppAccess,
+    canUseAshedEmbeds,
     isNativeAlliance: isNativeMembership,
     operatingMode,
     expiresAt: session.expiresAt.toISOString(),
@@ -336,9 +344,7 @@ export async function getSessionStateFor(
           roleName: rbac.roleName,
           isPlatformMaintainer: rbac.isPlatformMaintainer,
           isAllianceAdmin: rbac.permissions.has("alliance:admin"),
-          isAshedConnectAllowed:
-            rbac.isPlatformMaintainer ||
-            rbac.permissions.has(ASHED_CONNECT_PERMISSION),
+          isAshedConnectAllowed,
           email: rbac.email,
         }
       : null,

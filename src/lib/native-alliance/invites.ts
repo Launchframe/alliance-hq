@@ -16,6 +16,7 @@ import {
 } from "@/lib/rbac/constants";
 import {
   resolveInviteRedirect,
+  resolvePostInviteOnboardingRedirect,
   sanitizeInternalRedirectPath,
 } from "@/lib/navigation/safe-redirect.shared";
 import { systemRoleNameForId } from "@/lib/rbac/system-roles";
@@ -242,10 +243,7 @@ export function resolveHqInviteAcceptRedirect(options: {
   queryNext?: string | null;
   storedPath?: string | null;
 }): string {
-  return resolveInviteRedirect({
-    queryNext: options.queryNext,
-    storedPath: options.storedPath,
-  });
+  return resolvePostInviteOnboardingRedirect(options);
 }
 
 async function upsertHqUserByEmail(email: string, displayName?: string | null) {
