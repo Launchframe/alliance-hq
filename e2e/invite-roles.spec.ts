@@ -133,7 +133,7 @@ test.describe("Invite onboarding — connect welcome before destination", () => 
     await expect(page).toHaveURL(/\/trains/);
   });
 
-  test("officer without Ashed connection can open connect flow from settings", async ({
+  test("officer without Ashed connection can open connect flow from account", async ({
     page,
   }) => {
     const sql = getE2eSql();
@@ -154,7 +154,7 @@ test.describe("Invite onboarding — connect welcome before destination", () => 
     const accepted = await acceptInviteViaApi(e2eBaseUrl(), token, email);
 
     await page.context().addCookies([sessionCookie(accepted.sessionId)]);
-    await page.goto("/settings");
+    await page.goto("/account");
 
     await expect(page.getByText(/reconnect to refresh your token/i)).toBeVisible();
   });
@@ -228,7 +228,7 @@ test.describe("Member access — no Ashed embeds until connected", () => {
     expect(body.code).not.toBe("connect_not_allowed_for_member");
   });
 
-  test("member settings keeps Ashed connect section available", async ({
+  test("member account keeps Ashed connect section available", async ({
     page,
   }) => {
     const sql = getE2eSql();
@@ -248,7 +248,7 @@ test.describe("Member access — no Ashed embeds until connected", () => {
     const accepted = await acceptInviteViaApi(e2eBaseUrl(), token, email);
 
     await page.context().addCookies([sessionCookie(accepted.sessionId)]);
-    await page.goto("/settings");
+    await page.goto("/account");
 
     await expect(page.getByText(/reconnect to refresh your token/i)).toBeVisible();
   });
@@ -281,7 +281,7 @@ test.describe("Member access — no Ashed embeds until connected", () => {
     );
     await page.goto("/dashboard");
     await expect(page).toHaveURL(/\/dashboard/);
-    await page.goto("/settings");
+    await page.goto("/account");
     await expect(page.getByText(/remind me/i)).toBeVisible();
   });
 

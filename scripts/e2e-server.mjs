@@ -2,18 +2,25 @@ import { execSync, spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 
+import { config as loadEnv } from "dotenv";
+
+loadEnv({ path: ".env" });
+loadEnv({ path: ".env.local" });
+
 const port = process.env.PLAYWRIGHT_E2E_PORT ?? "5176";
 const envLocal = path.join(process.cwd(), ".env.local");
 const envBackup = path.join(process.cwd(), ".env.local.e2e-bak");
 
 function requireDatabaseUrl() {
-  const dbUrl =
-    process.env.E2E_DATABASE_URL?.trim() ||
-    process.env.LOCAL_DATABASE_URL?.trim() ||
-    process.env.DATABASE_URL?.trim();
+  const candidates = [
+    process.env.E2E_DATABASE_URL,
+    process.env.LOCAL_DATABASE_URL,
+    process.env.DATABASE_URL,
+  ];
+  const dbUrl = candidates.map((value) => value?.trim()).find(Boolean);
   if (!dbUrl) {
     throw new Error(
-      "Set E2E_DATABASE_URL (recommended) or LOCAL_DATABASE_URL before running Playwright.",
+      "Set E2E_DATABASE_URL (recommended) or LOCAL_DATABASE_URL in .env / .env.local before running Playwright.",
     );
   }
   return dbUrl;
