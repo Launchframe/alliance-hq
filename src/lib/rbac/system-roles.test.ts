@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { ROLE_IDS } from "@/lib/rbac/constants";
+import { ASHED_CONNECT_PERMISSION, HQ_PERMISSIONS, ROLE_IDS } from "@/lib/rbac/constants";
 import {
   isSystemRoleId,
   systemRoleIdForName,
@@ -18,5 +18,10 @@ describe("system-roles", () => {
     expect(systemRoleNameForId("role-viewer")).toBe("viewer");
     expect(systemRoleNameForId("role-member")).toBe("member");
     expect(systemRoleNameForId("missing")).toBeNull();
+  });
+
+  it("ASHED_CONNECT_PERMISSION is declared in HQ_PERMISSIONS", () => {
+    const ids = HQ_PERMISSIONS.map((p) => p.id);
+    expect(ids).toContain(ASHED_CONNECT_PERMISSION);
   });
 });

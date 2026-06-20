@@ -17,6 +17,7 @@ import {
 } from "@/lib/jwt/connection-meta";
 import { DEFAULT_EXPIRY_REMINDER_DAYS } from "@/lib/jwt/decode";
 import { getRbacContext } from "@/lib/rbac/context";
+import { ASHED_CONNECT_PERMISSION } from "@/lib/rbac/constants";
 import {
   sessionHasAppAccess,
   sessionHasNativeMembership,
@@ -335,6 +336,7 @@ export async function getSessionStateFor(
           roleName: rbac.roleName,
           isPlatformMaintainer: rbac.isPlatformMaintainer,
           isAllianceAdmin: rbac.permissions.has("alliance:admin"),
+          isAshedConnectAllowed: rbac.permissions.has(ASHED_CONNECT_PERMISSION),
           email: rbac.email,
         }
       : null,

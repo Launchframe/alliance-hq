@@ -25,6 +25,7 @@ const HQ_PERMISSIONS = [
   { id: "hq:video:read", description: "List alliance video jobs" },
   { id: "hq:events:write", description: "Manage HQ native events" },
   { id: "trains:write", description: "Manage train conductor schedule, rolls, and locks" },
+  { id: "ashed:connect", description: "Connect an Ashed account — not granted to member-role accounts" },
 ];
 
 function getDatabaseUrl() {
@@ -66,6 +67,13 @@ async function main() {
       "HQ member — read-only access to alliance resources and personal account settings",
     permissions: [...roleTemplates.viewer.permissions],
   };
+
+  // Grant ashed:connect to every role except member
+  for (const roleKey of ["owner", "maintainer", "officer", "data_entry", "viewer"]) {
+    roleTemplates[roleKey].permissions = [
+      ...new Set([...roleTemplates[roleKey].permissions, "ashed:connect"]),
+    ];
+  }
 
   const url = getDatabaseUrl();
   const client = postgres(url, { max: 1, prepare: false });

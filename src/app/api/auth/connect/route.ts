@@ -11,6 +11,7 @@ import {
   resolveConnectAlliance,
 } from "@/lib/alliance/connect-alliance";
 import { emailHasAshedConnectAccess } from "@/lib/native-alliance/access";
+import { emailHasAshedConnectPermission } from "@/lib/access/invite-gate";
 import { verifyBase44Connection } from "@/lib/base44/server";
 import {
   DEFAULT_APP_ID,
@@ -20,6 +21,7 @@ import {
 import { syncAshedAllianceRoles } from "@/lib/rbac/sync-ashed-roles";
 import { maybeBootstrapPlatformMaintainer } from "@/lib/rbac/bootstrap-platform";
 import { getRbacContext } from "@/lib/rbac/context";
+import { ASHED_CONNECT_PERMISSION } from "@/lib/rbac/constants";
 import {
   getOrCreateSession,
   getSessionState,
@@ -47,7 +49,8 @@ export async function POST(request: Request) {
   try {
     const session = await getOrCreateSession();
     const sessionRbac = await getRbacContext(session.id);
-    if (sessionRbac?.roleName === "member") {
+    // Bound session: deny if the user's active role lacks ashed:connect
+    if (sessionRbac && !sessionRbac.permissions.has(ASHED_CONNECT_PERMISSION)) {
       return NextResponse.json(
         {
           error:
@@ -94,6 +97,19 @@ export async function POST(request: Request) {
           error:
             "Production access requires an admin invite first. Ask your platform maintainer for a link, accept it, then connect Ashed here.",
           code: "invite_required",
+        },
+        { status: 403 },
+      );
+    }
+
+    // Unbound-session bypass guard: check the email's member-role membership
+    // when getRbacContext returned null (hqUserId not yet set on this session).
+    if (!sessionRbac && !(await emailHasAshedConnectPermission(me.email))) {
+      return NextResponse.json(
+        {
+          error:
+            "Your invite role does not include Ashed connection access. Ask an admin if this needs to change.",
+          code: "connect_not_allowed_for_member",
         },
         { status: 403 },
       );

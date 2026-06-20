@@ -24,7 +24,7 @@ export default async function ConnectPage({ searchParams }: Props) {
   try {
     const session = await requirePageSession("/connect");
     const state = await getSessionStateFor(session, locale);
-    if (state.rbac?.roleName === "member") {
+    if (state.rbac && !state.rbac.isAshedConnectAllowed) {
       redirect({ href: "/", locale });
     }
     const connected = await getAshedConnection(session.id);
