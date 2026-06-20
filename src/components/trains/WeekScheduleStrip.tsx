@@ -483,6 +483,16 @@ export function WeekScheduleStrip({
     [],
   );
 
+  useEffect(() => {
+    if (!externalWeek) return;
+    if (externalWeek.weekStart === viewWeekStart) return;
+    const id = setTimeout(() => {
+      setViewWeekStart(externalWeek.weekStart);
+      setPage(externalWeek);
+    }, 0);
+    return () => clearTimeout(id);
+  }, [externalWeek, viewWeekStart]);
+
   const applyPage = useCallback(
     (next: WeekSchedulePagePayload) => {
       setViewWeekStart(next.weekStart);
@@ -554,7 +564,7 @@ export function WeekScheduleStrip({
 
   const dayGrid = (
     <div
-      className={`hidden grid-cols-7 gap-1.5 md:grid ${loading ? "opacity-50" : ""}`}
+      className={`hidden grid-cols-7 gap-1.5 week-schedule-grid:grid ${loading ? "opacity-50" : ""}`}
     >
       {dayConfigs.map((day) => {
         const isSelected = day.date === selectedDate;
@@ -583,11 +593,11 @@ export function WeekScheduleStrip({
 
   return (
     <div className="flex flex-col gap-2">
-      <p className="text-center text-xs font-medium tabular-nums text-[#8b949e] md:hidden">
+      <p className="text-center text-xs font-medium tabular-nums text-[#8b949e] week-schedule-grid:hidden">
         {formatWeekRange(carouselWeekStart, carouselWeekEnd)}
       </p>
 
-      <div className="hidden items-center justify-between gap-2 md:flex">
+      <div className="hidden items-center justify-between gap-2 week-schedule-grid:flex">
         <button
           type="button"
           onClick={() => shiftWeek(-1)}
@@ -611,7 +621,7 @@ export function WeekScheduleStrip({
         </button>
       </div>
 
-      <div className="md:hidden">
+      <div className="week-schedule-grid:hidden">
         <WeekScheduleInfiniteDayCarousel
           seedPage={mobileSeedPage}
           liveWeek={displayPage}

@@ -17,6 +17,8 @@
   --color-foreground: var(--foreground);
   --font-mono: var(--font-mono-family), ui-monospace, SFMono-Regular, Menlo,
     Monaco, Consolas, "Liberation Mono", monospace;
+  /* Week schedule 7-column grid needs ~1180px; below that use day carousel. */
+  --breakpoint-week-schedule-grid: 1180px;
 }
 
 code,
