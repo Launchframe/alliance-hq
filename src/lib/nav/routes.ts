@@ -94,6 +94,12 @@ export const NAV_GROUPS: NavGroupDef[] = [
         href: "/merge-manager",
         kind: "iframe",
       },
+      {
+        id: "alliance-settings",
+        labelKey: "allianceSettings",
+        href: "/settings",
+        kind: "native",
+      },
     ],
   },
   {
@@ -199,18 +205,6 @@ export const NAV_GROUPS: NavGroupDef[] = [
         kind: "native",
         descriptionKey: "videoUploadDescription",
       },
-      {
-        id: "alliance-settings",
-        labelKey: "allianceSettings",
-        href: "/settings",
-        kind: "native",
-      },
-      {
-        id: "account",
-        labelKey: "account",
-        href: "/account",
-        kind: "native",
-      },
     ],
   },
 ];
@@ -288,6 +282,9 @@ export function navLinkActive(pathname: string, href: string): boolean {
   if (href === "/account") {
     return pathname === "/account";
   }
+  if (href === "/profile") {
+    return pathname === "/profile";
+  }
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
@@ -305,23 +302,18 @@ export function findActiveNavGroupId(
       return group.id;
     }
 
-    if (group.id !== "hq-native") {
+    if (group.id === "alliance-management") {
+      const teamHrefs = showTeamAccess ? ["/settings/team"] : [];
+      if (teamHrefs.some((href) => navLinkActive(pathname, href))) {
+        return group.id;
+      }
       continue;
     }
 
-    const extraHrefs = [
-      ...(showTeamAccess ? ["/settings/team"] : []),
-      ...(showAdminPortal ? ["/admin"] : []),
-    ];
-
-    if (
-      extraHrefs.some((href) =>
-        href === "/admin"
-          ? pathname.startsWith("/admin")
-          : navLinkActive(pathname, href),
-      )
-    ) {
-      return group.id;
+    if (group.id === "hq-native") {
+      if (showAdminPortal && pathname.startsWith("/admin")) {
+        return group.id;
+      }
     }
   }
 

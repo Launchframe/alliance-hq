@@ -359,6 +359,7 @@ export async function getSessionStateFor(
             rbac.isPlatformMaintainer ||
             rbac.permissions.has(ASHED_CONNECT_PERMISSION),
           email: rbac.email,
+          displayName: rbac.displayName,
         }
       : null,
   };

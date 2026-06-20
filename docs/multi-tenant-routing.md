@@ -36,10 +36,13 @@ Maintainer gate: `src/app/[locale]/(app)/admin/layout.tsx`.
 
 | Path | Purpose |
 |------|---------|
+| `/profile` | Read-only HQ identity (name, email, alliance role) |
 | `/account` | Timezone, Ashed token, device linking, disconnect |
 | `/connect` | Ashed onboarding (connect-flow) |
 | `/pair` | Device pairing entry (connect-flow) |
 | `/releases` | Platform release notes |
+
+Account and profile are reachable from the **header profile menu** (top-right), not the sidebar.
 
 ## Alliance settings
 

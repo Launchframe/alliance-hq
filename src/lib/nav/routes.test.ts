@@ -5,6 +5,7 @@ import {
   isNavActive,
   legacyAshedRedirect,
   navLinkActive,
+  NAV_GROUPS,
   resolveAshedPath,
   resolveIframePage,
   trainwreckCase,
@@ -90,5 +91,24 @@ describe("navLinkActive", () => {
 
   it("does not highlight /account on nested paths", () => {
     expect(navLinkActive("/account", "/account")).toBe(true);
+  });
+
+  it("matches /profile exactly", () => {
+    expect(navLinkActive("/profile", "/profile")).toBe(true);
+    expect(navLinkActive("/profile/settings", "/profile")).toBe(false);
+  });
+});
+
+describe("NAV_GROUPS alliance-management", () => {
+  it("ends with alliance-settings", () => {
+    const group = NAV_GROUPS.find((g) => g.id === "alliance-management");
+    expect(group).toBeDefined();
+    const lastPage = group!.pages[group!.pages.length - 1];
+    expect(lastPage?.id).toBe("alliance-settings");
+  });
+
+  it("does not include account in hq-native", () => {
+    const hqNative = NAV_GROUPS.find((g) => g.id === "hq-native");
+    expect(hqNative?.pages.some((p) => p.id === "account")).toBe(false);
   });
 });

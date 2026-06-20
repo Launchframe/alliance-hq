@@ -9,6 +9,7 @@ import type { SessionAllianceOption } from "@/lib/alliance/types";
 import type { AshedConnectionMeta } from "@/lib/jwt/connection-meta";
 import { FeedbackProvider } from "@/components/feedback";
 import { SidebarNav } from "@/components/ashed-shell/SidebarNav";
+import { ShellProfileMenu } from "@/components/ashed-shell/ShellProfileMenu";
 import { findActiveNavGroupId } from "@/lib/nav/routes";
 import { TokenExpiryBanner } from "@/components/TokenExpiryNotice";
 import { ReleaseNoticeBanner } from "@/components/release-notes/ReleaseNoticeBanner";
@@ -21,6 +22,8 @@ import {
 type Props = {
   sessionId: string;
   userLabel: string | null;
+  displayName?: string | null;
+  userEmail?: string | null;
   isConnected: boolean;
   hasAppAccess?: boolean;
   isNativeAlliance?: boolean;
@@ -41,6 +44,8 @@ function cn(...parts: Array<string | false | null | undefined>) {
 export function AshedShell({
   sessionId,
   userLabel,
+  displayName = null,
+  userEmail = null,
   isConnected,
   hasAppAccess = isConnected,
   isNativeAlliance = false,
@@ -179,6 +184,18 @@ export function AshedShell({
                   </Link>
                 ) : null}
               </div>
+
+              {hasAppAccess ? (
+                <ShellProfileMenu
+                  userLabel={userLabel}
+                  displayName={displayName}
+                  userEmail={userEmail}
+                  showAdminPortal={showAdminPortal}
+                  isConnected={isConnected}
+                  canUseAshedEmbeds={canUseAshedEmbeds}
+                  showMenu={Boolean(userEmail || userLabel || displayName)}
+                />
+              ) : null}
             </header>
 
             <ReleaseNoticeBanner />

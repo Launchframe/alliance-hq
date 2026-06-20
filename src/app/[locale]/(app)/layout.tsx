@@ -75,6 +75,8 @@ export default async function AppLayout({
       <AshedShell
         sessionId={state.sessionId}
         userLabel={state.userLabel}
+        displayName={state.rbac?.displayName ?? null}
+        userEmail={state.rbac?.email ?? null}
         isConnected={state.isConnected}
         hasAppAccess={state.hasAppAccess}
         isNativeAlliance={state.isNativeAlliance}

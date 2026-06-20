@@ -674,7 +674,18 @@
     "connectPrompt": "Conecte sua conta Ashed →",
     "openMenu": "Abrir menu de navegação",
     "closeMenu": "Fechar menu de navegação",
-    "version": "v{version}"
+    "version": "v{version}",
+    "profileMenu": {
+      "openMenu": "Abrir menu do perfil",
+      "profile": "Perfil",
+      "account": "Conta",
+      "adminPortal": "Portal admin",
+      "connect": "Conectar Ashed",
+      "disconnect": "Desconectar",
+      "disconnecting": "Desconectando…",
+      "unknownUser": "Usuário HQ",
+      "unknownEmail": "Sem e-mail cadastrado"
+    }
   },
   "dashboard": {
     "title": "Painel de Controle",
@@ -921,6 +932,18 @@
     "timezoneSaved": "Fuso horário salvo",
     "timezoneSaveFailed": "Não foi possível salvar o fuso horário",
     "aboutBody": "O Alliance HQ, em <strong>alliance-hq.vercel.app</strong>, é uma interface comunitária para o <link>ashed.online</link>. Todos os créditos pelos dados da aliança pertencem ao Ashed."
+  },
+  "profile": {
+    "title": "Perfil",
+    "subtitle": "Sua identidade HQ na sessão atual.",
+    "displayName": "Nome de exibição",
+    "email": "E-mail",
+    "allianceRole": "Função na aliança",
+    "allianceRoleValue": "{tag} · {role}",
+    "maintainerBadge": "Mantenedor da plataforma",
+    "accountSettingsLink": "Configurações da conta",
+    "unknownUser": "Usuário HQ",
+    "unknownEmail": "Sem e-mail cadastrado"
   },
   "alliancePicker": {
     "label": "Aliança",

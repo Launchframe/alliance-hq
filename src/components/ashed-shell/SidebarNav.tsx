@@ -142,16 +142,19 @@ export function SidebarNav({
       <nav className="min-h-0 flex-1 overflow-y-auto p-2">
         {navGroups.map((group) => {
           const extraPages =
-            group.id === "hq-native"
+            group.id === "alliance-management"
               ? [
                   ...(showTeamAccess
                     ? [{ href: "/settings/team", labelKey: "team" as const }]
                     : []),
-                  ...(showAdminPortal
-                    ? [{ href: "/admin", labelKey: "adminPortal" as const }]
-                    : []),
                 ]
-              : [];
+              : group.id === "hq-native"
+                ? [
+                    ...(showAdminPortal
+                      ? [{ href: "/admin", labelKey: "adminPortal" as const }]
+                      : []),
+                  ]
+                : [];
 
           const isExpanded =
             !mobileCollapsible || expandedGroupId === group.id;

@@ -674,7 +674,18 @@
     "connectPrompt": "Connect your Ashed account →",
     "openMenu": "Open navigation menu",
     "closeMenu": "Close navigation menu",
-    "version": "v{version}"
+    "version": "v{version}",
+    "profileMenu": {
+      "openMenu": "Open profile menu",
+      "profile": "Profile",
+      "account": "Account",
+      "adminPortal": "Admin portal",
+      "connect": "Connect Ashed",
+      "disconnect": "Disconnect",
+      "disconnecting": "Disconnecting…",
+      "unknownUser": "HQ user",
+      "unknownEmail": "No email on file"
+    }
   },
   "dashboard": {
     "title": "Dashboard",
@@ -921,6 +932,18 @@
     "timezoneSaved": "Time zone saved",
     "timezoneSaveFailed": "Could not save time zone",
     "aboutBody": "Alliance HQ at <strong>alliance-hq.vercel.app</strong> is a community wrapper for <link>ashed.online</link>. All alliance data credit belongs to Ashed."
+  },
+  "profile": {
+    "title": "Profile",
+    "subtitle": "Your HQ identity for the current session.",
+    "displayName": "Display name",
+    "email": "Email",
+    "allianceRole": "Alliance role",
+    "allianceRoleValue": "{tag} · {role}",
+    "maintainerBadge": "Platform maintainer",
+    "accountSettingsLink": "Account settings",
+    "unknownUser": "HQ user",
+    "unknownEmail": "No email on file"
   },
   "alliancePicker": {
     "label": "Alliance",
