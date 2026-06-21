@@ -151,24 +151,30 @@ export async function acceptInviteViaApi(
   token: string,
   email: string,
   next?: string,
-): Promise<{ sessionId: string; redirectTo: string }> {
-  const bootstrap = await fetch(
-    `${baseURL}/api/auth/session?next=${encodeURIComponent("/")}`,
-    { redirect: "manual" },
-  );
-  const setCookie = bootstrap.headers.get("set-cookie") ?? "";
-  const sessionMatch = setCookie.match(
-    new RegExp(`${SESSION_COOKIE}=([^;]+)`),
-  );
-  if (!sessionMatch?.[1]) {
-    throw new Error("Failed to bootstrap invite-accept session.");
+  sessionId?: string,
+): Promise<{ sessionId: string; redirectTo: string; hqUserId: string }> {
+  let browserSessionId = sessionId;
+
+  if (!browserSessionId) {
+    const bootstrap = await fetch(
+      `${baseURL}/api/auth/session?next=${encodeURIComponent("/")}`,
+      { redirect: "manual" },
+    );
+    const setCookie = bootstrap.headers.get("set-cookie") ?? "";
+    const sessionMatch = setCookie.match(
+      new RegExp(`${SESSION_COOKIE}=([^;]+)`),
+    );
+    if (!sessionMatch?.[1]) {
+      throw new Error("Failed to bootstrap invite-accept session.");
+    }
+    browserSessionId = sessionMatch[1];
   }
 
   const res = await fetch(`${baseURL}/api/invite/${encodeURIComponent(token)}/accept`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Cookie: `${SESSION_COOKIE}=${sessionMatch[1]}`,
+      Cookie: `${SESSION_COOKIE}=${browserSessionId}`,
     },
     body: JSON.stringify({
       email,
@@ -180,6 +186,7 @@ export async function acceptInviteViaApi(
   const body = (await res.json()) as {
     redirectTo?: string;
     error?: string;
+    hqUserId?: string;
   };
 
   if (!res.ok) {
@@ -187,7 +194,8 @@ export async function acceptInviteViaApi(
   }
 
   return {
-    sessionId: sessionMatch[1],
+    sessionId: browserSessionId,
+    hqUserId: body.hqUserId ?? "",
     redirectTo: body.redirectTo ?? "/connect?welcome=1",
   };
 }
@@ -251,6 +259,141 @@ export async function attachAshedConnectionToSession(
       ${now}
     )
   `;
+}
+
+export async function createBrowserSession(
+  sql: Sql,
+  options?: { hqUserId?: string | null },
+): Promise<{ sessionId: string }> {
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000);
+  const sessionId = nanoid(32);
+
+  await sql`
+    INSERT INTO sessions (id, created_at, updated_at, expires_at, hq_user_id)
+    VALUES (${sessionId}, ${now}, ${now}, ${expiresAt}, ${options?.hqUserId ?? null})
+  `;
+
+  return { sessionId };
+}
+
+export async function createAuthenticatedHqSession(
+  sql: Sql,
+  email: string,
+  options?: { displayName?: string; accessGranted?: boolean },
+): Promise<SessionFixture> {
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000);
+  const sessionId = nanoid(32);
+  const hqUserId = nanoid(16);
+  const normalizedEmail = email.toLowerCase();
+  const displayName = options?.displayName ?? "E2E User";
+
+  await sql`
+    INSERT INTO hq_users (
+      id, email, display_name, access_granted_at, created_at, updated_at
+    ) VALUES (
+      ${hqUserId},
+      ${normalizedEmail},
+      ${displayName},
+      ${options?.accessGranted === false ? null : now},
+      ${now},
+      ${now}
+    )
+  `;
+
+  await sql`
+    INSERT INTO sessions (id, created_at, updated_at, expires_at, hq_user_id)
+    VALUES (${sessionId}, ${now}, ${now}, ${expiresAt}, ${hqUserId})
+  `;
+
+  return {
+    sessionId,
+    hqUserId,
+    email: normalizedEmail,
+  };
+}
+
+export async function createAllianceMembership(
+  sql: Sql,
+  input: {
+    hqUserId: string;
+    allianceId: string;
+    roleName: keyof typeof ROLE_IDS;
+    source: "manual" | "ashed";
+  },
+): Promise<void> {
+  const now = new Date();
+  const membershipId = nanoid(16);
+  const roleId = ROLE_IDS[input.roleName];
+
+  await sql`
+    INSERT INTO roles (id, alliance_id, name, description, is_system)
+    VALUES (
+      ${roleId},
+      NULL,
+      ${input.roleName},
+      ${`${input.roleName} system role`},
+      1
+    )
+    ON CONFLICT (id) DO NOTHING
+  `;
+
+  await sql`
+    INSERT INTO alliance_memberships (
+      id, alliance_id, hq_user_id, role_id, source, status, created_at, updated_at
+    ) VALUES (
+      ${membershipId},
+      ${input.allianceId},
+      ${input.hqUserId},
+      ${roleId},
+      ${input.source},
+      ${"active"},
+      ${now},
+      ${now}
+    )
+  `;
+}
+
+export async function sessionHasAshedCredential(
+  sql: Sql,
+  sessionId: string,
+): Promise<boolean> {
+  const [row] = await sql<{ id: string }[]>`
+    SELECT id
+    FROM ashed_credentials
+    WHERE session_id = ${sessionId}
+    LIMIT 1
+  `;
+  return Boolean(row?.id);
+}
+
+export async function fetchConnectSessionState(
+  baseURL: string,
+  sessionId: string,
+): Promise<{
+  isConnected: boolean;
+  canUseAshedEmbeds: boolean;
+  roleName: string | null;
+}> {
+  const res = await fetch(`${baseURL}/api/auth/connect`, {
+    headers: {
+      Cookie: `${SESSION_COOKIE}=${sessionId}`,
+    },
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to load session state: ${res.status}`);
+  }
+  const body = (await res.json()) as {
+    isConnected?: boolean;
+    canUseAshedEmbeds?: boolean;
+    rbac?: { roleName?: string | null } | null;
+  };
+  return {
+    isConnected: body.isConnected === true,
+    canUseAshedEmbeds: body.canUseAshedEmbeds === true,
+    roleName: body.rbac?.roleName ?? null,
+  };
 }
 
 export async function simulateManualMembershipAshedUpgrade(

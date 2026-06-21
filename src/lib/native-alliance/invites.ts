@@ -365,6 +365,11 @@ export async function acceptHqInvite(
   }
 
   const tag = alliance.tag.trim();
+
+  await db
+    .delete(schema.ashedCredentials)
+    .where(eq(schema.ashedCredentials.sessionId, input.sessionId));
+
   await db
     .update(schema.sessions)
     .set({
