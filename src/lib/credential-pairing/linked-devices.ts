@@ -75,6 +75,24 @@ export async function listActiveLinkedDevicesForUser(
   }));
 }
 
+export async function userHasActiveLinkedDevice(
+  hqUserId: string,
+): Promise<boolean> {
+  const db = getDb();
+  const [row] = await db
+    .select({ id: schema.linkedDevices.id })
+    .from(schema.linkedDevices)
+    .where(
+      and(
+        eq(schema.linkedDevices.hqUserId, hqUserId),
+        isNull(schema.linkedDevices.revokedAt),
+      ),
+    )
+    .limit(1);
+
+  return Boolean(row);
+}
+
 export async function renameLinkedDevice(
   hqUserId: string,
   deviceId: string,

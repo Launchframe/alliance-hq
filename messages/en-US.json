@@ -1114,6 +1114,7 @@
     "checkEmailTitle": "Check your email",
     "checkEmailBody": "We sent a sign-in link to {email}.",
     "yourInbox": "your inbox",
+    "checkEmailSpamHint": "Be sure to check your spam folder if you don't see it.",
     "checkEmailHint": "The link expires soon. You can close this tab after clicking it in your email.",
     "tryAgain": "Use a different email"
   },
@@ -1127,7 +1128,10 @@
     "joinCodeButton": "Redeem join code",
     "connectTitle": "Connect Ashed",
     "connectBody": "Paste your Ashed connection key to sync roster and use iframe tools.",
-    "connectButton": "Connect Ashed"
+    "connectButton": "Connect Ashed",
+    "wrongAccount": "Wrong account?",
+    "signingOut": "Signing out…",
+    "signOutFailed": "Could not sign out."
   },
   "join": {
     "title": "Join an alliance",

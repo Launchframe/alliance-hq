@@ -61,11 +61,14 @@ type Props = {
   onConnected?: (connection: ParsedConnection) => void;
   /** Skip login / DevTools / copy steps for returning Ashed users. */
   skipWalkthroughToPaste?: boolean;
+  /** Returning reconnect with a phone already linked — skip optional link-phone step. */
+  skipLinkPhoneStep?: boolean;
 };
 
 export function ConnectionWalkthrough({
   onConnected,
   skipWalkthroughToPaste = false,
+  skipLinkPhoneStep = false,
 }: Props) {
   const t = useTranslations("connect");
   const tc = useTranslations("common");
@@ -100,6 +103,9 @@ export function ConnectionWalkthrough({
   const isLinkPhoneStep = stepId === "link-phone";
   const isPasteSuccess = isPasteStep && connectSuccess !== null;
   const [returningUser, setReturningUser] = useState(skipWalkthroughToPaste);
+  const visibleStepIds = skipLinkPhoneStep
+    ? STEP_IDS.filter((id) => id !== "link-phone")
+    : STEP_IDS;
 
   useEffect(() => {
     if (skipWalkthroughToPaste || !readConnectWalkthroughSeen()) {
@@ -314,12 +320,17 @@ export function ConnectionWalkthrough({
 
       if (data.ashed && data.userLabel) {
         markConnectWalkthroughSeen();
+        onConnected?.(parsed.connection);
+        if (skipLinkPhoneStep) {
+          router.push("/");
+          router.refresh();
+          return;
+        }
         setConnectSuccess({
           ashed: data.ashed,
           userLabel: data.userLabel,
           alliance: data.alliance,
         });
-        onConnected?.(parsed.connection);
         return;
       }
 
@@ -340,6 +351,7 @@ export function ConnectionWalkthrough({
     pasteInput,
     router,
     selectedForUi,
+    skipLinkPhoneStep,
     t,
     tc,
   ]);
@@ -559,7 +571,9 @@ export function ConnectionWalkthrough({
       </header>
 
       <ol className="mb-4 flex flex-wrap gap-2" aria-label={t("progressLabel")}>
-        {STEP_IDS.map((id, i) => (
+        {visibleStepIds.map((id, visibleIndex) => {
+          const i = STEP_IDS.indexOf(id);
+          return (
           <li
             key={id}
             className={`flex items-center gap-1.5 text-xs ${
@@ -579,11 +593,12 @@ export function ConnectionWalkthrough({
                     : "border-[#30363d] bg-[#21262d]"
               }`}
             >
-              {i + 1}
+              {visibleIndex + 1}
             </span>
             <span className="hidden sm:inline">{progressTitle(id)}</span>
           </li>
-        ))}
+          );
+        })}
       </ol>
 
       <section className="rounded-xl border border-[#30363d] bg-[#161b22] p-5">
@@ -659,7 +674,11 @@ export function ConnectionWalkthrough({
           ) : isPasteSuccess ? (
             <button
               type="button"
-              onClick={() => setStepIndex(LINK_PHONE_STEP_INDEX)}
+              onClick={
+                skipLinkPhoneStep
+                  ? continueToApp
+                  : () => setStepIndex(LINK_PHONE_STEP_INDEX)
+              }
               className="rounded-lg border border-[#238636] bg-[#238636] px-4 py-2 text-sm text-white"
             >
               {t("steps.paste.continue")}

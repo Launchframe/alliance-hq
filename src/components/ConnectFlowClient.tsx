@@ -8,11 +8,13 @@ import { InviteWelcomeClient } from "@/components/native-alliance/InviteWelcomeC
 type Props = {
   showWelcomeChoice: boolean;
   skipWalkthroughToPaste?: boolean;
+  skipLinkPhoneStep?: boolean;
 };
 
 export function ConnectFlowClient({
   showWelcomeChoice: initialWelcome,
   skipWalkthroughToPaste = false,
+  skipLinkPhoneStep = false,
 }: Props) {
   const [showWelcomeChoice, setShowWelcomeChoice] = useState(initialWelcome);
 
@@ -23,6 +25,9 @@ export function ConnectFlowClient({
   }
 
   return (
-    <ConnectionWalkthrough skipWalkthroughToPaste={skipWalkthroughToPaste} />
+    <ConnectionWalkthrough
+      skipWalkthroughToPaste={skipWalkthroughToPaste}
+      skipLinkPhoneStep={skipLinkPhoneStep}
+    />
   );
 }

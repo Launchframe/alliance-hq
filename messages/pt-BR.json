@@ -1114,6 +1114,7 @@
     "checkEmailTitle": "Verifique seu e-mail",
     "checkEmailBody": "Enviamos um link de entrada para {email}.",
     "yourInbox": "sua caixa de entrada",
+    "checkEmailSpamHint": "Confira a pasta de spam se não encontrar o e-mail.",
     "checkEmailHint": "O link expira em breve. Você pode fechar esta aba depois de clicar no e-mail.",
     "tryAgain": "Usar outro e-mail"
   },
@@ -1127,7 +1128,10 @@
     "joinCodeButton": "Resgatar código",
     "connectTitle": "Conectar Ashed",
     "connectBody": "Cole sua chave de conexão Ashed para sincronizar elenco e usar ferramentas em iframe.",
-    "connectButton": "Conectar Ashed"
+    "connectButton": "Conectar Ashed",
+    "wrongAccount": "Conta errada?",
+    "signingOut": "Saindo…",
+    "signOutFailed": "Não foi possível sair."
   },
   "join": {
     "title": "Entrar na aliança",

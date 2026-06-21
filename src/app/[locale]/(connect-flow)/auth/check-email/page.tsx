@@ -18,6 +18,7 @@ export default async function AuthCheckEmailPage({ searchParams }: Props) {
       <p className="text-sm text-[#8b949e]">
         {t("checkEmailBody", { email: email?.trim() || t("yourInbox") })}
       </p>
+      <p className="text-sm text-[#8b949e]">{t("checkEmailSpamHint")}</p>
       <p className="text-xs text-[#6e7681]">{t("checkEmailHint")}</p>
       <Link href="/auth" className="inline-block text-sm text-[#58a6ff] hover:underline">
         {t("tryAgain")}

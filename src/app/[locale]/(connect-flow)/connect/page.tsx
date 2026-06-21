@@ -1,7 +1,7 @@
 import { getLocale } from "next-intl/server";
 
 import { ConnectFlowClient } from "@/components/ConnectFlowClient";
-import { shouldSkipConnectWalkthrough } from "@/lib/connect/walkthrough.server";
+import { shouldSkipConnectWalkthrough, shouldSkipLinkPhoneStep } from "@/lib/connect/walkthrough.server";
 import { redirect } from "@/i18n/navigation";
 import { requireAuthForPage } from "@/lib/auth/page-guard";
 import { rethrowNavigationError } from "@/lib/navigation";
@@ -23,6 +23,7 @@ export default async function ConnectPage({ searchParams }: Props) {
 
   let showWelcomeChoice = false;
   let skipWalkthroughToPaste = false;
+  let skipLinkPhoneStep = false;
 
   try {
     await requireAuthForPage("/connect");
@@ -41,6 +42,7 @@ export default async function ConnectPage({ searchParams }: Props) {
     showWelcomeChoice =
       welcome === "1" && state.hasAppAccess && !state.isConnected;
     skipWalkthroughToPaste = await shouldSkipConnectWalkthrough(session.id);
+    skipLinkPhoneStep = await shouldSkipLinkPhoneStep(session.id);
   } catch (error) {
     rethrowNavigationError(error);
     throw error;
@@ -50,6 +52,7 @@ export default async function ConnectPage({ searchParams }: Props) {
     <ConnectFlowClient
       showWelcomeChoice={showWelcomeChoice}
       skipWalkthroughToPaste={skipWalkthroughToPaste}
+      skipLinkPhoneStep={skipLinkPhoneStep}
     />
   );
 }

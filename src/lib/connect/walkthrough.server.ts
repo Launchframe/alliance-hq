@@ -2,6 +2,7 @@ import "server-only";
 
 import { eq } from "drizzle-orm";
 
+import { userHasActiveLinkedDevice } from "@/lib/credential-pairing/linked-devices";
 import { getDb, schema } from "@/lib/db";
 import {
   loadSession,
@@ -33,4 +34,28 @@ export async function shouldSkipConnectWalkthrough(
     .limit(1);
 
   return Boolean(user?.ashedUserId?.trim());
+}
+
+/** Returning Ashed reconnect with a phone already paired — skip optional link-phone step. */
+export async function shouldSkipLinkPhoneStep(
+  sessionId: string,
+): Promise<boolean> {
+  if (!(await shouldSkipConnectWalkthrough(sessionId))) {
+    return false;
+  }
+
+  const session = await loadSession(sessionId);
+  if (!session?.hqUserId) {
+    return false;
+  }
+
+  const effectiveHqUserId = await resolveEffectiveHqUserIdForSession(
+    sessionId,
+    session.hqUserId,
+  );
+  if (!effectiveHqUserId) {
+    return false;
+  }
+
+  return userHasActiveLinkedDevice(effectiveHqUserId);
 }

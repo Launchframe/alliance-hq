@@ -1,17 +1,54 @@
 "use client";
 
+import { useState } from "react";
 import { useTranslations } from "next-intl";
 
-import { Link } from "@/i18n/navigation";
+import { Link, useRouter } from "@/i18n/navigation";
 
 export function GetStartedClient() {
   const t = useTranslations("getStarted");
+  const router = useRouter();
+  const [signingOut, setSigningOut] = useState(false);
+  const [signOutError, setSignOutError] = useState<string | null>(null);
+
+  async function signOut() {
+    setSigningOut(true);
+    setSignOutError(null);
+    try {
+      const res = await fetch("/api/auth/sign-out", { method: "POST" });
+      if (!res.ok) {
+        setSignOutError(t("signOutFailed"));
+        return;
+      }
+      router.push("/auth");
+      router.refresh();
+    } catch {
+      setSignOutError(t("signOutFailed"));
+    } finally {
+      setSigningOut(false);
+    }
+  }
 
   return (
     <div className="mx-auto max-w-lg space-y-6 rounded-xl border border-[#30363d] bg-[#161b22] p-6">
       <div>
-        <h1 className="text-xl font-semibold">{t("title")}</h1>
-        <p className="mt-2 text-sm text-[#8b949e]">{t("body")}</p>
+        <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2">
+          <div className="min-w-0">
+            <h1 className="text-xl font-semibold">{t("title")}</h1>
+            <p className="mt-2 text-sm text-[#8b949e]">{t("body")}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => void signOut()}
+            disabled={signingOut}
+            className="shrink-0 text-sm text-[#8b949e] hover:text-[#58a6ff] disabled:opacity-50 underline"
+          >
+            {signingOut ? t("signingOut") : t("wrongAccount")}
+          </button>
+        </div>
+        {signOutError ? (
+          <p className="mt-2 text-sm text-[#f85149]">{signOutError}</p>
+        ) : null}
       </div>
 
       <section className="space-y-2 rounded-lg border border-[#30363d] bg-[#0d1117] p-4">
