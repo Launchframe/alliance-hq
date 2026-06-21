@@ -8,11 +8,15 @@ import {
   attachAshedConnectionToSession,
   createAllianceMembership,
   createAuthenticatedHqSession,
+  createCanonicalAshedHqUser,
   createHqInviteRow,
+  createHqUserOnly,
+  createMagicLinkSession,
   createNativeAlliance,
   createPlatformMaintainerSession,
   fetchConnectSessionState,
   getE2eSql,
+  playwrightAuthCookies,
   sessionCookie,
   sessionHasAshedCredential,
 } from "./fixtures/db";
@@ -142,5 +146,99 @@ test.describe("Browser session isolation — Ashed credential binding", () => {
     await page.context().addCookies([sessionCookie(priorUser.sessionId)]);
     await page.goto("/dashboard");
     await expect(page).toHaveURL(/\/members/);
+  });
+
+  test("different HQ user signing in on same browser session clears stale Ashed cred", async ({
+    page,
+  }) => {
+    const sql = getE2eSql();
+    const alliance = await createNativeAlliance(sql, {
+      tag: `SI${nanoid(3)}`,
+      name: "Session Isolation Alliance",
+    });
+    const ashedUserId = `ashed-${nanoid(12)}`;
+
+    const userA = await createMagicLinkSession(sql, uniqueEmail("user-a"));
+    const { hqUserId: canonicalA } = await createCanonicalAshedHqUser(sql, {
+      email: uniqueEmail("canonical-a"),
+      ashedUserId,
+    });
+    await createAllianceMembership(sql, {
+      hqUserId: canonicalA,
+      allianceId: alliance.allianceId,
+      roleName: "officer",
+      source: "ashed",
+    });
+
+    await sql`
+      UPDATE sessions
+      SET hq_user_id = ${canonicalA}, current_alliance_id = ${alliance.allianceId}
+      WHERE id = ${userA.sessionId}
+    `;
+    await attachAshedConnectionToSession(sql, userA.sessionId, { ashedUserId });
+
+    expect(
+      await fetchConnectSessionState(e2eBaseUrl(), userA.sessionId),
+    ).toMatchObject({ isConnected: true, roleName: "officer" });
+
+    const userB = await createHqUserOnly(sql, uniqueEmail("user-b"));
+
+    await page.context().addCookies([
+      {
+        name: "alliance_hq_session",
+        value: userA.sessionId,
+        domain: "localhost",
+        path: "/",
+        httpOnly: true,
+        sameSite: "Lax",
+      },
+      {
+        name: "authjs.session-token",
+        value: userB.nextAuthToken,
+        domain: "localhost",
+        path: "/",
+        httpOnly: true,
+        sameSite: "Lax",
+      },
+    ]);
+
+    await page.goto("/account");
+
+    expect(await sessionHasAshedCredential(sql, userA.sessionId)).toBe(false);
+    expect(
+      await fetchConnectSessionState(e2eBaseUrl(), userA.sessionId),
+    ).toMatchObject({ isConnected: false, roleName: null });
+
+    const [sessionRow] = await sql<{ hq_user_id: string | null }[]>`
+      SELECT hq_user_id FROM sessions WHERE id = ${userA.sessionId} LIMIT 1
+    `;
+    expect(sessionRow?.hq_user_id).toBe(userB.hqUserId);
+  });
+
+  test("same HQ user re-authenticating preserves Ashed credential on browser session", async ({
+    page,
+  }) => {
+    const sql = getE2eSql();
+    const ashedUserId = `ashed-${nanoid(12)}`;
+    const user = await createMagicLinkSession(sql, uniqueEmail("same-user"));
+
+    await sql`
+      UPDATE hq_users
+      SET ashed_user_id = ${ashedUserId}
+      WHERE id = ${user.hqUserId}
+    `;
+    await attachAshedConnectionToSession(sql, user.sessionId, { ashedUserId });
+
+    expect(
+      await fetchConnectSessionState(e2eBaseUrl(), user.sessionId),
+    ).toMatchObject({ isConnected: true });
+
+    await page.context().addCookies(playwrightAuthCookies(user));
+    await page.goto("/account");
+
+    expect(await sessionHasAshedCredential(sql, user.sessionId)).toBe(true);
+    expect(
+      await fetchConnectSessionState(e2eBaseUrl(), user.sessionId),
+    ).toMatchObject({ isConnected: true });
   });
 });

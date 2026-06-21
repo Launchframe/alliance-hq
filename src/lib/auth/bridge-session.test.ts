@@ -22,6 +22,9 @@ describe("resolveBridgeHqUserId", () => {
       ashedMembershipModule,
       "sessionHoldsAshedIdentityForHqUser",
     ).mockImplementation(async (_sessionId, hqUserId) => hqUserId === "canonical-user");
+    vi.spyOn(sessionModule, "resolveEffectiveHqUserIdForSession").mockResolvedValue(
+      "canonical-user",
+    );
     const clearSpy = vi
       .spyOn(sessionModule, "clearAshedConnection")
       .mockResolvedValue(undefined);
@@ -85,5 +88,34 @@ describe("resolveBridgeHqUserId", () => {
       resolveBridgeHqUserId({ hqUserId: "user-b" }),
     ).resolves.toBe("user-b");
     expect(clearSpy).not.toHaveBeenCalled();
+  });
+
+  it("clears stale cred when a different user signs in on a cred-bound session", async () => {
+    vi.spyOn(sessionModule, "getOrCreateSession").mockResolvedValue({
+      id: "sess-1",
+      hqUserId: "user-a",
+    } as never);
+    vi.spyOn(sessionModule, "loadSession").mockResolvedValue({
+      id: "sess-1",
+      hqUserId: "user-a",
+    } as never);
+    vi.spyOn(
+      ashedMembershipModule,
+      "sessionHoldsAshedIdentityForHqUser",
+    ).mockImplementation(async (_sessionId, hqUserId) => hqUserId === "user-a");
+    vi.spyOn(sessionModule, "resolveEffectiveHqUserIdForSession").mockResolvedValue(
+      "user-b",
+    );
+    vi.spyOn(sessionModule, "getAshedCredentialRecord").mockResolvedValue({
+      id: "cred-1",
+    } as never);
+    const clearSpy = vi
+      .spyOn(sessionModule, "clearAshedConnection")
+      .mockResolvedValue(undefined);
+
+    await expect(
+      resolveBridgeHqUserId({ hqUserId: "user-b" }),
+    ).resolves.toBe("user-b");
+    expect(clearSpy).toHaveBeenCalledWith("sess-1");
   });
 });

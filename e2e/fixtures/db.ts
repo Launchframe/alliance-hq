@@ -366,6 +366,39 @@ export async function createMagicLinkSession(
   return createAuthenticatedHqSession(sql, email);
 }
 
+/** HQ user + NextAuth token without creating a new browser session row. */
+export async function createHqUserOnly(
+  sql: Sql,
+  email: string,
+  options?: { displayName?: string; accessGranted?: boolean },
+): Promise<{ hqUserId: string; email: string; nextAuthToken: string }> {
+  const now = new Date();
+  const hqUserId = nanoid(16);
+  const normalizedEmail = email.toLowerCase();
+  const displayName = options?.displayName ?? "E2E User";
+
+  await sql`
+    INSERT INTO hq_users (
+      id, email, display_name, access_granted_at, created_at, updated_at
+    ) VALUES (
+      ${hqUserId},
+      ${normalizedEmail},
+      ${displayName},
+      ${options?.accessGranted === false ? null : now},
+      ${now},
+      ${now}
+    )
+  `;
+
+  const nextAuthToken = await encodeNextAuthSessionToken({
+    hqUserId,
+    email: normalizedEmail,
+    name: displayName,
+  });
+
+  return { hqUserId, email: normalizedEmail, nextAuthToken };
+}
+
 export async function createCanonicalAshedHqUser(
   sql: Sql,
   input: { email: string; ashedUserId: string; displayName?: string },

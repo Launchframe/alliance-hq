@@ -30,7 +30,21 @@ export async function resolveBridgeHqUserId(input: {
       freshSession.hqUserId,
     ))
   ) {
-    return freshSession.hqUserId;
+    const effectiveForSignIn =
+      (await resolveEffectiveHqUserIdForSession(
+        freshSession.id,
+        input.hqUserId,
+      )) ?? input.hqUserId;
+
+    if (
+      effectiveForSignIn === freshSession.hqUserId ||
+      (await sessionHoldsAshedIdentityForHqUser(
+        freshSession.id,
+        input.hqUserId,
+      ))
+    ) {
+      return freshSession.hqUserId;
+    }
   }
 
   if (
