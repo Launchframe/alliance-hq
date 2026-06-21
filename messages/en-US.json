@@ -1537,6 +1537,7 @@
     "lockFailed": "Could not lock Conductor.",
     "swapFailed": "Could not swap conductors.",
     "scheduleFailed": "Could not update schedule.",
+    "emptyPoolScheduleBlocked": "Import alliance members before creating a train schedule.",
     "poolFailed": "Could not re-seed pool.",
     "spinSource": {
       "heading": "Spin sources",

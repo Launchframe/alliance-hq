@@ -209,6 +209,7 @@ export async function getConductorRecord(
   date: string,
   seasonKey?: string | null,
 ): Promise<(typeof schema.trainConductorRecords.$inferSelect) | null> {
+  // One row per alliance+date; seasonKey is metadata updated on upsert, not a lookup filter.
   void seasonKey;
   const db = getDb();
   const [row] = await db

@@ -1,4 +1,9 @@
-import { addCalendarDays, isCalendarDateOnOrAfter } from "@/lib/trains/game-time";
+import {
+  addCalendarDays,
+  formatServerCalendarDate,
+  isCalendarDateOnOrAfter,
+} from "@/lib/trains/game-time";
+import { SERVER_TIME_IANA } from "@/lib/timezone/constants";
 
 export type TrainNextDepartureState =
   | "awaiting_selection"
@@ -46,7 +51,7 @@ export function resolveTrainNextDeparture(input: {
 
 export function formatServerClockTime(now = new Date()): string {
   return new Intl.DateTimeFormat("en-US", {
-    timeZone: "Etc/GMT+2",
+    timeZone: SERVER_TIME_IANA,
     hour: "numeric",
     minute: "2-digit",
     second: "2-digit",
@@ -55,10 +60,5 @@ export function formatServerClockTime(now = new Date()): string {
 }
 
 export function formatServerClockDate(now = new Date()): string {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Etc/GMT+2",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(now);
+  return formatServerCalendarDate(now);
 }

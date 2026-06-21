@@ -1537,6 +1537,7 @@
     "lockFailed": "Não foi possível confirmar o Condutor.",
     "swapFailed": "Não foi possível trocar os Condutores.",
     "scheduleFailed": "Não foi possível atualizar a agenda.",
+    "emptyPoolScheduleBlocked": "Importe os membros da aliança antes de criar uma agenda de trem.",
     "poolFailed": "Não foi possível recriar o pool.",
     "spinSource": {
       "heading": "Fontes do giro",

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { Dialog } from "@/components/ui/dialog";
+import { SERVER_TIME_IANA } from "@/lib/timezone/constants";
 import {
   formatServerClockDate,
   formatServerClockTime,
@@ -18,7 +19,7 @@ type Props = {
 
 function AnalogClockFace({ now }: { now: Date }) {
   const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: "Etc/GMT+2",
+    timeZone: SERVER_TIME_IANA,
     hour: "numeric",
     minute: "numeric",
     second: "numeric",
@@ -144,7 +145,6 @@ export function TrainsServerTimeClock({
 
       <Dialog open={open} onOpenChange={setOpen} title={t("boardTitle")}>
         <div className="space-y-4">
-          <h2 className="text-lg font-semibold text-[#e6edf3]">{t("boardTitle")}</h2>
           <AnalogClockFace now={now} />
           <p className="text-center text-sm tabular-nums text-[#c9d1d9]">
             {formatServerClockDate(now)} · {formatServerClockTime(now)}

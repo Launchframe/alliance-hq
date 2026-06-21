@@ -165,6 +165,7 @@ export function TrainsDashboard({ initial }: Props) {
   useEffect(() => {
     selectedDateRef.current = selectedDate;
   }, [selectedDate]);
+
   const [scheduleView, setScheduleView] = useState<ScheduleView>("week");
   const [viewedWeek, setViewedWeek] = useState<WeekSchedulePagePayload>({
     weekStart: initial.weekStart,
@@ -217,9 +218,11 @@ export function TrainsDashboard({ initial }: Props) {
   } | null>(null);
   const [pastPaintBusy, setPastPaintBusy] = useState(false);
   const [autoRollNotice, setAutoRollNotice] = useState<{
+    date: string;
     memberName: string;
     role: "conductor" | "vip";
   } | null>(null);
+
   const trainWeekConfig = useMemo(
     () => allianceTrainWeekFromRow({ trainWeekStartDow: data.trainWeekStartDow }),
     [data.trainWeekStartDow],
@@ -662,6 +665,7 @@ export function TrainsDashboard({ initial }: Props) {
         }
         if (body.result.memberName) {
           setAutoRollNotice({
+            date: selectedDate,
             memberName: body.result.memberName,
             role,
           });
@@ -1013,9 +1017,13 @@ export function TrainsDashboard({ initial }: Props) {
           templateType: activeWeekTemplate,
         }),
       });
-      const body = (await res.json()) as { error?: string };
+      const body = (await res.json()) as { error?: string; code?: string };
       if (!res.ok) {
-        setError(body.error ?? t("scheduleFailed"));
+        setError(
+          body.code === "empty_pool"
+            ? t("emptyPoolScheduleBlocked")
+            : (body.error ?? t("scheduleFailed")),
+        );
         return;
       }
       await refreshRef.current();
@@ -1241,7 +1249,7 @@ export function TrainsDashboard({ initial }: Props) {
         </p>
       ) : null}
 
-      {autoRollNotice ? (
+      {autoRollNotice && autoRollNotice.date === selectedDate ? (
         <p className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-100">
           {t("autoRollSuccess", {
             name: autoRollNotice.memberName,

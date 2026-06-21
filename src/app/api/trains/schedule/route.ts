@@ -50,7 +50,10 @@ export async function POST(request: Request) {
   });
   if (members.length === 0) {
     return NextResponse.json(
-      { error: "Import alliance members before creating a train schedule." },
+      {
+        error: "Import alliance members before creating a train schedule.",
+        code: "empty_pool",
+      },
       { status: 409 },
     );
   }
