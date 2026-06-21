@@ -14,6 +14,9 @@ import {
   ensureCurrentAllianceForSession,
   resolveEffectiveHqUserIdForSession,
 } from "@/lib/session";
+import { shouldShowTeamAccessNav } from "@/lib/settings/team-access-nav.shared";
+
+export { shouldShowTeamAccessNav };
 
 export async function resolveAllianceTagForSession(
   session: Session,
@@ -44,6 +47,20 @@ export type AllianceSettingsAccess =
   | { kind: "ready"; session: Session }
   | { kind: "pick_alliance"; alliances: Awaited<ReturnType<typeof listSessionAlliances>> }
   | { kind: "redirect"; href: "/get-started" };
+
+export async function shouldShowTeamAccessNavForSession(
+  session: Session,
+): Promise<boolean> {
+  const resolved = await ensureCurrentAllianceForSession(session);
+  const allianceId = resolveSessionAllianceId(resolved);
+  const hasMembership = await sessionHasActiveMembership(resolved);
+  const isMaintainer = await sessionIsPlatformMaintainer(resolved.id);
+  return shouldShowTeamAccessNav({
+    allianceId,
+    hasActiveMembership: hasMembership,
+    isPlatformMaintainer: isMaintainer,
+  });
+}
 
 export async function resolveAllianceSettingsAccess(
   session: Session,

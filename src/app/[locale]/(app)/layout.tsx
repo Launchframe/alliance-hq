@@ -88,7 +88,7 @@ export default async function AppLayout({
         canUseAshedEmbeds={state.canUseAshedEmbeds}
         ashed={state.ashed}
         showAdminPortal={state.rbac?.isPlatformMaintainer ?? false}
-        showTeamAccess={state.hasActiveMembership}
+        showTeamAccess={state.showTeamAccess}
         currentAllianceId={
           state.currentAllianceId ?? state.allianceId ?? null
         }

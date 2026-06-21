@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 
 import { resolveSessionAllianceId } from "@/lib/alliance/session-memberships";
-import { sessionHasActiveMembership } from "@/lib/native-alliance/access";
+import {
+  resolveAllianceSettingsAccess,
+} from "@/lib/settings/alliance-settings-access.server";
 import { getAshedConnection, loadSession, readSessionId } from "@/lib/session";
 import { requireAllianceAdmin } from "@/lib/rbac/require-permission";
 import {
@@ -20,12 +22,12 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const hasMembership = await sessionHasActiveMembership(session);
-  if (!hasMembership) {
+  const access = await resolveAllianceSettingsAccess(session);
+  if (access.kind !== "ready") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const allianceId = resolveSessionAllianceId(session);
+  const allianceId = resolveSessionAllianceId(access.session);
   if (!allianceId) {
     return NextResponse.json(
       { error: "Alliance context required. Select an alliance from the sidebar." },

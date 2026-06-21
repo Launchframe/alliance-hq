@@ -2,7 +2,10 @@ import "server-only";
 
 import { NextResponse } from "next/server";
 
-import { resolveSessionAllianceId } from "@/lib/alliance/session-memberships";
+import {
+  resolveSessionAllianceId,
+  sessionHasMembershipForAlliance,
+} from "@/lib/alliance/session-memberships";
 import type { SystemRoleName } from "@/lib/rbac/constants";
 import {
   ALLIANCE_ADMIN_PERMISSION,
@@ -94,6 +97,13 @@ export async function resolveTeamInviteAccess(
   }
 
   if (!canManageTeamInvites(ctx)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  if (
+    !ctx.isPlatformMaintainer &&
+    !(await sessionHasMembershipForAlliance(ctx.hqUserId, allianceId))
+  ) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

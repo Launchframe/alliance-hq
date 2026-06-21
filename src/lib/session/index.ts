@@ -32,6 +32,7 @@ import {
   sessionHasNativeMembership,
 } from "@/lib/native-alliance/access";
 import { getAllianceOperatingMode } from "@/lib/native-alliance/operating-mode";
+import { shouldShowTeamAccessNav } from "@/lib/settings/team-access-nav.shared";
 import { getAccountTimezoneIdForHqUser } from "@/lib/timezone/server";
 
 export const SESSION_COOKIE = "alliance_hq_session";
@@ -489,6 +490,12 @@ export async function getSessionStateFor(
     membershipAlliances.find((a) => a.id === session.currentAllianceId) ??
     null;
 
+  const showTeamAccess = shouldShowTeamAccessNav({
+    allianceId: resolvedAllianceId,
+    hasActiveMembership,
+    isPlatformMaintainer: rbac?.isPlatformMaintainer ?? false,
+  });
+
   return {
     sessionId: session.id,
     userLabel: session.userLabel,
@@ -499,6 +506,7 @@ export async function getSessionStateFor(
     membershipAlliances,
     permissions: rbac ? Array.from(rbac.permissions) : [],
     hasActiveMembership,
+    showTeamAccess,
     timezone,
     isConnected: connection !== null,
     hasAppAccess,
