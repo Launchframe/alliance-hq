@@ -2,9 +2,27 @@ import "server-only";
 
 import { and, eq } from "drizzle-orm";
 
+import type { SessionAllianceOption } from "@/lib/alliance/types";
 import { getDb, schema } from "@/lib/db";
 import type { Session } from "@/lib/db/schema";
-import type { SessionAllianceOption } from "@/lib/alliance/types";
+import {
+  parseOperatingMode,
+} from "@/lib/native-alliance/operating-mode";
+import type { AllianceOperatingMode } from "@/lib/native-alliance/constants";
+
+export type SwitchSessionAllianceResult = {
+  allianceId: string;
+  tag: string | null;
+  name: string;
+  operatingMode: AllianceOperatingMode;
+  redirectPath: string;
+};
+
+export function allianceLandingPath(
+  operatingMode: AllianceOperatingMode,
+): string {
+  return operatingMode === "native" ? "/members" : "/dashboard";
+}
 
 export type { SessionAllianceOption };
 
@@ -62,12 +80,13 @@ export async function sessionHasMembershipForAlliance(
 
 /**
  * Switch session alliance context after verifying HQ membership.
- * Syncs legacy session.allianceTag / allianceId from the alliance row when present.
+ * Clears personal Ashed credentials and legacy session fields from the prior alliance,
+ * then syncs allianceTag / allianceId from the target alliance row.
  */
 export async function switchSessionCurrentAlliance(
   session: Session,
   allianceId: string,
-): Promise<{ allianceId: string; tag: string | null; name: string }> {
+): Promise<SwitchSessionAllianceResult> {
   if (!session.hqUserId) {
     throw new Error("HQ user required to switch alliance.");
   }
@@ -87,6 +106,7 @@ export async function switchSessionCurrentAlliance(
       tag: schema.alliances.tag,
       name: schema.alliances.name,
       ashedAllianceId: schema.alliances.ashedAllianceId,
+      operatingMode: schema.alliances.operatingMode,
     })
     .from(schema.alliances)
     .where(eq(schema.alliances.id, allianceId))
@@ -97,13 +117,20 @@ export async function switchSessionCurrentAlliance(
   }
 
   const tag = alliance.tag?.trim() || null;
+  const operatingMode = parseOperatingMode(alliance.operatingMode);
+
+  // Drop personal Ashed JWT and legacy alliance fields from the prior context.
+  await db
+    .delete(schema.ashedCredentials)
+    .where(eq(schema.ashedCredentials.sessionId, session.id));
 
   await db
     .update(schema.sessions)
     .set({
       currentAllianceId: alliance.id,
       allianceTag: tag,
-      allianceId: alliance.ashedAllianceId ?? session.allianceId,
+      allianceId: alliance.ashedAllianceId ?? null,
+      userLabel: null,
       updatedAt: new Date(),
     })
     .where(eq(schema.sessions.id, session.id));
@@ -112,6 +139,8 @@ export async function switchSessionCurrentAlliance(
     allianceId: alliance.id,
     tag,
     name: alliance.name,
+    operatingMode,
+    redirectPath: allianceLandingPath(operatingMode),
   };
 }
 

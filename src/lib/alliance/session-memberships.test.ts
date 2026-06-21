@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { resolveSessionAllianceId } from "@/lib/alliance/session-memberships";
+import {
+  allianceLandingPath,
+  resolveSessionAllianceId,
+} from "@/lib/alliance/session-memberships";
 import type { Session } from "@/lib/db/schema";
 
 function makeSession(partial: Partial<Session>): Session {
@@ -17,6 +20,16 @@ function makeSession(partial: Partial<Session>): Session {
     ...partial,
   };
 }
+
+describe("allianceLandingPath", () => {
+  it("routes native alliances to /members", () => {
+    expect(allianceLandingPath("native")).toBe("/members");
+  });
+
+  it("routes ashed alliances to /dashboard", () => {
+    expect(allianceLandingPath("ashed")).toBe("/dashboard");
+  });
+});
 
 describe("resolveSessionAllianceId", () => {
   it("prefers currentAllianceId over legacy allianceId", () => {
