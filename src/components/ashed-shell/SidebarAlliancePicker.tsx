@@ -1,10 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 import { AppSelect } from "@/components/ui/AppSelect";
-import { useRouter } from "@/i18n/navigation";
+import { getPathname } from "@/i18n/navigation";
 import type { SessionAllianceOption } from "@/lib/alliance/types";
 
 type Props = {
@@ -17,7 +17,7 @@ export function SidebarAlliancePicker({
   initialAlliances = [],
 }: Props) {
   const t = useTranslations("alliancePicker");
-  const router = useRouter();
+  const locale = useLocale();
   const [alliances, setAlliances] = useState(initialAlliances);
   const [currentAllianceId, setCurrentAllianceId] = useState(
     initialCurrentAllianceId ?? "",
@@ -82,19 +82,21 @@ export function SidebarAlliancePicker({
         const data = (await res.json()) as {
           error?: string;
           currentAllianceId?: string;
+          redirectPath?: string;
         };
         if (!res.ok) {
           throw new Error(data.error ?? t("switchFailed"));
         }
         setCurrentAllianceId(data.currentAllianceId ?? allianceId);
-        router.refresh();
+        const redirectPath = data.redirectPath ?? "/members";
+        window.location.assign(getPathname({ href: redirectPath, locale }));
       } catch (err) {
         setError(err instanceof Error ? err.message : t("switchFailed"));
       } finally {
         setSwitching(false);
       }
     },
-    [currentAllianceId, router, t],
+    [currentAllianceId, locale, t],
   );
 
   if (loading) {

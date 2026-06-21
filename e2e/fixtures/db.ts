@@ -22,6 +22,8 @@ const SESSION_COOKIE = "alliance_hq_session";
 
 export type Sql = ReturnType<typeof postgres>;
 
+let e2eSqlSingleton: Sql | null = null;
+
 export function getE2eSql(): Sql {
   const url =
     process.env.E2E_DATABASE_URL?.trim() ||
@@ -29,7 +31,18 @@ export function getE2eSql(): Sql {
   if (!url) {
     throw new Error("E2E database URL is not configured.");
   }
-  return postgres(url, { max: 4, prepare: false });
+  if (e2eSqlSingleton) {
+    return e2eSqlSingleton;
+  }
+  e2eSqlSingleton = postgres(url, { max: 4, prepare: false });
+  return e2eSqlSingleton;
+}
+
+export async function closeE2eSql(): Promise<void> {
+  if (e2eSqlSingleton) {
+    await e2eSqlSingleton.end({ timeout: 5 });
+    e2eSqlSingleton = null;
+  }
 }
 
 export function hashInviteToken(token: string): string {

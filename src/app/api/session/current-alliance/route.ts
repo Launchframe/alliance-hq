@@ -26,6 +26,8 @@ export async function PATCH(request: Request) {
       currentAllianceId: result.allianceId,
       tag: result.tag,
       name: result.name,
+      operatingMode: result.operatingMode,
+      redirectPath: result.redirectPath,
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
