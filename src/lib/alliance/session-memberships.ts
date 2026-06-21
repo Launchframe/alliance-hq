@@ -147,3 +147,34 @@ export async function switchSessionCurrentAlliance(
 export function resolveSessionAllianceId(session: Session): string | null {
   return session.currentAllianceId ?? session.allianceId;
 }
+
+/** When session lacks currentAllianceId, pick a sole membership or a resolved HQ id match. */
+export function pickAllianceMembershipForSession(
+  session: Session,
+  alliances: SessionAllianceOption[],
+): SessionAllianceOption | null {
+  if (alliances.length === 0) {
+    return null;
+  }
+
+  if (
+    session.currentAllianceId &&
+    alliances.some((row) => row.id === session.currentAllianceId)
+  ) {
+    return null;
+  }
+
+  const resolved = resolveSessionAllianceId(session);
+  if (resolved) {
+    const match = alliances.find((row) => row.id === resolved);
+    if (match) {
+      return match;
+    }
+  }
+
+  if (alliances.length === 1) {
+    return alliances[0]!;
+  }
+
+  return null;
+}

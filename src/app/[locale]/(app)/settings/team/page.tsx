@@ -4,10 +4,15 @@ import { redirect } from "@/i18n/navigation";
 
 import { Link } from "@/i18n/navigation";
 import { SettingsTeamClient } from "@/components/SettingsTeamClient";
-import { resolveSessionAllianceId } from "@/lib/alliance/session-memberships";
+import { TeamInvitePanel } from "@/components/settings/TeamInvitePanel";
+import { AllianceContextRequired } from "@/components/settings/AllianceContextRequired";
 import { getDb, schema } from "@/lib/db";
-import { sessionHasActiveMembership } from "@/lib/native-alliance/access";
-import { sessionIsAllianceAdmin } from "@/lib/rbac/context";
+import {
+  assignableInviteRolesForContext,
+  canManageTeamInvites,
+} from "@/lib/native-alliance/team-invites.server";
+import { requireAllianceSettingsSession } from "@/lib/settings/alliance-settings-access.server";
+import { getRbacContext, sessionIsAllianceAdmin } from "@/lib/rbac/context";
 import { getAllianceTeam } from "@/lib/rbac/sync-ashed-roles";
 import { requirePageSession } from "@/lib/session";
 
@@ -20,31 +25,38 @@ export default async function SettingsTeamPage({
 }) {
   const { locale } = await params;
   const session = await requirePageSession("/settings/team");
-  const hasMembership = await sessionHasActiveMembership(session);
-  if (!hasMembership) {
-    redirect({ href: "/settings", locale });
+  const access = await requireAllianceSettingsSession(session, locale);
+
+  if ("pickAlliance" in access) {
+    return <AllianceContextRequired alliances={access.pickAlliance} />;
   }
 
   const t = await getTranslations("team");
-  const allianceId = resolveSessionAllianceId(session);
-  const team = allianceId ? await getAllianceTeam(allianceId) : [];
-  const canRefreshFromAshed = await sessionIsAllianceAdmin(session.id);
-
-  let allianceTag = session.allianceTag;
-  let allianceName: string | null = null;
-  if (allianceId) {
-    const db = getDb();
-    const [alliance] = await db
-      .select({
-        tag: schema.alliances.tag,
-        name: schema.alliances.name,
-      })
-      .from(schema.alliances)
-      .where(eq(schema.alliances.id, allianceId))
-      .limit(1);
-    allianceTag = alliance?.tag ?? allianceTag;
-    allianceName = alliance?.name ?? null;
+  if (access.allianceId === null) {
+    redirect({ href: "/settings", locale });
+    throw new Error("Alliance context required.");
   }
+  const allianceId = access.allianceId;
+
+  const team = await getAllianceTeam(allianceId);
+  const rbac = await getRbacContext(access.session.id);
+  const canRefreshFromAshed = await sessionIsAllianceAdmin(access.session.id);
+  const canManageInvites = rbac ? canManageTeamInvites(rbac) : false;
+  const assignableInviteRoles = rbac ? assignableInviteRolesForContext(rbac) : [];
+
+  let allianceTag = access.session.allianceTag;
+  let allianceName: string | null = null;
+  const db = getDb();
+  const [alliance] = await db
+    .select({
+      tag: schema.alliances.tag,
+      name: schema.alliances.name,
+    })
+    .from(schema.alliances)
+    .where(eq(schema.alliances.id, allianceId))
+    .limit(1);
+  allianceTag = alliance?.tag ?? allianceTag;
+  allianceName = alliance?.name ?? null;
 
   const tagLabel = allianceTag ?? allianceName ?? t("unknownAlliance");
 
@@ -59,6 +71,10 @@ export default async function SettingsTeamPage({
         </h1>
         <p className="mt-2 text-sm text-[#8b949e]">{t("description")}</p>
       </div>
+
+      {canManageInvites ? (
+        <TeamInvitePanel assignableRoles={assignableInviteRoles} />
+      ) : null}
 
       <SettingsTeamClient
         initialTeam={team}

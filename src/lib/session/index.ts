@@ -8,7 +8,9 @@ import { resolveAllianceByTag } from "@/lib/alliance/resolve";
 import { signingInUserMatchesConnectedSessionOwner } from "@/lib/auth/session-connect-identity";
 import {
   listSessionAlliances,
+  pickAllianceMembershipForSession,
   resolveSessionAllianceId,
+  switchSessionCurrentAlliance,
 } from "@/lib/alliance/session-memberships";
 import { touchLinkedDeviceAccess } from "@/lib/credential-pairing/linked-devices";
 import { decryptSecret, encryptSecret } from "@/lib/crypto/encrypt";
@@ -419,10 +421,45 @@ export async function clearSessionUserBinding(sessionId: string) {
     .where(eq(schema.sessions.id, sessionId));
 }
 
+export async function ensureCurrentAllianceForSession(
+  session: Session,
+): Promise<Session> {
+  if (!session.hqUserId) {
+    return session;
+  }
+
+  const effectiveHqUserId = await resolveEffectiveHqUserIdForSession(
+    session.id,
+    session.hqUserId,
+  );
+  if (!effectiveHqUserId) {
+    return session;
+  }
+
+  const alliances = await listSessionAlliances(effectiveHqUserId);
+  const pick = pickAllianceMembershipForSession(session, alliances);
+  if (pick) {
+    await switchSessionCurrentAlliance(session, pick.id);
+    return (await loadSession(session.id)) ?? session;
+  }
+
+  if (
+    session.currentAllianceId &&
+    !session.allianceTag?.trim() &&
+    alliances.some((row) => row.id === session.currentAllianceId)
+  ) {
+    await switchSessionCurrentAlliance(session, session.currentAllianceId);
+    return (await loadSession(session.id)) ?? session;
+  }
+
+  return session;
+}
+
 export async function getSessionStateFor(
   session: Session,
   locale = "en-US",
 ) {
+  session = await ensureCurrentAllianceForSession(session);
   const connection = await getAshedConnection(session.id);
   const effectiveHqUserId = await resolveEffectiveHqUserIdForSession(
     session.id,

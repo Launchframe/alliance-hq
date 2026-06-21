@@ -24,7 +24,7 @@ export function AllianceSettingsForm({
             ? t("titleWithTag", { tag: allianceTag })
             : t("titleAlliance")}
         </h1>
-        <p className="mt-1 text-sm text-[#8b949e]">{t("subtitleAlliance")}</p>
+        {!allianceTag && <p className="mt-1 text-sm text-[#8b949e]">{t("subtitleAlliance")}</p>}
       </div>
 
       <AllianceSeasonSettings />
