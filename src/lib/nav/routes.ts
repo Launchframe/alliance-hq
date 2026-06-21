@@ -316,9 +316,14 @@ export function findActiveNavGroupId(
   options: {
     showAdminPortal?: boolean;
     showTeamAccess?: boolean;
+    showAllianceSettings?: boolean;
   } = {},
 ): string | null {
-  const { showAdminPortal = false, showTeamAccess = false } = options;
+  const {
+    showAdminPortal = false,
+    showTeamAccess = false,
+    showAllianceSettings = false,
+  } = options;
 
   for (const group of NAV_GROUPS) {
     if (group.pages.some((page) => navLinkActive(pathname, page.href))) {
@@ -328,6 +333,12 @@ export function findActiveNavGroupId(
     if (group.id === "alliance-management") {
       const teamHrefs = showTeamAccess ? ["/settings/team"] : [];
       if (teamHrefs.some((href) => navLinkActive(pathname, href))) {
+        return group.id;
+      }
+      if (
+        showAllianceSettings &&
+        /^\/alliance\/[^/]+\/settings\/?$/.test(pathname)
+      ) {
         return group.id;
       }
       continue;

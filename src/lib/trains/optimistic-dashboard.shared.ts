@@ -1,4 +1,9 @@
-import { getWeekStartMonday } from "@/lib/trains/game-time";
+import {
+  DEFAULT_ALLIANCE_TRAIN_WEEK,
+  allianceTrainWeekFromRow,
+  getTrainWeekStart,
+  type AllianceTrainWeekConfig,
+} from "@/lib/trains/train-week-calendar.shared";
 import type {
   MonthSchedulePagePayload,
   TrainsDashboardPayload,
@@ -42,6 +47,8 @@ export function upsertRecordForDate(
       vipMechanism: dayConfig?.vipMechanism ?? null,
       guardianIsVip: false,
       lockedAt: null,
+      substituteForMemberId: null,
+      substituteForMemberName: null,
       ...patch,
     },
   ];
@@ -140,16 +147,76 @@ export function applyOptimisticUnlock(
   return patchRecordsInSnapshot(snap, date, { lockedAt: null });
 }
 
+export function applyOptimisticConductorSwap(
+  snap: TrainsDashboardSnapshot,
+  dateA: string,
+  dateB: string,
+  lockedAt: string,
+): TrainsDashboardSnapshot {
+  const recordA =
+    snap.viewedWeek.weekRecords.find((r) => r.date === dateA) ??
+    snap.data.weekRecords.find((r) => r.date === dateA);
+  const recordB =
+    snap.viewedWeek.weekRecords.find((r) => r.date === dateB) ??
+    snap.data.weekRecords.find((r) => r.date === dateB);
+
+  if (!recordA?.conductorMemberId || !recordA.conductorMemberName) {
+    return snap;
+  }
+
+  const targetHasConductor =
+    Boolean(recordB?.conductorMemberId && recordB?.conductorMemberName);
+
+  if (targetHasConductor) {
+    let next = patchRecordsInSnapshot(snap, dateA, {
+      conductorMemberId: recordB!.conductorMemberId,
+      conductorMemberName: recordB!.conductorMemberName,
+      substituteForMemberId: recordA.conductorMemberId,
+      substituteForMemberName: recordA.conductorMemberName,
+      lockedAt,
+    });
+
+    next = patchRecordsInSnapshot(next, dateB, {
+      conductorMemberId: recordA.conductorMemberId,
+      conductorMemberName: recordA.conductorMemberName,
+      substituteForMemberId: recordB!.conductorMemberId,
+      substituteForMemberName: recordB!.conductorMemberName,
+      lockedAt,
+    });
+
+    return next;
+  }
+
+  let next = patchRecordsInSnapshot(snap, dateB, {
+    conductorMemberId: recordA.conductorMemberId,
+    conductorMemberName: recordA.conductorMemberName,
+    substituteForMemberId: null,
+    substituteForMemberName: null,
+    lockedAt,
+  });
+
+  next = patchRecordsInSnapshot(next, dateA, {
+    conductorMemberId: null,
+    conductorMemberName: null,
+    substituteForMemberId: null,
+    substituteForMemberName: null,
+    lockedAt: null,
+  });
+
+  return next;
+}
+
 export function patchDayConfigsForDates(
   dayConfigs: WeekScheduleDayConfig[],
   dates: string[],
   templateType: WeekTemplateType,
+  trainWeekConfig: AllianceTrainWeekConfig = DEFAULT_ALLIANCE_TRAIN_WEEK,
 ): WeekScheduleDayConfig[] {
   const dateSet = new Set(dates);
   const byDate = new Map(dayConfigs.map((d) => [d.date, d]));
 
   for (const date of dates) {
-    const weekStart = getWeekStartMonday(date);
+    const weekStart = getTrainWeekStart(date, trainWeekConfig);
     const generated = generateDayConfigForDate(templateType, date, weekStart);
     const existing = byDate.get(date);
     byDate.set(date, {
@@ -186,10 +253,18 @@ export function applyOptimisticPaint(
   dates: string[],
   templateType: WeekTemplateType,
 ): TrainsDashboardSnapshot {
+  const trainWeekConfig = allianceTrainWeekFromRow({
+    trainWeekStartDow: snap.data.trainWeekStartDow,
+  });
   return {
     data: {
       ...snap.data,
-      dayConfigs: patchDayConfigsForDates(snap.data.dayConfigs, dates, templateType),
+      dayConfigs: patchDayConfigsForDates(
+        snap.data.dayConfigs,
+        dates,
+        templateType,
+        trainWeekConfig,
+      ),
     },
     viewedWeek: {
       ...snap.viewedWeek,
@@ -197,6 +272,7 @@ export function applyOptimisticPaint(
         snap.viewedWeek.dayConfigs,
         dates,
         templateType,
+        trainWeekConfig,
       ),
     },
     viewedMonth: {
@@ -205,6 +281,7 @@ export function applyOptimisticPaint(
         snap.viewedMonth.dayConfigs,
         dates,
         templateType,
+        trainWeekConfig,
       ),
     },
   };

@@ -1,7 +1,7 @@
 import { base44Json } from "@/lib/base44/fetch";
 import type { ParsedConnection } from "@/lib/connectionString";
 import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
-import { loadActiveAlliancePoolMembers } from "@/lib/members/game-roster";
+import { loadActiveAlliancePoolMembers, loadAllianceRow } from "@/lib/members/game-roster";
 import type {
   ConductorMechanismType,
   DayConfigInput,
@@ -16,9 +16,17 @@ import type {
 import {
   addCalendarDays,
   getServerCalendarDate,
-  getWeekStartMonday,
   weekDatesFromMonday,
 } from "@/lib/trains/game-time";
+import {
+  canOfficerChangeTemplateForDate,
+  canRollForDate,
+} from "@/lib/trains/trains-day-actions.shared";
+import {
+  allianceTrainWeekFromRow,
+  getTrainWeekStart,
+  type AllianceTrainWeekConfig,
+} from "@/lib/trains/train-week-calendar.shared";
 import {
   throwAshedRequired,
   throwNoWheelCandidates,
@@ -33,6 +41,7 @@ import {
   getPoolSummary,
   listPoolEntries,
   markPoolEntrySelected,
+  markPoolMemberSelectedForDate,
   pickNextPoolEntry,
   pickRandomPoolEntry,
   poolHasEntries,
@@ -41,8 +50,15 @@ import {
   startNewPoolGeneration,
 } from "@/lib/trains/pool";
 import {
-  fetchEventTopScorers,
-} from "@/lib/trains/event-scores.server";
+  evaluateConductorQualification,
+  loadTrainConductorMinimums,
+} from "@/lib/trains/train-conductor-minimums.server";
+import {
+  assertConductorMinimumOverrideQualification,
+  minimumsEnforcementEnabled,
+} from "@/lib/trains/train-conductor-minimums.shared";
+import { writeAuditLog } from "@/lib/bff/audit";
+import { fetchEventTopScorers } from "@/lib/trains/event-scores.server";
 import {
   fetchVsTopScorersForTrainDate,
 } from "@/lib/trains/vs-scores.server";
@@ -58,10 +74,12 @@ import {
   vipMechanismPoolType,
 } from "@/lib/trains/templates";
 import {
+  clearConductorAssignment,
   getConductorRecord,
   getWeekSchedule,
   listConductorRecordsForWeek,
   listDayConfigsForWeek,
+  lockConductorRecord,
   replaceDayConfigs,
   upsertConductorDraft,
   upsertDayConfigOverride,
@@ -72,6 +90,58 @@ import { latestLockedDateInWeek } from "@/lib/trains/week-template-change.shared
 async function resolveTrainSeasonKey(allianceId: string): Promise<string> {
   const effective = await getEffectiveSeasonForAlliance(allianceId);
   return effective.seasonKey;
+}
+
+export class TrainPastDateError extends Error {
+  readonly status = 409 as const;
+
+  constructor(message: string) {
+    super(message);
+    this.name = "TrainPastDateError";
+  }
+}
+
+export async function loadAllianceTrainWeekConfig(
+  allianceId: string,
+): Promise<AllianceTrainWeekConfig> {
+  const row = await loadAllianceRow(allianceId);
+  return allianceTrainWeekFromRow(row ?? {});
+}
+
+export function assertRollAllowed(
+  date: string,
+  today = getServerCalendarDate(),
+): void {
+  if (!canRollForDate(date, today)) {
+    throw new TrainPastDateError("Cannot roll for a past train day.");
+  }
+}
+
+export function assertTemplateChangeAllowed(
+  date: string,
+  isPlatformAdmin: boolean,
+  today = getServerCalendarDate(),
+): void {
+  if (
+    !isPlatformAdmin &&
+    !canOfficerChangeTemplateForDate(date, today)
+  ) {
+    throw new TrainPastDateError(`Cannot change template for past day ${date}.`);
+  }
+}
+
+export function trainActionErrorResponse(error: unknown): {
+  status: number;
+  body: { error: string };
+} {
+  if (error instanceof TrainPastDateError) {
+    return { status: error.status, body: { error: error.message } };
+  }
+
+  const message =
+    error instanceof Error ? error.message : "Request failed.";
+  const status = message.includes("locked") ? 409 : 400;
+  return { status, body: { error: message } };
 }
 
 function weekDayConfigsForTemplate(
@@ -260,6 +330,165 @@ async function rollFromPool(
   };
 }
 
+async function applyConductorQualificationGate(input: {
+  allianceId: string;
+  date: string;
+  connection: ParsedConnection | null;
+  ashedAllianceId: string;
+  result: RollResult;
+}): Promise<RollResult> {
+  const qualification = await evaluateConductorQualification({
+    allianceId: input.allianceId,
+    memberId: input.result.memberId,
+    trainDate: input.date,
+    connection: input.connection,
+    ashedAllianceId: input.ashedAllianceId,
+  });
+
+  if (qualification && !qualification.qualified) {
+    if (input.result.poolType) {
+      await releasePoolSelectionForDate(
+        input.allianceId,
+        input.date,
+        input.result.memberId,
+      );
+    }
+    return {
+      ...input.result,
+      qualification,
+      draftPersisted: false,
+    };
+  }
+
+  return {
+    ...input.result,
+    qualification: qualification ?? undefined,
+    draftPersisted: true,
+  };
+}
+
+async function persistConductorRoll(input: {
+  allianceId: string;
+  date: string;
+  seasonKey: string;
+  result: RollResult;
+  mechanism: ConductorMechanismType;
+  dayConfigId: string | null;
+  vipMechanism?: VipMechanismType | null;
+}): Promise<RollResult> {
+  const rankEvent = await getMemberRankAsOf(
+    input.allianceId,
+    input.result.memberId,
+    input.date,
+  );
+
+  await upsertConductorDraft({
+    allianceId: input.allianceId,
+    date: input.date,
+    seasonKey: input.seasonKey,
+    conductorMemberId: input.result.memberId,
+    conductorMemberName: input.result.memberName,
+    conductorRankEventId: rankEvent?.id ?? null,
+    conductorMechanism: input.mechanism,
+    vipMechanism: input.vipMechanism,
+    dayConfigId: input.dayConfigId,
+  });
+
+  return { ...input.result, draftPersisted: true };
+}
+
+export async function confirmConductorMinimumOverride(input: {
+  allianceId: string;
+  date: string;
+  memberId: string;
+  memberName: string;
+  mechanism: ConductorMechanismType;
+  connection: ParsedConnection | null;
+  ashedAllianceId: string;
+  overrideReason?: string;
+  sessionId: string;
+  hqUserId?: string | null;
+}): Promise<RollResult> {
+  const settings = await loadTrainConductorMinimums(input.allianceId, false);
+  if (!minimumsEnforcementEnabled(settings)) {
+    throw new Error("Train conductor minimums are not enabled.");
+  }
+
+  const qualification = assertConductorMinimumOverrideQualification(
+    await evaluateConductorQualification({
+      allianceId: input.allianceId,
+      memberId: input.memberId,
+      trainDate: input.date,
+      connection: input.connection,
+      ashedAllianceId: input.ashedAllianceId,
+    }),
+  );
+
+  const seasonKey = await resolveTrainSeasonKey(input.allianceId);
+  const record = await getConductorRecord(
+    input.allianceId,
+    input.date,
+    seasonKey,
+  );
+  if (record?.lockedAt) {
+    throw new Error("Conductor is already locked for this day.");
+  }
+
+  const dayConfig = await resolveRollDayConfig(
+    input.allianceId,
+    input.date,
+    seasonKey,
+  );
+
+  const poolType = conductorMechanismPoolType(input.mechanism);
+  if (poolType) {
+    await markPoolMemberSelectedForDate(
+      input.allianceId,
+      poolType,
+      input.memberId,
+      input.date,
+    );
+  }
+
+  const result: RollResult = {
+    memberId: input.memberId,
+    memberName: input.memberName,
+    mechanism: input.mechanism,
+    isAutomatic: false,
+    poolType: poolType ?? undefined,
+    qualification,
+  };
+
+  const persisted = await persistConductorRoll({
+    allianceId: input.allianceId,
+    date: input.date,
+    seasonKey,
+    result,
+    mechanism: input.mechanism,
+    dayConfigId: dayConfig.dayConfigId,
+    vipMechanism: dayConfig.vipMechanism,
+  });
+
+  await writeAuditLog({
+    sessionId: input.sessionId,
+    allianceId: input.allianceId,
+    hqUserId: input.hqUserId ?? undefined,
+    action: "trains.conductor_minimum_override",
+    resourceType: "train_conductor_record",
+    resourceId: `${input.allianceId}:${input.date}`,
+    resourceName: input.memberName,
+    metadata: {
+      date: input.date,
+      memberId: input.memberId,
+      mechanism: input.mechanism,
+      overrideReason: input.overrideReason?.trim() || null,
+      qualification,
+    },
+  });
+
+  return persisted;
+}
+
 export async function getOrCreateWeekSchedule(
   allianceId: string,
   weekStart: string,
@@ -391,26 +620,33 @@ export async function applyTemplateToDates(
   allianceId: string,
   dates: string[],
   templateType: WeekTemplateType,
+  options?: { platformAdminPastOverride?: boolean },
 ): Promise<void> {
   if (dates.length === 0) return;
 
   const seasonKey = await resolveTrainSeasonKey(allianceId);
+  const trainWeekConfig = await loadAllianceTrainWeekConfig(allianceId);
   const uniqueDates = [...new Set(dates)].sort();
+  const today = getServerCalendarDate();
+  const isPlatformAdmin = options?.platformAdminPastOverride ?? false;
 
   for (const date of uniqueDates) {
+    assertTemplateChangeAllowed(date, isPlatformAdmin, today);
     const record = await getConductorRecord(allianceId, date, seasonKey);
     if (record?.lockedAt) {
       throw new Error(`Cannot repaint locked day ${date}.`);
     }
   }
 
-  const weekStarts = [...new Set(uniqueDates.map((d) => getWeekStartMonday(d)))];
+  const weekStarts = [
+    ...new Set(uniqueDates.map((d) => getTrainWeekStart(d, trainWeekConfig))),
+  ];
   for (const weekStart of weekStarts) {
     await ensureWeekScheduleBaseline(allianceId, weekStart);
   }
 
   for (const date of uniqueDates) {
-    const weekStart = getWeekStartMonday(date);
+    const weekStart = getTrainWeekStart(date, trainWeekConfig);
     const schedule = await getWeekSchedule(allianceId, weekStart, seasonKey);
     if (!schedule) continue;
 
@@ -437,6 +673,8 @@ export async function rollForConductor(input: {
   connection: ParsedConnection | null;
   ashedAllianceId: string;
 }): Promise<RollResult> {
+  assertRollAllowed(input.date);
+
   const seasonKey = await resolveTrainSeasonKey(input.allianceId);
   const record = await getConductorRecord(
     input.allianceId,
@@ -558,25 +796,27 @@ export async function rollForConductor(input: {
       throw new Error(`Conductor mechanism "${mechanism}" is not rollable yet.`);
   }
 
-  const rankEvent = await getMemberRankAsOf(
-    input.allianceId,
-    result.memberId,
-    input.date,
-  );
+  const gated = await applyConductorQualificationGate({
+    allianceId: input.allianceId,
+    date: input.date,
+    connection: input.connection,
+    ashedAllianceId: input.ashedAllianceId,
+    result,
+  });
 
-  await upsertConductorDraft({
+  if (!gated.draftPersisted) {
+    return gated;
+  }
+
+  return persistConductorRoll({
     allianceId: input.allianceId,
     date: input.date,
     seasonKey,
-    conductorMemberId: result.memberId,
-    conductorMemberName: result.memberName,
-    conductorRankEventId: rankEvent?.id ?? null,
-    conductorMechanism: mechanism,
-    vipMechanism: dayConfig.vipMechanism,
+    result: gated,
+    mechanism,
     dayConfigId: dayConfig.dayConfigId,
+    vipMechanism: dayConfig.vipMechanism,
   });
-
-  return result;
 }
 
 export async function rollForVip(input: {
@@ -585,6 +825,8 @@ export async function rollForVip(input: {
   connection: ParsedConnection | null;
   ashedAllianceId: string;
 }): Promise<RollResult> {
+  assertRollAllowed(input.date);
+
   const seasonKey = await resolveTrainSeasonKey(input.allianceId);
   const record = await getConductorRecord(
     input.allianceId,
@@ -787,4 +1029,172 @@ export async function refreshExhaustedPoolsForDay(input: {
   return refreshed;
 }
 
-export { getServerCalendarDate, getWeekStartMonday };
+export async function lockConductorsForDates(input: {
+  allianceId: string;
+  dates: string[];
+  connection: ParsedConnection | null;
+  ashedAllianceId: string;
+}): Promise<{
+  records: Awaited<ReturnType<typeof lockConductorRecord>>[];
+  poolsRefreshed: PoolRefreshedInfo[];
+}> {
+  const seasonKey = await resolveTrainSeasonKey(input.allianceId);
+  const uniqueDates = [...new Set(input.dates)].sort();
+  const records: Awaited<ReturnType<typeof lockConductorRecord>>[] = [];
+  const poolsRefreshed: PoolRefreshedInfo[] = [];
+
+  for (const date of uniqueDates) {
+    const record = await getConductorRecord(input.allianceId, date, seasonKey);
+    if (!record) {
+      throw new Error(`Roll a conductor for ${date} before locking.`);
+    }
+    if (record.lockedAt) {
+      continue;
+    }
+    if (!record.conductorMemberId || !record.conductorMemberName) {
+      throw new Error(`Select a conductor for ${date} before locking.`);
+    }
+
+    const locked = await lockConductorRecord(record.id, input.allianceId);
+    records.push(locked);
+    const refreshed = await refreshExhaustedPoolsForDay({
+      allianceId: input.allianceId,
+      date,
+      connection: input.connection,
+      ashedAllianceId: input.ashedAllianceId,
+      seasonKey,
+    });
+    poolsRefreshed.push(...refreshed);
+  }
+
+  return { records, poolsRefreshed };
+}
+
+export async function swapConductors(input: {
+  allianceId: string;
+  dateA: string;
+  dateB: string;
+}): Promise<{
+  records: Awaited<ReturnType<typeof lockConductorRecord>>[];
+}> {
+  if (input.dateA === input.dateB) {
+    throw new Error("Pick two different days to swap.");
+  }
+
+  const seasonKey = await resolveTrainSeasonKey(input.allianceId);
+  const recordA = await getConductorRecord(
+    input.allianceId,
+    input.dateA,
+    seasonKey,
+  );
+  const recordB = await getConductorRecord(
+    input.allianceId,
+    input.dateB,
+    seasonKey,
+  );
+
+  if (!recordA?.conductorMemberId || !recordA.conductorMemberName) {
+    throw new Error(`No conductor set for ${input.dateA}.`);
+  }
+
+  if (recordA.lockedAt || recordB?.lockedAt) {
+    throw new Error("Unlock conductor days before swapping.");
+  }
+
+  const targetHasConductor =
+    Boolean(recordB?.conductorMemberId && recordB.conductorMemberName);
+
+  if (targetHasConductor) {
+    const rankForA = await getMemberRankAsOf(
+      input.allianceId,
+      recordB!.conductorMemberId!,
+      input.dateA,
+    );
+    const rankForB = await getMemberRankAsOf(
+      input.allianceId,
+      recordA.conductorMemberId,
+      input.dateB,
+    );
+
+    await upsertConductorDraft({
+      allianceId: input.allianceId,
+      date: input.dateA,
+      seasonKey,
+      conductorMemberId: recordB!.conductorMemberId,
+      conductorMemberName: recordB!.conductorMemberName,
+      conductorRankEventId: rankForA?.id ?? null,
+      substituteForMemberId: recordA.conductorMemberId,
+      substituteForMemberName: recordA.conductorMemberName,
+    });
+
+    await upsertConductorDraft({
+      allianceId: input.allianceId,
+      date: input.dateB,
+      seasonKey,
+      conductorMemberId: recordA.conductorMemberId,
+      conductorMemberName: recordA.conductorMemberName,
+      conductorRankEventId: rankForB?.id ?? null,
+      substituteForMemberId: recordB!.conductorMemberId,
+      substituteForMemberName: recordB!.conductorMemberName,
+    });
+  } else {
+    const rankForB = await getMemberRankAsOf(
+      input.allianceId,
+      recordA.conductorMemberId,
+      input.dateB,
+    );
+
+    await upsertConductorDraft({
+      allianceId: input.allianceId,
+      date: input.dateB,
+      seasonKey,
+      conductorMemberId: recordA.conductorMemberId,
+      conductorMemberName: recordA.conductorMemberName,
+      conductorRankEventId: rankForB?.id ?? null,
+      substituteForMemberId: null,
+      substituteForMemberName: null,
+    });
+
+    await clearConductorAssignment(
+      input.allianceId,
+      input.dateA,
+      seasonKey,
+    );
+  }
+
+  const draftA = await getConductorRecord(
+    input.allianceId,
+    input.dateA,
+    seasonKey,
+  );
+  const draftB = await getConductorRecord(
+    input.allianceId,
+    input.dateB,
+    seasonKey,
+  );
+
+  const lockedRecords: Awaited<ReturnType<typeof lockConductorRecord>>[] = [];
+
+  if (draftB?.conductorMemberId && draftB.conductorMemberName) {
+    lockedRecords.push(
+      await lockConductorRecord(draftB.id, input.allianceId),
+    );
+  }
+
+  if (
+    targetHasConductor &&
+    draftA?.conductorMemberId &&
+    draftA.conductorMemberName
+  ) {
+    lockedRecords.push(await lockConductorRecord(draftA.id, input.allianceId));
+  }
+
+  if (lockedRecords.length === 0) {
+    throw new Error("Swap failed to persist conductor assignment.");
+  }
+
+  return { records: lockedRecords };
+}
+
+export { getServerCalendarDate };
+export { getWeekStartMonday } from "@/lib/trains/game-time";

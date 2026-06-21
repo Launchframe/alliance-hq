@@ -1,3 +1,6 @@
+import {
+  dayIndexInTrainWeek,
+} from "@/lib/trains/train-week-calendar.shared";
 import { weekDatesFromMonday } from "@/lib/trains/game-time";
 import type { WeekTemplateType } from "@/lib/trains/types";
 import { WEEK_TEMPLATES } from "@/lib/trains/types";
@@ -23,7 +26,7 @@ export const SELECTABLE_WEEK_TEMPLATES = WEEK_TEMPLATES.filter(
 
 export type CompositeWeekTemplateSegment = {
   template: WeekTemplateType;
-  /** Monday = 0 … Sunday = 6 */
+  /** Train week index: Tue=0 … Mon=6 (alliance default). */
   dayIndices: readonly number[];
 };
 
@@ -40,8 +43,8 @@ export const COMPOSITE_WEEK_TEMPLATES: Partial<
 > = {
   vs_push_week: {
     segments: [
-      { template: "vs_push_weekdays", dayIndices: [0, 1, 2, 3, 4] },
-      { template: "r4_event_vip", dayIndices: [5, 6] },
+      { template: "vs_push_weekdays", dayIndices: [6, 0, 1, 2, 3, 4] },
+      { template: "r4_event_vip", dayIndices: [5] },
     ],
   },
 };
@@ -52,8 +55,16 @@ export function isCompositeWeekTemplate(
   return template in COMPOSITE_WEEK_TEMPLATES;
 }
 
+/** Monday-start week index (legacy VS calendar helpers). */
 export function dayIndexInWeek(date: string, weekStart: string): number {
   return weekDatesFromMonday(weekStart).indexOf(date);
+}
+
+export function dayIndexInTrainWeekForSchedule(
+  date: string,
+  weekStart: string,
+): number {
+  return dayIndexInTrainWeek(date, weekStart);
 }
 
 export function segmentTemplateForDayIndex(
@@ -76,7 +87,7 @@ export function resolvePaintTemplateForDay(
   date: string,
   weekStart: string,
 ): WeekTemplateType {
-  const dayIndex = dayIndexInWeek(date, weekStart);
+  const dayIndex = dayIndexInTrainWeek(date, weekStart);
   if (dayIndex < 0) return templateType;
   return segmentTemplateForDayIndex(templateType, dayIndex);
 }

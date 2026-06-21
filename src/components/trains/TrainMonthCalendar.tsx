@@ -11,11 +11,12 @@ import type {
 } from "@/lib/trains/load-dashboard";
 import {
   addCalendarMonths,
-  buildMonthGrid,
   getMonthKey,
   monthEndFromKey,
   monthStartFromKey,
 } from "@/lib/trains/game-time";
+import { buildMonthGrid } from "@/lib/trains/trains-display-calendar.shared";
+import type { TrainsDisplayWeekStartDow } from "@/lib/trains/trains-display-calendar.shared";
 import { expandPaintRange } from "@/lib/trains/paint-range.shared";
 import { calendarCellStyleClass } from "@/lib/trains/calendar-cell-styles.shared";
 import { TemplatePaletteBadge } from "@/components/trains/TemplatePaletteBadge";
@@ -41,6 +42,7 @@ type Props = {
   initialDayConfigs: WeekScheduleDayConfig[];
   initialMonthRecords: WeekConductorRecordSummary[];
   selectedDate: string;
+  displayWeekStartDow?: TrainsDisplayWeekStartDow;
   canPaint: boolean;
   conductorLabels: Record<string, string>;
   vipLabels: Record<string, string>;
@@ -88,6 +90,7 @@ export function TrainMonthCalendar({
   initialDayConfigs,
   initialMonthRecords,
   selectedDate,
+  displayWeekStartDow,
   canPaint,
   conductorLabels,
   vipLabels,
@@ -310,7 +313,7 @@ export function TrainMonthCalendar({
   const displayPage =
     externalMonth?.monthKey === page.monthKey ? externalMonth : page;
   const { dayConfigs, monthRecords } = displayPage;
-  const grid = buildMonthGrid(displayPage.monthKey);
+  const grid = buildMonthGrid(displayPage.monthKey, displayWeekStartDow);
   const previewDates = useMemo(() => {
     if (!dragRange) return null;
     return new Set(

@@ -37,6 +37,8 @@ type Props = {
   ashed: AshedConnectionMeta | null;
   showAdminPortal?: boolean;
   showTeamAccess?: boolean;
+  showAllianceSettings?: boolean;
+  activeAllianceTag?: string | null;
   currentAllianceId?: string | null;
   membershipAlliances?: SessionAllianceOption[];
   sessionPermissions?: readonly string[];
@@ -61,6 +63,8 @@ export function AshedShell({
   ashed,
   showAdminPortal = false,
   showTeamAccess = false,
+  showAllianceSettings = false,
+  activeAllianceTag = null,
   currentAllianceId = null,
   membershipAlliances = [],
   sessionPermissions = [],
@@ -96,10 +100,11 @@ export function AshedShell({
       findActiveNavGroupId(pathname, {
         showAdminPortal,
         showTeamAccess,
+        showAllianceSettings,
       }),
     );
     setMobileNavOpen(true);
-  }, [pathname, showAdminPortal, showTeamAccess]);
+  }, [pathname, showAdminPortal, showTeamAccess, showAllianceSettings]);
 
   const toggleGroup = React.useCallback((groupId: string) => {
     setExpandedGroupId((current) => (current === groupId ? null : groupId));
@@ -148,6 +153,8 @@ export function AshedShell({
             <SidebarNav
               showAdminPortal={showAdminPortal}
               showTeamAccess={showTeamAccess}
+              showAllianceSettings={showAllianceSettings}
+              activeAllianceTag={activeAllianceTag}
               operatingMode={operatingMode}
               canUseAshedEmbeds={canUseAshedEmbeds}
               currentAllianceId={currentAllianceId}

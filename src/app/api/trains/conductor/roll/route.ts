@@ -9,6 +9,7 @@ import {
   getServerCalendarDate,
   rollForConductor,
   rollForVip,
+  trainActionErrorResponse,
 } from "@/lib/trains/service";
 import { trainRollErrorResponse } from "@/lib/trains/roll-errors.server";
 import { getOrCreateSession } from "@/lib/session";
@@ -56,6 +57,10 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ result, record, stats });
   } catch (error) {
+    const actionError = trainActionErrorResponse(error);
+    if (actionError.status === 409) {
+      return NextResponse.json(actionError.body, { status: actionError.status });
+    }
     const { status, body } = trainRollErrorResponse(error);
     return NextResponse.json(body, { status });
   }

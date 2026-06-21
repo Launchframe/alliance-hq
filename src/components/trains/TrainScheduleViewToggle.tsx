@@ -20,6 +20,7 @@ export function TrainScheduleViewToggle({
       className="inline-flex rounded-lg border border-[#30363d] bg-[#0d1117] p-0.5"
       role="tablist"
       aria-label="Schedule view"
+      data-testid="trains-schedule-view-toggle"
     >
       <button
         type="button"

@@ -12,14 +12,15 @@ describe("week template registry", () => {
     expect(isWeekTemplateSegment("vs_push_week")).toBe(false);
   });
 
-  it("maps vs_push_week composite days to segment templates", () => {
-    const weekStart = "2026-06-08";
+  it("maps vs_push_week composite days to segment templates (Tue-start train week)", () => {
+    const weekStart = "2026-06-09";
     expect(segmentTemplateForDayIndex("vs_push_week", 0)).toBe("vs_push_weekdays");
+    expect(segmentTemplateForDayIndex("vs_push_week", 3)).toBe("vs_push_weekdays");
+    expect(segmentTemplateForDayIndex("vs_push_week", 6)).toBe("vs_push_weekdays");
     expect(segmentTemplateForDayIndex("vs_push_week", 4)).toBe("vs_push_weekdays");
     expect(segmentTemplateForDayIndex("vs_push_week", 5)).toBe("r4_event_vip");
-    expect(segmentTemplateForDayIndex("vs_push_week", 6)).toBe("r4_event_vip");
     expect(resolvePaintTemplateForDay("vs_push_week", "2026-06-13", weekStart)).toBe(
-      "r4_event_vip",
+      "vs_push_weekdays",
     );
     expect(resolvePaintTemplateForDay("vs_push_week", "2026-06-10", weekStart)).toBe(
       "vs_push_weekdays",
@@ -27,7 +28,7 @@ describe("week template registry", () => {
   });
 
   it("returns the template itself for non-composite weeks", () => {
-    expect(resolvePaintTemplateForDay("economy_week", "2026-06-10", "2026-06-08")).toBe(
+    expect(resolvePaintTemplateForDay("economy_week", "2026-06-10", "2026-06-09")).toBe(
       "economy_week",
     );
   });

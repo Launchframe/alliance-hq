@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 
+import { allianceSeasonApiPath } from "@/lib/alliance/alliance-settings-path.shared";
+
 export type AllianceSeasonPayload = {
   seasonKey: string;
   source: string;
@@ -13,41 +15,58 @@ export type AllianceSeasonPayload = {
   canManageSeason: boolean;
 };
 
-export function AllianceSeasonSettings() {
+type Props = {
+  allianceTag: string;
+};
+
+export function AllianceSeasonSettings({ allianceTag }: Props) {
   const t = useTranslations("settings.gameSeason");
   const [season, setSeason] = useState<AllianceSeasonPayload | null>(null);
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loadedTag, setLoadedTag] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const loading = loadedTag !== allianceTag;
+  const displaySeason = loadedTag === allianceTag ? season : null;
 
   useEffect(() => {
+    let cancelled = false;
     void (async () => {
       try {
-        const res = await fetch("/api/alliance/season");
+        const res = await fetch(allianceSeasonApiPath(allianceTag));
         const body = (await res.json()) as AllianceSeasonPayload & {
           error?: string;
         };
         if (!res.ok) {
-          setError(body.error ?? t("loadFailed"));
+          if (!cancelled) {
+            setError(body.error ?? t("loadFailed"));
+            setLoadedTag(allianceTag);
+          }
           return;
         }
-        setSeason(body);
-        setDraft(body.seasonKeyOverride ?? body.seasonKey);
+        if (!cancelled) {
+          setSeason(body);
+          setDraft(body.seasonKeyOverride ?? body.seasonKey);
+          setError(null);
+          setLoadedTag(allianceTag);
+        }
       } catch {
-        setError(t("loadFailed"));
-      } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setError(t("loadFailed"));
+          setLoadedTag(allianceTag);
+        }
       }
     })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- load once on mount
-  }, []);
+    return () => {
+      cancelled = true;
+    };
+  }, [allianceTag, t]);
 
   const saveOverride = async () => {
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch("/api/alliance/season", {
+      const res = await fetch(allianceSeasonApiPath(allianceTag), {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ seasonKeyOverride: draft.trim() || null }),
@@ -70,7 +89,7 @@ export function AllianceSeasonSettings() {
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch("/api/alliance/season", {
+      const res = await fetch(allianceSeasonApiPath(allianceTag), {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ seasonKeyOverride: null }),
@@ -97,7 +116,7 @@ export function AllianceSeasonSettings() {
     );
   }
 
-  if (!season) {
+  if (!displaySeason) {
     return error ? (
       <section className="rounded-xl border border-[#30363d] bg-[#161b22] p-5">
         <p className="text-sm text-[#f85149]">{error}</p>
@@ -106,18 +125,18 @@ export function AllianceSeasonSettings() {
   }
 
   const sourceLabel =
-    season.source === "override"
+    displaySeason.source === "override"
       ? t("source.override")
-      : season.source === "cpt-hedge"
+      : displaySeason.source === "cpt-hedge"
         ? t("source.cpt-hedge")
-        : season.source === "age-fallback"
+        : displaySeason.source === "age-fallback"
           ? t("source.age-fallback")
           : t("source.default");
   const phaseLine =
-    season.isPostSeason && season.week != null
-      ? t("postSeasonWeek", { week: season.week })
-      : season.week != null
-        ? t("inSeasonWeek", { week: season.week })
+    displaySeason.isPostSeason && displaySeason.week != null
+      ? t("postSeasonWeek", { week: displaySeason.week })
+      : displaySeason.week != null
+        ? t("inSeasonWeek", { week: displaySeason.week })
         : null;
 
   return (
@@ -130,12 +149,12 @@ export function AllianceSeasonSettings() {
           {t("label")}
         </p>
         <p className="text-lg font-semibold text-[#e6edf3]">
-          {t("seasonLine", { season: season.seasonKey })}
+          {t("seasonLine", { season: displaySeason.seasonKey })}
         </p>
         <p className="text-sm text-[#8b949e]">
           {sourceLabel}
-          {season.gameServerNumber != null
-            ? ` · ${t("serverLine", { server: season.gameServerNumber })}`
+          {displaySeason.gameServerNumber != null
+            ? ` · ${t("serverLine", { server: displaySeason.gameServerNumber })}`
             : null}
         </p>
         {phaseLine ? (
@@ -143,7 +162,7 @@ export function AllianceSeasonSettings() {
         ) : null}
       </div>
 
-      {season.canManageSeason ? (
+      {displaySeason.canManageSeason ? (
         <div className="mt-4 flex w-full min-w-0 max-w-md flex-col gap-2">
           <label className="text-xs text-[#8b949e]" htmlFor="settings-season-override">
             {t("overrideLabel")}
@@ -165,7 +184,7 @@ export function AllianceSeasonSettings() {
             >
               {busy ? t("saving") : t("saveOverride")}
             </button>
-            {season.seasonKeyOverride ? (
+            {displaySeason.seasonKeyOverride ? (
               <button
                 type="button"
                 disabled={busy}

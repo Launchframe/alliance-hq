@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import {
   getRbacContext,
   sessionHasPermission,
+  sessionHasPermissionForAlliance,
   sessionIsPlatformMaintainer,
 } from "./context";
 
@@ -37,6 +38,22 @@ export async function requireTrainOfficer(
   sessionId: string,
 ): Promise<NextResponse | null> {
   return requireSessionPermission(sessionId, "trains:write");
+}
+
+export async function requireAlliancePermission(
+  sessionId: string,
+  allianceId: string,
+  permission: string,
+): Promise<NextResponse | null> {
+  const allowed = await sessionHasPermissionForAlliance(
+    sessionId,
+    allianceId,
+    permission,
+  );
+  if (!allowed) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+  return null;
 }
 
 export { getRbacContext };

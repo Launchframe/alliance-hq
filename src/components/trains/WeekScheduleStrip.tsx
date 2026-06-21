@@ -41,6 +41,7 @@ type Props = {
     previousDay?: string;
     nextDay?: string;
   };
+  displayWeekStartDow?: number;
   externalWeek?: WeekSchedulePagePayload;
   onSelectDate: (date: string) => void;
   onWeekChange?: (page: WeekSchedulePagePayload) => void;
@@ -57,6 +58,14 @@ function recordForDate(
   date: string,
 ): WeekConductorRecordSummary | undefined {
   return weekRecords.find((r) => r.date === date);
+}
+
+function weekPageFingerprint(page: WeekSchedulePagePayload): string {
+  return JSON.stringify({
+    templateType: page.templateType,
+    dayConfigs: page.dayConfigs,
+    weekRecords: page.weekRecords,
+  });
 }
 
 function formatWeekRange(weekStart: string, weekEnd: string): string {
@@ -260,10 +269,17 @@ function WeekScheduleInfiniteDayCarousel({
     getPageForWeek,
     findIndexForDate,
     resolveIndexForDate,
+    rememberPage,
   } = useWeekScheduleInfiniteDays({
     seedPage,
     onWeekLoadError,
   });
+
+  useEffect(() => {
+    if (liveWeek) {
+      rememberPage(liveWeek);
+    }
+  }, [liveWeek, rememberPage]);
 
   const [carouselFallbackIndex, setCarouselFallbackIndex] = useState(0);
 
@@ -499,10 +515,17 @@ export function WeekScheduleStrip({
 
   useEffect(() => {
     if (!externalWeek) return;
-    if (externalWeek.weekStart === viewWeekStart) return;
     const id = setTimeout(() => {
-      setViewWeekStart(externalWeek.weekStart);
-      setPage(externalWeek);
+      if (externalWeek.weekStart !== viewWeekStart) {
+        setViewWeekStart(externalWeek.weekStart);
+        setPage(externalWeek);
+        return;
+      }
+      setPage((prev) =>
+        weekPageFingerprint(prev) === weekPageFingerprint(externalWeek)
+          ? prev
+          : externalWeek,
+      );
     }, 0);
     return () => clearTimeout(id);
   }, [externalWeek, viewWeekStart]);

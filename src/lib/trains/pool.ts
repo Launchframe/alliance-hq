@@ -2,7 +2,35 @@ import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { getDb, schema } from "@/lib/db";
+import { getServerCalendarDate } from "@/lib/trains/game-time";
 import type { PoolType, RollCandidate } from "@/lib/trains/types";
+
+type PoolGenerationEntry = {
+  generation: number;
+  selectedForDate: string | null;
+};
+
+/** Pure helper — first generation not fully selected before date. */
+export function activePoolGenerationForDate(
+  generationNumbers: number[],
+  entries: PoolGenerationEntry[],
+  date: string,
+): number {
+  if (generationNumbers.length === 0) return 1;
+
+  const sorted = [...generationNumbers].sort((a, b) => a - b);
+  for (const gen of sorted) {
+    const genEntries = entries.filter((entry) => entry.generation === gen);
+    if (genEntries.length === 0) continue;
+    const exhaustedBeforeDate = genEntries.every(
+      (entry) =>
+        entry.selectedForDate != null && entry.selectedForDate < date,
+    );
+    if (!exhaustedBeforeDate) return gen;
+  }
+
+  return sorted[sorted.length - 1]!;
+}
 
 function shuffle<T>(items: T[]): T[] {
   const copy = [...items];
@@ -154,6 +182,62 @@ export async function markPoolEntrySelected(
       selectedForDate: date,
     })
     .where(eq(schema.conductorPoolEntries.id, entryId));
+}
+
+export async function resolvePoolGenerationForHistoricalDate(
+  allianceId: string,
+  poolType: PoolType,
+  date: string,
+): Promise<number> {
+  const db = getDb();
+  const rows = await db
+    .select({
+      generation: schema.conductorPoolEntries.generation,
+      selectedForDate: schema.conductorPoolEntries.selectedForDate,
+    })
+    .from(schema.conductorPoolEntries)
+    .where(
+      and(
+        eq(schema.conductorPoolEntries.allianceId, allianceId),
+        eq(schema.conductorPoolEntries.poolType, poolType),
+      ),
+    );
+
+  const generationNumbers = [
+    ...new Set(rows.map((row) => row.generation)),
+  ].sort((a, b) => a - b);
+
+  return activePoolGenerationForDate(generationNumbers, rows, date);
+}
+
+export async function markPoolMemberSelectedForDate(
+  allianceId: string,
+  poolType: PoolType,
+  memberId: string,
+  date: string,
+): Promise<void> {
+  const today = getServerCalendarDate();
+  const generation =
+    date < today
+      ? await resolvePoolGenerationForHistoricalDate(allianceId, poolType, date)
+      : await getCurrentPoolGeneration(allianceId, poolType);
+  const db = getDb();
+  const [entry] = await db
+    .select({ id: schema.conductorPoolEntries.id })
+    .from(schema.conductorPoolEntries)
+    .where(
+      and(
+        eq(schema.conductorPoolEntries.allianceId, allianceId),
+        eq(schema.conductorPoolEntries.poolType, poolType),
+        eq(schema.conductorPoolEntries.generation, generation),
+        eq(schema.conductorPoolEntries.memberId, memberId),
+      ),
+    )
+    .limit(1);
+
+  if (entry) {
+    await markPoolEntrySelected(entry.id, date);
+  }
 }
 
 /** Platform-admin unlock: return a pool slot consumed by a mistaken lock. */

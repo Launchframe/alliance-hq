@@ -17,10 +17,10 @@ type AshedScoreRow = {
   total?: number;
 };
 
-/** Ashed entity per event key — extend when meteorite vs capitol diverge. */
+/** Ashed entity per event key — event VIP pools use dated VS scores, not lifetime KillScore. */
 const ENTITY_BY_EVENT_KEY: Record<string, string> = {
-  capitol_war: "KillScore",
-  meteorite_war: "KillScore",
+  capitol_war: "VSScore",
+  meteorite_war: "VSScore",
 };
 
 function memberFromScore(row: AshedScoreRow): RollCandidate | null {

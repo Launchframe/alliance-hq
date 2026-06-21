@@ -2,38 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import {
   latestLockedDateInWeek,
-  weekHasPersistedSchedule,
+  pivotEconomyTargetDates,
+  restOfWeekPaintDates,
 } from "@/lib/trains/week-template-change.shared";
-
-describe("weekHasPersistedSchedule", () => {
-  const weekStart = "2026-06-08";
-
-  it("is false when there is no schedule row and only preview configs", () => {
-    expect(
-      weekHasPersistedSchedule(null, weekStart, [
-        { id: "preview-2026-06-08" },
-      ]),
-    ).toBe(false);
-  });
-
-  it("is true when the current week has a schedule row", () => {
-    expect(
-      weekHasPersistedSchedule(
-        { weekStart },
-        weekStart,
-        [{ id: "preview-2026-06-08" }],
-      ),
-    ).toBe(true);
-  });
-
-  it("is true when day configs are persisted", () => {
-    expect(
-      weekHasPersistedSchedule(null, weekStart, [
-        { id: "day-config-abc" },
-      ]),
-    ).toBe(true);
-  });
-});
 
 describe("latestLockedDateInWeek", () => {
   const weekStart = "2026-06-08";
@@ -70,5 +41,79 @@ describe("latestLockedDateInWeek", () => {
         weekEnd,
       ),
     ).toBeNull();
+  });
+});
+
+describe("pivotEconomyTargetDates", () => {
+  it("returns Tue through Sun for a Mon-start week", () => {
+    expect(
+      pivotEconomyTargetDates("2026-06-08", "2026-06-14"),
+    ).toEqual([
+      "2026-06-09",
+      "2026-06-10",
+      "2026-06-11",
+      "2026-06-12",
+      "2026-06-13",
+      "2026-06-14",
+    ]);
+  });
+});
+
+describe("restOfWeekPaintDates", () => {
+  const weekStart = "2026-06-08";
+  const weekEnd = "2026-06-14";
+
+  it("starts tomorrow when includeToday is false", () => {
+    expect(
+      restOfWeekPaintDates({
+        weekStart,
+        weekEnd,
+        today: "2026-06-10",
+        includeToday: false,
+        lockedThroughDate: null,
+      }),
+    ).toEqual(["2026-06-11", "2026-06-12", "2026-06-13", "2026-06-14"]);
+  });
+
+  it("includes today when includeToday is true", () => {
+    expect(
+      restOfWeekPaintDates({
+        weekStart,
+        weekEnd,
+        today: "2026-06-10",
+        includeToday: true,
+        lockedThroughDate: null,
+      }),
+    ).toEqual([
+      "2026-06-10",
+      "2026-06-11",
+      "2026-06-12",
+      "2026-06-13",
+      "2026-06-14",
+    ]);
+  });
+
+  it("skips locked days and starts after lockedThroughDate", () => {
+    expect(
+      restOfWeekPaintDates({
+        weekStart,
+        weekEnd,
+        today: "2026-06-09",
+        includeToday: true,
+        lockedThroughDate: "2026-06-10",
+      }),
+    ).toEqual(["2026-06-11", "2026-06-12", "2026-06-13", "2026-06-14"]);
+  });
+
+  it("returns empty when all remaining days are locked or past week end", () => {
+    expect(
+      restOfWeekPaintDates({
+        weekStart,
+        weekEnd,
+        today: "2026-06-14",
+        includeToday: false,
+        lockedThroughDate: "2026-06-14",
+      }),
+    ).toEqual([]);
   });
 });

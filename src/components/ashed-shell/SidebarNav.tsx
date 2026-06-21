@@ -17,6 +17,7 @@ import {
   filterNavGroupsForPermissions,
   navLinkActive,
 } from "@/lib/nav/routes";
+import { allianceSettingsPath } from "@/lib/alliance/alliance-settings-path.shared";
 
 function cn(...parts: Array<string | false | null | undefined>) {
   return parts.filter(Boolean).join(" ");
@@ -62,6 +63,8 @@ function NavLink({
 type Props = {
   showAdminPortal?: boolean;
   showTeamAccess?: boolean;
+  showAllianceSettings?: boolean;
+  activeAllianceTag?: string | null;
   operatingMode?: "ashed" | "native" | null;
   canUseAshedEmbeds?: boolean;
   currentAllianceId?: string | null;
@@ -77,6 +80,8 @@ type Props = {
 export function SidebarNav({
   showAdminPortal = false,
   showTeamAccess = false,
+  showAllianceSettings = false,
+  activeAllianceTag = null,
   operatingMode = null,
   canUseAshedEmbeds = true,
   currentAllianceId = null,
@@ -153,13 +158,34 @@ export function SidebarNav({
             group.id === "alliance-management"
               ? [
                   ...(showTeamAccess
-                    ? [{ href: "/settings/team", labelKey: "team" as const }]
+                    ? [
+                        {
+                          href: "/settings/team",
+                          labelKey: "team" as const,
+                          pageId: "team",
+                        },
+                      ]
+                    : []),
+                  ...(showAllianceSettings && activeAllianceTag
+                    ? [
+                        {
+                          href: allianceSettingsPath(activeAllianceTag),
+                          labelKey: "allianceSettings" as const,
+                          pageId: "allianceSettings",
+                        },
+                      ]
                     : []),
                 ]
               : group.id === "hq-native"
                 ? [
                     ...(showAdminPortal
-                      ? [{ href: "/admin", labelKey: "adminPortal" as const }]
+                      ? [
+                          {
+                            href: "/admin",
+                            labelKey: "adminPortal" as const,
+                            pageId: "admin-portal",
+                          },
+                        ]
                       : []),
                   ]
                 : [];
@@ -215,10 +241,10 @@ export function SidebarNav({
                       <NavLink
                         key={page.href}
                         href={page.href}
-                        pageId={page.labelKey}
+                        pageId={page.pageId}
                         label={tNav(page.labelKey)}
                         active={
-                          page.href === "/admin"
+                          page.pageId === "admin-portal"
                             ? pathname.startsWith("/admin")
                             : navLinkActive(pathname, page.href)
                         }

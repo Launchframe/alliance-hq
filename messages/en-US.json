@@ -83,6 +83,7 @@
     "account": "Account",
     "allianceSettings": "Alliance settings",
     "settings": "Settings",
+    "allianceSettings": "Alliance settings",
     "team": "Team access",
     "adminPortal": "Admin portal"
   },
@@ -276,6 +277,29 @@
     "alliancesPage": {
       "loadFailed": "Failed to load alliances.",
       "empty": "No alliances registered yet.",
+      "search": {
+        "label": "Search",
+        "placeholder": "Name, slug, tag, Ashed id, or owner email…"
+      },
+      "filters": {
+        "operatingMode": "Operating mode",
+        "operatingModeAll": "All modes",
+        "operatingModeNative": "Native",
+        "operatingModeAshed": "Ashed",
+        "sort": "Sort by",
+        "sortName": "Name",
+        "sortMemberCount": "HQ members",
+        "sortRolesSyncedAt": "Roles synced",
+        "order": "Order",
+        "orderAsc": "Ascending",
+        "orderDesc": "Descending"
+      },
+      "pagination": {
+        "empty": "No alliances match these filters.",
+        "showing": "Showing {start}–{end} of {total}",
+        "prev": "Previous",
+        "next": "Next"
+      },
       "table": {
         "alliance": "Alliance",
         "owner": "Owner email",
@@ -725,6 +749,13 @@
       "source": "Source"
     }
   },
+  "allianceSettings": {
+    "title": "Alliance settings",
+    "subtitle": "Configuration for {alliance}. These values apply to this alliance only and differ across tenants.",
+    "backToAccountSettings": "Account settings",
+    "unknownAlliance": "your alliance",
+    "switchAlliance": "Your alliances"
+  },
   "shell": {
     "brand": "Alliance HQ",
     "domain": "frontline.gay",
@@ -928,6 +959,9 @@
       "placeholder": "Select an alliance…",
       "switchFailed": "Could not switch alliance."
     },
+    "allianceSettingsLinkTitle": "Alliance train settings",
+    "allianceSettingsLinkBody": "Configure conductor minimums, season override, and other alliance-specific train options.",
+    "allianceSettingsLinkCta": "Open alliance settings",
     "allianceSection": "Your alliance",
     "allianceBody": "Alliance HQ scopes member matching and score uploads to one alliance. We detect alliances where you are owner or collaborator on Ashed.",
     "alliancePickerLabel": "Alliance",
@@ -941,6 +975,8 @@
     "allianceSaved": "Linked to {tag} ({name}). Re-run OCR on open video jobs if members were wrong.",
     "allianceSavedGeneric": "Alliance saved.",
     "allianceSaveFailed": "Could not save alliance.",
+    "allianceSettingsLink": "{tag} — season, train minimums",
+    "allianceSettingsHeading": "Per-alliance configuration",
     "tokenSection": "Ashed token",
     "remindMe": "Remind me",
     "reminderOption": "{days, plural, one {# day} other {# days}} before expiration",
@@ -980,6 +1016,25 @@
         "age-fallback": "Estimated from server age",
         "default": "Default"
       }
+    },
+    "trainMinimums": {
+      "sectionTitle": "Train conductor minimums",
+      "sectionBody": "Members must meet weekly VS and donation targets to qualify as train conductor. Underperformance disqualifies them for the following train (or the same day when evaluating daily).",
+      "loading": "Loading train minimums…",
+      "loadFailed": "Could not load train conductor minimums.",
+      "minVsLabel": "Minimum VS points",
+      "minDonationLabel": "Minimum donation points",
+      "minimumPlaceholder": "Leave blank to disable",
+      "leewayLabel": "Leeway (%)",
+      "leewayHint": "Members within this percentage of a minimum still qualify.",
+      "windowLabel": "Evaluate minimums",
+      "windowWeekly": "Weekly (Mon–Sun; affects next week's train)",
+      "windowDaily": "Daily (prior day)",
+      "windowHint": "Weekly checks the previous calendar week before the train week.",
+      "save": "Save minimums",
+      "saving": "Saving…",
+      "saveFailed": "Could not save train conductor minimums.",
+      "officersOnly": "Only train officers can change these settings."
     }
   },
   "account": {
@@ -1259,9 +1314,12 @@
     "subtitle": "Choo-choo, baby!",
     "emptyRosterBody": "Import your alliance roster before planning train schedules or rolling for Conductor.",
     "emptyRosterCta": "Go to Members",
-    "noScheduleYet": "Choose a week template below to create this week's schedule, or plan individual days in the monthly calendar after you start.",
+    "noScheduleYet": "No weekly schedule yet. Create this week to start planning and rolling Conductors.",
     "chooseTemplateTitle": "Start this week's schedule",
     "noScheduleReadOnly": "No weekly schedule has been created yet. Ask a train officer to create this week's baseline schedule.",
+    "noScheduleYetReadOnly": "No weekly schedule yet. A train officer can create this week before members start planning around Conductors.",
+    "createSchedule": "Create this week",
+    "creatingSchedule": "Creating…",
     "weekSchedule": "This week",
     "scheduleSection": "Schedule",
     "viewWeek": "Week",
@@ -1336,11 +1394,94 @@
     "pickFailed": "Could not save conductor pick.",
     "pickVipFailed": "Could not save VIP pick.",
     "changeSchedule": "Change week template",
+    "nativeModeBanner": "This alliance runs trains in native mode. VS and donation rolls need a connected Ashed roster; use manual picks when scores are unavailable.",
+    "serverTimeBadge": {
+      "current": "Server time (UTC−2): {date} · {time}"
+    },
+    "userSettings": {
+      "menuLabel": "Train display settings",
+      "calendarWeekStart": "Calendar week starts on",
+      "weekStartSunday": "Sunday",
+      "weekStartMonday": "Monday",
+      "wheelSpeed": "Wheel animation speed",
+      "wheelSpeed_slow": "Slow",
+      "wheelSpeed_regular": "Regular",
+      "wheelSpeed_fast": "Fast",
+      "saveFailed": "Could not save train preferences."
+    },
+    "help": {
+      "openLabel": "Train help",
+      "title": "Alliance Train help",
+      "serverTimeBody": "Last War uses fixed server time (UTC−2, no daylight saving). Train days, VS weeks, and lock deadlines all follow this clock — not your local timezone.",
+      "quickStartTitle": "Quick start",
+      "quickStart": {
+        "paint": "Pick a week template or paint individual days on the schedule.",
+        "roll": "Spin the wheel or pick a conductor for today and upcoming days.",
+        "lock": "Lock in a conductor to spawn that day's empty train."
+      },
+      "takeTour": "Take the tour",
+      "close": "Close"
+    },
     "templateChangeConfirm": {
       "title": "Change week template?",
-      "body": "Days through {cutoffDate} stay unchanged because the Conductor is locked in on those days. The rest of this week will switch to the {template} template.",
+      "body": "The rest of this week ({startDate} through {endDate}) will switch to the {template} template.",
+      "bodyWithLocks": "Days through {cutoffDate} stay unchanged because the Conductor is locked on those days. {startDate} through {endDate} will switch to the {template} template.",
+      "noDatesBody": "No unlocked days remain in this week to repaint.",
+      "includeToday": "Including today ({date})?",
       "confirm": "Change template",
       "cancel": "Cancel"
+    },
+    "pivotBanner": {
+      "title": "Pivot to economy week?",
+      "body": "After Day 1 VS, you can switch Tue–Sun to economy-style R3 lottery so members stop burning inventory on a lost week.",
+      "action": "Pivot Tue–Sun to economy",
+      "applying": "Applying…"
+    },
+    "spinWeek": {
+      "spinForWeek": "Spin for the week",
+      "spinningProgress": "Spinning the week…",
+      "rollFailed": "Could not roll for Conductor.",
+      "lockFailed": "Could not lock conductors.",
+      "disqualifiedExhausted": "Could not find a qualified conductor after several spins. Try again or pick manually.",
+      "confirmTitle": "Lock conductors for the week?",
+      "confirmBody": "Review {count} conductors drawn from the pool. Locking spawns empty trains for each day.",
+      "confirmLockAll": "Confirm and lock all",
+      "confirmLocking": "Locking…",
+      "confirmCancel": "Keep as drafts",
+      "disabledReason": {
+        "pastWeek": "This train week is entirely in the past.",
+        "noEligibleDays": "No remaining days in this week need a wheel spin."
+      }
+    },
+    "walkthrough": {
+      "takeTour": "Take the tour",
+      "stepCounter": "Step {current} of {total}",
+      "skip": "Skip tour",
+      "next": "Next →",
+      "done": "Done",
+      "stepServerTime": "Train days follow game server time (UTC−2). The badge above always shows the current server date and time — use it when planning rolls and locks.",
+      "stepSchedule": "This is your train scheduling hub — pick a week, paint day templates, and see who is conducting each day.",
+      "stepWeekStrip": "Each cell shows the day template color, conductor mechanism, and whether the conductor is locked in.",
+      "stepTemplate": "Change the whole week’s template from this dropdown — economy, lottery, VS week, and more.",
+      "stepViewToggle": "Switch between week and month view. Month view is best for painting templates ahead.",
+      "stepConductorCard": "Today’s conductor card shows the VIP, guardian, and lock status. Locking spawns the train for that day.",
+      "stepQuickActions": "Roll or spin the wheel, pick the top scorer, or choose someone manually from quick actions.",
+      "stepSpinWeek": "Spin for the Week rolls and locks every remaining wheel-eligible day in one pass."
+    },
+    "swap": {
+      "action": "Swap / Make-up day",
+      "title": "Swap conductors",
+      "body": "Move an unlocked conductor draft to another day or swap between two unlocked days — useful for make-up days. Assigned target days will be locked after you confirm.",
+      "thisDay": "This day",
+      "swapWith": "Swap with",
+      "noCandidates": "No other days in this week to swap with.",
+      "noConductorYet": "No conductor yet",
+      "preview": "{dayA}: {nameA} ↔ {dayB}: {nameB}",
+      "previewMoveToOpen": "{nameA} moves to {dayB}. {dayA} will have no conductor.",
+      "cancel": "Cancel",
+      "confirm": "Confirm swap",
+      "swapping": "Swapping…",
+      "substitutingFor": "Substituting for {name}"
     },
     "reseedPool": "Re-seed pool",
     "reseedPoolHint": {
@@ -1358,7 +1499,9 @@
     },
     "loadFailed": "Could not load train dashboard.",
     "rollFailed": "Could not roll for Conductor.",
+    "overrideFailed": "Could not override disqualification.",
     "lockFailed": "Could not lock Conductor.",
+    "swapFailed": "Could not swap conductors.",
     "scheduleFailed": "Could not update schedule.",
     "poolFailed": "Could not re-seed pool.",
     "spinSource": {
@@ -1483,6 +1626,15 @@
     },
     "wheel": {
       "title": "All aboard!",
+      "disqualifiedTitle": "Disqualified",
+      "disqualifiedBody": "did not meet the minimum VS or donation requirements for train conductor.",
+      "evaluationPeriod": "Evaluated for {period}",
+      "vsShortfall": "VS: {score} pts (need {required}; short by {shortfall})",
+      "donationShortfall": "Donations: {score} pts (need {required}; short by {shortfall})",
+      "spinAgain": "Spin again",
+      "override": "Override disqualification",
+      "overrideReasonLabel": "Reason for override (optional)",
+      "overrideReasonPlaceholder": "e.g. excused absence, makeup week",
       "close": "Continue",
       "never": "never",
       "lastConducted": "Last: {date}",

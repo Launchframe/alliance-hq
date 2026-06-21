@@ -8,7 +8,10 @@ import {
   upsertConductorDraft,
 } from "@/lib/trains/repository";
 import { getMemberRankAsOf } from "@/lib/trains/rank-history";
-import { releasePoolSelectionForDate } from "@/lib/trains/pool";
+import {
+  markPoolMemberSelectedForDate,
+  releasePoolSelectionForDate,
+} from "@/lib/trains/pool";
 import { getServerCalendarDate } from "@/lib/trains/service";
 import {
   supportsManualVipPick,
@@ -84,6 +87,16 @@ export async function POST(request: Request) {
       body.memberId.trim(),
       date,
     );
+
+    const poolType = vipMechanismPoolType(mechanism as VipMechanismType);
+    if (poolType) {
+      await markPoolMemberSelectedForDate(
+        ctx.allianceId,
+        poolType,
+        body.memberId.trim(),
+        date,
+      );
+    }
 
     const record = await upsertConductorDraft({
       allianceId: ctx.allianceId,

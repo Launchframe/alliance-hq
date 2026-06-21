@@ -241,10 +241,31 @@
       "breakpoints": true
     },
     {
-      "idx": 33,
+      "idx": 34,
       "version": "7",
-      "when": 1782240000000,
-      "tag": "0033_ashed_identity_rebind",
+      "when": 1782320000000,
+      "tag": "0034_train_conductor_minimums",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1782400000000,
+      "tag": "0035_train_conductor_substitute",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1782486400000,
+      "tag": "0036_trains_user_preferences",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1782560000000,
+      "tag": "0037_train_week_tuesday_start",
       "breakpoints": true
     }
   ]

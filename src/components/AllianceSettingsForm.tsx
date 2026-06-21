@@ -4,6 +4,7 @@ import { useTranslations } from "next-intl";
 
 import { AllianceSeasonSettings } from "@/components/settings/AllianceSeasonSettings";
 import { Link } from "@/i18n/navigation";
+import { allianceSettingsPath } from "@/lib/alliance/alliance-settings-path.shared";
 
 type Props = {
   allianceTag: string | null;
@@ -27,7 +28,23 @@ export function AllianceSettingsForm({
         {!allianceTag && <p className="mt-1 text-sm text-[#8b949e]">{t("subtitleAlliance")}</p>}
       </div>
 
-      <AllianceSeasonSettings />
+      {allianceTag ? (
+        <>
+          <AllianceSeasonSettings allianceTag={allianceTag} />
+          <section className="rounded-xl border border-[#30363d] bg-[#161b22] p-5">
+            <h2 className="font-medium">{t("allianceSettingsLinkTitle")}</h2>
+            <p className="mt-2 text-sm text-[#8b949e]">
+              {t("allianceSettingsLinkBody")}
+            </p>
+            <Link
+              href={allianceSettingsPath(allianceTag)}
+              className="mt-4 inline-block text-sm text-[#58a6ff] hover:underline"
+            >
+              {t("allianceSettingsLinkCta")} →
+            </Link>
+          </section>
+        </>
+      ) : null}
 
       {showTeamLink ? (
         <section className="rounded-xl border border-[#30363d] bg-[#161b22] p-5">
