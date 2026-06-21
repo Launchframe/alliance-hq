@@ -10,6 +10,7 @@ import {
   createAuthenticatedHqSession,
   createNativeAlliance,
   getE2eSql,
+  playwrightAuthCookies,
   sessionHasAshedCredential,
 } from "./fixtures/db";
 
@@ -126,17 +127,12 @@ test.describe("Alliance switcher — session context reset", () => {
       WHERE id = ${session.sessionId}
     `;
 
-    await page.context().addCookies([
-      {
-        name: "alliance_hq_session",
-        value: session.sessionId,
-        domain: "localhost",
-        path: "/",
-      },
-    ]);
+    await page.context().addCookies(playwrightAuthCookies(session));
 
     await page.goto("/members");
     await expect(page.getByText("Alliance", { exact: true }).first()).toBeVisible();
-    await expect(page.getByRole("button", { name: "Alliance" })).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Alliance", exact: true }),
+    ).toBeVisible();
   });
 });
