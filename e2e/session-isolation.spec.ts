@@ -134,7 +134,7 @@ test.describe("Browser session isolation — Ashed credential binding", () => {
       invitedByHqUserId: maintainer.hqUserId,
     });
 
-    await acceptInviteViaApi(
+    const accepted = await acceptInviteViaApi(
       sql,
       e2eBaseUrl(),
       token,
@@ -143,7 +143,12 @@ test.describe("Browser session isolation — Ashed credential binding", () => {
       priorUser.sessionId,
     );
 
-    await page.context().addCookies([sessionCookie(priorUser.sessionId)]);
+    await page.context().addCookies(
+      playwrightAuthCookies({
+        sessionId: priorUser.sessionId,
+        nextAuthToken: accepted.nextAuthToken,
+      }),
+    );
     await page.goto("/dashboard");
     await expect(page).toHaveURL(/\/members/);
   });
@@ -213,6 +218,28 @@ test.describe("Browser session isolation — Ashed credential binding", () => {
       SELECT hq_user_id FROM sessions WHERE id = ${userA.sessionId} LIMIT 1
     `;
     expect(sessionRow?.hq_user_id).toBe(userB.hqUserId);
+  });
+
+  test("HQ-user/credential mismatch proactively clears orphan Ashed row", async () => {
+    const sql = getE2eSql();
+    const userA = await createAuthenticatedHqSession(sql, uniqueEmail("cred-owner"));
+    const userB = await createHqUserOnly(sql, uniqueEmail("other-user"));
+    await attachAshedConnectionToSession(sql, userA.sessionId);
+
+    expect(
+      await fetchConnectSessionState(e2eBaseUrl(), userA.sessionId),
+    ).toMatchObject({ isConnected: true });
+
+    await sql`
+      UPDATE sessions
+      SET hq_user_id = ${userB.hqUserId}, updated_at = NOW()
+      WHERE id = ${userA.sessionId}
+    `;
+
+    expect(
+      await fetchConnectSessionState(e2eBaseUrl(), userA.sessionId),
+    ).toMatchObject({ isConnected: false });
+    expect(await sessionHasAshedCredential(sql, userA.sessionId)).toBe(false);
   });
 
   test("same HQ user re-authenticating preserves Ashed credential on browser session", async ({

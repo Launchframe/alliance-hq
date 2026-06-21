@@ -180,18 +180,19 @@ export async function acceptInviteViaApi(
     const fixture = await createAuthenticatedHqSession(sql, email);
     browserSessionId = fixture.sessionId;
     nextAuthToken = fixture.nextAuthToken;
+  } else if (!nextAuthToken) {
+    const authUser = await createHqUserOnly(sql, email);
+    nextAuthToken = authUser.nextAuthToken;
   }
 
   const res = await fetch(`${baseURL}/api/invite/${encodeURIComponent(token)}/accept`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Cookie: nextAuthToken
-        ? authCookieHeader({
-            sessionId: browserSessionId,
-            nextAuthToken,
-          })
-        : `${SESSION_COOKIE}=${browserSessionId}`,
+      Cookie: authCookieHeader({
+        sessionId: browserSessionId,
+        nextAuthToken,
+      }),
     },
     body: JSON.stringify({
       email,
@@ -211,13 +212,11 @@ export async function acceptInviteViaApi(
   }
 
   const hqUserId = body.hqUserId ?? "";
-  if (!nextAuthToken) {
-    nextAuthToken = await encodeNextAuthSessionToken({
-      hqUserId,
-      email: email.toLowerCase(),
-      name: "E2E User",
-    });
-  }
+  nextAuthToken = await encodeNextAuthSessionToken({
+    hqUserId,
+    email: email.toLowerCase(),
+    name: "E2E User",
+  });
 
   return {
     sessionId: browserSessionId,
@@ -263,6 +262,28 @@ export async function attachAshedConnectionToSession(
   const now = new Date();
   const credId = nanoid(24);
   const expiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+  const explicitAshedUserId = Boolean(options && "ashedUserId" in options);
+  let ashedUserId = explicitAshedUserId ? (options?.ashedUserId ?? null) : null;
+
+  const [sessionRow] = await sql<{ hq_user_id: string | null }[]>`
+    SELECT hq_user_id FROM sessions WHERE id = ${sessionId} LIMIT 1
+  `;
+
+  if (sessionRow?.hq_user_id && !explicitAshedUserId) {
+    const [userRow] = await sql<{ ashed_user_id: string | null }[]>`
+      SELECT ashed_user_id FROM hq_users WHERE id = ${sessionRow.hq_user_id} LIMIT 1
+    `;
+    ashedUserId =
+      userRow?.ashed_user_id?.trim() || `ashed-e2e-${nanoid(12)}`;
+
+    if (!userRow?.ashed_user_id?.trim()) {
+      await sql`
+        UPDATE hq_users
+        SET ashed_user_id = ${ashedUserId}, updated_at = ${now}
+        WHERE id = ${sessionRow.hq_user_id}
+      `;
+    }
+  }
 
   await sql`
     INSERT INTO ashed_credentials (
@@ -279,7 +300,7 @@ export async function attachAshedConnectionToSession(
     ) VALUES (
       ${credId},
       ${sessionId},
-      ${options?.ashedUserId ?? null},
+      ${ashedUserId},
       ${DEFAULT_APP_ID},
       ${DEFAULT_ORIGIN_URL},
       ${encryptSecret("e2e-fake-ashed-token")},

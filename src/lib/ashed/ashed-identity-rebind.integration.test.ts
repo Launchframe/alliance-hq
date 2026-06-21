@@ -286,7 +286,7 @@ describeIntegration("Ashed identity rebind (integration)", () => {
     ).rejects.toThrow(/already linked to a different HQ user/i);
   });
 
-  it("getAshedConnection ignores credentials that do not match the bound HQ user", async () => {
+  it("getAshedConnection clears credentials that do not match the bound HQ user", async () => {
     const ashedUserId = `ashed-${nanoid(12)}`;
     const userA = await createHqUser(uniqueEmail("user-a"), ashedUserId);
     const userB = await createHqUser(uniqueEmail("user-b"));
@@ -313,6 +313,6 @@ describeIntegration("Ashed identity rebind (integration)", () => {
       .where(eq(schema.sessions.id, sessionId));
 
     expect(await getAshedConnection(sessionId)).toBeNull();
-    expect(await countCredentialsForSession(sessionId)).toBe(1);
+    expect(await countCredentialsForSession(sessionId)).toBe(0);
   });
 });

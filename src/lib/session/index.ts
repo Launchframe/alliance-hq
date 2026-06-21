@@ -163,25 +163,30 @@ export async function getAshedCredentialRecord(
   return cred ?? null;
 }
 
-export async function getAshedConnection(
+/** Clears stored Ashed cred when the bound HQ user no longer holds that identity. */
+async function clearOrphanAshedCredentialIfBoundUserMismatch(
   sessionId: string,
-): Promise<ParsedConnection | null> {
-  const db = getDb();
-  const [cred] = await db
-    .select()
-    .from(schema.ashedCredentials)
-    .where(eq(schema.ashedCredentials.sessionId, sessionId))
-    .limit(1);
-
-  if (!cred) {
-    return null;
-  }
-
+): Promise<boolean> {
   const session = await loadSession(sessionId);
   if (
     session?.hqUserId &&
     !(await sessionHoldsAshedIdentityForHqUser(sessionId, session.hqUserId))
   ) {
+    await clearAshedConnection(sessionId);
+    return true;
+  }
+  return false;
+}
+
+export async function getAshedConnection(
+  sessionId: string,
+): Promise<ParsedConnection | null> {
+  const cred = await getAshedCredentialRecord(sessionId);
+  if (!cred) {
+    return null;
+  }
+
+  if (await clearOrphanAshedCredentialIfBoundUserMismatch(sessionId)) {
     return null;
   }
 
@@ -200,6 +205,11 @@ export async function getAshedConnectionMeta(
   if (!cred) {
     return null;
   }
+
+  if (await clearOrphanAshedCredentialIfBoundUserMismatch(sessionId)) {
+    return null;
+  }
+
   const session = await loadSession(sessionId);
   const timezone = await getAccountTimezoneIdForHqUser(session?.hqUserId);
   return buildAshedConnectionMeta(cred, locale, timezone);
