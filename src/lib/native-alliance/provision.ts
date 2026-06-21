@@ -98,13 +98,6 @@ export async function createNativeAlliance(
         updatedAt: now,
       });
     }
-
-    const ownerRole = input.ownerRole ?? "owner";
-    await assignManualMembership({
-      hqUserId: ownerHqUserId,
-      allianceId,
-      roleId: ROLE_IDS[ownerRole],
-    });
   }
 
   await db.insert(schema.alliances).values({
@@ -119,6 +112,15 @@ export async function createNativeAlliance(
     createdAt: now,
     updatedAt: now,
   });
+
+  if (ownerHqUserId && ownerEmail) {
+    const ownerRole = input.ownerRole ?? "owner";
+    await assignManualMembership({
+      hqUserId: ownerHqUserId,
+      allianceId,
+      roleId: ROLE_IDS[ownerRole],
+    });
+  }
 
   return {
     allianceId,

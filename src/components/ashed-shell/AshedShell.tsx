@@ -35,6 +35,7 @@ type Props = {
   showTeamAccess?: boolean;
   currentAllianceId?: string | null;
   membershipAlliances?: SessionAllianceOption[];
+  sessionPermissions?: readonly string[];
   children: React.ReactNode;
 };
 
@@ -58,6 +59,7 @@ export function AshedShell({
   showTeamAccess = false,
   currentAllianceId = null,
   membershipAlliances = [],
+  sessionPermissions = [],
   children,
 }: Props) {
   const pathname = usePathname();
@@ -132,6 +134,7 @@ export function AshedShell({
               canUseAshedEmbeds={canUseAshedEmbeds}
               currentAllianceId={currentAllianceId}
               membershipAlliances={membershipAlliances}
+              sessionPermissions={sessionPermissions}
               mobileCollapsible
               expandedGroupId={expandedGroupId}
               onToggleGroup={toggleGroup}

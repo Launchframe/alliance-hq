@@ -5,6 +5,7 @@ import { nanoid } from "nanoid";
 import { writeAuditLog } from "@/lib/bff/audit";
 import { emitVideoJobStatus } from "@/lib/events/video-jobs";
 import { getDb, schema } from "@/lib/db";
+import { requireSessionPermission } from "@/lib/rbac/require-permission";
 import { putObject, videoStorageKey } from "@/lib/storage";
 import { getOrCreateSession } from "@/lib/session";
 import { dispatchVideoProcessing } from "@/lib/video/trigger-processing";
@@ -22,6 +23,9 @@ import {
 export async function POST(request: Request) {
   try {
     const session = await getOrCreateSession();
+    const denied = await requireSessionPermission(session.id, "upload:write");
+    if (denied) return denied;
+
     const formData = await request.formData();
     const file = formData.get("video");
 
@@ -164,6 +168,9 @@ export async function POST(request: Request) {
 export async function GET() {
   try {
     const session = await getOrCreateSession();
+    const denied = await requireSessionPermission(session.id, "upload:write");
+    if (denied) return denied;
+
     const db = getDb();
     const jobs = await db
       .select()

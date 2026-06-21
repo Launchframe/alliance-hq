@@ -6,6 +6,7 @@ import Resend from "next-auth/providers/resend";
 import { createHqAuthAdapter } from "@/lib/auth/adapter";
 import { bridgeAuthUserToBrowserSession } from "@/lib/auth/bridge-session";
 import { ensureHqUserForAuthEmail } from "@/lib/auth/resolve-hq-user";
+import { maybeBootstrapPlatformMaintainer } from "@/lib/rbac/bootstrap-platform";
 import {
   PRODUCTION_EMAIL_FROM,
   RESEND_DEV_EMAIL_FROM,
@@ -52,6 +53,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           email: user.email,
           displayName: user.name,
         });
+        await maybeBootstrapPlatformMaintainer(hqUserId, user.email);
       }
       return token;
     },

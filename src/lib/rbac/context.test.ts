@@ -93,6 +93,9 @@ describe("getRbacContext", () => {
         ]),
       )
       .mockReturnValueOnce(
+        chainSelectWithLimit([{ isPlatformMaintainer: 0 }]),
+      )
+      .mockReturnValueOnce(
         chainSelectWithLimit([
           { roleName: "officer", roleId: "role-officer", source: "ashed" },
         ]),

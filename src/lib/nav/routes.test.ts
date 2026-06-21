@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   ashedUrlForPath,
+  filterNavGroupsForPermissions,
   isNavActive,
   legacyAshedRedirect,
   navLinkActive,
@@ -65,6 +66,33 @@ describe("legacyAshedRedirect", () => {
     expect(legacyAshedRedirect(["violations"])).toBe("/members");
     expect(legacyAshedRedirect(["missing"])).toBeNull();
     expect(legacyAshedRedirect(["a", "b"])).toBeNull();
+  });
+});
+
+describe("filterNavGroupsForPermissions", () => {
+  it("hides video upload without upload:write", () => {
+    const filtered = filterNavGroupsForPermissions(NAV_GROUPS, new Set(["members:read"]));
+    const hqNative = filtered.find((group) => group.id === "hq-native");
+    expect(hqNative).toBeUndefined();
+  });
+
+  it("keeps video upload when upload:write is granted", () => {
+    const filtered = filterNavGroupsForPermissions(
+      NAV_GROUPS,
+      new Set(["members:read", "upload:write"]),
+    );
+    const hqNative = filtered.find((group) => group.id === "hq-native");
+    expect(hqNative?.pages.some((page) => page.id === "video-upload")).toBe(true);
+  });
+
+  it("skips permission filtering for platform maintainers", () => {
+    const filtered = filterNavGroupsForPermissions(
+      NAV_GROUPS,
+      new Set(["hq:admin"]),
+      { bypass: true },
+    );
+    const hqNative = filtered.find((group) => group.id === "hq-native");
+    expect(hqNative?.pages.some((page) => page.id === "video-upload")).toBe(true);
   });
 });
 

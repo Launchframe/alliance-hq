@@ -309,6 +309,16 @@ export async function resolveEffectiveHqUserIdForSession(
     return null;
   }
 
+  const db = getDb();
+  const [signingInUser] = await db
+    .select({ isPlatformMaintainer: schema.hqUsers.isPlatformMaintainer })
+    .from(schema.hqUsers)
+    .where(eq(schema.hqUsers.id, magicLinkHqUserId))
+    .limit(1);
+  if (signingInUser?.isPlatformMaintainer === 1) {
+    return magicLinkHqUserId;
+  }
+
   const cred = await getAshedCredentialRecord(sessionId);
   const session = await loadSession(sessionId);
 
@@ -342,7 +352,6 @@ export async function resolveEffectiveHqUserIdForSession(
     return magicLinkHqUserId;
   }
 
-  const db = getDb();
   const [canonical] = await db
     .select({ id: schema.hqUsers.id })
     .from(schema.hqUsers)
@@ -451,6 +460,7 @@ export async function getSessionStateFor(
     currentAllianceId: session.currentAllianceId,
     currentAllianceTag: currentAlliance?.tag ?? session.allianceTag,
     membershipAlliances,
+    permissions: rbac ? Array.from(rbac.permissions) : [],
     hasActiveMembership,
     timezone,
     isConnected: connection !== null,

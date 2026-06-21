@@ -11,6 +11,38 @@ function isValidInviteEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed);
 }
 
+type ActionFeedback = {
+  kind: "error" | "success";
+  text: string;
+} | null;
+
+function ActionFeedbackBanner({ feedback }: { feedback: ActionFeedback }) {
+  if (!feedback) {
+    return null;
+  }
+
+  return (
+    <p
+      role="alert"
+      className={
+        feedback.kind === "error"
+          ? "rounded-lg border border-[#f85149]/40 bg-[#f85149]/10 px-3 py-2 text-sm text-[#f85149]"
+          : "rounded-lg border border-[#3fb950]/40 bg-[#3fb950]/10 px-3 py-2 text-sm text-[#3fb950]"
+      }
+    >
+      {feedback.text}
+    </p>
+  );
+}
+
+async function readJsonBody<T>(res: Response): Promise<T | null> {
+  try {
+    return (await res.json()) as T;
+  } catch {
+    return null;
+  }
+}
+
 export type NativeAllianceOption = {
   id: string;
   slug: string;
@@ -25,6 +57,7 @@ type Props = {
 };
 
 type InviteKind = "email" | "protected_link";
+type InviteRoleName = "owner" | "officer" | "member";
 
 export function AdminNativeAlliancePanel({
   nativeAlliances,
@@ -40,9 +73,7 @@ export function AdminNativeAlliancePanel({
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteAdminLabel, setInviteAdminLabel] = useState("");
   const [inviteRedirectPath, setInviteRedirectPath] = useState("");
-  const [inviteRole, setInviteRole] = useState<"owner" | "officer" | "member">(
-    "officer",
-  );
+  const [inviteRole, setInviteRole] = useState<InviteRoleName | "">("");
   const [lastInviteUrl, setLastInviteUrl] = useState<string | null>(null);
   const [lastPassphrase, setLastPassphrase] = useState<string | null>(null);
   const [joinCodeRole, setJoinCodeRole] = useState<"owner" | "officer" | "member">(
@@ -52,40 +83,56 @@ export function AdminNativeAlliancePanel({
   const [joinCodeLabel, setJoinCodeLabel] = useState("");
   const [lastJoinCode, setLastJoinCode] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
+  const [createFeedback, setCreateFeedback] = useState<ActionFeedback>(null);
+  const [inviteFeedback, setInviteFeedback] = useState<ActionFeedback>(null);
+  const [joinCodeFeedback, setJoinCodeFeedback] = useState<ActionFeedback>(null);
 
   async function createAlliance() {
+    const trimmedName = name.trim();
+    const trimmedTag = tag.trim();
+    if (!trimmedName || !trimmedTag) {
+      setCreateFeedback({
+        kind: "error",
+        text: t("createFieldsRequired"),
+      });
+      return;
+    }
+
     setBusy(true);
-    setError(null);
-    setMessage(null);
+    setCreateFeedback(null);
     try {
       const res = await fetch("/api/admin/native-alliances", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name,
-          tag,
+          name: trimmedName,
+          tag: trimmedTag,
           ownerEmail: ownerEmail.trim() || undefined,
         }),
       });
-      const body = (await res.json()) as {
+      const body = await readJsonBody<{
         error?: string;
         alliance?: { allianceId: string; tag: string; name: string };
-      };
-      if (!res.ok) throw new Error(body.error ?? t("createFailed"));
-      if (body.alliance?.allianceId) {
+      }>(res);
+      if (!res.ok) {
+        throw new Error(body?.error ?? t("createFailed"));
+      }
+      if (body?.alliance?.allianceId) {
         onSelectAlliance(body.alliance.allianceId);
       }
-      setMessage(
-        t("created", {
-          name: body.alliance?.name ?? name,
-          tag: body.alliance?.tag ?? tag,
+      setCreateFeedback({
+        kind: "success",
+        text: t("created", {
+          name: body?.alliance?.name ?? trimmedName,
+          tag: body?.alliance?.tag ?? trimmedTag,
         }),
-      );
+      });
       onCreated();
     } catch (e) {
-      setError(e instanceof Error ? e.message : t("createFailed"));
+      setCreateFeedback({
+        kind: "error",
+        text: e instanceof Error ? e.message : t("createFailed"),
+      });
     } finally {
       setBusy(false);
     }
@@ -93,21 +140,30 @@ export function AdminNativeAlliancePanel({
 
   const inviteEmailValid = isValidInviteEmail(inviteEmail);
   const canSendInvite =
-    inviteKind === "protected_link" ||
-    (inviteKind === "email" && inviteEmailValid);
+    inviteRole !== "" &&
+    (inviteKind === "protected_link" ||
+      (inviteKind === "email" && inviteEmailValid));
 
   async function sendInvite() {
     if (!selectedAllianceId.trim()) {
-      setError(t("chooseAllianceRequired"));
+      setInviteFeedback({
+        kind: "error",
+        text: t("chooseAllianceRequired"),
+      });
       return;
     }
     if (!canSendInvite) {
-      setError(t("inviteEmailRequired"));
+      setInviteFeedback({
+        kind: "error",
+        text:
+          inviteRole === ""
+            ? t("inviteRoleRequired")
+            : t("inviteEmailRequired"),
+      });
       return;
     }
     setBusy(true);
-    setError(null);
-    setMessage(null);
+    setInviteFeedback(null);
     setLastPassphrase(null);
     try {
       const res = await fetch(
@@ -124,16 +180,20 @@ export function AdminNativeAlliancePanel({
           }),
         },
       );
-      const body = (await res.json()) as {
+      const body = await readJsonBody<{
         error?: string;
         invite?: { inviteUrl: string; passphrase?: string };
-      };
-      if (!res.ok) throw new Error(body.error ?? t("inviteFailed"));
-      setLastInviteUrl(body.invite?.inviteUrl ?? null);
-      setLastPassphrase(body.invite?.passphrase ?? null);
-      setMessage(t("inviteSent"));
+      }>(res);
+      if (!res.ok) throw new Error(body?.error ?? t("inviteFailed"));
+      setLastInviteUrl(body?.invite?.inviteUrl ?? null);
+      setLastPassphrase(body?.invite?.passphrase ?? null);
+      setInviteRole("");
+      setInviteFeedback({ kind: "success", text: t("inviteSent") });
     } catch (e) {
-      setError(e instanceof Error ? e.message : t("inviteFailed"));
+      setInviteFeedback({
+        kind: "error",
+        text: e instanceof Error ? e.message : t("inviteFailed"),
+      });
     } finally {
       setBusy(false);
     }
@@ -141,17 +201,22 @@ export function AdminNativeAlliancePanel({
 
   async function createJoinCode() {
     if (!selectedAllianceId.trim()) {
-      setError(t("chooseAllianceRequired"));
+      setJoinCodeFeedback({
+        kind: "error",
+        text: t("chooseAllianceRequired"),
+      });
       return;
     }
     const maxUses = Number.parseInt(joinCodeMaxUses, 10);
     if (!Number.isFinite(maxUses) || maxUses < 1) {
-      setError(t("joinCodeMaxUsesInvalid"));
+      setJoinCodeFeedback({
+        kind: "error",
+        text: t("joinCodeMaxUsesInvalid"),
+      });
       return;
     }
     setBusy(true);
-    setError(null);
-    setMessage(null);
+    setJoinCodeFeedback(null);
     setLastJoinCode(null);
     try {
       const res = await fetch(
@@ -166,15 +231,18 @@ export function AdminNativeAlliancePanel({
           }),
         },
       );
-      const body = (await res.json()) as {
+      const body = await readJsonBody<{
         error?: string;
         joinCode?: { code: string };
-      };
-      if (!res.ok) throw new Error(body.error ?? t("joinCodeFailed"));
-      setLastJoinCode(body.joinCode?.code ?? null);
-      setMessage(t("joinCodeCreated"));
+      }>(res);
+      if (!res.ok) throw new Error(body?.error ?? t("joinCodeFailed"));
+      setLastJoinCode(body?.joinCode?.code ?? null);
+      setJoinCodeFeedback({ kind: "success", text: t("joinCodeCreated") });
     } catch (e) {
-      setError(e instanceof Error ? e.message : t("joinCodeFailed"));
+      setJoinCodeFeedback({
+        kind: "error",
+        text: e instanceof Error ? e.message : t("joinCodeFailed"),
+      });
     } finally {
       setBusy(false);
     }
@@ -223,6 +291,7 @@ export function AdminNativeAlliancePanel({
       >
         {t("createButton")}
       </button>
+      <ActionFeedbackBanner feedback={createFeedback} />
 
       <div className="border-t border-[#30363d] pt-4">
         <h3 className="text-sm font-semibold">{t("inviteTitle")}</h3>
@@ -285,10 +354,11 @@ export function AdminNativeAlliancePanel({
             <select
               value={inviteRole}
               onChange={(e) =>
-                setInviteRole(e.target.value as "owner" | "officer" | "member")
+                setInviteRole(e.target.value as InviteRoleName | "")
               }
               className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
             >
+              <option value="">{t("inviteRolePlaceholder")}</option>
               <option value="owner">{t("roleOwner")}</option>
               <option value="officer">{t("roleOfficer")}</option>
               <option value="member">{t("roleMember")}</option>
@@ -316,6 +386,7 @@ export function AdminNativeAlliancePanel({
         >
           {t("inviteButton")}
         </button>
+        <ActionFeedbackBanner feedback={inviteFeedback} />
         {lastInviteUrl ? (
           <CopyToClipboardField
             className="mt-3"
@@ -382,6 +453,7 @@ export function AdminNativeAlliancePanel({
         >
           {t("joinCodeButton")}
         </button>
+        <ActionFeedbackBanner feedback={joinCodeFeedback} />
         {lastJoinCode ? (
           <CopyToClipboardField
             className="mt-3"
@@ -390,9 +462,6 @@ export function AdminNativeAlliancePanel({
           />
         ) : null}
       </div>
-
-      {message ? <p className="text-sm text-[#3fb950]">{message}</p> : null}
-      {error ? <p className="text-sm text-[#f85149]">{error}</p> : null}
     </section>
   );
 }

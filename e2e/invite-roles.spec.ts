@@ -356,6 +356,7 @@ test.describe("Platform maintainer — Ashed embed access without connect", () =
 
     await page.goto("/members");
     await expect(page.getByRole("link", { name: /^dashboard$/i })).toBeVisible();
+    await expect(page.getByRole("link", { name: /admin portal/i })).toBeVisible();
 
     await page.goto("/dashboard");
     await expect(page).toHaveURL(/\/dashboard/);
