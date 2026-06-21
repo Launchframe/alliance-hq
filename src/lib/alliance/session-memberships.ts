@@ -118,22 +118,35 @@ export async function switchSessionCurrentAlliance(
 
   const tag = alliance.tag?.trim() || null;
   const operatingMode = parseOperatingMode(alliance.operatingMode);
+  const switchingAlliance = session.currentAllianceId !== allianceId;
 
-  // Drop personal Ashed JWT and legacy alliance fields from the prior context.
-  await db
-    .delete(schema.ashedCredentials)
-    .where(eq(schema.ashedCredentials.sessionId, session.id));
+  if (switchingAlliance) {
+    // Drop personal Ashed JWT and legacy session fields from the prior context.
+    await db
+      .delete(schema.ashedCredentials)
+      .where(eq(schema.ashedCredentials.sessionId, session.id));
 
-  await db
-    .update(schema.sessions)
-    .set({
-      currentAllianceId: alliance.id,
-      allianceTag: tag,
-      allianceId: alliance.ashedAllianceId ?? null,
-      userLabel: null,
-      updatedAt: new Date(),
-    })
-    .where(eq(schema.sessions.id, session.id));
+    await db
+      .update(schema.sessions)
+      .set({
+        currentAllianceId: alliance.id,
+        allianceTag: tag,
+        allianceId: alliance.ashedAllianceId ?? null,
+        userLabel: null,
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.sessions.id, session.id));
+  } else {
+    await db
+      .update(schema.sessions)
+      .set({
+        currentAllianceId: alliance.id,
+        allianceTag: tag,
+        allianceId: alliance.ashedAllianceId ?? null,
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.sessions.id, session.id));
+  }
 
   return {
     allianceId: alliance.id,
