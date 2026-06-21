@@ -5,6 +5,7 @@ import { nanoid } from "nanoid";
 import { redirect } from "next/navigation";
 
 import { resolveAllianceByTag } from "@/lib/alliance/resolve";
+import { signingInUserMatchesConnectedSessionOwner } from "@/lib/auth/session-connect-identity";
 import {
   listSessionAlliances,
   resolveSessionAllianceId,
@@ -299,6 +300,26 @@ export async function resolveEffectiveHqUserIdForSession(
   }
 
   const cred = await getAshedCredentialRecord(sessionId);
+  const session = await loadSession(sessionId);
+
+  if (cred?.ashedUserId && session?.hqUserId) {
+    const sessionOwnerHoldsCred = await sessionHoldsAshedIdentityForHqUser(
+      sessionId,
+      session.hqUserId,
+    );
+    if (sessionOwnerHoldsCred) {
+      if (
+        await signingInUserMatchesConnectedSessionOwner({
+          sessionId,
+          signingInHqUserId: magicLinkHqUserId,
+          sessionOwnerHqUserId: session.hqUserId,
+        })
+      ) {
+        return session.hqUserId;
+      }
+    }
+  }
+
   if (!cred?.ashedUserId) {
     return magicLinkHqUserId;
   }

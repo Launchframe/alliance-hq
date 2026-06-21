@@ -1117,7 +1117,7 @@
   },
   "getStarted": {
     "title": "Almost there",
-    "body": "You're signed in. To use alliance tools, accept an admin invite, redeem a join code, or connect Ashed.",
+    "body": "You're signed in. To use alliance tools, accept an officer invite, redeem a join code, or connect through Ashed.",
     "inviteTitle": "Admin invite",
     "inviteBody": "Open the invite link your platform admin sent. Protected invites also need a passphrase sent separately.",
     "joinCodeTitle": "Alliance join code",

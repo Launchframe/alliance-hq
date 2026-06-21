@@ -3,6 +3,7 @@ import "server-only";
 import { eq } from "drizzle-orm";
 
 import { getDb, schema } from "@/lib/db";
+import { signingInUserMatchesConnectedSessionOwner } from "@/lib/auth/session-connect-identity";
 import { sessionHoldsAshedIdentityForHqUser } from "@/lib/rbac/ashed-session-membership";
 import {
   clearAshedConnection,
@@ -30,18 +31,12 @@ export async function resolveBridgeHqUserId(input: {
       freshSession.hqUserId,
     ))
   ) {
-    const effectiveForSignIn =
-      (await resolveEffectiveHqUserIdForSession(
-        freshSession.id,
-        input.hqUserId,
-      )) ?? input.hqUserId;
-
     if (
-      effectiveForSignIn === freshSession.hqUserId ||
-      (await sessionHoldsAshedIdentityForHqUser(
-        freshSession.id,
-        input.hqUserId,
-      ))
+      await signingInUserMatchesConnectedSessionOwner({
+        sessionId: freshSession.id,
+        signingInHqUserId: input.hqUserId,
+        sessionOwnerHqUserId: freshSession.hqUserId,
+      })
     ) {
       return freshSession.hqUserId;
     }

@@ -2,7 +2,10 @@ import { nanoid } from "nanoid";
 import { expect, test } from "@playwright/test";
 
 import {
+  attachAshedConnectionToSession,
+  createAllianceMembership,
   createAuthenticatedHqSession,
+  createCanonicalAshedHqUser,
   createHqInviteRow,
   createNativeAlliance,
   createPlatformMaintainerSession,
@@ -157,6 +160,60 @@ test.describe("Get-started routing", () => {
     await page.getByRole("link", { name: /continue without ashed/i }).click();
 
     await expect(page).toHaveURL(/\/trains/);
+    await expect(page).not.toHaveURL(/\/get-started/);
+  });
+
+  test("magic-link stub keeps app access after Ashed connect merge", async ({
+    page,
+  }) => {
+    const sql = getE2eSql();
+    const ashedUserId = `ashed-${nanoid(12)}`;
+    const magicEmail = `magic-${nanoid(6)}@e2e.test`;
+    const gameEmail = `game-${nanoid(6)}@e2e.test`;
+
+    const stubSession = await createAuthenticatedHqSession(sql, magicEmail);
+    const alliance = await createNativeAlliance(sql, {
+      tag: `PC${nanoid(3)}`,
+      name: "Post Connect Alliance",
+    });
+    const { hqUserId: canonicalId } = await createCanonicalAshedHqUser(sql, {
+      email: gameEmail,
+      ashedUserId,
+    });
+    await createAllianceMembership(sql, {
+      hqUserId: canonicalId,
+      allianceId: alliance.allianceId,
+      roleName: "officer",
+      source: "ashed",
+    });
+
+    await attachAshedConnectionToSession(sql, stubSession.sessionId, {
+      ashedUserId,
+    });
+    await sql`
+      UPDATE sessions
+      SET hq_user_id = ${canonicalId}, current_alliance_id = ${alliance.allianceId}
+      WHERE id = ${stubSession.sessionId}
+    `;
+    await sql`
+      INSERT INTO audit_log (
+        id, session_id, alliance_id, hq_user_id, action, resource_type, resource_id, metadata, created_at
+      ) VALUES (
+        ${nanoid(16)},
+        ${stubSession.sessionId},
+        ${alliance.allianceId},
+        ${canonicalId},
+        ${"ashed.rebind"},
+        ${"ashed_identity"},
+        ${ashedUserId},
+        ${sql.json({ mergedFromHqUserId: stubSession.hqUserId })},
+        ${new Date()}
+      )
+    `;
+
+    await page.context().addCookies(playwrightAuthCookies(stubSession));
+    await page.goto("/");
+
     await expect(page).not.toHaveURL(/\/get-started/);
   });
 });

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { resolveBridgeHqUserId } from "@/lib/auth/bridge-session";
+import * as sessionConnectIdentity from "@/lib/auth/session-connect-identity";
 import * as sessionModule from "@/lib/session";
 import * as ashedMembershipModule from "@/lib/rbac/ashed-session-membership";
 
@@ -22,9 +23,10 @@ describe("resolveBridgeHqUserId", () => {
       ashedMembershipModule,
       "sessionHoldsAshedIdentityForHqUser",
     ).mockImplementation(async (_sessionId, hqUserId) => hqUserId === "canonical-user");
-    vi.spyOn(sessionModule, "resolveEffectiveHqUserIdForSession").mockResolvedValue(
-      "canonical-user",
-    );
+    vi.spyOn(
+      sessionConnectIdentity,
+      "signingInUserMatchesConnectedSessionOwner",
+    ).mockResolvedValue(true);
     const clearSpy = vi
       .spyOn(sessionModule, "clearAshedConnection")
       .mockResolvedValue(undefined);
@@ -103,9 +105,10 @@ describe("resolveBridgeHqUserId", () => {
       ashedMembershipModule,
       "sessionHoldsAshedIdentityForHqUser",
     ).mockImplementation(async (_sessionId, hqUserId) => hqUserId === "user-a");
-    vi.spyOn(sessionModule, "resolveEffectiveHqUserIdForSession").mockResolvedValue(
-      "user-b",
-    );
+    vi.spyOn(
+      sessionConnectIdentity,
+      "signingInUserMatchesConnectedSessionOwner",
+    ).mockResolvedValue(false);
     vi.spyOn(sessionModule, "getAshedCredentialRecord").mockResolvedValue({
       id: "cred-1",
     } as never);
