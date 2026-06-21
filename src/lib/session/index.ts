@@ -5,6 +5,7 @@ import { nanoid } from "nanoid";
 import { redirect } from "next/navigation";
 
 import { resolveAllianceByTag } from "@/lib/alliance/resolve";
+import { signingInUserMatchesConnectedSessionOwner } from "@/lib/auth/session-connect-identity";
 import {
   listSessionAlliances,
   resolveSessionAllianceId,
@@ -21,8 +22,9 @@ import {
 } from "@/lib/jwt/connection-meta";
 import { DEFAULT_EXPIRY_REMINDER_DAYS } from "@/lib/jwt/decode";
 import { getRbacContext } from "@/lib/rbac/context";
-import { ASHED_CONNECT_PERMISSION } from "@/lib/rbac/constants";
+import { sessionHoldsAshedIdentityForHqUser } from "@/lib/rbac/ashed-session-membership";
 import {
+  rbacAllowsAshedConnect,
   sessionHasActiveMembership,
   sessionHasAppAccess,
   sessionHasNativeMembership,
@@ -82,7 +84,7 @@ export async function requirePageSession(returnTo = "/"): Promise<Session> {
   }
 
   const next = returnTo.startsWith("/") ? returnTo : `/${returnTo}`;
-  redirect(`/api/auth/session?next=${encodeURIComponent(next)}`);
+  redirect(`/api/auth/bootstrap?next=${encodeURIComponent(next)}`);
 }
 
 /** For Route Handlers — creates DB row and sets cookie on the response. */
@@ -161,17 +163,30 @@ export async function getAshedCredentialRecord(
   return cred ?? null;
 }
 
+/** Clears stored Ashed cred when the bound HQ user no longer holds that identity. */
+async function clearOrphanAshedCredentialIfBoundUserMismatch(
+  sessionId: string,
+): Promise<boolean> {
+  const session = await loadSession(sessionId);
+  if (
+    session?.hqUserId &&
+    !(await sessionHoldsAshedIdentityForHqUser(sessionId, session.hqUserId))
+  ) {
+    await clearAshedConnection(sessionId);
+    return true;
+  }
+  return false;
+}
+
 export async function getAshedConnection(
   sessionId: string,
 ): Promise<ParsedConnection | null> {
-  const db = getDb();
-  const [cred] = await db
-    .select()
-    .from(schema.ashedCredentials)
-    .where(eq(schema.ashedCredentials.sessionId, sessionId))
-    .limit(1);
-
+  const cred = await getAshedCredentialRecord(sessionId);
   if (!cred) {
+    return null;
+  }
+
+  if (await clearOrphanAshedCredentialIfBoundUserMismatch(sessionId)) {
     return null;
   }
 
@@ -190,6 +205,11 @@ export async function getAshedConnectionMeta(
   if (!cred) {
     return null;
   }
+
+  if (await clearOrphanAshedCredentialIfBoundUserMismatch(sessionId)) {
+    return null;
+  }
+
   const session = await loadSession(sessionId);
   const timezone = await getAccountTimezoneIdForHqUser(session?.hqUserId);
   return buildAshedConnectionMeta(cred, locale, timezone);
@@ -210,7 +230,11 @@ export async function storeAshedConnection(
   sessionId: string,
   connection: ParsedConnection,
   userLabel: string | null,
-  options?: { expiryReminderDays?: number; locale?: string },
+  options?: {
+    expiryReminderDays?: number;
+    locale?: string;
+    ashedUserId?: string | null;
+  },
 ) {
   const db = getDb();
   const locale = options?.locale ?? "en-US";
@@ -233,6 +257,9 @@ export async function storeAshedConnection(
         encryptedToken,
         tokenExpiresAt,
         updatedAt: now,
+        ...(options?.ashedUserId !== undefined
+          ? { ashedUserId: options.ashedUserId }
+          : {}),
         ...(options?.expiryReminderDays !== undefined
           ? { expiryReminderDays: options.expiryReminderDays }
           : {}),
@@ -242,6 +269,7 @@ export async function storeAshedConnection(
     await db.insert(schema.ashedCredentials).values({
       id: nanoid(24),
       sessionId,
+      ashedUserId: options?.ashedUserId ?? null,
       appId: connection.appId,
       originUrl: connection.originUrl,
       encryptedToken,
@@ -272,6 +300,68 @@ export async function storeAshedConnection(
   );
 }
 
+/** Prefer canonical HQ user when this browser session holds a matching Ashed credential. */
+export async function resolveEffectiveHqUserIdForSession(
+  sessionId: string,
+  magicLinkHqUserId: string | null,
+): Promise<string | null> {
+  if (!magicLinkHqUserId) {
+    return null;
+  }
+
+  const cred = await getAshedCredentialRecord(sessionId);
+  const session = await loadSession(sessionId);
+
+  if (cred?.ashedUserId && session?.hqUserId) {
+    const sessionOwnerHoldsCred = await sessionHoldsAshedIdentityForHqUser(
+      sessionId,
+      session.hqUserId,
+    );
+    if (sessionOwnerHoldsCred) {
+      if (
+        await signingInUserMatchesConnectedSessionOwner({
+          sessionId,
+          signingInHqUserId: magicLinkHqUserId,
+          sessionOwnerHqUserId: session.hqUserId,
+        })
+      ) {
+        return session.hqUserId;
+      }
+    }
+  }
+
+  if (!cred?.ashedUserId) {
+    return magicLinkHqUserId;
+  }
+
+  const holdsIdentity = await sessionHoldsAshedIdentityForHqUser(
+    sessionId,
+    magicLinkHqUserId,
+  );
+  if (!holdsIdentity) {
+    return magicLinkHqUserId;
+  }
+
+  const db = getDb();
+  const [canonical] = await db
+    .select({ id: schema.hqUsers.id })
+    .from(schema.hqUsers)
+    .where(eq(schema.hqUsers.ashedUserId, cred.ashedUserId))
+    .limit(1);
+
+  return canonical?.id ?? magicLinkHqUserId;
+}
+
+export async function resolveBrowserSessionHqUserId(
+  magicLinkHqUserId: string,
+): Promise<string> {
+  const session = await getOrCreateSession();
+  return (
+    (await resolveEffectiveHqUserIdForSession(session.id, magicLinkHqUserId)) ??
+    magicLinkHqUserId
+  );
+}
+
 export async function updateSessionAlliance(
   sessionId: string,
   connection: ParsedConnection,
@@ -299,10 +389,21 @@ export async function clearAshedConnection(sessionId: string) {
   await db
     .update(schema.sessions)
     .set({
-      userLabel: null,
       allianceId: null,
       allianceTag: null,
+      updatedAt: new Date(),
+    })
+    .where(eq(schema.sessions.id, sessionId));
+}
+
+/** Clears HQ user binding from a browser session (e.g. on sign-out). */
+export async function clearSessionUserBinding(sessionId: string) {
+  const db = getDb();
+  await db
+    .update(schema.sessions)
+    .set({
       hqUserId: null,
+      userLabel: null,
       currentAllianceId: null,
       updatedAt: new Date(),
     })
@@ -314,7 +415,11 @@ export async function getSessionStateFor(
   locale = "en-US",
 ) {
   const connection = await getAshedConnection(session.id);
-  const timezone = await getAccountTimezoneIdForHqUser(session.hqUserId);
+  const effectiveHqUserId = await resolveEffectiveHqUserIdForSession(
+    session.id,
+    session.hqUserId,
+  );
+  const timezone = await getAccountTimezoneIdForHqUser(effectiveHqUserId);
   const ashed = await getAshedConnectionMeta(session.id, locale);
   const rbac = await getRbacContext(session.id);
   const hasAppAccess = await sessionHasAppAccess(session);
@@ -323,16 +428,13 @@ export async function getSessionStateFor(
   const operatingMode = session.currentAllianceId
     ? await getAllianceOperatingMode(session.currentAllianceId)
     : null;
-  const isAshedConnectAllowed = rbac
-    ? rbac.isPlatformMaintainer ||
-      rbac.permissions.has(ASHED_CONNECT_PERMISSION)
-    : true;
+  const isAshedConnectAllowed = rbacAllowsAshedConnect(rbac, hasActiveMembership);
   const canUseAshedEmbeds =
     Boolean(rbac?.isPlatformMaintainer) ||
     (connection !== null && isAshedConnectAllowed);
 
-  const membershipAlliances = session.hqUserId
-    ? await listSessionAlliances(session.hqUserId)
+  const membershipAlliances = effectiveHqUserId
+    ? await listSessionAlliances(effectiveHqUserId)
     : [];
 
   const resolvedAllianceId = resolveSessionAllianceId(session);

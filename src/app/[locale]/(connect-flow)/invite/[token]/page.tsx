@@ -1,3 +1,4 @@
+import { auth } from "@/lib/auth";
 import { InviteAcceptClient } from "@/components/native-alliance/InviteAcceptClient";
 
 export const dynamic = "force-dynamic";
@@ -11,5 +12,14 @@ export default async function InvitePage({
 }) {
   const { token } = await params;
   const { next } = await searchParams;
-  return <InviteAcceptClient token={token} queryRedirect={next} />;
+  const authSession = await auth();
+
+  return (
+    <InviteAcceptClient
+      token={token}
+      queryRedirect={next}
+      isAuthenticated={Boolean(authSession?.user?.id && authSession.user.email)}
+      userEmail={authSession?.user?.email}
+    />
+  );
 }

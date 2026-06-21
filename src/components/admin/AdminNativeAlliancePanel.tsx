@@ -24,6 +24,8 @@ type Props = {
   onCreated: () => void;
 };
 
+type InviteKind = "email" | "protected_link";
+
 export function AdminNativeAlliancePanel({
   nativeAlliances,
   selectedAllianceId,
@@ -34,12 +36,21 @@ export function AdminNativeAlliancePanel({
   const [name, setName] = useState("");
   const [tag, setTag] = useState("");
   const [ownerEmail, setOwnerEmail] = useState("");
+  const [inviteKind, setInviteKind] = useState<InviteKind>("protected_link");
   const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteAdminLabel, setInviteAdminLabel] = useState("");
   const [inviteRedirectPath, setInviteRedirectPath] = useState("");
   const [inviteRole, setInviteRole] = useState<"owner" | "officer" | "member">(
     "officer",
   );
   const [lastInviteUrl, setLastInviteUrl] = useState<string | null>(null);
+  const [lastPassphrase, setLastPassphrase] = useState<string | null>(null);
+  const [joinCodeRole, setJoinCodeRole] = useState<"owner" | "officer" | "member">(
+    "member",
+  );
+  const [joinCodeMaxUses, setJoinCodeMaxUses] = useState("10");
+  const [joinCodeLabel, setJoinCodeLabel] = useState("");
+  const [lastJoinCode, setLastJoinCode] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -81,19 +92,23 @@ export function AdminNativeAlliancePanel({
   }
 
   const inviteEmailValid = isValidInviteEmail(inviteEmail);
+  const canSendInvite =
+    inviteKind === "protected_link" ||
+    (inviteKind === "email" && inviteEmailValid);
 
   async function sendInvite() {
     if (!selectedAllianceId.trim()) {
       setError(t("chooseAllianceRequired"));
       return;
     }
-    if (!inviteEmailValid) {
+    if (!canSendInvite) {
       setError(t("inviteEmailRequired"));
       return;
     }
     setBusy(true);
     setError(null);
     setMessage(null);
+    setLastPassphrase(null);
     try {
       const res = await fetch(
         `/api/admin/native-alliances/${encodeURIComponent(selectedAllianceId.trim())}/invites`,
@@ -101,21 +116,65 @@ export function AdminNativeAlliancePanel({
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            email: inviteEmail,
+            kind: inviteKind,
+            email: inviteKind === "email" ? inviteEmail : undefined,
             roleName: inviteRole,
             redirectPath: inviteRedirectPath.trim() || undefined,
+            adminLabel: inviteAdminLabel.trim() || undefined,
           }),
         },
       );
       const body = (await res.json()) as {
         error?: string;
-        invite?: { inviteUrl: string };
+        invite?: { inviteUrl: string; passphrase?: string };
       };
       if (!res.ok) throw new Error(body.error ?? t("inviteFailed"));
       setLastInviteUrl(body.invite?.inviteUrl ?? null);
+      setLastPassphrase(body.invite?.passphrase ?? null);
       setMessage(t("inviteSent"));
     } catch (e) {
       setError(e instanceof Error ? e.message : t("inviteFailed"));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function createJoinCode() {
+    if (!selectedAllianceId.trim()) {
+      setError(t("chooseAllianceRequired"));
+      return;
+    }
+    const maxUses = Number.parseInt(joinCodeMaxUses, 10);
+    if (!Number.isFinite(maxUses) || maxUses < 1) {
+      setError(t("joinCodeMaxUsesInvalid"));
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    setMessage(null);
+    setLastJoinCode(null);
+    try {
+      const res = await fetch(
+        `/api/admin/native-alliances/${encodeURIComponent(selectedAllianceId.trim())}/join-codes`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            roleName: joinCodeRole,
+            maxRedemptions: maxUses,
+            adminLabel: joinCodeLabel.trim() || undefined,
+          }),
+        },
+      );
+      const body = (await res.json()) as {
+        error?: string;
+        joinCode?: { code: string };
+      };
+      if (!res.ok) throw new Error(body.error ?? t("joinCodeFailed"));
+      setLastJoinCode(body.joinCode?.code ?? null);
+      setMessage(t("joinCodeCreated"));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t("joinCodeFailed"));
     } finally {
       setBusy(false);
     }
@@ -183,20 +242,44 @@ export function AdminNativeAlliancePanel({
               }))}
             />
           </label>
-          <label className="space-y-1 text-sm">
-            <span className="text-[#8b949e]">{t("inviteEmail")}</span>
-            <input
-              type="email"
-              required
-              value={inviteEmail}
-              onChange={(e) => setInviteEmail(e.target.value)}
+          <label className="space-y-1 text-sm sm:col-span-2">
+            <span className="text-[#8b949e]">{t("inviteKind")}</span>
+            <select
+              value={inviteKind}
+              onChange={(e) => setInviteKind(e.target.value as InviteKind)}
               className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
-              autoComplete="email"
-            />
-            <span className="block text-xs text-[#6e7681]">
-              {t("inviteEmailHint")}
-            </span>
+            >
+              <option value="protected_link">{t("inviteKindProtected")}</option>
+              <option value="email">{t("inviteKindEmail")}</option>
+            </select>
           </label>
+          {inviteKind === "email" ? (
+            <label className="space-y-1 text-sm">
+              <span className="text-[#8b949e]">{t("inviteEmail")}</span>
+              <input
+                type="email"
+                required
+                value={inviteEmail}
+                onChange={(e) => setInviteEmail(e.target.value)}
+                className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
+                autoComplete="email"
+              />
+              <span className="block text-xs text-[#6e7681]">
+                {t("inviteEmailHint")}
+              </span>
+            </label>
+          ) : (
+            <label className="space-y-1 text-sm">
+              <span className="text-[#8b949e]">{t("inviteAdminLabel")}</span>
+              <input
+                type="text"
+                value={inviteAdminLabel}
+                onChange={(e) => setInviteAdminLabel(e.target.value)}
+                placeholder={t("inviteAdminLabelPlaceholder")}
+                className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
+              />
+            </label>
+          )}
           <label className="space-y-1 text-sm">
             <span className="text-[#8b949e]">{t("inviteRole")}</span>
             <select
@@ -227,7 +310,7 @@ export function AdminNativeAlliancePanel({
         </div>
         <button
           type="button"
-          disabled={busy || !selectedAllianceId || !inviteEmailValid}
+          disabled={busy || !selectedAllianceId || !canSendInvite}
           onClick={() => void sendInvite()}
           className="mt-3 rounded-lg border border-[#388bfd] bg-[#388bfd]/10 px-4 py-2 text-sm text-[#58a6ff] disabled:opacity-50"
         >
@@ -238,6 +321,72 @@ export function AdminNativeAlliancePanel({
             className="mt-3"
             label={t("inviteLinkLabel")}
             value={lastInviteUrl}
+          />
+        ) : null}
+        {lastPassphrase ? (
+          <CopyToClipboardField
+            className="mt-3"
+            label={t("invitePassphraseLabel")}
+            value={lastPassphrase}
+          />
+        ) : null}
+        {lastPassphrase ? (
+          <p className="mt-2 text-xs text-[#6e7681]">{t("invitePassphraseHint")}</p>
+        ) : null}
+      </div>
+
+      <div className="border-t border-[#30363d] pt-4">
+        <h3 className="text-sm font-semibold">{t("joinCodeTitle")}</h3>
+        <p className="mt-1 text-sm text-[#8b949e]">{t("joinCodeHint")}</p>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          <label className="space-y-1 text-sm">
+            <span className="text-[#8b949e]">{t("inviteRole")}</span>
+            <select
+              value={joinCodeRole}
+              onChange={(e) =>
+                setJoinCodeRole(e.target.value as "owner" | "officer" | "member")
+              }
+              className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
+            >
+              <option value="owner">{t("roleOwner")}</option>
+              <option value="officer">{t("roleOfficer")}</option>
+              <option value="member">{t("roleMember")}</option>
+            </select>
+          </label>
+          <label className="space-y-1 text-sm">
+            <span className="text-[#8b949e]">{t("joinCodeMaxUses")}</span>
+            <input
+              type="number"
+              min={1}
+              max={500}
+              value={joinCodeMaxUses}
+              onChange={(e) => setJoinCodeMaxUses(e.target.value)}
+              className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
+            />
+          </label>
+          <label className="space-y-1 text-sm sm:col-span-2">
+            <span className="text-[#8b949e]">{t("inviteAdminLabel")}</span>
+            <input
+              type="text"
+              value={joinCodeLabel}
+              onChange={(e) => setJoinCodeLabel(e.target.value)}
+              className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
+            />
+          </label>
+        </div>
+        <button
+          type="button"
+          disabled={busy || !selectedAllianceId}
+          onClick={() => void createJoinCode()}
+          className="mt-3 rounded-lg border border-[#388bfd] bg-[#388bfd]/10 px-4 py-2 text-sm text-[#58a6ff] disabled:opacity-50"
+        >
+          {t("joinCodeButton")}
+        </button>
+        {lastJoinCode ? (
+          <CopyToClipboardField
+            className="mt-3"
+            label={t("joinCodeLabel")}
+            value={lastJoinCode}
           />
         ) : null}
       </div>

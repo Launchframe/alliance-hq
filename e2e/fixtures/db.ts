@@ -10,6 +10,13 @@ import {
 } from "../../src/lib/connectionString";
 import { ROLE_IDS } from "../../src/lib/rbac/constants";
 import { shouldUpgradeSystemRole } from "../../src/lib/rbac/system-roles";
+import {
+  authCookieHeader,
+  encodeNextAuthSessionToken,
+  playwrightAuthCookies,
+} from "./auth";
+
+export { playwrightAuthCookies, authCookieHeader };
 
 const SESSION_COOKIE = "alliance_hq_session";
 
@@ -37,6 +44,7 @@ export type SessionFixture = {
   sessionId: string;
   hqUserId: string;
   email: string;
+  nextAuthToken: string;
 };
 
 export async function createPlatformMaintainerSession(
@@ -61,7 +69,13 @@ export async function createPlatformMaintainerSession(
     VALUES (${sessionId}, ${now}, ${now}, ${expiresAt}, ${hqUserId})
   `;
 
-  return { sessionId, hqUserId, email };
+  const nextAuthToken = await encodeNextAuthSessionToken({
+    hqUserId,
+    email,
+    name: "E2E Maintainer",
+  });
+
+  return { sessionId, hqUserId, email, nextAuthToken };
 }
 
 export async function createNativeAlliance(
@@ -147,34 +161,38 @@ export async function createHqInviteRow(
 }
 
 export async function acceptInviteViaApi(
+  sql: Sql,
   baseURL: string,
   token: string,
   email: string,
   next?: string,
   sessionId?: string,
-): Promise<{ sessionId: string; redirectTo: string; hqUserId: string }> {
+): Promise<{
+  sessionId: string;
+  redirectTo: string;
+  hqUserId: string;
+  nextAuthToken: string;
+}> {
   let browserSessionId = sessionId;
+  let nextAuthToken: string | undefined;
 
   if (!browserSessionId) {
-    const bootstrap = await fetch(
-      `${baseURL}/api/auth/session?next=${encodeURIComponent("/")}`,
-      { redirect: "manual" },
-    );
-    const setCookie = bootstrap.headers.get("set-cookie") ?? "";
-    const sessionMatch = setCookie.match(
-      new RegExp(`${SESSION_COOKIE}=([^;]+)`),
-    );
-    if (!sessionMatch?.[1]) {
-      throw new Error("Failed to bootstrap invite-accept session.");
-    }
-    browserSessionId = sessionMatch[1];
+    const fixture = await createAuthenticatedHqSession(sql, email);
+    browserSessionId = fixture.sessionId;
+    nextAuthToken = fixture.nextAuthToken;
+  } else if (!nextAuthToken) {
+    const authUser = await createHqUserOnly(sql, email);
+    nextAuthToken = authUser.nextAuthToken;
   }
 
   const res = await fetch(`${baseURL}/api/invite/${encodeURIComponent(token)}/accept`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Cookie: `${SESSION_COOKIE}=${browserSessionId}`,
+      Cookie: authCookieHeader({
+        sessionId: browserSessionId,
+        nextAuthToken,
+      }),
     },
     body: JSON.stringify({
       email,
@@ -193,9 +211,17 @@ export async function acceptInviteViaApi(
     throw new Error(body.error ?? "Invite accept failed.");
   }
 
+  const hqUserId = body.hqUserId ?? "";
+  nextAuthToken = await encodeNextAuthSessionToken({
+    hqUserId,
+    email: email.toLowerCase(),
+    name: "E2E User",
+  });
+
   return {
     sessionId: browserSessionId,
-    hqUserId: body.hqUserId ?? "",
+    hqUserId,
+    nextAuthToken,
     redirectTo: body.redirectTo ?? "/connect?welcome=1",
   };
 }
@@ -231,15 +257,39 @@ export function sessionCookie(sessionId: string) {
 export async function attachAshedConnectionToSession(
   sql: Sql,
   sessionId: string,
+  options?: { ashedUserId?: string | null },
 ): Promise<void> {
   const now = new Date();
   const credId = nanoid(24);
   const expiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+  const explicitAshedUserId = Boolean(options && "ashedUserId" in options);
+  let ashedUserId = explicitAshedUserId ? (options?.ashedUserId ?? null) : null;
+
+  const [sessionRow] = await sql<{ hq_user_id: string | null }[]>`
+    SELECT hq_user_id FROM sessions WHERE id = ${sessionId} LIMIT 1
+  `;
+
+  if (sessionRow?.hq_user_id && !explicitAshedUserId) {
+    const [userRow] = await sql<{ ashed_user_id: string | null }[]>`
+      SELECT ashed_user_id FROM hq_users WHERE id = ${sessionRow.hq_user_id} LIMIT 1
+    `;
+    ashedUserId =
+      userRow?.ashed_user_id?.trim() || `ashed-e2e-${nanoid(12)}`;
+
+    if (!userRow?.ashed_user_id?.trim()) {
+      await sql`
+        UPDATE hq_users
+        SET ashed_user_id = ${ashedUserId}, updated_at = ${now}
+        WHERE id = ${sessionRow.hq_user_id}
+      `;
+    }
+  }
 
   await sql`
     INSERT INTO ashed_credentials (
       id,
       session_id,
+      ashed_user_id,
       app_id,
       origin_url,
       encrypted_token,
@@ -250,6 +300,7 @@ export async function attachAshedConnectionToSession(
     ) VALUES (
       ${credId},
       ${sessionId},
+      ${ashedUserId},
       ${DEFAULT_APP_ID},
       ${DEFAULT_ORIGIN_URL},
       ${encryptSecret("e2e-fake-ashed-token")},
@@ -307,11 +358,82 @@ export async function createAuthenticatedHqSession(
     VALUES (${sessionId}, ${now}, ${now}, ${expiresAt}, ${hqUserId})
   `;
 
+  const nextAuthToken = await encodeNextAuthSessionToken({
+    hqUserId,
+    email: normalizedEmail,
+    name: displayName,
+  });
+
   return {
     sessionId,
     hqUserId,
     email: normalizedEmail,
+    nextAuthToken,
   };
+}
+
+export async function createMagicLinkSession(
+  sql: Sql,
+  email: string,
+): Promise<SessionFixture> {
+  return createAuthenticatedHqSession(sql, email);
+}
+
+/** HQ user + NextAuth token without creating a new browser session row. */
+export async function createHqUserOnly(
+  sql: Sql,
+  email: string,
+  options?: { displayName?: string; accessGranted?: boolean },
+): Promise<{ hqUserId: string; email: string; nextAuthToken: string }> {
+  const now = new Date();
+  const hqUserId = nanoid(16);
+  const normalizedEmail = email.toLowerCase();
+  const displayName = options?.displayName ?? "E2E User";
+
+  await sql`
+    INSERT INTO hq_users (
+      id, email, display_name, access_granted_at, created_at, updated_at
+    ) VALUES (
+      ${hqUserId},
+      ${normalizedEmail},
+      ${displayName},
+      ${options?.accessGranted === false ? null : now},
+      ${now},
+      ${now}
+    )
+  `;
+
+  const nextAuthToken = await encodeNextAuthSessionToken({
+    hqUserId,
+    email: normalizedEmail,
+    name: displayName,
+  });
+
+  return { hqUserId, email: normalizedEmail, nextAuthToken };
+}
+
+export async function createCanonicalAshedHqUser(
+  sql: Sql,
+  input: { email: string; ashedUserId: string; displayName?: string },
+): Promise<{ hqUserId: string }> {
+  const now = new Date();
+  const hqUserId = nanoid(16);
+
+  await sql`
+    INSERT INTO hq_users (
+      id, email, display_name, ashed_user_id, access_granted_at, created_at, updated_at
+    ) VALUES (
+      ${hqUserId},
+      ${input.email.toLowerCase()},
+      ${input.displayName ?? "E2E Canonical"},
+      ${input.ashedUserId},
+      ${now},
+      ${now},
+      ${now}
+    )
+  `;
+
+  return { hqUserId };
 }
 
 export async function createAllianceMembership(

@@ -312,8 +312,23 @@
       "inviteRedirectOptional": "Landing page after accept (optional)",
       "inviteRedirectHint": "Internal path only, e.g. /trains or /members. Appended to the invite link as ?next=…",
       "inviteLinkLabel": "Invite link",
+      "invitePassphraseLabel": "Passphrase (shown once)",
+      "invitePassphraseHint": "Send the link and passphrase in separate messages. The passphrase is single-use.",
+      "inviteKind": "Invite type",
+      "inviteKindProtected": "Protected link + passphrase",
+      "inviteKindEmail": "Email-bound (legacy)",
+      "inviteAdminLabel": "Admin note (optional)",
+      "inviteAdminLabelPlaceholder": "Alex — trains officer",
       "inviteFailed": "Could not create invite.",
-      "inviteSent": "Invite link generated (valid 14 days)."
+      "inviteSent": "Invite link generated (valid 14 days).",
+      "joinCodeTitle": "Alliance join code",
+      "joinCodeHint": "Multi-use code for Discord or in-game chat. Officers redeem at /join after signing in.",
+      "joinCodeMaxUses": "Max redemptions",
+      "joinCodeMaxUsesInvalid": "Enter a valid max redemptions count.",
+      "joinCodeButton": "Generate join code",
+      "joinCodeLabel": "Join code (shown once)",
+      "joinCodeFailed": "Could not create join code.",
+      "joinCodeCreated": "Join code generated."
     },
     "commendationsPage": {
       "loadFailed": "Failed to load commendations.",
@@ -666,7 +681,7 @@
   },
   "shell": {
     "brand": "Alliance HQ",
-    "domain": "alliance-hq.vercel.app",
+    "domain": "frontline.gay",
     "dataPoweredBy": "Data powered by <link>Ashed</link>",
     "connectedAs": "Connected as {user}",
     "nativeSignedInAs": "Signed in as {user}",
@@ -681,8 +696,8 @@
       "account": "Account",
       "adminPortal": "Admin portal",
       "connect": "Connect Ashed",
-      "disconnect": "Disconnect",
-      "disconnecting": "Disconnecting…",
+      "signOut": "Sign out",
+      "signingOut": "Signing out…",
       "unknownUser": "HQ user",
       "unknownEmail": "No email on file"
     }
@@ -704,6 +719,8 @@
     "inviteRequired": "An admin invite is required before connecting Ashed in this environment. Accept your invite link first, or ask a platform maintainer for one.",
     "successTitle": "Connected to Ashed",
     "signedInAsBefore": "Signed in as",
+    "returningUserHint": "Welcome back — paste a fresh connection key from DevTools when you're ready.",
+    "showSetupInstructions": "Show full setup instructions",
     "noExpiryRead": "Connected, but we couldn't read an expiry date from this token. We'll still notify you if Ashed stops accepting it.",
     "continue": "Continue to Alliance HQ",
     "allianceResolved": "Alliance linked: {tag} ({name})",
@@ -800,7 +817,7 @@
   "privacy": {
     "backToConnect": "← Back to Connect",
     "title": "Privacy Policy",
-    "intro": "Alliance HQ at alliance-hq.vercel.app is a community tool for Last War alliance officers. This page explains what we store and how we protect it.",
+    "intro": "Alliance HQ at frontline.gay is a community tool for Last War alliance officers. This page explains what we store and how we protect it.",
     "noSellTitle": "We do not sell your data",
     "noSellBody1": "Alliance HQ exists to help your alliance use <link>ashed.online</link> more easily. We will <strong>never</strong> sell, rent, or trade your personal information or alliance data to third parties. We do not use your data for advertising, and we do not build marketing profiles from your activity.",
     "noSellBody2": "We only use the information needed to run the service you asked for — for example, keeping you signed in and calling Ashed on your behalf when you use Alliance HQ features.",
@@ -829,7 +846,7 @@
   "terms": {
     "backToConnect": "← Back to Connect",
     "title": "Terms of Service",
-    "intro": "Alliance HQ at alliance-hq.vercel.app is a community tool for Last War alliance officers. By using this hosted service, you agree to these terms.",
+    "intro": "Alliance HQ at frontline.gay is a community tool for Last War alliance officers. By using this hosted service, you agree to these terms.",
     "acceptableUseTitle": "Acceptable use",
     "acceptableUseBody1": "Use Alliance HQ and <link>ashed.online</link> reasonably and lawfully. Alliance HQ is a convenience layer on top of Ashed — it does not grant rights beyond what you already have on Ashed itself.",
     "acceptableUseItems": {
@@ -838,7 +855,7 @@
       "noMisuse": "Do not use Alliance HQ in ways that harm alliances, Ashed, or other players."
     },
     "enforcementTitle": "Enforcement",
-    "enforcementBody": "Operators of this <strong>hosted</strong> deployment reserve the right to revoke or block access — including sessions, linked devices, and Discord bot linkage — for violations <strong>without prior warning</strong>. Self-hosted copies of Alliance HQ are outside our control; these enforcement terms apply only to deployments we operate (such as alliance-hq.vercel.app).",
+    "enforcementBody": "Operators of this <strong>hosted</strong> deployment reserve the right to revoke or block access — including sessions, linked devices, and Discord bot linkage — for violations <strong>without prior warning</strong>. Self-hosted copies of Alliance HQ are outside our control; these enforcement terms apply only to deployments we operate (such as frontline.gay).",
     "openSourceTitle": "Open source and self-hosting",
     "openSourceBody1": "Alliance HQ source code is open under the <strong>MIT License</strong>. You may inspect, modify, and self-host the software under that license.",
     "openSourceBody2": "See the <licenseLink>LICENSE</licenseLink> file in our <githubLink>GitHub repository</githubLink>. These Terms of Service apply to our hosted service, not to independent self-hosted instances you run yourself.",
@@ -887,7 +904,7 @@
     "timezoneServerTime": "Server Time",
     "timezoneSaved": "Time zone saved",
     "timezoneSaveFailed": "Could not save time zone",
-    "aboutBody": "Alliance HQ at <strong>alliance-hq.vercel.app</strong> is a community wrapper for <link>ashed.online</link>. All alliance data credit belongs to Ashed.",
+    "aboutBody": "Alliance HQ at <strong>frontline.gay</strong> is a community wrapper for <link>ashed.online</link>. All alliance data credit belongs to Ashed.",
     "gameSeason": {
       "sectionTitle": "Game season",
       "sectionBody": "Last War season used for train records and scoring. Officers can override when auto sync is wrong.",
@@ -919,10 +936,16 @@
     "remindMe": "Remind me",
     "reminderOption": "{days, plural, one {# day} other {# days}} before expiration",
     "reconnectHint": "Reconnect to refresh your token and see its expiration date.",
-    "disconnectSection": "Disconnect",
-    "disconnectBody": "Clears your stored connection key from our server. You can reconnect anytime using the setup walkthrough.",
+    "disconnectSection": "Disconnect Ashed",
+    "disconnectBody": "Clears your stored connection key from our server. Your HQ sign-in stays active — you can reconnect Ashed anytime.",
     "disconnecting": "Disconnecting…",
     "disconnectButton": "Disconnect Ashed",
+    "disconnectedAshed": "Ashed connection cleared.",
+    "signOutSection": "Sign out",
+    "signOutBody": "Ends your HQ sign-in on this browser. Alliance membership stays on your account — sign in again to continue.",
+    "signOutButton": "Sign out of HQ",
+    "signingOut": "Signing out…",
+    "signOutFailed": "Could not sign out.",
     "reminderSaved": "Reminder preference saved",
     "reminderSaveFailed": "Could not save reminder preference",
     "timezoneSection": "Time zone",
@@ -931,7 +954,7 @@
     "timezoneServerTime": "Server Time",
     "timezoneSaved": "Time zone saved",
     "timezoneSaveFailed": "Could not save time zone",
-    "aboutBody": "Alliance HQ at <strong>alliance-hq.vercel.app</strong> is a community wrapper for <link>ashed.online</link>. All alliance data credit belongs to Ashed."
+    "aboutBody": "Alliance HQ at <strong>frontline.gay</strong> is a community wrapper for <link>ashed.online</link>. All alliance data credit belongs to Ashed."
   },
   "profile": {
     "title": "Profile",
@@ -1078,6 +1101,47 @@
       "cancel": "Cancel"
     }
   },
+  "auth": {
+    "title": "Sign in to Alliance HQ",
+    "subtitle": "Create an account or sign in with a magic link. Alliance features unlock after an admin invite or Ashed connect.",
+    "email": "Email",
+    "emailRequired": "Enter a valid email address.",
+    "sendLink": "Send magic link",
+    "sending": "Sending…",
+    "sendFailed": "Could not send magic link. Try again.",
+    "signupHint": "Anyone can create an account. You'll need an invite or Ashed connection to use alliance tools.",
+    "home": "Back to home",
+    "checkEmailTitle": "Check your email",
+    "checkEmailBody": "We sent a sign-in link to {email}.",
+    "yourInbox": "your inbox",
+    "checkEmailSpamHint": "Be sure to check your spam folder if you don't see it.",
+    "checkEmailHint": "The link expires soon. You can close this tab after clicking it in your email.",
+    "tryAgain": "Use a different email"
+  },
+  "getStarted": {
+    "title": "Almost there",
+    "body": "You're signed in. To use alliance tools, accept an officer invite, redeem a join code, or connect through Ashed.",
+    "inviteTitle": "Admin invite",
+    "inviteBody": "Open the invite link your platform admin sent. Protected invites also need a passphrase sent separately.",
+    "joinCodeTitle": "Alliance join code",
+    "joinCodeBody": "Have a code from Discord or in-game chat? Redeem it below.",
+    "joinCodeButton": "Redeem join code",
+    "connectTitle": "Connect Ashed",
+    "connectBody": "Paste your Ashed connection key to sync roster and use iframe tools.",
+    "connectButton": "Connect Ashed",
+    "wrongAccount": "Wrong account?",
+    "signingOut": "Signing out…",
+    "signOutFailed": "Could not sign out."
+  },
+  "join": {
+    "title": "Join an alliance",
+    "body": "Enter the join code shared by your alliance officers.",
+    "code": "Join code",
+    "codeRequired": "Enter a join code.",
+    "redeem": "Join alliance",
+    "redeeming": "Joining…",
+    "redeemFailed": "Could not redeem join code."
+  },
   "invite": {
     "title": "Alliance HQ invite",
     "loading": "Loading invite…",
@@ -1096,6 +1160,12 @@
     "acceptFailed": "Could not accept invite.",
     "goToApp": "Continue setup",
     "home": "Back to home",
+    "signInToAccept": "Sign in to accept",
+    "signInToContinue": "Sign in to continue",
+    "introSignIn": "You were invited to join {alliance} [{tag}] as {role}. Sign in to accept this invite.",
+    "introPassphrase": "You were invited to join {alliance} [{tag}] as {role}. Enter the passphrase your admin sent separately.",
+    "passphrase": "Passphrase",
+    "passphraseHint": "Your admin should send this in a separate message from the link.",
     "welcome": {
       "title": "You're in",
       "body": "Your invite is active. Connect Ashed for iframe tools and live roster sync, or skip and use native HQ features only.",

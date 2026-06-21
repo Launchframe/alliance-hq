@@ -1,8 +1,15 @@
 import { and, eq } from "drizzle-orm";
 
 import { getDb, schema } from "@/lib/db";
-import { loadSession } from "@/lib/session";
+import {
+  loadSession,
+  resolveEffectiveHqUserIdForSession,
+} from "@/lib/session";
 
+import {
+  ashedSourcedMembershipIsActiveForSession,
+  sessionHoldsAshedIdentityForHqUser,
+} from "./ashed-session-membership";
 import { ALLIANCE_ADMIN_PERMISSION } from "./constants";
 import { ensureHqUserAvatarFresh } from "@/lib/profile/resolve-avatar";
 
@@ -19,6 +26,7 @@ export type RbacContext = {
 };
 
 async function loadUserPermissions(
+  sessionId: string,
   hqUserId: string,
   allianceId: string | null,
 ): Promise<{ roleName: string | null; permissions: Set<string> }> {
@@ -32,6 +40,7 @@ async function loadUserPermissions(
     .select({
       roleName: schema.roles.name,
       roleId: schema.allianceMemberships.roleId,
+      source: schema.allianceMemberships.source,
     })
     .from(schema.allianceMemberships)
     .innerJoin(schema.roles, eq(schema.roles.id, schema.allianceMemberships.roleId))
@@ -45,6 +54,19 @@ async function loadUserPermissions(
     .limit(1);
 
   if (!membership) {
+    return { roleName: null, permissions: new Set() };
+  }
+
+  const holdsAshedIdentity = await sessionHoldsAshedIdentityForHqUser(
+    sessionId,
+    hqUserId,
+  );
+  if (
+    !ashedSourcedMembershipIsActiveForSession(
+      membership.source,
+      holdsAshedIdentity,
+    )
+  ) {
     return { roleName: null, permissions: new Set() };
   }
 
@@ -67,11 +89,19 @@ export async function getRbacContext(
     return null;
   }
 
+  const effectiveHqUserId = await resolveEffectiveHqUserIdForSession(
+    sessionId,
+    session.hqUserId,
+  );
+  if (!effectiveHqUserId) {
+    return null;
+  }
+
   const db = getDb();
   const [user] = await db
     .select()
     .from(schema.hqUsers)
-    .where(eq(schema.hqUsers.id, session.hqUserId))
+    .where(eq(schema.hqUsers.id, effectiveHqUserId))
     .limit(1);
 
   if (!user) {
@@ -80,6 +110,7 @@ export async function getRbacContext(
 
   const isPlatformMaintainer = user.isPlatformMaintainer === 1;
   const { roleName, permissions } = await loadUserPermissions(
+    sessionId,
     user.id,
     session.currentAllianceId,
   );

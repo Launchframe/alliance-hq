@@ -66,6 +66,8 @@ export const hqUsers = pgTable("hq_users", {
   isPlatformMaintainer: integer("is_platform_maintainer").notNull().default(0),
   /** Set when an admin invite is accepted or access is provisioned; required in production. */
   accessGrantedAt: timestamp("access_granted_at", { withTimezone: true }),
+  /** Magic link or OAuth email verification timestamp. */
+  emailVerifiedAt: timestamp("email_verified_at", { withTimezone: true }),
   /** Cached resolved profile image URL (OAuth or Last War). */
   avatarUrl: text("avatar_url"),
   /** google | discord | lastwar */
@@ -245,6 +247,8 @@ export const ashedCredentials = pgTable("ashed_credentials", {
   sessionId: text("session_id")
     .notNull()
     .references(() => sessions.id, { onDelete: "cascade" }),
+  /** Ashed User/me id — used to rebind duplicate HQ sessions to one canonical identity. */
+  ashedUserId: text("ashed_user_id"),
   appId: text("app_id").notNull(),
   originUrl: text("origin_url").notNull(),
   encryptedToken: text("encrypted_token").notNull(),
@@ -891,16 +895,39 @@ export const allianceMembers = pgTable(
   ],
 );
 
+export const authVerificationTokens = pgTable(
+  "auth_verification_tokens",
+  {
+    identifier: text("identifier").notNull(),
+    token: text("token").notNull(),
+    expires: timestamp("expires", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.identifier, table.token],
+    }),
+  ],
+);
+
 export const hqInvites = pgTable("hq_invites", {
   id: text("id").primaryKey(),
   allianceId: text("alliance_id")
     .notNull()
     .references(() => alliances.id, { onDelete: "cascade" }),
-  email: text("email").notNull(),
+  /** email | protected_link | discord_officer */
+  kind: text("kind").notNull().default("email"),
+  email: text("email"),
   roleId: text("role_id")
     .notNull()
     .references(() => roles.id, { onDelete: "restrict" }),
   tokenHash: text("token_hash").notNull().unique(),
+  passphraseHash: text("passphrase_hash"),
+  passphraseConsumedAt: timestamp("passphrase_consumed_at", {
+    withTimezone: true,
+  }),
+  adminLabel: text("admin_label"),
+  targetDiscordUserId: text("target_discord_user_id"),
+  requireMemberLink: integer("require_member_link").notNull().default(0),
   invitedByHqUserId: text("invited_by_hq_user_id").references(
     () => hqUsers.id,
     { onDelete: "set null" },
@@ -916,6 +943,52 @@ export const hqInvites = pgTable("hq_invites", {
     .defaultNow()
     .notNull(),
 });
+
+export const hqAllianceJoinCodes = pgTable("hq_alliance_join_codes", {
+  id: text("id").primaryKey(),
+  allianceId: text("alliance_id")
+    .notNull()
+    .references(() => alliances.id, { onDelete: "cascade" }),
+  roleId: text("role_id")
+    .notNull()
+    .references(() => roles.id, { onDelete: "restrict" }),
+  codeHash: text("code_hash").notNull().unique(),
+  codeHint: text("code_hint").notNull(),
+  maxRedemptions: integer("max_redemptions").notNull(),
+  redemptionCount: integer("redemption_count").notNull().default(0),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  adminLabel: text("admin_label"),
+  createdByHqUserId: text("created_by_hq_user_id").references(
+    () => hqUsers.id,
+    { onDelete: "set null" },
+  ),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+export const hqAllianceJoinCodeRedemptions = pgTable(
+  "hq_alliance_join_code_redemptions",
+  {
+    id: text("id").primaryKey(),
+    joinCodeId: text("join_code_id")
+      .notNull()
+      .references(() => hqAllianceJoinCodes.id, { onDelete: "cascade" }),
+    hqUserId: text("hq_user_id")
+      .notNull()
+      .references(() => hqUsers.id, { onDelete: "cascade" }),
+    redeemedAt: timestamp("redeemed_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    unique("hq_alliance_join_code_redemptions_join_user_unique").on(
+      table.joinCodeId,
+      table.hqUserId,
+    ),
+  ],
+);
 
 /** Immutable alliance rank history (R1–R5). Append-only. */
 export const memberAllianceRankEvents = pgTable(
@@ -1240,6 +1313,9 @@ export const trainRiderCargoItems = pgTable("train_rider_cargo_item", {
 
 export type AllianceMember = typeof allianceMembers.$inferSelect;
 export type HqInvite = typeof hqInvites.$inferSelect;
+export type HqAllianceJoinCode = typeof hqAllianceJoinCodes.$inferSelect;
+export type HqAllianceJoinCodeRedemption =
+  typeof hqAllianceJoinCodeRedemptions.$inferSelect;
 export type MemberAllianceRankEvent =
   typeof memberAllianceRankEvents.$inferSelect;
 export type TrainWeekSchedule = typeof trainWeekSchedules.$inferSelect;

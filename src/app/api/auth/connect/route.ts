@@ -10,7 +10,11 @@ import {
   allianceSelectionErrorStatus,
   resolveConnectAlliance,
 } from "@/lib/alliance/connect-alliance";
-import { emailHasAshedConnectAccess } from "@/lib/native-alliance/access";
+import {
+  emailHasAshedConnectAccess,
+  rbacAllowsAshedConnect,
+  sessionHasActiveMembership,
+} from "@/lib/native-alliance/access";
 import { emailHasAshedConnectPermission } from "@/lib/access/invite-gate";
 import { verifyBase44Connection } from "@/lib/base44/server";
 import {
@@ -18,10 +22,10 @@ import {
   DEFAULT_ORIGIN_URL,
   parseConnectionInput,
 } from "@/lib/connectionString";
+import { rebindAshedIdentityToSession } from "@/lib/ashed/rebind-session";
 import { syncAshedAllianceRoles } from "@/lib/rbac/sync-ashed-roles";
 import { maybeBootstrapPlatformMaintainer } from "@/lib/rbac/bootstrap-platform";
 import { getRbacContext } from "@/lib/rbac/context";
-import { ASHED_CONNECT_PERMISSION } from "@/lib/rbac/constants";
 import {
   getOrCreateSession,
   getSessionState,
@@ -49,11 +53,11 @@ export async function POST(request: Request) {
   try {
     const session = await getOrCreateSession();
     const sessionRbac = await getRbacContext(session.id);
+    const hasActiveMembership = await sessionHasActiveMembership(session);
     // Bound session: deny if the user's active role lacks ashed:connect
     if (
       sessionRbac &&
-      !sessionRbac.isPlatformMaintainer &&
-      !sessionRbac.permissions.has(ASHED_CONNECT_PERMISSION)
+      !rbacAllowsAshedConnect(sessionRbac, hasActiveMembership)
     ) {
       return NextResponse.json(
         {
@@ -119,6 +123,8 @@ export async function POST(request: Request) {
       );
     }
 
+    const authHqUserId = session.hqUserId;
+
     const selected = await resolveConnectAlliance(
       parsed.connection,
       { email: me.email, id: me.id },
@@ -133,6 +139,7 @@ export async function POST(request: Request) {
       parsed.connection,
       userLabel,
       {
+        ashedUserId: me.id ?? null,
         ...(body.expiryReminderDays !== undefined
           ? { expiryReminderDays: body.expiryReminderDays }
           : {}),
@@ -150,12 +157,23 @@ export async function POST(request: Request) {
       connection: parsed.connection,
       sessionId: session.id,
       allianceTag: alliance.tag,
+      authHqUserId,
       currentUser: {
         id: me.id,
         email: me.email,
         full_name: me.full_name,
       },
     });
+
+    if (me.id) {
+      await rebindAshedIdentityToSession({
+        ashedUserId: me.id,
+        canonicalHqUserId: rbac.hqUserId,
+        sessionId: session.id,
+        mergedFromHqUserId: rbac.mergedFromHqUserId,
+        allianceId: rbac.hqAllianceId,
+      });
+    }
 
     const bootstrappedMaintainer = await maybeBootstrapPlatformMaintainer(
       rbac.hqUserId,

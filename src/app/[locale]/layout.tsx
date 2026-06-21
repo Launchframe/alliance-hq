@@ -1,4 +1,5 @@
 import { NextIntlClientProvider } from "next-intl";
+import { SessionProvider } from "next-auth/react";
 import { getMessages, getTranslations, setRequestLocale } from "next-intl/server";
 import { hasLocale } from "next-intl";
 import { Analytics } from "@vercel/analytics/react";
@@ -6,6 +7,7 @@ import { JetBrains_Mono } from "next/font/google";
 import { notFound } from "next/navigation";
 
 import { routing } from "@/i18n/routing";
+import { PRODUCTION_APP_ORIGIN } from "@/lib/public-site";
 
 import "../globals.css";
 
@@ -35,7 +37,7 @@ export async function generateMetadata({ params }: Props) {
     },
     description: t("description"),
     metadataBase: new URL(
-      process.env.NEXT_PUBLIC_APP_URL ?? "https://alliance-hq.vercel.app",
+      process.env.NEXT_PUBLIC_APP_URL ?? PRODUCTION_APP_ORIGIN,
     ),
     icons: {
       icon: [{ url: "/brand/hq-icon-app.svg", type: "image/svg+xml" }],
@@ -60,7 +62,7 @@ export default async function LocaleLayout({ children, params }: Props) {
     <html lang={locale} className={`${jetbrainsMono.variable} h-full`}>
       <body className="min-h-full antialiased">
         <NextIntlClientProvider messages={messages}>
-          {children}
+          <SessionProvider>{children}</SessionProvider>
         </NextIntlClientProvider>
         <Analytics />
       </body>

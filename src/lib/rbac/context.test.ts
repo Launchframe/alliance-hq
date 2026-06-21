@@ -1,8 +1,116 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import * as sessionModule from "@/lib/session";
 
-import { sessionHasPermission } from "./context";
+import { getRbacContext, sessionHasPermission } from "./context";
+
+const selectMock = vi.fn();
+
+vi.mock("@/lib/db", () => ({
+  getDb: () => ({
+    select: selectMock,
+  }),
+  schema: {
+    hqUsers: { id: "hqUsers.id" },
+    allianceMemberships: {
+      hqUserId: "allianceMemberships.hqUserId",
+      allianceId: "allianceMemberships.allianceId",
+      status: "allianceMemberships.status",
+      roleId: "allianceMemberships.roleId",
+    },
+    roles: { id: "roles.id", name: "roles.name" },
+    rolePermissions: {
+      roleId: "rolePermissions.roleId",
+      permissionId: "rolePermissions.permissionId",
+    },
+  },
+}));
+
+vi.mock("@/lib/profile/resolve-avatar", () => ({
+  ensureHqUserAvatarFresh: vi.fn().mockResolvedValue(null),
+}));
+
+vi.mock("@/lib/rbac/ashed-session-membership", () => ({
+  sessionHoldsAshedIdentityForHqUser: vi.fn().mockResolvedValue(true),
+  ashedSourcedMembershipIsActiveForSession: (
+    source: string,
+    holdsAshedIdentity: boolean,
+  ) => source !== "ashed" || holdsAshedIdentity,
+}));
+
+function chainSelectWithLimit(rows: unknown[]) {
+  return {
+    from: vi.fn().mockReturnValue({
+      where: vi.fn().mockReturnValue({
+        limit: vi.fn().mockResolvedValue(rows),
+      }),
+      innerJoin: vi.fn().mockReturnValue({
+        where: vi.fn().mockReturnValue({
+          limit: vi.fn().mockResolvedValue(rows),
+        }),
+      }),
+    }),
+  };
+}
+
+function chainSelectPermissions(rows: unknown[]) {
+  return {
+    from: vi.fn().mockReturnValue({
+      where: vi.fn().mockResolvedValue(rows),
+    }),
+  };
+}
+
+describe("getRbacContext", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.spyOn(sessionModule, "loadSession").mockResolvedValue({
+      id: "sess-1",
+      hqUserId: "magic-stub",
+      allianceId: "a1",
+      allianceTag: "LFgo",
+      currentAllianceId: "a1",
+      userLabel: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      expiresAt: new Date(Date.now() + 60_000),
+    });
+    vi.spyOn(sessionModule, "resolveEffectiveHqUserIdForSession").mockResolvedValue(
+      "canonical-user",
+    );
+  });
+
+  it("loads permissions for the effective HQ user, not the magic-link stub", async () => {
+    selectMock
+      .mockReturnValueOnce(
+        chainSelectWithLimit([
+          {
+            id: "canonical-user",
+            email: "player@example.com",
+            displayName: "Player",
+            isPlatformMaintainer: 0,
+          },
+        ]),
+      )
+      .mockReturnValueOnce(
+        chainSelectWithLimit([
+          { roleName: "officer", roleId: "role-officer", source: "ashed" },
+        ]),
+      )
+      .mockReturnValueOnce(
+        chainSelectPermissions([{ permissionId: "members:read" }]),
+      );
+
+    const ctx = await getRbacContext("sess-1");
+
+    expect(ctx?.hqUserId).toBe("canonical-user");
+    expect(ctx?.roleName).toBe("officer");
+    expect(sessionModule.resolveEffectiveHqUserIdForSession).toHaveBeenCalledWith(
+      "sess-1",
+      "magic-stub",
+    );
+  });
+});
 
 describe("sessionHasPermission", () => {
   it("allows legacy sessions without hqUserId until reconnect", async () => {

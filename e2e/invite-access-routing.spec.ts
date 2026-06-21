@@ -7,11 +7,11 @@ import {
   createNativeAlliance,
   createPlatformMaintainerSession,
   getE2eSql,
-  sessionCookie,
+  playwrightAuthCookies,
 } from "./fixtures/db";
 
 test.describe("App access routing", () => {
-  test("signed-in user without membership is redirected to /connect from app routes", async ({
+  test("signed-in user without membership is redirected to /get-started from app routes", async ({
     page,
   }) => {
     const sql = getE2eSql();
@@ -21,10 +21,10 @@ test.describe("App access routing", () => {
       { accessGranted: false },
     );
 
-    await page.context().addCookies([sessionCookie(auth.sessionId)]);
+    await page.context().addCookies(playwrightAuthCookies(auth));
     await page.goto("/members");
 
-    await expect(page).toHaveURL(/\/connect/);
+    await expect(page).toHaveURL(/\/get-started/);
   });
 });
 
@@ -47,8 +47,10 @@ test.describe("Post-invite routing", () => {
       invitedByHqUserId: maintainer.hqUserId,
     });
 
+    const auth = await createAuthenticatedHqSession(sql, email);
+
+    await page.context().addCookies(playwrightAuthCookies(auth));
     await page.goto(`/invite/${encodeURIComponent(token)}`);
-    await page.getByLabel(/email/i).fill(email);
     await page.getByRole("button", { name: /accept invite/i }).click();
 
     await expect(page).toHaveURL(/\/connect\?welcome=1/);
@@ -75,8 +77,10 @@ test.describe("Post-invite routing", () => {
       invitedByHqUserId: maintainer.hqUserId,
     });
 
+    const auth = await createAuthenticatedHqSession(sql, email);
+
+    await page.context().addCookies(playwrightAuthCookies(auth));
     await page.goto(`/invite/${encodeURIComponent(token)}`);
-    await page.getByLabel(/email/i).fill(email);
     await page.getByRole("button", { name: /accept invite/i }).click();
 
     await expect(page).toHaveURL(/\/connect\?welcome=1/);

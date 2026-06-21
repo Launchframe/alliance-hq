@@ -11,6 +11,9 @@ const e2eDatabaseUrl =
   "";
 const tokenEncryptionKey =
   process.env.TOKEN_ENCRYPTION_KEY?.trim() || "a".repeat(64);
+const authSecret =
+  process.env.AUTH_SECRET?.trim() ||
+  "e2e-test-auth-secret-min-32-characters";
 
 // Test workers import app crypto helpers directly — not only the webServer env.
 process.env.TOKEN_ENCRYPTION_KEY = tokenEncryptionKey;
@@ -23,6 +26,7 @@ function e2eServerEnv(): Record<string, string> {
     NODE_ENV: "production",
     CI: process.env.CI ?? "",
     TOKEN_ENCRYPTION_KEY: tokenEncryptionKey,
+    AUTH_SECRET: authSecret,
     HQ_ASHED_INVITE_REQUIRED: "false",
   };
   if (e2eDatabaseUrl) {

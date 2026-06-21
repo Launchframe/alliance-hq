@@ -87,6 +87,7 @@ export async function POST() {
     connection,
     sessionId,
     allianceTag: session.allianceTag,
+    authHqUserId: session.hqUserId,
     currentUser: {
       id: me.id,
       email: me.email,

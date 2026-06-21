@@ -40,6 +40,10 @@ import {
   getContinueToHqLabelKey,
   shouldShowAlliancePicker,
 } from "@/lib/credential-pairing/link-phone-phase";
+import {
+  markConnectWalkthroughSeen,
+  readConnectWalkthroughSeen,
+} from "@/lib/connect/walkthrough.shared";
 
 const STEP_IDS = [
   "login",
@@ -51,17 +55,28 @@ const STEP_IDS = [
 type StepId = (typeof STEP_IDS)[number];
 
 const LINK_PHONE_STEP_INDEX = STEP_IDS.indexOf("link-phone");
+const PASTE_STEP_INDEX = STEP_IDS.indexOf("paste");
 
 type Props = {
   onConnected?: (connection: ParsedConnection) => void;
+  /** Skip login / DevTools / copy steps for returning Ashed users. */
+  skipWalkthroughToPaste?: boolean;
+  /** Returning reconnect with a phone already linked — skip optional link-phone step. */
+  skipLinkPhoneStep?: boolean;
 };
 
-export function ConnectionWalkthrough({ onConnected }: Props) {
+export function ConnectionWalkthrough({
+  onConnected,
+  skipWalkthroughToPaste = false,
+  skipLinkPhoneStep = false,
+}: Props) {
   const t = useTranslations("connect");
   const tc = useTranslations("common");
   const locale = useLocale();
   const router = useRouter();
-  const [stepIndex, setStepIndex] = useState(0);
+  const [stepIndex, setStepIndex] = useState(() =>
+    skipWalkthroughToPaste ? PASTE_STEP_INDEX : 0,
+  );
   const [checked, setChecked] = useState<Record<string, boolean>>({});
   const [pasteInput, setPasteInput] = useState("");
   const [originUrl, setOriginUrl] = useState(DEFAULT_ORIGIN_URL);
@@ -87,6 +102,25 @@ export function ConnectionWalkthrough({ onConnected }: Props) {
   const isPasteStep = stepId === "paste";
   const isLinkPhoneStep = stepId === "link-phone";
   const isPasteSuccess = isPasteStep && connectSuccess !== null;
+  const [returningUser, setReturningUser] = useState(skipWalkthroughToPaste);
+  const visibleStepIds = skipLinkPhoneStep
+    ? STEP_IDS.filter((id) => id !== "link-phone")
+    : STEP_IDS;
+
+  useEffect(() => {
+    if (skipWalkthroughToPaste || !readConnectWalkthroughSeen()) {
+      return;
+    }
+
+    const frame = requestAnimationFrame(() => {
+      setStepIndex(PASTE_STEP_INDEX);
+      setReturningUser(true);
+    });
+
+    return () => {
+      cancelAnimationFrame(frame);
+    };
+  }, [skipWalkthroughToPaste]);
 
   const stepTitle = useMemo(() => {
     switch (stepId) {
@@ -285,16 +319,23 @@ export function ConnectionWalkthrough({ onConnected }: Props) {
       }
 
       if (data.ashed && data.userLabel) {
+        markConnectWalkthroughSeen();
+        onConnected?.(parsed.connection);
+        if (skipLinkPhoneStep) {
+          router.push("/");
+          router.refresh();
+          return;
+        }
         setConnectSuccess({
           ashed: data.ashed,
           userLabel: data.userLabel,
           alliance: data.alliance,
         });
-        onConnected?.(parsed.connection);
         return;
       }
 
       onConnected?.(parsed.connection);
+      markConnectWalkthroughSeen();
       router.push("/");
       router.refresh();
     } catch (e) {
@@ -310,6 +351,8 @@ export function ConnectionWalkthrough({ onConnected }: Props) {
     pasteInput,
     router,
     selectedForUi,
+    skipLinkPhoneStep,
+    t,
     tc,
   ]);
 
@@ -409,6 +452,9 @@ export function ConnectionWalkthrough({ onConnected }: Props) {
 
         return (
           <div className="space-y-4">
+            {returningUser && !isPasteSuccess ? (
+              <p className="text-sm text-[#8b949e]">{t("returningUserHint")}</p>
+            ) : null}
             <p>{t.rich("steps.paste.intro", { strong: strongText })}</p>
             <label className="block">
               <span className="mb-1 block text-xs text-[#8b949e]">
@@ -525,7 +571,9 @@ export function ConnectionWalkthrough({ onConnected }: Props) {
       </header>
 
       <ol className="mb-4 flex flex-wrap gap-2" aria-label={t("progressLabel")}>
-        {STEP_IDS.map((id, i) => (
+        {visibleStepIds.map((id, visibleIndex) => {
+          const i = STEP_IDS.indexOf(id);
+          return (
           <li
             key={id}
             className={`flex items-center gap-1.5 text-xs ${
@@ -545,11 +593,12 @@ export function ConnectionWalkthrough({ onConnected }: Props) {
                     : "border-[#30363d] bg-[#21262d]"
               }`}
             >
-              {i + 1}
+              {visibleIndex + 1}
             </span>
             <span className="hidden sm:inline">{progressTitle(id)}</span>
           </li>
-        ))}
+          );
+        })}
       </ol>
 
       <section className="rounded-xl border border-[#30363d] bg-[#161b22] p-5">
@@ -562,6 +611,18 @@ export function ConnectionWalkthrough({ onConnected }: Props) {
           ) : null}
         </div>
         <div className="mt-3 text-sm">{renderStepBody()}</div>
+
+        {isPasteStep && !isPasteSuccess && returningUser ? (
+          <p className="mt-4 text-sm">
+            <button
+              type="button"
+              onClick={() => setStepIndex(0)}
+              className="text-[#58a6ff] hover:underline"
+            >
+              {t("showSetupInstructions")}
+            </button>
+          </p>
+        ) : null}
 
         {stepChecklist && !isPasteStep && !isLinkPhoneStep && (
           <label
@@ -613,7 +674,11 @@ export function ConnectionWalkthrough({ onConnected }: Props) {
           ) : isPasteSuccess ? (
             <button
               type="button"
-              onClick={() => setStepIndex(LINK_PHONE_STEP_INDEX)}
+              onClick={
+                skipLinkPhoneStep
+                  ? continueToApp
+                  : () => setStepIndex(LINK_PHONE_STEP_INDEX)
+              }
               className="rounded-lg border border-[#238636] bg-[#238636] px-4 py-2 text-sm text-white"
             >
               {t("steps.paste.continue")}

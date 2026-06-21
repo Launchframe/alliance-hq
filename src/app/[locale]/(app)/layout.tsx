@@ -3,6 +3,7 @@ import { getLocale, getTranslations } from "next-intl/server";
 import { TimezoneProvider } from "@/components/timezone/TimezoneProvider";
 import { redirect } from "@/i18n/navigation";
 import { AshedShell } from "@/components/ashed-shell/AshedShell";
+import { requireAuthForPage } from "@/lib/auth/page-guard";
 import {
   collectDatabaseErrorText,
   postgresErrorCode,
@@ -20,6 +21,8 @@ export default async function AppLayout({
 }) {
   const locale = await getLocale();
   const t = await getTranslations("devErrors");
+
+  await requireAuthForPage("/");
 
   let state;
   try {
@@ -67,7 +70,7 @@ export default async function AppLayout({
   }
 
   if (!state.hasAppAccess) {
-    redirect({ href: "/connect", locale });
+    redirect({ href: "/get-started", locale });
   }
 
   return (

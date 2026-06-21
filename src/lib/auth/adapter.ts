@@ -1,0 +1,161 @@
+import "server-only";
+
+import type { Adapter, AdapterUser } from "@auth/core/adapters";
+import { and, eq } from "drizzle-orm";
+import { nanoid } from "nanoid";
+
+import { normalizeAshedEmail } from "@/lib/alliance/accessible";
+import { getDb, schema } from "@/lib/db";
+
+function toAdapterUser(row: typeof schema.hqUsers.$inferSelect): AdapterUser {
+  return {
+    id: row.id,
+    email: row.email,
+    emailVerified: row.emailVerifiedAt,
+    name: row.displayName,
+    image: row.avatarUrl,
+  };
+}
+
+export function createHqAuthAdapter(): Adapter {
+  return {
+    async createUser(data) {
+      const db = getDb();
+      const email = normalizeAshedEmail(data.email ?? "");
+      if (!email) {
+        throw new Error("Email is required to create an HQ user.");
+      }
+      const now = new Date();
+      const id = nanoid(16);
+      await db.insert(schema.hqUsers).values({
+        id,
+        email,
+        displayName: data.name?.trim() || null,
+        emailVerifiedAt: data.emailVerified ?? null,
+        createdAt: now,
+        updatedAt: now,
+      });
+      const [row] = await db
+        .select()
+        .from(schema.hqUsers)
+        .where(eq(schema.hqUsers.id, id))
+        .limit(1);
+      if (!row) {
+        throw new Error("Failed to create HQ user.");
+      }
+      return toAdapterUser(row);
+    },
+
+    async getUser(id) {
+      const db = getDb();
+      const [row] = await db
+        .select()
+        .from(schema.hqUsers)
+        .where(eq(schema.hqUsers.id, id))
+        .limit(1);
+      return row ? toAdapterUser(row) : null;
+    },
+
+    async getUserByEmail(email) {
+      const normalized = normalizeAshedEmail(email);
+      if (!normalized) return null;
+      const db = getDb();
+      const [row] = await db
+        .select()
+        .from(schema.hqUsers)
+        .where(eq(schema.hqUsers.email, normalized))
+        .limit(1);
+      return row ? toAdapterUser(row) : null;
+    },
+
+    async getUserByAccount() {
+      return null;
+    },
+
+    async updateUser(data) {
+      const db = getDb();
+      const now = new Date();
+      await db
+        .update(schema.hqUsers)
+        .set({
+          ...(data.name !== undefined
+            ? { displayName: data.name?.trim() || null }
+            : {}),
+          ...(data.email !== undefined
+            ? { email: normalizeAshedEmail(data.email) }
+            : {}),
+          ...(data.emailVerified !== undefined
+            ? { emailVerifiedAt: data.emailVerified }
+            : {}),
+          ...(data.image !== undefined ? { avatarUrl: data.image } : {}),
+          updatedAt: now,
+        })
+        .where(eq(schema.hqUsers.id, data.id));
+      const [row] = await db
+        .select()
+        .from(schema.hqUsers)
+        .where(eq(schema.hqUsers.id, data.id))
+        .limit(1);
+      if (!row) {
+        throw new Error("User not found.");
+      }
+      return toAdapterUser(row);
+    },
+
+    async deleteUser(userId) {
+      const db = getDb();
+      await db.delete(schema.hqUsers).where(eq(schema.hqUsers.id, userId));
+    },
+
+    async linkAccount() {
+      throw new Error("OAuth account linking is not configured yet.");
+    },
+
+    async unlinkAccount() {
+      throw new Error("OAuth account unlinking is not configured yet.");
+    },
+
+    async createVerificationToken(data) {
+      const db = getDb();
+      await db.insert(schema.authVerificationTokens).values({
+        identifier: data.identifier,
+        token: data.token,
+        expires: data.expires,
+      });
+      return data;
+    },
+
+    async useVerificationToken({ identifier, token }) {
+      const db = getDb();
+      const [match] = await db
+        .select()
+        .from(schema.authVerificationTokens)
+        .where(
+          and(
+            eq(schema.authVerificationTokens.identifier, identifier),
+            eq(schema.authVerificationTokens.token, token),
+          ),
+        )
+        .limit(1);
+
+      if (!match) {
+        return null;
+      }
+
+      await db
+        .delete(schema.authVerificationTokens)
+        .where(
+          and(
+            eq(schema.authVerificationTokens.identifier, identifier),
+            eq(schema.authVerificationTokens.token, token),
+          ),
+        );
+
+      return {
+        identifier: match.identifier,
+        token: match.token,
+        expires: match.expires,
+      };
+    },
+  };
+}

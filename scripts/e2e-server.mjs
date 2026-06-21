@@ -30,6 +30,14 @@ function tokenKey() {
   return process.env.TOKEN_ENCRYPTION_KEY?.trim() || "a".repeat(64);
 }
 
+function authSecret() {
+  const fromEnv = process.env.AUTH_SECRET?.trim();
+  if (fromEnv && fromEnv.length >= 32) {
+    return fromEnv;
+  }
+  return "e2e-test-auth-secret-min-32-characters";
+}
+
 function prepareEnvFile(dbUrl) {
   if (fs.existsSync(envBackup)) {
     fs.unlinkSync(envBackup);
@@ -44,6 +52,7 @@ function prepareEnvFile(dbUrl) {
       `LOCAL_DATABASE_URL=${dbUrl}`,
       `DATABASE_URL=${dbUrl}`,
       `TOKEN_ENCRYPTION_KEY=${tokenKey()}`,
+      `AUTH_SECRET=${authSecret()}`,
       "HQ_ASHED_INVITE_REQUIRED=false",
       "",
     ].join("\n"),
@@ -64,6 +73,7 @@ function buildEnv(dbUrl) {
     LOCAL_DATABASE_URL: dbUrl,
     DATABASE_URL: dbUrl,
     TOKEN_ENCRYPTION_KEY: tokenKey(),
+    AUTH_SECRET: authSecret(),
     HQ_ASHED_INVITE_REQUIRED: "false",
   };
 }

@@ -10,31 +10,79 @@ import {
 } from "@/lib/access/invite-gate";
 import { getDb, schema } from "@/lib/db";
 import type { Session } from "@/lib/db/schema";
-import { getAshedConnection } from "@/lib/session";
+import {
+  ashedSourcedMembershipIsActiveForSession,
+  sessionHoldsAshedIdentityForHqUser,
+} from "@/lib/rbac/ashed-session-membership";
+import {
+  getAshedConnection,
+  resolveEffectiveHqUserIdForSession,
+} from "@/lib/session";
 
 import { getAllianceOperatingMode } from "./operating-mode";
+import { ASHED_CONNECT_PERMISSION } from "@/lib/rbac/constants";
+
+/**
+ * Ashed connect UI/API is blocked only for bound sessions whose active alliance
+ * role lacks `ashed:connect` (e.g. member-only invites). Fresh sign-ins with
+ * hqUserId but no membership must still reach /connect from get-started.
+ */
+export function rbacAllowsAshedConnect(
+  rbac: { isPlatformMaintainer: boolean; permissions: Set<string> } | null,
+  hasActiveMembership: boolean,
+): boolean {
+  if (!rbac) {
+    return true;
+  }
+  if (rbac.isPlatformMaintainer) {
+    return true;
+  }
+  if (!hasActiveMembership) {
+    return true;
+  }
+  return rbac.permissions.has(ASHED_CONNECT_PERMISSION);
+}
 
 export async function sessionHasActiveMembership(
   session: Session,
 ): Promise<boolean> {
-  if (!session.hqUserId || !session.currentAllianceId) {
+  const effectiveHqUserId = await resolveEffectiveHqUserIdForSession(
+    session.id,
+    session.hqUserId,
+  );
+  if (!effectiveHqUserId || !session.currentAllianceId) {
     return false;
   }
 
   const db = getDb();
   const [membership] = await db
-    .select({ id: schema.allianceMemberships.id })
+    .select({
+      id: schema.allianceMemberships.id,
+      source: schema.allianceMemberships.source,
+    })
     .from(schema.allianceMemberships)
     .where(
       and(
-        eq(schema.allianceMemberships.hqUserId, session.hqUserId),
+        eq(schema.allianceMemberships.hqUserId, effectiveHqUserId),
         eq(schema.allianceMemberships.allianceId, session.currentAllianceId),
         eq(schema.allianceMemberships.status, "active"),
       ),
     )
     .limit(1);
 
-  return Boolean(membership);
+  if (!membership) {
+    return false;
+  }
+
+  const holdsAshedIdentity = await sessionHoldsAshedIdentityForHqUser(
+    session.id,
+    effectiveHqUserId,
+  );
+
+  return ashedSourcedMembershipIsActiveForSession(
+    membership.source,
+    holdsAshedIdentity,
+  );
 }
 
 export async function sessionHasNativeMembership(
@@ -53,27 +101,27 @@ export async function sessionHasNativeMembership(
 }
 
 async function sessionPassesNativeInviteGate(
-  session: Session,
+  effectiveHqUserId: string | null,
 ): Promise<boolean> {
   if (!isNativeInviteRequired()) {
     return true;
   }
-  if (!session.hqUserId) {
+  if (!effectiveHqUserId) {
     return false;
   }
-  return hqUserHasAccessGrant(session.hqUserId);
+  return hqUserHasAccessGrant(effectiveHqUserId);
 }
 
 async function sessionPassesAshedInviteGate(
-  session: Session,
+  effectiveHqUserId: string | null,
 ): Promise<boolean> {
   if (!isAshedInviteRequired()) {
     return true;
   }
-  if (!session.hqUserId) {
+  if (!effectiveHqUserId) {
     return false;
   }
-  return hqUserHasAccessGrant(session.hqUserId);
+  return hqUserHasAccessGrant(effectiveHqUserId);
 }
 
 /**
@@ -82,16 +130,22 @@ async function sessionPassesAshedInviteGate(
  * - Ashed connection-key users need an invite only when HQ_ASHED_INVITE_REQUIRED is on.
  */
 export async function sessionHasAppAccess(session: Session): Promise<boolean> {
-  if (session.hqUserId) {
-    const db = getDb();
-    const [user] = await db
-      .select({ isPlatformMaintainer: schema.hqUsers.isPlatformMaintainer })
-      .from(schema.hqUsers)
-      .where(eq(schema.hqUsers.id, session.hqUserId))
-      .limit(1);
-    if (user?.isPlatformMaintainer === 1) {
-      return true;
-    }
+  const effectiveHqUserId = await resolveEffectiveHqUserIdForSession(
+    session.id,
+    session.hqUserId,
+  );
+  if (!effectiveHqUserId) {
+    return false;
+  }
+
+  const db = getDb();
+  const [user] = await db
+    .select({ isPlatformMaintainer: schema.hqUsers.isPlatformMaintainer })
+    .from(schema.hqUsers)
+    .where(eq(schema.hqUsers.id, effectiveHqUserId))
+    .limit(1);
+  if (user?.isPlatformMaintainer === 1) {
+    return true;
   }
 
   const connection = await getAshedConnection(session.id);
@@ -99,21 +153,21 @@ export async function sessionHasAppAccess(session: Session): Promise<boolean> {
   const isNative = await sessionHasNativeMembership(session);
 
   if (isNative) {
-    if (!(await sessionPassesNativeInviteGate(session))) {
+    if (!(await sessionPassesNativeInviteGate(effectiveHqUserId))) {
       return false;
     }
     return true;
   }
 
   if (hasMembership) {
-    if (!(await sessionPassesAshedInviteGate(session))) {
+    if (!(await sessionPassesAshedInviteGate(effectiveHqUserId))) {
       return false;
     }
     return true;
   }
 
   if (connection !== null) {
-    if (!(await sessionPassesAshedInviteGate(session))) {
+    if (!(await sessionPassesAshedInviteGate(effectiveHqUserId))) {
       return false;
     }
     return true;

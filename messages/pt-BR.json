@@ -312,8 +312,23 @@
       "inviteRedirectOptional": "Página após aceitar (opcional)",
       "inviteRedirectHint": "Somente caminho interno, ex.: /trains ou /members. Incluído no link como ?next=…",
       "inviteLinkLabel": "Link de convite",
+      "invitePassphraseLabel": "Senha (mostrada uma vez)",
+      "invitePassphraseHint": "Envie o link e a senha em mensagens separadas. A senha é de uso único.",
+      "inviteKind": "Tipo de convite",
+      "inviteKindProtected": "Link protegido + senha",
+      "inviteKindEmail": "Vinculado ao e-mail (legado)",
+      "inviteAdminLabel": "Nota do admin (opcional)",
+      "inviteAdminLabelPlaceholder": "Alex — oficial de trens",
       "inviteFailed": "Não foi possível criar o convite.",
-      "inviteSent": "Link de convite gerado (válido por 14 dias)."
+      "inviteSent": "Link de convite gerado (válido por 14 dias).",
+      "joinCodeTitle": "Código de entrada na aliança",
+      "joinCodeHint": "Código multiuso para Discord ou chat no jogo. Resgate em /join após entrar.",
+      "joinCodeMaxUses": "Máximo de resgates",
+      "joinCodeMaxUsesInvalid": "Informe um número válido de resgates.",
+      "joinCodeButton": "Gerar código",
+      "joinCodeLabel": "Código (mostrado uma vez)",
+      "joinCodeFailed": "Não foi possível criar o código.",
+      "joinCodeCreated": "Código gerado."
     },
     "commendationsPage": {
       "loadFailed": "Falha ao carregar comendações.",
@@ -666,7 +681,7 @@
   },
   "shell": {
     "brand": "Alliance HQ",
-    "domain": "alliance-hq.vercel.app",
+    "domain": "frontline.gay",
     "dataPoweredBy": "Dados fornecidos por <link>Ashed</link>",
     "connectedAs": "Conectado como {user}",
     "nativeSignedInAs": "Conectado como {user}",
@@ -681,8 +696,8 @@
       "account": "Conta",
       "adminPortal": "Portal admin",
       "connect": "Conectar Ashed",
-      "disconnect": "Desconectar",
-      "disconnecting": "Desconectando…",
+      "signOut": "Sair",
+      "signingOut": "Saindo…",
       "unknownUser": "Usuário HQ",
       "unknownEmail": "Sem e-mail cadastrado"
     }
@@ -704,6 +719,8 @@
     "inviteRequired": "Neste ambiente, é necessário um convite de administrador antes de conectar o Ashed. Aceite o link do convite primeiro ou peça um ao mantenedor da plataforma.",
     "successTitle": "Conectado ao Ashed",
     "signedInAsBefore": "Conectado como",
+    "returningUserHint": "Bem-vindo de volta — cole uma nova chave de conexão do DevTools quando estiver pronto.",
+    "showSetupInstructions": "Ver instruções completas de configuração",
     "noExpiryRead": "Conectado, mas não conseguimos ler uma data de expiração neste token. Ainda assim, notificaremos você se o Ashed parar de aceitá-lo.",
     "continue": "Continuar para o Alliance HQ",
     "allianceResolved": "Aliança vinculada: {tag} ({name})",
@@ -800,7 +817,7 @@
   "privacy": {
     "backToConnect": "← Voltar ao Connect",
     "title": "Política de Privacidade",
-    "intro": "O Alliance HQ, em alliance-hq.vercel.app, é uma ferramenta comunitária para oficiais de alianças do jogo Last War. Esta página explica o que armazenamos e como protegemos essas informações.",
+    "intro": "O Alliance HQ, em frontline.gay, é uma ferramenta comunitária para oficiais de alianças do jogo Last War. Esta página explica o que armazenamos e como protegemos essas informações.",
     "noSellTitle": "Não vendemos seus dados",
     "noSellBody1": "O Alliance HQ existe para ajudar sua aliança a utilizar o <link>ashed.online</link> com mais facilidade. Nós <strong>nunca</strong> venderemos, alugaremos ou negociaremos suas informações pessoais ou dados da aliança com terceiros. Não utilizamos seus dados para publicidade, nem criamos perfis de marketing com base em sua atividade.",
     "noSellBody2": "Utilizamos apenas as informações necessárias para fornecer o serviço solicitado — por exemplo, manter sua sessão ativa e interagir com o Ashed em seu nome ao utilizar os recursos do Alliance HQ.",
@@ -829,7 +846,7 @@
   "terms": {
     "backToConnect": "← Voltar ao Connect",
     "title": "Termos de Uso",
-    "intro": "O Alliance HQ em alliance-hq.vercel.app é uma ferramenta comunitária para oficiais de aliança de Last War. Ao usar este serviço hospedado, você concorda com estes termos.",
+    "intro": "O Alliance HQ em frontline.gay é uma ferramenta comunitária para oficiais de aliança de Last War. Ao usar este serviço hospedado, você concorda com estes termos.",
     "acceptableUseTitle": "Uso aceitável",
     "acceptableUseBody1": "Use o Alliance HQ e o <link>ashed.online</link> de forma razoável e dentro da lei. O Alliance HQ é uma camada de conveniência sobre o Ashed — não concede direitos além dos que você já tem no próprio Ashed.",
     "acceptableUseItems": {
@@ -838,7 +855,7 @@
       "noMisuse": "Não use o Alliance HQ de formas que prejudiquem alianças, o Ashed ou outros jogadores."
     },
     "enforcementTitle": "Aplicação das regras",
-    "enforcementBody": "Os operadores desta implantação <strong>hospedada</strong> reservam-se o direito de revogar ou bloquear o acesso — incluindo sessões, dispositivos vinculados e vínculo com o bot do Discord — por violações <strong>sem aviso prévio</strong>. Cópias auto-hospedadas do Alliance HQ estão fora do nosso controle; estes termos de aplicação valem apenas para implantações que operamos (como alliance-hq.vercel.app).",
+    "enforcementBody": "Os operadores desta implantação <strong>hospedada</strong> reservam-se o direito de revogar ou bloquear o acesso — incluindo sessões, dispositivos vinculados e vínculo com o bot do Discord — por violações <strong>sem aviso prévio</strong>. Cópias auto-hospedadas do Alliance HQ estão fora do nosso controle; estes termos de aplicação valem apenas para implantações que operamos (como frontline.gay).",
     "openSourceTitle": "Código aberto e auto-hospedagem",
     "openSourceBody1": "O código-fonte do Alliance HQ é aberto sob a <strong>Licença MIT</strong>. Você pode inspecionar, modificar e auto-hospedar o software conforme essa licença.",
     "openSourceBody2": "Consulte o arquivo <licenseLink>LICENSE</licenseLink> em nosso <githubLink>repositório no GitHub</githubLink>. Estes Termos de Uso aplicam-se ao nosso serviço hospedado, não a instâncias auto-hospedadas que você executa por conta própria.",
@@ -887,7 +904,7 @@
     "timezoneServerTime": "Horário do Servidor",
     "timezoneSaved": "Fuso horário salvo",
     "timezoneSaveFailed": "Não foi possível salvar o fuso horário",
-    "aboutBody": "O Alliance HQ, em <strong>alliance-hq.vercel.app</strong>, é uma interface comunitária para o <link>ashed.online</link>. Todos os créditos pelos dados da aliança pertencem ao Ashed.",
+    "aboutBody": "O Alliance HQ, em <strong>frontline.gay</strong>, é uma interface comunitária para o <link>ashed.online</link>. Todos os créditos pelos dados da aliança pertencem ao Ashed.",
     "gameSeason": {
       "sectionTitle": "Temporada do jogo",
       "sectionBody": "Temporada do Last War usada nos registros de trem e pontuações. Oficiais podem substituir quando a sincronização automática estiver errada.",
@@ -919,10 +936,16 @@
     "remindMe": "Lembre-me",
     "reminderOption": "{days, plural, one {# dia} other {# dias}} antes da expiração",
     "reconnectHint": "Reconecte-se para atualizar seu token e ver a data de expiração.",
-    "disconnectSection": "Desconectar",
-    "disconnectBody": "Remove a chave de conexão armazenada do nosso servidor. Você pode se reconectar a qualquer momento usando o guia de configuração.",
+    "disconnectSection": "Desconectar Ashed",
+    "disconnectBody": "Remove a chave de conexão armazenada do nosso servidor. Sua sessão HQ permanece — você pode reconectar o Ashed quando quiser.",
     "disconnecting": "Desconectando…",
     "disconnectButton": "Desconectar Ashed",
+    "disconnectedAshed": "Conexão Ashed removida.",
+    "signOutSection": "Sair",
+    "signOutBody": "Encerra sua sessão HQ neste navegador. Sua associação à aliança permanece — entre novamente para continuar.",
+    "signOutButton": "Sair do HQ",
+    "signingOut": "Saindo…",
+    "signOutFailed": "Não foi possível sair.",
     "reminderSaved": "Preferência de lembrete salva",
     "reminderSaveFailed": "Não foi possível salvar a preferência de lembrete",
     "timezoneSection": "Fuso horário",
@@ -931,7 +954,7 @@
     "timezoneServerTime": "Horário do Servidor",
     "timezoneSaved": "Fuso horário salvo",
     "timezoneSaveFailed": "Não foi possível salvar o fuso horário",
-    "aboutBody": "O Alliance HQ, em <strong>alliance-hq.vercel.app</strong>, é uma interface comunitária para o <link>ashed.online</link>. Todos os créditos pelos dados da aliança pertencem ao Ashed."
+    "aboutBody": "O Alliance HQ, em <strong>frontline.gay</strong>, é uma interface comunitária para o <link>ashed.online</link>. Todos os créditos pelos dados da aliança pertencem ao Ashed."
   },
   "profile": {
     "title": "Perfil",
@@ -1078,6 +1101,47 @@
       "cancel": "Cancelar"
     }
   },
+  "auth": {
+    "title": "Entrar no Alliance HQ",
+    "subtitle": "Crie uma conta ou entre com link mágico. Recursos da aliança exigem convite ou conexão Ashed.",
+    "email": "E-mail",
+    "emailRequired": "Informe um endereço de e-mail válido.",
+    "sendLink": "Enviar link mágico",
+    "sending": "Enviando…",
+    "sendFailed": "Não foi possível enviar o link. Tente novamente.",
+    "signupHint": "Qualquer pessoa pode criar conta. Você precisará de convite ou Ashed para usar ferramentas da aliança.",
+    "home": "Voltar ao início",
+    "checkEmailTitle": "Verifique seu e-mail",
+    "checkEmailBody": "Enviamos um link de entrada para {email}.",
+    "yourInbox": "sua caixa de entrada",
+    "checkEmailSpamHint": "Confira a pasta de spam se não encontrar o e-mail.",
+    "checkEmailHint": "O link expira em breve. Você pode fechar esta aba depois de clicar no e-mail.",
+    "tryAgain": "Usar outro e-mail"
+  },
+  "getStarted": {
+    "title": "Quase lá",
+    "body": "Você entrou. Para usar ferramentas da aliança, aceite um convite, resgate um código ou conecte o Ashed.",
+    "inviteTitle": "Convite de admin",
+    "inviteBody": "Abra o link que o administrador enviou. Convites protegidos também exigem uma senha enviada separadamente.",
+    "joinCodeTitle": "Código da aliança",
+    "joinCodeBody": "Tem um código do Discord ou do chat no jogo? Resgate abaixo.",
+    "joinCodeButton": "Resgatar código",
+    "connectTitle": "Conectar Ashed",
+    "connectBody": "Cole sua chave de conexão Ashed para sincronizar elenco e usar ferramentas em iframe.",
+    "connectButton": "Conectar Ashed",
+    "wrongAccount": "Conta errada?",
+    "signingOut": "Saindo…",
+    "signOutFailed": "Não foi possível sair."
+  },
+  "join": {
+    "title": "Entrar na aliança",
+    "body": "Digite o código compartilhado pelos oficiais da aliança.",
+    "code": "Código",
+    "codeRequired": "Informe um código.",
+    "redeem": "Entrar na aliança",
+    "redeeming": "Entrando…",
+    "redeemFailed": "Não foi possível resgatar o código."
+  },
   "invite": {
     "title": "Convite Alliance HQ",
     "loading": "Carregando convite…",
@@ -1096,6 +1160,12 @@
     "acceptFailed": "Não foi possível aceitar o convite.",
     "goToApp": "Continuar configuração",
     "home": "Voltar ao início",
+    "signInToAccept": "Entrar para aceitar",
+    "signInToContinue": "Entrar para continuar",
+    "introSignIn": "Você foi convidado para {alliance} [{tag}] como {role}. Entre para aceitar este convite.",
+    "introPassphrase": "Você foi convidado para {alliance} [{tag}] como {role}. Digite a senha que o admin enviou separadamente.",
+    "passphrase": "Senha",
+    "passphraseHint": "O admin deve enviar isso em mensagem separada do link.",
     "welcome": {
       "title": "Você entrou",
       "body": "Seu convite está ativo. Conecte o Ashed para ferramentas em iframe e sincronização ao vivo, ou pule e use só os recursos nativos do HQ.",

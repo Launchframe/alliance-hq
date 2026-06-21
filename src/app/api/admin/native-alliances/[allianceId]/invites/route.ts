@@ -5,20 +5,32 @@ import {
   collectDatabaseErrorText,
   isMissingSchemaError,
 } from "@/lib/db/error-message";
-import { createHqInvite } from "@/lib/native-alliance/invites";
+import { createHqInvite, type HqInviteKind } from "@/lib/native-alliance/invites";
 import { getRbacContext } from "@/lib/rbac/context";
 import { sanitizeInternalRedirectPath } from "@/lib/navigation/safe-redirect.shared";
 import type { SystemRoleName } from "@/lib/rbac/constants";
 import { requirePlatformMaintainer } from "@/lib/rbac/require-permission";
 import { readSessionId } from "@/lib/session";
 
-const bodySchema = z.object({
-  email: z.string().trim().email(),
-  roleName: z
-    .enum(["owner", "officer", "data_entry", "viewer", "member"])
-    .default("officer"),
-  redirectPath: z.string().trim().max(512).optional(),
-});
+const bodySchema = z
+  .object({
+    kind: z.enum(["email", "protected_link"]).default("email"),
+    email: z.string().trim().email().optional(),
+    roleName: z
+      .enum(["owner", "officer", "data_entry", "viewer", "member"])
+      .default("officer"),
+    redirectPath: z.string().trim().max(512).optional(),
+    adminLabel: z.string().trim().max(120).optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.kind === "email" && !data.email) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Email is required for email invites.",
+        path: ["email"],
+      });
+    }
+  });
 
 export async function POST(
   request: Request,
@@ -47,11 +59,13 @@ export async function POST(
     const ctx = await getRbacContext(sessionId);
     const invite = await createHqInvite({
       allianceId,
+      kind: body.kind as HqInviteKind,
       email: body.email,
       roleName: body.roleName as SystemRoleName,
       invitedByHqUserId: ctx?.hqUserId ?? null,
       origin,
       redirectPath: sanitizeInternalRedirectPath(body.redirectPath),
+      adminLabel: body.adminLabel,
     });
 
     return NextResponse.json({ ok: true, invite });

@@ -37,7 +37,7 @@ function isLikelyEnglishLeak(value, locale) {
     "alliance hq",
     "ashed",
     "ashed.online",
-    "alliance-hq.online",
+    "frontline.gay",
     "alliance-hq.vercel.app",
     "english (us)",
     "português (brasil)",

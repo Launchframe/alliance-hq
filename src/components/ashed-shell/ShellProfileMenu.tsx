@@ -37,7 +37,7 @@ export function ShellProfileMenu({
   const menuId = React.useId();
   const triggerRef = React.useRef<HTMLButtonElement>(null);
   const [open, setOpen] = React.useState(false);
-  const [disconnecting, setDisconnecting] = React.useState(false);
+  const [signingOut, setSigningOut] = React.useState(false);
   const [menuRect, setMenuRect] = React.useState<{
     top: number;
     right: number;
@@ -131,18 +131,18 @@ export function ShellProfileMenu({
     return () => cancelAnimationFrame(frame);
   }, [open]);
 
-  async function disconnect() {
-    setDisconnecting(true);
+  async function signOutHq() {
+    setSigningOut(true);
     try {
-      const res = await fetch("/api/auth/disconnect", { method: "POST" });
+      const res = await fetch("/api/auth/sign-out", { method: "POST" });
       if (!res.ok) {
         return;
       }
       closeMenu();
-      router.push("/connect");
+      router.push("/auth");
       router.refresh();
     } finally {
-      setDisconnecting(false);
+      setSigningOut(false);
     }
   }
 
@@ -234,12 +234,12 @@ export function ShellProfileMenu({
                 role="menuitem"
                 className={cn(
                   "block w-full px-3 py-2 text-left text-sm text-[#f85149] hover:bg-[#21262d]",
-                  disconnecting && "cursor-not-allowed opacity-50",
+                  signingOut && "cursor-not-allowed opacity-50",
                 )}
-                disabled={disconnecting}
-                onClick={() => void disconnect()}
+                disabled={signingOut}
+                onClick={() => void signOutHq()}
               >
-                {disconnecting ? t("disconnecting") : t("disconnect")}
+                {signingOut ? t("signingOut") : t("signOut")}
               </button>
             </div>
           </div>,

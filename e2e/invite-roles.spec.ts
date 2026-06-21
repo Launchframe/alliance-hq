@@ -4,12 +4,14 @@ import { expect, test } from "@playwright/test";
 import {
   acceptInviteViaApi,
   attachAshedConnectionToSession,
+  authCookieHeader,
+  createAuthenticatedHqSession,
   createHqInviteRow,
   createNativeAlliance,
   createPlatformMaintainerSession,
   getE2eSql,
   loadMembershipRoleName,
-  sessionCookie,
+  playwrightAuthCookies,
   simulateManualMembershipAshedUpgrade,
 } from "./fixtures/db";
 
@@ -33,7 +35,7 @@ test.describe("Invite API — role-member regression", () => {
       `/api/admin/native-alliances/${alliance.allianceId}/invites`,
       {
         headers: {
-          Cookie: `alliance_hq_session=${maintainer.sessionId}`,
+          Cookie: authCookieHeader(maintainer),
         },
         data: {
           email,
@@ -68,6 +70,8 @@ test.describe("Invite onboarding — connect welcome before destination", () => 
       invitedByHqUserId: maintainer.hqUserId,
     });
 
+    const auth = await createAuthenticatedHqSession(sql, email);
+    await page.context().addCookies(playwrightAuthCookies(auth));
     await page.goto(`/invite/${encodeURIComponent(token)}`);
     await page.getByLabel(/email/i).fill(email);
     await page.getByRole("button", { name: /accept invite/i }).click();
@@ -97,6 +101,8 @@ test.describe("Invite onboarding — connect welcome before destination", () => 
       invitedByHqUserId: maintainer.hqUserId,
     });
 
+    const auth = await createAuthenticatedHqSession(sql, email);
+    await page.context().addCookies(playwrightAuthCookies(auth));
     await page.goto(`/invite/${encodeURIComponent(token)}`);
     await page.getByLabel(/email/i).fill(email);
     await page.getByRole("button", { name: /accept invite/i }).click();
@@ -124,6 +130,8 @@ test.describe("Invite onboarding — connect welcome before destination", () => 
       invitedByHqUserId: maintainer.hqUserId,
     });
 
+    const auth = await createAuthenticatedHqSession(sql, email);
+    await page.context().addCookies(playwrightAuthCookies(auth));
     await page.goto(`/invite/${encodeURIComponent(token)}`);
     await page.getByLabel(/email/i).fill(email);
     await page.getByRole("button", { name: /accept invite/i }).click();
@@ -151,9 +159,9 @@ test.describe("Invite onboarding — connect welcome before destination", () => 
       invitedByHqUserId: maintainer.hqUserId,
     });
 
-    const accepted = await acceptInviteViaApi(e2eBaseUrl(), token, email);
+    const accepted = await acceptInviteViaApi(sql, e2eBaseUrl(), token, email);
 
-    await page.context().addCookies([sessionCookie(accepted.sessionId)]);
+    await page.context().addCookies(playwrightAuthCookies(accepted));
     await page.goto("/account");
 
     await expect(page.getByText(/reconnect to refresh your token/i)).toBeVisible();
@@ -179,9 +187,9 @@ test.describe("Member access — no Ashed embeds until connected", () => {
       invitedByHqUserId: maintainer.hqUserId,
     });
 
-    const accepted = await acceptInviteViaApi(e2eBaseUrl(), token, email);
+    const accepted = await acceptInviteViaApi(sql, e2eBaseUrl(), token, email);
 
-    await page.context().addCookies([sessionCookie(accepted.sessionId)]);
+    await page.context().addCookies(playwrightAuthCookies(accepted));
     await page.goto("/members");
 
     // Native alliances hide iframe nav; footer external link is always present.
@@ -213,7 +221,7 @@ test.describe("Member access — no Ashed embeds until connected", () => {
       invitedByHqUserId: maintainer.hqUserId,
     });
 
-    const accepted = await acceptInviteViaApi(e2eBaseUrl(), token, email);
+    const accepted = await acceptInviteViaApi(sql, e2eBaseUrl(), token, email);
 
     const res = await request.post("/api/auth/connect", {
       headers: {
@@ -245,9 +253,9 @@ test.describe("Member access — no Ashed embeds until connected", () => {
       invitedByHqUserId: maintainer.hqUserId,
     });
 
-    const accepted = await acceptInviteViaApi(e2eBaseUrl(), token, email);
+    const accepted = await acceptInviteViaApi(sql, e2eBaseUrl(), token, email);
 
-    await page.context().addCookies([sessionCookie(accepted.sessionId)]);
+    await page.context().addCookies(playwrightAuthCookies(accepted));
     await page.goto("/account");
 
     await expect(page.getByText(/reconnect to refresh your token/i)).toBeVisible();
@@ -270,10 +278,18 @@ test.describe("Member access — no Ashed embeds until connected", () => {
       invitedByHqUserId: maintainer.hqUserId,
     });
 
-    const accepted = await acceptInviteViaApi(e2eBaseUrl(), token, email);
-    await attachAshedConnectionToSession(sql, accepted.sessionId);
+    const accepted = await acceptInviteViaApi(sql, e2eBaseUrl(), token, email);
+    const ashedUserId = `ashed-${nanoid(12)}`;
+    await sql`
+      UPDATE hq_users
+      SET ashed_user_id = ${ashedUserId}
+      WHERE id = ${accepted.hqUserId}
+    `;
+    await attachAshedConnectionToSession(sql, accepted.sessionId, {
+      ashedUserId,
+    });
 
-    await page.context().addCookies([sessionCookie(accepted.sessionId)]);
+    await page.context().addCookies(playwrightAuthCookies(accepted));
     await page.goto("/members");
 
     await expect(page.getByRole("link", { name: /^dashboard$/i })).toHaveCount(
@@ -300,27 +316,21 @@ test.describe("Member access — no Ashed embeds until connected", () => {
       invitedByHqUserId: maintainer.hqUserId,
     });
 
-    const accepted = await acceptInviteViaApi(e2eBaseUrl(), token, email);
+    const accepted = await acceptInviteViaApi(sql, e2eBaseUrl(), token, email);
 
-    const [sessionRow] = await sql<{ hq_user_id: string }[]>`
-      SELECT hq_user_id
-      FROM sessions
-      WHERE id = ${accepted.sessionId}
-      LIMIT 1
-    `;
-    expect(sessionRow?.hq_user_id).toBeTruthy();
+    expect(accepted.hqUserId).toBeTruthy();
 
     expect(
       await loadMembershipRoleName(
         sql,
-        sessionRow!.hq_user_id,
+        accepted.hqUserId,
         alliance.allianceId,
       ),
     ).toBe("member");
 
     const upgraded = await simulateManualMembershipAshedUpgrade(
       sql,
-      sessionRow!.hq_user_id,
+      accepted.hqUserId,
       alliance.allianceId,
       "officer",
     );
@@ -328,7 +338,7 @@ test.describe("Member access — no Ashed embeds until connected", () => {
     expect(
       await loadMembershipRoleName(
         sql,
-        sessionRow!.hq_user_id,
+        accepted.hqUserId,
         alliance.allianceId,
       ),
     ).toBe("officer");
@@ -342,7 +352,7 @@ test.describe("Platform maintainer — Ashed embed access without connect", () =
     const sql = getE2eSql();
     const maintainer = await createPlatformMaintainerSession(sql);
 
-    await page.context().addCookies([sessionCookie(maintainer.sessionId)]);
+    await page.context().addCookies(playwrightAuthCookies(maintainer));
 
     await page.goto("/members");
     await expect(page.getByRole("link", { name: /^dashboard$/i })).toBeVisible();
