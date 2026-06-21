@@ -210,6 +210,7 @@ export async function sessionHasPermissionForAlliance(
   }
 
   const { permissions } = await loadUserPermissions(
+    sessionId,
     session.hqUserId,
     allianceId,
   );

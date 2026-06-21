@@ -42,9 +42,10 @@ function pushWeekDay(
 ): DayConfigInput {
   const calDow = getServerDayOfWeek(date);
   if (calDow === 1) {
+    // Train-week Monday: VS is off on Sunday (T-1) — use donations, not VS wheel.
     return {
       date,
-      conductorMechanism: "vs_top_10",
+      conductorMechanism: "donations_top",
       vipMechanism: options?.mondayVipMechanism ?? "donations_second",
     };
   }
@@ -56,6 +57,14 @@ function pushWeekDay(
     };
   }
   if (calDow >= 3 && calDow <= 5) {
+    return {
+      date,
+      conductorMechanism: "vs_top_10",
+      vipMechanism: "conductor_pick",
+    };
+  }
+  if (calDow === 6) {
+    // Last VS top-X conductor pick — Friday scores via T-1.
     return {
       date,
       conductorMechanism: "vs_top_10",
@@ -88,7 +97,7 @@ function weekdayPushConfig(
   options?: WeekTemplateOptions,
 ): DayConfigInput {
   const calDow = getServerDayOfWeek(date);
-  if (calDow === 0 || calDow === 6) {
+  if (calDow === 0) {
     return {
       date,
       conductorMechanism: "custom",

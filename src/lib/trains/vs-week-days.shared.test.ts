@@ -24,6 +24,13 @@ describe("vsScoreContextForTrainDate", () => {
     expect(ctx.vsDayKey).toBe("totalMobilization");
   });
 
+  it("maps Tuesday train days to Monday VS day 1 scores", () => {
+    const ctx = vsScoreContextForTrainDate("2026-06-09");
+    expect(ctx.scoreDate).toBe("2026-06-08");
+    expect(ctx.vsDayNumber).toBe(1);
+    expect(ctx.vsDayKey).toBe("radarTraining");
+  });
+
   it("maps Sunday train days to Saturday Buster Day scores", () => {
     const ctx = vsScoreContextForTrainDate("2026-06-14");
     expect(ctx.scoreDate).toBe("2026-06-13");
