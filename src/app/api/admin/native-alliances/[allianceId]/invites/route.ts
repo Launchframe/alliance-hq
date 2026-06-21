@@ -16,9 +16,7 @@ const bodySchema = z
   .object({
     kind: z.enum(["email", "protected_link"]).default("email"),
     email: z.string().trim().email().optional(),
-    roleName: z
-      .enum(["owner", "officer", "data_entry", "viewer", "member"])
-      .default("officer"),
+    roleName: z.enum(["owner", "officer", "data_entry", "viewer", "member"]),
     redirectPath: z.string().trim().max(512).optional(),
     adminLabel: z.string().trim().max(120).optional(),
   })

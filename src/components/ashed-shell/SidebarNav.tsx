@@ -97,6 +97,7 @@ export function SidebarNav({
   const navGroups = filterNavGroupsForPermissions(
     filterNavGroupsForOperatingMode(NAV_GROUPS, operatingMode),
     permissionSet,
+    { bypass: showAdminPortal },
   )
     .map((group) => ({
       ...group,

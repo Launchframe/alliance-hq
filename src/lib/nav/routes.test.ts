@@ -84,6 +84,16 @@ describe("filterNavGroupsForPermissions", () => {
     const hqNative = filtered.find((group) => group.id === "hq-native");
     expect(hqNative?.pages.some((page) => page.id === "video-upload")).toBe(true);
   });
+
+  it("skips permission filtering for platform maintainers", () => {
+    const filtered = filterNavGroupsForPermissions(
+      NAV_GROUPS,
+      new Set(["hq:admin"]),
+      { bypass: true },
+    );
+    const hqNative = filtered.find((group) => group.id === "hq-native");
+    expect(hqNative?.pages.some((page) => page.id === "video-upload")).toBe(true);
+  });
 });
 
 describe("isNavActive", () => {

@@ -108,7 +108,20 @@ export async function getRbacContext(
     return null;
   }
 
-  const isPlatformMaintainer = user.isPlatformMaintainer === 1;
+  let isPlatformMaintainer = user.isPlatformMaintainer === 1;
+  if (
+    !isPlatformMaintainer &&
+    session.hqUserId &&
+    session.hqUserId !== user.id
+  ) {
+    const [sessionOwner] = await db
+      .select({ isPlatformMaintainer: schema.hqUsers.isPlatformMaintainer })
+      .from(schema.hqUsers)
+      .where(eq(schema.hqUsers.id, session.hqUserId))
+      .limit(1);
+    isPlatformMaintainer = sessionOwner?.isPlatformMaintainer === 1;
+  }
+
   const { roleName, permissions } = await loadUserPermissions(
     sessionId,
     user.id,

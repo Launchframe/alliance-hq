@@ -40,7 +40,12 @@ export function resolveAshedPath(page: NavPageDef): string | undefined {
 export function filterNavGroupsForPermissions(
   groups: NavGroupDef[],
   permissions: ReadonlySet<string>,
+  options: { bypass?: boolean } = {},
 ): NavGroupDef[] {
+  if (options.bypass) {
+    return groups;
+  }
+
   return groups
     .map((group) => ({
       ...group,

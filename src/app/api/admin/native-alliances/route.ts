@@ -31,8 +31,12 @@ export async function POST(request: Request) {
   let body: z.infer<typeof bodySchema>;
   try {
     body = bodySchema.parse(await request.json());
-  } catch {
-    return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
+  } catch (error) {
+    const message =
+      error instanceof z.ZodError
+        ? (error.issues[0]?.message ?? "Invalid request body.")
+        : "Invalid request body.";
+    return NextResponse.json({ error: message }, { status: 400 });
   }
 
   try {
