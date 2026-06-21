@@ -719,6 +719,8 @@
     "inviteRequired": "An admin invite is required before connecting Ashed in this environment. Accept your invite link first, or ask a platform maintainer for one.",
     "successTitle": "Connected to Ashed",
     "signedInAsBefore": "Signed in as",
+    "returningUserHint": "Welcome back — paste a fresh connection key from DevTools when you're ready.",
+    "showSetupInstructions": "Show full setup instructions",
     "noExpiryRead": "Connected, but we couldn't read an expiry date from this token. We'll still notify you if Ashed stops accepting it.",
     "continue": "Continue to Alliance HQ",
     "allianceResolved": "Alliance linked: {tag} ({name})",

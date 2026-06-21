@@ -719,6 +719,8 @@
     "inviteRequired": "Neste ambiente, é necessário um convite de administrador antes de conectar o Ashed. Aceite o link do convite primeiro ou peça um ao mantenedor da plataforma.",
     "successTitle": "Conectado ao Ashed",
     "signedInAsBefore": "Conectado como",
+    "returningUserHint": "Bem-vindo de volta — cole uma nova chave de conexão do DevTools quando estiver pronto.",
+    "showSetupInstructions": "Ver instruções completas de configuração",
     "noExpiryRead": "Conectado, mas não conseguimos ler uma data de expiração neste token. Ainda assim, notificaremos você se o Ashed parar de aceitá-lo.",
     "continue": "Continuar para o Alliance HQ",
     "allianceResolved": "Aliança vinculada: {tag} ({name})",
