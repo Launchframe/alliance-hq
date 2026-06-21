@@ -107,12 +107,37 @@ async function createMembership(
   const db = getDb();
   const now = new Date();
   await insertRoleIfNeeded(roleName);
+  const roleId = ROLE_IDS[roleName];
+
+  const [existing] = await db
+    .select({ id: schema.allianceMemberships.id })
+    .from(schema.allianceMemberships)
+    .where(
+      and(
+        eq(schema.allianceMemberships.allianceId, allianceId),
+        eq(schema.allianceMemberships.hqUserId, hqUserId),
+      ),
+    )
+    .limit(1);
+
+  if (existing) {
+    await db
+      .update(schema.allianceMemberships)
+      .set({
+        roleId,
+        source,
+        status: "active",
+        updatedAt: now,
+      })
+      .where(eq(schema.allianceMemberships.id, existing.id));
+    return;
+  }
 
   await db.insert(schema.allianceMemberships).values({
     id: nanoid(16),
     allianceId,
     hqUserId,
-    roleId: ROLE_IDS[roleName],
+    roleId,
     source,
     status: "active",
     createdAt: now,
