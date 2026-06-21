@@ -10,6 +10,8 @@ import { ConductorHistoryTable } from "@/components/trains/ConductorHistoryTable
 import { ConductorWheelModal } from "@/components/trains/ConductorWheelModal";
 import { SpinWeekConductorFlow } from "@/components/trains/SpinWeekConductorFlow";
 import { TrainPivotBanner } from "@/components/trains/TrainPivotBanner";
+import { TrainsHelpPanel } from "@/components/trains/TrainsHelpPanel";
+import { TrainsUserSettingsMenu } from "@/components/trains/TrainsUserSettingsMenu";
 import {
   TrainsWalkthroughOverlay,
   trainsWalkthroughSeen,
@@ -36,8 +38,16 @@ import {
 import { Dialog } from "@/components/ui/dialog";
 import { AppSelect } from "@/components/ui/AppSelect";
 import { Link } from "@/i18n/navigation";
+import { SERVER_TIME_IANA } from "@/lib/timezone/constants";
 import { buildProvisionalWeekPage } from "@/lib/client/week-schedule-provisional";
-import { getMonthKey, monthEndFromKey, monthStartFromKey, addCalendarDays, getWeekStartMonday, isCalendarDateOnOrAfter, isWithinPivotWindow } from "@/lib/trains/game-time";
+import {
+  addCalendarDays,
+  formatServerCalendarDate,
+  getMonthKey,
+  isWithinPivotWindow,
+  monthEndFromKey,
+  monthStartFromKey,
+} from "@/lib/trains/game-time";
 import type {
   MonthSchedulePagePayload,
   TrainsDashboardPayload,
@@ -72,6 +82,21 @@ import {
 import { latestLockedDateInWeek, pivotEconomyTargetDates } from "@/lib/trains/week-template-change.shared";
 import { spinWeekDayLabel } from "@/lib/trains/spin-week.shared";
 import { supportsManualConductorPick, supportsManualVipPick } from "@/lib/trains/templates";
+import {
+  allianceTrainWeekFromRow,
+  getTrainWeekStart,
+} from "@/lib/trains/train-week-calendar.shared";
+import {
+  canManualPickForDate,
+  canOfficerChangeTemplateForDate,
+  canRollForDate,
+} from "@/lib/trains/trains-day-actions.shared";
+import {
+  TRAINS_DISPLAY_WEEK_STARTS,
+} from "@/lib/trains/trains-display-calendar.shared";
+import {
+  wheelSpeedMultiplier,
+} from "@/lib/trains/trains-wheel-speed.shared";
 
 type Props = {
   initial: TrainsDashboardPayload;
@@ -186,6 +211,37 @@ export function TrainsDashboard({ initial }: Props) {
   const [swapOpen, setSwapOpen] = useState(false);
   const [swapBusy, setSwapBusy] = useState(false);
   const [scheduleBusy, setScheduleBusy] = useState(false);
+  const trainWeekConfig = useMemo(
+    () => allianceTrainWeekFromRow({ trainWeekStartDow: data.trainWeekStartDow }),
+    [data.trainWeekStartDow],
+  );
+
+  const { displayWeekStartDow, wheelSpinSpeed } = data;
+
+  const wheelAnimMultiplier = useMemo(
+    () => wheelSpeedMultiplier(wheelSpinSpeed),
+    [wheelSpinSpeed],
+  );
+
+  const serverTimeBadge = useMemo(() => {
+    const now = new Date();
+    const date = formatServerCalendarDate(now);
+    const time = new Intl.DateTimeFormat(undefined, {
+      timeZone: SERVER_TIME_IANA,
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    }).format(now);
+    return t("serverTimeBadge.current", { date, time });
+  }, [t]);
+
+  const weekdayHeaderLabels = useMemo(() => {
+    const keys =
+      displayWeekStartDow === TRAINS_DISPLAY_WEEK_STARTS.monday
+        ? (["mon", "tue", "wed", "thu", "fri", "sat", "sun"] as const)
+        : (["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const);
+    return keys.map((key) => t(`weekdays.${key}`));
+  }, [displayWeekStartDow, t]);
 
   const applySnapshot = useCallback((next: TrainsDashboardSnapshot) => {
     setData(next.data);
@@ -321,19 +377,20 @@ export function TrainsDashboard({ initial }: Props) {
       void fetchMonth(getMonthKey(today));
       return;
     }
-    void fetchWeek(getWeekStartMonday(today));
-  }, [data.today, fetchMonth, fetchWeek, scheduleView]);
+    void fetchWeek(getTrainWeekStart(today, trainWeekConfig));
+  }, [data.today, fetchMonth, fetchWeek, scheduleView, trainWeekConfig]);
 
   const isOnTodayView = useMemo(() => {
     if (selectedDate !== data.today) return false;
     if (scheduleView === "month") {
       return viewedMonth.monthKey === getMonthKey(data.today);
     }
-    return viewedWeek.weekStart === getWeekStartMonday(data.today);
+    return viewedWeek.weekStart === getTrainWeekStart(data.today, trainWeekConfig);
   }, [
     data.today,
     scheduleView,
     selectedDate,
+    trainWeekConfig,
     viewedMonth.monthKey,
     viewedWeek.weekStart,
   ]);
@@ -345,34 +402,45 @@ export function TrainsDashboard({ initial }: Props) {
         void fetchMonth(getMonthKey(selectedDateRef.current));
         return;
       }
-      void fetchWeek(getWeekStartMonday(selectedDateRef.current));
+      void fetchWeek(
+        getTrainWeekStart(selectedDateRef.current, trainWeekConfig),
+      );
     },
-    [fetchMonth, fetchWeek],
+    [fetchMonth, fetchWeek, trainWeekConfig],
   );
 
-  const selectedWeekStart = getWeekStartMonday(selectedDate);
-  const selectedWeekEnd = addCalendarDays(selectedWeekStart, 6);
+  const targetTrainWeekStart = getTrainWeekStart(selectedDate, trainWeekConfig);
+  const targetTrainWeekEnd = addCalendarDays(targetTrainWeekStart, 6);
   const weekViewSeed = useMemo((): WeekSchedulePagePayload => {
-    if (viewedWeek.weekStart === selectedWeekStart) {
+    if (viewedWeek.weekStart === targetTrainWeekStart) {
       return viewedWeek;
     }
     const dayConfigs = viewedMonth.dayConfigs.filter(
-      (day) => day.date >= selectedWeekStart && day.date <= selectedWeekEnd,
+      (day) => day.date >= targetTrainWeekStart && day.date <= targetTrainWeekEnd,
     );
     const weekRecords = viewedMonth.monthRecords.filter(
-      (record) => record.date >= selectedWeekStart && record.date <= selectedWeekEnd,
+      (record) =>
+        record.date >= targetTrainWeekStart && record.date <= targetTrainWeekEnd,
     );
     if (dayConfigs.length === 0) {
-      return buildProvisionalWeekPage(selectedWeekStart, viewedWeek.templateType);
+      return buildProvisionalWeekPage(
+        targetTrainWeekStart,
+        inferWeekTemplateFromDayConfigs([]),
+      );
     }
     return {
-      weekStart: selectedWeekStart,
-      weekEnd: selectedWeekEnd,
-      templateType: viewedWeek.templateType,
+      weekStart: targetTrainWeekStart,
+      weekEnd: targetTrainWeekEnd,
+      templateType: inferWeekTemplateFromDayConfigs(dayConfigs),
       dayConfigs,
       weekRecords,
     };
-  }, [selectedWeekStart, selectedWeekEnd, viewedWeek, viewedMonth]);
+  }, [
+    targetTrainWeekStart,
+    targetTrainWeekEnd,
+    viewedWeek,
+    viewedMonth,
+  ]);
 
   const activeDayConfigs =
     scheduleView === "month" ? viewedMonth.dayConfigs : viewedWeek.dayConfigs;
@@ -451,14 +519,25 @@ export function TrainsDashboard({ initial }: Props) {
   );
 
   const activeWeekTemplate = useMemo((): WeekTemplateType => {
-    if (viewedWeek.templateType) {
-      return viewedWeek.templateType;
+    const weekPage =
+      viewedWeek.weekStart === targetTrainWeekStart ? viewedWeek : weekViewSeed;
+    if (weekPage.templateType) {
+      return weekPage.templateType;
     }
-    if (viewedWeek.weekStart === data.weekStart && data.schedule?.templateType) {
+    if (
+      weekPage.weekStart === data.weekStart &&
+      data.schedule?.templateType
+    ) {
       return data.schedule.templateType as WeekTemplateType;
     }
-    return inferWeekTemplateFromDayConfigs(viewedWeek.dayConfigs);
-  }, [data.schedule, data.weekStart, viewedWeek]);
+    return inferWeekTemplateFromDayConfigs(weekPage.dayConfigs);
+  }, [
+    data.schedule,
+    data.weekStart,
+    targetTrainWeekStart,
+    viewedWeek,
+    weekViewSeed,
+  ]);
 
   const refresh = useCallback(async () => {
     const res = await fetch("/api/trains/schedule");
@@ -805,13 +884,22 @@ export function TrainsDashboard({ initial }: Props) {
 
   const paintDates = useCallback(
     (dates: string[], templateType: WeekTemplateType) => {
+      const allowedDates = data.canUnlockConductor
+        ? dates
+        : dates.filter((date) =>
+            canOfficerChangeTemplateForDate(date, data.today),
+          );
+      if (allowedDates.length === 0) {
+        setError(t("scheduleFailed"));
+        return Promise.resolve(false);
+      }
       return withOptimisticMutation(
-        (snap) => applyOptimisticPaint(snap, dates, templateType),
+        (snap) => applyOptimisticPaint(snap, allowedDates, templateType),
         async () => {
           const res = await fetch("/api/trains/schedule/days", {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ dates, templateType }),
+            body: JSON.stringify({ dates: allowedDates, templateType }),
           });
           const body = (await res.json()) as { error?: string };
           return {
@@ -821,17 +909,19 @@ export function TrainsDashboard({ initial }: Props) {
         },
       );
     },
-    [t, withOptimisticMutation],
+    [data.canUnlockConductor, data.today, setError, t, withOptimisticMutation],
   );
 
   const handleTemplateClick = useCallback(
     (templateType: WeekTemplateType) => {
-      const { weekStart, weekEnd, weekRecords } = viewedWeek;
+      const weekPage =
+        viewedWeek.weekStart === targetTrainWeekStart ? viewedWeek : weekViewSeed;
+      const { weekStart, weekEnd, weekRecords } = weekPage;
       const currentTemplate =
-        viewedWeek.templateType ??
+        weekPage.templateType ??
         (weekStart === data.weekStart && data.schedule
           ? (data.schedule.templateType as WeekTemplateType)
-          : inferWeekTemplateFromDayConfigs(viewedWeek.dayConfigs));
+          : inferWeekTemplateFromDayConfigs(weekPage.dayConfigs));
 
       if (currentTemplate === templateType) return;
 
@@ -848,7 +938,13 @@ export function TrainsDashboard({ initial }: Props) {
         lockedThroughDate,
       });
     },
-    [data.schedule?.templateType, data.weekStart, viewedWeek],
+    [
+      data.schedule?.templateType,
+      data.weekStart,
+      targetTrainWeekStart,
+      viewedWeek,
+      weekViewSeed,
+    ],
   );
 
   const confirmPendingTemplateChange = useCallback(
@@ -950,22 +1046,32 @@ export function TrainsDashboard({ initial }: Props) {
     conductorPaint,
   );
   const vipMech = selectedDayConfig?.vipMechanism;
+  const canPaintTemplate =
+    data.canUnlockConductor ||
+    canOfficerChangeTemplateForDate(selectedDate, data.today);
+  const canRoll = canRollForDate(selectedDate, data.today);
   const canManualPick =
     !locked &&
     supportsManualConductorPick(conductorMech) &&
-    isCalendarDateOnOrAfter(selectedDate, data.today);
+    canManualPickForDate();
   const canManualPickVip =
     !locked &&
     supportsManualVipPick(vipMech) &&
-    isCalendarDateOnOrAfter(selectedDate, data.today);
-  const dayIsActionable = isCalendarDateOnOrAfter(selectedDate, data.today);
+    canManualPickForDate();
+  const showQuickActions =
+    data.canManageTrains &&
+    (canRoll ||
+      canManualPick ||
+      canManualPickVip ||
+      Boolean(selectedRecord?.conductorMemberId) ||
+      locked);
   const selectedConductorSpinSource = conductorSpinSource(
     selectedDayConfig?.conductorMechanism,
     conductorPaint,
   );
   const selectedVipSpinSource = vipSpinSource(vipMech);
   const spinWeekContext = useMemo(() => {
-    if (scheduleView === "week") {
+    if (viewedWeek.weekStart === targetTrainWeekStart) {
       return {
         weekStart: viewedWeek.weekStart,
         weekEnd: viewedWeek.weekEnd,
@@ -974,19 +1080,13 @@ export function TrainsDashboard({ initial }: Props) {
       };
     }
 
-    const weekStart = getWeekStartMonday(selectedDate);
-    const weekEnd = addCalendarDays(weekStart, 6);
     return {
-      weekStart,
-      weekEnd,
-      dayConfigs: viewedMonth.dayConfigs.filter(
-        (day) => day.date >= weekStart && day.date <= weekEnd,
-      ),
-      weekRecords: viewedMonth.monthRecords.filter(
-        (record) => record.date >= weekStart && record.date <= weekEnd,
-      ),
+      weekStart: targetTrainWeekStart,
+      weekEnd: targetTrainWeekEnd,
+      dayConfigs: weekViewSeed.dayConfigs,
+      weekRecords: weekViewSeed.weekRecords,
     };
-  }, [scheduleView, selectedDate, viewedMonth, viewedWeek]);
+  }, [targetTrainWeekEnd, targetTrainWeekStart, viewedWeek, weekViewSeed]);
   const selectedPoolDetailOptions = useMemo((): PoolDetailsOption[] => {
     const options: PoolDetailsOption[] = [];
     if (isPoolSpinSource(selectedConductorSpinSource)) {
@@ -1047,47 +1147,65 @@ export function TrainsDashboard({ initial }: Props) {
 
   return (
     <div className="mx-auto flex w-full min-w-0 max-w-5xl flex-col gap-6 p-4 sm:p-6">
-      <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
+      <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0 flex-1">
           <h1 className="text-2xl font-semibold text-[#e6edf3]">{t("title")}</h1>
           <p className="mt-1 text-sm text-[#8b949e]">{t("subtitle")}</p>
-          {data.canManageTrains && data.dayConfigs.length > 0 ? (
-            <button
-              type="button"
-              onClick={() => {
+          <p
+            className="mt-2 inline-flex rounded-lg border border-[#30363d] bg-[#0d1117]/80 px-2.5 py-1 text-[10px] tabular-nums text-[#8b949e]"
+            data-testid="trains-server-time-notice"
+          >
+            {serverTimeBadge}
+          </p>
+        </div>
+        <div className="flex w-full min-w-0 flex-col gap-2 sm:w-auto sm:items-end">
+          <div className="flex items-center justify-end gap-2">
+            <TrainsHelpPanel
+              showTakeTour={data.canManageTrains && data.dayConfigs.length > 0}
+              onTakeTour={() => {
                 setWalkthroughKey((key) => key + 1);
                 setWalkthroughOpen(true);
               }}
-              className="mt-2 text-xs font-medium text-[#58a6ff] hover:underline"
-            >
-              {t("walkthrough.takeTour")}
-            </button>
-          ) : null}
-        </div>
-        {data.schedule || viewedWeek.dayConfigs.length > 0 ? (
-          <div
-            className="flex w-full min-w-0 flex-col gap-1 sm:w-auto sm:min-w-[15rem]"
-            data-testid="trains-template-selector"
-          >
-            <span
-              id="trains-week-template-label"
-              className="text-[10px] font-medium uppercase tracking-wide text-[#8b949e]"
-            >
-              {t("templateSelectLabel")}
-            </span>
-            <AppSelect
-              value={activeWeekTemplate}
-              onChange={(value) =>
-                handleTemplateClick(value as WeekTemplateType)
-              }
-              options={templateSelectOptions}
-              disabled={!data.canManageTrains}
-              aria-label={t("templateSelectAria")}
-              triggerClassName="rounded-xl border-[#30363d] bg-[#161b22]"
-              className="w-full"
+            />
+            <TrainsUserSettingsMenu
+              displayWeekStartDow={displayWeekStartDow}
+              wheelSpinSpeed={wheelSpinSpeed}
+              canEdit
+              onPreferencesChange={({ displayWeekStartDow: nextDow, wheelSpinSpeed: nextSpeed }) => {
+                setData((current) => ({
+                  ...current,
+                  displayWeekStartDow: nextDow,
+                  wheelSpinSpeed: nextSpeed,
+                }));
+              }}
+              onError={setError}
             />
           </div>
-        ) : null}
+          {data.schedule || viewedWeek.dayConfigs.length > 0 ? (
+            <div
+              className="flex w-full min-w-0 flex-col gap-1 sm:min-w-[15rem]"
+              data-testid="trains-template-selector"
+            >
+              <span
+                id="trains-week-template-label"
+                className="text-[10px] font-medium uppercase tracking-wide text-[#8b949e]"
+              >
+                {t("templateSelectLabel")}
+              </span>
+              <AppSelect
+                value={activeWeekTemplate}
+                onChange={(value) =>
+                  handleTemplateClick(value as WeekTemplateType)
+                }
+                options={templateSelectOptions}
+                disabled={!data.canManageTrains}
+                aria-label={t("templateSelectAria")}
+                triggerClassName="rounded-xl border-[#30363d] bg-[#161b22]"
+                className="w-full"
+              />
+            </div>
+          ) : null}
+        </div>
       </header>
 
       {error ? (
@@ -1142,6 +1260,7 @@ export function TrainsDashboard({ initial }: Props) {
               initialDayConfigs={weekViewSeed.dayConfigs}
               initialWeekRecords={weekViewSeed.weekRecords}
               selectedDate={selectedDate}
+              displayWeekStartDow={displayWeekStartDow}
               conductorLabels={conductorShortLabels}
               vipLabels={vipShortLabels}
               templateShortLabels={templateShortLabels}
@@ -1163,7 +1282,8 @@ export function TrainsDashboard({ initial }: Props) {
               initialDayConfigs={data.dayConfigs}
               initialMonthRecords={data.weekRecords}
               selectedDate={selectedDate}
-              canPaint={data.canManageTrains}
+              displayWeekStartDow={displayWeekStartDow}
+              canPaint={data.canManageTrains && canPaintTemplate}
               conductorLabels={conductorShortLabels}
               vipLabels={vipShortLabels}
               templateLabels={templateLabels}
@@ -1172,15 +1292,7 @@ export function TrainsDashboard({ initial }: Props) {
                 nextMonth: t("monthNavNext"),
                 paletteTitle: t("paintPaletteTitle"),
                 paletteHint: t("paintPaletteHint"),
-                weekdayHeaders: [
-                  t("weekdays.mon"),
-                  t("weekdays.tue"),
-                  t("weekdays.wed"),
-                  t("weekdays.thu"),
-                  t("weekdays.fri"),
-                  t("weekdays.sat"),
-                  t("weekdays.sun"),
-                ],
+                weekdayHeaders: weekdayHeaderLabels,
               }}
               externalMonth={viewedMonth}
               onSelectDate={setSelectedDate}
@@ -1227,7 +1339,7 @@ export function TrainsDashboard({ initial }: Props) {
           ) : null}
 
           {/* Quick actions */}
-          {data.canManageTrains && dayIsActionable ? (
+          {showQuickActions ? (
             <div
               className="flex flex-col gap-3 border-t border-[#30363d] pt-4"
               data-testid="trains-quick-actions"
@@ -1235,14 +1347,17 @@ export function TrainsDashboard({ initial }: Props) {
               <h3 className="text-sm font-medium text-[#8b949e]">
                 {t("quickActions")}
               </h3>
-              <TrainSpinSourcePanel
-                conductorSource={selectedConductorSpinSource}
-                vipSource={selectedVipSpinSource}
-                pools={data.pools}
-                showConductorSpin={selectedConductorSpinSource != null}
-                showVipSpin={selectedVipSpinSource != null}
-                onViewPool={openPoolDetails}
-              />
+              {(canRoll || canManualPick || canManualPickVip) &&
+              (selectedConductorSpinSource != null || selectedVipSpinSource != null) ? (
+                <TrainSpinSourcePanel
+                  conductorSource={selectedConductorSpinSource}
+                  vipSource={selectedVipSpinSource}
+                  pools={data.pools}
+                  showConductorSpin={selectedConductorSpinSource != null}
+                  showVipSpin={selectedVipSpinSource != null}
+                  onViewPool={openPoolDetails}
+                />
+              ) : null}
               <div className="flex flex-wrap gap-2">
                 <SpinWeekConductorFlow
                   weekStart={spinWeekContext.weekStart}
@@ -1252,6 +1367,7 @@ export function TrainsDashboard({ initial }: Props) {
                   weekRecords={spinWeekContext.weekRecords}
                   canManageTrains={data.canManageTrains}
                   canSpinViewedWeek={spinWeekContext.weekEnd >= data.today}
+                  wheelSpeedMultiplier={wheelAnimMultiplier}
                   snapshotRef={snapshotRef}
                   applySnapshot={applySnapshot}
                   withOptimisticMutation={withOptimisticMutation}
@@ -1259,7 +1375,8 @@ export function TrainsDashboard({ initial }: Props) {
                   onError={setError}
                   onRefresh={refresh}
                 />
-                {canSpinConductor(
+                {canRoll &&
+                canSpinConductor(
                   selectedDayConfig?.conductorMechanism,
                   locked,
                   conductorPaint,
@@ -1276,8 +1393,9 @@ export function TrainsDashboard({ initial }: Props) {
                       : t("spinWheel")}
                   </button>
                 ) : null}
-                {conductorMech === "vs_high_score" ||
-                conductorMech === "donations_top" ? (
+                {canRoll &&
+                (conductorMech === "vs_high_score" ||
+                  conductorMech === "donations_top") ? (
                   <button
                     type="button"
                     disabled={locked}
@@ -1309,7 +1427,7 @@ export function TrainsDashboard({ initial }: Props) {
                     {t("swap.action")}
                   </button>
                 ) : null}
-                {canSpinVip(vipMech, locked) ? (
+                {canRoll && canSpinVip(vipMech, locked) ? (
                   <button
                     type="button"
                     onClick={() => void runRoll("vip")}
@@ -1482,6 +1600,7 @@ export function TrainsDashboard({ initial }: Props) {
         stats={wheelStats ?? null}
         qualification={wheelQualification}
         dayLabel={wheelDayLabel}
+        speedMultiplier={wheelAnimMultiplier}
         onClose={handleWheelClose}
         onSpinAgain={handleWheelSpinAgain}
         onOverride={(reason) => void handleWheelOverride(reason)}

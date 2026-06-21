@@ -8,6 +8,7 @@ export const MOBILE_VIEWPORT_TOP_PADDING_PX = 16;
 export const MOBILE_DIALOG_CONTENT_GAP_PX = 16;
 
 export const TRAINS_WALKTHROUGH_ANCHOR_TESTIDS = [
+  "trains-server-time-notice",
   "trains-schedule-section",
   "trains-week-strip",
   "trains-template-selector",

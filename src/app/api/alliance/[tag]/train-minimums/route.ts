@@ -6,6 +6,7 @@ import {
   requireAllianceRoutePermission,
   resolveAllianceRouteForSession,
 } from "@/lib/alliance/alliance-route-context.server";
+import { writeAuditLog } from "@/lib/bff/audit";
 import {
   loadTrainConductorMinimums,
   saveTrainConductorMinimums,
@@ -79,10 +80,51 @@ export async function PATCH(request: Request, context: RouteContext) {
       );
     }
 
+    const before = await loadTrainConductorMinimums(alliance.allianceId, true);
     const saved = await saveTrainConductorMinimums(
       alliance.allianceId,
       body.data,
     );
+
+    const changed =
+      before.minVsPoints !== saved.minVsPoints ||
+      before.minDonationPoints !== saved.minDonationPoints ||
+      before.leewayPct !== saved.leewayPct ||
+      before.window !== saved.window;
+
+    if (!changed) {
+      return NextResponse.json({
+        allianceTag: alliance.tag,
+        allianceName: alliance.name,
+        ...saved,
+        canManage: true,
+        unchanged: true,
+      });
+    }
+
+    await writeAuditLog({
+      sessionId: session.id,
+      allianceId: alliance.allianceId,
+      hqUserId: session.hqUserId ?? undefined,
+      action: "trains.conductor_minimums_update",
+      resourceType: "alliance",
+      resourceId: alliance.allianceId,
+      resourceName: alliance.name,
+      metadata: {
+        before: {
+          minVsPoints: before.minVsPoints,
+          minDonationPoints: before.minDonationPoints,
+          leewayPct: before.leewayPct,
+          window: before.window,
+        },
+        after: {
+          minVsPoints: saved.minVsPoints,
+          minDonationPoints: saved.minDonationPoints,
+          leewayPct: saved.leewayPct,
+          window: saved.window,
+        },
+      },
+    });
 
     return NextResponse.json({
       allianceTag: alliance.tag,

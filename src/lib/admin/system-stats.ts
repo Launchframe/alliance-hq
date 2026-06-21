@@ -1,5 +1,9 @@
-import { count, desc, eq } from "drizzle-orm";
+import { asc, count, desc, eq, inArray } from "drizzle-orm";
 
+import {
+  buildAdminAlliancesQuery,
+  type AdminAlliancesQueryParams,
+} from "@/lib/admin/admin-alliances-query";
 import { getDb, schema } from "@/lib/db";
 import { getDatabaseHost } from "@/lib/db/url";
 
@@ -131,39 +135,61 @@ export async function loadSystemStats(): Promise<SystemStats> {
   };
 }
 
-export async function loadAdminAlliances() {
+export async function loadAdminAlliances(params: AdminAlliancesQueryParams) {
   const db = getDb();
-  const alliances = await db
-    .select()
-    .from(schema.alliances)
-    .orderBy(schema.alliances.name);
+  const query = buildAdminAlliancesQuery(params);
+  const orderFn = query.order === "desc" ? desc : asc;
 
-  const membershipCounts = await db
-    .select({
-      allianceId: schema.allianceMemberships.allianceId,
-      count: count(),
-    })
-    .from(schema.allianceMemberships)
-    .groupBy(schema.allianceMemberships.allianceId);
+  const [alliances, totalRow] = await Promise.all([
+    db
+      .select()
+      .from(schema.alliances)
+      .where(query.where)
+      .orderBy(orderFn(query.orderBy))
+      .limit(query.limit)
+      .offset(query.offset),
+    db
+      .select({ count: count() })
+      .from(schema.alliances)
+      .where(query.where),
+  ]);
+
+  const allianceIds = alliances.map((alliance) => alliance.id);
+  const membershipCounts =
+    allianceIds.length > 0
+      ? await db
+          .select({
+            allianceId: schema.allianceMemberships.allianceId,
+            count: count(),
+          })
+          .from(schema.allianceMemberships)
+          .where(inArray(schema.allianceMemberships.allianceId, allianceIds))
+          .groupBy(schema.allianceMemberships.allianceId)
+      : [];
 
   const countByAlliance = new Map(
     membershipCounts.map((row) => [row.allianceId, row.count]),
   );
 
-  return alliances.map((alliance) => ({
-    id: alliance.id,
-    slug: alliance.slug,
-    tag: alliance.tag,
-    name: alliance.name,
-    ashedAllianceId: alliance.ashedAllianceId,
-    operatingMode: alliance.operatingMode,
-    ownerEmail: alliance.ownerEmail,
-    collaborators: alliance.collaboratorsJson ?? [],
-    rolesSyncedAt: alliance.rolesSyncedAt,
-    memberCount: countByAlliance.get(alliance.id) ?? 0,
-    createdAt: alliance.createdAt,
-    updatedAt: alliance.updatedAt,
-  }));
+  return {
+    alliances: alliances.map((alliance) => ({
+      id: alliance.id,
+      slug: alliance.slug,
+      tag: alliance.tag,
+      name: alliance.name,
+      ashedAllianceId: alliance.ashedAllianceId,
+      operatingMode: alliance.operatingMode,
+      ownerEmail: alliance.ownerEmail,
+      collaborators: alliance.collaboratorsJson ?? [],
+      rolesSyncedAt: alliance.rolesSyncedAt,
+      memberCount: countByAlliance.get(alliance.id) ?? 0,
+      createdAt: alliance.createdAt,
+      updatedAt: alliance.updatedAt,
+    })),
+    total: totalRow[0]?.count ?? 0,
+    limit: query.limit,
+    offset: query.offset,
+  };
 }
 
 export async function loadAdminRolesWithPermissions() {

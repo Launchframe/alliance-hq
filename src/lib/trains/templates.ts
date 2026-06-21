@@ -5,12 +5,16 @@ import type {
   VipMechanismType,
   WeekTemplateType,
 } from "@/lib/trains/types";
-import { addCalendarDays, weekDatesFromMonday } from "@/lib/trains/game-time";
 import {
-  dayIndexInWeek,
+  addCalendarDays,
+  getServerDayOfWeek,
+} from "@/lib/trains/game-time";
+import {
+  dayIndexInTrainWeekForSchedule,
   isCompositeWeekTemplate,
   segmentTemplateForDayIndex,
 } from "@/lib/trains/week-template-registry.shared";
+import { weekDatesInTrainWeek } from "@/lib/trains/train-week-calendar.shared";
 
 export type WeekTemplateOptions = {
   mondayVipMechanism?: VipMechanismType;
@@ -28,30 +32,30 @@ const DEFAULT_WEEKEND_VIP_EVENT: EventTopXConfig = {
 };
 
 function dayNameIndex(dateStr: string, weekStart: string): number {
-  return dayIndexInWeek(dateStr, weekStart);
+  return dayIndexInTrainWeekForSchedule(dateStr, weekStart);
 }
 
 function pushWeekDay(
   date: string,
-  weekStart: string,
+  _weekStart: string,
   options?: WeekTemplateOptions,
 ): DayConfigInput {
-  const idx = dayNameIndex(date, weekStart);
-  if (idx === 0) {
+  const calDow = getServerDayOfWeek(date);
+  if (calDow === 1) {
     return {
       date,
       conductorMechanism: "vs_top_10",
       vipMechanism: options?.mondayVipMechanism ?? "donations_second",
     };
   }
-  if (idx === 1) {
+  if (calDow === 2) {
     return {
       date,
       conductorMechanism: "vs_high_score",
       vipMechanism: "conductor_pick",
     };
   }
-  if (idx >= 2 && idx <= 4) {
+  if (calDow >= 3 && calDow <= 5) {
     return {
       date,
       conductorMechanism: "vs_top_10",
@@ -83,8 +87,8 @@ function weekdayPushConfig(
   weekStart: string,
   options?: WeekTemplateOptions,
 ): DayConfigInput {
-  const idx = dayNameIndex(date, weekStart);
-  if (idx < 0 || idx > 4) {
+  const calDow = getServerDayOfWeek(date);
+  if (calDow === 0 || calDow === 6) {
     return {
       date,
       conductorMechanism: "custom",
@@ -115,7 +119,7 @@ export function generateWeekDayConfigs(
   weekStart: string,
   options?: WeekTemplateOptions,
 ): DayConfigInput[] {
-  const dates = weekDatesFromMonday(weekStart);
+  const dates = weekDatesInTrainWeek(weekStart);
 
   if (isCompositeWeekTemplate(templateType)) {
     return dates.map((date) => {

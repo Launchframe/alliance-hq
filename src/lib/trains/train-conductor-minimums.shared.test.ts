@@ -16,10 +16,10 @@ describe("train-conductor-minimums", () => {
     expect(effectiveMinimum(0, 50)).toBe(0);
   });
 
-  it("weekly evaluation uses prior Mon–Sun", () => {
+  it("weekly evaluation uses prior train week (Tue–Mon)", () => {
     expect(
       evaluationPeriodForTrainDate("2026-06-18", "weekly"),
-    ).toEqual({ start: "2026-06-08", end: "2026-06-14" });
+    ).toEqual({ start: "2026-06-09", end: "2026-06-15" });
   });
 
   it("daily evaluation uses prior calendar day", () => {

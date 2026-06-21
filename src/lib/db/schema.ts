@@ -52,6 +52,8 @@ export const alliances = pgTable("alliances", {
   trainConductorMinimumsWindow: text("train_conductor_minimums_window")
     .notNull()
     .default("weekly"),
+  /** Train week start DOW in server calendar (0=Sun … 6=Sat; default Tue). */
+  trainWeekStartDow: integer("train_week_start_dow").notNull().default(2),
   /** ashed (default) — Base44 sync; native — HQ roster without Ashed seats. */
   operatingMode: text("operating_mode").notNull().default("ashed"),
   /** Native alliances: HQ user id for owner checks (Discord guild bind). */
@@ -75,6 +77,14 @@ export const hqUsers = pgTable("hq_users", {
   ashedUserId: text("ashed_user_id"),
   /** null = Server Time (UTC−02:00); otherwise an IANA zone id */
   timezone: text("timezone"),
+  /** Trains calendar week start: 0 = Sunday, 1 = Monday */
+  trainsDisplayWeekStartDow: integer("trains_display_week_start_dow")
+    .notNull()
+    .default(0),
+  /** Trains conductor wheel animation speed preset */
+  trainsWheelSpinSpeed: text("trains_wheel_spin_speed")
+    .notNull()
+    .default("slow"),
   isPlatformMaintainer: integer("is_platform_maintainer").notNull().default(0),
   /** Set when an admin invite is accepted or access is provisioned; required in production. */
   accessGrantedAt: timestamp("access_granted_at", { withTimezone: true }),

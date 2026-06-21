@@ -35,6 +35,12 @@ describe("train game-time", () => {
     expect(grid[0]?.date).toBe("2026-06-01");
   });
 
+  it("builds a Tuesday-start month grid when displayWeekStartDow is 2", () => {
+    const grid = buildMonthGrid("2026-06", 2);
+    expect(grid[0]?.date).toBe("2026-05-26");
+    expect(grid.find((cell) => cell.date === "2026-06-01")?.inMonth).toBe(true);
+  });
+
   it("finds month end", () => {
     expect(monthEndFromKey("2026-06")).toBe("2026-06-30");
     expect(monthEndFromKey("2026-02")).toBe("2026-02-28");
@@ -43,20 +49,22 @@ describe("train game-time", () => {
 
 describe("vs_push_week template", () => {
   it("assigns mechanisms across the week via composite segments", () => {
-    const weekStart = "2026-06-08";
+    const weekStart = "2026-06-09";
     const configs = generateWeekDayConfigs("vs_push_week", weekStart);
     expect(configs).toHaveLength(7);
-    expect(configs[0]?.conductorMechanism).toBe("vs_top_10");
-    expect(configs[0]?.vipMechanism).toBe("donations_second");
-    expect(configs[1]?.conductorMechanism).toBe("vs_high_score");
+    expect(configs[0]?.date).toBe("2026-06-09");
+    expect(configs[0]?.conductorMechanism).toBe("vs_high_score");
+    expect(configs[1]?.conductorMechanism).toBe("vs_top_10");
     expect(configs[1]?.vipMechanism).toBe("conductor_pick");
     expect(configs[2]?.conductorMechanism).toBe("vs_top_10");
     expect(configs[3]?.conductorMechanism).toBe("vs_top_10");
-    expect(configs[4]?.conductorMechanism).toBe("vs_top_10");
+    expect(configs[4]?.conductorMechanism).toBe("r4_sequence");
+    expect(configs[4]?.vipMechanism).toBe("event_top_x_lottery");
     expect(configs[5]?.conductorMechanism).toBe("r4_sequence");
     expect(configs[5]?.vipMechanism).toBe("event_top_x_lottery");
-    expect(configs[6]?.conductorMechanism).toBe("r4_sequence");
-    expect(configs[6]?.vipMechanism).toBe("event_top_x_lottery");
+    expect(configs[6]?.date).toBe("2026-06-15");
+    expect(configs[6]?.conductorMechanism).toBe("vs_top_10");
+    expect(configs[6]?.vipMechanism).toBe("donations_second");
   });
 });
 
@@ -65,7 +73,7 @@ describe("r4_event_vip segment", () => {
     const config = generateDayConfigForDate(
       "r4_event_vip",
       "2026-06-13",
-      "2026-06-08",
+      "2026-06-09",
     );
     expect(config.conductorMechanism).toBe("r4_sequence");
     expect(config.vipMechanism).toBe("event_top_x_lottery");
@@ -74,7 +82,7 @@ describe("r4_event_vip segment", () => {
 
 describe("generateDayConfigForDate", () => {
   it("returns the Tuesday slot from vs_push_week", () => {
-    const weekStart = "2026-06-08";
+    const weekStart = "2026-06-09";
     const config = generateDayConfigForDate(
       "vs_push_week",
       "2026-06-09",
@@ -85,7 +93,7 @@ describe("generateDayConfigForDate", () => {
   });
 
   it("returns economy day config for any weekday", () => {
-    const weekStart = "2026-06-08";
+    const weekStart = "2026-06-09";
     const config = generateDayConfigForDate(
       "economy_week",
       "2026-06-10",
@@ -95,9 +103,9 @@ describe("generateDayConfigForDate", () => {
   });
 
   it("returns r3 lottery for every r3_recognition weekday (wheel, not vs auto-roll)", () => {
-    const weekStart = "2026-06-08";
+    const weekStart = "2026-06-09";
     for (const date of [
-      "2026-06-08",
+      "2026-06-09",
       "2026-06-10",
       "2026-06-11",
       "2026-06-12",

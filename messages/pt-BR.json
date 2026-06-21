@@ -277,6 +277,29 @@
     "alliancesPage": {
       "loadFailed": "Falha ao carregar alianças.",
       "empty": "Nenhuma aliança registrada ainda.",
+      "search": {
+        "label": "Buscar",
+        "placeholder": "Nome, slug, tag, id Ashed ou e-mail do proprietário…"
+      },
+      "filters": {
+        "operatingMode": "Modo de operação",
+        "operatingModeAll": "Todos os modos",
+        "operatingModeNative": "Nativa",
+        "operatingModeAshed": "Ashed",
+        "sort": "Ordenar por",
+        "sortName": "Nome",
+        "sortMemberCount": "Membros HQ",
+        "sortRolesSyncedAt": "Funções sincronizadas",
+        "order": "Ordem",
+        "orderAsc": "Ascendente",
+        "orderDesc": "Descendente"
+      },
+      "pagination": {
+        "empty": "Nenhuma aliança corresponde a estes filtros.",
+        "showing": "Exibindo {start}–{end} de {total}",
+        "prev": "Anterior",
+        "next": "Próximo"
+      },
       "table": {
         "alliance": "Aliança",
         "owner": "E-mail do proprietário",
@@ -936,6 +959,9 @@
       "placeholder": "Selecione uma aliança…",
       "switchFailed": "Não foi possível trocar de aliança."
     },
+    "allianceSettingsLinkTitle": "Configurações de trens da aliança",
+    "allianceSettingsLinkBody": "Configure mínimos de condutor, substituição de temporada e outras opções de trens da aliança.",
+    "allianceSettingsLinkCta": "Abrir configurações da aliança",
     "allianceSection": "Sua aliança",
     "allianceBody": "O Alliance HQ limita correspondência de membros e envio de pontuações a uma aliança. Detectamos alianças em que você é proprietário ou colaborador no Ashed.",
     "alliancePickerLabel": "Aliança",
@@ -1369,6 +1395,33 @@
     "pickVipFailed": "Não foi possível salvar a escolha do VIP.",
     "changeSchedule": "Alterar modelo da semana",
     "nativeModeBanner": "Esta aliança usa trens no modo nativo. Sorteios de VS e doações precisam do roster Ashed conectado; use escolhas manuais quando as pontuações não estiverem disponíveis.",
+    "serverTimeBadge": {
+      "current": "Horário do servidor (UTC−2): {date} · {time}"
+    },
+    "userSettings": {
+      "menuLabel": "Configurações de exibição dos trens",
+      "calendarWeekStart": "A semana do calendário começa em",
+      "weekStartSunday": "Domingo",
+      "weekStartMonday": "Segunda-feira",
+      "wheelSpeed": "Velocidade da animação da roleta",
+      "wheelSpeed_slow": "Lenta",
+      "wheelSpeed_regular": "Normal",
+      "wheelSpeed_fast": "Rápida",
+      "saveFailed": "Não foi possível salvar as preferências de trens."
+    },
+    "help": {
+      "openLabel": "Ajuda dos trens",
+      "title": "Ajuda — Trem da Aliança",
+      "serverTimeBody": "Last War usa horário fixo de servidor (UTC−2, sem horário de verão). Dias de trem, semanas VS e prazos de confirmação seguem esse relógio — não o seu fuso local.",
+      "quickStartTitle": "Início rápido",
+      "quickStart": {
+        "paint": "Escolha um modelo semanal ou pinte dias individuais na agenda.",
+        "roll": "Gire a roleta ou escolha um Condutor para hoje e os próximos dias.",
+        "lock": "Confirme um Condutor para gerar o trem vazio daquele dia."
+      },
+      "takeTour": "Fazer o tour",
+      "close": "Fechar"
+    },
     "templateChangeConfirm": {
       "title": "Alterar modelo da semana?",
       "body": "O restante desta semana ({startDate} a {endDate}) passará para o modelo {template}.",
@@ -1394,7 +1447,11 @@
       "confirmBody": "Revise {count} Condutores sorteados do pool. Confirmar cria trens vazios para cada dia.",
       "confirmLockAll": "Confirmar e travar todos",
       "confirmLocking": "Travando…",
-      "confirmCancel": "Manter como rascunho"
+      "confirmCancel": "Manter como rascunho",
+      "disabledReason": {
+        "pastWeek": "Esta semana de trem já passou por completo.",
+        "noEligibleDays": "Não há dias restantes nesta semana que precisem de sorteio na roleta."
+      }
     },
     "walkthrough": {
       "takeTour": "Fazer o tour",
@@ -1402,6 +1459,7 @@
       "skip": "Pular tour",
       "next": "Próximo →",
       "done": "Concluir",
+      "stepServerTime": "Os dias de trem seguem o horário do servidor do jogo (UTC−2). O selo acima mostra sempre a data e hora atuais do servidor — use-o ao planejar sorteios e confirmações.",
       "stepSchedule": "Este é o hub de agendamento de trens — escolha a semana, pinte modelos de dia e veja quem conduz cada dia.",
       "stepWeekStrip": "Cada célula mostra a cor do modelo, o mecanismo do Condutor e se o Condutor está confirmado.",
       "stepTemplate": "Altere o modelo da semana inteira neste menu — economia, loteria, semana VS e mais.",

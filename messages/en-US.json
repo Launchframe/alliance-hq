@@ -277,6 +277,29 @@
     "alliancesPage": {
       "loadFailed": "Failed to load alliances.",
       "empty": "No alliances registered yet.",
+      "search": {
+        "label": "Search",
+        "placeholder": "Name, slug, tag, Ashed id, or owner email…"
+      },
+      "filters": {
+        "operatingMode": "Operating mode",
+        "operatingModeAll": "All modes",
+        "operatingModeNative": "Native",
+        "operatingModeAshed": "Ashed",
+        "sort": "Sort by",
+        "sortName": "Name",
+        "sortMemberCount": "HQ members",
+        "sortRolesSyncedAt": "Roles synced",
+        "order": "Order",
+        "orderAsc": "Ascending",
+        "orderDesc": "Descending"
+      },
+      "pagination": {
+        "empty": "No alliances match these filters.",
+        "showing": "Showing {start}–{end} of {total}",
+        "prev": "Previous",
+        "next": "Next"
+      },
       "table": {
         "alliance": "Alliance",
         "owner": "Owner email",
@@ -936,6 +959,9 @@
       "placeholder": "Select an alliance…",
       "switchFailed": "Could not switch alliance."
     },
+    "allianceSettingsLinkTitle": "Alliance train settings",
+    "allianceSettingsLinkBody": "Configure conductor minimums, season override, and other alliance-specific train options.",
+    "allianceSettingsLinkCta": "Open alliance settings",
     "allianceSection": "Your alliance",
     "allianceBody": "Alliance HQ scopes member matching and score uploads to one alliance. We detect alliances where you are owner or collaborator on Ashed.",
     "alliancePickerLabel": "Alliance",
@@ -1369,6 +1395,33 @@
     "pickVipFailed": "Could not save VIP pick.",
     "changeSchedule": "Change week template",
     "nativeModeBanner": "This alliance runs trains in native mode. VS and donation rolls need a connected Ashed roster; use manual picks when scores are unavailable.",
+    "serverTimeBadge": {
+      "current": "Server time (UTC−2): {date} · {time}"
+    },
+    "userSettings": {
+      "menuLabel": "Train display settings",
+      "calendarWeekStart": "Calendar week starts on",
+      "weekStartSunday": "Sunday",
+      "weekStartMonday": "Monday",
+      "wheelSpeed": "Wheel animation speed",
+      "wheelSpeed_slow": "Slow",
+      "wheelSpeed_regular": "Regular",
+      "wheelSpeed_fast": "Fast",
+      "saveFailed": "Could not save train preferences."
+    },
+    "help": {
+      "openLabel": "Train help",
+      "title": "Alliance Train help",
+      "serverTimeBody": "Last War uses fixed server time (UTC−2, no daylight saving). Train days, VS weeks, and lock deadlines all follow this clock — not your local timezone.",
+      "quickStartTitle": "Quick start",
+      "quickStart": {
+        "paint": "Pick a week template or paint individual days on the schedule.",
+        "roll": "Spin the wheel or pick a conductor for today and upcoming days.",
+        "lock": "Lock in a conductor to spawn that day's empty train."
+      },
+      "takeTour": "Take the tour",
+      "close": "Close"
+    },
     "templateChangeConfirm": {
       "title": "Change week template?",
       "body": "The rest of this week ({startDate} through {endDate}) will switch to the {template} template.",
@@ -1394,7 +1447,11 @@
       "confirmBody": "Review {count} conductors drawn from the pool. Locking spawns empty trains for each day.",
       "confirmLockAll": "Confirm and lock all",
       "confirmLocking": "Locking…",
-      "confirmCancel": "Keep as drafts"
+      "confirmCancel": "Keep as drafts",
+      "disabledReason": {
+        "pastWeek": "This train week is entirely in the past.",
+        "noEligibleDays": "No remaining days in this week need a wheel spin."
+      }
     },
     "walkthrough": {
       "takeTour": "Take the tour",
@@ -1402,6 +1459,7 @@
       "skip": "Skip tour",
       "next": "Next →",
       "done": "Done",
+      "stepServerTime": "Train days follow game server time (UTC−2). The badge above always shows the current server date and time — use it when planning rolls and locks.",
       "stepSchedule": "This is your train scheduling hub — pick a week, paint day templates, and see who is conducting each day.",
       "stepWeekStrip": "Each cell shows the day template color, conductor mechanism, and whether the conductor is locked in.",
       "stepTemplate": "Change the whole week’s template from this dropdown — economy, lottery, VS week, and more.",

@@ -6,7 +6,7 @@ import { resolveAllianceByTag } from "@/lib/alliance/resolve";
 import { getAllianceOperatingMode } from "@/lib/native-alliance/operating-mode";
 import type { AllianceOperatingMode } from "@/lib/native-alliance/constants";
 import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
-import { loadActiveAlliancePoolMembers } from "@/lib/members/game-roster";
+import { loadActiveAlliancePoolMembers, loadAllianceRow } from "@/lib/members/game-roster";
 import { getAshedConnection, loadSession } from "@/lib/session";
 import { sessionHasPermission, sessionIsPlatformMaintainer } from "@/lib/rbac/context";
 import {
@@ -31,9 +31,14 @@ import {
   generateWeekDayConfigs,
 } from "@/lib/trains/templates";
 import {
-  getServerCalendarDate,
-  getWeekStartMonday,
-} from "@/lib/trains/service";
+  allianceTrainWeekFromRow,
+  getTrainWeekStart,
+  type AllianceTrainWeekConfig,
+} from "@/lib/trains/train-week-calendar.shared";
+import { loadTrainsUserPreferences } from "@/lib/trains/trains-user-preferences.server";
+import type { TrainsDisplayWeekStartDow } from "@/lib/trains/trains-display-calendar.shared";
+import type { TrainsWheelSpinSpeed } from "@/lib/trains/trains-wheel-speed.shared";
+import { getServerCalendarDate } from "@/lib/trains/service";
 import type { ConductorMechanismType, WeekTemplateType } from "@/lib/trains/types";
 
 export type WeekConductorRecordSummary = {
@@ -127,6 +132,9 @@ export type TrainsDashboardPayload = {
   today: string;
   weekStart: string;
   weekEnd: string;
+  displayWeekStartDow: TrainsDisplayWeekStartDow;
+  wheelSpinSpeed: TrainsWheelSpinSpeed;
+  trainWeekStartDow: number;
   canManageTrains: boolean;
   canUnlockConductor: boolean;
   activeMemberCount: number;
@@ -198,6 +206,13 @@ const EMPTY_DASHBOARD_FIELDS: Pick<
   inventoryCount: 0,
 };
 
+async function loadTrainWeekConfigForAlliance(
+  allianceId: string,
+): Promise<AllianceTrainWeekConfig> {
+  const row = await loadAllianceRow(allianceId);
+  return allianceTrainWeekFromRow(row ?? {});
+}
+
 export async function loadTrainsDashboard(
   sessionId: string,
 ): Promise<TrainsDashboardPayload> {
@@ -206,17 +221,27 @@ export async function loadTrainsDashboard(
     throw new Error("Session not found.");
   }
 
+  const userPreferences = await loadTrainsUserPreferences(session.hqUserId);
   const allianceId = session.currentAllianceId ?? session.allianceId;
   const today = getServerCalendarDate();
-  const weekStart = getWeekStartMonday(today);
   const canManageTrains = await sessionHasPermission(sessionId, "trains:write");
   const canUnlockConductor = await sessionIsPlatformMaintainer(sessionId);
+  const trainWeekConfig = allianceId
+    ? await loadTrainWeekConfigForAlliance(allianceId)
+    : allianceTrainWeekFromRow({});
+  const weekStart = getTrainWeekStart(today, trainWeekConfig);
+  const preferenceFields = {
+    displayWeekStartDow: userPreferences.displayWeekStartDow,
+    wheelSpinSpeed: userPreferences.wheelSpinSpeed,
+    trainWeekStartDow: trainWeekConfig.trainWeekStartDow,
+  };
 
   if (!allianceId) {
     return {
       today,
       weekStart,
       weekEnd: addCalendarDays(weekStart, 6),
+      ...preferenceFields,
       canManageTrains,
       canUnlockConductor,
       activeMemberCount: 0,
@@ -238,6 +263,7 @@ export async function loadTrainsDashboard(
       today,
       weekStart,
       weekEnd: addCalendarDays(weekStart, 6),
+      ...preferenceFields,
       canManageTrains,
       canUnlockConductor,
       activeMemberCount: 0,
@@ -298,6 +324,7 @@ export async function loadTrainsDashboard(
     today,
     weekStart,
     weekEnd,
+    ...preferenceFields,
     canManageTrains,
     canUnlockConductor,
     activeMemberCount,
@@ -351,7 +378,8 @@ export async function loadWeekSchedulePage(
   const allianceId = session.currentAllianceId ?? session.allianceId;
   if (!allianceId) return null;
 
-  const weekStart = getWeekStartMonday(weekStartInput);
+  const trainWeekConfig = await loadTrainWeekConfigForAlliance(allianceId);
+  const weekStart = getTrainWeekStart(weekStartInput, trainWeekConfig);
   const weekEnd = addCalendarDays(weekStart, 6);
   const effectiveSeason = await getEffectiveSeasonForAlliance(allianceId);
   const scheduleRow = await getWeekSchedule(
@@ -410,6 +438,7 @@ export async function loadMonthSchedulePage(
   const allianceId = session.currentAllianceId ?? session.allianceId;
   if (!allianceId) return null;
 
+  const trainWeekConfig = await loadTrainWeekConfigForAlliance(allianceId);
   const monthKey = monthKeyInput.slice(0, 7);
   const monthStart = monthStartFromKey(monthKey);
   const monthEnd = monthEndFromKey(monthKey);
@@ -439,7 +468,7 @@ export async function loadMonthSchedulePage(
       dayConfigs.push(existing);
       continue;
     }
-    const weekStart = getWeekStartMonday(date);
+    const weekStart = getTrainWeekStart(date, trainWeekConfig);
     const preview = generateDayConfigForDate(
       anchorTemplate,
       date,

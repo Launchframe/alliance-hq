@@ -145,7 +145,7 @@ export function AdminAuditConsole() {
   useEffect(() => {
     void (async () => {
       try {
-        const res = await fetch("/api/admin/alliances");
+        const res = await fetch("/api/admin/alliances?limit=500&sort=name&order=asc");
         if (!res.ok) throw new Error(await res.text());
         const data = (await res.json()) as { alliances: Alliance[] };
         setAlliances(data.alliances);

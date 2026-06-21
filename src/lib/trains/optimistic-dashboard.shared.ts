@@ -1,4 +1,9 @@
-import { getWeekStartMonday } from "@/lib/trains/game-time";
+import {
+  DEFAULT_ALLIANCE_TRAIN_WEEK,
+  allianceTrainWeekFromRow,
+  getTrainWeekStart,
+  type AllianceTrainWeekConfig,
+} from "@/lib/trains/train-week-calendar.shared";
 import type {
   MonthSchedulePagePayload,
   TrainsDashboardPayload,
@@ -205,12 +210,13 @@ export function patchDayConfigsForDates(
   dayConfigs: WeekScheduleDayConfig[],
   dates: string[],
   templateType: WeekTemplateType,
+  trainWeekConfig: AllianceTrainWeekConfig = DEFAULT_ALLIANCE_TRAIN_WEEK,
 ): WeekScheduleDayConfig[] {
   const dateSet = new Set(dates);
   const byDate = new Map(dayConfigs.map((d) => [d.date, d]));
 
   for (const date of dates) {
-    const weekStart = getWeekStartMonday(date);
+    const weekStart = getTrainWeekStart(date, trainWeekConfig);
     const generated = generateDayConfigForDate(templateType, date, weekStart);
     const existing = byDate.get(date);
     byDate.set(date, {
@@ -247,10 +253,18 @@ export function applyOptimisticPaint(
   dates: string[],
   templateType: WeekTemplateType,
 ): TrainsDashboardSnapshot {
+  const trainWeekConfig = allianceTrainWeekFromRow({
+    trainWeekStartDow: snap.data.trainWeekStartDow,
+  });
   return {
     data: {
       ...snap.data,
-      dayConfigs: patchDayConfigsForDates(snap.data.dayConfigs, dates, templateType),
+      dayConfigs: patchDayConfigsForDates(
+        snap.data.dayConfigs,
+        dates,
+        templateType,
+        trainWeekConfig,
+      ),
     },
     viewedWeek: {
       ...snap.viewedWeek,
@@ -258,6 +272,7 @@ export function applyOptimisticPaint(
         snap.viewedWeek.dayConfigs,
         dates,
         templateType,
+        trainWeekConfig,
       ),
     },
     viewedMonth: {
@@ -266,6 +281,7 @@ export function applyOptimisticPaint(
         snap.viewedMonth.dayConfigs,
         dates,
         templateType,
+        trainWeekConfig,
       ),
     },
   };

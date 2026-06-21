@@ -368,6 +368,7 @@ export function useWeekScheduleInfiniteDays({
     resolveIndexForDate,
     findIndexForDate: (date: string) =>
       days.findIndex((entry) => entry.day.date === date),
+    rememberPage,
   };
 }
 

@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 
 import type { ParsedConnection } from "@/lib/connectionString";
 import { getDb, schema } from "@/lib/db";
+import { loadAllianceRow } from "@/lib/members/game-roster";
 import { fetchDonationTotalsForDateRange } from "@/lib/trains/donation-scores.server";
 import {
   buildMemberQualification,
@@ -14,6 +15,7 @@ import {
   type TrainConductorMinimumsSettings,
   type TrainMinimumsWindow,
 } from "@/lib/trains/train-conductor-minimums.shared";
+import { allianceTrainWeekFromRow } from "@/lib/trains/train-week-calendar.shared";
 import { fetchVsTotalsForDateRange } from "@/lib/trains/vs-scores.server";
 
 export type TrainConductorMinimumsRow = TrainConductorMinimumsSettings & {
@@ -86,9 +88,12 @@ export async function evaluateConductorQualification(input: {
     return null;
   }
 
+  const allianceRow = await loadAllianceRow(input.allianceId);
+  const trainWeekConfig = allianceTrainWeekFromRow(allianceRow ?? {});
   const { start, end } = evaluationPeriodForTrainDate(
     input.trainDate,
     settings.window,
+    trainWeekConfig,
   );
 
   const [vsTotals, donationTotals] = await Promise.all([

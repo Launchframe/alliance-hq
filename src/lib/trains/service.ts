@@ -1,7 +1,7 @@
 import { base44Json } from "@/lib/base44/fetch";
 import type { ParsedConnection } from "@/lib/connectionString";
 import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
-import { loadActiveAlliancePoolMembers } from "@/lib/members/game-roster";
+import { loadActiveAlliancePoolMembers, loadAllianceRow } from "@/lib/members/game-roster";
 import type {
   ConductorMechanismType,
   DayConfigInput,
@@ -16,9 +16,17 @@ import type {
 import {
   addCalendarDays,
   getServerCalendarDate,
-  getWeekStartMonday,
   weekDatesFromMonday,
 } from "@/lib/trains/game-time";
+import {
+  canOfficerChangeTemplateForDate,
+  canRollForDate,
+} from "@/lib/trains/trains-day-actions.shared";
+import {
+  allianceTrainWeekFromRow,
+  getTrainWeekStart,
+  type AllianceTrainWeekConfig,
+} from "@/lib/trains/train-week-calendar.shared";
 import {
   throwAshedRequired,
   throwNoWheelCandidates,
@@ -82,6 +90,58 @@ import { latestLockedDateInWeek } from "@/lib/trains/week-template-change.shared
 async function resolveTrainSeasonKey(allianceId: string): Promise<string> {
   const effective = await getEffectiveSeasonForAlliance(allianceId);
   return effective.seasonKey;
+}
+
+export class TrainPastDateError extends Error {
+  readonly status = 409 as const;
+
+  constructor(message: string) {
+    super(message);
+    this.name = "TrainPastDateError";
+  }
+}
+
+export async function loadAllianceTrainWeekConfig(
+  allianceId: string,
+): Promise<AllianceTrainWeekConfig> {
+  const row = await loadAllianceRow(allianceId);
+  return allianceTrainWeekFromRow(row ?? {});
+}
+
+export function assertRollAllowed(
+  date: string,
+  today = getServerCalendarDate(),
+): void {
+  if (!canRollForDate(date, today)) {
+    throw new TrainPastDateError("Cannot roll for a past train day.");
+  }
+}
+
+export function assertTemplateChangeAllowed(
+  date: string,
+  isPlatformAdmin: boolean,
+  today = getServerCalendarDate(),
+): void {
+  if (
+    !isPlatformAdmin &&
+    !canOfficerChangeTemplateForDate(date, today)
+  ) {
+    throw new TrainPastDateError(`Cannot change template for past day ${date}.`);
+  }
+}
+
+export function trainActionErrorResponse(error: unknown): {
+  status: number;
+  body: { error: string };
+} {
+  if (error instanceof TrainPastDateError) {
+    return { status: error.status, body: { error: error.message } };
+  }
+
+  const message =
+    error instanceof Error ? error.message : "Request failed.";
+  const status = message.includes("locked") ? 409 : 400;
+  return { status, body: { error: message } };
 }
 
 function weekDayConfigsForTemplate(
@@ -560,26 +620,33 @@ export async function applyTemplateToDates(
   allianceId: string,
   dates: string[],
   templateType: WeekTemplateType,
+  options?: { platformAdminPastOverride?: boolean },
 ): Promise<void> {
   if (dates.length === 0) return;
 
   const seasonKey = await resolveTrainSeasonKey(allianceId);
+  const trainWeekConfig = await loadAllianceTrainWeekConfig(allianceId);
   const uniqueDates = [...new Set(dates)].sort();
+  const today = getServerCalendarDate();
+  const isPlatformAdmin = options?.platformAdminPastOverride ?? false;
 
   for (const date of uniqueDates) {
+    assertTemplateChangeAllowed(date, isPlatformAdmin, today);
     const record = await getConductorRecord(allianceId, date, seasonKey);
     if (record?.lockedAt) {
       throw new Error(`Cannot repaint locked day ${date}.`);
     }
   }
 
-  const weekStarts = [...new Set(uniqueDates.map((d) => getWeekStartMonday(d)))];
+  const weekStarts = [
+    ...new Set(uniqueDates.map((d) => getTrainWeekStart(d, trainWeekConfig))),
+  ];
   for (const weekStart of weekStarts) {
     await ensureWeekScheduleBaseline(allianceId, weekStart);
   }
 
   for (const date of uniqueDates) {
-    const weekStart = getWeekStartMonday(date);
+    const weekStart = getTrainWeekStart(date, trainWeekConfig);
     const schedule = await getWeekSchedule(allianceId, weekStart, seasonKey);
     if (!schedule) continue;
 
@@ -606,6 +673,8 @@ export async function rollForConductor(input: {
   connection: ParsedConnection | null;
   ashedAllianceId: string;
 }): Promise<RollResult> {
+  assertRollAllowed(input.date);
+
   const seasonKey = await resolveTrainSeasonKey(input.allianceId);
   const record = await getConductorRecord(
     input.allianceId,
@@ -756,6 +825,8 @@ export async function rollForVip(input: {
   connection: ParsedConnection | null;
   ashedAllianceId: string;
 }): Promise<RollResult> {
+  assertRollAllowed(input.date);
+
   const seasonKey = await resolveTrainSeasonKey(input.allianceId);
   const record = await getConductorRecord(
     input.allianceId,
@@ -1125,4 +1196,5 @@ export async function swapConductors(input: {
   return { records: lockedRecords };
 }
 
-export { getServerCalendarDate, getWeekStartMonday };
+export { getServerCalendarDate };
+export { getWeekStartMonday } from "@/lib/trains/game-time";

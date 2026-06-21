@@ -1,4 +1,9 @@
-import { addCalendarDays, getWeekStartMonday } from "@/lib/trains/game-time";
+import { addCalendarDays } from "@/lib/trains/game-time";
+import {
+  DEFAULT_ALLIANCE_TRAIN_WEEK,
+  getTrainWeekStart,
+  type AllianceTrainWeekConfig,
+} from "@/lib/trains/train-week-calendar.shared";
 
 export const TRAIN_MINIMUMS_WINDOWS = ["daily", "weekly"] as const;
 export type TrainMinimumsWindow = (typeof TRAIN_MINIMUMS_WINDOWS)[number];
@@ -70,13 +75,14 @@ export function effectiveMinimum(minimum: number, leewayPct: number): number {
 export function evaluationPeriodForTrainDate(
   trainDate: string,
   window: TrainMinimumsWindow,
+  trainWeekConfig: AllianceTrainWeekConfig = DEFAULT_ALLIANCE_TRAIN_WEEK,
 ): { start: string; end: string } {
   if (window === "daily") {
     const day = addCalendarDays(trainDate, -1);
     return { start: day, end: day };
   }
 
-  const weekStart = getWeekStartMonday(trainDate);
+  const weekStart = getTrainWeekStart(trainDate, trainWeekConfig);
   const prevWeekEnd = addCalendarDays(weekStart, -1);
   const prevWeekStart = addCalendarDays(weekStart, -7);
   return { start: prevWeekStart, end: prevWeekEnd };

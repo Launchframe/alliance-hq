@@ -24,7 +24,6 @@ import {
   type SpinWeekResultRow,
 } from "@/lib/trains/spin-week.shared";
 
-const WHEEL_SPEED_MULTIPLIER = 2;
 const MAX_DISQUALIFIED_RETRIES = 10;
 
 type RollResponse = {
@@ -44,6 +43,7 @@ type Props = {
   weekRecords: SpinWeekDayRecord[];
   canManageTrains: boolean;
   canSpinViewedWeek: boolean;
+  wheelSpeedMultiplier?: number;
   snapshotRef: RefObject<TrainsDashboardSnapshot>;
   applySnapshot: (next: TrainsDashboardSnapshot) => void;
   withOptimisticMutation: (
@@ -65,6 +65,7 @@ export function SpinWeekConductorFlow({
   weekRecords,
   canManageTrains,
   canSpinViewedWeek,
+  wheelSpeedMultiplier = 1,
   snapshotRef,
   applySnapshot,
   withOptimisticMutation,
@@ -109,8 +110,13 @@ export function SpinWeekConductorFlow({
     [today, weekStart, weekEnd, dayConfigs, weekRecords],
   );
 
-  const showTrigger =
-    canManageTrains && canSpinViewedWeek && eligibleDates.length > 0;
+  const disabled =
+    !canSpinViewedWeek || eligibleDates.length === 0 || phase !== "idle";
+  const disabledReason = !canSpinViewedWeek
+    ? t("disabledReason.pastWeek")
+    : eligibleDates.length === 0
+      ? t("disabledReason.noEligibleDays")
+      : null;
 
   const waitForWheel = useCallback(
     () =>
@@ -279,19 +285,20 @@ export function SpinWeekConductorFlow({
     withOptimisticMutation,
   ]);
 
-  if (!showTrigger && phase === "idle") {
+  if (!canManageTrains && phase === "idle") {
     return null;
   }
 
   return (
     <>
-      {showTrigger ? (
+      {canManageTrains ? (
         <button
           type="button"
-          disabled={phase !== "idle"}
+          disabled={disabled}
+          title={disabled && disabledReason ? disabledReason : undefined}
           data-testid="trains-spin-week-btn"
           onClick={() => void startSpinWeek()}
-          className="rounded-lg bg-[#8957e5] px-4 py-2 text-sm font-medium text-white hover:bg-[#9d6ff0] disabled:opacity-60 w-full sm:w-auto"
+          className="rounded-lg bg-[#8957e5] px-4 py-2 text-sm font-medium text-white hover:bg-[#9d6ff0] disabled:cursor-not-allowed disabled:opacity-60 w-full sm:w-auto"
         >
           {phase === "spinning"
             ? t("spinningProgress", { count: eligibleDates.length })
@@ -306,7 +313,7 @@ export function SpinWeekConductorFlow({
         stats={wheelStats ?? null}
         qualification={wheelQualification}
         dayLabel={wheelDayLabel}
-        speedMultiplier={WHEEL_SPEED_MULTIPLIER}
+        speedMultiplier={wheelSpeedMultiplier}
         automated
         onAutomatedRevealComplete={handleAutomatedRevealComplete}
         onClose={handleAutomatedRevealComplete}

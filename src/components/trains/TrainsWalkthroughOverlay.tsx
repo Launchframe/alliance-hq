@@ -34,6 +34,7 @@ type WalkthroughStep = {
   scrollBehavior?: "into-view" | "top" | "align-top";
   dialogDesktop: "left" | "right";
   messageKey:
+    | "stepServerTime"
     | "stepSchedule"
     | "stepWeekStrip"
     | "stepTemplate"
@@ -45,6 +46,14 @@ type WalkthroughStep = {
 };
 
 const STEPS: WalkthroughStep[] = [
+  {
+    id: "server-time",
+    targetCandidates: ["trains-server-time-notice"],
+    required: true,
+    scrollBehavior: "align-top",
+    dialogDesktop: "right",
+    messageKey: "stepServerTime",
+  },
   {
     id: "schedule",
     targetCandidates: ["trains-schedule-section"],

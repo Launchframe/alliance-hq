@@ -1,7 +1,13 @@
 import { NextResponse } from "next/server";
 
+import { sessionIsPlatformMaintainer } from "@/lib/rbac/context";
 import { resolveTrainRequestContext } from "@/lib/trains/api-context";
-import { applyTemplateToDates } from "@/lib/trains/service";
+import {
+  applyTemplateToDates,
+  getServerCalendarDate,
+  trainActionErrorResponse,
+} from "@/lib/trains/service";
+import { canOfficerChangeTemplateForDate } from "@/lib/trains/trains-day-actions.shared";
 import type { WeekTemplateType } from "@/lib/trains/types";
 import { WEEK_TEMPLATES } from "@/lib/trains/types";
 import { getOrCreateSession } from "@/lib/session";
@@ -10,6 +16,22 @@ import { requireTrainOfficer } from "@/lib/rbac/require-permission";
 export const dynamic = "force-dynamic";
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+export async function GET() {
+  const session = await getOrCreateSession();
+  const denied = await requireTrainOfficer(session.id);
+  if (denied) return denied;
+
+  const isPlatformAdmin = await sessionIsPlatformMaintainer(session.id);
+  const today = getServerCalendarDate();
+
+  return NextResponse.json({
+    today,
+    canPaintPastDays: isPlatformAdmin,
+    canOfficerPaintPastDays: false,
+    officerPaintAllowedFrom: today,
+  });
+}
 
 export async function PATCH(request: Request) {
   const session = await getOrCreateSession();
@@ -43,13 +65,27 @@ export async function PATCH(request: Request) {
     );
   }
 
+  const isPlatformAdmin = await sessionIsPlatformMaintainer(session.id);
+  const today = getServerCalendarDate();
+  const blockedPastDates = dates.filter(
+    (date) => !canOfficerChangeTemplateForDate(date, today),
+  );
+  if (blockedPastDates.length > 0 && !isPlatformAdmin) {
+    return NextResponse.json(
+      {
+        error: `Cannot change template for past day ${blockedPastDates[0]}.`,
+      },
+      { status: 409 },
+    );
+  }
+
   try {
-    await applyTemplateToDates(ctx.allianceId, dates, templateType);
+    await applyTemplateToDates(ctx.allianceId, dates, templateType, {
+      platformAdminPastOverride: isPlatformAdmin,
+    });
     return NextResponse.json({ ok: true, dates, templateType });
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Could not update schedule.";
-    const status = message.includes("locked") ? 409 : 400;
-    return NextResponse.json({ error: message }, { status });
+    const { status, body: responseBody } = trainActionErrorResponse(error);
+    return NextResponse.json(responseBody, { status });
   }
 }

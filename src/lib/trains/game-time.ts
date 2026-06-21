@@ -1,4 +1,8 @@
 import { SERVER_TIME_IANA } from "@/lib/timezone/constants";
+import {
+  DEFAULT_ALLIANCE_TRAIN_WEEK,
+  getTrainWeekStart,
+} from "@/lib/trains/train-week-calendar.shared";
 
 /** Current calendar date in game server time (UTC-2), YYYY-MM-DD. */
 export function getServerCalendarDate(now = new Date()): string {
@@ -87,10 +91,18 @@ export type MonthGridCell = {
 };
 
 /** Monday-start grid covering the month (42 cells = 6 weeks). */
-export function buildMonthGrid(monthKey: string): MonthGridCell[] {
+export function buildMonthGrid(
+  monthKey: string,
+  displayWeekStartDow?: number,
+): MonthGridCell[] {
   const monthStart = monthStartFromKey(monthKey);
   const monthEnd = monthEndFromKey(monthKey);
-  const gridStart = getWeekStartMonday(monthStart);
+  const gridStart =
+    displayWeekStartDow != null
+      ? getTrainWeekStart(monthStart, {
+          trainWeekStartDow: displayWeekStartDow,
+        })
+      : getWeekStartMonday(monthStart);
   return Array.from({ length: 42 }, (_, i) => {
     const date = addCalendarDays(gridStart, i);
     return {
@@ -98,6 +110,14 @@ export function buildMonthGrid(monthKey: string): MonthGridCell[] {
       inMonth: date >= monthStart && date <= monthEnd,
     };
   });
+}
+
+/** Tuesday-start month grid using the alliance train week default. */
+export function buildTrainMonthGrid(monthKey: string): MonthGridCell[] {
+  return buildMonthGrid(
+    monthKey,
+    DEFAULT_ALLIANCE_TRAIN_WEEK.trainWeekStartDow,
+  );
 }
 
 /** Pivot window: Mon 22:00 – Tue 12:00 server time (UTC−2). */
