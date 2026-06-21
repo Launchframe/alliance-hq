@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   allianceLandingPath,
+  findSessionAllianceMembership,
   pickAllianceMembershipForSession,
   resolveSessionAllianceId,
 } from "@/lib/alliance/session-memberships";
@@ -100,6 +101,32 @@ describe("pickAllianceMembershipForSession", () => {
         ],
       ),
     ).toBeNull();
+  });
+});
+
+describe("findSessionAllianceMembership", () => {
+  it("returns the roster row for an explicit current alliance", () => {
+    expect(
+      findSessionAllianceMembership(
+        makeSession({ currentAllianceId: "a1" }),
+        [
+          {
+            id: "a1",
+            tag: "LFgo",
+            name: "LFgo",
+            slug: "lfgo",
+            roleName: "maintainer",
+          },
+          {
+            id: "a2",
+            tag: "nmi",
+            name: "NMI",
+            slug: "nmi",
+            roleName: "officer",
+          },
+        ],
+      )?.tag,
+    ).toBe("LFgo");
   });
 });
 

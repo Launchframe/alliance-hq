@@ -148,6 +148,18 @@ export function resolveSessionAllianceId(session: Session): string | null {
   return session.currentAllianceId ?? session.allianceId;
 }
 
+/** Session alliance id that matches one of the caller's roster memberships. */
+export function findSessionAllianceMembership(
+  session: Session,
+  alliances: SessionAllianceOption[],
+): SessionAllianceOption | null {
+  const allianceId = resolveSessionAllianceId(session);
+  if (!allianceId) {
+    return null;
+  }
+  return alliances.find((row) => row.id === allianceId) ?? null;
+}
+
 /** When session lacks currentAllianceId, pick a sole membership or a resolved HQ id match. */
 export function pickAllianceMembershipForSession(
   session: Session,

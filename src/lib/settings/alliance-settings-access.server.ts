@@ -4,6 +4,7 @@ import { redirect } from "@/i18n/navigation";
 
 import {
   listSessionAlliances,
+  findSessionAllianceMembership,
   pickAllianceMembershipForSession,
   resolveSessionAllianceId,
 } from "@/lib/alliance/session-memberships";
@@ -78,15 +79,19 @@ export async function resolveAllianceSettingsAccess(
     ? await listSessionAlliances(effectiveHqUserId)
     : [];
 
+  if (findSessionAllianceMembership(resolved, alliances)) {
+    return { kind: "ready", session: resolved };
+  }
+
+  if (await sessionIsPlatformMaintainer(resolved.id)) {
+    return { kind: "ready", session: resolved };
+  }
+
   if (
     alliances.length > 1 &&
     !pickAllianceMembershipForSession(resolved, alliances)
   ) {
     return { kind: "pick_alliance", alliances };
-  }
-
-  if (await sessionIsPlatformMaintainer(resolved.id)) {
-    return { kind: "ready", session: resolved };
   }
 
   return { kind: "redirect", href: "/get-started" };
