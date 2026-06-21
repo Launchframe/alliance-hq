@@ -681,7 +681,7 @@
   },
   "shell": {
     "brand": "Alliance HQ",
-    "domain": "alliance-hq.vercel.app",
+    "domain": "frontline.gay",
     "dataPoweredBy": "Dados fornecidos por <link>Ashed</link>",
     "connectedAs": "Conectado como {user}",
     "nativeSignedInAs": "Conectado como {user}",
@@ -817,7 +817,7 @@
   "privacy": {
     "backToConnect": "← Voltar ao Connect",
     "title": "Política de Privacidade",
-    "intro": "O Alliance HQ, em alliance-hq.vercel.app, é uma ferramenta comunitária para oficiais de alianças do jogo Last War. Esta página explica o que armazenamos e como protegemos essas informações.",
+    "intro": "O Alliance HQ, em frontline.gay, é uma ferramenta comunitária para oficiais de alianças do jogo Last War. Esta página explica o que armazenamos e como protegemos essas informações.",
     "noSellTitle": "Não vendemos seus dados",
     "noSellBody1": "O Alliance HQ existe para ajudar sua aliança a utilizar o <link>ashed.online</link> com mais facilidade. Nós <strong>nunca</strong> venderemos, alugaremos ou negociaremos suas informações pessoais ou dados da aliança com terceiros. Não utilizamos seus dados para publicidade, nem criamos perfis de marketing com base em sua atividade.",
     "noSellBody2": "Utilizamos apenas as informações necessárias para fornecer o serviço solicitado — por exemplo, manter sua sessão ativa e interagir com o Ashed em seu nome ao utilizar os recursos do Alliance HQ.",
@@ -846,7 +846,7 @@
   "terms": {
     "backToConnect": "← Voltar ao Connect",
     "title": "Termos de Uso",
-    "intro": "O Alliance HQ em alliance-hq.vercel.app é uma ferramenta comunitária para oficiais de aliança de Last War. Ao usar este serviço hospedado, você concorda com estes termos.",
+    "intro": "O Alliance HQ em frontline.gay é uma ferramenta comunitária para oficiais de aliança de Last War. Ao usar este serviço hospedado, você concorda com estes termos.",
     "acceptableUseTitle": "Uso aceitável",
     "acceptableUseBody1": "Use o Alliance HQ e o <link>ashed.online</link> de forma razoável e dentro da lei. O Alliance HQ é uma camada de conveniência sobre o Ashed — não concede direitos além dos que você já tem no próprio Ashed.",
     "acceptableUseItems": {
@@ -855,7 +855,7 @@
       "noMisuse": "Não use o Alliance HQ de formas que prejudiquem alianças, o Ashed ou outros jogadores."
     },
     "enforcementTitle": "Aplicação das regras",
-    "enforcementBody": "Os operadores desta implantação <strong>hospedada</strong> reservam-se o direito de revogar ou bloquear o acesso — incluindo sessões, dispositivos vinculados e vínculo com o bot do Discord — por violações <strong>sem aviso prévio</strong>. Cópias auto-hospedadas do Alliance HQ estão fora do nosso controle; estes termos de aplicação valem apenas para implantações que operamos (como alliance-hq.vercel.app).",
+    "enforcementBody": "Os operadores desta implantação <strong>hospedada</strong> reservam-se o direito de revogar ou bloquear o acesso — incluindo sessões, dispositivos vinculados e vínculo com o bot do Discord — por violações <strong>sem aviso prévio</strong>. Cópias auto-hospedadas do Alliance HQ estão fora do nosso controle; estes termos de aplicação valem apenas para implantações que operamos (como frontline.gay).",
     "openSourceTitle": "Código aberto e auto-hospedagem",
     "openSourceBody1": "O código-fonte do Alliance HQ é aberto sob a <strong>Licença MIT</strong>. Você pode inspecionar, modificar e auto-hospedar o software conforme essa licença.",
     "openSourceBody2": "Consulte o arquivo <licenseLink>LICENSE</licenseLink> em nosso <githubLink>repositório no GitHub</githubLink>. Estes Termos de Uso aplicam-se ao nosso serviço hospedado, não a instâncias auto-hospedadas que você executa por conta própria.",
@@ -904,7 +904,7 @@
     "timezoneServerTime": "Horário do Servidor",
     "timezoneSaved": "Fuso horário salvo",
     "timezoneSaveFailed": "Não foi possível salvar o fuso horário",
-    "aboutBody": "O Alliance HQ, em <strong>alliance-hq.vercel.app</strong>, é uma interface comunitária para o <link>ashed.online</link>. Todos os créditos pelos dados da aliança pertencem ao Ashed.",
+    "aboutBody": "O Alliance HQ, em <strong>frontline.gay</strong>, é uma interface comunitária para o <link>ashed.online</link>. Todos os créditos pelos dados da aliança pertencem ao Ashed.",
     "gameSeason": {
       "sectionTitle": "Temporada do jogo",
       "sectionBody": "Temporada do Last War usada nos registros de trem e pontuações. Oficiais podem substituir quando a sincronização automática estiver errada.",
@@ -954,7 +954,7 @@
     "timezoneServerTime": "Horário do Servidor",
     "timezoneSaved": "Fuso horário salvo",
     "timezoneSaveFailed": "Não foi possível salvar o fuso horário",
-    "aboutBody": "O Alliance HQ, em <strong>alliance-hq.vercel.app</strong>, é uma interface comunitária para o <link>ashed.online</link>. Todos os créditos pelos dados da aliança pertencem ao Ashed."
+    "aboutBody": "O Alliance HQ, em <strong>frontline.gay</strong>, é uma interface comunitária para o <link>ashed.online</link>. Todos os créditos pelos dados da aliança pertencem ao Ashed."
   },
   "profile": {
     "title": "Perfil",

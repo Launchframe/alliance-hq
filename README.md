@@ -2,7 +2,7 @@
 
 A portal shell for [ashed.online](https://ashed.online) — alliance tools for Last War built on the Base44 backend, with custom features like video-to-screenshot upload.
 
-**Production domain:** [alliance-hq.vercel.app](https://alliance-hq.vercel.app)
+**Production domain:** [frontline.gay](https://frontline.gay)
 
 ## What this is
 
@@ -37,6 +37,8 @@ Fill in `.env.local`:
 | `DATABASE_URL` | Optional locally; required on Vercel / Neon for production |
 | `TOKEN_ENCRYPTION_KEY` | `openssl rand -hex 32` |
 | `NEXT_PUBLIC_APP_URL` | `http://localhost:5175` for local dev |
+| `AUTH_SECRET` | `openssl rand -base64 32` — required for magic-link auth |
+| `RESEND_API_KEY` / `EMAIL_FROM` | See [docs/deploy-frontline-gay.md](./docs/deploy-frontline-gay.md) |
 
 When **`LOCAL_DATABASE_URL` is set**, it wins over `DATABASE_URL` on your machine — including `next start` and `vercel dev`. The only exception is **Vercel production** (`VERCEL=1` + `NODE_ENV=production`), where `DATABASE_URL` is always used.
 
@@ -91,7 +93,10 @@ npm install
 |----------|------------------|
 | `DATABASE_URL` | Neon Postgres connection string (required at **build** time — migrations run before `next build`) |
 | `TOKEN_ENCRYPTION_KEY` | Same 64-char hex key for all environments, or generate once and store in a password manager |
-| `NEXT_PUBLIC_APP_URL` | `https://alliance-hq.vercel.app` |
+| `NEXT_PUBLIC_APP_URL` | `https://frontline.gay` |
+| `AUTH_SECRET` | `openssl rand -base64 32` |
+| `RESEND_API_KEY` | Resend API key (production sends from `@frontline.gay`) |
+| `EMAIL_FROM` | `Alliance HQ <auth@frontline.gay>` |
 | `VIDEO_WORKER_SECRET` | Random secret (same value if you run the optional backup worker) |
 | `PLATFORM_BOOTSTRAP_EMAIL` | Your Ashed email — auto-promoted to platform maintainer on first connect when none exist |
 | `R2_ACCOUNT_ID` | Cloudflare account ID |
@@ -107,10 +112,10 @@ For local schema changes: `npm run db:generate` → commit new files under `driz
 
 Optional one-off (without redeploying): `DATABASE_URL="postgresql://…neon…" npm run db:prepare`
 
-4. Add custom domain **alliance-hq.vercel.app** in Vercel → Settings → Domains
-5. At your DNS provider, point the domain to Vercel (A/CNAME records shown in the Vercel UI)
+4. Add custom domain **`frontline.gay`** in Vercel → Settings → Domains (see [docs/deploy-frontline-gay.md](./docs/deploy-frontline-gay.md) for DNS + Resend checklist)
+5. At your DNS provider, point the domain to Vercel (records shown in the Vercel UI)
 
-Health check after deploy: `https://alliance-hq.vercel.app/api/health/db`
+Health check after deploy: `https://frontline.gay/api/health/db`
 
 ## Ashed API catalog
 

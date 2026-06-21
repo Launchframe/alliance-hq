@@ -681,7 +681,7 @@
   },
   "shell": {
     "brand": "Alliance HQ",
-    "domain": "alliance-hq.vercel.app",
+    "domain": "frontline.gay",
     "dataPoweredBy": "Data powered by <link>Ashed</link>",
     "connectedAs": "Connected as {user}",
     "nativeSignedInAs": "Signed in as {user}",
@@ -817,7 +817,7 @@
   "privacy": {
     "backToConnect": "← Back to Connect",
     "title": "Privacy Policy",
-    "intro": "Alliance HQ at alliance-hq.vercel.app is a community tool for Last War alliance officers. This page explains what we store and how we protect it.",
+    "intro": "Alliance HQ at frontline.gay is a community tool for Last War alliance officers. This page explains what we store and how we protect it.",
     "noSellTitle": "We do not sell your data",
     "noSellBody1": "Alliance HQ exists to help your alliance use <link>ashed.online</link> more easily. We will <strong>never</strong> sell, rent, or trade your personal information or alliance data to third parties. We do not use your data for advertising, and we do not build marketing profiles from your activity.",
     "noSellBody2": "We only use the information needed to run the service you asked for — for example, keeping you signed in and calling Ashed on your behalf when you use Alliance HQ features.",
@@ -846,7 +846,7 @@
   "terms": {
     "backToConnect": "← Back to Connect",
     "title": "Terms of Service",
-    "intro": "Alliance HQ at alliance-hq.vercel.app is a community tool for Last War alliance officers. By using this hosted service, you agree to these terms.",
+    "intro": "Alliance HQ at frontline.gay is a community tool for Last War alliance officers. By using this hosted service, you agree to these terms.",
     "acceptableUseTitle": "Acceptable use",
     "acceptableUseBody1": "Use Alliance HQ and <link>ashed.online</link> reasonably and lawfully. Alliance HQ is a convenience layer on top of Ashed — it does not grant rights beyond what you already have on Ashed itself.",
     "acceptableUseItems": {
@@ -855,7 +855,7 @@
       "noMisuse": "Do not use Alliance HQ in ways that harm alliances, Ashed, or other players."
     },
     "enforcementTitle": "Enforcement",
-    "enforcementBody": "Operators of this <strong>hosted</strong> deployment reserve the right to revoke or block access — including sessions, linked devices, and Discord bot linkage — for violations <strong>without prior warning</strong>. Self-hosted copies of Alliance HQ are outside our control; these enforcement terms apply only to deployments we operate (such as alliance-hq.vercel.app).",
+    "enforcementBody": "Operators of this <strong>hosted</strong> deployment reserve the right to revoke or block access — including sessions, linked devices, and Discord bot linkage — for violations <strong>without prior warning</strong>. Self-hosted copies of Alliance HQ are outside our control; these enforcement terms apply only to deployments we operate (such as frontline.gay).",
     "openSourceTitle": "Open source and self-hosting",
     "openSourceBody1": "Alliance HQ source code is open under the <strong>MIT License</strong>. You may inspect, modify, and self-host the software under that license.",
     "openSourceBody2": "See the <licenseLink>LICENSE</licenseLink> file in our <githubLink>GitHub repository</githubLink>. These Terms of Service apply to our hosted service, not to independent self-hosted instances you run yourself.",
@@ -904,7 +904,7 @@
     "timezoneServerTime": "Server Time",
     "timezoneSaved": "Time zone saved",
     "timezoneSaveFailed": "Could not save time zone",
-    "aboutBody": "Alliance HQ at <strong>alliance-hq.vercel.app</strong> is a community wrapper for <link>ashed.online</link>. All alliance data credit belongs to Ashed.",
+    "aboutBody": "Alliance HQ at <strong>frontline.gay</strong> is a community wrapper for <link>ashed.online</link>. All alliance data credit belongs to Ashed.",
     "gameSeason": {
       "sectionTitle": "Game season",
       "sectionBody": "Last War season used for train records and scoring. Officers can override when auto sync is wrong.",
@@ -954,7 +954,7 @@
     "timezoneServerTime": "Server Time",
     "timezoneSaved": "Time zone saved",
     "timezoneSaveFailed": "Could not save time zone",
-    "aboutBody": "Alliance HQ at <strong>alliance-hq.vercel.app</strong> is a community wrapper for <link>ashed.online</link>. All alliance data credit belongs to Ashed."
+    "aboutBody": "Alliance HQ at <strong>frontline.gay</strong> is a community wrapper for <link>ashed.online</link>. All alliance data credit belongs to Ashed."
   },
   "profile": {
     "title": "Profile",

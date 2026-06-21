@@ -6,6 +6,10 @@ import Resend from "next-auth/providers/resend";
 import { createHqAuthAdapter } from "@/lib/auth/adapter";
 import { bridgeAuthUserToBrowserSession } from "@/lib/auth/bridge-session";
 import { ensureHqUserForAuthEmail } from "@/lib/auth/resolve-hq-user";
+import {
+  PRODUCTION_EMAIL_FROM,
+  RESEND_DEV_EMAIL_FROM,
+} from "@/lib/public-site";
 import { resolveBrowserSessionHqUserId } from "@/lib/session";
 
 const SESSION_MAX_AGE_SECONDS = 90 * 24 * 60 * 60;
@@ -23,7 +27,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   },
   providers: [
     Resend({
-      from: process.env.EMAIL_FROM ?? "Alliance HQ <onboarding@resend.dev>",
+      from:
+        process.env.EMAIL_FROM ??
+        (process.env.NODE_ENV === "production"
+          ? PRODUCTION_EMAIL_FROM
+          : RESEND_DEV_EMAIL_FROM),
       apiKey: process.env.RESEND_API_KEY,
     }),
   ],

@@ -7,6 +7,7 @@ import { JetBrains_Mono } from "next/font/google";
 import { notFound } from "next/navigation";
 
 import { routing } from "@/i18n/routing";
+import { PRODUCTION_APP_ORIGIN } from "@/lib/public-site";
 
 import "../globals.css";
 
@@ -36,7 +37,7 @@ export async function generateMetadata({ params }: Props) {
     },
     description: t("description"),
     metadataBase: new URL(
-      process.env.NEXT_PUBLIC_APP_URL ?? "https://alliance-hq.vercel.app",
+      process.env.NEXT_PUBLIC_APP_URL ?? PRODUCTION_APP_ORIGIN,
     ),
     icons: {
       icon: [{ url: "/brand/hq-icon-app.svg", type: "image/svg+xml" }],
