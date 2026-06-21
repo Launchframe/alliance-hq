@@ -7,6 +7,10 @@ import { useTranslations } from "next-intl";
 import { Link, usePathname } from "@/i18n/navigation";
 import type { SessionAllianceOption } from "@/lib/alliance/types";
 import type { AshedConnectionMeta } from "@/lib/jwt/connection-meta";
+import {
+  readAshedConnectedOnThisDeviceBefore,
+  shouldShowShellConnectPrompt,
+} from "@/lib/connect/walkthrough.shared";
 import { FeedbackProvider } from "@/components/feedback";
 import { SidebarNav } from "@/components/ashed-shell/SidebarNav";
 import { ShellProfileMenu } from "@/components/ashed-shell/ShellProfileMenu";
@@ -68,6 +72,20 @@ export function AshedShell({
   const [expandedGroupId, setExpandedGroupId] = React.useState<string | null>(
     null,
   );
+  const ashedConnectedOnDeviceBefore = React.useSyncExternalStore(
+    () => () => {},
+    readAshedConnectedOnThisDeviceBefore,
+    () => false,
+  );
+
+  const showSignedInChrome =
+    hasAppAccess && (isConnected || !canUseAshedEmbeds);
+  const showConnectPrompt = shouldShowShellConnectPrompt({
+    hasAppAccess,
+    isConnected,
+    canUseAshedEmbeds,
+    ashedConnectedOnDeviceBefore,
+  });
 
   const closeMobileNav = React.useCallback(() => {
     setMobileNavOpen(false);
@@ -157,7 +175,7 @@ export function AshedShell({
               </button>
 
               <div className="min-w-0 flex-1 truncate text-sm text-[#8b949e]">
-                {hasAppAccess && (isConnected || !canUseAshedEmbeds) ? (
+                {showSignedInChrome ? (
                   <span className="hidden sm:inline">
                     {isNativeAlliance
                       ? t("nativeSignedInAs", {
@@ -167,26 +185,18 @@ export function AshedShell({
                           user: userLabel ?? t("defaultUser"),
                         })}
                   </span>
-                ) : (
+                ) : showConnectPrompt ? (
                   <Link
                     href="/connect"
                     className="text-[#58a6ff] hover:underline"
                   >
                     {t("connectPrompt")}
                   </Link>
-                )}
+                ) : null}
                 {hasAppAccess ? (
                   <span className="truncate sm:hidden">
                     {userLabel ?? t("defaultUser")}
                   </span>
-                ) : null}
-                {hasAppAccess && !isConnected && canUseAshedEmbeds ? (
-                  <Link
-                    href="/connect"
-                    className="text-[#58a6ff] hover:underline"
-                  >
-                    {t("connectPrompt")}
-                  </Link>
                 ) : null}
               </div>
 

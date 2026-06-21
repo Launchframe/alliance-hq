@@ -14,3 +14,22 @@ export function markConnectWalkthroughSeen(): void {
   }
   window.localStorage.setItem(CONNECT_WALKTHROUGH_SEEN_KEY, "1");
 }
+
+/** True after a successful Ashed connect on this browser (localStorage). */
+export function readAshedConnectedOnThisDeviceBefore(): boolean {
+  return readConnectWalkthroughSeen();
+}
+
+export function shouldShowShellConnectPrompt(input: {
+  hasAppAccess: boolean;
+  isConnected: boolean;
+  canUseAshedEmbeds: boolean;
+  ashedConnectedOnDeviceBefore: boolean;
+}): boolean {
+  return (
+    input.hasAppAccess &&
+    !input.isConnected &&
+    input.canUseAshedEmbeds &&
+    input.ashedConnectedOnDeviceBefore
+  );
+}
