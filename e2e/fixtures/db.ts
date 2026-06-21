@@ -312,14 +312,6 @@ export async function createAuthenticatedHqSession(
   email: string,
   options?: { displayName?: string; accessGranted?: boolean },
 ): Promise<SessionFixture> {
-  return createAuthenticatedHqSession(sql, email);
-}
-
-export async function createAuthenticatedHqSession(
-  sql: Sql,
-  email: string,
-  options?: { displayName?: string; accessGranted?: boolean },
-): Promise<SessionFixture> {
   const now = new Date();
   const expiresAt = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000);
   const sessionId = nanoid(32);
