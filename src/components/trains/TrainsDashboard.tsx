@@ -36,6 +36,7 @@ import {
 import { Dialog } from "@/components/ui/dialog";
 import { AppSelect } from "@/components/ui/AppSelect";
 import { Link } from "@/i18n/navigation";
+import { buildProvisionalWeekPage } from "@/lib/client/week-schedule-provisional";
 import { getMonthKey, monthEndFromKey, monthStartFromKey, addCalendarDays, getWeekStartMonday, isCalendarDateOnOrAfter, isWithinPivotWindow } from "@/lib/trains/game-time";
 import type {
   MonthSchedulePagePayload,
@@ -135,6 +136,10 @@ export function TrainsDashboard({ initial }: Props) {
   const [conductorDisqualified, setConductorDisqualified] =
     useState<RollResult | null>(null);
   const [selectedDate, setSelectedDate] = useState(initial.today);
+  const selectedDateRef = useRef(selectedDate);
+  useEffect(() => {
+    selectedDateRef.current = selectedDate;
+  }, [selectedDate]);
   const [scheduleView, setScheduleView] = useState<ScheduleView>("week");
   const [viewedWeek, setViewedWeek] = useState<WeekSchedulePagePayload>({
     weekStart: initial.weekStart,
@@ -294,15 +299,80 @@ export function TrainsDashboard({ initial }: Props) {
     handleMonthChange(body);
   }, [handleMonthChange, t]);
 
+  const fetchWeek = useCallback(
+    async (weekStart: string) => {
+      const res = await fetch(
+        `/api/trains/schedule/week?weekStart=${encodeURIComponent(weekStart)}`,
+      );
+      if (!res.ok) {
+        setError(t("weekLoadFailed"));
+        return;
+      }
+      const body = (await res.json()) as WeekSchedulePagePayload;
+      handleWeekChange(body);
+    },
+    [handleWeekChange, t],
+  );
+
+  const goToToday = useCallback(() => {
+    const today = data.today;
+    setSelectedDate(today);
+    if (scheduleView === "month") {
+      void fetchMonth(getMonthKey(today));
+      return;
+    }
+    void fetchWeek(getWeekStartMonday(today));
+  }, [data.today, fetchMonth, fetchWeek, scheduleView]);
+
+  const isOnTodayView = useMemo(() => {
+    if (selectedDate !== data.today) return false;
+    if (scheduleView === "month") {
+      return viewedMonth.monthKey === getMonthKey(data.today);
+    }
+    return viewedWeek.weekStart === getWeekStartMonday(data.today);
+  }, [
+    data.today,
+    scheduleView,
+    selectedDate,
+    viewedMonth.monthKey,
+    viewedWeek.weekStart,
+  ]);
+
   const handleScheduleViewChange = useCallback(
     (view: ScheduleView) => {
       setScheduleView(view);
       if (view === "month") {
-        void fetchMonth(viewedMonthKeyRef.current);
+        void fetchMonth(getMonthKey(selectedDateRef.current));
+        return;
       }
+      void fetchWeek(getWeekStartMonday(selectedDateRef.current));
     },
-    [fetchMonth],
+    [fetchMonth, fetchWeek],
   );
+
+  const selectedWeekStart = getWeekStartMonday(selectedDate);
+  const selectedWeekEnd = addCalendarDays(selectedWeekStart, 6);
+  const weekViewSeed = useMemo((): WeekSchedulePagePayload => {
+    if (viewedWeek.weekStart === selectedWeekStart) {
+      return viewedWeek;
+    }
+    const dayConfigs = viewedMonth.dayConfigs.filter(
+      (day) => day.date >= selectedWeekStart && day.date <= selectedWeekEnd,
+    );
+    const weekRecords = viewedMonth.monthRecords.filter(
+      (record) => record.date >= selectedWeekStart && record.date <= selectedWeekEnd,
+    );
+    if (dayConfigs.length === 0) {
+      return buildProvisionalWeekPage(selectedWeekStart, viewedWeek.templateType);
+    }
+    return {
+      weekStart: selectedWeekStart,
+      weekEnd: selectedWeekEnd,
+      templateType: viewedWeek.templateType,
+      dayConfigs,
+      weekRecords,
+    };
+  }, [selectedWeekStart, selectedWeekEnd, viewedWeek, viewedMonth]);
 
   const activeDayConfigs =
     scheduleView === "month" ? viewedMonth.dayConfigs : viewedWeek.dayConfigs;
@@ -1045,21 +1115,32 @@ export function TrainsDashboard({ initial }: Props) {
             <h2 className="text-sm font-medium text-[#8b949e]">
               {t("scheduleSection")}
             </h2>
-            <TrainScheduleViewToggle
-              view={scheduleView}
-              weekLabel={t("viewWeek")}
-              monthLabel={t("viewMonth")}
-              onChange={handleScheduleViewChange}
-            />
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <TrainScheduleViewToggle
+                view={scheduleView}
+                weekLabel={t("viewWeek")}
+                monthLabel={t("viewMonth")}
+                onChange={handleScheduleViewChange}
+              />
+              <button
+                type="button"
+                onClick={() => goToToday()}
+                disabled={isOnTodayView}
+                aria-label={t("goToTodayAria")}
+                className="rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-1.5 text-xs font-medium text-[#e6edf3] hover:bg-[#161b22] disabled:cursor-default disabled:opacity-50"
+              >
+                {t("goToToday")}
+              </button>
+            </div>
           </div>
 
           {scheduleView === "week" ? (
             <WeekScheduleStrip
               today={data.today}
-              initialWeekStart={data.weekStart}
-              initialWeekEnd={data.weekEnd}
-              initialDayConfigs={data.dayConfigs}
-              initialWeekRecords={data.weekRecords}
+              initialWeekStart={weekViewSeed.weekStart}
+              initialWeekEnd={weekViewSeed.weekEnd}
+              initialDayConfigs={weekViewSeed.dayConfigs}
+              initialWeekRecords={weekViewSeed.weekRecords}
               selectedDate={selectedDate}
               conductorLabels={conductorShortLabels}
               vipLabels={vipShortLabels}
@@ -1078,7 +1159,7 @@ export function TrainsDashboard({ initial }: Props) {
           ) : (
             <TrainMonthCalendar
               today={data.today}
-              initialMonthKey={getMonthKey(data.today)}
+              initialMonthKey={getMonthKey(selectedDate)}
               initialDayConfigs={data.dayConfigs}
               initialMonthRecords={data.weekRecords}
               selectedDate={selectedDate}
