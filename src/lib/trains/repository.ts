@@ -209,6 +209,7 @@ export async function getConductorRecord(
   date: string,
   seasonKey?: string | null,
 ): Promise<(typeof schema.trainConductorRecords.$inferSelect) | null> {
+  void seasonKey;
   const db = getDb();
   const [row] = await db
     .select()
@@ -222,9 +223,6 @@ export async function getConductorRecord(
     .limit(1);
 
   if (!row) return null;
-  if (seasonKey && row.seasonKey && row.seasonKey !== seasonKey) {
-    return null;
-  }
   return row;
 }
 
@@ -321,6 +319,7 @@ export async function upsertConductorDraft(input: {
     await db
       .update(schema.trainConductorRecords)
       .set({
+        seasonKey: input.seasonKey ?? existing.seasonKey,
         conductorMemberId: input.conductorMemberId ?? existing.conductorMemberId,
         conductorMemberName:
           input.conductorMemberName ?? existing.conductorMemberName,

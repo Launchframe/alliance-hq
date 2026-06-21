@@ -8,9 +8,11 @@ import { ConductorPickModal } from "@/components/trains/ConductorPickModal";
 import { ConductorSwapDialog } from "@/components/trains/ConductorSwapDialog";
 import { ConductorHistoryTable } from "@/components/trains/ConductorHistoryTable";
 import { ConductorWheelModal } from "@/components/trains/ConductorWheelModal";
+import { TrainsHelpPanel } from "@/components/trains/TrainsHelpPanel";
 import { SpinWeekConductorFlow } from "@/components/trains/SpinWeekConductorFlow";
 import { TrainPivotBanner } from "@/components/trains/TrainPivotBanner";
-import { TrainsHelpPanel } from "@/components/trains/TrainsHelpPanel";
+import { PastTemplatePaintConfirmDialog } from "@/components/trains/PastTemplatePaintConfirmDialog";
+import { TrainsServerTimeClock } from "@/components/trains/TrainsServerTimeClock";
 import { TrainsUserSettingsMenu } from "@/components/trains/TrainsUserSettingsMenu";
 import {
   TrainsWalkthroughOverlay,
@@ -38,11 +40,9 @@ import {
 import { Dialog } from "@/components/ui/dialog";
 import { AppSelect } from "@/components/ui/AppSelect";
 import { Link } from "@/i18n/navigation";
-import { SERVER_TIME_IANA } from "@/lib/timezone/constants";
 import { buildProvisionalWeekPage } from "@/lib/client/week-schedule-provisional";
 import {
   addCalendarDays,
-  formatServerCalendarDate,
   getMonthKey,
   isWithinPivotWindow,
   monthEndFromKey,
@@ -211,6 +211,15 @@ export function TrainsDashboard({ initial }: Props) {
   const [swapOpen, setSwapOpen] = useState(false);
   const [swapBusy, setSwapBusy] = useState(false);
   const [scheduleBusy, setScheduleBusy] = useState(false);
+  const [pendingPastPaint, setPendingPastPaint] = useState<{
+    dates: string[];
+    templateType: WeekTemplateType;
+  } | null>(null);
+  const [pastPaintBusy, setPastPaintBusy] = useState(false);
+  const [autoRollNotice, setAutoRollNotice] = useState<{
+    memberName: string;
+    role: "conductor" | "vip";
+  } | null>(null);
   const trainWeekConfig = useMemo(
     () => allianceTrainWeekFromRow({ trainWeekStartDow: data.trainWeekStartDow }),
     [data.trainWeekStartDow],
@@ -222,18 +231,6 @@ export function TrainsDashboard({ initial }: Props) {
     () => wheelSpeedMultiplier(wheelSpinSpeed),
     [wheelSpinSpeed],
   );
-
-  const serverTimeBadge = useMemo(() => {
-    const now = new Date();
-    const date = formatServerCalendarDate(now);
-    const time = new Intl.DateTimeFormat(undefined, {
-      timeZone: SERVER_TIME_IANA,
-      hour: "numeric",
-      minute: "2-digit",
-      hour12: true,
-    }).format(now);
-    return t("serverTimeBadge.current", { date, time });
-  }, [t]);
 
   const weekdayHeaderLabels = useMemo(() => {
     const keys =
@@ -663,6 +660,12 @@ export function TrainsDashboard({ initial }: Props) {
         if (body.result.poolRefreshed) {
           presentPoolRefreshedHints([body.result.poolRefreshed]);
         }
+        if (body.result.memberName) {
+          setAutoRollNotice({
+            memberName: body.result.memberName,
+            role,
+          });
+        }
         setError(null);
         void refreshRef.current();
         return;
@@ -882,6 +885,27 @@ export function TrainsDashboard({ initial }: Props) {
     );
   };
 
+  const executePaintDates = useCallback(
+    (dates: string[], templateType: WeekTemplateType) => {
+      return withOptimisticMutation(
+        (snap) => applyOptimisticPaint(snap, dates, templateType),
+        async () => {
+          const res = await fetch("/api/trains/schedule/days", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ dates, templateType }),
+          });
+          const body = (await res.json()) as { error?: string };
+          return {
+            ok: res.ok,
+            error: res.ok ? undefined : (body.error ?? t("scheduleFailed")),
+          };
+        },
+      );
+    },
+    [t, withOptimisticMutation],
+  );
+
   const paintDates = useCallback(
     (dates: string[], templateType: WeekTemplateType) => {
       const allowedDates = data.canUnlockConductor
@@ -893,23 +917,27 @@ export function TrainsDashboard({ initial }: Props) {
         setError(t("scheduleFailed"));
         return Promise.resolve(false);
       }
-      return withOptimisticMutation(
-        (snap) => applyOptimisticPaint(snap, allowedDates, templateType),
-        async () => {
-          const res = await fetch("/api/trains/schedule/days", {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ dates: allowedDates, templateType }),
-          });
-          const body = (await res.json()) as { error?: string };
-          return {
-            ok: res.ok,
-            error: res.ok ? undefined : (body.error ?? t("scheduleFailed")),
-          };
-        },
-      );
+
+      if (data.canUnlockConductor) {
+        const pastDates = allowedDates.filter(
+          (date) => !canOfficerChangeTemplateForDate(date, data.today),
+        );
+        if (pastDates.length > 0) {
+          setPendingPastPaint({ dates: allowedDates, templateType });
+          return Promise.resolve(false);
+        }
+      }
+
+      return executePaintDates(allowedDates, templateType);
     },
-    [data.canUnlockConductor, data.today, setError, t, withOptimisticMutation],
+    [
+      data.canUnlockConductor,
+      data.today,
+      executePaintDates,
+      setError,
+      setPendingPastPaint,
+      t,
+    ],
   );
 
   const handleTemplateClick = useCallback(
@@ -1151,12 +1179,11 @@ export function TrainsDashboard({ initial }: Props) {
         <div className="min-w-0 flex-1">
           <h1 className="text-2xl font-semibold text-[#e6edf3]">{t("title")}</h1>
           <p className="mt-1 text-sm text-[#8b949e]">{t("subtitle")}</p>
-          <p
-            className="mt-2 inline-flex rounded-lg border border-[#30363d] bg-[#0d1117]/80 px-2.5 py-1 text-[10px] tabular-nums text-[#8b949e]"
-            data-testid="trains-server-time-notice"
-          >
-            {serverTimeBadge}
-          </p>
+          <TrainsServerTimeClock
+            selectedDate={selectedDate}
+            today={data.today}
+            lockedAt={selectedRecord?.lockedAt ?? null}
+          />
         </div>
         <div className="flex w-full min-w-0 flex-col gap-2 sm:w-auto sm:items-end">
           <div className="flex items-center justify-end gap-2">
@@ -1211,6 +1238,25 @@ export function TrainsDashboard({ initial }: Props) {
       {error ? (
         <p className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-300">
           {error}
+        </p>
+      ) : null}
+
+      {autoRollNotice ? (
+        <p className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-100">
+          {t("autoRollSuccess", {
+            name: autoRollNotice.memberName,
+            role:
+              autoRollNotice.role === "vip"
+                ? t("quickActionsVip")
+                : t("quickActionsConductor"),
+          })}
+          <button
+            type="button"
+            className="ml-2 text-xs underline opacity-80 hover:opacity-100"
+            onClick={() => setAutoRollNotice(null)}
+          >
+            {t("autoRollDismiss")}
+          </button>
         </p>
       ) : null}
 
@@ -1675,6 +1721,33 @@ export function TrainsDashboard({ initial }: Props) {
         onConfirm={confirmPendingTemplateChange}
         onClose={() => setPendingTemplateChange(null)}
       />
+
+      {pendingPastPaint ? (
+        <PastTemplatePaintConfirmDialog
+          open
+          dates={pendingPastPaint.dates.filter(
+            (date) => !canOfficerChangeTemplateForDate(date, data.today),
+          )}
+          templateType={pendingPastPaint.templateType}
+          templateLabel={t(`templates.${pendingPastPaint.templateType}`)}
+          busy={pastPaintBusy}
+          onCancel={() => {
+            if (!pastPaintBusy) setPendingPastPaint(null);
+          }}
+          onConfirm={() => {
+            if (pastPaintBusy || !pendingPastPaint) return;
+            setPastPaintBusy(true);
+            void executePaintDates(
+              pendingPastPaint.dates,
+              pendingPastPaint.templateType,
+            )
+              .then((ok) => {
+                if (ok) setPendingPastPaint(null);
+              })
+              .finally(() => setPastPaintBusy(false));
+          }}
+        />
+      ) : null}
 
       <Dialog
         open={reseedHintOpen}

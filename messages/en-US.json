@@ -1035,6 +1035,18 @@
       "saving": "Saving…",
       "saveFailed": "Could not save train conductor minimums.",
       "officersOnly": "Only train officers can change these settings."
+    },
+    "trainWeek": {
+      "sectionTitle": "Train week start",
+      "sectionBody": "When your alliance train week begins for schedule templates and weekly minimums. Default is Tuesday (Last War canonical). Changing this does not rewrite past day configs.",
+      "loading": "Loading train week settings…",
+      "loadFailed": "Could not load train week settings.",
+      "startDayLabel": "First day of train week",
+      "startDayHint": "Week template bulk-apply and conductor minimum windows use this boundary.",
+      "save": "Save train week",
+      "saving": "Saving…",
+      "saveFailed": "Could not save train week settings.",
+      "adminsOnly": "Only alliance admins can change the train week start."
     }
   },
   "account": {
@@ -1397,6 +1409,28 @@
     "nativeModeBanner": "This alliance runs trains in native mode. VS and donation rolls need a connected Ashed roster; use manual picks when scores are unavailable.",
     "serverTimeBadge": {
       "current": "Server time (UTC−2): {date} · {time}"
+    },
+    "serverTimeClock": {
+      "currentLive": "Server time (UTC−2): {date} · {time}",
+      "openBoard": "Open server time departures board",
+      "boardTitle": "Grand Central — Server Time",
+      "timezoneNote": "Train days and lock timing follow game server time (UTC−2), not your account timezone.",
+      "departureHeading": "Next departure · {date}",
+      "departure": {
+        "awaiting": "Awaiting selection",
+        "onPlatform": "On platform",
+        "reset": "Reset · 12:00 AM {date}"
+      }
+    },
+    "autoRollSuccess": "{name} selected as {role} (automatic).",
+    "autoRollDismiss": "Dismiss",
+    "pastPaintConfirm": {
+      "title": "Paint past train days?",
+      "body": "You are about to apply {template} to {count} past day(s). Locked conductors are still protected server-side.",
+      "hint": "Officers cannot paint past days without platform maintainer access.",
+      "confirm": "Paint past days",
+      "confirming": "Painting…",
+      "cancel": "Cancel"
     },
     "userSettings": {
       "menuLabel": "Train display settings",

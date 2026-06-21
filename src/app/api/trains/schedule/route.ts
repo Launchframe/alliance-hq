@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { loadTrainsDashboard } from "@/lib/trains/load-dashboard";
+import { loadActiveAlliancePoolMembers } from "@/lib/members/game-roster";
 import {
   getOrCreateWeekSchedule,
   getServerCalendarDate,
@@ -43,6 +44,16 @@ export async function POST(request: Request) {
   const weekStart =
     body.weekStart?.trim() || getWeekStartMonday(getServerCalendarDate());
   const templateType = body.templateType ?? "vs_push_week";
+
+  const members = await loadActiveAlliancePoolMembers({
+    allianceId: ctx.allianceId,
+  });
+  if (members.length === 0) {
+    return NextResponse.json(
+      { error: "Import alliance members before creating a train schedule." },
+      { status: 409 },
+    );
+  }
 
   await setWeekTemplate(
     ctx.allianceId,

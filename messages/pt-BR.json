@@ -1035,6 +1035,18 @@
       "saving": "Salvando…",
       "saveFailed": "Não foi possível salvar os mínimos do condutor.",
       "officersOnly": "Somente oficiais do trem podem alterar estas configurações."
+    },
+    "trainWeek": {
+      "sectionTitle": "Início da semana do trem",
+      "sectionBody": "Quando a semana do trem da aliança começa para modelos e mínimos semanais. O padrão é terça-feira. Alterar isso não reescreve configurações de dias passados.",
+      "loading": "Carregando configurações da semana do trem…",
+      "loadFailed": "Não foi possível carregar as configurações da semana do trem.",
+      "startDayLabel": "Primeiro dia da semana do trem",
+      "startDayHint": "Modelos semanais e janelas de mínimos do condutor usam este limite.",
+      "save": "Salvar semana do trem",
+      "saving": "Salvando…",
+      "saveFailed": "Não foi possível salvar as configurações da semana do trem.",
+      "adminsOnly": "Somente administradores da aliança podem alterar o início da semana do trem."
     }
   },
   "account": {
@@ -1397,6 +1409,28 @@
     "nativeModeBanner": "Esta aliança usa trens no modo nativo. Sorteios de VS e doações precisam do roster Ashed conectado; use escolhas manuais quando as pontuações não estiverem disponíveis.",
     "serverTimeBadge": {
       "current": "Horário do servidor (UTC−2): {date} · {time}"
+    },
+    "serverTimeClock": {
+      "currentLive": "Horário do servidor (UTC−2): {date} · {time}",
+      "openBoard": "Abrir painel de horário do servidor",
+      "boardTitle": "Grand Central — Horário do servidor",
+      "timezoneNote": "Os dias do trem e o bloqueio seguem o horário do servidor do jogo (UTC−2), não o fuso da sua conta.",
+      "departureHeading": "Próxima partida · {date}",
+      "departure": {
+        "awaiting": "Aguardando seleção",
+        "onPlatform": "Na plataforma",
+        "reset": "Reinício · 00:00 {date}"
+      }
+    },
+    "autoRollSuccess": "{name} selecionado(a) como {role} (automático).",
+    "autoRollDismiss": "Fechar",
+    "pastPaintConfirm": {
+      "title": "Pintar dias passados do trem?",
+      "body": "Você está prestes a aplicar {template} a {count} dia(s) passado(s). Condutores bloqueados continuam protegidos no servidor.",
+      "hint": "Oficiais não podem pintar dias passados sem acesso de mantenedor da plataforma.",
+      "confirm": "Pintar dias passados",
+      "confirming": "Pintando…",
+      "cancel": "Cancelar"
     },
     "userSettings": {
       "menuLabel": "Configurações de exibição dos trens",
