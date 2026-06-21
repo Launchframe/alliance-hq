@@ -17,7 +17,6 @@ import {
   fetchConnectSessionState,
   getE2eSql,
   playwrightAuthCookies,
-  sessionCookie,
   sessionHasAshedCredential,
 } from "./fixtures/db";
 
