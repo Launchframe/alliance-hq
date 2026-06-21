@@ -27,7 +27,7 @@ export function AllianceSettingsForm({
         {!allianceTag && <p className="mt-1 text-sm text-[#8b949e]">{t("subtitleAlliance")}</p>}
       </div>
 
-      <AllianceSeasonSettings />
+      {allianceTag ? <AllianceSeasonSettings allianceTag={allianceTag} /> : null}
 
       {showTeamLink ? (
         <section className="rounded-xl border border-[#30363d] bg-[#161b22] p-5">

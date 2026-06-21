@@ -158,7 +158,13 @@ export function SidebarNav({
             group.id === "alliance-management"
               ? [
                   ...(showTeamAccess
-                    ? [{ href: "/settings/team", labelKey: "team" as const }]
+                    ? [
+                        {
+                          href: "/settings/team",
+                          labelKey: "team" as const,
+                          pageId: "team",
+                        },
+                      ]
                     : []),
                   ...(showAllianceSettings && activeAllianceTag
                     ? [
@@ -173,7 +179,13 @@ export function SidebarNav({
               : group.id === "hq-native"
                 ? [
                     ...(showAdminPortal
-                      ? [{ href: "/admin", labelKey: "adminPortal" as const }]
+                      ? [
+                          {
+                            href: "/admin",
+                            labelKey: "adminPortal" as const,
+                            pageId: "admin-portal",
+                          },
+                        ]
                       : []),
                   ]
                 : [];
