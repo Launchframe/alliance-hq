@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   allianceLandingPath,
+  findSessionAllianceMembership,
+  pickAllianceMembershipForSession,
   resolveSessionAllianceId,
 } from "@/lib/alliance/session-memberships";
 import type { Session } from "@/lib/db/schema";
@@ -28,6 +30,103 @@ describe("allianceLandingPath", () => {
 
   it("routes ashed alliances to /dashboard", () => {
     expect(allianceLandingPath("ashed")).toBe("/dashboard");
+  });
+});
+
+describe("pickAllianceMembershipForSession", () => {
+  it("auto-picks a sole membership", () => {
+    expect(
+      pickAllianceMembershipForSession(
+        makeSession({ id: "s1", currentAllianceId: null }),
+        [
+          {
+            id: "a1",
+            tag: "LFgo",
+            name: "LFgo",
+            slug: "lfgo",
+            roleName: "officer",
+          },
+        ],
+      )?.id,
+    ).toBe("a1");
+  });
+
+  it("binds a matching resolved alliance id", () => {
+    expect(
+      pickAllianceMembershipForSession(
+        makeSession({
+          id: "s1",
+          currentAllianceId: null,
+          allianceId: "a1",
+        }),
+        [
+          {
+            id: "a1",
+            tag: "LFgo",
+            name: "LFgo",
+            slug: "lfgo",
+            roleName: "officer",
+          },
+          {
+            id: "a2",
+            tag: "Other",
+            name: "Other",
+            slug: "other",
+            roleName: "member",
+          },
+        ],
+      )?.id,
+    ).toBe("a1");
+  });
+
+  it("does not pick when multiple memberships need an explicit choice", () => {
+    expect(
+      pickAllianceMembershipForSession(
+        makeSession({ id: "s1", currentAllianceId: null }),
+        [
+          {
+            id: "a1",
+            tag: "A",
+            name: "A",
+            slug: "a",
+            roleName: "officer",
+          },
+          {
+            id: "a2",
+            tag: "B",
+            name: "B",
+            slug: "b",
+            roleName: "member",
+          },
+        ],
+      ),
+    ).toBeNull();
+  });
+});
+
+describe("findSessionAllianceMembership", () => {
+  it("returns the roster row for an explicit current alliance", () => {
+    expect(
+      findSessionAllianceMembership(
+        makeSession({ currentAllianceId: "a1" }),
+        [
+          {
+            id: "a1",
+            tag: "LFgo",
+            name: "LFgo",
+            slug: "lfgo",
+            roleName: "maintainer",
+          },
+          {
+            id: "a2",
+            tag: "nmi",
+            name: "NMI",
+            slug: "nmi",
+            roleName: "officer",
+          },
+        ],
+      )?.tag,
+    ).toBe("LFgo");
   });
 });
 

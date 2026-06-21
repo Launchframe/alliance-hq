@@ -118,22 +118,35 @@ export async function switchSessionCurrentAlliance(
 
   const tag = alliance.tag?.trim() || null;
   const operatingMode = parseOperatingMode(alliance.operatingMode);
+  const switchingAlliance = session.currentAllianceId !== allianceId;
 
-  // Drop personal Ashed JWT and legacy alliance fields from the prior context.
-  await db
-    .delete(schema.ashedCredentials)
-    .where(eq(schema.ashedCredentials.sessionId, session.id));
+  if (switchingAlliance) {
+    // Drop personal Ashed JWT and legacy session fields from the prior context.
+    await db
+      .delete(schema.ashedCredentials)
+      .where(eq(schema.ashedCredentials.sessionId, session.id));
 
-  await db
-    .update(schema.sessions)
-    .set({
-      currentAllianceId: alliance.id,
-      allianceTag: tag,
-      allianceId: alliance.ashedAllianceId ?? null,
-      userLabel: null,
-      updatedAt: new Date(),
-    })
-    .where(eq(schema.sessions.id, session.id));
+    await db
+      .update(schema.sessions)
+      .set({
+        currentAllianceId: alliance.id,
+        allianceTag: tag,
+        allianceId: alliance.ashedAllianceId ?? null,
+        userLabel: null,
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.sessions.id, session.id));
+  } else {
+    await db
+      .update(schema.sessions)
+      .set({
+        currentAllianceId: alliance.id,
+        allianceTag: tag,
+        allianceId: alliance.ashedAllianceId ?? null,
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.sessions.id, session.id));
+  }
 
   return {
     allianceId: alliance.id,
@@ -146,4 +159,47 @@ export async function switchSessionCurrentAlliance(
 
 export function resolveSessionAllianceId(session: Session): string | null {
   return session.currentAllianceId ?? session.allianceId;
+}
+
+/** Session alliance id that matches one of the caller's roster memberships. */
+export function findSessionAllianceMembership(
+  session: Session,
+  alliances: SessionAllianceOption[],
+): SessionAllianceOption | null {
+  const allianceId = resolveSessionAllianceId(session);
+  if (!allianceId) {
+    return null;
+  }
+  return alliances.find((row) => row.id === allianceId) ?? null;
+}
+
+/** When session lacks currentAllianceId, pick a sole membership or a resolved HQ id match. */
+export function pickAllianceMembershipForSession(
+  session: Session,
+  alliances: SessionAllianceOption[],
+): SessionAllianceOption | null {
+  if (alliances.length === 0) {
+    return null;
+  }
+
+  if (
+    session.currentAllianceId &&
+    alliances.some((row) => row.id === session.currentAllianceId)
+  ) {
+    return null;
+  }
+
+  const resolved = resolveSessionAllianceId(session);
+  if (resolved) {
+    const match = alliances.find((row) => row.id === resolved);
+    if (match) {
+      return match;
+    }
+  }
+
+  if (alliances.length === 1) {
+    return alliances[0]!;
+  }
+
+  return null;
 }

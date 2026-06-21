@@ -1,8 +1,6 @@
-import { redirect } from "@/i18n/navigation";
-
 import { AllianceSettingsForm } from "@/components/AllianceSettingsForm";
-import { resolveSessionAllianceId } from "@/lib/alliance/session-memberships";
-import { sessionHasActiveMembership } from "@/lib/native-alliance/access";
+import { AllianceContextRequired } from "@/components/settings/AllianceContextRequired";
+import { requireAllianceSettingsSession, resolveAllianceTagForSession, shouldShowTeamAccessNavForSession } from "@/lib/settings/alliance-settings-access.server";
 import { requirePageSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -14,18 +12,19 @@ export default async function SettingsPage({
 }) {
   const { locale } = await params;
   const session = await requirePageSession("/settings");
-  const hasMembership = await sessionHasActiveMembership(session);
+  const access = await requireAllianceSettingsSession(session, locale);
 
-  if (!hasMembership) {
-    redirect({ href: "/account", locale });
+  if ("pickAlliance" in access) {
+    return <AllianceContextRequired alliances={access.pickAlliance} />;
   }
 
-  const allianceId = resolveSessionAllianceId(session);
+  const allianceTag = await resolveAllianceTagForSession(access.session);
+  const showTeamLink = await shouldShowTeamAccessNavForSession(access.session);
 
   return (
     <AllianceSettingsForm
-      allianceTag={session.allianceTag}
-      showTeamLink={Boolean(allianceId)}
+      allianceTag={allianceTag}
+      showTeamLink={showTeamLink}
     />
   );
 }

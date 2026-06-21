@@ -7,7 +7,9 @@ import {
   FileText,
   Flame,
   GitMerge,
+  Handshake,
   LayoutDashboard,
+  ListChecks,
   Mountain,
   Settings,
   Shield,
@@ -23,10 +25,10 @@ import {
 /** Unique lucide icon per sidebar nav page id */
 export const NAV_PAGE_ICONS: Record<string, LucideIcon> = {
   dashboard: LayoutDashboard,
-  alliances: Users,
+  alliances: Handshake,
   members: Users,
   "waiting-list": ClipboardList,
-  "alliance-tasks": ClipboardList,
+  "alliance-tasks": ListChecks,
   "merge-manager": GitMerge,
   "vs-performance": BarChart3,
   donations: Wallet,

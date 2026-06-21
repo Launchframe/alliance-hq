@@ -4,7 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 
 import { AppSelect } from "@/components/ui/AppSelect";
-import { getPathname } from "@/i18n/navigation";
+import { resolveAllianceSwitchTargetPath } from "@/lib/alliance/switch-nav.shared";
+import { getPathname, usePathname } from "@/i18n/navigation";
 import type { SessionAllianceOption } from "@/lib/alliance/types";
 
 type Props = {
@@ -18,6 +19,7 @@ export function SidebarAlliancePicker({
 }: Props) {
   const t = useTranslations("alliancePicker");
   const locale = useLocale();
+  const pathname = usePathname();
   const [alliances, setAlliances] = useState(initialAlliances);
   const [currentAllianceId, setCurrentAllianceId] = useState(
     initialCurrentAllianceId ?? "",
@@ -83,20 +85,25 @@ export function SidebarAlliancePicker({
           error?: string;
           currentAllianceId?: string;
           redirectPath?: string;
+          operatingMode?: "native" | "ashed";
         };
         if (!res.ok) {
           throw new Error(data.error ?? t("switchFailed"));
         }
         setCurrentAllianceId(data.currentAllianceId ?? allianceId);
-        const redirectPath = data.redirectPath ?? "/members";
-        window.location.assign(getPathname({ href: redirectPath, locale }));
+        const apiRedirect = data.redirectPath ?? "/members";
+        const targetPath = resolveAllianceSwitchTargetPath({
+          currentPath: pathname,
+          apiRedirectPath: apiRedirect,
+        });
+        window.location.assign(getPathname({ href: targetPath, locale }));
       } catch (err) {
         setError(err instanceof Error ? err.message : t("switchFailed"));
       } finally {
         setSwitching(false);
       }
     },
-    [currentAllianceId, locale, t],
+    [currentAllianceId, locale, pathname, t],
   );
 
   if (loading) {
