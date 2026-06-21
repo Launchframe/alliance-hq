@@ -17,7 +17,7 @@ import {
   type AdminAlliancesOrder,
   type AdminAlliancesQueryParams,
   type AdminAlliancesSort,
-} from "@/lib/admin/admin-alliances-query";
+} from "@/lib/admin/admin-alliances-query.shared";
 
 type Alliance = {
   id: string;

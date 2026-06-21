@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { parseAdminAlliancesQueryParams } from "@/lib/admin/admin-alliances-query";
+import { parseAdminAlliancesQueryParams } from "@/lib/admin/admin-alliances-query.shared";
 import { loadAdminAlliances } from "@/lib/admin/system-stats";
 import { requirePlatformMaintainer } from "@/lib/rbac/require-permission";
 import { readSessionId } from "@/lib/session";

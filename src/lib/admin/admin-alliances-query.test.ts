@@ -3,10 +3,12 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildAdminAlliancesQuery,
+} from "@/lib/admin/admin-alliances-query.server";
+import {
   buildAdminAlliancesSearchParams,
   parseAdminAlliancesQueryParams,
   type AdminAlliancesQueryParams,
-} from "@/lib/admin/admin-alliances-query";
+} from "@/lib/admin/admin-alliances-query.shared";
 
 const dialect = new PgDialect();
 

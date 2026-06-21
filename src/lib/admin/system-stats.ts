@@ -1,9 +1,7 @@
 import { asc, count, desc, eq, inArray } from "drizzle-orm";
 
-import {
-  buildAdminAlliancesQuery,
-  type AdminAlliancesQueryParams,
-} from "@/lib/admin/admin-alliances-query";
+import { buildAdminAlliancesQuery } from "@/lib/admin/admin-alliances-query.server";
+import type { AdminAlliancesQueryParams } from "@/lib/admin/admin-alliances-query.shared";
 import { getDb, schema } from "@/lib/db";
 import { getDatabaseHost } from "@/lib/db/url";
 
