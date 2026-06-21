@@ -14,6 +14,7 @@ import {
   FOOTER_NAV,
   NAV_GROUPS,
   filterNavGroupsForOperatingMode,
+  filterNavGroupsForPermissions,
   navLinkActive,
 } from "@/lib/nav/routes";
 
@@ -65,6 +66,7 @@ type Props = {
   canUseAshedEmbeds?: boolean;
   currentAllianceId?: string | null;
   membershipAlliances?: SessionAllianceOption[];
+  sessionPermissions?: readonly string[];
   mobileCollapsible?: boolean;
   expandedGroupId: string | null;
   onToggleGroup: (groupId: string) => void;
@@ -79,6 +81,7 @@ export function SidebarNav({
   canUseAshedEmbeds = true,
   currentAllianceId = null,
   membershipAlliances = [],
+  sessionPermissions = [],
   mobileCollapsible = false,
   expandedGroupId,
   onToggleGroup,
@@ -90,7 +93,11 @@ export function SidebarNav({
   const tNav = useTranslations("nav");
   const tNavGroups = useTranslations("navGroups");
   const tc = useTranslations("common");
-  const navGroups = filterNavGroupsForOperatingMode(NAV_GROUPS, operatingMode)
+  const permissionSet = new Set(sessionPermissions);
+  const navGroups = filterNavGroupsForPermissions(
+    filterNavGroupsForOperatingMode(NAV_GROUPS, operatingMode),
+    permissionSet,
+  )
     .map((group) => ({
       ...group,
       pages: canUseAshedEmbeds

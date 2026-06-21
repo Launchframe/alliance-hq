@@ -451,6 +451,7 @@ export async function getSessionStateFor(
     currentAllianceId: session.currentAllianceId,
     currentAllianceTag: currentAlliance?.tag ?? session.allianceTag,
     membershipAlliances,
+    permissions: rbac ? Array.from(rbac.permissions) : [],
     hasActiveMembership,
     timezone,
     isConnected: connection !== null,

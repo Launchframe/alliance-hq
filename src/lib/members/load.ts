@@ -34,6 +34,36 @@ function sortMembers(members: AshedMember[]): AshedMember[] {
   );
 }
 
+async function loadLocalMembersPayload(
+  hqAllianceId: string,
+  allianceRow: { tag: string; name: string | null },
+  operatingMode: "ashed" | "native",
+): Promise<AllianceMembersPayload> {
+  const members = sortMembers(
+    await loadAllianceGameRoster({
+      allianceId: hqAllianceId,
+      syncFromAshed: false,
+    }),
+  );
+  const active = members.filter((m) => m.status !== "former").length;
+
+  return {
+    alliance: {
+      id: hqAllianceId,
+      tag: allianceRow.tag.trim(),
+      name: allianceRow.name ?? undefined,
+    },
+    members,
+    counts: {
+      total: members.length,
+      active,
+      former: members.length - active,
+    },
+    fetchedAt: new Date().toISOString(),
+    operatingMode,
+  };
+}
+
 export async function loadAllianceMembers(
   sessionId: string,
 ): Promise<AllianceMembersPayload> {
@@ -65,34 +95,21 @@ export async function loadAllianceMembers(
   const operatingMode = await getAllianceOperatingMode(hqAllianceId);
 
   if (operatingMode === "native") {
-    const members = sortMembers(
-      await loadAllianceGameRoster({
-        allianceId: hqAllianceId,
-        syncFromAshed: false,
-      }),
-    );
-    const active = members.filter((m) => m.status !== "former").length;
-
-    return {
-      alliance: {
-        id: hqAllianceId,
-        tag: allianceRow.tag.trim(),
-        name: allianceRow.name,
-      },
-      members,
-      counts: {
-        total: members.length,
-        active,
-        former: members.length - active,
-      },
-      fetchedAt: new Date().toISOString(),
+    return loadLocalMembersPayload(
+      hqAllianceId,
+      { tag: allianceRow.tag.trim(), name: allianceRow.name },
       operatingMode,
-    };
+    );
   }
 
   const connection = await getAshedConnection(sessionId);
   if (!connection) {
-    throw new Error("Not connected to Ashed.");
+    // HQ members without a personal Ashed credential still read the locally synced roster.
+    return loadLocalMembersPayload(
+      hqAllianceId,
+      { tag: allianceRow.tag.trim(), name: allianceRow.name },
+      operatingMode,
+    );
   }
 
   if (!session.allianceTag) {

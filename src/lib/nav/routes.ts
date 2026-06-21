@@ -5,6 +5,8 @@ export type NavPageDef = {
   labelKey: string;
   href: string;
   kind: NavRouteKind;
+  /** When set, hide the link unless the session has this RBAC permission. */
+  requiredPermission?: string;
   /**
    * Override for ashed.online iframe src when it is not trainwreckCase(href).
    * Normally omit — HQ kebab-case routes map by stripping hyphens.
@@ -33,6 +35,21 @@ export function resolveAshedPath(page: NavPageDef): string | undefined {
     return undefined;
   }
   return page.ashedPath ?? trainwreckCase(page.href);
+}
+
+export function filterNavGroupsForPermissions(
+  groups: NavGroupDef[],
+  permissions: ReadonlySet<string>,
+): NavGroupDef[] {
+  return groups
+    .map((group) => ({
+      ...group,
+      pages: group.pages.filter(
+        (page) =>
+          !page.requiredPermission || permissions.has(page.requiredPermission),
+      ),
+    }))
+    .filter((group) => group.pages.length > 0);
 }
 
 export function filterNavGroupsForOperatingMode(
@@ -204,6 +221,7 @@ export const NAV_GROUPS: NavGroupDef[] = [
         href: "/tools/video-upload",
         kind: "native",
         descriptionKey: "videoUploadDescription",
+        requiredPermission: "upload:write",
       },
     ],
   },

@@ -82,6 +82,25 @@ export async function createNativeAlliance(
   sql: Sql,
   options: { tag: string; name: string; ownerHqUserId?: string | null },
 ): Promise<{ allianceId: string; tag: string }> {
+  return createAllianceWithOperatingMode(sql, { ...options, operatingMode: "native" });
+}
+
+export async function createAshedAlliance(
+  sql: Sql,
+  options: { tag: string; name: string; ownerHqUserId?: string | null },
+): Promise<{ allianceId: string; tag: string }> {
+  return createAllianceWithOperatingMode(sql, { ...options, operatingMode: "ashed" });
+}
+
+async function createAllianceWithOperatingMode(
+  sql: Sql,
+  options: {
+    tag: string;
+    name: string;
+    ownerHqUserId?: string | null;
+    operatingMode: "native" | "ashed";
+  },
+): Promise<{ allianceId: string; tag: string }> {
   const now = new Date();
   const allianceId = nanoid(16);
   const slug = `e2e-${options.tag.toLowerCase()}-${nanoid(4)}`;
@@ -94,7 +113,7 @@ export async function createNativeAlliance(
       ${slug},
       ${options.tag},
       ${options.name},
-      ${"native"},
+      ${options.operatingMode},
       ${options.ownerHqUserId ?? null},
       ${now},
       ${now}

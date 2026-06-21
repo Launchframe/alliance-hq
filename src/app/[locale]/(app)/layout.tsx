@@ -93,6 +93,7 @@ export default async function AppLayout({
           state.currentAllianceId ?? state.allianceId ?? null
         }
         membershipAlliances={state.membershipAlliances}
+        sessionPermissions={state.permissions}
       >
         {children}
       </AshedShell>
