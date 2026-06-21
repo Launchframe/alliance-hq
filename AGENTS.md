@@ -14,6 +14,10 @@ Before creating a commit, all checks in [`PRE-COMMIT.md`](./PRE-COMMIT.md) must 
 
 Do not commit while any gate is failing.
 
+## E2E plan completion
+
+Feature work is not done until Playwright e2e is green — see [`.cursor/rules/e2e-plan-completion.mdc`](.cursor/rules/e2e-plan-completion.mdc). Update `e2e/**/*.spec.ts` and `e2e/fixtures/**` when auth, invite, connect, or session isolation changes; run `npm run test:e2e` before marking a plan complete or opening a PR.
+
 ## Client vs server imports (Next.js bundles)
 
 **`"use client"` components and hooks must not import modules that pull in Node or Postgres.** Next will try to bundle those for the browser and fail (`Can't resolve 'fs'`, `postgres`, etc.).

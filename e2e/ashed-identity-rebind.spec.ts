@@ -5,6 +5,7 @@ import { expect, test } from "@playwright/test";
 
 import {
   attachAshedConnectionToSession,
+  authCookieHeader,
   createAllianceMembership,
   createCanonicalAshedHqUser,
   createMagicLinkSession,
@@ -56,7 +57,7 @@ test.describe("Ashed identity rebind — permission boost prevention", () => {
 
     await sql`
       UPDATE sessions
-      SET current_alliance_id = ${alliance.allianceId}
+      SET hq_user_id = ${canonicalId}, current_alliance_id = ${alliance.allianceId}
       WHERE id = ${stubSession.sessionId}
     `;
 
@@ -235,5 +236,42 @@ test.describe("Ashed identity rebind — permission boost prevention", () => {
     expect(disconnected.isConnected).toBe(false);
     expect(disconnected.canUseAshedEmbeds).toBe(false);
     expect(disconnected.roleName).toBeNull();
+  });
+
+  test("sign-out clears Ashed credential from browser session", async ({
+    request,
+  }) => {
+    const sql = getE2eSql();
+    const ashedUserId = `ashed-${nanoid(12)}`;
+    const session = await createMagicLinkSession(sql, uniqueEmail("sign-out"));
+    const { hqUserId: canonicalId } = await createCanonicalAshedHqUser(sql, {
+      email: uniqueEmail("canonical-sign-out"),
+      ashedUserId,
+    });
+
+    await sql`
+      UPDATE sessions
+      SET hq_user_id = ${canonicalId}
+      WHERE id = ${session.sessionId}
+    `;
+    await attachAshedConnectionToSession(sql, session.sessionId, {
+      ashedUserId,
+    });
+
+    expect(
+      await fetchConnectSessionState(e2eBaseUrl(), session.sessionId),
+    ).toMatchObject({ isConnected: true });
+
+    const signOut = await request.post("/api/auth/sign-out", {
+      headers: {
+        Cookie: authCookieHeader(session),
+      },
+    });
+    expect(signOut.ok()).toBeTruthy();
+
+    expect(await sessionHasAshedCredential(sql, session.sessionId)).toBe(false);
+    expect(
+      await fetchConnectSessionState(e2eBaseUrl(), session.sessionId),
+    ).toMatchObject({ isConnected: false });
   });
 });

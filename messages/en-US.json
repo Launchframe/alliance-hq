@@ -696,8 +696,6 @@
       "account": "Account",
       "adminPortal": "Admin portal",
       "connect": "Connect Ashed",
-      "disconnectAshed": "Disconnect Ashed",
-      "disconnectingAshed": "Disconnecting Ashed…",
       "signOut": "Sign out",
       "signingOut": "Signing out…",
       "unknownUser": "HQ user",

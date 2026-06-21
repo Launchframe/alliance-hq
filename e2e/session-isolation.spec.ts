@@ -91,6 +91,7 @@ test.describe("Browser session isolation — Ashed credential binding", () => {
     });
 
     const accepted = await acceptInviteViaApi(
+      sql,
       e2eBaseUrl(),
       token,
       inviteEmail,
@@ -130,6 +131,7 @@ test.describe("Browser session isolation — Ashed credential binding", () => {
     });
 
     await acceptInviteViaApi(
+      sql,
       e2eBaseUrl(),
       token,
       inviteEmail,

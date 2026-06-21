@@ -13,6 +13,7 @@ import {
 import { getDb, schema } from "@/lib/db";
 import { ROLE_IDS } from "@/lib/rbac/constants";
 import { resolveCanonicalHqUserForAshedConnect } from "@/lib/rbac/resolve-canonical-hq-user";
+import { getAshedConnection } from "@/lib/session";
 
 const databaseUrl =
   process.env.E2E_DATABASE_URL?.trim() ||
@@ -283,5 +284,35 @@ describeIntegration("Ashed identity rebind (integration)", () => {
         authHqUserId: nanoid(16),
       }),
     ).rejects.toThrow(/already linked to a different HQ user/i);
+  });
+
+  it("getAshedConnection ignores credentials that do not match the bound HQ user", async () => {
+    const ashedUserId = `ashed-${nanoid(12)}`;
+    const userA = await createHqUser(uniqueEmail("user-a"), ashedUserId);
+    const userB = await createHqUser(uniqueEmail("user-b"));
+    const sessionId = await createSession(userA);
+
+    await attachCredential(sessionId, ashedUserId);
+
+    const db = getDb();
+    cleanup.push(async () => {
+      await db
+        .delete(schema.ashedCredentials)
+        .where(eq(schema.ashedCredentials.sessionId, sessionId));
+      await db.delete(schema.sessions).where(eq(schema.sessions.id, sessionId));
+      for (const id of [userA, userB]) {
+        await db.delete(schema.hqUsers).where(eq(schema.hqUsers.id, id));
+      }
+    });
+
+    expect(await getAshedConnection(sessionId)).not.toBeNull();
+
+    await db
+      .update(schema.sessions)
+      .set({ hqUserId: userB, updatedAt: new Date() })
+      .where(eq(schema.sessions.id, sessionId));
+
+    expect(await getAshedConnection(sessionId)).toBeNull();
+    expect(await countCredentialsForSession(sessionId)).toBe(1);
   });
 });

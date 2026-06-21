@@ -10,6 +10,13 @@ import {
 } from "../../src/lib/connectionString";
 import { ROLE_IDS } from "../../src/lib/rbac/constants";
 import { shouldUpgradeSystemRole } from "../../src/lib/rbac/system-roles";
+import {
+  authCookieHeader,
+  encodeNextAuthSessionToken,
+  playwrightAuthCookies,
+} from "./auth";
+
+export { playwrightAuthCookies, authCookieHeader };
 
 const SESSION_COOKIE = "alliance_hq_session";
 
@@ -37,6 +44,7 @@ export type SessionFixture = {
   sessionId: string;
   hqUserId: string;
   email: string;
+  nextAuthToken: string;
 };
 
 export async function createPlatformMaintainerSession(
@@ -61,7 +69,13 @@ export async function createPlatformMaintainerSession(
     VALUES (${sessionId}, ${now}, ${now}, ${expiresAt}, ${hqUserId})
   `;
 
-  return { sessionId, hqUserId, email };
+  const nextAuthToken = await encodeNextAuthSessionToken({
+    hqUserId,
+    email,
+    name: "E2E Maintainer",
+  });
+
+  return { sessionId, hqUserId, email, nextAuthToken };
 }
 
 export async function createNativeAlliance(
@@ -147,34 +161,37 @@ export async function createHqInviteRow(
 }
 
 export async function acceptInviteViaApi(
+  sql: Sql,
   baseURL: string,
   token: string,
   email: string,
   next?: string,
   sessionId?: string,
-): Promise<{ sessionId: string; redirectTo: string; hqUserId: string }> {
+): Promise<{
+  sessionId: string;
+  redirectTo: string;
+  hqUserId: string;
+  nextAuthToken: string;
+}> {
   let browserSessionId = sessionId;
+  let nextAuthToken: string | undefined;
 
   if (!browserSessionId) {
-    const bootstrap = await fetch(
-      `${baseURL}/api/auth/session?next=${encodeURIComponent("/")}`,
-      { redirect: "manual" },
-    );
-    const setCookie = bootstrap.headers.get("set-cookie") ?? "";
-    const sessionMatch = setCookie.match(
-      new RegExp(`${SESSION_COOKIE}=([^;]+)`),
-    );
-    if (!sessionMatch?.[1]) {
-      throw new Error("Failed to bootstrap invite-accept session.");
-    }
-    browserSessionId = sessionMatch[1];
+    const fixture = await createAuthenticatedHqSession(sql, email);
+    browserSessionId = fixture.sessionId;
+    nextAuthToken = fixture.nextAuthToken;
   }
 
   const res = await fetch(`${baseURL}/api/invite/${encodeURIComponent(token)}/accept`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Cookie: `${SESSION_COOKIE}=${browserSessionId}`,
+      Cookie: nextAuthToken
+        ? authCookieHeader({
+            sessionId: browserSessionId,
+            nextAuthToken,
+          })
+        : `${SESSION_COOKIE}=${browserSessionId}`,
     },
     body: JSON.stringify({
       email,
@@ -193,9 +210,19 @@ export async function acceptInviteViaApi(
     throw new Error(body.error ?? "Invite accept failed.");
   }
 
+  const hqUserId = body.hqUserId ?? "";
+  if (!nextAuthToken) {
+    nextAuthToken = await encodeNextAuthSessionToken({
+      hqUserId,
+      email: email.toLowerCase(),
+      name: "E2E User",
+    });
+  }
+
   return {
     sessionId: browserSessionId,
-    hqUserId: body.hqUserId ?? "",
+    hqUserId,
+    nextAuthToken,
     redirectTo: body.redirectTo ?? "/connect?welcome=1",
   };
 }
@@ -285,6 +312,14 @@ export async function createAuthenticatedHqSession(
   email: string,
   options?: { displayName?: string; accessGranted?: boolean },
 ): Promise<SessionFixture> {
+  return createAuthenticatedHqSession(sql, email);
+}
+
+export async function createAuthenticatedHqSession(
+  sql: Sql,
+  email: string,
+  options?: { displayName?: string; accessGranted?: boolean },
+): Promise<SessionFixture> {
   const now = new Date();
   const expiresAt = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000);
   const sessionId = nanoid(32);
@@ -310,10 +345,17 @@ export async function createAuthenticatedHqSession(
     VALUES (${sessionId}, ${now}, ${now}, ${expiresAt}, ${hqUserId})
   `;
 
+  const nextAuthToken = await encodeNextAuthSessionToken({
+    hqUserId,
+    email: normalizedEmail,
+    name: displayName,
+  });
+
   return {
     sessionId,
     hqUserId,
     email: normalizedEmail,
+    nextAuthToken,
   };
 }
 

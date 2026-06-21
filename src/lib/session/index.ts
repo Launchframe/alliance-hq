@@ -21,6 +21,7 @@ import {
 } from "@/lib/jwt/connection-meta";
 import { DEFAULT_EXPIRY_REMINDER_DAYS } from "@/lib/jwt/decode";
 import { getRbacContext } from "@/lib/rbac/context";
+import { sessionHoldsAshedIdentityForHqUser } from "@/lib/rbac/ashed-session-membership";
 import {
   rbacAllowsAshedConnect,
   sessionHasActiveMembership,
@@ -175,6 +176,14 @@ export async function getAshedConnection(
     return null;
   }
 
+  const session = await loadSession(sessionId);
+  if (
+    session?.hqUserId &&
+    !(await sessionHoldsAshedIdentityForHqUser(sessionId, session.hqUserId))
+  ) {
+    return null;
+  }
+
   return {
     appId: cred.appId,
     originUrl: cred.originUrl,
@@ -280,7 +289,7 @@ export async function storeAshedConnection(
   );
 }
 
-/** Prefer canonical HQ user when this browser session holds an Ashed credential. */
+/** Prefer canonical HQ user when this browser session holds a matching Ashed credential. */
 export async function resolveEffectiveHqUserIdForSession(
   sessionId: string,
   magicLinkHqUserId: string | null,
@@ -291,6 +300,14 @@ export async function resolveEffectiveHqUserIdForSession(
 
   const cred = await getAshedCredentialRecord(sessionId);
   if (!cred?.ashedUserId) {
+    return magicLinkHqUserId;
+  }
+
+  const holdsIdentity = await sessionHoldsAshedIdentityForHqUser(
+    sessionId,
+    magicLinkHqUserId,
+  );
+  if (!holdsIdentity) {
     return magicLinkHqUserId;
   }
 
@@ -343,6 +360,20 @@ export async function clearAshedConnection(sessionId: string) {
     .set({
       allianceId: null,
       allianceTag: null,
+      updatedAt: new Date(),
+    })
+    .where(eq(schema.sessions.id, sessionId));
+}
+
+/** Clears HQ user binding from a browser session (e.g. on sign-out). */
+export async function clearSessionUserBinding(sessionId: string) {
+  const db = getDb();
+  await db
+    .update(schema.sessions)
+    .set({
+      hqUserId: null,
+      userLabel: null,
+      currentAllianceId: null,
       updatedAt: new Date(),
     })
     .where(eq(schema.sessions.id, sessionId));
