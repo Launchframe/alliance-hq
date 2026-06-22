@@ -44,7 +44,9 @@ export {
   handleDiscordLanguage,
   handleDiscordLinkAlliance,
   handleDiscordLinkToAshedSeat,
+  handleDiscordSetVrReportChannel,
 } from "@/lib/vr/bot-setup";
+export { handleDiscordVrReport } from "@/lib/vr/bot-vr-report";
 export { resolveDiscordAllianceId, resolveAllianceForGuild, resolveOwnerSetupAllianceId } from "@/lib/vr/repository";
 
 async function audit(

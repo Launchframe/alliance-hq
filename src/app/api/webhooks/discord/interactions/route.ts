@@ -17,9 +17,11 @@ import {
   discordMessageResponse,
   interactionDiscordUserId,
   interactionDiscordUsername,
+  interactionChannelId,
   interactionGuildId,
   parseButtonCustomId,
   parseLinkSlashOptions,
+  parseSlashOptionInteger,
   parseSlashOptionString,
   parseVrSlashLevel,
   resolveDiscordPublicKey,
@@ -35,10 +37,12 @@ import {
   handleDiscordLinkSlash,
   handleDiscordLinkStartOver,
   handleDiscordLinkToAshedSeat,
+  handleDiscordSetVrReportChannel,
   handleDiscordUnlinkPick,
   handleDiscordUnlinkWithContext,
   handleDiscordVrButtonConfirm,
   handleDiscordVrCharacterPick,
+  handleDiscordVrReport,
   handleDiscordVrSlash,
   handleDiscordWalkthroughDone,
   resolveAllianceForGuild,
@@ -121,6 +125,23 @@ async function handleSlashCommand(payload: DiscordInteractionPayload) {
       discordUserId,
       tag: tag ?? "",
       allianceName: name,
+      locale,
+    });
+    return discordMessageResponse(result.reply);
+  }
+
+  if (commandName === "set-vr-report-channel") {
+    if (!guildId) {
+      return discordMessageResponse(t("errors.guildNotRegistered"));
+    }
+    const channelId = interactionChannelId(payload);
+    if (!channelId) {
+      return discordMessageResponse(t("errors.serverError"));
+    }
+    const result = await handleDiscordSetVrReportChannel({
+      guildId,
+      channelId,
+      discordUserId,
       locale,
     });
     return discordMessageResponse(result.reply);
@@ -239,6 +260,17 @@ async function handleSlashCommand(payload: DiscordInteractionPayload) {
       );
     }
     return discordMessageResponse(result.reply);
+  }
+
+  if (commandName === "vr-report" || commandName === "takedown-teams") {
+    const teamCount = parseSlashOptionInteger(payload, "teams");
+    const result = await handleDiscordVrReport({
+      allianceId,
+      discordUserId,
+      teamCount,
+      locale,
+    });
+    return discordMessageResponse(result.reply, undefined, EPHEMERAL);
   }
 
   return discordMessageResponse(t("errors.unknownCommand"));

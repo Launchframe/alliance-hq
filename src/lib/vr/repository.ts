@@ -599,6 +599,53 @@ export async function upsertGuildAlliance(
     });
 }
 
+export async function setGuildVrReportChannel(
+  guildId: string,
+  channelId: string,
+): Promise<void> {
+  const db = getDb();
+  await db
+    .update(schema.discordGuildAlliances)
+    .set({ vrReportChannelId: channelId })
+    .where(eq(schema.discordGuildAlliances.guildId, guildId));
+}
+
+export async function getGuildVrReportChannel(
+  guildId: string,
+): Promise<string | null> {
+  const db = getDb();
+  const [row] = await db
+    .select({ channelId: schema.discordGuildAlliances.vrReportChannelId })
+    .from(schema.discordGuildAlliances)
+    .where(eq(schema.discordGuildAlliances.guildId, guildId))
+    .limit(1);
+  return row?.channelId?.trim() || null;
+}
+
+export async function listRegisteredGuildsWithReportChannel(): Promise<
+  Array<{ guildId: string; allianceId: string; channelId: string }>
+> {
+  const db = getDb();
+  const rows = await db
+    .select({
+      guildId: schema.discordGuildAlliances.guildId,
+      allianceId: schema.discordGuildAlliances.allianceId,
+      channelId: schema.discordGuildAlliances.vrReportChannelId,
+    })
+    .from(schema.discordGuildAlliances)
+    .where(sql`${schema.discordGuildAlliances.vrReportChannelId} is not null`);
+
+  return rows
+    .filter((row): row is typeof row & { channelId: string } =>
+      Boolean(row.channelId?.trim()),
+    )
+    .map((row) => ({
+      guildId: row.guildId,
+      allianceId: row.allianceId,
+      channelId: row.channelId.trim(),
+    }));
+}
+
 export async function getDiscordUserLocale(
   discordUserId: string,
 ): Promise<"en-US" | "pt-BR" | null> {

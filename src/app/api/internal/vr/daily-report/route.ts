@@ -1,13 +1,11 @@
 import { NextResponse } from "next/server";
 
-import { buildLeaderboardRows, formatDailyDiscordReport } from "@/lib/vr/leaderboard";
-import { loadAllianceMembersForBot } from "@/lib/vr/member-roster";
+import { postDiscordChannelMessage } from "@/lib/discord/post-message.server";
+import { formatVrLeaderboard } from "@/lib/vr/leaderboard";
+import { loadAllianceLeaderboard } from "@/lib/vr/leaderboard.server";
 import {
-  listDiscordLinksByAlliance,
-  listLeaderboardRows,
+  listRegisteredGuildsWithReportChannel,
   resolveAllianceForGuild,
-  resolveDiscordAllianceId,
-  resolveSeasonKey,
 } from "@/lib/vr/repository";
 
 export const dynamic = "force-dynamic";
@@ -21,54 +19,52 @@ function authorize(request: Request): boolean {
   return Boolean(workerSecret && auth === `Bearer ${workerSecret}`);
 }
 
-async function postDiscordChannelMessage(content: string): Promise<void> {
-  const token = process.env.DISCORD_BOT_TOKEN?.trim();
-  const channelId = process.env.DISCORD_VR_REPORT_CHANNEL_ID?.trim();
-  if (!token || !channelId) {
-    console.warn("[vr-daily-report] Discord channel not configured.");
-    return;
-  }
-  const res = await fetch(`https://discord.com/api/v10/channels/${channelId}/messages`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bot ${token}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ content: content.slice(0, 1900) }),
-  });
-  if (!res.ok) {
-    console.error("[vr-daily-report] Discord post failed:", await res.text());
-  }
-}
-
 export async function GET(request: Request) {
   if (!authorize(request)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const guildId = process.env.DISCORD_GUILD_ID?.trim();
-  const allianceId = guildId
-    ? await resolveAllianceForGuild(guildId)
-    : await resolveDiscordAllianceId();
-  if (!allianceId) {
+  const targets = await listRegisteredGuildsWithReportChannel();
+
+  if (targets.length === 0) {
+    const channelId = process.env.DISCORD_VR_REPORT_CHANNEL_ID?.trim();
+    const guildId = process.env.DISCORD_GUILD_ID?.trim();
+    if (channelId && guildId) {
+      const allianceId = await resolveAllianceForGuild(guildId);
+      if (allianceId) {
+        targets.push({ guildId, allianceId, channelId });
+      }
+    }
+  }
+
+  if (targets.length === 0) {
     return NextResponse.json(
       {
         error:
-          "No alliance configured. Register the guild with /link-alliance or set DISCORD_GUILD_ID with a registered server.",
+          "No report channels configured. Owners should run /set-vr-report-channel, or set DISCORD_GUILD_ID + DISCORD_VR_REPORT_CHANNEL_ID for legacy single-tenant.",
       },
       { status: 503 },
     );
   }
 
-  const seasonKey = await resolveSeasonKey(allianceId);
-  const [seasonRows, links, members] = await Promise.all([
-    listLeaderboardRows(allianceId, seasonKey),
-    listDiscordLinksByAlliance(allianceId),
-    loadAllianceMembersForBot(allianceId),
-  ]);
-  const rows = buildLeaderboardRows(seasonRows, members, links);
-  const message = formatDailyDiscordReport(rows, seasonKey);
-  await postDiscordChannelMessage(message);
+  let posted = 0;
+  let skipped = 0;
 
-  return NextResponse.json({ ok: true, seasonKey, count: rows.length });
+  for (const target of targets) {
+    try {
+      const { seasonKey, rows } = await loadAllianceLeaderboard(target.allianceId);
+      const message = formatVrLeaderboard(rows, seasonKey, { limit: 25 });
+      const ok = await postDiscordChannelMessage(target.channelId, message);
+      if (ok) {
+        posted += 1;
+      } else {
+        skipped += 1;
+      }
+    } catch (error) {
+      console.error("[vr-daily-report] failed for guild", target.guildId, error);
+      skipped += 1;
+    }
+  }
+
+  return NextResponse.json({ ok: true, posted, skipped });
 }

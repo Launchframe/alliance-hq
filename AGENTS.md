@@ -82,7 +82,9 @@ Alliance HQ models **in-game** alliance mechanics (trains, VS weeks, R1–R5 ran
   3. HQ `POST /api/discord/authorize`: verifies key, checks Ashed owner role, calls `syncAshedAllianceForBot`, stores encrypted credential (does **not** register guild — that is `/link-alliance` only).
   4. Owner: `/link name:… uid:…` → links their in-game character (now `callerIsAllianceOwner` becomes true since `ownerAshedUserId` is set).
   5. Owner: `/link-alliance tag:LFgo` → registers guild (`upsertGuildAlliance`); required before members can `/link`.
-  6. Members: `/link name:… uid:…` → links character via lastwar UID lookup + Ashed roster match.
+  6. Owner: `/set-vr-report-channel` in the nightly standings channel (stores `discord_guild_alliances.vr_report_channel_id`).
+  7. Members: `/link name:… uid:…` → links character via lastwar UID lookup + Ashed roster match.
+- **VR reports:** `/vr-report` (top 25) and `/vr-report teams:N` / `/takedown-teams` (5-player rally teams, snake THP balance) are **officer-gated** (`callerCanRunVrReport`: R4+ linked member or owner). Replies are ephemeral; nightly cron posts public top-25 to each guild's configured channel via `loadAllianceLeaderboard` + `listRegisteredGuildsWithReportChannel`.
 - **`/set-season` removed** — season is derived from server age; do not reintroduce.
 - **Feature flag:** `ELIGIBLE_BOT_ALLIANCE_LINK_TAGS` (comma-delimited; unset = allow all) gates `/link-to-ashed-seat` and `/link-alliance`. Check via `isTagEligible()` in `bot-setup.ts`.
 - **Security invariant:** connection keys must **never** appear as slash command options or in Discord payloads. All credential submission goes through the HQ `/discord/authorize` HTTPS page. Nonces live in `discord_auth_nonces` (30-min TTL, single-use); enforced by `getValidDiscordAuthNonce` + `consumeDiscordAuthNonce`.

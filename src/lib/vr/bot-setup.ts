@@ -6,8 +6,11 @@ import {
 } from "@/lib/discord/i18n";
 import {
   callerIsAllianceOwner,
+  getAllianceById,
+  getGuildAllianceId,
   listDiscordLinksForUserAnyAlliance,
   saveDiscordBotPending,
+  setGuildVrReportChannel,
   upsertGuildAlliance,
   writeDiscordBotAudit,
 } from "@/lib/vr/repository";
@@ -216,6 +219,54 @@ export async function handleDiscordLinkAlliance(input: {
   await audit(resolved.allianceId, input.discordUserId, "link_alliance", input, {
     reply,
   });
+  return { reply };
+}
+
+export async function handleDiscordSetVrReportChannel(input: {
+  guildId: string;
+  channelId: string;
+  discordUserId: string;
+  locale: DiscordBotLocale;
+}): Promise<BotReply> {
+  const t = createDiscordTranslator(input.locale);
+  const registeredAllianceId = await getGuildAllianceId(input.guildId);
+  if (!registeredAllianceId) {
+    const reply = t("errors.guildNotRegistered");
+    await audit(null, input.discordUserId, "set_vr_report_channel", input, {
+      reply,
+    });
+    return { reply };
+  }
+
+  const isOwner = await callerIsAllianceOwner({
+    allianceId: registeredAllianceId,
+    discordUserId: input.discordUserId,
+  });
+  if (!isOwner) {
+    const reply = t("errors.notOwner");
+    await audit(
+      registeredAllianceId,
+      input.discordUserId,
+      "set_vr_report_channel",
+      input,
+      { reply },
+    );
+    return { reply };
+  }
+
+  await setGuildVrReportChannel(input.guildId, input.channelId);
+  const alliance = await getAllianceById(registeredAllianceId);
+  const reply = t("setVrReportChannel.success", {
+    tag: alliance?.tag ?? "?",
+    channel: `<#${input.channelId}>`,
+  });
+  await audit(
+    registeredAllianceId,
+    input.discordUserId,
+    "set_vr_report_channel",
+    input,
+    { reply },
+  );
   return { reply };
 }
 

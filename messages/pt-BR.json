@@ -2079,6 +2079,8 @@
       "credentialsRequired": "Conecte as credenciais Ashed primeiro com `/link-to-ashed-seat tag:{tag}`.",
       "tagAmbiguous": "Encontramos várias alianças com a tag **{tag}**. Use `/link-alliance tag:{tag} name:Nome da Aliança` para escolher a correta.",
       "notOwner": "Somente o dono da aliança pode registrar este servidor. Complete `/link` primeiro e tente de novo.",
+      "notOfficer": "Somente oficiais da aliança (R4+) ou o dono podem gerar relatórios de VR. Vincule seu perfil no jogo com `/link` se ainda não fez.",
+      "insufficientForTeams": "São necessários pelo menos **{needed}** reportadores vinculados para **{teams}** equipes de takedown (5 jogadores cada). Só **{have}** no placar agora.",
       "linkFirst": "Complete `/link` com seu nome e UID no jogo antes de registrar o servidor.",
       "invalidLanguage": "Escolha English ou Português.",
       "nothingPending": "Nada para escolher agora.",
@@ -2125,6 +2127,9 @@
       "linkAshedSeatPrompt": "Clique no link abaixo para conectar suas credenciais Ashed com segurança para **{tag}** (expira em 30 min):\n{url}\n\nApós conectar, execute `/link` com seu nome e UID no jogo, depois `/link-alliance tag:{tag}`.",
       "languageSuccess": "Idioma atualizado."
     },
+    "setVrReportChannel": {
+      "success": "O placar noturno de VR de **{tag}** será publicado em {channel}. Oficiais podem usar `/vr-report` a qualquer momento ou `/vr-report teams:N` para planos de takedown."
+    },
     "buttons": {
       "yes": "Sim",
       "no": "Não",
@@ -2140,10 +2145,10 @@
       "setupOwnerLinkAfterAuth": "Credenciais Ashed conectadas. **Dono:** `/link name:… uid:…` com seu perfil no jogo, depois `/link-alliance tag:SuaTag` para membros poderem vincular.",
       "waitForOwnerAuth": "Aguardando o dono conectar o Ashed (`/link-to-ashed-seat`). Depois você pode `/link` com nome e UID do jogo.",
       "linkProfile": "Vincule seu perfil: `/link name:… uid:…` (copie do jogo). Precisa de passos? Use `/link` com nome errado e toque **Concluído** no tutorial.",
-      "memberReady": "Você está vinculado. Use `/vr` ou `/immunity` quando o VR base mudar. `/help` a qualquer momento.",
-      "memberReadyMulti": "Você tem **{count}** personagens vinculados. `/vr` pedirá qual personagem. `/unlink` remove um; `/link` adiciona outro.",
-      "ownerReady": "Você está vinculado como dono (**{tag}**). Membros usam `/link` e `/vr`. Execute `/link-to-ashed-seat` novamente se a sincronização falhar.",
-      "ownerReadyMulti": "Dono com **{count}** personagens. `/vr` pergunta qual personagem. `/unlink` ou `/link replace:true` para gerenciar vínculos."
+      "memberReady": "Você está vinculado. Use `/vr` ou `/immunity` quando o VR base mudar. Oficiais (R4+): `/vr-report` para o placar ou `/vr-report teams:N` para takedown. `/help` a qualquer momento.",
+      "memberReadyMulti": "Você tem **{count}** personagens vinculados. `/vr` pedirá qual personagem. Oficiais (R4+): `/vr-report` ou `/takedown-teams`. `/unlink` remove um; `/link` adiciona outro.",
+      "ownerReady": "Você está vinculado como dono (**{tag}**). Membros usam `/link` e `/vr`. Execute `/set-vr-report-channel` neste canal para o placar noturno; `/vr-report` ou `/vr-report teams:N` para relatórios de oficiais.",
+      "ownerReadyMulti": "Dono com **{count}** personagens. `/vr` pergunta qual personagem. `/set-vr-report-channel` define o canal noturno; `/vr-report teams:N` monta equipes de takedown. `/unlink` ou `/link replace:true` para gerenciar vínculos."
     },
     "unlink": {
       "none": "Nenhum personagem vinculado neste servidor. Execute `/link` primeiro.",
