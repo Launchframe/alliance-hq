@@ -63,8 +63,8 @@ describe("vs_push_week template", () => {
     expect(configs[5]?.conductorMechanism).toBe("r4_sequence");
     expect(configs[5]?.vipMechanism).toBe("event_top_x_lottery");
     expect(configs[6]?.date).toBe("2026-06-15");
-    expect(configs[6]?.conductorMechanism).toBe("donations_top");
-    expect(configs[6]?.vipMechanism).toBe("donations_second");
+    expect(configs[6]?.conductorMechanism).toBe("r4_sequence");
+    expect(configs[6]?.vipMechanism).toBe("event_top_x_lottery");
   });
 });
 

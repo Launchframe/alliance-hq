@@ -5,9 +5,11 @@ import { useTranslations } from "next-intl";
 
 import { Dialog } from "@/components/ui/dialog";
 import {
+  defaultIncludeTodayForWeekTemplateChange,
   formatTrainScheduleDateLabel,
   restOfWeekPaintDates,
 } from "@/lib/trains/week-template-change.shared";
+import type { AllianceTrainWeekConfig } from "@/lib/trains/train-week-calendar.shared";
 import type { WeekTemplateType } from "@/lib/trains/types";
 
 type Props = {
@@ -17,6 +19,7 @@ type Props = {
   weekEnd: string | null;
   today: string;
   lockedThroughDate: string | null;
+  trainWeekConfig?: AllianceTrainWeekConfig;
   onConfirm: (options: { includeToday: boolean; dates: string[] }) => void;
   onClose: () => void;
 };
@@ -28,12 +31,17 @@ export function WeekTemplateChangeDialog({
   weekEnd,
   today,
   lockedThroughDate,
+  trainWeekConfig,
   onConfirm,
   onClose,
 }: Props) {
   const t = useTranslations("trains.templateChangeConfirm");
   const tTrains = useTranslations("trains");
-  const [includeToday, setIncludeToday] = useState(false);
+  const [includeToday, setIncludeToday] = useState(() =>
+    weekStart && weekEnd
+      ? defaultIncludeTodayForWeekTemplateChange({ weekStart, weekEnd, today })
+      : false,
+  );
 
   if (!templateType || !weekStart || !weekEnd) return null;
 
@@ -44,12 +52,14 @@ export function WeekTemplateChangeDialog({
     today,
     includeToday,
     lockedThroughDate,
+    trainWeekConfig,
   });
   const firstPaintDate = dates[0] ?? null;
   const lastPaintDate = dates[dates.length - 1] ?? null;
   const lockedLabel = lockedThroughDate
     ? formatTrainScheduleDateLabel(lockedThroughDate)
     : null;
+  const todayInWeek = today >= weekStart && today <= weekEnd;
 
   const body =
     dates.length === 0
@@ -84,7 +94,7 @@ export function WeekTemplateChangeDialog({
           <p className="mt-2 text-sm leading-relaxed text-[#c9d1d9]">{body}</p>
         </div>
 
-        {dates.length > 0 && today >= weekStart && today <= weekEnd ? (
+        {todayInWeek ? (
           <label className="flex items-start gap-2 text-sm text-[#e6edf3]">
             <input
               type="checkbox"

@@ -3,3 +3,4 @@ npx tsc --noEmit
 npm run lint
 npm run test
 npm run i18n:validate
+npm run db:validate-journal

@@ -14,6 +14,18 @@ Before creating a commit, all checks in [`PRE-COMMIT.md`](./PRE-COMMIT.md) must 
 
 Do not commit while any gate is failing.
 
+## Drizzle migrations and `_journal.json`
+
+`db:prepare` (every Vercel build) applies migrations listed in **`drizzle/meta/_journal.json` only**. A `drizzle/NNNN_*.sql` file without a journal entry **never runs on deploy**.
+
+| Change type | Workflow |
+| --- | --- |
+| **Schema from `src/db/schema.ts`** | `npm run db:generate` — creates/updates SQL **and** journal |
+| **Hand-written SQL** (data backfill, idempotent DDL) | Add `drizzle/NNNN_descriptive_name.sql` **and** append `{ "tag": "NNNN_descriptive_name", … }` to `_journal.json` |
+| **Before commit** | `npm run db:validate-journal` (also runs in the Husky pre-commit hook) |
+
+**PR rule:** if `drizzle/*.sql` is new or changed, `drizzle/meta/_journal.json` must change in the same commit. Pre-commit fails when a numbered migration SQL file on disk is missing from the journal, or when a **staged new** `.sql` file has no matching journal tag.
+
 ## E2E plan completion
 
 Feature work is not done until Playwright e2e is green — see [`.cursor/rules/e2e-plan-completion.mdc`](.cursor/rules/e2e-plan-completion.mdc). Update `e2e/**/*.spec.ts` and `e2e/fixtures/**` when auth, invite, connect, or session isolation changes; run `npm run test:e2e` before marking a plan complete or opening a PR.
@@ -43,7 +55,7 @@ Apply on every Real Steel pass for this repo:
 - **Ashed sync vs manual roles** — `source: manual` memberships must not be overwritten by connect/settings sync
 - **Legacy sessions** — behavior when `hq_user_id` is null (allow-all until reconnect) must remain consistent
 - **Bootstrap safety** — `PLATFORM_BOOTSTRAP_EMAIL` only promotes when zero platform maintainers exist; no privilege escalation on reconnect
-- **Deploy seeds** — `db:prepare` migrations/seeds idempotent; safe to run on every Vercel build
+- **Deploy seeds** — `db:prepare` migrations/seeds idempotent; safe to run on every Vercel build; every `drizzle/NNNN_*.sql` must appear in `drizzle/meta/_journal.json` (`npm run db:validate-journal`)
 - **i18n** — new UI strings in en-US and pt-BR; run `npm run i18n:validate`
 - **Video pipeline** — admin requeue/reprocess must not double-process or lose job state
 - **No prod SQL for ops** — admin UI should cover role assignment, commendations, and job recovery without ad-hoc queries

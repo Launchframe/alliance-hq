@@ -43,8 +43,8 @@ export const COMPOSITE_WEEK_TEMPLATES: Partial<
 > = {
   vs_push_week: {
     segments: [
-      { template: "vs_push_weekdays", dayIndices: [6, 0, 1, 2, 3, 4] },
-      { template: "r4_event_vip", dayIndices: [5] },
+      { template: "vs_push_weekdays", dayIndices: [0, 1, 2, 3, 4] },
+      { template: "r4_event_vip", dayIndices: [5, 6] },
     ],
   },
 };

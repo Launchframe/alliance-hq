@@ -16,14 +16,17 @@ describe("week template registry", () => {
     const weekStart = "2026-06-09";
     expect(segmentTemplateForDayIndex("vs_push_week", 0)).toBe("vs_push_weekdays");
     expect(segmentTemplateForDayIndex("vs_push_week", 3)).toBe("vs_push_weekdays");
-    expect(segmentTemplateForDayIndex("vs_push_week", 6)).toBe("vs_push_weekdays");
     expect(segmentTemplateForDayIndex("vs_push_week", 4)).toBe("vs_push_weekdays");
     expect(segmentTemplateForDayIndex("vs_push_week", 5)).toBe("r4_event_vip");
+    expect(segmentTemplateForDayIndex("vs_push_week", 6)).toBe("r4_event_vip");
     expect(resolvePaintTemplateForDay("vs_push_week", "2026-06-13", weekStart)).toBe(
       "vs_push_weekdays",
     );
     expect(resolvePaintTemplateForDay("vs_push_week", "2026-06-10", weekStart)).toBe(
       "vs_push_weekdays",
+    );
+    expect(resolvePaintTemplateForDay("vs_push_week", "2026-06-15", weekStart)).toBe(
+      "r4_event_vip",
     );
   });
 

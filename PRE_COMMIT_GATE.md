@@ -7,6 +7,7 @@ Qualitative rules before every commit or push:
 - Non-trivial logic changes need tests (see `vitest` layout under `src/**/*.test.ts`)
 - RBAC: new BFF routes must enforce permissions; admin routes require platform maintainer
 - Migrations and seeds must be idempotent for redeploy
+- Every `drizzle/NNNN_*.sql` must have a matching entry in `drizzle/meta/_journal.json` (see **Drizzle migrations** in `AGENTS.md`)
 
 ## Gates
 
@@ -28,4 +29,10 @@ npm run lint
 
 ```bash
 npm run i18n:validate
+```
+
+### 4. Drizzle migration journal
+
+```bash
+npm run db:validate-journal
 ```

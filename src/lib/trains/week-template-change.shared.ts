@@ -1,4 +1,9 @@
-import { addCalendarDays, weekDatesFromMonday } from "@/lib/trains/game-time";
+import { addCalendarDays } from "@/lib/trains/game-time";
+import {
+  DEFAULT_ALLIANCE_TRAIN_WEEK,
+  weekDatesInTrainWeek,
+  type AllianceTrainWeekConfig,
+} from "@/lib/trains/train-week-calendar.shared";
 
 export function latestLockedDateInWeek(
   records: Array<{ date: string; lockedAt?: string | null }>,
@@ -28,14 +33,18 @@ export function formatTrainScheduleDateLabel(date: string): string {
   });
 }
 
-/** Tue–Sun dates in the game week (Mon index 0 skipped). */
+/** VS economy pivot: Tue–Sun within the alliance train week (excludes closing Monday). */
 export function pivotEconomyTargetDates(
   weekStart: string,
   weekEnd: string,
+  trainWeekConfig: AllianceTrainWeekConfig = DEFAULT_ALLIANCE_TRAIN_WEEK,
 ): string[] {
-  return weekDatesFromMonday(weekStart)
-    .slice(1)
-    .filter((date) => date <= weekEnd);
+  const dates = weekDatesInTrainWeek(weekStart, trainWeekConfig);
+  const pivotDates =
+    trainWeekConfig.trainWeekStartDow === 2
+      ? dates.slice(0, 6)
+      : dates.slice(1);
+  return pivotDates.filter((date) => date <= weekEnd);
 }
 
 /**
@@ -48,7 +57,11 @@ export function restOfWeekPaintDates(input: {
   today: string;
   includeToday: boolean;
   lockedThroughDate: string | null;
+  trainWeekConfig?: AllianceTrainWeekConfig;
 }): string[] {
+  const trainWeekConfig = input.trainWeekConfig ?? DEFAULT_ALLIANCE_TRAIN_WEEK;
+  const weekDates = weekDatesInTrainWeek(input.weekStart, trainWeekConfig);
+
   let start = input.includeToday
     ? input.today
     : addCalendarDays(input.today, 1);
@@ -65,7 +78,20 @@ export function restOfWeekPaintDates(input: {
     return [];
   }
 
-  return weekDatesFromMonday(input.weekStart).filter(
+  return weekDates.filter(
     (date) => date >= start && date <= input.weekEnd,
+  );
+}
+
+/** Default include-today when today is the last train-week day and tomorrow is outside the week. */
+export function defaultIncludeTodayForWeekTemplateChange(input: {
+  weekStart: string;
+  weekEnd: string;
+  today: string;
+}): boolean {
+  return (
+    input.today >= input.weekStart &&
+    input.today <= input.weekEnd &&
+    addCalendarDays(input.today, 1) > input.weekEnd
   );
 }
