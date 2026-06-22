@@ -1342,7 +1342,7 @@
     "monthNavNext": "Next month",
     "monthLoadFailed": "Could not load that month.",
     "paintPaletteTitle": "Paint days",
-    "paintPaletteHint": "Pick a template, then tap or click a day. Drag or swipe across days, or Shift+click, to paint a range.",
+    "paintPaletteHint": "Select days on the calendar (tap, drag, or Shift+click a range), then choose a template to paint them.",
     "weekdays": {
       "mon": "Mon",
       "tue": "Tue",

@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
+import { DEFAULT_ALLIANCE_TRAIN_WEEK } from "@/lib/trains/train-week-calendar.shared";
 import {
+  defaultIncludeTodayForWeekTemplateChange,
   latestLockedDateInWeek,
   pivotEconomyTargetDates,
   restOfWeekPaintDates,
@@ -47,7 +49,9 @@ describe("latestLockedDateInWeek", () => {
 describe("pivotEconomyTargetDates", () => {
   it("returns Tue through Sun for a Mon-start week", () => {
     expect(
-      pivotEconomyTargetDates("2026-06-08", "2026-06-14"),
+      pivotEconomyTargetDates("2026-06-08", "2026-06-14", {
+        trainWeekStartDow: 1,
+      }),
     ).toEqual([
       "2026-06-09",
       "2026-06-10",
@@ -56,6 +60,41 @@ describe("pivotEconomyTargetDates", () => {
       "2026-06-13",
       "2026-06-14",
     ]);
+  });
+
+  it("returns Tue through Sun for a Tue-start train week", () => {
+    expect(
+      pivotEconomyTargetDates("2026-06-16", "2026-06-22", DEFAULT_ALLIANCE_TRAIN_WEEK),
+    ).toEqual([
+      "2026-06-16",
+      "2026-06-17",
+      "2026-06-18",
+      "2026-06-19",
+      "2026-06-20",
+      "2026-06-21",
+    ]);
+  });
+});
+
+describe("defaultIncludeTodayForWeekTemplateChange", () => {
+  it("defaults true on the closing Monday of a Tue-start week", () => {
+    expect(
+      defaultIncludeTodayForWeekTemplateChange({
+        weekStart: "2026-06-16",
+        weekEnd: "2026-06-22",
+        today: "2026-06-22",
+      }),
+    ).toBe(true);
+  });
+
+  it("defaults false mid-week", () => {
+    expect(
+      defaultIncludeTodayForWeekTemplateChange({
+        weekStart: "2026-06-16",
+        weekEnd: "2026-06-22",
+        today: "2026-06-18",
+      }),
+    ).toBe(false);
   });
 });
 
@@ -115,5 +154,18 @@ describe("restOfWeekPaintDates", () => {
         lockedThroughDate: "2026-06-14",
       }),
     ).toEqual([]);
+  });
+
+  it("includes closing Monday when includeToday is true on a Tue-start week", () => {
+    expect(
+      restOfWeekPaintDates({
+        weekStart: "2026-06-16",
+        weekEnd: "2026-06-22",
+        today: "2026-06-22",
+        includeToday: true,
+        lockedThroughDate: null,
+        trainWeekConfig: DEFAULT_ALLIANCE_TRAIN_WEEK,
+      }),
+    ).toEqual(["2026-06-22"]);
   });
 });

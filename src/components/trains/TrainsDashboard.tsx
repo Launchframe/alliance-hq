@@ -997,14 +997,14 @@ export function TrainsDashboard({ initial }: Props) {
   const handlePivotToEconomy = useCallback(() => {
     const weekStart = data.weekStart;
     const weekEnd = data.weekEnd;
-    const dates = pivotEconomyTargetDates(weekStart, weekEnd).filter(
+    const dates = pivotEconomyTargetDates(weekStart, weekEnd, trainWeekConfig).filter(
       (date) => date >= data.today,
     );
     if (dates.length === 0) return;
 
     setPivotBusy(true);
     void paintDates(dates, "economy_week").finally(() => setPivotBusy(false));
-  }, [data.today, data.weekEnd, data.weekStart, paintDates, setPivotBusy]);
+  }, [data.today, data.weekEnd, data.weekStart, paintDates, setPivotBusy, trainWeekConfig]);
 
   const createCurrentWeekSchedule = useCallback(async () => {
     setScheduleBusy(true);
@@ -1722,12 +1722,18 @@ export function TrainsDashboard({ initial }: Props) {
       />
 
       <WeekTemplateChangeDialog
+        key={
+          pendingTemplateChange
+            ? `${pendingTemplateChange.weekStart}:${pendingTemplateChange.templateType}`
+            : "closed"
+        }
         open={pendingTemplateChange != null}
         templateType={pendingTemplateChange?.templateType ?? null}
         weekStart={pendingTemplateChange?.weekStart ?? null}
         weekEnd={pendingTemplateChange?.weekEnd ?? null}
         today={data.today}
         lockedThroughDate={pendingTemplateChange?.lockedThroughDate ?? null}
+        trainWeekConfig={trainWeekConfig}
         onConfirm={confirmPendingTemplateChange}
         onClose={() => setPendingTemplateChange(null)}
       />

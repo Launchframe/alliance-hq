@@ -17,6 +17,7 @@
     "db:seed": "node scripts/db-seed.mjs",
     "db:seed-rbac": "node scripts/rbac/seed.mjs",
     "db:prepare": "npm run db:migrate && npm run db:seed",
+    "db:validate-journal": "node scripts/db/validate-migration-journal.mjs",
     "db:studio": "drizzle-kit studio",
     "har:catalog": "node scripts/har/extract-catalog.mjs",
     "discord:register-commands": "node scripts/discord/register-commands.mjs",
