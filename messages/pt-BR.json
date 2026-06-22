@@ -2095,6 +2095,7 @@
       "memberTaken": "Esse membro no jogo já está vinculado a outra conta do Discord.",
       "fuzzyPrompt": "Verificamos **{gameName}**, mas não achamos uma correspondência exata no roster. Escolha seu membro:",
       "rosterMiss": "Não encontramos esse nome no roster. Toque em **Começar de novo** para instruções de cópia ou peça ajuda a um oficial.",
+      "rosterUnavailable": "Verificamos seu UID no jogo, mas não foi possível carregar o roster da aliança. Peça ao dono para executar `/link-to-ashed-seat` ou a um oficial.",
       "pickExpired": "Essa opção expirou. Execute `/link` novamente.",
       "walkthroughDone": "Ótimo. Execute `/link` de novo com o nome e UID copiados quando estiver pronto.",
       "walkthroughIntro": "Vamos recomeçar.",

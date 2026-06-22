@@ -2095,6 +2095,7 @@
       "memberTaken": "That in-game member is already linked to a different Discord account.",
       "fuzzyPrompt": "We verified **{gameName}** but couldn't find an exact roster match. Pick your member:",
       "rosterMiss": "We couldn't match that name to anyone on the roster. Try **Start over** for copy instructions, or ask an officer for help.",
+      "rosterUnavailable": "We verified your UID with the game, but couldn't load the alliance roster. Ask an owner to run `/link-to-ashed-seat`, or ask an officer for help.",
       "pickExpired": "That member option expired. Run `/link` again.",
       "walkthroughDone": "Great. Run `/link` again with your copied name and UID when ready.",
       "walkthroughIntro": "Let's start over.",

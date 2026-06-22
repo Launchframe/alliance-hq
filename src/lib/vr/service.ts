@@ -13,7 +13,7 @@ import {
   processLinkCommand,
   processLinkFuzzyPick,
 } from "@/lib/vr/link-command";
-import { walkthroughMessage } from "@/lib/vr/link-helpers";
+import { advanceLinkWalkthrough, walkthroughMessage } from "@/lib/vr/link-helpers";
 import { loadAllianceMembersForBot } from "@/lib/vr/member-roster";
 import {
   countSeasonReporters,
@@ -171,7 +171,10 @@ export async function handleDiscordLinkSlash(input: {
   const pendingRow = await getDiscordBotPending(input.discordUserId);
   const pending = pendingRow?.pending ?? null;
 
-  if (pending?.kind === "link_walkthrough") {
+  const name = input.reportedName?.trim();
+  const uid = input.gameUid?.trim();
+
+  if (pending?.kind === "link_walkthrough" && !name && !uid) {
     const result = processLinkCommand({
       reportedName: "",
       gameUid: "",
@@ -188,8 +191,6 @@ export async function handleDiscordLinkSlash(input: {
     return result;
   }
 
-  const name = input.reportedName?.trim();
-  const uid = input.gameUid?.trim();
   if (!name || !uid) {
     const result: LinkCommandResult = {
       reply: translate("link.usage"),
@@ -462,16 +463,10 @@ export async function handleDiscordWalkthroughDone(input: {
     return { reply: translate("errors.noWalkthrough"), pending: null };
   }
 
-  const result = processLinkCommand({
-    reportedName: "",
-    gameUid: "",
-    lookup: { ok: false, reason: "invalid_uid", message: "" },
-    members: [],
-    linkedMemberIds: new Set(),
-    pending,
-    walkthroughStep: pending.step,
+  const result = advanceLinkWalkthrough({
+    step: pending.step,
     translate,
-    walkthroughSteps,
+    steps: walkthroughSteps,
   });
 
   await saveDiscordBotPending(input.allianceId, input.discordUserId, result.pending);

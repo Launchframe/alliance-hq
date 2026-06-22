@@ -252,4 +252,21 @@ export function discordMessageResponse(
   };
 }
 
+/** Update the message that contained the clicked button (required for walkthrough Done). */
+export function discordComponentMessageResponse(
+  content: string,
+  components?: DiscordComponentRow,
+  options?: { ephemeral?: boolean },
+) {
+  const ephemeral = options?.ephemeral ?? true;
+  return {
+    type: 7,
+    data: {
+      content,
+      ...(ephemeral ? { flags: 64 } : {}),
+      ...(components !== undefined ? { components } : {}),
+    },
+  };
+}
+
 export const DISCORD_PING_RESPONSE = { type: 1 };
