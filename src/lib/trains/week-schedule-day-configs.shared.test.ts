@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { buildWeekScheduleDayConfigs } from "@/lib/trains/week-schedule-day-configs.shared";
 
 describe("buildWeekScheduleDayConfigs", () => {
-  it("returns seven Tuesday-start days when DB rows lag by one day after week_start migration", () => {
+  it("returns seven days when DB has six rows and the last day is missing", () => {
     const weekStart = "2026-06-16";
     const rows = [
       {
@@ -74,5 +74,29 @@ describe("buildWeekScheduleDayConfigs", () => {
     ]);
     expect(configs[6]?.id).toBe("preview-2026-06-22");
     expect(configs[0]?.id).toBe("dc-1");
+  });
+
+  it("uses persisted rows only when all seven days exist in DB", () => {
+    const weekStart = "2026-06-16";
+    const rows = Array.from({ length: 7 }, (_, index) => {
+      const day = index + 16;
+      return {
+        id: `dc-${index + 1}`,
+        date: `2026-06-${String(day).padStart(2, "0")}`,
+        conductorMechanism: "r3_lottery",
+        vipMechanism: "conductor_pick",
+        vipConfig: null,
+        isOverride: 0,
+      };
+    });
+
+    const configs = buildWeekScheduleDayConfigs(
+      weekStart,
+      "vs_push_week",
+      rows,
+    );
+
+    expect(configs).toHaveLength(7);
+    expect(configs.every((day) => !day.id.startsWith("preview-"))).toBe(true);
   });
 });
