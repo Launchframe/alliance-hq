@@ -52,8 +52,11 @@ export async function GET(request: Request) {
 
   for (const target of targets) {
     try {
-      const { seasonKey, rows } = await loadAllianceLeaderboard(target.allianceId);
-      const message = formatVrLeaderboard(rows, seasonKey, { limit: 25 });
+      const { seasonKey, allianceTag, rows } = await loadAllianceLeaderboard(target.allianceId);
+      const message = formatVrLeaderboard(rows, seasonKey, {
+        limit: 25,
+        allianceTag,
+      });
       const ok = await postDiscordChannelMessage(target.channelId, message);
       if (ok) {
         posted += 1;

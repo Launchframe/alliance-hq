@@ -128,6 +128,10 @@ export function buildTakedownTeams(
   rows: LeaderboardRow[],
   teamCount: number,
 ): TakedownTeamsResult {
+  if (teamCount < 1) {
+    return { ok: false, error: "insufficient_players", needed: 5, have: rows.length };
+  }
+
   const needed = teamCount * 5;
   if (rows.length < needed) {
     return { ok: false, error: "insufficient_players", needed, have: rows.length };

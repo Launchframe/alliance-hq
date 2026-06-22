@@ -2140,7 +2140,7 @@
     },
     "officerNotified": "An officer has been notified on Alliance HQ. They can reach out to you here on Discord.",
     "help": {
-      "dmGeneral": "**Alliance HQ bot** — run these in your alliance Discord server:\n• `/help` — this guide\n• `/link` — connect your in-game profile\n• `/vr` or `/immunity` — report base VR\n• `/language` — English or Português\n\nOwners (Ashed seat holders) use `/link-to-ashed-seat` and `/link-alliance`.",
+      "dmGeneral": "**Alliance HQ bot** — run these in your alliance Discord server:\n• `/help` — this guide\n• `/link` — connect your in-game profile\n• `/vr` or `/immunity` — report base VR\n• `/language` — English or Português\n\nOwners: `/link-to-ashed-seat`, `/link-alliance`, `/set-vr-report-channel`.\nOfficers (R4+): `/vr-report`, `/takedown-teams teams:N`.",
       "setupOwnerAuth": "This server is not set up yet. **Alliance owner (Ashed seat holder):** run `/link-to-ashed-seat tag:YourTag` to get a secure link for connecting your Ashed credentials. Then run `/link` and `/link-alliance tag:YourTag`. Members can `/link` after that.",
       "setupLinkAlliance": "This server is not registered to an alliance yet. **Owner:** run `/link-alliance tag:YourTag` (you must `/link` and complete `/link-to-ashed-seat` first).",
       "setupOwnerLinkAfterAuth": "Ashed credentials are connected. **Owner:** run `/link name:… uid:…` with your in-game profile, then `/link-alliance tag:YourTag` so members can link.",

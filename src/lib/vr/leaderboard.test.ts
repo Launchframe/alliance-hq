@@ -140,4 +140,11 @@ describe("leaderboard", () => {
       have: 1,
     });
   });
+
+  it("rejects non-positive team counts", () => {
+    const result = buildTakedownTeams([sampleRow("m1", 7500, 100)], 0);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.needed).toBe(5);
+  });
 });
