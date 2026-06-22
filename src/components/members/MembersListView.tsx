@@ -17,7 +17,9 @@ import {
 } from "@/lib/members/bulk-rank-update.shared";
 import type { AllianceMembersPayload } from "@/lib/members/load";
 import type { AshedMember } from "@/lib/video/member-matcher";
+import { MEMBER_ROSTER_VIDEO_SCORE_TARGET } from "@/lib/members/ashed-member-record";
 import { ashedUrlForPath } from "@/lib/nav/routes";
+import { buildVideoUploadHref } from "@/lib/video/score-target-nav";
 
 type Props = {
   initial: AllianceMembersPayload;
@@ -25,6 +27,7 @@ type Props = {
   canImportMembers?: boolean;
   /** Ashed-mode live sync — only when session has an Ashed credential. */
   canRefreshFromAshed?: boolean;
+  canUploadRosterVideo?: boolean;
 };
 
 function memberStatusLabel(
@@ -64,6 +67,7 @@ export function MembersListView({
   canEditRanks = false,
   canImportMembers = false,
   canRefreshFromAshed = false,
+  canUploadRosterVideo = false,
 }: Props) {
   const t = useTranslations("members");
   const formatDateTime = useFormatAccountDateTime();
@@ -255,6 +259,14 @@ export function MembersListView({
             >
               {t("importMembers")}
             </button>
+          )}
+          {canUploadRosterVideo && (
+            <Link
+              href={buildVideoUploadHref(MEMBER_ROSTER_VIDEO_SCORE_TARGET)}
+              className="w-full rounded-lg border border-[#388bfd] bg-[#388bfd]/10 px-4 py-2 text-center text-sm text-[#58a6ff] hover:bg-[#388bfd]/20 sm:w-auto"
+            >
+              {t("uploadRosterVideo")}
+            </Link>
           )}
           {canEditRanks && (
             <button
@@ -565,6 +577,7 @@ export function MembersListViewOrSetup(
       canEditRanks={props.canEditRanks}
       canImportMembers={props.canImportMembers}
       canRefreshFromAshed={props.canRefreshFromAshed}
+      canUploadRosterVideo={props.canUploadRosterVideo}
     />
   );
 }

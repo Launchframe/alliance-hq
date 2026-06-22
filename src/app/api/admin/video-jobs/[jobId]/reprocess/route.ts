@@ -5,10 +5,8 @@ import { getDb, schema } from "@/lib/db";
 import { requirePlatformMaintainer } from "@/lib/rbac/require-permission";
 import { readSessionId } from "@/lib/session";
 import { canReprocessVideoJob } from "@/lib/video/admin-job-actions";
-import {
-  processVideoJob,
-  resetVideoJobForReprocess,
-} from "@/lib/video/process-job";
+import { resetVideoJobForReprocess } from "@/lib/video/process-job";
+import { dispatchVideoProcessing } from "@/lib/video/trigger-processing";
 
 type Props = {
   params: Promise<{ jobId: string }>;
@@ -45,7 +43,7 @@ export async function POST(_request: Request, { params }: Props) {
   }
 
   await resetVideoJobForReprocess(jobId);
-  const timings = await processVideoJob(jobId, { analyticsSource: "api" });
+  dispatchVideoProcessing(jobId, { source: "reprocess" });
 
-  return NextResponse.json({ ok: true, jobId, status: "review", timings });
+  return NextResponse.json({ ok: true, jobId, status: "queued" });
 }

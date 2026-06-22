@@ -3,10 +3,8 @@ import { and, eq } from "drizzle-orm";
 
 import { getDb, schema } from "@/lib/db";
 import { getOrCreateSession } from "@/lib/session";
-import {
-  processVideoJob,
-  resetVideoJobForReprocess,
-} from "@/lib/video/process-job";
+import { resetVideoJobForReprocess } from "@/lib/video/process-job";
+import { dispatchVideoProcessing } from "@/lib/video/trigger-processing";
 
 type Props = {
   params: Promise<{ jobId: string }>;
@@ -34,9 +32,14 @@ export async function POST(_request: Request, { params }: Props) {
     }
 
     await resetVideoJobForReprocess(jobId);
-    const timings = await processVideoJob(jobId);
+    dispatchVideoProcessing(jobId, { source: "reprocess" });
 
-    return NextResponse.json({ ok: true, jobId, status: "review", timings });
+    return NextResponse.json({
+      ok: true,
+      jobId,
+      status: "queued",
+      message: "OCR re-run queued. This page updates when processing finishes.",
+    });
   } catch (error) {
     return NextResponse.json(
       {

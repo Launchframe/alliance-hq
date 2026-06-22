@@ -3,11 +3,13 @@ import "server-only";
 import { and, eq, ne } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
-import { base44ListMembers } from "@/lib/base44/fetch";
+import { base44ListMemberRecords } from "@/lib/base44/fetch";
 import type { ParsedConnection } from "@/lib/connectionString";
 import { getDb, schema } from "@/lib/db";
 import type { AllianceMember } from "@/lib/db/schema";
+import type { AshedMemberRecord } from "@/lib/members/ashed-member-record";
 import { formatAshedMemberRankValue } from "@/lib/members/alliance-rank";
+import { seedMemberStatHistoriesFromAshed } from "@/lib/members/member-stat-history.server";
 import { normalizedRankFromAshedMember } from "@/lib/members/roster.shared";
 
 export {
@@ -45,7 +47,7 @@ export async function syncAllianceMembersFromAshed(input: {
   ashedAllianceId: string;
   connection: ParsedConnection;
 }): Promise<{ synced: number }> {
-  const members = await base44ListMembers(input.connection, input.ashedAllianceId);
+  const members = await base44ListMemberRecords(input.connection, input.ashedAllianceId);
   const now = new Date();
   const db = getDb();
   let synced = 0;
@@ -54,9 +56,12 @@ export async function syncAllianceMembersFromAshed(input: {
     const ashedMemberId = member.id;
     if (!ashedMemberId) continue;
 
+    const record = member as AshedMemberRecord;
     const normalized = normalizedRankFromAshedMember(
       member as unknown as Record<string, unknown>,
     );
+    const ashedCreatedAt = parseAshedTimestamp(record.created_date);
+    const ashedUpdatedAt = parseAshedTimestamp(record.updated_date);
 
     await db
       .insert(schema.allianceMembers)
@@ -71,6 +76,29 @@ export async function syncAllianceMembersFromAshed(input: {
         allianceRank: normalized.allianceRank,
         allianceRankTitle: normalized.allianceRankTitle,
         ashedRankRaw: normalized.ashedRankRaw,
+        memberLevel:
+          typeof record.level === "number" ? Math.round(record.level) : null,
+        joinDate: record.join_date ?? null,
+        profession: record.profession?.toString() ?? null,
+        professionalLevel:
+          typeof record.professional_level === "number"
+            ? record.professional_level
+            : null,
+        powerLevel: record.power_level ?? null,
+        currentKills:
+          typeof record.current_kills === "number" ? record.current_kills : null,
+        currentTotalHeroPower:
+          typeof record.current_total_hero_power === "number"
+            ? record.current_total_hero_power
+            : null,
+        notes: record.notes ?? null,
+        timezone: record.timezone ?? null,
+        recordedDate: record.recorded_date ?? null,
+        ashedCreatedAt,
+        ashedUpdatedAt,
+        currentSquadPowerJson: record.current_squad_power ?? null,
+        squadPowerSnapshotsJson: record.squad_power_snapshots ?? null,
+        isSample: record.is_sample ?? null,
         syncedAt: now,
         updatedAt: now,
       })
@@ -87,15 +115,56 @@ export async function syncAllianceMembersFromAshed(input: {
           allianceRank: normalized.allianceRank,
           allianceRankTitle: normalized.allianceRankTitle,
           ashedRankRaw: normalized.ashedRankRaw,
+          memberLevel:
+            typeof record.level === "number" ? Math.round(record.level) : null,
+          joinDate: record.join_date ?? null,
+          profession: record.profession?.toString() ?? null,
+          professionalLevel:
+            typeof record.professional_level === "number"
+              ? record.professional_level
+              : null,
+          powerLevel: record.power_level ?? null,
+          currentKills:
+            typeof record.current_kills === "number"
+              ? record.current_kills
+              : null,
+          currentTotalHeroPower:
+            typeof record.current_total_hero_power === "number"
+              ? record.current_total_hero_power
+              : null,
+          notes: record.notes ?? null,
+          timezone: record.timezone ?? null,
+          recordedDate: record.recorded_date ?? null,
+          ashedCreatedAt,
+          ashedUpdatedAt,
+          currentSquadPowerJson: record.current_squad_power ?? null,
+          squadPowerSnapshotsJson: record.squad_power_snapshots ?? null,
+          isSample: record.is_sample ?? null,
           syncedAt: now,
           updatedAt: now,
         },
       });
 
+    await seedMemberStatHistoriesFromAshed({
+      allianceId: input.hqAllianceId,
+      ashedMemberId,
+      memberName: member.current_name,
+      levelHistory: record.level_history,
+      powerLevelHistory: record.power_level_history,
+      professionalLevelHistory: record.professional_level_history,
+      totalHeroPowerHistory: record.total_hero_power_history,
+    });
+
     synced += 1;
   }
 
   return { synced };
+}
+
+function parseAshedTimestamp(value: string | null | undefined): Date | null {
+  if (!value?.trim()) return null;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
 export async function listAllianceMembers(

@@ -49,6 +49,7 @@ export default async function MembersPage() {
       canEditRanks={canWrite}
       canImportMembers={canWrite && initial.operatingMode === "native"}
       canRefreshFromAshed={canRefreshFromAshed}
+      canUploadRosterVideo={canWrite}
     />
   );
 }

@@ -1,5 +1,10 @@
 /** Score upload targets — maps user selection to OCR schema and Ashed submit config. */
 
+import {
+  MEMBER_ROSTER_VIDEO_SCORE_TARGET,
+  ROSTER_VIDEO_OCR_SCHEMA,
+} from "@/lib/members/ashed-member-record";
+
 export type ScoreTargetGroup = "events" | "recurring" | "hq-native";
 
 export type LeaderboardModel =
@@ -227,6 +232,19 @@ export const SCORE_TARGETS: ScoreTargetDef[] = [
     defaultScoreType: "points",
     maxSubmitRows: 3,
   },
+  {
+    id: MEMBER_ROSTER_VIDEO_SCORE_TARGET,
+    labelKey: "memberRosterVideo",
+    group: "hq-native",
+    submitEntity: "",
+    ocrSchema: ROSTER_VIDEO_OCR_SCHEMA,
+    enabled: true,
+    leaderboardModel: "linear-full",
+    eventEntity: null,
+    seriesEntity: null,
+    submitMethod: "row-post",
+    submitContext: [],
+  },
 ];
 
 export const ENABLED_SCORE_TARGETS = SCORE_TARGETS.filter((t) => t.enabled);
@@ -267,6 +285,14 @@ export function requiresCommendation(target: ScoreTargetDef): boolean {
   return target.leaderboardModel === "podium-commendation";
 }
 
+export function isMemberRosterVideoTarget(id: string): boolean {
+  return id === MEMBER_ROSTER_VIDEO_SCORE_TARGET;
+}
+
+export function isHqOnlySubmitTarget(target: ScoreTargetDef): boolean {
+  return isMemberRosterVideoTarget(target.id);
+}
+
 export type ScoreTargetClientMeta = {
   id: string;
   labelKey: string;
@@ -279,6 +305,8 @@ export type ScoreTargetClientMeta = {
   usesHqEvents: boolean;
   showRankColumn: boolean;
   showTeamSelector: boolean;
+  showRosterColumns: boolean;
+  showScoreColumn: boolean;
 };
 
 export function toScoreTargetClientMeta(
@@ -298,5 +326,7 @@ export function toScoreTargetClientMeta(
       target.id === "vs-performance" ||
       target.leaderboardModel === "podium-commendation",
     showTeamSelector: target.submitContext.includes("team"),
+    showRosterColumns: isMemberRosterVideoTarget(target.id),
+    showScoreColumn: !isMemberRosterVideoTarget(target.id),
   };
 }

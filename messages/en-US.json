@@ -91,6 +91,7 @@
     "frontlineBreakthrough": "Frontline Breakthrough",
     "seasonal": "Seasonal",
     "allianceStar": "Alliance Star",
+    "memberRosterVideo": "Member roster (video)",
     "groups": {
       "events": "Events",
       "recurring": "Recurring scores",
@@ -509,7 +510,15 @@
       "statsColUpload": "Upload",
       "statsColExtract": "Extract",
       "statsColEntries": "Entries",
-      "statsColError": "OCR error"
+      "statsColError": "OCR error",
+      "rosterTesseractEvalTitle": "Tesseract shadow vs Ashed (admin)",
+      "rosterEvalNameRecall": "Name recall",
+      "rosterEvalNamePrecision": "Name precision",
+      "rosterEvalRankAgreement": "Rank agreement",
+      "rosterEvalPowerAgreement": "Power agreement",
+      "rosterEvalLevelAgreement": "Level agreement",
+      "rosterEvalPassKey": "Tesseract pass",
+      "rosterEvalRowSummary": "Ashed {primary} rows · Tesseract {shadow} rows · {matched} name matches"
     },
     "auditPage": {
       "loading": "Loading audit log…",
@@ -737,6 +746,19 @@
         "sysRecommended": "Sys recommended",
         "agreement": "Agreement",
         "buckets": "Buckets"
+      },
+      "rosterOcrEval": {
+        "title": "Roster video — Tesseract shadow",
+        "subtitle": "Async Tesseract intern scored against Ashed primary OCR on member-roster-video uploads.",
+        "jobCount": "Evaluated uploads",
+        "nameRecall": "Avg name recall",
+        "namePrecision": "Avg name precision",
+        "rankAgreement": "Avg rank agreement",
+        "powerAgreement": "Avg power agreement",
+        "levelAgreement": "Avg level agreement",
+        "colPass": "Tesseract pass",
+        "colJobs": "Uploads",
+        "empty": "No roster Tesseract shadow evaluations in this window yet."
       }
     }
   },
@@ -1255,6 +1277,7 @@
     "refreshNative": "Refresh roster",
     "refreshingNative": "Refreshing…",
     "importMembers": "Import members",
+    "uploadRosterVideo": "Upload roster video",
     "import": {
       "title": "Import members",
       "uploadHint": "Upload one screenshot per rank page (officers screen and rank lists). We read names, power, and level with on-device OCR.",
@@ -1934,12 +1957,18 @@
     "colName": "Name",
     "colMember": "Matched member",
     "colRank": "Rank",
+    "colAllianceRank": "Alliance rank",
+    "colPower": "Power",
+    "colLevel": "Level",
+    "colProfession": "Profession",
     "colScore": "Score",
     "unmatched": "Select member…",
     "deleteRow": "Delete",
     "saveScores": "Save {count} scores",
+    "saveRoster": "Apply {count} roster rows to HQ",
     "submitting": "Submitting…",
     "submitSuccess": "Saved {count} scores to Ashed.",
+    "rosterSubmitSuccess": "Applied {count} roster rows to HQ members.",
     "scoreConflictHint": "Some players were read with conflicting scores across video frames. Pick the correct score and delete the extra row for each player.",
     "scoreConflictRow": "Conflicting scores — verify and delete the duplicate row.",
     "duplicateMemberTitle": "Multiple rows map to the same member",
@@ -1976,6 +2005,30 @@
     "closePreview": "Close",
     "rowVideoPreview": "View in video",
     "previewUnavailable": "Source video is not available for this job.",
+    "rosterAllianceTarget": "Uploading roster into: {tag}",
+    "rosterAllianceTargetNamed": "Uploading roster into: {tag} — {name}",
+    "rosterAllianceHint": "New and matched members from this video will be written to this alliance in HQ.",
+    "rosterAllianceStale": "Your session alliance changed since this video was parsed. Member matches may be outdated — review carefully before saving.",
+    "rosterAllianceSettingsLink": "Switch alliance in Settings",
+    "rosterRankPlaceholder": "Select rank…",
+    "rosterRankRequired": "Every row needs an alliance rank before you can save.",
+    "rosterQuotaTitle": "Alliance rank limits (after save)",
+    "rosterQuotaSummary": "Projected: R5 {r5} · R4 {r4}/{maxR4} · R3 {r3} · R2 {r2} · R1 {r1} · {total}/{maxMembers} members",
+    "rosterQuotaOk": "Rank counts satisfy alliance limits.",
+    "rosterQuota": {
+      "r5_required": "Exactly one R5 (alliance leader) is required.",
+      "r5_multiple": "Only one member can be R5.",
+      "r4_max": "At most {maxR4} members can be R4.",
+      "total_max": "An alliance can have at most {maxMembers} members.",
+      "r123_when_r4_full": "With 10 R4 officers, R1–R3 combined cannot exceed 89.",
+      "solo_must_be_r5": "A single-member alliance must be R5."
+    },
+    "rosterProfessionNone": "None",
+    "rosterProfession": {
+      "engineer": "Engineer",
+      "warLeader": "War Leader"
+    },
+    "duplicateOcrNameRow": "Duplicate name — delete extra rows from repeated frames.",
     "statsNerds": {
       "button": "Stats for nerds",
       "title": "Stats for nerds",

@@ -4,8 +4,13 @@ import { and, eq, inArray, ne } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { writeAuditLog } from "@/lib/bff/audit";
+import { getAshedAllianceIdIfLinked } from "@/lib/alliance/ashed-write-guard";
 import { getDb, schema } from "@/lib/db";
 import { formatAshedMemberRankValue } from "@/lib/members/alliance-rank";
+import {
+  appendMemberGameLevelEventIfChanged,
+  appendMemberPowerLevelEventIfChanged,
+} from "@/lib/members/member-stat-history.server";
 import { getServerCalendarDate } from "@/lib/trains/game-time";
 
 import { nativeRosterAshedAllianceId } from "./provision";
@@ -17,6 +22,9 @@ export type RosterImportCommitRow = {
   allianceRankTitle?: string | null;
   heroPowerM?: number | null;
   memberLevel?: number | null;
+  powerLevel?: string | null;
+  profession?: string | null;
+  status?: string | null;
 };
 
 export type RosterImportCommitInput = {
@@ -25,6 +33,8 @@ export type RosterImportCommitInput = {
   hqUserId: string;
   rows: RosterImportCommitRow[];
   markAbsentInactive?: boolean;
+  /** Rank/stat event source — defaults to roster_import. */
+  source?: "roster_import" | "video_parse";
 };
 
 export type RosterImportCommitResult = {
@@ -47,6 +57,7 @@ async function appendRankEventIfChanged(input: {
   allianceRank: number;
   allianceRankTitle?: string | null;
   recordedByHqUserId: string;
+  source: "roster_import" | "video_parse";
 }): Promise<boolean> {
   const nextTitle = input.allianceRankTitle?.trim() || null;
   if (
@@ -65,10 +76,41 @@ async function appendRankEventIfChanged(input: {
     allianceRank: input.allianceRank,
     allianceRankTitle: nextTitle,
     effectiveDate: getServerCalendarDate(),
-    source: "roster_import",
+    source: input.source,
     recordedByHqUserId: input.recordedByHqUserId,
   });
   return true;
+}
+
+async function appendStatEventsForRow(input: {
+  allianceId: string;
+  ashedMemberId: string;
+  memberName: string;
+  powerLevel?: string | null;
+  memberLevel?: number | null;
+  hqUserId: string;
+  source: "roster_import" | "video_parse";
+}): Promise<void> {
+  if (input.powerLevel) {
+    await appendMemberPowerLevelEventIfChanged({
+      allianceId: input.allianceId,
+      ashedMemberId: input.ashedMemberId,
+      memberName: input.memberName,
+      value: input.powerLevel,
+      source: input.source,
+      recordedByHqUserId: input.hqUserId,
+    });
+  }
+  if (input.memberLevel != null) {
+    await appendMemberGameLevelEventIfChanged({
+      allianceId: input.allianceId,
+      ashedMemberId: input.ashedMemberId,
+      memberName: input.memberName,
+      value: input.memberLevel,
+      source: input.source,
+      recordedByHqUserId: input.hqUserId,
+    });
+  }
 }
 
 export async function commitRosterImport(
@@ -80,7 +122,14 @@ export async function commitRosterImport(
 
   const db = getDb();
   const now = new Date();
-  const ashedAllianceId = nativeRosterAshedAllianceId(input.allianceId);
+  const linkedAshedId = await getAshedAllianceIdIfLinked(input.allianceId);
+  const ashedAllianceId =
+    linkedAshedId ?? nativeRosterAshedAllianceId(input.allianceId);
+  const eventSource = input.source ?? "roster_import";
+  const auditAction =
+    eventSource === "video_parse"
+      ? "members.roster_video_commit"
+      : "members.roster_import";
   let created = 0;
   let updated = 0;
   let rankEvents = 0;
@@ -124,7 +173,7 @@ export async function commitRosterImport(
         .set({
           currentName: name,
           previousNamesJson: nextPreviousNames,
-          status: "active",
+          status: row.status?.trim() || "active",
           allianceRank: row.allianceRank,
           allianceRankTitle: row.allianceRankTitle?.trim() || null,
           ashedRankRaw: formatAshedMemberRankValue(
@@ -133,6 +182,8 @@ export async function commitRosterImport(
           ),
           heroPowerM: row.heroPowerM ?? existing.heroPowerM,
           memberLevel: row.memberLevel ?? existing.memberLevel,
+          powerLevel: row.powerLevel ?? existing.powerLevel,
+          profession: row.profession ?? existing.profession,
           syncedAt: now,
           updatedAt: now,
         })
@@ -148,10 +199,21 @@ export async function commitRosterImport(
           allianceRank: row.allianceRank,
           allianceRankTitle: row.allianceRankTitle,
           recordedByHqUserId: input.hqUserId,
+          source: eventSource,
         })
       ) {
         rankEvents += 1;
       }
+
+      await appendStatEventsForRow({
+        allianceId: input.allianceId,
+        ashedMemberId: existing.ashedMemberId,
+        memberName: name,
+        powerLevel: row.powerLevel,
+        memberLevel: row.memberLevel,
+        hqUserId: input.hqUserId,
+        source: eventSource,
+      });
 
       updated += 1;
       continue;
@@ -167,7 +229,7 @@ export async function commitRosterImport(
       ashedAllianceId,
       currentName: name,
       previousNamesJson: [],
-      status: "active",
+      status: row.status?.trim() || "active",
       allianceRank: row.allianceRank,
       allianceRankTitle: row.allianceRankTitle?.trim() || null,
       ashedRankRaw: formatAshedMemberRankValue(
@@ -176,6 +238,8 @@ export async function commitRosterImport(
       ),
       heroPowerM: row.heroPowerM ?? null,
       memberLevel: row.memberLevel ?? null,
+      powerLevel: row.powerLevel ?? null,
+      profession: row.profession ?? null,
       syncedAt: now,
       updatedAt: now,
     });
@@ -188,10 +252,20 @@ export async function commitRosterImport(
       allianceRank: row.allianceRank,
       allianceRankTitle: row.allianceRankTitle?.trim() || null,
       effectiveDate: getServerCalendarDate(),
-      source: "roster_import",
+      source: eventSource,
       recordedByHqUserId: input.hqUserId,
     });
     rankEvents += 1;
+
+    await appendStatEventsForRow({
+      allianceId: input.allianceId,
+      ashedMemberId,
+      memberName: name,
+      powerLevel: row.powerLevel,
+      memberLevel: row.memberLevel,
+      hqUserId: input.hqUserId,
+      source: eventSource,
+    });
     created += 1;
   }
 
@@ -229,7 +303,7 @@ export async function commitRosterImport(
     sessionId: input.sessionId,
     allianceId: input.allianceId,
     hqUserId: input.hqUserId,
-    action: "members.roster_import",
+    action: auditAction,
     resourceType: "alliance_members",
     metadata: {
       created,

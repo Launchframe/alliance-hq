@@ -46,7 +46,7 @@ export async function GET(_request: Request, { params }: RouteParams) {
   let parsedRows: Array<{
     id: string;
     ocrName: string;
-    score: string;
+    score: string | null;
     scoreConflict: number;
     memberName: string | null;
     matchConfidence: number | null;
@@ -124,6 +124,7 @@ export async function GET(_request: Request, { params }: RouteParams) {
     accuracyJobId: string | null;
     recommendedJobId: string | null;
   } | null = null;
+  let rosterTesseractEval: unknown = null;
 
   if (job.groupId) {
     groupPasses = await db
@@ -153,6 +154,7 @@ export async function GET(_request: Request, { params }: RouteParams) {
         accuracyJobId: group.accuracyJobId ?? null,
         recommendedJobId: comp?.recommendedJobId ?? null,
       };
+      rosterTesseractEval = group.comparisonJson;
     }
   }
 
@@ -170,5 +172,6 @@ export async function GET(_request: Request, { params }: RouteParams) {
     survey,
     groupPasses,
     groupInfo,
+    rosterTesseractEval,
   });
 }

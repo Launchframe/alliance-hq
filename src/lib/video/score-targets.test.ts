@@ -4,7 +4,10 @@ import {
   ENABLED_SCORE_TARGETS,
   getScoreTarget,
   getScoreTargetOrThrow,
+  isHqOnlySubmitTarget,
+  isMemberRosterVideoTarget,
   isZeroScoreWarningDisabled,
+  toScoreTargetClientMeta,
 } from "@/lib/video/score-targets";
 
 describe("score targets", () => {
@@ -38,5 +41,18 @@ describe("score targets", () => {
     expect(isZeroScoreWarningDisabled("zombie-siege")).toBe(true);
     expect(isZeroScoreWarningDisabled("alliance-exercise")).toBe(false);
     expect(isZeroScoreWarningDisabled("desert-storm")).toBe(false);
+  });
+
+  it("registers member roster video as HQ-only submit target", () => {
+    const target = getScoreTargetOrThrow("member-roster-video");
+    expect(isMemberRosterVideoTarget("member-roster-video")).toBe(true);
+    expect(isHqOnlySubmitTarget(target)).toBe(true);
+    expect(ENABLED_SCORE_TARGETS.some((t) => t.id === "member-roster-video")).toBe(
+      true,
+    );
+
+    const meta = toScoreTargetClientMeta(target);
+    expect(meta.showRosterColumns).toBe(true);
+    expect(meta.showScoreColumn).toBe(false);
   });
 });

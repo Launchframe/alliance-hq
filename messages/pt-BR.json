@@ -91,6 +91,7 @@
     "frontlineBreakthrough": "Frontline Breakthrough",
     "seasonal": "Sazonal",
     "allianceStar": "Alliance Star",
+    "memberRosterVideo": "Lista de membros (vídeo)",
     "groups": {
       "events": "Eventos",
       "recurring": "Pontuações recorrentes",
@@ -509,7 +510,15 @@
       "statsColUpload": "Upload",
       "statsColExtract": "Extração",
       "statsColEntries": "Entradas",
-      "statsColError": "Erro OCR"
+      "statsColError": "Erro OCR",
+      "rosterTesseractEvalTitle": "Tesseract sombra vs Ashed (admin)",
+      "rosterEvalNameRecall": "Recall de nomes",
+      "rosterEvalNamePrecision": "Precisão de nomes",
+      "rosterEvalRankAgreement": "Concordância de patente",
+      "rosterEvalPowerAgreement": "Concordância de poder",
+      "rosterEvalLevelAgreement": "Concordância de nível",
+      "rosterEvalPassKey": "Pass Tesseract",
+      "rosterEvalRowSummary": "Ashed {primary} linhas · Tesseract {shadow} linhas · {matched} nomes correspondentes"
     },
     "auditPage": {
       "loading": "Carregando log de auditoria…",
@@ -737,6 +746,19 @@
         "sysRecommended": "Recomendado",
         "agreement": "Concordância",
         "buckets": "Baldes"
+      },
+      "rosterOcrEval": {
+        "title": "Vídeo de roster — sombra Tesseract",
+        "subtitle": "Tesseract assíncrono avaliado contra o OCR primário Ashed em uploads member-roster-video.",
+        "jobCount": "Uploads avaliados",
+        "nameRecall": "Recall médio de nomes",
+        "namePrecision": "Precisão média de nomes",
+        "rankAgreement": "Concordância média de patente",
+        "powerAgreement": "Concordância média de poder",
+        "levelAgreement": "Concordância média de nível",
+        "colPass": "Pass Tesseract",
+        "colJobs": "Uploads",
+        "empty": "Ainda não há avaliações de sombra Tesseract neste período."
       }
     }
   },
@@ -1255,6 +1277,7 @@
     "refreshNative": "Atualizar elenco",
     "refreshingNative": "Atualizando…",
     "importMembers": "Importar membros",
+    "uploadRosterVideo": "Enviar vídeo do elenco",
     "import": {
       "title": "Importar membros",
       "uploadHint": "Envie uma captura por página de patente (oficiais e listas R1–R5). Lemos nome, poder e nível com OCR.",
@@ -1934,12 +1957,18 @@
     "colName": "Nome",
     "colMember": "Membro correspondido",
     "colRank": "Posição",
+    "colAllianceRank": "Patente na aliança",
+    "colPower": "Poder",
+    "colLevel": "Nível",
+    "colProfession": "Profissão",
     "colScore": "Pontuação",
     "unmatched": "Selecionar membro…",
     "deleteRow": "Excluir",
     "saveScores": "Salvar {count} pontuações",
+    "saveRoster": "Aplicar {count} linhas do elenco no HQ",
     "submitting": "Enviando…",
     "submitSuccess": "{count} pontuações salvas no Ashed.",
+    "rosterSubmitSuccess": "{count} linhas do elenco aplicadas aos membros do HQ.",
     "scoreConflictHint": "Alguns jogadores foram lidos com pontuações conflitantes entre frames do vídeo. Escolha a pontuação correta e exclua a linha extra de cada jogador.",
     "scoreConflictRow": "Pontuações conflitantes — verifique e exclua a linha duplicada.",
     "duplicateMemberTitle": "Várias linhas correspondem ao mesmo membro",
@@ -1976,6 +2005,30 @@
     "closePreview": "Fechar",
     "rowVideoPreview": "Ver no vídeo",
     "previewUnavailable": "O vídeo original não está disponível para este job.",
+    "rosterAllianceTarget": "Enviando roster para: {tag}",
+    "rosterAllianceTargetNamed": "Enviando roster para: {tag} — {name}",
+    "rosterAllianceHint": "Membros novos e correspondidos deste vídeo serão gravados nesta aliança no HQ.",
+    "rosterAllianceStale": "Sua aliança de sessão mudou desde o parse deste vídeo. Revise as correspondências antes de salvar.",
+    "rosterAllianceSettingsLink": "Trocar aliança em Configurações",
+    "rosterRankPlaceholder": "Selecionar rank…",
+    "rosterRankRequired": "Cada linha precisa de um rank de aliança antes de salvar.",
+    "rosterQuotaTitle": "Limites de rank (após salvar)",
+    "rosterQuotaSummary": "Projetado: R5 {r5} · R4 {r4}/{maxR4} · R3 {r3} · R2 {r2} · R1 {r1} · {total}/{maxMembers} membros",
+    "rosterQuotaOk": "Contagens de rank dentro dos limites da aliança.",
+    "rosterQuota": {
+      "r5_required": "É necessário exatamente um R5 (líder da aliança).",
+      "r5_multiple": "Apenas um membro pode ser R5.",
+      "r4_max": "No máximo {maxR4} membros podem ser R4.",
+      "total_max": "Uma aliança pode ter no máximo {maxMembers} membros.",
+      "r123_when_r4_full": "Com 10 oficiais R4, R1–R3 juntos não podem passar de 89.",
+      "solo_must_be_r5": "Uma aliança com um único membro deve ser R5."
+    },
+    "rosterProfessionNone": "Nenhuma",
+    "rosterProfession": {
+      "engineer": "Engenheiro",
+      "warLeader": "Líder de guerra"
+    },
+    "duplicateOcrNameRow": "Nome duplicado — exclua linhas extras de frames repetidos.",
     "statsNerds": {
       "button": "Estatísticas avançadas",
       "title": "Estatísticas avançadas",

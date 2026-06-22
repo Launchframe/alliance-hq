@@ -25,11 +25,18 @@ import { ocrAllFrames, defaultAshFrameConcurrency } from "@/lib/video/ocr-pipeli
 import { collapseEntriesBySanitizedName } from "@/lib/video/normalize-rows";
 import { dedupeMatchedParseEntries } from "@/lib/video/parse-row-dedup";
 import { PipelineTimer } from "@/lib/video/pipeline-timer";
-import { getScoreTargetOrThrow } from "@/lib/video/score-targets";
+import { processRosterVideoParse } from "@/lib/video/process-roster-job";
+import {
+  getScoreTargetOrThrow,
+  isMemberRosterVideoTarget,
+} from "@/lib/video/score-targets";
 import { emitVideoJobStatus } from "@/lib/events/video-jobs";
 import { maybeEnqueueShadowPass } from "@/lib/video/enqueue-shadow-pass";
 import { dispatchVideoArchive } from "@/lib/video/trigger-archive";
+import { maybeEnqueueTesseractShadowPass } from "@/lib/video/enqueue-tesseract-shadow-pass";
 import { computePassComparison } from "@/lib/video/compare-pass-results";
+import { processTesseractShadowRosterJob } from "@/lib/video/process-tesseract-shadow-roster-job";
+import { resolveJobVideoStorageKey } from "@/lib/video/resolve-job-video-storage";
 import type { ExtractionConfig } from "@/lib/video/pass-definitions";
 import fs from "node:fs/promises";
 import os from "node:os";
@@ -103,7 +110,12 @@ export async function processVideoJob(
     throw new Error(`Job not found: ${jobId}`);
   }
 
-  if (!job.storageKey) {
+  if (job.passRole === "tesseract_shadow") {
+    return processTesseractShadowRosterJob(jobId, options);
+  }
+
+  const videoStorageKey = await resolveJobVideoStorageKey(job);
+  if (!videoStorageKey) {
     throw new Error("Job has no stored video.");
   }
 
@@ -175,7 +187,7 @@ export async function processVideoJob(
       `hq-video-${jobId}${path.extname(job.fileName ?? ".mp4")}`,
     );
     const videoBytes = await timer.measureStep("storage.load_video", () =>
-      streamObjectToFile(job.storageKey!, tmpVideo),
+      streamObjectToFile(videoStorageKey, tmpVideo),
       (bytes) => ({ bytes }),
     );
     logPipelineStep("storage.temp_video_ready", 0, { bytes: videoBytes, jobId });
@@ -252,9 +264,42 @@ export async function processVideoJob(
       uploadedFrameCount: 0,
     });
 
-    const allianceId = await timer.measureStep("alliance.resolve", () =>
-      resolveSessionAllianceId(job.sessionId, connection),
-    );
+    let allianceId: string;
+    let parseSessionId: string;
+    let unresolvedConflicts: string[] = [];
+
+    if (isMemberRosterVideoTarget(scoreTargetId)) {
+      const rosterResult = await processRosterVideoParse({
+        jobId,
+        sessionId: job.sessionId,
+        scoreTargetId,
+        target,
+        connection,
+        frames: frames.map((f) => ({ index: f.index, buffer: f.buffer })),
+        timer,
+        now,
+      });
+
+      allianceId = rosterResult.hqAllianceId;
+      parseSessionId = rosterResult.parseSessionId;
+      rowCount = rosterResult.rowCount;
+      matchedCount = rosterResult.matchedCount;
+      ocrFrameMs = rosterResult.ocrFrameMs;
+      ocrConcurrency = rosterResult.ocrConcurrency;
+      ashedUploadTotalMs = rosterResult.ashedUploadTotalMs;
+      ashedExtractTotalMs = rosterResult.ashedExtractTotalMs;
+      totalRawOcrRows = rosterResult.totalRawOcrRows;
+
+      await timer.measureStep("storage.cleanup_frame_temp", () =>
+        cleanupFrameTempDir(frames),
+        { frameCount: frames.length },
+      );
+
+      await setStatus("parsing", { uploadedFrameCount: frames.length });
+    } else {
+      allianceId = await timer.measureStep("alliance.resolve", () =>
+        resolveSessionAllianceId(job.sessionId, connection),
+      );
 
     const { entries: rawEntries, frameTimings, concurrency } =
       await timer.measureStep(
@@ -301,7 +346,8 @@ export async function processVideoJob(
     const allianceTag = await timer.measureStep("alliance.load_tag", () =>
       getSessionAllianceTag(job.sessionId),
     );
-    const { entries, unresolvedConflicts } = await timer.measureStep(
+    const { entries, unresolvedConflicts: collapsedConflicts } =
+      await timer.measureStep(
       "parse.collapse_rows",
       async () =>
         collapseEntriesBySanitizedName(rawEntries, allianceTag),
@@ -311,6 +357,7 @@ export async function processVideoJob(
         conflicts: result.unresolvedConflicts,
       }),
     );
+    unresolvedConflicts = collapsedConflicts;
     rowCount = entries.length;
 
     await timer.measureStep("storage.cleanup_frame_temp", () =>
@@ -331,7 +378,7 @@ export async function processVideoJob(
       members = [];
     }
 
-    const parseSessionId = nanoid(16);
+    parseSessionId = nanoid(16);
     await timer.measureStep("db.create_parse_session", async () => {
       await db.insert(schema.parseSessions).values({
         id: parseSessionId,
@@ -401,6 +448,7 @@ export async function processVideoJob(
         .set({ matchedCount, rowCount, updatedAt: new Date() })
         .where(eq(schema.parseSessions.id, parseSessionId));
     });
+    }
 
     const phases = timer.getPhases();
     const ocrFrameAvgMs =
@@ -436,7 +484,7 @@ export async function processVideoJob(
         timingsJson: timings,
         totalFileSizeBytes: totalFrameBytes,
       },
-      { rowCount: entries.length, matchedCount },
+      { rowCount, matchedCount },
     );
 
     void dispatchVideoArchive(jobId);
@@ -483,27 +531,37 @@ export async function processVideoJob(
     });
 
     // Shadow pass enqueue (primary jobs only, fire-and-forget)
+    const shadowEnqueueJob = {
+      id: job.id,
+      sessionId: job.sessionId,
+      allianceId: job.allianceId ?? null,
+      scoreTarget: job.scoreTarget ?? null,
+      category: job.category ?? null,
+      storageKey: job.storageKey ?? null,
+      boardKey: job.boardKey ?? null,
+      hqEventId: job.hqEventId ?? null,
+      groupId: job.groupId ?? null,
+      passRole: job.passRole ?? null,
+      frameCount: job.frameCount ?? null,
+      hqUserId: job.hqUserId ?? null,
+    };
+
     try {
       await maybeEnqueueShadowPass({
-        job: {
-          id: job.id,
-          sessionId: job.sessionId,
-          allianceId: job.allianceId ?? null,
-          scoreTarget: job.scoreTarget ?? null,
-          category: job.category ?? null,
-          storageKey: job.storageKey ?? null,
-          boardKey: job.boardKey ?? null,
-          hqEventId: job.hqEventId ?? null,
-          groupId: job.groupId ?? null,
-          passRole: job.passRole ?? null,
-          frameCount: job.frameCount ?? null,
-          hqUserId: job.hqUserId ?? null,
-        },
+        job: shadowEnqueueJob,
         totalMs: timings.totalMs,
         frameCount,
       });
     } catch {
       // Shadow pass failure must not fail primary job
+    }
+
+    if (isMemberRosterVideoTarget(scoreTargetId)) {
+      try {
+        await maybeEnqueueTesseractShadowPass({ job: shadowEnqueueJob });
+      } catch {
+        // Tesseract shadow failure must not fail primary job
+      }
     }
 
     // If this is a shadow pass, compute cross-pass comparison and persist to group

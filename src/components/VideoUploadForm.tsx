@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { useRouter } from "@/i18n/navigation";
 import { Link } from "@/i18n/navigation";
+import { RosterAllianceBanner } from "@/components/video/RosterAllianceBanner";
 import { AppSelect } from "@/components/ui/AppSelect";
 import { useMergedVideoJobs } from "@/components/video/VideoJobEventsProvider";
 import { VideoSurveyDialog } from "@/components/video/VideoSurveyDialog";
@@ -19,6 +20,7 @@ import {
   isVideoUploadOverLimit,
 } from "@/lib/video/upload-limit";
 import { jobMatchesScoreTarget } from "@/lib/video/score-target-nav";
+import { isMemberRosterVideoTarget } from "@/lib/video/score-targets";
 
 function formatBytes(bytes: number | null): string {
   if (!bytes) return "—";
@@ -65,6 +67,8 @@ type Props = {
   memberName?: string | null;
   /** When set (from event page link), pre-selects target and filters recent uploads. */
   contextScoreTarget?: string | null;
+  allianceTag?: string | null;
+  allianceName?: string | null;
 };
 
 function statusLabel(
@@ -90,6 +94,8 @@ export function VideoUploadForm({
   initialJobs,
   memberName = null,
   contextScoreTarget = null,
+  allianceTag = null,
+  allianceName = null,
 }: Props) {
   const t = useTranslations("video");
   const tNav = useTranslations("nav");
@@ -295,6 +301,11 @@ export function VideoUploadForm({
         onSubmit={(e) => void handleSubmit(e)}
         className="min-w-0 rounded-xl border border-[#30363d] bg-[#161b22] p-4 sm:p-5"
       >
+        {isMemberRosterVideoTarget(scoreTarget) && allianceTag ? (
+          <div className="mb-4">
+            <RosterAllianceBanner tag={allianceTag} name={allianceName} />
+          </div>
+        ) : null}
         <label className="block">
           <span className="mb-2 block text-sm text-[#8b949e]">
             {t("scoreTargetLabel")}
