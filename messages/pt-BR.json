@@ -1342,7 +1342,7 @@
     "monthNavNext": "Próximo mês",
     "monthLoadFailed": "Não foi possível carregar esse mês.",
     "paintPaletteTitle": "Pintar dias",
-    "paintPaletteHint": "Escolha um modelo e toque ou clique em um dia. Arraste ou deslize pelos dias, ou Shift+clique, para pintar um intervalo.",
+    "paintPaletteHint": "Selecione dias no calendário (toque, arraste ou Shift+clique em um intervalo) e depois escolha um modelo para pintá-los.",
     "weekdays": {
       "mon": "Seg",
       "tue": "Ter",
