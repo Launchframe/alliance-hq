@@ -1324,6 +1324,7 @@ export function TrainsDashboard({ initial }: Props) {
                 previousDay: t("dayNavPrevious"),
                 nextDay: t("dayNavNext"),
               }}
+              trainWeekConfig={trainWeekConfig}
               externalWeek={viewedWeek}
               onSelectDate={setSelectedDate}
               onWeekChange={handleWeekChange}

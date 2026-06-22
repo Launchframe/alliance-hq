@@ -9,6 +9,12 @@ import type {
   WeekSchedulePagePayload,
 } from "@/lib/trains/load-dashboard";
 import { addCalendarDays, isCalendarDateOnOrAfter } from "@/lib/trains/game-time";
+import {
+  DEFAULT_ALLIANCE_TRAIN_WEEK,
+  getTrainWeekStart,
+  weekDatesInTrainWeek,
+  type AllianceTrainWeekConfig,
+} from "@/lib/trains/train-week-calendar.shared";
 import { buildProvisionalWeekPage } from "@/lib/client/week-schedule-provisional";
 import { useCoverFlowCarousel } from "@/lib/client/use-cover-flow-carousel";
 import {
@@ -42,6 +48,7 @@ type Props = {
     nextDay?: string;
   };
   displayWeekStartDow?: number;
+  trainWeekConfig?: AllianceTrainWeekConfig;
   externalWeek?: WeekSchedulePagePayload;
   onSelectDate: (date: string) => void;
   onWeekChange?: (page: WeekSchedulePagePayload) => void;
@@ -238,6 +245,7 @@ type CarouselProps = {
   vipLabels: Record<string, string>;
   templateShortLabels?: Partial<Record<WeekTemplateType, string>>;
   navLabels: Props["navLabels"];
+  trainWeekConfig?: AllianceTrainWeekConfig;
   onSelectDate: (date: string) => void;
   onWeekChange?: (page: WeekSchedulePagePayload) => void;
   onWeekLoadError?: (message: string) => void;
@@ -253,6 +261,7 @@ function WeekScheduleInfiniteDayCarousel({
   vipLabels,
   templateShortLabels,
   navLabels,
+  trainWeekConfig = DEFAULT_ALLIANCE_TRAIN_WEEK,
   onSelectDate,
   onWeekChange,
   onWeekLoadError,
@@ -274,6 +283,7 @@ function WeekScheduleInfiniteDayCarousel({
     rememberPage,
   } = useWeekScheduleInfiniteDays({
     seedPage,
+    trainWeekConfig,
     onWeekLoadError,
   });
 
@@ -295,14 +305,14 @@ function WeekScheduleInfiniteDayCarousel({
 
   const notifyWeekForDate = useCallback(
     (date: string) => {
-      const { weekStart, weekEnd } = weekRangeForDate(date);
+      const { weekStart, weekEnd } = weekRangeForDate(date, trainWeekConfig);
       onCarouselWeekLabelChange(weekStart, weekEnd);
       if (lastWeekStartRef.current === weekStart) return;
       lastWeekStartRef.current = weekStart;
       const page = getPageForWeek(weekStart);
       if (page) onWeekChange?.(page);
     },
-    [getPageForWeek, onCarouselWeekLabelChange, onWeekChange],
+    [getPageForWeek, onCarouselWeekLabelChange, onWeekChange, trainWeekConfig],
   );
 
   const handleIndexChange = useCallback(
@@ -483,12 +493,14 @@ export function WeekScheduleStrip({
   vipLabels,
   templateShortLabels,
   navLabels,
+  trainWeekConfig = DEFAULT_ALLIANCE_TRAIN_WEEK,
   externalWeek,
   onSelectDate,
   onWeekChange,
   onWeekLoadError,
 }: Props) {
   const [viewWeekStart, setViewWeekStart] = useState(initialWeekStart);
+  const lastNotifiedWeekStartRef = useRef(initialWeekStart);
   const [page, setPage] = useState<WeekSchedulePagePayload>({
     weekStart: initialWeekStart,
     weekEnd: initialWeekEnd,
@@ -497,7 +509,7 @@ export function WeekScheduleStrip({
     weekRecords: initialWeekRecords,
   });
   const [loading, setLoading] = useState(false);
-  const selectedWeekRange = weekRangeForDate(selectedDate);
+  const selectedWeekRange = weekRangeForDate(selectedDate, trainWeekConfig);
   const [carouselWeekStart, setCarouselWeekStart] = useState(
     selectedWeekRange.weekStart,
   );
@@ -521,6 +533,7 @@ export function WeekScheduleStrip({
   useEffect(() => {
     if (!externalWeek) return;
     const id = setTimeout(() => {
+      lastNotifiedWeekStartRef.current = externalWeek.weekStart;
       if (externalWeek.weekStart !== viewWeekStart) {
         setViewWeekStart(externalWeek.weekStart);
         setPage(externalWeek);
@@ -538,7 +551,10 @@ export function WeekScheduleStrip({
     (next: WeekSchedulePagePayload) => {
       setViewWeekStart(next.weekStart);
       setPage(next);
-      onWeekChange?.(next);
+      if (lastNotifiedWeekStartRef.current !== next.weekStart) {
+        lastNotifiedWeekStartRef.current = next.weekStart;
+        onWeekChange?.(next);
+      }
     },
     [onWeekChange],
   );
@@ -591,7 +607,17 @@ export function WeekScheduleStrip({
   );
 
   const shiftWeek = (direction: -1 | 1) => {
-    const nextStart = addCalendarDays(viewWeekStart, direction * 7);
+    const nextStart = getTrainWeekStart(
+      addCalendarDays(viewWeekStart, direction * 7),
+      trainWeekConfig,
+    );
+    const weekDates = weekDatesInTrainWeek(viewWeekStart, trainWeekConfig);
+    const dayIndex = weekDates.indexOf(selectedDate);
+    const nextSelectedDate =
+      dayIndex >= 0
+        ? addCalendarDays(nextStart, dayIndex)
+        : nextStart;
+    onSelectDate(nextSelectedDate);
     void loadWeek(nextStart);
   };
 
@@ -682,6 +708,7 @@ export function WeekScheduleStrip({
           onWeekChange={onWeekChange}
           onWeekLoadError={onWeekLoadError}
           onCarouselWeekLabelChange={handleCarouselWeekLabelChange}
+          trainWeekConfig={trainWeekConfig}
         />
       </div>
 

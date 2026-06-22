@@ -9,8 +9,12 @@ import type {
 } from "@/lib/trains/load-dashboard";
 import {
   addCalendarDays,
-  getWeekStartMonday,
 } from "@/lib/trains/game-time";
+import {
+  DEFAULT_ALLIANCE_TRAIN_WEEK,
+  getTrainWeekStart,
+  type AllianceTrainWeekConfig,
+} from "@/lib/trains/train-week-calendar.shared";
 import { buildProvisionalWeekPage } from "@/lib/client/week-schedule-provisional";
 import type { WeekTemplateType } from "@/lib/trains/types";
 
@@ -93,11 +97,13 @@ function indexForDateInEntries(
 
 type Options = {
   seedPage: WeekSchedulePagePayload;
+  trainWeekConfig?: AllianceTrainWeekConfig;
   onWeekLoadError?: (message: string) => void;
 };
 
 export function useWeekScheduleInfiniteDays({
   seedPage,
+  trainWeekConfig = DEFAULT_ALLIANCE_TRAIN_WEEK,
   onWeekLoadError,
 }: Options) {
   const cacheRef = useRef(new Map<string, WeekSchedulePagePayload>());
@@ -311,7 +317,7 @@ export function useWeekScheduleInfiniteDays({
       const last = current[current.length - 1];
       if (!first || !last) return -1;
 
-      const weekStart = getWeekStartMonday(date);
+      const weekStart = getTrainWeekStart(date, trainWeekConfig);
       if (!cacheRef.current.has(weekStart)) {
         rememberPage(provisionalWeekFromCache(weekStart, cacheRef.current));
       }
@@ -352,7 +358,7 @@ export function useWeekScheduleInfiniteDays({
 
       return indexForDateInEntries(daysRef.current, date);
     },
-    [commitDays, fetchWeek, rebuildFromRange, rememberPage, resolveIndexForDate],
+    [commitDays, fetchWeek, rebuildFromRange, rememberPage, resolveIndexForDate, trainWeekConfig],
   );
 
   const getPageForWeek = useCallback((weekStart: string) => {
@@ -372,10 +378,13 @@ export function useWeekScheduleInfiniteDays({
   };
 }
 
-export function weekRangeForDate(date: string): {
+export function weekRangeForDate(
+  date: string,
+  trainWeekConfig: AllianceTrainWeekConfig = DEFAULT_ALLIANCE_TRAIN_WEEK,
+): {
   weekStart: string;
   weekEnd: string;
 } {
-  const weekStart = getWeekStartMonday(date);
+  const weekStart = getTrainWeekStart(date, trainWeekConfig);
   return { weekStart, weekEnd: addCalendarDays(weekStart, 6) };
 }
