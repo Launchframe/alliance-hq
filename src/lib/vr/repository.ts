@@ -85,6 +85,34 @@ export async function resolveDiscordAllianceId(): Promise<string | null> {
   return row?.id ?? null;
 }
 
+/**
+ * Resolves which HQ alliance a Discord guild maps to.
+ * Registered guilds use discord_guild_alliances only.
+ * Legacy env fallback applies only when guildId matches DISCORD_GUILD_ID.
+ */
+export function resolveGuildAllianceIdWithLegacyFallback(input: {
+  guildId: string | null | undefined;
+  registeredAllianceId: string | null;
+  legacyAllianceId: string | null;
+  legacyGuildId: string | null | undefined;
+}): string | null {
+  const guildId = input.guildId?.trim() || null;
+  const legacyGuildId = input.legacyGuildId?.trim() || null;
+  const legacyAllianceId = input.legacyAllianceId?.trim() || null;
+
+  if (guildId) {
+    if (input.registeredAllianceId) {
+      return input.registeredAllianceId;
+    }
+    if (legacyAllianceId && legacyGuildId && guildId === legacyGuildId) {
+      return legacyAllianceId;
+    }
+    return null;
+  }
+
+  return legacyAllianceId;
+}
+
 export async function resolveSeasonKey(allianceId: string): Promise<string> {
   const envKey = process.env.DISCORD_ALLIANCE_SEASON_KEY?.trim();
   if (envKey) return envKey;
@@ -513,11 +541,14 @@ export async function getAllianceById(allianceId: string) {
 export async function resolveAllianceForGuild(
   guildId: string | null | undefined,
 ): Promise<string | null> {
-  if (guildId) {
-    const registered = await getGuildAllianceId(guildId);
-    if (registered) return registered;
-  }
-  return resolveDiscordAllianceId();
+  const registered = guildId ? await getGuildAllianceId(guildId) : null;
+  const legacyAllianceId = await resolveDiscordAllianceId();
+  return resolveGuildAllianceIdWithLegacyFallback({
+    guildId,
+    registeredAllianceId: registered,
+    legacyAllianceId,
+    legacyGuildId: process.env.DISCORD_GUILD_ID,
+  });
 }
 
 export async function getGuildAllianceId(guildId: string): Promise<string | null> {

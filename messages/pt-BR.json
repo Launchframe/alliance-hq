@@ -2069,7 +2069,7 @@
   "discordBot": {
     "errors": {
       "guildNotConfigured": "O rastreamento de VR no Discord ainda não está configurado neste servidor. O dono da aliança deve executar `/link-alliance` com a tag da aliança.",
-      "legacyMisconfigured": "O rastreamento de VR no Discord está mal configurado. Fale com o mantenedor do Alliance HQ.",
+      "legacyMisconfigured": "Este servidor do Discord ainda não está registrado para uma aliança. O dono deve executar `/link-alliance` com a tag. Se você é o mantenedor, remova `DISCORD_ALLIANCE_ID` do ambiente — bots multi-tenant resolvem a aliança pelo registro do servidor, não por variável global.",
       "unknownUser": "Não foi possível identificar sua conta do Discord.",
       "unknownCommand": "Comando desconhecido.",
       "serverError": "Algo deu errado do nosso lado. Tente novamente em instantes.",
@@ -2094,7 +2094,8 @@
       "capReached": "Você já atingiu o máximo de personagens vinculados ({max}). Use `/unlink` ou `/link replace:true`.",
       "memberTaken": "Esse membro no jogo já está vinculado a outra conta do Discord.",
       "fuzzyPrompt": "Verificamos **{gameName}**, mas não achamos uma correspondência exata no roster. Escolha seu membro:",
-      "rosterMiss": "Não encontramos esse nome no roster. Toque em **Começar de novo** para instruções de cópia ou peça ajuda a um oficial.",
+      "rosterMiss": "Verificamos o roster **{tag}** e não encontramos esse nome. Toque em **Começar de novo** para instruções de cópia ou peça ajuda a um oficial.",
+      "rosterMissGeneric": "Não encontramos esse nome no roster. Toque em **Começar de novo** para instruções de cópia ou peça ajuda a um oficial.",
       "rosterUnavailable": "Verificamos seu UID no jogo, mas não foi possível carregar o roster da aliança. Peça ao dono para executar `/link-to-ashed-seat` ou a um oficial.",
       "pickExpired": "Essa opção expirou. Execute `/link` novamente.",
       "walkthroughDone": "Ótimo. Execute `/link` de novo com o nome e UID copiados quando estiver pronto.",

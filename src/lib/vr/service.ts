@@ -17,8 +17,10 @@ import { advanceLinkWalkthrough, walkthroughMessage } from "@/lib/vr/link-helper
 import { loadAllianceMembersForBot } from "@/lib/vr/member-roster";
 import {
   countSeasonReporters,
+  getAllianceById,
   getDiscordBotPending,
   getDiscordLinkById,
+  getGuildAllianceId,
   getLinkedMemberIds,
   getMemberSeasonHigh,
   listDiscordLinksForUser,
@@ -160,6 +162,7 @@ async function persistLinkTarget(input: {
 
 export async function handleDiscordLinkSlash(input: {
   allianceId: string;
+  guildId?: string | null;
   discordUserId: string;
   discordUsername?: string;
   reportedName?: string;
@@ -201,9 +204,13 @@ export async function handleDiscordLinkSlash(input: {
   }
 
   const lookup = await lookupPlayerByUid(uid);
-  const [members, linkedMemberIds] = await Promise.all([
+  const [members, linkedMemberIds, alliance, guildRegistered] = await Promise.all([
     loadAllianceMembersForBot(input.allianceId),
     getLinkedMemberIds(input.allianceId),
+    getAllianceById(input.allianceId),
+    input.guildId
+      ? getGuildAllianceId(input.guildId).then((id) => id != null)
+      : Promise.resolve(false),
   ]);
 
   const result = processLinkCommand({
@@ -215,7 +222,15 @@ export async function handleDiscordLinkSlash(input: {
     pending: pending as LinkPendingState | null,
     translate,
     walkthroughSteps,
+    allianceTag: alliance?.tag ?? null,
   });
+
+  const linkDiagnostics = {
+    memberCount: members.length,
+    allianceTag: alliance?.tag ?? null,
+    guildRegistered,
+    gameUserName: lookup.ok ? lookup.gameUserName : null,
+  };
 
   if ("linkTarget" in result && result.linkTarget) {
     const persisted = await persistLinkTarget({
@@ -234,7 +249,10 @@ export async function handleDiscordLinkSlash(input: {
         handles: [input.discordUsername ?? input.discordUserId],
       });
     }
-    await audit(input.allianceId, input.discordUserId, "link", input, persisted);
+    await audit(input.allianceId, input.discordUserId, "link", input, {
+      ...persisted,
+      diagnostics: linkDiagnostics,
+    });
     return persisted;
   } else if (result.pending) {
     await saveDiscordBotPending(input.allianceId, input.discordUserId, result.pending);
@@ -250,7 +268,10 @@ export async function handleDiscordLinkSlash(input: {
     });
   }
 
-  await audit(input.allianceId, input.discordUserId, "link", input, result);
+  await audit(input.allianceId, input.discordUserId, "link", input, {
+    ...result,
+    diagnostics: linkDiagnostics,
+  });
   return result;
 }
 

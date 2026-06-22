@@ -154,6 +154,7 @@ async function handleSlashCommand(payload: DiscordInteractionPayload) {
     const { name, uid, replace } = parseLinkSlashOptions(payload);
     const result = await handleDiscordLinkSlash({
       allianceId: linkAllianceId,
+      guildId,
       discordUserId,
       discordUsername,
       reportedName: name,
@@ -190,6 +191,9 @@ async function handleSlashCommand(payload: DiscordInteractionPayload) {
   }
 
   if (commandName === "unlink") {
+    if (!guildId) {
+      return discordMessageResponse(t("errors.guildNotRegistered"));
+    }
     const name = parseSlashOptionString(payload, "name");
     const result = await handleDiscordUnlinkWithContext({
       guildId,

@@ -21,6 +21,7 @@ export type ProcessLinkInput = {
   walkthroughStep?: number;
   translate: DiscordTranslate;
   walkthroughSteps: readonly string[];
+  allianceTag?: string | null;
 };
 
 export function processLinkCommand(input: ProcessLinkInput): LinkCommandResult {
@@ -104,7 +105,9 @@ export function processLinkCommand(input: ProcessLinkInput): LinkCommandResult {
   }
 
   return {
-    reply: t("link.rosterMiss"),
+    reply: input.allianceTag
+      ? t("link.rosterMiss", { tag: input.allianceTag })
+      : t("link.rosterMissGeneric"),
     pending: null,
     needsOfficerAttention: true,
   };
