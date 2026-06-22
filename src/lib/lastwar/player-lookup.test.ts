@@ -33,13 +33,37 @@ describe("parseLastWarLookupResponse", () => {
     });
   });
 
-  it("returns gameUserName on success", () => {
+  it("returns gameUserName on success (legacy data shape)", () => {
     expect(
       parseLastWarLookupResponse({
         code: 0,
         data: { gameUserName: "CommanderX" },
       }),
     ).toEqual({ ok: true, gameUserName: "CommanderX" });
+  });
+
+  it("returns gameUserName on success (platform result shape)", () => {
+    expect(
+      parseLastWarLookupResponse({
+        code: 0,
+        message: "ok",
+        result: { server: "1203", gameUserName: "BOGGLE", gameUserLevel: "35" },
+      }),
+    ).toEqual({ ok: true, gameUserName: "BOGGLE", gameUserLevel: 35 });
+  });
+
+  it("parses gameUserLevel from numeric or string values", async () => {
+    const { parseLastWarGameUserLevel } = await import("@/lib/lastwar/player-lookup");
+    expect(parseLastWarGameUserLevel("35")).toBe(35);
+    expect(parseLastWarGameUserLevel(35.4)).toBe(35);
+    expect(parseLastWarGameUserLevel("")).toBeNull();
+  });
+
+  it("builds platform lookup URL with uid query param", async () => {
+    const { buildLastWarPlayerLookupUrl } = await import("@/lib/lastwar/player-lookup");
+    expect(buildLastWarPlayerLookupUrl("1623941123001203")).toBe(
+      "https://lastwar-platform.lastwargame.com/redemptionCode.php?method=login&uid=1623941123001203",
+    );
   });
 
   it("parses avatar URL from headPic", () => {

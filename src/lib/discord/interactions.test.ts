@@ -1,3 +1,4 @@
+import nacl from "tweetnacl";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -6,9 +7,38 @@ import {
   parseButtonCustomId,
   parseLinkSlashOptions,
   parseVrSlashLevel,
+  verifyDiscordInteractionRequest,
 } from "@/lib/discord/interactions";
 
 describe("discord interactions", () => {
+  it("verifies Discord ed25519 signatures on raw body bytes", () => {
+    const keyPair = nacl.sign.keyPair();
+    const publicKeyHex = Buffer.from(keyPair.publicKey).toString("hex");
+    const body = '{"type":2,"data":{"name":"link"}}';
+    const timestamp = "1719062400";
+    const message = Buffer.concat([
+      Buffer.from(timestamp, "utf8"),
+      Buffer.from(body, "utf8"),
+    ]);
+    const signature = Buffer.from(nacl.sign.detached(message, keyPair.secretKey)).toString(
+      "hex",
+    );
+
+    expect(
+      verifyDiscordInteractionRequest(body, signature, timestamp, publicKeyHex),
+    ).toBe(true);
+    expect(
+      verifyDiscordInteractionRequest(
+        Buffer.from(body, "utf8"),
+        signature,
+        timestamp,
+        publicKeyHex,
+      ),
+    ).toBe(true);
+    expect(
+      verifyDiscordInteractionRequest(body, signature, timestamp, "0".repeat(64)),
+    ).toBe(false);
+  });
   it("parses optional slash level", () => {
     expect(parseVrSlashLevel({ type: 2, data: { options: [] } })).toBeUndefined();
     expect(

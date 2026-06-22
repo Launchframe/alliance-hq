@@ -8,22 +8,37 @@ function hexToUint8Array(hex: string): Uint8Array {
   return bytes;
 }
 
+/** Discord signs `timestamp` bytes + raw UTF-8 body bytes (not a JS string concat). */
 export function verifyDiscordInteractionRequest(
-  rawBody: string,
+  rawBody: string | Uint8Array,
   signature: string | null,
   timestamp: string | null,
   publicKeyHex: string,
 ): boolean {
   if (!signature || !timestamp || !publicKeyHex) return false;
   try {
+    const bodyBytes =
+      typeof rawBody === "string"
+        ? Buffer.from(rawBody, "utf8")
+        : Buffer.from(rawBody);
+    const message = Buffer.concat([Buffer.from(timestamp, "utf8"), bodyBytes]);
     return nacl.sign.detached.verify(
-      Buffer.from(timestamp + rawBody),
+      message,
       hexToUint8Array(signature),
       hexToUint8Array(publicKeyHex),
     );
   } catch {
     return false;
   }
+}
+
+/** Accept DISCORD_PUBLIC_KEY (documented) or legacy DISCORD_BOT_PUBLIC_KEY. */
+export function resolveDiscordPublicKey(): string | null {
+  const raw =
+    process.env.DISCORD_PUBLIC_KEY?.trim() ||
+    process.env.DISCORD_BOT_PUBLIC_KEY?.trim();
+  if (!raw) return null;
+  return raw.replace(/^["']|["']$/g, "");
 }
 
 export type DiscordInteractionPayload = {

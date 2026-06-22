@@ -21,6 +21,7 @@ import {
   parseLinkSlashOptions,
   parseSlashOptionString,
   parseVrSlashLevel,
+  resolveDiscordPublicKey,
   verifyDiscordInteractionRequest,
   type DiscordInteractionPayload,
 } from "@/lib/discord/interactions";
@@ -340,7 +341,7 @@ async function handleButton(payload: DiscordInteractionPayload) {
 }
 
 export async function POST(request: Request) {
-  const publicKey = process.env.DISCORD_PUBLIC_KEY?.trim();
+  const publicKey = resolveDiscordPublicKey();
   if (!publicKey) {
     return NextResponse.json(
       { error: "DISCORD_PUBLIC_KEY is not configured." },
@@ -350,14 +351,25 @@ export async function POST(request: Request) {
 
   const signature = request.headers.get("x-signature-ed25519");
   const timestamp = request.headers.get("x-signature-timestamp");
-  const rawBody = await request.text();
+  const rawBodyBytes = Buffer.from(await request.arrayBuffer());
 
   if (
-    !verifyDiscordInteractionRequest(rawBody, signature, timestamp, publicKey)
+    !verifyDiscordInteractionRequest(
+      rawBodyBytes,
+      signature,
+      timestamp,
+      publicKey,
+    )
   ) {
+    console.warn("[discord] interaction signature rejected", {
+      hasSignature: Boolean(signature),
+      hasTimestamp: Boolean(timestamp),
+      bodyBytes: rawBodyBytes.length,
+    });
     return NextResponse.json({ error: "Invalid request signature." }, { status: 401 });
   }
 
+  const rawBody = rawBodyBytes.toString("utf8");
   const payload = JSON.parse(rawBody) as DiscordInteractionPayload;
 
   if (payload.type === 1) {

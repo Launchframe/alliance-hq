@@ -5,6 +5,7 @@ import {
   type DiscordBotLocale,
 } from "@/lib/discord/i18n";
 import { lookupPlayerByUid } from "@/lib/lastwar/player-lookup";
+import { syncAllianceMemberGameLevelFromLastWar } from "@/lib/lastwar/sync-member-game-level.server";
 import { peerMaxExcludingMember } from "@/lib/vr/anomaly";
 import { MAX_DISCORD_LINKS_PER_USER } from "@/lib/vr/constants";
 import { processVrCommand, processVrConfirmation } from "@/lib/vr/command";
@@ -97,6 +98,7 @@ async function persistLinkTarget(input: {
     ashedMemberId: string;
     memberDisplayName: string;
     gameUid: string;
+    gameUserLevel?: number;
   };
   replaceAll?: boolean;
   translate: ReturnType<typeof createDiscordTranslator>;
@@ -128,6 +130,18 @@ async function persistLinkTarget(input: {
       reply: input.translate("link.memberTaken"),
       pending: null,
     };
+  }
+
+  if (input.linkTarget.gameUserLevel != null) {
+    try {
+      await syncAllianceMemberGameLevelFromLastWar({
+        allianceId: input.allianceId,
+        ashedMemberId: input.linkTarget.ashedMemberId,
+        gameUserLevel: input.linkTarget.gameUserLevel,
+      });
+    } catch (error) {
+      console.error("[discord-bot] member level sync failed", error);
+    }
   }
 
   return {

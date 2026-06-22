@@ -28,6 +28,7 @@ export type LinkPendingState =
       gameUid: string;
       gameUserName: string;
       reportedName: string;
+      gameUserLevel?: number;
     }
   | {
       kind: "pick_alliance_by_name";
@@ -45,5 +46,6 @@ export type LinkCommandResult = {
     ashedMemberId: string;
     memberDisplayName: string;
     gameUid: string;
+    gameUserLevel?: number;
   };
 };

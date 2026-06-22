@@ -43,7 +43,7 @@ export function processLinkCommand(input: ProcessLinkInput): LinkCommandResult {
     return { reply: input.lookup.message, pending: null };
   }
 
-  const { gameUserName } = input.lookup;
+  const { gameUserName, gameUserLevel } = input.lookup;
   if (!namesMatch(input.reportedName, gameUserName)) {
     return {
       reply: `${walkthroughMessage(0, t, input.walkthroughSteps)}\n\n${t("link.nameMismatchIntro")}`,
@@ -61,6 +61,7 @@ export function processLinkCommand(input: ProcessLinkInput): LinkCommandResult {
         ashedMemberId: exact.id,
         memberDisplayName: exact.current_name,
         gameUid: input.gameUid.trim(),
+        ...(gameUserLevel != null ? { gameUserLevel } : {}),
       },
     };
   }
@@ -82,6 +83,7 @@ export function processLinkCommand(input: ProcessLinkInput): LinkCommandResult {
         gameUid: input.gameUid.trim(),
         gameUserName,
         reportedName: input.reportedName,
+        ...(gameUserLevel != null ? { gameUserLevel } : {}),
       },
     };
   }
@@ -116,6 +118,9 @@ export function processLinkFuzzyPick(input: {
       ashedMemberId: candidate.memberId,
       memberDisplayName: candidate.name,
       gameUid: input.pending.gameUid,
+      ...(input.pending.gameUserLevel != null
+        ? { gameUserLevel: input.pending.gameUserLevel }
+        : {}),
     },
   };
 }
