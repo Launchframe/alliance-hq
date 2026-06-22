@@ -37,4 +37,17 @@ describe("handleDiscordVrReport", () => {
     expect(result.reply).toMatch(/teams:N/i);
     expect(callerCanRunVrReport).not.toHaveBeenCalled();
   });
+
+  it("rejects more than MAX_TAKEDOWN_TEAMS", async () => {
+    const result = await handleDiscordVrReport({
+      allianceId: "a1",
+      discordUserId: "d1",
+      commandName: "vr-report",
+      teamCount: 6,
+      locale: "en-US",
+    });
+    expect(result.reply).toMatch(/5/);
+    expect(callerCanRunVrReport).not.toHaveBeenCalled();
+    expect(loadAllianceLeaderboard).not.toHaveBeenCalled();
+  });
 });

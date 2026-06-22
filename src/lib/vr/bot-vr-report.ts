@@ -1,3 +1,4 @@
+import { MAX_TAKEDOWN_TEAMS } from "@/lib/vr/constants";
 import { truncateDiscordContent } from "@/lib/discord/post-message.server";
 import {
   createDiscordTranslator,
@@ -26,6 +27,10 @@ export async function handleDiscordVrReport(input: {
     (input.teamCount == null || input.teamCount <= 0)
   ) {
     return { reply: t("errors.teamsRequired") };
+  }
+
+  if (input.teamCount != null && input.teamCount > MAX_TAKEDOWN_TEAMS) {
+    return { reply: t("errors.teamsTooMany", { max: MAX_TAKEDOWN_TEAMS }) };
   }
 
   const allowed = await callerCanRunVrReport({
