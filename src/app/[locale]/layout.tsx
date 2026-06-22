@@ -5,6 +5,7 @@ import { hasLocale } from "next-intl";
 import { Analytics } from "@vercel/analytics/react";
 import { JetBrains_Mono } from "next/font/google";
 import { notFound } from "next/navigation";
+import type { Viewport } from "next";
 
 import { routing } from "@/i18n/routing";
 import { PRODUCTION_APP_ORIGIN } from "@/lib/public-site";
@@ -44,9 +45,12 @@ export async function generateMetadata({ params }: Props) {
       apple: [{ url: "/brand/hq-icon-app.svg", type: "image/svg+xml" }],
     },
     manifest: "/manifest.webmanifest",
-    themeColor: "#0d1117",
   };
 }
+
+export const viewport: Viewport = {
+  themeColor: "#0d1117",
+};
 
 export default async function LocaleLayout({ children, params }: Props) {
   const { locale } = await params;

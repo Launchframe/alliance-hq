@@ -97,32 +97,42 @@ export function TrainsServerTimeClock({
 }: Props) {
   const t = useTranslations("trains.serverTimeClock");
   const [open, setOpen] = useState(false);
-  const [now, setNow] = useState(() => new Date());
+  /** null until mount — avoids SSR/hydration second mismatch on live clock text. */
+  const [now, setNow] = useState<Date | null>(null);
 
   useEffect(() => {
+    const initId = window.requestAnimationFrame(() => {
+      setNow(new Date());
+    });
     const id = window.setInterval(() => setNow(new Date()), 1000);
-    return () => window.clearInterval(id);
+    return () => {
+      window.cancelAnimationFrame(initId);
+      window.clearInterval(id);
+    };
   }, []);
 
   const badgeLine = useMemo(
     () =>
-      t("currentLive", {
-        date: formatServerClockDate(now),
-        time: formatServerClockTime(now),
-      }),
-    [now, t],
+      now
+        ? t("currentLive", {
+            date: formatServerClockDate(now),
+            time: formatServerClockTime(now),
+          })
+        : t("currentLive", { date: today, time: "–:–:–" }),
+    [now, t, today],
   );
 
-  const departure = useMemo(
-    () =>
-      resolveTrainNextDeparture({
-        selectedDate,
-        today,
-        lockedAtIso: lockedAt,
-        now,
-      }),
-    [lockedAt, now, selectedDate, today],
-  );
+  const departure = useMemo(() => {
+    if (!now) {
+      return { state: "awaiting_selection" as const };
+    }
+    return resolveTrainNextDeparture({
+      selectedDate,
+      today,
+      lockedAtIso: lockedAt,
+      now,
+    });
+  }, [lockedAt, now, selectedDate, today]);
 
   const departureLabel =
     departure.state === "awaiting_selection"
@@ -145,10 +155,14 @@ export function TrainsServerTimeClock({
 
       <Dialog open={open} onOpenChange={setOpen} title={t("boardTitle")}>
         <div className="space-y-4">
-          <AnalogClockFace now={now} />
-          <p className="text-center text-sm tabular-nums text-[#c9d1d9]">
-            {formatServerClockDate(now)} · {formatServerClockTime(now)}
-          </p>
+          {now ? (
+            <>
+              <AnalogClockFace now={now} />
+              <p className="text-center text-sm tabular-nums text-[#c9d1d9]">
+                {formatServerClockDate(now)} · {formatServerClockTime(now)}
+              </p>
+            </>
+          ) : null}
           <div className="rounded-lg border border-[#30363d] bg-[#0d1117] p-3">
             <p className="text-[10px] font-semibold uppercase tracking-wide text-[#8b949e]">
               {t("departureHeading", { date: selectedDate.slice(5) })}

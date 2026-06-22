@@ -971,8 +971,9 @@ export function TrainsDashboard({ initial }: Props) {
       });
     },
     [
-      data.schedule?.templateType,
+      data.schedule,
       data.weekStart,
+      setPendingTemplateChange,
       targetTrainWeekStart,
       viewedWeek,
       weekViewSeed,
