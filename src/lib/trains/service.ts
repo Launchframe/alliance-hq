@@ -931,6 +931,7 @@ export async function rollForVip(input: {
     vipMemberId: result.memberId,
     vipMemberName: result.memberName,
     vipRankEventId: rankEvent?.id ?? null,
+    conductorMechanism: dayConfig.conductorMechanism,
     vipMechanism: mechanism,
     dayConfigId: dayConfig.dayConfigId,
   });

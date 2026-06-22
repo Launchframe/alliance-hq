@@ -14,3 +14,7 @@ export function allianceSeasonApiPath(tag: string): string {
 export function allianceTrainMinimumsApiPath(tag: string): string {
   return `/api/alliance/${encodeURIComponent(allianceTagPathSegment(tag))}/train-minimums`;
 }
+
+export function allianceTrainWeekApiPath(tag: string): string {
+  return `/api/alliance/${encodeURIComponent(allianceTagPathSegment(tag))}/train-week`;
+}

@@ -10,6 +10,7 @@ import {
 import { AllianceSeasonSettings } from "@/components/settings/AllianceSeasonSettings";
 import { AllianceSettingsSwitcher } from "@/components/settings/AllianceSettingsSwitcher";
 import { AllianceTrainMinimumsSettings } from "@/components/settings/AllianceTrainMinimumsSettings";
+import { AllianceTrainWeekSettings } from "@/components/settings/AllianceTrainWeekSettings";
 import { requirePageSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -61,6 +62,7 @@ export default async function AllianceSettingsPage({
       />
 
       <AllianceSeasonSettings allianceTag={alliance.tag} />
+      <AllianceTrainWeekSettings allianceTag={alliance.tag} />
       <AllianceTrainMinimumsSettings allianceTag={alliance.tag} />
     </div>
   );

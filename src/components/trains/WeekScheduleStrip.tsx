@@ -89,6 +89,7 @@ type DayCellOptions = {
   day: WeekScheduleDayConfig;
   weekRecords: WeekConductorRecordSummary[];
   today: string;
+  weekStart: string;
   weekEnd: string;
   showDetail: boolean;
   conductorLabels: Record<string, string>;
@@ -103,6 +104,7 @@ function WeekScheduleDayCell({
   day,
   weekRecords,
   today,
+  weekStart,
   weekEnd,
   showDetail,
   conductorLabels,
@@ -114,7 +116,7 @@ function WeekScheduleDayCell({
 }: DayCellOptions) {
   const isToday = day.date === today;
   const selectable =
-    isCalendarDateOnOrAfter(day.date, today) &&
+    isCalendarDateOnOrAfter(day.date, weekStart) &&
     isCalendarDateOnOrAfter(weekEnd, day.date);
   const style =
     layout === "carousel"
@@ -388,7 +390,9 @@ function WeekScheduleInfiniteDayCarousel({
       WEEK_CAROUSEL_TRANSLATE_X_PERCENT,
     );
     const showDetail = entry.day.date === selectedDate;
-    const selectable = isCalendarDateOnOrAfter(entry.day.date, today);
+    const selectable =
+      isCalendarDateOnOrAfter(entry.day.date, entry.weekStart) &&
+      isCalendarDateOnOrAfter(entry.weekEnd, entry.day.date);
     const record =
       liveWeek?.weekStart === entry.weekStart
         ? liveWeek.weekRecords.find((row) => row.date === entry.day.date)
@@ -419,6 +423,7 @@ function WeekScheduleInfiniteDayCarousel({
           day={entry.day}
           weekRecords={record ? [record] : []}
           today={today}
+          weekStart={entry.weekStart}
           weekEnd={entry.weekEnd}
           showDetail={showDetail}
           conductorLabels={conductorLabels}
@@ -601,7 +606,7 @@ export function WeekScheduleStrip({
     externalWeek.dayConfigs.length > 0
       ? externalWeek
       : resolvedPage;
-  const { weekEnd, dayConfigs, weekRecords } = displayPage;
+  const { weekStart, weekEnd, dayConfigs, weekRecords } = displayPage;
 
   const dayGrid = (
     <div
@@ -610,7 +615,7 @@ export function WeekScheduleStrip({
       {dayConfigs.map((day) => {
         const isSelected = day.date === selectedDate;
         const selectable =
-          isCalendarDateOnOrAfter(day.date, today) &&
+          isCalendarDateOnOrAfter(day.date, weekStart) &&
           isCalendarDateOnOrAfter(weekEnd, day.date);
 
         return (
@@ -619,6 +624,7 @@ export function WeekScheduleStrip({
             day={day}
             weekRecords={weekRecords}
             today={today}
+            weekStart={weekStart}
             weekEnd={weekEnd}
             showDetail={isSelected}
             conductorLabels={conductorLabels}

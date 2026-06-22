@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { resolveAllianceByTag } from "@/lib/alliance/resolve";
 import type { ParsedConnection } from "@/lib/connectionString";
+import { loadAllianceRow } from "@/lib/members/game-roster";
 import { getAllianceOperatingMode } from "@/lib/native-alliance/operating-mode";
 import { getAshedConnection, getOrCreateSession } from "@/lib/session";
 
@@ -56,12 +57,33 @@ export async function resolveTrainRequestContext(): Promise<
     );
   }
 
-  const alliance = await resolveAllianceByTag(connection, session.allianceTag);
+  const allianceRow = await loadAllianceRow(allianceId);
+  let ashedAllianceId = allianceRow?.ashedAllianceId?.trim() || null;
+
+  if (!ashedAllianceId) {
+    try {
+      const alliance = await resolveAllianceByTag(connection, session.allianceTag);
+      ashedAllianceId = alliance.id;
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Could not resolve alliance.";
+      const status = message.includes("(429)") ? 503 : 502;
+      return NextResponse.json(
+        {
+          error:
+            status === 503
+              ? "Ashed is rate-limiting requests. Wait a moment and try again."
+              : message,
+        },
+        { status },
+      );
+    }
+  }
 
   return {
     sessionId: session.id,
     allianceId,
-    ashedAllianceId: alliance.id,
+    ashedAllianceId,
     connection,
     operatingMode,
   };

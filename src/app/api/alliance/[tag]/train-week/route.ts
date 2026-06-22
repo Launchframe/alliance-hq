@@ -8,17 +8,16 @@ import {
 } from "@/lib/alliance/alliance-route-context.server";
 import { writeAuditLog } from "@/lib/bff/audit";
 import {
-  getEffectiveSeasonForAlliance,
-  loadAllianceSeasonRow,
-  setAllianceSeasonOverride,
-} from "@/lib/game-season/sync";
+  loadAllianceTrainWeekSettings,
+  saveAllianceTrainWeekStartDow,
+} from "@/lib/trains/alliance-train-week.server";
 import { sessionHasPermissionForAlliance } from "@/lib/rbac/context";
 import { getOrCreateSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
 const patchSchema = z.object({
-  seasonKeyOverride: z.string().trim().min(1).max(8).nullable(),
+  trainWeekStartDow: z.number().int().min(0).max(6),
 });
 
 type RouteContext = { params: Promise<{ tag: string }> };
@@ -36,26 +35,20 @@ export async function GET(_request: Request, context: RouteContext) {
     );
     if (denied) return denied;
 
-    const [effective, row, canManageSeason] = await Promise.all([
-      getEffectiveSeasonForAlliance(alliance.allianceId),
-      loadAllianceSeasonRow(alliance.allianceId),
-      sessionHasPermissionForAlliance(
-        session.id,
-        alliance.allianceId,
-        "alliance:admin",
-      ),
-    ]);
+    const canManage = await sessionHasPermissionForAlliance(
+      session.id,
+      alliance.allianceId,
+      "alliance:admin",
+    );
+    const settings = await loadAllianceTrainWeekSettings(
+      alliance.allianceId,
+      canManage,
+    );
 
     return NextResponse.json({
       allianceTag: alliance.tag,
       allianceName: alliance.name,
-      seasonKey: effective.seasonKey,
-      source: effective.source,
-      isPostSeason: effective.isPostSeason,
-      week: effective.week,
-      gameServerNumber: effective.gameServerNumber,
-      seasonKeyOverride: row?.seasonKeyOverride ?? null,
-      canManageSeason,
+      ...settings,
     });
   } catch (error) {
     return allianceRouteErrorResponse(error);
@@ -77,31 +70,30 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     const body = patchSchema.safeParse(await request.json());
     if (!body.success) {
-      return NextResponse.json({ error: "Invalid season payload." }, { status: 400 });
+      return NextResponse.json(
+        { error: "Invalid train week settings payload." },
+        { status: 400 },
+      );
     }
 
-    const beforeRow = await loadAllianceSeasonRow(alliance.allianceId);
-    const effective = await setAllianceSeasonOverride(
+    const before = await loadAllianceTrainWeekSettings(alliance.allianceId, true);
+    const saved = await saveAllianceTrainWeekStartDow(
       alliance.allianceId,
-      body.data.seasonKeyOverride,
+      body.data.trainWeekStartDow,
     );
-    const row = await loadAllianceSeasonRow(alliance.allianceId);
 
-    const beforeOverride = beforeRow?.seasonKeyOverride ?? null;
-    const afterOverride = row?.seasonKeyOverride ?? null;
-    if (beforeOverride !== afterOverride) {
+    if (before.trainWeekStartDow !== saved.trainWeekStartDow) {
       await writeAuditLog({
         sessionId: session.id,
         allianceId: alliance.allianceId,
         hqUserId: session.hqUserId ?? undefined,
-        action: "alliance.season_override_update",
+        action: "trains.alliance_train_week_update",
         resourceType: "alliance",
         resourceId: alliance.allianceId,
         resourceName: alliance.name,
         metadata: {
-          before: { seasonKeyOverride: beforeOverride },
-          after: { seasonKeyOverride: afterOverride },
-          effectiveSeasonKey: effective.seasonKey,
+          before: { trainWeekStartDow: before.trainWeekStartDow },
+          after: { trainWeekStartDow: saved.trainWeekStartDow },
         },
       });
     }
@@ -109,13 +101,8 @@ export async function PATCH(request: Request, context: RouteContext) {
     return NextResponse.json({
       allianceTag: alliance.tag,
       allianceName: alliance.name,
-      seasonKey: effective.seasonKey,
-      source: effective.source,
-      isPostSeason: effective.isPostSeason,
-      week: effective.week,
-      gameServerNumber: effective.gameServerNumber,
-      seasonKeyOverride: row?.seasonKeyOverride ?? null,
-      canManageSeason: true,
+      ...saved,
+      canManage: true,
     });
   } catch (error) {
     return allianceRouteErrorResponse(error);
