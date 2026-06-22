@@ -48,6 +48,32 @@ describe("callerCanRunVrReport", () => {
     ).resolves.toBe(true);
   });
 
+  it("allows linked officer title rank from roster string", async () => {
+    vi.mocked(listDiscordLinksForUser).mockResolvedValue([
+      { ashedMemberId: "m-warlord" } as never,
+    ]);
+    vi.mocked(loadAllianceMembersForBot).mockResolvedValue([
+      { id: "m-warlord", current_name: "Warlord", rank: "Warlord" } as never,
+    ]);
+
+    await expect(
+      callerCanRunVrReport({ allianceId, discordUserId }),
+    ).resolves.toBe(true);
+  });
+
+  it("allows linked R5 leader", async () => {
+    vi.mocked(listDiscordLinksForUser).mockResolvedValue([
+      { ashedMemberId: "m-leader" } as never,
+    ]);
+    vi.mocked(loadAllianceMembersForBot).mockResolvedValue([
+      { id: "m-leader", current_name: "Leader", rank: "Leader" } as never,
+    ]);
+
+    await expect(
+      callerCanRunVrReport({ allianceId, discordUserId }),
+    ).resolves.toBe(true);
+  });
+
   it("denies linked R3 member", async () => {
     vi.mocked(listDiscordLinksForUser).mockResolvedValue([
       { ashedMemberId: "m-member" } as never,

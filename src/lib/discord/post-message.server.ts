@@ -1,3 +1,12 @@
+const DISCORD_MESSAGE_MAX_CHARS = 1900;
+
+export function truncateDiscordContent(content: string): string {
+  if (content.length <= DISCORD_MESSAGE_MAX_CHARS) {
+    return content;
+  }
+  return `${content.slice(0, DISCORD_MESSAGE_MAX_CHARS - 20).trimEnd()}… _(truncated)_`;
+}
+
 export async function postDiscordChannelMessage(
   channelId: string,
   content: string,
@@ -14,7 +23,7 @@ export async function postDiscordChannelMessage(
       Authorization: `Bot ${token}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ content: content.slice(0, 1900) }),
+    body: JSON.stringify({ content: truncateDiscordContent(content) }),
   });
 
   if (!res.ok) {

@@ -1,3 +1,4 @@
+import { truncateDiscordContent } from "@/lib/discord/post-message.server";
 import {
   createDiscordTranslator,
   type DiscordBotLocale,
@@ -14,10 +15,18 @@ import { writeDiscordBotAudit } from "@/lib/vr/repository";
 export async function handleDiscordVrReport(input: {
   allianceId: string;
   discordUserId: string;
+  commandName?: "vr-report" | "takedown-teams";
   teamCount?: number;
   locale: DiscordBotLocale;
 }): Promise<{ reply: string }> {
   const t = createDiscordTranslator(input.locale);
+
+  if (
+    input.commandName === "takedown-teams" &&
+    (input.teamCount == null || input.teamCount <= 0)
+  ) {
+    return { reply: t("errors.teamsRequired") };
+  }
 
   const allowed = await callerCanRunVrReport({
     allianceId: input.allianceId,
@@ -59,5 +68,5 @@ export async function handleDiscordVrReport(input: {
     console.error("[discord-bot] vr report audit failed", error);
   }
 
-  return { reply };
+  return { reply: truncateDiscordContent(reply) };
 }

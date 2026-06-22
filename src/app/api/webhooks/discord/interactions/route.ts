@@ -267,6 +267,8 @@ async function handleSlashCommand(payload: DiscordInteractionPayload) {
     const result = await handleDiscordVrReport({
       allianceId,
       discordUserId,
+      commandName:
+        commandName === "takedown-teams" ? "takedown-teams" : "vr-report",
       teamCount,
       locale,
     });

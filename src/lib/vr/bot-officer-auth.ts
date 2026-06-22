@@ -1,3 +1,4 @@
+import { parseAshedMemberAllianceRank } from "@/lib/members/alliance-rank";
 import { loadAllianceMembersForBot } from "@/lib/vr/member-roster";
 import {
   callerIsAllianceOwner,
@@ -6,8 +7,7 @@ import {
 import type { AshedMember } from "@/lib/video/member-matcher";
 
 function memberAllianceRank(member: AshedMember): number {
-  const rank = member.alliance_rank ?? member.allianceRank ?? 0;
-  return typeof rank === "number" ? rank : 0;
+  return parseAshedMemberAllianceRank(member).rank ?? 0;
 }
 
 export async function callerCanRunVrReport(input: {
