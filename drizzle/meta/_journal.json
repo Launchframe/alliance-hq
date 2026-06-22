@@ -267,6 +267,13 @@
       "when": 1782560000000,
       "tag": "0037_train_week_tuesday_start",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1782646400000,
+      "tag": "0039_train_day_config_tuesday_align",
+      "breakpoints": true
     }
   ]
 }

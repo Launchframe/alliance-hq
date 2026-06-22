@@ -971,8 +971,9 @@ export function TrainsDashboard({ initial }: Props) {
       });
     },
     [
-      data.schedule?.templateType,
+      data.schedule,
       data.weekStart,
+      setPendingTemplateChange,
       targetTrainWeekStart,
       viewedWeek,
       weekViewSeed,
@@ -1324,6 +1325,7 @@ export function TrainsDashboard({ initial }: Props) {
                 previousDay: t("dayNavPrevious"),
                 nextDay: t("dayNavNext"),
               }}
+              trainWeekConfig={trainWeekConfig}
               externalWeek={viewedWeek}
               onSelectDate={setSelectedDate}
               onWeekChange={handleWeekChange}

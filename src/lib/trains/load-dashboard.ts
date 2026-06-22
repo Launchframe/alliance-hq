@@ -2,6 +2,7 @@ import {
   resolveAnchorTemplateType,
 } from "@/lib/trains/day-config-resolve.server";
 import { paintTemplateFromConductorConfig } from "@/lib/trains/calendar-cell-styles.shared";
+import { buildWeekScheduleDayConfigs } from "@/lib/trains/week-schedule-day-configs.shared";
 import { resolveAllianceByTag } from "@/lib/alliance/resolve";
 import { getAllianceOperatingMode } from "@/lib/native-alliance/operating-mode";
 import type { AllianceOperatingMode } from "@/lib/native-alliance/constants";
@@ -279,9 +280,20 @@ export async function loadTrainsDashboard(
     effectiveSeason.seasonKey,
   );
   const weekEnd = addCalendarDays(weekStart, 6);
-  const dayConfigs = scheduleRow
+  const dayConfigRows = scheduleRow
     ? await listDayConfigsForWeek(allianceId, weekStart, weekEnd)
     : [];
+  const dashboardTemplateType: WeekTemplateType = scheduleRow
+    ? (scheduleRow.templateType as WeekTemplateType)
+    : "vs_push_week";
+  const dayConfigs: WeekScheduleDayConfig[] =
+    dayConfigRows.length > 0
+      ? buildWeekScheduleDayConfigs(
+          weekStart,
+          dashboardTemplateType,
+          dayConfigRows,
+        )
+      : [];
 
   const weekRecordRows = scheduleRow
     ? await listConductorRecordsForWeek(
@@ -337,7 +349,7 @@ export async function loadTrainsDashboard(
           isPivot: scheduleRow.isPivot === 1,
         }
       : null,
-    dayConfigs: dayConfigs.map(mapDayConfigRow),
+    dayConfigs,
     weekRecords,
     roster: members.map((m) => ({
       memberId: m.ashedMemberId,
@@ -399,7 +411,11 @@ export async function loadWeekSchedulePage(
   let dayConfigs: WeekScheduleDayConfig[];
 
   if (dayConfigRows.length > 0) {
-    dayConfigs = dayConfigRows.map(mapDayConfigRow);
+    dayConfigs = buildWeekScheduleDayConfigs(
+      weekStart,
+      templateType,
+      dayConfigRows,
+    );
   } else {
     dayConfigs = generateWeekDayConfigs(templateType, weekStart).map((d) => ({
       id: `preview-${d.date}`,

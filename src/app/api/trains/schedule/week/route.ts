@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 
 import { loadWeekSchedulePage } from "@/lib/trains/load-dashboard";
-import { getWeekStartMonday } from "@/lib/trains/service";
 import { getOrCreateSession } from "@/lib/session";
 import { requireSessionPermission } from "@/lib/rbac/require-permission";
 
@@ -21,8 +20,7 @@ export async function GET(request: Request) {
     );
   }
 
-  const weekStart = getWeekStartMonday(weekStartParam);
-  const payload = await loadWeekSchedulePage(session.id, weekStart);
+  const payload = await loadWeekSchedulePage(session.id, weekStartParam);
   if (!payload) {
     return NextResponse.json({ error: "Could not load week schedule." }, { status: 400 });
   }
