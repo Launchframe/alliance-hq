@@ -1,0 +1,28 @@
+---
+description: Plans are not done until Playwright e2e specs are updated, added, and green
+alwaysApply: true
+---
+
+# E2E plan completion gate
+
+A Cursor plan or feature slice is **not implemented** until all of the following are true:
+
+1. **Existing e2e specs updated** — auth, routing, RBAC, connect, invite, and session flows that changed must be reflected in `e2e/**/*.spec.ts` and `e2e/fixtures/**` (no stale UI selectors or API-only session cookies when NextAuth is required).
+2. **New e2e coverage when behavior is new** — security boundaries (session isolation, Ashed credential binding, invite accept), onboarding redirects, and permission gates need focused Playwright tests, not only unit/integration tests.
+3. **`npm run test:e2e` passes locally** — run against `E2E_DATABASE_URL` / `LOCAL_DATABASE_URL` before marking the plan complete or opening/updating the PR.
+
+## Checklist before marking a plan done
+
+- [ ] Grep `e2e/` for flows touched by the feature (invite, connect, sign-out, profile, upload, admin).
+- [ ] Update fixtures when auth model changes (HQ browser session **and** NextAuth cookie — see `e2e/fixtures/auth.ts`).
+- [ ] Add or adjust assertions for **negative** cases (redirect to `/get-started`, no permission boost, sign-out clears Ashed).
+- [ ] Run `npm run test:e2e` and fix failures in the same PR as the feature.
+
+## Auth fixture pattern
+
+Invite accept and `(app)` routes require **both** cookies:
+
+- `alliance_hq_session` — browser session / Ashed credential binding
+- `authjs.session-token` — magic-link identity from Auth.js
+
+Use `createAuthenticatedHqSession` + `playwrightAuthCookies` from `e2e/fixtures/db.ts` / `e2e/fixtures/auth.ts`; do not rely on bootstrap-only session cookies for authenticated API routes.

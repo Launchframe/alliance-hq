@@ -1,0 +1,142 @@
+---
+description: Discord ↔ HQ ↔ Ashed identity layers, ownership proofs, and auth boundaries for bot, web, and cron
+globs:
+  - src/lib/vr/**
+  - src/lib/discord/**
+  - src/lib/rbac/**
+  - src/lib/alliance/**
+  - src/app/api/webhooks/discord/**
+  - src/app/api/internal/**
+  - scripts/discord/**
+---
+
+# Discord ↔ HQ ↔ Ashed — identity and auth layers
+
+**Do not conflate identities.** Each layer answers a different question. Mixing them causes wrong tenant data, false owner checks, or Ashed JWT scope leaks.
+
+## Identity graph
+
+```
+Discord User (snowflake)
+  │
+  ├─ discord_member_links ──► Alliance A × Member M0
+  │                        └► Alliance A × Member M1   (multi-character: many rows per Discord user per alliance)
+  │                        └► Alliance B × Member M0   (different guild / alliance)
+  │
+  └─ discord_user_prefs (locale only — not auth)
+
+HQ User (hq_users.id, email, optional ashedUserId)
+  │
+  ├─ alliance_memberships ──► HQ RBAC (owner / maintainer / viewer) on web
+  └─ MAY correspond to an Ashed seat — not required for Discord bot use
+
+Ashed (source of truth for roster + alliance ownership on ashed.online)
+  │
+  ├─ Member roster (who is in the alliance in-game)
+  ├─ owner_id / owner_email / collaborators on alliance row
+  └─ Paid seat / JWT — used by HQ web connect and per-alliance bot credentials
+```
+
+| Identity | Stored in | Used for |
+| --- | --- | --- |
+| **Discord user** | Discord platform | Who invoked a slash command or button |
+| **Member link** | `discord_member_links` | Which **in-game character** this Discord user acts as **in one HQ alliance** |
+| **HQ user** | `hq_users` + session | Web UI, RBAC, connect/settings sync |
+| **Ashed seat** | Ashed JWT / connection string | Proving access to Ashed API; owner vs maintainer on alliance list |
+| **HQ alliance tenant** | `alliances` + `discord_guild_alliances` | Scoping all bot + VR data to one alliance per Discord guild |
+
+**Key invariant:** A Discord user is **not** an HQ user unless explicitly linked through future product work. Bot auth today is **`discord_user_id` + `discord_member_links`**, not `hq_user_id`.
+
+## Runtime layers
+
+```
+Discord client
+    │  slash / button (guild_id, discord user id)
+    v
+HQ Discord webhook  — verify DISCORD_PUBLIC_KEY; ephemeral for secrets
+    │  resolveAllianceForGuild(guild_id) → alliances.id
+    v
+HQ bot service      — command handlers, pending state, audit, i18n
+    │  member reads: loadAllianceMembersForBot(allianceId) ONLY
+    v
+Ashed API           — roster / alliance list (read-only on bot paths)
+
+HQ Web (separate entry)
+    │  session + requireSessionPermission / alliance from session
+    v
+HQ BFF routes       — may use user's Ashed JWT from connect flow
+    v
+Ashed API           — sync roles, settings, admin surfaces
+
+HQ cron / internal  — CRON_SECRET / VR_DAILY_REPORT_SECRET / service tokens
+    │  no Discord user; alliance resolved from config or guild registry
+    v
+HQ jobs             — reports, season sync, future quick-task backends
+```
+
+When adding features, name which **entry layer** you are in and which **identity** you authenticate.
+
+## What each proof establishes
+
+| Capability | Must prove | How (today) | Grants |
+| --- | --- | --- | --- |
+| **Member bot commands** (`/link`, `/vr`, `/immunity`) | Discord user ↔ in-game character in **this guild's alliance** | `/link`: Last War UID lookup + name match + roster; row in `discord_member_links` | Act as that **member** for VR stats |
+| **Guild registration** (`/link-alliance`) | Same Discord user is **alliance owner in-game** | Prior `/link` + `linked.ashedMemberId === alliances.ownerAshedUserId` | Bind `discord_guild_alliances` |
+| **Alliance credentials** (`/link-with-authentication`) | Caller holds **Ashed owner JWT** for tag | `verifyBase44Connection` + `filterAccessibleAlliances` owner role + tag match | `alliance_ashed_credentials`; optional guild bind |
+| **HQ web admin** | Signed-in **HQ user** with RBAC on alliance | Session + `requireSessionPermission` / alliance membership | Web mutations, trains, admin — **not** automatic Discord bot power |
+| **Cron / internal report** | Service secret + configured alliance | Bearer token; `resolveAllianceForGuild` or explicit alliance config | Read/write **without** Discord actor |
+
+**Member proof ≠ owner proof.** Linked as a roster member does not imply owner. Owner bot commands must call explicit owner checks (`callerIsAllianceOwner` or Ashed owner JWT path).
+
+**Owner proof ≠ HQ maintainer.** Ashed collaborator / HQ maintainer must not bypass owner-only bot setup unless product explicitly adds that path.
+
+## `/link` and multi-character
+
+Target model (see multi-link migration):
+
+- **One Discord user → many `discord_member_links` rows per alliance** (unique on `(alliance_id, discord_user_id, ashed_member_id)`).
+- **One in-game member → one Discord user per alliance** (unique on `(alliance_id, ashed_member_id)`).
+- **`/link`** adds or updates a character; **`/link replace:true`** replaces all links with one; **`/unlink`** removes a row.
+- **Character-scoped commands** (`/vr`, `/immunity`, future quick tasks): if `listDiscordLinksForUser` returns **> 1**, prompt **Which character?** (button picker bound to `linkId` / `ashedMemberId`). Never apply an action without a resolved link row.
+
+`/help` (`resolveDiscordBotUserContext`) should reflect: guild registered?, credentials present?, link count, owner vs member — not a single generic message.
+
+## Ashed as source of truth
+
+- **Roster** (member ids, names, former status): Ashed via alliance-scoped JWT — **bot entry:** `loadAllianceMembersForBot` only.
+- **Alliance owner:** `alliances.ownerAshedUserId` / `ownerEmail` synced from Ashed on connect/sync; bot owner checks use linked member id against these fields.
+- **In-game facts** (UID, display name for link verification): Last War THP lookup + Ashed roster cross-check — HQ DB does not invent members.
+- **VR season / stats:** HQ-local (`member_season_vr`, game-season helpers) — not written back to Ashed by the bot.
+
+**Credential resolution order:** `alliance_ashed_credentials` for `allianceId` → legacy `VR_BOT_ASHED_BEARER_TOKEN` **only** if `alliances.tag` matches `VR_BOT_ASHED_ALLIANCE_TAG`. Never use alliance A's token to read alliance B.
+
+**Bot paths stay read-only on Ashed.** Do not add mutating Ashed calls from Discord handlers unless a future feature has explicit owner JWT + audit + idempotency design.
+
+## Tag-only UX
+
+User-facing bot copy and command options use **`alliances.tag`** only. Internal FK writes use `alliances.id`. Never expose nanoid or Ashed hex ids in Discord replies.
+
+## Secrets and audit
+
+- `/link-with-authentication` and any future JWT intake: **ephemeral** Discord responses; redact keys in `discord_bot_audit`.
+- Discord verifies **interaction signature**, not alliance ownership — ownership is always proven inside the handler after tenant resolution.
+
+## Future: quick tasks, cron, HQ web triggers
+
+When extending the bot or job system, **reuse layers** — do not invent a fourth auth shortcut.
+
+| Trigger | Actor identity | Alliance scope | Typical pattern |
+| --- | --- | --- | --- |
+| **Discord slash** | `discord_user_id` + resolved **member link** (or owner check) | `resolveAllianceForGuild(guild_id)` | Handler in `src/lib/vr/` + webhook route |
+| **Discord cron post** (daily VR report) | None (service) | Guild registry or env fallback | `src/app/api/internal/vr/daily-report` + `CRON_SECRET` |
+| **HQ web button** | `session.hqUserId` + RBAC permission | Session alliance | API route → enqueue or call shared server function |
+| **Future bot “quick task”** | Same as slash — **must pick link** if multi-character | Same guild tenant | New handler; same `loadAllianceMembersForBot` + link resolution |
+
+Shared job helpers should accept explicit context, e.g. `{ allianceId, trigger: 'discord' | 'cron' | 'web', discordUserId?, linkId?, hqUserId? }` and enforce the matching proof for that trigger. **Cron and web must not impersonate a Discord user** without a documented, audited break-glass path.
+
+Prefer **one implementation** for business logic (report build, season resolve, entitlement checks) invoked from bot, cron, and web — with **auth at the entry boundary** only.
+
+## Related rules
+
+- [`.cursor/rules/discord-bot-multitenancy.mdc`](discord-bot-multitenancy.mdc) — guild tenant, i18n, credential guardrails, setup commands.
+- [`.cursor/rules/invite-commander-identity.mdc`](invite-commander-identity.mdc) — web invite/onboard: HQ user vs commander vs roster vs RBAC (parallel to Discord layers above).

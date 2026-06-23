@@ -1,0 +1,84 @@
+---
+description: Last War alliance affairs — ranks, server time, VS week, train conductor ritual, pools, pivot
+globs:
+  - src/lib/trains/**
+  - src/components/trains/**
+  - src/app/api/trains/**
+---
+
+# Alliance affairs (in-game mechanics)
+
+HQ models **in-game** alliance mechanics separately from **HQ RBAC** and Ashed iframe pages.
+
+## Server time
+
+- Game server time is **UTC−2**.
+- Calendar weeks start **Monday 00:00** server time.
+- VS match week runs **Mon–Sat**; **Sunday off**.
+
+## Ranks R1–R5
+
+- Stored in immutable `member_alliance_rank_events`; confirmed changes dual-write to Ashed `Member` and update `alliance_members`.
+- Train pools (`r3`, `r4_plus`) read **local roster + rank-as-of date**, not live Ashed rank queries on every roll.
+- **HQ RBAC** (owner/maintainer/officer) is unrelated to in-game R1–R5.
+
+## Daily train ritual
+
+| Role | Rule |
+|------|------|
+| **Conductor** | One per game day; guaranteed one of each item on the train when locked |
+| **VIP** | Conductor may pick VIP; VIP chooses 2 of 4 rider cars; guaranteed one of each item in those cars |
+| **Guardian** | Defends train on plunder — **VIP squads if `guardianIsVip`**, else Conductor squads |
+| **Lock** | Spawns empty train (5 cars × 6 slots); **final** once locked (override = exceptional + audited) |
+
+## Week templates & mechanisms
+
+Stored on `train_day_configs`: `conductorMechanism`, `vipMechanism`, optional configs (`eventKey`, `topN`).
+
+| Template | Typical conductor | Typical VIP |
+|----------|-------------------|-------------|
+| **vs_push_week** | Mon: `vs_high_score`; Tue–Fri: `vs_top_10`; Sat–Sun: `r4_sequence` | Mon: `donations_second`; Tue–Fri: `conductor_pick`; Sat/Sun: `event_top_x_lottery` |
+| **economy_week** / **r3_recognition** | `r3_lottery` | `conductor_pick` |
+| **r4_train_week** | `r4_sequence` | `conductor_pick` |
+| **donations_week** | `donations_top` | `donations_second` |
+
+Composite templates (`vs_push_weekdays` + `r4_event_vip`) paint weekend segments via `conductorConfig.paintTemplate`.
+
+## VS scoring for wheels
+
+- `vs_top_10` and event pool seeding use **T−1** calendar day scores (`vsScoreReferenceDate(trainDate)` → Ashed `VSScore.recorded_date`).
+- VS day names (Mon–Sat): Radar Training, Base Expansion, Age of Science, Hero Day, Total Mobilization, Buster Day.
+
+## Economy-week pivot
+
+Leadership may pivot Tue–Sun to economy-style (`r3_lottery`) after assessing Day 1 VS.
+
+- **Pivot window:** Mon **22:00** – Tue **12:00** server time (UTC−2). Helper: `isWithinPivotWindow()` in `game-time.ts`.
+- Paint **individual days** with `economy_week` → `train_day_configs.is_override = 1`; `recomputeWeekPivotFlag` sets `train_week_schedules.is_pivot`.
+- Do **not** use whole-week `setWeekTemplate` alone for pivot — it can wipe per-day overrides.
+
+## Pool exhaustion
+
+- Lottery/sequence pools (`r3`, `r4_plus`, `event_top_x`) remove a member once selected for a date.
+- When the last eligible member is picked, auto **re-seed** a new generation (`refreshExhaustedPoolIfNeeded`).
+- **`r4_sequence`:** when pool not exhausted, assign **next in sequence** (no random wheel animation).
+- Permanent **`train_conductor_records`** = alliance audit trail (conductor + VIP + lock time).
+
+## Event VIP (`event_top_x_lottery`)
+
+- `vipConfig.eventKey`: `capitol_war`, `meteorite_war` (default `capitol_war`).
+- Event top scorers fetched from Ashed **`KillScore`** when available; falls back to dated **`VSScore`** if entity unknown.
+
+## Native vs Ashed alliances
+
+| Path | Behavior |
+|------|----------|
+| Pools / ranks | Local roster + rank events only (no Ashed PUT on rank sync) |
+| VS / donation / event auto-rolls | Require Ashed connection — native alliances use **manual pick** or roster pool mechanisms |
+| First visit | Empty roster → empty state; no phantom week schedule |
+
+## API guardrails
+
+- Train mutations: `requireTrainOfficer` (`trains:write`); reads tenant-scoped by session alliance.
+- Reject schedule paint on dates with `lockedAt` set (409).
+- Season override: `PATCH /api/alliance/season` (`alliance:admin` only) — not on trains page.
