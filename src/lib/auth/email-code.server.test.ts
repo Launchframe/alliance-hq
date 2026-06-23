@@ -90,6 +90,36 @@ describe("verifyAuthEmailCode", () => {
     expect(updateWhere).toHaveBeenCalled();
   });
 
+  it("rejects verification when failed attempts already reached the cap", async () => {
+    const deleteWhere = vi.fn().mockResolvedValue(undefined);
+    vi.spyOn(dbModule, "getDb").mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({
+            orderBy: vi.fn().mockReturnValue({
+              limit: vi.fn().mockResolvedValue([
+                {
+                  id: "code-1",
+                  email: "user@example.com",
+                  code: "123456",
+                  failedAttempts: AUTH_EMAIL_CODE_MAX_VERIFY_ATTEMPTS,
+                },
+              ]),
+            }),
+          }),
+        }),
+      }),
+      delete: vi.fn().mockReturnValue({
+        where: deleteWhere,
+      }),
+    } as never);
+
+    await expect(
+      verifyAuthEmailCode("user@example.com", "123456"),
+    ).resolves.toBeNull();
+    expect(deleteWhere).toHaveBeenCalled();
+  });
+
   it("invalidates the code after max failed attempts", async () => {
     const deleteWhere = vi.fn().mockResolvedValue(undefined);
     vi.spyOn(dbModule, "getDb").mockReturnValue({
