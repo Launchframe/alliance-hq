@@ -87,6 +87,15 @@ export async function claimOpsAlertFingerprint(
   return inserted.length > 0;
 }
 
+export async function releaseOpsAlertFingerprint(
+  fingerprint: string,
+): Promise<void> {
+  const db = getDb();
+  await db
+    .delete(schema.authOpsAlertFingerprints)
+    .where(eq(schema.authOpsAlertFingerprints.fingerprint, fingerprint));
+}
+
 export async function emailPlatformMaintainers(input: {
   subject: string;
   text: string;
@@ -111,6 +120,9 @@ export async function emailPlatformMaintainers(input: {
 
   const recipients = await listPlatformMaintainerEmails();
   if (recipients.length === 0) {
+    if (input.dedupeFingerprint) {
+      await releaseOpsAlertFingerprint(input.dedupeFingerprint);
+    }
     console.warn(
       "[alliance-hq] No platform maintainer emails — alert not sent:",
       input.subject,
@@ -128,6 +140,9 @@ export async function emailPlatformMaintainers(input: {
     });
     return { sent: true, recipientCount: recipients.length };
   } catch (error) {
+    if (input.dedupeFingerprint) {
+      await releaseOpsAlertFingerprint(input.dedupeFingerprint);
+    }
     console.error("[alliance-hq] Maintainer alert email failed:", error);
     return { sent: false, recipientCount: recipients.length };
   }

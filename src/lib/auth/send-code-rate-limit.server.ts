@@ -151,7 +151,7 @@ export async function enforceSendCodeRateLimit(
   ]);
 
   if (globalCount >= AUTH_SEND_CODE_GLOBAL_MAX_PER_MIN) {
-    void notifyGlobalCapMaintainers({ now, attemptsInWindow: globalCount });
+    await notifyGlobalCapMaintainers({ now, attemptsInWindow: globalCount });
     throw new SendCodeRateLimitError(
       "Global send-code rate limit exceeded.",
       "global",

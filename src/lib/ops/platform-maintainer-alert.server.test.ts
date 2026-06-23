@@ -101,4 +101,39 @@ describe("emailPlatformMaintainers", () => {
     expect(result.sent).toBe(false);
     expect(fetch).not.toHaveBeenCalled();
   });
+
+  it("releases dedupe fingerprint when Resend send fails", async () => {
+    const deleteWhere = vi.fn().mockResolvedValue(undefined);
+    vi.spyOn(dbModule, "getDb").mockReturnValue({
+      insert: vi.fn().mockReturnValue({
+        values: vi.fn().mockReturnValue({
+          onConflictDoNothing: vi.fn().mockReturnValue({
+            returning: vi
+              .fn()
+              .mockResolvedValue([{ fingerprint: "dup-key" }]),
+          }),
+        }),
+      }),
+      select: vi.fn().mockReturnValue({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockResolvedValue([{ email: "pm@example.com" }]),
+        }),
+      }),
+      delete: vi.fn().mockReturnValue({ where: deleteWhere }),
+    } as never);
+
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(JSON.stringify({ error: "fail" }), { status: 500 }),
+    );
+
+    const result = await emailPlatformMaintainers({
+      subject: "Test",
+      text: "Body",
+      html: "<p>Body</p>",
+      dedupeFingerprint: "dup-key",
+    });
+
+    expect(result.sent).toBe(false);
+    expect(deleteWhere).toHaveBeenCalled();
+  });
 });
