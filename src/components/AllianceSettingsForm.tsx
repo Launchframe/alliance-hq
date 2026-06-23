@@ -58,6 +58,17 @@ export function AllianceSettingsForm({
           </Link>
         </section>
       ) : null}
+
+      <section className="rounded-xl border border-[#30363d] bg-[#161b22] p-5">
+        <h2 className="font-medium">{t("accountSecurityTitle")}</h2>
+        <p className="mt-2 text-sm text-[#8b949e]">{t("accountSecurityBody")}</p>
+        <Link
+          href="/settings/account"
+          className="mt-4 inline-block text-sm text-[#58a6ff] hover:underline"
+        >
+          {t("accountSecurityLink")} →
+        </Link>
+      </section>
     </div>
   );
 }

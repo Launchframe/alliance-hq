@@ -4,13 +4,14 @@ import * as React from "react";
 import { Menu } from "lucide-react";
 import { useTranslations } from "next-intl";
 
-import { Link, usePathname } from "@/i18n/navigation";
+import { usePathname } from "@/i18n/navigation";
 import type { SessionAllianceOption } from "@/lib/alliance/types";
 import type { AshedConnectionMeta } from "@/lib/jwt/connection-meta";
 import {
-  readAshedConnectedOnThisDeviceBefore,
-  shouldShowShellConnectPrompt,
-} from "@/lib/connect/walkthrough.shared";
+  readAshedShellConnectDismissed,
+  shouldShowAshedConnectNudge,
+  subscribeAshedShellConnectDismissed,
+} from "@/lib/connect/ashed-shell-prompts.shared";
 import { ConnectAshedBanner } from "@/components/onboarding/ConnectAshedBanner";
 import { FeedbackProvider } from "@/components/feedback";
 import { SidebarNav } from "@/components/ashed-shell/SidebarNav";
@@ -79,19 +80,20 @@ export function AshedShell({
   const [expandedGroupId, setExpandedGroupId] = React.useState<string | null>(
     null,
   );
-  const ashedConnectedOnDeviceBefore = React.useSyncExternalStore(
-    () => () => {},
-    readAshedConnectedOnThisDeviceBefore,
+  const ashedConnectDismissed = React.useSyncExternalStore(
+    subscribeAshedShellConnectDismissed,
+    readAshedShellConnectDismissed,
     () => false,
   );
 
   const showSignedInChrome =
     hasAppAccess && (isConnected || !canUseAshedEmbeds);
-  const showConnectPrompt = shouldShowShellConnectPrompt({
+  const showConnectNudge = shouldShowAshedConnectNudge({
     hasAppAccess,
     isConnected,
     canUseAshedEmbeds,
-    ashedConnectedOnDeviceBefore,
+    isAshedConnectAllowed,
+    dismissed: ashedConnectDismissed,
   });
 
   const closeMobileNav = React.useCallback(() => {
@@ -195,13 +197,6 @@ export function AshedShell({
                           user: userLabel ?? t("defaultUser"),
                         })}
                   </span>
-                ) : showConnectPrompt ? (
-                  <Link
-                    href="/connect"
-                    className="text-[#58a6ff] hover:underline"
-                  >
-                    {t("connectPrompt")}
-                  </Link>
                 ) : null}
                 {hasAppAccess ? (
                   <span className="truncate sm:hidden">
@@ -217,19 +212,14 @@ export function AshedShell({
                   userEmail={userEmail}
                   avatarUrl={avatarUrl}
                   showAdminPortal={showAdminPortal}
-                  isConnected={isConnected}
-                  canUseAshedEmbeds={canUseAshedEmbeds}
+                  showConnectLink={showConnectNudge}
                   showMenu={Boolean(userEmail || userLabel || displayName)}
                 />
               ) : null}
             </header>
 
             <ReleaseNoticeBanner />
-            <ConnectAshedBanner
-              show={Boolean(
-                hasAppAccess && isAshedConnectAllowed && !isConnected,
-              )}
-            />
+            <ConnectAshedBanner show={showConnectNudge} />
             {ashed ? <TokenExpiryBanner ashed={ashed} /> : null}
             <VideoJobStatusBanners />
 

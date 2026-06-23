@@ -40,6 +40,13 @@ export async function generateMetadata({ params }: Props) {
     metadataBase: new URL(
       process.env.NEXT_PUBLIC_APP_URL ?? PRODUCTION_APP_ORIGIN,
     ),
+    ...(process.env.GOOGLE_SITE_VERIFICATION
+      ? {
+          verification: {
+            google: process.env.GOOGLE_SITE_VERIFICATION,
+          },
+        }
+      : {}),
     icons: {
       icon: [{ url: "/brand/hq-icon-app.svg", type: "image/svg+xml" }],
       apple: [{ url: "/brand/hq-icon-app.svg", type: "image/svg+xml" }],

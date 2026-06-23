@@ -13,8 +13,7 @@ type Props = {
   userEmail: string | null;
   avatarUrl?: string | null;
   showAdminPortal?: boolean;
-  isConnected: boolean;
-  canUseAshedEmbeds?: boolean;
+  showConnectLink?: boolean;
   showMenu: boolean;
 };
 
@@ -28,8 +27,7 @@ export function ShellProfileMenu({
   userEmail,
   avatarUrl = null,
   showAdminPortal = false,
-  isConnected,
-  canUseAshedEmbeds = true,
+  showConnectLink = false,
   showMenu,
 }: Props) {
   const t = useTranslations("shell.profileMenu");
@@ -147,6 +145,9 @@ export function ShellProfileMenu({
   }
 
   if (!showMenu) {
+    if (!showConnectLink) {
+      return null;
+    }
     return (
       <Link
         href="/connect"
@@ -217,7 +218,7 @@ export function ShellProfileMenu({
               </Link>
             ) : null}
 
-            {!isConnected && canUseAshedEmbeds ? (
+            {showConnectLink ? (
               <Link
                 href="/connect"
                 role="menuitem"

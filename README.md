@@ -75,10 +75,10 @@ Also accepted: raw JWT, `Bearer …`, `authorization:` header line, or `base44:/
 
 ## Repository
 
-**GitHub:** [github.com/amcmillion/alliance-hq](https://github.com/amcmillion/alliance-hq)
+**GitHub:** [github.com/Launchframe/alliance-hq](https://github.com/Launchframe/alliance-hq)
 
 ```bash
-git clone git@github.com:amcmillion/alliance-hq.git
+git clone git@github.com:Launchframe/alliance-hq.git
 cd alliance-hq
 cp .env.example .env.local
 npm install
@@ -86,7 +86,7 @@ npm install
 
 ## Deploy to Vercel
 
-1. Import [amcmillion/alliance-hq](https://github.com/amcmillion/alliance-hq) in [Vercel](https://vercel.com/new)
+1. Import [Launchframe/alliance-hq](https://github.com/Launchframe/alliance-hq) in [Vercel](https://vercel.com/new)
 2. Set **Production** environment variables (enable for **Production** and **Build** scopes in Vercel):
 
 | Variable | Production value |

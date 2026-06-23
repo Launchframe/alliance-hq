@@ -8,7 +8,6 @@ import { LinkedDevicesSettings } from "@/components/credential-pairing/LinkedDev
 import { AppSelect } from "@/components/ui/AppSelect";
 import { useAccountTimezone } from "@/components/timezone/TimezoneProvider";
 import { Link, useRouter } from "@/i18n/navigation";
-import { allianceSettingsPath } from "@/lib/alliance/alliance-settings-path.shared";
 import { TokenExpiryNotice } from "@/components/TokenExpiryNotice";
 import { ashedLink, strongText } from "@/components/i18n/richText";
 import type { AshedConnectionMeta } from "@/lib/jwt/connection-meta";
@@ -31,6 +30,7 @@ export function AccountSettingsForm({
   initialTimezoneId,
 }: Props) {
   const t = useTranslations("account");
+  const tSettings = useTranslations("settings");
   const tDevice = useTranslations("deviceLink");
   const tc = useTranslations("common");
   const locale = useLocale();
@@ -157,6 +157,19 @@ export function AccountSettingsForm({
       </div>
 
       <section className="rounded-xl border border-[#30363d] bg-[#161b22] p-5">
+        <h2 className="font-medium">{tSettings("accountSecurityTitle")}</h2>
+        <p className="mt-2 text-sm text-[#8b949e]">
+          {tSettings("accountSecurityBody")}
+        </p>
+        <Link
+          href="/settings/account"
+          className="mt-4 inline-block text-sm text-[#58a6ff] hover:underline"
+        >
+          {tSettings("accountSecurityLink")} →
+        </Link>
+      </section>
+
+      <section className="rounded-xl border border-[#30363d] bg-[#161b22] p-5">
         <h2 className="font-medium">{t("timezoneSection")}</h2>
         <p className="mt-2 text-sm text-[#8b949e]">{t("timezoneBody")}</p>
         <label className="mt-4 block text-sm">
@@ -209,7 +222,15 @@ export function AccountSettingsForm({
             </label>
           </div>
         ) : (
-          <p className="mt-2 text-sm text-[#8b949e]">{t("reconnectHint")}</p>
+          <div className="mt-2 space-y-3">
+            <p className="text-sm text-[#8b949e]">{t("reconnectHint")}</p>
+            <Link
+              href="/connect?next=/account"
+              className="inline-block rounded-lg border border-[#238636] bg-[#238636] px-4 py-2 text-sm font-medium text-white hover:bg-[#2ea043]"
+            >
+              {ashed ? t("reconnectAshedCta") : t("connectAshedCta")}
+            </Link>
+          </div>
         )}
       </section>
 

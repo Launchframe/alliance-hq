@@ -2,6 +2,7 @@ import {
   bigint,
   boolean,
   doublePrecision,
+  index,
   integer,
   jsonb,
   pgTable,
@@ -90,6 +91,8 @@ export const hqUsers = pgTable("hq_users", {
   accessGrantedAt: timestamp("access_granted_at", { withTimezone: true }),
   /** Magic link or OAuth email verification timestamp. */
   emailVerifiedAt: timestamp("email_verified_at", { withTimezone: true }),
+  /** bcrypt hash for password sign-in; null until the user sets a password. */
+  passwordHash: text("password_hash"),
   /** Cached resolved profile image URL (OAuth or Last War). */
   avatarUrl: text("avatar_url"),
   /** google | discord | lastwar */
@@ -1006,6 +1009,91 @@ export const authVerificationTokens = pgTable(
     primaryKey({
       columns: [table.identifier, table.token],
     }),
+  ],
+);
+
+/** Rate-limit audit rows for POST /api/auth/send-code (IP + global caps). */
+export const authSendCodeAttempts = pgTable(
+  "auth_send_code_attempts",
+  {
+    id: text("id").primaryKey(),
+    clientIp: text("client_ip").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    index("auth_send_code_attempts_created_at_idx").on(table.createdAt),
+    index("auth_send_code_attempts_ip_created_at_idx").on(
+      table.clientIp,
+      table.createdAt,
+    ),
+  ],
+);
+
+/** Dedup keys for one-shot maintainer ops alerts (e.g. global send-code cap). */
+export const authOpsAlertFingerprints = pgTable("auth_ops_alert_fingerprints", {
+  fingerprint: text("fingerprint").primaryKey(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+});
+
+/** Short-lived 6-digit codes for email verification (account creation). */
+export const authEmailCodes = pgTable(
+  "auth_email_codes",
+  {
+    id: text("id").primaryKey(),
+    email: text("email").notNull(),
+    code: text("code").notNull(),
+    failedAttempts: integer("failed_attempts").notNull().default(0),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    index("auth_email_codes_email_created_at_idx").on(
+      table.email,
+      table.createdAt,
+    ),
+  ],
+);
+
+/** OAuth / WebAuthn provider links for HQ users (Auth.js adapter). */
+export const hqAuthAccounts = pgTable(
+  "hq_auth_accounts",
+  {
+    id: text("id").primaryKey(),
+    hqUserId: text("hq_user_id")
+      .notNull()
+      .references(() => hqUsers.id, { onDelete: "cascade" }),
+    type: text("type").notNull(),
+    provider: text("provider").notNull(),
+    providerAccountId: text("provider_account_id").notNull(),
+  },
+  (table) => [
+    unique("hq_auth_accounts_provider_account_unique").on(
+      table.provider,
+      table.providerAccountId,
+    ),
+  ],
+);
+
+/** WebAuthn / passkey credentials for HQ users (Auth.js adapter). */
+export const hqAuthenticators = pgTable(
+  "hq_authenticators",
+  {
+    credentialID: text("credential_id").notNull(),
+    hqUserId: text("hq_user_id")
+      .notNull()
+      .references(() => hqUsers.id, { onDelete: "cascade" }),
+    providerAccountId: text("provider_account_id").notNull(),
+    credentialPublicKey: text("credential_public_key").notNull(),
+    counter: integer("counter").notNull(),
+    credentialDeviceType: text("credential_device_type").notNull(),
+    credentialBackedUp: boolean("credential_backed_up").notNull(),
+    transports: text("transports"),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.hqUserId, table.credentialID],
+    }),
+    unique("hq_authenticators_credential_id_unique").on(table.credentialID),
   ],
 );
 

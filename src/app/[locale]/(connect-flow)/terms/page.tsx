@@ -4,7 +4,7 @@ import { getTranslations } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 import { ashedLink, strongText } from "@/components/i18n/richText";
 
-const GITHUB_REPO_URL = "https://github.com/amcmillion/alliance-hq";
+const GITHUB_REPO_URL = "https://github.com/Launchframe/alliance-hq";
 const LICENSE_URL = `${GITHUB_REPO_URL}/blob/main/LICENSE`;
 
 type Props = {
@@ -54,8 +54,8 @@ export default async function TermsPage() {
     <article className="mx-auto max-w-2xl space-y-8 text-sm leading-relaxed">
       <header>
         <p className="text-xs text-[#8b949e]">
-          <Link href="/connect" className="text-[#58a6ff] hover:underline">
-            {t("backToConnect")}
+          <Link href="/" className="text-[#58a6ff] hover:underline">
+            {t("backToHome")}
           </Link>
         </p>
         <h1 className="mt-4 text-2xl font-semibold">{t("title")}</h1>

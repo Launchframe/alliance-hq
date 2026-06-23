@@ -1,3 +1,8 @@
+import {
+  readAshedShellConnectDismissed,
+  shouldShowAshedConnectNudge,
+} from "./ashed-shell-prompts.shared";
+
 export const CONNECT_WALKTHROUGH_SEEN_KEY =
   "alliance-hq-connect-walkthrough-seen";
 
@@ -24,12 +29,18 @@ export function shouldShowShellConnectPrompt(input: {
   hasAppAccess: boolean;
   isConnected: boolean;
   canUseAshedEmbeds: boolean;
+  isAshedConnectAllowed: boolean;
   ashedConnectedOnDeviceBefore: boolean;
+  dismissed?: boolean;
 }): boolean {
-  return (
-    input.hasAppAccess &&
-    !input.isConnected &&
-    input.canUseAshedEmbeds &&
-    input.ashedConnectedOnDeviceBefore
-  );
+  if (!input.ashedConnectedOnDeviceBefore) {
+    return false;
+  }
+  return shouldShowAshedConnectNudge({
+    hasAppAccess: input.hasAppAccess,
+    isConnected: input.isConnected,
+    canUseAshedEmbeds: input.canUseAshedEmbeds,
+    isAshedConnectAllowed: input.isAshedConnectAllowed,
+    dismissed: input.dismissed ?? readAshedShellConnectDismissed(),
+  });
 }

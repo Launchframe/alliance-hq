@@ -6,15 +6,17 @@ import { Link } from "@/i18n/navigation";
 import { SettingsTeamClient } from "@/components/SettingsTeamClient";
 import { TeamInvitePanel } from "@/components/settings/TeamInvitePanel";
 import { AllianceContextRequired } from "@/components/settings/AllianceContextRequired";
+import { canRefreshRosterFromAshed } from "@/lib/connect/ashed-shell-prompts.shared";
 import { getDb, schema } from "@/lib/db";
 import {
   assignableInviteRolesForContext,
   canManageTeamInvites,
 } from "@/lib/native-alliance/team-invites.server";
+import { getAllianceOperatingMode } from "@/lib/native-alliance/operating-mode";
 import { requireAllianceSettingsSession } from "@/lib/settings/alliance-settings-access.server";
 import { getRbacContext, sessionIsAllianceAdmin } from "@/lib/rbac/context";
 import { getAllianceTeam } from "@/lib/rbac/sync-ashed-roles";
-import { requirePageSession } from "@/lib/session";
+import { getAshedConnection, requirePageSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -40,7 +42,15 @@ export default async function SettingsTeamPage({
 
   const team = await getAllianceTeam(allianceId);
   const rbac = await getRbacContext(access.session.id);
-  const canRefreshFromAshed = await sessionIsAllianceAdmin(access.session.id);
+  const isAllianceAdmin = await sessionIsAllianceAdmin(access.session.id);
+  const operatingMode = await getAllianceOperatingMode(allianceId);
+  const ashedConnection = await getAshedConnection(access.session.id);
+  const canRefreshFromAshed =
+    isAllianceAdmin &&
+    canRefreshRosterFromAshed({
+      operatingMode,
+      isAshedConnected: ashedConnection !== null,
+    });
   const canManageInvites = rbac ? canManageTeamInvites(rbac) : false;
   const assignableInviteRoles = rbac ? assignableInviteRolesForContext(rbac) : [];
 
