@@ -1,6 +1,6 @@
 import "server-only";
 
-import type { Adapter, AdapterUser } from "@auth/core/adapters";
+import type { Adapter, AdapterAuthenticator, AdapterUser } from "@auth/core/adapters";
 import { and, eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
@@ -155,6 +155,83 @@ export function createHqAuthAdapter(): Adapter {
         identifier: match.identifier,
         token: match.token,
         expires: match.expires,
+      };
+    },
+
+    async createAuthenticator(data: AdapterAuthenticator) {
+      const db = getDb();
+      await db.insert(schema.hqAuthenticators).values({
+        credentialID: data.credentialID,
+        hqUserId: data.userId,
+        providerAccountId: data.providerAccountId,
+        credentialPublicKey: data.credentialPublicKey,
+        counter: data.counter,
+        credentialDeviceType: data.credentialDeviceType,
+        credentialBackedUp: data.credentialBackedUp,
+        transports: data.transports ?? null,
+      });
+      return data;
+    },
+
+    async getAuthenticator(credentialID: string) {
+      const db = getDb();
+      const [row] = await db
+        .select()
+        .from(schema.hqAuthenticators)
+        .where(eq(schema.hqAuthenticators.credentialID, credentialID))
+        .limit(1);
+      if (!row) {
+        return null;
+      }
+      return {
+        credentialID: row.credentialID,
+        userId: row.hqUserId,
+        providerAccountId: row.providerAccountId,
+        credentialPublicKey: row.credentialPublicKey,
+        counter: row.counter,
+        credentialDeviceType: row.credentialDeviceType,
+        credentialBackedUp: row.credentialBackedUp,
+        transports: row.transports ?? undefined,
+      };
+    },
+
+    async listAuthenticatorsByUserId(userId: string) {
+      const db = getDb();
+      const rows = await db
+        .select()
+        .from(schema.hqAuthenticators)
+        .where(eq(schema.hqAuthenticators.hqUserId, userId));
+      return rows.map((row) => ({
+        credentialID: row.credentialID,
+        userId: row.hqUserId,
+        providerAccountId: row.providerAccountId,
+        credentialPublicKey: row.credentialPublicKey,
+        counter: row.counter,
+        credentialDeviceType: row.credentialDeviceType,
+        credentialBackedUp: row.credentialBackedUp,
+        transports: row.transports ?? undefined,
+      }));
+    },
+
+    async updateAuthenticatorCounter(credentialID: string, newCounter: number) {
+      const db = getDb();
+      const [row] = await db
+        .update(schema.hqAuthenticators)
+        .set({ counter: newCounter })
+        .where(eq(schema.hqAuthenticators.credentialID, credentialID))
+        .returning();
+      if (!row) {
+        throw new Error("Authenticator not found.");
+      }
+      return {
+        credentialID: row.credentialID,
+        userId: row.hqUserId,
+        providerAccountId: row.providerAccountId,
+        credentialPublicKey: row.credentialPublicKey,
+        counter: row.counter,
+        credentialDeviceType: row.credentialDeviceType,
+        credentialBackedUp: row.credentialBackedUp,
+        transports: row.transports ?? undefined,
       };
     },
   };

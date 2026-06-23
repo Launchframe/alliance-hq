@@ -90,6 +90,8 @@ export const hqUsers = pgTable("hq_users", {
   accessGrantedAt: timestamp("access_granted_at", { withTimezone: true }),
   /** Magic link or OAuth email verification timestamp. */
   emailVerifiedAt: timestamp("email_verified_at", { withTimezone: true }),
+  /** bcrypt hash for password sign-in; null until the user sets a password. */
+  passwordHash: text("password_hash"),
   /** Cached resolved profile image URL (OAuth or Last War). */
   avatarUrl: text("avatar_url"),
   /** google | discord | lastwar */
@@ -1006,6 +1008,29 @@ export const authVerificationTokens = pgTable(
     primaryKey({
       columns: [table.identifier, table.token],
     }),
+  ],
+);
+
+/** WebAuthn / passkey credentials for HQ users (Auth.js adapter). */
+export const hqAuthenticators = pgTable(
+  "hq_authenticators",
+  {
+    credentialID: text("credential_id").notNull(),
+    hqUserId: text("hq_user_id")
+      .notNull()
+      .references(() => hqUsers.id, { onDelete: "cascade" }),
+    providerAccountId: text("provider_account_id").notNull(),
+    credentialPublicKey: text("credential_public_key").notNull(),
+    counter: integer("counter").notNull(),
+    credentialDeviceType: text("credential_device_type").notNull(),
+    credentialBackedUp: boolean("credential_backed_up").notNull(),
+    transports: text("transports"),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.hqUserId, table.credentialID],
+    }),
+    unique("hq_authenticators_credential_id_unique").on(table.credentialID),
   ],
 );
 

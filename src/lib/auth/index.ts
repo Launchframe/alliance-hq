@@ -1,6 +1,8 @@
 import "server-only";
 
 import NextAuth from "next-auth";
+import Credentials from "next-auth/providers/credentials";
+import Passkey from "next-auth/providers/passkey";
 import Resend from "next-auth/providers/resend";
 
 import { createHqAuthAdapter } from "@/lib/auth/adapter";
@@ -11,6 +13,7 @@ import {
   sendMagicLinkViaResend,
   shouldLogMagicLinkToStdout,
 } from "@/lib/auth/magic-link-email.server";
+import { verifyPasswordLogin } from "@/lib/auth/password.server";
 import { ensureHqUserForAuthEmail } from "@/lib/auth/resolve-hq-user";
 import { maybeBootstrapPlatformMaintainer } from "@/lib/rbac/bootstrap-platform";
 import {
@@ -32,7 +35,32 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     verifyRequest: "/auth/check-email",
     error: "/auth/error",
   },
+  experimental: {
+    enableWebAuthn: true,
+  },
   providers: [
+    Credentials({
+      id: "password",
+      name: "Password",
+      credentials: {
+        email: { label: "Email", type: "email" },
+        password: { label: "Password", type: "password" },
+      },
+      async authorize(credentials) {
+        const email = String(credentials?.email ?? "");
+        const password = String(credentials?.password ?? "");
+        const user = await verifyPasswordLogin(email, password);
+        if (!user) {
+          return null;
+        }
+        return {
+          id: user.id,
+          email: user.email,
+          name: user.displayName ?? undefined,
+        };
+      },
+    }),
+    Passkey,
     Resend({
       from:
         process.env.EMAIL_FROM ??
@@ -71,7 +99,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     }),
   ],
   callbacks: {
-    async signIn({ user }) {
+    async signIn({ user, account }) {
+      if (account?.provider === "password" || account?.provider === "passkey") {
+        return Boolean(user.email);
+      }
       // Magic-link send also invokes signIn before hq_users exists; do not bridge here.
       return Boolean(user.email);
     },
