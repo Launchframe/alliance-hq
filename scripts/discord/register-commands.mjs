@@ -30,9 +30,16 @@ const vrLevelOption = {
 const commandBody = [
   {
     name: "link",
-    description: "Link your Discord account to your in-game member",
+    description: "Link your Discord account to Alliance HQ",
     description_localizations: {
-      "pt-BR": "Vincule sua conta do Discord ao seu membro no jogo",
+      "pt-BR": "Vincule sua conta do Discord ao Alliance HQ",
+    },
+  },
+  {
+    name: "link-commander",
+    description: "Link a Last War commander (in-game character) to your Discord account",
+    description_localizations: {
+      "pt-BR": "Vincule um comandante do Last War (personagem) à sua conta do Discord",
     },
     options: [
       {
@@ -60,10 +67,10 @@ const commandBody = [
       {
         name: "replace",
         description:
-          "Replace all your linked characters with this one (switch main character).",
+          "Replace all your linked commanders with this one (switch main character).",
         description_localizations: {
           "pt-BR":
-            "Substitui todos os personagens vinculados por este (trocar personagem principal).",
+            "Substitui todos os comandantes vinculados por este (trocar personagem principal).",
         },
         type: 5,
         required: false,
@@ -114,9 +121,11 @@ const commandBody = [
   },
   {
     name: "link-alliance",
-    description: "Register this Discord server for your alliance (owner only).",
+    description:
+      "Register this Discord server for your alliance (owner or platform maintainer).",
     description_localizations: {
-      "pt-BR": "Registre este servidor do Discord para sua aliança (somente dono).",
+      "pt-BR":
+        "Registre este servidor do Discord para sua aliança (dono ou mantenedor da plataforma).",
     },
     options: [
       {

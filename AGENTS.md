@@ -77,18 +77,17 @@ Alliance HQ models **in-game** alliance mechanics (trains, VS weeks, R1–R5 ran
 - **Credentials:** per-alliance Ashed JWT in `alliance_ashed_credentials` (encrypted with `TOKEN_ENCRYPTION_KEY`). Resolve via `getAllianceAshedCredential` → `loadAllianceMembersForBot`.
 - **JWT scope:** never call Ashed with a credential for a different alliance. `loadAllianceMembersForBot` is the sole member-read entry point for bot code. Legacy `VR_BOT_ASHED_BEARER_TOKEN` requires matching `VR_BOT_ASHED_ALLIANCE_TAG`.
 - **Setup flow (secure):**
-  1. Owner: `/link-to-ashed-seat tag:LFgo` → bot creates a 30-min nonce → returns ephemeral HQ URL.
-  2. Owner: opens `NEXT_PUBLIC_APP_URL/discord/authorize?nonce=…` in browser; signs in to HQ if needed; enters connection key on the HTTPS form — key never travels through Discord.
-  3. HQ `POST /api/discord/authorize`: verifies key, checks Ashed owner role, calls `syncAshedAllianceForBot`, stores encrypted credential (does **not** register guild — that is `/link-alliance` only).
-  4. Owner: `/link name:… uid:…` → links their in-game character (now `callerIsAllianceOwner` becomes true since `ownerAshedUserId` is set).
-  5. Owner: `/link-alliance tag:LFgo` → registers guild (`upsertGuildAlliance`); required before members can `/link`.
-  6. Owner: `/set-vr-report-channel` in the nightly standings channel (stores `discord_guild_alliances.vr_report_channel_id`).
-  7. Members: `/link name:… uid:…` → links character via lastwar UID lookup + Ashed roster match.
+  1. Owner: `/link-to-ashed-seat tag:LFgo` → ephemeral HQ authorize URL (`purpose=alliance_credentials`).
+  2. Owner completes HQ `/discord/authorize` with connection key (owner-verified; stores `alliance_ashed_credentials`).
+  3. Everyone: `/link` → ephemeral HQ authorize URL (`purpose=user_link`) → row in `discord_hq_links` (Discord ↔ `hq_users`).
+  4. Owner or platform maintainer: `/link-alliance tag:LFgo` → `discord_guild_alliances` (requires HQ link; owner via credential registrant / `ownerAshedUserId`, or `isPlatformMaintainer`).
+  5. Owner: `/set-vr-report-channel` in the nightly standings channel.
+  6. Members: `/link-commander name:… uid:…` → `discord_member_links` (guild must be registered; up to 5 commanders per Discord user).
 - **VR reports:** `/vr-report` (top 25) and `/vr-report teams:N` / `/takedown-teams` (5-player rally teams, snake THP balance) are **officer-gated** (`callerCanRunVrReport`: R4+ linked member or owner). Replies are ephemeral; nightly cron posts public top-25 to each guild's configured channel via `loadAllianceLeaderboard` + `listRegisteredGuildsWithReportChannel`.
 - **`/set-season` removed** — season is derived from server age; do not reintroduce.
 - **Feature flag:** `ELIGIBLE_BOT_ALLIANCE_LINK_TAGS` (comma-delimited; unset = allow all) gates `/link-to-ashed-seat` and `/link-alliance`. Check via `isTagEligible()` in `bot-setup.ts`.
-- **Security invariant:** connection keys must **never** appear as slash command options or in Discord payloads. All credential submission goes through the HQ `/discord/authorize` HTTPS page. Nonces live in `discord_auth_nonces` (30-min TTL, single-use); enforced by `getValidDiscordAuthNonce` + `consumeDiscordAuthNonce`.
-- **Multi-link:** up to 5 in-game characters per Discord user per alliance (`discord_member_links` unique on `(alliance_id, discord_user_id, ashed_member_id)`). `/link` adds or updates; `replace:true` clears then links one character; `/unlink` removes a link. `/vr` prompts when multiple links exist.
+- **Security invariant:** connection keys must **never** appear as slash command options or in Discord payloads. All credential submission goes through the HQ `/discord/authorize` HTTPS page. Nonces live in `discord_auth_nonces` (`purpose`: `alliance_credentials` | `user_link`; 30-min TTL, single-use).
+- **Multi-link:** up to 5 commanders per Discord user per alliance (`discord_member_links`). `/link-commander` adds or updates; `replace:true` clears then links one; `/unlink` removes a row. `/vr` prompts when multiple commanders exist.
 - **`/help`:** context-aware next steps via `resolveDiscordBotUserContext` + `pickHelpMessageKey` — guild registration, credentials, owner vs member, link count.
 - **i18n:** bot reply strings in `messages/*/discordBot`; HQ authorize page strings in `messages/*/discordAuthorize`; slash command `description_localizations` pt-BR in `scripts/discord/register-commands.mjs`; per-user locale in `discord_user_prefs` via `/language`.
 - **Deprecation:** do not reintroduce `DISCORD_ALLIANCE_ID` for multi-tenant hosted deploys. `resolveAllianceForGuild` falls back to env only when `guildId === DISCORD_GUILD_ID` (legacy single-server). Unregistered guilds must get `errors.guildNotRegistered`, not a silent wrong-alliance roster lookup. Do not reintroduce a `key:` option on any slash command.
@@ -99,12 +98,13 @@ Do **not** conflate **Discord user**, **`discord_member_links` (in-game member)*
 
 | Layer | Identity | Typical entry |
 | --- | --- | --- |
-| Discord bot | `discord_user_id` + member link row(s) per alliance | `/api/webhooks/discord/interactions` |
+| Discord bot (HQ auth) | `discord_hq_links` → `hq_users` | `/link` + `/api/discord/authorize` (`user_link`) |
+| Discord bot (commander) | `discord_member_links` per guild alliance | `/link-commander` after guild registration |
 | HQ web | `hq_users` + `alliance_memberships` / session permission | BFF routes with `requireSessionPermission` |
 | Ashed | Roster, owner, collaborators — **source of truth** for in-game membership | User connect JWT (web) or `alliance_ashed_credentials` (bot roster reads) |
 
-- **Member actions** (`/link`, `/vr`, future quick tasks): prove Discord user ↔ in-game character via `/link` + optional multi-character picker.
-- **Owner setup** (`/link-alliance`, `/link-with-authentication`): prove alliance owner via linked `ownerAshedUserId` or Ashed owner JWT — not merely “has an HQ login.”
+- **Member actions** (`/link-commander`, `/vr`): prove Discord user ↔ in-game commander via roster match; guild tenant from `resolveAllianceForGuild`.
+- **Owner setup** (`/link-to-ashed-seat`, `/link`, `/link-alliance`): alliance credentials + HQ link + guild registration (`callerCanRegisterGuildAlliance`).
 - **Cron / web-triggered jobs:** service or session auth; resolve `allianceId` explicitly; do not impersonate a Discord user.
 
 Detail: [`.cursor/rules/discord-identity-auth-layers.mdc`](.cursor/rules/discord-identity-auth-layers.mdc) (architecture) and [`.cursor/rules/discord-bot-multitenancy.mdc`](.cursor/rules/discord-bot-multitenancy.mdc) (tenant + credentials guardrails).

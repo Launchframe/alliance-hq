@@ -5,10 +5,12 @@ import {
   type DiscordTranslate,
 } from "@/lib/discord/i18n";
 import {
+  callerCanRegisterGuildAlliance,
   callerIsAllianceOwner,
   getAllianceById,
+  getDiscordHqLink,
   getGuildAllianceId,
-  listDiscordLinksForUserAnyAlliance,
+  listDiscordLinksForUser,
   saveDiscordBotPending,
   setGuildVrReportChannel,
   upsertGuildAlliance,
@@ -16,7 +18,6 @@ import {
 } from "@/lib/vr/repository";
 import { resolveAllianceByTag } from "@/lib/vr/resolve-alliance-tag";
 import { createDiscordAuthNonce } from "@/lib/vr/auth-nonce";
-import { allianceHasBotCredentials } from "@/lib/vr/member-roster";
 import type { LinkPendingState } from "@/lib/vr/types";
 
 export type BotReply = { reply: string };
@@ -103,11 +104,33 @@ async function resolveTagForSetup(input: {
 }
 
 /**
+ * /link — Discord↔HQ authentication via HQ web redirect (no alliance scope).
+ */
+export async function handleDiscordLinkUser(input: {
+  guildId: string | null;
+  discordUserId: string;
+  locale: DiscordBotLocale;
+}): Promise<BotReply> {
+  const t = createDiscordTranslator(input.locale);
+  const existing = await getDiscordHqLink(input.discordUserId);
+  if (existing) {
+    return { reply: t("link.userAlreadyLinked") };
+  }
+
+  const nonce = await createDiscordAuthNonce({
+    discordUserId: input.discordUserId,
+    guildId: input.guildId,
+    purpose: "user_link",
+  });
+
+  const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "").replace(/\/$/, "");
+  const authorizeUrl = `${appUrl}/discord/authorize?nonce=${nonce}`;
+
+  return { reply: t("link.userPrompt", { url: authorizeUrl }) };
+}
+
+/**
  * /link-to-ashed-seat — secure credential setup via HQ web redirect.
- *
- * No connection key is accepted in Discord. Instead the bot generates a
- * short-lived nonce and returns a link to the HQ /discord/authorize page
- * where the connection key is entered over HTTPS.
  */
 export async function handleDiscordLinkToAshedSeat(input: {
   guildId: string;
@@ -120,26 +143,24 @@ export async function handleDiscordLinkToAshedSeat(input: {
   const tag = input.tag?.trim();
 
   if (!tag) {
-    const reply = t("errors.tagNotFound", { tag: "?" });
-    return { reply };
+    return { reply: t("errors.tagNotFound", { tag: "?" }) };
   }
 
   if (!isTagEligible(tag)) {
-    const reply = t("errors.tagNotEligible", { tag });
-    return { reply };
+    return { reply: t("errors.tagNotEligible", { tag }) };
   }
 
   const nonce = await createDiscordAuthNonce({
     discordUserId: input.discordUserId,
     guildId: input.guildId,
     tag,
+    purpose: "alliance_credentials",
   });
 
   const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "").replace(/\/$/, "");
   const authorizeUrl = `${appUrl}/discord/authorize?nonce=${nonce}`;
 
-  const reply = t("setup.linkAshedSeatPrompt", { tag, url: authorizeUrl });
-  return { reply };
+  return { reply: t("setup.linkAshedSeatPrompt", { tag, url: authorizeUrl }) };
 }
 
 export async function handleDiscordLinkAlliance(input: {
@@ -163,9 +184,9 @@ export async function handleDiscordLinkAlliance(input: {
     return { reply };
   }
 
-  const userLinks = await listDiscordLinksForUserAnyAlliance(input.discordUserId);
-  if (userLinks.length === 0) {
-    const reply = t("errors.linkFirst");
+  const hqLink = await getDiscordHqLink(input.discordUserId);
+  if (!hqLink) {
+    const reply = t("errors.hqLinkRequired");
     await audit(null, input.discordUserId, "link_alliance", input, { reply });
     return { reply };
   }
@@ -181,33 +202,36 @@ export async function handleDiscordLinkAlliance(input: {
 
   if (!resolved.ok) {
     if (resolved.pending?.kind === "pick_alliance_by_name") {
-      await saveDiscordBotPending(
-        resolved.pending.candidates[0]?.allianceId ?? userLinks[0]!.allianceId,
-        input.discordUserId,
-        resolved.pending,
-      );
+      const fallbackAllianceId = resolved.pending.candidates[0]?.allianceId;
+      if (fallbackAllianceId) {
+        await saveDiscordBotPending(
+          fallbackAllianceId,
+          input.discordUserId,
+          resolved.pending,
+        );
+      }
     }
     await audit(null, input.discordUserId, "link_alliance", input, resolved);
     return { reply: resolved.reply, pending: resolved.pending ?? null };
   }
 
-  const isOwner = await callerIsAllianceOwner({
+  const registration = await callerCanRegisterGuildAlliance({
     allianceId: resolved.allianceId,
     discordUserId: input.discordUserId,
   });
-  if (!isOwner) {
-    const reply = t("errors.notOwner");
-    await audit(resolved.allianceId, input.discordUserId, "link_alliance", input, {
-      reply,
-    });
-    return { reply };
-  }
 
-  const hasCredentials = await allianceHasBotCredentials(resolved.allianceId);
-  if (!hasCredentials) {
-    const reply = t("errors.credentialsRequired", { tag: resolved.tag });
+  if (!registration.allowed) {
+    const reply =
+      registration.reason === "no_hq_link"
+        ? t("errors.hqLinkRequired")
+        : registration.reason === "no_credentials"
+          ? t("errors.credentialsRequired", { tag: resolved.tag })
+          : registration.reason === "not_owner"
+            ? t("errors.notOwner")
+            : t("errors.notOwner");
     await audit(resolved.allianceId, input.discordUserId, "link_alliance", input, {
       reply,
+      registration,
     });
     return { reply };
   }
@@ -218,6 +242,7 @@ export async function handleDiscordLinkAlliance(input: {
   const reply = t("setup.linkAllianceSuccess", { tag: resolved.tag });
   await audit(resolved.allianceId, input.discordUserId, "link_alliance", input, {
     reply,
+    registeredBy: registration.registeredBy,
   });
   return { reply };
 }
@@ -277,4 +302,20 @@ export async function handleDiscordLanguage(input: {
   await setDiscordBotLocale(input.discordUserId, input.locale);
   const t = createDiscordTranslator(input.locale);
   return { reply: t("setup.languageSuccess") };
+}
+
+/** Post-HQ-auth hint when guild is registered but user has no commanders linked. */
+export async function buildFirstCommanderPrompt(input: {
+  guildId: string | null;
+  allianceId: string | null;
+  discordUserId: string;
+  locale: DiscordBotLocale;
+}): Promise<string | null> {
+  if (!input.guildId || !input.allianceId) return null;
+  const registered = await getGuildAllianceId(input.guildId);
+  if (registered !== input.allianceId) return null;
+  const links = await listDiscordLinksForUser(input.allianceId, input.discordUserId);
+  if (links.length > 0) return null;
+  const t = createDiscordTranslator(input.locale);
+  return t("link.promptFirstCommander");
 }

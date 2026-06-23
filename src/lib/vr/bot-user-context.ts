@@ -1,13 +1,19 @@
 import type { DiscordMemberLink } from "@/lib/db/schema";
+import {
+  createDiscordTranslator,
+  type DiscordBotLocale,
+} from "@/lib/discord/i18n";
 import { allianceHasBotCredentials } from "@/lib/vr/member-roster";
 import {
   callerIsAllianceOwner,
+  callerIsPlatformMaintainerViaDiscord,
   getAllianceById,
+  getDiscordHqLink,
   getGuildAllianceId,
   listDiscordLinksForUser,
   listDiscordLinksForUserAnyAlliance,
   resolveAllianceForGuild,
-  resolveOwnerSetupAllianceId,
+  userRegisteredAllianceCredentials,
 } from "@/lib/vr/repository";
 
 export type DiscordBotUserContext = {
@@ -16,6 +22,9 @@ export type DiscordBotUserContext = {
   allianceTag: string | null;
   guildRegistered: boolean;
   hasCredentials: boolean;
+  hasHqLink: boolean;
+  isPlatformMaintainer: boolean;
+  userRegisteredCredentials: boolean;
   memberLinks: DiscordMemberLink[];
   memberLinkCount: number;
   isOwner: boolean;
@@ -32,37 +41,38 @@ export async function resolveDiscordBotUserContext(input: {
     ? (await getGuildAllianceId(guildId)) != null
     : false;
 
-  const setupAllianceId =
-    guildId && !guildRegistered && input.discordUserId
-      ? await resolveOwnerSetupAllianceId(guildId, input.discordUserId)
-      : null;
-  const effectiveAllianceId = allianceId ?? setupAllianceId;
+  const [alliance, hqLink, userRegisteredCredentials, isPlatformMaintainer, anyLinks, memberLinks] =
+    await Promise.all([
+      allianceId ? getAllianceById(allianceId) : Promise.resolve(null),
+      getDiscordHqLink(input.discordUserId),
+      userRegisteredAllianceCredentials(input.discordUserId),
+      callerIsPlatformMaintainerViaDiscord(input.discordUserId),
+      listDiscordLinksForUserAnyAlliance(input.discordUserId),
+      allianceId
+        ? listDiscordLinksForUser(allianceId, input.discordUserId)
+        : Promise.resolve([]),
+    ]);
 
-  const [alliance, anyLinks, memberLinks] = await Promise.all([
-    effectiveAllianceId ? getAllianceById(effectiveAllianceId) : Promise.resolve(null),
-    listDiscordLinksForUserAnyAlliance(input.discordUserId),
-    effectiveAllianceId
-      ? listDiscordLinksForUser(effectiveAllianceId, input.discordUserId)
-      : Promise.resolve([]),
-  ]);
-
-  const hasCredentials = effectiveAllianceId
-    ? await allianceHasBotCredentials(effectiveAllianceId)
-    : false;
+  const hasCredentials = allianceId
+    ? await allianceHasBotCredentials(allianceId)
+    : userRegisteredCredentials;
   const isOwner =
-    effectiveAllianceId != null
+    allianceId != null
       ? await callerIsAllianceOwner({
-          allianceId: effectiveAllianceId,
+          allianceId,
           discordUserId: input.discordUserId,
         })
       : false;
 
   return {
     guildId,
-    allianceId: effectiveAllianceId,
+    allianceId,
     allianceTag: alliance?.tag ?? null,
     guildRegistered,
     hasCredentials,
+    hasHqLink: hqLink != null,
+    isPlatformMaintainer,
+    userRegisteredCredentials,
     memberLinks,
     memberLinkCount: memberLinks.length,
     isOwner,
@@ -74,22 +84,33 @@ export function pickHelpMessageKey(ctx: DiscordBotUserContext): string {
   if (!ctx.guildId) {
     return "help.dmGeneral";
   }
+  if (!ctx.hasHqLink) {
+    return "help.setupLinkHq";
+  }
   if (!ctx.guildRegistered) {
-    if (ctx.hasCredentials) {
-      return ctx.memberLinkCount > 0
-        ? "help.setupLinkAlliance"
-        : "help.setupOwnerLinkAfterAuth";
+    if (ctx.isPlatformMaintainer || ctx.userRegisteredCredentials) {
+      return "help.setupLinkAlliance";
     }
-    return ctx.hasAnyMemberLink ? "help.setupLinkAlliance" : "help.setupOwnerAuth";
+    return "help.setupOwnerAuth";
   }
   if (!ctx.hasCredentials) {
     return ctx.isOwner ? "help.setupOwnerAuth" : "help.waitForOwnerAuth";
   }
   if (ctx.memberLinkCount === 0) {
-    return "help.linkProfile";
+    return "help.linkCommander";
   }
   if (ctx.isOwner) {
     return ctx.memberLinkCount > 1 ? "help.ownerReadyMulti" : "help.ownerReady";
   }
   return ctx.memberLinkCount > 1 ? "help.memberReadyMulti" : "help.memberReady";
+}
+
+export async function resolveSetupMessage(
+  locale: DiscordBotLocale,
+  guildId: string | null,
+  discordUserId: string,
+): Promise<string> {
+  const ctx = await resolveDiscordBotUserContext({ guildId, discordUserId });
+  const t = createDiscordTranslator(locale);
+  return t(pickHelpMessageKey(ctx));
 }

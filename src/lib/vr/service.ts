@@ -44,10 +44,11 @@ export {
   handleDiscordLanguage,
   handleDiscordLinkAlliance,
   handleDiscordLinkToAshedSeat,
+  handleDiscordLinkUser,
   handleDiscordSetVrReportChannel,
 } from "@/lib/vr/bot-setup";
 export { handleDiscordVrReport } from "@/lib/vr/bot-vr-report";
-export { resolveDiscordAllianceId, resolveAllianceForGuild, resolveOwnerSetupAllianceId } from "@/lib/vr/repository";
+export { resolveDiscordAllianceId, resolveAllianceForGuild } from "@/lib/vr/repository";
 
 async function audit(
   allianceId: string,
@@ -162,7 +163,7 @@ async function persistLinkTarget(input: {
   };
 }
 
-export async function handleDiscordLinkSlash(input: {
+export async function handleDiscordLinkCommanderSlash(input: {
   allianceId: string;
   guildId?: string | null;
   discordUserId: string;
@@ -276,6 +277,9 @@ export async function handleDiscordLinkSlash(input: {
   });
   return result;
 }
+
+/** @deprecated Use handleDiscordLinkCommanderSlash */
+export const handleDiscordLinkSlash = handleDiscordLinkCommanderSlash;
 
 export async function handleDiscordLinkFuzzyPick(input: {
   allianceId: string;

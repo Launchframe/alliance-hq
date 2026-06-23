@@ -731,21 +731,38 @@ export const discordUserPrefs = pgTable("discord_user_prefs", {
     .notNull(),
 });
 
-/** Short-lived one-time nonces for the /discord/authorize HQ web redirect (Ashed credential setup). */
+/** Short-lived one-time nonces for the /discord/authorize HQ web redirect. */
 export const discordAuthNonces = pgTable("discord_auth_nonces", {
   id: text("id").primaryKey(),
   nonce: text("nonce").notNull().unique(),
   discordUserId: text("discord_user_id").notNull(),
   /** Discord guild that initiated the setup flow. */
   guildId: text("guild_id"),
-  /** Normalized lowercase alliance tag this nonce was issued for. */
+  /** Normalized lowercase alliance tag; sentinel `_user_link` for Discord↔HQ auth. */
   tag: text("tag").notNull(),
+  /** `alliance_credentials` (owner seat) or `user_link` (Discord↔HQ). */
+  purpose: text("purpose").notNull().default("alliance_credentials"),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   usedAt: timestamp("used_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
     .notNull(),
 });
+
+/** Maps a Discord user to an HQ web user (bot auth layer, not in-game commander). */
+export const discordHqLinks = pgTable(
+  "discord_hq_links",
+  {
+    discordUserId: text("discord_user_id").primaryKey(),
+    hqUserId: text("hq_user_id")
+      .notNull()
+      .references(() => hqUsers.id, { onDelete: "cascade" }),
+    linkedAt: timestamp("linked_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [unique("discord_hq_links_hq_user_id_unique").on(table.hqUserId)],
+);
 
 /** Audit trail for all Discord bot interactions. */
 export const discordBotAudit = pgTable("discord_bot_audit", {
@@ -779,6 +796,7 @@ export type ParseSession = typeof parseSessions.$inferSelect;
 export type ParsedRow = typeof parsedRows.$inferSelect;
 export type AuditLogEntry = typeof auditLog.$inferInsert;
 export type DiscordAuthNonce = typeof discordAuthNonces.$inferSelect;
+export type DiscordHqLink = typeof discordHqLinks.$inferSelect;
 export type HqEventSeries = typeof hqEventSeries.$inferSelect;
 export type HqEvent = typeof hqEvents.$inferSelect;
 export type HqEventBoard = typeof hqEventBoards.$inferSelect;
