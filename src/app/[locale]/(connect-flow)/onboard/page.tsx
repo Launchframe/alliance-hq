@@ -16,6 +16,9 @@ import {
   resolveEffectiveHqUserIdForSession,
   requirePageSession,
 } from "@/lib/session";
+import { userRequiresAshedVerification } from "@/lib/member-link/privileged-link.shared";
+import { sessionHasLiveAshedVerification } from "@/lib/member-link/privileged-link.server";
+import { getRbacContext } from "@/lib/rbac/context";
 
 export const dynamic = "force-dynamic";
 
@@ -31,6 +34,8 @@ export default async function OnboardPage({ searchParams }: Props) {
 
   let allianceName = "";
   let allianceTag = "";
+  let requiresAshedVerification = false;
+  let isAshedConnected = false;
 
   try {
     await requireAuthForPage("/onboard");
@@ -77,6 +82,18 @@ export default async function OnboardPage({ searchParams }: Props) {
 
     allianceName = alliance.name;
     allianceTag = alliance.tag ?? alliance.name;
+
+    const rbac = await getRbacContext(session.id);
+    requiresAshedVerification = userRequiresAshedVerification({
+      roleName: rbac?.roleName,
+      isPlatformMaintainer: rbac?.isPlatformMaintainer ?? false,
+    });
+    if (requiresAshedVerification && effectiveHqUserId) {
+      isAshedConnected = await sessionHasLiveAshedVerification(
+        session.id,
+        effectiveHqUserId,
+      );
+    }
   } catch (error) {
     rethrowNavigationError(error);
     throw error;
@@ -87,6 +104,8 @@ export default async function OnboardPage({ searchParams }: Props) {
       allianceName={allianceName}
       allianceTag={allianceTag}
       nextPath={nextPath}
+      requiresAshedVerification={requiresAshedVerification}
+      isAshedConnected={isAshedConnected}
     />
   );
 }

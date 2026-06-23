@@ -22,6 +22,8 @@ import {
   resolveTokenExpiresAt,
   type AshedConnectionMeta,
 } from "@/lib/jwt/connection-meta";
+import { isTokenExpired } from "@/lib/jwt/decode";
+import { capTokenExpiresAt } from "@/lib/member-link/privileged-link.shared";
 import { DEFAULT_EXPIRY_REMINDER_DAYS } from "@/lib/jwt/decode";
 import { getRbacContext } from "@/lib/rbac/context";
 import { sessionHoldsAshedIdentityForHqUser } from "@/lib/rbac/ashed-session-membership";
@@ -32,6 +34,7 @@ import {
   sessionHasNativeMembership,
   sessionRequiresMemberLink,
 } from "@/lib/native-alliance/access";
+import { sessionRequiresAshedVerification } from "@/lib/member-link/privileged-link.server";
 import { getAllianceOperatingMode } from "@/lib/native-alliance/operating-mode";
 import { shouldShowTeamAccessNav } from "@/lib/settings/team-access-nav.shared";
 import { getAccountTimezoneIdForHqUser } from "@/lib/timezone/server";
@@ -219,6 +222,24 @@ export async function getAshedConnectionMeta(
   return buildAshedConnectionMeta(cred, locale, timezone);
 }
 
+export async function applyPrivilegedTokenCapForSession(
+  sessionId: string,
+): Promise<void> {
+  const cred = await getAshedCredentialRecord(sessionId);
+  if (!cred?.tokenExpiresAt) {
+    return;
+  }
+  const capped = capTokenExpiresAt(cred.tokenExpiresAt);
+  if (!capped || capped.getTime() === cred.tokenExpiresAt.getTime()) {
+    return;
+  }
+  const db = getDb();
+  await db
+    .update(schema.ashedCredentials)
+    .set({ tokenExpiresAt: capped, updatedAt: new Date() })
+    .where(eq(schema.ashedCredentials.id, cred.id));
+}
+
 export async function updateExpiryReminderDays(
   sessionId: string,
   expiryReminderDays: number,
@@ -238,13 +259,21 @@ export async function storeAshedConnection(
     expiryReminderDays?: number;
     locale?: string;
     ashedUserId?: string | null;
+    /** Cap JWT expiry at 30 days for owner/officer/platform maintainer connects. */
+    applyPrivilegedTokenCap?: boolean;
   },
 ) {
   const db = getDb();
   const locale = options?.locale ?? "en-US";
   const now = new Date();
   const encryptedToken = encryptSecret(connection.token);
-  const tokenExpiresAt = resolveTokenExpiresAt(connection.token);
+  let tokenExpiresAt = resolveTokenExpiresAt(connection.token);
+  if (options?.applyPrivilegedTokenCap) {
+    tokenExpiresAt = capTokenExpiresAt(tokenExpiresAt, now);
+  }
+  if (tokenExpiresAt && isTokenExpired(tokenExpiresAt)) {
+    throw new Error("Connection key is already expired. Copy a fresh one from Ashed.");
+  }
 
   const [existing] = await db
     .select()
@@ -474,6 +503,9 @@ export async function getSessionStateFor(
   const isNativeMembership = await sessionHasNativeMembership(session);
   const hasActiveMembership = await sessionHasActiveMembership(session);
   const requiresMemberLink = await sessionRequiresMemberLink(session);
+  const requiresAshedVerification = await sessionRequiresAshedVerification(
+    session,
+  );
   const operatingMode = session.currentAllianceId
     ? await getAllianceOperatingMode(session.currentAllianceId)
     : null;
@@ -513,6 +545,7 @@ export async function getSessionStateFor(
     isConnected: connection !== null,
     hasAppAccess,
     requiresMemberLink,
+    requiresAshedVerification,
     canUseAshedEmbeds,
     isNativeAlliance: isNativeMembership,
     operatingMode,

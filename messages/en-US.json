@@ -2069,7 +2069,8 @@
   "memberLink": {
     "errors": {
       "nothingPending": "Nothing to pick right now.",
-      "noWalkthrough": "No walkthrough in progress."
+      "noWalkthrough": "No walkthrough in progress.",
+      "ashedVerificationRequired": "Connect Ashed first to verify your owner or officer role. Use the button below, then return to link your character."
     },
     "usage": "Enter your in-game name and UID from your Last War profile.",
     "linked": "Linked to {name}. Welcome to the alliance!",
@@ -2119,6 +2120,8 @@
     "walkthroughTitle": "Copy your name from the game",
     "requestFailed": "Something went wrong. Try again.",
     "connectAshedBanner": "Connect Ashed for iframe tools and live roster sync.",
+    "connectAshedTitle": "Verify with Ashed first",
+    "connectAshedBody": "Owner, officer, and platform maintainer accounts must connect Ashed over HTTPS before linking an in-game character. This proves alliance standing — name and UID alone are not enough.",
     "connectAshedCta": "Connect Ashed",
     "connectAshedDismiss": "Not now"
   },
@@ -2133,6 +2136,7 @@
       "tagNotFound": "No alliance found with tag **{tag}**. Check the spelling on ashed.online, or run `/link-to-ashed-seat` if your alliance is not in Alliance HQ yet.",
       "tagNotEligible": "Alliance tag **{tag}** is not currently eligible for bot setup on this deployment.",
       "credentialsRequired": "Connect Ashed credentials first with `/link-to-ashed-seat tag:{tag}`.",
+      "ownerSeatRequiresAshed": "Alliance owner must complete `/link-to-ashed-seat` before linking the leader commander with name and UID alone.",
       "tagAmbiguous": "We found multiple alliances with tag **{tag}**. Reply with `/link-alliance tag:{tag} name:Your Alliance Name` to pick the right one.",
       "notOwner": "Only the alliance owner or a platform maintainer can register this server. Run `/link` first, then `/link-to-ashed-seat` if you are the owner.",
       "notOfficer": "Only alliance officers (R4+) or the owner can run VR reports. Link a commander with `/link-commander` if you haven't yet.",

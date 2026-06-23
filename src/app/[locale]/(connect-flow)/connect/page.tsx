@@ -5,6 +5,7 @@ import { shouldSkipConnectWalkthrough, shouldSkipLinkPhoneStep } from "@/lib/con
 import { redirect } from "@/i18n/navigation";
 import { requireAuthForPage } from "@/lib/auth/page-guard";
 import { rethrowNavigationError } from "@/lib/navigation";
+import { sanitizeInternalRedirectPath } from "@/lib/navigation/safe-redirect.shared";
 import {
   getAshedConnection,
   getSessionStateFor,
@@ -14,12 +15,13 @@ import {
 export const dynamic = "force-dynamic";
 
 type Props = {
-  searchParams: Promise<{ welcome?: string }>;
+  searchParams: Promise<{ welcome?: string; next?: string }>;
 };
 
 export default async function ConnectPage({ searchParams }: Props) {
   const locale = await getLocale();
-  const { welcome } = await searchParams;
+  const { welcome, next } = await searchParams;
+  const returnTo = sanitizeInternalRedirectPath(next);
 
   let showWelcomeChoice = false;
   let skipWalkthroughToPaste = false;
@@ -34,10 +36,10 @@ export default async function ConnectPage({ searchParams }: Props) {
     }
     const connected = await getAshedConnection(session.id);
     if (connected) {
-      if (state.hasAppAccess) {
-        redirect({ href: "/", locale });
-      }
-      redirect({ href: "/get-started", locale });
+      const afterConnect =
+        sanitizeInternalRedirectPath(next) ??
+        (state.hasAppAccess ? "/" : "/get-started");
+      redirect({ href: afterConnect, locale });
     }
     showWelcomeChoice =
       welcome === "1" && state.hasAppAccess && !state.isConnected;
@@ -53,6 +55,7 @@ export default async function ConnectPage({ searchParams }: Props) {
       showWelcomeChoice={showWelcomeChoice}
       skipWalkthroughToPaste={skipWalkthroughToPaste}
       skipLinkPhoneStep={skipLinkPhoneStep}
+      returnTo={returnTo ?? undefined}
     />
   );
 }

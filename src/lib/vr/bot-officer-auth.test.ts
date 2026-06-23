@@ -9,9 +9,10 @@ vi.mock("@/lib/vr/repository", () => ({
 
 vi.mock("@/lib/vr/member-roster", () => ({
   loadAllianceMembersForBot: vi.fn(),
+  allianceHasBotCredentials: vi.fn(),
 }));
 
-import { loadAllianceMembersForBot } from "@/lib/vr/member-roster";
+import { allianceHasBotCredentials, loadAllianceMembersForBot } from "@/lib/vr/member-roster";
 import {
   callerIsAllianceOwner,
   listDiscordLinksForUser,
@@ -25,6 +26,7 @@ describe("callerCanRunVrReport", () => {
     vi.mocked(callerIsAllianceOwner).mockResolvedValue(false);
     vi.mocked(listDiscordLinksForUser).mockResolvedValue([]);
     vi.mocked(loadAllianceMembersForBot).mockResolvedValue([]);
+    vi.mocked(allianceHasBotCredentials).mockResolvedValue(true);
   });
 
   it("allows alliance owner", async () => {
@@ -80,6 +82,20 @@ describe("callerCanRunVrReport", () => {
     ]);
     vi.mocked(loadAllianceMembersForBot).mockResolvedValue([
       { id: "m-member", current_name: "Member", alliance_rank: 3 } as never,
+    ]);
+
+    await expect(
+      callerCanRunVrReport({ allianceId, discordUserId }),
+    ).resolves.toBe(false);
+  });
+
+  it("denies linked R4 when alliance credentials are missing", async () => {
+    vi.mocked(allianceHasBotCredentials).mockResolvedValue(false);
+    vi.mocked(listDiscordLinksForUser).mockResolvedValue([
+      { ashedMemberId: "m-officer" } as never,
+    ]);
+    vi.mocked(loadAllianceMembersForBot).mockResolvedValue([
+      { id: "m-officer", current_name: "Officer", alliance_rank: 4 } as never,
     ]);
 
     await expect(

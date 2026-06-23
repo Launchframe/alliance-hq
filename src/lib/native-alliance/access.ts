@@ -115,16 +115,6 @@ export async function sessionRequiresMemberLink(session: Session): Promise<boole
     return false;
   }
 
-  const db = getDb();
-  const [user] = await db
-    .select({ isPlatformMaintainer: schema.hqUsers.isPlatformMaintainer })
-    .from(schema.hqUsers)
-    .where(eq(schema.hqUsers.id, effectiveHqUserId))
-    .limit(1);
-  if (user?.isPlatformMaintainer === 1) {
-    return false;
-  }
-
   const linked = await sessionHasHqMemberLink(
     session.currentAllianceId,
     effectiveHqUserId,

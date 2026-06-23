@@ -2069,7 +2069,8 @@
   "memberLink": {
     "errors": {
       "nothingPending": "Nada para escolher agora.",
-      "noWalkthrough": "Nenhum tutorial em andamento."
+      "noWalkthrough": "Nenhum tutorial em andamento.",
+      "ashedVerificationRequired": "Conecte o Ashed primeiro para verificar seu papel de dono ou oficial. Use o botão abaixo e depois volte para vincular seu personagem."
     },
     "usage": "Informe seu nome no jogo e UID do perfil Last War.",
     "linked": "Vinculado a {name}. Bem-vindo à aliança!",
@@ -2119,6 +2120,8 @@
     "walkthroughTitle": "Copie seu nome do jogo",
     "requestFailed": "Algo deu errado. Tente novamente.",
     "connectAshedBanner": "Conecte o Ashed para ferramentas iframe e sync do roster.",
+    "connectAshedTitle": "Verifique com o Ashed primeiro",
+    "connectAshedBody": "Contas de dono, oficial e mantenedor da plataforma precisam conectar o Ashed por HTTPS antes de vincular um personagem. Isso comprova sua posição na aliança — nome e UID sozinhos não bastam.",
     "connectAshedCta": "Conectar Ashed",
     "connectAshedDismiss": "Agora não"
   },
@@ -2133,6 +2136,7 @@
       "tagNotFound": "Nenhuma aliança encontrada com a tag **{tag}**. Confira a grafia no ashed.online ou use `/link-to-ashed-seat` se a aliança ainda não estiver no Alliance HQ.",
       "tagNotEligible": "A tag **{tag}** não está habilitada para configuração do bot nesta implantação.",
       "credentialsRequired": "Conecte as credenciais Ashed primeiro com `/link-to-ashed-seat tag:{tag}`.",
+      "ownerSeatRequiresAshed": "O dono da aliança deve concluir `/link-to-ashed-seat` antes de vincular o comandante líder só com nome e UID.",
       "tagAmbiguous": "Encontramos várias alianças com a tag **{tag}**. Use `/link-alliance tag:{tag} name:Nome da Aliança` para escolher a correta.",
       "notOwner": "Somente o dono da aliança ou um mantenedor da plataforma pode registrar este servidor. Execute `/link` primeiro; donos também precisam de `/link-to-ashed-seat`.",
       "notOfficer": "Somente oficiais da aliança (R4+) ou o dono podem gerar relatórios de VR. Vincule um comandante com `/link-commander` se ainda não fez.",

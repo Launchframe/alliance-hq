@@ -9,14 +9,19 @@ import { isValidGameUid } from "@/lib/lastwar/player-lookup";
 import type { MemberLinkOutcome } from "@/lib/member-link/outcome.shared";
 import { useRouter } from "@/i18n/navigation";
 
+import { Link } from "@/i18n/navigation";
+
 type Props = {
   allianceName: string;
   allianceTag: string;
   nextPath: string;
+  requiresAshedVerification?: boolean;
+  isAshedConnected?: boolean;
 };
 
 type Phase =
   | "welcome"
+  | "connect_ashed"
   | "form"
   | "walkthrough"
   | "fuzzy"
@@ -24,7 +29,7 @@ type Phase =
   | "success";
 
 type ApiResponse = {
-  outcome: MemberLinkOutcome;
+  outcome: MemberLinkOutcome | "ashed_verification_required";
   message: string;
   candidates?: Array<{ memberId: string; name: string }>;
   linkedMemberName?: string;
@@ -34,6 +39,8 @@ export function MemberLinkOnboardingWizard({
   allianceName,
   allianceTag,
   nextPath,
+  requiresAshedVerification = false,
+  isAshedConnected = false,
 }: Props) {
   const t = useTranslations("onboard");
   const tLink = useTranslations("memberLink");
@@ -54,6 +61,16 @@ export function MemberLinkOnboardingWizard({
     () => tLink.raw("steps") as string[],
     [tLink],
   );
+
+  const connectReturnPath = `/onboard?next=${encodeURIComponent(nextPath)}`;
+
+  const goToMemberLinkForm = useCallback(() => {
+    if (requiresAshedVerification && !isAshedConnected) {
+      setPhase("connect_ashed");
+      return;
+    }
+    setPhase("form");
+  }, [isAshedConnected, requiresAshedVerification]);
 
   const applyOutcome = useCallback(
     (data: ApiResponse) => {
@@ -87,6 +104,10 @@ export function MemberLinkOnboardingWizard({
         case "roster_miss":
           setPhase("roster_miss");
           break;
+        case "ashed_verification_required":
+          setPhase("connect_ashed");
+          setFormError(data.message);
+          break;
         case "member_taken":
         case "lookup_error":
         case "usage":
@@ -111,10 +132,17 @@ export function MemberLinkOnboardingWizard({
       headers: body ? { "Content-Type": "application/json" } : undefined,
       body: body ? JSON.stringify(body) : undefined,
     });
+    const data = (await res.json()) as T & { message?: string; outcome?: string };
     if (!res.ok) {
+      if (
+        res.status === 403 &&
+        (data as { outcome?: string }).outcome === "ashed_verification_required"
+      ) {
+        return data as T;
+      }
       throw new Error(t("requestFailed"));
     }
-    return (await res.json()) as T;
+    return data as T;
   }
 
   async function submitLink() {
@@ -205,6 +233,10 @@ export function MemberLinkOnboardingWizard({
     void fetch("/api/member-link")
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
+        if (data?.requiresAshedVerification && !isAshedConnected) {
+          setPhase("connect_ashed");
+          return;
+        }
         if (!data?.pending) return;
         if (data.pending.kind === "link_walkthrough") {
           setPhase("walkthrough");
@@ -214,7 +246,7 @@ export function MemberLinkOnboardingWizard({
         }
       })
       .catch(() => undefined);
-  }, []);
+  }, [isAshedConnected]);
 
   return (
     <div className="mx-auto w-full max-w-lg space-y-6 rounded-xl border border-[#30363d] bg-[#161b22] p-6">
@@ -228,12 +260,28 @@ export function MemberLinkOnboardingWizard({
           <p className="text-center text-sm text-[#8b949e]">{t("welcomeSubtitle")}</p>
           <button
             type="button"
-            onClick={() => setPhase("form")}
+            onClick={goToMemberLinkForm}
             className="w-full rounded-lg border border-[#238636] bg-[#238636] px-4 py-2.5 text-sm font-medium text-white"
           >
             {t("continue")}
           </button>
         </>
+      ) : null}
+
+      {phase === "connect_ashed" ? (
+        <div className="space-y-4">
+          <h2 className="text-lg font-semibold">{t("connectAshedTitle")}</h2>
+          <p className="text-sm text-[#8b949e]">{t("connectAshedBody")}</p>
+          {formError ? (
+            <p className="text-sm text-[#f85149]">{formError}</p>
+          ) : null}
+          <Link
+            href={`/connect?next=${encodeURIComponent(connectReturnPath)}`}
+            className="inline-flex w-full items-center justify-center rounded-lg border border-[#388bfd] bg-[#388bfd] px-4 py-2.5 text-sm font-medium text-white"
+          >
+            {t("connectAshedCta")}
+          </Link>
+        </div>
       ) : null}
 
       {phase === "form" ? (

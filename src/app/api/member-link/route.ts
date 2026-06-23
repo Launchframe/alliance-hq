@@ -6,6 +6,7 @@ import {
   getWebMemberLinkStatus,
   runWebMemberLinkSubmit,
 } from "@/lib/member-link/orchestrator.server";
+import { memberLinkJsonResponse } from "@/lib/member-link/api-response.server";
 import { requireMemberLinkSession } from "@/lib/member-link/require-session.server";
 import { getRbacContext } from "@/lib/rbac/context";
 
@@ -17,6 +18,7 @@ export async function GET() {
 
   const locale = await getLocale();
   const status = await getWebMemberLinkStatus({
+    sessionId: auth.session.id,
     allianceId: auth.allianceId,
     hqUserId: auth.hqUserId,
     locale,
@@ -44,6 +46,7 @@ export async function POST(request: Request) {
   const locale = await getLocale();
   const rbac = await getRbacContext(auth.session.id);
   const result = await runWebMemberLinkSubmit({
+    sessionId: auth.session.id,
     allianceId: auth.allianceId,
     hqUserId: auth.hqUserId,
     locale,
@@ -53,5 +56,5 @@ export async function POST(request: Request) {
     gameUid: body.gameUid,
   });
 
-  return NextResponse.json(result);
+  return memberLinkJsonResponse(result);
 }

@@ -16,6 +16,10 @@ import {
   sessionHasActiveMembership,
 } from "@/lib/native-alliance/access";
 import { emailHasAshedConnectPermission } from "@/lib/access/invite-gate";
+import {
+  roleRequiresAshedVerification,
+  userRequiresAshedVerification,
+} from "@/lib/member-link/privileged-link.shared";
 import { verifyBase44Connection } from "@/lib/base44/server";
 import {
   DEFAULT_APP_ID,
@@ -30,6 +34,7 @@ import {
   getOrCreateSession,
   getSessionState,
   storeAshedConnection,
+  applyPrivilegedTokenCapForSession,
   updateSessionAlliance,
 } from "@/lib/session";
 
@@ -134,12 +139,17 @@ export async function POST(request: Request) {
       },
     );
 
+    const applyPrivilegedTokenCap =
+      Boolean(sessionRbac?.isPlatformMaintainer) ||
+      roleRequiresAshedVerification(sessionRbac?.roleName);
+
     const ashed = await storeAshedConnection(
       session.id,
       parsed.connection,
       userLabel,
       {
         ashedUserId: me.id ?? null,
+        applyPrivilegedTokenCap,
         ...(body.expiryReminderDays !== undefined
           ? { expiryReminderDays: body.expiryReminderDays }
           : {}),
@@ -179,6 +189,15 @@ export async function POST(request: Request) {
       rbac.hqUserId,
       me.email,
     );
+
+    if (
+      userRequiresAshedVerification({
+        roleName: rbac.roleName,
+        isPlatformMaintainer: bootstrappedMaintainer,
+      })
+    ) {
+      await applyPrivilegedTokenCapForSession(session.id);
+    }
 
     return NextResponse.json({
       ok: true,

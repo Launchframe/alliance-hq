@@ -15,9 +15,15 @@ import {
   type MemberLinkApiResponse,
 } from "@/lib/member-link/outcome.shared";
 import {
+  assertPrivilegedAshedGate,
+  sessionHasLiveAshedVerification,
+} from "@/lib/member-link/privileged-link.server";
+import {
   createMemberLinkTranslator,
   memberLinkWalkthroughSteps,
 } from "@/lib/member-link/translate.server";
+import { parseAshedMemberAllianceRank } from "@/lib/members/alliance-rank";
+import { getRbacContext } from "@/lib/rbac/context";
 import {
   processLinkCommand,
   processLinkFuzzyPick,
@@ -28,12 +34,69 @@ import { getAllianceById, getLinkedMemberIds } from "@/lib/vr/repository";
 import type { LinkCommandResult, LinkPendingState } from "@/lib/vr/types";
 
 type FlowContext = {
+  sessionId: string;
   allianceId: string;
   hqUserId: string;
   locale: string;
   userEmail?: string | null;
   displayName?: string | null;
 };
+
+function ashedVerificationRequiredResponse(
+  locale: string,
+): MemberLinkApiResponse {
+  const { translate } = translateContext(locale);
+  return {
+    outcome: "ashed_verification_required",
+    message: translate("errors.ashedVerificationRequired"),
+    pending: null,
+  };
+}
+
+async function assertWebMemberLinkAllowed(
+  ctx: FlowContext,
+): Promise<MemberLinkApiResponse | null> {
+  const rbac = await getRbacContext(ctx.sessionId);
+  const gate = await assertPrivilegedAshedGate({
+    sessionId: ctx.sessionId,
+    hqUserId: ctx.hqUserId,
+    roleName: rbac?.roleName,
+    isPlatformMaintainer: rbac?.isPlatformMaintainer ?? false,
+  });
+  if (!gate.ok) {
+    return ashedVerificationRequiredResponse(ctx.locale);
+  }
+  return null;
+}
+
+function isAllianceOwnerRosterTarget(
+  ashedMemberId: string,
+  members: Awaited<ReturnType<typeof loadAllianceMembersForBot>>,
+  alliance: Awaited<ReturnType<typeof getAllianceById>>,
+): boolean {
+  if (alliance?.ownerMemberExternalId === ashedMemberId) {
+    return true;
+  }
+  const member = members.find((row) => row.id === ashedMemberId);
+  if (!member) return false;
+  return (parseAshedMemberAllianceRank(member).rank ?? 0) >= 5;
+}
+
+async function assertOwnerRosterLinkAllowed(
+  ctx: FlowContext,
+  ashedMemberId: string,
+  members: Awaited<ReturnType<typeof loadAllianceMembersForBot>>,
+  alliance: Awaited<ReturnType<typeof getAllianceById>>,
+): Promise<MemberLinkApiResponse | null> {
+  if (!isAllianceOwnerRosterTarget(ashedMemberId, members, alliance)) {
+    return null;
+  }
+  const live = await sessionHasLiveAshedVerification(ctx.sessionId, ctx.hqUserId);
+  if (live) {
+    return null;
+  }
+  return ashedVerificationRequiredResponse(ctx.locale);
+}
 
 function translateContext(locale: string) {
   const translate = createMemberLinkTranslator(locale);
@@ -53,7 +116,19 @@ async function emitLinkAttention(ctx: FlowContext) {
 async function persistHqLinkTarget(
   ctx: FlowContext,
   linkTarget: NonNullable<LinkCommandResult["linkTarget"]>,
+  members: Awaited<ReturnType<typeof loadAllianceMembersForBot>>,
+  alliance: Awaited<ReturnType<typeof getAllianceById>>,
 ): Promise<MemberLinkApiResponse> {
+  const blocked = await assertOwnerRosterLinkAllowed(
+    ctx,
+    linkTarget.ashedMemberId,
+    members,
+    alliance,
+  );
+  if (blocked) {
+    return blocked;
+  }
+
   const { translate } = translateContext(ctx.locale);
   const linked = await linkHqMember({
     allianceId: ctx.allianceId,
@@ -107,7 +182,11 @@ async function finalizeCommandResult(
     if (result.needsOfficerAttention) {
       await emitLinkAttention(ctx);
     }
-    return persistHqLinkTarget(ctx, result.linkTarget);
+    const [members, alliance] = await Promise.all([
+      loadAllianceMembersForBot(ctx.allianceId),
+      getAllianceById(ctx.allianceId),
+    ]);
+    return persistHqLinkTarget(ctx, result.linkTarget, members, alliance);
   }
 
   if (result.pending) {
@@ -124,6 +203,7 @@ async function finalizeCommandResult(
 }
 
 export async function runWebMemberLinkSubmit(input: {
+  sessionId: string;
   allianceId: string;
   hqUserId: string;
   locale: string;
@@ -133,12 +213,18 @@ export async function runWebMemberLinkSubmit(input: {
   gameUid?: string;
 }): Promise<MemberLinkApiResponse> {
   const ctx: FlowContext = {
+    sessionId: input.sessionId,
     allianceId: input.allianceId,
     hqUserId: input.hqUserId,
     locale: input.locale,
     userEmail: input.userEmail,
     displayName: input.displayName,
   };
+
+  const gateBlocked = await assertWebMemberLinkAllowed(ctx);
+  if (gateBlocked) {
+    return gateBlocked;
+  }
 
   const { translate, walkthroughSteps } = translateContext(input.locale);
   const pendingRow = await getHqMemberLinkPending(input.allianceId, input.hqUserId);
@@ -205,6 +291,7 @@ export async function runWebMemberLinkSubmit(input: {
 }
 
 export async function runWebMemberLinkWalkthroughDone(input: {
+  sessionId: string;
   allianceId: string;
   hqUserId: string;
   locale: string;
@@ -212,6 +299,7 @@ export async function runWebMemberLinkWalkthroughDone(input: {
   displayName?: string | null;
 }): Promise<MemberLinkApiResponse> {
   const ctx: FlowContext = {
+    sessionId: input.sessionId,
     allianceId: input.allianceId,
     hqUserId: input.hqUserId,
     locale: input.locale,
@@ -277,6 +365,7 @@ export async function runWebMemberLinkStartOver(input: {
 }
 
 export async function runWebMemberLinkFuzzyPick(input: {
+  sessionId: string;
   allianceId: string;
   hqUserId: string;
   locale: string;
@@ -285,12 +374,18 @@ export async function runWebMemberLinkFuzzyPick(input: {
   memberId: string;
 }): Promise<MemberLinkApiResponse> {
   const ctx: FlowContext = {
+    sessionId: input.sessionId,
     allianceId: input.allianceId,
     hqUserId: input.hqUserId,
     locale: input.locale,
     userEmail: input.userEmail,
     displayName: input.displayName,
   };
+
+  const gateBlocked = await assertWebMemberLinkAllowed(ctx);
+  if (gateBlocked) {
+    return gateBlocked;
+  }
 
   const { translate } = translateContext(input.locale);
   const pendingRow = await getHqMemberLinkPending(input.allianceId, input.hqUserId);
@@ -319,6 +414,7 @@ export async function runWebMemberLinkFuzzyPick(input: {
 }
 
 export async function runWebMemberLinkAskOfficer(input: {
+  sessionId: string;
   allianceId: string;
   hqUserId: string;
   locale: string;
@@ -326,6 +422,7 @@ export async function runWebMemberLinkAskOfficer(input: {
   displayName?: string | null;
 }): Promise<MemberLinkApiResponse> {
   const ctx: FlowContext = {
+    sessionId: input.sessionId,
     allianceId: input.allianceId,
     hqUserId: input.hqUserId,
     locale: input.locale,
@@ -342,15 +439,28 @@ export async function runWebMemberLinkAskOfficer(input: {
 }
 
 export async function getWebMemberLinkStatus(input: {
+  sessionId: string;
   allianceId: string;
   hqUserId: string;
   locale: string;
 }) {
+  const rbac = await getRbacContext(input.sessionId);
+  const requiresAshedVerification =
+    (await assertPrivilegedAshedGate({
+      sessionId: input.sessionId,
+      hqUserId: input.hqUserId,
+      roleName: rbac?.roleName,
+      isPlatformMaintainer: rbac?.isPlatformMaintainer ?? false,
+    })).ok === false;
+
   const link = await getHqMemberLinkForUser(input.allianceId, input.hqUserId);
   const pendingRow = await getHqMemberLinkPending(input.allianceId, input.hqUserId);
   return {
     linked: link != null,
     link,
     pending: pendingRow?.pending ?? null,
+    requiresAshedVerification,
+    privilegedRole: rbac?.roleName ?? null,
+    isPlatformMaintainer: rbac?.isPlatformMaintainer ?? false,
   };
 }

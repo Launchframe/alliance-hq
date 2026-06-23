@@ -14,6 +14,7 @@ export async function POST() {
   const locale = await getLocale();
   const rbac = await getRbacContext(auth.session.id);
   const result = await runWebMemberLinkAskOfficer({
+    sessionId: auth.session.id,
     allianceId: auth.allianceId,
     hqUserId: auth.hqUserId,
     locale,

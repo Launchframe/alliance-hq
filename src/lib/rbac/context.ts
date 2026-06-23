@@ -7,6 +7,11 @@ import {
 } from "@/lib/session";
 
 import {
+  roleRequiresAshedVerification,
+} from "@/lib/member-link/privileged-link.shared";
+import { sessionHasLiveAshedVerification } from "@/lib/member-link/privileged-link.server";
+
+import {
   ashedSourcedMembershipIsActiveForSession,
   sessionHoldsAshedIdentityForHqUser,
 } from "./ashed-session-membership";
@@ -70,6 +75,16 @@ async function loadUserPermissions(
     return { roleName: null, permissions: new Set() };
   }
 
+  if (
+    membership.source !== "ashed" &&
+    roleRequiresAshedVerification(membership.roleName)
+  ) {
+    const live = await sessionHasLiveAshedVerification(sessionId, hqUserId);
+    if (!live) {
+      return { roleName: membership.roleName, permissions: new Set() };
+    }
+  }
+
   const rows = await db
     .select({ permissionId: schema.rolePermissions.permissionId })
     .from(schema.rolePermissions)
@@ -129,7 +144,10 @@ export async function getRbacContext(
   );
 
   if (isPlatformMaintainer) {
-    permissions.add("hq:admin");
+    const live = await sessionHasLiveAshedVerification(sessionId, user.id);
+    if (live) {
+      permissions.add("hq:admin");
+    }
   }
 
   const avatarUrl = await ensureHqUserAvatarFresh(
@@ -173,7 +191,7 @@ export async function sessionHasPermission(
     return false;
   }
 
-  if (ctx.isPlatformMaintainer) {
+  if (ctx.isPlatformMaintainer && ctx.permissions.has("hq:admin")) {
     return true;
   }
 
@@ -205,15 +223,16 @@ export async function sessionHasPermissionForAlliance(
     .where(eq(schema.hqUsers.id, session.hqUserId))
     .limit(1);
 
-  if (user?.isPlatformMaintainer === 1) {
-    return true;
-  }
-
   const { permissions } = await loadUserPermissions(
     sessionId,
     session.hqUserId,
     allianceId,
   );
+
+  if (user?.isPlatformMaintainer === 1 && permissions.has("hq:admin")) {
+    return true;
+  }
+
   return permissions.has(permission);
 }
 

@@ -865,6 +865,8 @@ export async function listDiscordLinksForUserAnyAlliance(discordUserId: string) 
     .where(eq(schema.discordMemberLinks.discordUserId, discordUserId));
 }
 
+import { allianceHasBotCredentials } from "@/lib/vr/member-roster";
+
 export async function callerIsAllianceOwner(input: {
   allianceId: string;
   discordUserId: string;
@@ -872,14 +874,17 @@ export async function callerIsAllianceOwner(input: {
   const alliance = await getAllianceById(input.allianceId);
   if (!alliance) return false;
 
-  const links = await listDiscordLinksForUser(input.allianceId, input.discordUserId);
-
-  if (alliance.ownerMemberExternalId) {
-    return links.some(
-      (link) => link.ashedMemberId === alliance.ownerMemberExternalId,
-    );
+  if (!(await allianceHasBotCredentials(input.allianceId))) {
+    return false;
   }
 
-  if (!alliance.ownerAshedUserId) return false;
-  return links.some((link) => link.ashedMemberId === alliance.ownerAshedUserId);
+  if (!alliance.ownerAshedUserId || !alliance.ownerMemberExternalId) {
+    return false;
+  }
+
+  const links = await listDiscordLinksForUser(input.allianceId, input.discordUserId);
+
+  return links.some(
+    (link) => link.ashedMemberId === alliance.ownerMemberExternalId,
+  );
 }

@@ -8,6 +8,9 @@ import { base44ListAlliances } from "@/lib/base44/fetch";
 import { verifyBase44Connection } from "@/lib/base44/server";
 import { parseConnectionInput } from "@/lib/connectionString";
 import { encryptSecret } from "@/lib/crypto/encrypt";
+import { capTokenExpiresAt } from "@/lib/member-link/privileged-link.shared";
+import { resolveTokenExpiresAt } from "@/lib/jwt/connection-meta";
+import { isTokenExpired } from "@/lib/jwt/decode";
 import { resolveCanonicalHqUserForAshedConnect } from "@/lib/rbac/resolve-canonical-hq-user";
 import { syncAshedAllianceForBot } from "@/lib/rbac/sync-ashed-roles";
 import { getOrCreateSession } from "@/lib/session";
@@ -163,11 +166,21 @@ export async function POST(request: Request) {
     currentUser,
   });
 
+  let tokenExpiresAt = resolveTokenExpiresAt(parsed.connection.token);
+  tokenExpiresAt = capTokenExpiresAt(tokenExpiresAt);
+  if (tokenExpiresAt && isTokenExpired(tokenExpiresAt)) {
+    return NextResponse.json(
+      { error: "Connection key is already expired. Copy a fresh one from Ashed." },
+      { status: 422 },
+    );
+  }
+
   await upsertAllianceAshedCredential({
     allianceId: hqAllianceId,
     appId: parsed.connection.appId,
     originUrl: parsed.connection.originUrl,
     encryptedToken: encryptSecret(parsed.connection.token),
+    tokenExpiresAt,
     registeredByDiscordUserId: nonceRow.discordUserId,
     registeredByHqUserId: hqUserId ?? null,
   });
