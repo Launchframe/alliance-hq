@@ -32,13 +32,13 @@ export default async function ConnectPage({ searchParams }: Props) {
     const session = await requirePageSession("/connect");
     const state = await getSessionStateFor(session, locale);
     if (state.rbac && !state.rbac.isAshedConnectAllowed && state.hasAppAccess) {
-      redirect({ href: "/", locale });
+      redirect({ href: "/dashboard", locale });
     }
     const connected = await getAshedConnection(session.id);
     if (connected) {
       const afterConnect =
         sanitizeInternalRedirectPath(next) ??
-        (state.hasAppAccess ? "/" : "/get-started");
+        (state.hasAppAccess ? "/dashboard" : "/get-started");
       redirect({ href: afterConnect, locale });
     }
     showWelcomeChoice =

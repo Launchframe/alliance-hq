@@ -143,7 +143,7 @@ export function InviteAcceptClient({
       <div className="mx-auto max-w-md space-y-3 rounded-xl border border-[#f85149]/40 bg-[#f85149]/10 p-6">
         <h1 className="text-xl font-semibold">{t("title")}</h1>
         <p className="text-sm text-[#f85149]">{error ?? t("notFound")}</p>
-        <Link href="/" className="text-sm text-[#58a6ff] hover:underline">
+        <Link href="/dashboard" className="text-sm text-[#58a6ff] hover:underline">
           {t("home")}
         </Link>
       </div>

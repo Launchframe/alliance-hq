@@ -13,7 +13,7 @@ export default async function GetStartedPage() {
   const state = await getPageSessionState("/get-started", locale);
 
   if (state.hasAppAccess) {
-    redirect({ href: "/", locale });
+    redirect({ href: "/dashboard", locale });
   }
 
   return <GetStartedClient />;

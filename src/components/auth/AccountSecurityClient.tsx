@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { signIn } from "next-auth/react";
+import { signIn as signInWithWebAuthn } from "next-auth/webauthn";
 import { useTranslations } from "next-intl";
 
 import {
@@ -76,7 +76,7 @@ export function AccountSecurityClient({ hasPassword, passkeyCount }: Props) {
     setError(null);
     setMessage(null);
     try {
-      const result = await signIn("passkey", {
+      const result = await signInWithWebAuthn("passkey", {
         action: "register",
         redirect: false,
       });

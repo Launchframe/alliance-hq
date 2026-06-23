@@ -1,28 +1,25 @@
 import "server-only";
 
 import NextAuth from "next-auth";
-import Credentials from "next-auth/providers/credentials";
-import Passkey from "next-auth/providers/passkey";
-import Resend from "next-auth/providers/resend";
 
 import { createHqAuthAdapter } from "@/lib/auth/adapter";
 import { bridgeAuthUserToBrowserSession } from "@/lib/auth/bridge-session";
-import {
-  isMagicLinkLogOnly,
-  logMagicLinkToStdout,
-  sendMagicLinkViaResend,
-  shouldLogMagicLinkToStdout,
-} from "@/lib/auth/magic-link-email.server";
-import { verifyPasswordLogin } from "@/lib/auth/password.server";
+import { buildAuthProviders } from "@/lib/auth/providers.server";
 import { ensureHqUserForAuthEmail } from "@/lib/auth/resolve-hq-user";
 import { maybeBootstrapPlatformMaintainer } from "@/lib/rbac/bootstrap-platform";
 import {
-  PRODUCTION_EMAIL_FROM,
-  RESEND_DEV_EMAIL_FROM,
-} from "@/lib/public-site";
+  type OAuthAvatarProvider,
+  syncOAuthProviderAvatar,
+} from "@/lib/profile/resolve-avatar";
 import { resolveBrowserSessionHqUserId } from "@/lib/session";
 
 const SESSION_MAX_AGE_SECONDS = 90 * 24 * 60 * 60;
+
+function isOAuthProvider(
+  provider: string | undefined,
+): provider is OAuthAvatarProvider {
+  return provider === "google" || provider === "discord";
+}
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: createHqAuthAdapter(),
@@ -38,80 +35,34 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   experimental: {
     enableWebAuthn: true,
   },
-  providers: [
-    Credentials({
-      id: "password",
-      name: "Password",
-      credentials: {
-        email: { label: "Email", type: "email" },
-        password: { label: "Password", type: "password" },
-      },
-      async authorize(credentials) {
-        const email = String(credentials?.email ?? "");
-        const password = String(credentials?.password ?? "");
-        const user = await verifyPasswordLogin(email, password);
-        if (!user) {
-          return null;
-        }
-        return {
-          id: user.id,
-          email: user.email,
-          name: user.displayName ?? undefined,
-        };
-      },
-    }),
-    Passkey,
-    Resend({
-      from:
-        process.env.EMAIL_FROM ??
-        (process.env.NODE_ENV === "production"
-          ? PRODUCTION_EMAIL_FROM
-          : RESEND_DEV_EMAIL_FROM),
-      apiKey: process.env.RESEND_API_KEY,
-      async sendVerificationRequest({ identifier: to, provider, url, theme }) {
-        const devLog = shouldLogMagicLinkToStdout();
-        if (devLog) {
-          logMagicLinkToStdout(to, url);
-          if (isMagicLinkLogOnly()) {
-            return;
-          }
-        }
-
-        try {
-          await sendMagicLinkViaResend({
-            to,
-            url,
-            from: String(provider.from),
-            apiKey: provider.apiKey,
-            theme,
-          });
-        } catch (error) {
-          if (devLog) {
-            console.warn(
-              "[alliance-hq] Resend send failed in dev; use the magic link printed above.",
-              error instanceof Error ? error.message : error,
-            );
-            return;
-          }
-          throw error;
-        }
-      },
-    }),
-  ],
+  providers: buildAuthProviders(),
   callbacks: {
     async signIn({ user, account }) {
       if (account?.provider === "password" || account?.provider === "passkey") {
         return Boolean(user.email);
       }
+      if (isOAuthProvider(account?.provider)) {
+        return Boolean(user.email);
+      }
       // Magic-link send also invokes signIn before hq_users exists; do not bridge here.
       return Boolean(user.email);
     },
-    async jwt({ token, user }) {
+    async jwt({ token, user, account }) {
       if (user?.email) {
         const hqUserId = await ensureHqUserForAuthEmail(user.email, user.name);
         token.sub = hqUserId;
         token.email = user.email;
         token.name = user.name;
+
+        if (
+          isOAuthProvider(account?.provider) &&
+          account.providerAccountId
+        ) {
+          await syncOAuthProviderAvatar(hqUserId, account.provider, {
+            providerUserId: account.providerAccountId,
+            avatarUrl: user.image,
+          });
+        }
 
         await bridgeAuthUserToBrowserSession({
           hqUserId,

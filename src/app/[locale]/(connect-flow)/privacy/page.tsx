@@ -24,8 +24,8 @@ export default async function PrivacyPage() {
     <article className="mx-auto max-w-2xl space-y-8 text-sm leading-relaxed">
       <header>
         <p className="text-xs text-[#8b949e]">
-          <Link href="/connect" className="text-[#58a6ff] hover:underline">
-            {t("backToConnect")}
+          <Link href="/" className="text-[#58a6ff] hover:underline">
+            {t("backToHome")}
           </Link>
         </p>
         <h1 className="mt-4 text-2xl font-semibold">{t("title")}</h1>

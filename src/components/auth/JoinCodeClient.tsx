@@ -38,7 +38,7 @@ export function JoinCodeClient({ initialCode }: Props) {
         setError(body.error ?? t("redeemFailed"));
         return;
       }
-      router.push(body.redirectTo ?? "/");
+      router.push(body.redirectTo ?? "/dashboard");
     } catch (e) {
       setError(e instanceof Error ? e.message : t("redeemFailed"));
     } finally {

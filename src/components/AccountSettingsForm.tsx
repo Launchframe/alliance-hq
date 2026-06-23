@@ -31,6 +31,7 @@ export function AccountSettingsForm({
   initialTimezoneId,
 }: Props) {
   const t = useTranslations("account");
+  const tSettings = useTranslations("settings");
   const tDevice = useTranslations("deviceLink");
   const tc = useTranslations("common");
   const locale = useLocale();
@@ -155,6 +156,19 @@ export function AccountSettingsForm({
         <h1 className="text-2xl font-semibold">{t("title")}</h1>
         <p className="mt-1 text-sm text-[#8b949e]">{t("subtitle")}</p>
       </div>
+
+      <section className="rounded-xl border border-[#30363d] bg-[#161b22] p-5">
+        <h2 className="font-medium">{tSettings("accountSecurityTitle")}</h2>
+        <p className="mt-2 text-sm text-[#8b949e]">
+          {tSettings("accountSecurityBody")}
+        </p>
+        <Link
+          href="/settings/account"
+          className="mt-4 inline-block text-sm text-[#58a6ff] hover:underline"
+        >
+          {tSettings("accountSecurityLink")} →
+        </Link>
+      </section>
 
       <section className="rounded-xl border border-[#30363d] bg-[#161b22] p-5">
         <h2 className="font-medium">{t("timezoneSection")}</h2>

@@ -61,7 +61,31 @@ NEXT_PUBLIC_APP_URL=http://localhost:5175
 - [ ] In Vercel Domains, set `frontline.gay` as **primary** (redirect `alliance-hq.vercel.app` → `frontline.gay` if desired).
 - [ ] Update Discord bot / bookmarks / release notes links to `https://frontline.gay`.
 
-### 6. Repo gates (before merge)
+### 6. Google OAuth + Search Console
+
+Google OAuth app verification requires a **public homepage** at `https://frontline.gay` (no login wall), plus **domain ownership** proof.
+
+#### A. Verify domain ownership
+
+1. [Google Search Console](https://search.google.com/search-console) → Add property **`https://frontline.gay`** (URL-prefix or Domain property).
+2. **DNS (recommended):** Add the TXT record Google provides at your `frontline.gay` DNS host (same registrar panel as Vercel apex records). Wait until Search Console shows **Verified**.
+3. **HTML meta (fallback):** In Search Console, choose the HTML tag method → copy the `content` value only → set `GOOGLE_SITE_VERIFICATION` on Vercel Production → redeploy → View Page Source on `/` and confirm `<meta name="google-site-verification" content="…" />` is present.
+
+#### B. OAuth consent screen URLs
+
+After deploy, confirm these load **without signing in**:
+
+| Field | URL |
+| ----- | --- |
+| Application home page | `https://frontline.gay` |
+| Privacy policy | `https://frontline.gay/privacy` |
+| Terms of service | `https://frontline.gay/terms` |
+
+- [ ] **Authorized domains:** `frontline.gay`
+- [ ] **Redirect URI:** `https://frontline.gay/api/auth/callback/google`
+- [ ] Re-submit OAuth verification after Search Console is green and the public homepage is live.
+
+### 7. Repo gates (before merge)
 
 - [ ] `npx tsc --noEmit`
 - [ ] `npm run lint`
