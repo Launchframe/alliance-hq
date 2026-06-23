@@ -79,7 +79,7 @@ test.describe("Invite onboarding — member link before destination", () => {
 
     await expect(page).toHaveURL(/\/onboard/);
     await expect(page).toHaveURL(/next=%2Ftrains|next=\/trains/);
-    await expect(page.getByText(alliance.name)).toBeVisible();
+    await expect(page.getByText("Member Onboarding Alliance")).toBeVisible();
   });
 
   test("member with member link reaches invite destination", async ({
@@ -112,7 +112,7 @@ test.describe("Invite onboarding — member link before destination", () => {
     await expect(page).not.toHaveURL(/\/onboard/);
   });
 
-  test("officer accept requires Ashed verification before member link", async ({
+  test("officer accept proceeds to member link without Ashed", async ({
     page,
   }) => {
     const sql = getE2eSql();
@@ -139,12 +139,12 @@ test.describe("Invite onboarding — member link before destination", () => {
     await expect(page).toHaveURL(/\/onboard/);
     await page.getByRole("button", { name: /continue/i }).click();
     await expect(
-      page.getByRole("heading", { name: /verify with ashed first/i }),
+      page.getByRole("heading", { name: /link your character/i }),
     ).toBeVisible();
     await expect(page).not.toHaveURL(/\/trains/);
   });
 
-  test("officer without Ashed sees connect CTA on onboard", async ({
+  test("officer on onboard sees member link form not Ashed gate", async ({
     page,
   }) => {
     const sql = getE2eSql();
@@ -167,9 +167,13 @@ test.describe("Invite onboarding — member link before destination", () => {
     await page.context().addCookies(playwrightAuthCookies(accepted));
     await page.goto("/onboard");
 
+    await page.getByRole("button", { name: /continue/i }).click();
     await expect(
-      page.getByRole("link", { name: /connect ashed/i }),
+      page.getByRole("heading", { name: /link your character/i }),
     ).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: /verify with ashed first/i }),
+    ).toHaveCount(0);
   });
 });
 

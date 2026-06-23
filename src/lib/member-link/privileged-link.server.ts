@@ -4,11 +4,9 @@ import { isTokenExpired } from "@/lib/jwt/decode";
 import { sessionHoldsAshedIdentityForHqUser } from "@/lib/rbac/ashed-session-membership";
 import {
   getAshedCredentialRecord,
-  resolveEffectiveHqUserIdForSession,
 } from "@/lib/session";
 
 import {
-  userRequiresAshedVerification,
   type PrivilegedHqRoleName,
 } from "./privileged-link.shared";
 
@@ -23,40 +21,23 @@ export async function sessionHasLiveAshedVerification(
   return sessionHoldsAshedIdentityForHqUser(sessionId, hqUserId);
 }
 
-export function privilegedUserNeedsAshedGate(input: {
+export function privilegedUserNeedsAshedGate(_input: {
   roleName: string | null | undefined;
   isPlatformMaintainer: boolean;
 }): boolean {
-  return userRequiresAshedVerification(input);
+  return false;
 }
 
 export type PrivilegedAshedGateResult =
   | { ok: true }
   | { ok: false; code: "ashed_verification_required" };
 
-export async function assertPrivilegedAshedGate(input: {
+export async function assertPrivilegedAshedGate(_input: {
   sessionId: string;
   hqUserId: string;
   roleName: string | null | undefined;
   isPlatformMaintainer: boolean;
 }): Promise<PrivilegedAshedGateResult> {
-  if (
-    !privilegedUserNeedsAshedGate({
-      roleName: input.roleName,
-      isPlatformMaintainer: input.isPlatformMaintainer,
-    })
-  ) {
-    return { ok: true };
-  }
-
-  const live = await sessionHasLiveAshedVerification(
-    input.sessionId,
-    input.hqUserId,
-  );
-  if (!live) {
-    return { ok: false, code: "ashed_verification_required" };
-  }
-
   return { ok: true };
 }
 
@@ -66,31 +47,9 @@ export function isPrivilegedHqRoleName(
   return roleName === "owner" || roleName === "officer";
 }
 
-/** Privileged HQ roles must hold a live Ashed credential before using the app shell. */
+/** Ashed is optional; always false (kept for session state shape). */
 export async function sessionRequiresAshedVerification(
-  session: import("@/lib/db/schema").Session,
+  _session: import("@/lib/db/schema").Session,
 ): Promise<boolean> {
-  const effectiveHqUserId = await resolveEffectiveHqUserIdForSession(
-    session.id,
-    session.hqUserId,
-  );
-  if (!effectiveHqUserId) {
-    return false;
-  }
-
-  const { getRbacContext } = await import("@/lib/rbac/context");
-  const rbac = await getRbacContext(session.id);
-  if (
-    !userRequiresAshedVerification({
-      roleName: rbac?.roleName,
-      isPlatformMaintainer: rbac?.isPlatformMaintainer ?? false,
-    })
-  ) {
-    return false;
-  }
-
-  return !(await sessionHasLiveAshedVerification(
-    session.id,
-    effectiveHqUserId,
-  ));
+  return false;
 }

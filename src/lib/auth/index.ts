@@ -5,6 +5,12 @@ import Resend from "next-auth/providers/resend";
 
 import { createHqAuthAdapter } from "@/lib/auth/adapter";
 import { bridgeAuthUserToBrowserSession } from "@/lib/auth/bridge-session";
+import {
+  isMagicLinkLogOnly,
+  logMagicLinkToStdout,
+  sendMagicLinkViaResend,
+  shouldLogMagicLinkToStdout,
+} from "@/lib/auth/magic-link-email.server";
 import { ensureHqUserForAuthEmail } from "@/lib/auth/resolve-hq-user";
 import { maybeBootstrapPlatformMaintainer } from "@/lib/rbac/bootstrap-platform";
 import {
@@ -34,6 +40,34 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           ? PRODUCTION_EMAIL_FROM
           : RESEND_DEV_EMAIL_FROM),
       apiKey: process.env.RESEND_API_KEY,
+      async sendVerificationRequest({ identifier: to, provider, url, theme }) {
+        const devLog = shouldLogMagicLinkToStdout();
+        if (devLog) {
+          logMagicLinkToStdout(to, url);
+          if (isMagicLinkLogOnly()) {
+            return;
+          }
+        }
+
+        try {
+          await sendMagicLinkViaResend({
+            to,
+            url,
+            from: String(provider.from),
+            apiKey: provider.apiKey,
+            theme,
+          });
+        } catch (error) {
+          if (devLog) {
+            console.warn(
+              "[alliance-hq] Resend send failed in dev; use the magic link printed above.",
+              error instanceof Error ? error.message : error,
+            );
+            return;
+          }
+          throw error;
+        }
+      },
     }),
   ],
   callbacks: {

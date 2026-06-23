@@ -17,8 +17,7 @@ import {
 } from "@/lib/native-alliance/access";
 import { emailHasAshedConnectPermission } from "@/lib/access/invite-gate";
 import {
-  roleRequiresAshedVerification,
-  userRequiresAshedVerification,
+  roleReceivesPrivilegedTokenCap,
 } from "@/lib/member-link/privileged-link.shared";
 import { verifyBase44Connection } from "@/lib/base44/server";
 import {
@@ -141,7 +140,7 @@ export async function POST(request: Request) {
 
     const applyPrivilegedTokenCap =
       Boolean(sessionRbac?.isPlatformMaintainer) ||
-      roleRequiresAshedVerification(sessionRbac?.roleName);
+      roleReceivesPrivilegedTokenCap(sessionRbac?.roleName);
 
     const ashed = await storeAshedConnection(
       session.id,
@@ -191,10 +190,8 @@ export async function POST(request: Request) {
     );
 
     if (
-      userRequiresAshedVerification({
-        roleName: rbac.roleName,
-        isPlatformMaintainer: bootstrappedMaintainer,
-      })
+      bootstrappedMaintainer ||
+      roleReceivesPrivilegedTokenCap(rbac.roleName)
     ) {
       await applyPrivilegedTokenCapForSession(session.id);
     }

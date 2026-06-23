@@ -60,6 +60,13 @@ export function processLinkCommand(input: ProcessLinkInput): LinkCommandResult {
 
   const exact = findExactMemberByName(input.members, gameUserName);
   if (exact) {
+    if (input.linkedMemberIds.has(exact.id)) {
+      return {
+        reply: t("link.memberTaken"),
+        pending: null,
+        memberTaken: true,
+      };
+    }
     return {
       reply: t("link.linked", { name: exact.current_name }),
       pending: null,

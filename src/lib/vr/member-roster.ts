@@ -3,7 +3,7 @@ import { DEFAULT_APP_ID } from "@/lib/connectionString";
 import { base44ListMembers } from "@/lib/base44/fetch";
 import { decryptSecret } from "@/lib/crypto/encrypt";
 import { getDb, schema } from "@/lib/db";
-import { eq } from "drizzle-orm";
+import { and, eq, ne } from "drizzle-orm";
 import { allianceMemberRowToAshedMember } from "@/lib/members/roster.shared";
 import type { AshedMember } from "@/lib/video/member-matcher";
 import { isNativeAlliance } from "@/lib/native-alliance/operating-mode";
@@ -53,25 +53,67 @@ async function resolveBotAshedConnection(
   return buildLegacyBotAshedConnection();
 }
 
-export async function loadAllianceMembersForBot(
+export type MemberLinkRosterSource =
+  | "native_local"
+  | "local_synced"
+  | "ashed_live"
+  | "empty"
+  | "not_loaded";
+
+async function loadLocalAllianceMembers(
   allianceId: string,
 ): Promise<AshedMember[]> {
+  const db = getDb();
+  const rows = await db
+    .select()
+    .from(schema.allianceMembers)
+    .where(
+      and(
+        eq(schema.allianceMembers.allianceId, allianceId),
+        ne(schema.allianceMembers.status, "former"),
+      ),
+    );
+  return rows.map(allianceMemberRowToAshedMember);
+}
+
+export async function loadAllianceMembersForMemberLink(
+  allianceId: string,
+): Promise<{ members: AshedMember[]; rosterSource: MemberLinkRosterSource }> {
   if (await isNativeAlliance(allianceId)) {
-    const db = getDb();
-    const rows = await db
-      .select()
-      .from(schema.allianceMembers)
-      .where(eq(schema.allianceMembers.allianceId, allianceId));
-    return rows.map(allianceMemberRowToAshedMember);
+    const members = await loadLocalAllianceMembers(allianceId);
+    return {
+      members,
+      rosterSource: members.length > 0 ? "native_local" : "empty",
+    };
+  }
+
+  const local = await loadLocalAllianceMembers(allianceId);
+  if (local.length > 0) {
+    return { members: local, rosterSource: "local_synced" };
   }
 
   const alliance = await getAllianceById(allianceId);
-  if (!alliance?.ashedAllianceId) return [];
+  if (!alliance?.ashedAllianceId) {
+    return { members: [], rosterSource: "empty" };
+  }
 
   const connection = await resolveBotAshedConnection(allianceId);
-  if (!connection) return [];
+  if (!connection) {
+    return { members: [], rosterSource: "empty" };
+  }
 
-  return base44ListMembers(connection, alliance.ashedAllianceId);
+  const members = await base44ListMembers(connection, alliance.ashedAllianceId);
+  return {
+    members,
+    rosterSource: members.length > 0 ? "ashed_live" : "empty",
+  };
+}
+
+export async function loadAllianceMembersForBot(
+  allianceId: string,
+): Promise<AshedMember[]> {
+  const { members } = await loadAllianceMembersForMemberLink(allianceId);
+  return members;
 }
 
 export async function allianceHasBotCredentials(allianceId: string): Promise<boolean> {

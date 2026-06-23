@@ -218,10 +218,12 @@
     },
     "usersPage": {
       "loading": "Carregando usuários…",
+      "loadingDetail": "Carregando detalhes do usuário…",
       "loadFailed": "Falha ao carregar usuários.",
       "saveFailed": "Não foi possível salvar as alterações.",
       "saved": "Alterações salvas.",
-      "selectUser": "Selecione um usuário para editar funções.",
+      "selectUser": "Pesquise ou navegue na lista e selecione um usuário para editar funções.",
+      "empty": "Nenhum usuário corresponde à sua pesquisa.",
       "editorHint": "Atribuições manuais usam origem \"manual\" e não são sobrescritas pela sincronização do Ashed.",
       "platformMaintainer": "Mantenedor da plataforma (acesso /admin entre alianças)",
       "savePlatform": "Salvar flag da plataforma",
@@ -235,10 +237,36 @@
       "chooseAlliance": "Escolher aliança…",
       "assignRole": "Atribuir função",
       "linkedDevicesSummary": "{count, plural, =0 {Nenhum dispositivo móvel adicional vinculado via QR.} one {# dispositivo móvel adicional vinculado via QR.} other {# dispositivos móveis adicionais vinculados via QR.}}",
+      "memberLinksTitle": "Vínculos de personagem no jogo",
+      "noMemberLinks": "Nenhum vínculo de comandante ainda.",
+      "memberLinkUnnamed": "(sem nome de exibição)",
+      "ids": {
+        "hqUserId": "ID do usuário HQ",
+        "membershipId": "ID da associação",
+        "memberLinkId": "ID do vínculo",
+        "allianceId": "ID da aliança",
+        "ashedMemberId": "ID no roster",
+        "gameUid": "UID do jogo"
+      },
       "table": {
         "email": "Usuário",
         "linkedDevices": "Dispositivos vinculados",
         "roles": "Funções"
+      },
+      "search": {
+        "label": "Pesquisar",
+        "placeholder": "E-mail, nome, ID do usuário, UID do jogo ou ID no roster…"
+      },
+      "filters": {
+        "alliance": "Aliança",
+        "allianceAll": "Todas as alianças",
+        "platformMaintainersOnly": "Somente mantenedores da plataforma"
+      },
+      "pagination": {
+        "empty": "Nenhum usuário encontrado.",
+        "showing": "Exibindo {start}–{end} de {total}",
+        "prev": "Anterior",
+        "next": "Próximo"
       }
     },
     "systemPage": {
@@ -323,6 +351,8 @@
       "inviteTargetHint": "Escolha uma aliança aqui ou clique em uma na lista abaixo. Convites são obrigatórios antes de usar o HQ em produção.",
       "chooseAlliance": "Aliança",
       "chooseAlliancePlaceholder": "Selecione uma aliança…",
+      "chooseAllianceSearchPlaceholder": "Buscar alianças…",
+      "chooseAllianceNoMatches": "Nenhuma aliança corresponde à busca.",
       "chooseAllianceRequired": "Selecione uma aliança para convidar alguém.",
       "selectedForInvite": "Selecionada para convite",
       "selectAllianceRow": "Selecionar {name} ({slug}) para convite",
@@ -480,7 +510,9 @@
           "bffIntegration": "Integração BFF",
           "bffFunction": "Função BFF",
           "video": "Pipeline de vídeo",
-          "feedback": "Feedback"
+          "feedback": "Feedback",
+          "invite": "Aceite de convite / falhas",
+          "memberLink": "Vínculo de personagem (onboarding)"
         }
       },
       "table": {
@@ -2070,7 +2102,7 @@
     "errors": {
       "nothingPending": "Nada para escolher agora.",
       "noWalkthrough": "Nenhum tutorial em andamento.",
-      "ashedVerificationRequired": "Conecte o Ashed primeiro para verificar seu papel de dono ou oficial. Use o botão abaixo e depois volte para vincular seu personagem."
+      "ashedVerificationRequired": "Conecte o Ashed para ferramentas iframe e sync do roster; depois volte para vincular seu personagem, se precisar."
     },
     "usage": "Informe seu nome no jogo e UID do perfil Last War.",
     "linked": "Vinculado a {name}. Bem-vindo à aliança!",
@@ -2121,7 +2153,7 @@
     "requestFailed": "Algo deu errado. Tente novamente.",
     "connectAshedBanner": "Conecte o Ashed para ferramentas iframe e sync do roster.",
     "connectAshedTitle": "Verifique com o Ashed primeiro",
-    "connectAshedBody": "Contas de dono, oficial e mantenedor da plataforma precisam conectar o Ashed por HTTPS antes de vincular um personagem. Isso comprova sua posição na aliança — nome e UID sozinhos não bastam.",
+    "connectAshedBody": "Conecte o Ashed para ferramentas iframe e sync do roster. Seu papel no HQ vem do convite — vincular o personagem usa só nome e UID.",
     "connectAshedCta": "Conectar Ashed",
     "connectAshedDismiss": "Agora não"
   },

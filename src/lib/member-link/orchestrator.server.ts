@@ -16,22 +16,30 @@ import {
 } from "@/lib/member-link/outcome.shared";
 import {
   assertPrivilegedAshedGate,
-  sessionHasLiveAshedVerification,
 } from "@/lib/member-link/privileged-link.server";
+import {
+  recordMemberLinkSubmit,
+} from "@/lib/onboarding/onboarding-audit.server";
 import {
   createMemberLinkTranslator,
   memberLinkWalkthroughSteps,
 } from "@/lib/member-link/translate.server";
-import { parseAshedMemberAllianceRank } from "@/lib/members/alliance-rank";
 import { getRbacContext } from "@/lib/rbac/context";
 import {
   processLinkCommand,
   processLinkFuzzyPick,
 } from "@/lib/vr/link-command";
 import { walkthroughMessage } from "@/lib/vr/link-helpers";
-import { loadAllianceMembersForBot } from "@/lib/vr/member-roster";
+import { loadAllianceMembersForMemberLink } from "@/lib/vr/member-roster";
+import type { MemberLinkRosterSource } from "@/lib/vr/member-roster";
 import { getAllianceById, getLinkedMemberIds } from "@/lib/vr/repository";
 import type { LinkCommandResult, LinkPendingState } from "@/lib/vr/types";
+
+type MemberLinkSubmitAuditBag = {
+  rosterSource: MemberLinkRosterSource;
+  rosterCount: number;
+  ashedMemberId?: string;
+};
 
 type FlowContext = {
   sessionId: string;
@@ -40,7 +48,34 @@ type FlowContext = {
   locale: string;
   userEmail?: string | null;
   displayName?: string | null;
+  auditBag: MemberLinkSubmitAuditBag;
 };
+
+function createAuditBag(): MemberLinkSubmitAuditBag {
+  return { rosterSource: "not_loaded", rosterCount: 0 };
+}
+
+function createFlowContext(
+  input: Omit<FlowContext, "auditBag">,
+): FlowContext {
+  return { ...input, auditBag: createAuditBag() };
+}
+
+async function finishMemberLinkSubmit(
+  ctx: FlowContext,
+  response: MemberLinkApiResponse,
+): Promise<MemberLinkApiResponse> {
+  await recordMemberLinkSubmit({
+    sessionId: ctx.sessionId,
+    allianceId: ctx.allianceId,
+    hqUserId: ctx.hqUserId,
+    outcome: response.outcome,
+    rosterSource: ctx.auditBag.rosterSource,
+    rosterCount: ctx.auditBag.rosterCount,
+    ashedMemberId: ctx.auditBag.ashedMemberId,
+  });
+  return response;
+}
 
 function ashedVerificationRequiredResponse(
   locale: string,
@@ -69,35 +104,6 @@ async function assertWebMemberLinkAllowed(
   return null;
 }
 
-function isAllianceOwnerRosterTarget(
-  ashedMemberId: string,
-  members: Awaited<ReturnType<typeof loadAllianceMembersForBot>>,
-  alliance: Awaited<ReturnType<typeof getAllianceById>>,
-): boolean {
-  if (alliance?.ownerMemberExternalId === ashedMemberId) {
-    return true;
-  }
-  const member = members.find((row) => row.id === ashedMemberId);
-  if (!member) return false;
-  return (parseAshedMemberAllianceRank(member).rank ?? 0) >= 5;
-}
-
-async function assertOwnerRosterLinkAllowed(
-  ctx: FlowContext,
-  ashedMemberId: string,
-  members: Awaited<ReturnType<typeof loadAllianceMembersForBot>>,
-  alliance: Awaited<ReturnType<typeof getAllianceById>>,
-): Promise<MemberLinkApiResponse | null> {
-  if (!isAllianceOwnerRosterTarget(ashedMemberId, members, alliance)) {
-    return null;
-  }
-  const live = await sessionHasLiveAshedVerification(ctx.sessionId, ctx.hqUserId);
-  if (live) {
-    return null;
-  }
-  return ashedVerificationRequiredResponse(ctx.locale);
-}
-
 function translateContext(locale: string) {
   const translate = createMemberLinkTranslator(locale);
   const walkthroughSteps = memberLinkWalkthroughSteps(locale);
@@ -116,19 +122,7 @@ async function emitLinkAttention(ctx: FlowContext) {
 async function persistHqLinkTarget(
   ctx: FlowContext,
   linkTarget: NonNullable<LinkCommandResult["linkTarget"]>,
-  members: Awaited<ReturnType<typeof loadAllianceMembersForBot>>,
-  alliance: Awaited<ReturnType<typeof getAllianceById>>,
 ): Promise<MemberLinkApiResponse> {
-  const blocked = await assertOwnerRosterLinkAllowed(
-    ctx,
-    linkTarget.ashedMemberId,
-    members,
-    alliance,
-  );
-  if (blocked) {
-    return blocked;
-  }
-
   const { translate } = translateContext(ctx.locale);
   const linked = await linkHqMember({
     allianceId: ctx.allianceId,
@@ -144,6 +138,8 @@ async function persistHqLinkTarget(
       { memberTaken: true },
     );
   }
+
+  ctx.auditBag.ashedMemberId = linkTarget.ashedMemberId;
 
   await syncPrimaryGameUidFromHqMemberLink(ctx.hqUserId, linkTarget.gameUid);
 
@@ -182,11 +178,13 @@ async function finalizeCommandResult(
     if (result.needsOfficerAttention) {
       await emitLinkAttention(ctx);
     }
-    const [members, alliance] = await Promise.all([
-      loadAllianceMembersForBot(ctx.allianceId),
+    const [rosterLoad] = await Promise.all([
+      loadAllianceMembersForMemberLink(ctx.allianceId),
       getAllianceById(ctx.allianceId),
     ]);
-    return persistHqLinkTarget(ctx, result.linkTarget, members, alliance);
+    ctx.auditBag.rosterSource = rosterLoad.rosterSource;
+    ctx.auditBag.rosterCount = rosterLoad.members.length;
+    return persistHqLinkTarget(ctx, result.linkTarget);
   }
 
   if (result.pending) {
@@ -226,11 +224,12 @@ export async function runWebMemberLinkSubmit(input: {
     locale: input.locale,
     userEmail: input.userEmail,
     displayName: input.displayName,
+    auditBag: createAuditBag(),
   };
 
   const gateBlocked = await assertWebMemberLinkAllowed(ctx);
   if (gateBlocked) {
-    return gateBlocked;
+    return finishMemberLinkSubmit(ctx, gateBlocked);
   }
 
   const { translate, walkthroughSteps } = translateContext(input.locale);
@@ -255,38 +254,49 @@ export async function runWebMemberLinkSubmit(input: {
     const walkthroughDoneText = translate("link.walkthroughDone");
     if (result.pending === null && result.reply === walkthroughDoneText) {
       await saveHqMemberLinkPending(input.allianceId, input.hqUserId, null);
-      return toMemberLinkApiResponse(result, { walkthroughDone: true });
+      return finishMemberLinkSubmit(
+        ctx,
+        toMemberLinkApiResponse(result, { walkthroughDone: true }),
+      );
     }
-    return finalizeCommandResult(ctx, result);
+    return finishMemberLinkSubmit(ctx, await finalizeCommandResult(ctx, result));
   }
 
   if (!name || !uid) {
-    return toMemberLinkApiResponse(
-      { reply: translate("link.usage"), pending: null },
-      { usage: true },
+    return finishMemberLinkSubmit(
+      ctx,
+      toMemberLinkApiResponse(
+        { reply: translate("link.usage"), pending: null },
+        { usage: true },
+      ),
     );
   }
 
   const lookup = await lookupPlayerByUid(uid);
   if (!lookup.ok) {
     await saveHqMemberLinkPending(input.allianceId, input.hqUserId, null);
-    return toMemberLinkApiResponse(
-      { reply: lookup.message, pending: null },
-      { lookupError: true },
+    return finishMemberLinkSubmit(
+      ctx,
+      toMemberLinkApiResponse(
+        { reply: lookup.message, pending: null },
+        { lookupError: true },
+      ),
     );
   }
 
-  const [members, linkedMemberIds, alliance] = await Promise.all([
-    loadAllianceMembersForBot(input.allianceId),
+  const [rosterLoad, linkedMemberIds, alliance] = await Promise.all([
+    loadAllianceMembersForMemberLink(input.allianceId),
     getLinkedMemberIds(input.allianceId),
     getAllianceById(input.allianceId),
   ]);
+  ctx.auditBag.rosterSource = rosterLoad.rosterSource;
+  ctx.auditBag.rosterCount = rosterLoad.members.length;
 
   const result = processLinkCommand({
     reportedName: name,
     gameUid: uid,
     lookup,
-    members,
+    members: rosterLoad.members,
     linkedMemberIds,
     pending,
     translate,
@@ -294,7 +304,7 @@ export async function runWebMemberLinkSubmit(input: {
     allianceTag: alliance?.tag ?? null,
   });
 
-  return finalizeCommandResult(ctx, result);
+  return finishMemberLinkSubmit(ctx, await finalizeCommandResult(ctx, result));
 }
 
 export async function runWebMemberLinkWalkthroughDone(input: {
@@ -305,14 +315,14 @@ export async function runWebMemberLinkWalkthroughDone(input: {
   userEmail?: string | null;
   displayName?: string | null;
 }): Promise<MemberLinkApiResponse> {
-  const ctx: FlowContext = {
+  const ctx = createFlowContext({
     sessionId: input.sessionId,
     allianceId: input.allianceId,
     hqUserId: input.hqUserId,
     locale: input.locale,
     userEmail: input.userEmail,
     displayName: input.displayName,
-  };
+  });
 
   const { translate, walkthroughSteps } = translateContext(input.locale);
   const pendingRow = await getHqMemberLinkPending(input.allianceId, input.hqUserId);
@@ -380,14 +390,14 @@ export async function runWebMemberLinkFuzzyPick(input: {
   displayName?: string | null;
   memberId: string;
 }): Promise<MemberLinkApiResponse> {
-  const ctx: FlowContext = {
+  const ctx = createFlowContext({
     sessionId: input.sessionId,
     allianceId: input.allianceId,
     hqUserId: input.hqUserId,
     locale: input.locale,
     userEmail: input.userEmail,
     displayName: input.displayName,
-  };
+  });
 
   const gateBlocked = await assertWebMemberLinkAllowed(ctx);
   if (gateBlocked) {
@@ -428,14 +438,14 @@ export async function runWebMemberLinkAskOfficer(input: {
   userEmail?: string | null;
   displayName?: string | null;
 }): Promise<MemberLinkApiResponse> {
-  const ctx: FlowContext = {
+  const ctx = createFlowContext({
     sessionId: input.sessionId,
     allianceId: input.allianceId,
     hqUserId: input.hqUserId,
     locale: input.locale,
     userEmail: input.userEmail,
     displayName: input.displayName,
-  };
+  });
 
   const gate = await assertWebMemberLinkAllowed(ctx);
   if (gate) {

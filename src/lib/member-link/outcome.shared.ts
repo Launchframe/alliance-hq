@@ -76,6 +76,13 @@ export function toMemberLinkApiResponse(
       pending: null,
     };
   }
+  if (result.memberTaken) {
+    return {
+      outcome: "member_taken",
+      message: result.reply,
+      pending: null,
+    };
+  }
   if (result.linked) {
     return {
       outcome: "linked",

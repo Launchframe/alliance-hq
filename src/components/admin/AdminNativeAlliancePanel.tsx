@@ -305,9 +305,13 @@ export function AdminNativeAlliancePanel({
               placeholder={t("chooseAlliancePlaceholder")}
               aria-label={t("chooseAlliance")}
               disabled={nativeAlliances.length === 0}
+              searchable
+              searchPlaceholder={t("chooseAllianceSearchPlaceholder")}
+              noSearchResultsLabel={t("chooseAllianceNoMatches")}
               options={nativeAlliances.map((alliance) => ({
                 value: alliance.id,
                 label: `${alliance.slug} — ${alliance.name}`,
+                searchText: `${alliance.slug} ${alliance.name}`,
               }))}
             />
           </label>

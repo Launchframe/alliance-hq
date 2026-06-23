@@ -42,6 +42,7 @@ export type LinkCommandResult = {
   pending: LinkPendingState | null;
   components?: unknown[];
   linked?: boolean;
+  memberTaken?: boolean;
   needsOfficerAttention?: boolean;
   linkTarget?: {
     ashedMemberId: string;

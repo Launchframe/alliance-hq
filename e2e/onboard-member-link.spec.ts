@@ -96,7 +96,7 @@ test.describe("Member-link onboarding gate", () => {
     await expect(page).not.toHaveURL(/\/onboard/);
   });
 
-  test("officer without Ashed sees connect step on onboard before member link", async ({
+  test("officer without Ashed proceeds to member link on onboard", async ({
     page,
   }) => {
     const sql = getE2eSql();
@@ -124,14 +124,14 @@ test.describe("Member-link onboarding gate", () => {
     await page.getByRole("button", { name: /continue/i }).click();
 
     await expect(
-      page.getByRole("heading", { name: /verify with ashed first/i }),
+      page.getByRole("heading", { name: /link your character/i }),
     ).toBeVisible();
     await expect(
-      page.getByRole("link", { name: /connect ashed/i }),
-    ).toBeVisible();
+      page.getByRole("heading", { name: /verify with ashed first/i }),
+    ).toHaveCount(0);
   });
 
-  test("officer linked but without live Ashed stays on onboard (no redirect loop)", async ({
+  test("officer linked without Ashed reaches app", async ({
     page,
   }) => {
     const sql = getE2eSql();
@@ -169,10 +169,7 @@ test.describe("Member-link onboarding gate", () => {
     );
     await page.goto("/dashboard");
 
-    await expect(page).toHaveURL(/\/onboard/);
-    await expect(
-      page.getByRole("heading", { name: /verify with ashed first/i }),
-    ).toBeVisible();
+    await expect(page).not.toHaveURL(/\/onboard/);
   });
 
   test("officer with live Ashed and member link reaches app", async ({

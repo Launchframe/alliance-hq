@@ -6,21 +6,26 @@ export const PRIVILEGED_TOKEN_MAX_DAYS = 30;
 
 const PRIVILEGED_ROLE_SET = new Set<string>(PRIVILEGED_HQ_ROLE_NAMES);
 
+/** Ashed connect is optional for every role; HQ invite + member link gate access. */
 export function roleRequiresAshedVerification(
+  _roleName: string | null | undefined,
+): boolean {
+  return false;
+}
+
+/** Cap stored JWT lifetime when owner/officer voluntarily connect Ashed. */
+export function roleReceivesPrivilegedTokenCap(
   roleName: string | null | undefined,
 ): boolean {
   if (!roleName) return false;
   return PRIVILEGED_ROLE_SET.has(roleName);
 }
 
-export function userRequiresAshedVerification(input: {
+export function userRequiresAshedVerification(_input: {
   roleName: string | null | undefined;
   isPlatformMaintainer: boolean;
 }): boolean {
-  return (
-    input.isPlatformMaintainer ||
-    roleRequiresAshedVerification(input.roleName)
-  );
+  return false;
 }
 
 /** Cap stored credential expiry at min(jwtExp, now + 30 days). */

@@ -15,6 +15,8 @@ export const AUDIT_ACTION_FILTER_OPTIONS = [
   { value: "bff.function.call", labelKey: "bffFunction" as const },
   { value: "video.*", labelKey: "video" as const },
   { value: "feedback.*", labelKey: "feedback" as const },
+  { value: "invite.*", labelKey: "invite" as const },
+  { value: "member_link.*", labelKey: "memberLink" as const },
 ] as const;
 
 export type AuditLogFilters = {

@@ -3,28 +3,42 @@ import { describe, expect, it } from "vitest";
 import {
   capTokenExpiresAt,
   PRIVILEGED_TOKEN_MAX_DAYS,
+  roleReceivesPrivilegedTokenCap,
   roleRequiresAshedVerification,
   userRequiresAshedVerification,
 } from "./privileged-link.shared";
 
 describe("roleRequiresAshedVerification", () => {
-  it("requires owner and officer only", () => {
-    expect(roleRequiresAshedVerification("owner")).toBe(true);
-    expect(roleRequiresAshedVerification("officer")).toBe(true);
+  it("is false for every role — invite + member link gate HQ access", () => {
+    expect(roleRequiresAshedVerification("owner")).toBe(false);
+    expect(roleRequiresAshedVerification("officer")).toBe(false);
     expect(roleRequiresAshedVerification("member")).toBe(false);
-    expect(roleRequiresAshedVerification("data_entry")).toBe(false);
     expect(roleRequiresAshedVerification(null)).toBe(false);
   });
 });
 
 describe("userRequiresAshedVerification", () => {
-  it("includes platform maintainers", () => {
+  it("is false for platform maintainers and alliance roles", () => {
     expect(
       userRequiresAshedVerification({
-        roleName: "member",
+        roleName: "owner",
         isPlatformMaintainer: true,
       }),
-    ).toBe(true);
+    ).toBe(false);
+    expect(
+      userRequiresAshedVerification({
+        roleName: "officer",
+        isPlatformMaintainer: false,
+      }),
+    ).toBe(false);
+  });
+});
+
+describe("roleReceivesPrivilegedTokenCap", () => {
+  it("includes owner and officer voluntary connects", () => {
+    expect(roleReceivesPrivilegedTokenCap("owner")).toBe(true);
+    expect(roleReceivesPrivilegedTokenCap("officer")).toBe(true);
+    expect(roleReceivesPrivilegedTokenCap("member")).toBe(false);
   });
 });
 

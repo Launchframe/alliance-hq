@@ -218,10 +218,12 @@
     },
     "usersPage": {
       "loading": "Loading users…",
+      "loadingDetail": "Loading user details…",
       "loadFailed": "Failed to load users.",
       "saveFailed": "Could not save changes.",
       "saved": "Changes saved.",
-      "selectUser": "Select a user to edit roles.",
+      "selectUser": "Search or browse the list, then select a user to edit roles.",
+      "empty": "No users match your search.",
       "editorHint": "Manual assignments use source \"manual\" and are not overwritten by Ashed sync.",
       "platformMaintainer": "Platform maintainer (cross-alliance /admin access)",
       "savePlatform": "Save platform flag",
@@ -235,10 +237,36 @@
       "chooseAlliance": "Choose alliance…",
       "assignRole": "Assign role",
       "linkedDevicesSummary": "{count, plural, =0 {No additional mobile devices linked via QR.} one {# additional mobile device linked via QR.} other {# additional mobile devices linked via QR.}}",
+      "memberLinksTitle": "In-game member links",
+      "noMemberLinks": "No in-game commander link yet.",
+      "memberLinkUnnamed": "(no display name)",
+      "ids": {
+        "hqUserId": "HQ user ID",
+        "membershipId": "Membership ID",
+        "memberLinkId": "Member link ID",
+        "allianceId": "Alliance ID",
+        "ashedMemberId": "Roster member ID",
+        "gameUid": "Game UID"
+      },
       "table": {
         "email": "User",
         "linkedDevices": "Linked devices",
         "roles": "Roles"
+      },
+      "search": {
+        "label": "Search",
+        "placeholder": "Email, name, user ID, game UID, or roster member ID…"
+      },
+      "filters": {
+        "alliance": "Alliance",
+        "allianceAll": "All alliances",
+        "platformMaintainersOnly": "Platform maintainers only"
+      },
+      "pagination": {
+        "empty": "No users found.",
+        "showing": "Showing {start}–{end} of {total}",
+        "prev": "Previous",
+        "next": "Next"
       }
     },
     "systemPage": {
@@ -323,6 +351,8 @@
       "inviteTargetHint": "Choose an alliance here or click one in the list below. Invites are required before anyone can use production HQ.",
       "chooseAlliance": "Alliance",
       "chooseAlliancePlaceholder": "Select an alliance…",
+      "chooseAllianceSearchPlaceholder": "Search alliances…",
+      "chooseAllianceNoMatches": "No alliances match your search.",
       "chooseAllianceRequired": "Select an alliance to invite someone.",
       "selectedForInvite": "Selected for invite",
       "selectAllianceRow": "Select {name} ({slug}) for invite",
@@ -480,7 +510,9 @@
           "bffIntegration": "BFF integration",
           "bffFunction": "BFF function",
           "video": "Video pipeline",
-          "feedback": "Feedback"
+          "feedback": "Feedback",
+          "invite": "Invite accept / failures",
+          "memberLink": "Member link (onboarding)"
         }
       },
       "table": {
@@ -2070,7 +2102,7 @@
     "errors": {
       "nothingPending": "Nothing to pick right now.",
       "noWalkthrough": "No walkthrough in progress.",
-      "ashedVerificationRequired": "Connect Ashed first to verify your owner or officer role. Use the button below, then return to link your character."
+      "ashedVerificationRequired": "Connect Ashed to use iframe tools and live roster sync, then return to link your character if needed."
     },
     "usage": "Enter your in-game name and UID from your Last War profile.",
     "linked": "Linked to {name}. Welcome to the alliance!",
@@ -2121,7 +2153,7 @@
     "requestFailed": "Something went wrong. Try again.",
     "connectAshedBanner": "Connect Ashed for iframe tools and live roster sync.",
     "connectAshedTitle": "Verify with Ashed first",
-    "connectAshedBody": "Owner, officer, and platform maintainer accounts must connect Ashed over HTTPS before linking an in-game character. This proves alliance standing — name and UID alone are not enough.",
+    "connectAshedBody": "Connect Ashed for iframe tools and live roster sync. Your HQ role comes from your invite — linking your in-game character uses name and UID only.",
     "connectAshedCta": "Connect Ashed",
     "connectAshedDismiss": "Not now"
   },

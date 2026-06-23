@@ -109,12 +109,12 @@ Do **not** conflate **Discord user**, **`discord_member_links` (in-game member)*
 
 ### Privileged linking (owner / officer / platform maintainer)
 
-Name+UID member link (`/onboard`, `/link-commander`) proves Last War API consistency only — **not** Ashed alliance standing. Privileged powers require the existing HTTPS Ashed connection-key flow:
+Name+UID member link (`/onboard`, `/link-commander`) proves Last War API consistency. **HQ web RBAC** for invited owner/officer roles comes from the invite, not Ashed. Discord privileged setup still uses the HTTPS Ashed connection-key flow where noted below:
 
 | Surface | Rule |
 | --- | --- |
-| Web `/onboard` | Owner, officer, and platform maintainer invites: **connect Ashed first**, then name+UID link (`privileged-link.shared.ts`, `MemberLinkOnboardingWizard`). |
-| HQ RBAC | Manual `owner` / `officer` memberships and session `hq:admin` for PMs grant permissions only with a **live, non-expired** `ashed_credentials` row (`loadUserPermissions` in `rbac/context.ts`). |
+| Web `/onboard` | All invite roles: **name+UID member link** after accept (`MemberLinkOnboardingWizard`). Ashed connect is optional (iframe tools / roster sync). |
+| HQ RBAC | Manual `owner` / `officer` memberships grant role permissions from the invite. Platform maintainers get `hq:admin` from the maintainer flag. **Ashed-sourced** memberships still require a matching live session credential (unchanged). |
 | Discord owner gate | `callerIsAllianceOwner` requires `alliance_ashed_credentials`, `ownerAshedUserId`, and `ownerMemberExternalId` match — not name+UID alone. |
 | Discord officer gate | `callerCanRunVrReport` R4+ path requires alliance bot credentials exist. |
 | Token storage | Privileged web connects and `/link-to-ashed-seat` credentials cap `tokenExpiresAt` at **min(JWT exp, now + 30 days)**. |
