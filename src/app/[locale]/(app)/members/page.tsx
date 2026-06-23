@@ -1,10 +1,11 @@
 import { getTranslations } from "next-intl/server";
 
 import { MembersListViewOrSetup } from "@/components/members/MembersListView";
+import { canRefreshRosterFromAshed } from "@/lib/connect/ashed-shell-prompts.shared";
 import { loadAllianceMembers } from "@/lib/members/load";
 import { isNativeAlliance } from "@/lib/native-alliance/operating-mode";
 import { sessionHasPermission } from "@/lib/rbac/context";
-import { requirePageSession } from "@/lib/session";
+import { getAshedConnection, requirePageSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -36,12 +37,18 @@ export default async function MembersPage() {
   }
 
   const canWrite = await sessionHasPermission(session.id, "members:write");
+  const ashedConnection = await getAshedConnection(session.id);
+  const canRefreshFromAshed = canRefreshRosterFromAshed({
+    operatingMode: initial.operatingMode,
+    isAshedConnected: ashedConnection !== null,
+  });
 
   return (
     <MembersListViewOrSetup
       initial={initial}
       canEditRanks={canWrite}
       canImportMembers={canWrite && initial.operatingMode === "native"}
+      canRefreshFromAshed={canRefreshFromAshed}
     />
   );
 }

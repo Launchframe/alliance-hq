@@ -1,20 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useSyncExternalStore } from "react";
 import { useTranslations } from "next-intl";
 
 import { Link } from "@/i18n/navigation";
-
-const DISMISS_KEY = "alliance-hq-connect-ashed-banner-dismissed";
-
-function readDismissed(): boolean {
-  if (typeof window === "undefined") return false;
-  try {
-    return localStorage.getItem(DISMISS_KEY) === "1";
-  } catch {
-    return false;
-  }
-}
+import {
+  markAshedShellConnectDismissed,
+  readAshedShellConnectDismissed,
+  subscribeAshedShellConnectDismissed,
+} from "@/lib/connect/ashed-shell-prompts.shared";
 
 type Props = {
   show: boolean;
@@ -22,17 +16,16 @@ type Props = {
 
 export function ConnectAshedBanner({ show }: Props) {
   const t = useTranslations("onboard");
-  const [dismissed, setDismissed] = useState(readDismissed);
+  const dismissed = useSyncExternalStore(
+    subscribeAshedShellConnectDismissed,
+    readAshedShellConnectDismissed,
+    () => false,
+  );
 
   if (!show || dismissed) return null;
 
   function dismiss() {
-    try {
-      localStorage.setItem(DISMISS_KEY, "1");
-    } catch {
-      // ignore
-    }
-    setDismissed(true);
+    markAshedShellConnectDismissed();
   }
 
   return (

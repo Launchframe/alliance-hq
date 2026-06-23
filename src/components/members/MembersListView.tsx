@@ -23,6 +23,8 @@ type Props = {
   initial: AllianceMembersPayload;
   canEditRanks?: boolean;
   canImportMembers?: boolean;
+  /** Ashed-mode live sync — only when session has an Ashed credential. */
+  canRefreshFromAshed?: boolean;
 };
 
 function memberStatusLabel(
@@ -61,6 +63,7 @@ export function MembersListView({
   initial,
   canEditRanks = false,
   canImportMembers = false,
+  canRefreshFromAshed = false,
 }: Props) {
   const t = useTranslations("members");
   const formatDateTime = useFormatAccountDateTime();
@@ -75,6 +78,7 @@ export function MembersListView({
   const [importOpen, setImportOpen] = useState(false);
 
   const isNative = initial.operatingMode === "native";
+  const showRefresh = isNative || canRefreshFromAshed;
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -261,20 +265,22 @@ export function MembersListView({
               {editMode ? t("doneEditing") : t("editRanks")}
             </button>
           )}
-          <button
-            type="button"
-            onClick={() => void refresh()}
-            disabled={refreshing}
-            className="w-full rounded-lg border border-[#30363d] bg-[#21262d] px-4 py-2 text-sm disabled:opacity-50 sm:w-auto"
-          >
-            {refreshing
-              ? isNative
-                ? t("refreshingNative")
-                : t("refreshing")
-              : isNative
-                ? t("refreshNative")
-                : t("refresh")}
-          </button>
+          {showRefresh ? (
+            <button
+              type="button"
+              onClick={() => void refresh()}
+              disabled={refreshing}
+              className="w-full rounded-lg border border-[#30363d] bg-[#21262d] px-4 py-2 text-sm disabled:opacity-50 sm:w-auto"
+            >
+              {refreshing
+                ? isNative
+                  ? t("refreshingNative")
+                  : t("refreshing")
+                : isNative
+                  ? t("refreshNative")
+                  : t("refresh")}
+            </button>
+          ) : null}
           {!isNative && (
           <a
             href={ashedMembersUrl}
@@ -558,6 +564,7 @@ export function MembersListViewOrSetup(
       initial={props.initial}
       canEditRanks={props.canEditRanks}
       canImportMembers={props.canImportMembers}
+      canRefreshFromAshed={props.canRefreshFromAshed}
     />
   );
 }
