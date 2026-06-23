@@ -13,12 +13,15 @@ import {
   buildLinkFuzzyButtons,
   buildVrConfirmButtons,
   buildWalkthroughDoneButton,
+  discordComponentMessageResponse,
   discordMessageResponse,
   interactionDiscordUserId,
   interactionDiscordUsername,
+  interactionChannelId,
   interactionGuildId,
   parseButtonCustomId,
   parseLinkSlashOptions,
+  parseSlashOptionInteger,
   parseSlashOptionString,
   parseVrSlashLevel,
   resolveDiscordPublicKey,
@@ -34,10 +37,12 @@ import {
   handleDiscordLinkSlash,
   handleDiscordLinkStartOver,
   handleDiscordLinkToAshedSeat,
+  handleDiscordSetVrReportChannel,
   handleDiscordUnlinkPick,
   handleDiscordUnlinkWithContext,
   handleDiscordVrButtonConfirm,
   handleDiscordVrCharacterPick,
+  handleDiscordVrReport,
   handleDiscordVrSlash,
   handleDiscordWalkthroughDone,
   resolveAllianceForGuild,
@@ -49,6 +54,14 @@ export const runtime = "nodejs";
 
 /** Link flows may include UIDs; keep those replies ephemeral-only. */
 const EPHEMERAL = { ephemeral: true } as const;
+
+function discordButtonResponse(
+  content: string,
+  components?: ReturnType<typeof buildWalkthroughDoneButton>,
+  options?: { ephemeral?: boolean },
+) {
+  return discordComponentMessageResponse(content, components, options ?? EPHEMERAL);
+}
 
 async function resolveInteractionContext(payload: DiscordInteractionPayload) {
   const discordUserId = interactionDiscordUserId(payload);
@@ -117,6 +130,23 @@ async function handleSlashCommand(payload: DiscordInteractionPayload) {
     return discordMessageResponse(result.reply);
   }
 
+  if (commandName === "set-vr-report-channel") {
+    if (!guildId) {
+      return discordMessageResponse(t("errors.guildNotRegistered"));
+    }
+    const channelId = interactionChannelId(payload);
+    if (!channelId) {
+      return discordMessageResponse(t("errors.serverError"));
+    }
+    const result = await handleDiscordSetVrReportChannel({
+      guildId,
+      channelId,
+      discordUserId,
+      locale,
+    });
+    return discordMessageResponse(result.reply);
+  }
+
   if (commandName === "link-to-ashed-seat") {
     if (!guildId) {
       return discordMessageResponse(t("errors.guildNotRegistered"));
@@ -145,6 +175,7 @@ async function handleSlashCommand(payload: DiscordInteractionPayload) {
     const { name, uid, replace } = parseLinkSlashOptions(payload);
     const result = await handleDiscordLinkSlash({
       allianceId: linkAllianceId,
+      guildId,
       discordUserId,
       discordUsername,
       reportedName: name,
@@ -181,6 +212,9 @@ async function handleSlashCommand(payload: DiscordInteractionPayload) {
   }
 
   if (commandName === "unlink") {
+    if (!guildId) {
+      return discordMessageResponse(t("errors.guildNotRegistered"));
+    }
     const name = parseSlashOptionString(payload, "name");
     const result = await handleDiscordUnlinkWithContext({
       guildId,
@@ -228,6 +262,19 @@ async function handleSlashCommand(payload: DiscordInteractionPayload) {
     return discordMessageResponse(result.reply);
   }
 
+  if (commandName === "vr-report" || commandName === "takedown-teams") {
+    const teamCount = parseSlashOptionInteger(payload, "teams");
+    const result = await handleDiscordVrReport({
+      allianceId,
+      discordUserId,
+      commandName:
+        commandName === "takedown-teams" ? "takedown-teams" : "vr-report",
+      teamCount,
+      locale,
+    });
+    return discordMessageResponse(result.reply, undefined, EPHEMERAL);
+  }
+
   return discordMessageResponse(t("errors.unknownCommand"));
 }
 
@@ -235,7 +282,7 @@ async function handleButton(payload: DiscordInteractionPayload) {
   const parsed = parseButtonCustomId(payload.data?.custom_id);
   if (!parsed) {
     const t = createDiscordTranslator("en-US");
-    return discordMessageResponse(t("errors.unknownCommand"));
+    return discordButtonResponse(t("errors.unknownCommand"));
   }
 
   const { discordUserId, locale, allianceId } =
@@ -244,7 +291,7 @@ async function handleButton(payload: DiscordInteractionPayload) {
   const t = createDiscordTranslator(locale);
 
   if (!allianceId || !discordUserId) {
-    return discordMessageResponse(
+    return discordButtonResponse(
       allianceId ? t("errors.unknownUser") : guildConfigMessage(locale),
     );
   }
@@ -256,7 +303,7 @@ async function handleButton(payload: DiscordInteractionPayload) {
       answer: parsed.answer,
       locale,
     });
-    return discordMessageResponse(result.reply);
+    return discordButtonResponse(result.reply, undefined, { ephemeral: false });
   }
 
   if (parsed.kind === "link_pick") {
@@ -267,7 +314,7 @@ async function handleButton(payload: DiscordInteractionPayload) {
       memberId: parsed.memberId,
       locale,
     });
-    return discordMessageResponse(result.reply, undefined, EPHEMERAL);
+    return discordButtonResponse(result.reply);
   }
 
   if (parsed.kind === "link_walkthrough_done") {
@@ -277,13 +324,12 @@ async function handleButton(payload: DiscordInteractionPayload) {
       locale,
     });
     if (result.pending?.kind === "link_walkthrough") {
-      return discordMessageResponse(
+      return discordButtonResponse(
         result.reply,
         buildWalkthroughDoneButton(t("buttons.done")),
-        EPHEMERAL,
       );
     }
-    return discordMessageResponse(result.reply, undefined, EPHEMERAL);
+    return discordButtonResponse(result.reply, []);
   }
 
   if (parsed.kind === "vr_character") {
@@ -294,15 +340,16 @@ async function handleButton(payload: DiscordInteractionPayload) {
       locale,
     });
     if (result.needsConfirmation && result.proposedVr != null) {
-      return discordMessageResponse(
+      return discordButtonResponse(
         result.reply,
         buildVrConfirmButtons(result.proposedVr, {
           yes: t("buttons.yes"),
           no: t("buttons.no"),
         }),
+        { ephemeral: false },
       );
     }
-    return discordMessageResponse(result.reply);
+    return discordButtonResponse(result.reply, undefined, { ephemeral: false });
   }
 
   if (parsed.kind === "link_unlink") {
@@ -312,7 +359,7 @@ async function handleButton(payload: DiscordInteractionPayload) {
       linkId: parsed.linkId,
       locale,
     });
-    return discordMessageResponse(result.reply);
+    return discordButtonResponse(result.reply, undefined, { ephemeral: false });
   }
 
   if (parsed.kind === "link_start_over") {
@@ -321,10 +368,9 @@ async function handleButton(payload: DiscordInteractionPayload) {
       discordUserId,
       locale,
     });
-    return discordMessageResponse(
+    return discordButtonResponse(
       result.reply,
       buildWalkthroughDoneButton(t("buttons.done")),
-      EPHEMERAL,
     );
   }
 
@@ -334,10 +380,10 @@ async function handleButton(payload: DiscordInteractionPayload) {
       count: 1,
       handles: [discordUsername ?? discordUserId],
     });
-    return discordMessageResponse(t("officerNotified"), undefined, EPHEMERAL);
+    return discordButtonResponse(t("officerNotified"), []);
   }
 
-  return discordMessageResponse(t("errors.unknownCommand"));
+  return discordButtonResponse(t("errors.unknownCommand"));
 }
 
 export async function POST(request: Request) {

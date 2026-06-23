@@ -82,14 +82,16 @@ Alliance HQ models **in-game** alliance mechanics (trains, VS weeks, R1–R5 ran
   3. HQ `POST /api/discord/authorize`: verifies key, checks Ashed owner role, calls `syncAshedAllianceForBot`, stores encrypted credential (does **not** register guild — that is `/link-alliance` only).
   4. Owner: `/link name:… uid:…` → links their in-game character (now `callerIsAllianceOwner` becomes true since `ownerAshedUserId` is set).
   5. Owner: `/link-alliance tag:LFgo` → registers guild (`upsertGuildAlliance`); required before members can `/link`.
-  6. Members: `/link name:… uid:…` → links character via lastwar UID lookup + Ashed roster match.
+  6. Owner: `/set-vr-report-channel` in the nightly standings channel (stores `discord_guild_alliances.vr_report_channel_id`).
+  7. Members: `/link name:… uid:…` → links character via lastwar UID lookup + Ashed roster match.
+- **VR reports:** `/vr-report` (top 25) and `/vr-report teams:N` / `/takedown-teams` (5-player rally teams, snake THP balance) are **officer-gated** (`callerCanRunVrReport`: R4+ linked member or owner). Replies are ephemeral; nightly cron posts public top-25 to each guild's configured channel via `loadAllianceLeaderboard` + `listRegisteredGuildsWithReportChannel`.
 - **`/set-season` removed** — season is derived from server age; do not reintroduce.
 - **Feature flag:** `ELIGIBLE_BOT_ALLIANCE_LINK_TAGS` (comma-delimited; unset = allow all) gates `/link-to-ashed-seat` and `/link-alliance`. Check via `isTagEligible()` in `bot-setup.ts`.
 - **Security invariant:** connection keys must **never** appear as slash command options or in Discord payloads. All credential submission goes through the HQ `/discord/authorize` HTTPS page. Nonces live in `discord_auth_nonces` (30-min TTL, single-use); enforced by `getValidDiscordAuthNonce` + `consumeDiscordAuthNonce`.
 - **Multi-link:** up to 5 in-game characters per Discord user per alliance (`discord_member_links` unique on `(alliance_id, discord_user_id, ashed_member_id)`). `/link` adds or updates; `replace:true` clears then links one character; `/unlink` removes a link. `/vr` prompts when multiple links exist.
 - **`/help`:** context-aware next steps via `resolveDiscordBotUserContext` + `pickHelpMessageKey` — guild registration, credentials, owner vs member, link count.
 - **i18n:** bot reply strings in `messages/*/discordBot`; HQ authorize page strings in `messages/*/discordAuthorize`; slash command `description_localizations` pt-BR in `scripts/discord/register-commands.mjs`; per-user locale in `discord_user_prefs` via `/language`.
-- **Deprecation:** do not reintroduce `DISCORD_ALLIANCE_ID` for new bot paths; `resolveAllianceForGuild` may fall back only for legacy deployments. Do not reintroduce a `key:` option on any slash command.
+- **Deprecation:** do not reintroduce `DISCORD_ALLIANCE_ID` for multi-tenant hosted deploys. `resolveAllianceForGuild` falls back to env only when `guildId === DISCORD_GUILD_ID` (legacy single-server). Unregistered guilds must get `errors.guildNotRegistered`, not a silent wrong-alliance roster lookup. Do not reintroduce a `key:` option on any slash command.
 
 ## Discord bot — identity and auth layers
 

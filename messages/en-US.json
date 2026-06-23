@@ -2069,7 +2069,7 @@
   "discordBot": {
     "errors": {
       "guildNotConfigured": "Discord VR tracking is not configured for this server yet. An alliance owner should run `/link-alliance` with your alliance tag.",
-      "legacyMisconfigured": "Discord VR tracking is misconfigured. Contact your Alliance HQ maintainer.",
+      "legacyMisconfigured": "This Discord server isn't registered for an alliance yet. The owner should run `/link-alliance` with your tag. If you're the maintainer, remove `DISCORD_ALLIANCE_ID` from the deployment env — multi-tenant bots resolve alliance by server registration, not a global env var.",
       "unknownUser": "Could not identify your Discord account.",
       "unknownCommand": "Unknown command.",
       "serverError": "Something went wrong on our side. Try again in a moment.",
@@ -2079,6 +2079,10 @@
       "credentialsRequired": "Connect Ashed credentials first with `/link-to-ashed-seat tag:{tag}`.",
       "tagAmbiguous": "We found multiple alliances with tag **{tag}**. Reply with `/link-alliance tag:{tag} name:Your Alliance Name` to pick the right one.",
       "notOwner": "Only the alliance owner can register this server. Complete `/link` first, then try again.",
+      "notOfficer": "Only alliance officers (R4+) or the owner can run VR reports. Link your in-game profile with `/link` if you haven't yet.",
+      "insufficientForTeams": "Need at least **{needed}** VR reporters for **{teams}** takedown teams (5 players each). Only **{have}** on the board right now.",
+      "teamsRequired": "Add `teams:N` (1–5). Example: `/takedown-teams teams:2` for two rally teams.",
+      "teamsTooMany": "At most **{max}** takedown teams per request. Example: `/vr-report teams:3`.",
       "linkFirst": "Complete `/link` with your in-game name and UID before registering the server.",
       "invalidLanguage": "Choose English or Português.",
       "nothingPending": "Nothing to pick right now.",
@@ -2094,7 +2098,9 @@
       "capReached": "You already have the maximum number of linked characters ({max}). Use `/unlink` first or `/link replace:true` to switch.",
       "memberTaken": "That in-game member is already linked to a different Discord account.",
       "fuzzyPrompt": "We verified **{gameName}** but couldn't find an exact roster match. Pick your member:",
-      "rosterMiss": "We couldn't match that name to anyone on the roster. Try **Start over** for copy instructions, or ask an officer for help.",
+      "rosterMiss": "We checked the **{tag}** roster and couldn't match that name to anyone. Try **Start over** for copy instructions, or ask an officer for help.",
+      "rosterMissGeneric": "We couldn't match that name to anyone on the roster. Try **Start over** for copy instructions, or ask an officer for help.",
+      "rosterUnavailable": "We verified your UID with the game, but couldn't load the alliance roster. Ask an owner to run `/link-to-ashed-seat`, or ask an officer for help.",
       "pickExpired": "That member option expired. Run `/link` again.",
       "walkthroughDone": "Great. Run `/link` again with your copied name and UID when ready.",
       "walkthroughIntro": "Let's start over.",
@@ -2123,6 +2129,9 @@
       "linkAshedSeatPrompt": "Click the link below to securely connect your Ashed credentials for **{tag}** (expires in 30 min):\n{url}\n\nAfter connecting, run `/link` with your in-game name and UID, then `/link-alliance tag:{tag}`.",
       "languageSuccess": "Language updated."
     },
+    "setVrReportChannel": {
+      "success": "Nightly VR standings for **{tag}** will post in {channel}. Officers can run `/vr-report` anytime for a fresh top-25 or `/vr-report teams:N` for takedown plans."
+    },
     "buttons": {
       "yes": "Yes",
       "no": "No",
@@ -2132,16 +2141,16 @@
     },
     "officerNotified": "An officer has been notified on Alliance HQ. They can reach out to you here on Discord.",
     "help": {
-      "dmGeneral": "**Alliance HQ bot** — run these in your alliance Discord server:\n• `/help` — this guide\n• `/link` — connect your in-game profile\n• `/vr` or `/immunity` — report base VR\n• `/language` — English or Português\n\nOwners (Ashed seat holders) use `/link-to-ashed-seat` and `/link-alliance`.",
+      "dmGeneral": "**Alliance HQ bot** — run these in your alliance Discord server:\n• `/help` — this guide\n• `/link` — connect your in-game profile\n• `/vr` or `/immunity` — report base VR\n• `/language` — English or Português\n\nOwners: `/link-to-ashed-seat`, `/link-alliance`, `/set-vr-report-channel`.\nOfficers (R4+): `/vr-report`, `/takedown-teams teams:N`.",
       "setupOwnerAuth": "This server is not set up yet. **Alliance owner (Ashed seat holder):** run `/link-to-ashed-seat tag:YourTag` to get a secure link for connecting your Ashed credentials. Then run `/link` and `/link-alliance tag:YourTag`. Members can `/link` after that.",
       "setupLinkAlliance": "This server is not registered to an alliance yet. **Owner:** run `/link-alliance tag:YourTag` (you must `/link` and complete `/link-to-ashed-seat` first).",
       "setupOwnerLinkAfterAuth": "Ashed credentials are connected. **Owner:** run `/link name:… uid:…` with your in-game profile, then `/link-alliance tag:YourTag` so members can link.",
       "waitForOwnerAuth": "Waiting for the alliance owner to connect Ashed (`/link-to-ashed-seat`). After that you can `/link` your in-game name and UID.",
       "linkProfile": "Link your in-game profile: `/link name:… uid:…` (copy name and UID from your profile in-game). Need steps? Run `/link` with a wrong name once and tap **Done** for a walkthrough.",
-      "memberReady": "You're linked. Use `/vr` or `/immunity` when your base VR changes. `/help` anytime. `/language` for Português.",
-      "memberReadyMulti": "You have **{count}** linked characters. Use `/vr` or `/immunity` — the bot will ask which character. `/unlink` removes one; `/link` adds another.",
-      "ownerReady": "You're linked as alliance owner (**{tag}**). Members use `/link` and `/vr`. Run `/link-to-ashed-seat` again if roster sync fails.",
-      "ownerReadyMulti": "You're linked as owner with **{count}** characters. `/vr` asks which character. `/unlink` or `/link replace:true` to manage links."
+      "memberReady": "You're linked. Use `/vr` or `/immunity` when your base VR changes. Officers (R4+): `/vr-report` for standings or `/vr-report teams:N` for takedown plans. `/help` anytime. `/language` for Português.",
+      "memberReadyMulti": "You have **{count}** linked characters. Use `/vr` or `/immunity` — the bot will ask which character. Officers (R4+): `/vr-report` or `/takedown-teams`. `/unlink` removes one; `/link` adds another.",
+      "ownerReady": "You're linked as alliance owner (**{tag}**). Members use `/link` and `/vr`. Run `/set-vr-report-channel` here for nightly standings; `/vr-report` or `/vr-report teams:N` for officer reports.",
+      "ownerReadyMulti": "You're linked as owner with **{count}** characters. `/vr` asks which character. `/set-vr-report-channel` sets the nightly channel; `/vr-report teams:N` builds takedown plans. `/unlink` or `/link replace:true` to manage links."
     },
     "unlink": {
       "none": "You don't have any linked characters on this server. Run `/link` first.",

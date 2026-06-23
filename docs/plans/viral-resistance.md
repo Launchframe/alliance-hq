@@ -17,6 +17,9 @@ Alliance HQ tracks **base viral resistance** (multiples of 250, max 12750) via D
 | `/link` | Link Discord user to in-game member (name + UID verification) |
 | `/vr [level]` | Report or bump base VR |
 | `/immunity [level]` | Alias of `/vr` |
+| `/set-vr-report-channel` | Owner: save current channel for nightly top-25 standings |
+| `/vr-report [teams:N]` | Officer (R4+ or owner): ephemeral top-25 or N takedown teams (5 players each) |
+| `/takedown-teams [teams:N]` | Alias of `/vr-report` |
 
 Register: `npm run discord:register-commands`
 
@@ -24,11 +27,13 @@ Interactions URL: `https://<host>/api/webhooks/discord/interactions`
 
 ## Environment
 
-See `.env.example` — `DISCORD_*`, `DISCORD_ALLIANCE_ID`, `DISCORD_ALLIANCE_SEASON_KEY`, `DISCORD_VR_REPORT_CHANNEL_ID`, optional `VR_BOT_ASHED_BEARER_TOKEN` for roster fetch during `/link`.
+See `.env.example` — `DISCORD_*`, optional legacy `DISCORD_ALLIANCE_ID` + `DISCORD_GUILD_ID`, `DISCORD_ALLIANCE_SEASON_KEY`, optional legacy `DISCORD_VR_REPORT_CHANNEL_ID`, optional `VR_BOT_ASHED_BEARER_TOKEN` for roster fetch during `/link`.
+
+Per-guild nightly reports use `/set-vr-report-channel` (stored on `discord_guild_alliances.vr_report_channel_id`). Legacy env channel is only used when no guild rows have a channel configured.
 
 ## Daily digest
 
-Cron at **00:00 Server Time** (`Etc/GMT+2`) posts ranked VR to `DISCORD_VR_REPORT_CHANNEL_ID`.
+Cron at **00:00 Server Time** (`Etc/GMT+2`) posts ranked VR (top 25) to each guild's configured report channel. Owners run `/set-vr-report-channel` in the target channel after `/link-alliance`.
 
 ## Officers
 

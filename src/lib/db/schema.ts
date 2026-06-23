@@ -635,6 +635,7 @@ export const discordGuildAlliances = pgTable("discord_guild_alliances", {
   allianceId: text("alliance_id")
     .notNull()
     .references(() => alliances.id, { onDelete: "cascade" }),
+  vrReportChannelId: text("vr_report_channel_id"),
   registeredAt: timestamp("registered_at", { withTimezone: true })
     .defaultNow()
     .notNull(),

@@ -11,16 +11,33 @@ export type LeaderboardRow = {
   flagReason: string | null;
 };
 
+export type TakedownTeam = {
+  teamIndex: number;
+  rallyLead: LeaderboardRow;
+  fillers: LeaderboardRow[];
+  effectiveVr: number;
+};
+
+export type TakedownTeamsResult =
+  | { ok: true; teams: TakedownTeam[] }
+  | { ok: false; error: "insufficient_players"; needed: number; have: number };
+
 export function memberTotalHeroPower(member: AshedMember): number {
   const record = member as AshedMember & {
     total_hero_power?: number;
     totalHeroPower?: number;
     hero_power?: number;
+    heroPowerM?: number | null;
   };
+  const fromHeroPowerM =
+    record.heroPowerM != null && record.heroPowerM > 0
+      ? Math.round(record.heroPowerM * 1_000_000)
+      : undefined;
   return (
     record.total_hero_power ??
     record.totalHeroPower ??
     record.hero_power ??
+    fromHeroPowerM ??
     0
   );
 }
@@ -59,13 +76,98 @@ export function buildLeaderboardRows(
     });
 }
 
-export function formatDailyDiscordReport(rows: LeaderboardRow[], seasonKey: string): string {
+export function formatVrLeaderboard(
+  rows: LeaderboardRow[],
+  seasonKey: string,
+  options?: { limit?: number; allianceTag?: string | null },
+): string {
+  const limit = options?.limit ?? 25;
   if (rows.length === 0) {
     return `**Season ${seasonKey} VR report** — no reports yet today.`;
   }
-  const lines = rows.slice(0, 25).map((row, index) => {
+  const tagSuffix = options?.allianceTag ? ` (${options.allianceTag})` : "";
+  const lines = rows.slice(0, limit).map((row, index) => {
     const flag = row.flagged ? " ⚠️" : "";
     return `${index + 1}. **${row.memberName}** — ${row.highestBaseVr} VR (THP ${row.totalHeroPower.toLocaleString()})${flag}`;
   });
-  return [`**Season ${seasonKey} base VR standings**`, ...lines].join("\n");
+  return [`**Season ${seasonKey} base VR standings${tagSuffix}**`, ...lines].join(
+    "\n",
+  );
+}
+
+export function formatDailyDiscordReport(
+  rows: LeaderboardRow[],
+  seasonKey: string,
+): string {
+  return formatVrLeaderboard(rows, seasonKey, { limit: 25 });
+}
+
+/** Assign filler slots across teams in snake order to balance THP per team. */
+function assignFillersSnakeDraft(
+  fillers: LeaderboardRow[],
+  teamCount: number,
+): LeaderboardRow[][] {
+  const perTeam: LeaderboardRow[][] = Array.from({ length: teamCount }, () => []);
+  const fillersPerTeam = 4;
+
+  for (let round = 0; round < fillersPerTeam; round++) {
+    const forward = round % 2 === 0;
+    for (let slot = 0; slot < teamCount; slot++) {
+      const teamIndex = forward ? slot : teamCount - 1 - slot;
+      const fillerIndex = round * teamCount + slot;
+      if (fillerIndex < fillers.length) {
+        perTeam[teamIndex]!.push(fillers[fillerIndex]!);
+      }
+    }
+  }
+
+  return perTeam;
+}
+
+export function buildTakedownTeams(
+  rows: LeaderboardRow[],
+  teamCount: number,
+): TakedownTeamsResult {
+  if (teamCount < 1) {
+    return { ok: false, error: "insufficient_players", needed: 5, have: rows.length };
+  }
+
+  const needed = teamCount * 5;
+  if (rows.length < needed) {
+    return { ok: false, error: "insufficient_players", needed, have: rows.length };
+  }
+
+  const leads = rows.slice(0, teamCount);
+  const pool = rows
+    .slice(teamCount)
+    .slice()
+    .sort((a, b) => b.totalHeroPower - a.totalHeroPower);
+  const fillers = pool.slice(0, teamCount * 4);
+  const fillerGroups = assignFillersSnakeDraft(fillers, teamCount);
+
+  const teams: TakedownTeam[] = leads.map((lead, index) => ({
+    teamIndex: index + 1,
+    rallyLead: lead,
+    fillers: fillerGroups[index] ?? [],
+    effectiveVr: lead.highestBaseVr,
+  }));
+
+  return { ok: true, teams };
+}
+
+export function formatTakedownReport(
+  teams: TakedownTeam[],
+  seasonKey: string,
+  allianceTag: string | null,
+): string {
+  const tagSuffix = allianceTag ? ` (${allianceTag})` : "";
+  const header = `**Season ${seasonKey} — ${teams.length} takedown teams${tagSuffix}**`;
+  const blocks = teams.map((team) => {
+    const leadLine = `**Team ${team.teamIndex}** — Lead **${team.rallyLead.memberName}** · ${team.effectiveVr} VR (THP ${team.rallyLead.totalHeroPower.toLocaleString()})`;
+    const fillerLines = team.fillers.map((filler, index) => {
+      return `  ${index + 2}. ${filler.memberName} · THP ${filler.totalHeroPower.toLocaleString()} (inherits ${team.effectiveVr} VR)`;
+    });
+    return [leadLine, ...fillerLines].join("\n");
+  });
+  return [header, ...blocks].join("\n\n");
 }

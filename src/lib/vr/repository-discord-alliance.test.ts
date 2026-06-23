@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { matchAllianceIdEnvValue } from "@/lib/vr/repository";
+import {
+  matchAllianceIdEnvValue,
+  resolveGuildAllianceIdWithLegacyFallback,
+} from "@/lib/vr/repository";
 
 describe("matchAllianceIdEnvValue", () => {
   const rows = [
@@ -20,5 +23,56 @@ describe("matchAllianceIdEnvValue", () => {
 
   it("returns null when env value is unknown", () => {
     expect(matchAllianceIdEnvValue("missing-id", rows)).toBeNull();
+  });
+});
+
+describe("resolveGuildAllianceIdWithLegacyFallback", () => {
+  const registered = "alliance-registered";
+  const legacy = "alliance-legacy";
+  const legacyGuild = "guild-legacy-123";
+  const otherGuild = "guild-other-456";
+
+  it("returns registered alliance when guild is linked", () => {
+    expect(
+      resolveGuildAllianceIdWithLegacyFallback({
+        guildId: otherGuild,
+        registeredAllianceId: registered,
+        legacyAllianceId: legacy,
+        legacyGuildId: legacyGuild,
+      }),
+    ).toBe(registered);
+  });
+
+  it("returns null for unregistered guild even when legacy env is set", () => {
+    expect(
+      resolveGuildAllianceIdWithLegacyFallback({
+        guildId: otherGuild,
+        registeredAllianceId: null,
+        legacyAllianceId: legacy,
+        legacyGuildId: legacyGuild,
+      }),
+    ).toBeNull();
+  });
+
+  it("allows legacy env fallback only for the configured legacy guild", () => {
+    expect(
+      resolveGuildAllianceIdWithLegacyFallback({
+        guildId: legacyGuild,
+        registeredAllianceId: null,
+        legacyAllianceId: legacy,
+        legacyGuildId: legacyGuild,
+      }),
+    ).toBe(legacy);
+  });
+
+  it("returns legacy alliance when guild id is absent (cron paths)", () => {
+    expect(
+      resolveGuildAllianceIdWithLegacyFallback({
+        guildId: null,
+        registeredAllianceId: null,
+        legacyAllianceId: legacy,
+        legacyGuildId: legacyGuild,
+      }),
+    ).toBe(legacy);
   });
 });

@@ -3,6 +3,7 @@ import type { AshedMember } from "@/lib/video/member-matcher";
 import type { DiscordTranslate } from "@/lib/discord/i18n";
 import type { LastWarPlayerLookupResult } from "@/lib/lastwar/player-lookup";
 import {
+  advanceLinkWalkthrough,
   findExactMemberByName,
   fuzzyUnlinkedCandidates,
   namesMatch,
@@ -20,23 +21,20 @@ export type ProcessLinkInput = {
   walkthroughStep?: number;
   translate: DiscordTranslate;
   walkthroughSteps: readonly string[];
+  allianceTag?: string | null;
 };
 
 export function processLinkCommand(input: ProcessLinkInput): LinkCommandResult {
   const { translate: t } = input;
 
   if (input.pending?.kind === "link_walkthrough") {
-    const nextStep = (input.walkthroughStep ?? input.pending.step) + 1;
-    if (nextStep >= input.walkthroughSteps.length) {
-      return {
-        reply: t("link.walkthroughDone"),
-        pending: null,
-      };
-    }
-    return {
-      reply: walkthroughMessage(nextStep, t, input.walkthroughSteps),
-      pending: { kind: "link_walkthrough", step: nextStep },
-    };
+    const currentStep = input.walkthroughStep ?? input.pending.step;
+    const advanced = advanceLinkWalkthrough({
+      step: currentStep,
+      translate: t,
+      steps: input.walkthroughSteps,
+    });
+    return { reply: advanced.reply, pending: advanced.pending };
   }
 
   if (!input.lookup.ok) {
@@ -44,6 +42,15 @@ export function processLinkCommand(input: ProcessLinkInput): LinkCommandResult {
   }
 
   const { gameUserName, gameUserLevel } = input.lookup;
+
+  if (input.members.length === 0) {
+    return {
+      reply: t("link.rosterUnavailable"),
+      pending: null,
+      needsOfficerAttention: true,
+    };
+  }
+
   if (!namesMatch(input.reportedName, gameUserName)) {
     return {
       reply: `${walkthroughMessage(0, t, input.walkthroughSteps)}\n\n${t("link.nameMismatchIntro")}`,
@@ -71,12 +78,21 @@ export function processLinkCommand(input: ProcessLinkInput): LinkCommandResult {
     input.linkedMemberIds,
     input.reportedName,
   );
-  if (candidates.length > 0) {
+  const gameNameCandidates =
+    candidates.length === 0
+      ? fuzzyUnlinkedCandidates(
+          input.members,
+          input.linkedMemberIds,
+          gameUserName,
+        )
+      : [];
+  const mergedCandidates = candidates.length > 0 ? candidates : gameNameCandidates;
+  if (mergedCandidates.length > 0) {
     return {
       reply: t("link.fuzzyPrompt", { gameName: gameUserName }),
       pending: {
         kind: "link_fuzzy_pick",
-        candidates: candidates.map((c) => ({
+        candidates: mergedCandidates.map((c) => ({
           memberId: c.memberId,
           name: c.name,
         })),
@@ -89,7 +105,9 @@ export function processLinkCommand(input: ProcessLinkInput): LinkCommandResult {
   }
 
   return {
-    reply: t("link.rosterMiss"),
+    reply: input.allianceTag
+      ? t("link.rosterMiss", { tag: input.allianceTag })
+      : t("link.rosterMissGeneric"),
     pending: null,
     needsOfficerAttention: true,
   };

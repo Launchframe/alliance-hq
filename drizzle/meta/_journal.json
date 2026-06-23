@@ -274,6 +274,13 @@
       "when": 1782646400000,
       "tag": "0039_train_day_config_tuesday_align",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1782732800000,
+      "tag": "0040_discord_guild_report_channel",
+      "breakpoints": true
     }
   ]
 }

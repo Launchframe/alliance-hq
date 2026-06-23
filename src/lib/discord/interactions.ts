@@ -44,6 +44,7 @@ export function resolveDiscordPublicKey(): string | null {
 export type DiscordInteractionPayload = {
   type: number;
   guild_id?: string;
+  channel_id?: string;
   locale?: string;
   data?: {
     name?: string;
@@ -60,6 +61,12 @@ export function interactionGuildId(
   payload: DiscordInteractionPayload,
 ): string | null {
   return payload.guild_id?.trim() || null;
+}
+
+export function interactionChannelId(
+  payload: DiscordInteractionPayload,
+): string | null {
+  return payload.channel_id?.trim() || null;
 }
 
 export function interactionDiscordUserId(
@@ -80,6 +87,14 @@ export function parseSlashOptionString(
 ): string | undefined {
   const option = payload.data?.options?.find((o) => o.name === name);
   return typeof option?.value === "string" ? option.value : undefined;
+}
+
+export function parseSlashOptionInteger(
+  payload: DiscordInteractionPayload,
+  name: string,
+): number | undefined {
+  const option = payload.data?.options?.find((o) => o.name === name);
+  return typeof option?.value === "number" ? option.value : undefined;
 }
 
 export function parseVrSlashLevel(
@@ -248,6 +263,23 @@ export function discordMessageResponse(
       content,
       ...(ephemeral ? { flags: 64 } : {}),
       ...(components ? { components } : {}),
+    },
+  };
+}
+
+/** Update the message that contained the clicked button (required for walkthrough Done). */
+export function discordComponentMessageResponse(
+  content: string,
+  components?: DiscordComponentRow,
+  options?: { ephemeral?: boolean },
+) {
+  const ephemeral = options?.ephemeral ?? true;
+  return {
+    type: 7,
+    data: {
+      content,
+      ...(ephemeral ? { flags: 64 } : {}),
+      ...(components !== undefined ? { components } : {}),
     },
   };
 }

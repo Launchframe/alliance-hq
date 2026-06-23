@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildVrConfirmButtons,
+  discordComponentMessageResponse,
   discordMessageResponse,
   parseButtonCustomId,
   parseLinkSlashOptions,
@@ -86,6 +87,10 @@ describe("discord interactions", () => {
 
   it("defaults discord responses to non-ephemeral", () => {
     expect(discordMessageResponse("hello").data.flags).toBeUndefined();
+  });
+
+  it("uses UPDATE_MESSAGE for component replies", () => {
+    expect(discordComponentMessageResponse("hello").type).toBe(7);
   });
 
   it("supports ephemeral link replies (UID privacy)", () => {

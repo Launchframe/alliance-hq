@@ -142,6 +142,56 @@ const commandBody = [
     ],
   },
   {
+    name: "set-vr-report-channel",
+    description: "Set this channel for nightly VR standings (owner only).",
+    description_localizations: {
+      "pt-BR":
+        "Define este canal para o relatório noturno de VR (somente dono).",
+    },
+  },
+  {
+    name: "vr-report",
+    description: "Officer report: top-25 VR standings or takedown teams.",
+    description_localizations: {
+      "pt-BR":
+        "Relatório de oficial: top 25 VR ou equipes de takedown.",
+    },
+    options: [
+      {
+        name: "teams",
+        description: "Number of takedown teams (5 players each). Omit for top-25 list.",
+        description_localizations: {
+          "pt-BR":
+            "Número de equipes de takedown (5 jogadores cada). Omita para o top 25.",
+        },
+        type: 4,
+        min_value: 1,
+        max_value: 5,
+        required: false,
+      },
+    ],
+  },
+  {
+    name: "takedown-teams",
+    description: "Alias for /vr-report with teams option.",
+    description_localizations: {
+      "pt-BR": "Atalho para /vr-report com opção de equipes.",
+    },
+    options: [
+      {
+        name: "teams",
+        description: "Number of takedown teams (5 players each).",
+        description_localizations: {
+          "pt-BR": "Número de equipes de takedown (5 jogadores cada).",
+        },
+        type: 4,
+        min_value: 1,
+        max_value: 5,
+        required: false,
+      },
+    ],
+  },
+  {
     name: "link-to-ashed-seat",
     description: "Connect your Ashed seat so the bot can read your alliance roster (owner only).",
     description_localizations: {

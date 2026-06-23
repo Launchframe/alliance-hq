@@ -33,6 +33,27 @@ export function fuzzyUnlinkedCandidates(
   return findFuzzyMemberCandidates(reportedName, unlinked, { limit });
 }
 
+export function advanceLinkWalkthrough(input: {
+  step: number;
+  translate: DiscordTranslate;
+  steps: readonly string[];
+}): {
+  reply: string;
+  pending: { kind: "link_walkthrough"; step: number } | null;
+} {
+  const nextStep = input.step + 1;
+  if (nextStep >= input.steps.length) {
+    return {
+      reply: input.translate("link.walkthroughDone"),
+      pending: null,
+    };
+  }
+  return {
+    reply: walkthroughMessage(nextStep, input.translate, input.steps),
+    pending: { kind: "link_walkthrough", step: nextStep },
+  };
+}
+
 export function walkthroughMessage(
   step: number,
   translate: DiscordTranslate,

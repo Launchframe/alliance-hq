@@ -73,4 +73,11 @@ describe("allianceMemberRowToAshedMember", () => {
       title: "Warlord",
     });
   });
+
+  it("maps heroPowerM to total_hero_power", () => {
+    const member = allianceMemberRowToAshedMember(
+      rosterRow({ heroPowerM: 8.5 }),
+    );
+    expect(member.total_hero_power).toBe(8_500_000);
+  });
 });
