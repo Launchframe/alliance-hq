@@ -4,7 +4,7 @@ import { getTranslations } from "next-intl/server";
 import { ashedLink, strongText } from "@/components/i18n/richText";
 import { Link } from "@/i18n/navigation";
 
-const GITHUB_URL = "https://github.com/amcmillion/alliance-hq";
+const GITHUB_URL = "https://github.com/Launchframe/alliance-hq";
 
 const FEATURE_KEYS = [
   "featureRoster",

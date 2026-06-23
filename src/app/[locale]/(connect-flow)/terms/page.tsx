@@ -4,7 +4,7 @@ import { getTranslations } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 import { ashedLink, strongText } from "@/components/i18n/richText";
 
-const GITHUB_REPO_URL = "https://github.com/amcmillion/alliance-hq";
+const GITHUB_REPO_URL = "https://github.com/Launchframe/alliance-hq";
 const LICENSE_URL = `${GITHUB_REPO_URL}/blob/main/LICENSE`;
 
 type Props = {

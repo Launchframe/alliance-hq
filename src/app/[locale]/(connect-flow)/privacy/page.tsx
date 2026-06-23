@@ -74,7 +74,7 @@ export default async function PrivacyPage() {
           {t.rich("questionsBody", {
             githubLink: (chunks) => (
               <a
-                href="https://github.com/amcmillion/alliance-hq"
+                href="https://github.com/Launchframe/alliance-hq"
                 target="_blank"
                 rel="noreferrer"
                 className="text-[#58a6ff] hover:underline"
