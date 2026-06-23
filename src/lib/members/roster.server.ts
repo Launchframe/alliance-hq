@@ -10,6 +10,7 @@ import type { AllianceMember } from "@/lib/db/schema";
 import type { AshedMemberRecord } from "@/lib/members/ashed-member-record";
 import { formatAshedMemberRankValue } from "@/lib/members/alliance-rank";
 import { seedMemberStatHistoriesFromAshed } from "@/lib/members/member-stat-history.server";
+import { syncTenureFromMemberStatus } from "@/lib/members/member-tenure.server";
 import { normalizedRankFromAshedMember } from "@/lib/members/roster.shared";
 
 export {
@@ -63,6 +64,8 @@ export async function syncAllianceMembersFromAshed(input: {
     const ashedCreatedAt = parseAshedTimestamp(record.created_date);
     const ashedUpdatedAt = parseAshedTimestamp(record.updated_date);
 
+    const status = member.status ?? "active";
+
     await db
       .insert(schema.allianceMembers)
       .values({
@@ -72,7 +75,7 @@ export async function syncAllianceMembersFromAshed(input: {
         ashedAllianceId: input.ashedAllianceId,
         currentName: member.current_name,
         previousNamesJson: member.previous_names ?? [],
-        status: member.status ?? "active",
+        status,
         allianceRank: normalized.allianceRank,
         allianceRankTitle: normalized.allianceRankTitle,
         ashedRankRaw: normalized.ashedRankRaw,
@@ -111,7 +114,7 @@ export async function syncAllianceMembersFromAshed(input: {
           ashedAllianceId: input.ashedAllianceId,
           currentName: member.current_name,
           previousNamesJson: member.previous_names ?? [],
-          status: member.status ?? "active",
+          status,
           allianceRank: normalized.allianceRank,
           allianceRankTitle: normalized.allianceRankTitle,
           ashedRankRaw: normalized.ashedRankRaw,
@@ -153,6 +156,12 @@ export async function syncAllianceMembersFromAshed(input: {
       powerLevelHistory: record.power_level_history,
       professionalLevelHistory: record.professional_level_history,
       totalHeroPowerHistory: record.total_hero_power_history,
+    });
+
+    await syncTenureFromMemberStatus({
+      allianceId: input.hqAllianceId,
+      ashedMemberId,
+      status,
     });
 
     synced += 1;

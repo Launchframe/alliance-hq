@@ -4,6 +4,10 @@ import { and, eq, gt } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { getDb, schema } from "@/lib/db";
+import {
+  denormalizeGameUidOnMember,
+  openMemberAllianceTenure,
+} from "@/lib/members/member-tenure.server";
 import type { LinkPendingState } from "@/lib/vr/types";
 
 const PENDING_TTL_MS = 30 * 60 * 1000;
@@ -138,6 +142,16 @@ export async function linkHqMember(input: {
       })
       .where(eq(schema.hqMemberLinks.id, existingUserLink.id))
       .returning();
+    await denormalizeGameUidOnMember({
+      allianceId: input.allianceId,
+      ashedMemberId: input.ashedMemberId,
+      gameUid: input.gameUid,
+    });
+    await openMemberAllianceTenure({
+      allianceId: input.allianceId,
+      ashedMemberId: input.ashedMemberId,
+      gameUid: input.gameUid,
+    });
     return { ok: true, link: row!, mode: "updated" };
   }
 
@@ -154,6 +168,18 @@ export async function linkHqMember(input: {
       updatedAt: now,
     })
     .returning();
+
+  await denormalizeGameUidOnMember({
+    allianceId: input.allianceId,
+    ashedMemberId: input.ashedMemberId,
+    gameUid: input.gameUid,
+  });
+  await openMemberAllianceTenure({
+    allianceId: input.allianceId,
+    ashedMemberId: input.ashedMemberId,
+    gameUid: input.gameUid,
+    joinedAt: now,
+  });
 
   return { ok: true, link: row!, mode: "created" };
 }

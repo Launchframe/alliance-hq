@@ -1,14 +1,34 @@
 import { NextResponse } from "next/server";
 
+import {
+  assertCommanderReadAccess,
+  CommanderAccessError,
+  resolveCommanderSessionContext,
+} from "@/lib/members/commander-access.server";
 import { loadAllianceMembers } from "@/lib/members/load";
 import { getOrCreateSession } from "@/lib/session";
 
-export async function GET() {
+export const dynamic = "force-dynamic";
+
+export async function GET(request: Request) {
   try {
     const session = await getOrCreateSession();
-    const payload = await loadAllianceMembers(session.id);
+    const { allianceId } = await resolveCommanderSessionContext(session.id);
+    await assertCommanderReadAccess(session.id, allianceId);
+
+    const url = new URL(request.url);
+    const q = url.searchParams.get("q")?.trim() || undefined;
+    const includeFormer = url.searchParams.get("includeFormer") === "1";
+
+    const payload = await loadAllianceMembers(session.id, {
+      q,
+      includeFormer,
+    });
     return NextResponse.json(payload);
   } catch (error) {
+    if (error instanceof CommanderAccessError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
     const message =
       error instanceof Error ? error.message : "Failed to load members";
     const status = message.includes("Not connected")
