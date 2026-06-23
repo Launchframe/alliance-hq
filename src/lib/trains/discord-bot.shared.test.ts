@@ -4,6 +4,7 @@ import {
   formatTrainDepartingSoonMessage,
   formatTrainReadyMessage,
   formatTrainStatusReply,
+  groupTrainChannelsByAlliance,
   TRAIN_DEPARTING_SOON_ELAPSED_HOURS,
 } from "@/lib/trains/discord-bot.shared";
 
@@ -42,5 +43,18 @@ describe("discord train message formatting", () => {
 
   it("uses 3h elapsed before departing-soon window", () => {
     expect(TRAIN_DEPARTING_SOON_ELAPSED_HOURS).toBe(3);
+  });
+
+  it("groups train channels by alliance for departing-soon cron", () => {
+    const grouped = groupTrainChannelsByAlliance([
+      { guildId: "g1", allianceId: "a1", channelId: "c1" },
+      { guildId: "g2", allianceId: "a1", channelId: "c2" },
+      { guildId: "g3", allianceId: "a2", channelId: "c3" },
+    ]);
+    expect(grouped.get("a1")).toEqual([
+      { guildId: "g1", channelId: "c1" },
+      { guildId: "g2", channelId: "c2" },
+    ]);
+    expect(grouped.get("a2")).toEqual([{ guildId: "g3", channelId: "c3" }]);
   });
 });

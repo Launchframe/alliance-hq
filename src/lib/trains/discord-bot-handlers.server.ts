@@ -3,7 +3,6 @@ import "server-only";
 import type { DiscordBotLocale } from "@/lib/discord/i18n";
 import { createDiscordTranslator } from "@/lib/discord/i18n";
 import { callerCanManageTrains } from "@/lib/trains/discord-bot-auth.server";
-import { formatTrainStatusReply } from "@/lib/trains/discord-bot.shared";
 import {
   draftConductorForAlliance,
   lockTrainAndAnnounce,
@@ -34,6 +33,32 @@ function parseTrainDate(raw: string | undefined): string {
     return trimmed;
   }
   return getServerCalendarDate();
+}
+
+function localizedTrainStatusReply(
+  t: ReturnType<typeof createDiscordTranslator>,
+  record: {
+    conductorMemberName: string | null;
+    vipMemberName: string | null;
+    lockedAt: Date | null;
+  },
+  date: string,
+): string {
+  if (!record.conductorMemberName?.trim()) {
+    return t("train.statusNoSelection", { date });
+  }
+  const vip = record.vipMemberName?.trim()
+    ? t("train.statusVipLine", { name: record.vipMemberName.trim() })
+    : "";
+  const status = record.lockedAt ? t("train.statusLocked") : t("train.statusDraft");
+  return (
+    t("train.statusHeader", {
+      date,
+      name: record.conductorMemberName.trim(),
+    }) +
+    vip +
+    status
+  );
 }
 
 export async function handleDiscordSetTrainChannel(input: {
@@ -98,12 +123,7 @@ export async function handleDiscordWhoIsConductor(input: {
   );
 
   const reply = record
-    ? formatTrainStatusReply({
-        date,
-        conductorMemberName: record.conductorMemberName,
-        vipMemberName: record.vipMemberName,
-        lockedAt: record.lockedAt?.toISOString() ?? null,
-      })
+    ? localizedTrainStatusReply(t, record, date)
     : t("train.noConductor", { date });
 
   await writeDiscordBotAudit({

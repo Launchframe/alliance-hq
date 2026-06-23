@@ -2430,6 +2430,11 @@
         "success": "Train announcements for **{tag}** will post in {channel}. Enable announcements in Alliance HQ settings, then officers can use `/set-conductor` and `/train-is-ready`."
       },
       "noConductor": "No conductor record for **{date}** yet.",
+      "statusNoSelection": "No conductor selected yet for **{date}**.",
+      "statusHeader": "Conductor for **{date}**: **{name}**",
+      "statusVipLine": "\nVIP: **{name}**",
+      "statusLocked": "\nStatus: **locked** — train is on the platform.",
+      "statusDraft": "\nStatus: **draft** — run `/train-is-ready` or lock in Alliance HQ when ready.",
       "usageSetConductor": "Usage: `/set-conductor name:MemberName` (optional `date:YYYY-MM-DD`).",
       "confirmPick": "Set **{name}** as draft conductor for **{date}**?",
       "fuzzyPrompt": "Multiple roster matches for **{query}**. Pick one:",

@@ -58,3 +58,15 @@ export function formatTrainStatusReply(record: TrainDiscordStatusRecord): string
 export const TRAIN_DEPARTING_SOON_ELAPSED_HOURS = 3;
 
 export const TRAIN_PLATFORM_WINDOW_HOURS = 4;
+
+export function groupTrainChannelsByAlliance(
+  targets: Array<{ guildId: string; allianceId: string; channelId: string }>,
+): Map<string, Array<{ guildId: string; channelId: string }>> {
+  const byAlliance = new Map<string, Array<{ guildId: string; channelId: string }>>();
+  for (const target of targets) {
+    const channels = byAlliance.get(target.allianceId) ?? [];
+    channels.push({ guildId: target.guildId, channelId: target.channelId });
+    byAlliance.set(target.allianceId, channels);
+  }
+  return byAlliance;
+}

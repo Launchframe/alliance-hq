@@ -2430,6 +2430,11 @@
         "success": "Anúncios de trem de **{tag}** serão publicados em {channel}. Ative os anúncios nas configurações da aliança no HQ; oficiais podem usar `/set-conductor` e `/train-is-ready`."
       },
       "noConductor": "Ainda não há condutor para **{date}**.",
+      "statusNoSelection": "Nenhum condutor selecionado ainda para **{date}**.",
+      "statusHeader": "Condutor para **{date}**: **{name}**",
+      "statusVipLine": "\nVIP: **{name}**",
+      "statusLocked": "\nStatus: **travado** — trem na plataforma.",
+      "statusDraft": "\nStatus: **rascunho** — use `/train-is-ready` ou trave no Alliance HQ quando estiver pronto.",
       "usageSetConductor": "Uso: `/set-conductor name:Nome` (opcional `date:AAAA-MM-DD`).",
       "confirmPick": "Definir **{name}** como condutor rascunho para **{date}**?",
       "fuzzyPrompt": "Vários nomes no roster para **{query}**. Escolha um:",

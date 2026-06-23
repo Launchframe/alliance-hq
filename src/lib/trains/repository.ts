@@ -512,7 +512,7 @@ export async function unlockConductorRecord(
   const updatedAt = new Date();
   await db
     .update(schema.trainConductorRecords)
-    .set({ lockedAt: null, updatedAt })
+    .set({ lockedAt: null, discordDepartingSoonAt: null, updatedAt })
     .where(eq(schema.trainConductorRecords.id, recordId));
 
   const [row] = await db

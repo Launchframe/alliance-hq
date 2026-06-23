@@ -15,6 +15,7 @@ import { getServerCalendarDate, refreshExhaustedPoolsForDay } from "@/lib/trains
 import {
   formatTrainDepartingSoonMessage,
   formatTrainReadyMessage,
+  groupTrainChannelsByAlliance,
   TRAIN_DEPARTING_SOON_ELAPSED_HOURS,
   TRAIN_PLATFORM_WINDOW_HOURS,
 } from "@/lib/trains/discord-bot.shared";
@@ -242,35 +243,31 @@ export async function draftConductorForAlliance(input: {
   });
 }
 
+
 export async function processDepartingSoonReminders(): Promise<{
   posted: number;
   skipped: number;
 }> {
   const today = getServerCalendarDate();
   const targets = await listRegisteredGuildsWithTrainChannel();
+  const channelsByAlliance = groupTrainChannelsByAlliance(targets);
   let posted = 0;
   let skipped = 0;
 
-  for (const target of targets) {
-    if (!(await getAllianceTrainDiscordAnnouncementsEnabled(target.allianceId))) {
-      skipped += 1;
+  for (const [allianceId, channels] of channelsByAlliance) {
+    if (!(await getAllianceTrainDiscordAnnouncementsEnabled(allianceId))) {
+      skipped += channels.length;
       continue;
     }
 
-    const seasonKey = (
-      await getEffectiveSeasonForAlliance(target.allianceId)
-    ).seasonKey;
-    const record = await getConductorRecord(
-      target.allianceId,
-      today,
-      seasonKey,
-    );
+    const seasonKey = (await getEffectiveSeasonForAlliance(allianceId)).seasonKey;
+    const record = await getConductorRecord(allianceId, today, seasonKey);
     if (
       !record?.lockedAt ||
       !record.conductorMemberName ||
       record.discordDepartingSoonAt
     ) {
-      skipped += 1;
+      skipped += channels.length;
       continue;
     }
 
@@ -280,18 +277,18 @@ export async function processDepartingSoonReminders(): Promise<{
       lockedAtIso: record.lockedAt.toISOString(),
     });
     if (departure.state !== "on_platform") {
-      skipped += 1;
+      skipped += channels.length;
       continue;
     }
 
     const elapsedMs = Date.now() - record.lockedAt.getTime();
     const elapsedHours = elapsedMs / (60 * 60 * 1000);
     if (elapsedHours < TRAIN_DEPARTING_SOON_ELAPSED_HOURS) {
-      skipped += 1;
+      skipped += channels.length;
       continue;
     }
     if (elapsedHours >= TRAIN_PLATFORM_WINDOW_HOURS) {
-      skipped += 1;
+      skipped += channels.length;
       continue;
     }
 
@@ -300,12 +297,20 @@ export async function processDepartingSoonReminders(): Promise<{
       date: today,
       appUrl: appBaseUrl(),
     });
-    const ok = await postDiscordChannelMessage(target.channelId, message);
-    if (ok) {
-      await markConductorDepartingSoonAnnounced(record.id, target.allianceId);
-      posted += 1;
-    } else {
-      skipped += 1;
+
+    let alliancePosted = 0;
+    for (const channel of channels) {
+      const ok = await postDiscordChannelMessage(channel.channelId, message);
+      if (ok) {
+        alliancePosted += 1;
+      } else {
+        skipped += 1;
+      }
+    }
+
+    if (alliancePosted > 0) {
+      await markConductorDepartingSoonAnnounced(record.id, allianceId);
+      posted += alliancePosted;
     }
   }
 
