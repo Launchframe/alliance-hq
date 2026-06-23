@@ -2066,6 +2066,62 @@
     "next": "Next",
     "submitting": "Saving…"
   },
+  "memberLink": {
+    "errors": {
+      "nothingPending": "Nothing to pick right now.",
+      "noWalkthrough": "No walkthrough in progress."
+    },
+    "usage": "Enter your in-game name and UID from your Last War profile.",
+    "linked": "Linked to {name}. Welcome to the alliance!",
+    "updated": "Updated your link for {name}.",
+    "memberTaken": "That in-game member is already linked to a different account.",
+    "fuzzyPrompt": "We verified {gameName} but couldn't find an exact roster match. Pick your member:",
+    "rosterMiss": "We checked the {tag} roster and couldn't match that name to anyone. Try Start over for copy instructions, or ask an officer for help.",
+    "rosterMissGeneric": "We couldn't match that name to anyone on the roster. Try Start over for copy instructions, or ask an officer for help.",
+    "rosterUnavailable": "We verified your UID with the game, but couldn't load the alliance roster. Ask an officer for help.",
+    "pickExpired": "That member option expired. Submit your name and UID again.",
+    "walkthroughDone": "Great. Submit your copied name and UID again when ready.",
+    "walkthroughIntro": "Let's fix your in-game name copy.",
+    "walkthroughTapDone": "Tap Done when you've finished this step.",
+    "nameMismatchIntro": "Your name didn't match what Last War has on file. Follow these steps to copy it correctly.",
+    "steps": [
+      "Open the game.",
+      "Tap your avatar picture to open your Player's Profile menu.",
+      "Tap the \"...\" menu in the top right to open the Profile menu.",
+      "Tap \"Copy\" next to your name on that screen.",
+      "Return here and submit that copied name with your UID."
+    ],
+    "buttons": {
+      "done": "Done",
+      "startOver": "Start over",
+      "askOfficer": "Ask an officer"
+    },
+    "officerNotified": "An officer has been notified on Alliance HQ. They can reach out to help you link."
+  },
+  "onboard": {
+    "title": "Link your character",
+    "welcomePrefix": "Welcome to!",
+    "welcomeSubtitle": "Let's connect your HQ account to your in-game profile.",
+    "nameLabel": "In-game name",
+    "nameHint": "Copy from your Last War profile — must match exactly.",
+    "nameRequired": "Enter your in-game name.",
+    "uidLabel": "Player UID",
+    "uidHint": "12–16 digit ID from your profile (ends in 1203).",
+    "uidRequired": "Enter your player UID.",
+    "uidInvalid": "UID must be 12–16 digits and end in 1203.",
+    "submit": "Link my character",
+    "submitting": "Verifying…",
+    "continue": "Continue",
+    "linkedTitle": "You're linked!",
+    "linkedBody": "Welcome aboard, {name}. Taking you in…",
+    "fuzzyTitle": "Pick your roster name",
+    "rosterMissTitle": "We couldn't find you on the roster",
+    "walkthroughTitle": "Copy your name from the game",
+    "requestFailed": "Something went wrong. Try again.",
+    "connectAshedBanner": "Connect Ashed for iframe tools and live roster sync.",
+    "connectAshedCta": "Connect Ashed",
+    "connectAshedDismiss": "Not now"
+  },
   "discordBot": {
     "errors": {
       "guildNotConfigured": "Discord VR tracking is not configured for this server yet. An alliance owner should run `/link-alliance` with your alliance tag.",

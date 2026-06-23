@@ -21,6 +21,7 @@ import {
 
 import { getAllianceOperatingMode } from "./operating-mode";
 import { ASHED_CONNECT_PERMISSION } from "@/lib/rbac/constants";
+import { sessionHasHqMemberLink } from "@/lib/member-link/repository.server";
 
 /**
  * Ashed connect UI/API is blocked only for bound sessions whose active alliance
@@ -98,6 +99,37 @@ export async function sessionHasNativeMembership(
 
   const mode = await getAllianceOperatingMode(session.currentAllianceId);
   return mode === "native";
+}
+
+/** Native members must link HQ user to roster row before using the app shell. */
+export async function sessionRequiresMemberLink(session: Session): Promise<boolean> {
+  if (!(await sessionHasNativeMembership(session))) {
+    return false;
+  }
+
+  const effectiveHqUserId = await resolveEffectiveHqUserIdForSession(
+    session.id,
+    session.hqUserId,
+  );
+  if (!effectiveHqUserId || !session.currentAllianceId) {
+    return false;
+  }
+
+  const db = getDb();
+  const [user] = await db
+    .select({ isPlatformMaintainer: schema.hqUsers.isPlatformMaintainer })
+    .from(schema.hqUsers)
+    .where(eq(schema.hqUsers.id, effectiveHqUserId))
+    .limit(1);
+  if (user?.isPlatformMaintainer === 1) {
+    return false;
+  }
+
+  const linked = await sessionHasHqMemberLink(
+    session.currentAllianceId,
+    effectiveHqUserId,
+  );
+  return !linked;
 }
 
 async function sessionPassesNativeInviteGate(

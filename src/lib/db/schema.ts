@@ -550,6 +550,63 @@ export const hqEventMembers = pgTable("hq_event_members", {
     .notNull(),
 });
 
+/** Maps an HQ web user to an in-game roster member within an alliance. */
+export const hqMemberLinks = pgTable(
+  "hq_member_links",
+  {
+    id: text("id").primaryKey(),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    hqUserId: text("hq_user_id")
+      .notNull()
+      .references(() => hqUsers.id, { onDelete: "cascade" }),
+    ashedMemberId: text("ashed_member_id").notNull(),
+    memberDisplayName: text("member_display_name"),
+    gameUid: text("game_uid").notNull(),
+    linkedAt: timestamp("linked_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    unique("hq_member_links_alliance_user_unique").on(
+      table.allianceId,
+      table.hqUserId,
+    ),
+    unique("hq_member_links_alliance_member_unique").on(
+      table.allianceId,
+      table.ashedMemberId,
+    ),
+  ],
+);
+
+/** Short-lived web member-link state (walkthrough, fuzzy pick). */
+export const hqMemberLinkPending = pgTable(
+  "hq_member_link_pending",
+  {
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    hqUserId: text("hq_user_id")
+      .notNull()
+      .references(() => hqUsers.id, { onDelete: "cascade" }),
+    pendingJson: jsonb("pending_json").$type<Record<string, unknown>>(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.allianceId, table.hqUserId],
+      name: "hq_member_link_pending_alliance_user_pk",
+    }),
+  ],
+);
+
 /** Maps a Discord user to an Ashed member within an alliance. */
 export const discordMemberLinks = pgTable(
   "discord_member_links",
@@ -871,6 +928,8 @@ export type TranslationCorrectionReport =
 export type HqPlatformCommendation = typeof hqPlatformCommendations.$inferSelect;
 export type HqUserPlatformCommendation =
   typeof hqUserPlatformCommendations.$inferSelect;
+export type HqMemberLink = typeof hqMemberLinks.$inferSelect;
+export type HqMemberLinkPending = typeof hqMemberLinkPending.$inferSelect;
 export type DiscordMemberLink = typeof discordMemberLinks.$inferSelect;
 export type MemberSeasonVr = typeof memberSeasonVr.$inferSelect;
 export type DiscordBotPending = typeof discordBotPending.$inferSelect;

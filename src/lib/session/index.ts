@@ -30,6 +30,7 @@ import {
   sessionHasActiveMembership,
   sessionHasAppAccess,
   sessionHasNativeMembership,
+  sessionRequiresMemberLink,
 } from "@/lib/native-alliance/access";
 import { getAllianceOperatingMode } from "@/lib/native-alliance/operating-mode";
 import { shouldShowTeamAccessNav } from "@/lib/settings/team-access-nav.shared";
@@ -472,6 +473,7 @@ export async function getSessionStateFor(
   const hasAppAccess = await sessionHasAppAccess(session);
   const isNativeMembership = await sessionHasNativeMembership(session);
   const hasActiveMembership = await sessionHasActiveMembership(session);
+  const requiresMemberLink = await sessionRequiresMemberLink(session);
   const operatingMode = session.currentAllianceId
     ? await getAllianceOperatingMode(session.currentAllianceId)
     : null;
@@ -510,6 +512,7 @@ export async function getSessionStateFor(
     timezone,
     isConnected: connection !== null,
     hasAppAccess,
+    requiresMemberLink,
     canUseAshedEmbeds,
     isNativeAlliance: isNativeMembership,
     operatingMode,

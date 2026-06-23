@@ -223,8 +223,22 @@ export async function getDiscordLinkById(linkId: string) {
 }
 
 export async function getLinkedMemberIds(allianceId: string): Promise<Set<string>> {
-  const links = await listDiscordLinksByAlliance(allianceId);
-  return new Set(links.map((l) => l.ashedMemberId));
+  const db = getDb();
+  const [discordLinks, hqLinks] = await Promise.all([
+    listDiscordLinksByAlliance(allianceId),
+    db
+      .select({ ashedMemberId: schema.hqMemberLinks.ashedMemberId })
+      .from(schema.hqMemberLinks)
+      .where(eq(schema.hqMemberLinks.allianceId, allianceId)),
+  ]);
+  const ids = new Set<string>();
+  for (const link of discordLinks) {
+    ids.add(link.ashedMemberId);
+  }
+  for (const link of hqLinks) {
+    ids.add(link.ashedMemberId);
+  }
+  return ids;
 }
 
 export async function getDiscordLinkByAllianceAndMember(

@@ -73,6 +73,10 @@ export default async function AppLayout({
     redirect({ href: "/get-started", locale });
   }
 
+  if (state.requiresMemberLink) {
+    redirect({ href: `/onboard?next=${encodeURIComponent("/dashboard")}`, locale });
+  }
+
   return (
     <TimezoneProvider initialTimezoneId={state.timezone}>
       <AshedShell
@@ -86,6 +90,7 @@ export default async function AppLayout({
         isNativeAlliance={state.isNativeAlliance}
         operatingMode={state.operatingMode}
         canUseAshedEmbeds={state.canUseAshedEmbeds}
+        isAshedConnectAllowed={state.rbac?.isAshedConnectAllowed ?? false}
         ashed={state.ashed}
         showAdminPortal={state.rbac?.isPlatformMaintainer ?? false}
         showTeamAccess={state.showTeamAccess}

@@ -36,3 +36,61 @@ body {
 a {
   color: inherit;
 }
+
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes alliance-tag-gradient {
+    to {
+      background-position: 200% center;
+    }
+  }
+
+  @keyframes alliance-tag-shimmer {
+    0%,
+    100% {
+      transform: translateX(-120%);
+    }
+    50% {
+      transform: translateX(120%);
+    }
+  }
+
+  @keyframes alliance-tag-pulse {
+    0%,
+    100% {
+      opacity: 0.5;
+    }
+    50% {
+      opacity: 1;
+    }
+  }
+
+  .alliance-tag-text {
+    background: linear-gradient(
+      90deg,
+      #f778ba,
+      #ffa657,
+      #58a6ff,
+      #3fb950,
+      #f778ba
+    );
+    background-size: 200% auto;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: alliance-tag-gradient 4s linear infinite;
+  }
+
+  .alliance-tag-shimmer {
+    animation: alliance-tag-shimmer 2.5s ease-in-out infinite;
+  }
+
+  .alliance-tag-glow {
+    animation: alliance-tag-pulse 2s ease-in-out infinite;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .alliance-tag-text {
+    color: #ffa657;
+  }
+}
