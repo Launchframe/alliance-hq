@@ -99,7 +99,7 @@ export default async function AppLayout({
         canUseAshedEmbeds={state.canUseAshedEmbeds}
         isAshedConnectAllowed={state.rbac?.isAshedConnectAllowed ?? false}
         ashed={state.ashed}
-        showAdminPortal={state.rbac?.isPlatformMaintainer ?? false}
+        showAdminPortal={state.permissions.includes("hq:admin")}
         showTeamAccess={state.showTeamAccess}
         showAllianceSettings={Boolean(state.currentAllianceId)}
         activeAllianceTag={state.allianceTag}

@@ -53,16 +53,6 @@ export default async function OnboardPage({ searchParams }: Props) {
     const resolvedAllianceId =
       session.currentAllianceId ?? session.allianceId ?? null;
 
-    if (effectiveHqUserId && resolvedAllianceId) {
-      const linked = await sessionHasHqMemberLink(
-        resolvedAllianceId,
-        effectiveHqUserId,
-      );
-      if (linked) {
-        redirect({ href: nextPath, locale });
-      }
-    }
-
     if (!resolvedAllianceId) {
       redirect({ href: "/get-started", locale });
     }
@@ -93,6 +83,20 @@ export default async function OnboardPage({ searchParams }: Props) {
         session.id,
         effectiveHqUserId,
       );
+    }
+
+    if (effectiveHqUserId) {
+      const linked = await sessionHasHqMemberLink(
+        allianceId,
+        effectiveHqUserId,
+      );
+      if (linked) {
+        const needsAshedBeforeApp =
+          requiresAshedVerification && !isAshedConnected;
+        if (!needsAshedBeforeApp) {
+          redirect({ href: nextPath, locale });
+        }
+      }
     }
   } catch (error) {
     rethrowNavigationError(error);

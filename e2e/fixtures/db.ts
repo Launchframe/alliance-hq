@@ -254,7 +254,7 @@ export async function acceptInviteViaApi(
     sessionId: browserSessionId,
     hqUserId,
     nextAuthToken,
-    redirectTo: body.redirectTo ?? "/connect?welcome=1",
+    redirectTo: body.redirectTo ?? "/onboard",
   };
 }
 
@@ -507,6 +507,46 @@ export async function createAllianceMembership(
       ${now}
     )
   `;
+}
+
+/** Seeds hq_member_links so invited members can pass the app shell gate in e2e. */
+export async function createHqMemberLink(
+  sql: Sql,
+  input: {
+    allianceId: string;
+    hqUserId: string;
+    ashedMemberId?: string;
+    gameUid?: string;
+    memberDisplayName?: string;
+  },
+): Promise<{ ashedMemberId: string; gameUid: string }> {
+  const now = new Date();
+  const id = nanoid(16);
+  const ashedMemberId = input.ashedMemberId ?? `e2e-member-${nanoid(12)}`;
+  const gameUid = input.gameUid ?? `12345678901203`;
+  const memberDisplayName = input.memberDisplayName ?? "E2E Commander";
+
+  await sql`
+    INSERT INTO hq_member_links (
+      id, alliance_id, hq_user_id, ashed_member_id, member_display_name, game_uid, linked_at, updated_at
+    ) VALUES (
+      ${id},
+      ${input.allianceId},
+      ${input.hqUserId},
+      ${ashedMemberId},
+      ${memberDisplayName},
+      ${gameUid},
+      ${now},
+      ${now}
+    )
+    ON CONFLICT (alliance_id, hq_user_id) DO UPDATE SET
+      ashed_member_id = EXCLUDED.ashed_member_id,
+      member_display_name = EXCLUDED.member_display_name,
+      game_uid = EXCLUDED.game_uid,
+      updated_at = EXCLUDED.updated_at
+  `;
+
+  return { ashedMemberId, gameUid };
 }
 
 export async function sessionHasAshedCredential(

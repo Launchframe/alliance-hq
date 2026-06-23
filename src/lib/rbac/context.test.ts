@@ -146,6 +146,57 @@ describe("getRbacContext", () => {
     expect(ctx?.roleName).toBe("owner");
     expect(ctx?.permissions.size).toBe(0);
   });
+
+  it("withholds hq:admin for platform maintainer without live Ashed verification", async () => {
+    vi.mocked(sessionHasLiveAshedVerification).mockResolvedValue(false);
+    selectMock
+      .mockReturnValueOnce(
+        chainSelectWithLimit([
+          {
+            id: "canonical-user",
+            email: "pm@example.com",
+            displayName: "PM",
+            isPlatformMaintainer: 1,
+          },
+        ]),
+      )
+      .mockReturnValueOnce(
+        chainSelectWithLimit([
+          { roleName: "member", roleId: "role-member", source: "manual" },
+        ]),
+      )
+      .mockReturnValueOnce(chainSelectPermissions([]));
+
+    const ctx = await getRbacContext("sess-1");
+
+    expect(ctx?.isPlatformMaintainer).toBe(true);
+    expect(ctx?.permissions.has("hq:admin")).toBe(false);
+  });
+
+  it("grants hq:admin for platform maintainer with live Ashed verification", async () => {
+    vi.mocked(sessionHasLiveAshedVerification).mockResolvedValue(true);
+    selectMock
+      .mockReturnValueOnce(
+        chainSelectWithLimit([
+          {
+            id: "canonical-user",
+            email: "pm@example.com",
+            displayName: "PM",
+            isPlatformMaintainer: 1,
+          },
+        ]),
+      )
+      .mockReturnValueOnce(
+        chainSelectWithLimit([
+          { roleName: "member", roleId: "role-member", source: "manual" },
+        ]),
+      )
+      .mockReturnValueOnce(chainSelectPermissions([]));
+
+    const ctx = await getRbacContext("sess-1");
+
+    expect(ctx?.permissions.has("hq:admin")).toBe(true);
+  });
 });
 
 describe("sessionHasPermission", () => {
