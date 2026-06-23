@@ -48,7 +48,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true });
   } catch (error) {
     if (error instanceof PasswordAuthError) {
-      return NextResponse.json({ error: error.code }, { status: 400 });
+      const status =
+        error.code === "invalid_credentials" ? 404 : 400;
+      return NextResponse.json({ error: error.code }, { status });
     }
     console.error("[password/set]", error);
     return NextResponse.json({ error: "server_error" }, { status: 500 });

@@ -33,8 +33,9 @@ function passwordErrorMessage(
   }
 }
 
-export function AccountSecurityClient({ hasPassword, passkeyCount }: Props) {
+export function AccountSecurityClient({ hasPassword: initialHasPassword, passkeyCount }: Props) {
   const t = useTranslations("accountSecurity");
+  const [hasPassword, setHasPassword] = useState(initialHasPassword);
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -63,6 +64,7 @@ export function AccountSecurityClient({ hasPassword, passkeyCount }: Props) {
       }
       setPassword("");
       setConfirmPassword("");
+      setHasPassword(true);
       setMessage(t("setPasswordSuccess"));
     } catch (e) {
       setError(e instanceof Error ? e.message : t("setPasswordFailed"));

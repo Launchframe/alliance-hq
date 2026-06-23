@@ -3,7 +3,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as dbModule from "@/lib/db";
 import * as passphraseModule from "@/lib/auth/passphrase";
 
-import { verifyPasswordLogin, registerPasswordAccount, PasswordAuthError } from "./password.server";
+import {
+  verifyPasswordLogin,
+  setPasswordForHqUser,
+  PasswordAuthError,
+} from "./password.server";
 
 describe("verifyPasswordLogin", () => {
   beforeEach(() => {
@@ -62,29 +66,28 @@ describe("verifyPasswordLogin", () => {
       passphraseModule.TIMING_SAFE_DUMMY_HASH,
     );
   });
+});
 
-  it("rejects registration when email already has a password", async () => {
+describe("setPasswordForHqUser", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("throws when the HQ user row is missing", async () => {
     vi.spyOn(passphraseModule, "hashPassphrase").mockResolvedValue("hashed");
     vi.spyOn(dbModule, "getDb").mockReturnValue({
-      select: vi.fn().mockReturnValue({
-        from: vi.fn().mockReturnValue({
+      update: vi.fn().mockReturnValue({
+        set: vi.fn().mockReturnValue({
           where: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue([
-              {
-                id: "user-1",
-                email: "taken@example.com",
-                displayName: null,
-                passwordHash: "existing-hash",
-              },
-            ]),
+            returning: vi.fn().mockResolvedValue([]),
           }),
         }),
       }),
     } as never);
 
     await expect(
-      registerPasswordAccount({
-        email: "taken@example.com",
+      setPasswordForHqUser({
+        hqUserId: "missing-user",
         password: "valid-password",
         confirmPassword: "valid-password",
       }),

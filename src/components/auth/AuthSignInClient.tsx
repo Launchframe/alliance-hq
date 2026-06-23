@@ -19,7 +19,7 @@ type Props = {
   ssoAvailability: AuthSsoAvailability;
 };
 
-type AuthStep = "picker" | "email-sign-in" | "email-create" | "email-magic";
+type AuthStep = "picker" | "email-sign-in" | "email-magic";
 
 function passwordErrorMessage(
   t: ReturnType<typeof useTranslations<"auth">>,
@@ -122,7 +122,6 @@ export function AuthSignInClient({
   const [step, setStep] = useState<AuthStep>("picker");
   const [email, setEmail] = useState(presetEmail ?? "");
   const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -135,15 +134,11 @@ export function AuthSignInClient({
     setStep("picker");
     setError(null);
     setPassword("");
-    setConfirmPassword("");
   }
 
   function goToEmailStep(next: Exclude<AuthStep, "picker">) {
     setStep(next);
     setError(null);
-    if (next === "email-sign-in") {
-      setConfirmPassword("");
-    }
   }
 
   async function signInWithOAuth(provider: "google" | "discord") {
@@ -221,58 +216,6 @@ export function AuthSignInClient({
     }
   }
 
-  async function createAccountWithPassword() {
-    const trimmed = email.trim();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
-      setError(t("emailRequired"));
-      return;
-    }
-
-    const validation = validatePasswordPair({ password, confirmPassword });
-    if (validation) {
-      setError(passwordErrorMessage(t, validation));
-      return;
-    }
-
-    setSubmitting(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/auth/password/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: trimmed,
-          password,
-          confirmPassword,
-        }),
-      });
-      if (res.status === 409) {
-        setError(t("emailAlreadyRegistered"));
-        return;
-      }
-      if (!res.ok) {
-        setError(t("createAccountFailed"));
-        return;
-      }
-
-      const result = await signIn("password", {
-        email: trimmed,
-        password,
-        redirect: false,
-        callbackUrl: redirectTarget,
-      });
-      if (result?.error || !result?.ok) {
-        setError(t("createAccountFailed"));
-        return;
-      }
-      window.location.href = redirectTarget;
-    } catch (e) {
-      setError(e instanceof Error ? e.message : t("createAccountFailed"));
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
   async function signInWithPasskey() {
     setSubmitting(true);
     setError(null);
@@ -297,10 +240,6 @@ export function AuthSignInClient({
 
   function handlePasswordSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (step === "email-create") {
-      void createAccountWithPassword();
-      return;
-    }
     void signInWithPassword();
   }
 
@@ -403,7 +342,7 @@ export function AuthSignInClient({
             <button
               type="button"
               className={`${textLinkClass} text-left`}
-              onClick={() => goToEmailStep("email-create")}
+              onClick={() => goToEmailStep("email-magic")}
             >
               {t("createAccount")}
             </button>
@@ -415,70 +354,6 @@ export function AuthSignInClient({
               {t("emailHelpLink")}
             </button>
           </div>
-        </form>
-      ) : null}
-
-      {step === "email-create" ? (
-        <form className="space-y-4" onSubmit={handlePasswordSubmit}>
-          <BackToPickerButton label={t("backToAllOptions")} onClick={resetToPicker} />
-          <p className="text-sm text-[#8b949e]">{t("createAccountBody")}</p>
-
-          <label className="block space-y-1 text-sm">
-            <span className="text-[#8b949e]">{t("email")}</span>
-            <input
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
-              autoComplete="email"
-              autoFocus
-            />
-          </label>
-
-          <label className="block space-y-1 text-sm">
-            <span className="text-[#8b949e]">{t("password")}</span>
-            <input
-              type="password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
-              autoComplete="new-password"
-              minLength={MIN_PASSWORD_LENGTH}
-            />
-          </label>
-
-          <label className="block space-y-1 text-sm">
-            <span className="text-[#8b949e]">{t("confirmPassword")}</span>
-            <input
-              type="password"
-              required
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
-              autoComplete="new-password"
-              minLength={MIN_PASSWORD_LENGTH}
-            />
-          </label>
-
-          {error ? <p className="text-sm text-[#f85149]">{error}</p> : null}
-
-          <button
-            type="submit"
-            disabled={submitting}
-            className="w-full rounded-lg border border-[#238636] bg-[#238636] px-4 py-2 text-sm text-white disabled:opacity-50"
-          >
-            {submitting ? t("signingIn") : t("createAccount")}
-          </button>
-
-          <button
-            type="button"
-            className={`${textLinkClass} text-left`}
-            onClick={() => goToEmailStep("email-sign-in")}
-          >
-            {t("backToSignIn")}
-          </button>
         </form>
       ) : null}
 
