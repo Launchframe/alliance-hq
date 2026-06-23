@@ -34,7 +34,8 @@ export type LinkPendingState =
       kind: "pick_alliance_by_name";
       tag: string;
       candidates: Array<{ allianceId: string; name: string; tag: string }>;
-    };
+    }
+  | { kind: "link_roster_miss" };
 
 export type LinkCommandResult = {
   reply: string;

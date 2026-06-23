@@ -26,6 +26,9 @@ function parseLinkPending(value: unknown): LinkPendingState | null {
         : {}),
     };
   }
+  if (r.kind === "link_roster_miss") {
+    return { kind: "link_roster_miss" };
+  }
   return null;
 }
 

@@ -46,7 +46,9 @@ export function MemberLinkOnboardingWizard({
   const tLink = useTranslations("memberLink");
   const router = useRouter();
 
-  const [phase, setPhase] = useState<Phase>("welcome");
+  const [phase, setPhase] = useState<Phase>(() =>
+    requiresAshedVerification && !isAshedConnected ? "connect_ashed" : "welcome",
+  );
   const [reportedName, setReportedName] = useState("");
   const [gameUid, setGameUid] = useState("");
   const [message, setMessage] = useState<string | null>(null);
@@ -243,6 +245,8 @@ export function MemberLinkOnboardingWizard({
         } else if (data.pending.kind === "link_fuzzy_pick") {
           setCandidates(data.pending.candidates ?? []);
           setPhase("fuzzy");
+        } else if (data.pending.kind === "link_roster_miss") {
+          setPhase("roster_miss");
         }
       })
       .catch(() => undefined);

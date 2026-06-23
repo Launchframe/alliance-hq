@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { sessionIsPlatformMaintainer } from "@/lib/rbac/context";
+import { sessionHasPermission } from "@/lib/rbac/context";
 import { resolveTrainRequestContext } from "@/lib/trains/api-context";
 import {
   applyTemplateToDates,
@@ -22,7 +22,7 @@ export async function GET() {
   const denied = await requireTrainOfficer(session.id);
   if (denied) return denied;
 
-  const isPlatformAdmin = await sessionIsPlatformMaintainer(session.id);
+  const isPlatformAdmin = await sessionHasPermission(session.id, "hq:admin");
   const today = getServerCalendarDate();
 
   return NextResponse.json({
@@ -65,7 +65,7 @@ export async function PATCH(request: Request) {
     );
   }
 
-  const isPlatformAdmin = await sessionIsPlatformMaintainer(session.id);
+  const isPlatformAdmin = await sessionHasPermission(session.id, "hq:admin");
   const today = getServerCalendarDate();
   const blockedPastDates = dates.filter(
     (date) => !canOfficerChangeTemplateForDate(date, today),

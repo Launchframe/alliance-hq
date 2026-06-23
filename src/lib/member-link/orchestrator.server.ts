@@ -192,7 +192,14 @@ async function finalizeCommandResult(
   if (result.pending) {
     await saveHqMemberLinkPending(ctx.allianceId, ctx.hqUserId, result.pending);
   } else {
-    await saveHqMemberLinkPending(ctx.allianceId, ctx.hqUserId, null);
+    const response = toMemberLinkApiResponse(result);
+    if (response.outcome === "roster_miss") {
+      await saveHqMemberLinkPending(ctx.allianceId, ctx.hqUserId, {
+        kind: "link_roster_miss",
+      });
+    } else {
+      await saveHqMemberLinkPending(ctx.allianceId, ctx.hqUserId, null);
+    }
   }
 
   if (result.needsOfficerAttention) {
@@ -429,7 +436,34 @@ export async function runWebMemberLinkAskOfficer(input: {
     userEmail: input.userEmail,
     displayName: input.displayName,
   };
+
+  const gate = await assertWebMemberLinkAllowed(ctx);
+  if (gate) {
+    return gate;
+  }
+
+  const existingLink = await getHqMemberLinkForUser(input.allianceId, input.hqUserId);
+  if (existingLink) {
+    const translate = createMemberLinkTranslator(input.locale);
+    return {
+      outcome: "usage",
+      message: translate("errors.nothingPending"),
+      pending: null,
+    };
+  }
+
+  const pendingRow = await getHqMemberLinkPending(input.allianceId, input.hqUserId);
+  if (pendingRow?.pending?.kind !== "link_roster_miss") {
+    const translate = createMemberLinkTranslator(input.locale);
+    return {
+      outcome: "usage",
+      message: translate("errors.nothingPending"),
+      pending: null,
+    };
+  }
+
   await emitLinkAttention(ctx);
+  await saveHqMemberLinkPending(input.allianceId, input.hqUserId, null);
   const translate = createMemberLinkTranslator(input.locale);
   return {
     outcome: "officer_notified",
