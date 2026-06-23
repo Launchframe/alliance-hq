@@ -4,7 +4,6 @@ import {
   getRbacContext,
   sessionHasPermission,
   sessionHasPermissionForAlliance,
-  sessionIsPlatformMaintainer,
 } from "./context";
 
 export async function requireSessionPermission(
@@ -21,7 +20,7 @@ export async function requireSessionPermission(
 export async function requirePlatformMaintainer(
   sessionId: string,
 ): Promise<NextResponse | null> {
-  const ok = await sessionIsPlatformMaintainer(sessionId);
+  const ok = await sessionHasPermission(sessionId, "hq:admin");
   if (!ok) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }

@@ -6,6 +6,11 @@ import {
   acceptHqInvite,
   resolveHqInviteAcceptRedirect,
 } from "@/lib/native-alliance/invites";
+import { auditInviteAcceptFailed } from "@/lib/onboarding/onboarding-audit.server";
+import {
+  inviteAcceptReasonFromApiCode,
+  inviteAcceptReasonFromMessage,
+} from "@/lib/onboarding/invite-accept-reasons.shared";
 import { getOrCreateSession } from "@/lib/session";
 
 const bodySchema = z.object({
@@ -25,11 +30,21 @@ export async function POST(
   try {
     body = bodySchema.parse(await request.json());
   } catch {
+    const session = await getOrCreateSession().catch(() => null);
+    await auditInviteAcceptFailed({
+      sessionId: session?.id,
+      reasonCode: "invalid_body",
+    });
     return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
   }
 
   const authSession = await requireAuthSession();
   if (!authSession?.user?.id || !authSession.user.email) {
+    const session = await getOrCreateSession().catch(() => null);
+    await auditInviteAcceptFailed({
+      sessionId: session?.id,
+      reasonCode: "auth_required",
+    });
     return NextResponse.json(
       { code: "auth_required", error: "Sign in required." },
       { status: 401 },
@@ -58,15 +73,21 @@ export async function POST(
       ...result,
     });
   } catch (error) {
-    if (
-      error instanceof Error &&
-      error.message === "Email does not match this invite."
-    ) {
+    const message = error instanceof Error ? error.message : "Accept failed.";
+    const reasonCode =
+      message === "Email does not match this invite."
+        ? inviteAcceptReasonFromApiCode("email_mismatch")
+        : inviteAcceptReasonFromMessage(message);
+
+    await auditInviteAcceptFailed({
+      sessionId: session.id,
+      hqUserId: authSession.user.id,
+      reasonCode,
+    });
+
+    if (message === "Email does not match this invite.") {
       return NextResponse.json({ code: "email_mismatch" }, { status: 400 });
     }
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Accept failed." },
-      { status: 400 },
-    );
+    return NextResponse.json({ error: message }, { status: 400 });
   }
 }

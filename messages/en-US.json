@@ -218,10 +218,12 @@
     },
     "usersPage": {
       "loading": "Loading users…",
+      "loadingDetail": "Loading user details…",
       "loadFailed": "Failed to load users.",
       "saveFailed": "Could not save changes.",
       "saved": "Changes saved.",
-      "selectUser": "Select a user to edit roles.",
+      "selectUser": "Search or browse the list, then select a user to edit roles.",
+      "empty": "No users match your search.",
       "editorHint": "Manual assignments use source \"manual\" and are not overwritten by Ashed sync.",
       "platformMaintainer": "Platform maintainer (cross-alliance /admin access)",
       "savePlatform": "Save platform flag",
@@ -235,10 +237,36 @@
       "chooseAlliance": "Choose alliance…",
       "assignRole": "Assign role",
       "linkedDevicesSummary": "{count, plural, =0 {No additional mobile devices linked via QR.} one {# additional mobile device linked via QR.} other {# additional mobile devices linked via QR.}}",
+      "memberLinksTitle": "In-game member links",
+      "noMemberLinks": "No in-game commander link yet.",
+      "memberLinkUnnamed": "(no display name)",
+      "ids": {
+        "hqUserId": "HQ user ID",
+        "membershipId": "Membership ID",
+        "memberLinkId": "Member link ID",
+        "allianceId": "Alliance ID",
+        "ashedMemberId": "Roster member ID",
+        "gameUid": "Game UID"
+      },
       "table": {
         "email": "User",
         "linkedDevices": "Linked devices",
         "roles": "Roles"
+      },
+      "search": {
+        "label": "Search",
+        "placeholder": "Email, name, user ID, game UID, or roster member ID…"
+      },
+      "filters": {
+        "alliance": "Alliance",
+        "allianceAll": "All alliances",
+        "platformMaintainersOnly": "Platform maintainers only"
+      },
+      "pagination": {
+        "empty": "No users found.",
+        "showing": "Showing {start}–{end} of {total}",
+        "prev": "Previous",
+        "next": "Next"
       }
     },
     "systemPage": {
@@ -323,6 +351,8 @@
       "inviteTargetHint": "Choose an alliance here or click one in the list below. Invites are required before anyone can use production HQ.",
       "chooseAlliance": "Alliance",
       "chooseAlliancePlaceholder": "Select an alliance…",
+      "chooseAllianceSearchPlaceholder": "Search alliances…",
+      "chooseAllianceNoMatches": "No alliances match your search.",
       "chooseAllianceRequired": "Select an alliance to invite someone.",
       "selectedForInvite": "Selected for invite",
       "selectAllianceRow": "Select {name} ({slug}) for invite",
@@ -480,7 +510,9 @@
           "bffIntegration": "BFF integration",
           "bffFunction": "BFF function",
           "video": "Video pipeline",
-          "feedback": "Feedback"
+          "feedback": "Feedback",
+          "invite": "Invite accept / failures",
+          "memberLink": "Member link (onboarding)"
         }
       },
       "table": {
@@ -2066,6 +2098,65 @@
     "next": "Next",
     "submitting": "Saving…"
   },
+  "memberLink": {
+    "errors": {
+      "nothingPending": "Nothing to pick right now.",
+      "noWalkthrough": "No walkthrough in progress.",
+      "ashedVerificationRequired": "Connect Ashed to use iframe tools and live roster sync, then return to link your character if needed."
+    },
+    "usage": "Enter your in-game name and UID from your Last War profile.",
+    "linked": "Linked to {name}. Welcome to the alliance!",
+    "updated": "Updated your link for {name}.",
+    "memberTaken": "That in-game member is already linked to a different account.",
+    "fuzzyPrompt": "We verified {gameName} but couldn't find an exact roster match. Pick your member:",
+    "rosterMiss": "We checked the {tag} roster and couldn't match that name to anyone. Try Start over for copy instructions, or ask an officer for help.",
+    "rosterMissGeneric": "We couldn't match that name to anyone on the roster. Try Start over for copy instructions, or ask an officer for help.",
+    "rosterUnavailable": "We verified your UID with the game, but couldn't load the alliance roster. Ask an officer for help.",
+    "pickExpired": "That member option expired. Submit your name and UID again.",
+    "walkthroughDone": "Great. Submit your copied name and UID again when ready.",
+    "walkthroughIntro": "Let's fix your in-game name copy.",
+    "walkthroughTapDone": "Tap Done when you've finished this step.",
+    "nameMismatchIntro": "Your name didn't match what Last War has on file. Follow these steps to copy it correctly.",
+    "steps": [
+      "Open the game.",
+      "Tap your avatar picture to open your Player's Profile menu.",
+      "Tap the \"...\" menu in the top right to open the Profile menu.",
+      "Tap \"Copy\" next to your name on that screen.",
+      "Return here and submit that copied name with your UID."
+    ],
+    "buttons": {
+      "done": "Done",
+      "startOver": "Start over",
+      "askOfficer": "Ask an officer"
+    },
+    "officerNotified": "An officer has been notified on Alliance HQ. They can reach out to help you link."
+  },
+  "onboard": {
+    "title": "Link your character",
+    "welcomePrefix": "Welcome to!",
+    "welcomeSubtitle": "Let's connect your HQ account to your in-game profile.",
+    "nameLabel": "In-game name",
+    "nameHint": "Copy from your Last War profile — must match exactly.",
+    "nameRequired": "Enter your in-game name.",
+    "uidLabel": "Player UID",
+    "uidHint": "12–16 digit ID from your profile (ends in 1203).",
+    "uidRequired": "Enter your player UID.",
+    "uidInvalid": "UID must be 12–16 digits and end in 1203.",
+    "submit": "Link my character",
+    "submitting": "Verifying…",
+    "continue": "Continue",
+    "linkedTitle": "You're linked!",
+    "linkedBody": "Welcome aboard, {name}. Taking you in…",
+    "fuzzyTitle": "Pick your roster name",
+    "rosterMissTitle": "We couldn't find you on the roster",
+    "walkthroughTitle": "Copy your name from the game",
+    "requestFailed": "Something went wrong. Try again.",
+    "connectAshedBanner": "Connect Ashed for iframe tools and live roster sync.",
+    "connectAshedTitle": "Verify with Ashed first",
+    "connectAshedBody": "Connect Ashed for iframe tools and live roster sync. Your HQ role comes from your invite — linking your in-game character uses name and UID only.",
+    "connectAshedCta": "Connect Ashed",
+    "connectAshedDismiss": "Not now"
+  },
   "discordBot": {
     "errors": {
       "guildNotConfigured": "Discord VR tracking is not configured for this server yet. An alliance owner should run `/link-alliance` with your alliance tag.",
@@ -2077,32 +2168,37 @@
       "tagNotFound": "No alliance found with tag **{tag}**. Check the spelling on ashed.online, or run `/link-to-ashed-seat` if your alliance is not in Alliance HQ yet.",
       "tagNotEligible": "Alliance tag **{tag}** is not currently eligible for bot setup on this deployment.",
       "credentialsRequired": "Connect Ashed credentials first with `/link-to-ashed-seat tag:{tag}`.",
+      "ownerSeatRequiresAshed": "Alliance owner must complete `/link-to-ashed-seat` before linking the leader commander with name and UID alone.",
       "tagAmbiguous": "We found multiple alliances with tag **{tag}**. Reply with `/link-alliance tag:{tag} name:Your Alliance Name` to pick the right one.",
-      "notOwner": "Only the alliance owner can register this server. Complete `/link` first, then try again.",
-      "notOfficer": "Only alliance officers (R4+) or the owner can run VR reports. Link your in-game profile with `/link` if you haven't yet.",
+      "notOwner": "Only the alliance owner or a platform maintainer can register this server. Run `/link` first, then `/link-to-ashed-seat` if you are the owner.",
+      "notOfficer": "Only alliance officers (R4+) or the owner can run VR reports. Link a commander with `/link-commander` if you haven't yet.",
       "insufficientForTeams": "Need at least **{needed}** VR reporters for **{teams}** takedown teams (5 players each). Only **{have}** on the board right now.",
       "teamsRequired": "Add `teams:N` (1–5). Example: `/takedown-teams teams:2` for two rally teams.",
       "teamsTooMany": "At most **{max}** takedown teams per request. Example: `/vr-report teams:3`.",
-      "linkFirst": "Complete `/link` with your in-game name and UID before registering the server.",
+      "hqLinkRequired": "Link your Discord to Alliance HQ first with `/link` (secure browser step), then try again.",
+      "waitForGuildRegistration": "This server is not registered to an alliance yet. Wait for the owner to finish setup, or run `/help` for the owner checklist.",
       "invalidLanguage": "Choose English or Português.",
       "nothingPending": "Nothing to pick right now.",
       "noWalkthrough": "No walkthrough in progress.",
       "noConfirm": "Nothing to confirm right now."
     },
     "link": {
-      "usage": "Usage: `/link name:… uid:…`. Add another character anytime; use `replace:true` to switch your only link. Use `/unlink` to remove one.",
-      "linked": "Linked to **{name}**. You're ready to use /vr.",
-      "linkedAdditional": "Linked another character: **{name}**. Use /vr and pick which character when you have more than one.",
-      "updated": "Updated your link for **{name}**.",
-      "replaced": "Switched your link to **{name}**.",
-      "capReached": "You already have the maximum number of linked characters ({max}). Use `/unlink` first or `/link replace:true` to switch.",
-      "memberTaken": "That in-game member is already linked to a different Discord account.",
-      "fuzzyPrompt": "We verified **{gameName}** but couldn't find an exact roster match. Pick your member:",
+      "userPrompt": "Click the link below to connect your Discord account to Alliance HQ (expires in 30 min):\n{url}\n\nAfter connecting, run `/link-commander` to link your in-game commander(s).",
+      "userAlreadyLinked": "Your Discord is already linked to Alliance HQ. Run `/link-commander` to add or update a commander, or `/help` for next steps.",
+      "promptFirstCommander": "Would you like to link your first Last War commander? Run `/link-commander name:… uid:…` (copy name and UID from your in-game profile).",
+      "usage": "Usage: `/link-commander name:… uid:…`. Add another commander anytime; use `replace:true` to switch your only link. Use `/unlink` to remove one.",
+      "linked": "Linked commander **{name}**. You're ready to use /vr.",
+      "linkedAdditional": "Linked another commander: **{name}**. Use /vr and pick which commander when you have more than one.",
+      "updated": "Updated your commander link for **{name}**.",
+      "replaced": "Switched your commander link to **{name}**.",
+      "capReached": "You already have the maximum number of linked commanders ({max}). Use `/unlink` first or `/link-commander replace:true` to switch.",
+      "memberTaken": "That in-game commander is already linked to a different Discord account.",
+      "fuzzyPrompt": "We verified **{gameName}** but couldn't find an exact roster match. Pick your commander:",
       "rosterMiss": "We checked the **{tag}** roster and couldn't match that name to anyone. Try **Start over** for copy instructions, or ask an officer for help.",
       "rosterMissGeneric": "We couldn't match that name to anyone on the roster. Try **Start over** for copy instructions, or ask an officer for help.",
       "rosterUnavailable": "We verified your UID with the game, but couldn't load the alliance roster. Ask an owner to run `/link-to-ashed-seat`, or ask an officer for help.",
-      "pickExpired": "That member option expired. Run `/link` again.",
-      "walkthroughDone": "Great. Run `/link` again with your copied name and UID when ready.",
+      "pickExpired": "That commander option expired. Run `/link-commander` again.",
+      "walkthroughDone": "Great. Run `/link-commander` again with your copied name and UID when ready.",
       "walkthroughIntro": "Let's start over.",
       "walkthroughTapDone": "Tap **Done** when you've finished this step.",
       "nameMismatchIntro": "Tap **Done** when you've finished this step.",
@@ -2111,11 +2207,11 @@
         "Tap your avatar picture to open your Player's Profile menu.",
         "Tap the \"...\" menu in the top right to open the Profile menu.",
         "Tap \"Copy\" next to your name on that screen.",
-        "Run `/link` again and paste that copied name with your UID."
+        "Run `/link-commander` again and paste that copied name with your UID."
       ]
     },
     "vr": {
-      "notLinked": "Your Discord account isn't linked yet. Run `/link` with your in-game name and UID first.",
+      "notLinked": "You don't have a linked commander yet. Run `/link` first if needed, then `/link-commander name:… uid:…`.",
       "pickCharacter": "Which character is this VR for?",
       "success": "Got it! Congrats on {vr} VR.",
       "downgradeLimit": "Base VR can't drop more than one step (250) below your season high of {seasonHigh}.",
@@ -2125,8 +2221,8 @@
       "anomalyConfirm": "Are you *sure* your VR is {vr}? That would be way ahead of the pack for base VR. Tap Yes if you're serious — we believe you (probably)."
     },
     "setup": {
-      "linkAllianceSuccess": "This server is registered for **{tag}**. Members can now `/link` their in-game profile and use `/vr`.",
-      "linkAshedSeatPrompt": "Click the link below to securely connect your Ashed credentials for **{tag}** (expires in 30 min):\n{url}\n\nAfter connecting, run `/link` with your in-game name and UID, then `/link-alliance tag:{tag}`.",
+      "linkAllianceSuccess": "This server is registered for **{tag}**. Members can `/link`, then `/link-commander`, and use `/vr`.",
+      "linkAshedSeatPrompt": "Click the link below to securely connect your Ashed credentials for **{tag}** (expires in 30 min):\n{url}\n\nOwner order: `/link-to-ashed-seat` (this step) → `/link` → `/link-alliance tag:{tag}`.",
       "languageSuccess": "Language updated."
     },
     "setVrReportChannel": {
@@ -2141,38 +2237,42 @@
     },
     "officerNotified": "An officer has been notified on Alliance HQ. They can reach out to you here on Discord.",
     "help": {
-      "dmGeneral": "**Alliance HQ bot** — run these in your alliance Discord server:\n• `/help` — this guide\n• `/link` — connect your in-game profile\n• `/vr` or `/immunity` — report base VR\n• `/language` — English or Português\n\nOwners: `/link-to-ashed-seat`, `/link-alliance`, `/set-vr-report-channel`.\nOfficers (R4+): `/vr-report`, `/takedown-teams teams:N`.",
-      "setupOwnerAuth": "This server is not set up yet. **Alliance owner (Ashed seat holder):** run `/link-to-ashed-seat tag:YourTag` to get a secure link for connecting your Ashed credentials. Then run `/link` and `/link-alliance tag:YourTag`. Members can `/link` after that.",
-      "setupLinkAlliance": "This server is not registered to an alliance yet. **Owner:** run `/link-alliance tag:YourTag` (you must `/link` and complete `/link-to-ashed-seat` first).",
-      "setupOwnerLinkAfterAuth": "Ashed credentials are connected. **Owner:** run `/link name:… uid:…` with your in-game profile, then `/link-alliance tag:YourTag` so members can link.",
-      "waitForOwnerAuth": "Waiting for the alliance owner to connect Ashed (`/link-to-ashed-seat`). After that you can `/link` your in-game name and UID.",
-      "linkProfile": "Link your in-game profile: `/link name:… uid:…` (copy name and UID from your profile in-game). Need steps? Run `/link` with a wrong name once and tap **Done** for a walkthrough.",
+      "dmGeneral": "**Alliance HQ bot** — run these in your alliance Discord server:\n• `/help` — this guide\n• `/link` — connect Discord to Alliance HQ\n• `/link-commander` — link your in-game commander(s)\n• `/vr` or `/immunity` — report base VR\n• `/language` — English or Português\n\nOwners: `/link-to-ashed-seat`, `/link-alliance`, `/set-vr-report-channel`.\nOfficers (R4+): `/vr-report`, `/takedown-teams teams:N`.",
+      "setupLinkHq": "First, link your Discord to Alliance HQ: run `/link` and complete the secure browser step.",
+      "setupOwnerAuth": "This server is not set up yet. **Alliance owner:** run `/link-to-ashed-seat tag:YourTag`, then `/link`, then `/link-alliance tag:YourTag`.",
+      "setupLinkAlliance": "Credentials are ready. **Owner or platform maintainer:** run `/link-alliance tag:YourTag` to register this server.",
+      "waitForOwnerAuth": "Waiting for the alliance owner to finish setup (`/link-to-ashed-seat` and `/link-alliance`). You can run `/link` now; `/link-commander` works after the server is registered.",
+      "linkCommander": "Link a commander: `/link-commander name:… uid:…` (copy name and UID from your in-game profile). Need steps? Run `/link-commander` with a wrong name once and tap **Done** for a walkthrough.",
       "memberReady": "You're linked. Use `/vr` or `/immunity` when your base VR changes. Officers (R4+): `/vr-report` for standings or `/vr-report teams:N` for takedown plans. `/help` anytime. `/language` for Português.",
-      "memberReadyMulti": "You have **{count}** linked characters. Use `/vr` or `/immunity` — the bot will ask which character. Officers (R4+): `/vr-report` or `/takedown-teams`. `/unlink` removes one; `/link` adds another.",
-      "ownerReady": "You're linked as alliance owner (**{tag}**). Members use `/link` and `/vr`. Run `/set-vr-report-channel` here for nightly standings; `/vr-report` or `/vr-report teams:N` for officer reports.",
-      "ownerReadyMulti": "You're linked as owner with **{count}** characters. `/vr` asks which character. `/set-vr-report-channel` sets the nightly channel; `/vr-report teams:N` builds takedown plans. `/unlink` or `/link replace:true` to manage links."
+      "memberReadyMulti": "You have **{count}** linked commanders. Use `/vr` or `/immunity` — the bot will ask which commander. Officers (R4+): `/vr-report` or `/takedown-teams`. `/unlink` removes one; `/link-commander` adds another.",
+      "ownerReady": "You're linked as alliance owner (**{tag}**). Members use `/link`, `/link-commander`, and `/vr`. Run `/set-vr-report-channel` here for nightly standings; `/vr-report` or `/vr-report teams:N` for officer reports.",
+      "ownerReadyMulti": "You're linked as owner with **{count}** commanders. `/vr` asks which commander. `/set-vr-report-channel` sets the nightly channel; `/vr-report teams:N` builds takedown plans. `/unlink` or `/link-commander replace:true` to manage links."
     },
     "unlink": {
-      "none": "You don't have any linked characters on this server. Run `/link` first.",
-      "pickCharacter": "Which linked character should I remove?",
-      "success": "Unlinked **{name}**. Run `/link` again to connect a character.",
+      "none": "You don't have any linked commanders on this server. Run `/link-commander` first.",
+      "pickCharacter": "Which linked commander should I remove?",
+      "success": "Unlinked **{name}**. Run `/link-commander` again to connect a commander.",
       "nameNotFound": "No linked character matches **{name}**. Run `/unlink` without a name to pick from a list.",
       "expired": "That unlink option expired. Run `/unlink` again."
     }
   },
   "discordAuthorize": {
     "heading": "Connect Ashed Credentials",
+    "userLinkHeading": "Link Discord to Alliance HQ",
     "subheading": "Enter your Ashed connection key below. It is submitted securely over HTTPS and never sent through Discord.",
+    "userLinkSubheading": "Enter your Ashed connection key to create or connect your Alliance HQ account. Keys are submitted over HTTPS only — never through Discord.",
     "tagLabel": "Alliance tag",
     "keyLabel": "Ashed connection key",
     "keyHint": "Find this on ashed.online under Settings → Connection Key. Treat it like a password.",
     "submit": "Connect",
     "submitting": "Verifying…",
     "successHeading": "Connected!",
-    "successBody": "Ashed credentials for {tag} are saved. Return to Discord, run `/link` with your in-game name and UID, then `/link-alliance tag:{tag}`.",
+    "successBody": "Ashed credentials for {tag} are saved. Return to Discord and run `/link`, then `/link-alliance tag:{tag}`.",
+    "userSuccessBody": "Your Discord is linked to Alliance HQ. Return to Discord to continue setup.",
+    "userSuccessPromptCommander": "Would you like to link your first Last War commander? Run `/link-commander name:… uid:…` in your alliance server.",
     "errorPrefix": "Something went wrong:",
-    "missingNonce": "No authorization link found. Return to Discord and run `/link-to-ashed-seat` to get a new link.",
+    "missingNonce": "No authorization link found. Return to Discord and run `/link` or `/link-to-ashed-seat` to get a new link.",
     "expiredHeading": "Link expired or already used",
-    "expiredBody": "Return to Discord and run `/link-to-ashed-seat` again to get a fresh link."
+    "expiredBody": "Return to Discord and run the setup command again to get a fresh link."
   }
 }

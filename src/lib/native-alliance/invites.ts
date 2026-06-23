@@ -7,6 +7,7 @@ import { nanoid } from "nanoid";
 
 import { normalizeAshedEmail } from "@/lib/alliance/accessible";
 import { getDb, schema } from "@/lib/db";
+import { auditInviteAccepted } from "@/lib/onboarding/onboarding-audit.server";
 import {
   generateHumanPassphrase,
   hashPassphrase,
@@ -486,6 +487,15 @@ export async function acceptHqInvite(
     userLabel: input.displayName?.trim() || sessionEmail,
     ownerEmail:
       systemRoleNameForId(invite.roleId) === "owner" ? sessionEmail : null,
+  });
+
+  await auditInviteAccepted({
+    sessionId: input.sessionId,
+    allianceId: invite.allianceId,
+    hqUserId,
+    inviteId: invite.id,
+    inviteKind: kind,
+    roleName: result.roleName,
   });
 
   return {

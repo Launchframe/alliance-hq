@@ -63,12 +63,15 @@ type Props = {
   skipWalkthroughToPaste?: boolean;
   /** Returning reconnect with a phone already linked — skip optional link-phone step. */
   skipLinkPhoneStep?: boolean;
+  /** Internal path after a successful connect (defaults to `/`). */
+  returnTo?: string;
 };
 
 export function ConnectionWalkthrough({
   onConnected,
   skipWalkthroughToPaste = false,
   skipLinkPhoneStep = false,
+  returnTo,
 }: Props) {
   const t = useTranslations("connect");
   const tc = useTranslations("common");
@@ -183,10 +186,12 @@ export function ConnectionWalkthrough({
     });
   }, []);
 
+  const afterConnectPath = returnTo?.startsWith("/") ? returnTo : "/";
+
   const continueToApp = useCallback(() => {
-    router.push("/");
+    router.push(afterConnectPath);
     router.refresh();
-  }, [router]);
+  }, [afterConnectPath, router]);
 
   const parsePreview = useMemo(() => {
     if (!pasteInput.trim()) return null;
@@ -322,7 +327,7 @@ export function ConnectionWalkthrough({
         markConnectWalkthroughSeen();
         onConnected?.(parsed.connection);
         if (skipLinkPhoneStep) {
-          router.push("/");
+          router.push(afterConnectPath);
           router.refresh();
           return;
         }
@@ -336,7 +341,7 @@ export function ConnectionWalkthrough({
 
       onConnected?.(parsed.connection);
       markConnectWalkthroughSeen();
-      router.push("/");
+      router.push(afterConnectPath);
       router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : tc("connectionFailed"));
@@ -346,6 +351,7 @@ export function ConnectionWalkthrough({
   }, [
     alliancesForUi,
     appId,
+    afterConnectPath,
     onConnected,
     originUrl,
     pasteInput,

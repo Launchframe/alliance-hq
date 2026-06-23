@@ -3,8 +3,13 @@ import { nanoid } from "nanoid";
 
 import { getDb, schema } from "@/lib/db";
 import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
+import { isNativeAlliance } from "@/lib/native-alliance/operating-mode";
 import { buildFlagReason, peerMaxExcludingMember } from "@/lib/vr/anomaly";
 import { MAX_DISCORD_LINKS_PER_USER } from "@/lib/vr/constants";
+import {
+  evaluateGuildRegistrationAuth,
+  type GuildRegistrationAuth,
+} from "@/lib/vr/discord-guild-registration";
 import type { LinkPendingState, VrPendingState } from "@/lib/vr/types";
 
 const PENDING_TTL_MS = 30 * 60 * 1000;
@@ -223,8 +228,22 @@ export async function getDiscordLinkById(linkId: string) {
 }
 
 export async function getLinkedMemberIds(allianceId: string): Promise<Set<string>> {
-  const links = await listDiscordLinksByAlliance(allianceId);
-  return new Set(links.map((l) => l.ashedMemberId));
+  const db = getDb();
+  const [discordLinks, hqLinks] = await Promise.all([
+    listDiscordLinksByAlliance(allianceId),
+    db
+      .select({ ashedMemberId: schema.hqMemberLinks.ashedMemberId })
+      .from(schema.hqMemberLinks)
+      .where(eq(schema.hqMemberLinks.allianceId, allianceId)),
+  ]);
+  const ids = new Set<string>();
+  for (const link of discordLinks) {
+    ids.add(link.ashedMemberId);
+  }
+  for (const link of hqLinks) {
+    ids.add(link.ashedMemberId);
+  }
+  return ids;
 }
 
 export async function getDiscordLinkByAllianceAndMember(
@@ -581,6 +600,107 @@ export async function resolveOwnerSetupAllianceId(
   return cred?.allianceId ?? null;
 }
 
+export async function getDiscordHqLink(discordUserId: string) {
+  const db = getDb();
+  const [row] = await db
+    .select()
+    .from(schema.discordHqLinks)
+    .where(eq(schema.discordHqLinks.discordUserId, discordUserId))
+    .limit(1);
+  return row ?? null;
+}
+
+export async function upsertDiscordHqLink(input: {
+  discordUserId: string;
+  hqUserId: string;
+}): Promise<void> {
+  const db = getDb();
+  const now = new Date();
+  await db
+    .insert(schema.discordHqLinks)
+    .values({
+      discordUserId: input.discordUserId,
+      hqUserId: input.hqUserId,
+      linkedAt: now,
+    })
+    .onConflictDoUpdate({
+      target: schema.discordHqLinks.discordUserId,
+      set: { hqUserId: input.hqUserId, linkedAt: now },
+    });
+}
+
+export async function getHqUserById(hqUserId: string) {
+  const db = getDb();
+  const [row] = await db
+    .select()
+    .from(schema.hqUsers)
+    .where(eq(schema.hqUsers.id, hqUserId))
+    .limit(1);
+  return row ?? null;
+}
+
+export async function callerIsPlatformMaintainerViaDiscord(
+  discordUserId: string,
+): Promise<boolean> {
+  const link = await getDiscordHqLink(discordUserId);
+  if (!link) return false;
+  const user = await getHqUserById(link.hqUserId);
+  return Boolean(user?.isPlatformMaintainer);
+}
+
+export async function userRegisteredAllianceCredentials(
+  discordUserId: string,
+): Promise<boolean> {
+  const db = getDb();
+  const [row] = await db
+    .select({ allianceId: schema.allianceAshedCredentials.allianceId })
+    .from(schema.allianceAshedCredentials)
+    .where(
+      eq(schema.allianceAshedCredentials.registeredByDiscordUserId, discordUserId),
+    )
+    .limit(1);
+  return row != null;
+}
+
+export async function isCredentialRegistrantForAlliance(input: {
+  allianceId: string;
+  discordUserId: string;
+}): Promise<boolean> {
+  const cred = await getAllianceAshedCredential(input.allianceId);
+  return cred?.registeredByDiscordUserId === input.discordUserId;
+}
+
+export async function allianceHasRegistrationCredentials(
+  allianceId: string,
+): Promise<boolean> {
+  if (await isNativeAlliance(allianceId)) return true;
+  return (await getAllianceAshedCredential(allianceId)) != null;
+}
+
+export async function callerCanRegisterGuildAlliance(input: {
+  allianceId: string;
+  discordUserId: string;
+}): Promise<GuildRegistrationAuth> {
+  const [hqLink, alliance, hasCredentials] = await Promise.all([
+    getDiscordHqLink(input.discordUserId),
+    getAllianceById(input.allianceId),
+    allianceHasRegistrationCredentials(input.allianceId),
+  ]);
+
+  const linkedHqUser = hqLink ? await getHqUserById(hqLink.hqUserId) : null;
+  const isPlatformMaintainer = Boolean(linkedHqUser?.isPlatformMaintainer);
+  const isCredentialRegistrant = await isCredentialRegistrantForAlliance(input);
+
+  return evaluateGuildRegistrationAuth({
+    hasHqLink: hqLink != null,
+    isPlatformMaintainer,
+    isCredentialRegistrant,
+    ownerAshedUserId: alliance?.ownerAshedUserId ?? null,
+    linkedHqAshedUserId: linkedHqUser?.ashedUserId ?? null,
+    hasCredentials,
+  });
+}
+
 export async function upsertGuildAlliance(
   guildId: string,
   allianceId: string,
@@ -745,6 +865,8 @@ export async function listDiscordLinksForUserAnyAlliance(discordUserId: string) 
     .where(eq(schema.discordMemberLinks.discordUserId, discordUserId));
 }
 
+import { allianceHasBotCredentials } from "@/lib/vr/member-roster";
+
 export async function callerIsAllianceOwner(input: {
   allianceId: string;
   discordUserId: string;
@@ -752,14 +874,17 @@ export async function callerIsAllianceOwner(input: {
   const alliance = await getAllianceById(input.allianceId);
   if (!alliance) return false;
 
-  const links = await listDiscordLinksForUser(input.allianceId, input.discordUserId);
-
-  if (alliance.ownerMemberExternalId) {
-    return links.some(
-      (link) => link.ashedMemberId === alliance.ownerMemberExternalId,
-    );
+  if (!(await allianceHasBotCredentials(input.allianceId))) {
+    return false;
   }
 
-  if (!alliance.ownerAshedUserId) return false;
-  return links.some((link) => link.ashedMemberId === alliance.ownerAshedUserId);
+  if (!alliance.ownerAshedUserId || !alliance.ownerMemberExternalId) {
+    return false;
+  }
+
+  const links = await listDiscordLinksForUser(input.allianceId, input.discordUserId);
+
+  return links.some(
+    (link) => link.ashedMemberId === alliance.ownerMemberExternalId,
+  );
 }

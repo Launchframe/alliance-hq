@@ -37,20 +37,27 @@ export default async function DiscordAuthorizePage({ searchParams }: PageProps) 
     );
   }
 
-  // Display the tag as entered by the user (uppercase preserved from the slash command).
-  const displayTag = nonceRow.tag.toUpperCase();
+  const purpose =
+    nonceRow.purpose === "user_link" ? "user_link" : "alliance_credentials";
+  const displayTag =
+    purpose === "user_link" ? "" : nonceRow.tag.toUpperCase();
+  const heading =
+    purpose === "user_link" ? t("userLinkHeading") : t("heading");
+  const subheading =
+    purpose === "user_link" ? t("userLinkSubheading") : t("subheading");
 
   return (
     <main className="flex min-h-[60vh] items-center justify-center p-6">
       <div className="w-full max-w-md rounded-xl border border-[#30363d] bg-[#161b22] p-6">
-        <h1 className="mb-1 text-lg font-semibold text-[#e6edf3]">{t("heading")}</h1>
-        <p className="mb-5 text-sm text-[#8b949e]">{t("subheading")}</p>
+        <h1 className="mb-1 text-lg font-semibold text-[#e6edf3]">{heading}</h1>
+        <p className="mb-5 text-sm text-[#8b949e]">{subheading}</p>
 
         <DiscordAuthorizeForm
           nonce={nonce}
           tag={displayTag}
+          purpose={purpose}
           labels={{
-            heading: t("heading"),
+            heading,
             tagLabel: t("tagLabel"),
             keyLabel: t("keyLabel"),
             keyHint: t("keyHint"),
@@ -58,6 +65,8 @@ export default async function DiscordAuthorizePage({ searchParams }: PageProps) 
             submitting: t("submitting"),
             successHeading: t("successHeading"),
             successBody: t("successBody"),
+            userSuccessBody: t("userSuccessBody"),
+            userSuccessPromptCommander: t("userSuccessPromptCommander"),
             errorPrefix: t("errorPrefix"),
           }}
         />

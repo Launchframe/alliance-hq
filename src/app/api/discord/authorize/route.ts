@@ -8,17 +8,25 @@ import { base44ListAlliances } from "@/lib/base44/fetch";
 import { verifyBase44Connection } from "@/lib/base44/server";
 import { parseConnectionInput } from "@/lib/connectionString";
 import { encryptSecret } from "@/lib/crypto/encrypt";
+import { capTokenExpiresAt } from "@/lib/member-link/privileged-link.shared";
+import { resolveTokenExpiresAt } from "@/lib/jwt/connection-meta";
+import { isTokenExpired } from "@/lib/jwt/decode";
+import { resolveCanonicalHqUserForAshedConnect } from "@/lib/rbac/resolve-canonical-hq-user";
 import { syncAshedAllianceForBot } from "@/lib/rbac/sync-ashed-roles";
 import { getOrCreateSession } from "@/lib/session";
-import { upsertAllianceAshedCredential } from "@/lib/vr/repository";
+import {
+  getGuildAllianceId,
+  listDiscordLinksForUser,
+  upsertAllianceAshedCredential,
+  upsertDiscordHqLink,
+} from "@/lib/vr/repository";
 import {
   consumeDiscordAuthNonce,
   getValidDiscordAuthNonce,
 } from "@/lib/vr/auth-nonce";
 
 /** POST /api/discord/authorize
- *  Accepts the Ashed connection key submitted via the HQ web form, verifies it,
- *  stores the encrypted credential, and registers the Discord guild.
+ *  Accepts the Ashed connection key submitted via the HQ web form.
  *
  *  Body: { nonce: string; connectionKey: string }
  */
@@ -42,16 +50,17 @@ export async function POST(request: Request) {
     );
   }
 
-  // Validate the nonce (existence, expiry, and single-use).
   const nonceRow = await getValidDiscordAuthNonce(nonce);
   if (!nonceRow) {
     return NextResponse.json(
-      { error: "Link expired or already used. Return to Discord and run /link-to-ashed-seat again." },
+      {
+        error:
+          "Link expired or already used. Return to Discord and run the setup command again.",
+      },
       { status: 410 },
     );
   }
 
-  // Parse and verify the connection key against Ashed.
   const parsed = parseConnectionInput(connectionKey);
   if (!parsed.ok) {
     return NextResponse.json(
@@ -84,14 +93,58 @@ export async function POST(request: Request) {
   const currentUser = { email: me.email, id: me.id, full_name: me.full_name };
   const alliances = await base44ListAlliances(parsed.connection);
   const accessible = filterAccessibleAlliances(alliances, currentUser);
-  const tagLower = nonceRow.tag; // already normalized lowercase
+
+  if (accessible.length === 0) {
+    return NextResponse.json(
+      { error: "Your Ashed account does not have access to any alliance." },
+      { status: 403 },
+    );
+  }
+
+  if (nonceRow.purpose === "user_link") {
+    const { hqUserId } = await resolveCanonicalHqUserForAshedConnect({
+      ashedUserId: me.id,
+      ashedEmail: me.email,
+      displayName: me.full_name,
+    });
+
+    await upsertDiscordHqLink({
+      discordUserId: nonceRow.discordUserId,
+      hqUserId,
+    });
+
+    await consumeDiscordAuthNonce(nonceRow.id);
+
+    let promptFirstCommander = false;
+    const guildId = nonceRow.guildId?.trim();
+    if (guildId) {
+      const allianceId = await getGuildAllianceId(guildId);
+      if (allianceId) {
+        const links = await listDiscordLinksForUser(
+          allianceId,
+          nonceRow.discordUserId,
+        );
+        promptFirstCommander = links.length === 0;
+      }
+    }
+
+    return NextResponse.json({
+      ok: true,
+      purpose: "user_link" as const,
+      promptFirstCommander,
+    });
+  }
+
+  const tagLower = nonceRow.tag;
   const ashedAlliance = accessible.find(
     (row) => row.tag.trim().toLowerCase() === tagLower,
   );
 
   if (!ashedAlliance) {
     return NextResponse.json(
-      { error: `Your Ashed account does not have access to alliance tag "${nonceRow.tag}".` },
+      {
+        error: `Your Ashed account does not have access to alliance tag "${nonceRow.tag}".`,
+      },
       { status: 403 },
     );
   }
@@ -100,32 +153,43 @@ export async function POST(request: Request) {
   const accessRole = ashedRow ? userAllianceAccessRole(ashedRow, currentUser) : null;
   if (accessRole !== "owner") {
     return NextResponse.json(
-      { error: `Your Ashed account must be the alliance owner for tag "${nonceRow.tag}".` },
+      {
+        error: `Your Ashed account must be the alliance owner for tag "${nonceRow.tag}".`,
+      },
       { status: 403 },
     );
   }
 
-  // Sync the alliance to HQ and store credentials.
   const { hqAllianceId, hqUserId } = await syncAshedAllianceForBot({
     connection: parsed.connection,
     allianceTag: nonceRow.tag,
     currentUser,
   });
 
+  let tokenExpiresAt = resolveTokenExpiresAt(parsed.connection.token);
+  tokenExpiresAt = capTokenExpiresAt(tokenExpiresAt);
+  if (tokenExpiresAt && isTokenExpired(tokenExpiresAt)) {
+    return NextResponse.json(
+      { error: "Connection key is already expired. Copy a fresh one from Ashed." },
+      { status: 422 },
+    );
+  }
+
   await upsertAllianceAshedCredential({
     allianceId: hqAllianceId,
     appId: parsed.connection.appId,
     originUrl: parsed.connection.originUrl,
     encryptedToken: encryptSecret(parsed.connection.token),
+    tokenExpiresAt,
     registeredByDiscordUserId: nonceRow.discordUserId,
     registeredByHqUserId: hqUserId ?? null,
   });
 
-  // Consume the nonce — must happen after all writes succeed.
   await consumeDiscordAuthNonce(nonceRow.id);
 
   return NextResponse.json({
     ok: true,
+    purpose: "alliance_credentials" as const,
     tag: ashedAlliance.tag,
   });
 }

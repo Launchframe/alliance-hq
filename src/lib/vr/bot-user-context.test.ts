@@ -12,6 +12,9 @@ function ctx(
     allianceTag: "LFgo",
     guildRegistered: true,
     hasCredentials: true,
+    hasHqLink: true,
+    isPlatformMaintainer: false,
+    userRegisteredCredentials: false,
     memberLinks: [],
     memberLinkCount: 0,
     isOwner: false,
@@ -25,49 +28,52 @@ describe("pickHelpMessageKey", () => {
     expect(pickHelpMessageKey(ctx({ guildId: null }))).toBe("help.dmGeneral");
   });
 
-  it("prompts owner auth when guild is not registered", () => {
+  it("prompts HQ link when user has no discord_hq_links row", () => {
+    expect(pickHelpMessageKey(ctx({ hasHqLink: false }))).toBe("help.setupLinkHq");
+  });
+
+  it("prompts owner auth when guild is not registered and no credentials", () => {
     expect(
       pickHelpMessageKey(
         ctx({
           guildRegistered: false,
           hasCredentials: false,
-          hasAnyMemberLink: false,
+          userRegisteredCredentials: false,
         }),
       ),
     ).toBe("help.setupOwnerAuth");
   });
 
-  it("prompts owner to link after credentials when guild not registered", () => {
+  it("prompts link-alliance when owner has credentials", () => {
     expect(
       pickHelpMessageKey(
         ctx({
           guildRegistered: false,
-          hasCredentials: true,
-          memberLinkCount: 0,
-        }),
-      ),
-    ).toBe("help.setupOwnerLinkAfterAuth");
-  });
-
-  it("prompts link-alliance when user already linked elsewhere", () => {
-    expect(
-      pickHelpMessageKey(
-        ctx({
-          guildRegistered: false,
-          hasCredentials: false,
-          hasAnyMemberLink: true,
+          userRegisteredCredentials: true,
         }),
       ),
     ).toBe("help.setupLinkAlliance");
   });
 
-  it("prompts /link when guild is ready but user is not linked", () => {
+  it("prompts link-alliance for platform maintainers without credentials", () => {
+    expect(
+      pickHelpMessageKey(
+        ctx({
+          guildRegistered: false,
+          hasCredentials: false,
+          isPlatformMaintainer: true,
+        }),
+      ),
+    ).toBe("help.setupLinkAlliance");
+  });
+
+  it("prompts link-commander when guild is ready but user has no commanders", () => {
     expect(pickHelpMessageKey(ctx({ memberLinkCount: 0 }))).toBe(
-      "help.linkProfile",
+      "help.linkCommander",
     );
   });
 
-  it("shows multi-character member help", () => {
+  it("shows multi-commander member help", () => {
     expect(pickHelpMessageKey(ctx({ memberLinkCount: 2 }))).toBe(
       "help.memberReadyMulti",
     );

@@ -14,7 +14,8 @@ Alliance HQ tracks **base viral resistance** (multiples of 250, max 12750) via D
 
 | Command | Purpose |
 |---------|---------|
-| `/link` | Link Discord user to in-game member (name + UID verification) |
+| `/link` | Link Discord account to Alliance HQ (secure browser step) |
+| `/link-commander` | Link a Last War commander (name + UID verification) |
 | `/vr [level]` | Report or bump base VR |
 | `/immunity [level]` | Alias of `/vr` |
 | `/set-vr-report-channel` | Owner: save current channel for nightly top-25 standings |

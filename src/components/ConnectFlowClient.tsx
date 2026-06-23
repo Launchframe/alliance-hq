@@ -9,12 +9,14 @@ type Props = {
   showWelcomeChoice: boolean;
   skipWalkthroughToPaste?: boolean;
   skipLinkPhoneStep?: boolean;
+  returnTo?: string;
 };
 
 export function ConnectFlowClient({
   showWelcomeChoice: initialWelcome,
   skipWalkthroughToPaste = false,
   skipLinkPhoneStep = false,
+  returnTo,
 }: Props) {
   const [showWelcomeChoice, setShowWelcomeChoice] = useState(initialWelcome);
 
@@ -28,6 +30,7 @@ export function ConnectFlowClient({
     <ConnectionWalkthrough
       skipWalkthroughToPaste={skipWalkthroughToPaste}
       skipLinkPhoneStep={skipLinkPhoneStep}
+      returnTo={returnTo}
     />
   );
 }

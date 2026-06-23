@@ -11,6 +11,7 @@ import {
   readAshedConnectedOnThisDeviceBefore,
   shouldShowShellConnectPrompt,
 } from "@/lib/connect/walkthrough.shared";
+import { ConnectAshedBanner } from "@/components/onboarding/ConnectAshedBanner";
 import { FeedbackProvider } from "@/components/feedback";
 import { SidebarNav } from "@/components/ashed-shell/SidebarNav";
 import { ShellProfileMenu } from "@/components/ashed-shell/ShellProfileMenu";
@@ -34,6 +35,7 @@ type Props = {
   isNativeAlliance?: boolean;
   operatingMode?: "ashed" | "native" | null;
   canUseAshedEmbeds?: boolean;
+  isAshedConnectAllowed?: boolean;
   ashed: AshedConnectionMeta | null;
   showAdminPortal?: boolean;
   showTeamAccess?: boolean;
@@ -60,6 +62,7 @@ export function AshedShell({
   isNativeAlliance = false,
   operatingMode = null,
   canUseAshedEmbeds = true,
+  isAshedConnectAllowed = true,
   ashed,
   showAdminPortal = false,
   showTeamAccess = false,
@@ -222,6 +225,11 @@ export function AshedShell({
             </header>
 
             <ReleaseNoticeBanner />
+            <ConnectAshedBanner
+              show={Boolean(
+                hasAppAccess && isAshedConnectAllowed && !isConnected,
+              )}
+            />
             {ashed ? <TokenExpiryBanner ashed={ashed} /> : null}
             <VideoJobStatusBanners />
 

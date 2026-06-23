@@ -7,6 +7,8 @@ import { Check, ChevronDown } from "lucide-react";
 export type AppSelectOption = {
   value: string;
   label: React.ReactNode;
+  /** Case-insensitive substring filter text; defaults to string `label`. */
+  searchText?: string;
   disabled?: boolean;
 };
 
@@ -22,6 +24,9 @@ type Props = {
   groups?: AppSelectOptionGroup[];
   placeholder?: string;
   disabled?: boolean;
+  searchable?: boolean;
+  searchPlaceholder?: string;
+  noSearchResultsLabel?: string;
   id?: string;
   name?: string;
   className?: string;
@@ -43,6 +48,35 @@ function flattenOptions(
   return options ?? [];
 }
 
+export function appSelectOptionSearchText(option: AppSelectOption): string {
+  if (option.searchText?.trim()) {
+    return option.searchText.trim();
+  }
+  return typeof option.label === "string" ? option.label : "";
+}
+
+/** Case-insensitive substring match for searchable AppSelect menus. */
+export function appSelectOptionMatchesQuery(
+  option: AppSelectOption,
+  query: string,
+): boolean {
+  const needle = query.trim().toLowerCase();
+  if (!needle) {
+    return true;
+  }
+  return appSelectOptionSearchText(option).toLowerCase().includes(needle);
+}
+
+function filterOptionsByQuery(
+  options: AppSelectOption[],
+  query: string,
+): AppSelectOption[] {
+  if (!query.trim()) {
+    return options;
+  }
+  return options.filter((option) => appSelectOptionMatchesQuery(option, query));
+}
+
 const defaultTriggerClass =
   "flex w-full min-w-0 items-center justify-between gap-2 rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 text-left text-sm text-[#e6edf3] transition-colors hover:bg-[#161b22] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#58a6ff] disabled:cursor-not-allowed disabled:opacity-50";
 
@@ -53,6 +87,9 @@ export function AppSelect({
   groups,
   placeholder,
   disabled = false,
+  searchable = false,
+  searchPlaceholder = "Search…",
+  noSearchResultsLabel = "No matches.",
   id,
   name,
   className,
@@ -60,8 +97,11 @@ export function AppSelect({
   "aria-label": ariaLabel,
 }: Props) {
   const listboxId = React.useId();
+  const searchInputId = React.useId();
   const triggerRef = React.useRef<HTMLButtonElement>(null);
+  const searchInputRef = React.useRef<HTMLInputElement>(null);
   const [open, setOpen] = React.useState(false);
+  const [searchQuery, setSearchQuery] = React.useState("");
   const [activeIndex, setActiveIndex] = React.useState<number>(-1);
   const [menuRect, setMenuRect] = React.useState<{
     top: number;
@@ -73,7 +113,12 @@ export function AppSelect({
     () => flattenOptions(options, groups),
     [groups, options],
   );
-  const enabledOptions = flatOptions.filter((option) => !option.disabled);
+  const visibleOptions = React.useMemo(
+    () =>
+      searchable ? filterOptionsByQuery(flatOptions, searchQuery) : flatOptions,
+    [flatOptions, searchQuery, searchable],
+  );
+  const enabledOptions = visibleOptions.filter((option) => !option.disabled);
   const selectedOption = flatOptions.find((option) => option.value === value);
   const selectedLabel = selectedOption?.label ?? placeholder ?? "";
 
@@ -91,7 +136,24 @@ export function AppSelect({
   function closeMenu() {
     setOpen(false);
     setActiveIndex(-1);
+    setSearchQuery("");
   }
+
+  React.useEffect(() => {
+    if (!open || !searchable) return;
+    const id = window.requestAnimationFrame(() => {
+      searchInputRef.current?.focus();
+    });
+    return () => window.cancelAnimationFrame(id);
+  }, [open, searchable]);
+
+  React.useEffect(() => {
+    if (!searchable) return;
+    const id = window.requestAnimationFrame(() => {
+      setActiveIndex(enabledOptions.length > 0 ? 0 : -1);
+    });
+    return () => window.cancelAnimationFrame(id);
+  }, [enabledOptions.length, searchQuery, searchable]);
 
   React.useEffect(() => {
     if (!open) return;
@@ -239,31 +301,76 @@ export function AppSelect({
   const menu =
     open && menuRect && typeof document !== "undefined"
       ? createPortal(
-          <ul
-            id={listboxId}
-            role="listbox"
+          <div
             data-app-select-menu={listboxId}
-            aria-label={ariaLabel}
             style={{
               top: menuRect.top,
               left: menuRect.left,
               width: menuRect.width,
             }}
-            className="fixed z-[300] max-h-60 overflow-y-auto rounded-lg border border-[#30363d] bg-[#161b22] py-1 shadow-lg"
+            className="fixed z-[300] max-h-60 overflow-hidden rounded-lg border border-[#30363d] bg-[#161b22] shadow-lg"
           >
-            {groups?.length
-              ? groups.map((group) => (
-                  <li key={group.label} role="none">
-                    <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-[#6e7681]">
-                      {group.label}
-                    </div>
-                    <ul role="group" aria-label={group.label}>
-                      {group.options.map((option) => renderOption(option))}
-                    </ul>
-                  </li>
-                ))
-              : flatOptions.map((option) => renderOption(option))}
-          </ul>,
+            {searchable ? (
+              <div className="border-b border-[#30363d] p-2">
+                <input
+                  ref={searchInputRef}
+                  id={searchInputId}
+                  type="search"
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Escape") {
+                      event.stopPropagation();
+                      closeMenu();
+                      triggerRef.current?.focus();
+                      return;
+                    }
+                    if (event.key === "ArrowDown" && enabledOptions.length > 0) {
+                      event.preventDefault();
+                      setActiveIndex(0);
+                    }
+                  }}
+                  onMouseDown={(event) => event.stopPropagation()}
+                  placeholder={searchPlaceholder}
+                  aria-controls={listboxId}
+                  className="w-full rounded-md border border-[#30363d] bg-[#0d1117] px-2.5 py-2 text-sm text-[#e6edf3] placeholder:text-[#6e7681] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#58a6ff]"
+                  autoComplete="off"
+                  aria-label={searchPlaceholder}
+                />
+              </div>
+            ) : null}
+            <ul
+              id={listboxId}
+              role="listbox"
+              aria-label={ariaLabel}
+              className="max-h-48 overflow-y-auto py-1"
+            >
+              {groups?.length && !searchable
+                ? groups.map((group) => (
+                    <li key={group.label} role="none">
+                      <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-[#6e7681]">
+                        {group.label}
+                      </div>
+                      <ul role="group" aria-label={group.label}>
+                        {group.options.map((option) => renderOption(option))}
+                      </ul>
+                    </li>
+                  ))
+                : null}
+              {!groups?.length || searchable
+                ? visibleOptions.length > 0
+                  ? visibleOptions.map((option) => renderOption(option))
+                  : (
+                    <li
+                      role="none"
+                      className="px-3 py-2 text-sm text-[#8b949e]"
+                    >
+                      {noSearchResultsLabel}
+                    </li>
+                  )
+                : null}
+            </ul>
+          </div>,
           document.body,
         )
       : null;

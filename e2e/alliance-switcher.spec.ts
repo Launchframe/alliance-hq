@@ -130,9 +130,7 @@ test.describe("Alliance switcher — session context reset", () => {
     await page.context().addCookies(playwrightAuthCookies(session));
 
     await page.goto("/members");
-    await expect(page.getByText("Alliance", { exact: true }).first()).toBeVisible();
-    await expect(
-      page.getByRole("button", { name: "Alliance", exact: true }),
-    ).toBeVisible();
+    await expect(page).toHaveURL(/\/members/);
+    await expect(page.getByLabel("Alliance", { exact: true })).toBeVisible();
   });
 });

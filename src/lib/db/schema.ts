@@ -550,6 +550,63 @@ export const hqEventMembers = pgTable("hq_event_members", {
     .notNull(),
 });
 
+/** Maps an HQ web user to an in-game roster member within an alliance. */
+export const hqMemberLinks = pgTable(
+  "hq_member_links",
+  {
+    id: text("id").primaryKey(),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    hqUserId: text("hq_user_id")
+      .notNull()
+      .references(() => hqUsers.id, { onDelete: "cascade" }),
+    ashedMemberId: text("ashed_member_id").notNull(),
+    memberDisplayName: text("member_display_name"),
+    gameUid: text("game_uid").notNull(),
+    linkedAt: timestamp("linked_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    unique("hq_member_links_alliance_user_unique").on(
+      table.allianceId,
+      table.hqUserId,
+    ),
+    unique("hq_member_links_alliance_member_unique").on(
+      table.allianceId,
+      table.ashedMemberId,
+    ),
+  ],
+);
+
+/** Short-lived web member-link state (walkthrough, fuzzy pick). */
+export const hqMemberLinkPending = pgTable(
+  "hq_member_link_pending",
+  {
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    hqUserId: text("hq_user_id")
+      .notNull()
+      .references(() => hqUsers.id, { onDelete: "cascade" }),
+    pendingJson: jsonb("pending_json").$type<Record<string, unknown>>(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.allianceId, table.hqUserId],
+      name: "hq_member_link_pending_alliance_user_pk",
+    }),
+  ],
+);
+
 /** Maps a Discord user to an Ashed member within an alliance. */
 export const discordMemberLinks = pgTable(
   "discord_member_links",
@@ -674,21 +731,38 @@ export const discordUserPrefs = pgTable("discord_user_prefs", {
     .notNull(),
 });
 
-/** Short-lived one-time nonces for the /discord/authorize HQ web redirect (Ashed credential setup). */
+/** Short-lived one-time nonces for the /discord/authorize HQ web redirect. */
 export const discordAuthNonces = pgTable("discord_auth_nonces", {
   id: text("id").primaryKey(),
   nonce: text("nonce").notNull().unique(),
   discordUserId: text("discord_user_id").notNull(),
   /** Discord guild that initiated the setup flow. */
   guildId: text("guild_id"),
-  /** Normalized lowercase alliance tag this nonce was issued for. */
+  /** Normalized lowercase alliance tag; sentinel `_user_link` for Discord↔HQ auth. */
   tag: text("tag").notNull(),
+  /** `alliance_credentials` (owner seat) or `user_link` (Discord↔HQ). */
+  purpose: text("purpose").notNull().default("alliance_credentials"),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   usedAt: timestamp("used_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
     .notNull(),
 });
+
+/** Maps a Discord user to an HQ web user (bot auth layer, not in-game commander). */
+export const discordHqLinks = pgTable(
+  "discord_hq_links",
+  {
+    discordUserId: text("discord_user_id").primaryKey(),
+    hqUserId: text("hq_user_id")
+      .notNull()
+      .references(() => hqUsers.id, { onDelete: "cascade" }),
+    linkedAt: timestamp("linked_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [unique("discord_hq_links_hq_user_id_unique").on(table.hqUserId)],
+);
 
 /** Audit trail for all Discord bot interactions. */
 export const discordBotAudit = pgTable("discord_bot_audit", {
@@ -722,6 +796,7 @@ export type ParseSession = typeof parseSessions.$inferSelect;
 export type ParsedRow = typeof parsedRows.$inferSelect;
 export type AuditLogEntry = typeof auditLog.$inferInsert;
 export type DiscordAuthNonce = typeof discordAuthNonces.$inferSelect;
+export type DiscordHqLink = typeof discordHqLinks.$inferSelect;
 export type HqEventSeries = typeof hqEventSeries.$inferSelect;
 export type HqEvent = typeof hqEvents.$inferSelect;
 export type HqEventBoard = typeof hqEventBoards.$inferSelect;
@@ -871,6 +946,8 @@ export type TranslationCorrectionReport =
 export type HqPlatformCommendation = typeof hqPlatformCommendations.$inferSelect;
 export type HqUserPlatformCommendation =
   typeof hqUserPlatformCommendations.$inferSelect;
+export type HqMemberLink = typeof hqMemberLinks.$inferSelect;
+export type HqMemberLinkPending = typeof hqMemberLinkPending.$inferSelect;
 export type DiscordMemberLink = typeof discordMemberLinks.$inferSelect;
 export type MemberSeasonVr = typeof memberSeasonVr.$inferSelect;
 export type DiscordBotPending = typeof discordBotPending.$inferSelect;

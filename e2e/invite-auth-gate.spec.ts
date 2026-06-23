@@ -7,6 +7,7 @@ import {
   createAuthenticatedHqSession,
   createCanonicalAshedHqUser,
   createHqInviteRow,
+  createHqMemberLink,
   createNativeAlliance,
   createPlatformMaintainerSession,
   getE2eSql,
@@ -156,8 +157,17 @@ test.describe("Get-started routing", () => {
     await page.getByLabel(/email/i).fill(email);
     await page.getByRole("button", { name: /accept invite/i }).click();
 
-    await expect(page).toHaveURL(/\/connect\?welcome=1/);
-    await page.getByRole("link", { name: /continue without ashed/i }).click();
+    await expect(page).toHaveURL(/\/onboard/);
+
+    const [sessionRow] = await sql<{ hq_user_id: string | null }[]>`
+      SELECT hq_user_id FROM sessions WHERE id = ${auth.sessionId} LIMIT 1
+    `;
+    expect(sessionRow?.hq_user_id).toBeTruthy();
+    await createHqMemberLink(sql, {
+      allianceId: alliance.allianceId,
+      hqUserId: sessionRow!.hq_user_id!,
+    });
+    await page.goto("/trains");
 
     await expect(page).toHaveURL(/\/trains/);
     await expect(page).not.toHaveURL(/\/get-started/);

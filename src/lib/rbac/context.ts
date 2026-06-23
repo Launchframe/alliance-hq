@@ -173,7 +173,7 @@ export async function sessionHasPermission(
     return false;
   }
 
-  if (ctx.isPlatformMaintainer) {
+  if (ctx.isPlatformMaintainer && ctx.permissions.has("hq:admin")) {
     return true;
   }
 
@@ -205,15 +205,16 @@ export async function sessionHasPermissionForAlliance(
     .where(eq(schema.hqUsers.id, session.hqUserId))
     .limit(1);
 
-  if (user?.isPlatformMaintainer === 1) {
-    return true;
-  }
-
   const { permissions } = await loadUserPermissions(
     sessionId,
     session.hqUserId,
     allianceId,
   );
+
+  if (user?.isPlatformMaintainer === 1 && permissions.has("hq:admin")) {
+    return true;
+  }
+
   return permissions.has(permission);
 }
 

@@ -9,7 +9,7 @@ import {
   resolveSessionAllianceId,
 } from "@/lib/alliance/session-memberships";
 import { sessionHasActiveMembership } from "@/lib/native-alliance/access";
-import { sessionIsPlatformMaintainer } from "@/lib/rbac/context";
+import { sessionHasPermission } from "@/lib/rbac/context";
 import type { Session } from "@/lib/db/schema";
 import {
   ensureCurrentAllianceForSession,
@@ -55,7 +55,7 @@ export async function shouldShowTeamAccessNavForSession(
   const resolved = await ensureCurrentAllianceForSession(session);
   const allianceId = resolveSessionAllianceId(resolved);
   const hasMembership = await sessionHasActiveMembership(resolved);
-  const isMaintainer = await sessionIsPlatformMaintainer(resolved.id);
+  const isMaintainer = await sessionHasPermission(resolved.id, "hq:admin");
   return shouldShowTeamAccessNav({
     allianceId,
     hasActiveMembership: hasMembership,
@@ -83,7 +83,7 @@ export async function resolveAllianceSettingsAccess(
     return { kind: "ready", session: resolved };
   }
 
-  if (await sessionIsPlatformMaintainer(resolved.id)) {
+  if (await sessionHasPermission(resolved.id, "hq:admin")) {
     return { kind: "ready", session: resolved };
   }
 

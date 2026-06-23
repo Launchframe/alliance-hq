@@ -5,8 +5,8 @@ import { NextResponse } from "next/server";
 
 import { getDb, schema } from "@/lib/db";
 import {
+  sessionHasPermission,
   sessionHasPermissionForAlliance,
-  sessionIsPlatformMaintainer,
 } from "@/lib/rbac/context";
 import { loadSession } from "@/lib/session";
 import { listHqAlliancesByTag } from "@/lib/vr/resolve-alliance-tag";
@@ -108,7 +108,7 @@ export async function resolveAllianceRouteForSession(
     };
   }
 
-  if (await sessionIsPlatformMaintainer(sessionId)) {
+  if (await sessionHasPermission(sessionId, "hq:admin")) {
     const match = candidates[0]!;
     return {
       allianceId: match.id,

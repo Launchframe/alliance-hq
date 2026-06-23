@@ -2,7 +2,7 @@ import { redirect } from "@/i18n/navigation";
 
 import { AdminPortalShell } from "@/components/admin/AdminPortalShell";
 import { requirePageSession } from "@/lib/session";
-import { sessionIsPlatformMaintainer } from "@/lib/rbac/context";
+import { sessionHasPermission } from "@/lib/rbac/context";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +15,7 @@ export default async function AdminLayout({
 }) {
   const { locale } = await params;
   const session = await requirePageSession("/admin");
-  const allowed = await sessionIsPlatformMaintainer(session.id);
+  const allowed = await sessionHasPermission(session.id, "hq:admin");
   if (!allowed) {
     redirect({ href: "/dashboard", locale });
   }

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import * as sessionModule from "@/lib/session";
+import { sessionHasLiveAshedVerification } from "@/lib/member-link/privileged-link.server";
 
 import { getRbacContext, sessionHasPermission } from "./context";
 
@@ -36,6 +37,10 @@ vi.mock("@/lib/rbac/ashed-session-membership", () => ({
     source: string,
     holdsAshedIdentity: boolean,
   ) => source !== "ashed" || holdsAshedIdentity,
+}));
+
+vi.mock("@/lib/member-link/privileged-link.server", () => ({
+  sessionHasLiveAshedVerification: vi.fn().mockResolvedValue(true),
 }));
 
 function chainSelectWithLimit(rows: unknown[]) {
@@ -112,6 +117,119 @@ describe("getRbacContext", () => {
       "sess-1",
       "magic-stub",
     );
+  });
+
+  it("grants manual officer permissions without live Ashed verification", async () => {
+    vi.mocked(sessionHasLiveAshedVerification).mockResolvedValue(false);
+    selectMock
+      .mockReturnValueOnce(
+        chainSelectWithLimit([
+          {
+            id: "canonical-user",
+            email: "officer@example.com",
+            displayName: "Officer",
+            isPlatformMaintainer: 0,
+          },
+        ]),
+      )
+      .mockReturnValueOnce(
+        chainSelectWithLimit([{ isPlatformMaintainer: 0 }]),
+      )
+      .mockReturnValueOnce(
+        chainSelectWithLimit([
+          { roleName: "officer", roleId: "role-officer", source: "manual" },
+        ]),
+      )
+      .mockReturnValueOnce(
+        chainSelectPermissions([{ permissionId: "trains:write" }]),
+      );
+
+    const ctx = await getRbacContext("sess-1");
+
+    expect(ctx?.roleName).toBe("officer");
+    expect(ctx?.permissions.has("trains:write")).toBe(true);
+  });
+
+  it("grants manual owner permissions without live Ashed verification", async () => {
+    vi.mocked(sessionHasLiveAshedVerification).mockResolvedValue(false);
+    selectMock
+      .mockReturnValueOnce(
+        chainSelectWithLimit([
+          {
+            id: "canonical-user",
+            email: "owner@example.com",
+            displayName: "Owner",
+            isPlatformMaintainer: 0,
+          },
+        ]),
+      )
+      .mockReturnValueOnce(
+        chainSelectWithLimit([{ isPlatformMaintainer: 0 }]),
+      )
+      .mockReturnValueOnce(
+        chainSelectWithLimit([
+          { roleName: "owner", roleId: "role-owner", source: "manual" },
+        ]),
+      )
+      .mockReturnValueOnce(
+        chainSelectPermissions([{ permissionId: "members:write" }]),
+      );
+
+    const ctx = await getRbacContext("sess-1");
+
+    expect(ctx?.roleName).toBe("owner");
+    expect(ctx?.permissions.has("members:write")).toBe(true);
+  });
+
+  it("grants hq:admin for platform maintainer without live Ashed verification", async () => {
+    vi.mocked(sessionHasLiveAshedVerification).mockResolvedValue(false);
+    selectMock
+      .mockReturnValueOnce(
+        chainSelectWithLimit([
+          {
+            id: "canonical-user",
+            email: "pm@example.com",
+            displayName: "PM",
+            isPlatformMaintainer: 1,
+          },
+        ]),
+      )
+      .mockReturnValueOnce(
+        chainSelectWithLimit([
+          { roleName: "member", roleId: "role-member", source: "manual" },
+        ]),
+      )
+      .mockReturnValueOnce(chainSelectPermissions([]));
+
+    const ctx = await getRbacContext("sess-1");
+
+    expect(ctx?.isPlatformMaintainer).toBe(true);
+    expect(ctx?.permissions.has("hq:admin")).toBe(true);
+  });
+
+  it("grants hq:admin for platform maintainer with live Ashed verification", async () => {
+    vi.mocked(sessionHasLiveAshedVerification).mockResolvedValue(true);
+    selectMock
+      .mockReturnValueOnce(
+        chainSelectWithLimit([
+          {
+            id: "canonical-user",
+            email: "pm@example.com",
+            displayName: "PM",
+            isPlatformMaintainer: 1,
+          },
+        ]),
+      )
+      .mockReturnValueOnce(
+        chainSelectWithLimit([
+          { roleName: "member", roleId: "role-member", source: "manual" },
+        ]),
+      )
+      .mockReturnValueOnce(chainSelectPermissions([]));
+
+    const ctx = await getRbacContext("sess-1");
+
+    expect(ctx?.permissions.has("hq:admin")).toBe(true);
   });
 });
 

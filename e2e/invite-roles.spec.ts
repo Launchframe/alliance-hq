@@ -7,6 +7,7 @@ import {
   authCookieHeader,
   createAuthenticatedHqSession,
   createHqInviteRow,
+  createHqMemberLink,
   createNativeAlliance,
   createPlatformMaintainerSession,
   getE2eSql,
@@ -51,8 +52,8 @@ test.describe("Invite API — role-member regression", () => {
   });
 });
 
-test.describe("Invite onboarding — connect welcome before destination", () => {
-  test("member accept shows welcome, skip lands on invite redirect", async ({
+test.describe("Invite onboarding — member link before destination", () => {
+  test("member accept lands on onboard with invite redirect", async ({
     page,
   }) => {
     const sql = getE2eSql();
@@ -76,15 +77,12 @@ test.describe("Invite onboarding — connect welcome before destination", () => 
     await page.getByLabel(/email/i).fill(email);
     await page.getByRole("button", { name: /accept invite/i }).click();
 
-    await expect(page).toHaveURL(/\/connect\?welcome=1/);
+    await expect(page).toHaveURL(/\/onboard/);
     await expect(page).toHaveURL(/next=%2Ftrains|next=\/trains/);
-    await expect(page.getByRole("heading", { name: /you're in/i })).toBeVisible();
-
-    await page.getByRole("link", { name: /continue without ashed/i }).click();
-    await expect(page).toHaveURL(/\/trains/);
+    await expect(page.getByText("Member Onboarding Alliance")).toBeVisible();
   });
 
-  test("member accept without redirect skips to /members by default", async ({
+  test("member with member link reaches invite destination", async ({
     page,
   }) => {
     const sql = getE2eSql();
@@ -101,18 +99,20 @@ test.describe("Invite onboarding — connect welcome before destination", () => 
       invitedByHqUserId: maintainer.hqUserId,
     });
 
-    const auth = await createAuthenticatedHqSession(sql, email);
-    await page.context().addCookies(playwrightAuthCookies(auth));
-    await page.goto(`/invite/${encodeURIComponent(token)}`);
-    await page.getByLabel(/email/i).fill(email);
-    await page.getByRole("button", { name: /accept invite/i }).click();
+    const accepted = await acceptInviteViaApi(sql, e2eBaseUrl(), token, email);
+    await createHqMemberLink(sql, {
+      allianceId: alliance.allianceId,
+      hqUserId: accepted.hqUserId,
+    });
 
-    await expect(page).toHaveURL(/\/connect\?welcome=1/);
-    await page.getByRole("link", { name: /continue without ashed/i }).click();
+    await page.context().addCookies(playwrightAuthCookies(accepted));
+    await page.goto("/members");
+
     await expect(page).toHaveURL(/\/members$/);
+    await expect(page).not.toHaveURL(/\/onboard/);
   });
 
-  test("officer accept shows welcome then skip lands on invite redirect", async ({
+  test("officer accept proceeds to member link without Ashed", async ({
     page,
   }) => {
     const sql = getE2eSql();
@@ -136,12 +136,15 @@ test.describe("Invite onboarding — connect welcome before destination", () => 
     await page.getByLabel(/email/i).fill(email);
     await page.getByRole("button", { name: /accept invite/i }).click();
 
-    await expect(page).toHaveURL(/\/connect\?welcome=1/);
-    await page.getByRole("link", { name: /continue without ashed/i }).click();
-    await expect(page).toHaveURL(/\/trains/);
+    await expect(page).toHaveURL(/\/onboard/);
+    await page.getByRole("button", { name: /continue/i }).click();
+    await expect(
+      page.getByRole("heading", { name: /link your character/i }),
+    ).toBeVisible();
+    await expect(page).not.toHaveURL(/\/trains/);
   });
 
-  test("officer without Ashed connection can open connect flow from account", async ({
+  test("officer on onboard sees member link form not Ashed gate", async ({
     page,
   }) => {
     const sql = getE2eSql();
@@ -162,9 +165,15 @@ test.describe("Invite onboarding — connect welcome before destination", () => 
     const accepted = await acceptInviteViaApi(sql, e2eBaseUrl(), token, email);
 
     await page.context().addCookies(playwrightAuthCookies(accepted));
-    await page.goto("/account");
+    await page.goto("/onboard");
 
-    await expect(page.getByText(/reconnect to refresh your token/i)).toBeVisible();
+    await page.getByRole("button", { name: /continue/i }).click();
+    await expect(
+      page.getByRole("heading", { name: /link your character/i }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: /verify with ashed first/i }),
+    ).toHaveCount(0);
   });
 });
 
@@ -188,6 +197,10 @@ test.describe("Member access — no Ashed embeds until connected", () => {
     });
 
     const accepted = await acceptInviteViaApi(sql, e2eBaseUrl(), token, email);
+    await createHqMemberLink(sql, {
+      allianceId: alliance.allianceId,
+      hqUserId: accepted.hqUserId,
+    });
 
     await page.context().addCookies(playwrightAuthCookies(accepted));
     await page.goto("/members");
@@ -254,6 +267,10 @@ test.describe("Member access — no Ashed embeds until connected", () => {
     });
 
     const accepted = await acceptInviteViaApi(sql, e2eBaseUrl(), token, email);
+    await createHqMemberLink(sql, {
+      allianceId: alliance.allianceId,
+      hqUserId: accepted.hqUserId,
+    });
 
     await page.context().addCookies(playwrightAuthCookies(accepted));
     await page.goto("/account");
@@ -279,6 +296,10 @@ test.describe("Member access — no Ashed embeds until connected", () => {
     });
 
     const accepted = await acceptInviteViaApi(sql, e2eBaseUrl(), token, email);
+    await createHqMemberLink(sql, {
+      allianceId: alliance.allianceId,
+      hqUserId: accepted.hqUserId,
+    });
     const ashedUserId = `ashed-${nanoid(12)}`;
     await sql`
       UPDATE hq_users
@@ -345,12 +366,13 @@ test.describe("Member access — no Ashed embeds until connected", () => {
   });
 });
 
-test.describe("Platform maintainer — Ashed embed access without connect", () => {
-  test("maintainer sees iframe nav and can open dashboard route", async ({
+test.describe("Platform maintainer — Ashed embed access with live verification", () => {
+  test("maintainer with live Ashed sees iframe nav and can open dashboard route", async ({
     page,
   }) => {
     const sql = getE2eSql();
     const maintainer = await createPlatformMaintainerSession(sql);
+    await attachAshedConnectionToSession(sql, maintainer.sessionId);
 
     await page.context().addCookies(playwrightAuthCookies(maintainer));
 

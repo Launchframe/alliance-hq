@@ -5,16 +5,23 @@ import { useState, type FormEvent } from "react";
 type State =
   | { status: "idle" }
   | { status: "loading" }
-  | { status: "success"; tag: string }
+  | {
+      status: "success";
+      purpose: "alliance_credentials" | "user_link";
+      tag?: string;
+      promptFirstCommander?: boolean;
+    }
   | { status: "error"; message: string };
 
 export function DiscordAuthorizeForm({
   nonce,
   tag,
+  purpose,
   labels,
 }: {
   nonce: string;
   tag: string;
+  purpose: "alliance_credentials" | "user_link";
   labels: {
     heading: string;
     tagLabel: string;
@@ -24,6 +31,8 @@ export function DiscordAuthorizeForm({
     submitting: string;
     successHeading: string;
     successBody: string;
+    userSuccessBody: string;
+    userSuccessPromptCommander: string;
     errorPrefix: string;
   };
 }) {
@@ -41,38 +50,55 @@ export function DiscordAuthorizeForm({
         body: JSON.stringify({ nonce, connectionKey }),
       });
 
-      const data = (await res.json()) as { error?: string; tag?: string };
+      const data = (await res.json()) as {
+        error?: string;
+        tag?: string;
+        purpose?: "alliance_credentials" | "user_link";
+        promptFirstCommander?: boolean;
+      };
 
       if (!res.ok) {
         setState({ status: "error", message: data.error ?? `Error ${res.status}` });
         return;
       }
 
-      setState({ status: "success", tag: data.tag ?? tag });
+      setState({
+        status: "success",
+        purpose: data.purpose ?? purpose,
+        tag: data.tag ?? tag,
+        promptFirstCommander: data.promptFirstCommander,
+      });
     } catch {
       setState({ status: "error", message: "Network error — please try again." });
     }
   }
 
   if (state.status === "success") {
+    const body =
+      state.purpose === "user_link"
+        ? state.promptFirstCommander
+          ? `${labels.userSuccessBody}\n\n${labels.userSuccessPromptCommander}`
+          : labels.userSuccessBody
+        : labels.successBody.replace("{tag}", state.tag ?? tag);
+
     return (
       <div className="rounded-xl border border-green-700 bg-green-950/40 p-6 text-center">
         <p className="text-lg font-semibold text-green-300">{labels.successHeading}</p>
-        <p className="mt-2 text-sm text-green-200">
-          {labels.successBody.replace("{tag}", state.tag)}
-        </p>
+        <p className="mt-2 whitespace-pre-line text-sm text-green-200">{body}</p>
       </div>
     );
   }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
-      <div>
-        <p className="mb-1 text-xs font-medium uppercase tracking-wide text-[#8b949e]">
-          {labels.tagLabel}
-        </p>
-        <p className="font-mono text-base font-semibold text-[#e6edf3]">{tag}</p>
-      </div>
+      {purpose === "alliance_credentials" ? (
+        <div>
+          <p className="mb-1 text-xs font-medium uppercase tracking-wide text-[#8b949e]">
+            {labels.tagLabel}
+          </p>
+          <p className="font-mono text-base font-semibold text-[#e6edf3]">{tag}</p>
+        </div>
+      ) : null}
 
       <div>
         <label

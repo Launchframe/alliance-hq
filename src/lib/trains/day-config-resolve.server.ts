@@ -1,10 +1,15 @@
 import "server-only";
 
+import { loadAllianceRow } from "@/lib/members/game-roster";
 import { paintTemplateFromConductorConfig } from "@/lib/trains/calendar-cell-styles.shared";
 import { effectiveConductorMechanism } from "@/lib/trains/conductor-mechanism.shared";
-import { getServerCalendarDate, getWeekStartMonday } from "@/lib/trains/game-time";
+import { getServerCalendarDate } from "@/lib/trains/game-time";
 import { getDayConfig, getWeekSchedule } from "@/lib/trains/repository";
 import { generateDayConfigForDate } from "@/lib/trains/templates";
+import {
+  allianceTrainWeekFromRow,
+  getTrainWeekStart,
+} from "@/lib/trains/train-week-calendar.shared";
 import type {
   ConductorMechanismType,
   DayConfigInput,
@@ -16,14 +21,23 @@ export type ResolvedRollDayConfig = DayConfigInput & {
   dayConfigId: string | null;
 };
 
+async function trainWeekStartForAlliance(
+  allianceId: string,
+  date: string,
+): Promise<string> {
+  const row = await loadAllianceRow(allianceId);
+  return getTrainWeekStart(date, allianceTrainWeekFromRow(row ?? {}));
+}
+
 export async function resolveAnchorTemplateType(
   allianceId: string,
   seasonKey: string,
 ): Promise<WeekTemplateType> {
   const today = getServerCalendarDate();
+  const weekStart = await trainWeekStartForAlliance(allianceId, today);
   const anchorSchedule = await getWeekSchedule(
     allianceId,
-    getWeekStartMonday(today),
+    weekStart,
     seasonKey,
   );
   return (anchorSchedule?.templateType ?? "vs_push_week") as WeekTemplateType;
@@ -52,7 +66,7 @@ export async function resolveRollDayConfig(
     };
   }
 
-  const weekStart = getWeekStartMonday(date);
+  const weekStart = await trainWeekStartForAlliance(allianceId, date);
   const weekSchedule = await getWeekSchedule(allianceId, weekStart, seasonKey);
   const anchorTemplate = await resolveAnchorTemplateType(allianceId, seasonKey);
   const templateType = (weekSchedule?.templateType ??

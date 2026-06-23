@@ -1,5 +1,5 @@
 import { parseAshedMemberAllianceRank } from "@/lib/members/alliance-rank";
-import { loadAllianceMembersForBot } from "@/lib/vr/member-roster";
+import { loadAllianceMembersForBot, allianceHasBotCredentials } from "@/lib/vr/member-roster";
 import {
   callerIsAllianceOwner,
   listDiscordLinksForUser,
@@ -21,6 +21,10 @@ export async function callerCanRunVrReport(input: {
     })
   ) {
     return true;
+  }
+
+  if (!(await allianceHasBotCredentials(input.allianceId))) {
+    return false;
   }
 
   const [links, members] = await Promise.all([

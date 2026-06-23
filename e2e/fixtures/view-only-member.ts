@@ -5,6 +5,7 @@ import {
   acceptInviteViaApi,
   createAshedAlliance,
   createHqInviteRow,
+  createHqMemberLink,
   createNativeAlliance,
   createPlatformMaintainerSession,
   type SessionFixture,
@@ -41,6 +42,12 @@ export async function createViewOnlyMember(
   });
 
   const accepted = await acceptInviteViaApi(sql, baseURL, token, email);
+  if (options.operatingMode === "native") {
+    await createHqMemberLink(sql, {
+      allianceId: alliance.allianceId,
+      hqUserId: accepted.hqUserId,
+    });
+  }
 
   return {
     sessionId: accepted.sessionId,

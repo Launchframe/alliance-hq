@@ -73,6 +73,17 @@ export default async function AppLayout({
     redirect({ href: "/get-started", locale });
   }
 
+  if (state.requiresAshedVerification) {
+    redirect({
+      href: `/onboard?next=${encodeURIComponent("/dashboard")}`,
+      locale,
+    });
+  }
+
+  if (state.requiresMemberLink) {
+    redirect({ href: `/onboard?next=${encodeURIComponent("/dashboard")}`, locale });
+  }
+
   return (
     <TimezoneProvider initialTimezoneId={state.timezone}>
       <AshedShell
@@ -86,8 +97,9 @@ export default async function AppLayout({
         isNativeAlliance={state.isNativeAlliance}
         operatingMode={state.operatingMode}
         canUseAshedEmbeds={state.canUseAshedEmbeds}
+        isAshedConnectAllowed={state.rbac?.isAshedConnectAllowed ?? false}
         ashed={state.ashed}
-        showAdminPortal={state.rbac?.isPlatformMaintainer ?? false}
+        showAdminPortal={state.permissions.includes("hq:admin")}
         showTeamAccess={state.showTeamAccess}
         showAllianceSettings={Boolean(state.currentAllianceId)}
         activeAllianceTag={state.allianceTag}

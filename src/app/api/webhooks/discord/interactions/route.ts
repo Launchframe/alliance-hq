@@ -33,10 +33,11 @@ import {
   handleDiscordHelp,
   handleDiscordLanguage,
   handleDiscordLinkAlliance,
+  handleDiscordLinkCommanderSlash,
   handleDiscordLinkFuzzyPick,
-  handleDiscordLinkSlash,
   handleDiscordLinkStartOver,
   handleDiscordLinkToAshedSeat,
+  handleDiscordLinkUser,
   handleDiscordSetVrReportChannel,
   handleDiscordUnlinkPick,
   handleDiscordUnlinkWithContext,
@@ -46,8 +47,9 @@ import {
   handleDiscordVrSlash,
   handleDiscordWalkthroughDone,
   resolveAllianceForGuild,
-  resolveOwnerSetupAllianceId,
 } from "@/lib/vr/service";
+import { resolveSetupMessage } from "@/lib/vr/bot-user-context";
+import { getDiscordHqLink } from "@/lib/vr/repository";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -73,12 +75,78 @@ async function resolveInteractionContext(payload: DiscordInteractionPayload) {
   return { discordUserId, guildId, locale, allianceId };
 }
 
-function guildConfigMessage(locale: DiscordBotLocale): string {
-  const t = createDiscordTranslator(locale);
+async function setupMessage(
+  locale: DiscordBotLocale,
+  guildId: string | null,
+  discordUserId: string,
+): Promise<string> {
   if (process.env.DISCORD_ALLIANCE_ID?.trim()) {
+    const t = createDiscordTranslator(locale);
     return t("errors.legacyMisconfigured");
   }
-  return t("errors.guildNotRegistered");
+  return resolveSetupMessage(locale, guildId, discordUserId);
+}
+
+async function handleLinkCommanderSlash(
+  payload: DiscordInteractionPayload,
+  input: {
+    discordUserId: string;
+    guildId: string;
+    locale: DiscordBotLocale;
+    allianceId: string | null;
+    discordUsername: string | undefined;
+  },
+) {
+  const t = createDiscordTranslator(input.locale);
+  const hqLink = await getDiscordHqLink(input.discordUserId);
+  if (!hqLink) {
+    return discordMessageResponse(t("errors.hqLinkRequired"), undefined, EPHEMERAL);
+  }
+  if (!input.allianceId) {
+    return discordMessageResponse(
+      await setupMessage(input.locale, input.guildId, input.discordUserId),
+      undefined,
+      EPHEMERAL,
+    );
+  }
+
+  const { name, uid, replace } = parseLinkSlashOptions(payload);
+  const result = await handleDiscordLinkCommanderSlash({
+    allianceId: input.allianceId,
+    guildId: input.guildId,
+    discordUserId: input.discordUserId,
+    discordUsername: input.discordUsername,
+    reportedName: name,
+    gameUid: uid,
+    replaceAll: replace,
+    locale: input.locale,
+  });
+
+  if (result.pending?.kind === "link_fuzzy_pick") {
+    return discordMessageResponse(
+      result.reply,
+      buildLinkFuzzyButtons(result.pending.candidates),
+      EPHEMERAL,
+    );
+  }
+  if (result.pending?.kind === "link_walkthrough") {
+    return discordMessageResponse(
+      result.reply,
+      buildWalkthroughDoneButton(t("buttons.done")),
+      EPHEMERAL,
+    );
+  }
+  if (result.needsOfficerAttention) {
+    return discordMessageResponse(
+      result.reply,
+      buildLinkFailureButtons({
+        startOver: t("buttons.startOver"),
+        askOfficer: t("buttons.askOfficer"),
+      }),
+      EPHEMERAL,
+    );
+  }
+  return discordMessageResponse(result.reply, undefined, EPHEMERAL);
 }
 
 async function handleSlashCommand(payload: DiscordInteractionPayload) {
@@ -165,50 +233,35 @@ async function handleSlashCommand(payload: DiscordInteractionPayload) {
     if (!guildId) {
       return discordMessageResponse(t("errors.guildNotRegistered"));
     }
-    let linkAllianceId = allianceId;
-    if (!linkAllianceId) {
-      linkAllianceId = await resolveOwnerSetupAllianceId(guildId, discordUserId);
+    const legacyName = parseSlashOptionString(payload, "name");
+    if (legacyName) {
+      return handleLinkCommanderSlash(payload, {
+        discordUserId,
+        guildId,
+        locale,
+        allianceId,
+        discordUsername,
+      });
     }
-    if (!linkAllianceId) {
-      return discordMessageResponse(guildConfigMessage(locale));
-    }
-    const { name, uid, replace } = parseLinkSlashOptions(payload);
-    const result = await handleDiscordLinkSlash({
-      allianceId: linkAllianceId,
+    const result = await handleDiscordLinkUser({
       guildId,
       discordUserId,
-      discordUsername,
-      reportedName: name,
-      gameUid: uid,
-      replaceAll: replace,
       locale,
     });
-
-    if (result.pending?.kind === "link_fuzzy_pick") {
-      return discordMessageResponse(
-        result.reply,
-        buildLinkFuzzyButtons(result.pending.candidates),
-        EPHEMERAL,
-      );
-    }
-    if (result.pending?.kind === "link_walkthrough") {
-      return discordMessageResponse(
-        result.reply,
-        buildWalkthroughDoneButton(t("buttons.done")),
-        EPHEMERAL,
-      );
-    }
-    if (result.needsOfficerAttention) {
-      return discordMessageResponse(
-        result.reply,
-        buildLinkFailureButtons({
-          startOver: t("buttons.startOver"),
-          askOfficer: t("buttons.askOfficer"),
-        }),
-        EPHEMERAL,
-      );
-    }
     return discordMessageResponse(result.reply, undefined, EPHEMERAL);
+  }
+
+  if (commandName === "link-commander") {
+    if (!guildId) {
+      return discordMessageResponse(t("errors.guildNotRegistered"));
+    }
+    return handleLinkCommanderSlash(payload, {
+      discordUserId,
+      guildId,
+      locale,
+      allianceId,
+      discordUsername,
+    });
   }
 
   if (commandName === "unlink") {
@@ -232,7 +285,9 @@ async function handleSlashCommand(payload: DiscordInteractionPayload) {
   }
 
   if (!allianceId) {
-    return discordMessageResponse(guildConfigMessage(locale));
+    return discordMessageResponse(
+      await setupMessage(locale, guildId, discordUserId),
+    );
   }
 
   if (commandName === "vr" || commandName === "immunity") {
@@ -290,9 +345,12 @@ async function handleButton(payload: DiscordInteractionPayload) {
   const discordUsername = interactionDiscordUsername(payload);
   const t = createDiscordTranslator(locale);
 
-  if (!allianceId || !discordUserId) {
+  if (!discordUserId) {
+    return discordButtonResponse(t("errors.unknownUser"));
+  }
+  if (!allianceId) {
     return discordButtonResponse(
-      allianceId ? t("errors.unknownUser") : guildConfigMessage(locale),
+      await setupMessage(locale, interactionGuildId(payload), discordUserId),
     );
   }
 

@@ -10,6 +10,7 @@ import {
   createAuthenticatedHqSession,
   createCanonicalAshedHqUser,
   createHqInviteRow,
+  createHqMemberLink,
   createHqUserOnly,
   createMagicLinkSession,
   createNativeAlliance,
@@ -141,6 +142,10 @@ test.describe("Browser session isolation — Ashed credential binding", () => {
       undefined,
       priorUser.sessionId,
     );
+    await createHqMemberLink(sql, {
+      allianceId: alliance.allianceId,
+      hqUserId: accepted.hqUserId,
+    });
 
     await page.context().addCookies(
       playwrightAuthCookies({
