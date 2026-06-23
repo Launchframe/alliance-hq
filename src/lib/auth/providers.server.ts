@@ -14,6 +14,7 @@ import {
   shouldLogMagicLinkToStdout,
 } from "@/lib/auth/magic-link-email.server";
 import { verifyPasswordLogin } from "@/lib/auth/password.server";
+import { verifyAuthEmailCode } from "@/lib/auth/email-code.server";
 import {
   isDiscordOAuthConfigured,
   isGoogleOAuthConfigured,
@@ -77,6 +78,26 @@ export function buildAuthProviders(): Provider[] {
   }
 
   providers.push(
+    Credentials({
+      id: "email-code",
+      name: "Email verification code",
+      credentials: {
+        email: { label: "Email", type: "email" },
+        code: { label: "Code", type: "text" },
+      },
+      async authorize(credentials) {
+        const email = String(credentials?.email ?? "");
+        const code = String(credentials?.code ?? "");
+        const verified = await verifyAuthEmailCode(email, code);
+        if (!verified) {
+          return null;
+        }
+        return {
+          id: verified.email,
+          email: verified.email,
+        };
+      },
+    }),
     Credentials({
       id: "password",
       name: "Password",

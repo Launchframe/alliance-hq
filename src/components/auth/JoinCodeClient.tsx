@@ -1,9 +1,10 @@
 "use client";
 
+import { ArrowLeft } from "lucide-react";
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 
-import { useRouter } from "@/i18n/navigation";
+import { Link, useRouter } from "@/i18n/navigation";
 
 type Props = {
   initialCode?: string;
@@ -48,6 +49,14 @@ export function JoinCodeClient({ initialCode }: Props) {
 
   return (
     <div className="mx-auto max-w-md space-y-4 rounded-xl border border-[#30363d] bg-[#161b22] p-6">
+      <Link
+        href="/get-started"
+        className="mb-2 flex items-center gap-1 self-start text-xs text-[#8b949e] transition-colors hover:text-[#e6edf3]"
+      >
+        <ArrowLeft className="h-3 w-3" aria-hidden />
+        {t("backToGetStarted")}
+      </Link>
+
       <h1 className="text-xl font-semibold">{t("title")}</h1>
       <p className="text-sm text-[#8b949e]">{t("body")}</p>
 

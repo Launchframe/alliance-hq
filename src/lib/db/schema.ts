@@ -2,6 +2,7 @@ import {
   bigint,
   boolean,
   doublePrecision,
+  index,
   integer,
   jsonb,
   pgTable,
@@ -1008,6 +1009,24 @@ export const authVerificationTokens = pgTable(
     primaryKey({
       columns: [table.identifier, table.token],
     }),
+  ],
+);
+
+/** Short-lived 6-digit codes for email verification (account creation). */
+export const authEmailCodes = pgTable(
+  "auth_email_codes",
+  {
+    id: text("id").primaryKey(),
+    email: text("email").notNull(),
+    code: text("code").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    index("auth_email_codes_email_created_at_idx").on(
+      table.email,
+      table.createdAt,
+    ),
   ],
 );
 

@@ -38,7 +38,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   providers: buildAuthProviders(),
   callbacks: {
     async signIn({ user, account }) {
-      if (account?.provider === "password" || account?.provider === "passkey") {
+      if (
+        account?.provider === "password" ||
+        account?.provider === "passkey" ||
+        account?.provider === "email-code"
+      ) {
         return Boolean(user.email);
       }
       if (isOAuthProvider(account?.provider)) {
