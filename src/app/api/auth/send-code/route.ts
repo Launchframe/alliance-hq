@@ -4,8 +4,28 @@ import {
   AuthEmailCodeError,
   issueAuthEmailCode,
 } from "@/lib/auth/email-code.server";
+import {
+  clientIpFromRequest,
+  SendCodeRateLimitError,
+  enforceSendCodeRateLimit,
+} from "@/lib/auth/send-code-rate-limit.server";
 
 export async function POST(request: Request) {
+  try {
+    await enforceSendCodeRateLimit(clientIpFromRequest(request));
+  } catch (error) {
+    if (error instanceof SendCodeRateLimitError) {
+      return NextResponse.json(
+        { error: "rate_limited", scope: error.scope },
+        {
+          status: 429,
+          headers: { "Retry-After": String(error.retryAfterSec) },
+        },
+      );
+    }
+    throw error;
+  }
+
   let body: unknown;
   try {
     body = await request.json();

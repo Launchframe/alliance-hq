@@ -1012,6 +1012,29 @@ export const authVerificationTokens = pgTable(
   ],
 );
 
+/** Rate-limit audit rows for POST /api/auth/send-code (IP + global caps). */
+export const authSendCodeAttempts = pgTable(
+  "auth_send_code_attempts",
+  {
+    id: text("id").primaryKey(),
+    clientIp: text("client_ip").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    index("auth_send_code_attempts_created_at_idx").on(table.createdAt),
+    index("auth_send_code_attempts_ip_created_at_idx").on(
+      table.clientIp,
+      table.createdAt,
+    ),
+  ],
+);
+
+/** Dedup keys for one-shot maintainer ops alerts (e.g. global send-code cap). */
+export const authOpsAlertFingerprints = pgTable("auth_ops_alert_fingerprints", {
+  fingerprint: text("fingerprint").primaryKey(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+});
+
 /** Short-lived 6-digit codes for email verification (account creation). */
 export const authEmailCodes = pgTable(
   "auth_email_codes",
