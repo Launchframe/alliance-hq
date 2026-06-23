@@ -136,6 +136,13 @@ export function generateWeekDayConfigs(
         templateType,
         dayNameIndex(date, weekStart),
       );
+      if (isCompositeWeekTemplate(segment)) {
+        return {
+          date,
+          conductorMechanism: "custom" as ConductorMechanismType,
+          vipMechanism: "none" as VipMechanismType,
+        };
+      }
       return generateDayConfigForDate(segment, date, weekStart, options);
     });
   }

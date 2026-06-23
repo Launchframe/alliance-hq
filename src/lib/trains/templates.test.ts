@@ -81,6 +81,21 @@ describe("r4_event_vip segment", () => {
 });
 
 describe("generateDayConfigForDate", () => {
+  it("does not recurse when weekStart is a Monday grid anchor on a Tuesday-start train week", () => {
+    const date = "2026-06-10";
+    const mondayWeekStart = getWeekStartMonday(date);
+    expect(mondayWeekStart).toBe("2026-06-08");
+    expect(() =>
+      generateDayConfigForDate("vs_push_week", date, mondayWeekStart),
+    ).not.toThrow();
+    const config = generateDayConfigForDate(
+      "vs_push_week",
+      date,
+      mondayWeekStart,
+    );
+    expect(config.conductorMechanism).toBe("custom");
+  });
+
   it("returns the Tuesday slot from vs_push_week", () => {
     const weekStart = "2026-06-09";
     const config = generateDayConfigForDate(
