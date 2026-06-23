@@ -1,12 +1,15 @@
 import "server-only";
 
 import { eq } from "drizzle-orm";
-import { nanoid } from "nanoid";
 
 import { normalizeAshedEmail } from "@/lib/alliance/accessible";
 import { getDb, schema } from "@/lib/db";
 
-import { hashPassphrase, verifyPassphrase } from "./passphrase";
+import {
+  hashPassphrase,
+  TIMING_SAFE_DUMMY_HASH,
+  verifyPassphrase,
+} from "./passphrase";
 import { validatePasswordPair } from "./password.shared";
 
 export class PasswordAuthError extends Error {
@@ -22,54 +25,6 @@ export class PasswordAuthError extends Error {
     super(message);
     this.name = "PasswordAuthError";
   }
-}
-
-export async function registerPasswordAccount(input: {
-  email: string;
-  password: string;
-  confirmPassword: string;
-}): Promise<{ hqUserId: string; email: string }> {
-  const email = normalizeAshedEmail(input.email);
-  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    throw new PasswordAuthError("Invalid email.", "invalid_email");
-  }
-
-  const passwordError = validatePasswordPair({
-    password: input.password,
-    confirmPassword: input.confirmPassword,
-  });
-  if (passwordError) {
-    throw new PasswordAuthError("Invalid password.", "invalid_password");
-  }
-
-  const db = getDb();
-  const [existing] = await db
-    .select({
-      id: schema.hqUsers.id,
-      passwordHash: schema.hqUsers.passwordHash,
-    })
-    .from(schema.hqUsers)
-    .where(eq(schema.hqUsers.email, email))
-    .limit(1);
-
-  if (existing) {
-    throw new PasswordAuthError("Email already registered.", "email_taken");
-  }
-
-  const now = new Date();
-  const hqUserId = nanoid(16);
-  const passwordHash = await hashPassphrase(input.password);
-
-  await db.insert(schema.hqUsers).values({
-    id: hqUserId,
-    email,
-    passwordHash,
-    emailVerifiedAt: now,
-    createdAt: now,
-    updatedAt: now,
-  });
-
-  return { hqUserId, email };
 }
 
 export async function setPasswordForHqUser(input: {
@@ -123,12 +78,9 @@ export async function verifyPasswordLogin(
     .where(eq(schema.hqUsers.email, normalized))
     .limit(1);
 
-  if (!row?.passwordHash) {
-    return null;
-  }
-
-  const ok = await verifyPassphrase(password, row.passwordHash);
-  if (!ok) {
+  const hashToVerify = row?.passwordHash ?? TIMING_SAFE_DUMMY_HASH;
+  const ok = await verifyPassphrase(password, hashToVerify);
+  if (!row?.passwordHash || !ok) {
     return null;
   }
 

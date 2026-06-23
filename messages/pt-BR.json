@@ -1281,7 +1281,7 @@
     "createAccountFailed": "Não foi possível criar a conta. Tente novamente.",
     "passkeyBody": "Use uma passkey salva neste dispositivo ou no gerenciador de senhas.",
     "passkeyFailed": "A entrada com passkey não foi concluída. Tente senha ou link mágico.",
-    "passkeyHint": "Ainda não tem passkey? Crie uma conta com senha e adicione uma em Configurações → Entrada e segurança.",
+    "passkeyHint": "Ainda não tem passkey? Crie uma conta na aba Link por e-mail e adicione uma em Configurações → Entrada e segurança.",
     "passwordHint": "Esqueceu a senha? Use a aba Link por e-mail para entrar e depois defina uma nova senha nas configurações.",
     "magicLinkHint": "Links mágicos são de uso único. Abra o e-mail mais recente se um link antigo expirou.",
     "email": "E-mail",

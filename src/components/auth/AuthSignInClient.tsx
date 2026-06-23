@@ -17,7 +17,6 @@ type Props = {
 };
 
 type AuthMethod = "password" | "magic-link" | "passkey";
-type PasswordMode = "sign-in" | "create";
 
 function passwordErrorMessage(
   t: ReturnType<typeof useTranslations<"auth">>,
@@ -40,10 +39,8 @@ function passwordErrorMessage(
 export function AuthSignInClient({ callbackUrl, presetEmail }: Props) {
   const t = useTranslations("auth");
   const [method, setMethod] = useState<AuthMethod>("password");
-  const [passwordMode, setPasswordMode] = useState<PasswordMode>("sign-in");
   const [email, setEmail] = useState(presetEmail ?? "");
   const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -86,10 +83,7 @@ export function AuthSignInClient({ callbackUrl, presetEmail }: Props) {
       return;
     }
 
-    const validation = validatePasswordPair({
-      password,
-      confirmPassword: passwordMode === "create" ? confirmPassword : undefined,
-    });
+    const validation = validatePasswordPair({ password });
     if (validation) {
       setError(passwordErrorMessage(t, validation));
       return;
@@ -98,27 +92,6 @@ export function AuthSignInClient({ callbackUrl, presetEmail }: Props) {
     setSubmitting(true);
     setError(null);
     try {
-      if (passwordMode === "create") {
-        const registerRes = await fetch("/api/auth/password/register", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            email: trimmed,
-            password,
-            confirmPassword,
-          }),
-        });
-        const registerBody = (await registerRes.json()) as { error?: string };
-        if (!registerRes.ok) {
-          if (registerBody.error === "email_taken") {
-            setError(t("emailAlreadyRegistered"));
-          } else {
-            setError(t("createAccountFailed"));
-          }
-          return;
-        }
-      }
-
       const result = await signIn("password", {
         email: trimmed,
         password,
@@ -223,32 +196,6 @@ export function AuthSignInClient({ callbackUrl, presetEmail }: Props) {
 
       {method === "password" ? (
         <form className="space-y-4" onSubmit={handlePasswordSubmit}>
-          <div className="flex gap-2 text-sm">
-            <button
-              type="button"
-              className={
-                passwordMode === "sign-in"
-                  ? "text-[#58a6ff] underline"
-                  : "text-[#8b949e] hover:text-[#e6edf3]"
-              }
-              onClick={() => setPasswordMode("sign-in")}
-            >
-              {t("passwordSignIn")}
-            </button>
-            <span className="text-[#484f58]">·</span>
-            <button
-              type="button"
-              className={
-                passwordMode === "create"
-                  ? "text-[#58a6ff] underline"
-                  : "text-[#8b949e] hover:text-[#e6edf3]"
-              }
-              onClick={() => setPasswordMode("create")}
-            >
-              {t("passwordCreate")}
-            </button>
-          </div>
-
           <label className="block space-y-1 text-sm">
             <span className="text-[#8b949e]">{t("email")}</span>
             <input
@@ -269,27 +216,10 @@ export function AuthSignInClient({ callbackUrl, presetEmail }: Props) {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
-              autoComplete={
-                passwordMode === "create" ? "new-password" : "current-password"
-              }
+              autoComplete="current-password"
               minLength={MIN_PASSWORD_LENGTH}
             />
           </label>
-
-          {passwordMode === "create" ? (
-            <label className="block space-y-1 text-sm">
-              <span className="text-[#8b949e]">{t("confirmPassword")}</span>
-              <input
-                type="password"
-                required
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
-                autoComplete="new-password"
-                minLength={MIN_PASSWORD_LENGTH}
-              />
-            </label>
-          ) : null}
 
           {error ? <p className="text-sm text-[#f85149]">{error}</p> : null}
 
@@ -298,11 +228,7 @@ export function AuthSignInClient({ callbackUrl, presetEmail }: Props) {
             disabled={submitting}
             className="w-full rounded-lg border border-[#238636] bg-[#238636] px-4 py-2 text-sm text-white disabled:opacity-50"
           >
-            {submitting
-              ? t("signingIn")
-              : passwordMode === "create"
-                ? t("createAccount")
-                : t("signInWithPassword")}
+            {submitting ? t("signingIn") : t("signInWithPassword")}
           </button>
 
           <p className="text-xs text-[#6e7681]">{t("passwordHint")}</p>

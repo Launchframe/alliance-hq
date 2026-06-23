@@ -1281,7 +1281,7 @@
     "createAccountFailed": "Could not create account. Try again.",
     "passkeyBody": "Use a passkey saved to this device or password manager.",
     "passkeyFailed": "Passkey sign-in did not complete. Try password or a magic link.",
-    "passkeyHint": "No passkey yet? Create an account with a password first, then add one under Settings → Sign-in & security.",
+    "passkeyHint": "No passkey yet? Create an account with the Email link tab, then add one under Settings → Sign-in & security.",
     "passwordHint": "Forgot your password? Use the Email link tab to sign in, then set a new password in settings.",
     "magicLinkHint": "Magic links are single-use. Open the newest email if an older link says it expired.",
     "email": "Email",

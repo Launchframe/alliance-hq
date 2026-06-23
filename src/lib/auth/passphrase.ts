@@ -6,6 +6,10 @@ import bcrypt from "bcryptjs";
 
 const BCRYPT_ROUNDS = 12;
 
+/** Precomputed bcrypt hash used to normalize login timing when no user/password exists. */
+export const TIMING_SAFE_DUMMY_HASH =
+  "$2a$12$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy";
+
 const ADJECTIVES = [
   "amber",
   "brave",
