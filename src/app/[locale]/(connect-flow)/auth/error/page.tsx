@@ -17,24 +17,53 @@ function authRetryHref(callbackUrl: string | undefined): string {
   return `/auth?callbackUrl=${encodeURIComponent(safe)}`;
 }
 
+function credentialErrorMessageKey(
+  error: string,
+): "errorConfiguration" | "errorCredentials" | "errorGeneric" {
+  if (error === "Configuration") {
+    return "errorConfiguration";
+  }
+  if (error === "CredentialsSignin") {
+    return "errorCredentials";
+  }
+  return "errorGeneric";
+}
+
+function isMagicLinkError(code: string): boolean {
+  return code === "Verification" || code === "AccessDenied";
+}
+
 export default async function AuthErrorPage({ searchParams }: Props) {
   const t = await getTranslations("auth");
   const { error, callbackUrl } = await searchParams;
   const code = error?.trim() || "Default";
 
+  if (!isMagicLinkError(code)) {
+    return (
+      <div className="mx-auto max-w-md space-y-4 rounded-xl border border-[#30363d] bg-[#161b22] p-6">
+        <h1 className="text-xl font-semibold">{t("errorTitle")}</h1>
+        <p className="text-sm text-[#8b949e]">
+          {t(credentialErrorMessageKey(code))}
+        </p>
+        <Link
+          href={authRetryHref(callbackUrl)}
+          className="inline-block text-sm text-[#58a6ff] hover:underline"
+        >
+          {t("backToSignIn")}
+        </Link>
+      </div>
+    );
+  }
+
   const titleKey =
     code === "Verification"
       ? "errorVerificationTitle"
-      : code === "AccessDenied"
-        ? "errorAccessDeniedTitle"
-        : "errorDefaultTitle";
+      : "errorAccessDeniedTitle";
 
   const bodyKey =
     code === "Verification"
       ? "errorVerificationBody"
-      : code === "AccessDenied"
-        ? "errorAccessDeniedBody"
-        : "errorDefaultBody";
+      : "errorAccessDeniedBody";
 
   const retryHref = authRetryHref(callbackUrl);
 

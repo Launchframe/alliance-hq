@@ -1304,7 +1304,12 @@
     "errorAccessDeniedBody": "Não foi possível concluir o login com esse link. Tente de novo com o e-mail para o qual o convite foi enviado.",
     "errorDefaultTitle": "Problema no login",
     "errorDefaultBody": "Algo deu errado ao entrar. Peça um novo magic link e tente novamente.",
-    "errorRequestNewLink": "Enviar novo magic link"
+    "errorRequestNewLink": "Enviar novo magic link",
+    "errorTitle": "Problema ao entrar",
+    "errorConfiguration": "A entrada está temporariamente mal configurada. Tente de novo em instantes ou use um link mágico.",
+    "errorCredentials": "E-mail ou senha incorretos.",
+    "errorGeneric": "Não foi possível concluir a entrada. Tente novamente ou use outro método.",
+    "backToSignIn": "Voltar para entrar"
   },
   "httpErrors": {
     "notFoundTitle": "Página não encontrada",

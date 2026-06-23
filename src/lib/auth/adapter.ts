@@ -1,6 +1,11 @@
 import "server-only";
 
-import type { Adapter, AdapterAuthenticator, AdapterUser } from "@auth/core/adapters";
+import type {
+  Adapter,
+  AdapterAccount,
+  AdapterAuthenticator,
+  AdapterUser,
+} from "@auth/core/adapters";
 import { and, eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
@@ -14,6 +19,18 @@ function toAdapterUser(row: typeof schema.hqUsers.$inferSelect): AdapterUser {
     emailVerified: row.emailVerifiedAt,
     name: row.displayName,
     image: row.avatarUrl,
+  };
+}
+
+function toAdapterAccount(
+  row: typeof schema.hqAuthAccounts.$inferSelect,
+): AdapterAccount {
+  return {
+    id: row.id,
+    userId: row.hqUserId,
+    type: row.type as AdapterAccount["type"],
+    provider: row.provider,
+    providerAccountId: row.providerAccountId,
   };
 }
 
@@ -68,8 +85,42 @@ export function createHqAuthAdapter(): Adapter {
       return row ? toAdapterUser(row) : null;
     },
 
-    async getUserByAccount() {
-      return null;
+    async getUserByAccount({ provider, providerAccountId }) {
+      const db = getDb();
+      const [accountRow] = await db
+        .select()
+        .from(schema.hqAuthAccounts)
+        .where(
+          and(
+            eq(schema.hqAuthAccounts.provider, provider),
+            eq(schema.hqAuthAccounts.providerAccountId, providerAccountId),
+          ),
+        )
+        .limit(1);
+      if (!accountRow) {
+        return null;
+      }
+      const [userRow] = await db
+        .select()
+        .from(schema.hqUsers)
+        .where(eq(schema.hqUsers.id, accountRow.hqUserId))
+        .limit(1);
+      return userRow ? toAdapterUser(userRow) : null;
+    },
+
+    async getAccount(providerAccountId, provider) {
+      const db = getDb();
+      const [row] = await db
+        .select()
+        .from(schema.hqAuthAccounts)
+        .where(
+          and(
+            eq(schema.hqAuthAccounts.provider, provider),
+            eq(schema.hqAuthAccounts.providerAccountId, providerAccountId),
+          ),
+        )
+        .limit(1);
+      return row ? toAdapterAccount(row) : null;
     },
 
     async updateUser(data) {
@@ -107,12 +158,31 @@ export function createHqAuthAdapter(): Adapter {
       await db.delete(schema.hqUsers).where(eq(schema.hqUsers.id, userId));
     },
 
-    async linkAccount() {
-      throw new Error("OAuth account linking is not configured yet.");
+    async linkAccount(account) {
+      const db = getDb();
+      const id = String(account.id ?? nanoid(16));
+      await db.insert(schema.hqAuthAccounts).values({
+        id,
+        hqUserId: String(account.userId),
+        type: String(account.type),
+        provider: String(account.provider),
+        providerAccountId: String(account.providerAccountId),
+      });
+      return { ...account, id };
     },
 
-    async unlinkAccount() {
-      throw new Error("OAuth account unlinking is not configured yet.");
+    async unlinkAccount({ provider, providerAccountId }) {
+      const db = getDb();
+      const [row] = await db
+        .delete(schema.hqAuthAccounts)
+        .where(
+          and(
+            eq(schema.hqAuthAccounts.provider, provider),
+            eq(schema.hqAuthAccounts.providerAccountId, providerAccountId),
+          ),
+        )
+        .returning();
+      return row ? toAdapterAccount(row) : undefined;
     },
 
     async createVerificationToken(data) {

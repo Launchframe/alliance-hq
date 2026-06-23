@@ -1304,7 +1304,12 @@
     "errorAccessDeniedBody": "We could not complete sign-in with that link. Try again with the email address your invite was sent to.",
     "errorDefaultTitle": "Sign-in problem",
     "errorDefaultBody": "Something went wrong while signing you in. Request a new magic link and try again.",
-    "errorRequestNewLink": "Send a new magic link"
+    "errorRequestNewLink": "Send a new magic link",
+    "errorTitle": "Sign-in problem",
+    "errorConfiguration": "Sign-in is temporarily misconfigured. Try again in a moment or use a magic link.",
+    "errorCredentials": "Email or password is incorrect.",
+    "errorGeneric": "We could not complete sign-in. Try again or use a different method.",
+    "backToSignIn": "Back to sign in"
   },
   "httpErrors": {
     "notFoundTitle": "Page not found",

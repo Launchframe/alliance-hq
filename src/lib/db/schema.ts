@@ -1011,6 +1011,26 @@ export const authVerificationTokens = pgTable(
   ],
 );
 
+/** OAuth / WebAuthn provider links for HQ users (Auth.js adapter). */
+export const hqAuthAccounts = pgTable(
+  "hq_auth_accounts",
+  {
+    id: text("id").primaryKey(),
+    hqUserId: text("hq_user_id")
+      .notNull()
+      .references(() => hqUsers.id, { onDelete: "cascade" }),
+    type: text("type").notNull(),
+    provider: text("provider").notNull(),
+    providerAccountId: text("provider_account_id").notNull(),
+  },
+  (table) => [
+    unique("hq_auth_accounts_provider_account_unique").on(
+      table.provider,
+      table.providerAccountId,
+    ),
+  ],
+);
+
 /** WebAuthn / passkey credentials for HQ users (Auth.js adapter). */
 export const hqAuthenticators = pgTable(
   "hq_authenticators",
