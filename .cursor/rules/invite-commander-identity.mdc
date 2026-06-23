@@ -1,0 +1,151 @@
+---
+description: Invite + onboard flow — in-game commanders, Ashed roster rows, HQ users, and HQ RBAC; name/UID matching pitfalls
+globs:
+  - src/lib/member-link/**
+  - src/lib/vr/link-command.ts
+  - src/lib/vr/link-helpers.ts
+  - src/lib/vr/member-roster.ts
+  - src/lib/native-alliance/invites.ts
+  - src/lib/native-alliance/access.ts
+  - src/lib/onboarding/**
+  - src/app/**/invite/**
+  - src/app/**/onboard/**
+  - src/components/onboarding/**
+  - src/components/native-alliance/**
+  - e2e/invite-roles.spec.ts
+  - e2e/onboard-member-link.spec.ts
+---
+
+# Invite flow — commander, Ashed member, HQ user, HQ member
+
+**Do not conflate four different things.** The web invite path touches all of them; mixing layers caused production bugs (wrong `hq_member_links` row, 404 on magic-link retry).
+
+## Four entities (use precise terms in code and copy)
+
+| Concept | Storage | Primary key / scope | Answers |
+| --- | --- | --- | --- |
+| **In-game commander** | Last War API (live lookup by UID) | Player UID (12–16 digits, ends `1203`) | “What does the **game server** call this player **right now**?” |
+| **Ashed roster member** | `alliance_members` (+ live Ashed API when local empty) | `ashed_member_id` per `alliance_id` | “Who is on **our alliance roster** in HQ/Ashed?” (`current_name`, `previous_names_json`) |
+| **HQ user** | `hq_users` + Auth.js session | `hq_users.id` | “Who signed into Alliance HQ?” (email / magic link) |
+| **HQ member (RBAC)** | `alliance_memberships` | `(alliance_id, hq_user_id)` → role | “What **permissions** does this HQ user have in this alliance?” (owner, officer, member, …) |
+
+**Fifth binding row (web only):** `hq_member_links` maps **`hq_user_id` → `ashed_member_id`** within one alliance, plus stored `game_uid` and display name snapshot. This is **not** RBAC and **not** created by roster sync alone.
+
+| Binding | Table | Unique constraints | Created when |
+| --- | --- | --- | --- |
+| HQ user ↔ roster character | `hq_member_links` | one user per alliance; one Ashed member per alliance | Successful **member-link** submit (`/api/member-link`) |
+| HQ user ↔ alliance role | `alliance_memberships` | one membership per user per alliance | **Invite accept** (`acceptHqInvite`) — before member link |
+| Roster mirror | `alliance_members` | one row per `ashed_member_id` per alliance | Ashed sync / import — **not** on invite accept |
+
+Discord bot uses **`discord_member_links`** (Discord user ↔ commander) — parallel idea, different table. See [`.cursor/rules/discord-identity-auth-layers.mdc`](discord-identity-auth-layers.mdc).
+
+## Three name authorities (never substitute one for another)
+
+```
+User types name          Last War UID lookup          HQ roster (alliance_members)
+     │                          │                              │
+     │   must match             │   gameUserName               │   current_name or
+     └──────────────────────────┤   (authoritative for         │   previous_names only
+                                │    identity)                   │
+                                └──────── exact match ──────────►│
+                                       (no fuzzy)                 │
+```
+
+| Source | Trust level | Used for |
+| --- | --- | --- |
+| **Last War API** (`player-lookup`, UID) | **Identity** — proves UID owns `gameUserName` | Gate: reported name must match lookup; roster match uses **`gameUserName`**, not fuzzy typed text |
+| **`alliance_members`** | **Alliance roster snapshot** — may lag renames | Exact match only on `current_name` + `previous_names` (`findExactMemberByName`) |
+| **User-typed name** | Untrusted until it matches Last War | Walkthrough when mismatch; never fuzzy-link roster from typed string alone |
+
+**Pitfall (Lil Belly / Mr BELLY):** UID proved “Lil Belly” but roster still showed “Stitch”. **Fuzzy** matching `"lil belly"` → `"Mr BELLY"` linked the wrong `ashed_member_id`. **Fix:** no fuzzy pick on member-link; roster miss + officer path when game name ≠ any exact roster name.
+
+**Do not** reuse `findFuzzyMemberCandidates` / video OCR fuzzy helpers for invite or member-link flows. Fuzzy remains for **video OCR** only (`member-matcher.ts`).
+
+## Web invite → onboard sequence
+
+```
+Admin invite (email / protected link)
+    → GET /invite/[token]  (preview; needs Auth.js to accept)
+    → POST /invite/[token]/accept
+         creates alliance_memberships (RBAC from invite role)
+         does NOT create hq_member_links
+    → redirect /onboard?next=…
+    → MemberLinkOnboardingWizard
+         POST /api/member-link  (name + UID)
+         creates hq_member_links on exact roster match
+    → redirect next (e.g. /members, /trains)
+```
+
+**Gates on `(app)` layout** (native alliance):
+
+| Gate | Checks | Independent of |
+| --- | --- | --- |
+| `hasAppAccess` | invite / join code / maintainer | member link |
+| `requiresMemberLink` | `hq_member_links` for current alliance | RBAC role |
+| `requiresAshedVerification` | always false for new privileged-link policy | member link |
+
+**Auth for accept:** invite accept API requires **both** `alliance_hq_session` and `authjs.session-token` (see `e2e/fixtures/auth.ts`). Magic links are **single-use** — expired/used links hit `/auth/error` (not 404).
+
+## Member-link algorithm invariants (`processLinkCommand`)
+
+Implement and preserve in tests (`src/lib/vr/link-command.test.ts`):
+
+1. UID lookup must succeed (`lookup.ok`).
+2. `namesMatch(reportedName, gameUserName)` — normalized equality; else walkthrough, no link.
+3. `findExactMemberByName(members, gameUserName)` — **exact** on current + previous names only.
+4. If exact row found and not already linked → `linkTarget` with that `ashed_member_id` and submitted `game_uid`.
+5. If no exact row → **`needsOfficerAttention`** / roster miss — explain game name vs stale roster; **no candidate picker**.
+6. `memberTaken` if `ashed_member_id` already has `hq_member_links` for another user.
+
+**Roster load:** `loadAllianceMembersForMemberLink` — prefer local `alliance_members`, then live Ashed. Audit `rosterSource` on submit failures.
+
+## RBAC vs character link (common design mistakes)
+
+| Mistake | Why it’s wrong |
+| --- | --- |
+| Grant app access from member link alone | RBAC comes from **invite** / `alliance_memberships`; link only binds character |
+| Require Ashed connect before member link (web) | Privileged roles get RBAC from invite; Ashed is optional (embeds/sync) |
+| Infer commander from session `userLabel` / Ashed JWT display name | Link requires explicit UID + roster `ashed_member_id` |
+| Write `hq_member_links` during roster sync | Sync writes `alliance_members` only; link is user-initiated |
+| Use fuzzy / Levenshtein to “help” renamed players | Substring similarity links wrong people; use roster miss + officer refresh |
+| Match roster on **typed** name when UID lookup disagrees | UID path already verified game name — roster must match **that** string |
+| One HQ user → multiple characters per alliance | `hq_member_links` is 1:1 per `(alliance_id, hq_user_id)` today |
+
+## Rename and staleness
+
+- **Game renames** (Stitch → Lil Belly) update Last War immediately; **`alliance_members.current_name`** updates on next Ashed/sync refresh.
+- Until roster catches up, correct UX is **roster miss** (with `rosterMissVerified` copy), not guessing.
+- **`previous_names_json`** may bridge renames if Ashed/history captured old name — still **exact** match only.
+- Officer recovery: refresh roster from Ashed, or admin ops on `hq_member_links` (delete wrong row, user re-links).
+
+## Negative cases to test
+
+| Scenario | Expected |
+| --- | --- |
+| UID valid, game name ≠ roster | Roster miss; no `hq_member_links` |
+| Similar roster names (shared substring) | No link to wrong member |
+| Invite accept without sign-in | 401 / redirect to `/auth` with `callbackUrl` back to invite |
+| Reused magic link after logout | `/auth/error?error=Verification`, CTA for new link |
+| Accept invite then skip onboard | `(app)` redirects to `/onboard` until linked |
+| Link succeeds | `hq_member_links.game_uid` = submitted UID; `ashed_member_id` = matched roster row |
+
+Update `e2e/invite-roles.spec.ts`, `e2e/onboard-member-link.spec.ts`, and unit tests when changing any step above.
+
+## File map
+
+| Area | Location |
+| --- | --- |
+| Link decision core | `src/lib/vr/link-command.ts`, `src/lib/vr/link-helpers.ts` |
+| Web orchestration | `src/lib/member-link/orchestrator.server.ts` |
+| Roster for link | `src/lib/vr/member-roster.ts` |
+| UID lookup | `src/lib/lastwar/player-lookup.ts` |
+| Invite accept | `src/lib/native-alliance/invites.ts`, `src/app/api/invite/**` |
+| Onboard UI | `src/components/onboarding/MemberLinkOnboardingWizard.tsx` |
+| App gates | `src/lib/native-alliance/access.ts`, `src/app/[locale]/(app)/layout.tsx` |
+| Audit | `src/lib/onboarding/onboarding-audit.server.ts` |
+
+## Related rules
+
+- [`.cursor/rules/discord-identity-auth-layers.mdc`](discord-identity-auth-layers.mdc) — Discord `discord_member_links` parallel; do not merge with `hq_member_links`
+- [`.cursor/rules/e2e-plan-completion.mdc`](e2e-plan-completion.mdc) — invite/onboard e2e gate
+- [`.cursor/rules/discord-bot-multitenancy.mdc`](discord-bot-multitenancy.mdc) — alliance credentials and roster reads

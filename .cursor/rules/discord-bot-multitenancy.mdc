@@ -1,0 +1,43 @@
+---
+description: Discord VR bot multi-tenancy — guild registry, tag-only UX, credentials, i18n
+globs:
+  - src/lib/vr/**
+  - src/lib/discord/**
+  - src/app/api/webhooks/discord/**
+  - scripts/discord/**
+---
+
+# Discord bot multi-tenancy
+
+## Tenant discriminator
+
+After setup, **`discord_guild_alliances.guild_id`** is the runtime tenant key. Resolve with `resolveAllianceForGuild(guildId)` — not `DISCORD_ALLIANCE_ID`.
+
+## Tag-only UX (non-negotiable)
+
+- Bot commands and replies use **`alliances.tag`** only (case-insensitive).
+- **Never** add options or user-visible copy for `alliances.id`, `ashed_alliance_id`, or env alliance ids.
+- Disambiguation: member-link roster filter → `/link-alliance … name:` → pending `pick_alliance_by_name`.
+
+## Ashed reads
+
+- **Only** `loadAllianceMembersForBot(allianceId)` for roster reads in bot code.
+- Credential order: `alliance_ashed_credentials` → legacy `VR_BOT_ASHED_BEARER_TOKEN` **only** when `alliances.tag` matches `VR_BOT_ASHED_ALLIANCE_TAG`.
+- Never use one alliance's JWT to read another alliance's roster.
+
+## Secrets
+
+- `/link-with-authentication` responses must stay **ephemeral** (`flags: 64`).
+- Never log or audit plaintext connection keys — redact in audit payloads.
+
+## i18n
+
+- New bot strings: `messages/en-US.json` and `messages/pt-BR.json` under **`discordBot`**.
+- Register pt-BR **`description_localizations`** when adding slash commands.
+- Run `npm run i18n:validate` after message changes.
+
+## Writes
+
+- Guild registration: `upsertGuildAlliance` (owner-gated).
+- Season: effective key from `src/lib/game-season/` (owner override on web, Monday cron) — **no** bot `/set-season`.
+- Credentials: `upsertAllianceAshedCredential` after `verifyBase44Connection` + owner check.

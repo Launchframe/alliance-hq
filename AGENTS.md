@@ -121,5 +121,7 @@ Name+UID member link (`/onboard`, `/link-commander`) proves Last War API consist
 
 Legacy sessions (`hqUserId` null): allow-all until reconnect (unchanged). Regular `member` / `data_entry` / `viewer` invites: name+UID link only.
 
+**Commander vs HQ user vs roster:** Invite accept creates **`alliance_memberships` (RBAC)** only; **`hq_member_links`** is a separate exact UID + roster bind. Three name sources (typed, Last War API, `alliance_members`) must not be fuzzy-merged — see [`.cursor/rules/invite-commander-identity.mdc`](.cursor/rules/invite-commander-identity.mdc).
+
 Detail: [`.cursor/rules/discord-identity-auth-layers.mdc`](.cursor/rules/discord-identity-auth-layers.mdc) (architecture) and [`.cursor/rules/discord-bot-multitenancy.mdc`](.cursor/rules/discord-bot-multitenancy.mdc) (tenant + credentials guardrails).
 

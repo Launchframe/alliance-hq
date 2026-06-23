@@ -1,5 +1,4 @@
 import type { AshedMember } from "@/lib/video/member-matcher";
-import { findFuzzyMemberCandidates } from "@/lib/video/member-matcher";
 
 import type { DiscordTranslate } from "@/lib/discord/i18n";
 
@@ -16,21 +15,18 @@ export function findExactMemberByName(
   gameUserName: string,
 ): AshedMember | null {
   const needle = normalizeName(gameUserName);
-  return (
-    members.find((m) => normalizeName(m.current_name) === needle) ?? null
-  );
-}
-
-export function fuzzyUnlinkedCandidates(
-  members: AshedMember[],
-  linkedMemberIds: Set<string>,
-  reportedName: string,
-  limit = 5,
-): Array<{ memberId: string; name: string; confidence: number }> {
-  const unlinked = members.filter(
-    (m) => m.status !== "former" && !linkedMemberIds.has(m.id),
-  );
-  return findFuzzyMemberCandidates(reportedName, unlinked, { limit });
+  for (const member of members) {
+    if (member.status === "former") continue;
+    if (normalizeName(member.current_name) === needle) {
+      return member;
+    }
+    for (const previous of member.previous_names ?? []) {
+      if (normalizeName(previous) === needle) {
+        return member;
+      }
+    }
+  }
+  return null;
 }
 
 export function advanceLinkWalkthrough(input: {

@@ -1,0 +1,67 @@
+---
+description: Train Conductor schedule, pivot, pools, and API rules for agents
+globs:
+  - src/lib/trains/**
+  - src/components/trains/**
+  - src/app/api/trains/**
+---
+
+# Trains (Conductor ritual)
+
+## Roles
+
+- **Conductor** — one per game day; lock spawns empty train (5×6 cargo slots).
+- **VIP** — Conductor may pick; VIP chooses 2 of 4 rider cars.
+- **Guardian** — defends on plunder: VIP squads if `guardianIsVip`, else Conductor.
+- **Lock** — `lockedAt` set is final for that day (override = exceptional + audited).
+
+## Week templates
+
+| Template | Typical use |
+|----------|-------------|
+| `vs_push_week` | **Composite:** Mon–Fri `vs_push_weekdays` + Sat–Sun `r4_event_vip` |
+| `vs_push_weekdays` | Segment — Mon `vs_top_10`, Tue `vs_high_score`, Wed–Fri `vs_top_10` |
+| `r4_event_vip` | Segment — `r4_sequence` conductor + `event_top_x_lottery` VIP (silvery cell) |
+| `economy_week` / `r3_recognition` | R3 lottery all days when saving inventory |
+| `r4_train_week` | Officer sequence all days |
+| `donations_week` | Top donor / second donor |
+| `custom` | Placeholder for officer-defined days |
+
+Templates expand to **per-day** `train_day_configs` (conductor + VIP mechanisms).
+
+**Composite templates** (`COMPOSITE_WEEK_TEMPLATES` in `week-template-registry.shared.ts`) map a whole-week preset to segment templates per weekday index. Segment paint is stored on each day's `conductorConfig.paintTemplate`. User-defined reusable composites can extend the same registry later.
+
+## Economy-week pivot (per-day overrides)
+
+When VS Day 1 looks unwinnable, officers **paint Tue–Sun** with `economy_week` (or similar) without replacing the whole week.
+
+- **`train_day_configs.is_override = 1`** when an officer paints a day with a template different from the week baseline.
+- **`train_week_schedules.is_pivot = 1`** when Tue+ economy overrides apply during a `vs_push_week` baseline.
+- **Pivot window:** Mon 22:00 – Tue 12:00 server time (UTC−2).
+
+Do **not** use whole-week `setWeekTemplate` for pivot — it clears overrides.
+
+## Scheduling UX (product direction)
+
+- Officers plan on a **calendar** with template palette + per-day paint (Phase B).
+- Do **not** auto-create `vs_push_week` on first trains page visit with **zero members**.
+- **Game season** is managed under **Settings**, not on the trains page.
+
+## Pools
+
+- `r3_lottery` → `r3` pool; `r4_sequence` → `r4_plus`.
+- Selected members are removed from the current generation (`selectedAt` / `selectedForDate`).
+- **`train_conductor_records`** — permanent alliance audit of conductor + VIP per date.
+
+## RBAC
+
+| Action | Permission |
+|--------|------------|
+| Read dashboard, schedule, history | `scores:read` |
+| Roll, lock, schedule paint, pool reseed | `trains:write` via `requireTrainOfficer` |
+
+All queries filter by session **`allianceId`**.
+
+## Native alliance gaps
+
+VS/donation rolls need Ashed scores. On native alliances, show plain copy and manual/officer paths; do not silently auto-create schedules before roster import.
