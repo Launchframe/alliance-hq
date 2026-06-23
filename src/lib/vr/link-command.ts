@@ -5,7 +5,6 @@ import type { LastWarPlayerLookupResult } from "@/lib/lastwar/player-lookup";
 import {
   advanceLinkWalkthrough,
   findExactMemberByName,
-  fuzzyUnlinkedCandidates,
   namesMatch,
   walkthroughMessage,
 } from "@/lib/vr/link-helpers";
@@ -80,41 +79,13 @@ export function processLinkCommand(input: ProcessLinkInput): LinkCommandResult {
     };
   }
 
-  const candidates = fuzzyUnlinkedCandidates(
-    input.members,
-    input.linkedMemberIds,
-    input.reportedName,
-  );
-  const gameNameCandidates =
-    candidates.length === 0
-      ? fuzzyUnlinkedCandidates(
-          input.members,
-          input.linkedMemberIds,
-          gameUserName,
-        )
-      : [];
-  const mergedCandidates = candidates.length > 0 ? candidates : gameNameCandidates;
-  if (mergedCandidates.length > 0) {
-    return {
-      reply: t("link.fuzzyPrompt", { gameName: gameUserName }),
-      pending: {
-        kind: "link_fuzzy_pick",
-        candidates: mergedCandidates.map((c) => ({
-          memberId: c.memberId,
-          name: c.name,
-        })),
-        gameUid: input.gameUid.trim(),
-        gameUserName,
-        reportedName: input.reportedName,
-        ...(gameUserLevel != null ? { gameUserLevel } : {}),
-      },
-    };
-  }
-
   return {
     reply: input.allianceTag
-      ? t("link.rosterMiss", { tag: input.allianceTag })
-      : t("link.rosterMissGeneric"),
+      ? t("link.rosterMissVerified", {
+          tag: input.allianceTag,
+          gameName: gameUserName,
+        })
+      : t("link.rosterMissVerifiedGeneric", { gameName: gameUserName }),
     pending: null,
     needsOfficerAttention: true,
   };
