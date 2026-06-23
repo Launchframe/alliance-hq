@@ -198,22 +198,20 @@ export async function sessionHasPermissionForAlliance(
     return true;
   }
 
-  const db = getDb();
-  const [user] = await db
-    .select({ isPlatformMaintainer: schema.hqUsers.isPlatformMaintainer })
-    .from(schema.hqUsers)
-    .where(eq(schema.hqUsers.id, session.hqUserId))
-    .limit(1);
+  const ctx = await getRbacContext(sessionId);
+  if (!ctx) {
+    return false;
+  }
+
+  if (ctx.isPlatformMaintainer && ctx.permissions.has("hq:admin")) {
+    return true;
+  }
 
   const { permissions } = await loadUserPermissions(
     sessionId,
-    session.hqUserId,
+    ctx.hqUserId,
     allianceId,
   );
-
-  if (user?.isPlatformMaintainer === 1 && permissions.has("hq:admin")) {
-    return true;
-  }
 
   return permissions.has(permission);
 }

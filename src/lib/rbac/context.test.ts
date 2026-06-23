@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as sessionModule from "@/lib/session";
 import { sessionHasLiveAshedVerification } from "@/lib/member-link/privileged-link.server";
 
-import { getRbacContext, sessionHasPermission } from "./context";
+import { getRbacContext, sessionHasPermission, sessionHasPermissionForAlliance } from "./context";
 
 const selectMock = vi.fn();
 
@@ -254,5 +254,145 @@ describe("sessionHasPermission", () => {
 
   it("denies when permission is null", async () => {
     await expect(sessionHasPermission("sess-1", null)).resolves.toBe(false);
+  });
+});
+
+describe("sessionHasPermissionForAlliance", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.spyOn(sessionModule, "loadSession").mockResolvedValue({
+      id: "sess-1",
+      hqUserId: "pm-user",
+      allianceId: "a1",
+      allianceTag: "LFgo",
+      currentAllianceId: "a1",
+      userLabel: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      expiresAt: new Date(Date.now() + 60_000),
+    });
+    vi.spyOn(sessionModule, "resolveEffectiveHqUserIdForSession").mockResolvedValue(
+      "pm-user",
+    );
+  });
+
+  it("allows platform maintainer without membership in target alliance", async () => {
+    selectMock
+      .mockReturnValueOnce(
+        chainSelectWithLimit([
+          {
+            id: "pm-user",
+            email: "pm@example.com",
+            displayName: "PM",
+            isPlatformMaintainer: 1,
+          },
+        ]),
+      )
+      .mockReturnValueOnce(
+        chainSelectWithLimit([
+          { roleName: "member", roleId: "role-member", source: "manual" },
+        ]),
+      )
+      .mockReturnValueOnce(chainSelectPermissions([]));
+
+    await expect(
+      sessionHasPermissionForAlliance("sess-1", "other-alliance", "scores:read"),
+    ).resolves.toBe(true);
+  });
+
+  it("checks alliance membership permissions for non-maintainers", async () => {
+    vi.spyOn(sessionModule, "loadSession").mockResolvedValue({
+      id: "sess-1",
+      hqUserId: "officer-user",
+      allianceId: "a1",
+      allianceTag: "LFgo",
+      currentAllianceId: "a1",
+      userLabel: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      expiresAt: new Date(Date.now() + 60_000),
+    });
+    vi.spyOn(sessionModule, "resolveEffectiveHqUserIdForSession").mockResolvedValue(
+      "officer-user",
+    );
+
+    selectMock
+      .mockReturnValueOnce(
+        chainSelectWithLimit([
+          {
+            id: "officer-user",
+            email: "officer@example.com",
+            displayName: "Officer",
+            isPlatformMaintainer: 0,
+          },
+        ]),
+      )
+      .mockReturnValueOnce(
+        chainSelectWithLimit([
+          { roleName: "officer", roleId: "role-officer", source: "manual" },
+        ]),
+      )
+      .mockReturnValueOnce(
+        chainSelectPermissions([{ permissionId: "scores:read" }]),
+      )
+      .mockReturnValueOnce(
+        chainSelectWithLimit([
+          { roleName: "officer", roleId: "role-officer", source: "manual" },
+        ]),
+      )
+      .mockReturnValueOnce(
+        chainSelectPermissions([{ permissionId: "scores:read" }]),
+      );
+
+    await expect(
+      sessionHasPermissionForAlliance("sess-1", "a1", "scores:read"),
+    ).resolves.toBe(true);
+  });
+
+  it("denies non-maintainers without the requested alliance permission", async () => {
+    vi.spyOn(sessionModule, "loadSession").mockResolvedValue({
+      id: "sess-1",
+      hqUserId: "officer-user",
+      allianceId: "a1",
+      allianceTag: "LFgo",
+      currentAllianceId: "a1",
+      userLabel: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      expiresAt: new Date(Date.now() + 60_000),
+    });
+    vi.spyOn(sessionModule, "resolveEffectiveHqUserIdForSession").mockResolvedValue(
+      "officer-user",
+    );
+
+    selectMock
+      .mockReturnValueOnce(
+        chainSelectWithLimit([
+          {
+            id: "officer-user",
+            email: "officer@example.com",
+            displayName: "Officer",
+            isPlatformMaintainer: 0,
+          },
+        ]),
+      )
+      .mockReturnValueOnce(
+        chainSelectWithLimit([
+          { roleName: "officer", roleId: "role-officer", source: "manual" },
+        ]),
+      )
+      .mockReturnValueOnce(
+        chainSelectPermissions([{ permissionId: "scores:read" }]),
+      )
+      .mockReturnValueOnce(
+        chainSelectWithLimit([
+          { roleName: "officer", roleId: "role-officer", source: "manual" },
+        ]),
+      )
+      .mockReturnValueOnce(chainSelectPermissions([]));
+
+    await expect(
+      sessionHasPermissionForAlliance("sess-1", "a1", "alliance:admin"),
+    ).resolves.toBe(false);
   });
 });
