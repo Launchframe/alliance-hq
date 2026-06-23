@@ -11,6 +11,8 @@ import {
   buildCharacterPickerButtons,
   buildLinkFailureButtons,
   buildLinkFuzzyButtons,
+  buildTrainConfirmButtons,
+  buildTrainPickButtons,
   buildVrConfirmButtons,
   buildWalkthroughDoneButton,
   discordComponentMessageResponse,
@@ -50,6 +52,14 @@ import {
 } from "@/lib/vr/service";
 import { resolveSetupMessage } from "@/lib/vr/bot-user-context";
 import { getDiscordHqLink } from "@/lib/vr/repository";
+import {
+  handleDiscordSetTrainChannel,
+  handleDiscordTrainConductorPick,
+  handleDiscordTrainIsReady,
+  handleDiscordWhoIsConductor,
+  handleDiscordSetConductor,
+} from "@/lib/trains/discord-bot-handlers.server";
+import { loadAllianceMembersForBot } from "@/lib/vr/member-roster";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -215,6 +225,23 @@ async function handleSlashCommand(payload: DiscordInteractionPayload) {
     return discordMessageResponse(result.reply);
   }
 
+  if (commandName === "set-train-channel") {
+    if (!guildId) {
+      return discordMessageResponse(t("errors.guildNotRegistered"));
+    }
+    const channelId = interactionChannelId(payload);
+    if (!channelId) {
+      return discordMessageResponse(t("errors.serverError"));
+    }
+    const result = await handleDiscordSetTrainChannel({
+      guildId,
+      channelId,
+      discordUserId,
+      locale,
+    });
+    return discordMessageResponse(result.reply);
+  }
+
   if (commandName === "link-to-ashed-seat") {
     if (!guildId) {
       return discordMessageResponse(t("errors.guildNotRegistered"));
@@ -330,6 +357,70 @@ async function handleSlashCommand(payload: DiscordInteractionPayload) {
     return discordMessageResponse(result.reply, undefined, EPHEMERAL);
   }
 
+  if (commandName === "who-is-conductor") {
+    const date = parseSlashOptionString(payload, "date");
+    const result = await handleDiscordWhoIsConductor({
+      allianceId,
+      discordUserId,
+      locale,
+      date,
+    });
+    return discordMessageResponse(result.reply, undefined, EPHEMERAL);
+  }
+
+  if (commandName === "set-conductor") {
+    if (!guildId) {
+      return discordMessageResponse(t("errors.guildNotRegistered"));
+    }
+    const name = parseSlashOptionString(payload, "name");
+    const date = parseSlashOptionString(payload, "date");
+    if (!name?.trim()) {
+      return discordMessageResponse(t("train.usageSetConductor"), undefined, EPHEMERAL);
+    }
+    const result = await handleDiscordSetConductor({
+      allianceId,
+      guildId,
+      discordUserId,
+      locale,
+      name,
+      date,
+    });
+    if (result.pickCandidates?.length) {
+      return discordMessageResponse(
+        result.reply,
+        buildTrainPickButtons(result.pickCandidates),
+        EPHEMERAL,
+      );
+    }
+    if (result.pendingPick) {
+      return discordMessageResponse(
+        result.reply,
+        buildTrainConfirmButtons(
+          result.pendingPick.memberId,
+          result.pendingPick.date,
+          { yes: t("buttons.yes"), no: t("buttons.no") },
+        ),
+        EPHEMERAL,
+      );
+    }
+    return discordMessageResponse(result.reply, undefined, EPHEMERAL);
+  }
+
+  if (commandName === "train-is-ready") {
+    if (!guildId) {
+      return discordMessageResponse(t("errors.guildNotRegistered"));
+    }
+    const date = parseSlashOptionString(payload, "date");
+    const result = await handleDiscordTrainIsReady({
+      allianceId,
+      guildId,
+      discordUserId,
+      locale,
+      date,
+    });
+    return discordMessageResponse(result.reply, undefined, EPHEMERAL);
+  }
+
   return discordMessageResponse(t("errors.unknownCommand"));
 }
 
@@ -439,6 +530,35 @@ async function handleButton(payload: DiscordInteractionPayload) {
       handles: [discordUsername ?? discordUserId],
     });
     return discordButtonResponse(t("officerNotified"), []);
+  }
+
+  if (parsed.kind === "train_pick") {
+    const members = await loadAllianceMembersForBot(allianceId);
+    const member = members.find((m) => m.id === parsed.memberId);
+    if (!member) {
+      return discordButtonResponse(t("train.pickExpired"));
+    }
+    return discordButtonResponse(
+      t("train.confirmPick", { name: member.current_name, date: parsed.date }),
+      buildTrainConfirmButtons(parsed.memberId, parsed.date, {
+        yes: t("buttons.yes"),
+        no: t("buttons.no"),
+      }),
+    );
+  }
+
+  if (parsed.kind === "train_confirm") {
+    if (parsed.answer === "no") {
+      return discordButtonResponse(t("train.pickCancelled"), []);
+    }
+    const result = await handleDiscordTrainConductorPick({
+      allianceId,
+      discordUserId,
+      locale,
+      memberId: parsed.memberId,
+      date: parsed.date,
+    });
+    return discordButtonResponse(result.reply, []);
   }
 
   return discordButtonResponse(t("errors.unknownCommand"));

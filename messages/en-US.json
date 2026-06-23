@@ -1127,6 +1127,18 @@
       "saving": "Saving…",
       "saveFailed": "Could not save train week settings.",
       "adminsOnly": "Only alliance admins can change the train week start."
+    },
+    "trainDiscord": {
+      "title": "Discord train announcements",
+      "description": "When enabled, locking a conductor can post to your Discord train channel. The owner must run /set-train-channel in Discord first.",
+      "guideLink": "Read the operator guide",
+      "loading": "Loading…",
+      "loadFailed": "Could not load Discord train settings.",
+      "saveFailed": "Could not save Discord train settings.",
+      "enableAnnouncements": "Post train announcements to Discord",
+      "channelsConfigured": "{count, plural, one {# registered Discord server has a train channel} other {# registered Discord servers have train channels}}",
+      "noChannel": "No train channel configured yet. Owner: run /set-train-channel in Discord.",
+      "readOnlyHint": "Only train officers can change this setting."
     }
   },
   "account": {
@@ -1553,6 +1565,12 @@
     "spinning": "Spinning…",
     "pickTopScorer": "Pick top scorer",
     "lockConductor": "Lock in Conductor",
+    "trainIsReady": {
+      "action": "Train is ready",
+      "confirm": "Lock **{name}** for **{date}** and announce in Discord?",
+      "confirmAction": "Lock & announce",
+      "cancel": "Cancel"
+    },
     "locking": "Locking…",
     "unlockConductor": "Unlock conductor",
     "unlocking": "Unlocking…",
@@ -2407,6 +2425,22 @@
     "setVrReportChannel": {
       "success": "Nightly VR standings for **{tag}** will post in {channel}. Officers can run `/vr-report` anytime for a fresh top-25 or `/vr-report teams:N` for takedown plans."
     },
+    "train": {
+      "setTrainChannel": {
+        "success": "Train announcements for **{tag}** will post in {channel}. Enable announcements in Alliance HQ settings, then officers can use `/set-conductor` and `/train-is-ready`."
+      },
+      "noConductor": "No conductor record for **{date}** yet.",
+      "usageSetConductor": "Usage: `/set-conductor name:MemberName` (optional `date:YYYY-MM-DD`).",
+      "confirmPick": "Set **{name}** as draft conductor for **{date}**?",
+      "fuzzyPrompt": "Multiple roster matches for **{query}**. Pick one:",
+      "rosterMiss": "No roster match for **{tag}**. Check spelling against your alliance members list.",
+      "rosterUnavailable": "Could not load the alliance roster. Ask the owner to finish `/link-to-ashed-seat`.",
+      "pickExpired": "That option expired. Run `/set-conductor` again.",
+      "pickCancelled": "Cancelled — conductor unchanged.",
+      "draftSaved": "Draft conductor for **{date}**: **{name}**. Run `/train-is-ready` when ready to lock and announce.",
+      "readyAnnounced": "Locked and announced **{name}** for **{date}** in your train channel.",
+      "readyLocked": "Locked **{name}** for **{date}**. (Announcements are off or no train channel — check Alliance HQ settings.)"
+    },
     "buttons": {
       "yes": "Yes",
       "no": "No",
@@ -2416,7 +2450,7 @@
     },
     "officerNotified": "An officer has been notified on Alliance HQ. They can reach out to you here on Discord.",
     "help": {
-      "dmGeneral": "**Alliance HQ bot** — run these in your alliance Discord server:\n• `/help` — this guide\n• `/link` — connect Discord to Alliance HQ\n• `/link-commander` — link your in-game commander(s)\n• `/vr` or `/immunity` — report base VR\n• `/language` — English or Português\n\nOwners: `/link-to-ashed-seat`, `/link-alliance`, `/set-vr-report-channel`.\nOfficers (R4+): `/vr-report`, `/takedown-teams teams:N`.",
+      "dmGeneral": "**Alliance HQ bot** — run these in your alliance Discord server:\n• `/help` — this guide\n• `/link` — connect Discord to Alliance HQ\n• `/link-commander` — link your in-game commander(s)\n• `/vr` or `/immunity` — report base VR\n• `/who-is-conductor` — today's train conductor\n• `/language` — English or Português\n\nOwners: `/link-to-ashed-seat`, `/link-alliance`, `/set-vr-report-channel`, `/set-train-channel`.\nOfficers (R4+): `/vr-report`, `/takedown-teams teams:N`, `/set-conductor`, `/train-is-ready`.",
       "setupLinkHq": "First, link your Discord to Alliance HQ: run `/link` and complete the secure browser step.",
       "setupOwnerAuth": "This server is not set up yet. **Alliance owner:** run `/link-to-ashed-seat tag:YourTag`, then `/link`, then `/link-alliance tag:YourTag`.",
       "setupLinkAlliance": "Credentials are ready. **Owner or platform maintainer:** run `/link-alliance tag:YourTag` to register this server.",
@@ -2424,8 +2458,8 @@
       "linkCommander": "Link a commander: `/link-commander name:… uid:…` (copy name and UID from your in-game profile). Need steps? Run `/link-commander` with a wrong name once and tap **Done** for a walkthrough.",
       "memberReady": "You're linked. Use `/vr` or `/immunity` when your base VR changes. Officers (R4+): `/vr-report` for standings or `/vr-report teams:N` for takedown plans. `/help` anytime. `/language` for Português.",
       "memberReadyMulti": "You have **{count}** linked commanders. Use `/vr` or `/immunity` — the bot will ask which commander. Officers (R4+): `/vr-report` or `/takedown-teams`. `/unlink` removes one; `/link-commander` adds another.",
-      "ownerReady": "You're linked as alliance owner (**{tag}**). Members use `/link`, `/link-commander`, and `/vr`. Run `/set-vr-report-channel` here for nightly standings; `/vr-report` or `/vr-report teams:N` for officer reports.",
-      "ownerReadyMulti": "You're linked as owner with **{count}** commanders. `/vr` asks which commander. `/set-vr-report-channel` sets the nightly channel; `/vr-report teams:N` builds takedown plans. `/unlink` or `/link-commander replace:true` to manage links."
+      "ownerReady": "You're linked as alliance owner (**{tag}**). Members use `/link`, `/link-commander`, and `/vr`. Run `/set-vr-report-channel` for nightly VR; `/set-train-channel` for train posts. Officers: `/vr-report`, `/set-conductor`, `/train-is-ready`.",
+      "ownerReadyMulti": "You're linked as owner with **{count}** commanders. `/vr` asks which commander. `/set-vr-report-channel` and `/set-train-channel` configure Discord channels. Officers: `/vr-report`, `/set-conductor`, `/train-is-ready`."
     },
     "unlink": {
       "none": "You don't have any linked commanders on this server. Run `/link-commander` first.",

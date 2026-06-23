@@ -36,6 +36,10 @@ import {
   getTrainWeekStart,
   type AllianceTrainWeekConfig,
 } from "@/lib/trains/train-week-calendar.shared";
+import {
+  loadTrainDiscordSettings,
+  trainDiscordConfigured,
+} from "@/lib/trains/train-discord-settings.server";
 import { loadTrainsUserPreferences } from "@/lib/trains/trains-user-preferences.server";
 import type { TrainsDisplayWeekStartDow } from "@/lib/trains/trains-display-calendar.shared";
 import type { TrainsWheelSpinSpeed } from "@/lib/trains/trains-wheel-speed.shared";
@@ -138,6 +142,8 @@ export type TrainsDashboardPayload = {
   trainWeekStartDow: number;
   canManageTrains: boolean;
   canUnlockConductor: boolean;
+  trainDiscordAnnouncementsEnabled: boolean;
+  trainDiscordConfigured: boolean;
   activeMemberCount: number;
   operatingMode: AllianceOperatingMode;
   schedule: {
@@ -227,6 +233,17 @@ export async function loadTrainsDashboard(
   const today = getServerCalendarDate();
   const canManageTrains = await sessionHasPermission(sessionId, "trains:write");
   const canUnlockConductor = await sessionIsPlatformMaintainer(sessionId);
+  const trainDiscordSettings = allianceId
+    ? await loadTrainDiscordSettings(allianceId, canManageTrains)
+    : {
+        announcementsEnabled: false,
+        guildChannelCount: 0,
+        canManage: false,
+      };
+  const trainDiscordFields = {
+    trainDiscordAnnouncementsEnabled: trainDiscordSettings.announcementsEnabled,
+    trainDiscordConfigured: trainDiscordConfigured(trainDiscordSettings),
+  };
   const trainWeekConfig = allianceId
     ? await loadTrainWeekConfigForAlliance(allianceId)
     : allianceTrainWeekFromRow({});
@@ -245,6 +262,7 @@ export async function loadTrainsDashboard(
       ...preferenceFields,
       canManageTrains,
       canUnlockConductor,
+      ...trainDiscordFields,
       activeMemberCount: 0,
       ...EMPTY_DASHBOARD_FIELDS,
     };
@@ -267,6 +285,7 @@ export async function loadTrainsDashboard(
       ...preferenceFields,
       canManageTrains,
       canUnlockConductor,
+      ...trainDiscordFields,
       activeMemberCount: 0,
       ...EMPTY_DASHBOARD_FIELDS,
     };
@@ -339,6 +358,7 @@ export async function loadTrainsDashboard(
     ...preferenceFields,
     canManageTrains,
     canUnlockConductor,
+    ...trainDiscordFields,
     activeMemberCount,
     operatingMode,
     schedule: scheduleRow
