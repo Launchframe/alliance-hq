@@ -1019,6 +1019,7 @@ export const authEmailCodes = pgTable(
     id: text("id").primaryKey(),
     email: text("email").notNull(),
     code: text("code").notNull(),
+    failedAttempts: integer("failed_attempts").notNull().default(0),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
   },

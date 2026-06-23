@@ -14,6 +14,7 @@ import {
 
 export const AUTH_EMAIL_CODE_TTL_MS = 10 * 60 * 1000;
 export const AUTH_EMAIL_CODE_RATE_LIMIT_MS = 60 * 1000;
+export const AUTH_EMAIL_CODE_MAX_VERIFY_ATTEMPTS = 5;
 
 export class AuthEmailCodeError extends Error {
   constructor(
@@ -127,6 +128,7 @@ export async function issueAuthEmailCode(rawEmail: string): Promise<void> {
       id: nanoid(16),
       email,
       code: e2eCode,
+      failedAttempts: 0,
       expiresAt: new Date(now.getTime() + AUTH_EMAIL_CODE_TTL_MS),
       createdAt: now,
     });
@@ -163,6 +165,7 @@ export async function issueAuthEmailCode(rawEmail: string): Promise<void> {
     id: nanoid(16),
     email,
     code,
+    failedAttempts: 0,
     expiresAt: new Date(now.getTime() + AUTH_EMAIL_CODE_TTL_MS),
     createdAt: now,
   });
@@ -218,12 +221,13 @@ export async function verifyAuthEmailCode(
     .select({
       id: schema.authEmailCodes.id,
       email: schema.authEmailCodes.email,
+      code: schema.authEmailCodes.code,
+      failedAttempts: schema.authEmailCodes.failedAttempts,
     })
     .from(schema.authEmailCodes)
     .where(
       and(
         eq(schema.authEmailCodes.email, email),
-        eq(schema.authEmailCodes.code, code),
         gt(schema.authEmailCodes.expiresAt, now),
       ),
     )
@@ -234,9 +238,31 @@ export async function verifyAuthEmailCode(
     return null;
   }
 
+  if (record.failedAttempts >= AUTH_EMAIL_CODE_MAX_VERIFY_ATTEMPTS) {
+    await db
+      .delete(schema.authEmailCodes)
+      .where(eq(schema.authEmailCodes.id, record.id));
+    return null;
+  }
+
+  if (record.code !== code) {
+    const nextAttempts = record.failedAttempts + 1;
+    if (nextAttempts >= AUTH_EMAIL_CODE_MAX_VERIFY_ATTEMPTS) {
+      await db
+        .delete(schema.authEmailCodes)
+        .where(eq(schema.authEmailCodes.id, record.id));
+    } else {
+      await db
+        .update(schema.authEmailCodes)
+        .set({ failedAttempts: nextAttempts })
+        .where(eq(schema.authEmailCodes.id, record.id));
+    }
+    return null;
+  }
+
   await db
     .delete(schema.authEmailCodes)
-    .where(eq(schema.authEmailCodes.email, email));
+    .where(eq(schema.authEmailCodes.id, record.id));
 
   return { email: record.email };
 }
