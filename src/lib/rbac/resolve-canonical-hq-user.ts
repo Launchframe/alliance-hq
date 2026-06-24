@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { normalizeAshedEmail } from "@/lib/alliance/accessible";
+import { assertAuthMayMergeIntoCanonicalHqUser } from "@/lib/auth/session-connect-identity";
 import { getDb, schema } from "@/lib/db";
 
 export type ResolveCanonicalHqUserInput = {
@@ -19,6 +20,26 @@ export type ResolveCanonicalHqUserResult = {
   /** Provisional magic-link row superseded by canonical Ashed identity. */
   mergedFromHqUserId?: string;
 };
+
+async function mergedFromAuthHqUserId(input: {
+  authHqUserId?: string | null;
+  canonicalHqUserId: string;
+  ashedEmail: string;
+  ashedUserId: string | null;
+}): Promise<string | undefined> {
+  if (!input.authHqUserId || input.authHqUserId === input.canonicalHqUserId) {
+    return undefined;
+  }
+
+  await assertAuthMayMergeIntoCanonicalHqUser({
+    authHqUserId: input.authHqUserId,
+    canonicalHqUserId: input.canonicalHqUserId,
+    ashedEmail: input.ashedEmail,
+    ashedUserId: input.ashedUserId,
+  });
+
+  return input.authHqUserId;
+}
 
 export async function resolveCanonicalHqUserForAshedConnect(
   input: ResolveCanonicalHqUserInput,
@@ -50,10 +71,12 @@ export async function resolveCanonicalHqUserForAshedConnect(
 
       return {
         hqUserId: byAshedId.id,
-        mergedFromHqUserId:
-          input.authHqUserId && input.authHqUserId !== byAshedId.id
-            ? input.authHqUserId
-            : undefined,
+        mergedFromHqUserId: await mergedFromAuthHqUserId({
+          authHqUserId: input.authHqUserId,
+          canonicalHqUserId: byAshedId.id,
+          ashedEmail: email,
+          ashedUserId,
+        }),
       };
     }
   }
@@ -82,10 +105,12 @@ export async function resolveCanonicalHqUserForAshedConnect(
 
     return {
       hqUserId: byEmail.id,
-      mergedFromHqUserId:
-        input.authHqUserId && input.authHqUserId !== byEmail.id
-          ? input.authHqUserId
-          : undefined,
+      mergedFromHqUserId: await mergedFromAuthHqUserId({
+        authHqUserId: input.authHqUserId,
+        canonicalHqUserId: byEmail.id,
+        ashedEmail: email,
+        ashedUserId,
+      }),
     };
   }
 

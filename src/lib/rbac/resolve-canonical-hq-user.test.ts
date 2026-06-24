@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { AshedConnectAuthMismatchError } from "@/lib/auth/session-connect-identity";
 import { resolveCanonicalHqUserForAshedConnect } from "@/lib/rbac/resolve-canonical-hq-user";
 
 const selectMock = vi.fn();
@@ -54,16 +55,19 @@ describe("resolveCanonicalHqUserForAshedConnect", () => {
   });
 
   it("returns existing canonical row by ashedUserId and records magic-link merge", async () => {
-    selectMock.mockReturnValueOnce(
-      chainSelect([
-        {
-          id: "canonical-1",
-          email: "player@example.com",
-          displayName: "Canonical",
-          ashedUserId: "ashed-abc",
-        },
-      ]),
-    );
+    selectMock
+      .mockReturnValueOnce(
+        chainSelect([
+          {
+            id: "canonical-1",
+            email: "player@example.com",
+            displayName: "Canonical",
+            ashedUserId: "ashed-abc",
+          },
+        ]),
+      )
+      .mockReturnValueOnce(chainSelect([{ email: "player@example.com" }]))
+      .mockReturnValueOnce(chainSelect([{ email: "player@example.com" }]));
 
     const result = await resolveCanonicalHqUserForAshedConnect({
       ashedUserId: "ashed-abc",
@@ -154,5 +158,32 @@ describe("resolveCanonicalHqUserForAshedConnect", () => {
         ashedEmail: "   ",
       }),
     ).rejects.toThrow(/Ashed email is required/i);
+  });
+
+  it("rejects hijacking a canonical Ashed user from a different signed-in HQ account", async () => {
+    selectMock
+      .mockReturnValueOnce(
+        chainSelect([
+          {
+            id: "canonical-maintainer",
+            email: "maintainer@e2e.test",
+            displayName: "Maintainer",
+            ashedUserId: "ashed-maintainer",
+          },
+        ]),
+      )
+      .mockReturnValueOnce(chainSelect([{ email: "other@gmail.com" }]))
+      .mockReturnValueOnce(chainSelect([{ email: "maintainer@e2e.test" }]))
+      .mockReturnValueOnce(
+        chainSelect([{ email: "other@gmail.com", ashedUserId: null }]),
+      );
+
+    await expect(
+      resolveCanonicalHqUserForAshedConnect({
+        ashedUserId: "ashed-maintainer",
+        ashedEmail: "maintainer@e2e.test",
+        authHqUserId: "google-sso-user-b",
+      }),
+    ).rejects.toBeInstanceOf(AshedConnectAuthMismatchError);
   });
 });

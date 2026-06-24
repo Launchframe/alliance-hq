@@ -6,6 +6,118 @@ import { normalizeAshedEmail } from "@/lib/alliance/accessible";
 import { getDb, schema } from "@/lib/db";
 import { sessionHoldsAshedIdentityForHqUser } from "@/lib/rbac/ashed-session-membership";
 
+export class AshedConnectAuthMismatchError extends Error {
+  readonly code = "ashed_connect_auth_mismatch" as const;
+
+  constructor() {
+    super(
+      "This Ashed account belongs to a different HQ sign-in. Sign out, sign in with the matching account, then connect Ashed again.",
+    );
+    this.name = "AshedConnectAuthMismatchError";
+  }
+}
+
+/**
+ * Blocks connecting Ashed credentials that belong to another HQ user while a
+ * different account (e.g. Google SSO) is signed in on this browser session.
+ */
+export async function assertAuthMayMergeIntoCanonicalHqUser(input: {
+  authHqUserId: string;
+  canonicalHqUserId: string;
+  ashedEmail: string;
+  ashedUserId?: string | null;
+}): Promise<void> {
+  if (input.authHqUserId === input.canonicalHqUserId) {
+    return;
+  }
+
+  if (
+    await hqUsersShareEmail(input.authHqUserId, input.canonicalHqUserId)
+  ) {
+    return;
+  }
+
+  const db = getDb();
+  const [authRow] = await db
+    .select({
+      email: schema.hqUsers.email,
+      ashedUserId: schema.hqUsers.ashedUserId,
+    })
+    .from(schema.hqUsers)
+    .where(eq(schema.hqUsers.id, input.authHqUserId))
+    .limit(1);
+
+  if (!authRow) {
+    throw new AshedConnectAuthMismatchError();
+  }
+
+  const connectingAshedId = input.ashedUserId?.trim() || null;
+  if (
+    authRow.ashedUserId &&
+    connectingAshedId &&
+    authRow.ashedUserId !== connectingAshedId
+  ) {
+    throw new AshedConnectAuthMismatchError();
+  }
+
+  const authEmail = authRow.email ? normalizeAshedEmail(authRow.email) : "";
+  const ashedEmail = normalizeAshedEmail(input.ashedEmail);
+  if (authEmail && ashedEmail && authEmail === ashedEmail) {
+    return;
+  }
+
+  throw new AshedConnectAuthMismatchError();
+}
+
+/** Pre-connect guard — fails before storing Ashed credentials on the session. */
+export async function assertAshedConnectAuthBinding(input: {
+  authHqUserId?: string | null;
+  ashedUserId?: string | null;
+  ashedEmail: string;
+}): Promise<void> {
+  if (!input.authHqUserId) {
+    return;
+  }
+
+  const ashedEmail = normalizeAshedEmail(input.ashedEmail);
+  if (!ashedEmail) {
+    throw new Error("Ashed email is required.");
+  }
+
+  const db = getDb();
+  const ashedUserId = input.ashedUserId?.trim() || null;
+  let canonicalHqUserId: string | null = null;
+
+  if (ashedUserId) {
+    const [byAshedId] = await db
+      .select({ id: schema.hqUsers.id })
+      .from(schema.hqUsers)
+      .where(eq(schema.hqUsers.ashedUserId, ashedUserId))
+      .limit(1);
+    canonicalHqUserId = byAshedId?.id ?? null;
+  }
+
+  if (!canonicalHqUserId) {
+    const [byEmail] = await db
+      .select({ id: schema.hqUsers.id })
+      .from(schema.hqUsers)
+      .where(eq(schema.hqUsers.email, ashedEmail))
+      .limit(1);
+    canonicalHqUserId = byEmail?.id ?? null;
+  }
+
+  if (!canonicalHqUserId) {
+    return;
+  }
+
+  await assertAuthMayMergeIntoCanonicalHqUser({
+    authHqUserId: input.authHqUserId,
+    canonicalHqUserId,
+    ashedEmail,
+    ashedUserId,
+  });
+}
+
 export async function hqUsersShareEmail(
   leftHqUserId: string,
   rightHqUserId: string,

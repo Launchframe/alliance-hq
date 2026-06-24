@@ -217,7 +217,7 @@ describeIntegration("Ashed identity rebind (integration)", () => {
     const { allianceId } = await createAlliance();
 
     const orphanA = await createHqUser(uniqueEmail("magic-a"));
-    const orphanB = await createHqUser(uniqueEmail("magic-b"));
+    const orphanB = await createHqUser(ashedEmail);
     const sessionA = await createSession(orphanA);
     const sessionB = await createSession(orphanB);
 
@@ -309,6 +309,28 @@ describeIntegration("Ashed identity rebind (integration)", () => {
         authHqUserId: nanoid(16),
       }),
     ).rejects.toThrow(/already linked to a different HQ user/i);
+  });
+
+  it("resolveCanonicalHqUserForAshedConnect rejects hijack from another signed-in HQ account", async () => {
+    const ashedUserId = `ashed-${nanoid(12)}`;
+    const ashedEmail = uniqueEmail("maintainer");
+    const canonicalId = await createHqUser(ashedEmail, ashedUserId);
+    const intruderId = await createHqUser(uniqueEmail("google-intruder"));
+
+    cleanup.push(async () => {
+      const db = getDb();
+      for (const id of [canonicalId, intruderId]) {
+        await db.delete(schema.hqUsers).where(eq(schema.hqUsers.id, id));
+      }
+    });
+
+    await expect(
+      resolveCanonicalHqUserForAshedConnect({
+        ashedUserId,
+        ashedEmail,
+        authHqUserId: intruderId,
+      }),
+    ).rejects.toThrow(/different HQ sign-in/i);
   });
 
   it("getAshedConnection clears credentials that do not match the bound HQ user", async () => {

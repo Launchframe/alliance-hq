@@ -21,6 +21,10 @@ import {
 } from "@/lib/member-link/privileged-link.shared";
 import { verifyBase44Connection } from "@/lib/base44/server";
 import {
+  AshedConnectAuthMismatchError,
+  assertAshedConnectAuthBinding,
+} from "@/lib/auth/session-connect-identity";
+import {
   DEFAULT_APP_ID,
   DEFAULT_ORIGIN_URL,
   parseConnectionInput,
@@ -129,6 +133,12 @@ export async function POST(request: Request) {
 
     const authHqUserId = session.hqUserId;
 
+    await assertAshedConnectAuthBinding({
+      authHqUserId,
+      ashedUserId: me.id,
+      ashedEmail: me.email,
+    });
+
     const selected = await resolveConnectAlliance(
       parsed.connection,
       { email: me.email, id: me.id },
@@ -214,6 +224,13 @@ export async function POST(request: Request) {
       },
     });
   } catch (error) {
+    if (error instanceof AshedConnectAuthMismatchError) {
+      return NextResponse.json(
+        { error: error.message, code: error.code },
+        { status: 403 },
+      );
+    }
+
     if (error instanceof AllianceSelectionError) {
       return NextResponse.json(
         { error: error.message, code: error.code },

@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  AshedConnectAuthMismatchError,
+  assertAuthMayMergeIntoCanonicalHqUser,
   hqUsersShareEmail,
   sessionMergedAuthStubHqUserId,
   signingInUserMatchesConnectedSessionOwner,
@@ -67,6 +69,59 @@ describe("sessionMergedAuthStubHqUserId", () => {
     await expect(sessionMergedAuthStubHqUserId("sess-1")).resolves.toBe(
       "magic-stub",
     );
+  });
+});
+
+describe("assertAuthMayMergeIntoCanonicalHqUser", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("allows magic-link stub email to merge into canonical Ashed row", async () => {
+    const limit = vi
+      .fn()
+      .mockResolvedValueOnce([{ email: "player@example.com" }])
+      .mockResolvedValueOnce([{ email: "player@example.com" }]);
+    const where = vi.fn().mockReturnValue({ limit });
+    const from = vi.fn().mockReturnValue({ where });
+    const select = vi.fn().mockReturnValue({ from });
+
+    const { getDb } = await import("@/lib/db");
+    vi.mocked(getDb).mockReturnValue({ select } as never);
+
+    await expect(
+      assertAuthMayMergeIntoCanonicalHqUser({
+        authHqUserId: "magic-stub",
+        canonicalHqUserId: "canonical-user",
+        ashedEmail: "player@example.com",
+        ashedUserId: "ashed-abc",
+      }),
+    ).resolves.toBeUndefined();
+  });
+
+  it("rejects a Google SSO session binding another user's Ashed seat", async () => {
+    const limit = vi
+      .fn()
+      .mockResolvedValueOnce([{ email: "other@gmail.com" }])
+      .mockResolvedValueOnce([{ email: "maintainer@e2e.test" }])
+      .mockResolvedValueOnce([
+        { email: "other@gmail.com", ashedUserId: null },
+      ]);
+    const where = vi.fn().mockReturnValue({ limit });
+    const from = vi.fn().mockReturnValue({ where });
+    const select = vi.fn().mockReturnValue({ from });
+
+    const { getDb } = await import("@/lib/db");
+    vi.mocked(getDb).mockReturnValue({ select } as never);
+
+    await expect(
+      assertAuthMayMergeIntoCanonicalHqUser({
+        authHqUserId: "google-user-b",
+        canonicalHqUserId: "canonical-maintainer",
+        ashedEmail: "maintainer@e2e.test",
+        ashedUserId: "ashed-maintainer",
+      }),
+    ).rejects.toBeInstanceOf(AshedConnectAuthMismatchError);
   });
 });
 
