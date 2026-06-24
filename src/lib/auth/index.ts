@@ -2,6 +2,11 @@ import "server-only";
 
 import NextAuth from "next-auth";
 
+import {
+  hqUserHasOAuthProvider,
+  linkOAuthAccountToHqUser,
+  tryAutoLinkOAuthAtSignIn,
+} from "@/lib/auth/account-linking.server";
 import { createHqAuthAdapter } from "@/lib/auth/adapter";
 import { bridgeAuthUserToBrowserSession } from "@/lib/auth/bridge-session";
 import { syncDiscordHqLinkFromOAuthSignIn } from "@/lib/auth/discord-hq-link.server";
@@ -38,7 +43,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   },
   providers: buildAuthProviders(),
   callbacks: {
-    async signIn({ user, account }) {
+    async signIn({ user, account, profile }) {
       if (
         account?.provider === "password" ||
         account?.provider === "passkey" ||
@@ -47,7 +52,40 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         return Boolean(user.email);
       }
       if (isOAuthProvider(account?.provider)) {
-        return Boolean(user.email);
+        if (!user.email || !account?.providerAccountId) {
+          return false;
+        }
+
+        const session = await auth();
+        if (session?.user?.id) {
+          const alreadyLinked = await hqUserHasOAuthProvider(
+            session.user.id,
+            account.provider,
+          );
+          if (!alreadyLinked) {
+            await linkOAuthAccountToHqUser({
+              hqUserId: session.user.id,
+              account,
+            });
+          }
+          return true;
+        }
+
+        const { allowed, decision } = await tryAutoLinkOAuthAtSignIn({
+          provider: account.provider,
+          oauthEmail: user.email,
+          profile: profile as Record<string, unknown> | undefined,
+          account,
+        });
+
+        if (!allowed) {
+          console.warn("[auth] OAuth cold sign-in blocked", {
+            provider: account.provider,
+            decision,
+          });
+        }
+
+        return allowed;
       }
       // Magic-link send also invokes signIn before hq_users exists; do not bridge here.
       return Boolean(user.email);

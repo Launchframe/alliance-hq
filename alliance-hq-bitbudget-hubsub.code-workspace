@@ -1,0 +1,14 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"path": "../hubsub.co"
+		},
+		{
+			"path": "../bitbudget"
+		}
+	],
+	"settings": {}
+}

@@ -6,16 +6,19 @@ import { signIn } from "next-auth/react";
 import { signIn as signInWithWebAuthn } from "next-auth/webauthn";
 import { useEffect, useState } from "react";
 
+import { Link } from "@/i18n/navigation";
 import {
   MIN_PASSWORD_LENGTH,
   validatePasswordPair,
   type PasswordValidationCode,
 } from "@/lib/auth/password.shared";
 import type { AuthSsoAvailability } from "@/lib/auth/sso-config.shared";
+import { mapAuthSignInErrorCode } from "@/lib/auth/auth-sign-in-errors.shared";
 
 type Props = {
   callbackUrl?: string;
   presetEmail?: string;
+  authError?: string;
   ssoAvailability: AuthSsoAvailability;
 };
 
@@ -116,6 +119,7 @@ function BackToPickerButton({
 export function AuthSignInClient({
   callbackUrl,
   presetEmail,
+  authError,
   ssoAvailability,
 }: Props) {
   const t = useTranslations("auth");
@@ -129,6 +133,7 @@ export function AuthSignInClient({
   const [error, setError] = useState<string | null>(null);
 
   const redirectTarget = callbackUrl ?? "/get-started";
+  const authErrorKey = mapAuthSignInErrorCode(authError);
 
   const textLinkClass =
     "text-sm text-[#58a6ff] hover:underline disabled:opacity-50";
@@ -345,6 +350,32 @@ export function AuthSignInClient({
     <div className="mx-auto max-w-md space-y-4 rounded-xl border border-[#30363d] bg-[#161b22] p-6">
       <h1 className="text-xl font-semibold">{t("title")}</h1>
       <p className="text-sm text-[#8b949e]">{t("subtitle")}</p>
+
+      {authErrorKey && step === "picker" ? (
+        <div
+          className="space-y-2 rounded-lg border border-[#f85149]/40 bg-[#f85149]/10 px-3 py-2.5"
+          role="alert"
+        >
+          <p className="text-sm font-medium text-[#e6edf3]">
+            {authErrorKey === "errorOAuthAccountNotLinked"
+              ? t("errorOAuthAccountNotLinkedTitle")
+              : t(authErrorKey)}
+          </p>
+          {authErrorKey === "errorOAuthAccountNotLinked" ? (
+            <>
+              <p className="text-sm text-[#8b949e]">
+                {t("errorOAuthAccountNotLinkedBody")}
+              </p>
+              <Link
+                href="/settings/account"
+                className="inline-block text-sm text-[#58a6ff] hover:underline"
+              >
+                {t("errorOAuthAccountNotLinkedAccountLink")}
+              </Link>
+            </>
+          ) : null}
+        </div>
+      ) : null}
 
       {error && step === "picker" ? (
         <p className="text-sm text-[#f85149]">{error}</p>
