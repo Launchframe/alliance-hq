@@ -28,6 +28,7 @@ import {
   getSolicitedEligibility,
 } from "@/lib/feedback/solicited-eligibility";
 import { dispatchScoreSubmit } from "@/lib/video/submit-dispatch";
+import { notifyEurVideoEvidence } from "@/lib/eur/satisfaction";
 import { buildAshedEventProvisionBody } from "@/lib/video/ashed-event-provision";
 import {
   buildSubmitPayloads,
@@ -285,6 +286,8 @@ export async function POST(request: Request, { params }: Props) {
           inactivated: result.inactivated,
         },
       });
+
+      void notifyEurVideoEvidence(allianceId).catch(() => {});
 
       return NextResponse.json({
         ok: true,
@@ -577,6 +580,8 @@ export async function POST(request: Request, { params }: Props) {
         videoJobId: jobId,
       });
     }
+
+    void notifyEurVideoEvidence(allianceId).catch(() => {});
 
     return NextResponse.json({
       ok: true,

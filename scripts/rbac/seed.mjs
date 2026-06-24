@@ -26,6 +26,8 @@ const HQ_PERMISSIONS = [
   { id: "hq:events:write", description: "Manage HQ native events" },
   { id: "trains:write", description: "Manage train conductor schedule, rolls, and locks" },
   { id: "ashed:connect", description: "Connect an Ashed account to HQ" },
+  { id: "inbox:read", description: "View alliance reminder inbox" },
+  { id: "eur:schedules:write", description: "Manage event upload reminder schedules" },
 ];
 
 function getDatabaseUrl() {
@@ -56,11 +58,21 @@ async function main() {
       "hq:video:read",
       "hq:events:write",
       "trains:write",
+      "inbox:read",
+      "eur:schedules:write",
     ]),
   ];
   roleTemplates.maintainer.permissions = [...roleTemplates.owner.permissions];
   roleTemplates.officer.permissions = [
-    ...new Set([...roleTemplates.officer.permissions, "trains:write"]),
+    ...new Set([
+      ...roleTemplates.officer.permissions,
+      "trains:write",
+      "inbox:read",
+      "eur:schedules:write",
+    ]),
+  ];
+  roleTemplates.data_entry.permissions = [
+    ...new Set([...roleTemplates.data_entry.permissions, "inbox:read"]),
   ];
   roleTemplates.member = {
     description:

@@ -12,6 +12,8 @@ import {
   shouldShowAshedConnectNudge,
   subscribeAshedShellConnectDismissed,
 } from "@/lib/connect/ashed-shell-prompts.shared";
+import { OpsInboxBell } from "@/components/ashed-shell/OpsInboxBell";
+import { ReminderInboxBell } from "@/components/ashed-shell/ReminderInboxBell";
 import { ConnectAshedBanner } from "@/components/onboarding/ConnectAshedBanner";
 import { FeedbackProvider } from "@/components/feedback";
 import { SidebarNav } from "@/components/ashed-shell/SidebarNav";
@@ -205,7 +207,12 @@ export function AshedShell({
               </div>
 
               {hasAppAccess ? (
-                <ShellProfileMenu
+                <div className="flex shrink-0 items-center gap-2">
+                  {sessionPermissions.includes("inbox:read") ? (
+                    <ReminderInboxBell />
+                  ) : null}
+                  {showAdminPortal ? <OpsInboxBell /> : null}
+                  <ShellProfileMenu
                   userLabel={userLabel}
                   displayName={displayName}
                   userEmail={userEmail}
@@ -214,6 +221,7 @@ export function AshedShell({
                   showConnectLink={showConnectNudge}
                   showMenu={Boolean(userEmail || userLabel || displayName)}
                 />
+                </div>
               ) : null}
             </header>
 

@@ -1,5 +1,6 @@
 export const ADMIN_LINKS = [
   { href: "/admin", labelKey: "overview" as const },
+  { href: "/admin/inbox", labelKey: "inbox" as const },
   { href: "/admin/system", labelKey: "system" as const },
   { href: "/admin/alliances", labelKey: "alliances" as const },
   { href: "/admin/users", labelKey: "users" as const },
