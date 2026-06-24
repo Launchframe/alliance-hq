@@ -28,6 +28,8 @@ function e2eServerEnv(): Record<string, string> {
     TOKEN_ENCRYPTION_KEY: tokenEncryptionKey,
     AUTH_SECRET: authSecret,
     HQ_ASHED_INVITE_REQUIRED: "false",
+    E2E_TEST: "true",
+    E2E_EMAIL_CODE: process.env.E2E_EMAIL_CODE?.trim() || "424242",
   };
   if (e2eDatabaseUrl) {
     env.E2E_DATABASE_URL = e2eDatabaseUrl;

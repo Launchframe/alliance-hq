@@ -4,12 +4,14 @@ import { expect, test } from "@playwright/test";
 import {
   acceptInviteViaApi,
   attachAshedConnectionToSession,
+  createAllianceJoinCodeRow,
   createAuthenticatedHqSession,
   createHqInviteRow,
   createHqMemberLink,
   createNativeAlliance,
   createPlatformMaintainerSession,
   getE2eSql,
+  linkNativeAllianceToGameServer,
   playwrightAuthCookies,
 } from "./fixtures/db";
 
@@ -346,5 +348,50 @@ test.describe("Member-link onboarding outcomes", () => {
     await expect(
       page.getByRole("heading", { name: /you're linked/i }),
     ).toBeVisible({ timeout: 10_000 });
+  });
+
+  test("join-code owner cold-starts first roster member on empty native alliance", async ({
+    page,
+  }) => {
+    const sql = getE2eSql();
+    const maintainer = await createPlatformMaintainerSession(sql);
+    const alliance = await createNativeAlliance(sql, {
+      tag: `OC${nanoid(3)}`,
+      name: "Owner Cold Start Alliance",
+    });
+    await linkNativeAllianceToGameServer(sql, alliance.allianceId, 1203);
+    const { code } = await createAllianceJoinCodeRow(sql, {
+      allianceId: alliance.allianceId,
+      roleName: "owner",
+      maxRedemptions: 1,
+      createdByHqUserId: maintainer.hqUserId,
+    });
+
+    const email = `owner-cold-${nanoid(6)}@e2e.test`;
+    const auth = await createAuthenticatedHqSession(sql, email);
+
+    await page.context().addCookies(playwrightAuthCookies(auth));
+    await page.goto("/join");
+    await page.getByLabel(/join code/i).fill(code);
+    await page.getByRole("button", { name: /join alliance/i }).click();
+    await expect(page).toHaveURL(/\/onboard/);
+
+    await page.getByRole("button", { name: /continue/i }).click();
+    await page.getByLabel(/in-game name/i).fill("ColdStartOwner");
+    await page.getByLabel(/player uid/i).fill("1234567890121203");
+    const linkResponse = page.waitForResponse(
+      (res) =>
+        res.url().includes("/api/member-link") &&
+        res.request().method() === "POST",
+    );
+    await page.getByRole("button", { name: /link my character/i }).click();
+    const response = await linkResponse;
+    expect(response.ok()).toBe(true);
+    const body = (await response.json()) as { outcome?: string; message?: string };
+    expect(body.outcome, body.message ?? "no message").toBe("linked");
+
+    await expect(
+      page.getByRole("heading", { name: /you're linked/i }),
+    ).toBeVisible({ timeout: 15_000 });
   });
 });

@@ -25,6 +25,7 @@ import {
   sendRosterLinkOwnerApprovalEmail,
 } from "@/lib/member-link/roster-link-owner-email.server";
 import { createMemberLinkTranslator } from "@/lib/member-link/translate.server";
+import { isNativeAlliance } from "@/lib/native-alliance/operating-mode";
 import { nativeRosterAshedAllianceId } from "@/lib/native-alliance/provision";
 import { systemRoleNameForId } from "@/lib/rbac/system-roles";
 import { namesMatch } from "@/lib/vr/link-helpers";
@@ -245,6 +246,32 @@ async function resolveMemberLinkServerGate(input: {
   return { ok: true, playerServer };
 }
 
+async function resolveColdStartOwnerGate(input: {
+  allianceId: string;
+  hqUserId: string;
+}): Promise<{ allowed: true; inviteId?: string } | { allowed: false }> {
+  const db = getDb();
+  const [alliance] = await db
+    .select({ ownerHqUserId: schema.alliances.ownerHqUserId })
+    .from(schema.alliances)
+    .where(eq(schema.alliances.id, input.allianceId))
+    .limit(1);
+
+  if (alliance?.ownerHqUserId === input.hqUserId) {
+    return { allowed: true };
+  }
+
+  const invite = await findAcceptedInviteForMemberLink(
+    input.allianceId,
+    input.hqUserId,
+  );
+  if (invite && systemRoleNameForId(invite.roleId) === "owner") {
+    return { allowed: true, inviteId: invite.id };
+  }
+
+  return { allowed: false };
+}
+
 export async function tryBootstrapOwnerColdStartMember(input: {
   allianceId: string;
   hqUserId: string;
@@ -256,6 +283,10 @@ export async function tryBootstrapOwnerColdStartMember(input: {
   sessionId?: string;
   auditBag?: { ashedMemberId?: string };
 }): Promise<MemberLinkApiResponse | null> {
+  if (!(await isNativeAlliance(input.allianceId))) {
+    return null;
+  }
+
   if (input.rosterCount > 0) {
     return null;
   }
@@ -270,11 +301,11 @@ export async function tryBootstrapOwnerColdStartMember(input: {
     return serverGate.response;
   }
 
-  const invite = await findAcceptedInviteForMemberLink(
-    input.allianceId,
-    input.hqUserId,
-  );
-  if (!invite || systemRoleNameForId(invite.roleId) !== "owner") {
+  const ownerGate = await resolveColdStartOwnerGate({
+    allianceId: input.allianceId,
+    hqUserId: input.hqUserId,
+  });
+  if (!ownerGate.allowed) {
     return null;
   }
 
@@ -332,7 +363,7 @@ export async function tryBootstrapOwnerColdStartMember(input: {
       metadata: {
         ashedMemberId,
         gameUid: input.gameUid,
-        inviteId: invite.id,
+        inviteId: ownerGate.inviteId ?? null,
       },
     });
   }

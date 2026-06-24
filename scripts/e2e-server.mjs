@@ -54,6 +54,8 @@ function prepareEnvFile(dbUrl) {
       `TOKEN_ENCRYPTION_KEY=${tokenKey()}`,
       `AUTH_SECRET=${authSecret()}`,
       "HQ_ASHED_INVITE_REQUIRED=false",
+      "E2E_TEST=true",
+      `E2E_EMAIL_CODE=${process.env.E2E_EMAIL_CODE?.trim() || "424242"}`,
       "",
     ].join("\n"),
   );
@@ -75,6 +77,8 @@ function buildEnv(dbUrl) {
     TOKEN_ENCRYPTION_KEY: tokenKey(),
     AUTH_SECRET: authSecret(),
     HQ_ASHED_INVITE_REQUIRED: "false",
+    E2E_TEST: "true",
+    E2E_EMAIL_CODE: process.env.E2E_EMAIL_CODE?.trim() || "424242",
   };
 }
 

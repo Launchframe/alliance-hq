@@ -17,6 +17,10 @@ vi.mock("@/lib/game-season/game-servers.server", () => ({
   resolveAllianceGameServerNumber: vi.fn(),
 }));
 
+vi.mock("@/lib/native-alliance/operating-mode", () => ({
+  isNativeAlliance: vi.fn().mockResolvedValue(true),
+}));
+
 vi.mock("@/lib/member-link/repository.server", () => ({
   saveHqMemberLinkPending: vi.fn().mockResolvedValue(undefined),
   linkHqMember: vi.fn(),
@@ -35,6 +39,7 @@ vi.mock("@/lib/member-link/roster-link-owner-email.server", () => ({
 }));
 
 const gameServers = await import("@/lib/game-season/game-servers.server");
+const operatingMode = await import("@/lib/native-alliance/operating-mode");
 const repository = await import("@/lib/member-link/repository.server");
 const dbModule = vi.hoisted(() => {
   const chain = {
@@ -72,6 +77,7 @@ vi.mock("@/lib/db", () => ({
     hqInvites: { allianceId: "alliance_id", acceptedByHqUserId: "accepted_by", kind: "kind", acceptedAt: "accepted_at" },
     hqRosterLinkRequests: { allianceId: "a", hqUserId: "u", status: "status", id: "id" },
     hqRosterLinkActionTokens: { requestId: "request_id", usedAt: "used_at" },
+    alliances: { id: "id", ownerHqUserId: "owner_hq_user_id" },
     allianceMembers: {},
   },
 }));
@@ -80,6 +86,7 @@ describe("tryBootstrapOwnerColdStartMember", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     dbModule.chain.limit.mockResolvedValue([]);
+    vi.mocked(operatingMode.isNativeAlliance).mockResolvedValue(true);
     vi.mocked(gameServers.resolveAllianceGameServerNumber).mockResolvedValue(1203);
     vi.mocked(repository.linkHqMember).mockResolvedValue({
       ok: true,
@@ -111,10 +118,8 @@ describe("tryBootstrapOwnerColdStartMember", () => {
     expect(result).toBeNull();
   });
 
-  it("auto-links owner invite on empty roster when name and server match", async () => {
-    dbModule.chain.limit.mockResolvedValue([
-      { id: "inv-1", roleId: "role-owner", acceptedAt: new Date() },
-    ]);
+  it("auto-links join-code owner on empty roster when name and server match", async () => {
+    dbModule.chain.limit.mockResolvedValueOnce([{ ownerHqUserId: "u1" }]);
 
     const auditBag: { ashedMemberId?: string } = {};
     const result = await tryBootstrapOwnerColdStartMember({
@@ -135,10 +140,48 @@ describe("tryBootstrapOwnerColdStartMember", () => {
     expect(repository.linkHqMember).toHaveBeenCalled();
   });
 
+  it("auto-links email-invite owner when ownerHqUserId is not set yet", async () => {
+    dbModule.chain.limit
+      .mockResolvedValueOnce([{ ownerHqUserId: null }])
+      .mockResolvedValueOnce([
+        { id: "inv-1", roleId: "role-owner", acceptedAt: new Date() },
+      ]);
+
+    const result = await tryBootstrapOwnerColdStartMember({
+      allianceId: "a1",
+      hqUserId: "u1",
+      locale: "en-US",
+      reportedName: "Commander",
+      gameUid: "1234567890121203",
+      lookup: { ok: true, gameUserName: "Commander", gameServerNumber: 1203 },
+      rosterCount: 0,
+    });
+
+    expect(result?.outcome).toBe("linked");
+  });
+
+  it("returns null for non-native alliance", async () => {
+    vi.mocked(operatingMode.isNativeAlliance).mockResolvedValue(false);
+
+    const result = await tryBootstrapOwnerColdStartMember({
+      allianceId: "a1",
+      hqUserId: "u1",
+      locale: "en-US",
+      reportedName: "Commander",
+      gameUid: "1234567890121203",
+      lookup: { ok: true, gameUserName: "Commander", gameServerNumber: 1203 },
+      rosterCount: 0,
+    });
+
+    expect(result).toBeNull();
+  });
+
   it("returns null for non-owner invite", async () => {
-    dbModule.chain.limit.mockResolvedValue([
-      { id: "inv-1", roleId: "role-member", acceptedAt: new Date() },
-    ]);
+    dbModule.chain.limit
+      .mockResolvedValueOnce([{ ownerHqUserId: null }])
+      .mockResolvedValueOnce([
+        { id: "inv-1", roleId: "role-member", acceptedAt: new Date() },
+      ]);
 
     const result = await tryBootstrapOwnerColdStartMember({
       allianceId: "a1",
@@ -154,9 +197,7 @@ describe("tryBootstrapOwnerColdStartMember", () => {
   });
 
   it("returns null when reported name does not match game name", async () => {
-    dbModule.chain.limit.mockResolvedValue([
-      { id: "inv-1", roleId: "role-owner", acceptedAt: new Date() },
-    ]);
+    dbModule.chain.limit.mockResolvedValueOnce([{ ownerHqUserId: "u1" }]);
 
     const result = await tryBootstrapOwnerColdStartMember({
       allianceId: "a1",
@@ -185,6 +226,26 @@ describe("tryBootstrapOwnerColdStartMember", () => {
     });
 
     expect(result?.outcome).toBe("wrong_server");
+  });
+
+  it("returns member_taken when roster member link already exists", async () => {
+    dbModule.chain.limit.mockResolvedValueOnce([{ ownerHqUserId: "u1" }]);
+    vi.mocked(repository.linkHqMember).mockResolvedValue({
+      ok: false,
+      reason: "member_linked_to_other_user",
+    });
+
+    const result = await tryBootstrapOwnerColdStartMember({
+      allianceId: "a1",
+      hqUserId: "u1",
+      locale: "en-US",
+      reportedName: "Commander",
+      gameUid: "1234567890121203",
+      lookup: { ok: true, gameUserName: "Commander", gameServerNumber: 1203 },
+      rosterCount: 0,
+    });
+
+    expect(result?.outcome).toBe("member_taken");
   });
 });
 
