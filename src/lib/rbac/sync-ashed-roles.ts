@@ -17,6 +17,7 @@ import {
 import type { AshedAllianceRow, AshedUserRef } from "@/lib/alliance/types";
 import { parseAshedGameServerNumber } from "@/lib/game-season/ashed";
 import { applySeasonSync } from "@/lib/game-season/sync";
+import { linkAllianceToGameServer } from "@/lib/game-season/game-servers.server";
 import { base44ListAlliances } from "@/lib/base44/fetch";
 import type { ParsedConnection } from "@/lib/connectionString";
 import { getDb, schema } from "@/lib/db";
@@ -150,6 +151,7 @@ async function upsertAllianceFromAshed(
       .where(eq(schema.alliances.id, existing.id));
     if (gameServerNumber != null) {
       try {
+        await linkAllianceToGameServer(existing.id, gameServerNumber);
         await applySeasonSync(existing.id);
       } catch (error) {
         console.warn("[sync-ashed] season sync failed", existing.id, error);
@@ -177,6 +179,7 @@ async function upsertAllianceFromAshed(
   });
   if (gameServerNumber != null) {
     try {
+      await linkAllianceToGameServer(id, gameServerNumber);
       await applySeasonSync(id);
     } catch (error) {
       console.warn("[sync-ashed] season sync failed", id, error);

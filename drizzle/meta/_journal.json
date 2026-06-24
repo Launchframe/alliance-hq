@@ -351,6 +351,13 @@
       "when": 1783596800000,
       "tag": "0050_eur_inbox",
       "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1783596800000,
+      "tag": "0050_game_server_season",
+      "breakpoints": true
     }
   ]
 }
