@@ -1,1 +1,5 @@
-export { FeedbackProvider, useFeedback } from "./FeedbackProvider";
+export {
+  FeedbackProvider,
+  useFeedback,
+  useSuppressFeedbackFabWhile,
+} from "./FeedbackProvider";

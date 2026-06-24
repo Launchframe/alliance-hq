@@ -220,6 +220,79 @@ const commandBody = [
     ],
   },
   {
+    name: "set-train-channel",
+    description: "Set this channel for train conductor announcements (owner only).",
+    description_localizations: {
+      "pt-BR":
+        "Define este canal para anúncios do trem (somente dono).",
+    },
+  },
+  {
+    name: "who-is-conductor",
+    description: "Show today's train conductor (and VIP if set).",
+    description_localizations: {
+      "pt-BR": "Mostra o condutor do trem de hoje (e VIP, se houver).",
+    },
+    options: [
+      {
+        name: "date",
+        description: "Server calendar date (YYYY-MM-DD). Defaults to today.",
+        description_localizations: {
+          "pt-BR": "Data do calendário do servidor (AAAA-MM-DD). Padrão: hoje.",
+        },
+        type: 3,
+        required: false,
+      },
+    ],
+  },
+  {
+    name: "set-conductor",
+    description: "Officer: draft a conductor for today (confirm before lock).",
+    description_localizations: {
+      "pt-BR":
+        "Oficial: rascunho do condutor de hoje (confirme antes de travar).",
+    },
+    options: [
+      {
+        name: "name",
+        description: "Member name from your alliance roster.",
+        description_localizations: {
+          "pt-BR": "Nome do membro no roster da aliança.",
+        },
+        type: 3,
+        required: true,
+      },
+      {
+        name: "date",
+        description: "Server calendar date (YYYY-MM-DD). Defaults to today.",
+        description_localizations: {
+          "pt-BR": "Data do calendário do servidor (AAAA-MM-DD). Padrão: hoje.",
+        },
+        type: 3,
+        required: false,
+      },
+    ],
+  },
+  {
+    name: "train-is-ready",
+    description: "Officer: lock today's conductor and announce in the train channel.",
+    description_localizations: {
+      "pt-BR":
+        "Oficial: trava o condutor de hoje e anuncia no canal do trem.",
+    },
+    options: [
+      {
+        name: "date",
+        description: "Server calendar date (YYYY-MM-DD). Defaults to today.",
+        description_localizations: {
+          "pt-BR": "Data do calendário do servidor (AAAA-MM-DD). Padrão: hoje.",
+        },
+        type: 3,
+        required: false,
+      },
+    ],
+  },
+  {
     name: "language",
     description: "Choose bot reply language.",
     description_localizations: {

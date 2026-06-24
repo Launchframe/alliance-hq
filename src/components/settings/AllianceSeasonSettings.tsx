@@ -13,6 +13,8 @@ export type AllianceSeasonPayload = {
   gameServerNumber: number | null;
   seasonKeyOverride: string | null;
   canManageSeason: boolean;
+  canEditGameServer: boolean;
+  hasLinkedGameServer: boolean;
 };
 
 type Props = {
@@ -92,7 +94,7 @@ export function AllianceSeasonSettings({ allianceTag }: Props) {
   const saveServer = async () => {
     const parsed = Number.parseInt(serverDraft.trim(), 10);
     if (!Number.isFinite(parsed) || parsed <= 0) {
-      setError(t("saveFailed"));
+      setError(t("serverNumberInvalid"));
       return;
     }
     setBusy(true);
@@ -194,9 +196,14 @@ export function AllianceSeasonSettings({ allianceTag }: Props) {
         {phaseLine ? (
           <p className="text-sm text-[#c9d1d9]">{phaseLine}</p>
         ) : null}
+        {displaySeason.canEditGameServer &&
+        displaySeason.gameServerNumber != null &&
+        !displaySeason.hasLinkedGameServer ? (
+          <p className="text-sm text-[#e3b341]">{t("serverLinkRequired")}</p>
+        ) : null}
       </div>
 
-      {displaySeason.canManageSeason && displaySeason.gameServerNumber == null ? (
+      {displaySeason.canEditGameServer ? (
         <div className="mt-4 flex w-full min-w-0 max-w-md flex-col gap-2">
           <label className="text-xs text-[#8b949e]" htmlFor="settings-game-server">
             {t("serverNumberLabel")}
@@ -209,7 +216,11 @@ export function AllianceSeasonSettings({ allianceTag }: Props) {
             onChange={(e) => setServerDraft(e.target.value.replace(/\D/g, ""))}
             className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 text-sm text-[#e6edf3]"
           />
-          <p className="text-xs text-[#6e7681]">{t("serverNumberHint")}</p>
+          <p className="text-xs text-[#6e7681]">
+            {displaySeason.gameServerNumber == null
+              ? t("serverNumberHint")
+              : t("serverNumberUpdateHint")}
+          </p>
           <button
             type="button"
             disabled={busy || !serverDraft.trim()}

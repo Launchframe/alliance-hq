@@ -125,6 +125,7 @@ export async function resolveAllianceGameServerNumber(
   const db = getDb();
   const [row] = await db
     .select({
+      gameServerId: schema.alliances.gameServerId,
       gameServerNumber: schema.alliances.gameServerNumber,
       serverNumber: schema.gameServers.serverNumber,
     })
@@ -136,7 +137,11 @@ export async function resolveAllianceGameServerNumber(
     .where(eq(schema.alliances.id, allianceId))
     .limit(1);
 
-  return row?.serverNumber ?? row?.gameServerNumber ?? null;
+  if (!row?.gameServerId) {
+    return null;
+  }
+
+  return row.serverNumber ?? null;
 }
 
 export async function resolveMaxBaseVrForAlliance(

@@ -76,6 +76,17 @@ describe("discord interactions", () => {
     expect(parseButtonCustomId("link:start_over")).toEqual({
       kind: "link_start_over",
     });
+    expect(parseButtonCustomId("train:pick:member-1:2026-06-20")).toEqual({
+      kind: "train_pick",
+      memberId: "member-1",
+      date: "2026-06-20",
+    });
+    expect(parseButtonCustomId("train:confirm:member-1:2026-06-20:yes")).toEqual({
+      kind: "train_confirm",
+      memberId: "member-1",
+      date: "2026-06-20",
+      answer: "yes",
+    });
     expect(parseButtonCustomId("other")).toBeNull();
   });
 

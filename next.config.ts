@@ -13,6 +13,9 @@ const nextConfig: NextConfig = {
   experimental: {
     proxyClientMaxBodySize: "200mb",
   },
+  outputFileTracingIncludes: {
+    "/guides/discord-train": ["./docs/guides/**/*"],
+  },
   serverExternalPackages: ["ffmpeg-static"],
 };
 

@@ -10,6 +10,7 @@ import {
 } from "react";
 import { useTranslations } from "next-intl";
 
+import { useSuppressFeedbackFabWhile } from "@/components/feedback";
 import {
   FADE_MS,
   SCROLL_SETTLE_MS,
@@ -134,6 +135,7 @@ export function TrainsWalkthroughOverlay({
   onComplete,
 }: Props) {
   const t = useTranslations("trains.walkthrough");
+  useSuppressFeedbackFabWhile(open);
   const [stepIndex, setStepIndex] = useState(0);
   const [domCapabilities, setDomCapabilities] = useState<Set<string>>(new Set());
   const [dialogStyle, setDialogStyle] = useState<React.CSSProperties>({});

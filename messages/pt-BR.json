@@ -381,6 +381,7 @@
     "nativeAlliance": {
       "title": "Aliança nativa (teste)",
       "subtitle": "Provisione uma aliança sem assentos Ashed. Oficiais importam capturas de tela após aceitar o convite.",
+      "inviteServerRequiredNote": "Defina o servidor estadual da aliança em Configurações da aliança → Temporada do jogo antes de gerar convites HQ. Alianças nativas sem linha vinculada em game_servers são bloqueadas (422 alliance_server_required).",
       "name": "Nome da aliança",
       "tag": "Tag no jogo",
       "ownerEmailOptional": "E-mail do proprietário (opcional — cria associação imediatamente)",
@@ -1123,6 +1124,9 @@
       "clearFailed": "Não foi possível limpar a substituição.",
       "serverNumberLabel": "Número do servidor estadual",
       "serverNumberHint": "Obrigatório antes de enviar convites HQ (ex.: 1203). Os quatro últimos dígitos do UID do jogador correspondem a este servidor.",
+      "serverNumberUpdateHint": "Você pode corrigir o número do servidor estadual aqui se digitou errado. Convites continuam bloqueados até salvar um servidor vinculado.",
+      "serverNumberInvalid": "Informe um número de servidor estadual válido (1–9999).",
+      "serverLinkRequired": "Salve o servidor estadual abaixo antes de enviar convites HQ.",
       "saveServer": "Salvar servidor",
       "source": {
         "override": "Substituição manual",
@@ -1161,6 +1165,18 @@
       "saving": "Salvando…",
       "saveFailed": "Não foi possível salvar as configurações da semana do trem.",
       "adminsOnly": "Somente administradores da aliança podem alterar o início da semana do trem."
+    },
+    "trainDiscord": {
+      "title": "Anúncios de trem no Discord",
+      "description": "Quando ativado, travar o condutor pode publicar no canal do trem. O dono deve executar /set-train-channel no Discord primeiro.",
+      "guideLink": "Leia o guia do operador",
+      "loading": "Carregando…",
+      "loadFailed": "Não foi possível carregar as configurações do Discord.",
+      "saveFailed": "Não foi possível salvar as configurações do Discord.",
+      "enableAnnouncements": "Publicar anúncios de trem no Discord",
+      "channelsConfigured": "{count, plural, one {# servidor Discord com canal do trem} other {# servidores Discord com canal do trem}}",
+      "noChannel": "Nenhum canal do trem configurado. Dono: execute /set-train-channel no Discord.",
+      "readOnlyHint": "Somente oficiais do trem podem alterar esta opção."
     }
   },
   "account": {
@@ -1587,6 +1603,12 @@
     "spinning": "Girando…",
     "pickTopScorer": "Escolher maior pontuador",
     "lockConductor": "Confirmar Condutor",
+    "trainIsReady": {
+      "action": "Trem pronto",
+      "confirm": "Travar **{name}** para **{date}** e anunciar no Discord?",
+      "confirmAction": "Travar e anunciar",
+      "cancel": "Cancelar"
+    },
     "locking": "Confirmando…",
     "unlockConductor": "Desbloquear condutor",
     "unlocking": "Desbloqueando…",
@@ -2445,6 +2467,27 @@
     "setVrReportChannel": {
       "success": "O placar noturno de VR de **{tag}** será publicado em {channel}. Oficiais podem usar `/vr-report` a qualquer momento ou `/vr-report teams:N` para planos de takedown."
     },
+    "train": {
+      "setTrainChannel": {
+        "success": "Anúncios de trem de **{tag}** serão publicados em {channel}. Ative os anúncios nas configurações da aliança no HQ; oficiais podem usar `/set-conductor` e `/train-is-ready`."
+      },
+      "noConductor": "Ainda não há condutor para **{date}**.",
+      "statusNoSelection": "Nenhum condutor selecionado ainda para **{date}**.",
+      "statusHeader": "Condutor para **{date}**: **{name}**",
+      "statusVipLine": "\nVIP: **{name}**",
+      "statusLocked": "\nStatus: **travado** — trem na plataforma.",
+      "statusDraft": "\nStatus: **rascunho** — use `/train-is-ready` ou trave no Alliance HQ quando estiver pronto.",
+      "usageSetConductor": "Uso: `/set-conductor name:Nome` (opcional `date:AAAA-MM-DD`).",
+      "confirmPick": "Definir **{name}** como condutor rascunho para **{date}**?",
+      "fuzzyPrompt": "Vários nomes no roster para **{query}**. Escolha um:",
+      "rosterMiss": "Nenhuma correspondência no roster de **{tag}**. Confira a grafia.",
+      "rosterUnavailable": "Não foi possível carregar o roster. Peça ao dono para concluir `/link-to-ashed-seat`.",
+      "pickExpired": "Essa opção expirou. Execute `/set-conductor` novamente.",
+      "pickCancelled": "Cancelado — condutor inalterado.",
+      "draftSaved": "Condutor rascunho para **{date}**: **{name}**. Use `/train-is-ready` para travar e anunciar.",
+      "readyAnnounced": "**{name}** travado e anunciado para **{date}** no canal do trem.",
+      "readyLocked": "**{name}** travado para **{date}**. (Anúncios desativados ou sem canal — verifique o HQ.)"
+    },
     "buttons": {
       "yes": "Sim",
       "no": "Não",
@@ -2454,7 +2497,7 @@
     },
     "officerNotified": "Um oficial foi notificado no Alliance HQ. Eles podem falar com você aqui no Discord.",
     "help": {
-      "dmGeneral": "**Bot Alliance HQ** — use no servidor da aliança:\n• `/help` — este guia\n• `/link` — vincule o Discord ao Alliance HQ\n• `/link-commander` — vincule comandante(s) no jogo\n• `/vr` ou `/immunity` — informe VR base\n• `/language` — English ou Português\n\nDonos: `/link-to-ashed-seat`, `/link-alliance`, `/set-vr-report-channel`.\nOficiais (R4+): `/vr-report`, `/takedown-teams teams:N`.",
+      "dmGeneral": "**Bot Alliance HQ** — use no servidor da aliança:\n• `/help` — este guia\n• `/link` — vincule o Discord ao Alliance HQ\n• `/link-commander` — vincule comandante(s) no jogo\n• `/vr` ou `/immunity` — informe VR base\n• `/who-is-conductor` — condutor do trem hoje\n• `/language` — English ou Português\n\nDonos: `/link-to-ashed-seat`, `/link-alliance`, `/set-vr-report-channel`, `/set-train-channel`.\nOficiais (R4+): `/vr-report`, `/takedown-teams teams:N`, `/set-conductor`, `/train-is-ready`.",
       "setupLinkHq": "Primeiro, vincule seu Discord ao Alliance HQ: execute `/link` e conclua o passo seguro no navegador.",
       "setupOwnerAuth": "Este servidor ainda não está configurado. **Dono:** `/link-to-ashed-seat tag:SuaTag`, depois `/link`, depois `/link-alliance tag:SuaTag`.",
       "setupLinkAlliance": "Credenciais prontas. **Dono ou mantenedor da plataforma:** execute `/link-alliance tag:SuaTag` para registrar este servidor.",
