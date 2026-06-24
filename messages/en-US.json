@@ -119,6 +119,7 @@
       "overview": "Overview",
       "inbox": "Ops inbox",
       "system": "System",
+      "gameSeasons": "Game seasons",
       "alliances": "Alliances",
       "audit": "Audit log",
       "videoJobs": "Video jobs",
@@ -342,6 +343,24 @@
         "r2Configured": "R2 storage",
         "tokenEncryptionConfigured": "TOKEN_ENCRYPTION_KEY"
       }
+    },
+    "gameSeasonsPage": {
+      "title": "Game season caps",
+      "subtitle": "Edit per-season VR and profession level limits used by validation and Discord commands.",
+      "loading": "Loading seasons…",
+      "loadFailed": "Failed to load game seasons.",
+      "empty": "No game seasons in the database yet.",
+      "seasonNumber": "Season",
+      "maxBaseVr": "Max base VR",
+      "maxProfessionLevel": "Max profession level",
+      "professionUnset": "Unset",
+      "actions": "Actions",
+      "save": "Save",
+      "saving": "Saving…",
+      "saveSuccess": "Saved caps for season {season}.",
+      "saveFailed": "Could not save season caps.",
+      "invalidMaxVr": "Enter a max base VR between 250 and 12750.",
+      "invalidProfessionLevel": "Profession level must be a positive integer, or leave blank."
     },
     "alliancesPage": {
       "loadFailed": "Failed to load alliances.",

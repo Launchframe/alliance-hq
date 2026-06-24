@@ -119,6 +119,7 @@
       "overview": "Visão geral",
       "inbox": "Caixa de ops",
       "system": "Sistema",
+      "gameSeasons": "Temporadas do jogo",
       "alliances": "Alianças",
       "audit": "Log de auditoria",
       "videoJobs": "Jobs de vídeo",
@@ -342,6 +343,24 @@
         "r2Configured": "Armazenamento R2",
         "tokenEncryptionConfigured": "TOKEN_ENCRYPTION_KEY"
       }
+    },
+    "gameSeasonsPage": {
+      "title": "Limites por temporada",
+      "subtitle": "Edite os tetos de VR base e nível de profissão usados na validação e nos comandos do Discord.",
+      "loading": "Carregando temporadas…",
+      "loadFailed": "Falha ao carregar temporadas.",
+      "empty": "Nenhuma temporada no banco ainda.",
+      "seasonNumber": "Temporada",
+      "maxBaseVr": "VR base máx.",
+      "maxProfessionLevel": "Nível de profissão máx.",
+      "professionUnset": "Não definido",
+      "actions": "Ações",
+      "save": "Salvar",
+      "saving": "Salvando…",
+      "saveSuccess": "Limites da temporada {season} salvos.",
+      "saveFailed": "Não foi possível salvar os limites.",
+      "invalidMaxVr": "Informe um VR base máximo entre 250 e 12750.",
+      "invalidProfessionLevel": "O nível de profissão deve ser um inteiro positivo, ou deixe em branco."
     },
     "alliancesPage": {
       "loadFailed": "Falha ao carregar alianças.",
