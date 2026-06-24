@@ -98,6 +98,31 @@ export async function assertAuthMayMergeIntoCanonicalHqUser(input: {
     !authRow.ashedUserId &&
     (await authHqUserMayMergeViaVerifiedAshedConnect(input.authHqUserId))
   ) {
+    const [canonicalRow] = await db
+      .select({
+        email: schema.hqUsers.email,
+        ashedUserId: schema.hqUsers.ashedUserId,
+      })
+      .from(schema.hqUsers)
+      .where(eq(schema.hqUsers.id, input.canonicalHqUserId))
+      .limit(1);
+
+    const canonicalEmail = canonicalRow?.email
+      ? normalizeAshedEmail(canonicalRow.email)
+      : "";
+
+    // HQ row already registered with the Ashed account email — only the same
+    // person may merge another session (invite stubs keep a different email).
+    if (
+      canonicalRow?.ashedUserId &&
+      canonicalEmail &&
+      canonicalEmail === ashedEmail &&
+      authEmail &&
+      authEmail !== ashedEmail
+    ) {
+      throw new AshedConnectAuthMismatchError();
+    }
+
     return;
   }
 

@@ -217,7 +217,7 @@ describeIntegration("Ashed identity rebind (integration)", () => {
     const { allianceId } = await createAlliance();
 
     const orphanA = await createHqUser(uniqueEmail("magic-a"));
-    const orphanB = await createHqUser(ashedEmail);
+    const orphanB = await createHqUser(uniqueEmail("magic-b"));
     const sessionA = await createSession(orphanA);
     const sessionB = await createSession(orphanB);
 

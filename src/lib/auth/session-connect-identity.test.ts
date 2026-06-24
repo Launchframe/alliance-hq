@@ -134,16 +134,20 @@ describe("assertAuthMayMergeIntoCanonicalHqUser", () => {
     const limit = vi
       .fn()
       .mockResolvedValueOnce([{ email: "magic-b@e2e.test" }])
-      .mockResolvedValueOnce([{ email: "player@e2e.test" }])
+      .mockResolvedValueOnce([{ email: "magic-a@e2e.test" }])
       .mockResolvedValueOnce([
         { email: "magic-b@e2e.test", ashedUserId: null },
+      ])
+      .mockResolvedValueOnce([
+        { email: "magic-a@e2e.test", ashedUserId: "ashed-abc" },
       ]);
     const where = vi
       .fn()
       .mockReturnValueOnce({ limit })
       .mockReturnValueOnce({ limit })
       .mockReturnValueOnce({ limit })
-      .mockResolvedValueOnce([]);
+      .mockResolvedValueOnce([])
+      .mockReturnValueOnce({ limit });
     const from = vi.fn().mockReturnValue({ where });
     const select = vi.fn().mockReturnValue({ from });
 
@@ -158,6 +162,40 @@ describe("assertAuthMayMergeIntoCanonicalHqUser", () => {
         ashedUserId: "ashed-abc",
       }),
     ).resolves.toBeUndefined();
+  });
+
+  it("rejects hijack when canonical HQ row owns the Ashed email", async () => {
+    const limit = vi
+      .fn()
+      .mockResolvedValueOnce([{ email: "intruder@e2e.test" }])
+      .mockResolvedValueOnce([{ email: "maintainer@e2e.test" }])
+      .mockResolvedValueOnce([
+        { email: "intruder@e2e.test", ashedUserId: null },
+      ])
+      .mockResolvedValueOnce([
+        { email: "maintainer@e2e.test", ashedUserId: "ashed-maintainer" },
+      ]);
+    const where = vi
+      .fn()
+      .mockReturnValueOnce({ limit })
+      .mockReturnValueOnce({ limit })
+      .mockReturnValueOnce({ limit })
+      .mockResolvedValueOnce([])
+      .mockReturnValueOnce({ limit });
+    const from = vi.fn().mockReturnValue({ where });
+    const select = vi.fn().mockReturnValue({ from });
+
+    const { getDb } = await import("@/lib/db");
+    vi.mocked(getDb).mockReturnValue({ select } as never);
+
+    await expect(
+      assertAuthMayMergeIntoCanonicalHqUser({
+        authHqUserId: "intruder",
+        canonicalHqUserId: "canonical-maintainer",
+        ashedEmail: "maintainer@e2e.test",
+        ashedUserId: "ashed-maintainer",
+      }),
+    ).rejects.toBeInstanceOf(AshedConnectAuthMismatchError);
   });
 });
 
