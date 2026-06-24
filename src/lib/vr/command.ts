@@ -17,6 +17,7 @@ export type ProcessVrCommandInput = {
   reporterCount: number;
   peerMax: number;
   translate: DiscordTranslate;
+  maxBaseVr: number;
 };
 
 export type ProcessVrConfirmationInput = {
@@ -29,7 +30,7 @@ function applyExplicitLevel(
   value: number,
   input: ProcessVrCommandInput,
 ): VrCommandResult {
-  const { translate: t } = input;
+  const { translate: t, maxBaseVr } = input;
   const seasonHigh = input.seasonHigh ?? 0;
   if (value < maxAllowedDowngrade(seasonHigh)) {
     return {
@@ -71,7 +72,7 @@ function applyExplicitLevel(
 }
 
 export function processVrCommand(input: ProcessVrCommandInput): VrCommandResult {
-  const { explicitLevel, seasonHigh, pending, translate: t } = input;
+  const { explicitLevel, seasonHigh, pending, translate: t, maxBaseVr } = input;
 
   if (pending?.kind === "anomaly_confirm" && explicitLevel == null) {
     return {
@@ -84,9 +85,9 @@ export function processVrCommand(input: ProcessVrCommandInput): VrCommandResult 
   }
 
   if (explicitLevel != null) {
-    if (!isValidBaseVr(explicitLevel)) {
+    if (!isValidBaseVr(explicitLevel, maxBaseVr)) {
       return {
-        reply: formatVrValidationError(),
+        reply: formatVrValidationError(maxBaseVr),
         pending,
         action: { type: "none" },
       };
@@ -97,9 +98,9 @@ export function processVrCommand(input: ProcessVrCommandInput): VrCommandResult 
   const current = seasonHigh ?? 0;
   const next =
     current <= 0 ? initialBaseVrForBump() : nextBaseVr(current);
-  if (!isValidBaseVr(next)) {
+  if (!isValidBaseVr(next, maxBaseVr)) {
     return {
-      reply: t("vr.maxVr", { max: next - 250 }),
+      reply: t("vr.maxVr", { max: maxBaseVr }),
       pending: null,
       action: { type: "none" },
     };

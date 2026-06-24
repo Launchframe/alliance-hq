@@ -12,6 +12,7 @@ describe("processVrCommand", () => {
     peerMax: 7250,
     pending: null,
     translate,
+    maxBaseVr: 12750,
   };
 
   it("increments from season high by 250", () => {
@@ -54,6 +55,29 @@ describe("processVrCommand", () => {
     });
     expect(result.needsConfirmation).toBe(true);
     expect(result.pending?.kind).toBe("anomaly_confirm");
+  });
+
+  it("respects season max base VR cap", () => {
+    const result = processVrCommand({
+      ...base,
+      seasonHigh: 7250,
+      explicitLevel: 10000,
+      maxBaseVr: 10000,
+      peerMax: 9900,
+    });
+    expect(result.action).toEqual({
+      type: "set_vr",
+      vr: 10000,
+      ashedMemberId: "member-1",
+    });
+    const over = processVrCommand({
+      ...base,
+      seasonHigh: 10000,
+      maxBaseVr: 10000,
+      peerMax: 9900,
+    });
+    expect(over.action).toEqual({ type: "none" });
+    expect(over.reply).toMatch(/10000/);
   });
 });
 
