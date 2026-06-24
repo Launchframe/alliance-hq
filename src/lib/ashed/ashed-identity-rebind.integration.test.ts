@@ -311,6 +311,28 @@ describeIntegration("Ashed identity rebind (integration)", () => {
     ).rejects.toThrow(/already linked to a different HQ user/i);
   });
 
+  it("resolveCanonicalHqUserForAshedConnect rejects hijack from another signed-in HQ account", async () => {
+    const ashedUserId = `ashed-${nanoid(12)}`;
+    const ashedEmail = uniqueEmail("maintainer");
+    const canonicalId = await createHqUser(ashedEmail, ashedUserId);
+    const intruderId = await createHqUser(uniqueEmail("google-intruder"));
+
+    cleanup.push(async () => {
+      const db = getDb();
+      for (const id of [canonicalId, intruderId]) {
+        await db.delete(schema.hqUsers).where(eq(schema.hqUsers.id, id));
+      }
+    });
+
+    await expect(
+      resolveCanonicalHqUserForAshedConnect({
+        ashedUserId,
+        ashedEmail,
+        authHqUserId: intruderId,
+      }),
+    ).rejects.toThrow(/different HQ sign-in/i);
+  });
+
   it("getAshedConnection clears credentials that do not match the bound HQ user", async () => {
     const ashedUserId = `ashed-${nanoid(12)}`;
     const userA = await createHqUser(uniqueEmail("user-a"), ashedUserId);

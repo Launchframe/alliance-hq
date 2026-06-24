@@ -7,13 +7,16 @@ import {
 } from "@/lib/lastwar/player-lookup";
 
 describe("game UID validation", () => {
-  it("accepts 12–16 digit UIDs ending in 1203", () => {
+  it("accepts 12–16 digit UIDs for any state server suffix", () => {
     expect(isValidGameUid("1623941123001203")).toBe(true);
+    expect(isValidGameUid("1001369694002891")).toBe(true);
+    expect(isValidGameUid("123456789012")).toBe(true);
   });
 
-  it("rejects bad UIDs", () => {
+  it("rejects non-numeric or wrong-length UIDs", () => {
     expect(isValidGameUid("abc")).toBe(false);
-    expect(isValidGameUid("1623941123001204")).toBe(false);
+    expect(isValidGameUid("12345678901")).toBe(false);
+    expect(isValidGameUid("12345678901234567")).toBe(false);
   });
 });
 
