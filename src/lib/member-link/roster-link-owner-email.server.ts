@@ -38,11 +38,16 @@ export function buildRosterLinkOwnerEmail(input: {
   gameServerNumber: number;
   acceptToken: string;
   rejectToken: string;
+  /** Reminder emails rotate tokens; prior Approve/Decline links stop working. */
+  isReminder?: boolean;
 }): { subject: string; html: string; text: string } {
   const acceptHref = actionUrl(input.acceptToken);
   const rejectHref = actionUrl(input.rejectToken);
   const subject = `Approve roster link for ${input.gameUserName} (${input.allianceTag})`;
   const intro = `A player accepted your HQ invite but is not on the ${input.allianceTag} roster yet. Last War shows their commander as ${input.gameUserName} (UID ending …${input.gameUid.slice(-4)}, server ${input.gameServerNumber}). They submitted the name "${input.reportedName}".`;
+  const linkRotationNote = input.isReminder
+    ? "This is a reminder — use only the Approve and Decline links in this email. Links from earlier messages about this request no longer work."
+    : "If we send another email about this request, use only the newest Approve and Decline links — older links stop working when we resend.";
 
   const text = `${intro}
 
@@ -50,7 +55,9 @@ Approve: ${acceptHref}
 
 Decline: ${rejectHref}
 
-If you do not recognize this player, decline the request.`;
+If you do not recognize this player, decline the request.
+
+${linkRotationNote}`;
 
   const html = `
 <body style="background:#f6f8fa;font-family:Helvetica,Arial,sans-serif;color:#24292f;">
@@ -61,7 +68,8 @@ If you do not recognize this player, decline the request.`;
       <a href="${acceptHref}" style="display:inline-block;background:#238636;color:#fff;text-decoration:none;padding:10px 18px;border-radius:8px;font-weight:600;margin-right:8px;">Approve</a>
       <a href="${rejectHref}" style="display:inline-block;background:#f6f8fa;color:#24292f;text-decoration:none;padding:10px 18px;border-radius:8px;border:1px solid #d0d7de;">Decline</a>
     </td></tr>
-    <tr><td style="padding:0 24px 24px;font-size:13px;color:#57606a;">If you do not recognize this player, decline the request.</td></tr>
+    <tr><td style="padding:0 24px 12px;font-size:13px;color:#57606a;">If you do not recognize this player, decline the request.</td></tr>
+    <tr><td style="padding:0 24px 24px;font-size:13px;color:#57606a;">${escapeHtml(linkRotationNote)}</td></tr>
   </table>
 </body>`;
 
@@ -176,6 +184,7 @@ export async function sendRosterLinkOwnerApprovalEmail(input: {
   gameServerNumber: number;
   acceptToken: string;
   rejectToken: string;
+  isReminder?: boolean;
 }): Promise<void> {
   const to = await resolveAllianceOwnerEmail(input.allianceId);
   if (!to) {

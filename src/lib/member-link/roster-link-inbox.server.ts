@@ -4,8 +4,7 @@ import { and, eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { getDb, schema } from "@/lib/db";
-
-const MEMBER_LINK_REQUEST_KIND = "member_link_request";
+import { ROSTER_LINK_INBOX_KIND } from "@/lib/member-link/roster-link-inbox.shared";
 
 export async function materializeRosterLinkInboxItem(input: {
   allianceId: string;
@@ -21,7 +20,7 @@ export async function materializeRosterLinkInboxItem(input: {
     .where(
       and(
         eq(schema.inboxReminderItems.allianceId, input.allianceId),
-        eq(schema.inboxReminderItems.kind, MEMBER_LINK_REQUEST_KIND),
+        eq(schema.inboxReminderItems.kind, ROSTER_LINK_INBOX_KIND),
         eq(schema.inboxReminderItems.resourceId, input.requestId),
       ),
     );
@@ -29,9 +28,11 @@ export async function materializeRosterLinkInboxItem(input: {
   await db.insert(schema.inboxReminderItems).values({
     id: itemId,
     allianceId: input.allianceId,
-    kind: MEMBER_LINK_REQUEST_KIND,
-    title: `Roster link: ${input.gameUserName}`,
-    body: "A player needs owner approval to join the roster.",
+    kind: ROSTER_LINK_INBOX_KIND,
+    /** Fallback for non-localized consumers; inbox UI translates via scoreTarget. */
+    title: input.gameUserName,
+    body: null,
+    scoreTarget: input.gameUserName,
     href: "/inbox",
     requiredPermission: "inbox:read",
     active: 1,
@@ -48,7 +49,7 @@ export async function satisfyRosterLinkInboxItem(requestId: string): Promise<voi
     .set({ active: 0 })
     .where(
       and(
-        eq(schema.inboxReminderItems.kind, MEMBER_LINK_REQUEST_KIND),
+        eq(schema.inboxReminderItems.kind, ROSTER_LINK_INBOX_KIND),
         eq(schema.inboxReminderItems.resourceId, requestId),
       ),
     );

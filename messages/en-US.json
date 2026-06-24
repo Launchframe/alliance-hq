@@ -2554,7 +2554,10 @@
     "bellLabelWithCount": "{count, plural, one {# reminder} other {# reminders}}",
     "kind": {
       "eurOccurrence": "Event upload",
-      "videoJobsPending": "Videos to process"
+      "videoJobsPending": "Videos to process",
+      "memberLinkRequest": "Roster link",
+      "memberLinkRequestTitle": "Approve {name}",
+      "memberLinkRequestBody": "A player needs owner approval to join the roster."
     }
   },
   "uploadReminders": {

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { FormattedDateTime } from "@/components/timezone/TimezoneProvider";
+import { ROSTER_LINK_INBOX_KIND } from "@/lib/member-link/roster-link-inbox.shared";
 import { Link } from "@/i18n/navigation";
 
 type ReminderItem = {
@@ -76,7 +77,23 @@ export default function InboxPageClient() {
   function kindLabel(kind: string): string {
     if (kind === "eur_occurrence") return t("kind.eurOccurrence");
     if (kind === "video_jobs_pending") return t("kind.videoJobsPending");
+    if (kind === ROSTER_LINK_INBOX_KIND) return t("kind.memberLinkRequest");
     return kind;
+  }
+
+  function displayTitle(item: ReminderItem): string {
+    if (item.kind === ROSTER_LINK_INBOX_KIND) {
+      const name = item.scoreTarget?.trim() || item.title;
+      return t("kind.memberLinkRequestTitle", { name });
+    }
+    return item.title;
+  }
+
+  function displayBody(item: ReminderItem): string | null {
+    if (item.kind === ROSTER_LINK_INBOX_KIND) {
+      return t("kind.memberLinkRequestBody");
+    }
+    return item.body;
   }
 
   return (
@@ -118,13 +135,15 @@ export default function InboxPageClient() {
                     href={item.href}
                     className="block truncate font-medium hover:text-[#58a6ff]"
                   >
-                    {item.title}
+                    {displayTitle(item)}
                   </Link>
                 ) : (
-                  <p className="truncate font-medium">{item.title}</p>
+                  <p className="truncate font-medium">{displayTitle(item)}</p>
                 )}
-                {item.body ? (
-                  <p className="truncate text-sm text-[#8b949e]">{item.body}</p>
+                {displayBody(item) ? (
+                  <p className="truncate text-sm text-[#8b949e]">
+                    {displayBody(item)}
+                  </p>
                 ) : null}
                 <p className="mt-1 text-xs text-[#8b949e]">
                   <FormattedDateTime value={item.createdAt} />

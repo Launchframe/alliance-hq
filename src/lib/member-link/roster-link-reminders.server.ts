@@ -126,6 +126,7 @@ export async function runRosterLinkReminderPass(
         gameServerNumber: request.gameServerNumber,
         acceptToken: tokens.acceptToken,
         rejectToken: tokens.rejectToken,
+        isReminder: true,
       });
       sent += 1;
     } catch (error) {

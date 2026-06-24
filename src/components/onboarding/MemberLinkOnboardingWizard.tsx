@@ -255,7 +255,7 @@ export function MemberLinkOnboardingWizard({
     }
   }
 
-  async function refreshMemberLinkStatus(): Promise<boolean> {
+  const refreshMemberLinkStatus = useCallback(async (): Promise<boolean> => {
     const res = await fetch("/api/member-link");
     if (!res.ok) return false;
     const data = (await res.json()) as ApiResponse & {
@@ -279,7 +279,7 @@ export function MemberLinkOnboardingWizard({
       return false;
     }
     return false;
-  }
+  }, [applyOutcome, linkedName, reportedName, t]);
 
   useEffect(() => {
     void fetch("/api/member-link")
@@ -311,7 +311,7 @@ export function MemberLinkOnboardingWizard({
       void refreshMemberLinkStatus().catch(() => undefined);
     }, 30_000);
     return () => window.clearInterval(timer);
-  }, [phase]);
+  }, [phase, refreshMemberLinkStatus]);
 
   return (
     <div className="mx-auto w-full max-w-lg space-y-6 rounded-xl border border-[#30363d] bg-[#161b22] p-6">
