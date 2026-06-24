@@ -13,6 +13,7 @@ import {
   setAllianceSeasonOverride,
   updateAllianceGameServerNumber,
 } from "@/lib/game-season/sync";
+import { resolveAllianceGameServerNumber } from "@/lib/game-season/game-servers.server";
 import { isNativeAlliance } from "@/lib/native-alliance/operating-mode";
 import { sessionHasPermissionForAlliance } from "@/lib/rbac/context";
 import { getOrCreateSession } from "@/lib/session";
@@ -39,7 +40,8 @@ export async function GET(_request: Request, context: RouteContext) {
     );
     if (denied) return denied;
 
-    const [effective, row, canManageSeason, native] = await Promise.all([
+    const [effective, row, canManageSeason, native, linkedGameServerNumber] =
+      await Promise.all([
       getEffectiveSeasonForAlliance(alliance.allianceId),
       loadAllianceSeasonRow(alliance.allianceId),
       sessionHasPermissionForAlliance(
@@ -48,6 +50,7 @@ export async function GET(_request: Request, context: RouteContext) {
         "alliance:admin",
       ),
       isNativeAlliance(alliance.allianceId),
+      resolveAllianceGameServerNumber(alliance.allianceId),
     ]);
 
     return NextResponse.json({
@@ -61,6 +64,7 @@ export async function GET(_request: Request, context: RouteContext) {
       seasonKeyOverride: row?.seasonKeyOverride ?? null,
       canManageSeason,
       canEditGameServer: native && canManageSeason,
+      hasLinkedGameServer: linkedGameServerNumber != null,
     });
   } catch (error) {
     return allianceRouteErrorResponse(error);
@@ -86,6 +90,9 @@ export async function PATCH(request: Request, context: RouteContext) {
     }
 
     const beforeRow = await loadAllianceSeasonRow(alliance.allianceId);
+    const beforeLinkedServer = await resolveAllianceGameServerNumber(
+      alliance.allianceId,
+    );
 
     if (body.data.gameServerNumber !== undefined) {
       const native = await isNativeAlliance(alliance.allianceId);
@@ -110,6 +117,9 @@ export async function PATCH(request: Request, context: RouteContext) {
         : await getEffectiveSeasonForAlliance(alliance.allianceId);
     const row = await loadAllianceSeasonRow(alliance.allianceId);
     const native = await isNativeAlliance(alliance.allianceId);
+    const linkedGameServerNumber = await resolveAllianceGameServerNumber(
+      alliance.allianceId,
+    );
 
     const beforeOverride = beforeRow?.seasonKeyOverride ?? null;
     const afterOverride = row?.seasonKeyOverride ?? null;
@@ -133,6 +143,25 @@ export async function PATCH(request: Request, context: RouteContext) {
       });
     }
 
+    if (
+      body.data.gameServerNumber !== undefined &&
+      beforeLinkedServer !== linkedGameServerNumber
+    ) {
+      await writeAuditLog({
+        sessionId: session.id,
+        allianceId: alliance.allianceId,
+        hqUserId: session.hqUserId ?? undefined,
+        action: "alliance.game_server_update",
+        resourceType: "alliance",
+        resourceId: alliance.allianceId,
+        resourceName: alliance.name,
+        metadata: {
+          before: { gameServerNumber: beforeLinkedServer },
+          after: { gameServerNumber: linkedGameServerNumber },
+        },
+      });
+    }
+
     return NextResponse.json({
       allianceTag: alliance.tag,
       allianceName: alliance.name,
@@ -144,6 +173,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       seasonKeyOverride: row?.seasonKeyOverride ?? null,
       canManageSeason: true,
       canEditGameServer: native,
+      hasLinkedGameServer: linkedGameServerNumber != null,
     });
   } catch (error) {
     return allianceRouteErrorResponse(error);

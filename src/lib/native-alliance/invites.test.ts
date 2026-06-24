@@ -3,10 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getDb } from "@/lib/db";
 import { resolveAllianceGameServerNumber } from "@/lib/game-season/game-servers.server";
 
-import {
-  AllianceServerRequiredError,
-  createHqInvite,
-} from "./invites";
+import { AllianceServerRequiredError } from "./alliance-server-gate.server";
+import { createHqInvite } from "./invites";
 
 vi.mock("@/lib/game-season/game-servers.server", () => ({
   resolveAllianceGameServerNumber: vi.fn(),

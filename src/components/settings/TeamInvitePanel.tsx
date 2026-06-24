@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 
 import { CopyToClipboardField } from "@/components/ui/CopyToClipboardField";
 import { Link } from "@/i18n/navigation";
+import { allianceSettingsPath } from "@/lib/alliance/alliance-settings-path.shared";
 import type { SystemRoleName } from "@/lib/rbac/constants";
 
 function isValidInviteEmail(value: string): boolean {
@@ -207,7 +208,7 @@ export function TeamInvitePanel({
           <p>{t("serverRequired")}</p>
           {allianceTag ? (
             <Link
-              href={`/alliance/${encodeURIComponent(allianceTag)}/settings`}
+              href={allianceSettingsPath(allianceTag)}
               className="mt-2 inline-block text-[#58a6ff] underline"
             >
               {t("serverRequiredLink")}
@@ -361,7 +362,7 @@ export function TeamInvitePanel({
         </div>
         <button
           type="button"
-          disabled={busy}
+          disabled={busy || gameServerNumber == null}
           onClick={() => void createJoinCode()}
           className="mt-3 rounded-lg border border-[#238636] bg-[#238636] px-4 py-2 text-sm text-white disabled:opacity-50"
         >

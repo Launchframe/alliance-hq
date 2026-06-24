@@ -14,6 +14,7 @@ export type AllianceSeasonPayload = {
   seasonKeyOverride: string | null;
   canManageSeason: boolean;
   canEditGameServer: boolean;
+  hasLinkedGameServer: boolean;
 };
 
 type Props = {
@@ -93,7 +94,7 @@ export function AllianceSeasonSettings({ allianceTag }: Props) {
   const saveServer = async () => {
     const parsed = Number.parseInt(serverDraft.trim(), 10);
     if (!Number.isFinite(parsed) || parsed <= 0) {
-      setError(t("saveFailed"));
+      setError(t("serverNumberInvalid"));
       return;
     }
     setBusy(true);
@@ -194,6 +195,11 @@ export function AllianceSeasonSettings({ allianceTag }: Props) {
         </p>
         {phaseLine ? (
           <p className="text-sm text-[#c9d1d9]">{phaseLine}</p>
+        ) : null}
+        {displaySeason.canEditGameServer &&
+        displaySeason.gameServerNumber != null &&
+        !displaySeason.hasLinkedGameServer ? (
+          <p className="text-sm text-[#e3b341]">{t("serverLinkRequired")}</p>
         ) : null}
       </div>
 

@@ -141,7 +141,7 @@ export async function resolveAllianceGameServerNumber(
     return null;
   }
 
-  return row.serverNumber ?? row.gameServerNumber ?? null;
+  return row.serverNumber ?? null;
 }
 
 export async function resolveMaxBaseVrForAlliance(

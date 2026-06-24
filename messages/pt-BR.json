@@ -1125,6 +1125,8 @@
       "serverNumberLabel": "Número do servidor estadual",
       "serverNumberHint": "Obrigatório antes de enviar convites HQ (ex.: 1203). Os quatro últimos dígitos do UID do jogador correspondem a este servidor.",
       "serverNumberUpdateHint": "Você pode corrigir o número do servidor estadual aqui se digitou errado. Convites continuam bloqueados até salvar um servidor vinculado.",
+      "serverNumberInvalid": "Informe um número de servidor estadual válido (1–9999).",
+      "serverLinkRequired": "Salve o servidor estadual abaixo antes de enviar convites HQ.",
       "saveServer": "Salvar servidor",
       "source": {
         "override": "Substituição manual",

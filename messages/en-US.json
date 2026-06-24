@@ -1125,6 +1125,8 @@
       "serverNumberLabel": "State server number",
       "serverNumberHint": "Required before sending HQ invites (e.g. 1203). The last four digits of a player UID match this server.",
       "serverNumberUpdateHint": "You can correct the state server number here if it was entered wrong. Invites stay blocked until a linked server is saved.",
+      "serverNumberInvalid": "Enter a valid state server number (1–9999).",
+      "serverLinkRequired": "Save the state server below before sending HQ invites.",
       "saveServer": "Save server",
       "source": {
         "override": "Manual override",

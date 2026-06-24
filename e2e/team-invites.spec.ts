@@ -150,6 +150,42 @@ test.describe("Team Access — officer invites", () => {
     await expect(page.getByRole("button", { name: /generate invite link/i })).toBeDisabled();
   });
 
+  test("officer join-code API returns 422 when alliance has no linked game server", async ({
+    request,
+  }) => {
+    const sql = getE2eSql();
+    const alliance = await createNativeAlliance(sql, {
+      tag: `TJ${nanoid(3)}`,
+      name: "Team Join Code Server Gate Alliance",
+    });
+    const officer = await createAuthenticatedHqSession(sql, uniqueEmail("officer-join-gate"));
+    await createAllianceMembership(sql, {
+      hqUserId: officer.hqUserId,
+      allianceId: alliance.allianceId,
+      roleName: "officer",
+      source: "manual",
+    });
+    await sql`
+      UPDATE sessions
+      SET current_alliance_id = ${alliance.allianceId}, alliance_tag = ${alliance.tag}
+      WHERE id = ${officer.sessionId}
+    `;
+
+    const res = await request.post("/api/settings/team/join-codes", {
+      headers: {
+        Cookie: authCookieHeader(officer),
+      },
+      data: {
+        roleName: "member",
+        maxRedemptions: 5,
+      },
+    });
+
+    expect(res.status()).toBe(422);
+    const body = (await res.json()) as { code?: string };
+    expect(body.code).toBe("alliance_server_required");
+  });
+
   test("member cannot access team invite API", async ({ request }) => {
     const sql = getE2eSql();
     const alliance = await createNativeAlliance(sql, {

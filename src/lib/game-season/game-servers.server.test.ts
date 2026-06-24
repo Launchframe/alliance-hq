@@ -68,7 +68,7 @@ describe("resolveAllianceGameServerNumber", () => {
     await expect(resolveAllianceGameServerNumber("alliance-1")).resolves.toBe(1203);
   });
 
-  it("falls back to denormalized number when link exists but join row is missing", async () => {
+  it("returns null when game_server_id is set but join row is missing", async () => {
     vi.mocked(getDb).mockReturnValue({
       select: vi.fn(() =>
         dbSelectChain([
@@ -81,6 +81,6 @@ describe("resolveAllianceGameServerNumber", () => {
       ),
     } as never);
 
-    await expect(resolveAllianceGameServerNumber("alliance-1")).resolves.toBe(1203);
+    await expect(resolveAllianceGameServerNumber("alliance-1")).resolves.toBeNull();
   });
 });
