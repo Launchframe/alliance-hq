@@ -95,7 +95,7 @@ export async function uploadVideoFile(options: {
   }
 
   if (init.mode === "r2_put") {
-    await putWithProgress(init.putUrl, file, file.type, onProgress);
+    await putWithProgress(init.putUrl, file, init.contentType, onProgress);
     return completeUpload(init.jobId);
   }
 

@@ -178,7 +178,7 @@ After `npm run dev`, either:
 
 Open **Review** on a job when status is `ready to review`. Pick event, team, date, fix matches, then **Save scores**.
 
-**Production (Vercel):** **R2 env vars are required** for uploads. Processing is triggered via `waitUntil` after upload complete (`/api/internal/video-process/{jobId}`). Archive compression runs after the job reaches `review` (`/api/internal/video-archive/{jobId}`). A **Vercel Cron** (`/api/internal/video-process/queue`, every minute) drains any job still `queued` if the trigger was dropped. Set `CRON_SECRET` in Vercel (Cron sends `Authorization: Bearer $CRON_SECRET`). Optionally run `npm run video:worker` locally as another backup poller.
+**Production (Vercel):** **R2 env vars are required** for uploads. Configure **bucket CORS** so the browser can `PUT` presigned URLs from your app origin (methods: `PUT`, `GET`, `HEAD`; allow `Content-Type` and `Authorization` headers). Processing is triggered via `waitUntil` after upload complete (`/api/internal/video-process/{jobId}`). Archive compression runs after the job reaches `review` (`/api/internal/video-archive/{jobId}`). A **Vercel Cron** (`/api/internal/video-process/queue`, every minute) drains any job still `queued` if the trigger was dropped. Set `CRON_SECRET` in Vercel (Cron sends `Authorization: Bearer $CRON_SECRET`). Optionally run `npm run video:worker` locally as another backup poller.
 
 **Vercel limits:** processing and archive routes use `maxDuration = 300`. Very long recordings may hit timeout or `/tmp` space on Vercel — if that happens in production, point `VIDEO_WORKER_BASE_URL` at a long-running host (same secret auth; no code change to the trigger path).
 
