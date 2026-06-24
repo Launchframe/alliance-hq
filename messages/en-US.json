@@ -2350,7 +2350,9 @@
     "connectAshedTitle": "Verify with Ashed first",
     "connectAshedBody": "Connect Ashed for iframe tools and live roster sync. Your HQ role comes from your invite — linking your in-game character uses name and UID only.",
     "connectAshedCta": "Connect Ashed",
-    "connectAshedDismiss": "Not now"
+    "connectAshedDismiss": "Not now",
+    "wrongAlliance": "Wrong alliance?",
+    "wrongAllianceHint": "Clears this onboarding session. Your membership stays — sign in with another account or redeem a different join code."
   },
   "discordBot": {
     "errors": {
