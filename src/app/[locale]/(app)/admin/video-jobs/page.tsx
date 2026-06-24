@@ -96,10 +96,12 @@ export default function AdminVideoJobsPage() {
   const [selectedBucket, setSelectedBucket] = useState<string>("");
   const [selectedRating, setSelectedRating] = useState<string>("");
   const [selectedPassKey, setSelectedPassKey] = useState<string>("");
+  const [selectedStatus, setSelectedStatus] = useState<string>("failed");
 
   const loadJobs = useCallback(
-    async (bucket: string, rating: string, passKey: string) => {
+    async (bucket: string, rating: string, passKey: string, status: string) => {
       const params = new URLSearchParams({ limit: "200" });
+      if (status) params.set("status", status);
       if (bucket) params.set("bucket", bucket);
       if (rating) params.set("rating", rating);
       if (passKey) params.set("passKey", passKey);
@@ -114,12 +116,12 @@ export default function AdminVideoJobsPage() {
   useEffect(() => {
     void (async () => {
       try {
-        await loadJobs(selectedBucket, selectedRating, selectedPassKey);
+        await loadJobs(selectedBucket, selectedRating, selectedPassKey, selectedStatus);
       } catch (err) {
         setError(err instanceof Error ? err.message : t("loadFailed"));
       }
     })();
-  }, [loadJobs, selectedBucket, selectedRating, selectedPassKey, t]);
+  }, [loadJobs, selectedBucket, selectedRating, selectedPassKey, selectedStatus, t]);
 
   // Derive available pass keys from loaded jobs for the filter dropdown
   const availablePassKeys = Array.from(
@@ -137,7 +139,7 @@ export default function AdminVideoJobsPage() {
         const data = (await res.json()) as { error?: string };
         throw new Error(data.error ?? tJobs("actionFailed"));
       }
-      await loadJobs(selectedBucket, selectedRating, selectedPassKey);
+      await loadJobs(selectedBucket, selectedRating, selectedPassKey, selectedStatus);
     } catch (err) {
       setError(err instanceof Error ? err.message : tJobs("actionFailed"));
     } finally {
@@ -153,6 +155,21 @@ export default function AdminVideoJobsPage() {
     <div className="min-w-0 space-y-3">
       {error ? <p className="text-sm text-red-400">{error}</p> : null}
       <div className="flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-2">
+          <label className="text-xs text-[#8b949e]">{tJobs("statusFilter")}</label>
+          <select
+            value={selectedStatus}
+            onChange={(e) => setSelectedStatus(e.target.value)}
+            className="rounded-lg border border-[#30363d] bg-[#161b22] px-2 py-1 text-xs text-[#e6edf3]"
+          >
+            <option value="failed">{tJobs("statusFailed")}</option>
+            <option value="queued">{tJobs("statusQueued")}</option>
+            <option value="processing">{tJobs("statusProcessing")}</option>
+            <option value="review">{tJobs("statusReview")}</option>
+            <option value="complete">{tJobs("statusComplete")}</option>
+            <option value="">{tJobs("allStatuses")}</option>
+          </select>
+        </div>
         <div className="flex items-center gap-2">
           <label className="text-xs text-[#8b949e]">{tJobs("bucketFilter")}</label>
           <select

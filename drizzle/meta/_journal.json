@@ -344,6 +344,13 @@
       "when": 1783510400000,
       "tag": "0049_discord_train_announcements",
       "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1783596800000,
+      "tag": "0050_eur_inbox",
+      "breakpoints": true
     }
   ]
 }

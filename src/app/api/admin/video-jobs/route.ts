@@ -15,7 +15,8 @@ export async function GET(request: Request) {
   if (denied) return denied;
 
   const url = new URL(request.url);
-  const status = url.searchParams.get("status");
+  const statusParam = url.searchParams.get("status");
+  const status = statusParam === null ? "failed" : statusParam;
   const bucket = url.searchParams.get("bucket");
   const passKey = url.searchParams.get("passKey");
   const rating = url.searchParams.get("rating");

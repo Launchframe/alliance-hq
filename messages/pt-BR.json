@@ -117,6 +117,7 @@
     "no": "Não",
     "nav": {
       "overview": "Visão geral",
+      "inbox": "Caixa de ops",
       "system": "Sistema",
       "alliances": "Alianças",
       "audit": "Log de auditoria",
@@ -133,6 +134,24 @@
       "videoJobAnalytics": "Análises",
       "parseConfigs": "Configurações de análise",
       "experiments": "Experimentos"
+    },
+    "opsInbox": {
+      "title": "Caixa de ops",
+      "subtitle": "Jobs de vídeo com falha, fila travada e relatórios de bugs abertos.",
+      "loadFailed": "Falha ao carregar a caixa de ops.",
+      "empty": "Nada precisa de atenção agora.",
+      "bellLabel": "Abrir caixa de ops",
+      "bellLabelWithCount": "{count, plural, one {# item de ops precisa de atenção} other {# itens de ops precisam de atenção}}",
+      "counts": {
+        "failed": "Jobs com falha",
+        "stuck": "Fila travada",
+        "bugs": "Bugs abertos"
+      },
+      "kind": {
+        "video_job_failed": "Job de vídeo com falha",
+        "video_job_stuck_queued": "Job travado na fila",
+        "bug_report_open": "Relatório de bug aberto"
+      }
     },
     "systemTitle": "Saúde do sistema",
     "systemDesc": "Status do banco, contagens, config e catálogo de funções RBAC.",
@@ -445,7 +464,14 @@
       "allRatings": "Todas",
       "passFilter": "Passagem",
       "allPasses": "Todas as passagens",
-      "analyticsLink": "Análises"
+      "analyticsLink": "Análises",
+      "statusFilter": "Status",
+      "statusFailed": "Com falha",
+      "statusQueued": "Na fila",
+      "statusProcessing": "Processando",
+      "statusReview": "Revisão",
+      "statusComplete": "Concluído",
+      "allStatuses": "Todos os status"
     },
     "videoJobDetailPage": {
       "loading": "Carregando detalhes do job…",
@@ -1030,6 +1056,9 @@
     "accountSecurityTitle": "Entrada e segurança",
     "accountSecurityBody": "Defina uma senha, registre uma passkey ou continue usando links mágicos.",
     "accountSecurityLink": "Gerenciar métodos de entrada",
+    "uploadRemindersTitle": "Lembretes de upload",
+    "uploadRemindersBody": "Configure quando os oficiais são lembrados de enviar pontuações de eventos e gerencie suas assinaturas pessoais.",
+    "uploadRemindersLink": "Gerenciar lembretes de upload",
     "allianceContext": {
       "title": "Escolha uma aliança",
       "body": "As configurações da aliança se aplicam a uma aliança por vez. Escolha qual aliança você está gerenciando.",
@@ -2494,5 +2523,56 @@
     "missingNonce": "Nenhum link de autorização encontrado. Volte ao Discord e execute `/link` ou `/link-to-ashed-seat` para obter um novo link.",
     "expiredHeading": "Link expirado ou já usado",
     "expiredBody": "Volte ao Discord e execute o comando de configuração novamente para obter um link novo."
+  },
+  "inbox": {
+    "title": "Lembretes",
+    "subtitle": "Lembretes de upload e acompanhamentos da sua aliança.",
+    "loadFailed": "Falha ao carregar lembretes.",
+    "dismissFailed": "Não foi possível dispensar o lembrete.",
+    "empty": "Nenhum lembrete no momento.",
+    "dismiss": "Dispensar",
+    "dismissAll": "Dispensar todos",
+    "manageSchedules": "Gerenciar agendas de lembrete de upload",
+    "bellLabel": "Abrir lembretes",
+    "bellLabelWithCount": "{count, plural, one {# lembrete} other {# lembretes}}",
+    "kind": {
+      "eurOccurrence": "Upload de evento",
+      "videoJobsPending": "Vídeos para processar"
+    }
+  },
+  "uploadReminders": {
+    "title": "Lembretes de upload",
+    "subtitle": "Oficiais veem lembretes na caixa quando uploads estão em dia. Quem processa uploads vê uma fila separada quando vídeos estão prontos.",
+    "loadFailed": "Falha ao carregar configurações de lembrete.",
+    "saveFailed": "Não foi possível salvar as alterações.",
+    "openInbox": "Abrir caixa de lembretes",
+    "personalTitle": "Suas assinaturas",
+    "personalBody": "Opte por lembretes pessoais para metas de pontuação que você acompanha.",
+    "subscribe": "Assinar",
+    "subscribed": "Assinado",
+    "allianceTitle": "Agendas da aliança",
+    "allianceBody": "Oficiais com acesso podem definir quando a aliança é lembrada de enviar cada evento.",
+    "noSchedules": "Nenhuma agenda configurada ainda.",
+    "unnamedEvent": "Evento personalizado",
+    "active": "Ativo",
+    "paused": "Pausado",
+    "delete": "Excluir",
+    "confirmDelete": "Confirmar",
+    "cancelDelete": "Cancelar",
+    "deleteConfirm": "Excluir esta agenda?",
+    "addSchedule": "Adicionar agenda",
+    "scheduleKind": "Tipo de agenda",
+    "kindWeekly": "Semanal",
+    "kindInterval": "Intervalo após o último",
+    "scoreTarget": "Meta de pontuação",
+    "customEvent": "Evento personalizado",
+    "customLabel": "Rótulo personalizado",
+    "dayOfWeek": "Dia",
+    "startTime": "Hora de início (servidor)",
+    "intervalDays": "Dias após o último",
+    "reminderDelay": "Atraso do lembrete (minutos)",
+    "saveSchedule": "Salvar agenda",
+    "weeklySummary": "Semanal: {slots} · lembrete +{delay}m",
+    "intervalSummary": "A cada {days} dias às {time} · lembrete +{delay}m"
   }
 }

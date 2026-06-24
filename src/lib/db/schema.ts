@@ -1754,3 +1754,144 @@ export type ExperimentCampaign = typeof experimentCampaigns.$inferSelect;
 export type ExperimentArm = typeof experimentArms.$inferSelect;
 export type ConfigAssignment = typeof configAssignments.$inferSelect;
 
+/** Alliance event upload reminder schedule (EUR). */
+export const eurScheduleRules = pgTable(
+  "eur_schedule_rules",
+  {
+    id: text("id").primaryKey(),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    scoreTarget: text("score_target"),
+    customLabel: text("custom_label"),
+    scheduleKind: text("schedule_kind").notNull(),
+    weeklySlots: jsonb("weekly_slots"),
+    intervalDays: integer("interval_days"),
+    anchorTimeSt: text("anchor_time_st"),
+    reminderDelayMinutes: integer("reminder_delay_minutes").notNull().default(60),
+    active: integer("active").notNull().default(1),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+);
+
+export const eurOccurrences = pgTable(
+  "eur_occurrences",
+  {
+    id: text("id").primaryKey(),
+    scheduleRuleId: text("schedule_rule_id")
+      .notNull()
+      .references(() => eurScheduleRules.id, { onDelete: "cascade" }),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    scoreTarget: text("score_target"),
+    customLabel: text("custom_label"),
+    occurrenceDate: text("occurrence_date").notNull(),
+    scheduledStartAt: timestamp("scheduled_start_at", { withTimezone: true })
+      .notNull(),
+    reminderAt: timestamp("reminder_at", { withTimezone: true }).notNull(),
+    status: text("status").notNull().default("open"),
+    satisfiedAt: timestamp("satisfied_at", { withTimezone: true }),
+    satisfiedByJobId: text("satisfied_by_job_id"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    unique("eur_occurrences_rule_start_unique").on(
+      table.scheduleRuleId,
+      table.scheduledStartAt,
+    ),
+  ],
+);
+
+export const eurUserSubscriptions = pgTable(
+  "eur_user_subscriptions",
+  {
+    id: text("id").primaryKey(),
+    hqUserId: text("hq_user_id")
+      .notNull()
+      .references(() => hqUsers.id, { onDelete: "cascade" }),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    scoreTarget: text("score_target").notNull(),
+    cadence: text("cadence").notNull(),
+    cadenceConfig: jsonb("cadence_config"),
+    reminderDelayMinutes: integer("reminder_delay_minutes").notNull().default(0),
+    nextDueAt: timestamp("next_due_at", { withTimezone: true }),
+    active: integer("active").notNull().default(1),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    unique("eur_user_subscriptions_user_alliance_target").on(
+      table.hqUserId,
+      table.allianceId,
+      table.scoreTarget,
+    ),
+  ],
+);
+
+export const inboxReminderItems = pgTable("inbox_reminder_items", {
+  id: text("id").primaryKey(),
+  allianceId: text("alliance_id")
+    .notNull()
+    .references(() => alliances.id, { onDelete: "cascade" }),
+  kind: text("kind").notNull(),
+  title: text("title").notNull(),
+  body: text("body"),
+  href: text("href"),
+  scoreTarget: text("score_target"),
+  eurOccurrenceId: text("eur_occurrence_id").references(
+    () => eurOccurrences.id,
+    { onDelete: "cascade" },
+  ),
+  eurSubscriptionId: text("eur_subscription_id").references(
+    () => eurUserSubscriptions.id,
+    { onDelete: "cascade" },
+  ),
+  /** When set, item is only visible to sessions with this permission. */
+  requiredPermission: text("required_permission"),
+  active: integer("active").notNull().default(1),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+export const inboxReminderDismissals = pgTable(
+  "inbox_reminder_dismissals",
+  {
+    id: text("id").primaryKey(),
+    hqUserId: text("hq_user_id")
+      .notNull()
+      .references(() => hqUsers.id, { onDelete: "cascade" }),
+    itemId: text("item_id")
+      .notNull()
+      .references(() => inboxReminderItems.id, { onDelete: "cascade" }),
+    dismissedAt: timestamp("dismissed_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    unique("inbox_reminder_dismissals_user_item").on(
+      table.hqUserId,
+      table.itemId,
+    ),
+  ],
+);
+
+export type EurScheduleRule = typeof eurScheduleRules.$inferSelect;
+export type EurOccurrence = typeof eurOccurrences.$inferSelect;
+export type EurUserSubscription = typeof eurUserSubscriptions.$inferSelect;
+export type InboxReminderItem = typeof inboxReminderItems.$inferSelect;
+

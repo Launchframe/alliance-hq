@@ -117,6 +117,7 @@
     "no": "No",
     "nav": {
       "overview": "Overview",
+      "inbox": "Ops inbox",
       "system": "System",
       "alliances": "Alliances",
       "audit": "Audit log",
@@ -133,6 +134,24 @@
       "openSections": "Admin sections",
       "closeSections": "Close admin menu",
       "sectionsTitle": "Sections"
+    },
+    "opsInbox": {
+      "title": "Ops inbox",
+      "subtitle": "Failed video jobs, stuck queue items, and open bug reports.",
+      "loadFailed": "Failed to load ops inbox.",
+      "empty": "Nothing needs attention right now.",
+      "bellLabel": "Open ops inbox",
+      "bellLabelWithCount": "{count, plural, one {# ops item needs attention} other {# ops items need attention}}",
+      "counts": {
+        "failed": "Failed jobs",
+        "stuck": "Stuck queued",
+        "bugs": "Open bug reports"
+      },
+      "kind": {
+        "video_job_failed": "Failed video job",
+        "video_job_stuck_queued": "Stuck queued job",
+        "bug_report_open": "Open bug report"
+      }
     },
     "systemTitle": "System health",
     "systemDesc": "Database status, resource counts, env config, and RBAC role catalog.",
@@ -445,7 +464,14 @@
       "allRatings": "All ratings",
       "passFilter": "Pass",
       "allPasses": "All passes",
-      "analyticsLink": "Analytics"
+      "analyticsLink": "Analytics",
+      "statusFilter": "Status",
+      "statusFailed": "Failed",
+      "statusQueued": "Queued",
+      "statusProcessing": "Processing",
+      "statusReview": "Review",
+      "statusComplete": "Complete",
+      "allStatuses": "All statuses"
     },
     "videoJobDetailPage": {
       "loading": "Loading job details…",
@@ -1030,6 +1056,9 @@
     "accountSecurityTitle": "Sign-in & security",
     "accountSecurityBody": "Set a password, register a passkey, or keep using magic links.",
     "accountSecurityLink": "Manage sign-in methods",
+    "uploadRemindersTitle": "Upload reminders",
+    "uploadRemindersBody": "Configure when officers are reminded to upload event scores, and manage your personal reminder subscriptions.",
+    "uploadRemindersLink": "Manage upload reminders",
     "allianceContext": {
       "title": "Choose an alliance",
       "body": "Alliance settings apply to one alliance at a time. Pick which alliance you are managing.",
@@ -2494,5 +2523,56 @@
     "missingNonce": "No authorization link found. Return to Discord and run `/link` or `/link-to-ashed-seat` to get a new link.",
     "expiredHeading": "Link expired or already used",
     "expiredBody": "Return to Discord and run the setup command again to get a fresh link."
+  },
+  "inbox": {
+    "title": "Reminders",
+    "subtitle": "Upload reminders and follow-ups for your alliance.",
+    "loadFailed": "Failed to load reminders.",
+    "dismissFailed": "Could not dismiss reminder.",
+    "empty": "No reminders right now.",
+    "dismiss": "Dismiss",
+    "dismissAll": "Dismiss all",
+    "manageSchedules": "Manage upload reminder schedules",
+    "bellLabel": "Open reminders",
+    "bellLabelWithCount": "{count, plural, one {# reminder} other {# reminders}}",
+    "kind": {
+      "eurOccurrence": "Event upload",
+      "videoJobsPending": "Videos to process"
+    }
+  },
+  "uploadReminders": {
+    "title": "Upload reminders",
+    "subtitle": "Alliance officers see reminders in the inbox when uploads are due. Upload processors see a separate queue when videos are ready to submit.",
+    "loadFailed": "Failed to load reminder settings.",
+    "saveFailed": "Could not save changes.",
+    "openInbox": "Open reminder inbox",
+    "personalTitle": "Your subscriptions",
+    "personalBody": "Opt in to personal reminders for score targets you care about.",
+    "subscribe": "Subscribe",
+    "subscribed": "Subscribed",
+    "allianceTitle": "Alliance schedules",
+    "allianceBody": "Officers with schedule access can define when the alliance is reminded to upload each event.",
+    "noSchedules": "No schedules configured yet.",
+    "unnamedEvent": "Custom event",
+    "active": "Active",
+    "paused": "Paused",
+    "delete": "Delete",
+    "confirmDelete": "Confirm",
+    "cancelDelete": "Cancel",
+    "deleteConfirm": "Delete this schedule?",
+    "addSchedule": "Add schedule",
+    "scheduleKind": "Schedule type",
+    "kindWeekly": "Weekly",
+    "kindInterval": "Interval after last",
+    "scoreTarget": "Score target",
+    "customEvent": "Custom event",
+    "customLabel": "Custom label",
+    "dayOfWeek": "Day",
+    "startTime": "Start time (server)",
+    "intervalDays": "Days after last",
+    "reminderDelay": "Reminder delay (minutes)",
+    "saveSchedule": "Save schedule",
+    "weeklySummary": "Weekly: {slots} · reminder +{delay}m",
+    "intervalSummary": "Every {days} days at {time} · reminder +{delay}m"
   }
 }
