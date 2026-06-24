@@ -26,6 +26,8 @@ import {
 } from "@/lib/member-link/roster-link-owner-email.server";
 import { createMemberLinkTranslator } from "@/lib/member-link/translate.server";
 import { nativeRosterAshedAllianceId } from "@/lib/native-alliance/provision";
+import { systemRoleNameForId } from "@/lib/rbac/system-roles";
+import { namesMatch } from "@/lib/vr/link-helpers";
 
 const INVITE_MEMBER_LINK_KINDS = ["email", "protected_link"] as const;
 const ACTION_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -207,6 +209,142 @@ export async function createRosterLinkRequest(input: {
   return { requestId, ...tokens };
 }
 
+type MemberLinkServerGate =
+  | { ok: true; playerServer: number }
+  | { ok: false; response: MemberLinkApiResponse };
+
+async function resolveMemberLinkServerGate(input: {
+  allianceId: string;
+  lookup: Extract<LastWarPlayerLookupResult, { ok: true }>;
+  translate: ReturnType<typeof createMemberLinkTranslator>;
+}): Promise<MemberLinkServerGate> {
+  const playerServer = input.lookup.gameServerNumber;
+  if (playerServer == null) {
+    return {
+      ok: false,
+      response: {
+        outcome: "wrong_server",
+        message: input.translate("wrongServer"),
+        pending: null,
+      },
+    };
+  }
+
+  const allianceServer = await resolveAllianceGameServerNumber(input.allianceId);
+  if (allianceServer == null || playerServer !== allianceServer) {
+    return {
+      ok: false,
+      response: {
+        outcome: "wrong_server",
+        message: input.translate("wrongServer"),
+        pending: null,
+      },
+    };
+  }
+
+  return { ok: true, playerServer };
+}
+
+export async function tryBootstrapOwnerColdStartMember(input: {
+  allianceId: string;
+  hqUserId: string;
+  locale: string;
+  reportedName: string;
+  gameUid: string;
+  lookup: Extract<LastWarPlayerLookupResult, { ok: true }>;
+  rosterCount: number;
+  sessionId?: string;
+  auditBag?: { ashedMemberId?: string };
+}): Promise<MemberLinkApiResponse | null> {
+  if (input.rosterCount > 0) {
+    return null;
+  }
+
+  const translate = createMemberLinkTranslator(input.locale);
+  const serverGate = await resolveMemberLinkServerGate({
+    allianceId: input.allianceId,
+    lookup: input.lookup,
+    translate,
+  });
+  if (!serverGate.ok) {
+    return serverGate.response;
+  }
+
+  const invite = await findAcceptedInviteForMemberLink(
+    input.allianceId,
+    input.hqUserId,
+  );
+  if (!invite || systemRoleNameForId(invite.roleId) !== "owner") {
+    return null;
+  }
+
+  if (!namesMatch(input.reportedName, input.lookup.gameUserName)) {
+    return null;
+  }
+
+  const ashedMemberId = await createNativeAllianceMemberForRosterLink({
+    allianceId: input.allianceId,
+    gameUserName: input.lookup.gameUserName,
+    gameUserLevel: input.lookup.gameUserLevel,
+  });
+
+  const linked = await linkHqMember({
+    allianceId: input.allianceId,
+    hqUserId: input.hqUserId,
+    ashedMemberId,
+    memberDisplayName: input.lookup.gameUserName,
+    gameUid: input.gameUid,
+  });
+
+  if (!linked.ok) {
+    return {
+      outcome: "member_taken",
+      message: translate("link.memberTaken"),
+      pending: null,
+    };
+  }
+
+  await saveHqMemberLinkPending(input.allianceId, input.hqUserId, null);
+  await syncPrimaryGameUidFromHqMemberLink(input.hqUserId, input.gameUid);
+
+  if (input.lookup.gameUserLevel != null) {
+    try {
+      await syncAllianceMemberGameLevelFromLastWar({
+        allianceId: input.allianceId,
+        ashedMemberId,
+        gameUserLevel: input.lookup.gameUserLevel,
+      });
+    } catch (error) {
+      console.error("[member-link] owner cold-start level sync failed", error);
+    }
+  }
+
+  if (input.auditBag) {
+    input.auditBag.ashedMemberId = ashedMemberId;
+  }
+
+  if (input.sessionId) {
+    await writeAuditLog({
+      sessionId: input.sessionId,
+      hqUserId: input.hqUserId,
+      allianceId: input.allianceId,
+      action: "member_link.owner_cold_start_bootstrap",
+      metadata: {
+        ashedMemberId,
+        gameUid: input.gameUid,
+        inviteId: invite.id,
+      },
+    });
+  }
+
+  return {
+    outcome: "linked",
+    message: translate("link.linked", { name: input.lookup.gameUserName }),
+    pending: null,
+    linkedMemberName: input.lookup.gameUserName,
+  };
+}
+
 export async function tryRouteRosterMissToOwnerApproval(input: {
   allianceId: string;
   allianceTag: string;
@@ -217,23 +355,13 @@ export async function tryRouteRosterMissToOwnerApproval(input: {
   lookup: Extract<LastWarPlayerLookupResult, { ok: true }>;
 }): Promise<MemberLinkApiResponse | null> {
   const translate = createMemberLinkTranslator(input.locale);
-  const playerServer = input.lookup.gameServerNumber;
-
-  if (playerServer == null) {
-    return {
-      outcome: "wrong_server",
-      message: translate("wrongServer"),
-      pending: null,
-    };
-  }
-
-  const allianceServer = await resolveAllianceGameServerNumber(input.allianceId);
-  if (allianceServer == null || playerServer !== allianceServer) {
-    return {
-      outcome: "wrong_server",
-      message: translate("wrongServer"),
-      pending: null,
-    };
+  const serverGate = await resolveMemberLinkServerGate({
+    allianceId: input.allianceId,
+    lookup: input.lookup,
+    translate,
+  });
+  if (!serverGate.ok) {
+    return serverGate.response;
   }
 
   const invite = await findAcceptedInviteForMemberLink(
@@ -252,7 +380,7 @@ export async function tryRouteRosterMissToOwnerApproval(input: {
     reportedName: input.reportedName,
     gameUid: input.gameUid,
     gameUserName: input.lookup.gameUserName,
-    gameServerNumber: playerServer,
+    gameServerNumber: serverGate.playerServer,
     gameUserLevel: input.lookup.gameUserLevel,
   });
 
