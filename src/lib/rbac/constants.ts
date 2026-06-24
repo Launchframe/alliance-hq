@@ -18,6 +18,8 @@ export const HQ_PERMISSIONS = [
   { id: "hq:events:write", description: "Manage HQ native events" },
   { id: "trains:write", description: "Manage train conductor schedule, rolls, and locks" },
   { id: "ashed:connect", description: "Connect an Ashed account to HQ" },
+  { id: "inbox:read", description: "View alliance reminder inbox" },
+  { id: "eur:schedules:write", description: "Manage event upload reminder schedules" },
 ] as const;
 
 export const TRAINS_WRITE_PERMISSION = "trains:write";

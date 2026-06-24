@@ -487,6 +487,11 @@ export async function processVideoJob(
       { rowCount, matchedCount },
     );
 
+    if (allianceId) {
+      const { notifyEurVideoEvidence } = await import("@/lib/eur/satisfaction");
+      void notifyEurVideoEvidence(allianceId).catch(() => {});
+    }
+
     void dispatchVideoArchive(jobId);
 
     timer.log(`job ${jobId} complete`, {

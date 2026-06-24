@@ -1,0 +1,59 @@
+"use client";
+
+import { Bell } from "lucide-react";
+import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
+
+import { Link } from "@/i18n/navigation";
+
+const POLL_MS = 60_000;
+
+export function ReminderInboxBell() {
+  const t = useTranslations("inbox");
+  const [count, setCount] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function load() {
+      try {
+        const res = await fetch("/api/inbox/reminders/summary");
+        if (!res.ok) return;
+        const data = (await res.json()) as { count: number };
+        if (!cancelled) setCount(data.count ?? 0);
+      } catch {
+        /* ignore poll errors */
+      }
+    }
+
+    void load();
+    const id = window.setInterval(() => void load(), POLL_MS);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, []);
+
+  const badgeLabel =
+    count > 99 ? "99+" : count > 0 ? String(count) : undefined;
+
+  return (
+    <Link
+      href="/inbox"
+      className="relative inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[#30363d] text-[#e6edf3] transition-colors hover:bg-[#21262d]"
+      aria-label={
+        count > 0 ? t("bellLabelWithCount", { count }) : t("bellLabel")
+      }
+    >
+      <Bell className="h-5 w-5" aria-hidden />
+      {badgeLabel ? (
+        <span
+          className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-[#f85149] px-1 text-[10px] font-semibold text-white"
+          aria-hidden
+        >
+          {badgeLabel}
+        </span>
+      ) : null}
+    </Link>
+  );
+}
