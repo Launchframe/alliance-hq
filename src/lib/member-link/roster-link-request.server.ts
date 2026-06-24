@@ -2,7 +2,7 @@ import "server-only";
 
 import { createHash, randomBytes } from "node:crypto";
 
-import { and, desc, eq, inArray, isNull } from "drizzle-orm";
+import { and, desc, eq, gt, inArray, isNull } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { writeAuditLog } from "@/lib/bff/audit";
@@ -83,6 +83,19 @@ async function supersedePendingRequests(
 ): Promise<void> {
   const db = getDb();
   const now = new Date();
+  const pending = await db
+    .select({ id: schema.hqRosterLinkRequests.id })
+    .from(schema.hqRosterLinkRequests)
+    .where(
+      and(
+        eq(schema.hqRosterLinkRequests.allianceId, allianceId),
+        eq(schema.hqRosterLinkRequests.hqUserId, hqUserId),
+        eq(schema.hqRosterLinkRequests.status, "pending"),
+      ),
+    );
+
+  if (pending.length === 0) return;
+
   await db
     .update(schema.hqRosterLinkRequests)
     .set({ status: "superseded", updatedAt: now })
@@ -93,6 +106,10 @@ async function supersedePendingRequests(
         eq(schema.hqRosterLinkRequests.status, "pending"),
       ),
     );
+
+  for (const row of pending) {
+    await satisfyRosterLinkInboxItem(row.id);
+  }
 }
 
 async function insertActionTokens(
@@ -478,22 +495,58 @@ export type RosterLinkActionResult = {
   alreadyResolved?: boolean;
 };
 
-export async function processRosterLinkActionToken(
-  rawToken: string,
+async function claimRosterLinkActionToken(
+  tokenHash: string,
+  now = new Date(),
+) {
+  const db = getDb();
+  const [claimed] = await db
+    .update(schema.hqRosterLinkActionTokens)
+    .set({ usedAt: now })
+    .where(
+      and(
+        eq(schema.hqRosterLinkActionTokens.tokenHash, tokenHash),
+        isNull(schema.hqRosterLinkActionTokens.usedAt),
+        gt(schema.hqRosterLinkActionTokens.expiresAt, now),
+      ),
+    )
+    .returning();
+  return claimed ?? null;
+}
+
+async function describeUsedRosterLinkActionToken(
+  tokenRow: typeof schema.hqRosterLinkActionTokens.$inferSelect,
 ): Promise<RosterLinkActionResult> {
-  const token = rawToken.trim();
-  if (!token) {
+  const request = await getRosterLinkRequestById(tokenRow.requestId);
+  if (request?.status === "accepted" && tokenRow.action === "accept") {
     return {
-      ok: false,
-      title: "Invalid link",
-      body: "This approval link is missing or invalid.",
+      ok: true,
+      action: "accept",
+      title: "Already approved",
+      body: `${request.gameUserName} was already approved to join the roster.`,
+      alreadyResolved: true,
     };
   }
+  if (request?.status === "rejected" && tokenRow.action === "reject") {
+    return {
+      ok: true,
+      action: "reject",
+      title: "Already declined",
+      body: "This roster link request was already declined.",
+      alreadyResolved: true,
+    };
+  }
+  return {
+    ok: false,
+    title: "Link already used",
+    body: "This approval link has already been used.",
+  };
+}
 
+async function rosterLinkActionTokenFailure(
+  tokenHash: string,
+): Promise<RosterLinkActionResult> {
   const db = getDb();
-  const tokenHash = hashActionToken(token);
-  const now = new Date();
-
   const [tokenRow] = await db
     .select()
     .from(schema.hqRosterLinkActionTokens)
@@ -509,33 +562,10 @@ export async function processRosterLinkActionToken(
   }
 
   if (tokenRow.usedAt) {
-    const request = await getRosterLinkRequestById(tokenRow.requestId);
-    if (request?.status === "accepted" && tokenRow.action === "accept") {
-      return {
-        ok: true,
-        action: "accept",
-        title: "Already approved",
-        body: `${request.gameUserName} was already approved to join the roster.`,
-        alreadyResolved: true,
-      };
-    }
-    if (request?.status === "rejected" && tokenRow.action === "reject") {
-      return {
-        ok: true,
-        action: "reject",
-        title: "Already declined",
-        body: "This roster link request was already declined.",
-        alreadyResolved: true,
-      };
-    }
-    return {
-      ok: false,
-      title: "Link already used",
-      body: "This approval link has already been used.",
-    };
+    return describeUsedRosterLinkActionToken(tokenRow);
   }
 
-  if (tokenRow.expiresAt < now) {
+  if (tokenRow.expiresAt < new Date()) {
     return {
       ok: false,
       title: "Link expired",
@@ -543,8 +573,34 @@ export async function processRosterLinkActionToken(
     };
   }
 
-  if (tokenRow.action === "accept") {
-    const result = await acceptRosterLinkRequest({ requestId: tokenRow.requestId });
+  return {
+    ok: false,
+    title: "Link already used",
+    body: "This approval link has already been used.",
+  };
+}
+
+export async function processRosterLinkActionToken(
+  rawToken: string,
+): Promise<RosterLinkActionResult> {
+  const token = rawToken.trim();
+  if (!token) {
+    return {
+      ok: false,
+      title: "Invalid link",
+      body: "This approval link is missing or invalid.",
+    };
+  }
+
+  const tokenHash = hashActionToken(token);
+  const now = new Date();
+  const claimed = await claimRosterLinkActionToken(tokenHash, now);
+  if (!claimed) {
+    return rosterLinkActionTokenFailure(tokenHash);
+  }
+
+  if (claimed.action === "accept") {
+    const result = await acceptRosterLinkRequest({ requestId: claimed.requestId });
     if (!result.ok) {
       return {
         ok: false,
@@ -560,7 +616,7 @@ export async function processRosterLinkActionToken(
     };
   }
 
-  const result = await rejectRosterLinkRequest({ requestId: tokenRow.requestId });
+  const result = await rejectRosterLinkRequest({ requestId: claimed.requestId });
   if (!result.ok) {
     return {
       ok: false,

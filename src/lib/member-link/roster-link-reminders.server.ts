@@ -1,10 +1,17 @@
 import "server-only";
 
+import { createHash, randomBytes } from "node:crypto";
+
 import { and, eq, isNull, lt } from "drizzle-orm";
+import { nanoid } from "nanoid";
 
 import { getDb, schema } from "@/lib/db";
-import { claimOpsAlertFingerprint } from "@/lib/ops/platform-maintainer-alert.server";
+import {
+  claimOpsAlertFingerprint,
+  releaseOpsAlertFingerprint,
+} from "@/lib/ops/platform-maintainer-alert.server";
 
+import { satisfyRosterLinkInboxItem } from "./roster-link-inbox.server";
 import {
   resolveAllianceOwnerEmail,
   sendRosterLinkOwnerApprovalEmail,
@@ -38,9 +45,6 @@ async function loadPendingRequestTokens(requestId: string): Promise<{
 
   // Tokens are stored hashed — reminders cannot resend original links without
   // persisting raw tokens. Re-issue fresh action tokens for reminder emails.
-  const { createHash, randomBytes } = await import("node:crypto");
-  const { nanoid } = await import("nanoid");
-
   const hash = (token: string) =>
     createHash("sha256").update(token).digest("hex");
   const makeToken = () => randomBytes(32).toString("base64url");
@@ -96,15 +100,15 @@ export async function runRosterLinkReminderPass(
     );
     if (!window) continue;
 
-    const fingerprint = `roster-link-reminder:${request.id}:${window}`;
-    const claimed = await claimOpsAlertFingerprint(fingerprint);
-    if (!claimed) continue;
-
     const ownerEmail = await resolveAllianceOwnerEmail(request.allianceId);
     if (!ownerEmail) continue;
 
     const tokens = await loadPendingRequestTokens(request.id);
     if (!tokens) continue;
+
+    const fingerprint = `roster-link-reminder:${request.id}:${window}`;
+    const claimed = await claimOpsAlertFingerprint(fingerprint);
+    if (!claimed) continue;
 
     const [alliance] = await db
       .select({ tag: schema.alliances.tag })
@@ -126,12 +130,13 @@ export async function runRosterLinkReminderPass(
       sent += 1;
     } catch (error) {
       console.error("[roster-link] reminder email failed", error);
+      await releaseOpsAlertFingerprint(fingerprint);
     }
   }
 
   // Expire stale pending requests after token TTL (7 days)
   const staleBefore = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-  await db
+  const superseded = await db
     .update(schema.hqRosterLinkRequests)
     .set({ status: "superseded", updatedAt: now })
     .where(
@@ -139,7 +144,12 @@ export async function runRosterLinkReminderPass(
         eq(schema.hqRosterLinkRequests.status, "pending"),
         lt(schema.hqRosterLinkRequests.createdAt, staleBefore),
       ),
-    );
+    )
+    .returning({ id: schema.hqRosterLinkRequests.id });
+
+  for (const row of superseded) {
+    await satisfyRosterLinkInboxItem(row.id);
+  }
 
   return sent;
 }

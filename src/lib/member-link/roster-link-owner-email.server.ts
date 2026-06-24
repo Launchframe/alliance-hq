@@ -1,5 +1,9 @@
 import "server-only";
 
+import { eq } from "drizzle-orm";
+
+import { resolveAppOrigin } from "@/lib/app-origin";
+import { getDb, schema } from "@/lib/db";
 import {
   PRODUCTION_EMAIL_FROM,
   RESEND_DEV_EMAIL_FROM,
@@ -12,11 +16,6 @@ function resolveEmailFromAddress(): string {
       ? PRODUCTION_EMAIL_FROM
       : RESEND_DEV_EMAIL_FROM)
   );
-}
-
-function resolveAppOrigin(): string {
-  const base = process.env.NEXTAUTH_URL?.trim() || "http://localhost:3000";
-  return base.replace(/\/$/, "");
 }
 
 function escapeHtml(value: string): string {
@@ -107,6 +106,10 @@ async function sendResendEmail(input: {
   text: string;
   html: string;
 }): Promise<void> {
+  if (process.env.E2E_TEST === "true") {
+    return;
+  }
+
   const apiKey = process.env.RESEND_API_KEY?.trim();
   if (!apiKey) {
     console.warn(
@@ -143,8 +146,6 @@ async function sendResendEmail(input: {
 export async function resolveAllianceOwnerEmail(
   allianceId: string,
 ): Promise<string | null> {
-  const { getDb, schema } = await import("@/lib/db");
-  const { eq } = await import("drizzle-orm");
   const db = getDb();
   const [row] = await db
     .select({
