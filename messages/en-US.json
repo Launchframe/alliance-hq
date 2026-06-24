@@ -371,17 +371,26 @@
       },
       "table": {
         "alliance": "Alliance",
+        "server": "State server",
         "owner": "Owner email",
         "collaborators": "Collaborators",
         "members": "HQ members",
         "synced": "Roles synced",
         "nativeBadge": "Native"
+      },
+      "serverColumn": {
+        "placeholder": "e.g. 1203",
+        "inputLabel": "State server number for {name}",
+        "save": "Save",
+        "saving": "Saving…",
+        "invalid": "Enter a valid server number.",
+        "saveFailed": "Could not update server number."
       }
     },
     "nativeAlliance": {
       "title": "Native alliance (tester path)",
       "subtitle": "Provision an alliance without Ashed seats. Officers import roster screenshots after accepting an invite.",
-      "inviteServerRequiredNote": "Set the alliance state server under Alliance settings → Game season before generating HQ invites. Native alliances without a linked game_servers row are blocked (422 alliance_server_required).",
+      "inviteServerRequiredNote": "Send an owner invite first — the state server is set automatically when the owner links their in-game character (name + UID). Officer and member invites require that step to finish first.",
       "name": "Alliance name",
       "tag": "In-game tag",
       "ownerEmailOptional": "Owner email (optional — creates membership immediately)",

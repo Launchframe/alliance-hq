@@ -15,6 +15,11 @@ vi.mock("@/lib/lastwar/sync-member-game-level.server", () => ({
 
 vi.mock("@/lib/game-season/game-servers.server", () => ({
   resolveAllianceGameServerNumber: vi.fn(),
+  linkAllianceToGameServer: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock("@/lib/game-season/sync", () => ({
+  applySeasonSync: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("@/lib/native-alliance/operating-mode", () => ({
@@ -39,6 +44,7 @@ vi.mock("@/lib/member-link/roster-link-owner-email.server", () => ({
 }));
 
 const gameServers = await import("@/lib/game-season/game-servers.server");
+const seasonSync = await import("@/lib/game-season/sync");
 const operatingMode = await import("@/lib/native-alliance/operating-mode");
 const repository = await import("@/lib/member-link/repository.server");
 const dbModule = vi.hoisted(() => {
@@ -138,6 +144,26 @@ describe("tryBootstrapOwnerColdStartMember", () => {
     expect(result?.linkedMemberName).toBe("Commander");
     expect(auditBag.ashedMemberId).toBeTruthy();
     expect(repository.linkHqMember).toHaveBeenCalled();
+    expect(gameServers.linkAllianceToGameServer).not.toHaveBeenCalled();
+  });
+
+  it("adopts alliance server from owner lookup when alliance has no server yet", async () => {
+    dbModule.chain.limit.mockResolvedValueOnce([{ ownerHqUserId: "u1" }]);
+    vi.mocked(gameServers.resolveAllianceGameServerNumber).mockResolvedValue(null);
+
+    const result = await tryBootstrapOwnerColdStartMember({
+      allianceId: "a1",
+      hqUserId: "u1",
+      locale: "en-US",
+      reportedName: "Commander",
+      gameUid: "1234567890121203",
+      lookup: { ok: true, gameUserName: "Commander", gameServerNumber: 1203 },
+      rosterCount: 0,
+    });
+
+    expect(result?.outcome).toBe("linked");
+    expect(gameServers.linkAllianceToGameServer).toHaveBeenCalledWith("a1", 1203);
+    expect(seasonSync.applySeasonSync).toHaveBeenCalledWith("a1");
   });
 
   it("auto-links email-invite owner when ownerHqUserId is not set yet", async () => {
@@ -213,6 +239,7 @@ describe("tryBootstrapOwnerColdStartMember", () => {
   });
 
   it("returns wrong_server when alliance server mismatches", async () => {
+    dbModule.chain.limit.mockResolvedValueOnce([{ ownerHqUserId: "u1" }]);
     vi.mocked(gameServers.resolveAllianceGameServerNumber).mockResolvedValue(9999);
 
     const result = await tryBootstrapOwnerColdStartMember({

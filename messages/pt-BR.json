@@ -371,17 +371,26 @@
       },
       "table": {
         "alliance": "Aliança",
+        "server": "Servidor estadual",
         "owner": "E-mail do proprietário",
         "collaborators": "Colaboradores",
         "members": "Membros HQ",
         "synced": "Funções sincronizadas",
         "nativeBadge": "Nativa"
+      },
+      "serverColumn": {
+        "placeholder": "ex. 1203",
+        "inputLabel": "Número do servidor estadual de {name}",
+        "save": "Salvar",
+        "saving": "Salvando…",
+        "invalid": "Informe um número de servidor válido.",
+        "saveFailed": "Não foi possível atualizar o número do servidor."
       }
     },
     "nativeAlliance": {
       "title": "Aliança nativa (teste)",
       "subtitle": "Provisione uma aliança sem assentos Ashed. Oficiais importam capturas de tela após aceitar o convite.",
-      "inviteServerRequiredNote": "Defina o servidor estadual da aliança em Configurações da aliança → Temporada do jogo antes de gerar convites HQ. Alianças nativas sem linha vinculada em game_servers são bloqueadas (422 alliance_server_required).",
+      "inviteServerRequiredNote": "Envie primeiro um convite de proprietário — o servidor estadual é definido automaticamente quando o proprietário vincula o personagem no jogo (nome + UID). Convites de oficial e membro exigem que essa etapa seja concluída antes.",
       "name": "Nome da aliança",
       "tag": "Tag no jogo",
       "ownerEmailOptional": "E-mail do proprietário (opcional — cria associação imediatamente)",

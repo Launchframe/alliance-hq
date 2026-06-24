@@ -7,7 +7,8 @@ import { nanoid } from "nanoid";
 
 import { writeAuditLog } from "@/lib/bff/audit";
 import { getDb, schema } from "@/lib/db";
-import { resolveAllianceGameServerNumber } from "@/lib/game-season/game-servers.server";
+import { resolveAllianceGameServerNumber, linkAllianceToGameServer } from "@/lib/game-season/game-servers.server";
+import { applySeasonSync } from "@/lib/game-season/sync";
 import type { LastWarPlayerLookupResult } from "@/lib/lastwar/player-lookup";
 import { syncAllianceMemberGameLevelFromLastWar } from "@/lib/lastwar/sync-member-game-level.server";
 import type { MemberLinkApiResponse } from "@/lib/member-link/outcome.shared";
@@ -292,14 +293,6 @@ export async function tryBootstrapOwnerColdStartMember(input: {
   }
 
   const translate = createMemberLinkTranslator(input.locale);
-  const serverGate = await resolveMemberLinkServerGate({
-    allianceId: input.allianceId,
-    lookup: input.lookup,
-    translate,
-  });
-  if (!serverGate.ok) {
-    return serverGate.response;
-  }
 
   const ownerGate = await resolveColdStartOwnerGate({
     allianceId: input.allianceId,
@@ -311,6 +304,27 @@ export async function tryBootstrapOwnerColdStartMember(input: {
 
   if (!namesMatch(input.reportedName, input.lookup.gameUserName)) {
     return null;
+  }
+
+  const playerServer = input.lookup.gameServerNumber;
+  if (playerServer == null) {
+    return {
+      outcome: "wrong_server",
+      message: translate("wrongServer"),
+      pending: null,
+    };
+  }
+
+  const allianceServer = await resolveAllianceGameServerNumber(input.allianceId);
+  if (allianceServer == null) {
+    await linkAllianceToGameServer(input.allianceId, playerServer);
+    await applySeasonSync(input.allianceId);
+  } else if (playerServer !== allianceServer) {
+    return {
+      outcome: "wrong_server",
+      message: translate("wrongServer"),
+      pending: null,
+    };
   }
 
   const ashedMemberId = await createNativeAllianceMemberForRosterLink({
@@ -364,6 +378,8 @@ export async function tryBootstrapOwnerColdStartMember(input: {
         ashedMemberId,
         gameUid: input.gameUid,
         inviteId: ownerGate.inviteId ?? null,
+        gameServerNumber: playerServer,
+        adoptedAllianceServer: allianceServer == null,
       },
     });
   }
