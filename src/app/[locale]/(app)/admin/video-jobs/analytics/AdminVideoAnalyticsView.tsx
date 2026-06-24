@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 
 import { Link } from "@/i18n/navigation";
 import type { AnalyticsResponse, PassKeyRow, BucketRow } from "@/app/api/admin/video-jobs/analytics/route";
+import type { RosterOcrEvalResponse } from "@/app/api/admin/video-jobs/roster-ocr-eval/route";
 
 const QUALITY_BUCKET_COLORS: Record<string, string> = {
   perfect: "text-[#3fb950]",
@@ -124,6 +125,7 @@ function PassKeyTable({
 export function AdminVideoAnalyticsView() {
   const t = useTranslations("admin.analyticsPage");
   const [data, setData] = useState<AnalyticsResponse | null>(null);
+  const [rosterEval, setRosterEval] = useState<RosterOcrEvalResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -141,7 +143,18 @@ export function AdminVideoAnalyticsView() {
       if (days && days !== "0") params.set("days", days);
       const res = await fetch(`/api/admin/video-jobs/analytics?${params}`);
       if (!res.ok) throw new Error(await res.text());
-      setData((await res.json()) as AnalyticsResponse);
+      const rosterParams = new URLSearchParams();
+      if (days && days !== "0") rosterParams.set("days", days);
+      const [analyticsJson, rosterEvalRes] = await Promise.all([
+        res.json() as Promise<AnalyticsResponse>,
+        fetch(`/api/admin/video-jobs/roster-ocr-eval?${rosterParams}`),
+      ]);
+      setData(analyticsJson);
+      if (rosterEvalRes.ok) {
+        setRosterEval((await rosterEvalRes.json()) as RosterOcrEvalResponse);
+      } else {
+        setRosterEval(null);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : t("loadFailed"));
     } finally {
@@ -302,6 +315,81 @@ export function AdminVideoAnalyticsView() {
               sub={`${recommendationAccuracy?.overridden ?? 0} ${t("kpi.overrides")}`}
             />
           </div>
+
+          {(!scoreTarget || scoreTarget === "member-roster-video") && rosterEval ? (
+            <section className="space-y-4 rounded-lg border border-[#30363d] bg-[#161b22] p-4">
+              <div>
+                <h2 className="text-sm font-semibold text-[#e6edf3]">
+                  {t("rosterOcrEval.title")}
+                </h2>
+                <p className="mt-1 text-xs text-[#8b949e]">{t("rosterOcrEval.subtitle")}</p>
+              </div>
+              {rosterEval.jobCount === 0 ? (
+                <p className="text-xs text-[#8b949e]">{t("rosterOcrEval.empty")}</p>
+              ) : (
+                <>
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
+                    <KpiCard
+                      label={t("rosterOcrEval.jobCount")}
+                      value={String(rosterEval.jobCount)}
+                    />
+                    <KpiCard
+                      label={t("rosterOcrEval.nameRecall")}
+                      value={pct(rosterEval.avgNameRecall, 1)}
+                    />
+                    <KpiCard
+                      label={t("rosterOcrEval.namePrecision")}
+                      value={pct(rosterEval.avgNamePrecision, 1)}
+                    />
+                    <KpiCard
+                      label={t("rosterOcrEval.rankAgreement")}
+                      value={pct(rosterEval.avgRankAgreement, 1)}
+                    />
+                    <KpiCard
+                      label={t("rosterOcrEval.powerAgreement")}
+                      value={pct(rosterEval.avgPowerAgreement, 1)}
+                    />
+                    <KpiCard
+                      label={t("rosterOcrEval.levelAgreement")}
+                      value={pct(rosterEval.avgLevelAgreement, 1)}
+                    />
+                  </div>
+                  {rosterEval.byPassKey.length > 0 ? (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="border-b border-[#30363d] text-[#8b949e] uppercase tracking-wide">
+                            <th className="pb-2 text-left">{t("rosterOcrEval.colPass")}</th>
+                            <th className="pb-2 text-right">{t("rosterOcrEval.colJobs")}</th>
+                            <th className="pb-2 text-right">{t("rosterOcrEval.nameRecall")}</th>
+                            <th className="pb-2 text-right">{t("rosterOcrEval.namePrecision")}</th>
+                            <th className="pb-2 text-right">{t("rosterOcrEval.rankAgreement")}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {rosterEval.byPassKey.map((row) => (
+                            <tr key={row.tessPassKey} className="border-b border-[#21262d]">
+                              <td className="py-2 font-mono text-[#79c0ff]">{row.tessPassKey}</td>
+                              <td className="py-2 text-right text-[#e6edf3]">{row.jobCount}</td>
+                              <td className="py-2 text-right text-[#8b949e]">
+                                {pct(row.avgNameRecall, 1)}
+                              </td>
+                              <td className="py-2 text-right text-[#8b949e]">
+                                {pct(row.avgNamePrecision, 1)}
+                              </td>
+                              <td className="py-2 text-right text-[#8b949e]">
+                                {pct(row.avgRankAgreement, 1)}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : null}
+                </>
+              )}
+            </section>
+          ) : null}
 
           {/* Per-scoreTarget sections */}
           {targetList.map((st) => {

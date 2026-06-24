@@ -1,3 +1,4 @@
+import type { AshedMemberRecord } from "@/lib/members/ashed-member-record";
 import type { ParsedConnection } from "@/lib/connectionString";
 import { DEFAULT_APP_ID } from "@/lib/connectionString";
 
@@ -70,45 +71,15 @@ export async function base44ExtractData(
   });
 }
 
-export async function base44ListMembers(
+export async function base44ListMemberRecords(
   connection: ParsedConnection,
   allianceId: string,
-): Promise<
-  Array<{
-    id: string;
-    current_name: string;
-    previous_names?: string[];
-    alliance_id?: string;
-    status?: string;
-    total_hero_power?: number;
-    totalHeroPower?: number;
-    hero_power?: number;
-    alliance_rank?: number;
-    allianceRank?: number;
-    rank?: number | string;
-    member_rank?: number;
-  }>
-> {
+): Promise<AshedMemberRecord[]> {
   if (!allianceId) {
     throw new Error("allianceId is required to list members.");
   }
   const path = `/entities/Member?q=${encodeURIComponent(JSON.stringify({ alliance_id: allianceId }))}&sort=current_name`;
-  const rows = await base44Json<
-    Array<{
-      id: string;
-      current_name: string;
-      previous_names?: string[];
-      alliance_id?: string;
-      status?: string;
-      total_hero_power?: number;
-      totalHeroPower?: number;
-      hero_power?: number;
-      alliance_rank?: number;
-      allianceRank?: number;
-      rank?: number;
-      member_rank?: number;
-    }>
-  >(connection, path, {
+  const rows = await base44Json<AshedMemberRecord[]>(connection, path, {
     method: "GET",
   });
 
@@ -118,6 +89,26 @@ export async function base44ListMembers(
   }
 
   return rows;
+}
+
+export async function base44ListMembers(
+  connection: ParsedConnection,
+  allianceId: string,
+): Promise<import("@/lib/video/member-matcher").AshedMember[]> {
+  const rows = await base44ListMemberRecords(connection, allianceId);
+  return rows.flatMap((member) => {
+    if (!member.id) return [];
+    return [
+      {
+        id: member.id,
+        current_name: member.current_name,
+        previous_names: member.previous_names,
+        alliance_id: member.alliance_id,
+        status: member.status,
+        rank: member.rank ?? undefined,
+      },
+    ];
+  });
 }
 
 export type AshedAlliance = {

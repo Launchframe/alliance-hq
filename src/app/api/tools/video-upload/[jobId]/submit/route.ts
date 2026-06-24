@@ -10,8 +10,20 @@ import {
   upsertHqEventMemberMetadata,
 } from "@/lib/hq-events/provision-ashed";
 import { getAshedConnection, getOrCreateSession } from "@/lib/session";
+import { commitRosterFromVideoJob } from "@/lib/members/roster-video-commit";
+import { listAllianceMembers } from "@/lib/members/roster.server";
+import {
+  computeProjectedRosterRankCounts,
+  validateRosterRankQuota,
+} from "@/lib/members/roster-rank-quota.shared";
+import { formatHeroPowerMForStorage } from "@/lib/video/roster-video-review.shared";
+import { getRbacContext } from "@/lib/rbac/context";
 import { findDuplicateMemberAssignments } from "@/lib/video/review-validation";
-import { getScoreTargetOrThrow, usesHqEventStore } from "@/lib/video/score-targets";
+import {
+  getScoreTargetOrThrow,
+  isMemberRosterVideoTarget,
+  usesHqEventStore,
+} from "@/lib/video/score-targets";
 import {
   getSolicitedEligibility,
 } from "@/lib/feedback/solicited-eligibility";
@@ -32,8 +44,12 @@ type SubmitRow = {
   id: string;
   memberId?: string | null;
   memberName?: string | null;
-  score: string;
+  score?: string;
   rank?: number | null;
+  allianceRank?: number | null;
+  heroPowerM?: number | null;
+  memberLevel?: number | null;
+  profession?: string | null;
   deleted?: boolean;
 };
 
@@ -61,13 +77,6 @@ export async function POST(request: Request, { params }: Props) {
 
   try {
     const body = (await request.json()) as SubmitBody;
-
-    if (!body.recordedDate) {
-      return NextResponse.json(
-        { error: "recordedDate is required." },
-        { status: 400 },
-      );
-    }
 
     const db = getDb();
     const [job] = await db
@@ -102,6 +111,196 @@ export async function POST(request: Request, { params }: Props) {
 
     const scoreTargetId = job.scoreTarget ?? job.category ?? "desert-storm";
     const target = getScoreTargetOrThrow(scoreTargetId);
+
+    if (isMemberRosterVideoTarget(scoreTargetId)) {
+      const ctx = await getRbacContext(session.id);
+      if (!ctx) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      }
+      if (!ctx.isPlatformMaintainer && !ctx.permissions.has("members:write")) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
+      if (!ctx.hqUserId) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      }
+
+      const allianceId = job.allianceId;
+      if (!allianceId) {
+        return NextResponse.json(
+          { error: "Alliance context missing on job." },
+          { status: 400 },
+        );
+      }
+      if (!job.parseSessionId) {
+        return NextResponse.json(
+          { error: "Parse session missing on job." },
+          { status: 400 },
+        );
+      }
+
+      const activeRows = body.rows.filter((r) => !r.deleted);
+      if (activeRows.length === 0) {
+        return NextResponse.json(
+          { error: "No rows to submit." },
+          { status: 400 },
+        );
+      }
+
+      const duplicateMembers = findDuplicateMemberAssignments(
+        activeRows
+          .filter((row) => row.memberId && row.memberName)
+          .map((row) => ({
+            id: row.id,
+            memberId: row.memberId!,
+            memberName: row.memberName!,
+            ocrName: row.memberName!,
+          })),
+      );
+      if (duplicateMembers.length > 0) {
+        const names = duplicateMembers.map((issue) => issue.memberName).join(", ");
+        return NextResponse.json(
+          {
+            error: `Each member can only appear once on the roster. Multiple rows map to: ${names}. Delete duplicate or incorrect rows and try again.`,
+            duplicateMembers,
+          },
+          { status: 400 },
+        );
+      }
+
+      const rowsMissingRank = activeRows.some(
+        (row) =>
+          row.allianceRank == null ||
+          row.allianceRank < 1 ||
+          row.allianceRank > 5,
+      );
+      if (rowsMissingRank) {
+        return NextResponse.json(
+          { error: "Every roster row needs an alliance rank (R1–R5)." },
+          { status: 400 },
+        );
+      }
+
+      const hqMembers = await listAllianceMembers(allianceId);
+      const quotaCounts = computeProjectedRosterRankCounts(
+        hqMembers.map((member) => ({
+          ashedMemberId: member.ashedMemberId,
+          allianceRank: member.allianceRank,
+          status: member.status,
+        })),
+        activeRows.map((row) => ({
+          matchMemberId: row.memberId ?? null,
+          allianceRank: row.allianceRank!,
+        })),
+      );
+      const quotaErrors = validateRosterRankQuota(quotaCounts);
+      if (quotaErrors.length > 0) {
+        return NextResponse.json(
+          {
+            error: `Roster rank limits not satisfied: ${quotaErrors.join(", ")}.`,
+            quotaErrors,
+          },
+          { status: 400 },
+        );
+      }
+
+      await db
+        .update(schema.videoJobs)
+        .set({ status: "submitting", updatedAt: new Date() })
+        .where(eq(schema.videoJobs.id, jobId));
+      advancedToSubmitting = true;
+
+      await emitVideoJobStatus({
+        sessionId: session.id,
+        jobId,
+        status: "submitting",
+        fileName: job.fileName,
+        scoreTarget: scoreTargetId,
+        errorMessage: null,
+      });
+
+      for (const row of body.rows) {
+        const heroPowerM =
+          row.heroPowerM != null && Number.isFinite(row.heroPowerM)
+            ? row.heroPowerM
+            : null;
+        const memberLevel =
+          row.memberLevel != null && row.memberLevel >= 1
+            ? Math.round(row.memberLevel)
+            : null;
+        await db
+          .update(schema.parsedRows)
+          .set({
+            memberId: row.memberId ?? null,
+            memberName: row.memberName ?? null,
+            allianceRank: row.allianceRank ?? null,
+            allianceRankTitle: null,
+            memberLevel,
+            profession: row.profession ?? null,
+            powerLevel: formatHeroPowerMForStorage(heroPowerM),
+            deleted: row.deleted ? 1 : 0,
+            edited: row.deleted ? 0 : 1,
+            updatedAt: new Date(),
+          })
+          .where(eq(schema.parsedRows.id, row.id));
+      }
+
+      const result = await commitRosterFromVideoJob({
+        allianceId,
+        sessionId: session.id,
+        hqUserId: ctx.hqUserId,
+        parseSessionId: job.parseSessionId,
+      });
+
+      await db
+        .update(schema.videoJobs)
+        .set({ status: "complete", updatedAt: new Date() })
+        .where(eq(schema.videoJobs.id, jobId));
+
+      await emitVideoJobStatus({
+        sessionId: session.id,
+        jobId,
+        status: "complete",
+        fileName: job.fileName,
+        scoreTarget: scoreTargetId,
+        errorMessage: null,
+      });
+
+      await db
+        .update(schema.parseSessions)
+        .set({ status: "submitted", updatedAt: new Date() })
+        .where(eq(schema.parseSessions.id, job.parseSessionId));
+
+      await writeAuditLog({
+        sessionId: session.id,
+        allianceId,
+        action: "video.submit",
+        resourceType: "alliance_members",
+        resourceName: scoreTargetId,
+        resourceId: jobId,
+        metadata: {
+          rowCount: activeRows.length,
+          scoreTarget: scoreTargetId,
+          created: result.created,
+          updated: result.updated,
+          inactivated: result.inactivated,
+        },
+      });
+
+      return NextResponse.json({
+        ok: true,
+        submitted: activeRows.length,
+        ...result,
+        showSolicitedFeedback: false,
+        completedUploadCount: 0,
+      });
+    }
+
+    if (!body.recordedDate) {
+      return NextResponse.json(
+        { error: "recordedDate is required." },
+        { status: 400 },
+      );
+    }
 
     const connection = await getAshedConnection(session.id);
     if (!connection) {
@@ -252,7 +451,7 @@ export async function POST(request: Request, { params }: Props) {
       activeRows.map((row) => ({
         memberId: row.memberId,
         memberName: row.memberName,
-        score: row.score,
+        score: row.score ?? "",
         rank: row.rank,
       })),
       ashedEventId,
@@ -279,7 +478,7 @@ export async function POST(request: Request, { params }: Props) {
     if (submitContext.hqEventId) {
       for (const row of activeRows) {
         await upsertHqEventMemberMetadata(submitContext.hqEventId, row.memberId, {
-          score: row.score,
+          score: row.score ?? "",
           rank: row.rank ?? null,
           recordedDate: submitContext.recordedDate,
           boardKey: submitContext.boardKey ?? null,
@@ -305,7 +504,7 @@ export async function POST(request: Request, { params }: Props) {
         .set({
           memberId: row.memberId ?? null,
           memberName: row.memberName ?? null,
-          score: row.score,
+          score: row.score ?? "",
           rank: row.rank ?? null,
           deleted: row.deleted ? 1 : 0,
           edited: rowEdited ? 1 : 0,

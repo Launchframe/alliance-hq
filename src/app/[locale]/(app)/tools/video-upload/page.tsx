@@ -113,11 +113,31 @@ export default async function VideoUploadPage({ searchParams }: Props) {
     };
   });
 
+  let allianceTag: string | null = session.allianceTag;
+  let allianceName: string | null = null;
+  const hqAllianceId = session.currentAllianceId ?? session.allianceId;
+  if (hqAllianceId) {
+    const [allianceRow] = await db
+      .select({
+        tag: schema.alliances.tag,
+        name: schema.alliances.name,
+      })
+      .from(schema.alliances)
+      .where(eq(schema.alliances.id, hqAllianceId))
+      .limit(1);
+    if (allianceRow?.tag) {
+      allianceTag = allianceRow.tag.trim();
+    }
+    allianceName = allianceRow?.name ?? null;
+  }
+
   return (
     <VideoUploadForm
       initialJobs={initialJobs}
       memberName={memberName}
       contextScoreTarget={contextScoreTarget}
+      allianceTag={allianceTag}
+      allianceName={allianceName}
     />
   );
 }

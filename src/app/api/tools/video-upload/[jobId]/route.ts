@@ -6,6 +6,7 @@ import { getOrCreateSession } from "@/lib/session";
 import type { VideoProcessTimings } from "@/lib/analytics/video-pipeline";
 import {
   getScoreTarget,
+  isMemberRosterVideoTarget,
   toScoreTargetClientMeta,
 } from "@/lib/video/score-targets";
 import { isVideoProcessTimings } from "@/lib/video/pipeline-stats-display";
@@ -36,12 +37,20 @@ export async function GET(_request: Request, { params }: Props) {
       return NextResponse.json({ error: "Job not found" }, { status: 404 });
     }
 
+    const scoreTargetId = job.scoreTarget ?? job.category ?? "desert-storm";
+
     let parseSession = null;
     let rows: Array<{
       id: string;
       ocrName: string;
-      score: string;
+      score: string | null;
       rank: number | null;
+      rosterRankRaw: string | null;
+      allianceRank: number | null;
+      allianceRankTitle: string | null;
+      powerLevel: string | null;
+      memberLevel: number | null;
+      profession: string | null;
       frameIndex: number | null;
       memberId: string | null;
       memberName: string | null;
@@ -74,12 +83,23 @@ export async function GET(_request: Request, { params }: Props) {
           .select()
           .from(schema.parsedRows)
           .where(eq(schema.parsedRows.parseSessionId, ps.id))
-          .orderBy(asc(schema.parsedRows.rank), asc(schema.parsedRows.frameIndex));
+          .orderBy(
+            isMemberRosterVideoTarget(scoreTargetId)
+              ? asc(schema.parsedRows.allianceRank)
+              : asc(schema.parsedRows.rank),
+            asc(schema.parsedRows.frameIndex),
+          );
         rows = dbRows.map((r) => ({
           id: r.id,
           ocrName: r.ocrName,
           score: r.score,
           rank: r.rank,
+          rosterRankRaw: r.rosterRankRaw,
+          allianceRank: r.allianceRank,
+          allianceRankTitle: r.allianceRankTitle,
+          powerLevel: r.powerLevel,
+          memberLevel: r.memberLevel,
+          profession: r.profession,
           frameIndex: r.frameIndex,
           memberId: r.memberId,
           memberName: r.memberName,
@@ -92,7 +112,6 @@ export async function GET(_request: Request, { params }: Props) {
       }
     }
 
-    const scoreTargetId = job.scoreTarget ?? job.category ?? "desert-storm";
     const target = getScoreTarget(scoreTargetId);
 
     const timingsJson = isVideoProcessTimings(job.timingsJson)
@@ -125,6 +144,24 @@ export async function GET(_request: Request, { params }: Props) {
       }
     }
 
+    let jobAllianceTag: string | null = session.allianceTag;
+    let jobAllianceName: string | null = null;
+    const allianceIdForJob = job.allianceId ?? parseSession?.allianceId ?? null;
+    if (allianceIdForJob) {
+      const [allianceRow] = await db
+        .select({
+          tag: schema.alliances.tag,
+          name: schema.alliances.name,
+        })
+        .from(schema.alliances)
+        .where(eq(schema.alliances.id, allianceIdForJob))
+        .limit(1);
+      if (allianceRow?.tag) {
+        jobAllianceTag = allianceRow.tag.trim();
+      }
+      jobAllianceName = allianceRow?.name ?? null;
+    }
+
     return NextResponse.json({
       job: {
         id: job.id,
@@ -148,6 +185,8 @@ export async function GET(_request: Request, { params }: Props) {
         jobId: job.allianceId,
         currentId: session.allianceId,
         currentTag: session.allianceTag,
+        jobTag: jobAllianceTag,
+        jobName: jobAllianceName,
         stale:
           Boolean(session.allianceId && job.parseSessionId) &&
           job.allianceId !== session.allianceId,

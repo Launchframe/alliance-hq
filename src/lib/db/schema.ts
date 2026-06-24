@@ -414,6 +414,7 @@ export const parseSessions = pgTable("parse_sessions", {
   rowCount: integer("row_count").notNull().default(0),
   matchedCount: integer("matched_count").notNull().default(0),
   status: text("status").notNull().default("open"),
+  rawExtractJson: jsonb("raw_extract_json"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
     .notNull(),
@@ -428,8 +429,14 @@ export const parsedRows = pgTable("parsed_rows", {
     .notNull()
     .references(() => parseSessions.id, { onDelete: "cascade" }),
   ocrName: text("ocr_name").notNull(),
-  score: text("score").notNull(),
+  score: text("score"),
   rank: integer("rank"),
+  rosterRankRaw: text("roster_rank_raw"),
+  allianceRank: integer("alliance_rank"),
+  allianceRankTitle: text("alliance_rank_title"),
+  powerLevel: text("power_level"),
+  memberLevel: integer("member_level"),
+  profession: text("profession"),
   memberId: text("member_id"),
   memberName: text("member_name"),
   matchConfidence: doublePrecision("match_confidence"),
@@ -987,6 +994,21 @@ export const allianceMembers = pgTable(
     heroPowerM: doublePrecision("hero_power_m"),
     /** Display-only member level from roster OCR import. */
     memberLevel: integer("member_level"),
+    joinDate: text("join_date"),
+    profession: text("profession"),
+    professionalLevel: integer("professional_level"),
+    /** Base power string from Ashed, e.g. "162.8M". */
+    powerLevel: text("power_level"),
+    currentKills: doublePrecision("current_kills"),
+    currentTotalHeroPower: doublePrecision("current_total_hero_power"),
+    notes: text("notes"),
+    timezone: text("timezone"),
+    recordedDate: text("recorded_date"),
+    ashedCreatedAt: timestamp("ashed_created_at", { withTimezone: true }),
+    ashedUpdatedAt: timestamp("ashed_updated_at", { withTimezone: true }),
+    currentSquadPowerJson: jsonb("current_squad_power_json"),
+    squadPowerSnapshotsJson: jsonb("squad_power_snapshots_json"),
+    isSample: boolean("is_sample"),
     syncedAt: timestamp("synced_at", { withTimezone: true }).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
@@ -1207,6 +1229,101 @@ export const memberAllianceRankEvents = pgTable(
     ashedSyncedAt: timestamp("ashed_synced_at", { withTimezone: true }),
   },
 );
+
+const memberStatEventColumns = {
+  id: text("id").primaryKey(),
+  allianceId: text("alliance_id")
+    .notNull()
+    .references(() => alliances.id, { onDelete: "cascade" }),
+  ashedMemberId: text("ashed_member_id").notNull(),
+  memberName: text("member_name").notNull(),
+  recordedDate: text("recorded_date").notNull(),
+  source: text("source").notNull(),
+  recordedAt: timestamp("recorded_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  recordedByHqUserId: text("recorded_by_hq_user_id").references(
+    () => hqUsers.id,
+    { onDelete: "set null" },
+  ),
+};
+
+/** Immutable profession level history (append-only). */
+export const memberProfessionLevelEvents = pgTable(
+  "member_profession_level_events",
+  {
+    ...memberStatEventColumns,
+    value: integer("value").notNull(),
+  },
+);
+
+/** Immutable in-game HQ level history (append-only). */
+export const memberGameLevelEvents = pgTable("member_game_level_events", {
+  ...memberStatEventColumns,
+  value: integer("value").notNull(),
+});
+
+/** Immutable base power level history (append-only). */
+export const memberPowerLevelEvents = pgTable("member_power_level_events", {
+  ...memberStatEventColumns,
+  value: text("value").notNull(),
+});
+
+/** Immutable total hero power history (append-only). */
+export const memberTotalHeroPowerEvents = pgTable(
+  "member_total_hero_power_events",
+  {
+    ...memberStatEventColumns,
+    value: doublePrecision("value").notNull(),
+  },
+);
+
+/** Immutable kills history (append-only). */
+export const memberKillsEvents = pgTable("member_kills_events", {
+  ...memberStatEventColumns,
+  value: doublePrecision("value").notNull(),
+});
+
+/** Per-member commendations (mirrors Ashed Commendation entity). */
+export const memberCommendations = pgTable("member_commendations", {
+  id: text("id").primaryKey(),
+  allianceId: text("alliance_id")
+    .notNull()
+    .references(() => alliances.id, { onDelete: "cascade" }),
+  ashedMemberId: text("ashed_member_id").notNull(),
+  memberName: text("member_name").notNull(),
+  commendationType: text("commendation_type"),
+  notes: text("notes"),
+  recordedDate: text("recorded_date"),
+  ashedCommendationId: text("ashed_commendation_id"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+/** Per-member violations — expunge only, never delete. */
+export const memberViolations = pgTable("member_violations", {
+  id: text("id").primaryKey(),
+  allianceId: text("alliance_id")
+    .notNull()
+    .references(() => alliances.id, { onDelete: "cascade" }),
+  ashedMemberId: text("ashed_member_id").notNull(),
+  memberName: text("member_name").notNull(),
+  violationType: text("violation_type"),
+  notes: text("notes"),
+  recordedDate: text("recorded_date"),
+  ashedViolationId: text("ashed_violation_id"),
+  expungedAt: timestamp("expunged_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
 
 export const trainWeekSchedules = pgTable(
   "train_week_schedules",

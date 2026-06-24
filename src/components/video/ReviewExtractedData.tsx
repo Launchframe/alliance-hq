@@ -32,13 +32,32 @@ import {
 import { accountTodayCalendarDate } from "@/lib/timezone/format";
 import { PassComparisonSheet } from "@/components/video/PassComparisonSheet";
 import { OcrRatingPrompt, type OcrRatingReason } from "@/components/video/OcrRatingPrompt";
+import { RosterAllianceBanner } from "@/components/video/RosterAllianceBanner";
+import {
+  RosterVideoReviewTable,
+  useRosterReviewValidation,
+} from "@/components/video/RosterVideoReviewTable";
 import type { PassComparison } from "@/lib/video/compare-pass-results";
+import type { AllianceMembersPayload } from "@/lib/members/load";
+import {
+  formatHeroPowerMForStorage,
+  parsedRowsToRosterReviewRows,
+} from "@/lib/video/roster-video-review.shared";
+import type { AshedMember } from "@/lib/video/member-matcher";
 
 type ParsedRow = {
   id: string;
   ocrName: string;
-  score: string;
+  score: string | null;
   rank: number | null;
+  rosterRankRaw?: string | null;
+  allianceRank?: number | null;
+  allianceRankTitle?: string | null;
+  powerLevel?: string | null;
+  heroPowerM?: number | null;
+  memberLevel?: number | null;
+  profession?: string | null;
+  edited?: number;
   frameIndex?: number | null;
   memberId: string | null;
   memberName: string | null;
@@ -70,6 +89,8 @@ type ScoreTargetMeta = {
   usesHqEvents: boolean;
   showRankColumn: boolean;
   showTeamSelector: boolean;
+  showRosterColumns: boolean;
+  showScoreColumn: boolean;
 };
 
 type Props = {
@@ -147,6 +168,12 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   const [showComparisonPrompt, setShowComparisonPrompt] = useState(false);
   const [showComparisonSheet, setShowComparisonSheet] = useState(false);
   const [comparisonDismissed, setComparisonDismissed] = useState(false);
+  const [rosterMembers, setRosterMembers] = useState<AshedMember[]>([]);
+  const [allianceTag, setAllianceTag] = useState<string | null>(null);
+  const [allianceName, setAllianceName] = useState<string | null>(null);
+  const [allianceStale, setAllianceStale] = useState(false);
+  const [rosterQuotaCanSubmit, setRosterQuotaCanSubmit] = useState(false);
+  const rosterMembersHydratedRef = useRef(false);
   const isEventView = viewMode === "event";
 
   useEffect(() => {
@@ -211,6 +238,8 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         alliance?: {
           currentId?: string | null;
           currentTag?: string | null;
+          jobTag?: string | null;
+          jobName?: string | null;
           stale?: boolean;
         };
         parseSession?: { allianceId?: string | null };
@@ -257,12 +286,16 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           data.parseSession?.allianceId ??
           null,
       );
+      setAllianceTag(
+        data.alliance?.jobTag ?? data.alliance?.currentTag ?? null,
+      );
+      setAllianceName(data.alliance?.jobName ?? null);
+      setAllianceStale(Boolean(data.alliance?.stale));
       setRows(
-        (data.rows ?? [])
-          .map((row) => ({
-            ...row,
-            scoreConflict: row.scoreConflict ?? 0,
-          })),
+        (data.rows ?? []).map((row) => ({
+          ...row,
+          scoreConflict: row.scoreConflict ?? 0,
+        })),
       );
     },
     [jobId, rematchMembers, tc],
@@ -279,6 +312,15 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   }, [load]);
 
   const displayJobStatus = useMemo(() => {
+    const terminalStatuses = new Set([
+      "review",
+      "failed",
+      "complete",
+      "discarded",
+    ]);
+    if (terminalStatuses.has(jobStatus)) {
+      return jobStatus;
+    }
     if (
       liveJob &&
       (liveJob.status === "queued" ||
@@ -303,7 +345,50 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   }, [liveJob, load]);
 
   useEffect(() => {
+    rosterMembersHydratedRef.current = false;
+  }, [jobId]);
+
+  useEffect(() => {
     async function fetchMembers() {
+      if (scoreTargetMeta?.showRosterColumns) {
+        const res = await fetch("/api/members");
+        if (!res.ok) return;
+        const data = (await res.json()) as AllianceMembersPayload;
+        setRosterMembers(data.members);
+        if (data.alliance.tag) {
+          setAllianceTag(data.alliance.tag);
+        }
+        if (data.alliance.name) {
+          setAllianceName(data.alliance.name);
+        }
+        if (!rosterMembersHydratedRef.current) {
+          rosterMembersHydratedRef.current = true;
+          setRows((prev) => {
+            const mapped = parsedRowsToRosterReviewRows(
+              prev,
+              data.members,
+              data.alliance.tag,
+            );
+            return prev.map((row) => {
+              const next = mapped.find((entry) => entry.id === row.id);
+              if (!next) return row;
+              return {
+                ...row,
+                memberId: next.memberId,
+                memberName: next.memberName,
+                matchConfidence: next.matchConfidence,
+                allianceRank: next.allianceRank,
+                heroPowerM: next.heroPowerM,
+                memberLevel: next.memberLevel,
+                profession: next.profession,
+                allianceRankTitle: null,
+              };
+            });
+          });
+        }
+        return;
+      }
+
       if (!allianceId) return;
       const q = encodeURIComponent(JSON.stringify({ alliance_id: allianceId }));
       const res = await fetch(`/api/bff/v1/entities/Member?q=${q}&sort=current_name`);
@@ -317,7 +402,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
       }
     }
     void fetchMembers();
-  }, [allianceId]);
+  }, [allianceId, scoreTargetMeta?.showRosterColumns]);
 
   const eventTypeLabel = scoreTargetMeta?.labelKey
     ? tNav(scoreTargetMeta.labelKey)
@@ -513,7 +598,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
 
   const matchedCount = activeRows.filter((r) => r.memberId).length;
 
-  const duplicateMemberIssues = useMemo(
+  const scoreDuplicateMemberIssues = useMemo(
     () =>
       findDuplicateMemberAssignments(
         activeRows.map((row) => ({
@@ -526,13 +611,41 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     [activeRows],
   );
 
-  const duplicateRowIds = useMemo(
-    () => duplicateMemberRowIds(duplicateMemberIssues),
-    [duplicateMemberIssues],
+  const rosterValidation = useRosterReviewValidation(
+    activeRows.map((row) => ({
+      id: row.id,
+      ocrName: row.ocrName,
+      allianceRank: row.allianceRank ?? null,
+      heroPowerM: row.heroPowerM ?? null,
+      memberLevel: row.memberLevel ?? null,
+      profession: row.profession ?? null,
+      frameIndex: row.frameIndex,
+      memberId: row.memberId,
+      memberName: row.memberName,
+      matchConfidence: row.matchConfidence,
+      deleted: row.deleted,
+    })),
   );
 
-  const hasScoreConflicts = activeRows.some((row) => row.scoreConflict);
+  const scoreDuplicateRowIds = useMemo(
+    () => duplicateMemberRowIds(scoreDuplicateMemberIssues),
+    [scoreDuplicateMemberIssues],
+  );
+
+  const duplicateMemberIssues = scoreTargetMeta?.showRosterColumns
+    ? rosterValidation.duplicateMemberIssues
+    : scoreDuplicateMemberIssues;
+
+  const duplicateRowIds = scoreTargetMeta?.showRosterColumns
+    ? rosterValidation.duplicateRowIds
+    : scoreDuplicateRowIds;
+
+  const hasScoreConflicts =
+    scoreTargetMeta?.showScoreColumn !== false &&
+    activeRows.some((row) => row.scoreConflict);
   const hasDuplicateMembers = duplicateMemberIssues.length > 0;
+  const hasDuplicateOcrNames =
+    scoreTargetMeta?.showRosterColumns && rosterValidation.hasDuplicateOcrNames;
   const needsEventPicker =
     scoreTargetMeta?.usesHqEvents ||
     Boolean(scoreTargetMeta?.eventEntity);
@@ -548,16 +661,34 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     selectedEventId !== "" ||
     (!scoreTargetMeta?.usesHqEvents && events.length === 0);
 
+
   const canSubmit =
     activeRows.length > 0 &&
     eventGateSatisfied &&
     (!needsBoardPicker || boardKey) &&
     !hasDuplicateMembers &&
+    !hasDuplicateOcrNames &&
     !submitting &&
     !(
       scoreTargetMeta?.maxSubmitRows != null &&
       activeRows.length > scoreTargetMeta.maxSubmitRows
+    ) &&
+    (scoreTargetMeta?.showRosterColumns
+      ? rosterQuotaCanSubmit
+      : true);
+
+  function updateRosterRow(id: string, patch: Partial<ParsedRow>) {
+    setRows((prev) =>
+      prev.map((row) => {
+        if (row.id !== id) return row;
+        const next = { ...row, ...patch, edited: 1 };
+        if ("heroPowerM" in patch) {
+          next.powerLevel = formatHeroPowerMForStorage(patch.heroPowerM ?? null);
+        }
+        return next;
+      }),
     );
+  }
 
   function updateRow(id: string, patch: Partial<ParsedRow>) {
     setRows((prev) =>
@@ -572,7 +703,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   }
 
   async function handleSubmit() {
-    if (hasDuplicateMembers) {
+    if (hasDuplicateMembers || hasDuplicateOcrNames) {
       setError(t("duplicateMemberBlocked"));
       return;
     }
@@ -581,6 +712,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     setError(null);
     setSuccess(null);
     try {
+      const isRoster = scoreTargetMeta?.showRosterColumns;
       const res = await fetch(`/api/tools/video-upload/${jobId}/submit`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -590,15 +722,29 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           boardKey: needsBoardPicker ? boardKey : undefined,
           team: scoreTargetMeta?.showTeamSelector ? team : undefined,
           recordedDate,
-          rows: rows.map((r) => ({
-            id: r.id,
-            memberId: r.memberId,
-            memberName:
-              r.deleted === 1 ? r.memberName : r.memberName ?? r.ocrName,
-            score: r.score,
-            rank: r.rank,
-            deleted: r.deleted === 1,
-          })),
+          rows: rows.map((r) =>
+            isRoster
+              ? {
+                  id: r.id,
+                  memberId: r.memberId,
+                  memberName:
+                    r.deleted === 1 ? r.memberName : r.memberName ?? r.ocrName,
+                  allianceRank: r.allianceRank,
+                  heroPowerM: r.heroPowerM,
+                  memberLevel: r.memberLevel,
+                  profession: r.profession,
+                  deleted: r.deleted === 1,
+                }
+              : {
+                  id: r.id,
+                  memberId: r.memberId,
+                  memberName:
+                    r.deleted === 1 ? r.memberName : r.memberName ?? r.ocrName,
+                  score: r.score ?? "",
+                  rank: r.rank,
+                  deleted: r.deleted === 1,
+                },
+          ),
         }),
       });
       const data = (await res.json()) as {
@@ -615,7 +761,9 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
       setSuccess(
         isEventView
           ? t("updateSuccess", { count: data.submitted ?? 0 })
-          : t("submitSuccess", { count: data.submitted ?? 0 }),
+          : scoreTargetMeta?.showRosterColumns
+            ? t("rosterSubmitSuccess", { count: data.submitted ?? 0 })
+            : t("submitSuccess", { count: data.submitted ?? 0 }),
       );
       setJobStatus("complete");
       if (
@@ -652,8 +800,8 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         setError(data.error ?? tc("uploadFailed"));
         return;
       }
-      setJobStatus("extracting");
-      await load();
+      setRows([]);
+      setJobStatus("queued");
     } catch (err) {
       setError(err instanceof Error ? err.message : tc("uploadFailed"));
     } finally {
@@ -821,6 +969,14 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         </p>
       </div>
 
+      {scoreTargetMeta?.showRosterColumns && allianceTag ? (
+        <RosterAllianceBanner
+          tag={allianceTag}
+          name={allianceName}
+          stale={allianceStale}
+        />
+      ) : null}
+
       {activeRows.length === 0 && !isEventView && (
         <div className="rounded-xl border border-[#d29922]/40 bg-[#d29922]/10 p-4 text-sm">
           <p className="text-[#e3b341]">{t("noEntriesHint")}</p>
@@ -855,6 +1011,12 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
             ))}
           </ul>
           <p className="mt-2 text-[#e6edf3]">{t("duplicateMemberHint")}</p>
+        </div>
+      )}
+
+      {hasDuplicateOcrNames && (
+        <div className="rounded-xl border border-[#f85149]/40 bg-[#f8514915] p-4 text-sm text-[#f85149]">
+          <p>{t("duplicateOcrNameRow")}</p>
         </div>
       )}
 
@@ -903,6 +1065,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         </div>
       ) : null}
 
+      {!scoreTargetMeta?.showRosterColumns ? (
       <div className="grid gap-4 rounded-xl border border-[#30363d] bg-[#161b22] p-4 sm:grid-cols-3">
         {needsEventPicker ? (
           <label className="block text-sm sm:col-span-2">
@@ -1014,7 +1177,69 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           />
         </label>
       </div>
+      ) : null}
 
+      {scoreTargetMeta?.showRosterColumns ? (
+        <>
+          <div className="flex items-center gap-3">
+            <input
+              type="search"
+              value={filterQuery}
+              onChange={(e) => setFilterQuery(e.target.value)}
+              placeholder={t("filterPlaceholder")}
+              className="flex-1 rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 text-sm placeholder:text-[#8b949e]"
+            />
+            {filterQuery ? (
+              <p className="shrink-0 text-xs text-[#8b949e]">
+                {t("filterCount", {
+                  shown: filteredRows.length,
+                  total: activeRows.length,
+                })}
+              </p>
+            ) : null}
+          </div>
+          <RosterVideoReviewTable
+            rows={activeRows.map((row) => ({
+              id: row.id,
+              ocrName: row.ocrName,
+              allianceRank: row.allianceRank ?? null,
+              heroPowerM: row.heroPowerM ?? null,
+              memberLevel: row.memberLevel ?? null,
+              profession: row.profession ?? null,
+              frameIndex: row.frameIndex,
+              memberId: row.memberId,
+              memberName: row.memberName,
+              matchConfidence: row.matchConfidence,
+              deleted: row.deleted,
+            }))}
+            members={rosterMembers}
+            filterQuery={filterQuery}
+            duplicateRowIds={duplicateRowIds}
+            onUpdateRow={updateRosterRow}
+            onDeleteRow={deleteRow}
+            onPreviewFrame={(frameIndex) => {
+              const seconds = previewSeekSecondsForFrame(
+                frameIndex,
+                frameTimestamps,
+              );
+              if (seconds == null) return;
+              setPreviewSeekRequest((prev) => ({
+                seconds,
+                nonce: (prev?.nonce ?? 0) + 1,
+              }));
+              setPreviewOpen(true);
+            }}
+            rowCanVideoPreview={(frameIndex) =>
+              hasSourceVideo &&
+              previewSeekSecondsForFrame(frameIndex, frameTimestamps) != null
+            }
+            onQuotaChange={({ canSubmitRanks }) =>
+              setRosterQuotaCanSubmit(canSubmitRanks)
+            }
+          />
+        </>
+      ) : (
+        <>
       <div className="flex items-center gap-3">
         <input
           type="search"
@@ -1046,10 +1271,20 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
             <tr>
               <th className="px-4 py-3">{t("colName")}</th>
               <th className="px-4 py-3">{t("colMember")}</th>
+              {scoreTargetMeta?.showRosterColumns ? (
+                <>
+                  <th className="px-4 py-3">{t("colAllianceRank")}</th>
+                  <th className="px-4 py-3">{t("colPower")}</th>
+                  <th className="px-4 py-3">{t("colLevel")}</th>
+                  <th className="px-4 py-3">{t("colProfession")}</th>
+                </>
+              ) : null}
               {scoreTargetMeta?.showRankColumn ? (
                 <th className="px-4 py-3">{t("colRank")}</th>
               ) : null}
-              <th className="px-4 py-3">{t("colScore")}</th>
+              {scoreTargetMeta?.showScoreColumn !== false ? (
+                <th className="px-4 py-3">{t("colScore")}</th>
+              ) : null}
               <th className="px-4 py-3" />
             </tr>
           </thead>
@@ -1109,6 +1344,24 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                     ]}
                   />
                 </td>
+                {scoreTargetMeta?.showRosterColumns ? (
+                  <>
+                    <td className="px-4 py-3">
+                      {row.rosterRankRaw ??
+                        (row.allianceRank != null ? `R${row.allianceRank}` : "—")}
+                      {row.allianceRankTitle ? (
+                        <p className="mt-1 text-xs text-[#8b949e]">
+                          {row.allianceRankTitle}
+                        </p>
+                      ) : null}
+                    </td>
+                    <td className="px-4 py-3">{row.powerLevel ?? "—"}</td>
+                    <td className="px-4 py-3">
+                      {row.memberLevel != null ? row.memberLevel : "—"}
+                    </td>
+                    <td className="px-4 py-3">{row.profession ?? "—"}</td>
+                  </>
+                ) : null}
                 {scoreTargetMeta?.showRankColumn ? (
                   <td className="px-4 py-3">
                     <input
@@ -1127,10 +1380,12 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                     />
                   </td>
                 ) : null}
+                {scoreTargetMeta?.showScoreColumn !== false ? (
                 <td className="px-4 py-3">
                   {(() => {
+                    const scoreText = row.score ?? "";
                     const scoreNum = parseFloat(
-                      row.score.replace(/,/g, ""),
+                      scoreText.replace(/,/g, ""),
                     );
                     const isZero =
                       !Number.isNaN(scoreNum) && scoreNum === 0;
@@ -1141,7 +1396,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                       <>
                         <input
                           type="text"
-                          value={row.score}
+                          value={row.score ?? ""}
                           onChange={(e) =>
                             updateRow(row.id, { score: e.target.value })
                           }
@@ -1167,6 +1422,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                     );
                   })()}
                 </td>
+                ) : null}
                 <td className="px-4 py-3">
                   <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:gap-3">
                     {rowCanVideoPreview ? (
@@ -1197,6 +1453,8 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           </tbody>
         </table>
       </div>
+        </>
+      )}
 
       {error && <p className="text-sm text-[#f85149]">{error}</p>}
       {success && <p className="text-sm text-[#3fb950]">{success}</p>}
@@ -1216,9 +1474,11 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         >
           {submitting
             ? t("submitting")
-            : isEventView
-              ? t("updateScores", { count: activeRows.length })
-              : t("saveScores", { count: activeRows.length })}
+            : scoreTargetMeta?.showRosterColumns
+              ? t("saveRoster", { count: activeRows.length })
+              : isEventView
+                ? t("updateScores", { count: activeRows.length })
+                : t("saveScores", { count: activeRows.length })}
         </button>
         {!isEventView ? (
         <button

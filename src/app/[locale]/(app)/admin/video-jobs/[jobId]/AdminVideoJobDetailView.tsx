@@ -6,6 +6,10 @@ import { useTranslations } from "next-intl";
 import { FormattedDateTime } from "@/components/timezone/TimezoneProvider";
 import { Link } from "@/i18n/navigation";
 import type { VideoProcessTimings } from "@/lib/analytics/video-pipeline";
+import {
+  isRosterTesseractEvalComparison,
+  type RosterTesseractEvalComparison,
+} from "@/lib/video/compare-roster-ocr-quality";
 import { SURVEY_SCROLL_STYLES, type SurveyScrollStyle } from "@/lib/video/survey";
 type JobDetail = {
   id: string;
@@ -97,6 +101,7 @@ type DetailResponse = {
   survey: SurveyData | null;
   groupPasses?: GroupPass[];
   groupInfo?: GroupInfo | null;
+  rosterTesseractEval?: unknown;
 };
 
 type TabId = "frames" | "parse" | "timings";
@@ -158,6 +163,11 @@ function readStoredFrameViewMode(): FrameViewMode {
   } catch {
     return "list";
   }
+}
+
+function formatPct(value: number | null | undefined): string {
+  if (value == null || !Number.isFinite(value)) return "—";
+  return `${(value * 100).toFixed(1)}%`;
 }
 
 function formatMs(ms: number | null | undefined): string {
@@ -583,6 +593,9 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
 
   const { job, parsedRows, editCount, deleteCount, addCount, sameFileResubmits, groupPasses, groupInfo } =
     data;
+  const rosterEval = isRosterTesseractEvalComparison(data.rosterTesseractEval)
+    ? (data.rosterTesseractEval as RosterTesseractEvalComparison)
+    : null;
   const timings = job.timingsJson;
 
   return (
@@ -679,6 +692,47 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
               <p>{formatSchoolingTuitionAnswer(data.survey, tSurvey)}</p>
             </div>
           </div>
+        </div>
+      ) : null}
+
+      {rosterEval ? (
+        <div className="rounded-xl border border-[#30363d] bg-[#161b22] p-4">
+          <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-[#8b949e]">
+            {tDetail("rosterTesseractEvalTitle")}
+          </p>
+          <div className="grid gap-2 text-sm sm:grid-cols-3 lg:grid-cols-6">
+            <div>
+              <p className="text-xs text-[#8b949e]">{tDetail("rosterEvalNameRecall")}</p>
+              <p>{formatPct(rosterEval.metrics.nameRecall)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-[#8b949e]">{tDetail("rosterEvalNamePrecision")}</p>
+              <p>{formatPct(rosterEval.metrics.namePrecision)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-[#8b949e]">{tDetail("rosterEvalRankAgreement")}</p>
+              <p>{formatPct(rosterEval.metrics.rankAgreement)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-[#8b949e]">{tDetail("rosterEvalPowerAgreement")}</p>
+              <p>{formatPct(rosterEval.metrics.powerAgreement)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-[#8b949e]">{tDetail("rosterEvalLevelAgreement")}</p>
+              <p>{formatPct(rosterEval.metrics.levelAgreement)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-[#8b949e]">{tDetail("rosterEvalPassKey")}</p>
+              <p className="font-mono text-xs">{rosterEval.tessPassKey ?? "—"}</p>
+            </div>
+          </div>
+          <p className="mt-3 text-xs text-[#8b949e]">
+            {tDetail("rosterEvalRowSummary", {
+              primary: rosterEval.metrics.primaryRowCount,
+              shadow: rosterEval.metrics.shadowRowCount,
+              matched: rosterEval.metrics.matchedNameCount,
+            })}
+          </p>
         </div>
       ) : null}
 
