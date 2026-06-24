@@ -24,6 +24,8 @@ type Phase =
   | "walkthrough"
   | "fuzzy"
   | "roster_miss"
+  | "awaiting_owner"
+  | "wrong_server"
   | "success";
 
 type ApiResponse = {
@@ -103,6 +105,13 @@ export function MemberLinkOnboardingWizard({
           break;
         case "roster_miss":
           setPhase("roster_miss");
+          break;
+        case "awaiting_owner":
+          setPhase("awaiting_owner");
+          break;
+        case "wrong_server":
+          setPhase("wrong_server");
+          setFormError(data.message);
           break;
         case "ashed_verification_required":
           setPhase("connect_ashed");
@@ -246,6 +255,32 @@ export function MemberLinkOnboardingWizard({
     }
   }
 
+  const refreshMemberLinkStatus = useCallback(async (): Promise<boolean> => {
+    const res = await fetch("/api/member-link");
+    if (!res.ok) return false;
+    const data = (await res.json()) as ApiResponse & {
+      linked?: boolean;
+      link?: { memberDisplayName?: string | null };
+      pending?: { kind: string };
+      message?: string;
+    };
+    if (data.linked) {
+      applyOutcome({
+        outcome: "linked",
+        message: t("linkedTitle"),
+        linkedMemberName:
+          data.link?.memberDisplayName ?? linkedName ?? reportedName,
+      });
+      return true;
+    }
+    if (data.pending?.kind === "link_awaiting_owner") {
+      setPhase("awaiting_owner");
+      setMessage(data.message);
+      return false;
+    }
+    return false;
+  }, [applyOutcome, linkedName, reportedName, t]);
+
   useEffect(() => {
     void fetch("/api/member-link")
       .then((res) => (res.ok ? res.json() : null))
@@ -262,10 +297,21 @@ export function MemberLinkOnboardingWizard({
           setPhase("fuzzy");
         } else if (data.pending.kind === "link_roster_miss") {
           setPhase("roster_miss");
+        } else if (data.pending.kind === "link_awaiting_owner") {
+          setPhase("awaiting_owner");
+          setMessage(data.message ?? null);
         }
       })
       .catch(() => undefined);
   }, [isAshedConnected]);
+
+  useEffect(() => {
+    if (phase !== "awaiting_owner") return undefined;
+    const timer = window.setInterval(() => {
+      void refreshMemberLinkStatus().catch(() => undefined);
+    }, 30_000);
+    return () => window.clearInterval(timer);
+  }, [phase, refreshMemberLinkStatus]);
 
   return (
     <div className="mx-auto w-full max-w-lg space-y-6 rounded-xl border border-[#30363d] bg-[#161b22] p-6">
@@ -427,6 +473,38 @@ export function MemberLinkOnboardingWizard({
               {tLink("buttons.askOfficer")}
             </button>
           </div>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void wrongAlliance()}
+            className="w-full text-sm text-[#8b949e] underline hover:text-[#58a6ff] disabled:opacity-50"
+          >
+            {t("wrongAlliance")}
+          </button>
+        </div>
+      ) : null}
+
+      {phase === "awaiting_owner" ? (
+        <div className="space-y-4">
+          <h2 className="text-lg font-semibold">{t("awaitingOwnerTitle")}</h2>
+          <p className="text-sm text-[#8b949e]">{message ?? t("awaitingOwnerBody")}</p>
+          <p className="text-xs text-[#6e7681]">{t("awaitingOwnerHint")}</p>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void refreshMemberLinkStatus()}
+            className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-4 py-2.5 text-sm font-medium text-[#e6edf3] disabled:opacity-50"
+          >
+            {t("awaitingOwnerRefresh")}
+          </button>
+        </div>
+      ) : null}
+
+      {phase === "wrong_server" ? (
+        <div className="space-y-4">
+          <h2 className="text-lg font-semibold">{t("wrongServerTitle")}</h2>
+          <p className="text-sm text-[#f85149]">{formError ?? message}</p>
+          <p className="text-sm text-[#8b949e]">{t("wrongServerBody")}</p>
           <button
             type="button"
             disabled={busy}

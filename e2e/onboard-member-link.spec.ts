@@ -216,3 +216,135 @@ test.describe("Member-link onboarding gate", () => {
     await expect(page).not.toHaveURL(/\/onboard/);
   });
 });
+
+async function seedUnlinkedMemberOnboardSession(sql: ReturnType<typeof getE2eSql>) {
+  const maintainer = await createPlatformMaintainerSession(sql);
+  const alliance = await createNativeAlliance(sql, {
+    tag: `OM${nanoid(3)}`,
+    name: "Onboard Member Link Flow",
+  });
+  const email = `member-${nanoid(6)}@e2e.test`;
+  const { token } = await createHqInviteRow(sql, {
+    allianceId: alliance.allianceId,
+    email,
+    roleName: "member",
+    invitedByHqUserId: maintainer.hqUserId,
+  });
+  const accepted = await acceptInviteViaApi(sql, e2eBaseUrl(), token, email);
+  return { accepted, email, alliance };
+}
+
+async function openMemberLinkForm(page: import("@playwright/test").Page) {
+  await page.goto("/onboard");
+  await page.getByRole("button", { name: /continue/i }).click();
+  await expect(
+    page.getByRole("heading", { name: /link your character/i }),
+  ).toBeVisible();
+}
+
+test.describe("Member-link onboarding outcomes", () => {
+  test("wrong_server submit shows wrong-server guidance", async ({ page }) => {
+    const sql = getE2eSql();
+    const { accepted, email } = await seedUnlinkedMemberOnboardSession(sql);
+
+    await page.route("**/api/member-link", async (route) => {
+      if (route.request().method() === "POST") {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            outcome: "wrong_server",
+            message:
+              "Your player UID is for state server 1205, but this alliance is on server 1203.",
+            pending: null,
+          }),
+        });
+        return;
+      }
+      await route.continue();
+    });
+
+    await page.context().addCookies(
+      playwrightAuthCookies({
+        sessionId: accepted.sessionId,
+        hqUserId: accepted.hqUserId,
+        email,
+        nextAuthToken: accepted.nextAuthToken,
+      }),
+    );
+    await openMemberLinkForm(page);
+
+    await page.getByLabel(/in-game name/i).fill("Test Commander");
+    await page.getByLabel(/player uid/i).fill("1234567890123");
+    await page.getByRole("button", { name: /link my character/i }).click();
+
+    await expect(
+      page.getByRole("heading", { name: /wrong state server/i }),
+    ).toBeVisible();
+    await expect(
+      page.getByText(/state server 1205/i),
+    ).toBeVisible();
+  });
+
+  test("awaiting_owner refresh transitions to linked success", async ({
+    page,
+  }) => {
+    const sql = getE2eSql();
+    const { accepted, email } = await seedUnlinkedMemberOnboardSession(sql);
+
+    let memberLinkGets = 0;
+    await page.route("**/api/member-link", async (route) => {
+      if (route.request().method() !== "GET") {
+        await route.continue();
+        return;
+      }
+      memberLinkGets += 1;
+      if (memberLinkGets === 1) {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            linked: false,
+            link: null,
+            pending: {
+              kind: "link_awaiting_owner",
+              requestId: "e2e-request",
+            },
+            requiresAshedVerification: false,
+          }),
+        });
+        return;
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          linked: true,
+          link: { memberDisplayName: "Approved Commander" },
+          pending: null,
+          requiresAshedVerification: false,
+        }),
+      });
+    });
+
+    await page.context().addCookies(
+      playwrightAuthCookies({
+        sessionId: accepted.sessionId,
+        hqUserId: accepted.hqUserId,
+        email,
+        nextAuthToken: accepted.nextAuthToken,
+      }),
+    );
+    await page.goto("/onboard");
+
+    await expect(
+      page.getByRole("heading", { name: /we've notified your r5/i }),
+    ).toBeVisible();
+
+    await page.getByRole("button", { name: /check again/i }).click();
+
+    await expect(
+      page.getByRole("heading", { name: /you're linked/i }),
+    ).toBeVisible({ timeout: 10_000 });
+  });
+});

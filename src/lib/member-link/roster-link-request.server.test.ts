@@ -12,6 +12,17 @@ vi.mock("@/lib/member-link/repository.server", () => ({
   syncPrimaryGameUidFromHqMemberLink: vi.fn(),
 }));
 
+vi.mock("@/lib/member-link/roster-link-inbox.server", () => ({
+  materializeRosterLinkInboxItem: vi.fn().mockResolvedValue("inbox-1"),
+  satisfyRosterLinkInboxItem: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock("@/lib/member-link/roster-link-owner-email.server", () => ({
+  sendRosterLinkOwnerApprovalEmail: vi.fn().mockResolvedValue(undefined),
+  sendRosterLinkInviteeResolvedEmail: vi.fn().mockResolvedValue(undefined),
+  resolveAllianceOwnerEmail: vi.fn().mockResolvedValue("owner@example.com"),
+}));
+
 const gameServers = await import("@/lib/game-season/game-servers.server");
 const dbModule = vi.hoisted(() => {
   const chain = {
@@ -56,14 +67,15 @@ vi.mock("@/lib/db", () => ({
 describe("tryRouteRosterMissToOwnerApproval", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    dbModule.  chain.limit.mockResolvedValue([]);
-  vi.mocked(gameServers.resolveAllianceGameServerNumber).mockResolvedValue(1203);
-  vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, text: async () => "" }));
-});
+    dbModule.chain.limit.mockResolvedValue([]);
+    vi.mocked(gameServers.resolveAllianceGameServerNumber).mockResolvedValue(1203);
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, text: async () => "" }));
+  });
 
   it("returns wrong_server when player server cannot be parsed", async () => {
     const result = await tryRouteRosterMissToOwnerApproval({
       allianceId: "a1",
+      allianceTag: "LFgo",
       hqUserId: "u1",
       locale: "en-US",
       reportedName: "Commander",
@@ -79,6 +91,7 @@ describe("tryRouteRosterMissToOwnerApproval", () => {
 
     const result = await tryRouteRosterMissToOwnerApproval({
       allianceId: "a1",
+      allianceTag: "LFgo",
       hqUserId: "u1",
       locale: "en-US",
       reportedName: "Commander",
@@ -92,6 +105,7 @@ describe("tryRouteRosterMissToOwnerApproval", () => {
   it("returns null when no accepted invite exists", async () => {
     const result = await tryRouteRosterMissToOwnerApproval({
       allianceId: "a1",
+      allianceTag: "LFgo",
       hqUserId: "u1",
       locale: "en-US",
       reportedName: "Commander",

@@ -5,13 +5,8 @@ import { createHash, randomBytes } from "node:crypto";
 import { and, desc, eq, gt, inArray, isNull } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
-import { resolveAppOrigin } from "@/lib/app-origin";
 import { writeAuditLog } from "@/lib/bff/audit";
 import { getDb, schema } from "@/lib/db";
-import {
-  PRODUCTION_EMAIL_FROM,
-  RESEND_DEV_EMAIL_FROM,
-} from "@/lib/public-site";
 import { resolveAllianceGameServerNumber } from "@/lib/game-season/game-servers.server";
 import type { LastWarPlayerLookupResult } from "@/lib/lastwar/player-lookup";
 import { syncAllianceMemberGameLevelFromLastWar } from "@/lib/lastwar/sync-member-game-level.server";
@@ -21,20 +16,19 @@ import {
   saveHqMemberLinkPending,
   syncPrimaryGameUidFromHqMemberLink,
 } from "@/lib/member-link/repository.server";
+import {
+  materializeRosterLinkInboxItem,
+  satisfyRosterLinkInboxItem,
+} from "@/lib/member-link/roster-link-inbox.server";
+import {
+  sendRosterLinkInviteeResolvedEmail,
+  sendRosterLinkOwnerApprovalEmail,
+} from "@/lib/member-link/roster-link-owner-email.server";
 import { createMemberLinkTranslator } from "@/lib/member-link/translate.server";
 import { nativeRosterAshedAllianceId } from "@/lib/native-alliance/provision";
 
 const INVITE_MEMBER_LINK_KINDS = ["email", "protected_link"] as const;
 const ACTION_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
-
-function resolveEmailFromAddress(): string {
-  return (
-    process.env.EMAIL_FROM ??
-    (process.env.NODE_ENV === "production"
-      ? PRODUCTION_EMAIL_FROM
-      : RESEND_DEV_EMAIL_FROM)
-  );
-}
 
 export type RosterLinkRequestStatus =
   | "pending"
@@ -89,6 +83,19 @@ async function supersedePendingRequests(
 ): Promise<void> {
   const db = getDb();
   const now = new Date();
+  const pending = await db
+    .select({ id: schema.hqRosterLinkRequests.id })
+    .from(schema.hqRosterLinkRequests)
+    .where(
+      and(
+        eq(schema.hqRosterLinkRequests.allianceId, allianceId),
+        eq(schema.hqRosterLinkRequests.hqUserId, hqUserId),
+        eq(schema.hqRosterLinkRequests.status, "pending"),
+      ),
+    );
+
+  if (pending.length === 0) return;
+
   await db
     .update(schema.hqRosterLinkRequests)
     .set({ status: "superseded", updatedAt: now })
@@ -99,6 +106,10 @@ async function supersedePendingRequests(
         eq(schema.hqRosterLinkRequests.status, "pending"),
       ),
     );
+
+  for (const row of pending) {
+    await satisfyRosterLinkInboxItem(row.id);
+  }
 }
 
 async function insertActionTokens(
@@ -131,6 +142,7 @@ async function insertActionTokens(
 
 export async function createRosterLinkRequest(input: {
   allianceId: string;
+  allianceTag: string;
   hqUserId: string;
   inviteId: string;
   reportedName: string;
@@ -171,137 +183,33 @@ export async function createRosterLinkRequest(input: {
     gameUserName: input.gameUserName,
   });
 
-  await notifyAllianceOwnerOfRosterLinkRequest({
+  await materializeRosterLinkInboxItem({
     allianceId: input.allianceId,
-    reportedName: input.reportedName,
+    requestId,
     gameUserName: input.gameUserName,
-    gameUid: input.gameUid,
-    acceptToken: tokens.acceptToken,
-    rejectToken: tokens.rejectToken,
   });
+
+  try {
+    await sendRosterLinkOwnerApprovalEmail({
+      allianceId: input.allianceId,
+      allianceTag: input.allianceTag,
+      gameUserName: input.gameUserName,
+      reportedName: input.reportedName,
+      gameUid: input.gameUid,
+      gameServerNumber: input.gameServerNumber,
+      acceptToken: tokens.acceptToken,
+      rejectToken: tokens.rejectToken,
+    });
+  } catch (error) {
+    console.error("[roster-link] owner email failed", error);
+  }
 
   return { requestId, ...tokens };
 }
 
-async function resolveAllianceOwnerEmail(
-  allianceId: string,
-): Promise<string | null> {
-  const db = getDb();
-  const [alliance] = await db
-    .select({
-      ownerEmail: schema.alliances.ownerEmail,
-      ownerHqUserId: schema.alliances.ownerHqUserId,
-    })
-    .from(schema.alliances)
-    .where(eq(schema.alliances.id, allianceId))
-    .limit(1);
-
-  if (alliance?.ownerEmail?.trim()) {
-    return alliance.ownerEmail.trim();
-  }
-
-  if (alliance?.ownerHqUserId) {
-    const [owner] = await db
-      .select({ email: schema.hqUsers.email })
-      .from(schema.hqUsers)
-      .where(eq(schema.hqUsers.id, alliance.ownerHqUserId))
-      .limit(1);
-    return owner?.email?.trim() ?? null;
-  }
-
-  return null;
-}
-
-async function notifyAllianceOwnerOfRosterLinkRequest(input: {
-  allianceId: string;
-  reportedName: string;
-  gameUserName: string;
-  gameUid: string;
-  acceptToken: string;
-  rejectToken: string;
-}): Promise<void> {
-  if (process.env.E2E_TEST === "true") {
-    return;
-  }
-
-  const ownerEmail = await resolveAllianceOwnerEmail(input.allianceId);
-  if (!ownerEmail) {
-    console.warn(
-      "[roster-link] No owner email for alliance — approval links not sent:",
-      input.allianceId,
-    );
-    return;
-  }
-
-  const apiKey = process.env.RESEND_API_KEY?.trim();
-  if (!apiKey) {
-    console.warn(
-      "[roster-link] RESEND_API_KEY missing — owner approval email not sent",
-    );
-    return;
-  }
-
-  const origin = resolveAppOrigin();
-  const acceptUrl = `${origin}/api/roster-link-requests/action?token=${encodeURIComponent(input.acceptToken)}`;
-  const rejectUrl = `${origin}/api/roster-link-requests/action?token=${encodeURIComponent(input.rejectToken)}`;
-  const subject = `Roster link request: ${input.gameUserName}`;
-  const text = [
-    `An invited member requested to link their in-game character to Alliance HQ.`,
-    ``,
-    `Reported name: ${input.reportedName}`,
-    `Game name (Last War): ${input.gameUserName}`,
-    `Player UID: ${input.gameUid}`,
-    ``,
-    `Approve: ${acceptUrl}`,
-    `Decline: ${rejectUrl}`,
-    ``,
-    `These links expire in 7 days and can each be used once.`,
-  ].join("\n");
-  const html = [
-    `<p>An invited member requested to link their in-game character to Alliance HQ.</p>`,
-    `<ul>`,
-    `<li><strong>Reported name:</strong> ${escapeHtml(input.reportedName)}</li>`,
-    `<li><strong>Game name (Last War):</strong> ${escapeHtml(input.gameUserName)}</li>`,
-    `<li><strong>Player UID:</strong> ${escapeHtml(input.gameUid)}</li>`,
-    `</ul>`,
-    `<p><a href="${acceptUrl}">Approve roster link</a></p>`,
-    `<p><a href="${rejectUrl}">Decline request</a></p>`,
-    `<p>These links expire in 7 days and can each be used once.</p>`,
-  ].join("");
-
-  const res = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      from: resolveEmailFromAddress(),
-      to: ownerEmail,
-      subject,
-      html,
-      text,
-    }),
-  });
-
-  if (!res.ok) {
-    console.error(
-      "[roster-link] Owner approval email failed:",
-      await res.text(),
-    );
-  }
-}
-
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
-
 export async function tryRouteRosterMissToOwnerApproval(input: {
   allianceId: string;
+  allianceTag: string;
   hqUserId: string;
   locale: string;
   reportedName: string;
@@ -338,6 +246,7 @@ export async function tryRouteRosterMissToOwnerApproval(input: {
 
   const { requestId } = await createRosterLinkRequest({
     allianceId: input.allianceId,
+    allianceTag: input.allianceTag,
     hqUserId: input.hqUserId,
     inviteId: invite.id,
     reportedName: input.reportedName,
@@ -383,6 +292,44 @@ async function createNativeAllianceMemberForRosterLink(input: {
   });
 
   return ashedMemberId;
+}
+
+async function loadHqUserEmail(hqUserId: string): Promise<string | null> {
+  const db = getDb();
+  const [row] = await db
+    .select({ email: schema.hqUsers.email })
+    .from(schema.hqUsers)
+    .where(eq(schema.hqUsers.id, hqUserId))
+    .limit(1);
+  return row?.email?.trim() || null;
+}
+
+async function loadAllianceTag(allianceId: string): Promise<string> {
+  const db = getDb();
+  const [row] = await db
+    .select({ tag: schema.alliances.tag })
+    .from(schema.alliances)
+    .where(eq(schema.alliances.id, allianceId))
+    .limit(1);
+  return row?.tag ?? "alliance";
+}
+
+async function notifyInviteeOnResolve(
+  request: typeof schema.hqRosterLinkRequests.$inferSelect,
+  accepted: boolean,
+): Promise<void> {
+  const email = await loadHqUserEmail(request.hqUserId);
+  if (!email) return;
+  const allianceTag = await loadAllianceTag(request.allianceId);
+  try {
+    await sendRosterLinkInviteeResolvedEmail({
+      to: email,
+      allianceTag,
+      accepted,
+    });
+  } catch (error) {
+    console.error("[roster-link] invitee email failed", error);
+  }
 }
 
 export async function acceptRosterLinkRequest(input: {
@@ -463,6 +410,8 @@ export async function acceptRosterLinkRequest(input: {
     );
 
   await saveHqMemberLinkPending(request.allianceId, request.hqUserId, null);
+  await satisfyRosterLinkInboxItem(request.id);
+  await notifyInviteeOnResolve(request, true);
 
   if (input.sessionId && input.resolvedByHqUserId) {
     await writeAuditLog({
@@ -522,6 +471,8 @@ export async function rejectRosterLinkRequest(input: {
     );
 
   await saveHqMemberLinkPending(request.allianceId, request.hqUserId, null);
+  await satisfyRosterLinkInboxItem(request.id);
+  await notifyInviteeOnResolve(request, false);
 
   if (input.sessionId && input.resolvedByHqUserId) {
     await writeAuditLog({

@@ -1961,6 +1961,7 @@ export const inboxReminderItems = pgTable("inbox_reminder_items", {
   body: text("body"),
   href: text("href"),
   scoreTarget: text("score_target"),
+  resourceId: text("resource_id"),
   eurOccurrenceId: text("eur_occurrence_id").references(
     () => eurOccurrences.id,
     { onDelete: "cascade" },

@@ -2384,6 +2384,12 @@
     "linkedBody": "Welcome aboard, {name}. Taking you in…",
     "fuzzyTitle": "Pick your roster name",
     "rosterMissTitle": "We couldn't find you on the roster",
+    "awaitingOwnerTitle": "We've notified your R5",
+    "awaitingOwnerBody": "Your alliance owner was emailed with Approve and Decline links. Watch your inbox for a message when they respond, then return here to finish linking.",
+    "awaitingOwnerHint": "Wrong account? Use Wrong alliance below on other screens, or sign out from the header to switch accounts.",
+    "awaitingOwnerRefresh": "Check again",
+    "wrongServerTitle": "Wrong state server",
+    "wrongServerBody": "Your player UID belongs to a different state server than this alliance. Confirm you joined the right alliance or ask your R5 for a new invite.",
     "walkthroughTitle": "Copy your name from the game",
     "requestFailed": "Something went wrong. Try again.",
     "connectAshedBanner": "Connect Ashed for iframe tools and live roster sync.",
@@ -2548,7 +2554,10 @@
     "bellLabelWithCount": "{count, plural, one {# reminder} other {# reminders}}",
     "kind": {
       "eurOccurrence": "Event upload",
-      "videoJobsPending": "Videos to process"
+      "videoJobsPending": "Videos to process",
+      "memberLinkRequest": "Roster link",
+      "memberLinkRequestTitle": "Approve {name}",
+      "memberLinkRequestBody": "A player needs owner approval to join the roster."
     }
   },
   "uploadReminders": {
