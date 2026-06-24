@@ -1,0 +1,70 @@
+---
+description: >
+  Video pipeline changes must be experiment-driven. Parse configs live in the DB,
+  not in code. Promotion to primary requires data from a concluded experiment.
+  Every experiment is scoped to one event format (scoreTarget).
+globs: src/lib/video/**,src/app/api/tools/video-upload/**,src/app/api/admin/experiments/**,src/app/api/admin/parse-configs/**,src/app/[locale]/**/admin/experiments/**,src/app/[locale]/**/admin/parse-configs/**
+alwaysApply: false
+---
+
+# Video Pipeline: Experiment-Driven Development
+
+## Parse configs live in the DB, not in code
+
+All configurations are rows in `parseConfigs`. Do not edit `pass-definitions.ts`
+constants or introduce new hardcoded pass objects.
+
+❌ Adding a constant to `pass-definitions.ts` or changing `DEFAULT_PRIMARY_PASS`
+✅ Creating a `parseConfig` row in `/admin/parse-configs` and referencing it from
+   an experiment arm
+
+`DEFAULT_PRIMARY_PASS` and `SHADOW_PASS_AB` are legacy fallbacks only — used when
+no `configAssignment` or `experimentArmId` is set on a group.
+
+## Shadow pass changes require a campaign
+
+`enqueue-shadow-pass.ts` reads `group.experimentArmId` → `experimentArms.configId`
+to decide which config to run. Never add a hardcoded shadow config — create an
+`experimentCampaign` with a treatment arm pointing at the new `parseConfig`.
+
+## Every experiment is scoped to one event format
+
+`experimentCampaigns.scoreTarget` is NOT NULL. Never create or activate a campaign
+with `scoreTarget = null`. Event formats have fundamentally different video
+structures (frame counts, OCR layout, scroll behavior, score positions) so
+results from Alliance Exercise are not comparable to Desert Storm or Zombie Siege.
+
+Run one campaign per event format. If you need to test a config across formats,
+run parallel campaigns — one per `scoreTarget`.
+
+## Analytics must always segment by scoreTarget
+
+When querying or displaying analytics, `score_target` is always a GROUP BY
+dimension. Never display a flat thumbs-up % or quality score that mixes event
+types without a clear "⚠ mixed event types" warning.
+
+## Promoting to primary requires a concluded experiment
+
+A config becomes primary for a target only via a `configAssignments` row. Required
+before writing that row:
+- Arm has ≥ 50 rated jobs
+- Thumbs-up % or quality bucket is measurably better than the control arm
+- Campaign `status` is `concluded` with a written `conclusion`
+
+## Population check before concluding
+
+Before setting `status = 'concluded'`, confirm the population panel shows the
+expected `scoreTarget` distribution. A result driven by a single unusual event
+instance is not generalizable — verify the sample spans multiple event occurrences.
+
+## New score targets start without a config assignment
+
+When a new `scoreTarget` or `boardKey` is introduced, do not hardcode a
+target-specific config. Let the first uploads use the default and set up an
+experiment to find the best config for that target.
+
+## Check analytics before tuning traffic weights
+
+Before changing `trafficPercent` or arm `trafficWeight`, verify current arm
+performance at `/admin/video-jobs/analytics?scoreTarget=<type>`.
+Document the reason for the change in the campaign `description`.
