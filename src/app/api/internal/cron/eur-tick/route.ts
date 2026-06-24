@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { runEurTick } from "@/lib/eur/run-tick";
+import { runRosterLinkReminderPass } from "@/lib/member-link/roster-link-reminders.server";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -25,5 +26,6 @@ export async function GET(request: Request) {
   }
 
   const result = await runEurTick();
-  return NextResponse.json({ ok: true, ...result });
+  const rosterLinkRemindersSent = await runRosterLinkReminderPass();
+  return NextResponse.json({ ok: true, ...result, rosterLinkRemindersSent });
 }

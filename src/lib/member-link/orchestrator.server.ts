@@ -311,6 +311,7 @@ export async function runWebMemberLinkSubmit(input: {
   if (result.needsOfficerAttention) {
     const routed = await tryRouteRosterMissToOwnerApproval({
       allianceId: input.allianceId,
+      allianceTag: alliance?.tag ?? "alliance",
       hqUserId: input.hqUserId,
       locale: input.locale,
       reportedName: name,

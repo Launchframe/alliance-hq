@@ -61,6 +61,7 @@ describe("tryRouteRosterMissToOwnerApproval", () => {
   it("returns wrong_server when player server cannot be parsed", async () => {
     const result = await tryRouteRosterMissToOwnerApproval({
       allianceId: "a1",
+      allianceTag: "LFgo",
       hqUserId: "u1",
       locale: "en-US",
       reportedName: "Commander",
@@ -76,6 +77,7 @@ describe("tryRouteRosterMissToOwnerApproval", () => {
 
     const result = await tryRouteRosterMissToOwnerApproval({
       allianceId: "a1",
+      allianceTag: "LFgo",
       hqUserId: "u1",
       locale: "en-US",
       reportedName: "Commander",
@@ -89,6 +91,7 @@ describe("tryRouteRosterMissToOwnerApproval", () => {
   it("returns null when no accepted invite exists", async () => {
     const result = await tryRouteRosterMissToOwnerApproval({
       allianceId: "a1",
+      allianceTag: "LFgo",
       hqUserId: "u1",
       locale: "en-US",
       reportedName: "Commander",
