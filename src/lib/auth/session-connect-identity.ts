@@ -17,6 +17,34 @@ export class AshedConnectAuthMismatchError extends Error {
   }
 }
 
+/** Magic-link / email-code only — not Google, Discord, passkey, or password sign-in. */
+const ASHED_CONNECT_MERGE_FRIENDLY_AUTH_PROVIDERS = new Set([
+  "resend",
+  "email-code",
+]);
+
+/**
+ * Invite or magic-link stubs (no external SSO) may merge into a canonical Ashed
+ * row after the connect route verifies the connection string.
+ */
+async function authHqUserMayMergeViaVerifiedAshedConnect(
+  authHqUserId: string,
+): Promise<boolean> {
+  const db = getDb();
+  const accounts = await db
+    .select({ provider: schema.hqAuthAccounts.provider })
+    .from(schema.hqAuthAccounts)
+    .where(eq(schema.hqAuthAccounts.hqUserId, authHqUserId));
+
+  if (accounts.length === 0) {
+    return true;
+  }
+
+  return accounts.every((row) =>
+    ASHED_CONNECT_MERGE_FRIENDLY_AUTH_PROVIDERS.has(row.provider),
+  );
+}
+
 /**
  * Blocks connecting Ashed credentials that belong to another HQ user while a
  * different account (e.g. Google SSO) is signed in on this browser session.
@@ -63,6 +91,13 @@ export async function assertAuthMayMergeIntoCanonicalHqUser(input: {
   const authEmail = authRow.email ? normalizeAshedEmail(authRow.email) : "";
   const ashedEmail = normalizeAshedEmail(input.ashedEmail);
   if (authEmail && ashedEmail && authEmail === ashedEmail) {
+    return;
+  }
+
+  if (
+    !authRow.ashedUserId &&
+    (await authHqUserMayMergeViaVerifiedAshedConnect(input.authHqUserId))
+  ) {
     return;
   }
 

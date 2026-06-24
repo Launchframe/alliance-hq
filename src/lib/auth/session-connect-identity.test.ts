@@ -12,7 +12,8 @@ import * as ashedMembershipModule from "@/lib/rbac/ashed-session-membership";
 vi.mock("@/lib/db", () => ({
   getDb: vi.fn(),
   schema: {
-    hqUsers: { id: "id", email: "email" },
+    hqUsers: { id: "id", email: "email", ashedUserId: "ashedUserId" },
+    hqAuthAccounts: { provider: "provider", hqUserId: "hqUserId" },
     auditLog: {
       metadata: "metadata",
       sessionId: "sessionId",
@@ -107,7 +108,12 @@ describe("assertAuthMayMergeIntoCanonicalHqUser", () => {
       .mockResolvedValueOnce([
         { email: "other@gmail.com", ashedUserId: null },
       ]);
-    const where = vi.fn().mockReturnValue({ limit });
+    const where = vi
+      .fn()
+      .mockReturnValueOnce({ limit })
+      .mockReturnValueOnce({ limit })
+      .mockReturnValueOnce({ limit })
+      .mockResolvedValueOnce([{ provider: "google" }]);
     const from = vi.fn().mockReturnValue({ where });
     const select = vi.fn().mockReturnValue({ from });
 
@@ -122,6 +128,36 @@ describe("assertAuthMayMergeIntoCanonicalHqUser", () => {
         ashedUserId: "ashed-maintainer",
       }),
     ).rejects.toBeInstanceOf(AshedConnectAuthMismatchError);
+  });
+
+  it("allows a second invite stub with a different email to merge the same Ashed seat", async () => {
+    const limit = vi
+      .fn()
+      .mockResolvedValueOnce([{ email: "magic-b@e2e.test" }])
+      .mockResolvedValueOnce([{ email: "player@e2e.test" }])
+      .mockResolvedValueOnce([
+        { email: "magic-b@e2e.test", ashedUserId: null },
+      ]);
+    const where = vi
+      .fn()
+      .mockReturnValueOnce({ limit })
+      .mockReturnValueOnce({ limit })
+      .mockReturnValueOnce({ limit })
+      .mockResolvedValueOnce([]);
+    const from = vi.fn().mockReturnValue({ where });
+    const select = vi.fn().mockReturnValue({ from });
+
+    const { getDb } = await import("@/lib/db");
+    vi.mocked(getDb).mockReturnValue({ select } as never);
+
+    await expect(
+      assertAuthMayMergeIntoCanonicalHqUser({
+        authHqUserId: "magic-stub-b",
+        canonicalHqUserId: "canonical-user",
+        ashedEmail: "player@e2e.test",
+        ashedUserId: "ashed-abc",
+      }),
+    ).resolves.toBeUndefined();
   });
 });
 

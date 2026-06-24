@@ -24,6 +24,10 @@ vi.mock("@/lib/db", () => ({
       email: "hqUsers.email",
       displayName: "hqUsers.displayName",
     },
+    hqAuthAccounts: {
+      provider: "hqAuthAccounts.provider",
+      hqUserId: "hqAuthAccounts.hqUserId",
+    },
   },
 }));
 
@@ -33,6 +37,14 @@ function chainSelect(rows: unknown[]) {
       where: vi.fn().mockReturnValue({
         limit: vi.fn().mockResolvedValue(rows),
       }),
+    }),
+  };
+}
+
+function chainSelectWhere(rows: unknown[]) {
+  return {
+    from: vi.fn().mockReturnValue({
+      where: vi.fn().mockResolvedValue(rows),
     }),
   };
 }
@@ -176,7 +188,8 @@ describe("resolveCanonicalHqUserForAshedConnect", () => {
       .mockReturnValueOnce(chainSelect([{ email: "maintainer@e2e.test" }]))
       .mockReturnValueOnce(
         chainSelect([{ email: "other@gmail.com", ashedUserId: null }]),
-      );
+      )
+      .mockReturnValueOnce(chainSelectWhere([{ provider: "google" }]));
 
     await expect(
       resolveCanonicalHqUserForAshedConnect({
