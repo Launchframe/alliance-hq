@@ -39,7 +39,7 @@ export async function GET(_request: Request, context: RouteContext) {
     );
     if (denied) return denied;
 
-    const [effective, row, canManageSeason] = await Promise.all([
+    const [effective, row, canManageSeason, native] = await Promise.all([
       getEffectiveSeasonForAlliance(alliance.allianceId),
       loadAllianceSeasonRow(alliance.allianceId),
       sessionHasPermissionForAlliance(
@@ -47,6 +47,7 @@ export async function GET(_request: Request, context: RouteContext) {
         alliance.allianceId,
         "alliance:admin",
       ),
+      isNativeAlliance(alliance.allianceId),
     ]);
 
     return NextResponse.json({
@@ -59,6 +60,7 @@ export async function GET(_request: Request, context: RouteContext) {
       gameServerNumber: effective.gameServerNumber,
       seasonKeyOverride: row?.seasonKeyOverride ?? null,
       canManageSeason,
+      canEditGameServer: native && canManageSeason,
     });
   } catch (error) {
     return allianceRouteErrorResponse(error);
@@ -107,6 +109,7 @@ export async function PATCH(request: Request, context: RouteContext) {
           )
         : await getEffectiveSeasonForAlliance(alliance.allianceId);
     const row = await loadAllianceSeasonRow(alliance.allianceId);
+    const native = await isNativeAlliance(alliance.allianceId);
 
     const beforeOverride = beforeRow?.seasonKeyOverride ?? null;
     const afterOverride = row?.seasonKeyOverride ?? null;
@@ -140,6 +143,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       gameServerNumber: effective.gameServerNumber,
       seasonKeyOverride: row?.seasonKeyOverride ?? null,
       canManageSeason: true,
+      canEditGameServer: native,
     });
   } catch (error) {
     return allianceRouteErrorResponse(error);

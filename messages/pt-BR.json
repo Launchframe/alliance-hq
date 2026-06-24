@@ -381,6 +381,7 @@
     "nativeAlliance": {
       "title": "Aliança nativa (teste)",
       "subtitle": "Provisione uma aliança sem assentos Ashed. Oficiais importam capturas de tela após aceitar o convite.",
+      "inviteServerRequiredNote": "Defina o servidor estadual da aliança em Configurações da aliança → Temporada do jogo antes de gerar convites HQ. Alianças nativas sem linha vinculada em game_servers são bloqueadas (422 alliance_server_required).",
       "name": "Nome da aliança",
       "tag": "Tag no jogo",
       "ownerEmailOptional": "E-mail do proprietário (opcional — cria associação imediatamente)",
@@ -1123,6 +1124,7 @@
       "clearFailed": "Não foi possível limpar a substituição.",
       "serverNumberLabel": "Número do servidor estadual",
       "serverNumberHint": "Obrigatório antes de enviar convites HQ (ex.: 1203). Os quatro últimos dígitos do UID do jogador correspondem a este servidor.",
+      "serverNumberUpdateHint": "Você pode corrigir o número do servidor estadual aqui se digitou errado. Convites continuam bloqueados até salvar um servidor vinculado.",
       "saveServer": "Salvar servidor",
       "source": {
         "override": "Substituição manual",

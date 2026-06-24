@@ -13,6 +13,7 @@ export type AllianceSeasonPayload = {
   gameServerNumber: number | null;
   seasonKeyOverride: string | null;
   canManageSeason: boolean;
+  canEditGameServer: boolean;
 };
 
 type Props = {
@@ -196,7 +197,7 @@ export function AllianceSeasonSettings({ allianceTag }: Props) {
         ) : null}
       </div>
 
-      {displaySeason.canManageSeason && displaySeason.gameServerNumber == null ? (
+      {displaySeason.canEditGameServer ? (
         <div className="mt-4 flex w-full min-w-0 max-w-md flex-col gap-2">
           <label className="text-xs text-[#8b949e]" htmlFor="settings-game-server">
             {t("serverNumberLabel")}
@@ -209,7 +210,11 @@ export function AllianceSeasonSettings({ allianceTag }: Props) {
             onChange={(e) => setServerDraft(e.target.value.replace(/\D/g, ""))}
             className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 text-sm text-[#e6edf3]"
           />
-          <p className="text-xs text-[#6e7681]">{t("serverNumberHint")}</p>
+          <p className="text-xs text-[#6e7681]">
+            {displaySeason.gameServerNumber == null
+              ? t("serverNumberHint")
+              : t("serverNumberUpdateHint")}
+          </p>
           <button
             type="button"
             disabled={busy || !serverDraft.trim()}
