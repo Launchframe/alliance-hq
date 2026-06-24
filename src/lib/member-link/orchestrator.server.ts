@@ -18,12 +18,16 @@ import {
   assertPrivilegedAshedGate,
 } from "@/lib/member-link/privileged-link.server";
 import {
-  recordMemberLinkSubmit,
-} from "@/lib/onboarding/onboarding-audit.server";
+  tryRouteRosterMissToOwnerApproval,
+  getRosterLinkRequestById,
+} from "@/lib/member-link/roster-link-request.server";
 import {
   createMemberLinkTranslator,
   memberLinkWalkthroughSteps,
 } from "@/lib/member-link/translate.server";
+import {
+  recordMemberLinkSubmit,
+} from "@/lib/onboarding/onboarding-audit.server";
 import { getRbacContext } from "@/lib/rbac/context";
 import {
   processLinkCommand,
@@ -304,6 +308,20 @@ export async function runWebMemberLinkSubmit(input: {
     allianceTag: alliance?.tag ?? null,
   });
 
+  if (result.needsOfficerAttention) {
+    const routed = await tryRouteRosterMissToOwnerApproval({
+      allianceId: input.allianceId,
+      hqUserId: input.hqUserId,
+      locale: input.locale,
+      reportedName: name,
+      gameUid: uid,
+      lookup,
+    });
+    if (routed) {
+      return finishMemberLinkSubmit(ctx, routed);
+    }
+  }
+
   return finishMemberLinkSubmit(ctx, await finalizeCommandResult(ctx, result));
 }
 
@@ -499,10 +517,38 @@ export async function getWebMemberLinkStatus(input: {
 
   const link = await getHqMemberLinkForUser(input.allianceId, input.hqUserId);
   const pendingRow = await getHqMemberLinkPending(input.allianceId, input.hqUserId);
+  let pending = pendingRow?.pending ?? null;
+
+  if (
+    !link &&
+    pending?.kind === "link_awaiting_owner"
+  ) {
+    const request = await getRosterLinkRequestById(pending.requestId);
+    if (request?.status === "accepted") {
+      const refreshedLink = await getHqMemberLinkForUser(
+        input.allianceId,
+        input.hqUserId,
+      );
+      if (refreshedLink) {
+        await saveHqMemberLinkPending(input.allianceId, input.hqUserId, null);
+        pending = null;
+      }
+    } else if (request?.status === "rejected" || request?.status === "superseded") {
+      await saveHqMemberLinkPending(input.allianceId, input.hqUserId, null);
+      pending = null;
+    }
+  }
+
+  const effectiveLink =
+    link ??
+    (pending?.kind === "link_awaiting_owner"
+      ? await getHqMemberLinkForUser(input.allianceId, input.hqUserId)
+      : null);
+
   return {
-    linked: link != null,
-    link,
-    pending: pendingRow?.pending ?? null,
+    linked: effectiveLink != null,
+    link: effectiveLink,
+    pending,
     requiresAshedVerification,
     privilegedRole: rbac?.roleName ?? null,
     isPlatformMaintainer: rbac?.isPlatformMaintainer ?? false,

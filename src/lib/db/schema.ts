@@ -11,6 +11,7 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 
 export const alliances = pgTable("alliances", {
@@ -1201,6 +1202,69 @@ export const hqInvites = pgTable("hq_invites", {
     .notNull(),
 });
 
+export const hqRosterLinkRequests = pgTable(
+  "hq_roster_link_requests",
+  {
+    id: text("id").primaryKey(),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    hqUserId: text("hq_user_id")
+      .notNull()
+      .references(() => hqUsers.id, { onDelete: "cascade" }),
+    inviteId: text("invite_id").references(() => hqInvites.id, {
+      onDelete: "set null",
+    }),
+    reportedName: text("reported_name").notNull(),
+    gameUid: text("game_uid").notNull(),
+    gameUserName: text("game_user_name").notNull(),
+    gameServerNumber: integer("game_server_number").notNull(),
+    gameUserLevel: integer("game_user_level"),
+    /** pending | accepted | rejected | superseded */
+    status: text("status").notNull().default("pending"),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+    resolvedByHqUserId: text("resolved_by_hq_user_id").references(
+      () => hqUsers.id,
+      { onDelete: "set null" },
+    ),
+    createdMemberId: text("created_member_id"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("hq_roster_link_requests_alliance_id_idx").on(table.allianceId),
+    index("hq_roster_link_requests_hq_user_id_idx").on(table.hqUserId),
+  ],
+);
+
+export const hqRosterLinkActionTokens = pgTable(
+  "hq_roster_link_action_tokens",
+  {
+    id: text("id").primaryKey(),
+    requestId: text("request_id")
+      .notNull()
+      .references(() => hqRosterLinkRequests.id, { onDelete: "cascade" }),
+    /** accept | reject */
+    action: text("action").notNull(),
+    tokenHash: text("token_hash").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    usedAt: timestamp("used_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("hq_roster_link_action_tokens_token_hash_unique").on(
+      table.tokenHash,
+    ),
+    index("hq_roster_link_action_tokens_request_id_idx").on(table.requestId),
+  ],
+);
+
 export const hqAllianceJoinCodes = pgTable("hq_alliance_join_codes", {
   id: text("id").primaryKey(),
   allianceId: text("alliance_id")
@@ -1667,6 +1731,9 @@ export const trainRiderCargoItems = pgTable("train_rider_cargo_item", {
 
 export type AllianceMember = typeof allianceMembers.$inferSelect;
 export type HqInvite = typeof hqInvites.$inferSelect;
+export type HqRosterLinkRequest = typeof hqRosterLinkRequests.$inferSelect;
+export type HqRosterLinkActionToken =
+  typeof hqRosterLinkActionTokens.$inferSelect;
 export type HqAllianceJoinCode = typeof hqAllianceJoinCodes.$inferSelect;
 export type HqAllianceJoinCodeRedemption =
   typeof hqAllianceJoinCodeRedemptions.$inferSelect;

@@ -351,6 +351,13 @@
       "when": 1783596800000,
       "tag": "0050_game_server_season",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1783683200000,
+      "tag": "0051_hq_roster_link_requests",
+      "breakpoints": true
     }
   ]
 }

@@ -35,7 +35,12 @@ export type LinkPendingState =
       tag: string;
       candidates: Array<{ allianceId: string; name: string; tag: string }>;
     }
-  | { kind: "link_roster_miss" };
+  | { kind: "link_roster_miss" }
+  | {
+      kind: "link_awaiting_owner";
+      requestId: string;
+      gameUserName: string;
+    };
 
 export type LinkCommandResult = {
   reply: string;

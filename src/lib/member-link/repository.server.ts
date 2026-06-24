@@ -29,6 +29,17 @@ function parseLinkPending(value: unknown): LinkPendingState | null {
   if (r.kind === "link_roster_miss") {
     return { kind: "link_roster_miss" };
   }
+  if (
+    r.kind === "link_awaiting_owner" &&
+    typeof r.requestId === "string" &&
+    typeof r.gameUserName === "string"
+  ) {
+    return {
+      kind: "link_awaiting_owner",
+      requestId: r.requestId,
+      gameUserName: r.gameUserName,
+    };
+  }
   return null;
 }
 
