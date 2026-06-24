@@ -350,6 +350,15 @@ export function AuthSignInClient({
         <p className="text-sm text-[#f85149]">{error}</p>
       ) : null}
 
+      {step === "picker" && ssoAvailability.discord ? (
+        <p
+          className="rounded-lg border border-[#5865F2]/35 bg-[#5865F2]/10 px-3 py-2.5 text-sm leading-snug text-[#e6edf3]"
+          role="note"
+        >
+          {t("discordSignInHint")}
+        </p>
+      ) : null}
+
       {step === "picker" ? (
         <div
           className="flex flex-wrap justify-center gap-2"

@@ -19,6 +19,7 @@ async function resolveOwnedJobVideo(jobId: string, sessionId: string) {
       id: schema.videoJobs.id,
       sessionId: schema.videoJobs.sessionId,
       storageKey: schema.videoJobs.storageKey,
+      archiveStorageKey: schema.videoJobs.archiveStorageKey,
       groupId: schema.videoJobs.groupId,
       fileName: schema.videoJobs.fileName,
     })
@@ -44,7 +45,9 @@ async function resolveOwnedJobVideo(jobId: string, sessionId: string) {
 
   return {
     storageKey,
-    contentType: videoContentTypeFromFileName(job.fileName),
+    contentType: job.archiveStorageKey
+      ? "video/mp4"
+      : videoContentTypeFromFileName(job.fileName),
   };
 }
 

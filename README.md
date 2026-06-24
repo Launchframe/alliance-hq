@@ -148,11 +148,14 @@ Related design docs:
 
 Upload a Desert Storm leaderboard scroll-recording at **Tools → Upload from video**. The pipeline:
 
-1. Stores video in **Cloudflare R2** on Vercel (or `.data/uploads/` locally when R2 is unset)
-2. Extracts frames with **ffmpeg** (`ffmpeg-static` on Vercel; `brew install ffmpeg` for local dev)
+1. **Direct-to-R2 upload** — browser uploads to Cloudflare R2 via presigned URLs (`POST /api/tools/video-upload/init` → PUT parts → `POST .../complete`), bypassing Vercel’s ~4 MB request body limit. Local dev without R2 still uses a single POST to `/.data/uploads/`.
+2. Extracts frames with **ffmpeg** (`ffmpeg-static` on Vercel; `brew install ffmpeg` for local dev) — source video is **streamed** from R2 to `/tmp`, not buffered in memory.
 3. OCRs each frame via Base44 `UploadFile` + `ExtractDataFromUploadedFile` (BFF proxy)
 4. Fuzzy-matches names against Ashed `Member` list
 5. Review UI → submit to `DesertStormScore/bulk`
+6. **Archive pass** (async after review) — transcodes the source to 720p H.264 for moderation playback, then deletes the original from R2
+
+**Size limits:** default **512 MiB** per upload (`VIDEO_MAX_UPLOAD_BYTES`). Multipart presigned uploads kick in at **100 MiB**. Legacy direct POST through Next.js is capped at **4 MB** in production only (local dev without R2).
 
 **Requirements for local dev:**
 
@@ -164,16 +167,20 @@ Add to `.env.local`:
 
 ```
 VIDEO_WORKER_SECRET=dev-secret
+# Optional — override default 512 MiB cap:
+# VIDEO_MAX_UPLOAD_BYTES=536870912
 ```
 
 After `npm run dev`, either:
 
 - Processing starts automatically after upload (fire-and-forget to `/api/internal/video-process/{jobId}` on **localhost**), or
-- Run a poller in another terminal: `npm run video:worker` (auto-targets localhost when `LOCAL_DATABASE_URL` is local — do not point at Vercel; ffmpeg and uploads live on your machine)
+- Run a poller in another terminal: `npm run video:worker` (auto-targets localhost when `LOCAL_DATABASE_URL` is localhost — do not point at Vercel; ffmpeg and uploads live on your machine)
 
 Open **Review** on a job when status is `ready to review`. Pick event, team, date, fix matches, then **Save scores**.
 
-**Production (Vercel):** With R2 env vars set, uploads land in R2. Processing is triggered via `waitUntil` after upload (`/api/internal/video-process/{jobId}`). A **Vercel Cron** (`/api/internal/video-process/queue`, every minute) drains any job still `queued` if the trigger was dropped. Set `CRON_SECRET` in Vercel (Cron sends `Authorization: Bearer $CRON_SECRET`). Optionally run `npm run video:worker` locally as another backup poller.
+**Production (Vercel):** **R2 env vars are required** for uploads. Configure **bucket CORS** so the browser can `PUT` presigned URLs from your app origin (methods: `PUT`, `GET`, `HEAD`; allow `Content-Type` and `Authorization` headers). Processing is triggered via `waitUntil` after upload complete (`/api/internal/video-process/{jobId}`). Archive compression runs after the job reaches `review` (`/api/internal/video-archive/{jobId}`). A **Vercel Cron** (`/api/internal/video-process/queue`, every minute) drains any job still `queued` if the trigger was dropped. Set `CRON_SECRET` in Vercel (Cron sends `Authorization: Bearer $CRON_SECRET`). Optionally run `npm run video:worker` locally as another backup poller.
+
+**Vercel limits:** processing and archive routes use `maxDuration = 300`. Very long recordings may hit timeout or `/tmp` space on Vercel — if that happens in production, point `VIDEO_WORKER_BASE_URL` at a long-running host (same secret auth; no code change to the trigger path).
 
 **Timing / bottlenecks:** Each run logs phase timings to stdout (`[video-pipeline]` summary and `[video-pipeline] step` per hop). On Vercel production, custom events go to **Web Analytics** (`Video Pipeline Phase`, `Video Pipeline Complete`, etc.). Ashed frame uploads run in parallel — set `VIDEO_ASHED_FRAME_CONCURRENCY` (default 4, max 8). Compare `ashed.ocr_total` wall time vs summed `ashed.upload`/`ashed.extract` phases to see parallel speedup.
 

@@ -10,7 +10,7 @@ import { writeAuditLog } from "@/lib/bff/audit";
 import { base44ListMembers } from "@/lib/base44/fetch";
 import { getAshedConnection } from "@/lib/session";
 import { getDb, schema } from "@/lib/db";
-import { getObject, putObject, frameStorageKey, prefersLocalStorage, r2Configured } from "@/lib/storage";
+import { putObject, frameStorageKey, prefersLocalStorage, r2Configured, streamObjectToFile } from "@/lib/storage";
 import { logPipelineStep } from "@/lib/video/pipeline-step-log";
 import {
   cleanupFrameTempDir,
@@ -28,6 +28,7 @@ import { PipelineTimer } from "@/lib/video/pipeline-timer";
 import { getScoreTargetOrThrow } from "@/lib/video/score-targets";
 import { emitVideoJobStatus } from "@/lib/events/video-jobs";
 import { maybeEnqueueShadowPass } from "@/lib/video/enqueue-shadow-pass";
+import { dispatchVideoArchive } from "@/lib/video/trigger-archive";
 import { computePassComparison } from "@/lib/video/compare-pass-results";
 import type { ExtractionConfig } from "@/lib/video/pass-definitions";
 import fs from "node:fs/promises";
@@ -169,19 +170,15 @@ export async function processVideoJob(
       metadata: { fileName: job.fileName },
     });
 
-    const videoBuffer = await timer.measureStep("storage.load_video", () =>
-      getObject(job.storageKey!),
-      (buffer) => ({ bytes: buffer.length }),
-    );
     const tmpVideo = path.join(
       os.tmpdir(),
       `hq-video-${jobId}${path.extname(job.fileName ?? ".mp4")}`,
     );
-    await timer.measureStep(
-      "storage.write_temp_video",
-      () => fs.writeFile(tmpVideo, videoBuffer),
-      { bytes: videoBuffer.length },
+    const videoBytes = await timer.measureStep("storage.load_video", () =>
+      streamObjectToFile(job.storageKey!, tmpVideo),
+      (bytes) => ({ bytes }),
     );
+    logPipelineStep("storage.temp_video_ready", 0, { bytes: videoBytes, jobId });
 
     const extractionConfig = (job.extractionConfigJson as ExtractionConfig | null) ?? undefined;
 
@@ -441,6 +438,8 @@ export async function processVideoJob(
       },
       { rowCount: entries.length, matchedCount },
     );
+
+    void dispatchVideoArchive(jobId);
 
     timer.log(`job ${jobId} complete`, {
       scoreTarget: scoreTargetId,

@@ -3,6 +3,7 @@ import { and, eq } from "drizzle-orm";
 
 import { emitVideoJobStatus } from "@/lib/events/video-jobs";
 import { getDb, schema } from "@/lib/db";
+import { deleteObject } from "@/lib/storage";
 import { getOrCreateSession } from "@/lib/session";
 import { computeQualityScore } from "@/lib/video/quality-score";
 
@@ -85,6 +86,13 @@ export async function PATCH(_request: Request, { params }: Props) {
     scoreTarget: job.scoreTarget ?? job.category,
     errorMessage: null,
   });
+
+  const keysToDelete = new Set<string>();
+  if (job.storageKey) keysToDelete.add(job.storageKey);
+  if (job.archiveStorageKey) keysToDelete.add(job.archiveStorageKey);
+  await Promise.all(
+    [...keysToDelete].map((key) => deleteObject(key).catch(() => undefined)),
+  );
 
   return NextResponse.json({ ok: true });
 }

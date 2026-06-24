@@ -2,29 +2,36 @@ import { NextResponse } from "next/server";
 import { and, desc, eq, isNull, ne, or } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
-import { writeAuditLog } from "@/lib/bff/audit";
-import { emitVideoJobStatus } from "@/lib/events/video-jobs";
 import { getDb, schema } from "@/lib/db";
 import { requireSessionPermission } from "@/lib/rbac/require-permission";
-import { putObject, videoStorageKey } from "@/lib/storage";
+import { putObject, videoStorageKey, r2Configured } from "@/lib/storage";
 import { getOrCreateSession } from "@/lib/session";
-import { dispatchVideoProcessing } from "@/lib/video/trigger-processing";
 import { getScoreTarget, ENABLED_SCORE_TARGETS } from "@/lib/video/score-targets";
 import {
-  MAX_VIDEO_UPLOAD_MB,
-  isVideoUploadOverLimit,
+  getMaxVideoUploadBytes,
+  getMaxVideoUploadMb,
+  isLegacyDirectPostOverLimit,
+  LEGACY_DIRECT_POST_MAX_BYTES,
+  MULTIPART_PART_BYTES,
+  MULTIPART_UPLOAD_THRESHOLD_BYTES,
 } from "@/lib/video/upload-limit";
-import { DEFAULT_PRIMARY_PASS } from "@/lib/video/pass-definitions";
-import {
-  assignExperiment,
-  lookupConfigAssignment,
-} from "@/lib/video/experiment-assignment";
+import { finalizeVideoUploadAndDispatch } from "@/lib/video/finalize-video-upload";
 
 export async function POST(request: Request) {
   try {
     const session = await getOrCreateSession();
     const denied = await requireSessionPermission(session.id, "upload:write");
     if (denied) return denied;
+
+    if (r2Configured()) {
+      return NextResponse.json(
+        {
+          error:
+            "Use the direct upload flow (init → R2 → complete). Legacy POST is only for local dev without R2.",
+        },
+        { status: 400 },
+      );
+    }
 
     const formData = await request.formData();
     const file = formData.get("video");
@@ -49,10 +56,19 @@ export async function POST(request: Request) {
       );
     }
 
-    if (isVideoUploadOverLimit(file.size)) {
+    if (isLegacyDirectPostOverLimit(file.size)) {
       return NextResponse.json(
         {
-          error: `Video must be under ${MAX_VIDEO_UPLOAD_MB} MB. Crop, trim, or downscale the recording and try again.`,
+          error: `Video must be under ${Math.round(LEGACY_DIRECT_POST_MAX_BYTES / (1024 * 1024))} MB for direct upload through the app server. Configure R2 for larger files.`,
+        },
+        { status: 400 },
+      );
+    }
+
+    if (file.size > getMaxVideoUploadBytes()) {
+      return NextResponse.json(
+        {
+          error: `Video must be under ${getMaxVideoUploadMb()} MB.`,
         },
         { status: 400 },
       );
@@ -64,90 +80,17 @@ export async function POST(request: Request) {
     const buffer = Buffer.from(await file.arrayBuffer());
     await putObject(storageKey, buffer);
 
-    const db = getDb();
-    const now = new Date();
-
-    const boardKeyStr = boardKey ? String(boardKey) : null;
-
-    const [configAssignment, expAssignment] = await Promise.all([
-      lookupConfigAssignment({ scoreTarget, boardKey: boardKeyStr }),
-      assignExperiment({ scoreTarget, boardKey: boardKeyStr }),
-    ]);
-
-    const primaryConfig = configAssignment?.configJson ?? DEFAULT_PRIMARY_PASS;
-    const primaryPassKey = configAssignment?.passKey ?? "scene_0.25";
-
-    // Insert upload group first (primary_job_id set after job insert)
-    await db.insert(schema.videoUploadGroups).values({
-      id: groupId,
-      sessionId: session.id,
-      allianceId: null,
-      storageKey,
-      fileName: file.name,
-      fileSizeBytes: file.size,
-      scoreTarget,
-      boardKey: boardKeyStr,
-      hqEventId: hqEventId ? String(hqEventId) : null,
-      primaryJobId: null,
-      selectedJobId: null,
-      accuracyJobId: null,
-      comparisonJson: null,
-      experimentCampaignId: expAssignment?.campaignId ?? null,
-      experimentArmId: expAssignment?.armId ?? null,
-      createdAt: now,
-      updatedAt: now,
-    });
-
-    await db.insert(schema.videoJobs).values({
-      id: jobId,
-      sessionId: session.id,
-      status: "queued",
-      fileName: file.name,
-      fileSizeBytes: file.size,
-      category: scoreTarget,
-      scoreTarget,
-      boardKey: boardKeyStr,
-      hqEventId: hqEventId ? String(hqEventId) : null,
-      storageKey,
-      ingestMethod: "video",
-      frameCount: null,
-      uploadedFrameCount: 0,
-      groupId,
-      passKey: primaryPassKey,
-      passIndex: 0,
-      passRole: "primary",
-      extractionConfigJson: primaryConfig,
-      createdAt: now,
-      updatedAt: now,
-    });
-
-    // Update group with primary job id
-    await db
-      .update(schema.videoUploadGroups)
-      .set({ primaryJobId: jobId, selectedJobId: jobId, updatedAt: now })
-      .where(eq(schema.videoUploadGroups.id, groupId));
-
-    await writeAuditLog({
-      sessionId: session.id,
-      action: "video.upload",
-      resourceType: "video_job",
-      resourceName: scoreTarget,
-      resourceId: jobId,
-      metadata: { fileName: file.name, bytes: file.size },
-    });
-
-    await emitVideoJobStatus({
+    await finalizeVideoUploadAndDispatch({
       sessionId: session.id,
       jobId,
-      status: "queued",
+      groupId,
+      storageKey,
       fileName: file.name,
+      fileSizeBytes: file.size,
       scoreTarget,
-      frameCount: null,
-      uploadedFrameCount: 0,
-      errorMessage: null,
+      boardKey: boardKey ? String(boardKey) : null,
+      hqEventId: hqEventId ? String(hqEventId) : null,
     });
-
-    dispatchVideoProcessing(jobId, { source: "upload" });
 
     return NextResponse.json({
       ok: true,
@@ -179,6 +122,7 @@ export async function GET() {
         and(
           eq(schema.videoJobs.sessionId, session.id),
           ne(schema.videoJobs.status, "discarded"),
+          ne(schema.videoJobs.status, "pending_upload"),
           or(
             eq(schema.videoJobs.passRole, "primary"),
             isNull(schema.videoJobs.passRole),
@@ -208,6 +152,13 @@ export async function GET() {
         boardTypes: t.boardTypes,
         usesHqEvents: t.seriesEntity === "EventSeries",
       })),
+      upload: {
+        mode: r2Configured() ? "r2" : "direct",
+        maxUploadBytes: getMaxVideoUploadBytes(),
+        multipartThresholdBytes: MULTIPART_UPLOAD_THRESHOLD_BYTES,
+        multipartPartBytes: MULTIPART_PART_BYTES,
+        legacyDirectPostMaxBytes: LEGACY_DIRECT_POST_MAX_BYTES,
+      },
     });
   } catch (error) {
     return NextResponse.json(
