@@ -337,6 +337,13 @@
       "when": 1783424000000,
       "tag": "0048_member_ashed_parity",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1783510400000,
+      "tag": "0049_discord_train_announcements",
+      "breakpoints": true
     }
   ]
 }

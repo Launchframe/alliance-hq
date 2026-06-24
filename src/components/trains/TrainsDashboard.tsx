@@ -144,6 +144,7 @@ export function TrainsDashboard({ initial }: Props) {
   const [data, setData] = useState(initial);
   const [error, setError] = useState<string | null>(null);
   const [unlockConfirm, setUnlockConfirm] = useState(false);
+  const [trainReadyConfirm, setTrainReadyConfirm] = useState(false);
   const [wheelOpen, setWheelOpen] = useState(false);
   const [wheelWinner, setWheelWinner] = useState<{
     memberId: string;
@@ -1505,13 +1506,51 @@ export function TrainsDashboard({ initial }: Props) {
                   </button>
                 ) : null}
                 {!locked && selectedRecord?.conductorMemberId ? (
-                  <button
-                    type="button"
-                    onClick={() => void lockConductor()}
-                    className="rounded-lg bg-[#238636] px-4 py-2 text-sm font-medium text-white hover:bg-[#2ea043] w-full sm:w-auto"
-                  >
-                    {t("lockConductor")}
-                  </button>
+                  data.trainDiscordConfigured ? (
+                    trainReadyConfirm ? (
+                      <div className="flex w-full flex-wrap items-center gap-2 rounded-lg border border-[#238636]/40 bg-[#238636]/10 px-3 py-2">
+                        <span className="text-sm text-[#3fb950]">
+                          {t("trainIsReady.confirm", {
+                            name: selectedRecord.conductorMemberName ?? "—",
+                            date: selectedDate,
+                          })}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setTrainReadyConfirm(false)}
+                          className="rounded-md border border-[#30363d] px-3 py-1.5 text-xs text-[#e6edf3] hover:bg-[#0d1117]"
+                        >
+                          {t("trainIsReady.cancel")}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setTrainReadyConfirm(false);
+                            void lockConductor();
+                          }}
+                          className="rounded-md bg-[#238636] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#2ea043]"
+                        >
+                          {t("trainIsReady.confirmAction")}
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setTrainReadyConfirm(true)}
+                        className="rounded-lg bg-[#238636] px-4 py-2 text-sm font-medium text-white hover:bg-[#2ea043] w-full sm:w-auto"
+                      >
+                        {t("trainIsReady.action")}
+                      </button>
+                    )
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => void lockConductor()}
+                      className="rounded-lg bg-[#238636] px-4 py-2 text-sm font-medium text-white hover:bg-[#2ea043] w-full sm:w-auto"
+                    >
+                      {t("lockConductor")}
+                    </button>
+                  )
                 ) : null}
                 {locked && data.canUnlockConductor ? (
                   unlockConfirm ? (

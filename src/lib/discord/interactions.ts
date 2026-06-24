@@ -126,7 +126,9 @@ export type ParsedButton =
   | { kind: "vr_character"; linkId: string }
   | { kind: "link_unlink"; linkId: string }
   | { kind: "link_start_over" }
-  | { kind: "link_ask_officer" };
+  | { kind: "link_ask_officer" }
+  | { kind: "train_pick"; memberId: string; date: string }
+  | { kind: "train_confirm"; memberId: string; date: string; answer: "yes" | "no" };
 
 export function parseButtonCustomId(
   customId: string | undefined,
@@ -147,6 +149,25 @@ export function parseButtonCustomId(
   if (charPick) return { kind: "vr_character", linkId: charPick[1]! };
   const unlinkPick = /^link:unlink:(.+)$/.exec(customId);
   if (unlinkPick) return { kind: "link_unlink", linkId: unlinkPick[1]! };
+  const trainPick = /^train:pick:([^:]+):(\d{4}-\d{2}-\d{2})$/.exec(customId);
+  if (trainPick) {
+    return {
+      kind: "train_pick",
+      memberId: trainPick[1]!,
+      date: trainPick[2]!,
+    };
+  }
+  const trainConfirm = /^train:confirm:([^:]+):(\d{4}-\d{2}-\d{2}):(yes|no)$/.exec(
+    customId,
+  );
+  if (trainConfirm) {
+    return {
+      kind: "train_confirm",
+      memberId: trainConfirm[1]!,
+      date: trainConfirm[2]!,
+      answer: trainConfirm[3] as "yes" | "no",
+    };
+  }
   return null;
 }
 
@@ -218,6 +239,48 @@ export function buildWalkthroughDoneButton(label = "Done") {
           style: 1,
           label: label.slice(0, 80),
           custom_id: "link:walkthrough:done",
+        },
+      ],
+    },
+  ];
+}
+
+export function buildTrainPickButtons(
+  candidates: Array<{ memberId: string; name: string; date: string }>,
+) {
+  return [
+    {
+      type: 1,
+      components: candidates.slice(0, 5).map((c) => ({
+        type: 2,
+        style: 1,
+        label: c.name.slice(0, 80),
+        custom_id: `train:pick:${c.memberId}:${c.date}`,
+      })),
+    },
+  ];
+}
+
+export function buildTrainConfirmButtons(
+  memberId: string,
+  date: string,
+  labels: { yes: string; no: string },
+) {
+  return [
+    {
+      type: 1,
+      components: [
+        {
+          type: 2,
+          style: 3,
+          label: labels.yes.slice(0, 80),
+          custom_id: `train:confirm:${memberId}:${date}:yes`,
+        },
+        {
+          type: 2,
+          style: 4,
+          label: labels.no.slice(0, 80),
+          custom_id: `train:confirm:${memberId}:${date}:no`,
         },
       ],
     },

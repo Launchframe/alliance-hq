@@ -55,6 +55,10 @@ export const alliances = pgTable("alliances", {
     .default("weekly"),
   /** Train week start DOW in server calendar (0=Sun … 6=Sat; default Tue). */
   trainWeekStartDow: integer("train_week_start_dow").notNull().default(2),
+  /** When 1, locked trains may post to configured Discord train channels. */
+  trainDiscordAnnouncementsEnabled: integer("train_discord_announcements_enabled")
+    .notNull()
+    .default(0),
   /** ashed (default) — Base44 sync; native — HQ roster without Ashed seats. */
   operatingMode: text("operating_mode").notNull().default("ashed"),
   /** Native alliances: HQ user id for owner checks (Discord guild bind). */
@@ -708,6 +712,7 @@ export const discordGuildAlliances = pgTable("discord_guild_alliances", {
     .notNull()
     .references(() => alliances.id, { onDelete: "cascade" }),
   vrReportChannelId: text("vr_report_channel_id"),
+  trainChannelId: text("train_channel_id"),
   registeredAt: timestamp("registered_at", { withTimezone: true })
     .defaultNow()
     .notNull(),
@@ -1411,6 +1416,9 @@ export const trainConductorRecords = pgTable(
     substituteForMemberId: text("substitute_for_member_id"),
     substituteForMemberName: text("substitute_for_member_name"),
     lockedAt: timestamp("locked_at", { withTimezone: true }),
+    discordDepartingSoonAt: timestamp("discord_departing_soon_at", {
+      withTimezone: true,
+    }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
