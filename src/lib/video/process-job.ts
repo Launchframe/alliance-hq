@@ -115,18 +115,7 @@ export async function processVideoJob(
     return processTesseractShadowRosterJob(jobId, options);
   }
 
-  const videoStorageKey = await resolveJobVideoStorageKey(job);
-  if (!videoStorageKey) {
-    throw new Error("Job has no stored video.");
-  }
-
-  const connection = await getAshedConnection(job.sessionId);
-  if (!connection) {
-    throw new Error("Ashed not connected for this session.");
-  }
-
   const scoreTargetId = job.scoreTarget ?? job.category ?? "desert-storm";
-  const target = getScoreTargetOrThrow(scoreTargetId);
   const now = new Date();
 
   const setStatus = async (
@@ -172,6 +161,18 @@ export async function processVideoJob(
   let totalRawOcrRows: number | null = null;
 
   try {
+    const videoStorageKey = await resolveJobVideoStorageKey(job);
+    if (!videoStorageKey) {
+      throw new Error("Job has no stored video.");
+    }
+
+    const connection = await getAshedConnection(job.sessionId);
+    if (!connection) {
+      throw new Error("Ashed not connected for this session.");
+    }
+
+    const target = getScoreTargetOrThrow(scoreTargetId);
+
     await setStatus("extracting");
     await writeAuditLog({
       sessionId: job.sessionId,
