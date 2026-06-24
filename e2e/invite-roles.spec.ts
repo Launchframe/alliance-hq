@@ -11,6 +11,7 @@ import {
   createNativeAlliance,
   createPlatformMaintainerSession,
   getE2eSql,
+  linkNativeAllianceToGameServer,
   loadMembershipRoleName,
   playwrightAuthCookies,
   simulateManualMembershipAshedUpgrade,
@@ -30,6 +31,7 @@ test.describe("Invite API — role-member regression", () => {
       tag: `M${nanoid(4)}`,
       name: "E2E Native Alliance",
     });
+    await linkNativeAllianceToGameServer(sql, alliance.allianceId);
 
     const email = `member-${nanoid(6)}@e2e.test`;
     const res = await request.post(

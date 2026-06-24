@@ -7,6 +7,7 @@ import {
   authCookieHeader,
   createAllianceMembership,
   createAuthenticatedHqSession,
+  createHqMemberLink,
   createNativeAlliance,
   getE2eSql,
   linkNativeAllianceToGameServer,
@@ -143,10 +144,15 @@ test.describe("Team Access — officer invites", () => {
       SET current_alliance_id = ${alliance.allianceId}, alliance_tag = ${alliance.tag}
       WHERE id = ${officer.sessionId}
     `;
+    await createHqMemberLink(sql, {
+      allianceId: alliance.allianceId,
+      hqUserId: officer.hqUserId,
+    });
 
     await page.context().addCookies(playwrightAuthCookies(officer));
     await page.goto("/settings/team");
-    await expect(page.getByRole("alert")).toContainText(/state server/i);
+    await expect(page.getByRole("heading", { name: /team access/i })).toBeVisible();
+    await expect(page.getByText(/state server/i)).toBeVisible();
     await expect(page.getByRole("button", { name: /generate invite link/i })).toBeDisabled();
   });
 
