@@ -831,6 +831,8 @@
       "invitePassphraseHint": "Envie o link e a senha em mensagens separadas.",
       "inviteFailed": "Não foi possível criar o convite.",
       "inviteSent": "Link de convite gerado (válido por 14 dias).",
+      "serverRequired": "Defina o servidor estadual da aliança em Configurações → Temporada do jogo antes de enviar convites.",
+      "serverRequiredLink": "Abrir configurações de temporada",
       "joinCodeTitle": "Código de entrada",
       "joinCodeHint": "Código reutilizável para Discord ou chat do jogo. Resgate em /join após entrar.",
       "joinCodeRole": "Função HQ",
@@ -1119,6 +1121,9 @@
       "saving": "Salvando…",
       "saveFailed": "Não foi possível salvar a substituição.",
       "clearFailed": "Não foi possível limpar a substituição.",
+      "serverNumberLabel": "Número do servidor estadual",
+      "serverNumberHint": "Obrigatório antes de enviar convites HQ (ex.: 1203). Os quatro últimos dígitos do UID do jogador correspondem a este servidor.",
+      "saveServer": "Salvar servidor",
       "source": {
         "override": "Substituição manual",
         "cpt-hedge": "Sincronizado do cpt-hedge",
