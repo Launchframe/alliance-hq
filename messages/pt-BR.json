@@ -2373,7 +2373,11 @@
     },
     "officerNotified": "Um oficial foi notificado no Alliance HQ e pode entrar em contato.",
     "wrongServer": "Seu UID pertence a um servidor estadual diferente desta aliança. Confira se entrou na aliança certa ou peça um novo convite ao R5.",
-    "awaitingOwner": "Notificamos o dono da aliança por e-mail. Aguarde a aprovação e volte aqui para concluir o vínculo."
+    "awaitingOwner": "Notificamos o dono da aliança por e-mail. Aguarde a aprovação e volte aqui para concluir o vínculo.",
+    "nameMismatchRetry": "O Last War mostra seu nome como {gameName}. Copie exatamente e tente novamente.",
+    "confirmServerMissing": "Não conseguimos ler seu servidor estadual no Last War. Informe o número do servidor estadual da sua aliança.",
+    "confirmServerMismatch": "O Last War mostra o servidor {lookupServer}, mas esta aliança está definida como {allianceServer}. Informe o número correto do servidor estadual.",
+    "lookupFallback": "Não foi possível acessar o Last War agora. Informe o número do servidor estadual para continuar — você pode corrigir nas configurações depois."
   },
   "onboard": {
     "title": "Vincule seu personagem",
@@ -2407,7 +2411,22 @@
     "connectAshedCta": "Conectar Ashed",
     "connectAshedDismiss": "Agora não",
     "wrongAlliance": "Aliança errada?",
-    "wrongAllianceHint": "Limpa esta sessão de onboarding. Sua associação permanece — entre com outra conta ou use outro código de entrada."
+    "wrongAllianceHint": "Limpa esta sessão de onboarding. Sua associação permanece — entre com outra conta ou use outro código de entrada.",
+    "nameMismatchTitle": "Nome não confere",
+    "nameMismatchHint": "Atualize o nome no jogo para coincidir exatamente com o Last War e envie novamente.",
+    "useSuggestedName": "Usar nome sugerido",
+    "confirmServerTitle": "Confirmar servidor estadual",
+    "confirmServerMissingBody": "Informe o número do servidor estadual da sua aliança. Você pode alterar depois nas configurações.",
+    "confirmServerMismatchBody": "Se o servidor da aliança abaixo estiver errado, informe o número correto.",
+    "lookupFallbackTitle": "Consulta ao Last War indisponível",
+    "lookupFallbackBody": "Informe o número do servidor estadual para concluir o onboarding. Usaremos o nome e UID que você digitou.",
+    "serverNumberLabel": "Número do servidor estadual",
+    "serverNumberHint": "ex. 1203 — o estado em que sua aliança joga.",
+    "serverNumberRequired": "Informe o número do servidor estadual.",
+    "serverNumberInvalid": "Informe um número de servidor válido (1–9999).",
+    "submitServer": "Continuar com este servidor",
+    "backToForm": "Voltar ao nome e UID",
+    "memberTakenBody": "Esse UID já está vinculado a outra conta HQ. Os administradores da plataforma foram notificados — tente outra conta ou fale com o suporte."
   },
   "discordBot": {
     "errors": {
