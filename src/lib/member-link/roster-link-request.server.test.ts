@@ -8,6 +8,8 @@ vi.mock("@/lib/game-season/game-servers.server", () => ({
 
 vi.mock("@/lib/member-link/repository.server", () => ({
   saveHqMemberLinkPending: vi.fn().mockResolvedValue(undefined),
+  linkHqMember: vi.fn(),
+  syncPrimaryGameUidFromHqMemberLink: vi.fn(),
 }));
 
 const gameServers = await import("@/lib/game-season/game-servers.server");
@@ -54,9 +56,10 @@ vi.mock("@/lib/db", () => ({
 describe("tryRouteRosterMissToOwnerApproval", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    dbModule.chain.limit.mockResolvedValue([]);
-    vi.mocked(gameServers.resolveAllianceGameServerNumber).mockResolvedValue(1203);
-  });
+    dbModule.  chain.limit.mockResolvedValue([]);
+  vi.mocked(gameServers.resolveAllianceGameServerNumber).mockResolvedValue(1203);
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, text: async () => "" }));
+});
 
   it("returns wrong_server when player server cannot be parsed", async () => {
     const result = await tryRouteRosterMissToOwnerApproval({
@@ -97,5 +100,16 @@ describe("tryRouteRosterMissToOwnerApproval", () => {
     });
 
     expect(result).toBeNull();
+  });
+});
+
+describe("processRosterLinkActionToken", () => {
+  it("rejects empty tokens", async () => {
+    const { processRosterLinkActionToken } = await import(
+      "./roster-link-request.server"
+    );
+    const result = await processRosterLinkActionToken("   ");
+    expect(result.ok).toBe(false);
+    expect(result.title).toBe("Invalid link");
   });
 });

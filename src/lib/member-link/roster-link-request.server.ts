@@ -2,11 +2,16 @@ import "server-only";
 
 import { createHash, randomBytes } from "node:crypto";
 
-import { and, desc, eq, inArray, isNull } from "drizzle-orm";
+import { and, desc, eq, gt, inArray, isNull } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
+import { resolveAppOrigin } from "@/lib/app-origin";
 import { writeAuditLog } from "@/lib/bff/audit";
 import { getDb, schema } from "@/lib/db";
+import {
+  PRODUCTION_EMAIL_FROM,
+  RESEND_DEV_EMAIL_FROM,
+} from "@/lib/public-site";
 import { resolveAllianceGameServerNumber } from "@/lib/game-season/game-servers.server";
 import type { LastWarPlayerLookupResult } from "@/lib/lastwar/player-lookup";
 import { syncAllianceMemberGameLevelFromLastWar } from "@/lib/lastwar/sync-member-game-level.server";
@@ -21,6 +26,15 @@ import { nativeRosterAshedAllianceId } from "@/lib/native-alliance/provision";
 
 const INVITE_MEMBER_LINK_KINDS = ["email", "protected_link"] as const;
 const ACTION_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+function resolveEmailFromAddress(): string {
+  return (
+    process.env.EMAIL_FROM ??
+    (process.env.NODE_ENV === "production"
+      ? PRODUCTION_EMAIL_FROM
+      : RESEND_DEV_EMAIL_FROM)
+  );
+}
 
 export type RosterLinkRequestStatus =
   | "pending"
@@ -157,7 +171,133 @@ export async function createRosterLinkRequest(input: {
     gameUserName: input.gameUserName,
   });
 
+  await notifyAllianceOwnerOfRosterLinkRequest({
+    allianceId: input.allianceId,
+    reportedName: input.reportedName,
+    gameUserName: input.gameUserName,
+    gameUid: input.gameUid,
+    acceptToken: tokens.acceptToken,
+    rejectToken: tokens.rejectToken,
+  });
+
   return { requestId, ...tokens };
+}
+
+async function resolveAllianceOwnerEmail(
+  allianceId: string,
+): Promise<string | null> {
+  const db = getDb();
+  const [alliance] = await db
+    .select({
+      ownerEmail: schema.alliances.ownerEmail,
+      ownerHqUserId: schema.alliances.ownerHqUserId,
+    })
+    .from(schema.alliances)
+    .where(eq(schema.alliances.id, allianceId))
+    .limit(1);
+
+  if (alliance?.ownerEmail?.trim()) {
+    return alliance.ownerEmail.trim();
+  }
+
+  if (alliance?.ownerHqUserId) {
+    const [owner] = await db
+      .select({ email: schema.hqUsers.email })
+      .from(schema.hqUsers)
+      .where(eq(schema.hqUsers.id, alliance.ownerHqUserId))
+      .limit(1);
+    return owner?.email?.trim() ?? null;
+  }
+
+  return null;
+}
+
+async function notifyAllianceOwnerOfRosterLinkRequest(input: {
+  allianceId: string;
+  reportedName: string;
+  gameUserName: string;
+  gameUid: string;
+  acceptToken: string;
+  rejectToken: string;
+}): Promise<void> {
+  if (process.env.E2E_TEST === "true") {
+    return;
+  }
+
+  const ownerEmail = await resolveAllianceOwnerEmail(input.allianceId);
+  if (!ownerEmail) {
+    console.warn(
+      "[roster-link] No owner email for alliance — approval links not sent:",
+      input.allianceId,
+    );
+    return;
+  }
+
+  const apiKey = process.env.RESEND_API_KEY?.trim();
+  if (!apiKey) {
+    console.warn(
+      "[roster-link] RESEND_API_KEY missing — owner approval email not sent",
+    );
+    return;
+  }
+
+  const origin = resolveAppOrigin();
+  const acceptUrl = `${origin}/api/roster-link-requests/action?token=${encodeURIComponent(input.acceptToken)}`;
+  const rejectUrl = `${origin}/api/roster-link-requests/action?token=${encodeURIComponent(input.rejectToken)}`;
+  const subject = `Roster link request: ${input.gameUserName}`;
+  const text = [
+    `An invited member requested to link their in-game character to Alliance HQ.`,
+    ``,
+    `Reported name: ${input.reportedName}`,
+    `Game name (Last War): ${input.gameUserName}`,
+    `Player UID: ${input.gameUid}`,
+    ``,
+    `Approve: ${acceptUrl}`,
+    `Decline: ${rejectUrl}`,
+    ``,
+    `These links expire in 7 days and can each be used once.`,
+  ].join("\n");
+  const html = [
+    `<p>An invited member requested to link their in-game character to Alliance HQ.</p>`,
+    `<ul>`,
+    `<li><strong>Reported name:</strong> ${escapeHtml(input.reportedName)}</li>`,
+    `<li><strong>Game name (Last War):</strong> ${escapeHtml(input.gameUserName)}</li>`,
+    `<li><strong>Player UID:</strong> ${escapeHtml(input.gameUid)}</li>`,
+    `</ul>`,
+    `<p><a href="${acceptUrl}">Approve roster link</a></p>`,
+    `<p><a href="${rejectUrl}">Decline request</a></p>`,
+    `<p>These links expire in 7 days and can each be used once.</p>`,
+  ].join("");
+
+  const res = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      from: resolveEmailFromAddress(),
+      to: ownerEmail,
+      subject,
+      html,
+      text,
+    }),
+  });
+
+  if (!res.ok) {
+    console.error(
+      "[roster-link] Owner approval email failed:",
+      await res.text(),
+    );
+  }
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }
 
 export async function tryRouteRosterMissToOwnerApproval(input: {
@@ -404,22 +544,58 @@ export type RosterLinkActionResult = {
   alreadyResolved?: boolean;
 };
 
-export async function processRosterLinkActionToken(
-  rawToken: string,
+async function claimRosterLinkActionToken(
+  tokenHash: string,
+  now = new Date(),
+) {
+  const db = getDb();
+  const [claimed] = await db
+    .update(schema.hqRosterLinkActionTokens)
+    .set({ usedAt: now })
+    .where(
+      and(
+        eq(schema.hqRosterLinkActionTokens.tokenHash, tokenHash),
+        isNull(schema.hqRosterLinkActionTokens.usedAt),
+        gt(schema.hqRosterLinkActionTokens.expiresAt, now),
+      ),
+    )
+    .returning();
+  return claimed ?? null;
+}
+
+async function describeUsedRosterLinkActionToken(
+  tokenRow: typeof schema.hqRosterLinkActionTokens.$inferSelect,
 ): Promise<RosterLinkActionResult> {
-  const token = rawToken.trim();
-  if (!token) {
+  const request = await getRosterLinkRequestById(tokenRow.requestId);
+  if (request?.status === "accepted" && tokenRow.action === "accept") {
     return {
-      ok: false,
-      title: "Invalid link",
-      body: "This approval link is missing or invalid.",
+      ok: true,
+      action: "accept",
+      title: "Already approved",
+      body: `${request.gameUserName} was already approved to join the roster.`,
+      alreadyResolved: true,
     };
   }
+  if (request?.status === "rejected" && tokenRow.action === "reject") {
+    return {
+      ok: true,
+      action: "reject",
+      title: "Already declined",
+      body: "This roster link request was already declined.",
+      alreadyResolved: true,
+    };
+  }
+  return {
+    ok: false,
+    title: "Link already used",
+    body: "This approval link has already been used.",
+  };
+}
 
+async function rosterLinkActionTokenFailure(
+  tokenHash: string,
+): Promise<RosterLinkActionResult> {
   const db = getDb();
-  const tokenHash = hashActionToken(token);
-  const now = new Date();
-
   const [tokenRow] = await db
     .select()
     .from(schema.hqRosterLinkActionTokens)
@@ -435,33 +611,10 @@ export async function processRosterLinkActionToken(
   }
 
   if (tokenRow.usedAt) {
-    const request = await getRosterLinkRequestById(tokenRow.requestId);
-    if (request?.status === "accepted" && tokenRow.action === "accept") {
-      return {
-        ok: true,
-        action: "accept",
-        title: "Already approved",
-        body: `${request.gameUserName} was already approved to join the roster.`,
-        alreadyResolved: true,
-      };
-    }
-    if (request?.status === "rejected" && tokenRow.action === "reject") {
-      return {
-        ok: true,
-        action: "reject",
-        title: "Already declined",
-        body: "This roster link request was already declined.",
-        alreadyResolved: true,
-      };
-    }
-    return {
-      ok: false,
-      title: "Link already used",
-      body: "This approval link has already been used.",
-    };
+    return describeUsedRosterLinkActionToken(tokenRow);
   }
 
-  if (tokenRow.expiresAt < now) {
+  if (tokenRow.expiresAt < new Date()) {
     return {
       ok: false,
       title: "Link expired",
@@ -469,8 +622,34 @@ export async function processRosterLinkActionToken(
     };
   }
 
-  if (tokenRow.action === "accept") {
-    const result = await acceptRosterLinkRequest({ requestId: tokenRow.requestId });
+  return {
+    ok: false,
+    title: "Link already used",
+    body: "This approval link has already been used.",
+  };
+}
+
+export async function processRosterLinkActionToken(
+  rawToken: string,
+): Promise<RosterLinkActionResult> {
+  const token = rawToken.trim();
+  if (!token) {
+    return {
+      ok: false,
+      title: "Invalid link",
+      body: "This approval link is missing or invalid.",
+    };
+  }
+
+  const tokenHash = hashActionToken(token);
+  const now = new Date();
+  const claimed = await claimRosterLinkActionToken(tokenHash, now);
+  if (!claimed) {
+    return rosterLinkActionTokenFailure(tokenHash);
+  }
+
+  if (claimed.action === "accept") {
+    const result = await acceptRosterLinkRequest({ requestId: claimed.requestId });
     if (!result.ok) {
       return {
         ok: false,
@@ -486,7 +665,7 @@ export async function processRosterLinkActionToken(
     };
   }
 
-  const result = await rejectRosterLinkRequest({ requestId: tokenRow.requestId });
+  const result = await rejectRosterLinkRequest({ requestId: claimed.requestId });
   if (!result.ok) {
     return {
       ok: false,
