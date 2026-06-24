@@ -12,10 +12,10 @@ import {
   createHqMemberLink,
   createNativeAlliance,
   createPlatformMaintainerSession,
-  encodeNextAuthSessionToken,
   getE2eSql,
   playwrightAuthCookies,
 } from "./fixtures/db";
+import { encodeNextAuthSessionToken } from "./fixtures/auth";
 
 function e2eBaseUrl(): string {
   return process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:5176";
@@ -269,7 +269,9 @@ test.describe("Get-started routing", () => {
     );
     await page.goto("/get-started");
 
-    await expect(page).toHaveURL(/\/dashboard/);
+    await expect(page).not.toHaveURL(/\/get-started/);
+    // /dashboard iframe routes redirect HQ-only sessions to /members
+    await expect(page).toHaveURL(/\/members/);
     await expect(
       page.getByRole("link", { name: /^Connect Ashed$/i }),
     ).toBeVisible();
