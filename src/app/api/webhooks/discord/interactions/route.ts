@@ -51,6 +51,7 @@ import {
   resolveAllianceForGuild,
 } from "@/lib/vr/service";
 import { resolveSetupMessage } from "@/lib/vr/bot-user-context";
+import { linkSlashUsesCommanderFlow } from "@/lib/vr/link-slash-routing";
 import { getDiscordHqLink } from "@/lib/vr/repository";
 import {
   handleDiscordSetTrainChannel,
@@ -260,8 +261,9 @@ async function handleSlashCommand(payload: DiscordInteractionPayload) {
     if (!guildId) {
       return discordMessageResponse(t("errors.guildNotRegistered"));
     }
+    const hqLink = await getDiscordHqLink(discordUserId);
     const legacyName = parseSlashOptionString(payload, "name");
-    if (legacyName) {
+    if (linkSlashUsesCommanderFlow({ hasHqLink: hqLink != null, legacyName })) {
       return handleLinkCommanderSlash(payload, {
         discordUserId,
         guildId,
