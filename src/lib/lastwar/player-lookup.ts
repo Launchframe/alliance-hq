@@ -1,10 +1,11 @@
-export const LASTWAR_UID_SUFFIX = "1203";
+const GAME_UID_PATTERN = /^\d{12,16}$/;
 
 export function isValidGameUid(uid: string): boolean {
-  const trimmed = uid.trim();
-  if (!/^\d{12,16}$/.test(trimmed)) return false;
-  return trimmed.endsWith(LASTWAR_UID_SUFFIX);
+  return GAME_UID_PATTERN.test(uid.trim());
 }
+
+export const INVALID_GAME_UID_MESSAGE =
+  "Enter a 12–16 digit player ID from your in-game profile.";
 
 export type LastWarPlayerLookupResponse = {
   code: number;
@@ -142,8 +143,7 @@ export async function lookupPlayerByUid(
     return {
       ok: false,
       reason: "invalid_uid",
-      message:
-        "UID must be 12–16 digits and end in 1203 (copy it from your in-game profile).",
+      message: INVALID_GAME_UID_MESSAGE,
     };
   }
 

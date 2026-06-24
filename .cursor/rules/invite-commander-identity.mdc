@@ -24,7 +24,7 @@ globs:
 
 | Concept | Storage | Primary key / scope | Answers |
 | --- | --- | --- | --- |
-| **In-game commander** | Last War API (live lookup by UID) | Player UID (12–16 digits, ends `1203`) | “What does the **game server** call this player **right now**?” |
+| **In-game commander** | Last War API (live lookup by UID) | Player UID (12–16 digits; suffix is state server number) | “What does the **game server** call this player **right now**?” |
 | **Ashed roster member** | `alliance_members` (+ live Ashed API when local empty) | `ashed_member_id` per `alliance_id` | “Who is on **our alliance roster** in HQ/Ashed?” (`current_name`, `previous_names_json`) |
 | **HQ user** | `hq_users` + Auth.js session | `hq_users.id` | “Who signed into Alliance HQ?” (email / magic link) |
 | **HQ member (RBAC)** | `alliance_memberships` | `(alliance_id, hq_user_id)` → role | “What **permissions** does this HQ user have in this alliance?” (owner, officer, member, …) |
