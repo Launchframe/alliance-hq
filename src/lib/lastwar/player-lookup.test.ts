@@ -1,7 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   isValidGameUid,
+  lookupPlayerByUid,
   normalizeLastWarAvatarUrl,
   parseGameServerNumberFromUid,
   parseLastWarLookupResponse,
@@ -110,6 +111,36 @@ describe("parseLastWarLookupResponse", () => {
       ok: true,
       gameUserName: "CommanderX",
       avatarUrl: "https://lastwar-h5.lastwargame.com/avatars/commander.png",
+    });
+  });
+});
+
+describe("lookupPlayerByUid E2E fixtures", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("returns a deterministic player when E2E_TEST is enabled", async () => {
+    vi.stubEnv("E2E_TEST", "true");
+    await expect(lookupPlayerByUid("1234567890121203")).resolves.toEqual({
+      ok: true,
+      gameUserName: "ColdStartOwner",
+      gameServerNumber: 1203,
+    });
+  });
+});
+
+describe("lookupPlayerByUid E2E fixtures", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("returns a deterministic player when E2E_TEST is enabled", async () => {
+    vi.stubEnv("E2E_TEST", "true");
+    await expect(lookupPlayerByUid("1234567890121203")).resolves.toEqual({
+      ok: true,
+      gameUserName: "ColdStartOwner",
+      gameServerNumber: 1203,
     });
   });
 });

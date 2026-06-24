@@ -18,6 +18,7 @@ import {
   assertPrivilegedAshedGate,
 } from "@/lib/member-link/privileged-link.server";
 import {
+  tryBootstrapOwnerColdStartMember,
   tryRouteRosterMissToOwnerApproval,
   getRosterLinkRequestById,
 } from "@/lib/member-link/roster-link-request.server";
@@ -309,6 +310,21 @@ export async function runWebMemberLinkSubmit(input: {
   });
 
   if (result.needsOfficerAttention) {
+    const bootstrapped = await tryBootstrapOwnerColdStartMember({
+      allianceId: input.allianceId,
+      hqUserId: input.hqUserId,
+      locale: input.locale,
+      reportedName: name,
+      gameUid: uid,
+      lookup,
+      rosterCount: rosterLoad.members.length,
+      sessionId: input.sessionId,
+      auditBag: ctx.auditBag,
+    });
+    if (bootstrapped) {
+      return finishMemberLinkSubmit(ctx, bootstrapped);
+    }
+
     const routed = await tryRouteRosterMissToOwnerApproval({
       allianceId: input.allianceId,
       allianceTag: alliance?.tag ?? "alliance",

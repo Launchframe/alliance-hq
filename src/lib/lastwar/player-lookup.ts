@@ -186,6 +186,14 @@ export async function lookupPlayerByUid(
     };
   }
 
+  if (process.env.E2E_TEST === "true" && uid.trim() === "1234567890121203") {
+    return {
+      ok: true,
+      gameUserName: "ColdStartOwner",
+      gameServerNumber: 1203,
+    };
+  }
+
   const url = buildLastWarPlayerLookupUrl(uid);
 
   try {
