@@ -2362,7 +2362,9 @@
       "startOver": "Recomeçar",
       "askOfficer": "Pedir ajuda a um oficial"
     },
-    "officerNotified": "Um oficial foi notificado no Alliance HQ e pode entrar em contato."
+    "officerNotified": "Um oficial foi notificado no Alliance HQ e pode entrar em contato.",
+    "wrongServer": "Seu UID pertence a um servidor estadual diferente desta aliança. Confira se entrou na aliança certa ou peça um novo convite ao R5.",
+    "awaitingOwner": "Notificamos o dono da aliança por e-mail. Aguarde a aprovação e volte aqui para concluir o vínculo."
   },
   "onboard": {
     "title": "Vincule seu personagem",

@@ -2362,7 +2362,9 @@
       "startOver": "Start over",
       "askOfficer": "Ask an officer"
     },
-    "officerNotified": "An officer has been notified on Alliance HQ. They can reach out to help you link."
+    "officerNotified": "An officer has been notified on Alliance HQ. They can reach out to help you link.",
+    "wrongServer": "Your player UID is for a different state server than this alliance. Double-check you joined the right alliance, or ask your R5 for the correct invite.",
+    "awaitingOwner": "We've notified your alliance owner by email. Watch for an approval message, then return here to finish linking."
   },
   "onboard": {
     "title": "Link your character",

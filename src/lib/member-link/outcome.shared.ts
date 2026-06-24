@@ -6,6 +6,8 @@ export type MemberLinkOutcome =
   | "walkthrough_done"
   | "fuzzy_pick"
   | "roster_miss"
+  | "awaiting_owner"
+  | "wrong_server"
   | "lookup_error"
   | "usage"
   | "member_taken"
@@ -105,6 +107,13 @@ export function toMemberLinkApiResponse(
       message: result.reply,
       pending: result.pending,
       walkthroughStep: result.pending.step,
+    };
+  }
+  if (result.pending?.kind === "link_awaiting_owner") {
+    return {
+      outcome: "awaiting_owner",
+      message: result.reply,
+      pending: result.pending,
     };
   }
   if (result.needsOfficerAttention) {

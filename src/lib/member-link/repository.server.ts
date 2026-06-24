@@ -7,6 +7,16 @@ import { getDb, schema } from "@/lib/db";
 import type { LinkPendingState } from "@/lib/vr/types";
 
 const PENDING_TTL_MS = 30 * 60 * 1000;
+/** Matches roster link action token TTL — owner approval can take days. */
+const AWAITING_OWNER_PENDING_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+function pendingExpiresAt(pending: LinkPendingState): Date {
+  const ttlMs =
+    pending.kind === "link_awaiting_owner"
+      ? AWAITING_OWNER_PENDING_TTL_MS
+      : PENDING_TTL_MS;
+  return new Date(Date.now() + ttlMs);
+}
 
 function parseLinkPending(value: unknown): LinkPendingState | null {
   if (!value || typeof value !== "object") return null;
@@ -28,6 +38,17 @@ function parseLinkPending(value: unknown): LinkPendingState | null {
   }
   if (r.kind === "link_roster_miss") {
     return { kind: "link_roster_miss" };
+  }
+  if (
+    r.kind === "link_awaiting_owner" &&
+    typeof r.requestId === "string" &&
+    typeof r.gameUserName === "string"
+  ) {
+    return {
+      kind: "link_awaiting_owner",
+      requestId: r.requestId,
+      gameUserName: r.gameUserName,
+    };
   }
   return null;
 }
@@ -194,7 +215,7 @@ export async function saveHqMemberLinkPending(
     return;
   }
 
-  const expiresAt = new Date(Date.now() + PENDING_TTL_MS);
+  const expiresAt = pendingExpiresAt(pending);
   await db
     .insert(schema.hqMemberLinkPending)
     .values({
