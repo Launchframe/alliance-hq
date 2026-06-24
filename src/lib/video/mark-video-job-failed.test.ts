@@ -143,4 +143,28 @@ describe("markVideoJobFailed", () => {
     expect(ok).toBe(false);
     expect(mockEmitVideoJobStatus).not.toHaveBeenCalled();
   });
+
+  it("marks in-flight extracting jobs failed with audit", async () => {
+    setupDb(
+      mockJobRow({
+        status: "extracting",
+      }),
+    );
+
+    const ok = await markVideoJobFailed("job-1", "worker timed out");
+
+    expect(ok).toBe(true);
+    expect(mockSet).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "failed",
+        errorMessage: "worker timed out",
+      }),
+    );
+    expect(mockWriteAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({ action: "video.failed" }),
+    );
+    expect(mockEmitVideoJobStatus).toHaveBeenCalledWith(
+      expect.objectContaining({ status: "failed" }),
+    );
+  });
 });
