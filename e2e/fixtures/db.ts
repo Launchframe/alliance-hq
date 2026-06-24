@@ -136,6 +136,56 @@ async function createAllianceWithOperatingMode(
   return { allianceId, tag: options.tag };
 }
 
+/** Links a native alliance to the canonical game_servers row (required for createHqInvite gate). */
+export async function linkNativeAllianceToGameServer(
+  sql: Sql,
+  allianceId: string,
+  serverNumber = 1203,
+): Promise<void> {
+  const now = new Date();
+  const seasonId = "season-1";
+  const gameServerId = `server-${serverNumber}`;
+
+  await sql`
+    INSERT INTO game_seasons (id, season_number, max_base_vr, created_at, updated_at)
+    VALUES (${seasonId}, 1, 10000, ${now}, ${now})
+    ON CONFLICT (id) DO NOTHING
+  `;
+
+  await sql`
+    INSERT INTO game_servers (
+      id,
+      server_number,
+      season_id,
+      season_key_synced,
+      season_key_source,
+      season_is_post_season,
+      synced_at,
+      created_at,
+      updated_at
+    ) VALUES (
+      ${gameServerId},
+      ${serverNumber},
+      ${seasonId},
+      '1',
+      'default',
+      0,
+      ${now},
+      ${now},
+      ${now}
+    )
+    ON CONFLICT (server_number) DO NOTHING
+  `;
+
+  await sql`
+    UPDATE alliances
+    SET game_server_id = ${gameServerId},
+        game_server_number = ${serverNumber},
+        updated_at = ${now}
+    WHERE id = ${allianceId}
+  `;
+}
+
 export async function createHqInviteRow(
   sql: Sql,
   input: {
@@ -637,4 +687,103 @@ export async function simulateManualMembershipAshedUpgrade(
   `;
 
   return true;
+}
+
+function normalizeJoinCodeForE2e(code: string): string {
+  return code.trim().toUpperCase().replace(/\s+/g, "");
+}
+
+function hashJoinCodeForE2e(code: string): string {
+  const normalized = normalizeJoinCodeForE2e(code);
+  return createHash("sha256").update(normalized).digest("hex");
+}
+
+export async function createAllianceJoinCodeRow(
+  sql: Sql,
+  options: {
+    allianceId: string;
+    roleName: keyof typeof ROLE_IDS;
+    code?: string;
+    maxRedemptions?: number;
+    createdByHqUserId?: string | null;
+    expiresInDays?: number;
+  },
+): Promise<{ joinCodeId: string; code: string }> {
+  const now = new Date();
+  const expiresAt = new Date(
+    now.getTime() + (options.expiresInDays ?? 7) * 24 * 60 * 60 * 1000,
+  );
+  const joinCodeId = nanoid(16);
+  const code = normalizeJoinCodeForE2e(
+    options.code ?? `E2E-${nanoid(6).toUpperCase()}`,
+  );
+  const codeHash = hashJoinCodeForE2e(code);
+  const codeHint =
+    code.length <= 4 ? code : `…${code.slice(-4)}`;
+  const roleId = ROLE_IDS[options.roleName];
+
+  await sql`
+    INSERT INTO hq_alliance_join_codes (
+      id,
+      alliance_id,
+      role_id,
+      code_hash,
+      code_hint,
+      max_redemptions,
+      redemption_count,
+      expires_at,
+      created_by_hq_user_id,
+      created_at
+    ) VALUES (
+      ${joinCodeId},
+      ${options.allianceId},
+      ${roleId},
+      ${codeHash},
+      ${codeHint},
+      ${options.maxRedemptions ?? 10},
+      0,
+      ${expiresAt},
+      ${options.createdByHqUserId ?? null},
+      ${now}
+    )
+  `;
+
+  return { joinCodeId, code };
+}
+
+export type BrowserSessionAllianceContext = {
+  hqUserId: string | null;
+  allianceId: string | null;
+  allianceTag: string | null;
+  currentAllianceId: string | null;
+};
+
+export async function loadBrowserSessionAllianceContext(
+  sql: Sql,
+  sessionId: string,
+): Promise<BrowserSessionAllianceContext | null> {
+  const [row] = await sql<
+    {
+      hq_user_id: string | null;
+      alliance_id: string | null;
+      alliance_tag: string | null;
+      current_alliance_id: string | null;
+    }[]
+  >`
+    SELECT hq_user_id, alliance_id, alliance_tag, current_alliance_id
+    FROM sessions
+    WHERE id = ${sessionId}
+    LIMIT 1
+  `;
+
+  if (!row) {
+    return null;
+  }
+
+  return {
+    hqUserId: row.hq_user_id,
+    allianceId: row.alliance_id,
+    allianceTag: row.alliance_tag,
+    currentAllianceId: row.current_alliance_id,
+  };
 }

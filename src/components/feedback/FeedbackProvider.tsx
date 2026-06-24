@@ -25,6 +25,7 @@ type FeedbackContextValue = {
   showExperienceFeedback: (options?: ExperienceOptions) => void;
   showReportIssue: () => void;
   startTranslationCorrection: () => void;
+  setWalkthroughFabSuppressed: (suppressed: boolean) => void;
 };
 
 const FeedbackContext = React.createContext<FeedbackContextValue | null>(null);
@@ -35,6 +36,16 @@ export function useFeedback() {
     throw new Error("useFeedback must be used within FeedbackProvider");
   }
   return ctx;
+}
+
+/** Hide the feedback FAB while a full-screen walkthrough is active (e.g. /trains). */
+export function useSuppressFeedbackFabWhile(active: boolean) {
+  const ctx = React.useContext(FeedbackContext);
+  React.useEffect(() => {
+    if (!ctx) return;
+    ctx.setWalkthroughFabSuppressed(active);
+    return () => ctx.setWalkthroughFabSuppressed(false);
+  }, [active, ctx]);
 }
 
 function shouldHideFab(pathname: string) {
@@ -60,6 +71,8 @@ export function FeedbackProvider({ children }: { children: React.ReactNode }) {
     React.useState(false);
   const [experienceOptions, setExperienceOptions] =
     React.useState<ExperienceOptions>({});
+  const [walkthroughFabSuppressed, setWalkthroughFabSuppressed] =
+    React.useState(false);
   const delayTimerRef = React.useRef<number | null>(null);
 
   const hideFab =
@@ -68,7 +81,8 @@ export function FeedbackProvider({ children }: { children: React.ReactNode }) {
     reportOpen ||
     reportScreenshotMode ||
     translationMode ||
-    discordNoticeOpen;
+    discordNoticeOpen ||
+    walkthroughFabSuppressed;
 
   const passiveTranslationTooltipEnabled =
     locale !== "en-US" && !shouldHideFab(pathname);
@@ -121,6 +135,7 @@ export function FeedbackProvider({ children }: { children: React.ReactNode }) {
       showExperienceFeedback,
       showReportIssue: () => setReportOpen(true),
       startTranslationCorrection: () => setTranslationMode(true),
+      setWalkthroughFabSuppressed,
     }),
     [showExperienceFeedback],
   );

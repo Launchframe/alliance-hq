@@ -59,6 +59,7 @@ Apply on every Real Steel pass for this repo:
 - **i18n** — new UI strings in en-US and pt-BR; run `npm run i18n:validate`
 - **Video pipeline** — admin requeue/reprocess must not double-process or lose job state
 - **No prod SQL for ops** — admin UI should cover role assignment, commendations, and job recovery without ad-hoc queries
+- **Native alliance invites** — `createHqInvite` (team settings + `/api/admin/native-alliances/.../invites`) requires a **linked** game server (`alliances.game_server_id` → `game_servers`, not denormalized `game_server_number` alone). Platform maintainers must set state server under alliance **Game season** settings before generating owner/officer invites; API returns **422** `{ code: "alliance_server_required" }`.
 - **Trains** — GET routes use `scores:read`; mutations use `trains:write` via `requireTrainOfficer`; tenant-scoped by session alliance; conductor lock is immutable without audited override; season + ritual detail in [`.cursor/rules/trains.mdc`](.cursor/rules/trains.mdc)
 
 ## Last War domain (game mechanics)
@@ -84,6 +85,7 @@ Alliance HQ models **in-game** alliance mechanics (trains, VS weeks, R1–R5 ran
   5. Owner: `/set-vr-report-channel` in the nightly standings channel.
   6. Members: `/link-commander name:… uid:…` → `discord_member_links` (guild must be registered; up to 5 commanders per Discord user).
 - **VR reports:** `/vr-report` (top 25) and `/vr-report teams:N` / `/takedown-teams` (5-player rally teams, snake THP balance) are **officer-gated** (`callerCanRunVrReport`: R4+ linked member or owner). Replies are ephemeral; nightly cron posts public top-25 to each guild's configured channel via `loadAllianceLeaderboard` + `listRegisteredGuildsWithReportChannel`.
+- **Train commands:** `/set-train-channel` (owner), `/who-is-conductor`, `/set-conductor`, `/train-is-ready` (officer gate via `callerCanManageTrains` → same as VR reports). Guild tenant from registration only; alliance-level `train_discord_announcements_enabled` (HQ settings) + per-guild `train_channel_id`. Lock/announce shared logic in `lib/trains/discord-bot.server.ts`; HQ lock route calls `maybeAnnounceTrainReady`. Departing-soon cron: `/api/internal/train/departing-soon`. Operator guide: `/guides/discord-train` (source `docs/guides/discord-train-operator.md`, en-US only until translated).
 - **`/set-season` removed** — season is derived from server age; do not reintroduce.
 - **Feature flag:** `ELIGIBLE_BOT_ALLIANCE_LINK_TAGS` (comma-delimited; unset = allow all) gates `/link-to-ashed-seat` and `/link-alliance`. Check via `isTagEligible()` in `bot-setup.ts`.
 - **Security invariant:** connection keys must **never** appear as slash command options or in Discord payloads. All credential submission goes through the HQ `/discord/authorize` HTTPS page. Nonces live in `discord_auth_nonces` (`purpose`: `alliance_credentials` | `user_link`; 30-min TTL, single-use).

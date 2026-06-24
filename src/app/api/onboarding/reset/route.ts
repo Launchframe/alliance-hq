@@ -20,6 +20,19 @@ export async function POST() {
   }
 
   const session = await loadSession(sessionId);
+  if (
+    session?.hqUserId &&
+    session.hqUserId !== authSession.user.id
+  ) {
+    return NextResponse.json(
+      {
+        code: "session_mismatch",
+        error: "Browser session belongs to another account.",
+      },
+      { status: 403 },
+    );
+  }
+
   const allianceId =
     session?.currentAllianceId ?? session?.allianceId ?? null;
 

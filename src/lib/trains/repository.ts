@@ -462,6 +462,23 @@ export async function lockConductorRecord(
   return row!;
 }
 
+export async function markConductorDepartingSoonAnnounced(
+  recordId: string,
+  allianceId: string,
+): Promise<void> {
+  const db = getDb();
+  const now = new Date();
+  await db
+    .update(schema.trainConductorRecords)
+    .set({ discordDepartingSoonAt: now, updatedAt: now })
+    .where(
+      and(
+        eq(schema.trainConductorRecords.id, recordId),
+        eq(schema.trainConductorRecords.allianceId, allianceId),
+      ),
+    );
+}
+
 export async function unlockConductorRecord(
   recordId: string,
   allianceId: string,
@@ -495,7 +512,7 @@ export async function unlockConductorRecord(
   const updatedAt = new Date();
   await db
     .update(schema.trainConductorRecords)
-    .set({ lockedAt: null, updatedAt })
+    .set({ lockedAt: null, discordDepartingSoonAt: null, updatedAt })
     .where(eq(schema.trainConductorRecords.id, recordId));
 
   const [row] = await db

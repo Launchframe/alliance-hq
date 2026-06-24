@@ -26,7 +26,9 @@ import {
 import { systemRoleNameForId } from "@/lib/rbac/system-roles";
 
 import { provisionAllianceMembership } from "./provision-membership";
-import { resolveAllianceGameServerNumber } from "@/lib/game-season/game-servers.server";
+import { assertAllianceLinkedGameServer } from "./alliance-server-gate.server";
+
+export { AllianceServerRequiredError } from "./alliance-server-gate.server";
 
 const INVITE_TTL_DAYS = 14;
 
@@ -151,15 +153,6 @@ export type CreateHqInviteResult = {
   adminLabel?: string | null;
 };
 
-export class AllianceServerRequiredError extends Error {
-  readonly code = "alliance_server_required" as const;
-
-  constructor() {
-    super("Set your alliance state server in Settings before sending invites.");
-    this.name = "AllianceServerRequiredError";
-  }
-}
-
 export async function createHqInvite(
   input: CreateHqInviteInput,
 ): Promise<CreateHqInviteResult> {
@@ -182,10 +175,7 @@ export async function createHqInvite(
     throw new Error("Alliance not found.");
   }
 
-  const gameServerNumber = await resolveAllianceGameServerNumber(input.allianceId);
-  if (gameServerNumber == null) {
-    throw new AllianceServerRequiredError();
-  }
+  await assertAllianceLinkedGameServer(input.allianceId);
 
   let email: string | null = null;
   let passphrase: string | undefined;

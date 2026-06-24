@@ -8,6 +8,7 @@ import {
   upsertConductorDraft,
 } from "@/lib/trains/repository";
 import { getMemberRankAsOf } from "@/lib/trains/rank-history";
+import { maybeAnnounceTrainReady } from "@/lib/trains/discord-bot.server";
 import {
   getServerCalendarDate,
   refreshExhaustedPoolsForDay,
@@ -68,6 +69,13 @@ export async function POST(request: Request) {
       connection: ctx.connection,
       ashedAllianceId: ctx.ashedAllianceId,
       seasonKey,
+    });
+
+    await maybeAnnounceTrainReady({
+      allianceId: ctx.allianceId,
+      date,
+      conductorName: locked.conductorMemberName,
+      vipName: locked.vipMemberName,
     });
 
     return NextResponse.json({ record: locked, poolsRefreshed });

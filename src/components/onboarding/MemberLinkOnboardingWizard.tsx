@@ -7,9 +7,7 @@ import { AllianceWelcomeHero } from "@/components/onboarding/AllianceWelcomeHero
 import { fireCelebrationConfetti } from "@/lib/client/celebration-confetti";
 import { isValidGameUid } from "@/lib/lastwar/player-lookup";
 import type { MemberLinkOutcome } from "@/lib/member-link/outcome.shared";
-import { useRouter } from "@/i18n/navigation";
-
-import { Link } from "@/i18n/navigation";
+import { Link, useRouter } from "@/i18n/navigation";
 
 type Props = {
   allianceName: string;
