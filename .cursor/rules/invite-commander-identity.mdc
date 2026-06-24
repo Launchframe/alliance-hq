@@ -95,7 +95,8 @@ Implement and preserve in tests (`src/lib/vr/link-command.test.ts`):
 3. `findExactMemberByName(members, gameUserName)` — **exact** on current + previous names only.
 4. If exact row found and not already linked → `linkTarget` with that `ashed_member_id` and submitted `game_uid`.
 5. If no exact row → **`needsOfficerAttention`** / roster miss — explain game name vs stale roster; **no candidate picker**.
-6. `memberTaken` if `ashed_member_id` already has `hq_member_links` for another user.
+6. **Invite-gated roster miss** (native alliance, accepted email/protected invite, linked game server, UID server match): orchestrator creates `hq_roster_link_requests`, emails owner Accept/Reject links, materializes inbox reminder → outcome **`awaiting_owner`** (not `roster_miss`). Join-code entrants and non-invite paths still use `roster_miss` unless owner cold-start bootstrap applies.
+7. `memberTaken` if `ashed_member_id` already has `hq_member_links` for another user.
 
 **Roster load:** `loadAllianceMembersForMemberLink` — prefer local `alliance_members`, then live Ashed. Audit `rosterSource` on submit failures.
 
@@ -128,6 +129,9 @@ Implement and preserve in tests (`src/lib/vr/link-command.test.ts`):
 | Reused magic link after logout | `/auth/error?error=Verification`, CTA for new link |
 | Accept invite then skip onboard | `(app)` redirects to `/onboard` until linked |
 | Link succeeds | `hq_member_links.game_uid` = submitted UID; `ashed_member_id` = matched roster row |
+| Invite + roster miss + server match | `awaiting_owner`; pending `link_awaiting_owner`; owner email + inbox item |
+| Wrong UID server vs alliance | `wrong_server`; no owner notification |
+| Owner accepts email token | `alliance_members` + `hq_member_links` created (native); invitee can finish onboard |
 
 Update `e2e/invite-roles.spec.ts`, `e2e/onboard-member-link.spec.ts`, and unit tests when changing any step above.
 
@@ -138,6 +142,7 @@ Update `e2e/invite-roles.spec.ts`, `e2e/onboard-member-link.spec.ts`, and unit t
 | Link decision core | `src/lib/vr/link-command.ts`, `src/lib/vr/link-helpers.ts` |
 | Web orchestration | `src/lib/member-link/orchestrator.server.ts` |
 | Roster for link | `src/lib/vr/member-roster.ts` |
+| Roster owner approval | `src/lib/member-link/roster-link-request.server.ts`, `src/app/api/roster-link-requests/action/route.ts` |
 | UID lookup | `src/lib/lastwar/player-lookup.ts` |
 | Invite accept | `src/lib/native-alliance/invites.ts`, `src/app/api/invite/**` |
 | Onboard UI | `src/components/onboarding/MemberLinkOnboardingWizard.tsx` |

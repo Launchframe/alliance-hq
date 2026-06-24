@@ -49,6 +49,10 @@ export function hashInviteToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
 }
 
+export function hashRosterLinkActionToken(token: string): string {
+  return createHash("sha256").update(token).digest("hex");
+}
+
 export function inviteToken(): string {
   return randomBytes(32).toString("base64url");
 }
@@ -786,4 +790,50 @@ export async function loadBrowserSessionAllianceContext(
     allianceTag: row.alliance_tag,
     currentAllianceId: row.current_alliance_id,
   };
+}
+
+export async function getLatestPendingRosterLinkRequestId(
+  sql: Sql,
+  input: { allianceId: string; hqUserId: string },
+): Promise<string | null> {
+  const [row] = await sql<{ id: string }[]>`
+    SELECT id
+    FROM hq_roster_link_requests
+    WHERE alliance_id = ${input.allianceId}
+      AND hq_user_id = ${input.hqUserId}
+      AND status = 'pending'
+    ORDER BY created_at DESC
+    LIMIT 1
+  `;
+  return row?.id ?? null;
+}
+
+export async function insertRosterLinkAcceptToken(
+  sql: Sql,
+  input: { requestId: string; rawToken?: string },
+): Promise<string> {
+  const rawToken = input.rawToken ?? randomBytes(32).toString("base64url");
+  const tokenHash = hashRosterLinkActionToken(rawToken);
+  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+  const now = new Date();
+
+  await sql`
+    INSERT INTO hq_roster_link_action_tokens (
+      id,
+      request_id,
+      action,
+      token_hash,
+      expires_at,
+      created_at
+    ) VALUES (
+      ${nanoid(16)},
+      ${input.requestId},
+      'accept',
+      ${tokenHash},
+      ${expiresAt},
+      ${now}
+    )
+  `;
+
+  return rawToken;
 }
