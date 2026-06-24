@@ -55,14 +55,12 @@ export function subscribeAshedShellConnectDismissed(
 export function shouldShowAshedConnectNudge(input: {
   hasAppAccess: boolean;
   isConnected: boolean;
-  canUseAshedEmbeds: boolean;
   isAshedConnectAllowed: boolean;
   dismissed: boolean;
 }): boolean {
   return (
     input.hasAppAccess &&
     !input.isConnected &&
-    input.canUseAshedEmbeds &&
     input.isAshedConnectAllowed &&
     !input.dismissed
   );

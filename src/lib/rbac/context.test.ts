@@ -32,11 +32,7 @@ vi.mock("@/lib/profile/resolve-avatar", () => ({
 }));
 
 vi.mock("@/lib/rbac/ashed-session-membership", () => ({
-  sessionHoldsAshedIdentityForHqUser: vi.fn().mockResolvedValue(true),
-  ashedSourcedMembershipIsActiveForSession: (
-    source: string,
-    holdsAshedIdentity: boolean,
-  ) => source !== "ashed" || holdsAshedIdentity,
+  sessionHasConflictingAshedCredentialForHqUser: vi.fn().mockResolvedValue(false),
 }));
 
 vi.mock("@/lib/member-link/privileged-link.server", () => ({
@@ -179,6 +175,73 @@ describe("getRbacContext", () => {
 
     expect(ctx?.roleName).toBe("owner");
     expect(ctx?.permissions.has("members:write")).toBe(true);
+  });
+
+  it("grants ashed-sourced officer permissions without a live Ashed credential", async () => {
+    selectMock
+      .mockReturnValueOnce(
+        chainSelectWithLimit([
+          {
+            id: "canonical-user",
+            email: "officer@example.com",
+            displayName: "Officer",
+            isPlatformMaintainer: 0,
+          },
+        ]),
+      )
+      .mockReturnValueOnce(
+        chainSelectWithLimit([{ isPlatformMaintainer: 0 }]),
+      )
+      .mockReturnValueOnce(
+        chainSelectWithLimit([
+          { roleName: "officer", roleId: "role-officer", source: "ashed" },
+        ]),
+      )
+      .mockReturnValueOnce(
+        chainSelectPermissions([
+          { permissionId: "trains:write" },
+          { permissionId: "ashed:connect" },
+        ]),
+      );
+
+    const ctx = await getRbacContext("sess-1");
+
+    expect(ctx?.roleName).toBe("officer");
+    expect(ctx?.permissions.has("trains:write")).toBe(true);
+    expect(ctx?.permissions.has("ashed:connect")).toBe(true);
+  });
+
+  it("denies ashed-sourced permissions when another user's Ashed credential is on the session", async () => {
+    const { sessionHasConflictingAshedCredentialForHqUser } = await import(
+      "./ashed-session-membership"
+    );
+    vi.mocked(sessionHasConflictingAshedCredentialForHqUser).mockResolvedValueOnce(
+      true,
+    );
+    selectMock
+      .mockReturnValueOnce(
+        chainSelectWithLimit([
+          {
+            id: "canonical-user",
+            email: "officer@example.com",
+            displayName: "Officer",
+            isPlatformMaintainer: 0,
+          },
+        ]),
+      )
+      .mockReturnValueOnce(
+        chainSelectWithLimit([{ isPlatformMaintainer: 0 }]),
+      )
+      .mockReturnValueOnce(
+        chainSelectWithLimit([
+          { roleName: "officer", roleId: "role-officer", source: "ashed" },
+        ]),
+      );
+
+    const ctx = await getRbacContext("sess-1");
+
+    expect(ctx?.roleName).toBeNull();
+    expect(ctx?.permissions.size).toBe(0);
   });
 
   it("grants hq:admin for platform maintainer without live Ashed verification", async () => {

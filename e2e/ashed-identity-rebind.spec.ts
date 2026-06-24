@@ -157,7 +157,9 @@ test.describe("Ashed identity rebind — permission boost prevention", () => {
       sessionA.sessionId,
     );
     expect(loserState.isConnected).toBe(false);
-    expect(loserState.roleName).toBeNull();
+    // HQ-only: canonical user + DB membership keeps officer role without Ashed cred
+    expect(loserState.roleName).toBe("officer");
+    expect(loserState.canUseAshedEmbeds).toBe(false);
 
     const winnerState = await fetchConnectSessionState(
       e2eBaseUrl(),
@@ -235,7 +237,8 @@ test.describe("Ashed identity rebind — permission boost prevention", () => {
     );
     expect(disconnected.isConnected).toBe(false);
     expect(disconnected.canUseAshedEmbeds).toBe(false);
-    expect(disconnected.roleName).toBeNull();
+    // HQ-only: officer RBAC from DB membership; Ashed embeds stay off until reconnect
+    expect(disconnected.roleName).toBe("officer");
   });
 
   test("sign-out clears Ashed credential from browser session", async ({

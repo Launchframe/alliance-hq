@@ -9,7 +9,6 @@ describe("shouldShowAshedConnectNudge", () => {
   const base = {
     hasAppAccess: true,
     isConnected: false,
-    canUseAshedEmbeds: true,
     isAshedConnectAllowed: true,
     dismissed: false,
   };
@@ -28,6 +27,12 @@ describe("shouldShowAshedConnectNudge", () => {
     expect(shouldShowAshedConnectNudge({ ...base, dismissed: true })).toBe(
       false,
     );
+  });
+
+  it("hides when connect is not allowed for the role", () => {
+    expect(
+      shouldShowAshedConnectNudge({ ...base, isAshedConnectAllowed: false }),
+    ).toBe(false);
   });
 });
 

@@ -28,7 +28,6 @@ export function readAshedConnectedOnThisDeviceBefore(): boolean {
 export function shouldShowShellConnectPrompt(input: {
   hasAppAccess: boolean;
   isConnected: boolean;
-  canUseAshedEmbeds: boolean;
   isAshedConnectAllowed: boolean;
   ashedConnectedOnDeviceBefore: boolean;
   dismissed?: boolean;
@@ -39,7 +38,6 @@ export function shouldShowShellConnectPrompt(input: {
   return shouldShowAshedConnectNudge({
     hasAppAccess: input.hasAppAccess,
     isConnected: input.isConnected,
-    canUseAshedEmbeds: input.canUseAshedEmbeds,
     isAshedConnectAllowed: input.isAshedConnectAllowed,
     dismissed: input.dismissed ?? readAshedShellConnectDismissed(),
   });

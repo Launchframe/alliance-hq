@@ -4,7 +4,9 @@ import { expect, test } from "@playwright/test";
 import {
   attachAshedConnectionToSession,
   createAllianceMembership,
+  createAshedAlliance,
   createAuthenticatedHqSession,
+  createBrowserSession,
   createCanonicalAshedHqUser,
   createHqInviteRow,
   createHqMemberLink,
@@ -13,6 +15,7 @@ import {
   getE2eSql,
   playwrightAuthCookies,
 } from "./fixtures/db";
+import { encodeNextAuthSessionToken } from "./fixtures/auth";
 
 function e2eBaseUrl(): string {
   return process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:5176";
@@ -224,6 +227,59 @@ test.describe("Get-started routing", () => {
     await page.context().addCookies(playwrightAuthCookies(stubSession));
     await page.goto("/");
 
+    await expect(page).not.toHaveURL(/\/get-started/);
+  });
+
+  test("ashed-sourced officer reaches dashboard without Ashed reconnect and sees connect banner", async ({
+    page,
+  }) => {
+    const sql = getE2eSql();
+    const ashedUserId = `ashed-${nanoid(12)}`;
+    const email = `officer-${nanoid(6)}@e2e.test`;
+
+    const { hqUserId } = await createCanonicalAshedHqUser(sql, {
+      email,
+      ashedUserId,
+    });
+    const alliance = await createAshedAlliance(sql, {
+      tag: `RL${nanoid(3)}`,
+      name: "HQ-only relogin Alliance",
+    });
+    await createAllianceMembership(sql, {
+      hqUserId,
+      allianceId: alliance.allianceId,
+      roleName: "officer",
+      source: "ashed",
+    });
+
+    const { sessionId } = await createBrowserSession(sql, { hqUserId });
+    await sql`
+      UPDATE sessions
+      SET current_alliance_id = ${alliance.allianceId}
+      WHERE id = ${sessionId}
+    `;
+    const nextAuthToken = await encodeNextAuthSessionToken({
+      hqUserId,
+      email,
+      name: "E2E Officer",
+    });
+
+    await page.context().addCookies(
+      playwrightAuthCookies({ sessionId, nextAuthToken }),
+    );
+    await page.goto("/get-started");
+
+    await expect(page).not.toHaveURL(/\/get-started/);
+    // /dashboard iframe routes redirect HQ-only sessions to /members
+    await expect(page).toHaveURL(/\/members/);
+    await expect(
+      page.getByRole("link", { name: /^Connect Ashed$/i }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: /^Not now$/i }),
+    ).toBeVisible();
+
+    await page.goto("/trains");
     await expect(page).not.toHaveURL(/\/get-started/);
   });
 });

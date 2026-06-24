@@ -6,7 +6,6 @@ describe("shouldShowShellConnectPrompt", () => {
   const base = {
     hasAppAccess: true,
     isConnected: false,
-    canUseAshedEmbeds: true,
     isAshedConnectAllowed: true,
     ashedConnectedOnDeviceBefore: true,
     dismissed: false,
@@ -31,9 +30,13 @@ describe("shouldShowShellConnectPrompt", () => {
     ).toBe(false);
   });
 
-  it("hides when Ashed embeds are not available", () => {
+  it("shows for HQ-only sessions without an active Ashed credential", () => {
+    expect(shouldShowShellConnectPrompt(base)).toBe(true);
+  });
+
+  it("hides when connect is not allowed for the role", () => {
     expect(
-      shouldShowShellConnectPrompt({ ...base, canUseAshedEmbeds: false }),
+      shouldShowShellConnectPrompt({ ...base, isAshedConnectAllowed: false }),
     ).toBe(false);
   });
 
