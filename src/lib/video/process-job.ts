@@ -33,9 +33,7 @@ import {
 import { emitVideoJobStatus } from "@/lib/events/video-jobs";
 import { maybeEnqueueShadowPass } from "@/lib/video/enqueue-shadow-pass";
 import { dispatchVideoArchive } from "@/lib/video/trigger-archive";
-import { maybeEnqueueTesseractShadowPass } from "@/lib/video/enqueue-tesseract-shadow-pass";
 import { computePassComparison } from "@/lib/video/compare-pass-results";
-import { processTesseractShadowRosterJob } from "@/lib/video/process-tesseract-shadow-roster-job";
 import { resolveJobVideoStorageKey } from "@/lib/video/resolve-job-video-storage";
 import type { ExtractionConfig } from "@/lib/video/pass-definitions";
 import fs from "node:fs/promises";
@@ -111,6 +109,9 @@ export async function processVideoJob(
   }
 
   if (job.passRole === "tesseract_shadow") {
+    const { processTesseractShadowRosterJob } = await import(
+      "@/lib/video/process-tesseract-shadow-roster-job"
+    );
     return processTesseractShadowRosterJob(jobId, options);
   }
 
@@ -563,6 +564,9 @@ export async function processVideoJob(
 
     if (isMemberRosterVideoTarget(scoreTargetId)) {
       try {
+        const { maybeEnqueueTesseractShadowPass } = await import(
+          "@/lib/video/enqueue-tesseract-shadow-pass"
+        );
         await maybeEnqueueTesseractShadowPass({ job: shadowEnqueueJob });
       } catch {
         // Tesseract shadow failure must not fail primary job
