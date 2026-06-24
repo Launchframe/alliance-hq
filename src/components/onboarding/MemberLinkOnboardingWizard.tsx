@@ -197,7 +197,24 @@ export function MemberLinkOnboardingWizard({
     try {
       const data = await postJson<ApiResponse>("/api/member-link/start-over");
       applyOutcome(data);
-      setPhase("walkthrough");
+    } catch {
+      setFormError(t("requestFailed"));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function wrongAlliance() {
+    setBusy(true);
+    setFormError(null);
+    try {
+      const res = await fetch("/api/onboarding/reset", { method: "POST" });
+      if (!res.ok) {
+        setFormError(t("requestFailed"));
+        return;
+      }
+      router.push("/get-started");
+      router.refresh();
     } catch {
       setFormError(t("requestFailed"));
     } finally {
@@ -328,6 +345,17 @@ export function MemberLinkOnboardingWizard({
           >
             {busy ? t("submitting") : t("submit")}
           </button>
+          <div className="border-t border-[#30363d] pt-3 text-center">
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void wrongAlliance()}
+              className="text-sm text-[#8b949e] underline hover:text-[#58a6ff] disabled:opacity-50"
+            >
+              {t("wrongAlliance")}
+            </button>
+            <p className="mt-1 text-xs text-[#8b949e]">{t("wrongAllianceHint")}</p>
+          </div>
         </div>
       ) : null}
 
@@ -401,6 +429,14 @@ export function MemberLinkOnboardingWizard({
               {tLink("buttons.askOfficer")}
             </button>
           </div>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void wrongAlliance()}
+            className="w-full text-sm text-[#8b949e] underline hover:text-[#58a6ff] disabled:opacity-50"
+          >
+            {t("wrongAlliance")}
+          </button>
         </div>
       ) : null}
 

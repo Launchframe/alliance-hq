@@ -2361,7 +2361,9 @@
     "connectAshedTitle": "Verifique com o Ashed primeiro",
     "connectAshedBody": "Conecte o Ashed para ferramentas iframe e sync do roster. Seu papel no HQ vem do convite — vincular o personagem usa só nome e UID.",
     "connectAshedCta": "Conectar Ashed",
-    "connectAshedDismiss": "Agora não"
+    "connectAshedDismiss": "Agora não",
+    "wrongAlliance": "Aliança errada?",
+    "wrongAllianceHint": "Limpa esta sessão de onboarding. Sua associação permanece — entre com outra conta ou use outro código de entrada."
   },
   "discordBot": {
     "errors": {
