@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 
 import { applyGameServerSeasonSync } from "@/lib/game-season/sync";
-import { listGameServersForSeasonCron } from "@/lib/game-season/game-servers.server";
+import {
+  ensureGameServersForSeasonCron,
+  listGameServersForSeasonCron,
+} from "@/lib/game-season/game-servers.server";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -17,6 +20,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
+  await ensureGameServersForSeasonCron();
   const servers = await listGameServersForSeasonCron();
 
   const results: Array<{

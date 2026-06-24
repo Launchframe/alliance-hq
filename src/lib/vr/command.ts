@@ -30,7 +30,7 @@ function applyExplicitLevel(
   value: number,
   input: ProcessVrCommandInput,
 ): VrCommandResult {
-  const { translate: t, maxBaseVr } = input;
+  const { translate: t } = input;
   const seasonHigh = input.seasonHigh ?? 0;
   if (value < maxAllowedDowngrade(seasonHigh)) {
     return {

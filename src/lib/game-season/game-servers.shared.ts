@@ -8,3 +8,10 @@ export function gameSeasonIdForNumber(seasonNumber: number): string {
 export function gameServerIdForNumber(serverNumber: number): string {
   return `server-${serverNumber}`;
 }
+
+/** Cron mirror must not overwrite per-alliance owner season overrides. */
+export function allianceReceivesServerSeasonMirror(
+  seasonKeyOverride: string | null | undefined,
+): boolean {
+  return !seasonKeyOverride?.trim();
+}

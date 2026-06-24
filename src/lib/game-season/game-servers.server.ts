@@ -1,6 +1,6 @@
 import "server-only";
 
-import { eq } from "drizzle-orm";
+import { and, eq, isNotNull, isNull, or } from "drizzle-orm";
 
 import {
   DEFAULT_MAX_BASE_VR,
@@ -143,21 +143,58 @@ export async function resolveMaxBaseVrForAlliance(
   allianceId: string,
 ): Promise<number> {
   const db = getDb();
-  const [row] = await db
-    .select({ maxBaseVr: schema.gameSeasons.maxBaseVr })
+  const [alliance] = await db
+    .select({
+      gameServerId: schema.alliances.gameServerId,
+      gameServerNumber: schema.alliances.gameServerNumber,
+    })
     .from(schema.alliances)
-    .leftJoin(
-      schema.gameServers,
-      eq(schema.alliances.gameServerId, schema.gameServers.id),
-    )
-    .leftJoin(
-      schema.gameSeasons,
-      eq(schema.gameServers.seasonId, schema.gameSeasons.id),
-    )
     .where(eq(schema.alliances.id, allianceId))
     .limit(1);
 
+  if (!alliance) {
+    return DEFAULT_MAX_BASE_VR;
+  }
+
+  const serverId =
+    alliance.gameServerId ??
+    (alliance.gameServerNumber != null
+      ? gameServerIdForNumber(alliance.gameServerNumber)
+      : null);
+
+  if (!serverId) {
+    return DEFAULT_MAX_BASE_VR;
+  }
+
+  const [row] = await db
+    .select({ maxBaseVr: schema.gameSeasons.maxBaseVr })
+    .from(schema.gameServers)
+    .innerJoin(
+      schema.gameSeasons,
+      eq(schema.gameServers.seasonId, schema.gameSeasons.id),
+    )
+    .where(eq(schema.gameServers.id, serverId))
+    .limit(1);
+
   return row?.maxBaseVr ?? DEFAULT_MAX_BASE_VR;
+}
+
+export async function ensureGameServersForSeasonCron(): Promise<void> {
+  const db = getDb();
+  const rows = await db
+    .select({ gameServerNumber: schema.alliances.gameServerNumber })
+    .from(schema.alliances)
+    .where(isNotNull(schema.alliances.gameServerNumber));
+
+  const seen = new Set<number>();
+  for (const row of rows) {
+    const serverNumber = row.gameServerNumber;
+    if (serverNumber == null || seen.has(serverNumber)) {
+      continue;
+    }
+    seen.add(serverNumber);
+    await upsertGameServerByNumber(serverNumber);
+  }
 }
 
 export async function listGameServersForSeasonCron(): Promise<
@@ -206,5 +243,13 @@ export async function mirrorServerSeasonToAlliances(
         : {}),
       ...(patch.seasonWeek !== undefined ? { seasonWeek: patch.seasonWeek } : {}),
     })
-    .where(eq(schema.alliances.gameServerId, gameServerId));
+    .where(
+      and(
+        eq(schema.alliances.gameServerId, gameServerId),
+        or(
+          isNull(schema.alliances.seasonKeyOverride),
+          eq(schema.alliances.seasonKeyOverride, ""),
+        ),
+      ),
+    );
 }
