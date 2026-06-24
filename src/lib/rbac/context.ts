@@ -6,10 +6,7 @@ import {
   resolveEffectiveHqUserIdForSession,
 } from "@/lib/session";
 
-import {
-  ashedSourcedMembershipIsActiveForSession,
-  sessionHoldsAshedIdentityForHqUser,
-} from "./ashed-session-membership";
+import { sessionHasConflictingAshedCredentialForHqUser } from "./ashed-session-membership";
 import { ALLIANCE_ADMIN_PERMISSION } from "./constants";
 import { ensureHqUserAvatarFresh } from "@/lib/profile/resolve-avatar";
 
@@ -57,15 +54,9 @@ async function loadUserPermissions(
     return { roleName: null, permissions: new Set() };
   }
 
-  const holdsAshedIdentity = await sessionHoldsAshedIdentityForHqUser(
-    sessionId,
-    hqUserId,
-  );
   if (
-    !ashedSourcedMembershipIsActiveForSession(
-      membership.source,
-      holdsAshedIdentity,
-    )
+    membership.source === "ashed" &&
+    (await sessionHasConflictingAshedCredentialForHqUser(sessionId, hqUserId))
   ) {
     return { roleName: null, permissions: new Set() };
   }

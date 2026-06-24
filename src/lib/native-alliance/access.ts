@@ -11,10 +11,6 @@ import {
 import { getDb, schema } from "@/lib/db";
 import type { Session } from "@/lib/db/schema";
 import {
-  ashedSourcedMembershipIsActiveForSession,
-  sessionHoldsAshedIdentityForHqUser,
-} from "@/lib/rbac/ashed-session-membership";
-import {
   getAshedConnection,
   resolveEffectiveHqUserIdForSession,
 } from "@/lib/session";
@@ -71,19 +67,7 @@ export async function sessionHasActiveMembership(
     )
     .limit(1);
 
-  if (!membership) {
-    return false;
-  }
-
-  const holdsAshedIdentity = await sessionHoldsAshedIdentityForHqUser(
-    session.id,
-    effectiveHqUserId,
-  );
-
-  return ashedSourcedMembershipIsActiveForSession(
-    membership.source,
-    holdsAshedIdentity,
-  );
+  return Boolean(membership);
 }
 
 export async function sessionHasNativeMembership(

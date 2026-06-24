@@ -91,7 +91,6 @@ export function AshedShell({
   const showConnectNudge = shouldShowAshedConnectNudge({
     hasAppAccess,
     isConnected,
-    canUseAshedEmbeds,
     isAshedConnectAllowed,
     dismissed: ashedConnectDismissed,
   });
