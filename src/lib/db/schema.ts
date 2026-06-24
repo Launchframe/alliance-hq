@@ -28,6 +28,8 @@ export const alliances = pgTable("alliances", {
   currentSeasonKey: text("current_season_key"),
   /** Last War state server number from Ashed Alliance.server_number (e.g. 1203). */
   gameServerNumber: integer("game_server_number"),
+  /** FK to shared game_servers row (canonical server + season graph). */
+  gameServerId: text("game_server_id"),
   /** Server open time (ms epoch) from cpt-hedge — used for age fallback. */
   gameServerOpenTimestamp: bigint("game_server_open_timestamp", {
     mode: "number",
@@ -74,6 +76,46 @@ export const alliances = pgTable("alliances", {
     .defaultNow()
     .notNull(),
 });
+
+/** Game season caps shared by all servers in that season. */
+export const gameSeasons = pgTable("game_seasons", {
+  id: text("id").primaryKey(),
+  seasonNumber: integer("season_number").notNull().unique(),
+  maxProfessionLevel: integer("max_profession_level"),
+  maxBaseVr: integer("max_base_vr").notNull().default(10000),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+/** Last War state server — one row per server number; season transitions update season_id. */
+export const gameServers = pgTable(
+  "game_servers",
+  {
+    id: text("id").primaryKey(),
+    serverNumber: integer("server_number").notNull().unique(),
+    seasonId: text("season_id")
+      .notNull()
+      .references(() => gameSeasons.id, { onDelete: "restrict" }),
+    openTimestampMs: bigint("open_timestamp_ms", { mode: "number" }),
+    seasonKeyOverride: text("season_key_override"),
+    seasonKeySynced: text("season_key_synced"),
+    seasonKeySource: text("season_key_source"),
+    seasonIsPostSeason: integer("season_is_post_season").notNull().default(0),
+    seasonWeek: integer("season_week"),
+    syncedAt: timestamp("synced_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [index("game_servers_season_id_idx").on(table.seasonId)],
+);
 
 export const hqUsers = pgTable("hq_users", {
   id: text("id").primaryKey(),

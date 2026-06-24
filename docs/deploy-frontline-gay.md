@@ -27,11 +27,42 @@ Complete these **in order** before marking the auth + email release done.
 | `EMAIL_FROM` | `Alliance HQ <auth@frontline.gay>` |
 | `DATABASE_URL` | Neon Postgres (unchanged) |
 | `TOKEN_ENCRYPTION_KEY` | Unchanged |
+| `R2_BUCKET` | e.g. `alliance-hq-video-queue` (must match the bucket you configure below) |
+| `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` | Cloudflare R2 API token with read/write on that bucket |
 
 - [ ] Set all of the above on **Production** (and **Build** scope for vars used at build time).
 - [ ] Redeploy production after env changes so `metadataBase`, magic-link URLs, and invite links use the new origin.
 
 **Do not** set `LOCAL_DATABASE_URL` on Vercel.
+
+### 2b. R2 — bucket CORS for browser uploads
+
+Direct video upload sends a **cross-origin `PUT`** from the browser to `*.r2.cloudflarestorage.com`. Without bucket CORS, the **OPTIONS preflight returns 403** and the console shows `No 'Access-Control-Allow-Origin' header`.
+
+1. Cloudflare dashboard → **R2** → open the bucket named in `R2_BUCKET` (production uses **`alliance-hq-video-queue`**).
+2. **Settings** → **CORS policy** → paste (adjust origins if you add preview hosts):
+
+```json
+[
+  {
+    "AllowedOrigins": [
+      "https://frontline.gay",
+      "https://www.frontline.gay",
+      "http://localhost:5175"
+    ],
+    "AllowedMethods": ["GET", "PUT", "HEAD"],
+    "AllowedHeaders": ["Content-Type"],
+    "ExposeHeaders": ["ETag"],
+    "MaxAgeSeconds": 3600
+  }
+]
+```
+
+3. Save, wait a minute, retry upload from **Tools → Upload from video**.
+
+The app presigns `PutObject` with a **`Content-Type`** header (see `client-upload.ts`), so `AllowedHeaders` must include `Content-Type`. Multipart part uploads need **`ExposeHeaders: ["ETag"]`** so the client can complete the multipart upload.
+
+For Vercel preview deploys, add each preview origin (or a documented preview URL pattern if your team uses one) to `AllowedOrigins` — R2 does not read CORS from application env vars.
 
 Local dev without verified Resend domain:
 
@@ -99,6 +130,7 @@ After deploy, confirm these load **without signing in**:
 | Symptom | Likely cause |
 | ------- | ------------- |
 | Magic link points at `*.vercel.app` | `NEXT_PUBLIC_APP_URL` not set or deploy stale |
+| Video upload CORS / OPTIONS 403 on `r2.cloudflarestorage.com` | R2 bucket CORS missing `https://frontline.gay` (see **§2b**) |
 | Resend 403 / domain error | `EMAIL_FROM` domain not verified in Resend |
 | Mail in spam | Use verified domain + complete SPF/DKIM; avoid `@resend.dev` in prod |
 | Auth callback error | `AUTH_SECRET` missing or changed mid-session |

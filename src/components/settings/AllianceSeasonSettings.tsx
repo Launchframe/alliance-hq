@@ -13,6 +13,8 @@ export type AllianceSeasonPayload = {
   gameServerNumber: number | null;
   seasonKeyOverride: string | null;
   canManageSeason: boolean;
+  canEditGameServer: boolean;
+  hasLinkedGameServer: boolean;
 };
 
 type Props = {
@@ -23,6 +25,7 @@ export function AllianceSeasonSettings({ allianceTag }: Props) {
   const t = useTranslations("settings.gameSeason");
   const [season, setSeason] = useState<AllianceSeasonPayload | null>(null);
   const [draft, setDraft] = useState("");
+  const [serverDraft, setServerDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [loadedTag, setLoadedTag] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -47,6 +50,9 @@ export function AllianceSeasonSettings({ allianceTag }: Props) {
         if (!cancelled) {
           setSeason(body);
           setDraft(body.seasonKeyOverride ?? body.seasonKey);
+          setServerDraft(
+            body.gameServerNumber != null ? String(body.gameServerNumber) : "",
+          );
           setError(null);
           setLoadedTag(allianceTag);
         }
@@ -78,6 +84,36 @@ export function AllianceSeasonSettings({ allianceTag }: Props) {
       }
       setSeason(body);
       setDraft(body.seasonKeyOverride ?? body.seasonKey);
+    } catch {
+      setError(t("saveFailed"));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const saveServer = async () => {
+    const parsed = Number.parseInt(serverDraft.trim(), 10);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      setError(t("serverNumberInvalid"));
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(allianceSeasonApiPath(allianceTag), {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ gameServerNumber: parsed }),
+      });
+      const body = (await res.json()) as AllianceSeasonPayload & { error?: string };
+      if (!res.ok) {
+        setError(body.error ?? t("saveFailed"));
+        return;
+      }
+      setSeason(body);
+      setServerDraft(
+        body.gameServerNumber != null ? String(body.gameServerNumber) : "",
+      );
     } catch {
       setError(t("saveFailed"));
     } finally {
@@ -160,7 +196,41 @@ export function AllianceSeasonSettings({ allianceTag }: Props) {
         {phaseLine ? (
           <p className="text-sm text-[#c9d1d9]">{phaseLine}</p>
         ) : null}
+        {displaySeason.canEditGameServer &&
+        displaySeason.gameServerNumber != null &&
+        !displaySeason.hasLinkedGameServer ? (
+          <p className="text-sm text-[#e3b341]">{t("serverLinkRequired")}</p>
+        ) : null}
       </div>
+
+      {displaySeason.canEditGameServer ? (
+        <div className="mt-4 flex w-full min-w-0 max-w-md flex-col gap-2">
+          <label className="text-xs text-[#8b949e]" htmlFor="settings-game-server">
+            {t("serverNumberLabel")}
+          </label>
+          <input
+            id="settings-game-server"
+            type="text"
+            inputMode="numeric"
+            value={serverDraft}
+            onChange={(e) => setServerDraft(e.target.value.replace(/\D/g, ""))}
+            className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 text-sm text-[#e6edf3]"
+          />
+          <p className="text-xs text-[#6e7681]">
+            {displaySeason.gameServerNumber == null
+              ? t("serverNumberHint")
+              : t("serverNumberUpdateHint")}
+          </p>
+          <button
+            type="button"
+            disabled={busy || !serverDraft.trim()}
+            onClick={() => void saveServer()}
+            className="w-fit rounded-lg bg-[#238636] px-3 py-1.5 text-sm font-medium text-white disabled:opacity-60"
+          >
+            {busy ? t("saving") : t("saveServer")}
+          </button>
+        </div>
+      ) : null}
 
       {displaySeason.canManageSeason ? (
         <div className="mt-4 flex w-full min-w-0 max-w-md flex-col gap-2">

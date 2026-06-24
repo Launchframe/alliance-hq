@@ -11,14 +11,18 @@ import {
   getEffectiveSeasonForAlliance,
   loadAllianceSeasonRow,
   setAllianceSeasonOverride,
+  updateAllianceGameServerNumber,
 } from "@/lib/game-season/sync";
+import { resolveAllianceGameServerNumber } from "@/lib/game-season/game-servers.server";
+import { isNativeAlliance } from "@/lib/native-alliance/operating-mode";
 import { sessionHasPermissionForAlliance } from "@/lib/rbac/context";
 import { getOrCreateSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
 const patchSchema = z.object({
-  seasonKeyOverride: z.string().trim().min(1).max(8).nullable(),
+  seasonKeyOverride: z.string().trim().min(1).max(8).nullable().optional(),
+  gameServerNumber: z.number().int().positive().max(9999).nullable().optional(),
 });
 
 type RouteContext = { params: Promise<{ tag: string }> };
@@ -36,7 +40,8 @@ export async function GET(_request: Request, context: RouteContext) {
     );
     if (denied) return denied;
 
-    const [effective, row, canManageSeason] = await Promise.all([
+    const [effective, row, canManageSeason, native, linkedGameServerNumber] =
+      await Promise.all([
       getEffectiveSeasonForAlliance(alliance.allianceId),
       loadAllianceSeasonRow(alliance.allianceId),
       sessionHasPermissionForAlliance(
@@ -44,6 +49,8 @@ export async function GET(_request: Request, context: RouteContext) {
         alliance.allianceId,
         "alliance:admin",
       ),
+      isNativeAlliance(alliance.allianceId),
+      resolveAllianceGameServerNumber(alliance.allianceId),
     ]);
 
     return NextResponse.json({
@@ -56,6 +63,8 @@ export async function GET(_request: Request, context: RouteContext) {
       gameServerNumber: effective.gameServerNumber,
       seasonKeyOverride: row?.seasonKeyOverride ?? null,
       canManageSeason,
+      canEditGameServer: native && canManageSeason,
+      hasLinkedGameServer: linkedGameServerNumber != null,
     });
   } catch (error) {
     return allianceRouteErrorResponse(error);
@@ -81,15 +90,43 @@ export async function PATCH(request: Request, context: RouteContext) {
     }
 
     const beforeRow = await loadAllianceSeasonRow(alliance.allianceId);
-    const effective = await setAllianceSeasonOverride(
+    const beforeLinkedServer = await resolveAllianceGameServerNumber(
       alliance.allianceId,
-      body.data.seasonKeyOverride,
     );
+
+    if (body.data.gameServerNumber !== undefined) {
+      const native = await isNativeAlliance(alliance.allianceId);
+      if (!native) {
+        return NextResponse.json(
+          { error: "Game server number is managed by Ashed for connected alliances." },
+          { status: 400 },
+        );
+      }
+      await updateAllianceGameServerNumber(
+        alliance.allianceId,
+        body.data.gameServerNumber,
+      );
+    }
+
+    const effective =
+      body.data.seasonKeyOverride !== undefined
+        ? await setAllianceSeasonOverride(
+            alliance.allianceId,
+            body.data.seasonKeyOverride,
+          )
+        : await getEffectiveSeasonForAlliance(alliance.allianceId);
     const row = await loadAllianceSeasonRow(alliance.allianceId);
+    const native = await isNativeAlliance(alliance.allianceId);
+    const linkedGameServerNumber = await resolveAllianceGameServerNumber(
+      alliance.allianceId,
+    );
 
     const beforeOverride = beforeRow?.seasonKeyOverride ?? null;
     const afterOverride = row?.seasonKeyOverride ?? null;
-    if (beforeOverride !== afterOverride) {
+    if (
+      body.data.seasonKeyOverride !== undefined &&
+      beforeOverride !== afterOverride
+    ) {
       await writeAuditLog({
         sessionId: session.id,
         allianceId: alliance.allianceId,
@@ -106,6 +143,25 @@ export async function PATCH(request: Request, context: RouteContext) {
       });
     }
 
+    if (
+      body.data.gameServerNumber !== undefined &&
+      beforeLinkedServer !== linkedGameServerNumber
+    ) {
+      await writeAuditLog({
+        sessionId: session.id,
+        allianceId: alliance.allianceId,
+        hqUserId: session.hqUserId ?? undefined,
+        action: "alliance.game_server_update",
+        resourceType: "alliance",
+        resourceId: alliance.allianceId,
+        resourceName: alliance.name,
+        metadata: {
+          before: { gameServerNumber: beforeLinkedServer },
+          after: { gameServerNumber: linkedGameServerNumber },
+        },
+      });
+    }
+
     return NextResponse.json({
       allianceTag: alliance.tag,
       allianceName: alliance.name,
@@ -116,6 +172,8 @@ export async function PATCH(request: Request, context: RouteContext) {
       gameServerNumber: effective.gameServerNumber,
       seasonKeyOverride: row?.seasonKeyOverride ?? null,
       canManageSeason: true,
+      canEditGameServer: native,
+      hasLinkedGameServer: linkedGameServerNumber != null,
     });
   } catch (error) {
     return allianceRouteErrorResponse(error);

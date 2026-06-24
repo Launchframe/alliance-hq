@@ -2,6 +2,12 @@ import { eq, isNotNull } from "drizzle-orm";
 
 import { fetchCptHedgeServerRecord } from "@/lib/game-season/cpt-hedge";
 import {
+  ensureGameSeason,
+  mirrorServerSeasonToAlliances,
+  upsertGameServerByNumber,
+  linkAllianceToGameServer,
+} from "@/lib/game-season/game-servers.server";
+import {
   normalizeSeasonKey,
   resolveEffectiveSeasonFromRow,
   resolveSeasonFromAgeFallback,
@@ -83,12 +89,175 @@ async function persistSeasonSync(
     .where(eq(schema.alliances.id, allianceId));
 }
 
+export async function applyGameServerSeasonSync(
+  gameServerId: string,
+  serverNumber: number,
+): Promise<EffectiveSeason> {
+  const db = getDb();
+  const [serverRow] = await db
+    .select({
+      seasonKeyOverride: schema.gameServers.seasonKeyOverride,
+      openTimestampMs: schema.gameServers.openTimestampMs,
+    })
+    .from(schema.gameServers)
+    .where(eq(schema.gameServers.id, gameServerId))
+    .limit(1);
+
+  if (!serverRow) {
+    throw new Error(`Game server not found: ${gameServerId}`);
+  }
+
+  if (serverRow.seasonKeyOverride?.trim()) {
+    const seasonKey = normalizeSeasonKey(serverRow.seasonKeyOverride);
+    const seasonNumber = Math.max(1, parseInt(seasonKey, 10) || 1);
+    const seasonId = await ensureGameSeason(seasonNumber);
+    const now = new Date();
+    await db
+      .update(schema.gameServers)
+      .set({
+        seasonId,
+        seasonKeySource: "override",
+        syncedAt: now,
+        updatedAt: now,
+      })
+      .where(eq(schema.gameServers.id, gameServerId));
+    await mirrorServerSeasonToAlliances(gameServerId, {
+      currentSeasonKey: seasonKey,
+      seasonKeySynced: seasonKey,
+      seasonKeySource: "override",
+    });
+    return {
+      seasonKey,
+      source: "override",
+      isPostSeason: false,
+      week: null,
+      gameServerNumber: serverNumber,
+    };
+  }
+
+  try {
+    const cptRecord = await fetchCptHedgeServerRecord(serverNumber);
+    if (cptRecord) {
+      const resolved = resolveSeasonFromCptHedgeRecord(cptRecord);
+      const seasonNumber = Math.max(1, parseInt(resolved.seasonKey, 10) || 1);
+      const seasonId = await ensureGameSeason(seasonNumber);
+      const now = new Date();
+      await db
+        .update(schema.gameServers)
+        .set({
+          seasonId,
+          openTimestampMs: resolved.openTimestampMs,
+          seasonKeySynced: resolved.seasonKey,
+          seasonKeySource: resolved.source,
+          seasonIsPostSeason: resolved.isPostSeason ? 1 : 0,
+          seasonWeek: resolved.week,
+          syncedAt: now,
+          updatedAt: now,
+        })
+        .where(eq(schema.gameServers.id, gameServerId));
+      await mirrorServerSeasonToAlliances(gameServerId, {
+        currentSeasonKey: resolved.seasonKey,
+        seasonKeySynced: resolved.seasonKey,
+        seasonKeySource: resolved.source,
+        gameServerOpenTimestamp: resolved.openTimestampMs,
+        seasonIsPostSeason: resolved.isPostSeason ? 1 : 0,
+        seasonWeek: resolved.week,
+      });
+      return {
+        seasonKey: resolved.seasonKey,
+        source: resolved.source,
+        isPostSeason: resolved.isPostSeason,
+        week: resolved.week,
+        gameServerNumber: serverNumber,
+      };
+    }
+  } catch (error) {
+    console.warn("[game-season] cpt-hedge server sync failed", gameServerId, error);
+  }
+
+  const openTs = serverRow.openTimestampMs;
+  if (openTs != null && openTs > 0) {
+    const resolved = resolveSeasonFromAgeFallback(openTs);
+    const seasonNumber = Math.max(1, parseInt(resolved.seasonKey, 10) || 1);
+    const seasonId = await ensureGameSeason(seasonNumber);
+    const now = new Date();
+    await db
+      .update(schema.gameServers)
+      .set({
+        seasonId,
+        seasonKeySynced: resolved.seasonKey,
+        seasonKeySource: resolved.source,
+        seasonIsPostSeason: 0,
+        seasonWeek: null,
+        syncedAt: now,
+        updatedAt: now,
+      })
+      .where(eq(schema.gameServers.id, gameServerId));
+    await mirrorServerSeasonToAlliances(gameServerId, {
+      currentSeasonKey: resolved.seasonKey,
+      seasonKeySynced: resolved.seasonKey,
+      seasonKeySource: resolved.source,
+      gameServerOpenTimestamp: openTs,
+      seasonIsPostSeason: 0,
+      seasonWeek: null,
+    });
+    return {
+      seasonKey: resolved.seasonKey,
+      source: resolved.source,
+      isPostSeason: false,
+      week: null,
+      gameServerNumber: serverNumber,
+    };
+  }
+
+  const fallbackKey = "1";
+  const seasonId = await ensureGameSeason(1);
+  const now = new Date();
+  await db
+    .update(schema.gameServers)
+    .set({
+      seasonId,
+      seasonKeySynced: fallbackKey,
+      seasonKeySource: "default",
+      seasonIsPostSeason: 0,
+      seasonWeek: null,
+      syncedAt: now,
+      updatedAt: now,
+    })
+    .where(eq(schema.gameServers.id, gameServerId));
+  await mirrorServerSeasonToAlliances(gameServerId, {
+    currentSeasonKey: fallbackKey,
+    seasonKeySynced: fallbackKey,
+    seasonKeySource: "default",
+    seasonIsPostSeason: 0,
+    seasonWeek: null,
+  });
+
+  return {
+    seasonKey: fallbackKey,
+    source: "default",
+    isPostSeason: false,
+    week: null,
+    gameServerNumber: serverNumber,
+  };
+}
+
 export async function applySeasonSync(
   allianceId: string,
 ): Promise<EffectiveSeason> {
+  const db = getDb();
   const row = await loadAllianceSeasonRow(allianceId);
   if (!row) {
     throw new Error(`Alliance not found: ${allianceId}`);
+  }
+
+  if (row.gameServerNumber != null) {
+    const gameServerId = await upsertGameServerByNumber(row.gameServerNumber);
+    await db
+      .update(schema.alliances)
+      .set({ gameServerId, updatedAt: new Date() })
+      .where(eq(schema.alliances.id, allianceId));
+    return applyGameServerSeasonSync(gameServerId, row.gameServerNumber);
   }
 
   if (row.seasonKeyOverride?.trim()) {
@@ -103,35 +272,7 @@ export async function applySeasonSync(
     return effective;
   }
 
-  if (row.gameServerNumber != null) {
-    try {
-      const cptRecord = await fetchCptHedgeServerRecord(row.gameServerNumber);
-      if (cptRecord) {
-        const resolved = resolveSeasonFromCptHedgeRecord(cptRecord);
-        await persistSeasonSync(allianceId, {
-          currentSeasonKey: resolved.seasonKey,
-          seasonKeySynced: resolved.seasonKey,
-          seasonKeySource: resolved.source,
-          gameServerOpenTimestamp: resolved.openTimestampMs,
-          seasonIsPostSeason: resolved.isPostSeason ? 1 : 0,
-          seasonWeek: resolved.week,
-        });
-        return {
-          seasonKey: resolved.seasonKey,
-          source: resolved.source,
-          isPostSeason: resolved.isPostSeason,
-          week: resolved.week,
-          gameServerNumber: row.gameServerNumber,
-        };
-      }
-    } catch (error) {
-      console.warn("[game-season] cpt-hedge lookup failed", allianceId, error);
-    }
-  }
-
-  const openTs =
-    row.gameServerOpenTimestamp ??
-    (row.gameServerNumber != null ? null : null);
+  const openTs = row.gameServerOpenTimestamp;
 
   if (openTs != null && openTs > 0) {
     const resolved = resolveSeasonFromAgeFallback(openTs);
@@ -204,14 +345,19 @@ export async function updateAllianceGameServerNumber(
   allianceId: string,
   gameServerNumber: number | null,
 ): Promise<void> {
-  const db = getDb();
-  await db
-    .update(schema.alliances)
-    .set({
-      gameServerNumber,
-      updatedAt: new Date(),
-    })
-    .where(eq(schema.alliances.id, allianceId));
+  if (gameServerNumber == null) {
+    const db = getDb();
+    await db
+      .update(schema.alliances)
+      .set({
+        gameServerNumber: null,
+        gameServerId: null,
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.alliances.id, allianceId));
+    return;
+  }
+  await linkAllianceToGameServer(allianceId, gameServerNumber);
 }
 
 export async function listAlliancesForSeasonCron(): Promise<

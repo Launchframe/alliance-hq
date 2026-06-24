@@ -26,6 +26,9 @@ import {
 import { systemRoleNameForId } from "@/lib/rbac/system-roles";
 
 import { provisionAllianceMembership } from "./provision-membership";
+import { assertAllianceLinkedGameServer } from "./alliance-server-gate.server";
+
+export { AllianceServerRequiredError } from "./alliance-server-gate.server";
 
 const INVITE_TTL_DAYS = 14;
 
@@ -171,6 +174,8 @@ export async function createHqInvite(
   if (!alliance) {
     throw new Error("Alliance not found.");
   }
+
+  await assertAllianceLinkedGameServer(input.allianceId);
 
   let email: string | null = null;
   let passphrase: string | undefined;

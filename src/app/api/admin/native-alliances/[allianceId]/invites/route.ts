@@ -5,7 +5,11 @@ import {
   collectDatabaseErrorText,
   isMissingSchemaError,
 } from "@/lib/db/error-message";
-import { createHqInvite, type HqInviteKind } from "@/lib/native-alliance/invites";
+import {
+  AllianceServerRequiredError,
+  createHqInvite,
+  type HqInviteKind,
+} from "@/lib/native-alliance/invites";
 import { getRbacContext } from "@/lib/rbac/context";
 import { sanitizeInternalRedirectPath } from "@/lib/navigation/safe-redirect.shared";
 import type { SystemRoleName } from "@/lib/rbac/constants";
@@ -68,6 +72,12 @@ export async function POST(
 
     return NextResponse.json({ ok: true, invite });
   } catch (error) {
+    if (error instanceof AllianceServerRequiredError) {
+      return NextResponse.json(
+        { error: error.message, code: error.code },
+        { status: 422 },
+      );
+    }
     if (isMissingSchemaError(error)) {
       return NextResponse.json(
         {

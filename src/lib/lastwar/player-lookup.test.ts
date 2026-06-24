@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   isValidGameUid,
   normalizeLastWarAvatarUrl,
+  parseGameServerNumberFromUid,
   parseLastWarLookupResponse,
 } from "@/lib/lastwar/player-lookup";
 
@@ -25,6 +26,13 @@ describe("normalizeLastWarAvatarUrl", () => {
     expect(normalizeLastWarAvatarUrl("/avatars/x.png")).toBe(
       "https://lastwar-h5.lastwargame.com/avatars/x.png",
     );
+  });
+});
+
+describe("parseGameServerNumberFromUid", () => {
+  it("uses last four digits as state server number", () => {
+    expect(parseGameServerNumberFromUid("1623941123001203")).toBe(1203);
+    expect(parseGameServerNumberFromUid("1001369694002891")).toBe(2891);
   });
 });
 
@@ -52,7 +60,27 @@ describe("parseLastWarLookupResponse", () => {
         message: "ok",
         result: { server: "1203", gameUserName: "BOGGLE", gameUserLevel: "35" },
       }),
-    ).toEqual({ ok: true, gameUserName: "BOGGLE", gameUserLevel: 35 });
+    ).toEqual({
+      ok: true,
+      gameUserName: "BOGGLE",
+      gameUserLevel: 35,
+      gameServerNumber: 1203,
+    });
+  });
+
+  it("falls back to UID suffix for server number", () => {
+    expect(
+      parseLastWarLookupResponse(
+        {
+          code: 0,
+          data: { gameUserName: "CommanderX" },
+        },
+        "1623941123001203",
+      ),
+    ).toMatchObject({
+      ok: true,
+      gameServerNumber: 1203,
+    });
   });
 
   it("parses gameUserLevel from numeric or string values", async () => {

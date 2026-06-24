@@ -136,6 +136,56 @@ async function createAllianceWithOperatingMode(
   return { allianceId, tag: options.tag };
 }
 
+/** Links a native alliance to the canonical game_servers row (required for createHqInvite gate). */
+export async function linkNativeAllianceToGameServer(
+  sql: Sql,
+  allianceId: string,
+  serverNumber = 1203,
+): Promise<void> {
+  const now = new Date();
+  const seasonId = "season-1";
+  const gameServerId = `server-${serverNumber}`;
+
+  await sql`
+    INSERT INTO game_seasons (id, season_number, max_base_vr, created_at, updated_at)
+    VALUES (${seasonId}, 1, 10000, ${now}, ${now})
+    ON CONFLICT (id) DO NOTHING
+  `;
+
+  await sql`
+    INSERT INTO game_servers (
+      id,
+      server_number,
+      season_id,
+      season_key_synced,
+      season_key_source,
+      season_is_post_season,
+      synced_at,
+      created_at,
+      updated_at
+    ) VALUES (
+      ${gameServerId},
+      ${serverNumber},
+      ${seasonId},
+      '1',
+      'default',
+      0,
+      ${now},
+      ${now},
+      ${now}
+    )
+    ON CONFLICT (server_number) DO NOTHING
+  `;
+
+  await sql`
+    UPDATE alliances
+    SET game_server_id = ${gameServerId},
+        game_server_number = ${serverNumber},
+        updated_at = ${now}
+    WHERE id = ${allianceId}
+  `;
+}
+
 export async function createHqInviteRow(
   sql: Sql,
   input: {

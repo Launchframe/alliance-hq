@@ -4,6 +4,8 @@ import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { CopyToClipboardField } from "@/components/ui/CopyToClipboardField";
+import { Link } from "@/i18n/navigation";
+import { allianceSettingsPath } from "@/lib/alliance/alliance-settings-path.shared";
 import type { SystemRoleName } from "@/lib/rbac/constants";
 
 function isValidInviteEmail(value: string): boolean {
@@ -56,9 +58,15 @@ const ROLE_LABEL_KEYS: Record<
 
 type Props = {
   assignableRoles: SystemRoleName[];
+  gameServerNumber: number | null;
+  allianceTag: string;
 };
 
-export function TeamInvitePanel({ assignableRoles }: Props) {
+export function TeamInvitePanel({
+  assignableRoles,
+  gameServerNumber,
+  allianceTag,
+}: Props) {
   const t = useTranslations("team.invites");
   const [inviteKind, setInviteKind] = useState<InviteKind>("protected_link");
   const [inviteEmail, setInviteEmail] = useState("");
@@ -90,6 +98,7 @@ export function TeamInvitePanel({ assignableRoles }: Props) {
 
   const inviteEmailValid = isValidInviteEmail(inviteEmail);
   const canSendInvite =
+    gameServerNumber != null &&
     inviteRole !== "" &&
     (inviteKind === "protected_link" ||
       (inviteKind === "email" && inviteEmailValid));
@@ -190,6 +199,23 @@ export function TeamInvitePanel({ assignableRoles }: Props) {
         <h2 className="text-lg font-semibold">{t("title")}</h2>
         <p className="mt-1 text-sm text-[#8b949e]">{t("description")}</p>
       </div>
+
+      {gameServerNumber == null ? (
+        <div
+          className="rounded-lg border border-[#9e6a03] bg-[#9e6a03]/10 p-4 text-sm text-[#e3b341]"
+          role="alert"
+        >
+          <p>{t("serverRequired")}</p>
+          {allianceTag ? (
+            <Link
+              href={allianceSettingsPath(allianceTag)}
+              className="mt-2 inline-block text-[#58a6ff] underline"
+            >
+              {t("serverRequiredLink")}
+            </Link>
+          ) : null}
+        </div>
+      ) : null}
 
       <div className="border-t border-[#30363d] pt-5">
         <h3 className="text-sm font-semibold">{t("inviteTitle")}</h3>
@@ -336,7 +362,7 @@ export function TeamInvitePanel({ assignableRoles }: Props) {
         </div>
         <button
           type="button"
-          disabled={busy}
+          disabled={busy || gameServerNumber == null}
           onClick={() => void createJoinCode()}
           className="mt-3 rounded-lg border border-[#238636] bg-[#238636] px-4 py-2 text-sm text-white disabled:opacity-50"
         >

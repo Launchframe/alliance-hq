@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
-import { and, isNotNull, isNull } from "drizzle-orm";
 
-import { applySeasonSync } from "@/lib/game-season/sync";
-import { getDb, schema } from "@/lib/db";
+import { applyGameServerSeasonSync } from "@/lib/game-season/sync";
+import { listGameServersForSeasonCron } from "@/lib/game-season/game-servers.server";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -18,40 +17,34 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const db = getDb();
-  const alliances = await db
-    .select({
-      id: schema.alliances.id,
-      gameServerNumber: schema.alliances.gameServerNumber,
-    })
-    .from(schema.alliances)
-    .where(
-      and(
-        isNotNull(schema.alliances.gameServerNumber),
-        isNull(schema.alliances.seasonKeyOverride),
-      ),
-    );
+  const servers = await listGameServersForSeasonCron();
 
   const results: Array<{
-    allianceId: string;
+    gameServerId: string;
+    serverNumber: number;
     ok: boolean;
     seasonKey?: string;
     source?: string;
     error?: string;
   }> = [];
 
-  for (const alliance of alliances) {
+  for (const server of servers) {
     try {
-      const effective = await applySeasonSync(alliance.id);
+      const effective = await applyGameServerSeasonSync(
+        server.id,
+        server.serverNumber,
+      );
       results.push({
-        allianceId: alliance.id,
+        gameServerId: server.id,
+        serverNumber: server.serverNumber,
         ok: true,
         seasonKey: effective.seasonKey,
         source: effective.source,
       });
     } catch (error) {
       results.push({
-        allianceId: alliance.id,
+        gameServerId: server.id,
+        serverNumber: server.serverNumber,
         ok: false,
         error: error instanceof Error ? error.message : "sync failed",
       });
