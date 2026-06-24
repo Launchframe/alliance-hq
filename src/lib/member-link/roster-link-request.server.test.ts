@@ -238,6 +238,23 @@ describe("tryBootstrapOwnerColdStartMember", () => {
     expect(result).toBeNull();
   });
 
+  it("returns wrong_server when lookup has no game server number", async () => {
+    dbModule.chain.limit.mockResolvedValueOnce([{ ownerHqUserId: "u1" }]);
+
+    const result = await tryBootstrapOwnerColdStartMember({
+      allianceId: "a1",
+      hqUserId: "u1",
+      locale: "en-US",
+      reportedName: "Commander",
+      gameUid: "1234567890121203",
+      lookup: { ok: true, gameUserName: "Commander" },
+      rosterCount: 0,
+    });
+
+    expect(result?.outcome).toBe("wrong_server");
+    expect(gameServers.linkAllianceToGameServer).not.toHaveBeenCalled();
+  });
+
   it("returns wrong_server when alliance server mismatches", async () => {
     dbModule.chain.limit.mockResolvedValueOnce([{ ownerHqUserId: "u1" }]);
     vi.mocked(gameServers.resolveAllianceGameServerNumber).mockResolvedValue(9999);

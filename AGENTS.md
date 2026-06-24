@@ -59,7 +59,7 @@ Apply on every Real Steel pass for this repo:
 - **i18n** — new UI strings in en-US and pt-BR; run `npm run i18n:validate`
 - **Video pipeline** — admin requeue/reprocess must not double-process or lose job state
 - **No prod SQL for ops** — admin UI should cover role assignment, commendations, and job recovery without ad-hoc queries
-- **Native alliance invites** — `createHqInvite` (team settings + `/api/admin/native-alliances/.../invites`) requires a **linked** game server (`alliances.game_server_id` → `game_servers`, not denormalized `game_server_number` alone). Platform maintainers must set state server under alliance **Game season** settings before generating owner/officer invites; API returns **422** `{ code: "alliance_server_required" }`.
+- **Native alliance invites** — `createHqInvite` (team settings + `/api/admin/native-alliances/.../invites`): **owner** invites are allowed before a linked game server; **officer/member** invites require `alliances.game_server_id` → `game_servers` (set automatically when the owner completes name+UID member link, or via admin console / Game season for corrections). API returns **422** `{ code: "alliance_server_required" }` when non-owner invites lack a linked server.
 - **Trains** — GET routes use `scores:read`; mutations use `trains:write` via `requireTrainOfficer`; tenant-scoped by session alliance; conductor lock is immutable without audited override; season + ritual detail in [`.cursor/rules/trains.mdc`](.cursor/rules/trains.mdc)
 
 ## Last War domain (game mechanics)
