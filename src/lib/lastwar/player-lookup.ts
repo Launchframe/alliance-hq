@@ -32,7 +32,13 @@ type LastWarPlayerPayload = {
 };
 
 export type LastWarPlayerLookupResult =
-  | { ok: true; gameUserName: string; gameUserLevel?: number; avatarUrl?: string }
+  | {
+      ok: true;
+      gameUserName: string;
+      gameUserLevel?: number;
+      avatarUrl?: string;
+      gameServerNumber?: number;
+    }
   | { ok: false; reason: "invalid_uid" | "not_found" | "request_failed"; message: string };
 
 const LASTWAR_AVATAR_FIELD_KEYS = [
@@ -93,8 +99,38 @@ export function parseLastWarGameUserLevel(value: unknown): number | null {
   return null;
 }
 
+export function parseGameServerNumberFromUid(uid: string): number | null {
+  const trimmed = uid.trim();
+  if (!/^\d{12,16}$/.test(trimmed)) return null;
+  const suffix = trimmed.slice(-4);
+  const parsed = Number.parseInt(suffix, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+export function parseLastWarGameServerNumber(
+  payload: LastWarPlayerPayload | undefined,
+  uid?: string,
+): number | null {
+  const raw = payload?.server;
+  if (typeof raw === "number" && Number.isFinite(raw) && raw > 0) {
+    return Math.floor(raw);
+  }
+  if (typeof raw === "string") {
+    const trimmed = raw.trim();
+    if (/^\d+$/.test(trimmed)) {
+      const parsed = Number.parseInt(trimmed, 10);
+      if (parsed > 0) return parsed;
+    }
+  }
+  if (uid) {
+    return parseGameServerNumberFromUid(uid);
+  }
+  return null;
+}
+
 export function parseLastWarLookupResponse(
   body: LastWarPlayerLookupResponse,
+  uid?: string,
 ): LastWarPlayerLookupResult {
   if (body.code !== 0 && body.code !== 200) {
     return {
@@ -117,11 +153,14 @@ export function parseLastWarLookupResponse(
   }
   const avatarUrl = parseLastWarAvatarUrl(payload);
   const gameUserLevel = parseLastWarGameUserLevel(payload?.gameUserLevel);
+  const gameServerNumber =
+    parseLastWarGameServerNumber(payload, uid) ?? undefined;
   return {
     ok: true,
     gameUserName: gameUserName.trim(),
     ...(gameUserLevel != null ? { gameUserLevel } : {}),
     ...(avatarUrl ? { avatarUrl } : {}),
+    ...(gameServerNumber != null ? { gameServerNumber } : {}),
   };
 }
 
@@ -162,7 +201,7 @@ export async function lookupPlayerByUid(
         message: body.message ?? "Player lookup failed.",
       };
     }
-    return parseLastWarLookupResponse(body);
+    return parseLastWarLookupResponse(body, uid.trim());
   } catch {
     return {
       ok: false,

@@ -831,6 +831,8 @@
       "invitePassphraseHint": "Send the link and passphrase in separate messages.",
       "inviteFailed": "Could not create invite.",
       "inviteSent": "Invite link generated (valid 14 days).",
+      "serverRequired": "Set your alliance state server under Settings → Game season before sending invites.",
+      "serverRequiredLink": "Open game season settings",
       "joinCodeTitle": "Join code",
       "joinCodeHint": "Multi-use code for Discord or in-game chat. Recipients redeem at /join after signing in.",
       "joinCodeRole": "HQ role",
@@ -1119,6 +1121,9 @@
       "saving": "Saving…",
       "saveFailed": "Could not save season override.",
       "clearFailed": "Could not clear season override.",
+      "serverNumberLabel": "State server number",
+      "serverNumberHint": "Required before sending HQ invites (e.g. 1203). The last four digits of a player UID match this server.",
+      "saveServer": "Save server",
       "source": {
         "override": "Manual override",
         "cpt-hedge": "Synced from cpt-hedge",
