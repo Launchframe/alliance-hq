@@ -1287,6 +1287,7 @@
     "methodPickerLabel": "Opções de entrada",
     "methodGoogle": "Google",
     "methodDiscord": "Discord",
+    "discordSignInHint": "Recomendado se você usa o Discord da aliança: entrar com Discord vincula o HQ ao bot automaticamente, para usar /vr e outros comandos sem precisar rodar /link antes.",
     "methodPasskey": "Passkey",
     "methodEmail": "E-mail",
     "backToAllOptions": "Voltar para todas as opções",

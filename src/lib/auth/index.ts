@@ -4,6 +4,7 @@ import NextAuth from "next-auth";
 
 import { createHqAuthAdapter } from "@/lib/auth/adapter";
 import { bridgeAuthUserToBrowserSession } from "@/lib/auth/bridge-session";
+import { syncDiscordHqLinkFromOAuthSignIn } from "@/lib/auth/discord-hq-link.server";
 import { buildAuthProviders } from "@/lib/auth/providers.server";
 import { ensureHqUserForAuthEmail } from "@/lib/auth/resolve-hq-user";
 import { maybeBootstrapPlatformMaintainer } from "@/lib/rbac/bootstrap-platform";
@@ -65,6 +66,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           await syncOAuthProviderAvatar(hqUserId, account.provider, {
             providerUserId: account.providerAccountId,
             avatarUrl: user.image,
+          });
+        }
+
+        if (account?.provider === "discord" && account.providerAccountId) {
+          await syncDiscordHqLinkFromOAuthSignIn({
+            discordUserId: account.providerAccountId,
+            hqUserId,
           });
         }
 

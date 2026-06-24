@@ -1287,6 +1287,7 @@
     "methodPickerLabel": "Sign-in options",
     "methodGoogle": "Google",
     "methodDiscord": "Discord",
+    "discordSignInHint": "Recommended if you use our alliance Discord: signing in with Discord links HQ to the bot automatically, so you can use /vr and other commands without running /link first.",
     "methodPasskey": "Passkey",
     "methodEmail": "Email",
     "backToAllOptions": "Back to all options",
