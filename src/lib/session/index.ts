@@ -438,6 +438,20 @@ export async function clearAshedConnection(sessionId: string) {
     .where(eq(schema.sessions.id, sessionId));
 }
 
+/** Clears alliance tenant pick from a browser session (sign-out, onboarding reset). */
+export async function clearSessionAllianceContext(sessionId: string) {
+  const db = getDb();
+  await db
+    .update(schema.sessions)
+    .set({
+      currentAllianceId: null,
+      allianceId: null,
+      allianceTag: null,
+      updatedAt: new Date(),
+    })
+    .where(eq(schema.sessions.id, sessionId));
+}
+
 /** Clears HQ user binding from a browser session (e.g. on sign-out). */
 export async function clearSessionUserBinding(sessionId: string) {
   const db = getDb();
@@ -447,6 +461,8 @@ export async function clearSessionUserBinding(sessionId: string) {
       hqUserId: null,
       userLabel: null,
       currentAllianceId: null,
+      allianceId: null,
+      allianceTag: null,
       updatedAt: new Date(),
     })
     .where(eq(schema.sessions.id, sessionId));

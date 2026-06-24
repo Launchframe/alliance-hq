@@ -10,9 +10,9 @@ import {
   DEFAULT_POST_INVITE_APP_PATH,
   sanitizeInternalRedirectPath,
 } from "@/lib/navigation/safe-redirect.shared";
-import { rethrowNavigationError } from "@/lib/navigation";
 import {
   getPageSessionState,
+  loadSession,
   resolveEffectiveHqUserIdForSession,
   requirePageSession,
 } from "@/lib/session";
@@ -29,57 +29,48 @@ export default async function OnboardPage({ searchParams }: Props) {
   const nextPath =
     sanitizeInternalRedirectPath(next) ?? DEFAULT_POST_INVITE_APP_PATH;
 
-  let allianceName = "";
-  let allianceTag = "";
+  await requireAuthForPage("/onboard");
 
-  try {
-    await requireAuthForPage("/onboard");
-    const session = await requirePageSession("/onboard");
-    const state = await getPageSessionState("/onboard", locale);
+  const session = await requirePageSession("/onboard");
+  const state = await getPageSessionState("/onboard", locale);
 
-    if (!state.hasAppAccess) {
-      redirect({ href: "/get-started", locale });
+  if (!state.hasAppAccess) {
+    redirect({ href: "/get-started", locale });
+  }
+
+  const freshSession = (await loadSession(session.id)) ?? session;
+  const effectiveHqUserId = await resolveEffectiveHqUserIdForSession(
+    freshSession.id,
+    freshSession.hqUserId,
+  );
+  const resolvedAllianceId =
+    freshSession.currentAllianceId ?? freshSession.allianceId ?? null;
+
+  if (!resolvedAllianceId) {
+    redirect({ href: "/get-started", locale });
+  }
+
+  const allianceId = resolvedAllianceId!;
+
+  const db = getDb();
+  const [alliance] = await db
+    .select({ name: schema.alliances.name, tag: schema.alliances.tag })
+    .from(schema.alliances)
+    .where(eq(schema.alliances.id, allianceId))
+    .limit(1);
+
+  if (!alliance) {
+    redirect({ href: "/get-started", locale });
+  }
+
+  const allianceName = alliance.name;
+  const allianceTag = alliance.tag ?? alliance.name;
+
+  if (effectiveHqUserId) {
+    const linked = await sessionHasHqMemberLink(allianceId, effectiveHqUserId);
+    if (linked) {
+      redirect({ href: nextPath, locale });
     }
-
-    const effectiveHqUserId = await resolveEffectiveHqUserIdForSession(
-      session.id,
-      session.hqUserId,
-    );
-    const resolvedAllianceId =
-      session.currentAllianceId ?? session.allianceId ?? null;
-
-    if (!resolvedAllianceId) {
-      redirect({ href: "/get-started", locale });
-    }
-
-    const allianceId = resolvedAllianceId!;
-
-    const db = getDb();
-    const [alliance] = await db
-      .select({ name: schema.alliances.name, tag: schema.alliances.tag })
-      .from(schema.alliances)
-      .where(eq(schema.alliances.id, allianceId))
-      .limit(1);
-
-    if (!alliance) {
-      redirect({ href: "/get-started", locale });
-    }
-
-    allianceName = alliance.name;
-    allianceTag = alliance.tag ?? alliance.name;
-
-    if (effectiveHqUserId) {
-      const linked = await sessionHasHqMemberLink(
-        allianceId,
-        effectiveHqUserId,
-      );
-      if (linked) {
-        redirect({ href: nextPath, locale });
-      }
-    }
-  } catch (error) {
-    rethrowNavigationError(error);
-    throw error;
   }
 
   return (

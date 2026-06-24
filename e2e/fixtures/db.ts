@@ -638,3 +638,102 @@ export async function simulateManualMembershipAshedUpgrade(
 
   return true;
 }
+
+function normalizeJoinCodeForE2e(code: string): string {
+  return code.trim().toUpperCase().replace(/\s+/g, "");
+}
+
+function hashJoinCodeForE2e(code: string): string {
+  const normalized = normalizeJoinCodeForE2e(code);
+  return createHash("sha256").update(normalized).digest("hex");
+}
+
+export async function createAllianceJoinCodeRow(
+  sql: Sql,
+  options: {
+    allianceId: string;
+    roleName: keyof typeof ROLE_IDS;
+    code?: string;
+    maxRedemptions?: number;
+    createdByHqUserId?: string | null;
+    expiresInDays?: number;
+  },
+): Promise<{ joinCodeId: string; code: string }> {
+  const now = new Date();
+  const expiresAt = new Date(
+    now.getTime() + (options.expiresInDays ?? 7) * 24 * 60 * 60 * 1000,
+  );
+  const joinCodeId = nanoid(16);
+  const code = normalizeJoinCodeForE2e(
+    options.code ?? `E2E-${nanoid(6).toUpperCase()}`,
+  );
+  const codeHash = hashJoinCodeForE2e(code);
+  const codeHint =
+    code.length <= 4 ? code : `…${code.slice(-4)}`;
+  const roleId = ROLE_IDS[options.roleName];
+
+  await sql`
+    INSERT INTO hq_alliance_join_codes (
+      id,
+      alliance_id,
+      role_id,
+      code_hash,
+      code_hint,
+      max_redemptions,
+      redemption_count,
+      expires_at,
+      created_by_hq_user_id,
+      created_at
+    ) VALUES (
+      ${joinCodeId},
+      ${options.allianceId},
+      ${roleId},
+      ${codeHash},
+      ${codeHint},
+      ${options.maxRedemptions ?? 10},
+      0,
+      ${expiresAt},
+      ${options.createdByHqUserId ?? null},
+      ${now}
+    )
+  `;
+
+  return { joinCodeId, code };
+}
+
+export type BrowserSessionAllianceContext = {
+  hqUserId: string | null;
+  allianceId: string | null;
+  allianceTag: string | null;
+  currentAllianceId: string | null;
+};
+
+export async function loadBrowserSessionAllianceContext(
+  sql: Sql,
+  sessionId: string,
+): Promise<BrowserSessionAllianceContext | null> {
+  const [row] = await sql<
+    {
+      hq_user_id: string | null;
+      alliance_id: string | null;
+      alliance_tag: string | null;
+      current_alliance_id: string | null;
+    }[]
+  >`
+    SELECT hq_user_id, alliance_id, alliance_tag, current_alliance_id
+    FROM sessions
+    WHERE id = ${sessionId}
+    LIMIT 1
+  `;
+
+  if (!row) {
+    return null;
+  }
+
+  return {
+    hqUserId: row.hq_user_id,
+    allianceId: row.alliance_id,
+    allianceTag: row.alliance_tag,
+    currentAllianceId: row.current_alliance_id,
+  };
+}
