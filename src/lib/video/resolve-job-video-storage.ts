@@ -4,6 +4,7 @@ import { getDb, schema } from "@/lib/db";
 
 type JobRow = {
   storageKey: string | null;
+  archiveStorageKey?: string | null;
   groupId: string | null;
   fileName: string | null;
 };
@@ -11,6 +12,10 @@ type JobRow = {
 export async function resolveJobVideoStorageKey(
   job: JobRow,
 ): Promise<string | null> {
+  if (job.archiveStorageKey) {
+    return job.archiveStorageKey;
+  }
+
   if (job.storageKey) {
     return job.storageKey;
   }

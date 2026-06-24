@@ -323,6 +323,13 @@
       "when": 1783251200000,
       "tag": "0046_send_code_rate_limits",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1783337600000,
+      "tag": "0047_video_upload_archive",
+      "breakpoints": true
     }
   ]
 }

@@ -351,6 +351,11 @@ export const videoJobs = pgTable("video_jobs", {
   passIndex: integer("pass_index"),
   passRole: text("pass_role"),
   extractionConfigJson: jsonb("extraction_config_json"),
+  r2UploadId: text("r2_upload_id"),
+  expectedFileSizeBytes: integer("expected_file_size_bytes"),
+  archiveStorageKey: text("archive_storage_key"),
+  archivedAt: timestamp("archived_at", { withTimezone: true }),
+  originalFileSizeBytes: bigint("original_file_size_bytes", { mode: "number" }),
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
     .notNull(),

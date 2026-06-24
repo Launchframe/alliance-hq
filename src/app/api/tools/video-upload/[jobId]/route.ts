@@ -101,6 +101,7 @@ export async function GET(_request: Request, { params }: Props) {
 
     const storageKey = await resolveJobVideoStorageKey({
       storageKey: job.storageKey,
+      archiveStorageKey: job.archiveStorageKey,
       groupId: job.groupId,
       fileName: job.fileName,
     });

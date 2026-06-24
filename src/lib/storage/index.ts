@@ -1,7 +1,8 @@
-import { createReadStream } from "node:fs";
+import { createReadStream, createWriteStream } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
 
 import {
   deleteR2Object,
@@ -35,6 +36,27 @@ export async function putObject(
   }
 
   await putR2Object(storageKey, body);
+}
+
+export async function streamObjectToFile(
+  storageKey: string,
+  destPath: string,
+): Promise<number> {
+  await fs.mkdir(path.dirname(destPath), { recursive: true });
+
+  if (prefersLocalStorage()) {
+    await fs.copyFile(localPath(storageKey), destPath);
+    const stat = await fs.stat(destPath);
+    return stat.size;
+  }
+
+  const webStream = await getR2ObjectStream(storageKey);
+  const nodeStream = Readable.fromWeb(
+    webStream as import("node:stream/web").ReadableStream,
+  );
+  await pipeline(nodeStream, createWriteStream(destPath));
+  const stat = await fs.stat(destPath);
+  return stat.size;
 }
 
 export async function getObject(storageKey: string): Promise<Buffer> {
@@ -100,6 +122,10 @@ export function videoStorageKey(jobId: string, fileName: string): string {
 
 export function frameStorageKey(jobId: string, index: number): string {
   return `videos/${jobId}/frames/${String(index).padStart(4, "0")}.jpg`;
+}
+
+export function archiveStorageKey(jobId: string): string {
+  return `videos/${jobId}/archive.mp4`;
 }
 
 export { prefersLocalStorage, r2Configured };

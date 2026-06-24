@@ -1,7 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { useRouter } from "@/i18n/navigation";
 import { Link } from "@/i18n/navigation";
@@ -9,17 +9,37 @@ import { AppSelect } from "@/components/ui/AppSelect";
 import { useMergedVideoJobs } from "@/components/video/VideoJobEventsProvider";
 import { VideoSurveyDialog } from "@/components/video/VideoSurveyDialog";
 import type { VideoJobRow } from "@/lib/types/video";
+import {
+  uploadVideoFile,
+  type UploadConfig,
+} from "@/lib/video/client-upload";
 import type { SurveyPayload } from "@/lib/video/survey";
 import {
+  isLegacyDirectPostOverLimit,
   isVideoUploadOverLimit,
-  isVideoUploadSizeLimitEnforced,
 } from "@/lib/video/upload-limit";
 import { jobMatchesScoreTarget } from "@/lib/video/score-target-nav";
 
 function formatBytes(bytes: number | null): string {
   if (!bytes) return "—";
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  if (bytes < 1024 * 1024 * 1024) {
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+}
+
+function fileExceedsUploadLimit(
+  sizeBytes: number,
+  uploadConfig: UploadConfig | null,
+): boolean {
+  if (isVideoUploadOverLimit(sizeBytes)) {
+    return true;
+  }
+  if (uploadConfig?.mode === "direct") {
+    return isLegacyDirectPostOverLimit(sizeBytes);
+  }
+  return false;
 }
 
 type ScoreTargetOption = {
@@ -85,6 +105,11 @@ export function VideoUploadForm({
   );
   const [boardKey, setBoardKey] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<{
+    loaded: number;
+    total: number;
+  } | null>(null);
+  const [uploadConfig, setUploadConfig] = useState<UploadConfig | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [activeSurvey, setActiveSurvey] = useState<ActiveSurvey | null>(null);
@@ -106,17 +131,25 @@ export function VideoUploadForm({
   useEffect(() => {
     void fetch("/api/tools/video-upload")
       .then((r) => r.json())
-      .then((data: { scoreTargets?: ScoreTargetOption[] }) => {
-        if (!data.scoreTargets?.length) return;
-        setScoreTargets(data.scoreTargets);
-        if (!contextScoreTarget) return;
-        const target = data.scoreTargets.find(
-          (row) => row.id === contextScoreTarget,
-        );
-        if (target?.leaderboardModel === "multi-board") {
-          setBoardKey(target.boardTypes?.[0] ?? "");
-        }
-      })
+      .then(
+        (data: {
+          scoreTargets?: ScoreTargetOption[];
+          upload?: UploadConfig;
+        }) => {
+          if (data.upload) {
+            setUploadConfig(data.upload);
+          }
+          if (!data.scoreTargets?.length) return;
+          setScoreTargets(data.scoreTargets);
+          if (!contextScoreTarget) return;
+          const target = data.scoreTargets.find(
+            (row) => row.id === contextScoreTarget,
+          );
+          if (target?.leaderboardModel === "multi-board") {
+            setBoardKey(target.boardTypes?.[0] ?? "");
+          }
+        },
+      )
       .catch(() => undefined);
   }, [contextScoreTarget]);
 
@@ -136,8 +169,13 @@ export function VideoUploadForm({
     }
   }
 
-  const uploadSizeLimitEnforced = isVideoUploadSizeLimitEnforced();
-  const fileTooLarge = file !== null && isVideoUploadOverLimit(file.size);
+  const maxUploadLabel = useMemo(() => {
+    if (!uploadConfig) return null;
+    return formatBytes(uploadConfig.maxUploadBytes);
+  }, [uploadConfig]);
+
+  const fileTooLarge =
+    file !== null && fileExceedsUploadLimit(file.size, uploadConfig);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -146,60 +184,54 @@ export function VideoUploadForm({
       return;
     }
 
-    if (isVideoUploadOverLimit(file.size)) {
+    if (!uploadConfig) {
+      setError(tc("uploadFailed"));
+      return;
+    }
+
+    if (fileExceedsUploadLimit(file.size, uploadConfig)) {
       setError(
         t("fileTooLarge", {
           size: formatBytes(file.size),
+          maxSize: maxUploadLabel ?? formatBytes(uploadConfig.maxUploadBytes),
         }),
       );
       return;
     }
 
     setUploading(true);
+    setUploadProgress({ loaded: 0, total: file.size });
     setError(null);
     setSuccess(null);
 
-    const formData = new FormData();
-    formData.set("video", file);
-    formData.set("scoreTarget", scoreTarget);
-    if (effectiveBoardKey) {
-      formData.set("boardKey", effectiveBoardKey);
-    }
-
     try {
-      const res = await fetch("/api/tools/video-upload", {
-        method: "POST",
-        body: formData,
+      const data = await uploadVideoFile({
+        file,
+        scoreTarget,
+        boardKey: effectiveBoardKey || undefined,
+        uploadConfig,
+        onProgress: (loaded, total) => {
+          setUploadProgress({ loaded, total });
+        },
       });
-      const data = (await res.json()) as {
-        error?: string;
-        message?: string;
-        jobId?: string;
-      };
-
-      if (!res.ok) {
-        setError(data.error ?? tc("uploadFailed"));
-        return;
-      }
 
       setSuccess(data.message ?? t("queuedSuccess"));
-      if (data.jobId) {
-        setSurveyCompleteByJobId((prev) => ({
-          ...prev,
-          [data.jobId!]: false,
-        }));
-        setActiveSurvey({
-          jobId: data.jobId,
-          file,
-          initialSurvey: null,
-          navigateOnClose: true,
-        });
-      }
+      setSurveyCompleteByJobId((prev) => ({
+        ...prev,
+        [data.jobId]: false,
+      }));
+      setActiveSurvey({
+        jobId: data.jobId,
+        file,
+        initialSurvey: null,
+        navigateOnClose: true,
+      });
       setFile(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : tc("uploadFailed"));
     } finally {
       setUploading(false);
+      setUploadProgress(null);
     }
   }
 
@@ -313,18 +345,10 @@ export function VideoUploadForm({
             className="block w-full max-w-full text-sm text-[#8b949e] file:mb-2 file:block file:w-full file:rounded-lg file:border-0 file:bg-[#238636] file:px-4 file:py-2 file:text-sm file:text-white sm:file:mb-0 sm:file:mr-4 sm:file:inline-block sm:file:w-auto"
           />
           <p className="mt-2 text-xs text-[#8b949e]">{t("fileHint")}</p>
-          {uploadSizeLimitEnforced ? (
-            <>
-              <p className="mt-2 text-xs text-[#8b949e]">{t("fileSizeLimit")}</p>
-              <p className="mt-2 text-xs text-[#8b949e]">
-                {t("fileSizeTipsIntro")}
-              </p>
-              <ul className="mt-1 list-disc space-y-1 pl-4 text-xs text-[#8b949e]">
-                <li>{t("fileSizeTipCrop")}</li>
-                <li>{t("fileSizeTipTrim")}</li>
-                <li>{t("fileSizeTipDownscale")}</li>
-              </ul>
-            </>
+          {maxUploadLabel ? (
+            <p className="mt-2 text-xs text-[#8b949e]">
+              {t("fileSizeLimit", { maxSize: maxUploadLabel })}
+            </p>
           ) : null}
         </label>
 
@@ -337,18 +361,45 @@ export function VideoUploadForm({
           </p>
         )}
 
-        {fileTooLarge && (
+        {uploadProgress && uploadProgress.total > 0 ? (
+          <div className="mt-3">
+            <div
+              className="h-2 overflow-hidden rounded-full bg-[#21262d]"
+              role="progressbar"
+              aria-valuenow={uploadProgress.loaded}
+              aria-valuemin={0}
+              aria-valuemax={uploadProgress.total}
+              aria-label={t("uploading")}
+            >
+              <div
+                className="h-full bg-[#238636] transition-[width] duration-150"
+                style={{
+                  width: `${Math.min(100, (uploadProgress.loaded / uploadProgress.total) * 100)}%`,
+                }}
+              />
+            </div>
+            <p className="mt-1 text-xs text-[#8b949e]">
+              {formatBytes(uploadProgress.loaded)} /{" "}
+              {formatBytes(uploadProgress.total)}
+            </p>
+          </div>
+        ) : null}
+
+        {fileTooLarge && maxUploadLabel ? (
           <p className="mt-2 text-sm text-[#f85149]">
-            {t("fileTooLarge", { size: formatBytes(file.size) })}
+            {t("fileTooLarge", {
+              size: formatBytes(file.size),
+              maxSize: maxUploadLabel,
+            })}
           </p>
-        )}
+        ) : null}
 
         {error && <p className="mt-4 text-sm text-[#f85149]">{error}</p>}
         {success && <p className="mt-4 text-sm text-[#3fb950]">{success}</p>}
 
         <button
           type="submit"
-          disabled={uploading || !file || fileTooLarge}
+          disabled={uploading || !file || fileTooLarge || !uploadConfig}
           className="mt-4 w-full rounded-lg border border-[#238636] bg-[#238636] px-4 py-2 text-sm text-white disabled:opacity-50 sm:w-auto"
         >
           {uploading ? t("uploading") : t("uploadButton")}
