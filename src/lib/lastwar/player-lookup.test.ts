@@ -120,13 +120,31 @@ describe("lookupPlayerByUid E2E fixtures", () => {
     vi.unstubAllEnvs();
   });
 
-  it("returns a deterministic player when E2E_TEST is enabled", async () => {
+  it("returns cold-start owner on server 1203 when E2E_TEST is enabled", async () => {
     vi.stubEnv("E2E_TEST", "true");
     await expect(lookupPlayerByUid("1234567890121203")).resolves.toEqual({
       ok: true,
       gameUserName: "ColdStartOwner",
       gameServerNumber: 1203,
     });
+  });
+
+  it("returns roster-miss player on server 1203 when E2E_TEST is enabled", async () => {
+    vi.stubEnv("E2E_TEST", "true");
+    await expect(lookupPlayerByUid("1234567890121204")).resolves.toEqual({
+      ok: true,
+      gameUserName: "E2eRosterMiss",
+      gameServerNumber: 1203,
+    });
+  });
+
+  it("returns wrong-server player on server 1205 when E2E_TEST is enabled", async () => {
+    vi.stubEnv("E2E_TEST", "true");
+    await expect(lookupPlayerByUid("1234567890121205")).resolves.toEqual({
+      ok: true,
+      gameUserName: "E2eWrongServer",
+      gameServerNumber: 1205,
+    })
   });
 
   it("returns owner onboarding player with server encoded in UID suffix", async () => {
