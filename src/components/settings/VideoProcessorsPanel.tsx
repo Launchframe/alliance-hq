@@ -3,6 +3,7 @@
 import { useCallback, useState } from "react";
 import { useTranslations } from "next-intl";
 
+import { Link } from "@/i18n/navigation";
 import type { VideoProcessorEligibilityMode } from "@/lib/video/processor-slots.shared";
 
 type Processor = {
@@ -114,6 +115,15 @@ export function VideoProcessorsPanel({
       <div>
         <h2 className="text-sm font-semibold text-[#e6edf3]">{t("title")}</h2>
         <p className="mt-1 text-xs text-[#8b949e]">{t(descriptionKey, { max })}</p>
+        <p className="mt-2 text-xs text-[#8b949e]">
+          {t("queueHint")}{" "}
+          <Link
+            href="/tools/video-upload/queue"
+            className="text-[#58a6ff] hover:underline"
+          >
+            {t("queueLink")}
+          </Link>
+        </p>
       </div>
 
       {error ? <p className="text-sm text-red-400">{error}</p> : null}
