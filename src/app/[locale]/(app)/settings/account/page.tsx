@@ -18,10 +18,10 @@ export default async function AccountSecurityPage({
   searchParams,
 }: {
   params: Promise<{ locale: string }>;
-  searchParams: Promise<{ linked?: string }>;
+  searchParams: Promise<{ linked?: string; linkError?: string }>;
 }) {
   const { locale } = await params;
-  const { linked } = await searchParams;
+  const { linked, linkError } = await searchParams;
   await requirePageSession("/settings/account");
 
   const session = await requireAuthSession();
@@ -67,6 +67,7 @@ export default async function AccountSecurityPage({
       <AccountSignInMethodsClient
         initialSnapshot={initialSignInMethods}
         linkNotice={linkNotice}
+        linkError={linkError?.trim() || null}
       />
       <AccountSecurityClient
         hasPassword={hasPassword}

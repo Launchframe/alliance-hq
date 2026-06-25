@@ -20,13 +20,16 @@ type LinkedAccountsResponse = {
 type Props = {
   initialSnapshot: LinkedAccountsResponse;
   linkNotice?: LinkedOAuthProvider | null;
+  linkError?: string | null;
 };
 
 export function AccountSignInMethodsClient({
   initialSnapshot,
   linkNotice,
+  linkError,
 }: Props) {
   const t = useTranslations("accountSecurity");
+  const tAuth = useTranslations("auth");
   const [snapshot, setSnapshot] = useState(initialSnapshot);
   const [busyProvider, setBusyProvider] = useState<LinkedOAuthProvider | null>(
     null,
@@ -37,7 +40,11 @@ export function AccountSignInMethodsClient({
   const [message, setMessage] = useState<string | null>(
     linkNotice ? t("linkedProviderSuccess", { provider: providerLabel(t, linkNotice) }) : null,
   );
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(
+    linkError === "OAuthAccountNotLinked"
+      ? tAuth("errorOAuthAccountNotLinkedBody")
+      : null,
+  );
 
   const loadSnapshot = useCallback(async () => {
     setError(null);

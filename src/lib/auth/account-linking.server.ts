@@ -68,6 +68,24 @@ export async function loadSignInMethodSnapshot(
   };
 }
 
+export async function findHqUserIdForOAuthAccount(input: {
+  provider: LinkedOAuthProvider;
+  providerAccountId: string;
+}): Promise<string | null> {
+  const db = getDb();
+  const [row] = await db
+    .select({ hqUserId: schema.hqAuthAccounts.hqUserId })
+    .from(schema.hqAuthAccounts)
+    .where(
+      and(
+        eq(schema.hqAuthAccounts.provider, input.provider),
+        eq(schema.hqAuthAccounts.providerAccountId, input.providerAccountId),
+      ),
+    )
+    .limit(1);
+  return row?.hqUserId ?? null;
+}
+
 export async function hqUserHasOAuthProvider(
   hqUserId: string,
   provider: LinkedOAuthProvider,

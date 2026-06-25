@@ -3,6 +3,7 @@ import "server-only";
 import NextAuth from "next-auth";
 
 import {
+  findHqUserIdForOAuthAccount,
   hqUserHasOAuthProvider,
   linkOAuthAccountToHqUser,
   tryAutoLinkOAuthAtSignIn,
@@ -58,6 +59,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
         const session = await auth();
         if (session?.user?.id) {
+          const existingOwnerId = await findHqUserIdForOAuthAccount({
+            provider: account.provider,
+            providerAccountId: account.providerAccountId,
+          });
+          if (existingOwnerId && existingOwnerId !== session.user.id) {
+            return "/settings/account?linkError=OAuthAccountNotLinked";
+          }
+
           const alreadyLinked = await hqUserHasOAuthProvider(
             session.user.id,
             account.provider,
@@ -83,9 +92,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             provider: account.provider,
             decision,
           });
+          return "/auth?error=OAuthAccountNotLinked";
         }
 
-        return allowed;
+        return true;
       }
       // Magic-link send also invokes signIn before hq_users exists; do not bridge here.
       return Boolean(user.email);
