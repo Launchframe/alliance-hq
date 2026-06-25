@@ -2520,8 +2520,8 @@
       "anomalyConfirm": "Tem *certeza* que seu VR é {vr}? Isso ficaria bem à frente do grupo em VR base. Toque Sim se for sério — acreditamos em você (provavelmente)."
     },
     "setup": {
-      "linkAllianceSuccess": "Este servidor está registrado para **{tag}**. Membros podem `/link`, depois `/link-commander`, e usar `/vr`.",
-      "linkAshedSeatPrompt": "Clique no link abaixo para conectar suas credenciais Ashed com segurança para **{tag}** (expira em 30 min):\n{url}\n\nOrdem do dono: `/link-to-ashed-seat` (este passo) → `/link` → `/link-alliance tag:{tag}`.",
+      "linkAllianceSuccess": "Servidor registrado para **{tag}**. Os membros já podem se vincular com `/link name:… uid:…` e informar o VR base com `/vr`.",
+      "linkAshedSeatPrompt": "Clique no link abaixo para conectar suas credenciais Ashed com segurança para **{tag}** (expira em 30 min):\n{url}\n\nO Ashed é opcional — ele só habilita a sincronização do roster, as ferramentas em iframe e o processamento de vídeo. Para registrar este servidor, basta `/link name:… uid:…` e depois `/link-alliance tag:{tag}`.",
       "languageSuccess": "Idioma atualizado."
     },
     "setVrReportChannel": {
@@ -2560,7 +2560,7 @@
       "dmGeneral": "**Bot Alliance HQ** — use no servidor da aliança:\n• `/help` — este guia\n• `/link` — vincule seu comandante (nome + UID)\n• `/vr` ou `/immunity` — informe VR base\n• `/who-is-conductor` — condutor do trem hoje\n• `/language` — English ou Português\n\nDonos: `/link-alliance`, opcional `/link-to-ashed-seat`, `/set-vr-report-channel`, `/set-train-channel`.\nOficiais (R4+): `/vr-report`, `/takedown-teams teams:N`, `/set-conductor`, `/train-is-ready`.",
       "setupLinkHq": "Vincule seu comandante: `/link` (nome + UID no navegador) ou `/link name:… uid:…`.",
       "setupOwnerAuth": "Este servidor ainda não está configurado. **Dono:** `/link name:… uid:…` (ou `/link` no navegador), depois `/link-alliance tag:SuaTag`. Opcional: `/link-to-ashed-seat` para sincronizar roster.",
-      "setupLinkAlliance": "Credenciais prontas. **Dono ou mantenedor da plataforma:** execute `/link-alliance tag:SuaTag` para registrar este servidor.",
+      "setupLinkAlliance": "**Dono ou mantenedor da plataforma:** execute `/link-alliance tag:SuaTag` para registrar este servidor.",
       "waitForOwnerAuth": "Aguardando o dono registrar este servidor com `/link-alliance`. Vincule seu comandante com `/link` após o registro.",
       "linkCommander": "Vincule um comandante: `/link name:… uid:…` (copie do jogo). Precisa de passos? Use `/link` com nome errado e toque **Concluído** no tutorial.",
       "memberReady": "Você está vinculado. Use `/vr` ou `/immunity` quando o VR base mudar. Oficiais (R4+): `/vr-report` para o placar ou `/vr-report teams:N` para takedown. `/help` a qualquer momento.",

@@ -111,6 +111,8 @@ Test guild registration after owner link:
 npm run discord:dev:slash -- link-alliance tag=DEV
 ```
 
+This must succeed **without** Ashed credentials: the prior `/link name=ColdStartOwner uid=…` created a member link whose in-game member matches the alliance owner, which proves ownership for native alliances. Expect `Registered this server for **DEV**.` Run the inline owner `/link` first — registration is denied if the caller has no owner member link (and is not a platform maintainer or credential registrant).
+
 Test that Ashed remains a separate optional flow:
 
 ```bash

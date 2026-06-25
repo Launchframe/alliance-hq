@@ -9,6 +9,7 @@ import { MAX_DISCORD_LINKS_PER_USER } from "@/lib/vr/constants";
 import {
   evaluateGuildRegistrationAuth,
   type GuildRegistrationAuth,
+  nativeOwnerProvenByMemberLink,
 } from "@/lib/vr/discord-guild-registration";
 import type { LinkPendingState, VrPendingState } from "@/lib/vr/types";
 
@@ -695,7 +696,7 @@ export async function callerCanRegisterGuildAlliance(input: {
     hasHqLink: hqLink != null,
     isPlatformMaintainer,
     isCredentialRegistrant,
-    isOwnerViaMemberLink: await callerIsAllianceOwner(input),
+    isOwnerViaMemberLink: await callerOwnsAllianceViaMemberLink(input),
     ownerAshedUserId: alliance?.ownerAshedUserId ?? null,
     linkedHqAshedUserId: linkedHqUser?.ashedUserId ?? null,
     hasCredentials,
@@ -985,4 +986,26 @@ export async function callerIsAllianceOwner(input: {
   return links.some(
     (link) => link.ashedMemberId === alliance.ownerMemberExternalId,
   );
+}
+
+/** Ownership proof for guild registration that does NOT require Ashed credentials.
+ *  Native alliances: a Discord member link matching ownerMemberExternalId is enough
+ *  (in-game name + UID is the auth, Ashed is optional). Non-native (Ashed-sourced)
+ *  alliances keep the credential-gated owner check. */
+export async function callerOwnsAllianceViaMemberLink(input: {
+  allianceId: string;
+  discordUserId: string;
+}): Promise<boolean> {
+  if (!(await isNativeAlliance(input.allianceId))) {
+    return callerIsAllianceOwner(input);
+  }
+  const [alliance, links] = await Promise.all([
+    getAllianceById(input.allianceId),
+    listDiscordLinksForUser(input.allianceId, input.discordUserId),
+  ]);
+  return nativeOwnerProvenByMemberLink({
+    isNative: true,
+    ownerMemberExternalId: alliance?.ownerMemberExternalId ?? null,
+    linkedMemberIds: links.map((link) => link.ashedMemberId),
+  });
 }

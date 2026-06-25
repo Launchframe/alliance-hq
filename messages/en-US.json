@@ -2520,8 +2520,8 @@
       "anomalyConfirm": "Are you *sure* your VR is {vr}? That would be way ahead of the pack for base VR. Tap Yes if you're serious — we believe you (probably)."
     },
     "setup": {
-      "linkAllianceSuccess": "This server is registered for **{tag}**. Members can `/link`, then `/link-commander`, and use `/vr`.",
-      "linkAshedSeatPrompt": "Click the link below to securely connect your Ashed credentials for **{tag}** (expires in 30 min):\n{url}\n\nOwner order: `/link-to-ashed-seat` (this step) → `/link` → `/link-alliance tag:{tag}`.",
+      "linkAllianceSuccess": "Registered this server for **{tag}**. Members can now link with `/link name:… uid:…` and report base VR with `/vr`.",
+      "linkAshedSeatPrompt": "Click the link below to securely connect your Ashed credentials for **{tag}** (expires in 30 min):\n{url}\n\nAshed is optional — it only enables roster sync, iframe tools, and video processing. To register this server you just need `/link name:… uid:…` then `/link-alliance tag:{tag}`.",
       "languageSuccess": "Language updated."
     },
     "setVrReportChannel": {
@@ -2560,7 +2560,7 @@
       "dmGeneral": "**Alliance HQ bot** — run these in your alliance Discord server:\n• `/help` — this guide\n• `/link` — link your in-game commander (name + UID)\n• `/vr` or `/immunity` — report base VR\n• `/who-is-conductor` — today's train conductor\n• `/language` — English or Português\n\nOwners: `/link-alliance`, optional `/link-to-ashed-seat`, `/set-vr-report-channel`, `/set-train-channel`.\nOfficers (R4+): `/vr-report`, `/takedown-teams teams:N`, `/set-conductor`, `/train-is-ready`.",
       "setupLinkHq": "Link your in-game commander: run `/link` (browser name + UID) or `/link name:… uid:…`.",
       "setupOwnerAuth": "This server is not set up yet. **Alliance owner:** run `/link name:… uid:…` (or `/link` in the browser), then `/link-alliance tag:YourTag`. Optional: `/link-to-ashed-seat` for roster sync tools.",
-      "setupLinkAlliance": "Credentials are ready. **Owner or platform maintainer:** run `/link-alliance tag:YourTag` to register this server.",
+      "setupLinkAlliance": "**Owner or platform maintainer:** run `/link-alliance tag:YourTag` to register this server.",
       "waitForOwnerAuth": "Waiting for the alliance owner to register this server with `/link-alliance`. Link your commander with `/link` once the server is registered.",
       "linkCommander": "Link a commander: `/link name:… uid:…` (copy name and UID from your in-game profile). Need steps? Run `/link` with a wrong name once and tap **Done** for a walkthrough.",
       "memberReady": "You're linked. Use `/vr` or `/immunity` when your base VR changes. Officers (R4+): `/vr-report` for standings or `/vr-report teams:N` for takedown plans. `/help` anytime. `/language` for Português.",

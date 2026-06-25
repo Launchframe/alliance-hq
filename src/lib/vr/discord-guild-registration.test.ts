@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   evaluateGuildRegistrationAuth,
   type GuildRegistrationAuth,
+  nativeOwnerProvenByMemberLink,
 } from "@/lib/vr/discord-guild-registration";
 
 function auth(
@@ -80,5 +81,47 @@ describe("evaluateGuildRegistrationAuth", () => {
         linkedHqAshedUserId: "member-9",
       }),
     ).toEqual({ allowed: false, reason: "not_owner" });
+  });
+});
+
+describe("nativeOwnerProvenByMemberLink", () => {
+  it("proves a native owner whose member link matches ownerMemberExternalId (no Ashed)", () => {
+    expect(
+      nativeOwnerProvenByMemberLink({
+        isNative: true,
+        ownerMemberExternalId: "owner-member-1",
+        linkedMemberIds: ["other-member", "owner-member-1"],
+      }),
+    ).toBe(true);
+  });
+
+  it("denies when no linked member matches the owner", () => {
+    expect(
+      nativeOwnerProvenByMemberLink({
+        isNative: true,
+        ownerMemberExternalId: "owner-member-1",
+        linkedMemberIds: ["member-2", "member-3"],
+      }),
+    ).toBe(false);
+  });
+
+  it("denies when the alliance has no owner member id", () => {
+    expect(
+      nativeOwnerProvenByMemberLink({
+        isNative: true,
+        ownerMemberExternalId: null,
+        linkedMemberIds: ["member-2"],
+      }),
+    ).toBe(false);
+  });
+
+  it("does not prove ownership for non-native alliances (credential path handles those)", () => {
+    expect(
+      nativeOwnerProvenByMemberLink({
+        isNative: false,
+        ownerMemberExternalId: "owner-member-1",
+        linkedMemberIds: ["owner-member-1"],
+      }),
+    ).toBe(false);
   });
 });
