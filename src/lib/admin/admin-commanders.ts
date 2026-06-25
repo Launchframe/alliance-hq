@@ -1,11 +1,14 @@
 import "server-only";
 
-import { and, count, desc, eq } from "drizzle-orm";
+import { and, count, desc, eq, sql } from "drizzle-orm";
 
 import { buildAdminCommandersSearchWhere } from "@/lib/admin/admin-commanders-query.server";
 import type { AdminCommandersQueryParams } from "@/lib/admin/admin-commanders-query.shared";
 import { getDb, schema } from "@/lib/db";
-import { listTenureHistoryByGameUid } from "@/lib/members/member-tenure.server";
+import {
+  listTenureHistoryByGameUid,
+  resolveMemberGameUid,
+} from "@/lib/members/member-tenure.server";
 
 export type AdminCommanderListRow = {
   ashedMemberId: string;
@@ -37,6 +40,62 @@ export type AdminCommanderDetail = AdminCommanderListRow & {
     leftAt: string | null;
   }>;
 };
+
+function memberHqUserEmail() {
+  return sql<string | null>`(
+    select ${schema.hqUsers.email}
+    from ${schema.hqMemberLinks}
+    inner join ${schema.hqUsers}
+      on ${schema.hqUsers.id} = ${schema.hqMemberLinks.hqUserId}
+    where ${schema.hqMemberLinks.allianceId} = ${schema.allianceMembers.allianceId}
+      and ${schema.hqMemberLinks.ashedMemberId} = ${schema.allianceMembers.ashedMemberId}
+    limit 1
+  )`;
+}
+
+function memberHqUserDisplayName() {
+  return sql<string | null>`(
+    select ${schema.hqUsers.displayName}
+    from ${schema.hqMemberLinks}
+    inner join ${schema.hqUsers}
+      on ${schema.hqUsers.id} = ${schema.hqMemberLinks.hqUserId}
+    where ${schema.hqMemberLinks.allianceId} = ${schema.allianceMembers.allianceId}
+      and ${schema.hqMemberLinks.ashedMemberId} = ${schema.allianceMembers.ashedMemberId}
+    limit 1
+  )`;
+}
+
+function memberHqUserId() {
+  return sql<string | null>`(
+    select ${schema.hqMemberLinks.hqUserId}
+    from ${schema.hqMemberLinks}
+    where ${schema.hqMemberLinks.allianceId} = ${schema.allianceMembers.allianceId}
+      and ${schema.hqMemberLinks.ashedMemberId} = ${schema.allianceMembers.ashedMemberId}
+    limit 1
+  )`;
+}
+
+function memberDiscordUsername() {
+  return sql<string | null>`(
+    select ${schema.discordMemberLinks.discordUsername}
+    from ${schema.discordMemberLinks}
+    where ${schema.discordMemberLinks.allianceId} = ${schema.allianceMembers.allianceId}
+      and ${schema.discordMemberLinks.ashedMemberId} = ${schema.allianceMembers.ashedMemberId}
+    order by ${schema.discordMemberLinks.linkedAt} desc
+    limit 1
+  )`;
+}
+
+function memberDiscordUserId() {
+  return sql<string | null>`(
+    select ${schema.discordMemberLinks.discordUserId}
+    from ${schema.discordMemberLinks}
+    where ${schema.discordMemberLinks.allianceId} = ${schema.allianceMembers.allianceId}
+      and ${schema.discordMemberLinks.ashedMemberId} = ${schema.allianceMembers.ashedMemberId}
+    order by ${schema.discordMemberLinks.linkedAt} desc
+    limit 1
+  )`;
+}
 
 export async function loadAdminCommandersMeta(): Promise<{
   alliances: Array<{ id: string; name: string; slug: string; tag: string | null }>;
@@ -84,35 +143,14 @@ export async function searchAdminCommanders(params: {
       allianceName: schema.alliances.name,
       allianceTag: schema.alliances.tag,
       allianceSlug: schema.alliances.slug,
-      hqUserEmail: schema.hqUsers.email,
-      hqUserDisplayName: schema.hqUsers.displayName,
-      discordUsername: schema.discordMemberLinks.discordUsername,
+      hqUserEmail: memberHqUserEmail(),
+      hqUserDisplayName: memberHqUserDisplayName(),
+      discordUsername: memberDiscordUsername(),
     })
     .from(schema.allianceMembers)
     .innerJoin(
       schema.alliances,
       eq(schema.allianceMembers.allianceId, schema.alliances.id),
-    )
-    .leftJoin(
-      schema.hqMemberLinks,
-      and(
-        eq(schema.hqMemberLinks.allianceId, schema.allianceMembers.allianceId),
-        eq(schema.hqMemberLinks.ashedMemberId, schema.allianceMembers.ashedMemberId),
-      ),
-    )
-    .leftJoin(
-      schema.hqUsers,
-      eq(schema.hqMemberLinks.hqUserId, schema.hqUsers.id),
-    )
-    .leftJoin(
-      schema.discordMemberLinks,
-      and(
-        eq(schema.discordMemberLinks.allianceId, schema.allianceMembers.allianceId),
-        eq(
-          schema.discordMemberLinks.ashedMemberId,
-          schema.allianceMembers.ashedMemberId,
-        ),
-      ),
     );
 
   const filtered = where ? baseQuery.where(where) : baseQuery;
@@ -159,37 +197,16 @@ export async function loadAdminCommanderDetail(input: {
       allianceName: schema.alliances.name,
       allianceTag: schema.alliances.tag,
       allianceSlug: schema.alliances.slug,
-      hqUserId: schema.hqMemberLinks.hqUserId,
-      hqUserEmail: schema.hqUsers.email,
-      hqUserDisplayName: schema.hqUsers.displayName,
-      discordUserId: schema.discordMemberLinks.discordUserId,
-      discordUsername: schema.discordMemberLinks.discordUsername,
+      hqUserId: memberHqUserId(),
+      hqUserEmail: memberHqUserEmail(),
+      hqUserDisplayName: memberHqUserDisplayName(),
+      discordUserId: memberDiscordUserId(),
+      discordUsername: memberDiscordUsername(),
     })
     .from(schema.allianceMembers)
     .innerJoin(
       schema.alliances,
       eq(schema.allianceMembers.allianceId, schema.alliances.id),
-    )
-    .leftJoin(
-      schema.hqMemberLinks,
-      and(
-        eq(schema.hqMemberLinks.allianceId, schema.allianceMembers.allianceId),
-        eq(schema.hqMemberLinks.ashedMemberId, schema.allianceMembers.ashedMemberId),
-      ),
-    )
-    .leftJoin(
-      schema.hqUsers,
-      eq(schema.hqMemberLinks.hqUserId, schema.hqUsers.id),
-    )
-    .leftJoin(
-      schema.discordMemberLinks,
-      and(
-        eq(schema.discordMemberLinks.allianceId, schema.allianceMembers.allianceId),
-        eq(
-          schema.discordMemberLinks.ashedMemberId,
-          schema.allianceMembers.ashedMemberId,
-        ),
-      ),
     )
     .where(
       and(
@@ -201,7 +218,9 @@ export async function loadAdminCommanderDetail(input: {
 
   if (!member) return null;
 
-  const gameUid = member.gameUid?.trim() ?? null;
+  const gameUid =
+    member.gameUid?.trim() ??
+    (await resolveMemberGameUid(input.allianceId, input.ashedMemberId));
   const tenureRows = gameUid ? await listTenureHistoryByGameUid(gameUid) : [];
 
   return {

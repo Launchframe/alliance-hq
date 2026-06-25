@@ -17,76 +17,12 @@ import {
 } from "@/lib/members/alliance-rank";
 import { allianceMemberRowToAshedMember } from "@/lib/members/roster.shared";
 import { sessionHasPermission } from "@/lib/rbac/context";
+import type { CommanderProfilePayload } from "@/lib/members/commander-profile.shared";
 import { getAshedConnection } from "@/lib/session";
 
-type AshedRecord = Record<string, unknown>;
+export type { CommanderProfilePayload } from "@/lib/members/commander-profile.shared";
 
-export type CommanderProfilePayload = {
-  member: {
-    ashedMemberId: string;
-    currentName: string;
-    previousNames: string[];
-    status: string;
-    rankLabel: string;
-    titleLabel: string;
-    heroPowerM: number | null;
-    memberLevel: number | null;
-    gameUid: string | null;
-  };
-  alliance: {
-    id: string;
-    tag: string | null;
-    name: string | null;
-    slug: string;
-  };
-  hqUser: {
-    id: string;
-    displayName: string | null;
-    email: string | null;
-  } | null;
-  discordLinks: Array<{
-    discordUserId: string;
-    discordUsername: string | null;
-    linkedAt: string;
-  }>;
-  tenureHistory: Array<{
-    allianceId: string;
-    allianceTag: string | null;
-    allianceName: string | null;
-    ashedMemberId: string;
-    joinedAt: string;
-    leftAt: string | null;
-    isCurrent: boolean;
-  }>;
-  rankTimeline: Array<{
-    id: string;
-    allianceRank: number;
-    allianceRankTitle: string | null;
-    effectiveDate: string;
-    source: string;
-  }>;
-  vrHistory: Array<{
-    seasonKey: string;
-    highestBaseVr: number;
-    updatedAt: string;
-  }>;
-  eventScores: Array<{
-    eventId: string;
-    eventName: string;
-    boardKey: string | null;
-    score: number | null;
-    rank: number | null;
-    updatedAt: string;
-  }>;
-  commendations: AshedRecord[];
-  violations: AshedRecord[];
-  trainHighlights: Array<{
-    date: string;
-    role: "conductor" | "vip" | "substitute";
-    lockedAt: string | null;
-  }>;
-  operatingMode: "ashed" | "native";
-};
+type AshedRecord = Record<string, unknown>;
 
 async function fetchAshedEntityList(
   connection: Awaited<ReturnType<typeof getAshedConnection>>,

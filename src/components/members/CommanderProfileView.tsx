@@ -4,7 +4,7 @@ import { useTranslations } from "next-intl";
 
 import { ProfileAvatar } from "@/components/profile/ProfileAvatar";
 import { Link } from "@/i18n/navigation";
-import type { CommanderProfilePayload } from "@/lib/members/commander-profile.server";
+import type { CommanderProfilePayload } from "@/lib/members/commander-profile.shared";
 
 type Props = {
   initial: CommanderProfilePayload;

@@ -5,7 +5,7 @@ import { nanoid } from "nanoid";
 
 import { getDb, schema } from "@/lib/db";
 
-async function resolveGameUidForMember(
+export async function resolveMemberGameUid(
   allianceId: string,
   ashedMemberId: string,
 ): Promise<string | null> {
@@ -65,7 +65,7 @@ export async function openMemberAllianceTenure(input: {
 }): Promise<void> {
   const gameUid =
     input.gameUid?.trim() ??
-    (await resolveGameUidForMember(input.allianceId, input.ashedMemberId));
+    (await resolveMemberGameUid(input.allianceId, input.ashedMemberId));
   if (!gameUid) return;
 
   const db = getDb();
