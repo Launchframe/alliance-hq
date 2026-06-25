@@ -248,6 +248,47 @@ async function openMemberLinkForm(page: import("@playwright/test").Page) {
 }
 
 test.describe("Member-link onboarding outcomes", () => {
+  test("invite roster miss on wrong server returns wrong_server without owner request", async ({
+    page,
+  }) => {
+    const sql = getE2eSql();
+    const { accepted, email, alliance } =
+      await seedUnlinkedMemberOnboardSession(sql);
+
+    await page.context().addCookies(
+      playwrightAuthCookies({
+        sessionId: accepted.sessionId,
+        hqUserId: accepted.hqUserId,
+        email,
+        nextAuthToken: accepted.nextAuthToken,
+      }),
+    );
+    await openMemberLinkForm(page);
+
+    await page.getByLabel(/in-game name/i).fill("E2eWrongServer");
+    await page.getByLabel(/player uid/i).fill("1234567890121205");
+    const linkResponse = page.waitForResponse(
+      (res) =>
+        res.url().includes("/api/member-link") &&
+        res.request().method() === "POST",
+    );
+    await page.getByRole("button", { name: /link my character/i }).click();
+    const response = await linkResponse;
+    expect(response.ok()).toBe(true);
+    const body = (await response.json()) as { outcome?: string };
+    expect(body.outcome).toBe("wrong_server");
+
+    await expect(
+      page.getByRole("heading", { name: /wrong state server/i }),
+    ).toBeVisible();
+
+    const requestId = await getLatestPendingRosterLinkRequestId(sql, {
+      allianceId: alliance.allianceId,
+      hqUserId: accepted.hqUserId,
+    });
+    expect(requestId).toBeNull();
+  });
+
   test("wrong_server submit shows wrong-server guidance", async ({ page }) => {
     const sql = getE2eSql();
     const { accepted, email } = await seedUnlinkedMemberOnboardSession(sql);
@@ -441,6 +482,22 @@ test.describe("Member-link onboarding outcomes", () => {
     );
     expect(ownerResponse.ok()).toBe(true);
     await expect(ownerResponse.text()).resolves.toMatch(/approved|member approved/i);
+
+    const [memberLink] = await sql<{ game_uid: string }[]>`
+      SELECT game_uid FROM hq_member_links
+      WHERE alliance_id = ${alliance.allianceId}
+        AND hq_user_id = ${accepted.hqUserId}
+      LIMIT 1
+    `;
+    expect(memberLink?.game_uid).toBe("1234567890121204");
+
+    const [rosterMember] = await sql<{ current_name: string }[]>`
+      SELECT current_name FROM alliance_members
+      WHERE alliance_id = ${alliance.allianceId}
+        AND current_name = 'E2eRosterMiss'
+      LIMIT 1
+    `;
+    expect(rosterMember?.current_name).toBe("E2eRosterMiss");
 
     await page.getByRole("button", { name: /check again/i }).click();
     await expect(

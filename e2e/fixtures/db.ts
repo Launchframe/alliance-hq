@@ -49,9 +49,8 @@ export function hashInviteToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
 }
 
-export function hashRosterLinkActionToken(token: string): string {
-  return createHash("sha256").update(token).digest("hex");
-}
+/** Same SHA-256 digest as invite tokens; roster link action tokens use identical hashing. */
+export const hashRosterLinkActionToken = hashInviteToken;
 
 export function inviteToken(): string {
   return randomBytes(32).toString("base64url");
