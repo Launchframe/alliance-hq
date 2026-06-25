@@ -382,7 +382,7 @@ test.describe("Member-link onboarding outcomes", () => {
     await page.goto("/onboard");
 
     await expect(
-      page.getByRole("heading", { name: /we've notified your r5/i }),
+      page.getByRole("heading", { name: /waiting for roster confirmation/i }),
     ).toBeVisible();
 
     await page.getByRole("button", { name: /check again/i }).click();
@@ -439,7 +439,7 @@ test.describe("Member-link onboarding outcomes", () => {
     expect(body.outcome).toBe("awaiting_owner");
 
     await expect(
-      page.getByRole("heading", { name: /we've notified your r5/i }),
+      page.getByRole("heading", { name: /waiting for roster confirmation/i }),
     ).toBeVisible();
   });
 
@@ -464,7 +464,7 @@ test.describe("Member-link onboarding outcomes", () => {
     await page.getByLabel(/player uid/i).fill("1234567890121204");
     await page.getByRole("button", { name: /link my character/i }).click();
     await expect(
-      page.getByRole("heading", { name: /we've notified your r5/i }),
+      page.getByRole("heading", { name: /waiting for roster confirmation/i }),
     ).toBeVisible();
 
     const requestId = await getLatestPendingRosterLinkRequestId(sql, {
