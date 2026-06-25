@@ -14,6 +14,7 @@ import {
   validateRosterRankQuota,
   type RosterRankQuotaErrorCode,
 } from "@/lib/members/roster-rank-quota.shared";
+import { buildMemberMatchSelectOptions } from "@/lib/video/member-select-options";
 import {
   duplicateMemberRowIds,
   findDuplicateMemberAssignments,
@@ -99,6 +100,7 @@ export function RosterVideoReviewTable({
 }: Props) {
   const t = useTranslations("videoReview");
   const tMembers = useTranslations("members.import");
+  const tMembersList = useTranslations("members");
 
   const activeRows = useMemo(
     () => rows.filter((row) => row.deleted !== 1),
@@ -267,20 +269,18 @@ export function RosterVideoReviewTable({
                         });
                       }}
                       aria-label={t("colMember")}
+                      placeholder={tMembers("createNew")}
                       triggerClassName={`px-2 py-1.5 ${confidenceClass(row.matchConfidence)}`}
-                      options={[
-                        { value: "", label: tMembers("createNew") },
-                        ...memberOptions.map((member) => ({
-                          value: member.id,
-                          label: `${member.current_name}${
-                            row.memberId === member.id &&
-                            row.matchConfidence != null &&
-                            row.matchConfidence < 1
-                              ? ` (${Math.round(row.matchConfidence * 100)}%)`
-                              : ""
-                          }`,
-                        })),
-                      ]}
+                      searchable
+                      searchMode="fuzzy"
+                      combobox
+                      searchPlaceholder={tMembersList("searchPlaceholder")}
+                      noSearchResultsLabel={t("memberSearchNoResults")}
+                      options={buildMemberMatchSelectOptions(memberOptions, {
+                        emptyLabel: tMembers("createNew"),
+                        highlightMemberId: row.memberId,
+                        highlightConfidence: row.matchConfidence,
+                      })}
                     />
                   </td>
                   <td className="px-4 py-3">

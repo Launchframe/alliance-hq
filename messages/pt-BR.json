@@ -2028,6 +2028,7 @@
     "colProfession": "Profissão",
     "colScore": "Pontuação",
     "unmatched": "Selecionar membro…",
+    "memberSearchNoResults": "Nenhum membro correspondente.",
     "deleteRow": "Excluir",
     "saveScores": "Salvar {count} pontuações",
     "saveRoster": "Aplicar {count} linhas do elenco no HQ",
@@ -2070,6 +2071,12 @@
     "closePreview": "Fechar",
     "rowVideoPreview": "Ver no vídeo",
     "previewUnavailable": "O vídeo original não está disponível para este job.",
+    "previewPlacementLabel": "Posição da prévia",
+    "previewPlacement": {
+      "side": "Lateral",
+      "top": "Topo",
+      "bottom": "Rodapé"
+    },
     "rosterAllianceTarget": "Enviando roster para: {tag}",
     "rosterAllianceTargetNamed": "Enviando roster para: {tag} — {name}",
     "rosterAllianceHint": "Membros novos e correspondidos deste vídeo serão gravados nesta aliança no HQ.",

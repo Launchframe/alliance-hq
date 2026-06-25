@@ -121,6 +121,18 @@ export function appendShowinfoFilter(vf: string): string {
   return vf.includes("showinfo") ? vf : `${vf},showinfo`;
 }
 
+/**
+ * Build the ffmpeg scene-detection select filter.
+ *
+ * ffmpeg's `scene` metric compares each frame to its predecessor, so the first
+ * frame (n=0) has no score and is never selected by `gt(scene,…)` alone. We OR
+ * in `eq(n,0)` so the opening frame is always captured — otherwise leaderboard
+ * rows visible at t=0 (before the user scrolls) are silently dropped.
+ */
+export function buildSceneSelectFilter(sceneThreshold: number): string {
+  return `select='eq(n,0)+gt(scene,${sceneThreshold})',scale=720:-1`;
+}
+
 /** Parse pts_time values emitted by ffmpeg's showinfo filter (one per output frame). */
 export function parseFfmpegShowinfoPtsTimes(stderr: string): number[] {
   const times: number[] = [];
@@ -280,7 +292,7 @@ export async function extractLeaderboardFrames(
         ffmpeg,
         videoPath,
         pattern,
-        `select='gt(scene,${sceneThreshold})',scale=720:-1`,
+        buildSceneSelectFilter(sceneThreshold),
       );
       lastStderr = result.stderr;
       const sceneFrameCount = (await listExtractedFrameFiles(tmpDir)).length;
@@ -290,9 +302,14 @@ export async function extractLeaderboardFrames(
         frameCount: sceneFrameCount,
       });
 
-      if (sceneFrameCount === 0) {
+      // Scene mode now always forces frame 0 (eq(n,0)), so ">= 1" no longer
+      // signals real motion. Fall back to fps when the forced first frame is
+      // the only capture, to avoid missing slow/sub-threshold scrolling.
+      if (sceneFrameCount <= 1) {
         mode = "fps";
         const fallbackStarted = Date.now();
+        await fs.rm(tmpDir, { recursive: true, force: true });
+        await fs.mkdir(tmpDir, { recursive: true });
         const fallback = await runFfmpegExtract(
           ffmpeg,
           videoPath,
@@ -302,7 +319,7 @@ export async function extractLeaderboardFrames(
         lastStderr = fallback.stderr;
         logPipelineStep("ffmpeg.fps_fallback", Date.now() - fallbackStarted, {
           fps: sampleFps,
-          reason: "scene_detect_empty",
+          reason: "scene_detect_sparse",
           frameCount: (await listExtractedFrameFiles(tmpDir)).length,
         });
       }

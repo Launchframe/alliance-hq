@@ -2,9 +2,22 @@ import { describe, expect, it } from "vitest";
 
 import {
   assignVideoTimestampsToFrames,
+  buildSceneSelectFilter,
   listFrameJpegFiles,
   parseFfmpegShowinfoPtsTimes,
 } from "@/lib/video/frame-extractor";
+
+describe("buildSceneSelectFilter", () => {
+  it("forces the first frame so t=0 content is never dropped", () => {
+    expect(buildSceneSelectFilter(0.25)).toBe(
+      "select='eq(n,0)+gt(scene,0.25)',scale=720:-1",
+    );
+  });
+
+  it("threads the configured scene threshold", () => {
+    expect(buildSceneSelectFilter(0.1)).toContain("gt(scene,0.1)");
+  });
+});
 
 describe("listFrameJpegFiles", () => {
   it("returns sorted frame jpeg filenames", () => {

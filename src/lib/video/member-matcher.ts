@@ -65,6 +65,11 @@ function similarity(a: string, b: string): number {
   return 1 - levenshtein(a, b) / maxLen;
 }
 
+/** Normalized Levenshtein similarity in [0, 1] for UI fuzzy filters. */
+export function stringSimilarity(a: string, b: string): number {
+  return similarity(normalizeForMatch(a), normalizeForMatch(b));
+}
+
 export function buildMemberIndex(members: AshedMember[]) {
   const exact = new Map<string, AshedMember>();
   const active = members.filter((m) => m.status !== "former");

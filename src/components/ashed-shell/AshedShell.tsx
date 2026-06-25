@@ -139,7 +139,7 @@ export function AshedShell({
           <div className="flex min-h-screen min-h-[100dvh] bg-[#0d1117] text-[#e6edf3]">
           <div
             className={cn(
-              "fixed inset-0 z-40 bg-black/60 transition-opacity duration-300 ease-out md:hidden",
+              "fixed inset-0 z-40 bg-black/60 transition-opacity duration-300 ease-out lg:hidden",
               mobileNavOpen
                 ? "pointer-events-auto opacity-100"
                 : "pointer-events-none opacity-0",
@@ -150,10 +150,10 @@ export function AshedShell({
 
           <aside
             className={cn(
-              "fixed inset-y-0 left-0 z-50 flex h-screen max-h-[100dvh] w-full max-w-[min(100vw,20rem)] flex-col border-r border-[#30363d] bg-[#161b22] transition-transform duration-300 ease-out md:sticky md:top-0 md:z-auto md:w-60 md:max-w-none md:shrink-0 md:self-start md:translate-x-0",
+              "fixed inset-y-0 left-0 z-50 flex h-screen max-h-[100dvh] w-full max-w-[min(100vw,20rem)] flex-col border-r border-[#30363d] bg-[#161b22] transition-transform duration-300 ease-out lg:sticky lg:top-0 lg:z-auto lg:w-60 lg:max-w-none lg:shrink-0 lg:self-start lg:translate-x-0",
               mobileNavOpen
                 ? "translate-x-0"
-                : "-translate-x-full max-md:pointer-events-none",
+                : "-translate-x-full max-lg:pointer-events-none",
             )}
           >
             <SidebarNav
@@ -175,10 +175,10 @@ export function AshedShell({
           </aside>
 
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-            <header className="flex min-h-[3.25rem] shrink-0 items-center gap-3 border-b border-[#30363d] bg-[#161b22] px-4 py-2 md:px-6 md:py-3">
+            <header className="sticky top-0 z-30 flex min-h-[3.25rem] shrink-0 items-center gap-3 border-b border-[#30363d] bg-[#161b22] px-4 py-2 md:px-6 md:py-3">
               <button
                 type="button"
-                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[#30363d] text-[#e6edf3] transition-colors hover:bg-[#21262d] md:hidden"
+                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[#30363d] text-[#e6edf3] transition-colors hover:bg-[#21262d] lg:hidden"
                 onClick={openMobileNav}
                 aria-label={t("openMenu")}
                 aria-expanded={mobileNavOpen}

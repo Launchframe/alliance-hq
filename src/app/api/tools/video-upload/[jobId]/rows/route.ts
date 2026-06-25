@@ -3,14 +3,28 @@ import { and, eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { getDb, schema } from "@/lib/db";
+import {
+  frameIndexForManualRow,
+  type ManualRowPosition,
+} from "@/lib/video/manual-row-position";
 import { getOrCreateSession } from "@/lib/session";
 
 type Props = { params: Promise<{ jobId: string }> };
 
-export async function POST(_request: Request, { params }: Props) {
+export async function POST(request: Request, { params }: Props) {
   const session = await getOrCreateSession();
   const { jobId } = await params;
   const db = getDb();
+
+  let position: ManualRowPosition = "end";
+  try {
+    const body = (await request.json()) as { position?: ManualRowPosition };
+    if (body.position === "start" || body.position === "end") {
+      position = body.position;
+    }
+  } catch {
+    // Empty body defaults to end.
+  }
 
   const [job] = await db
     .select()
@@ -43,6 +57,17 @@ export async function POST(_request: Request, { params }: Props) {
 
   const rowId = nanoid(16);
   const now = new Date();
+
+  const existingRows = await db
+    .select({ frameIndex: schema.parsedRows.frameIndex })
+    .from(schema.parsedRows)
+    .where(eq(schema.parsedRows.parseSessionId, job.parseSessionId));
+
+  const frameIndex = frameIndexForManualRow(
+    existingRows.map((row) => row.frameIndex),
+    position,
+  );
+
   await db.insert(schema.parsedRows).values({
     id: rowId,
     parseSessionId: job.parseSessionId,
@@ -54,7 +79,7 @@ export async function POST(_request: Request, { params }: Props) {
     matchConfidence: null,
     matchMethod: null,
     scoreConflict: 0,
-    frameIndex: null,
+    frameIndex,
     deleted: 0,
     edited: 0,
     manuallyAdded: 1,
@@ -68,7 +93,7 @@ export async function POST(_request: Request, { params }: Props) {
       ocrName: "",
       score: "",
       rank: null,
-      frameIndex: null,
+      frameIndex,
       memberId: null,
       memberName: null,
       matchConfidence: null,
