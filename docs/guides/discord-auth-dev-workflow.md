@@ -22,6 +22,14 @@ NEXT_PUBLIC_APP_URL=http://localhost:5175
 E2E_TEST=true
 ```
 
+If `ELIGIBLE_BOT_ALLIANCE_LINK_TAGS` is set in your `.env.local` (it gates `/link-alliance` and `/link-to-ashed-seat`), the seed's `DEV` tag must be in the list, otherwise those commands return "Alliance tag **DEV** is not currently eligible for bot setup on this deployment." Either add `DEV` or remove the variable so every tag is allowed:
+
+```bash
+# include DEV alongside any existing tags, e.g. ELIGIBLE_BOT_ALLIANCE_LINK_TAGS=LFgo,DEV
+ELIGIBLE_BOT_ALLIANCE_LINK_TAGS=DEV
+# or leave it unset entirely to allow all tags
+```
+
 Generate a local Ed25519 keypair for signed synthetic interactions:
 
 ```bash
@@ -185,6 +193,7 @@ npm run discord:register-commands
 
 - `401 Invalid request signature`: `DISCORD_PUBLIC_KEY` does not match `DISCORD_DEV_PRIVATE_KEY`, or the live Discord app public key is not loaded.
 - `DISCORD_PUBLIC_KEY is not configured`: the app process did not load `.env.local`.
+- `Alliance tag DEV is not currently eligible for bot setup`: `ELIGIBLE_BOT_ALLIANCE_LINK_TAGS` is set and does not include `DEV` — add `DEV` to the list or unset the variable, then restart the app process.
 - `/link` says guild is not registered: run `npm run discord:dev:seed-auth` or use the same guild id in `DISCORD_DEV_GUILD_ID`.
 - Last War lookup fails for the fixture UID: set `E2E_TEST=true` in the app process.
 - Live command updates are stale: set `DISCORD_GUILD_ID` before `npm run discord:register-commands` for guild-scoped fast propagation.

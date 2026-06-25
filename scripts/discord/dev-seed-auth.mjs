@@ -188,6 +188,26 @@ async function main() {
   console.log(`  DISCORD_DEV_GUILD_ID=${DEV_FIXTURE.guildId}`);
   console.log(`  DISCORD_DEV_USER_ID=${DEV_FIXTURE.ownerDiscordUserId}`);
   console.log("  E2E_TEST=true");
+
+  const eligibleTags = process.env.ELIGIBLE_BOT_ALLIANCE_LINK_TAGS?.trim();
+  if (eligibleTags) {
+    const allowed = eligibleTags
+      .split(",")
+      .map((t) => t.trim().toLowerCase())
+      .filter(Boolean);
+    if (!allowed.includes(DEV_FIXTURE.allianceTag.toLowerCase())) {
+      console.log("");
+      console.log(
+        `WARNING: ELIGIBLE_BOT_ALLIANCE_LINK_TAGS="${eligibleTags}" does not include "${DEV_FIXTURE.allianceTag}".`,
+      );
+      console.log(
+        `  /link-alliance and /link-to-ashed-seat will reject tag ${DEV_FIXTURE.allianceTag}.`,
+      );
+      console.log(
+        `  Add ${DEV_FIXTURE.allianceTag} to the list or unset the variable, then restart the app.`,
+      );
+    }
+  }
 }
 
 main().catch((error) => {
