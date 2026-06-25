@@ -107,6 +107,7 @@
     "settings": "Settings",
     "allianceSettings": "Alliance settings",
     "team": "Team access",
+    "videoQueue": "Video queue",
     "adminPortal": "Admin portal"
   },
   "admin": {
@@ -880,6 +881,36 @@
       "role": "Role",
       "source": "Source"
     }
+  },
+  "videoQueue": {
+    "title": "Video queue",
+    "description": "Uploaded videos awaiting OCR. A designated video processor with a connected Ashed account approves jobs to run.",
+    "empty": "No videos are waiting for approval.",
+    "connectBanner": "Connect your Ashed account to approve and run these jobs.",
+    "connectCta": "Connect Ashed",
+    "approve": "Approve",
+    "reject": "Reject",
+    "approveFailed": "Could not approve the job.",
+    "rejectFailed": "Could not reject the job.",
+    "table": {
+      "time": "Uploaded",
+      "uploadedBy": "Uploaded by",
+      "target": "Target",
+      "file": "File",
+      "actions": "Actions"
+    }
+  },
+  "videoProcessors": {
+    "title": "Video processors",
+    "description": "Designate up to {max} officers who can approve and run OCR on queued videos with their own Ashed connection. Owners and maintainers can always process and do not use a slot.",
+    "empty": "No designated processors yet. Owners and maintainers can still process videos.",
+    "remove": "Remove",
+    "add": "Add",
+    "selectPlaceholder": "Select an officer…",
+    "noCandidates": "No eligible officers to add.",
+    "slotsFull": "All processor slots are full.",
+    "addFailed": "Could not add the processor.",
+    "removeFailed": "Could not remove the processor."
   },
   "allianceSettings": {
     "title": "Alliance settings",

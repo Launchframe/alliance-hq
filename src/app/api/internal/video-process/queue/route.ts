@@ -3,6 +3,7 @@ import { asc, eq } from "drizzle-orm";
 
 import { getDb, schema } from "@/lib/db";
 import { markVideoJobFailed } from "@/lib/video/mark-video-job-failed";
+import { isAshedNotConnectedError } from "@/lib/video/errors";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -59,6 +60,16 @@ export async function GET(request: Request) {
       timings,
     });
   } catch (error) {
+    // Recoverable: process-job already reverted the job to pending_approval.
+    if (isAshedNotConnectedError(error)) {
+      return NextResponse.json({
+        ok: false,
+        processed: false,
+        jobId: job.id,
+        status: "pending_approval",
+        code: "ashed_not_connected",
+      });
+    }
     const message =
       error instanceof Error ? error.message : "Processing failed";
     await markVideoJobFailed(job.id, message);

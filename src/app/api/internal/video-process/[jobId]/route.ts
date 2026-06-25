@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { markVideoJobFailed } from "@/lib/video/mark-video-job-failed";
+import { isAshedNotConnectedError } from "@/lib/video/errors";
 
 export const maxDuration = 300;
 export const runtime = "nodejs";
@@ -32,6 +33,18 @@ export async function POST(_request: Request, { params }: Props) {
     const timings = await processVideoJob(jobId, { analyticsSource });
     return NextResponse.json({ ok: true, jobId, status: "review", timings });
   } catch (error) {
+    // Recoverable: process-job already reverted the job to pending_approval.
+    if (isAshedNotConnectedError(error)) {
+      return NextResponse.json(
+        {
+          ok: false,
+          jobId,
+          status: "pending_approval",
+          code: "ashed_not_connected",
+        },
+        { status: 409 },
+      );
+    }
     const message =
       error instanceof Error ? error.message : "Processing failed";
     await markVideoJobFailed(jobId, message);

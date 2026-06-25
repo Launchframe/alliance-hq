@@ -107,6 +107,7 @@
     "settings": "Configurações",
     "allianceSettings": "Configurações da aliança",
     "team": "Acesso da equipe",
+    "videoQueue": "Fila de vídeos",
     "adminPortal": "Portal admin"
   },
   "admin": {
@@ -880,6 +881,36 @@
       "role": "Função",
       "source": "Origem"
     }
+  },
+  "videoQueue": {
+    "title": "Fila de vídeos",
+    "description": "Vídeos enviados aguardando OCR. Um processador de vídeo designado com uma conta Ashed conectada aprova os trabalhos para execução.",
+    "empty": "Nenhum vídeo aguardando aprovação.",
+    "connectBanner": "Conecte sua conta Ashed para aprovar e executar estes trabalhos.",
+    "connectCta": "Conectar Ashed",
+    "approve": "Aprovar",
+    "reject": "Rejeitar",
+    "approveFailed": "Não foi possível aprovar o trabalho.",
+    "rejectFailed": "Não foi possível rejeitar o trabalho.",
+    "table": {
+      "time": "Enviado",
+      "uploadedBy": "Enviado por",
+      "target": "Destino",
+      "file": "Arquivo",
+      "actions": "Ações"
+    }
+  },
+  "videoProcessors": {
+    "title": "Processadores de vídeo",
+    "description": "Designe até {max} oficiais que podem aprovar e executar OCR em vídeos na fila com sua própria conexão Ashed. Donos e mantenedores sempre podem processar e não ocupam uma vaga.",
+    "empty": "Nenhum processador designado ainda. Donos e mantenedores ainda podem processar vídeos.",
+    "remove": "Remover",
+    "add": "Adicionar",
+    "selectPlaceholder": "Selecione um oficial…",
+    "noCandidates": "Nenhum oficial elegível para adicionar.",
+    "slotsFull": "Todas as vagas de processador estão ocupadas.",
+    "addFailed": "Não foi possível adicionar o processador.",
+    "removeFailed": "Não foi possível remover o processador."
   },
   "allianceSettings": {
     "title": "Configurações da aliança",

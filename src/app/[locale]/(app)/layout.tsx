@@ -11,6 +11,7 @@ import {
 } from "@/lib/db/error-message";
 import { rethrowNavigationError } from "@/lib/navigation";
 import { getPageSessionState } from "@/lib/session";
+import { sessionCanReadAllianceVideoQueue } from "@/lib/video/processor-slots.server";
 
 export const dynamic = "force-dynamic";
 
@@ -84,6 +85,11 @@ export default async function AppLayout({
     redirect({ href: `/onboard?next=${encodeURIComponent("/dashboard")}`, locale });
   }
 
+  // Owner/maintainer (hq:video:read) short-circuits; slot processors need a check.
+  const showVideoQueue =
+    state.permissions.includes("hq:video:read") ||
+    (await sessionCanReadAllianceVideoQueue(state.sessionId));
+
   return (
     <TimezoneProvider initialTimezoneId={state.timezone}>
       <AshedShell
@@ -101,6 +107,7 @@ export default async function AppLayout({
         ashed={state.ashed}
         showAdminPortal={state.permissions.includes("hq:admin")}
         showTeamAccess={state.showTeamAccess}
+        showVideoQueue={showVideoQueue}
         showAllianceSettings={Boolean(state.currentAllianceId)}
         activeAllianceTag={state.allianceTag}
         currentAllianceId={
