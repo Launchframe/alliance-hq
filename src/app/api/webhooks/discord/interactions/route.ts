@@ -52,7 +52,6 @@ import {
 } from "@/lib/vr/service";
 import { resolveSetupMessage } from "@/lib/vr/bot-user-context";
 import { linkSlashUsesCommanderFlow } from "@/lib/vr/link-slash-routing";
-import { getDiscordHqLink } from "@/lib/vr/repository";
 import {
   handleDiscordSetTrainChannel,
   handleDiscordTrainConductorPick,
@@ -109,10 +108,6 @@ async function handleLinkCommanderSlash(
   },
 ) {
   const t = createDiscordTranslator(input.locale);
-  const hqLink = await getDiscordHqLink(input.discordUserId);
-  if (!hqLink) {
-    return discordMessageResponse(t("errors.hqLinkRequired"), undefined, EPHEMERAL);
-  }
   if (!input.allianceId) {
     return discordMessageResponse(
       await setupMessage(input.locale, input.guildId, input.discordUserId),
@@ -261,9 +256,8 @@ async function handleSlashCommand(payload: DiscordInteractionPayload) {
     if (!guildId) {
       return discordMessageResponse(t("errors.guildNotRegistered"));
     }
-    const hqLink = await getDiscordHqLink(discordUserId);
-    const legacyName = parseSlashOptionString(payload, "name");
-    if (linkSlashUsesCommanderFlow({ hasHqLink: hqLink != null, legacyName })) {
+    const { name, uid } = parseLinkSlashOptions(payload);
+    if (linkSlashUsesCommanderFlow({ name, uid })) {
       return handleLinkCommanderSlash(payload, {
         discordUserId,
         guildId,

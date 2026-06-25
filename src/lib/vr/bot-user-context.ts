@@ -84,9 +84,6 @@ export function pickHelpMessageKey(ctx: DiscordBotUserContext): string {
   if (!ctx.guildId) {
     return "help.dmGeneral";
   }
-  if (!ctx.hasHqLink) {
-    return "help.setupLinkHq";
-  }
   if (!ctx.guildRegistered) {
     if (ctx.isPlatformMaintainer || ctx.userRegisteredCredentials) {
       return "help.setupLinkAlliance";

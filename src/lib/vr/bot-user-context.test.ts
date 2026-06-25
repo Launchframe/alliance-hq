@@ -28,8 +28,10 @@ describe("pickHelpMessageKey", () => {
     expect(pickHelpMessageKey(ctx({ guildId: null }))).toBe("help.dmGeneral");
   });
 
-  it("prompts HQ link when user has no discord_hq_links row", () => {
-    expect(pickHelpMessageKey(ctx({ hasHqLink: false }))).toBe("help.setupLinkHq");
+  it("prompts link when guild is ready but user has no commanders", () => {
+    expect(pickHelpMessageKey(ctx({ hasHqLink: false, memberLinkCount: 0 }))).toBe(
+      "help.linkCommander",
+    );
   });
 
   it("prompts owner auth when guild is not registered and no credentials", () => {

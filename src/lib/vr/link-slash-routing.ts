@@ -1,7 +1,7 @@
-/** Route `/link` vs legacy combined slash options (pre–link-commander split). */
+/** Route inline name+UID on `/link` to the commander link handler vs browser authorize. */
 export function linkSlashUsesCommanderFlow(input: {
-  hasHqLink: boolean;
-  legacyName?: string;
+  name?: string;
+  uid?: string;
 }): boolean {
-  return Boolean(input.hasHqLink && input.legacyName?.trim());
+  return Boolean(input.name?.trim() || input.uid?.trim());
 }

@@ -61,12 +61,15 @@ export default async function DiscordAuthorizePage({ searchParams }: PageProps) 
             tagLabel: t("tagLabel"),
             keyLabel: t("keyLabel"),
             keyHint: t("keyHint"),
-            submit: t("submit"),
+            nameLabel: t("nameLabel"),
+            nameHint: t("nameHint"),
+            uidLabel: t("uidLabel"),
+            uidHint: t("uidHint"),
+            submit: purpose === "user_link" ? t("userLinkSubmit") : t("submit"),
             submitting: t("submitting"),
             successHeading: t("successHeading"),
             successBody: t("successBody"),
             userSuccessBody: t("userSuccessBody"),
-            userSuccessPromptCommander: t("userSuccessPromptCommander"),
             errorPrefix: t("errorPrefix"),
           }}
         />

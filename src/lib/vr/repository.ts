@@ -695,6 +695,7 @@ export async function callerCanRegisterGuildAlliance(input: {
     hasHqLink: hqLink != null,
     isPlatformMaintainer,
     isCredentialRegistrant,
+    isOwnerViaMemberLink: await callerIsAllianceOwner(input),
     ownerAshedUserId: alliance?.ownerAshedUserId ?? null,
     linkedHqAshedUserId: linkedHqUser?.ashedUserId ?? null,
     hasCredentials,

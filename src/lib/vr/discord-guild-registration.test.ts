@@ -12,6 +12,7 @@ function auth(
     hasHqLink: true,
     isPlatformMaintainer: false,
     isCredentialRegistrant: false,
+    isOwnerViaMemberLink: false,
     ownerAshedUserId: "owner-1",
     linkedHqAshedUserId: "owner-1",
     hasCredentials: true,
@@ -20,11 +21,21 @@ function auth(
 }
 
 describe("evaluateGuildRegistrationAuth", () => {
-  it("denies when Discord user has no HQ link", () => {
+  it("denies legacy Ashed owner path when Discord user has no HQ link", () => {
     expect(auth({ hasHqLink: false })).toEqual({
       allowed: false,
       reason: "no_hq_link",
     });
+  });
+
+  it("allows owner via member link without HQ link", () => {
+    expect(
+      auth({
+        hasHqLink: false,
+        isOwnerViaMemberLink: true,
+        linkedHqAshedUserId: null,
+      }),
+    ).toEqual({ allowed: true, registeredBy: "alliance_owner" });
   });
 
   it("allows platform maintainers without alliance credentials", () => {
