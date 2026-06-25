@@ -1005,17 +1005,39 @@ export async function processRosterLinkActionToken(
 
   const tokenHash = hashActionToken(token);
   const now = new Date();
-  const claimed = await claimRosterLinkActionToken(tokenHash, now);
-  if (!claimed) {
-    return rosterLinkActionTokenFailure(tokenHash);
+  const db = getDb();
+  const [tokenRow] = await db
+    .select()
+    .from(schema.hqRosterLinkActionTokens)
+    .where(eq(schema.hqRosterLinkActionTokens.tokenHash, tokenHash))
+    .limit(1);
+
+  if (!tokenRow) {
+    return {
+      ok: false,
+      title: "Invalid link",
+      body: "This approval link is not valid. It may have expired or already been used.",
+    };
   }
 
-  if (claimed.action === "accept") {
-    const request = await getRosterLinkRequestById(claimed.requestId);
+  if (tokenRow.usedAt) {
+    return describeUsedRosterLinkActionToken(tokenRow);
+  }
+
+  if (tokenRow.expiresAt < now) {
+    return {
+      ok: false,
+      title: "Link expired",
+      body: "This approval link has expired. Ask the member to submit their name and UID again.",
+    };
+  }
+
+  if (tokenRow.action === "accept") {
+    const request = await getRosterLinkRequestById(tokenRow.requestId);
     if (!request) {
       return {
         ok: false,
-        title: "Could not approve",
+        title: "Could not open review",
         body: "This request is no longer available.",
       };
     }
@@ -1027,6 +1049,11 @@ export async function processRosterLinkActionToken(
       body: `Sign in to Alliance HQ to match ${request.gameUserName} to the correct roster member.`,
       redirectUrl: resolveUrl,
     };
+  }
+
+  const claimed = await claimRosterLinkActionToken(tokenHash, now);
+  if (!claimed) {
+    return rosterLinkActionTokenFailure(tokenHash);
   }
 
   const result = await rejectRosterLinkRequest({ requestId: claimed.requestId });
