@@ -4,6 +4,18 @@ import * as React from "react";
 import { createPortal } from "react-dom";
 import { Check, ChevronDown } from "lucide-react";
 
+import {
+  filterAppSelectOptions,
+  type AppSelectSearchMode,
+} from "@/components/ui/app-select-search";
+
+export type { AppSelectSearchMode } from "@/components/ui/app-select-search";
+export {
+  appSelectOptionFuzzyScore,
+  appSelectOptionMatchesQuery,
+  appSelectOptionSearchText,
+} from "@/components/ui/app-select-search";
+
 export type AppSelectOption = {
   value: string;
   label: React.ReactNode;
@@ -25,6 +37,10 @@ type Props = {
   placeholder?: string;
   disabled?: boolean;
   searchable?: boolean;
+  /** When searchable, use fuzzy ranking instead of substring-only. */
+  searchMode?: AppSelectSearchMode;
+  /** Type-to-filter directly in the trigger (requires searchable). */
+  combobox?: boolean;
   searchPlaceholder?: string;
   noSearchResultsLabel?: string;
   id?: string;
@@ -48,35 +64,6 @@ function flattenOptions(
   return options ?? [];
 }
 
-export function appSelectOptionSearchText(option: AppSelectOption): string {
-  if (option.searchText?.trim()) {
-    return option.searchText.trim();
-  }
-  return typeof option.label === "string" ? option.label : "";
-}
-
-/** Case-insensitive substring match for searchable AppSelect menus. */
-export function appSelectOptionMatchesQuery(
-  option: AppSelectOption,
-  query: string,
-): boolean {
-  const needle = query.trim().toLowerCase();
-  if (!needle) {
-    return true;
-  }
-  return appSelectOptionSearchText(option).toLowerCase().includes(needle);
-}
-
-function filterOptionsByQuery(
-  options: AppSelectOption[],
-  query: string,
-): AppSelectOption[] {
-  if (!query.trim()) {
-    return options;
-  }
-  return options.filter((option) => appSelectOptionMatchesQuery(option, query));
-}
-
 const defaultTriggerClass =
   "flex w-full min-w-0 items-center justify-between gap-2 rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 text-left text-sm text-[#e6edf3] transition-colors hover:bg-[#161b22] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#58a6ff] disabled:cursor-not-allowed disabled:opacity-50";
 
@@ -88,6 +75,8 @@ export function AppSelect({
   placeholder,
   disabled = false,
   searchable = false,
+  searchMode = "substring",
+  combobox = false,
   searchPlaceholder = "Search…",
   noSearchResultsLabel = "No matches.",
   id,
@@ -99,9 +88,11 @@ export function AppSelect({
   const listboxId = React.useId();
   const searchInputId = React.useId();
   const triggerRef = React.useRef<HTMLButtonElement>(null);
+  const comboboxInputRef = React.useRef<HTMLInputElement>(null);
   const searchInputRef = React.useRef<HTMLInputElement>(null);
   const [open, setOpen] = React.useState(false);
   const [searchQuery, setSearchQuery] = React.useState("");
+  const [comboboxFocused, setComboboxFocused] = React.useState(false);
   const [activeIndex, setActiveIndex] = React.useState<number>(-1);
   const [menuRect, setMenuRect] = React.useState<{
     top: number;
@@ -115,37 +106,53 @@ export function AppSelect({
   );
   const visibleOptions = React.useMemo(
     () =>
-      searchable ? filterOptionsByQuery(flatOptions, searchQuery) : flatOptions,
-    [flatOptions, searchQuery, searchable],
+      searchable
+        ? filterAppSelectOptions(flatOptions, searchQuery, searchMode)
+        : flatOptions,
+    [flatOptions, searchQuery, searchable, searchMode],
   );
   const enabledOptions = visibleOptions.filter((option) => !option.disabled);
   const selectedOption = flatOptions.find((option) => option.value === value);
   const selectedLabel = selectedOption?.label ?? placeholder ?? "";
+  const selectedLabelText =
+    typeof selectedLabel === "string" ? selectedLabel : "";
+  const useCombobox = searchable && combobox;
 
   const updateMenuRect = React.useCallback(() => {
-    const trigger = triggerRef.current;
-    if (!trigger) return null;
-    const rect = trigger.getBoundingClientRect();
+    const anchor = useCombobox
+      ? comboboxInputRef.current
+      : triggerRef.current;
+    if (!anchor) return null;
+    const rect = anchor.getBoundingClientRect();
     return {
       top: rect.bottom + 4,
       left: rect.left,
       width: rect.width,
     };
-  }, []);
+  }, [useCombobox]);
 
   function closeMenu() {
     setOpen(false);
     setActiveIndex(-1);
     setSearchQuery("");
+    setComboboxFocused(false);
   }
 
   React.useEffect(() => {
-    if (!open || !searchable) return;
+    if (!open || !searchable || useCombobox) return;
     const id = window.requestAnimationFrame(() => {
       searchInputRef.current?.focus();
     });
     return () => window.cancelAnimationFrame(id);
-  }, [open, searchable]);
+  }, [open, searchable, useCombobox]);
+
+  React.useEffect(() => {
+    if (!open || !useCombobox) return;
+    const id = window.requestAnimationFrame(() => {
+      comboboxInputRef.current?.focus();
+    });
+    return () => window.cancelAnimationFrame(id);
+  }, [open, useCombobox]);
 
   React.useEffect(() => {
     if (!searchable) return;
@@ -162,6 +169,7 @@ export function AppSelect({
       const target = event.target;
       if (!(target instanceof Node)) return;
       if (triggerRef.current?.contains(target)) return;
+      if (comboboxInputRef.current?.contains(target)) return;
       if (
         target instanceof Element &&
         target.closest(`[data-app-select-menu="${listboxId}"]`)
@@ -204,7 +212,11 @@ export function AppSelect({
     if (option.disabled) return;
     onChange(option.value);
     closeMenu();
-    triggerRef.current?.focus();
+    if (useCombobox) {
+      comboboxInputRef.current?.focus();
+    } else {
+      triggerRef.current?.focus();
+    }
   }
 
   function openMenu() {
@@ -216,6 +228,69 @@ export function AppSelect({
     );
     setActiveIndex(currentIndex >= 0 ? currentIndex : 0);
   }
+
+  function handleComboboxFocus() {
+    if (disabled) return;
+    setComboboxFocused(true);
+    setMenuRect(updateMenuRect());
+    setOpen(true);
+    if (selectedOption?.value) {
+      setSearchQuery(selectedLabelText);
+    }
+    const currentIndex = enabledOptions.findIndex(
+      (option) => option.value === value,
+    );
+    setActiveIndex(currentIndex >= 0 ? currentIndex : 0);
+  }
+
+  function handleComboboxKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
+    if (disabled) return;
+
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      if (!open) {
+        handleComboboxFocus();
+        return;
+      }
+      setActiveIndex((current) => {
+        if (enabledOptions.length === 0) return -1;
+        const delta = event.key === "ArrowDown" ? 1 : -1;
+        const next =
+          current < 0
+            ? event.key === "ArrowDown"
+              ? 0
+              : enabledOptions.length - 1
+            : (current + delta + enabledOptions.length) %
+              enabledOptions.length;
+        return next;
+      });
+      return;
+    }
+
+    if (event.key === "Enter") {
+      event.preventDefault();
+      if (!open) {
+        handleComboboxFocus();
+        return;
+      }
+      const option = enabledOptions[activeIndex];
+      if (option) selectOption(option);
+      return;
+    }
+
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closeMenu();
+      comboboxInputRef.current?.blur();
+    }
+  }
+
+  const comboboxDisplayValue =
+    open || comboboxFocused
+      ? searchQuery
+      : selectedOption?.value
+        ? selectedLabelText
+        : searchQuery;
 
   function handleTriggerKeyDown(event: React.KeyboardEvent<HTMLButtonElement>) {
     if (disabled) return;
@@ -310,7 +385,7 @@ export function AppSelect({
             }}
             className="fixed z-[300] max-h-60 overflow-hidden rounded-lg border border-[#30363d] bg-[#161b22] shadow-lg"
           >
-            {searchable ? (
+            {searchable && !useCombobox ? (
               <div className="border-b border-[#30363d] p-2">
                 <input
                   ref={searchInputRef}
@@ -380,41 +455,100 @@ export function AppSelect({
       {name ? (
         <input type="hidden" name={name} value={value} readOnly />
       ) : null}
-      <button
-        ref={triggerRef}
-        id={id}
-        type="button"
-        disabled={disabled}
-        aria-label={ariaLabel}
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        aria-controls={open ? listboxId : undefined}
-        className={cn(defaultTriggerClass, triggerClassName)}
-        onClick={() => {
-          if (open) {
-            closeMenu();
-            return;
-          }
-          openMenu();
-        }}
-        onKeyDown={handleTriggerKeyDown}
-      >
-        <span
-          className={cn(
-            "min-w-0 flex-1 truncate",
-            !selectedOption && placeholder ? "text-[#8b949e]" : undefined,
-          )}
+      {useCombobox ? (
+        <div className="relative">
+          <input
+            ref={comboboxInputRef}
+            id={id}
+            type="text"
+            disabled={disabled}
+            role="combobox"
+            aria-label={ariaLabel}
+            aria-haspopup="listbox"
+            aria-expanded={open}
+            aria-controls={open ? listboxId : undefined}
+            aria-autocomplete="list"
+            value={comboboxDisplayValue}
+            placeholder={placeholder}
+            onChange={(event) => {
+              setSearchQuery(event.target.value);
+              setOpen(true);
+              setMenuRect(updateMenuRect());
+            }}
+            onFocus={handleComboboxFocus}
+            onBlur={() => {
+              window.setTimeout(() => {
+                setComboboxFocused(false);
+                if (!open) {
+                  setSearchQuery("");
+                }
+              }, 120);
+            }}
+            onKeyDown={handleComboboxKeyDown}
+            className={cn(defaultTriggerClass, "pr-9", triggerClassName)}
+            autoComplete="off"
+          />
+          <button
+            type="button"
+            tabIndex={-1}
+            disabled={disabled}
+            aria-hidden
+            className="absolute inset-y-0 right-0 flex w-9 items-center justify-center text-[#8b949e]"
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() => {
+              if (open) {
+                closeMenu();
+                comboboxInputRef.current?.blur();
+                return;
+              }
+              handleComboboxFocus();
+            }}
+          >
+            <ChevronDown
+              className={cn(
+                "h-4 w-4 transition-transform",
+                open && "rotate-180",
+              )}
+            />
+          </button>
+        </div>
+      ) : (
+        <button
+          ref={triggerRef}
+          id={id}
+          type="button"
+          disabled={disabled}
+          aria-label={ariaLabel}
+          aria-haspopup="listbox"
+          aria-expanded={open}
+          aria-controls={open ? listboxId : undefined}
+          className={cn(defaultTriggerClass, triggerClassName)}
+          onClick={() => {
+            if (open) {
+              closeMenu();
+              return;
+            }
+            openMenu();
+          }}
+          onKeyDown={handleTriggerKeyDown}
         >
-          {selectedLabel}
-        </span>
-        <ChevronDown
-          aria-hidden
-          className={cn(
-            "h-4 w-4 shrink-0 text-[#8b949e] transition-transform",
-            open && "rotate-180",
-          )}
-        />
-      </button>
+          <span
+            className={cn(
+              "min-w-0 flex-1 truncate",
+              !selectedOption && placeholder ? "text-[#8b949e]" : undefined,
+            )}
+          >
+            {selectedLabel}
+          </span>
+          <ChevronDown
+            aria-hidden
+            className={cn(
+              "h-4 w-4 shrink-0 text-[#8b949e] transition-transform",
+              open && "rotate-180",
+            )}
+          />
+        </button>
+      )}
       {menu}
     </div>
   );

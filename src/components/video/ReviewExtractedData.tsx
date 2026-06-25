@@ -21,10 +21,17 @@ import {
 } from "@/lib/video/review-validation";
 import { isZeroScoreWarningDisabled } from "@/lib/video/score-targets";
 import type { VideoProcessTimings } from "@/lib/analytics/video-pipeline";
+import { buildMemberMatchSelectOptions } from "@/lib/video/member-select-options";
+import type { ManualRowPosition } from "@/lib/video/manual-row-position";
+import { mergeParsedRowInReviewOrder } from "@/lib/video/parsed-row-review-order";
 import { isVideoProcessTimings } from "@/lib/video/pipeline-stats-display";
 import { VideoPipelineStatsButton } from "@/components/video/VideoPipelineStatsDialog";
-import { ReviewSourceVideoPanel } from "@/components/video/ReviewSourceVideoPanel";
-import type { VideoSeekRequest } from "@/components/video/ReviewSourceVideoPanel";
+import {
+  ReviewVideoPreview,
+  PREVIEW_DOCK_HEIGHT,
+  type VideoSeekRequest,
+} from "@/components/video/ReviewVideoPreview";
+import { useVideoPreviewLayout } from "@/components/video/useVideoPreviewLayout";
 import {
   previewSeekSecondsForFrame,
   type FrameTimestampMap,
@@ -129,6 +136,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   const t = useTranslations("videoReview");
   const tc = useTranslations("common");
   const tNav = useTranslations("nav");
+  const tMembers = useTranslations("members");
   const locale = useLocale();
   const { timezoneId } = useAccountTimezone();
   const { showExperienceFeedback } = useFeedback();
@@ -157,7 +165,13 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   const [timings, setTimings] = useState<VideoProcessTimings | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   const [hasSourceVideo, setHasSourceVideo] = useState(false);
-  const [previewOpen, setPreviewOpen] = useState(false);
+  const {
+    placement: previewPlacement,
+    available: previewPlacements,
+    open: previewOpen,
+    setOpen: setPreviewOpen,
+    setPlacement: setPreviewPlacement,
+  } = useVideoPreviewLayout();
   const [previewSeekRequest, setPreviewSeekRequest] =
     useState<VideoSeekRequest>(null);
   const [frameTimestamps, setFrameTimestamps] = useState<FrameTimestampMap>({});
@@ -593,7 +607,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
       }));
       setPreviewOpen(true);
     },
-    [frameTimestamps],
+    [frameTimestamps, setPreviewOpen],
   );
 
   const matchedCount = activeRows.filter((r) => r.memberId).length;
@@ -857,13 +871,17 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     }
   }
 
-  async function handleAddRow() {
+  async function handleAddRow(position: ManualRowPosition) {
     const res = await fetch(`/api/tools/video-upload/${jobId}/rows`, {
       method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ position }),
     });
     if (!res.ok) return;
     const data = (await res.json()) as { row: ParsedRow };
-    setRows((prev) => [...prev, data.row]);
+    setRows((prev) =>
+      mergeParsedRowInReviewOrder(prev, data.row, scoreTargetMeta?.id),
+    );
   }
 
   if (displayJobStatus === "loading" || rematching) {
@@ -905,17 +923,34 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     );
   }
 
+  const showSidePreview = previewOpen && previewPlacement === "side";
+  const showTopPreview = previewOpen && previewPlacement === "top";
+  const showBottomPreview = previewOpen && previewPlacement === "bottom";
+  const previewNode = previewOpen ? (
+    <ReviewVideoPreview
+      jobId={jobId}
+      placement={previewPlacement}
+      available={previewPlacements}
+      onPlacementChange={setPreviewPlacement}
+      onClose={() => setPreviewOpen(false)}
+      unavailable={!hasSourceVideo}
+      seekRequest={previewSeekRequest}
+    />
+  ) : null;
+
   return (
-    <div className="flex min-w-0 w-full max-w-full flex-col md:flex-row">
-      <div className="min-w-0 flex flex-1 flex-col">
-        <ReviewSourceVideoPanel
-          jobId={jobId}
-          open={previewOpen}
-          onClose={() => setPreviewOpen(false)}
-          unavailable={!hasSourceVideo}
-          surface="mobile"
-          seekRequest={previewSeekRequest}
-        />
+    <div
+      className={`relative flex min-w-0 w-full max-w-full ${
+        showSidePreview ? "flex-row" : "flex-col"
+      }`}
+    >
+      {showTopPreview ? previewNode : null}
+      <div
+        className="min-w-0 flex flex-1 flex-col"
+        style={
+          showBottomPreview ? { paddingBottom: PREVIEW_DOCK_HEIGHT } : undefined
+        }
+      >
         <div className="mx-auto min-w-0 w-full max-w-5xl flex-1 space-y-6 px-4 pb-6 md:px-0">
       <div>
         <div className="flex flex-wrap items-start justify-between gap-3">
@@ -1258,7 +1293,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         )}
         <button
           type="button"
-          onClick={() => void handleAddRow()}
+          onClick={() => void handleAddRow("start")}
           className="shrink-0 rounded-lg border border-[#30363d] px-3 py-2 text-sm hover:bg-[#21262d]"
         >
           {t("addRow")}
@@ -1328,20 +1363,18 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                       });
                     }}
                     aria-label={t("colMember")}
+                    placeholder={t("unmatched")}
                     triggerClassName={`px-2 py-1.5 ${confidenceClass(row.matchConfidence)}`}
-                    options={[
-                      { value: "", label: t("unmatched") },
-                      ...members.map((m) => ({
-                        value: m.id,
-                        label: `${m.current_name}${
-                          row.memberId === m.id &&
-                          row.matchConfidence != null &&
-                          row.matchConfidence < 1
-                            ? ` (${Math.round(row.matchConfidence * 100)}%)`
-                            : ""
-                        }`,
-                      })),
-                    ]}
+                    searchable
+                    searchMode="fuzzy"
+                    combobox
+                    searchPlaceholder={tMembers("searchPlaceholder")}
+                    noSearchResultsLabel={t("memberSearchNoResults")}
+                    options={buildMemberMatchSelectOptions(members, {
+                      emptyLabel: t("unmatched"),
+                      highlightMemberId: row.memberId,
+                      highlightConfidence: row.matchConfidence,
+                    })}
                   />
                 </td>
                 {scoreTargetMeta?.showRosterColumns ? (
@@ -1453,6 +1486,15 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           </tbody>
         </table>
       </div>
+      <div className="flex justify-end">
+        <button
+          type="button"
+          onClick={() => void handleAddRow("end")}
+          className="rounded-lg border border-[#30363d] px-3 py-2 text-sm hover:bg-[#21262d]"
+        >
+          {t("addRow")}
+        </button>
+      </div>
         </>
       )}
 
@@ -1526,14 +1568,8 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
       ) : null}
         </div>
       </div>
-      <ReviewSourceVideoPanel
-        jobId={jobId}
-        open={previewOpen}
-        onClose={() => setPreviewOpen(false)}
-        unavailable={!hasSourceVideo}
-        surface="desktop"
-        seekRequest={previewSeekRequest}
-      />
+      {showSidePreview ? previewNode : null}
+      {showBottomPreview ? previewNode : null}
     </div>
   );
 }
