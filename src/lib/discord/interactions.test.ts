@@ -58,10 +58,11 @@ describe("discord interactions", () => {
           options: [
             { name: "name", type: 3, value: "PlayerOne" },
             { name: "uid", type: 3, value: "1234567890121203" },
+            { name: "replace", type: 5, value: true },
           ],
         },
       }),
-    ).toEqual({ name: "PlayerOne", uid: "1234567890121203", replace: false });
+    ).toEqual({ name: "PlayerOne", uid: "1234567890121203", replace: true });
   });
 
   it("parses button custom ids", () => {
