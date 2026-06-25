@@ -12,6 +12,7 @@ import {
   shouldShowAshedConnectNudge,
   subscribeAshedShellConnectDismissed,
 } from "@/lib/connect/ashed-shell-prompts.shared";
+import { AllianceSetupGuideDashboardBanner } from "@/components/ashed-shell/AllianceSetupGuideDashboardBanner";
 import { OpsInboxBell } from "@/components/ashed-shell/OpsInboxBell";
 import { ReminderInboxBell } from "@/components/ashed-shell/ReminderInboxBell";
 import { ConnectAshedBanner } from "@/components/onboarding/ConnectAshedBanner";
@@ -92,6 +93,10 @@ export function AshedShell({
 
   const showSignedInChrome =
     hasAppAccess && (isConnected || !canUseAshedEmbeds);
+  // Officer setup checklist appears on alliance home only (Ashed dashboard /
+  // native members), gated server-side by the show-on-dashboard preference.
+  const showSetupGuideBanner =
+    hasAppAccess && (pathname === "/dashboard" || pathname === "/members");
   const showConnectNudge = shouldShowAshedConnectNudge({
     hasAppAccess,
     isConnected,
@@ -237,6 +242,9 @@ export function AshedShell({
               id="hq-app-shell"
               className="flex min-h-0 min-w-0 flex-1 flex-col p-4 md:p-6"
             >
+              {showSetupGuideBanner ? (
+                <AllianceSetupGuideDashboardBanner />
+              ) : null}
               {children}
             </main>
           </div>
