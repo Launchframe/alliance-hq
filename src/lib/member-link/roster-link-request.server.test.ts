@@ -425,6 +425,46 @@ describe("tryRouteRosterMissToOwnerApproval", () => {
       expect(result.pending.requestId).toBeTruthy();
     }
   });
+
+  it("persists the substring suggestion fields on the request row", async () => {
+    await tryRouteRosterMissToOwnerApproval({
+      allianceId: "a1",
+      allianceTag: "LFgo",
+      hqUserId: "u1",
+      locale: "en-US",
+      reportedName: "Mew2407",
+      gameUid: "1234567890121203",
+      lookup: { ok: true, gameUserName: "Mew2407", gameServerNumber: 1203 },
+      suggestedTargetAshedMemberId: "member-mew",
+      suggestionMethod: "substring",
+    });
+
+    expect(dbModule.insertValues).toHaveBeenCalledWith(
+      expect.objectContaining({
+        suggestedTargetAshedMemberId: "member-mew",
+        suggestionMethod: "substring",
+      }),
+    );
+  });
+
+  it("stores null suggestion fields when no suggestion is supplied", async () => {
+    await tryRouteRosterMissToOwnerApproval({
+      allianceId: "a1",
+      allianceTag: "LFgo",
+      hqUserId: "u1",
+      locale: "en-US",
+      reportedName: "Commander",
+      gameUid: "1234567890121203",
+      lookup: { ok: true, gameUserName: "Commander", gameServerNumber: 1203 },
+    });
+
+    expect(dbModule.insertValues).toHaveBeenCalledWith(
+      expect.objectContaining({
+        suggestedTargetAshedMemberId: null,
+        suggestionMethod: null,
+      }),
+    );
+  });
 });
 
 describe("processRosterLinkActionToken", () => {

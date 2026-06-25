@@ -14,6 +14,8 @@ type PendingRequest = {
   gameUidLast4: string;
   gameServerNumber: number | null;
   discordUsername: string | null;
+  suggestedTargetAshedMemberId: string | null;
+  suggestionMethod: string | null;
 };
 
 type RosterMember = {
@@ -34,11 +36,30 @@ export function RosterLinkRequestsClient({
 
   const [requests, setRequests] = useState(initialRequests);
   const [members, setMembers] = useState(initialMembers);
+  // User overrides only. The displayed selection is derived during render so a
+  // suggested match can preselect without a sync effect (and the officer can
+  // still clear or change it). Storing "" here means "officer cleared it".
   const [selectedMemberByRequest, setSelectedMemberByRequest] = useState<
     Record<string, string>
   >({});
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+
+  const memberById = useMemo(
+    () => new Map(members.map((member) => [member.id, member])),
+    [members],
+  );
+
+  function suggestedMemberFor(request: PendingRequest): RosterMember | null {
+    if (!request.suggestedTargetAshedMemberId) return null;
+    return memberById.get(request.suggestedTargetAshedMemberId) ?? null;
+  }
+
+  function effectiveSelection(request: PendingRequest): string {
+    const override = selectedMemberByRequest[request.id];
+    if (override !== undefined) return override;
+    return suggestedMemberFor(request)?.id ?? "";
+  }
 
   async function reload() {
     setError(null);
@@ -145,11 +166,23 @@ export function RosterLinkRequestsClient({
                 </p>
               </div>
 
+              {suggestedMemberFor(request) ? (
+                <p
+                  className="rounded-lg border border-[#9e6a03] bg-[#9e6a031a] px-3 py-2 text-xs text-[#e3b341]"
+                  role="note"
+                >
+                  {t("suggestionBanner", {
+                    suggested: suggestedMemberFor(request)?.current_name ?? "",
+                    gameName: request.gameUserName,
+                  })}
+                </p>
+              ) : null}
+
               <label className="block text-xs text-[#8b949e]">
                 {t("matchLabel")}
                 <select
                   className="mt-1 w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 text-sm text-foreground"
-                  value={selectedMemberByRequest[request.id] ?? ""}
+                  value={effectiveSelection(request)}
                   onChange={(event) =>
                     setSelectedMemberByRequest((prev) => ({
                       ...prev,
@@ -169,12 +202,12 @@ export function RosterLinkRequestsClient({
               <div className="flex flex-col sm:flex-row gap-2">
                 <button
                   type="button"
-                  disabled={busyId === request.id || !selectedMemberByRequest[request.id]}
+                  disabled={busyId === request.id || !effectiveSelection(request)}
                   onClick={() =>
                     void resolve(
                       request.id,
                       "accept",
-                      selectedMemberByRequest[request.id],
+                      effectiveSelection(request),
                     )
                   }
                   className="rounded-lg bg-[#238636] px-4 py-2 text-sm font-medium text-white disabled:opacity-50"

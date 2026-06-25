@@ -1273,6 +1273,10 @@ export const hqRosterLinkRequests = pgTable(
       { onDelete: "set null" },
     ),
     targetAshedMemberId: text("target_ashed_member_id"),
+    /** Officer-confirmable hint only; never an accepted resolution. */
+    suggestedTargetAshedMemberId: text("suggested_target_ashed_member_id"),
+    /** How the suggestion was derived, e.g. "substring". */
+    suggestionMethod: text("suggestion_method"),
     createdMemberId: text("created_member_id"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()

@@ -1168,6 +1168,7 @@
     "originDiscordUnknown": "Usuário do Discord",
     "matchLabel": "Associar ao membro do roster",
     "matchPlaceholder": "Selecione um membro…",
+    "suggestionBanner": "Correspondência sugerida: {suggested}. O Last War mostra {gameName}. Confirme este membro do roster ou escolha outro.",
     "approveMatch": "Aprovar associação",
     "decline": "Recusar"
   },

@@ -19,6 +19,8 @@ export type PendingRosterLinkRequestRow = {
   createdAt: Date;
   discordUsername: string | null;
   requesterHqUserId: string;
+  suggestedTargetAshedMemberId: string | null;
+  suggestionMethod: string | null;
 };
 
 export async function listPendingRosterLinkRequests(
@@ -47,6 +49,8 @@ export async function listPendingRosterLinkRequests(
     createdAt: row.createdAt,
     discordUsername: row.discordUsername,
     requesterHqUserId: row.hqUserId,
+    suggestedTargetAshedMemberId: row.suggestedTargetAshedMemberId,
+    suggestionMethod: row.suggestionMethod,
   }));
 }
 

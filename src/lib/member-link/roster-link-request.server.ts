@@ -169,6 +169,9 @@ export async function createRosterLinkRequest(input: {
   origin?: "web" | "discord";
   discordUserId?: string | null;
   discordUsername?: string | null;
+  /** Officer-confirmable hint only; never an accepted resolution. */
+  suggestedTargetAshedMemberId?: string | null;
+  suggestionMethod?: string | null;
   notifyOwner?: boolean;
 }): Promise<{
   requestId: string;
@@ -193,6 +196,8 @@ export async function createRosterLinkRequest(input: {
     gameUserName: input.gameUserName,
     gameServerNumber: input.gameServerNumber ?? null,
     gameUserLevel: input.gameUserLevel ?? null,
+    suggestedTargetAshedMemberId: input.suggestedTargetAshedMemberId ?? null,
+    suggestionMethod: input.suggestionMethod ?? null,
     status: "pending",
     createdAt: now,
     updatedAt: now,
@@ -576,6 +581,8 @@ export async function tryRouteRosterMissToOwnerApproval(input: {
   reportedName: string;
   gameUid: string;
   lookup: Extract<LastWarPlayerLookupResult, { ok: true }>;
+  suggestedTargetAshedMemberId?: string | null;
+  suggestionMethod?: string | null;
 }): Promise<MemberLinkApiResponse | null> {
   const translate = createMemberLinkTranslator(input.locale);
   const serverGate = await resolveMemberLinkServerGate({
@@ -602,6 +609,8 @@ export async function tryRouteRosterMissToOwnerApproval(input: {
     gameUserName: input.lookup.gameUserName,
     gameServerNumber: serverGate.playerServer,
     gameUserLevel: input.lookup.gameUserLevel,
+    suggestedTargetAshedMemberId: input.suggestedTargetAshedMemberId ?? null,
+    suggestionMethod: input.suggestionMethod ?? null,
   });
 
   return {
@@ -626,6 +635,8 @@ export async function createDiscordRosterMissLinkRequest(input: {
   gameUserName: string;
   gameServerNumber?: number | null;
   gameUserLevel?: number;
+  suggestedTargetAshedMemberId?: string | null;
+  suggestionMethod?: string | null;
 }): Promise<string | null> {
   try {
     const { requestId } = await createRosterLinkRequest({
@@ -641,6 +652,8 @@ export async function createDiscordRosterMissLinkRequest(input: {
       origin: "discord",
       discordUserId: input.discordUserId,
       discordUsername: input.discordUsername ?? null,
+      suggestedTargetAshedMemberId: input.suggestedTargetAshedMemberId ?? null,
+      suggestionMethod: input.suggestionMethod ?? null,
     });
     return requestId;
   } catch (error) {

@@ -222,6 +222,15 @@ export async function lookupPlayerByUid(
     };
   }
 
+  // Decorated in-game name whose roster row is "Mew" (substring single-match).
+  if (process.env.E2E_TEST === "true" && uid.trim() === "1234567890121206") {
+    return {
+      ok: true,
+      gameUserName: "Mew2407",
+      gameServerNumber: 1203,
+    };
+  }
+
   const url = buildLastWarPlayerLookupUrl(uid);
 
   try {

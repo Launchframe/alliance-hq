@@ -602,6 +602,42 @@ export async function createHqMemberLink(
   return { ashedMemberId, gameUid };
 }
 
+export async function createAllianceRosterMember(
+  sql: Sql,
+  input: {
+    allianceId: string;
+    currentName: string;
+    ashedMemberId?: string;
+    status?: string;
+  },
+): Promise<{ ashedMemberId: string }> {
+  const now = new Date();
+  const ashedMemberId = input.ashedMemberId ?? `e2e-roster-${nanoid(12)}`;
+  await sql`
+    INSERT INTO alliance_members (
+      id, alliance_id, ashed_member_id, ashed_alliance_id, current_name,
+      previous_names_json, status, synced_at, created_at, updated_at
+    ) VALUES (
+      ${nanoid(16)},
+      ${input.allianceId},
+      ${ashedMemberId},
+      ${`native-roster:${input.allianceId}`},
+      ${input.currentName},
+      ${sql.json([])},
+      ${input.status ?? "active"},
+      ${now},
+      ${now},
+      ${now}
+    )
+    ON CONFLICT (alliance_id, ashed_member_id) DO UPDATE SET
+      current_name = EXCLUDED.current_name,
+      status = EXCLUDED.status,
+      synced_at = EXCLUDED.synced_at,
+      updated_at = EXCLUDED.updated_at
+  `;
+  return { ashedMemberId };
+}
+
 export async function sessionHasAshedCredential(
   sql: Sql,
   sessionId: string,

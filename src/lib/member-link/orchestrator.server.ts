@@ -33,7 +33,11 @@ import {
   processLinkCommand,
   processLinkFuzzyPick,
 } from "@/lib/vr/link-command";
-import { walkthroughMessage, namesMatch } from "@/lib/vr/link-helpers";
+import {
+  walkthroughMessage,
+  namesMatch,
+  findUniqueSubstringRosterCandidate,
+} from "@/lib/vr/link-helpers";
 import { loadAllianceMembersForMemberLink, loadAllianceMembersForMemberLinkWithLiveRetry } from "@/lib/vr/member-roster";
 import type { MemberLinkRosterSource } from "@/lib/vr/member-roster";
 import { getAllianceById, getLinkedMemberIds } from "@/lib/vr/repository";
@@ -358,6 +362,7 @@ export async function runWebMemberLinkSubmit(input: {
   });
 
   let resolvedResult = result;
+  let finalRosterMembers = rosterLoad.members;
   if (result.needsOfficerAttention) {
     const refreshed = await loadAllianceMembersForMemberLinkWithLiveRetry(
       input.allianceId,
@@ -366,6 +371,7 @@ export async function runWebMemberLinkSubmit(input: {
     if (refreshed.members !== rosterLoad.members) {
       ctx.auditBag.rosterSource = refreshed.rosterSource;
       ctx.auditBag.rosterCount = refreshed.members.length;
+      finalRosterMembers = refreshed.members;
       const retried = processLinkCommand({
         reportedName: name,
         gameUid: uid,
@@ -401,6 +407,11 @@ export async function runWebMemberLinkSubmit(input: {
       return finishMemberLinkSubmit(ctx, bootstrapped);
     }
 
+    const suggestion = findUniqueSubstringRosterCandidate(
+      finalRosterMembers,
+      lookup.gameUserName,
+    );
+
     const routed = await tryRouteRosterMissToOwnerApproval({
       allianceId: input.allianceId,
       allianceTag: alliance?.tag ?? "alliance",
@@ -409,6 +420,8 @@ export async function runWebMemberLinkSubmit(input: {
       reportedName: name,
       gameUid: uid,
       lookup,
+      suggestedTargetAshedMemberId: suggestion?.ashedMemberId ?? null,
+      suggestionMethod: suggestion?.method ?? null,
     });
     if (routed) {
       return finishMemberLinkSubmit(ctx, routed);
