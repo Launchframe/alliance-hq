@@ -1,0 +1,54 @@
+---
+description: Last War player UID is sensitive account-binding data — never display, never reuse for relink without account-level security
+alwaysApply: true
+---
+
+# Player UID privacy
+
+Last War **player UID** (`game_uid`, 12–16 digits) is **sensitive account-binding data**. A leaked UID can enable impersonation. Treat it with the same care as credentials.
+
+## Never display
+
+Do **not** show UID in:
+
+- App UI (profiles, members, admin, onboarding success states, settings)
+- Discord bot replies or embeds
+- Emails, push notifications, or inbox copy
+- Admin lists, exports, or audit UIs
+- Screenshots, bug reports, analytics, or client-side state visible to other users
+- Logs, error messages, or API responses sent to the browser (unless the authenticated user is submitting their own UID on the link form — and even then, do not persist it in client-visible history)
+
+**Exception:** UID may appear in a **private input field** during initial member-link onboarding only. After link succeeds, do not echo it back.
+
+## Storage (do not hash today)
+
+- Store UID in `hq_member_links.game_uid` (and parallel tables) because future features (e.g. Last War store integration) may need the original value.
+- **Do not hash** UID — hashing would break integrations that require the plaintext value.
+- **Future:** encrypt at rest on the user's behalf; still never display in UI.
+- Redact UID in test output, fixtures exposed to users, and diagnostic dumps.
+
+## Relinking after claim
+
+Once a Commander (UID) is **claimed** by an HQ account (`hq_member_links` row exists for that `game_uid` / `ashed_member_id`):
+
+| Allowed | Not allowed |
+| --- | --- |
+| Account-level security to transfer or unlink (password, email confirmation link, owner-approved transfer) | Name + UID flow linking the same Commander to a **different** HQ account |
+| Owner/admin break-glass with audit | Silent relink via `/onboard` or `/api/member-link` POST |
+
+The name+UID member-link path is for **first claim** only. `memberTaken` and equivalent guards must block hijack attempts.
+
+## Implementation checklist
+
+When adding or changing identity/linking code:
+
+1. **UI** — show commander **name** only; never UID in read-only views.
+2. **API** — omit `game_uid` from GET payloads unless the route is server-only and the caller is the linked user performing link (POST body).
+3. **Logs** — log `hq_user_id`, `ashed_member_id`, alliance id; redact UID.
+4. **Tests** — assert DB state directly; do not snapshot UID in golden files or Playwright screenshots.
+5. **Discord** — `/link-commander` accepts UID as a slash option (user types their own); never echo UID in public channel replies.
+
+## Related rules
+
+- [`.cursor/rules/invite-commander-identity.mdc`](invite-commander-identity.mdc) — member-link algorithm, `memberTaken`, onboard flow
+- [`.cursor/rules/discord-identity-auth-layers.mdc`](discord-identity-auth-layers.mdc) — Discord `discord_member_links` parallel binding

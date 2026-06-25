@@ -125,5 +125,7 @@ Legacy sessions (`hqUserId` null): allow-all until reconnect (unchanged). Regula
 
 **Commander vs HQ user vs roster:** Invite accept creates **`alliance_memberships` (RBAC)** only; **`hq_member_links`** is a separate exact UID + roster bind. Three name sources (typed, Last War API, `alliance_members`) must not be fuzzy-merged — see [`.cursor/rules/invite-commander-identity.mdc`](.cursor/rules/invite-commander-identity.mdc).
 
+**Player UID privacy:** treat Last War player UIDs / `game_uid` as sensitive account-binding data — never display them, never log them, and never allow name+UID to relink a claimed Commander without account-level security; see [`.cursor/rules/player-uid-privacy.mdc`](.cursor/rules/player-uid-privacy.mdc).
+
 Detail: [`.cursor/rules/discord-identity-auth-layers.mdc`](.cursor/rules/discord-identity-auth-layers.mdc) (architecture) and [`.cursor/rules/discord-bot-multitenancy.mdc`](.cursor/rules/discord-bot-multitenancy.mdc) (tenant + credentials guardrails).
 
