@@ -14,6 +14,17 @@
 export type PreviewPlacement = "side" | "top" | "bottom";
 export type PreviewDeviceClass = "mobile" | "tablet" | "desktop";
 
+/**
+ * How the (typically portrait) source video is scaled inside the pane:
+ *  - "fit":   whole frame letterboxed within the pane (object-contain)
+ *  - "width": frame scaled so its width fills the pane; the pane scrolls
+ *             vertically. Lets portrait leaderboards read at full row width in
+ *             the short top/bottom docks.
+ */
+export type PreviewZoom = "fit" | "width";
+
+const PREVIEW_ZOOMS: readonly PreviewZoom[] = ["fit", "width"];
+
 /** localStorage key for persisted preview preferences (bump suffix on shape change). */
 export const PREVIEW_PREFS_STORAGE_KEY = "hq-video-preview-prefs-v1";
 
@@ -60,17 +71,24 @@ export function clampPlacement(
 export type PreviewPrefs = {
   open: boolean;
   placement: Record<PreviewDeviceClass, PreviewPlacement>;
+  zoom: PreviewZoom;
 };
 
 export const DEFAULT_PREVIEW_PREFS: PreviewPrefs = {
   open: false,
   placement: { ...DEFAULT_PLACEMENT },
+  zoom: "fit",
 };
+
+/** Coerce a (possibly stale/invalid) zoom into a known value. */
+export function clampZoom(zoom: PreviewZoom | undefined | null): PreviewZoom {
+  return zoom && PREVIEW_ZOOMS.includes(zoom) ? zoom : "fit";
+}
 
 /** Parse persisted prefs defensively, clamping each device's placement. */
 export function parsePreviewPrefs(raw: string | null): PreviewPrefs {
   if (!raw) {
-    return { open: false, placement: { ...DEFAULT_PLACEMENT } };
+    return { open: false, placement: { ...DEFAULT_PLACEMENT }, zoom: "fit" };
   }
   try {
     const parsed = JSON.parse(raw) as Partial<PreviewPrefs> | null;
@@ -84,9 +102,10 @@ export function parsePreviewPrefs(raw: string | null): PreviewPrefs {
         tablet: clampPlacement("tablet", placement.tablet),
         mobile: clampPlacement("mobile", placement.mobile),
       },
+      zoom: clampZoom(parsed?.zoom),
     };
   } catch {
-    return { open: false, placement: { ...DEFAULT_PLACEMENT } };
+    return { open: false, placement: { ...DEFAULT_PLACEMENT }, zoom: "fit" };
   }
 }
 

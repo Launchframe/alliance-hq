@@ -169,8 +169,10 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     placement: previewPlacement,
     available: previewPlacements,
     open: previewOpen,
+    zoom: previewZoom,
     setOpen: setPreviewOpen,
     setPlacement: setPreviewPlacement,
+    setZoom: setPreviewZoom,
   } = useVideoPreviewLayout();
   const [previewSeekRequest, setPreviewSeekRequest] =
     useState<VideoSeekRequest>(null);
@@ -932,6 +934,8 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
       placement={previewPlacement}
       available={previewPlacements}
       onPlacementChange={setPreviewPlacement}
+      zoom={previewZoom}
+      onZoomChange={setPreviewZoom}
       onClose={() => setPreviewOpen(false)}
       unavailable={!hasSourceVideo}
       seekRequest={previewSeekRequest}

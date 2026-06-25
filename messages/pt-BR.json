@@ -2096,6 +2096,8 @@
       "top": "Topo",
       "bottom": "Rodapé"
     },
+    "previewZoomFill": "Ajustar à largura",
+    "previewZoomFit": "Ajustar quadro inteiro",
     "rosterAllianceTarget": "Enviando roster para: {tag}",
     "rosterAllianceTargetNamed": "Enviando roster para: {tag} — {name}",
     "rosterAllianceHint": "Membros novos e correspondidos deste vídeo serão gravados nesta aliança no HQ.",
