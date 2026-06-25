@@ -23,6 +23,7 @@ import { isZeroScoreWarningDisabled } from "@/lib/video/score-targets";
 import type { VideoProcessTimings } from "@/lib/analytics/video-pipeline";
 import { buildMemberMatchSelectOptions } from "@/lib/video/member-select-options";
 import type { ManualRowPosition } from "@/lib/video/manual-row-position";
+import { mergeParsedRowInReviewOrder } from "@/lib/video/parsed-row-review-order";
 import { isVideoProcessTimings } from "@/lib/video/pipeline-stats-display";
 import { VideoPipelineStatsButton } from "@/components/video/VideoPipelineStatsDialog";
 import {
@@ -879,7 +880,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     if (!res.ok) return;
     const data = (await res.json()) as { row: ParsedRow };
     setRows((prev) =>
-      position === "start" ? [data.row, ...prev] : [...prev, data.row],
+      mergeParsedRowInReviewOrder(prev, data.row, scoreTargetMeta?.id),
     );
   }
 

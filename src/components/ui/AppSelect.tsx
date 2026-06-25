@@ -4,6 +4,18 @@ import * as React from "react";
 import { createPortal } from "react-dom";
 import { Check, ChevronDown } from "lucide-react";
 
+import {
+  filterAppSelectOptions,
+  type AppSelectSearchMode,
+} from "@/components/ui/app-select-search";
+
+export type { AppSelectSearchMode } from "@/components/ui/app-select-search";
+export {
+  appSelectOptionFuzzyScore,
+  appSelectOptionMatchesQuery,
+  appSelectOptionSearchText,
+} from "@/components/ui/app-select-search";
+
 export type AppSelectOption = {
   value: string;
   label: React.ReactNode;
@@ -51,18 +63,6 @@ function flattenOptions(
   }
   return options ?? [];
 }
-
-import {
-  filterAppSelectOptions,
-  type AppSelectSearchMode,
-} from "@/components/ui/app-select-search";
-
-export type { AppSelectSearchMode } from "@/components/ui/app-select-search";
-export {
-  appSelectOptionFuzzyScore,
-  appSelectOptionMatchesQuery,
-  appSelectOptionSearchText,
-} from "@/components/ui/app-select-search";
 
 const defaultTriggerClass =
   "flex w-full min-w-0 items-center justify-between gap-2 rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 text-left text-sm text-[#e6edf3] transition-colors hover:bg-[#161b22] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#58a6ff] disabled:cursor-not-allowed disabled:opacity-50";
@@ -212,7 +212,11 @@ export function AppSelect({
     if (option.disabled) return;
     onChange(option.value);
     closeMenu();
-    triggerRef.current?.focus();
+    if (useCombobox) {
+      comboboxInputRef.current?.focus();
+    } else {
+      triggerRef.current?.focus();
+    }
   }
 
   function openMenu() {
