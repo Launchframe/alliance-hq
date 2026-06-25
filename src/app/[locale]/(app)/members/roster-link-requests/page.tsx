@@ -45,6 +45,7 @@ export default async function RosterLinkRequestsPage({
           discordUsername: request.discordUsername,
           suggestedTargetAshedMemberId: request.suggestedTargetAshedMemberId,
           suggestionMethod: request.suggestionMethod,
+          suggestedMatchedRosterName: request.suggestedMatchedRosterName,
         }))}
         initialMembers={
           membersPayload?.members.map((member) => ({
