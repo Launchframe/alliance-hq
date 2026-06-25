@@ -2,7 +2,7 @@ import "server-only";
 
 import { createHash, randomBytes } from "node:crypto";
 
-import { and, desc, eq, gt, inArray, isNull } from "drizzle-orm";
+import { and, desc, eq, gt, inArray, isNull, or } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { writeAuditLog } from "@/lib/bff/audit";
@@ -103,13 +103,20 @@ async function supersedePendingRequests(input: {
 
   // HQ-linked requests supersede by hq user; Discord-only requests (no HQ
   // account) supersede by the Discord user so a member re-running /link does
-  // not stack duplicate pending requests.
-  const subjectFilter = input.hqUserId
-    ? eq(schema.hqRosterLinkRequests.hqUserId, input.hqUserId)
-    : input.discordUserId
+  // not stack duplicate pending requests. When both ids are present (Discord
+  // user linked HQ and re-runs /link), match either so a prior discord-only
+  // pending row is superseded too.
+  const subjectFilters = [
+    input.hqUserId
+      ? eq(schema.hqRosterLinkRequests.hqUserId, input.hqUserId)
+      : null,
+    input.discordUserId
       ? eq(schema.hqRosterLinkRequests.discordUserId, input.discordUserId)
-      : null;
-  if (!subjectFilter) return;
+      : null,
+  ].filter((clause): clause is NonNullable<typeof clause> => clause != null);
+  if (subjectFilters.length === 0) return;
+  const subjectFilter =
+    subjectFilters.length === 1 ? subjectFilters[0]! : or(...subjectFilters);
 
   const whereClause = and(
     eq(schema.hqRosterLinkRequests.allianceId, input.allianceId),

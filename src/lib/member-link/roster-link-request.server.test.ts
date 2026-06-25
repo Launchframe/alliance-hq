@@ -79,7 +79,8 @@ const dbModule = vi.hoisted(() => {
 
   const insertValues = vi.fn().mockResolvedValue(undefined);
   const insert = vi.fn(() => ({ values: insertValues }));
-  const updateSet = vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) });
+  const updateWhere = vi.fn().mockResolvedValue(undefined);
+  const updateSet = vi.fn().mockReturnValue({ where: updateWhere });
   const update = vi.fn(() => ({ set: updateSet }));
 
   return {
@@ -87,6 +88,8 @@ const dbModule = vi.hoisted(() => {
     insert,
     insertValues,
     update,
+    updateSet,
+    updateWhere,
     getDb: vi.fn(() => ({
       select: vi.fn(() => chain),
       insert,
@@ -481,6 +484,10 @@ describe("createDiscordRosterMissLinkRequest", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     dbModule.chain.limit.mockResolvedValue([]);
+    dbModule.chain.then = (
+      onFulfilled?: (value: unknown[]) => unknown,
+      onRejected?: (reason: unknown) => unknown,
+    ) => Promise.resolve([]).then(onFulfilled, onRejected);
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue({ ok: true, text: async () => "" }),
@@ -515,6 +522,30 @@ describe("createDiscordRosterMissLinkRequest", () => {
     );
     // No HQ pending state is written for an unlinked Discord user.
     expect(repository.saveHqMemberLinkPending).not.toHaveBeenCalled();
+  });
+
+  it("supersedes prior discord-only pending when the same user links HQ and retries", async () => {
+    dbModule.chain.then = (
+      onFulfilled?: (value: unknown[]) => unknown,
+      onRejected?: (reason: unknown) => unknown,
+    ) => Promise.resolve([{ id: "prior-req" }]).then(onFulfilled, onRejected);
+
+    await createDiscordRosterMissLinkRequest({
+      allianceId: "a1",
+      allianceTag: "LFgo",
+      discordUserId: "discord-1",
+      discordUsername: "cmdr#1",
+      hqUserId: "hq-1",
+      reportedName: "Mew2407",
+      gameUid: "1234567890121203",
+      gameUserName: "Mew2407",
+      gameServerNumber: 1203,
+    });
+
+    expect(dbModule.update).toHaveBeenCalled();
+    expect(dbModule.updateSet).toHaveBeenCalledWith(
+      expect.objectContaining({ status: "superseded" }),
+    );
   });
 });
 
