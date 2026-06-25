@@ -12,11 +12,6 @@ vi.mock("@/lib/member-link/repository.server", () => ({
   saveHqMemberLinkPending: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock("@/lib/member-link/privileged-link.server", () => ({
-  assertPrivilegedAshedGate: vi.fn().mockResolvedValue({ ok: true }),
-  sessionHasLiveAshedVerification: vi.fn(),
-}));
-
 vi.mock("@/lib/rbac/context", () => ({
   getRbacContext: vi.fn().mockResolvedValue(null),
 }));

@@ -16,9 +16,6 @@ import {
   type MemberLinkApiResponse,
 } from "@/lib/member-link/outcome.shared";
 import {
-  assertPrivilegedAshedGate,
-} from "@/lib/member-link/privileged-link.server";
-import {
   tryBootstrapOwnerColdStartMember,
   tryRouteRosterMissToOwnerApproval,
   getRosterLinkRequestById,
@@ -82,33 +79,6 @@ async function finishMemberLinkSubmit(
     ashedMemberId: ctx.auditBag.ashedMemberId,
   });
   return response;
-}
-
-function ashedVerificationRequiredResponse(
-  locale: string,
-): MemberLinkApiResponse {
-  const { translate } = translateContext(locale);
-  return {
-    outcome: "ashed_verification_required",
-    message: translate("errors.ashedVerificationRequired"),
-    pending: null,
-  };
-}
-
-async function assertWebMemberLinkAllowed(
-  ctx: FlowContext,
-): Promise<MemberLinkApiResponse | null> {
-  const rbac = await getRbacContext(ctx.sessionId);
-  const gate = await assertPrivilegedAshedGate({
-    sessionId: ctx.sessionId,
-    hqUserId: ctx.hqUserId,
-    roleName: rbac?.roleName,
-    isPlatformMaintainer: rbac?.isPlatformMaintainer ?? false,
-  });
-  if (!gate.ok) {
-    return ashedVerificationRequiredResponse(ctx.locale);
-  }
-  return null;
 }
 
 function translateContext(locale: string) {
@@ -261,11 +231,6 @@ export async function runWebMemberLinkSubmit(input: {
     displayName: input.displayName,
     auditBag: createAuditBag(),
   };
-
-  const gateBlocked = await assertWebMemberLinkAllowed(ctx);
-  if (gateBlocked) {
-    return finishMemberLinkSubmit(ctx, gateBlocked);
-  }
 
   const { translate, walkthroughSteps } = translateContext(input.locale);
   const pendingRow = await getHqMemberLinkPending(input.allianceId, input.hqUserId);
@@ -519,11 +484,6 @@ export async function runWebMemberLinkFuzzyPick(input: {
     displayName: input.displayName,
   });
 
-  const gateBlocked = await assertWebMemberLinkAllowed(ctx);
-  if (gateBlocked) {
-    return gateBlocked;
-  }
-
   const { translate } = translateContext(input.locale);
   const pendingRow = await getHqMemberLinkPending(input.allianceId, input.hqUserId);
   const pending = pendingRow?.pending;
@@ -567,11 +527,6 @@ export async function runWebMemberLinkAskOfficer(input: {
     displayName: input.displayName,
   });
 
-  const gate = await assertWebMemberLinkAllowed(ctx);
-  if (gate) {
-    return gate;
-  }
-
   const existingLink = await getHqMemberLinkForUser(input.allianceId, input.hqUserId);
   if (existingLink) {
     const translate = createMemberLinkTranslator(input.locale);
@@ -609,13 +564,6 @@ export async function getWebMemberLinkStatus(input: {
   locale: string;
 }) {
   const rbac = await getRbacContext(input.sessionId);
-  const requiresAshedVerification =
-    (await assertPrivilegedAshedGate({
-      sessionId: input.sessionId,
-      hqUserId: input.hqUserId,
-      roleName: rbac?.roleName,
-      isPlatformMaintainer: rbac?.isPlatformMaintainer ?? false,
-    })).ok === false;
 
   const link = await getHqMemberLinkForUser(input.allianceId, input.hqUserId);
   const pendingRow = await getHqMemberLinkPending(input.allianceId, input.hqUserId);
@@ -651,7 +599,6 @@ export async function getWebMemberLinkStatus(input: {
     linked: effectiveLink != null,
     link: effectiveLink,
     pending,
-    requiresAshedVerification,
     privilegedRole: rbac?.roleName ?? null,
     isPlatformMaintainer: rbac?.isPlatformMaintainer ?? false,
   };

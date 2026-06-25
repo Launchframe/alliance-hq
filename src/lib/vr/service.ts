@@ -27,6 +27,7 @@ import {
   listDiscordLinksForUser,
   listSeasonVrRows,
   linkDiscordMember,
+  maybeClaimNativeOwnerFromDiscordLink,
   resolveSeasonKey,
   saveDiscordBotPending,
   upsertMemberSeasonVr,
@@ -148,6 +149,19 @@ async function persistLinkTarget(input: {
     } catch (error) {
       console.error("[discord-bot] member level sync failed", error);
     }
+  }
+
+  // Conservatively claim native-alliance ownership when this link is the sole
+  // active R5 and no owner is recorded yet, so a Discord-only owner can later
+  // register the guild without completing HQ-web onboarding first. No-op for
+  // Ashed-sourced alliances or when ownership is ambiguous/already set.
+  try {
+    await maybeClaimNativeOwnerFromDiscordLink({
+      allianceId: input.allianceId,
+      ashedMemberId: input.linkTarget.ashedMemberId,
+    });
+  } catch (error) {
+    console.error("[discord-bot] native owner claim failed", error);
   }
 
   return {

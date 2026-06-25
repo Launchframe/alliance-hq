@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   evaluateGuildRegistrationAuth,
   type GuildRegistrationAuth,
+  nativeOwnerClaimMemberId,
   ownerProvenByMemberLink,
 } from "@/lib/vr/discord-guild-registration";
 
@@ -123,5 +124,73 @@ describe("ownerProvenByMemberLink", () => {
         linkedMemberIds: ["owner-member-1"],
       }),
     ).toBe(false);
+  });
+});
+
+describe("nativeOwnerClaimMemberId", () => {
+  it("claims the sole active R5 in a native alliance with no owner set", () => {
+    expect(
+      nativeOwnerClaimMemberId({
+        isNative: true,
+        ownerAlreadySet: false,
+        linkedAshedMemberId: "member-1",
+        activeR5MemberIds: ["member-1"],
+      }),
+    ).toBe("member-1");
+  });
+
+  it("does not claim for Ashed-sourced alliances", () => {
+    expect(
+      nativeOwnerClaimMemberId({
+        isNative: false,
+        ownerAlreadySet: false,
+        linkedAshedMemberId: "member-1",
+        activeR5MemberIds: ["member-1"],
+      }),
+    ).toBeNull();
+  });
+
+  it("does not claim when an owner is already recorded", () => {
+    expect(
+      nativeOwnerClaimMemberId({
+        isNative: true,
+        ownerAlreadySet: true,
+        linkedAshedMemberId: "member-1",
+        activeR5MemberIds: ["member-1"],
+      }),
+    ).toBeNull();
+  });
+
+  it("does not claim when the R5 set is ambiguous (multiple R5s)", () => {
+    expect(
+      nativeOwnerClaimMemberId({
+        isNative: true,
+        ownerAlreadySet: false,
+        linkedAshedMemberId: "member-1",
+        activeR5MemberIds: ["member-1", "member-2"],
+      }),
+    ).toBeNull();
+  });
+
+  it("does not claim when there are no active R5 members", () => {
+    expect(
+      nativeOwnerClaimMemberId({
+        isNative: true,
+        ownerAlreadySet: false,
+        linkedAshedMemberId: "member-1",
+        activeR5MemberIds: [],
+      }),
+    ).toBeNull();
+  });
+
+  it("does not claim when the linked member is not the sole R5", () => {
+    expect(
+      nativeOwnerClaimMemberId({
+        isNative: true,
+        ownerAlreadySet: false,
+        linkedAshedMemberId: "member-9",
+        activeR5MemberIds: ["member-1"],
+      }),
+    ).toBeNull();
   });
 });
