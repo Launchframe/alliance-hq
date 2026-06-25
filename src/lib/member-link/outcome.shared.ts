@@ -9,12 +9,17 @@ export type MemberLinkOutcome =
   | "awaiting_owner"
   | "wrong_server"
   | "lookup_error"
+  | "lookup_fallback"
+  | "name_mismatch"
+  | "confirm_server"
   | "usage"
   | "member_taken"
   | "pick_expired"
   | "officer_notified"
   | "ashed_verification_required"
   | "roster_unavailable";
+
+export type MemberLinkServerConfirmReason = "missing" | "mismatch";
 
 export type MemberLinkApiResponse = {
   outcome: MemberLinkOutcome;
@@ -23,6 +28,10 @@ export type MemberLinkApiResponse = {
   candidates?: Array<{ memberId: string; name: string }>;
   walkthroughStep?: number;
   linkedMemberName?: string;
+  lookupGameUserName?: string;
+  lookupServerNumber?: number | null;
+  allianceServerNumber?: number | null;
+  serverConfirmReason?: MemberLinkServerConfirmReason;
 };
 
 export function toMemberLinkApiResponse(

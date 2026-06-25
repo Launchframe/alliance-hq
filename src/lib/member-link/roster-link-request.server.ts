@@ -6,11 +6,17 @@ import { and, desc, eq, gt, inArray, isNull } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { writeAuditLog } from "@/lib/bff/audit";
+import { emitMemberLinkUidTakenAlert } from "@/lib/events/admin-alerts";
 import { getDb, schema } from "@/lib/db";
-import { resolveAllianceGameServerNumber } from "@/lib/game-season/game-servers.server";
+import { resolveAllianceGameServerNumber, linkAllianceToGameServer } from "@/lib/game-season/game-servers.server";
+import { applySeasonSync } from "@/lib/game-season/sync";
 import type { LastWarPlayerLookupResult } from "@/lib/lastwar/player-lookup";
+import { parseGameServerNumberFromUid } from "@/lib/lastwar/player-lookup";
 import { syncAllianceMemberGameLevelFromLastWar } from "@/lib/lastwar/sync-member-game-level.server";
-import type { MemberLinkApiResponse } from "@/lib/member-link/outcome.shared";
+import type {
+  MemberLinkApiResponse,
+  MemberLinkServerConfirmReason,
+} from "@/lib/member-link/outcome.shared";
 import {
   linkHqMember,
   saveHqMemberLinkPending,
@@ -272,6 +278,144 @@ async function resolveColdStartOwnerGate(input: {
   return { allowed: false };
 }
 
+export async function isOwnerColdStartEligible(input: {
+  allianceId: string;
+  hqUserId: string;
+  rosterCount: number;
+}): Promise<boolean> {
+  if (!(await isNativeAlliance(input.allianceId))) {
+    return false;
+  }
+  if (input.rosterCount > 0) {
+    return false;
+  }
+  const ownerGate = await resolveColdStartOwnerGate({
+    allianceId: input.allianceId,
+    hqUserId: input.hqUserId,
+  });
+  return ownerGate.allowed;
+}
+
+type OwnerColdStartServerResolution =
+  | { ok: true; serverNumber: number; adoptedAllianceServer: boolean }
+  | { ok: false; response: MemberLinkApiResponse };
+
+async function resolveOwnerColdStartServer(input: {
+  allianceId: string;
+  gameUid: string;
+  lookup: Extract<LastWarPlayerLookupResult, { ok: true }>;
+  ownerProvidedServerNumber?: number;
+  translate: ReturnType<typeof createMemberLinkTranslator>;
+}): Promise<OwnerColdStartServerResolution> {
+  const allianceServer = await resolveAllianceGameServerNumber(input.allianceId);
+  const lookupServer =
+    input.lookup.gameServerNumber ??
+    parseGameServerNumberFromUid(input.gameUid) ??
+    null;
+
+  if (input.ownerProvidedServerNumber != null) {
+    const server = input.ownerProvidedServerNumber;
+    if (allianceServer === null || allianceServer !== server) {
+      await linkAllianceToGameServer(input.allianceId, server);
+      await applySeasonSync(input.allianceId);
+      return {
+        ok: true,
+        serverNumber: server,
+        adoptedAllianceServer: allianceServer === null,
+      };
+    }
+    return {
+      ok: true,
+      serverNumber: server,
+      adoptedAllianceServer: false,
+    };
+  }
+
+  if (lookupServer == null) {
+    return {
+      ok: false,
+      response: buildConfirmServerResponse({
+        translate: input.translate,
+        reason: "missing",
+        lookupServerNumber: null,
+        allianceServerNumber: allianceServer,
+      }),
+    };
+  }
+
+  if (allianceServer === null) {
+    await linkAllianceToGameServer(input.allianceId, lookupServer);
+    await applySeasonSync(input.allianceId);
+    return {
+      ok: true,
+      serverNumber: lookupServer,
+      adoptedAllianceServer: true,
+    };
+  }
+
+  if (allianceServer !== lookupServer) {
+    return {
+      ok: false,
+      response: buildConfirmServerResponse({
+        translate: input.translate,
+        reason: "mismatch",
+        lookupServerNumber: lookupServer,
+        allianceServerNumber: allianceServer,
+      }),
+    };
+  }
+
+  return {
+    ok: true,
+    serverNumber: lookupServer,
+    adoptedAllianceServer: false,
+  };
+}
+
+function buildConfirmServerResponse(input: {
+  translate: ReturnType<typeof createMemberLinkTranslator>;
+  reason: MemberLinkServerConfirmReason;
+  lookupServerNumber: number | null;
+  allianceServerNumber: number | null;
+}): MemberLinkApiResponse {
+  const message =
+    input.reason === "missing"
+      ? input.translate("confirmServerMissing")
+      : input.translate("confirmServerMismatch", {
+          lookupServer: input.lookupServerNumber ?? "—",
+          allianceServer: input.allianceServerNumber ?? "—",
+        });
+
+  return {
+    outcome: "confirm_server",
+    message,
+    pending: null,
+    serverConfirmReason: input.reason,
+    lookupServerNumber: input.lookupServerNumber,
+    allianceServerNumber: input.allianceServerNumber,
+  };
+}
+
+async function notifyMemberLinkUidTaken(input: {
+  allianceId: string;
+  gameUid: string;
+  hqUserId: string;
+  handle: string;
+}): Promise<void> {
+  const allianceTag = await loadAllianceTag(input.allianceId);
+  try {
+    await emitMemberLinkUidTakenAlert({
+      allianceId: input.allianceId,
+      allianceTag,
+      gameUid: input.gameUid,
+      hqUserId: input.hqUserId,
+      handle: input.handle,
+    });
+  } catch (error) {
+    console.error("[member-link] uid-taken admin alert failed", error);
+  }
+}
+
 export async function tryBootstrapOwnerColdStartMember(input: {
   allianceId: string;
   hqUserId: string;
@@ -282,6 +426,8 @@ export async function tryBootstrapOwnerColdStartMember(input: {
   rosterCount: number;
   sessionId?: string;
   auditBag?: { ashedMemberId?: string };
+  ownerProvidedServerNumber?: number;
+  handle?: string;
 }): Promise<MemberLinkApiResponse | null> {
   if (!(await isNativeAlliance(input.allianceId))) {
     return null;
@@ -292,14 +438,6 @@ export async function tryBootstrapOwnerColdStartMember(input: {
   }
 
   const translate = createMemberLinkTranslator(input.locale);
-  const serverGate = await resolveMemberLinkServerGate({
-    allianceId: input.allianceId,
-    lookup: input.lookup,
-    translate,
-  });
-  if (!serverGate.ok) {
-    return serverGate.response;
-  }
 
   const ownerGate = await resolveColdStartOwnerGate({
     allianceId: input.allianceId,
@@ -312,6 +450,20 @@ export async function tryBootstrapOwnerColdStartMember(input: {
   if (!namesMatch(input.reportedName, input.lookup.gameUserName)) {
     return null;
   }
+
+  const serverResolution = await resolveOwnerColdStartServer({
+    allianceId: input.allianceId,
+    gameUid: input.gameUid,
+    lookup: input.lookup,
+    ownerProvidedServerNumber: input.ownerProvidedServerNumber,
+    translate,
+  });
+  if (!serverResolution.ok) {
+    return serverResolution.response;
+  }
+
+  const playerServer = serverResolution.serverNumber;
+  const adoptedAllianceServer = serverResolution.adoptedAllianceServer;
 
   const ashedMemberId = await createNativeAllianceMemberForRosterLink({
     allianceId: input.allianceId,
@@ -328,6 +480,14 @@ export async function tryBootstrapOwnerColdStartMember(input: {
   });
 
   if (!linked.ok) {
+    if (input.handle) {
+      await notifyMemberLinkUidTaken({
+        allianceId: input.allianceId,
+        gameUid: input.gameUid,
+        hqUserId: input.hqUserId,
+        handle: input.handle,
+      });
+    }
     return {
       outcome: "member_taken",
       message: translate("link.memberTaken"),
@@ -364,6 +524,8 @@ export async function tryBootstrapOwnerColdStartMember(input: {
         ashedMemberId,
         gameUid: input.gameUid,
         inviteId: ownerGate.inviteId ?? null,
+        gameServerNumber: playerServer,
+        adoptedAllianceServer,
       },
     });
   }

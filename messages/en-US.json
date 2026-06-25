@@ -371,17 +371,26 @@
       },
       "table": {
         "alliance": "Alliance",
+        "server": "State server",
         "owner": "Owner email",
         "collaborators": "Collaborators",
         "members": "HQ members",
         "synced": "Roles synced",
         "nativeBadge": "Native"
+      },
+      "serverColumn": {
+        "placeholder": "e.g. 1203",
+        "inputLabel": "State server number for {name}",
+        "save": "Save",
+        "saving": "Saving…",
+        "invalid": "Enter a valid server number.",
+        "saveFailed": "Could not update server number."
       }
     },
     "nativeAlliance": {
       "title": "Native alliance (tester path)",
       "subtitle": "Provision an alliance without Ashed seats. Officers import roster screenshots after accepting an invite.",
-      "inviteServerRequiredNote": "Set the alliance state server under Alliance settings → Game season before generating HQ invites. Native alliances without a linked game_servers row are blocked (422 alliance_server_required).",
+      "inviteServerRequiredNote": "Send an owner invite first — the state server is set automatically when the owner links their in-game character (name + UID). Officer and member invites require that step to finish first.",
       "name": "Alliance name",
       "tag": "In-game tag",
       "ownerEmailOptional": "Owner email (optional — creates membership immediately)",
@@ -2364,7 +2373,11 @@
     },
     "officerNotified": "An officer has been notified on Alliance HQ. They can reach out to help you link.",
     "wrongServer": "Your player UID is for a different state server than this alliance. Double-check you joined the right alliance, or ask your R5 for the correct invite.",
-    "awaitingOwner": "We've notified your alliance owner by email. Watch for an approval message, then return here to finish linking."
+    "awaitingOwner": "We've notified your alliance owner by email. Watch for an approval message, then return here to finish linking.",
+    "nameMismatchRetry": "Last War shows your name as {gameName}. Copy it exactly and try again.",
+    "confirmServerMissing": "We couldn't read your state server from Last War. Enter your alliance's state server number.",
+    "confirmServerMismatch": "Last War shows server {lookupServer}, but this alliance is set to {allianceServer}. Enter the correct state server number for your alliance.",
+    "lookupFallback": "We couldn't reach Last War right now. Enter your state server number to continue — you can correct alliance settings later."
   },
   "onboard": {
     "title": "Link your character",
@@ -2398,7 +2411,22 @@
     "connectAshedCta": "Connect Ashed",
     "connectAshedDismiss": "Not now",
     "wrongAlliance": "Wrong alliance?",
-    "wrongAllianceHint": "Clears this onboarding session. Your membership stays — sign in with another account or redeem a different join code."
+    "wrongAllianceHint": "Clears this onboarding session. Your membership stays — sign in with another account or redeem a different join code.",
+    "nameMismatchTitle": "Name didn't match",
+    "nameMismatchHint": "Update your in-game name to match Last War exactly, then submit again.",
+    "useSuggestedName": "Use suggested name",
+    "confirmServerTitle": "Confirm state server",
+    "confirmServerMissingBody": "Enter the state server number for your alliance. You can change this later in alliance settings.",
+    "confirmServerMismatchBody": "If the alliance server below is wrong, enter the correct state server number.",
+    "lookupFallbackTitle": "Last War lookup unavailable",
+    "lookupFallbackBody": "Enter your state server number to finish onboarding. We'll use the name and UID you entered.",
+    "serverNumberLabel": "State server number",
+    "serverNumberHint": "e.g. 1203 — the state your alliance plays on.",
+    "serverNumberRequired": "Enter your state server number.",
+    "serverNumberInvalid": "Enter a valid server number (1–9999).",
+    "submitServer": "Continue with this server",
+    "backToForm": "Back to name and UID",
+    "memberTakenBody": "That UID is already linked to another HQ account. Platform admins have been notified — try a different account or contact support."
   },
   "discordBot": {
     "errors": {

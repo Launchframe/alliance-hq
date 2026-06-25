@@ -63,4 +63,42 @@ describe("createHqInvite", () => {
       }),
     ).rejects.toBeInstanceOf(AllianceServerRequiredError);
   });
+
+  it("allows owner invite before alliance server is linked", async () => {
+    let selectCalls = 0;
+    const insertValues = vi.fn().mockReturnValue({
+      onConflictDoNothing: vi.fn().mockResolvedValue(undefined),
+    });
+    vi.mocked(getDb).mockReturnValue({
+      select: vi.fn(() => ({
+        from: vi.fn(() => ({
+          where: vi.fn(() => ({
+            limit: vi.fn(() => {
+              selectCalls += 1;
+              if (selectCalls === 1) {
+                return Promise.resolve([{ id: "role-owner" }]);
+              }
+              if (selectCalls === 2) {
+                return Promise.resolve([{ id: "alliance-1" }]);
+              }
+              return Promise.resolve([]);
+            }),
+          })),
+        })),
+      })),
+      insert: vi.fn(() => ({ values: insertValues })),
+    } as never);
+
+    const result = await createHqInvite({
+      allianceId: "alliance-1",
+      kind: "protected_link",
+      roleName: "owner",
+      invitedByHqUserId: "user-1",
+      origin: "https://hq.test",
+    });
+
+    expect(result.roleName).toBe("owner");
+    expect(resolveAllianceGameServerNumber).not.toHaveBeenCalled();
+    expect(insertValues).toHaveBeenCalled();
+  });
 });

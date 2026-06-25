@@ -175,7 +175,9 @@ export async function createHqInvite(
     throw new Error("Alliance not found.");
   }
 
-  await assertAllianceLinkedGameServer(input.allianceId);
+  if (input.roleName !== "owner") {
+    await assertAllianceLinkedGameServer(input.allianceId);
+  }
 
   let email: string | null = null;
   let passphrase: string | undefined;

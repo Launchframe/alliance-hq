@@ -1,6 +1,6 @@
 import "server-only";
 
-import { emitAdminAlert } from "@/lib/events/admin-alerts";
+import { emitAdminAlert, emitMemberLinkUidTakenAlert } from "@/lib/events/admin-alerts";
 import { lookupPlayerByUid } from "@/lib/lastwar/player-lookup";
 import { syncAllianceMemberGameLevelFromLastWar } from "@/lib/lastwar/sync-member-game-level.server";
 import {
@@ -21,6 +21,7 @@ import {
   tryBootstrapOwnerColdStartMember,
   tryRouteRosterMissToOwnerApproval,
   getRosterLinkRequestById,
+  isOwnerColdStartEligible,
 } from "@/lib/member-link/roster-link-request.server";
 import {
   createMemberLinkTranslator,
@@ -34,7 +35,7 @@ import {
   processLinkCommand,
   processLinkFuzzyPick,
 } from "@/lib/vr/link-command";
-import { walkthroughMessage } from "@/lib/vr/link-helpers";
+import { walkthroughMessage, namesMatch } from "@/lib/vr/link-helpers";
 import { loadAllianceMembersForMemberLink } from "@/lib/vr/member-roster";
 import type { MemberLinkRosterSource } from "@/lib/vr/member-roster";
 import { getAllianceById, getLinkedMemberIds } from "@/lib/vr/repository";
@@ -138,6 +139,20 @@ async function persistHqLinkTarget(
   });
 
   if (!linked.ok) {
+    const handle =
+      ctx.displayName?.trim() || ctx.userEmail?.trim() || ctx.hqUserId;
+    const alliance = await getAllianceById(ctx.allianceId);
+    try {
+      await emitMemberLinkUidTakenAlert({
+        allianceId: ctx.allianceId,
+        allianceTag: alliance?.tag ?? "alliance",
+        gameUid: linkTarget.gameUid,
+        hqUserId: ctx.hqUserId,
+        handle,
+      });
+    } catch (error) {
+      console.error("[member-link] uid-taken admin alert failed", error);
+    }
     return toMemberLinkApiResponse(
       { reply: translate("link.memberTaken"), pending: null },
       { memberTaken: true },
@@ -221,6 +236,8 @@ export async function runWebMemberLinkSubmit(input: {
   displayName?: string | null;
   reportedName?: string;
   gameUid?: string;
+  ownerProvidedServerNumber?: number;
+  ownerLookupFallback?: boolean;
 }): Promise<MemberLinkApiResponse> {
   const ctx: FlowContext = {
     sessionId: input.sessionId,
@@ -277,8 +294,60 @@ export async function runWebMemberLinkSubmit(input: {
     );
   }
 
+  const [rosterLoad, linkedMemberIds, alliance] = await Promise.all([
+    loadAllianceMembersForMemberLink(input.allianceId),
+    getLinkedMemberIds(input.allianceId),
+    getAllianceById(input.allianceId),
+  ]);
+  ctx.auditBag.rosterSource = rosterLoad.rosterSource;
+  ctx.auditBag.rosterCount = rosterLoad.members.length;
+
+  const ownerColdStartEligible = await isOwnerColdStartEligible({
+    allianceId: input.allianceId,
+    hqUserId: input.hqUserId,
+    rosterCount: rosterLoad.members.length,
+  });
+
+  const linkHandle =
+    input.displayName?.trim() || input.userEmail?.trim() || input.hqUserId;
+
+  if (
+    input.ownerLookupFallback &&
+    input.ownerProvidedServerNumber != null &&
+    ownerColdStartEligible
+  ) {
+    const bootstrapped = await tryBootstrapOwnerColdStartMember({
+      allianceId: input.allianceId,
+      hqUserId: input.hqUserId,
+      locale: input.locale,
+      reportedName: name,
+      gameUid: uid,
+      lookup: {
+        ok: true,
+        gameUserName: name,
+        gameServerNumber: input.ownerProvidedServerNumber,
+      },
+      rosterCount: rosterLoad.members.length,
+      sessionId: input.sessionId,
+      auditBag: ctx.auditBag,
+      ownerProvidedServerNumber: input.ownerProvidedServerNumber,
+      handle: linkHandle,
+    });
+    if (bootstrapped) {
+      return finishMemberLinkSubmit(ctx, bootstrapped);
+    }
+  }
+
   const lookup = await lookupPlayerByUid(uid);
   if (!lookup.ok) {
+    if (lookup.reason === "request_failed" && ownerColdStartEligible) {
+      await saveHqMemberLinkPending(input.allianceId, input.hqUserId, null);
+      return finishMemberLinkSubmit(ctx, {
+        outcome: "lookup_fallback",
+        message: translate("lookupFallback"),
+        pending: null,
+      });
+    }
     await saveHqMemberLinkPending(input.allianceId, input.hqUserId, null);
     return finishMemberLinkSubmit(
       ctx,
@@ -289,13 +358,14 @@ export async function runWebMemberLinkSubmit(input: {
     );
   }
 
-  const [rosterLoad, linkedMemberIds, alliance] = await Promise.all([
-    loadAllianceMembersForMemberLink(input.allianceId),
-    getLinkedMemberIds(input.allianceId),
-    getAllianceById(input.allianceId),
-  ]);
-  ctx.auditBag.rosterSource = rosterLoad.rosterSource;
-  ctx.auditBag.rosterCount = rosterLoad.members.length;
+  if (!namesMatch(name, lookup.gameUserName)) {
+    return finishMemberLinkSubmit(ctx, {
+      outcome: "name_mismatch",
+      message: translate("nameMismatchRetry", { gameName: lookup.gameUserName }),
+      pending: null,
+      lookupGameUserName: lookup.gameUserName,
+    });
+  }
 
   const result = processLinkCommand({
     reportedName: name,
@@ -320,6 +390,8 @@ export async function runWebMemberLinkSubmit(input: {
       rosterCount: rosterLoad.members.length,
       sessionId: input.sessionId,
       auditBag: ctx.auditBag,
+      ownerProvidedServerNumber: input.ownerProvidedServerNumber,
+      handle: linkHandle,
     });
     if (bootstrapped) {
       return finishMemberLinkSubmit(ctx, bootstrapped);

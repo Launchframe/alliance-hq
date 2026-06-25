@@ -27,6 +27,7 @@ export async function GET(request: Request) {
     alliances: result.alliances.map((alliance) => ({
       ...alliance,
       operatingMode: alliance.operatingMode,
+      gameServerNumber: alliance.gameServerNumber ?? null,
       rolesSyncedAt: alliance.rolesSyncedAt?.toISOString() ?? null,
       createdAt: alliance.createdAt.toISOString(),
       updatedAt: alliance.updatedAt.toISOString(),
