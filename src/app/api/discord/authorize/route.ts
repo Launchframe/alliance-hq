@@ -13,11 +13,8 @@ import { resolveTokenExpiresAt } from "@/lib/jwt/connection-meta";
 import { isTokenExpired } from "@/lib/jwt/decode";
 import { syncAshedAllianceForBot } from "@/lib/rbac/sync-ashed-roles";
 import { getOrCreateSession } from "@/lib/session";
-import {
-  getGuildAllianceId,
-  getDiscordUserLocale,
-  upsertAllianceAshedCredential,
-} from "@/lib/vr/repository";
+import { getDiscordUserLocale, upsertAllianceAshedCredential } from "@/lib/vr/repository";
+import { resolveAllianceIdForDiscordMemberLink } from "@/lib/vr/resolve-member-link-alliance.server";
 import {
   consumeDiscordAuthNonce,
   getValidDiscordAuthNonce,
@@ -80,12 +77,17 @@ export async function POST(request: Request) {
       );
     }
 
-    const allianceId = await getGuildAllianceId(guildId);
+    const allianceId = await resolveAllianceIdForDiscordMemberLink({
+      guildId,
+      discordUserId: nonceRow.discordUserId,
+      reportedName,
+      gameUid,
+    });
     if (!allianceId) {
       return NextResponse.json(
         {
           error:
-            "This Discord server is not linked to an alliance yet. Ask the owner to run `/link-alliance` first.",
+            "Could not determine your alliance for this server. If you are the alliance owner, try `/link name:… uid:…` in Discord, then run `/link-alliance tag:YourTag`. Otherwise ask the owner to register the server.",
         },
         { status: 422 },
       );
