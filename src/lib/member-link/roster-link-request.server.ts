@@ -93,35 +93,41 @@ export async function getRosterLinkRequestById(requestId: string) {
   return row ?? null;
 }
 
-async function supersedePendingRequests(
-  allianceId: string,
-  hqUserId: string,
-): Promise<void> {
+async function supersedePendingRequests(input: {
+  allianceId: string;
+  hqUserId: string | null;
+  discordUserId?: string | null;
+}): Promise<void> {
   const db = getDb();
   const now = new Date();
+
+  // HQ-linked requests supersede by hq user; Discord-only requests (no HQ
+  // account) supersede by the Discord user so a member re-running /link does
+  // not stack duplicate pending requests.
+  const subjectFilter = input.hqUserId
+    ? eq(schema.hqRosterLinkRequests.hqUserId, input.hqUserId)
+    : input.discordUserId
+      ? eq(schema.hqRosterLinkRequests.discordUserId, input.discordUserId)
+      : null;
+  if (!subjectFilter) return;
+
+  const whereClause = and(
+    eq(schema.hqRosterLinkRequests.allianceId, input.allianceId),
+    subjectFilter,
+    eq(schema.hqRosterLinkRequests.status, "pending"),
+  );
+
   const pending = await db
     .select({ id: schema.hqRosterLinkRequests.id })
     .from(schema.hqRosterLinkRequests)
-    .where(
-      and(
-        eq(schema.hqRosterLinkRequests.allianceId, allianceId),
-        eq(schema.hqRosterLinkRequests.hqUserId, hqUserId),
-        eq(schema.hqRosterLinkRequests.status, "pending"),
-      ),
-    );
+    .where(whereClause);
 
   if (pending.length === 0) return;
 
   await db
     .update(schema.hqRosterLinkRequests)
     .set({ status: "superseded", updatedAt: now })
-    .where(
-      and(
-        eq(schema.hqRosterLinkRequests.allianceId, allianceId),
-        eq(schema.hqRosterLinkRequests.hqUserId, hqUserId),
-        eq(schema.hqRosterLinkRequests.status, "pending"),
-      ),
-    );
+    .where(whereClause);
 
   for (const row of pending) {
     await satisfyRosterLinkInboxItem(row.id);
@@ -159,7 +165,8 @@ async function insertActionTokens(
 export async function createRosterLinkRequest(input: {
   allianceId: string;
   allianceTag: string;
-  hqUserId: string;
+  /** Null for Discord-origin requests created before the user links an HQ account. */
+  hqUserId: string | null;
   inviteId?: string | null;
   reportedName: string;
   gameUid: string;
@@ -172,6 +179,7 @@ export async function createRosterLinkRequest(input: {
   /** Officer-confirmable hint only; never an accepted resolution. */
   suggestedTargetAshedMemberId?: string | null;
   suggestionMethod?: string | null;
+  suggestedMatchedRosterName?: string | null;
   notifyOwner?: boolean;
 }): Promise<{
   requestId: string;
@@ -180,13 +188,17 @@ export async function createRosterLinkRequest(input: {
 }> {
   const db = getDb();
   const now = new Date();
-  await supersedePendingRequests(input.allianceId, input.hqUserId);
+  await supersedePendingRequests({
+    allianceId: input.allianceId,
+    hqUserId: input.hqUserId,
+    discordUserId: input.discordUserId ?? null,
+  });
 
   const requestId = nanoid();
   await db.insert(schema.hqRosterLinkRequests).values({
     id: requestId,
     allianceId: input.allianceId,
-    hqUserId: input.hqUserId,
+    hqUserId: input.hqUserId ?? null,
     inviteId: input.inviteId ?? null,
     origin: input.origin ?? "web",
     discordUserId: input.discordUserId ?? null,
@@ -198,6 +210,7 @@ export async function createRosterLinkRequest(input: {
     gameUserLevel: input.gameUserLevel ?? null,
     suggestedTargetAshedMemberId: input.suggestedTargetAshedMemberId ?? null,
     suggestionMethod: input.suggestionMethod ?? null,
+    suggestedMatchedRosterName: input.suggestedMatchedRosterName ?? null,
     status: "pending",
     createdAt: now,
     updatedAt: now,
@@ -205,7 +218,7 @@ export async function createRosterLinkRequest(input: {
 
   const tokens = await insertActionTokens(requestId);
 
-  if ((input.origin ?? "web") === "web") {
+  if ((input.origin ?? "web") === "web" && input.hqUserId) {
     await saveHqMemberLinkPending(input.allianceId, input.hqUserId, {
       kind: "link_awaiting_owner",
       requestId,
@@ -583,6 +596,7 @@ export async function tryRouteRosterMissToOwnerApproval(input: {
   lookup: Extract<LastWarPlayerLookupResult, { ok: true }>;
   suggestedTargetAshedMemberId?: string | null;
   suggestionMethod?: string | null;
+  suggestedMatchedRosterName?: string | null;
 }): Promise<MemberLinkApiResponse | null> {
   const translate = createMemberLinkTranslator(input.locale);
   const serverGate = await resolveMemberLinkServerGate({
@@ -611,6 +625,7 @@ export async function tryRouteRosterMissToOwnerApproval(input: {
     gameUserLevel: input.lookup.gameUserLevel,
     suggestedTargetAshedMemberId: input.suggestedTargetAshedMemberId ?? null,
     suggestionMethod: input.suggestionMethod ?? null,
+    suggestedMatchedRosterName: input.suggestedMatchedRosterName ?? null,
   });
 
   return {
@@ -629,7 +644,8 @@ export async function createDiscordRosterMissLinkRequest(input: {
   allianceTag: string;
   discordUserId: string;
   discordUsername?: string | null;
-  hqUserId: string;
+  /** Null when the Discord user has not linked an HQ account yet. */
+  hqUserId?: string | null;
   reportedName: string;
   gameUid: string;
   gameUserName: string;
@@ -637,12 +653,13 @@ export async function createDiscordRosterMissLinkRequest(input: {
   gameUserLevel?: number;
   suggestedTargetAshedMemberId?: string | null;
   suggestionMethod?: string | null;
+  suggestedMatchedRosterName?: string | null;
 }): Promise<string | null> {
   try {
     const { requestId } = await createRosterLinkRequest({
       allianceId: input.allianceId,
       allianceTag: input.allianceTag,
-      hqUserId: input.hqUserId,
+      hqUserId: input.hqUserId ?? null,
       inviteId: null,
       reportedName: input.reportedName,
       gameUid: input.gameUid,
@@ -654,6 +671,7 @@ export async function createDiscordRosterMissLinkRequest(input: {
       discordUsername: input.discordUsername ?? null,
       suggestedTargetAshedMemberId: input.suggestedTargetAshedMemberId ?? null,
       suggestionMethod: input.suggestionMethod ?? null,
+      suggestedMatchedRosterName: input.suggestedMatchedRosterName ?? null,
     });
     return requestId;
   } catch (error) {
@@ -713,6 +731,8 @@ async function notifyInviteeOnResolve(
   request: typeof schema.hqRosterLinkRequests.$inferSelect,
   accepted: boolean,
 ): Promise<void> {
+  // Discord-only requests have no HQ user / email to notify.
+  if (!request.hqUserId) return;
   const email = await loadHqUserEmail(request.hqUserId);
   if (!email) return;
   const allianceTag = await loadAllianceTag(request.allianceId);
@@ -782,7 +802,7 @@ export async function acceptRosterLinkRequest(input: {
     if (!linked.ok) {
       return { ok: false, reason: linked.reason };
     }
-  } else {
+  } else if (request.hqUserId) {
     const linked = await linkHqMember({
       allianceId: request.allianceId,
       hqUserId: request.hqUserId,
@@ -796,6 +816,8 @@ export async function acceptRosterLinkRequest(input: {
     }
 
     await syncPrimaryGameUidFromHqMemberLink(request.hqUserId, request.gameUid);
+  } else {
+    return { ok: false, reason: "missing_link_subject" };
   }
 
   if (request.gameUserLevel != null) {
@@ -832,7 +854,9 @@ export async function acceptRosterLinkRequest(input: {
       ),
     );
 
-  await saveHqMemberLinkPending(request.allianceId, request.hqUserId, null);
+  if (request.hqUserId) {
+    await saveHqMemberLinkPending(request.allianceId, request.hqUserId, null);
+  }
   await satisfyRosterLinkInboxItem(request.id);
   await notifyInviteeOnResolve(request, true);
 
@@ -893,7 +917,9 @@ export async function rejectRosterLinkRequest(input: {
       ),
     );
 
-  await saveHqMemberLinkPending(request.allianceId, request.hqUserId, null);
+  if (request.hqUserId) {
+    await saveHqMemberLinkPending(request.allianceId, request.hqUserId, null);
+  }
   await satisfyRosterLinkInboxItem(request.id);
   await notifyInviteeOnResolve(request, false);
 

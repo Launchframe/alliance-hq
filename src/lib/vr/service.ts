@@ -307,29 +307,38 @@ export async function handleDiscordLinkCommanderSlash(input: {
   }
 
   if (resolvedResult.needsOfficerAttention && lookup.ok) {
+    // Route to the officer roster-link queue whether or not the Discord user
+    // has an HQ account. Without an HQ link the request is created with a null
+    // hqUserId; officers resolve it by binding the Discord member to a roster
+    // member. The substring suggestion is computed in both cases.
     const hqLink = await getDiscordHqLink(input.discordUserId);
-    if (hqLink?.hqUserId) {
-      const suggestion = findUniqueSubstringRosterCandidate(
-        finalRosterMembers,
-        lookup.gameUserName,
-      );
-      await createDiscordRosterMissLinkRequest({
-        allianceId: input.allianceId,
-        allianceTag: alliance?.tag ?? "alliance",
-        discordUserId: input.discordUserId,
-        discordUsername: input.discordUsername,
-        hqUserId: hqLink.hqUserId,
-        reportedName: name,
-        gameUid: uid,
-        gameUserName: lookup.gameUserName,
-        gameServerNumber: lookup.gameServerNumber,
-        gameUserLevel: lookup.gameUserLevel,
-        suggestedTargetAshedMemberId: suggestion?.ashedMemberId ?? null,
-        suggestionMethod: suggestion?.method ?? null,
-      });
+    const suggestion = findUniqueSubstringRosterCandidate(
+      finalRosterMembers,
+      lookup.gameUserName,
+    );
+    const requestId = await createDiscordRosterMissLinkRequest({
+      allianceId: input.allianceId,
+      allianceTag: alliance?.tag ?? "alliance",
+      discordUserId: input.discordUserId,
+      discordUsername: input.discordUsername,
+      hqUserId: hqLink?.hqUserId ?? null,
+      reportedName: name,
+      gameUid: uid,
+      gameUserName: lookup.gameUserName,
+      gameServerNumber: lookup.gameServerNumber,
+      gameUserLevel: lookup.gameUserLevel,
+      suggestedTargetAshedMemberId: suggestion?.ashedMemberId ?? null,
+      suggestionMethod: suggestion?.method ?? null,
+      suggestedMatchedRosterName: suggestion?.matchedRosterName ?? null,
+    });
+    if (requestId) {
       resolvedResult = {
         ...resolvedResult,
-        reply: translate("link.awaitingOfficerResolve"),
+        reply: translate(
+          hqLink?.hqUserId
+            ? "link.awaitingOfficerResolve"
+            : "link.awaitingOfficerResolveNoHq",
+        ),
       };
     }
     await emitAdminAlert({
