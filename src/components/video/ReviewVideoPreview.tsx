@@ -85,7 +85,12 @@ export function ReviewVideoPreview({
     "z-30 flex flex-col bg-black",
     placement === "side" &&
       "sticky w-[min(45vw,26rem)] shrink-0 self-start border-l border-[#30363d]",
-    placement === "top" && "sticky w-full border-b border-[#30363d]",
+    // Top dock is full-bleed: negative margins cancel the app shell's content
+    // padding (main = p-4 / md:p-6) so it spans the full width of the content
+    // area and sits flush under the sticky header instead of being inset. The
+    // flex parent stretches it to that wider box; no fixed width needed.
+    placement === "top" &&
+      "sticky -mx-4 -mt-4 border-b border-[#30363d] md:-mx-6 md:-mt-6",
     placement === "bottom" && "fixed inset-x-0 bottom-0 border-t border-[#30363d]",
   );
 
