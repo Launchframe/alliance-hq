@@ -75,7 +75,7 @@ export type PreviewPrefs = {
 };
 
 export const DEFAULT_PREVIEW_PREFS: PreviewPrefs = {
-  open: false,
+  open: true,
   placement: { ...DEFAULT_PLACEMENT },
   zoom: "fit",
 };
@@ -88,7 +88,7 @@ export function clampZoom(zoom: PreviewZoom | undefined | null): PreviewZoom {
 /** Parse persisted prefs defensively, clamping each device's placement. */
 export function parsePreviewPrefs(raw: string | null): PreviewPrefs {
   if (!raw) {
-    return { open: false, placement: { ...DEFAULT_PLACEMENT }, zoom: "fit" };
+    return { open: true, placement: { ...DEFAULT_PLACEMENT }, zoom: "fit" };
   }
   try {
     const parsed = JSON.parse(raw) as Partial<PreviewPrefs> | null;
@@ -96,7 +96,7 @@ export function parsePreviewPrefs(raw: string | null): PreviewPrefs {
       Record<PreviewDeviceClass, PreviewPlacement>
     >;
     return {
-      open: typeof parsed?.open === "boolean" ? parsed.open : false,
+      open: typeof parsed?.open === "boolean" ? parsed.open : true,
       placement: {
         desktop: clampPlacement("desktop", placement.desktop),
         tablet: clampPlacement("tablet", placement.tablet),
@@ -105,7 +105,7 @@ export function parsePreviewPrefs(raw: string | null): PreviewPrefs {
       zoom: clampZoom(parsed?.zoom),
     };
   } catch {
-    return { open: false, placement: { ...DEFAULT_PLACEMENT }, zoom: "fit" };
+    return { open: true, placement: { ...DEFAULT_PLACEMENT }, zoom: "fit" };
   }
 }
 

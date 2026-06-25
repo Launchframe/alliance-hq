@@ -66,8 +66,8 @@ export function ReviewVideoPreview({
     const seekTo = seekRequest.seconds;
     const applySeek = () => {
       try {
+        el.pause();
         el.currentTime = seekTo;
-        void el.play().catch(() => undefined);
       } catch {
         // ignore seek failures (e.g. unbuffered range)
       }
@@ -83,8 +83,11 @@ export function ReviewVideoPreview({
 
   const containerClass = cn(
     "z-30 flex flex-col bg-black",
+    // Side dock hugs the right viewport edge: negative right margin cancels the
+    // app shell's content padding (main = p-4 / md:p-6) so the pane spans to the
+    // edge instead of leaving a padding gap on its right.
     placement === "side" &&
-      "sticky w-[min(45vw,26rem)] shrink-0 self-start border-l border-[#30363d]",
+      "sticky w-[min(45vw,26rem)] shrink-0 self-start border-l border-[#30363d] -mr-4 md:-mr-6",
     // Top dock is full-bleed: negative margins cancel the app shell's content
     // padding (main = p-4 / md:p-6) so it spans the full width of the content
     // area and sits flush under the sticky header instead of being inset. The

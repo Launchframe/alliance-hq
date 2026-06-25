@@ -67,12 +67,12 @@ describe("clampZoom", () => {
 describe("parsePreviewPrefs", () => {
   it("returns defaults for empty/invalid input", () => {
     expect(parsePreviewPrefs(null)).toEqual({
-      open: false,
+      open: true,
       placement: { ...DEFAULT_PLACEMENT },
       zoom: "fit",
     });
     expect(parsePreviewPrefs("not json")).toEqual({
-      open: false,
+      open: true,
       placement: { ...DEFAULT_PLACEMENT },
       zoom: "fit",
     });
