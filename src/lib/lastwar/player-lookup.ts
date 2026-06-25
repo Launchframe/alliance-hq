@@ -186,12 +186,24 @@ export async function lookupPlayerByUid(
     };
   }
 
-  if (process.env.E2E_TEST === "true" && uid.trim() === "1234567890121203") {
-    return {
-      ok: true,
-      gameUserName: "ColdStartOwner",
-      gameServerNumber: 1203,
-    };
+  if (process.env.E2E_TEST === "true") {
+    const trimmedUid = uid.trim();
+    if (trimmedUid === "1234567890121203") {
+      return {
+        ok: true,
+        gameUserName: "ColdStartOwner",
+        gameServerNumber: 1203,
+      };
+    }
+    const ownerOnboardingMatch = trimmedUid.match(/^1234567890(\d{4})$/);
+    if (ownerOnboardingMatch) {
+      const gameServerNumber = Number.parseInt(ownerOnboardingMatch[1]!, 10);
+      return {
+        ok: true,
+        gameUserName: "E2eNativeOwner",
+        gameServerNumber,
+      };
+    }
   }
 
   const url = buildLastWarPlayerLookupUrl(uid);
