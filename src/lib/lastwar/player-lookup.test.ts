@@ -128,19 +128,13 @@ describe("lookupPlayerByUid E2E fixtures", () => {
       gameServerNumber: 1203,
     });
   });
-});
 
-describe("lookupPlayerByUid E2E fixtures", () => {
-  afterEach(() => {
-    vi.unstubAllEnvs();
-  });
-
-  it("returns a deterministic player when E2E_TEST is enabled", async () => {
+  it("returns owner onboarding player with server encoded in UID suffix", async () => {
     vi.stubEnv("E2E_TEST", "true");
-    await expect(lookupPlayerByUid("1234567890121203")).resolves.toEqual({
+    await expect(lookupPlayerByUid("12345678901847")).resolves.toEqual({
       ok: true,
-      gameUserName: "ColdStartOwner",
-      gameServerNumber: 1203,
+      gameUserName: "E2eNativeOwner",
+      gameServerNumber: 1847,
     });
   });
 });
