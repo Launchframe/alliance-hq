@@ -13,6 +13,7 @@ import {
   type PreviewDeviceClass,
   type PreviewPlacement,
   type PreviewPrefs,
+  type PreviewZoom,
 } from "@/lib/video/preview-layout";
 
 export type VideoPreviewLayout = {
@@ -21,8 +22,10 @@ export type VideoPreviewLayout = {
   placement: PreviewPlacement;
   available: PreviewPlacement[];
   open: boolean;
+  zoom: PreviewZoom;
   setOpen: (next: boolean | ((open: boolean) => boolean)) => void;
   setPlacement: (placement: PreviewPlacement) => void;
+  setZoom: (next: PreviewZoom | ((zoom: PreviewZoom) => PreviewZoom)) => void;
 };
 
 // --- Viewport (device class) external store -------------------------------
@@ -130,12 +133,23 @@ export function useVideoPreviewLayout(): VideoPreviewLayout {
     [device],
   );
 
+  const setZoom = useCallback(
+    (next: PreviewZoom | ((zoom: PreviewZoom) => PreviewZoom)) => {
+      const current = readPrefs();
+      const zoom = typeof next === "function" ? next(current.zoom) : next;
+      writePrefs({ ...current, zoom });
+    },
+    [],
+  );
+
   return {
     device,
     placement: clampPlacement(device, prefs.placement[device]),
     available: availablePlacements(device),
     open: prefs.open,
+    zoom: prefs.zoom,
     setOpen,
     setPlacement,
+    setZoom,
   };
 }

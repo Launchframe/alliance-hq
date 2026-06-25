@@ -2122,6 +2122,8 @@
       "top": "Top",
       "bottom": "Bottom"
     },
+    "previewZoomFill": "Fit width",
+    "previewZoomFit": "Fit whole frame",
     "rosterAllianceTarget": "Uploading roster into: {tag}",
     "rosterAllianceTargetNamed": "Uploading roster into: {tag} — {name}",
     "rosterAllianceHint": "New and matched members from this video will be written to this alliance in HQ.",

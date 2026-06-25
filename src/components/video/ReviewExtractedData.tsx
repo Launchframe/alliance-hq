@@ -1,7 +1,7 @@
 "use client";
 
 import { useLocale, useTranslations } from "next-intl";
-import { Video } from "lucide-react";
+import { Crosshair, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Link, useRouter } from "@/i18n/navigation";
@@ -169,9 +169,12 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     placement: previewPlacement,
     available: previewPlacements,
     open: previewOpen,
+    zoom: previewZoom,
     setOpen: setPreviewOpen,
     setPlacement: setPreviewPlacement,
+    setZoom: setPreviewZoom,
   } = useVideoPreviewLayout();
+  const previewAutoOpenedForJobRef = useRef<string | null>(null);
   const [previewSeekRequest, setPreviewSeekRequest] =
     useState<VideoSeekRequest>(null);
   const [frameTimestamps, setFrameTimestamps] = useState<FrameTimestampMap>({});
@@ -610,6 +613,16 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     [frameTimestamps, setPreviewOpen],
   );
 
+  // Open the source preview when landing on a review job that has video (once per
+  // job visit). Users can still close it during the session; revisiting or
+  // refreshing the page opens it again.
+  useEffect(() => {
+    if (!hasSourceVideo) return;
+    if (previewAutoOpenedForJobRef.current === jobId) return;
+    previewAutoOpenedForJobRef.current = jobId;
+    setPreviewOpen(true);
+  }, [hasSourceVideo, jobId, setPreviewOpen]);
+
   const matchedCount = activeRows.filter((r) => r.memberId).length;
 
   const scoreDuplicateMemberIssues = useMemo(
@@ -932,6 +945,8 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
       placement={previewPlacement}
       available={previewPlacements}
       onPlacementChange={setPreviewPlacement}
+      zoom={previewZoom}
+      onZoomChange={setPreviewZoom}
       onClose={() => setPreviewOpen(false)}
       unavailable={!hasSourceVideo}
       seekRequest={previewSeekRequest}
@@ -1101,7 +1116,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
       ) : null}
 
       {!scoreTargetMeta?.showRosterColumns ? (
-      <div className="grid gap-4 rounded-xl border border-[#30363d] bg-[#161b22] p-4 sm:grid-cols-3">
+      <div className="grid gap-4 rounded-xl border border-[#30363d] bg-[#161b22] p-4 sm:grid-cols-[repeat(auto-fit,minmax(12rem,1fr))]">
         {needsEventPicker ? (
           <label className="block text-sm sm:col-span-2">
             <span className="mb-1 block text-[#8b949e]">{t("eventLabel")}</span>
@@ -1301,26 +1316,23 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
       </div>
 
       <div className="overflow-x-auto rounded-xl border border-[#30363d]">
-        <table className="min-w-full text-sm">
+        <table className="w-full min-w-full text-sm">
           <thead className="bg-[#161b22] text-left text-[#8b949e]">
             <tr>
-              <th className="px-4 py-3">{t("colName")}</th>
-              <th className="px-4 py-3">{t("colMember")}</th>
-              {scoreTargetMeta?.showRosterColumns ? (
-                <>
-                  <th className="px-4 py-3">{t("colAllianceRank")}</th>
-                  <th className="px-4 py-3">{t("colPower")}</th>
-                  <th className="px-4 py-3">{t("colLevel")}</th>
-                  <th className="px-4 py-3">{t("colProfession")}</th>
-                </>
-              ) : null}
               {scoreTargetMeta?.showRankColumn ? (
-                <th className="px-4 py-3">{t("colRank")}</th>
+                <th className="w-14 px-3 py-3">{t("colRank")}</th>
               ) : null}
+              <th className="px-3 py-3">{t("colName")}</th>
+              <th className="min-w-[11rem] px-3 py-3">{t("colMember")}</th>
               {scoreTargetMeta?.showScoreColumn !== false ? (
-                <th className="px-4 py-3">{t("colScore")}</th>
+                <th className="px-3 py-3">{t("colScore")}</th>
               ) : null}
-              <th className="px-4 py-3" />
+              <th className="w-10 px-2 py-3">
+                <span className="sr-only">{t("rowVideoPreview")}</span>
+              </th>
+              <th className="w-10 px-2 py-3">
+                <span className="sr-only">{t("deleteRow")}</span>
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -1338,8 +1350,29 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
 
               return (
               <tr key={row.id} className={rowClass}>
-                <td className="px-4 py-3 font-medium">
-                  <div>{row.ocrName}</div>
+                {scoreTargetMeta?.showRankColumn ? (
+                  <td className="px-3 py-3 align-top">
+                    <input
+                      type="number"
+                      min={1}
+                      max={3}
+                      value={row.rank ?? ""}
+                      onChange={(e) =>
+                        updateRow(row.id, {
+                          rank: e.target.value
+                            ? Number(e.target.value)
+                            : null,
+                        })
+                      }
+                      aria-label={t("colRank")}
+                      className="w-12 rounded-lg border border-[#30363d] bg-[#0d1117] px-2 py-1.5"
+                    />
+                  </td>
+                ) : null}
+                <td className="max-w-[9rem] px-3 py-3 align-top font-medium">
+                  <div className="truncate" title={row.ocrName}>
+                    {row.ocrName}
+                  </div>
                   {row.scoreConflict ? (
                     <p className="mt-1 text-xs text-[#d29922]">
                       {t("scoreConflictRow")}
@@ -1351,7 +1384,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                     </p>
                   ) : null}
                 </td>
-                <td className="px-4 py-3">
+                <td className="min-w-[11rem] px-3 py-3 align-top">
                   <AppSelect
                     value={row.memberId ?? ""}
                     onChange={(next) => {
@@ -1377,44 +1410,8 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                     })}
                   />
                 </td>
-                {scoreTargetMeta?.showRosterColumns ? (
-                  <>
-                    <td className="px-4 py-3">
-                      {row.rosterRankRaw ??
-                        (row.allianceRank != null ? `R${row.allianceRank}` : "—")}
-                      {row.allianceRankTitle ? (
-                        <p className="mt-1 text-xs text-[#8b949e]">
-                          {row.allianceRankTitle}
-                        </p>
-                      ) : null}
-                    </td>
-                    <td className="px-4 py-3">{row.powerLevel ?? "—"}</td>
-                    <td className="px-4 py-3">
-                      {row.memberLevel != null ? row.memberLevel : "—"}
-                    </td>
-                    <td className="px-4 py-3">{row.profession ?? "—"}</td>
-                  </>
-                ) : null}
-                {scoreTargetMeta?.showRankColumn ? (
-                  <td className="px-4 py-3">
-                    <input
-                      type="number"
-                      min={1}
-                      max={3}
-                      value={row.rank ?? ""}
-                      onChange={(e) =>
-                        updateRow(row.id, {
-                          rank: e.target.value
-                            ? Number(e.target.value)
-                            : null,
-                        })
-                      }
-                      className="w-16 rounded-lg border border-[#30363d] bg-[#0d1117] px-2 py-1.5"
-                    />
-                  </td>
-                ) : null}
                 {scoreTargetMeta?.showScoreColumn !== false ? (
-                <td className="px-4 py-3">
+                <td className="px-3 py-3 align-top">
                   {(() => {
                     const scoreText = row.score ?? "";
                     const scoreNum = parseFloat(
@@ -1456,29 +1453,29 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                   })()}
                 </td>
                 ) : null}
-                <td className="px-4 py-3">
-                  <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:gap-3">
-                    {rowCanVideoPreview ? (
-                      <button
-                        type="button"
-                        onClick={() => openRowVideoPreview(row)}
-                        className="inline-flex items-center gap-1.5 text-[#58a6ff] hover:underline"
-                        aria-label={t("rowVideoPreview")}
-                      >
-                        <Video className="h-4 w-4 shrink-0" aria-hidden />
-                        <span className="hidden sm:inline">
-                          {t("rowVideoPreview")}
-                        </span>
-                      </button>
-                    ) : null}
+                <td className="px-2 py-3 align-top">
+                  {rowCanVideoPreview ? (
                     <button
                       type="button"
-                      onClick={() => deleteRow(row.id)}
-                      className="text-[#f85149] hover:underline"
+                      onClick={() => openRowVideoPreview(row)}
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-md text-[#58a6ff] hover:bg-[#21262d]"
+                      title={t("rowVideoPreview")}
+                      aria-label={t("rowVideoPreview")}
                     >
-                      {t("deleteRow")}
+                      <Crosshair className="h-4 w-4" aria-hidden />
                     </button>
-                  </div>
+                  ) : null}
+                </td>
+                <td className="px-2 py-3 align-top">
+                  <button
+                    type="button"
+                    onClick={() => deleteRow(row.id)}
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-md text-[#f85149] hover:bg-[#21262d]"
+                    title={t("deleteRow")}
+                    aria-label={t("deleteRow")}
+                  >
+                    <Trash2 className="h-4 w-4" aria-hidden />
+                  </button>
                 </td>
               </tr>
               );
