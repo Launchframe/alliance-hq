@@ -30,21 +30,29 @@ function actionUrl(token: string): string {
   return `${resolveAppOrigin()}/api/roster-link-requests/action?token=${encodeURIComponent(token)}`;
 }
 
+function resolveRequestUrl(requestId: string): string {
+  return `${resolveAppOrigin()}/members/roster-link-requests?request=${encodeURIComponent(requestId)}`;
+}
+
 export function buildRosterLinkOwnerEmail(input: {
   allianceTag: string;
   gameUserName: string;
   reportedName: string;
   gameUid: string;
-  gameServerNumber: number;
-  acceptToken: string;
+  gameServerNumber: number | null;
+  requestId: string;
   rejectToken: string;
   /** Reminder emails rotate tokens; prior Approve/Decline links stop working. */
   isReminder?: boolean;
 }): { subject: string; html: string; text: string } {
-  const acceptHref = actionUrl(input.acceptToken);
+  const acceptHref = resolveRequestUrl(input.requestId);
   const rejectHref = actionUrl(input.rejectToken);
   const subject = `Approve roster link for ${input.gameUserName} (${input.allianceTag})`;
-  const intro = `A player accepted your HQ invite but is not on the ${input.allianceTag} roster yet. Last War shows their commander as ${input.gameUserName} on server ${input.gameServerNumber}. They submitted the name "${input.reportedName}".`;
+  const serverLine =
+    input.gameServerNumber != null
+      ? `server ${input.gameServerNumber}`
+      : "server unknown";
+  const intro = `A player accepted your HQ invite but is not on the ${input.allianceTag} roster yet. Last War shows their commander as ${input.gameUserName} on ${serverLine}. They submitted the name "${input.reportedName}".`;
   const linkRotationNote = input.isReminder
     ? "This is a reminder — use only the Approve and Decline links in this email. Links from earlier messages about this request no longer work."
     : "If we send another email about this request, use only the newest Approve and Decline links — older links stop working when we resend.";
@@ -178,10 +186,11 @@ export async function resolveAllianceOwnerEmail(
 export async function sendRosterLinkOwnerApprovalEmail(input: {
   allianceId: string;
   allianceTag: string;
+  requestId: string;
   gameUserName: string;
   reportedName: string;
   gameUid: string;
-  gameServerNumber: number;
+  gameServerNumber: number | null;
   acceptToken: string;
   rejectToken: string;
   isReminder?: boolean;

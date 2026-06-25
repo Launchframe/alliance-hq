@@ -250,6 +250,7 @@ export async function POST(request: Request, { params }: Props) {
         sessionId: session.id,
         hqUserId: ctx.hqUserId,
         parseSessionId: job.parseSessionId,
+        ashedConnection: await getAshedConnection(session.id),
       });
 
       await db

@@ -311,6 +311,14 @@ export function MembersListView({
             </Link>
           )}
           {canEditRanks && (
+            <Link
+              href="/members/roster-link-requests"
+              className="w-full rounded-lg border border-[#30363d] px-4 py-2 text-center text-sm text-[#e6edf3] hover:bg-[#21262d] sm:w-auto"
+            >
+              {t("rosterLinkRequests")}
+            </Link>
+          )}
+          {canEditRanks && (
             <button
               type="button"
               onClick={() => (editMode ? exitEditMode() : setEditMode(true))}

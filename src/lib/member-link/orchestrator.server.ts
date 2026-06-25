@@ -34,7 +34,7 @@ import {
   processLinkFuzzyPick,
 } from "@/lib/vr/link-command";
 import { walkthroughMessage, namesMatch } from "@/lib/vr/link-helpers";
-import { loadAllianceMembersForMemberLink } from "@/lib/vr/member-roster";
+import { loadAllianceMembersForMemberLink, loadAllianceMembersForMemberLinkWithLiveRetry } from "@/lib/vr/member-roster";
 import type { MemberLinkRosterSource } from "@/lib/vr/member-roster";
 import { getAllianceById, getLinkedMemberIds } from "@/lib/vr/repository";
 import type { LinkCommandResult, LinkPendingState } from "@/lib/vr/types";
@@ -357,7 +357,33 @@ export async function runWebMemberLinkSubmit(input: {
     allianceTag: alliance?.tag ?? null,
   });
 
+  let resolvedResult = result;
   if (result.needsOfficerAttention) {
+    const refreshed = await loadAllianceMembersForMemberLinkWithLiveRetry(
+      input.allianceId,
+      lookup.gameUserName,
+    );
+    if (refreshed.members !== rosterLoad.members) {
+      ctx.auditBag.rosterSource = refreshed.rosterSource;
+      ctx.auditBag.rosterCount = refreshed.members.length;
+      const retried = processLinkCommand({
+        reportedName: name,
+        gameUid: uid,
+        lookup,
+        members: refreshed.members,
+        linkedMemberIds,
+        pending,
+        translate,
+        walkthroughSteps,
+        allianceTag: alliance?.tag ?? null,
+      });
+      if (!retried.needsOfficerAttention) {
+        resolvedResult = retried;
+      }
+    }
+  }
+
+  if (resolvedResult.needsOfficerAttention) {
     const bootstrapped = await tryBootstrapOwnerColdStartMember({
       allianceId: input.allianceId,
       hqUserId: input.hqUserId,
@@ -389,7 +415,7 @@ export async function runWebMemberLinkSubmit(input: {
     }
   }
 
-  return finishMemberLinkSubmit(ctx, await finalizeCommandResult(ctx, result));
+  return finishMemberLinkSubmit(ctx, await finalizeCommandResult(ctx, resolvedResult));
 }
 
 export async function runWebMemberLinkWalkthroughDone(input: {

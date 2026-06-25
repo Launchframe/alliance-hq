@@ -15,11 +15,16 @@ import {
   processLinkFuzzyPick,
 } from "@/lib/vr/link-command";
 import { advanceLinkWalkthrough, walkthroughMessage } from "@/lib/vr/link-helpers";
-import { loadAllianceMembersForBot } from "@/lib/vr/member-roster";
+import { createDiscordRosterMissLinkRequest } from "@/lib/member-link/roster-link-request.server";
+import {
+  loadAllianceMembersForBot,
+  loadAllianceMembersForMemberLinkWithLiveRetry,
+} from "@/lib/vr/member-roster";
 import {
   countSeasonReporters,
   getAllianceById,
   getDiscordBotPending,
+  getDiscordHqLink,
   getDiscordLinkById,
   getGuildAllianceId,
   getLinkedMemberIds,
@@ -243,6 +248,30 @@ export async function handleDiscordLinkCommanderSlash(input: {
     allianceTag: alliance?.tag ?? null,
   });
 
+  let resolvedResult = result;
+  if (result.needsOfficerAttention && lookup.ok) {
+    const refreshed = await loadAllianceMembersForMemberLinkWithLiveRetry(
+      input.allianceId,
+      lookup.gameUserName,
+    );
+    if (refreshed.members !== members) {
+      const retried = processLinkCommand({
+        reportedName: name,
+        gameUid: uid,
+        lookup,
+        members: refreshed.members,
+        linkedMemberIds,
+        pending: pending as LinkPendingState | null,
+        translate,
+        walkthroughSteps,
+        allianceTag: alliance?.tag ?? null,
+      });
+      if (!retried.needsOfficerAttention) {
+        resolvedResult = retried;
+      }
+    }
+  }
+
   const linkDiagnostics = {
     memberCount: members.length,
     allianceTag: alliance?.tag ?? null,
@@ -250,35 +279,47 @@ export async function handleDiscordLinkCommanderSlash(input: {
     gameUserName: lookup.ok ? lookup.gameUserName : null,
   };
 
-  if ("linkTarget" in result && result.linkTarget) {
+  if ("linkTarget" in resolvedResult && resolvedResult.linkTarget) {
     const persisted = await persistLinkTarget({
       allianceId: input.allianceId,
       discordUserId: input.discordUserId,
       discordUsername: input.discordUsername,
-      linkTarget: result.linkTarget,
+      linkTarget: resolvedResult.linkTarget,
       replaceAll: input.replaceAll,
       translate,
     });
     await saveDiscordBotPending(input.allianceId, input.discordUserId, null);
-    if (result.needsOfficerAttention) {
-      await emitAdminAlert({
-        type: "vr_link_attention",
-        count: 1,
-        handles: [input.discordUsername ?? input.discordUserId],
-      });
-    }
     await audit(input.allianceId, input.discordUserId, "link", input, {
       ...persisted,
       diagnostics: linkDiagnostics,
     });
     return persisted;
-  } else if (result.pending) {
-    await saveDiscordBotPending(input.allianceId, input.discordUserId, result.pending);
+  } else if (resolvedResult.pending) {
+    await saveDiscordBotPending(input.allianceId, input.discordUserId, resolvedResult.pending);
   } else {
     await saveDiscordBotPending(input.allianceId, input.discordUserId, null);
   }
 
-  if (result.needsOfficerAttention) {
+  if (resolvedResult.needsOfficerAttention && lookup.ok) {
+    const hqLink = await getDiscordHqLink(input.discordUserId);
+    if (hqLink?.hqUserId) {
+      await createDiscordRosterMissLinkRequest({
+        allianceId: input.allianceId,
+        allianceTag: alliance?.tag ?? "alliance",
+        discordUserId: input.discordUserId,
+        discordUsername: input.discordUsername,
+        hqUserId: hqLink.hqUserId,
+        reportedName: name,
+        gameUid: uid,
+        gameUserName: lookup.gameUserName,
+        gameServerNumber: lookup.gameServerNumber,
+        gameUserLevel: lookup.gameUserLevel,
+      });
+      resolvedResult = {
+        ...resolvedResult,
+        reply: translate("link.awaitingOfficerResolve"),
+      };
+    }
     await emitAdminAlert({
       type: "vr_link_attention",
       count: 1,
@@ -287,10 +328,10 @@ export async function handleDiscordLinkCommanderSlash(input: {
   }
 
   await audit(input.allianceId, input.discordUserId, "link", input, {
-    ...result,
+    ...resolvedResult,
     diagnostics: linkDiagnostics,
   });
-  return result;
+  return resolvedResult;
 }
 
 /** @deprecated Use handleDiscordLinkCommanderSlash */

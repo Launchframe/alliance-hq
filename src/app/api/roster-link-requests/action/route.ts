@@ -6,13 +6,21 @@ function renderHtml(result: {
   title: string;
   body: string;
   ok: boolean;
+  redirectUrl?: string;
 }): string {
   const accent = result.ok ? "#238636" : "#da3633";
+  const redirectMeta = result.redirectUrl
+    ? `<meta http-equiv="refresh" content="2;url=${escapeHtml(result.redirectUrl)}" />`
+    : "";
+  const redirectLink = result.redirectUrl
+    ? `<p style="margin-top:1rem;"><a href="${escapeHtml(result.redirectUrl)}" style="color:#58a6ff;">Continue in Alliance HQ</a></p>`
+    : "";
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  ${redirectMeta}
   <title>${escapeHtml(result.title)} — Alliance HQ</title>
   <style>
     body { font-family: system-ui, sans-serif; background: #0d1117; color: #e6edf3; margin: 0; padding: 2rem; }
@@ -25,6 +33,7 @@ function renderHtml(result: {
   <main>
     <h1>${escapeHtml(result.title)}</h1>
     <p>${escapeHtml(result.body)}</p>
+    ${redirectLink}
   </main>
 </body>
 </html>`;

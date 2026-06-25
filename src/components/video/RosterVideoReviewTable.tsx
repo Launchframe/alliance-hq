@@ -19,6 +19,14 @@ import {
   duplicateMemberRowIds,
   findDuplicateMemberAssignments,
 } from "@/lib/video/review-validation";
+import {
+  findFuzzyMemberCandidates,
+  type AshedMember,
+} from "@/lib/video/member-matcher";
+import {
+  findUnmatchedRosterRowIds,
+  isRosterRowNameMismatch,
+} from "@/lib/video/roster-video-review.shared";
 
 export type RosterVideoReviewRow = {
   id: string;
@@ -31,6 +39,7 @@ export type RosterVideoReviewRow = {
   memberId: string | null;
   memberName: string | null;
   matchConfidence: number | null;
+  matchMethod?: string | null;
   deleted: number;
 };
 
@@ -39,6 +48,7 @@ type Props = {
   members: AllianceMembersPayload["members"];
   filterQuery: string;
   duplicateRowIds: Set<string>;
+  unmatchedRowIds: Set<string>;
   onUpdateRow: (id: string, patch: Partial<RosterVideoReviewRow>) => void;
   onDeleteRow: (id: string) => void;
   onPreviewFrame?: (frameIndex: number | null | undefined) => void;
@@ -92,6 +102,7 @@ export function RosterVideoReviewTable({
   members,
   filterQuery,
   duplicateRowIds,
+  unmatchedRowIds,
   onUpdateRow,
   onDeleteRow,
   onPreviewFrame,
@@ -217,6 +228,11 @@ export function RosterVideoReviewTable({
         {rowsMissingRank ? (
           <p className="mt-2 text-[#d29922]">{t("rosterRankRequired")}</p>
         ) : null}
+        {unmatchedRowIds.size > 0 ? (
+          <p className="mt-2 text-[#d29922]">
+            {t("rosterNameMismatchBlocked", { count: unmatchedRowIds.size })}
+          </p>
+        ) : null}
       </div>
 
       <div className="overflow-x-auto rounded-xl border border-[#30363d]">
@@ -236,9 +252,16 @@ export function RosterVideoReviewTable({
             {filteredRows.map((row) => {
               const isDuplicateMember = duplicateRowIds.has(row.id);
               const isDuplicateName = duplicateOcrNameRowIds.has(row.id);
+              const isNameMismatch = unmatchedRowIds.has(row.id);
               const canPreview = rowCanVideoPreview?.(row.frameIndex) ?? false;
+              const fuzzyCandidates = isNameMismatch
+                ? findFuzzyMemberCandidates(row.ocrName, members as AshedMember[], {
+                    limit: 1,
+                  })
+                : [];
+              const closestCandidate = fuzzyCandidates[0];
               const rowClass =
-                isDuplicateMember || isDuplicateName
+                isDuplicateMember || isDuplicateName || isNameMismatch
                   ? "border-t border-[#30363d] bg-[#f8514910]"
                   : "border-t border-[#30363d]";
 
@@ -246,6 +269,25 @@ export function RosterVideoReviewTable({
                 <tr key={row.id} className={rowClass}>
                   <td className="px-4 py-3 font-medium">
                     <div>{row.ocrName}</div>
+                    {isNameMismatch ? (
+                      <p className="mt-1 text-xs text-[#d29922]">
+                        {t("rosterNameMismatchRow")}
+                      </p>
+                    ) : null}
+                    {isNameMismatch && row.memberName ? (
+                      <p className="mt-1 text-xs text-[#8b949e]">
+                        {t("rosterNameMismatchRosterName", {
+                          name: row.memberName,
+                        })}
+                      </p>
+                    ) : null}
+                    {isNameMismatch && closestCandidate && !row.memberId ? (
+                      <p className="mt-1 text-xs text-[#8b949e]">
+                        {t("rosterNameMismatchClosest", {
+                          name: closestCandidate.name,
+                        })}
+                      </p>
+                    ) : null}
                     {isDuplicateMember ? (
                       <p className="mt-1 text-xs text-[#f85149]">
                         {t("duplicateMemberRow")}
@@ -266,6 +308,7 @@ export function RosterVideoReviewTable({
                           memberId: next || null,
                           memberName: member?.current_name ?? null,
                           matchConfidence: next ? 1 : 0,
+                          matchMethod: next ? "exact" : "none",
                         });
                       }}
                       aria-label={t("colMember")}
@@ -429,11 +472,19 @@ export function useRosterReviewValidation(rows: RosterVideoReviewRow[]) {
     [activeRows],
   );
 
+  const unmatchedRowIds = useMemo(
+    () => findUnmatchedRosterRowIds(activeRows),
+    [activeRows],
+  );
+
   return {
     activeRows,
     duplicateMemberIssues,
     duplicateRowIds,
+    unmatchedRowIds,
     hasDuplicateMembers: duplicateMemberIssues.length > 0,
     hasDuplicateOcrNames: duplicateOcrNameRowIds.size > 0,
+    hasUnresolvedNameMismatches: unmatchedRowIds.size > 0,
+    isRosterRowNameMismatch,
   };
 }

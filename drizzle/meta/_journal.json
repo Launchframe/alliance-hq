@@ -379,6 +379,13 @@
       "when": 1783856000000,
       "tag": "0053_member_alliance_tenure",
       "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1783942400000,
+      "tag": "0054_alliance_setup_guide_roster_link",
+      "breakpoints": true
     }
   ]
 }

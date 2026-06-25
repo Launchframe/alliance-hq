@@ -6,6 +6,7 @@ import { and, desc, eq, gt, inArray, isNull } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { writeAuditLog } from "@/lib/bff/audit";
+import { resolveAppOrigin } from "@/lib/app-origin";
 import { emitMemberLinkUidTakenAlert } from "@/lib/events/admin-alerts";
 import { getDb, schema } from "@/lib/db";
 import { resolveAllianceGameServerNumber, linkAllianceToGameServer } from "@/lib/game-season/game-servers.server";
@@ -32,6 +33,11 @@ import {
   sendRosterLinkOwnerApprovalEmail,
 } from "@/lib/member-link/roster-link-owner-email.server";
 import { createMemberLinkTranslator } from "@/lib/member-link/translate.server";
+import {
+  bindDiscordRosterLinkRequest,
+  reconcileAllianceMemberForRosterLink,
+} from "@/lib/member-link/roster-link-resolve.server";
+import type { ParsedConnection } from "@/lib/connectionString";
 import { isNativeAlliance } from "@/lib/native-alliance/operating-mode";
 import { nativeRosterAshedAllianceId } from "@/lib/native-alliance/provision";
 import { systemRoleNameForId } from "@/lib/rbac/system-roles";
@@ -154,12 +160,16 @@ export async function createRosterLinkRequest(input: {
   allianceId: string;
   allianceTag: string;
   hqUserId: string;
-  inviteId: string;
+  inviteId?: string | null;
   reportedName: string;
   gameUid: string;
   gameUserName: string;
-  gameServerNumber: number;
+  gameServerNumber?: number | null;
   gameUserLevel?: number;
+  origin?: "web" | "discord";
+  discordUserId?: string | null;
+  discordUsername?: string | null;
+  notifyOwner?: boolean;
 }): Promise<{
   requestId: string;
   acceptToken: string;
@@ -174,11 +184,14 @@ export async function createRosterLinkRequest(input: {
     id: requestId,
     allianceId: input.allianceId,
     hqUserId: input.hqUserId,
-    inviteId: input.inviteId,
+    inviteId: input.inviteId ?? null,
+    origin: input.origin ?? "web",
+    discordUserId: input.discordUserId ?? null,
+    discordUsername: input.discordUsername ?? null,
     reportedName: input.reportedName,
     gameUid: input.gameUid,
     gameUserName: input.gameUserName,
-    gameServerNumber: input.gameServerNumber,
+    gameServerNumber: input.gameServerNumber ?? null,
     gameUserLevel: input.gameUserLevel ?? null,
     status: "pending",
     createdAt: now,
@@ -187,11 +200,13 @@ export async function createRosterLinkRequest(input: {
 
   const tokens = await insertActionTokens(requestId);
 
-  await saveHqMemberLinkPending(input.allianceId, input.hqUserId, {
-    kind: "link_awaiting_owner",
-    requestId,
-    gameUserName: input.gameUserName,
-  });
+  if ((input.origin ?? "web") === "web") {
+    await saveHqMemberLinkPending(input.allianceId, input.hqUserId, {
+      kind: "link_awaiting_owner",
+      requestId,
+      gameUserName: input.gameUserName,
+    });
+  }
 
   await materializeRosterLinkInboxItem({
     allianceId: input.allianceId,
@@ -200,16 +215,19 @@ export async function createRosterLinkRequest(input: {
   });
 
   try {
-    await sendRosterLinkOwnerApprovalEmail({
-      allianceId: input.allianceId,
-      allianceTag: input.allianceTag,
-      gameUserName: input.gameUserName,
-      reportedName: input.reportedName,
-      gameUid: input.gameUid,
-      gameServerNumber: input.gameServerNumber,
-      acceptToken: tokens.acceptToken,
-      rejectToken: tokens.rejectToken,
-    });
+    if (input.notifyOwner !== false) {
+      await sendRosterLinkOwnerApprovalEmail({
+        allianceId: input.allianceId,
+        allianceTag: input.allianceTag,
+        requestId,
+        gameUserName: input.gameUserName,
+        reportedName: input.reportedName,
+        gameUid: input.gameUid,
+        gameServerNumber: input.gameServerNumber ?? null,
+        acceptToken: tokens.acceptToken,
+        rejectToken: tokens.rejectToken,
+      });
+    }
   } catch (error) {
     console.error("[roster-link] owner email failed", error);
   }
@@ -573,15 +591,12 @@ export async function tryRouteRosterMissToOwnerApproval(input: {
     input.allianceId,
     input.hqUserId,
   );
-  if (!invite) {
-    return null;
-  }
 
   const { requestId } = await createRosterLinkRequest({
     allianceId: input.allianceId,
     allianceTag: input.allianceTag,
     hqUserId: input.hqUserId,
-    inviteId: invite.id,
+    inviteId: invite?.id ?? null,
     reportedName: input.reportedName,
     gameUid: input.gameUid,
     gameUserName: input.lookup.gameUserName,
@@ -598,6 +613,40 @@ export async function tryRouteRosterMissToOwnerApproval(input: {
       gameUserName: input.lookup.gameUserName,
     },
   };
+}
+
+export async function createDiscordRosterMissLinkRequest(input: {
+  allianceId: string;
+  allianceTag: string;
+  discordUserId: string;
+  discordUsername?: string | null;
+  hqUserId: string;
+  reportedName: string;
+  gameUid: string;
+  gameUserName: string;
+  gameServerNumber?: number | null;
+  gameUserLevel?: number;
+}): Promise<string | null> {
+  try {
+    const { requestId } = await createRosterLinkRequest({
+      allianceId: input.allianceId,
+      allianceTag: input.allianceTag,
+      hqUserId: input.hqUserId,
+      inviteId: null,
+      reportedName: input.reportedName,
+      gameUid: input.gameUid,
+      gameUserName: input.gameUserName,
+      gameServerNumber: input.gameServerNumber ?? null,
+      gameUserLevel: input.gameUserLevel,
+      origin: "discord",
+      discordUserId: input.discordUserId,
+      discordUsername: input.discordUsername ?? null,
+    });
+    return requestId;
+  } catch (error) {
+    console.error("[roster-link] discord roster miss request failed", error);
+    return null;
+  }
 }
 
 async function createNativeAllianceMemberForRosterLink(input: {
@@ -669,6 +718,8 @@ export async function acceptRosterLinkRequest(input: {
   requestId: string;
   resolvedByHqUserId?: string | null;
   sessionId?: string | null;
+  targetAshedMemberId?: string | null;
+  ashedConnection?: ParsedConnection | null;
 }): Promise<{ ok: true; memberName: string } | { ok: false; reason: string }> {
   const db = getDb();
   const request = await getRosterLinkRequestById(input.requestId);
@@ -685,9 +736,20 @@ export async function acceptRosterLinkRequest(input: {
   }
 
   const now = new Date();
-  let ashedMemberId = request.createdMemberId;
+  let ashedMemberId =
+    input.targetAshedMemberId ??
+    request.targetAshedMemberId ??
+    request.createdMemberId;
 
-  if (!ashedMemberId) {
+  if (input.targetAshedMemberId) {
+    await reconcileAllianceMemberForRosterLink({
+      allianceId: request.allianceId,
+      ashedMemberId: input.targetAshedMemberId,
+      gameUserName: request.gameUserName,
+      ashedConnection: input.ashedConnection,
+    });
+    ashedMemberId = input.targetAshedMemberId;
+  } else if (!ashedMemberId) {
     ashedMemberId = await createNativeAllianceMemberForRosterLink({
       allianceId: request.allianceId,
       gameUserName: request.gameUserName,
@@ -695,19 +757,33 @@ export async function acceptRosterLinkRequest(input: {
     });
   }
 
-  const linked = await linkHqMember({
-    allianceId: request.allianceId,
-    hqUserId: request.hqUserId,
-    ashedMemberId,
-    memberDisplayName: request.gameUserName,
-    gameUid: request.gameUid,
-  });
+  if (request.origin === "discord" && request.discordUserId) {
+    const linked = await bindDiscordRosterLinkRequest({
+      allianceId: request.allianceId,
+      discordUserId: request.discordUserId,
+      discordUsername: request.discordUsername,
+      ashedMemberId,
+      memberDisplayName: request.gameUserName,
+      gameUid: request.gameUid,
+    });
+    if (!linked.ok) {
+      return { ok: false, reason: linked.reason };
+    }
+  } else {
+    const linked = await linkHqMember({
+      allianceId: request.allianceId,
+      hqUserId: request.hqUserId,
+      ashedMemberId,
+      memberDisplayName: request.gameUserName,
+      gameUid: request.gameUid,
+    });
 
-  if (!linked.ok) {
-    return { ok: false, reason: linked.reason };
+    if (!linked.ok) {
+      return { ok: false, reason: linked.reason };
+    }
+
+    await syncPrimaryGameUidFromHqMemberLink(request.hqUserId, request.gameUid);
   }
-
-  await syncPrimaryGameUidFromHqMemberLink(request.hqUserId, request.gameUid);
 
   if (request.gameUserLevel != null) {
     try {
@@ -728,6 +804,7 @@ export async function acceptRosterLinkRequest(input: {
       resolvedAt: now,
       resolvedByHqUserId: input.resolvedByHqUserId ?? null,
       createdMemberId: ashedMemberId,
+      targetAshedMemberId: input.targetAshedMemberId ?? request.targetAshedMemberId,
       updatedAt: now,
     })
     .where(eq(schema.hqRosterLinkRequests.id, request.id));
@@ -826,6 +903,7 @@ export type RosterLinkActionResult = {
   title: string;
   body: string;
   alreadyResolved?: boolean;
+  redirectUrl?: string;
 };
 
 async function claimRosterLinkActionToken(
@@ -933,19 +1011,21 @@ export async function processRosterLinkActionToken(
   }
 
   if (claimed.action === "accept") {
-    const result = await acceptRosterLinkRequest({ requestId: claimed.requestId });
-    if (!result.ok) {
+    const request = await getRosterLinkRequestById(claimed.requestId);
+    if (!request) {
       return {
         ok: false,
         title: "Could not approve",
-        body: "We could not complete this approval. The request may no longer be pending.",
+        body: "This request is no longer available.",
       };
     }
+    const resolveUrl = `${resolveAppOrigin()}/members/roster-link-requests?request=${encodeURIComponent(request.id)}`;
     return {
       ok: true,
       action: "accept",
-      title: "Member approved",
-      body: `${result.memberName} can now continue linking in Alliance HQ.`,
+      title: "Review roster link",
+      body: `Sign in to Alliance HQ to match ${request.gameUserName} to the correct roster member.`,
+      redirectUrl: resolveUrl,
     };
   }
 

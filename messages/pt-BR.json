@@ -1101,6 +1101,76 @@
     "questionsTitle": "Dúvidas",
     "questionsBody": "Se você tiver dúvidas sobre estes termos, abra uma issue em nosso <githubLink>repositório no GitHub</githubLink>."
   },
+  "allianceSetupGuide": {
+    "sectionTitle": "Próximos passos da sua aliança",
+    "title": "Concluir configuração",
+    "subtitle": "Alguns passos antes de convidar membros facilitam a vinculação e o Discord.",
+    "allCompleteTitle": "Pronto para convidar",
+    "allCompleteBody": "A configuração principal está feita. Você pode rever esta lista aqui a qualquer momento.",
+    "loading": "Carregando checklist…",
+    "showOnDashboardLabel": "Mostrar guia na página inicial",
+    "showOnDashboardHint": "Mantém o essencial visível no painel. Você pode ocultar quando quiser — continua aqui em Configurações.",
+    "showAll": "Mostrar todos os passos",
+    "showLess": "Mostrar menos",
+    "rosterVideoHint": "Para alianças Ashed, envie um vídeo da lista no jogo para alinhar nomes ao roster antes dos membros vincularem.",
+    "rosterVideoCta": "Enviar vídeo do roster",
+    "tasks": {
+      "connect_ashed": {
+        "title": "Conectar seu assento Ashed",
+        "helper": "Permite ao HQ sincronizar roster e pontuações do ashed.online.",
+        "action": "Conectar Ashed"
+      },
+      "roster_hardening": {
+        "title": "Alinhar nomes do roster",
+        "helper": "Envie um vídeo da lista no jogo para que os nomes coincidam antes da vinculação.",
+        "action": "Enviar vídeo"
+      },
+      "roster_populated": {
+        "title": "Importar seu roster",
+        "helper": "Adicione membros para que a vinculação encontre os nomes corretos.",
+        "action": "Abrir membros"
+      },
+      "game_server": {
+        "title": "Vincular servidor do jogo",
+        "helper": "Necessário antes de convites não-proprietário e para checagem de servidor na vinculação.",
+        "action": "Definir servidor"
+      },
+      "owner_commander_link": {
+        "title": "Vincular seu comandante",
+        "helper": "Associe seu personagem no jogo à sua conta HQ.",
+        "action": "Vincular"
+      },
+      "team_invites": {
+        "title": "Convidar sua equipe",
+        "helper": "Envie convites HQ para oficiais e membros entrarem.",
+        "action": "Abrir equipe"
+      },
+      "discord_guild": {
+        "title": "Configurar bot do Discord",
+        "helper": "Registre sua guild e conecte credenciais da aliança para comandos do bot.",
+        "action": "Abrir guia"
+      }
+    }
+  },
+  "rosterLinkRequests": {
+    "title": "Solicitações de vínculo ao roster",
+    "subtitle": "Associe nomes verificados de comandantes ao membro correto do roster quando a vinculação automática falhar.",
+    "backToMembers": "Voltar aos membros",
+    "loading": "Carregando solicitações…",
+    "loadFailed": "Não foi possível carregar as solicitações.",
+    "resolveFailed": "Não foi possível atualizar esta solicitação.",
+    "empty": "Nenhuma solicitação pendente.",
+    "typedName": "Nome digitado: {name}",
+    "uidLast4": "UID terminando em …{last4}",
+    "server": "Servidor {server}",
+    "originWeb": "Web",
+    "originDiscord": "Discord: {user}",
+    "originDiscordUnknown": "Usuário do Discord",
+    "matchLabel": "Associar ao membro do roster",
+    "matchPlaceholder": "Selecione um membro…",
+    "approveMatch": "Aprovar associação",
+    "decline": "Recusar"
+  },
   "settings": {
     "title": "Configurações",
     "titleAlliance": "Configurações da aliança",
@@ -1382,6 +1452,7 @@
     "refreshingNative": "Atualizando…",
     "importMembers": "Importar membros",
     "uploadRosterVideo": "Enviar vídeo do elenco",
+    "rosterLinkRequests": "Solicitações de vínculo ao roster",
     "import": {
       "title": "Importar membros",
       "uploadHint": "Envie uma captura por página de patente (oficiais e listas R1–R5). Lemos nome, poder e nível com OCR.",
@@ -2188,6 +2259,10 @@
     "rosterAllianceSettingsLink": "Trocar aliança em Configurações",
     "rosterRankPlaceholder": "Selecionar rank…",
     "rosterRankRequired": "Cada linha precisa de um rank de aliança antes de salvar.",
+    "rosterNameMismatchRow": "Nome não confere — atribua o membro correto manualmente.",
+    "rosterNameMismatchRosterName": "Roster mostra: {name}",
+    "rosterNameMismatchClosest": "Correspondência mais próxima: {name}",
+    "rosterNameMismatchBlocked": "{count, plural, one {# linha ainda precisa de um membro confirmado.} other {# linhas ainda precisam de membros confirmados.}}",
     "rosterQuotaTitle": "Limites de rank (após salvar)",
     "rosterQuotaSummary": "Projetado: R5 {r5} · R4 {r4}/{maxR4} · R3 {r3} · R2 {r2} · R1 {r1} · {total}/{maxMembers} membros",
     "rosterQuotaOk": "Contagens de rank dentro dos limites da aliança.",
@@ -2579,6 +2654,7 @@
       "rosterMissGeneric": "Não encontramos esse nome no roster. Toque em **Começar de novo** para instruções de cópia ou peça ajuda a um oficial.",
       "rosterMissVerified": "O Last War mostra seu comandante como **{gameName}**, mas nosso roster **{tag}** ainda não lista esse nome — pode aparecer um nome antigo. Peça a um oficial para atualizar o roster ou vincular você manualmente.",
       "rosterMissVerifiedGeneric": "O Last War mostra seu comandante como **{gameName}**, mas nosso roster ainda não lista esse nome — pode aparecer um nome antigo. Peça a um oficial para atualizar o roster ou vincular você manualmente.",
+      "awaitingOfficerResolve": "Verificamos seu comandante, mas o nome do roster ainda não confere. Um oficial foi notificado — você será vinculado quando confirmarem o membro correto.",
       "rosterUnavailable": "Verificamos seu UID no jogo, mas não foi possível carregar o roster da aliança. Peça a um oficial para atualizar o roster ou ajudar na configuração.",
       "pickExpired": "Essa opção expirou. Execute `/link-commander` novamente.",
       "walkthroughDone": "Ótimo. Execute `/link-commander` de novo com o nome e UID copiados quando estiver pronto.",

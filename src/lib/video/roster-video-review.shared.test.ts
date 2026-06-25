@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   formatHeroPowerMForStorage,
+  findUnmatchedRosterRowIds,
+  isRosterRowNameMismatch,
   parsedRowsToRosterReviewRows,
 } from "@/lib/video/roster-video-review.shared";
 
@@ -66,5 +68,51 @@ describe("roster-video-review.shared", () => {
 
     expect(rows[0]?.profession).toBeNull();
     expect(rows[1]?.profession).toBe("Engineer");
+  });
+
+  it("flags unmatched and low-confidence roster rows", () => {
+    expect(
+      isRosterRowNameMismatch({
+        memberId: null,
+        matchConfidence: 0,
+        deleted: 0,
+      }),
+    ).toBe(true);
+    expect(
+      isRosterRowNameMismatch({
+        memberId: "m1",
+        matchConfidence: 0.4,
+        matchMethod: "fuzzy",
+        deleted: 0,
+      }),
+    ).toBe(true);
+    expect(
+      isRosterRowNameMismatch({
+        memberId: "m1",
+        matchConfidence: 0.95,
+        matchMethod: "exact",
+        deleted: 0,
+      }),
+    ).toBe(false);
+  });
+
+  it("collects unmatched row ids", () => {
+    const ids = findUnmatchedRosterRowIds([
+      {
+        id: "a",
+        memberId: null,
+        matchConfidence: 0,
+        deleted: 0,
+      },
+      {
+        id: "b",
+        memberId: "m1",
+        matchConfidence: 1,
+        matchMethod: "exact",
+        deleted: 0,
+      },
+    ]);
+    expect(ids.has("a")).toBe(true);
+    expect(ids.has("b")).toBe(false);
   });
 });
