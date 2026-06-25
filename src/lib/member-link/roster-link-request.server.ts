@@ -399,7 +399,7 @@ function buildConfirmServerResponse(input: {
 
 async function notifyMemberLinkUidTaken(input: {
   allianceId: string;
-  gameUid: string;
+  ashedMemberId: string;
   hqUserId: string;
   handle: string;
 }): Promise<void> {
@@ -408,7 +408,7 @@ async function notifyMemberLinkUidTaken(input: {
     await emitMemberLinkUidTakenAlert({
       allianceId: input.allianceId,
       allianceTag,
-      gameUid: input.gameUid,
+      ashedMemberId: input.ashedMemberId,
       hqUserId: input.hqUserId,
       handle: input.handle,
     });
@@ -484,7 +484,7 @@ export async function tryBootstrapOwnerColdStartMember(input: {
     if (input.handle) {
       await notifyMemberLinkUidTaken({
         allianceId: input.allianceId,
-        gameUid: input.gameUid,
+        ashedMemberId,
         hqUserId: input.hqUserId,
         handle: input.handle,
       });
@@ -535,7 +535,6 @@ export async function tryBootstrapOwnerColdStartMember(input: {
       action: "member_link.owner_cold_start_bootstrap",
       metadata: {
         ashedMemberId,
-        gameUid: input.gameUid,
         inviteId: ownerGate.inviteId ?? null,
         gameServerNumber: playerServer,
         adoptedAllianceServer,

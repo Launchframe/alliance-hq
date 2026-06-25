@@ -147,7 +147,7 @@ async function persistHqLinkTarget(
       await emitMemberLinkUidTakenAlert({
         allianceId: ctx.allianceId,
         allianceTag: alliance?.tag ?? "alliance",
-        gameUid: linkTarget.gameUid,
+        ashedMemberId: linkTarget.ashedMemberId,
         hqUserId: ctx.hqUserId,
         handle,
       });
