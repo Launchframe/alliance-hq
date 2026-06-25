@@ -15,8 +15,7 @@ import {
   processLinkFuzzyPick,
 } from "@/lib/vr/link-command";
 import { advanceLinkWalkthrough, walkthroughMessage } from "@/lib/vr/link-helpers";
-import { parseAshedMemberAllianceRank } from "@/lib/members/alliance-rank";
-import { loadAllianceMembersForBot, allianceHasBotCredentials } from "@/lib/vr/member-roster";
+import { loadAllianceMembersForBot } from "@/lib/vr/member-roster";
 import {
   countSeasonReporters,
   getAllianceById,
@@ -95,45 +94,6 @@ function linkSuccessReply(
     return translate("link.linkedAdditional", { name });
   }
   return translate("link.linked", { name });
-}
-
-async function blockPrivilegedDiscordCommanderLink(input: {
-  allianceId: string;
-  linkTarget: { ashedMemberId: string };
-  members: Awaited<ReturnType<typeof loadAllianceMembersForBot>>;
-  alliance: Awaited<ReturnType<typeof getAllianceById>>;
-  translate: ReturnType<typeof createDiscordTranslator>;
-}): Promise<LinkCommandResult | null> {
-  const member = input.members.find((row) => row.id === input.linkTarget.ashedMemberId);
-  const rank = member ? (parseAshedMemberAllianceRank(member).rank ?? 0) : 0;
-  const targetsOwnerSeat =
-    input.alliance?.ownerMemberExternalId === input.linkTarget.ashedMemberId ||
-    rank >= 5;
-
-  if (!targetsOwnerSeat && rank < 4) {
-    return null;
-  }
-
-  if (!(await allianceHasBotCredentials(input.allianceId))) {
-    return {
-      reply: input.translate("errors.credentialsRequired", {
-        tag: input.alliance?.tag ?? "",
-      }),
-      pending: null,
-    };
-  }
-
-  if (
-    targetsOwnerSeat &&
-    (!input.alliance?.ownerAshedUserId || !input.alliance?.ownerMemberExternalId)
-  ) {
-    return {
-      reply: input.translate("errors.ownerSeatRequiresAshed"),
-      pending: null,
-    };
-  }
-
-  return null;
 }
 
 async function persistLinkTarget(input: {
@@ -277,19 +237,6 @@ export async function handleDiscordLinkCommanderSlash(input: {
   };
 
   if ("linkTarget" in result && result.linkTarget) {
-    const blocked = await blockPrivilegedDiscordCommanderLink({
-      allianceId: input.allianceId,
-      linkTarget: result.linkTarget,
-      members,
-      alliance,
-      translate,
-    });
-    if (blocked) {
-      await saveDiscordBotPending(input.allianceId, input.discordUserId, null);
-      await audit(input.allianceId, input.discordUserId, "link", input, blocked);
-      return blocked;
-    }
-
     const persisted = await persistLinkTarget({
       allianceId: input.allianceId,
       discordUserId: input.discordUserId,
@@ -356,23 +303,6 @@ export async function handleDiscordLinkFuzzyPick(input: {
 
   const result = processLinkFuzzyPick({ pending, memberId: input.memberId, translate });
   if (result.linkTarget) {
-    const [members, alliance] = await Promise.all([
-      loadAllianceMembersForBot(input.allianceId),
-      getAllianceById(input.allianceId),
-    ]);
-    const blocked = await blockPrivilegedDiscordCommanderLink({
-      allianceId: input.allianceId,
-      linkTarget: result.linkTarget,
-      members,
-      alliance,
-      translate,
-    });
-    if (blocked) {
-      await saveDiscordBotPending(input.allianceId, input.discordUserId, null);
-      await audit(input.allianceId, input.discordUserId, "link_pick", input, blocked);
-      return blocked;
-    }
-
     const persisted = await persistLinkTarget({
       allianceId: input.allianceId,
       discordUserId: input.discordUserId,

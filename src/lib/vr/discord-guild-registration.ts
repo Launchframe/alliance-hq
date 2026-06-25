@@ -12,16 +12,15 @@ export type GuildRegistrationAuth =
     }
   | { allowed: false; reason: GuildRegistrationDenialReason };
 
-/** Pure native-alliance ownership proof for guild registration (no Ashed credentials).
- *  A native-alliance owner proves ownership with a Discord member link whose in-game
- *  member id matches the alliance ownerMemberExternalId. Non-native (Ashed-sourced)
- *  alliances must use the credential-gated owner check instead. */
-export function nativeOwnerProvenByMemberLink(input: {
-  isNative: boolean;
+/** Pure alliance ownership proof for guild registration (no Ashed credentials).
+ *  An alliance owner proves ownership with a Discord member link whose in-game
+ *  member id matches the alliance ownerMemberExternalId. */
+export function ownerProvenByMemberLink(input: {
+  allianceExists: boolean;
   ownerMemberExternalId: string | null;
   linkedMemberIds: readonly string[];
 }): boolean {
-  if (!input.isNative) return false;
+  if (!input.allianceExists) return false;
   if (!input.ownerMemberExternalId) return false;
   return input.linkedMemberIds.includes(input.ownerMemberExternalId);
 }

@@ -90,9 +90,6 @@ export function pickHelpMessageKey(ctx: DiscordBotUserContext): string {
     }
     return "help.setupOwnerAuth";
   }
-  if (!ctx.hasCredentials) {
-    return ctx.isOwner ? "help.setupOwnerAuth" : "help.waitForOwnerAuth";
-  }
   if (ctx.memberLinkCount === 0) {
     return "help.linkCommander";
   }

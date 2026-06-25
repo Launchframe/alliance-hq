@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   evaluateGuildRegistrationAuth,
   type GuildRegistrationAuth,
-  nativeOwnerProvenByMemberLink,
+  ownerProvenByMemberLink,
 } from "@/lib/vr/discord-guild-registration";
 
 function auth(
@@ -84,11 +84,11 @@ describe("evaluateGuildRegistrationAuth", () => {
   });
 });
 
-describe("nativeOwnerProvenByMemberLink", () => {
-  it("proves a native owner whose member link matches ownerMemberExternalId (no Ashed)", () => {
+describe("ownerProvenByMemberLink", () => {
+  it("proves an owner whose member link matches ownerMemberExternalId (no Ashed)", () => {
     expect(
-      nativeOwnerProvenByMemberLink({
-        isNative: true,
+      ownerProvenByMemberLink({
+        allianceExists: true,
         ownerMemberExternalId: "owner-member-1",
         linkedMemberIds: ["other-member", "owner-member-1"],
       }),
@@ -97,8 +97,8 @@ describe("nativeOwnerProvenByMemberLink", () => {
 
   it("denies when no linked member matches the owner", () => {
     expect(
-      nativeOwnerProvenByMemberLink({
-        isNative: true,
+      ownerProvenByMemberLink({
+        allianceExists: true,
         ownerMemberExternalId: "owner-member-1",
         linkedMemberIds: ["member-2", "member-3"],
       }),
@@ -107,18 +107,18 @@ describe("nativeOwnerProvenByMemberLink", () => {
 
   it("denies when the alliance has no owner member id", () => {
     expect(
-      nativeOwnerProvenByMemberLink({
-        isNative: true,
+      ownerProvenByMemberLink({
+        allianceExists: true,
         ownerMemberExternalId: null,
         linkedMemberIds: ["member-2"],
       }),
     ).toBe(false);
   });
 
-  it("does not prove ownership for non-native alliances (credential path handles those)", () => {
+  it("denies when the alliance does not exist", () => {
     expect(
-      nativeOwnerProvenByMemberLink({
-        isNative: false,
+      ownerProvenByMemberLink({
+        allianceExists: false,
         ownerMemberExternalId: "owner-member-1",
         linkedMemberIds: ["owner-member-1"],
       }),

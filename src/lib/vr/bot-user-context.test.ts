@@ -89,11 +89,11 @@ describe("pickHelpMessageKey", () => {
 });
 
 describe("handleDiscordHelp message keys", () => {
-  it("maps wait state when credentials are missing", () => {
+  it("does not block registered-guild help on missing Ashed credentials", () => {
     expect(
       pickHelpMessageKey(
         ctx({ hasCredentials: false, isOwner: false, memberLinkCount: 0 }),
       ),
-    ).toBe("help.waitForOwnerAuth");
+    ).toBe("help.linkCommander");
   });
 });

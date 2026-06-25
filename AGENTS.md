@@ -111,14 +111,14 @@ Do **not** conflate **Discord user**, **`discord_member_links` (in-game member)*
 
 ### Privileged linking (owner / officer / platform maintainer)
 
-Name+UID member link (`/onboard`, `/link-commander`) proves Last War API consistency. **HQ web RBAC** for invited owner/officer roles comes from the invite, not Ashed. Discord privileged setup still uses the HTTPS Ashed connection-key flow where noted below:
+Name+UID member link (`/onboard`, `/link-commander`) proves Last War API consistency. **HQ web RBAC** for invited owner/officer roles comes from the invite, not Ashed. Discord native setup also uses name+UID member links for owner proof; `/link-to-ashed-seat` is optional for Ashed-powered tools.
 
 | Surface | Rule |
 | --- | --- |
 | Web `/onboard` | All invite roles: **name+UID member link** after accept (`MemberLinkOnboardingWizard`). Ashed connect is optional (iframe tools / roster sync). |
 | HQ RBAC | Manual `owner` / `officer` memberships grant role permissions from the invite. Platform maintainers get `hq:admin` from the maintainer flag. **Ashed-sourced** memberships still require a matching live session credential (unchanged). |
-| Discord owner gate | `callerIsAllianceOwner` requires `alliance_ashed_credentials`, `ownerAshedUserId`, and `ownerMemberExternalId` match — not name+UID alone. |
-| Discord officer gate | `callerCanRunVrReport` R4+ path requires alliance bot credentials exist. |
+| Discord owner gate | `callerIsAllianceOwner` requires a Discord member link whose `ashedMemberId` matches `alliances.ownerMemberExternalId`; Ashed credentials are not required for owner proof. |
+| Discord officer gate | R4+ checks use the alliance-scoped local roster when present. Optional Ashed credentials may supply roster reads for Ashed-sourced alliances that have no local roster yet. |
 | Token storage | Privileged web connects and `/link-to-ashed-seat` credentials cap `tokenExpiresAt` at **min(JWT exp, now + 30 days)**. |
 
 Legacy sessions (`hqUserId` null): allow-all until reconnect (unchanged). Regular `member` / `data_entry` / `viewer` invites: name+UID link only.
