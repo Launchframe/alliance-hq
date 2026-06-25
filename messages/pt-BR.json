@@ -2042,7 +2042,8 @@
       "resources": "Recursos",
       "points": "Pontos"
     },
-    "queuedSuccess": "Vídeo colocado na fila para processamento.",
+    "queuedSuccess": "Vídeo enviado. Aguardando um processador de vídeo revisar e executar.",
+    "pendingApprovalHint": "Vídeos enviados ficam na fila até um processador designado ou o dono da aliança aprovar.",
     "recentUploads": "Envios recentes",
     "viewAllUploads": "Ver todos os envios",
     "reviewLink": "Revisar",
@@ -2058,6 +2059,7 @@
       "complete": "concluído",
       "failed": "falha",
       "pending": "pendente",
+      "pending_approval": "aguardando aprovação",
       "processing": "processando"
     }
   },
@@ -2073,6 +2075,7 @@
     "title": "Revisar dados extraídos",
     "loading": "Carregando…",
     "processing": "Processando ({status})… esta página atualiza automaticamente.",
+    "pendingApproval": "Aguardando um processador de vídeo aprovar este envio. O OCR começará após a aprovação — esta página atualiza automaticamente.",
     "processingFailed": "Falha no processamento. Tente enviar novamente.",
     "backToUploads": "← Voltar aos envios",
     "summary": "{matched} correspondidos · {total} entradas",

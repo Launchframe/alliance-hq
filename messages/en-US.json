@@ -2042,7 +2042,8 @@
       "resources": "Resources",
       "points": "Points"
     },
-    "queuedSuccess": "Video queued for processing.",
+    "queuedSuccess": "Video uploaded. Waiting for a video processor to review and run it.",
+    "pendingApprovalHint": "Uploaded videos wait in the queue until a designated processor or alliance owner approves them.",
     "recentUploads": "Recent uploads",
     "viewAllUploads": "View all uploads",
     "reviewLink": "Review",
@@ -2058,6 +2059,7 @@
       "complete": "complete",
       "failed": "failed",
       "pending": "pending",
+      "pending_approval": "awaiting approval",
       "processing": "processing"
     }
   },
@@ -2073,6 +2075,7 @@
     "title": "Review extracted data",
     "loading": "Loading…",
     "processing": "Processing ({status})… this page refreshes automatically.",
+    "pendingApproval": "Waiting for a video processor to approve this upload. OCR will start after approval — this page refreshes automatically.",
     "processingFailed": "Processing failed. Try uploading again.",
     "backToUploads": "← Back to uploads",
     "summary": "{matched} matched · {total} entries",
