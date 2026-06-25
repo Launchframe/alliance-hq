@@ -8,6 +8,7 @@ import {
   MessageSquareText,
   ScrollText,
   Server,
+  Swords,
   Users,
   Video,
 } from "lucide-react";
@@ -18,6 +19,7 @@ export type AdminOverviewCard = {
     | "systemTitle"
     | "alliancesTitle"
     | "usersTitle"
+    | "commandersTitle"
     | "auditTitle"
     | "videoJobsTitle"
     | "hqEventsTitle"
@@ -29,6 +31,7 @@ export type AdminOverviewCard = {
     | "systemDesc"
     | "alliancesDesc"
     | "usersDesc"
+    | "commandersDesc"
     | "auditDesc"
     | "videoJobsDesc"
     | "hqEventsDesc"
@@ -57,6 +60,12 @@ export const ADMIN_OVERVIEW_CARDS: AdminOverviewCard[] = [
     titleKey: "usersTitle",
     descKey: "usersDesc",
     icon: Users,
+  },
+  {
+    href: "/admin/commanders",
+    titleKey: "commandersTitle",
+    descKey: "commandersDesc",
+    icon: Swords,
   },
   {
     href: "/admin/audit",

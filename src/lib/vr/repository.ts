@@ -3,6 +3,10 @@ import { nanoid } from "nanoid";
 
 import { getDb, schema } from "@/lib/db";
 import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
+import {
+  denormalizeGameUidOnMember,
+  openMemberAllianceTenure,
+} from "@/lib/members/member-tenure.server";
 import { isNativeAlliance } from "@/lib/native-alliance/operating-mode";
 import { buildFlagReason, peerMaxExcludingMember } from "@/lib/vr/anomaly";
 import { MAX_DISCORD_LINKS_PER_USER } from "@/lib/vr/constants";
@@ -316,6 +320,16 @@ export async function linkDiscordMember(input: {
       })
       .where(eq(schema.discordMemberLinks.id, existingPair.id))
       .returning();
+    await denormalizeGameUidOnMember({
+      allianceId: input.allianceId,
+      ashedMemberId: input.ashedMemberId,
+      gameUid: input.gameUid,
+    });
+    await openMemberAllianceTenure({
+      allianceId: input.allianceId,
+      ashedMemberId: input.ashedMemberId,
+      gameUid: input.gameUid,
+    });
     return { ok: true, link: row!, mode: input.replaceAll ? "replaced" : "updated" };
   }
 
@@ -337,6 +351,18 @@ export async function linkDiscordMember(input: {
       updatedAt: now,
     })
     .returning();
+
+  await denormalizeGameUidOnMember({
+    allianceId: input.allianceId,
+    ashedMemberId: input.ashedMemberId,
+    gameUid: input.gameUid,
+  });
+  await openMemberAllianceTenure({
+    allianceId: input.allianceId,
+    ashedMemberId: input.ashedMemberId,
+    gameUid: input.gameUid,
+    joinedAt: now,
+  });
 
   return {
     ok: true,

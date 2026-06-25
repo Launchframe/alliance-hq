@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { resolveAllianceByTag } from "@/lib/alliance/resolve";
 import { getDb, schema } from "@/lib/db";
 import { loadAllianceGameRoster } from "@/lib/members/game-roster";
+import { searchAllianceMembers } from "@/lib/members/members-search.server";
 import {
   resolveHqAllianceId,
 } from "@/lib/members/roster.server";
@@ -32,6 +33,15 @@ function sortMembers(members: AshedMember[]): AshedMember[] {
       sensitivity: "base",
     }),
   );
+}
+
+function countMembers(members: AshedMember[]): AllianceMembersPayload["counts"] {
+  const active = members.filter((m) => m.status !== "former").length;
+  return {
+    total: members.length,
+    active,
+    former: members.length - active,
+  };
 }
 
 async function loadLocalMembersPayload(
@@ -66,6 +76,7 @@ async function loadLocalMembersPayload(
 
 export async function loadAllianceMembers(
   sessionId: string,
+  options?: { q?: string; includeFormer?: boolean },
 ): Promise<AllianceMembersPayload> {
   const session = await loadSession(sessionId);
   if (!session) {
@@ -95,21 +106,45 @@ export async function loadAllianceMembers(
   const operatingMode = await getAllianceOperatingMode(hqAllianceId);
 
   if (operatingMode === "native") {
-    return loadLocalMembersPayload(
+    const payload = await loadLocalMembersPayload(
       hqAllianceId,
       { tag: allianceRow.tag.trim(), name: allianceRow.name },
       operatingMode,
     );
+    if (options?.q?.trim()) {
+      payload.members = await searchAllianceMembers({
+        allianceId: hqAllianceId,
+        q: options.q,
+        includeFormer: options.includeFormer ?? false,
+      });
+      payload.counts = countMembers(payload.members);
+    } else if (options?.includeFormer === false) {
+      payload.members = payload.members.filter((m) => m.status !== "former");
+      payload.counts = countMembers(payload.members);
+    }
+    return payload;
   }
 
   const connection = await getAshedConnection(sessionId);
   if (!connection) {
     // HQ members without a personal Ashed credential still read the locally synced roster.
-    return loadLocalMembersPayload(
+    const payload = await loadLocalMembersPayload(
       hqAllianceId,
       { tag: allianceRow.tag.trim(), name: allianceRow.name },
       operatingMode,
     );
+    if (options?.q?.trim()) {
+      payload.members = await searchAllianceMembers({
+        allianceId: hqAllianceId,
+        q: options.q,
+        includeFormer: options.includeFormer ?? false,
+      });
+      payload.counts = countMembers(payload.members);
+    } else if (options?.includeFormer === false) {
+      payload.members = payload.members.filter((m) => m.status !== "former");
+      payload.counts = countMembers(payload.members);
+    }
+    return payload;
   }
 
   if (!session.allianceTag) {
@@ -134,7 +169,7 @@ export async function loadAllianceMembers(
 
   const active = members.filter((m) => m.status !== "former").length;
 
-  return {
+  const payload: AllianceMembersPayload = {
     alliance,
     members,
     counts: {
@@ -145,4 +180,18 @@ export async function loadAllianceMembers(
     fetchedAt: new Date().toISOString(),
     operatingMode,
   };
+
+  if (options?.q?.trim()) {
+    payload.members = await searchAllianceMembers({
+      allianceId: resolvedHqAllianceId,
+      q: options.q,
+      includeFormer: options.includeFormer ?? false,
+    });
+    payload.counts = countMembers(payload.members);
+  } else if (options?.includeFormer === false) {
+    payload.members = payload.members.filter((m) => m.status !== "former");
+    payload.counts = countMembers(payload.members);
+  }
+
+  return payload;
 }

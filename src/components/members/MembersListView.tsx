@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { useFormatAccountDateTime } from "@/components/timezone/TimezoneProvider";
@@ -29,6 +29,8 @@ type Props = {
   canRefreshFromAshed?: boolean;
   canUploadRosterVideo?: boolean;
 };
+
+const SEARCH_DEBOUNCE_MS = 300;
 
 function memberStatusLabel(
   status: string | undefined,
@@ -72,6 +74,7 @@ export function MembersListView({
   const t = useTranslations("members");
   const formatDateTime = useFormatAccountDateTime();
   const [data, setData] = useState(initial);
+  const [searchInput, setSearchInput] = useState("");
   const [query, setQuery] = useState("");
   const [showFormer, setShowFormer] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -80,28 +83,63 @@ export function MembersListView({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [applying, setApplying] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const skipInitialSearchFetch = useRef(true);
 
   const isNative = initial.operatingMode === "native";
   const showRefresh = isNative || canRefreshFromAshed;
 
+  useEffect(() => {
+    const handle = window.setTimeout(() => {
+      setQuery(searchInput.trim());
+    }, SEARCH_DEBOUNCE_MS);
+    return () => window.clearTimeout(handle);
+  }, [searchInput]);
+
   const filtered = useMemo(() => {
-    const needle = query.trim().toLowerCase();
     return data.members.filter((member) => {
       if (!showFormer && member.status === "former") {
         return false;
       }
-      if (!needle) {
-        return true;
-      }
-      const haystack = [
-        member.current_name,
-        ...(member.previous_names ?? []),
-      ]
-        .join(" ")
-        .toLowerCase();
-      return haystack.includes(needle);
+      return true;
     });
-  }, [data.members, query, showFormer]);
+  }, [data.members, showFormer]);
+
+  useEffect(() => {
+    if (skipInitialSearchFetch.current) {
+      skipInitialSearchFetch.current = false;
+      if (!query && !showFormer) return;
+    }
+    let cancelled = false;
+    const load = async () => {
+      setRefreshing(true);
+      setError(null);
+      try {
+        const params = new URLSearchParams();
+        if (query) params.set("q", query);
+        if (showFormer) params.set("includeFormer", "1");
+        const qs = params.toString();
+        const res = await fetch(`/api/members${qs ? `?${qs}` : ""}`);
+        const body = (await res.json()) as AllianceMembersPayload & {
+          error?: string;
+        };
+        if (!res.ok) {
+          if (!cancelled) setError(body.error ?? t("loadFailed"));
+          return;
+        }
+        if (!cancelled) setData(body);
+      } catch (e) {
+        if (!cancelled) {
+          setError(e instanceof Error ? e.message : t("loadFailed"));
+        }
+      } finally {
+        if (!cancelled) setRefreshing(false);
+      }
+    };
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [query, showFormer, t]);
 
   const exitEditMode = useCallback(() => {
     setEditMode(false);
@@ -134,7 +172,11 @@ export function MembersListView({
     setRefreshing(true);
     setError(null);
     try {
-      const res = await fetch("/api/members");
+      const params = new URLSearchParams();
+      if (query) params.set("q", query);
+      if (showFormer) params.set("includeFormer", "1");
+      const qs = params.toString();
+      const res = await fetch(`/api/members${qs ? `?${qs}` : ""}`);
       const body = (await res.json()) as AllianceMembersPayload & {
         error?: string;
       };
@@ -148,7 +190,7 @@ export function MembersListView({
     } finally {
       setRefreshing(false);
     }
-  }, [t]);
+  }, [query, showFormer, t]);
 
   const applyBulkRank = useCallback(
     async (action: BulkMemberRankAction, allianceRank?: number) => {
@@ -320,8 +362,8 @@ export function MembersListView({
         <label className="min-w-0 flex-1 text-sm">
           <span className="mb-1 block text-xs text-[#8b949e]">{t("search")}</span>
           <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
             placeholder={t("searchPlaceholder")}
             className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
           />
@@ -496,6 +538,17 @@ function MemberRow({
     />
   ) : null;
 
+  const nameContent = editMode ? (
+    member.current_name
+  ) : (
+    <Link
+      href={`/members/${member.id}`}
+      className="text-[#58a6ff] hover:underline"
+    >
+      {member.current_name}
+    </Link>
+  );
+
   return (
     <tr
       className={rowClass}
@@ -511,7 +564,7 @@ function MemberRow({
         <div className="flex min-w-0 items-start gap-3">
           {editMode && selectionControl}
           <div className="flex min-w-0 flex-col items-start gap-1.5">
-            <div className="wrap-break-word font-medium">{member.current_name}</div>
+            <div className="wrap-break-word font-medium">{nameContent}</div>
             <div className="wrap-break-word text-xs text-[#8b949e]">
               <span className="font-medium text-[#6e7681]">
                 {t("colPreviousNames")}:{" "}
@@ -531,7 +584,7 @@ function MemberRow({
         </div>
       </td>
       <td className="hidden px-4 py-3 font-medium md:table-cell">
-        {member.current_name}
+        {nameContent}
       </td>
       <td className="hidden wrap-break-word px-4 py-3 text-[#8b949e] md:table-cell">
         {previous}

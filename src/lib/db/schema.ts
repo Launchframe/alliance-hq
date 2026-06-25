@@ -1057,6 +1057,8 @@ export const allianceMembers = pgTable(
     currentSquadPowerJson: jsonb("current_squad_power_json"),
     squadPowerSnapshotsJson: jsonb("squad_power_snapshots_json"),
     isSample: boolean("is_sample"),
+    /** Denormalized game UID from member links when known. */
+    gameUid: text("game_uid"),
     syncedAt: timestamp("synced_at", { withTimezone: true }).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
@@ -1069,6 +1071,36 @@ export const allianceMembers = pgTable(
     unique("alliance_members_alliance_ashed_member_unique").on(
       table.allianceId,
       table.ashedMemberId,
+    ),
+  ],
+);
+
+/** Cross-alliance career history keyed by game UID. */
+export const memberAllianceTenure = pgTable(
+  "member_alliance_tenure",
+  {
+    id: text("id").primaryKey(),
+    gameUid: text("game_uid").notNull(),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    ashedMemberId: text("ashed_member_id").notNull(),
+    joinedAt: timestamp("joined_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    leftAt: timestamp("left_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("member_alliance_tenure_game_uid_idx").on(table.gameUid),
+    index("member_alliance_tenure_game_uid_alliance_idx").on(
+      table.gameUid,
+      table.allianceId,
     ),
   ],
 );
@@ -1738,6 +1770,7 @@ export const trainRiderCargoItems = pgTable("train_rider_cargo_item", {
 });
 
 export type AllianceMember = typeof allianceMembers.$inferSelect;
+export type MemberAllianceTenure = typeof memberAllianceTenure.$inferSelect;
 export type HqInvite = typeof hqInvites.$inferSelect;
 export type HqRosterLinkRequest = typeof hqRosterLinkRequests.$inferSelect;
 export type HqRosterLinkActionToken =
