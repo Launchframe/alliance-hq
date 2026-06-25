@@ -2481,7 +2481,6 @@
     },
     "link": {
       "userPrompt": "Clique no link abaixo para vincular seu comandante do jogo (nome + UID, expira em 30 min):\n{url}\n\nOu use `/link name:… uid:…` diretamente no Discord.",
-      "userAlreadyLinked": "Você já tem comandante(s) vinculado(s) nesta aliança. Use `/link name:… uid:…` para adicionar ou atualizar, ou `/help` para os próximos passos.",
       "promptFirstCommander": "Quer vincular seu primeiro comandante do Last War? Use `/link name:… uid:…` (copie nome e UID do perfil no jogo).",
       "usage": "Uso: `/link name:… uid:…` (ou `/link-commander name:… uid:…`). Adicione outro comandante quando quiser; use `replace:true` para trocar o vínculo. `/unlink` remove um.",
       "linked": "Comandante **{name}** vinculado. Você já pode usar /vr.",
@@ -2593,7 +2592,7 @@
     "submitting": "Verificando…",
     "successHeading": "Conectado!",
     "successBody": "Credenciais Ashed para {tag} salvas. Volte ao Discord e execute `/link-alliance tag:{tag}`.",
-    "userSuccessBody": "Comandante **{name}** vinculado. Volte ao Discord — você já pode usar `/vr` e outros comandos do bot.",
+    "userSuccessBody": "Comandante {name} vinculado. Volte ao Discord — você já pode usar /vr e outros comandos do bot.",
     "errorPrefix": "Algo deu errado:",
     "missingNonce": "Nenhum link de autorização encontrado. Volte ao Discord e execute `/link` ou `/link-to-ashed-seat` para obter um novo link.",
     "expiredHeading": "Link expirado ou já usado",

@@ -2481,7 +2481,6 @@
     },
     "link": {
       "userPrompt": "Click the link below to link your in-game commander (name + UID, expires in 30 min):\n{url}\n\nOr run `/link name:… uid:…` directly in Discord.",
-      "userAlreadyLinked": "You already have linked commander(s) in this alliance. Run `/link name:… uid:…` to add or update, or `/help` for next steps.",
       "promptFirstCommander": "Would you like to link your first Last War commander? Run `/link name:… uid:…` (copy name and UID from your in-game profile).",
       "usage": "Usage: `/link name:… uid:…` (or `/link-commander name:… uid:…`). Add another commander anytime; use `replace:true` to switch your only link. Use `/unlink` to remove one.",
       "linked": "Linked commander **{name}**. You're ready to use /vr.",
@@ -2593,7 +2592,7 @@
     "submitting": "Verifying…",
     "successHeading": "Connected!",
     "successBody": "Ashed credentials for {tag} are saved. Return to Discord and run `/link-alliance tag:{tag}`.",
-    "userSuccessBody": "Linked commander **{name}**. Return to Discord — you're ready to use `/vr` and other bot commands.",
+    "userSuccessBody": "Linked commander {name}. Return to Discord — you're ready to use /vr and other bot commands.",
     "errorPrefix": "Something went wrong:",
     "missingNonce": "No authorization link found. Return to Discord and run `/link` or `/link-to-ashed-seat` to get a new link.",
     "expiredHeading": "Link expired or already used",

@@ -19,6 +19,7 @@ import type {
 } from "@/lib/member-link/outcome.shared";
 import {
   linkHqMember,
+  maybeSetOwnerMemberExternalId,
   saveHqMemberLinkPending,
   syncPrimaryGameUidFromHqMemberLink,
 } from "@/lib/member-link/repository.server";
@@ -493,6 +494,18 @@ export async function tryBootstrapOwnerColdStartMember(input: {
       message: translate("link.memberTaken"),
       pending: null,
     };
+  }
+
+  // Persist the owner's member identity so Discord /link-alliance owner proof
+  // (callerOwnsAllianceViaMemberLink) can verify without Ashed credentials.
+  try {
+    await maybeSetOwnerMemberExternalId({
+      allianceId: input.allianceId,
+      hqUserId: input.hqUserId,
+      ashedMemberId,
+    });
+  } catch (error) {
+    console.error("[member-link] owner externalId sync failed", error);
   }
 
   await saveHqMemberLinkPending(input.allianceId, input.hqUserId, null);

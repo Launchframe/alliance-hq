@@ -7,6 +7,7 @@ import {
   getHqMemberLinkForUser,
   getHqMemberLinkPending,
   linkHqMember,
+  maybeSetOwnerMemberExternalId,
   saveHqMemberLinkPending,
   syncPrimaryGameUidFromHqMemberLink,
 } from "@/lib/member-link/repository.server";
@@ -160,6 +161,18 @@ async function persistHqLinkTarget(
   }
 
   ctx.auditBag.ashedMemberId = linkTarget.ashedMemberId;
+
+  // Persist the owner's member identity so Discord /link-alliance owner proof
+  // (callerOwnsAllianceViaMemberLink) can verify without Ashed credentials.
+  try {
+    await maybeSetOwnerMemberExternalId({
+      allianceId: ctx.allianceId,
+      hqUserId: ctx.hqUserId,
+      ashedMemberId: linkTarget.ashedMemberId,
+    });
+  } catch (error) {
+    console.error("[member-link] owner externalId sync failed", error);
+  }
 
   await syncPrimaryGameUidFromHqMemberLink(ctx.hqUserId, linkTarget.gameUid);
 

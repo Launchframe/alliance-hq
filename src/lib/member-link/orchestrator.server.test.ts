@@ -21,9 +21,11 @@ vi.mock("@/lib/member-link/privileged-link.server", () => ({
 }));
 
 vi.mock("@/lib/member-link/repository.server", () => ({
+  getHqMemberLinkForUser: vi.fn().mockResolvedValue(null),
   getHqMemberLinkPending: vi.fn().mockResolvedValue(null),
   saveHqMemberLinkPending: vi.fn().mockResolvedValue(undefined),
   linkHqMember: vi.fn(),
+  maybeSetOwnerMemberExternalId: vi.fn().mockResolvedValue(undefined),
   syncPrimaryGameUidFromHqMemberLink: vi.fn(),
 }));
 

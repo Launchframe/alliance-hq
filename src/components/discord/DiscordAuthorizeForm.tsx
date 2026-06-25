@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useState, type FormEvent, type ReactNode } from "react";
 
 type State =
   | { status: "idle" }
@@ -84,18 +84,28 @@ export function DiscordAuthorizeForm({
   }
 
   if (state.status === "success") {
-    const body =
-      state.purpose === "user_link"
-        ? labels.userSuccessBody.replace(
-            "{name}",
-            state.memberDisplayName ?? "your commander",
-          )
-        : labels.successBody.replace("{tag}", state.tag ?? tag);
+    let bodyNode: ReactNode;
+    if (state.purpose === "user_link") {
+      const parts = labels.userSuccessBody.split("{name}");
+      const name = state.memberDisplayName ?? "your commander";
+      bodyNode =
+        parts.length === 2 ? (
+          <>
+            {parts[0]}
+            <strong>{name}</strong>
+            {parts[1]}
+          </>
+        ) : (
+          labels.userSuccessBody.replace("{name}", name)
+        );
+    } else {
+      bodyNode = labels.successBody.replace("{tag}", state.tag ?? tag);
+    }
 
     return (
       <div className="rounded-xl border border-green-700 bg-green-950/40 p-6 text-center">
         <p className="text-lg font-semibold text-green-300">{labels.successHeading}</p>
-        <p className="mt-2 whitespace-pre-line text-sm text-green-200">{body}</p>
+        <p className="mt-2 whitespace-pre-line text-sm text-green-200">{bodyNode}</p>
       </div>
     );
   }

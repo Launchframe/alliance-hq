@@ -33,6 +33,7 @@ vi.mock("@/lib/native-alliance/operating-mode", () => ({
 vi.mock("@/lib/member-link/repository.server", () => ({
   saveHqMemberLinkPending: vi.fn().mockResolvedValue(undefined),
   linkHqMember: vi.fn(),
+  maybeSetOwnerMemberExternalId: vi.fn().mockResolvedValue(undefined),
   syncPrimaryGameUidFromHqMemberLink: vi.fn(),
 }));
 
@@ -149,6 +150,24 @@ describe("tryBootstrapOwnerColdStartMember", () => {
     expect(auditBag.ashedMemberId).toBeTruthy();
     expect(repository.linkHqMember).toHaveBeenCalled();
     expect(gameServers.linkAllianceToGameServer).not.toHaveBeenCalled();
+  });
+
+  it("persists ownerMemberExternalId after successful cold-start link", async () => {
+    dbModule.chain.limit.mockResolvedValueOnce([{ ownerHqUserId: "u1" }]);
+
+    await tryBootstrapOwnerColdStartMember({
+      allianceId: "a1",
+      hqUserId: "u1",
+      locale: "en-US",
+      reportedName: "Commander",
+      gameUid: "1234567890121203",
+      lookup: { ok: true, gameUserName: "Commander", gameServerNumber: 1203 },
+      rosterCount: 0,
+    });
+
+    expect(repository.maybeSetOwnerMemberExternalId).toHaveBeenCalledWith(
+      expect.objectContaining({ allianceId: "a1", hqUserId: "u1" }),
+    );
   });
 
   it("adopts alliance server from owner lookup when alliance has no server yet", async () => {
