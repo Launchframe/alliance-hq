@@ -55,7 +55,6 @@ export function buildAuthProviders(): Provider[] {
           "AUTH_GOOGLE_SECRET",
           "GOOGLE_CLIENT_SECRET",
         )!,
-        allowDangerousEmailAccountLinking: true,
       }),
     );
   }
@@ -72,7 +71,6 @@ export function buildAuthProviders(): Provider[] {
           "AUTH_DISCORD_SECRET",
           "DISCORD_CLIENT_SECRET",
         )!,
-        allowDangerousEmailAccountLinking: true,
       }),
     );
   }

@@ -5,11 +5,11 @@ import { sanitizeInternalRedirectPath } from "@/lib/navigation/safe-redirect.sha
 export const dynamic = "force-dynamic";
 
 type Props = {
-  searchParams: Promise<{ callbackUrl?: string; email?: string }>;
+  searchParams: Promise<{ callbackUrl?: string; email?: string; error?: string }>;
 };
 
 export default async function AuthPage({ searchParams }: Props) {
-  const { callbackUrl, email } = await searchParams;
+  const { callbackUrl, email, error } = await searchParams;
   const safeCallback = sanitizeInternalRedirectPath(callbackUrl) ?? callbackUrl;
 
   const ssoAvailability = getAuthSsoAvailability();
@@ -18,6 +18,7 @@ export default async function AuthPage({ searchParams }: Props) {
     <AuthSignInClient
       callbackUrl={safeCallback}
       presetEmail={email?.trim() || undefined}
+      authError={error?.trim() || undefined}
       ssoAvailability={ssoAvailability}
     />
   );
