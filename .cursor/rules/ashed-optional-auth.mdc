@@ -1,0 +1,53 @@
+---
+description: Ashed credentials are never required for auth or onboarding — only for optional Ashed-powered tools
+globs:
+  - src/lib/vr/**
+  - src/lib/discord/**
+  - src/lib/rbac/**
+  - src/lib/member-link/**
+  - src/app/api/discord/**
+  - src/app/api/webhooks/discord/**
+  - src/components/discord/**
+  - src/app/**/onboard/**
+  - src/app/**/discord/**
+---
+
+# Ashed credentials — optional, never required for auth
+
+**Ashed connection keys / JWTs are NOT part of any authentication or onboarding flow.** Do not gate member link, Discord user link, alliance invite accept, or guild registration on Ashed credentials unless the feature explicitly consumes Ashed API data.
+
+## What auth flows use instead
+
+| Flow | Proof | Storage |
+| --- | --- | --- |
+| Web member onboarding (`/onboard`, member-link wizard) | In-game **name + UID** → Last War lookup + roster match | `hq_member_links`, `alliance_memberships` |
+| Discord member link (`/link`, `/link-commander`) | Same **name + UID** proof in guild's alliance | `discord_member_links` |
+| Discord guild registration (`/link-alliance`) | Owner via **member link** (`callerIsAllianceOwner`) or platform maintainer | `discord_guild_alliances` |
+| HQ web session | Email / OAuth → `hq_users` + session | Session cookie |
+
+**Never** require `discord_hq_links` or an Ashed connection key for a member to link their in-game commander on Discord.
+
+## When Ashed credentials ARE used (optional follow-up)
+
+Ashed is an **optional upgrade** after identity is established. It enables:
+
+- **Roster sync** and iframe tools on HQ web (connect flow)
+- **Bot roster reads** via `alliance_ashed_credentials` (`/link-to-ashed-seat`)
+- **Video processing** (only when the user has the processing role)
+- **Legacy owner proof** via Ashed owner JWT on `/link-to-ashed-seat` (parallel to native owner member-link proof)
+
+`/link-to-ashed-seat` → `/discord/authorize` with `purpose=alliance_credentials` is the **only** Discord browser flow that accepts an Ashed connection key.
+
+`/link` → `/discord/authorize` with `purpose=user_link` accepts **in-game name + UID**, not an Ashed key.
+
+## Implementation guardrails
+
+- Do not add `verifyBase44Connection`, `parseConnectionInput`, or connection-key form fields to member link or onboarding paths.
+- Do not return `errors.hqLinkRequired` before member-link or guild-registration handlers — those flows do not depend on `discord_hq_links`.
+- `discord_hq_links` remains for **web Discord OAuth** and platform-maintainer HQ identity; it is not a prerequisite for bot member commands.
+- Bot paths stay **read-only** on Ashed unless a future feature documents mutating calls with owner JWT + audit.
+
+## Related rules
+
+- [`.cursor/rules/discord-identity-auth-layers.mdc`](discord-identity-auth-layers.mdc) — identity graph and proof table
+- [`.cursor/rules/invite-commander-identity.mdc`](invite-commander-identity.mdc) — web invite vs commander vs roster

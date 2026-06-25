@@ -1,4 +1,4 @@
-import { and, desc, eq, lt, or, sql } from "drizzle-orm";
+import { and, desc, eq, isNull, lt, or, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { getDb, schema } from "@/lib/db";
@@ -9,6 +9,8 @@ import { MAX_DISCORD_LINKS_PER_USER } from "@/lib/vr/constants";
 import {
   evaluateGuildRegistrationAuth,
   type GuildRegistrationAuth,
+  nativeOwnerClaimMemberId,
+  ownerProvenByMemberLink,
 } from "@/lib/vr/discord-guild-registration";
 import type { LinkPendingState, VrPendingState } from "@/lib/vr/types";
 
@@ -695,6 +697,7 @@ export async function callerCanRegisterGuildAlliance(input: {
     hasHqLink: hqLink != null,
     isPlatformMaintainer,
     isCredentialRegistrant,
+    isOwnerViaMemberLink: await callerOwnsAllianceViaMemberLink(input),
     ownerAshedUserId: alliance?.ownerAshedUserId ?? null,
     linkedHqAshedUserId: linkedHqUser?.ashedUserId ?? null,
     hasCredentials,
@@ -962,8 +965,6 @@ export async function listDiscordLinksForUserAnyAlliance(discordUserId: string) 
     .where(eq(schema.discordMemberLinks.discordUserId, discordUserId));
 }
 
-import { allianceHasBotCredentials } from "@/lib/vr/member-roster";
-
 export async function callerIsAllianceOwner(input: {
   allianceId: string;
   discordUserId: string;
@@ -971,17 +972,75 @@ export async function callerIsAllianceOwner(input: {
   const alliance = await getAllianceById(input.allianceId);
   if (!alliance) return false;
 
-  if (!(await allianceHasBotCredentials(input.allianceId))) {
-    return false;
-  }
-
-  if (!alliance.ownerAshedUserId || !alliance.ownerMemberExternalId) {
-    return false;
-  }
-
   const links = await listDiscordLinksForUser(input.allianceId, input.discordUserId);
 
-  return links.some(
-    (link) => link.ashedMemberId === alliance.ownerMemberExternalId,
-  );
+  return ownerProvenByMemberLink({
+    allianceExists: true,
+    ownerMemberExternalId: alliance.ownerMemberExternalId,
+    linkedMemberIds: links.map((link) => link.ashedMemberId),
+  });
+}
+
+/** Ownership proof for guild registration that does NOT require Ashed credentials.
+ *  A Discord member link matching ownerMemberExternalId is enough
+ *  (in-game name + UID is the auth, Ashed is optional). */
+export async function callerOwnsAllianceViaMemberLink(input: {
+  allianceId: string;
+  discordUserId: string;
+}): Promise<boolean> {
+  const [alliance, links] = await Promise.all([
+    getAllianceById(input.allianceId),
+    listDiscordLinksForUser(input.allianceId, input.discordUserId),
+  ]);
+  return ownerProvenByMemberLink({
+    allianceExists: alliance != null,
+    ownerMemberExternalId: alliance?.ownerMemberExternalId ?? null,
+    linkedMemberIds: links.map((link) => link.ashedMemberId),
+  });
+}
+
+/** Claim native-alliance ownership from a successful Discord member link when
+ *  unambiguous, so a Discord-only owner can register the guild without first
+ *  completing HQ-web onboarding. No-op unless the alliance is native, has no
+ *  owner member recorded, and the linked commander is the sole active R5 in the
+ *  local roster. Never touches Ashed-sourced alliances and never overwrites an
+ *  existing owner. Idempotent. */
+export async function maybeClaimNativeOwnerFromDiscordLink(input: {
+  allianceId: string;
+  ashedMemberId: string;
+}): Promise<void> {
+  const alliance = await getAllianceById(input.allianceId);
+  if (!alliance) return;
+  if (alliance.operatingMode !== "native") return;
+  if (alliance.ownerMemberExternalId) return;
+
+  const db = getDb();
+  const activeR5 = await db
+    .select({ ashedMemberId: schema.allianceMembers.ashedMemberId })
+    .from(schema.allianceMembers)
+    .where(
+      and(
+        eq(schema.allianceMembers.allianceId, input.allianceId),
+        eq(schema.allianceMembers.status, "active"),
+        eq(schema.allianceMembers.allianceRank, 5),
+      ),
+    );
+
+  const claimMemberId = nativeOwnerClaimMemberId({
+    isNative: true,
+    ownerAlreadySet: false,
+    linkedAshedMemberId: input.ashedMemberId,
+    activeR5MemberIds: activeR5.map((row) => row.ashedMemberId),
+  });
+  if (!claimMemberId) return;
+
+  await db
+    .update(schema.alliances)
+    .set({ ownerMemberExternalId: claimMemberId, updatedAt: new Date() })
+    .where(
+      and(
+        eq(schema.alliances.id, input.allianceId),
+        isNull(schema.alliances.ownerMemberExternalId),
+      ),
+    );
 }

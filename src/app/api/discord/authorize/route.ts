@@ -11,43 +11,38 @@ import { encryptSecret } from "@/lib/crypto/encrypt";
 import { capTokenExpiresAt } from "@/lib/member-link/privileged-link.shared";
 import { resolveTokenExpiresAt } from "@/lib/jwt/connection-meta";
 import { isTokenExpired } from "@/lib/jwt/decode";
-import { resolveCanonicalHqUserForAshedConnect } from "@/lib/rbac/resolve-canonical-hq-user";
 import { syncAshedAllianceForBot } from "@/lib/rbac/sync-ashed-roles";
 import { getOrCreateSession } from "@/lib/session";
-import {
-  getGuildAllianceId,
-  listDiscordLinksForUser,
-  upsertAllianceAshedCredential,
-  upsertDiscordHqLink,
-} from "@/lib/vr/repository";
+import { getDiscordUserLocale, upsertAllianceAshedCredential } from "@/lib/vr/repository";
+import { resolveAllianceIdForDiscordMemberLink } from "@/lib/vr/resolve-member-link-alliance.server";
 import {
   consumeDiscordAuthNonce,
   getValidDiscordAuthNonce,
 } from "@/lib/vr/auth-nonce";
+import { handleDiscordLinkCommanderSlash } from "@/lib/vr/service";
 
 /** POST /api/discord/authorize
- *  Accepts the Ashed connection key submitted via the HQ web form.
- *
- *  Body: { nonce: string; connectionKey: string }
+ *  `user_link`: in-game name + UID (member link — no Ashed).
+ *  `alliance_credentials`: Ashed connection key for `/link-to-ashed-seat`.
  */
 export async function POST(request: Request) {
   await getOrCreateSession();
 
-  let body: { nonce?: string; connectionKey?: string };
+  let body: {
+    nonce?: string;
+    connectionKey?: string;
+    reportedName?: string;
+    gameUid?: string;
+  };
   try {
-    body = (await request.json()) as { nonce?: string; connectionKey?: string };
+    body = (await request.json()) as typeof body;
   } catch {
     return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
   }
 
   const nonce = body.nonce?.trim();
-  const connectionKey = body.connectionKey?.trim();
-
-  if (!nonce || !connectionKey) {
-    return NextResponse.json(
-      { error: "nonce and connectionKey are required." },
-      { status: 400 },
-    );
+  if (!nonce) {
+    return NextResponse.json({ error: "nonce is required." }, { status: 400 });
   }
 
   const nonceRow = await getValidDiscordAuthNonce(nonce);
@@ -58,6 +53,84 @@ export async function POST(request: Request) {
           "Link expired or already used. Return to Discord and run the setup command again.",
       },
       { status: 410 },
+    );
+  }
+
+  if (nonceRow.purpose === "user_link") {
+    const reportedName = body.reportedName?.trim();
+    const gameUid = body.gameUid?.trim();
+    if (!reportedName || !gameUid) {
+      return NextResponse.json(
+        { error: "In-game name and player UID are required." },
+        { status: 400 },
+      );
+    }
+
+    const guildId = nonceRow.guildId?.trim();
+    if (!guildId) {
+      return NextResponse.json(
+        {
+          error:
+            "This link must be opened from your alliance Discord server. Run `/link` there and try again.",
+        },
+        { status: 422 },
+      );
+    }
+
+    const allianceId = await resolveAllianceIdForDiscordMemberLink({
+      guildId,
+      discordUserId: nonceRow.discordUserId,
+      reportedName,
+      gameUid,
+    });
+    if (!allianceId) {
+      return NextResponse.json(
+        {
+          error:
+            "Could not determine your alliance for this server. If you are the alliance owner, try `/link name:… uid:…` in Discord, then run `/link-alliance tag:YourTag`. Otherwise ask the owner to register the server.",
+        },
+        { status: 422 },
+      );
+    }
+
+    const storedLocale = await getDiscordUserLocale(nonceRow.discordUserId);
+    const locale = storedLocale ?? "en-US";
+    const result = await handleDiscordLinkCommanderSlash({
+      allianceId,
+      guildId,
+      discordUserId: nonceRow.discordUserId,
+      reportedName,
+      gameUid,
+      locale,
+    });
+
+    if (result.pending) {
+      return NextResponse.json(
+        {
+          error: `${result.reply} Return to Discord to continue — some steps need buttons there.`,
+        },
+        { status: 422 },
+      );
+    }
+
+    if (!result.linked) {
+      return NextResponse.json({ error: result.reply }, { status: 422 });
+    }
+
+    await consumeDiscordAuthNonce(nonceRow.id);
+
+    return NextResponse.json({
+      ok: true,
+      purpose: "user_link" as const,
+      memberDisplayName: result.linkTarget?.memberDisplayName ?? reportedName,
+    });
+  }
+
+  const connectionKey = body.connectionKey?.trim();
+  if (!connectionKey) {
+    return NextResponse.json(
+      { error: "connectionKey is required for alliance credential setup." },
+      { status: 400 },
     );
   }
 
@@ -99,40 +172,6 @@ export async function POST(request: Request) {
       { error: "Your Ashed account does not have access to any alliance." },
       { status: 403 },
     );
-  }
-
-  if (nonceRow.purpose === "user_link") {
-    const { hqUserId } = await resolveCanonicalHqUserForAshedConnect({
-      ashedUserId: me.id,
-      ashedEmail: me.email,
-      displayName: me.full_name,
-    });
-
-    await upsertDiscordHqLink({
-      discordUserId: nonceRow.discordUserId,
-      hqUserId,
-    });
-
-    await consumeDiscordAuthNonce(nonceRow.id);
-
-    let promptFirstCommander = false;
-    const guildId = nonceRow.guildId?.trim();
-    if (guildId) {
-      const allianceId = await getGuildAllianceId(guildId);
-      if (allianceId) {
-        const links = await listDiscordLinksForUser(
-          allianceId,
-          nonceRow.discordUserId,
-        );
-        promptFirstCommander = links.length === 0;
-      }
-    }
-
-    return NextResponse.json({
-      ok: true,
-      purpose: "user_link" as const,
-      promptFirstCommander,
-    });
   }
 
   const tagLower = nonceRow.tag;

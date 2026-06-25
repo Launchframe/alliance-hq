@@ -30,10 +30,45 @@ const vrLevelOption = {
 const commandBody = [
   {
     name: "link",
-    description: "Link your Discord account to Alliance HQ",
+    description: "Link your in-game commander to Discord (name + UID)",
     description_localizations: {
-      "pt-BR": "Vincule sua conta do Discord ao Alliance HQ",
+      "pt-BR": "Vincule seu comandante do jogo ao Discord (nome + UID)",
     },
+    options: [
+      {
+        name: "name",
+        description:
+          "Your in-game name. Copy it exactly from your in-game profile.",
+        description_localizations: {
+          "pt-BR":
+            "Seu nome no jogo. Copie exatamente do perfil dentro do jogo.",
+        },
+        type: 3,
+        required: false,
+      },
+      {
+        name: "uid",
+        description:
+          "Your 12–16 digit player ID, ending in your server number.",
+        description_localizations: {
+          "pt-BR":
+            "Seu ID de jogador com 12–16 dígitos, terminando no número do servidor.",
+        },
+        type: 3,
+        required: false,
+      },
+      {
+        name: "replace",
+        description:
+          "Replace all your linked commanders with this one (switch main character).",
+        description_localizations: {
+          "pt-BR":
+            "Substitui todos os comandantes vinculados por este (trocar personagem principal).",
+        },
+        type: 5,
+        required: false,
+      },
+    ],
   },
   {
     name: "link-commander",

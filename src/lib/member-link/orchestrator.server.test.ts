@@ -16,14 +16,12 @@ vi.mock("@/lib/rbac/context", () => ({
   }),
 }));
 
-vi.mock("@/lib/member-link/privileged-link.server", () => ({
-  assertPrivilegedAshedGate: vi.fn().mockResolvedValue({ ok: true }),
-}));
-
 vi.mock("@/lib/member-link/repository.server", () => ({
+  getHqMemberLinkForUser: vi.fn().mockResolvedValue(null),
   getHqMemberLinkPending: vi.fn().mockResolvedValue(null),
   saveHqMemberLinkPending: vi.fn().mockResolvedValue(undefined),
   linkHqMember: vi.fn(),
+  maybeSetOwnerMemberExternalId: vi.fn().mockResolvedValue(undefined),
   syncPrimaryGameUidFromHqMemberLink: vi.fn(),
 }));
 
@@ -129,5 +127,48 @@ describe("runWebMemberLinkSubmit onboarding unblockers", () => {
       }),
     );
     expect(lookup.lookupPlayerByUid).not.toHaveBeenCalled();
+  });
+
+  it("never echoes the submitted player UID in the success response", async () => {
+    vi.mocked(roster.tryBootstrapOwnerColdStartMember).mockResolvedValue({
+      outcome: "linked",
+      message: "Linked",
+      pending: null,
+      linkedMemberName: "Commander",
+    });
+
+    const result = await runWebMemberLinkSubmit({
+      sessionId: "sess-1",
+      allianceId: "a1",
+      hqUserId: "u1",
+      locale: "en-US",
+      reportedName: "Commander",
+      gameUid: "1234567890121203",
+      ownerProvidedServerNumber: 1203,
+      ownerLookupFallback: true,
+    });
+
+    expect(result.outcome).toBe("linked");
+    expect(JSON.stringify(result)).not.toContain("1234567890121203");
+  });
+
+  it("never echoes the submitted player UID in name_mismatch retry copy", async () => {
+    vi.mocked(lookup.lookupPlayerByUid).mockResolvedValue({
+      ok: true,
+      gameUserName: "Exact Commander",
+      gameServerNumber: 1203,
+    });
+
+    const result = await runWebMemberLinkSubmit({
+      sessionId: "sess-1",
+      allianceId: "a1",
+      hqUserId: "u1",
+      locale: "en-US",
+      reportedName: "Wrong Name",
+      gameUid: "1234567890121203",
+    });
+
+    expect(result.outcome).toBe("name_mismatch");
+    expect(JSON.stringify(result)).not.toContain("1234567890121203");
   });
 });

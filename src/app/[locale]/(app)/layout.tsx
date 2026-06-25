@@ -73,13 +73,6 @@ export default async function AppLayout({
     redirect({ href: "/get-started", locale });
   }
 
-  if (state.requiresAshedVerification) {
-    redirect({
-      href: `/onboard?next=${encodeURIComponent("/dashboard")}`,
-      locale,
-    });
-  }
-
   if (state.requiresMemberLink) {
     redirect({ href: `/onboard?next=${encodeURIComponent("/dashboard")}`, locale });
   }

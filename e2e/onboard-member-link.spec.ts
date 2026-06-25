@@ -356,7 +356,6 @@ test.describe("Member-link onboarding outcomes", () => {
               kind: "link_awaiting_owner",
               requestId: "e2e-request",
             },
-            requiresAshedVerification: false,
           }),
         });
         return;
@@ -368,7 +367,6 @@ test.describe("Member-link onboarding outcomes", () => {
           linked: true,
           link: { memberDisplayName: "Approved Commander" },
           pending: null,
-          requiresAshedVerification: false,
         }),
       });
     });
