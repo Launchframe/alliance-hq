@@ -1,11 +1,23 @@
 import "server-only";
 
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { getDb, schema } from "@/lib/db";
+import { formatAllianceRankLabel } from "@/lib/members/alliance-rank";
+import { getAllianceOperatingMode } from "@/lib/native-alliance/operating-mode";
 import { getRbacContext } from "@/lib/rbac/context";
 import { VIDEO_READ_PERMISSION } from "@/lib/rbac/constants";
+import type {
+  VideoProcessorCandidate,
+  VideoProcessorCandidateList,
+} from "@/lib/video/processor-slots.shared";
+
+export type {
+  VideoProcessorCandidate,
+  VideoProcessorCandidateList,
+  VideoProcessorEligibilityMode,
+} from "@/lib/video/processor-slots.shared";
 
 /** Ashed ToS: at most two designated processors per alliance may run OCR. */
 export const MAX_VIDEO_PROCESSORS = 2;
@@ -54,20 +66,19 @@ export async function listAllianceVideoProcessors(
 }
 
 /**
- * Active alliance members eligible to occupy a processor slot. Owner/maintainer
- * are excluded — they can already process without a slot. Officers are the
- * designated pool per the Ashed processing agreement.
+ * Officers who have linked an Ashed identity before (even if disconnected now).
+ * Required today because OCR runs through Ashed; native OCR may relax this later.
  */
-export async function listVideoProcessorCandidates(
+async function listAshedConnectedOfficerCandidates(
   allianceId: string,
-): Promise<Array<{ hqUserId: string; email: string; displayName: string | null }>> {
+): Promise<VideoProcessorCandidate[]> {
   const db = getDb();
   const rows = await db
     .select({
       hqUserId: schema.allianceMemberships.hqUserId,
       email: schema.hqUsers.email,
       displayName: schema.hqUsers.displayName,
-      roleName: schema.roles.name,
+      ashedUserId: schema.hqUsers.ashedUserId,
     })
     .from(schema.allianceMemberships)
     .innerJoin(
@@ -86,11 +97,122 @@ export async function listVideoProcessorCandidates(
       ),
     );
 
-  return rows.map((row) => ({
-    hqUserId: row.hqUserId,
-    email: row.email,
-    displayName: row.displayName,
-  }));
+  return rows
+    .filter((row) => Boolean(row.ashedUserId?.trim()))
+    .map((row) => ({
+      hqUserId: row.hqUserId,
+      email: row.email,
+      displayName: row.displayName,
+      subtitle: null,
+    }))
+    .sort((a, b) =>
+      (a.displayName ?? a.email).localeCompare(b.displayName ?? b.email),
+    );
+}
+
+function formatNativeRankSubtitle(input: {
+  allianceRank: number | null;
+  allianceRankTitle: string | null;
+  memberDisplayName: string | null;
+  currentName: string;
+}): string | null {
+  const rankLabel = formatAllianceRankLabel(input.allianceRank);
+  const title = input.allianceRankTitle?.trim() || null;
+  if (rankLabel && title) {
+    return `${rankLabel} · ${title}`;
+  }
+  if (rankLabel) {
+    return rankLabel;
+  }
+  return input.memberDisplayName?.trim() || input.currentName;
+}
+
+/**
+ * Native alliances: linked HQ accounts for in-game R4/R5 roster members.
+ * These alliances typically have no officer with Ashed connection history.
+ */
+async function listNativeR4R5Candidates(
+  allianceId: string,
+): Promise<VideoProcessorCandidate[]> {
+  const db = getDb();
+  const rows = await db
+    .select({
+      hqUserId: schema.hqMemberLinks.hqUserId,
+      email: schema.hqUsers.email,
+      displayName: schema.hqUsers.displayName,
+      memberDisplayName: schema.hqMemberLinks.memberDisplayName,
+      currentName: schema.allianceMembers.currentName,
+      allianceRank: schema.allianceMembers.allianceRank,
+      allianceRankTitle: schema.allianceMembers.allianceRankTitle,
+    })
+    .from(schema.hqMemberLinks)
+    .innerJoin(
+      schema.hqUsers,
+      eq(schema.hqUsers.id, schema.hqMemberLinks.hqUserId),
+    )
+    .innerJoin(
+      schema.allianceMembers,
+      and(
+        eq(schema.allianceMembers.allianceId, schema.hqMemberLinks.allianceId),
+        eq(
+          schema.allianceMembers.ashedMemberId,
+          schema.hqMemberLinks.ashedMemberId,
+        ),
+      ),
+    )
+    .where(
+      and(
+        eq(schema.hqMemberLinks.allianceId, allianceId),
+        eq(schema.allianceMembers.status, "active"),
+        inArray(schema.allianceMembers.allianceRank, [4, 5]),
+      ),
+    );
+
+  return rows
+    .slice()
+    .sort((a, b) => {
+      const rankA = a.allianceRank ?? 0;
+      const rankB = b.allianceRank ?? 0;
+      if (rankB !== rankA) {
+        return rankB - rankA;
+      }
+      const labelA = a.displayName ?? a.memberDisplayName ?? a.email;
+      const labelB = b.displayName ?? b.memberDisplayName ?? b.email;
+      return labelA.localeCompare(labelB);
+    })
+    .map((row) => ({
+      hqUserId: row.hqUserId,
+      email: row.email,
+      displayName: row.displayName ?? row.memberDisplayName,
+      subtitle: formatNativeRankSubtitle({
+        allianceRank: row.allianceRank,
+        allianceRankTitle: row.allianceRankTitle,
+        memberDisplayName: row.memberDisplayName,
+        currentName: row.currentName,
+      }),
+    }));
+}
+
+/**
+ * Eligible processor slots depend on alliance operating mode:
+ * - Ashed: officers with a prior Ashed identity link (OCR prerequisite today).
+ * - Native: HQ users linked to R4/R5 roster members.
+ * Owner/maintainer are excluded — they can already process without a slot.
+ */
+export async function listVideoProcessorCandidates(
+  allianceId: string,
+): Promise<VideoProcessorCandidateList> {
+  const operatingMode = await getAllianceOperatingMode(allianceId);
+  if (operatingMode === "native") {
+    return {
+      candidates: await listNativeR4R5Candidates(allianceId),
+      eligibilityMode: "native_r4_r5",
+    };
+  }
+  return {
+    candidates: await listAshedConnectedOfficerCandidates(allianceId),
+    eligibilityMode: "ashed_connected_officers",
+  };
 }
 
 export async function countAllianceVideoProcessors(

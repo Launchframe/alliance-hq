@@ -4,6 +4,7 @@ import type { Sql } from "./db";
 import {
   acceptInviteViaApi,
   createHqInviteRow,
+  createHqMemberLink,
   createNativeAlliance,
   createPlatformMaintainerSession,
   type SessionFixture,
@@ -38,7 +39,46 @@ export async function createMemberWithRole(
   };
 }
 
-/** Directly grant a video processor slot (mirrors grantVideoProcessor). */
+/** Insert a roster member at R4/R5 and link them to an HQ user (native candidate pool). */
+export async function seedLinkedRosterOfficer(
+  sql: Sql,
+  input: {
+    allianceId: string;
+    hqUserId: string;
+    allianceRank: 4 | 5;
+    allianceRankTitle?: string;
+    memberDisplayName?: string;
+  },
+): Promise<{ ashedMemberId: string }> {
+  const ashedMemberId = `e2e-rank-${nanoid(10)}`;
+  const now = new Date();
+  const displayName = input.memberDisplayName ?? `R${input.allianceRank} Commander`;
+  await sql`
+    INSERT INTO alliance_members (
+      id, alliance_id, ashed_member_id, ashed_alliance_id, current_name, status,
+      alliance_rank, alliance_rank_title, synced_at, created_at, updated_at
+    ) VALUES (
+      ${nanoid(16)},
+      ${input.allianceId},
+      ${ashedMemberId},
+      ${`e2e-alliance-${input.allianceId}`},
+      ${displayName},
+      ${"active"},
+      ${input.allianceRank},
+      ${input.allianceRankTitle ?? null},
+      ${now},
+      ${now},
+      ${now}
+    )
+  `;
+  await createHqMemberLink(sql, {
+    allianceId: input.allianceId,
+    hqUserId: input.hqUserId,
+    ashedMemberId,
+    memberDisplayName: displayName,
+  });
+  return { ashedMemberId };
+}
 export async function grantProcessorSlot(
   sql: Sql,
   input: { allianceId: string; hqUserId: string; grantedByHqUserId: string | null },
@@ -137,6 +177,12 @@ export async function createVideoProcessorScenario(
     allianceId: alliance.allianceId,
     roleName: "officer",
     invitedByHqUserId: maintainer.hqUserId,
+  });
+  await seedLinkedRosterOfficer(sql, {
+    allianceId: alliance.allianceId,
+    hqUserId: processor.hqUserId,
+    allianceRank: 4,
+    allianceRankTitle: "Warlord",
   });
   await grantProcessorSlot(sql, {
     allianceId: alliance.allianceId,

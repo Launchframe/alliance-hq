@@ -62,14 +62,14 @@ export default async function SettingsTeamPage({
   const assignableInviteRoles = rbac ? assignableInviteRolesForContext(rbac) : [];
   const gameServerNumber = await resolveAllianceGameServerNumber(allianceId);
 
-  const [videoProcessors, videoProcessorCandidates] = isAllianceAdmin
+  const [videoProcessors, videoProcessorCandidateList] = isAllianceAdmin
     ? await Promise.all([
         listAllianceVideoProcessors(allianceId),
         listVideoProcessorCandidates(allianceId),
       ])
-    : [[], []];
+    : [[], { candidates: [], eligibilityMode: "native_r4_r5" as const }];
   const videoProcessorIds = new Set(videoProcessors.map((p) => p.hqUserId));
-  const availableVideoProcessorCandidates = videoProcessorCandidates.filter(
+  const availableVideoProcessorCandidates = videoProcessorCandidateList.candidates.filter(
     (c) => !videoProcessorIds.has(c.hqUserId),
   );
 
@@ -113,6 +113,7 @@ export default async function SettingsTeamPage({
         <VideoProcessorsPanel
           initialProcessors={videoProcessors}
           initialCandidates={availableVideoProcessorCandidates}
+          eligibilityMode={videoProcessorCandidateList.eligibilityMode}
           max={MAX_VIDEO_PROCESSORS}
         />
       ) : null}

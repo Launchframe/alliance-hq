@@ -902,12 +902,14 @@
   },
   "videoProcessors": {
     "title": "Processadores de vídeo",
-    "description": "Designe até {max} oficiais que podem aprovar e executar OCR em vídeos na fila com sua própria conexão Ashed. Donos e mantenedores sempre podem processar e não ocupam uma vaga.",
+    "descriptionAshed": "Designe até {max} oficiais que já conectaram ao Ashed e podem executar OCR em vídeos na fila com a própria credencial Ashed. Donos e mantenedores sempre podem processar e não ocupam uma vaga.",
+    "descriptionNative": "Designe até {max} membros da aliança com patente R4 ou R5 (com conta HQ vinculada) que podem aprovar e executar OCR em vídeos na fila. Eles precisarão conectar ao Ashed antes de processar. Donos e mantenedores sempre podem processar e não ocupam uma vaga.",
     "empty": "Nenhum processador designado ainda. Donos e mantenedores ainda podem processar vídeos.",
     "remove": "Remover",
     "add": "Adicionar",
-    "selectPlaceholder": "Selecione um oficial…",
-    "noCandidates": "Nenhum oficial elegível para adicionar.",
+    "selectPlaceholder": "Selecione um membro…",
+    "noCandidatesAshed": "Nenhum oficial com conexão Ashed anterior está disponível. Oficiais precisam conectar ao Ashed antes de serem designados.",
+    "noCandidatesNative": "Nenhum membro R4 ou R5 com conta HQ vinculada está disponível. Vincule contas de comandantes pelo onboarding ou pela lista de membros primeiro.",
     "slotsFull": "Todas as vagas de processador estão ocupadas.",
     "addFailed": "Não foi possível adicionar o processador.",
     "removeFailed": "Não foi possível remover o processador."

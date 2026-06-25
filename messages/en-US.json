@@ -902,12 +902,14 @@
   },
   "videoProcessors": {
     "title": "Video processors",
-    "description": "Designate up to {max} officers who can approve and run OCR on queued videos with their own Ashed connection. Owners and maintainers can always process and do not use a slot.",
+    "descriptionAshed": "Designate up to {max} officers who have connected to Ashed before and can run OCR on queued videos with their own Ashed credential. Owners and maintainers can always process and do not use a slot.",
+    "descriptionNative": "Designate up to {max} alliance members ranked R4 or R5 (with a linked HQ account) who can approve and run OCR on queued videos. They will need to connect Ashed before processing. Owners and maintainers can always process and do not use a slot.",
     "empty": "No designated processors yet. Owners and maintainers can still process videos.",
     "remove": "Remove",
     "add": "Add",
-    "selectPlaceholder": "Select an officer…",
-    "noCandidates": "No eligible officers to add.",
+    "selectPlaceholder": "Select a member…",
+    "noCandidatesAshed": "No officers with a prior Ashed connection are available. Officers must connect to Ashed before they can be designated.",
+    "noCandidatesNative": "No R4 or R5 members with a linked HQ account are available. Link commander accounts from onboarding or the members roster first.",
     "slotsFull": "All processor slots are full.",
     "addFailed": "Could not add the processor.",
     "removeFailed": "Could not remove the processor."
