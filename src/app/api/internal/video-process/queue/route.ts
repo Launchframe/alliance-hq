@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { asc, eq } from "drizzle-orm";
 
 import { getDb, schema } from "@/lib/db";
-import { processVideoJob } from "@/lib/video/process-job";
+import { markVideoJobFailed } from "@/lib/video/mark-video-job-failed";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -49,6 +49,7 @@ export async function GET(request: Request) {
   );
 
   try {
+    const { processVideoJob } = await import("@/lib/video/process-job");
     const timings = await processVideoJob(job.id, { analyticsSource: "worker" });
     return NextResponse.json({
       ok: true,
@@ -58,12 +59,16 @@ export async function GET(request: Request) {
       timings,
     });
   } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Processing failed";
+    await markVideoJobFailed(job.id, message);
     return NextResponse.json(
       {
         ok: false,
         processed: true,
         jobId: job.id,
-        error: error instanceof Error ? error.message : "Processing failed",
+        status: "failed",
+        error: message,
       },
       { status: 500 },
     );

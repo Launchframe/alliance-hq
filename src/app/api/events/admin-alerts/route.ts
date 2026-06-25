@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import {
   ADMIN_ALERT_NOTIFY_CHANNEL,
+  adminAlertSseEventName,
   createAdminAlertListenClient,
   parseAdminAlertEvent,
 } from "@/lib/events/admin-alerts";
@@ -48,7 +49,7 @@ export async function GET() {
 
       void listenClient.listen(ADMIN_ALERT_NOTIFY_CHANNEL, (payload) => {
         const event = parseAdminAlertEvent(payload);
-        if (event) send("vr_link_attention", event);
+        if (event) send(adminAlertSseEventName(event), event);
       });
     },
     cancel() {

@@ -177,6 +177,7 @@ export async function loadAdminAlliances(params: AdminAlliancesQueryParams) {
       name: alliance.name,
       ashedAllianceId: alliance.ashedAllianceId,
       operatingMode: alliance.operatingMode,
+      gameServerNumber: alliance.gameServerNumber,
       ownerEmail: alliance.ownerEmail,
       collaborators: alliance.collaboratorsJson ?? [],
       rolesSyncedAt: alliance.rolesSyncedAt,

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { processVideoJob } from "@/lib/video/process-job";
+import { markVideoJobFailed } from "@/lib/video/mark-video-job-failed";
 
 export const maxDuration = 300;
 export const runtime = "nodejs";
@@ -28,13 +28,19 @@ export async function POST(_request: Request, { params }: Props) {
     _request.headers.get("x-video-worker") === "1" ? "worker" : "api";
 
   try {
+    const { processVideoJob } = await import("@/lib/video/process-job");
     const timings = await processVideoJob(jobId, { analyticsSource });
     return NextResponse.json({ ok: true, jobId, status: "review", timings });
   } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Processing failed";
+    await markVideoJobFailed(jobId, message);
     return NextResponse.json(
       {
-        error:
-          error instanceof Error ? error.message : "Processing failed",
+        ok: false,
+        jobId,
+        status: "failed",
+        error: message,
       },
       { status: 500 },
     );

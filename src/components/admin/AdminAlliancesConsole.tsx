@@ -25,6 +25,7 @@ type Alliance = {
   name: string;
   ashedAllianceId: string | null;
   operatingMode: string;
+  gameServerNumber: number | null;
   ownerEmail: string | null;
   collaborators: string[];
   rolesSyncedAt: string | null;
@@ -57,6 +58,9 @@ export function AdminAlliancesConsole() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [serverDrafts, setServerDrafts] = useState<Record<string, string>>({});
+  const [savingServerId, setSavingServerId] = useState<string | null>(null);
+  const [serverError, setServerError] = useState<string | null>(null);
 
   const queryParams = useMemo(
     (): AdminAlliancesQueryParams => ({
@@ -158,6 +162,57 @@ export function AdminAlliancesConsole() {
     setInviteTargetAllianceId(allianceId);
   }
 
+  function serverDraftValue(alliance: Alliance): string {
+    return (
+      serverDrafts[alliance.id] ??
+      (alliance.gameServerNumber != null
+        ? String(alliance.gameServerNumber)
+        : "")
+    );
+  }
+
+  async function saveServerNumber(alliance: Alliance) {
+    const draft = serverDraftValue(alliance).trim();
+    const parsed = draft ? Number.parseInt(draft, 10) : null;
+    if (parsed != null && (!Number.isFinite(parsed) || parsed <= 0)) {
+      setServerError(t("serverColumn.invalid"));
+      return;
+    }
+    if (parsed === (alliance.gameServerNumber ?? null)) {
+      return;
+    }
+    setSavingServerId(alliance.id);
+    setServerError(null);
+    try {
+      const res = await fetch(
+        `/api/admin/alliances/${encodeURIComponent(alliance.id)}/game-server`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ gameServerNumber: parsed }),
+        },
+      );
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as {
+          error?: string;
+        } | null;
+        throw new Error(body?.error ?? t("serverColumn.saveFailed"));
+      }
+      setServerDrafts((current) => {
+        const next = { ...current };
+        delete next[alliance.id];
+        return next;
+      });
+      void loadAlliances();
+    } catch (err) {
+      setServerError(
+        err instanceof Error ? err.message : t("serverColumn.saveFailed"),
+      );
+    } finally {
+      setSavingServerId(null);
+    }
+  }
+
   function inviteRowClassName(alliance: Alliance): string {
     const base = "border-t border-[#30363d] align-top";
     const selected = alliance.id === effectiveInviteTargetAllianceId;
@@ -168,6 +223,54 @@ export function AdminAlliancesConsole() {
     ]
       .filter(Boolean)
       .join(" ");
+  }
+
+  function renderServerCell(alliance: Alliance) {
+    const native = isNativeAlliance(alliance);
+    if (!native) {
+      return (
+        <span className="text-sm text-[#8b949e]">
+          {alliance.gameServerNumber ?? "—"}
+        </span>
+      );
+    }
+    const draft = serverDraftValue(alliance);
+    const dirty = draft.trim() !== (alliance.gameServerNumber != null
+      ? String(alliance.gameServerNumber)
+      : "");
+    return (
+      <div
+        className="flex items-center gap-1.5"
+        onClick={(event) => event.stopPropagation()}
+        onKeyDown={(event) => event.stopPropagation()}
+        role="presentation"
+      >
+        <input
+          type="text"
+          inputMode="numeric"
+          value={draft}
+          placeholder={t("serverColumn.placeholder")}
+          aria-label={t("serverColumn.inputLabel", { name: alliance.name })}
+          onChange={(event) =>
+            setServerDrafts((current) => ({
+              ...current,
+              [alliance.id]: event.target.value.replace(/\D/g, ""),
+            }))
+          }
+          className="w-20 rounded-lg border border-[#30363d] bg-[#0d1117] px-2 py-1 text-sm"
+        />
+        <button
+          type="button"
+          disabled={!dirty || savingServerId === alliance.id}
+          onClick={() => void saveServerNumber(alliance)}
+          className="rounded-lg border border-[#238636] bg-[#238636]/10 px-2 py-1 text-xs text-[#3fb950] disabled:opacity-40"
+        >
+          {savingServerId === alliance.id
+            ? t("serverColumn.saving")
+            : t("serverColumn.save")}
+        </button>
+      </div>
+    );
   }
 
   const pageStart = total === 0 ? 0 : offset + 1;
@@ -187,6 +290,14 @@ export function AdminAlliancesConsole() {
       />
 
       <div className="space-y-4">
+        {serverError ? (
+          <p
+            role="alert"
+            className="rounded-lg border border-[#f85149]/40 bg-[#f85149]/10 px-3 py-2 text-sm text-[#f85149]"
+          >
+            {serverError}
+          </p>
+        ) : null}
         <div className="flex flex-wrap items-end gap-3 rounded-xl border border-[#30363d] bg-[#161b22] p-4">
           <label className="min-w-0 flex-1 space-y-1 text-sm sm:min-w-[14rem]">
             <span className="text-[#8b949e]">{t("search.label")}</span>
@@ -319,6 +430,9 @@ export function AdminAlliancesConsole() {
                     </div>
                   </div>
                 </RecordDetailField>
+                <RecordDetailField label={t("table.server")}>
+                  {renderServerCell(alliance)}
+                </RecordDetailField>
                 <RecordDetailField label={t("table.owner")}>
                   {alliance.ownerEmail ?? "—"}
                 </RecordDetailField>
@@ -348,6 +462,7 @@ export function AdminAlliancesConsole() {
                 <thead className="bg-[#161b22] text-[#8b949e]">
                   <tr>
                     <th className="px-4 py-2">{t("table.alliance")}</th>
+                    <th className="px-4 py-2">{t("table.server")}</th>
                     <th className="px-4 py-2">{t("table.owner")}</th>
                     <th className="px-4 py-2">{t("table.collaborators")}</th>
                     <th className="px-4 py-2">{t("table.members")}</th>
@@ -398,6 +513,9 @@ export function AdminAlliancesConsole() {
                               </span>
                             ) : null}
                           </div>
+                        </td>
+                        <td className="px-4 py-2">
+                          {renderServerCell(alliance)}
                         </td>
                         <td className="px-4 py-2 text-xs">
                           {alliance.ownerEmail ?? "—"}

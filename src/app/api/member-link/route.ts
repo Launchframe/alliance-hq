@@ -30,6 +30,8 @@ export async function GET() {
 const submitSchema = z.object({
   reportedName: z.string().trim().min(1).max(120).optional(),
   gameUid: z.string().trim().max(20).optional(),
+  ownerProvidedServerNumber: z.number().int().positive().max(9999).optional(),
+  ownerLookupFallback: z.boolean().optional(),
 });
 
 export async function POST(request: Request) {
@@ -54,6 +56,8 @@ export async function POST(request: Request) {
     displayName: rbac?.displayName ?? null,
     reportedName: body.reportedName,
     gameUid: body.gameUid,
+    ownerProvidedServerNumber: body.ownerProvidedServerNumber,
+    ownerLookupFallback: body.ownerLookupFallback,
   });
 
   return memberLinkJsonResponse(result);

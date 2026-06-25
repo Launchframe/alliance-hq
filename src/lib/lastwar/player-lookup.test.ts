@@ -144,6 +144,15 @@ describe("lookupPlayerByUid E2E fixtures", () => {
       ok: true,
       gameUserName: "E2eWrongServer",
       gameServerNumber: 1205,
+    })
+  });
+
+  it("returns owner onboarding player with server encoded in UID suffix", async () => {
+    vi.stubEnv("E2E_TEST", "true");
+    await expect(lookupPlayerByUid("12345678901847")).resolves.toEqual({
+      ok: true,
+      gameUserName: "E2eNativeOwner",
+      gameServerNumber: 1847,
     });
   });
 });

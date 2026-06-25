@@ -26,6 +26,8 @@ type Phase =
   | "roster_miss"
   | "awaiting_owner"
   | "wrong_server"
+  | "confirm_server"
+  | "lookup_fallback"
   | "success";
 
 type ApiResponse = {
@@ -33,6 +35,10 @@ type ApiResponse = {
   message: string;
   candidates?: Array<{ memberId: string; name: string }>;
   linkedMemberName?: string;
+  lookupGameUserName?: string;
+  lookupServerNumber?: number | null;
+  allianceServerNumber?: number | null;
+  serverConfirmReason?: "missing" | "mismatch";
 };
 
 export function MemberLinkOnboardingWizard({
@@ -58,6 +64,18 @@ export function MemberLinkOnboardingWizard({
   const [linkedName, setLinkedName] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [suggestedName, setSuggestedName] = useState<string | null>(null);
+  const [serverDraft, setServerDraft] = useState("");
+  const [serverConfirmReason, setServerConfirmReason] = useState<
+    "missing" | "mismatch" | null
+  >(null);
+  const [lookupServerNumber, setLookupServerNumber] = useState<number | null>(
+    null,
+  );
+  const [allianceServerNumber, setAllianceServerNumber] = useState<
+    number | null
+  >(null);
+  const [useLookupFallback, setUseLookupFallback] = useState(false);
 
   const walkthroughSteps = useMemo(
     () => tLink.raw("steps") as string[],
@@ -113,11 +131,40 @@ export function MemberLinkOnboardingWizard({
           setPhase("wrong_server");
           setFormError(data.message);
           break;
+        case "name_mismatch":
+          setSuggestedName(data.lookupGameUserName ?? null);
+          setPhase("form");
+          setFormError(data.message);
+          break;
+        case "confirm_server":
+          setServerConfirmReason(data.serverConfirmReason ?? null);
+          setLookupServerNumber(data.lookupServerNumber ?? null);
+          setAllianceServerNumber(data.allianceServerNumber ?? null);
+          setServerDraft(
+            String(
+              data.lookupServerNumber ??
+                data.allianceServerNumber ??
+                "",
+            ),
+          );
+          setUseLookupFallback(false);
+          setMessage(data.message);
+          setPhase("confirm_server");
+          break;
+        case "lookup_fallback":
+          setUseLookupFallback(true);
+          setServerDraft("");
+          setMessage(data.message);
+          setPhase("lookup_fallback");
+          break;
         case "ashed_verification_required":
           setPhase("connect_ashed");
           setFormError(data.message);
           break;
         case "member_taken":
+          setPhase("form");
+          setFormError(t("memberTakenBody"));
+          break;
         case "lookup_error":
         case "usage":
         case "pick_expired":
@@ -132,8 +179,29 @@ export function MemberLinkOnboardingWizard({
           setFormError(data.message);
       }
     },
-    [nextPath, reportedName, router],
+    [nextPath, reportedName, router, t],
   );
+
+  function buildSubmitBody(extra?: {
+    ownerProvidedServerNumber?: number;
+    ownerLookupFallback?: boolean;
+  }) {
+    return {
+      reportedName: reportedName.trim(),
+      gameUid: gameUid.trim(),
+      ...extra,
+    };
+  }
+
+  function parseServerDraft(): number | null {
+    const trimmed = serverDraft.trim();
+    if (!trimmed) return null;
+    const parsed = Number.parseInt(trimmed, 10);
+    if (!Number.isFinite(parsed) || parsed <= 0 || parsed > 9999) {
+      return null;
+    }
+    return parsed;
+  }
 
   async function postJson<T>(url: string, body?: unknown): Promise<T> {
     const res = await fetch(url, {
@@ -173,16 +241,65 @@ export function MemberLinkOnboardingWizard({
 
     setBusy(true);
     try {
-      const data = await postJson<ApiResponse>("/api/member-link", {
-        reportedName: name,
-        gameUid: uid,
-      });
+      const data = await postJson<ApiResponse>(
+        "/api/member-link",
+        buildSubmitBody(),
+      );
       applyOutcome(data);
     } catch {
       setFormError(t("requestFailed"));
     } finally {
       setBusy(false);
     }
+  }
+
+  async function submitServerNumber() {
+    setFormError(null);
+    const server = parseServerDraft();
+    if (server == null) {
+      setFormError(
+        serverDraft.trim() ? t("serverNumberInvalid") : t("serverNumberRequired"),
+      );
+      return;
+    }
+
+    const name = reportedName.trim();
+    const uid = gameUid.trim();
+    if (!name || !uid) {
+      setFormError(t("requestFailed"));
+      setPhase("form");
+      return;
+    }
+
+    setBusy(true);
+    try {
+      const data = await postJson<ApiResponse>(
+        "/api/member-link",
+        buildSubmitBody({
+          ownerProvidedServerNumber: server,
+          ownerLookupFallback: useLookupFallback,
+        }),
+      );
+      applyOutcome(data);
+    } catch {
+      setFormError(t("requestFailed"));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function applySuggestedName() {
+    if (!suggestedName) return;
+    setReportedName(suggestedName);
+    setSuggestedName(null);
+    setFormError(null);
+  }
+
+  function backToLinkForm() {
+    setUseLookupFallback(false);
+    setServerConfirmReason(null);
+    setFormError(null);
+    setPhase("form");
   }
 
   async function walkthroughDone() {
@@ -381,6 +498,19 @@ export function MemberLinkOnboardingWizard({
           {formError ? (
             <p className="text-sm text-[#f85149]">{formError}</p>
           ) : null}
+          {suggestedName ? (
+            <div className="rounded-lg border border-[#30363d] bg-[#0d1117] p-3 text-sm text-[#c9d1d9]">
+              <p className="text-[#8b949e]">{t("nameMismatchHint")}</p>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={applySuggestedName}
+                className="mt-2 text-[#58a6ff] underline hover:text-[#79c0ff] disabled:opacity-50"
+              >
+                {t("useSuggestedName")}: {suggestedName}
+              </button>
+            </div>
+          ) : null}
           <button
             type="button"
             disabled={busy}
@@ -512,6 +642,73 @@ export function MemberLinkOnboardingWizard({
             className="w-full text-sm text-[#8b949e] underline hover:text-[#58a6ff] disabled:opacity-50"
           >
             {t("wrongAlliance")}
+          </button>
+        </div>
+      ) : null}
+
+      {phase === "confirm_server" || phase === "lookup_fallback" ? (
+        <div className="space-y-4">
+          <h2 className="text-lg font-semibold">
+            {phase === "lookup_fallback"
+              ? t("lookupFallbackTitle")
+              : t("confirmServerTitle")}
+          </h2>
+          <p className="text-sm text-[#8b949e]">
+            {message ??
+              (phase === "lookup_fallback"
+                ? t("lookupFallbackBody")
+                : serverConfirmReason === "mismatch"
+                  ? t("confirmServerMismatchBody")
+                  : t("confirmServerMissingBody"))}
+          </p>
+          {serverConfirmReason === "mismatch" ? (
+            <dl className="grid grid-cols-2 gap-2 rounded-lg border border-[#30363d] bg-[#0d1117] p-3 text-sm">
+              <div>
+                <dt className="text-[#8b949e]">Last War</dt>
+                <dd className="font-medium text-[#e6edf3]">
+                  {lookupServerNumber ?? "—"}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-[#8b949e]">{t("serverNumberLabel")}</dt>
+                <dd className="font-medium text-[#e6edf3]">
+                  {allianceServerNumber ?? "—"}
+                </dd>
+              </div>
+            </dl>
+          ) : null}
+          <label className="block space-y-1">
+            <span className="text-sm font-medium">{t("serverNumberLabel")}</span>
+            <input
+              type="text"
+              inputMode="numeric"
+              value={serverDraft}
+              onChange={(e) =>
+                setServerDraft(e.target.value.replace(/\D/g, ""))
+              }
+              className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 font-mono text-sm text-[#e6edf3]"
+              autoComplete="off"
+            />
+            <span className="text-xs text-[#8b949e]">{t("serverNumberHint")}</span>
+          </label>
+          {formError ? (
+            <p className="text-sm text-[#f85149]">{formError}</p>
+          ) : null}
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void submitServerNumber()}
+            className="w-full rounded-lg border border-[#238636] bg-[#238636] px-4 py-2.5 text-sm font-medium text-white disabled:opacity-50"
+          >
+            {busy ? t("submitting") : t("submitServer")}
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={backToLinkForm}
+            className="w-full text-sm text-[#8b949e] underline hover:text-[#58a6ff] disabled:opacity-50"
+          >
+            {t("backToForm")}
           </button>
         </div>
       ) : null}
