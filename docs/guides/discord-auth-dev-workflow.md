@@ -144,6 +144,15 @@ For `/link-to-ashed-seat`:
 2. Open the printed authorize URL.
 3. Confirm the form asks for an Ashed connection key.
 
+## Roster-miss queue (with and without an HQ link)
+
+When `/link` verifies a commander but the in-game name does not match the alliance roster, the bot routes the attempt to the officer roster-link queue (`/members/roster-link-requests` in HQ) instead of dead-ending:
+
+- **Discord user has an HQ link** (`discord_hq_links` row): the request is created with that `hq_user_id`. The bot reply is `discordBot.link.awaitingOfficerResolve`. Resolving the request links both the HQ member and the Discord member.
+- **Discord user has no HQ link**: the request is still created, with `hq_user_id = NULL` (Discord-only). The bot reply is `discordBot.link.awaitingOfficerResolveNoHq`, which explains officers were notified and the user can link an HQ account later. Resolving the request binds only the Discord member (`discord_member_links`) to the chosen roster member.
+
+Both paths compute the single-substring suggestion (`findUniqueSubstringRosterCandidate`) and persist `suggested_target_ashed_member_id` / `suggested_matched_roster_name` so officers see a preselected match. Re-running `/link` supersedes the prior pending request — by `hq_user_id` when present, otherwise by `discord_user_id`.
+
 ## Negative Checks
 
 Run these before shipping Discord auth changes:
