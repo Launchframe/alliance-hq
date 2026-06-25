@@ -108,9 +108,11 @@ export function SidebarNav({
   )
     .map((group) => ({
       ...group,
-      pages: canUseAshedEmbeds
-        ? group.pages
-        : group.pages.filter((page) => page.kind !== "iframe"),
+      pages: (
+        canUseAshedEmbeds
+          ? group.pages
+          : group.pages.filter((page) => page.kind !== "iframe")
+      ).filter((page) => page.id !== "video-queue" || showVideoQueue),
     }))
     .filter((group) => group.pages.length > 0);
 
@@ -178,17 +180,8 @@ export function SidebarNav({
                       ]
                     : []),
                 ]
-              : group.id === "hq-native"
+              : group.id === "admin-settings"
                 ? [
-                    ...(showVideoQueue
-                      ? [
-                          {
-                            href: "/tools/video-upload/queue",
-                            labelKey: "videoQueue" as const,
-                            pageId: "video-queue",
-                          },
-                        ]
-                      : []),
                     ...(showAdminPortal
                       ? [
                           {

@@ -217,8 +217,8 @@ export const NAV_GROUPS: NavGroupDef[] = [
     ],
   },
   {
-    id: "hq-native",
-    labelKey: "hqNative",
+    id: "video",
+    labelKey: "video",
     pages: [
       {
         id: "video-upload",
@@ -227,6 +227,12 @@ export const NAV_GROUPS: NavGroupDef[] = [
         kind: "native",
         descriptionKey: "videoUploadDescription",
         requiredPermission: "hq:video:enqueue",
+      },
+      {
+        id: "video-queue",
+        labelKey: "videoQueue",
+        href: "/tools/video-upload/queue",
+        kind: "native",
       },
     ],
   },
@@ -308,6 +314,15 @@ export function navLinkActive(pathname: string, href: string): boolean {
   if (href === "/profile") {
     return pathname === "/profile";
   }
+  if (href === "/tools/video-upload/queue") {
+    return pathname === "/tools/video-upload/queue";
+  }
+  if (href === "/tools/video-upload") {
+    if (pathname === "/tools/video-upload/queue") {
+      return false;
+    }
+    return pathname === href || pathname.startsWith(`${href}/`);
+  }
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
@@ -344,7 +359,7 @@ export function findActiveNavGroupId(
       continue;
     }
 
-    if (group.id === "hq-native") {
+    if (group.id === "admin-settings") {
       if (showAdminPortal && pathname.startsWith("/admin")) {
         return group.id;
       }
