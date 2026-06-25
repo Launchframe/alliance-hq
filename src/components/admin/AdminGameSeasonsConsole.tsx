@@ -69,7 +69,11 @@ export function AdminGameSeasonsConsole() {
     if (!draft) return;
 
     const maxBaseVr = Number.parseInt(draft.maxBaseVr, 10);
-    if (!Number.isFinite(maxBaseVr) || maxBaseVr < 250) {
+    if (
+      !Number.isFinite(maxBaseVr) ||
+      maxBaseVr < 250 ||
+      maxBaseVr > 12750
+    ) {
       setError(t("invalidMaxVr"));
       return;
     }
@@ -201,27 +205,27 @@ export function AdminGameSeasonsConsole() {
       </RecordDetailField>
       <RecordDetailField label={t("maxBaseVr")}>
         <input
-            type="number"
-            min={250}
-            max={12750}
-            value={drafts[row.id]?.maxBaseVr ?? ""}
-            onChange={(event) =>
-              updateDraft(row.id, "maxBaseVr", event.target.value)
-            }
-            className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-2 py-1"
-          />
+          type="number"
+          min={250}
+          max={12750}
+          value={drafts[row.id]?.maxBaseVr ?? ""}
+          onChange={(event) =>
+            updateDraft(row.id, "maxBaseVr", event.target.value)
+          }
+          className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-2 py-1"
+        />
       </RecordDetailField>
       <RecordDetailField label={t("maxProfessionLevel")}>
         <input
-            type="number"
-            min={1}
-            placeholder={t("professionUnset")}
-            value={drafts[row.id]?.maxProfessionLevel ?? ""}
-            onChange={(event) =>
-              updateDraft(row.id, "maxProfessionLevel", event.target.value)
-            }
-            className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-2 py-1"
-          />
+          type="number"
+          min={1}
+          placeholder={t("professionUnset")}
+          value={drafts[row.id]?.maxProfessionLevel ?? ""}
+          onChange={(event) =>
+            updateDraft(row.id, "maxProfessionLevel", event.target.value)
+          }
+          className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-2 py-1"
+        />
       </RecordDetailField>
       <button
         type="button"
