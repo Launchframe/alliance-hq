@@ -34,8 +34,17 @@ export function videoOcrEngineForTarget(
   return isRosterTarget ? "native" : "mock";
 }
 
-export function engineRequiresAshed(engine: VideoOcrEngine): boolean {
+export function shouldEnqueueAshedOcrShadowPasses(engine: VideoOcrEngine): boolean {
   return engine === "ashed";
+}
+
+/** Resolve whether the worker should load an Ashed credential for this engine. */
+export async function resolveVideoJobAshedConnection(params: {
+  engine: VideoOcrEngine;
+  loadConnection: () => Promise<unknown | null>;
+}): Promise<unknown | null> {
+  if (!engineRequiresAshed(params.engine)) return null;
+  return params.loadConnection();
 }
 
 /** Resolve engine for a job from env + score target id. */

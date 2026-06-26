@@ -49,7 +49,9 @@ import { mergeGroupComparisons } from "@/lib/video/group-comparisons.shared";
 import { mockOcrScoreFrames } from "@/lib/video/ocr-mock";
 import {
   engineRequiresAshed,
+  resolveVideoJobAshedConnection,
   resolveVideoOcrEngineForJob,
+  shouldEnqueueAshedOcrShadowPasses,
 } from "@/lib/video/ocr-provider.shared";
 import { resolveJobVideoStorageKey } from "@/lib/video/resolve-job-video-storage";
 import type { ExtractionConfig } from "@/lib/video/pass-definitions";
@@ -191,9 +193,10 @@ export async function processVideoJob(
       throw new Error("Job has no stored video.");
     }
 
-    const connection: ParsedConnection | null = engineRequiresAshed(ocrEngine)
-      ? await getAshedConnection(processingSessionId)
-      : await getAshedConnection(processingSessionId);
+    const connection = (await resolveVideoJobAshedConnection({
+      engine: ocrEngine,
+      loadConnection: () => getAshedConnection(processingSessionId),
+    })) as ParsedConnection | null;
 
     if (engineRequiresAshed(ocrEngine) && !connection) {
       // Recoverable: revert to pending so a connected processor can re-approve.
@@ -732,16 +735,18 @@ export async function processVideoJob(
     };
 
     try {
-      await maybeEnqueueShadowPass({
-        job: shadowEnqueueJob,
-        totalMs: timings.totalMs,
-        frameCount,
-      });
+      if (shouldEnqueueAshedOcrShadowPasses(ocrEngine)) {
+        await maybeEnqueueShadowPass({
+          job: shadowEnqueueJob,
+          totalMs: timings.totalMs,
+          frameCount,
+        });
+      }
     } catch {
       // Shadow pass failure must not fail primary job
     }
 
-    if (isRosterTarget && ocrEngine === "ashed") {
+    if (isRosterTarget && shouldEnqueueAshedOcrShadowPasses(ocrEngine)) {
       try {
         const { maybeEnqueueTesseractShadowPass } = await import(
           "@/lib/video/enqueue-tesseract-shadow-pass"

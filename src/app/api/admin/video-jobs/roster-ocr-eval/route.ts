@@ -4,7 +4,6 @@ import { and, eq, gte } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { requirePlatformMaintainer } from "@/lib/rbac/require-permission";
 import { readSessionId } from "@/lib/session";
-import type { RosterTesseractEvalMetrics } from "@/lib/video/compare-roster-ocr-quality";
 import {
   aggregateOcrEvalSnapshots,
   type OcrEvalDailyPoint,

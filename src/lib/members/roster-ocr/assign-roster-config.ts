@@ -173,6 +173,14 @@ export async function resolveRosterOcrConfigForVideoGroup(
           fromArm.experimentCampaignId ?? group.experimentCampaignId,
       };
     }
+
+    // Arm without a roster parse config: keep group attribution for eval metrics.
+    const base = await loadRosterOcrConfigAssignment();
+    return {
+      ...base,
+      experimentCampaignId: group.experimentCampaignId,
+      experimentArmId: group.experimentArmId,
+    };
   }
 
   return assignRosterOcrExperiment();
