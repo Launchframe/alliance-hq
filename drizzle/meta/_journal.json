@@ -428,6 +428,13 @@
       "when": 1784460800000,
       "tag": "0061_roster_link_request_discord_nullable_hq",
       "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1784633600000,
+      "tag": "0062_ocr_eval_snapshots",
+      "breakpoints": true
     }
   ]
 }

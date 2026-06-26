@@ -54,6 +54,17 @@ type DetailResponse = {
   arms: ArmStats[];
   dailySeries: DailyPoint[];
   population: PopulationRow[];
+  ocrEvalByArm: OcrEvalArmRow[] | null;
+};
+
+type OcrEvalArmRow = {
+  armId: string;
+  jobCount: number;
+  avgNameRecall: number | null;
+  avgNamePrecision: number | null;
+  avgRankAgreement: number | null;
+  avgPowerAgreement: number | null;
+  avgLevelAgreement: number | null;
 };
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -293,6 +304,7 @@ function TimelineChart({
 
 export function AdminExperimentDetailView({ campaignId }: { campaignId: string }) {
   const t = useTranslations("admin.experimentsPage");
+  const tRosterOcr = useTranslations("admin.analyticsPage.rosterOcrEval");
   const [data, setData] = useState<DetailResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -445,7 +457,7 @@ export function AdminExperimentDetailView({ campaignId }: { campaignId: string }
   if (error) return <p className="text-sm text-[#f85149]">{error}</p>;
   if (!data) return null;
 
-  const { campaign, arms, dailySeries, population } = data;
+  const { campaign, arms, dailySeries, population, ocrEvalByArm } = data;
   const statusCls = STATUS_COLORS[campaign.status] ?? STATUS_COLORS.draft;
   const controlArm = arms.find((a) => a.isControl);
 
@@ -790,6 +802,46 @@ export function AdminExperimentDetailView({ campaignId }: { campaignId: string }
           </p>
         )}
       </section>
+
+      {ocrEvalByArm && ocrEvalByArm.length > 0 ? (
+        <section className="space-y-4 rounded-lg border border-[#30363d] bg-[#161b22] p-4">
+          <div>
+            <h2 className="text-sm font-semibold text-[#e6edf3]">{tRosterOcr("title")}</h2>
+            <p className="mt-1 text-xs text-[#8b949e]">{tRosterOcr("subtitle")}</p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-[#30363d] text-[#8b949e] uppercase tracking-wide">
+                  <th className="pb-2 text-left">{t("arms.col.name")}</th>
+                  <th className="pb-2 text-right">{tRosterOcr("colJobs")}</th>
+                  <th className="pb-2 text-right">{tRosterOcr("nameRecall")}</th>
+                  <th className="pb-2 text-right">{tRosterOcr("namePrecision")}</th>
+                  <th className="pb-2 text-right">{tRosterOcr("rankAgreement")}</th>
+                  <th className="pb-2 text-right">{tRosterOcr("powerAgreement")}</th>
+                  <th className="pb-2 text-right">{tRosterOcr("levelAgreement")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {ocrEvalByArm.map((row) => {
+                  const arm = arms.find((a) => a.id === row.armId);
+                  return (
+                    <tr key={row.armId} className="border-b border-[#21262d]">
+                      <td className="py-2 text-[#e6edf3]">{arm?.name ?? row.armId}</td>
+                      <td className="py-2 text-right text-[#e6edf3]">{row.jobCount}</td>
+                      <td className="py-2 text-right text-[#8b949e]">{pct(row.avgNameRecall, 1)}</td>
+                      <td className="py-2 text-right text-[#8b949e]">{pct(row.avgNamePrecision, 1)}</td>
+                      <td className="py-2 text-right text-[#8b949e]">{pct(row.avgRankAgreement, 1)}</td>
+                      <td className="py-2 text-right text-[#8b949e]">{pct(row.avgPowerAgreement, 1)}</td>
+                      <td className="py-2 text-right text-[#8b949e]">{pct(row.avgLevelAgreement, 1)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      ) : null}
 
       {/* Timeline chart */}
       {dailySeries.length > 0 && (

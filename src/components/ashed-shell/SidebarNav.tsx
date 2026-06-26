@@ -64,6 +64,7 @@ type Props = {
   showAdminPortal?: boolean;
   showTeamAccess?: boolean;
   showVideoQueue?: boolean;
+  showVideoProcessorsNav?: boolean;
   showAllianceSettings?: boolean;
   activeAllianceTag?: string | null;
   operatingMode?: "ashed" | "native" | null;
@@ -82,6 +83,7 @@ export function SidebarNav({
   showAdminPortal = false,
   showTeamAccess = false,
   showVideoQueue = false,
+  showVideoProcessorsNav = false,
   showAllianceSettings = false,
   activeAllianceTag = null,
   operatingMode = null,
@@ -112,7 +114,11 @@ export function SidebarNav({
         canUseAshedEmbeds
           ? group.pages
           : group.pages.filter((page) => page.kind !== "iframe")
-      ).filter((page) => page.id !== "video-queue" || showVideoQueue),
+      ).filter(
+        (page) =>
+          (page.id !== "video-queue" || showVideoQueue) &&
+          (page.id !== "video-processors" || showVideoProcessorsNav),
+      ),
     }))
     .filter((group) => group.pages.length > 0);
 

@@ -1,10 +1,16 @@
 import { NextResponse } from "next/server";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, gte } from "drizzle-orm";
 
 import { getDb, schema } from "@/lib/db";
 import { requirePlatformMaintainer } from "@/lib/rbac/require-permission";
 import { readSessionId } from "@/lib/session";
 import type { RosterTesseractEvalMetrics } from "@/lib/video/compare-roster-ocr-quality";
+import {
+  aggregateOcrEvalSnapshots,
+  type OcrEvalDailyPoint,
+  type OcrEvalSnapshotMetrics,
+} from "@/lib/video/ocr-eval-snapshots.server";
+import { MEMBER_ROSTER_VIDEO_SCORE_TARGET } from "@/lib/members/ashed-member-record";
 
 export type RosterOcrEvalPassRow = {
   tessPassKey: string;
@@ -16,6 +22,14 @@ export type RosterOcrEvalPassRow = {
   avgLevelAgreement: number | null;
 };
 
+export type RosterOcrEvalByEngineRow = {
+  primaryEngine: string;
+  jobCount: number;
+  avgNameRecall: number | null;
+  avgNamePrecision: number | null;
+  avgRankAgreement: number | null;
+};
+
 export type RosterOcrEvalResponse = {
   jobCount: number;
   avgNameRecall: number | null;
@@ -24,13 +38,9 @@ export type RosterOcrEvalResponse = {
   avgPowerAgreement: number | null;
   avgLevelAgreement: number | null;
   byPassKey: RosterOcrEvalPassRow[];
+  dailySeries: OcrEvalDailyPoint[];
+  byPrimaryEngine: RosterOcrEvalByEngineRow[];
 };
-
-function avgNullable(values: Array<number | null | undefined>): number | null {
-  const nums = values.filter((v): v is number => typeof v === "number");
-  if (nums.length === 0) return null;
-  return nums.reduce((sum, n) => sum + n, 0) / nums.length;
-}
 
 export async function GET(request: Request) {
   const sessionId = await readSessionId();
@@ -44,70 +54,69 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const days = Number(url.searchParams.get("days") ?? 30);
   const passKeyFilter = url.searchParams.get("tessPassKey");
+  const campaignIdFilter = url.searchParams.get("campaignId");
 
   const db = getDb();
 
   const conditions = [
-    sql`${schema.videoUploadGroups.comparisonJson}->>'kind' = 'roster_tesseract_eval'`,
-    eq(schema.videoUploadGroups.scoreTarget, "member-roster-video"),
+    eq(schema.ocrEvalSnapshots.scoreTarget, MEMBER_ROSTER_VIDEO_SCORE_TARGET),
   ];
 
   if (days > 0) {
+    const since = new Date();
+    since.setUTCDate(since.getUTCDate() - days);
+    conditions.push(gte(schema.ocrEvalSnapshots.createdAt, since));
+  }
+
+  if (passKeyFilter) {
+    conditions.push(eq(schema.ocrEvalSnapshots.nativePassKey, passKeyFilter));
+  }
+
+  if (campaignIdFilter) {
     conditions.push(
-      sql`${schema.videoUploadGroups.createdAt} >= now() - ${sql.raw(`'${days} days'::interval`)}`,
+      eq(schema.ocrEvalSnapshots.experimentCampaignId, campaignIdFilter),
     );
   }
 
-  const groups = await db
+  const snapshots = await db
     .select({
-      comparisonJson: schema.videoUploadGroups.comparisonJson,
+      nativePassKey: schema.ocrEvalSnapshots.nativePassKey,
+      metricsJson: schema.ocrEvalSnapshots.metricsJson,
+      createdAt: schema.ocrEvalSnapshots.createdAt,
+      experimentArmId: schema.ocrEvalSnapshots.experimentArmId,
+      primaryEngine: schema.ocrEvalSnapshots.primaryEngine,
     })
-    .from(schema.videoUploadGroups)
+    .from(schema.ocrEvalSnapshots)
     .where(and(...conditions));
 
-  const rows = groups
-    .map((group) => {
-      const comparison = group.comparisonJson as {
-        tessPassKey?: string | null;
-        metrics?: RosterTesseractEvalMetrics;
-      } | null;
-      if (!comparison?.metrics) return null;
-      if (passKeyFilter && comparison.tessPassKey !== passKeyFilter) return null;
-      return {
-        tessPassKey: comparison.tessPassKey ?? "unknown",
-        metrics: comparison.metrics,
-      };
-    })
-    .filter((row): row is { tessPassKey: string; metrics: RosterTesseractEvalMetrics } => !!row);
+  const aggregated = aggregateOcrEvalSnapshots(
+    snapshots.map((row) => ({
+      nativePassKey: row.nativePassKey,
+      metricsJson: row.metricsJson as OcrEvalSnapshotMetrics | null,
+      createdAt: row.createdAt,
+      experimentArmId: row.experimentArmId,
+      primaryEngine: row.primaryEngine,
+    })),
+  );
 
-  const byPassKeyMap = new Map<string, RosterTesseractEvalMetrics[]>();
-  for (const row of rows) {
-    const bucket = byPassKeyMap.get(row.tessPassKey) ?? [];
-    bucket.push(row.metrics);
-    byPassKeyMap.set(row.tessPassKey, bucket);
-  }
-
-  const byPassKey: RosterOcrEvalPassRow[] = [...byPassKeyMap.entries()]
-    .map(([tessPassKey, metricsList]) => ({
-      tessPassKey,
-      jobCount: metricsList.length,
-      avgNameRecall: avgNullable(metricsList.map((m) => m.nameRecall)),
-      avgNamePrecision: avgNullable(metricsList.map((m) => m.namePrecision)),
-      avgRankAgreement: avgNullable(metricsList.map((m) => m.rankAgreement)),
-      avgPowerAgreement: avgNullable(metricsList.map((m) => m.powerAgreement)),
-      avgLevelAgreement: avgNullable(metricsList.map((m) => m.levelAgreement)),
-    }))
-    .sort((a, b) => a.tessPassKey.localeCompare(b.tessPassKey));
-
-  const allMetrics = rows.map((row) => row.metrics);
   const response: RosterOcrEvalResponse = {
-    jobCount: allMetrics.length,
-    avgNameRecall: avgNullable(allMetrics.map((m) => m.nameRecall)),
-    avgNamePrecision: avgNullable(allMetrics.map((m) => m.namePrecision)),
-    avgRankAgreement: avgNullable(allMetrics.map((m) => m.rankAgreement)),
-    avgPowerAgreement: avgNullable(allMetrics.map((m) => m.powerAgreement)),
-    avgLevelAgreement: avgNullable(allMetrics.map((m) => m.levelAgreement)),
-    byPassKey,
+    jobCount: aggregated.jobCount,
+    avgNameRecall: aggregated.avgNameRecall,
+    avgNamePrecision: aggregated.avgNamePrecision,
+    avgRankAgreement: aggregated.avgRankAgreement,
+    avgPowerAgreement: aggregated.avgPowerAgreement,
+    avgLevelAgreement: aggregated.avgLevelAgreement,
+    byPassKey: aggregated.byPassKey.map((row) => ({
+      tessPassKey: row.tessPassKey,
+      jobCount: row.jobCount,
+      avgNameRecall: row.avgNameRecall,
+      avgNamePrecision: row.avgNamePrecision,
+      avgRankAgreement: row.avgRankAgreement,
+      avgPowerAgreement: row.avgPowerAgreement,
+      avgLevelAgreement: row.avgLevelAgreement,
+    })),
+    dailySeries: aggregated.dailySeries,
+    byPrimaryEngine: aggregated.byPrimaryEngine,
   };
 
   return NextResponse.json(response);

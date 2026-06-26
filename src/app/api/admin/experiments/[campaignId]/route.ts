@@ -2,10 +2,16 @@ import { NextResponse } from "next/server";
 import { and, eq, inArray, isNull, ne } from "drizzle-orm";
 
 import { getDb, schema } from "@/lib/db";
+import { MEMBER_ROSTER_VIDEO_SCORE_TARGET } from "@/lib/members/ashed-member-record";
 import { requirePlatformMaintainer } from "@/lib/rbac/require-permission";
 import { readSessionId } from "@/lib/session";
 import { validateExperimentArmConfig } from "@/lib/video/experiment-arm-validation";
 import { buildExperimentDetailAnalytics } from "@/lib/video/experiment-detail-analytics";
+import {
+  aggregateOcrEvalByArm,
+  type OcrEvalByArmRow,
+  type OcrEvalSnapshotMetrics,
+} from "@/lib/video/ocr-eval-snapshots.server";
 
 type RouteParams = { params: Promise<{ campaignId: string }> };
 
@@ -100,11 +106,30 @@ export async function GET(_request: Request, { params }: RouteParams) {
 
   const analytics = buildExperimentDetailAnalytics({ arms, groups, jobs });
 
+  let ocrEvalByArm: OcrEvalByArmRow[] | null = null;
+  if (campaign.scoreTarget === MEMBER_ROSTER_VIDEO_SCORE_TARGET) {
+    const snapshots = await db
+      .select({
+        experimentArmId: schema.ocrEvalSnapshots.experimentArmId,
+        metricsJson: schema.ocrEvalSnapshots.metricsJson,
+      })
+      .from(schema.ocrEvalSnapshots)
+      .where(eq(schema.ocrEvalSnapshots.experimentCampaignId, campaignId));
+
+    ocrEvalByArm = aggregateOcrEvalByArm(
+      snapshots.map((row) => ({
+        experimentArmId: row.experimentArmId,
+        metricsJson: row.metricsJson as OcrEvalSnapshotMetrics | null,
+      })),
+    );
+  }
+
   return NextResponse.json({
     campaign,
     arms: analytics.arms,
     dailySeries: analytics.dailySeries,
     population: analytics.population,
+    ocrEvalByArm,
   });
 }
 

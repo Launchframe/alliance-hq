@@ -8,6 +8,13 @@ import {
 } from "@/lib/analytics/video-pipeline";
 import { writeAuditLog } from "@/lib/bff/audit";
 import { base44ListMembers } from "@/lib/base44/fetch";
+import type { ParsedConnection } from "@/lib/connectionString";
+import { resolveHqAllianceIdFromSession } from "@/lib/members/resolve-hq-alliance";
+import { isValidRosterOcrConfig } from "@/lib/members/roster-ocr/roster-ocr-config";
+import {
+  allianceMemberRowToAshedMember,
+  listAllianceMembers,
+} from "@/lib/members/roster.server";
 import { getAshedConnection } from "@/lib/session";
 import { getDb, schema } from "@/lib/db";
 import { putObject, frameStorageKey, prefersLocalStorage, r2Configured, streamObjectToFile } from "@/lib/storage";
@@ -38,6 +45,12 @@ import {
 } from "@/lib/video/errors";
 import { dispatchVideoArchive } from "@/lib/video/trigger-archive";
 import { computePassComparison } from "@/lib/video/compare-pass-results";
+import { mergeGroupComparisons } from "@/lib/video/group-comparisons.shared";
+import { mockOcrScoreFrames } from "@/lib/video/ocr-mock";
+import {
+  engineRequiresAshed,
+  resolveVideoOcrEngineForJob,
+} from "@/lib/video/ocr-provider.shared";
 import { resolveJobVideoStorageKey } from "@/lib/video/resolve-job-video-storage";
 import type { ExtractionConfig } from "@/lib/video/pass-definitions";
 import fs from "node:fs/promises";
@@ -120,6 +133,8 @@ export async function processVideoJob(
   }
 
   const scoreTargetId = job.scoreTarget ?? job.category ?? "desert-storm";
+  const isRosterTarget = isMemberRosterVideoTarget(scoreTargetId);
+  const ocrEngine = resolveVideoOcrEngineForJob(scoreTargetId, isRosterTarget);
   const now = new Date();
 
   /**
@@ -176,8 +191,11 @@ export async function processVideoJob(
       throw new Error("Job has no stored video.");
     }
 
-    const connection = await getAshedConnection(processingSessionId);
-    if (!connection) {
+    const connection: ParsedConnection | null = engineRequiresAshed(ocrEngine)
+      ? await getAshedConnection(processingSessionId)
+      : await getAshedConnection(processingSessionId);
+
+    if (engineRequiresAshed(ocrEngine) && !connection) {
       // Recoverable: revert to pending so a connected processor can re-approve.
       await db
         .update(schema.videoJobs)
@@ -302,13 +320,19 @@ export async function processVideoJob(
     let parseSessionId: string;
     let unresolvedConflicts: string[] = [];
 
-    if (isMemberRosterVideoTarget(scoreTargetId)) {
+    if (isRosterTarget) {
+      const rosterConfig = isValidRosterOcrConfig(job.extractionConfigJson)
+        ? job.extractionConfigJson
+        : undefined;
       const rosterResult = await processRosterVideoParse({
         jobId,
         sessionId: processingSessionId,
         scoreTargetId,
         target,
-        connection,
+        connection: engineRequiresAshed(ocrEngine) ? connection : null,
+        engine: ocrEngine,
+        rosterConfig,
+        rosterPassKey: job.passKey,
         frames: frames.map((f) => ({ index: f.index, buffer: f.buffer })),
         timer,
         now,
@@ -331,8 +355,128 @@ export async function processVideoJob(
 
       await setStatus("parsing", { uploadedFrameCount: frames.length });
     } else {
+      if (ocrEngine === "mock") {
+        allianceId = await timer.measureStep("alliance.resolve_hq", () =>
+          resolveHqAllianceIdFromSession(processingSessionId),
+        );
+
+        const rawEntries = await timer.measureStep(
+          "mock.ocr_total",
+          () =>
+            mockOcrScoreFrames(
+              scoreTargetId,
+              frames.map((f) => ({ index: f.index })),
+              { allianceId },
+            ),
+          (entries) => ({ rowCount: entries.length }),
+        );
+
+        ocrFrameMs = frames.map(() => 1);
+        ocrConcurrency = 1;
+        ashedUploadTotalMs = 0;
+        ashedExtractTotalMs = 0;
+        totalRawOcrRows = rawEntries.length;
+
+        const allianceTag = await timer.measureStep("alliance.load_tag", () =>
+          getSessionAllianceTag(job.sessionId),
+        );
+        const { entries, unresolvedConflicts: collapsedConflicts } =
+          await timer.measureStep(
+            "parse.collapse_rows",
+            async () =>
+              collapseEntriesBySanitizedName(rawEntries, allianceTag),
+            (result) => ({
+              inputRows: rawEntries.length,
+              outputRows: result.entries.length,
+              conflicts: result.unresolvedConflicts,
+            }),
+          );
+        unresolvedConflicts = collapsedConflicts;
+        rowCount = entries.length;
+
+        await timer.measureStep("storage.cleanup_frame_temp", () =>
+          cleanupFrameTempDir(frames),
+          { frameCount: frames.length },
+        );
+
+        await setStatus("parsing", { uploadedFrameCount: frames.length });
+
+        const hqMembers = await listAllianceMembers(allianceId);
+        const members = hqMembers.map(allianceMemberRowToAshedMember);
+
+        parseSessionId = nanoid(16);
+        await timer.measureStep("db.create_parse_session", async () => {
+          await db.insert(schema.parseSessions).values({
+            id: parseSessionId,
+            jobId,
+            sessionId: job.sessionId,
+            scoreTarget: scoreTargetId,
+            allianceId,
+            rowCount: entries.length,
+            matchedCount: 0,
+            status: "open",
+            createdAt: now,
+            updatedAt: now,
+          });
+        }, { rowCount: entries.length });
+
+        const memberIndex = members.length ? buildMemberIndex(members) : null;
+
+        await timer.measureStep(
+          "parse.match_and_persist",
+          async () => {
+            const matchedRows = entries.map((entry) => ({
+              entry,
+              match: memberIndex
+                ? matchMemberName(entry.name, memberIndex, { allianceTag })
+                : {
+                    ocrName: entry.name,
+                    memberId: null,
+                    memberName: null,
+                    confidence: 0,
+                    matchMethod: "none" as const,
+                  },
+            }));
+
+            const dedupedRows = dedupeMatchedParseEntries(matchedRows, allianceTag);
+            rowCount = dedupedRows.length;
+            matchedCount = 0;
+
+            for (const { entry, match } of dedupedRows) {
+              if (match.memberId) matchedCount++;
+
+              await db.insert(schema.parsedRows).values({
+                id: nanoid(16),
+                parseSessionId,
+                ocrName: entry.name,
+                score: String(entry.score),
+                rank: entry.rank ?? null,
+                memberId: match.memberId,
+                memberName: match.memberName,
+                matchConfidence: match.confidence,
+                matchMethod: match.matchMethod,
+                scoreConflict: entry.scoreConflict ? 1 : 0,
+                frameIndex: entry._sourceFrameIndex ?? null,
+                deleted: 0,
+                edited: 0,
+                createdAt: now,
+                updatedAt: now,
+              });
+            }
+            return matchedCount;
+          },
+          (count) => ({ matchedCount: count, rowCount }),
+        );
+
+        await timer.measureStep("db.update_parse_session", async () => {
+          await db
+            .update(schema.parseSessions)
+            .set({ matchedCount, rowCount, updatedAt: new Date() })
+            .where(eq(schema.parseSessions.id, parseSessionId));
+        });
+      } else {
       allianceId = await timer.measureStep("alliance.resolve", () =>
-        resolveSessionAllianceId(processingSessionId, connection),
+        resolveSessionAllianceId(processingSessionId, connection!),
       );
 
     const { entries: rawEntries, frameTimings, concurrency } =
@@ -340,7 +484,7 @@ export async function processVideoJob(
         "ashed.ocr_total",
         () =>
           ocrAllFrames(
-            connection,
+            connection!,
             target,
             frames.map((f) => ({ index: f.index, buffer: f.buffer })),
             { timer, jobId },
@@ -405,7 +549,7 @@ export async function processVideoJob(
     try {
       members = await timer.measureStep(
         "ashed.list_members",
-        () => base44ListMembers(connection, allianceId),
+        () => base44ListMembers(connection!, allianceId),
         (result) => ({ count: result.length }),
       );
     } catch {
@@ -482,6 +626,7 @@ export async function processVideoJob(
         .set({ matchedCount, rowCount, updatedAt: new Date() })
         .where(eq(schema.parseSessions.id, parseSessionId));
     });
+      }
     }
 
     const phases = timer.getPhases();
@@ -596,7 +741,7 @@ export async function processVideoJob(
       // Shadow pass failure must not fail primary job
     }
 
-    if (isMemberRosterVideoTarget(scoreTargetId)) {
+    if (isRosterTarget && ocrEngine === "ashed") {
       try {
         const { maybeEnqueueTesseractShadowPass } = await import(
           "@/lib/video/enqueue-tesseract-shadow-pass"
@@ -611,7 +756,10 @@ export async function processVideoJob(
     if (job.passRole === "shadow" && job.groupId) {
       try {
         const [group] = await db
-          .select({ primaryJobId: schema.videoUploadGroups.primaryJobId })
+          .select({
+            primaryJobId: schema.videoUploadGroups.primaryJobId,
+            comparisonJson: schema.videoUploadGroups.comparisonJson,
+          })
           .from(schema.videoUploadGroups)
           .where(eq(schema.videoUploadGroups.id, job.groupId))
           .limit(1);
@@ -620,7 +768,12 @@ export async function processVideoJob(
           const comparison = await computePassComparison(group.primaryJobId, job.id);
           await db
             .update(schema.videoUploadGroups)
-            .set({ comparisonJson: comparison, updatedAt: new Date() })
+            .set({
+              comparisonJson: mergeGroupComparisons(group.comparisonJson, {
+                extraction_shadow: comparison,
+              }),
+              updatedAt: new Date(),
+            })
             .where(eq(schema.videoUploadGroups.id, job.groupId));
         }
       } catch {

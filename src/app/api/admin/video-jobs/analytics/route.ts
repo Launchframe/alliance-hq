@@ -111,6 +111,8 @@ export async function GET(request: Request) {
     passKeyCondition,
   ].filter(Boolean) as Parameters<typeof and>;
 
+  const recommendedJobIdExpr = sql<string>`coalesce(${schema.videoUploadGroups.comparisonJson}->'extraction_shadow'->>'recommendedJobId', ${schema.videoUploadGroups.comparisonJson}->>'recommendedJobId')`;
+
   // ── 1. Pass-key × scoreTarget aggregate ──────────────────────────────────
   const passKeyRows = await db
     .select({
@@ -122,7 +124,7 @@ export async function GET(request: Request) {
       thumbsDown: sql<number>`count(*) filter (where ${schema.videoJobs.rating} = 'down')::int`,
       avgQualityScore: sql<number | null>`avg(${schema.videoJobs.qualityScore})::real`,
       userSelected: sql<number>`count(*) filter (where ${schema.videoUploadGroups.selectedJobId} = ${schema.videoJobs.id})::int`,
-      sysRecommended: sql<number>`count(*) filter (where ${schema.videoUploadGroups.comparisonJson}->>'recommendedJobId' = ${schema.videoJobs.id})::int`,
+      sysRecommended: sql<number>`count(*) filter (where ${recommendedJobIdExpr} = ${schema.videoJobs.id})::int`,
     })
     .from(schema.videoJobs)
     .leftJoin(
@@ -213,11 +215,11 @@ export async function GET(request: Request) {
       totalDecided: sql<number>`count(*) filter (where ${schema.videoUploadGroups.selectedJobId} is not null)::int`,
       accurate: sql<number>`count(*) filter (
         where ${schema.videoUploadGroups.selectedJobId} is not null
-          and ${schema.videoUploadGroups.selectedJobId} = ${schema.videoUploadGroups.comparisonJson}->>'recommendedJobId'
+          and ${schema.videoUploadGroups.selectedJobId} = ${recommendedJobIdExpr}
       )::int`,
       overridden: sql<number>`count(*) filter (
         where ${schema.videoUploadGroups.selectedJobId} is not null
-          and ${schema.videoUploadGroups.selectedJobId} != ${schema.videoUploadGroups.comparisonJson}->>'recommendedJobId'
+          and ${schema.videoUploadGroups.selectedJobId} != ${recommendedJobIdExpr}
       )::int`,
     })
     .from(schema.videoUploadGroups)

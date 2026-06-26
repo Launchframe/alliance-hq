@@ -9,10 +9,9 @@ import {
   type VideoProcessTimings,
 } from "@/lib/analytics/video-pipeline";
 import { getDb, schema } from "@/lib/db";
-import { parseRosterImage } from "@/lib/members/roster-ocr/parse-roster-image";
-import type { ParsedRosterRow, RosterOcrConfig } from "@/lib/members/roster-ocr/types";
-import { DEFAULT_ROSTER_OCR_CONFIG } from "@/lib/members/roster-ocr/types";
 import { isValidRosterOcrConfig } from "@/lib/members/roster-ocr/roster-ocr-config";
+import type { RosterOcrConfig } from "@/lib/members/roster-ocr/types";
+import { DEFAULT_ROSTER_OCR_CONFIG } from "@/lib/members/roster-ocr/types";
 import { getObject } from "@/lib/storage";
 import {
   compareRosterOcrQuality,
@@ -20,32 +19,13 @@ import {
   type RosterTesseractEvalComparison,
 } from "@/lib/video/compare-roster-ocr-quality";
 import { emitVideoJobStatus } from "@/lib/events/video-jobs";
-import { mapWithConcurrency } from "@/lib/video/map-with-concurrency";
+import { mergeGroupComparisons } from "@/lib/video/group-comparisons.shared";
+import { persistOcrEvalSnapshot } from "@/lib/video/ocr-eval-snapshots.server";
+import { ocrRosterNativeFrames } from "@/lib/video/ocr-roster-native";
 import { PipelineTimer } from "@/lib/video/pipeline-timer";
 import {
-  collapseRosterMembersByNameRank,
-  type ExtractedRosterMember,
-} from "@/lib/video/roster-extract";
-
-const TESSERACT_FRAME_CONCURRENCY = 2;
-
-function parsedRosterRowToExtracted(
-  row: ParsedRosterRow,
-  sourceFrameIndex?: number,
-): ExtractedRosterMember {
-  return {
-    currentName: row.extractedName.trim(),
-    rosterRankRaw: `R${row.allianceRank}`,
-    allianceRank: row.allianceRank,
-    allianceRankTitle: null,
-    powerLevel: row.heroPowerM != null ? `${row.heroPowerM}M` : null,
-    heroPowerM: row.heroPowerM ?? null,
-    memberLevel: row.memberLevel ?? null,
-    profession: null,
-    status: null,
-    _sourceFrameIndex: sourceFrameIndex,
-  };
-}
+  resolveVideoOcrEngineForJob,
+} from "@/lib/video/ocr-provider.shared";
 
 function resolveRosterConfig(job: {
   extractionConfigJson: unknown;
@@ -88,10 +68,21 @@ async function persistRosterTesseractComparison(params: {
   shadowJobId: string;
   tessPassKey: string | null;
   shadowTotalMs: number | null;
+  experimentCampaignId: string | null;
+  experimentArmId: string | null;
+  scoreTarget: string | null;
+  boardKey: string | null;
+  hqEventId: string | null;
 }): Promise<void> {
   const db = getDb();
 
-  const [primaryJob, shadowJob] = await Promise.all([
+  const [groupRow, primaryJob, shadowJob] = await Promise.all([
+    db
+      .select({ comparisonJson: schema.videoUploadGroups.comparisonJson })
+      .from(schema.videoUploadGroups)
+      .where(eq(schema.videoUploadGroups.id, params.groupId))
+      .limit(1)
+      .then((rows) => rows[0] ?? null),
     db
       .select({ parseSessionId: schema.videoJobs.parseSessionId })
       .from(schema.videoJobs)
@@ -151,9 +142,35 @@ async function persistRosterTesseractComparison(params: {
     shadowTotalMs: params.shadowTotalMs,
   };
 
+  const primaryEngine = resolveVideoOcrEngineForJob(
+    params.scoreTarget ?? "member-roster-video",
+    true,
+  );
+
+  await persistOcrEvalSnapshot({
+    groupId: params.groupId,
+    primaryJobId: params.primaryJobId,
+    shadowJobId: params.shadowJobId,
+    scoreTarget: params.scoreTarget,
+    boardKey: params.boardKey,
+    hqEventId: params.hqEventId,
+    primaryEngine,
+    shadowEngine: "native",
+    nativePassKey: params.tessPassKey,
+    experimentCampaignId: params.experimentCampaignId,
+    experimentArmId: params.experimentArmId,
+    metrics,
+    shadowTotalMs: params.shadowTotalMs,
+  });
+
   await db
     .update(schema.videoUploadGroups)
-    .set({ comparisonJson: comparison, updatedAt: new Date() })
+    .set({
+      comparisonJson: mergeGroupComparisons(groupRow?.comparisonJson, {
+        roster_tesseract_eval: comparison,
+      }),
+      updatedAt: new Date(),
+    })
     .where(eq(schema.videoUploadGroups.id, params.groupId));
 }
 
@@ -217,7 +234,14 @@ export async function processTesseractShadowRosterJob(
 
   try {
     const [group] = await db
-      .select({ primaryJobId: schema.videoUploadGroups.primaryJobId })
+      .select({
+        primaryJobId: schema.videoUploadGroups.primaryJobId,
+        experimentCampaignId: schema.videoUploadGroups.experimentCampaignId,
+        experimentArmId: schema.videoUploadGroups.experimentArmId,
+        scoreTarget: schema.videoUploadGroups.scoreTarget,
+        boardKey: schema.videoUploadGroups.boardKey,
+        hqEventId: schema.videoUploadGroups.hqEventId,
+      })
       .from(schema.videoUploadGroups)
       .where(eq(schema.videoUploadGroups.id, job.groupId))
       .limit(1);
@@ -247,44 +271,22 @@ export async function processTesseractShadowRosterJob(
       (loaded) => ({ frameCount: loaded.length }),
     );
 
-    const frameResults = await timer.measureStep(
+    const nativeResult = await timer.measureStep(
       "tesseract.roster_ocr_total",
       () =>
-        mapWithConcurrency(frames, TESSERACT_FRAME_CONCURRENCY, async (frame) => {
-          const started = Date.now();
-          try {
-            const result = await parseRosterImage(frame.buffer, {
-              config,
-              configPassKey: passKey ?? undefined,
-            });
-            return {
-              frameIndex: frame.index,
-              ms: Date.now() - started,
-              rows: result.rows,
-              error: null as string | null,
-            };
-          } catch (error) {
-            return {
-              frameIndex: frame.index,
-              ms: Date.now() - started,
-              rows: [] as ParsedRosterRow[],
-              error:
-                error instanceof Error ? error.message : "Tesseract OCR failed",
-            };
-          }
+        ocrRosterNativeFrames(frames, {
+          config,
+          passKey,
+          timer,
+          jobId,
         }),
-      (results) => ({
-        frameCount: results.length,
-        rowCount: results.reduce((sum, frame) => sum + frame.rows.length, 0),
+      (result) => ({
+        frameCount: result.frameTimings.length,
+        rowCount: result.members.length,
       }),
     );
 
-    const extractedRows = collapseRosterMembersByNameRank(
-      frameResults.flatMap((frame) =>
-        frame.rows.map((row) => parsedRosterRowToExtracted(row, frame.frameIndex)),
-      ),
-    );
-
+    const extractedRows = nativeResult.members;
     const parseSessionId = nanoid(16);
     const hqAllianceId = primaryJob.allianceId;
 
@@ -335,7 +337,7 @@ export async function processTesseractShadowRosterJob(
       { rowCount: extractedRows.length },
     );
 
-    const ocrFrameMs = frameResults.map((frame) => frame.ms);
+    const ocrFrameMs = nativeResult.frameTimings.map((frame) => frame.ms);
     const ocrFrameAvgMs =
       ocrFrameMs.length > 0
         ? ocrFrameMs.reduce((sum, ms) => sum + ms, 0) / ocrFrameMs.length
@@ -352,14 +354,14 @@ export async function processTesseractShadowRosterJob(
       phases: timer.getPhases(),
       ocrFrameMs,
       ocrFrameAvgMs,
-      ocrConcurrency: TESSERACT_FRAME_CONCURRENCY,
+      ocrConcurrency: nativeResult.concurrency,
       ashedUploadTotalMs: null,
       ashedExtractTotalMs: null,
       videoDurationSeconds: null,
       denseFrameCount: null,
       framesSkipped: null,
-      totalRawOcrRows: frameResults.reduce(
-        (sum, frame) => sum + frame.rows.length,
+      totalRawOcrRows: nativeResult.frameTimings.reduce(
+        (sum, frame) => sum + frame.entryCount,
         0,
       ),
     };
@@ -389,6 +391,11 @@ export async function processTesseractShadowRosterJob(
         shadowJobId: jobId,
         tessPassKey: passKey,
         shadowTotalMs: timings.totalMs,
+        experimentCampaignId: group.experimentCampaignId,
+        experimentArmId: group.experimentArmId,
+        scoreTarget: group.scoreTarget ?? scoreTargetId,
+        boardKey: group.boardKey,
+        hqEventId: group.hqEventId,
       });
     } catch {
       // Comparison failure must not fail shadow job

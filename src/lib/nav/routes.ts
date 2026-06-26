@@ -234,6 +234,13 @@ export const NAV_GROUPS: NavGroupDef[] = [
         href: "/tools/video-upload/queue",
         kind: "native",
       },
+      {
+        id: "video-processors",
+        labelKey: "videoProcessors",
+        href: "/tools/video-processors",
+        kind: "native",
+        descriptionKey: "videoProcessorsDescription",
+      },
     ],
   },
 ];
@@ -316,6 +323,9 @@ export function navLinkActive(pathname: string, href: string): boolean {
   }
   if (href === "/tools/video-upload/queue") {
     return pathname === "/tools/video-upload/queue";
+  }
+  if (href === "/tools/video-processors") {
+    return pathname === "/tools/video-processors";
   }
   if (href === "/tools/video-upload") {
     if (pathname === "/tools/video-upload/queue") {

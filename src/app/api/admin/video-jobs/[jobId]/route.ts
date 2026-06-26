@@ -5,6 +5,10 @@ import type { VideoProcessTimings } from "@/lib/analytics/video-pipeline";
 import { getDb, schema } from "@/lib/db";
 import { requirePlatformMaintainer } from "@/lib/rbac/require-permission";
 import { readSessionId } from "@/lib/session";
+import {
+  getExtractionPassComparison,
+  getRosterTesseractEvalComparison,
+} from "@/lib/video/group-comparisons.shared";
 
 type RouteParams = { params: Promise<{ jobId: string }> };
 
@@ -148,13 +152,17 @@ export async function GET(_request: Request, { params }: RouteParams) {
       .limit(1);
 
     if (group) {
-      const comp = group.comparisonJson as { recommendedJobId?: string | null } | null;
+      const extractionComparison = getExtractionPassComparison(
+        group.comparisonJson,
+      );
       groupInfo = {
         selectedJobId: group.selectedJobId ?? null,
         accuracyJobId: group.accuracyJobId ?? null,
-        recommendedJobId: comp?.recommendedJobId ?? null,
+        recommendedJobId: extractionComparison?.recommendedJobId ?? null,
       };
-      rosterTesseractEval = group.comparisonJson;
+      rosterTesseractEval = getRosterTesseractEvalComparison(
+        group.comparisonJson,
+      );
     }
   }
 

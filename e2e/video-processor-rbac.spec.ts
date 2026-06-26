@@ -241,4 +241,32 @@ test.describe("Video processor settings candidates", () => {
       body.candidates.some((c) => c.hqUserId === scenario.processor.hqUserId),
     ).toBe(false);
   });
+
+  test("members without alliance admin can read processors but not manage", async ({
+    request,
+  }) => {
+    const sql = getE2eSql();
+    const scenario = await createVideoProcessorScenario(sql, e2eBaseUrl());
+
+    const readRes = await request.get("/api/settings/video-processors", {
+      headers: { Cookie: authCookieHeader(scenario.officer) },
+    });
+    expect(readRes.status(), await readRes.text()).toBe(200);
+    const body = (await readRes.json()) as {
+      canManage: boolean;
+      candidates: unknown[];
+      processors: Array<{ hqUserId: string }>;
+    };
+    expect(body.canManage).toBe(false);
+    expect(body.candidates).toEqual([]);
+    expect(
+      body.processors.some((p) => p.hqUserId === scenario.processor.hqUserId),
+    ).toBe(true);
+
+    const writeRes = await request.post("/api/settings/video-processors", {
+      headers: { Cookie: authCookieHeader(scenario.officer) },
+      data: { hqUserId: scenario.officer.hqUserId },
+    });
+    expect(writeRes.status()).toBe(403);
+  });
 });

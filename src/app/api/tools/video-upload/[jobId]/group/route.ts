@@ -3,6 +3,7 @@ import { and, eq } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { getOrCreateSession } from "@/lib/session";
 import type { PassComparison } from "@/lib/video/compare-pass-results";
+import { getExtractionPassComparison } from "@/lib/video/group-comparisons.shared";
 
 type Props = { params: Promise<{ jobId: string }> };
 
@@ -52,7 +53,7 @@ export async function GET(_request: Request, { params }: Props) {
         primaryJobId: group.primaryJobId,
         selectedJobId: group.selectedJobId,
         accuracyJobId: group.accuracyJobId,
-        comparisonJson: group.comparisonJson as PassComparison | null,
+        comparisonJson: getExtractionPassComparison(group.comparisonJson),
       },
       passes,
     });

@@ -36,6 +36,7 @@ import {
 } from "@/lib/native-alliance/access";
 import { getAllianceOperatingMode } from "@/lib/native-alliance/operating-mode";
 import { shouldShowTeamAccessNav } from "@/lib/settings/team-access-nav.shared";
+import { shouldShowVideoProcessorsNav } from "@/lib/video/video-processors-nav.shared";
 import { getAccountTimezoneIdForHqUser } from "@/lib/timezone/server";
 
 export const SESSION_COOKIE = "alliance_hq_session";
@@ -541,6 +542,11 @@ export async function getSessionStateFor(
     hasActiveMembership,
     isPlatformMaintainer: rbac?.isPlatformMaintainer ?? false,
   });
+  const showVideoProcessorsNav = shouldShowVideoProcessorsNav({
+    allianceId: resolvedAllianceId,
+    hasActiveMembership,
+    isPlatformMaintainer: rbac?.isPlatformMaintainer ?? false,
+  });
 
   return {
     sessionId: session.id,
@@ -553,6 +559,7 @@ export async function getSessionStateFor(
     permissions: rbac ? Array.from(rbac.permissions) : [],
     hasActiveMembership,
     showTeamAccess,
+    showVideoProcessorsNav,
     timezone,
     isConnected: connection !== null,
     hasAppAccess,
