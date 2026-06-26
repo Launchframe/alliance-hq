@@ -1154,6 +1154,100 @@ export const memberAllianceTenure = pgTable(
   ],
 );
 
+/** UID-keyed in-game Commander identity (lifetime stats, cross-alliance). */
+export const commanders = pgTable(
+  "commanders",
+  {
+    id: text("id").primaryKey(),
+    gameUid: text("game_uid").notNull(),
+    primaryName: text("primary_name"),
+    profession: text("profession"),
+    professionalLevel: integer("professional_level"),
+    memberLevel: integer("member_level"),
+    heroPowerM: doublePrecision("hero_power_m"),
+    powerLevel: text("power_level"),
+    currentKills: doublePrecision("current_kills"),
+    currentTotalHeroPower: doublePrecision("current_total_hero_power"),
+    currentSquadPowerJson: jsonb("current_squad_power_json"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    unique("commanders_game_uid_unique").on(table.gameUid),
+    index("commanders_game_uid_idx").on(table.gameUid),
+  ],
+);
+
+/** HQ user ownership of one or more Commanders. */
+export const hqUserCommanders = pgTable(
+  "hq_user_commanders",
+  {
+    id: text("id").primaryKey(),
+    hqUserId: text("hq_user_id")
+      .notNull()
+      .references(() => hqUsers.id, { onDelete: "cascade" }),
+    commanderId: text("commander_id")
+      .notNull()
+      .references(() => commanders.id, { onDelete: "cascade" }),
+    isPrimary: boolean("is_primary").notNull().default(false),
+    linkedAt: timestamp("linked_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    unique("hq_user_commanders_user_commander_unique").on(
+      table.hqUserId,
+      table.commanderId,
+    ),
+    index("hq_user_commanders_commander_idx").on(table.commanderId),
+  ],
+);
+
+/** Commander roster membership within one alliance (0–1 active per alliance). */
+export const commanderAllianceMemberships = pgTable(
+  "commander_alliance_memberships",
+  {
+    id: text("id").primaryKey(),
+    commanderId: text("commander_id")
+      .notNull()
+      .references(() => commanders.id, { onDelete: "cascade" }),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    ashedMemberId: text("ashed_member_id").notNull(),
+    ashedAllianceId: text("ashed_alliance_id"),
+    status: text("status").notNull().default("active"),
+    joinedAt: timestamp("joined_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    leftAt: timestamp("left_at", { withTimezone: true }),
+    allianceRank: integer("alliance_rank"),
+    allianceRankTitle: text("alliance_rank_title"),
+    rosterNameAtMembership: text("roster_name_at_membership"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    unique("commander_alliance_memberships_alliance_member_unique").on(
+      table.allianceId,
+      table.ashedMemberId,
+    ),
+    index("commander_alliance_memberships_commander_idx").on(table.commanderId),
+    index("commander_alliance_memberships_alliance_idx").on(table.allianceId),
+  ],
+);
+
 export const authVerificationTokens = pgTable(
   "auth_verification_tokens",
   {
@@ -1820,6 +1914,10 @@ export const trainRiderCargoItems = pgTable("train_rider_cargo_item", {
 
 export type AllianceMember = typeof allianceMembers.$inferSelect;
 export type MemberAllianceTenure = typeof memberAllianceTenure.$inferSelect;
+export type Commander = typeof commanders.$inferSelect;
+export type HqUserCommander = typeof hqUserCommanders.$inferSelect;
+export type CommanderAllianceMembership =
+  typeof commanderAllianceMemberships.$inferSelect;
 export type HqInvite = typeof hqInvites.$inferSelect;
 export type HqRosterLinkRequest = typeof hqRosterLinkRequests.$inferSelect;
 export type HqRosterLinkActionToken =

@@ -7,18 +7,23 @@ alwaysApply: true
 
 Last War **player UID** (`game_uid`, 12–16 digits) is **sensitive account-binding data**. A leaked UID can enable impersonation. Treat it with the same care as credentials.
 
-## Never display
+## Never display to non-owners
+
+Do **not** show UID to anyone except the **authenticated owner** of that Commander:
+
+- **Allowed:** the linked HQ user viewing their own Commander profile; Discord bot may echo UID back to the Discord user after name+UID auth proves ownership (ephemeral/private reply).
+- **Not allowed:** alliance officers, admins, platform maintainers, other members, public Discord channel replies, exports, audit UIs, or any read-only profile/list for someone else's Commander.
 
 Do **not** show UID in:
 
-- App UI (profiles, members, admin, onboarding success states, settings)
-- Discord bot replies or embeds
-- Emails, push notifications, or inbox copy
+- Other members' profile/read-only views (even for officers/admins)
 - Admin lists, exports, or audit UIs
+- Discord bot public channel replies or embeds
+- Emails, push notifications, or inbox copy
 - Screenshots, bug reports, analytics, or client-side state visible to other users
-- Logs, error messages, or API responses sent to the browser (unless the authenticated user is submitting their own UID on the link form — and even then, do not persist it in client-visible history)
+- Logs, error messages, or API responses sent to the browser for non-owners
 
-**Exception:** UID may appear in a **private input field** during initial member-link onboarding only. After link succeeds, do not echo it back.
+**Input exception:** UID may appear in a **private input field** during initial member-link onboarding only. After link succeeds, do not echo it back except to the owner on their own profile or authenticated Discord owner context.
 
 ## Storage (do not hash today)
 
@@ -42,8 +47,8 @@ The name+UID member-link path is for **first claim** only. `memberTaken` and equ
 
 When adding or changing identity/linking code:
 
-1. **UI** — show commander **name** only; never UID in read-only views.
-2. **API** — omit `game_uid` from GET payloads unless the route is server-only and the caller is the linked user performing link (POST body).
+1. **UI** — show commander **name** to everyone; show UID only when the viewer is the linked owner (HQ profile) or authenticated Discord owner context.
+2. **API** — omit `game_uid` from GET payloads unless the caller is the linked owner (or submitting their own UID on link POST).
 3. **Logs** — log `hq_user_id`, `ashed_member_id`, alliance id; redact UID.
 4. **Tests** — assert DB state directly; do not snapshot UID in golden files or Playwright screenshots.
 5. **Discord** — `/link-commander` accepts UID as a slash option (user types their own); never echo UID in public channel replies.

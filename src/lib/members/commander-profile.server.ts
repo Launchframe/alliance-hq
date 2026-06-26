@@ -108,8 +108,58 @@ export async function loadCommanderProfile(
     )
     .limit(1);
 
+  const [commanderIdentity] = await db
+    .select({
+      commanderId: schema.commanders.id,
+      gameUid: schema.commanders.gameUid,
+      primaryName: schema.commanders.primaryName,
+      heroPowerM: schema.commanders.heroPowerM,
+      memberLevel: schema.commanders.memberLevel,
+      membershipStatus: schema.commanderAllianceMemberships.status,
+      rosterNameAtMembership:
+        schema.commanderAllianceMemberships.rosterNameAtMembership,
+    })
+    .from(schema.commanderAllianceMemberships)
+    .innerJoin(
+      schema.commanders,
+      eq(schema.commanderAllianceMemberships.commanderId, schema.commanders.id),
+    )
+    .where(
+      and(
+        eq(schema.commanderAllianceMemberships.allianceId, allianceId),
+        eq(schema.commanderAllianceMemberships.ashedMemberId, ashedMemberId),
+      ),
+    )
+    .limit(1);
+
   let hqUser: CommanderProfilePayload["hqUser"] = null;
-  if (hqLink) {
+  if (commanderIdentity) {
+    const [user] = await db
+      .select({
+        id: schema.hqUsers.id,
+        displayName: schema.hqUsers.displayName,
+        email: schema.hqUsers.email,
+      })
+      .from(schema.hqUserCommanders)
+      .innerJoin(
+        schema.hqUsers,
+        eq(schema.hqUserCommanders.hqUserId, schema.hqUsers.id),
+      )
+      .where(eq(schema.hqUserCommanders.commanderId, commanderIdentity.commanderId))
+      .orderBy(
+        desc(schema.hqUserCommanders.isPrimary),
+        desc(schema.hqUserCommanders.linkedAt),
+      )
+      .limit(1);
+    if (user) {
+      hqUser = {
+        id: user.id,
+        displayName: user.displayName,
+        email: canSeeEmail ? user.email : null,
+      };
+    }
+  }
+  if (!hqUser && hqLink) {
     const [user] = await db
       .select({
         id: schema.hqUsers.id,
@@ -144,14 +194,37 @@ export async function loadCommanderProfile(
     );
 
   const gameUid =
+    commanderIdentity?.gameUid?.trim() ??
     memberRow.gameUid?.trim() ??
     hqLink?.gameUid?.trim() ??
     discordLinks[0]?.gameUid?.trim() ??
     null;
 
-  const tenureRows = gameUid
-    ? await listTenureHistoryByGameUid(gameUid)
-    : [];
+  const tenureRows = commanderIdentity
+    ? await db
+        .select({
+          allianceId: schema.commanderAllianceMemberships.allianceId,
+          allianceTag: schema.alliances.tag,
+          allianceName: schema.alliances.name,
+          ashedMemberId: schema.commanderAllianceMemberships.ashedMemberId,
+          joinedAt: schema.commanderAllianceMemberships.joinedAt,
+          leftAt: schema.commanderAllianceMemberships.leftAt,
+        })
+        .from(schema.commanderAllianceMemberships)
+        .innerJoin(
+          schema.alliances,
+          eq(schema.commanderAllianceMemberships.allianceId, schema.alliances.id),
+        )
+        .where(
+          eq(
+            schema.commanderAllianceMemberships.commanderId,
+            commanderIdentity.commanderId,
+          ),
+        )
+        .orderBy(desc(schema.commanderAllianceMemberships.joinedAt))
+    : gameUid
+      ? await listTenureHistoryByGameUid(gameUid)
+      : [];
 
   const rankEvents = await db
     .select()
@@ -226,18 +299,19 @@ export async function loadCommanderProfile(
     parseAshedMemberAllianceRank(ashedMember),
     "—",
   );
-
   return {
     member: {
       ashedMemberId,
-      currentName: memberRow.currentName,
+      currentName:
+        commanderIdentity?.primaryName ??
+        commanderIdentity?.rosterNameAtMembership ??
+        memberRow.currentName,
       previousNames: memberRow.previousNamesJson ?? [],
-      status: memberRow.status,
+      status: commanderIdentity?.membershipStatus ?? memberRow.status,
       rankLabel,
       titleLabel,
-      heroPowerM: memberRow.heroPowerM,
-      memberLevel: memberRow.memberLevel,
-      gameUid,
+      heroPowerM: commanderIdentity?.heroPowerM ?? memberRow.heroPowerM,
+      memberLevel: commanderIdentity?.memberLevel ?? memberRow.memberLevel,
     },
     alliance,
     hqUser,

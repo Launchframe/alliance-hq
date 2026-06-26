@@ -96,6 +96,52 @@ test.describe("Commander profile and admin commanders", () => {
     await page.getByRole("link", { name: "E2E Commander Alpha" }).click();
     await expect(page).toHaveURL(new RegExp(`/members/${memberId}$`));
     await expect(page.getByRole("heading", { name: "E2E Commander Alpha" })).toBeVisible();
+    await expect(page.getByText("123456789")).not.toBeVisible();
+    await expect(page.getByText("12345678901203")).not.toBeVisible();
+  });
+
+  test("owner does not see UID on their own commander profile", async ({ page }) => {
+    const sql = getE2eSql();
+    const alliance = await createNativeAlliance(sql, {
+      tag: `OW${nanoid(3)}`,
+      name: "Owner Profile Alliance",
+    });
+    const memberId = `owner-member-${nanoid(8)}`;
+    const gameUid = "12345678901203";
+    await insertAllianceMember(sql, {
+      allianceId: alliance.allianceId,
+      ashedMemberId: memberId,
+      currentName: "E2E Owner Commander",
+      gameUid,
+    });
+
+    const session = await createAuthenticatedHqSession(sql, uniqueEmail("owner-profile"));
+    await createAllianceMembership(sql, {
+      hqUserId: session.hqUserId,
+      allianceId: alliance.allianceId,
+      roleName: "member",
+      source: "manual",
+    });
+    await createHqMemberLink(sql, {
+      allianceId: alliance.allianceId,
+      hqUserId: session.hqUserId,
+      ashedMemberId: memberId,
+      gameUid,
+      memberDisplayName: "E2E Owner Commander",
+    });
+    await sql`
+      UPDATE sessions
+      SET
+        current_alliance_id = ${alliance.allianceId},
+        alliance_id = ${alliance.allianceId},
+        alliance_tag = ${alliance.tag}
+      WHERE id = ${session.sessionId}
+    `;
+    await page.context().addCookies(playwrightAuthCookies(session));
+
+    await page.goto(`/members/${memberId}`);
+    await expect(page.getByRole("heading", { name: "E2E Owner Commander" })).toBeVisible();
+    await expect(page.getByText(gameUid)).not.toBeVisible();
   });
 
   test("cross-alliance commander API returns not found", async ({ request }) => {

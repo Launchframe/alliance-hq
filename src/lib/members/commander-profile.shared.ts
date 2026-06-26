@@ -8,7 +8,6 @@ export type CommanderProfilePayload = {
     titleLabel: string;
     heroPowerM: number | null;
     memberLevel: number | null;
-    gameUid: string | null;
   };
   alliance: {
     id: string;

@@ -7,6 +7,7 @@ import {
   denormalizeGameUidOnMember,
   openMemberAllianceTenure,
 } from "@/lib/members/member-tenure.server";
+import { syncCommanderIdentityFromMemberLink } from "@/lib/members/commander-identity.server";
 import { isNativeAlliance } from "@/lib/native-alliance/operating-mode";
 import { buildFlagReason, peerMaxExcludingMember } from "@/lib/vr/anomaly";
 import { MAX_DISCORD_LINKS_PER_USER } from "@/lib/vr/constants";
@@ -330,6 +331,12 @@ export async function linkDiscordMember(input: {
       ashedMemberId: input.ashedMemberId,
       gameUid: input.gameUid,
     });
+    await syncCommanderIdentityFromMemberLink({
+      allianceId: input.allianceId,
+      ashedMemberId: input.ashedMemberId,
+      gameUid: input.gameUid,
+      memberDisplayName: input.memberDisplayName,
+    });
     return { ok: true, link: row!, mode: input.replaceAll ? "replaced" : "updated" };
   }
 
@@ -361,6 +368,13 @@ export async function linkDiscordMember(input: {
     allianceId: input.allianceId,
     ashedMemberId: input.ashedMemberId,
     gameUid: input.gameUid,
+    joinedAt: now,
+  });
+  await syncCommanderIdentityFromMemberLink({
+    allianceId: input.allianceId,
+    ashedMemberId: input.ashedMemberId,
+    gameUid: input.gameUid,
+    memberDisplayName: input.memberDisplayName,
     joinedAt: now,
   });
 
