@@ -213,7 +213,11 @@ export function AppSelect({
     onChange(option.value);
     closeMenu();
     if (useCombobox) {
-      comboboxInputRef.current?.focus();
+      // Refocusing here would retrigger handleComboboxFocus and reopen the
+      // menu, leaving the input showing a stale search query until a click
+      // outside. Blurring keeps the menu closed so the display falls back to
+      // the freshly selected label.
+      comboboxInputRef.current?.blur();
     } else {
       triggerRef.current?.focus();
     }
