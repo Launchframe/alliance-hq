@@ -2180,6 +2180,8 @@
     "duplicateMemberBlocked": "Fix duplicate member rows before saving.",
     "filterPlaceholder": "Search by name…",
     "filterCount": "{shown} of {total} shown",
+    "draftRestored": "We restored unsaved edits from this device.",
+    "draftSavedLocally": "Draft saved on this device at {time}.",
     "discardResults": "Discard results",
     "ratingPrompt": "How did the OCR do on this video?",
     "ratingThumbsUp": "Looks good",

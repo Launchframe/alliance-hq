@@ -37,6 +37,8 @@ import {
   previewSeekSecondsForFrame,
   type FrameTimestampMap,
 } from "@/lib/video/frame-video-seek";
+import { restoreVideoReviewDraftIfPresent } from "@/lib/video/review-extract-draft.shared";
+import { useVideoReviewExtractDraft } from "@/components/video/useVideoReviewExtractDraft";
 import { accountTodayCalendarDate } from "@/lib/timezone/format";
 import { PassComparisonSheet } from "@/components/video/PassComparisonSheet";
 import { OcrRatingPrompt, type OcrRatingReason } from "@/components/video/OcrRatingPrompt";
@@ -195,6 +197,46 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   const liveJobStatusRef = useRef<string | null>(null);
   const isEventView = viewMode === "event";
 
+  const reviewDraftForm = useMemo(
+    () => ({
+      eventId,
+      hqEventId,
+      boardKey,
+      team,
+      recordedDate,
+    }),
+    [boardKey, eventId, hqEventId, recordedDate, team],
+  );
+
+  const draftEnabled =
+    rows.length > 0 && (jobStatus === "review" || jobStatus === "complete");
+
+  const {
+    draftRestored,
+    setDraftRestored,
+    draftSavedAt,
+    markAutosaveReady,
+    clearDraft,
+  } = useVideoReviewExtractDraft({
+    jobId,
+    viewMode,
+    enabled: draftEnabled,
+    rows,
+    form: reviewDraftForm,
+  });
+
+  const formattedDraftSavedAt = useMemo(() => {
+    if (!draftSavedAt) return "";
+    try {
+      return new Intl.DateTimeFormat(locale, {
+        dateStyle: "medium",
+        timeStyle: "short",
+      }).format(new Date(draftSavedAt));
+    } catch {
+      return draftSavedAt;
+    }
+  }, [draftSavedAt, locale]);
+
   useEffect(() => {
     if (jobStatus === "loading") return;
     const search = window.location.search;
@@ -293,12 +335,32 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           : null,
       );
       setScoreTargetMeta(data.scoreTargetMeta ?? null);
-      if (data.job?.hqEventId) {
-        setHqEventId(data.job.hqEventId);
+      const serverRows = (data.rows ?? []).map((row) => ({
+        ...row,
+        scoreConflict: row.scoreConflict ?? 0,
+      }));
+      const restored = restoreVideoReviewDraftIfPresent(
+        jobId,
+        viewMode,
+        serverRows,
+      );
+      setRows(restored.rows);
+      if (restored.form) {
+        setEventId(restored.form.eventId);
+        setHqEventId(restored.form.hqEventId);
+        setBoardKey(restored.form.boardKey);
+        setTeam(restored.form.team);
+        setRecordedDate(restored.form.recordedDate);
+      } else {
+        if (data.job?.hqEventId) {
+          setHqEventId(data.job.hqEventId);
+        }
+        if (data.job?.boardKey) {
+          setBoardKey(data.job.boardKey);
+        }
       }
-      if (data.job?.boardKey) {
-        setBoardKey(data.job.boardKey);
-      }
+      setDraftRestored(restored.restored);
+      markAutosaveReady(restored.savedAt);
       setAllianceId(
         data.alliance?.currentId ??
           data.job?.allianceId ??
@@ -310,14 +372,8 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
       );
       setAllianceName(data.alliance?.jobName ?? null);
       setAllianceStale(Boolean(data.alliance?.stale));
-      setRows(
-        (data.rows ?? []).map((row) => ({
-          ...row,
-          scoreConflict: row.scoreConflict ?? 0,
-        })),
-      );
     },
-    [jobId, rematchMembers, tc],
+    [jobId, markAutosaveReady, rematchMembers, setDraftRestored, tc, viewMode],
   );
 
   useEffect(() => {
@@ -797,6 +853,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         setError(data.error ?? tc("uploadFailed"));
         return;
       }
+      clearDraft();
       setSuccess(
         isEventView
           ? t("updateSuccess", { count: data.submitted ?? 0 })
@@ -839,6 +896,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         setError(data.error ?? tc("uploadFailed"));
         return;
       }
+      clearDraft();
       setRows([]);
       setJobStatus("queued");
     } catch (err) {
@@ -860,6 +918,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         setError(data.error ?? tc("uploadFailed"));
         return;
       }
+      clearDraft();
       setJobStatus("discarded");
       if (!jobRating) {
         setShowRatingPrompt(true);
@@ -1040,6 +1099,20 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           name={allianceName}
           stale={allianceStale}
         />
+      ) : null}
+
+      {draftEnabled && (draftRestored || draftSavedAt) ? (
+        <div
+          className="rounded-xl border border-[#30363d] bg-[#161b22] px-4 py-3 text-sm text-[#8b949e]"
+          role="status"
+        >
+          {draftRestored ? <p>{t("draftRestored")}</p> : null}
+          {draftSavedAt ? (
+            <p className={draftRestored ? "mt-1" : undefined}>
+              {t("draftSavedLocally", { time: formattedDraftSavedAt })}
+            </p>
+          ) : null}
+        </div>
       ) : null}
 
       {activeRows.length === 0 && !isEventView && (
