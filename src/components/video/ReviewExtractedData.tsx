@@ -22,6 +22,7 @@ import {
 import { isZeroScoreWarningDisabled } from "@/lib/video/score-targets";
 import type { VideoProcessTimings } from "@/lib/analytics/video-pipeline";
 import { buildMemberMatchSelectOptions } from "@/lib/video/member-select-options";
+import { shouldRefetchOnLiveJobStatus } from "@/lib/video/live-job-refresh.shared";
 import type { ManualRowPosition } from "@/lib/video/manual-row-position";
 import { mergeParsedRowInReviewOrder } from "@/lib/video/parsed-row-review-order";
 import { isVideoProcessTimings } from "@/lib/video/pipeline-stats-display";
@@ -191,6 +192,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   const [allianceStale, setAllianceStale] = useState(false);
   const [rosterQuotaCanSubmit, setRosterQuotaCanSubmit] = useState(false);
   const rosterMembersHydratedRef = useRef(false);
+  const liveJobStatusRef = useRef<string | null>(null);
   const isEventView = viewMode === "event";
 
   useEffect(() => {
@@ -355,7 +357,15 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
       return;
     }
 
-    if (liveJob.status === "review" || liveJob.status === "failed") {
+    const previousStatus = liveJobStatusRef.current;
+    liveJobStatusRef.current = liveJob.status;
+
+    // Only refetch when the job transitions into review/failed (e.g. OCR just
+    // finished). The SSE stream re-emits a `snapshot` on every (re)connect and
+    // the provider returns a new object reference each time, so this effect
+    // would otherwise run on every snapshot — re-running load() and clobbering
+    // the reviewer's in-progress edits. See shouldRefetchOnLiveJobStatus.
+    if (shouldRefetchOnLiveJobStatus(previousStatus, liveJob.status)) {
       queueMicrotask(() => {
         void load();
       });
