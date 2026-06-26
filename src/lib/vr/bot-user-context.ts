@@ -84,17 +84,11 @@ export function pickHelpMessageKey(ctx: DiscordBotUserContext): string {
   if (!ctx.guildId) {
     return "help.dmGeneral";
   }
-  if (!ctx.hasHqLink) {
-    return "help.setupLinkHq";
-  }
   if (!ctx.guildRegistered) {
     if (ctx.isPlatformMaintainer || ctx.userRegisteredCredentials) {
       return "help.setupLinkAlliance";
     }
     return "help.setupOwnerAuth";
-  }
-  if (!ctx.hasCredentials) {
-    return ctx.isOwner ? "help.setupOwnerAuth" : "help.waitForOwnerAuth";
   }
   if (ctx.memberLinkCount === 0) {
     return "help.linkCommander";

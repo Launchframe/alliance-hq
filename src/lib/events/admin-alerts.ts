@@ -13,7 +13,7 @@ export type MemberLinkUidTakenAlert = {
   type: "member_link_uid_taken";
   allianceId: string;
   allianceTag: string;
-  gameUid: string;
+  ashedMemberId: string;
   hqUserId: string;
   handle: string;
   updatedAt: string;
@@ -56,7 +56,7 @@ export async function emitAdminAlert(
 export async function emitMemberLinkUidTakenAlert(input: {
   allianceId: string;
   allianceTag: string;
-  gameUid: string;
+  ashedMemberId: string;
   hqUserId: string;
   handle: string;
 }): Promise<void> {
@@ -64,7 +64,7 @@ export async function emitMemberLinkUidTakenAlert(input: {
     type: "member_link_uid_taken",
     allianceId: input.allianceId,
     allianceTag: input.allianceTag,
-    gameUid: input.gameUid,
+    ashedMemberId: input.ashedMemberId,
     hqUserId: input.hqUserId,
     handle: input.handle,
   });

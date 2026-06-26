@@ -34,7 +34,6 @@ import {
   sessionHasNativeMembership,
   sessionRequiresMemberLink,
 } from "@/lib/native-alliance/access";
-import { sessionRequiresAshedVerification } from "@/lib/member-link/privileged-link.server";
 import { getAllianceOperatingMode } from "@/lib/native-alliance/operating-mode";
 import { shouldShowTeamAccessNav } from "@/lib/settings/team-access-nav.shared";
 import { getAccountTimezoneIdForHqUser } from "@/lib/timezone/server";
@@ -519,9 +518,6 @@ export async function getSessionStateFor(
   const isNativeMembership = await sessionHasNativeMembership(session);
   const hasActiveMembership = await sessionHasActiveMembership(session);
   const requiresMemberLink = await sessionRequiresMemberLink(session);
-  const requiresAshedVerification = await sessionRequiresAshedVerification(
-    session,
-  );
   const operatingMode = session.currentAllianceId
     ? await getAllianceOperatingMode(session.currentAllianceId)
     : null;
@@ -561,7 +557,6 @@ export async function getSessionStateFor(
     isConnected: connection !== null,
     hasAppAccess,
     requiresMemberLink,
-    requiresAshedVerification,
     canUseAshedEmbeds,
     isNativeAlliance: isNativeMembership,
     operatingMode,

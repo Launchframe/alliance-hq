@@ -1,9 +1,13 @@
 import "server-only";
 
-import { and, eq, gt } from "drizzle-orm";
+import { and, eq, gt, isNull } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { getDb, schema } from "@/lib/db";
+import {
+  denormalizeGameUidOnMember,
+  openMemberAllianceTenure,
+} from "@/lib/members/member-tenure.server";
 import type { LinkPendingState } from "@/lib/vr/types";
 
 const PENDING_TTL_MS = 30 * 60 * 1000;
@@ -138,6 +142,16 @@ export async function linkHqMember(input: {
       })
       .where(eq(schema.hqMemberLinks.id, existingUserLink.id))
       .returning();
+    await denormalizeGameUidOnMember({
+      allianceId: input.allianceId,
+      ashedMemberId: input.ashedMemberId,
+      gameUid: input.gameUid,
+    });
+    await openMemberAllianceTenure({
+      allianceId: input.allianceId,
+      ashedMemberId: input.ashedMemberId,
+      gameUid: input.gameUid,
+    });
     return { ok: true, link: row!, mode: "updated" };
   }
 
@@ -154,6 +168,18 @@ export async function linkHqMember(input: {
       updatedAt: now,
     })
     .returning();
+
+  await denormalizeGameUidOnMember({
+    allianceId: input.allianceId,
+    ashedMemberId: input.ashedMemberId,
+    gameUid: input.gameUid,
+  });
+  await openMemberAllianceTenure({
+    allianceId: input.allianceId,
+    ashedMemberId: input.ashedMemberId,
+    gameUid: input.gameUid,
+    joinedAt: now,
+  });
 
   return { ok: true, link: row!, mode: "created" };
 }
@@ -250,4 +276,28 @@ export async function syncPrimaryGameUidFromHqMemberLink(
     .update(schema.hqUsers)
     .set({ primaryGameUid: trimmed, updatedAt: new Date() })
     .where(eq(schema.hqUsers.id, hqUserId));
+}
+
+/**
+ * When a user who is the alliance owner completes their first member link,
+ * record their ashedMemberId on the alliance so Discord /link-alliance owner
+ * proof (callerOwnsAllianceViaMemberLink) can verify them without Ashed creds.
+ * Only writes if ownerMemberExternalId is not already set.
+ */
+export async function maybeSetOwnerMemberExternalId(input: {
+  allianceId: string;
+  hqUserId: string;
+  ashedMemberId: string;
+}): Promise<void> {
+  const db = getDb();
+  await db
+    .update(schema.alliances)
+    .set({ ownerMemberExternalId: input.ashedMemberId })
+    .where(
+      and(
+        eq(schema.alliances.id, input.allianceId),
+        eq(schema.alliances.ownerHqUserId, input.hqUserId),
+        isNull(schema.alliances.ownerMemberExternalId),
+      ),
+    );
 }
