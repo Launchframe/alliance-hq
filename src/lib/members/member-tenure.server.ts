@@ -137,6 +137,21 @@ export async function closeMemberAllianceTenure(input: {
   const db = getDb();
   const now = input.leftAt ?? new Date();
 
+  const [active] = await db
+    .select({
+      id: schema.memberAllianceTenure.id,
+      joinedAt: schema.memberAllianceTenure.joinedAt,
+    })
+    .from(schema.memberAllianceTenure)
+    .where(
+      and(
+        eq(schema.memberAllianceTenure.allianceId, input.allianceId),
+        eq(schema.memberAllianceTenure.ashedMemberId, input.ashedMemberId),
+        isNull(schema.memberAllianceTenure.leftAt),
+      ),
+    )
+    .limit(1);
+
   await db
     .update(schema.memberAllianceTenure)
     .set({ leftAt: now, updatedAt: now })
@@ -151,6 +166,7 @@ export async function closeMemberAllianceTenure(input: {
   await syncCommanderFromAllianceMember({
     allianceId: input.allianceId,
     ashedMemberId: input.ashedMemberId,
+    joinedAt: active?.joinedAt,
     leftAt: now,
   });
 }
