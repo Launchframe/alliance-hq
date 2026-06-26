@@ -1,6 +1,7 @@
 import type { LucideIcon } from "lucide-react";
 import {
   BarChart3,
+  ClipboardCheck,
   ClipboardList,
   Database,
   ExternalLink,
@@ -43,6 +44,7 @@ export const NAV_PAGE_ICONS: Record<string, LucideIcon> = {
   "data-management": Database,
   "unmatched-names": UserCog,
   "video-upload": Upload,
+  "video-queue": ClipboardCheck,
   "alliance-settings": Settings,
   account: Settings,
   settings: Settings,

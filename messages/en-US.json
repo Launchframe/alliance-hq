@@ -107,6 +107,7 @@
     "settings": "Settings",
     "allianceSettings": "Alliance settings",
     "team": "Team access",
+    "videoQueue": "Video queue",
     "adminPortal": "Admin portal"
   },
   "admin": {
@@ -906,6 +907,36 @@
       "role": "Role",
       "source": "Source"
     }
+  },
+  "videoQueue": {
+    "title": "Video queue",
+    "description": "Uploaded videos awaiting OCR. A designated video processor with a connected Ashed account approves jobs to run.",
+    "empty": "No videos are waiting for approval.",
+    "connectBanner": "Connect your Ashed account to approve and run these jobs.",
+    "connectCta": "Connect Ashed",
+    "approve": "Approve",
+    "reject": "Reject",
+    "approveFailed": "Could not approve the job.",
+    "rejectFailed": "Could not reject the job.",
+    "table": {
+      "time": "Uploaded",
+      "uploadedBy": "Uploaded by",
+      "target": "Target",
+      "file": "File",
+      "actions": "Actions"
+    }
+  },
+  "videoProcessors": {
+    "title": "Video processors",
+    "description": "Designate up to {max} officers who can approve and run OCR on queued videos with their own Ashed connection. Owners and maintainers can always process and do not use a slot.",
+    "empty": "No designated processors yet. Owners and maintainers can still process videos.",
+    "remove": "Remove",
+    "add": "Add",
+    "selectPlaceholder": "Select an officer…",
+    "noCandidates": "No eligible officers to add.",
+    "slotsFull": "All processor slots are full.",
+    "addFailed": "Could not add the processor.",
+    "removeFailed": "Could not remove the processor."
   },
   "allianceSettings": {
     "title": "Alliance settings",
@@ -2068,7 +2099,8 @@
       "resources": "Resources",
       "points": "Points"
     },
-    "queuedSuccess": "Video queued for processing.",
+    "queuedSuccess": "Video uploaded. Waiting for a video processor to review and run it.",
+    "pendingApprovalHint": "Uploaded videos wait in the queue until a designated processor or alliance owner approves them.",
     "recentUploads": "Recent uploads",
     "viewAllUploads": "View all uploads",
     "reviewLink": "Review",
@@ -2084,6 +2116,7 @@
       "complete": "complete",
       "failed": "failed",
       "pending": "pending",
+      "pending_approval": "awaiting approval",
       "processing": "processing"
     }
   },
@@ -2099,6 +2132,7 @@
     "title": "Review extracted data",
     "loading": "Loading…",
     "processing": "Processing ({status})… this page refreshes automatically.",
+    "pendingApproval": "Waiting for a video processor to approve this upload. OCR will start after approval — this page refreshes automatically.",
     "processingFailed": "Processing failed. Try uploading again.",
     "backToUploads": "← Back to uploads",
     "summary": "{matched} matched · {total} entries",

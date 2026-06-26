@@ -32,6 +32,10 @@ import {
 } from "@/lib/video/score-targets";
 import { emitVideoJobStatus } from "@/lib/events/video-jobs";
 import { maybeEnqueueShadowPass } from "@/lib/video/enqueue-shadow-pass";
+import {
+  AshedNotConnectedError,
+  isAshedNotConnectedError,
+} from "@/lib/video/errors";
 import { dispatchVideoArchive } from "@/lib/video/trigger-archive";
 import { computePassComparison } from "@/lib/video/compare-pass-results";
 import { resolveJobVideoStorageKey } from "@/lib/video/resolve-job-video-storage";
@@ -118,6 +122,12 @@ export async function processVideoJob(
   const scoreTargetId = job.scoreTarget ?? job.category ?? "desert-storm";
   const now = new Date();
 
+  /**
+   * OCR runs against the approving processor's Ashed credential. Legacy jobs
+   * predating the enqueue/process split fall back to the uploader session.
+   */
+  const processingSessionId = job.processingSessionId ?? job.sessionId;
+
   const setStatus = async (
     status: string,
     extra: Partial<typeof schema.videoJobs.$inferInsert> = {},
@@ -166,9 +176,31 @@ export async function processVideoJob(
       throw new Error("Job has no stored video.");
     }
 
-    const connection = await getAshedConnection(job.sessionId);
+    const connection = await getAshedConnection(processingSessionId);
     if (!connection) {
-      throw new Error("Ashed not connected for this session.");
+      // Recoverable: revert to pending so a connected processor can re-approve.
+      await db
+        .update(schema.videoJobs)
+        .set({
+          status: "pending_approval",
+          processingSessionId: null,
+          approvedByHqUserId: null,
+          approvedAt: null,
+          errorMessage: "awaiting_ashed_connection",
+          updatedAt: new Date(),
+        })
+        .where(eq(schema.videoJobs.id, jobId));
+      await emitVideoJobStatus({
+        sessionId: job.sessionId,
+        jobId,
+        status: "pending_approval",
+        fileName: job.fileName,
+        scoreTarget: scoreTargetId,
+        frameCount: null,
+        uploadedFrameCount: 0,
+        errorMessage: "awaiting_ashed_connection",
+      });
+      throw new AshedNotConnectedError();
     }
 
     const target = getScoreTargetOrThrow(scoreTargetId);
@@ -273,7 +305,7 @@ export async function processVideoJob(
     if (isMemberRosterVideoTarget(scoreTargetId)) {
       const rosterResult = await processRosterVideoParse({
         jobId,
-        sessionId: job.sessionId,
+        sessionId: processingSessionId,
         scoreTargetId,
         target,
         connection,
@@ -300,7 +332,7 @@ export async function processVideoJob(
       await setStatus("parsing", { uploadedFrameCount: frames.length });
     } else {
       allianceId = await timer.measureStep("alliance.resolve", () =>
-        resolveSessionAllianceId(job.sessionId, connection),
+        resolveSessionAllianceId(processingSessionId, connection),
       );
 
     const { entries: rawEntries, frameTimings, concurrency } =
@@ -541,6 +573,7 @@ export async function processVideoJob(
     const shadowEnqueueJob = {
       id: job.id,
       sessionId: job.sessionId,
+      processingSessionId: job.processingSessionId ?? null,
       allianceId: job.allianceId ?? null,
       scoreTarget: job.scoreTarget ?? null,
       category: job.category ?? null,
@@ -597,6 +630,11 @@ export async function processVideoJob(
 
     return timings;
   } catch (error) {
+    // Missing Ashed credential is recoverable — the job was already reverted to
+    // pending_approval above. Do not mark it failed or record a pipeline failure.
+    if (isAshedNotConnectedError(error)) {
+      throw error;
+    }
     const message =
       error instanceof Error ? error.message : "Video processing failed";
     await setStatus("failed", { errorMessage: message });

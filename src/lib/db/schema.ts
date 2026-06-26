@@ -403,6 +403,22 @@ export const videoJobs = pgTable("video_jobs", {
   archiveStorageKey: text("archive_storage_key"),
   archivedAt: timestamp("archived_at", { withTimezone: true }),
   originalFileSizeBytes: bigint("original_file_size_bytes", { mode: "number" }),
+  /** HQ user who enqueued the upload (officer/owner/maintainer). */
+  enqueuedByHqUserId: text("enqueued_by_hq_user_id").references(
+    () => hqUsers.id,
+    { onDelete: "set null" },
+  ),
+  /** HQ user (video processor) who approved the job to run OCR. */
+  approvedByHqUserId: text("approved_by_hq_user_id").references(
+    () => hqUsers.id,
+    { onDelete: "set null" },
+  ),
+  approvedAt: timestamp("approved_at", { withTimezone: true }),
+  /** Session whose Ashed credential runs OCR — set on approve; falls back to sessionId for legacy jobs. */
+  processingSessionId: text("processing_session_id").references(
+    () => sessions.id,
+    { onDelete: "set null" },
+  ),
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
     .notNull(),
@@ -410,6 +426,37 @@ export const videoJobs = pgTable("video_jobs", {
     .defaultNow()
     .notNull(),
 });
+
+/**
+ * Designated video processors per alliance (Ashed ToS: at most two members may
+ * run OCR). Owner/maintainer can always process and do not occupy a slot — only
+ * additional officers granted here count toward the cap.
+ */
+export const allianceVideoProcessors = pgTable(
+  "alliance_video_processors",
+  {
+    id: text("id").primaryKey(),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    hqUserId: text("hq_user_id")
+      .notNull()
+      .references(() => hqUsers.id, { onDelete: "cascade" }),
+    grantedByHqUserId: text("granted_by_hq_user_id").references(
+      () => hqUsers.id,
+      { onDelete: "set null" },
+    ),
+    grantedAt: timestamp("granted_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => ({
+    allianceUserUnique: uniqueIndex("alliance_video_processors_alliance_user_idx").on(
+      table.allianceId,
+      table.hqUserId,
+    ),
+  }),
+);
 
 export const videoFrames = pgTable("video_frames", {
   id: text("id").primaryKey(),
@@ -854,6 +901,8 @@ export type LinkedDevice = typeof linkedDevices.$inferSelect;
 export type AshedCredential = typeof ashedCredentials.$inferSelect;
 export type VideoUploadGroup = typeof videoUploadGroups.$inferSelect;
 export type VideoJob = typeof videoJobs.$inferSelect;
+export type AllianceVideoProcessor =
+  typeof allianceVideoProcessors.$inferSelect;
 export type VideoFrame = typeof videoFrames.$inferSelect;
 export type ParseSession = typeof parseSessions.$inferSelect;
 export type ParsedRow = typeof parsedRows.$inferSelect;

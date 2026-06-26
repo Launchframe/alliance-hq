@@ -226,7 +226,7 @@ export const NAV_GROUPS: NavGroupDef[] = [
         href: "/tools/video-upload",
         kind: "native",
         descriptionKey: "videoUploadDescription",
-        requiredPermission: "upload:write",
+        requiredPermission: "hq:video:enqueue",
       },
     ],
   },

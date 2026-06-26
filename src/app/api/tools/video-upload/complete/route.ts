@@ -3,6 +3,7 @@ import { and, eq } from "drizzle-orm";
 
 import { getDb, schema } from "@/lib/db";
 import { requireSessionPermission } from "@/lib/rbac/require-permission";
+import { VIDEO_ENQUEUE_PERMISSION } from "@/lib/rbac/constants";
 import {
   completeR2MultipartUpload,
   headR2ObjectSize,
@@ -26,7 +27,10 @@ type CompleteBody = {
 export async function POST(request: Request) {
   try {
     const session = await getOrCreateSession();
-    const denied = await requireSessionPermission(session.id, "upload:write");
+    const denied = await requireSessionPermission(
+      session.id,
+      VIDEO_ENQUEUE_PERMISSION,
+    );
     if (denied) return denied;
 
     if (!r2Configured()) {
@@ -104,8 +108,9 @@ export async function POST(request: Request) {
     return NextResponse.json({
       ok: true,
       jobId,
-      status: "queued",
-      message: "Video uploaded. Processing started — refresh or open review when ready.",
+      status: "pending_approval",
+      message:
+        "Video uploaded. Waiting for a video processor to review and run it.",
     });
   } catch (error) {
     return NextResponse.json(

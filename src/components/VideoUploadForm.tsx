@@ -83,6 +83,7 @@ function statusLabel(
     "submitting",
     "complete",
     "failed",
+    "pending_approval",
   ] as const;
   if ((known as readonly string[]).includes(status)) {
     return t(`status.${status as (typeof known)[number]}`);
@@ -230,7 +231,7 @@ export function VideoUploadForm({
         jobId: data.jobId,
         file,
         initialSurvey: null,
-        navigateOnClose: true,
+        navigateOnClose: data.status !== "pending_approval",
       });
       setFile(null);
     } catch (err) {
@@ -295,6 +296,7 @@ export function VideoUploadForm({
       <div className="min-w-0">
         <h1 className="text-2xl font-semibold">{t("title")}</h1>
         <p className="mt-1 text-sm text-[#8b949e]">{t("subtitle")}</p>
+        <p className="mt-2 text-xs text-[#8b949e]">{t("pendingApprovalHint")}</p>
       </div>
 
       <form

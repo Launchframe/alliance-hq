@@ -5,7 +5,13 @@ import { redirect } from "@/i18n/navigation";
 import { Link } from "@/i18n/navigation";
 import { SettingsTeamClient } from "@/components/SettingsTeamClient";
 import { TeamInvitePanel } from "@/components/settings/TeamInvitePanel";
+import { VideoProcessorsPanel } from "@/components/settings/VideoProcessorsPanel";
 import { AllianceContextRequired } from "@/components/settings/AllianceContextRequired";
+import {
+  MAX_VIDEO_PROCESSORS,
+  listAllianceVideoProcessors,
+  listVideoProcessorCandidates,
+} from "@/lib/video/processor-slots.server";
 import { canRefreshRosterFromAshed } from "@/lib/connect/ashed-shell-prompts.shared";
 import { getDb, schema } from "@/lib/db";
 import {
@@ -56,6 +62,17 @@ export default async function SettingsTeamPage({
   const assignableInviteRoles = rbac ? assignableInviteRolesForContext(rbac) : [];
   const gameServerNumber = await resolveAllianceGameServerNumber(allianceId);
 
+  const [videoProcessors, videoProcessorCandidates] = isAllianceAdmin
+    ? await Promise.all([
+        listAllianceVideoProcessors(allianceId),
+        listVideoProcessorCandidates(allianceId),
+      ])
+    : [[], []];
+  const videoProcessorIds = new Set(videoProcessors.map((p) => p.hqUserId));
+  const availableVideoProcessorCandidates = videoProcessorCandidates.filter(
+    (c) => !videoProcessorIds.has(c.hqUserId),
+  );
+
   let allianceTag = access.session.allianceTag;
   let allianceName: string | null = null;
   const db = getDb();
@@ -89,6 +106,14 @@ export default async function SettingsTeamPage({
           assignableRoles={assignableInviteRoles}
           gameServerNumber={gameServerNumber}
           allianceTag={allianceTag ?? ""}
+        />
+      ) : null}
+
+      {isAllianceAdmin ? (
+        <VideoProcessorsPanel
+          initialProcessors={videoProcessors}
+          initialCandidates={availableVideoProcessorCandidates}
+          max={MAX_VIDEO_PROCESSORS}
         />
       ) : null}
 

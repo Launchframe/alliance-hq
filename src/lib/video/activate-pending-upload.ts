@@ -3,7 +3,6 @@ import { eq } from "drizzle-orm";
 import { writeAuditLog } from "@/lib/bff/audit";
 import { emitVideoJobStatus } from "@/lib/events/video-jobs";
 import { getDb, schema } from "@/lib/db";
-import { dispatchVideoProcessing } from "@/lib/video/trigger-processing";
 import { DEFAULT_PRIMARY_PASS } from "@/lib/video/pass-definitions";
 import {
   assignExperiment,
@@ -59,7 +58,7 @@ export async function activatePendingVideoUpload(
   await db
     .update(schema.videoJobs)
     .set({
-      status: "queued",
+      status: "pending_approval",
       fileSizeBytes: fileSizeBytes,
       passKey: primaryPassKey,
       passIndex: 0,
@@ -83,13 +82,11 @@ export async function activatePendingVideoUpload(
   await emitVideoJobStatus({
     sessionId,
     jobId,
-    status: "queued",
+    status: "pending_approval",
     fileName: job.fileName,
     scoreTarget,
     frameCount: null,
     uploadedFrameCount: 0,
     errorMessage: null,
   });
-
-  dispatchVideoProcessing(jobId, { source: "upload" });
 }

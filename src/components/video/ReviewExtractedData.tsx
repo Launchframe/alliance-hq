@@ -340,7 +340,8 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     }
     if (
       liveJob &&
-      (liveJob.status === "queued" ||
+      (liveJob.status === "pending_approval" ||
+        liveJob.status === "queued" ||
         liveJob.status === "extracting" ||
         liveJob.status === "parsing")
     ) {
@@ -907,6 +908,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
 
   if (
     reprocessing ||
+    displayJobStatus === "pending_approval" ||
     displayJobStatus === "queued" ||
     displayJobStatus === "extracting" ||
     displayJobStatus === "parsing"
@@ -916,7 +918,9 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         <p className="text-sm text-[#8b949e]">
           {reprocessing
             ? t("reprocessing")
-            : t("processing", { status: displayJobStatus })}
+            : displayJobStatus === "pending_approval"
+              ? t("pendingApproval")
+              : t("processing", { status: displayJobStatus })}
         </p>
         <Link href="/tools/video-upload" className="text-sm text-[#58a6ff] hover:underline">
           {t("backToUploads")}
