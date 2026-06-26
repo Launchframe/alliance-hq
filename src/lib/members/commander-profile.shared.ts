@@ -8,6 +8,8 @@ export type CommanderProfilePayload = {
     titleLabel: string;
     heroPowerM: number | null;
     memberLevel: number | null;
+    /** Present only when the authenticated viewer owns this Commander. */
+    gameUid: string | null;
   };
   alliance: {
     id: string;

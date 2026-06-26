@@ -100,7 +100,7 @@ test.describe("Commander profile and admin commanders", () => {
     await expect(page.getByText("12345678901203")).not.toBeVisible();
   });
 
-  test("owner does not see UID on their own commander profile", async ({ page }) => {
+  test("owner sees UID on their own commander profile", async ({ page }) => {
     const sql = getE2eSql();
     const alliance = await createNativeAlliance(sql, {
       tag: `OW${nanoid(3)}`,
@@ -141,7 +141,7 @@ test.describe("Commander profile and admin commanders", () => {
 
     await page.goto(`/members/${memberId}`);
     await expect(page.getByRole("heading", { name: "E2E Owner Commander" })).toBeVisible();
-    await expect(page.getByText(gameUid)).not.toBeVisible();
+    await expect(page.getByText(gameUid)).toBeVisible();
   });
 
   test("cross-alliance commander API returns not found", async ({ request }) => {

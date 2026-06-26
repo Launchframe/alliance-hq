@@ -70,7 +70,7 @@ export async function loadCommanderProfile(
   sessionId: string,
   ashedMemberId: string,
 ): Promise<CommanderProfilePayload | null> {
-  const { allianceId } = await resolveCommanderSessionContext(sessionId);
+  const { allianceId, hqUserId } = await resolveCommanderSessionContext(sessionId);
   await assertCommanderReadAccess(sessionId, allianceId);
 
   const memberRow = await loadAllianceCommander(allianceId, ashedMemberId);
@@ -299,6 +299,29 @@ export async function loadCommanderProfile(
     parseAshedMemberAllianceRank(ashedMember),
     "—",
   );
+
+  let viewerOwnsCommander = false;
+  if (hqUserId) {
+    if (hqLink?.hqUserId === hqUserId) {
+      viewerOwnsCommander = true;
+    } else if (commanderIdentity?.commanderId) {
+      const [owned] = await db
+        .select({ id: schema.hqUserCommanders.id })
+        .from(schema.hqUserCommanders)
+        .where(
+          and(
+            eq(schema.hqUserCommanders.hqUserId, hqUserId),
+            eq(
+              schema.hqUserCommanders.commanderId,
+              commanderIdentity.commanderId,
+            ),
+          ),
+        )
+        .limit(1);
+      viewerOwnsCommander = !!owned;
+    }
+  }
+
   return {
     member: {
       ashedMemberId,
@@ -312,6 +335,7 @@ export async function loadCommanderProfile(
       titleLabel,
       heroPowerM: commanderIdentity?.heroPowerM ?? memberRow.heroPowerM,
       memberLevel: commanderIdentity?.memberLevel ?? memberRow.memberLevel,
+      gameUid: viewerOwnsCommander ? gameUid : null,
     },
     alliance,
     hqUser,

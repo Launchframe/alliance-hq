@@ -42,7 +42,7 @@ export function CommanderProfileView({ initial }: Props) {
         <div className="mb-5 flex items-center gap-4">
           <ProfileAvatar
             displayName={member.currentName}
-            email={member.ashedMemberId}
+            email={member.gameUid ?? member.ashedMemberId}
             avatarUrl={null}
             size="md"
           />
@@ -51,7 +51,9 @@ export function CommanderProfileView({ initial }: Props) {
               {member.currentName}
             </p>
             <p className="truncate text-sm text-[#8b949e]">
-              {t("allianceContext", { tag: alliance.tag ?? alliance.slug })}
+              {member.gameUid
+                ? t("gameUid", { uid: member.gameUid })
+                : t("allianceContext", { tag: alliance.tag ?? alliance.slug })}
             </p>
           </div>
         </div>

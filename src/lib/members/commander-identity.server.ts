@@ -162,7 +162,8 @@ export async function upsertCommanderAllianceMembership(input: {
     ashedAllianceId: memberRow?.ashedAllianceId ?? null,
     status: memberRow?.status === "active" ? "active" : "former",
     joinedAt: existing?.joinedAt ?? now,
-    leftAt: memberRow?.status === "active" ? null : existing?.leftAt ?? null,
+    leftAt:
+      memberRow?.status === "active" ? null : (existing?.leftAt ?? now),
     allianceRank: memberRow?.allianceRank ?? null,
     allianceRankTitle: memberRow?.allianceRankTitle ?? null,
     rosterNameAtMembership:
