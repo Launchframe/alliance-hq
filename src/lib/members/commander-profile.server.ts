@@ -12,6 +12,9 @@ import {
 } from "@/lib/members/commander-access.server";
 import { listTenureHistoryByGameUid } from "@/lib/members/member-tenure.server";
 import {
+  listCommanderTenureHistoryByGameUid,
+} from "@/lib/members/commander-identity.server";
+import {
   formatMemberRankDisplay,
   parseAshedMemberAllianceRank,
 } from "@/lib/members/alliance-rank";
@@ -150,6 +153,12 @@ export async function loadCommanderProfile(
     .select({
       commanderId: schema.commanders.id,
       gameUid: schema.commanders.gameUid,
+      primaryName: schema.commanders.primaryName,
+      heroPowerM: schema.commanders.heroPowerM,
+      memberLevel: schema.commanders.memberLevel,
+      membershipStatus: schema.commanderAllianceMemberships.status,
+      allianceRank: schema.commanderAllianceMemberships.allianceRank,
+      allianceRankTitle: schema.commanderAllianceMemberships.allianceRankTitle,
     })
     .from(schema.commanderAllianceMemberships)
     .innerJoin(
@@ -232,10 +241,14 @@ export async function loadCommanderProfile(
     discordLinks[0]?.gameUid?.trim() ??
     null;
 
-  // Phase 1: tenure stays on member_alliance_tenure until roster sync mirrors writes.
-  const tenureRows = gameUid
-    ? await listTenureHistoryByGameUid(gameUid)
-    : [];
+  let tenureRows: Awaited<ReturnType<typeof listTenureHistoryByGameUid>> = [];
+  if (gameUid) {
+    const commanderTenure = await listCommanderTenureHistoryByGameUid(gameUid);
+    tenureRows =
+      commanderTenure.length > 0
+        ? commanderTenure
+        : await listTenureHistoryByGameUid(gameUid);
+  }
 
   const rankEvents = await db
     .select()
@@ -306,8 +319,15 @@ export async function loadCommanderProfile(
     : [[], []];
 
   const ashedMember = allianceMemberRowToAshedMember(memberRow);
+  const rankForDisplay =
+    commanderIdentity?.allianceRank != null
+      ? {
+          rank: commanderIdentity.allianceRank,
+          title: commanderIdentity.allianceRankTitle,
+        }
+      : parseAshedMemberAllianceRank(ashedMember);
   const { rankLabel, titleLabel } = formatMemberRankDisplay(
-    parseAshedMemberAllianceRank(ashedMember),
+    rankForDisplay,
     "—",
   );
   const viewerIsOwner = await viewerOwnsCommander({
@@ -320,13 +340,13 @@ export async function loadCommanderProfile(
   return {
     member: {
       ashedMemberId,
-      currentName: memberRow.currentName,
+      currentName: commanderIdentity?.primaryName ?? memberRow.currentName,
       previousNames: memberRow.previousNamesJson ?? [],
-      status: memberRow.status,
+      status: commanderIdentity?.membershipStatus ?? memberRow.status,
       rankLabel,
       titleLabel,
-      heroPowerM: memberRow.heroPowerM,
-      memberLevel: memberRow.memberLevel,
+      heroPowerM: commanderIdentity?.heroPowerM ?? memberRow.heroPowerM,
+      memberLevel: commanderIdentity?.memberLevel ?? memberRow.memberLevel,
       gameUid: viewerIsOwner ? gameUid : null,
     },
     alliance,

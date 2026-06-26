@@ -1,20 +1,14 @@
 import "server-only";
 
 /**
- * Commander identity — phase 1 (this PR)
+ * Commander identity — UID-keyed stats, alliance memberships, and HQ ownership.
  *
- * - Tables + migration backfill + dual-write on member link (HQ + Discord).
- * - HQ ownership graph (`hq_user_commanders`) and admin search by name/link metadata (UID excluded from maintainer UI).
- *
- * Phase 2 (follow-up): mirror roster sync, rank events, and tenure open/close into
- * commander tables via syncCommanderFromAllianceMember (or equivalent), then prefer
- * commander rows on read paths for stats/rank/tenure.
- *
- * Until phase 2, roster-derived profile/admin fields read from `alliance_members` and
- * `member_alliance_tenure` so data stays fresh after Ashed roster refresh.
+ * Writes mirror roster sync, rank updates, and tenure open/close into commander tables.
+ * Read paths prefer commander rows when a linked UID exists, with `alliance_members`
+ * as fallback for unlinked roster-only members.
  */
 
-import { and, eq, isNull } from "drizzle-orm";
+import { and, desc, eq, isNull } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { getDb, schema } from "@/lib/db";
@@ -63,6 +57,72 @@ async function loadAllianceMemberRow(
     )
     .limit(1);
   return row ?? null;
+}
+
+async function resolveGameUidForMember(
+  allianceId: string,
+  ashedMemberId: string,
+  memberRow?: AllianceMemberRow | null,
+): Promise<string | null> {
+  const fromRow = memberRow?.gameUid?.trim();
+  if (fromRow) return fromRow;
+
+  const db = getDb();
+  const [hqLink] = await db
+    .select({ gameUid: schema.hqMemberLinks.gameUid })
+    .from(schema.hqMemberLinks)
+    .where(
+      and(
+        eq(schema.hqMemberLinks.allianceId, allianceId),
+        eq(schema.hqMemberLinks.ashedMemberId, ashedMemberId),
+      ),
+    )
+    .limit(1);
+  if (hqLink?.gameUid?.trim()) {
+    return hqLink.gameUid.trim();
+  }
+
+  const [discordLink] = await db
+    .select({ gameUid: schema.discordMemberLinks.gameUid })
+    .from(schema.discordMemberLinks)
+    .where(
+      and(
+        eq(schema.discordMemberLinks.allianceId, allianceId),
+        eq(schema.discordMemberLinks.ashedMemberId, ashedMemberId),
+      ),
+    )
+    .limit(1);
+  return discordLink?.gameUid?.trim() ?? null;
+}
+
+export async function listCommanderTenureHistoryByGameUid(gameUid: string) {
+  const normalized = normalizeGameUid(gameUid);
+  if (!normalized) return [];
+
+  const db = getDb();
+  return db
+    .select({
+      id: schema.commanderAllianceMemberships.id,
+      gameUid: schema.commanders.gameUid,
+      allianceId: schema.commanderAllianceMemberships.allianceId,
+      ashedMemberId: schema.commanderAllianceMemberships.ashedMemberId,
+      joinedAt: schema.commanderAllianceMemberships.joinedAt,
+      leftAt: schema.commanderAllianceMemberships.leftAt,
+      allianceName: schema.alliances.name,
+      allianceTag: schema.alliances.tag,
+      allianceSlug: schema.alliances.slug,
+    })
+    .from(schema.commanderAllianceMemberships)
+    .innerJoin(
+      schema.commanders,
+      eq(schema.commanderAllianceMemberships.commanderId, schema.commanders.id),
+    )
+    .innerJoin(
+      schema.alliances,
+      eq(schema.commanderAllianceMemberships.allianceId, schema.alliances.id),
+    )
+    .where(eq(schema.commanders.gameUid, normalized))
+    .orderBy(desc(schema.commanderAllianceMemberships.joinedAt));
 }
 
 export async function resolveCommanderByUid(
@@ -150,9 +210,10 @@ export async function upsertCommanderAllianceMembership(input: {
   ashedMemberId: string;
   memberDisplayName?: string | null;
   joinedAt?: Date;
+  leftAt?: Date | null;
 }): Promise<void> {
   const db = getDb();
-  const now = input.joinedAt ?? new Date();
+  const now = new Date();
   const memberRow = await loadAllianceMemberRow(
     input.allianceId,
     input.ashedMemberId,
@@ -169,15 +230,28 @@ export async function upsertCommanderAllianceMembership(input: {
     )
     .limit(1);
 
+  const status =
+    input.leftAt != null
+      ? "former"
+      : memberRow?.status === "active"
+        ? "active"
+        : "former";
+  const joinedAt = input.joinedAt ?? existing?.joinedAt ?? now;
+  const leftAt =
+    input.leftAt !== undefined
+      ? input.leftAt
+      : memberRow?.status === "active"
+        ? null
+        : (existing?.leftAt ?? now);
+
   const membershipValues = {
     commanderId: input.commanderId,
     allianceId: input.allianceId,
     ashedMemberId: input.ashedMemberId,
     ashedAllianceId: memberRow?.ashedAllianceId ?? null,
-    status: memberRow?.status === "active" ? "active" : "former",
-    joinedAt: existing?.joinedAt ?? now,
-    leftAt:
-      memberRow?.status === "active" ? null : (existing?.leftAt ?? now),
+    status,
+    joinedAt,
+    leftAt,
     allianceRank: memberRow?.allianceRank ?? null,
     allianceRankTitle: memberRow?.allianceRankTitle ?? null,
     rosterNameAtMembership:
@@ -236,6 +310,47 @@ export async function linkHqUserToCommander(input: {
         updatedAt: now,
       },
     });
+}
+
+/**
+ * Mirror a roster member row into commander tables when a UID is known.
+ * No-op when the member has no linked UID (roster-only / unclaimed).
+ */
+export async function syncCommanderFromAllianceMember(input: {
+  allianceId: string;
+  ashedMemberId: string;
+  memberDisplayName?: string | null;
+  joinedAt?: Date;
+  leftAt?: Date | null;
+}): Promise<void> {
+  const memberRow = await loadAllianceMemberRow(
+    input.allianceId,
+    input.ashedMemberId,
+  );
+  const gameUid = await resolveGameUidForMember(
+    input.allianceId,
+    input.ashedMemberId,
+    memberRow,
+  );
+  if (!gameUid) return;
+
+  const { commanderId } = await upsertCommanderFromLink({
+    gameUid,
+    allianceId: input.allianceId,
+    ashedMemberId: input.ashedMemberId,
+    memberDisplayName:
+      input.memberDisplayName ?? memberRow?.currentName ?? null,
+  });
+
+  await upsertCommanderAllianceMembership({
+    commanderId,
+    allianceId: input.allianceId,
+    ashedMemberId: input.ashedMemberId,
+    memberDisplayName:
+      input.memberDisplayName ?? memberRow?.currentName ?? null,
+    joinedAt: input.joinedAt,
+    leftAt: input.leftAt,
+  });
 }
 
 /** Dual-write Commander identity after a successful web or Discord member link. */

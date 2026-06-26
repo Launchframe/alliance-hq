@@ -63,12 +63,15 @@ vi.mock("@/lib/db", () => ({
       leftAt: "leftAt",
     },
     hqUserCommanders: { hqUserId: "hqUserId", commanderId: "commanderId" },
+    hqMemberLinks: { allianceId: "allianceId", ashedMemberId: "ashedMemberId", gameUid: "gameUid" },
+    discordMemberLinks: { allianceId: "allianceId", ashedMemberId: "ashedMemberId", gameUid: "gameUid" },
   },
 }));
 
 import {
   linkHqUserToCommander,
   resolveCommanderByUid,
+  syncCommanderFromAllianceMember,
   syncCommanderIdentityFromMemberLink,
   upsertCommanderFromLink,
 } from "@/lib/members/commander-identity.server";
@@ -144,6 +147,58 @@ describe("commander-identity.server", () => {
       primaryName: "Renamed",
     });
     expect(mockState.insertedCommanders).toHaveLength(0);
+  });
+
+  it("syncCommanderFromAllianceMember no-ops when UID is unknown", async () => {
+    mockState.limitResults.push(
+      [{ currentName: "Ghost", status: "active", gameUid: null }],
+      [],
+      [],
+    );
+
+    await syncCommanderFromAllianceMember({
+      allianceId: "alliance-a",
+      ashedMemberId: "member-ghost",
+    });
+
+    expect(mockState.insertedCommanders).toHaveLength(0);
+    expect(mockState.insertedMemberships).toHaveLength(0);
+  });
+
+  it("syncCommanderFromAllianceMember mirrors roster row when UID is known", async () => {
+    const memberRow = {
+      currentName: "Carol",
+      status: "active",
+      gameUid: "1111222233334444",
+      ashedAllianceId: "aa-3",
+      allianceRank: 2,
+      allianceRankTitle: "R2",
+      heroPowerM: 8.2,
+      memberLevel: 22,
+    };
+    mockState.limitResults.push(
+      [memberRow],
+      [memberRow],
+      [],
+      [memberRow],
+      [],
+    );
+
+    await syncCommanderFromAllianceMember({
+      allianceId: "alliance-a",
+      ashedMemberId: "member-3",
+    });
+
+    expect(mockState.insertedCommanders[0]).toMatchObject({
+      gameUid: "1111222233334444",
+      primaryName: "Carol",
+      memberLevel: 22,
+    });
+    expect(mockState.insertedMemberships[0]).toMatchObject({
+      allianceId: "alliance-a",
+      ashedMemberId: "member-3",
+      status: "active",
+    });
   });
 
   it("syncCommanderIdentityFromMemberLink writes membership and HQ ownership", async () => {

@@ -11,6 +11,7 @@ import type { AshedMemberRecord } from "@/lib/members/ashed-member-record";
 import { formatAshedMemberRankValue } from "@/lib/members/alliance-rank";
 import { seedMemberStatHistoriesFromAshed } from "@/lib/members/member-stat-history.server";
 import { syncTenureFromMemberStatus } from "@/lib/members/member-tenure.server";
+import { syncCommanderFromAllianceMember } from "@/lib/members/commander-identity.server";
 import { normalizedRankFromAshedMember } from "@/lib/members/roster.shared";
 
 export {
@@ -164,6 +165,12 @@ export async function syncAllianceMembersFromAshed(input: {
       status,
     });
 
+    await syncCommanderFromAllianceMember({
+      allianceId: input.hqAllianceId,
+      ashedMemberId,
+      memberDisplayName: member.current_name,
+    });
+
     synced += 1;
   }
 
@@ -241,6 +248,11 @@ export async function setAllianceMemberRank(input: {
         eq(schema.allianceMembers.ashedMemberId, input.ashedMemberId),
       ),
     );
+
+  await syncCommanderFromAllianceMember({
+    allianceId: input.hqAllianceId,
+    ashedMemberId: input.ashedMemberId,
+  });
 }
 
 export async function clearAllianceMemberRank(input: {
@@ -262,4 +274,9 @@ export async function clearAllianceMemberRank(input: {
         eq(schema.allianceMembers.ashedMemberId, input.ashedMemberId),
       ),
     );
+
+  await syncCommanderFromAllianceMember({
+    allianceId: input.hqAllianceId,
+    ashedMemberId: input.ashedMemberId,
+  });
 }

@@ -4,6 +4,7 @@ import { and, desc, eq, isNull } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { getDb, schema } from "@/lib/db";
+import { syncCommanderFromAllianceMember } from "@/lib/members/commander-identity.server";
 
 export async function resolveMemberGameUid(
   allianceId: string,
@@ -72,7 +73,10 @@ export async function openMemberAllianceTenure(input: {
   const now = input.joinedAt ?? new Date();
 
   const [active] = await db
-    .select({ id: schema.memberAllianceTenure.id })
+    .select({
+      id: schema.memberAllianceTenure.id,
+      joinedAt: schema.memberAllianceTenure.joinedAt,
+    })
     .from(schema.memberAllianceTenure)
     .where(
       and(
@@ -93,6 +97,12 @@ export async function openMemberAllianceTenure(input: {
       ashedMemberId: input.ashedMemberId,
       gameUid,
     });
+    await syncCommanderFromAllianceMember({
+      allianceId: input.allianceId,
+      ashedMemberId: input.ashedMemberId,
+      joinedAt: active.joinedAt,
+      leftAt: null,
+    });
     return;
   }
 
@@ -109,6 +119,13 @@ export async function openMemberAllianceTenure(input: {
     allianceId: input.allianceId,
     ashedMemberId: input.ashedMemberId,
     gameUid,
+  });
+
+  await syncCommanderFromAllianceMember({
+    allianceId: input.allianceId,
+    ashedMemberId: input.ashedMemberId,
+    joinedAt: now,
+    leftAt: null,
   });
 }
 
@@ -130,6 +147,12 @@ export async function closeMemberAllianceTenure(input: {
         isNull(schema.memberAllianceTenure.leftAt),
       ),
     );
+
+  await syncCommanderFromAllianceMember({
+    allianceId: input.allianceId,
+    ashedMemberId: input.ashedMemberId,
+    leftAt: now,
+  });
 }
 
 export async function syncTenureFromMemberStatus(input: {
