@@ -74,16 +74,11 @@ export function useVideoReviewExtractDraft({
     return () => window.clearTimeout(timer);
   }, [autosaveReady, enabled, persistDraft]);
 
-  const commitDraft = useCallback(() => {
-    persistDraft();
-  }, [persistDraft]);
-
   return {
     draftRestored,
     setDraftRestored,
     draftSavedAt,
     markAutosaveReady,
     clearDraft,
-    commitDraft,
   };
 }
