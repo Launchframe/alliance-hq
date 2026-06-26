@@ -605,7 +605,8 @@
       "rosterEvalPowerAgreement": "Concordância de poder",
       "rosterEvalLevelAgreement": "Concordância de nível",
       "rosterEvalPassKey": "Pass Tesseract",
-      "rosterEvalRowSummary": "Ashed {primary} linhas · Tesseract {shadow} linhas · {matched} nomes correspondentes"
+      "rosterEvalRowSummary": "Ashed {primary} linhas · Tesseract {shadow} linhas · {matched} nomes correspondentes",
+      "passKey": "Chave de passagem"
     },
     "auditPage": {
       "loading": "Carregando log de auditoria…",

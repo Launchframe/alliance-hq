@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import { writeAuditLog } from "@/lib/bff/audit";
 import { emitVideoJobStatus } from "@/lib/events/video-jobs";
 import { getDb, schema } from "@/lib/db";
+import { assignRosterOcrExperiment } from "@/lib/members/roster-ocr/assign-roster-config";
 import { getAshedConnection, getOrCreateSession } from "@/lib/session";
 import { sessionCanProcessVideo } from "@/lib/video/processor-slots.server";
 import { resolveVideoOcrEngineForJob, engineRequiresAshed } from "@/lib/video/ocr-provider.shared";
@@ -76,6 +77,21 @@ export async function POST(_request: Request, { params }: Props) {
       }
     }
 
+    // For native engine (local/mock primary mode) on roster targets, stamp the
+    // experiment-assigned passKey + config onto the job row so the OCR pass
+    // uses the tunable config and the job detail shows which knobs ran.
+    let nativeConfigPatch: {
+      passKey?: string | null;
+      extractionConfigJson?: unknown;
+    } = {};
+    if (ocrEngine === "native" && isMemberRosterVideoTarget(scoreTargetId) && !job.passKey) {
+      const assignment = await assignRosterOcrExperiment();
+      nativeConfigPatch = {
+        passKey: assignment.passKey ?? null,
+        extractionConfigJson: assignment.config,
+      };
+    }
+
     const now = new Date();
     await db
       .update(schema.videoJobs)
@@ -86,6 +102,7 @@ export async function POST(_request: Request, { params }: Props) {
         approvedAt: now,
         errorMessage: null,
         updatedAt: now,
+        ...nativeConfigPatch,
       })
       .where(eq(schema.videoJobs.id, jobId));
 

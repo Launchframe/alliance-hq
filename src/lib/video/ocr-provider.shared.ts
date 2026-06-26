@@ -38,6 +38,11 @@ export function shouldEnqueueAshedOcrShadowPasses(engine: VideoOcrEngine): boole
   return engine === "ashed";
 }
 
+/** Returns true when the pipeline requires a live Ashed connection for this engine. */
+export function engineRequiresAshed(engine: VideoOcrEngine): boolean {
+  return engine === "ashed";
+}
+
 /** Resolve whether the worker should load an Ashed credential for this engine. */
 export async function resolveVideoJobAshedConnection(params: {
   engine: VideoOcrEngine;

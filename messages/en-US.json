@@ -605,7 +605,8 @@
       "rosterEvalPowerAgreement": "Power agreement",
       "rosterEvalLevelAgreement": "Level agreement",
       "rosterEvalPassKey": "Tesseract pass",
-      "rosterEvalRowSummary": "Ashed {primary} rows · Tesseract {shadow} rows · {matched} name matches"
+      "rosterEvalRowSummary": "Ashed {primary} rows · Tesseract {shadow} rows · {matched} name matches",
+      "passKey": "Pass key"
     },
     "auditPage": {
       "loading": "Loading audit log…",
