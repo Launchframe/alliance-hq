@@ -2180,6 +2180,8 @@
     "duplicateMemberBlocked": "Corrija as linhas duplicadas de membros antes de salvar.",
     "filterPlaceholder": "Buscar por nome…",
     "filterCount": "{shown} de {total} exibidos",
+    "draftRestored": "Restauramos edições não salvas deste dispositivo.",
+    "draftSavedLocally": "Rascunho salvo neste dispositivo às {time}.",
     "discardResults": "Descartar resultados",
     "ratingPrompt": "Como foi o OCR neste vídeo?",
     "ratingThumbsUp": "Ficou bom",
