@@ -68,4 +68,21 @@ describe("member-tenure.server", () => {
       leftAt,
     });
   });
+
+  it("does not sync commander when no open tenure row exists (repeated close)", async () => {
+    // Simulates a repeated roster sync for an already-departed member.
+    // The select returns nothing (no open tenure), so the update is a no-op
+    // and the commander sync must NOT fire — otherwise it would re-stamp
+    // leftAt=now and corrupt the historical departure date.
+    mockState.selectResults.push([]); // no active tenure
+
+    const leftAt = new Date("2026-06-26T20:15:00.000Z");
+    await closeMemberAllianceTenure({
+      allianceId: "alliance-a",
+      ashedMemberId: "member-1",
+      leftAt,
+    });
+
+    expect(syncCommanderFromAllianceMember).not.toHaveBeenCalled();
+  });
 });

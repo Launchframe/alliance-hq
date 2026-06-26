@@ -163,12 +163,17 @@ export async function closeMemberAllianceTenure(input: {
       ),
     );
 
-  await syncCommanderFromAllianceMember({
-    allianceId: input.allianceId,
-    ashedMemberId: input.ashedMemberId,
-    joinedAt: active?.joinedAt,
-    leftAt: now,
-  });
+  // Only mirror commander departure when an open tenure row actually existed.
+  // Without this guard, repeated roster syncs for already-departed members would
+  // re-stamp leftAt=now on the commander membership, corrupting the historical date.
+  if (active) {
+    await syncCommanderFromAllianceMember({
+      allianceId: input.allianceId,
+      ashedMemberId: input.ashedMemberId,
+      joinedAt: active.joinedAt,
+      leftAt: now,
+    });
+  }
 }
 
 export async function syncTenureFromMemberStatus(input: {
