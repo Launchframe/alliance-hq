@@ -18,6 +18,8 @@ Parallel Cursor agents (Multitask mode, background subagents, or separate chats)
 
 **Stash is not agent handoff.** If work must survive a context switch, it belongs on a **named branch** (local or pushed), not `stash@{n}`.
 
+> **Scope:** "Commit WIP" is not a blanket commit permission. It means an agent ending a session or handing off to another agent should commit rather than stash — still subject to the repo's pre-commit gates. It does **not** authorize autonomous commits in ordinary single-agent sessions; follow the maintainer's explicit request as usual.
+
 ## Worktrees for concurrent work
 
 When **more than one agent** may write code at the same time — including Multitask mode — each writer gets its **own worktree directory** and **own branch**:
@@ -29,6 +31,8 @@ git worktree add ../alliance-hq-<short-topic> -b feat/<topic> origin/main
 # or track an existing PR branch:
 git worktree add ../alliance-hq-pr-82 origin/feat/video-review-draft-persistence
 ```
+
+`<short-topic>` must be **unique on the filesystem**. When multiple agents may work on related areas concurrently, disambiguate with an issue number or PR number (e.g. `../alliance-hq-auth-123`) to avoid path collisions.
 
 | Agent / task | Workspace |
 | --- | --- |
@@ -49,9 +53,9 @@ git worktree add ../alliance-hq-pr-82 origin/feat/video-review-draft-persistence
 After a task is merged, abandoned, or handed back to the maintainer:
 
 1. Confirm no needed WIP remains: `git status` in the worktree and `git stash list` for topic-scoped stashes.
-2. Remove the task worktree from the primary clone: `git worktree remove --force ../alliance-hq-<topic> && git worktree prune`.
+2. Remove the task worktree from the primary clone: `git worktree remove --force ../alliance-hq-<topic> && git worktree prune`. **Agents: do not run `--force` autonomously** — stop and ask the maintainer if step 1 shows any uncommitted work, or if you are uncertain the worktree is fully clean.
 3. Delete the local topic branch only after it is merged or intentionally abandoned: `git branch -d feat/<topic>` (use `-D` only with maintainer approval).
-4. Prune stale remote-tracking refs after the remote branch is merged/deleted: `git fetch --prune origin`.
+4. Delete the remote branch if it was pushed but **never opened as a PR** (no GitHub auto-delete): `git push origin --delete feat/<topic>`. Then prune stale remote-tracking refs: `git fetch --prune origin`.
 5. Drop obsolete topic-scoped stashes once their changes are merged, committed elsewhere, or no longer needed.
 
 ## Before changing branches in the primary clone
