@@ -274,6 +274,7 @@ export function RosterVideoReviewTable({
                       searchable
                       searchMode="fuzzy"
                       combobox
+                      hideEmptyOptionWhileSearching
                       searchPlaceholder={tMembersList("searchPlaceholder")}
                       noSearchResultsLabel={t("memberSearchNoResults")}
                       options={buildMemberMatchSelectOptions(memberOptions, {

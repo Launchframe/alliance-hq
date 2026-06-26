@@ -26,7 +26,7 @@ export type PreviewZoom = "fit" | "width";
 const PREVIEW_ZOOMS: readonly PreviewZoom[] = ["fit", "width"];
 
 /** localStorage key for persisted preview preferences (bump suffix on shape change). */
-export const PREVIEW_PREFS_STORAGE_KEY = "hq-video-preview-prefs-v1";
+export const PREVIEW_PREFS_STORAGE_KEY = "hq-video-preview-prefs-v2";
 
 /** Tailwind breakpoints: tablet >= md (768px), desktop >= lg (1024px). */
 export function deviceClassForWidth(width: number): PreviewDeviceClass {
@@ -68,16 +68,72 @@ export function clampPlacement(
   return DEFAULT_PLACEMENT[device];
 }
 
+export type PreviewPaneSize = {
+  sideWidthPx: number;
+  dockHeightPx: number;
+};
+
+/** Default side column width: min(45vw, 26rem). */
+export function defaultSideWidthPx(viewportWidth: number): number {
+  return Math.round(Math.min(viewportWidth * 0.45, 416));
+}
+
+/** Default top/bottom dock height: 42dvh. */
+export function defaultDockHeightPx(viewportHeight: number): number {
+  return Math.round(viewportHeight * 0.42);
+}
+
+export function clampSideWidthPx(
+  width: number,
+  viewportWidth: number,
+): number {
+  const max = Math.round(viewportWidth * 0.7);
+  return Math.max(256, Math.min(max, Math.round(width)));
+}
+
+export function clampDockHeightPx(
+  height: number,
+  viewportHeight: number,
+): number {
+  const min = Math.round(viewportHeight * 0.2);
+  const max = Math.round(viewportHeight * 0.8);
+  return Math.max(min, Math.min(max, Math.round(height)));
+}
+
+export function clampPreviewSize(
+  size: Partial<PreviewPaneSize> | undefined | null,
+  viewport: { width: number; height: number },
+): PreviewPaneSize {
+  return {
+    sideWidthPx: clampSideWidthPx(
+      size?.sideWidthPx ?? defaultSideWidthPx(viewport.width),
+      viewport.width,
+    ),
+    dockHeightPx: clampDockHeightPx(
+      size?.dockHeightPx ?? defaultDockHeightPx(viewport.height),
+      viewport.height,
+    ),
+  };
+}
+
 export type PreviewPrefs = {
   open: boolean;
   placement: Record<PreviewDeviceClass, PreviewPlacement>;
   zoom: PreviewZoom;
+  size: Record<PreviewDeviceClass, PreviewPaneSize>;
 };
+
+const FALLBACK_VIEWPORT = { width: 1280, height: 800 };
 
 export const DEFAULT_PREVIEW_PREFS: PreviewPrefs = {
   open: true,
   placement: { ...DEFAULT_PLACEMENT },
   zoom: "fit",
+  size: {
+    desktop: clampPreviewSize(null, FALLBACK_VIEWPORT),
+    tablet: clampPreviewSize(null, FALLBACK_VIEWPORT),
+    mobile: clampPreviewSize(null, { width: 390, height: 844 }),
+  },
 };
 
 /** Coerce a (possibly stale/invalid) zoom into a known value. */
@@ -85,15 +141,37 @@ export function clampZoom(zoom: PreviewZoom | undefined | null): PreviewZoom {
   return zoom && PREVIEW_ZOOMS.includes(zoom) ? zoom : "fit";
 }
 
+function parseStoredSize(
+  raw: Partial<PreviewPaneSize> | undefined | null,
+  viewport: { width: number; height: number },
+): PreviewPaneSize {
+  return clampPreviewSize(raw, viewport);
+}
+
 /** Parse persisted prefs defensively, clamping each device's placement. */
-export function parsePreviewPrefs(raw: string | null): PreviewPrefs {
+export function parsePreviewPrefs(
+  raw: string | null,
+  viewport: { width: number; height: number } = FALLBACK_VIEWPORT,
+): PreviewPrefs {
   if (!raw) {
-    return { open: true, placement: { ...DEFAULT_PLACEMENT }, zoom: "fit" };
+    return {
+      open: true,
+      placement: { ...DEFAULT_PLACEMENT },
+      zoom: "fit",
+      size: {
+        desktop: clampPreviewSize(null, viewport),
+        tablet: clampPreviewSize(null, viewport),
+        mobile: clampPreviewSize(null, viewport),
+      },
+    };
   }
   try {
     const parsed = JSON.parse(raw) as Partial<PreviewPrefs> | null;
     const placement = (parsed?.placement ?? {}) as Partial<
       Record<PreviewDeviceClass, PreviewPlacement>
+    >;
+    const size = (parsed?.size ?? {}) as Partial<
+      Record<PreviewDeviceClass, Partial<PreviewPaneSize>>
     >;
     return {
       open: typeof parsed?.open === "boolean" ? parsed.open : true,
@@ -103,9 +181,14 @@ export function parsePreviewPrefs(raw: string | null): PreviewPrefs {
         mobile: clampPlacement("mobile", placement.mobile),
       },
       zoom: clampZoom(parsed?.zoom),
+      size: {
+        desktop: parseStoredSize(size.desktop, viewport),
+        tablet: parseStoredSize(size.tablet, viewport),
+        mobile: parseStoredSize(size.mobile, viewport),
+      },
     };
   } catch {
-    return { open: true, placement: { ...DEFAULT_PLACEMENT }, zoom: "fit" };
+    return parsePreviewPrefs(null, viewport);
   }
 }
 

@@ -5,6 +5,9 @@ import { useCallback, useSyncExternalStore } from "react";
 import {
   availablePlacements,
   clampPlacement,
+  clampDockHeightPx,
+  clampPreviewSize,
+  clampSideWidthPx,
   deviceClassForWidth,
   parsePreviewPrefs,
   serializePreviewPrefs,
@@ -23,12 +26,18 @@ export type VideoPreviewLayout = {
   available: PreviewPlacement[];
   open: boolean;
   zoom: PreviewZoom;
+  sideWidthPx: number;
+  dockHeightPx: number;
   setOpen: (next: boolean | ((open: boolean) => boolean)) => void;
   setPlacement: (placement: PreviewPlacement) => void;
   setZoom: (next: PreviewZoom | ((zoom: PreviewZoom) => PreviewZoom)) => void;
+  setSideWidthPx: (width: number) => void;
+  setDockHeightPx: (height: number) => void;
 };
 
-// --- Viewport (device class) external store -------------------------------
+type Viewport = { width: number; height: number };
+
+// --- Viewport external store -----------------------------------------------
 
 function subscribeViewport(onChange: () => void): () => void {
   window.addEventListener("resize", onChange);
@@ -39,29 +48,38 @@ function subscribeViewport(onChange: () => void): () => void {
   };
 }
 
-function getDeviceSnapshot(): PreviewDeviceClass {
-  return deviceClassForWidth(window.innerWidth);
+function getViewportSnapshot(): Viewport {
+  return { width: window.innerWidth, height: window.innerHeight };
 }
 
-function getDeviceServerSnapshot(): PreviewDeviceClass {
-  return "desktop";
+function getViewportServerSnapshot(): Viewport {
+  return { width: 1280, height: 800 };
 }
 
 // --- Preferences external store (localStorage-backed) ---------------------
 
 let prefsCache: PreviewPrefs | null = null;
+let prefsViewport: Viewport | null = null;
 const prefsListeners = new Set<() => void>();
 
-function readPrefs(): PreviewPrefs {
-  if (prefsCache) return prefsCache;
+function readPrefs(viewport: Viewport): PreviewPrefs {
+  if (prefsCache && prefsViewport) {
+    const sameViewport =
+      prefsViewport.width === viewport.width &&
+      prefsViewport.height === viewport.height;
+    if (sameViewport) return prefsCache;
+  }
+  prefsViewport = viewport;
   prefsCache = parsePreviewPrefs(
     window.localStorage.getItem(PREVIEW_PREFS_STORAGE_KEY),
+    viewport,
   );
   return prefsCache;
 }
 
-function writePrefs(next: PreviewPrefs): void {
+function writePrefs(next: PreviewPrefs, viewport: Viewport): void {
   prefsCache = next;
+  prefsViewport = viewport;
   try {
     window.localStorage.setItem(
       PREVIEW_PREFS_STORAGE_KEY,
@@ -77,7 +95,7 @@ function subscribePrefs(onChange: () => void): () => void {
   prefsListeners.add(onChange);
   const onStorage = (event: StorageEvent) => {
     if (event.key === PREVIEW_PREFS_STORAGE_KEY) {
-      prefsCache = parsePreviewPrefs(event.newValue);
+      prefsCache = null;
       onChange();
     }
   };
@@ -88,8 +106,8 @@ function subscribePrefs(onChange: () => void): () => void {
   };
 }
 
-function getPrefsSnapshot(): PreviewPrefs {
-  return readPrefs();
+function getPrefsSnapshot(viewport: Viewport): PreviewPrefs {
+  return readPrefs(viewport);
 }
 
 function getPrefsServerSnapshot(): PreviewPrefs {
@@ -102,44 +120,92 @@ function getPrefsServerSnapshot(): PreviewPrefs {
  * class in localStorage so each form factor keeps its own preference.
  */
 export function useVideoPreviewLayout(): VideoPreviewLayout {
-  const device = useSyncExternalStore(
+  const viewport = useSyncExternalStore(
     subscribeViewport,
-    getDeviceSnapshot,
-    getDeviceServerSnapshot,
+    getViewportSnapshot,
+    getViewportServerSnapshot,
   );
+  const device = deviceClassForWidth(viewport.width);
   const prefs = useSyncExternalStore(
     subscribePrefs,
-    getPrefsSnapshot,
+    () => getPrefsSnapshot(viewport),
     getPrefsServerSnapshot,
   );
 
+  const resolvedSize = clampPreviewSize(prefs.size[device], viewport);
+
   const setOpen = useCallback(
     (next: boolean | ((open: boolean) => boolean)) => {
-      const current = readPrefs();
+      const current = readPrefs(viewport);
       const open = typeof next === "function" ? next(current.open) : next;
-      writePrefs({ ...current, open });
+      writePrefs({ ...current, open }, viewport);
     },
-    [],
+    [viewport],
   );
 
   const setPlacement = useCallback(
     (placement: PreviewPlacement) => {
-      const current = readPrefs();
-      writePrefs({
-        ...current,
-        placement: { ...current.placement, [device]: placement },
-      });
+      const current = readPrefs(viewport);
+      writePrefs(
+        {
+          ...current,
+          placement: { ...current.placement, [device]: placement },
+        },
+        viewport,
+      );
     },
-    [device],
+    [device, viewport],
   );
 
   const setZoom = useCallback(
     (next: PreviewZoom | ((zoom: PreviewZoom) => PreviewZoom)) => {
-      const current = readPrefs();
+      const current = readPrefs(viewport);
       const zoom = typeof next === "function" ? next(current.zoom) : next;
-      writePrefs({ ...current, zoom });
+      writePrefs({ ...current, zoom }, viewport);
     },
-    [],
+    [viewport],
+  );
+
+  const setSideWidthPx = useCallback(
+    (width: number) => {
+      const current = readPrefs(viewport);
+      const nextWidth = clampSideWidthPx(width, viewport.width);
+      writePrefs(
+        {
+          ...current,
+          size: {
+            ...current.size,
+            [device]: {
+              ...current.size[device],
+              sideWidthPx: nextWidth,
+            },
+          },
+        },
+        viewport,
+      );
+    },
+    [device, viewport],
+  );
+
+  const setDockHeightPx = useCallback(
+    (height: number) => {
+      const current = readPrefs(viewport);
+      const nextHeight = clampDockHeightPx(height, viewport.height);
+      writePrefs(
+        {
+          ...current,
+          size: {
+            ...current.size,
+            [device]: {
+              ...current.size[device],
+              dockHeightPx: nextHeight,
+            },
+          },
+        },
+        viewport,
+      );
+    },
+    [device, viewport],
   );
 
   return {
@@ -148,8 +214,12 @@ export function useVideoPreviewLayout(): VideoPreviewLayout {
     available: availablePlacements(device),
     open: prefs.open,
     zoom: prefs.zoom,
+    sideWidthPx: resolvedSize.sideWidthPx,
+    dockHeightPx: resolvedSize.dockHeightPx,
     setOpen,
     setPlacement,
     setZoom,
+    setSideWidthPx,
+    setDockHeightPx,
   };
 }
