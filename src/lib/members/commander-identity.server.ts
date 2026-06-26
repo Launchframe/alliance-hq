@@ -4,7 +4,7 @@ import "server-only";
  * Commander identity — phase 1 (this PR)
  *
  * - Tables + migration backfill + dual-write on member link (HQ + Discord).
- * - HQ ownership graph (`hq_user_commanders`) and admin search by UID/name.
+ * - HQ ownership graph (`hq_user_commanders`) and admin search by name/link metadata (UID excluded from maintainer UI).
  *
  * Phase 2 (follow-up): mirror roster sync, rank events, and tenure open/close into
  * commander tables via syncCommanderFromAllianceMember (or equivalent), then prefer

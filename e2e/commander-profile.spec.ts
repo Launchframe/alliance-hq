@@ -54,6 +54,7 @@ async function insertAllianceMember(
 test.describe("Commander profile and admin commanders", () => {
   test("officer opens commander profile from members search", async ({
     page,
+    request,
   }) => {
     const sql = getE2eSql();
     const alliance = await createNativeAlliance(sql, {
@@ -98,9 +99,22 @@ test.describe("Commander profile and admin commanders", () => {
     await expect(page.getByRole("heading", { name: "E2E Commander Alpha" })).toBeVisible();
     await expect(page.getByText("123456789")).not.toBeVisible();
     await expect(page.getByText("12345678901203")).not.toBeVisible();
+
+    const profileRes = await request.get(
+      `${e2eBaseUrl()}/api/members/${memberId}`,
+      { headers: { Cookie: authCookieHeader(session) } },
+    );
+    expect(profileRes.status()).toBe(200);
+    const profileBody = (await profileRes.json()) as {
+      member: { gameUid: string | null };
+    };
+    expect(profileBody.member.gameUid).toBeNull();
   });
 
-  test("linked HQ owner sees UID on their own commander profile", async ({ page }) => {
+  test("linked HQ owner sees UID on their own commander profile", async ({
+    page,
+    request,
+  }) => {
     const sql = getE2eSql();
     const alliance = await createNativeAlliance(sql, {
       tag: `OW${nanoid(3)}`,
@@ -142,6 +156,16 @@ test.describe("Commander profile and admin commanders", () => {
     await page.goto(`/members/${memberId}`);
     await expect(page.getByRole("heading", { name: "E2E Owner Commander" })).toBeVisible();
     await expect(page.getByText(gameUid)).toBeVisible();
+
+    const profileRes = await request.get(
+      `${e2eBaseUrl()}/api/members/${memberId}`,
+      { headers: { Cookie: authCookieHeader(session) } },
+    );
+    expect(profileRes.status()).toBe(200);
+    const profileBody = (await profileRes.json()) as {
+      member: { gameUid: string | null };
+    };
+    expect(profileBody.member.gameUid).toBe(gameUid);
   });
 
   test("cross-alliance commander API returns not found", async ({ request }) => {
