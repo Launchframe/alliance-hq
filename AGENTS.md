@@ -30,7 +30,10 @@ Do not commit while any gate is failing.
 
 Feature work is not done until Playwright e2e is green — see [`.cursor/rules/e2e-plan-completion.mdc`](.cursor/rules/e2e-plan-completion.mdc). Update `e2e/**/*.spec.ts` and `e2e/fixtures/**` when auth, invite, connect, or session isolation changes; run `npm run test:e2e` before marking a plan complete or opening a PR.
 
-## Client vs server imports (Next.js bundles)
+## Parallel agents and git isolation
+
+Concurrent Cursor agents (Multitask or separate tasks) must not share one dirty working tree. **One task → one branch → one concern**; use **git worktrees** for parallel writers. Do not use `git stash` as agent handoff — commit WIP to a topic branch instead. Real Steel always reviews in a dedicated worktree and removes it when done. Detail: [`.cursor/rules/agent-git-hygiene.mdc`](.cursor/rules/agent-git-hygiene.mdc) and `~/.cursor/skills/real-steel/SKILL.md`.
+
 
 **`"use client"` components and hooks must not import modules that pull in Node or Postgres.** Next will try to bundle those for the browser and fail (`Can't resolve 'fs'`, `postgres`, etc.).
 
