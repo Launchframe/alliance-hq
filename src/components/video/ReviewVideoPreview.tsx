@@ -15,6 +15,7 @@ import type {
   PreviewPlacement,
   PreviewZoom,
 } from "@/lib/video/preview-layout";
+import { previewWheelSeekSeconds } from "@/lib/video/frame-video-seek";
 
 export type VideoSeekRequest = { seconds: number; nonce: number } | null;
 
@@ -52,6 +53,7 @@ export function ReviewVideoPreview({
 }: Props) {
   const t = useTranslations("videoReview");
   const videoRef = useRef<HTMLVideoElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
 
   // Fill-width only helps the short top/bottom docks; the tall side column
   // already constrains a portrait frame by width.
@@ -80,6 +82,33 @@ export function ReviewVideoPreview({
     el.addEventListener("loadedmetadata", applySeek, { once: true });
     return () => el.removeEventListener("loadedmetadata", applySeek);
   }, [seekRequest]);
+
+  useEffect(() => {
+    const container = bodyRef.current;
+    // Fill-width mode uses wheel to pan a tall portrait frame — do not hijack scroll.
+    if (!container || unavailable || effectiveZoom === "width") return;
+
+    const onWheel = (event: WheelEvent) => {
+      // Pinch-zoom on trackpads sets ctrlKey; leave browser/page zoom alone.
+      if (event.ctrlKey) return;
+      const el = videoRef.current;
+      if (!el) return;
+      event.preventDefault();
+      try {
+        el.pause();
+        el.currentTime = previewWheelSeekSeconds(
+          el.currentTime,
+          event.deltaY,
+          el.duration,
+        );
+      } catch {
+        // ignore seek failures (e.g. unbuffered range)
+      }
+    };
+
+    container.addEventListener("wheel", onWheel, { passive: false });
+    return () => container.removeEventListener("wheel", onWheel);
+  }, [unavailable, jobId, effectiveZoom]);
 
   const containerClass = cn(
     "z-30 flex flex-col bg-black",
@@ -124,6 +153,7 @@ export function ReviewVideoPreview({
         optionLabel={(p) => t(`previewPlacement.${p}`)}
       />
       <VideoBody
+        bodyRef={bodyRef}
         videoRef={videoRef}
         jobId={jobId}
         zoom={effectiveZoom}
@@ -242,12 +272,14 @@ function PanelChrome({
 }
 
 function VideoBody({
+  bodyRef,
   videoRef,
   jobId,
   zoom,
   unavailable,
   unavailableLabel,
 }: {
+  bodyRef: React.RefObject<HTMLDivElement | null>;
   videoRef: React.RefObject<HTMLVideoElement | null>;
   jobId: string;
   zoom: PreviewZoom;
@@ -256,9 +288,11 @@ function VideoBody({
 }) {
   if (unavailable) {
     return (
-      <p className="flex min-h-0 flex-1 items-center justify-center px-4 text-center text-sm text-[#8b949e]">
-        {unavailableLabel}
-      </p>
+      <div ref={bodyRef} className="flex min-h-0 flex-1 flex-col">
+        <p className="flex min-h-0 flex-1 items-center justify-center px-4 text-center text-sm text-[#8b949e]">
+          {unavailableLabel}
+        </p>
+      </div>
     );
   }
 
@@ -269,7 +303,10 @@ function VideoBody({
   // read at full width. Fit: whole frame letterboxed within the pane.
   if (zoom === "width") {
     return (
-      <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain">
+      <div
+        ref={bodyRef}
+        className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain"
+      >
         <video
           ref={videoRef}
           src={src}
@@ -282,7 +319,7 @@ function VideoBody({
   }
 
   return (
-    <div className="relative min-h-0 flex-1">
+    <div ref={bodyRef} className="relative min-h-0 flex-1">
       <video
         ref={videoRef}
         src={src}
