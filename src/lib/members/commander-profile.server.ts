@@ -66,11 +66,49 @@ function parseEventMetadata(metadata: unknown): {
   };
 }
 
+/** HQ user who linked this commander via name+UID — not alliance R5/officer RBAC. */
+async function viewerOwnsCommander(input: {
+  commanderId: string | null | undefined;
+  hqUserId: string | null;
+  allianceId: string;
+  ashedMemberId: string;
+}): Promise<boolean> {
+  if (!input.hqUserId) return false;
+
+  const db = getDb();
+  if (input.commanderId) {
+    const [owned] = await db
+      .select({ id: schema.hqUserCommanders.id })
+      .from(schema.hqUserCommanders)
+      .where(
+        and(
+          eq(schema.hqUserCommanders.commanderId, input.commanderId),
+          eq(schema.hqUserCommanders.hqUserId, input.hqUserId),
+        ),
+      )
+      .limit(1);
+    if (owned) return true;
+  }
+
+  const [linkedMember] = await db
+    .select({ id: schema.hqMemberLinks.id })
+    .from(schema.hqMemberLinks)
+    .where(
+      and(
+        eq(schema.hqMemberLinks.allianceId, input.allianceId),
+        eq(schema.hqMemberLinks.ashedMemberId, input.ashedMemberId),
+        eq(schema.hqMemberLinks.hqUserId, input.hqUserId),
+      ),
+    )
+    .limit(1);
+  return linkedMember != null;
+}
+
 export async function loadCommanderProfile(
   sessionId: string,
   ashedMemberId: string,
 ): Promise<CommanderProfilePayload | null> {
-  const { allianceId } = await resolveCommanderSessionContext(sessionId);
+  const { allianceId, hqUserId } = await resolveCommanderSessionContext(sessionId);
   await assertCommanderReadAccess(sessionId, allianceId);
 
   const memberRow = await loadAllianceCommander(allianceId, ashedMemberId);
@@ -108,8 +146,52 @@ export async function loadCommanderProfile(
     )
     .limit(1);
 
+  const [commanderIdentity] = await db
+    .select({
+      commanderId: schema.commanders.id,
+      gameUid: schema.commanders.gameUid,
+    })
+    .from(schema.commanderAllianceMemberships)
+    .innerJoin(
+      schema.commanders,
+      eq(schema.commanderAllianceMemberships.commanderId, schema.commanders.id),
+    )
+    .where(
+      and(
+        eq(schema.commanderAllianceMemberships.allianceId, allianceId),
+        eq(schema.commanderAllianceMemberships.ashedMemberId, ashedMemberId),
+      ),
+    )
+    .limit(1);
+
   let hqUser: CommanderProfilePayload["hqUser"] = null;
-  if (hqLink) {
+  if (commanderIdentity) {
+    const [user] = await db
+      .select({
+        id: schema.hqUsers.id,
+        displayName: schema.hqUsers.displayName,
+        email: schema.hqUsers.email,
+      })
+      .from(schema.hqUserCommanders)
+      .innerJoin(
+        schema.hqUsers,
+        eq(schema.hqUserCommanders.hqUserId, schema.hqUsers.id),
+      )
+      .where(eq(schema.hqUserCommanders.commanderId, commanderIdentity.commanderId))
+      .orderBy(
+        desc(schema.hqUserCommanders.isPrimary),
+        desc(schema.hqUserCommanders.linkedAt),
+      )
+      .limit(1);
+    if (user) {
+      hqUser = {
+        id: user.id,
+        displayName: user.displayName,
+        email: canSeeEmail ? user.email : null,
+      };
+    }
+  }
+  if (!hqUser && hqLink) {
     const [user] = await db
       .select({
         id: schema.hqUsers.id,
@@ -145,10 +227,12 @@ export async function loadCommanderProfile(
 
   const gameUid =
     memberRow.gameUid?.trim() ??
+    commanderIdentity?.gameUid?.trim() ??
     hqLink?.gameUid?.trim() ??
     discordLinks[0]?.gameUid?.trim() ??
     null;
 
+  // Phase 1: tenure stays on member_alliance_tenure until roster sync mirrors writes.
   const tenureRows = gameUid
     ? await listTenureHistoryByGameUid(gameUid)
     : [];
@@ -226,6 +310,12 @@ export async function loadCommanderProfile(
     parseAshedMemberAllianceRank(ashedMember),
     "—",
   );
+  const viewerIsOwner = await viewerOwnsCommander({
+    commanderId: commanderIdentity?.commanderId,
+    hqUserId,
+    allianceId,
+    ashedMemberId,
+  });
 
   return {
     member: {
@@ -237,7 +327,7 @@ export async function loadCommanderProfile(
       titleLabel,
       heroPowerM: memberRow.heroPowerM,
       memberLevel: memberRow.memberLevel,
-      gameUid,
+      gameUid: viewerIsOwner ? gameUid : null,
     },
     alliance,
     hqUser,

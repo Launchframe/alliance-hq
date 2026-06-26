@@ -21,7 +21,6 @@ export type AdminMemberLinkRow = {
   allianceTag: string | null;
   ashedMemberId: string;
   memberDisplayName: string | null;
-  gameUid: string;
   linkedAt: Date;
 };
 
@@ -154,7 +153,6 @@ async function loadMemberLinkRowsForUsers(
       allianceTag: schema.alliances.tag,
       ashedMemberId: schema.hqMemberLinks.ashedMemberId,
       memberDisplayName: schema.hqMemberLinks.memberDisplayName,
-      gameUid: schema.hqMemberLinks.gameUid,
       linkedAt: schema.hqMemberLinks.linkedAt,
     })
     .from(schema.hqMemberLinks)

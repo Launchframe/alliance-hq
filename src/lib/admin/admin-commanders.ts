@@ -15,7 +15,6 @@ export type AdminCommanderListRow = {
   currentName: string;
   status: string;
   allianceRank: number | null;
-  gameUid: string | null;
   allianceId: string;
   allianceName: string;
   allianceTag: string | null;
@@ -42,7 +41,15 @@ export type AdminCommanderDetail = AdminCommanderListRow & {
 };
 
 function memberHqUserEmail() {
-  return sql<string | null>`(
+  return sql<string | null>`coalesce((
+    select ${schema.hqUsers.email}
+    from ${schema.hqUserCommanders}
+    inner join ${schema.hqUsers}
+      on ${schema.hqUsers.id} = ${schema.hqUserCommanders.hqUserId}
+    where ${schema.hqUserCommanders.commanderId} = ${schema.commanderAllianceMemberships.commanderId}
+    order by ${schema.hqUserCommanders.isPrimary} desc, ${schema.hqUserCommanders.linkedAt} desc
+    limit 1
+  ), (
     select ${schema.hqUsers.email}
     from ${schema.hqMemberLinks}
     inner join ${schema.hqUsers}
@@ -50,11 +57,19 @@ function memberHqUserEmail() {
     where ${schema.hqMemberLinks.allianceId} = ${schema.allianceMembers.allianceId}
       and ${schema.hqMemberLinks.ashedMemberId} = ${schema.allianceMembers.ashedMemberId}
     limit 1
-  )`;
+  ))`;
 }
 
 function memberHqUserDisplayName() {
-  return sql<string | null>`(
+  return sql<string | null>`coalesce((
+    select ${schema.hqUsers.displayName}
+    from ${schema.hqUserCommanders}
+    inner join ${schema.hqUsers}
+      on ${schema.hqUsers.id} = ${schema.hqUserCommanders.hqUserId}
+    where ${schema.hqUserCommanders.commanderId} = ${schema.commanderAllianceMemberships.commanderId}
+    order by ${schema.hqUserCommanders.isPrimary} desc, ${schema.hqUserCommanders.linkedAt} desc
+    limit 1
+  ), (
     select ${schema.hqUsers.displayName}
     from ${schema.hqMemberLinks}
     inner join ${schema.hqUsers}
@@ -62,17 +77,23 @@ function memberHqUserDisplayName() {
     where ${schema.hqMemberLinks.allianceId} = ${schema.allianceMembers.allianceId}
       and ${schema.hqMemberLinks.ashedMemberId} = ${schema.allianceMembers.ashedMemberId}
     limit 1
-  )`;
+  ))`;
 }
 
 function memberHqUserId() {
-  return sql<string | null>`(
+  return sql<string | null>`coalesce((
+    select ${schema.hqUserCommanders.hqUserId}
+    from ${schema.hqUserCommanders}
+    where ${schema.hqUserCommanders.commanderId} = ${schema.commanderAllianceMemberships.commanderId}
+    order by ${schema.hqUserCommanders.isPrimary} desc, ${schema.hqUserCommanders.linkedAt} desc
+    limit 1
+  ), (
     select ${schema.hqMemberLinks.hqUserId}
     from ${schema.hqMemberLinks}
     where ${schema.hqMemberLinks.allianceId} = ${schema.allianceMembers.allianceId}
       and ${schema.hqMemberLinks.ashedMemberId} = ${schema.allianceMembers.ashedMemberId}
     limit 1
-  )`;
+  ))`;
 }
 
 function memberDiscordUsername() {
@@ -135,10 +156,9 @@ export async function searchAdminCommanders(params: {
   const baseQuery = db
     .select({
       ashedMemberId: schema.allianceMembers.ashedMemberId,
-      currentName: schema.allianceMembers.currentName,
-      status: schema.allianceMembers.status,
-      allianceRank: schema.allianceMembers.allianceRank,
-      gameUid: schema.allianceMembers.gameUid,
+      currentName: sql<string>`coalesce(${schema.allianceMembers.currentName}, ${schema.commanders.primaryName})`,
+      status: sql<string>`coalesce(${schema.allianceMembers.status}, ${schema.commanderAllianceMemberships.status})`,
+      allianceRank: sql<number | null>`coalesce(${schema.allianceMembers.allianceRank}, ${schema.commanderAllianceMemberships.allianceRank})`,
       allianceId: schema.allianceMembers.allianceId,
       allianceName: schema.alliances.name,
       allianceTag: schema.alliances.tag,
@@ -151,6 +171,23 @@ export async function searchAdminCommanders(params: {
     .innerJoin(
       schema.alliances,
       eq(schema.allianceMembers.allianceId, schema.alliances.id),
+    )
+    .leftJoin(
+      schema.commanderAllianceMemberships,
+      and(
+        eq(
+          schema.commanderAllianceMemberships.allianceId,
+          schema.allianceMembers.allianceId,
+        ),
+        eq(
+          schema.commanderAllianceMemberships.ashedMemberId,
+          schema.allianceMembers.ashedMemberId,
+        ),
+      ),
+    )
+    .leftJoin(
+      schema.commanders,
+      eq(schema.commanderAllianceMemberships.commanderId, schema.commanders.id),
     );
 
   const filtered = where ? baseQuery.where(where) : baseQuery;
@@ -162,6 +199,23 @@ export async function searchAdminCommanders(params: {
     .innerJoin(
       schema.alliances,
       eq(schema.allianceMembers.allianceId, schema.alliances.id),
+    )
+    .leftJoin(
+      schema.commanderAllianceMemberships,
+      and(
+        eq(
+          schema.commanderAllianceMemberships.allianceId,
+          schema.allianceMembers.allianceId,
+        ),
+        eq(
+          schema.commanderAllianceMemberships.ashedMemberId,
+          schema.allianceMembers.ashedMemberId,
+        ),
+      ),
+    )
+    .leftJoin(
+      schema.commanders,
+      eq(schema.commanderAllianceMemberships.commanderId, schema.commanders.id),
     )
     .where(where ?? undefined);
 
@@ -186,13 +240,13 @@ export async function loadAdminCommanderDetail(input: {
   const [member] = await db
     .select({
       ashedMemberId: schema.allianceMembers.ashedMemberId,
-      currentName: schema.allianceMembers.currentName,
+      currentName: sql<string>`coalesce(${schema.allianceMembers.currentName}, ${schema.commanders.primaryName})`,
       previousNamesJson: schema.allianceMembers.previousNamesJson,
-      status: schema.allianceMembers.status,
-      allianceRank: schema.allianceMembers.allianceRank,
-      gameUid: schema.allianceMembers.gameUid,
-      heroPowerM: schema.allianceMembers.heroPowerM,
-      memberLevel: schema.allianceMembers.memberLevel,
+      status: sql<string>`coalesce(${schema.allianceMembers.status}, ${schema.commanderAllianceMemberships.status})`,
+      allianceRank: sql<number | null>`coalesce(${schema.allianceMembers.allianceRank}, ${schema.commanderAllianceMemberships.allianceRank})`,
+      gameUid: sql<string | null>`coalesce(${schema.allianceMembers.gameUid}, ${schema.commanders.gameUid})`,
+      heroPowerM: sql<number | null>`coalesce(${schema.allianceMembers.heroPowerM}, ${schema.commanders.heroPowerM})`,
+      memberLevel: sql<number | null>`coalesce(${schema.allianceMembers.memberLevel}, ${schema.commanders.memberLevel})`,
       allianceId: schema.allianceMembers.allianceId,
       allianceName: schema.alliances.name,
       allianceTag: schema.alliances.tag,
@@ -208,6 +262,23 @@ export async function loadAdminCommanderDetail(input: {
       schema.alliances,
       eq(schema.allianceMembers.allianceId, schema.alliances.id),
     )
+    .leftJoin(
+      schema.commanderAllianceMemberships,
+      and(
+        eq(
+          schema.commanderAllianceMemberships.allianceId,
+          schema.allianceMembers.allianceId,
+        ),
+        eq(
+          schema.commanderAllianceMemberships.ashedMemberId,
+          schema.allianceMembers.ashedMemberId,
+        ),
+      ),
+    )
+    .leftJoin(
+      schema.commanders,
+      eq(schema.commanderAllianceMemberships.commanderId, schema.commanders.id),
+    )
     .where(
       and(
         eq(schema.allianceMembers.allianceId, input.allianceId),
@@ -221,7 +292,9 @@ export async function loadAdminCommanderDetail(input: {
   const gameUid =
     member.gameUid?.trim() ??
     (await resolveMemberGameUid(input.allianceId, input.ashedMemberId));
-  const tenureRows = gameUid ? await listTenureHistoryByGameUid(gameUid) : [];
+  const tenureRows = gameUid
+    ? await listTenureHistoryByGameUid(gameUid)
+    : [];
 
   return {
     ashedMemberId: member.ashedMemberId,
@@ -229,7 +302,6 @@ export async function loadAdminCommanderDetail(input: {
     previousNames: member.previousNamesJson ?? [],
     status: member.status,
     allianceRank: member.allianceRank,
-    gameUid,
     heroPowerM: member.heroPowerM,
     memberLevel: member.memberLevel,
     allianceId: member.allianceId,

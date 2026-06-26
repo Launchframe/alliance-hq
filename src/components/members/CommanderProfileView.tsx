@@ -51,7 +51,9 @@ export function CommanderProfileView({ initial }: Props) {
               {member.currentName}
             </p>
             <p className="truncate text-sm text-[#8b949e]">
-              {member.gameUid ? t("gameUid", { uid: member.gameUid }) : t("noGameUid")}
+              {member.gameUid
+                ? t("gameUid", { uid: member.gameUid })
+                : t("allianceContext", { tag: alliance.tag ?? alliance.slug })}
             </p>
           </div>
         </div>

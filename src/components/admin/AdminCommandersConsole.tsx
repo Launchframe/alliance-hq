@@ -22,7 +22,6 @@ type CommanderListRow = {
   currentName: string;
   status: string;
   allianceRank: number | null;
-  gameUid: string | null;
   allianceId: string;
   allianceName: string;
   allianceTag: string | null;
@@ -210,19 +209,18 @@ export function AdminCommandersConsole() {
                   <th className="px-2 py-2">{t("colName")}</th>
                   <th className="px-2 py-2">{t("colAlliance")}</th>
                   <th className="px-2 py-2">{t("colStatus")}</th>
-                  <th className="px-2 py-2">{t("colUid")}</th>
                 </tr>
               </thead>
               <tbody>
                 {listLoading ? (
                   <tr>
-                    <td colSpan={4} className="px-2 py-6 text-center text-[#8b949e]">
+                    <td colSpan={3} className="px-2 py-6 text-center text-[#8b949e]">
                       {t("loading")}
                     </td>
                   </tr>
                 ) : commanders.length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="px-2 py-6 text-center text-[#8b949e]">
+                    <td colSpan={3} className="px-2 py-6 text-center text-[#8b949e]">
                       {t("empty")}
                     </td>
                   </tr>
@@ -238,9 +236,6 @@ export function AdminCommandersConsole() {
                         {allianceLabel(row)}
                       </td>
                       <td className="px-2 py-2">{row.status}</td>
-                      <td className="px-2 py-2 font-mono text-xs">
-                        {row.gameUid ?? "—"}
-                      </td>
                     </tr>
                   ))
                 )}
@@ -288,10 +283,6 @@ export function AdminCommandersConsole() {
               <div>
                 <dt className="text-xs text-[#6e7681]">{t("colAlliance")}</dt>
                 <dd>{allianceLabel(selected)}</dd>
-              </div>
-              <div>
-                <dt className="text-xs text-[#6e7681]">{t("colUid")}</dt>
-                <dd className="font-mono text-xs">{selected.gameUid ?? "—"}</dd>
               </div>
               {selected.hqUserEmail ? (
                 <div>

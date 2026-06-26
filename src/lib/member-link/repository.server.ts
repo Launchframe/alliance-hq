@@ -8,6 +8,7 @@ import {
   denormalizeGameUidOnMember,
   openMemberAllianceTenure,
 } from "@/lib/members/member-tenure.server";
+import { syncCommanderIdentityFromMemberLink } from "@/lib/members/commander-identity.server";
 import type { LinkPendingState } from "@/lib/vr/types";
 
 const PENDING_TTL_MS = 30 * 60 * 1000;
@@ -152,6 +153,13 @@ export async function linkHqMember(input: {
       ashedMemberId: input.ashedMemberId,
       gameUid: input.gameUid,
     });
+    await syncCommanderIdentityFromMemberLink({
+      allianceId: input.allianceId,
+      ashedMemberId: input.ashedMemberId,
+      gameUid: input.gameUid,
+      memberDisplayName: input.memberDisplayName,
+      hqUserId: input.hqUserId,
+    });
     return { ok: true, link: row!, mode: "updated" };
   }
 
@@ -178,6 +186,14 @@ export async function linkHqMember(input: {
     allianceId: input.allianceId,
     ashedMemberId: input.ashedMemberId,
     gameUid: input.gameUid,
+    joinedAt: now,
+  });
+  await syncCommanderIdentityFromMemberLink({
+    allianceId: input.allianceId,
+    ashedMemberId: input.ashedMemberId,
+    gameUid: input.gameUid,
+    memberDisplayName: input.memberDisplayName,
+    hqUserId: input.hqUserId,
     joinedAt: now,
   });
 
