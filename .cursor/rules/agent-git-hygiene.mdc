@@ -34,7 +34,7 @@ git worktree add ../alliance-hq-pr-82 origin/feat/video-review-draft-persistence
 | --- | --- |
 | Feature implementation | `../alliance-hq-<topic>/` on `feat/<topic>` |
 | Second parallel feature | `../alliance-hq-<other>/` on another branch |
-| Real Steel on PR *N* | `../alliance-hq-rs-pr-<N>/` — see [real-steel skill](.cursor/skills/real-steel/SKILL.md) |
+| Real Steel on PR *N* | `../alliance-hq-rs-pr-<N>/` — repo policy layered on `~/.cursor/skills/real-steel/SKILL.md` |
 | Read-only explore | Primary clone OK if no concurrent writers |
 
 **Rules:**
@@ -43,6 +43,16 @@ git worktree add ../alliance-hq-pr-82 origin/feat/video-review-draft-persistence
 - **Never** `git checkout` a PR branch in the primary clone while another agent is editing there.
 - **Remove worktrees** when the task ends: `git worktree remove --force <path> && git worktree prune`.
 - Do **not** delete the PR’s remote feature branch unless the maintainer asks.
+
+## Cleanup after merge or handoff
+
+After a task is merged, abandoned, or handed back to the maintainer:
+
+1. Confirm no needed WIP remains: `git status` in the worktree and `git stash list` for topic-scoped stashes.
+2. Remove the task worktree from the primary clone: `git worktree remove --force ../alliance-hq-<topic> && git worktree prune`.
+3. Delete the local topic branch only after it is merged or intentionally abandoned: `git branch -d feat/<topic>` (use `-D` only with maintainer approval).
+4. Prune stale remote-tracking refs after the remote branch is merged/deleted: `git fetch --prune origin`.
+5. Drop obsolete topic-scoped stashes once their changes are merged, committed elsewhere, or no longer needed.
 
 ## Before changing branches in the primary clone
 
@@ -54,11 +64,11 @@ git worktree add ../alliance-hq-pr-82 origin/feat/video-review-draft-persistence
 - **Message names the concern and paths:** `stash: video scroll-seek — frame-video-seek, ReviewVideoPreview`
 - **Path-scoped:** `git stash push -m "…" -- path/to/file1 path/to/file2`
 - Never stash unrelated files (migrations, commander schema, video UI) in one entry.
-- After merging a branch, grep `git stash list` for that topic and drop obsolete entries.
+- After merging a branch, grep `git stash list` for that topic and drop obsolete entries; stale stashes are not long-term storage.
 
 ## Real Steel
 
-Real Steel **always** uses a dedicated worktree for the PR under review; it never rebases or commits on the maintainer’s primary checkout. Full procedure: **real-steel** skill (`~/.cursor/skills/real-steel/SKILL.md`).
+For this repo, run Real Steel in a dedicated worktree for the PR under review; do not rebase or commit on the maintainer’s primary checkout. The global **real-steel** skill (`~/.cursor/skills/real-steel/SKILL.md`) defines the review/pass workflow, while this rule adds the repo-specific worktree isolation requirement.
 
 ## Multitask mode
 

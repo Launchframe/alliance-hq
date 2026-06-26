@@ -32,8 +32,9 @@ Feature work is not done until Playwright e2e is green — see [`.cursor/rules/e
 
 ## Parallel agents and git isolation
 
-Concurrent Cursor agents (Multitask or separate tasks) must not share one dirty working tree. **One task → one branch → one concern**; use **git worktrees** for parallel writers. Do not use `git stash` as agent handoff — commit WIP to a topic branch instead. Real Steel always reviews in a dedicated worktree and removes it when done. Detail: [`.cursor/rules/agent-git-hygiene.mdc`](.cursor/rules/agent-git-hygiene.mdc) and `~/.cursor/skills/real-steel/SKILL.md`.
+Concurrent Cursor agents (Multitask or separate tasks) must not share one dirty working tree. **One task → one branch → one concern**; use **git worktrees** for parallel writers. Do not use `git stash` as agent handoff — commit WIP to a topic branch instead. In this repo, Real Steel reviews run in a dedicated worktree and clean it up when done. Detail: [`.cursor/rules/agent-git-hygiene.mdc`](.cursor/rules/agent-git-hygiene.mdc) and `~/.cursor/skills/real-steel/SKILL.md`.
 
+## Client vs server imports (Next.js bundles)
 
 **`"use client"` components and hooks must not import modules that pull in Node or Postgres.** Next will try to bundle those for the browser and fail (`Can't resolve 'fs'`, `postgres`, etc.).
 
