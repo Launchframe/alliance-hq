@@ -7,19 +7,16 @@ import { AllianceWelcomeHero } from "@/components/onboarding/AllianceWelcomeHero
 import { fireCelebrationConfetti } from "@/lib/client/celebration-confetti";
 import { isValidGameUid } from "@/lib/lastwar/player-lookup";
 import type { MemberLinkOutcome } from "@/lib/member-link/outcome.shared";
-import { Link, useRouter } from "@/i18n/navigation";
+import { useRouter } from "@/i18n/navigation";
 
 type Props = {
   allianceName: string;
   allianceTag: string;
   nextPath: string;
-  requiresAshedVerification?: boolean;
-  isAshedConnected?: boolean;
 };
 
 type Phase =
   | "welcome"
-  | "connect_ashed"
   | "form"
   | "walkthrough"
   | "fuzzy"
@@ -31,7 +28,7 @@ type Phase =
   | "success";
 
 type ApiResponse = {
-  outcome: MemberLinkOutcome | "ashed_verification_required";
+  outcome: MemberLinkOutcome;
   message: string;
   candidates?: Array<{ memberId: string; name: string }>;
   linkedMemberName?: string;
@@ -45,16 +42,12 @@ export function MemberLinkOnboardingWizard({
   allianceName,
   allianceTag,
   nextPath,
-  requiresAshedVerification = false,
-  isAshedConnected = false,
 }: Props) {
   const t = useTranslations("onboard");
   const tLink = useTranslations("memberLink");
   const router = useRouter();
 
-  const [phase, setPhase] = useState<Phase>(() =>
-    requiresAshedVerification && !isAshedConnected ? "connect_ashed" : "welcome",
-  );
+  const [phase, setPhase] = useState<Phase>("welcome");
   const [reportedName, setReportedName] = useState("");
   const [gameUid, setGameUid] = useState("");
   const [message, setMessage] = useState<string | null>(null);
@@ -82,15 +75,9 @@ export function MemberLinkOnboardingWizard({
     [tLink],
   );
 
-  const connectReturnPath = `/onboard?next=${encodeURIComponent(nextPath)}`;
-
   const goToMemberLinkForm = useCallback(() => {
-    if (requiresAshedVerification && !isAshedConnected) {
-      setPhase("connect_ashed");
-      return;
-    }
     setPhase("form");
-  }, [isAshedConnected, requiresAshedVerification]);
+  }, []);
 
   const applyOutcome = useCallback(
     (data: ApiResponse) => {
@@ -157,10 +144,6 @@ export function MemberLinkOnboardingWizard({
           setMessage(data.message);
           setPhase("lookup_fallback");
           break;
-        case "ashed_verification_required":
-          setPhase("connect_ashed");
-          setFormError(data.message);
-          break;
         case "member_taken":
           setPhase("form");
           setFormError(t("memberTakenBody"));
@@ -211,12 +194,6 @@ export function MemberLinkOnboardingWizard({
     });
     const data = (await res.json()) as T & { message?: string; outcome?: string };
     if (!res.ok) {
-      if (
-        res.status === 403 &&
-        (data as { outcome?: string }).outcome === "ashed_verification_required"
-      ) {
-        return data as T;
-      }
       throw new Error(t("requestFailed"));
     }
     return data as T;
@@ -402,10 +379,6 @@ export function MemberLinkOnboardingWizard({
     void fetch("/api/member-link")
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
-        if (data?.requiresAshedVerification && !isAshedConnected) {
-          setPhase("connect_ashed");
-          return;
-        }
         if (!data?.pending) return;
         if (data.pending.kind === "link_walkthrough") {
           setPhase("walkthrough");
@@ -420,7 +393,7 @@ export function MemberLinkOnboardingWizard({
         }
       })
       .catch(() => undefined);
-  }, [isAshedConnected]);
+  }, []);
 
   useEffect(() => {
     if (phase !== "awaiting_owner") return undefined;
@@ -448,22 +421,6 @@ export function MemberLinkOnboardingWizard({
             {t("continue")}
           </button>
         </>
-      ) : null}
-
-      {phase === "connect_ashed" ? (
-        <div className="space-y-4">
-          <h2 className="text-lg font-semibold">{t("connectAshedTitle")}</h2>
-          <p className="text-sm text-[#8b949e]">{t("connectAshedBody")}</p>
-          {formError ? (
-            <p className="text-sm text-[#f85149]">{formError}</p>
-          ) : null}
-          <Link
-            href={`/connect?next=${encodeURIComponent(connectReturnPath)}`}
-            className="inline-flex w-full items-center justify-center rounded-lg border border-[#388bfd] bg-[#388bfd] px-4 py-2.5 text-sm font-medium text-white"
-          >
-            {t("connectAshedCta")}
-          </Link>
-        </div>
       ) : null}
 
       {phase === "form" ? (

@@ -4,6 +4,7 @@ import { MembersListViewOrSetup } from "@/components/members/MembersListView";
 import { canRefreshRosterFromAshed } from "@/lib/connect/ashed-shell-prompts.shared";
 import { loadAllianceMembers } from "@/lib/members/load";
 import { isNativeAlliance } from "@/lib/native-alliance/operating-mode";
+import { requirePagePermission } from "@/lib/rbac/page-permission";
 import { sessionHasPermission } from "@/lib/rbac/context";
 import { getAshedConnection, requirePageSession } from "@/lib/session";
 
@@ -16,6 +17,7 @@ export async function generateMetadata() {
 
 export default async function MembersPage() {
   const session = await requirePageSession("/members");
+  await requirePagePermission(session.id, "members:read", "/members");
   const hqAllianceId = session.currentAllianceId ?? session.allianceId;
   const nativeMode =
     hqAllianceId != null ? await isNativeAlliance(hqAllianceId) : false;

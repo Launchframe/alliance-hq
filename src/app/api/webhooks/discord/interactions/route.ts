@@ -52,7 +52,7 @@ import {
 } from "@/lib/vr/service";
 import { resolveSetupMessage } from "@/lib/vr/bot-user-context";
 import { linkSlashUsesCommanderFlow } from "@/lib/vr/link-slash-routing";
-import { getDiscordHqLink } from "@/lib/vr/repository";
+import { resolveAllianceIdForDiscordMemberLink } from "@/lib/vr/resolve-member-link-alliance.server";
 import {
   handleDiscordSetTrainChannel,
   handleDiscordTrainConductorPick,
@@ -109,10 +109,6 @@ async function handleLinkCommanderSlash(
   },
 ) {
   const t = createDiscordTranslator(input.locale);
-  const hqLink = await getDiscordHqLink(input.discordUserId);
-  if (!hqLink) {
-    return discordMessageResponse(t("errors.hqLinkRequired"), undefined, EPHEMERAL);
-  }
   if (!input.allianceId) {
     return discordMessageResponse(
       await setupMessage(input.locale, input.guildId, input.discordUserId),
@@ -261,14 +257,22 @@ async function handleSlashCommand(payload: DiscordInteractionPayload) {
     if (!guildId) {
       return discordMessageResponse(t("errors.guildNotRegistered"));
     }
-    const hqLink = await getDiscordHqLink(discordUserId);
-    const legacyName = parseSlashOptionString(payload, "name");
-    if (linkSlashUsesCommanderFlow({ hasHqLink: hqLink != null, legacyName })) {
+    const { name, uid } = parseLinkSlashOptions(payload);
+    if (linkSlashUsesCommanderFlow({ name, uid })) {
+      let linkAllianceId = allianceId;
+      if (!linkAllianceId && guildId) {
+        linkAllianceId = await resolveAllianceIdForDiscordMemberLink({
+          guildId,
+          discordUserId,
+          reportedName: name,
+          gameUid: uid,
+        });
+      }
       return handleLinkCommanderSlash(payload, {
         discordUserId,
         guildId,
         locale,
-        allianceId,
+        allianceId: linkAllianceId,
         discordUsername,
       });
     }

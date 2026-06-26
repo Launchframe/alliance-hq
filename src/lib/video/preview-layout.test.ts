@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   availablePlacements,
   clampPlacement,
+  clampZoom,
   deviceClassForWidth,
   parsePreviewPrefs,
   serializePreviewPrefs,
@@ -50,15 +51,30 @@ describe("clampPlacement", () => {
   });
 });
 
+describe("clampZoom", () => {
+  it("keeps known zoom values", () => {
+    expect(clampZoom("fit")).toBe("fit");
+    expect(clampZoom("width")).toBe("width");
+  });
+
+  it("defaults unknown/empty zoom to fit", () => {
+    expect(clampZoom(null)).toBe("fit");
+    expect(clampZoom(undefined)).toBe("fit");
+    expect(clampZoom("huge" as never)).toBe("fit");
+  });
+});
+
 describe("parsePreviewPrefs", () => {
   it("returns defaults for empty/invalid input", () => {
     expect(parsePreviewPrefs(null)).toEqual({
-      open: false,
+      open: true,
       placement: { ...DEFAULT_PLACEMENT },
+      zoom: "fit",
     });
     expect(parsePreviewPrefs("not json")).toEqual({
-      open: false,
+      open: true,
       placement: { ...DEFAULT_PLACEMENT },
+      zoom: "fit",
     });
   });
 
@@ -66,10 +82,12 @@ describe("parsePreviewPrefs", () => {
     const stored = serializePreviewPrefs({
       open: true,
       placement: { desktop: "side", tablet: "bottom", mobile: "top" },
+      zoom: "width",
     });
     expect(parsePreviewPrefs(stored)).toEqual({
       open: true,
       placement: { desktop: "side", tablet: "bottom", mobile: "top" },
+      zoom: "width",
     });
   });
 
@@ -80,6 +98,13 @@ describe("parsePreviewPrefs", () => {
     });
     expect(parsePreviewPrefs(stored).placement.mobile).toBe(
       DEFAULT_PLACEMENT.mobile,
+    );
+  });
+
+  it("defaults zoom to fit when missing or invalid in stored prefs", () => {
+    expect(parsePreviewPrefs(JSON.stringify({ open: true })).zoom).toBe("fit");
+    expect(parsePreviewPrefs(JSON.stringify({ zoom: "nope" })).zoom).toBe(
+      "fit",
     );
   });
 });

@@ -6,4 +6,5 @@ Quick links:
 
 - Interactions webhook: `/api/webhooks/discord/interactions`
 - Register commands: `npm run discord:register-commands`
+- Local auth testing workflow: [docs/guides/discord-auth-dev-workflow.md](./guides/discord-auth-dev-workflow.md)
 - Environment variables: `.env.example` (`DISCORD_*`, `VR_BOT_ASHED_BEARER_TOKEN`)

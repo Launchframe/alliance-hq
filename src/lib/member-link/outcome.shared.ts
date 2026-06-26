@@ -16,7 +16,6 @@ export type MemberLinkOutcome =
   | "member_taken"
   | "pick_expired"
   | "officer_notified"
-  | "ashed_verification_required"
   | "roster_unavailable";
 
 export type MemberLinkServerConfirmReason = "missing" | "mismatch";

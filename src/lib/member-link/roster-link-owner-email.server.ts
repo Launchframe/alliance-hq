@@ -44,7 +44,7 @@ export function buildRosterLinkOwnerEmail(input: {
   const acceptHref = actionUrl(input.acceptToken);
   const rejectHref = actionUrl(input.rejectToken);
   const subject = `Approve roster link for ${input.gameUserName} (${input.allianceTag})`;
-  const intro = `A player accepted your HQ invite but is not on the ${input.allianceTag} roster yet. Last War shows their commander as ${input.gameUserName} (UID ending …${input.gameUid.slice(-4)}, server ${input.gameServerNumber}). They submitted the name "${input.reportedName}".`;
+  const intro = `A player accepted your HQ invite but is not on the ${input.allianceTag} roster yet. Last War shows their commander as ${input.gameUserName} on server ${input.gameServerNumber}. They submitted the name "${input.reportedName}".`;
   const linkRotationNote = input.isReminder
     ? "This is a reminder — use only the Approve and Decline links in this email. Links from earlier messages about this request no longer work."
     : "If we send another email about this request, use only the newest Approve and Decline links — older links stop working when we resend.";

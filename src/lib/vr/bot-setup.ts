@@ -8,7 +8,6 @@ import {
   callerCanRegisterGuildAlliance,
   callerIsAllianceOwner,
   getAllianceById,
-  getDiscordHqLink,
   getGuildAllianceId,
   listDiscordLinksForUser,
   saveDiscordBotPending,
@@ -104,7 +103,7 @@ async function resolveTagForSetup(input: {
 }
 
 /**
- * /link — Discord↔HQ authentication via HQ web redirect (no alliance scope).
+ * /link — member link via HQ web redirect (in-game name + UID; no Ashed).
  */
 export async function handleDiscordLinkUser(input: {
   guildId: string | null;
@@ -112,10 +111,6 @@ export async function handleDiscordLinkUser(input: {
   locale: DiscordBotLocale;
 }): Promise<BotReply> {
   const t = createDiscordTranslator(input.locale);
-  const existing = await getDiscordHqLink(input.discordUserId);
-  if (existing) {
-    return { reply: t("link.userAlreadyLinked") };
-  }
 
   const nonce = await createDiscordAuthNonce({
     discordUserId: input.discordUserId,
@@ -184,13 +179,6 @@ export async function handleDiscordLinkAlliance(input: {
     return { reply };
   }
 
-  const hqLink = await getDiscordHqLink(input.discordUserId);
-  if (!hqLink) {
-    const reply = t("errors.hqLinkRequired");
-    await audit(null, input.discordUserId, "link_alliance", input, { reply });
-    return { reply };
-  }
-
   const allianceName = input.allianceName?.trim();
 
   const resolved = await resolveTagForSetup({
@@ -222,13 +210,11 @@ export async function handleDiscordLinkAlliance(input: {
 
   if (!registration.allowed) {
     const reply =
-      registration.reason === "no_hq_link"
-        ? t("errors.hqLinkRequired")
-        : registration.reason === "no_credentials"
-          ? t("errors.credentialsRequired", { tag: resolved.tag })
-          : registration.reason === "not_owner"
-            ? t("errors.notOwner")
-            : t("errors.notOwner");
+      registration.reason === "no_credentials"
+        ? t("errors.credentialsRequired", { tag: resolved.tag })
+        : registration.reason === "not_owner" || registration.reason === "no_hq_link"
+          ? t("errors.notOwner")
+          : t("errors.notOwner");
     await audit(resolved.allianceId, input.discordUserId, "link_alliance", input, {
       reply,
       registration,
