@@ -374,6 +374,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
 
   useEffect(() => {
     rosterMembersHydratedRef.current = false;
+    liveJobStatusRef.current = null;
   }, [jobId]);
 
   useEffect(() => {
