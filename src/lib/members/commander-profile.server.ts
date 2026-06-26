@@ -66,6 +66,44 @@ function parseEventMetadata(metadata: unknown): {
   };
 }
 
+/** HQ user who linked this commander via name+UID — not alliance R5/officer RBAC. */
+async function viewerOwnsCommander(input: {
+  commanderId: string | null | undefined;
+  hqUserId: string | null;
+  allianceId: string;
+  ashedMemberId: string;
+}): Promise<boolean> {
+  if (!input.hqUserId) return false;
+
+  const db = getDb();
+  if (input.commanderId) {
+    const [owned] = await db
+      .select({ id: schema.hqUserCommanders.id })
+      .from(schema.hqUserCommanders)
+      .where(
+        and(
+          eq(schema.hqUserCommanders.commanderId, input.commanderId),
+          eq(schema.hqUserCommanders.hqUserId, input.hqUserId),
+        ),
+      )
+      .limit(1);
+    if (owned) return true;
+  }
+
+  const [linkedMember] = await db
+    .select({ id: schema.hqMemberLinks.id })
+    .from(schema.hqMemberLinks)
+    .where(
+      and(
+        eq(schema.hqMemberLinks.allianceId, input.allianceId),
+        eq(schema.hqMemberLinks.ashedMemberId, input.ashedMemberId),
+        eq(schema.hqMemberLinks.hqUserId, input.hqUserId),
+      ),
+    )
+    .limit(1);
+  return linkedMember != null;
+}
+
 export async function loadCommanderProfile(
   sessionId: string,
   ashedMemberId: string,
@@ -112,12 +150,6 @@ export async function loadCommanderProfile(
     .select({
       commanderId: schema.commanders.id,
       gameUid: schema.commanders.gameUid,
-      primaryName: schema.commanders.primaryName,
-      heroPowerM: schema.commanders.heroPowerM,
-      memberLevel: schema.commanders.memberLevel,
-      membershipStatus: schema.commanderAllianceMemberships.status,
-      rosterNameAtMembership:
-        schema.commanderAllianceMemberships.rosterNameAtMembership,
     })
     .from(schema.commanderAllianceMemberships)
     .innerJoin(
@@ -194,37 +226,16 @@ export async function loadCommanderProfile(
     );
 
   const gameUid =
-    commanderIdentity?.gameUid?.trim() ??
     memberRow.gameUid?.trim() ??
+    commanderIdentity?.gameUid?.trim() ??
     hqLink?.gameUid?.trim() ??
     discordLinks[0]?.gameUid?.trim() ??
     null;
 
-  const tenureRows = commanderIdentity
-    ? await db
-        .select({
-          allianceId: schema.commanderAllianceMemberships.allianceId,
-          allianceTag: schema.alliances.tag,
-          allianceName: schema.alliances.name,
-          ashedMemberId: schema.commanderAllianceMemberships.ashedMemberId,
-          joinedAt: schema.commanderAllianceMemberships.joinedAt,
-          leftAt: schema.commanderAllianceMemberships.leftAt,
-        })
-        .from(schema.commanderAllianceMemberships)
-        .innerJoin(
-          schema.alliances,
-          eq(schema.commanderAllianceMemberships.allianceId, schema.alliances.id),
-        )
-        .where(
-          eq(
-            schema.commanderAllianceMemberships.commanderId,
-            commanderIdentity.commanderId,
-          ),
-        )
-        .orderBy(desc(schema.commanderAllianceMemberships.joinedAt))
-    : gameUid
-      ? await listTenureHistoryByGameUid(gameUid)
-      : [];
+  // Phase 1: tenure stays on member_alliance_tenure until roster sync mirrors writes.
+  const tenureRows = gameUid
+    ? await listTenureHistoryByGameUid(gameUid)
+    : [];
 
   const rankEvents = await db
     .select()
@@ -299,43 +310,24 @@ export async function loadCommanderProfile(
     parseAshedMemberAllianceRank(ashedMember),
     "—",
   );
-
-  let viewerOwnsCommander = false;
-  if (hqUserId) {
-    if (hqLink?.hqUserId === hqUserId) {
-      viewerOwnsCommander = true;
-    } else if (commanderIdentity?.commanderId) {
-      const [owned] = await db
-        .select({ id: schema.hqUserCommanders.id })
-        .from(schema.hqUserCommanders)
-        .where(
-          and(
-            eq(schema.hqUserCommanders.hqUserId, hqUserId),
-            eq(
-              schema.hqUserCommanders.commanderId,
-              commanderIdentity.commanderId,
-            ),
-          ),
-        )
-        .limit(1);
-      viewerOwnsCommander = !!owned;
-    }
-  }
+  const viewerIsOwner = await viewerOwnsCommander({
+    commanderId: commanderIdentity?.commanderId,
+    hqUserId,
+    allianceId,
+    ashedMemberId,
+  });
 
   return {
     member: {
       ashedMemberId,
-      currentName:
-        commanderIdentity?.primaryName ??
-        commanderIdentity?.rosterNameAtMembership ??
-        memberRow.currentName,
+      currentName: memberRow.currentName,
       previousNames: memberRow.previousNamesJson ?? [],
-      status: commanderIdentity?.membershipStatus ?? memberRow.status,
+      status: memberRow.status,
       rankLabel,
       titleLabel,
-      heroPowerM: commanderIdentity?.heroPowerM ?? memberRow.heroPowerM,
-      memberLevel: commanderIdentity?.memberLevel ?? memberRow.memberLevel,
-      gameUid: viewerOwnsCommander ? gameUid : null,
+      heroPowerM: memberRow.heroPowerM,
+      memberLevel: memberRow.memberLevel,
+      gameUid: viewerIsOwner ? gameUid : null,
     },
     alliance,
     hqUser,

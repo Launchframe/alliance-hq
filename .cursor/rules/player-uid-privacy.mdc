@@ -9,10 +9,10 @@ Last War **player UID** (`game_uid`, 12–16 digits) is **sensitive account-bind
 
 ## Never display to non-owners
 
-Do **not** show UID to anyone except the **authenticated owner** of that Commander:
+Do **not** show UID to anyone except the **HQ user who linked that Commander** via name+UID (proved by `hq_user_commanders` / `hq_member_links` for the viewer's session):
 
-- **Allowed:** the linked HQ user viewing their own Commander profile; Discord bot may echo UID back to the Discord user after name+UID auth proves ownership (ephemeral/private reply).
-- **Not allowed:** alliance officers, admins, platform maintainers, other members, public Discord channel replies, exports, audit UIs, or any read-only profile/list for someone else's Commander.
+- **Allowed:** that linked HQ user viewing **their own** Commander profile; Discord bot may echo UID back to the Discord user after name+UID auth proves ownership (ephemeral/private reply).
+- **Not allowed:** alliance **R5/officers/admins** viewing **another member's** profile (in-game alliance owner role does **not** grant UID visibility); platform maintainers; other members; public Discord channel replies; exports; audit UIs.
 
 Do **not** show UID in:
 

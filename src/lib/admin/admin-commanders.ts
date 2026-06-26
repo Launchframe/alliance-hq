@@ -156,9 +156,9 @@ export async function searchAdminCommanders(params: {
   const baseQuery = db
     .select({
       ashedMemberId: schema.allianceMembers.ashedMemberId,
-      currentName: sql<string>`coalesce(${schema.commanders.primaryName}, ${schema.allianceMembers.currentName})`,
-      status: sql<string>`coalesce(${schema.commanderAllianceMemberships.status}, ${schema.allianceMembers.status})`,
-      allianceRank: sql<number | null>`coalesce(${schema.commanderAllianceMemberships.allianceRank}, ${schema.allianceMembers.allianceRank})`,
+      currentName: sql<string>`coalesce(${schema.allianceMembers.currentName}, ${schema.commanders.primaryName})`,
+      status: sql<string>`coalesce(${schema.allianceMembers.status}, ${schema.commanderAllianceMemberships.status})`,
+      allianceRank: sql<number | null>`coalesce(${schema.allianceMembers.allianceRank}, ${schema.commanderAllianceMemberships.allianceRank})`,
       allianceId: schema.allianceMembers.allianceId,
       allianceName: schema.alliances.name,
       allianceTag: schema.alliances.tag,
@@ -240,14 +240,13 @@ export async function loadAdminCommanderDetail(input: {
   const [member] = await db
     .select({
       ashedMemberId: schema.allianceMembers.ashedMemberId,
-      currentName: sql<string>`coalesce(${schema.commanders.primaryName}, ${schema.allianceMembers.currentName})`,
+      currentName: sql<string>`coalesce(${schema.allianceMembers.currentName}, ${schema.commanders.primaryName})`,
       previousNamesJson: schema.allianceMembers.previousNamesJson,
-      status: sql<string>`coalesce(${schema.commanderAllianceMemberships.status}, ${schema.allianceMembers.status})`,
-      allianceRank: sql<number | null>`coalesce(${schema.commanderAllianceMemberships.allianceRank}, ${schema.allianceMembers.allianceRank})`,
-      gameUid: sql<string | null>`coalesce(${schema.commanders.gameUid}, ${schema.allianceMembers.gameUid})`,
-      commanderId: schema.commanders.id,
-      heroPowerM: sql<number | null>`coalesce(${schema.commanders.heroPowerM}, ${schema.allianceMembers.heroPowerM})`,
-      memberLevel: sql<number | null>`coalesce(${schema.commanders.memberLevel}, ${schema.allianceMembers.memberLevel})`,
+      status: sql<string>`coalesce(${schema.allianceMembers.status}, ${schema.commanderAllianceMemberships.status})`,
+      allianceRank: sql<number | null>`coalesce(${schema.allianceMembers.allianceRank}, ${schema.commanderAllianceMemberships.allianceRank})`,
+      gameUid: sql<string | null>`coalesce(${schema.allianceMembers.gameUid}, ${schema.commanders.gameUid})`,
+      heroPowerM: sql<number | null>`coalesce(${schema.allianceMembers.heroPowerM}, ${schema.commanders.heroPowerM})`,
+      memberLevel: sql<number | null>`coalesce(${schema.allianceMembers.memberLevel}, ${schema.commanders.memberLevel})`,
       allianceId: schema.allianceMembers.allianceId,
       allianceName: schema.alliances.name,
       allianceTag: schema.alliances.tag,
@@ -293,26 +292,9 @@ export async function loadAdminCommanderDetail(input: {
   const gameUid =
     member.gameUid?.trim() ??
     (await resolveMemberGameUid(input.allianceId, input.ashedMemberId));
-  const tenureRows = member.commanderId
-    ? await db
-        .select({
-          allianceId: schema.commanderAllianceMemberships.allianceId,
-          allianceTag: schema.alliances.tag,
-          allianceName: schema.alliances.name,
-          ashedMemberId: schema.commanderAllianceMemberships.ashedMemberId,
-          joinedAt: schema.commanderAllianceMemberships.joinedAt,
-          leftAt: schema.commanderAllianceMemberships.leftAt,
-        })
-        .from(schema.commanderAllianceMemberships)
-        .innerJoin(
-          schema.alliances,
-          eq(schema.commanderAllianceMemberships.allianceId, schema.alliances.id),
-        )
-        .where(eq(schema.commanderAllianceMemberships.commanderId, member.commanderId))
-        .orderBy(desc(schema.commanderAllianceMemberships.joinedAt))
-    : gameUid
-      ? await listTenureHistoryByGameUid(gameUid)
-      : [];
+  const tenureRows = gameUid
+    ? await listTenureHistoryByGameUid(gameUid)
+    : [];
 
   return {
     ashedMemberId: member.ashedMemberId,

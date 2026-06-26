@@ -100,7 +100,7 @@ test.describe("Commander profile and admin commanders", () => {
     await expect(page.getByText("12345678901203")).not.toBeVisible();
   });
 
-  test("owner sees UID on their own commander profile", async ({ page }) => {
+  test("linked HQ owner sees UID on their own commander profile", async ({ page }) => {
     const sql = getE2eSql();
     const alliance = await createNativeAlliance(sql, {
       tag: `OW${nanoid(3)}`,

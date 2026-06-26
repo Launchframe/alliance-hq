@@ -1,5 +1,19 @@
 import "server-only";
 
+/**
+ * Commander identity — phase 1 (this PR)
+ *
+ * - Tables + migration backfill + dual-write on member link (HQ + Discord).
+ * - HQ ownership graph (`hq_user_commanders`) and admin search by UID/name.
+ *
+ * Phase 2 (follow-up): mirror roster sync, rank events, and tenure open/close into
+ * commander tables via syncCommanderFromAllianceMember (or equivalent), then prefer
+ * commander rows on read paths for stats/rank/tenure.
+ *
+ * Until phase 2, roster-derived profile/admin fields read from `alliance_members` and
+ * `member_alliance_tenure` so data stays fresh after Ashed roster refresh.
+ */
+
 import { and, eq, isNull } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
