@@ -84,7 +84,11 @@ export async function POST(_request: Request, { params }: Props) {
       passKey?: string | null;
       extractionConfigJson?: unknown;
     } = {};
-    if (ocrEngine === "native" && isMemberRosterVideoTarget(scoreTargetId) && !job.passKey) {
+    if (
+      (ocrEngine === "native" || ocrEngine === "mock") &&
+      isMemberRosterVideoTarget(scoreTargetId) &&
+      !job.passKey
+    ) {
       const assignment = await assignRosterOcrExperiment();
       nativeConfigPatch = {
         passKey: assignment.passKey ?? null,
