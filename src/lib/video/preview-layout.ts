@@ -28,6 +28,25 @@ const PREVIEW_ZOOMS: readonly PreviewZoom[] = ["fit", "width"];
 /** localStorage key for persisted preview preferences (bump suffix on shape change). */
 export const PREVIEW_PREFS_STORAGE_KEY = "hq-video-preview-prefs-v2";
 
+export type Viewport = { width: number; height: number };
+
+/**
+ * Return a referentially stable viewport snapshot for `useSyncExternalStore`:
+ * reuse `prev` when the dimensions are unchanged. Returning a fresh object on
+ * every read makes the store look perpetually changed and crashes React with
+ * "Maximum update depth exceeded".
+ */
+export function nextViewportSnapshot(
+  prev: Viewport,
+  width: number,
+  height: number,
+): Viewport {
+  if (prev.width === width && prev.height === height) {
+    return prev;
+  }
+  return { width, height };
+}
+
 /** Tailwind breakpoints: tablet >= md (768px), desktop >= lg (1024px). */
 export function deviceClassForWidth(width: number): PreviewDeviceClass {
   if (width >= 1024) return "desktop";

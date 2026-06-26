@@ -9,6 +9,7 @@ import {
   clampPreviewSize,
   clampSideWidthPx,
   deviceClassForWidth,
+  nextViewportSnapshot,
   parsePreviewPrefs,
   serializePreviewPrefs,
   DEFAULT_PREVIEW_PREFS,
@@ -17,6 +18,7 @@ import {
   type PreviewPlacement,
   type PreviewPrefs,
   type PreviewZoom,
+  type Viewport,
 } from "@/lib/video/preview-layout";
 
 export type VideoPreviewLayout = {
@@ -35,8 +37,6 @@ export type VideoPreviewLayout = {
   setDockHeightPx: (height: number) => void;
 };
 
-type Viewport = { width: number; height: number };
-
 // --- Viewport external store -----------------------------------------------
 
 function subscribeViewport(onChange: () => void): () => void {
@@ -48,12 +48,25 @@ function subscribeViewport(onChange: () => void): () => void {
   };
 }
 
+// useSyncExternalStore compares snapshots by reference, so the snapshot must be
+// referentially stable between renders — nextViewportSnapshot only swaps in a
+// new object when the viewport dimensions actually change, otherwise React
+// loops forever ("Maximum update depth exceeded").
+let viewportCache: Viewport = { width: 0, height: 0 };
+
 function getViewportSnapshot(): Viewport {
-  return { width: window.innerWidth, height: window.innerHeight };
+  viewportCache = nextViewportSnapshot(
+    viewportCache,
+    window.innerWidth,
+    window.innerHeight,
+  );
+  return viewportCache;
 }
 
+const SERVER_VIEWPORT: Viewport = { width: 1280, height: 800 };
+
 function getViewportServerSnapshot(): Viewport {
-  return { width: 1280, height: 800 };
+  return SERVER_VIEWPORT;
 }
 
 // --- Preferences external store (localStorage-backed) ---------------------

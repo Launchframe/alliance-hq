@@ -10,6 +10,7 @@ import {
   defaultDockHeightPx,
   defaultSideWidthPx,
   deviceClassForWidth,
+  nextViewportSnapshot,
   parsePreviewPrefs,
   serializePreviewPrefs,
   DEFAULT_PLACEMENT,
@@ -39,6 +40,24 @@ describe("deviceClassForWidth", () => {
     expect(deviceClassForWidth(1023)).toBe("tablet");
     expect(deviceClassForWidth(1024)).toBe("desktop");
     expect(deviceClassForWidth(1920)).toBe("desktop");
+  });
+});
+
+describe("nextViewportSnapshot", () => {
+  it("returns the same reference when dimensions are unchanged", () => {
+    const prev = { width: 1280, height: 800 };
+    // Referential stability is what keeps useSyncExternalStore from looping
+    // ("Maximum update depth exceeded").
+    expect(nextViewportSnapshot(prev, 1280, 800)).toBe(prev);
+  });
+
+  it("returns a new snapshot when width or height changes", () => {
+    const prev = { width: 1280, height: 800 };
+    expect(nextViewportSnapshot(prev, 1024, 800)).toEqual({
+      width: 1024,
+      height: 800,
+    });
+    expect(nextViewportSnapshot(prev, 1280, 768)).not.toBe(prev);
   });
 });
 
