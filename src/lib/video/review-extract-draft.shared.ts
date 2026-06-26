@@ -115,6 +115,21 @@ export function isVideoReviewDraftApplicable(
   );
 }
 
+export function shouldAutosaveVideoReviewDraft(input: {
+  enabled: boolean;
+  autosaveReady: boolean;
+  dirtyVersion: number;
+  baselineDirtyVersion: number;
+  rowCount: number;
+}): boolean {
+  return (
+    input.enabled &&
+    input.autosaveReady &&
+    input.rowCount > 0 &&
+    input.dirtyVersion > input.baselineDirtyVersion
+  );
+}
+
 /** Apply per-row draft edits onto the server row list (same row ids). */
 export function mergeVideoReviewDraftRows<T extends VideoReviewDraftRow>(
   serverRows: T[],

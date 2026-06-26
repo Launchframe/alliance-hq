@@ -9,6 +9,7 @@ import {
   parseVideoReviewDraft,
   readVideoReviewDraftFromStorage,
   restoreVideoReviewDraftIfPresent,
+  shouldAutosaveVideoReviewDraft,
   videoReviewDraftStorageKey,
   writeVideoReviewDraftToStorage,
 } from "./review-extract-draft.shared";
@@ -168,6 +169,63 @@ describe("isVideoReviewDraftApplicable", () => {
     expect(isVideoReviewDraftApplicable(draft, "job-1", "review", "")).toBe(
       false,
     );
+  });
+});
+
+describe("shouldAutosaveVideoReviewDraft", () => {
+  it("waits for a reviewer change after autosave is armed", () => {
+    expect(
+      shouldAutosaveVideoReviewDraft({
+        enabled: true,
+        autosaveReady: true,
+        dirtyVersion: 0,
+        baselineDirtyVersion: 0,
+        rowCount: 1,
+      }),
+    ).toBe(false);
+
+    expect(
+      shouldAutosaveVideoReviewDraft({
+        enabled: true,
+        autosaveReady: true,
+        dirtyVersion: 1,
+        baselineDirtyVersion: 0,
+        rowCount: 1,
+      }),
+    ).toBe(true);
+  });
+
+  it("does not save after clear disables autosave", () => {
+    expect(
+      shouldAutosaveVideoReviewDraft({
+        enabled: true,
+        autosaveReady: false,
+        dirtyVersion: 2,
+        baselineDirtyVersion: 1,
+        rowCount: 1,
+      }),
+    ).toBe(false);
+  });
+
+  it("does not save when the draft surface is disabled or empty", () => {
+    expect(
+      shouldAutosaveVideoReviewDraft({
+        enabled: false,
+        autosaveReady: true,
+        dirtyVersion: 1,
+        baselineDirtyVersion: 0,
+        rowCount: 1,
+      }),
+    ).toBe(false);
+    expect(
+      shouldAutosaveVideoReviewDraft({
+        enabled: true,
+        autosaveReady: true,
+        dirtyVersion: 1,
+        baselineDirtyVersion: 0,
+        rowCount: 0,
+      }),
+    ).toBe(false);
   });
 });
 

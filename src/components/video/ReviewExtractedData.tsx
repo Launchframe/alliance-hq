@@ -195,7 +195,14 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   const [rosterQuotaCanSubmit, setRosterQuotaCanSubmit] = useState(false);
   const rosterMembersHydratedRef = useRef(false);
   const liveJobStatusRef = useRef<string | null>(null);
+  const draftDirtyVersionRef = useRef(0);
+  const [draftDirtyVersion, setDraftDirtyVersion] = useState(0);
   const isEventView = viewMode === "event";
+
+  const markDraftDirty = useCallback(() => {
+    draftDirtyVersionRef.current += 1;
+    setDraftDirtyVersion(draftDirtyVersionRef.current);
+  }, []);
 
   const reviewDraftForm = useMemo(
     () => ({
@@ -223,6 +230,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     enabled: draftEnabled,
     rows,
     form: reviewDraftForm,
+    dirtyVersion: draftDirtyVersion,
   });
 
   const formattedDraftSavedAt = useMemo(() => {
@@ -360,7 +368,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         }
       }
       setDraftRestored(restored.restored);
-      markAutosaveReady(restored.savedAt);
+      markAutosaveReady(draftDirtyVersionRef.current, restored.savedAt);
       setAllianceId(
         data.alliance?.currentId ??
           data.job?.allianceId ??
@@ -773,6 +781,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
       : true);
 
   function updateRosterRow(id: string, patch: Partial<ParsedRow>) {
+    markDraftDirty();
     setRows((prev) =>
       prev.map((row) => {
         if (row.id !== id) return row;
@@ -786,12 +795,14 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   }
 
   function updateRow(id: string, patch: Partial<ParsedRow>) {
+    markDraftDirty();
     setRows((prev) =>
       prev.map((r) => (r.id === id ? { ...r, ...patch } : r)),
     );
   }
 
   function deleteRow(id: string) {
+    markDraftDirty();
     setRows((prev) =>
       prev.map((r) => (r.id === id ? { ...r, deleted: 1 } : r)),
     );
@@ -963,6 +974,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     });
     if (!res.ok) return;
     const data = (await res.json()) as { row: ParsedRow };
+    markDraftDirty();
     setRows((prev) =>
       mergeParsedRowInReviewOrder(prev, data.row, scoreTargetMeta?.id),
     );
@@ -1219,6 +1231,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
               <AppSelect
                 value={scoreTargetMeta?.usesHqEvents ? hqEventId : eventId}
                 onChange={(next) => {
+                  markDraftDirty();
                   if (scoreTargetMeta?.usesHqEvents) {
                     setHqEventId(next);
                   } else {
@@ -1264,6 +1277,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                         event?: { id: string };
                       };
                       if (data.event?.id) {
+                        markDraftDirty();
                         setHqEventId(data.event.id);
                         setEvents([{ id: data.event.id, label }]);
                       }
@@ -1281,7 +1295,10 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
             <span className="mb-1 block text-[#8b949e]">{t("boardLabel")}</span>
             <AppSelect
               value={boardKey}
-              onChange={setBoardKey}
+              onChange={(next) => {
+                markDraftDirty();
+                setBoardKey(next);
+              }}
               placeholder={t("boardPlaceholder")}
               aria-label={t("boardLabel")}
               options={(scoreTargetMeta?.boardTypes ?? []).map((board) => ({
@@ -1296,7 +1313,10 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
             <span className="mb-1 block text-[#8b949e]">{t("teamLabel")}</span>
             <AppSelect
               value={team}
-              onChange={(next) => setTeam(next as "A" | "B")}
+              onChange={(next) => {
+                markDraftDirty();
+                setTeam(next as "A" | "B");
+              }}
               aria-label={t("teamLabel")}
               options={[
                 { value: "A", label: "Team A" },
@@ -1310,7 +1330,10 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           <input
             type="date"
             value={recordedDate}
-            onChange={(e) => setRecordedDate(e.target.value)}
+            onChange={(e) => {
+              markDraftDirty();
+              setRecordedDate(e.target.value);
+            }}
             className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
           />
         </label>

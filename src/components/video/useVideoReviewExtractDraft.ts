@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import {
   buildVideoReviewDraft,
   clearVideoReviewDraftFromStorage,
+  shouldAutosaveVideoReviewDraft,
   type VideoReviewDraftForm,
   type VideoReviewDraftRow,
   writeVideoReviewDraftToStorage,
@@ -16,6 +17,7 @@ type Args = {
   enabled: boolean;
   rows: VideoReviewDraftRow[];
   form: VideoReviewDraftForm;
+  dirtyVersion: number;
 };
 
 export function useVideoReviewExtractDraft({
@@ -24,10 +26,12 @@ export function useVideoReviewExtractDraft({
   enabled,
   rows,
   form,
+  dirtyVersion,
 }: Args) {
   const [draftRestored, setDraftRestored] = useState(false);
   const [draftSavedAt, setDraftSavedAt] = useState<string | null>(null);
   const [autosaveReady, setAutosaveReady] = useState(false);
+  const [baselineDirtyVersion, setBaselineDirtyVersion] = useState(dirtyVersion);
   const [trackedKey, setTrackedKey] = useState(`${jobId}:${viewMode}`);
 
   const draftKey = `${jobId}:${viewMode}`;
@@ -37,25 +41,42 @@ export function useVideoReviewExtractDraft({
     // ref writes), and it converges because trackedKey is updated here.
     setTrackedKey(draftKey);
     setAutosaveReady(false);
+    setBaselineDirtyVersion(dirtyVersion);
     setDraftRestored(false);
     setDraftSavedAt(null);
   }
 
-  const markAutosaveReady = useCallback((savedAt?: string | null) => {
-    setAutosaveReady(true);
-    if (savedAt) {
-      setDraftSavedAt(savedAt);
-    }
-  }, []);
+  const markAutosaveReady = useCallback(
+    (baseline: number, savedAt?: string | null) => {
+      setBaselineDirtyVersion(baseline);
+      setAutosaveReady(true);
+      if (savedAt) {
+        setDraftSavedAt(savedAt);
+      }
+    },
+    [],
+  );
 
   const clearDraft = useCallback(() => {
     clearVideoReviewDraftFromStorage(jobId, viewMode);
+    setAutosaveReady(false);
+    setBaselineDirtyVersion(dirtyVersion);
     setDraftSavedAt(null);
     setDraftRestored(false);
-  }, [jobId, viewMode]);
+  }, [dirtyVersion, jobId, viewMode]);
 
   const persistDraft = useCallback(() => {
-    if (!enabled || !autosaveReady || rows.length === 0) return;
+    if (
+      !shouldAutosaveVideoReviewDraft({
+        enabled,
+        autosaveReady,
+        dirtyVersion,
+        baselineDirtyVersion,
+        rowCount: rows.length,
+      })
+    ) {
+      return;
+    }
     const draft = buildVideoReviewDraft({
       jobId,
       viewMode,
@@ -64,15 +85,42 @@ export function useVideoReviewExtractDraft({
     });
     writeVideoReviewDraftToStorage(draft);
     setDraftSavedAt(draft.savedAt);
-  }, [autosaveReady, enabled, form, jobId, rows, viewMode]);
+    setBaselineDirtyVersion(dirtyVersion);
+  }, [
+    autosaveReady,
+    baselineDirtyVersion,
+    dirtyVersion,
+    enabled,
+    form,
+    jobId,
+    rows,
+    viewMode,
+  ]);
 
   useEffect(() => {
-    if (!enabled || !autosaveReady) return;
+    if (
+      !shouldAutosaveVideoReviewDraft({
+        enabled,
+        autosaveReady,
+        dirtyVersion,
+        baselineDirtyVersion,
+        rowCount: rows.length,
+      })
+    ) {
+      return;
+    }
     const timer = window.setTimeout(() => {
       persistDraft();
     }, 500);
     return () => window.clearTimeout(timer);
-  }, [autosaveReady, enabled, persistDraft]);
+  }, [
+    autosaveReady,
+    baselineDirtyVersion,
+    dirtyVersion,
+    enabled,
+    persistDraft,
+    rows.length,
+  ]);
 
   return {
     draftRestored,
