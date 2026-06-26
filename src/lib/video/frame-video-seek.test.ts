@@ -33,4 +33,17 @@ describe("previewWheelSeekSeconds", () => {
     expect(previewWheelSeekSeconds(0.2, -100, 60)).toBe(0);
     expect(previewWheelSeekSeconds(59.5, 100, 60)).toBe(60);
   });
+
+  it("is a no-op when deltaY is zero", () => {
+    expect(previewWheelSeekSeconds(10, 0, 60)).toBe(10);
+  });
+
+  it("is a no-op when current time is not finite", () => {
+    expect(previewWheelSeekSeconds(Number.NaN, 100, 60)).toBeNaN();
+  });
+
+  it("allows forward seek before duration metadata is known", () => {
+    expect(previewWheelSeekSeconds(10, 100, Number.NaN)).toBe(11);
+    expect(previewWheelSeekSeconds(10, 100, undefined)).toBe(11);
+  });
 });

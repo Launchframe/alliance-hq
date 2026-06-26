@@ -85,9 +85,12 @@ export function ReviewVideoPreview({
 
   useEffect(() => {
     const container = bodyRef.current;
-    if (!container || unavailable) return;
+    // Fill-width mode uses wheel to pan a tall portrait frame — do not hijack scroll.
+    if (!container || unavailable || effectiveZoom === "width") return;
 
     const onWheel = (event: WheelEvent) => {
+      // Pinch-zoom on trackpads sets ctrlKey; leave browser/page zoom alone.
+      if (event.ctrlKey) return;
       const el = videoRef.current;
       if (!el) return;
       event.preventDefault();
@@ -105,7 +108,7 @@ export function ReviewVideoPreview({
 
     container.addEventListener("wheel", onWheel, { passive: false });
     return () => container.removeEventListener("wheel", onWheel);
-  }, [unavailable, jobId]);
+  }, [unavailable, jobId, effectiveZoom]);
 
   const containerClass = cn(
     "z-30 flex flex-col bg-black",
