@@ -36,6 +36,7 @@ import {
   previewSeekSecondsForFrame,
   type FrameTimestampMap,
 } from "@/lib/video/frame-video-seek";
+import { parsePodiumRankInput } from "@/lib/video/podium-rank-input";
 import { restoreVideoReviewDraftIfPresent } from "@/lib/video/review-extract-draft.shared";
 import { useVideoReviewExtractDraft } from "@/components/video/useVideoReviewExtractDraft";
 import { accountTodayCalendarDate } from "@/lib/timezone/format";
@@ -1478,9 +1479,8 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                       inputMode="numeric"
                       value={row.rank ?? ""}
                       onChange={(e) => {
-                        const digits = e.target.value.replace(/\D/g, "");
                         updateRow(row.id, {
-                          rank: digits ? Number(digits) : null,
+                          rank: parsePodiumRankInput(e.target.value),
                         });
                       }}
                       aria-label={t("colRank")}

@@ -2,7 +2,7 @@
 
 import { useCallback, useRef, type RefObject } from "react";
 
-const DRAG_THRESHOLD_PX = 6;
+import { computePointerScrollTop } from "@/lib/video/pointer-scroll-pan-logic";
 
 /**
  * Pointer drag-to-pan for a vertically scrollable preview container.
@@ -42,15 +42,20 @@ export function usePointerScrollPan(
       const el = scrollRef.current;
       if (!el) return;
 
-      const dy = event.clientY - state.startY;
+      const next = computePointerScrollTop(
+        state.startScrollTop,
+        state.startY,
+        event.clientY,
+        state.dragging,
+      );
+      if (!next) return;
       if (!state.dragging) {
-        if (Math.abs(dy) < DRAG_THRESHOLD_PX) return;
         state.dragging = true;
         event.currentTarget.setPointerCapture(event.pointerId);
       }
 
       event.preventDefault();
-      el.scrollTop = state.startScrollTop - dy;
+      el.scrollTop = next.scrollTop;
     },
     [enabled, scrollRef],
   );

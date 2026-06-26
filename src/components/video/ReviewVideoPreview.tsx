@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import {
   GripHorizontal,
@@ -15,6 +15,10 @@ import {
 import type {
   PreviewPlacement,
   PreviewZoom,
+} from "@/lib/video/preview-layout";
+import {
+  clampDockHeightPx,
+  clampSideWidthPx,
 } from "@/lib/video/preview-layout";
 import { previewWheelSeekSeconds } from "@/lib/video/frame-video-seek";
 import { usePointerScrollPan } from "@/lib/video/use-pointer-scroll-pan";
@@ -64,13 +68,16 @@ export function ReviewVideoPreview({
   const t = useTranslations("videoReview");
   const videoRef = useRef<HTMLVideoElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
   const sideResizeRef = useRef<{ startX: number; startWidth: number } | null>(
     null,
   );
   const dockResizeRef = useRef<{ startY: number; startHeight: number } | null>(
     null,
   );
+  const [draftSideWidth, setDraftSideWidth] = useState<number | null>(null);
+  const [draftDockHeight, setDraftDockHeight] = useState<number | null>(null);
+  const draftSideWidthRef = useRef<number | null>(null);
+  const draftDockHeightRef = useRef<number | null>(null);
 
   const zoomable = placement !== "side";
   const effectiveZoom: PreviewZoom = zoomable ? zoom : "fit";
@@ -133,16 +140,19 @@ export function ReviewVideoPreview({
       "fixed bottom-0 left-0 right-0 w-full max-w-[100vw] border-t border-[#30363d]",
   );
 
+  const displaySideWidth = draftSideWidth ?? sideWidthPx;
+  const displayDockHeight = draftDockHeight ?? dockHeightPx;
+
   const containerStyle =
     placement === "side"
       ? {
           top: HEADER_OFFSET,
           height: `calc(100dvh - ${HEADER_OFFSET})`,
-          width: sideWidthPx,
+          width: displaySideWidth,
         }
       : placement === "top"
-        ? { top: HEADER_OFFSET, height: dockHeightPx }
-        : { height: dockHeightPx };
+        ? { top: HEADER_OFFSET, height: displayDockHeight }
+        : { height: displayDockHeight };
 
   const onSideResizePointerDown = (event: React.PointerEvent) => {
     if (event.button !== 0) return;
@@ -158,13 +168,23 @@ export function ReviewVideoPreview({
     const state = sideResizeRef.current;
     if (!state) return;
     const delta = state.startX - event.clientX;
-    onSideWidthChange(state.startWidth + delta);
+    const nextWidth = clampSideWidthPx(
+      state.startWidth + delta,
+      window.innerWidth,
+    );
+    draftSideWidthRef.current = nextWidth;
+    setDraftSideWidth(nextWidth);
   };
 
   const onSideResizePointerUp = (event: React.PointerEvent) => {
     if (sideResizeRef.current && event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
+    if (draftSideWidthRef.current != null) {
+      onSideWidthChange(draftSideWidthRef.current);
+      draftSideWidthRef.current = null;
+    }
+    setDraftSideWidth(null);
     sideResizeRef.current = null;
   };
 
@@ -185,22 +205,28 @@ export function ReviewVideoPreview({
       placement === "bottom"
         ? state.startY - event.clientY
         : event.clientY - state.startY;
-    onDockHeightChange(state.startHeight + delta);
+    const nextHeight = clampDockHeightPx(
+      state.startHeight + delta,
+      window.innerHeight,
+    );
+    draftDockHeightRef.current = nextHeight;
+    setDraftDockHeight(nextHeight);
   };
 
   const onDockResizePointerUp = (event: React.PointerEvent) => {
     if (dockResizeRef.current && event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
+    if (draftDockHeightRef.current != null) {
+      onDockHeightChange(draftDockHeightRef.current);
+      draftDockHeightRef.current = null;
+    }
+    setDraftDockHeight(null);
     dockResizeRef.current = null;
   };
 
   return (
-    <div
-      ref={containerRef}
-      className={containerClass}
-      style={containerStyle}
-    >
+    <div className={containerClass} style={containerStyle}>
       {placement === "side" ? (
         <div
           role="separator"
