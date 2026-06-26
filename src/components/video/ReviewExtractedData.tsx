@@ -1,7 +1,7 @@
 "use client";
 
 import { useLocale, useTranslations } from "next-intl";
-import { Crosshair, Trash2 } from "lucide-react";
+import { Crosshair, MonitorPlay, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Link, useRouter } from "@/i18n/navigation";
@@ -29,7 +29,6 @@ import { isVideoProcessTimings } from "@/lib/video/pipeline-stats-display";
 import { VideoPipelineStatsButton } from "@/components/video/VideoPipelineStatsDialog";
 import {
   ReviewVideoPreview,
-  PREVIEW_DOCK_HEIGHT,
   type VideoSeekRequest,
 } from "@/components/video/ReviewVideoPreview";
 import { useVideoPreviewLayout } from "@/components/video/useVideoPreviewLayout";
@@ -37,6 +36,7 @@ import {
   previewSeekSecondsForFrame,
   type FrameTimestampMap,
 } from "@/lib/video/frame-video-seek";
+import { parsePodiumRankInput } from "@/lib/video/podium-rank-input";
 import { restoreVideoReviewDraftIfPresent } from "@/lib/video/review-extract-draft.shared";
 import { useVideoReviewExtractDraft } from "@/components/video/useVideoReviewExtractDraft";
 import { accountTodayCalendarDate } from "@/lib/timezone/format";
@@ -173,9 +173,13 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     available: previewPlacements,
     open: previewOpen,
     zoom: previewZoom,
+    sideWidthPx: previewSideWidthPx,
+    dockHeightPx: previewDockHeightPx,
     setOpen: setPreviewOpen,
     setPlacement: setPreviewPlacement,
     setZoom: setPreviewZoom,
+    setSideWidthPx: setPreviewSideWidthPx,
+    setDockHeightPx: setPreviewDockHeightPx,
   } = useVideoPreviewLayout();
   const previewAutoOpenedForJobRef = useRef<string | null>(null);
   const [previewSeekRequest, setPreviewSeekRequest] =
@@ -1036,6 +1040,10 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
       onClose={() => setPreviewOpen(false)}
       unavailable={!hasSourceVideo}
       seekRequest={previewSeekRequest}
+      sideWidthPx={previewSideWidthPx}
+      dockHeightPx={previewDockHeightPx}
+      onSideWidthChange={setPreviewSideWidthPx}
+      onDockHeightChange={setPreviewDockHeightPx}
     />
   ) : null;
 
@@ -1049,7 +1057,9 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
       <div
         className="min-w-0 flex flex-1 flex-col"
         style={
-          showBottomPreview ? { paddingBottom: PREVIEW_DOCK_HEIGHT } : undefined
+          showBottomPreview
+            ? { paddingBottom: previewDockHeightPx }
+            : undefined
         }
       >
         <div className="mx-auto min-w-0 w-full max-w-5xl flex-1 space-y-6 px-4 pb-6 md:px-0">
@@ -1075,12 +1085,13 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
               <button
                 type="button"
                 onClick={() => setPreviewOpen((open) => !open)}
-                className={`rounded-lg border px-3 py-1.5 text-sm ${
+                className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm ${
                   previewOpen
-                    ? "border-[#58a6ff] text-[#58a6ff]"
+                    ? "border-[#58a6ff] bg-[#0c2d6b]/40 text-[#58a6ff]"
                     : "border-[#30363d] text-[#e6edf3] hover:bg-[#21262d]"
                 }`}
               >
+                <MonitorPlay className="h-4 w-4 shrink-0" aria-hidden />
                 {t("previewVideo")}
               </button>
             ) : null}
@@ -1464,17 +1475,14 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                 {scoreTargetMeta?.showRankColumn ? (
                   <td className="px-3 py-3 align-top">
                     <input
-                      type="number"
-                      min={1}
-                      max={3}
+                      type="text"
+                      inputMode="numeric"
                       value={row.rank ?? ""}
-                      onChange={(e) =>
+                      onChange={(e) => {
                         updateRow(row.id, {
-                          rank: e.target.value
-                            ? Number(e.target.value)
-                            : null,
-                        })
-                      }
+                          rank: parsePodiumRankInput(e.target.value),
+                        });
+                      }}
                       aria-label={t("colRank")}
                       className="w-12 rounded-lg border border-[#30363d] bg-[#0d1117] px-2 py-1.5"
                     />
@@ -1512,6 +1520,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                     searchable
                     searchMode="fuzzy"
                     combobox
+                    hideEmptyOptionWhileSearching
                     searchPlaceholder={tMembers("searchPlaceholder")}
                     noSearchResultsLabel={t("memberSearchNoResults")}
                     options={buildMemberMatchSelectOptions(members, {
@@ -1537,6 +1546,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                       <>
                         <input
                           type="text"
+                          inputMode="numeric"
                           value={row.score ?? ""}
                           onChange={(e) =>
                             updateRow(row.id, { score: e.target.value })
@@ -1678,6 +1688,17 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
       </div>
       {showSidePreview ? previewNode : null}
       {showBottomPreview ? previewNode : null}
+      {hasSourceVideo && !previewOpen ? (
+        <button
+          type="button"
+          onClick={() => setPreviewOpen(true)}
+          className="fixed bottom-20 right-4 z-40 inline-flex items-center gap-2 rounded-full border border-[#58a6ff] bg-[#0c2d6b] px-4 py-2.5 text-sm font-medium text-[#e6edf3] shadow-lg hover:bg-[#1a4480] sm:bottom-6"
+          aria-label={t("previewVideo")}
+        >
+          <MonitorPlay className="h-4 w-4 shrink-0" aria-hidden />
+          {t("previewVideo")}
+        </button>
+      ) : null}
     </div>
   );
 }

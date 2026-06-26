@@ -62,6 +62,17 @@ describe("filterAppSelectOptions", () => {
     expect(filtered.some((row) => row.value === "m1")).toBe(true);
   });
 
+  it("omits the empty option while searching when hideEmptyOnQuery is set", () => {
+    const filtered = filterAppSelectOptions(options, "belly", "fuzzy", true);
+    expect(filtered[0]?.value).toBe("m1");
+    expect(filtered.some((row) => row.value === "")).toBe(false);
+  });
+
+  it("still shows the empty option when the query is blank", () => {
+    const filtered = filterAppSelectOptions(options, "   ", "fuzzy", true);
+    expect(filtered[0]?.value).toBe("");
+  });
+
   it("sorts fuzzy matches by score", () => {
     const many = [
       { value: "", label: "Clear" },

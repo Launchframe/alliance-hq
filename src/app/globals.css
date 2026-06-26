@@ -94,3 +94,15 @@ a {
     color: #ffa657;
   }
 }
+
+/* Hide browser number-input spinners (Rank/Power/Level fields). */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type="number"] {
+  appearance: textfield;
+  -moz-appearance: textfield;
+}

@@ -43,6 +43,8 @@ type Props = {
   combobox?: boolean;
   searchPlaceholder?: string;
   noSearchResultsLabel?: string;
+  /** When searchable, omit the empty-value option while a query is typed. */
+  hideEmptyOptionWhileSearching?: boolean;
   id?: string;
   name?: string;
   className?: string;
@@ -79,6 +81,7 @@ export function AppSelect({
   combobox = false,
   searchPlaceholder = "Search…",
   noSearchResultsLabel = "No matches.",
+  hideEmptyOptionWhileSearching = false,
   id,
   name,
   className,
@@ -107,9 +110,20 @@ export function AppSelect({
   const visibleOptions = React.useMemo(
     () =>
       searchable
-        ? filterAppSelectOptions(flatOptions, searchQuery, searchMode)
+        ? filterAppSelectOptions(
+            flatOptions,
+            searchQuery,
+            searchMode,
+            hideEmptyOptionWhileSearching,
+          )
         : flatOptions,
-    [flatOptions, searchQuery, searchable, searchMode],
+    [
+      flatOptions,
+      hideEmptyOptionWhileSearching,
+      searchQuery,
+      searchable,
+      searchMode,
+    ],
   );
   const enabledOptions = visibleOptions.filter((option) => !option.disabled);
   const selectedOption = flatOptions.find((option) => option.value === value);
