@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { dismissReminderItem } from "@/lib/eur/satisfaction";
+import { dismissReminderItemForAlliance } from "@/lib/eur/satisfaction";
 import { getRbacContext } from "@/lib/rbac/require-permission";
 import { getOrCreateSession } from "@/lib/session";
 
@@ -13,11 +13,18 @@ export async function POST(_request: Request, { params }: Props) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  if (!session.hqUserId) {
+  if (!session.hqUserId || !session.currentAllianceId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const { id } = await params;
-  await dismissReminderItem(session.hqUserId, id);
+  const dismissed = await dismissReminderItemForAlliance(
+    session.hqUserId,
+    id,
+    session.currentAllianceId,
+  );
+  if (!dismissed) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
   return NextResponse.json({ ok: true });
 }

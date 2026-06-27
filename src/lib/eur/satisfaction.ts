@@ -184,6 +184,30 @@ export async function dismissReminderItem(
     .onConflictDoNothing();
 }
 
+/** Dismiss only when the item belongs to the caller's alliance. */
+export async function dismissReminderItemForAlliance(
+  hqUserId: string,
+  itemId: string,
+  allianceId: string,
+): Promise<boolean> {
+  const db = getDb();
+  const [item] = await db
+    .select({ id: schema.inboxReminderItems.id })
+    .from(schema.inboxReminderItems)
+    .where(
+      and(
+        eq(schema.inboxReminderItems.id, itemId),
+        eq(schema.inboxReminderItems.allianceId, allianceId),
+      ),
+    )
+    .limit(1);
+
+  if (!item) return false;
+
+  await dismissReminderItem(hqUserId, itemId);
+  return true;
+}
+
 export async function dismissAllReminderItems(
   hqUserId: string,
   allianceId: string,
