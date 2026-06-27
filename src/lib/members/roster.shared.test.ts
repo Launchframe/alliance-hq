@@ -34,6 +34,7 @@ function rosterRow(overrides: Partial<AllianceMember> = {}): AllianceMember {
     ashedUpdatedAt: null,
     currentSquadPowerJson: null,
     squadPowerSnapshotsJson: null,
+    mainSquad: null,
     isSample: null,
     gameUid: null,
     commanderSyncStatus: "synced",

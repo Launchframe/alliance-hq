@@ -1,5 +1,7 @@
 import type { AshedMember } from "@/lib/video/member-matcher";
 
+import { assignSnakeDraft } from "@/lib/shared/snake-draft.shared";
+
 import type { MemberSeasonVr } from "@/lib/db/schema";
 
 export type LeaderboardRow = {
@@ -107,21 +109,7 @@ function assignFillersSnakeDraft(
   fillers: LeaderboardRow[],
   teamCount: number,
 ): LeaderboardRow[][] {
-  const perTeam: LeaderboardRow[][] = Array.from({ length: teamCount }, () => []);
-  const fillersPerTeam = 4;
-
-  for (let round = 0; round < fillersPerTeam; round++) {
-    const forward = round % 2 === 0;
-    for (let slot = 0; slot < teamCount; slot++) {
-      const teamIndex = forward ? slot : teamCount - 1 - slot;
-      const fillerIndex = round * teamCount + slot;
-      if (fillerIndex < fillers.length) {
-        perTeam[teamIndex]!.push(fillers[fillerIndex]!);
-      }
-    }
-  }
-
-  return perTeam;
+  return assignSnakeDraft(fillers, teamCount, 4);
 }
 
 export function buildTakedownTeams(

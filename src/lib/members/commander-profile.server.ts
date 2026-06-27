@@ -22,6 +22,7 @@ import { allianceMemberRowToAshedMember } from "@/lib/members/roster.shared";
 import { sessionHasPermission } from "@/lib/rbac/context";
 import type { CommanderProfilePayload } from "@/lib/members/commander-profile.shared";
 import { getAshedConnection } from "@/lib/session";
+import { viewerCanEditMainSquad } from "@/lib/commanders/main-squad.server";
 
 export type { CommanderProfilePayload } from "@/lib/members/commander-profile.shared";
 
@@ -156,6 +157,8 @@ export async function loadCommanderProfile(
       primaryName: schema.commanders.primaryName,
       heroPowerM: schema.commanders.heroPowerM,
       memberLevel: schema.commanders.memberLevel,
+      mainSquad: schema.commanders.mainSquad,
+      mainSquadSource: schema.commanders.mainSquadSource,
       membershipStatus: schema.commanderAllianceMemberships.status,
       allianceRank: schema.commanderAllianceMemberships.allianceRank,
       allianceRankTitle: schema.commanderAllianceMemberships.allianceRankTitle,
@@ -336,6 +339,15 @@ export async function loadCommanderProfile(
     allianceId,
     ashedMemberId,
   });
+  const canOfficerOverrideMainSquad = await sessionHasPermission(
+    sessionId,
+    "members:write",
+  );
+  const canEditMainSquad = await viewerCanEditMainSquad({
+    sessionId,
+    allianceId,
+    ashedMemberId,
+  });
 
   return {
     member: {
@@ -347,6 +359,11 @@ export async function loadCommanderProfile(
       titleLabel,
       heroPowerM: commanderIdentity?.heroPowerM ?? memberRow.heroPowerM,
       memberLevel: commanderIdentity?.memberLevel ?? memberRow.memberLevel,
+      mainSquad: memberRow.mainSquad ?? commanderIdentity?.mainSquad ?? null,
+      mainSquadSource: commanderIdentity?.mainSquadSource ?? null,
+      canEditMainSquad,
+      viewerIsOwner,
+      canOfficerOverrideMainSquad,
       gameUid: viewerIsOwner ? gameUid : null,
     },
     alliance,

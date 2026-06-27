@@ -74,6 +74,8 @@
     "alliances": "Alliances",
     "members": "Members",
     "membersDescription": "Live roster from Ashed for score matching",
+    "commanders": "Commanders Index",
+    "commandersDescription": "Hero power, main squad, and takedown team builder",
     "waitingList": "Waiting List",
     "allianceTasks": "Alliance Tasks",
     "mergeManager": "Merge Manager",
@@ -106,7 +108,6 @@
     "account": "Account",
     "allianceSettings": "Alliance settings",
     "settings": "Settings",
-    "allianceSettings": "Alliance settings",
     "team": "Team access",
     "videoQueue": "Video queue",
     "videoProcessors": "Video processors",
@@ -717,28 +718,9 @@
       "statusFilter": "Status",
       "all": "All",
       "arms": {
-        "title": "Arms",
-        "add": "Add arm",
-        "deltaNote": "Δ vs control shows thumbs-up percentage-point difference relative to the control arm.",
-        "col": {
-          "name": "Arm",
-          "config": "Config",
-          "weight": "Weight",
-          "jobs": "Jobs",
-          "rated": "Rated",
-          "thumbsUp": "👍 %",
-          "avgQuality": "Avg quality",
-          "delta": "Δ vs ctrl",
-          "buckets": "Buckets"
-        },
-        "form": {
-          "name": "Arm name",
-          "configId": "Config ID",
-          "configIdPlaceholder": "parseConfig id (leave blank for default)",
-          "weight": "Weight",
-          "isControl": "Control arm",
-          "save": "Add arm"
-        }
+        "loadConfigs": "Loading configs…",
+        "configDefault": "Default (no extra shadow pass — control arm behavior)",
+        "configPickerLabel": "Parse config"
       },
       "started": "Started",
       "concluded": "Concluded",
@@ -793,12 +775,7 @@
         "conflictError": "An assignment already exists for this scope. Go to Parse Configs to update it.",
         "noVariantArms": "No variant arms with a config are available to promote."
       },
-      "lowSampleWarning": "Only {count} rated group(s) in this arm. Aim for at least 30 rated groups per arm before concluding to reduce noise.",
-      "arms": {
-        "loadConfigs": "Loading configs…",
-        "configDefault": "Default (no extra shadow pass — control arm behavior)",
-        "configPickerLabel": "Parse config"
-      }
+      "lowSampleWarning": "Only {count} rated group(s) in this arm. Aim for at least 30 rated groups per arm before concluding to reduce noise."
     },
     "analyticsPage": {
       "title": "Video Job Analytics",
@@ -1677,6 +1654,20 @@
         "conductor": "Conductor",
         "vip": "VIP",
         "substitute": "Substitute"
+      },
+      "mainSquad": "Main Squad",
+      "mainSquadSource": "Source: {source}",
+      "mainSquadSourceSelf": "self-report",
+      "mainSquadSourceOfficer": "officer override",
+      "mainSquadSaveLabel": "Save squad",
+      "mainSquadSaving": "Saving...",
+      "mainSquadSaved": "Saved",
+      "mainSquadSaveFailed": "Failed to save",
+      "mainSquadNone": "— not set —",
+      "squad": {
+        "squadAircraft": "Aircraft",
+        "squadTank": "Tank",
+        "squadMissile": "Missile"
       }
     }
   },
@@ -1870,6 +1861,50 @@
       "body": "Your invite is active. Connect Ashed for iframe tools and live roster sync, or skip and use native HQ features only.",
       "connectAshed": "Connect Ashed",
       "nativeOnly": "Continue without Ashed"
+    }
+  },
+  "commandersIndex": {
+    "title": "Commanders Index",
+    "subtitle": "Alliance members sorted by hero power with squad assignments",
+    "seasonLine": "Season {season}",
+    "refresh": "Refresh",
+    "refreshing": "Refreshing…",
+    "loadFailed": "Failed to load commanders index",
+    "empty": "No commanders match the current filters",
+    "avgThp": "avg {thp}",
+    "unreported": "Unreported",
+    "unreportedShort": "—",
+    "colRank": "#",
+    "colCommander": "Commander",
+    "colThp": "Hero Power",
+    "colSquad": "Main Squad",
+    "colInGameRank": "In-Game Rank",
+    "colVr": "VR",
+    "colSquadEdit": "Set Squad",
+    "filterSquad": "Squad",
+    "filterSquadAll": "All squads",
+    "filterMinThp": "Min THP",
+    "filterIncludeUnreported": "Include unreported",
+    "sourceOfficer": "officer",
+    "sourceSelf": "self",
+    "save": "Save",
+    "saving": "Saving…",
+    "saveFailed": "Failed to save squad",
+    "squadNone": "— not set —",
+    "squad": {
+      "squadAircraft": "Aircraft",
+      "squadTank": "Tank",
+      "squadMissile": "Missile"
+    },
+    "teamBuilder": {
+      "title": "Takedown Team Builder",
+      "subtitle": "Assign commanders to balanced rally teams using snake draft by THP",
+      "teamCount": "Teams (1–5)",
+      "squadFilter": "Squad filter",
+      "build": "Build Teams",
+      "teamLabel": "Team {index}",
+      "lead": "Lead",
+      "insufficient": "Not enough players: need {needed}, have {have}"
     }
   },
   "viralResistance": {

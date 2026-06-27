@@ -1,10 +1,17 @@
 "use client";
 
+import { useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { ProfileAvatar } from "@/components/profile/ProfileAvatar";
 import { Link } from "@/i18n/navigation";
 import type { CommanderProfilePayload } from "@/lib/members/commander-profile.shared";
+import {
+  MAIN_SQUAD_TYPES,
+  MAIN_SQUAD_LABEL_KEYS,
+  type MainSquadType,
+} from "@/lib/commanders/main-squad.shared";
+import { preventDefaultFormSubmit } from "@/lib/client/form-enter-submit.shared";
 
 type Props = {
   initial: CommanderProfilePayload;
@@ -18,6 +25,37 @@ function formatPowerM(value: number | null): string {
 export function CommanderProfileView({ initial }: Props) {
   const t = useTranslations("members.profile");
   const { member, alliance } = initial;
+
+  const [squadValue, setSquadValue] = useState<MainSquadType | "">(member.mainSquad ?? "");
+  const [squadSaving, setSquadSaving] = useState(false);
+  const [squadMessage, setSquadMessage] = useState<string | null>(null);
+
+  async function saveSquad() {
+    if (!squadValue) return;
+    setSquadSaving(true);
+    setSquadMessage(null);
+    try {
+      const method =
+        member.viewerIsOwner && !member.canOfficerOverrideMainSquad
+          ? "POST"
+          : "PATCH";
+      const res = await fetch(`/api/members/${member.ashedMemberId}/main-squad`, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mainSquad: squadValue }),
+      });
+      const body = (await res.json()) as { error?: string };
+      if (!res.ok) {
+        setSquadMessage(body.error ?? t("mainSquadSaveFailed"));
+        return;
+      }
+      setSquadMessage(t("mainSquadSaved"));
+    } catch (e) {
+      setSquadMessage(e instanceof Error ? e.message : t("mainSquadSaveFailed"));
+    } finally {
+      setSquadSaving(false);
+    }
+  }
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -93,6 +131,26 @@ export function CommanderProfileView({ initial }: Props) {
               {member.memberLevel ?? "—"}
             </dd>
           </div>
+          <div>
+            <dt className="text-xs font-medium uppercase tracking-wider text-[#6e7681]">
+              {t("mainSquad")}
+            </dt>
+            <dd className="mt-1 text-sm text-[#e6edf3]">
+              {member.mainSquad
+                ? t(`squad.${MAIN_SQUAD_LABEL_KEYS[member.mainSquad]}`)
+                : <span className="text-[#484f58]">{t("mainSquadNone")}</span>}
+              {member.mainSquadSource ? (
+                <span className="ml-2 text-xs text-[#8b949e]">
+                  {t("mainSquadSource", {
+                    source:
+                      member.mainSquadSource === "officer_override"
+                        ? t("mainSquadSourceOfficer")
+                        : t("mainSquadSourceSelf"),
+                  })}
+                </span>
+              ) : null}
+            </dd>
+          </div>
           {member.previousNames.length > 0 ? (
             <div className="sm:col-span-2">
               <dt className="text-xs font-medium uppercase tracking-wider text-[#6e7681]">
@@ -105,6 +163,51 @@ export function CommanderProfileView({ initial }: Props) {
           ) : null}
         </dl>
       </section>
+
+      {member.canEditMainSquad ? (
+        <section className="rounded-xl border border-[#30363d] bg-[#161b22] p-5">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-[#8b949e]">
+            {t("mainSquad")}
+          </h2>
+          <form
+            className="mt-4 flex flex-wrap items-end gap-3"
+            onSubmit={(e) => {
+              preventDefaultFormSubmit(e);
+              void saveSquad();
+            }}
+          >
+            <label className="flex flex-col gap-1 text-xs text-[#8b949e]">
+              {t("mainSquad")}
+              <select
+                value={squadValue}
+                onChange={(e) => {
+                  setSquadValue(e.target.value as MainSquadType | "");
+                  setSquadMessage(null);
+                }}
+                disabled={squadSaving}
+                className="rounded-lg border border-[#30363d] bg-[#161b22] px-3 py-2 text-sm text-[#e6edf3] disabled:opacity-50"
+              >
+                <option value="">{t("mainSquadNone")}</option>
+                {MAIN_SQUAD_TYPES.map((s) => (
+                  <option key={s} value={s}>
+                    {t(`squad.${MAIN_SQUAD_LABEL_KEYS[s]}`)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button
+              type="submit"
+              disabled={squadSaving || !squadValue}
+              className="rounded-lg bg-[#238636] px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+            >
+              {squadSaving ? t("mainSquadSaving") : t("mainSquadSaveLabel")}
+            </button>
+          </form>
+          {squadMessage ? (
+            <p className="mt-3 text-sm text-[#8b949e]">{squadMessage}</p>
+          ) : null}
+        </section>
+      ) : null}
 
       {(initial.hqUser || initial.discordLinks.length > 0) && (
         <section className="rounded-xl border border-[#30363d] bg-[#161b22] p-5">

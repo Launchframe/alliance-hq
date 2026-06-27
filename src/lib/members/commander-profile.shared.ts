@@ -1,3 +1,8 @@
+import type {
+  MainSquadSource,
+  MainSquadType,
+} from "@/lib/commanders/main-squad.shared";
+
 export type CommanderProfilePayload = {
   member: {
     ashedMemberId: string;
@@ -8,6 +13,13 @@ export type CommanderProfilePayload = {
     titleLabel: string;
     heroPowerM: number | null;
     memberLevel: number | null;
+    mainSquad: MainSquadType | null;
+    mainSquadSource: MainSquadSource | null;
+    canEditMainSquad: boolean;
+    /** Viewer linked this commander via name+UID (self-report path). */
+    viewerIsOwner: boolean;
+    /** Viewer has members:write (officer override path). */
+    canOfficerOverrideMainSquad: boolean;
     /** Present only when the viewer is the HQ user who linked this commander. */
     gameUid: string | null;
   };

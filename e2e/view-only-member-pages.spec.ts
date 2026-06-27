@@ -15,6 +15,7 @@ function e2eBaseUrl(): string {
 /** Native HQ pages a view-only member should reach without a personal Ashed credential. */
 const VIEW_ONLY_NATIVE_PAGES: Array<{ path: string; heading: RegExp }> = [
   { path: "/members", heading: /^members$/i },
+  { path: "/commanders", heading: /commanders index/i },
   { path: "/trains", heading: /alliance train/i },
   { path: "/viral-resistance", heading: /viral resistance/i },
   { path: "/settings", heading: /alliance settings/i },
@@ -28,8 +29,15 @@ const IFRAME_NAV_PATHS = NAV_GROUPS.flatMap((group) => group.pages)
   .filter((page) => page.kind === "iframe")
   .map((page) => page.href);
 
+/** Read permissions the default view-only member fixture already has. */
+const VIEW_ONLY_MEMBER_READ_PERMISSIONS = new Set(["members:read"]);
+
 const PERMISSION_GATED_NAV_PATHS = NAV_GROUPS.flatMap((group) => group.pages)
-  .filter((page) => page.requiredPermission)
+  .filter(
+    (page) =>
+      page.requiredPermission &&
+      !VIEW_ONLY_MEMBER_READ_PERMISSIONS.has(page.requiredPermission),
+  )
   .map((page) => page.href);
 
 async function expectPageLoadsWithoutServerError(
