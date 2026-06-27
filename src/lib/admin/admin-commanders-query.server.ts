@@ -60,7 +60,7 @@ export function buildAdminCommandersSearchWhere(
     const pattern = `%${escapeLikePrefix(trimmed)}%`;
     const textMatches = or(
       sql`${schema.allianceMembers.currentName} ilike ${pattern} escape ${LIKE_ESCAPE}`,
-      sql`coalesce(${schema.allianceMembers.gameUid}, '') ilike ${pattern} escape ${LIKE_ESCAPE}`,
+      sql`coalesce(${schema.commanders.primaryName}, '') ilike ${pattern} escape ${LIKE_ESCAPE}`,
       sql`coalesce(${schema.allianceMembers.previousNamesJson}::text, '') ilike ${pattern} escape ${LIKE_ESCAPE}`,
       sql`coalesce(${schema.alliances.tag}, '') ilike ${pattern} escape ${LIKE_ESCAPE}`,
       hqLinkExists(
@@ -76,7 +76,6 @@ export function buildAdminCommandersSearchWhere(
       conditions.push(
         or(
           eq(schema.allianceMembers.ashedMemberId, trimmed),
-          eq(schema.allianceMembers.gameUid, trimmed),
           textMatches,
         )!,
       );

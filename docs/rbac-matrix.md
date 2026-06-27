@@ -59,7 +59,7 @@ Officers may **enqueue** uploads (`hq:video:enqueue`) without an Ashed connectio
 | Officer with processor slot | Yes (max **2** per alliance) | Yes |
 | Officer without slot | — | — |
 
-Officers assign processor slots under **Settings → Team access**. Jobs stay `pending_approval` until a processor approves them; approving without Ashed returns **409** `ashed_not_connected` (recoverable — job remains pending).
+Owners assign processor slots under **Settings → Team access**. Jobs stay `pending_approval` until a processor approves them; approving without Ashed returns **409** `ashed_not_connected` (recoverable — job remains pending).
 
 **Candidate pool (settings selector):**
 

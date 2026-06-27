@@ -79,6 +79,8 @@ export async function seedLinkedRosterOfficer(
   });
   return { ashedMemberId };
 }
+
+/** Directly grant a video processor slot (mirrors grantVideoProcessor). */
 export async function grantProcessorSlot(
   sql: Sql,
   input: { allianceId: string; hqUserId: string; grantedByHqUserId: string | null },

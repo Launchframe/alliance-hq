@@ -182,6 +182,15 @@ export function SidebarNav({
                 ]
               : group.id === "admin-settings"
                 ? [
+                    ...(showVideoQueue
+                      ? [
+                          {
+                            href: "/tools/video-upload/queue",
+                            labelKey: "videoQueue" as const,
+                            pageId: "video-queue",
+                          },
+                        ]
+                      : []),
                     ...(showAdminPortal
                       ? [
                           {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useLocale, useTranslations } from "next-intl";
-import { Crosshair, Trash2 } from "lucide-react";
+import { Crosshair, MonitorPlay, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Link, useRouter } from "@/i18n/navigation";
@@ -22,13 +22,13 @@ import {
 import { isZeroScoreWarningDisabled } from "@/lib/video/score-targets";
 import type { VideoProcessTimings } from "@/lib/analytics/video-pipeline";
 import { buildMemberMatchSelectOptions } from "@/lib/video/member-select-options";
+import { shouldRefetchOnLiveJobStatus } from "@/lib/video/live-job-refresh.shared";
 import type { ManualRowPosition } from "@/lib/video/manual-row-position";
 import { mergeParsedRowInReviewOrder } from "@/lib/video/parsed-row-review-order";
 import { isVideoProcessTimings } from "@/lib/video/pipeline-stats-display";
 import { VideoPipelineStatsButton } from "@/components/video/VideoPipelineStatsDialog";
 import {
   ReviewVideoPreview,
-  PREVIEW_DOCK_HEIGHT,
   type VideoSeekRequest,
 } from "@/components/video/ReviewVideoPreview";
 import { useVideoPreviewLayout } from "@/components/video/useVideoPreviewLayout";
@@ -36,6 +36,9 @@ import {
   previewSeekSecondsForFrame,
   type FrameTimestampMap,
 } from "@/lib/video/frame-video-seek";
+import { parsePodiumRankInput } from "@/lib/video/podium-rank-input";
+import { restoreVideoReviewDraftIfPresent } from "@/lib/video/review-extract-draft.shared";
+import { useVideoReviewExtractDraft } from "@/components/video/useVideoReviewExtractDraft";
 import { accountTodayCalendarDate } from "@/lib/timezone/format";
 import { PassComparisonSheet } from "@/components/video/PassComparisonSheet";
 import { OcrRatingPrompt, type OcrRatingReason } from "@/components/video/OcrRatingPrompt";
@@ -170,9 +173,13 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     available: previewPlacements,
     open: previewOpen,
     zoom: previewZoom,
+    sideWidthPx: previewSideWidthPx,
+    dockHeightPx: previewDockHeightPx,
     setOpen: setPreviewOpen,
     setPlacement: setPreviewPlacement,
     setZoom: setPreviewZoom,
+    setSideWidthPx: setPreviewSideWidthPx,
+    setDockHeightPx: setPreviewDockHeightPx,
   } = useVideoPreviewLayout();
   const previewAutoOpenedForJobRef = useRef<string | null>(null);
   const [previewSeekRequest, setPreviewSeekRequest] =
@@ -191,7 +198,56 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   const [allianceStale, setAllianceStale] = useState(false);
   const [rosterQuotaCanSubmit, setRosterQuotaCanSubmit] = useState(false);
   const rosterMembersHydratedRef = useRef(false);
+  const liveJobStatusRef = useRef<string | null>(null);
+  const draftDirtyVersionRef = useRef(0);
+  const [draftDirtyVersion, setDraftDirtyVersion] = useState(0);
   const isEventView = viewMode === "event";
+
+  const markDraftDirty = useCallback(() => {
+    draftDirtyVersionRef.current += 1;
+    setDraftDirtyVersion(draftDirtyVersionRef.current);
+  }, []);
+
+  const reviewDraftForm = useMemo(
+    () => ({
+      eventId,
+      hqEventId,
+      boardKey,
+      team,
+      recordedDate,
+    }),
+    [boardKey, eventId, hqEventId, recordedDate, team],
+  );
+
+  const draftEnabled =
+    rows.length > 0 && (jobStatus === "review" || jobStatus === "complete");
+
+  const {
+    draftRestored,
+    setDraftRestored,
+    draftSavedAt,
+    markAutosaveReady,
+    clearDraft,
+  } = useVideoReviewExtractDraft({
+    jobId,
+    viewMode,
+    enabled: draftEnabled,
+    rows,
+    form: reviewDraftForm,
+    dirtyVersion: draftDirtyVersion,
+  });
+
+  const formattedDraftSavedAt = useMemo(() => {
+    if (!draftSavedAt) return "";
+    try {
+      return new Intl.DateTimeFormat(locale, {
+        dateStyle: "medium",
+        timeStyle: "short",
+      }).format(new Date(draftSavedAt));
+    } catch {
+      return draftSavedAt;
+    }
+  }, [draftSavedAt, locale]);
 
   useEffect(() => {
     if (jobStatus === "loading") return;
@@ -291,12 +347,32 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           : null,
       );
       setScoreTargetMeta(data.scoreTargetMeta ?? null);
-      if (data.job?.hqEventId) {
-        setHqEventId(data.job.hqEventId);
+      const serverRows = (data.rows ?? []).map((row) => ({
+        ...row,
+        scoreConflict: row.scoreConflict ?? 0,
+      }));
+      const restored = restoreVideoReviewDraftIfPresent(
+        jobId,
+        viewMode,
+        serverRows,
+      );
+      setRows(restored.rows);
+      if (restored.form) {
+        setEventId(restored.form.eventId);
+        setHqEventId(restored.form.hqEventId);
+        setBoardKey(restored.form.boardKey);
+        setTeam(restored.form.team);
+        setRecordedDate(restored.form.recordedDate);
+      } else {
+        if (data.job?.hqEventId) {
+          setHqEventId(data.job.hqEventId);
+        }
+        if (data.job?.boardKey) {
+          setBoardKey(data.job.boardKey);
+        }
       }
-      if (data.job?.boardKey) {
-        setBoardKey(data.job.boardKey);
-      }
+      setDraftRestored(restored.restored);
+      markAutosaveReady(draftDirtyVersionRef.current, restored.savedAt);
       setAllianceId(
         data.alliance?.currentId ??
           data.job?.allianceId ??
@@ -308,14 +384,8 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
       );
       setAllianceName(data.alliance?.jobName ?? null);
       setAllianceStale(Boolean(data.alliance?.stale));
-      setRows(
-        (data.rows ?? []).map((row) => ({
-          ...row,
-          scoreConflict: row.scoreConflict ?? 0,
-        })),
-      );
     },
-    [jobId, rematchMembers, tc],
+    [jobId, markAutosaveReady, rematchMembers, setDraftRestored, tc, viewMode],
   );
 
   useEffect(() => {
@@ -355,7 +425,15 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
       return;
     }
 
-    if (liveJob.status === "review" || liveJob.status === "failed") {
+    const previousStatus = liveJobStatusRef.current;
+    liveJobStatusRef.current = liveJob.status;
+
+    // Only refetch when the job transitions into review/failed (e.g. OCR just
+    // finished). The SSE stream re-emits a `snapshot` on every (re)connect and
+    // the provider returns a new object reference each time, so this effect
+    // would otherwise run on every snapshot — re-running load() and clobbering
+    // the reviewer's in-progress edits. See shouldRefetchOnLiveJobStatus.
+    if (shouldRefetchOnLiveJobStatus(previousStatus, liveJob.status)) {
       queueMicrotask(() => {
         void load();
       });
@@ -364,6 +442,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
 
   useEffect(() => {
     rosterMembersHydratedRef.current = false;
+    liveJobStatusRef.current = null;
   }, [jobId]);
 
   useEffect(() => {
@@ -706,6 +785,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
       : true);
 
   function updateRosterRow(id: string, patch: Partial<ParsedRow>) {
+    markDraftDirty();
     setRows((prev) =>
       prev.map((row) => {
         if (row.id !== id) return row;
@@ -719,12 +799,14 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   }
 
   function updateRow(id: string, patch: Partial<ParsedRow>) {
+    markDraftDirty();
     setRows((prev) =>
       prev.map((r) => (r.id === id ? { ...r, ...patch } : r)),
     );
   }
 
   function deleteRow(id: string) {
+    markDraftDirty();
     setRows((prev) =>
       prev.map((r) => (r.id === id ? { ...r, deleted: 1 } : r)),
     );
@@ -786,6 +868,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         setError(data.error ?? tc("uploadFailed"));
         return;
       }
+      clearDraft();
       setSuccess(
         isEventView
           ? t("updateSuccess", { count: data.submitted ?? 0 })
@@ -828,6 +911,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         setError(data.error ?? tc("uploadFailed"));
         return;
       }
+      clearDraft();
       setRows([]);
       setJobStatus("queued");
     } catch (err) {
@@ -849,6 +933,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         setError(data.error ?? tc("uploadFailed"));
         return;
       }
+      clearDraft();
       setJobStatus("discarded");
       if (!jobRating) {
         setShowRatingPrompt(true);
@@ -893,6 +978,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     });
     if (!res.ok) return;
     const data = (await res.json()) as { row: ParsedRow };
+    markDraftDirty();
     setRows((prev) =>
       mergeParsedRowInReviewOrder(prev, data.row, scoreTargetMeta?.id),
     );
@@ -954,6 +1040,10 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
       onClose={() => setPreviewOpen(false)}
       unavailable={!hasSourceVideo}
       seekRequest={previewSeekRequest}
+      sideWidthPx={previewSideWidthPx}
+      dockHeightPx={previewDockHeightPx}
+      onSideWidthChange={setPreviewSideWidthPx}
+      onDockHeightChange={setPreviewDockHeightPx}
     />
   ) : null;
 
@@ -967,7 +1057,9 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
       <div
         className="min-w-0 flex flex-1 flex-col"
         style={
-          showBottomPreview ? { paddingBottom: PREVIEW_DOCK_HEIGHT } : undefined
+          showBottomPreview
+            ? { paddingBottom: previewDockHeightPx }
+            : undefined
         }
       >
         <div className="mx-auto min-w-0 w-full max-w-5xl flex-1 space-y-6 px-4 pb-6 md:px-0">
@@ -993,12 +1085,13 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
               <button
                 type="button"
                 onClick={() => setPreviewOpen((open) => !open)}
-                className={`rounded-lg border px-3 py-1.5 text-sm ${
+                className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm ${
                   previewOpen
-                    ? "border-[#58a6ff] text-[#58a6ff]"
+                    ? "border-[#58a6ff] bg-[#0c2d6b]/40 text-[#58a6ff]"
                     : "border-[#30363d] text-[#e6edf3] hover:bg-[#21262d]"
                 }`}
               >
+                <MonitorPlay className="h-4 w-4 shrink-0" aria-hidden />
                 {t("previewVideo")}
               </button>
             ) : null}
@@ -1029,6 +1122,20 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           name={allianceName}
           stale={allianceStale}
         />
+      ) : null}
+
+      {draftEnabled && (draftRestored || draftSavedAt) ? (
+        <div
+          className="rounded-xl border border-[#30363d] bg-[#161b22] px-4 py-3 text-sm text-[#8b949e]"
+          role="status"
+        >
+          {draftRestored ? <p>{t("draftRestored")}</p> : null}
+          {draftSavedAt ? (
+            <p className={draftRestored ? "mt-1" : undefined}>
+              {t("draftSavedLocally", { time: formattedDraftSavedAt })}
+            </p>
+          ) : null}
+        </div>
       ) : null}
 
       {activeRows.length === 0 && !isEventView && (
@@ -1135,6 +1242,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
               <AppSelect
                 value={scoreTargetMeta?.usesHqEvents ? hqEventId : eventId}
                 onChange={(next) => {
+                  markDraftDirty();
                   if (scoreTargetMeta?.usesHqEvents) {
                     setHqEventId(next);
                   } else {
@@ -1180,6 +1288,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                         event?: { id: string };
                       };
                       if (data.event?.id) {
+                        markDraftDirty();
                         setHqEventId(data.event.id);
                         setEvents([{ id: data.event.id, label }]);
                       }
@@ -1197,7 +1306,10 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
             <span className="mb-1 block text-[#8b949e]">{t("boardLabel")}</span>
             <AppSelect
               value={boardKey}
-              onChange={setBoardKey}
+              onChange={(next) => {
+                markDraftDirty();
+                setBoardKey(next);
+              }}
               placeholder={t("boardPlaceholder")}
               aria-label={t("boardLabel")}
               options={(scoreTargetMeta?.boardTypes ?? []).map((board) => ({
@@ -1212,7 +1324,10 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
             <span className="mb-1 block text-[#8b949e]">{t("teamLabel")}</span>
             <AppSelect
               value={team}
-              onChange={(next) => setTeam(next as "A" | "B")}
+              onChange={(next) => {
+                markDraftDirty();
+                setTeam(next as "A" | "B");
+              }}
               aria-label={t("teamLabel")}
               options={[
                 { value: "A", label: "Team A" },
@@ -1226,7 +1341,10 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           <input
             type="date"
             value={recordedDate}
-            onChange={(e) => setRecordedDate(e.target.value)}
+            onChange={(e) => {
+              markDraftDirty();
+              setRecordedDate(e.target.value);
+            }}
             className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
           />
         </label>
@@ -1357,17 +1475,14 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                 {scoreTargetMeta?.showRankColumn ? (
                   <td className="px-3 py-3 align-top">
                     <input
-                      type="number"
-                      min={1}
-                      max={3}
+                      type="text"
+                      inputMode="numeric"
                       value={row.rank ?? ""}
-                      onChange={(e) =>
+                      onChange={(e) => {
                         updateRow(row.id, {
-                          rank: e.target.value
-                            ? Number(e.target.value)
-                            : null,
-                        })
-                      }
+                          rank: parsePodiumRankInput(e.target.value),
+                        });
+                      }}
                       aria-label={t("colRank")}
                       className="w-12 rounded-lg border border-[#30363d] bg-[#0d1117] px-2 py-1.5"
                     />
@@ -1405,6 +1520,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                     searchable
                     searchMode="fuzzy"
                     combobox
+                    hideEmptyOptionWhileSearching
                     searchPlaceholder={tMembers("searchPlaceholder")}
                     noSearchResultsLabel={t("memberSearchNoResults")}
                     options={buildMemberMatchSelectOptions(members, {
@@ -1430,6 +1546,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                       <>
                         <input
                           type="text"
+                          inputMode="numeric"
                           value={row.score ?? ""}
                           onChange={(e) =>
                             updateRow(row.id, { score: e.target.value })
@@ -1571,6 +1688,17 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
       </div>
       {showSidePreview ? previewNode : null}
       {showBottomPreview ? previewNode : null}
+      {hasSourceVideo && !previewOpen ? (
+        <button
+          type="button"
+          onClick={() => setPreviewOpen(true)}
+          className="fixed bottom-20 right-4 z-40 inline-flex items-center gap-2 rounded-full border border-[#58a6ff] bg-[#0c2d6b] px-4 py-2.5 text-sm font-medium text-[#e6edf3] shadow-lg hover:bg-[#1a4480] sm:bottom-6"
+          aria-label={t("previewVideo")}
+        >
+          <MonitorPlay className="h-4 w-4 shrink-0" aria-hidden />
+          {t("previewVideo")}
+        </button>
+      ) : null}
     </div>
   );
 }

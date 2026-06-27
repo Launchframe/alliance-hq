@@ -44,7 +44,6 @@ type MemberLink = {
   allianceTag: string | null;
   ashedMemberId: string;
   memberDisplayName: string | null;
-  gameUid: string;
   linkedAt: string;
 };
 
@@ -537,7 +536,6 @@ export function AdminUsersConsole() {
                           label={t("ids.ashedMemberId")}
                           value={link.ashedMemberId}
                         />
-                        <AdminIdLine label={t("ids.gameUid")} value={link.gameUid} />
                       </div>
                     </div>
                   ))}
