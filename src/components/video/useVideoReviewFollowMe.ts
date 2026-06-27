@@ -22,7 +22,6 @@ type Options<TRow extends Row> = {
   previewOpen: boolean;
   previewPlacement: PreviewPlacement;
   dockHeightPx: number;
-  onEnable?: () => void;
 };
 
 function isElementVisibleInBand(
@@ -54,13 +53,20 @@ export function useVideoReviewFollowMe<TRow extends Row>({
   previewOpen,
   previewPlacement,
   dockHeightPx,
-  onEnable,
 }: Options<TRow>) {
   const anchorElementsRef = useRef<Map<string, HTMLElement>>(new Map());
   const visibleRowIdsRef = useRef<Set<string>>(new Set());
   const scrollDirectionRef = useRef<FollowMeScrollDirection>("unknown");
   const lastScrollYRef = useRef(0);
+  const lastSeekedRowIdRef = useRef<string | null>(null);
+  const canPreviewRef = useRef(canPreview);
+  const onSeekRef = useRef(onSeek);
   const [anchorRevision, setAnchorRevision] = useState(0);
+
+  useEffect(() => {
+    canPreviewRef.current = canPreview;
+    onSeekRef.current = onSeek;
+  }, [canPreview, onSeek]);
 
   const registerFollowAnchor = useCallback(
     (rowId: string) => (element: HTMLButtonElement | null) => {
@@ -96,10 +102,9 @@ export function useVideoReviewFollowMe<TRow extends Row>({
   useEffect(() => {
     if (!enabled) {
       visibleRowIdsRef.current = new Set();
+      lastSeekedRowIdRef.current = null;
       return;
     }
-
-    onEnable?.();
 
     const rootMargin = followMeObserverRootMargin({
       previewOpen,
@@ -113,9 +118,11 @@ export function useVideoReviewFollowMe<TRow extends Row>({
     visibleRowIdsRef.current = new Set();
 
     const seekRow = (rowId: string) => {
+      if (lastSeekedRowIdRef.current === rowId) return;
       const row = rowsById.get(rowId);
-      if (row && canPreview(row)) {
-        onSeek(row);
+      if (row && canPreviewRef.current(row)) {
+        lastSeekedRowIdRef.current = rowId;
+        onSeekRef.current(row);
       }
     };
 
@@ -193,9 +200,6 @@ export function useVideoReviewFollowMe<TRow extends Row>({
   }, [
     enabled,
     rows,
-    canPreview,
-    onSeek,
-    onEnable,
     previewOpen,
     previewPlacement,
     dockHeightPx,

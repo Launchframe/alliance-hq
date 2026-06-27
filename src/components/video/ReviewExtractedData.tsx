@@ -716,7 +716,6 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     previewOpen,
     previewPlacement,
     dockHeightPx: previewDockHeightPx,
-    onEnable: () => setPreviewOpen(true),
   });
 
   // Open the source preview when landing on a review job that has video (once per
