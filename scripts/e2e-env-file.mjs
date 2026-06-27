@@ -1,8 +1,15 @@
 import fs from "node:fs";
 import path from "node:path";
 
-export const ENV_LOCAL = path.join(process.cwd(), ".env.local");
-export const ENV_BACKUP = path.join(process.cwd(), ".env.local.e2e-bak");
+function envPaths(cwd = process.cwd()) {
+  return {
+    local: path.join(cwd, ".env.local"),
+    backup: path.join(cwd, ".env.local.e2e-bak"),
+  };
+}
+
+export const ENV_LOCAL = envPaths().local;
+export const ENV_BACKUP = envPaths().backup;
 
 // First line of every generated .env.local. Restore uses this to tell a
 // throwaway generated file apart from the developer's real one, so a restore
@@ -26,20 +33,22 @@ function readsAsAutogen(file) {
  *
  * Returns true when a real file was backed up.
  */
-export function backupEnvFile() {
+export function backupEnvFile(cwd = process.cwd()) {
+  const { local, backup } = envPaths(cwd);
+
   // Recover a stranded real file from an earlier killed run.
-  if (fs.existsSync(ENV_BACKUP)) {
-    if (fs.existsSync(ENV_LOCAL) && readsAsAutogen(ENV_LOCAL)) {
-      fs.unlinkSync(ENV_LOCAL);
+  if (fs.existsSync(backup)) {
+    if (fs.existsSync(local) && readsAsAutogen(local)) {
+      fs.unlinkSync(local);
     }
-    if (!fs.existsSync(ENV_LOCAL)) {
-      fs.renameSync(ENV_BACKUP, ENV_LOCAL);
+    if (!fs.existsSync(local)) {
+      fs.renameSync(backup, local);
     }
   }
 
-  const hadOriginal = fs.existsSync(ENV_LOCAL) && !readsAsAutogen(ENV_LOCAL);
+  const hadOriginal = fs.existsSync(local) && !readsAsAutogen(local);
   if (hadOriginal) {
-    fs.renameSync(ENV_LOCAL, ENV_BACKUP);
+    fs.renameSync(local, backup);
   }
   return hadOriginal;
 }
@@ -57,24 +66,26 @@ export function backupEnvFile() {
  * This is why both scripts/e2e-server.mjs (on exit/signal) and the Playwright
  * globalTeardown can call it: whichever runs first restores, the rest no-op.
  */
-export function restoreEnvFile() {
+export function restoreEnvFile(cwd = process.cwd()) {
+  const { local, backup } = envPaths(cwd);
+
   try {
-    if (fs.existsSync(ENV_BACKUP)) {
-      if (fs.existsSync(ENV_LOCAL) && readsAsAutogen(ENV_LOCAL)) {
-        fs.unlinkSync(ENV_LOCAL);
+    if (fs.existsSync(backup)) {
+      if (fs.existsSync(local) && readsAsAutogen(local)) {
+        fs.unlinkSync(local);
       }
-      if (!fs.existsSync(ENV_LOCAL)) {
-        fs.renameSync(ENV_BACKUP, ENV_LOCAL);
+      if (!fs.existsSync(local)) {
+        fs.renameSync(backup, local);
       }
       return;
     }
 
-    if (fs.existsSync(ENV_LOCAL) && readsAsAutogen(ENV_LOCAL)) {
-      fs.unlinkSync(ENV_LOCAL);
+    if (fs.existsSync(local) && readsAsAutogen(local)) {
+      fs.unlinkSync(local);
     }
   } catch (err) {
     console.error(
-      `Failed to restore .env.local; your original (if any) is preserved at ${ENV_BACKUP}`,
+      `Failed to restore .env.local; your original (if any) is preserved at ${backup}`,
       err,
     );
   }
