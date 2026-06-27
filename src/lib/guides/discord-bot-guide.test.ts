@@ -13,6 +13,7 @@ import {
 
 describe("discord-bot-guide.shared", () => {
   it("maps step slugs to camelCase message keys", () => {
+    expect(stepSlugToMessageKey("link-hq")).toBe("linkHq");
     expect(stepSlugToMessageKey("link-self")).toBe("linkSelf");
     expect(stepSlugToMessageKey("register-guild")).toBe("registerGuild");
   });

@@ -2879,7 +2879,7 @@
       "dmGeneral": "**Bot Alliance HQ** — use `/help` no servidor da aliança para passos conforme seu papel.\n\nComandos: `/link`, `/link-commander`, `/vr`, `/immunity`, `/who-is-conductor`, `/language`. Donos: `/link-alliance`. Oficiais (R4+): `/vr-report`, `/set-conductor`, `/train-is-ready`.\n\n**Guia completo:** {guideUrl}",
       "setupLinkHq": "Vincule sua conta Discord ao Alliance HQ: execute `/link` e conclua o login no navegador.",
       "setupOwnerLinkHq": "Este servidor ainda não está registrado. **Dono R5:** siga o caminho do dono no guia — entre com `/link`, depois registre o servidor.\n\n**Guia:** {guideUrl}",
-      "setupOwnerAshedSeat": "Este servidor ainda não está registrado. **Dono R5:** conclua a etapa no navegador e depois `/link-alliance tag:SuaTag`.\n\n**Guia:** {guideUrl}",
+      "setupOwnerAshedSeat": "Este servidor ainda não está registrado. **Dono R5:** execute `/link-ashed tag:SuaTag`, conclua a etapa no navegador e depois `/link-alliance tag:SuaTag`.\n\n**Guia:** {guideUrl}",
       "setupLinkAlliance": "**Dono ou mantenedor:** registre este servidor com `/link-alliance tag:SuaTag`.\n\n**Guia:** {guideUrl}",
       "waitForOwnerAuth": "Aguardando o dono registrar este servidor com `/link-alliance`. Vincule seu comandante com `/link-commander` após o registro.",
       "linkCommander": "Vincule seu comandante: `/link-commander name:… uid:…`. Precisa de passos? Execute `/link-commander` com um nome errado, toque **Começar de novo** e depois **Concluído** após o tutorial.\n\n**Guia:** {guideUrl}",
@@ -2995,7 +2995,7 @@
       "roles": {
         "r5": {
           "title": "R5 — alliance owner",
-          "description": "First-time server setup: link yourself, register the server, optional roster tools, channel setup."
+          "description": "First-time server setup: link HQ, optional roster sync, register the server, link your commander, then channel setup."
         },
         "r4": {
           "title": "R4 — alliance officer",
@@ -3020,24 +3020,30 @@
         "commandLabel": "Discord command"
       },
       "steps": {
+        "linkHq": {
+          "title": "Link your Discord to Alliance HQ",
+          "summary": "Sign your Discord account into Alliance HQ — required before Ashed credentials or guild registration.",
+          "command": "/link",
+          "instructions": "1. Run /link in your alliance Discord server.\n2. Open the secure link and sign in with the same Discord account.\n3. Return to Discord — you're ready for the next setup steps.\n\nThis is not commander binding — use /link-commander later for your in-game character."
+        },
         "linkSelf": {
           "title": "Link your commander",
           "summary": "Prove which in-game character is yours by submitting the exact name and player UID from your profile.",
           "command": "/link-commander name:YourExactName uid:123456789012 — or /link-last-war-profile with the same options",
-          "instructions": "In Discord (fast):\n1. Run /link-commander name:YourExactName uid:123456789012.\n\nIn-Discord walkthrough (if copying is hard):\n1. Run /link-commander with a wrong name once.\n2. Tap **Start over** and follow the prompts.\n3. Tap **Done**, then run /link-commander again with the copied name and UID.\n\nYou can link up to 5 commanders per Discord account. Use /unlink to remove one.",
+          "instructions": "The server must be registered with /link-alliance first.\n\nIn Discord (fast):\n1. Run /link-commander name:YourExactName uid:123456789012.\n\nIn-Discord walkthrough (if copying is hard):\n1. Run /link-commander with a wrong name once.\n2. Tap **Start over** and follow the prompts.\n3. Tap **Done**, then run /link-commander again with the copied name and UID.\n\nYou can link up to 5 commanders per Discord account. Use /unlink to remove one.",
           "tip": "Spelling and capitalization must match the game. When in doubt, use Copy next to your name in the profile menu — do not retype it."
         },
         "registerGuild": {
           "title": "Register this Discord server",
           "summary": "Bind this Discord server to your alliance so bot commands know which roster to use.",
           "command": "/link-alliance tag:YourTag",
-          "instructions": "1. Use your alliance tag only (e.g. LFgo) — not a numeric ID.\n2. Run /link-alliance tag:YourTag in this server.\n3. You must be the in-game alliance owner (proved by your commander link) or a platform maintainer.\n4. When successful, members can run /link-commander in this server."
+          "instructions": "1. Use your alliance tag only (e.g. LFgo) — not a numeric ID.\n2. Run /link-alliance tag:YourTag in this server.\n3. You must be the in-game alliance owner (proved by your commander link), the person who linked Ashed credentials, or a platform maintainer.\n4. When successful, everyone can run /link-commander in this server."
         },
         "optionalAshed": {
           "title": "Optional: roster sync tools",
           "summary": "Connect Ashed credentials if your alliance uses ashed.online for roster sync and iframe tools. Not required for basic bot use.",
           "command": "/link-ashed tag:YourTag",
-          "instructions": "1. Run /link first to link your Discord account to Alliance HQ.\n2. Run /link-ashed tag:YourTag.\n3. Open the secure browser link and submit your Ashed connection key.\n4. This enables live roster reads for the bot — skip if you run a native alliance without Ashed."
+          "instructions": "1. Complete the Link your Discord to Alliance HQ step first (/link).\n2. Run /link-ashed tag:YourTag.\n3. Open the secure browser link and submit your Ashed connection key.\n4. This enables live roster reads for the bot — skip if you run a native alliance without Ashed."
         },
         "vrChannel": {
           "title": "Nightly VR report channel",
@@ -3059,7 +3065,7 @@
         "serverPrereq": {
           "title": "Confirm the server is registered",
           "summary": "Officer commands only work after the alliance owner registers this Discord server.",
-          "instructions": "Ask your R5 owner to complete the owner setup path: link their commander, then /link-alliance tag:YourTag.\n\nIf /link-commander says the server is not set up, the owner has not finished registration yet."
+          "instructions": "Ask your R5 owner to complete the owner setup path: /link, optional /link-ashed tag:YourTag, then /link-alliance tag:YourTag, then link their commander.\n\nIf /link-commander says the server is not set up, the owner has not finished registration yet."
         },
         "vrReports": {
           "title": "VR standings and takedown teams",
@@ -3107,7 +3113,7 @@
         "expand": "Show help",
         "copyNameUid": {
           "title": "Copying your name and UID",
-          "body": "Open Last War → tap your avatar → tap … (top right) on your profile → tap Copy next to your name. Your UID is on the same screen.\n\nPaste both into /link-commander or the browser form — do not retype from memory."
+          "body": "Open Last War → tap your avatar → tap … (top right) on your profile → tap Copy next to your name. Your UID is on the same screen.\n\nPaste both into /link-commander — do not retype from memory."
         },
         "nameMismatch": {
           "title": "Name didn't match",

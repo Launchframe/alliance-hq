@@ -33,6 +33,9 @@ export type DiscordBotGuideStepDef = {
 };
 
 export const DISCORD_BOT_GUIDE_STEPS: Record<string, DiscordBotGuideStepDef> = {
+  "link-hq": {
+    showCommand: true,
+  },
   "link-self": {
     showCommand: true,
     showTip: true,
@@ -88,9 +91,10 @@ export const DISCORD_BOT_GUIDE_ROLE_STEPS: Record<
   string[]
 > = {
   r5: [
-    "link-self",
-    "register-guild",
+    "link-hq",
     "optional-ashed",
+    "register-guild",
+    "link-self",
     "vr-channel",
     "train-channel",
     "tell-members",
