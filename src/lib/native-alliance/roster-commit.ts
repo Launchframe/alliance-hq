@@ -11,6 +11,7 @@ import {
   appendMemberGameLevelEventIfChanged,
   appendMemberPowerLevelEventIfChanged,
 } from "@/lib/members/member-stat-history.server";
+import { syncCommanderFromAllianceMember } from "@/lib/members/commander-identity.server";
 import { getServerCalendarDate } from "@/lib/trains/game-time";
 
 import { nativeRosterAshedAllianceId } from "./provision";
@@ -215,6 +216,12 @@ export async function commitRosterImport(
         source: eventSource,
       });
 
+      await syncCommanderFromAllianceMember({
+        allianceId: input.allianceId,
+        ashedMemberId: existing.ashedMemberId,
+        memberDisplayName: name,
+      });
+
       updated += 1;
       continue;
     }
@@ -266,6 +273,12 @@ export async function commitRosterImport(
       hqUserId: input.hqUserId,
       source: eventSource,
     });
+
+    await syncCommanderFromAllianceMember({
+      allianceId: input.allianceId,
+      ashedMemberId,
+      memberDisplayName: name,
+    });
     created += 1;
   }
 
@@ -295,6 +308,13 @@ export async function commitRosterImport(
             inArray(schema.allianceMembers.ashedMemberId, toInactivate),
           ),
         );
+      for (const ashedMemberId of toInactivate) {
+        await syncCommanderFromAllianceMember({
+          allianceId: input.allianceId,
+          ashedMemberId,
+          leftAt: now,
+        });
+      }
       inactivated = toInactivate.length;
     }
   }

@@ -6,6 +6,9 @@ import { buildAdminCommandersSearchWhere } from "@/lib/admin/admin-commanders-qu
 import type { AdminCommandersQueryParams } from "@/lib/admin/admin-commanders-query.shared";
 import { getDb, schema } from "@/lib/db";
 import {
+  listCommanderTenureHistoryByGameUid,
+} from "@/lib/members/commander-identity.server";
+import {
   listTenureHistoryByGameUid,
   resolveMemberGameUid,
 } from "@/lib/members/member-tenure.server";
@@ -156,9 +159,9 @@ export async function searchAdminCommanders(params: {
   const baseQuery = db
     .select({
       ashedMemberId: schema.allianceMembers.ashedMemberId,
-      currentName: sql<string>`coalesce(${schema.allianceMembers.currentName}, ${schema.commanders.primaryName})`,
-      status: sql<string>`coalesce(${schema.allianceMembers.status}, ${schema.commanderAllianceMemberships.status})`,
-      allianceRank: sql<number | null>`coalesce(${schema.allianceMembers.allianceRank}, ${schema.commanderAllianceMemberships.allianceRank})`,
+      currentName: sql<string>`coalesce(${schema.commanders.primaryName}, ${schema.allianceMembers.currentName})`,
+      status: sql<string>`coalesce(${schema.commanderAllianceMemberships.status}, ${schema.allianceMembers.status})`,
+      allianceRank: sql<number | null>`coalesce(${schema.commanderAllianceMemberships.allianceRank}, ${schema.allianceMembers.allianceRank})`,
       allianceId: schema.allianceMembers.allianceId,
       allianceName: schema.alliances.name,
       allianceTag: schema.alliances.tag,
@@ -240,13 +243,13 @@ export async function loadAdminCommanderDetail(input: {
   const [member] = await db
     .select({
       ashedMemberId: schema.allianceMembers.ashedMemberId,
-      currentName: sql<string>`coalesce(${schema.allianceMembers.currentName}, ${schema.commanders.primaryName})`,
+      currentName: sql<string>`coalesce(${schema.commanders.primaryName}, ${schema.allianceMembers.currentName})`,
       previousNamesJson: schema.allianceMembers.previousNamesJson,
-      status: sql<string>`coalesce(${schema.allianceMembers.status}, ${schema.commanderAllianceMemberships.status})`,
-      allianceRank: sql<number | null>`coalesce(${schema.allianceMembers.allianceRank}, ${schema.commanderAllianceMemberships.allianceRank})`,
-      gameUid: sql<string | null>`coalesce(${schema.allianceMembers.gameUid}, ${schema.commanders.gameUid})`,
-      heroPowerM: sql<number | null>`coalesce(${schema.allianceMembers.heroPowerM}, ${schema.commanders.heroPowerM})`,
-      memberLevel: sql<number | null>`coalesce(${schema.allianceMembers.memberLevel}, ${schema.commanders.memberLevel})`,
+      status: sql<string>`coalesce(${schema.commanderAllianceMemberships.status}, ${schema.allianceMembers.status})`,
+      allianceRank: sql<number | null>`coalesce(${schema.commanderAllianceMemberships.allianceRank}, ${schema.allianceMembers.allianceRank})`,
+      gameUid: sql<string | null>`coalesce(${schema.commanders.gameUid}, ${schema.allianceMembers.gameUid})`,
+      heroPowerM: sql<number | null>`coalesce(${schema.commanders.heroPowerM}, ${schema.allianceMembers.heroPowerM})`,
+      memberLevel: sql<number | null>`coalesce(${schema.commanders.memberLevel}, ${schema.allianceMembers.memberLevel})`,
       allianceId: schema.allianceMembers.allianceId,
       allianceName: schema.alliances.name,
       allianceTag: schema.alliances.tag,
@@ -292,9 +295,14 @@ export async function loadAdminCommanderDetail(input: {
   const gameUid =
     member.gameUid?.trim() ??
     (await resolveMemberGameUid(input.allianceId, input.ashedMemberId));
-  const tenureRows = gameUid
-    ? await listTenureHistoryByGameUid(gameUid)
-    : [];
+  let tenureRows: Awaited<ReturnType<typeof listTenureHistoryByGameUid>> = [];
+  if (gameUid) {
+    const commanderTenure = await listCommanderTenureHistoryByGameUid(gameUid);
+    tenureRows =
+      commanderTenure.length > 0
+        ? commanderTenure
+        : await listTenureHistoryByGameUid(gameUid);
+  }
 
   return {
     ashedMemberId: member.ashedMemberId,
