@@ -442,6 +442,13 @@
       "when": 1784720000000,
       "tag": "0063_hq_user_hotkey_bindings",
       "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "7",
+      "when": 1784806400000,
+      "tag": "0064_commander_main_squad",
+      "breakpoints": true
     }
   ]
 }

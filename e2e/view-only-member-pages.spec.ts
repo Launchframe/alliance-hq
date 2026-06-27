@@ -15,6 +15,7 @@ function e2eBaseUrl(): string {
 /** Native HQ pages a view-only member should reach without a personal Ashed credential. */
 const VIEW_ONLY_NATIVE_PAGES: Array<{ path: string; heading: RegExp }> = [
   { path: "/members", heading: /^members$/i },
+  { path: "/commanders", heading: /commanders index/i },
   { path: "/trains", heading: /alliance train/i },
   { path: "/viral-resistance", heading: /viral resistance/i },
   { path: "/settings", heading: /alliance settings/i },

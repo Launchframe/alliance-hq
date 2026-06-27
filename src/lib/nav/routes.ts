@@ -99,6 +99,14 @@ export const NAV_GROUPS: NavGroupDef[] = [
         descriptionKey: "membersDescription",
       },
       {
+        id: "commanders",
+        labelKey: "commanders",
+        href: "/commanders",
+        kind: "native",
+        requiredPermission: "members:read",
+        descriptionKey: "commandersDescription",
+      },
+      {
         id: "waiting-list",
         labelKey: "waitingList",
         href: "/waiting-list",

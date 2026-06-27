@@ -1104,6 +1104,10 @@ export const allianceMembers = pgTable(
     powerLevel: text("power_level"),
     currentKills: doublePrecision("current_kills"),
     currentTotalHeroPower: doublePrecision("current_total_hero_power"),
+    /** Primary squad type for team analysis — aircraft | tank | missile. */
+    mainSquad: text("main_squad").$type<
+      "aircraft" | "tank" | "missile" | null
+    >(),
     notes: text("notes"),
     timezone: text("timezone"),
     recordedDate: text("recorded_date"),
@@ -1185,6 +1189,19 @@ export const commanders = pgTable(
     currentKills: doublePrecision("current_kills"),
     currentTotalHeroPower: doublePrecision("current_total_hero_power"),
     currentSquadPowerJson: jsonb("current_squad_power_json"),
+    mainSquad: text("main_squad").$type<
+      "aircraft" | "tank" | "missile" | null
+    >(),
+    mainSquadSource: text("main_squad_source").$type<
+      "self_report" | "officer_override" | null
+    >(),
+    mainSquadUpdatedAt: timestamp("main_squad_updated_at", {
+      withTimezone: true,
+    }),
+    currentAllianceId: text("current_alliance_id").references(
+      () => alliances.id,
+      { onDelete: "set null" },
+    ),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -1198,6 +1215,7 @@ export const commanders = pgTable(
       table.primaryNameNormalized,
       table.gameServerNumber,
     ),
+    index("commanders_current_alliance_idx").on(table.currentAllianceId),
   ],
 );
 

@@ -24,6 +24,7 @@ import {
   normalizeCommanderName,
   type RosterImportNameRow,
 } from "@/lib/members/commander-identity-conflicts.shared";
+import { syncCommanderCurrentAllianceId } from "@/lib/commanders/main-squad.server";
 
 type AllianceMemberRow = typeof schema.allianceMembers.$inferSelect;
 
@@ -600,6 +601,7 @@ export async function upsertCommanderAllianceMembership(input: {
       .update(schema.commanderAllianceMemberships)
       .set(membershipValues)
       .where(eq(schema.commanderAllianceMemberships.id, existing.id));
+    await syncCommanderCurrentAllianceId(input.commanderId);
     return;
   }
 
@@ -608,6 +610,7 @@ export async function upsertCommanderAllianceMembership(input: {
     ...membershipValues,
     createdAt: now,
   });
+  await syncCommanderCurrentAllianceId(input.commanderId);
 }
 
 export async function linkHqUserToCommander(input: {

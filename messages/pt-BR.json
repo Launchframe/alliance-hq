@@ -73,6 +73,8 @@
     "alliances": "Alianças",
     "members": "Membros",
     "membersDescription": "Elenco ao vivo do Ashed para correspondência de pontuações",
+    "commanders": "Índice de Comandantes",
+    "commandersDescription": "Poder de herói, esquadrão principal e montagem de equipes",
     "waitingList": "Lista de Espera",
     "allianceTasks": "Tarefas da Aliança",
     "mergeManager": "Gerenciador de Fusão",
@@ -1670,6 +1672,20 @@
         "conductor": "Condutor",
         "vip": "VIP",
         "substitute": "Substituto"
+      },
+      "mainSquad": "Esquadrão Principal",
+      "mainSquadSource": "Fonte: {source}",
+      "mainSquadSourceSelf": "auto-relatado",
+      "mainSquadSourceOfficer": "substituição de oficial",
+      "mainSquadSaveLabel": "Salvar esquadrão",
+      "mainSquadSaving": "Salvando...",
+      "mainSquadSaved": "Salvo",
+      "mainSquadSaveFailed": "Falha ao salvar",
+      "mainSquadNone": "— não definido —",
+      "squad": {
+        "squadAircraft": "Aviação",
+        "squadTank": "Tanque",
+        "squadMissile": "Míssil"
       }
     }
   },
@@ -1863,6 +1879,50 @@
       "body": "Seu convite está ativo. Conecte o Ashed para ferramentas em iframe e sincronização ao vivo, ou pule e use só os recursos nativos do HQ.",
       "connectAshed": "Conectar Ashed",
       "nativeOnly": "Continuar sem Ashed"
+    }
+  },
+  "commandersIndex": {
+    "title": "Índice de Comandantes",
+    "subtitle": "Membros da aliança ordenados por poder de herói com atribuições de esquadrão",
+    "seasonLine": "Temporada {season}",
+    "refresh": "Atualizar",
+    "refreshing": "Atualizando…",
+    "loadFailed": "Falha ao carregar índice de comandantes",
+    "empty": "Nenhum comandante corresponde aos filtros atuais",
+    "avgThp": "média {thp}",
+    "unreported": "Não informado",
+    "unreportedShort": "—",
+    "colRank": "#",
+    "colCommander": "Comandante",
+    "colThp": "Poder de Herói",
+    "colSquad": "Esquadrão Principal",
+    "colInGameRank": "Rank no Jogo",
+    "colVr": "VR",
+    "colSquadEdit": "Definir Esquadrão",
+    "filterSquad": "Esquadrão",
+    "filterSquadAll": "Todos os esquadrões",
+    "filterMinThp": "THP mínimo",
+    "filterIncludeUnreported": "Incluir não informados",
+    "sourceOfficer": "oficial",
+    "sourceSelf": "próprio",
+    "save": "Salvar",
+    "saving": "Salvando…",
+    "saveFailed": "Falha ao salvar esquadrão",
+    "squadNone": "— não definido —",
+    "squad": {
+      "squadAircraft": "Aviação",
+      "squadTank": "Tanque",
+      "squadMissile": "Míssil"
+    },
+    "teamBuilder": {
+      "title": "Montagem de Equipes",
+      "subtitle": "Atribuir comandantes a equipes equilibradas usando rascunho serpentina por THP",
+      "teamCount": "Equipes (1–5)",
+      "squadFilter": "Filtro de esquadrão",
+      "build": "Montar Equipes",
+      "teamLabel": "Equipe {index}",
+      "lead": "Líder",
+      "insufficient": "Jogadores insuficientes: precisam de {needed}, têm {have}"
     }
   },
   "viralResistance": {
