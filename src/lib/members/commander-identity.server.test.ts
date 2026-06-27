@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mockState = {
-  limitResults: [] as unknown[][],
+const mockState = vi.hoisted(() => ({
+  selectResults: [] as unknown[][],
+  selectCallIndex: 0,
   insertOrder: 0,
   insertedCommanders: [] as Record<string, unknown>[],
   insertedMemberships: [] as Record<string, unknown>[],
@@ -9,17 +10,28 @@ const mockState = {
   updatedCommanders: [] as Record<string, unknown>[],
   updatedMemberships: [] as Record<string, unknown>[],
   updatedHqUserCommanders: [] as Record<string, unknown>[],
-};
+}));
 
-vi.mock("@/lib/db", () => ({
-  getDb: () => ({
-    select: () => ({
-      from: () => ({
-        where: () => ({
-          limit: async () => mockState.limitResults.shift() ?? [],
-        }),
-      }),
-    }),
+const mockDb = vi.hoisted(() => {
+  function makeChain() {
+    const chain: Record<string, unknown> = {};
+    const passthrough = () => chain;
+    chain.from = passthrough;
+    chain.innerJoin = passthrough;
+    chain.leftJoin = passthrough;
+    chain.where = passthrough;
+    chain.limit = passthrough;
+    chain.orderBy = passthrough;
+    chain.then = (resolve: (value: unknown) => void) => {
+      const result = mockState.selectResults[mockState.selectCallIndex] ?? [];
+      mockState.selectCallIndex += 1;
+      resolve(result);
+    };
+    return chain;
+  }
+
+  return {
+    select: () => makeChain(),
     insert: () => ({
       values: (values: Record<string, unknown>) => {
         mockState.insertOrder += 1;
@@ -51,10 +63,25 @@ vi.mock("@/lib/db", () => ({
         },
       }),
     }),
-  }),
+  };
+});
+
+vi.mock("@/lib/db", () => ({
+  getDb: () => mockDb,
   schema: {
-    allianceMembers: { allianceId: "allianceId", ashedMemberId: "ashedMemberId" },
-    commanders: { id: "id", gameUid: "gameUid" },
+    allianceMembers: {
+      allianceId: "allianceId",
+      ashedMemberId: "ashedMemberId",
+      commanderSyncStatus: "commanderSyncStatus",
+      commanderConflictJson: "commanderConflictJson",
+    },
+    alliances: { id: "id", gameServerNumber: "gameServerNumber" },
+    commanders: {
+      id: "id",
+      gameUid: "gameUid",
+      primaryNameNormalized: "primaryNameNormalized",
+      gameServerNumber: "gameServerNumber",
+    },
     commanderAllianceMemberships: {
       id: "id",
       allianceId: "allianceId",
@@ -78,7 +105,8 @@ import {
 
 describe("commander-identity.server", () => {
   beforeEach(() => {
-    mockState.limitResults = [];
+    mockState.selectResults = [];
+    mockState.selectCallIndex = 0;
     mockState.insertOrder = 0;
     mockState.insertedCommanders = [];
     mockState.insertedMemberships = [];
@@ -93,24 +121,26 @@ describe("commander-identity.server", () => {
   });
 
   it("upsertCommanderFromLink creates a commander from roster stats", async () => {
-    mockState.limitResults.push(
-      [
-        {
-          currentName: "Alice",
-          profession: "Engineer",
-          professionalLevel: 3,
-          memberLevel: 30,
-          heroPowerM: 12.5,
-          powerLevel: "12.5M",
-          currentKills: 100,
-          currentTotalHeroPower: 200,
-          currentSquadPowerJson: { a: 1 },
-          status: "active",
-          ashedAllianceId: "aa-1",
-          allianceRank: 4,
-          allianceRankTitle: "R4",
-        },
-      ],
+    const aliceMember = {
+      currentName: "Alice",
+      profession: "Engineer",
+      professionalLevel: 3,
+      memberLevel: 30,
+      heroPowerM: 12.5,
+      powerLevel: "12.5M",
+      currentKills: 100,
+      currentTotalHeroPower: 200,
+      currentSquadPowerJson: { a: 1 },
+      status: "active",
+      ashedAllianceId: "aa-1",
+      allianceRank: 4,
+      allianceRankTitle: "R4",
+    };
+    mockState.selectResults.push(
+      [{ gameServerNumber: 100 }],
+      [aliceMember],
+      [],
+      [aliceMember],
       [],
     );
 
@@ -131,7 +161,10 @@ describe("commander-identity.server", () => {
   });
 
   it("upsertCommanderFromLink updates an existing commander", async () => {
-    mockState.limitResults.push(
+    mockState.selectResults.push(
+      [{ gameServerNumber: 100 }],
+      [{ currentName: "Renamed", status: "active" }],
+      [],
       [{ currentName: "Renamed", status: "active" }],
       [{ id: "commander-existing", gameUid: "12345678901234" }],
     );
@@ -149,20 +182,58 @@ describe("commander-identity.server", () => {
     expect(mockState.insertedCommanders).toHaveLength(0);
   });
 
-  it("syncCommanderFromAllianceMember no-ops when UID is unknown", async () => {
-    mockState.limitResults.push(
-      [{ currentName: "Ghost", status: "active", gameUid: null }],
+  it("syncCommanderFromAllianceMember creates orphan commander when UID is unknown", async () => {
+    const ghostMember = {
+      currentName: "Ghost",
+      status: "active",
+      gameUid: null,
+    };
+    mockState.selectResults.push(
+      [ghostMember],
+      [{ gameServerNumber: 100 }],
       [],
+      [],
+      [],
+      [],
+      [],
+      [ghostMember],
+      [ghostMember],
       [],
     );
 
-    await syncCommanderFromAllianceMember({
+    const result = await syncCommanderFromAllianceMember({
       allianceId: "alliance-a",
       ashedMemberId: "member-ghost",
     });
 
+    expect(result.status).toBe("synced");
+    expect(mockState.insertedCommanders[0]).toMatchObject({
+      gameUid: null,
+      primaryName: "Ghost",
+      gameServerNumber: 100,
+    });
+    expect(mockState.insertedMemberships[0]).toMatchObject({
+      allianceId: "alliance-a",
+      ashedMemberId: "member-ghost",
+    });
+  });
+
+  it("syncCommanderFromAllianceMember defers when game server is unset", async () => {
+    mockState.selectResults.push(
+      [{ currentName: "Ghost", status: "active", gameUid: null }],
+      [{ gameServerNumber: null }],
+    );
+
+    const result = await syncCommanderFromAllianceMember({
+      allianceId: "alliance-a",
+      ashedMemberId: "member-ghost",
+    });
+
+    expect(result.status).toBe("deferred");
+    if (result.status === "deferred") {
+      expect(result.reason).toBe("missing_server");
+    }
     expect(mockState.insertedCommanders).toHaveLength(0);
-    expect(mockState.insertedMemberships).toHaveLength(0);
   });
 
   it("syncCommanderFromAllianceMember mirrors roster row when UID is known", async () => {
@@ -176,8 +247,13 @@ describe("commander-identity.server", () => {
       heroPowerM: 8.2,
       memberLevel: 22,
     };
-    mockState.limitResults.push(
+    mockState.selectResults.push(
       [memberRow],
+      [{ gameServerNumber: 100 }],
+      [],
+      [{ gameServerNumber: 100 }],
+      [memberRow],
+      [],
       [memberRow],
       [],
       [memberRow],
@@ -202,26 +278,20 @@ describe("commander-identity.server", () => {
   });
 
   it("syncCommanderIdentityFromMemberLink writes membership and HQ ownership", async () => {
-    mockState.limitResults.push(
-      [
-        {
-          currentName: "Bob",
-          status: "active",
-          ashedAllianceId: "aa-2",
-          allianceRank: 3,
-          allianceRankTitle: "R3",
-        },
-      ],
+    const bobMember = {
+      currentName: "Bob",
+      status: "active",
+      ashedAllianceId: "aa-2",
+      allianceRank: 3,
+      allianceRankTitle: "R3",
+    };
+    mockState.selectResults.push(
+      [{ gameServerNumber: 100 }],
+      [bobMember],
       [],
-      [
-        {
-          currentName: "Bob",
-          status: "active",
-          ashedAllianceId: "aa-2",
-          allianceRank: 3,
-          allianceRankTitle: "R3",
-        },
-      ],
+      [bobMember],
+      [],
+      [bobMember],
       [],
     );
 

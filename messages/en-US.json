@@ -1436,7 +1436,25 @@
       "commit": "Import roster",
       "committing": "Importing…",
       "commitFailed": "Import failed.",
-      "cancel": "Cancel"
+      "cancel": "Cancel",
+      "nameConflictBlocked": "Resolve duplicate commander names before importing.",
+      "nameConflictHint": "“{name}” conflicts with another row or existing member on this server."
+    },
+    "commanderConflicts": {
+      "bannerTitle": "{count, plural, one {# commander name needs review} other {# commander names need review}}",
+      "bannerDescription": "Two different players can share a similar name on OCR imports. Edit names so each commander is unique on your game server.",
+      "resolve": "Review names",
+      "title": "Resolve commander names",
+      "description": "Each commander name must be unique on your game server. Adjust names below, then save.",
+      "takenBy": "That name is already used by {name}.",
+      "nameLabel": "Commander name",
+      "duplicateInBatch": "“{name}” is duplicated in this list.",
+      "nameRequired": "Enter a name for every commander.",
+      "stillConflict": "That name still conflicts with another member.",
+      "saveFailed": "Could not save commander names.",
+      "cancel": "Cancel",
+      "save": "Save names",
+      "saving": "Saving…"
     },
     "profile": {
       "titleWithId": "Commander profile",

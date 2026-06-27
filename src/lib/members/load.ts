@@ -3,6 +3,8 @@ import { eq } from "drizzle-orm";
 import { resolveAllianceByTag } from "@/lib/alliance/resolve";
 import { getDb, schema } from "@/lib/db";
 import { loadAllianceGameRoster } from "@/lib/members/game-roster";
+import { listCommanderIdentityConflictsForAlliance } from "@/lib/members/commander-identity.server";
+import type { CommanderIdentityConflict } from "@/lib/members/commander-identity-conflicts.shared";
 import { searchAllianceMembers } from "@/lib/members/members-search.server";
 import {
   resolveHqAllianceId,
@@ -25,6 +27,8 @@ export type AllianceMembersPayload = {
   };
   fetchedAt: string;
   operatingMode: "ashed" | "native";
+  commanderConflicts: CommanderIdentityConflict[];
+  gameServerNumber?: number | null;
 };
 
 function sortMembers(members: AshedMember[]): AshedMember[] {
@@ -44,6 +48,28 @@ function countMembers(members: AshedMember[]): AllianceMembersPayload["counts"] 
   };
 }
 
+async function enrichMembersPayload(
+  payload: Omit<
+    AllianceMembersPayload,
+    "commanderConflicts" | "gameServerNumber"
+  >,
+  allianceId: string,
+): Promise<AllianceMembersPayload> {
+  const db = getDb();
+  const [allianceRow] = await db
+    .select({ gameServerNumber: schema.alliances.gameServerNumber })
+    .from(schema.alliances)
+    .where(eq(schema.alliances.id, allianceId))
+    .limit(1);
+
+  return {
+    ...payload,
+    gameServerNumber: allianceRow?.gameServerNumber ?? null,
+    commanderConflicts:
+      await listCommanderIdentityConflictsForAlliance(allianceId),
+  };
+}
+
 async function loadLocalMembersPayload(
   hqAllianceId: string,
   allianceRow: { tag: string; name: string | null },
@@ -57,21 +83,24 @@ async function loadLocalMembersPayload(
   );
   const active = members.filter((m) => m.status !== "former").length;
 
-  return {
-    alliance: {
-      id: hqAllianceId,
-      tag: allianceRow.tag.trim(),
-      name: allianceRow.name ?? undefined,
+  return enrichMembersPayload(
+    {
+      alliance: {
+        id: hqAllianceId,
+        tag: allianceRow.tag.trim(),
+        name: allianceRow.name ?? undefined,
+      },
+      members,
+      counts: {
+        total: members.length,
+        active,
+        former: members.length - active,
+      },
+      fetchedAt: new Date().toISOString(),
+      operatingMode,
     },
-    members,
-    counts: {
-      total: members.length,
-      active,
-      former: members.length - active,
-    },
-    fetchedAt: new Date().toISOString(),
-    operatingMode,
-  };
+    hqAllianceId,
+  );
 }
 
 export async function loadAllianceMembers(
@@ -169,17 +198,20 @@ export async function loadAllianceMembers(
 
   const active = members.filter((m) => m.status !== "former").length;
 
-  const payload: AllianceMembersPayload = {
-    alliance,
-    members,
-    counts: {
-      total: members.length,
-      active,
-      former: members.length - active,
+  const payload = await enrichMembersPayload(
+    {
+      alliance,
+      members,
+      counts: {
+        total: members.length,
+        active,
+        former: members.length - active,
+      },
+      fetchedAt: new Date().toISOString(),
+      operatingMode,
     },
-    fetchedAt: new Date().toISOString(),
-    operatingMode,
-  };
+    resolvedHqAllianceId,
+  );
 
   if (options?.q?.trim()) {
     payload.members = await searchAllianceMembers({
