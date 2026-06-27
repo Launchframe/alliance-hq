@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { Dialog } from "@/components/ui/dialog";
+import { preventDefaultFormSubmit } from "@/lib/client/form-enter-submit.shared";
 import type { AllianceMembersPayload } from "@/lib/members/load";
 import type { CommanderIdentityConflict } from "@/lib/members/commander-identity-conflicts.shared";
 import {
@@ -269,7 +270,13 @@ export function RosterImportDialog({
             </label>
           </div>
         ) : (
-          <div className="space-y-4">
+          <form
+            className="space-y-4"
+            onSubmit={(event) => {
+              preventDefaultFormSubmit(event);
+              void commit();
+            }}
+          >
             <div className="flex flex-wrap gap-2 text-xs">
               <span className="rounded-full bg-[#23863633] px-2.5 py-1 text-[#3fb950]">
                 {t("matchedBadge", { count: matchedCount })}
@@ -397,14 +404,10 @@ export function RosterImportDialog({
                 <span className="text-xs">{t("inactiveSweepHelp")}</span>
               </span>
             </label>
-          </div>
-        )}
 
-        {error ? <p className="text-sm text-[#f85149]">{error}</p> : null}
+            {error ? <p className="text-sm text-[#f85149]">{error}</p> : null}
 
-        <div className="flex flex-wrap justify-end gap-2 pt-2">
-          {step === "review" ? (
-            <>
+            <div className="flex flex-wrap justify-end gap-2 pt-2">
               <button
                 type="button"
                 className="rounded-lg border border-[#30363d] px-4 py-2 text-sm"
@@ -414,15 +417,20 @@ export function RosterImportDialog({
                 {t("back")}
               </button>
               <button
-                type="button"
+                type="submit"
                 className="rounded-lg border border-[#238636] bg-[#238636] px-4 py-2 text-sm text-white disabled:opacity-50"
-                onClick={() => void commit()}
                 disabled={committing || rows.length === 0 || batchConflicts.length > 0}
               >
                 {committing ? t("committing") : t("commit")}
               </button>
-            </>
-          ) : (
+            </div>
+          </form>
+        )}
+
+        {step === "upload" && error ? <p className="text-sm text-[#f85149]">{error}</p> : null}
+
+        {step === "upload" ? (
+          <div className="flex flex-wrap justify-end gap-2 pt-2">
             <button
               type="button"
               className="rounded-lg border border-[#30363d] px-4 py-2 text-sm"
@@ -431,8 +439,8 @@ export function RosterImportDialog({
             >
               {t("cancel")}
             </button>
-          )}
-        </div>
+          </div>
+        ) : null}
       </div>
     </Dialog>
   );

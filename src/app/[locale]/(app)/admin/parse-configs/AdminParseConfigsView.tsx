@@ -4,6 +4,10 @@ import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { Link } from "@/i18n/navigation";
+import {
+  FORM_SUBMIT_ENTER_KEY_HINT,
+  handleTextareaEnterSubmit,
+} from "@/lib/client/form-enter-submit.shared";
 import type { ExtractionConfig } from "@/lib/db/schema";
 
 type ParseConfig = {
@@ -223,6 +227,12 @@ export function AdminParseConfigsView() {
               rows={2}
               value={form.notes}
               onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
+              enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT}
+              onKeyDown={(e) =>
+                handleTextareaEnterSubmit(e, () => {
+                  e.currentTarget.form?.requestSubmit();
+                })
+              }
               className="w-full rounded border border-[#30363d] bg-[#0d1117] px-3 py-1.5 text-sm text-[#e6edf3] focus:border-[#58a6ff] focus:outline-none"
             />
           </Field>

@@ -4,6 +4,10 @@ import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { Link } from "@/i18n/navigation";
+import {
+  FORM_SUBMIT_ENTER_KEY_HINT,
+  handleTextareaEnterSubmit,
+} from "@/lib/client/form-enter-submit.shared";
 
 type Campaign = {
   id: string;
@@ -189,6 +193,12 @@ export function AdminExperimentsView() {
               rows={2}
               value={form.description}
               onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+              enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT}
+              onKeyDown={(e) =>
+                handleTextareaEnterSubmit(e, () => {
+                  e.currentTarget.form?.requestSubmit();
+                })
+              }
               className={INPUT_CLASS}
             />
           </Field>

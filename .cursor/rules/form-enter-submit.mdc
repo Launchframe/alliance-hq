@@ -1,0 +1,57 @@
+---
+description: Forms must submit on Enter (desktop) and Send (mobile enterKeyHint)
+globs: src/**/*.tsx
+alwaysApply: false
+---
+
+# Form Enter / Send submit
+
+Every user-facing **form** or **form-like flow** (dialog, sheet, inline save row with text input + primary action) must submit when the user presses **Enter** on desktop or **Send** on mobile.
+
+## Required pattern
+
+1. Wrap submit-capable inputs and the primary action in a native `<form>`.
+2. Handle submit with `onSubmit`; call `preventDefaultFormSubmit` from `@/lib/client/form-enter-submit.shared` when using JS handlers.
+3. Primary action uses `type="submit"` (not `type="button"` + `onClick` alone).
+4. Set `enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT}` on the **last** submit-capable text/email/password/number input in the flow (shows **Send** on mobile).
+
+```tsx
+import {
+  FORM_SUBMIT_ENTER_KEY_HINT,
+  preventDefaultFormSubmit,
+} from "@/lib/client/form-enter-submit.shared";
+
+<form
+  onSubmit={(event) => {
+    preventDefaultFormSubmit(event);
+    void save();
+  }}
+>
+  <input enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT} … />
+  <button type="submit" disabled={busy}>Save</button>
+</form>
+```
+
+## Textareas
+
+- Use `enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT}` for mobile Send.
+- Desktop: **Enter** submits, **Shift+Enter** newline — wire `onKeyDown` with `handleTextareaEnterSubmit` from the same module.
+- Opt out per control with `data-no-enter-submit` on a wrapper.
+
+## Inline / table cells
+
+Mini-forms per row are fine (`<form onSubmit={…}>` around input + Save). Do not rely on ad-hoc `onKeyDown` unless a native form is impossible.
+
+## Out of scope
+
+- Debounced search/filter-only inputs (no submit action).
+- File-only pickers.
+- Button-only wizard steps with no text fields.
+- `<select>` / checkbox-only rows where Enter semantics are ambiguous.
+
+## Checklist for new/changed UI
+
+- [ ] Input + primary button wrapped in `<form onSubmit>`
+- [ ] Submit button is `type="submit"`
+- [ ] Last text input has `enterKeyHint="send"`
+- [ ] Textarea uses Shift+Enter for newline if multi-line copy is needed

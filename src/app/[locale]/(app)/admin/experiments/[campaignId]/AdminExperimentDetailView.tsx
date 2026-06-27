@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { Link } from "@/i18n/navigation";
+import { FORM_SUBMIT_ENTER_KEY_HINT } from "@/lib/client/form-enter-submit.shared";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -685,6 +686,7 @@ export function AdminExperimentDetailView({ campaignId }: { campaignId: string }
                 min="1"
                 value={armForm.trafficWeight}
                 onChange={(e) => setArmForm((f) => ({ ...f, trafficWeight: e.target.value }))}
+                enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT}
                 className="mt-1 w-full rounded border border-[#30363d] bg-[#0d1117] px-2 py-1 text-xs text-[#e6edf3] focus:border-[#58a6ff] focus:outline-none"
               />
             </label>

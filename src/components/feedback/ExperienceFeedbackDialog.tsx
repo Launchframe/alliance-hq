@@ -6,6 +6,11 @@ import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  FORM_SUBMIT_ENTER_KEY_HINT,
+  handleTextareaEnterSubmit,
+  preventDefaultFormSubmit,
+} from "@/lib/client/form-enter-submit.shared";
+import {
   APP_VERSION,
   clientContextPayload,
   type SurveyFeedbackSource,
@@ -131,7 +136,13 @@ export function ExperienceFeedbackDialog({
       )}
 
       {step === 1 && (
-        <>
+        <form
+          className="space-y-4"
+          onSubmit={(event) => {
+            preventDefaultFormSubmit(event);
+            void handleCommentsSubmit();
+          }}
+        >
           <div>
             <h2 className="text-lg font-semibold">
               {positiveExperience ? t("commentsPositive") : t("commentsNegative")}
@@ -141,15 +152,21 @@ export function ExperienceFeedbackDialog({
           <Textarea
             value={comments}
             onChange={(e) => setComments(e.target.value)}
+            enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT}
+            onKeyDown={(e) =>
+              handleTextareaEnterSubmit(e, () => {
+                void handleCommentsSubmit();
+              })
+            }
             placeholder={t("commentsPlaceholder")}
           />
           <div className="flex justify-between gap-2">
-            <Button variant="ghost" onClick={handleDismiss}>
+            <Button type="button" variant="ghost" onClick={handleDismiss}>
               {t("cancel")}
             </Button>
-            <Button onClick={handleCommentsSubmit}>{t("continue")}</Button>
+            <Button type="submit">{t("continue")}</Button>
           </div>
-        </>
+        </form>
       )}
 
       {step === 2 && (

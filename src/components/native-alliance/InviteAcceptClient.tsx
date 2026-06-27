@@ -4,6 +4,10 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { Link, useRouter } from "@/i18n/navigation";
+import {
+  FORM_SUBMIT_ENTER_KEY_HINT,
+  preventDefaultFormSubmit,
+} from "@/lib/client/form-enter-submit.shared";
 import { resolveInviteRedirect } from "@/lib/navigation/safe-redirect.shared";
 
 type InvitePreview = {
@@ -223,58 +227,66 @@ export function InviteAcceptClient({
             })}
       </p>
 
-      {preview.kind === "email" ? (
-        <label className="block space-y-1 text-sm">
-          <span className="text-[#8b949e]">{t("email")}</span>
-          <input
-            type="email"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
-            autoComplete="email"
-          />
-          <span className="block text-xs text-[#6e7681]">{t("emailHint")}</span>
-        </label>
-      ) : null}
+      <form
+        className="space-y-4"
+        onSubmit={(event) => {
+          preventDefaultFormSubmit(event);
+          void acceptInvite();
+        }}
+      >
+        {preview.kind === "email" ? (
+          <label className="block space-y-1 text-sm">
+            <span className="text-[#8b949e]">{t("email")}</span>
+            <input
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
+              autoComplete="email"
+            />
+            <span className="block text-xs text-[#6e7681]">{t("emailHint")}</span>
+          </label>
+        ) : null}
 
-      {preview.requiresPassphrase ? (
+        {preview.requiresPassphrase ? (
+          <label className="block space-y-1 text-sm">
+            <span className="text-[#8b949e]">{t("passphrase")}</span>
+            <input
+              type="text"
+              required
+              value={passphrase}
+              onChange={(e) => setPassphrase(e.target.value)}
+              className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 font-mono"
+              autoComplete="off"
+            />
+            <span className="block text-xs text-[#6e7681]">
+              {t("passphraseHint")}
+            </span>
+          </label>
+        ) : null}
+
         <label className="block space-y-1 text-sm">
-          <span className="text-[#8b949e]">{t("passphrase")}</span>
+          <span className="text-[#8b949e]">{t("displayName")}</span>
           <input
             type="text"
-            required
-            value={passphrase}
-            onChange={(e) => setPassphrase(e.target.value)}
-            className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 font-mono"
-            autoComplete="off"
+            value={displayName}
+            onChange={(e) => setDisplayName(e.target.value)}
+            enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT}
+            className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
           />
-          <span className="block text-xs text-[#6e7681]">
-            {t("passphraseHint")}
-          </span>
         </label>
-      ) : null}
 
-      <label className="block space-y-1 text-sm">
-        <span className="text-[#8b949e]">{t("displayName")}</span>
-        <input
-          type="text"
-          value={displayName}
-          onChange={(e) => setDisplayName(e.target.value)}
-          className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
-        />
-      </label>
+        {error ? <p className="text-sm text-[#f85149]">{error}</p> : null}
 
-      {error ? <p className="text-sm text-[#f85149]">{error}</p> : null}
-
-      <button
-        type="button"
-        disabled={submitting}
-        onClick={() => void acceptInvite()}
-        className="w-full rounded-lg border border-[#238636] bg-[#238636] px-4 py-2 text-sm text-white disabled:opacity-50"
-      >
-        {submitting ? t("accepting") : t("accept")}
-      </button>
+        <button
+          type="submit"
+          disabled={submitting}
+          className="w-full rounded-lg border border-[#238636] bg-[#238636] px-4 py-2 text-sm text-white disabled:opacity-50"
+        >
+          {submitting ? t("accepting") : t("accept")}
+        </button>
+      </form>
     </div>
   );
 }

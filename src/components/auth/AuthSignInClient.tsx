@@ -7,6 +7,7 @@ import { signIn as signInWithWebAuthn } from "next-auth/webauthn";
 import { useEffect, useState } from "react";
 
 import { Link } from "@/i18n/navigation";
+import { FORM_SUBMIT_ENTER_KEY_HINT } from "@/lib/client/form-enter-submit.shared";
 import {
   MIN_PASSWORD_LENGTH,
   validatePasswordPair,
@@ -455,6 +456,7 @@ export function AuthSignInClient({
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT}
               className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
               autoComplete="current-password"
               minLength={MIN_PASSWORD_LENGTH}
@@ -502,6 +504,7 @@ export function AuthSignInClient({
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT}
               className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
               autoComplete="email"
               autoFocus
@@ -552,6 +555,7 @@ export function AuthSignInClient({
               readOnly={codeSent}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              enterKeyHint={codeSent ? undefined : FORM_SUBMIT_ENTER_KEY_HINT}
               className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 read-only:opacity-80"
               autoComplete="email"
               autoFocus={!codeSent}
@@ -572,6 +576,7 @@ export function AuthSignInClient({
                 onChange={(e) =>
                   setVerificationCode(e.target.value.replace(/\D/g, "").slice(0, 6))
                 }
+                enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT}
                 className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 font-mono tracking-[0.35em]"
                 autoFocus
               />

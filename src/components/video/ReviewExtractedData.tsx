@@ -5,6 +5,10 @@ import { Crosshair, MonitorPlay, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Link, useRouter } from "@/i18n/navigation";
+import {
+  FORM_SUBMIT_ENTER_KEY_HINT,
+  preventDefaultFormSubmit,
+} from "@/lib/client/form-enter-submit.shared";
 import { useFeedback } from "@/components/feedback";
 import { AppSelect } from "@/components/ui/AppSelect";
 import { useAccountTimezone } from "@/components/timezone/TimezoneProvider";
@@ -1226,6 +1230,13 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         </div>
       ) : null}
 
+      <form
+        className="space-y-6"
+        onSubmit={(event) => {
+          preventDefaultFormSubmit(event);
+          void handleSubmit();
+        }}
+      >
       {!scoreTargetMeta?.showRosterColumns ? (
       <div className="grid gap-4 rounded-xl border border-[#30363d] bg-[#161b22] p-4 sm:grid-cols-[repeat(auto-fit,minmax(12rem,1fr))]">
         {needsEventPicker ? (
@@ -1345,6 +1356,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
               markDraftDirty();
               setRecordedDate(e.target.value);
             }}
+            enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT}
             className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
           />
         </label>
@@ -1356,6 +1368,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           <div className="flex items-center gap-3">
             <input
               type="search"
+              form=""
               value={filterQuery}
               onChange={(e) => setFilterQuery(e.target.value)}
               placeholder={t("filterPlaceholder")}
@@ -1415,6 +1428,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
       <div className="flex items-center gap-3">
         <input
           type="search"
+          form=""
           value={filterQuery}
           onChange={(e) => setFilterQuery(e.target.value)}
           placeholder={t("filterPlaceholder")}
@@ -1627,9 +1641,8 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           {tc("back")}
         </Link>
         <button
-          type="button"
+          type="submit"
           disabled={!canSubmit}
-          onClick={() => void handleSubmit()}
           className="rounded-lg border border-[#238636] bg-[#238636] px-4 py-2 text-sm text-white disabled:opacity-50"
         >
           {submitting
@@ -1655,6 +1668,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         </button>
         ) : null}
       </div>
+      </form>
 
       {showRatingPrompt ? (
         <OcrRatingPrompt

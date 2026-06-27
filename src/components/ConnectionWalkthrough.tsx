@@ -21,6 +21,11 @@ import {
   type CopyConnectMethod,
 } from "@/components/CopyConnectMethodStep";
 import { LinkPhoneStep } from "@/components/credential-pairing/LinkPhoneStep";
+import {
+  FORM_SUBMIT_ENTER_KEY_HINT,
+  handleTextareaEnterSubmit,
+  preventDefaultFormSubmit,
+} from "@/lib/client/form-enter-submit.shared";
 import { Checkbox } from "@/components/ui/checkbox";
 import { TokenExpiryNotice } from "@/components/TokenExpiryNotice";
 import {
@@ -470,6 +475,12 @@ export function ConnectionWalkthrough({
                 rows={8}
                 value={pasteInput}
                 onChange={(e) => setPasteInput(e.target.value)}
+                enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT}
+                onKeyDown={(e) =>
+                  handleTextareaEnterSubmit(e, () => {
+                    if (!connecting && canConnect) void connect();
+                  })
+                }
                 placeholder={t("steps.paste.placeholder")}
                 className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 font-mono text-sm"
               />
@@ -607,6 +618,50 @@ export function ConnectionWalkthrough({
         })}
       </ol>
 
+      {isPasteStep && !isPasteSuccess ? (
+        <form
+          className="rounded-xl border border-[#30363d] bg-[#161b22] p-5"
+          onSubmit={(event) => {
+            preventDefaultFormSubmit(event);
+            void connect();
+          }}
+        >
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="text-lg font-medium">{stepTitle}</h2>
+          </div>
+          <div className="mt-3 text-sm">{renderStepBody()}</div>
+
+          {returningUser ? (
+            <p className="mt-4 text-sm">
+              <button
+                type="button"
+                onClick={() => setStepIndex(0)}
+                className="text-[#58a6ff] hover:underline"
+              >
+                {t("showSetupInstructions")}
+              </button>
+            </p>
+          ) : null}
+
+          <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-[#30363d] pt-4">
+            <button
+              type="button"
+              onClick={() => changeStep((i) => Math.max(0, i - 1))}
+              disabled={stepIndex === 0}
+              className="rounded-lg border border-[#30363d] px-4 py-2 text-sm text-[#e6edf3] hover:bg-[#21262d] disabled:opacity-50"
+            >
+              {tc("back")}
+            </button>
+            <button
+              type="submit"
+              disabled={connecting || !canConnect}
+              className="rounded-lg border border-[#238636] bg-[#238636] px-4 py-2 text-sm text-white disabled:opacity-50"
+            >
+              {connecting ? tc("connecting") : tc("connect")}
+            </button>
+          </div>
+        </form>
+      ) : (
       <section className="rounded-xl border border-[#30363d] bg-[#161b22] p-5">
         <div className="flex flex-wrap items-center gap-2">
           <h2 className="text-lg font-medium">{stepTitle}</h2>
@@ -698,18 +753,10 @@ export function ConnectionWalkthrough({
             >
               {tc("next")}
             </button>
-          ) : (
-            <button
-              type="button"
-              onClick={() => void connect()}
-              disabled={connecting || !canConnect}
-              className="rounded-lg border border-[#238636] bg-[#238636] px-4 py-2 text-sm text-white disabled:opacity-50"
-            >
-              {connecting ? tc("connecting") : tc("connect")}
-            </button>
-          )}
+          ) : null}
         </div>
       </section>
+      )}
     </div>
   );
 }

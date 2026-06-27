@@ -7,6 +7,11 @@ import { usePathname } from "@/i18n/navigation";
 
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  FORM_SUBMIT_ENTER_KEY_HINT,
+  handleTextareaEnterSubmit,
+  preventDefaultFormSubmit,
+} from "@/lib/client/form-enter-submit.shared";
 import type { SelectionAnchor } from "@/lib/feedback/text-selection";
 import { resolveTranslationKeysFromClient } from "@/lib/feedback/translation-key-resolve";
 import { submitTranslationReport } from "@/lib/feedback/client-api";
@@ -78,7 +83,13 @@ function TranslationCorrectionForm({
   }
 
   return (
-    <div className="space-y-3">
+    <form
+      className="space-y-3"
+      onSubmit={(event) => {
+        preventDefaultFormSubmit(event);
+        void handleSubmit();
+      }}
+    >
       <p id="translation-correction-dialog-title" className="text-sm text-[#8b949e]">
         {t("selectedLabel", { text: truncate(selectionText) })}
       </p>
@@ -87,23 +98,29 @@ function TranslationCorrectionForm({
         <Textarea
           value={suggested}
           onChange={(e) => setSuggested(e.target.value)}
+          enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT}
+          onKeyDown={(e) =>
+            handleTextareaEnterSubmit(e, () => {
+              void handleSubmit();
+            })
+          }
           rows={3}
         />
       </label>
       {error ? <p className="text-sm text-red-400">{error}</p> : null}
       <div className="flex gap-2">
-        <Button variant="ghost" className="flex-1" onClick={onClose}>
+        <Button type="button" variant="ghost" className="flex-1" onClick={onClose}>
           {t("cancel")}
         </Button>
         <Button
+          type="submit"
           className="flex-1"
-          onClick={() => void handleSubmit()}
           disabled={submitting}
         >
           {submitting ? t("submitting") : t("submit")}
         </Button>
       </div>
-    </div>
+    </form>
   );
 }
 

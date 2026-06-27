@@ -8,6 +8,10 @@ import {
   RecordDetailField,
   ResponsiveRecordViews,
 } from "@/components/ui/ResponsiveRecordViews";
+import {
+  FORM_SUBMIT_ENTER_KEY_HINT,
+  preventDefaultFormSubmit,
+} from "@/lib/client/form-enter-submit.shared";
 
 type GameSeasonRow = {
   id: string;
@@ -158,6 +162,7 @@ export function AdminGameSeasonsConsole() {
                   type="number"
                   min={250}
                   max={12750}
+                  form={`season-save-${row.id}`}
                   value={drafts[row.id]?.maxBaseVr ?? ""}
                   onChange={(event) =>
                     updateDraft(row.id, "maxBaseVr", event.target.value)
@@ -170,6 +175,7 @@ export function AdminGameSeasonsConsole() {
                   type="number"
                   min={1}
                   placeholder={t("professionUnset")}
+                  form={`season-save-${row.id}`}
                   value={drafts[row.id]?.maxProfessionLevel ?? ""}
                   onChange={(event) =>
                     updateDraft(
@@ -178,18 +184,27 @@ export function AdminGameSeasonsConsole() {
                       event.target.value,
                     )
                   }
+                  enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT}
                   className="w-28 rounded-lg border border-[#30363d] bg-[#0d1117] px-2 py-1"
                 />
               </td>
               <td className="px-4 py-3">
-                <button
-                  type="button"
-                  disabled={savingId === row.id}
-                  onClick={() => void saveSeason(row)}
-                  className="rounded-lg border border-[#238636] bg-[#238636] px-3 py-1.5 text-xs text-white disabled:opacity-50"
+                <form
+                  id={`season-save-${row.id}`}
+                  className="inline"
+                  onSubmit={(event) => {
+                    preventDefaultFormSubmit(event);
+                    void saveSeason(row);
+                  }}
                 >
-                  {savingId === row.id ? t("saving") : t("save")}
-                </button>
+                  <button
+                    type="submit"
+                    disabled={savingId === row.id}
+                    className="rounded-lg border border-[#238636] bg-[#238636] px-3 py-1.5 text-xs text-white disabled:opacity-50"
+                  >
+                    {savingId === row.id ? t("saving") : t("save")}
+                  </button>
+                </form>
               </td>
             </tr>
           ))}
@@ -203,6 +218,12 @@ export function AdminGameSeasonsConsole() {
       <RecordDetailField label={t("seasonNumber")}>
         S{row.seasonNumber}
       </RecordDetailField>
+      <form
+        onSubmit={(event) => {
+          preventDefaultFormSubmit(event);
+          void saveSeason(row);
+        }}
+      >
       <RecordDetailField label={t("maxBaseVr")}>
         <input
           type="number"
@@ -224,17 +245,18 @@ export function AdminGameSeasonsConsole() {
           onChange={(event) =>
             updateDraft(row.id, "maxProfessionLevel", event.target.value)
           }
+          enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT}
           className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-2 py-1"
         />
       </RecordDetailField>
       <button
-        type="button"
+        type="submit"
         disabled={savingId === row.id}
-        onClick={() => void saveSeason(row)}
         className="mt-2 w-full rounded-lg border border-[#238636] bg-[#238636] px-3 py-2 text-sm text-white disabled:opacity-50"
       >
         {savingId === row.id ? t("saving") : t("save")}
       </button>
+      </form>
     </RecordDetailCard>
   ));
 

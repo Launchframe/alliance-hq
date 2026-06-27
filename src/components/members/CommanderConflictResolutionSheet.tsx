@@ -4,6 +4,10 @@ import { useCallback, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { Dialog } from "@/components/ui/dialog";
+import {
+  FORM_SUBMIT_ENTER_KEY_HINT,
+  preventDefaultFormSubmit,
+} from "@/lib/client/form-enter-submit.shared";
 import type { CommanderIdentityConflict } from "@/lib/members/commander-identity-conflicts.shared";
 import {
   detectBatchNameConflicts,
@@ -162,12 +166,19 @@ export function CommanderConflictResolutionSheet({
       title={t("title")}
       className="max-w-[min(96vw,40rem)]"
     >
-      <div className="space-y-4">
+      <form
+        className="space-y-4"
+        onSubmit={(event) => {
+          preventDefaultFormSubmit(event);
+          void saveAll();
+        }}
+      >
         <p className="text-sm text-[#8b949e]">{t("description")}</p>
 
         <ul className="space-y-3">
           {rows.map((row, index) => {
             const hasBatchConflict = conflictRowIndexes.has(index);
+            const isLastRow = index === rows.length - 1;
             return (
               <li
                 key={row.ashedMemberId}
@@ -188,6 +199,7 @@ export function CommanderConflictResolutionSheet({
                   className="mt-1 w-full rounded border border-[#30363d] bg-[#0d1117] px-2 py-1.5 text-sm"
                   value={row.currentName}
                   onChange={(e) => updateRow(row.ashedMemberId, e.target.value)}
+                  enterKeyHint={isLastRow ? FORM_SUBMIT_ENTER_KEY_HINT : undefined}
                 />
                 {hasBatchConflict ? (
                   <p className="mt-1 text-xs text-[#f85149]">
@@ -213,15 +225,14 @@ export function CommanderConflictResolutionSheet({
             {t("cancel")}
           </button>
           <button
-            type="button"
+            type="submit"
             className="rounded-lg bg-[#238636] px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-            onClick={() => void saveAll()}
             disabled={saving || batchConflicts.length > 0}
           >
             {saving ? t("saving") : t("save")}
           </button>
         </div>
-      </div>
+      </form>
     </Dialog>
   );
 }

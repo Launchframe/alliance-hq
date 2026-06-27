@@ -9,6 +9,10 @@ import {
   validatePasswordPair,
   type PasswordValidationCode,
 } from "@/lib/auth/password.shared";
+import {
+  FORM_SUBMIT_ENTER_KEY_HINT,
+  preventDefaultFormSubmit,
+} from "@/lib/client/form-enter-submit.shared";
 
 type Props = {
   hasPassword: boolean;
@@ -107,36 +111,44 @@ export function AccountSecurityClient({ hasPassword: initialHasPassword, passkey
         <p className="text-sm text-[#8b949e]">
           {hasPassword ? t("passwordSectionBodySet") : t("passwordSectionBodyUnset")}
         </p>
-        <label className="block space-y-1 text-sm">
-          <span className="text-[#8b949e]">{t("newPassword")}</span>
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
-            autoComplete="new-password"
-            minLength={MIN_PASSWORD_LENGTH}
-          />
-        </label>
-        <label className="block space-y-1 text-sm">
-          <span className="text-[#8b949e]">{t("confirmPassword")}</span>
-          <input
-            type="password"
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
-            className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
-            autoComplete="new-password"
-            minLength={MIN_PASSWORD_LENGTH}
-          />
-        </label>
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => void savePassword()}
-          className="rounded-lg border border-[#238636] bg-[#238636] px-4 py-2 text-sm text-white disabled:opacity-50"
+        <form
+          className="space-y-4"
+          onSubmit={(event) => {
+            preventDefaultFormSubmit(event);
+            void savePassword();
+          }}
         >
-          {busy ? t("saving") : hasPassword ? t("updatePassword") : t("setPassword")}
-        </button>
+          <label className="block space-y-1 text-sm">
+            <span className="text-[#8b949e]">{t("newPassword")}</span>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
+              autoComplete="new-password"
+              minLength={MIN_PASSWORD_LENGTH}
+            />
+          </label>
+          <label className="block space-y-1 text-sm">
+            <span className="text-[#8b949e]">{t("confirmPassword")}</span>
+            <input
+              type="password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT}
+              className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
+              autoComplete="new-password"
+              minLength={MIN_PASSWORD_LENGTH}
+            />
+          </label>
+          <button
+            type="submit"
+            disabled={busy}
+            className="rounded-lg border border-[#238636] bg-[#238636] px-4 py-2 text-sm text-white disabled:opacity-50"
+          >
+            {busy ? t("saving") : hasPassword ? t("updatePassword") : t("setPassword")}
+          </button>
+        </form>
       </section>
 
       <section className="space-y-4 rounded-xl border border-[#30363d] bg-[#161b22] p-5">

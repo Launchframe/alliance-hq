@@ -5,6 +5,10 @@ import { useTranslations } from "next-intl";
 
 import { AppSelect } from "@/components/ui/AppSelect";
 import { CopyToClipboardField } from "@/components/ui/CopyToClipboardField";
+import {
+  FORM_SUBMIT_ENTER_KEY_HINT,
+  preventDefaultFormSubmit,
+} from "@/lib/client/form-enter-submit.shared";
 
 function isValidInviteEmail(value: string): boolean {
   const trimmed = value.trim();
@@ -269,6 +273,12 @@ export function AdminNativeAlliancePanel({
         <p className="mt-1 text-sm text-[#8b949e]">{t("subtitle")}</p>
       </div>
 
+      <form
+        onSubmit={(event) => {
+          preventDefaultFormSubmit(event);
+          void createAlliance();
+        }}
+      >
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="space-y-1 text-sm">
           <span className="text-[#8b949e]">{t("name")}</span>
@@ -307,26 +317,34 @@ export function AdminNativeAlliancePanel({
             type="email"
             value={ownerEmail}
             onChange={(e) => setOwnerEmail(e.target.value)}
+            enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT}
             className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
           />
         </label>
       </div>
 
       <button
-        type="button"
+        type="submit"
         disabled={busy}
-        onClick={() => void createAlliance()}
         className="rounded-lg border border-[#238636] bg-[#238636] px-4 py-2 text-sm text-white disabled:opacity-50"
       >
         {t("createButton")}
       </button>
+      </form>
       <ActionFeedbackBanner feedback={createFeedback} />
 
       <div className="border-t border-[#30363d] pt-4">
         <h3 className="text-sm font-semibold">{t("inviteTitle")}</h3>
         <p className="mt-1 text-sm text-[#8b949e]">{t("inviteTargetHint")}</p>
         <p className="mt-2 text-xs text-[#6e7681]">{t("inviteServerRequiredNote")}</p>
-        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        <form
+          className="mt-3"
+          onSubmit={(event) => {
+            preventDefaultFormSubmit(event);
+            void sendInvite();
+          }}
+        >
+        <div className="grid gap-3 sm:grid-cols-2">
           <label className="space-y-1 text-sm sm:col-span-2">
             <span className="text-[#8b949e]">{t("chooseAlliance")}</span>
             <AppSelect
@@ -404,6 +422,7 @@ export function AdminNativeAlliancePanel({
               type="text"
               value={inviteRedirectPath}
               onChange={(e) => setInviteRedirectPath(e.target.value)}
+              enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT}
               placeholder="/trains"
               className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 font-mono text-sm"
             />
@@ -413,13 +432,13 @@ export function AdminNativeAlliancePanel({
           </label>
         </div>
         <button
-          type="button"
+          type="submit"
           disabled={busy || !selectedAllianceId || !canSendInvite}
-          onClick={() => void sendInvite()}
           className="mt-3 rounded-lg border border-[#388bfd] bg-[#388bfd]/10 px-4 py-2 text-sm text-[#58a6ff] disabled:opacity-50"
         >
           {t("inviteButton")}
         </button>
+        </form>
         <ActionFeedbackBanner feedback={inviteFeedback} />
         {lastInviteUrl ? (
           <CopyToClipboardField
@@ -443,7 +462,14 @@ export function AdminNativeAlliancePanel({
       <div className="border-t border-[#30363d] pt-4">
         <h3 className="text-sm font-semibold">{t("joinCodeTitle")}</h3>
         <p className="mt-1 text-sm text-[#8b949e]">{t("joinCodeHint")}</p>
-        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        <form
+          className="mt-3"
+          onSubmit={(event) => {
+            preventDefaultFormSubmit(event);
+            void createJoinCode();
+          }}
+        >
+        <div className="grid gap-3 sm:grid-cols-2">
           <label className="space-y-1 text-sm">
             <span className="text-[#8b949e]">{t("inviteRole")}</span>
             <select
@@ -475,18 +501,19 @@ export function AdminNativeAlliancePanel({
               type="text"
               value={joinCodeLabel}
               onChange={(e) => setJoinCodeLabel(e.target.value)}
+              enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT}
               className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
             />
           </label>
         </div>
         <button
-          type="button"
+          type="submit"
           disabled={busy || !selectedAllianceId}
-          onClick={() => void createJoinCode()}
           className="mt-3 rounded-lg border border-[#388bfd] bg-[#388bfd]/10 px-4 py-2 text-sm text-[#58a6ff] disabled:opacity-50"
         >
           {t("joinCodeButton")}
         </button>
+        </form>
         <ActionFeedbackBanner feedback={joinCodeFeedback} />
         {lastJoinCode ? (
           <CopyToClipboardField

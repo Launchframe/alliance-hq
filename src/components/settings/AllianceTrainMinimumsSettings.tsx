@@ -3,6 +3,10 @@
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 
+import {
+  FORM_SUBMIT_ENTER_KEY_HINT,
+  preventDefaultFormSubmit,
+} from "@/lib/client/form-enter-submit.shared";
 import { allianceTrainMinimumsApiPath } from "@/lib/alliance/alliance-settings-path.shared";
 import type { TrainMinimumsWindow } from "@/lib/trains/train-conductor-minimums.shared";
 
@@ -131,6 +135,12 @@ export function AllianceTrainMinimumsSettings({ allianceTag }: Props) {
       <h2 className="text-base font-semibold text-[#e6edf3]">{t("sectionTitle")}</h2>
       <p className="mt-1 text-sm text-[#8b949e]">{t("sectionBody")}</p>
 
+      <form
+        onSubmit={(event) => {
+          preventDefaultFormSubmit(event);
+          void save();
+        }}
+      >
       <div className="mt-4 grid gap-4 sm:grid-cols-2">
         <label className="block text-sm">
           <span className="text-[#8b949e]">{t("minVsLabel")}</span>
@@ -167,6 +177,7 @@ export function AllianceTrainMinimumsSettings({ allianceTag }: Props) {
             step={1}
             value={leewayPct}
             onChange={(e) => setLeewayPct(e.target.value)}
+            enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT}
             disabled={!displaySettings.canManage || busy}
             className="mt-1 w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 text-[#e6edf3] disabled:opacity-60"
           />
@@ -205,8 +216,7 @@ export function AllianceTrainMinimumsSettings({ allianceTag }: Props) {
       {displaySettings.canManage ? (
         <div className="mt-4">
           <button
-            type="button"
-            onClick={() => void save()}
+            type="submit"
             disabled={busy}
             className="rounded-lg bg-[#238636] px-4 py-2 text-sm font-medium text-white hover:bg-[#2ea043] disabled:opacity-60"
           >
@@ -216,6 +226,7 @@ export function AllianceTrainMinimumsSettings({ allianceTag }: Props) {
       ) : (
         <p className="mt-4 text-xs text-[#8b949e]">{t("officersOnly")}</p>
       )}
+      </form>
     </section>
   );
 }

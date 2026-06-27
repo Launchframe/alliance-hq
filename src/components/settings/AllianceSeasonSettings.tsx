@@ -4,6 +4,10 @@ import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { allianceSeasonApiPath } from "@/lib/alliance/alliance-settings-path.shared";
+import {
+  FORM_SUBMIT_ENTER_KEY_HINT,
+  preventDefaultFormSubmit,
+} from "@/lib/client/form-enter-submit.shared";
 
 export type AllianceSeasonPayload = {
   seasonKey: string;
@@ -204,7 +208,13 @@ export function AllianceSeasonSettings({ allianceTag }: Props) {
       </div>
 
       {displaySeason.canEditGameServer ? (
-        <div className="mt-4 flex w-full min-w-0 max-w-md flex-col gap-2">
+        <form
+          className="mt-4 flex w-full min-w-0 max-w-md flex-col gap-2"
+          onSubmit={(event) => {
+            preventDefaultFormSubmit(event);
+            void saveServer();
+          }}
+        >
           <label className="text-xs text-[#8b949e]" htmlFor="settings-game-server">
             {t("serverNumberLabel")}
           </label>
@@ -214,6 +224,7 @@ export function AllianceSeasonSettings({ allianceTag }: Props) {
             inputMode="numeric"
             value={serverDraft}
             onChange={(e) => setServerDraft(e.target.value.replace(/\D/g, ""))}
+            enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT}
             className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 text-sm text-[#e6edf3]"
           />
           <p className="text-xs text-[#6e7681]">
@@ -222,18 +233,23 @@ export function AllianceSeasonSettings({ allianceTag }: Props) {
               : t("serverNumberUpdateHint")}
           </p>
           <button
-            type="button"
+            type="submit"
             disabled={busy || !serverDraft.trim()}
-            onClick={() => void saveServer()}
             className="w-fit rounded-lg bg-[#238636] px-3 py-1.5 text-sm font-medium text-white disabled:opacity-60"
           >
             {busy ? t("saving") : t("saveServer")}
           </button>
-        </div>
+        </form>
       ) : null}
 
       {displaySeason.canManageSeason ? (
-        <div className="mt-4 flex w-full min-w-0 max-w-md flex-col gap-2">
+        <form
+          className="mt-4 flex w-full min-w-0 max-w-md flex-col gap-2"
+          onSubmit={(event) => {
+            preventDefaultFormSubmit(event);
+            void saveOverride();
+          }}
+        >
           <label className="text-xs text-[#8b949e]" htmlFor="settings-season-override">
             {t("overrideLabel")}
           </label>
@@ -243,13 +259,13 @@ export function AllianceSeasonSettings({ allianceTag }: Props) {
             inputMode="numeric"
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
+            enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT}
             className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 text-sm text-[#e6edf3]"
           />
           <div className="flex flex-wrap gap-2">
             <button
-              type="button"
+              type="submit"
               disabled={busy}
-              onClick={() => void saveOverride()}
               className="rounded-lg bg-[#238636] px-3 py-1.5 text-sm font-medium text-white disabled:opacity-60"
             >
               {busy ? t("saving") : t("saveOverride")}
@@ -265,7 +281,7 @@ export function AllianceSeasonSettings({ allianceTag }: Props) {
               </button>
             ) : null}
           </div>
-        </div>
+        </form>
       ) : null}
 
       {error ? <p className="mt-2 text-sm text-[#f85149]">{error}</p> : null}

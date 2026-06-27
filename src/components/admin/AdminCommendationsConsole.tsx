@@ -8,6 +8,10 @@ import {
   RecordDetailField,
   ResponsiveRecordViews,
 } from "@/components/ui/ResponsiveRecordViews";
+import {
+  FORM_SUBMIT_ENTER_KEY_HINT,
+  preventDefaultFormSubmit,
+} from "@/lib/client/form-enter-submit.shared";
 
 type Commendation = {
   id: string;
@@ -148,7 +152,13 @@ export function AdminCommendationsConsole() {
 
       <section className="rounded-xl border border-[#30363d] bg-[#161b22] p-5">
         <h2 className="font-medium">{t("createTitle")}</h2>
-        <div className="mt-3 flex flex-wrap gap-3">
+        <form
+          className="mt-3 flex flex-wrap gap-3"
+          onSubmit={(event) => {
+            preventDefaultFormSubmit(event);
+            void createCommendation();
+          }}
+        >
           <input
             value={slug}
             onChange={(e) => setSlug(e.target.value)}
@@ -158,18 +168,18 @@ export function AdminCommendationsConsole() {
           <input
             value={label}
             onChange={(e) => setLabel(e.target.value)}
+            enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT}
             placeholder={t("labelPlaceholder")}
             className="rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 text-sm"
           />
           <button
-            type="button"
+            type="submit"
             disabled={saving || !slug.trim() || !label.trim()}
-            onClick={() => void createCommendation()}
             className="rounded-lg bg-[#238636] px-4 py-2 text-sm text-white disabled:opacity-50"
           >
             {t("createButton")}
           </button>
-        </div>
+        </form>
       </section>
 
       {error ? <p className="text-sm text-red-400">{error}</p> : null}
