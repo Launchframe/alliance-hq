@@ -243,6 +243,26 @@ export const NAV_GROUPS: NavGroupDef[] = [
       },
     ],
   },
+  {
+    id: "support",
+    labelKey: "support",
+    pages: [
+      {
+        id: "discord-bot-guide",
+        labelKey: "discordBotGuide",
+        href: "/guides/discord-bot",
+        kind: "native",
+        descriptionKey: "discordBotGuideDescription",
+      },
+      {
+        id: "discord-train-guide",
+        labelKey: "discordTrainGuide",
+        href: "/guides/discord-train",
+        kind: "native",
+        descriptionKey: "discordTrainGuideDescription",
+      },
+    ],
+  },
 ];
 
 export const FOOTER_NAV: NavPageDef[] = [
@@ -327,6 +347,12 @@ export function navLinkActive(pathname: string, href: string): boolean {
   if (href === "/tools/video-processors") {
     return pathname === "/tools/video-processors";
   }
+  if (href === "/guides/discord-bot") {
+    return pathname === "/guides/discord-bot" || pathname.startsWith("/guides/discord-bot/");
+  }
+  if (href === "/guides/discord-train") {
+    return pathname === "/guides/discord-train" || pathname.startsWith("/guides/discord-train/");
+  }
   if (href === "/tools/video-upload") {
     if (pathname === "/tools/video-upload/queue") {
       return false;
@@ -371,6 +397,15 @@ export function findActiveNavGroupId(
 
     if (group.id === "admin-settings") {
       if (showAdminPortal && pathname.startsWith("/admin")) {
+        return group.id;
+      }
+    }
+
+    if (group.id === "support") {
+      if (pathname.startsWith("/guides/discord-bot")) {
+        return group.id;
+      }
+      if (pathname.startsWith("/guides/discord-train")) {
         return group.id;
       }
     }

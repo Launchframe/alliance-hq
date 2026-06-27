@@ -20,7 +20,7 @@ export async function handleDiscordHelp(input: {
   });
   const t = createDiscordTranslator(input.locale);
   const key = pickHelpMessageKey(ctx);
-  const reply = formatHelpReply(t, key, ctx);
+  const reply = formatHelpReply(t, key, ctx, input.locale);
 
   if (ctx.allianceId) {
     try {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { pickHelpMessageKey } from "@/lib/vr/bot-user-context";
+import { pickHelpMessageKey, formatHelpReply } from "@/lib/vr/bot-user-context";
 import type { DiscordBotUserContext } from "@/lib/vr/bot-user-context";
 
 function ctx(
@@ -109,5 +109,43 @@ describe("handleDiscordHelp message keys", () => {
         ctx({ hasCredentials: false, isOwner: false, memberLinkCount: 0 }),
       ),
     ).toBe("help.linkCommander");
+  });
+});
+
+describe("formatHelpReply", () => {
+  it("includes role-scoped guideUrl for link-commander help", () => {
+    const prev = process.env.NEXT_PUBLIC_APP_URL;
+    process.env.NEXT_PUBLIC_APP_URL = "https://frontline.gay";
+    try {
+      const reply = formatHelpReply(
+        (key, values) => `${key}:${values?.guideUrl ?? ""}`,
+        "help.linkCommander",
+        ctx({ memberLinkCount: 0 }),
+        "en-US",
+      );
+      expect(reply).toBe(
+        "help.linkCommander:https://frontline.gay/guides/discord-bot/link-only",
+      );
+    } finally {
+      process.env.NEXT_PUBLIC_APP_URL = prev;
+    }
+  });
+
+  it("uses hub guideUrl for dmGeneral without a role mapping", () => {
+    const prev = process.env.NEXT_PUBLIC_APP_URL;
+    process.env.NEXT_PUBLIC_APP_URL = "https://frontline.gay";
+    try {
+      const reply = formatHelpReply(
+        (key, values) => `${key}:${values?.guideUrl ?? ""}`,
+        "help.dmGeneral",
+        ctx({ guildId: null }),
+        "en-US",
+      );
+      expect(reply).toBe(
+        "help.dmGeneral:https://frontline.gay/guides/discord-bot",
+      );
+    } finally {
+      process.env.NEXT_PUBLIC_APP_URL = prev;
+    }
   });
 });

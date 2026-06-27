@@ -12,8 +12,8 @@ This guide is for **alliance owners** (setup) and **officers** (day-to-day condu
 
 Your Discord server must already use the Alliance HQ bot for VR:
 
-1. Owner: `/link` → `/link-ashed tag:YourTag` → `/link-alliance tag:YourTag`
-2. Members: `/link` → `/link-commander`
+1. Owner: `/link` → optional `/link-ashed tag:YourTag` → `/link-alliance tag:YourTag` → `/link-commander` (owner character)
+2. Members: `/link-commander` only (after the owner registers the server)
 3. Owner: `/set-vr-report-channel` (optional; unrelated to trains but common setup)
 
 Train announcements are **opt in** and **off by default**.
