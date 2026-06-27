@@ -6,6 +6,7 @@ import { expect, test } from "@playwright/test";
 import {
   createAllianceMembership,
   createAuthenticatedHqSession,
+  createHqMemberLink,
   createNativeAlliance,
   getE2eSql,
   playwrightAuthCookies,
@@ -28,6 +29,10 @@ test.describe("App hotkeys", () => {
       allianceId: alliance.allianceId,
       roleName: "officer",
       source: "manual",
+    });
+    await createHqMemberLink(sql, {
+      allianceId: alliance.allianceId,
+      hqUserId: auth.hqUserId,
     });
     await sql`
       UPDATE sessions
@@ -61,6 +66,10 @@ test.describe("App hotkeys", () => {
       roleName: "officer",
       source: "manual",
     });
+    await createHqMemberLink(sql, {
+      allianceId: alliance.allianceId,
+      hqUserId: auth.hqUserId,
+    });
     await sql`
       UPDATE sessions
       SET current_alliance_id = ${alliance.allianceId}
@@ -92,6 +101,10 @@ test.describe("App hotkeys", () => {
       allianceId: alliance.allianceId,
       roleName: "officer",
       source: "manual",
+    });
+    await createHqMemberLink(sql, {
+      allianceId: alliance.allianceId,
+      hqUserId: auth.hqUserId,
     });
     await sql`
       UPDATE sessions

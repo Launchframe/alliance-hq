@@ -24,12 +24,26 @@ export function parseKeyboardEvent(event: KeyboardEvent): ParsedKeyboardEvent {
   };
 }
 
+/**
+ * Treat the platform primary modifier as one "Mod": Cmd (meta) on macOS and
+ * Ctrl elsewhere. A binding stored as `meta` therefore matches a Ctrl press on
+ * Windows/Linux, matching `shouldIgnoreHotkeysForEvent`'s palette-chord logic
+ * and the cross-platform convention cmdk uses.
+ */
+function canonicalizeModifiers(
+  modifiers: HotkeyModifier[] | undefined,
+): HotkeyModifier[] {
+  return [
+    ...new Set((modifiers ?? []).map((m) => (m === "ctrl" ? "meta" : m))),
+  ].sort();
+}
+
 function modifiersEqual(
   left: HotkeyModifier[] | undefined,
   right: HotkeyModifier[],
 ): boolean {
-  const a = [...(left ?? [])].sort();
-  const b = [...right].sort();
+  const a = canonicalizeModifiers(left);
+  const b = canonicalizeModifiers(right);
   if (a.length !== b.length) return false;
   return a.every((value, index) => value === b[index]);
 }

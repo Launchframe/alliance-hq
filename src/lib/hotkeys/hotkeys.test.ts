@@ -65,6 +65,26 @@ describe("hotkey engine", () => {
     expect(sequenceMatchesBinding(sequenceBinding, ["g", "m"])).toBe(true);
   });
 
+  it("treats meta and ctrl as the same primary modifier (cross-platform Mod)", () => {
+    const ctrlEvent = parseKeyboardEvent({
+      key: "k",
+      altKey: false,
+      shiftKey: false,
+      metaKey: false,
+      ctrlKey: true,
+    } as KeyboardEvent);
+
+    // Default palette binding is meta+k; a Ctrl+K press (Windows/Linux) must match.
+    expect(chordMatchesEvent({ modifiers: ["meta"], key: "k" }, ctrlEvent)).toBe(
+      true,
+    );
+
+    // Shift must still differ — only meta/ctrl are unified.
+    expect(
+      chordMatchesEvent({ modifiers: ["meta", "shift"], key: "k" }, ctrlEvent),
+    ).toBe(false);
+  });
+
   it("finds matching actions for chords and completed sequences", () => {
     const bindings: Array<{ actionId: string; binding: HotkeyBinding }> = [
       {
