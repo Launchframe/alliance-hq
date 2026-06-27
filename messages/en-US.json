@@ -2310,6 +2310,8 @@
     },
     "previewZoomFill": "Fit width",
     "previewZoomFit": "Fit whole frame",
+    "followMe": "Follow me",
+    "followMeHint": "Seek preview to the row you scroll to",
     "previewResizeWidth": "Resize preview width",
     "previewResizeHeight": "Resize preview height",
     "previewPanHint": "Drag to pan",

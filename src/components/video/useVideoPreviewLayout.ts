@@ -30,11 +30,13 @@ export type VideoPreviewLayout = {
   zoom: PreviewZoom;
   sideWidthPx: number;
   dockHeightPx: number;
+  followMe: boolean;
   setOpen: (next: boolean | ((open: boolean) => boolean)) => void;
   setPlacement: (placement: PreviewPlacement) => void;
   setZoom: (next: PreviewZoom | ((zoom: PreviewZoom) => PreviewZoom)) => void;
   setSideWidthPx: (width: number) => void;
   setDockHeightPx: (height: number) => void;
+  setFollowMe: (next: boolean | ((followMe: boolean) => boolean)) => void;
 };
 
 // --- Viewport external store -----------------------------------------------
@@ -221,6 +223,16 @@ export function useVideoPreviewLayout(): VideoPreviewLayout {
     [device, viewport],
   );
 
+  const setFollowMe = useCallback(
+    (next: boolean | ((followMe: boolean) => boolean)) => {
+      const current = readPrefs(viewport);
+      const followMe =
+        typeof next === "function" ? next(current.followMe) : next;
+      writePrefs({ ...current, followMe }, viewport);
+    },
+    [viewport],
+  );
+
   return {
     device,
     placement: clampPlacement(device, prefs.placement[device]),
@@ -229,10 +241,12 @@ export function useVideoPreviewLayout(): VideoPreviewLayout {
     zoom: prefs.zoom,
     sideWidthPx: resolvedSize.sideWidthPx,
     dockHeightPx: resolvedSize.dockHeightPx,
+    followMe: prefs.followMe,
     setOpen,
     setPlacement,
     setZoom,
     setSideWidthPx,
     setDockHeightPx,
+    setFollowMe,
   };
 }

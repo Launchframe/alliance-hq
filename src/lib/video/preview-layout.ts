@@ -140,6 +140,8 @@ export type PreviewPrefs = {
   placement: Record<PreviewDeviceClass, PreviewPlacement>;
   zoom: PreviewZoom;
   size: Record<PreviewDeviceClass, PreviewPaneSize>;
+  /** Score review: auto-seek preview to the row scrolled into view. */
+  followMe: boolean;
 };
 
 const FALLBACK_VIEWPORT = { width: 1280, height: 800 };
@@ -153,6 +155,7 @@ export const DEFAULT_PREVIEW_PREFS: PreviewPrefs = {
     tablet: clampPreviewSize(null, FALLBACK_VIEWPORT),
     mobile: clampPreviewSize(null, { width: 390, height: 844 }),
   },
+  followMe: false,
 };
 
 /** Coerce a (possibly stale/invalid) zoom into a known value. */
@@ -182,6 +185,7 @@ export function parsePreviewPrefs(
         tablet: clampPreviewSize(null, viewport),
         mobile: clampPreviewSize(null, viewport),
       },
+      followMe: false,
     };
   }
   try {
@@ -205,6 +209,7 @@ export function parsePreviewPrefs(
         tablet: parseStoredSize(size.tablet, viewport),
         mobile: parseStoredSize(size.mobile, viewport),
       },
+      followMe: typeof parsed?.followMe === "boolean" ? parsed.followMe : false,
     };
   } catch {
     return parsePreviewPrefs(null, viewport);

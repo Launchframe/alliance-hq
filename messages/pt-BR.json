@@ -2310,6 +2310,8 @@
     },
     "previewZoomFill": "Ajustar à largura",
     "previewZoomFit": "Ajustar quadro inteiro",
+    "followMe": "Seguir rolagem",
+    "followMeHint": "Buscar no vídeo a linha que você rolar",
     "previewResizeWidth": "Redimensionar largura da pré-visualização",
     "previewResizeHeight": "Redimensionar altura da pré-visualização",
     "previewPanHint": "Arraste para mover",
