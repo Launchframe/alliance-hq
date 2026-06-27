@@ -9,7 +9,6 @@ import {
   createAuthenticatedHqSession,
   createNativeAlliance,
   getE2eSql,
-  linkNativeAllianceToGameServer,
 } from "./fixtures/db";
 
 function uniqueEmail(prefix: string): string {
@@ -23,7 +22,6 @@ test.describe("Team Access — officer invites", () => {
       tag: `TI${nanoid(3)}`,
       name: "Team Invite Alliance",
     });
-    await linkNativeAllianceToGameServer(sql, alliance.allianceId);
     const officer = await createAuthenticatedHqSession(sql, uniqueEmail("officer"));
     await createAllianceMembership(sql, {
       hqUserId: officer.hqUserId,
@@ -58,7 +56,6 @@ test.describe("Team Access — officer invites", () => {
       tag: `TB${nanoid(3)}`,
       name: "Team Invite Block Alliance",
     });
-    await linkNativeAllianceToGameServer(sql, alliance.allianceId);
     const officer = await createAuthenticatedHqSession(sql, uniqueEmail("officer-block"));
     await createAllianceMembership(sql, {
       hqUserId: officer.hqUserId,

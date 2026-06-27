@@ -886,22 +886,3 @@ export async function loadAllianceGameServerNumber(
   `;
   return row?.game_server_number ?? null;
 }
-
-export async function assertAllianceHasNoGameServer(
-  sql: Sql,
-  allianceId: string,
-): Promise<void> {
-  const [row] = await sql<
-    { game_server_id: string | null; game_server_number: number | null }[]
-  >`
-    SELECT game_server_id, game_server_number
-    FROM alliances
-    WHERE id = ${allianceId}
-    LIMIT 1
-  `;
-  if (row?.game_server_id != null || row?.game_server_number != null) {
-    throw new Error(
-      `Expected alliance ${allianceId} to have no linked game server.`,
-    );
-  }
-}
