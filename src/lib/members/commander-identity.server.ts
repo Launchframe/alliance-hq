@@ -464,7 +464,11 @@ async function upsertCommanderRow(input: {
     })
     .returning({ id: schema.commanders.id });
 
-  return { commanderId: row!.id };
+  if (!row) {
+    throw new Error("commander_identity_insert_failed");
+  }
+
+  return { commanderId: row.id };
 }
 
 export async function upsertCommanderFromLink(input: {
@@ -640,127 +644,21 @@ export async function syncCommanderFromAllianceMember(input: {
 
   const displayName =
     input.memberDisplayName ?? memberRow.currentName ?? null;
-  const normalizedName = displayName
-    ? normalizeCommanderName(displayName)
-    : null;
-  const gameServerNumber = await resolveAllianceGameServerNumber(
-    input.allianceId,
-  );
-
-  if (!normalizedName) {
-    await setMemberCommanderSyncStatus(
-      input.allianceId,
-      input.ashedMemberId,
-      COMMANDER_SYNC_STATUS.PENDING,
-    );
-    return { status: "deferred", reason: COMMANDER_SYNC_STATUS.PENDING };
-  }
-
-  if (gameServerNumber == null) {
-    await setMemberCommanderSyncStatus(
-      input.allianceId,
-      input.ashedMemberId,
-      COMMANDER_SYNC_STATUS.MISSING_SERVER,
-    );
-    return { status: "deferred", reason: COMMANDER_SYNC_STATUS.MISSING_SERVER };
-  }
-
   const gameUid = await resolveGameUidForMember(
     input.allianceId,
     input.ashedMemberId,
     memberRow,
   );
+  const gameServerNumber = await resolveAllianceGameServerNumber(
+    input.allianceId,
+  );
 
-  const db = getDb();
-  const [existingMembership] = await db
-    .select({
-      commanderId: schema.commanderAllianceMemberships.commanderId,
-    })
-    .from(schema.commanderAllianceMemberships)
-    .where(
-      and(
-        eq(schema.commanderAllianceMemberships.allianceId, input.allianceId),
-        eq(
-          schema.commanderAllianceMemberships.ashedMemberId,
-          input.ashedMemberId,
-        ),
-      ),
-    )
-    .limit(1);
-
-  if (!gameUid) {
-    const orphan = await findOrphanCommanderByNameServer({
-      allianceId: input.allianceId,
-      normalizedName,
-      gameServerNumber,
-    });
-
-    if (orphan?.ashedMemberId && orphan.ashedMemberId !== input.ashedMemberId) {
-      const conflict: CommanderIdentityConflict = {
-        code: "name_taken_by_other_member",
-        ashedMemberId: input.ashedMemberId,
-        normalizedName,
-        gameServerNumber,
-        existingCommanderId: orphan.commander.id,
-      };
-      const reasonJson: CommanderConflictReasonJson = {
-        code: conflict.code,
-        normalizedName,
-        gameServerNumber,
-        existingCommanderId: orphan.commander.id,
-      };
-      await setMemberCommanderSyncStatus(
-        input.allianceId,
-        input.ashedMemberId,
-        COMMANDER_SYNC_STATUS.NAME_CONFLICT,
-        reasonJson,
-      );
-      return {
-        status: "deferred",
-        reason: COMMANDER_SYNC_STATUS.NAME_CONFLICT,
-        conflict,
-      };
-    }
-
-    if (!orphan) {
-      const taken = await findNameTakenByOtherMember({
-        allianceId: input.allianceId,
-        normalizedName,
-        gameServerNumber,
-        excludeAshedMemberId: input.ashedMemberId,
-      });
-      if (taken) {
-        const reasonJson: CommanderConflictReasonJson = {
-          code: taken.code,
-          normalizedName,
-          gameServerNumber,
-          existingCommanderId: taken.existingCommanderId,
-          existingMemberName: taken.existingMemberName,
-        };
-        await setMemberCommanderSyncStatus(
-          input.allianceId,
-          input.ashedMemberId,
-          COMMANDER_SYNC_STATUS.NAME_CONFLICT,
-          reasonJson,
-        );
-        return {
-          status: "deferred",
-          reason: COMMANDER_SYNC_STATUS.NAME_CONFLICT,
-          conflict: { ...taken, ashedMemberId: input.ashedMemberId },
-        };
-      }
-    }
-
-    const { commanderId } = await upsertCommanderRow({
-      gameUid: null,
-      gameServerNumber,
+  if (gameUid) {
+    const { commanderId } = await upsertCommanderFromLink({
+      gameUid,
       allianceId: input.allianceId,
       ashedMemberId: input.ashedMemberId,
       memberDisplayName: displayName,
-      existingCommanderId:
-        orphan?.ashedMemberId === input.ashedMemberId || orphan?.ashedMemberId == null
-          ? orphan?.commander.id ?? existingMembership?.commanderId ?? null
-          : existingMembership?.commanderId ?? null,
     });
 
     await upsertCommanderAllianceMembership({
@@ -780,11 +678,118 @@ export async function syncCommanderFromAllianceMember(input: {
     return { status: "synced", commanderId };
   }
 
-  const { commanderId } = await upsertCommanderFromLink({
-    gameUid,
+  const normalizedName = displayName
+    ? normalizeCommanderName(displayName)
+    : null;
+
+  if (!normalizedName) {
+    await setMemberCommanderSyncStatus(
+      input.allianceId,
+      input.ashedMemberId,
+      COMMANDER_SYNC_STATUS.PENDING,
+    );
+    return { status: "deferred", reason: COMMANDER_SYNC_STATUS.PENDING };
+  }
+
+  if (gameServerNumber == null) {
+    await setMemberCommanderSyncStatus(
+      input.allianceId,
+      input.ashedMemberId,
+      COMMANDER_SYNC_STATUS.MISSING_SERVER,
+    );
+    return { status: "deferred", reason: COMMANDER_SYNC_STATUS.MISSING_SERVER };
+  }
+
+  const db = getDb();
+  const [existingMembership] = await db
+    .select({
+      commanderId: schema.commanderAllianceMemberships.commanderId,
+    })
+    .from(schema.commanderAllianceMemberships)
+    .where(
+      and(
+        eq(schema.commanderAllianceMemberships.allianceId, input.allianceId),
+        eq(
+          schema.commanderAllianceMemberships.ashedMemberId,
+          input.ashedMemberId,
+        ),
+      ),
+    )
+    .limit(1);
+
+  const orphan = await findOrphanCommanderByNameServer({
+    allianceId: input.allianceId,
+    normalizedName,
+    gameServerNumber,
+  });
+
+  if (orphan?.ashedMemberId && orphan.ashedMemberId !== input.ashedMemberId) {
+    const conflict: CommanderIdentityConflict = {
+      code: "name_taken_by_other_member",
+      ashedMemberId: input.ashedMemberId,
+      normalizedName,
+      gameServerNumber,
+      existingCommanderId: orphan.commander.id,
+    };
+    const reasonJson: CommanderConflictReasonJson = {
+      code: conflict.code,
+      normalizedName,
+      gameServerNumber,
+      existingCommanderId: orphan.commander.id,
+    };
+    await setMemberCommanderSyncStatus(
+      input.allianceId,
+      input.ashedMemberId,
+      COMMANDER_SYNC_STATUS.NAME_CONFLICT,
+      reasonJson,
+    );
+    return {
+      status: "deferred",
+      reason: COMMANDER_SYNC_STATUS.NAME_CONFLICT,
+      conflict,
+    };
+  }
+
+  if (!orphan) {
+    const taken = await findNameTakenByOtherMember({
+      allianceId: input.allianceId,
+      normalizedName,
+      gameServerNumber,
+      excludeAshedMemberId: input.ashedMemberId,
+    });
+    if (taken) {
+      const reasonJson: CommanderConflictReasonJson = {
+        code: taken.code,
+        normalizedName,
+        gameServerNumber,
+        existingCommanderId: taken.existingCommanderId,
+        existingMemberName: taken.existingMemberName,
+      };
+      await setMemberCommanderSyncStatus(
+        input.allianceId,
+        input.ashedMemberId,
+        COMMANDER_SYNC_STATUS.NAME_CONFLICT,
+        reasonJson,
+      );
+      return {
+        status: "deferred",
+        reason: COMMANDER_SYNC_STATUS.NAME_CONFLICT,
+        conflict: { ...taken, ashedMemberId: input.ashedMemberId },
+      };
+    }
+  }
+
+  const { commanderId } = await upsertCommanderRow({
+    gameUid: null,
+    gameServerNumber,
     allianceId: input.allianceId,
     ashedMemberId: input.ashedMemberId,
     memberDisplayName: displayName,
+    existingCommanderId:
+      orphan?.ashedMemberId === input.ashedMemberId ||
+      orphan?.ashedMemberId == null
+        ? orphan?.commander.id ?? existingMembership?.commanderId ?? null
+        : existingMembership?.commanderId ?? null,
   });
 
   await upsertCommanderAllianceMembership({

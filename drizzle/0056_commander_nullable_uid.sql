@@ -37,7 +37,143 @@ WHERE cam."commander_id" = c."id"
   AND c."game_server_number" IS NULL
   AND a."game_server_number" IS NOT NULL;
 
--- Orphan commanders for roster rows without commander membership (UID-known first).
+-- UID-known roster rows may have been skipped by 0055 if the Commander existed
+-- but the alliance membership was missing or pointed at an orphan. Repair those
+-- before the nullable-UID orphan path.
+INSERT INTO "commanders" (
+  "id",
+  "game_uid",
+  "game_server_number",
+  "primary_name",
+  "primary_name_normalized",
+  "profession",
+  "professional_level",
+  "member_level",
+  "hero_power_m",
+  "power_level",
+  "current_kills",
+  "current_total_hero_power",
+  "current_squad_power_json",
+  "created_at",
+  "updated_at"
+)
+SELECT
+  'cmd_' || md5(src."game_uid"),
+  src."game_uid",
+  src."game_server_number",
+  src."current_name",
+  src."primary_name_normalized",
+  src."profession",
+  src."professional_level",
+  src."member_level",
+  src."hero_power_m",
+  src."power_level",
+  src."current_kills",
+  src."current_total_hero_power",
+  src."current_squad_power_json",
+  src."created_at",
+  src."updated_at"
+FROM (
+  SELECT DISTINCT ON (trim(am."game_uid"))
+    trim(am."game_uid") AS "game_uid",
+    a."game_server_number",
+    am."current_name",
+    CASE
+      WHEN trim(am."current_name") <> ''
+      THEN lower(trim(regexp_replace(am."current_name", '\s+', ' ', 'g')))
+      ELSE NULL
+    END AS "primary_name_normalized",
+    am."profession",
+    am."professional_level",
+    am."member_level",
+    am."hero_power_m",
+    am."power_level",
+    am."current_kills",
+    am."current_total_hero_power",
+    am."current_squad_power_json",
+    am."created_at",
+    am."updated_at"
+  FROM "alliance_members" am
+  LEFT JOIN "alliances" a ON a."id" = am."alliance_id"
+  WHERE am."game_uid" IS NOT NULL
+    AND trim(am."game_uid") <> ''
+  ORDER BY trim(am."game_uid"), am."updated_at" DESC
+) src
+ON CONFLICT ("game_uid") WHERE "game_uid" IS NOT NULL DO UPDATE SET
+  "game_server_number" = COALESCE(EXCLUDED."game_server_number", "commanders"."game_server_number"),
+  "primary_name" = COALESCE(EXCLUDED."primary_name", "commanders"."primary_name"),
+  "primary_name_normalized" = COALESCE(EXCLUDED."primary_name_normalized", "commanders"."primary_name_normalized"),
+  "profession" = COALESCE(EXCLUDED."profession", "commanders"."profession"),
+  "professional_level" = COALESCE(EXCLUDED."professional_level", "commanders"."professional_level"),
+  "member_level" = COALESCE(EXCLUDED."member_level", "commanders"."member_level"),
+  "hero_power_m" = COALESCE(EXCLUDED."hero_power_m", "commanders"."hero_power_m"),
+  "power_level" = COALESCE(EXCLUDED."power_level", "commanders"."power_level"),
+  "current_kills" = COALESCE(EXCLUDED."current_kills", "commanders"."current_kills"),
+  "current_total_hero_power" = COALESCE(EXCLUDED."current_total_hero_power", "commanders"."current_total_hero_power"),
+  "current_squad_power_json" = COALESCE(EXCLUDED."current_squad_power_json", "commanders"."current_squad_power_json"),
+  "updated_at" = GREATEST("commanders"."updated_at", EXCLUDED."updated_at");
+
+UPDATE "commander_alliance_memberships" cam
+SET "commander_id" = c."id",
+    "ashed_alliance_id" = am."ashed_alliance_id",
+    "status" = CASE WHEN am."status" = 'active' THEN 'active' ELSE 'former' END,
+    "left_at" = CASE WHEN am."status" = 'active' THEN NULL ELSE COALESCE(cam."left_at", am."updated_at") END,
+    "alliance_rank" = am."alliance_rank",
+    "alliance_rank_title" = am."alliance_rank_title",
+    "roster_name_at_membership" = am."current_name",
+    "updated_at" = am."updated_at"
+FROM "alliance_members" am
+INNER JOIN "commanders" c ON c."game_uid" = trim(am."game_uid")
+WHERE cam."alliance_id" = am."alliance_id"
+  AND cam."ashed_member_id" = am."ashed_member_id"
+  AND am."game_uid" IS NOT NULL
+  AND trim(am."game_uid") <> '';
+
+INSERT INTO "commander_alliance_memberships" (
+  "id",
+  "commander_id",
+  "alliance_id",
+  "ashed_member_id",
+  "ashed_alliance_id",
+  "status",
+  "joined_at",
+  "left_at",
+  "alliance_rank",
+  "alliance_rank_title",
+  "roster_name_at_membership",
+  "created_at",
+  "updated_at"
+)
+SELECT
+  'cam_' || md5(c."game_uid" || ':' || am."alliance_id" || ':' || am."ashed_member_id"),
+  c."id",
+  am."alliance_id",
+  am."ashed_member_id",
+  am."ashed_alliance_id",
+  CASE WHEN am."status" = 'active' THEN 'active' ELSE 'former' END,
+  COALESCE(mat."joined_at", am."created_at"),
+  CASE WHEN am."status" = 'active' THEN NULL ELSE COALESCE(mat."left_at", am."updated_at") END,
+  am."alliance_rank",
+  am."alliance_rank_title",
+  am."current_name",
+  am."created_at",
+  am."updated_at"
+FROM "alliance_members" am
+INNER JOIN "commanders" c ON c."game_uid" = trim(am."game_uid")
+LEFT JOIN "member_alliance_tenure" mat
+  ON mat."alliance_id" = am."alliance_id"
+ AND mat."ashed_member_id" = am."ashed_member_id"
+ AND mat."left_at" IS NULL
+WHERE am."game_uid" IS NOT NULL
+  AND trim(am."game_uid") <> ''
+  AND NOT EXISTS (
+    SELECT 1 FROM "commander_alliance_memberships" existing_cam
+    WHERE existing_cam."alliance_id" = am."alliance_id"
+      AND existing_cam."ashed_member_id" = am."ashed_member_id"
+  )
+ON CONFLICT ("alliance_id", "ashed_member_id") DO NOTHING;
+
+-- Orphan commanders for roster rows without commander membership.
 INSERT INTO "commanders" (
   "id",
   "game_uid",

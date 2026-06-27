@@ -22,6 +22,7 @@ const mockDb = vi.hoisted(() => {
     chain.where = passthrough;
     chain.limit = passthrough;
     chain.orderBy = passthrough;
+    // biome-ignore lint/suspicious/noThenProperty: Drizzle query builders are awaitable.
     chain.then = (resolve: (value: unknown) => void) => {
       const result = mockState.selectResults[mockState.selectCallIndex] ?? [];
       mockState.selectCallIndex += 1;
@@ -190,9 +191,9 @@ describe("commander-identity.server", () => {
     };
     mockState.selectResults.push(
       [ghostMember],
+      [],
+      [],
       [{ gameServerNumber: 100 }],
-      [],
-      [],
       [],
       [],
       [],
@@ -221,6 +222,8 @@ describe("commander-identity.server", () => {
   it("syncCommanderFromAllianceMember defers when game server is unset", async () => {
     mockState.selectResults.push(
       [{ currentName: "Ghost", status: "active", gameUid: null }],
+      [],
+      [],
       [{ gameServerNumber: null }],
     );
 
@@ -250,7 +253,6 @@ describe("commander-identity.server", () => {
     mockState.selectResults.push(
       [memberRow],
       [{ gameServerNumber: 100 }],
-      [],
       [{ gameServerNumber: 100 }],
       [memberRow],
       [],
@@ -274,6 +276,75 @@ describe("commander-identity.server", () => {
       allianceId: "alliance-a",
       ashedMemberId: "member-3",
       status: "active",
+    });
+  });
+
+  it("syncCommanderFromAllianceMember syncs UID-known rows without an alliance server", async () => {
+    const memberRow = {
+      currentName: "Serverless",
+      status: "active",
+      gameUid: "2222333344445555",
+      ashedAllianceId: "aa-4",
+    };
+    mockState.selectResults.push(
+      [memberRow],
+      [{ gameServerNumber: null }],
+      [{ gameServerNumber: null }],
+      [memberRow],
+      [memberRow],
+      [],
+      [memberRow],
+      [],
+    );
+
+    const result = await syncCommanderFromAllianceMember({
+      allianceId: "alliance-a",
+      ashedMemberId: "member-serverless",
+    });
+
+    expect(result.status).toBe("synced");
+    expect(mockState.insertedCommanders[0]).toMatchObject({
+      gameUid: "2222333344445555",
+      gameServerNumber: null,
+      primaryName: "Serverless",
+    });
+    expect(mockState.insertedMemberships[0]).toMatchObject({
+      allianceId: "alliance-a",
+      ashedMemberId: "member-serverless",
+    });
+  });
+
+  it("syncCommanderFromAllianceMember syncs UID-known rows with a blank roster name", async () => {
+    const memberRow = {
+      currentName: "",
+      status: "active",
+      gameUid: "3333444455556666",
+      ashedAllianceId: "aa-5",
+    };
+    mockState.selectResults.push(
+      [memberRow],
+      [{ gameServerNumber: 100 }],
+      [{ gameServerNumber: 100 }],
+      [memberRow],
+      [memberRow],
+      [],
+      [memberRow],
+      [],
+    );
+
+    const result = await syncCommanderFromAllianceMember({
+      allianceId: "alliance-a",
+      ashedMemberId: "member-blank-name",
+    });
+
+    expect(result.status).toBe("synced");
+    expect(mockState.insertedCommanders[0]).toMatchObject({
+      gameUid: "3333444455556666",
+      primaryName: "",
+    });
+    expect(mockState.insertedMemberships[0]).toMatchObject({
+      allianceId: "alliance-a",
+      ashedMemberId: "member-blank-name",
     });
   });
 
