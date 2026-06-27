@@ -59,8 +59,16 @@ fi
 BRANCH="$1"
 BASE="${2:-${DEFAULT_BASE}}"
 
+if [[ -z "${BRANCH}" ]]; then
+  usage
+fi
+
 # Worktree directory name: repo + sanitized branch leaf (drop any `feat/` etc.).
 BRANCH_LEAF="${BRANCH##*/}"
+if [[ "${BRANCH_LEAF}" == "." || "${BRANCH_LEAF}" == ".." ]]; then
+  echo "Refusing unsafe worktree directory name derived from branch '${BRANCH}'." >&2
+  exit 1
+fi
 WORKTREE_DIR="$(cd "${ROOT_DIR}/.." && pwd)/${REPO_NAME}-${BRANCH_LEAF}"
 
 if [[ -e "${WORKTREE_DIR}" ]]; then

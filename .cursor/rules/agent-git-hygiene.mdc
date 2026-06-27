@@ -25,11 +25,12 @@ Parallel Cursor agents (Multitask mode, background subagents, or separate chats)
 When **more than one agent** may write code at the same time — including Multitask mode — each writer gets its **own worktree directory** and **own branch**:
 
 ```bash
-# From the primary clone (repo root)
-git fetch origin
-git worktree add ../alliance-hq-<short-topic> -b feat/<topic> origin/main
+# From the primary clone (repo root) — preferred: worktree + env copy in one step
+./scripts/new-worktree.sh feat/<topic>
 # or track an existing PR branch:
-git worktree add ../alliance-hq-pr-82 origin/feat/video-review-draft-persistence
+./scripts/new-worktree.sh feat/video-review-draft-persistence
+# manual (remember to copy .env.local afterward — see "Worktree env" below):
+git fetch origin && git worktree add ../alliance-hq-<short-topic> -b feat/<topic> origin/main
 ```
 
 `<short-topic>` must be **unique on the filesystem**. When multiple agents may work on related areas concurrently, disambiguate with an issue number or PR number (e.g. `../alliance-hq-auth-123`) to avoid path collisions.
@@ -50,7 +51,7 @@ git worktree add ../alliance-hq-pr-82 origin/feat/video-review-draft-persistence
 
 ## Worktree env (`.env.local`) — copy, never read
 
-A fresh `git worktree add` starts with **no** gitignored local env (`.env.local`, `.env`, `.env.*.local`). The new worktree then runs with missing DB URLs, `AUTH_SECRET`, `TOKEN_ENCRYPTION_KEY`, and OAuth credentials — symptoms include 500s on auth/session pages and **missing Google/Discord buttons** on `/auth` (provider gating reads `process.env`). A stale Playwright-generated `.env.local` left in a worktree (the e2e harness writes one — see `scripts/e2e-env-file.mjs`) causes the same.
+A fresh `git worktree add` starts with **no** gitignored local env (`.env.local`, `.env`, `.env.*.local`). The new worktree then runs with missing DB URLs, `AUTH_SECRET`, `TOKEN_ENCRYPTION_KEY`, and OAuth credentials — symptoms include 500s on auth/session pages and **missing Google/Discord buttons** on `/auth` (provider gating reads `process.env`). A stale Playwright-generated `.env.local` left in a worktree (the e2e harness may swap one — see `scripts/e2e-server.mjs`) causes the same.
 
 - **Always copy local env into a new worktree.** Use the helper, which `git worktree add`s and copies the env files in one step:
 
