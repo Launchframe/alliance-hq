@@ -4,10 +4,8 @@ import {
   type DiscordBotLocale,
   type DiscordTranslate,
 } from "@/lib/discord/i18n";
-import {
-  buildDiscordBotGuideUrl,
-  helpMessageKeyToGuideRole,
-} from "@/lib/guides/discord-bot-guide.shared";
+import { buildDiscordBotGuideUrl } from "@/lib/guides/discord-bot-guide.server";
+import { helpMessageKeyToGuideRole } from "@/lib/guides/discord-bot-guide.shared";
 import { allianceHasBotCredentials } from "@/lib/vr/member-roster";
 import {
   callerIsAllianceOwner,

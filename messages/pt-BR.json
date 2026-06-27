@@ -1014,7 +1014,9 @@
         "adminPortal": "Ir para Portal Admin",
         "opsInbox": "Ir para Caixa Ops",
         "account": "Ir para Configurações da conta",
-        "settings": "Ir para Configurações"
+        "settings": "Ir para Configurações",
+        "discordBotGuide": "Ir para Ajuda do bot Discord",
+        "discordTrainGuide": "Ir para Guia do trem no Discord"
       },
       "admin": {
         "overview": "Visão geral Admin",
@@ -2880,7 +2882,7 @@
       "setupOwnerAshedSeat": "Este servidor ainda não está registrado. **Dono R5:** conclua a etapa no navegador e depois `/link-alliance tag:SuaTag`.\n\n**Guia:** {guideUrl}",
       "setupLinkAlliance": "**Dono ou mantenedor:** registre este servidor com `/link-alliance tag:SuaTag`.\n\n**Guia:** {guideUrl}",
       "waitForOwnerAuth": "Aguardando o dono registrar este servidor com `/link-alliance`. Vincule seu comandante com `/link-commander` após o registro.",
-      "linkCommander": "Vincule seu comandante: `/link-commander name:… uid:…` ou `/link` para o formulário no navegador. Dificuldade ao copiar o nome? Veja **Copiar nome e UID** no guia.\n\n**Guia:** {guideUrl}",
+      "linkCommander": "Vincule seu comandante: `/link-commander name:… uid:…`. Precisa de passos? Execute `/link-commander` com um nome errado, toque **Começar de novo** e depois **Concluído** após o tutorial.\n\n**Guia:** {guideUrl}",
       "memberReady": "Você está vinculado. Use `/vr` ou `/immunity` quando o VR base mudar. `/who-is-conductor` mostra o condutor de hoje.\n\n**Guia:** {guideUrl}",
       "memberReadyMulti": "Você tem **{count}** comandantes vinculados. `/vr` e `/immunity` perguntarão qual usar. `/unlink` remove um vínculo.\n\n**Guia:** {guideUrl}",
       "ownerReady": "Você está vinculado como dono (**{tag}**). Conclua: `/set-vr-report-channel`, `/set-train-channel`, depois compartilhe `/link-commander` com os membros.\n\n**Guia:** {guideUrl}",
@@ -3005,7 +3007,7 @@
         },
         "link-only": {
           "title": "I just want to link my commander",
-          "description": "The server is already set up. You only need /link with your in-game name and UID."
+          "description": "The server is already set up. You only need /link-commander with your in-game name and UID."
         }
       },
       "flow": {
@@ -3013,14 +3015,16 @@
         "backToRoles": "← All roles",
         "backToFlow": "← Back to flowchart",
         "optional": "Optional",
-        "tapStep": "Tap a step for detailed instructions."
+        "tapStep": "Tap a step for detailed instructions.",
+        "instructionsHeading": "Instructions",
+        "commandLabel": "Discord command"
       },
       "steps": {
         "linkSelf": {
           "title": "Link your commander",
           "summary": "Prove which in-game character is yours by submitting the exact name and player UID from your profile.",
-          "command": "/link name:YourExactName uid:123456789012 — or /link-commander with the same options",
-          "instructions": "In Discord (fast):\n1. Run /link name:YourExactName uid:123456789012 (or /link-commander with the same options).\n\nIn browser (easier to copy/paste):\n1. Run /link with no options.\n2. Open the secure link (expires in 30 minutes).\n3. Paste name and UID, then submit.\n\nYou can link up to 5 commanders per Discord account. Use /unlink to remove one.",
+          "command": "/link-commander name:YourExactName uid:123456789012 — or /link-last-war-profile with the same options",
+          "instructions": "In Discord (fast):\n1. Run /link-commander name:YourExactName uid:123456789012.\n\nIn-Discord walkthrough (if copying is hard):\n1. Run /link-commander with a wrong name once.\n2. Tap **Start over** and follow the prompts.\n3. Tap **Done**, then run /link-commander again with the copied name and UID.\n\nYou can link up to 5 commanders per Discord account. Use /unlink to remove one.",
           "tip": "Spelling and capitalization must match the game. When in doubt, use Copy next to your name in the profile menu — do not retype it."
         },
         "registerGuild": {
@@ -3032,8 +3036,8 @@
         "optionalAshed": {
           "title": "Optional: roster sync tools",
           "summary": "Connect Ashed credentials if your alliance uses ashed.online for roster sync and iframe tools. Not required for basic bot use.",
-          "command": "/link-to-ashed-seat tag:YourTag",
-          "instructions": "1. Run /link-to-ashed-seat tag:YourTag.\n2. Open the secure browser link and submit your Ashed connection key.\n3. This enables live roster reads for the bot — skip if you run a native alliance without Ashed."
+          "command": "/link-ashed tag:YourTag",
+          "instructions": "1. Run /link first to link your Discord account to Alliance HQ.\n2. Run /link-ashed tag:YourTag.\n3. Open the secure browser link and submit your Ashed connection key.\n4. This enables live roster reads for the bot — skip if you run a native alliance without Ashed."
         },
         "vrChannel": {
           "title": "Nightly VR report channel",

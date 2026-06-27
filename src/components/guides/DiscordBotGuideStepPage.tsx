@@ -57,14 +57,14 @@ export function DiscordBotGuideStepPage({ role, stepSlug }: Props) {
       {command ? (
         <div className="rounded-lg border border-[#30363d] bg-[#0d1117] px-4 py-3">
           <p className="text-xs font-medium uppercase tracking-wide text-[#6e7681]">
-            Discord command
+            {t("flow.commandLabel")}
           </p>
           <p className="mt-1 font-mono text-sm text-[#e6edf3]">{command}</p>
         </div>
       ) : null}
 
       <section className="space-y-3">
-        <h2 className="text-base font-medium">Instructions</h2>
+        <h2 className="text-base font-medium">{t("flow.instructionsHeading")}</h2>
         <p className="whitespace-pre-line text-sm leading-relaxed text-[#c9d1d9]">
           {t(`steps.${messageKey}.instructions`)}
         </p>

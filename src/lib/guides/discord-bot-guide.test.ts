@@ -4,7 +4,6 @@ import {
   DISCORD_BOT_GUIDE_ROLE_SLUGS,
   DISCORD_BOT_GUIDE_ROLE_STEPS,
   buildDiscordBotGuidePath,
-  buildDiscordBotGuideUrl,
   getDiscordBotGuideStep,
   helpMessageKeyToGuideRole,
   isDiscordBotGuideRoleSlug,
@@ -40,18 +39,6 @@ describe("discord-bot-guide.shared", () => {
     expect(
       buildDiscordBotGuidePath("en-US", { role: "link-only", step: "link-self" }),
     ).toBe("/guides/discord-bot/link-only/link-self");
-  });
-
-  it("builds absolute guide URLs from NEXT_PUBLIC_APP_URL", () => {
-    const prev = process.env.NEXT_PUBLIC_APP_URL;
-    process.env.NEXT_PUBLIC_APP_URL = "https://frontline.gay";
-    try {
-      expect(buildDiscordBotGuideUrl("en-US", { role: "member" })).toBe(
-        "https://frontline.gay/guides/discord-bot/member",
-      );
-    } finally {
-      process.env.NEXT_PUBLIC_APP_URL = prev;
-    }
   });
 
   it("maps help keys to guide roles", () => {

@@ -186,6 +186,22 @@ const NAV_ACTIONS: HotkeyActionDef[] = [
     kind: "navigate",
     href: "/settings",
   },
+  {
+    id: "nav.discordBotGuide",
+    labelKey: "actions.nav.discordBotGuide",
+    category: "navigation",
+    scope: "global",
+    kind: "navigate",
+    href: "/guides/discord-bot",
+  },
+  {
+    id: "nav.discordTrainGuide",
+    labelKey: "actions.nav.discordTrainGuide",
+    category: "navigation",
+    scope: "global",
+    kind: "navigate",
+    href: "/guides/discord-train",
+  },
 ];
 
 const ADMIN_SEQUENCE_KEYS = [
