@@ -680,6 +680,18 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     [activeRows, filterQuery],
   );
 
+  const closePreview = useCallback(() => {
+    setPreviewOpen(false);
+    setPreviewFollowMe(false);
+  }, [setPreviewOpen, setPreviewFollowMe]);
+
+  const togglePreviewOpen = useCallback(() => {
+    setPreviewOpen((open) => {
+      if (open) setPreviewFollowMe(false);
+      return !open;
+    });
+  }, [setPreviewOpen, setPreviewFollowMe]);
+
   const openRowVideoPreview = useCallback(
     (row: ParsedRow) => {
       const seconds = previewSeekSecondsForFrame(
@@ -706,7 +718,8 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   const scoreTableFollowMeEnabled =
     hasSourceVideo &&
     !scoreTargetMeta?.showRosterColumns &&
-    previewFollowMe;
+    previewFollowMe &&
+    previewOpen;
 
   const { registerFollowAnchor } = useVideoReviewFollowMe({
     enabled: scoreTableFollowMeEnabled,
@@ -1067,7 +1080,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
       onPlacementChange={setPreviewPlacement}
       zoom={previewZoom}
       onZoomChange={setPreviewZoom}
-      onClose={() => setPreviewOpen(false)}
+      onClose={closePreview}
       unavailable={!hasSourceVideo}
       seekRequest={previewSeekRequest}
       sideWidthPx={previewSideWidthPx}
@@ -1114,7 +1127,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
             {hasSourceVideo ? (
               <button
                 type="button"
-                onClick={() => setPreviewOpen((open) => !open)}
+                onClick={togglePreviewOpen}
                 className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm ${
                   previewOpen
                     ? "border-[#58a6ff] bg-[#0c2d6b]/40 text-[#58a6ff]"
