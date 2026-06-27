@@ -44,6 +44,7 @@ type Props = {
   showAdminPortal?: boolean;
   showTeamAccess?: boolean;
   showVideoQueue?: boolean;
+  showVideoProcessorsNav?: boolean;
   showAllianceSettings?: boolean;
   activeAllianceTag?: string | null;
   currentAllianceId?: string | null;
@@ -72,6 +73,7 @@ export function AshedShell({
   showAdminPortal = false,
   showTeamAccess = false,
   showVideoQueue = false,
+  showVideoProcessorsNav = false,
   showAllianceSettings = false,
   activeAllianceTag = null,
   currentAllianceId = null,
@@ -167,6 +169,7 @@ export function AshedShell({
               showAdminPortal={showAdminPortal}
               showTeamAccess={showTeamAccess}
               showVideoQueue={showVideoQueue}
+              showVideoProcessorsNav={showVideoProcessorsNav}
               showAllianceSettings={showAllianceSettings}
               activeAllianceTag={activeAllianceTag}
               operatingMode={operatingMode}

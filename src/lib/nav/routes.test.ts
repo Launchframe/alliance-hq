@@ -140,6 +140,12 @@ describe("navLinkActive", () => {
     expect(
       navLinkActive("/tools/video-upload/job-1/review", "/tools/video-upload"),
     ).toBe(true);
+    expect(navLinkActive("/tools/video-processors", "/tools/video-processors")).toBe(
+      true,
+    );
+    expect(
+      navLinkActive("/tools/video-processors", "/tools/video-upload"),
+    ).toBe(false);
   });
 });
 

@@ -25,7 +25,29 @@ type JobDetail = {
   ratingReason?: string | null;
   qualityBucket?: string | null;
   qualityScore?: number | null;
+  passKey?: string | null;
+  passRole?: string | null;
+  extractionConfigJson?: unknown;
 };
+
+/** Returns the total OCR phase ms from whatever engine ran (ashed / native / mock). */
+function resolveOcrTotalMs(
+  phases: VideoProcessTimings["phases"] | undefined,
+): number | undefined {
+  if (!phases) return undefined;
+  const candidates = [
+    "ashed.ocr_total",
+    "ashed.roster_ocr_total",
+    "tesseract.roster_ocr_total",
+    "mock.ocr_total",
+    "mock.roster_ocr_total",
+  ] as const;
+  for (const key of candidates) {
+    const v = phases[key as keyof typeof phases];
+    if (typeof v === "number") return v;
+  }
+  return undefined;
+}
 
 const QUALITY_BUCKET_COLORS: Record<string, string> = {
   perfect: "bg-[#3fb95020] text-[#3fb950] border-[#3fb950]",
@@ -637,7 +659,7 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
         </div>
         <div>
           <p className="text-xs text-[#8b949e]">{tDetail("ocrTime")}</p>
-          <p>{formatMs(timings?.phases?.["ashed.ocr_total"])}</p>
+          <p>{formatMs(resolveOcrTotalMs(timings?.phases))}</p>
         </div>
         <div>
           <p className="text-xs text-[#8b949e]">{tDetail("frameBytes")}</p>
@@ -671,6 +693,12 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
             ) : null}
           </div>
         </div>
+        {(job.passKey ?? job.passRole) ? (
+          <div>
+            <p className="text-xs text-[#8b949e]">{tDetail("passKey")}</p>
+            <p className="font-mono text-xs">{job.passKey ?? job.passRole}</p>
+          </div>
+        ) : null}
       </div>
 
       {data.survey ? (
@@ -1222,7 +1250,7 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
               {tDetail("timingsSummary", {
                 total: formatMs(timings.totalMs),
                 ffmpeg: formatMs(timings.phases?.["ffmpeg.extract"]),
-                ocr: formatMs(timings.phases?.["ashed.ocr_total"]),
+                ocr: formatMs(resolveOcrTotalMs(timings.phases)),
                 frames: timings.frameCount,
               })}
             </p>

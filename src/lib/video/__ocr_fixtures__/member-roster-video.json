@@ -1,0 +1,35 @@
+[
+  {
+    "currentName": "Leader BigDaddy",
+    "rosterRankRaw": "R5",
+    "allianceRank": 5,
+    "allianceRankTitle": "Leader",
+    "powerLevel": "8.5M",
+    "heroPowerM": 8.5,
+    "memberLevel": 95,
+    "profession": null,
+    "status": null
+  },
+  {
+    "currentName": "Warlord TigerShark",
+    "rosterRankRaw": "R4",
+    "allianceRank": 4,
+    "allianceRankTitle": "Warlord",
+    "powerLevel": "4.2M",
+    "heroPowerM": 4.2,
+    "memberLevel": 80,
+    "profession": null,
+    "status": null
+  },
+  {
+    "currentName": "Recruiter StarDust",
+    "rosterRankRaw": "R4",
+    "allianceRank": 4,
+    "allianceRankTitle": "Recruiter",
+    "powerLevel": null,
+    "heroPowerM": null,
+    "memberLevel": 75,
+    "profession": null,
+    "status": null
+  }
+]

@@ -386,6 +386,37 @@ export function AdminVideoAnalyticsView() {
                       </table>
                     </div>
                   ) : null}
+                  {rosterEval.dailySeries.length > 0 ? (
+                    <div className="overflow-x-auto">
+                      <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-[#8b949e]">
+                        {t("rosterOcrEval.dailyTrend")}
+                      </h3>
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="border-b border-[#30363d] text-[#8b949e] uppercase tracking-wide">
+                            <th className="pb-2 text-left">{t("rosterOcrEval.colDate")}</th>
+                            <th className="pb-2 text-left">{t("rosterOcrEval.colPass")}</th>
+                            <th className="pb-2 text-right">{t("rosterOcrEval.colJobs")}</th>
+                            <th className="pb-2 text-right">{t("rosterOcrEval.nameRecall")}</th>
+                            <th className="pb-2 text-right">{t("rosterOcrEval.namePrecision")}</th>
+                            <th className="pb-2 text-right">{t("rosterOcrEval.rankAgreement")}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {rosterEval.dailySeries.map((row) => (
+                            <tr key={`${row.date}-${row.passKey}`} className="border-b border-[#21262d]">
+                              <td className="py-2 text-[#e6edf3]">{row.date}</td>
+                              <td className="py-2 font-mono text-[#79c0ff]">{row.passKey}</td>
+                              <td className="py-2 text-right text-[#e6edf3]">{row.jobCount}</td>
+                              <td className="py-2 text-right text-[#8b949e]">{pct(row.nameRecall, 1)}</td>
+                              <td className="py-2 text-right text-[#8b949e]">{pct(row.namePrecision, 1)}</td>
+                              <td className="py-2 text-right text-[#8b949e]">{pct(row.rankAgreement, 1)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : null}
                 </>
               )}
             </section>

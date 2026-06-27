@@ -4,9 +4,12 @@ import { eq } from "drizzle-orm";
 import { writeAuditLog } from "@/lib/bff/audit";
 import { emitVideoJobStatus } from "@/lib/events/video-jobs";
 import { getDb, schema } from "@/lib/db";
+import { assignRosterOcrExperiment } from "@/lib/members/roster-ocr/assign-roster-config";
 import { getAshedConnection, getOrCreateSession } from "@/lib/session";
 import { sessionCanProcessVideo } from "@/lib/video/processor-slots.server";
+import { resolveVideoOcrEngineForJob, engineRequiresAshed } from "@/lib/video/ocr-provider.shared";
 import { dispatchVideoProcessing } from "@/lib/video/trigger-processing";
+import { isMemberRosterVideoTarget } from "@/lib/video/score-targets";
 
 type Props = {
   params: Promise<{ jobId: string }>;
@@ -54,16 +57,43 @@ export async function POST(_request: Request, { params }: Props) {
       );
     }
 
-    const connection = await getAshedConnection(session.id);
-    if (!connection) {
-      return NextResponse.json(
-        {
-          error: "Connect Ashed to process videos.",
-          code: "ashed_not_connected",
-          connectUrl: "/connect",
-        },
-        { status: 409 },
-      );
+    const scoreTargetId = job.scoreTarget ?? job.category ?? "desert-storm";
+    const ocrEngine = resolveVideoOcrEngineForJob(
+      scoreTargetId,
+      isMemberRosterVideoTarget(scoreTargetId),
+    );
+
+    if (engineRequiresAshed(ocrEngine)) {
+      const connection = await getAshedConnection(session.id);
+      if (!connection) {
+        return NextResponse.json(
+          {
+            error: "Connect Ashed to process videos.",
+            code: "ashed_not_connected",
+            connectUrl: "/connect",
+          },
+          { status: 409 },
+        );
+      }
+    }
+
+    // For native engine (local/mock primary mode) on roster targets, stamp the
+    // experiment-assigned passKey + config onto the job row so the OCR pass
+    // uses the tunable config and the job detail shows which knobs ran.
+    let nativeConfigPatch: {
+      passKey?: string | null;
+      extractionConfigJson?: unknown;
+    } = {};
+    if (
+      (ocrEngine === "native" || ocrEngine === "mock") &&
+      isMemberRosterVideoTarget(scoreTargetId) &&
+      !job.passKey
+    ) {
+      const assignment = await assignRosterOcrExperiment();
+      nativeConfigPatch = {
+        passKey: assignment.passKey ?? null,
+        extractionConfigJson: assignment.config,
+      };
     }
 
     const now = new Date();
@@ -76,6 +106,7 @@ export async function POST(_request: Request, { params }: Props) {
         approvedAt: now,
         errorMessage: null,
         updatedAt: now,
+        ...nativeConfigPatch,
       })
       .where(eq(schema.videoJobs.id, jobId));
 

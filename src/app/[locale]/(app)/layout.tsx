@@ -101,6 +101,7 @@ export default async function AppLayout({
         showAdminPortal={state.permissions.includes("hq:admin")}
         showTeamAccess={state.showTeamAccess}
         showVideoQueue={showVideoQueue}
+        showVideoProcessorsNav={state.showVideoProcessorsNav}
         showAllianceSettings={Boolean(state.currentAllianceId)}
         activeAllianceTag={state.allianceTag}
         currentAllianceId={

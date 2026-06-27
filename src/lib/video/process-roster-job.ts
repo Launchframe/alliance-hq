@@ -7,6 +7,7 @@ import { getAshedAllianceIdIfLinked } from "@/lib/alliance/ashed-write-guard";
 import { getSessionAllianceTag } from "@/lib/alliance/session-alliance";
 import type { ParsedConnection } from "@/lib/connectionString";
 import { getDb, schema } from "@/lib/db";
+import { DEFAULT_ROSTER_OCR_CONFIG, type RosterOcrConfig } from "@/lib/members/roster-ocr/types";
 import { resolveHqAllianceIdFromSession } from "@/lib/members/resolve-hq-alliance";
 import {
   allianceMemberRowToAshedMember,
@@ -18,15 +19,22 @@ import {
   buildMemberIndex,
   matchMemberName,
 } from "@/lib/video/member-matcher";
+import { mockOcrRosterFrames } from "@/lib/video/ocr-mock";
 import { ocrRosterAllFrames } from "@/lib/video/ocr-roster-pipeline";
+import { ocrRosterNativeFrames } from "@/lib/video/ocr-roster-native";
+import type { VideoOcrEngine } from "@/lib/video/ocr-provider.shared";
 import type { ScoreTargetDef } from "@/lib/video/score-targets";
+import type { ExtractedRosterMember } from "@/lib/video/roster-extract";
 
 export type ProcessRosterVideoParseInput = {
   jobId: string;
   sessionId: string;
   scoreTargetId: string;
   target: ScoreTargetDef;
-  connection: ParsedConnection;
+  connection: ParsedConnection | null;
+  engine: VideoOcrEngine;
+  rosterConfig?: RosterOcrConfig;
+  rosterPassKey?: string | null;
   frames: Array<{ index: number; buffer: Buffer }>;
   timer: PipelineTimer;
   now: Date;
@@ -44,6 +52,91 @@ export type ProcessRosterVideoParseResult = {
   totalRawOcrRows: number;
 };
 
+function resolveRosterConfig(input: ProcessRosterVideoParseInput): RosterOcrConfig {
+  if (input.rosterConfig) return input.rosterConfig;
+  return DEFAULT_ROSTER_OCR_CONFIG;
+}
+
+async function runRosterOcr(
+  input: ProcessRosterVideoParseInput,
+  hqAllianceId: string,
+): Promise<{
+  members: ExtractedRosterMember[];
+  frameTimings: Array<{
+    frameIndex: number;
+    ms: number;
+    uploadMs: number;
+    extractMs: number;
+    entryCount: number;
+    error: string | null;
+    rawResult?: unknown;
+  }>;
+  concurrency: number;
+  rawPayloads: unknown[];
+}> {
+  if (input.engine === "mock") {
+    const members = await mockOcrRosterFrames(
+      input.scoreTargetId,
+      input.frames.map((f) => ({ index: f.index })),
+      { allianceId: hqAllianceId },
+    );
+    return {
+      members,
+      frameTimings: input.frames.map((frame) => ({
+        frameIndex: frame.index,
+        ms: 1,
+        uploadMs: 0,
+        extractMs: 0,
+        entryCount: members.filter((m) => m._sourceFrameIndex === frame.index).length,
+        error: null,
+      })),
+      concurrency: 1,
+      rawPayloads: [],
+    };
+  }
+
+  if (input.engine === "native") {
+    const config = resolveRosterConfig(input);
+    const native = await ocrRosterNativeFrames(input.frames, {
+      config,
+      passKey: input.rosterPassKey ?? null,
+      timer: input.timer,
+      jobId: input.jobId,
+    });
+    return {
+      members: native.members,
+      frameTimings: native.frameTimings.map((frame) => ({
+        frameIndex: frame.frameIndex,
+        ms: frame.ms,
+        uploadMs: 0,
+        extractMs: frame.ms,
+        entryCount: frame.entryCount,
+        error: frame.error,
+        rawResult: null,
+      })),
+      concurrency: native.concurrency,
+      rawPayloads: [],
+    };
+  }
+
+  if (!input.connection) {
+    throw new Error("Ashed connection required for roster OCR.");
+  }
+
+  const ashed = await ocrRosterAllFrames(
+    input.connection,
+    input.target,
+    input.frames,
+    { timer: input.timer, jobId: input.jobId },
+  );
+  return {
+    members: ashed.members,
+    frameTimings: ashed.frameTimings,
+    concurrency: ashed.concurrency,
+    rawPayloads: ashed.rawPayloads,
+  };
+}
+
 export async function processRosterVideoParse(
   input: ProcessRosterVideoParseInput,
 ): Promise<ProcessRosterVideoParseResult> {
@@ -53,16 +146,17 @@ export async function processRosterVideoParse(
     () => resolveHqAllianceIdFromSession(input.sessionId),
   );
 
+  const phaseKey =
+    input.engine === "native"
+      ? "tesseract.roster_ocr_total"
+      : input.engine === "mock"
+        ? "mock.roster_ocr_total"
+        : "ashed.roster_ocr_total";
+
   const { members: rosterMembers, frameTimings, concurrency, rawPayloads } =
     await input.timer.measureStep(
-      "ashed.roster_ocr_total",
-      () =>
-        ocrRosterAllFrames(
-          input.connection,
-          input.target,
-          input.frames,
-          { timer: input.timer, jobId: input.jobId },
-        ),
+      phaseKey,
+      () => runRosterOcr(input, hqAllianceId),
       (result) => ({
         frameCount: input.frames.length,
         rowCount: result.members.length,
@@ -102,7 +196,7 @@ export async function processRosterVideoParse(
 
   let hqMembers = await listAllianceMembers(hqAllianceId);
   const linkedAshedId = await getAshedAllianceIdIfLinked(hqAllianceId);
-  if (hqMembers.length === 0 && linkedAshedId) {
+  if (hqMembers.length === 0 && linkedAshedId && input.connection) {
     await syncAllianceMembersFromAshed({
       hqAllianceId,
       ashedAllianceId: linkedAshedId,

@@ -10,12 +10,16 @@
 
 import "server-only";
 
+import { eq } from "drizzle-orm";
+
+import { MEMBER_ROSTER_VIDEO_SCORE_TARGET } from "@/lib/members/ashed-member-record";
 import type { RosterOcrConfig } from "@/lib/members/roster-ocr/types";
 import {
   DEFAULT_ROSTER_OCR_CONFIG,
   ROSTER_OCR_SCORE_TARGET,
 } from "@/lib/members/roster-ocr/types";
 import { isValidRosterOcrConfig } from "@/lib/members/roster-ocr/roster-ocr-config";
+import { getDb, schema } from "@/lib/db";
 import {
   lookupConfigAssignment,
   assignExperiment,
@@ -29,25 +33,43 @@ export type RosterConfigAssignment = {
   experimentArmId?: string | null;
 };
 
+/** Score targets that share roster OCR experiment + parse config assignments. */
+export const ROSTER_OCR_EXPERIMENT_SCORE_TARGETS = [
+  ROSTER_OCR_SCORE_TARGET,
+  MEMBER_ROSTER_VIDEO_SCORE_TARGET,
+] as const;
+
+export function isRosterOcrExperimentScoreTarget(scoreTarget: string | null): boolean {
+  if (!scoreTarget) return false;
+  return (ROSTER_OCR_EXPERIMENT_SCORE_TARGETS as readonly string[]).includes(
+    scoreTarget,
+  );
+}
+
+async function lookupRosterConfigAssignment(): Promise<RosterConfigAssignment | null> {
+  for (const scoreTarget of ROSTER_OCR_EXPERIMENT_SCORE_TARGETS) {
+    const assignment = await lookupConfigAssignment({
+      scoreTarget,
+      boardKey: null,
+    });
+    if (assignment && isValidRosterOcrConfig(assignment.configJson)) {
+      return {
+        config: assignment.configJson,
+        passKey: assignment.passKey,
+      };
+    }
+  }
+  return null;
+}
+
 /**
  * Load the active parse config for a roster OCR request.
- *
- * Resolution order (mirrors video pipeline):
- *  1. Active config assignment for scoreTarget="member-roster-screenshot" + boardKey=null.
- *  2. If the configJson is not a valid RosterOcrConfig, fall back to defaults.
- *  3. Returns defaults if no assignment exists.
  */
 export async function loadRosterOcrConfigAssignment(): Promise<RosterConfigAssignment> {
-  const assignment = await lookupConfigAssignment({
-    scoreTarget: ROSTER_OCR_SCORE_TARGET,
-    boardKey: null,
-  });
+  const assignment = await lookupRosterConfigAssignment();
 
-  if (assignment && isValidRosterOcrConfig(assignment.configJson)) {
-    return {
-      config: assignment.configJson,
-      passKey: assignment.passKey,
-    };
+  if (assignment) {
+    return assignment;
   }
 
   return {
@@ -56,16 +78,24 @@ export async function loadRosterOcrConfigAssignment(): Promise<RosterConfigAssig
   };
 }
 
+async function assignRosterExperimentForTargets(): Promise<{
+  campaignId: string;
+  armId: string;
+} | null> {
+  for (const scoreTarget of ROSTER_OCR_EXPERIMENT_SCORE_TARGETS) {
+    const assignment = await assignExperiment({ scoreTarget, boardKey: null });
+    if (assignment) return assignment;
+  }
+  return null;
+}
+
 /**
  * Assign an experiment arm for a roster OCR request (if an active campaign exists).
- *
- * Returns { campaignId, armId, config, passKey } if assigned, or the base
- * config assignment if no experiment is active.
  */
 export async function assignRosterOcrExperiment(): Promise<RosterConfigAssignment> {
   const [base, expAssignment] = await Promise.all([
     loadRosterOcrConfigAssignment(),
-    assignExperiment({ scoreTarget: ROSTER_OCR_SCORE_TARGET, boardKey: null }),
+    assignRosterExperimentForTargets(),
   ]);
 
   if (!expAssignment) {
@@ -77,4 +107,81 @@ export async function assignRosterOcrExperiment(): Promise<RosterConfigAssignmen
     experimentCampaignId: expAssignment.campaignId,
     experimentArmId: expAssignment.armId,
   };
+}
+
+async function loadRosterConfigFromArm(
+  armId: string,
+): Promise<RosterConfigAssignment | null> {
+  const db = getDb();
+  const [arm] = await db
+    .select({
+      configId: schema.experimentArms.configId,
+      campaignId: schema.experimentArms.campaignId,
+    })
+    .from(schema.experimentArms)
+    .where(eq(schema.experimentArms.id, armId))
+    .limit(1);
+
+  if (!arm?.configId) {
+    return null;
+  }
+
+  const [parseConfig] = await db
+    .select({
+      passKey: schema.parseConfigs.passKey,
+      configJson: schema.parseConfigs.configJson,
+    })
+    .from(schema.parseConfigs)
+    .where(eq(schema.parseConfigs.id, arm.configId))
+    .limit(1);
+
+  if (!parseConfig || !isValidRosterOcrConfig(parseConfig.configJson)) {
+    return null;
+  }
+
+  return {
+    config: parseConfig.configJson,
+    passKey: parseConfig.passKey,
+    experimentCampaignId: arm.campaignId,
+    experimentArmId: armId,
+  };
+}
+
+/**
+ * Resolve roster OCR config for a video upload group — prefers the group's
+ * experiment arm when it points at a roster-ocr parse config.
+ */
+export async function resolveRosterOcrConfigForVideoGroup(
+  groupId: string,
+): Promise<RosterConfigAssignment> {
+  const db = getDb();
+  const [group] = await db
+    .select({
+      experimentArmId: schema.videoUploadGroups.experimentArmId,
+      experimentCampaignId: schema.videoUploadGroups.experimentCampaignId,
+    })
+    .from(schema.videoUploadGroups)
+    .where(eq(schema.videoUploadGroups.id, groupId))
+    .limit(1);
+
+  if (group?.experimentArmId) {
+    const fromArm = await loadRosterConfigFromArm(group.experimentArmId);
+    if (fromArm) {
+      return {
+        ...fromArm,
+        experimentCampaignId:
+          fromArm.experimentCampaignId ?? group.experimentCampaignId,
+      };
+    }
+
+    // Arm without a roster parse config: keep group attribution for eval metrics.
+    const base = await loadRosterOcrConfigAssignment();
+    return {
+      ...base,
+      experimentCampaignId: group.experimentCampaignId,
+      experimentArmId: group.experimentArmId,
+    };
+  }
+
+  return assignRosterOcrExperiment();
 }

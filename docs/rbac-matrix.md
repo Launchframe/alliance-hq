@@ -34,7 +34,7 @@ Ashed limits shared seats to three; Alliance HQ adds **many HQ users per allianc
 | `upload:write` | Core/UploadFile, ExtractDataFromUploadedFile, InvokeLLM |
 | **`hq:video:read`** | **List alliance video jobs / processor queue** |
 | **`hq:video:enqueue`** | **Upload and queue video jobs (no Ashed credential required)** |
-| **`hq:video:process`** | **Approve and run OCR on queued jobs (runtime: owner/maintainer bypass or explicit processor slot; requires live Ashed credential at approve time)** |
+| **`hq:video:process`** | **Approve and run OCR on queued jobs (runtime: owner/maintainer bypass or explicit processor slot; Ashed credential required at approve time when `VIDEO_OCR_PROVIDER=ashed`, the default)** |
 | `auth:read` | User/me, UserProfile, Referral |
 | `alliance:admin` | Connect/disconnect Ashed token, manage HQ roles |
 
@@ -54,12 +54,14 @@ Officers may **enqueue** uploads (`hq:video:enqueue`) without an Ashed connectio
 
 | Who can process | Slot required? | Ashed required at approve? |
 |-----------------|----------------|----------------------------|
-| Platform maintainer | No | Yes |
-| Owner / maintainer | No (bypass) | Yes |
-| Officer with processor slot | Yes (max **2** per alliance) | Yes |
+| Platform maintainer | No | When `VIDEO_OCR_PROVIDER=ashed` (default) |
+| Owner / maintainer | No (bypass) | When `VIDEO_OCR_PROVIDER=ashed` (default) |
+| Officer with processor slot | Yes (max **2** per alliance) | When `VIDEO_OCR_PROVIDER=ashed` (default) |
 | Officer without slot | — | — |
 
-Owners assign processor slots under **Settings → Team access**. Jobs stay `pending_approval` until a processor approves them; approving without Ashed returns **409** `ashed_not_connected` (recoverable — job remains pending).
+**Nonprod OCR (`VIDEO_OCR_PROVIDER=local|mock`, dev/e2e only unless `VIDEO_OCR_ALLOW_NONPROD=true`):** approve does **not** require Ashed. `mock` uses fixtures for score targets (and roster in mock mode); `local` runs native Tesseract on roster video targets.
+
+Owners assign processor slots under **Settings → Team access** or **Video → Video processors** (`/tools/video-processors`). All alliance members can view the roster; only owners/maintainers manage slots. Jobs stay `pending_approval` until a processor approves them; with default Ashed OCR, approving without Ashed returns **409** `ashed_not_connected` (recoverable — job remains pending).
 
 **Candidate pool (settings selector):**
 

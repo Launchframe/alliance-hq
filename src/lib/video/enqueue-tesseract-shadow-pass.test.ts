@@ -42,6 +42,16 @@ vi.mock("@/lib/members/roster-ocr/assign-roster-config", () => ({
     },
     passKey: "roster_ocr_scale_2_psm_6",
   })),
+  resolveRosterOcrConfigForVideoGroup: vi.fn(async () => ({
+    config: {
+      mode: "roster-ocr",
+      preprocessScale: 2,
+      tesseractPsm: 6,
+    },
+    passKey: "roster_ocr_scale_2_psm_6",
+    experimentCampaignId: null,
+    experimentArmId: null,
+  })),
 }));
 
 vi.mock("@/lib/video/trigger-processing", () => ({

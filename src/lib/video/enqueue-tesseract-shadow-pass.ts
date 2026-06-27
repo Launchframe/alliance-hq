@@ -1,7 +1,7 @@
 import { nanoid } from "nanoid";
 import { and, eq } from "drizzle-orm";
 
-import { assignRosterOcrExperiment } from "@/lib/members/roster-ocr/assign-roster-config";
+import { assignRosterOcrExperiment, resolveRosterOcrConfigForVideoGroup } from "@/lib/members/roster-ocr/assign-roster-config";
 import type { RosterOcrConfig } from "@/lib/members/roster-ocr/types";
 import { getDb, schema } from "@/lib/db";
 import { isMemberRosterVideoTarget } from "@/lib/video/score-targets";
@@ -73,7 +73,9 @@ export async function maybeEnqueueTesseractShadowPass(params: {
     return;
   }
 
-  const rosterAssignment = await assignRosterOcrExperiment();
+  const rosterAssignment = job.groupId
+    ? await resolveRosterOcrConfigForVideoGroup(job.groupId)
+    : await assignRosterOcrExperiment();
   const shadowJobId = nanoid(16);
   const now = new Date();
 

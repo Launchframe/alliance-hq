@@ -25,6 +25,7 @@ type Props = {
   initialCandidates: Candidate[];
   eligibilityMode: VideoProcessorEligibilityMode;
   max: number;
+  readOnly?: boolean;
 };
 
 export function VideoProcessorsPanel({
@@ -32,6 +33,7 @@ export function VideoProcessorsPanel({
   initialCandidates,
   eligibilityMode,
   max,
+  readOnly = false,
 }: Props) {
   const t = useTranslations("videoProcessors");
   const [processors, setProcessors] = useState<Processor[]>(initialProcessors);
@@ -53,9 +55,12 @@ export function VideoProcessorsPanel({
       processors: Processor[];
       candidates: Candidate[];
       eligibilityMode: VideoProcessorEligibilityMode;
+      canManage?: boolean;
     };
     setProcessors(data.processors);
-    setCandidates(data.candidates);
+    if (data.canManage !== false) {
+      setCandidates(data.candidates);
+    }
     setMode(data.eligibilityMode);
   }, []);
 
@@ -124,6 +129,9 @@ export function VideoProcessorsPanel({
             {t("queueLink")}
           </Link>
         </p>
+        {readOnly ? (
+          <p className="mt-2 text-xs text-[#8b949e]">{t("readOnlyHint")}</p>
+        ) : null}
       </div>
 
       {error ? <p className="text-sm text-red-400">{error}</p> : null}
@@ -140,24 +148,26 @@ export function VideoProcessorsPanel({
               <span className="min-w-0 truncate text-sm text-[#e6edf3]">
                 {name(p)}
               </span>
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => void remove(p.hqUserId)}
-                className="shrink-0 rounded-md border border-[#30363d] px-2.5 py-1 text-xs text-[#8b949e] hover:border-[#f85149] hover:text-[#f85149] disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {t("remove")}
-              </button>
+              {!readOnly ? (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void remove(p.hqUserId)}
+                  className="shrink-0 rounded-md border border-[#30363d] px-2.5 py-1 text-xs text-[#8b949e] hover:border-[#f85149] hover:text-[#f85149] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {t("remove")}
+                </button>
+              ) : null}
             </li>
           ))}
         </ul>
       )}
 
-      {slotsFull ? (
+      {!readOnly && slotsFull ? (
         <p className="text-xs text-[#d29922]">{t("slotsFull")}</p>
-      ) : candidates.length === 0 ? (
+      ) : !readOnly && candidates.length === 0 ? (
         <p className="text-xs text-[#6e7681]">{t(noCandidatesKey)}</p>
-      ) : (
+      ) : !readOnly ? (
         <div className="flex flex-col gap-2 sm:flex-row">
           <select
             value={selected}
@@ -180,7 +190,7 @@ export function VideoProcessorsPanel({
             {t("add")}
           </button>
         </div>
-      )}
+      ) : null}
     </section>
   );
 }

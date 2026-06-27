@@ -2074,6 +2074,29 @@ export type ExperimentCampaign = typeof experimentCampaigns.$inferSelect;
 export type ExperimentArm = typeof experimentArms.$inferSelect;
 export type ConfigAssignment = typeof configAssignments.$inferSelect;
 
+/** Append-only tandem OCR eval rows (Ashed primary vs native shadow). */
+export const ocrEvalSnapshots = pgTable("ocr_eval_snapshots", {
+  id: text("id").primaryKey(),
+  groupId: text("group_id").notNull(),
+  primaryJobId: text("primary_job_id").notNull(),
+  shadowJobId: text("shadow_job_id").notNull(),
+  scoreTarget: text("score_target"),
+  boardKey: text("board_key"),
+  hqEventId: text("hq_event_id"),
+  primaryEngine: text("primary_engine").notNull(),
+  shadowEngine: text("shadow_engine").notNull(),
+  nativePassKey: text("native_pass_key"),
+  experimentCampaignId: text("experiment_campaign_id"),
+  experimentArmId: text("experiment_arm_id"),
+  metricsJson: jsonb("metrics_json").notNull(),
+  shadowTotalMs: integer("shadow_total_ms"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+export type OcrEvalSnapshot = typeof ocrEvalSnapshots.$inferSelect;
+
 /** Alliance event upload reminder schedule (EUR). */
 export const eurScheduleRules = pgTable(
   "eur_schedule_rules",

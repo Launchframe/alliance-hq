@@ -45,6 +45,7 @@ export const NAV_PAGE_ICONS: Record<string, LucideIcon> = {
   "unmatched-names": UserCog,
   "video-upload": Upload,
   "video-queue": ClipboardCheck,
+  "video-processors": UserCog,
   "alliance-settings": Settings,
   account: Settings,
   settings: Settings,

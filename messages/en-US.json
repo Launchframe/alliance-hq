@@ -108,6 +108,8 @@
     "allianceSettings": "Alliance settings",
     "team": "Team access",
     "videoQueue": "Video queue",
+    "videoProcessors": "Video processors",
+    "videoProcessorsDescription": "Who can approve uploaded videos for OCR",
     "adminPortal": "Admin portal"
   },
   "admin": {
@@ -603,7 +605,8 @@
       "rosterEvalPowerAgreement": "Power agreement",
       "rosterEvalLevelAgreement": "Level agreement",
       "rosterEvalPassKey": "Tesseract pass",
-      "rosterEvalRowSummary": "Ashed {primary} rows · Tesseract {shadow} rows · {matched} name matches"
+      "rosterEvalRowSummary": "Ashed {primary} rows · Tesseract {shadow} rows · {matched} name matches",
+      "passKey": "Pass key"
     },
     "auditPage": {
       "loading": "Loading audit log…",
@@ -843,6 +846,8 @@
         "levelAgreement": "Avg level agreement",
         "colPass": "Tesseract pass",
         "colJobs": "Uploads",
+        "colDate": "Date",
+        "dailyTrend": "Daily trend",
         "empty": "No roster Tesseract shadow evaluations in this window yet."
       }
     }
@@ -943,7 +948,9 @@
     "addFailed": "Could not add the processor.",
     "removeFailed": "Could not remove the processor.",
     "queueHint": "Designated processors approve uploads from the",
-    "queueLink": "Video queue"
+    "queueLink": "Video queue",
+    "pageDescription": "Officers designated to approve and run OCR on queued videos for your alliance.",
+    "readOnlyHint": "Only alliance owners and maintainers can add or remove processors."
   },
   "allianceSettings": {
     "title": "Alliance settings",

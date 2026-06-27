@@ -36,6 +36,8 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
+    "test:e2e:video-ocr-mock": "VIDEO_OCR_PROVIDER=mock VIDEO_OCR_ALLOW_NONPROD=true playwright test e2e/video-ocr-nonprod-provider.spec.ts",
+    "test:e2e:video-ocr-local": "VIDEO_OCR_PROVIDER=local VIDEO_OCR_ALLOW_NONPROD=true playwright test e2e/video-ocr-nonprod-provider.spec.ts",
     "test:e2e:install": "playwright install chromium",
     "prepare": "husky"
   },

@@ -1,6 +1,12 @@
 import { NextResponse } from "next/server";
 
+import { getAllianceOperatingMode } from "@/lib/native-alliance/operating-mode";
+import { sessionHasActiveMembership } from "@/lib/native-alliance/access";
 import { requireAllianceAdmin } from "@/lib/rbac/require-permission";
+import {
+  sessionHasPermission,
+  sessionIsAllianceAdmin,
+} from "@/lib/rbac/context";
 import { getOrCreateSession } from "@/lib/session";
 import {
   MAX_VIDEO_PROCESSORS,
@@ -9,8 +15,50 @@ import {
   listVideoProcessorCandidates,
   revokeVideoProcessor,
 } from "@/lib/video/processor-slots.server";
+import { videoProcessorEligibilityModeForOperatingMode } from "@/lib/video/processor-slots.shared";
 
 export const dynamic = "force-dynamic";
+
+type MemberContext =
+  | {
+      ok: true;
+      sessionId: string;
+      hqUserId: string | null;
+      allianceId: string;
+      canManage: boolean;
+    }
+  | { ok: false; response: NextResponse };
+
+async function resolveAllianceMemberContext(): Promise<MemberContext> {
+  const session = await getOrCreateSession();
+  if (!session.currentAllianceId) {
+    return {
+      ok: false,
+      response: NextResponse.json(
+        { error: "Alliance context required." },
+        { status: 400 },
+      ),
+    };
+  }
+
+  const hasMembership = await sessionHasActiveMembership(session);
+  const isPlatformMaintainer = await sessionHasPermission(session.id, "hq:admin");
+  if (!hasMembership && !isPlatformMaintainer) {
+    return {
+      ok: false,
+      response: NextResponse.json({ error: "Forbidden" }, { status: 403 }),
+    };
+  }
+
+  const canManage = await sessionIsAllianceAdmin(session.id);
+  return {
+    ok: true,
+    sessionId: session.id,
+    hqUserId: session.hqUserId,
+    allianceId: session.currentAllianceId,
+    canManage,
+  };
+}
 
 async function resolveAdminAlliance(): Promise<
   | { ok: true; sessionId: string; hqUserId: string | null; allianceId: string }
@@ -39,22 +87,32 @@ async function resolveAdminAlliance(): Promise<
 }
 
 export async function GET() {
-  const ctx = await resolveAdminAlliance();
+  const ctx = await resolveAllianceMemberContext();
   if (!ctx.ok) return ctx.response;
 
-  const [processors, candidateList] = await Promise.all([
-    listAllianceVideoProcessors(ctx.allianceId),
-    listVideoProcessorCandidates(ctx.allianceId),
-  ]);
+  const processors = await listAllianceVideoProcessors(ctx.allianceId);
 
-  const processorIds = new Set(processors.map((p) => p.hqUserId));
+  if (ctx.canManage) {
+    const candidateList = await listVideoProcessorCandidates(ctx.allianceId);
+    const processorIds = new Set(processors.map((p) => p.hqUserId));
+    return NextResponse.json({
+      processors,
+      candidates: candidateList.candidates.filter(
+        (c) => !processorIds.has(c.hqUserId),
+      ),
+      eligibilityMode: candidateList.eligibilityMode,
+      max: MAX_VIDEO_PROCESSORS,
+      canManage: true,
+    });
+  }
+
+  const operatingMode = await getAllianceOperatingMode(ctx.allianceId);
   return NextResponse.json({
     processors,
-    candidates: candidateList.candidates.filter(
-      (c) => !processorIds.has(c.hqUserId),
-    ),
-    eligibilityMode: candidateList.eligibilityMode,
+    candidates: [],
+    eligibilityMode: videoProcessorEligibilityModeForOperatingMode(operatingMode),
     max: MAX_VIDEO_PROCESSORS,
+    canManage: false,
   });
 }
 

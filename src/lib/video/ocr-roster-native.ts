@@ -1,0 +1,111 @@
+import "server-only";
+
+import { parseRosterImage } from "@/lib/members/roster-ocr/parse-roster-image";
+import type { ParsedRosterRow, RosterOcrConfig } from "@/lib/members/roster-ocr/types";
+import { DEFAULT_ROSTER_OCR_CONFIG } from "@/lib/members/roster-ocr/types";
+import { mapWithConcurrency } from "@/lib/video/map-with-concurrency";
+import type { PipelineTimer } from "@/lib/video/pipeline-timer";
+import {
+  collapseRosterMembersByNameRank,
+  type ExtractedRosterMember,
+} from "@/lib/video/roster-extract";
+
+const TESSERACT_FRAME_CONCURRENCY = 2;
+
+export type NativeRosterFrameTiming = {
+  frameIndex: number;
+  ms: number;
+  entryCount: number;
+  error: string | null;
+};
+
+export type OcrRosterNativeFramesResult = {
+  members: ExtractedRosterMember[];
+  frameTimings: NativeRosterFrameTiming[];
+  concurrency: number;
+};
+
+function parsedRosterRowToExtracted(
+  row: ParsedRosterRow,
+  sourceFrameIndex?: number,
+): ExtractedRosterMember {
+  return {
+    currentName: row.extractedName.trim(),
+    rosterRankRaw: `R${row.allianceRank}`,
+    allianceRank: row.allianceRank,
+    allianceRankTitle: row.allianceRankTitle ?? null,
+    powerLevel: row.heroPowerM != null ? `${row.heroPowerM}M` : null,
+    heroPowerM: row.heroPowerM ?? null,
+    memberLevel: row.memberLevel ?? null,
+    profession: null,
+    status: null,
+    _sourceFrameIndex: sourceFrameIndex,
+  };
+}
+
+export async function ocrRosterNativeFrames(
+  frames: Array<{ index: number; buffer: Buffer }>,
+  options?: {
+    config?: RosterOcrConfig;
+    passKey?: string | null;
+    concurrency?: number;
+    timer?: PipelineTimer;
+    jobId?: string;
+  },
+): Promise<OcrRosterNativeFramesResult> {
+  const config = options?.config ?? DEFAULT_ROSTER_OCR_CONFIG;
+  const passKey = options?.passKey ?? null;
+  const concurrency = options?.concurrency ?? TESSERACT_FRAME_CONCURRENCY;
+  const timer = options?.timer;
+
+  timer?.logStep("tesseract.roster_batch_start", 0, {
+    jobId: options?.jobId,
+    frameCount: frames.length,
+    concurrency,
+  });
+
+  const frameResults = await mapWithConcurrency(
+    frames,
+    concurrency,
+    async (frame) => {
+      const started = Date.now();
+      try {
+        const result = await parseRosterImage(frame.buffer, {
+          config,
+          configPassKey: passKey ?? undefined,
+        });
+        return {
+          frameIndex: frame.index,
+          ms: Date.now() - started,
+          rows: result.rows,
+          error: null as string | null,
+        };
+      } catch (error) {
+        return {
+          frameIndex: frame.index,
+          ms: Date.now() - started,
+          rows: [] as ParsedRosterRow[],
+          error:
+            error instanceof Error ? error.message : "Tesseract OCR failed",
+        };
+      }
+    },
+  );
+
+  const members = collapseRosterMembersByNameRank(
+    frameResults.flatMap((frame) =>
+      frame.rows.map((row) => parsedRosterRowToExtracted(row, frame.frameIndex)),
+    ),
+  );
+
+  const frameTimings: NativeRosterFrameTiming[] = frameResults
+    .sort((a, b) => a.frameIndex - b.frameIndex)
+    .map((frame) => ({
+      frameIndex: frame.frameIndex,
+      ms: frame.ms,
+      entryCount: frame.rows.length,
+      error: frame.error,
+    }));
+
+  return { members, frameTimings, concurrency };
+}

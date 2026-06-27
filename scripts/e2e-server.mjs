@@ -38,13 +38,34 @@ function authSecret() {
   return "e2e-test-auth-secret-min-32-characters";
 }
 
+function ocrProviderEnvLines() {
+  const provider = process.env.VIDEO_OCR_PROVIDER?.trim();
+  if (!provider) return [];
+  return [`VIDEO_OCR_PROVIDER=${provider}`, "VIDEO_OCR_ALLOW_NONPROD=true"];
+}
+
+// Tracks whether prepareEnvFile() ran so restoreEnvFile() only acts when needed.
+let envPrepared = false;
+// Tracks whether the developer had a real .env.local that we moved aside.
+let hadOriginalEnv = false;
+
 function prepareEnvFile(dbUrl) {
+  // Self-heal: a stale backup means a previous run was killed before it could
+  // restore. Treat the backup as the real file and the current .env.local as a
+  // generated leftover, so we recover the developer's file instead of losing it.
   if (fs.existsSync(envBackup)) {
-    fs.unlinkSync(envBackup);
+    if (fs.existsSync(envLocal)) {
+      fs.unlinkSync(envLocal);
+    }
+    fs.renameSync(envBackup, envLocal);
   }
-  if (fs.existsSync(envLocal)) {
+
+  hadOriginalEnv = fs.existsSync(envLocal);
+  if (hadOriginalEnv) {
     fs.renameSync(envLocal, envBackup);
   }
+  envPrepared = true;
+
   fs.writeFileSync(
     envLocal,
     [
@@ -56,9 +77,30 @@ function prepareEnvFile(dbUrl) {
       "HQ_ASHED_INVITE_REQUIRED=false",
       "E2E_TEST=true",
       `E2E_EMAIL_CODE=${process.env.E2E_EMAIL_CODE?.trim() || "424242"}`,
+      ...ocrProviderEnvLines(),
       "",
     ].join("\n"),
   );
+}
+
+function restoreEnvFile() {
+  if (!envPrepared) return;
+  envPrepared = false;
+  try {
+    // Drop the auto-generated file...
+    if (fs.existsSync(envLocal)) {
+      fs.unlinkSync(envLocal);
+    }
+    // ...and put the developer's real .env.local back (if there was one).
+    if (hadOriginalEnv && fs.existsSync(envBackup)) {
+      fs.renameSync(envBackup, envLocal);
+    }
+  } catch (err) {
+    console.error(
+      `Failed to restore .env.local; your original is preserved at ${envBackup}`,
+      err,
+    );
+  }
 }
 
 function run(command, env = process.env) {
@@ -66,7 +108,7 @@ function run(command, env = process.env) {
 }
 
 function buildEnv(dbUrl) {
-  return {
+  const env = {
     PATH: process.env.PATH ?? "",
     HOME: process.env.HOME ?? "",
     NODE_ENV: "production",
@@ -80,10 +122,22 @@ function buildEnv(dbUrl) {
     E2E_TEST: "true",
     E2E_EMAIL_CODE: process.env.E2E_EMAIL_CODE?.trim() || "424242",
   };
+  const provider = process.env.VIDEO_OCR_PROVIDER?.trim();
+  if (provider) {
+    env.VIDEO_OCR_PROVIDER = provider;
+    env.VIDEO_OCR_ALLOW_NONPROD = "true";
+  }
+  return env;
 }
 
 const dbUrl = requireDatabaseUrl();
 prepareEnvFile(dbUrl);
+
+// Always restore the developer's .env.local, no matter how we exit: normal
+// shutdown, a thrown error from a failed build/migrate, Ctrl-C, or the SIGTERM
+// Playwright sends when the test run finishes. process.on("exit") fires for all
+// of these and runs synchronous fs work reliably.
+process.on("exit", restoreEnvFile);
 
 const serverEnv = buildEnv(dbUrl);
 run("npm run db:migrate", serverEnv);

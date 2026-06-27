@@ -108,6 +108,8 @@
     "allianceSettings": "Configurações da aliança",
     "team": "Acesso da equipe",
     "videoQueue": "Fila de vídeos",
+    "videoProcessors": "Processadores de vídeo",
+    "videoProcessorsDescription": "Quem pode aprovar vídeos enviados para OCR",
     "adminPortal": "Portal admin"
   },
   "admin": {
@@ -603,7 +605,8 @@
       "rosterEvalPowerAgreement": "Concordância de poder",
       "rosterEvalLevelAgreement": "Concordância de nível",
       "rosterEvalPassKey": "Pass Tesseract",
-      "rosterEvalRowSummary": "Ashed {primary} linhas · Tesseract {shadow} linhas · {matched} nomes correspondentes"
+      "rosterEvalRowSummary": "Ashed {primary} linhas · Tesseract {shadow} linhas · {matched} nomes correspondentes",
+      "passKey": "Chave de passagem"
     },
     "auditPage": {
       "loading": "Carregando log de auditoria…",
@@ -843,6 +846,8 @@
         "levelAgreement": "Concordância média de nível",
         "colPass": "Pass Tesseract",
         "colJobs": "Uploads",
+        "colDate": "Data",
+        "dailyTrend": "Tendência diária",
         "empty": "Ainda não há avaliações de sombra Tesseract neste período."
       }
     }
@@ -943,7 +948,9 @@
     "addFailed": "Não foi possível adicionar o processador.",
     "removeFailed": "Não foi possível remover o processador.",
     "queueHint": "Processadores designados aprovam envios na",
-    "queueLink": "fila de vídeo"
+    "queueLink": "fila de vídeo",
+    "pageDescription": "Oficiais designados para aprovar e executar OCR em vídeos na fila da sua aliança.",
+    "readOnlyHint": "Somente donos e mantenedores da aliança podem adicionar ou remover processadores."
   },
   "allianceSettings": {
     "title": "Configurações da aliança",
