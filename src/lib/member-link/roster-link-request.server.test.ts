@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  createDiscordRosterMissLinkRequest,
   tryBootstrapOwnerColdStartMember,
   tryRouteRosterMissToOwnerApproval,
 } from "./roster-link-request.server";
@@ -78,7 +79,8 @@ const dbModule = vi.hoisted(() => {
 
   const insertValues = vi.fn().mockResolvedValue(undefined);
   const insert = vi.fn(() => ({ values: insertValues }));
-  const updateSet = vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) });
+  const updateWhere = vi.fn().mockResolvedValue(undefined);
+  const updateSet = vi.fn().mockReturnValue({ where: updateWhere });
   const update = vi.fn(() => ({ set: updateSet }));
 
   return {
@@ -86,6 +88,8 @@ const dbModule = vi.hoisted(() => {
     insert,
     insertValues,
     update,
+    updateSet,
+    updateWhere,
     getDb: vi.fn(() => ({
       select: vi.fn(() => chain),
       insert,
@@ -98,7 +102,13 @@ vi.mock("@/lib/db", () => ({
   getDb: dbModule.getDb,
   schema: {
     hqInvites: { allianceId: "alliance_id", acceptedByHqUserId: "accepted_by", kind: "kind", acceptedAt: "accepted_at" },
-    hqRosterLinkRequests: { allianceId: "a", hqUserId: "u", status: "status", id: "id" },
+    hqRosterLinkRequests: {
+      allianceId: "a",
+      hqUserId: "u",
+      discordUserId: "discord_user_id",
+      status: "status",
+      id: "id",
+    },
     hqRosterLinkActionTokens: { requestId: "request_id", usedAt: "used_at" },
     alliances: { id: "id", ownerHqUserId: "owner_hq_user_id" },
     allianceMembers: {},
@@ -437,12 +447,14 @@ describe("tryRouteRosterMissToOwnerApproval", () => {
       lookup: { ok: true, gameUserName: "Mew2407", gameServerNumber: 1203 },
       suggestedTargetAshedMemberId: "member-mew",
       suggestionMethod: "substring",
+      suggestedMatchedRosterName: "Mew",
     });
 
     expect(dbModule.insertValues).toHaveBeenCalledWith(
       expect.objectContaining({
         suggestedTargetAshedMemberId: "member-mew",
         suggestionMethod: "substring",
+        suggestedMatchedRosterName: "Mew",
       }),
     );
   });
@@ -462,7 +474,77 @@ describe("tryRouteRosterMissToOwnerApproval", () => {
       expect.objectContaining({
         suggestedTargetAshedMemberId: null,
         suggestionMethod: null,
+        suggestedMatchedRosterName: null,
       }),
+    );
+  });
+});
+
+describe("createDiscordRosterMissLinkRequest", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    dbModule.chain.limit.mockResolvedValue([]);
+    dbModule.chain.then = (
+      onFulfilled?: (value: unknown[]) => unknown,
+      onRejected?: (reason: unknown) => unknown,
+    ) => Promise.resolve([]).then(onFulfilled, onRejected);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: true, text: async () => "" }),
+    );
+  });
+
+  it("creates a discord-origin request with a null hq user when unlinked", async () => {
+    const requestId = await createDiscordRosterMissLinkRequest({
+      allianceId: "a1",
+      allianceTag: "LFgo",
+      discordUserId: "discord-1",
+      discordUsername: "cmdr#1",
+      hqUserId: null,
+      reportedName: "Mew2407",
+      gameUid: "1234567890121203",
+      gameUserName: "Mew2407",
+      gameServerNumber: 1203,
+      suggestedTargetAshedMemberId: "member-mew",
+      suggestionMethod: "substring",
+      suggestedMatchedRosterName: "Mew",
+    });
+
+    expect(requestId).toBeTruthy();
+    expect(dbModule.insertValues).toHaveBeenCalledWith(
+      expect.objectContaining({
+        origin: "discord",
+        hqUserId: null,
+        discordUserId: "discord-1",
+        suggestedTargetAshedMemberId: "member-mew",
+        suggestedMatchedRosterName: "Mew",
+      }),
+    );
+    // No HQ pending state is written for an unlinked Discord user.
+    expect(repository.saveHqMemberLinkPending).not.toHaveBeenCalled();
+  });
+
+  it("supersedes prior discord-only pending when the same user links HQ and retries", async () => {
+    dbModule.chain.then = (
+      onFulfilled?: (value: unknown[]) => unknown,
+      onRejected?: (reason: unknown) => unknown,
+    ) => Promise.resolve([{ id: "prior-req" }]).then(onFulfilled, onRejected);
+
+    await createDiscordRosterMissLinkRequest({
+      allianceId: "a1",
+      allianceTag: "LFgo",
+      discordUserId: "discord-1",
+      discordUsername: "cmdr#1",
+      hqUserId: "hq-1",
+      reportedName: "Mew2407",
+      gameUid: "1234567890121203",
+      gameUserName: "Mew2407",
+      gameServerNumber: 1203,
+    });
+
+    expect(dbModule.update).toHaveBeenCalled();
+    expect(dbModule.updateSet).toHaveBeenCalledWith(
+      expect.objectContaining({ status: "superseded" }),
     );
   });
 });

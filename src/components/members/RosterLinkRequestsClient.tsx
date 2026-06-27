@@ -16,6 +16,7 @@ type PendingRequest = {
   discordUsername: string | null;
   suggestedTargetAshedMemberId: string | null;
   suggestionMethod: string | null;
+  suggestedMatchedRosterName: string | null;
 };
 
 type RosterMember = {
@@ -139,7 +140,15 @@ export function RosterLinkRequestsClient({
         <p className="text-sm text-[#8b949e]">{t("empty")}</p>
       ) : (
         <ul className="space-y-4">
-          {sortedRequests.map((request) => (
+          {sortedRequests.map((request) => {
+            const suggested = suggestedMemberFor(request);
+            // A suggestion was stored, but the suggested member is no longer in
+            // the loaded roster (renamed/left). Tell the officer to pick manually
+            // instead of silently dropping the hint.
+            const suggestionStale =
+              !suggested && Boolean(request.suggestedTargetAshedMemberId);
+            const selection = effectiveSelection(request);
+            return (
             <li
               key={request.id}
               className={`rounded-xl border p-4 space-y-3 min-w-0 ${
@@ -166,14 +175,26 @@ export function RosterLinkRequestsClient({
                 </p>
               </div>
 
-              {suggestedMemberFor(request) ? (
+              {suggested ? (
                 <p
                   className="rounded-lg border border-[#9e6a03] bg-[#9e6a031a] px-3 py-2 text-xs text-[#e3b341]"
                   role="note"
                 >
                   {t("suggestionBanner", {
-                    suggested: suggestedMemberFor(request)?.current_name ?? "",
+                    suggested:
+                      request.suggestedMatchedRosterName ?? suggested.current_name,
                     gameName: request.gameUserName,
+                  })}
+                </p>
+              ) : null}
+
+              {suggestionStale ? (
+                <p
+                  className="rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 text-xs text-[#8b949e]"
+                  role="note"
+                >
+                  {t("suggestionStale", {
+                    suggested: request.suggestedMatchedRosterName ?? "",
                   })}
                 </p>
               ) : null}
@@ -182,7 +203,7 @@ export function RosterLinkRequestsClient({
                 {t("matchLabel")}
                 <select
                   className="mt-1 w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 text-sm text-foreground"
-                  value={effectiveSelection(request)}
+                  value={selection}
                   onChange={(event) =>
                     setSelectedMemberByRequest((prev) => ({
                       ...prev,
@@ -202,14 +223,8 @@ export function RosterLinkRequestsClient({
               <div className="flex flex-col sm:flex-row gap-2">
                 <button
                   type="button"
-                  disabled={busyId === request.id || !effectiveSelection(request)}
-                  onClick={() =>
-                    void resolve(
-                      request.id,
-                      "accept",
-                      effectiveSelection(request),
-                    )
-                  }
+                  disabled={busyId === request.id || !selection}
+                  onClick={() => void resolve(request.id, "accept", selection)}
                   className="rounded-lg bg-[#238636] px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
                 >
                   {t("approveMatch")}
@@ -224,7 +239,8 @@ export function RosterLinkRequestsClient({
                 </button>
               </div>
             </li>
-          ))}
+            );
+          })}
         </ul>
       )}
     </div>

@@ -1406,9 +1406,12 @@ export const hqRosterLinkRequests = pgTable(
     allianceId: text("alliance_id")
       .notNull()
       .references(() => alliances.id, { onDelete: "cascade" }),
-    hqUserId: text("hq_user_id")
-      .notNull()
-      .references(() => hqUsers.id, { onDelete: "cascade" }),
+    // Nullable: Discord-origin roster-miss requests can exist before the
+    // Discord user links an HQ account. Officers resolve them by binding the
+    // Discord member to a roster member; no HQ user is required.
+    hqUserId: text("hq_user_id").references(() => hqUsers.id, {
+      onDelete: "cascade",
+    }),
     inviteId: text("invite_id").references(() => hqInvites.id, {
       onDelete: "set null",
     }),
@@ -1433,6 +1436,8 @@ export const hqRosterLinkRequests = pgTable(
     suggestedTargetAshedMemberId: text("suggested_target_ashed_member_id"),
     /** How the suggestion was derived, e.g. "substring". */
     suggestionMethod: text("suggestion_method"),
+    /** The roster name that produced the suggestion (may be a previous name). */
+    suggestedMatchedRosterName: text("suggested_matched_roster_name"),
     createdMemberId: text("created_member_id"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()

@@ -422,6 +422,7 @@ export async function runWebMemberLinkSubmit(input: {
       lookup,
       suggestedTargetAshedMemberId: suggestion?.ashedMemberId ?? null,
       suggestionMethod: suggestion?.method ?? null,
+      suggestedMatchedRosterName: suggestion?.matchedRosterName ?? null,
     });
     if (routed) {
       return finishMemberLinkSubmit(ctx, routed);

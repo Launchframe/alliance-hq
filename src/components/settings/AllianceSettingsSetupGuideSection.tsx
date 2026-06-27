@@ -6,6 +6,7 @@ import { useState } from "react";
 
 import { AllianceSetupGuidePanel } from "@/components/settings/AllianceSetupGuidePanel";
 import { Link } from "@/i18n/navigation";
+import { allianceSetupGuideTaskHref } from "@/lib/alliance-setup-guide-nav";
 import type { AllianceSetupStatusPayload } from "@/lib/alliance-setup-guide-status-api";
 import type { AllianceSetupGuideTaskId } from "@/lib/alliance-setup-guide-status.shared";
 import { MEMBER_ROSTER_VIDEO_SCORE_TARGET } from "@/lib/members/ashed-member-record";
@@ -34,28 +35,9 @@ export function AllianceSettingsSetupGuideSection({
   }
 
   function handleTaskAction(id: AllianceSetupGuideTaskId) {
-    switch (id) {
-      case "connect_ashed":
-        window.location.href = "/connect";
-        break;
-      case "roster_hardening":
-      case "roster_populated":
-        window.location.href = "/members";
-        break;
-      case "game_server":
-        window.location.href = "/settings";
-        break;
-      case "owner_commander_link":
-        window.location.href = "/onboard";
-        break;
-      case "team_invites":
-        window.location.href = "/settings/team";
-        break;
-      case "discord_guild":
-        window.location.href = "/guides/discord-train";
-        break;
-      default:
-        break;
+    const href = allianceSetupGuideTaskHref(id);
+    if (href) {
+      window.location.href = href;
     }
   }
 

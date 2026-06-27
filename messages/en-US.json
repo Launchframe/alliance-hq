@@ -1146,6 +1146,7 @@
     "showOnDashboardHint": "Keep essentials visible on your home screen. You can hide it anytime — it stays here in Settings.",
     "showAll": "Show all steps",
     "showLess": "Show fewer",
+    "dismiss": "Hide",
     "rosterVideoHint": "For Ashed alliances, upload a roster scroll video to align live in-game names with your roster before members link.",
     "rosterVideoCta": "Upload roster video",
     "tasks": {
@@ -1203,6 +1204,7 @@
     "matchLabel": "Match to roster member",
     "matchPlaceholder": "Select a member…",
     "suggestionBanner": "Suggested match: {suggested}. Last War shows {gameName}. Confirm this roster member or choose a different one.",
+    "suggestionStale": "We had suggested {suggested}, but that roster member is no longer available. Please choose the right member below.",
     "approveMatch": "Approve match",
     "decline": "Decline"
   },
@@ -2716,6 +2718,7 @@
       "rosterMissVerified": "Last War shows your commander as **{gameName}**, but our **{tag}** roster doesn't list that name yet — it may still show an older name. Ask an officer to refresh the roster or link you manually.",
       "rosterMissVerifiedGeneric": "Last War shows your commander as **{gameName}**, but our roster doesn't list that name yet — it may still show an older name. Ask an officer to refresh the roster or link you manually.",
       "awaitingOfficerResolve": "We verified your commander, but the roster name doesn't match yet. An officer has been notified — you'll be linked once they confirm the right roster member.",
+      "awaitingOfficerResolveNoHq": "We verified your commander, but the roster name doesn't match yet. Your officers have been notified in Alliance HQ and will confirm the right roster member — you don't need to do anything else. You can link an Alliance HQ account later for web features.",
       "rosterUnavailable": "We verified your UID with the game, but couldn't load the alliance roster. Ask an officer to refresh the roster or help with setup.",
       "pickExpired": "That commander option expired. Run `/link-commander` again.",
       "walkthroughDone": "Great. Run `/link-commander` again with your copied name and UID when ready.",

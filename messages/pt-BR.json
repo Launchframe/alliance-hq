@@ -1146,6 +1146,7 @@
     "showOnDashboardHint": "Mantém o essencial visível no painel. Você pode ocultar quando quiser — continua aqui em Configurações.",
     "showAll": "Mostrar todos os passos",
     "showLess": "Mostrar menos",
+    "dismiss": "Ocultar",
     "rosterVideoHint": "Para alianças Ashed, envie um vídeo da lista no jogo para alinhar nomes ao roster antes dos membros vincularem.",
     "rosterVideoCta": "Enviar vídeo do roster",
     "tasks": {
@@ -1203,6 +1204,7 @@
     "matchLabel": "Associar ao membro do roster",
     "matchPlaceholder": "Selecione um membro…",
     "suggestionBanner": "Correspondência sugerida: {suggested}. O Last War mostra {gameName}. Confirme este membro do roster ou escolha outro.",
+    "suggestionStale": "Havíamos sugerido {suggested}, mas esse membro do roster não está mais disponível. Escolha o membro correto abaixo.",
     "approveMatch": "Aprovar associação",
     "decline": "Recusar"
   },
@@ -2716,6 +2718,7 @@
       "rosterMissVerified": "O Last War mostra seu comandante como **{gameName}**, mas nosso roster **{tag}** ainda não lista esse nome — pode aparecer um nome antigo. Peça a um oficial para atualizar o roster ou vincular você manualmente.",
       "rosterMissVerifiedGeneric": "O Last War mostra seu comandante como **{gameName}**, mas nosso roster ainda não lista esse nome — pode aparecer um nome antigo. Peça a um oficial para atualizar o roster ou vincular você manualmente.",
       "awaitingOfficerResolve": "Verificamos seu comandante, mas o nome do roster ainda não confere. Um oficial foi notificado — você será vinculado quando confirmarem o membro correto.",
+      "awaitingOfficerResolveNoHq": "Verificamos seu comandante, mas o nome do roster ainda não confere. Seus oficiais foram notificados no Alliance HQ e vão confirmar o membro correto — você não precisa fazer mais nada. Você pode vincular uma conta do Alliance HQ depois para recursos web.",
       "rosterUnavailable": "Verificamos seu UID no jogo, mas não foi possível carregar o roster da aliança. Peça a um oficial para atualizar o roster ou ajudar na configuração.",
       "pickExpired": "Essa opção expirou. Execute `/link-commander` novamente.",
       "walkthroughDone": "Ótimo. Execute `/link-commander` de novo com o nome e UID copiados quando estiver pronto.",
