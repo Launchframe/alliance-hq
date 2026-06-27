@@ -5,6 +5,10 @@ import { useTranslations } from "next-intl";
 
 import { useFormatAccountDateTime } from "@/components/timezone/TimezoneProvider";
 import { Dialog } from "@/components/ui/dialog";
+import {
+  FORM_SUBMIT_ENTER_KEY_HINT,
+  preventDefaultFormSubmit,
+} from "@/lib/client/form-enter-submit.shared";
 import { useRouter } from "@/i18n/navigation";
 import type { LinkedDeviceSummary } from "@/lib/credential-pairing/linked-devices";
 
@@ -170,7 +174,13 @@ export function LinkedDevicesSettings({ refreshToken = 0 }: Props) {
               key={device.id}
               className="rounded-lg border border-[#30363d] p-3"
             >
-              <div className="flex flex-wrap items-start justify-between gap-3">
+              <form
+                className="flex flex-wrap items-start justify-between gap-3"
+                onSubmit={(event) => {
+                  preventDefaultFormSubmit(event);
+                  void saveDeviceName(device.id);
+                }}
+              >
                 <div className="min-w-0 flex-1 space-y-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <label className="sr-only" htmlFor={`device-name-${device.id}`}>
@@ -186,6 +196,7 @@ export function LinkedDevicesSettings({ refreshToken = 0 }: Props) {
                           [device.id]: event.target.value,
                         }))
                       }
+                      enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT}
                       className="min-w-0 flex-1 rounded-md border border-[#30363d] bg-[#0d1117] px-2 py-1 text-sm text-[#e6edf3]"
                     />
                     {device.isCurrentDevice ? (
@@ -208,9 +219,8 @@ export function LinkedDevicesSettings({ refreshToken = 0 }: Props) {
                 </div>
                 <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
                   <button
-                    type="button"
+                    type="submit"
                     disabled={renamingId === device.id}
-                    onClick={() => void saveDeviceName(device.id)}
                     className="rounded-lg border border-[#30363d] px-3 py-1.5 text-sm hover:bg-[#21262d] disabled:opacity-50"
                   >
                     {renamingId === device.id ? t("savingName") : t("saveName")}
@@ -223,7 +233,7 @@ export function LinkedDevicesSettings({ refreshToken = 0 }: Props) {
                     {t("revoke")}
                   </button>
                 </div>
-              </div>
+              </form>
             </li>
           ))}
         </ul>

@@ -7,6 +7,10 @@ import type {
   ViralResistanceOfficerPayload,
   ViralResistancePayload,
 } from "@/lib/vr/load-leaderboard";
+import {
+  FORM_SUBMIT_ENTER_KEY_HINT,
+  preventDefaultFormSubmit,
+} from "@/lib/client/form-enter-submit.shared";
 
 type Props = {
   initial: ViralResistancePayload;
@@ -191,7 +195,13 @@ export function ViralResistanceView({ initial, officer: initialOfficer }: Props)
             <p className="mt-4 text-sm text-[#8b949e]">{t("officer.noFlags")}</p>
           )}
 
-          <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
+          <form
+            className="mt-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end"
+            onSubmit={(event) => {
+              preventDefaultFormSubmit(event);
+              void submitOverride();
+            }}
+          >
             <label className="flex min-w-0 flex-1 flex-col gap-1 text-xs text-[#8b949e]">
               {t("officer.memberId")}
               <input
@@ -214,18 +224,18 @@ export function ViralResistanceView({ initial, officer: initialOfficer }: Props)
               <input
                 value={overrideReason}
                 onChange={(e) => setOverrideReason(e.target.value)}
+                enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT}
                 className="rounded-lg border border-[#30363d] bg-[#161b22] px-3 py-2 text-sm text-[#e6edf3]"
               />
             </label>
             <button
-              type="button"
+              type="submit"
               disabled={overrideBusy}
-              onClick={() => void submitOverride()}
               className="w-full rounded-lg bg-[#238636] px-4 py-2 text-sm font-medium text-white disabled:opacity-50 sm:w-auto"
             >
               {overrideBusy ? t("officer.saving") : t("officer.save")}
             </button>
-          </div>
+          </form>
           {overrideMessage ? (
             <p className="mt-3 text-sm text-[#8b949e]">{overrideMessage}</p>
           ) : null}

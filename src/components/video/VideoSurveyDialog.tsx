@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { useTranslations } from "next-intl";
 
 import { Dialog } from "@/components/ui/dialog";
+import { FORM_SUBMIT_ENTER_KEY_HINT } from "@/lib/client/form-enter-submit.shared";
 import {
   SURVEY_SCROLL_STYLES,
   SURVEY_SCHOOLING_ANSWERS,
@@ -294,7 +295,7 @@ export function VideoSurveyDialog({
                 type="number"
                 min={1}
                 max={9999}
-                enterKeyHint="next"
+                enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT}
                 autoFocus
                 value={draft.rowCountEstimate}
                 onChange={(e) =>

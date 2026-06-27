@@ -9,6 +9,10 @@ import {
   type ReelSession,
 } from "@/lib/trains/conductor-wheel-reel.shared";
 import type { MemberQualificationPayload } from "@/lib/trains/train-conductor-minimums.shared";
+import {
+  FORM_SUBMIT_ENTER_KEY_HINT,
+  preventDefaultFormSubmit,
+} from "@/lib/client/form-enter-submit.shared";
 
 type WheelCandidate = {
   memberId: string;
@@ -295,13 +299,20 @@ export function ConductorWheelModal({
         ) : null}
 
         {phase === "revealed" && disqualified && !automated ? (
-          <div className="mt-6 space-y-3">
+          <form
+            className="mt-6 space-y-3"
+            onSubmit={(event) => {
+              preventDefaultFormSubmit(event);
+              onOverride?.(overrideReason.trim());
+            }}
+          >
             <label className="block text-xs text-[#8b949e]">
               {t("overrideReasonLabel")}
               <input
                 type="text"
                 value={overrideReason}
                 onChange={(e) => setOverrideReason(e.target.value)}
+                enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT}
                 placeholder={t("overrideReasonPlaceholder")}
                 className="mt-1 w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 text-sm text-[#e6edf3]"
               />
@@ -315,14 +326,13 @@ export function ConductorWheelModal({
                 {t("spinAgain")}
               </button>
               <button
-                type="button"
-                onClick={() => onOverride?.(overrideReason.trim())}
+                type="submit"
                 className="rounded-lg bg-[#238636] px-4 py-2 text-sm font-medium text-white hover:bg-[#2ea043]"
               >
                 {t("override")}
               </button>
             </div>
-          </div>
+          </form>
         ) : null}
 
         {phase === "revealed" && !disqualified && !automated ? (

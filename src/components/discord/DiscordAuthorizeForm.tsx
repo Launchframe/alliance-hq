@@ -2,6 +2,8 @@
 
 import { useState, type FormEvent, type ReactNode } from "react";
 
+import { FORM_SUBMIT_ENTER_KEY_HINT } from "@/lib/client/form-enter-submit.shared";
+
 type State =
   | { status: "idle" }
   | { status: "loading" }
@@ -145,6 +147,7 @@ export function DiscordAuthorizeForm({
               placeholder="Paste your Ashed connection key"
               value={connectionKey}
               onChange={(e) => setConnectionKey(e.target.value)}
+              enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT}
               required
               disabled={state.status === "loading"}
             />
@@ -192,6 +195,7 @@ export function DiscordAuthorizeForm({
               placeholder="12–16 digit player ID"
               value={gameUid}
               onChange={(e) => setGameUid(e.target.value)}
+              enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT}
               required
               disabled={state.status === "loading"}
             />

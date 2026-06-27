@@ -4,6 +4,10 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { AllianceWelcomeHero } from "@/components/onboarding/AllianceWelcomeHero";
+import {
+  FORM_SUBMIT_ENTER_KEY_HINT,
+  preventDefaultFormSubmit,
+} from "@/lib/client/form-enter-submit.shared";
 import { fireCelebrationConfetti } from "@/lib/client/celebration-confetti";
 import { isValidGameUid } from "@/lib/lastwar/player-lookup";
 import type { MemberLinkOutcome } from "@/lib/member-link/outcome.shared";
@@ -424,7 +428,13 @@ export function MemberLinkOnboardingWizard({
       ) : null}
 
       {phase === "form" ? (
-        <div className="space-y-4">
+        <form
+          className="space-y-4"
+          onSubmit={(event) => {
+            preventDefaultFormSubmit(event);
+            void submitLink();
+          }}
+        >
           <div>
             <h2 className="text-lg font-semibold">{t("title")}</h2>
             <p className="mt-1 text-sm text-[#8b949e]">{t("welcomeSubtitle")}</p>
@@ -447,6 +457,7 @@ export function MemberLinkOnboardingWizard({
               inputMode="numeric"
               value={gameUid}
               onChange={(e) => setGameUid(e.target.value.replace(/\D/g, ""))}
+              enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT}
               className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 font-mono text-sm text-[#e6edf3]"
               autoComplete="off"
             />
@@ -469,9 +480,8 @@ export function MemberLinkOnboardingWizard({
             </div>
           ) : null}
           <button
-            type="button"
+            type="submit"
             disabled={busy}
-            onClick={() => void submitLink()}
             className="w-full rounded-lg border border-[#238636] bg-[#238636] px-4 py-2.5 text-sm font-medium text-white disabled:opacity-50"
           >
             {busy ? t("submitting") : t("submit")}
@@ -487,7 +497,7 @@ export function MemberLinkOnboardingWizard({
             </button>
             <p className="mt-1 text-xs text-[#8b949e]">{t("wrongAllianceHint")}</p>
           </div>
-        </div>
+        </form>
       ) : null}
 
       {phase === "walkthrough" ? (
@@ -604,7 +614,13 @@ export function MemberLinkOnboardingWizard({
       ) : null}
 
       {phase === "confirm_server" || phase === "lookup_fallback" ? (
-        <div className="space-y-4">
+        <form
+          className="space-y-4"
+          onSubmit={(event) => {
+            preventDefaultFormSubmit(event);
+            void submitServerNumber();
+          }}
+        >
           <h2 className="text-lg font-semibold">
             {phase === "lookup_fallback"
               ? t("lookupFallbackTitle")
@@ -643,6 +659,7 @@ export function MemberLinkOnboardingWizard({
               onChange={(e) =>
                 setServerDraft(e.target.value.replace(/\D/g, ""))
               }
+              enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT}
               className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 font-mono text-sm text-[#e6edf3]"
               autoComplete="off"
             />
@@ -652,9 +669,8 @@ export function MemberLinkOnboardingWizard({
             <p className="text-sm text-[#f85149]">{formError}</p>
           ) : null}
           <button
-            type="button"
+            type="submit"
             disabled={busy}
-            onClick={() => void submitServerNumber()}
             className="w-full rounded-lg border border-[#238636] bg-[#238636] px-4 py-2.5 text-sm font-medium text-white disabled:opacity-50"
           >
             {busy ? t("submitting") : t("submitServer")}
@@ -667,7 +683,7 @@ export function MemberLinkOnboardingWizard({
           >
             {t("backToForm")}
           </button>
-        </div>
+        </form>
       ) : null}
 
       {phase === "success" ? (

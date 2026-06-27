@@ -7,6 +7,10 @@ import { AdminNativeAlliancePanel } from "@/components/admin/AdminNativeAlliance
 import { FormattedDateTime } from "@/components/timezone/TimezoneProvider";
 import { AppSelect } from "@/components/ui/AppSelect";
 import {
+  FORM_SUBMIT_ENTER_KEY_HINT,
+  preventDefaultFormSubmit,
+} from "@/lib/client/form-enter-submit.shared";
+import {
   RecordDetailCard,
   RecordDetailField,
   ResponsiveRecordViews,
@@ -239,11 +243,16 @@ export function AdminAlliancesConsole() {
       ? String(alliance.gameServerNumber)
       : "");
     return (
-      <div
+      <form
         className="flex items-center gap-1.5"
+        onSubmit={(event) => {
+          event.stopPropagation();
+          preventDefaultFormSubmit(event);
+          if (dirty && savingServerId !== alliance.id) {
+            void saveServerNumber(alliance);
+          }
+        }}
         onClick={(event) => event.stopPropagation()}
-        onKeyDown={(event) => event.stopPropagation()}
-        role="presentation"
       >
         <input
           type="text"
@@ -251,6 +260,7 @@ export function AdminAlliancesConsole() {
           value={draft}
           placeholder={t("serverColumn.placeholder")}
           aria-label={t("serverColumn.inputLabel", { name: alliance.name })}
+          enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT}
           onChange={(event) =>
             setServerDrafts((current) => ({
               ...current,
@@ -260,16 +270,15 @@ export function AdminAlliancesConsole() {
           className="w-20 rounded-lg border border-[#30363d] bg-[#0d1117] px-2 py-1 text-sm"
         />
         <button
-          type="button"
+          type="submit"
           disabled={!dirty || savingServerId === alliance.id}
-          onClick={() => void saveServerNumber(alliance)}
           className="rounded-lg border border-[#238636] bg-[#238636]/10 px-2 py-1 text-xs text-[#3fb950] disabled:opacity-40"
         >
           {savingServerId === alliance.id
             ? t("serverColumn.saving")
             : t("serverColumn.save")}
         </button>
-      </div>
+      </form>
     );
   }
 

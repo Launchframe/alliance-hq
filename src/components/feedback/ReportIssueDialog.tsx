@@ -10,6 +10,11 @@ import { Button } from "@/components/ui/button";
 import { AppSelect } from "@/components/ui/AppSelect";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  FORM_SUBMIT_ENTER_KEY_HINT,
+  handleTextareaEnterSubmit,
+  preventDefaultFormSubmit,
+} from "@/lib/client/form-enter-submit.shared";
+import {
   APP_VERSION,
   BUG_REPORT_AREAS,
   BUG_REPORT_SEVERITY_OPTIONS,
@@ -204,7 +209,13 @@ export function ReportIssueDialog({
 
   return (
     <>
-      <div className="space-y-4">
+      <form
+        className="space-y-4"
+        onSubmit={(event) => {
+          preventDefaultFormSubmit(event);
+          void handleSubmit();
+        }}
+      >
         <div>
           <h2 className="text-lg font-semibold">{t("title")}</h2>
           <p className="mt-1 text-sm text-[#8b949e]">{t("description")}</p>
@@ -250,6 +261,12 @@ export function ReportIssueDialog({
           <Textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
+            enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT}
+            onKeyDown={(e) =>
+              handleTextareaEnterSubmit(e, () => {
+                void handleSubmit();
+              })
+            }
             placeholder={t("detailsPlaceholder")}
           />
         </label>
@@ -286,11 +303,11 @@ export function ReportIssueDialog({
           <Button variant="ghost" onClick={onClose}>
             {t("cancel")}
           </Button>
-          <Button onClick={handleSubmit} disabled={submitting}>
+          <Button type="submit" disabled={submitting}>
             {submitting ? t("submitting") : t("submit")}
           </Button>
         </div>
-      </div>
+      </form>
 
       <ScreenshotModeOverlay
         open={screenshotModeOpen}

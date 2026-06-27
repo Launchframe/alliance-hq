@@ -4,6 +4,10 @@ import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { Link } from "@/i18n/navigation";
+import {
+  FORM_SUBMIT_ENTER_KEY_HINT,
+  preventDefaultFormSubmit,
+} from "@/lib/client/form-enter-submit.shared";
 import { ENABLED_SCORE_TARGETS } from "@/lib/video/score-targets";
 import type { EurWeeklySlot } from "@/lib/eur/schedule-engine";
 
@@ -289,6 +293,13 @@ export function UploadRemindersClient({ canManageSchedules }: Props) {
 
           <section className="space-y-4 rounded-xl border border-[#30363d] bg-[#161b22] p-5">
             <h2 className="font-medium">{t("addSchedule")}</h2>
+            <form
+              className="space-y-4"
+              onSubmit={(event) => {
+                preventDefaultFormSubmit(event);
+                void createSchedule();
+              }}
+            >
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="block text-sm">
                 <span className="text-[#8b949e]">{t("scheduleKind")}</span>
@@ -393,18 +404,19 @@ export function UploadRemindersClient({ canManageSchedules }: Props) {
                       Number.parseInt(e.target.value, 10) || 0,
                     )
                   }
+                  enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT}
                   className="mt-1 w-full max-w-xs rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 text-sm"
                 />
               </label>
             </div>
             <button
-              type="button"
+              type="submit"
               disabled={saving}
-              onClick={() => void createSchedule()}
               className="rounded-lg bg-[#238636] px-4 py-2 text-sm font-medium text-white hover:bg-[#2ea043] disabled:opacity-50"
             >
               {t("saveSchedule")}
             </button>
+            </form>
           </section>
         </>
       ) : null}

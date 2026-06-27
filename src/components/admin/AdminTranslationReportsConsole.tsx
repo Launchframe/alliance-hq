@@ -18,6 +18,11 @@ import {
   ResponsiveRecordViews,
 } from "@/components/ui/ResponsiveRecordViews";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  FORM_SUBMIT_ENTER_KEY_HINT,
+  handleTextareaEnterSubmit,
+  preventDefaultFormSubmit,
+} from "@/lib/client/form-enter-submit.shared";
 
 type Report = {
   id: string;
@@ -290,29 +295,44 @@ export function AdminTranslationReportsConsole() {
                 </AdminDetailField>
               ) : null}
 
+              <form
+                className="space-y-3"
+                onSubmit={(event) => {
+                  preventDefaultFormSubmit(event);
+                  void updateStatus("applied");
+                }}
+              >
               <label className="block space-y-1 text-sm">
                 <span className="text-[#8b949e]">{t("adminNotes")}</span>
                 <Textarea
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
+                  enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT}
+                  onKeyDown={(e) =>
+                    handleTextareaEnterSubmit(e, () => {
+                      void updateStatus("applied");
+                    })
+                  }
                   rows={3}
                 />
               </label>
 
               {selected.status === "pending" ? (
                 <div className="flex gap-2">
-                  <Button className="flex-1" onClick={() => updateStatus("applied")}>
+                  <Button type="submit" className="flex-1">
                     {t("apply")}
                   </Button>
                   <Button
+                    type="button"
                     variant="outline"
                     className="flex-1"
-                    onClick={() => updateStatus("dismissed")}
+                    onClick={() => void updateStatus("dismissed")}
                   >
                     {t("dismiss")}
                   </Button>
                 </div>
               ) : null}
+              </form>
             </AdminFeedbackDetailPanel>
           ) : (
             <AdminFeedbackDetailPanel>

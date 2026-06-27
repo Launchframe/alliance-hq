@@ -4,6 +4,9 @@ import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { Button } from "@/components/ui/button";
+import {
+  preventDefaultFormSubmit,
+} from "@/lib/client/form-enter-submit.shared";
 import { allianceTrainWeekApiPath } from "@/lib/alliance/alliance-settings-path.shared";
 
 const WEEKDAY_OPTIONS = [
@@ -98,7 +101,13 @@ export function AllianceTrainWeekSettings({ allianceTag }: Props) {
       {loading ? (
         <p className="mt-4 text-sm text-[#8b949e]">{t("loading")}</p>
       ) : (
-        <div className="mt-4 space-y-4">
+        <form
+          className="mt-4 space-y-4"
+          onSubmit={(event) => {
+            preventDefaultFormSubmit(event);
+            void save();
+          }}
+        >
           <fieldset className="space-y-2" disabled={!canManage || busy}>
             <legend className="text-sm font-medium text-[#c9d1d9]">
               {t("startDayLabel")}
@@ -131,7 +140,7 @@ export function AllianceTrainWeekSettings({ allianceTag }: Props) {
           {!canManage ? (
             <p className="text-xs text-[#8b949e]">{t("adminsOnly")}</p>
           ) : (
-            <Button type="button" disabled={busy} onClick={() => void save()}>
+            <Button type="submit" disabled={busy}>
               {busy ? t("saving") : t("save")}
             </Button>
           )}
@@ -139,7 +148,7 @@ export function AllianceTrainWeekSettings({ allianceTag }: Props) {
           {error ? (
             <p className="text-sm text-red-300">{error}</p>
           ) : null}
-        </div>
+        </form>
       )}
     </section>
   );
