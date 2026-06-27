@@ -10,6 +10,7 @@ import {
   getAshedCredentialRecord,
   getOrCreateSession,
   loadSession,
+  requirePageSession,
   resolveEffectiveHqUserIdForSession,
 } from "@/lib/session";
 
@@ -93,4 +94,25 @@ export async function bridgeAuthUserToBrowserSession(input: {
     .where(eq(schema.sessions.id, session.id));
 
   return session.id;
+}
+
+/**
+ * Page-render-safe bridge. Server Components may not set cookies, so this
+ * ensures a browser session exists via the bootstrap Route Handler
+ * (`requirePageSession` redirects there when the session cookie has no DB row —
+ * e.g. a stale cookie after a DB reset) before delegating to the bridge. The
+ * delegated `getOrCreateSession` then reads the existing row instead of trying
+ * to create one and call `cookies().set()` mid-render.
+ */
+export async function bridgeAuthUserToPageSession(
+  input: {
+    hqUserId: string;
+    email: string;
+    displayName?: string | null;
+    markEmailVerified?: boolean;
+  },
+  callbackPath = "/",
+): Promise<string> {
+  await requirePageSession(callbackPath);
+  return bridgeAuthUserToBrowserSession(input);
 }
