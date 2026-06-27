@@ -70,7 +70,12 @@ export async function createPlatformMaintainerSession(
   const expiresAt = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000);
   const sessionId = nanoid(32);
   const hqUserId = nanoid(16);
-  const email = `maintainer-${nanoid(8)}@e2e.test`;
+  // Store the email normalized (lowercase) so it matches what the auth guards
+  // resolve via `ensureHqUserForAuthEmail` (NextAuth token email + Ashed email
+  // normalization both lowercase). nanoid() can emit uppercase, so an
+  // un-normalized address would never match and the session would be rebound
+  // to a freshly-created non-maintainer user.
+  const email = `maintainer-${nanoid(8)}@e2e.test`.toLowerCase();
 
   await sql`
     INSERT INTO hq_users (
