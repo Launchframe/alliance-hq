@@ -54,7 +54,6 @@ export default async function DiscordAuthorizePage({ searchParams }: PageProps) 
             nonce={nonce}
             labels={{
               continueWithDiscord: t("userLinkSubmit"),
-              signingIn: t("submitting"),
             }}
           />
         ) : (

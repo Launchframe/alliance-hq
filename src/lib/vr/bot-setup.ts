@@ -10,7 +10,6 @@ import {
   getAllianceById,
   getDiscordHqLink,
   getGuildAllianceId,
-  listDiscordLinksForUser,
   saveDiscordBotPending,
   setGuildVrReportChannel,
   upsertGuildAlliance,
@@ -311,20 +310,4 @@ export async function handleDiscordLanguage(input: {
   await setDiscordBotLocale(input.discordUserId, input.locale);
   const t = createDiscordTranslator(input.locale);
   return { reply: t("setup.languageSuccess") };
-}
-
-/** Post-HQ-auth hint when guild is registered but user has no commanders linked. */
-export async function buildFirstCommanderPrompt(input: {
-  guildId: string | null;
-  allianceId: string | null;
-  discordUserId: string;
-  locale: DiscordBotLocale;
-}): Promise<string | null> {
-  if (!input.guildId || !input.allianceId) return null;
-  const registered = await getGuildAllianceId(input.guildId);
-  if (registered !== input.allianceId) return null;
-  const links = await listDiscordLinksForUser(input.allianceId, input.discordUserId);
-  if (links.length > 0) return null;
-  const t = createDiscordTranslator(input.locale);
-  return t("link.promptFirstCommander");
 }

@@ -9,7 +9,6 @@ export function DiscordHqLinkClient({
   nonce: string;
   labels: {
     continueWithDiscord: string;
-    signingIn: string;
   };
 }) {
   const callbackUrl = `/discord/authorize/complete?nonce=${encodeURIComponent(nonce)}`;
