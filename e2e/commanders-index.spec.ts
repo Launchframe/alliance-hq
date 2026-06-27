@@ -89,13 +89,21 @@ test.describe("Commanders index", () => {
       allianceId: alliance.allianceId,
       hqUserId: session.hqUserId,
     });
+    await sql`
+      UPDATE sessions
+      SET
+        current_alliance_id = ${alliance.allianceId},
+        alliance_id = ${alliance.allianceId},
+        alliance_tag = ${alliance.tag}
+      WHERE id = ${session.sessionId}
+    `;
 
     await page.context().addCookies(playwrightAuthCookies(session));
 
     const apiRes = await request.get(`${e2eBaseUrl()}/api/commanders/index`, {
-      headers: authCookieHeader(session),
+      headers: { Cookie: authCookieHeader(session) },
     });
-    expect(apiRes.ok()).toBeTruthy();
+    expect(apiRes.ok(), await apiRes.text()).toBeTruthy();
     const payload = (await apiRes.json()) as {
       rows: Array<{ memberName: string; totalHeroPower: number }>;
       canEdit: boolean;
@@ -147,6 +155,14 @@ test.describe("Commanders index", () => {
       hqUserId: session.hqUserId,
       ashedMemberId: memberId,
     });
+    await sql`
+      UPDATE sessions
+      SET
+        current_alliance_id = ${alliance.allianceId},
+        alliance_id = ${alliance.allianceId},
+        alliance_tag = ${alliance.tag}
+      WHERE id = ${session.sessionId}
+    `;
 
     await page.context().addCookies(playwrightAuthCookies(session));
     await page.goto(`/members/${memberId}`);
@@ -160,13 +176,13 @@ test.describe("Commanders index", () => {
       `${e2eBaseUrl()}/api/members/${memberId}/main-squad`,
       {
         headers: {
-          ...authCookieHeader(session),
+          Cookie: authCookieHeader(session),
           "Content-Type": "application/json",
         },
         data: { mainSquad: "missile" },
       },
     );
-    expect(patchRes.ok()).toBeTruthy();
+    expect(patchRes.ok(), await patchRes.text()).toBeTruthy();
 
     await page.goto("/commanders");
     await expect(page.getByText("Missile").first()).toBeVisible();

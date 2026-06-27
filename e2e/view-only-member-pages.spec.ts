@@ -29,8 +29,15 @@ const IFRAME_NAV_PATHS = NAV_GROUPS.flatMap((group) => group.pages)
   .filter((page) => page.kind === "iframe")
   .map((page) => page.href);
 
+/** Read permissions the default view-only member fixture already has. */
+const VIEW_ONLY_MEMBER_READ_PERMISSIONS = new Set(["members:read"]);
+
 const PERMISSION_GATED_NAV_PATHS = NAV_GROUPS.flatMap((group) => group.pages)
-  .filter((page) => page.requiredPermission)
+  .filter(
+    (page) =>
+      page.requiredPermission &&
+      !VIEW_ONLY_MEMBER_READ_PERMISSIONS.has(page.requiredPermission),
+  )
   .map((page) => page.href);
 
 async function expectPageLoadsWithoutServerError(
