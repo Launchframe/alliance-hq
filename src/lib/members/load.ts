@@ -3,10 +3,7 @@ import { eq } from "drizzle-orm";
 import { resolveAllianceByTag } from "@/lib/alliance/resolve";
 import { getDb, schema } from "@/lib/db";
 import { loadAllianceGameRoster } from "@/lib/members/game-roster";
-import {
-  countDeferredCommanderSyncMembers,
-  listCommanderIdentityConflictsForAlliance,
-} from "@/lib/members/commander-identity.server";
+import { listCommanderIdentityConflictsForAlliance } from "@/lib/members/commander-identity.server";
 import type { CommanderIdentityConflict } from "@/lib/members/commander-identity-conflicts.shared";
 import { searchAllianceMembers } from "@/lib/members/members-search.server";
 import {
@@ -31,8 +28,6 @@ export type AllianceMembersPayload = {
   fetchedAt: string;
   operatingMode: "ashed" | "native";
   commanderConflicts: CommanderIdentityConflict[];
-  /** Members intentionally deferred (missing_server or pending) with no current officer action path. */
-  deferredCommanderSyncCount: number;
   gameServerNumber?: number | null;
 };
 
@@ -56,7 +51,7 @@ function countMembers(members: AshedMember[]): AllianceMembersPayload["counts"] 
 async function enrichMembersPayload(
   payload: Omit<
     AllianceMembersPayload,
-    "commanderConflicts" | "deferredCommanderSyncCount" | "gameServerNumber"
+    "commanderConflicts" | "gameServerNumber"
   >,
   allianceId: string,
 ): Promise<AllianceMembersPayload> {
@@ -67,16 +62,11 @@ async function enrichMembersPayload(
     .where(eq(schema.alliances.id, allianceId))
     .limit(1);
 
-  const [commanderConflicts, deferredCommanderSyncCount] = await Promise.all([
-    listCommanderIdentityConflictsForAlliance(allianceId),
-    countDeferredCommanderSyncMembers(allianceId),
-  ]);
-
   return {
     ...payload,
     gameServerNumber: allianceRow?.gameServerNumber ?? null,
-    commanderConflicts,
-    deferredCommanderSyncCount,
+    commanderConflicts:
+      await listCommanderIdentityConflictsForAlliance(allianceId),
   };
 }
 

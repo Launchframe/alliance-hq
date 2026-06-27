@@ -7,7 +7,7 @@ import "server-only";
  * Name collisions defer sync and surface officer resolution (never silent merge).
  */
 
-import { and, desc, eq, isNull, ne, or, sql } from "drizzle-orm";
+import { and, desc, eq, isNull, ne, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { getDb, schema } from "@/lib/db";
@@ -935,42 +935,6 @@ export async function countMembersWithCommanderSyncStatus(
       and(
         eq(schema.allianceMembers.allianceId, allianceId),
         eq(schema.allianceMembers.commanderSyncStatus, status),
-      ),
-    );
-  return row?.count ?? 0;
-}
-
-/**
- * Count members whose Commander sync is intentionally deferred but has no
- * actionable officer path in the current session:
- *   - missing_server: alliance game_server_number not yet linked; resolves when
- *     the owner completes name+UID member link (sets alliances.game_server_number)
- *     and roster is re-synced.
- *   - pending: member has a blank display name from Ashed; requires manual
- *     name correction via the conflict resolution sheet.
- *
- * These are distinct from name_conflict (surfaced via listCommanderIdentityConflictsForAlliance).
- */
-export async function countDeferredCommanderSyncMembers(
-  allianceId: string,
-): Promise<number> {
-  const db = getDb();
-  const [row] = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(schema.allianceMembers)
-    .where(
-      and(
-        eq(schema.allianceMembers.allianceId, allianceId),
-        or(
-          eq(
-            schema.allianceMembers.commanderSyncStatus,
-            COMMANDER_SYNC_STATUS.MISSING_SERVER,
-          ),
-          eq(
-            schema.allianceMembers.commanderSyncStatus,
-            COMMANDER_SYNC_STATUS.PENDING,
-          ),
-        ),
       ),
     );
   return row?.count ?? 0;
