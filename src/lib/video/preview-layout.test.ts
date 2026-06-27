@@ -29,6 +29,7 @@ function expectedDefaultPrefs() {
     placement: { ...DEFAULT_PLACEMENT },
     zoom: "fit" as const,
     size,
+    followMe: false,
   };
 }
 
@@ -140,6 +141,7 @@ describe("parsePreviewPrefs", () => {
       open: true,
       placement: { desktop: "side", tablet: "bottom", mobile: "top" },
       zoom: "width",
+      followMe: true,
       size: {
         desktop: { sideWidthPx: 400, dockHeightPx: 400 },
         tablet: { sideWidthPx: 380, dockHeightPx: 350 },
@@ -150,6 +152,7 @@ describe("parsePreviewPrefs", () => {
       open: true,
       placement: { desktop: "side", tablet: "bottom", mobile: "top" },
       zoom: "width",
+      followMe: true,
       size: {
         desktop: { sideWidthPx: 400, dockHeightPx: 400 },
         tablet: { sideWidthPx: 380, dockHeightPx: 350 },
@@ -174,6 +177,12 @@ describe("parsePreviewPrefs", () => {
     );
     expect(parsePreviewPrefs(JSON.stringify({ zoom: "nope" }), VIEWPORT).zoom).toBe(
       "fit",
+    );
+  });
+
+  it("defaults followMe to false when missing in stored prefs", () => {
+    expect(parsePreviewPrefs(JSON.stringify({ open: true }), VIEWPORT).followMe).toBe(
+      false,
     );
   });
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useLocale, useTranslations } from "next-intl";
-import { Crosshair, MonitorPlay, Trash2 } from "lucide-react";
+import { Crosshair, LocateFixed, MonitorPlay, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Link, useRouter } from "@/i18n/navigation";
@@ -32,6 +32,7 @@ import {
   type VideoSeekRequest,
 } from "@/components/video/ReviewVideoPreview";
 import { useVideoPreviewLayout } from "@/components/video/useVideoPreviewLayout";
+import { useVideoReviewFollowMe } from "@/components/video/useVideoReviewFollowMe";
 import {
   previewSeekSecondsForFrame,
   type FrameTimestampMap,
@@ -180,6 +181,8 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     setZoom: setPreviewZoom,
     setSideWidthPx: setPreviewSideWidthPx,
     setDockHeightPx: setPreviewDockHeightPx,
+    followMe: previewFollowMe,
+    setFollowMe: setPreviewFollowMe,
   } = useVideoPreviewLayout();
   const previewAutoOpenedForJobRef = useRef<string | null>(null);
   const [previewSeekRequest, setPreviewSeekRequest] =
@@ -677,6 +680,18 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     [activeRows, filterQuery],
   );
 
+  const closePreview = useCallback(() => {
+    setPreviewOpen(false);
+    setPreviewFollowMe(false);
+  }, [setPreviewOpen, setPreviewFollowMe]);
+
+  const togglePreviewOpen = useCallback(() => {
+    setPreviewOpen((open) => {
+      if (open) setPreviewFollowMe(false);
+      return !open;
+    });
+  }, [setPreviewOpen, setPreviewFollowMe]);
+
   const openRowVideoPreview = useCallback(
     (row: ParsedRow) => {
       const seconds = previewSeekSecondsForFrame(
@@ -692,6 +707,29 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     },
     [frameTimestamps, setPreviewOpen],
   );
+
+  const rowCanPreviewForFollow = useCallback(
+    (row: ParsedRow) =>
+      hasSourceVideo &&
+      previewSeekSecondsForFrame(row.frameIndex, frameTimestamps) != null,
+    [hasSourceVideo, frameTimestamps],
+  );
+
+  const scoreTableFollowMeEnabled =
+    hasSourceVideo &&
+    !scoreTargetMeta?.showRosterColumns &&
+    previewFollowMe &&
+    previewOpen;
+
+  const { registerFollowAnchor } = useVideoReviewFollowMe({
+    enabled: scoreTableFollowMeEnabled,
+    rows: filteredRows,
+    canPreview: rowCanPreviewForFollow,
+    onSeek: openRowVideoPreview,
+    previewOpen,
+    previewPlacement,
+    dockHeightPx: previewDockHeightPx,
+  });
 
   // Open the source preview when landing on a review job that has video (once per
   // job visit). Users can still close it during the session; revisiting or
@@ -1042,7 +1080,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
       onPlacementChange={setPreviewPlacement}
       zoom={previewZoom}
       onZoomChange={setPreviewZoom}
-      onClose={() => setPreviewOpen(false)}
+      onClose={closePreview}
       unavailable={!hasSourceVideo}
       seekRequest={previewSeekRequest}
       sideWidthPx={previewSideWidthPx}
@@ -1089,7 +1127,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
             {hasSourceVideo ? (
               <button
                 type="button"
-                onClick={() => setPreviewOpen((open) => !open)}
+                onClick={togglePreviewOpen}
                 className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm ${
                   previewOpen
                     ? "border-[#58a6ff] bg-[#0c2d6b]/40 text-[#58a6ff]"
@@ -1098,6 +1136,28 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
               >
                 <MonitorPlay className="h-4 w-4 shrink-0" aria-hidden />
                 {t("previewVideo")}
+              </button>
+            ) : null}
+            {hasSourceVideo && !scoreTargetMeta?.showRosterColumns ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setPreviewFollowMe((on) => {
+                    const next = !on;
+                    if (next) setPreviewOpen(true);
+                    return next;
+                  });
+                }}
+                aria-pressed={previewFollowMe}
+                title={t("followMeHint")}
+                className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm ${
+                  previewFollowMe
+                    ? "border-[#58a6ff] bg-[#0c2d6b]/40 text-[#58a6ff]"
+                    : "border-[#30363d] text-[#e6edf3] hover:bg-[#21262d]"
+                }`}
+              >
+                <LocateFixed className="h-4 w-4 shrink-0" aria-hidden />
+                {t("followMe")}
               </button>
             ) : null}
             <VideoPipelineStatsButton
@@ -1585,6 +1645,8 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                   {rowCanVideoPreview ? (
                     <button
                       type="button"
+                      ref={registerFollowAnchor(row.id)}
+                      data-video-follow-anchor={row.id}
                       onClick={() => openRowVideoPreview(row)}
                       className="inline-flex h-8 w-8 items-center justify-center rounded-md text-[#58a6ff] hover:bg-[#21262d]"
                       title={t("rowVideoPreview")}
