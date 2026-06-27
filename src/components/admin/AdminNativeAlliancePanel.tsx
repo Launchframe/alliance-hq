@@ -68,6 +68,7 @@ export function AdminNativeAlliancePanel({
   const t = useTranslations("admin.nativeAlliance");
   const [name, setName] = useState("");
   const [tag, setTag] = useState("");
+  const [gameServerNumber, setGameServerNumber] = useState("");
   const [ownerEmail, setOwnerEmail] = useState("");
   const [inviteKind, setInviteKind] = useState<InviteKind>("protected_link");
   const [inviteEmail, setInviteEmail] = useState("");
@@ -90,10 +91,22 @@ export function AdminNativeAlliancePanel({
   async function createAlliance() {
     const trimmedName = name.trim();
     const trimmedTag = tag.trim();
+    const parsedServerNumber = Number(gameServerNumber.trim());
     if (!trimmedName || !trimmedTag) {
       setCreateFeedback({
         kind: "error",
         text: t("createFieldsRequired"),
+      });
+      return;
+    }
+    if (
+      !Number.isInteger(parsedServerNumber) ||
+      parsedServerNumber <= 0 ||
+      parsedServerNumber > 9999
+    ) {
+      setCreateFeedback({
+        kind: "error",
+        text: t("serverNumberInvalid"),
       });
       return;
     }
@@ -107,6 +120,7 @@ export function AdminNativeAlliancePanel({
         body: JSON.stringify({
           name: trimmedName,
           tag: trimmedTag,
+          gameServerNumber: parsedServerNumber,
           ownerEmail: ownerEmail.trim() || undefined,
         }),
       });
@@ -271,6 +285,21 @@ export function AdminNativeAlliancePanel({
             onChange={(e) => setTag(e.target.value)}
             className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
           />
+        </label>
+        <label className="space-y-1 text-sm">
+          <span className="text-[#8b949e]">{t("serverNumber")}</span>
+          <input
+            type="number"
+            min={1}
+            max={9999}
+            value={gameServerNumber}
+            onChange={(e) => setGameServerNumber(e.target.value)}
+            placeholder="1203"
+            className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
+          />
+          <span className="block text-xs text-[#6e7681]">
+            {t("serverNumberHint")}
+          </span>
         </label>
         <label className="space-y-1 text-sm sm:col-span-2">
           <span className="text-[#8b949e]">{t("ownerEmailOptional")}</span>

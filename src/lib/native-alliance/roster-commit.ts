@@ -11,7 +11,11 @@ import {
   appendMemberGameLevelEventIfChanged,
   appendMemberPowerLevelEventIfChanged,
 } from "@/lib/members/member-stat-history.server";
-import { syncCommanderFromAllianceMember } from "@/lib/members/commander-identity.server";
+import {
+  syncCommanderFromAllianceMember,
+  validateRosterImportCommanderIdentities,
+} from "@/lib/members/commander-identity.server";
+import { CommanderIdentityConflictError } from "@/lib/members/commander-identity-conflicts.shared";
 import { getServerCalendarDate } from "@/lib/trains/game-time";
 
 import { nativeRosterAshedAllianceId } from "./provision";
@@ -119,6 +123,18 @@ export async function commitRosterImport(
 ): Promise<RosterImportCommitResult> {
   if (input.rows.length === 0) {
     throw new Error("No rows to import.");
+  }
+
+  const identityConflicts = await validateRosterImportCommanderIdentities({
+    allianceId: input.allianceId,
+    rows: input.rows.map((row, rowIndex) => ({
+      extractedName: row.extractedName,
+      matchMemberId: row.matchMemberId,
+      rowIndex,
+    })),
+  });
+  if (identityConflicts.length > 0) {
+    throw new CommanderIdentityConflictError(identityConflicts);
   }
 
   const db = getDb();

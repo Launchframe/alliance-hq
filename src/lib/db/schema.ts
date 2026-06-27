@@ -28,9 +28,9 @@ export const alliances = pgTable("alliances", {
   /** Active game season key for VR tracking (e.g. "42"). */
   currentSeasonKey: text("current_season_key"),
   /** Last War state server number from Ashed Alliance.server_number (e.g. 1203). */
-  gameServerNumber: integer("game_server_number"),
+  gameServerNumber: integer("game_server_number").notNull(),
   /** FK to shared game_servers row (canonical server + season graph). */
-  gameServerId: text("game_server_id"),
+  gameServerId: text("game_server_id").notNull(),
   /** Server open time (ms epoch) from cpt-hedge — used for age fallback. */
   gameServerOpenTimestamp: bigint("game_server_open_timestamp", {
     mode: "number",
@@ -1108,6 +1108,13 @@ export const allianceMembers = pgTable(
     isSample: boolean("is_sample"),
     /** Denormalized game UID from member links when known. */
     gameUid: text("game_uid"),
+    /** Commander mirror state — see commander-identity-conflicts.shared.ts */
+    commanderSyncStatus: text("commander_sync_status")
+      .notNull()
+      .default("pending"),
+    commanderConflictJson: jsonb("commander_conflict_json").$type<
+      Record<string, unknown>
+    >(),
     syncedAt: timestamp("synced_at", { withTimezone: true }).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
@@ -1159,8 +1166,11 @@ export const commanders = pgTable(
   "commanders",
   {
     id: text("id").primaryKey(),
-    gameUid: text("game_uid").notNull(),
+    gameUid: text("game_uid"),
+    gameServerNumber: integer("game_server_number"),
     primaryName: text("primary_name"),
+    /** Lowercase trimmed name for orphan identity (partial unique with server). */
+    primaryNameNormalized: text("primary_name_normalized"),
     profession: text("profession"),
     professionalLevel: integer("professional_level"),
     memberLevel: integer("member_level"),
@@ -1177,8 +1187,11 @@ export const commanders = pgTable(
       .notNull(),
   },
   (table) => [
-    unique("commanders_game_uid_unique").on(table.gameUid),
     index("commanders_game_uid_idx").on(table.gameUid),
+    index("commanders_orphan_name_server_idx").on(
+      table.primaryNameNormalized,
+      table.gameServerNumber,
+    ),
   ],
 );
 

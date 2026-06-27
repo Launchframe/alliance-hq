@@ -393,6 +393,20 @@
       "when": 1784028800000,
       "tag": "0055_commander_identity",
       "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "7",
+      "when": 1784115200000,
+      "tag": "0056_commander_nullable_uid",
+      "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1784201600000,
+      "tag": "0057_alliance_game_server_required",
+      "breakpoints": true
     }
   ]
 }
