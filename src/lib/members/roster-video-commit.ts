@@ -2,6 +2,7 @@ import "server-only";
 
 import { eq } from "drizzle-orm";
 
+import type { ParsedConnection } from "@/lib/connectionString";
 import { getDb, schema } from "@/lib/db";
 import {
   commitRosterImport,
@@ -20,6 +21,7 @@ export type CommitRosterFromVideoInput = {
   hqUserId: string;
   parseSessionId: string;
   markAbsentInactive?: boolean;
+  ashedConnection?: ParsedConnection | null;
 };
 
 function normalizeMemberLevel(value: number | null): number | null {
@@ -102,5 +104,6 @@ export async function commitRosterFromVideoJob(
     rows: commitRows,
     markAbsentInactive: input.markAbsentInactive,
     source: "video_parse",
+    ashedConnection: input.ashedConnection,
   });
 }

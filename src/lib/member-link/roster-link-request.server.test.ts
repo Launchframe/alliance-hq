@@ -53,11 +53,23 @@ const seasonSync = await import("@/lib/game-season/sync");
 const operatingMode = await import("@/lib/native-alliance/operating-mode");
 const repository = await import("@/lib/member-link/repository.server");
 const dbModule = vi.hoisted(() => {
-  const chain = {
+  const chain: {
+    from: ReturnType<typeof vi.fn>;
+    where: ReturnType<typeof vi.fn>;
+    orderBy: ReturnType<typeof vi.fn>;
+    limit: ReturnType<typeof vi.fn>;
+    then: (
+      onFulfilled?: (value: unknown[]) => unknown,
+      onRejected?: (reason: unknown) => unknown,
+    ) => Promise<unknown>;
+  } = {
     from: vi.fn(),
     where: vi.fn(),
     orderBy: vi.fn(),
     limit: vi.fn(),
+    then(onFulfilled, onRejected) {
+      return Promise.resolve([]).then(onFulfilled, onRejected);
+    },
   };
   chain.from.mockReturnValue(chain);
   chain.where.mockReturnValue(chain);
@@ -396,7 +408,7 @@ describe("tryRouteRosterMissToOwnerApproval", () => {
     expect(result?.outcome).toBe("wrong_server");
   });
 
-  it("returns null when no accepted invite exists", async () => {
+  it("creates awaiting_owner request when roster name misses without invite", async () => {
     const result = await tryRouteRosterMissToOwnerApproval({
       allianceId: "a1",
       allianceTag: "LFgo",
@@ -407,7 +419,11 @@ describe("tryRouteRosterMissToOwnerApproval", () => {
       lookup: { ok: true, gameUserName: "Commander", gameServerNumber: 1203 },
     });
 
-    expect(result).toBeNull();
+    expect(result?.outcome).toBe("awaiting_owner");
+    expect(result?.pending?.kind).toBe("link_awaiting_owner");
+    if (result?.pending?.kind === "link_awaiting_owner") {
+      expect(result.pending.requestId).toBeTruthy();
+    }
   });
 });
 

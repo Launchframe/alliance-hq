@@ -731,6 +731,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
       memberName: row.memberName,
       matchConfidence: row.matchConfidence,
       deleted: row.deleted,
+      matchMethod: row.matchMethod,
     })),
   );
 
@@ -753,6 +754,9 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   const hasDuplicateMembers = duplicateMemberIssues.length > 0;
   const hasDuplicateOcrNames =
     scoreTargetMeta?.showRosterColumns && rosterValidation.hasDuplicateOcrNames;
+  const hasUnresolvedNameMismatches =
+    scoreTargetMeta?.showRosterColumns &&
+    rosterValidation.hasUnresolvedNameMismatches;
   const needsEventPicker =
     scoreTargetMeta?.usesHqEvents ||
     Boolean(scoreTargetMeta?.eventEntity);
@@ -775,6 +779,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     (!needsBoardPicker || boardKey) &&
     !hasDuplicateMembers &&
     !hasDuplicateOcrNames &&
+    !hasUnresolvedNameMismatches &&
     !submitting &&
     !(
       scoreTargetMeta?.maxSubmitRows != null &&
@@ -1382,11 +1387,13 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
               memberId: row.memberId,
               memberName: row.memberName,
               matchConfidence: row.matchConfidence,
+              matchMethod: row.matchMethod,
               deleted: row.deleted,
             }))}
             members={rosterMembers}
             filterQuery={filterQuery}
             duplicateRowIds={duplicateRowIds}
+            unmatchedRowIds={rosterValidation.unmatchedRowIds}
             onUpdateRow={updateRosterRow}
             onDeleteRow={deleteRow}
             onPreviewFrame={(frameIndex) => {

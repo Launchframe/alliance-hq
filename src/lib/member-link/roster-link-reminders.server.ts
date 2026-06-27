@@ -120,6 +120,7 @@ export async function runRosterLinkReminderPass(
       await sendRosterLinkOwnerApprovalEmail({
         allianceId: request.allianceId,
         allianceTag: alliance?.tag ?? "alliance",
+        requestId: request.id,
         gameUserName: request.gameUserName,
         reportedName: request.reportedName,
         gameUid: request.gameUid,

@@ -382,7 +382,7 @@ test.describe("Member-link onboarding outcomes", () => {
     await page.goto("/onboard");
 
     await expect(
-      page.getByRole("heading", { name: /we've notified your r5/i }),
+      page.getByRole("heading", { name: /waiting for roster confirmation/i }),
     ).toBeVisible();
 
     await page.getByRole("button", { name: /check again/i }).click();
@@ -439,7 +439,7 @@ test.describe("Member-link onboarding outcomes", () => {
     expect(body.outcome).toBe("awaiting_owner");
 
     await expect(
-      page.getByRole("heading", { name: /we've notified your r5/i }),
+      page.getByRole("heading", { name: /waiting for roster confirmation/i }),
     ).toBeVisible();
   });
 
@@ -447,6 +447,7 @@ test.describe("Member-link onboarding outcomes", () => {
     page,
   }) => {
     const sql = getE2eSql();
+    const maintainer = await createPlatformMaintainerSession(sql);
     const { accepted, email, alliance } =
       await seedUnlinkedMemberOnboardSession(sql);
 
@@ -463,7 +464,7 @@ test.describe("Member-link onboarding outcomes", () => {
     await page.getByLabel(/player uid/i).fill("1234567890121204");
     await page.getByRole("button", { name: /link my character/i }).click();
     await expect(
-      page.getByRole("heading", { name: /we've notified your r5/i }),
+      page.getByRole("heading", { name: /waiting for roster confirmation/i }),
     ).toBeVisible();
 
     const requestId = await getLatestPendingRosterLinkRequestId(sql, {
@@ -479,7 +480,43 @@ test.describe("Member-link onboarding outcomes", () => {
       `/api/roster-link-requests/action?token=${encodeURIComponent(acceptToken)}`,
     );
     expect(ownerResponse.ok()).toBe(true);
-    await expect(ownerResponse.text()).resolves.toMatch(/approved|member approved/i);
+    await expect(ownerResponse.text()).resolves.toMatch(/review roster link/i);
+
+    const officerEmail = `officer-resolve-${nanoid(6)}@e2e.test`;
+    const { token: officerInviteToken } = await createHqInviteRow(sql, {
+      allianceId: alliance.allianceId,
+      email: officerEmail,
+      roleName: "officer",
+      invitedByHqUserId: maintainer.hqUserId,
+    });
+    const officer = await acceptInviteViaApi(
+      sql,
+      e2eBaseUrl(),
+      officerInviteToken,
+      officerEmail,
+    );
+    await createHqMemberLink(sql, {
+      allianceId: alliance.allianceId,
+      hqUserId: officer.hqUserId,
+    });
+
+    const resolveResponse = await page.request.post(
+      `/api/members/roster-link-requests/${requestId}/resolve`,
+      {
+        headers: {
+          Cookie: playwrightAuthCookies({
+            sessionId: officer.sessionId,
+            hqUserId: officer.hqUserId,
+            email: officerEmail,
+            nextAuthToken: officer.nextAuthToken,
+          })
+            .map((cookie) => `${cookie.name}=${cookie.value}`)
+            .join("; "),
+        },
+        data: { action: "accept" },
+      },
+    );
+    expect(resolveResponse.ok()).toBe(true);
 
     const [memberLink] = await sql<{ game_uid: string }[]>`
       SELECT game_uid FROM hq_member_links

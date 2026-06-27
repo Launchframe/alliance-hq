@@ -1135,6 +1135,76 @@
     "questionsTitle": "Questions",
     "questionsBody": "If you have questions about these terms, open an issue on our <githubLink>GitHub repository</githubLink>."
   },
+  "allianceSetupGuide": {
+    "sectionTitle": "Next steps for your alliance",
+    "title": "Finish setting up",
+    "subtitle": "A few steps before inviting members will make linking and Discord setup smoother.",
+    "allCompleteTitle": "You're ready to invite",
+    "allCompleteBody": "Core setup is done. You can revisit this checklist here anytime.",
+    "loading": "Loading checklist…",
+    "showOnDashboardLabel": "Show setup guide on dashboard",
+    "showOnDashboardHint": "Keep essentials visible on your home screen. You can hide it anytime — it stays here in Settings.",
+    "showAll": "Show all steps",
+    "showLess": "Show fewer",
+    "rosterVideoHint": "For Ashed alliances, upload a roster scroll video to align live in-game names with your roster before members link.",
+    "rosterVideoCta": "Upload roster video",
+    "tasks": {
+      "connect_ashed": {
+        "title": "Connect your Ashed seat",
+        "helper": "Lets HQ sync roster and scores from ashed.online.",
+        "action": "Connect Ashed"
+      },
+      "roster_hardening": {
+        "title": "Harden roster names",
+        "helper": "Upload a roster scroll video so live commander names match your roster before members link.",
+        "action": "Upload roster video"
+      },
+      "roster_populated": {
+        "title": "Import your roster",
+        "helper": "Add alliance members so commander linking can match names.",
+        "action": "Open members"
+      },
+      "game_server": {
+        "title": "Link your game server",
+        "helper": "Required before non-owner invites and for server checks during linking.",
+        "action": "Set server"
+      },
+      "owner_commander_link": {
+        "title": "Link your commander",
+        "helper": "Bind your in-game character to your HQ account.",
+        "action": "Link commander"
+      },
+      "team_invites": {
+        "title": "Invite your team",
+        "helper": "Send HQ invites so officers and members can sign in.",
+        "action": "Open team"
+      },
+      "discord_guild": {
+        "title": "Set up Discord bot",
+        "helper": "Register your guild and connect alliance credentials for bot commands.",
+        "action": "Open guide"
+      }
+    }
+  },
+  "rosterLinkRequests": {
+    "title": "Roster link requests",
+    "subtitle": "Match verified commander names to the correct roster member when automatic linking fails.",
+    "backToMembers": "Back to members",
+    "loading": "Loading requests…",
+    "loadFailed": "Could not load roster link requests.",
+    "resolveFailed": "Could not update this request.",
+    "empty": "No pending roster link requests.",
+    "typedName": "Typed name: {name}",
+    "uidLast4": "UID ending …{last4}",
+    "server": "Server {server}",
+    "originWeb": "Web",
+    "originDiscord": "Discord: {user}",
+    "originDiscordUnknown": "Discord user",
+    "matchLabel": "Match to roster member",
+    "matchPlaceholder": "Select a member…",
+    "approveMatch": "Approve match",
+    "decline": "Decline"
+  },
   "settings": {
     "title": "Settings",
     "titleAlliance": "Alliance settings",
@@ -1416,6 +1486,7 @@
     "refreshingNative": "Refreshing…",
     "importMembers": "Import members",
     "uploadRosterVideo": "Upload roster video",
+    "rosterLinkRequests": "Roster link requests",
     "import": {
       "title": "Import members",
       "uploadHint": "Upload one screenshot per rank page (officers screen and rank lists). We read names, power, and level with on-device OCR.",
@@ -2248,6 +2319,10 @@
     "rosterAllianceSettingsLink": "Switch alliance in Settings",
     "rosterRankPlaceholder": "Select rank…",
     "rosterRankRequired": "Every row needs an alliance rank before you can save.",
+    "rosterNameMismatchRow": "Name mismatch — assign the correct roster member manually.",
+    "rosterNameMismatchRosterName": "Roster shows: {name}",
+    "rosterNameMismatchClosest": "Closest match: {name}",
+    "rosterNameMismatchBlocked": "{count, plural, one {# row still needs a confirmed member match.} other {# rows still need confirmed member matches.}}",
     "rosterQuotaTitle": "Alliance rank limits (after save)",
     "rosterQuotaSummary": "Projected: R5 {r5} · R4 {r4}/{maxR4} · R3 {r3} · R2 {r2} · R1 {r1} · {total}/{maxMembers} members",
     "rosterQuotaOk": "Rank counts satisfy alliance limits.",
@@ -2544,7 +2619,7 @@
     },
     "officerNotified": "An officer has been notified on Alliance HQ. They can reach out to help you link.",
     "wrongServer": "Your player UID is for a different state server than this alliance. Double-check you joined the right alliance, or ask your R5 for the correct invite.",
-    "awaitingOwner": "We've notified your alliance owner by email. Watch for an approval message, then return here to finish linking.",
+    "awaitingOwner": "We verified your commander, but the roster name doesn't match yet. Your alliance owner was emailed — an officer must confirm the correct roster member in Alliance HQ before you can finish linking.",
     "nameMismatchRetry": "Last War shows your name as {gameName}. Copy it exactly and try again.",
     "confirmServerMissing": "We couldn't read your state server from Last War. Enter your alliance's state server number.",
     "confirmServerMismatch": "Last War shows server {lookupServer}, but this alliance is set to {allianceServer}. Enter the correct state server number for your alliance.",
@@ -2568,8 +2643,8 @@
     "linkedBody": "Welcome aboard, {name}. Taking you in…",
     "fuzzyTitle": "Pick your roster name",
     "rosterMissTitle": "We couldn't find you on the roster",
-    "awaitingOwnerTitle": "We've notified your R5",
-    "awaitingOwnerBody": "Your alliance owner was emailed with Approve and Decline links. Watch your inbox for a message when they respond, then return here to finish linking.",
+    "awaitingOwnerTitle": "Waiting for roster confirmation",
+    "awaitingOwnerBody": "Your alliance owner was emailed a link to review this request in Alliance HQ. An officer must match your verified commander to the correct roster member — you'll be linked once that is done.",
     "awaitingOwnerHint": "Wrong account? Use Wrong alliance below on other screens, or sign out from the header to switch accounts.",
     "awaitingOwnerRefresh": "Check again",
     "wrongServerTitle": "Wrong state server",
@@ -2639,6 +2714,7 @@
       "rosterMissGeneric": "We couldn't match that name to anyone on the roster. Try **Start over** for copy instructions, or ask an officer for help.",
       "rosterMissVerified": "Last War shows your commander as **{gameName}**, but our **{tag}** roster doesn't list that name yet — it may still show an older name. Ask an officer to refresh the roster or link you manually.",
       "rosterMissVerifiedGeneric": "Last War shows your commander as **{gameName}**, but our roster doesn't list that name yet — it may still show an older name. Ask an officer to refresh the roster or link you manually.",
+      "awaitingOfficerResolve": "We verified your commander, but the roster name doesn't match yet. An officer has been notified — you'll be linked once they confirm the right roster member.",
       "rosterUnavailable": "We verified your UID with the game, but couldn't load the alliance roster. Ask an officer to refresh the roster or help with setup.",
       "pickExpired": "That commander option expired. Run `/link-commander` again.",
       "walkthroughDone": "Great. Run `/link-commander` again with your copied name and UID when ready.",

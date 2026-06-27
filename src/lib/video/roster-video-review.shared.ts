@@ -24,6 +24,8 @@ export type ParsedRowLike = {
   edited?: number;
 };
 
+export const ROSTER_NAME_MATCH_CONFIDENCE_MIN = 0.6;
+
 export type RosterReviewRowShape = {
   id: string;
   ocrName: string;
@@ -35,8 +37,42 @@ export type RosterReviewRowShape = {
   memberId: string | null;
   memberName: string | null;
   matchConfidence: number | null;
+  matchMethod?: string | null;
   deleted: number;
 };
+
+export function isRosterRowNameMismatch(row: {
+  memberId: string | null;
+  matchConfidence: number | null;
+  matchMethod?: string | null;
+  deleted: number;
+}): boolean {
+  if (row.deleted === 1) return false;
+  if (!row.memberId) return true;
+  if (row.matchMethod === "none") return true;
+  if (row.matchConfidence == null || row.matchConfidence < ROSTER_NAME_MATCH_CONFIDENCE_MIN) {
+    return true;
+  }
+  return false;
+}
+
+export function findUnmatchedRosterRowIds(
+  rows: Array<{
+    id: string;
+    memberId: string | null;
+    matchConfidence: number | null;
+    matchMethod?: string | null;
+    deleted: number;
+  }>,
+): Set<string> {
+  const ids = new Set<string>();
+  for (const row of rows) {
+    if (isRosterRowNameMismatch(row)) {
+      ids.add(row.id);
+    }
+  }
+  return ids;
+}
 
 export function formatHeroPowerMForStorage(
   heroPowerM: number | null | undefined,
@@ -99,6 +135,7 @@ export function parsedRowsToRosterReviewRows(
       memberId,
       memberName,
       matchConfidence,
+      matchMethod: row.matchMethod ?? null,
       deleted: row.deleted,
     };
   });

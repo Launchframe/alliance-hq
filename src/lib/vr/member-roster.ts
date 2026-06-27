@@ -8,6 +8,8 @@ import { allianceMemberRowToAshedMember } from "@/lib/members/roster.shared";
 import type { AshedMember } from "@/lib/video/member-matcher";
 import { isNativeAlliance } from "@/lib/native-alliance/operating-mode";
 
+import { syncAllianceMembersFromAshed } from "@/lib/members/roster.server";
+import { findExactMemberByName } from "@/lib/vr/link-helpers";
 import {
   getAllianceAshedCredential,
   getAllianceById,
@@ -103,6 +105,46 @@ export async function loadAllianceMembersForMemberLink(
   }
 
   const members = await base44ListMembers(connection, alliance.ashedAllianceId);
+  return {
+    members,
+    rosterSource: members.length > 0 ? "ashed_live" : "empty",
+  };
+}
+
+export async function loadAllianceMembersForMemberLinkWithLiveRetry(
+  allianceId: string,
+  gameUserName: string,
+): Promise<{ members: AshedMember[]; rosterSource: MemberLinkRosterSource }> {
+  const initial = await loadAllianceMembersForMemberLink(allianceId);
+  if (
+    findExactMemberByName(initial.members, gameUserName) ||
+    initial.rosterSource !== "local_synced"
+  ) {
+    return initial;
+  }
+
+  const alliance = await getAllianceById(allianceId);
+  if (!alliance?.ashedAllianceId) {
+    return initial;
+  }
+
+  const connection = await resolveBotAshedConnection(allianceId);
+  if (!connection) {
+    return initial;
+  }
+
+  try {
+    await syncAllianceMembersFromAshed({
+      hqAllianceId: allianceId,
+      ashedAllianceId: alliance.ashedAllianceId,
+      connection,
+    });
+  } catch (error) {
+    console.error("[member-roster] live refresh on miss failed", error);
+    return initial;
+  }
+
+  const members = await loadLocalAllianceMembers(allianceId);
   return {
     members,
     rosterSource: members.length > 0 ? "ashed_live" : "empty",

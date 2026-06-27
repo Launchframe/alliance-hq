@@ -30,28 +30,40 @@ function actionUrl(token: string): string {
   return `${resolveAppOrigin()}/api/roster-link-requests/action?token=${encodeURIComponent(token)}`;
 }
 
+function resolveRequestUrl(requestId: string): string {
+  return `${resolveAppOrigin()}/members/roster-link-requests?request=${encodeURIComponent(requestId)}`;
+}
+
 export function buildRosterLinkOwnerEmail(input: {
   allianceTag: string;
   gameUserName: string;
   reportedName: string;
   gameUid: string;
-  gameServerNumber: number;
-  acceptToken: string;
+  gameServerNumber: number | null;
+  requestId: string;
   rejectToken: string;
   /** Reminder emails rotate tokens; prior Approve/Decline links stop working. */
   isReminder?: boolean;
 }): { subject: string; html: string; text: string } {
-  const acceptHref = actionUrl(input.acceptToken);
+  const acceptHref = resolveRequestUrl(input.requestId);
   const rejectHref = actionUrl(input.rejectToken);
   const subject = `Approve roster link for ${input.gameUserName} (${input.allianceTag})`;
-  const intro = `A player accepted your HQ invite but is not on the ${input.allianceTag} roster yet. Last War shows their commander as ${input.gameUserName} on server ${input.gameServerNumber}. They submitted the name "${input.reportedName}".`;
+  const serverLine =
+    input.gameServerNumber != null
+      ? `server ${input.gameServerNumber}`
+      : "server unknown";
+  const intro = `A player accepted your HQ invite but is not on the ${input.allianceTag} roster yet. Last War shows their commander as ${input.gameUserName} on ${serverLine}. They submitted the name "${input.reportedName}".`;
+  const reviewNote =
+    "An officer must sign in to Alliance HQ, match this player to the correct roster member, and approve the link there. The Review button opens that page.";
   const linkRotationNote = input.isReminder
-    ? "This is a reminder — use only the Approve and Decline links in this email. Links from earlier messages about this request no longer work."
-    : "If we send another email about this request, use only the newest Approve and Decline links — older links stop working when we resend.";
+    ? "This is a reminder — if you decline by email, use only the Decline link in this message. Older Decline links stop working when we resend."
+    : "If we send another email about this request, use only the newest Decline link — older Decline links stop working when we resend.";
 
   const text = `${intro}
 
-Approve: ${acceptHref}
+${reviewNote}
+
+Review in Alliance HQ: ${acceptHref}
 
 Decline: ${rejectHref}
 
@@ -64,8 +76,9 @@ ${linkRotationNote}`;
   <table width="100%" cellspacing="0" cellpadding="0" style="max-width:600px;margin:24px auto;background:#fff;border:1px solid #d0d7de;border-radius:12px;">
     <tr><td style="padding:24px 24px 8px;font-size:20px;font-weight:600;">Roster link approval</td></tr>
     <tr><td style="padding:0 24px 16px;line-height:1.5;">${escapeHtml(intro)}</td></tr>
+    <tr><td style="padding:0 24px 12px;font-size:13px;color:#57606a;line-height:1.5;">${escapeHtml(reviewNote)}</td></tr>
     <tr><td style="padding:0 24px 12px;">
-      <a href="${acceptHref}" style="display:inline-block;background:#238636;color:#fff;text-decoration:none;padding:10px 18px;border-radius:8px;font-weight:600;margin-right:8px;">Approve</a>
+      <a href="${acceptHref}" style="display:inline-block;background:#238636;color:#fff;text-decoration:none;padding:10px 18px;border-radius:8px;font-weight:600;margin-right:8px;">Review in Alliance HQ</a>
       <a href="${rejectHref}" style="display:inline-block;background:#f6f8fa;color:#24292f;text-decoration:none;padding:10px 18px;border-radius:8px;border:1px solid #d0d7de;">Decline</a>
     </td></tr>
     <tr><td style="padding:0 24px 12px;font-size:13px;color:#57606a;">If you do not recognize this player, decline the request.</td></tr>
@@ -80,13 +93,13 @@ export function buildRosterLinkInviteeAcceptedEmail(input: {
   allianceTag: string;
   onboardUrl: string;
 }): { subject: string; html: string; text: string } {
-  const subject = `You're approved — finish linking (${input.allianceTag})`;
-  const text = `Your alliance owner approved your roster link for ${input.allianceTag}. Return to Alliance HQ to finish: ${input.onboardUrl}`;
+  const subject = `Roster link approved — finish linking (${input.allianceTag})`;
+  const text = `An officer approved your roster link for ${input.allianceTag}. Return to Alliance HQ to finish: ${input.onboardUrl}`;
   const html = `
 <body style="background:#f6f8fa;font-family:Helvetica,Arial,sans-serif;color:#24292f;">
   <table width="100%" cellspacing="0" cellpadding="0" style="max-width:600px;margin:24px auto;background:#fff;border:1px solid #d0d7de;border-radius:12px;">
     <tr><td style="padding:24px;font-size:18px;font-weight:600;">You're approved</td></tr>
-    <tr><td style="padding:0 24px 16px;line-height:1.5;">Your alliance owner approved your roster link for <strong>${escapeHtml(input.allianceTag)}</strong>. Return to Alliance HQ to finish linking your character.</td></tr>
+    <tr><td style="padding:0 24px 16px;line-height:1.5;">An officer approved your roster link for <strong>${escapeHtml(input.allianceTag)}</strong>. Return to Alliance HQ to finish linking your character.</td></tr>
     <tr><td style="padding:0 24px 24px;"><a href="${input.onboardUrl}" style="display:inline-block;background:#238636;color:#fff;text-decoration:none;padding:10px 18px;border-radius:8px;font-weight:600;">Continue in Alliance HQ</a></td></tr>
   </table>
 </body>`;
@@ -97,12 +110,12 @@ export function buildRosterLinkInviteeRejectedEmail(input: {
   allianceTag: string;
 }): { subject: string; html: string; text: string } {
   const subject = `Roster link not approved (${input.allianceTag})`;
-  const text = `Your alliance owner declined the roster link request for ${input.allianceTag}. If you think this was a mistake, contact your R5 directly.`;
+  const text = `Your roster link request for ${input.allianceTag} was declined. If you think this was a mistake, contact your R5 or an officer directly.`;
   const html = `
 <body style="background:#f6f8fa;font-family:Helvetica,Arial,sans-serif;color:#24292f;">
   <table width="100%" cellspacing="0" cellpadding="0" style="max-width:600px;margin:24px auto;background:#fff;border:1px solid #d0d7de;border-radius:12px;">
     <tr><td style="padding:24px;font-size:18px;font-weight:600;">Request declined</td></tr>
-    <tr><td style="padding:0 24px 24px;line-height:1.5;">Your alliance owner declined the roster link request for <strong>${escapeHtml(input.allianceTag)}</strong>. If you think this was a mistake, contact your R5 directly.</td></tr>
+    <tr><td style="padding:0 24px 24px;line-height:1.5;">Your roster link request for <strong>${escapeHtml(input.allianceTag)}</strong> was declined. If you think this was a mistake, contact your R5 or an officer directly.</td></tr>
   </table>
 </body>`;
   return { subject, html, text };
@@ -178,10 +191,11 @@ export async function resolveAllianceOwnerEmail(
 export async function sendRosterLinkOwnerApprovalEmail(input: {
   allianceId: string;
   allianceTag: string;
+  requestId: string;
   gameUserName: string;
   reportedName: string;
   gameUid: string;
-  gameServerNumber: number;
+  gameServerNumber: number | null;
   acceptToken: string;
   rejectToken: string;
   isReminder?: boolean;

@@ -229,6 +229,10 @@ export const allianceMemberships = pgTable(
       .references(() => roles.id, { onDelete: "restrict" }),
     source: text("source").notNull().default("ashed"),
     status: text("status").notNull().default("active"),
+    setupGuideDismissed: integer("setup_guide_dismissed").notNull().default(0),
+    setupGuideShowOnDashboard: integer("setup_guide_show_on_dashboard")
+      .notNull()
+      .default(1),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -1408,10 +1412,14 @@ export const hqRosterLinkRequests = pgTable(
     inviteId: text("invite_id").references(() => hqInvites.id, {
       onDelete: "set null",
     }),
+    /** web | discord */
+    origin: text("origin").notNull().default("web"),
+    discordUserId: text("discord_user_id"),
+    discordUsername: text("discord_username"),
     reportedName: text("reported_name").notNull(),
     gameUid: text("game_uid").notNull(),
     gameUserName: text("game_user_name").notNull(),
-    gameServerNumber: integer("game_server_number").notNull(),
+    gameServerNumber: integer("game_server_number"),
     gameUserLevel: integer("game_user_level"),
     /** pending | accepted | rejected | superseded */
     status: text("status").notNull().default("pending"),
@@ -1420,6 +1428,7 @@ export const hqRosterLinkRequests = pgTable(
       () => hqUsers.id,
       { onDelete: "set null" },
     ),
+    targetAshedMemberId: text("target_ashed_member_id"),
     createdMemberId: text("created_member_id"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()

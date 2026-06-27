@@ -407,6 +407,13 @@
       "when": 1784201600000,
       "tag": "0057_alliance_game_server_required",
       "breakpoints": true
+    },
+    {
+      "idx": 57,
+      "version": "7",
+      "when": 1784288000000,
+      "tag": "0059_alliance_setup_guide_roster_link",
+      "breakpoints": true
     }
   ]
 }

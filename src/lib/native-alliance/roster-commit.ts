@@ -5,8 +5,10 @@ import { nanoid } from "nanoid";
 
 import { writeAuditLog } from "@/lib/bff/audit";
 import { getAshedAllianceIdIfLinked } from "@/lib/alliance/ashed-write-guard";
+import type { ParsedConnection } from "@/lib/connectionString";
 import { getDb, schema } from "@/lib/db";
 import { formatAshedMemberRankValue } from "@/lib/members/alliance-rank";
+import { syncMemberNameToAshed } from "@/lib/members/member-name-sync.server";
 import {
   appendMemberGameLevelEventIfChanged,
   appendMemberPowerLevelEventIfChanged,
@@ -40,6 +42,8 @@ export type RosterImportCommitInput = {
   markAbsentInactive?: boolean;
   /** Rank/stat event source — defaults to roster_import. */
   source?: "roster_import" | "video_parse";
+  /** When set on a linked Ashed alliance, name changes dual-write to Ashed Member. */
+  ashedConnection?: ParsedConnection | null;
 };
 
 export type RosterImportCommitResult = {
@@ -231,6 +235,23 @@ export async function commitRosterImport(
         hqUserId: input.hqUserId,
         source: eventSource,
       });
+
+      if (
+        nameChanged &&
+        linkedAshedId &&
+        input.ashedConnection &&
+        existing.ashedMemberId
+      ) {
+        try {
+          await syncMemberNameToAshed(
+            input.ashedConnection,
+            existing.ashedMemberId,
+            name,
+          );
+        } catch (error) {
+          console.error("[roster-commit] Ashed name sync failed", error);
+        }
+      }
 
       await syncCommanderFromAllianceMember({
         allianceId: input.allianceId,
