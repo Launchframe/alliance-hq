@@ -2,14 +2,24 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   openOccurrences: [] as unknown[],
+  reminderItems: [] as Array<{ id: string; allianceId: string }>,
+  dismissalsInserted: false,
 }));
 
 vi.mock("@/lib/db", () => {
-  const chain = {
+  const chain: PromiseLike<unknown[]> & {
+    from: () => typeof chain;
+    where: () => typeof chain;
+    orderBy: () => typeof chain;
+    limit: () => Promise<unknown[]>;
+  } = {
     from: () => chain,
-    where: () => Promise.resolve(mocks.openOccurrences),
-    limit: () => Promise.resolve(mocks.openOccurrences),
+    where: () => chain,
     orderBy: () => chain,
+    limit: () => Promise.resolve(mocks.reminderItems),
+    then(onFulfilled, onRejected) {
+      return Promise.resolve(mocks.openOccurrences).then(onFulfilled, onRejected);
+    },
   };
 
   return {
@@ -21,7 +31,12 @@ vi.mock("@/lib/db", () => {
         }),
       }),
       insert: () => ({
-        values: () => Promise.resolve(),
+        values: () => ({
+          onConflictDoNothing: () => {
+            mocks.dismissalsInserted = true;
+            return Promise.resolve();
+          },
+        }),
       }),
     }),
     schema: {
@@ -41,24 +56,55 @@ vi.mock("@/lib/db", () => {
         createdAt: "created_at",
       },
       inboxReminderItems: {
-        eurOccurrenceId: "eur_occurrence_id",
+        id: "id",
         allianceId: "alliance_id",
+        eurOccurrenceId: "eur_occurrence_id",
         kind: "kind",
         active: "active",
+      },
+      inboxReminderDismissals: {
+        hqUserId: "hq_user_id",
+        itemId: "item_id",
       },
     },
   };
 });
 
-import { runEurSatisfactionPass } from "@/lib/eur/satisfaction";
+import {
+  dismissReminderItemForAlliance,
+  runEurSatisfactionPass,
+} from "@/lib/eur/satisfaction";
 
 describe("runEurSatisfactionPass", () => {
   beforeEach(() => {
     mocks.openOccurrences = [];
+    mocks.reminderItems = [];
+    mocks.dismissalsInserted = false;
   });
 
   it("returns zero when no open occurrences", async () => {
     const satisfied = await runEurSatisfactionPass();
     expect(satisfied).toBe(0);
+  });
+});
+
+describe("dismissReminderItemForAlliance", () => {
+  beforeEach(() => {
+    mocks.reminderItems = [];
+    mocks.dismissalsInserted = false;
+  });
+
+  it("returns false when item is not in alliance", async () => {
+    mocks.reminderItems = [];
+    const ok = await dismissReminderItemForAlliance("user-1", "item-1", "ally-a");
+    expect(ok).toBe(false);
+    expect(mocks.dismissalsInserted).toBe(false);
+  });
+
+  it("dismisses when item belongs to alliance", async () => {
+    mocks.reminderItems = [{ id: "item-1", allianceId: "ally-a" }];
+    const ok = await dismissReminderItemForAlliance("user-1", "item-1", "ally-a");
+    expect(ok).toBe(true);
+    expect(mocks.dismissalsInserted).toBe(true);
   });
 });
