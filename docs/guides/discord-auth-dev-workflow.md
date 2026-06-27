@@ -4,10 +4,10 @@ Use this workflow to test Discord auth without waiting on a deployed Discord bot
 
 ## What This Covers
 
-- `/link` with no options: Discord returns a browser URL, and the browser form asks for in-game name + UID.
-- `/link name:... uid:...`: links a commander inline without `discord_hq_links`.
+- `/link` with no options: Discord returns a browser URL; the browser page starts **Discord OAuth** to bind `discord_hq_links` (no alliance required).
+- `/link-commander name:... uid:...` (or `/link-last-war-profile`): links a commander inline in a **registered** guild.
 - `/link-alliance tag:...`: binds a guild when the caller is proven as owner by member link or platform maintainer.
-- `/link-to-ashed-seat tag:...`: still opens the Ashed connection-key flow.
+- `/link-ashed tag:...`: opens the Ashed connection-key flow (requires HQ link from `/link` first).
 - Bad signatures, unregistered guilds, wrong names, used/expired nonces, and UID conflicts.
 
 ## Local Setup
@@ -22,7 +22,7 @@ NEXT_PUBLIC_APP_URL=http://localhost:5175
 E2E_TEST=true
 ```
 
-If `ELIGIBLE_BOT_ALLIANCE_LINK_TAGS` is set in your `.env.local` (it gates `/link-alliance` and `/link-to-ashed-seat`), the seed's `DEV` tag must be in the list, otherwise those commands return "Alliance tag **DEV** is not currently eligible for bot setup on this deployment." Either add `DEV` or remove the variable so every tag is allowed:
+If `ELIGIBLE_BOT_ALLIANCE_LINK_TAGS` is set in your `.env.local` (it gates `/link-alliance` and `/link-ashed`), the seed's `DEV` tag must be in the list, otherwise those commands return "Alliance tag **DEV** is not currently eligible for bot setup on this deployment." Either add `DEV` or remove the variable so every tag is allowed:
 
 ```bash
 # include DEV alongside any existing tags, e.g. ELIGIBLE_BOT_ALLIANCE_LINK_TAGS=LFgo,DEV
@@ -88,49 +88,57 @@ Expected response:
 { "type": 1 }
 ```
 
-Ask Discord `/link` for a browser URL:
+Ask Discord `/link` for an HQ-login browser URL (works even without a registered guild):
 
 ```bash
 npm run discord:dev:slash -- link
 ```
 
-The helper prints the Discord response and extracts the authorize URL when present. Open that URL in the browser and submit:
+The helper prints the Discord response and extracts the authorize URL when present. Open that URL in the browser and complete **Continue with Discord** OAuth (same Discord account as the synthetic caller when testing locally).
 
-- In-game name: `ColdStartOwner`
-- Player UID: `1234567890121203`
-
-Test inline `/link` without the browser:
+Test inline commander link in a registered guild:
 
 ```bash
-npm run discord:dev:slash -- link name=ColdStartOwner uid=1234567890121203
+npm run discord:dev:slash -- link-commander name=ColdStartOwner uid=1234567890121203
 ```
 
-Test guild registration after owner link:
+Test guild registration after owner commander link:
 
 ```bash
 npm run discord:dev:slash -- link-alliance tag=DEV
 ```
 
-This must succeed **without** Ashed credentials: the prior `/link name=ColdStartOwner uid=…` created a member link whose in-game member matches the alliance owner, which proves ownership for native alliances. Expect `Registered this server for **DEV**.` Run the inline owner `/link` first — registration is denied if the caller has no owner member link (and is not a platform maintainer or credential registrant).
+This must succeed **without** Ashed credentials: the prior `/link-commander name=ColdStartOwner uid=…` created a member link whose in-game member matches the alliance owner, which proves ownership for native alliances. Expect `Registered this server for **DEV**.` Run the inline owner `/link-commander` first — registration is denied if the caller has no owner member link (and is not a platform maintainer or credential registrant).
 
 Test that Ashed remains a separate optional flow:
 
 ```bash
-npm run discord:dev:slash -- link-to-ashed-seat tag=DEV
+npm run discord:dev:slash -- link-ashed tag=DEV
 ```
 
-That command should return a `/discord/authorize` URL whose browser form asks for an Ashed connection key.
+That command should return a `/discord/authorize` URL whose browser form asks for an Ashed connection key (after `/link` has created `discord_hq_links`).
 
 ## Browser Auth Loop
 
-For `/link`:
+For `/link` (HQ account):
 
 1. Run `npm run discord:dev:slash -- link`.
 2. Open the printed authorize URL.
-3. Confirm the form asks for name + UID, not an Ashed key.
-4. Submit `ColdStartOwner` and `1234567890121203`.
-5. Confirm success text references the linked commander.
-6. Optional DB check:
+3. Confirm the page offers **Continue with Discord**, not name + UID or an Ashed key.
+4. Complete OAuth and land on the success/complete page.
+5. Optional DB check:
+
+```sql
+select discord_user_id, hq_user_id
+from discord_hq_links
+where discord_user_id = 'dev-user-1';
+```
+
+For `/link-commander`:
+
+1. Run `npm run discord:dev:slash -- link-commander name=ColdStartOwner uid=1234567890121203`.
+2. Confirm success references the linked commander.
+3. Optional DB check:
 
 ```sql
 select discord_user_id, member_display_name, game_uid
@@ -138,31 +146,32 @@ from discord_member_links
 where alliance_id = 'dev-discord-auth-alliance';
 ```
 
-For `/link-to-ashed-seat`:
+For `/link-ashed`:
 
-1. Run `npm run discord:dev:slash -- link-to-ashed-seat tag=DEV`.
-2. Open the printed authorize URL.
-3. Confirm the form asks for an Ashed connection key.
+1. Ensure `discord_hq_links` exists for the caller (run `/link` + OAuth first).
+2. Run `npm run discord:dev:slash -- link-ashed tag=DEV`.
+3. Open the printed authorize URL.
+4. Confirm the form asks for an Ashed connection key.
 
 ## Roster-miss queue (with and without an HQ link)
 
-When `/link` verifies a commander but the in-game name does not match the alliance roster, the bot routes the attempt to the officer roster-link queue (`/members/roster-link-requests` in HQ) instead of dead-ending:
+When `/link-commander` verifies a commander but the in-game name does not match the alliance roster, the bot routes the attempt to the officer roster-link queue (`/members/roster-link-requests` in HQ) instead of dead-ending:
 
 - **Discord user has an HQ link** (`discord_hq_links` row): the request is created with that `hq_user_id`. The bot reply is `discordBot.link.awaitingOfficerResolve`. Resolving the request links both the HQ member and the Discord member.
-- **Discord user has no HQ link**: the request is still created, with `hq_user_id = NULL` (Discord-only). The bot reply is `discordBot.link.awaitingOfficerResolveNoHq`, which explains officers were notified and the user can link an HQ account later. Resolving the request binds only the Discord member (`discord_member_links`) to the chosen roster member.
+- **Discord user has no HQ link**: the request is still created, with `hq_user_id = NULL` (Discord-only). The bot reply is `discordBot.link.awaitingOfficerResolveNoHq`, which explains officers were notified and the user can link an HQ account later via `/link`. Resolving the request binds only the Discord member (`discord_member_links`) to the chosen roster member.
 
-Both paths compute the single-substring suggestion (`findUniqueSubstringRosterCandidate`) and persist `suggested_target_ashed_member_id` / `suggested_matched_roster_name` so officers see a preselected match. Re-running `/link` supersedes prior pending requests by every identity available: `hq_user_id` when present, `discord_user_id` when present, or both after a Discord user later links HQ.
+Both paths compute the single-substring suggestion (`findUniqueSubstringRosterCandidate`) and persist `suggested_target_ashed_member_id` / `suggested_matched_roster_name` so officers see a preselected match. Re-running `/link-commander` supersedes prior pending requests by every identity available: `hq_user_id` when present, `discord_user_id` when present, or both after a Discord user later links HQ.
 
 ## Negative Checks
 
 Run these before shipping Discord auth changes:
 
 - Bad signature: change `DISCORD_PUBLIC_KEY` without changing `DISCORD_DEV_PRIVATE_KEY`; `npm run discord:dev:ping` should return `401`.
-- Unregistered guild: `npm run discord:dev:slash -- link --guild-id unknown-guild`; response should ask owner to register the guild.
-- Wrong name: `npm run discord:dev:slash -- link name=Wrong uid=1234567890121203`; response should ask the user to retry or continue in Discord for button-based steps.
+- Unregistered guild commander link: `npm run discord:dev:slash -- link-commander name=ColdStartOwner uid=1234567890121203 --guild-id unknown-guild`; response should ask owner to register the guild.
+- Wrong name: `npm run discord:dev:slash -- link-commander name=Wrong uid=1234567890121203`; response should ask the user to retry or continue in Discord for button-based steps.
 - UID already linked: link once as `dev-user-1`, then run the same command with `--user-id dev-user-2`; response should say the commander is already linked.
 - Used nonce: submit the same `/discord/authorize?nonce=...` twice; second attempt should report expired or already used.
-- Connection key boundary: `/link` must never show an Ashed key field; `/link-to-ashed-seat` must never accept name + UID as a credential substitute.
+- Connection key boundary: `/link` must never show an Ashed key field; `/link-ashed` must never accept name + UID as a credential substitute.
 
 ## Live Discord Smoke
 
@@ -195,16 +204,16 @@ npm run discord:register-commands
 
 7. In the dev guild, run the same smoke checklist:
 
-- `/link` opens the name + UID browser flow.
-- `/link name:... uid:...` links inline.
+- `/link` opens the Discord OAuth browser flow (no alliance required).
+- `/link-commander name:... uid:...` links inline in a registered guild.
 - `/link-alliance tag:...` works for an owner proven by member link.
-- `/link-to-ashed-seat tag:...` opens the Ashed key form.
+- `/link-ashed tag:...` opens the Ashed key form after HQ link.
 
 ## Troubleshooting
 
 - `401 Invalid request signature`: `DISCORD_PUBLIC_KEY` does not match `DISCORD_DEV_PRIVATE_KEY`, or the live Discord app public key is not loaded.
 - `DISCORD_PUBLIC_KEY is not configured`: the app process did not load `.env.local`.
 - `Alliance tag DEV is not currently eligible for bot setup`: `ELIGIBLE_BOT_ALLIANCE_LINK_TAGS` is set and does not include `DEV` — add `DEV` to the list or unset the variable, then restart the app process.
-- `/link` says guild is not registered: run `npm run discord:dev:seed-auth` or use the same guild id in `DISCORD_DEV_GUILD_ID`.
+- `/link-commander` says guild is not registered: run `npm run discord:dev:seed-auth` or use the same guild id in `DISCORD_DEV_GUILD_ID`.
 - Last War lookup fails for the fixture UID: set `E2E_TEST=true` in the app process.
 - Live command updates are stale: set `DISCORD_GUILD_ID` before `npm run discord:register-commands` for guild-scoped fast propagation.

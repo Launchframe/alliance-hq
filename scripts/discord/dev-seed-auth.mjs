@@ -201,7 +201,7 @@ async function main() {
         `WARNING: ELIGIBLE_BOT_ALLIANCE_LINK_TAGS="${eligibleTags}" does not include "${DEV_FIXTURE.allianceTag}".`,
       );
       console.log(
-        `  /link-alliance and /link-to-ashed-seat will reject tag ${DEV_FIXTURE.allianceTag}.`,
+        `  /link-alliance and /link-ashed will reject tag ${DEV_FIXTURE.allianceTag}.`,
       );
       console.log(
         `  Add ${DEV_FIXTURE.allianceTag} to the list or unset the variable, then restart the app.`,

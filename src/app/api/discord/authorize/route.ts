@@ -11,30 +11,21 @@ import { encryptSecret } from "@/lib/crypto/encrypt";
 import { capTokenExpiresAt } from "@/lib/member-link/privileged-link.shared";
 import { resolveTokenExpiresAt } from "@/lib/jwt/connection-meta";
 import { isTokenExpired } from "@/lib/jwt/decode";
-import { tDiscordAuthorize } from "@/lib/discord/i18n";
 import { syncAshedAllianceForBot } from "@/lib/rbac/sync-ashed-roles";
 import { getOrCreateSession } from "@/lib/session";
-import { discordAppBaseUrl } from "@/lib/vr/bot-user-context";
-import { getDiscordUserLocale, getDiscordHqLink, upsertAllianceAshedCredential } from "@/lib/vr/repository";
-import { resolveAllianceIdForDiscordMemberLink } from "@/lib/vr/resolve-member-link-alliance.server";
+import { upsertAllianceAshedCredential } from "@/lib/vr/repository";
 import {
   consumeDiscordAuthNonce,
   getValidDiscordAuthNonce,
 } from "@/lib/vr/auth-nonce";
-import { handleDiscordLinkCommanderSlash } from "@/lib/vr/service";
 
-/** POST /api/discord/authorize
- *  `user_link`: in-game name + UID (member link — no Ashed).
- *  `alliance_credentials`: Ashed connection key for `/link-to-ashed-seat`.
- */
+/** POST /api/discord/authorize — `alliance_credentials` only (`/link-ashed`). HQ login uses OAuth on `/discord/authorize/complete`. */
 export async function POST(request: Request) {
   await getOrCreateSession();
 
   let body: {
     nonce?: string;
     connectionKey?: string;
-    reportedName?: string;
-    gameUid?: string;
   };
   try {
     body = (await request.json()) as typeof body;
@@ -59,74 +50,13 @@ export async function POST(request: Request) {
   }
 
   if (nonceRow.purpose === "user_link") {
-    const reportedName = body.reportedName?.trim();
-    const gameUid = body.gameUid?.trim();
-    if (!reportedName || !gameUid) {
-      return NextResponse.json(
-        { error: "In-game name and player UID are required." },
-        { status: 400 },
-      );
-    }
-
-    const guildId = nonceRow.guildId?.trim();
-    if (!guildId) {
-      return NextResponse.json(
-        {
-          error:
-            "This link must be opened from your alliance Discord server. Run `/link` there and try again.",
-        },
-        { status: 422 },
-      );
-    }
-
-    const allianceId = await resolveAllianceIdForDiscordMemberLink({
-      guildId,
-      discordUserId: nonceRow.discordUserId,
-      reportedName,
-      gameUid,
-    });
-    if (!allianceId) {
-      const storedLocale = await getDiscordUserLocale(nonceRow.discordUserId);
-      const locale = storedLocale ?? "en-US";
-      const hqLink = await getDiscordHqLink(nonceRow.discordUserId);
-      const appUrl = discordAppBaseUrl();
-      const error = hqLink
-        ? tDiscordAuthorize(locale, "allianceUnknownWithHqLink")
-        : tDiscordAuthorize(locale, "allianceUnknownNoHqLink", { appUrl });
-      return NextResponse.json({ error }, { status: 422 });
-    }
-
-    const storedLocale = await getDiscordUserLocale(nonceRow.discordUserId);
-    const locale = storedLocale ?? "en-US";
-    const result = await handleDiscordLinkCommanderSlash({
-      allianceId,
-      guildId,
-      discordUserId: nonceRow.discordUserId,
-      reportedName,
-      gameUid,
-      locale,
-    });
-
-    if (result.pending) {
-      return NextResponse.json(
-        {
-          error: `${result.reply} Return to Discord to continue — some steps need buttons there.`,
-        },
-        { status: 422 },
-      );
-    }
-
-    if (!result.linked) {
-      return NextResponse.json({ error: result.reply }, { status: 422 });
-    }
-
-    await consumeDiscordAuthNonce(nonceRow.id);
-
-    return NextResponse.json({
-      ok: true,
-      purpose: "user_link" as const,
-      memberDisplayName: result.linkTarget?.memberDisplayName ?? reportedName,
-    });
+    return NextResponse.json(
+      {
+        error:
+          "This link is for Alliance HQ sign-in. Use Continue with Discord on the page, not this form.",
+      },
+      { status: 422 },
+    );
   }
 
   const connectionKey = body.connectionKey?.trim();

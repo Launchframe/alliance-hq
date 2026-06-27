@@ -114,7 +114,7 @@ async function resolveTagForSetup(input: {
 }
 
 /**
- * /link — member link via HQ web redirect (in-game name + UID; no Ashed).
+ * /link — Discord ↔ Alliance HQ account via browser OAuth (no alliance required).
  */
 export async function handleDiscordLinkUser(input: {
   guildId: string | null;
@@ -136,7 +136,7 @@ export async function handleDiscordLinkUser(input: {
 }
 
 /**
- * /link-to-ashed-seat — secure credential setup via HQ web redirect.
+ * /link-ashed — secure Ashed credential setup via HQ web redirect.
  */
 export async function handleDiscordLinkToAshedSeat(input: {
   guildId: string;

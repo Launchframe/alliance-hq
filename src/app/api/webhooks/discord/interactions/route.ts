@@ -51,8 +51,7 @@ import {
   resolveAllianceForGuild,
 } from "@/lib/vr/service";
 import { resolveSetupMessage } from "@/lib/vr/bot-user-context";
-import { linkSlashUsesCommanderFlow } from "@/lib/vr/link-slash-routing";
-import { resolveAllianceIdForDiscordMemberLink } from "@/lib/vr/resolve-member-link-alliance.server";
+import { isDiscordCommanderLinkCommand } from "@/lib/vr/discord-command-names";
 import {
   handleDiscordSetTrainChannel,
   handleDiscordTrainConductorPick,
@@ -239,7 +238,7 @@ async function handleSlashCommand(payload: DiscordInteractionPayload) {
     return discordMessageResponse(result.reply);
   }
 
-  if (commandName === "link-to-ashed-seat") {
+  if (commandName === "link-ashed") {
     if (!guildId) {
       return discordMessageResponse(t("errors.guildNotRegistered"));
     }
@@ -254,28 +253,6 @@ async function handleSlashCommand(payload: DiscordInteractionPayload) {
   }
 
   if (commandName === "link") {
-    if (!guildId) {
-      return discordMessageResponse(t("errors.guildNotRegistered"));
-    }
-    const { name, uid } = parseLinkSlashOptions(payload);
-    if (linkSlashUsesCommanderFlow({ name, uid })) {
-      let linkAllianceId = allianceId;
-      if (!linkAllianceId && guildId) {
-        linkAllianceId = await resolveAllianceIdForDiscordMemberLink({
-          guildId,
-          discordUserId,
-          reportedName: name,
-          gameUid: uid,
-        });
-      }
-      return handleLinkCommanderSlash(payload, {
-        discordUserId,
-        guildId,
-        locale,
-        allianceId: linkAllianceId,
-        discordUsername,
-      });
-    }
     const result = await handleDiscordLinkUser({
       guildId,
       discordUserId,
@@ -284,7 +261,7 @@ async function handleSlashCommand(payload: DiscordInteractionPayload) {
     return discordMessageResponse(result.reply, undefined, EPHEMERAL);
   }
 
-  if (commandName === "link-commander") {
+  if (isDiscordCommanderLinkCommand(commandName)) {
     if (!guildId) {
       return discordMessageResponse(t("errors.guildNotRegistered"));
     }

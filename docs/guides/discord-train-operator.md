@@ -12,7 +12,7 @@ This guide is for **alliance owners** (setup) and **officers** (day-to-day condu
 
 Your Discord server must already use the Alliance HQ bot for VR:
 
-1. Owner: `/link-to-ashed-seat` → `/link` → `/link-alliance tag:YourTag`
+1. Owner: `/link` → `/link-ashed tag:YourTag` → `/link-alliance tag:YourTag`
 2. Members: `/link` → `/link-commander`
 3. Owner: `/set-vr-report-channel` (optional; unrelated to trains but common setup)
 
