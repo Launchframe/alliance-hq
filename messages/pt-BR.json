@@ -66,7 +66,8 @@
     "performanceReporting": "Desempenho e Relatórios",
     "eventsOperations": "Eventos e Operações",
     "adminSettings": "Administração e Configurações",
-    "video": "Vídeo"
+    "video": "Vídeo",
+    "support": "Suporte"
   },
   "nav": {
     "dashboard": "Painel",
@@ -105,12 +106,15 @@
     "account": "Conta",
     "allianceSettings": "Configurações da aliança",
     "settings": "Configurações",
-    "allianceSettings": "Configurações da aliança",
     "team": "Acesso da equipe",
     "videoQueue": "Fila de vídeos",
     "videoProcessors": "Processadores de vídeo",
     "videoProcessorsDescription": "Quem pode aprovar vídeos enviados para OCR",
-    "adminPortal": "Portal admin"
+    "adminPortal": "Portal admin",
+    "discordBotGuide": "Ajuda do bot Discord",
+    "discordBotGuideDescription": "Configure o bot Alliance HQ no seu servidor Discord",
+    "discordTrainGuide": "Guia do trem no Discord",
+    "discordTrainGuideDescription": "Anúncios de condutor de trem no Discord"
   },
   "admin": {
     "title": "Portal Admin HQ",
@@ -712,28 +716,9 @@
       "statusFilter": "Status",
       "all": "Todos",
       "arms": {
-        "title": "Grupos",
-        "add": "Adicionar grupo",
-        "deltaNote": "Δ vs controle mostra a diferença em pontos percentuais de 👍.",
-        "col": {
-          "name": "Grupo",
-          "config": "Config",
-          "weight": "Peso",
-          "jobs": "Jobs",
-          "rated": "Avaliados",
-          "thumbsUp": "👍 %",
-          "avgQuality": "Qualidade média",
-          "delta": "Δ vs ctrl",
-          "buckets": "Baldes"
-        },
-        "form": {
-          "name": "Nome do grupo",
-          "configId": "ID da config",
-          "configIdPlaceholder": "id do parseConfig",
-          "weight": "Peso",
-          "isControl": "Grupo de controle",
-          "save": "Adicionar grupo"
-        }
+        "loadConfigs": "Carregando configurações…",
+        "configDefault": "Padrão (sem passagem shadow — comportamento do grupo controle)",
+        "configPickerLabel": "Configuração de análise"
       },
       "started": "Iniciado",
       "concluded": "Concluído",
@@ -788,12 +773,7 @@
         "conflictError": "Já existe uma atribuição para este escopo. Acesse Configurações de análise para atualizá-la.",
         "noVariantArms": "Nenhum grupo variante com configuração disponível para promover."
       },
-      "lowSampleWarning": "Apenas {count} grupo(s) avaliado(s) neste grupo. Tente obter pelo menos 30 grupos avaliados por grupo antes de concluir.",
-      "arms": {
-        "loadConfigs": "Carregando configurações…",
-        "configDefault": "Padrão (sem passagem shadow — comportamento do grupo controle)",
-        "configPickerLabel": "Configuração de análise"
-      }
+      "lowSampleWarning": "Apenas {count} grupo(s) avaliado(s) neste grupo. Tente obter pelo menos 30 grupos avaliados por grupo antes de concluir."
     },
     "analyticsPage": {
       "title": "Análises de jobs de vídeo",
@@ -2894,17 +2874,17 @@
     },
     "officerNotified": "Um oficial foi notificado no Alliance HQ. Eles podem falar com você aqui no Discord.",
     "help": {
-      "dmGeneral": "**Bot Alliance HQ** — use no servidor da aliança:\n• `/help` — este guia\n• `/link` — vincule sua conta do Discord ao Alliance HQ\n• `/link-commander` — vincule seu comandante (nome + UID)\n• `/vr` ou `/immunity` — informe VR base\n• `/who-is-conductor` — condutor do trem hoje\n• `/language` — English ou Português\n\nDonos de aliança: execute `/link` e depois `/help` no servidor para o checklist de configuração.\nOficiais (R4+): `/vr-report`, `/takedown-teams teams:N`, `/set-conductor`, `/train-is-ready`.",
-      "setupLinkHq": "Vincule sua conta do Discord ao Alliance HQ: execute `/link` e conclua o login no navegador.",
-      "setupOwnerLinkHq": "Este servidor ainda não está vinculado a uma aliança. **Dono:** execute `/link` e entre com Discord no navegador, depois `/help` aqui para o próximo passo.",
-      "setupOwnerAshedSeat": "Este servidor ainda não está vinculado a uma aliança. **Dono:** execute `/link-ashed tag:SuaTag` (por exemplo LFgo), conclua a etapa no navegador e depois `/link-alliance tag:SuaTag`.",
-      "setupLinkAlliance": "**Dono ou mantenedor da plataforma:** execute `/link-alliance tag:SuaTag` para registrar este servidor.",
+      "dmGeneral": "**Bot Alliance HQ** — use `/help` no servidor da aliança para passos conforme seu papel.\n\nComandos: `/link`, `/link-commander`, `/vr`, `/immunity`, `/who-is-conductor`, `/language`. Donos: `/link-alliance`. Oficiais (R4+): `/vr-report`, `/set-conductor`, `/train-is-ready`.\n\n**Guia completo:** {guideUrl}",
+      "setupLinkHq": "Vincule sua conta Discord ao Alliance HQ: execute `/link` e conclua o login no navegador.",
+      "setupOwnerLinkHq": "Este servidor ainda não está registrado. **Dono R5:** siga o caminho do dono no guia — entre com `/link`, depois registre o servidor.\n\n**Guia:** {guideUrl}",
+      "setupOwnerAshedSeat": "Este servidor ainda não está registrado. **Dono R5:** conclua a etapa no navegador e depois `/link-alliance tag:SuaTag`.\n\n**Guia:** {guideUrl}",
+      "setupLinkAlliance": "**Dono ou mantenedor:** registre este servidor com `/link-alliance tag:SuaTag`.\n\n**Guia:** {guideUrl}",
       "waitForOwnerAuth": "Aguardando o dono registrar este servidor com `/link-alliance`. Vincule seu comandante com `/link-commander` após o registro.",
-      "linkCommander": "Vincule um comandante: `/link-commander name:… uid:…` (copie do jogo). Precisa de passos? Use `/link-commander` com nome errado e toque **Concluído** no tutorial.",
-      "memberReady": "Você está vinculado. Use `/vr` ou `/immunity` quando o VR base mudar. Oficiais (R4+): `/vr-report` para o placar ou `/vr-report teams:N` para takedown. `/help` a qualquer momento.",
-      "memberReadyMulti": "Você tem **{count}** comandantes vinculados. `/vr` pedirá qual comandante. Oficiais (R4+): `/vr-report` ou `/takedown-teams`. `/unlink` remove um; `/link-commander` adiciona outro.",
-      "ownerReady": "Você está vinculado como dono (**{tag}**). Membros usam `/link-commander` e `/vr`. Execute `/set-vr-report-channel` neste canal para o placar noturno; `/vr-report` ou `/vr-report teams:N` para relatórios de oficiais.",
-      "ownerReadyMulti": "Dono com **{count}** comandantes. `/vr` pergunta qual comandante. `/set-vr-report-channel` define o canal noturno; `/vr-report teams:N` monta equipes de takedown. `/unlink` ou `/link-commander replace:true` para gerenciar vínculos."
+      "linkCommander": "Vincule seu comandante: `/link-commander name:… uid:…` ou `/link` para o formulário no navegador. Dificuldade ao copiar o nome? Veja **Copiar nome e UID** no guia.\n\n**Guia:** {guideUrl}",
+      "memberReady": "Você está vinculado. Use `/vr` ou `/immunity` quando o VR base mudar. `/who-is-conductor` mostra o condutor de hoje.\n\n**Guia:** {guideUrl}",
+      "memberReadyMulti": "Você tem **{count}** comandantes vinculados. `/vr` e `/immunity` perguntarão qual usar. `/unlink` remove um vínculo.\n\n**Guia:** {guideUrl}",
+      "ownerReady": "Você está vinculado como dono (**{tag}**). Conclua: `/set-vr-report-channel`, `/set-train-channel`, depois compartilhe `/link-commander` com os membros.\n\n**Guia:** {guideUrl}",
+      "ownerReadyMulti": "Dono (**{tag}**) com **{count}** comandantes. `/vr` pergunta qual personagem. Canais: `/set-vr-report-channel`, `/set-train-channel`.\n\n**Guia:** {guideUrl}"
     },
     "unlink": {
       "none": "Nenhum comandante vinculado neste servidor. Execute `/link-commander` primeiro.",
@@ -2996,5 +2976,166 @@
     "saveSchedule": "Salvar agenda",
     "weeklySummary": "Semanal: {slots} · lembrete +{delay}m",
     "intervalSummary": "A cada {days} dias às {time} · lembrete +{delay}m"
+  },
+  "guides": {
+    "discordBot": {
+      "hub": {
+        "title": "Discord bot setup guide",
+        "subtitle": "Connect your alliance Discord server to Alliance HQ so members can report base VR, officers can run standings, and owners can turn on nightly posts.",
+        "backToHome": "Alliance HQ home",
+        "overviewTitle": "What this bot does",
+        "overviewBody": "Alliance HQ adds a bot to your Discord server. It does not replace your alliance leadership — it gives you slash commands for in-game tasks (link your commander, report VR, train conductor tools) while keeping sensitive steps on a secure web page when needed. You never paste passwords or connection keys into Discord.",
+        "prerequisitesTitle": "Before you start",
+        "prerequisitesBody": "• You need permission to use slash commands in the server.\n• Owners need their alliance tag (letters only, e.g. LFgo).\n• Everyone linking a character needs their in-game name and player UID from the Last War profile screen.",
+        "rolePrompt": "What's your role in your alliance?",
+        "pickRole": "Choose a path — you can switch anytime."
+      },
+      "roles": {
+        "r5": {
+          "title": "R5 — alliance owner",
+          "description": "First-time server setup: link yourself, register the server, optional roster tools, channel setup."
+        },
+        "r4": {
+          "title": "R4 — alliance officer",
+          "description": "You're linked; run VR reports, train conductor commands, and help members who get stuck."
+        },
+        "member": {
+          "title": "R3–R1 — alliance member",
+          "description": "Link your commander and use member commands like /vr and /who-is-conductor."
+        },
+        "link-only": {
+          "title": "I just want to link my commander",
+          "description": "The server is already set up. You only need /link with your in-game name and UID."
+        }
+      },
+      "flow": {
+        "title": "Your setup path",
+        "backToRoles": "← All roles",
+        "backToFlow": "← Back to flowchart",
+        "optional": "Optional",
+        "tapStep": "Tap a step for detailed instructions."
+      },
+      "steps": {
+        "linkSelf": {
+          "title": "Link your commander",
+          "summary": "Prove which in-game character is yours by submitting the exact name and player UID from your profile.",
+          "command": "/link name:YourExactName uid:123456789012 — or /link-commander with the same options",
+          "instructions": "In Discord (fast):\n1. Run /link name:YourExactName uid:123456789012 (or /link-commander with the same options).\n\nIn browser (easier to copy/paste):\n1. Run /link with no options.\n2. Open the secure link (expires in 30 minutes).\n3. Paste name and UID, then submit.\n\nYou can link up to 5 commanders per Discord account. Use /unlink to remove one.",
+          "tip": "Spelling and capitalization must match the game. When in doubt, use Copy next to your name in the profile menu — do not retype it."
+        },
+        "registerGuild": {
+          "title": "Register this Discord server",
+          "summary": "Bind this Discord server to your alliance so bot commands know which roster to use.",
+          "command": "/link-alliance tag:YourTag",
+          "instructions": "1. Use your alliance tag only (e.g. LFgo) — not a numeric ID.\n2. Run /link-alliance tag:YourTag in this server.\n3. You must be the in-game alliance owner (proved by your commander link) or a platform maintainer.\n4. When successful, members can run /link-commander in this server."
+        },
+        "optionalAshed": {
+          "title": "Optional: roster sync tools",
+          "summary": "Connect Ashed credentials if your alliance uses ashed.online for roster sync and iframe tools. Not required for basic bot use.",
+          "command": "/link-to-ashed-seat tag:YourTag",
+          "instructions": "1. Run /link-to-ashed-seat tag:YourTag.\n2. Open the secure browser link and submit your Ashed connection key.\n3. This enables live roster reads for the bot — skip if you run a native alliance without Ashed."
+        },
+        "vrChannel": {
+          "title": "Nightly VR report channel",
+          "summary": "Choose where the bot posts the top-25 VR standings each night.",
+          "command": "/set-vr-report-channel",
+          "instructions": "1. Open the Discord channel where members should see nightly VR standings.\n2. Run /set-vr-report-channel in that channel.\n3. The bot will post automatically on the configured schedule."
+        },
+        "trainChannel": {
+          "title": "Train announcement channel",
+          "summary": "Choose where train conductor lock-in posts appear, and turn on announcements in Alliance HQ.",
+          "command": "/set-train-channel",
+          "instructions": "1. Run /set-train-channel in the channel where members should see train posts.\n2. In Alliance HQ (signed in), open Settings → Alliance settings for your tag.\n3. Enable Post train announcements to Discord.\n\nBoth the channel and the HQ toggle must be on before public train posts appear."
+        },
+        "tellMembers": {
+          "title": "Tell members to link",
+          "summary": "Share the member path so roster members can link commanders and report VR.",
+          "instructions": "Post a short note in your alliance channel:\n• Run /link-commander name:… uid:… (copy from your in-game profile).\n• Use /vr or /immunity when your base VR changes.\n• Full guide: share the link-only path from this guide for members who need help copying their name."
+        },
+        "serverPrereq": {
+          "title": "Confirm the server is registered",
+          "summary": "Officer commands only work after the alliance owner registers this Discord server.",
+          "instructions": "Ask your R5 owner to complete the owner setup path: link their commander, then /link-alliance tag:YourTag.\n\nIf /link-commander says the server is not set up, the owner has not finished registration yet."
+        },
+        "vrReports": {
+          "title": "VR standings and takedown teams",
+          "summary": "Officers can pull standings and balanced rally teams from Discord.",
+          "command": "/vr-report — or /vr-report teams:N / /takedown-teams teams:N",
+          "instructions": "1. Link your commander first — you must be R4+ in-game on the linked character (or alliance owner).\n2. Run /vr-report for the top-25 standings (ephemeral reply).\n3. Run /vr-report teams:5 or /takedown-teams teams:5 for snake-balanced rally teams."
+        },
+        "trainOps": {
+          "title": "Train conductor workflow",
+          "summary": "Pick, confirm, and lock today's train conductor from Discord.",
+          "command": "/set-conductor name:… — then /train-is-ready",
+          "instructions": "1. /set-conductor name:ExactName saves a draft conductor (confirm with the buttons).\n2. /who-is-conductor shows today's draft or locked conductor.\n3. /train-is-ready locks the conductor and posts to the train channel when announcements are enabled.\n\nSee the Discord train operator guide in Alliance HQ for the full daily lifecycle."
+        },
+        "helpMembers": {
+          "title": "Help members who are stuck",
+          "summary": "Point members to the link-only guide path when they cannot copy their name or UID.",
+          "instructions": "Common fixes:\n• Name mismatch — have them run /link-commander with a wrong name, tap Start over, follow the in-Discord walkthrough, then submit again.\n• Roster miss — refresh the roster on Alliance HQ or approve their link as an officer.\n• Share the link-only role path from this guide for step-by-step copy instructions."
+        },
+        "reportVr": {
+          "title": "Report base VR",
+          "summary": "Tell the bot when your base viral resistance changes.",
+          "command": "/vr or /immunity",
+          "instructions": "1. Link your commander first.\n2. Run /vr or /immunity when your base VR changes.\n3. If you have multiple linked commanders, the bot will ask which one."
+        },
+        "checkConductor": {
+          "title": "Who is conducting today?",
+          "summary": "Check today's train conductor without officer permissions.",
+          "command": "/who-is-conductor",
+          "instructions": "Run /who-is-conductor in the alliance server. The reply is private to you and shows the conductor, VIP if set, and whether the day is draft or locked."
+        },
+        "language": {
+          "title": "Switch language",
+          "summary": "Use the bot in English or Portuguese.",
+          "command": "/language",
+          "instructions": "Run /language and pick English or Português. Your choice is saved for future commands."
+        },
+        "afterLink": {
+          "title": "After you're linked",
+          "summary": "What you can do once your commander is linked.",
+          "instructions": "• /vr or /immunity — report base VR when it changes.\n• /who-is-conductor — see today's train conductor.\n• /help — context-aware tips for your situation.\n• /language — switch to Português.\n• /unlink — remove a linked commander if you linked the wrong character."
+        }
+      },
+      "troubleshooting": {
+        "heading": "Troubleshooting",
+        "expand": "Show help",
+        "copyNameUid": {
+          "title": "Copying your name and UID",
+          "body": "Open Last War → tap your avatar → tap … (top right) on your profile → tap Copy next to your name. Your UID is on the same screen.\n\nPaste both into /link-commander or the browser form — do not retype from memory."
+        },
+        "nameMismatch": {
+          "title": "Name didn't match",
+          "body": "The game rejected the name you typed. Run /link-commander with a wrong name once, tap Start over, follow the in-Discord walkthrough, tap Done, then submit again with the copied name."
+        },
+        "rosterMiss": {
+          "title": "Name not on the roster yet",
+          "body": "Last War verified your UID, but the alliance roster does not list that name yet (often after a rename). Ask an R4+ officer or the owner to refresh the roster on Alliance HQ or approve your link."
+        },
+        "guildNotRegistered": {
+          "title": "Bot says the server isn't set up",
+          "body": "An R5 owner (or platform maintainer) must run /link-alliance tag:YourTag first. Until then, /link-commander will not attach to your alliance."
+        },
+        "memberTaken": {
+          "title": "Commander already linked",
+          "body": "That in-game character is linked to a different Discord account. The bot cannot transfer links — contact your alliance leadership if this was a mistake."
+        },
+        "notOfficer": {
+          "title": "Officer command denied",
+          "body": "/vr-report, /set-conductor, and /train-is-ready require R4+ on the linked commander (or alliance owner). Link the character that holds officer rank in-game."
+        },
+        "wrongServer": {
+          "title": "Wrong state server",
+          "body": "Your UID belongs to a different state server than this alliance. Confirm you joined the correct alliance with your R5."
+        }
+      },
+      "screenshots": {
+        "copyNameUid": {
+          "alt": "Last War profile menu with Copy next to player name",
+          "caption": "Tap Copy next to your name — do not retype it."
+        }
+      }
+    }
   }
 }

@@ -1,6 +1,7 @@
 import type { LucideIcon } from "lucide-react";
 import {
   BarChart3,
+  Bot,
   ClipboardCheck,
   ClipboardList,
   Database,
@@ -10,6 +11,7 @@ import {
   GitMerge,
   Handshake,
   LayoutDashboard,
+  LifeBuoy,
   ListChecks,
   Mountain,
   Settings,
@@ -52,6 +54,8 @@ export const NAV_PAGE_ICONS: Record<string, LucideIcon> = {
   allianceSettings: Settings,
   team: UserCog,
   "admin-portal": Shield,
+  "discord-bot-guide": Bot,
+  "discord-train-guide": LifeBuoy,
   "open-ashed": ExternalLink,
 };
 

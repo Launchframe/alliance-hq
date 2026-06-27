@@ -4,6 +4,10 @@ import {
   type DiscordBotLocale,
   type DiscordTranslate,
 } from "@/lib/discord/i18n";
+import {
+  buildDiscordBotGuideUrl,
+  helpMessageKeyToGuideRole,
+} from "@/lib/guides/discord-bot-guide.shared";
 import { allianceHasBotCredentials } from "@/lib/vr/member-roster";
 import {
   callerIsAllianceOwner,
@@ -111,11 +115,18 @@ export function formatHelpReply(
   t: DiscordTranslate,
   key: string,
   ctx: DiscordBotUserContext,
+  locale: DiscordBotLocale,
 ): string {
+  const role = helpMessageKeyToGuideRole(key);
+  const guideUrl = buildDiscordBotGuideUrl(
+    locale,
+    role ? { role } : undefined,
+  );
   return t(key, {
     tag: ctx.allianceTag ?? "YourTag",
     count: ctx.memberLinkCount,
     appUrl: discordAppBaseUrl(),
+    guideUrl,
   });
 }
 
@@ -126,5 +137,5 @@ export async function resolveSetupMessage(
 ): Promise<string> {
   const ctx = await resolveDiscordBotUserContext({ guildId, discordUserId });
   const t = createDiscordTranslator(locale);
-  return formatHelpReply(t, pickHelpMessageKey(ctx), ctx);
+  return formatHelpReply(t, pickHelpMessageKey(ctx), ctx, locale);
 }
