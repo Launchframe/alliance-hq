@@ -414,6 +414,13 @@
       "when": 1784288000000,
       "tag": "0059_alliance_setup_guide_roster_link",
       "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "7",
+      "when": 1784374400000,
+      "tag": "0060_roster_link_substring_suggestion",
+      "breakpoints": true
     }
   ]
 }

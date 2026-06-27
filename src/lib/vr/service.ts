@@ -14,7 +14,11 @@ import {
   processLinkCommand,
   processLinkFuzzyPick,
 } from "@/lib/vr/link-command";
-import { advanceLinkWalkthrough, walkthroughMessage } from "@/lib/vr/link-helpers";
+import {
+  advanceLinkWalkthrough,
+  findUniqueSubstringRosterCandidate,
+  walkthroughMessage,
+} from "@/lib/vr/link-helpers";
 import { createDiscordRosterMissLinkRequest } from "@/lib/member-link/roster-link-request.server";
 import {
   loadAllianceMembersForBot,
@@ -249,12 +253,14 @@ export async function handleDiscordLinkCommanderSlash(input: {
   });
 
   let resolvedResult = result;
+  let finalRosterMembers = members;
   if (result.needsOfficerAttention && lookup.ok) {
     const refreshed = await loadAllianceMembersForMemberLinkWithLiveRetry(
       input.allianceId,
       lookup.gameUserName,
     );
     if (refreshed.members !== members) {
+      finalRosterMembers = refreshed.members;
       const retried = processLinkCommand({
         reportedName: name,
         gameUid: uid,
@@ -303,6 +309,10 @@ export async function handleDiscordLinkCommanderSlash(input: {
   if (resolvedResult.needsOfficerAttention && lookup.ok) {
     const hqLink = await getDiscordHqLink(input.discordUserId);
     if (hqLink?.hqUserId) {
+      const suggestion = findUniqueSubstringRosterCandidate(
+        finalRosterMembers,
+        lookup.gameUserName,
+      );
       await createDiscordRosterMissLinkRequest({
         allianceId: input.allianceId,
         allianceTag: alliance?.tag ?? "alliance",
@@ -314,6 +324,8 @@ export async function handleDiscordLinkCommanderSlash(input: {
         gameUserName: lookup.gameUserName,
         gameServerNumber: lookup.gameServerNumber,
         gameUserLevel: lookup.gameUserLevel,
+        suggestedTargetAshedMemberId: suggestion?.ashedMemberId ?? null,
+        suggestionMethod: suggestion?.method ?? null,
       });
       resolvedResult = {
         ...resolvedResult,

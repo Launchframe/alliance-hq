@@ -5,6 +5,7 @@ import {
   acceptInviteViaApi,
   attachAshedConnectionToSession,
   createAllianceJoinCodeRow,
+  createAllianceRosterMember,
   createAuthenticatedHqSession,
   createHqInviteRow,
   createHqMemberLink,
@@ -538,6 +539,113 @@ test.describe("Member-link onboarding outcomes", () => {
     await expect(
       page.getByRole("heading", { name: /you're linked/i }),
     ).toBeVisible({ timeout: 15_000 });
+  });
+
+  test("substring single-match preselects roster member but still requires officer approval", async ({
+    page,
+  }) => {
+    const sql = getE2eSql();
+    const maintainer = await createPlatformMaintainerSession(sql);
+    const { accepted, email, alliance } =
+      await seedUnlinkedMemberOnboardSession(sql);
+
+    // Roster has the bare in-game name "Mew"; the player verifies as "Mew2407".
+    const { ashedMemberId: mewMemberId } = await createAllianceRosterMember(sql, {
+      allianceId: alliance.allianceId,
+      currentName: "Mew",
+    });
+
+    await page.context().addCookies(
+      playwrightAuthCookies({
+        sessionId: accepted.sessionId,
+        hqUserId: accepted.hqUserId,
+        email,
+        nextAuthToken: accepted.nextAuthToken,
+      }),
+    );
+    await openMemberLinkForm(page);
+    await page.getByLabel(/in-game name/i).fill("Mew2407");
+    await page.getByLabel(/player uid/i).fill("1234567890121206");
+    const linkResponse = page.waitForResponse(
+      (res) =>
+        res.url().includes("/api/member-link") &&
+        res.request().method() === "POST",
+    );
+    await page.getByRole("button", { name: /link my character/i }).click();
+    const response = await linkResponse;
+    expect(response.ok()).toBe(true);
+    const body = (await response.json()) as { outcome?: string };
+    expect(body.outcome).toBe("awaiting_owner");
+
+    const requestId = await getLatestPendingRosterLinkRequestId(sql, {
+      allianceId: alliance.allianceId,
+      hqUserId: accepted.hqUserId,
+    });
+    expect(requestId).toBeTruthy();
+
+    const [requestRow] = await sql<
+      {
+        suggested_target_ashed_member_id: string | null;
+        suggestion_method: string | null;
+      }[]
+    >`
+      SELECT suggested_target_ashed_member_id, suggestion_method
+      FROM hq_roster_link_requests
+      WHERE id = ${requestId!}
+      LIMIT 1
+    `;
+    expect(requestRow?.suggested_target_ashed_member_id).toBe(mewMemberId);
+    expect(requestRow?.suggestion_method).toBe("substring");
+
+    // Officer with members:write reviews the queue.
+    const officerEmail = `officer-suggest-${nanoid(6)}@e2e.test`;
+    const { token: officerInviteToken } = await createHqInviteRow(sql, {
+      allianceId: alliance.allianceId,
+      email: officerEmail,
+      roleName: "officer",
+      invitedByHqUserId: maintainer.hqUserId,
+    });
+    const officer = await acceptInviteViaApi(
+      sql,
+      e2eBaseUrl(),
+      officerInviteToken,
+      officerEmail,
+    );
+    await createHqMemberLink(sql, {
+      allianceId: alliance.allianceId,
+      hqUserId: officer.hqUserId,
+    });
+
+    await page.context().clearCookies();
+    await page.context().addCookies(
+      playwrightAuthCookies({
+        sessionId: officer.sessionId,
+        hqUserId: officer.hqUserId,
+        email: officerEmail,
+        nextAuthToken: officer.nextAuthToken,
+      }),
+    );
+    await page.goto(
+      `/members/roster-link-requests?request=${encodeURIComponent(requestId!)}`,
+    );
+
+    // The suggested match is explained and preselected, but not auto-applied.
+    await expect(page.getByText(/suggested match: mew/i)).toBeVisible();
+    await expect(page.locator("select").first()).toHaveValue(mewMemberId);
+
+    const approve = page.getByRole("button", { name: /approve match/i });
+    await expect(approve).toBeEnabled();
+    await approve.click();
+
+    await expect.poll(async () => {
+      const [memberLink] = await sql<{ game_uid: string }[]>`
+        SELECT game_uid FROM hq_member_links
+        WHERE alliance_id = ${alliance.allianceId}
+          AND hq_user_id = ${accepted.hqUserId}
+        LIMIT 1
+      `;
+      return memberLink?.game_uid ?? null;
+    }).toBe("1234567890121206");
   });
 
   test("join-code owner cold-starts first roster member on empty native alliance", async ({

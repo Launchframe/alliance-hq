@@ -1202,6 +1202,7 @@
     "originDiscordUnknown": "Discord user",
     "matchLabel": "Match to roster member",
     "matchPlaceholder": "Select a member…",
+    "suggestionBanner": "Suggested match: {suggested}. Last War shows {gameName}. Confirm this roster member or choose a different one.",
     "approveMatch": "Approve match",
     "decline": "Decline"
   },
