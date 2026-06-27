@@ -63,6 +63,7 @@ function NavLink({
 type Props = {
   showAdminPortal?: boolean;
   showTeamAccess?: boolean;
+  showVideoQueue?: boolean;
   showAllianceSettings?: boolean;
   activeAllianceTag?: string | null;
   operatingMode?: "ashed" | "native" | null;
@@ -80,6 +81,7 @@ type Props = {
 export function SidebarNav({
   showAdminPortal = false,
   showTeamAccess = false,
+  showVideoQueue = false,
   showAllianceSettings = false,
   activeAllianceTag = null,
   operatingMode = null,
@@ -178,6 +180,15 @@ export function SidebarNav({
                 ]
               : group.id === "hq-native"
                 ? [
+                    ...(showVideoQueue
+                      ? [
+                          {
+                            href: "/tools/video-upload/queue",
+                            labelKey: "videoQueue" as const,
+                            pageId: "video-queue",
+                          },
+                        ]
+                      : []),
                     ...(showAdminPortal
                       ? [
                           {

@@ -13,7 +13,7 @@ import { readSessionId } from "@/lib/session";
 import { getAllianceById } from "@/lib/vr/repository";
 
 const bodySchema = z.object({
-  gameServerNumber: z.number().int().positive().max(9999).nullable(),
+  gameServerNumber: z.number().int().positive().max(9999),
 });
 
 export async function PATCH(

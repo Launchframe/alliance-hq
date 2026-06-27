@@ -7,6 +7,6 @@ export default async function VideoUploadLayout({
   children: React.ReactNode;
 }) {
   const session = await requirePageSession("/tools/video-upload");
-  await requirePagePermission(session.id, "upload:write");
+  await requirePagePermission(session.id, "hq:video:enqueue");
   return children;
 }

@@ -3,7 +3,6 @@ import { nanoid } from "nanoid";
 import { writeAuditLog } from "@/lib/bff/audit";
 import { emitVideoJobStatus } from "@/lib/events/video-jobs";
 import { getDb, schema } from "@/lib/db";
-import { dispatchVideoProcessing } from "@/lib/video/trigger-processing";
 import { DEFAULT_PRIMARY_PASS } from "@/lib/video/pass-definitions";
 import {
   assignExperiment,
@@ -20,9 +19,16 @@ export type FinalizeVideoUploadInput = {
   scoreTarget: string;
   boardKey: string | null;
   hqEventId: string | null;
+  allianceId: string | null;
+  enqueuedByHqUserId: string | null;
 };
 
-export async function finalizeVideoUploadAndDispatch(
+/**
+ * Persist an uploaded video as a job awaiting processor approval. OCR is not
+ * dispatched here — a designated video processor must approve the job (which
+ * binds their Ashed credential) before it runs. See the enqueue/process plan.
+ */
+export async function finalizeVideoUploadEnqueue(
   input: FinalizeVideoUploadInput,
 ): Promise<void> {
   const db = getDb();
@@ -45,7 +51,7 @@ export async function finalizeVideoUploadAndDispatch(
   await db.insert(schema.videoUploadGroups).values({
     id: input.groupId,
     sessionId: input.sessionId,
-    allianceId: null,
+    allianceId: input.allianceId,
     storageKey: input.storageKey,
     fileName: input.fileName,
     fileSizeBytes: input.fileSizeBytes,
@@ -65,7 +71,8 @@ export async function finalizeVideoUploadAndDispatch(
   await db.insert(schema.videoJobs).values({
     id: input.jobId,
     sessionId: input.sessionId,
-    status: "queued",
+    hqUserId: input.enqueuedByHqUserId,
+    status: "pending_approval",
     fileName: input.fileName,
     fileSizeBytes: input.fileSizeBytes,
     category: input.scoreTarget,
@@ -73,6 +80,8 @@ export async function finalizeVideoUploadAndDispatch(
     boardKey: input.boardKey,
     hqEventId: input.hqEventId,
     storageKey: input.storageKey,
+    allianceId: input.allianceId,
+    enqueuedByHqUserId: input.enqueuedByHqUserId,
     ingestMethod: "video",
     frameCount: null,
     uploadedFrameCount: 0,
@@ -99,15 +108,13 @@ export async function finalizeVideoUploadAndDispatch(
   await emitVideoJobStatus({
     sessionId: input.sessionId,
     jobId: input.jobId,
-    status: "queued",
+    status: "pending_approval",
     fileName: input.fileName,
     scoreTarget: input.scoreTarget,
     frameCount: null,
     uploadedFrameCount: 0,
     errorMessage: null,
   });
-
-  dispatchVideoProcessing(input.jobId, { source: "upload" });
 }
 
 export function newVideoUploadIds(): { jobId: string; groupId: string } {

@@ -49,6 +49,34 @@ async function createAlliance() {
   const now = new Date();
   const allianceId = nanoid(16);
   const tag = `RB${randomBytes(2).toString("hex").toUpperCase()}`;
+  const gameServerNumber = 1203;
+  const gameServerId = `server-${gameServerNumber}`;
+
+  await db
+    .insert(schema.gameSeasons)
+    .values({
+      id: "season-1",
+      seasonNumber: 1,
+      maxBaseVr: 10000,
+      createdAt: now,
+      updatedAt: now,
+    })
+    .onConflictDoNothing();
+
+  await db
+    .insert(schema.gameServers)
+    .values({
+      id: gameServerId,
+      serverNumber: gameServerNumber,
+      seasonId: "season-1",
+      seasonKeySynced: "1",
+      seasonKeySource: "default",
+      seasonIsPostSeason: 0,
+      syncedAt: now,
+      createdAt: now,
+      updatedAt: now,
+    })
+    .onConflictDoNothing();
 
   await db.insert(schema.alliances).values({
     id: allianceId,
@@ -56,6 +84,8 @@ async function createAlliance() {
     tag,
     name: "Rebind Test Alliance",
     operatingMode: "native",
+    gameServerNumber,
+    gameServerId,
     createdAt: now,
     updatedAt: now,
   });

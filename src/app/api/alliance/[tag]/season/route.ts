@@ -22,7 +22,7 @@ export const dynamic = "force-dynamic";
 
 const patchSchema = z.object({
   seasonKeyOverride: z.string().trim().min(1).max(8).nullable().optional(),
-  gameServerNumber: z.number().int().positive().max(9999).nullable().optional(),
+  gameServerNumber: z.number().int().positive().max(9999).optional(),
 });
 
 type RouteContext = { params: Promise<{ tag: string }> };

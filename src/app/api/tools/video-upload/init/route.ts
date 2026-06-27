@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 
 import { getDb, schema } from "@/lib/db";
 import { requireSessionPermission } from "@/lib/rbac/require-permission";
+import { VIDEO_ENQUEUE_PERMISSION } from "@/lib/rbac/constants";
 import {
   createR2MultipartUpload,
   presignR2PutObject,
@@ -36,7 +37,10 @@ type InitBody = {
 export async function POST(request: Request) {
   try {
     const session = await getOrCreateSession();
-    const denied = await requireSessionPermission(session.id, "upload:write");
+    const denied = await requireSessionPermission(
+      session.id,
+      VIDEO_ENQUEUE_PERMISSION,
+    );
     if (denied) return denied;
 
     if (!r2Configured()) {
@@ -88,7 +92,7 @@ export async function POST(request: Request) {
     await db.insert(schema.videoUploadGroups).values({
       id: groupId,
       sessionId: session.id,
-      allianceId: null,
+      allianceId: session.currentAllianceId,
       storageKey,
       fileName,
       fileSizeBytes: fileSize,
@@ -108,6 +112,7 @@ export async function POST(request: Request) {
     await db.insert(schema.videoJobs).values({
       id: jobId,
       sessionId: session.id,
+      hqUserId: session.hqUserId,
       status: "pending_upload",
       fileName,
       fileSizeBytes: fileSize,
@@ -116,6 +121,8 @@ export async function POST(request: Request) {
       boardKey: boardKeyStr,
       hqEventId: hqEventIdStr,
       storageKey,
+      allianceId: session.currentAllianceId,
+      enqueuedByHqUserId: session.hqUserId,
       ingestMethod: "video",
       frameCount: null,
       uploadedFrameCount: 0,

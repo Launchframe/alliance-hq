@@ -13,6 +13,11 @@ import {
   appendMemberGameLevelEventIfChanged,
   appendMemberPowerLevelEventIfChanged,
 } from "@/lib/members/member-stat-history.server";
+import {
+  syncCommanderFromAllianceMember,
+  validateRosterImportCommanderIdentities,
+} from "@/lib/members/commander-identity.server";
+import { CommanderIdentityConflictError } from "@/lib/members/commander-identity-conflicts.shared";
 import { getServerCalendarDate } from "@/lib/trains/game-time";
 
 import { nativeRosterAshedAllianceId } from "./provision";
@@ -122,6 +127,18 @@ export async function commitRosterImport(
 ): Promise<RosterImportCommitResult> {
   if (input.rows.length === 0) {
     throw new Error("No rows to import.");
+  }
+
+  const identityConflicts = await validateRosterImportCommanderIdentities({
+    allianceId: input.allianceId,
+    rows: input.rows.map((row, rowIndex) => ({
+      extractedName: row.extractedName,
+      matchMemberId: row.matchMemberId,
+      rowIndex,
+    })),
+  });
+  if (identityConflicts.length > 0) {
+    throw new CommanderIdentityConflictError(identityConflicts);
   }
 
   const db = getDb();
@@ -236,6 +253,12 @@ export async function commitRosterImport(
         }
       }
 
+      await syncCommanderFromAllianceMember({
+        allianceId: input.allianceId,
+        ashedMemberId: existing.ashedMemberId,
+        memberDisplayName: name,
+      });
+
       updated += 1;
       continue;
     }
@@ -287,6 +310,12 @@ export async function commitRosterImport(
       hqUserId: input.hqUserId,
       source: eventSource,
     });
+
+    await syncCommanderFromAllianceMember({
+      allianceId: input.allianceId,
+      ashedMemberId,
+      memberDisplayName: name,
+    });
     created += 1;
   }
 
@@ -316,6 +345,13 @@ export async function commitRosterImport(
             inArray(schema.allianceMembers.ashedMemberId, toInactivate),
           ),
         );
+      for (const ashedMemberId of toInactivate) {
+        await syncCommanderFromAllianceMember({
+          allianceId: input.allianceId,
+          ashedMemberId,
+          leftAt: now,
+        });
+      }
       inactivated = toInactivate.length;
     }
   }

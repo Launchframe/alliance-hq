@@ -5,6 +5,7 @@ import { nanoid } from "nanoid";
 
 import { normalizeAshedEmail } from "@/lib/alliance/accessible";
 import { getDb, schema } from "@/lib/db";
+import { upsertGameServerByNumber } from "@/lib/game-season/game-servers.server";
 import { assignManualMembership } from "@/lib/rbac/admin-users";
 import {
   ROLE_IDS,
@@ -48,6 +49,7 @@ async function ensureUniqueSlug(baseSlug: string): Promise<string> {
 export type CreateNativeAllianceInput = {
   name: string;
   tag: string;
+  gameServerNumber: number;
   ownerEmail?: string | null;
   ownerRole?: SystemRoleName;
   invitedByHqUserId?: string | null;
@@ -69,11 +71,16 @@ export async function createNativeAlliance(
   if (!name || !tag) {
     throw new Error("Alliance name and tag are required.");
   }
+  const gameServerNumber = Math.floor(input.gameServerNumber);
+  if (gameServerNumber <= 0 || gameServerNumber > 9999) {
+    throw new Error("State server number is required.");
+  }
 
   const db = getDb();
   const now = new Date();
   const slug = await ensureUniqueSlug(slugifyNativeAlliance(name, tag));
   const allianceId = nanoid(16);
+  const gameServerId = await upsertGameServerByNumber(gameServerNumber);
 
   let ownerHqUserId: string | null = null;
   const ownerEmail = input.ownerEmail?.trim();
@@ -109,6 +116,8 @@ export async function createNativeAlliance(
     operatingMode: "native",
     ownerHqUserId,
     ownerEmail: ownerEmail ? normalizeAshedEmail(ownerEmail) : null,
+    gameServerNumber,
+    gameServerId,
     createdAt: now,
     updatedAt: now,
   });

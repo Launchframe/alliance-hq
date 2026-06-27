@@ -21,6 +21,11 @@ export function isActiveVideoJobStatus(status: string): boolean {
   );
 }
 
+/** Uploaded and waiting for a video processor to approve and run OCR. */
+export function isPendingApprovalStatus(status: string): boolean {
+  return status === "pending_approval";
+}
+
 export function isTerminalVideoJobStatus(status: string): boolean {
   return status === "review" || status === "failed" || status === "complete";
 }

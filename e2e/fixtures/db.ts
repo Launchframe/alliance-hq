@@ -115,15 +115,50 @@ async function createAllianceWithOperatingMode(
     name: string;
     ownerHqUserId?: string | null;
     operatingMode: "native" | "ashed";
+    gameServerNumber?: number;
   },
 ): Promise<{ allianceId: string; tag: string }> {
   const now = new Date();
   const allianceId = nanoid(16);
   const slug = `e2e-${options.tag.toLowerCase()}-${nanoid(4)}`;
+  const serverNumber = options.gameServerNumber ?? 1203;
+  const seasonId = "season-1";
+  const gameServerId = `server-${serverNumber}`;
+
+  await sql`
+    INSERT INTO game_seasons (id, season_number, max_base_vr, created_at, updated_at)
+    VALUES (${seasonId}, 1, 10000, ${now}, ${now})
+    ON CONFLICT (id) DO NOTHING
+  `;
+
+  await sql`
+    INSERT INTO game_servers (
+      id,
+      server_number,
+      season_id,
+      season_key_synced,
+      season_key_source,
+      season_is_post_season,
+      synced_at,
+      created_at,
+      updated_at
+    ) VALUES (
+      ${gameServerId},
+      ${serverNumber},
+      ${seasonId},
+      '1',
+      'default',
+      0,
+      ${now},
+      ${now},
+      ${now}
+    )
+    ON CONFLICT (server_number) DO NOTHING
+  `;
 
   await sql`
     INSERT INTO alliances (
-      id, slug, tag, name, operating_mode, owner_hq_user_id, created_at, updated_at
+      id, slug, tag, name, operating_mode, owner_hq_user_id, game_server_number, game_server_id, created_at, updated_at
     ) VALUES (
       ${allianceId},
       ${slug},
@@ -131,6 +166,8 @@ async function createAllianceWithOperatingMode(
       ${options.name},
       ${options.operatingMode},
       ${options.ownerHqUserId ?? null},
+      ${serverNumber},
+      ${gameServerId},
       ${now},
       ${now}
     )
@@ -884,23 +921,4 @@ export async function loadAllianceGameServerNumber(
     LIMIT 1
   `;
   return row?.game_server_number ?? null;
-}
-
-export async function assertAllianceHasNoGameServer(
-  sql: Sql,
-  allianceId: string,
-): Promise<void> {
-  const [row] = await sql<
-    { game_server_id: string | null; game_server_number: number | null }[]
-  >`
-    SELECT game_server_id, game_server_number
-    FROM alliances
-    WHERE id = ${allianceId}
-    LIMIT 1
-  `;
-  if (row?.game_server_id != null || row?.game_server_number != null) {
-    throw new Error(
-      `Expected alliance ${allianceId} to have no linked game server.`,
-    );
-  }
 }

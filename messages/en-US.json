@@ -107,6 +107,7 @@
     "settings": "Settings",
     "allianceSettings": "Alliance settings",
     "team": "Team access",
+    "videoQueue": "Video queue",
     "adminPortal": "Admin portal"
   },
   "admin": {
@@ -315,13 +316,13 @@
     },
     "commandersPage": {
       "title": "Commanders",
-      "subtitle": "Search roster members across alliances with game UID and link metadata.",
+      "subtitle": "Search roster members across alliances with link metadata and tenure history.",
       "loadFailed": "Failed to load commanders.",
       "loading": "Loading…",
       "empty": "No commanders match your search.",
       "selectRow": "Select a row to view tenure and links.",
       "detailTitle": "Commander detail",
-      "searchPlaceholder": "Name, UID, alliance tag, email, or Discord…",
+      "searchPlaceholder": "Name, alliance tag, email, or Discord…",
       "allAlliances": "All alliances",
       "allStatuses": "All statuses",
       "statusActive": "Active",
@@ -435,9 +436,12 @@
     "nativeAlliance": {
       "title": "Native alliance (tester path)",
       "subtitle": "Provision an alliance without Ashed seats. Officers import roster screenshots after accepting an invite.",
-      "inviteServerRequiredNote": "Send an owner invite first — the state server is set automatically when the owner links their in-game character (name + UID). Officer and member invites require that step to finish first.",
+      "inviteServerRequiredNote": "Native alliances require a state server at creation. You can correct it later from the alliances table if needed.",
       "name": "Alliance name",
       "tag": "In-game tag",
+      "serverNumber": "State server number",
+      "serverNumberHint": "Required for Commander identity and invites. Use the Last War state server, e.g. 1203.",
+      "serverNumberInvalid": "Enter a valid state server number (1–9999).",
       "ownerEmailOptional": "Owner email (optional — creates membership immediately)",
       "createButton": "Create native alliance",
       "createFieldsRequired": "Alliance name and in-game tag are required.",
@@ -906,6 +910,36 @@
       "role": "Role",
       "source": "Source"
     }
+  },
+  "videoQueue": {
+    "title": "Video queue",
+    "description": "Uploaded videos awaiting OCR. A designated video processor with a connected Ashed account approves jobs to run.",
+    "empty": "No videos are waiting for approval.",
+    "connectBanner": "Connect your Ashed account to approve and run these jobs.",
+    "connectCta": "Connect Ashed",
+    "approve": "Approve",
+    "reject": "Reject",
+    "approveFailed": "Could not approve the job.",
+    "rejectFailed": "Could not reject the job.",
+    "table": {
+      "time": "Uploaded",
+      "uploadedBy": "Uploaded by",
+      "target": "Target",
+      "file": "File",
+      "actions": "Actions"
+    }
+  },
+  "videoProcessors": {
+    "title": "Video processors",
+    "description": "Designate up to {max} officers who can approve and run OCR on queued videos with their own Ashed connection. Owners and maintainers can always process and do not use a slot.",
+    "empty": "No designated processors yet. Owners and maintainers can still process videos.",
+    "remove": "Remove",
+    "add": "Add",
+    "selectPlaceholder": "Select an officer…",
+    "noCandidates": "No eligible officers to add.",
+    "slotsFull": "All processor slots are full.",
+    "addFailed": "Could not add the processor.",
+    "removeFailed": "Could not remove the processor."
   },
   "allianceSettings": {
     "title": "Alliance settings",
@@ -1477,7 +1511,25 @@
       "commit": "Import roster",
       "committing": "Importing…",
       "commitFailed": "Import failed.",
-      "cancel": "Cancel"
+      "cancel": "Cancel",
+      "nameConflictBlocked": "Resolve duplicate commander names before importing.",
+      "nameConflictHint": "“{name}” conflicts with another row or existing member on this server."
+    },
+    "commanderConflicts": {
+      "bannerTitle": "{count, plural, one {# commander name needs review} other {# commander names need review}}",
+      "bannerDescription": "Two different players can share a similar name on OCR imports. Edit names so each commander is unique on your game server.",
+      "resolve": "Review names",
+      "title": "Resolve commander names",
+      "description": "Each commander name must be unique on your game server. Adjust names below, then save.",
+      "takenBy": "That name is already used by {name}.",
+      "nameLabel": "Commander name",
+      "duplicateInBatch": "“{name}” is duplicated in this list.",
+      "nameRequired": "Enter a name for every commander.",
+      "stillConflict": "That name still conflicts with another member.",
+      "saveFailed": "Could not save commander names.",
+      "cancel": "Cancel",
+      "save": "Save names",
+      "saving": "Saving…"
     },
     "profile": {
       "titleWithId": "Commander profile",
@@ -2140,7 +2192,8 @@
       "resources": "Resources",
       "points": "Points"
     },
-    "queuedSuccess": "Video queued for processing.",
+    "queuedSuccess": "Video uploaded. Waiting for a video processor to review and run it.",
+    "pendingApprovalHint": "Uploaded videos wait in the queue until a designated processor or alliance owner approves them.",
     "recentUploads": "Recent uploads",
     "viewAllUploads": "View all uploads",
     "reviewLink": "Review",
@@ -2156,6 +2209,7 @@
       "complete": "complete",
       "failed": "failed",
       "pending": "pending",
+      "pending_approval": "awaiting approval",
       "processing": "processing"
     }
   },
@@ -2171,6 +2225,7 @@
     "title": "Review extracted data",
     "loading": "Loading…",
     "processing": "Processing ({status})… this page refreshes automatically.",
+    "pendingApproval": "Waiting for a video processor to approve this upload. OCR will start after approval — this page refreshes automatically.",
     "processingFailed": "Processing failed. Try uploading again.",
     "backToUploads": "← Back to uploads",
     "summary": "{matched} matched · {total} entries",
@@ -2218,6 +2273,8 @@
     "duplicateMemberBlocked": "Fix duplicate member rows before saving.",
     "filterPlaceholder": "Search by name…",
     "filterCount": "{shown} of {total} shown",
+    "draftRestored": "We restored unsaved edits from this device.",
+    "draftSavedLocally": "Draft saved on this device at {time}.",
     "discardResults": "Discard results",
     "ratingPrompt": "How did the OCR do on this video?",
     "ratingThumbsUp": "Looks good",
@@ -2253,6 +2310,9 @@
     },
     "previewZoomFill": "Fit width",
     "previewZoomFit": "Fit whole frame",
+    "previewResizeWidth": "Resize preview width",
+    "previewResizeHeight": "Resize preview height",
+    "previewPanHint": "Drag to pan",
     "rosterAllianceTarget": "Uploading roster into: {tag}",
     "rosterAllianceTargetNamed": "Uploading roster into: {tag} — {name}",
     "rosterAllianceHint": "New and matched members from this video will be written to this alliance in HQ.",

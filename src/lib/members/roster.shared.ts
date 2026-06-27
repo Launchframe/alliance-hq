@@ -41,6 +41,8 @@ export function allianceMemberRowToAshedMember(row: AllianceMember): AshedMember
     previous_names: row.previousNamesJson ?? [],
     alliance_id: row.ashedAllianceId,
     status: row.status,
+    commander_sync_status: row.commanderSyncStatus,
+    commander_conflict: row.commanderConflictJson ?? undefined,
     alliance_rank: row.allianceRank ?? undefined,
     allianceRank: row.allianceRank ?? undefined,
     allianceRankTitle: row.allianceRankTitle,

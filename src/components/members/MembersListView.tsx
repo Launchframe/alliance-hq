@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 
 import { useFormatAccountDateTime } from "@/components/timezone/TimezoneProvider";
 import { RosterImportDialog } from "@/components/members/RosterImportDialog";
+import { CommanderConflictResolutionSheet } from "@/components/members/CommanderConflictResolutionSheet";
 import { Link } from "@/i18n/navigation";
 import {
   formatMemberRankDisplay,
@@ -83,7 +84,15 @@ export function MembersListView({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [applying, setApplying] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [conflictSheetOpen, setConflictSheetOpen] = useState(false);
   const skipInitialSearchFetch = useRef(true);
+
+  const pendingConflictCount = useMemo(() => {
+    const fromPayload = data.commanderConflicts?.length ?? 0;
+    if (fromPayload > 0) return fromPayload;
+    return data.members.filter((m) => m.commander_sync_status === "name_conflict")
+      .length;
+  }, [data.commanderConflicts, data.members]);
 
   const isNative = initial.operatingMode === "native";
   const showRefresh = isNative || canRefreshFromAshed;
@@ -185,6 +194,13 @@ export function MembersListView({
         return;
       }
       setData(body);
+      const conflictCount =
+        body.commanderConflicts?.length ??
+        body.members.filter((m) => m.commander_sync_status === "name_conflict")
+          .length;
+      if (conflictCount > 0) {
+        setConflictSheetOpen(true);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : t("loadFailed"));
     } finally {
@@ -362,9 +378,42 @@ export function MembersListView({
           onOpenChange={setImportOpen}
           members={data.members}
           allianceTag={data.alliance.tag}
+          gameServerNumber={data.gameServerNumber}
           onCommitted={() => void refresh()}
         />
       )}
+
+      {pendingConflictCount > 0 && canImportMembers ? (
+        <div
+          className="flex flex-col gap-3 rounded-xl border border-[#f85149]/40 bg-[#f8514911] p-4 sm:flex-row sm:items-center sm:justify-between"
+          role="alert"
+        >
+          <div>
+            <p className="text-sm font-medium text-[#f85149]">
+              {t("commanderConflicts.bannerTitle", { count: pendingConflictCount })}
+            </p>
+            <p className="mt-1 text-xs text-[#8b949e]">
+              {t("commanderConflicts.bannerDescription")}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setConflictSheetOpen(true)}
+            className="w-full shrink-0 rounded-lg border border-[#f85149] px-4 py-2 text-sm text-[#f85149] hover:bg-[#f8514922] sm:w-auto"
+          >
+            {t("commanderConflicts.resolve")}
+          </button>
+        </div>
+      ) : null}
+
+      <CommanderConflictResolutionSheet
+        open={conflictSheetOpen}
+        onOpenChange={setConflictSheetOpen}
+        conflicts={data.commanderConflicts ?? []}
+        members={data.members}
+        gameServerNumber={data.gameServerNumber}
+        onResolved={() => void refresh()}
+      />
 
       <div className="flex flex-col gap-3 rounded-xl border border-[#30363d] bg-[#161b22] p-4 sm:flex-row sm:flex-wrap sm:items-center">
         <label className="min-w-0 flex-1 text-sm">

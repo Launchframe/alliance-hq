@@ -11,6 +11,8 @@ import type { AshedMemberRecord } from "@/lib/members/ashed-member-record";
 import { formatAshedMemberRankValue } from "@/lib/members/alliance-rank";
 import { seedMemberStatHistoriesFromAshed } from "@/lib/members/member-stat-history.server";
 import { syncTenureFromMemberStatus } from "@/lib/members/member-tenure.server";
+import { syncCommanderFromAllianceMember } from "@/lib/members/commander-identity.server";
+import type { CommanderIdentityConflict } from "@/lib/members/commander-identity-conflicts.shared";
 import { normalizedRankFromAshedMember } from "@/lib/members/roster.shared";
 
 export {
@@ -47,11 +49,12 @@ export async function syncAllianceMembersFromAshed(input: {
   hqAllianceId: string;
   ashedAllianceId: string;
   connection: ParsedConnection;
-}): Promise<{ synced: number }> {
+}): Promise<{ synced: number; commanderConflicts: CommanderIdentityConflict[] }> {
   const members = await base44ListMemberRecords(input.connection, input.ashedAllianceId);
   const now = new Date();
   const db = getDb();
   let synced = 0;
+  const commanderConflicts: CommanderIdentityConflict[] = [];
 
   for (const member of members) {
     const ashedMemberId = member.id;
@@ -164,10 +167,19 @@ export async function syncAllianceMembersFromAshed(input: {
       status,
     });
 
+    const syncResult = await syncCommanderFromAllianceMember({
+      allianceId: input.hqAllianceId,
+      ashedMemberId,
+      memberDisplayName: member.current_name,
+    });
+    if (syncResult.status === "deferred" && syncResult.conflict) {
+      commanderConflicts.push(syncResult.conflict);
+    }
+
     synced += 1;
   }
 
-  return { synced };
+  return { synced, commanderConflicts };
 }
 
 function parseAshedTimestamp(value: string | null | undefined): Date | null {
@@ -241,6 +253,11 @@ export async function setAllianceMemberRank(input: {
         eq(schema.allianceMembers.ashedMemberId, input.ashedMemberId),
       ),
     );
+
+  await syncCommanderFromAllianceMember({
+    allianceId: input.hqAllianceId,
+    ashedMemberId: input.ashedMemberId,
+  });
 }
 
 export async function clearAllianceMemberRank(input: {
@@ -262,4 +279,9 @@ export async function clearAllianceMemberRank(input: {
         eq(schema.allianceMembers.ashedMemberId, input.ashedMemberId),
       ),
     );
+
+  await syncCommanderFromAllianceMember({
+    allianceId: input.hqAllianceId,
+    ashedMemberId: input.ashedMemberId,
+  });
 }

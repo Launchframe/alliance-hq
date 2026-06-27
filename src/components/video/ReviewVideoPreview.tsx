@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import {
+  GripHorizontal,
   PanelBottom,
   PanelRight,
   PanelTop,
@@ -15,12 +16,18 @@ import type {
   PreviewPlacement,
   PreviewZoom,
 } from "@/lib/video/preview-layout";
+import {
+  clampDockHeightPx,
+  clampSideWidthPx,
+} from "@/lib/video/preview-layout";
+import { previewWheelSeekSeconds } from "@/lib/video/frame-video-seek";
+import { usePointerScrollPan } from "@/lib/video/use-pointer-scroll-pan";
 
 export type VideoSeekRequest = { seconds: number; nonce: number } | null;
 
 /** Header offset reserved so sticky panes sit just below the app header. */
 const HEADER_OFFSET = "3.25rem";
-/** Height of the top/bottom docked panes (and matching content padding). */
+/** Default height of top/bottom docks when no persisted size exists. */
 export const PREVIEW_DOCK_HEIGHT = "42dvh";
 
 type Props = {
@@ -33,6 +40,10 @@ type Props = {
   onClose: () => void;
   unavailable?: boolean;
   seekRequest?: VideoSeekRequest;
+  sideWidthPx: number;
+  dockHeightPx: number;
+  onSideWidthChange: (width: number) => void;
+  onDockHeightChange: (height: number) => void;
 };
 
 function cn(...parts: Array<string | false | null | undefined>): string {
@@ -49,12 +60,25 @@ export function ReviewVideoPreview({
   onClose,
   unavailable = false,
   seekRequest = null,
+  sideWidthPx,
+  dockHeightPx,
+  onSideWidthChange,
+  onDockHeightChange,
 }: Props) {
   const t = useTranslations("videoReview");
   const videoRef = useRef<HTMLVideoElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const sideResizeRef = useRef<{ startX: number; startWidth: number } | null>(
+    null,
+  );
+  const dockResizeRef = useRef<{ startY: number; startHeight: number } | null>(
+    null,
+  );
+  const [draftSideWidth, setDraftSideWidth] = useState<number | null>(null);
+  const [draftDockHeight, setDraftDockHeight] = useState<number | null>(null);
+  const draftSideWidthRef = useRef<number | null>(null);
+  const draftDockHeightRef = useRef<number | null>(null);
 
-  // Fill-width only helps the short top/bottom docks; the tall side column
-  // already constrains a portrait frame by width.
   const zoomable = placement !== "side";
   const effectiveZoom: PreviewZoom = zoomable ? zoom : "fit";
 
@@ -81,31 +105,157 @@ export function ReviewVideoPreview({
     return () => el.removeEventListener("loadedmetadata", applySeek);
   }, [seekRequest]);
 
+  useEffect(() => {
+    const container = bodyRef.current;
+    if (!container || unavailable || effectiveZoom === "width") return;
+
+    const onWheel = (event: WheelEvent) => {
+      if (event.ctrlKey) return;
+      const el = videoRef.current;
+      if (!el) return;
+      event.preventDefault();
+      try {
+        el.pause();
+        el.currentTime = previewWheelSeekSeconds(
+          el.currentTime,
+          event.deltaY,
+          el.duration,
+        );
+      } catch {
+        // ignore seek failures (e.g. unbuffered range)
+      }
+    };
+
+    container.addEventListener("wheel", onWheel, { passive: false });
+    return () => container.removeEventListener("wheel", onWheel);
+  }, [unavailable, jobId, effectiveZoom]);
+
   const containerClass = cn(
-    "z-30 flex flex-col bg-black",
-    // Side dock hugs the right viewport edge: negative right margin cancels the
-    // app shell's content padding (main = p-4 / md:p-6) so the pane spans to the
-    // edge instead of leaving a padding gap on its right.
+    "z-30 flex max-w-[100vw] flex-col overflow-x-hidden bg-black",
     placement === "side" &&
-      "sticky w-[min(45vw,26rem)] shrink-0 self-start border-l border-[#30363d] -mr-4 md:-mr-6",
-    // Top dock is full-bleed: negative margins cancel the app shell's content
-    // padding (main = p-4 / md:p-6) so it spans the full width of the content
-    // area and sits flush under the sticky header instead of being inset. The
-    // flex parent stretches it to that wider box; no fixed width needed.
+      "relative sticky shrink-0 self-start border-l border-[#30363d] -mr-4 md:-mr-6",
     placement === "top" &&
       "sticky -mx-4 -mt-4 border-b border-[#30363d] md:-mx-6 md:-mt-6",
-    placement === "bottom" && "fixed inset-x-0 bottom-0 border-t border-[#30363d]",
+    placement === "bottom" &&
+      "fixed bottom-0 left-0 right-0 w-full max-w-[100vw] border-t border-[#30363d]",
   );
+
+  const displaySideWidth = draftSideWidth ?? sideWidthPx;
+  const displayDockHeight = draftDockHeight ?? dockHeightPx;
 
   const containerStyle =
     placement === "side"
-      ? { top: HEADER_OFFSET, height: `calc(100dvh - ${HEADER_OFFSET})` }
+      ? {
+          top: HEADER_OFFSET,
+          height: `calc(100dvh - ${HEADER_OFFSET})`,
+          width: displaySideWidth,
+        }
       : placement === "top"
-        ? { top: HEADER_OFFSET, height: PREVIEW_DOCK_HEIGHT }
-        : { height: PREVIEW_DOCK_HEIGHT };
+        ? { top: HEADER_OFFSET, height: displayDockHeight }
+        : { height: displayDockHeight };
+
+  const onSideResizePointerDown = (event: React.PointerEvent) => {
+    if (event.button !== 0) return;
+    sideResizeRef.current = {
+      startX: event.clientX,
+      startWidth: sideWidthPx,
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+    event.preventDefault();
+  };
+
+  const onSideResizePointerMove = (event: React.PointerEvent) => {
+    const state = sideResizeRef.current;
+    if (!state) return;
+    const delta = state.startX - event.clientX;
+    const nextWidth = clampSideWidthPx(
+      state.startWidth + delta,
+      window.innerWidth,
+    );
+    draftSideWidthRef.current = nextWidth;
+    setDraftSideWidth(nextWidth);
+  };
+
+  const onSideResizePointerUp = (event: React.PointerEvent) => {
+    if (sideResizeRef.current && event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    if (draftSideWidthRef.current != null) {
+      onSideWidthChange(draftSideWidthRef.current);
+      draftSideWidthRef.current = null;
+    }
+    setDraftSideWidth(null);
+    sideResizeRef.current = null;
+  };
+
+  const onDockResizePointerDown = (event: React.PointerEvent) => {
+    if (event.button !== 0) return;
+    dockResizeRef.current = {
+      startY: event.clientY,
+      startHeight: dockHeightPx,
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+    event.preventDefault();
+  };
+
+  const onDockResizePointerMove = (event: React.PointerEvent) => {
+    const state = dockResizeRef.current;
+    if (!state) return;
+    const delta =
+      placement === "bottom"
+        ? state.startY - event.clientY
+        : event.clientY - state.startY;
+    const nextHeight = clampDockHeightPx(
+      state.startHeight + delta,
+      window.innerHeight,
+    );
+    draftDockHeightRef.current = nextHeight;
+    setDraftDockHeight(nextHeight);
+  };
+
+  const onDockResizePointerUp = (event: React.PointerEvent) => {
+    if (dockResizeRef.current && event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    if (draftDockHeightRef.current != null) {
+      onDockHeightChange(draftDockHeightRef.current);
+      draftDockHeightRef.current = null;
+    }
+    setDraftDockHeight(null);
+    dockResizeRef.current = null;
+  };
 
   return (
     <div className={containerClass} style={containerStyle}>
+      {placement === "side" ? (
+        <div
+          role="separator"
+          aria-orientation="vertical"
+          aria-label={t("previewResizeWidth")}
+          className="absolute bottom-0 left-0 top-0 z-10 w-2 cursor-col-resize touch-none hover:bg-[#58a6ff]/25"
+          onPointerDown={onSideResizePointerDown}
+          onPointerMove={onSideResizePointerMove}
+          onPointerUp={onSideResizePointerUp}
+          onPointerCancel={onSideResizePointerUp}
+        />
+      ) : null}
+      {placement === "top" || placement === "bottom" ? (
+        <div
+          role="separator"
+          aria-orientation="horizontal"
+          aria-label={t("previewResizeHeight")}
+          className={cn(
+            "absolute left-1/2 z-10 flex h-4 w-14 -translate-x-1/2 cursor-row-resize touch-none items-center justify-center rounded-full bg-[#21262d] text-[#8b949e] hover:bg-[#30363d] hover:text-[#e6edf3]",
+            placement === "bottom" ? "-top-2" : "-bottom-2",
+          )}
+          onPointerDown={onDockResizePointerDown}
+          onPointerMove={onDockResizePointerMove}
+          onPointerUp={onDockResizePointerUp}
+          onPointerCancel={onDockResizePointerUp}
+        >
+          <GripHorizontal className="h-3.5 w-3.5" aria-hidden />
+        </div>
+      ) : null}
       <PanelChrome
         label={t("previewVideo")}
         closeLabel={t("closePreview")}
@@ -124,11 +274,13 @@ export function ReviewVideoPreview({
         optionLabel={(p) => t(`previewPlacement.${p}`)}
       />
       <VideoBody
+        bodyRef={bodyRef}
         videoRef={videoRef}
         jobId={jobId}
         zoom={effectiveZoom}
         unavailable={unavailable}
         unavailableLabel={t("previewUnavailable")}
+        panHintLabel={t("previewPanHint")}
       />
     </div>
   );
@@ -242,53 +394,69 @@ function PanelChrome({
 }
 
 function VideoBody({
+  bodyRef,
   videoRef,
   jobId,
   zoom,
   unavailable,
   unavailableLabel,
+  panHintLabel,
 }: {
+  bodyRef: React.RefObject<HTMLDivElement | null>;
   videoRef: React.RefObject<HTMLVideoElement | null>;
   jobId: string;
   zoom: PreviewZoom;
   unavailable: boolean;
   unavailableLabel: string;
+  panHintLabel: string;
 }) {
+  const panEnabled = zoom === "width" && !unavailable;
+  const panHandlers = usePointerScrollPan(bodyRef, panEnabled);
+
   if (unavailable) {
     return (
-      <p className="flex min-h-0 flex-1 items-center justify-center px-4 text-center text-sm text-[#8b949e]">
-        {unavailableLabel}
-      </p>
+      <div ref={bodyRef} className="flex min-h-0 flex-1 flex-col">
+        <p className="flex min-h-0 flex-1 items-center justify-center px-4 text-center text-sm text-[#8b949e]">
+          {unavailableLabel}
+        </p>
+      </div>
     );
   }
 
   const src = `/api/tools/video-upload/${jobId}/video`;
 
-  // Fill-width: the frame is scaled to the pane width (portrait video grows
-  // taller than the pane) and the body scrolls vertically so leaderboard rows
-  // read at full width. Fit: whole frame letterboxed within the pane.
   if (zoom === "width") {
     return (
-      <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain">
+      <div
+        ref={bodyRef}
+        className="relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain touch-pan-y"
+        {...panHandlers}
+      >
+        <p className="pointer-events-none absolute left-0 right-0 top-1 z-[1] px-2 text-center text-[10px] text-[#8b949e]/90">
+          {panHintLabel}
+        </p>
         <video
           ref={videoRef}
           src={src}
           controls
           playsInline
-          className="block h-auto w-full"
+          className="block h-auto w-full max-w-full"
         />
       </div>
     );
   }
 
   return (
-    <div className="relative min-h-0 flex-1">
+    <div
+      ref={bodyRef}
+      className="relative min-h-0 flex-1 overflow-x-hidden"
+    >
       <video
         ref={videoRef}
         src={src}
         controls
         playsInline
-        className="h-full w-full object-contain"
+        className="h-full w-full max-w-full object-contain"
       />
     </div>
   );
