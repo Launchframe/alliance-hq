@@ -12,6 +12,7 @@ import {
   createVideoProcessorScenario,
   insertPendingVideoJob,
   loadVideoJobStatus,
+  seedLinkedRosterOfficer,
 } from "./fixtures/video-processor";
 
 function e2eBaseUrl(): string {
@@ -204,5 +205,40 @@ test.describe("Video enqueue/process RBAC", () => {
     );
     expect(res.status()).toBe(404);
     expect(await loadVideoJobStatus(sql, foreignJobId)).toBe("pending_approval");
+  });
+});
+
+test.describe("Video processor settings candidates", () => {
+  test("native alliance lists linked R4/R5 members as eligible", async ({
+    request,
+  }) => {
+    const sql = getE2eSql();
+    const scenario = await createVideoProcessorScenario(sql, e2eBaseUrl());
+    await seedLinkedRosterOfficer(sql, {
+      allianceId: scenario.allianceId,
+      hqUserId: scenario.officer.hqUserId,
+      allianceRank: 5,
+      allianceRankTitle: "Leader",
+    });
+
+    const res = await request.get("/api/settings/video-processors", {
+      headers: { Cookie: authCookieHeader(scenario.owner) },
+    });
+    expect(res.status(), await res.text()).toBe(200);
+    const body = (await res.json()) as {
+      eligibilityMode: string;
+      candidates: Array<{ hqUserId: string; subtitle: string | null }>;
+    };
+    expect(body.eligibilityMode).toBe("native_r4_r5");
+    expect(
+      body.candidates.some((c) => c.hqUserId === scenario.officer.hqUserId),
+    ).toBe(true);
+    expect(
+      body.candidates.find((c) => c.hqUserId === scenario.officer.hqUserId)
+        ?.subtitle,
+    ).toContain("R5");
+    expect(
+      body.candidates.some((c) => c.hqUserId === scenario.processor.hqUserId),
+    ).toBe(false);
   });
 });

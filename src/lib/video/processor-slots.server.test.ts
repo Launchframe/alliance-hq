@@ -41,10 +41,16 @@ const mockDb = vi.hoisted(() => {
 });
 
 const getRbacContext = vi.hoisted(() => vi.fn());
+const getAllianceOperatingMode = vi.hoisted(() => vi.fn());
 
 vi.mock("drizzle-orm", () => ({
   and: vi.fn((...clauses: unknown[]) => clauses),
   eq: vi.fn((left: unknown, right: unknown) => ({ left, right })),
+  inArray: vi.fn((col: unknown, values: unknown[]) => ({ col, values })),
+}));
+
+vi.mock("@/lib/native-alliance/operating-mode", () => ({
+  getAllianceOperatingMode,
 }));
 
 vi.mock("nanoid", () => ({
@@ -61,7 +67,12 @@ vi.mock("@/lib/db", () => ({
       grantedByHqUserId: "avp.grantedByHqUserId",
       grantedAt: "avp.grantedAt",
     },
-    hqUsers: { id: "hqUsers.id", email: "hqUsers.email", displayName: "hqUsers.displayName" },
+    hqUsers: {
+      id: "hqUsers.id",
+      email: "hqUsers.email",
+      displayName: "hqUsers.displayName",
+      ashedUserId: "hqUsers.ashedUserId",
+    },
     allianceMemberships: {
       hqUserId: "am.hqUserId",
       allianceId: "am.allianceId",
@@ -69,6 +80,20 @@ vi.mock("@/lib/db", () => ({
       roleId: "am.roleId",
     },
     roles: { id: "roles.id", name: "roles.name" },
+    hqMemberLinks: {
+      allianceId: "hml.allianceId",
+      hqUserId: "hml.hqUserId",
+      ashedMemberId: "hml.ashedMemberId",
+      memberDisplayName: "hml.memberDisplayName",
+    },
+    allianceMembers: {
+      allianceId: "amem.allianceId",
+      ashedMemberId: "amem.ashedMemberId",
+      currentName: "amem.currentName",
+      status: "amem.status",
+      allianceRank: "amem.allianceRank",
+      allianceRankTitle: "amem.allianceRankTitle",
+    },
   },
 }));
 
@@ -80,6 +105,7 @@ import {
   MAX_VIDEO_PROCESSORS,
   grantVideoProcessor,
   isAllianceVideoProcessor,
+  listVideoProcessorCandidates,
   revokeVideoProcessor,
   sessionCanProcessVideo,
   sessionCanReadAllianceVideoQueue,
@@ -94,6 +120,7 @@ beforeEach(() => {
   mockDb.insert.mockClear();
   mockDb.delete.mockClear();
   getRbacContext.mockReset();
+  getAllianceOperatingMode.mockReset();
 });
 
 describe("grantVideoProcessor", () => {
@@ -273,5 +300,81 @@ describe("sessionCanReadAllianceVideoQueue", () => {
     });
     mockState.selectResults = [[]];
     await expect(sessionCanReadAllianceVideoQueue("s")).resolves.toBe(false);
+  });
+});
+
+describe("listVideoProcessorCandidates", () => {
+  it("returns ashed-connected officers for ashed alliances", async () => {
+    getAllianceOperatingMode.mockResolvedValue("ashed");
+    mockState.selectResults = [
+      [
+        {
+          hqUserId: "officer-1",
+          email: "a@e2e.test",
+          displayName: "Officer A",
+          ashedUserId: "ashed-1",
+        },
+        {
+          hqUserId: "officer-2",
+          email: "b@e2e.test",
+          displayName: "Officer B",
+          ashedUserId: null,
+        },
+      ],
+    ];
+
+    const result = await listVideoProcessorCandidates("alliance-1");
+    expect(result.eligibilityMode).toBe("ashed_connected_officers");
+    expect(result.candidates).toEqual([
+      {
+        hqUserId: "officer-1",
+        email: "a@e2e.test",
+        displayName: "Officer A",
+        subtitle: null,
+      },
+    ]);
+  });
+
+  it("returns linked R4/R5 members for native alliances", async () => {
+    getAllianceOperatingMode.mockResolvedValue("native");
+    mockState.selectResults = [
+      [
+        {
+          hqUserId: "user-r4",
+          email: "r4@e2e.test",
+          displayName: "HQ R4",
+          memberDisplayName: "Commander R4",
+          currentName: "Commander R4",
+          allianceRank: 4,
+          allianceRankTitle: "Warlord",
+        },
+        {
+          hqUserId: "user-r5",
+          email: "r5@e2e.test",
+          displayName: null,
+          memberDisplayName: "Leader One",
+          currentName: "Leader One",
+          allianceRank: 5,
+          allianceRankTitle: "Leader",
+        },
+      ],
+    ];
+
+    const result = await listVideoProcessorCandidates("alliance-1");
+    expect(result.eligibilityMode).toBe("native_r4_r5");
+    expect(result.candidates).toEqual([
+      {
+        hqUserId: "user-r5",
+        email: "r5@e2e.test",
+        displayName: "Leader One",
+        subtitle: "R5 · Leader",
+      },
+      {
+        hqUserId: "user-r4",
+        email: "r4@e2e.test",
+        displayName: "HQ R4",
+        subtitle: "R4 · Warlord",
+      },
+    ]);
   });
 });

@@ -42,7 +42,7 @@ export async function GET() {
   const ctx = await resolveAdminAlliance();
   if (!ctx.ok) return ctx.response;
 
-  const [processors, candidates] = await Promise.all([
+  const [processors, candidateList] = await Promise.all([
     listAllianceVideoProcessors(ctx.allianceId),
     listVideoProcessorCandidates(ctx.allianceId),
   ]);
@@ -50,7 +50,10 @@ export async function GET() {
   const processorIds = new Set(processors.map((p) => p.hqUserId));
   return NextResponse.json({
     processors,
-    candidates: candidates.filter((c) => !processorIds.has(c.hqUserId)),
+    candidates: candidateList.candidates.filter(
+      (c) => !processorIds.has(c.hqUserId),
+    ),
+    eligibilityMode: candidateList.eligibilityMode,
     max: MAX_VIDEO_PROCESSORS,
   });
 }
@@ -73,8 +76,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "hqUserId is required." }, { status: 400 });
   }
 
-  const candidates = await listVideoProcessorCandidates(ctx.allianceId);
-  if (!candidates.some((c) => c.hqUserId === hqUserId)) {
+  const candidateList = await listVideoProcessorCandidates(ctx.allianceId);
+  if (!candidateList.candidates.some((c) => c.hqUserId === hqUserId)) {
     return NextResponse.json(
       { error: "User is not an eligible processor." },
       { status: 400 },

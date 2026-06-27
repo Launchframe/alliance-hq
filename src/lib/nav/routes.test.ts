@@ -70,10 +70,11 @@ describe("legacyAshedRedirect", () => {
 });
 
 describe("filterNavGroupsForPermissions", () => {
-  it("hides video upload without upload:write", () => {
+  it("hides video upload without hq:video:enqueue", () => {
     const filtered = filterNavGroupsForPermissions(NAV_GROUPS, new Set(["members:read"]));
-    const hqNative = filtered.find((group) => group.id === "hq-native");
-    expect(hqNative).toBeUndefined();
+    const video = filtered.find((group) => group.id === "video");
+    expect(video?.pages.some((page) => page.id === "video-upload")).toBe(false);
+    expect(video?.pages.some((page) => page.id === "video-queue")).toBe(true);
   });
 
   it("keeps video upload when hq:video:enqueue is granted", () => {
@@ -81,8 +82,8 @@ describe("filterNavGroupsForPermissions", () => {
       NAV_GROUPS,
       new Set(["members:read", "hq:video:enqueue"]),
     );
-    const hqNative = filtered.find((group) => group.id === "hq-native");
-    expect(hqNative?.pages.some((page) => page.id === "video-upload")).toBe(true);
+    const video = filtered.find((group) => group.id === "video");
+    expect(video?.pages.some((page) => page.id === "video-upload")).toBe(true);
   });
 
   it("skips permission filtering for platform maintainers", () => {
@@ -91,8 +92,8 @@ describe("filterNavGroupsForPermissions", () => {
       new Set(["hq:admin"]),
       { bypass: true },
     );
-    const hqNative = filtered.find((group) => group.id === "hq-native");
-    expect(hqNative?.pages.some((page) => page.id === "video-upload")).toBe(true);
+    const video = filtered.find((group) => group.id === "video");
+    expect(video?.pages.some((page) => page.id === "video-upload")).toBe(true);
   });
 });
 
@@ -125,6 +126,21 @@ describe("navLinkActive", () => {
     expect(navLinkActive("/profile", "/profile")).toBe(true);
     expect(navLinkActive("/profile/settings", "/profile")).toBe(false);
   });
+
+  it("keeps upload and queue nav highlights independent", () => {
+    expect(navLinkActive("/tools/video-upload/queue", "/tools/video-upload")).toBe(
+      false,
+    );
+    expect(
+      navLinkActive("/tools/video-upload/queue", "/tools/video-upload/queue"),
+    ).toBe(true);
+    expect(navLinkActive("/tools/video-upload", "/tools/video-upload")).toBe(
+      true,
+    );
+    expect(
+      navLinkActive("/tools/video-upload/job-1/review", "/tools/video-upload"),
+    ).toBe(true);
+  });
 });
 
 describe("NAV_GROUPS alliance-management", () => {
@@ -135,8 +151,9 @@ describe("NAV_GROUPS alliance-management", () => {
     expect(lastPage?.id).toBe("alliance-settings");
   });
 
-  it("does not include account in hq-native", () => {
-    const hqNative = NAV_GROUPS.find((g) => g.id === "hq-native");
-    expect(hqNative?.pages.some((p) => p.id === "account")).toBe(false);
+  it("does not include account in video group", () => {
+    const video = NAV_GROUPS.find((g) => g.id === "video");
+    expect(video?.pages.some((p) => p.id === "account")).toBe(false);
+    expect(video?.pages.some((p) => p.id === "video-queue")).toBe(true);
   });
 });
