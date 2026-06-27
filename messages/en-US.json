@@ -436,9 +436,12 @@
     "nativeAlliance": {
       "title": "Native alliance (tester path)",
       "subtitle": "Provision an alliance without Ashed seats. Officers import roster screenshots after accepting an invite.",
-      "inviteServerRequiredNote": "Send an owner invite first — the state server is set automatically when the owner links their in-game character (name + UID). Officer and member invites require that step to finish first.",
+      "inviteServerRequiredNote": "Native alliances require a state server at creation. You can correct it later from the alliances table if needed.",
       "name": "Alliance name",
       "tag": "In-game tag",
+      "serverNumber": "State server number",
+      "serverNumberHint": "Required for Commander identity and invites. Use the Last War state server, e.g. 1203.",
+      "serverNumberInvalid": "Enter a valid state server number (1–9999).",
       "ownerEmailOptional": "Owner email (optional — creates membership immediately)",
       "createButton": "Create native alliance",
       "createFieldsRequired": "Alliance name and in-game tag are required.",

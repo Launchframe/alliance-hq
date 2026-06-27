@@ -436,9 +436,12 @@
     "nativeAlliance": {
       "title": "Aliança nativa (teste)",
       "subtitle": "Provisione uma aliança sem assentos Ashed. Oficiais importam capturas de tela após aceitar o convite.",
-      "inviteServerRequiredNote": "Envie primeiro um convite de proprietário — o servidor estadual é definido automaticamente quando o proprietário vincula o personagem no jogo (nome + UID). Convites de oficial e membro exigem que essa etapa seja concluída antes.",
+      "inviteServerRequiredNote": "Alianças nativas exigem um servidor estadual na criação. Você pode corrigi-lo depois na tabela de alianças, se necessário.",
       "name": "Nome da aliança",
       "tag": "Tag no jogo",
+      "serverNumber": "Número do servidor estadual",
+      "serverNumberHint": "Obrigatório para identidade de comandante e convites. Use o servidor estadual do Last War, ex.: 1203.",
+      "serverNumberInvalid": "Informe um número de servidor estadual válido (1–9999).",
       "ownerEmailOptional": "E-mail do proprietário (opcional — cria associação imediatamente)",
       "createButton": "Criar aliança nativa",
       "createFieldsRequired": "Nome da aliança e tag no jogo são obrigatórios.",

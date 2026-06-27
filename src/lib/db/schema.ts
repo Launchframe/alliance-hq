@@ -28,9 +28,9 @@ export const alliances = pgTable("alliances", {
   /** Active game season key for VR tracking (e.g. "42"). */
   currentSeasonKey: text("current_season_key"),
   /** Last War state server number from Ashed Alliance.server_number (e.g. 1203). */
-  gameServerNumber: integer("game_server_number"),
+  gameServerNumber: integer("game_server_number").notNull(),
   /** FK to shared game_servers row (canonical server + season graph). */
-  gameServerId: text("game_server_id"),
+  gameServerId: text("game_server_id").notNull(),
   /** Server open time (ms epoch) from cpt-hedge — used for age fallback. */
   gameServerOpenTimestamp: bigint("game_server_open_timestamp", {
     mode: "number",

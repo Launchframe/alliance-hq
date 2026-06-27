@@ -343,20 +343,8 @@ export async function setAllianceSeasonOverride(
 
 export async function updateAllianceGameServerNumber(
   allianceId: string,
-  gameServerNumber: number | null,
+  gameServerNumber: number,
 ): Promise<void> {
-  if (gameServerNumber == null) {
-    const db = getDb();
-    await db
-      .update(schema.alliances)
-      .set({
-        gameServerNumber: null,
-        gameServerId: null,
-        updatedAt: new Date(),
-      })
-      .where(eq(schema.alliances.id, allianceId));
-    return;
-  }
   await linkAllianceToGameServer(allianceId, gameServerNumber);
 }
 
