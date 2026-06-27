@@ -436,9 +436,12 @@
     "nativeAlliance": {
       "title": "Aliança nativa (teste)",
       "subtitle": "Provisione uma aliança sem assentos Ashed. Oficiais importam capturas de tela após aceitar o convite.",
-      "inviteServerRequiredNote": "Envie primeiro um convite de proprietário — o servidor estadual é definido automaticamente quando o proprietário vincula o personagem no jogo (nome + UID). Convites de oficial e membro exigem que essa etapa seja concluída antes.",
+      "inviteServerRequiredNote": "Alianças nativas exigem um servidor estadual na criação. Você pode corrigi-lo depois na tabela de alianças, se necessário.",
       "name": "Nome da aliança",
       "tag": "Tag no jogo",
+      "serverNumber": "Número do servidor estadual",
+      "serverNumberHint": "Obrigatório para identidade de comandante e convites. Use o servidor estadual do Last War, ex.: 1203.",
+      "serverNumberInvalid": "Informe um número de servidor estadual válido (1–9999).",
       "ownerEmailOptional": "E-mail do proprietário (opcional — cria associação imediatamente)",
       "createButton": "Criar aliança nativa",
       "createFieldsRequired": "Nome da aliança e tag no jogo são obrigatórios.",
@@ -1436,7 +1439,25 @@
       "commit": "Importar elenco",
       "committing": "Importando…",
       "commitFailed": "Falha na importação.",
-      "cancel": "Cancelar"
+      "cancel": "Cancelar",
+      "nameConflictBlocked": "Resolva nomes duplicados de comandantes antes de importar.",
+      "nameConflictHint": "“{name}” conflita com outra linha ou membro existente neste servidor."
+    },
+    "commanderConflicts": {
+      "bannerTitle": "{count, plural, one {# nome de comandante precisa de revisão} other {# nomes de comandantes precisam de revisão}}",
+      "bannerDescription": "Dois jogadores diferentes podem ter nomes parecidos em importações por OCR. Edite os nomes para que cada comandante seja único no seu servidor.",
+      "resolve": "Revisar nomes",
+      "title": "Resolver nomes de comandantes",
+      "description": "Cada nome de comandante deve ser único no seu servidor. Ajuste os nomes abaixo e salve.",
+      "takenBy": "Esse nome já está em uso por {name}.",
+      "nameLabel": "Nome do comandante",
+      "duplicateInBatch": "“{name}” está duplicado nesta lista.",
+      "nameRequired": "Informe um nome para cada comandante.",
+      "stillConflict": "Esse nome ainda conflita com outro membro.",
+      "saveFailed": "Não foi possível salvar os nomes dos comandantes.",
+      "cancel": "Cancelar",
+      "save": "Salvar nomes",
+      "saving": "Salvando…"
     },
     "profile": {
       "titleWithId": "Perfil do comandante",

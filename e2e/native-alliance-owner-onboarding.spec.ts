@@ -4,7 +4,6 @@ import { nanoid } from "nanoid";
 import { expect, test } from "@playwright/test";
 
 import {
-  assertAllianceHasNoGameServer,
   authCookieHeader,
   createAllianceJoinCodeRow,
   createAuthenticatedHqSession,
@@ -42,7 +41,7 @@ async function openMemberLinkForm(page: import("@playwright/test").Page) {
 test.describe("Native alliance — PA provision through owner onboarding", () => {
   test.slow();
 
-  test("owner invite, blocked early officer join, owner cold-start adopts server", async ({
+  test("owner invite, officer join code, wrong-server block, owner onboarding", async ({
     page,
     request,
   }) => {
@@ -53,12 +52,13 @@ test.describe("Native alliance — PA provision through owner onboarding", () =>
     const allianceTag = `NO${nanoid(3)}`;
     const allianceName = `Native Owner Onboarding ${nanoid(4)}`;
 
-    // 1. Platform admin creates a native alliance with bare minimum (name + tag only; owner email optional).
+    // 1. Platform admin creates a native alliance with name, tag, and state server.
     const createRes = await request.post("/api/admin/native-alliances", {
       headers: { Cookie: authCookieHeader(maintainer) },
       data: {
         name: allianceName,
         tag: allianceTag,
+        gameServerNumber: ownerServer,
       },
     });
     expect(createRes.ok(), await createRes.text()).toBeTruthy();
@@ -67,9 +67,9 @@ test.describe("Native alliance — PA provision through owner onboarding", () =>
     };
     const allianceId = created.alliance?.allianceId;
     expect(allianceId).toBeTruthy();
-    await assertAllianceHasNoGameServer(sql, allianceId!);
+    expect(await loadAllianceGameServerNumber(sql, allianceId!)).toBe(ownerServer);
 
-    // 2. PA generates owner protected-link invite; officer join code is blocked until server exists.
+    // 2. PA generates owner protected-link invite; officer join code works once server is set.
     const ownerInviteRes = await request.post(
       `/api/admin/native-alliances/${encodeURIComponent(allianceId!)}/invites`,
       {
@@ -100,11 +100,7 @@ test.describe("Native alliance — PA provision through owner onboarding", () =>
         },
       },
     );
-    expect(officerJoinCodeRes.status()).toBe(422);
-    const officerJoinCodeError = (await officerJoinCodeRes.json()) as {
-      code?: string;
-    };
-    expect(officerJoinCodeError.code).toBe("alliance_server_required");
+    expect(officerJoinCodeRes.ok(), await officerJoinCodeRes.text()).toBeTruthy();
 
     // Seed an officer join code row to exercise early redemption before owner onboarding.
     const { code: officerJoinCode } = await createAllianceJoinCodeRow(sql, {
@@ -114,7 +110,7 @@ test.describe("Native alliance — PA provision through owner onboarding", () =>
       createdByHqUserId: maintainer.hqUserId,
     });
 
-    // 3. Officer redeems join code before owner links — blocked because alliance has no state server yet.
+    // 3. Officer redeems join code before owner links — blocked when UID server mismatches alliance.
     const officerServer = 5555;
     const officerUid = buildE2eOwnerUid(officerServer);
     const officerEmail = `officer-early-${nanoid(6)}@e2e.test`;
@@ -144,7 +140,7 @@ test.describe("Native alliance — PA provision through owner onboarding", () =>
       officerLinkBody.outcome,
       officerLinkBody.message ?? "no message",
     ).toBe("wrong_server");
-    await assertAllianceHasNoGameServer(sql, allianceId!);
+    expect(await loadAllianceGameServerNumber(sql, allianceId!)).toBe(ownerServer);
 
     // 4. Visitor redeems owner invite (protected link + passphrase).
     const ownerEmail = `owner-${nanoid(6)}@e2e.test`;
@@ -158,7 +154,7 @@ test.describe("Native alliance — PA provision through owner onboarding", () =>
     await page.getByRole("button", { name: /accept invite/i }).click();
     await expect(page).toHaveURL(/\/onboard/);
 
-    // 5. Owner onboarding: name + UID; E2E lookup adopts the encoded server number.
+    // 5. Owner onboarding: name + UID matching the provisioned state server.
     await openMemberLinkForm(page);
     await page.getByLabel(/in-game name/i).fill(OWNER_COMMANDER_NAME);
     await page.getByLabel(/player uid/i).fill(ownerUid);
@@ -191,7 +187,7 @@ test.describe("Native alliance — PA provision through owner onboarding", () =>
     await expect(page.getByRole("cell", { name: OWNER_COMMANDER_NAME })).toBeVisible();
     await expect(page.getByText(/1 active/i)).toBeVisible();
 
-    // 7. Alliance is linked to the owner's adopted server number.
+    // 7. Alliance keeps the provisioned state server number.
     const linkedServer = await loadAllianceGameServerNumber(sql, allianceId!);
     expect(linkedServer).toBe(ownerServer);
 

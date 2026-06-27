@@ -10,6 +10,7 @@ import { readSessionId } from "@/lib/session";
 const bodySchema = z.object({
   name: z.string().trim().min(1).max(120),
   tag: z.string().trim().min(1).max(32),
+  gameServerNumber: z.number().int().positive().max(9999),
   ownerEmail: z.string().trim().email().optional(),
   ownerRole: z
     .enum(["owner", "officer", "data_entry", "viewer", "member"])
@@ -44,6 +45,7 @@ export async function POST(request: Request) {
     const result = await createNativeAlliance({
       name: body.name,
       tag: body.tag,
+      gameServerNumber: body.gameServerNumber,
       ownerEmail: body.ownerEmail,
       ownerRole: (body.ownerRole ?? "owner") as SystemRoleName,
       invitedByHqUserId: ctx?.hqUserId ?? null,

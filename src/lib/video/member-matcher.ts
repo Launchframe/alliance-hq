@@ -6,6 +6,8 @@ export type AshedMember = {
   previous_names?: string[];
   alliance_id?: string;
   status?: string;
+  commander_sync_status?: string;
+  commander_conflict?: Record<string, unknown>;
   /** Total hero power from Ashed Member entity (field name may vary). */
   total_hero_power?: number;
   totalHeroPower?: number;
