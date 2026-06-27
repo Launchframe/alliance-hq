@@ -20,13 +20,18 @@ import {
 } from "@/components/trains/TrainsWalkthroughOverlay";
 import { TodayConductorCard } from "@/components/trains/TodayConductorCard";
 import { WeekTemplateChangeDialog } from "@/components/trains/WeekTemplateChangeDialog";
+import { useHotkeys } from "@/components/hotkeys/HotkeyProvider";
+import {
+  TRAINS_HOTKEY_ACTION_IDS,
+  type TrainsHotkeyActionId,
+} from "@/lib/hotkeys/trains-hotkeys.shared";
 import { WheelBlockedDialog } from "@/components/trains/WheelBlockedDialog";
 import {
   TrainPoolDetailsDialog,
   type PoolDetailsOption,
 } from "@/components/trains/TrainPoolDetailsDialog";
 import { TrainSpinSourcePanel } from "@/components/trains/TrainSpinSourcePanel";
-import { TrainMonthCalendar } from "@/components/trains/TrainMonthCalendar";
+import { TrainMonthCalendar, PAINT_TEMPLATES } from "@/components/trains/TrainMonthCalendar";
 import { TemplatePaletteOptionLabel } from "@/components/trains/TemplatePaletteBadge";
 import {
   TrainScheduleViewToggle,
@@ -1052,6 +1057,73 @@ export function TrainsDashboard({ initial }: Props) {
     setPoolDetailsInitialType(poolType);
     setPoolDetailsOpen(true);
   }, [setPoolDetailsInitialType, setPoolDetailsOpen]);
+
+  const { registerPageHandler } = useHotkeys();
+
+  const trainTemplateHotkeyIds = TRAINS_HOTKEY_ACTION_IDS.filter(
+    (id): id is Extract<TrainsHotkeyActionId, `trains.template.${number}`> =>
+      id.startsWith("trains.template."),
+  );
+
+  useEffect(() => {
+    if (data.activeMemberCount === 0) return;
+
+    const cleanups = [
+      registerPageHandler("trains.spinWheel", () => {
+        void runRollRef.current("conductor");
+      }),
+      registerPageHandler("trains.spinWeek", () => {
+        document
+          .querySelector<HTMLButtonElement>('[data-testid="trains-spin-week-btn"]')
+          ?.click();
+      }),
+      registerPageHandler("trains.spinVip", () => {
+        void runRollRef.current("vip");
+      }),
+      registerPageHandler("trains.pickConductor", () => {
+        setPickRole("conductor");
+        setPickOpen(true);
+      }),
+      registerPageHandler("trains.pickVip", () => {
+        setPickRole("vip");
+        setPickOpen(true);
+      }),
+      registerPageHandler("trains.lockConductor", () => {
+        void lockConductor();
+      }),
+      registerPageHandler("trains.viewPool", () => {
+        openPoolDetails("r3");
+      }),
+      registerPageHandler("trains.scheduleWeek", () => {
+        handleScheduleViewChange("week");
+      }),
+      registerPageHandler("trains.scheduleMonth", () => {
+        handleScheduleViewChange("month");
+      }),
+      registerPageHandler("trains.goToToday", goToToday),
+      ...PAINT_TEMPLATES.map((template, index) =>
+        registerPageHandler(trainTemplateHotkeyIds[index]!, () => {
+          if (!data.canManageTrains) return;
+          void paintDates([selectedDate], template);
+        }),
+      ),
+    ];
+
+    return () => {
+      for (const cleanup of cleanups) cleanup();
+    };
+  }, [
+    data.activeMemberCount,
+    data.canManageTrains,
+    goToToday,
+    handleScheduleViewChange,
+    lockConductor,
+    openPoolDetails,
+    paintDates,
+    registerPageHandler,
+    selectedDate,
+    trainTemplateHotkeyIds,
+  ]);
 
   const reseedPool = async (poolType: PoolType) => {
     setError(null);

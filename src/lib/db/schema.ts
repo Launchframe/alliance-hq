@@ -133,6 +133,8 @@ export const hqUsers = pgTable("hq_users", {
   trainsWheelSpinSpeed: text("trains_wheel_spin_speed")
     .notNull()
     .default("slow"),
+  /** Per-user customized hotkey bindings (JSON payload with overrides). */
+  hotkeyBindings: jsonb("hotkey_bindings"),
   isPlatformMaintainer: integer("is_platform_maintainer").notNull().default(0),
   /** Set when an admin invite is accepted or access is provisioned; required in production. */
   accessGrantedAt: timestamp("access_granted_at", { withTimezone: true }),

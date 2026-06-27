@@ -25,7 +25,7 @@ import {
 } from "@/lib/trains/mechanism-styles";
 import type { WeekTemplateType } from "@/lib/trains/types";
 
-const PAINT_TEMPLATES: WeekTemplateType[] = [
+export const PAINT_TEMPLATES: WeekTemplateType[] = [
   "vs_push_week",
   "vs_push_weekdays",
   "r4_event_vip",

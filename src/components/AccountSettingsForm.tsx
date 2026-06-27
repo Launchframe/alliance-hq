@@ -157,6 +157,17 @@ export function AccountSettingsForm({
       </div>
 
       <section className="rounded-xl border border-[#30363d] bg-[#161b22] p-5">
+        <h2 className="font-medium">{tSettings("hotkeysTitle")}</h2>
+        <p className="mt-2 text-sm text-[#8b949e]">{tSettings("hotkeysBody")}</p>
+        <Link
+          href="/settings/hotkeys"
+          className="mt-4 inline-block text-sm text-[#58a6ff] hover:underline"
+        >
+          {tSettings("hotkeysLink")} →
+        </Link>
+      </section>
+
+      <section className="rounded-xl border border-[#30363d] bg-[#161b22] p-5">
         <h2 className="font-medium">{tSettings("accountSecurityTitle")}</h2>
         <p className="mt-2 text-sm text-[#8b949e]">
           {tSettings("accountSecurityBody")}

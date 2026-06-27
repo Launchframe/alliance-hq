@@ -435,6 +435,13 @@
       "when": 1784633600000,
       "tag": "0062_ocr_eval_snapshots",
       "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1784720000000,
+      "tag": "0063_hq_user_hotkey_bindings",
+      "breakpoints": true
     }
   ]
 }

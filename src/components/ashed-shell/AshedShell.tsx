@@ -15,6 +15,10 @@ import {
 import { AllianceSetupGuideDashboardBanner } from "@/components/ashed-shell/AllianceSetupGuideDashboardBanner";
 import { OpsInboxBell } from "@/components/ashed-shell/OpsInboxBell";
 import { ReminderInboxBell } from "@/components/ashed-shell/ReminderInboxBell";
+import { AdminSequenceOverlay } from "@/components/hotkeys/AdminSequenceOverlay";
+import { HotkeyCommandPalette } from "@/components/hotkeys/HotkeyCommandPalette";
+import { HotkeyKeyboardButton } from "@/components/hotkeys/HotkeyKeyboardButton";
+import { HotkeyProvider } from "@/components/hotkeys/HotkeyProvider";
 import { ConnectAshedBanner } from "@/components/onboarding/ConnectAshedBanner";
 import { FeedbackProvider } from "@/components/feedback";
 import { SidebarNav } from "@/components/ashed-shell/SidebarNav";
@@ -145,6 +149,13 @@ export function AshedShell({
     <VideoJobEventsProvider>
       <ReleaseNotesProvider sessionId={sessionId}>
         <FeedbackProvider>
+          <HotkeyProvider
+            sessionPermissions={sessionPermissions}
+            isConnected={isConnected}
+            operatingMode={operatingMode}
+            showVideoQueue={showVideoQueue}
+            onOpenMobileNav={openMobileNav}
+          >
           <div className="flex min-h-screen min-h-[100dvh] bg-[#0d1117] text-[#e6edf3]">
           <div
             className={cn(
@@ -219,6 +230,7 @@ export function AshedShell({
 
               {hasAppAccess ? (
                 <div className="flex shrink-0 items-center gap-2">
+                  <HotkeyKeyboardButton />
                   {sessionPermissions.includes("inbox:read") ? (
                     <ReminderInboxBell />
                   ) : null}
@@ -252,6 +264,14 @@ export function AshedShell({
             </main>
           </div>
           </div>
+          <HotkeyCommandPalette
+            sessionPermissions={sessionPermissions}
+            isConnected={isConnected}
+            operatingMode={operatingMode}
+            showVideoQueue={showVideoQueue}
+          />
+          <AdminSequenceOverlay />
+          </HotkeyProvider>
         </FeedbackProvider>
       </ReleaseNotesProvider>
     </VideoJobEventsProvider>

@@ -1,0 +1,55 @@
+---
+description: Keep the app hotkey registry current when adding navigable pages or primary dashboard actions.
+globs:
+  - src/lib/nav/**
+  - src/lib/admin/**
+  - src/components/trains/**
+  - src/components/hotkeys/**
+  - src/app/**/page.tsx
+alwaysApply: false
+---
+
+# Hotkey registry
+
+When you add a **navigable page**, **primary dashboard action**, or **top-level dialog/flow**, evaluate whether it belongs in the hotkey system.
+
+## Register by default
+
+Add a `HotkeyActionDef` in [`src/lib/hotkeys/actions.registry.ts`](src/lib/hotkeys/actions.registry.ts) and a default binding in [`src/lib/hotkeys/defaults.ts`](src/lib/hotkeys/defaults.ts) when:
+
+- A new item appears in `NAV_GROUPS`, `ADMIN_LINKS`, or conditional sidebar extras.
+- A trains (or similar) dashboard adds a primary officer action button.
+- A global shell action should be reachable without the mouse (connect, account, reminders, etc.).
+
+Each action needs:
+
+- Stable `id` (e.g. `nav.members`, `trains.spinWheel`)
+- `labelKey` under `hotkeys.actions.*` in `messages/en-US.json` (+ `pt-BR`)
+- Correct `scope` (`global`, `page:trains`, `admin-sequence`)
+- Matching `requiredPermission` (same gate as the UI control)
+- Default binding that does not collide with [`src/lib/hotkeys/reserved.ts`](src/lib/hotkeys/reserved.ts) or existing defaults
+
+Wire execution:
+
+- **Navigation** — `href` + `kind: "navigate"` (provider handles `router.push`)
+- **Page actions** — register handler via `useRegisterPageHotkeys` on the owning page
+- **Admin subroutes** — `scope: "admin-sequence"` + `adminSequenceKey`
+
+## Checklist
+
+- [ ] New nav route → `nav.*` action (or documented skip)
+- [ ] New dashboard mutation → scoped action with same permission as the button
+- [ ] No binding collision with existing defaults/overrides
+- [ ] Action visible in command palette and `/settings/hotkeys`
+- [ ] Unit/e2e updated when default bindings change
+
+## Explicit opt-out
+
+Some actions must **not** be hotkeyed. Document in the PR instead of silently omitting:
+
+- Destructive/audited flows (e.g. unlock conductor)
+- Security-sensitive flows (Discord authorize, credential entry)
+
+## Copy
+
+User-facing hotkey labels follow [user-facing-copy-review.mdc](user-facing-copy-review.mdc): approve English in `messages/en-US.json`, then translate `pt-BR`.
