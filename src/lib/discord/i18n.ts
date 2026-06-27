@@ -10,6 +10,11 @@ const MESSAGES: Record<DiscordBotLocale, Record<string, unknown>> = {
   "pt-BR": ptBR.discordBot as Record<string, unknown>,
 };
 
+const AUTHORIZE_MESSAGES: Record<DiscordBotLocale, Record<string, unknown>> = {
+  "en-US": enUS.discordAuthorize as Record<string, unknown>,
+  "pt-BR": ptBR.discordAuthorize as Record<string, unknown>,
+};
+
 export function normalizeDiscordBotLocale(value: string | undefined): DiscordBotLocale {
   if (!value) return "en-US";
   const lower = value.toLowerCase();
@@ -90,6 +95,23 @@ export type DiscordTranslate = (
 
 export function createDiscordTranslator(locale: DiscordBotLocale): DiscordTranslate {
   return (key, params) => t(locale, key, params);
+}
+
+export function tDiscordAuthorize(
+  locale: DiscordBotLocale,
+  key: string,
+  params?: Record<string, string | number>,
+): string {
+  const bucket = AUTHORIZE_MESSAGES[locale] ?? AUTHORIZE_MESSAGES["en-US"];
+  const value = getNestedValue(bucket, key);
+  if (typeof value === "string") {
+    return interpolate(value, params);
+  }
+  const fallback = getNestedValue(AUTHORIZE_MESSAGES["en-US"], key);
+  if (typeof fallback === "string") {
+    return interpolate(fallback, params);
+  }
+  return key;
 }
 
 export function parseLanguageChoice(value: string | undefined): DiscordBotLocale | null {

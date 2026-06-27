@@ -2,6 +2,7 @@ import type { DiscordMemberLink } from "@/lib/db/schema";
 import {
   createDiscordTranslator,
   type DiscordBotLocale,
+  type DiscordTranslate,
 } from "@/lib/discord/i18n";
 import { allianceHasBotCredentials } from "@/lib/vr/member-roster";
 import {
@@ -88,7 +89,10 @@ export function pickHelpMessageKey(ctx: DiscordBotUserContext): string {
     if (ctx.isPlatformMaintainer || ctx.userRegisteredCredentials) {
       return "help.setupLinkAlliance";
     }
-    return "help.setupOwnerAuth";
+    if (!ctx.hasHqLink) {
+      return "help.setupOwnerLinkHq";
+    }
+    return "help.setupOwnerAshedSeat";
   }
   if (ctx.memberLinkCount === 0) {
     return "help.linkCommander";
@@ -99,6 +103,22 @@ export function pickHelpMessageKey(ctx: DiscordBotUserContext): string {
   return ctx.memberLinkCount > 1 ? "help.memberReadyMulti" : "help.memberReady";
 }
 
+export function discordAppBaseUrl(): string {
+  return (process.env.NEXT_PUBLIC_APP_URL ?? "").replace(/\/$/, "");
+}
+
+export function formatHelpReply(
+  t: DiscordTranslate,
+  key: string,
+  ctx: DiscordBotUserContext,
+): string {
+  return t(key, {
+    tag: ctx.allianceTag ?? "YourTag",
+    count: ctx.memberLinkCount,
+    appUrl: discordAppBaseUrl(),
+  });
+}
+
 export async function resolveSetupMessage(
   locale: DiscordBotLocale,
   guildId: string | null,
@@ -106,5 +126,5 @@ export async function resolveSetupMessage(
 ): Promise<string> {
   const ctx = await resolveDiscordBotUserContext({ guildId, discordUserId });
   const t = createDiscordTranslator(locale);
-  return t(pickHelpMessageKey(ctx));
+  return formatHelpReply(t, pickHelpMessageKey(ctx), ctx);
 }

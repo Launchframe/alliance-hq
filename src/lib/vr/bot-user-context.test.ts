@@ -34,16 +34,30 @@ describe("pickHelpMessageKey", () => {
     );
   });
 
-  it("prompts owner auth when guild is not registered and no credentials", () => {
+  it("prompts HQ sign-in when guild is not registered and Discord has no HQ link", () => {
     expect(
       pickHelpMessageKey(
         ctx({
           guildRegistered: false,
           hasCredentials: false,
+          hasHqLink: false,
           userRegisteredCredentials: false,
         }),
       ),
-    ).toBe("help.setupOwnerAuth");
+    ).toBe("help.setupOwnerLinkHq");
+  });
+
+  it("prompts ashed seat when guild is not registered but Discord has HQ link", () => {
+    expect(
+      pickHelpMessageKey(
+        ctx({
+          guildRegistered: false,
+          hasCredentials: false,
+          hasHqLink: true,
+          userRegisteredCredentials: false,
+        }),
+      ),
+    ).toBe("help.setupOwnerAshedSeat");
   });
 
   it("prompts link-alliance when owner has credentials", () => {

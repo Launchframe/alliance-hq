@@ -3,6 +3,7 @@ import {
   type DiscordBotLocale,
 } from "@/lib/discord/i18n";
 import {
+  formatHelpReply,
   pickHelpMessageKey,
   resolveDiscordBotUserContext,
 } from "@/lib/vr/bot-user-context";
@@ -19,10 +20,7 @@ export async function handleDiscordHelp(input: {
   });
   const t = createDiscordTranslator(input.locale);
   const key = pickHelpMessageKey(ctx);
-  const reply = t(key, {
-    tag: ctx.allianceTag ?? "LFgo",
-    count: ctx.memberLinkCount,
-  });
+  const reply = formatHelpReply(t, key, ctx);
 
   if (ctx.allianceId) {
     try {
