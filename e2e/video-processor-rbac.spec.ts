@@ -278,13 +278,24 @@ test.describe("Video processors page route", () => {
   }) => {
     const sql = getE2eSql();
     const scenario = await createVideoProcessorScenario(sql, e2eBaseUrl());
+    // Native-alliance members must have an HQ member link or the (app) layout
+    // redirects them to /onboard before any page renders.
+    await seedLinkedRosterOfficer(sql, {
+      allianceId: scenario.allianceId,
+      hqUserId: scenario.officer.hqUserId,
+      allianceRank: 4,
+      allianceRankTitle: "Warlord",
+    });
     await page.context().addCookies(playwrightAuthCookies(scenario.officer));
 
     const response = await page.goto("/tools/video-processors");
     expect(response, "No response for /tools/video-processors").toBeTruthy();
     expect(response!.status()).toBeLessThan(500);
     await expect(
-      page.getByRole("heading", { name: /^video processors$/i }),
+      page.getByRole("heading", {
+        level: 1,
+        name: /^video processors$/i,
+      }),
     ).toBeVisible();
     await expect(
       page.getByText(/only alliance owners and maintainers can add or remove processors/i),
@@ -297,12 +308,23 @@ test.describe("Video processors page route", () => {
   }) => {
     const sql = getE2eSql();
     const scenario = await createVideoProcessorScenario(sql, e2eBaseUrl());
+    // Native-alliance members must have an HQ member link or the (app) layout
+    // redirects them to /onboard before any page renders.
+    await seedLinkedRosterOfficer(sql, {
+      allianceId: scenario.allianceId,
+      hqUserId: scenario.owner.hqUserId,
+      allianceRank: 5,
+      allianceRankTitle: "R5",
+    });
     await page.context().addCookies(playwrightAuthCookies(scenario.owner));
 
     const response = await page.goto("/tools/video-processors");
     expect(response!.status()).toBeLessThan(500);
     await expect(
-      page.getByRole("heading", { name: /^video processors$/i }),
+      page.getByRole("heading", {
+        level: 1,
+        name: /^video processors$/i,
+      }),
     ).toBeVisible();
     await expect(page.getByRole("button", { name: /^add$/i })).toBeVisible();
   });
