@@ -6,6 +6,7 @@ import {
   createNativeAlliance,
   createPlatformMaintainerSession,
   getE2eSql,
+  playwrightAuthCookies,
 } from "./fixtures/db";
 import {
   createMemberWithRole,
@@ -268,5 +269,41 @@ test.describe("Video processor settings candidates", () => {
       data: { hqUserId: scenario.officer.hqUserId },
     });
     expect(writeRes.status()).toBe(403);
+  });
+});
+
+test.describe("Video processors page route", () => {
+  test("member with alliance access loads /tools/video-processors read-only", async ({
+    page,
+  }) => {
+    const sql = getE2eSql();
+    const scenario = await createVideoProcessorScenario(sql, e2eBaseUrl());
+    await page.context().addCookies(playwrightAuthCookies(scenario.officer));
+
+    const response = await page.goto("/tools/video-processors");
+    expect(response, "No response for /tools/video-processors").toBeTruthy();
+    expect(response!.status()).toBeLessThan(500);
+    await expect(
+      page.getByRole("heading", { name: /^video processors$/i }),
+    ).toBeVisible();
+    await expect(
+      page.getByText(/only alliance owners and maintainers can add or remove processors/i),
+    ).toBeVisible();
+    await expect(page.getByRole("button", { name: /^add$/i })).toHaveCount(0);
+  });
+
+  test("owner sees processor management controls on /tools/video-processors", async ({
+    page,
+  }) => {
+    const sql = getE2eSql();
+    const scenario = await createVideoProcessorScenario(sql, e2eBaseUrl());
+    await page.context().addCookies(playwrightAuthCookies(scenario.owner));
+
+    const response = await page.goto("/tools/video-processors");
+    expect(response!.status()).toBeLessThan(500);
+    await expect(
+      page.getByRole("heading", { name: /^video processors$/i }),
+    ).toBeVisible();
+    await expect(page.getByRole("button", { name: /^add$/i })).toBeVisible();
   });
 });

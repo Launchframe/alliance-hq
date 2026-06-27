@@ -38,6 +38,12 @@ function authSecret() {
   return "e2e-test-auth-secret-min-32-characters";
 }
 
+function ocrProviderEnvLines() {
+  const provider = process.env.VIDEO_OCR_PROVIDER?.trim();
+  if (!provider) return [];
+  return [`VIDEO_OCR_PROVIDER=${provider}`, "VIDEO_OCR_ALLOW_NONPROD=true"];
+}
+
 function prepareEnvFile(dbUrl) {
   if (fs.existsSync(envBackup)) {
     fs.unlinkSync(envBackup);
@@ -56,6 +62,7 @@ function prepareEnvFile(dbUrl) {
       "HQ_ASHED_INVITE_REQUIRED=false",
       "E2E_TEST=true",
       `E2E_EMAIL_CODE=${process.env.E2E_EMAIL_CODE?.trim() || "424242"}`,
+      ...ocrProviderEnvLines(),
       "",
     ].join("\n"),
   );
@@ -66,7 +73,7 @@ function run(command, env = process.env) {
 }
 
 function buildEnv(dbUrl) {
-  return {
+  const env = {
     PATH: process.env.PATH ?? "",
     HOME: process.env.HOME ?? "",
     NODE_ENV: "production",
@@ -80,6 +87,12 @@ function buildEnv(dbUrl) {
     E2E_TEST: "true",
     E2E_EMAIL_CODE: process.env.E2E_EMAIL_CODE?.trim() || "424242",
   };
+  const provider = process.env.VIDEO_OCR_PROVIDER?.trim();
+  if (provider) {
+    env.VIDEO_OCR_PROVIDER = provider;
+    env.VIDEO_OCR_ALLOW_NONPROD = "true";
+  }
+  return env;
 }
 
 const dbUrl = requireDatabaseUrl();

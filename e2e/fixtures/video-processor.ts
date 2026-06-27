@@ -142,6 +142,16 @@ export async function loadVideoJobStatus(
   return row?.status ?? null;
 }
 
+export async function loadVideoJobPassKey(
+  sql: Sql,
+  jobId: string,
+): Promise<string | null> {
+  const [row] = await sql<{ pass_key: string | null }[]>`
+    SELECT pass_key FROM video_jobs WHERE id = ${jobId} LIMIT 1
+  `;
+  return row?.pass_key ?? null;
+}
+
 export type VideoProcessorScenario = {
   allianceId: string;
   owner: RoleMemberFixture;
