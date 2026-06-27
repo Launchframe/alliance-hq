@@ -31,7 +31,9 @@ type JobDetail = {
 };
 
 /** Returns the total OCR phase ms from whatever engine ran (ashed / native / mock). */
-function resolveOcrTotalMs(phases: VideoProcessTimings["phases"]): number | undefined {
+function resolveOcrTotalMs(
+  phases: VideoProcessTimings["phases"] | undefined,
+): number | undefined {
   if (!phases) return undefined;
   const candidates = [
     "ashed.ocr_total",
