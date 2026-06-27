@@ -673,18 +673,6 @@ export function ConnectionWalkthrough({
         </div>
         <div className="mt-3 text-sm">{renderStepBody()}</div>
 
-        {isPasteStep && !isPasteSuccess && returningUser ? (
-          <p className="mt-4 text-sm">
-            <button
-              type="button"
-              onClick={() => setStepIndex(0)}
-              className="text-[#58a6ff] hover:underline"
-            >
-              {t("showSetupInstructions")}
-            </button>
-          </p>
-        ) : null}
-
         {stepChecklist && !isPasteStep && !isLinkPhoneStep && (
           <label
             htmlFor={`connect-step-${stepId}`}

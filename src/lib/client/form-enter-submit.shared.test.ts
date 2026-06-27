@@ -52,4 +52,56 @@ describe("form-enter-submit.shared", () => {
     );
     expect(submit).not.toHaveBeenCalled();
   });
+
+  it("handleTextareaEnterSubmit skips IME composition", () => {
+    const submit = vi.fn();
+    const target = { closest: () => null } as unknown as HTMLElement;
+    handleTextareaEnterSubmit(
+      {
+        key: "Enter",
+        shiftKey: false,
+        nativeEvent: { isComposing: true },
+        target,
+        preventDefault: vi.fn(),
+      } as unknown as Parameters<typeof handleTextareaEnterSubmit>[0],
+      submit,
+    );
+    expect(submit).not.toHaveBeenCalled();
+  });
+
+  it("handleTextareaEnterSubmit respects data-no-enter-submit wrapper", () => {
+    const submit = vi.fn();
+    const marker = {};
+    const target = {
+      closest: (selector: string) =>
+        selector === "[data-no-enter-submit]" ? marker : null,
+    } as unknown as HTMLElement;
+    handleTextareaEnterSubmit(
+      {
+        key: "Enter",
+        shiftKey: false,
+        nativeEvent: { isComposing: false },
+        target,
+        preventDefault: vi.fn(),
+      } as unknown as Parameters<typeof handleTextareaEnterSubmit>[0],
+      submit,
+    );
+    expect(submit).not.toHaveBeenCalled();
+  });
+
+  it("handleTextareaEnterSubmit ignores non-Enter keys", () => {
+    const submit = vi.fn();
+    const target = { closest: () => null } as unknown as HTMLElement;
+    handleTextareaEnterSubmit(
+      {
+        key: "Escape",
+        shiftKey: false,
+        nativeEvent: { isComposing: false },
+        target,
+        preventDefault: vi.fn(),
+      } as unknown as Parameters<typeof handleTextareaEnterSubmit>[0],
+      submit,
+    );
+    expect(submit).not.toHaveBeenCalled();
+  });
 });
