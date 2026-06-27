@@ -7,7 +7,7 @@ import "server-only";
  * Name collisions defer sync and surface officer resolution (never silent merge).
  */
 
-import { and, desc, eq, isNull, ne, sql } from "drizzle-orm";
+import { and, desc, eq, isNull, ne, or, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { getDb, schema } from "@/lib/db";
@@ -149,6 +149,22 @@ async function setMemberCommanderSyncStatus(
     );
 }
 
+/**
+ * Find an orphan commander (game_uid IS NULL) matching the given normalized
+ * name + server, scoped to the current alliance's CAM.
+ *
+ * The leftJoin filters CAM rows to `allianceId` only:
+ * - `ashedMemberId` is non-null  → this alliance already owns the commander
+ *   (same member re-syncing, or a collision needing conflict handling).
+ * - `ashedMemberId` is null      → either (a) no CAM exists at all, or (b) the
+ *   commander was created by a *different* alliance on the same server.
+ *
+ * Both null cases are treated as "adoptable" by the caller because Last War
+ * names are server-unique: same normalizedName + gameServerNumber implies the
+ * same physical player.  The same-alliance conflict check (findNameTakenByOtherMember)
+ * is deliberately skipped when this function returns a row, because a
+ * same-alliance duplicate would already surface via `ashedMemberId !== null`.
+ */
 async function findOrphanCommanderByNameServer(input: {
   allianceId: string;
   normalizedName: string;
@@ -313,13 +329,22 @@ export async function listCommanderIdentityConflictsForAlliance(
 
   return rows.flatMap((row): CommanderIdentityConflict[] => {
     const json = row.commanderConflictJson as CommanderConflictReasonJson | null;
-    if (!json?.normalizedName || row.gameServerNumber == null) {
+
+    if (row.gameServerNumber == null) {
+      // A name_conflict without a server number is an inconsistent DB state
+      // (name conflicts are only raised when a server is known). Skip rather
+      // than synthesize a conflict with gameServerNumber: 0, which is not a
+      // valid Last War server and would mislead conflict resolution UI.
+      return [];
+    }
+
+    if (!json?.normalizedName) {
       return [
         {
           code: "name_taken_by_other_member" as const,
           ashedMemberId: row.ashedMemberId,
           normalizedName: normalizeCommanderName(row.currentName),
-          gameServerNumber: row.gameServerNumber ?? 0,
+          gameServerNumber: row.gameServerNumber,
         },
       ];
     }
@@ -910,6 +935,42 @@ export async function countMembersWithCommanderSyncStatus(
       and(
         eq(schema.allianceMembers.allianceId, allianceId),
         eq(schema.allianceMembers.commanderSyncStatus, status),
+      ),
+    );
+  return row?.count ?? 0;
+}
+
+/**
+ * Count members whose Commander sync is intentionally deferred but has no
+ * actionable officer path in the current session:
+ *   - missing_server: alliance game_server_number not yet linked; resolves when
+ *     the owner completes name+UID member link (sets alliances.game_server_number)
+ *     and roster is re-synced.
+ *   - pending: member has a blank display name from Ashed; requires manual
+ *     name correction via the conflict resolution sheet.
+ *
+ * These are distinct from name_conflict (surfaced via listCommanderIdentityConflictsForAlliance).
+ */
+export async function countDeferredCommanderSyncMembers(
+  allianceId: string,
+): Promise<number> {
+  const db = getDb();
+  const [row] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(schema.allianceMembers)
+    .where(
+      and(
+        eq(schema.allianceMembers.allianceId, allianceId),
+        or(
+          eq(
+            schema.allianceMembers.commanderSyncStatus,
+            COMMANDER_SYNC_STATUS.MISSING_SERVER,
+          ),
+          eq(
+            schema.allianceMembers.commanderSyncStatus,
+            COMMANDER_SYNC_STATUS.PENDING,
+          ),
+        ),
       ),
     );
   return row?.count ?? 0;
