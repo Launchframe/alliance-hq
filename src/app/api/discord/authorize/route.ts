@@ -11,9 +11,11 @@ import { encryptSecret } from "@/lib/crypto/encrypt";
 import { capTokenExpiresAt } from "@/lib/member-link/privileged-link.shared";
 import { resolveTokenExpiresAt } from "@/lib/jwt/connection-meta";
 import { isTokenExpired } from "@/lib/jwt/decode";
+import { tDiscordAuthorize } from "@/lib/discord/i18n";
 import { syncAshedAllianceForBot } from "@/lib/rbac/sync-ashed-roles";
 import { getOrCreateSession } from "@/lib/session";
-import { getDiscordUserLocale, upsertAllianceAshedCredential } from "@/lib/vr/repository";
+import { discordAppBaseUrl } from "@/lib/vr/bot-user-context";
+import { getDiscordUserLocale, getDiscordHqLink, upsertAllianceAshedCredential } from "@/lib/vr/repository";
 import { resolveAllianceIdForDiscordMemberLink } from "@/lib/vr/resolve-member-link-alliance.server";
 import {
   consumeDiscordAuthNonce,
@@ -84,13 +86,14 @@ export async function POST(request: Request) {
       gameUid,
     });
     if (!allianceId) {
-      return NextResponse.json(
-        {
-          error:
-            "Could not determine your alliance for this server. If you are the alliance owner, try `/link name:… uid:…` in Discord, then run `/link-alliance tag:YourTag`. Otherwise ask the owner to register the server.",
-        },
-        { status: 422 },
-      );
+      const storedLocale = await getDiscordUserLocale(nonceRow.discordUserId);
+      const locale = storedLocale ?? "en-US";
+      const hqLink = await getDiscordHqLink(nonceRow.discordUserId);
+      const appUrl = discordAppBaseUrl();
+      const error = hqLink
+        ? tDiscordAuthorize(locale, "allianceUnknownWithHqLink")
+        : tDiscordAuthorize(locale, "allianceUnknownNoHqLink", { appUrl });
+      return NextResponse.json({ error }, { status: 422 });
     }
 
     const storedLocale = await getDiscordUserLocale(nonceRow.discordUserId);

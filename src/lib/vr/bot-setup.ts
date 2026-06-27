@@ -8,6 +8,7 @@ import {
   callerCanRegisterGuildAlliance,
   callerIsAllianceOwner,
   getAllianceById,
+  getDiscordHqLink,
   getGuildAllianceId,
   listDiscordLinksForUser,
   saveDiscordBotPending,
@@ -15,6 +16,7 @@ import {
   upsertGuildAlliance,
   writeDiscordBotAudit,
 } from "@/lib/vr/repository";
+import { discordAppBaseUrl } from "@/lib/vr/bot-user-context";
 import { resolveAllianceByTag } from "@/lib/vr/resolve-alliance-tag";
 import { createDiscordAuthNonce } from "@/lib/vr/auth-nonce";
 import type { LinkPendingState } from "@/lib/vr/types";
@@ -79,9 +81,18 @@ async function resolveTagForSetup(input: {
   }
 
   if (resolved.reason === "not_found") {
+    const hqLink = await getDiscordHqLink(input.discordUserId);
+    const appUrl = discordAppBaseUrl();
     return {
       ok: false,
-      reply: input.translate("errors.tagNotFound", { tag: input.tag.trim() }),
+      reply: hqLink
+        ? input.translate("errors.tagNotFoundWithHq", {
+            tag: input.tag.trim(),
+          })
+        : input.translate("errors.tagNotFoundNoHq", {
+            tag: input.tag.trim(),
+            appUrl,
+          }),
     };
   }
 
@@ -138,11 +149,19 @@ export async function handleDiscordLinkToAshedSeat(input: {
   const tag = input.tag?.trim();
 
   if (!tag) {
-    return { reply: t("errors.tagNotFound", { tag: "?" }) };
+    return { reply: t("errors.tagRequired") };
   }
 
   if (!isTagEligible(tag)) {
     return { reply: t("errors.tagNotEligible", { tag }) };
+  }
+
+  const hqLink = await getDiscordHqLink(input.discordUserId);
+  if (!hqLink) {
+    const appUrl = discordAppBaseUrl();
+    return {
+      reply: t("errors.linkHqBeforeAshed", { tag, appUrl }),
+    };
   }
 
   const nonce = await createDiscordAuthNonce({
@@ -168,7 +187,7 @@ export async function handleDiscordLinkAlliance(input: {
   const t = createDiscordTranslator(input.locale);
   const tag = input.tag?.trim();
   if (!tag) {
-    const reply = t("errors.tagNotFound", { tag: "?" });
+    const reply = t("errors.tagRequired");
     await audit(null, input.discordUserId, "link_alliance", input, { reply });
     return { reply };
   }
@@ -209,9 +228,13 @@ export async function handleDiscordLinkAlliance(input: {
   });
 
   if (!registration.allowed) {
+    const appUrl = discordAppBaseUrl();
+    const hqLink = await getDiscordHqLink(input.discordUserId);
     const reply =
       registration.reason === "no_credentials"
-        ? t("errors.credentialsRequired", { tag: resolved.tag })
+        ? hqLink
+          ? t("errors.credentialsRequired", { tag: resolved.tag })
+          : t("errors.linkHqBeforeAshed", { tag: resolved.tag, appUrl })
         : registration.reason === "not_owner" || registration.reason === "no_hq_link"
           ? t("errors.notOwner")
           : t("errors.notOwner");
