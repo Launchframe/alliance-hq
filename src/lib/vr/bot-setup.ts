@@ -10,7 +10,6 @@ import {
   getAllianceById,
   getDiscordHqLink,
   getGuildAllianceId,
-  listDiscordLinksForUser,
   saveDiscordBotPending,
   setGuildVrReportChannel,
   upsertGuildAlliance,
@@ -114,7 +113,7 @@ async function resolveTagForSetup(input: {
 }
 
 /**
- * /link — member link via HQ web redirect (in-game name + UID; no Ashed).
+ * /link — Discord ↔ Alliance HQ account via browser OAuth (no alliance required).
  */
 export async function handleDiscordLinkUser(input: {
   guildId: string | null;
@@ -136,7 +135,7 @@ export async function handleDiscordLinkUser(input: {
 }
 
 /**
- * /link-to-ashed-seat — secure credential setup via HQ web redirect.
+ * /link-ashed — secure Ashed credential setup via HQ web redirect.
  */
 export async function handleDiscordLinkToAshedSeat(input: {
   guildId: string;
@@ -311,20 +310,4 @@ export async function handleDiscordLanguage(input: {
   await setDiscordBotLocale(input.discordUserId, input.locale);
   const t = createDiscordTranslator(input.locale);
   return { reply: t("setup.languageSuccess") };
-}
-
-/** Post-HQ-auth hint when guild is registered but user has no commanders linked. */
-export async function buildFirstCommanderPrompt(input: {
-  guildId: string | null;
-  allianceId: string | null;
-  discordUserId: string;
-  locale: DiscordBotLocale;
-}): Promise<string | null> {
-  if (!input.guildId || !input.allianceId) return null;
-  const registered = await getGuildAllianceId(input.guildId);
-  if (registered !== input.allianceId) return null;
-  const links = await listDiscordLinksForUser(input.allianceId, input.discordUserId);
-  if (links.length > 0) return null;
-  const t = createDiscordTranslator(input.locale);
-  return t("link.promptFirstCommander");
 }

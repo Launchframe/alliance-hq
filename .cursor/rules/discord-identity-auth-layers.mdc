@@ -80,9 +80,10 @@ When adding features, name which **entry layer** you are in and which **identity
 
 | Capability | Must prove | How (today) | Grants |
 | --- | --- | --- | --- |
-| **Member bot commands** (`/link`, `/vr`, `/immunity`) | Discord user ↔ in-game character in **this guild's alliance** | `/link`: Last War UID lookup + name match + roster; row in `discord_member_links` | Act as that **member** for VR stats |
-| **Guild registration** (`/link-alliance`) | Same Discord user is **alliance owner in-game** | `/link` member link where `linked.ashedMemberId === alliances.ownerMemberExternalId` (`callerIsAllianceOwner`), or platform maintainer | Bind `discord_guild_alliances` |
-| **Alliance credentials** (`/link-to-ashed-seat`) | Caller holds **Ashed owner JWT** for tag (optional) | `verifyBase44Connection` + `filterAccessibleAlliances` owner role + tag match | `alliance_ashed_credentials`; enables bot roster reads + Ashed tools — **not required for auth** |
+| **Member bot commands** (`/link-commander`, `/link-last-war-profile`, `/vr`, `/immunity`) | Discord user ↔ in-game character in **this guild's alliance** | `/link-commander`: Last War UID lookup + name match + roster; row in `discord_member_links` | Act as that **member** for VR stats |
+| **HQ account link** (`/link`) | Discord user ↔ **HQ user** | `/link` → browser OAuth (`user_link` nonce) → `discord_hq_links` | Prerequisite for `/link-ashed`; not required for commander link |
+| **Guild registration** (`/link-alliance`) | Same Discord user is **alliance owner in-game** | `/link-commander` member link where `linked.ashedMemberId === alliances.ownerMemberExternalId` (`callerIsAllianceOwner`), or platform maintainer | Bind `discord_guild_alliances` |
+| **Alliance credentials** (`/link-ashed`) | Caller holds **Ashed owner JWT** for tag (optional) | `verifyBase44Connection` + `filterAccessibleAlliances` owner role + tag match | `alliance_ashed_credentials`; enables bot roster reads + Ashed tools — **not required for auth** |
 | **HQ web admin** | Signed-in **HQ user** with RBAC on alliance | Session + `requireSessionPermission` / alliance membership | Web mutations, trains, admin — **not** automatic Discord bot power |
 | **Cron / internal report** | Service secret + configured alliance | Bearer token; `resolveAllianceForGuild` or explicit alliance config | Read/write **without** Discord actor |
 
@@ -90,13 +91,14 @@ When adding features, name which **entry layer** you are in and which **identity
 
 **Owner proof ≠ HQ maintainer.** Ashed collaborator / HQ maintainer must not bypass owner-only bot setup unless product explicitly adds that path.
 
-## `/link` and multi-character
+## `/link-commander` and multi-character
 
 Target model (see multi-link migration):
 
 - **One Discord user → many `discord_member_links` rows per alliance** (unique on `(alliance_id, discord_user_id, ashed_member_id)`).
 - **One in-game member → one Discord user per alliance** (unique on `(alliance_id, ashed_member_id)`).
-- **`/link`** adds or updates a character; **`/link replace:true`** replaces all links with one; **`/unlink`** removes a row.
+- **`/link-commander`** or **`/link-last-war-profile`** adds or updates a character; **`replace:true`** replaces all links with one; **`/unlink`** removes a row.
+- **`/link`** binds Discord ↔ HQ account only (`discord_hq_links`) — never name + UID.
 - **Character-scoped commands** (`/vr`, `/immunity`, future quick tasks): if `listDiscordLinksForUser` returns **> 1**, prompt **Which character?** (button picker bound to `linkId` / `ashedMemberId`). Never apply an action without a resolved link row.
 
 `/help` (`resolveDiscordBotUserContext`) should reflect: guild registered?, credentials present?, link count, owner vs member — not a single generic message.

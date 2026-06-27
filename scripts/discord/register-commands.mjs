@@ -27,48 +27,49 @@ const vrLevelOption = {
   required: false,
 };
 
+const commanderLinkOptions = [
+  {
+    name: "name",
+    description:
+      "Your in-game name. Copy it exactly from your in-game profile.",
+    description_localizations: {
+      "pt-BR":
+        "Seu nome no jogo. Copie exatamente do perfil dentro do jogo.",
+    },
+    type: 3,
+    required: true,
+  },
+  {
+    name: "uid",
+    description:
+      "Your 12–16 digit player ID, ending in your server number.",
+    description_localizations: {
+      "pt-BR":
+        "Seu ID de jogador com 12–16 dígitos, terminando no número do servidor.",
+    },
+    type: 3,
+    required: true,
+  },
+  {
+    name: "replace",
+    description:
+      "Replace all your linked commanders with this one (switch main character).",
+    description_localizations: {
+      "pt-BR":
+        "Substitui todos os comandantes vinculados por este (trocar personagem principal).",
+    },
+    type: 5,
+    required: false,
+  },
+];
+
 const commandBody = [
   {
     name: "link",
-    description: "Link your in-game commander to Discord (name + UID)",
+    description: "Link your Discord account to Alliance HQ",
     description_localizations: {
-      "pt-BR": "Vincule seu comandante do jogo ao Discord (nome + UID)",
+      "pt-BR": "Vincule sua conta do Discord ao Alliance HQ",
     },
-    options: [
-      {
-        name: "name",
-        description:
-          "Your in-game name. Copy it exactly from your in-game profile.",
-        description_localizations: {
-          "pt-BR":
-            "Seu nome no jogo. Copie exatamente do perfil dentro do jogo.",
-        },
-        type: 3,
-        required: false,
-      },
-      {
-        name: "uid",
-        description:
-          "Your 12–16 digit player ID, ending in your server number.",
-        description_localizations: {
-          "pt-BR":
-            "Seu ID de jogador com 12–16 dígitos, terminando no número do servidor.",
-        },
-        type: 3,
-        required: false,
-      },
-      {
-        name: "replace",
-        description:
-          "Replace all your linked commanders with this one (switch main character).",
-        description_localizations: {
-          "pt-BR":
-            "Substitui todos os comandantes vinculados por este (trocar personagem principal).",
-        },
-        type: 5,
-        required: false,
-      },
-    ],
   },
   {
     name: "link-commander",
@@ -77,40 +78,16 @@ const commandBody = [
       "pt-BR": "Vincule um comandante do Last War (personagem) à sua conta do Discord",
     },
     options: [
-      {
-        name: "name",
-        description:
-          "Your in-game name. Copy it exactly from your in-game profile.",
-        description_localizations: {
-          "pt-BR":
-            "Seu nome no jogo. Copie exatamente do perfil dentro do jogo.",
-        },
-        type: 3,
-        required: true,
-      },
-      {
-        name: "uid",
-        description:
-          "Your 12–16 digit player ID, ending in your server number.",
-        description_localizations: {
-          "pt-BR":
-            "Seu ID de jogador com 12–16 dígitos, terminando no número do servidor.",
-        },
-        type: 3,
-        required: true,
-      },
-      {
-        name: "replace",
-        description:
-          "Replace all your linked commanders with this one (switch main character).",
-        description_localizations: {
-          "pt-BR":
-            "Substitui todos os comandantes vinculados por este (trocar personagem principal).",
-        },
-        type: 5,
-        required: false,
-      },
+      ...commanderLinkOptions,
     ],
+  },
+  {
+    name: "link-last-war-profile",
+    description: "Alias for /link-commander — link your Last War profile",
+    description_localizations: {
+      "pt-BR": "Atalho para /link-commander — vincule seu perfil do Last War",
+    },
+    options: [...commanderLinkOptions],
   },
   {
     name: "help",
@@ -236,7 +213,7 @@ const commandBody = [
     ],
   },
   {
-    name: "link-to-ashed-seat",
+    name: "link-ashed",
     description: "Connect your Ashed seat so the bot can read your alliance roster (owner only).",
     description_localizations: {
       "pt-BR":
