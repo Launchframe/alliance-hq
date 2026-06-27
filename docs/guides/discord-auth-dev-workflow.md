@@ -151,7 +151,7 @@ When `/link` verifies a commander but the in-game name does not match the allian
 - **Discord user has an HQ link** (`discord_hq_links` row): the request is created with that `hq_user_id`. The bot reply is `discordBot.link.awaitingOfficerResolve`. Resolving the request links both the HQ member and the Discord member.
 - **Discord user has no HQ link**: the request is still created, with `hq_user_id = NULL` (Discord-only). The bot reply is `discordBot.link.awaitingOfficerResolveNoHq`, which explains officers were notified and the user can link an HQ account later. Resolving the request binds only the Discord member (`discord_member_links`) to the chosen roster member.
 
-Both paths compute the single-substring suggestion (`findUniqueSubstringRosterCandidate`) and persist `suggested_target_ashed_member_id` / `suggested_matched_roster_name` so officers see a preselected match. Re-running `/link` supersedes the prior pending request — by `hq_user_id` when present, otherwise by `discord_user_id`.
+Both paths compute the single-substring suggestion (`findUniqueSubstringRosterCandidate`) and persist `suggested_target_ashed_member_id` / `suggested_matched_roster_name` so officers see a preselected match. Re-running `/link` supersedes prior pending requests by every identity available: `hq_user_id` when present, `discord_user_id` when present, or both after a Discord user later links HQ.
 
 ## Negative Checks
 

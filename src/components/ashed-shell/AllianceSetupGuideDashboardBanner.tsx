@@ -2,7 +2,7 @@
 
 import { X } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { AllianceSetupGuidePanel } from "@/components/settings/AllianceSetupGuidePanel";
 import { allianceSetupGuideTaskHref } from "@/lib/alliance-setup-guide-nav";
@@ -18,20 +18,34 @@ export function AllianceSetupGuideDashboardBanner() {
   const t = useTranslations("allianceSetupGuide");
   const [remote, setRemote] = useState<AllianceSetupStatusPayload | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
+  const loadStatus = useCallback((isCancelled: () => boolean) => {
     void fetch("/api/alliance/setup-status")
       .then((res) => (res.ok ? res.json() : null))
       .then((data: AllianceSetupStatusPayload | null) => {
-        if (!cancelled) setRemote(data);
+        if (!isCancelled()) setRemote(data);
       })
       .catch(() => {
-        if (!cancelled) setRemote(null);
+        if (!isCancelled()) setRemote(null);
       });
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const isCancelled = () => cancelled;
+    loadStatus(isCancelled);
+
+    function handleVisibilityChange() {
+      if (document.visibilityState === "visible") {
+        loadStatus(isCancelled);
+      }
+    }
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => {
       cancelled = true;
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, []);
+  }, [loadStatus]);
 
   if (
     !remote ||
