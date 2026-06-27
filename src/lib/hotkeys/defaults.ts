@@ -1,3 +1,4 @@
+import type { HotkeyActionId } from "@/lib/hotkeys/actions.registry";
 import type { HotkeyBinding } from "@/lib/hotkeys/types";
 
 function seq(...keys: string[]): HotkeyBinding {
@@ -11,7 +12,7 @@ function chord(
   return { key, modifiers };
 }
 
-export const DEFAULT_HOTKEY_BINDINGS: Record<string, HotkeyBinding> = {
+const DEFAULT_HOTKEY_BINDINGS_IMPL = {
   "global.openPalette": chord("k", ["meta"]),
   "global.openHotkeyReference": chord("/", ["shift"]),
   "global.focusSidebar": chord(".", ["meta"]),
@@ -73,4 +74,7 @@ export const DEFAULT_HOTKEY_BINDINGS: Record<string, HotkeyBinding> = {
   "trains.template.6": chord("6", ["shift"]),
   "trains.template.7": chord("7", ["shift"]),
   "trains.template.8": chord("8", ["shift"]),
-};
+} satisfies Record<HotkeyActionId, HotkeyBinding>;
+
+export const DEFAULT_HOTKEY_BINDINGS: Record<HotkeyActionId, HotkeyBinding> =
+  DEFAULT_HOTKEY_BINDINGS_IMPL;

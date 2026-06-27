@@ -300,8 +300,8 @@ const TRAIN_ACTIONS: HotkeyActionDef[] = [
     requiredPermission: "scores:read",
   },
   ...Array.from({ length: 8 }, (_, index) => ({
-    id: `trains.template.${index + 1}`,
-    labelKey: `actions.trains.template${index + 1}`,
+    id: `trains.template.${index + 1}` as const,
+    labelKey: `actions.trains.template${index + 1}` as const,
     category: "trains" as const,
     scope: "page:trains" as const,
     kind: "custom" as const,
@@ -348,6 +348,8 @@ export const HOTKEY_ACTIONS: HotkeyActionDef[] = [
   ...ADMIN_ACTIONS,
   ...TRAIN_ACTIONS,
 ];
+
+export type HotkeyActionId = (typeof HOTKEY_ACTIONS)[number]["id"];
 
 export const HOTKEY_ACTIONS_BY_ID = new Map(
   HOTKEY_ACTIONS.map((action) => [action.id, action]),

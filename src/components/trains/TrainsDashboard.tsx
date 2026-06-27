@@ -21,6 +21,10 @@ import {
 import { TodayConductorCard } from "@/components/trains/TodayConductorCard";
 import { WeekTemplateChangeDialog } from "@/components/trains/WeekTemplateChangeDialog";
 import { useHotkeys } from "@/components/hotkeys/HotkeyProvider";
+import {
+  TRAINS_HOTKEY_ACTION_IDS,
+  type TrainsHotkeyActionId,
+} from "@/lib/hotkeys/trains-hotkeys.shared";
 import { WheelBlockedDialog } from "@/components/trains/WheelBlockedDialog";
 import {
   TrainPoolDetailsDialog,
@@ -1056,6 +1060,11 @@ export function TrainsDashboard({ initial }: Props) {
 
   const { registerPageHandler } = useHotkeys();
 
+  const trainTemplateHotkeyIds = TRAINS_HOTKEY_ACTION_IDS.filter(
+    (id): id is Extract<TrainsHotkeyActionId, `trains.template.${number}`> =>
+      id.startsWith("trains.template."),
+  );
+
   useEffect(() => {
     if (data.activeMemberCount === 0) return;
 
@@ -1093,7 +1102,7 @@ export function TrainsDashboard({ initial }: Props) {
       }),
       registerPageHandler("trains.goToToday", goToToday),
       ...PAINT_TEMPLATES.map((template, index) =>
-        registerPageHandler(`trains.template.${index + 1}`, () => {
+        registerPageHandler(trainTemplateHotkeyIds[index]!, () => {
           if (!data.canManageTrains) return;
           void paintDates([selectedDate], template);
         }),
@@ -1113,6 +1122,7 @@ export function TrainsDashboard({ initial }: Props) {
     paintDates,
     registerPageHandler,
     selectedDate,
+    trainTemplateHotkeyIds,
   ]);
 
   const reseedPool = async (poolType: PoolType) => {

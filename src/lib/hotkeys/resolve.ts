@@ -1,4 +1,5 @@
 import { DEFAULT_HOTKEY_BINDINGS } from "@/lib/hotkeys/defaults";
+import { isKnownHotkeyActionId } from "@/lib/hotkeys/registry-integrity.shared";
 import { bindingSignature } from "@/lib/hotkeys/reserved";
 import type {
   EffectiveHotkeyBinding,
@@ -38,6 +39,10 @@ export function resolveEffectiveBinding(
   actionId: string,
   overrides: HotkeyBindingsStore,
 ): EffectiveHotkeyBinding | null {
+  if (!isKnownHotkeyActionId(actionId)) {
+    return null;
+  }
+
   const defaultBinding = DEFAULT_HOTKEY_BINDINGS[actionId];
   const override = overrides[actionId];
 
@@ -62,6 +67,7 @@ export function resolveEffectiveBindings(
   ]);
 
   return [...actionIds]
+    .filter(isKnownHotkeyActionId)
     .map((actionId) => resolveEffectiveBinding(actionId, overrides))
     .filter((entry): entry is EffectiveHotkeyBinding => entry !== null);
 }

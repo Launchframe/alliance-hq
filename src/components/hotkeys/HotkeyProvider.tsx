@@ -24,14 +24,21 @@ import {
   parseKeyboardEvent,
   shouldIgnoreHotkeysForEvent,
 } from "@/lib/hotkeys/engine";
+import { safeRunHotkeyDispatch, safeRunHotkeyHandler } from "@/lib/hotkeys/safe-execute.shared";
+import {
+  isKnownHotkeyActionId,
+  sanitizeHotkeyOverrides,
+  type HotkeyActionId,
+} from "@/lib/hotkeys/registry-integrity.shared";
 import { resolveEffectiveBindings } from "@/lib/hotkeys/resolve";
 import type {
   EffectiveHotkeyBinding,
   HotkeyBindingsStore,
   HotkeyBinding,
+  PageHotkeyHandler,
 } from "@/lib/hotkeys/types";
 
-export type PageHotkeyHandler = () => void | boolean | Promise<void | boolean>;
+export type { PageHotkeyHandler } from "@/lib/hotkeys/types";
 
 type HotkeyContextValue = {
   paletteOpen: boolean;
@@ -43,8 +50,8 @@ type HotkeyContextValue = {
   canEdit: boolean;
   saveBinding: (actionId: string, binding: HotkeyBinding) => Promise<string | null>;
   resetBinding: (actionId: string | "all") => Promise<string | null>;
-  registerPageHandler: (actionId: string, handler: PageHotkeyHandler) => () => void;
-  executeAction: (actionId: string) => Promise<void>;
+  registerPageHandler: (actionId: HotkeyActionId, handler: PageHotkeyHandler) => () => void;
+  executeAction: (actionId: HotkeyActionId) => Promise<void>;
 };
 
 const HotkeyContext = createContext<HotkeyContextValue | null>(null);
@@ -106,14 +113,18 @@ export function HotkeyProvider({
   }, [overrides, visibleActionIds]);
 
   const loadBindings = useCallback(async () => {
-    const res = await fetch("/api/settings/hotkeys");
-    if (!res.ok) return;
-    const data = (await res.json()) as {
-      overrides?: HotkeyBindingsStore;
-      canEdit?: boolean;
-    };
-    setOverrides(data.overrides ?? {});
-    setCanEdit(Boolean(data.canEdit));
+    try {
+      const res = await fetch("/api/settings/hotkeys");
+      if (!res.ok) return;
+      const data = (await res.json()) as {
+        overrides?: HotkeyBindingsStore;
+        canEdit?: boolean;
+      };
+      setOverrides(sanitizeHotkeyOverrides(data.overrides ?? {}));
+      setCanEdit(Boolean(data.canEdit));
+    } catch {
+      // Hotkey prefs are optional — never break the shell.
+    }
   }, []);
 
   useEffect(() => {
@@ -135,7 +146,7 @@ export function HotkeyProvider({
   }, []);
 
   const registerPageHandler = useCallback(
-    (actionId: string, handler: PageHotkeyHandler) => {
+    (actionId: HotkeyActionId, handler: PageHotkeyHandler) => {
       pageHandlersRef.current.set(actionId, handler);
       return () => {
         pageHandlersRef.current.delete(actionId);
@@ -182,7 +193,7 @@ export function HotkeyProvider({
   }, []);
 
   const dispatchAction = useCallback(
-    async (actionId: string) => {
+    async (actionId: HotkeyActionId) => {
       const action = getHotkeyAction(actionId);
       if (!action) return;
       if (
@@ -191,47 +202,46 @@ export function HotkeyProvider({
         return;
       }
 
-      if (action.scope === "page:trains") {
-        const handler = pageHandlersRef.current.get(actionId);
-        if (handler) {
-          await handler();
-        }
+      if (action.scope === "page:trains" || action.kind === "custom") {
+        await safeRunHotkeyHandler(
+          actionId,
+          pageHandlersRef.current.get(actionId),
+        );
         return;
       }
 
-      switch (action.kind) {
-        case "open-palette":
-          setPaletteOpen(true);
-          return;
-        case "open-hotkey-reference":
-          router.push("/settings/hotkeys");
-          return;
-        case "focus-sidebar":
-          onOpenMobileNav?.();
-          return;
-        case "connect-ashed":
-          router.push("/connect");
-          return;
-        case "admin-sequence-start":
-          if (action.href) {
-            router.push(action.href);
-          }
-          startAdminSequenceMode();
-          return;
-        case "navigate":
-          if (action.href) {
-            router.push(action.href);
-          }
-          return;
-        case "custom": {
-          const handler = pageHandlersRef.current.get(actionId);
-          if (handler) {
-            await handler();
-          }
-          return;
+      try {
+        switch (action.kind) {
+          case "open-palette":
+            setPaletteOpen(true);
+            return;
+          case "open-hotkey-reference":
+            router.push("/settings/hotkeys");
+            return;
+          case "focus-sidebar":
+            onOpenMobileNav?.();
+            return;
+          case "connect-ashed":
+            router.push("/connect");
+            return;
+          case "admin-sequence-start":
+            if (action.href) {
+              router.push(action.href);
+            }
+            startAdminSequenceMode();
+            return;
+          case "navigate":
+            if (action.href) {
+              router.push(action.href);
+            }
+            return;
+          default:
+            return;
         }
-        default:
-          return;
+      } catch (error) {
+        if (process.env.NODE_ENV === "development") {
+          console.error(`[hotkeys] Dispatch failed for action: ${actionId}`, error);
+        }
       }
     },
     [
@@ -245,60 +255,70 @@ export function HotkeyProvider({
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
-      if (shouldIgnoreHotkeysForEvent(event, {
-        paletteOpen,
-        allowPaletteChord: true,
-      })) {
-        return;
-      }
-
-      const parsed = parseKeyboardEvent(event);
-      const onTrainsPage = pathname === "/trains" || pathname.endsWith("/trains");
-
-      const candidateBindings = effectiveBindings.filter((entry) => {
-        const action = getHotkeyAction(entry.actionId);
-        if (!action) return false;
-        if (adminSequenceMode) {
-          return action.scope === "admin-sequence";
+      try {
+        if (shouldIgnoreHotkeysForEvent(event, {
+          paletteOpen,
+          allowPaletteChord: true,
+        })) {
+          return;
         }
-        if (action.scope === "admin-sequence") {
-          return false;
+
+        const parsed = parseKeyboardEvent(event);
+        const onTrainsPage =
+          pathname === "/trains" || pathname.endsWith("/trains");
+
+        const candidateBindings = effectiveBindings.filter((entry) => {
+          if (!isKnownHotkeyActionId(entry.actionId)) return false;
+          const action = getHotkeyAction(entry.actionId);
+          if (!action) return false;
+          if (adminSequenceMode) {
+            return action.scope === "admin-sequence";
+          }
+          if (action.scope === "admin-sequence") {
+            return false;
+          }
+          if (action.scope === "page:trains" && !onTrainsPage) {
+            return false;
+          }
+          return true;
+        });
+
+        const chordMatch = findMatchingActionId(
+          candidateBindings,
+          parsed,
+          [],
+        );
+
+        if (chordMatch && isKnownHotkeyActionId(chordMatch)) {
+          event.preventDefault();
+          sequenceRef.current = createSequenceState();
+          safeRunHotkeyDispatch(chordMatch, () => dispatchAction(chordMatch));
+          return;
         }
-        if (action.scope === "page:trains" && !onTrainsPage) {
-          return false;
+
+        const nextSequence = advanceSequenceState(
+          sequenceRef.current,
+          parsed,
+        );
+        sequenceRef.current = nextSequence;
+
+        const sequenceMatch = findMatchingActionId(
+          candidateBindings,
+          parsed,
+          nextSequence.keys,
+        );
+
+        if (sequenceMatch && isKnownHotkeyActionId(sequenceMatch)) {
+          event.preventDefault();
+          sequenceRef.current = createSequenceState();
+          safeRunHotkeyDispatch(sequenceMatch, () =>
+            dispatchAction(sequenceMatch),
+          );
         }
-        return true;
-      });
-
-      const chordMatch = findMatchingActionId(
-        candidateBindings,
-        parsed,
-        [],
-      );
-
-      if (chordMatch) {
-        event.preventDefault();
-        sequenceRef.current = createSequenceState();
-        void dispatchAction(chordMatch);
-        return;
-      }
-
-      const nextSequence = advanceSequenceState(
-        sequenceRef.current,
-        parsed,
-      );
-      sequenceRef.current = nextSequence;
-
-      const sequenceMatch = findMatchingActionId(
-        candidateBindings,
-        parsed,
-        nextSequence.keys,
-      );
-
-      if (sequenceMatch) {
-        event.preventDefault();
-        sequenceRef.current = createSequenceState();
-        void dispatchAction(sequenceMatch);
+      } catch (error) {
+        if (process.env.NODE_ENV === "development") {
+          console.error("[hotkeys] Keydown listener failed", error);
+        }
       }
     }
 
@@ -361,16 +381,22 @@ export function useHotkeys(): HotkeyContextValue {
 }
 
 export function useRegisterPageHotkeys(
-  handlers: Record<string, PageHotkeyHandler>,
+  handlers: Partial<Record<HotkeyActionId, PageHotkeyHandler>>,
   enabled = true,
 ) {
   const { registerPageHandler } = useHotkeys();
 
   useEffect(() => {
     if (!enabled) return;
-    const cleanups = Object.entries(handlers).map(([actionId, handler]) =>
-      registerPageHandler(actionId, handler),
-    );
+    const cleanups = (
+      Object.entries(handlers) as Array<
+        [HotkeyActionId, PageHotkeyHandler | undefined]
+      >
+    )
+      .filter((entry): entry is [HotkeyActionId, PageHotkeyHandler] =>
+        Boolean(entry[1]),
+      )
+      .map(([actionId, handler]) => registerPageHandler(actionId, handler));
     return () => {
       for (const cleanup of cleanups) cleanup();
     };

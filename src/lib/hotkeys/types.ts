@@ -59,3 +59,5 @@ export type HotkeyBindingsPayload = {
   version: typeof HOTKEY_BINDINGS_SCHEMA_VERSION;
   overrides: HotkeyBindingsStore;
 };
+
+export type PageHotkeyHandler = () => void | boolean | Promise<void | boolean>;

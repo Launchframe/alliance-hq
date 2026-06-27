@@ -9,6 +9,14 @@ import {
   sequenceMatchesBinding,
 } from "@/lib/hotkeys/engine";
 import {
+  assertHotkeyRegistryIntegrity,
+  checkHotkeyRegistryIntegrity,
+  sanitizeHotkeyOverrides,
+} from "@/lib/hotkeys/registry-integrity.shared";
+import { TRAINS_HOTKEY_ACTION_IDS } from "@/lib/hotkeys/trains-hotkeys.shared";
+import { safeRunHotkeyHandler } from "@/lib/hotkeys/safe-execute.shared";
+import { HOTKEY_ACTIONS } from "@/lib/hotkeys/actions.registry";
+import {
   findBindingConflict,
   resolveEffectiveBinding,
   resolveEffectiveBindings,
@@ -148,5 +156,73 @@ describe("hotkey resolve", () => {
     expect(bindings.some((entry) => entry.actionId === "global.openPalette")).toBe(
       true,
     );
+  });
+
+  it("drops orphan override keys from removed actions", () => {
+    const bindings = resolveEffectiveBindings({
+      "removed.action": {
+        binding: { key: "x" },
+        updatedAt: "2026-01-01T00:00:00.000Z",
+      },
+    });
+    expect(bindings.some((entry) => entry.actionId === "removed.action")).toBe(
+      false,
+    );
+  });
+});
+
+describe("hotkey registry integrity", () => {
+  it("keeps registry actions and defaults in sync", () => {
+    expect(() => assertHotkeyRegistryIntegrity()).not.toThrow();
+    expect(checkHotkeyRegistryIntegrity()).toEqual({
+      missingDefaults: [],
+      orphanDefaults: [],
+    });
+  });
+
+  it("keeps trains handler ids aligned with registry", () => {
+    const registryTrainIds = HOTKEY_ACTIONS.filter(
+      (action) => action.scope === "page:trains",
+    )
+      .map((action) => action.id)
+      .sort();
+
+    expect([...TRAINS_HOTKEY_ACTION_IDS].sort()).toEqual(registryTrainIds);
+  });
+});
+
+describe("hotkey safe execution", () => {
+  it("swallows handler errors", async () => {
+    await expect(
+      safeRunHotkeyHandler("trains.spinWheel", () => {
+        throw new Error("boom");
+      }),
+    ).resolves.toBeUndefined();
+  });
+
+  it("no-ops when handler is missing", async () => {
+    await expect(
+      safeRunHotkeyHandler("trains.spinWheel", undefined),
+    ).resolves.toBeUndefined();
+  });
+
+  it("sanitizes stale override keys", () => {
+    expect(
+      sanitizeHotkeyOverrides({
+        "nav.members": {
+          binding: { key: "m" },
+          updatedAt: "2026-01-01T00:00:00.000Z",
+        },
+        "legacy.removed": {
+          binding: { key: "x" },
+          updatedAt: "2026-01-01T00:00:00.000Z",
+        },
+      }),
+    ).toEqual({
+      "nav.members": {
+        binding: { key: "m" },
+        updatedAt: "2026-01-01T00:00:00.000Z",
+      },
+    });
   });
 });

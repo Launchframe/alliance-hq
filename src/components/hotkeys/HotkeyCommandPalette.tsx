@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 
 import { HotkeyBindingDisplay } from "@/components/hotkeys/hotkey-display";
 import { useHotkeys } from "@/components/hotkeys/HotkeyProvider";
+import { safeRunHotkeyDispatch } from "@/lib/hotkeys/safe-execute.shared";
 import { Dialog } from "@/components/ui/dialog";
 import {
   listVisibleHotkeyActions,
@@ -163,7 +164,9 @@ export function HotkeyCommandPalette({
                       if (editingActionId) return;
                       closePalette();
                       setSearch("");
-                      void executeAction(action.id);
+                      safeRunHotkeyDispatch(action.id, () =>
+                        executeAction(action.id),
+                      );
                     }}
                     className="flex items-center justify-between gap-3 rounded-lg px-3 py-2 text-sm text-[#e6edf3] aria-selected:bg-[#21262d]"
                   >
