@@ -16,6 +16,7 @@ import { Link, usePathname } from "@/i18n/navigation";
 import type { VideoJobStatusEvent } from "@/lib/events/video-jobs-types";
 import {
   isActiveVideoJobStatus,
+  isPendingApprovalStatus,
   isReviewReadyStatus,
 } from "@/lib/events/video-jobs-types";
 
@@ -356,6 +357,7 @@ export function useMergedVideoJobs<T extends { id: string; status: string }>(
       }
       if (
         !isActiveVideoJobStatus(live.status) &&
+        !isPendingApprovalStatus(live.status) &&
         !isReviewReadyStatus(live.status) &&
         live.status !== "failed"
       ) {

@@ -384,7 +384,35 @@
       "idx": 53,
       "version": "7",
       "when": 1783942400000,
-      "tag": "0054_alliance_setup_guide_roster_link",
+      "tag": "0054_video_processors",
+      "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1784028800000,
+      "tag": "0055_commander_identity",
+      "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "7",
+      "when": 1784115200000,
+      "tag": "0056_commander_nullable_uid",
+      "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1784201600000,
+      "tag": "0057_alliance_game_server_required",
+      "breakpoints": true
+    },
+    {
+      "idx": 57,
+      "version": "7",
+      "when": 1784288000000,
+      "tag": "0059_alliance_setup_guide_roster_link",
       "breakpoints": true
     }
   ]

@@ -4,6 +4,10 @@ import { z } from "zod";
 import { getRbacContext } from "@/lib/rbac/context";
 import { isNativeAlliance } from "@/lib/native-alliance/operating-mode";
 import { commitRosterImport } from "@/lib/native-alliance/roster-commit";
+import {
+  CommanderIdentityConflictError,
+  commanderConflictResponseBody,
+} from "@/lib/members/commander-identity-conflicts.shared";
 import { readSessionId } from "@/lib/session";
 
 const rowSchema = z.object({
@@ -67,6 +71,12 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ ok: true, ...result });
   } catch (error) {
+    if (error instanceof CommanderIdentityConflictError) {
+      return NextResponse.json(
+        commanderConflictResponseBody(error.conflicts),
+        { status: 422 },
+      );
+    }
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Commit failed." },
       { status: 400 },

@@ -4,6 +4,7 @@ import { nanoid } from "nanoid";
 
 import { getDb, schema } from "@/lib/db";
 import { requireSessionPermission } from "@/lib/rbac/require-permission";
+import { VIDEO_ENQUEUE_PERMISSION } from "@/lib/rbac/constants";
 import { putObject, videoStorageKey, r2Configured } from "@/lib/storage";
 import { getOrCreateSession } from "@/lib/session";
 import { getScoreTarget, ENABLED_SCORE_TARGETS } from "@/lib/video/score-targets";
@@ -15,12 +16,15 @@ import {
   MULTIPART_PART_BYTES,
   MULTIPART_UPLOAD_THRESHOLD_BYTES,
 } from "@/lib/video/upload-limit";
-import { finalizeVideoUploadAndDispatch } from "@/lib/video/finalize-video-upload";
+import { finalizeVideoUploadEnqueue } from "@/lib/video/finalize-video-upload";
 
 export async function POST(request: Request) {
   try {
     const session = await getOrCreateSession();
-    const denied = await requireSessionPermission(session.id, "upload:write");
+    const denied = await requireSessionPermission(
+      session.id,
+      VIDEO_ENQUEUE_PERMISSION,
+    );
     if (denied) return denied;
 
     if (r2Configured()) {
@@ -80,7 +84,7 @@ export async function POST(request: Request) {
     const buffer = Buffer.from(await file.arrayBuffer());
     await putObject(storageKey, buffer);
 
-    await finalizeVideoUploadAndDispatch({
+    await finalizeVideoUploadEnqueue({
       sessionId: session.id,
       jobId,
       groupId,
@@ -90,13 +94,16 @@ export async function POST(request: Request) {
       scoreTarget,
       boardKey: boardKey ? String(boardKey) : null,
       hqEventId: hqEventId ? String(hqEventId) : null,
+      allianceId: session.currentAllianceId,
+      enqueuedByHqUserId: session.hqUserId,
     });
 
     return NextResponse.json({
       ok: true,
       jobId,
-      status: "queued",
-      message: "Video uploaded. Processing started — refresh or open review when ready.",
+      status: "pending_approval",
+      message:
+        "Video uploaded. Waiting for a video processor to review and run it.",
     });
   } catch (error) {
     return NextResponse.json(
@@ -111,7 +118,10 @@ export async function POST(request: Request) {
 export async function GET() {
   try {
     const session = await getOrCreateSession();
-    const denied = await requireSessionPermission(session.id, "upload:write");
+    const denied = await requireSessionPermission(
+      session.id,
+      VIDEO_ENQUEUE_PERMISSION,
+    );
     if (denied) return denied;
 
     const db = getDb();

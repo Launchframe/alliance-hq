@@ -38,6 +38,7 @@ export type InitUploadResponse =
 export type CompleteUploadResponse = {
   ok: boolean;
   jobId: string;
+  status?: string;
   message?: string;
   error?: string;
 };
@@ -49,7 +50,7 @@ export async function uploadVideoFile(options: {
   hqEventId?: string;
   uploadConfig: UploadConfig;
   onProgress?: (loaded: number, total: number) => void;
-}): Promise<{ jobId: string; message: string }> {
+}): Promise<{ jobId: string; message: string; status: string }> {
   const { file, scoreTarget, boardKey, uploadConfig, onProgress } = options;
 
   if (uploadConfig.mode === "direct") {
@@ -74,6 +75,7 @@ export async function uploadVideoFile(options: {
     return {
       jobId: data.jobId,
       message: data.message ?? "Video uploaded.",
+      status: data.status ?? "pending_approval",
     };
   }
 
@@ -115,7 +117,7 @@ async function completeUpload(
   jobId: string,
   uploadId?: string,
   parts?: Array<{ partNumber: number; etag: string }>,
-): Promise<{ jobId: string; message: string }> {
+): Promise<{ jobId: string; message: string; status: string }> {
   const completeRes = await fetch("/api/tools/video-upload/complete", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -130,6 +132,7 @@ async function completeUpload(
   return {
     jobId: complete.jobId,
     message: complete.message ?? "Video uploaded.",
+    status: complete.status ?? "pending_approval",
   };
 }
 

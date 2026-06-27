@@ -76,10 +76,10 @@ describe("filterNavGroupsForPermissions", () => {
     expect(hqNative).toBeUndefined();
   });
 
-  it("keeps video upload when upload:write is granted", () => {
+  it("keeps video upload when hq:video:enqueue is granted", () => {
     const filtered = filterNavGroupsForPermissions(
       NAV_GROUPS,
-      new Set(["members:read", "upload:write"]),
+      new Set(["members:read", "hq:video:enqueue"]),
     );
     const hqNative = filtered.find((group) => group.id === "hq-native");
     expect(hqNative?.pages.some((page) => page.id === "video-upload")).toBe(true);

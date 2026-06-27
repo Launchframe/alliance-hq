@@ -2,13 +2,35 @@ import { describe, expect, it } from "vitest";
 
 import {
   availablePlacements,
+  clampDockHeightPx,
   clampPlacement,
+  clampPreviewSize,
+  clampSideWidthPx,
   clampZoom,
+  defaultDockHeightPx,
+  defaultSideWidthPx,
   deviceClassForWidth,
+  nextViewportSnapshot,
   parsePreviewPrefs,
   serializePreviewPrefs,
   DEFAULT_PLACEMENT,
 } from "@/lib/video/preview-layout";
+
+const VIEWPORT = { width: 1280, height: 800 };
+
+function expectedDefaultPrefs() {
+  const size = {
+    desktop: clampPreviewSize(null, VIEWPORT),
+    tablet: clampPreviewSize(null, VIEWPORT),
+    mobile: clampPreviewSize(null, VIEWPORT),
+  };
+  return {
+    open: true,
+    placement: { ...DEFAULT_PLACEMENT },
+    zoom: "fit" as const,
+    size,
+  };
+}
 
 describe("deviceClassForWidth", () => {
   it("classifies phones, tablets, and desktops at Tailwind breakpoints", () => {
@@ -18,6 +40,24 @@ describe("deviceClassForWidth", () => {
     expect(deviceClassForWidth(1023)).toBe("tablet");
     expect(deviceClassForWidth(1024)).toBe("desktop");
     expect(deviceClassForWidth(1920)).toBe("desktop");
+  });
+});
+
+describe("nextViewportSnapshot", () => {
+  it("returns the same reference when dimensions are unchanged", () => {
+    const prev = { width: 1280, height: 800 };
+    // Referential stability is what keeps useSyncExternalStore from looping
+    // ("Maximum update depth exceeded").
+    expect(nextViewportSnapshot(prev, 1280, 800)).toBe(prev);
+  });
+
+  it("returns a new snapshot when width or height changes", () => {
+    const prev = { width: 1280, height: 800 };
+    expect(nextViewportSnapshot(prev, 1024, 800)).toEqual({
+      width: 1024,
+      height: 800,
+    });
+    expect(nextViewportSnapshot(prev, 1280, 768)).not.toBe(prev);
   });
 });
 
@@ -64,18 +104,35 @@ describe("clampZoom", () => {
   });
 });
 
+describe("preview pane size", () => {
+  it("defaults side width to min(45vw, 26rem)", () => {
+    expect(defaultSideWidthPx(1920)).toBe(416);
+    expect(defaultSideWidthPx(800)).toBe(360);
+  });
+
+  it("defaults dock height to 42% of viewport", () => {
+    expect(defaultDockHeightPx(1000)).toBe(420);
+  });
+
+  it("clamps side width between 256px and 70vw", () => {
+    expect(clampSideWidthPx(100, 1000)).toBe(256);
+    expect(clampSideWidthPx(900, 1000)).toBe(700);
+    expect(clampSideWidthPx(400, 1000)).toBe(400);
+  });
+
+  it("clamps dock height between 20% and 80% of viewport", () => {
+    expect(clampDockHeightPx(50, 1000)).toBe(200);
+    expect(clampDockHeightPx(900, 1000)).toBe(800);
+    expect(clampDockHeightPx(420, 1000)).toBe(420);
+  });
+});
+
 describe("parsePreviewPrefs", () => {
   it("returns defaults for empty/invalid input", () => {
-    expect(parsePreviewPrefs(null)).toEqual({
-      open: true,
-      placement: { ...DEFAULT_PLACEMENT },
-      zoom: "fit",
-    });
-    expect(parsePreviewPrefs("not json")).toEqual({
-      open: true,
-      placement: { ...DEFAULT_PLACEMENT },
-      zoom: "fit",
-    });
+    expect(parsePreviewPrefs(null, VIEWPORT)).toEqual(expectedDefaultPrefs());
+    expect(parsePreviewPrefs("not json", VIEWPORT)).toEqual(
+      expectedDefaultPrefs(),
+    );
   });
 
   it("round-trips and clamps invalid per-device placements", () => {
@@ -83,11 +140,21 @@ describe("parsePreviewPrefs", () => {
       open: true,
       placement: { desktop: "side", tablet: "bottom", mobile: "top" },
       zoom: "width",
+      size: {
+        desktop: { sideWidthPx: 400, dockHeightPx: 400 },
+        tablet: { sideWidthPx: 380, dockHeightPx: 350 },
+        mobile: { sideWidthPx: 320, dockHeightPx: 300 },
+      },
     });
-    expect(parsePreviewPrefs(stored)).toEqual({
+    expect(parsePreviewPrefs(stored, VIEWPORT)).toEqual({
       open: true,
       placement: { desktop: "side", tablet: "bottom", mobile: "top" },
       zoom: "width",
+      size: {
+        desktop: { sideWidthPx: 400, dockHeightPx: 400 },
+        tablet: { sideWidthPx: 380, dockHeightPx: 350 },
+        mobile: { sideWidthPx: 320, dockHeightPx: 300 },
+      },
     });
   });
 
@@ -96,15 +163,26 @@ describe("parsePreviewPrefs", () => {
       open: true,
       placement: { mobile: "side" },
     });
-    expect(parsePreviewPrefs(stored).placement.mobile).toBe(
+    expect(parsePreviewPrefs(stored, VIEWPORT).placement.mobile).toBe(
       DEFAULT_PLACEMENT.mobile,
     );
   });
 
   it("defaults zoom to fit when missing or invalid in stored prefs", () => {
-    expect(parsePreviewPrefs(JSON.stringify({ open: true })).zoom).toBe("fit");
-    expect(parsePreviewPrefs(JSON.stringify({ zoom: "nope" })).zoom).toBe(
+    expect(parsePreviewPrefs(JSON.stringify({ open: true }), VIEWPORT).zoom).toBe(
       "fit",
     );
+    expect(parsePreviewPrefs(JSON.stringify({ zoom: "nope" }), VIEWPORT).zoom).toBe(
+      "fit",
+    );
+  });
+
+  it("fills in default size when stored prefs omit size", () => {
+    const parsed = parsePreviewPrefs(
+      JSON.stringify({ open: true, placement: DEFAULT_PLACEMENT, zoom: "fit" }),
+      VIEWPORT,
+    );
+    expect(parsed.size.desktop.sideWidthPx).toBe(defaultSideWidthPx(1280));
+    expect(parsed.size.mobile.dockHeightPx).toBe(defaultDockHeightPx(800));
   });
 });

@@ -32,6 +32,9 @@ Ashed limits shared seats to three; Alliance HQ adds **many HQ users per allianc
 | `data:bulk_delete` | bulkDeleteByDate (**destructive**) |
 | `data:bulk_move` | bulkMoveByDate (**destructive**) |
 | `upload:write` | Core/UploadFile, ExtractDataFromUploadedFile, InvokeLLM |
+| **`hq:video:read`** | **List alliance video jobs / processor queue** |
+| **`hq:video:enqueue`** | **Upload and queue video jobs (no Ashed credential required)** |
+| **`hq:video:process`** | **Approve and run OCR on queued jobs (runtime: owner/maintainer bypass or explicit processor slot; requires live Ashed credential at approve time)** |
 | `auth:read` | User/me, UserProfile, Referral |
 | `alliance:admin` | Connect/disconnect Ashed token, manage HQ roles |
 
@@ -40,9 +43,23 @@ Ashed limits shared seats to three; Alliance HQ adds **many HQ users per allianc
 | Role | Description | Excludes |
 |------|-------------|----------|
 | **owner** | Full HQ access including token and RBAC admin | — |
-| **officer** | All data operations | `data:bulk_delete`, `data:bulk_move`, `alliance:admin` |
+| **maintainer** | Same as owner for HQ-native permissions | — |
+| **officer** | All data operations + video enqueue | `data:bulk_delete`, `data:bulk_move`, `alliance:admin`, `hq:video:read` (unless granted a processor slot) |
 | **data_entry** | Member updates, score upload, events | Destructive ops, admin |
 | **viewer** | Read-only across alliance data | All writes |
+
+### Video processor slots (Ashed ToS)
+
+Officers may **enqueue** uploads (`hq:video:enqueue`) without an Ashed connection. **Processing** (OCR via Ashed) is limited:
+
+| Who can process | Slot required? | Ashed required at approve? |
+|-----------------|----------------|----------------------------|
+| Platform maintainer | No | Yes |
+| Owner / maintainer | No (bypass) | Yes |
+| Officer with processor slot | Yes (max **2** per alliance) | Yes |
+| Officer without slot | — | — |
+
+Owners assign processor slots under **Settings → Team access**. Jobs stay `pending_approval` until a processor approves them; approving without Ashed returns **409** `ashed_not_connected` (recoverable — job remains pending).
 
 Full permission lists per role are in `rbac.roleTemplates` in the catalog JSON.
 
@@ -98,4 +115,5 @@ Quick reference for UI gating (full mapping in catalog `navGroups`):
 | Reports | `reports:read`, `reports:generate` |
 | Data Management | `data:bulk_delete`, `data:bulk_move`, `upload:write` |
 | Settings (HQ) | `alliance:admin` |
-| Video upload (HQ) | `upload:write` |
+| Video upload (HQ) | `hq:video:enqueue` |
+| Video queue (HQ) | `hq:video:read` or explicit processor slot; approve/reject requires process capability |

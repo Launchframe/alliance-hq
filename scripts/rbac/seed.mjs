@@ -23,6 +23,8 @@ const HQ_PERMISSIONS = [
   { id: "hq:admin", description: "Platform maintainer — cross-alliance admin portal" },
   { id: "hq:audit:read", description: "Read alliance audit log" },
   { id: "hq:video:read", description: "List alliance video jobs" },
+  { id: "hq:video:enqueue", description: "Upload and queue video jobs for processing" },
+  { id: "hq:video:process", description: "Approve and run OCR on queued alliance video jobs" },
   { id: "hq:events:write", description: "Manage HQ native events" },
   { id: "trains:write", description: "Manage train conductor schedule, rolls, and locks" },
   { id: "ashed:connect", description: "Connect an Ashed account to HQ" },
@@ -56,6 +58,7 @@ async function main() {
       ...roleTemplates.owner.permissions,
       "hq:audit:read",
       "hq:video:read",
+      "hq:video:enqueue",
       "hq:events:write",
       "trains:write",
       "inbox:read",
@@ -66,6 +69,7 @@ async function main() {
   roleTemplates.officer.permissions = [
     ...new Set([
       ...roleTemplates.officer.permissions,
+      "hq:video:enqueue",
       "trains:write",
       "inbox:read",
       "eur:schedules:write",

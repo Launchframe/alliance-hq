@@ -28,9 +28,9 @@ export const alliances = pgTable("alliances", {
   /** Active game season key for VR tracking (e.g. "42"). */
   currentSeasonKey: text("current_season_key"),
   /** Last War state server number from Ashed Alliance.server_number (e.g. 1203). */
-  gameServerNumber: integer("game_server_number"),
+  gameServerNumber: integer("game_server_number").notNull(),
   /** FK to shared game_servers row (canonical server + season graph). */
-  gameServerId: text("game_server_id"),
+  gameServerId: text("game_server_id").notNull(),
   /** Server open time (ms epoch) from cpt-hedge — used for age fallback. */
   gameServerOpenTimestamp: bigint("game_server_open_timestamp", {
     mode: "number",
@@ -407,6 +407,22 @@ export const videoJobs = pgTable("video_jobs", {
   archiveStorageKey: text("archive_storage_key"),
   archivedAt: timestamp("archived_at", { withTimezone: true }),
   originalFileSizeBytes: bigint("original_file_size_bytes", { mode: "number" }),
+  /** HQ user who enqueued the upload (officer/owner/maintainer). */
+  enqueuedByHqUserId: text("enqueued_by_hq_user_id").references(
+    () => hqUsers.id,
+    { onDelete: "set null" },
+  ),
+  /** HQ user (video processor) who approved the job to run OCR. */
+  approvedByHqUserId: text("approved_by_hq_user_id").references(
+    () => hqUsers.id,
+    { onDelete: "set null" },
+  ),
+  approvedAt: timestamp("approved_at", { withTimezone: true }),
+  /** Session whose Ashed credential runs OCR — set on approve; falls back to sessionId for legacy jobs. */
+  processingSessionId: text("processing_session_id").references(
+    () => sessions.id,
+    { onDelete: "set null" },
+  ),
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
     .notNull(),
@@ -414,6 +430,37 @@ export const videoJobs = pgTable("video_jobs", {
     .defaultNow()
     .notNull(),
 });
+
+/**
+ * Designated video processors per alliance (Ashed ToS: at most two members may
+ * run OCR). Owner/maintainer can always process and do not occupy a slot — only
+ * additional officers granted here count toward the cap.
+ */
+export const allianceVideoProcessors = pgTable(
+  "alliance_video_processors",
+  {
+    id: text("id").primaryKey(),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    hqUserId: text("hq_user_id")
+      .notNull()
+      .references(() => hqUsers.id, { onDelete: "cascade" }),
+    grantedByHqUserId: text("granted_by_hq_user_id").references(
+      () => hqUsers.id,
+      { onDelete: "set null" },
+    ),
+    grantedAt: timestamp("granted_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => ({
+    allianceUserUnique: uniqueIndex("alliance_video_processors_alliance_user_idx").on(
+      table.allianceId,
+      table.hqUserId,
+    ),
+  }),
+);
 
 export const videoFrames = pgTable("video_frames", {
   id: text("id").primaryKey(),
@@ -858,6 +905,8 @@ export type LinkedDevice = typeof linkedDevices.$inferSelect;
 export type AshedCredential = typeof ashedCredentials.$inferSelect;
 export type VideoUploadGroup = typeof videoUploadGroups.$inferSelect;
 export type VideoJob = typeof videoJobs.$inferSelect;
+export type AllianceVideoProcessor =
+  typeof allianceVideoProcessors.$inferSelect;
 export type VideoFrame = typeof videoFrames.$inferSelect;
 export type ParseSession = typeof parseSessions.$inferSelect;
 export type ParsedRow = typeof parsedRows.$inferSelect;
@@ -1063,6 +1112,13 @@ export const allianceMembers = pgTable(
     isSample: boolean("is_sample"),
     /** Denormalized game UID from member links when known. */
     gameUid: text("game_uid"),
+    /** Commander mirror state — see commander-identity-conflicts.shared.ts */
+    commanderSyncStatus: text("commander_sync_status")
+      .notNull()
+      .default("pending"),
+    commanderConflictJson: jsonb("commander_conflict_json").$type<
+      Record<string, unknown>
+    >(),
     syncedAt: timestamp("synced_at", { withTimezone: true }).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
@@ -1106,6 +1162,106 @@ export const memberAllianceTenure = pgTable(
       table.gameUid,
       table.allianceId,
     ),
+  ],
+);
+
+/** UID-keyed in-game Commander identity (lifetime stats, cross-alliance). */
+export const commanders = pgTable(
+  "commanders",
+  {
+    id: text("id").primaryKey(),
+    gameUid: text("game_uid"),
+    gameServerNumber: integer("game_server_number"),
+    primaryName: text("primary_name"),
+    /** Lowercase trimmed name for orphan identity (partial unique with server). */
+    primaryNameNormalized: text("primary_name_normalized"),
+    profession: text("profession"),
+    professionalLevel: integer("professional_level"),
+    memberLevel: integer("member_level"),
+    heroPowerM: doublePrecision("hero_power_m"),
+    powerLevel: text("power_level"),
+    currentKills: doublePrecision("current_kills"),
+    currentTotalHeroPower: doublePrecision("current_total_hero_power"),
+    currentSquadPowerJson: jsonb("current_squad_power_json"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("commanders_game_uid_idx").on(table.gameUid),
+    index("commanders_orphan_name_server_idx").on(
+      table.primaryNameNormalized,
+      table.gameServerNumber,
+    ),
+  ],
+);
+
+/** HQ user ownership of one or more Commanders. */
+export const hqUserCommanders = pgTable(
+  "hq_user_commanders",
+  {
+    id: text("id").primaryKey(),
+    hqUserId: text("hq_user_id")
+      .notNull()
+      .references(() => hqUsers.id, { onDelete: "cascade" }),
+    commanderId: text("commander_id")
+      .notNull()
+      .references(() => commanders.id, { onDelete: "cascade" }),
+    isPrimary: boolean("is_primary").notNull().default(false),
+    linkedAt: timestamp("linked_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    unique("hq_user_commanders_user_commander_unique").on(
+      table.hqUserId,
+      table.commanderId,
+    ),
+    index("hq_user_commanders_commander_idx").on(table.commanderId),
+  ],
+);
+
+/** Commander roster membership within one alliance (0–1 active per alliance). */
+export const commanderAllianceMemberships = pgTable(
+  "commander_alliance_memberships",
+  {
+    id: text("id").primaryKey(),
+    commanderId: text("commander_id")
+      .notNull()
+      .references(() => commanders.id, { onDelete: "cascade" }),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    ashedMemberId: text("ashed_member_id").notNull(),
+    ashedAllianceId: text("ashed_alliance_id"),
+    status: text("status").notNull().default("active"),
+    joinedAt: timestamp("joined_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    leftAt: timestamp("left_at", { withTimezone: true }),
+    allianceRank: integer("alliance_rank"),
+    allianceRankTitle: text("alliance_rank_title"),
+    rosterNameAtMembership: text("roster_name_at_membership"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    unique("commander_alliance_memberships_alliance_member_unique").on(
+      table.allianceId,
+      table.ashedMemberId,
+    ),
+    index("commander_alliance_memberships_commander_idx").on(table.commanderId),
+    index("commander_alliance_memberships_alliance_idx").on(table.allianceId),
   ],
 );
 
@@ -1780,6 +1936,10 @@ export const trainRiderCargoItems = pgTable("train_rider_cargo_item", {
 
 export type AllianceMember = typeof allianceMembers.$inferSelect;
 export type MemberAllianceTenure = typeof memberAllianceTenure.$inferSelect;
+export type Commander = typeof commanders.$inferSelect;
+export type HqUserCommander = typeof hqUserCommanders.$inferSelect;
+export type CommanderAllianceMembership =
+  typeof commanderAllianceMemberships.$inferSelect;
 export type HqInvite = typeof hqInvites.$inferSelect;
 export type HqRosterLinkRequest = typeof hqRosterLinkRequests.$inferSelect;
 export type HqRosterLinkActionToken =

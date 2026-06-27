@@ -4,6 +4,7 @@ import { and, desc, eq, isNull } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { getDb, schema } from "@/lib/db";
+import { syncCommanderFromAllianceMember } from "@/lib/members/commander-identity.server";
 
 export async function resolveMemberGameUid(
   allianceId: string,
@@ -72,7 +73,10 @@ export async function openMemberAllianceTenure(input: {
   const now = input.joinedAt ?? new Date();
 
   const [active] = await db
-    .select({ id: schema.memberAllianceTenure.id })
+    .select({
+      id: schema.memberAllianceTenure.id,
+      joinedAt: schema.memberAllianceTenure.joinedAt,
+    })
     .from(schema.memberAllianceTenure)
     .where(
       and(
@@ -93,6 +97,12 @@ export async function openMemberAllianceTenure(input: {
       ashedMemberId: input.ashedMemberId,
       gameUid,
     });
+    await syncCommanderFromAllianceMember({
+      allianceId: input.allianceId,
+      ashedMemberId: input.ashedMemberId,
+      joinedAt: active.joinedAt,
+      leftAt: null,
+    });
     return;
   }
 
@@ -110,6 +120,13 @@ export async function openMemberAllianceTenure(input: {
     ashedMemberId: input.ashedMemberId,
     gameUid,
   });
+
+  await syncCommanderFromAllianceMember({
+    allianceId: input.allianceId,
+    ashedMemberId: input.ashedMemberId,
+    joinedAt: now,
+    leftAt: null,
+  });
 }
 
 export async function closeMemberAllianceTenure(input: {
@@ -119,6 +136,21 @@ export async function closeMemberAllianceTenure(input: {
 }): Promise<void> {
   const db = getDb();
   const now = input.leftAt ?? new Date();
+
+  const [active] = await db
+    .select({
+      id: schema.memberAllianceTenure.id,
+      joinedAt: schema.memberAllianceTenure.joinedAt,
+    })
+    .from(schema.memberAllianceTenure)
+    .where(
+      and(
+        eq(schema.memberAllianceTenure.allianceId, input.allianceId),
+        eq(schema.memberAllianceTenure.ashedMemberId, input.ashedMemberId),
+        isNull(schema.memberAllianceTenure.leftAt),
+      ),
+    )
+    .limit(1);
 
   await db
     .update(schema.memberAllianceTenure)
@@ -130,6 +162,18 @@ export async function closeMemberAllianceTenure(input: {
         isNull(schema.memberAllianceTenure.leftAt),
       ),
     );
+
+  // Only mirror commander departure when an open tenure row actually existed.
+  // Without this guard, repeated roster syncs for already-departed members would
+  // re-stamp leftAt=now on the commander membership, corrupting the historical date.
+  if (active) {
+    await syncCommanderFromAllianceMember({
+      allianceId: input.allianceId,
+      ashedMemberId: input.ashedMemberId,
+      joinedAt: active.joinedAt,
+      leftAt: now,
+    });
+  }
 }
 
 export async function syncTenureFromMemberStatus(input: {

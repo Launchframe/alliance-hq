@@ -107,6 +107,7 @@
     "settings": "Configurações",
     "allianceSettings": "Configurações da aliança",
     "team": "Acesso da equipe",
+    "videoQueue": "Fila de vídeos",
     "adminPortal": "Portal admin"
   },
   "admin": {
@@ -315,13 +316,13 @@
     },
     "commandersPage": {
       "title": "Comandantes",
-      "subtitle": "Busque membros do roster em todas as alianças com UID e metadados de vínculo.",
+      "subtitle": "Busque membros do roster em todas as alianças com metadados de vínculo e histórico de permanência.",
       "loadFailed": "Falha ao carregar comandantes.",
       "loading": "Carregando…",
       "empty": "Nenhum comandante corresponde à busca.",
       "selectRow": "Selecione uma linha para ver permanência e vínculos.",
       "detailTitle": "Detalhe do comandante",
-      "searchPlaceholder": "Nome, UID, tag, e-mail ou Discord…",
+      "searchPlaceholder": "Nome, tag, e-mail ou Discord…",
       "allAlliances": "Todas as alianças",
       "allStatuses": "Todos os status",
       "statusActive": "Ativo",
@@ -435,9 +436,12 @@
     "nativeAlliance": {
       "title": "Aliança nativa (teste)",
       "subtitle": "Provisione uma aliança sem assentos Ashed. Oficiais importam capturas de tela após aceitar o convite.",
-      "inviteServerRequiredNote": "Envie primeiro um convite de proprietário — o servidor estadual é definido automaticamente quando o proprietário vincula o personagem no jogo (nome + UID). Convites de oficial e membro exigem que essa etapa seja concluída antes.",
+      "inviteServerRequiredNote": "Alianças nativas exigem um servidor estadual na criação. Você pode corrigi-lo depois na tabela de alianças, se necessário.",
       "name": "Nome da aliança",
       "tag": "Tag no jogo",
+      "serverNumber": "Número do servidor estadual",
+      "serverNumberHint": "Obrigatório para identidade de comandante e convites. Use o servidor estadual do Last War, ex.: 1203.",
+      "serverNumberInvalid": "Informe um número de servidor estadual válido (1–9999).",
       "ownerEmailOptional": "E-mail do proprietário (opcional — cria associação imediatamente)",
       "createButton": "Criar aliança nativa",
       "createFieldsRequired": "Nome da aliança e tag no jogo são obrigatórios.",
@@ -906,6 +910,36 @@
       "role": "Função",
       "source": "Origem"
     }
+  },
+  "videoQueue": {
+    "title": "Fila de vídeos",
+    "description": "Vídeos enviados aguardando OCR. Um processador de vídeo designado com uma conta Ashed conectada aprova os trabalhos para execução.",
+    "empty": "Nenhum vídeo aguardando aprovação.",
+    "connectBanner": "Conecte sua conta Ashed para aprovar e executar estes trabalhos.",
+    "connectCta": "Conectar Ashed",
+    "approve": "Aprovar",
+    "reject": "Rejeitar",
+    "approveFailed": "Não foi possível aprovar o trabalho.",
+    "rejectFailed": "Não foi possível rejeitar o trabalho.",
+    "table": {
+      "time": "Enviado",
+      "uploadedBy": "Enviado por",
+      "target": "Destino",
+      "file": "Arquivo",
+      "actions": "Ações"
+    }
+  },
+  "videoProcessors": {
+    "title": "Processadores de vídeo",
+    "description": "Designe até {max} oficiais que podem aprovar e executar OCR em vídeos na fila com sua própria conexão Ashed. Donos e mantenedores sempre podem processar e não ocupam uma vaga.",
+    "empty": "Nenhum processador designado ainda. Donos e mantenedores ainda podem processar vídeos.",
+    "remove": "Remover",
+    "add": "Adicionar",
+    "selectPlaceholder": "Selecione um oficial…",
+    "noCandidates": "Nenhum oficial elegível para adicionar.",
+    "slotsFull": "Todas as vagas de processador estão ocupadas.",
+    "addFailed": "Não foi possível adicionar o processador.",
+    "removeFailed": "Não foi possível remover o processador."
   },
   "allianceSettings": {
     "title": "Configurações da aliança",
@@ -1476,7 +1510,25 @@
       "commit": "Importar elenco",
       "committing": "Importando…",
       "commitFailed": "Falha na importação.",
-      "cancel": "Cancelar"
+      "cancel": "Cancelar",
+      "nameConflictBlocked": "Resolva nomes duplicados de comandantes antes de importar.",
+      "nameConflictHint": "“{name}” conflita com outra linha ou membro existente neste servidor."
+    },
+    "commanderConflicts": {
+      "bannerTitle": "{count, plural, one {# nome de comandante precisa de revisão} other {# nomes de comandantes precisam de revisão}}",
+      "bannerDescription": "Dois jogadores diferentes podem ter nomes parecidos em importações por OCR. Edite os nomes para que cada comandante seja único no seu servidor.",
+      "resolve": "Revisar nomes",
+      "title": "Resolver nomes de comandantes",
+      "description": "Cada nome de comandante deve ser único no seu servidor. Ajuste os nomes abaixo e salve.",
+      "takenBy": "Esse nome já está em uso por {name}.",
+      "nameLabel": "Nome do comandante",
+      "duplicateInBatch": "“{name}” está duplicado nesta lista.",
+      "nameRequired": "Informe um nome para cada comandante.",
+      "stillConflict": "Esse nome ainda conflita com outro membro.",
+      "saveFailed": "Não foi possível salvar os nomes dos comandantes.",
+      "cancel": "Cancelar",
+      "save": "Salvar nomes",
+      "saving": "Salvando…"
     },
     "profile": {
       "titleWithId": "Perfil do comandante",
@@ -2139,7 +2191,8 @@
       "resources": "Recursos",
       "points": "Pontos"
     },
-    "queuedSuccess": "Vídeo colocado na fila para processamento.",
+    "queuedSuccess": "Vídeo enviado. Aguardando um processador de vídeo revisar e executar.",
+    "pendingApprovalHint": "Vídeos enviados ficam na fila até um processador designado ou o dono da aliança aprovar.",
     "recentUploads": "Envios recentes",
     "viewAllUploads": "Ver todos os envios",
     "reviewLink": "Revisar",
@@ -2155,6 +2208,7 @@
       "complete": "concluído",
       "failed": "falha",
       "pending": "pendente",
+      "pending_approval": "aguardando aprovação",
       "processing": "processando"
     }
   },
@@ -2170,6 +2224,7 @@
     "title": "Revisar dados extraídos",
     "loading": "Carregando…",
     "processing": "Processando ({status})… esta página atualiza automaticamente.",
+    "pendingApproval": "Aguardando um processador de vídeo aprovar este envio. O OCR começará após a aprovação — esta página atualiza automaticamente.",
     "processingFailed": "Falha no processamento. Tente enviar novamente.",
     "backToUploads": "← Voltar aos envios",
     "summary": "{matched} correspondidos · {total} entradas",
@@ -2217,6 +2272,8 @@
     "duplicateMemberBlocked": "Corrija as linhas duplicadas de membros antes de salvar.",
     "filterPlaceholder": "Buscar por nome…",
     "filterCount": "{shown} de {total} exibidos",
+    "draftRestored": "Restauramos edições não salvas deste dispositivo.",
+    "draftSavedLocally": "Rascunho salvo neste dispositivo às {time}.",
     "discardResults": "Descartar resultados",
     "ratingPrompt": "Como foi o OCR neste vídeo?",
     "ratingThumbsUp": "Ficou bom",
@@ -2252,6 +2309,9 @@
     },
     "previewZoomFill": "Ajustar à largura",
     "previewZoomFit": "Ajustar quadro inteiro",
+    "previewResizeWidth": "Redimensionar largura da pré-visualização",
+    "previewResizeHeight": "Redimensionar altura da pré-visualização",
+    "previewPanHint": "Arraste para mover",
     "rosterAllianceTarget": "Enviando roster para: {tag}",
     "rosterAllianceTargetNamed": "Enviando roster para: {tag} — {name}",
     "rosterAllianceHint": "Membros novos e correspondidos deste vídeo serão gravados nesta aliança no HQ.",

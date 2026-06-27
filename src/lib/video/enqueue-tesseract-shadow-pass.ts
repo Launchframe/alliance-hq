@@ -31,6 +31,7 @@ export async function maybeEnqueueTesseractShadowPass(params: {
   job: {
     id: string;
     sessionId: string;
+    processingSessionId?: string | null;
     allianceId: string | null;
     scoreTarget: string | null;
     category: string | null;
@@ -79,6 +80,7 @@ export async function maybeEnqueueTesseractShadowPass(params: {
   await db.insert(schema.videoJobs).values({
     id: shadowJobId,
     sessionId: job.sessionId,
+    processingSessionId: job.processingSessionId ?? null,
     allianceId: job.allianceId,
     hqUserId: job.hqUserId,
     scoreTarget: job.scoreTarget ?? job.category,

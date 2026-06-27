@@ -5,6 +5,11 @@ import { useTranslations } from "next-intl";
 
 import { Dialog } from "@/components/ui/dialog";
 import type { AllianceMembersPayload } from "@/lib/members/load";
+import type { CommanderIdentityConflict } from "@/lib/members/commander-identity-conflicts.shared";
+import {
+  detectBatchNameConflicts,
+  normalizeCommanderName,
+} from "@/lib/members/commander-identity-conflicts.shared";
 import type { ParsedRosterRow } from "@/lib/members/roster-ocr/types";
 import {
   buildMemberIndex,
@@ -27,6 +32,7 @@ type Props = {
   onOpenChange: (open: boolean) => void;
   members: AllianceMembersPayload["members"];
   allianceTag: string;
+  gameServerNumber?: number | null;
   onCommitted: () => void;
 };
 
@@ -62,6 +68,7 @@ export function RosterImportDialog({
   onOpenChange,
   members,
   allianceTag,
+  gameServerNumber,
   onCommitted,
 }: Props) {
   const t = useTranslations("members.import");
@@ -71,8 +78,33 @@ export function RosterImportDialog({
   const [parsing, setParsing] = useState(false);
   const [committing, setCommitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [rowConflicts, setRowConflicts] = useState<CommanderIdentityConflict[]>(
+    [],
+  );
 
   const memberIndex = useMemo(() => buildMemberIndex(members), [members]);
+
+  const batchConflicts = useMemo(() => {
+    if (gameServerNumber == null) return [];
+    return detectBatchNameConflicts(
+      rows.map((row, rowIndex) => ({
+        extractedName: row.extractedName,
+        matchMemberId: row.matchMemberId,
+        rowIndex,
+      })),
+      gameServerNumber,
+    );
+  }, [gameServerNumber, rows]);
+
+  const conflictRowIndexes = useMemo(() => {
+    const indexes = new Set(
+      batchConflicts.map((c) => c.rowIndex).filter((i) => i != null),
+    );
+    for (const conflict of rowConflicts) {
+      if (conflict.rowIndex != null) indexes.add(conflict.rowIndex);
+    }
+    return indexes;
+  }, [batchConflicts, rowConflicts]);
 
   const matchedCount = rows.filter((row) => row.matchMemberId).length;
   const newCount = rows.length - matchedCount;
@@ -82,6 +114,7 @@ export function RosterImportDialog({
     setRows([]);
     setMarkAbsentInactive(false);
     setError(null);
+    setRowConflicts([]);
     setParsing(false);
     setCommitting(false);
   }, []);
@@ -153,6 +186,14 @@ export function RosterImportDialog({
     if (rows.length === 0 || committing) return;
     setCommitting(true);
     setError(null);
+    setRowConflicts([]);
+
+    if (batchConflicts.length > 0) {
+      setRowConflicts(batchConflicts);
+      setError(t("nameConflictBlocked"));
+      setCommitting(false);
+      return;
+    }
 
     try {
       const res = await fetch("/api/members/roster-import/commit", {
@@ -170,7 +211,15 @@ export function RosterImportDialog({
           markAbsentInactive,
         }),
       });
-      const body = (await res.json()) as { error?: string };
+      const body = (await res.json()) as {
+        error?: string;
+        code?: string;
+        conflicts?: CommanderIdentityConflict[];
+      };
+      if (res.status === 422 && body.code === "commander_identity_conflicts") {
+        setRowConflicts(body.conflicts ?? []);
+        throw new Error(t("nameConflictBlocked"));
+      }
       if (!res.ok) {
         throw new Error(body.error ?? t("commitFailed"));
       }
@@ -182,7 +231,15 @@ export function RosterImportDialog({
     } finally {
       setCommitting(false);
     }
-  }, [committing, handleOpenChange, markAbsentInactive, onCommitted, rows, t]);
+  }, [
+    batchConflicts,
+    committing,
+    handleOpenChange,
+    markAbsentInactive,
+    onCommitted,
+    rows,
+    t,
+  ]);
 
   const activeMemberOptions = memberIndex.active;
 
@@ -237,9 +294,34 @@ export function RosterImportDialog({
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((row) => (
-                    <tr key={row.rowKey} className="border-t border-[#30363d]">
-                      <td className="px-3 py-2">{row.extractedName}</td>
+                  {rows.map((row, index) => {
+                    const hasConflict = conflictRowIndexes.has(index);
+                    return (
+                    <tr
+                      key={row.rowKey}
+                      className={`border-t border-[#30363d] ${
+                        hasConflict ? "bg-[#f8514911]" : ""
+                      }`}
+                    >
+                      <td className="px-3 py-2">
+                        <input
+                          type="text"
+                          className="w-full min-w-[8rem] rounded border border-[#30363d] bg-[#0d1117] px-2 py-1"
+                          value={row.extractedName}
+                          onChange={(e) =>
+                            updateRow(row.rowKey, {
+                              extractedName: e.target.value,
+                            })
+                          }
+                        />
+                        {hasConflict ? (
+                          <p className="mt-1 text-xs text-[#f85149]">
+                            {t("nameConflictHint", {
+                              name: normalizeCommanderName(row.extractedName),
+                            })}
+                          </p>
+                        ) : null}
+                      </td>
                       <td className="px-3 py-2">
                         <select
                           className="w-full min-w-[10rem] rounded border border-[#30363d] bg-[#0d1117] px-2 py-1"
@@ -297,7 +379,8 @@ export function RosterImportDialog({
                         </button>
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -334,7 +417,7 @@ export function RosterImportDialog({
                 type="button"
                 className="rounded-lg border border-[#238636] bg-[#238636] px-4 py-2 text-sm text-white disabled:opacity-50"
                 onClick={() => void commit()}
-                disabled={committing || rows.length === 0}
+                disabled={committing || rows.length === 0 || batchConflicts.length > 0}
               >
                 {committing ? t("committing") : t("commit")}
               </button>

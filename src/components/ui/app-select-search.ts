@@ -57,6 +57,7 @@ export function filterAppSelectOptions(
   options: AppSelectOption[],
   query: string,
   mode: AppSelectSearchMode,
+  hideEmptyOnQuery = false,
 ): AppSelectOption[] {
   if (!query.trim()) {
     return options;
@@ -64,12 +65,14 @@ export function filterAppSelectOptions(
 
   const emptyOptions = options.filter((option) => option.value === "");
   const rest = options.filter((option) => option.value !== "");
+  const prefix =
+    hideEmptyOnQuery || emptyOptions.length === 0 ? [] : emptyOptions;
 
   if (mode === "substring") {
     const filtered = rest.filter((option) =>
       appSelectOptionMatchesQuery(option, query),
     );
-    return [...emptyOptions, ...filtered];
+    return [...prefix, ...filtered];
   }
 
   const scored = rest
@@ -80,5 +83,5 @@ export function filterAppSelectOptions(
     .filter((row) => row.score >= APP_SELECT_FUZZY_MIN_SCORE)
     .sort((a, b) => b.score - a.score);
 
-  return [...emptyOptions, ...scored.map((row) => row.option)];
+  return [...prefix, ...scored.map((row) => row.option)];
 }
