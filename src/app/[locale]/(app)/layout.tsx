@@ -9,6 +9,7 @@ import {
   postgresErrorCode,
   resolveDatabaseErrorPresentation,
 } from "@/lib/db/error-message";
+import { isDevOrPreviewEnvironment } from "@/lib/dev/env-guard";
 import { rethrowNavigationError } from "@/lib/navigation";
 import { getPageSessionState } from "@/lib/session";
 import { sessionCanReadAllianceVideoQueue } from "@/lib/video/processor-slots.server";
@@ -109,6 +110,7 @@ export default async function AppLayout({
         }
         membershipAlliances={state.membershipAlliances}
         sessionPermissions={state.permissions}
+        devQuickSwitch={isDevOrPreviewEnvironment()}
       >
         {children}
       </AshedShell>

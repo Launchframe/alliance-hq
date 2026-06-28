@@ -16,6 +16,7 @@
     "db:migrate": "node scripts/db-migrate.mjs",
     "db:seed": "node scripts/db-seed.mjs",
     "db:seed-rbac": "node scripts/rbac/seed.mjs",
+    "seed:test-matrix": "tsx scripts/dev/seed-test-matrix.ts",
     "db:prepare": "npm run db:migrate && npm run db:seed",
     "db:validate-journal": "node scripts/db/validate-migration-journal.mjs",
     "db:studio": "drizzle-kit studio",
