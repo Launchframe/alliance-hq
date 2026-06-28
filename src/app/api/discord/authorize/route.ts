@@ -1,9 +1,6 @@
 import { NextResponse } from "next/server";
 
-import {
-  filterAccessibleAlliances,
-  userAllianceAccessRole,
-} from "@/lib/alliance/accessible";
+import { filterAccessibleAlliances } from "@/lib/alliance/accessible";
 import { base44ListAlliances } from "@/lib/base44/fetch";
 import { verifyBase44Connection } from "@/lib/base44/server";
 import { parseConnectionInput } from "@/lib/connectionString";
@@ -121,16 +118,11 @@ export async function POST(request: Request) {
     );
   }
 
-  const ashedRow = alliances.find((row) => row.id === ashedAlliance.id);
-  const accessRole = ashedRow ? userAllianceAccessRole(ashedRow, currentUser) : null;
-  if (accessRole !== "owner") {
-    return NextResponse.json(
-      {
-        error: `Your Ashed account must be the alliance owner for tag "${nonceRow.tag}".`,
-      },
-      { status: 403 },
-    );
-  }
+  // Any Ashed account with access to this alliance (owner or collaborator) may
+  // supply credentials for roster sync. The owner may not hold an Ashed seat —
+  // an R5 can be a native HQ user — so we do not require the "owner" role here.
+  // `filterAccessibleAlliances` already restricts to owner/collaborator access,
+  // and these credentials are used only for read/sync of the alliance roster.
 
   const { hqAllianceId, hqUserId } = await syncAshedAllianceForBot({
     connection: parsed.connection,
