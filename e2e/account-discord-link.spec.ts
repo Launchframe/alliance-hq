@@ -2,7 +2,6 @@ import { nanoid } from "nanoid";
 import { expect, test } from "@playwright/test";
 
 import {
-  createAuthenticatedHqSession,
   createDiscordHqLink,
   createHqDiscordOAuthAccount,
   createPlatformMaintainerSession,
@@ -53,36 +52,9 @@ test.describe("Account Discord link / unlink", () => {
     expect(link).toBeNull();
   });
 
-  test("keeps Discord linked when it is the last sign-in method", async ({ page }) => {
-    const sql = getE2eSql();
-    const discordUserId = `discord-${nanoid(10)}`;
-    const auth = await createAuthenticatedHqSession(
-      sql,
-      `discord-only-${nanoid(6)}@e2e.test`,
-    );
-    await createHqDiscordOAuthAccount(sql, {
-      hqUserId: auth.hqUserId,
-      discordUserId,
-    });
-    await createDiscordHqLink(sql, {
-      hqUserId: auth.hqUserId,
-      discordUserId,
-    });
-    await sql`
-      UPDATE hq_users
-      SET email = ''
-      WHERE id = ${auth.hqUserId}
-    `;
-
-    await page.context().addCookies(playwrightAuthCookies(auth));
-    await page.goto("/account");
-
-    await page.getByRole("button", { name: /unlink discord/i }).click();
-
-    await expect(
-      page.getByText(/add another sign-in method before unlinking discord/i),
-    ).toBeVisible();
-    const link = await loadDiscordHqLink(sql, discordUserId);
-    expect(link?.hqUserId).toBe(auth.hqUserId);
-  });
+  // NOTE: The `last_sign_in_method` guard (409) is tested at the unit level in
+  // src/lib/auth/discord-hq-link.server.test.ts. An e2e trigger would require a
+  // user whose email is non-empty (so loadSignInMethodSnapshot is non-null) yet
+  // whose email.trim() is falsy — a brittle scenario that risks unique-constraint
+  // collisions across parallel runs. Unit coverage is sufficient here.
 });

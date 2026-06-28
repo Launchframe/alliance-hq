@@ -135,4 +135,33 @@ test.describe("Discord /link complete — inline join code", () => {
     await expect(page.getByRole("link", { name: /explore alliance hq/i })).toBeVisible();
     await expect(page.getByLabel(/join code/i)).toHaveCount(0);
   });
+
+  test("shows inline error and stays on page when join code is invalid", async ({
+    page,
+  }) => {
+    const sql = getE2eSql();
+    const discordUserId = `discord-${nanoid(10)}`;
+    const auth = await createAuthenticatedHqSession(
+      sql,
+      `discord-badcode-${nanoid(6)}@e2e.test`,
+    );
+    await createHqDiscordOAuthAccount(sql, {
+      hqUserId: auth.hqUserId,
+      discordUserId,
+    });
+    const nonce = await createDiscordUserLinkNonce(sql, { discordUserId });
+
+    await page.context().addCookies(playwrightAuthCookies(auth));
+    await page.goto(`/discord/authorize/complete?nonce=${encodeURIComponent(nonce)}`);
+
+    await expect(page.getByLabel(/join code/i)).toBeVisible();
+
+    await page.getByLabel(/join code/i).fill("BADCODE99");
+    await page.getByRole("button", { name: /join alliance/i }).click();
+
+    // Error displayed (API returns "Join code not found."); user stays on the
+    // join-code page and is not redirected to /onboard.
+    await expect(page.getByText(/join code not found/i)).toBeVisible();
+    await expect(page).not.toHaveURL(/\/onboard/);
+  });
 });

@@ -1,11 +1,13 @@
 import "server-only";
 
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 
 import { getDb, schema } from "@/lib/db";
-import { getHqMemberLinkForUser } from "@/lib/member-link/repository.server";
 
-/** True when the HQ user has an active membership but no commander link for that alliance. */
+/**
+ * True when the HQ user has at least one active membership that lacks a
+ * commander link. Uses a single batch query instead of N sequential fetches.
+ */
 export async function hqUserNeedsCommanderLink(hqUserId: string): Promise<boolean> {
   const trimmed = hqUserId.trim();
   if (!trimmed) {
@@ -23,12 +25,22 @@ export async function hqUserNeedsCommanderLink(hqUserId: string): Promise<boolea
       ),
     );
 
-  for (const membership of memberships) {
-    const link = await getHqMemberLinkForUser(membership.allianceId, trimmed);
-    if (!link) {
-      return true;
-    }
+  if (memberships.length === 0) {
+    return false;
   }
 
-  return false;
+  const allianceIds = memberships.map((m) => m.allianceId);
+
+  const links = await db
+    .select({ allianceId: schema.hqMemberLinks.allianceId })
+    .from(schema.hqMemberLinks)
+    .where(
+      and(
+        eq(schema.hqMemberLinks.hqUserId, trimmed),
+        inArray(schema.hqMemberLinks.allianceId, allianceIds),
+      ),
+    );
+
+  const linkedSet = new Set(links.map((l) => l.allianceId));
+  return allianceIds.some((id) => !linkedSet.has(id));
 }

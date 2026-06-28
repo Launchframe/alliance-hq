@@ -20,7 +20,10 @@ export function AccountDiscordLinkSection({
   const t = useTranslations("account");
   const router = useRouter();
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
+  const [messageState, setMessageState] = useState<{
+    text: string;
+    type: "success" | "error";
+  } | null>(null);
 
   const successMessage =
     linkNotice === "linked"
@@ -40,7 +43,7 @@ export function AccountDiscordLinkSection({
 
   async function linkDiscord() {
     setBusy(true);
-    setMessage(null);
+    setMessageState(null);
     await signIn("discord", {
       callbackUrl: "/discord/hq-link/complete?return=%2Faccount",
     });
@@ -48,28 +51,33 @@ export function AccountDiscordLinkSection({
 
   async function unlinkDiscord() {
     setBusy(true);
-    setMessage(null);
+    setMessageState(null);
     try {
       const res = await fetch("/api/discord/hq-link/unlink", { method: "POST" });
       const body = (await res.json()) as { error?: string; code?: string };
       if (!res.ok) {
-        setMessage(
-          body.code === "last_sign_in_method"
-            ? t("discordUnlinkLastMethod")
-            : (body.error ?? t("discordUnlinkFailed")),
-        );
+        setMessageState({
+          text:
+            body.code === "last_sign_in_method"
+              ? t("discordUnlinkLastMethod")
+              : (body.error ?? t("discordUnlinkFailed")),
+          type: "error",
+        });
         return;
       }
-      setMessage(t("discordUnlinkedNotice"));
+      setMessageState({ text: t("discordUnlinkedNotice"), type: "success" });
       router.refresh();
     } catch {
-      setMessage(t("discordUnlinkFailed"));
+      setMessageState({ text: t("discordUnlinkFailed"), type: "error" });
     } finally {
       setBusy(false);
     }
   }
 
-  if (!discordAvailable && !linked) {
+  // Keep the section mounted while a transitional message is showing (e.g.
+  // after a successful unlink the server re-renders with linked=false but we
+  // still need to display the "Discord unlinked" confirmation briefly).
+  if (!discordAvailable && !linked && !messageState) {
     return null;
   }
 
@@ -85,15 +93,13 @@ export function AccountDiscordLinkSection({
       {errorMessage ? (
         <p className="mt-3 text-sm text-[#f85149]">{errorMessage}</p>
       ) : null}
-      {message ? (
+      {messageState ? (
         <p
           className={`mt-3 text-sm ${
-            message === t("discordUnlinkedNotice") || message === t("discordLinkedNotice")
-              ? "text-[#3fb950]"
-              : "text-[#f85149]"
+            messageState.type === "success" ? "text-[#3fb950]" : "text-[#f85149]"
           }`}
         >
-          {message}
+          {messageState.text}
         </p>
       ) : null}
       {linked ? (
