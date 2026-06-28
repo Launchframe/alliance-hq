@@ -308,26 +308,33 @@ export function CommanderProfileView({ initial }: Props) {
                 </div>
                 {initial.member.viewerCanBreakGlassUnlink ? (
                   unlinkConfirm === "hq" ? (
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-[#8b949e]">
-                        {t("unlinkConfirmQuestion")}
-                      </span>
-                      <button
-                        type="button"
-                        disabled={unlinkBusy === "hq"}
-                        onClick={() => void unlink("hq")}
-                        className="rounded-lg border border-[#f85149] bg-[#f85149]/10 px-2.5 py-1 text-xs text-[#f85149] disabled:opacity-50"
-                      >
-                        {unlinkBusy === "hq" ? t("unlinkBusy") : t("unlinkConfirm")}
-                      </button>
-                      <button
-                        type="button"
-                        disabled={unlinkBusy === "hq"}
-                        onClick={() => setUnlinkConfirm(null)}
-                        className="rounded-lg border border-[#30363d] px-2.5 py-1 text-xs text-[#c9d1d9] disabled:opacity-50"
-                      >
-                        {t("unlinkCancel")}
-                      </button>
+                    <div className="max-w-sm space-y-2 rounded-lg border border-[#f85149]/40 bg-[#f85149]/5 p-3">
+                      <div>
+                        <p className="text-xs font-medium text-[#f85149]">
+                          {t("unlinkConfirmQuestion")}
+                        </p>
+                        <p className="mt-1 text-xs text-[#8b949e]">
+                          {t("unlinkHqConfirmDescription")}
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          disabled={unlinkBusy === "hq"}
+                          onClick={() => void unlink("hq")}
+                          className="rounded-lg border border-[#f85149] bg-[#f85149]/10 px-2.5 py-1 text-xs text-[#f85149] disabled:opacity-50"
+                        >
+                          {unlinkBusy === "hq" ? t("unlinkBusy") : t("unlinkConfirm")}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={unlinkBusy === "hq"}
+                          onClick={() => setUnlinkConfirm(null)}
+                          className="rounded-lg border border-[#30363d] px-2.5 py-1 text-xs text-[#c9d1d9] disabled:opacity-50"
+                        >
+                          {t("unlinkCancel")}
+                        </button>
+                      </div>
                     </div>
                   ) : (
                     <button
@@ -358,28 +365,35 @@ export function CommanderProfileView({ initial }: Props) {
                   </div>
                   {index === 0 && initial.member.viewerCanBreakGlassUnlink ? (
                     unlinkConfirm === "discord" ? (
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-[#8b949e]">
-                          {t("unlinkConfirmQuestion")}
-                        </span>
-                        <button
-                          type="button"
-                          disabled={unlinkBusy === "discord"}
-                          onClick={() => void unlink("discord")}
-                          className="rounded-lg border border-[#f85149] bg-[#f85149]/10 px-2.5 py-1 text-xs text-[#f85149] disabled:opacity-50"
-                        >
-                          {unlinkBusy === "discord"
-                            ? t("unlinkBusy")
-                            : t("unlinkConfirm")}
-                        </button>
-                        <button
-                          type="button"
-                          disabled={unlinkBusy === "discord"}
-                          onClick={() => setUnlinkConfirm(null)}
-                          className="rounded-lg border border-[#30363d] px-2.5 py-1 text-xs text-[#c9d1d9] disabled:opacity-50"
-                        >
-                          {t("unlinkCancel")}
-                        </button>
+                      <div className="max-w-sm space-y-2 rounded-lg border border-[#f85149]/40 bg-[#f85149]/5 p-3">
+                        <div>
+                          <p className="text-xs font-medium text-[#f85149]">
+                            {t("unlinkConfirmQuestion")}
+                          </p>
+                          <p className="mt-1 text-xs text-[#8b949e]">
+                            {t("unlinkDiscordConfirmDescription")}
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <button
+                            type="button"
+                            disabled={unlinkBusy === "discord"}
+                            onClick={() => void unlink("discord")}
+                            className="rounded-lg border border-[#f85149] bg-[#f85149]/10 px-2.5 py-1 text-xs text-[#f85149] disabled:opacity-50"
+                          >
+                            {unlinkBusy === "discord"
+                              ? t("unlinkBusy")
+                              : t("unlinkConfirm")}
+                          </button>
+                          <button
+                            type="button"
+                            disabled={unlinkBusy === "discord"}
+                            onClick={() => setUnlinkConfirm(null)}
+                            className="rounded-lg border border-[#30363d] px-2.5 py-1 text-xs text-[#c9d1d9] disabled:opacity-50"
+                          >
+                            {t("unlinkCancel")}
+                          </button>
+                        </div>
                       </div>
                     ) : (
                       <button
@@ -462,8 +476,8 @@ export function CommanderProfileView({ initial }: Props) {
       {initial.eventScores.length > 0 && (
         <ProfileSection title={t("eventScores")}>
           <ul className="space-y-2 text-sm">
-            {initial.eventScores.map((row, index) => (
-              <li key={`${row.eventId}-${index}`} className="text-[#c9d1d9]">
+            {initial.eventScores.map((row) => (
+              <li key={`${row.eventId}-${row.updatedAt}`} className="text-[#c9d1d9]">
                 {row.eventName}
                 {row.score != null ? ` · ${row.score.toLocaleString()}` : ""}
                 {row.rank != null ? ` · #${row.rank}` : ""}
@@ -538,8 +552,11 @@ export function CommanderProfileView({ initial }: Props) {
       {initial.trainHighlights.length > 0 && (
         <ProfileSection title={t("trainHighlights")}>
           <ul className="space-y-2 text-sm">
-            {initial.trainHighlights.map((row, index) => (
-              <li key={`${row.date}-${row.role}-${index}`} className="text-[#c9d1d9]">
+            {initial.trainHighlights.map((row) => (
+              <li
+                key={`${row.date}-${row.role}-${row.lockedAt ?? "pending"}`}
+                className="text-[#c9d1d9]"
+              >
                 {row.date} · {t(`trainRole.${row.role}`)}
                 {row.lockedAt ? ` · ${t("locked")}` : ""}
               </li>

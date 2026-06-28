@@ -1771,6 +1771,8 @@
       "unlinkHqButton": "Unlink HQ account",
       "unlinkDiscordButton": "Unlink Discord",
       "unlinkConfirmQuestion": "Unlink this commander?",
+      "unlinkHqConfirmDescription": "This removes the HQ account link and lets someone claim this commander again. Only use this to recover from a wrong claim.",
+      "unlinkDiscordConfirmDescription": "This removes every Discord link for this commander in this alliance. They will need to link again in Discord.",
       "unlinkConfirm": "Unlink",
       "unlinkCancel": "Cancel",
       "unlinkBusy": "Unlinking…",
