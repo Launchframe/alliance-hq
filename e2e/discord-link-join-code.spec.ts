@@ -69,14 +69,16 @@ test.describe("Discord /link complete — inline join code", () => {
     );
 
     await page.getByRole("button", { name: /continue/i }).click();
-    await page.getByLabel(/in-game name/i).fill("E2eRosterMiss");
     await page.getByLabel(/player uid/i).fill("1234567890121204");
+    await page.getByRole("button", { name: /link my character/i }).click();
+    const confirm = page.getByRole("button", { name: /yes, that's me/i });
+    await expect(confirm).toBeVisible();
     const linkResponse = page.waitForResponse(
       (res) =>
-        res.url().includes("/api/member-link") &&
+        new URL(res.url()).pathname.endsWith("/api/member-link") &&
         res.request().method() === "POST",
     );
-    await page.getByRole("button", { name: /link my character/i }).click();
+    await confirm.click();
     const response = await linkResponse;
     expect(response.ok()).toBe(true);
     const body = (await response.json()) as { outcome?: string; message?: string };
