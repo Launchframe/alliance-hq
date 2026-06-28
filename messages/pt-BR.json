@@ -2819,6 +2819,7 @@
     "title": "Vincule seu personagem",
     "welcomePrefix": "Bem-vindo à",
     "welcomeSubtitle": "Vamos conectar sua conta HQ ao seu perfil no jogo.",
+    "uidOnlySubtitle": "Informe seu UID de jogador e encontraremos seu comandante.",
     "nameLabel": "Nome no jogo",
     "nameHint": "Deve ser exatamente igual ao Last War — digite com cuidado ou cole se um colega de aliança enviou seu nome.",
     "nameRequired": "Informe seu nome no jogo.",
@@ -2870,7 +2871,12 @@
     "memberTakenBody": "Esse UID já está vinculado a outra conta HQ. Os administradores da plataforma foram notificados — tente outra conta ou fale com o suporte.",
     "claimTitle": "Confirme seu comandante",
     "claimSubtitle": "Sua aliança convidou você para reivindicar {name}. Informe seu UID para confirmar que é você.",
-    "claimSubmit": "Confirmar e vincular"
+    "claimSubmit": "Confirmar e vincular",
+    "confirmIdentityTitle": "É você?",
+    "confirmIdentityBody": "Encontramos este comandante para esse UID de jogador. Confirme que é você para concluir a vinculação.",
+    "confirmIdentityServer": "Servidor {server}",
+    "confirmIdentityYes": "Sim, sou eu",
+    "confirmIdentityNo": "Não, informar outro UID"
   },
   "discordBot": {
     "errors": {

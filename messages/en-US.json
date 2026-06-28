@@ -2819,6 +2819,7 @@
     "title": "Link your character",
     "welcomePrefix": "Welcome to!",
     "welcomeSubtitle": "Let's connect your HQ account to your in-game profile.",
+    "uidOnlySubtitle": "Enter your player UID and we'll find your commander.",
     "nameLabel": "In-game name",
     "nameHint": "Must match Last War exactly — type carefully, or paste if an alliance mate sent your name.",
     "nameRequired": "Enter your in-game name.",
@@ -2870,7 +2871,12 @@
     "memberTakenBody": "That UID is already linked to another HQ account. Platform admins have been notified — try a different account or contact support.",
     "claimTitle": "Confirm your commander",
     "claimSubtitle": "Your alliance invited you to claim {name}. Enter your player UID to confirm it's you.",
-    "claimSubmit": "Confirm & link"
+    "claimSubmit": "Confirm & link",
+    "confirmIdentityTitle": "Is this you?",
+    "confirmIdentityBody": "We found this commander for that player UID. Confirm it's you to finish linking.",
+    "confirmIdentityServer": "State server {server}",
+    "confirmIdentityYes": "Yes, that's me",
+    "confirmIdentityNo": "No, re-enter my UID"
   },
   "discordBot": {
     "errors": {

@@ -17,7 +17,8 @@ export type MemberLinkOutcome =
   | "pick_expired"
   | "officer_notified"
   | "roster_unavailable"
-  | "claim_conflict";
+  | "claim_conflict"
+  | "confirm_identity";
 
 export type MemberLinkServerConfirmReason = "missing" | "mismatch";
 
