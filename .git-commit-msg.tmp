@@ -1,0 +1,8 @@
+feat(discord): show join code form on /link success when user has no alliance
+
+After Discord OAuth completes for `/link`, users without an active alliance
+membership now see the join code form on the success page instead of a static
+message telling them to return to Discord. Users who already belong to an
+alliance still get the existing success-only view.
+
+Adds e2e coverage for both paths plus Discord nonce/OAuth test fixtures.

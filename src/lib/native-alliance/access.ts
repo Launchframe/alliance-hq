@@ -182,6 +182,30 @@ export async function sessionHasAppAccess(session: Session): Promise<boolean> {
   return false;
 }
 
+/** True when the HQ user holds any active alliance membership (any tenant). */
+export async function hqUserHasActiveAllianceMembership(
+  hqUserId: string,
+): Promise<boolean> {
+  const trimmed = hqUserId.trim();
+  if (!trimmed) {
+    return false;
+  }
+
+  const db = getDb();
+  const [row] = await db
+    .select({ id: schema.allianceMemberships.id })
+    .from(schema.allianceMemberships)
+    .where(
+      and(
+        eq(schema.allianceMemberships.hqUserId, trimmed),
+        eq(schema.allianceMemberships.status, "active"),
+      ),
+    )
+    .limit(1);
+
+  return Boolean(row);
+}
+
 export {
   emailHasAshedConnectAccess,
   emailHasAshedConnectAccess as emailHasInvitedAccess,

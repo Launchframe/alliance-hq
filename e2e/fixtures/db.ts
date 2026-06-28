@@ -927,3 +927,66 @@ export async function loadAllianceGameServerNumber(
   `;
   return row?.game_server_number ?? null;
 }
+
+export async function createHqDiscordOAuthAccount(
+  sql: Sql,
+  input: { hqUserId: string; discordUserId: string },
+): Promise<void> {
+  await sql`
+    INSERT INTO hq_auth_accounts (
+      id, hq_user_id, type, provider, provider_account_id
+    ) VALUES (
+      ${nanoid(16)},
+      ${input.hqUserId},
+      ${"oauth"},
+      ${"discord"},
+      ${input.discordUserId}
+    )
+  `;
+}
+
+export async function createDiscordUserLinkNonce(
+  sql: Sql,
+  input: { discordUserId: string; guildId?: string | null; nonce?: string },
+): Promise<string> {
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + 30 * 60 * 1000);
+  const nonce = input.nonce ?? randomBytes(24).toString("hex");
+
+  await sql`
+    INSERT INTO discord_auth_nonces (
+      id,
+      nonce,
+      discord_user_id,
+      guild_id,
+      tag,
+      purpose,
+      expires_at,
+      created_at
+    ) VALUES (
+      ${nanoid(16)},
+      ${nonce},
+      ${input.discordUserId},
+      ${input.guildId ?? null},
+      ${"_user_link"},
+      ${"user_link"},
+      ${expiresAt},
+      ${now}
+    )
+  `;
+
+  return nonce;
+}
+
+export async function loadDiscordHqLink(
+  sql: Sql,
+  discordUserId: string,
+): Promise<{ hqUserId: string } | null> {
+  const [row] = await sql<{ hq_user_id: string }[]>`
+    SELECT hq_user_id
+    FROM discord_hq_links
+    WHERE discord_user_id = ${discordUserId}
+    LIMIT 1
+  `;
+  return row ? { hqUserId: row.hq_user_id } : null;
+}

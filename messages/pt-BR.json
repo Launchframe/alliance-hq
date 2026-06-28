@@ -2976,6 +2976,7 @@
     "userSuccessBody": "Comandante {name} vinculado. Volte ao Discord — você já pode usar /vr e outros comandos do bot.",
     "errorPrefix": "Algo deu errado:",
     "hqLinkSuccessBody": "Sua conta do Discord está vinculada ao Alliance HQ. Volte ao Discord e execute `/help` para o próximo passo.",
+    "hqLinkSuccessJoinIntro": "Digite o código de entrada compartilhado pelos oficiais da sua aliança para entrar na aliança.",
     "hqLinkDiscordMismatch": "Você entrou com uma conta do Discord diferente da que executou `/link`. Volte ao Discord, execute `/link` novamente e entre com a mesma conta.",
     "hqLinkNoDiscordOAuth": "Entre com Discord (não e-mail ou Google) para concluir este vínculo.",
     "hqLinkWrongPurpose": "Este link não é para login no Alliance HQ. Volte ao Discord e execute o comando de configuração correto.",

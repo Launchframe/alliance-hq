@@ -12,9 +12,20 @@ import {
 
 type Props = {
   initialCode?: string;
+  /** When false, omits the back link (e.g. embedded on Discord /link success). */
+  showBackLink?: boolean;
+  /** When false, omits the page title and intro (parent supplies context). */
+  showHeader?: boolean;
+  /** When true, omits outer card chrome (parent provides the shell). */
+  embedded?: boolean;
 };
 
-export function JoinCodeClient({ initialCode }: Props) {
+export function JoinCodeClient({
+  initialCode,
+  showBackLink = true,
+  showHeader = true,
+  embedded = false,
+}: Props) {
   const t = useTranslations("join");
   const router = useRouter();
   const [code, setCode] = useState(initialCode ?? "");
@@ -52,17 +63,29 @@ export function JoinCodeClient({ initialCode }: Props) {
   }
 
   return (
-    <div className="mx-auto max-w-md space-y-4 rounded-xl border border-[#30363d] bg-[#161b22] p-6">
-      <Link
-        href="/get-started"
-        className="mb-2 flex items-center gap-1 self-start text-xs text-[#8b949e] transition-colors hover:text-[#e6edf3]"
-      >
-        <ArrowLeft className="h-3 w-3" aria-hidden />
-        {t("backToGetStarted")}
-      </Link>
+    <div
+      className={
+        embedded
+          ? "space-y-4"
+          : "mx-auto max-w-md space-y-4 rounded-xl border border-[#30363d] bg-[#161b22] p-6"
+      }
+    >
+      {showBackLink ? (
+        <Link
+          href="/get-started"
+          className="mb-2 flex items-center gap-1 self-start text-xs text-[#8b949e] transition-colors hover:text-[#e6edf3]"
+        >
+          <ArrowLeft className="h-3 w-3" aria-hidden />
+          {t("backToGetStarted")}
+        </Link>
+      ) : null}
 
-      <h1 className="text-xl font-semibold">{t("title")}</h1>
-      <p className="text-sm text-[#8b949e]">{t("body")}</p>
+      {showHeader ? (
+        <>
+          <h1 className="text-xl font-semibold">{t("title")}</h1>
+          <p className="text-sm text-[#8b949e]">{t("body")}</p>
+        </>
+      ) : null}
 
       <form
         className="space-y-4"

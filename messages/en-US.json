@@ -2975,6 +2975,7 @@
     "successBody": "Ashed credentials for {tag} are saved. Return to Discord and run `/link-alliance tag:{tag}`.",
     "userSuccessBody": "Linked commander {name}. Return to Discord — you're ready to use /vr and other bot commands.",
     "hqLinkSuccessBody": "Your Discord account is linked to Alliance HQ. Return to Discord and run `/help` for your next step.",
+    "hqLinkSuccessJoinIntro": "Enter the join code shared by your alliance officers to join your alliance.",
     "hqLinkDiscordMismatch": "You signed in with a different Discord account than the one that ran `/link`. Return to Discord, run `/link` again, and sign in with the same Discord account.",
     "hqLinkNoDiscordOAuth": "Sign in with Discord (not email or Google) to complete this link.",
     "hqLinkWrongPurpose": "This link is not for Alliance HQ sign-in. Return to Discord and run the correct setup command.",
