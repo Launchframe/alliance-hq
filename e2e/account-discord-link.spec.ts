@@ -47,7 +47,7 @@ test.describe("Account Discord link / unlink", () => {
     await expect(page.getByRole("button", { name: /unlink discord/i })).toBeVisible();
     await page.getByRole("button", { name: /unlink discord/i }).click();
 
-    await expect(page.getByText(/discord unlinked/i)).toBeVisible();
+    await expect(page.getByText(/discord bot unlinked/i)).toBeVisible();
     const link = await loadDiscordHqLink(sql, discordUserId);
     expect(link).toBeNull();
   });
