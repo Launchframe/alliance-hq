@@ -7,9 +7,26 @@ import { getRbacContext } from "@/lib/rbac/context";
 
 export const dynamic = "force-dynamic";
 
-export async function POST() {
+export async function POST(request: Request) {
   const auth = await requireMemberLinkSession();
   if ("error" in auth) return auth.error;
+
+  let reportedName: string | undefined;
+  let gameUid: string | undefined;
+  try {
+    const body = (await request.json()) as {
+      reportedName?: unknown;
+      gameUid?: unknown;
+    };
+    if (typeof body.reportedName === "string") {
+      reportedName = body.reportedName;
+    }
+    if (typeof body.gameUid === "string") {
+      gameUid = body.gameUid;
+    }
+  } catch {
+    // Empty body is allowed when a roster-miss or walkthrough pending state exists.
+  }
 
   const locale = await getLocale();
   const rbac = await getRbacContext(auth.session.id);
@@ -20,6 +37,8 @@ export async function POST() {
     locale,
     userEmail: rbac?.email ?? null,
     displayName: rbac?.displayName ?? null,
+    reportedName,
+    gameUid,
   });
 
   return NextResponse.json(result);

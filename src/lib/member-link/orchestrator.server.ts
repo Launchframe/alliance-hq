@@ -550,6 +550,10 @@ export async function runWebMemberLinkFuzzyPick(input: {
   return finalizeCommandResult(ctx, result);
 }
 
+function isValidMemberLinkGameUid(value: string): boolean {
+  return /^\d{12,16}$/.test(value);
+}
+
 export async function runWebMemberLinkAskOfficer(input: {
   sessionId: string;
   allianceId: string;
@@ -557,6 +561,8 @@ export async function runWebMemberLinkAskOfficer(input: {
   locale: string;
   userEmail?: string | null;
   displayName?: string | null;
+  reportedName?: string | null;
+  gameUid?: string | null;
 }): Promise<MemberLinkApiResponse> {
   const ctx = createFlowContext({
     sessionId: input.sessionId,
@@ -578,7 +584,16 @@ export async function runWebMemberLinkAskOfficer(input: {
   }
 
   const pendingRow = await getHqMemberLinkPending(input.allianceId, input.hqUserId);
-  if (pendingRow?.pending?.kind !== "link_roster_miss") {
+  const pending = pendingRow?.pending ?? null;
+  const pendingAllowsAskOfficer =
+    pending?.kind === "link_roster_miss" ||
+    pending?.kind === "link_walkthrough";
+
+  const gameUid = input.gameUid?.trim() ?? "";
+  const hasHelpContext =
+    pendingAllowsAskOfficer || isValidMemberLinkGameUid(gameUid);
+
+  if (!hasHelpContext) {
     const translate = createMemberLinkTranslator(input.locale);
     return {
       outcome: "usage",
@@ -588,7 +603,9 @@ export async function runWebMemberLinkAskOfficer(input: {
   }
 
   await emitLinkAttention(ctx);
-  await saveHqMemberLinkPending(input.allianceId, input.hqUserId, null);
+  if (pendingAllowsAskOfficer) {
+    await saveHqMemberLinkPending(input.allianceId, input.hqUserId, null);
+  }
   const translate = createMemberLinkTranslator(input.locale);
   return {
     outcome: "officer_notified",
