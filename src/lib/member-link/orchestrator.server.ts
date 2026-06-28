@@ -15,6 +15,7 @@ import {
   toMemberLinkApiResponse,
   type MemberLinkApiResponse,
 } from "@/lib/member-link/outcome.shared";
+import { getMemberLinkClaimTarget } from "@/lib/member-link/claim.server";
 import {
   tryBootstrapOwnerColdStartMember,
   tryRouteRosterMissToOwnerApproval,
@@ -652,10 +653,19 @@ export async function getWebMemberLinkStatus(input: {
       ? await getHqMemberLinkForUser(input.allianceId, input.hqUserId)
       : null);
 
+  const claimTarget =
+    effectiveLink == null
+      ? await getMemberLinkClaimTarget({
+          allianceId: input.allianceId,
+          hqUserId: input.hqUserId,
+        })
+      : null;
+
   return {
     linked: effectiveLink != null,
     link: effectiveLink,
     pending,
+    claimTarget,
     privilegedRole: rbac?.roleName ?? null,
     isPlatformMaintainer: rbac?.isPlatformMaintainer ?? false,
   };

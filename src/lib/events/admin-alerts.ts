@@ -19,7 +19,23 @@ export type MemberLinkUidTakenAlert = {
   updatedAt: string;
 };
 
-export type AdminAlertEvent = VrLinkAttentionAlert | MemberLinkUidTakenAlert;
+export type MemberLinkClaimConflictAlert = {
+  type: "member_link_claim_conflict";
+  allianceId: string;
+  allianceTag: string;
+  /** Roster member the claim invite was bound to. */
+  ashedMemberId: string;
+  hqUserId: string;
+  handle: string;
+  /** Why the claim could not auto-complete. */
+  reason: "name_collision" | "commander_taken" | "server_mismatch";
+  updatedAt: string;
+};
+
+export type AdminAlertEvent =
+  | VrLinkAttentionAlert
+  | MemberLinkUidTakenAlert
+  | MemberLinkClaimConflictAlert;
 
 export const ADMIN_ALERT_NOTIFY_CHANNEL = "hq_admin_alerts";
 
@@ -39,7 +55,10 @@ export function createAdminAlertListenClient() {
 export async function emitAdminAlert(
   payload:
     | (Omit<VrLinkAttentionAlert, "updatedAt"> & { updatedAt?: string })
-    | (Omit<MemberLinkUidTakenAlert, "updatedAt"> & { updatedAt?: string }),
+    | (Omit<MemberLinkUidTakenAlert, "updatedAt"> & { updatedAt?: string })
+    | (Omit<MemberLinkClaimConflictAlert, "updatedAt"> & {
+        updatedAt?: string;
+      }),
 ): Promise<void> {
   const event: AdminAlertEvent = {
     ...payload,
@@ -70,12 +89,32 @@ export async function emitMemberLinkUidTakenAlert(input: {
   });
 }
 
+export async function emitMemberLinkClaimConflictAlert(input: {
+  allianceId: string;
+  allianceTag: string;
+  ashedMemberId: string;
+  hqUserId: string;
+  handle: string;
+  reason: MemberLinkClaimConflictAlert["reason"];
+}): Promise<void> {
+  await emitAdminAlert({
+    type: "member_link_claim_conflict",
+    allianceId: input.allianceId,
+    allianceTag: input.allianceTag,
+    ashedMemberId: input.ashedMemberId,
+    hqUserId: input.hqUserId,
+    handle: input.handle,
+    reason: input.reason,
+  });
+}
+
 export function parseAdminAlertEvent(payload: string): AdminAlertEvent | null {
   try {
     const parsed = JSON.parse(payload) as AdminAlertEvent;
     if (
       parsed.type === "vr_link_attention" ||
-      parsed.type === "member_link_uid_taken"
+      parsed.type === "member_link_uid_taken" ||
+      parsed.type === "member_link_claim_conflict"
     ) {
       return parsed;
     }

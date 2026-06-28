@@ -364,6 +364,7 @@ export async function loadCommanderProfile(
       canEditMainSquad,
       viewerIsOwner,
       canOfficerOverrideMainSquad,
+      viewerCanIssueClaimInvite: canOfficerOverrideMainSquad,
       gameUid: viewerIsOwner ? gameUid : null,
     },
     alliance,

@@ -1402,6 +1402,12 @@ export const hqInvites = pgTable("hq_invites", {
   }),
   adminLabel: text("admin_label"),
   targetDiscordUserId: text("target_discord_user_id"),
+  /**
+   * Commander claim invites: binds acceptance to a specific roster member
+   * (alliance_members.ashed_member_id). The recipient confirms ownership with
+   * their UID; the bound commander record is then populated and linked.
+   */
+  targetAshedMemberId: text("target_ashed_member_id"),
   requireMemberLink: integer("require_member_link").notNull().default(0),
   invitedByHqUserId: text("invited_by_hq_user_id").references(
     () => hqUsers.id,

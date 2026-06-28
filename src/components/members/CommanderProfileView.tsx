@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { ProfileAvatar } from "@/components/profile/ProfileAvatar";
+import { CopyToClipboardField } from "@/components/ui/CopyToClipboardField";
 import { Link } from "@/i18n/navigation";
 import type { CommanderProfilePayload } from "@/lib/members/commander-profile.shared";
 import {
@@ -24,11 +25,59 @@ function formatPowerM(value: number | null): string {
 
 export function CommanderProfileView({ initial }: Props) {
   const t = useTranslations("members.profile");
+  const tInvites = useTranslations("team.invites");
   const { member, alliance } = initial;
 
   const [squadValue, setSquadValue] = useState<MainSquadType | "">(member.mainSquad ?? "");
   const [squadSaving, setSquadSaving] = useState(false);
   const [squadMessage, setSquadMessage] = useState<string | null>(null);
+
+  const [claimBusy, setClaimBusy] = useState(false);
+  const [claimFeedback, setClaimFeedback] = useState<string | null>(null);
+  const [claimFeedbackKind, setClaimFeedbackKind] = useState<"error" | "success">("success");
+  const [lastClaimUrl, setLastClaimUrl] = useState<string | null>(null);
+  const [lastClaimPassphrase, setLastClaimPassphrase] = useState<string | null>(null);
+
+  async function generateClaimInvite() {
+    setClaimBusy(true);
+    setClaimFeedback(null);
+    setLastClaimUrl(null);
+    setLastClaimPassphrase(null);
+    try {
+      const res = await fetch("/api/settings/team/invites", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          kind: "protected_link",
+          roleName: "member",
+          targetAshedMemberId: member.ashedMemberId,
+        }),
+      });
+      const body = (await res.json()) as {
+        error?: string;
+        code?: string;
+        invite?: { inviteUrl: string; passphrase?: string };
+      };
+      if (!res.ok) {
+        setClaimFeedbackKind("error");
+        setClaimFeedback(
+          body.code === "commander_already_claimed"
+            ? tInvites("claimAlreadyClaimed")
+            : body.error ?? tInvites("claimFailed"),
+        );
+        return;
+      }
+      setLastClaimUrl(body.invite?.inviteUrl ?? null);
+      setLastClaimPassphrase(body.invite?.passphrase ?? null);
+      setClaimFeedbackKind("success");
+      setClaimFeedback(tInvites("claimSentFor", { name: member.currentName }));
+    } catch (e) {
+      setClaimFeedbackKind("error");
+      setClaimFeedback(e instanceof Error ? e.message : tInvites("claimFailed"));
+    } finally {
+      setClaimBusy(false);
+    }
+  }
 
   async function saveSquad() {
     if (!squadValue) return;
@@ -313,6 +362,52 @@ export function CommanderProfileView({ initial }: Props) {
             {JSON.stringify(initial.violations, null, 2)}
           </pre>
         </ProfileSection>
+      )}
+
+      {initial.hqUser === null && initial.member.viewerCanIssueClaimInvite && (
+        <section className="rounded-xl border border-[#30363d] bg-[#161b22] p-5">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-[#8b949e]">
+            {tInvites("claimRowAction")}
+          </h2>
+          <p className="mt-2 text-sm text-[#8b949e]">{tInvites("claimRowHint")}</p>
+          <button
+            type="button"
+            disabled={claimBusy || lastClaimUrl !== null}
+            onClick={() => void generateClaimInvite()}
+            className="mt-3 rounded-lg border border-[#388bfd] bg-[#388bfd]/10 px-4 py-2 text-sm text-[#58a6ff] disabled:opacity-50"
+          >
+            {claimBusy ? "…" : tInvites("claimButton")}
+          </button>
+          {claimFeedback ? (
+            <p
+              className={
+                claimFeedbackKind === "error"
+                  ? "mt-3 text-sm text-[#f85149]"
+                  : "mt-3 text-sm text-[#3fb950]"
+              }
+              role={claimFeedbackKind === "error" ? "alert" : "status"}
+            >
+              {claimFeedback}
+            </p>
+          ) : null}
+          {lastClaimUrl ? (
+            <CopyToClipboardField
+              className="mt-3"
+              label={tInvites("claimLinkLabel")}
+              value={lastClaimUrl}
+            />
+          ) : null}
+          {lastClaimPassphrase ? (
+            <>
+              <CopyToClipboardField
+                className="mt-3"
+                label={tInvites("invitePassphraseLabel")}
+                value={lastClaimPassphrase}
+              />
+              <p className="mt-1 text-xs text-[#6e7681]">{tInvites("invitePassphraseHint")}</p>
+            </>
+          ) : null}
+        </section>
       )}
 
       {initial.trainHighlights.length > 0 && (

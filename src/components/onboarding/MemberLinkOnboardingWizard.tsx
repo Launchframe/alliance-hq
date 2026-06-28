@@ -31,6 +31,7 @@ type Phase =
   | "wrong_server"
   | "confirm_server"
   | "lookup_fallback"
+  | "claim"
   | "success";
 
 type ApiResponse = {
@@ -76,6 +77,7 @@ export function MemberLinkOnboardingWizard({
     number | null
   >(null);
   const [useLookupFallback, setUseLookupFallback] = useState(false);
+  const [claimCommanderName, setClaimCommanderName] = useState("");
 
   const walkthroughSteps = useMemo(
     () => tLink.raw("steps") as string[],
@@ -355,6 +357,31 @@ export function MemberLinkOnboardingWizard({
     }
   }
 
+  async function submitClaim() {
+    setFormError(null);
+    const uid = gameUid.trim();
+    if (!isValidGameUid(uid)) {
+      setFormError(t("uidInvalid"));
+      return;
+    }
+
+    setBusy(true);
+    try {
+      const data = await postJson<ApiResponse>("/api/member-link/claim", {
+        gameUid: uid,
+      });
+      if (data.outcome === "linked") {
+        applyOutcome(data);
+      } else {
+        setFormError(data.message);
+      }
+    } catch {
+      setFormError(t("requestFailed"));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function confirmPick(memberId: string) {
     setBusy(true);
     try {
@@ -398,20 +425,33 @@ export function MemberLinkOnboardingWizard({
   useEffect(() => {
     void fetch("/api/member-link")
       .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (!data?.pending) return;
-        if (data.pending.kind === "link_walkthrough") {
-          setPhase("walkthrough");
-        } else if (data.pending.kind === "link_fuzzy_pick") {
-          setCandidates(data.pending.candidates ?? []);
-          setPhase("fuzzy");
-        } else if (data.pending.kind === "link_roster_miss") {
-          setPhase("roster_miss");
-        } else if (data.pending.kind === "link_awaiting_owner") {
-          setPhase("awaiting_owner");
-          setMessage(data.message ?? null);
-        }
-      })
+      .then(
+        (data: {
+          pending?: { kind: string; candidates?: Array<{ memberId: string; name: string }> } | null;
+          claimTarget?: { ashedMemberId: string; commanderName: string } | null;
+          message?: string | null;
+        } | null) => {
+          if (!data) return;
+          if (data.pending) {
+            if (data.pending.kind === "link_walkthrough") {
+              setPhase("walkthrough");
+            } else if (data.pending.kind === "link_fuzzy_pick") {
+              setCandidates(data.pending.candidates ?? []);
+              setPhase("fuzzy");
+            } else if (data.pending.kind === "link_roster_miss") {
+              setPhase("roster_miss");
+            } else if (data.pending.kind === "link_awaiting_owner") {
+              setPhase("awaiting_owner");
+              setMessage(data.message ?? null);
+            }
+            return;
+          }
+          if (data.claimTarget?.commanderName) {
+            setClaimCommanderName(data.claimTarget.commanderName);
+            setPhase("claim");
+          }
+        },
+      )
       .catch(() => undefined);
   }, []);
 
@@ -722,6 +762,46 @@ export function MemberLinkOnboardingWizard({
             className="w-full text-sm text-[#8b949e] underline hover:text-[#58a6ff] disabled:opacity-50"
           >
             {t("backToForm")}
+          </button>
+        </form>
+      ) : null}
+
+      {phase === "claim" ? (
+        <form
+          className="space-y-4"
+          onSubmit={(event) => {
+            preventDefaultFormSubmit(event);
+            void submitClaim();
+          }}
+        >
+          <div>
+            <h2 className="text-lg font-semibold">{t("claimTitle")}</h2>
+            <p className="mt-1 text-sm text-[#8b949e]">
+              {t("claimSubtitle", { name: claimCommanderName })}
+            </p>
+          </div>
+          <label className="block space-y-1">
+            <span className="text-sm font-medium">{t("uidLabel")}</span>
+            <input
+              type="text"
+              inputMode="numeric"
+              value={gameUid}
+              onChange={(e) => setGameUid(e.target.value.replace(/\D/g, ""))}
+              enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT}
+              className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 font-mono text-sm text-[#e6edf3]"
+              autoComplete="off"
+            />
+            <span className="text-xs text-[#8b949e]">{t("uidHint")}</span>
+          </label>
+          {formError ? (
+            <p className="text-sm text-[#f85149]">{formError}</p>
+          ) : null}
+          <button
+            type="submit"
+            disabled={busy}
+            className="w-full rounded-lg border border-[#238636] bg-[#238636] px-4 py-2.5 text-sm font-medium text-white disabled:opacity-50"
+          >
+            {busy ? t("submitting") : t("claimSubmit")}
           </button>
         </form>
       ) : null}
