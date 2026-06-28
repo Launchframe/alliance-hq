@@ -9,7 +9,11 @@ export type ClaimConflictView = {
   id: string;
   commanderName: string;
   handle: string;
-  reason: "name_collision" | "commander_taken" | "server_mismatch";
+  reason:
+    | "name_collision"
+    | "commander_taken"
+    | "server_mismatch"
+    | "target_mismatch";
   status: "open" | "resolved" | "dismissed";
   createdAt: string;
 };

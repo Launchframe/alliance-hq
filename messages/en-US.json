@@ -1328,7 +1328,8 @@
     "reason": {
       "name_collision": "Name collision with a claimed commander",
       "commander_taken": "Commander already claimed",
-      "server_mismatch": "Server mismatch"
+      "server_mismatch": "Server mismatch",
+      "target_mismatch": "Claimed UID does not match the invited commander"
     },
     "markResolved": "Mark resolved",
     "dismiss": "Dismiss"

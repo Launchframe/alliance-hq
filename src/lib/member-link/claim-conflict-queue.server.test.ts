@@ -147,7 +147,8 @@ describe("resolveClaimConflict", () => {
   });
 
   it("updates the row and writes an audit log on success", async () => {
-    const updateWhere = vi.fn(() => Promise.resolve());
+    const updateReturning = vi.fn(() => Promise.resolve([{ id: "conflict-1" }]));
+    const updateWhere = vi.fn(() => ({ returning: updateReturning }));
     const updateSet = vi.fn(() => ({ where: updateWhere }));
     vi.mocked(getDb).mockReturnValue({
       select: vi.fn(() =>
@@ -174,8 +175,40 @@ describe("resolveClaimConflict", () => {
 
     expect(result).toEqual({ ok: true });
     expect(updateSet).toHaveBeenCalledTimes(1);
+    expect(updateReturning).toHaveBeenCalledTimes(1);
     expect(vi.mocked(writeAuditLog)).toHaveBeenCalledTimes(1);
-    const auditArg = vi.mocked(writeAuditLog).mock.calls[0]![0];
-    expect(auditArg.action).toBe("member_link.claim_conflict_resolved");
+    const auditCall = vi.mocked(writeAuditLog).mock.calls[0];
+    expect(auditCall?.[0].action).toBe("member_link.claim_conflict_resolved");
+  });
+
+  it("does not audit when another reviewer already closed the conflict", async () => {
+    const updateReturning = vi.fn(() => Promise.resolve([]));
+    const updateWhere = vi.fn(() => ({ returning: updateReturning }));
+    const updateSet = vi.fn(() => ({ where: updateWhere }));
+    vi.mocked(getDb).mockReturnValue({
+      select: vi.fn(() =>
+        selectReturning([
+          {
+            id: "conflict-1",
+            allianceId: "alliance-1",
+            status: "open",
+            ashedMemberId: "member-1",
+            reason: "name_collision",
+          },
+        ]),
+      ),
+      update: vi.fn(() => ({ set: updateSet })),
+    } as never);
+
+    const result = await resolveClaimConflict({
+      id: "conflict-1",
+      allianceId: "alliance-1",
+      status: "dismissed",
+      resolvedByHqUserId: "user-1",
+      sessionId: "session-1",
+    });
+
+    expect(result).toEqual({ ok: false, reason: "not_open" });
+    expect(vi.mocked(writeAuditLog)).not.toHaveBeenCalled();
   });
 });

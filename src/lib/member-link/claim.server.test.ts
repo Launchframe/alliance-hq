@@ -10,6 +10,10 @@ vi.mock("@/lib/events/admin-alerts", () => ({
   emitMemberLinkClaimConflictAlert: vi.fn().mockResolvedValue(undefined),
 }));
 
+vi.mock("@/lib/member-link/claim-conflict-queue.server", () => ({
+  recordClaimConflict: vi.fn().mockResolvedValue("conflict-1"),
+}));
+
 vi.mock("@/lib/lastwar/player-lookup", () => ({
   isValidGameUid: (value: string) => /^\d{12,16}$/.test(value.trim()),
   lookupPlayerByUid: vi.fn(),
@@ -95,6 +99,9 @@ vi.mock("@/lib/db", () => ({
 const invites = await import("@/lib/native-alliance/invites");
 const repository = await import("@/lib/member-link/repository.server");
 const alerts = await import("@/lib/events/admin-alerts");
+const conflictQueue = await import(
+  "@/lib/member-link/claim-conflict-queue.server"
+);
 const lookup = await import("@/lib/lastwar/player-lookup");
 const gameServers = await import("@/lib/game-season/game-servers.server");
 const vrRepo = await import("@/lib/vr/repository");
@@ -182,6 +189,9 @@ describe("runWebMemberLinkClaimConfirm", () => {
     expect(alerts.emitMemberLinkClaimConflictAlert).toHaveBeenCalledWith(
       expect.objectContaining({ reason: "server_mismatch" }),
     );
+    expect(conflictQueue.recordClaimConflict).toHaveBeenCalledWith(
+      expect.objectContaining({ reason: "server_mismatch" }),
+    );
     expect(repository.linkHqMember).not.toHaveBeenCalled();
   });
 
@@ -204,6 +214,9 @@ describe("runWebMemberLinkClaimConfirm", () => {
     expect(alerts.emitMemberLinkClaimConflictAlert).toHaveBeenCalledWith(
       expect.objectContaining({ reason: "name_collision" }),
     );
+    expect(conflictQueue.recordClaimConflict).toHaveBeenCalledWith(
+      expect.objectContaining({ reason: "name_collision" }),
+    );
     expect(repository.linkHqMember).not.toHaveBeenCalled();
   });
 
@@ -217,6 +230,9 @@ describe("runWebMemberLinkClaimConfirm", () => {
     const result = await runWebMemberLinkClaimConfirm(baseInput);
     expect(result.outcome).toBe("claim_conflict");
     expect(alerts.emitMemberLinkClaimConflictAlert).toHaveBeenCalledWith(
+      expect.objectContaining({ reason: "target_mismatch" }),
+    );
+    expect(conflictQueue.recordClaimConflict).toHaveBeenCalledWith(
       expect.objectContaining({ reason: "target_mismatch" }),
     );
     expect(resolve.reconcileAllianceMemberForRosterLink).not.toHaveBeenCalled();
@@ -290,6 +306,9 @@ describe("runWebMemberLinkClaimConfirm", () => {
     const result = await runWebMemberLinkClaimConfirm(baseInput);
     expect(result.outcome).toBe("claim_conflict");
     expect(alerts.emitMemberLinkClaimConflictAlert).toHaveBeenCalledWith(
+      expect.objectContaining({ reason: "commander_taken" }),
+    );
+    expect(conflictQueue.recordClaimConflict).toHaveBeenCalledWith(
       expect.objectContaining({ reason: "commander_taken" }),
     );
   });

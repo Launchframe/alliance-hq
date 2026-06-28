@@ -490,9 +490,12 @@ test.describe("Member-link onboarding outcomes", () => {
       hqUserId: accepted.hqUserId,
     });
     expect(requestId).toBeTruthy();
+    if (!requestId) {
+      throw new Error("Expected pending roster link request.");
+    }
 
     const acceptToken = await insertRosterLinkAcceptToken(sql, {
-      requestId: requestId!,
+      requestId,
     });
     const ownerResponse = await page.request.get(
       `/api/roster-link-requests/action?token=${encodeURIComponent(acceptToken)}`,
@@ -591,6 +594,9 @@ test.describe("Member-link onboarding outcomes", () => {
       hqUserId: accepted.hqUserId,
     });
     expect(requestId).toBeTruthy();
+    if (!requestId) {
+      throw new Error("Expected pending roster link request.");
+    }
 
     const [requestRow] = await sql<
       {
@@ -600,7 +606,7 @@ test.describe("Member-link onboarding outcomes", () => {
     >`
       SELECT suggested_target_ashed_member_id, suggestion_method
       FROM hq_roster_link_requests
-      WHERE id = ${requestId!}
+      WHERE id = ${requestId}
       LIMIT 1
     `;
     expect(requestRow?.suggested_target_ashed_member_id).toBe(mewMemberId);
@@ -635,7 +641,7 @@ test.describe("Member-link onboarding outcomes", () => {
       }),
     );
     await page.goto(
-      `/members/roster-link-requests?request=${encodeURIComponent(requestId!)}`,
+      `/members/roster-link-requests?request=${encodeURIComponent(requestId)}`,
     );
 
     // The suggested match is explained and preselected, but not auto-applied.
@@ -757,6 +763,102 @@ test.describe("Member-link onboarding outcomes", () => {
     });
     expect(previewBlocked.outcome).toBe("usage");
 
+    await page.getByLabel(/player uid/i).fill("1234567890121203");
+    const mismatchClaimResponse = page.waitForResponse(
+      (res) =>
+        res.url().includes("/api/member-link/claim") &&
+        res.request().method() === "POST",
+    );
+    await page.getByRole("button", { name: /confirm & link/i }).click();
+    const mismatchResponse = await mismatchClaimResponse;
+    expect(mismatchResponse.ok()).toBe(true);
+    const mismatchBody = (await mismatchResponse.json()) as { outcome?: string };
+    expect(mismatchBody.outcome).toBe("claim_conflict");
+    expect(JSON.stringify(mismatchBody)).not.toContain("1234567890121203");
+
+    const [conflict] = await sql<
+      {
+        id: string;
+        commander_name: string;
+        reason: string;
+        status: string;
+      }[]
+    >`
+      SELECT id, commander_name, reason, status
+      FROM hq_claim_conflicts
+      WHERE alliance_id = ${alliance.allianceId}
+        AND hq_user_id = ${accepted.hqUserId}
+        AND ashed_member_id = ${ashedMemberId}
+      ORDER BY created_at DESC
+      LIMIT 1
+    `;
+    expect(conflict).toMatchObject({
+      commander_name: "E2eClaimTarget",
+      reason: "target_mismatch",
+      status: "open",
+    });
+    if (!conflict) {
+      throw new Error("Expected target mismatch claim conflict.");
+    }
+
+    const officerEmail = `claim-officer-${nanoid(6)}@e2e.test`;
+    const { token: officerInviteToken } = await createHqInviteRow(sql, {
+      allianceId: alliance.allianceId,
+      email: officerEmail,
+      roleName: "officer",
+      invitedByHqUserId: maintainer.hqUserId,
+    });
+    const officer = await acceptInviteViaApi(
+      sql,
+      e2eBaseUrl(),
+      officerInviteToken,
+      officerEmail,
+    );
+    await createHqMemberLink(sql, {
+      allianceId: alliance.allianceId,
+      hqUserId: officer.hqUserId,
+    });
+
+    await page.context().clearCookies();
+    await page.context().addCookies(
+      playwrightAuthCookies({
+        sessionId: officer.sessionId,
+        hqUserId: officer.hqUserId,
+        email: officerEmail,
+        nextAuthToken: officer.nextAuthToken,
+      }),
+    );
+    await page.goto("/members/claim-conflicts");
+    await expect(page.getByText("E2eClaimTarget")).toBeVisible();
+    await expect(
+      page.getByText(/claimed uid does not match the invited commander/i),
+    ).toBeVisible();
+    await expect(page.getByText("1234567890121203")).toHaveCount(0);
+    await page.getByRole("button", { name: /mark resolved/i }).click();
+    await expect(page.getByText("No open claim conflicts.")).toBeVisible({
+      timeout: 10_000,
+    });
+    await expect
+      .poll(async () => {
+        const [row] = await sql<{ status: string }[]>`
+          SELECT status FROM hq_claim_conflicts
+          WHERE id = ${conflict.id}
+          LIMIT 1
+        `;
+        return row?.status ?? null;
+      })
+      .toBe("resolved");
+
+    await page.context().clearCookies();
+    await page.context().addCookies(
+      playwrightAuthCookies({
+        sessionId: accepted.sessionId,
+        hqUserId: accepted.hqUserId,
+        email,
+        nextAuthToken: accepted.nextAuthToken,
+      }),
+    );
+    await page.goto("/onboard");
     await page.getByLabel(/player uid/i).fill("1234567890121299");
     const claimResponse = page.waitForResponse(
       (res) =>

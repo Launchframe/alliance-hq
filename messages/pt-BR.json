@@ -1328,7 +1328,8 @@
     "reason": {
       "name_collision": "Conflito de nome com um comandante já reivindicado",
       "commander_taken": "Comandante já reivindicado",
-      "server_mismatch": "Servidor incompatível"
+      "server_mismatch": "Servidor incompatível",
+      "target_mismatch": "UID informado não corresponde ao comandante convidado"
     },
     "markResolved": "Marcar como resolvido",
     "dismiss": "Descartar"

@@ -1429,9 +1429,9 @@ export const hqInvites = pgTable("hq_invites", {
  * Persisted commander-claim conflicts for the officer (R4+) review queue.
  * A row is created when a claim-invite recipient's UID lookup cannot be
  * auto-linked to the bound roster commander (name collision with another
- * linked commander, the commander was taken in a race, or a state-server
- * mismatch). Officers review and resolve/dismiss these. Never stores the
- * player UID (see player-uid-privacy.mdc) — only the internal
+ * linked commander, the commander was taken in a race, target name mismatch,
+ * or a state-server mismatch). Officers review and resolve/dismiss these.
+ * Never stores the player UID (see player-uid-privacy.mdc) — only the internal
  * ashed_member_id and the commander display name snapshot.
  */
 export const hqClaimConflicts = pgTable(
@@ -1451,7 +1451,7 @@ export const hqClaimConflicts = pgTable(
     }),
     /** Human-readable label for the claimant (display name / email / id). */
     handle: text("handle").notNull(),
-    /** name_collision | commander_taken | server_mismatch */
+    /** name_collision | commander_taken | server_mismatch | target_mismatch */
     reason: text("reason").notNull(),
     /** open | resolved | dismissed */
     status: text("status").notNull().default("open"),

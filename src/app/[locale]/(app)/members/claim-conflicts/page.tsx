@@ -40,7 +40,8 @@ export default async function ClaimConflictsPage({
           reason: conflict.reason as
             | "name_collision"
             | "commander_taken"
-            | "server_mismatch",
+            | "server_mismatch"
+            | "target_mismatch",
           status: conflict.status as "open" | "resolved" | "dismissed",
           createdAt: conflict.createdAt.toISOString(),
         }))}

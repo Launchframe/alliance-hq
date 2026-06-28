@@ -9,7 +9,8 @@ import { getDb, schema } from "@/lib/db";
 export type ClaimConflictReason =
   | "name_collision"
   | "commander_taken"
-  | "server_mismatch";
+  | "server_mismatch"
+  | "target_mismatch";
 
 export type ClaimConflictStatus = "open" | "resolved" | "dismissed";
 
@@ -150,7 +151,7 @@ export async function resolveClaimConflict(input: {
   }
 
   const now = new Date();
-  await db
+  const updated = await db
     .update(schema.hqClaimConflicts)
     .set({
       status: input.status,
@@ -159,7 +160,18 @@ export async function resolveClaimConflict(input: {
       resolvedByHqUserId: input.resolvedByHqUserId,
       updatedAt: now,
     })
-    .where(eq(schema.hqClaimConflicts.id, input.id));
+    .where(
+      and(
+        eq(schema.hqClaimConflicts.id, input.id),
+        eq(schema.hqClaimConflicts.allianceId, input.allianceId),
+        eq(schema.hqClaimConflicts.status, "open"),
+      ),
+    )
+    .returning({ id: schema.hqClaimConflicts.id });
+
+  if (updated.length === 0) {
+    return { ok: false, reason: "not_open" };
+  }
 
   if (input.sessionId) {
     await writeAuditLog({

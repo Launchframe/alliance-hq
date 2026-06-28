@@ -4,7 +4,10 @@ import { and, eq } from "drizzle-orm";
 
 import { writeAuditLog } from "@/lib/bff/audit";
 import { getDb, schema } from "@/lib/db";
-import { recordClaimConflict } from "@/lib/member-link/claim-conflict-queue.server";
+import {
+  recordClaimConflict,
+  type ClaimConflictReason,
+} from "@/lib/member-link/claim-conflict-queue.server";
 import { emitMemberLinkClaimConflictAlert } from "@/lib/events/admin-alerts";
 import { isValidGameUid, lookupPlayerByUid } from "@/lib/lastwar/player-lookup";
 import { syncAllianceMemberGameLevelFromLastWar } from "@/lib/lastwar/sync-member-game-level.server";
@@ -168,7 +171,7 @@ async function surfaceClaimConflict(input: {
   commanderName: string;
   hqUserId: string;
   handle: string;
-  reason: "name_collision" | "commander_taken" | "server_mismatch";
+  reason: ClaimConflictReason;
 }): Promise<void> {
   try {
     await recordClaimConflict({
@@ -272,10 +275,11 @@ export async function runWebMemberLinkClaimConfirm(input: {
   }
 
   if (!claimTargetMatchesLookupName(target, lookup.gameUserName)) {
-    await emitMemberLinkClaimConflictAlert({
+    await surfaceClaimConflict({
       allianceId: input.allianceId,
       allianceTag,
       ashedMemberId: target.ashedMemberId,
+      commanderName: target.commanderName,
       hqUserId: input.hqUserId,
       handle,
       reason: "target_mismatch",
