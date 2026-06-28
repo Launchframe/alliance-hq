@@ -20,6 +20,8 @@ export type CommanderProfilePayload = {
     viewerIsOwner: boolean;
     /** Viewer has members:write (officer override path). */
     canOfficerOverrideMainSquad: boolean;
+    /** Viewer may generate a commander claim invite for this roster member. */
+    viewerCanIssueClaimInvite: boolean;
     /** Present only when the viewer is the HQ user who linked this commander. */
     gameUid: string | null;
   };

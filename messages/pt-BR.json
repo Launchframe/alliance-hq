@@ -897,7 +897,19 @@
       "joinCodeValueLabel": "Código de entrada (mostrado uma vez)",
       "joinCodeValueHint": "Compartilhe este código separadamente da tag da aliança.",
       "joinCodeFailed": "Não foi possível criar o código de entrada.",
-      "joinCodeCreated": "Código de entrada gerado."
+      "joinCodeCreated": "Código de entrada gerado.",
+      "claimTitle": "Convite para reivindicar comandante",
+      "claimHint": "Convide alguém para reivindicar um comandante específico do roster. A pessoa confirma com o próprio UID — você nunca o vê.",
+      "claimCommanderLabel": "Comandante",
+      "claimCommanderPlaceholder": "Selecione um comandante…",
+      "claimButton": "Gerar link de reivindicação",
+      "claimEmpty": "Todos os comandantes do roster já estão vinculados a uma conta.",
+      "claimLinkLabel": "Link de reivindicação",
+      "claimSentFor": "Link de reivindicação pronto para {name}.",
+      "claimAlreadyClaimed": "Esse comandante acabou de ser vinculado por outra pessoa.",
+      "claimFailed": "Não foi possível criar o link de reivindicação.",
+      "claimRowAction": "Link de reivindicação",
+      "claimRowHint": "Este comandante ainda não vinculou a conta HQ."
     },
     "table": {
       "user": "Usuário",
@@ -2895,7 +2907,9 @@
     "nameMismatchRetry": "O Last War mostra seu nome como {gameName}. Digite exatamente (ou cole de um colega de aliança) e tente novamente.",
     "confirmServerMissing": "Não conseguimos ler seu servidor estadual no Last War. Informe o número do servidor estadual da sua aliança.",
     "confirmServerMismatch": "O Last War mostra o servidor {lookupServer}, mas esta aliança está definida como {allianceServer}. Informe o número correto do servidor estadual.",
-    "lookupFallback": "Não foi possível acessar o Last War agora. Informe o número do servidor estadual para continuar — você pode corrigir nas configurações depois."
+    "lookupFallback": "Não foi possível acessar o Last War agora. Informe o número do servidor estadual para continuar — você pode corrigir nas configurações depois.",
+    "claimUidInvalid": "Informe o UID de 12 a 16 dígitos do seu perfil do Last War.",
+    "claimConflict": "Não foi possível concluir esta reivindicação automaticamente. Os oficiais da sua aliança foram avisados para confirmar seu comandante."
   },
   "onboard": {
     "title": "Vincule seu personagem",
@@ -2949,7 +2963,10 @@
     "serverNumberInvalid": "Informe um número de servidor válido (1–9999).",
     "submitServer": "Continuar com este servidor",
     "backToForm": "Voltar ao nome e UID",
-    "memberTakenBody": "Esse UID já está vinculado a outra conta HQ. Os administradores da plataforma foram notificados — tente outra conta ou fale com o suporte."
+    "memberTakenBody": "Esse UID já está vinculado a outra conta HQ. Os administradores da plataforma foram notificados — tente outra conta ou fale com o suporte.",
+    "claimTitle": "Confirme seu comandante",
+    "claimSubtitle": "Sua aliança convidou você para reivindicar {name}. Informe seu UID para confirmar que é você.",
+    "claimSubmit": "Confirmar e vincular"
   },
   "discordBot": {
     "errors": {
