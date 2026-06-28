@@ -8,7 +8,11 @@ export type GuildRegistrationDenialReason =
 export type GuildRegistrationAuth =
   | {
       allowed: true;
-      registeredBy: "platform_maintainer" | "alliance_owner" | "credential_registrant";
+      registeredBy:
+        | "platform_maintainer"
+        | "alliance_owner"
+        | "alliance_officer"
+        | "credential_registrant";
     }
   | { allowed: false; reason: GuildRegistrationDenialReason };
 
@@ -50,12 +54,20 @@ export function nativeOwnerClaimMemberId(input: {
   return soleActiveR5;
 }
 
+/** True when any linked commander has in-game alliance rank R4 or higher. */
+export function officerProvenByMemberRanks(
+  linkedMemberRanks: readonly number[],
+): boolean {
+  return linkedMemberRanks.some((rank) => rank >= 4);
+}
+
 /** Pure eligibility check for `/link-alliance` (unit-testable). */
 export function evaluateGuildRegistrationAuth(input: {
   hasHqLink: boolean;
   isPlatformMaintainer: boolean;
   isCredentialRegistrant: boolean;
   isOwnerViaMemberLink: boolean;
+  isOfficerViaMemberLink: boolean;
   ownerAshedUserId: string | null;
   linkedHqAshedUserId: string | null;
   hasCredentials: boolean;
@@ -65,6 +77,9 @@ export function evaluateGuildRegistrationAuth(input: {
   }
   if (input.isOwnerViaMemberLink) {
     return { allowed: true, registeredBy: "alliance_owner" };
+  }
+  if (input.isOfficerViaMemberLink) {
+    return { allowed: true, registeredBy: "alliance_officer" };
   }
   if (!input.hasCredentials) {
     return { allowed: false, reason: "no_credentials" };

@@ -1430,6 +1430,18 @@
       "channelsConfigured": "{count, plural, one {# registered Discord server has a train channel} other {# registered Discord servers have train channels}}",
       "noChannel": "No train channel configured yet. Owner: run /set-train-channel in Discord.",
       "readOnlyHint": "Only train officers can change this setting."
+    },
+    "discordServerSetup": {
+      "title": "Discord bot — add another server",
+      "body": "Your alliance can link multiple Discord servers to the same bot. An alliance owner, R4+ officer, or platform maintainer can add the bot to a Discord server they own or can manage, then register that server to your alliance tag so slash commands work there.",
+      "registeredCount": "{count, plural, one {# Discord server is registered for this alliance} other {# Discord servers are registered for this alliance}}",
+      "noneRegistered": "No Discord servers are registered for this alliance yet.",
+      "installButton": "Add bot to a Discord server",
+      "installUnavailable": "Bot install is not configured on this deployment. Ask a platform maintainer to set DISCORD_APPLICATION_ID.",
+      "nextStepsLabel": "After adding the bot",
+      "nextStepsBody": "In the new Discord server:\n1. Run /link and complete the browser sign-in.\n2. Run /link-alliance tag:{tag} (R5 owner, R4+ officer with a linked commander, or platform maintainer).\n3. Run /set-vr-report-channel and /set-train-channel in the channels you want.\n\nDiscord requires Manage Server permission to add the bot. Slash commands may take a few minutes to appear after install.",
+      "readOnlyHint": "Only alliance owners, train officers, and platform maintainers can add or register Discord servers. Ask an R4+ officer or platform maintainer to complete setup.",
+      "guideLink": "Second-server setup guide"
     }
   },
   "account": {
@@ -2836,7 +2848,7 @@
       "unknownUser": "Could not identify your Discord account.",
       "unknownCommand": "Unknown command.",
       "serverError": "Something went wrong on our side. Try again in a moment.",
-      "guildNotRegistered": "This Discord server is not linked to an alliance yet. The alliance owner should run `/link-alliance` with your tag (for example LFgo).",
+      "guildNotRegistered": "This Discord server is not linked to an alliance yet. An alliance owner or R4+ officer should run `/link-alliance` with your tag (for example LFgo).",
       "tagNotFoundNoHq": "No alliance found with tag **{tag}**. Check the spelling on ashed.online. If you're the owner, run `/link` in Discord first, then run `/help` here.",
       "tagNotFoundWithHq": "No alliance found with tag **{tag}**. Check the spelling on ashed.online, or run `/link-ashed tag:{tag}` if your alliance is not in Alliance HQ yet.",
       "tagRequired": "Add your alliance tag. Example: `/link-alliance tag:LFgo` or `/link-ashed tag:LFgo`.",
@@ -2845,7 +2857,7 @@
       "linkHqBeforeAshed": "Link your Alliance HQ account first — run `/link` in Discord, then `/link-ashed tag:{tag}`.",
       "ownerSeatRequiresAshed": "Link the alliance owner with `/link-commander name:… uid:…`, then run `/link-alliance tag:YourTag`.",
       "tagAmbiguous": "We found multiple alliances with tag **{tag}**. Reply with `/link-alliance tag:{tag} name:Your Alliance Name` to pick the right one.",
-      "notOwner": "Only the alliance owner or a platform maintainer can register this server. Owners: run `/link` first, then `/help` for the setup checklist.",
+      "notOwner": "Only an alliance owner (R5), R4+ officer with a linked commander, or a platform maintainer can register this server. Run `/link` first, link your commander, then `/help` for the setup checklist.",
       "notOfficer": "Only alliance officers (R4+) or the owner can run VR reports. Link a commander with `/link-commander` if you haven't yet.",
       "insufficientForTeams": "Need at least **{needed}** VR reporters for **{teams}** takedown teams (5 players each). Only **{have}** on the board right now.",
       "teamsRequired": "Add `teams:N` (1–5). Example: `/takedown-teams teams:2` for two rally teams.",
@@ -2940,7 +2952,7 @@
       "setupLinkHq": "Link your Discord account to Alliance HQ: run `/link` and complete the browser sign-in.",
       "setupOwnerLinkHq": "This server isn't registered yet. **R5 owner:** follow the owner path in our setup guide — sign in with `/link`, then register the server.\n\n**Guide:** {guideUrl}",
       "setupOwnerAshedSeat": "This server isn't registered yet. **R5 owner:** run `/link-ashed tag:YourTag`, complete the browser step, then `/link-alliance tag:YourTag`.\n\n**Guide:** {guideUrl}",
-      "setupLinkAlliance": "**Owner or platform maintainer:** register this server with `/link-alliance tag:YourTag`.\n\n**Guide:** {guideUrl}",
+      "setupLinkAlliance": "**Owner, R4+ officer, or platform maintainer:** register this server with `/link-alliance tag:YourTag`.\n\n**Guide:** {guideUrl}",
       "waitForOwnerAuth": "Waiting for the alliance owner to register this server with `/link-alliance`. Link your commander with `/link-commander` once the server is registered.",
       "linkCommander": "Link your commander: `/link-commander name:… uid:…`. Need step-by-step help? Run `/link-commander` with a wrong name once, tap **Start over**, then **Done** after the walkthrough.\n\n**Guide:** {guideUrl}",
       "memberReady": "You're linked. Use `/vr` or `/immunity` when your base VR changes. `/who-is-conductor` shows today's train conductor.\n\n**Guide:** {guideUrl}",
@@ -3020,11 +3032,11 @@
       "roles": {
         "r5": {
           "title": "R5 — alliance owner",
-          "description": "First-time server setup: link HQ, optional roster sync, register the server, link your commander, then channel setup."
+          "description": "First-time or second-server setup: add the bot, link HQ, optional roster sync, register the server, link your commander, then channel setup."
         },
         "r4": {
           "title": "R4 — alliance officer",
-          "description": "You're linked; run VR reports, train conductor commands, and help members who get stuck."
+          "description": "Add the bot to another server, link your commander, register the server, then run officer commands and help members."
         },
         "member": {
           "title": "R3–R1 — alliance member",
@@ -3045,6 +3057,11 @@
         "commandLabel": "Discord command"
       },
       "steps": {
+        "installBot": {
+          "title": "Add the bot to your Discord server",
+          "summary": "Invite Alliance HQ into the Discord server you want to use — required before slash commands work there.",
+          "instructions": "From Alliance HQ (recommended):\n1. Sign in and open Settings → Alliance settings for your tag.\n2. Click **Add bot to a Discord server** and pick the target server (you need Manage Server permission).\n\nOr ask someone with the install link from your maintainer.\n\nAfter Discord adds the bot, continue with **Link your Discord to Alliance HQ** (/link) in that same server.\n\nSlash commands can take a few minutes to appear globally after install."
+        },
         "linkHq": {
           "title": "Link your Discord to Alliance HQ",
           "summary": "Sign your Discord account into Alliance HQ — required before Ashed credentials or guild registration.",
@@ -3062,7 +3079,7 @@
           "title": "Register this Discord server",
           "summary": "Bind this Discord server to your alliance so bot commands know which roster to use.",
           "command": "/link-alliance tag:YourTag",
-          "instructions": "1. Use your alliance tag only (e.g. LFgo) — not a numeric ID.\n2. Run /link-alliance tag:YourTag in this server.\n3. You must be the in-game alliance owner (proved by your commander link), the person who linked Ashed credentials, or a platform maintainer.\n4. When successful, everyone can run /link-commander in this server."
+          "instructions": "1. Use your alliance tag only (e.g. LFgo) — not a numeric ID.\n2. Run /link-alliance tag:YourTag in this server.\n3. You must be the in-game owner (R5) or an R4+ officer with a linked commander, the person who linked Ashed credentials, or a platform maintainer.\n4. When successful, everyone can run /link-commander in this server."
         },
         "optionalAshed": {
           "title": "Optional: roster sync tools",
@@ -3090,7 +3107,7 @@
         "serverPrereq": {
           "title": "Confirm the server is registered",
           "summary": "Officer commands only work after the alliance owner registers this Discord server.",
-          "instructions": "Ask your R5 owner to complete the owner setup path: /link, optional /link-ashed tag:YourTag, then /link-alliance tag:YourTag, then link their commander.\n\nIf /link-commander says the server is not set up, the owner has not finished registration yet."
+          "instructions": "Ask your R5 owner or an R4+ officer to complete setup: add the bot (Alliance HQ alliance settings), /link, optional /link-ashed tag:YourTag, then /link-alliance tag:YourTag, then link their commander.\n\nIf /link-commander says the server is not set up, registration has not finished yet."
         },
         "vrReports": {
           "title": "VR standings and takedown teams",
@@ -3150,7 +3167,11 @@
         },
         "guildNotRegistered": {
           "title": "Bot says the server isn't set up",
-          "body": "An R5 owner (or platform maintainer) must run /link-alliance tag:YourTag first. Until then, /link-commander will not attach to your alliance."
+          "body": "An R5 owner or R4+ officer (or platform maintainer) must run /link-alliance tag:YourTag first. Until then, /link-commander will not attach to your alliance."
+        },
+        "commandsMissing": {
+          "title": "Slash commands not showing up",
+          "body": "After adding the bot to a new server, Discord may take a few minutes to register global slash commands.\n\nTry:\n• Wait 5–15 minutes and type /link in the server again.\n• Confirm the bot appears online in the member list.\n• If commands never appear, ask a maintainer to verify command registration for the bot application."
         },
         "memberTaken": {
           "title": "Commander already linked",
