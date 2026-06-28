@@ -45,7 +45,11 @@ vi.mock("@/lib/vr/repository", () => ({
 }));
 
 const dbState: {
-  commanderRow: Array<{ currentName: string; previousNamesJson: string[] | null }>;
+  commanderRow: Array<{
+    currentName: string;
+    previousNamesJson: string[] | null;
+    status?: string;
+  }>;
   memberRows: Array<{
     ashedMemberId: string;
     currentName: string;
@@ -82,6 +86,7 @@ vi.mock("@/lib/db", () => ({
       ashedMemberId: {},
       currentName: {},
       previousNamesJson: {},
+      status: {},
     },
     hqMemberLinks: { allianceId: {}, ashedMemberId: {} },
   },
@@ -107,7 +112,9 @@ const baseInput = {
 describe("runWebMemberLinkClaimConfirm", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    dbState.commanderRow = [{ currentName: "Alpha", previousNamesJson: null }];
+    dbState.commanderRow = [
+      { currentName: "Alpha", previousNamesJson: null, status: "active" },
+    ];
     dbState.memberRows = [];
     vi.mocked(repository.getHqMemberLinkForUser).mockResolvedValue(null as never);
     vi.mocked(invites.findAcceptedClaimInviteForUser).mockResolvedValue({
@@ -130,6 +137,15 @@ describe("runWebMemberLinkClaimConfirm", () => {
 
   it("returns usage when there is no claim target", async () => {
     vi.mocked(invites.findAcceptedClaimInviteForUser).mockResolvedValue(null);
+    const result = await runWebMemberLinkClaimConfirm(baseInput);
+    expect(result.outcome).toBe("usage");
+    expect(repository.linkHqMember).not.toHaveBeenCalled();
+  });
+
+  it("returns usage when the claim target is no longer active", async () => {
+    dbState.commanderRow = [
+      { currentName: "Alpha", previousNamesJson: null, status: "former" },
+    ];
     const result = await runWebMemberLinkClaimConfirm(baseInput);
     expect(result.outcome).toBe("usage");
     expect(repository.linkHqMember).not.toHaveBeenCalled();
@@ -282,6 +298,9 @@ describe("runWebMemberLinkClaimConfirm", () => {
 describe("blockSelfServiceWhenClaimPending", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    dbState.commanderRow = [
+      { currentName: "Alpha", previousNamesJson: null, status: "active" },
+    ];
     vi.mocked(repository.getHqMemberLinkForUser).mockResolvedValue(null as never);
     vi.mocked(invites.findAcceptedClaimInviteForUser).mockResolvedValue({
       inviteId: "inv-1",
@@ -311,6 +330,18 @@ describe("blockSelfServiceWhenClaimPending", () => {
 
   it("allows self-service when there is no pending claim invite", async () => {
     vi.mocked(invites.findAcceptedClaimInviteForUser).mockResolvedValue(null);
+    const result = await blockSelfServiceWhenClaimPending({
+      allianceId: "a1",
+      hqUserId: "u1",
+      locale: "en-US",
+    });
+    expect(result).toBeNull();
+  });
+
+  it("allows self-service when the claim target is no longer active", async () => {
+    dbState.commanderRow = [
+      { currentName: "Alpha", previousNamesJson: null, status: "former" },
+    ];
     const result = await blockSelfServiceWhenClaimPending({
       allianceId: "a1",
       hqUserId: "u1",

@@ -123,7 +123,7 @@ describe("createHqInvite", () => {
           return dbSelectChain([{ id: "alliance-1" }]);
         }
         if (selectCalls === 4) {
-          return dbSelectChain([{ currentName: "Alpha" }]);
+          return dbSelectChain([{ currentName: "Alpha", status: "active" }]);
         }
         throw new Error(`unexpected select call ${selectCalls}`);
       }),
@@ -142,6 +142,42 @@ describe("createHqInvite", () => {
       }),
     ).rejects.toMatchObject({
       code: "commander_already_claimed",
+    } satisfies Partial<CommanderClaimInviteError>);
+  });
+
+  it("rejects claim invites for former roster commanders", async () => {
+    let selectCalls = 0;
+    vi.mocked(getDb).mockReturnValue({
+      select: vi.fn(() => {
+        selectCalls += 1;
+        if (selectCalls === 1) {
+          return dbSelectChain([{ id: "role-member" }]);
+        }
+        if (selectCalls === 2) {
+          return dbSelectChain([{ permissionId: "members:read" }]);
+        }
+        if (selectCalls === 3) {
+          return dbSelectChain([{ id: "alliance-1" }]);
+        }
+        if (selectCalls === 4) {
+          return dbSelectChain([{ currentName: "Alpha", status: "former" }]);
+        }
+        throw new Error(`unexpected select call ${selectCalls}`);
+      }),
+    } as never);
+    vi.mocked(resolveAllianceGameServerNumber).mockResolvedValue(1203);
+
+    await expect(
+      createHqInvite({
+        allianceId: "alliance-1",
+        kind: "protected_link",
+        roleName: "member",
+        invitedByHqUserId: "user-1",
+        origin: "https://hq.test",
+        targetAshedMemberId: "m-former",
+      }),
+    ).rejects.toMatchObject({
+      code: "commander_not_found",
     } satisfies Partial<CommanderClaimInviteError>);
   });
 });

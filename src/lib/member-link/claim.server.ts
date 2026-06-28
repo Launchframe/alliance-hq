@@ -56,6 +56,7 @@ async function loadMemberLinkClaimTarget(input: {
     .select({
       currentName: schema.allianceMembers.currentName,
       previousNamesJson: schema.allianceMembers.previousNamesJson,
+      status: schema.allianceMembers.status,
     })
     .from(schema.allianceMembers)
     .where(
@@ -66,7 +67,7 @@ async function loadMemberLinkClaimTarget(input: {
     )
     .limit(1);
 
-  if (!member) return null;
+  if (!member || member.status === "former") return null;
 
   return {
     ashedMemberId: claim.targetAshedMemberId,
@@ -100,17 +101,11 @@ export async function blockSelfServiceWhenClaimPending(input: {
   hqUserId: string;
   locale: string;
 }): Promise<MemberLinkApiResponse | null> {
-  const existingLink = await getHqMemberLinkForUser(
-    input.allianceId,
-    input.hqUserId,
-  );
-  if (existingLink) return null;
-
-  const claim = await findAcceptedClaimInviteForUser(
-    input.allianceId,
-    input.hqUserId,
-  );
-  if (!claim) return null;
+  const target = await loadMemberLinkClaimTarget({
+    allianceId: input.allianceId,
+    hqUserId: input.hqUserId,
+  });
+  if (!target) return null;
 
   const translate = createMemberLinkTranslator(input.locale);
   return {

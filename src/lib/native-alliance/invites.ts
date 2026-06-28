@@ -60,7 +60,10 @@ async function assertClaimTargetClaimable(
 ): Promise<{ commanderName: string }> {
   const db = getDb();
   const [member] = await db
-    .select({ currentName: schema.allianceMembers.currentName })
+    .select({
+      currentName: schema.allianceMembers.currentName,
+      status: schema.allianceMembers.status,
+    })
     .from(schema.allianceMembers)
     .where(
       and(
@@ -70,10 +73,10 @@ async function assertClaimTargetClaimable(
     )
     .limit(1);
 
-  if (!member) {
+  if (!member || member.status === "former") {
     throw new CommanderClaimInviteError(
       "commander_not_found",
-      "Commander is not on this alliance roster.",
+      "Commander is not an active roster member.",
     );
   }
 
