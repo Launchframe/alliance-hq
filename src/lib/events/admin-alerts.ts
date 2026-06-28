@@ -28,7 +28,11 @@ export type MemberLinkClaimConflictAlert = {
   hqUserId: string;
   handle: string;
   /** Why the claim could not auto-complete. */
-  reason: "name_collision" | "commander_taken" | "server_mismatch";
+  reason:
+    | "name_collision"
+    | "commander_taken"
+    | "server_mismatch"
+    | "target_mismatch";
   updatedAt: string;
 };
 

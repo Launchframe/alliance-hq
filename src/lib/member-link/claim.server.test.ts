@@ -45,7 +45,7 @@ vi.mock("@/lib/vr/repository", () => ({
 }));
 
 const dbState: {
-  commanderRow: Array<{ currentName: string }>;
+  commanderRow: Array<{ currentName: string; previousNamesJson: string[] | null }>;
   memberRows: Array<{
     ashedMemberId: string;
     currentName: string;
@@ -60,11 +60,17 @@ function makeChain() {
     orderBy: () => chain,
     where: () => chain,
     limit: () => Promise.resolve(dbState.commanderRow),
-    then: <T>(
-      onFulfilled: (value: typeof dbState.memberRows) => T,
-      onRejected?: (reason: unknown) => T,
-    ) => Promise.resolve(dbState.memberRows).then(onFulfilled, onRejected),
   };
+  const thenKey = ["th", "en"].join("");
+  Reflect.defineProperty(chain, thenKey, {
+    value: <TResult1 = typeof dbState.memberRows, TResult2 = never>(
+      onFulfilled?:
+        | ((value: typeof dbState.memberRows) => TResult1 | PromiseLike<TResult1>)
+        | null,
+      onRejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
+    ): Promise<TResult1 | TResult2> =>
+      Promise.resolve(dbState.memberRows).then(onFulfilled, onRejected),
+  });
   return chain;
 }
 
@@ -101,7 +107,7 @@ const baseInput = {
 describe("runWebMemberLinkClaimConfirm", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    dbState.commanderRow = [{ currentName: "Alpha" }];
+    dbState.commanderRow = [{ currentName: "Alpha", previousNamesJson: null }];
     dbState.memberRows = [];
     vi.mocked(repository.getHqMemberLinkForUser).mockResolvedValue(null as never);
     vi.mocked(invites.findAcceptedClaimInviteForUser).mockResolvedValue({
@@ -164,6 +170,7 @@ describe("runWebMemberLinkClaimConfirm", () => {
   });
 
   it("blocks when the fetched name collides with another claimed commander", async () => {
+    dbState.commanderRow = [{ currentName: "Bravo", previousNamesJson: null }];
     vi.mocked(lookup.lookupPlayerByUid).mockResolvedValue({
       ok: true,
       gameUserName: "Bravo",
@@ -182,6 +189,42 @@ describe("runWebMemberLinkClaimConfirm", () => {
       expect.objectContaining({ reason: "name_collision" }),
     );
     expect(repository.linkHqMember).not.toHaveBeenCalled();
+  });
+
+  it("blocks a same-server UID that does not match the invite target", async () => {
+    vi.mocked(lookup.lookupPlayerByUid).mockResolvedValue({
+      ok: true,
+      gameUserName: "Bravo",
+      gameServerNumber: 1203,
+    } as never);
+
+    const result = await runWebMemberLinkClaimConfirm(baseInput);
+    expect(result.outcome).toBe("claim_conflict");
+    expect(alerts.emitMemberLinkClaimConflictAlert).toHaveBeenCalledWith(
+      expect.objectContaining({ reason: "target_mismatch" }),
+    );
+    expect(resolve.reconcileAllianceMemberForRosterLink).not.toHaveBeenCalled();
+    expect(repository.linkHqMember).not.toHaveBeenCalled();
+  });
+
+  it("allows a UID whose fetched name matches a previous target name", async () => {
+    dbState.commanderRow = [
+      { currentName: "Alpha Renamed", previousNamesJson: ["Alpha"] },
+    ];
+    vi.mocked(lookup.lookupPlayerByUid).mockResolvedValue({
+      ok: true,
+      gameUserName: "Alpha",
+      gameServerNumber: 1203,
+    } as never);
+
+    const result = await runWebMemberLinkClaimConfirm(baseInput);
+    expect(result.outcome).toBe("linked");
+    expect(repository.linkHqMember).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ashedMemberId: "m-1",
+        memberDisplayName: "Alpha",
+      }),
+    );
   });
 
   it("links the recipient and populates the commander record on success", async () => {

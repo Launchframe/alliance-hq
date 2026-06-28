@@ -27,14 +27,18 @@ export type MemberLinkClaimTarget = {
   commanderName: string;
 };
 
+type MemberLinkClaimTargetRecord = MemberLinkClaimTarget & {
+  previousNames: string[];
+};
+
 /**
  * Commander a recipient was invited to claim, if they accepted a claim invite
- * and have not yet linked. Returns the display name only (never the UID).
+ * and have not yet linked. Loads roster names only (never the UID).
  */
-export async function getMemberLinkClaimTarget(input: {
+async function loadMemberLinkClaimTarget(input: {
   allianceId: string;
   hqUserId: string;
-}): Promise<MemberLinkClaimTarget | null> {
+}): Promise<MemberLinkClaimTargetRecord | null> {
   const existingLink = await getHqMemberLinkForUser(
     input.allianceId,
     input.hqUserId,
@@ -49,7 +53,10 @@ export async function getMemberLinkClaimTarget(input: {
 
   const db = getDb();
   const [member] = await db
-    .select({ currentName: schema.allianceMembers.currentName })
+    .select({
+      currentName: schema.allianceMembers.currentName,
+      previousNamesJson: schema.allianceMembers.previousNamesJson,
+    })
     .from(schema.allianceMembers)
     .where(
       and(
@@ -64,7 +71,33 @@ export async function getMemberLinkClaimTarget(input: {
   return {
     ashedMemberId: claim.targetAshedMemberId,
     commanderName: member.currentName,
+    previousNames: member.previousNamesJson ?? [],
   };
+}
+
+/**
+ * Public claim target for the onboarding UI. Returns the display name only
+ * (never UID or internal roster history).
+ */
+export async function getMemberLinkClaimTarget(input: {
+  allianceId: string;
+  hqUserId: string;
+}): Promise<MemberLinkClaimTarget | null> {
+  const target = await loadMemberLinkClaimTarget(input);
+  if (!target) return null;
+  return {
+    ashedMemberId: target.ashedMemberId,
+    commanderName: target.commanderName,
+  };
+}
+
+function claimTargetMatchesLookupName(
+  target: MemberLinkClaimTargetRecord,
+  gameUserName: string,
+): boolean {
+  return [target.commanderName, ...target.previousNames].some((name) =>
+    namesMatch(name, gameUserName),
+  );
 }
 
 async function findClaimedNameCollision(input: {
@@ -117,7 +150,7 @@ export async function runWebMemberLinkClaimConfirm(input: {
   const handle =
     input.displayName?.trim() || input.userEmail?.trim() || input.hqUserId;
 
-  const target = await getMemberLinkClaimTarget({
+  const target = await loadMemberLinkClaimTarget({
     allianceId: input.allianceId,
     hqUserId: input.hqUserId,
   });
@@ -164,6 +197,32 @@ export async function runWebMemberLinkClaimConfirm(input: {
       hqUserId: input.hqUserId,
       handle,
       reason: "server_mismatch",
+    });
+    return {
+      outcome: "claim_conflict",
+      message: translate("claimConflict"),
+      pending: null,
+    };
+  }
+
+  if (!claimTargetMatchesLookupName(target, lookup.gameUserName)) {
+    await emitMemberLinkClaimConflictAlert({
+      allianceId: input.allianceId,
+      allianceTag,
+      ashedMemberId: target.ashedMemberId,
+      hqUserId: input.hqUserId,
+      handle,
+      reason: "target_mismatch",
+    });
+    await writeAuditLog({
+      sessionId: input.sessionId,
+      hqUserId: input.hqUserId,
+      allianceId: input.allianceId,
+      action: "member_link.claim_conflict",
+      metadata: {
+        ashedMemberId: target.ashedMemberId,
+        reason: "target_mismatch",
+      },
     });
     return {
       outcome: "claim_conflict",

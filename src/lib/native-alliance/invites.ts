@@ -24,6 +24,7 @@ import {
   type SystemRoleName,
 } from "@/lib/rbac/constants";
 import { systemRoleNameForId } from "@/lib/rbac/system-roles";
+import { getLinkedMemberIds } from "@/lib/vr/repository";
 
 import { provisionAllianceMembership } from "./provision-membership";
 import { assertAllianceLinkedGameServer } from "./alliance-server-gate.server";
@@ -38,7 +39,7 @@ export type CommanderClaimInviteErrorCode =
   | "commander_not_found"
   | "commander_already_claimed";
 
-/** Raised when a claim invite target is invalid or already bound to an HQ user. */
+/** Raised when a claim invite target is invalid or already bound to a user. */
 export class CommanderClaimInviteError extends Error {
   readonly code: CommanderClaimInviteErrorCode;
   constructor(code: CommanderClaimInviteErrorCode, message: string) {
@@ -50,7 +51,7 @@ export class CommanderClaimInviteError extends Error {
 
 /**
  * Resolve the bound commander for a claim invite, asserting it exists in the
- * alliance roster and is not already claimed by an HQ account. Returns the
+ * alliance roster and is not already claimed by a user. Returns the
  * commander display name (never the UID — see player-uid-privacy.mdc).
  */
 async function assertClaimTargetClaimable(
@@ -76,21 +77,11 @@ async function assertClaimTargetClaimable(
     );
   }
 
-  const [existingLink] = await db
-    .select({ id: schema.hqMemberLinks.id })
-    .from(schema.hqMemberLinks)
-    .where(
-      and(
-        eq(schema.hqMemberLinks.allianceId, allianceId),
-        eq(schema.hqMemberLinks.ashedMemberId, ashedMemberId),
-      ),
-    )
-    .limit(1);
-
-  if (existingLink) {
+  const linkedMemberIds = await getLinkedMemberIds(allianceId);
+  if (linkedMemberIds.has(ashedMemberId)) {
     throw new CommanderClaimInviteError(
       "commander_already_claimed",
-      "This commander is already linked to an HQ account.",
+      "This commander is already linked to an account.",
     );
   }
 
