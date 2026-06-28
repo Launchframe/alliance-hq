@@ -693,4 +693,84 @@ test.describe("Member-link onboarding outcomes", () => {
       page.getByRole("heading", { name: /you're linked/i }),
     ).toBeVisible({ timeout: 15_000 });
   });
+
+  test("commander claim invite shows claim step and blocks self-service link", async ({
+    page,
+  }) => {
+    const sql = getE2eSql();
+    const maintainer = await createPlatformMaintainerSession(sql);
+    const alliance = await createNativeAlliance(sql, {
+      tag: `CL${nanoid(3)}`,
+      name: "Claim Invite Alliance",
+    });
+    await linkNativeAllianceToGameServer(sql, alliance.allianceId, 1203);
+    const { ashedMemberId } = await createAllianceRosterMember(sql, {
+      allianceId: alliance.allianceId,
+      currentName: "E2eClaimTarget",
+    });
+
+    const email = `claim-${nanoid(6)}@e2e.test`;
+    const { token } = await createHqInviteRow(sql, {
+      allianceId: alliance.allianceId,
+      email,
+      roleName: "member",
+      invitedByHqUserId: maintainer.hqUserId,
+      targetAshedMemberId: ashedMemberId,
+    });
+    const accepted = await acceptInviteViaApi(sql, e2eBaseUrl(), token, email);
+
+    await page.context().addCookies(
+      playwrightAuthCookies({
+        sessionId: accepted.sessionId,
+        hqUserId: accepted.hqUserId,
+        email,
+        nextAuthToken: accepted.nextAuthToken,
+      }),
+    );
+    await page.goto("/onboard");
+
+    await expect(
+      page.getByRole("heading", { name: /confirm your commander/i }),
+    ).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText(/E2eClaimTarget/i)).toBeVisible();
+
+    const blocked = await page.evaluate(async () => {
+      const res = await fetch("/api/member-link", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          reportedName: "ColdStartOwner",
+          gameUid: "1234567890121203",
+        }),
+      });
+      return res.json() as Promise<{ outcome?: string }>;
+    });
+    expect(blocked.outcome).toBe("usage");
+
+    const previewBlocked = await page.evaluate(async () => {
+      const res = await fetch("/api/member-link/preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ gameUid: "1234567890121203" }),
+      });
+      return res.json() as Promise<{ outcome?: string }>;
+    });
+    expect(previewBlocked.outcome).toBe("usage");
+
+    await page.getByLabel(/player uid/i).fill("1234567890121299");
+    const claimResponse = page.waitForResponse(
+      (res) =>
+        res.url().includes("/api/member-link/claim") &&
+        res.request().method() === "POST",
+    );
+    await page.getByRole("button", { name: /confirm & link/i }).click();
+    const response = await claimResponse;
+    expect(response.ok()).toBe(true);
+    const body = (await response.json()) as { outcome?: string };
+    expect(body.outcome).toBe("linked");
+
+    await expect(
+      page.getByRole("heading", { name: /you're linked/i }),
+    ).toBeVisible({ timeout: 15_000 });
+  });
 });
