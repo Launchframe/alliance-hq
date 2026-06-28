@@ -4,6 +4,7 @@ import { and, eq } from "drizzle-orm";
 
 import { writeAuditLog } from "@/lib/bff/audit";
 import { getDb, schema } from "@/lib/db";
+import { recordClaimConflict } from "@/lib/member-link/claim-conflict-queue.server";
 import { emitMemberLinkClaimConflictAlert } from "@/lib/events/admin-alerts";
 import { isValidGameUid, lookupPlayerByUid } from "@/lib/lastwar/player-lookup";
 import { syncAllianceMemberGameLevelFromLastWar } from "@/lib/lastwar/sync-member-game-level.server";
@@ -156,6 +157,46 @@ async function findClaimedNameCollision(input: {
 }
 
 /**
+ * Persist a claim conflict for officer review and emit the transient admin
+ * alert. Both are best-effort; failures must not block the user-facing
+ * conflict response.
+ */
+async function surfaceClaimConflict(input: {
+  allianceId: string;
+  allianceTag: string;
+  ashedMemberId: string;
+  commanderName: string;
+  hqUserId: string;
+  handle: string;
+  reason: "name_collision" | "commander_taken" | "server_mismatch";
+}): Promise<void> {
+  try {
+    await recordClaimConflict({
+      allianceId: input.allianceId,
+      ashedMemberId: input.ashedMemberId,
+      commanderName: input.commanderName,
+      hqUserId: input.hqUserId,
+      handle: input.handle,
+      reason: input.reason,
+    });
+  } catch (error) {
+    console.error("[member-link] claim conflict persist failed", error);
+  }
+  try {
+    await emitMemberLinkClaimConflictAlert({
+      allianceId: input.allianceId,
+      allianceTag: input.allianceTag,
+      ashedMemberId: input.ashedMemberId,
+      hqUserId: input.hqUserId,
+      handle: input.handle,
+      reason: input.reason,
+    });
+  } catch (error) {
+    console.error("[member-link] claim conflict alert failed", error);
+  }
+}
+
+/**
  * Confirm a commander claim invite by UID. Populates the bound commander record
  * (gameUid, currentName, previous names) and links the recipient. Surfaces
  * conflicts (name collisions, already-claimed races, server mismatch) to
@@ -214,10 +255,11 @@ export async function runWebMemberLinkClaimConfirm(input: {
     playerServer != null &&
     playerServer !== allianceServer
   ) {
-    await emitMemberLinkClaimConflictAlert({
+    await surfaceClaimConflict({
       allianceId: input.allianceId,
       allianceTag,
       ashedMemberId: target.ashedMemberId,
+      commanderName: target.commanderName,
       hqUserId: input.hqUserId,
       handle,
       reason: "server_mismatch",
@@ -261,10 +303,11 @@ export async function runWebMemberLinkClaimConfirm(input: {
     targetAshedMemberId: target.ashedMemberId,
   });
   if (collisionName) {
-    await emitMemberLinkClaimConflictAlert({
+    await surfaceClaimConflict({
       allianceId: input.allianceId,
       allianceTag,
       ashedMemberId: target.ashedMemberId,
+      commanderName: target.commanderName,
       hqUserId: input.hqUserId,
       handle,
       reason: "name_collision",
@@ -303,10 +346,11 @@ export async function runWebMemberLinkClaimConfirm(input: {
   });
 
   if (!linked.ok) {
-    await emitMemberLinkClaimConflictAlert({
+    await surfaceClaimConflict({
       allianceId: input.allianceId,
       allianceTag,
       ashedMemberId: target.ashedMemberId,
+      commanderName: target.commanderName,
       hqUserId: input.hqUserId,
       handle,
       reason: "commander_taken",

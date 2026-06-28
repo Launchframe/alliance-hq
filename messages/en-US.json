@@ -1317,6 +1317,22 @@
     "approveMatch": "Approve match",
     "decline": "Decline"
   },
+  "claimConflicts": {
+    "title": "Claim conflicts",
+    "subtitle": "Commander claims that could not auto-complete. Investigate, then mark resolved or dismiss.",
+    "backToMembers": "Back to members",
+    "loadFailed": "Could not load claim conflicts.",
+    "resolveFailed": "Could not update this conflict.",
+    "empty": "No open claim conflicts.",
+    "claimant": "Claimed by {handle}",
+    "reason": {
+      "name_collision": "Name collision with a claimed commander",
+      "commander_taken": "Commander already claimed",
+      "server_mismatch": "Server mismatch"
+    },
+    "markResolved": "Mark resolved",
+    "dismiss": "Dismiss"
+  },
   "settings": {
     "title": "Settings",
     "titleAlliance": "Alliance settings",
@@ -1615,6 +1631,7 @@
     "importMembers": "Import members",
     "uploadRosterVideo": "Upload roster video",
     "rosterLinkRequests": "Roster link requests",
+    "claimConflicts": "Claim conflicts",
     "import": {
       "title": "Import members",
       "uploadHint": "Upload one screenshot per rank page (officers screen and rank lists). We read names, power, and level with on-device OCR.",

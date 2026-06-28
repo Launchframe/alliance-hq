@@ -456,6 +456,13 @@
       "when": 1784892800000,
       "tag": "0065_commander_claim_invite_target",
       "breakpoints": true
+    },
+    {
+      "idx": 64,
+      "version": "7",
+      "when": 1784979200000,
+      "tag": "0066_hq_claim_conflicts",
+      "breakpoints": true
     }
   ]
 }

@@ -1425,6 +1425,55 @@ export const hqInvites = pgTable("hq_invites", {
     .notNull(),
 });
 
+/**
+ * Persisted commander-claim conflicts for the officer (R4+) review queue.
+ * A row is created when a claim-invite recipient's UID lookup cannot be
+ * auto-linked to the bound roster commander (name collision with another
+ * linked commander, the commander was taken in a race, or a state-server
+ * mismatch). Officers review and resolve/dismiss these. Never stores the
+ * player UID (see player-uid-privacy.mdc) — only the internal
+ * ashed_member_id and the commander display name snapshot.
+ */
+export const hqClaimConflicts = pgTable(
+  "hq_claim_conflicts",
+  {
+    id: text("id").primaryKey(),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    /** Roster member (alliance_members.ashed_member_id) the claim was bound to. */
+    ashedMemberId: text("ashed_member_id").notNull(),
+    /** Display name snapshot of the bound commander. */
+    commanderName: text("commander_name").notNull(),
+    /** HQ user who attempted the claim. */
+    hqUserId: text("hq_user_id").references(() => hqUsers.id, {
+      onDelete: "set null",
+    }),
+    /** Human-readable label for the claimant (display name / email / id). */
+    handle: text("handle").notNull(),
+    /** name_collision | commander_taken | server_mismatch */
+    reason: text("reason").notNull(),
+    /** open | resolved | dismissed */
+    status: text("status").notNull().default("open"),
+    resolutionNote: text("resolution_note"),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+    resolvedByHqUserId: text("resolved_by_hq_user_id").references(
+      () => hqUsers.id,
+      { onDelete: "set null" },
+    ),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("hq_claim_conflicts_alliance_id_idx").on(table.allianceId),
+    index("hq_claim_conflicts_status_idx").on(table.allianceId, table.status),
+  ],
+);
+
 export const hqRosterLinkRequests = pgTable(
   "hq_roster_link_requests",
   {

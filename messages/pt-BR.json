@@ -1317,6 +1317,22 @@
     "approveMatch": "Aprovar associação",
     "decline": "Recusar"
   },
+  "claimConflicts": {
+    "title": "Conflitos de reivindicação",
+    "subtitle": "Reivindicações de comandante que não puderam ser concluídas automaticamente. Investigue e marque como resolvido ou descarte.",
+    "backToMembers": "Voltar aos membros",
+    "loadFailed": "Não foi possível carregar os conflitos de reivindicação.",
+    "resolveFailed": "Não foi possível atualizar este conflito.",
+    "empty": "Nenhum conflito de reivindicação aberto.",
+    "claimant": "Reivindicado por {handle}",
+    "reason": {
+      "name_collision": "Conflito de nome com um comandante já reivindicado",
+      "commander_taken": "Comandante já reivindicado",
+      "server_mismatch": "Servidor incompatível"
+    },
+    "markResolved": "Marcar como resolvido",
+    "dismiss": "Descartar"
+  },
   "settings": {
     "title": "Configurações",
     "titleAlliance": "Configurações da aliança",
@@ -1615,6 +1631,7 @@
     "importMembers": "Importar membros",
     "uploadRosterVideo": "Enviar vídeo do elenco",
     "rosterLinkRequests": "Solicitações de vínculo ao roster",
+    "claimConflicts": "Conflitos de reivindicação",
     "import": {
       "title": "Importar membros",
       "uploadHint": "Envie uma captura por página de patente (oficiais e listas R1–R5). Lemos nome, poder e nível com OCR.",
