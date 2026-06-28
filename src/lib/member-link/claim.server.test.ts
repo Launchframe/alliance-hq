@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { runWebMemberLinkClaimConfirm } from "./claim.server";
+import { runWebMemberLinkClaimConfirm, blockSelfServiceWhenClaimPending } from "./claim.server";
 
 vi.mock("@/lib/bff/audit", () => ({
   writeAuditLog: vi.fn().mockResolvedValue(undefined),
@@ -276,5 +276,46 @@ describe("runWebMemberLinkClaimConfirm", () => {
     expect(alerts.emitMemberLinkClaimConflictAlert).toHaveBeenCalledWith(
       expect.objectContaining({ reason: "commander_taken" }),
     );
+  });
+});
+
+describe("blockSelfServiceWhenClaimPending", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(repository.getHqMemberLinkForUser).mockResolvedValue(null as never);
+    vi.mocked(invites.findAcceptedClaimInviteForUser).mockResolvedValue({
+      inviteId: "inv-1",
+      targetAshedMemberId: "m-1",
+    });
+  });
+
+  it("blocks self-service when a claim invite is accepted but not linked", async () => {
+    const result = await blockSelfServiceWhenClaimPending({
+      allianceId: "a1",
+      hqUserId: "u1",
+      locale: "en-US",
+    });
+    expect(result?.outcome).toBe("usage");
+    expect(result?.message).toContain("claim screen");
+  });
+
+  it("allows self-service when the user is already linked", async () => {
+    vi.mocked(repository.getHqMemberLinkForUser).mockResolvedValue({} as never);
+    const result = await blockSelfServiceWhenClaimPending({
+      allianceId: "a1",
+      hqUserId: "u1",
+      locale: "en-US",
+    });
+    expect(result).toBeNull();
+  });
+
+  it("allows self-service when there is no pending claim invite", async () => {
+    vi.mocked(invites.findAcceptedClaimInviteForUser).mockResolvedValue(null);
+    const result = await blockSelfServiceWhenClaimPending({
+      allianceId: "a1",
+      hqUserId: "u1",
+      locale: "en-US",
+    });
+    expect(result).toBeNull();
   });
 });

@@ -91,6 +91,35 @@ export async function getMemberLinkClaimTarget(input: {
   };
 }
 
+/**
+ * Blocks name+UID self-service while a commander claim invite is accepted but
+ * not yet linked — officers bound a specific roster commander to this invite.
+ */
+export async function blockSelfServiceWhenClaimPending(input: {
+  allianceId: string;
+  hqUserId: string;
+  locale: string;
+}): Promise<MemberLinkApiResponse | null> {
+  const existingLink = await getHqMemberLinkForUser(
+    input.allianceId,
+    input.hqUserId,
+  );
+  if (existingLink) return null;
+
+  const claim = await findAcceptedClaimInviteForUser(
+    input.allianceId,
+    input.hqUserId,
+  );
+  if (!claim) return null;
+
+  const translate = createMemberLinkTranslator(input.locale);
+  return {
+    outcome: "usage",
+    message: translate("claimSelfServiceBlocked"),
+    pending: null,
+  };
+}
+
 function claimTargetMatchesLookupName(
   target: MemberLinkClaimTargetRecord,
   gameUserName: string,
