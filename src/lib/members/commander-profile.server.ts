@@ -18,6 +18,7 @@ import {
   formatMemberRankDisplay,
   parseAshedMemberAllianceRank,
 } from "@/lib/members/alliance-rank";
+import { sessionHasMembershipForAlliance } from "@/lib/alliance/session-memberships";
 import { allianceMemberRowToAshedMember } from "@/lib/members/roster.shared";
 import { getRbacContext, sessionHasPermission } from "@/lib/rbac/context";
 import type { CommanderProfilePayload } from "@/lib/members/commander-profile.shared";
@@ -135,8 +136,13 @@ export async function loadCommanderProfile(
   const operatingMode = await getAllianceOperatingMode(allianceId);
   const canSeeEmail = await sessionHasPermission(sessionId, "members:write");
   const rbac = await getRbacContext(sessionId);
+  const viewerHasAllianceMembership = rbac
+    ? await sessionHasMembershipForAlliance(rbac.hqUserId, allianceId)
+    : false;
   const viewerCanBreakGlassUnlink =
-    rbac != null && (rbac.isPlatformMaintainer || rbac.roleName === "owner");
+    viewerHasAllianceMembership &&
+    rbac != null &&
+    (rbac.isPlatformMaintainer || rbac.roleName === "owner");
 
   const [hqLink] = await db
     .select({

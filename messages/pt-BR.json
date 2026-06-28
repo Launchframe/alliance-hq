@@ -1668,6 +1668,8 @@
       "unlinkHqButton": "Desvincular conta HQ",
       "unlinkDiscordButton": "Desvincular Discord",
       "unlinkConfirmQuestion": "Desvincular este comandante?",
+      "unlinkHqConfirmDescription": "Isso remove o vínculo com a conta HQ e permite que alguém reivindique este comandante novamente. Use apenas para corrigir uma reivindicação incorreta.",
+      "unlinkDiscordConfirmDescription": "Isso remove todos os vínculos do Discord deste comandante nesta aliança. Será necessário vincular novamente no Discord.",
       "unlinkConfirm": "Desvincular",
       "unlinkCancel": "Cancelar",
       "unlinkBusy": "Desvinculando…",

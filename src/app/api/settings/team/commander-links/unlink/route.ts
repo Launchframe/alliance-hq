@@ -56,10 +56,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  if (
-    !ctx.isPlatformMaintainer &&
-    !(await sessionHasMembershipForAlliance(ctx.hqUserId, allianceId))
-  ) {
+  if (!(await sessionHasMembershipForAlliance(ctx.hqUserId, allianceId))) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
