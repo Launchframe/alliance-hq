@@ -747,6 +747,16 @@ test.describe("Member-link onboarding outcomes", () => {
     });
     expect(blocked.outcome).toBe("usage");
 
+    const previewBlocked = await page.evaluate(async () => {
+      const res = await fetch("/api/member-link/preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ gameUid: "1234567890121203" }),
+      });
+      return res.json() as Promise<{ outcome?: string }>;
+    });
+    expect(previewBlocked.outcome).toBe("usage");
+
     await page.getByLabel(/player uid/i).fill("1234567890121299");
     const claimResponse = page.waitForResponse(
       (res) =>

@@ -62,6 +62,7 @@ vi.mock("@/lib/member-link/claim.server", () => ({
 
 const lookup = await import("@/lib/lastwar/player-lookup");
 const roster = await import("@/lib/member-link/roster-link-request.server");
+const claim = await import("@/lib/member-link/claim.server");
 
 describe("runWebMemberLinkSubmit onboarding unblockers", () => {
   beforeEach(() => {
@@ -285,5 +286,23 @@ describe("runWebMemberLinkPreview (UID-only confirm step)", () => {
     });
 
     expect(result.outcome).toBe("lookup_error");
+  });
+
+  it("blocks preview when a commander claim invite is pending", async () => {
+    vi.mocked(claim.blockSelfServiceWhenClaimPending).mockResolvedValue({
+      outcome: "usage",
+      message: "Use the claim screen.",
+      pending: null,
+    });
+
+    const result = await runWebMemberLinkPreview({
+      allianceId: "a1",
+      hqUserId: "u1",
+      locale: "en-US",
+      gameUid: "1234567890121203",
+    });
+
+    expect(result.outcome).toBe("usage");
+    expect(lookup.lookupPlayerByUid).not.toHaveBeenCalled();
   });
 });
