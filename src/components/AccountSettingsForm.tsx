@@ -5,6 +5,7 @@ import { useLocale, useTranslations } from "next-intl";
 
 import { PairingQrWizard } from "@/components/credential-pairing/PairingQrWizard";
 import { LinkedDevicesSettings } from "@/components/credential-pairing/LinkedDevicesSettings";
+import { AccountDiscordLinkSection } from "@/components/account/AccountDiscordLinkSection";
 import { AppSelect } from "@/components/ui/AppSelect";
 import { useAccountTimezone } from "@/components/timezone/TimezoneProvider";
 import { Link, useRouter } from "@/i18n/navigation";
@@ -23,11 +24,19 @@ const REMINDER_OPTIONS = [7, 14, 21, 30];
 type Props = {
   initialAshed: AshedConnectionMeta | null;
   initialTimezoneId?: AccountTimezoneId;
+  discordLinked?: boolean;
+  discordAvailable?: boolean;
+  discordLinkNotice?: "linked" | "unlinked" | null;
+  discordLinkError?: string | null;
 };
 
 export function AccountSettingsForm({
   initialAshed,
   initialTimezoneId,
+  discordLinked = false,
+  discordAvailable = false,
+  discordLinkNotice = null,
+  discordLinkError = null,
 }: Props) {
   const t = useTranslations("account");
   const tSettings = useTranslations("settings");
@@ -244,6 +253,13 @@ export function AccountSettingsForm({
           </div>
         )}
       </section>
+
+      <AccountDiscordLinkSection
+        linked={discordLinked}
+        discordAvailable={discordAvailable}
+        linkNotice={discordLinkNotice}
+        linkError={discordLinkError}
+      />
 
       <section className="rounded-xl border border-[#30363d] bg-[#161b22] p-5">
         <h2 className="font-medium">{tDevice("sectionTitle")}</h2>

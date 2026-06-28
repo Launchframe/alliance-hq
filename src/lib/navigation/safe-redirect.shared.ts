@@ -1,5 +1,6 @@
 export const DEFAULT_INVITE_ACCEPT_REDIRECT = "/onboard";
 export const DEFAULT_POST_INVITE_APP_PATH = "/members";
+export const DISCORD_POST_LINK_COMMANDER_DESTINATION = "/dashboard";
 
 /** Allow only same-origin relative paths (blocks open redirects). */
 export function sanitizeInternalRedirectPath(
@@ -43,4 +44,9 @@ export function resolvePostInviteOnboardingRedirect(options: {
     sanitizeInternalRedirectPath(options.storedPath) ??
     DEFAULT_POST_INVITE_APP_PATH;
   return `/onboard?next=${encodeURIComponent(destination)}`;
+}
+
+/** Commander onboarding after Discord `/link` (join code or existing membership). */
+export function resolveDiscordPostLinkOnboardingRedirect(): string {
+  return `/onboard?next=${encodeURIComponent(DISCORD_POST_LINK_COMMANDER_DESTINATION)}&source=discord`;
 }

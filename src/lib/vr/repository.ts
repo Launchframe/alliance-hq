@@ -652,6 +652,35 @@ export async function getDiscordHqLink(discordUserId: string) {
   return row ?? null;
 }
 
+export async function getDiscordHqLinkByHqUserId(hqUserId: string) {
+  const trimmed = hqUserId.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const db = getDb();
+  const [row] = await db
+    .select()
+    .from(schema.discordHqLinks)
+    .where(eq(schema.discordHqLinks.hqUserId, trimmed))
+    .limit(1);
+  return row ?? null;
+}
+
+export async function deleteDiscordHqLinkForHqUser(hqUserId: string): Promise<boolean> {
+  const trimmed = hqUserId.trim();
+  if (!trimmed) {
+    return false;
+  }
+
+  const db = getDb();
+  const deleted = await db
+    .delete(schema.discordHqLinks)
+    .where(eq(schema.discordHqLinks.hqUserId, trimmed))
+    .returning({ discordUserId: schema.discordHqLinks.discordUserId });
+  return deleted.length > 0;
+}
+
 export async function upsertDiscordHqLink(input: {
   discordUserId: string;
   hqUserId: string;

@@ -20,12 +20,12 @@ import {
 export const dynamic = "force-dynamic";
 
 type Props = {
-  searchParams: Promise<{ next?: string }>;
+  searchParams: Promise<{ next?: string; source?: string }>;
 };
 
 export default async function OnboardPage({ searchParams }: Props) {
   const locale = await getLocale();
-  const { next } = await searchParams;
+  const { next, source } = await searchParams;
   const nextPath =
     sanitizeInternalRedirectPath(next) ?? DEFAULT_POST_INVITE_APP_PATH;
 
@@ -78,6 +78,7 @@ export default async function OnboardPage({ searchParams }: Props) {
       allianceName={allianceName}
       allianceTag={allianceTag}
       nextPath={nextPath}
+      successPresentation={source === "discord" ? "explore" : "default"}
     />
   );
 }

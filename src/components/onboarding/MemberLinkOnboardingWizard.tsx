@@ -11,12 +11,14 @@ import {
 import { fireCelebrationConfetti } from "@/lib/client/celebration-confetti";
 import { isValidGameUid } from "@/lib/lastwar/player-lookup";
 import type { MemberLinkOutcome } from "@/lib/member-link/outcome.shared";
-import { useRouter } from "@/i18n/navigation";
+import { Link, useRouter } from "@/i18n/navigation";
 
 type Props = {
   allianceName: string;
   allianceTag: string;
   nextPath: string;
+  /** Discord `/link` funnel: manual explore CTA instead of auto-redirect. */
+  successPresentation?: "default" | "explore";
 };
 
 type Phase =
@@ -46,6 +48,7 @@ export function MemberLinkOnboardingWizard({
   allianceName,
   allianceTag,
   nextPath,
+  successPresentation = "default",
 }: Props) {
   const t = useTranslations("onboard");
   const tLink = useTranslations("memberLink");
@@ -96,10 +99,12 @@ export function MemberLinkOnboardingWizard({
           ) {
             fireCelebrationConfetti();
           }
-          window.setTimeout(() => {
-            router.push(nextPath);
-            router.refresh();
-          }, 1800);
+          if (successPresentation === "default") {
+            window.setTimeout(() => {
+              router.push(nextPath);
+              router.refresh();
+            }, 1800);
+          }
           break;
         case "walkthrough":
         case "walkthrough_done":
@@ -166,7 +171,7 @@ export function MemberLinkOnboardingWizard({
           setFormError(data.message);
       }
     },
-    [nextPath, reportedName, router, t],
+    [nextPath, reportedName, router, successPresentation, t],
   );
 
   function buildSubmitBody(extra?: {
@@ -687,13 +692,26 @@ export function MemberLinkOnboardingWizard({
       ) : null}
 
       {phase === "success" ? (
-        <div className="space-y-3 text-center">
+        <div className="space-y-4 text-center">
           <h2 className="text-xl font-semibold text-[#3fb950]">
             {t("linkedTitle")}
           </h2>
           <p className="text-sm text-[#8b949e]">
-            {t("linkedBody", { name: linkedName ?? reportedName })}
+            {successPresentation === "explore"
+              ? t("linkedExploreBody", { name: linkedName ?? reportedName })
+              : t("linkedBody", { name: linkedName ?? reportedName })}
           </p>
+          {successPresentation === "explore" ? (
+            <>
+              <Link
+                href={nextPath}
+                className="inline-block rounded-lg border border-[#238636] bg-[#238636] px-4 py-2 text-sm font-medium text-white hover:bg-[#2ea043]"
+              >
+                {t("linkedExploreCta")}
+              </Link>
+              <p className="text-xs text-[#8b949e]">{t("linkedExploreDismiss")}</p>
+            </>
+          ) : null}
         </div>
       ) : null}
     </div>

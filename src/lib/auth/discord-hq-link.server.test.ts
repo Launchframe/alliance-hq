@@ -3,16 +3,26 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   completeDiscordBotHqLink,
   syncDiscordHqLinkFromOAuthSignIn,
+  unlinkDiscordHqLinkForUser,
 } from "@/lib/auth/discord-hq-link.server";
+import { unlinkOAuthProviderForUser } from "@/lib/auth/account-linking.server";
 import { getDb } from "@/lib/db";
 import {
   consumeDiscordAuthNonce,
   getValidDiscordAuthNonce,
 } from "@/lib/vr/auth-nonce";
-import { upsertDiscordHqLink } from "@/lib/vr/repository";
+import {
+  deleteDiscordHqLinkForHqUser,
+  upsertDiscordHqLink,
+} from "@/lib/vr/repository";
 
 vi.mock("@/lib/vr/repository", () => ({
+  deleteDiscordHqLinkForHqUser: vi.fn(),
   upsertDiscordHqLink: vi.fn(),
+}));
+
+vi.mock("@/lib/auth/account-linking.server", () => ({
+  unlinkOAuthProviderForUser: vi.fn(),
 }));
 
 vi.mock("@/lib/vr/auth-nonce", () => ({
@@ -153,5 +163,52 @@ describe("completeDiscordBotHqLink", () => {
       hqUserId: "hq-1",
     });
     expect(consumeDiscordAuthNonce).toHaveBeenCalledWith("nonce-1");
+  });
+});
+
+describe("unlinkDiscordHqLinkForUser", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("preserves the bot link when Discord OAuth is the last sign-in method", async () => {
+    vi.mocked(unlinkOAuthProviderForUser).mockResolvedValue({
+      ok: false,
+      code: "last_method",
+    });
+
+    await expect(unlinkDiscordHqLinkForUser("  hq-1  ")).resolves.toEqual({
+      ok: false,
+      reason: "last_sign_in_method",
+    });
+
+    expect(unlinkOAuthProviderForUser).toHaveBeenCalledWith({
+      hqUserId: "hq-1",
+      provider: "discord",
+    });
+    expect(deleteDiscordHqLinkForHqUser).not.toHaveBeenCalled();
+  });
+
+  it("removes the bot link after Discord OAuth unlink succeeds", async () => {
+    vi.mocked(unlinkOAuthProviderForUser).mockResolvedValue({ ok: true });
+    vi.mocked(deleteDiscordHqLinkForHqUser).mockResolvedValue(true);
+
+    await expect(unlinkDiscordHqLinkForUser("hq-1")).resolves.toEqual({
+      ok: true,
+    });
+
+    expect(deleteDiscordHqLinkForHqUser).toHaveBeenCalledWith("hq-1");
+  });
+
+  it("removes an orphan bot link when Discord OAuth is already absent", async () => {
+    vi.mocked(unlinkOAuthProviderForUser).mockResolvedValue({
+      ok: false,
+      code: "not_linked",
+    });
+    vi.mocked(deleteDiscordHqLinkForHqUser).mockResolvedValue(true);
+
+    await expect(unlinkDiscordHqLinkForUser("hq-1")).resolves.toEqual({
+      ok: true,
+    });
   });
 });
