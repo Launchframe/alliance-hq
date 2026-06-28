@@ -4,6 +4,7 @@ import { expect, test } from "@playwright/test";
 import {
   createAllianceJoinCodeRow,
   createAllianceMembership,
+  createAllianceRosterMember,
   createAuthenticatedHqSession,
   createDiscordUserLinkNonce,
   createHqDiscordOAuthAccount,
@@ -16,7 +17,7 @@ import {
 } from "./fixtures/db";
 
 test.describe("Discord /link complete — inline join code", () => {
-  test("shows join code form when HQ is linked but user has no alliance membership", async ({
+  test("redeems join code and completes commander onboarding from Discord link", async ({
     page,
   }) => {
     const sql = getE2eSql();
@@ -29,6 +30,10 @@ test.describe("Discord /link complete — inline join code", () => {
       allianceId: alliance.allianceId,
       roleName: "member",
       createdByHqUserId: maintainer.hqUserId,
+    });
+    const { ashedMemberId } = await createAllianceRosterMember(sql, {
+      allianceId: alliance.allianceId,
+      currentName: "E2eRosterMiss",
     });
 
     const discordUserId = `discord-${nanoid(10)}`;
@@ -62,6 +67,34 @@ test.describe("Discord /link complete — inline join code", () => {
     await expect(page.getByRole("button", { name: /explore alliance hq/i })).toHaveCount(
       0,
     );
+
+    await page.getByRole("button", { name: /continue/i }).click();
+    await page.getByLabel(/in-game name/i).fill("E2eRosterMiss");
+    await page.getByLabel(/player uid/i).fill("1234567890121204");
+    const linkResponse = page.waitForResponse(
+      (res) =>
+        res.url().includes("/api/member-link") &&
+        res.request().method() === "POST",
+    );
+    await page.getByRole("button", { name: /link my character/i }).click();
+    const response = await linkResponse;
+    expect(response.ok()).toBe(true);
+    const body = (await response.json()) as { outcome?: string; message?: string };
+    expect(body.outcome, body.message ?? "no message").toBe("linked");
+
+    await expect(page.getByRole("heading", { name: /you're linked/i })).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(page.getByRole("link", { name: /explore alliance hq/i })).toBeVisible();
+
+    const [memberLink] = await sql<{ ashed_member_id: string }[]>`
+      SELECT ashed_member_id
+      FROM hq_member_links
+      WHERE alliance_id = ${alliance.allianceId}
+        AND hq_user_id = ${auth.hqUserId}
+      LIMIT 1
+    `;
+    expect(memberLink?.ashed_member_id).toBe(ashedMemberId);
   });
 
   test("redirects to commander onboarding when user has membership but no commander link", async ({
