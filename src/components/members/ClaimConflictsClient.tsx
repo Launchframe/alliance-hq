@@ -4,6 +4,11 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { Link } from "@/i18n/navigation";
+import {
+  FORM_SUBMIT_ENTER_KEY_HINT,
+  handleTextareaEnterSubmit,
+  preventDefaultFormSubmit,
+} from "@/lib/client/form-enter-submit.shared";
 
 export type ClaimConflictView = {
   id: string;
@@ -24,9 +29,11 @@ export function ClaimConflictsClient({
   initialConflicts: ClaimConflictView[];
 }) {
   const t = useTranslations("claimConflicts");
+  const commonT = useTranslations("common");
   const [conflicts, setConflicts] = useState(initialConflicts);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [notesById, setNotesById] = useState<Record<string, string>>({});
 
   async function reload() {
     setError(null);
@@ -43,11 +50,15 @@ export function ClaimConflictsClient({
   async function resolve(id: string, action: "resolve" | "dismiss") {
     setBusyId(id);
     setError(null);
+    const resolutionNote = notesById[id]?.trim();
     try {
       const res = await fetch(`/api/members/claim-conflicts/${id}/resolve`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action }),
+        body: JSON.stringify({
+          action,
+          ...(resolutionNote ? { resolutionNote } : {}),
+        }),
       });
       if (!res.ok) {
         const payload = (await res.json().catch(() => null)) as {
@@ -101,24 +112,58 @@ export function ClaimConflictsClient({
                 </p>
               </div>
 
-              <div className="flex flex-col sm:flex-row gap-2">
-                <button
-                  type="button"
-                  disabled={busyId === conflict.id}
-                  onClick={() => void resolve(conflict.id, "resolve")}
-                  className="rounded-lg bg-[#238636] px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+              <form
+                className="space-y-3"
+                onSubmit={(event) => {
+                  preventDefaultFormSubmit(event);
+                  void resolve(conflict.id, "resolve");
+                }}
+              >
+                <label
+                  htmlFor={`claim-conflict-note-${conflict.id}`}
+                  className="block text-xs font-medium text-[#8b949e]"
                 >
-                  {t("markResolved")}
-                </button>
-                <button
-                  type="button"
+                  {commonT("note")} ({commonT("optional")})
+                </label>
+                <textarea
+                  id={`claim-conflict-note-${conflict.id}`}
+                  value={notesById[conflict.id] ?? ""}
+                  onChange={(event) =>
+                    setNotesById((current) => ({
+                      ...current,
+                      [conflict.id]: event.target.value,
+                    }))
+                  }
+                  enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT}
+                  onKeyDown={(event) =>
+                    handleTextareaEnterSubmit(event, () => {
+                      event.currentTarget.form?.requestSubmit();
+                    })
+                  }
+                  maxLength={500}
+                  rows={2}
                   disabled={busyId === conflict.id}
-                  onClick={() => void resolve(conflict.id, "dismiss")}
-                  className="rounded-lg border border-[#30363d] px-4 py-2 text-sm text-foreground disabled:opacity-50"
-                >
-                  {t("dismiss")}
-                </button>
-              </div>
+                  className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 text-sm text-[#e6edf3] disabled:opacity-50"
+                />
+
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <button
+                    type="submit"
+                    disabled={busyId === conflict.id}
+                    className="rounded-lg bg-[#238636] px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+                  >
+                    {t("markResolved")}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={busyId === conflict.id}
+                    onClick={() => void resolve(conflict.id, "dismiss")}
+                    className="rounded-lg border border-[#30363d] px-4 py-2 text-sm text-foreground disabled:opacity-50"
+                  >
+                    {t("dismiss")}
+                  </button>
+                </div>
+              </form>
             </li>
           ))}
         </ul>

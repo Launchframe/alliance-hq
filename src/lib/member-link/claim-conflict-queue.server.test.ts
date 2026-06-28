@@ -87,6 +87,38 @@ describe("recordClaimConflict", () => {
     expect(insertFn).not.toHaveBeenCalled();
     expect(updateSet).toHaveBeenCalledTimes(1);
   });
+
+  it("recovers when a concurrent insert wins the open-conflict unique race", async () => {
+    const uniqueError = Object.assign(new Error("duplicate key"), {
+      code: "23505",
+    });
+    const insertValues = vi.fn(() => Promise.reject(uniqueError));
+    const updateWhere = vi.fn(() => Promise.resolve());
+    const updateSet = vi.fn(() => ({ where: updateWhere }));
+    const selectFn = vi
+      .fn()
+      .mockReturnValueOnce(selectReturning([]))
+      .mockReturnValueOnce(selectReturning([{ id: "conflict-race" }]));
+    vi.mocked(getDb).mockReturnValue({
+      select: selectFn,
+      insert: vi.fn(() => ({ values: insertValues })),
+      update: vi.fn(() => ({ set: updateSet })),
+    } as never);
+
+    const id = await recordClaimConflict({
+      allianceId: "alliance-1",
+      ashedMemberId: "member-1",
+      commanderName: "Maverick",
+      hqUserId: "user-1",
+      handle: "maverick@example.com",
+      reason: "name_collision",
+    });
+
+    expect(id).toBe("conflict-race");
+    expect(insertValues).toHaveBeenCalledTimes(1);
+    expect(selectFn).toHaveBeenCalledTimes(2);
+    expect(updateSet).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("resolveClaimConflict", () => {

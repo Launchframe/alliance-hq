@@ -16,6 +16,65 @@ export type ClaimConflictStatus = "open" | "resolved" | "dismissed";
 
 export type ClaimConflictRow = typeof schema.hqClaimConflicts.$inferSelect;
 
+function isUniqueViolation(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as { code?: unknown }).code === "23505"
+  );
+}
+
+function openConflictSubjectFilter(input: {
+  hqUserId: string | null;
+  handle: string;
+}) {
+  return input.hqUserId
+    ? eq(schema.hqClaimConflicts.hqUserId, input.hqUserId)
+    : eq(schema.hqClaimConflicts.handle, input.handle);
+}
+
+async function findOpenClaimConflict(input: {
+  allianceId: string;
+  ashedMemberId: string;
+  hqUserId: string | null;
+  handle: string;
+  reason: ClaimConflictReason;
+}): Promise<{ id: string } | null> {
+  const db = getDb();
+  const [existing] = await db
+    .select({ id: schema.hqClaimConflicts.id })
+    .from(schema.hqClaimConflicts)
+    .where(
+      and(
+        eq(schema.hqClaimConflicts.allianceId, input.allianceId),
+        eq(schema.hqClaimConflicts.ashedMemberId, input.ashedMemberId),
+        eq(schema.hqClaimConflicts.reason, input.reason),
+        eq(schema.hqClaimConflicts.status, "open"),
+        openConflictSubjectFilter(input),
+      ),
+    )
+    .limit(1);
+  return existing ?? null;
+}
+
+async function updateClaimConflictSnapshot(input: {
+  id: string;
+  commanderName: string;
+  handle: string;
+  updatedAt: Date;
+}): Promise<void> {
+  const db = getDb();
+  await db
+    .update(schema.hqClaimConflicts)
+    .set({
+      commanderName: input.commanderName,
+      handle: input.handle,
+      updatedAt: input.updatedAt,
+    })
+    .where(eq(schema.hqClaimConflicts.id, input.id));
+}
+
 /**
  * Persist a commander-claim conflict for officer review. Conflicts surfaced by
  * the claim-confirm flow (name collisions, already-claimed races, server
@@ -36,49 +95,56 @@ export async function recordClaimConflict(input: {
   const db = getDb();
   const now = new Date();
 
-  const subjectFilter = input.hqUserId
-    ? eq(schema.hqClaimConflicts.hqUserId, input.hqUserId)
-    : eq(schema.hqClaimConflicts.handle, input.handle);
-
-  const [existing] = await db
-    .select({ id: schema.hqClaimConflicts.id })
-    .from(schema.hqClaimConflicts)
-    .where(
-      and(
-        eq(schema.hqClaimConflicts.allianceId, input.allianceId),
-        eq(schema.hqClaimConflicts.ashedMemberId, input.ashedMemberId),
-        eq(schema.hqClaimConflicts.reason, input.reason),
-        eq(schema.hqClaimConflicts.status, "open"),
-        subjectFilter,
-      ),
-    )
-    .limit(1);
+  const existing = await findOpenClaimConflict({
+    allianceId: input.allianceId,
+    ashedMemberId: input.ashedMemberId,
+    hqUserId: input.hqUserId ?? null,
+    handle: input.handle,
+    reason: input.reason,
+  });
 
   if (existing) {
-    await db
-      .update(schema.hqClaimConflicts)
-      .set({
-        commanderName: input.commanderName,
-        handle: input.handle,
-        updatedAt: now,
-      })
-      .where(eq(schema.hqClaimConflicts.id, existing.id));
+    await updateClaimConflictSnapshot({
+      id: existing.id,
+      commanderName: input.commanderName,
+      handle: input.handle,
+      updatedAt: now,
+    });
     return existing.id;
   }
 
   const id = nanoid();
-  await db.insert(schema.hqClaimConflicts).values({
-    id,
-    allianceId: input.allianceId,
-    ashedMemberId: input.ashedMemberId,
-    commanderName: input.commanderName,
-    hqUserId: input.hqUserId ?? null,
-    handle: input.handle,
-    reason: input.reason,
-    status: "open",
-    createdAt: now,
-    updatedAt: now,
-  });
+  try {
+    await db.insert(schema.hqClaimConflicts).values({
+      id,
+      allianceId: input.allianceId,
+      ashedMemberId: input.ashedMemberId,
+      commanderName: input.commanderName,
+      hqUserId: input.hqUserId ?? null,
+      handle: input.handle,
+      reason: input.reason,
+      status: "open",
+      createdAt: now,
+      updatedAt: now,
+    });
+  } catch (error) {
+    if (!isUniqueViolation(error)) throw error;
+    const racedExisting = await findOpenClaimConflict({
+      allianceId: input.allianceId,
+      ashedMemberId: input.ashedMemberId,
+      hqUserId: input.hqUserId ?? null,
+      handle: input.handle,
+      reason: input.reason,
+    });
+    if (!racedExisting) throw error;
+    await updateClaimConflictSnapshot({
+      id: racedExisting.id,
+      commanderName: input.commanderName,
+      handle: input.handle,
+      updatedAt: now,
+    });
+    return racedExisting.id;
+  }
   return id;
 }
 
