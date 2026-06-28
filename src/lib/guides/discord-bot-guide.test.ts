@@ -13,9 +13,16 @@ import {
 
 describe("discord-bot-guide.shared", () => {
   it("maps step slugs to camelCase message keys", () => {
+    expect(stepSlugToMessageKey("install-bot")).toBe("installBot");
     expect(stepSlugToMessageKey("link-hq")).toBe("linkHq");
     expect(stepSlugToMessageKey("link-self")).toBe("linkSelf");
     expect(stepSlugToMessageKey("register-guild")).toBe("registerGuild");
+  });
+
+  it("starts r5 and r4 flows with install-bot", () => {
+    expect(DISCORD_BOT_GUIDE_ROLE_STEPS.r5[0]).toBe("install-bot");
+    expect(DISCORD_BOT_GUIDE_ROLE_STEPS.r4[0]).toBe("install-bot");
+    expect(getDiscordBotGuideStep("install-bot")).not.toBeNull();
   });
 
   it("defines steps for every role entry", () => {

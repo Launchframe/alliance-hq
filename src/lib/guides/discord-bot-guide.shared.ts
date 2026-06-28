@@ -15,6 +15,7 @@ export const DISCORD_BOT_GUIDE_TROUBLESHOOTING_IDS = [
   "nameMismatch",
   "rosterMiss",
   "guildNotRegistered",
+  "commandsMissing",
   "memberTaken",
   "notOfficer",
   "wrongServer",
@@ -33,6 +34,9 @@ export type DiscordBotGuideStepDef = {
 };
 
 export const DISCORD_BOT_GUIDE_STEPS: Record<string, DiscordBotGuideStepDef> = {
+  "install-bot": {
+    troubleshootingIds: ["guildNotRegistered", "commandsMissing"],
+  },
   "link-hq": {
     showCommand: true,
   },
@@ -91,6 +95,7 @@ export const DISCORD_BOT_GUIDE_ROLE_STEPS: Record<
   string[]
 > = {
   r5: [
+    "install-bot",
     "link-hq",
     "optional-ashed",
     "register-guild",
@@ -100,8 +105,10 @@ export const DISCORD_BOT_GUIDE_ROLE_STEPS: Record<
     "tell-members",
   ],
   r4: [
+    "install-bot",
     "server-prereq",
     "link-self",
+    "register-guild",
     "vr-reports",
     "train-ops",
     "help-members",
