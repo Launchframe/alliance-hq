@@ -91,8 +91,27 @@ function translateContext(locale: string) {
   return { translate, walkthroughSteps };
 }
 
-async function emitLinkAttention(ctx: FlowContext) {
-  const handle = ctx.displayName?.trim() || ctx.userEmail?.trim() || ctx.hqUserId;
+function isValidMemberLinkGameUid(value: string): boolean {
+  return /^\d{12,16}$/.test(value);
+}
+
+async function emitLinkAttention(
+  ctx: FlowContext,
+  opts?: { gameUid?: string | null },
+) {
+  let handle =
+    ctx.displayName?.trim() || ctx.userEmail?.trim() || ctx.hqUserId;
+  const uid = opts?.gameUid?.trim() ?? "";
+  if (isValidMemberLinkGameUid(uid)) {
+    try {
+      const lookup = await lookupPlayerByUid(uid);
+      if (lookup.ok) {
+        handle = `${handle} · ${lookup.gameUserName}`;
+      }
+    } catch (error) {
+      console.error("[member-link] ask-officer lookup failed", error);
+    }
+  }
   await emitAdminAlert({
     type: "vr_link_attention",
     count: 1,
@@ -550,10 +569,6 @@ export async function runWebMemberLinkFuzzyPick(input: {
   return finalizeCommandResult(ctx, result);
 }
 
-function isValidMemberLinkGameUid(value: string): boolean {
-  return /^\d{12,16}$/.test(value);
-}
-
 export async function runWebMemberLinkAskOfficer(input: {
   sessionId: string;
   allianceId: string;
@@ -602,7 +617,7 @@ export async function runWebMemberLinkAskOfficer(input: {
     };
   }
 
-  await emitLinkAttention(ctx);
+  await emitLinkAttention(ctx, { gameUid: gameUid || null });
   if (pendingAllowsAskOfficer) {
     await saveHqMemberLinkPending(input.allianceId, input.hqUserId, null);
   }

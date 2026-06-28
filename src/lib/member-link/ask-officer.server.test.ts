@@ -2,8 +2,17 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { runWebMemberLinkAskOfficer } from "./orchestrator.server";
 
-vi.mock("@/lib/events/admin-alerts", () => ({
+const { emitAdminAlert, lookupPlayerByUid } = vi.hoisted(() => ({
   emitAdminAlert: vi.fn().mockResolvedValue(undefined),
+  lookupPlayerByUid: vi.fn(),
+}));
+
+vi.mock("@/lib/events/admin-alerts", () => ({
+  emitAdminAlert,
+}));
+
+vi.mock("@/lib/lastwar/player-lookup", () => ({
+  lookupPlayerByUid,
 }));
 
 vi.mock("@/lib/member-link/repository.server", () => ({
@@ -23,6 +32,12 @@ describe("runWebMemberLinkAskOfficer", () => {
     vi.clearAllMocks();
     vi.mocked(repository.getHqMemberLinkForUser).mockResolvedValue(null as never);
     vi.mocked(repository.getHqMemberLinkPending).mockResolvedValue(null);
+    vi.mocked(lookupPlayerByUid).mockResolvedValue({
+      ok: true,
+      gameUserName: "Commander Alpha",
+      gameServerNumber: 1203,
+      gameUserLevel: 30,
+    });
   });
 
   it("rejects when no roster_miss pending state exists", async () => {
@@ -35,6 +50,20 @@ describe("runWebMemberLinkAskOfficer", () => {
 
     expect(result.outcome).toBe("usage");
     expect(repository.saveHqMemberLinkPending).not.toHaveBeenCalled();
+    expect(emitAdminAlert).not.toHaveBeenCalled();
+  });
+
+  it("rejects when uid is invalid and no pending state exists", async () => {
+    const result = await runWebMemberLinkAskOfficer({
+      sessionId: "sess-1",
+      allianceId: "a1",
+      hqUserId: "u1",
+      locale: "en-US",
+      gameUid: "not-a-uid",
+    });
+
+    expect(result.outcome).toBe("usage");
+    expect(emitAdminAlert).not.toHaveBeenCalled();
   });
 
   it("notifies officers and clears pending when walkthrough is active", async () => {
@@ -57,6 +86,12 @@ describe("runWebMemberLinkAskOfficer", () => {
       "u1",
       null,
     );
+    expect(emitAdminAlert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "vr_link_attention",
+        handles: ["Player"],
+      }),
+    );
   });
 
   it("notifies officers when uid is provided without pending state", async () => {
@@ -70,6 +105,19 @@ describe("runWebMemberLinkAskOfficer", () => {
 
     expect(result.outcome).toBe("officer_notified");
     expect(repository.saveHqMemberLinkPending).not.toHaveBeenCalled();
+    expect(lookupPlayerByUid).toHaveBeenCalledWith(
+      "1001369694001203",
+    );
+    expect(emitAdminAlert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "vr_link_attention",
+        handles: ["u1 · Commander Alpha"],
+      }),
+    );
+    const payload = emitAdminAlert.mock.calls[0]?.[0] as {
+      handles: string[];
+    };
+    expect(JSON.stringify(payload)).not.toMatch(/1001369694001203/);
   });
 
   it("notifies officers when name and uid are provided without pending state", async () => {
@@ -106,5 +154,6 @@ describe("runWebMemberLinkAskOfficer", () => {
       "u1",
       null,
     );
+    expect(emitAdminAlert).toHaveBeenCalled();
   });
 });
