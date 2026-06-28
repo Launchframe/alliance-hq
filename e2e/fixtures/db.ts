@@ -24,6 +24,28 @@ export type Sql = ReturnType<typeof postgres>;
 
 let e2eSqlSingleton: Sql | null = null;
 
+/**
+ * Guard against e2e fixtures (which insert permanent `is_platform_maintainer`
+ * rows with no teardown) leaking into a dev/prod database. The resolved
+ * database name must look like an e2e database. Set E2E_DATABASE_URL to an
+ * `*_e2e` (or `e2e`-named) database; the LOCAL_DATABASE_URL fallback is only
+ * honored when it, too, points at an e2e database.
+ */
+function assertE2eDatabaseUrl(url: string): void {
+  let dbName = "";
+  try {
+    dbName = new URL(url).pathname.replace(/^\//, "");
+  } catch {
+    dbName = url;
+  }
+  if (!/e2e/i.test(dbName)) {
+    throw new Error(
+      `Refusing to run e2e fixtures against a non-e2e database (${dbName || "unknown"}). ` +
+        "Set E2E_DATABASE_URL to a dedicated e2e database (name must contain \"e2e\").",
+    );
+  }
+}
+
 export function getE2eSql(): Sql {
   const url =
     process.env.E2E_DATABASE_URL?.trim() ||
@@ -31,6 +53,7 @@ export function getE2eSql(): Sql {
   if (!url) {
     throw new Error("E2E database URL is not configured.");
   }
+  assertE2eDatabaseUrl(url);
   if (e2eSqlSingleton) {
     return e2eSqlSingleton;
   }
