@@ -2815,6 +2815,7 @@
     "confirmServerMismatch": "O Last War mostra o servidor {lookupServer}, mas esta aliança está definida como {allianceServer}. Informe o número correto do servidor estadual.",
     "lookupFallback": "Não foi possível acessar o Last War agora. Informe o número do servidor estadual para continuar — você pode corrigir nas configurações depois.",
     "claimUidInvalid": "Informe o UID de 12 a 16 dígitos do seu perfil do Last War.",
+    "claimSelfServiceBlocked": "Este convite está ligado a um comandante específico. Digite seu UID do jogador na tela de reivindicação para concluir o vínculo.",
     "claimConflict": "Não foi possível concluir esta reivindicação automaticamente. Os oficiais da sua aliança foram avisados para confirmar seu comandante."
   },
   "onboard": {

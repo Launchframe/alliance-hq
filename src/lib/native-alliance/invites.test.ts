@@ -2,12 +2,17 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getDb } from "@/lib/db";
 import { resolveAllianceGameServerNumber } from "@/lib/game-season/game-servers.server";
+import { getLinkedMemberIds } from "@/lib/vr/repository";
 
 import { AllianceServerRequiredError } from "./alliance-server-gate.server";
-import { createHqInvite } from "./invites";
+import { createHqInvite, type CommanderClaimInviteError } from "./invites";
 
 vi.mock("@/lib/game-season/game-servers.server", () => ({
   resolveAllianceGameServerNumber: vi.fn(),
+}));
+
+vi.mock("@/lib/vr/repository", () => ({
+  getLinkedMemberIds: vi.fn().mockResolvedValue(new Set<string>()),
 }));
 
 vi.mock("@/lib/db", async (importOriginal) => {
@@ -31,6 +36,7 @@ function dbSelectChain(result: unknown) {
 describe("createHqInvite", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(getLinkedMemberIds).mockResolvedValue(new Set<string>());
   });
 
   it("throws AllianceServerRequiredError when alliance has no game server", async () => {
@@ -100,5 +106,78 @@ describe("createHqInvite", () => {
     expect(result.roleName).toBe("owner");
     expect(resolveAllianceGameServerNumber).not.toHaveBeenCalled();
     expect(insertValues).toHaveBeenCalled();
+  });
+
+  it("rejects claim invites for commanders already linked through any account", async () => {
+    let selectCalls = 0;
+    vi.mocked(getDb).mockReturnValue({
+      select: vi.fn(() => {
+        selectCalls += 1;
+        if (selectCalls === 1) {
+          return dbSelectChain([{ id: "role-member" }]);
+        }
+        if (selectCalls === 2) {
+          return dbSelectChain([{ permissionId: "members:read" }]);
+        }
+        if (selectCalls === 3) {
+          return dbSelectChain([{ id: "alliance-1" }]);
+        }
+        if (selectCalls === 4) {
+          return dbSelectChain([{ currentName: "Alpha", status: "active" }]);
+        }
+        throw new Error(`unexpected select call ${selectCalls}`);
+      }),
+    } as never);
+    vi.mocked(resolveAllianceGameServerNumber).mockResolvedValue(1203);
+    vi.mocked(getLinkedMemberIds).mockResolvedValue(new Set<string>(["m-1"]));
+
+    await expect(
+      createHqInvite({
+        allianceId: "alliance-1",
+        kind: "protected_link",
+        roleName: "member",
+        invitedByHqUserId: "user-1",
+        origin: "https://hq.test",
+        targetAshedMemberId: "m-1",
+      }),
+    ).rejects.toMatchObject({
+      code: "commander_already_claimed",
+    } satisfies Partial<CommanderClaimInviteError>);
+  });
+
+  it("rejects claim invites for former roster commanders", async () => {
+    let selectCalls = 0;
+    vi.mocked(getDb).mockReturnValue({
+      select: vi.fn(() => {
+        selectCalls += 1;
+        if (selectCalls === 1) {
+          return dbSelectChain([{ id: "role-member" }]);
+        }
+        if (selectCalls === 2) {
+          return dbSelectChain([{ permissionId: "members:read" }]);
+        }
+        if (selectCalls === 3) {
+          return dbSelectChain([{ id: "alliance-1" }]);
+        }
+        if (selectCalls === 4) {
+          return dbSelectChain([{ currentName: "Alpha", status: "former" }]);
+        }
+        throw new Error(`unexpected select call ${selectCalls}`);
+      }),
+    } as never);
+    vi.mocked(resolveAllianceGameServerNumber).mockResolvedValue(1203);
+
+    await expect(
+      createHqInvite({
+        allianceId: "alliance-1",
+        kind: "protected_link",
+        roleName: "member",
+        invitedByHqUserId: "user-1",
+        origin: "https://hq.test",
+        targetAshedMemberId: "m-former",
+      }),
+    ).rejects.toMatchObject({
+      code: "commander_not_found",
+    } satisfies Partial<CommanderClaimInviteError>);
   });
 });
