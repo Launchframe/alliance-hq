@@ -6,6 +6,7 @@ import {
   resolveVideoOcrProvider,
   shouldEnqueueAshedOcrShadowPasses,
   videoOcrEngineForTarget,
+  videoOcrRequiresAshedConnection,
 } from "@/lib/video/ocr-provider.shared";
 
 afterEach(() => {
@@ -80,6 +81,28 @@ describe("resolveVideoJobAshedConnection", () => {
       resolveVideoJobAshedConnection({ engine: "ashed", loadConnection }),
     ).resolves.toBe(connection);
     expect(loadConnection).toHaveBeenCalledOnce();
+  });
+});
+
+describe("videoOcrRequiresAshedConnection", () => {
+  it("requires Ashed for the default (ashed) provider", () => {
+    vi.stubEnv("VIDEO_OCR_PROVIDER", "");
+    expect(videoOcrRequiresAshedConnection()).toBe(true);
+  });
+
+  it("does not require Ashed for native/local OCR in non-production", () => {
+    vi.stubEnv("NODE_ENV", "development");
+    vi.stubEnv("VIDEO_OCR_PROVIDER", "local");
+    expect(videoOcrRequiresAshedConnection()).toBe(false);
+    vi.stubEnv("VIDEO_OCR_PROVIDER", "mock");
+    expect(videoOcrRequiresAshedConnection()).toBe(false);
+  });
+
+  it("falls back to requiring Ashed when nonprod OCR is not allowed in production", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("VIDEO_OCR_PROVIDER", "local");
+    vi.stubEnv("VIDEO_OCR_ALLOW_NONPROD", "");
+    expect(videoOcrRequiresAshedConnection()).toBe(true);
   });
 });
 

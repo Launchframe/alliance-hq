@@ -43,6 +43,17 @@ export function engineRequiresAshed(engine: VideoOcrEngine): boolean {
   return engine === "ashed";
 }
 
+/**
+ * Whether approving/running any queued job requires a live Ashed connection,
+ * given the configured provider. Native/mock OCR (used by native alliances and
+ * dev/e2e) never needs Ashed; the default `ashed` provider always does. The
+ * roster vs non-roster distinction does not change this — only the `ashed`
+ * provider yields an Ashed-bound engine. Mirrors the approve route gate.
+ */
+export function videoOcrRequiresAshedConnection(): boolean {
+  return engineRequiresAshed(videoOcrEngineForTarget(resolveVideoOcrProvider(), true));
+}
+
 /** Resolve whether the worker should load an Ashed credential for this engine. */
 export async function resolveVideoJobAshedConnection(params: {
   engine: VideoOcrEngine;
