@@ -248,6 +248,28 @@ async function openMemberLinkForm(page: import("@playwright/test").Page) {
   ).toBeVisible();
 }
 
+/**
+ * UID-only self-service: enter the player UID, preview the looked-up commander,
+ * then confirm "yes, that's me" to fire the link submit. Returns the link
+ * POST response (not the preview) so callers can assert the outcome.
+ */
+async function submitUidThenConfirm(
+  page: import("@playwright/test").Page,
+  uid: string,
+) {
+  await page.getByLabel(/player uid/i).fill(uid);
+  await page.getByRole("button", { name: /link my character/i }).click();
+  const confirm = page.getByRole("button", { name: /yes, that's me/i });
+  await expect(confirm).toBeVisible();
+  const linkResponse = page.waitForResponse(
+    (res) =>
+      new URL(res.url()).pathname.endsWith("/api/member-link") &&
+      res.request().method() === "POST",
+  );
+  await confirm.click();
+  return linkResponse;
+}
+
 test.describe("Member-link onboarding outcomes", () => {
   test("invite roster miss on wrong server returns wrong_server without owner request", async ({
     page,
@@ -266,15 +288,7 @@ test.describe("Member-link onboarding outcomes", () => {
     );
     await openMemberLinkForm(page);
 
-    await page.getByLabel(/in-game name/i).fill("E2eWrongServer");
-    await page.getByLabel(/player uid/i).fill("1234567890121205");
-    const linkResponse = page.waitForResponse(
-      (res) =>
-        res.url().includes("/api/member-link") &&
-        res.request().method() === "POST",
-    );
-    await page.getByRole("button", { name: /link my commander/i }).click();
-    const response = await linkResponse;
+    const response = await submitUidThenConfirm(page, "1234567890121205");
     expect(response.ok()).toBe(true);
     const body = (await response.json()) as { outcome?: string };
     expect(body.outcome).toBe("wrong_server");
@@ -294,6 +308,19 @@ test.describe("Member-link onboarding outcomes", () => {
     const sql = getE2eSql();
     const { accepted, email } = await seedUnlinkedMemberOnboardSession(sql);
 
+    await page.route("**/api/member-link/preview", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          outcome: "confirm_identity",
+          message: "Test Commander",
+          pending: null,
+          lookupGameUserName: "Test Commander",
+          lookupServerNumber: 1205,
+        }),
+      });
+    });
     await page.route("**/api/member-link", async (route) => {
       if (route.request().method() === "POST") {
         await route.fulfill({
@@ -321,9 +348,9 @@ test.describe("Member-link onboarding outcomes", () => {
     );
     await openMemberLinkForm(page);
 
-    await page.getByLabel(/in-game name/i).fill("Test Commander");
     await page.getByLabel(/player uid/i).fill("1234567890123");
-    await page.getByRole("button", { name: /link my commander/i }).click();
+    await page.getByRole("button", { name: /link my character/i }).click();
+    await page.getByRole("button", { name: /yes, that's me/i }).click();
 
     await expect(
       page.getByRole("heading", { name: /wrong state server/i }),
@@ -426,15 +453,7 @@ test.describe("Member-link onboarding outcomes", () => {
     );
     await openMemberLinkForm(page);
 
-    await page.getByLabel(/in-game name/i).fill("E2eRosterMiss");
-    await page.getByLabel(/player uid/i).fill("1234567890121204");
-    const linkResponse = page.waitForResponse(
-      (res) =>
-        res.url().includes("/api/member-link") &&
-        res.request().method() === "POST",
-    );
-    await page.getByRole("button", { name: /link my commander/i }).click();
-    const response = await linkResponse;
+    const response = await submitUidThenConfirm(page, "1234567890121204");
     expect(response.ok()).toBe(true);
     const body = (await response.json()) as { outcome?: string };
     expect(body.outcome).toBe("awaiting_owner");
@@ -461,9 +480,7 @@ test.describe("Member-link onboarding outcomes", () => {
       }),
     );
     await openMemberLinkForm(page);
-    await page.getByLabel(/in-game name/i).fill("E2eRosterMiss");
-    await page.getByLabel(/player uid/i).fill("1234567890121204");
-    await page.getByRole("button", { name: /link my commander/i }).click();
+    await submitUidThenConfirm(page, "1234567890121204");
     await expect(
       page.getByRole("heading", { name: /waiting for roster confirmation/i }),
     ).toBeVisible();
@@ -564,15 +581,7 @@ test.describe("Member-link onboarding outcomes", () => {
       }),
     );
     await openMemberLinkForm(page);
-    await page.getByLabel(/in-game name/i).fill("Mew2407");
-    await page.getByLabel(/player uid/i).fill("1234567890121206");
-    const linkResponse = page.waitForResponse(
-      (res) =>
-        res.url().includes("/api/member-link") &&
-        res.request().method() === "POST",
-    );
-    await page.getByRole("button", { name: /link my commander/i }).click();
-    const response = await linkResponse;
+    const response = await submitUidThenConfirm(page, "1234567890121206");
     expect(response.ok()).toBe(true);
     const body = (await response.json()) as { outcome?: string };
     expect(body.outcome).toBe("awaiting_owner");
@@ -675,15 +684,7 @@ test.describe("Member-link onboarding outcomes", () => {
     await expect(page).toHaveURL(/\/onboard/);
 
     await page.getByRole("button", { name: /continue/i }).click();
-    await page.getByLabel(/in-game name/i).fill("ColdStartOwner");
-    await page.getByLabel(/player uid/i).fill("1234567890121203");
-    const linkResponse = page.waitForResponse(
-      (res) =>
-        res.url().includes("/api/member-link") &&
-        res.request().method() === "POST",
-    );
-    await page.getByRole("button", { name: /link my commander/i }).click();
-    const response = await linkResponse;
+    const response = await submitUidThenConfirm(page, "1234567890121203");
     expect(response.ok()).toBe(true);
     const body = (await response.json()) as { outcome?: string; message?: string };
     expect(body.outcome, body.message ?? "no message").toBe("linked");

@@ -31,6 +31,7 @@ type Phase =
   | "wrong_server"
   | "confirm_server"
   | "lookup_fallback"
+  | "confirm_identity"
   | "claim"
   | "success";
 
@@ -65,7 +66,6 @@ export function MemberLinkOnboardingWizard({
   const [linkedName, setLinkedName] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
-  const [suggestedName, setSuggestedName] = useState<string | null>(null);
   const [serverDraft, setServerDraft] = useState("");
   const [serverConfirmReason, setServerConfirmReason] = useState<
     "missing" | "mismatch" | null
@@ -78,6 +78,7 @@ export function MemberLinkOnboardingWizard({
   >(null);
   const [useLookupFallback, setUseLookupFallback] = useState(false);
   const [claimCommanderName, setClaimCommanderName] = useState("");
+  const [confirmName, setConfirmName] = useState<string | null>(null);
 
   const walkthroughSteps = useMemo(
     () => tLink.raw("steps") as string[],
@@ -130,7 +131,6 @@ export function MemberLinkOnboardingWizard({
           setFormError(data.message);
           break;
         case "name_mismatch":
-          setSuggestedName(data.lookupGameUserName ?? null);
           setPhase("form");
           setFormError(data.message);
           break;
@@ -211,14 +211,9 @@ export function MemberLinkOnboardingWizard({
     return data as T;
   }
 
-  async function submitLink() {
+  async function submitPreview() {
     setFormError(null);
-    const name = reportedName.trim();
     const uid = gameUid.trim();
-    if (!name) {
-      setFormError(t("nameRequired"));
-      return;
-    }
     if (!uid) {
       setFormError(t("uidRequired"));
       return;
@@ -230,16 +225,54 @@ export function MemberLinkOnboardingWizard({
 
     setBusy(true);
     try {
-      const data = await postJson<ApiResponse>(
-        "/api/member-link",
-        buildSubmitBody(),
-      );
+      const data = await postJson<ApiResponse>("/api/member-link/preview", {
+        gameUid: uid,
+      });
+      if (data.outcome === "confirm_identity") {
+        setConfirmName(data.lookupGameUserName ?? null);
+        setLookupServerNumber(data.lookupServerNumber ?? null);
+        setMessage(null);
+        setPhase("confirm_identity");
+      } else {
+        applyOutcome(data);
+      }
+    } catch {
+      setFormError(t("requestFailed"));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function submitConfirmedLink() {
+    setFormError(null);
+    const uid = gameUid.trim();
+    const name = confirmName?.trim();
+    if (!name || !isValidGameUid(uid)) {
+      setPhase("form");
+      return;
+    }
+
+    // Carry the confirmed game name forward so downstream branches that re-read
+    // reportedName (server-number confirm) keep working.
+    setReportedName(name);
+    setBusy(true);
+    try {
+      const data = await postJson<ApiResponse>("/api/member-link", {
+        reportedName: name,
+        gameUid: uid,
+      });
       applyOutcome(data);
     } catch {
       setFormError(t("requestFailed"));
     } finally {
       setBusy(false);
     }
+  }
+
+  function reenterUid() {
+    setConfirmName(null);
+    setFormError(null);
+    setPhase("form");
   }
 
   async function submitServerNumber() {
@@ -275,13 +308,6 @@ export function MemberLinkOnboardingWizard({
     } finally {
       setBusy(false);
     }
-  }
-
-  function applySuggestedName() {
-    if (!suggestedName) return;
-    setReportedName(suggestedName);
-    setSuggestedName(null);
-    setFormError(null);
   }
 
   function backToLinkForm() {
@@ -493,24 +519,13 @@ export function MemberLinkOnboardingWizard({
           className="space-y-4"
           onSubmit={(event) => {
             preventDefaultFormSubmit(event);
-            void submitLink();
+            void submitPreview();
           }}
         >
           <div>
             <h2 className="text-lg font-semibold">{t("title")}</h2>
-            <p className="mt-1 text-sm text-[#8b949e]">{t("welcomeSubtitle")}</p>
+            <p className="mt-1 text-sm text-[#8b949e]">{t("uidOnlySubtitle")}</p>
           </div>
-          <label className="block space-y-1">
-            <span className="text-sm font-medium">{t("nameLabel")}</span>
-            <input
-              type="text"
-              value={reportedName}
-              onChange={(e) => setReportedName(e.target.value)}
-              className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 text-sm text-[#e6edf3]"
-              autoComplete="off"
-            />
-            <span className="text-xs text-[#8b949e]">{t("nameHint")}</span>
-          </label>
           <label className="block space-y-1">
             <span className="text-sm font-medium">{t("uidLabel")}</span>
             <input
@@ -526,19 +541,6 @@ export function MemberLinkOnboardingWizard({
           </label>
           {formError ? (
             <p className="text-sm text-[#f85149]">{formError}</p>
-          ) : null}
-          {suggestedName ? (
-            <div className="rounded-lg border border-[#30363d] bg-[#0d1117] p-3 text-sm text-[#c9d1d9]">
-              <p className="text-[#8b949e]">{t("nameMismatchHint")}</p>
-              <button
-                type="button"
-                disabled={busy}
-                onClick={applySuggestedName}
-                className="mt-2 text-[#58a6ff] underline hover:text-[#79c0ff] disabled:opacity-50"
-              >
-                {t("useSuggestedName")}: {suggestedName}
-              </button>
-            </div>
           ) : null}
           {message && !formError ? (
             <p className="text-sm text-[#3fb950]">{message}</p>
@@ -735,6 +737,19 @@ export function MemberLinkOnboardingWizard({
               </div>
             </dl>
           ) : null}
+          {phase === "lookup_fallback" ? (
+            <label className="block space-y-1">
+              <span className="text-sm font-medium">{t("nameLabel")}</span>
+              <input
+                type="text"
+                value={reportedName}
+                onChange={(e) => setReportedName(e.target.value)}
+                className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 text-sm text-[#e6edf3]"
+                autoComplete="off"
+              />
+              <span className="text-xs text-[#8b949e]">{t("nameHint")}</span>
+            </label>
+          ) : null}
           <label className="block space-y-1">
             <span className="text-sm font-medium">{t("serverNumberLabel")}</span>
             <input
@@ -769,6 +784,46 @@ export function MemberLinkOnboardingWizard({
             {t("backToForm")}
           </button>
         </form>
+      ) : null}
+
+      {phase === "confirm_identity" ? (
+        <div className="space-y-4">
+          <div>
+            <h2 className="text-lg font-semibold">{t("confirmIdentityTitle")}</h2>
+            <p className="mt-1 text-sm text-[#8b949e]">
+              {t("confirmIdentityBody")}
+            </p>
+          </div>
+          <div className="rounded-lg border border-[#30363d] bg-[#0d1117] p-4 text-center">
+            <p className="text-xl font-semibold text-[#e6edf3]">
+              {confirmName ?? "—"}
+            </p>
+            {lookupServerNumber != null ? (
+              <p className="mt-1 text-xs text-[#8b949e]">
+                {t("confirmIdentityServer", { server: lookupServerNumber })}
+              </p>
+            ) : null}
+          </div>
+          {formError ? (
+            <p className="text-sm text-[#f85149]">{formError}</p>
+          ) : null}
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void submitConfirmedLink()}
+            className="w-full rounded-lg border border-[#238636] bg-[#238636] px-4 py-2.5 text-sm font-medium text-white disabled:opacity-50"
+          >
+            {busy ? t("submitting") : t("confirmIdentityYes")}
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={reenterUid}
+            className="w-full text-sm text-[#8b949e] underline hover:text-[#58a6ff] disabled:opacity-50"
+          >
+            {t("confirmIdentityNo")}
+          </button>
+        </div>
       ) : null}
 
       {phase === "claim" ? (
