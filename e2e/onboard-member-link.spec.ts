@@ -792,14 +792,14 @@ test.describe("Member-link onboarding outcomes", () => {
       ORDER BY created_at DESC
       LIMIT 1
     `;
+    if (!conflict) {
+      throw new Error("Expected target mismatch claim conflict.");
+    }
     expect(conflict).toMatchObject({
       commander_name: "E2eClaimTarget",
       reason: "target_mismatch",
       status: "open",
     });
-    if (!conflict) {
-      throw new Error("Expected target mismatch claim conflict.");
-    }
 
     const officerEmail = `claim-officer-${nanoid(6)}@e2e.test`;
     const { token: officerInviteToken } = await createHqInviteRow(sql, {

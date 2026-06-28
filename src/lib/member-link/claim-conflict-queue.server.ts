@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, desc, eq } from "drizzle-orm";
+import { and, count, desc, eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { writeAuditLog } from "@/lib/bff/audit";
@@ -102,8 +102,8 @@ export async function countOpenClaimConflicts(
   allianceId: string,
 ): Promise<number> {
   const db = getDb();
-  const rows = await db
-    .select({ id: schema.hqClaimConflicts.id })
+  const [row] = await db
+    .select({ count: count() })
     .from(schema.hqClaimConflicts)
     .where(
       and(
@@ -111,7 +111,7 @@ export async function countOpenClaimConflicts(
         eq(schema.hqClaimConflicts.status, "open"),
       ),
     );
-  return rows.length;
+  return row?.count ?? 0;
 }
 
 export async function getClaimConflictById(

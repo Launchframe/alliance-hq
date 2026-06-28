@@ -4,6 +4,7 @@ import { getDb } from "@/lib/db";
 import { writeAuditLog } from "@/lib/bff/audit";
 
 import {
+  countOpenClaimConflicts,
   recordClaimConflict,
   resolveClaimConflict,
 } from "./claim-conflict-queue.server";
@@ -210,5 +211,44 @@ describe("resolveClaimConflict", () => {
 
     expect(result).toEqual({ ok: false, reason: "not_open" });
     expect(vi.mocked(writeAuditLog)).not.toHaveBeenCalled();
+  });
+});
+
+describe("countOpenClaimConflicts", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("returns the count from a SQL count() query without fetching row IDs", async () => {
+    const selectFn = vi.fn(() => ({
+      from: () => ({
+        where: () => Promise.resolve([{ count: 7 }]),
+      }),
+    }));
+    vi.mocked(getDb).mockReturnValue({
+      select: selectFn,
+    } as never);
+
+    const result = await countOpenClaimConflicts("alliance-1");
+
+    expect(result).toBe(7);
+    // Verify the select projection uses { count } not { id }, confirming no
+    // full row-ID fetch happens.
+    const firstCallArg = (selectFn.mock.calls as unknown as Array<[Record<string, unknown>]>)[0]?.[0];
+    expect(firstCallArg).toHaveProperty("count");
+    expect(firstCallArg).not.toHaveProperty("id");
+  });
+
+  it("returns 0 when the query returns no rows", async () => {
+    vi.mocked(getDb).mockReturnValue({
+      select: vi.fn(() => ({
+        from: () => ({
+          where: () => Promise.resolve([]),
+        }),
+      })),
+    } as never);
+
+    const result = await countOpenClaimConflicts("alliance-1");
+    expect(result).toBe(0);
   });
 });
