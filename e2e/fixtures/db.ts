@@ -241,6 +241,7 @@ export async function createHqInviteRow(
     roleName: keyof typeof ROLE_IDS;
     redirectPath?: string | null;
     invitedByHqUserId?: string | null;
+    targetAshedMemberId?: string | null;
   },
 ): Promise<{ token: string; inviteId: string }> {
   const token = inviteToken();
@@ -272,6 +273,7 @@ export async function createHqInviteRow(
       invited_by_hq_user_id,
       expires_at,
       redirect_path,
+      target_ashed_member_id,
       created_at
     ) VALUES (
       ${inviteId},
@@ -282,6 +284,7 @@ export async function createHqInviteRow(
       ${input.invitedByHqUserId ?? null},
       ${expiresAt},
       ${input.redirectPath ?? null},
+      ${input.targetAshedMemberId ?? null},
       ${now}
     )
   `;

@@ -234,6 +234,15 @@ export async function runWebMemberLinkPreview(input: {
   locale: string;
   gameUid?: string;
 }): Promise<MemberLinkApiResponse> {
+  const claimBlock = await blockSelfServiceWhenClaimPending({
+    allianceId: input.allianceId,
+    hqUserId: input.hqUserId,
+    locale: input.locale,
+  });
+  if (claimBlock) {
+    return claimBlock;
+  }
+
   const translate = createMemberLinkTranslator(input.locale);
   const uid = input.gameUid?.trim();
   if (!uid) {
