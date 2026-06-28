@@ -51,6 +51,16 @@ describe("evaluateGuildRegistrationAuth", () => {
     ).toEqual({ allowed: true, registeredBy: "alliance_officer" });
   });
 
+  it("allows officer via member link without HQ link (Discord-only setup)", () => {
+    expect(
+      auth({
+        hasHqLink: false,
+        isOfficerViaMemberLink: true,
+        linkedHqAshedUserId: null,
+      }),
+    ).toEqual({ allowed: true, registeredBy: "alliance_officer" });
+  });
+
   it("prefers owner over officer when both flags are set", () => {
     expect(
       auth({
