@@ -990,3 +990,16 @@ export async function loadDiscordHqLink(
   `;
   return row ? { hqUserId: row.hq_user_id } : null;
 }
+
+export async function createDiscordHqLink(
+  sql: Sql,
+  input: { hqUserId: string; discordUserId: string },
+): Promise<void> {
+  const now = new Date();
+  await sql`
+    INSERT INTO discord_hq_links (discord_user_id, hq_user_id, linked_at)
+    VALUES (${input.discordUserId}, ${input.hqUserId}, ${now})
+    ON CONFLICT (discord_user_id) DO UPDATE
+    SET hq_user_id = EXCLUDED.hq_user_id, linked_at = EXCLUDED.linked_at
+  `;
+}

@@ -7,7 +7,11 @@ import {
   consumeDiscordAuthNonce,
   getValidDiscordAuthNonce,
 } from "@/lib/vr/auth-nonce";
-import { upsertDiscordHqLink } from "@/lib/vr/repository";
+import {
+  deleteDiscordHqLinkForHqUser,
+  upsertDiscordHqLink,
+} from "@/lib/vr/repository";
+import { unlinkOAuthProviderForUser } from "@/lib/auth/account-linking.server";
 
 export type CompleteDiscordBotHqLinkResult =
   | { ok: true }
@@ -101,4 +105,62 @@ export async function completeDiscordBotHqLink(input: {
   });
   await consumeDiscordAuthNonce(nonceRow.id);
   return { ok: true };
+}
+
+/** Account settings or post-OAuth sync — no bot nonce required. */
+export async function syncDiscordHqLinkFromSignedInUser(
+  hqUserId: string,
+): Promise<{ ok: true } | { ok: false; reason: "no_discord_oauth" }> {
+  const trimmed = hqUserId.trim();
+  if (!trimmed) {
+    return { ok: false, reason: "no_discord_oauth" };
+  }
+
+  const discordAccountId = await getDiscordProviderAccountIdForHqUser(trimmed);
+  if (!discordAccountId) {
+    return { ok: false, reason: "no_discord_oauth" };
+  }
+
+  await syncDiscordHqLinkFromOAuthSignIn({
+    discordUserId: discordAccountId,
+    hqUserId: trimmed,
+  });
+  return { ok: true };
+}
+
+export type UnlinkDiscordHqLinkResult =
+  | { ok: true }
+  | {
+      ok: false;
+      reason: "not_linked" | "last_sign_in_method" | "oauth_unlink_failed";
+    };
+
+/** Removes bot `discord_hq_links` row and Discord OAuth when allowed. */
+export async function unlinkDiscordHqLinkForUser(
+  hqUserId: string,
+): Promise<UnlinkDiscordHqLinkResult> {
+  const trimmed = hqUserId.trim();
+  if (!trimmed) {
+    return { ok: false, reason: "not_linked" };
+  }
+
+  const hadBotLink = await deleteDiscordHqLinkForHqUser(trimmed);
+  const oauthResult = await unlinkOAuthProviderForUser({
+    hqUserId: trimmed,
+    provider: "discord",
+  });
+
+  if (oauthResult.ok) {
+    return { ok: true };
+  }
+
+  if (hadBotLink) {
+    return { ok: true };
+  }
+
+  if (oauthResult.code === "last_method") {
+    return { ok: false, reason: "last_sign_in_method" };
+  }
+
+  return { ok: false, reason: "not_linked" };
 }

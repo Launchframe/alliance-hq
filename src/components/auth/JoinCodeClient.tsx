@@ -18,6 +18,8 @@ type Props = {
   showHeader?: boolean;
   /** When true, omits outer card chrome (parent provides the shell). */
   embedded?: boolean;
+  /** When set, overrides API redirect after successful redeem. */
+  redirectToOverride?: string;
 };
 
 export function JoinCodeClient({
@@ -25,6 +27,7 @@ export function JoinCodeClient({
   showBackLink = true,
   showHeader = true,
   embedded = false,
+  redirectToOverride,
 }: Props) {
   const t = useTranslations("join");
   const router = useRouter();
@@ -54,7 +57,7 @@ export function JoinCodeClient({
         setError(body.error ?? t("redeemFailed"));
         return;
       }
-      router.push(body.redirectTo ?? "/dashboard");
+      router.push(redirectToOverride ?? body.redirectTo ?? "/dashboard");
     } catch (e) {
       setError(e instanceof Error ? e.message : t("redeemFailed"));
     } finally {

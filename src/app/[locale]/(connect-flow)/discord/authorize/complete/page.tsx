@@ -2,10 +2,21 @@ import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 
 import { DiscordHqLinkCompleteSuccess } from "@/components/discord/DiscordHqLinkCompleteSuccess";
+import { DiscordHqLinkExploreSuccess } from "@/components/discord/DiscordHqLinkExploreSuccess";
 import { auth } from "@/lib/auth";
 import { bridgeAuthUserToBrowserSession } from "@/lib/auth/bridge-session";
 import { completeDiscordBotHqLink } from "@/lib/auth/discord-hq-link.server";
+import { hqUserNeedsCommanderLink } from "@/lib/member-link/commander-link-gate.server";
 import { hqUserHasActiveAllianceMembership } from "@/lib/native-alliance/access";
+import {
+  DISCORD_POST_LINK_COMMANDER_DESTINATION,
+  resolveDiscordPostLinkOnboardingRedirect,
+} from "@/lib/navigation/safe-redirect.shared";
+import {
+  ensureCurrentAllianceForSession,
+  getOrCreateSession,
+  loadSession,
+} from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -70,6 +81,9 @@ export default async function DiscordAuthorizeCompletePage({
     displayName: userName,
   });
 
+  const browserSession = (await loadSession((await getOrCreateSession()).id))!;
+  await ensureCurrentAllianceForSession(browserSession);
+
   const hasAllianceMembership = await hqUserHasActiveAllianceMembership(hqUserId);
 
   if (!hasAllianceMembership) {
@@ -86,14 +100,21 @@ export default async function DiscordAuthorizeCompletePage({
     );
   }
 
+  if (await hqUserNeedsCommanderLink(hqUserId)) {
+    redirect(resolveDiscordPostLinkOnboardingRedirect());
+  }
+
   return (
     <main className="flex min-h-[60vh] items-center justify-center p-6">
-      <div className="w-full max-w-md rounded-xl border border-green-700 bg-green-950/40 p-6 text-center">
-        <p className="text-lg font-semibold text-green-300">{t("successHeading")}</p>
-        <p className="mt-2 whitespace-pre-line text-sm text-green-200">
-          {t("hqLinkSuccessBody")}
-        </p>
-      </div>
+      <DiscordHqLinkExploreSuccess
+        labels={{
+          successHeading: t("successHeading"),
+          successBody: t("hqLinkAllSetBody"),
+          exploreCta: t("hqLinkExploreCta"),
+          exploreDismiss: t("hqLinkExploreDismiss"),
+          exploreHref: DISCORD_POST_LINK_COMMANDER_DESTINATION,
+        }}
+      />
     </main>
   );
 }

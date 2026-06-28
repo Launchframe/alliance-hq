@@ -5,8 +5,10 @@ import {
   createAllianceJoinCodeRow,
   createAllianceMembership,
   createAuthenticatedHqSession,
+  createDiscordHqLink,
   createDiscordUserLinkNonce,
   createHqDiscordOAuthAccount,
+  createHqMemberLink,
   createNativeAlliance,
   createPlatformMaintainerSession,
   getE2eSql,
@@ -46,15 +48,9 @@ test.describe("Discord /link complete — inline join code", () => {
 
     await expect(page.getByText("Connected!")).toBeVisible();
     await expect(
-      page.getByText(/your discord account is linked to alliance hq/i),
-    ).toBeVisible();
-    await expect(
       page.getByText(/enter the join code shared by your alliance officers/i),
     ).toBeVisible();
     await expect(page.getByLabel(/join code/i)).toBeVisible();
-    await expect(page.getByRole("link", { name: /back to get started/i })).toHaveCount(
-      0,
-    );
 
     const link = await loadDiscordHqLink(sql, discordUserId);
     expect(link?.hqUserId).toBe(auth.hqUserId);
@@ -62,11 +58,14 @@ test.describe("Discord /link complete — inline join code", () => {
     await page.getByLabel(/join code/i).fill(code);
     await page.getByRole("button", { name: /join alliance/i }).click();
 
-    await expect(page).toHaveURL(/\/onboard/);
+    await expect(page).toHaveURL(/\/onboard\?.*source=discord/);
     await expect(page.getByText("Discord Link Join Alliance")).toBeVisible();
+    await expect(page.getByRole("button", { name: /explore alliance hq/i })).toHaveCount(
+      0,
+    );
   });
 
-  test("shows static success when user already has an alliance membership", async ({
+  test("redirects to commander onboarding when user has membership but no commander link", async ({
     page,
   }) => {
     const sql = getE2eSql();
@@ -95,8 +94,46 @@ test.describe("Discord /link complete — inline join code", () => {
     await page.context().addCookies(playwrightAuthCookies(auth));
     await page.goto(`/discord/authorize/complete?nonce=${encodeURIComponent(nonce)}`);
 
+    await expect(page).toHaveURL(/\/onboard\?.*source=discord/);
+    await expect(page.getByText("Discord Link Member Alliance")).toBeVisible();
+  });
+
+  test("shows explore success when membership and commander are already linked", async ({
+    page,
+  }) => {
+    const sql = getE2eSql();
+    const alliance = await createNativeAlliance(sql, {
+      tag: `DX${nanoid(3)}`,
+      name: "Discord Link Ready Alliance",
+    });
+
+    const discordUserId = `discord-${nanoid(10)}`;
+    const auth = await createAuthenticatedHqSession(
+      sql,
+      `discord-ready-${nanoid(6)}@e2e.test`,
+    );
+    await createAllianceMembership(sql, {
+      hqUserId: auth.hqUserId,
+      allianceId: alliance.allianceId,
+      roleName: "member",
+      source: "manual",
+    });
+    await createHqMemberLink(sql, {
+      allianceId: alliance.allianceId,
+      hqUserId: auth.hqUserId,
+      memberDisplayName: "E2E Ready Commander",
+    });
+    await createHqDiscordOAuthAccount(sql, {
+      hqUserId: auth.hqUserId,
+      discordUserId,
+    });
+    const nonce = await createDiscordUserLinkNonce(sql, { discordUserId });
+
+    await page.context().addCookies(playwrightAuthCookies(auth));
+    await page.goto(`/discord/authorize/complete?nonce=${encodeURIComponent(nonce)}`);
+
     await expect(page.getByText("Connected!")).toBeVisible();
-    await expect(page.getByText(/return to discord and run/i)).toBeVisible();
+    await expect(page.getByRole("link", { name: /explore alliance hq/i })).toBeVisible();
     await expect(page.getByLabel(/join code/i)).toHaveCount(0);
   });
 });
