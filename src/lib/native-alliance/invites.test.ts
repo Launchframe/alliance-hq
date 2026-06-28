@@ -5,7 +5,11 @@ import { resolveAllianceGameServerNumber } from "@/lib/game-season/game-servers.
 import { getLinkedMemberIds } from "@/lib/vr/repository";
 
 import { AllianceServerRequiredError } from "./alliance-server-gate.server";
-import { createHqInvite, type CommanderClaimInviteError } from "./invites";
+import {
+  createHqClaimInvitesBulk,
+  createHqInvite,
+  type CommanderClaimInviteError,
+} from "./invites";
 
 vi.mock("@/lib/game-season/game-servers.server", () => ({
   resolveAllianceGameServerNumber: vi.fn(),
@@ -179,5 +183,96 @@ describe("createHqInvite", () => {
     ).rejects.toMatchObject({
       code: "commander_not_found",
     } satisfies Partial<CommanderClaimInviteError>);
+  });
+});
+
+describe("createHqClaimInvitesBulk", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(resolveAllianceGameServerNumber).mockResolvedValue(123);
+    vi.mocked(getLinkedMemberIds).mockResolvedValue(new Set<string>());
+  });
+
+  // Each createHqInvite(member, claim target) issues 4 limit() selects in order:
+  // role, member role-permission, alliance, roster member. Claimability uses
+  // getLinkedMemberIds (mocked separately).
+  function claimInviteSelects(name: string): unknown[] {
+    return [
+      [{ id: "role-member" }],
+      [{ permissionId: "members:read" }],
+      [{ id: "alliance-1" }],
+      [{ currentName: name, status: "active" }],
+    ];
+  }
+
+  function mockDbWithQueue(selectQueue: unknown[]): { insertCalls: () => number } {
+    let inserts = 0;
+    vi.mocked(getDb).mockReturnValue({
+      select: vi.fn(() => ({
+        from: () => ({
+          where: () => ({
+            limit: () => Promise.resolve(selectQueue.shift() ?? []),
+          }),
+        }),
+      })),
+      insert: vi.fn(() => {
+        inserts += 1;
+        return {
+          values: vi.fn().mockResolvedValue(undefined),
+          onConflictDoNothing: vi.fn().mockResolvedValue(undefined),
+        };
+      }),
+    } as never);
+    return { insertCalls: () => inserts };
+  }
+
+  it("creates invites, de-duplicates ids, and skips already-linked commanders", async () => {
+    const selectQueue = [
+      ...claimInviteSelects("Commander One"),
+      ...claimInviteSelects("Commander Two"),
+      ...claimInviteSelects("Commander Three"),
+    ];
+    const { insertCalls } = mockDbWithQueue(selectQueue);
+    vi.mocked(getLinkedMemberIds)
+      .mockResolvedValueOnce(new Set<string>())
+      .mockResolvedValueOnce(new Set<string>(["m2"]))
+      .mockResolvedValueOnce(new Set<string>());
+
+    const result = await createHqClaimInvitesBulk({
+      allianceId: "alliance-1",
+      targetAshedMemberIds: ["m1", "m1", "m2", "m3"],
+      invitedByHqUserId: "user-1",
+      origin: "https://hq.test",
+    });
+
+    expect(result.created).toHaveLength(2);
+    expect(result.created.map((c) => c.targetAshedMemberId)).toEqual(["m1", "m3"]);
+    expect(result.created.map((c) => c.targetCommanderName)).toEqual([
+      "Commander One",
+      "Commander Three",
+    ]);
+    expect(result.skipped).toEqual([
+      { ashedMemberId: "m2", code: "commander_already_claimed" },
+    ]);
+    // Inserts only for the two successful invites.
+    expect(insertCalls()).toBe(2);
+  });
+
+  it("bubbles non-claim errors (e.g. alliance server gate)", async () => {
+    vi.mocked(resolveAllianceGameServerNumber).mockResolvedValue(null);
+    mockDbWithQueue([
+      [{ id: "role-member" }],
+      [{ permissionId: "members:read" }],
+      [{ id: "alliance-1" }],
+    ]);
+
+    await expect(
+      createHqClaimInvitesBulk({
+        allianceId: "alliance-1",
+        targetAshedMemberIds: ["m1"],
+        invitedByHqUserId: "user-1",
+        origin: "https://hq.test",
+      }),
+    ).rejects.toBeInstanceOf(AllianceServerRequiredError);
   });
 });
