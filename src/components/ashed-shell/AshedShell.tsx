@@ -23,6 +23,7 @@ import { ConnectAshedBanner } from "@/components/onboarding/ConnectAshedBanner";
 import { FeedbackProvider } from "@/components/feedback";
 import { SidebarNav } from "@/components/ashed-shell/SidebarNav";
 import { ShellProfileMenu } from "@/components/ashed-shell/ShellProfileMenu";
+import { DevQuickSwitch } from "@/components/dev/DevQuickSwitch";
 import { findActiveNavGroupId } from "@/lib/nav/routes";
 import { TokenExpiryBanner } from "@/components/TokenExpiryNotice";
 import { ReleaseNoticeBanner } from "@/components/release-notes/ReleaseNoticeBanner";
@@ -54,6 +55,8 @@ type Props = {
   currentAllianceId?: string | null;
   membershipAlliances?: SessionAllianceOption[];
   sessionPermissions?: readonly string[];
+  /** Dev/preview-only: render the test-matrix quick-switch panel. */
+  devQuickSwitch?: boolean;
   children: React.ReactNode;
 };
 
@@ -83,6 +86,7 @@ export function AshedShell({
   currentAllianceId = null,
   membershipAlliances = [],
   sessionPermissions = [],
+  devQuickSwitch = false,
   children,
 }: Props) {
   const pathname = usePathname();
@@ -272,6 +276,7 @@ export function AshedShell({
           />
           <AdminSequenceOverlay />
           </HotkeyProvider>
+          {devQuickSwitch ? <DevQuickSwitch /> : null}
         </FeedbackProvider>
       </ReleaseNotesProvider>
     </VideoJobEventsProvider>
