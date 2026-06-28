@@ -96,6 +96,32 @@ test.describe("Alliance switcher — session context reset", () => {
     });
   });
 
+  test("platform maintainer stays in non-member alliance on page reload (bootstrap fast-path)", async ({
+    page,
+  }) => {
+    const sql = getE2eSql();
+    const alliance = await createNativeAlliance(sql, {
+      tag: `SBP${nanoid(3)}`,
+      name: "Maintainer Bootstrap Persist",
+    });
+    const session = await createPlatformMaintainerSession(sql);
+
+    // Simulate a prior switch: session already has currentAllianceId + allianceTag set
+    // (no membership row — maintainers can hold any alliance)
+    await sql`
+      UPDATE sessions
+      SET current_alliance_id = ${alliance.allianceId}, alliance_tag = ${alliance.tag}
+      WHERE id = ${session.sessionId}
+    `;
+
+    await page.context().addCookies(playwrightAuthCookies(session));
+
+    await page.goto("/members");
+    // ensureCurrentAllianceForSession fast-path must not evict the maintainer from
+    // the non-member alliance (isPlatformMaintainer + allianceExists + tag set → early return)
+    await expect(page).toHaveURL(/\/members/);
+  });
+
   test("sidebar picker is visible for multi-alliance members", async ({
     page,
   }) => {
