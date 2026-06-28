@@ -96,6 +96,14 @@ export function TeamInvitePanel({
   const [lastClaimUrl, setLastClaimUrl] = useState<string | null>(null);
   const [lastClaimPassphrase, setLastClaimPassphrase] = useState<string | null>(null);
 
+  const [bulkClaimMode, setBulkClaimMode] = useState(false);
+  const [bulkSelectedIds, setBulkSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkClaimAdminLabel, setBulkClaimAdminLabel] = useState("");
+  const [bulkClaimFeedback, setBulkClaimFeedback] = useState<ActionFeedback>(null);
+  const [bulkClaimResults, setBulkClaimResults] = useState<
+    Array<{ ashedMemberId: string; name: string; inviteUrl: string; passphrase: string | null }>
+  >([]);
+
   useEffect(() => {
     void fetch("/api/settings/team/claimable-commanders")
       .then((res) => (res.ok ? res.json() : null))
@@ -284,6 +292,106 @@ export function TeamInvitePanel({
       setClaimAdminLabel("");
     } catch (error) {
       setClaimFeedback({
+        kind: "error",
+        text: error instanceof Error ? error.message : t("claimFailed"),
+      });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function toggleBulkSelected(ashedMemberId: string) {
+    setBulkSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(ashedMemberId)) {
+        next.delete(ashedMemberId);
+      } else {
+        next.add(ashedMemberId);
+      }
+      return next;
+    });
+  }
+
+  function toggleBulkSelectAll() {
+    setBulkSelectedIds((prev) =>
+      prev.size === claimableCommanders.length
+        ? new Set()
+        : new Set(claimableCommanders.map((c) => c.ashedMemberId)),
+    );
+  }
+
+  async function sendBulkClaimInvites() {
+    if (bulkSelectedIds.size === 0 || gameServerNumber == null) return;
+
+    setBusy(true);
+    setBulkClaimFeedback(null);
+    setBulkClaimResults([]);
+
+    const selectedSnapshot = claimableCommanders.filter((c) =>
+      bulkSelectedIds.has(c.ashedMemberId),
+    );
+
+    try {
+      const res = await fetch("/api/settings/team/invites/bulk-claim", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          targetAshedMemberIds: Array.from(bulkSelectedIds),
+          adminLabel: bulkClaimAdminLabel.trim() || undefined,
+        }),
+      });
+      const body = (await res.json()) as {
+        error?: string;
+        created?: Array<{
+          targetAshedMemberId?: string | null;
+          targetCommanderName?: string | null;
+          inviteUrl: string;
+          passphrase?: string | null;
+        }>;
+        skipped?: Array<{ ashedMemberId: string; code: string }>;
+      };
+
+      if (!res.ok) {
+        setBulkClaimFeedback({ kind: "error", text: body.error ?? t("claimFailed") });
+        return;
+      }
+
+      const created = body.created ?? [];
+      const skipped = body.skipped ?? [];
+
+      const results = created.map((c) => {
+        const ashedMemberId = c.targetAshedMemberId ?? "";
+        return {
+          ashedMemberId,
+          name:
+            c.targetCommanderName ??
+            selectedSnapshot.find((s) => s.ashedMemberId === ashedMemberId)?.name ??
+            "",
+          inviteUrl: c.inviteUrl,
+          passphrase: c.passphrase ?? null,
+        };
+      });
+
+      setBulkClaimResults(results);
+      setBulkClaimFeedback({
+        kind: "success",
+        text: t("bulkClaimSummary", {
+          created: results.length,
+          skipped: skipped.length,
+        }),
+      });
+
+      const handledIds = new Set<string>([
+        ...created.map((c) => c.targetAshedMemberId ?? ""),
+        ...skipped.map((s) => s.ashedMemberId),
+      ]);
+      setClaimableCommanders((prev) =>
+        prev.filter((c) => !handledIds.has(c.ashedMemberId)),
+      );
+      setBulkSelectedIds(new Set());
+      setBulkClaimAdminLabel("");
+    } catch (error) {
+      setBulkClaimFeedback({
         kind: "error",
         text: error instanceof Error ? error.message : t("claimFailed"),
       });
@@ -502,67 +610,195 @@ export function TeamInvitePanel({
         {claimableCommanders.length === 0 ? (
           <p className="mt-3 text-sm text-[#6e7681]">{t("claimEmpty")}</p>
         ) : (
-          <form
-            className="mt-3"
-            onSubmit={(event) => {
-              preventDefaultFormSubmit(event);
-              void sendClaimInvite();
-            }}
-          >
-            <div className="grid gap-3 sm:grid-cols-2">
-              <label className="space-y-1 text-sm">
-                <span className="text-[#8b949e]">{t("claimCommanderLabel")}</span>
-                <select
-                  value={claimCommanderSelected}
-                  onChange={(e) => setClaimCommanderSelected(e.target.value)}
-                  className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
-                >
-                  <option value="">{t("claimCommanderPlaceholder")}</option>
-                  {claimableCommanders.map((commander) => (
-                    <option key={commander.ashedMemberId} value={commander.ashedMemberId}>
-                      {commander.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="space-y-1 text-sm">
-                <span className="text-[#8b949e]">{t("inviteAdminLabel")}</span>
-                <input
-                  type="text"
-                  value={claimAdminLabel}
-                  onChange={(e) => setClaimAdminLabel(e.target.value)}
-                  placeholder={t("inviteAdminLabelPlaceholder")}
-                  className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
-                />
-              </label>
-            </div>
-            <button
-              type="submit"
-              disabled={busy || !claimCommanderSelected || gameServerNumber == null}
-              className="mt-3 rounded-lg border border-[#388bfd] bg-[#388bfd]/10 px-4 py-2 text-sm text-[#58a6ff] disabled:opacity-50"
+          <>
+            <div
+              className="mt-3 inline-flex rounded-lg border border-[#30363d] p-0.5 text-sm"
+              role="group"
             >
-              {t("claimButton")}
-            </button>
-          </form>
+              <button
+                type="button"
+                onClick={() => setBulkClaimMode(false)}
+                aria-pressed={!bulkClaimMode}
+                className={
+                  bulkClaimMode
+                    ? "rounded-md px-3 py-1 text-[#8b949e]"
+                    : "rounded-md bg-[#388bfd]/15 px-3 py-1 text-[#58a6ff]"
+                }
+              >
+                {t("claimModeSingle")}
+              </button>
+              <button
+                type="button"
+                onClick={() => setBulkClaimMode(true)}
+                aria-pressed={bulkClaimMode}
+                className={
+                  bulkClaimMode
+                    ? "rounded-md bg-[#388bfd]/15 px-3 py-1 text-[#58a6ff]"
+                    : "rounded-md px-3 py-1 text-[#8b949e]"
+                }
+              >
+                {t("claimModeBulk")}
+              </button>
+            </div>
+
+            {bulkClaimMode ? (
+              <form
+                className="mt-3"
+                onSubmit={(event) => {
+                  preventDefaultFormSubmit(event);
+                  void sendBulkClaimInvites();
+                }}
+              >
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-[#8b949e]">
+                    {t("bulkClaimSelectedCount", { count: bulkSelectedIds.size })}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={toggleBulkSelectAll}
+                    className="text-[#58a6ff] hover:underline"
+                  >
+                    {bulkSelectedIds.size === claimableCommanders.length
+                      ? t("bulkClaimClearAll")
+                      : t("bulkClaimSelectAll")}
+                  </button>
+                </div>
+                <ul className="mt-2 max-h-64 space-y-1 overflow-y-auto rounded-lg border border-[#30363d] p-2">
+                  {claimableCommanders.map((commander) => (
+                    <li key={commander.ashedMemberId}>
+                      <label className="flex items-center gap-2 rounded-md px-2 py-1 text-sm hover:bg-[#161b22]">
+                        <input
+                          type="checkbox"
+                          checked={bulkSelectedIds.has(commander.ashedMemberId)}
+                          onChange={() => toggleBulkSelected(commander.ashedMemberId)}
+                        />
+                        <span className="min-w-0 break-all">{commander.name}</span>
+                      </label>
+                    </li>
+                  ))}
+                </ul>
+                <label className="mt-3 block space-y-1 text-sm">
+                  <span className="text-[#8b949e]">{t("inviteAdminLabel")}</span>
+                  <input
+                    type="text"
+                    value={bulkClaimAdminLabel}
+                    onChange={(e) => setBulkClaimAdminLabel(e.target.value)}
+                    placeholder={t("inviteAdminLabelPlaceholder")}
+                    className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
+                  />
+                </label>
+                <button
+                  type="submit"
+                  disabled={
+                    busy || bulkSelectedIds.size === 0 || gameServerNumber == null
+                  }
+                  className="mt-3 w-full rounded-lg border border-[#388bfd] bg-[#388bfd]/10 px-4 py-2 text-sm text-[#58a6ff] disabled:opacity-50 sm:w-auto"
+                >
+                  {t("bulkClaimButton", { count: bulkSelectedIds.size })}
+                </button>
+                <ActionFeedbackBanner feedback={bulkClaimFeedback} />
+                {bulkClaimResults.length > 0 ? (
+                  <div className="mt-3 space-y-3">
+                    <p className="text-sm font-semibold">{t("bulkClaimResultsTitle")}</p>
+                    {bulkClaimResults.map((result) => (
+                      <div
+                        key={result.ashedMemberId}
+                        className="rounded-lg border border-[#30363d] p-3"
+                      >
+                        <p className="text-sm font-medium">{result.name}</p>
+                        <CopyToClipboardField
+                          className="mt-2"
+                          label={t("claimLinkLabel")}
+                          value={result.inviteUrl}
+                        />
+                        {result.passphrase ? (
+                          <CopyToClipboardField
+                            className="mt-2"
+                            label={t("invitePassphraseLabel")}
+                            value={result.passphrase}
+                          />
+                        ) : null}
+                      </div>
+                    ))}
+                    <p className="text-xs text-[#6e7681]">
+                      {t("invitePassphraseHint")}
+                    </p>
+                  </div>
+                ) : null}
+              </form>
+            ) : (
+              <>
+                <form
+                  className="mt-3"
+                  onSubmit={(event) => {
+                    preventDefaultFormSubmit(event);
+                    void sendClaimInvite();
+                  }}
+                >
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <label className="space-y-1 text-sm">
+                      <span className="text-[#8b949e]">{t("claimCommanderLabel")}</span>
+                      <select
+                        value={claimCommanderSelected}
+                        onChange={(e) => setClaimCommanderSelected(e.target.value)}
+                        className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
+                      >
+                        <option value="">{t("claimCommanderPlaceholder")}</option>
+                        {claimableCommanders.map((commander) => (
+                          <option
+                            key={commander.ashedMemberId}
+                            value={commander.ashedMemberId}
+                          >
+                            {commander.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="space-y-1 text-sm">
+                      <span className="text-[#8b949e]">{t("inviteAdminLabel")}</span>
+                      <input
+                        type="text"
+                        value={claimAdminLabel}
+                        onChange={(e) => setClaimAdminLabel(e.target.value)}
+                        placeholder={t("inviteAdminLabelPlaceholder")}
+                        className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
+                      />
+                    </label>
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={
+                      busy || !claimCommanderSelected || gameServerNumber == null
+                    }
+                    className="mt-3 rounded-lg border border-[#388bfd] bg-[#388bfd]/10 px-4 py-2 text-sm text-[#58a6ff] disabled:opacity-50"
+                  >
+                    {t("claimButton")}
+                  </button>
+                </form>
+                <ActionFeedbackBanner feedback={claimFeedback} />
+                {lastClaimUrl ? (
+                  <CopyToClipboardField
+                    className="mt-3"
+                    label={t("claimLinkLabel")}
+                    value={lastClaimUrl}
+                  />
+                ) : null}
+                {lastClaimPassphrase ? (
+                  <CopyToClipboardField
+                    className="mt-3"
+                    label={t("invitePassphraseLabel")}
+                    value={lastClaimPassphrase}
+                  />
+                ) : null}
+                {lastClaimPassphrase ? (
+                  <p className="mt-1 text-xs text-[#6e7681]">
+                    {t("invitePassphraseHint")}
+                  </p>
+                ) : null}
+              </>
+            )}
+          </>
         )}
-        <ActionFeedbackBanner feedback={claimFeedback} />
-        {lastClaimUrl ? (
-          <CopyToClipboardField
-            className="mt-3"
-            label={t("claimLinkLabel")}
-            value={lastClaimUrl}
-          />
-        ) : null}
-        {lastClaimPassphrase ? (
-          <CopyToClipboardField
-            className="mt-3"
-            label={t("invitePassphraseLabel")}
-            value={lastClaimPassphrase}
-          />
-        ) : null}
-        {lastClaimPassphrase ? (
-          <p className="mt-1 text-xs text-[#6e7681]">{t("invitePassphraseHint")}</p>
-        ) : null}
       </div>
     </div>
   );

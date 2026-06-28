@@ -902,7 +902,15 @@
       "claimAlreadyClaimed": "Esse comandante acabou de ser vinculado por outra pessoa.",
       "claimFailed": "Não foi possível criar o link de reivindicação.",
       "claimRowAction": "Link de reivindicação",
-      "claimRowHint": "Este comandante ainda não vinculou a conta HQ."
+      "claimRowHint": "Este comandante ainda não vinculou a conta HQ.",
+      "claimModeSingle": "Um comandante",
+      "claimModeBulk": "Vários",
+      "bulkClaimSelectAll": "Selecionar todos",
+      "bulkClaimClearAll": "Limpar tudo",
+      "bulkClaimSelectedCount": "{count} selecionados",
+      "bulkClaimButton": "Gerar {count} links de reivindicação",
+      "bulkClaimResultsTitle": "Links de reivindicação",
+      "bulkClaimSummary": "{created} links de reivindicação gerados. {skipped} comandantes já vinculados foram ignorados."
     },
     "table": {
       "user": "Usuário",

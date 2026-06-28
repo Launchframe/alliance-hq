@@ -305,6 +305,70 @@ export async function createHqInvite(
   };
 }
 
+export type BulkClaimInviteSkip = {
+  ashedMemberId: string;
+  code: CommanderClaimInviteErrorCode;
+};
+
+export type CreateHqClaimInvitesBulkResult = {
+  created: CreateHqInviteResult[];
+  skipped: BulkClaimInviteSkip[];
+};
+
+/**
+ * Generate commander claim invites for several roster commanders in one pass.
+ * Each invite is an independent protected-link "member" claim invite (same as
+ * the single-claim flow). Commanders that are not on the roster or already
+ * linked are skipped (collected in `skipped`) rather than aborting the batch;
+ * non-claim errors (alliance gate, schema, db) bubble up to the caller.
+ *
+ * Duplicate ids in the input are de-duplicated. Never returns or logs the
+ * player UID — `ashedMemberId` is the internal roster id (see
+ * player-uid-privacy.mdc).
+ */
+export async function createHqClaimInvitesBulk(input: {
+  allianceId: string;
+  targetAshedMemberIds: string[];
+  invitedByHqUserId?: string | null;
+  origin: string;
+  redirectPath?: string | null;
+  adminLabel?: string | null;
+}): Promise<CreateHqClaimInvitesBulkResult> {
+  const created: CreateHqInviteResult[] = [];
+  const skipped: BulkClaimInviteSkip[] = [];
+  const seen = new Set<string>();
+
+  for (const rawId of input.targetAshedMemberIds) {
+    const ashedMemberId = rawId.trim();
+    if (!ashedMemberId || seen.has(ashedMemberId)) {
+      continue;
+    }
+    seen.add(ashedMemberId);
+
+    try {
+      const invite = await createHqInvite({
+        allianceId: input.allianceId,
+        kind: "protected_link",
+        roleName: "member",
+        invitedByHqUserId: input.invitedByHqUserId,
+        origin: input.origin,
+        redirectPath: input.redirectPath,
+        adminLabel: input.adminLabel,
+        targetAshedMemberId: ashedMemberId,
+      });
+      created.push(invite);
+    } catch (error) {
+      if (error instanceof CommanderClaimInviteError) {
+        skipped.push({ ashedMemberId, code: error.code });
+        continue;
+      }
+      throw error;
+    }
+  }
+
+  return { created, skipped };
+}
+
 export type HqInvitePreview = {
   allianceName: string;
   allianceTag: string | null;

@@ -902,7 +902,15 @@
       "claimAlreadyClaimed": "That commander was just linked by someone else.",
       "claimFailed": "Could not create the claim link.",
       "claimRowAction": "Claim link",
-      "claimRowHint": "This commander hasn't linked their HQ account yet."
+      "claimRowHint": "This commander hasn't linked their HQ account yet.",
+      "claimModeSingle": "One commander",
+      "claimModeBulk": "Multiple",
+      "bulkClaimSelectAll": "Select all",
+      "bulkClaimClearAll": "Clear all",
+      "bulkClaimSelectedCount": "{count} selected",
+      "bulkClaimButton": "Generate {count} claim links",
+      "bulkClaimResultsTitle": "Claim links",
+      "bulkClaimSummary": "Generated {created} claim links. Skipped {skipped} already-linked commanders."
     },
     "table": {
       "user": "User",
