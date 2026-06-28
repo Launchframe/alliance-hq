@@ -12,6 +12,8 @@ import { Link } from "@/i18n/navigation";
 import { allianceSettingsPath } from "@/lib/alliance/alliance-settings-path.shared";
 import type { SystemRoleName } from "@/lib/rbac/constants";
 
+const MAX_BULK_CLAIM_INVITES = 50;
+
 function isValidInviteEmail(value: string): boolean {
   const trimmed = value.trim();
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed);
@@ -305,7 +307,7 @@ export function TeamInvitePanel({
       const next = new Set(prev);
       if (next.has(ashedMemberId)) {
         next.delete(ashedMemberId);
-      } else {
+      } else if (next.size < MAX_BULK_CLAIM_INVITES) {
         next.add(ashedMemberId);
       }
       return next;
@@ -316,7 +318,11 @@ export function TeamInvitePanel({
     setBulkSelectedIds((prev) =>
       prev.size === claimableCommanders.length
         ? new Set()
-        : new Set(claimableCommanders.map((c) => c.ashedMemberId)),
+        : new Set(
+            claimableCommanders
+              .slice(0, MAX_BULK_CLAIM_INVITES)
+              .map((c) => c.ashedMemberId),
+          ),
     );
   }
 
@@ -663,13 +669,17 @@ export function TeamInvitePanel({
                       : t("bulkClaimSelectAll")}
                   </button>
                 </div>
-                <ul className="mt-2 max-h-64 space-y-1 overflow-y-auto rounded-lg border border-[#30363d] p-2">
+                <ul className="mt-2 max-h-64 min-w-0 space-y-1 overflow-y-auto rounded-lg border border-[#30363d] p-2">
                   {claimableCommanders.map((commander) => (
                     <li key={commander.ashedMemberId}>
                       <label className="flex items-center gap-2 rounded-md px-2 py-1 text-sm hover:bg-[#161b22]">
                         <input
                           type="checkbox"
                           checked={bulkSelectedIds.has(commander.ashedMemberId)}
+                          disabled={
+                            !bulkSelectedIds.has(commander.ashedMemberId) &&
+                            bulkSelectedIds.size >= MAX_BULK_CLAIM_INVITES
+                          }
                           onChange={() => toggleBulkSelected(commander.ashedMemberId)}
                         />
                         <span className="min-w-0 break-all">{commander.name}</span>
@@ -698,7 +708,7 @@ export function TeamInvitePanel({
                 </button>
                 <ActionFeedbackBanner feedback={bulkClaimFeedback} />
                 {bulkClaimResults.length > 0 ? (
-                  <div className="mt-3 space-y-3">
+                  <div className="mt-3 min-w-0 space-y-3">
                     <p className="text-sm font-semibold">{t("bulkClaimResultsTitle")}</p>
                     {bulkClaimResults.map((result) => (
                       <div
