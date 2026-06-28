@@ -61,6 +61,8 @@ Officers may **enqueue** uploads (`hq:video:enqueue`) without an Ashed connectio
 
 **Nonprod OCR (`VIDEO_OCR_PROVIDER=local|mock`, dev/e2e only unless `VIDEO_OCR_ALLOW_NONPROD=true`):** approve does **not** require Ashed. `mock` uses fixtures for score targets (and roster in mock mode); `local` runs native Tesseract on roster video targets.
 
+**Alliance override (Video queue → OCR processing):** owners/maintainers/platform maintainers can enable **Use in-house OCR only** per alliance (`alliances.video_hq_ocr_only`). Same effect as env `local` for that alliance's jobs — approve and processing skip Ashed regardless of global `VIDEO_OCR_PROVIDER`.
+
 Owners assign processor slots under **Settings → Team access** or **Video → Video processors** (`/tools/video-processors`). All alliance members can view the roster; only owners/maintainers manage slots. Jobs stay `pending_approval` until a processor approves them; with default Ashed OCR, approving without Ashed returns **409** `ashed_not_connected` (recoverable — job remains pending).
 
 **Candidate pool (settings selector):**

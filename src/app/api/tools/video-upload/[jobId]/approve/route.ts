@@ -6,8 +6,12 @@ import { emitVideoJobStatus } from "@/lib/events/video-jobs";
 import { getDb, schema } from "@/lib/db";
 import { assignRosterOcrExperiment } from "@/lib/members/roster-ocr/assign-roster-config";
 import { getAshedConnection, getOrCreateSession } from "@/lib/session";
+import { loadAllianceHqOcrOnly } from "@/lib/video/alliance-ocr-settings.server";
 import { sessionCanProcessVideo } from "@/lib/video/processor-slots.server";
-import { resolveVideoOcrEngineForJob, engineRequiresAshed } from "@/lib/video/ocr-provider.shared";
+import {
+  resolveVideoOcrEngineForJob,
+  engineRequiresAshed,
+} from "@/lib/video/ocr-provider.shared";
 import { dispatchVideoProcessing } from "@/lib/video/trigger-processing";
 import { isMemberRosterVideoTarget } from "@/lib/video/score-targets";
 
@@ -58,9 +62,15 @@ export async function POST(_request: Request, { params }: Props) {
     }
 
     const scoreTargetId = job.scoreTarget ?? job.category ?? "desert-storm";
+    const allianceId = job.allianceId ?? session.currentAllianceId;
+    const hqOcrOnly = allianceId
+      ? await loadAllianceHqOcrOnly(allianceId)
+      : false;
+    const ocrContext = { allianceHqOcrOnly: hqOcrOnly };
     const ocrEngine = resolveVideoOcrEngineForJob(
       scoreTargetId,
       isMemberRosterVideoTarget(scoreTargetId),
+      ocrContext,
     );
 
     if (engineRequiresAshed(ocrEngine)) {
@@ -70,7 +80,7 @@ export async function POST(_request: Request, { params }: Props) {
           {
             error: "Connect Ashed to process videos.",
             code: "ashed_not_connected",
-            connectUrl: "/connect",
+            connectUrl: `/connect?next=${encodeURIComponent("/tools/video-upload/queue")}`,
           },
           { status: 409 },
         );

@@ -3,6 +3,7 @@ import { and, desc, eq, inArray, isNull, or } from "drizzle-orm";
 
 import { getDb, schema } from "@/lib/db";
 import { getAshedConnection, getOrCreateSession } from "@/lib/session";
+import { loadAllianceHqOcrOnly } from "@/lib/video/alliance-ocr-settings.server";
 import { videoOcrRequiresAshedConnection } from "@/lib/video/ocr-provider.shared";
 import { ACTIVE_QUEUE_VIDEO_JOB_STATUSES } from "@/lib/video/video-lifecycle.shared";
 import {
@@ -34,20 +35,24 @@ export async function GET() {
     }
 
     const allianceId = session.currentAllianceId;
-    const [jobs, canProcess, connection] = await Promise.all([
+    const [jobs, canProcess, connection, hqOcrOnly] = await Promise.all([
       allianceId
         ? listAllianceActiveVideoJobs(allianceId)
         : Promise.resolve([]),
       sessionCanProcessVideo(session.id),
       getAshedConnection(session.id),
+      allianceId ? loadAllianceHqOcrOnly(allianceId) : Promise.resolve(false),
     ]);
+
+    const ocrContext = { allianceHqOcrOnly: hqOcrOnly };
 
     return NextResponse.json({
       jobs,
       canProcess,
       ashedConnected: Boolean(connection),
-      ashedRequired: videoOcrRequiresAshedConnection(),
-      connectUrl: "/connect",
+      ashedRequired: videoOcrRequiresAshedConnection(ocrContext),
+      hqOcrOnly,
+      connectUrl: `/connect?next=${encodeURIComponent("/tools/video-upload/queue")}`,
     });
   } catch (error) {
     return NextResponse.json(

@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   engineRequiresAshed,
+  resolveEffectiveVideoOcrProvider,
   resolveVideoJobAshedConnection,
   resolveVideoOcrProvider,
   shouldEnqueueAshedOcrShadowPasses,
@@ -84,7 +85,30 @@ describe("resolveVideoJobAshedConnection", () => {
   });
 });
 
+describe("resolveEffectiveVideoOcrProvider", () => {
+  it("forces local when alliance HQ OCR only is enabled", () => {
+    vi.stubEnv("VIDEO_OCR_PROVIDER", "");
+    expect(
+      resolveEffectiveVideoOcrProvider({ allianceHqOcrOnly: true }),
+    ).toBe("local");
+  });
+
+  it("uses env default when alliance override is off", () => {
+    vi.stubEnv("VIDEO_OCR_PROVIDER", "");
+    expect(resolveEffectiveVideoOcrProvider({ allianceHqOcrOnly: false })).toBe(
+      "ashed",
+    );
+  });
+});
+
 describe("videoOcrRequiresAshedConnection", () => {
+  it("does not require Ashed when alliance HQ OCR only is enabled", () => {
+    vi.stubEnv("VIDEO_OCR_PROVIDER", "");
+    expect(
+      videoOcrRequiresAshedConnection({ allianceHqOcrOnly: true }),
+    ).toBe(false);
+  });
+
   it("requires Ashed for the default (ashed) provider", () => {
     vi.stubEnv("VIDEO_OCR_PROVIDER", "");
     expect(videoOcrRequiresAshedConnection()).toBe(true);
