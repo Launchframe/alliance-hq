@@ -15,6 +15,7 @@ import {
   encodeNextAuthSessionToken,
   playwrightAuthCookies,
 } from "./auth";
+import { assertE2eDatabaseUrl } from "../../scripts/e2e-database-url-guard.mjs";
 
 export { playwrightAuthCookies, authCookieHeader };
 
@@ -31,6 +32,7 @@ export function getE2eSql(): Sql {
   if (!url) {
     throw new Error("E2E database URL is not configured.");
   }
+  assertE2eDatabaseUrl(url);
   if (e2eSqlSingleton) {
     return e2eSqlSingleton;
   }

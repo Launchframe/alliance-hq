@@ -9,6 +9,7 @@ import {
   backupEnvFile,
   restoreEnvFile,
 } from "./e2e-env-file.mjs";
+import { assertE2eDatabaseUrl } from "./e2e-database-url-guard.mjs";
 
 loadEnv({ path: ".env" });
 loadEnv({ path: ".env.local" });
@@ -27,6 +28,7 @@ function requireDatabaseUrl() {
       "Set E2E_DATABASE_URL (recommended) or LOCAL_DATABASE_URL in .env / .env.local before running Playwright.",
     );
   }
+  assertE2eDatabaseUrl(dbUrl);
   return dbUrl;
 }
 
