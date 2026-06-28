@@ -19,7 +19,10 @@ import {
   toMemberLinkApiResponse,
   type MemberLinkApiResponse,
 } from "@/lib/member-link/outcome.shared";
-import { getMemberLinkClaimTarget } from "@/lib/member-link/claim.server";
+import {
+  blockSelfServiceWhenClaimPending,
+  getMemberLinkClaimTarget,
+} from "@/lib/member-link/claim.server";
 import {
   tryBootstrapOwnerColdStartMember,
   tryRouteRosterMissToOwnerApproval,
@@ -250,6 +253,15 @@ export async function runWebMemberLinkSubmit(input: {
   ownerProvidedServerNumber?: number;
   ownerLookupFallback?: boolean;
 }): Promise<MemberLinkApiResponse> {
+  const claimBlock = await blockSelfServiceWhenClaimPending({
+    allianceId: input.allianceId,
+    hqUserId: input.hqUserId,
+    locale: input.locale,
+  });
+  if (claimBlock) {
+    return claimBlock;
+  }
+
   const ctx: FlowContext = {
     sessionId: input.sessionId,
     allianceId: input.allianceId,
@@ -464,6 +476,15 @@ export async function runWebMemberLinkWalkthroughDone(input: {
   userEmail?: string | null;
   displayName?: string | null;
 }): Promise<MemberLinkApiResponse> {
+  const claimBlock = await blockSelfServiceWhenClaimPending({
+    allianceId: input.allianceId,
+    hqUserId: input.hqUserId,
+    locale: input.locale,
+  });
+  if (claimBlock) {
+    return claimBlock;
+  }
+
   const ctx = createFlowContext({
     sessionId: input.sessionId,
     allianceId: input.allianceId,
@@ -520,6 +541,15 @@ export async function runWebMemberLinkStartOver(input: {
   hqUserId: string;
   locale: string;
 }): Promise<MemberLinkApiResponse> {
+  const claimBlock = await blockSelfServiceWhenClaimPending({
+    allianceId: input.allianceId,
+    hqUserId: input.hqUserId,
+    locale: input.locale,
+  });
+  if (claimBlock) {
+    return claimBlock;
+  }
+
   const { translate, walkthroughSteps } = translateContext(input.locale);
   const pending: LinkPendingState = { kind: "link_walkthrough", step: 0 };
   const result: LinkCommandResult = {
@@ -539,6 +569,15 @@ export async function runWebMemberLinkFuzzyPick(input: {
   displayName?: string | null;
   memberId: string;
 }): Promise<MemberLinkApiResponse> {
+  const claimBlock = await blockSelfServiceWhenClaimPending({
+    allianceId: input.allianceId,
+    hqUserId: input.hqUserId,
+    locale: input.locale,
+  });
+  if (claimBlock) {
+    return claimBlock;
+  }
+
   const ctx = createFlowContext({
     sessionId: input.sessionId,
     allianceId: input.allianceId,

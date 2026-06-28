@@ -209,6 +209,169 @@ test.describe("Commander profile and admin commanders", () => {
     expect(res.status()).toBe(404);
   });
 
+  test("alliance owner break-glass unlinks another member's HQ account", async ({
+    page,
+    request,
+  }) => {
+    const sql = getE2eSql();
+    const alliance = await createNativeAlliance(sql, {
+      tag: `BG${nanoid(3)}`,
+      name: "Break Glass Alliance",
+    });
+    const victimMemberId = `victim-${nanoid(8)}`;
+    await insertAllianceMember(sql, {
+      allianceId: alliance.allianceId,
+      ashedMemberId: victimMemberId,
+      currentName: "E2E Victim Commander",
+      gameUid: "12345678901203",
+    });
+
+    const victimSession = await createAuthenticatedHqSession(
+      sql,
+      uniqueEmail("victim"),
+    );
+    await createAllianceMembership(sql, {
+      hqUserId: victimSession.hqUserId,
+      allianceId: alliance.allianceId,
+      roleName: "member",
+      source: "manual",
+    });
+    await createHqMemberLink(sql, {
+      allianceId: alliance.allianceId,
+      hqUserId: victimSession.hqUserId,
+      ashedMemberId: victimMemberId,
+      gameUid: "12345678901203",
+      memberDisplayName: "E2E Victim Commander",
+    });
+
+    const ownerMemberId = `owner-${nanoid(8)}`;
+    await insertAllianceMember(sql, {
+      allianceId: alliance.allianceId,
+      ashedMemberId: ownerMemberId,
+      currentName: "E2E Owner Commander",
+    });
+    const ownerSession = await createAuthenticatedHqSession(
+      sql,
+      uniqueEmail("owner-breakglass"),
+    );
+    await createAllianceMembership(sql, {
+      hqUserId: ownerSession.hqUserId,
+      allianceId: alliance.allianceId,
+      roleName: "owner",
+      source: "manual",
+    });
+    await createHqMemberLink(sql, {
+      allianceId: alliance.allianceId,
+      hqUserId: ownerSession.hqUserId,
+      ashedMemberId: ownerMemberId,
+      memberDisplayName: "E2E Owner Commander",
+    });
+    await sql`
+      UPDATE sessions
+      SET
+        current_alliance_id = ${alliance.allianceId},
+        alliance_id = ${alliance.allianceId},
+        alliance_tag = ${alliance.tag}
+      WHERE id = ${ownerSession.sessionId}
+    `;
+    await page.context().addCookies(playwrightAuthCookies(ownerSession));
+
+    await page.goto(`/members/${victimMemberId}`);
+    await expect(
+      page.getByRole("heading", { name: "E2E Victim Commander" }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: /unlink hq account/i }).click();
+    await expect(page.getByText(/wrong claim/i)).toBeVisible();
+    await page.getByRole("button", { name: /^unlink$/i }).click();
+    await expect(page.getByText(/commander unlinked/i)).toBeVisible({
+      timeout: 15_000,
+    });
+
+    const [remainingLink] = await sql<{ id: string }[]>`
+      SELECT id FROM hq_member_links
+      WHERE alliance_id = ${alliance.allianceId}
+        AND ashed_member_id = ${victimMemberId}
+    `;
+    expect(remainingLink).toBeUndefined();
+
+    const unlinkApi = await request.post(
+      `${e2eBaseUrl()}/api/settings/team/commander-links/unlink`,
+      {
+        headers: { Cookie: authCookieHeader(ownerSession) },
+        data: { ashedMemberId: victimMemberId, target: "hq" },
+      },
+    );
+    expect(unlinkApi.status()).toBe(404);
+  });
+
+  test("officer cannot see break-glass unlink controls on commander profile", async ({
+    page,
+  }) => {
+    const sql = getE2eSql();
+    const alliance = await createNativeAlliance(sql, {
+      tag: `OF${nanoid(3)}`,
+      name: "Officer Unlink Gate Alliance",
+    });
+    const memberId = `linked-${nanoid(8)}`;
+    await insertAllianceMember(sql, {
+      allianceId: alliance.allianceId,
+      ashedMemberId: memberId,
+      currentName: "E2E Linked Commander",
+    });
+
+    const linkedSession = await createAuthenticatedHqSession(
+      sql,
+      uniqueEmail("linked-officer-test"),
+    );
+    await createAllianceMembership(sql, {
+      hqUserId: linkedSession.hqUserId,
+      allianceId: alliance.allianceId,
+      roleName: "member",
+      source: "manual",
+    });
+    await createHqMemberLink(sql, {
+      allianceId: alliance.allianceId,
+      hqUserId: linkedSession.hqUserId,
+      ashedMemberId: memberId,
+      memberDisplayName: "E2E Linked Commander",
+    });
+
+    const officerSession = await createAuthenticatedHqSession(
+      sql,
+      uniqueEmail("officer-unlink-gate"),
+    );
+    await createAllianceMembership(sql, {
+      hqUserId: officerSession.hqUserId,
+      allianceId: alliance.allianceId,
+      roleName: "officer",
+      source: "manual",
+    });
+    await createHqMemberLink(sql, {
+      allianceId: alliance.allianceId,
+      hqUserId: officerSession.hqUserId,
+    });
+    await sql`
+      UPDATE sessions
+      SET
+        current_alliance_id = ${alliance.allianceId},
+        alliance_id = ${alliance.allianceId},
+        alliance_tag = ${alliance.tag}
+      WHERE id = ${officerSession.sessionId}
+    `;
+    await page.context().addCookies(playwrightAuthCookies(officerSession));
+
+    await page.goto(`/members/${memberId}`);
+    await expect(
+      page.getByRole("heading", { name: "E2E Linked Commander" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: /unlink hq account/i }),
+    ).not.toBeVisible();
+    await expect(
+      page.getByRole("button", { name: /unlink discord/i }),
+    ).not.toBeVisible();
+  });
+
   test("platform maintainer searches admin commanders index", async ({
     page,
   }) => {

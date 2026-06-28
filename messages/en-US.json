@@ -2919,6 +2919,7 @@
     "confirmServerMismatch": "Last War shows server {lookupServer}, but this alliance is set to {allianceServer}. Enter the correct state server number for your alliance.",
     "lookupFallback": "We couldn't reach Last War right now. Enter your state server number to continue — you can correct alliance settings later.",
     "claimUidInvalid": "Enter the 12–16 digit player UID from your Last War profile.",
+    "claimSelfServiceBlocked": "This invite is tied to a specific commander. Enter your player UID on the claim screen to finish linking.",
     "claimConflict": "We couldn't finish this claim automatically. Your alliance officers have been notified to confirm your commander."
   },
   "onboard": {
