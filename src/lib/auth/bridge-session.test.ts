@@ -1,9 +1,62 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { resolveBridgeHqUserId } from "@/lib/auth/bridge-session";
+import {
+  bridgeAuthUserToPageSession,
+  resolveBridgeHqUserId,
+} from "@/lib/auth/bridge-session";
 import * as sessionConnectIdentity from "@/lib/auth/session-connect-identity";
 import * as sessionModule from "@/lib/session";
 import * as ashedMembershipModule from "@/lib/rbac/ashed-session-membership";
+
+vi.mock("@/lib/db", () => ({
+  getDb: () => ({
+    update: vi.fn(() => ({
+      set: vi.fn(() => ({
+        where: vi.fn().mockResolvedValue(undefined),
+      })),
+    })),
+  }),
+  schema: {
+    hqUsers: { id: "hqUsers.id" },
+    sessions: { id: "sessions.id" },
+  },
+}));
+
+describe("bridgeAuthUserToPageSession", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("calls requirePageSession before getOrCreateSession", async () => {
+    const callOrder: string[] = [];
+    vi.spyOn(sessionModule, "requirePageSession").mockImplementation(async () => {
+      callOrder.push("requirePageSession");
+      return { id: "sess-1" } as never;
+    });
+    vi.spyOn(sessionModule, "getOrCreateSession").mockImplementation(async () => {
+      callOrder.push("getOrCreateSession");
+      return { id: "sess-1", hqUserId: null, userLabel: null } as never;
+    });
+    vi.spyOn(sessionModule, "loadSession").mockResolvedValue({
+      id: "sess-1",
+      hqUserId: null,
+    } as never);
+    vi.spyOn(
+      ashedMembershipModule,
+      "sessionHoldsAshedIdentityForHqUser",
+    ).mockResolvedValue(false);
+    vi.spyOn(sessionModule, "getAshedCredentialRecord").mockResolvedValue(null);
+
+    await bridgeAuthUserToPageSession(
+      { hqUserId: "user-b", email: "user@example.com" },
+      "/trains",
+    );
+
+    expect(sessionModule.requirePageSession).toHaveBeenCalledWith("/trains");
+    expect(callOrder[0]).toBe("requirePageSession");
+    expect(callOrder.indexOf("getOrCreateSession")).toBeGreaterThan(0);
+  });
+});
 
 describe("resolveBridgeHqUserId", () => {
   beforeEach(() => {

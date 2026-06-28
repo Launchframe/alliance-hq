@@ -1,15 +1,19 @@
 import { execSync, spawn } from "node:child_process";
 import fs from "node:fs";
-import path from "node:path";
 
 import { config as loadEnv } from "dotenv";
+
+import {
+  AUTOGEN_MARKER,
+  ENV_LOCAL,
+  backupEnvFile,
+  restoreEnvFile,
+} from "./e2e-env-file.mjs";
 
 loadEnv({ path: ".env" });
 loadEnv({ path: ".env.local" });
 
 const port = process.env.PLAYWRIGHT_E2E_PORT ?? "5176";
-const envLocal = path.join(process.cwd(), ".env.local");
-const envBackup = path.join(process.cwd(), ".env.local.e2e-bak");
 
 function requireDatabaseUrl() {
   const candidates = [
@@ -44,32 +48,16 @@ function ocrProviderEnvLines() {
   return [`VIDEO_OCR_PROVIDER=${provider}`, "VIDEO_OCR_ALLOW_NONPROD=true"];
 }
 
-// Tracks whether prepareEnvFile() ran so restoreEnvFile() only acts when needed.
-let envPrepared = false;
-// Tracks whether the developer had a real .env.local that we moved aside.
-let hadOriginalEnv = false;
-
 function prepareEnvFile(dbUrl) {
-  // Self-heal: a stale backup means a previous run was killed before it could
-  // restore. Treat the backup as the real file and the current .env.local as a
-  // generated leftover, so we recover the developer's file instead of losing it.
-  if (fs.existsSync(envBackup)) {
-    if (fs.existsSync(envLocal)) {
-      fs.unlinkSync(envLocal);
-    }
-    fs.renameSync(envBackup, envLocal);
-  }
-
-  hadOriginalEnv = fs.existsSync(envLocal);
-  if (hadOriginalEnv) {
-    fs.renameSync(envLocal, envBackup);
-  }
-  envPrepared = true;
+  // Park the developer's real .env.local (self-healing + idempotent) before
+  // writing the generated one. The marker on line 1 lets restoreEnvFile() —
+  // here or in globalTeardown — recognize and clean up the generated file.
+  backupEnvFile();
 
   fs.writeFileSync(
-    envLocal,
+    ENV_LOCAL,
     [
-      "# Playwright E2E — auto-generated; restored after test run",
+      `${AUTOGEN_MARKER}; restored after test run`,
       `LOCAL_DATABASE_URL=${dbUrl}`,
       `DATABASE_URL=${dbUrl}`,
       `TOKEN_ENCRYPTION_KEY=${tokenKey()}`,
@@ -81,26 +69,6 @@ function prepareEnvFile(dbUrl) {
       "",
     ].join("\n"),
   );
-}
-
-function restoreEnvFile() {
-  if (!envPrepared) return;
-  envPrepared = false;
-  try {
-    // Drop the auto-generated file...
-    if (fs.existsSync(envLocal)) {
-      fs.unlinkSync(envLocal);
-    }
-    // ...and put the developer's real .env.local back (if there was one).
-    if (hadOriginalEnv && fs.existsSync(envBackup)) {
-      fs.renameSync(envBackup, envLocal);
-    }
-  } catch (err) {
-    console.error(
-      `Failed to restore .env.local; your original is preserved at ${envBackup}`,
-      err,
-    );
-  }
 }
 
 function run(command, env = process.env) {
@@ -135,8 +103,12 @@ prepareEnvFile(dbUrl);
 
 // Always restore the developer's .env.local, no matter how we exit: normal
 // shutdown, a thrown error from a failed build/migrate, Ctrl-C, or the SIGTERM
-// Playwright sends when the test run finishes. process.on("exit") fires for all
-// of these and runs synchronous fs work reliably.
+// Playwright sends when the test run finishes. process.on("exit") runs the
+// synchronous fs restore reliably for normal/throw exits; the signal handlers
+// below restore explicitly because "exit" does NOT fire on a bare signal.
+// restoreEnvFile() is idempotent, so running it more than once is harmless.
+// (A SIGKILL of this process is uncatchable — the Playwright globalTeardown
+// restore is the backstop for that, and the next run still self-heals.)
 process.on("exit", restoreEnvFile);
 
 const serverEnv = buildEnv(dbUrl);
@@ -154,8 +126,9 @@ child.on("exit", (code, signal) => {
   process.exit(code ?? (signal ? 1 : 0));
 });
 
-for (const signal of ["SIGINT", "SIGTERM"]) {
+for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"]) {
   process.on(signal, () => {
+    restoreEnvFile();
     child.kill(signal);
   });
 }

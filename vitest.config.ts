@@ -18,7 +18,7 @@ export const COVERED_LIB_FILES = [
 export default defineConfig({
   test: {
     environment: "node",
-    include: ["src/**/*.test.ts"],
+    include: ["src/**/*.test.ts", "scripts/**/*.test.mjs"],
     coverage: {
       provider: "v8",
       include: [...COVERED_LIB_FILES],
