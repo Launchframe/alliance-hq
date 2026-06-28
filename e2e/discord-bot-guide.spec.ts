@@ -25,6 +25,6 @@ test.describe("Discord bot public guide", () => {
     await expect(
       page.getByRole("heading", { level: 2, name: "Troubleshooting" }),
     ).toBeVisible();
-    await expect(page.getByText("Copying your name and UID")).toBeVisible();
+    await expect(page.getByText("Getting your name and UID")).toBeVisible();
   });
 });

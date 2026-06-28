@@ -165,6 +165,7 @@ export function MemberLinkOnboardingWizard({
           break;
         case "officer_notified":
           setMessage(data.message);
+          setPhase("form");
           break;
         default:
           setPhase("form");
@@ -333,9 +334,19 @@ export function MemberLinkOnboardingWizard({
   }
 
   async function askOfficer() {
+    setFormError(null);
+    const uid = gameUid.trim();
+    if (!isValidGameUid(uid)) {
+      setFormError(t("askOfficerNeedsUid"));
+      return;
+    }
+
     setBusy(true);
     try {
-      const data = await postJson<ApiResponse>("/api/member-link/ask-officer");
+      const data = await postJson<ApiResponse>("/api/member-link/ask-officer", {
+        reportedName: reportedName.trim() || undefined,
+        gameUid: uid,
+      });
       applyOutcome(data);
     } catch {
       setFormError(t("requestFailed"));
@@ -484,6 +495,9 @@ export function MemberLinkOnboardingWizard({
               </button>
             </div>
           ) : null}
+          {message && !formError ? (
+            <p className="text-sm text-[#3fb950]">{message}</p>
+          ) : null}
           <button
             type="submit"
             disabled={busy}
@@ -491,6 +505,17 @@ export function MemberLinkOnboardingWizard({
           >
             {busy ? t("submitting") : t("submit")}
           </button>
+          <div className="space-y-2 rounded-lg border border-[#30363d] bg-[#0d1117] p-3">
+            <p className="text-xs text-[#8b949e]">{t("linkHelpHint")}</p>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void askOfficer()}
+              className="w-full rounded-lg border border-[#da3633] bg-[#da3633]/20 px-4 py-2.5 text-sm font-medium text-[#ff7b72] disabled:opacity-50"
+            >
+              {tLink("buttons.askOfficer")}
+            </button>
+          </div>
           <div className="border-t border-[#30363d] pt-3 text-center">
             <button
               type="button"
@@ -519,14 +544,24 @@ export function MemberLinkOnboardingWizard({
               ))}
             </ol>
           )}
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => void walkthroughDone()}
-            className="w-full rounded-lg border border-[#388bfd] bg-[#388bfd] px-4 py-2.5 text-sm font-medium text-white disabled:opacity-50"
-          >
-            {tLink("buttons.done")}
-          </button>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void walkthroughDone()}
+              className="w-full rounded-lg border border-[#388bfd] bg-[#388bfd] px-4 py-2.5 text-sm font-medium text-white disabled:opacity-50"
+            >
+              {tLink("buttons.done")}
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void askOfficer()}
+              className="w-full rounded-lg border border-[#da3633] bg-[#da3633]/20 px-4 py-2.5 text-sm font-medium text-[#ff7b72] disabled:opacity-50"
+            >
+              {tLink("buttons.askOfficer")}
+            </button>
+          </div>
         </div>
       ) : null}
 

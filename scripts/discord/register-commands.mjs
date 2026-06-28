@@ -31,10 +31,10 @@ const commanderLinkOptions = [
   {
     name: "name",
     description:
-      "Your in-game name. Copy it exactly from your in-game profile.",
+      "Your in-game name. Must match exactly — ask an alliance mate to copy it from your profile if needed.",
     description_localizations: {
       "pt-BR":
-        "Seu nome no jogo. Copie exatamente do perfil dentro do jogo.",
+        "Seu nome no jogo. Deve ser exatamente igual — peça a um colega de aliança para copiar do seu perfil, se precisar.",
     },
     type: 3,
     required: true,
