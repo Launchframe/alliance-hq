@@ -71,6 +71,7 @@ type Props = {
   canUseAshedEmbeds?: boolean;
   currentAllianceId?: string | null;
   membershipAlliances?: SessionAllianceOption[];
+  isPlatformMaintainer?: boolean;
   sessionPermissions?: readonly string[];
   mobileCollapsible?: boolean;
   expandedGroupId: string | null;
@@ -90,6 +91,7 @@ export function SidebarNav({
   canUseAshedEmbeds = true,
   currentAllianceId = null,
   membershipAlliances = [],
+  isPlatformMaintainer = false,
   sessionPermissions = [],
   mobileCollapsible = false,
   expandedGroupId,
@@ -160,6 +162,7 @@ export function SidebarNav({
         key={currentAllianceId ?? "none"}
         initialCurrentAllianceId={currentAllianceId}
         initialAlliances={membershipAlliances}
+        initialIsPlatformMaintainer={isPlatformMaintainer}
       />
 
       <nav className="min-h-0 flex-1 overflow-y-auto p-2">

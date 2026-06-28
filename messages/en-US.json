@@ -439,6 +439,10 @@
         "saving": "Saving…",
         "invalid": "Enter a valid server number.",
         "saveFailed": "Could not update server number."
+      },
+      "sessionContext": {
+        "title": "Session alliance context",
+        "hint": "Uploads, members, and tools use whichever alliance your session is set to."
       }
     },
     "nativeAlliance": {
@@ -1492,7 +1496,11 @@
     "loading": "Loading alliances…",
     "loadFailed": "Could not load alliances.",
     "switchFailed": "Could not switch alliance.",
-    "contextHint": "Viewing data for {tag}"
+    "contextHint": "Viewing data for {tag}",
+    "activeBadge": "Active",
+    "searchPlaceholder": "Search alliances…",
+    "searchNoMatches": "No alliances match your search.",
+    "switchToSelected": "Switch session to {tag}"
   },
   "deviceLink": {
     "sectionTitle": "Link a mobile device",

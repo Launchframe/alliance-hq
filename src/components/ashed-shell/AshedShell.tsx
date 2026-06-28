@@ -53,6 +53,7 @@ type Props = {
   activeAllianceTag?: string | null;
   currentAllianceId?: string | null;
   membershipAlliances?: SessionAllianceOption[];
+  isPlatformMaintainer?: boolean;
   sessionPermissions?: readonly string[];
   children: React.ReactNode;
 };
@@ -82,6 +83,7 @@ export function AshedShell({
   activeAllianceTag = null,
   currentAllianceId = null,
   membershipAlliances = [],
+  isPlatformMaintainer = false,
   sessionPermissions = [],
   children,
 }: Props) {
@@ -187,6 +189,7 @@ export function AshedShell({
               canUseAshedEmbeds={canUseAshedEmbeds}
               currentAllianceId={currentAllianceId}
               membershipAlliances={membershipAlliances}
+              isPlatformMaintainer={isPlatformMaintainer}
               sessionPermissions={sessionPermissions}
               mobileCollapsible
               expandedGroupId={expandedGroupId}
