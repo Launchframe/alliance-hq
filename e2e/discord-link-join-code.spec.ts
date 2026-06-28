@@ -5,7 +5,6 @@ import {
   createAllianceJoinCodeRow,
   createAllianceMembership,
   createAuthenticatedHqSession,
-  createDiscordHqLink,
   createDiscordUserLinkNonce,
   createHqDiscordOAuthAccount,
   createHqMemberLink,

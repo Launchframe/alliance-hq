@@ -144,11 +144,16 @@ export async function unlinkDiscordHqLinkForUser(
     return { ok: false, reason: "not_linked" };
   }
 
-  const hadBotLink = await deleteDiscordHqLinkForHqUser(trimmed);
   const oauthResult = await unlinkOAuthProviderForUser({
     hqUserId: trimmed,
     provider: "discord",
   });
+
+  if (!oauthResult.ok && oauthResult.code === "last_method") {
+    return { ok: false, reason: "last_sign_in_method" };
+  }
+
+  const hadBotLink = await deleteDiscordHqLinkForHqUser(trimmed);
 
   if (oauthResult.ok) {
     return { ok: true };
@@ -156,10 +161,6 @@ export async function unlinkDiscordHqLinkForUser(
 
   if (hadBotLink) {
     return { ok: true };
-  }
-
-  if (oauthResult.code === "last_method") {
-    return { ok: false, reason: "last_sign_in_method" };
   }
 
   return { ok: false, reason: "not_linked" };
