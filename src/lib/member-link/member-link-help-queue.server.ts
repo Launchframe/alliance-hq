@@ -87,7 +87,7 @@ async function materializeHelpInboxItem(input: {
   });
 }
 
-async function satisfyHelpInboxItem(requestId: string): Promise<void> {
+export async function satisfyHelpInboxItem(requestId: string): Promise<void> {
   const db = getDb();
   await db
     .update(schema.inboxReminderItems)

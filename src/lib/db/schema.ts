@@ -1502,6 +1502,7 @@ export const hqMemberLinkHelpRequests = pgTable(
       () => hqUsers.id,
       { onDelete: "set null" },
     ),
+    linkedAshedMemberId: text("linked_ashed_member_id"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),

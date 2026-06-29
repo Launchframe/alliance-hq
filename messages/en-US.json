@@ -1323,11 +1323,64 @@
     "unknownAlliance": "Unknown alliance",
     "markResolved": "Mark resolved",
     "dismiss": "Dismiss",
+    "reviewRequest": "Review request",
     "context": {
       "onboarding_form": "Onboarding form",
       "walkthrough": "Link walkthrough",
       "roster_miss": "Not on roster",
       "discord_button": "Discord link help"
+    }
+  },
+  "memberLinkHelpReview": {
+    "title": "Review help request",
+    "adminTitle": "Review help request",
+    "backToList": "Back to help requests",
+    "backToAdminList": "Back to member link help",
+    "linkFailed": "Could not link this member.",
+    "resolveFailed": "Could not update this request.",
+    "identity": {
+      "title": "Submitted identity",
+      "submittedName": "Submitted in-game name",
+      "uidLast4": "Player UID",
+      "uidLast4Value": "Ending …{last4}",
+      "lookupName": "Last War lookup name",
+      "lookupMissing": "Lookup unavailable",
+      "missing": "Not provided"
+    },
+    "requesterContact": {
+      "title": "Requester contact"
+    },
+    "contact": {
+      "inGameName": "In-game name",
+      "email": "Email",
+      "discord": "Discord",
+      "noContact": "No contact info on file.",
+      "noClaimantContact": "No claimant contact on file."
+    },
+    "roster": {
+      "unclaimedTitle": "Unclaimed roster members",
+      "claimedTitle": "Already claimed",
+      "empty": "No roster members found.",
+      "nameMatch": "Name match",
+      "claimedBadge": "Already linked to an account"
+    },
+    "mediation": {
+      "title": "Mediation needed",
+      "description": "This roster seat is already claimed. Reach out to both people below to resolve the conflict.",
+      "requester": "Person requesting help",
+      "claimant": "Current roster holder"
+    },
+    "noMatchHint": "Select an unclaimed roster member to link, or a claimed member to see contact info for mediation.",
+    "unlinkFuture": "Unlink existing claim",
+    "unlinkFutureHint": "Break-glass unlink will be available in a future update.",
+    "actions": {
+      "linkSelected": "Link to selected member",
+      "markResolved": "Mark resolved without linking",
+      "dismiss": "Dismiss"
+    },
+    "errors": {
+      "memberAlreadyClaimed": "That roster member is already claimed. Use the mediation panel to contact both parties.",
+      "hqUserRequired": "This request has no HQ web account — link manually after the member signs in."
     }
   },
   "settings": {
@@ -2806,7 +2859,8 @@
     "errors": {
       "nothingPending": "Nothing to pick right now.",
       "noWalkthrough": "No walkthrough in progress.",
-      "ashedVerificationRequired": "Connect Ashed to use iframe tools and live roster sync, then return to link your character if needed."
+      "ashedVerificationRequired": "Connect Ashed to use iframe tools and live roster sync, then return to link your character if needed.",
+      "askOfficerNeedsNameAndUid": "Enter your in-game name and player UID before asking an officer for help."
     },
     "usage": "Enter your in-game name and UID from your Last War profile.",
     "linked": "Linked to {name}. Welcome to the alliance!",
@@ -2923,7 +2977,8 @@
       "invalidLanguage": "Choose English or Português.",
       "nothingPending": "Nothing to pick right now.",
       "noWalkthrough": "No walkthrough in progress.",
-      "noConfirm": "Nothing to confirm right now."
+      "noConfirm": "Nothing to confirm right now.",
+      "askOfficerNeedsNameAndUid": "Enter your in-game name and player UID with `/link-commander` before asking an officer for help."
     },
     "link": {
       "userPrompt": "Click the link below to link your Discord account to Alliance HQ (expires in 30 min):\n{url}\n\nAfter linking, run `/help` in Discord for your next step.",

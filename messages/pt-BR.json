@@ -1323,11 +1323,64 @@
     "unknownAlliance": "Aliança desconhecida",
     "markResolved": "Marcar como resolvido",
     "dismiss": "Dispensar",
+    "reviewRequest": "Revisar pedido",
     "context": {
       "onboarding_form": "Formulário de onboarding",
       "walkthrough": "Walkthrough de vínculo",
       "roster_miss": "Fora do roster",
       "discord_button": "Ajuda no Discord"
+    }
+  },
+  "memberLinkHelpReview": {
+    "title": "Revisar pedido de ajuda",
+    "adminTitle": "Revisar pedido de ajuda",
+    "backToList": "Voltar aos pedidos de ajuda",
+    "backToAdminList": "Voltar à ajuda no vínculo",
+    "linkFailed": "Não foi possível vincular este membro.",
+    "resolveFailed": "Não foi possível atualizar este pedido.",
+    "identity": {
+      "title": "Identidade enviada",
+      "submittedName": "Nome no jogo enviado",
+      "uidLast4": "UID do jogador",
+      "uidLast4Value": "Terminando em …{last4}",
+      "lookupName": "Nome no Last War (consulta)",
+      "lookupMissing": "Consulta indisponível",
+      "missing": "Não informado"
+    },
+    "requesterContact": {
+      "title": "Contato do solicitante"
+    },
+    "contact": {
+      "inGameName": "Nome no jogo",
+      "email": "E-mail",
+      "discord": "Discord",
+      "noContact": "Nenhum contato registrado.",
+      "noClaimantContact": "Nenhum contato do titular registrado."
+    },
+    "roster": {
+      "unclaimedTitle": "Membros do roster não reivindicados",
+      "claimedTitle": "Já reivindicados",
+      "empty": "Nenhum membro no roster.",
+      "nameMatch": "Correspondência de nome",
+      "claimedBadge": "Já vinculado a uma conta"
+    },
+    "mediation": {
+      "title": "Mediação necessária",
+      "description": "Este lugar no roster já está reivindicado. Entre em contato com as duas pessoas abaixo para resolver o conflito.",
+      "requester": "Pessoa pedindo ajuda",
+      "claimant": "Titular atual do roster"
+    },
+    "noMatchHint": "Selecione um membro não reivindicado para vincular, ou um já reivindicado para ver os contatos de mediação.",
+    "unlinkFuture": "Desvincular reivindicação existente",
+    "unlinkFutureHint": "Desvinculação de emergência estará disponível em uma atualização futura.",
+    "actions": {
+      "linkSelected": "Vincular ao membro selecionado",
+      "markResolved": "Marcar resolvido sem vincular",
+      "dismiss": "Dispensar"
+    },
+    "errors": {
+      "memberAlreadyClaimed": "Esse membro do roster já está reivindicado. Use o painel de mediação para contatar ambas as partes.",
+      "hqUserRequired": "Este pedido não tem conta HQ web — vincule manualmente depois que o membro entrar."
     }
   },
   "settings": {
@@ -2806,7 +2859,8 @@
     "errors": {
       "nothingPending": "Nada para escolher agora.",
       "noWalkthrough": "Nenhum tutorial em andamento.",
-      "ashedVerificationRequired": "Conecte o Ashed para ferramentas iframe e sync do roster; depois volte para vincular seu personagem, se precisar."
+      "ashedVerificationRequired": "Conecte o Ashed para ferramentas iframe e sync do roster; depois volte para vincular seu personagem, se precisar.",
+      "askOfficerNeedsNameAndUid": "Informe seu nome no jogo e UID do jogador antes de pedir ajuda a um oficial."
     },
     "usage": "Informe seu nome no jogo e UID do perfil Last War.",
     "linked": "Vinculado a {name}. Bem-vindo à aliança!",
@@ -2923,7 +2977,8 @@
       "invalidLanguage": "Escolha English ou Português.",
       "nothingPending": "Nada para escolher agora.",
       "noWalkthrough": "Nenhum tutorial em andamento.",
-      "noConfirm": "Nada para confirmar agora."
+      "noConfirm": "Nada para confirmar agora.",
+      "askOfficerNeedsNameAndUid": "Informe seu nome no jogo e UID com `/link-commander` antes de pedir ajuda a um oficial."
     },
     "link": {
       "userPrompt": "Clique no link abaixo para vincular sua conta do Discord ao Alliance HQ (expira em 30 min):\n{url}\n\nDepois, execute `/help` no Discord para o próximo passo.",

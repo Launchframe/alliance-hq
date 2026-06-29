@@ -47,10 +47,9 @@ export default async function MemberLinkHelpPage({
           gameUidLast4: row.gameUidLast4,
           discordUsername: row.discordUsername,
           status: row.status,
-          createdAt: row.createdAt.toISOString(),
-        }))}
-        listUrl="/api/members/member-link-help-requests"
-        resolveUrlPrefix="/api/members/member-link-help-requests"
+        createdAt: row.createdAt.toISOString(),
+      }))}
+      detailHrefPrefix="/members/member-link-help"
         backHref="/members"
         backLabel={t("backToMembers")}
       />

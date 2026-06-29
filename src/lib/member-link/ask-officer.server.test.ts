@@ -34,6 +34,9 @@ vi.mock("@/lib/rbac/context", () => ({
 
 const repository = await import("@/lib/member-link/repository.server");
 
+const validUid = "1001369694001203";
+const validName = "Commander Alpha";
+
 describe("runWebMemberLinkAskOfficer", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -47,7 +50,7 @@ describe("runWebMemberLinkAskOfficer", () => {
     });
   });
 
-  it("rejects when no roster_miss pending state exists", async () => {
+  it("rejects when name and uid are missing", async () => {
     const result = await runWebMemberLinkAskOfficer({
       sessionId: "sess-1",
       allianceId: "a1",
@@ -56,21 +59,53 @@ describe("runWebMemberLinkAskOfficer", () => {
     });
 
     expect(result.outcome).toBe("usage");
-    expect(repository.saveHqMemberLinkPending).not.toHaveBeenCalled();
+    expect(recordMemberLinkHelpRequest).not.toHaveBeenCalled();
     expect(emitAdminAlert).not.toHaveBeenCalled();
   });
 
-  it("rejects when uid is invalid and no pending state exists", async () => {
+  it("rejects when uid is invalid", async () => {
     const result = await runWebMemberLinkAskOfficer({
       sessionId: "sess-1",
       allianceId: "a1",
       hqUserId: "u1",
       locale: "en-US",
+      reportedName: validName,
       gameUid: "not-a-uid",
     });
 
     expect(result.outcome).toBe("usage");
     expect(emitAdminAlert).not.toHaveBeenCalled();
+  });
+
+  it("rejects when name is missing even with valid uid", async () => {
+    const result = await runWebMemberLinkAskOfficer({
+      sessionId: "sess-1",
+      allianceId: "a1",
+      hqUserId: "u1",
+      locale: "en-US",
+      gameUid: validUid,
+    });
+
+    expect(result.outcome).toBe("usage");
+    expect(recordMemberLinkHelpRequest).not.toHaveBeenCalled();
+  });
+
+  it("rejects walkthrough pending without name and uid", async () => {
+    vi.mocked(repository.getHqMemberLinkPending).mockResolvedValue({
+      allianceId: "a1",
+      pending: { kind: "link_walkthrough", step: 0 },
+    });
+
+    const result = await runWebMemberLinkAskOfficer({
+      sessionId: "sess-1",
+      allianceId: "a1",
+      hqUserId: "u1",
+      locale: "en-US",
+      displayName: "Player",
+    });
+
+    expect(result.outcome).toBe("usage");
+    expect(recordMemberLinkHelpRequest).not.toHaveBeenCalled();
   });
 
   it("notifies officers and clears pending when walkthrough is active", async () => {
@@ -85,6 +120,8 @@ describe("runWebMemberLinkAskOfficer", () => {
       hqUserId: "u1",
       locale: "en-US",
       displayName: "Player",
+      reportedName: validName,
+      gameUid: validUid,
     });
 
     expect(result.outcome).toBe("officer_notified");
@@ -93,59 +130,40 @@ describe("runWebMemberLinkAskOfficer", () => {
       "u1",
       null,
     );
-    expect(emitAdminAlert).toHaveBeenCalledWith(
-      expect.objectContaining({
-        type: "vr_link_attention",
-        handles: ["Player"],
-      }),
-    );
     expect(recordMemberLinkHelpRequest).toHaveBeenCalledWith(
       expect.objectContaining({
         allianceId: "a1",
         hqUserId: "u1",
         origin: "web",
+        reportedName: validName,
+        gameUid: validUid,
       }),
     );
   });
 
-  it("notifies officers when uid is provided without pending state", async () => {
+  it("notifies officers when name and uid are provided", async () => {
     const result = await runWebMemberLinkAskOfficer({
       sessionId: "sess-1",
       allianceId: "a1",
       hqUserId: "u1",
       locale: "en-US",
-      gameUid: "1001369694001203",
+      reportedName: validName,
+      gameUid: validUid,
     });
 
     expect(result.outcome).toBe("officer_notified");
-    expect(repository.saveHqMemberLinkPending).not.toHaveBeenCalled();
-    expect(lookupPlayerByUid).toHaveBeenCalledWith(
-      "1001369694001203",
-    );
-    expect(emitAdminAlert).toHaveBeenCalledWith(
+    expect(lookupPlayerByUid).toHaveBeenCalledWith(validUid);
+    expect(recordMemberLinkHelpRequest).toHaveBeenCalledWith(
       expect.objectContaining({
-        type: "vr_link_attention",
-        handles: ["u1 · Commander Alpha"],
+        reportedName: validName,
+        gameUid: validUid,
+        gameUserName: "Commander Alpha",
       }),
     );
     const payload = emitAdminAlert.mock.calls[0]?.[0] as {
       handles: string[];
     };
     expect(JSON.stringify(payload)).not.toMatch(/1001369694001203/);
-  });
-
-  it("notifies officers when name and uid are provided without pending state", async () => {
-    const result = await runWebMemberLinkAskOfficer({
-      sessionId: "sess-1",
-      allianceId: "a1",
-      hqUserId: "u1",
-      locale: "en-US",
-      reportedName: "Commander",
-      gameUid: "1001369694001203",
-    });
-
-    expect(result.outcome).toBe("officer_notified");
-    expect(repository.saveHqMemberLinkPending).not.toHaveBeenCalled();
   });
 
   it("notifies officers and clears pending when roster_miss is active", async () => {
@@ -160,6 +178,8 @@ describe("runWebMemberLinkAskOfficer", () => {
       hqUserId: "u1",
       locale: "en-US",
       displayName: "Player",
+      reportedName: validName,
+      gameUid: validUid,
     });
 
     expect(result.outcome).toBe("officer_notified");

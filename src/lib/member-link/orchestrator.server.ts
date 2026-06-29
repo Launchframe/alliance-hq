@@ -609,28 +609,25 @@ export async function runWebMemberLinkAskOfficer(input: {
     pending?.kind === "link_walkthrough";
 
   const gameUid = input.gameUid?.trim() ?? "";
-  const hasHelpContext =
-    pendingAllowsAskOfficer || isValidMemberLinkGameUid(gameUid);
+  const reportedName = input.reportedName?.trim() ?? "";
+  const translate = createMemberLinkTranslator(input.locale);
 
-  if (!hasHelpContext) {
-    const translate = createMemberLinkTranslator(input.locale);
+  if (!isValidMemberLinkGameUid(gameUid) || !reportedName) {
     return {
       outcome: "usage",
-      message: translate("errors.nothingPending"),
-      pending: null,
+      message: translate("errors.askOfficerNeedsNameAndUid"),
+      pending: pendingAllowsAskOfficer ? pending : null,
     };
   }
 
   let gameUserName: string | null = null;
-  if (isValidMemberLinkGameUid(gameUid)) {
-    try {
-      const lookup = await lookupPlayerByUid(gameUid);
-      if (lookup.ok) {
-        gameUserName = lookup.gameUserName;
-      }
-    } catch (error) {
-      console.error("[member-link] ask-officer lookup failed", error);
+  try {
+    const lookup = await lookupPlayerByUid(gameUid);
+    if (lookup.ok) {
+      gameUserName = lookup.gameUserName;
     }
+  } catch (error) {
+    console.error("[member-link] ask-officer lookup failed", error);
   }
 
   const requesterHandle =
@@ -642,16 +639,15 @@ export async function runWebMemberLinkAskOfficer(input: {
     origin: "web",
     context: resolveWebHelpContext(pending),
     requesterHandle,
-    reportedName: input.reportedName?.trim() || null,
-    gameUid: gameUid || null,
+    reportedName,
+    gameUid,
     gameUserName,
   });
 
-  await emitLinkAttention(ctx, { gameUid: gameUid || null });
+  await emitLinkAttention(ctx, { gameUid });
   if (pendingAllowsAskOfficer) {
     await saveHqMemberLinkPending(input.allianceId, input.hqUserId, null);
   }
-  const translate = createMemberLinkTranslator(input.locale);
   return {
     outcome: "officer_notified",
     message: translate("officerNotified"),

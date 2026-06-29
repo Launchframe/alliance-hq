@@ -28,8 +28,7 @@ export type MemberLinkHelpRequestView = {
 
 type Props = {
   initialRequests: MemberLinkHelpRequestView[];
-  listUrl: string;
-  resolveUrlPrefix: string;
+  detailHrefPrefix: string;
   showAlliance?: boolean;
   backHref?: string;
   backLabel?: string;
@@ -38,8 +37,7 @@ type Props = {
 
 export function MemberLinkHelpRequestsClient({
   initialRequests,
-  listUrl,
-  resolveUrlPrefix,
+  detailHrefPrefix,
   showAlliance = false,
   backHref,
   backLabel,
@@ -47,43 +45,7 @@ export function MemberLinkHelpRequestsClient({
 }: Props) {
   const t = useTranslations("memberLinkHelpRequests");
   const [requests, setRequests] = useState(initialRequests);
-  const [error, setError] = useState<string | null>(null);
-  const [busyId, setBusyId] = useState<string | null>(null);
-
-  async function reload() {
-    setError(null);
-    try {
-      const res = await fetch(`${listUrl}?status=open`);
-      if (!res.ok) throw new Error("load");
-      const json = (await res.json()) as { requests: MemberLinkHelpRequestView[] };
-      setRequests(json.requests);
-    } catch {
-      setError(t("loadFailed"));
-    }
-  }
-
-  async function resolve(id: string, action: "resolve" | "dismiss") {
-    setBusyId(id);
-    setError(null);
-    try {
-      const res = await fetch(`${resolveUrlPrefix}/${id}/resolve`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action }),
-      });
-      if (!res.ok) {
-        const payload = (await res.json().catch(() => null)) as {
-          error?: string;
-        } | null;
-        throw new Error(payload?.error ?? "resolve_failed");
-      }
-      await reload();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t("resolveFailed"));
-    } finally {
-      setBusyId(null);
-    }
-  }
+  const [error] = useState<string | null>(null);
 
   return (
     <div className="space-y-6 min-w-0 w-full max-w-full">
@@ -152,24 +114,12 @@ export function MemberLinkHelpRequestsClient({
                 </p>
               </div>
 
-              <div className="flex flex-col sm:flex-row gap-2">
-                <button
-                  type="button"
-                  disabled={busyId === request.id}
-                  onClick={() => void resolve(request.id, "resolve")}
-                  className="rounded-lg bg-[#238636] px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-                >
-                  {t("markResolved")}
-                </button>
-                <button
-                  type="button"
-                  disabled={busyId === request.id}
-                  onClick={() => void resolve(request.id, "dismiss")}
-                  className="rounded-lg border border-[#30363d] px-4 py-2 text-sm text-foreground disabled:opacity-50"
-                >
-                  {t("dismiss")}
-                </button>
-              </div>
+              <Link
+                href={`${detailHrefPrefix}/${request.id}`}
+                className="inline-flex w-full sm:w-auto justify-center rounded-lg bg-[#238636] px-4 py-2 text-sm font-medium text-white hover:bg-[#2ea043]"
+              >
+                {t("reviewRequest")}
+              </Link>
             </li>
           ))}
         </ul>

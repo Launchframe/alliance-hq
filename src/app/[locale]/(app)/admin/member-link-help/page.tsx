@@ -34,8 +34,7 @@ export default async function AdminMemberLinkHelpPage() {
         status: row.status,
         createdAt: row.createdAt.toISOString(),
       }))}
-      listUrl="/api/admin/member-link-help-requests"
-      resolveUrlPrefix="/api/admin/member-link-help-requests"
+      detailHrefPrefix="/admin/member-link-help"
       showAlliance
       backHref="/admin"
       backLabel={t("backToAdmin")}
