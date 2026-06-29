@@ -10,7 +10,9 @@ import {
 } from "@/lib/member-link/member-link-help-queue.server";
 import {
   linkHqMember,
+  maybeSetOwnerMemberExternalId,
   saveHqMemberLinkPending,
+  syncPrimaryGameUidFromHqMemberLink,
 } from "@/lib/member-link/repository.server";
 import { reconcileAllianceMemberForRosterLink } from "@/lib/member-link/roster-link-resolve.server";
 import { normalizeName } from "@/lib/vr/link-helpers";
@@ -334,6 +336,18 @@ export async function linkMemberLinkHelpRequest(input: {
       claimant: claimant ?? undefined,
     };
   }
+
+  try {
+    await maybeSetOwnerMemberExternalId({
+      allianceId: row.allianceId,
+      hqUserId: row.hqUserId,
+      ashedMemberId: input.targetAshedMemberId,
+    });
+  } catch (error) {
+    console.error("[member-link-help] owner externalId sync failed", error);
+  }
+
+  await syncPrimaryGameUidFromHqMemberLink(row.hqUserId, row.gameUid);
 
   await saveHqMemberLinkPending(row.allianceId, row.hqUserId, null);
 

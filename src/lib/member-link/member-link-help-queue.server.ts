@@ -80,7 +80,7 @@ async function materializeHelpInboxItem(input: {
     title: input.title,
     body: null,
     scoreTarget: input.title,
-    href: "/members/member-link-help",
+    href: `/members/member-link-help/${input.requestId}`,
     requiredPermission: "members:write",
     active: 1,
     resourceId: input.requestId,
