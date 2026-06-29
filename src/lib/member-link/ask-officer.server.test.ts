@@ -2,10 +2,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { runWebMemberLinkAskOfficer } from "./orchestrator.server";
 
-const { emitAdminAlert, lookupPlayerByUid } = vi.hoisted(() => ({
-  emitAdminAlert: vi.fn().mockResolvedValue(undefined),
-  lookupPlayerByUid: vi.fn(),
-}));
+const { emitAdminAlert, lookupPlayerByUid, recordMemberLinkHelpRequest } =
+  vi.hoisted(() => ({
+    emitAdminAlert: vi.fn().mockResolvedValue(undefined),
+    lookupPlayerByUid: vi.fn(),
+    recordMemberLinkHelpRequest: vi.fn().mockResolvedValue("help-req-1"),
+  }));
 
 vi.mock("@/lib/events/admin-alerts", () => ({
   emitAdminAlert,
@@ -13,6 +15,11 @@ vi.mock("@/lib/events/admin-alerts", () => ({
 
 vi.mock("@/lib/lastwar/player-lookup", () => ({
   lookupPlayerByUid,
+}));
+
+vi.mock("@/lib/member-link/member-link-help-queue.server", () => ({
+  recordMemberLinkHelpRequest,
+  resolveWebHelpContext: vi.fn().mockReturnValue("onboarding_form"),
 }));
 
 vi.mock("@/lib/member-link/repository.server", () => ({
@@ -90,6 +97,13 @@ describe("runWebMemberLinkAskOfficer", () => {
       expect.objectContaining({
         type: "vr_link_attention",
         handles: ["Player"],
+      }),
+    );
+    expect(recordMemberLinkHelpRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        allianceId: "a1",
+        hqUserId: "u1",
+        origin: "web",
       }),
     );
   });

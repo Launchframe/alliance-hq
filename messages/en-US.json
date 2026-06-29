@@ -138,6 +138,7 @@
       "hqEvents": "HQ events",
       "commendations": "Commendations",
       "bugReports": "Bug reports",
+      "memberLinkHelp": "Member link help",
       "experienceFeedback": "Experience feedback",
       "translationReports": "Translation reports",
       "users": "HQ users",
@@ -147,7 +148,7 @@
     },
     "opsInbox": {
       "title": "Ops inbox",
-      "subtitle": "Failed video jobs, stuck queue items, and open bug reports.",
+      "subtitle": "Failed video jobs, stuck queue items, open bug reports, and member link help requests.",
       "loadFailed": "Failed to load ops inbox.",
       "empty": "Nothing needs attention right now.",
       "bellLabel": "Open ops inbox",
@@ -155,12 +156,14 @@
       "counts": {
         "failed": "Failed jobs",
         "stuck": "Stuck queued",
-        "bugs": "Open bug reports"
+        "bugs": "Open bug reports",
+        "memberLinkHelp": "Link help requests"
       },
       "kind": {
         "video_job_failed": "Failed video job",
         "video_job_stuck_queued": "Stuck queued job",
-        "bug_report_open": "Open bug report"
+        "bug_report_open": "Open bug report",
+        "member_link_help_open": "Member link help"
       }
     },
     "systemTitle": "System health",
@@ -1040,7 +1043,8 @@
         "commendations": "Commendations",
         "bugReports": "Bug reports",
         "experienceFeedback": "Experience feedback",
-        "translationReports": "Translation reports"
+        "translationReports": "Translation reports",
+        "memberLinkHelp": "Member link help"
       },
       "trains": {
         "spinWheel": "Spin conductor wheel",
@@ -1300,6 +1304,31 @@
     "suggestionStale": "We had suggested {suggested}, but that roster member is no longer available. Please choose the right member below.",
     "approveMatch": "Approve match",
     "decline": "Decline"
+  },
+  "memberLinkHelpRequests": {
+    "title": "Ask an officer help requests",
+    "adminTitle": "Member link help requests",
+    "subtitle": "Members who asked for officer help while linking their commander — onboarding, walkthrough, or blocked flows.",
+    "backToMembers": "Back to members",
+    "backToAdmin": "Back to admin portal",
+    "loadFailed": "Could not load help requests.",
+    "resolveFailed": "Could not update this request.",
+    "empty": "No open help requests.",
+    "requester": "HQ account: {handle}",
+    "typedName": "Typed name: {name}",
+    "uidLast4": "UID ending …{last4}",
+    "originWeb": "Web",
+    "originDiscord": "Discord: {user}",
+    "originDiscordUnknown": "Discord user",
+    "unknownAlliance": "Unknown alliance",
+    "markResolved": "Mark resolved",
+    "dismiss": "Dismiss",
+    "context": {
+      "onboarding_form": "Onboarding form",
+      "walkthrough": "Link walkthrough",
+      "roster_miss": "Not on roster",
+      "discord_button": "Discord link help"
+    }
   },
   "settings": {
     "title": "Settings",
@@ -1615,6 +1644,7 @@
     "importMembers": "Import members",
     "uploadRosterVideo": "Upload roster video",
     "rosterLinkRequests": "Roster link requests",
+    "memberLinkHelpRequests": "Ask an officer help",
     "import": {
       "title": "Import members",
       "uploadHint": "Upload one screenshot per rank page (officers screen and rank lists). We read names, power, and level with on-device OCR.",
@@ -2805,7 +2835,7 @@
       "startOver": "Start over",
       "askOfficer": "Ask an officer"
     },
-    "officerNotified": "An officer has been notified on Alliance HQ. They can help you get your name right and finish linking.",
+    "officerNotified": "An officer has been notified. They will reach out to help you..",
     "wrongServer": "Your player UID is for a different state server than this alliance. Double-check you joined the right alliance, or ask your R5 for the correct invite.",
     "awaitingOwner": "We verified your commander, but the roster name doesn't match yet. Your alliance owner was emailed — an officer must confirm the correct roster member in Alliance HQ before you can finish linking.",
     "nameMismatchRetry": "Last War shows your name as {gameName}. Type it exactly (or paste from an alliance mate) and try again.",
@@ -2818,13 +2848,13 @@
     "welcomePrefix": "Welcome to!",
     "welcomeSubtitle": "Let's connect your HQ account to your in-game profile.",
     "nameLabel": "In-game name",
-    "nameHint": "Must match Last War exactly — type carefully, or paste if an alliance mate sent your name.",
+    "nameHint": "This must match your Last War commander name exactly. Type carefully, or ask an alliance mate to copy it from your profile and send it to you.",
     "nameRequired": "Enter your in-game name.",
     "uidLabel": "Player UID",
-    "uidHint": "12–16 digit ID from your profile. The ending digits are your state server number.",
+    "uidHint": "Copy and paste your player ID from the profile menu in Last War.",
     "uidRequired": "Enter your player UID.",
     "uidInvalid": "Enter a 12–16 digit player ID from your profile.",
-    "submit": "Link my character",
+    "submit": "Link my Commander",
     "submitting": "Verifying…",
     "continue": "Continue",
     "linkedTitle": "You're linked!",
@@ -2848,10 +2878,10 @@
     "connectAshedCta": "Connect Ashed",
     "connectAshedDismiss": "Not now",
     "wrongAlliance": "Wrong alliance?",
-    "wrongAllianceHint": "Clears this onboarding session. Your membership stays — sign in with another account or redeem a different join code.",
+    "wrongAllianceHint": "Reset your onboarding session and start over if you are stuck.",
     "nameMismatchTitle": "Name didn't match",
-    "nameMismatchHint": "Your name must match Last War exactly. Ask an alliance mate to copy it from your profile, or tap Ask an officer if you're stuck.",
-    "linkHelpHint": "Can't get your name right? Enter your UID and tap Ask an officer — an R4+ officer will be notified on Alliance HQ.",
+    "nameMismatchHint": "Your name must match Last War exactly. Ask an alliance mate to copy it from your profile, or Ask an officer if you're stuck.",
+    "linkHelpHint": "Can't get your name right? Enter your UID and tap Ask an officer and an R4 will assist you.",
     "askOfficerNeedsUid": "Enter your player UID before asking an officer for help.",
     "useSuggestedName": "Use suggested name",
     "confirmServerTitle": "Confirm state server",
@@ -2897,7 +2927,7 @@
     },
     "link": {
       "userPrompt": "Click the link below to link your Discord account to Alliance HQ (expires in 30 min):\n{url}\n\nAfter linking, run `/help` in Discord for your next step.",
-      "promptFirstCommander": "Would you like to link your first Last War commander? Run `/link-commander name:… uid:…` (UID from your profile; name must match exactly — ask an alliance mate to copy it for you).",
+      "promptFirstCommander": "Would you like to link your first Last War commander? Run `/link-commander name:… uid:…` (UID from your profile; name must match exactly).",
       "usage": "Usage: `/link-commander name:… uid:…` (or `/link-last-war-profile name:… uid:…`). Add another commander anytime; use `replace:true` to switch your only link. Use `/unlink` to remove one.",
       "linked": "Linked commander **{name}**. You're ready to use /vr.",
       "linkedAdditional": "Linked another commander: **{name}**. Use /vr and pick which commander when you have more than one.",
@@ -2972,7 +3002,7 @@
       "startOver": "Start over",
       "askOfficer": "Ask an officer"
     },
-    "officerNotified": "An officer has been notified on Alliance HQ. They can reach out to you here on Discord.",
+    "officerNotified": "An officer has been notified. They can reach out to you here on Discord.",
     "help": {
       "dmGeneral": "**Alliance HQ bot** — run `/help` in your alliance server for steps matched to your role.\n\nQuick list: `/link`, `/link-commander`, `/vr`, `/immunity`, `/who-is-conductor`, `/language`. Owners set up with `/link-alliance`. Officers (R4+): `/vr-report`, `/set-conductor`, `/train-is-ready`.\n\n**Full setup guide:** {guideUrl}",
       "setupLinkHq": "Link your Discord account to Alliance HQ: run `/link` and complete the browser sign-in.",
@@ -3003,7 +3033,7 @@
     "keyLabel": "Ashed connection key",
     "keyHint": "Find this on ashed.online under Settings → Connection Key. Treat it like a password.",
     "nameLabel": "In-game name",
-    "nameHint": "Must match Last War exactly — type carefully, or paste if an alliance mate sent your name.",
+    "nameHint": "This must match your Last War commander name exactly. Type carefully, or ask an alliance mate to copy your player name from your profile and send it to you.",
     "uidLabel": "Player UID",
     "uidHint": "Your 12–16 digit player ID from your in-game profile.",
     "submit": "Connect",
@@ -3043,7 +3073,10 @@
       "videoJobsPending": "Videos to process",
       "memberLinkRequest": "Roster link",
       "memberLinkRequestTitle": "Approve {name}",
-      "memberLinkRequestBody": "A player needs owner approval to join the roster."
+      "memberLinkRequestBody": "A player needs owner approval to join the roster.",
+      "memberLinkHelp": "Officer help",
+      "memberLinkHelpTitle": "Help {name} link",
+      "memberLinkHelpBody": "A member asked for officer help while linking their commander."
     }
   },
   "guides": {

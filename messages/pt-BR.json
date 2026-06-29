@@ -135,6 +135,7 @@
       "hqEvents": "Eventos HQ",
       "commendations": "Comendações",
       "bugReports": "Relatórios de bugs",
+      "memberLinkHelp": "Ajuda no vínculo",
       "experienceFeedback": "Feedback de experiência",
       "translationReports": "Relatórios de tradução",
       "users": "Usuários HQ",
@@ -147,7 +148,7 @@
     },
     "opsInbox": {
       "title": "Caixa de ops",
-      "subtitle": "Jobs de vídeo com falha, fila travada e relatórios de bugs abertos.",
+      "subtitle": "Jobs de vídeo com falha, fila travada, relatórios de bugs abertos e pedidos de ajuda no vínculo.",
       "loadFailed": "Falha ao carregar a caixa de ops.",
       "empty": "Nada precisa de atenção agora.",
       "bellLabel": "Abrir caixa de ops",
@@ -155,12 +156,14 @@
       "counts": {
         "failed": "Jobs com falha",
         "stuck": "Fila travada",
-        "bugs": "Bugs abertos"
+        "bugs": "Bugs abertos",
+        "memberLinkHelp": "Pedidos de ajuda"
       },
       "kind": {
         "video_job_failed": "Job de vídeo com falha",
         "video_job_stuck_queued": "Job travado na fila",
-        "bug_report_open": "Relatório de bug aberto"
+        "bug_report_open": "Relatório de bug aberto",
+        "member_link_help_open": "Ajuda no vínculo"
       }
     },
     "systemTitle": "Saúde do sistema",
@@ -1040,7 +1043,8 @@
         "commendations": "Elogios",
         "bugReports": "Relatórios de bug",
         "experienceFeedback": "Feedback de experiência",
-        "translationReports": "Relatórios de tradução"
+        "translationReports": "Relatórios de tradução",
+        "memberLinkHelp": "Ajuda no vínculo"
       },
       "trains": {
         "spinWheel": "Girar roleta do condutor",
@@ -1300,6 +1304,31 @@
     "suggestionStale": "Havíamos sugerido {suggested}, mas esse membro do roster não está mais disponível. Escolha o membro correto abaixo.",
     "approveMatch": "Aprovar associação",
     "decline": "Recusar"
+  },
+  "memberLinkHelpRequests": {
+    "title": "Pedidos de ajuda ao oficial",
+    "adminTitle": "Pedidos de ajuda no vínculo",
+    "subtitle": "Membros que pediram ajuda de um oficial ao vincular o comandante — onboarding, walkthrough ou fluxos bloqueados.",
+    "backToMembers": "Voltar aos membros",
+    "backToAdmin": "Voltar ao portal admin",
+    "loadFailed": "Não foi possível carregar os pedidos de ajuda.",
+    "resolveFailed": "Não foi possível atualizar este pedido.",
+    "empty": "Nenhum pedido de ajuda aberto.",
+    "requester": "Conta HQ: {handle}",
+    "typedName": "Nome digitado: {name}",
+    "uidLast4": "UID terminando em …{last4}",
+    "originWeb": "Web",
+    "originDiscord": "Discord: {user}",
+    "originDiscordUnknown": "Usuário do Discord",
+    "unknownAlliance": "Aliança desconhecida",
+    "markResolved": "Marcar como resolvido",
+    "dismiss": "Dispensar",
+    "context": {
+      "onboarding_form": "Formulário de onboarding",
+      "walkthrough": "Walkthrough de vínculo",
+      "roster_miss": "Fora do roster",
+      "discord_button": "Ajuda no Discord"
+    }
   },
   "settings": {
     "title": "Configurações",
@@ -1615,6 +1644,7 @@
     "importMembers": "Importar membros",
     "uploadRosterVideo": "Enviar vídeo do elenco",
     "rosterLinkRequests": "Solicitações de vínculo ao roster",
+    "memberLinkHelpRequests": "Ajuda ao oficial",
     "import": {
       "title": "Importar membros",
       "uploadHint": "Envie uma captura por página de patente (oficiais e listas R1–R5). Lemos nome, poder e nível com OCR.",
@@ -2818,13 +2848,13 @@
     "welcomePrefix": "Bem-vindo à",
     "welcomeSubtitle": "Vamos conectar sua conta HQ ao seu perfil no jogo.",
     "nameLabel": "Nome no jogo",
-    "nameHint": "Deve ser exatamente igual ao Last War — digite com cuidado ou cole se um colega de aliança enviou seu nome.",
+    "nameHint": "Deve coincidir exatamente com o nome do seu comandante no Last War. Digite com cuidado ou peça a um colega de aliança para copiar do seu perfil e enviar para você.",
     "nameRequired": "Informe seu nome no jogo.",
     "uidLabel": "UID do jogador",
-    "uidHint": "ID de 12–16 dígitos do perfil. Os dígitos finais são o número do seu servidor estadual.",
+    "uidHint": "Copie e cole seu ID de jogador no menu de perfil do Last War.",
     "uidRequired": "Informe seu UID.",
     "uidInvalid": "Informe um ID de jogador com 12–16 dígitos do seu perfil.",
-    "submit": "Vincular meu personagem",
+    "submit": "Vincular meu Comandante",
     "submitting": "Verificando…",
     "continue": "Continuar",
     "linkedTitle": "Você está vinculado!",
@@ -2848,10 +2878,10 @@
     "connectAshedCta": "Conectar Ashed",
     "connectAshedDismiss": "Agora não",
     "wrongAlliance": "Aliança errada?",
-    "wrongAllianceHint": "Limpa esta sessão de onboarding. Sua associação permanece — entre com outra conta ou use outro código de entrada.",
+    "wrongAllianceHint": "Redefina sua sessão de onboarding e recomece se estiver travado.",
     "nameMismatchTitle": "Nome não confere",
-    "nameMismatchHint": "Seu nome deve coincidir exatamente com o Last War. Peça a um colega de aliança para copiar do seu perfil, ou toque em Pedir ajuda a um oficial se estiver travado.",
-    "linkHelpHint": "Não consegue acertar seu nome? Informe seu UID e toque em Pedir ajuda a um oficial — um oficial R4+ será notificado no Alliance HQ.",
+    "nameMismatchHint": "Seu nome deve coincidir exatamente com o Last War. Peça a um colega de aliança para copiar do seu perfil, ou use Pedir ajuda a um oficial se estiver travado.",
+    "linkHelpHint": "Não consegue acertar seu nome? Informe seu UID e toque em Pedir ajuda a um oficial — um R4 irá ajudá-lo.",
     "askOfficerNeedsUid": "Informe seu UID antes de pedir ajuda a um oficial.",
     "useSuggestedName": "Usar nome sugerido",
     "confirmServerTitle": "Confirmar servidor estadual",
@@ -3003,7 +3033,7 @@
     "keyLabel": "Chave de conexão Ashed",
     "keyHint": "Encontre em ashed.online em Configurações → Chave de Conexão. Trate como uma senha.",
     "nameLabel": "Nome no jogo",
-    "nameHint": "Deve ser exatamente igual ao Last War — digite com cuidado ou cole se um colega de aliança enviou seu nome.",
+    "nameHint": "Deve coincidir exatamente com o nome do seu comandante no Last War. Digite com cuidado ou peça a um colega de aliança para copiar seu nome de jogador do perfil e enviar para você.",
     "uidLabel": "UID do jogador",
     "uidHint": "Seu ID de jogador com 12–16 dígitos do perfil no jogo.",
     "submit": "Conectar",
@@ -3043,7 +3073,10 @@
       "videoJobsPending": "Vídeos para processar",
       "memberLinkRequest": "Vínculo de roster",
       "memberLinkRequestTitle": "Aprovar {name}",
-      "memberLinkRequestBody": "Um jogador precisa da aprovação do dono para entrar no roster."
+      "memberLinkRequestBody": "Um jogador precisa da aprovação do dono para entrar no roster.",
+      "memberLinkHelp": "Ajuda ao oficial",
+      "memberLinkHelpTitle": "Ajudar {name} a vincular",
+      "memberLinkHelpBody": "Um membro pediu ajuda de um oficial ao vincular o comandante."
     }
   },
   "uploadReminders": {

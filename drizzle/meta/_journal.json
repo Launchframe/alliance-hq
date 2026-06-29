@@ -449,6 +449,13 @@
       "when": 1784806400000,
       "tag": "0064_commander_main_squad",
       "breakpoints": true
+    },
+    {
+      "idx": 63,
+      "version": "7",
+      "when": 1784892800000,
+      "tag": "0065_hq_member_link_help_requests",
+      "breakpoints": true
     }
   ]
 }

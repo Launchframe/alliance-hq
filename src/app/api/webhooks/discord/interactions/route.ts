@@ -31,6 +31,12 @@ import {
   type DiscordInteractionPayload,
 } from "@/lib/discord/interactions";
 import { emitAdminAlert } from "@/lib/events/admin-alerts";
+import { lookupPlayerByUid } from "@/lib/lastwar/player-lookup";
+import {
+  recordMemberLinkHelpRequest,
+  resolveDiscordHelpContext,
+} from "@/lib/member-link/member-link-help-queue.server";
+import { getDiscordBotPending } from "@/lib/vr/repository";
 import {
   handleDiscordHelp,
   handleDiscordLanguage,
@@ -507,6 +513,31 @@ async function handleButton(payload: DiscordInteractionPayload) {
   }
 
   if (parsed.kind === "link_ask_officer") {
+    const pendingRow = await getDiscordBotPending(discordUserId);
+    const pending = pendingRow?.pending ?? null;
+    let gameUserName: string | null = null;
+    const pendingGameUid =
+      pending?.kind === "link_fuzzy_pick" ? pending.gameUid : null;
+    if (pendingGameUid && /^\d{12,16}$/.test(pendingGameUid)) {
+      try {
+        const lookup = await lookupPlayerByUid(pendingGameUid);
+        if (lookup.ok) {
+          gameUserName = lookup.gameUserName;
+        }
+      } catch {
+        // Best-effort display name for officers.
+      }
+    }
+    await recordMemberLinkHelpRequest({
+      allianceId,
+      origin: "discord",
+      context: resolveDiscordHelpContext(pending),
+      requesterHandle: discordUsername ?? discordUserId,
+      gameUid: pendingGameUid,
+      gameUserName,
+      discordUserId,
+      discordUsername,
+    });
     await emitAdminAlert({
       type: "vr_link_attention",
       count: 1,

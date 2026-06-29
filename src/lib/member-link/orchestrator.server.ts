@@ -1,6 +1,10 @@
 import "server-only";
 
 import { emitAdminAlert, emitMemberLinkUidTakenAlert } from "@/lib/events/admin-alerts";
+import {
+  recordMemberLinkHelpRequest,
+  resolveWebHelpContext,
+} from "@/lib/member-link/member-link-help-queue.server";
 import { lookupPlayerByUid } from "@/lib/lastwar/player-lookup";
 import { syncAllianceMemberGameLevelFromLastWar } from "@/lib/lastwar/sync-member-game-level.server";
 import {
@@ -616,6 +620,32 @@ export async function runWebMemberLinkAskOfficer(input: {
       pending: null,
     };
   }
+
+  let gameUserName: string | null = null;
+  if (isValidMemberLinkGameUid(gameUid)) {
+    try {
+      const lookup = await lookupPlayerByUid(gameUid);
+      if (lookup.ok) {
+        gameUserName = lookup.gameUserName;
+      }
+    } catch (error) {
+      console.error("[member-link] ask-officer lookup failed", error);
+    }
+  }
+
+  const requesterHandle =
+    ctx.displayName?.trim() || ctx.userEmail?.trim() || ctx.hqUserId;
+
+  await recordMemberLinkHelpRequest({
+    allianceId: input.allianceId,
+    hqUserId: input.hqUserId,
+    origin: "web",
+    context: resolveWebHelpContext(pending),
+    requesterHandle,
+    reportedName: input.reportedName?.trim() || null,
+    gameUid: gameUid || null,
+    gameUserName,
+  });
 
   await emitLinkAttention(ctx, { gameUid: gameUid || null });
   if (pendingAllowsAskOfficer) {

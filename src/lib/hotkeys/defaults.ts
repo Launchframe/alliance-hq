@@ -57,6 +57,7 @@ const DEFAULT_HOTKEY_BINDINGS_IMPL = {
   "admin.nav.bugReports": { key: "d" },
   "admin.nav.experienceFeedback": { key: "e" },
   "admin.nav.translationReports": { key: "f" },
+  "admin.nav.memberLinkHelp": { key: "g" },
 
   "trains.spinWheel": { key: "w" },
   "trains.spinWeek": chord("w", ["shift"]),
