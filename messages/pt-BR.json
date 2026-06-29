@@ -439,6 +439,10 @@
         "saving": "Salvando…",
         "invalid": "Informe um número de servidor válido.",
         "saveFailed": "Não foi possível atualizar o número do servidor."
+      },
+      "sessionContext": {
+        "title": "Contexto de aliança da sessão",
+        "hint": "Uploads, membros e ferramentas usam a aliança definida na sua sessão."
       }
     },
     "nativeAlliance": {
@@ -1504,7 +1508,11 @@
     "loading": "Carregando alianças…",
     "loadFailed": "Não foi possível carregar alianças.",
     "switchFailed": "Não foi possível trocar de aliança.",
-    "contextHint": "Visualizando dados de {tag}"
+    "contextHint": "Visualizando dados de {tag}",
+    "activeBadge": "Ativa",
+    "searchPlaceholder": "Buscar alianças…",
+    "searchNoMatches": "Nenhuma aliança corresponde à busca.",
+    "switchToSelected": "Usar {tag} nesta sessão"
   },
   "deviceLink": {
     "sectionTitle": "Vincular dispositivo móvel",

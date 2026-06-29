@@ -16,6 +16,8 @@ type Props = {
   initialJobs: AllianceQueueJob[];
   canProcess: boolean;
   ashedConnected: boolean;
+  /** Whether the configured OCR engine needs a live Ashed credential to run. */
+  ashedRequired: boolean;
   connectUrl: string;
 };
 
@@ -23,6 +25,7 @@ export function VideoQueueClient({
   initialJobs,
   canProcess,
   ashedConnected,
+  ashedRequired,
   connectUrl,
 }: Props) {
   const t = useTranslations("videoQueue");
@@ -86,7 +89,7 @@ export function VideoQueueClient({
     }
   }
 
-  const showConnectBanner = canProcess && !ashedConnected;
+  const showConnectBanner = canProcess && ashedRequired && !ashedConnected;
 
   return (
     <div className="min-w-0 space-y-3">
@@ -127,7 +130,7 @@ export function VideoQueueClient({
                 <JobActions
                   jobId={job.id}
                   acting={actingJobId === job.id}
-                  ashedConnected={ashedConnected}
+                  canApproveDirectly={!ashedRequired || ashedConnected}
                   onApprove={() => void approve(job.id)}
                   onReject={() => void reject(job.id)}
                   onConnect={goConnect}
@@ -167,7 +170,7 @@ export function VideoQueueClient({
                         <JobActions
                           jobId={job.id}
                           acting={actingJobId === job.id}
-                          ashedConnected={ashedConnected}
+                          canApproveDirectly={!ashedRequired || ashedConnected}
                           onApprove={() => void approve(job.id)}
                           onReject={() => void reject(job.id)}
                           onConnect={goConnect}
@@ -188,7 +191,7 @@ export function VideoQueueClient({
 
 function JobActions({
   acting,
-  ashedConnected,
+  canApproveDirectly,
   onApprove,
   onReject,
   onConnect,
@@ -196,7 +199,7 @@ function JobActions({
 }: {
   jobId: string;
   acting: boolean;
-  ashedConnected: boolean;
+  canApproveDirectly: boolean;
   onApprove: () => void;
   onReject: () => void;
   onConnect: () => void;
@@ -204,7 +207,7 @@ function JobActions({
 }) {
   return (
     <div className="flex flex-wrap items-center gap-2 text-sm font-normal">
-      {ashedConnected ? (
+      {canApproveDirectly ? (
         <button
           type="button"
           disabled={acting}

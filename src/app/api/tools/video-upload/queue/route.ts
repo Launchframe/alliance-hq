@@ -3,6 +3,7 @@ import { and, desc, eq, isNull, or } from "drizzle-orm";
 
 import { getDb, schema } from "@/lib/db";
 import { getAshedConnection, getOrCreateSession } from "@/lib/session";
+import { videoOcrRequiresAshedConnection } from "@/lib/video/ocr-provider.shared";
 import {
   sessionCanProcessVideo,
   sessionCanReadAllianceVideoQueue,
@@ -39,6 +40,7 @@ export async function GET() {
       jobs,
       canProcess,
       ashedConnected: Boolean(connection),
+      ashedRequired: videoOcrRequiresAshedConnection(),
       connectUrl: "/connect",
     });
   } catch (error) {
