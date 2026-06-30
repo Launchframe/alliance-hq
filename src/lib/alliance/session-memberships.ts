@@ -200,9 +200,17 @@ export async function sessionHasMembershipForAlliance(
 
 /**
  * Switch session alliance context after verifying HQ membership, or platform
- * maintainer access to any registered alliance.
- * Clears personal Ashed credentials and legacy session fields from the prior alliance,
- * then syncs allianceTag / allianceId from the target alliance row.
+ * maintainer access to any registered alliance. Syncs allianceTag / allianceId
+ * from the target alliance row.
+ *
+ * The session's personal Ashed credential is intentionally preserved across
+ * switches: it represents the signed-in user's own Ashed identity (keyed by
+ * session, bound to their hqUser via `ashedUserId`), not a per-alliance
+ * connection. Dropping it on every switch made Ashed-powered features unusable
+ * after switching — most visibly video OCR, where the approver's personal
+ * credential is the OCR engine regardless of which alliance the job belongs to.
+ * Shared-browser / wrong-user cases are still handled by the orphan-clear in
+ * `getAshedConnection` (bound-user mismatch), which is independent of switching.
  */
 export async function switchSessionCurrentAlliance(
   session: Session,
@@ -241,35 +249,18 @@ export async function switchSessionCurrentAlliance(
 
   const tag = alliance.tag?.trim() || null;
   const operatingMode = parseOperatingMode(alliance.operatingMode);
-  const switchingAlliance = session.currentAllianceId !== allianceId;
 
-  if (switchingAlliance) {
-    // Drop personal Ashed JWT and legacy session fields from the prior context.
-    await db
-      .delete(schema.ashedCredentials)
-      .where(eq(schema.ashedCredentials.sessionId, session.id));
-
-    await db
-      .update(schema.sessions)
-      .set({
-        currentAllianceId: alliance.id,
-        allianceTag: tag,
-        allianceId: alliance.ashedAllianceId ?? null,
-        userLabel: null,
-        updatedAt: new Date(),
-      })
-      .where(eq(schema.sessions.id, session.id));
-  } else {
-    await db
-      .update(schema.sessions)
-      .set({
-        currentAllianceId: alliance.id,
-        allianceTag: tag,
-        allianceId: alliance.ashedAllianceId ?? null,
-        updatedAt: new Date(),
-      })
-      .where(eq(schema.sessions.id, session.id));
-  }
+  // Update only the alliance tenant context. The personal Ashed credential and
+  // userLabel persist across switches (see doc comment above).
+  await db
+    .update(schema.sessions)
+    .set({
+      currentAllianceId: alliance.id,
+      allianceTag: tag,
+      allianceId: alliance.ashedAllianceId ?? null,
+      updatedAt: new Date(),
+    })
+    .where(eq(schema.sessions.id, session.id));
 
   return {
     allianceId: alliance.id,

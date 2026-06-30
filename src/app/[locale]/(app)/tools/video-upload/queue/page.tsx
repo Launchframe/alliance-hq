@@ -41,7 +41,7 @@ export default async function VideoQueuePage() {
         canProcess={canProcess}
         ashedConnected={Boolean(connection)}
         ashedRequired={videoOcrRequiresAshedConnection()}
-        connectUrl="/connect"
+        connectUrl={`/connect?next=${encodeURIComponent("/tools/video-upload/queue")}`}
       />
     </div>
   );
