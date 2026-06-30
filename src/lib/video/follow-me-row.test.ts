@@ -1,46 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  buildRowOrderIndex,
   followMeObserverRootMargin,
   followMeViewportCenterY,
-  pickNewlyEnteredRow,
   pickRowClosestToViewportCenter,
 } from "@/lib/video/follow-me-row";
-
-describe("buildRowOrderIndex", () => {
-  it("maps row ids to table order", () => {
-    const map = buildRowOrderIndex([{ id: "a" }, { id: "b" }, { id: "c" }]);
-    expect(map.get("a")).toBe(0);
-    expect(map.get("b")).toBe(1);
-    expect(map.get("c")).toBe(2);
-  });
-});
-
-describe("pickNewlyEnteredRow", () => {
-  const order = buildRowOrderIndex([
-    { id: "r0" },
-    { id: "r1" },
-    { id: "r2" },
-    { id: "r3" },
-  ]);
-
-  it("returns the sole id when only one row entered", () => {
-    expect(pickNewlyEnteredRow(["r2"], order, "down")).toBe("r2");
-  });
-
-  it("picks the highest index when scrolling down", () => {
-    expect(pickNewlyEnteredRow(["r1", "r3"], order, "down")).toBe("r3");
-  });
-
-  it("picks the lowest index when scrolling up", () => {
-    expect(pickNewlyEnteredRow(["r1", "r3"], order, "up")).toBe("r1");
-  });
-
-  it("falls back to lowest index when scroll direction is unknown", () => {
-    expect(pickNewlyEnteredRow(["r1", "r3"], order, "unknown")).toBe("r1");
-  });
-});
 
 describe("pickRowClosestToViewportCenter", () => {
   it("returns the row with smallest distance to center", () => {
@@ -55,6 +19,17 @@ describe("pickRowClosestToViewportCenter", () => {
 
   it("returns null for an empty list", () => {
     expect(pickRowClosestToViewportCenter([])).toBeNull();
+  });
+
+  it("picks the same row regardless of which side of center is closer (symmetric)", () => {
+    // A row 30px above center and a row 30px below center are equidistant; the
+    // first listed wins ties, but a row marginally closer always wins on either
+    // side. This guards against re-introducing a scroll-direction bias that made
+    // scroll-up land one row early.
+    const above = { rowId: "above", distanceFromCenterPx: 30 };
+    const below = { rowId: "below", distanceFromCenterPx: 29 };
+    expect(pickRowClosestToViewportCenter([above, below])).toBe("below");
+    expect(pickRowClosestToViewportCenter([below, above])).toBe("below");
   });
 });
 

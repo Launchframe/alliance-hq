@@ -1,49 +1,22 @@
 import type { PreviewPlacement } from "@/lib/video/preview-layout";
 
-export type FollowMeScrollDirection = "up" | "down" | "unknown";
-
-/** Map row id → index in the current filtered table order. */
-export function buildRowOrderIndex(
-  rows: ReadonlyArray<{ id: string }>,
-): Map<string, number> {
-  const map = new Map<string, number>();
-  rows.forEach((row, index) => map.set(row.id, index));
-  return map;
-}
-
 export type CenterDistanceEntry = {
   rowId: string;
   distanceFromCenterPx: number;
 };
 
 /**
- * Pick one row id from anchors that just entered the observer root.
- * Scrolling down → highest table index (entered from bottom); up → lowest.
+ * Pick the row whose anchor is closest to the visible band's center.
+ *
+ * Follow-me tracks the row at the viewport center (what the reviewer is
+ * actually looking at), the same way regardless of scroll direction. An earlier
+ * implementation picked the leading edge per scroll direction (bottommost when
+ * scrolling down, topmost when scrolling up); because the observed anchor sits
+ * at the row top and the band's top inset (sticky header) is larger than its
+ * bottom inset, the up-scroll leading row sat one row above viewport center and
+ * the preview showed a frame one row too early. Center-distance selection is
+ * symmetric and avoids that off-by-one.
  */
-export function pickNewlyEnteredRow(
-  rowIds: readonly string[],
-  rowOrderById: ReadonlyMap<string, number>,
-  scrollDirection: FollowMeScrollDirection,
-): string | null {
-  if (rowIds.length === 0) return null;
-  if (rowIds.length === 1) return rowIds[0] ?? null;
-
-  const indexed = rowIds
-    .map((id) => ({ id, index: rowOrderById.get(id) ?? -1 }))
-    .filter((entry) => entry.index >= 0);
-
-  if (indexed.length === 0) return rowIds[0] ?? null;
-
-  if (scrollDirection === "down") {
-    return indexed.reduce((best, cur) =>
-      cur.index > best.index ? cur : best,
-    ).id;
-  }
-
-  return indexed.reduce((best, cur) => (cur.index < best.index ? cur : best)).id;
-}
-
-/** Initial sync when Follow me is enabled — row closest to viewport center. */
 export function pickRowClosestToViewportCenter(
   entries: readonly CenterDistanceEntry[],
 ): string | null {
