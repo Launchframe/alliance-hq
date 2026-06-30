@@ -258,7 +258,7 @@ async function submitUidThenConfirm(
   uid: string,
 ) {
   await page.getByLabel(/player uid/i).fill(uid);
-  await page.getByRole("button", { name: /link my character/i }).click();
+  await page.getByRole("button", { name: /link my commander/i }).click();
   const confirm = page.getByRole("button", { name: /yes, that's me/i });
   await expect(confirm).toBeVisible();
   const linkResponse = page.waitForResponse(
@@ -349,7 +349,7 @@ test.describe("Member-link onboarding outcomes", () => {
     await openMemberLinkForm(page);
 
     await page.getByLabel(/player uid/i).fill("1234567890123");
-    await page.getByRole("button", { name: /link my character/i }).click();
+    await page.getByRole("button", { name: /link my commander/i }).click();
     await page.getByRole("button", { name: /yes, that's me/i }).click();
 
     await expect(
