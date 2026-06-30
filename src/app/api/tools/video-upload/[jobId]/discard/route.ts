@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { eq } from "drizzle-orm";
+import { and, eq, or } from "drizzle-orm";
 
 import { emitVideoJobStatus } from "@/lib/events/video-jobs";
 import { getDb, schema } from "@/lib/db";
@@ -58,7 +58,7 @@ export async function PATCH(_request: Request, { params }: Props) {
     qualityBucket = result.qualityBucket;
   }
 
-  await db
+  const [discarded] = await db
     .update(schema.videoJobs)
     .set({
       status: "discarded",
@@ -71,7 +71,23 @@ export async function PATCH(_request: Request, { params }: Props) {
           }
         : {}),
     })
-    .where(eq(schema.videoJobs.id, jobId));
+    .where(
+      and(
+        eq(schema.videoJobs.id, jobId),
+        or(
+          eq(schema.videoJobs.status, "review"),
+          eq(schema.videoJobs.status, "failed"),
+        ),
+      ),
+    )
+    .returning({ id: schema.videoJobs.id });
+
+  if (!discarded) {
+    return NextResponse.json(
+      { error: "Job cannot be discarded in its current state." },
+      { status: 409 },
+    );
+  }
 
   await emitVideoJobStatus({
     sessionId: job.sessionId,

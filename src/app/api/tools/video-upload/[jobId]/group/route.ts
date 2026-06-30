@@ -1,8 +1,11 @@
 import { NextResponse } from "next/server";
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { getOrCreateSession } from "@/lib/session";
-import type { PassComparison } from "@/lib/video/compare-pass-results";
+import {
+  resolveVideoJobAccess,
+  videoJobAccessErrorResponse,
+} from "@/lib/video/video-job-access.server";
 import { getExtractionPassComparison } from "@/lib/video/group-comparisons.shared";
 
 type Props = { params: Promise<{ jobId: string }> };
@@ -13,20 +16,20 @@ export async function GET(_request: Request, { params }: Props) {
     const { jobId } = await params;
     const db = getDb();
 
-    const [job] = await db
-      .select({ groupId: schema.videoJobs.groupId })
-      .from(schema.videoJobs)
-      .where(and(eq(schema.videoJobs.id, jobId), eq(schema.videoJobs.sessionId, session.id)))
-      .limit(1);
+    const access = await resolveVideoJobAccess(jobId, session.id, "read");
+    if (!access.ok) {
+      return videoJobAccessErrorResponse(access);
+    }
 
-    if (!job?.groupId) {
+    const groupId = access.job.groupId;
+    if (!groupId) {
       return NextResponse.json({ group: null, passes: [] });
     }
 
     const [group] = await db
       .select()
       .from(schema.videoUploadGroups)
-      .where(eq(schema.videoUploadGroups.id, job.groupId))
+      .where(eq(schema.videoUploadGroups.id, groupId))
       .limit(1);
 
     if (!group) {
@@ -44,7 +47,7 @@ export async function GET(_request: Request, { params }: Props) {
         parseSessionId: schema.videoJobs.parseSessionId,
       })
       .from(schema.videoJobs)
-      .where(eq(schema.videoJobs.groupId, job.groupId))
+      .where(eq(schema.videoJobs.groupId, groupId))
       .orderBy(schema.videoJobs.passIndex);
 
     return NextResponse.json({

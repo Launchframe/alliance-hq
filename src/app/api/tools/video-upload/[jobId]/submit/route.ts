@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 
 import { writeAuditLog } from "@/lib/bff/audit";
 import { emitVideoJobStatus } from "@/lib/events/video-jobs";
@@ -68,6 +68,49 @@ type SubmitBody = {
   rows: SubmitRow[];
 };
 
+/** Atomically claim review/complete → submitting so two devices cannot double-submit. */
+async function claimVideoJobForSubmit(
+  db: ReturnType<typeof getDb>,
+  jobId: string,
+  currentStatus: string,
+): Promise<{ ok: true } | { ok: false; status: 400 | 409; error: string }> {
+  if (currentStatus === "submitting") {
+    return {
+      ok: false,
+      status: 409,
+      error: "Submit already in progress.",
+    };
+  }
+  if (currentStatus !== "review" && currentStatus !== "complete") {
+    return {
+      ok: false,
+      status: 400,
+      error: "Job is not ready for submit.",
+    };
+  }
+
+  const [claimed] = await db
+    .update(schema.videoJobs)
+    .set({ status: "submitting", updatedAt: new Date() })
+    .where(
+      and(
+        eq(schema.videoJobs.id, jobId),
+        inArray(schema.videoJobs.status, ["review", "complete"]),
+      ),
+    )
+    .returning({ id: schema.videoJobs.id });
+
+  if (!claimed) {
+    return {
+      ok: false,
+      status: 409,
+      error: "Job is not ready for submit.",
+    };
+  }
+
+  return { ok: true };
+}
+
 export async function POST(request: Request, { params }: Props) {
   const session = await getOrCreateSession();
   const { jobId } = await params;
@@ -78,6 +121,7 @@ export async function POST(request: Request, { params }: Props) {
     category: string | null;
     /** Status before we wrote "submitting" — used for rollback so event-view re-submits roll back to "complete", not "review". */
     originalStatus: string;
+    uploaderSessionId: string;
   } | null = null;
 
   try {
@@ -90,8 +134,14 @@ export async function POST(request: Request, { params }: Props) {
     }
     const job = access.job;
 
-    const submitAllowedStatuses = new Set(["review", "complete", "submitting"]);
+    const submitAllowedStatuses = new Set(["review", "complete"]);
     if (!submitAllowedStatuses.has(job.status)) {
+      if (job.status === "submitting") {
+        return NextResponse.json(
+          { error: "Submit already in progress." },
+          { status: 409 },
+        );
+      }
       return NextResponse.json(
         { error: "Job is not ready for submit." },
         { status: 400 },
@@ -103,6 +153,7 @@ export async function POST(request: Request, { params }: Props) {
       scoreTarget: job.scoreTarget,
       category: job.category,
       originalStatus: job.status,
+      uploaderSessionId: job.sessionId,
     };
 
     const scoreTargetId = job.scoreTarget ?? job.category ?? "desert-storm";
@@ -199,14 +250,17 @@ export async function POST(request: Request, { params }: Props) {
         );
       }
 
-      await db
-        .update(schema.videoJobs)
-        .set({ status: "submitting", updatedAt: new Date() })
-        .where(eq(schema.videoJobs.id, jobId));
+      const claim = await claimVideoJobForSubmit(db, jobId, job.status);
+      if (!claim.ok) {
+        return NextResponse.json(
+          { error: claim.error },
+          { status: claim.status },
+        );
+      }
       advancedToSubmitting = true;
 
       await emitVideoJobStatus({
-        sessionId: session.id,
+        sessionId: job.sessionId,
         jobId,
         status: "submitting",
         fileName: job.fileName,
@@ -254,7 +308,7 @@ export async function POST(request: Request, { params }: Props) {
         .where(eq(schema.videoJobs.id, jobId));
 
       await emitVideoJobStatus({
-        sessionId: session.id,
+        sessionId: job.sessionId,
         jobId,
         status: "complete",
         fileName: job.fileName,
@@ -456,15 +510,14 @@ export async function POST(request: Request, { params }: Props) {
       ashedEventId,
     );
 
-    await db
-      .update(schema.videoJobs)
-      .set({ status: "submitting", updatedAt: new Date() })
-      .where(eq(schema.videoJobs.id, jobId));
-
+    const claim = await claimVideoJobForSubmit(db, jobId, job.status);
+    if (!claim.ok) {
+      return NextResponse.json({ error: claim.error }, { status: claim.status });
+    }
     advancedToSubmitting = true;
 
     await emitVideoJobStatus({
-      sessionId: session.id,
+      sessionId: job.sessionId,
       jobId,
       status: "submitting",
       fileName: job.fileName,
@@ -518,7 +571,7 @@ export async function POST(request: Request, { params }: Props) {
       .where(eq(schema.videoJobs.id, jobId));
 
     await emitVideoJobStatus({
-      sessionId: session.id,
+      sessionId: job.sessionId,
       jobId,
       status: "complete",
       fileName: job.fileName,
@@ -596,7 +649,7 @@ export async function POST(request: Request, { params }: Props) {
           .set({ status: rollbackStatus, updatedAt: new Date() })
           .where(eq(schema.videoJobs.id, jobId));
         await emitVideoJobStatus({
-          sessionId: session.id,
+          sessionId: jobSnapshot.uploaderSessionId,
           jobId,
           status: rollbackStatus,
           fileName: jobSnapshot.fileName ?? null,

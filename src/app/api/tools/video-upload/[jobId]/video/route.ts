@@ -1,7 +1,5 @@
-import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
-import { getDb, schema } from "@/lib/db";
 import { getObjectRange, getObjectSize, getObjectStream } from "@/lib/storage";
 import { getOrCreateSession } from "@/lib/session";
 import {
@@ -22,24 +20,13 @@ async function resolveAccessibleJobVideo(jobId: string, sessionId: string) {
     return { error: videoJobAccessErrorResponse(access) };
   }
 
-  const db = getDb();
-  const [job] = await db
-    .select({
-      id: schema.videoJobs.id,
-      storageKey: schema.videoJobs.storageKey,
-      archiveStorageKey: schema.videoJobs.archiveStorageKey,
-      groupId: schema.videoJobs.groupId,
-      fileName: schema.videoJobs.fileName,
-    })
-    .from(schema.videoJobs)
-    .where(eq(schema.videoJobs.id, jobId))
-    .limit(1);
-
-  if (!job) {
-    return { error: NextResponse.json({ error: "Job not found" }, { status: 404 }) };
-  }
-
-  const storageKey = await resolveJobVideoStorageKey(job);
+  const job = access.job;
+  const storageKey = await resolveJobVideoStorageKey({
+    storageKey: job.storageKey,
+    archiveStorageKey: job.archiveStorageKey,
+    groupId: job.groupId,
+    fileName: job.fileName,
+  });
   if (!storageKey) {
     return {
       error: NextResponse.json({ error: "Video not available" }, { status: 404 }),

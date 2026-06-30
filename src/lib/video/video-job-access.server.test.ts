@@ -113,4 +113,20 @@ describe("resolveVideoJobAccess", () => {
 
     expect(result).toEqual({ ok: false, status: 403 });
   });
+
+  it("denies mutate for same-alliance session without queue read permission", async () => {
+    loadSession.mockResolvedValue({
+      id: "other-session",
+      currentAllianceId: "alliance-a",
+    });
+    sessionCanReadAllianceVideoQueue.mockResolvedValue(false);
+
+    const result = await resolveVideoJobAccess(
+      "job-1",
+      "other-session",
+      "mutate",
+    );
+
+    expect(result).toEqual({ ok: false, status: 403 });
+  });
 });
