@@ -70,6 +70,9 @@ export function useVideoReviewFollowMe<TRow extends Row>({
       return;
     }
 
+    // Force a seek on the first sync after deps change (placement, dock, rows).
+    lastSeekedSecondsRef.current = null;
+
     const anchorElements = registry.elements;
     const rootMargin = followMeObserverRootMargin({
       previewOpen,

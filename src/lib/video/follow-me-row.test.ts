@@ -117,4 +117,16 @@ describe("followMeViewportCenterY", () => {
       }),
     ).toBe(52 + (800 - 52) / 2);
   });
+
+  it("centers within the band above a bottom dock", () => {
+    const dockHeightPx = 400;
+    expect(
+      followMeViewportCenterY({
+        viewportHeight: 800,
+        previewOpen: true,
+        placement: "bottom",
+        dockHeightPx,
+      }),
+    ).toBe(52 + (800 - 52 - dockHeightPx) / 2);
+  });
 });
