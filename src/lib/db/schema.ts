@@ -1493,7 +1493,7 @@ export const hqMemberLinkHelpRequests = pgTable(
     origin: text("origin").notNull(),
     discordUserId: text("discord_user_id"),
     discordUsername: text("discord_username"),
-    /** onboarding_form | walkthrough | roster_miss | discord_button */
+    /** onboarding_form | walkthrough | roster_miss | discord_button | claim_conflict */
     context: text("context").notNull(),
     reportedName: text("reported_name"),
     /** Stored for maintainer ops; never expose full value in UI — use last4 only. */
@@ -1509,6 +1509,8 @@ export const hqMemberLinkHelpRequests = pgTable(
       { onDelete: "set null" },
     ),
     linkedAshedMemberId: text("linked_ashed_member_id"),
+    /** name_collision | commander_taken | server_mismatch | target_mismatch */
+    claimConflictReason: text("claim_conflict_reason"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
