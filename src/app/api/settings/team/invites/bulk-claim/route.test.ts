@@ -57,8 +57,8 @@ describe("POST /api/settings/team/invites/bulk-claim", () => {
     expect(res.status).toBe(401);
   });
 
-  it("rejects more than 50 commander ids", async () => {
-    const ids = Array.from({ length: 51 }, (_, i) => `m${i}`);
+  it("rejects more than 100 commander ids", async () => {
+    const ids = Array.from({ length: 101 }, (_, i) => `m${i}`);
 
     const res = await POST(jsonRequest({ targetAshedMemberIds: ids }));
 

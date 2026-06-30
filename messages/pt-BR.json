@@ -116,7 +116,9 @@
     "discordBotGuide": "Ajuda do bot Discord",
     "discordBotGuideDescription": "Configure o bot Alliance HQ no seu servidor Discord",
     "discordTrainGuide": "Guia do trem no Discord",
-    "discordTrainGuideDescription": "Anúncios de condutor de trem no Discord"
+    "discordTrainGuideDescription": "Anúncios de condutor de trem no Discord",
+    "allianceOnboardingGuide": "Integração da aliança",
+    "allianceOnboardingGuideDescription": "Convites e vínculo de membros (Ashed vs nativa)"
   },
   "admin": {
     "title": "Portal Admin HQ",
@@ -917,10 +919,16 @@
       "bulkClaimSelectedCount": "{count} selecionados",
       "bulkClaimButton": "Gerar {count} links de reivindicação",
       "bulkClaimResultsTitle": "Links de reivindicação",
-      "bulkClaimSummary": "{created} links de reivindicação gerados. {skipped} comandantes já vinculados foram ignorados."
+      "bulkClaimSummary": "{created} links de reivindicação gerados. {skipped} comandantes já vinculados foram ignorados.",
+      "nearFullRosterBanner": "Seu roster tem {count} de {max} membros — perto do limite do jogo. Use convites de reivindicação de comandante para vincular quem já está no roster. A maioria das alianças fica com 99 membros para novos candidatos entrarem no jogo.",
+      "nearFullAdvancedTitle": "Links de convite e códigos de entrada",
+      "nearFullAdvancedHint": "Para acesso de oficial, visualizador ou entrada de dados. Convites com papel de membro aqui não adicionam jogadores que ainda não estão no roster do jogo.",
+      "memberRoleNearFullWarning": "Convites e códigos com papel de membro não adicionam alguém à aliança no jogo quando o roster está quase cheio. Use um convite de reivindicação de comandante se a pessoa já estiver no roster."
     },
     "table": {
       "user": "Usuário",
+      "commander": "Comandante",
+      "commanderNotLinked": "Não vinculado",
       "role": "Função",
       "source": "Origem"
     }
@@ -1045,7 +1053,8 @@
         "account": "Ir para Configurações da conta",
         "settings": "Ir para Configurações",
         "discordBotGuide": "Ir para Ajuda do bot Discord",
-        "discordTrainGuide": "Ir para Guia do trem no Discord"
+        "discordTrainGuide": "Ir para Guia do trem no Discord",
+        "allianceOnboardingGuide": "Ir para Integração da aliança"
       },
       "admin": {
         "overview": "Visão geral Admin",

@@ -2,6 +2,12 @@ import { NextResponse } from "next/server";
 import { asc, eq } from "drizzle-orm";
 
 import { getDb, schema } from "@/lib/db";
+import {
+  countActiveRosterMembers,
+  isNearFullRoster,
+  ROSTER_MAX_MEMBERS,
+  rosterNearFullThreshold,
+} from "@/lib/members/roster-rank-quota.shared";
 import { resolveTeamInviteAccess } from "@/lib/native-alliance/team-invites.server";
 import { getLinkedMemberIds } from "@/lib/vr/repository";
 import { readSessionId } from "@/lib/session";
@@ -48,5 +54,15 @@ export async function GET() {
       name: member.currentName,
     }));
 
-  return NextResponse.json({ commanders });
+  const activeCount = countActiveRosterMembers(members);
+
+  return NextResponse.json({
+    commanders,
+    roster: {
+      activeCount,
+      maxMembers: ROSTER_MAX_MEMBERS,
+      nearFullThreshold: rosterNearFullThreshold(),
+      nearFull: isNearFullRoster(activeCount),
+    },
+  });
 }

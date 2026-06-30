@@ -377,6 +377,8 @@ export type TeamMember = {
   displayName: string | null;
   roleName: string;
   source: string;
+  /** In-game commander name when this HQ user has a member link; null otherwise. */
+  commanderName: string | null;
 };
 
 export async function getAllianceTeam(
@@ -389,10 +391,26 @@ export async function getAllianceTeam(
       displayName: schema.hqUsers.displayName,
       roleName: schema.roles.name,
       source: schema.allianceMemberships.source,
+      linkDisplayName: schema.hqMemberLinks.memberDisplayName,
+      rosterName: schema.allianceMembers.currentName,
     })
     .from(schema.allianceMemberships)
     .innerJoin(schema.hqUsers, eq(schema.hqUsers.id, schema.allianceMemberships.hqUserId))
     .innerJoin(schema.roles, eq(schema.roles.id, schema.allianceMemberships.roleId))
+    .leftJoin(
+      schema.hqMemberLinks,
+      and(
+        eq(schema.hqMemberLinks.hqUserId, schema.allianceMemberships.hqUserId),
+        eq(schema.hqMemberLinks.allianceId, schema.allianceMemberships.allianceId),
+      ),
+    )
+    .leftJoin(
+      schema.allianceMembers,
+      and(
+        eq(schema.allianceMembers.ashedMemberId, schema.hqMemberLinks.ashedMemberId),
+        eq(schema.allianceMembers.allianceId, schema.allianceMemberships.allianceId),
+      ),
+    )
     .where(
       and(
         eq(schema.allianceMemberships.allianceId, hqAllianceId),
@@ -400,5 +418,13 @@ export async function getAllianceTeam(
       ),
     );
 
-  return rows.sort((a, b) => a.email.localeCompare(b.email));
+  return rows
+    .map((row) => ({
+      email: row.email,
+      displayName: row.displayName,
+      roleName: row.roleName,
+      source: row.source,
+      commanderName: row.linkDisplayName ?? row.rosterName ?? null,
+    }))
+    .sort((a, b) => a.email.localeCompare(b.email));
 }

@@ -13,9 +13,8 @@ import {
   assertInviteRoleAllowed,
   resolveTeamInviteAccess,
 } from "@/lib/native-alliance/team-invites.server";
+import { MAX_BULK_CLAIM_INVITES } from "@/lib/native-alliance/claim-invites.shared";
 import { readSessionId } from "@/lib/session";
-
-const MAX_BULK_CLAIM_INVITES = 50;
 
 const bodySchema = z.object({
   targetAshedMemberIds: z

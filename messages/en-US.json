@@ -116,7 +116,9 @@
     "discordBotGuide": "Discord bot help",
     "discordBotGuideDescription": "Set up the Alliance HQ bot in your Discord server",
     "discordTrainGuide": "Discord train guide",
-    "discordTrainGuideDescription": "Train conductor announcements in Discord"
+    "discordTrainGuideDescription": "Train conductor announcements in Discord",
+    "allianceOnboardingGuide": "Alliance onboarding",
+    "allianceOnboardingGuideDescription": "Invite and link members (Ashed-sync vs fresh native)"
   },
   "admin": {
     "title": "HQ Admin Portal",
@@ -899,7 +901,7 @@
       "joinCodeFailed": "Could not create join code.",
       "joinCodeCreated": "Join code generated.",
       "claimTitle": "Commander claim invite",
-      "claimHint": "Invite someone to claim a specific roster commander. They confirm with their own UID — you never see it.",
+      "claimHint": "Invite teammates to claim Commander profiles from your alliance's roster.",
       "claimCommanderLabel": "Commander",
       "claimCommanderPlaceholder": "Select a commander…",
       "claimButton": "Generate claim link",
@@ -917,10 +919,16 @@
       "bulkClaimSelectedCount": "{count} selected",
       "bulkClaimButton": "Generate {count} claim links",
       "bulkClaimResultsTitle": "Claim links",
-      "bulkClaimSummary": "Generated {created} claim links. Skipped {skipped} already-linked commanders."
+      "bulkClaimSummary": "Generated {created} claim links. Skipped {skipped} already-linked commanders.",
+      "nearFullRosterBanner": "Your roster has {count} of {max} members — near the in-game limit. Use commander claim invites to link people already on the roster. Most alliances stay at 99 members so new applicants can join in-game.",
+      "nearFullAdvancedTitle": "Invite links and join codes",
+      "nearFullAdvancedHint": "For officer, viewer, or data-entry access. Member-role links here do not add players who are not already on your in-game roster.",
+      "memberRoleNearFullWarning": "Member-role invites and join codes do not add someone to the in-game alliance when the roster is nearly full. Use a commander claim invite if they are already on your roster."
     },
     "table": {
       "user": "User",
+      "commander": "Commander",
+      "commanderNotLinked": "Not linked",
       "role": "Role",
       "source": "Source"
     }
@@ -1045,7 +1053,8 @@
         "account": "Go to Account settings",
         "settings": "Go to Settings",
         "discordBotGuide": "Go to Discord bot help",
-        "discordTrainGuide": "Go to Discord train guide"
+        "discordTrainGuide": "Go to Discord train guide",
+        "allianceOnboardingGuide": "Go to Alliance onboarding help"
       },
       "admin": {
         "overview": "Admin overview",

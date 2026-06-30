@@ -2,6 +2,34 @@ export const ROSTER_MAX_MEMBERS = 100;
 export const ROSTER_MAX_R4 = 10;
 export const ROSTER_R5_REQUIRED = 1;
 
+/**
+ * UI treats the roster as "full" when active count is within this fraction of
+ * {@link ROSTER_MAX_MEMBERS}. Alliances often cap at 99/100 in-game so applicants
+ * are not blocked at exactly 100.
+ */
+export const ROSTER_NEAR_FULL_MARGIN_FRACTION = 0.03;
+
+/** Active roster count at or above which invite UI prioritizes commander claims. */
+export function rosterNearFullThreshold(
+  maxMembers: number = ROSTER_MAX_MEMBERS,
+  marginFraction: number = ROSTER_NEAR_FULL_MARGIN_FRACTION,
+): number {
+  return Math.ceil(maxMembers * (1 - marginFraction));
+}
+
+export function isNearFullRoster(
+  activeMemberCount: number,
+  maxMembers: number = ROSTER_MAX_MEMBERS,
+): boolean {
+  return activeMemberCount >= rosterNearFullThreshold(maxMembers);
+}
+
+export function countActiveRosterMembers(
+  members: Array<{ status?: string | null }>,
+): number {
+  return members.filter((member) => member.status !== "former").length;
+}
+
 export type ExistingRosterMemberForQuota = {
   ashedMemberId: string;
   allianceRank: number | null;
