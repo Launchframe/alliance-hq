@@ -76,7 +76,7 @@ test.describe("Discord /link complete — inline join code", () => {
         res.url().includes("/api/member-link") &&
         res.request().method() === "POST",
     );
-    await page.getByRole("button", { name: /link my character/i }).click();
+    await page.getByRole("button", { name: /link my commander/i }).click();
     const response = await linkResponse;
     expect(response.ok()).toBe(true);
     const body = (await response.json()) as { outcome?: string; message?: string };

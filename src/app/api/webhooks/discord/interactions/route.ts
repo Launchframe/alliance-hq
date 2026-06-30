@@ -31,6 +31,12 @@ import {
   type DiscordInteractionPayload,
 } from "@/lib/discord/interactions";
 import { emitAdminAlert } from "@/lib/events/admin-alerts";
+import { lookupPlayerByUid } from "@/lib/lastwar/player-lookup";
+import {
+  recordMemberLinkHelpRequest,
+  resolveDiscordHelpContext,
+} from "@/lib/member-link/member-link-help-queue.server";
+import { getDiscordBotPending } from "@/lib/vr/repository";
 import {
   handleDiscordHelp,
   handleDiscordLanguage,
@@ -507,6 +513,40 @@ async function handleButton(payload: DiscordInteractionPayload) {
   }
 
   if (parsed.kind === "link_ask_officer") {
+    const pendingRow = await getDiscordBotPending(discordUserId);
+    const pending = pendingRow?.pending ?? null;
+    const pendingGameUid =
+      pending?.kind === "link_fuzzy_pick" ? pending.gameUid : null;
+    const pendingReportedName =
+      pending?.kind === "link_fuzzy_pick" ? pending.reportedName : null;
+    const gameUid =
+      pendingGameUid && /^\d{12,16}$/.test(pendingGameUid) ? pendingGameUid : null;
+    const reportedName = pendingReportedName?.trim() || null;
+
+    if (!gameUid || !reportedName) {
+      return discordButtonResponse(t("errors.askOfficerNeedsNameAndUid"), []);
+    }
+
+    let gameUserName: string | null = null;
+    try {
+      const lookup = await lookupPlayerByUid(gameUid);
+      if (lookup.ok) {
+        gameUserName = lookup.gameUserName;
+      }
+    } catch {
+      // Best-effort display name for officers.
+    }
+    await recordMemberLinkHelpRequest({
+      allianceId,
+      origin: "discord",
+      context: resolveDiscordHelpContext(pending),
+      requesterHandle: discordUsername ?? discordUserId,
+      reportedName,
+      gameUid,
+      gameUserName,
+      discordUserId,
+      discordUsername,
+    });
     await emitAdminAlert({
       type: "vr_link_attention",
       count: 1,

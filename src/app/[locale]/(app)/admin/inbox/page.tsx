@@ -21,6 +21,7 @@ type Summary = {
   videoJobsFailed: number;
   videoJobsStuckQueued: number;
   bugReportsOpen: number;
+  memberLinkHelpOpen: number;
 };
 
 export default function AdminOpsInboxPage() {
@@ -67,7 +68,7 @@ export default function AdminOpsInboxPage() {
       </div>
 
       {summary ? (
-        <dl className="grid gap-3 sm:grid-cols-3">
+        <dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <div className="rounded-lg border border-[#30363d] bg-[#161b22] px-4 py-3">
             <dt className="text-xs text-[#8b949e]">{t("counts.failed")}</dt>
             <dd className="text-xl font-semibold">{summary.videoJobsFailed}</dd>
@@ -81,6 +82,10 @@ export default function AdminOpsInboxPage() {
           <div className="rounded-lg border border-[#30363d] bg-[#161b22] px-4 py-3">
             <dt className="text-xs text-[#8b949e]">{t("counts.bugs")}</dt>
             <dd className="text-xl font-semibold">{summary.bugReportsOpen}</dd>
+          </div>
+          <div className="rounded-lg border border-[#30363d] bg-[#161b22] px-4 py-3">
+            <dt className="text-xs text-[#8b949e]">{t("counts.memberLinkHelp")}</dt>
+            <dd className="text-xl font-semibold">{summary.memberLinkHelpOpen}</dd>
           </div>
         </dl>
       ) : null}

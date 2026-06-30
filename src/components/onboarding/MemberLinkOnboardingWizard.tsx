@@ -22,6 +22,7 @@ type Props = {
 };
 
 type Phase =
+  | "loading"
   | "welcome"
   | "form"
   | "walkthrough"
@@ -55,7 +56,7 @@ export function MemberLinkOnboardingWizard({
   const tLink = useTranslations("memberLink");
   const router = useRouter();
 
-  const [phase, setPhase] = useState<Phase>("welcome");
+  const [phase, setPhase] = useState<Phase>("loading");
   const [reportedName, setReportedName] = useState("");
   const [gameUid, setGameUid] = useState("");
   const [message, setMessage] = useState<string | null>(null);
@@ -85,8 +86,12 @@ export function MemberLinkOnboardingWizard({
   );
 
   const goToMemberLinkForm = useCallback(() => {
+    if (claimCommanderName) {
+      setPhase("claim");
+      return;
+    }
     setPhase("form");
-  }, []);
+  }, [claimCommanderName]);
 
   const applyOutcome = useCallback(
     (data: ApiResponse) => {
@@ -337,7 +342,12 @@ export function MemberLinkOnboardingWizard({
 
   async function askOfficer() {
     setFormError(null);
+    const name = reportedName.trim();
     const uid = gameUid.trim();
+    if (!name) {
+      setFormError(t("nameRequired"));
+      return;
+    }
     if (!isValidGameUid(uid)) {
       setFormError(t("askOfficerNeedsUid"));
       return;
@@ -346,7 +356,7 @@ export function MemberLinkOnboardingWizard({
     setBusy(true);
     try {
       const data = await postJson<ApiResponse>("/api/member-link/ask-officer", {
-        reportedName: reportedName.trim() || undefined,
+        reportedName: name,
         gameUid: uid,
       });
       applyOutcome(data);
@@ -423,6 +433,7 @@ export function MemberLinkOnboardingWizard({
   }, [applyOutcome, linkedName, reportedName, t]);
 
   useEffect(() => {
+    let cancelled = false;
     void fetch("/api/member-link")
       .then((res) => (res.ok ? res.json() : null))
       .then(
@@ -431,7 +442,11 @@ export function MemberLinkOnboardingWizard({
           claimTarget?: { ashedMemberId: string; commanderName: string } | null;
           message?: string | null;
         } | null) => {
-          if (!data) return;
+          if (cancelled) return;
+          if (!data) {
+            setPhase("welcome");
+            return;
+          }
           if (data.pending) {
             if (data.pending.kind === "link_walkthrough") {
               setPhase("walkthrough");
@@ -443,16 +458,25 @@ export function MemberLinkOnboardingWizard({
             } else if (data.pending.kind === "link_awaiting_owner") {
               setPhase("awaiting_owner");
               setMessage(data.message ?? null);
+            } else {
+              setPhase("welcome");
             }
             return;
           }
           if (data.claimTarget?.commanderName) {
             setClaimCommanderName(data.claimTarget.commanderName);
             setPhase("claim");
+            return;
           }
+          setPhase("welcome");
         },
       )
-      .catch(() => undefined);
+      .catch(() => {
+        if (!cancelled) setPhase("welcome");
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -465,6 +489,15 @@ export function MemberLinkOnboardingWizard({
 
   return (
     <div className="mx-auto w-full max-w-lg space-y-6 rounded-xl border border-[#30363d] bg-[#161b22] p-6">
+      {phase === "loading" ? (
+        <div className="flex justify-center py-10" aria-busy="true">
+          <span
+            aria-hidden="true"
+            className="h-6 w-6 animate-spin rounded-full border-2 border-[#30363d] border-t-[#58a6ff]"
+          />
+        </div>
+      ) : null}
+
       {phase === "welcome" ? (
         <>
           <AllianceWelcomeHero

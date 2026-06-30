@@ -273,7 +273,7 @@ test.describe("Member-link onboarding outcomes", () => {
         res.url().includes("/api/member-link") &&
         res.request().method() === "POST",
     );
-    await page.getByRole("button", { name: /link my character/i }).click();
+    await page.getByRole("button", { name: /link my commander/i }).click();
     const response = await linkResponse;
     expect(response.ok()).toBe(true);
     const body = (await response.json()) as { outcome?: string };
@@ -323,7 +323,7 @@ test.describe("Member-link onboarding outcomes", () => {
 
     await page.getByLabel(/in-game name/i).fill("Test Commander");
     await page.getByLabel(/player uid/i).fill("1234567890123");
-    await page.getByRole("button", { name: /link my character/i }).click();
+    await page.getByRole("button", { name: /link my commander/i }).click();
 
     await expect(
       page.getByRole("heading", { name: /wrong state server/i }),
@@ -433,7 +433,7 @@ test.describe("Member-link onboarding outcomes", () => {
         res.url().includes("/api/member-link") &&
         res.request().method() === "POST",
     );
-    await page.getByRole("button", { name: /link my character/i }).click();
+    await page.getByRole("button", { name: /link my commander/i }).click();
     const response = await linkResponse;
     expect(response.ok()).toBe(true);
     const body = (await response.json()) as { outcome?: string };
@@ -463,7 +463,7 @@ test.describe("Member-link onboarding outcomes", () => {
     await openMemberLinkForm(page);
     await page.getByLabel(/in-game name/i).fill("E2eRosterMiss");
     await page.getByLabel(/player uid/i).fill("1234567890121204");
-    await page.getByRole("button", { name: /link my character/i }).click();
+    await page.getByRole("button", { name: /link my commander/i }).click();
     await expect(
       page.getByRole("heading", { name: /waiting for roster confirmation/i }),
     ).toBeVisible();
@@ -571,7 +571,7 @@ test.describe("Member-link onboarding outcomes", () => {
         res.url().includes("/api/member-link") &&
         res.request().method() === "POST",
     );
-    await page.getByRole("button", { name: /link my character/i }).click();
+    await page.getByRole("button", { name: /link my commander/i }).click();
     const response = await linkResponse;
     expect(response.ok()).toBe(true);
     const body = (await response.json()) as { outcome?: string };
@@ -682,7 +682,7 @@ test.describe("Member-link onboarding outcomes", () => {
         res.url().includes("/api/member-link") &&
         res.request().method() === "POST",
     );
-    await page.getByRole("button", { name: /link my character/i }).click();
+    await page.getByRole("button", { name: /link my commander/i }).click();
     const response = await linkResponse;
     expect(response.ok()).toBe(true);
     const body = (await response.json()) as { outcome?: string; message?: string };

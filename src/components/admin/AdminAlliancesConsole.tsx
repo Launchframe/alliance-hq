@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { AdminNativeAlliancePanel } from "@/components/admin/AdminNativeAlliancePanel";
+import { AllianceSessionSwitcher } from "@/components/alliance/AllianceSessionSwitcher";
 import { FormattedDateTime } from "@/components/timezone/TimezoneProvider";
 import { AppSelect } from "@/components/ui/AppSelect";
 import {
@@ -297,6 +298,24 @@ export function AdminAlliancesConsole() {
         onSelectAlliance={setInviteTargetAllianceId}
         onCreated={() => refreshAfterMutation()}
       />
+
+      {effectiveInviteTargetAllianceId ? (
+        <div className="rounded-xl border border-[#30363d] bg-[#161b22] p-4">
+          <h3 className="text-sm font-medium text-[#e6edf3]">
+            {t("sessionContext.title")}
+          </h3>
+          <p className="mt-1 text-sm text-[#8b949e]">
+            {t("sessionContext.hint")}
+          </p>
+          <div className="mt-3 max-w-md">
+            <AllianceSessionSwitcher
+              stayOnCurrentPage
+              switchTargetAllianceId={effectiveInviteTargetAllianceId}
+              searchable
+            />
+          </div>
+        </div>
+      ) : null}
 
       <div className="space-y-4">
         {serverError ? (
