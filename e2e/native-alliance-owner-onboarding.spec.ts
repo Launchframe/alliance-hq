@@ -38,6 +38,28 @@ async function openMemberLinkForm(page: import("@playwright/test").Page) {
   ).toBeVisible();
 }
 
+/**
+ * UID-only self-service: enter the player UID, preview the looked-up commander,
+ * then confirm "yes, that's me" to fire the link submit. Returns the link POST
+ * response (not the preview) so callers can assert the outcome.
+ */
+async function submitUidThenConfirm(
+  page: import("@playwright/test").Page,
+  uid: string,
+) {
+  await page.getByLabel(/player uid/i).fill(uid);
+  await page.getByRole("button", { name: /link my commander/i }).click();
+  const confirm = page.getByRole("button", { name: /yes, that's me/i });
+  await expect(confirm).toBeVisible();
+  const linkResponse = page.waitForResponse(
+    (res) =>
+      new URL(res.url()).pathname.endsWith("/api/member-link") &&
+      res.request().method() === "POST",
+  );
+  await confirm.click();
+  return linkResponse;
+}
+
 test.describe("Native alliance — PA provision through owner onboarding", () => {
   test.slow();
 
@@ -122,15 +144,7 @@ test.describe("Native alliance — PA provision through owner onboarding", () =>
     await expect(page).toHaveURL(/\/onboard/);
 
     await openMemberLinkForm(page);
-    await page.getByLabel(/in-game name/i).fill(OWNER_COMMANDER_NAME);
-    await page.getByLabel(/player uid/i).fill(officerUid);
-    const officerLinkResponse = page.waitForResponse(
-      (res) =>
-        res.url().includes("/api/member-link") &&
-        res.request().method() === "POST",
-    );
-    await page.getByRole("button", { name: /link my commander/i }).click();
-    const officerLinkRes = await officerLinkResponse;
+    const officerLinkRes = await submitUidThenConfirm(page, officerUid);
     expect(officerLinkRes.ok()).toBe(true);
     const officerLinkBody = (await officerLinkRes.json()) as {
       outcome?: string;
@@ -154,17 +168,9 @@ test.describe("Native alliance — PA provision through owner onboarding", () =>
     await page.getByRole("button", { name: /accept invite/i }).click();
     await expect(page).toHaveURL(/\/onboard/);
 
-    // 5. Owner onboarding: name + UID matching the provisioned state server.
+    // 5. Owner onboarding: UID-only confirm matching the provisioned state server.
     await openMemberLinkForm(page);
-    await page.getByLabel(/in-game name/i).fill(OWNER_COMMANDER_NAME);
-    await page.getByLabel(/player uid/i).fill(ownerUid);
-    const linkResponse = page.waitForResponse(
-      (res) =>
-        res.url().includes("/api/member-link") &&
-        res.request().method() === "POST",
-    );
-    await page.getByRole("button", { name: /link my commander/i }).click();
-    const response = await linkResponse;
+    const response = await submitUidThenConfirm(page, ownerUid);
     expect(response.ok()).toBe(true);
     const linkBody = (await response.json()) as {
       outcome?: string;

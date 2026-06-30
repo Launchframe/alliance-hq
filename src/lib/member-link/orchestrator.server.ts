@@ -241,6 +241,78 @@ async function finalizeCommandResult(
   return toMemberLinkApiResponse(result);
 }
 
+/**
+ * UID-only self-service step 1: look up the player by UID and return the game
+ * name for the user to confirm before any link is written. The typed-name
+ * requirement was dropped (it never drove roster matching — that uses the
+ * looked-up `gameUserName`), so this preview replaces it with an explicit
+ * "is this you?" confirmation that still catches UID typos. The confirm step
+ * then re-runs the normal submit with `reportedName = gameUserName`, so every
+ * downstream branch (roster match, roster miss, owner approval, cold start,
+ * server confirm, member-taken) is unchanged.
+ */
+export async function runWebMemberLinkPreview(input: {
+  allianceId: string;
+  hqUserId: string;
+  locale: string;
+  gameUid?: string;
+}): Promise<MemberLinkApiResponse> {
+  const claimBlock = await blockSelfServiceWhenClaimPending({
+    allianceId: input.allianceId,
+    hqUserId: input.hqUserId,
+    locale: input.locale,
+  });
+  if (claimBlock) {
+    return claimBlock;
+  }
+
+  const translate = createMemberLinkTranslator(input.locale);
+  const uid = input.gameUid?.trim();
+  if (!uid) {
+    return {
+      outcome: "lookup_error",
+      message: translate("link.usage"),
+      pending: null,
+    };
+  }
+
+  const lookup = await lookupPlayerByUid(uid);
+  if (lookup.ok) {
+    return {
+      outcome: "confirm_identity",
+      message: lookup.gameUserName,
+      pending: null,
+      lookupGameUserName: lookup.gameUserName,
+      lookupServerNumber: lookup.gameServerNumber ?? null,
+    };
+  }
+
+  // Degraded mode: owner bootstrapping an empty roster while the game API is
+  // unreachable still needs the manual name + server fallback (no name to
+  // confirm). Everyone else just retries the UID lookup.
+  if (lookup.reason === "request_failed") {
+    const roster = await loadAllianceMembersForMemberLink(input.allianceId);
+    const ownerColdStartEligible = await isOwnerColdStartEligible({
+      allianceId: input.allianceId,
+      hqUserId: input.hqUserId,
+      rosterCount: roster.members.length,
+    });
+    if (ownerColdStartEligible) {
+      return {
+        outcome: "lookup_fallback",
+        message: translate("lookupFallback"),
+        pending: null,
+      };
+    }
+  }
+
+  return {
+    outcome: "lookup_error",
+    message: lookup.message,
+    pending: null,
+  };
+}
+
 export async function runWebMemberLinkSubmit(input: {
   sessionId: string;
   allianceId: string;
