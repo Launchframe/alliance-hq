@@ -269,6 +269,13 @@ export const NAV_GROUPS: NavGroupDef[] = [
         kind: "native",
         descriptionKey: "discordTrainGuideDescription",
       },
+      {
+        id: "alliance-onboarding-guide",
+        labelKey: "allianceOnboardingGuide",
+        href: "/guides/alliance-onboarding",
+        kind: "native",
+        descriptionKey: "allianceOnboardingGuideDescription",
+      },
     ],
   },
 ];
@@ -361,6 +368,12 @@ export function navLinkActive(pathname: string, href: string): boolean {
   if (href === "/guides/discord-train") {
     return pathname === "/guides/discord-train" || pathname.startsWith("/guides/discord-train/");
   }
+  if (href === "/guides/alliance-onboarding") {
+    return (
+      pathname === "/guides/alliance-onboarding" ||
+      pathname.startsWith("/guides/alliance-onboarding/")
+    );
+  }
   if (href === "/tools/video-upload") {
     if (pathname === "/tools/video-upload/queue") {
       return false;
@@ -414,6 +427,9 @@ export function findActiveNavGroupId(
         return group.id;
       }
       if (pathname.startsWith("/guides/discord-train")) {
+        return group.id;
+      }
+      if (pathname.startsWith("/guides/alliance-onboarding")) {
         return group.id;
       }
     }

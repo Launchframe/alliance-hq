@@ -4,6 +4,14 @@
 > **Scope:** provision → invite → accept → `/onboard` member link → post-link team growth.  
 > Ashed connect is **optional** for native alliances; HQ RBAC comes from the invite, not Ashed.
 
+**Operator guides (alliance owners/officers):**
+
+- Hub: `/guides/alliance-onboarding`
+- [Ashed-sync — linking a full roster](./ashed-alliance-member-onboarding.md)
+- [Fresh native — owner-only cold start](./fresh-native-alliance-onboarding.md)
+
+Agent rule: [`.cursor/rules/native-alliance-invites-rbac.mdc`](../.cursor/rules/native-alliance-invites-rbac.mdc)
+
 ---
 
 ## End-to-end flow

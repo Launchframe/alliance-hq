@@ -151,6 +151,7 @@ Update `e2e/invite-roles.spec.ts`, `e2e/onboard-member-link.spec.ts`, and unit t
 
 ## Related rules
 
+- [`.cursor/rules/native-alliance-invites-rbac.mdc`](native-alliance-invites-rbac.mdc) — RBAC vs claim invites; Ashed-sync vs fresh native operator paths
 - [`.cursor/rules/discord-identity-auth-layers.mdc`](discord-identity-auth-layers.mdc) — Discord `discord_member_links` parallel; do not merge with `hq_member_links`
 - [`.cursor/rules/e2e-plan-completion.mdc`](e2e-plan-completion.mdc) — invite/onboard e2e gate
 - [`.cursor/rules/discord-bot-multitenancy.mdc`](discord-bot-multitenancy.mdc) — alliance credentials and roster reads
