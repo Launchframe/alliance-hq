@@ -27,4 +27,17 @@ test.describe("Discord bot public guide", () => {
     ).toBeVisible();
     await expect(page.getByText("Getting your name and UID")).toBeVisible();
   });
+
+  test("r5 flow starts with add-bot step", async ({ page }) => {
+    await page.goto("/guides/discord-bot/r5");
+
+    await expect(page.getByRole("link", { name: /Add the bot to your Discord server/i }).first()).toBeVisible();
+
+    await page.getByRole("link", { name: /Add the bot to your Discord server/i }).first().click();
+    await expect(page).toHaveURL(/\/guides\/discord-bot\/r5\/install-bot$/);
+    await expect(
+      page.getByRole("heading", { level: 2, name: "Instructions" }),
+    ).toBeVisible();
+    await expect(page.getByText("Slash commands not showing up")).toBeVisible();
+  });
 });

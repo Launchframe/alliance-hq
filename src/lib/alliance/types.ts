@@ -30,4 +30,6 @@ export type SessionAllianceOption = {
   name: string;
   slug: string;
   roleName: string;
+  /** HQ user has at least one linked Commander in this alliance. */
+  hasLinkedCommanders?: boolean;
 };

@@ -2,6 +2,7 @@ import { and, desc, eq, isNull, lt, or, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { getDb, schema } from "@/lib/db";
+import { parseAshedMemberAllianceRank } from "@/lib/members/alliance-rank";
 import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
 import {
   denormalizeGameUidOnMember,
@@ -15,8 +16,10 @@ import {
   evaluateGuildRegistrationAuth,
   type GuildRegistrationAuth,
   nativeOwnerClaimMemberId,
+  officerProvenByMemberRanks,
   ownerProvenByMemberLink,
 } from "@/lib/vr/discord-guild-registration";
+import { loadAllianceMembersForBot } from "@/lib/vr/member-roster";
 import type { LinkPendingState, VrPendingState } from "@/lib/vr/types";
 
 const PENDING_TTL_MS = 30 * 60 * 1000;
@@ -748,6 +751,36 @@ export async function allianceHasRegistrationCredentials(
   return (await getAllianceAshedCredential(allianceId)) != null;
 }
 
+export async function countRegisteredGuildsForAlliance(
+  allianceId: string,
+): Promise<number> {
+  const db = getDb();
+  const [row] = await db
+    .select({ value: sql<number>`count(*)::int` })
+    .from(schema.discordGuildAlliances)
+    .where(eq(schema.discordGuildAlliances.allianceId, allianceId));
+  return Number(row?.value ?? 0);
+}
+
+/** R4+ officer proof via linked commander rank on the local roster (same gate as VR reports). */
+export async function callerIsAllianceOfficerViaMemberLink(input: {
+  allianceId: string;
+  discordUserId: string;
+}): Promise<boolean> {
+  const links = await listDiscordLinksForUser(input.allianceId, input.discordUserId);
+  if (links.length === 0) {
+    return false;
+  }
+
+  const members = await loadAllianceMembersForBot(input.allianceId);
+  const ranks = links
+    .map((link) => members.find((member) => member.id === link.ashedMemberId))
+    .filter((member): member is NonNullable<typeof member> => member != null)
+    .map((member) => parseAshedMemberAllianceRank(member).rank ?? 0);
+
+  return officerProvenByMemberRanks(ranks);
+}
+
 export async function callerCanRegisterGuildAlliance(input: {
   allianceId: string;
   discordUserId: string;
@@ -761,12 +794,17 @@ export async function callerCanRegisterGuildAlliance(input: {
   const linkedHqUser = hqLink ? await getHqUserById(hqLink.hqUserId) : null;
   const isPlatformMaintainer = Boolean(linkedHqUser?.isPlatformMaintainer);
   const isCredentialRegistrant = await isCredentialRegistrantForAlliance(input);
+  const isOwnerViaMemberLink = await callerOwnsAllianceViaMemberLink(input);
+  const isOfficerViaMemberLink =
+    !isOwnerViaMemberLink &&
+    (await callerIsAllianceOfficerViaMemberLink(input));
 
   return evaluateGuildRegistrationAuth({
     hasHqLink: hqLink != null,
     isPlatformMaintainer,
     isCredentialRegistrant,
-    isOwnerViaMemberLink: await callerOwnsAllianceViaMemberLink(input),
+    isOwnerViaMemberLink,
+    isOfficerViaMemberLink,
     ownerAshedUserId: alliance?.ownerAshedUserId ?? null,
     linkedHqAshedUserId: linkedHqUser?.ashedUserId ?? null,
     hasCredentials,

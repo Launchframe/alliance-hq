@@ -1478,6 +1478,53 @@ export const hqRosterLinkRequests = pgTable(
   ],
 );
 
+/** Member-initiated "Ask an officer" help during onboarding / Discord link flows. */
+export const hqMemberLinkHelpRequests = pgTable(
+  "hq_member_link_help_requests",
+  {
+    id: text("id").primaryKey(),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    hqUserId: text("hq_user_id").references(() => hqUsers.id, {
+      onDelete: "set null",
+    }),
+    /** web | discord */
+    origin: text("origin").notNull(),
+    discordUserId: text("discord_user_id"),
+    discordUsername: text("discord_username"),
+    /** onboarding_form | walkthrough | roster_miss | discord_button */
+    context: text("context").notNull(),
+    reportedName: text("reported_name"),
+    /** Stored for maintainer ops; never expose full value in UI — use last4 only. */
+    gameUid: text("game_uid"),
+    gameUserName: text("game_user_name"),
+    requesterHandle: text("requester_handle").notNull(),
+    /** open | resolved | dismissed */
+    status: text("status").notNull().default("open"),
+    resolutionNote: text("resolution_note"),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+    resolvedByHqUserId: text("resolved_by_hq_user_id").references(
+      () => hqUsers.id,
+      { onDelete: "set null" },
+    ),
+    linkedAshedMemberId: text("linked_ashed_member_id"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("hq_member_link_help_requests_alliance_id_idx").on(table.allianceId),
+    index("hq_member_link_help_requests_status_idx").on(
+      table.allianceId,
+      table.status,
+    ),
+  ],
+);
+
 export const hqRosterLinkActionTokens = pgTable(
   "hq_roster_link_action_tokens",
   {

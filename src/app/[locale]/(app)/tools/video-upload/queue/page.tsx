@@ -2,6 +2,7 @@ import { getLocale, getTranslations } from "next-intl/server";
 
 import { redirect } from "@/i18n/navigation";
 import { getAshedConnection, requirePageSession } from "@/lib/session";
+import { videoOcrRequiresAshedConnection } from "@/lib/video/ocr-provider.shared";
 import {
   sessionCanProcessVideo,
   sessionCanReadAllianceVideoQueue,
@@ -39,6 +40,7 @@ export default async function VideoQueuePage() {
         initialJobs={jobs}
         canProcess={canProcess}
         ashedConnected={Boolean(connection)}
+        ashedRequired={videoOcrRequiresAshedConnection()}
         connectUrl="/connect"
       />
     </div>

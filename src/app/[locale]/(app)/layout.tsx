@@ -108,6 +108,7 @@ export default async function AppLayout({
         currentAllianceId={
           state.currentAllianceId ?? state.allianceId ?? null
         }
+        isPlatformMaintainer={state.rbac?.isPlatformMaintainer ?? false}
         membershipAlliances={state.membershipAlliances}
         sessionPermissions={state.permissions}
         devQuickSwitch={isDevOrPreviewEnvironment()}
