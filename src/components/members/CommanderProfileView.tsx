@@ -38,6 +38,39 @@ export function CommanderProfileView({ initial }: Props) {
   const [lastClaimUrl, setLastClaimUrl] = useState<string | null>(null);
   const [lastClaimPassphrase, setLastClaimPassphrase] = useState<string | null>(null);
 
+  const [hqUnlinked, setHqUnlinked] = useState(false);
+  const [discordUnlinked, setDiscordUnlinked] = useState(false);
+  const [unlinkBusy, setUnlinkBusy] = useState<"hq" | "discord" | null>(null);
+  const [unlinkConfirm, setUnlinkConfirm] = useState<"hq" | "discord" | null>(null);
+  const [unlinkError, setUnlinkError] = useState<string | null>(null);
+
+  async function unlink(target: "hq" | "discord") {
+    setUnlinkBusy(target);
+    setUnlinkError(null);
+    try {
+      const res = await fetch("/api/settings/team/commander-links/unlink", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ashedMemberId: member.ashedMemberId, target }),
+      });
+      const body = (await res.json()) as { error?: string };
+      if (!res.ok) {
+        setUnlinkError(body.error ?? t("unlinkFailed"));
+        return;
+      }
+      if (target === "hq") {
+        setHqUnlinked(true);
+      } else {
+        setDiscordUnlinked(true);
+      }
+      setUnlinkConfirm(null);
+    } catch (e) {
+      setUnlinkError(e instanceof Error ? e.message : t("unlinkFailed"));
+    } finally {
+      setUnlinkBusy(null);
+    }
+  }
+
   async function generateClaimInvite() {
     setClaimBusy(true);
     setClaimFeedback(null);
@@ -264,23 +297,129 @@ export function CommanderProfileView({ initial }: Props) {
             {t("identityLinks")}
           </h2>
           <dl className="mt-4 space-y-3">
-            {initial.hqUser ? (
-              <div>
-                <dt className="text-xs text-[#6e7681]">{t("hqUser")}</dt>
-                <dd className="text-sm text-[#e6edf3]">
-                  {initial.hqUser.displayName ?? initial.hqUser.id}
-                  {initial.hqUser.email ? ` · ${initial.hqUser.email}` : ""}
-                </dd>
+            {initial.hqUser && !hqUnlinked ? (
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <dt className="text-xs text-[#6e7681]">{t("hqUser")}</dt>
+                  <dd className="text-sm text-[#e6edf3]">
+                    {initial.hqUser.displayName ?? initial.hqUser.id}
+                    {initial.hqUser.email ? ` · ${initial.hqUser.email}` : ""}
+                  </dd>
+                </div>
+                {initial.member.viewerCanBreakGlassUnlink ? (
+                  unlinkConfirm === "hq" ? (
+                    <div className="max-w-sm space-y-2 rounded-lg border border-[#f85149]/40 bg-[#f85149]/5 p-3">
+                      <div>
+                        <p className="text-xs font-medium text-[#f85149]">
+                          {t("unlinkConfirmQuestion")}
+                        </p>
+                        <p className="mt-1 text-xs text-[#8b949e]">
+                          {t("unlinkHqConfirmDescription")}
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          disabled={unlinkBusy === "hq"}
+                          onClick={() => void unlink("hq")}
+                          className="rounded-lg border border-[#f85149] bg-[#f85149]/10 px-2.5 py-1 text-xs text-[#f85149] disabled:opacity-50"
+                        >
+                          {unlinkBusy === "hq" ? t("unlinkBusy") : t("unlinkConfirm")}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={unlinkBusy === "hq"}
+                          onClick={() => setUnlinkConfirm(null)}
+                          className="rounded-lg border border-[#30363d] px-2.5 py-1 text-xs text-[#c9d1d9] disabled:opacity-50"
+                        >
+                          {t("unlinkCancel")}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setUnlinkError(null);
+                        setUnlinkConfirm("hq");
+                      }}
+                      className="shrink-0 rounded-lg border border-[#30363d] px-2.5 py-1 text-xs text-[#8b949e] hover:text-[#f85149]"
+                    >
+                      {t("unlinkHqButton")}
+                    </button>
+                  )
+                ) : null}
               </div>
             ) : null}
-            {initial.discordLinks.map((link) => (
-              <div key={link.discordUserId}>
-                <dt className="text-xs text-[#6e7681]">{t("discord")}</dt>
-                <dd className="text-sm text-[#e6edf3]">
-                  {link.discordUsername ?? link.discordUserId}
-                </dd>
-              </div>
-            ))}
+            {!discordUnlinked &&
+              initial.discordLinks.map((link, index) => (
+                <div
+                  key={link.discordUserId}
+                  className="flex flex-wrap items-start justify-between gap-2"
+                >
+                  <div className="min-w-0">
+                    <dt className="text-xs text-[#6e7681]">{t("discord")}</dt>
+                    <dd className="text-sm text-[#e6edf3]">
+                      {link.discordUsername ?? link.discordUserId}
+                    </dd>
+                  </div>
+                  {index === 0 && initial.member.viewerCanBreakGlassUnlink ? (
+                    unlinkConfirm === "discord" ? (
+                      <div className="max-w-sm space-y-2 rounded-lg border border-[#f85149]/40 bg-[#f85149]/5 p-3">
+                        <div>
+                          <p className="text-xs font-medium text-[#f85149]">
+                            {t("unlinkConfirmQuestion")}
+                          </p>
+                          <p className="mt-1 text-xs text-[#8b949e]">
+                            {t("unlinkDiscordConfirmDescription")}
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <button
+                            type="button"
+                            disabled={unlinkBusy === "discord"}
+                            onClick={() => void unlink("discord")}
+                            className="rounded-lg border border-[#f85149] bg-[#f85149]/10 px-2.5 py-1 text-xs text-[#f85149] disabled:opacity-50"
+                          >
+                            {unlinkBusy === "discord"
+                              ? t("unlinkBusy")
+                              : t("unlinkConfirm")}
+                          </button>
+                          <button
+                            type="button"
+                            disabled={unlinkBusy === "discord"}
+                            onClick={() => setUnlinkConfirm(null)}
+                            className="rounded-lg border border-[#30363d] px-2.5 py-1 text-xs text-[#c9d1d9] disabled:opacity-50"
+                          >
+                            {t("unlinkCancel")}
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setUnlinkError(null);
+                          setUnlinkConfirm("discord");
+                        }}
+                        className="shrink-0 rounded-lg border border-[#30363d] px-2.5 py-1 text-xs text-[#8b949e] hover:text-[#f85149]"
+                      >
+                        {t("unlinkDiscordButton")}
+                      </button>
+                    )
+                  ) : null}
+                </div>
+              ))}
+            {hqUnlinked || discordUnlinked ? (
+              <p className="text-sm text-[#3fb950]" role="status">
+                {t("unlinkSuccess")}
+              </p>
+            ) : null}
+            {unlinkError ? (
+              <p className="text-sm text-[#f85149]" role="alert">
+                {unlinkError}
+              </p>
+            ) : null}
           </dl>
         </section>
       )}
@@ -337,8 +476,8 @@ export function CommanderProfileView({ initial }: Props) {
       {initial.eventScores.length > 0 && (
         <ProfileSection title={t("eventScores")}>
           <ul className="space-y-2 text-sm">
-            {initial.eventScores.map((row, index) => (
-              <li key={`${row.eventId}-${index}`} className="text-[#c9d1d9]">
+            {initial.eventScores.map((row) => (
+              <li key={`${row.eventId}-${row.updatedAt}`} className="text-[#c9d1d9]">
                 {row.eventName}
                 {row.score != null ? ` · ${row.score.toLocaleString()}` : ""}
                 {row.rank != null ? ` · #${row.rank}` : ""}
@@ -413,8 +552,11 @@ export function CommanderProfileView({ initial }: Props) {
       {initial.trainHighlights.length > 0 && (
         <ProfileSection title={t("trainHighlights")}>
           <ul className="space-y-2 text-sm">
-            {initial.trainHighlights.map((row, index) => (
-              <li key={`${row.date}-${row.role}-${index}`} className="text-[#c9d1d9]">
+            {initial.trainHighlights.map((row) => (
+              <li
+                key={`${row.date}-${row.role}-${row.lockedAt ?? "pending"}`}
+                className="text-[#c9d1d9]"
+              >
                 {row.date} · {t(`trainRole.${row.role}`)}
                 {row.lockedAt ? ` · ${t("locked")}` : ""}
               </li>
