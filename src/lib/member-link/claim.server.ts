@@ -15,6 +15,7 @@ import {
   saveHqMemberLinkPending,
   syncPrimaryGameUidFromHqMemberLink,
 } from "@/lib/member-link/repository.server";
+import { recordMemberLinkHelpRequest } from "@/lib/member-link/member-link-help-queue.server";
 import { reconcileAllianceMemberForRosterLink } from "@/lib/member-link/roster-link-resolve.server";
 import { createMemberLinkTranslator } from "@/lib/member-link/translate.server";
 import type { MemberLinkApiResponse } from "@/lib/member-link/outcome.shared";
@@ -27,14 +28,18 @@ export type MemberLinkClaimTarget = {
   commanderName: string;
 };
 
+type MemberLinkClaimTargetRecord = MemberLinkClaimTarget & {
+  previousNames: string[];
+};
+
 /**
  * Commander a recipient was invited to claim, if they accepted a claim invite
- * and have not yet linked. Returns the display name only (never the UID).
+ * and have not yet linked. Loads roster names only (never the UID).
  */
-export async function getMemberLinkClaimTarget(input: {
+async function loadMemberLinkClaimTarget(input: {
   allianceId: string;
   hqUserId: string;
-}): Promise<MemberLinkClaimTarget | null> {
+}): Promise<MemberLinkClaimTargetRecord | null> {
   const existingLink = await getHqMemberLinkForUser(
     input.allianceId,
     input.hqUserId,
@@ -49,7 +54,11 @@ export async function getMemberLinkClaimTarget(input: {
 
   const db = getDb();
   const [member] = await db
-    .select({ currentName: schema.allianceMembers.currentName })
+    .select({
+      currentName: schema.allianceMembers.currentName,
+      previousNamesJson: schema.allianceMembers.previousNamesJson,
+      status: schema.allianceMembers.status,
+    })
     .from(schema.allianceMembers)
     .where(
       and(
@@ -59,12 +68,61 @@ export async function getMemberLinkClaimTarget(input: {
     )
     .limit(1);
 
-  if (!member) return null;
+  if (!member || member.status === "former") return null;
 
   return {
     ashedMemberId: claim.targetAshedMemberId,
     commanderName: member.currentName,
+    previousNames: member.previousNamesJson ?? [],
   };
+}
+
+/**
+ * Public claim target for the onboarding UI. Returns the display name only
+ * (never UID or internal roster history).
+ */
+export async function getMemberLinkClaimTarget(input: {
+  allianceId: string;
+  hqUserId: string;
+}): Promise<MemberLinkClaimTarget | null> {
+  const target = await loadMemberLinkClaimTarget(input);
+  if (!target) return null;
+  return {
+    ashedMemberId: target.ashedMemberId,
+    commanderName: target.commanderName,
+  };
+}
+
+/**
+ * Blocks name+UID self-service while a commander claim invite is accepted but
+ * not yet linked — officers bound a specific roster commander to this invite.
+ */
+export async function blockSelfServiceWhenClaimPending(input: {
+  allianceId: string;
+  hqUserId: string;
+  locale: string;
+}): Promise<MemberLinkApiResponse | null> {
+  const target = await loadMemberLinkClaimTarget({
+    allianceId: input.allianceId,
+    hqUserId: input.hqUserId,
+  });
+  if (!target) return null;
+
+  const translate = createMemberLinkTranslator(input.locale);
+  return {
+    outcome: "usage",
+    message: translate("claimSelfServiceBlocked"),
+    pending: null,
+  };
+}
+
+function claimTargetMatchesLookupName(
+  target: MemberLinkClaimTargetRecord,
+  gameUserName: string,
+): boolean {
+  return [target.commanderName, ...target.previousNames].some((name) =>
+    namesMatch(name, gameUserName),
+  );
 }
 
 async function findClaimedNameCollision(input: {
@@ -98,6 +156,55 @@ async function findClaimedNameCollision(input: {
   return null;
 }
 
+type ClaimConflictReason =
+  | "name_collision"
+  | "commander_taken"
+  | "server_mismatch"
+  | "target_mismatch";
+
+/**
+ * Surface a claim conflict to alliance officers two ways: a live admin alert
+ * (real-time, ephemeral) AND a durable "ask an officer" help request so the
+ * conflict still shows up in the officer review queue + inbox after the fact.
+ * Without the persisted request the claimant-facing "officers notified" copy
+ * would be a lie whenever no officer is connected to the live stream.
+ */
+async function surfaceClaimConflict(input: {
+  allianceId: string;
+  allianceTag: string;
+  hqUserId: string;
+  handle: string;
+  commanderName: string;
+  gameUserName: string | null;
+  gameUid: string;
+  ashedMemberId: string;
+  reason: ClaimConflictReason;
+}): Promise<void> {
+  await emitMemberLinkClaimConflictAlert({
+    allianceId: input.allianceId,
+    allianceTag: input.allianceTag,
+    ashedMemberId: input.ashedMemberId,
+    hqUserId: input.hqUserId,
+    handle: input.handle,
+    reason: input.reason,
+  });
+
+  try {
+    await recordMemberLinkHelpRequest({
+      allianceId: input.allianceId,
+      hqUserId: input.hqUserId,
+      origin: "web",
+      context: "claim_conflict",
+      requesterHandle: input.handle,
+      reportedName: input.commanderName,
+      gameUid: input.gameUid,
+      gameUserName: input.gameUserName,
+    });
+  } catch (error) {
+    console.error("[member-link] claim conflict help request failed", error);
+  }
+}
+
 /**
  * Confirm a commander claim invite by UID. Populates the bound commander record
  * (gameUid, currentName, previous names) and links the recipient. Surfaces
@@ -117,7 +224,7 @@ export async function runWebMemberLinkClaimConfirm(input: {
   const handle =
     input.displayName?.trim() || input.userEmail?.trim() || input.hqUserId;
 
-  const target = await getMemberLinkClaimTarget({
+  const target = await loadMemberLinkClaimTarget({
     allianceId: input.allianceId,
     hqUserId: input.hqUserId,
   });
@@ -157,13 +264,45 @@ export async function runWebMemberLinkClaimConfirm(input: {
     playerServer != null &&
     playerServer !== allianceServer
   ) {
-    await emitMemberLinkClaimConflictAlert({
+    await surfaceClaimConflict({
       allianceId: input.allianceId,
       allianceTag,
-      ashedMemberId: target.ashedMemberId,
       hqUserId: input.hqUserId,
       handle,
+      commanderName: target.commanderName,
+      gameUserName: lookup.gameUserName,
+      gameUid: uid,
+      ashedMemberId: target.ashedMemberId,
       reason: "server_mismatch",
+    });
+    return {
+      outcome: "claim_conflict",
+      message: translate("claimConflict"),
+      pending: null,
+    };
+  }
+
+  if (!claimTargetMatchesLookupName(target, lookup.gameUserName)) {
+    await surfaceClaimConflict({
+      allianceId: input.allianceId,
+      allianceTag,
+      hqUserId: input.hqUserId,
+      handle,
+      commanderName: target.commanderName,
+      gameUserName: lookup.gameUserName,
+      gameUid: uid,
+      ashedMemberId: target.ashedMemberId,
+      reason: "target_mismatch",
+    });
+    await writeAuditLog({
+      sessionId: input.sessionId,
+      hqUserId: input.hqUserId,
+      allianceId: input.allianceId,
+      action: "member_link.claim_conflict",
+      metadata: {
+        ashedMemberId: target.ashedMemberId,
+        reason: "target_mismatch",
+      },
     });
     return {
       outcome: "claim_conflict",
@@ -178,12 +317,15 @@ export async function runWebMemberLinkClaimConfirm(input: {
     targetAshedMemberId: target.ashedMemberId,
   });
   if (collisionName) {
-    await emitMemberLinkClaimConflictAlert({
+    await surfaceClaimConflict({
       allianceId: input.allianceId,
       allianceTag,
-      ashedMemberId: target.ashedMemberId,
       hqUserId: input.hqUserId,
       handle,
+      commanderName: target.commanderName,
+      gameUserName: lookup.gameUserName,
+      gameUid: uid,
+      ashedMemberId: target.ashedMemberId,
       reason: "name_collision",
     });
     await writeAuditLog({
@@ -220,12 +362,15 @@ export async function runWebMemberLinkClaimConfirm(input: {
   });
 
   if (!linked.ok) {
-    await emitMemberLinkClaimConflictAlert({
+    await surfaceClaimConflict({
       allianceId: input.allianceId,
       allianceTag,
-      ashedMemberId: target.ashedMemberId,
       hqUserId: input.hqUserId,
       handle,
+      commanderName: target.commanderName,
+      gameUserName: lookup.gameUserName,
+      gameUid: uid,
+      ashedMemberId: target.ashedMemberId,
       reason: "commander_taken",
     });
     return {

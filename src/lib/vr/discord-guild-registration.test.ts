@@ -4,6 +4,7 @@ import {
   evaluateGuildRegistrationAuth,
   type GuildRegistrationAuth,
   nativeOwnerClaimMemberId,
+  officerProvenByMemberRanks,
   ownerProvenByMemberLink,
 } from "@/lib/vr/discord-guild-registration";
 
@@ -15,6 +16,7 @@ function auth(
     isPlatformMaintainer: false,
     isCredentialRegistrant: false,
     isOwnerViaMemberLink: false,
+    isOfficerViaMemberLink: false,
     ownerAshedUserId: "owner-1",
     linkedHqAshedUserId: "owner-1",
     hasCredentials: true,
@@ -36,6 +38,34 @@ describe("evaluateGuildRegistrationAuth", () => {
         hasHqLink: false,
         isOwnerViaMemberLink: true,
         linkedHqAshedUserId: null,
+      }),
+    ).toEqual({ allowed: true, registeredBy: "alliance_owner" });
+  });
+
+  it("allows R4+ officer via member link without owner proof", () => {
+    expect(
+      auth({
+        isOfficerViaMemberLink: true,
+        linkedHqAshedUserId: "member-9",
+      }),
+    ).toEqual({ allowed: true, registeredBy: "alliance_officer" });
+  });
+
+  it("allows officer via member link without HQ link (Discord-only setup)", () => {
+    expect(
+      auth({
+        hasHqLink: false,
+        isOfficerViaMemberLink: true,
+        linkedHqAshedUserId: null,
+      }),
+    ).toEqual({ allowed: true, registeredBy: "alliance_officer" });
+  });
+
+  it("prefers owner over officer when both flags are set", () => {
+    expect(
+      auth({
+        isOwnerViaMemberLink: true,
+        isOfficerViaMemberLink: true,
       }),
     ).toEqual({ allowed: true, registeredBy: "alliance_owner" });
   });
@@ -82,6 +112,18 @@ describe("evaluateGuildRegistrationAuth", () => {
         linkedHqAshedUserId: "member-9",
       }),
     ).toEqual({ allowed: false, reason: "not_owner" });
+  });
+});
+
+describe("officerProvenByMemberRanks", () => {
+  it("returns true for R4 or R5 linked ranks", () => {
+    expect(officerProvenByMemberRanks([3, 4])).toBe(true);
+    expect(officerProvenByMemberRanks([5])).toBe(true);
+  });
+
+  it("returns false when no linked rank is R4+", () => {
+    expect(officerProvenByMemberRanks([1, 2, 3])).toBe(false);
+    expect(officerProvenByMemberRanks([])).toBe(false);
   });
 });
 

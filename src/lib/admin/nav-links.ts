@@ -15,6 +15,7 @@ export const ADMIN_LINKS = [
   { href: "/admin/bug-reports", labelKey: "bugReports" as const },
   { href: "/admin/experience-feedback", labelKey: "experienceFeedback" as const },
   { href: "/admin/translation-reports", labelKey: "translationReports" as const },
+  { href: "/admin/member-link-help", labelKey: "memberLinkHelp" as const },
 ];
 
 export type AdminNavLabelKey = (typeof ADMIN_LINKS)[number]["labelKey"];

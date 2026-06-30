@@ -7,7 +7,10 @@ import { redirect } from "next/navigation";
 import { resolveAllianceByTag } from "@/lib/alliance/resolve";
 import { signingInUserMatchesConnectedSessionOwner } from "@/lib/auth/session-connect-identity";
 import {
+  allianceExists,
+  listAlliancePickerOptions,
   listSessionAlliances,
+  loadAlliancePickerOptionById,
   pickAllianceMembershipForSession,
   resolveSessionAllianceId,
   switchSessionCurrentAlliance,
@@ -483,6 +486,20 @@ export async function ensureCurrentAllianceForSession(
     return session;
   }
 
+  const rbac = await getRbacContext(session.id);
+  const isPlatformMaintainer = rbac?.isPlatformMaintainer ?? false;
+
+  if (session.currentAllianceId && isPlatformMaintainer) {
+    const exists = await allianceExists(session.currentAllianceId);
+    if (exists) {
+      if (!session.allianceTag?.trim()) {
+        await switchSessionCurrentAlliance(session, session.currentAllianceId);
+        return (await loadSession(session.id)) ?? session;
+      }
+      return session;
+    }
+  }
+
   const alliances = await listSessionAlliances(effectiveHqUserId);
   const pick = pickAllianceMembershipForSession(session, alliances);
   if (pick) {
@@ -528,14 +545,30 @@ export async function getSessionStateFor(
     (connection !== null && isAshedConnectAllowed);
 
   const membershipAlliances = effectiveHqUserId
-    ? await listSessionAlliances(effectiveHqUserId)
+    ? await listAlliancePickerOptions(
+        effectiveHqUserId,
+        rbac?.isPlatformMaintainer ?? false,
+      )
     : [];
 
   const resolvedAllianceId = resolveSessionAllianceId(session);
-  const currentAlliance =
+  let currentAlliance =
     membershipAlliances.find((a) => a.id === resolvedAllianceId) ??
     membershipAlliances.find((a) => a.id === session.currentAllianceId) ??
     null;
+
+  if (
+    !currentAlliance &&
+    resolvedAllianceId &&
+    effectiveHqUserId &&
+    rbac?.isPlatformMaintainer
+  ) {
+    currentAlliance = await loadAlliancePickerOptionById(
+      resolvedAllianceId,
+      effectiveHqUserId,
+      true,
+    );
+  }
 
   const showTeamAccess = shouldShowTeamAccessNav({
     allianceId: resolvedAllianceId,

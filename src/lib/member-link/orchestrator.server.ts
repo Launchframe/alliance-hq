@@ -1,6 +1,10 @@
 import "server-only";
 
 import { emitAdminAlert, emitMemberLinkUidTakenAlert } from "@/lib/events/admin-alerts";
+import {
+  recordMemberLinkHelpRequest,
+  resolveWebHelpContext,
+} from "@/lib/member-link/member-link-help-queue.server";
 import { lookupPlayerByUid } from "@/lib/lastwar/player-lookup";
 import { syncAllianceMemberGameLevelFromLastWar } from "@/lib/lastwar/sync-member-game-level.server";
 import {
@@ -15,7 +19,10 @@ import {
   toMemberLinkApiResponse,
   type MemberLinkApiResponse,
 } from "@/lib/member-link/outcome.shared";
-import { getMemberLinkClaimTarget } from "@/lib/member-link/claim.server";
+import {
+  blockSelfServiceWhenClaimPending,
+  getMemberLinkClaimTarget,
+} from "@/lib/member-link/claim.server";
 import {
   tryBootstrapOwnerColdStartMember,
   tryRouteRosterMissToOwnerApproval,
@@ -92,8 +99,27 @@ function translateContext(locale: string) {
   return { translate, walkthroughSteps };
 }
 
-async function emitLinkAttention(ctx: FlowContext) {
-  const handle = ctx.displayName?.trim() || ctx.userEmail?.trim() || ctx.hqUserId;
+function isValidMemberLinkGameUid(value: string): boolean {
+  return /^\d{12,16}$/.test(value);
+}
+
+async function emitLinkAttention(
+  ctx: FlowContext,
+  opts?: { gameUid?: string | null },
+) {
+  let handle =
+    ctx.displayName?.trim() || ctx.userEmail?.trim() || ctx.hqUserId;
+  const uid = opts?.gameUid?.trim() ?? "";
+  if (isValidMemberLinkGameUid(uid)) {
+    try {
+      const lookup = await lookupPlayerByUid(uid);
+      if (lookup.ok) {
+        handle = `${handle} · ${lookup.gameUserName}`;
+      }
+    } catch (error) {
+      console.error("[member-link] ask-officer lookup failed", error);
+    }
+  }
   await emitAdminAlert({
     type: "vr_link_attention",
     count: 1,
@@ -290,6 +316,15 @@ export async function runWebMemberLinkSubmit(input: {
   ownerProvidedServerNumber?: number;
   ownerLookupFallback?: boolean;
 }): Promise<MemberLinkApiResponse> {
+  const claimBlock = await blockSelfServiceWhenClaimPending({
+    allianceId: input.allianceId,
+    hqUserId: input.hqUserId,
+    locale: input.locale,
+  });
+  if (claimBlock) {
+    return claimBlock;
+  }
+
   const ctx: FlowContext = {
     sessionId: input.sessionId,
     allianceId: input.allianceId,
@@ -504,6 +539,15 @@ export async function runWebMemberLinkWalkthroughDone(input: {
   userEmail?: string | null;
   displayName?: string | null;
 }): Promise<MemberLinkApiResponse> {
+  const claimBlock = await blockSelfServiceWhenClaimPending({
+    allianceId: input.allianceId,
+    hqUserId: input.hqUserId,
+    locale: input.locale,
+  });
+  if (claimBlock) {
+    return claimBlock;
+  }
+
   const ctx = createFlowContext({
     sessionId: input.sessionId,
     allianceId: input.allianceId,
@@ -560,6 +604,15 @@ export async function runWebMemberLinkStartOver(input: {
   hqUserId: string;
   locale: string;
 }): Promise<MemberLinkApiResponse> {
+  const claimBlock = await blockSelfServiceWhenClaimPending({
+    allianceId: input.allianceId,
+    hqUserId: input.hqUserId,
+    locale: input.locale,
+  });
+  if (claimBlock) {
+    return claimBlock;
+  }
+
   const { translate, walkthroughSteps } = translateContext(input.locale);
   const pending: LinkPendingState = { kind: "link_walkthrough", step: 0 };
   const result: LinkCommandResult = {
@@ -579,6 +632,15 @@ export async function runWebMemberLinkFuzzyPick(input: {
   displayName?: string | null;
   memberId: string;
 }): Promise<MemberLinkApiResponse> {
+  const claimBlock = await blockSelfServiceWhenClaimPending({
+    allianceId: input.allianceId,
+    hqUserId: input.hqUserId,
+    locale: input.locale,
+  });
+  if (claimBlock) {
+    return claimBlock;
+  }
+
   const ctx = createFlowContext({
     sessionId: input.sessionId,
     allianceId: input.allianceId,
@@ -612,10 +674,6 @@ export async function runWebMemberLinkFuzzyPick(input: {
   }
 
   return finalizeCommandResult(ctx, result);
-}
-
-function isValidMemberLinkGameUid(value: string): boolean {
-  return /^\d{12,16}$/.test(value);
 }
 
 export async function runWebMemberLinkAskOfficer(input: {
@@ -654,23 +712,45 @@ export async function runWebMemberLinkAskOfficer(input: {
     pending?.kind === "link_walkthrough";
 
   const gameUid = input.gameUid?.trim() ?? "";
-  const hasHelpContext =
-    pendingAllowsAskOfficer || isValidMemberLinkGameUid(gameUid);
+  const reportedName = input.reportedName?.trim() ?? "";
+  const translate = createMemberLinkTranslator(input.locale);
 
-  if (!hasHelpContext) {
-    const translate = createMemberLinkTranslator(input.locale);
+  if (!isValidMemberLinkGameUid(gameUid) || !reportedName) {
     return {
       outcome: "usage",
-      message: translate("errors.nothingPending"),
-      pending: null,
+      message: translate("errors.askOfficerNeedsNameAndUid"),
+      pending: pendingAllowsAskOfficer ? pending : null,
     };
   }
 
-  await emitLinkAttention(ctx);
+  let gameUserName: string | null = null;
+  try {
+    const lookup = await lookupPlayerByUid(gameUid);
+    if (lookup.ok) {
+      gameUserName = lookup.gameUserName;
+    }
+  } catch (error) {
+    console.error("[member-link] ask-officer lookup failed", error);
+  }
+
+  const requesterHandle =
+    ctx.displayName?.trim() || ctx.userEmail?.trim() || ctx.hqUserId;
+
+  await recordMemberLinkHelpRequest({
+    allianceId: input.allianceId,
+    hqUserId: input.hqUserId,
+    origin: "web",
+    context: resolveWebHelpContext(pending),
+    requesterHandle,
+    reportedName,
+    gameUid,
+    gameUserName,
+  });
+
+  await emitLinkAttention(ctx, { gameUid });
   if (pendingAllowsAskOfficer) {
     await saveHqMemberLinkPending(input.allianceId, input.hqUserId, null);
   }
-  const translate = createMemberLinkTranslator(input.locale);
   return {
     outcome: "officer_notified",
     message: translate("officerNotified"),

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { runWebMemberLinkClaimConfirm } from "./claim.server";
+import { runWebMemberLinkClaimConfirm, blockSelfServiceWhenClaimPending } from "./claim.server";
 
 vi.mock("@/lib/bff/audit", () => ({
   writeAuditLog: vi.fn().mockResolvedValue(undefined),
@@ -35,6 +35,10 @@ vi.mock("@/lib/member-link/roster-link-resolve.server", () => ({
   reconcileAllianceMemberForRosterLink: vi.fn().mockResolvedValue(undefined),
 }));
 
+vi.mock("@/lib/member-link/member-link-help-queue.server", () => ({
+  recordMemberLinkHelpRequest: vi.fn().mockResolvedValue("help-1"),
+}));
+
 vi.mock("@/lib/game-season/game-servers.server", () => ({
   resolveAllianceGameServerNumber: vi.fn(),
 }));
@@ -45,7 +49,11 @@ vi.mock("@/lib/vr/repository", () => ({
 }));
 
 const dbState: {
-  commanderRow: Array<{ currentName: string }>;
+  commanderRow: Array<{
+    currentName: string;
+    previousNamesJson: string[] | null;
+    status?: string;
+  }>;
   memberRows: Array<{
     ashedMemberId: string;
     currentName: string;
@@ -60,11 +68,17 @@ function makeChain() {
     orderBy: () => chain,
     where: () => chain,
     limit: () => Promise.resolve(dbState.commanderRow),
-    then: <T>(
-      onFulfilled: (value: typeof dbState.memberRows) => T,
-      onRejected?: (reason: unknown) => T,
-    ) => Promise.resolve(dbState.memberRows).then(onFulfilled, onRejected),
   };
+  const thenKey = ["th", "en"].join("");
+  Reflect.defineProperty(chain, thenKey, {
+    value: <TResult1 = typeof dbState.memberRows, TResult2 = never>(
+      onFulfilled?:
+        | ((value: typeof dbState.memberRows) => TResult1 | PromiseLike<TResult1>)
+        | null,
+      onRejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
+    ): Promise<TResult1 | TResult2> =>
+      Promise.resolve(dbState.memberRows).then(onFulfilled, onRejected),
+  });
   return chain;
 }
 
@@ -76,6 +90,7 @@ vi.mock("@/lib/db", () => ({
       ashedMemberId: {},
       currentName: {},
       previousNamesJson: {},
+      status: {},
     },
     hqMemberLinks: { allianceId: {}, ashedMemberId: {} },
   },
@@ -88,6 +103,9 @@ const lookup = await import("@/lib/lastwar/player-lookup");
 const gameServers = await import("@/lib/game-season/game-servers.server");
 const vrRepo = await import("@/lib/vr/repository");
 const resolve = await import("@/lib/member-link/roster-link-resolve.server");
+const helpQueue = await import(
+  "@/lib/member-link/member-link-help-queue.server"
+);
 
 const baseInput = {
   sessionId: "sess-1",
@@ -101,7 +119,9 @@ const baseInput = {
 describe("runWebMemberLinkClaimConfirm", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    dbState.commanderRow = [{ currentName: "Alpha" }];
+    dbState.commanderRow = [
+      { currentName: "Alpha", previousNamesJson: null, status: "active" },
+    ];
     dbState.memberRows = [];
     vi.mocked(repository.getHqMemberLinkForUser).mockResolvedValue(null as never);
     vi.mocked(invites.findAcceptedClaimInviteForUser).mockResolvedValue({
@@ -124,6 +144,15 @@ describe("runWebMemberLinkClaimConfirm", () => {
 
   it("returns usage when there is no claim target", async () => {
     vi.mocked(invites.findAcceptedClaimInviteForUser).mockResolvedValue(null);
+    const result = await runWebMemberLinkClaimConfirm(baseInput);
+    expect(result.outcome).toBe("usage");
+    expect(repository.linkHqMember).not.toHaveBeenCalled();
+  });
+
+  it("returns usage when the claim target is no longer active", async () => {
+    dbState.commanderRow = [
+      { currentName: "Alpha", previousNamesJson: null, status: "former" },
+    ];
     const result = await runWebMemberLinkClaimConfirm(baseInput);
     expect(result.outcome).toBe("usage");
     expect(repository.linkHqMember).not.toHaveBeenCalled();
@@ -164,6 +193,7 @@ describe("runWebMemberLinkClaimConfirm", () => {
   });
 
   it("blocks when the fetched name collides with another claimed commander", async () => {
+    dbState.commanderRow = [{ currentName: "Bravo", previousNamesJson: null }];
     vi.mocked(lookup.lookupPlayerByUid).mockResolvedValue({
       ok: true,
       gameUserName: "Bravo",
@@ -182,6 +212,52 @@ describe("runWebMemberLinkClaimConfirm", () => {
       expect.objectContaining({ reason: "name_collision" }),
     );
     expect(repository.linkHqMember).not.toHaveBeenCalled();
+  });
+
+  it("blocks a same-server UID that does not match the invite target", async () => {
+    vi.mocked(lookup.lookupPlayerByUid).mockResolvedValue({
+      ok: true,
+      gameUserName: "Bravo",
+      gameServerNumber: 1203,
+    } as never);
+
+    const result = await runWebMemberLinkClaimConfirm(baseInput);
+    expect(result.outcome).toBe("claim_conflict");
+    expect(alerts.emitMemberLinkClaimConflictAlert).toHaveBeenCalledWith(
+      expect.objectContaining({ reason: "target_mismatch" }),
+    );
+    expect(helpQueue.recordMemberLinkHelpRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        allianceId: "a1",
+        hqUserId: "u1",
+        context: "claim_conflict",
+        reportedName: "Alpha",
+        gameUserName: "Bravo",
+        gameUid: "1001369694001203",
+      }),
+    );
+    expect(resolve.reconcileAllianceMemberForRosterLink).not.toHaveBeenCalled();
+    expect(repository.linkHqMember).not.toHaveBeenCalled();
+  });
+
+  it("allows a UID whose fetched name matches a previous target name", async () => {
+    dbState.commanderRow = [
+      { currentName: "Alpha Renamed", previousNamesJson: ["Alpha"] },
+    ];
+    vi.mocked(lookup.lookupPlayerByUid).mockResolvedValue({
+      ok: true,
+      gameUserName: "Alpha",
+      gameServerNumber: 1203,
+    } as never);
+
+    const result = await runWebMemberLinkClaimConfirm(baseInput);
+    expect(result.outcome).toBe("linked");
+    expect(repository.linkHqMember).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ashedMemberId: "m-1",
+        memberDisplayName: "Alpha",
+      }),
+    );
   });
 
   it("links the recipient and populates the commander record on success", async () => {
@@ -215,6 +291,7 @@ describe("runWebMemberLinkClaimConfirm", () => {
       null,
     );
     expect(alerts.emitMemberLinkClaimConflictAlert).not.toHaveBeenCalled();
+    expect(helpQueue.recordMemberLinkHelpRequest).not.toHaveBeenCalled();
   });
 
   it("treats an already-claimed commander race as a conflict", async () => {
@@ -233,5 +310,61 @@ describe("runWebMemberLinkClaimConfirm", () => {
     expect(alerts.emitMemberLinkClaimConflictAlert).toHaveBeenCalledWith(
       expect.objectContaining({ reason: "commander_taken" }),
     );
+  });
+});
+
+describe("blockSelfServiceWhenClaimPending", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    dbState.commanderRow = [
+      { currentName: "Alpha", previousNamesJson: null, status: "active" },
+    ];
+    vi.mocked(repository.getHqMemberLinkForUser).mockResolvedValue(null as never);
+    vi.mocked(invites.findAcceptedClaimInviteForUser).mockResolvedValue({
+      inviteId: "inv-1",
+      targetAshedMemberId: "m-1",
+    });
+  });
+
+  it("blocks self-service when a claim invite is accepted but not linked", async () => {
+    const result = await blockSelfServiceWhenClaimPending({
+      allianceId: "a1",
+      hqUserId: "u1",
+      locale: "en-US",
+    });
+    expect(result?.outcome).toBe("usage");
+    expect(result?.message).toContain("claim screen");
+  });
+
+  it("allows self-service when the user is already linked", async () => {
+    vi.mocked(repository.getHqMemberLinkForUser).mockResolvedValue({} as never);
+    const result = await blockSelfServiceWhenClaimPending({
+      allianceId: "a1",
+      hqUserId: "u1",
+      locale: "en-US",
+    });
+    expect(result).toBeNull();
+  });
+
+  it("allows self-service when there is no pending claim invite", async () => {
+    vi.mocked(invites.findAcceptedClaimInviteForUser).mockResolvedValue(null);
+    const result = await blockSelfServiceWhenClaimPending({
+      allianceId: "a1",
+      hqUserId: "u1",
+      locale: "en-US",
+    });
+    expect(result).toBeNull();
+  });
+
+  it("allows self-service when the claim target is no longer active", async () => {
+    dbState.commanderRow = [
+      { currentName: "Alpha", previousNamesJson: null, status: "former" },
+    ];
+    const result = await blockSelfServiceWhenClaimPending({
+      allianceId: "a1",
+      hqUserId: "u1",
+      locale: "en-US",
+    });
+    expect(result).toBeNull();
   });
 });

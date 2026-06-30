@@ -34,7 +34,7 @@ const commanderLinkOptions = [
       "Your in-game name. Must match exactly — ask an alliance mate to copy it from your profile if needed.",
     description_localizations: {
       "pt-BR":
-        "Seu nome no jogo. Deve ser exatamente igual — peça a um colega de aliança para copiar do seu perfil, se precisar.",
+        "Seu nome no jogo. Deve ser exatamente igual — peça a um colega de aliança para copiar do seu perfil e enviar para você, se precisar.",
     },
     type: 3,
     required: true,
@@ -134,10 +134,10 @@ const commandBody = [
   {
     name: "link-alliance",
     description:
-      "Register this Discord server for your alliance (owner or platform maintainer).",
+      "Register this Discord server for your alliance (R5 owner, R4+ officer, or platform maintainer).",
     description_localizations: {
       "pt-BR":
-        "Registre este servidor do Discord para sua aliança (dono ou mantenedor da plataforma).",
+        "Registre este servidor do Discord para sua aliança (dono R5, oficial R4+ ou mantenedor da plataforma).",
     },
     options: [
       {

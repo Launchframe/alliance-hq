@@ -5,10 +5,8 @@ import { and, eq } from "drizzle-orm";
 import type { SessionAllianceOption } from "@/lib/alliance/types";
 import { getDb, schema } from "@/lib/db";
 import type { Session } from "@/lib/db/schema";
-import {
-  parseOperatingMode,
-} from "@/lib/native-alliance/operating-mode";
 import type { AllianceOperatingMode } from "@/lib/native-alliance/constants";
+import { parseOperatingMode } from "@/lib/native-alliance/operating-mode";
 
 export type SwitchSessionAllianceResult = {
   allianceId: string;
@@ -58,6 +56,128 @@ export async function listSessionAlliances(
   });
 }
 
+export async function loadLinkedCommanderAllianceIds(
+  hqUserId: string,
+): Promise<Set<string>> {
+  const db = getDb();
+  const rows = await db
+    .selectDistinct({
+      allianceId: schema.commanderAllianceMemberships.allianceId,
+    })
+    .from(schema.hqUserCommanders)
+    .innerJoin(
+      schema.commanderAllianceMemberships,
+      eq(
+        schema.commanderAllianceMemberships.commanderId,
+        schema.hqUserCommanders.commanderId,
+      ),
+    )
+    .where(
+      and(
+        eq(schema.hqUserCommanders.hqUserId, hqUserId),
+        eq(schema.commanderAllianceMemberships.status, "active"),
+      ),
+    );
+
+  return new Set(rows.map((row) => row.allianceId));
+}
+
+async function listAllAllianceSummaries(): Promise<
+  Array<{
+    id: string;
+    tag: string | null;
+    name: string;
+    slug: string;
+  }>
+> {
+  const db = getDb();
+  const rows = await db
+    .select({
+      id: schema.alliances.id,
+      tag: schema.alliances.tag,
+      name: schema.alliances.name,
+      slug: schema.alliances.slug,
+    })
+    .from(schema.alliances);
+
+  return rows.sort((a, b) => {
+    const tagA = a.tag ?? a.slug;
+    const tagB = b.tag ?? b.slug;
+    return tagA.localeCompare(tagB);
+  });
+}
+
+function attachLinkedCommanderFlags(
+  options: SessionAllianceOption[],
+  commanderAllianceIds: Set<string>,
+): SessionAllianceOption[] {
+  return options.map((option) => ({
+    ...option,
+    hasLinkedCommanders: commanderAllianceIds.has(option.id),
+  }));
+}
+
+export async function listAlliancePickerOptions(
+  hqUserId: string,
+  isPlatformMaintainer: boolean,
+): Promise<SessionAllianceOption[]> {
+  const commanderAllianceIds = await loadLinkedCommanderAllianceIds(hqUserId);
+  const memberships = await listSessionAlliances(hqUserId);
+
+  if (!isPlatformMaintainer) {
+    return attachLinkedCommanderFlags(memberships, commanderAllianceIds);
+  }
+
+  const membershipById = new Map(memberships.map((row) => [row.id, row]));
+  const allAlliances = await listAllAllianceSummaries();
+
+  return attachLinkedCommanderFlags(
+    allAlliances.map((alliance) => {
+      const membership = membershipById.get(alliance.id);
+      return {
+        id: alliance.id,
+        tag: alliance.tag,
+        name: alliance.name,
+        slug: alliance.slug,
+        roleName: membership?.roleName ?? "",
+      };
+    }),
+    commanderAllianceIds,
+  );
+}
+
+export async function loadAlliancePickerOptionById(
+  allianceId: string,
+  hqUserId: string,
+  isPlatformMaintainer: boolean,
+): Promise<SessionAllianceOption | null> {
+  const options = await listAlliancePickerOptions(
+    hqUserId,
+    isPlatformMaintainer,
+  );
+  return options.find((row) => row.id === allianceId) ?? null;
+}
+
+export async function allianceExists(allianceId: string): Promise<boolean> {
+  const db = getDb();
+  const [row] = await db
+    .select({ id: schema.alliances.id })
+    .from(schema.alliances)
+    .where(eq(schema.alliances.id, allianceId))
+    .limit(1);
+  return Boolean(row);
+}
+
+async function hqUserIsPlatformMaintainer(hqUserId: string): Promise<boolean> {
+  const db = getDb();
+  const [row] = await db
+    .select({ isPlatformMaintainer: schema.hqUsers.isPlatformMaintainer })
+    .from(schema.hqUsers)
+    .where(eq(schema.hqUsers.id, hqUserId))
+    .limit(1);
+  return row?.isPlatformMaintainer === 1;
+}
+
 export async function sessionHasMembershipForAlliance(
   hqUserId: string,
   allianceId: string,
@@ -79,7 +199,8 @@ export async function sessionHasMembershipForAlliance(
 }
 
 /**
- * Switch session alliance context after verifying HQ membership.
+ * Switch session alliance context after verifying HQ membership, or platform
+ * maintainer access to any registered alliance.
  * Clears personal Ashed credentials and legacy session fields from the prior alliance,
  * then syncs allianceTag / allianceId from the target alliance row.
  */
@@ -91,10 +212,12 @@ export async function switchSessionCurrentAlliance(
     throw new Error("HQ user required to switch alliance.");
   }
 
-  const allowed = await sessionHasMembershipForAlliance(
+  const isPlatformMaintainer = await hqUserIsPlatformMaintainer(
     session.hqUserId,
-    allianceId,
   );
+  const allowed =
+    isPlatformMaintainer ||
+    (await sessionHasMembershipForAlliance(session.hqUserId, allianceId));
   if (!allowed) {
     throw new Error("You do not have access to that alliance.");
   }

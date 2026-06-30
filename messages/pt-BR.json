@@ -135,6 +135,7 @@
       "hqEvents": "Eventos HQ",
       "commendations": "Comendações",
       "bugReports": "Relatórios de bugs",
+      "memberLinkHelp": "Ajuda no vínculo",
       "experienceFeedback": "Feedback de experiência",
       "translationReports": "Relatórios de tradução",
       "users": "Usuários HQ",
@@ -147,7 +148,7 @@
     },
     "opsInbox": {
       "title": "Caixa de ops",
-      "subtitle": "Jobs de vídeo com falha, fila travada e relatórios de bugs abertos.",
+      "subtitle": "Jobs de vídeo com falha, fila travada, relatórios de bugs abertos e pedidos de ajuda no vínculo.",
       "loadFailed": "Falha ao carregar a caixa de ops.",
       "empty": "Nada precisa de atenção agora.",
       "bellLabel": "Abrir caixa de ops",
@@ -155,12 +156,14 @@
       "counts": {
         "failed": "Jobs com falha",
         "stuck": "Fila travada",
-        "bugs": "Bugs abertos"
+        "bugs": "Bugs abertos",
+        "memberLinkHelp": "Pedidos de ajuda"
       },
       "kind": {
         "video_job_failed": "Job de vídeo com falha",
         "video_job_stuck_queued": "Job travado na fila",
-        "bug_report_open": "Relatório de bug aberto"
+        "bug_report_open": "Relatório de bug aberto",
+        "member_link_help_open": "Ajuda no vínculo"
       }
     },
     "systemTitle": "Saúde do sistema",
@@ -439,6 +442,10 @@
         "saving": "Salvando…",
         "invalid": "Informe um número de servidor válido.",
         "saveFailed": "Não foi possível atualizar o número do servidor."
+      },
+      "sessionContext": {
+        "title": "Contexto de aliança da sessão",
+        "hint": "Uploads, membros e ferramentas usam a aliança definida na sua sessão."
       }
     },
     "nativeAlliance": {
@@ -1048,7 +1055,8 @@
         "commendations": "Elogios",
         "bugReports": "Relatórios de bug",
         "experienceFeedback": "Feedback de experiência",
-        "translationReports": "Relatórios de tradução"
+        "translationReports": "Relatórios de tradução",
+        "memberLinkHelp": "Ajuda no vínculo"
       },
       "trains": {
         "spinWheel": "Girar roleta do condutor",
@@ -1309,6 +1317,85 @@
     "approveMatch": "Aprovar associação",
     "decline": "Recusar"
   },
+  "memberLinkHelpRequests": {
+    "title": "Pedidos de ajuda ao oficial",
+    "adminTitle": "Pedidos de ajuda no vínculo",
+    "subtitle": "Membros que pediram ajuda de um oficial ao vincular o comandante — onboarding, walkthrough ou fluxos bloqueados.",
+    "backToMembers": "Voltar aos membros",
+    "backToAdmin": "Voltar ao portal admin",
+    "loadFailed": "Não foi possível carregar os pedidos de ajuda.",
+    "resolveFailed": "Não foi possível atualizar este pedido.",
+    "empty": "Nenhum pedido de ajuda aberto.",
+    "requester": "Conta HQ: {handle}",
+    "typedName": "Nome digitado: {name}",
+    "uidLast4": "UID terminando em …{last4}",
+    "originWeb": "Web",
+    "originDiscord": "Discord: {user}",
+    "originDiscordUnknown": "Usuário do Discord",
+    "unknownAlliance": "Aliança desconhecida",
+    "markResolved": "Marcar como resolvido",
+    "dismiss": "Dispensar",
+    "reviewRequest": "Revisar pedido",
+    "context": {
+      "onboarding_form": "Formulário de onboarding",
+      "walkthrough": "Walkthrough de vínculo",
+      "roster_miss": "Fora do roster",
+      "discord_button": "Ajuda no Discord",
+      "claim_conflict": "Conflito de convite de comandante"
+    }
+  },
+  "memberLinkHelpReview": {
+    "title": "Revisar pedido de ajuda",
+    "adminTitle": "Revisar pedido de ajuda",
+    "backToList": "Voltar aos pedidos de ajuda",
+    "backToAdminList": "Voltar à ajuda no vínculo",
+    "linkFailed": "Não foi possível vincular este membro.",
+    "resolveFailed": "Não foi possível atualizar este pedido.",
+    "identity": {
+      "title": "Identidade enviada",
+      "submittedName": "Nome no jogo enviado",
+      "uidLast4": "UID do jogador",
+      "uidLast4Value": "Terminando em …{last4}",
+      "lookupName": "Nome no Last War (consulta)",
+      "lookupMissing": "Consulta indisponível",
+      "missing": "Não informado"
+    },
+    "requesterContact": {
+      "title": "Contato do solicitante"
+    },
+    "contact": {
+      "inGameName": "Nome no jogo",
+      "email": "E-mail",
+      "discord": "Discord",
+      "noContact": "Nenhum contato registrado.",
+      "noClaimantContact": "Nenhum contato do titular registrado."
+    },
+    "roster": {
+      "unclaimedTitle": "Membros do roster não reivindicados",
+      "claimedTitle": "Já reivindicados",
+      "empty": "Nenhum membro no roster.",
+      "nameMatch": "Correspondência de nome",
+      "claimedBadge": "Já vinculado a uma conta"
+    },
+    "mediation": {
+      "title": "Mediação necessária",
+      "description": "Este lugar no roster já está reivindicado. Entre em contato com as duas pessoas abaixo para resolver o conflito.",
+      "requester": "Pessoa pedindo ajuda",
+      "claimant": "Titular atual do roster"
+    },
+    "noMatchHint": "Selecione um membro não reivindicado para vincular, ou um já reivindicado para ver os contatos de mediação.",
+    "unlinkFuture": "Desvincular reivindicação existente",
+    "unlinkFutureHint": "Desvinculação de emergência estará disponível em uma atualização futura.",
+    "actions": {
+      "linkSelected": "Vincular ao membro selecionado",
+      "markResolved": "Marcar resolvido sem vincular",
+      "dismiss": "Dispensar"
+    },
+    "errors": {
+      "memberAlreadyClaimed": "Esse membro do roster já está reivindicado. Use o painel de mediação para contatar ambas as partes.",
+      "hqUserRequired": "Este pedido não tem conta HQ web — vincule manualmente depois que o membro entrar."
+    }
+  },
   "settings": {
     "title": "Configurações",
     "titleAlliance": "Configurações da aliança",
@@ -1442,6 +1529,18 @@
       "channelsConfigured": "{count, plural, one {# servidor Discord com canal do trem} other {# servidores Discord com canal do trem}}",
       "noChannel": "Nenhum canal do trem configurado. Dono: execute /set-train-channel no Discord.",
       "readOnlyHint": "Somente oficiais do trem podem alterar esta opção."
+    },
+    "discordServerSetup": {
+      "title": "Bot do Discord — adicionar outro servidor",
+      "body": "Sua aliança pode vincular vários servidores Discord ao mesmo bot. Um dono da aliança, oficial R4+ ou mantenedor da plataforma pode adicionar o bot a um servidor Discord que possui ou gerencia e depois registrar esse servidor com a tag da sua aliança para que os comandos slash funcionem lá.",
+      "registeredCount": "{count, plural, one {# servidor Discord registrado para esta aliança} other {# servidores Discord registrados para esta aliança}}",
+      "noneRegistered": "Nenhum servidor Discord registrado para esta aliança ainda.",
+      "installButton": "Adicionar bot a um servidor Discord",
+      "installUnavailable": "A instalação do bot não está configurada neste ambiente. Peça a um mantenedor da plataforma para definir DISCORD_APPLICATION_ID.",
+      "nextStepsLabel": "Depois de adicionar o bot",
+      "nextStepsBody": "No novo servidor Discord:\n1. Execute /link e conclua o login no navegador.\n2. Execute /link-alliance tag:{tag} (dono R5, oficial R4+ com comandante vinculado ou mantenedor da plataforma).\n3. Execute /set-vr-report-channel e /set-train-channel nos canais desejados.\n\nO Discord exige a permissão Gerenciar servidor para adicionar o bot. Os comandos slash podem levar alguns minutos para aparecer após a instalação.",
+      "readOnlyHint": "Somente donos da aliança, oficiais do trem e mantenedores da plataforma podem adicionar ou registrar servidores Discord. Peça a um oficial R4+ ou mantenedor para concluir a configuração.",
+      "guideLink": "Guia de configuração de segundo servidor"
     }
   },
   "account": {
@@ -1504,7 +1603,11 @@
     "loading": "Carregando alianças…",
     "loadFailed": "Não foi possível carregar alianças.",
     "switchFailed": "Não foi possível trocar de aliança.",
-    "contextHint": "Visualizando dados de {tag}"
+    "contextHint": "Visualizando dados de {tag}",
+    "activeBadge": "Ativa",
+    "searchPlaceholder": "Buscar alianças…",
+    "searchNoMatches": "Nenhuma aliança corresponde à busca.",
+    "switchToSelected": "Usar {tag} nesta sessão"
   },
   "deviceLink": {
     "sectionTitle": "Vincular dispositivo móvel",
@@ -1607,6 +1710,7 @@
     "importMembers": "Importar membros",
     "uploadRosterVideo": "Enviar vídeo do elenco",
     "rosterLinkRequests": "Solicitações de vínculo ao roster",
+    "memberLinkHelpRequests": "Ajuda ao oficial",
     "import": {
       "title": "Importar membros",
       "uploadHint": "Envie uma captura por página de patente (oficiais e listas R1–R5). Lemos nome, poder e nível com OCR.",
@@ -1668,6 +1772,8 @@
       "unlinkHqButton": "Desvincular conta HQ",
       "unlinkDiscordButton": "Desvincular Discord",
       "unlinkConfirmQuestion": "Desvincular este comandante?",
+      "unlinkHqConfirmDescription": "Isso remove o vínculo com a conta HQ e permite que alguém reivindique este comandante novamente. Use apenas para corrigir uma reivindicação incorreta.",
+      "unlinkDiscordConfirmDescription": "Isso remove todos os vínculos do Discord deste comandante nesta aliança. Será necessário vincular novamente no Discord.",
       "unlinkConfirm": "Desvincular",
       "unlinkCancel": "Cancelar",
       "unlinkBusy": "Desvinculando…",
@@ -2776,7 +2882,8 @@
     "errors": {
       "nothingPending": "Nada para escolher agora.",
       "noWalkthrough": "Nenhum tutorial em andamento.",
-      "ashedVerificationRequired": "Conecte o Ashed para ferramentas iframe e sync do roster; depois volte para vincular seu personagem, se precisar."
+      "ashedVerificationRequired": "Conecte o Ashed para ferramentas iframe e sync do roster; depois volte para vincular seu personagem, se precisar.",
+      "askOfficerNeedsNameAndUid": "Informe seu nome no jogo e UID do jogador antes de pedir ajuda a um oficial."
     },
     "usage": "Informe seu nome no jogo e UID do perfil Last War.",
     "linked": "Vinculado a {name}. Bem-vindo à aliança!",
@@ -2813,6 +2920,7 @@
     "confirmServerMismatch": "O Last War mostra o servidor {lookupServer}, mas esta aliança está definida como {allianceServer}. Informe o número correto do servidor estadual.",
     "lookupFallback": "Não foi possível acessar o Last War agora. Informe o número do servidor estadual para continuar — você pode corrigir nas configurações depois.",
     "claimUidInvalid": "Informe o UID de 12 a 16 dígitos do seu perfil do Last War.",
+    "claimSelfServiceBlocked": "Este convite está ligado a um comandante específico. Digite seu UID do jogador na tela de reivindicação para concluir o vínculo.",
     "claimConflict": "Não foi possível concluir esta reivindicação automaticamente. Os oficiais da sua aliança foram avisados para confirmar seu comandante."
   },
   "onboard": {
@@ -2821,13 +2929,13 @@
     "welcomeSubtitle": "Vamos conectar sua conta HQ ao seu perfil no jogo.",
     "uidOnlySubtitle": "Informe seu UID de jogador e encontraremos seu comandante.",
     "nameLabel": "Nome no jogo",
-    "nameHint": "Deve ser exatamente igual ao Last War — digite com cuidado ou cole se um colega de aliança enviou seu nome.",
+    "nameHint": "Deve coincidir exatamente com o nome do seu comandante no Last War. Digite com cuidado ou peça a um colega de aliança para copiar do seu perfil e enviar para você.",
     "nameRequired": "Informe seu nome no jogo.",
     "uidLabel": "UID do jogador",
-    "uidHint": "ID de 12–16 dígitos do perfil. Os dígitos finais são o número do seu servidor estadual.",
+    "uidHint": "Copie e cole seu ID de jogador no menu de perfil do Last War.",
     "uidRequired": "Informe seu UID.",
     "uidInvalid": "Informe um ID de jogador com 12–16 dígitos do seu perfil.",
-    "submit": "Vincular meu personagem",
+    "submit": "Vincular meu Comandante",
     "submitting": "Verificando…",
     "continue": "Continuar",
     "linkedTitle": "Você está vinculado!",
@@ -2851,11 +2959,11 @@
     "connectAshedCta": "Conectar Ashed",
     "connectAshedDismiss": "Agora não",
     "wrongAlliance": "Aliança errada?",
-    "wrongAllianceHint": "Limpa esta sessão de onboarding. Sua associação permanece — entre com outra conta ou use outro código de entrada.",
+    "wrongAllianceHint": "Redefina sua sessão de onboarding e recomece se estiver travado.",
     "nameMismatchTitle": "Nome não confere",
-    "nameMismatchHint": "Seu nome deve coincidir exatamente com o Last War. Peça a um colega de aliança para copiar do seu perfil, ou toque em Pedir ajuda a um oficial se estiver travado.",
-    "linkHelpHint": "Não consegue acertar seu nome? Informe seu UID e toque em Pedir ajuda a um oficial — um R4+ pode confirmar você no roster.",
-    "askOfficerNeedsUid": "Informe seu UID primeiro para que um oficial saiba qual comandante procurar.",
+    "nameMismatchHint": "Seu nome deve coincidir exatamente com o Last War. Peça a um colega de aliança para copiar do seu perfil, ou use Pedir ajuda a um oficial se estiver travado.",
+    "linkHelpHint": "Não consegue acertar seu nome? Informe seu UID e toque em Pedir ajuda a um oficial — um R4 irá ajudá-lo.",
+    "askOfficerNeedsUid": "Informe seu UID antes de pedir ajuda a um oficial.",
     "useSuggestedName": "Usar nome sugerido",
     "confirmServerTitle": "Confirmar servidor estadual",
     "confirmServerMissingBody": "Informe o número do servidor estadual da sua aliança. Você pode alterar depois nas configurações.",
@@ -2885,7 +2993,7 @@
       "unknownUser": "Não foi possível identificar sua conta do Discord.",
       "unknownCommand": "Comando desconhecido.",
       "serverError": "Algo deu errado do nosso lado. Tente novamente em instantes.",
-      "guildNotRegistered": "Este servidor do Discord ainda não está vinculado a uma aliança. O dono deve executar `/link-alliance` com a tag (por exemplo LFgo).",
+      "guildNotRegistered": "Este servidor do Discord ainda não está vinculado a uma aliança. Um dono da aliança ou oficial R4+ deve executar `/link-alliance` com a tag (por exemplo LFgo).",
       "tagNotFoundNoHq": "Nenhuma aliança encontrada com a tag **{tag}**. Confira a grafia no ashed.online. Se você é o dono, execute `/link` no Discord primeiro e depois `/help` aqui.",
       "tagNotFoundWithHq": "Nenhuma aliança encontrada com a tag **{tag}**. Confira a grafia no ashed.online ou use `/link-ashed tag:{tag}` se a aliança ainda não estiver no Alliance HQ.",
       "tagRequired": "Informe a tag da aliança. Exemplo: `/link-alliance tag:LFgo` ou `/link-ashed tag:LFgo`.",
@@ -2894,7 +3002,7 @@
       "linkHqBeforeAshed": "Vincule sua conta Alliance HQ primeiro — execute `/link` no Discord e depois `/link-ashed tag:{tag}`.",
       "ownerSeatRequiresAshed": "Vincule o dono da aliança com `/link-commander name:… uid:…` e depois execute `/link-alliance tag:SuaTag`.",
       "tagAmbiguous": "Encontramos várias alianças com a tag **{tag}**. Use `/link-alliance tag:{tag} name:Nome da Aliança` para escolher a correta.",
-      "notOwner": "Somente o dono da aliança ou um mantenedor da plataforma pode registrar este servidor. Donos: execute `/link` primeiro e depois `/help` para o checklist de configuração.",
+      "notOwner": "Somente um dono da aliança (R5), oficial R4+ com comandante vinculado ou mantenedor da plataforma pode registrar este servidor. Execute `/link` primeiro, vincule seu comandante e depois `/help` para o checklist.",
       "notOfficer": "Somente oficiais da aliança (R4+) ou o dono podem gerar relatórios de VR. Vincule um comandante com `/link-commander` se ainda não fez.",
       "insufficientForTeams": "São necessários pelo menos **{needed}** reportadores de VR para **{teams}** equipes de takedown (5 jogadores cada). Só **{have}** no placar agora.",
       "teamsRequired": "Informe `teams:N` (1–5). Exemplo: `/takedown-teams teams:2` para duas equipes.",
@@ -2904,7 +3012,8 @@
       "invalidLanguage": "Escolha English ou Português.",
       "nothingPending": "Nada para escolher agora.",
       "noWalkthrough": "Nenhum tutorial em andamento.",
-      "noConfirm": "Nada para confirmar agora."
+      "noConfirm": "Nada para confirmar agora.",
+      "askOfficerNeedsNameAndUid": "Informe seu nome no jogo e UID com `/link-commander` antes de pedir ajuda a um oficial."
     },
     "link": {
       "userPrompt": "Clique no link abaixo para vincular sua conta do Discord ao Alliance HQ (expira em 30 min):\n{url}\n\nDepois, execute `/help` no Discord para o próximo passo.",
@@ -2989,7 +3098,7 @@
       "setupLinkHq": "Vincule sua conta Discord ao Alliance HQ: execute `/link` e conclua o login no navegador.",
       "setupOwnerLinkHq": "Este servidor ainda não está registrado. **Dono R5:** siga o caminho do dono no guia — entre com `/link`, depois registre o servidor.\n\n**Guia:** {guideUrl}",
       "setupOwnerAshedSeat": "Este servidor ainda não está registrado. **Dono R5:** execute `/link-ashed tag:SuaTag`, conclua a etapa no navegador e depois `/link-alliance tag:SuaTag`.\n\n**Guia:** {guideUrl}",
-      "setupLinkAlliance": "**Dono ou mantenedor:** registre este servidor com `/link-alliance tag:SuaTag`.\n\n**Guia:** {guideUrl}",
+      "setupLinkAlliance": "**Dono, oficial R4+ ou mantenedor:** registre este servidor com `/link-alliance tag:SuaTag`.\n\n**Guia:** {guideUrl}",
       "waitForOwnerAuth": "Aguardando o dono registrar este servidor com `/link-alliance`. Vincule seu comandante com `/link-commander` após o registro.",
       "linkCommander": "Vincule seu comandante: `/link-commander name:… uid:…`. Você não pode copiar seu próprio nome no jogo — peça a um colega de aliança. Precisa de passos? Execute `/link-commander` com um nome errado, toque **Começar de novo** e depois **Concluído** após o tutorial.\n\n**Guia:** {guideUrl}",
       "memberReady": "Você está vinculado. Use `/vr` ou `/immunity` quando o VR base mudar. `/who-is-conductor` mostra o condutor de hoje.\n\n**Guia:** {guideUrl}",
@@ -3014,7 +3123,7 @@
     "keyLabel": "Chave de conexão Ashed",
     "keyHint": "Encontre em ashed.online em Configurações → Chave de Conexão. Trate como uma senha.",
     "nameLabel": "Nome no jogo",
-    "nameHint": "Deve ser exatamente igual ao Last War — digite com cuidado ou cole se um colega de aliança enviou seu nome.",
+    "nameHint": "Deve coincidir exatamente com o nome do seu comandante no Last War. Digite com cuidado ou peça a um colega de aliança para copiar seu nome de jogador do perfil e enviar para você.",
     "uidLabel": "UID do jogador",
     "uidHint": "Seu ID de jogador com 12–16 dígitos do perfil no jogo.",
     "submit": "Conectar",
@@ -3054,7 +3163,10 @@
       "videoJobsPending": "Vídeos para processar",
       "memberLinkRequest": "Vínculo de roster",
       "memberLinkRequestTitle": "Aprovar {name}",
-      "memberLinkRequestBody": "Um jogador precisa da aprovação do dono para entrar no roster."
+      "memberLinkRequestBody": "Um jogador precisa da aprovação do dono para entrar no roster.",
+      "memberLinkHelp": "Ajuda ao oficial",
+      "memberLinkHelpTitle": "Ajudar {name} a vincular",
+      "memberLinkHelpBody": "Um membro pediu ajuda de um oficial ao vincular o comandante."
     }
   },
   "uploadReminders": {
@@ -3108,11 +3220,11 @@
       "roles": {
         "r5": {
           "title": "R5 — alliance owner",
-          "description": "First-time server setup: link HQ, optional roster sync, register the server, link your commander, then channel setup."
+          "description": "First-time or second-server setup: add the bot, link HQ, optional roster sync, register the server, link your commander, then channel setup."
         },
         "r4": {
           "title": "R4 — alliance officer",
-          "description": "You're linked; run VR reports, train conductor commands, and help members who get stuck."
+          "description": "Add the bot to another server, link your commander, register the server, then run officer commands and help members."
         },
         "member": {
           "title": "R3–R1 — alliance member",
@@ -3133,6 +3245,11 @@
         "commandLabel": "Discord command"
       },
       "steps": {
+        "installBot": {
+          "title": "Add the bot to your Discord server",
+          "summary": "Invite Alliance HQ into the Discord server you want to use — required before slash commands work there.",
+          "instructions": "From Alliance HQ (recommended):\n1. Sign in and open Settings → Alliance settings for your tag.\n2. Click **Add bot to a Discord server** and pick the target server (you need Manage Server permission).\n\nOr ask someone with the install link from your maintainer.\n\nAfter Discord adds the bot, continue with **Link your Discord to Alliance HQ** (/link) in that same server.\n\nSlash commands can take a few minutes to appear globally after install."
+        },
         "linkHq": {
           "title": "Link your Discord to Alliance HQ",
           "summary": "Sign your Discord account into Alliance HQ — required before Ashed credentials or guild registration.",
@@ -3150,7 +3267,7 @@
           "title": "Register this Discord server",
           "summary": "Bind this Discord server to your alliance so bot commands know which roster to use.",
           "command": "/link-alliance tag:YourTag",
-          "instructions": "1. Use your alliance tag only (e.g. LFgo) — not a numeric ID.\n2. Run /link-alliance tag:YourTag in this server.\n3. You must be the in-game alliance owner (proved by your commander link), the person who linked Ashed credentials, or a platform maintainer.\n4. When successful, everyone can run /link-commander in this server."
+          "instructions": "1. Use your alliance tag only (e.g. LFgo) — not a numeric ID.\n2. Run /link-alliance tag:YourTag in this server.\n3. You must be the in-game owner (R5) or an R4+ officer with a linked commander, the person who linked Ashed credentials, or a platform maintainer.\n4. When successful, everyone can run /link-commander in this server."
         },
         "optionalAshed": {
           "title": "Optional: roster sync tools",
@@ -3238,7 +3355,11 @@
         },
         "guildNotRegistered": {
           "title": "Bot says the server isn't set up",
-          "body": "An R5 owner (or platform maintainer) must run /link-alliance tag:YourTag first. Until then, /link-commander will not attach to your alliance."
+          "body": "An R5 owner or R4+ officer (or platform maintainer) must run /link-alliance tag:YourTag first. Until then, /link-commander will not attach to your alliance."
+        },
+        "commandsMissing": {
+          "title": "Slash commands not showing up",
+          "body": "After adding the bot to a new server, Discord may take a few minutes to register global slash commands.\n\nTry:\n• Wait 5–15 minutes and type /link in the server again.\n• Confirm the bot appears online in the member list.\n• If commands never appear, ask a maintainer to verify command registration for the bot application."
         },
         "memberTaken": {
           "title": "Commander already linked",

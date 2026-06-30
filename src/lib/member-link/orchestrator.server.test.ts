@@ -55,6 +55,11 @@ vi.mock("@/lib/member-link/roster-link-request.server", () => ({
   getRosterLinkRequestById: vi.fn(),
 }));
 
+vi.mock("@/lib/member-link/claim.server", () => ({
+  getMemberLinkClaimTarget: vi.fn().mockResolvedValue(null),
+  blockSelfServiceWhenClaimPending: vi.fn().mockResolvedValue(null),
+}));
+
 const lookup = await import("@/lib/lastwar/player-lookup");
 const roster = await import("@/lib/member-link/roster-link-request.server");
 
