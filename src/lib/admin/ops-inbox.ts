@@ -1,13 +1,15 @@
 import { and, desc, eq, lt, sql } from "drizzle-orm";
 
 import { getDb, schema } from "@/lib/db";
+import { countOpenMemberLinkHelpRequests } from "@/lib/member-link/member-link-help-queue.server";
 
 export const OPS_INBOX_STUCK_QUEUED_MINUTES = 15;
 
 export type OpsInboxItemKind =
   | "video_job_failed"
   | "video_job_stuck_queued"
-  | "bug_report_open";
+  | "bug_report_open"
+  | "member_link_help_open";
 
 export type OpsInboxItem = {
   id: string;
@@ -23,6 +25,7 @@ export type OpsInboxSummary = {
   videoJobsFailed: number;
   videoJobsStuckQueued: number;
   bugReportsOpen: number;
+  memberLinkHelpOpen: number;
 };
 
 function stuckQueuedBefore(): Date {
@@ -33,7 +36,8 @@ export async function loadOpsInboxSummary(): Promise<OpsInboxSummary> {
   const db = getDb();
   const stuckBefore = stuckQueuedBefore();
 
-  const [failedRow, stuckRow, openBugsRow] = await Promise.all([
+  const [failedRow, stuckRow, openBugsRow, memberLinkHelpOpen] =
+    await Promise.all([
     db
       .select({ count: sql<number>`count(*)::int` })
       .from(schema.videoJobs)
@@ -56,6 +60,7 @@ export async function loadOpsInboxSummary(): Promise<OpsInboxSummary> {
           eq(schema.userFeedbackReport.status, "open"),
         ),
       ),
+    countOpenMemberLinkHelpRequests(),
   ]);
 
   const videoJobsFailed = failedRow[0]?.count ?? 0;
@@ -66,16 +71,21 @@ export async function loadOpsInboxSummary(): Promise<OpsInboxSummary> {
     videoJobsFailed,
     videoJobsStuckQueued,
     bugReportsOpen,
-    total: videoJobsFailed + videoJobsStuckQueued + bugReportsOpen,
+    memberLinkHelpOpen,
+    total:
+      videoJobsFailed +
+      videoJobsStuckQueued +
+      bugReportsOpen +
+      memberLinkHelpOpen,
   };
 }
 
 export async function loadOpsInboxItems(limit = 50): Promise<OpsInboxItem[]> {
   const db = getDb();
   const stuckBefore = stuckQueuedBefore();
-  const perKind = Math.ceil(limit / 3);
+  const perKind = Math.ceil(limit / 4);
 
-  const [failedJobs, stuckJobs, openBugs] = await Promise.all([
+  const [failedJobs, stuckJobs, openBugs, openHelp] = await Promise.all([
     db
       .select({
         id: schema.videoJobs.id,
@@ -120,6 +130,23 @@ export async function loadOpsInboxItems(limit = 50): Promise<OpsInboxItem[]> {
       )
       .orderBy(desc(schema.userFeedbackReport.createdAt))
       .limit(perKind),
+    db
+      .select({
+        id: schema.hqMemberLinkHelpRequests.id,
+        requesterHandle: schema.hqMemberLinkHelpRequests.requesterHandle,
+        gameUserName: schema.hqMemberLinkHelpRequests.gameUserName,
+        context: schema.hqMemberLinkHelpRequests.context,
+        allianceTag: schema.alliances.tag,
+        createdAt: schema.hqMemberLinkHelpRequests.createdAt,
+      })
+      .from(schema.hqMemberLinkHelpRequests)
+      .innerJoin(
+        schema.alliances,
+        eq(schema.alliances.id, schema.hqMemberLinkHelpRequests.allianceId),
+      )
+      .where(eq(schema.hqMemberLinkHelpRequests.status, "open"))
+      .orderBy(desc(schema.hqMemberLinkHelpRequests.createdAt))
+      .limit(perKind),
   ]);
 
   const items: OpsInboxItem[] = [
@@ -146,6 +173,14 @@ export async function loadOpsInboxItems(limit = 50): Promise<OpsInboxItem[]> {
       subtitle: bug.area,
       href: `/admin/bug-reports`,
       createdAt: bug.createdAt,
+    })),
+    ...openHelp.map((help) => ({
+      id: `help:${help.id}`,
+      kind: "member_link_help_open" as const,
+      title: help.gameUserName?.trim() || help.requesterHandle,
+      subtitle: help.allianceTag ?? help.context,
+      href: `/admin/member-link-help`,
+      createdAt: help.createdAt,
     })),
   ];
 

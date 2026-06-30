@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { FormattedDateTime } from "@/components/timezone/TimezoneProvider";
+import { MEMBER_LINK_HELP_INBOX_KIND } from "@/lib/member-link/member-link-help-inbox.shared";
 import { ROSTER_LINK_INBOX_KIND } from "@/lib/member-link/roster-link-inbox.shared";
 import { Link } from "@/i18n/navigation";
 
@@ -78,6 +79,7 @@ export default function InboxPageClient() {
     if (kind === "eur_occurrence") return t("kind.eurOccurrence");
     if (kind === "video_jobs_pending") return t("kind.videoJobsPending");
     if (kind === ROSTER_LINK_INBOX_KIND) return t("kind.memberLinkRequest");
+    if (kind === MEMBER_LINK_HELP_INBOX_KIND) return t("kind.memberLinkHelp");
     return kind;
   }
 
@@ -86,12 +88,19 @@ export default function InboxPageClient() {
       const name = item.scoreTarget?.trim() || item.title;
       return t("kind.memberLinkRequestTitle", { name });
     }
+    if (item.kind === MEMBER_LINK_HELP_INBOX_KIND) {
+      const name = item.scoreTarget?.trim() || item.title;
+      return t("kind.memberLinkHelpTitle", { name });
+    }
     return item.title;
   }
 
   function displayBody(item: ReminderItem): string | null {
     if (item.kind === ROSTER_LINK_INBOX_KIND) {
       return t("kind.memberLinkRequestBody");
+    }
+    if (item.kind === MEMBER_LINK_HELP_INBOX_KIND) {
+      return t("kind.memberLinkHelpBody");
     }
     return item.body;
   }

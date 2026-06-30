@@ -129,7 +129,7 @@ test.describe("Native alliance — PA provision through owner onboarding", () =>
         res.url().includes("/api/member-link") &&
         res.request().method() === "POST",
     );
-    await page.getByRole("button", { name: /link my character/i }).click();
+    await page.getByRole("button", { name: /link my commander/i }).click();
     const officerLinkRes = await officerLinkResponse;
     expect(officerLinkRes.ok()).toBe(true);
     const officerLinkBody = (await officerLinkRes.json()) as {
@@ -163,7 +163,7 @@ test.describe("Native alliance — PA provision through owner onboarding", () =>
         res.url().includes("/api/member-link") &&
         res.request().method() === "POST",
     );
-    await page.getByRole("button", { name: /link my character/i }).click();
+    await page.getByRole("button", { name: /link my commander/i }).click();
     const response = await linkResponse;
     expect(response.ok()).toBe(true);
     const linkBody = (await response.json()) as {

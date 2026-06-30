@@ -60,7 +60,7 @@ Apply on every Real Steel pass for this repo:
 - **Legacy sessions** — behavior when `hq_user_id` is null (allow-all until reconnect) must remain consistent
 - **Bootstrap safety** — `PLATFORM_BOOTSTRAP_EMAIL` only promotes when zero platform maintainers exist; no privilege escalation on reconnect
 - **Deploy seeds** — `db:prepare` migrations/seeds idempotent; safe to run on every Vercel build; every `drizzle/NNNN_*.sql` must appear in `drizzle/meta/_journal.json` (`npm run db:validate-journal`)
-- **i18n** — new UI strings in en-US and pt-BR; run `npm run i18n:validate`
+- **i18n** — maintainer must approve English copy before `messages/en-US.*` or `messages/pt-BR.*` change (see [`.cursor/rules/user-facing-copy-review.mdc`](.cursor/rules/user-facing-copy-review.mdc)); then en-US + pt-BR; run `npm run i18n:validate`
 - **Video pipeline** — admin requeue/reprocess must not double-process or lose job state
 - **No prod SQL for ops** — admin UI should cover role assignment, commendations, and job recovery without ad-hoc queries
 - **Native alliance invites** — `createHqInvite` (team settings + `/api/admin/native-alliances/.../invites`): **owner** invites are allowed before a linked game server; **officer/member** invites require `alliances.game_server_id` → `game_servers` (set automatically when the owner completes name+UID member link, or via admin console / Game season for corrections). API returns **422** `{ code: "alliance_server_required" }` when non-owner invites lack a linked server.

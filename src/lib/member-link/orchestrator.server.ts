@@ -1,6 +1,10 @@
 import "server-only";
 
 import { emitAdminAlert, emitMemberLinkUidTakenAlert } from "@/lib/events/admin-alerts";
+import {
+  recordMemberLinkHelpRequest,
+  resolveWebHelpContext,
+} from "@/lib/member-link/member-link-help-queue.server";
 import { lookupPlayerByUid } from "@/lib/lastwar/player-lookup";
 import { syncAllianceMemberGameLevelFromLastWar } from "@/lib/lastwar/sync-member-game-level.server";
 import {
@@ -91,8 +95,27 @@ function translateContext(locale: string) {
   return { translate, walkthroughSteps };
 }
 
-async function emitLinkAttention(ctx: FlowContext) {
-  const handle = ctx.displayName?.trim() || ctx.userEmail?.trim() || ctx.hqUserId;
+function isValidMemberLinkGameUid(value: string): boolean {
+  return /^\d{12,16}$/.test(value);
+}
+
+async function emitLinkAttention(
+  ctx: FlowContext,
+  opts?: { gameUid?: string | null },
+) {
+  let handle =
+    ctx.displayName?.trim() || ctx.userEmail?.trim() || ctx.hqUserId;
+  const uid = opts?.gameUid?.trim() ?? "";
+  if (isValidMemberLinkGameUid(uid)) {
+    try {
+      const lookup = await lookupPlayerByUid(uid);
+      if (lookup.ok) {
+        handle = `${handle} · ${lookup.gameUserName}`;
+      }
+    } catch (error) {
+      console.error("[member-link] ask-officer lookup failed", error);
+    }
+  }
   await emitAdminAlert({
     type: "vr_link_attention",
     count: 1,
@@ -557,6 +580,8 @@ export async function runWebMemberLinkAskOfficer(input: {
   locale: string;
   userEmail?: string | null;
   displayName?: string | null;
+  reportedName?: string | null;
+  gameUid?: string | null;
 }): Promise<MemberLinkApiResponse> {
   const ctx = createFlowContext({
     sessionId: input.sessionId,
@@ -578,18 +603,51 @@ export async function runWebMemberLinkAskOfficer(input: {
   }
 
   const pendingRow = await getHqMemberLinkPending(input.allianceId, input.hqUserId);
-  if (pendingRow?.pending?.kind !== "link_roster_miss") {
-    const translate = createMemberLinkTranslator(input.locale);
+  const pending = pendingRow?.pending ?? null;
+  const pendingAllowsAskOfficer =
+    pending?.kind === "link_roster_miss" ||
+    pending?.kind === "link_walkthrough";
+
+  const gameUid = input.gameUid?.trim() ?? "";
+  const reportedName = input.reportedName?.trim() ?? "";
+  const translate = createMemberLinkTranslator(input.locale);
+
+  if (!isValidMemberLinkGameUid(gameUid) || !reportedName) {
     return {
       outcome: "usage",
-      message: translate("errors.nothingPending"),
-      pending: null,
+      message: translate("errors.askOfficerNeedsNameAndUid"),
+      pending: pendingAllowsAskOfficer ? pending : null,
     };
   }
 
-  await emitLinkAttention(ctx);
-  await saveHqMemberLinkPending(input.allianceId, input.hqUserId, null);
-  const translate = createMemberLinkTranslator(input.locale);
+  let gameUserName: string | null = null;
+  try {
+    const lookup = await lookupPlayerByUid(gameUid);
+    if (lookup.ok) {
+      gameUserName = lookup.gameUserName;
+    }
+  } catch (error) {
+    console.error("[member-link] ask-officer lookup failed", error);
+  }
+
+  const requesterHandle =
+    ctx.displayName?.trim() || ctx.userEmail?.trim() || ctx.hqUserId;
+
+  await recordMemberLinkHelpRequest({
+    allianceId: input.allianceId,
+    hqUserId: input.hqUserId,
+    origin: "web",
+    context: resolveWebHelpContext(pending),
+    requesterHandle,
+    reportedName,
+    gameUid,
+    gameUserName,
+  });
+
+  await emitLinkAttention(ctx, { gameUid });
+  if (pendingAllowsAskOfficer) {
+    await saveHqMemberLinkPending(input.allianceId, input.hqUserId, null);
+  }
   return {
     outcome: "officer_notified",
     message: translate("officerNotified"),

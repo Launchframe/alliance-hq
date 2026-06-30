@@ -138,6 +138,7 @@
       "hqEvents": "HQ events",
       "commendations": "Commendations",
       "bugReports": "Bug reports",
+      "memberLinkHelp": "Member link help",
       "experienceFeedback": "Experience feedback",
       "translationReports": "Translation reports",
       "users": "HQ users",
@@ -147,7 +148,7 @@
     },
     "opsInbox": {
       "title": "Ops inbox",
-      "subtitle": "Failed video jobs, stuck queue items, and open bug reports.",
+      "subtitle": "Failed video jobs, stuck queue items, open bug reports, and member link help requests.",
       "loadFailed": "Failed to load ops inbox.",
       "empty": "Nothing needs attention right now.",
       "bellLabel": "Open ops inbox",
@@ -155,12 +156,14 @@
       "counts": {
         "failed": "Failed jobs",
         "stuck": "Stuck queued",
-        "bugs": "Open bug reports"
+        "bugs": "Open bug reports",
+        "memberLinkHelp": "Link help requests"
       },
       "kind": {
         "video_job_failed": "Failed video job",
         "video_job_stuck_queued": "Stuck queued job",
-        "bug_report_open": "Open bug report"
+        "bug_report_open": "Open bug report",
+        "member_link_help_open": "Member link help"
       }
     },
     "systemTitle": "System health",
@@ -1040,7 +1043,8 @@
         "commendations": "Commendations",
         "bugReports": "Bug reports",
         "experienceFeedback": "Experience feedback",
-        "translationReports": "Translation reports"
+        "translationReports": "Translation reports",
+        "memberLinkHelp": "Member link help"
       },
       "trains": {
         "spinWheel": "Spin conductor wheel",
@@ -1300,6 +1304,84 @@
     "suggestionStale": "We had suggested {suggested}, but that roster member is no longer available. Please choose the right member below.",
     "approveMatch": "Approve match",
     "decline": "Decline"
+  },
+  "memberLinkHelpRequests": {
+    "title": "Ask an officer help requests",
+    "adminTitle": "Member link help requests",
+    "subtitle": "Members who asked for officer help while linking their commander — onboarding, walkthrough, or blocked flows.",
+    "backToMembers": "Back to members",
+    "backToAdmin": "Back to admin portal",
+    "loadFailed": "Could not load help requests.",
+    "resolveFailed": "Could not update this request.",
+    "empty": "No open help requests.",
+    "requester": "HQ account: {handle}",
+    "typedName": "Typed name: {name}",
+    "uidLast4": "UID ending …{last4}",
+    "originWeb": "Web",
+    "originDiscord": "Discord: {user}",
+    "originDiscordUnknown": "Discord user",
+    "unknownAlliance": "Unknown alliance",
+    "markResolved": "Mark resolved",
+    "dismiss": "Dismiss",
+    "reviewRequest": "Review request",
+    "context": {
+      "onboarding_form": "Onboarding form",
+      "walkthrough": "Link walkthrough",
+      "roster_miss": "Not on roster",
+      "discord_button": "Discord link help"
+    }
+  },
+  "memberLinkHelpReview": {
+    "title": "Review help request",
+    "adminTitle": "Review help request",
+    "backToList": "Back to help requests",
+    "backToAdminList": "Back to member link help",
+    "linkFailed": "Could not link this member.",
+    "resolveFailed": "Could not update this request.",
+    "identity": {
+      "title": "Submitted identity",
+      "submittedName": "Submitted in-game name",
+      "uidLast4": "Player UID",
+      "uidLast4Value": "Ending …{last4}",
+      "lookupName": "Last War lookup name",
+      "lookupMissing": "Lookup unavailable",
+      "missing": "Not provided"
+    },
+    "requesterContact": {
+      "title": "Requester contact"
+    },
+    "contact": {
+      "inGameName": "In-game name",
+      "email": "Email",
+      "discord": "Discord",
+      "noContact": "No contact info on file.",
+      "noClaimantContact": "No claimant contact on file."
+    },
+    "roster": {
+      "unclaimedTitle": "Unclaimed roster members",
+      "claimedTitle": "Already claimed",
+      "empty": "No roster members found.",
+      "nameMatch": "Name match",
+      "claimedBadge": "Already linked to an account"
+    },
+    "mediation": {
+      "title": "Mediation needed",
+      "description": "This roster seat is already claimed. Reach out to both people below to resolve the conflict.",
+      "requester": "Person requesting help",
+      "claimant": "Current roster holder"
+    },
+    "noMatchHint": "Select an unclaimed roster member to link, or a claimed member to see contact info for mediation.",
+    "unlinkFuture": "Unlink existing claim",
+    "unlinkFutureHint": "Break-glass unlink will be available in a future update.",
+    "actions": {
+      "linkSelected": "Link to selected member",
+      "markResolved": "Mark resolved without linking",
+      "dismiss": "Dismiss"
+    },
+    "errors": {
+      "memberAlreadyClaimed": "That roster member is already claimed. Use the mediation panel to contact both parties.",
+      "hqUserRequired": "This request has no HQ web account — link manually after the member signs in."
+    }
   },
   "settings": {
     "title": "Settings",
@@ -1615,6 +1697,7 @@
     "importMembers": "Import members",
     "uploadRosterVideo": "Upload roster video",
     "rosterLinkRequests": "Roster link requests",
+    "memberLinkHelpRequests": "Ask an officer help",
     "import": {
       "title": "Import members",
       "uploadHint": "Upload one screenshot per rank page (officers screen and rank lists). We read names, power, and level with on-device OCR.",
@@ -2776,39 +2859,40 @@
     "errors": {
       "nothingPending": "Nothing to pick right now.",
       "noWalkthrough": "No walkthrough in progress.",
-      "ashedVerificationRequired": "Connect Ashed to use iframe tools and live roster sync, then return to link your character if needed."
+      "ashedVerificationRequired": "Connect Ashed to use iframe tools and live roster sync, then return to link your character if needed.",
+      "askOfficerNeedsNameAndUid": "Enter your in-game name and player UID before asking an officer for help."
     },
     "usage": "Enter your in-game name and UID from your Last War profile.",
     "linked": "Linked to {name}. Welcome to the alliance!",
     "updated": "Updated your link for {name}.",
     "memberTaken": "That in-game member is already linked to a different account.",
     "fuzzyPrompt": "We verified {gameName} but couldn't find an exact roster match. Pick your member:",
-    "rosterMiss": "We checked the {tag} roster and couldn't match that name to anyone. Try Start over for copy instructions, or ask an officer for help.",
-    "rosterMissGeneric": "We couldn't match that name to anyone on the roster. Try Start over for copy instructions, or ask an officer for help.",
+    "rosterMiss": "We checked the {tag} roster and couldn't match that name to anyone. Try Start over for name help, or ask an officer for help.",
+    "rosterMissGeneric": "We couldn't match that name to anyone on the roster. Try Start over for name help, or ask an officer for help.",
     "rosterMissVerified": "Last War shows your commander as {gameName}, but our {tag} roster doesn't list that name yet — it may still show an older name. Ask an officer to refresh the roster or link you manually.",
     "rosterMissVerifiedGeneric": "Last War shows your commander as {gameName}, but our roster doesn't list that name yet — it may still show an older name. Ask an officer to refresh the roster or link you manually.",
     "rosterUnavailable": "We verified your UID with the game, but couldn't load the alliance roster. Ask an officer for help.",
     "pickExpired": "That member option expired. Submit your name and UID again.",
-    "walkthroughDone": "Great. Submit your copied name and UID again when ready.",
-    "walkthroughIntro": "Let's fix your in-game name copy.",
+    "walkthroughDone": "Great. Submit your name and UID again when ready.",
+    "walkthroughIntro": "Let's get your in-game name right.",
     "walkthroughTapDone": "Tap Done when you've finished this step.",
-    "nameMismatchIntro": "Your name didn't match what Last War has on file. Follow these steps to copy it correctly.",
+    "nameMismatchIntro": "Your name didn't match what Last War has on file. Follow these steps — the game does not let you copy your own name.",
     "steps": [
-      "Open the game.",
-      "Tap your avatar picture to open your Player's Profile menu.",
-      "Tap the \"...\" menu in the top right to open the Profile menu.",
-      "Tap \"Copy\" next to your name on that screen.",
-      "Return here and submit that copied name with your UID."
+      "Open Last War and go to your Player Profile (tap your avatar, then … in the top right).",
+      "Copy your UID from that screen — you can copy your own player ID.",
+      "Last War does not let you copy your own name. Ask an alliance mate to open your profile and tap Copy next to your name, then message you.",
+      "Type your name exactly as they sent it (spelling and capitalization matter), or paste if they copied it for you.",
+      "Return here and submit that name with your UID."
     ],
     "buttons": {
       "done": "Done",
       "startOver": "Start over",
       "askOfficer": "Ask an officer"
     },
-    "officerNotified": "An officer has been notified on Alliance HQ. They can reach out to help you link.",
+    "officerNotified": "An officer has been notified. They will reach out to help you..",
     "wrongServer": "Your player UID is for a different state server than this alliance. Double-check you joined the right alliance, or ask your R5 for the correct invite.",
     "awaitingOwner": "We verified your commander, but the roster name doesn't match yet. Your alliance owner was emailed — an officer must confirm the correct roster member in Alliance HQ before you can finish linking.",
-    "nameMismatchRetry": "Last War shows your name as {gameName}. Copy it exactly and try again.",
+    "nameMismatchRetry": "Last War shows your name as {gameName}. Type it exactly (or paste from an alliance mate) and try again.",
     "confirmServerMissing": "We couldn't read your state server from Last War. Enter your alliance's state server number.",
     "confirmServerMismatch": "Last War shows server {lookupServer}, but this alliance is set to {allianceServer}. Enter the correct state server number for your alliance.",
     "lookupFallback": "We couldn't reach Last War right now. Enter your state server number to continue — you can correct alliance settings later."
@@ -2818,13 +2902,13 @@
     "welcomePrefix": "Welcome to!",
     "welcomeSubtitle": "Let's connect your HQ account to your in-game profile.",
     "nameLabel": "In-game name",
-    "nameHint": "Copy from your Last War profile — must match exactly.",
+    "nameHint": "This must match your Last War commander name exactly. Type carefully, or ask an alliance mate to copy it from your profile and send it to you.",
     "nameRequired": "Enter your in-game name.",
     "uidLabel": "Player UID",
-    "uidHint": "12–16 digit ID from your profile. The ending digits are your state server number.",
+    "uidHint": "Copy and paste your player ID from the profile menu in Last War.",
     "uidRequired": "Enter your player UID.",
     "uidInvalid": "Enter a 12–16 digit player ID from your profile.",
-    "submit": "Link my character",
+    "submit": "Link my Commander",
     "submitting": "Verifying…",
     "continue": "Continue",
     "linkedTitle": "You're linked!",
@@ -2840,7 +2924,7 @@
     "awaitingOwnerRefresh": "Check again",
     "wrongServerTitle": "Wrong state server",
     "wrongServerBody": "Your player UID belongs to a different state server than this alliance. Confirm you joined the right alliance or ask your R5 for a new invite.",
-    "walkthroughTitle": "Copy your name from the game",
+    "walkthroughTitle": "Get your in-game name right",
     "requestFailed": "Something went wrong. Try again.",
     "connectAshedBanner": "Connect Ashed for iframe tools and live roster sync.",
     "connectAshedTitle": "Verify with Ashed first",
@@ -2848,9 +2932,11 @@
     "connectAshedCta": "Connect Ashed",
     "connectAshedDismiss": "Not now",
     "wrongAlliance": "Wrong alliance?",
-    "wrongAllianceHint": "Clears this onboarding session. Your membership stays — sign in with another account or redeem a different join code.",
+    "wrongAllianceHint": "Reset your onboarding session and start over if you are stuck.",
     "nameMismatchTitle": "Name didn't match",
-    "nameMismatchHint": "Update your in-game name to match Last War exactly, then submit again.",
+    "nameMismatchHint": "Your name must match Last War exactly. Ask an alliance mate to copy it from your profile, or Ask an officer if you're stuck.",
+    "linkHelpHint": "Can't get your name right? Enter your UID and tap Ask an officer and an R4 will assist you.",
+    "askOfficerNeedsUid": "Enter your player UID before asking an officer for help.",
     "useSuggestedName": "Use suggested name",
     "confirmServerTitle": "Confirm state server",
     "confirmServerMissingBody": "Enter the state server number for your alliance. You can change this later in alliance settings.",
@@ -2891,11 +2977,12 @@
       "invalidLanguage": "Choose English or Português.",
       "nothingPending": "Nothing to pick right now.",
       "noWalkthrough": "No walkthrough in progress.",
-      "noConfirm": "Nothing to confirm right now."
+      "noConfirm": "Nothing to confirm right now.",
+      "askOfficerNeedsNameAndUid": "Enter your in-game name and player UID with `/link-commander` before asking an officer for help."
     },
     "link": {
       "userPrompt": "Click the link below to link your Discord account to Alliance HQ (expires in 30 min):\n{url}\n\nAfter linking, run `/help` in Discord for your next step.",
-      "promptFirstCommander": "Would you like to link your first Last War commander? Run `/link-commander name:… uid:…` (copy name and UID from your in-game profile).",
+      "promptFirstCommander": "Would you like to link your first Last War commander? Run `/link-commander name:… uid:…` (UID from your profile; name must match exactly).",
       "usage": "Usage: `/link-commander name:… uid:…` (or `/link-last-war-profile name:… uid:…`). Add another commander anytime; use `replace:true` to switch your only link. Use `/unlink` to remove one.",
       "linked": "Linked commander **{name}**. You're ready to use /vr.",
       "linkedAdditional": "Linked another commander: **{name}**. Use /vr and pick which commander when you have more than one.",
@@ -2904,24 +2991,24 @@
       "capReached": "You already have the maximum number of linked commanders ({max}). Use `/unlink` first or `/link-commander replace:true` to switch.",
       "memberTaken": "That in-game commander is already linked to a different Discord account.",
       "fuzzyPrompt": "We verified **{gameName}** but couldn't find an exact roster match. Pick your commander:",
-      "rosterMiss": "We checked the **{tag}** roster and couldn't match that name to anyone. Try **Start over** for copy instructions, or ask an officer for help.",
-      "rosterMissGeneric": "We couldn't match that name to anyone on the roster. Try **Start over** for copy instructions, or ask an officer for help.",
+      "rosterMiss": "We checked the **{tag}** roster and couldn't match that name to anyone. Try **Start over** for name help, or ask an officer for help.",
+      "rosterMissGeneric": "We couldn't match that name to anyone on the roster. Try **Start over** for name help, or ask an officer for help.",
       "rosterMissVerified": "Last War shows your commander as **{gameName}**, but our **{tag}** roster doesn't list that name yet — it may still show an older name. Ask an officer to refresh the roster or link you manually.",
       "rosterMissVerifiedGeneric": "Last War shows your commander as **{gameName}**, but our roster doesn't list that name yet — it may still show an older name. Ask an officer to refresh the roster or link you manually.",
       "awaitingOfficerResolve": "We verified your commander, but the roster name doesn't match yet. An officer has been notified — you'll be linked once they confirm the right roster member.",
       "awaitingOfficerResolveNoHq": "We verified your commander, but the roster name doesn't match yet. Your officers have been notified in Alliance HQ and will confirm the right roster member — you don't need to do anything else. You can link an Alliance HQ account later for web features.",
       "rosterUnavailable": "We verified your UID with the game, but couldn't load the alliance roster. Ask an officer to refresh the roster or help with setup.",
       "pickExpired": "That commander option expired. Run `/link-commander` again.",
-      "walkthroughDone": "Great. Run `/link-commander` again with your copied name and UID when ready.",
-      "walkthroughIntro": "Let's start over.",
+      "walkthroughDone": "Great. Run `/link-commander` again with your name and UID when ready.",
+      "walkthroughIntro": "Let's get your in-game name right.",
       "walkthroughTapDone": "Tap **Done** when you've finished this step.",
-      "nameMismatchIntro": "Tap **Done** when you've finished this step.",
+      "nameMismatchIntro": "Your name didn't match what Last War has on file. Follow these steps — the game does not let you copy your own name.",
       "steps": [
-        "Open the game.",
-        "Tap your avatar picture to open your Player's Profile menu.",
-        "Tap the \"...\" menu in the top right to open the Profile menu.",
-        "Tap \"Copy\" next to your name on that screen.",
-        "Run `/link-commander` again and paste that copied name with your UID."
+        "Open Last War and go to your Player Profile (tap your avatar, then … in the top right).",
+        "Copy your UID from that screen — you can copy your own player ID.",
+        "Last War does not let you copy your own name. Ask an alliance mate to open your profile and tap Copy next to your name, then message you.",
+        "Type your name exactly as they sent it (spelling and capitalization matter), or paste if they copied it for you.",
+        "Run `/link-commander` again with that name and your UID."
       ]
     },
     "vr": {
@@ -2970,7 +3057,7 @@
       "startOver": "Start over",
       "askOfficer": "Ask an officer"
     },
-    "officerNotified": "An officer has been notified on Alliance HQ. They can reach out to you here on Discord.",
+    "officerNotified": "An officer has been notified. They can reach out to you here on Discord.",
     "help": {
       "dmGeneral": "**Alliance HQ bot** — run `/help` in your alliance server for steps matched to your role.\n\nQuick list: `/link`, `/link-commander`, `/vr`, `/immunity`, `/who-is-conductor`, `/language`. Owners set up with `/link-alliance`. Officers (R4+): `/vr-report`, `/set-conductor`, `/train-is-ready`.\n\n**Full setup guide:** {guideUrl}",
       "setupLinkHq": "Link your Discord account to Alliance HQ: run `/link` and complete the browser sign-in.",
@@ -2978,7 +3065,7 @@
       "setupOwnerAshedSeat": "This server isn't registered yet. **R5 owner:** run `/link-ashed tag:YourTag`, complete the browser step, then `/link-alliance tag:YourTag`.\n\n**Guide:** {guideUrl}",
       "setupLinkAlliance": "**Owner, R4+ officer, or platform maintainer:** register this server with `/link-alliance tag:YourTag`.\n\n**Guide:** {guideUrl}",
       "waitForOwnerAuth": "Waiting for the alliance owner to register this server with `/link-alliance`. Link your commander with `/link-commander` once the server is registered.",
-      "linkCommander": "Link your commander: `/link-commander name:… uid:…`. Need step-by-step help? Run `/link-commander` with a wrong name once, tap **Start over**, then **Done** after the walkthrough.\n\n**Guide:** {guideUrl}",
+      "linkCommander": "Link your commander: `/link-commander name:… uid:…`. You can't copy your own name in-game — ask an alliance mate. Need step-by-step help? Run `/link-commander` with a wrong name once, tap **Start over**, then **Done** after the walkthrough.\n\n**Guide:** {guideUrl}",
       "memberReady": "You're linked. Use `/vr` or `/immunity` when your base VR changes. `/who-is-conductor` shows today's train conductor.\n\n**Guide:** {guideUrl}",
       "memberReadyMulti": "You have **{count}** linked commanders. `/vr` and `/immunity` will ask which one. `/unlink` removes a link.\n\n**Guide:** {guideUrl}",
       "ownerReady": "You're linked as owner (**{tag}**). Finish setup: `/set-vr-report-channel`, `/set-train-channel`, then share `/link-commander` with members.\n\n**Guide:** {guideUrl}",
@@ -3001,7 +3088,7 @@
     "keyLabel": "Ashed connection key",
     "keyHint": "Find this on ashed.online under Settings → Connection Key. Treat it like a password.",
     "nameLabel": "In-game name",
-    "nameHint": "Copy exactly from your in-game profile — spelling and capitalization matter.",
+    "nameHint": "This must match your Last War commander name exactly. Type carefully, or ask an alliance mate to copy your player name from your profile and send it to you.",
     "uidLabel": "Player UID",
     "uidHint": "Your 12–16 digit player ID from your in-game profile.",
     "submit": "Connect",
@@ -3041,7 +3128,10 @@
       "videoJobsPending": "Videos to process",
       "memberLinkRequest": "Roster link",
       "memberLinkRequestTitle": "Approve {name}",
-      "memberLinkRequestBody": "A player needs owner approval to join the roster."
+      "memberLinkRequestBody": "A player needs owner approval to join the roster.",
+      "memberLinkHelp": "Officer help",
+      "memberLinkHelpTitle": "Help {name} link",
+      "memberLinkHelpBody": "A member asked for officer help while linking their commander."
     }
   },
   "guides": {
@@ -3100,8 +3190,8 @@
           "title": "Link your commander",
           "summary": "Prove which in-game character is yours by submitting the exact name and player UID from your profile.",
           "command": "/link-commander name:YourExactName uid:123456789012 — or /link-last-war-profile with the same options",
-          "instructions": "The server must be registered with /link-alliance first.\n\nIn Discord (fast):\n1. Run /link-commander name:YourExactName uid:123456789012.\n\nIn-Discord walkthrough (if copying is hard):\n1. Run /link-commander with a wrong name once.\n2. Tap **Start over** and follow the prompts.\n3. Tap **Done**, then run /link-commander again with the copied name and UID.\n\nYou can link up to 5 commanders per Discord account. Use /unlink to remove one.",
-          "tip": "Spelling and capitalization must match the game. When in doubt, use Copy next to your name in the profile menu — do not retype it."
+          "instructions": "The server must be registered with /link-alliance first.\n\nIn Discord (fast):\n1. Run /link-commander name:YourExactName uid:123456789012.\n\nIf typing your name is hard:\n1. Copy your UID from your Last War profile (you can copy your own player ID).\n2. Ask an alliance mate to open your profile and tap Copy next to your name, then message you.\n3. Type the name exactly as they sent it, or paste if they copied it for you.\n\nIn-Discord walkthrough:\n1. Run /link-commander with a wrong name once.\n2. Tap **Start over** and follow the prompts.\n3. Tap **Done**, then run /link-commander again with the correct name and UID.\n\nYou can link up to 5 commanders per Discord account. Use /unlink to remove one.",
+          "tip": "Spelling and capitalization must match the game. Last War does not let you copy your own name — ask an alliance mate to copy it from your profile and send it to you."
         },
         "registerGuild": {
           "title": "Register this Discord server",
@@ -3130,7 +3220,7 @@
         "tellMembers": {
           "title": "Tell members to link",
           "summary": "Share the member path so roster members can link commanders and report VR.",
-          "instructions": "Post a short note in your alliance channel:\n• Run /link-commander name:… uid:… (copy from your in-game profile).\n• Use /vr or /immunity when your base VR changes.\n• Full guide: share the link-only path from this guide for members who need help copying their name."
+          "instructions": "Post a short note in your alliance channel:\n• Run /link-commander name:… uid:… (UID from your profile; name must match exactly).\n• Use /vr or /immunity when your base VR changes.\n• Full guide: share the link-only path from this guide for members who need help getting their name right."
         },
         "serverPrereq": {
           "title": "Confirm the server is registered",
@@ -3151,8 +3241,8 @@
         },
         "helpMembers": {
           "title": "Help members who are stuck",
-          "summary": "Point members to the link-only guide path when they cannot copy their name or UID.",
-          "instructions": "Common fixes:\n• Name mismatch — have them run /link-commander with a wrong name, tap Start over, follow the in-Discord walkthrough, then submit again.\n• Roster miss — refresh the roster on Alliance HQ or approve their link as an officer.\n• Share the link-only role path from this guide for step-by-step copy instructions."
+          "summary": "Point members to the link-only guide path when they cannot get their name or UID right.",
+          "instructions": "Common fixes:\n• Name mismatch — have them ask an alliance mate to copy their name from their profile, or run /link-commander with a wrong name, tap Start over, follow the in-Discord walkthrough, then submit again.\n• Roster miss — refresh the roster on Alliance HQ or approve their link as an officer.\n• Still stuck — share the link-only role path from this guide, or help them use Ask an officer."
         },
         "reportVr": {
           "title": "Report base VR",
@@ -3182,12 +3272,12 @@
         "heading": "Troubleshooting",
         "expand": "Show help",
         "copyNameUid": {
-          "title": "Copying your name and UID",
-          "body": "Open Last War → tap your avatar → tap … (top right) on your profile → tap Copy next to your name. Your UID is on the same screen.\n\nPaste both into /link-commander — do not retype from memory."
+          "title": "Getting your name and UID",
+          "body": "Open Last War → tap your avatar → tap … (top right) on your profile.\n\n• **UID:** tap Copy on your player ID — you can copy your own UID.\n• **Name:** Last War does not let you copy your own name. Ask an alliance mate to open your profile and tap Copy next to your name, then message you.\n\nType your name exactly (or paste from their message) and your UID into /link-commander."
         },
         "nameMismatch": {
           "title": "Name didn't match",
-          "body": "The game rejected the name you typed. Run /link-commander with a wrong name once, tap Start over, follow the in-Discord walkthrough, tap Done, then submit again with the copied name."
+          "body": "The game rejected the name you typed. Ask an alliance mate to copy your name from your profile, or run /link-commander with a wrong name once, tap Start over, follow the in-Discord walkthrough, tap Done, then submit again with the correct name."
         },
         "rosterMiss": {
           "title": "Name not on the roster yet",
@@ -3216,8 +3306,8 @@
       },
       "screenshots": {
         "copyNameUid": {
-          "alt": "Last War profile menu with Copy next to player name",
-          "caption": "Tap Copy next to your name — do not retype it."
+          "alt": "Last War profile screen showing UID copy; another player must copy your name",
+          "caption": "Copy your UID from your profile. For your name, ask an alliance mate to copy it from your profile."
         }
       }
     }
