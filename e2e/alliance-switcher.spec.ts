@@ -20,7 +20,7 @@ function uniqueEmail(prefix: string): string {
 }
 
 test.describe("Alliance switcher — session context reset", () => {
-  test("PATCH current-alliance clears Ashed credential and legacy session fields", async ({
+  test("PATCH current-alliance preserves personal Ashed credential while updating alliance context", async ({
     request,
   }) => {
     const sql = getE2eSql();
@@ -72,7 +72,7 @@ test.describe("Alliance switcher — session context reset", () => {
       redirectPath: "/members",
     });
 
-    expect(await sessionHasAshedCredential(sql, session.sessionId)).toBe(false);
+    expect(await sessionHasAshedCredential(sql, session.sessionId)).toBe(true);
 
     const [row] = await sql<
       {
@@ -92,7 +92,7 @@ test.describe("Alliance switcher — session context reset", () => {
       current_alliance_id: allianceB.allianceId,
       alliance_tag: allianceB.tag,
       alliance_id: null,
-      user_label: null,
+      user_label: "Stale Ashed User",
     });
   });
 
@@ -161,7 +161,7 @@ test.describe("Alliance switcher — session context reset", () => {
     await expect(page.getByLabel("Alliance", { exact: true })).toBeVisible();
   });
 
-  test("platform maintainer can switch into a non-member alliance and drops Ashed context", async ({
+  test("platform maintainer can switch into a non-member alliance and keeps personal Ashed credential", async ({
     request,
   }) => {
     const sql = getE2eSql();
@@ -201,7 +201,7 @@ test.describe("Alliance switcher — session context reset", () => {
       operatingMode: "native",
       redirectPath: "/members",
     });
-    expect(await sessionHasAshedCredential(sql, session.sessionId)).toBe(false);
+    expect(await sessionHasAshedCredential(sql, session.sessionId)).toBe(true);
 
     const [row] = await sql<
       {
@@ -221,7 +221,7 @@ test.describe("Alliance switcher — session context reset", () => {
       current_alliance_id: allianceB.allianceId,
       alliance_tag: allianceB.tag,
       alliance_id: null,
-      user_label: null,
+      user_label: "Maintainer Ashed User",
     });
   });
 
