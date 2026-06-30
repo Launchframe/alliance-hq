@@ -1,56 +1,57 @@
 import type { PreviewPlacement } from "@/lib/video/preview-layout";
 
-export type FollowMeScrollDirection = "up" | "down" | "unknown";
-
-/** Map row id → index in the current filtered table order. */
-export function buildRowOrderIndex(
-  rows: ReadonlyArray<{ id: string }>,
-): Map<string, number> {
-  const map = new Map<string, number>();
-  rows.forEach((row, index) => map.set(row.id, index));
-  return map;
-}
-
-export type CenterDistanceEntry = {
-  rowId: string;
-  distanceFromCenterPx: number;
+export type FollowAnchorSample = {
+  /** Interpolation knot: video time (seconds) for this row's frame. */
+  seconds: number;
+  /** Vertical center of the row's anchor, in viewport pixels. */
+  centerPx: number;
 };
 
 /**
- * Pick one row id from anchors that just entered the observer root.
- * Scrolling down → highest table index (entered from bottom); up → lowest.
+ * Map the viewport-center position to a video time by linearly interpolating
+ * between the two row anchors that bracket the center.
+ *
+ * Each visible row anchor is a knot: (anchor vertical center px → that row's
+ * frame time). As the reviewer scrolls, the center glides between adjacent
+ * knots, so the preview scrubs smoothly through the source video instead of
+ * snapping to the nearest row's discrete frame timestamp. The result is clamped
+ * to the first/last anchor's time when the center is outside the anchor span,
+ * and floored at 0. Returns null when there are no usable samples.
+ *
+ * Tracking the center (rather than a scroll-direction leading edge) keeps the
+ * previewed frame aligned with the on-screen roster symmetrically in both
+ * directions.
  */
-export function pickNewlyEnteredRow(
-  rowIds: readonly string[],
-  rowOrderById: ReadonlyMap<string, number>,
-  scrollDirection: FollowMeScrollDirection,
-): string | null {
-  if (rowIds.length === 0) return null;
-  if (rowIds.length === 1) return rowIds[0] ?? null;
+export function interpolateSecondsAtCenter(
+  samples: readonly FollowAnchorSample[],
+  centerY: number,
+): number | null {
+  const usable = samples
+    .filter(
+      (sample) =>
+        Number.isFinite(sample.seconds) && Number.isFinite(sample.centerPx),
+    )
+    .sort((a, b) => a.centerPx - b.centerPx);
 
-  const indexed = rowIds
-    .map((id) => ({ id, index: rowOrderById.get(id) ?? -1 }))
-    .filter((entry) => entry.index >= 0);
+  if (usable.length === 0) return null;
 
-  if (indexed.length === 0) return rowIds[0] ?? null;
+  const first = usable[0]!;
+  const last = usable[usable.length - 1]!;
+  if (centerY <= first.centerPx) return Math.max(0, first.seconds);
+  if (centerY >= last.centerPx) return Math.max(0, last.seconds);
 
-  if (scrollDirection === "down") {
-    return indexed.reduce((best, cur) =>
-      cur.index > best.index ? cur : best,
-    ).id;
+  for (let i = 0; i < usable.length - 1; i += 1) {
+    const a = usable[i]!;
+    const b = usable[i + 1]!;
+    if (centerY >= a.centerPx && centerY <= b.centerPx) {
+      const span = b.centerPx - a.centerPx;
+      if (span <= 0) return Math.max(0, a.seconds);
+      const t = (centerY - a.centerPx) / span;
+      return Math.max(0, a.seconds + t * (b.seconds - a.seconds));
+    }
   }
 
-  return indexed.reduce((best, cur) => (cur.index < best.index ? cur : best)).id;
-}
-
-/** Initial sync when Follow me is enabled — row closest to viewport center. */
-export function pickRowClosestToViewportCenter(
-  entries: readonly CenterDistanceEntry[],
-): string | null {
-  if (entries.length === 0) return null;
-  return entries.reduce((best, cur) =>
-    cur.distanceFromCenterPx < best.distanceFromCenterPx ? cur : best,
-  ).rowId;
+  return Math.max(0, last.seconds);
 }
 
 const DEFAULT_HEADER_OFFSET_PX = 52; // 3.25rem app shell header

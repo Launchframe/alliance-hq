@@ -3,12 +3,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
-  buildRowOrderIndex,
   followMeObserverRootMargin,
   followMeViewportCenterY,
-  pickNewlyEnteredRow,
-  pickRowClosestToViewportCenter,
-  type FollowMeScrollDirection,
+  interpolateSecondsAtCenter,
+  type FollowAnchorSample,
 } from "@/lib/video/follow-me-row";
 import { createFollowAnchorRegistry } from "@/lib/video/follow-me-anchor-registry";
 import type { PreviewPlacement } from "@/lib/video/preview-layout";
@@ -18,49 +16,31 @@ type Row = { id: string };
 type Options<TRow extends Row> = {
   enabled: boolean;
   rows: readonly TRow[];
-  canPreview: (row: TRow) => boolean;
-  onSeek: (row: TRow) => void;
+  /** Video time (seconds) for a row's frame, or null if it has no frame. */
+  secondsForRow: (row: TRow) => number | null;
+  /** Seek the preview to an (interpolated) video time. */
+  onSeekSeconds: (seconds: number) => void;
   previewOpen: boolean;
   previewPlacement: PreviewPlacement;
   dockHeightPx: number;
 };
 
-function isElementVisibleInBand(
-  rect: DOMRect,
-  topInset: number,
-  bottomInset: number,
-  viewportHeight: number,
-): boolean {
-  const bandTop = topInset;
-  const bandBottom = viewportHeight - bottomInset;
-  return rect.bottom > bandTop && rect.top < bandBottom;
-}
-
-function parseRootMarginInsets(rootMargin: string): {
-  top: number;
-  bottom: number;
-} {
-  const parts = rootMargin.trim().split(/\s+/);
-  const top = Math.abs(parseFloat(parts[0] ?? "0")) || 0;
-  const bottom = Math.abs(parseFloat(parts[2] ?? "0")) || 0;
-  return { top, bottom };
-}
+/** Smaller than a single frame step (~1s) so scrubbing stays smooth without
+ * spamming identical currentTime writes. */
+const SEEK_EPSILON_SECONDS = 0.02;
 
 export function useVideoReviewFollowMe<TRow extends Row>({
   enabled,
   rows,
-  canPreview,
-  onSeek,
+  secondsForRow,
+  onSeekSeconds,
   previewOpen,
   previewPlacement,
   dockHeightPx,
 }: Options<TRow>) {
-  const visibleRowIdsRef = useRef<Set<string>>(new Set());
-  const scrollDirectionRef = useRef<FollowMeScrollDirection>("unknown");
-  const lastScrollYRef = useRef(0);
-  const lastSeekedRowIdRef = useRef<string | null>(null);
-  const canPreviewRef = useRef(canPreview);
-  const onSeekRef = useRef(onSeek);
+  const lastSeekedSecondsRef = useRef<number | null>(null);
+  const secondsForRowRef = useRef(secondsForRow);
+  const onSeekSecondsRef = useRef(onSeekSeconds);
   const [anchorRevision, setAnchorRevision] = useState(0);
 
   // A single registry per hook instance hands out a *stable* callback ref per
@@ -75,9 +55,9 @@ export function useVideoReviewFollowMe<TRow extends Row>({
   );
 
   useEffect(() => {
-    canPreviewRef.current = canPreview;
-    onSeekRef.current = onSeek;
-  }, [canPreview, onSeek]);
+    secondsForRowRef.current = secondsForRow;
+    onSeekSecondsRef.current = onSeekSeconds;
+  }, [secondsForRow, onSeekSeconds]);
 
   const registerFollowAnchor = useCallback(
     (rowId: string) => registry.register(rowId),
@@ -85,27 +65,13 @@ export function useVideoReviewFollowMe<TRow extends Row>({
   );
 
   useEffect(() => {
-    if (!enabled) return;
-    lastScrollYRef.current = window.scrollY;
-    const onScroll = () => {
-      const y = window.scrollY;
-      if (y > lastScrollYRef.current + 2) {
-        scrollDirectionRef.current = "down";
-      } else if (y < lastScrollYRef.current - 2) {
-        scrollDirectionRef.current = "up";
-      }
-      lastScrollYRef.current = y;
-    };
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, [enabled]);
-
-  useEffect(() => {
     if (!enabled) {
-      visibleRowIdsRef.current = new Set();
-      lastSeekedRowIdRef.current = null;
+      lastSeekedSecondsRef.current = null;
       return;
     }
+
+    // Force a seek on the first sync after deps change (placement, dock, rows).
+    lastSeekedSecondsRef.current = null;
 
     const anchorElements = registry.elements;
     const rootMargin = followMeObserverRootMargin({
@@ -113,90 +79,70 @@ export function useVideoReviewFollowMe<TRow extends Row>({
       placement: previewPlacement,
       dockHeightPx,
     });
-    const { top: topInset, bottom: bottomInset } =
-      parseRootMarginInsets(rootMargin);
-    const rowOrder = buildRowOrderIndex(rows);
     const rowsById = new Map(rows.map((row) => [row.id, row]));
-    visibleRowIdsRef.current = new Set();
 
-    const seekRow = (rowId: string) => {
-      if (lastSeekedRowIdRef.current === rowId) return;
-      const row = rowsById.get(rowId);
-      if (row && canPreviewRef.current(row)) {
-        lastSeekedRowIdRef.current = rowId;
-        onSeekRef.current(row);
-      }
-    };
-
-    const syncVisibleAnchors = () => {
+    // Interpolate the preview time from the row anchors bracketing the viewport
+    // center, so the video scrubs smoothly as the roster scrolls instead of
+    // snapping to the nearest row's discrete frame. Tracking the center (not a
+    // scroll-direction leading edge) keeps both scroll directions aligned.
+    const syncToViewportCenter = () => {
       const centerY = followMeViewportCenterY({
         viewportHeight: window.innerHeight,
         previewOpen,
         placement: previewPlacement,
         dockHeightPx,
       });
-      const candidates: Array<{ rowId: string; distanceFromCenterPx: number }> =
-        [];
 
+      const samples: FollowAnchorSample[] = [];
       for (const [rowId, element] of anchorElements) {
+        const row = rowsById.get(rowId);
+        if (!row) continue;
+        const seconds = secondsForRowRef.current(row);
+        if (seconds == null) continue;
         const rect = element.getBoundingClientRect();
-        if (
-          !isElementVisibleInBand(
-            rect,
-            topInset,
-            bottomInset,
-            window.innerHeight,
-          )
-        ) {
-          continue;
-        }
-        const center = rect.top + rect.height / 2;
-        candidates.push({
-          rowId,
-          distanceFromCenterPx: Math.abs(center - centerY),
-        });
-        visibleRowIdsRef.current.add(rowId);
+        samples.push({ seconds, centerPx: rect.top + rect.height / 2 });
       }
 
-      const picked = pickRowClosestToViewportCenter(candidates);
-      if (picked) seekRow(picked);
+      const seconds = interpolateSecondsAtCenter(samples, centerY);
+      if (seconds == null) return;
+      const last = lastSeekedSecondsRef.current;
+      if (last != null && Math.abs(last - seconds) < SEEK_EPSILON_SECONDS) {
+        return;
+      }
+      lastSeekedSecondsRef.current = seconds;
+      onSeekSecondsRef.current(seconds);
     };
 
+    // The observer keeps tracking responsive when rows enter/leave the band
+    // (e.g. the table re-renders); continuous tracking during a scroll gesture
+    // comes from the rAF-throttled scroll listener below.
     const observer = new IntersectionObserver(
-      (entries) => {
-        const newlyEntered: string[] = [];
-
-        for (const entry of entries) {
-          const rowId = entry.target.getAttribute("data-video-follow-anchor");
-          if (!rowId) continue;
-          const wasVisible = visibleRowIdsRef.current.has(rowId);
-          if (entry.isIntersecting) {
-            if (!wasVisible) newlyEntered.push(rowId);
-            visibleRowIdsRef.current.add(rowId);
-          } else {
-            visibleRowIdsRef.current.delete(rowId);
-          }
-        }
-
-        if (newlyEntered.length === 0) return;
-        const picked = pickNewlyEnteredRow(
-          newlyEntered,
-          rowOrder,
-          scrollDirectionRef.current,
-        );
-        if (picked) seekRow(picked);
-      },
-      { root: null, rootMargin, threshold: 0.5 },
+      () => syncToViewportCenter(),
+      { root: null, rootMargin, threshold: [0, 0.5, 1] },
     );
 
     for (const element of anchorElements.values()) {
       observer.observe(element);
     }
 
-    const frame = requestAnimationFrame(syncVisibleAnchors);
+    let scrollFrame = 0;
+    const onScroll = () => {
+      if (scrollFrame) return;
+      scrollFrame = requestAnimationFrame(() => {
+        scrollFrame = 0;
+        syncToViewportCenter();
+      });
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll, { passive: true });
+
+    const initialFrame = requestAnimationFrame(syncToViewportCenter);
 
     return () => {
-      cancelAnimationFrame(frame);
+      cancelAnimationFrame(initialFrame);
+      if (scrollFrame) cancelAnimationFrame(scrollFrame);
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
       observer.disconnect();
     };
   }, [
