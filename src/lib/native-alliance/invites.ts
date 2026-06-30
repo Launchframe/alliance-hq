@@ -243,6 +243,9 @@ export async function createHqInvite(
   const targetAshedMemberId = input.targetAshedMemberId?.trim() || null;
   let targetCommanderName: string | null = null;
   if (targetAshedMemberId) {
+    if (input.roleName !== "member") {
+      throw new Error("Invalid invite role.");
+    }
     const target = await assertClaimTargetClaimable(
       input.allianceId,
       targetAshedMemberId,
@@ -664,14 +667,24 @@ export async function acceptHqInvite(
   const hqUserId = input.hqUserId;
   const now = new Date();
 
-  await db
+  const acceptedRows = await db
     .update(schema.hqInvites)
     .set({
       acceptedAt: now,
       acceptedByHqUserId: hqUserId,
       ...(kind === "protected_link" ? { passphraseConsumedAt: now } : {}),
     })
-    .where(eq(schema.hqInvites.id, invite.id));
+    .where(
+      and(
+        eq(schema.hqInvites.id, invite.id),
+        isNull(schema.hqInvites.acceptedAt),
+      ),
+    )
+    .returning({ id: schema.hqInvites.id });
+
+  if (acceptedRows.length === 0) {
+    throw new Error("Invite not found or already used.");
+  }
 
   await db
     .delete(schema.ashedCredentials)

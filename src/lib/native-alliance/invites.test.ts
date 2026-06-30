@@ -112,6 +112,40 @@ describe("createHqInvite", () => {
     expect(insertValues).toHaveBeenCalled();
   });
 
+  it("rejects commander claim targets for non-member roles", async () => {
+    let selectCalls = 0;
+    vi.mocked(getDb).mockReturnValue({
+      select: vi.fn(() => {
+        selectCalls += 1;
+        if (selectCalls === 1) {
+          return dbSelectChain([{ id: "role-officer" }]);
+        }
+        if (selectCalls === 2) {
+          return dbSelectChain([{ id: "alliance-1" }]);
+        }
+        throw new Error(`unexpected select call ${selectCalls}`);
+      }),
+      insert: vi.fn(() => ({
+        values: vi.fn(() => ({
+          onConflictDoNothing: vi.fn().mockResolvedValue(undefined),
+        })),
+      })),
+    } as never);
+    vi.mocked(resolveAllianceGameServerNumber).mockResolvedValue(1203);
+
+    await expect(
+      createHqInvite({
+        allianceId: "alliance-1",
+        kind: "protected_link",
+        roleName: "officer",
+        invitedByHqUserId: "user-1",
+        origin: "https://hq.test",
+        targetAshedMemberId: "m-1",
+      }),
+    ).rejects.toThrow("Invalid invite role.");
+    expect(getLinkedMemberIds).not.toHaveBeenCalled();
+  });
+
   it("rejects claim invites for commanders already linked through any account", async () => {
     let selectCalls = 0;
     vi.mocked(getDb).mockReturnValue({
