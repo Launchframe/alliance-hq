@@ -10,6 +10,7 @@ import {
   pickRowClosestToViewportCenter,
   type FollowMeScrollDirection,
 } from "@/lib/video/follow-me-row";
+import { createFollowAnchorRegistry } from "@/lib/video/follow-me-anchor-registry";
 import type { PreviewPlacement } from "@/lib/video/preview-layout";
 
 type Row = { id: string };
@@ -54,7 +55,6 @@ export function useVideoReviewFollowMe<TRow extends Row>({
   previewPlacement,
   dockHeightPx,
 }: Options<TRow>) {
-  const anchorElementsRef = useRef<Map<string, HTMLElement>>(new Map());
   const visibleRowIdsRef = useRef<Set<string>>(new Set());
   const scrollDirectionRef = useRef<FollowMeScrollDirection>("unknown");
   const lastScrollYRef = useRef(0);
@@ -63,24 +63,25 @@ export function useVideoReviewFollowMe<TRow extends Row>({
   const onSeekRef = useRef(onSeek);
   const [anchorRevision, setAnchorRevision] = useState(0);
 
+  // A single registry per hook instance hands out a *stable* callback ref per
+  // row id, so React does not detach/reattach (and thus re-run setState) on
+  // every commit. See follow-me-anchor-registry.ts for the React #185 rationale.
+  // Created once via a lazy state initializer (never updated) so we never read
+  // or write a ref during render.
+  const [registry] = useState(() =>
+    createFollowAnchorRegistry<HTMLElement>({
+      onChange: () => setAnchorRevision((v) => v + 1),
+    }),
+  );
+
   useEffect(() => {
     canPreviewRef.current = canPreview;
     onSeekRef.current = onSeek;
   }, [canPreview, onSeek]);
 
   const registerFollowAnchor = useCallback(
-    (rowId: string) => (element: HTMLButtonElement | null) => {
-      const map = anchorElementsRef.current;
-      if (element) {
-        if (map.get(rowId) !== element) {
-          map.set(rowId, element);
-          setAnchorRevision((v) => v + 1);
-        }
-      } else if (map.delete(rowId)) {
-        setAnchorRevision((v) => v + 1);
-      }
-    },
-    [],
+    (rowId: string) => registry.register(rowId),
+    [registry],
   );
 
   useEffect(() => {
@@ -106,6 +107,7 @@ export function useVideoReviewFollowMe<TRow extends Row>({
       return;
     }
 
+    const anchorElements = registry.elements;
     const rootMargin = followMeObserverRootMargin({
       previewOpen,
       placement: previewPlacement,
@@ -136,7 +138,7 @@ export function useVideoReviewFollowMe<TRow extends Row>({
       const candidates: Array<{ rowId: string; distanceFromCenterPx: number }> =
         [];
 
-      for (const [rowId, element] of anchorElementsRef.current) {
+      for (const [rowId, element] of anchorElements) {
         const rect = element.getBoundingClientRect();
         if (
           !isElementVisibleInBand(
@@ -187,7 +189,7 @@ export function useVideoReviewFollowMe<TRow extends Row>({
       { root: null, rootMargin, threshold: 0.5 },
     );
 
-    for (const element of anchorElementsRef.current.values()) {
+    for (const element of anchorElements.values()) {
       observer.observe(element);
     }
 
@@ -204,6 +206,7 @@ export function useVideoReviewFollowMe<TRow extends Row>({
     previewPlacement,
     dockHeightPx,
     anchorRevision,
+    registry,
   ]);
 
   return { registerFollowAnchor };
