@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useImperativeHandle, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import {
   GripHorizontal,
@@ -25,6 +25,13 @@ import { usePointerScrollPan } from "@/lib/video/use-pointer-scroll-pan";
 
 export type VideoSeekRequest = { seconds: number; nonce: number } | null;
 
+/**
+ * Imperative scrub channel for follow-me. Seeking through React state would
+ * re-render the whole review tree on every scroll frame; the controller sets
+ * `currentTime` directly so continuous scrubbing stays cheap.
+ */
+export type VideoSeekController = { seek: (seconds: number) => void };
+
 /** Header offset reserved so sticky panes sit just below the app header. */
 const HEADER_OFFSET = "3.25rem";
 /** Default height of top/bottom docks when no persisted size exists. */
@@ -40,6 +47,7 @@ type Props = {
   onClose: () => void;
   unavailable?: boolean;
   seekRequest?: VideoSeekRequest;
+  seekControllerRef?: React.Ref<VideoSeekController | null>;
   sideWidthPx: number;
   dockHeightPx: number;
   onSideWidthChange: (width: number) => void;
@@ -60,6 +68,7 @@ export function ReviewVideoPreview({
   onClose,
   unavailable = false,
   seekRequest = null,
+  seekControllerRef,
   sideWidthPx,
   dockHeightPx,
   onSideWidthChange,
@@ -81,6 +90,23 @@ export function ReviewVideoPreview({
 
   const zoomable = placement !== "side";
   const effectiveZoom: PreviewZoom = zoomable ? zoom : "fit";
+
+  useImperativeHandle(
+    seekControllerRef,
+    () => ({
+      seek: (seconds: number) => {
+        const el = videoRef.current;
+        if (!el || !Number.isFinite(seconds)) return;
+        try {
+          el.pause();
+          el.currentTime = Math.max(0, seconds);
+        } catch {
+          // ignore seek failures (e.g. unbuffered range)
+        }
+      },
+    }),
+    [],
+  );
 
   useEffect(() => {
     if (!seekRequest) return;

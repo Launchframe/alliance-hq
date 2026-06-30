@@ -34,6 +34,7 @@ import { VideoPipelineStatsButton } from "@/components/video/VideoPipelineStatsD
 import {
   ReviewVideoPreview,
   type VideoSeekRequest,
+  type VideoSeekController,
 } from "@/components/video/ReviewVideoPreview";
 import { useVideoPreviewLayout } from "@/components/video/useVideoPreviewLayout";
 import { useVideoReviewFollowMe } from "@/components/video/useVideoReviewFollowMe";
@@ -191,6 +192,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   const previewAutoOpenedForJobRef = useRef<string | null>(null);
   const [previewSeekRequest, setPreviewSeekRequest] =
     useState<VideoSeekRequest>(null);
+  const previewSeekControllerRef = useRef<VideoSeekController | null>(null);
   const [frameTimestamps, setFrameTimestamps] = useState<FrameTimestampMap>({});
   const [showRatingPrompt, setShowRatingPrompt] = useState(false);
   const [jobRating, setJobRating] = useState<"thumbs_up" | "thumbs_down" | null>(null);
@@ -712,12 +714,19 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     [frameTimestamps, setPreviewOpen],
   );
 
-  const rowCanPreviewForFollow = useCallback(
+  const secondsForFollowRow = useCallback(
     (row: ParsedRow) =>
-      hasSourceVideo &&
-      previewSeekSecondsForFrame(row.frameIndex, frameTimestamps) != null,
+      hasSourceVideo
+        ? previewSeekSecondsForFrame(row.frameIndex, frameTimestamps)
+        : null,
     [hasSourceVideo, frameTimestamps],
   );
+
+  // Scrub the already-open preview imperatively so per-scroll-frame follow-me
+  // seeks don't re-render the whole review tree.
+  const seekFollowSeconds = useCallback((seconds: number) => {
+    previewSeekControllerRef.current?.seek(seconds);
+  }, []);
 
   const scoreTableFollowMeEnabled =
     hasSourceVideo &&
@@ -728,8 +737,8 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   const { registerFollowAnchor } = useVideoReviewFollowMe({
     enabled: scoreTableFollowMeEnabled,
     rows: filteredRows,
-    canPreview: rowCanPreviewForFollow,
-    onSeek: openRowVideoPreview,
+    secondsForRow: secondsForFollowRow,
+    onSeekSeconds: seekFollowSeconds,
     previewOpen,
     previewPlacement,
     dockHeightPx: previewDockHeightPx,
@@ -1087,6 +1096,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
       onClose={closePreview}
       unavailable={!hasSourceVideo}
       seekRequest={previewSeekRequest}
+      seekControllerRef={previewSeekControllerRef}
       sideWidthPx={previewSideWidthPx}
       dockHeightPx={previewDockHeightPx}
       onSideWidthChange={setPreviewSideWidthPx}

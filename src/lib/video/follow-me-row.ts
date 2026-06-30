@@ -1,29 +1,57 @@
 import type { PreviewPlacement } from "@/lib/video/preview-layout";
 
-export type CenterDistanceEntry = {
-  rowId: string;
-  distanceFromCenterPx: number;
+export type FollowAnchorSample = {
+  /** Interpolation knot: video time (seconds) for this row's frame. */
+  seconds: number;
+  /** Vertical center of the row's anchor, in viewport pixels. */
+  centerPx: number;
 };
 
 /**
- * Pick the row whose anchor is closest to the visible band's center.
+ * Map the viewport-center position to a video time by linearly interpolating
+ * between the two row anchors that bracket the center.
  *
- * Follow-me tracks the row at the viewport center (what the reviewer is
- * actually looking at), the same way regardless of scroll direction. An earlier
- * implementation picked the leading edge per scroll direction (bottommost when
- * scrolling down, topmost when scrolling up); because the observed anchor sits
- * at the row top and the band's top inset (sticky header) is larger than its
- * bottom inset, the up-scroll leading row sat one row above viewport center and
- * the preview showed a frame one row too early. Center-distance selection is
- * symmetric and avoids that off-by-one.
+ * Each visible row anchor is a knot: (anchor vertical center px → that row's
+ * frame time). As the reviewer scrolls, the center glides between adjacent
+ * knots, so the preview scrubs smoothly through the source video instead of
+ * snapping to the nearest row's discrete frame timestamp. The result is clamped
+ * to the first/last anchor's time when the center is outside the anchor span,
+ * and floored at 0. Returns null when there are no usable samples.
+ *
+ * Tracking the center (rather than a scroll-direction leading edge) keeps the
+ * previewed frame aligned with the on-screen roster symmetrically in both
+ * directions.
  */
-export function pickRowClosestToViewportCenter(
-  entries: readonly CenterDistanceEntry[],
-): string | null {
-  if (entries.length === 0) return null;
-  return entries.reduce((best, cur) =>
-    cur.distanceFromCenterPx < best.distanceFromCenterPx ? cur : best,
-  ).rowId;
+export function interpolateSecondsAtCenter(
+  samples: readonly FollowAnchorSample[],
+  centerY: number,
+): number | null {
+  const usable = samples
+    .filter(
+      (sample) =>
+        Number.isFinite(sample.seconds) && Number.isFinite(sample.centerPx),
+    )
+    .sort((a, b) => a.centerPx - b.centerPx);
+
+  if (usable.length === 0) return null;
+
+  const first = usable[0]!;
+  const last = usable[usable.length - 1]!;
+  if (centerY <= first.centerPx) return Math.max(0, first.seconds);
+  if (centerY >= last.centerPx) return Math.max(0, last.seconds);
+
+  for (let i = 0; i < usable.length - 1; i += 1) {
+    const a = usable[i]!;
+    const b = usable[i + 1]!;
+    if (centerY >= a.centerPx && centerY <= b.centerPx) {
+      const span = b.centerPx - a.centerPx;
+      if (span <= 0) return Math.max(0, a.seconds);
+      const t = (centerY - a.centerPx) / span;
+      return Math.max(0, a.seconds + t * (b.seconds - a.seconds));
+    }
+  }
+
+  return Math.max(0, last.seconds);
 }
 
 const DEFAULT_HEADER_OFFSET_PX = 52; // 3.25rem app shell header

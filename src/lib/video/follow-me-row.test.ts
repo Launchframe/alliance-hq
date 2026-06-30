@@ -3,33 +3,76 @@ import { describe, expect, it } from "vitest";
 import {
   followMeObserverRootMargin,
   followMeViewportCenterY,
-  pickRowClosestToViewportCenter,
+  interpolateSecondsAtCenter,
 } from "@/lib/video/follow-me-row";
 
-describe("pickRowClosestToViewportCenter", () => {
-  it("returns the row with smallest distance to center", () => {
+describe("interpolateSecondsAtCenter", () => {
+  it("returns null when there are no usable samples", () => {
+    expect(interpolateSecondsAtCenter([], 400)).toBeNull();
     expect(
-      pickRowClosestToViewportCenter([
-        { rowId: "a", distanceFromCenterPx: 120 },
-        { rowId: "b", distanceFromCenterPx: 40 },
-        { rowId: "c", distanceFromCenterPx: 90 },
-      ]),
-    ).toBe("b");
+      interpolateSecondsAtCenter(
+        [{ seconds: Number.NaN, centerPx: 100 }],
+        400,
+      ),
+    ).toBeNull();
   });
 
-  it("returns null for an empty list", () => {
-    expect(pickRowClosestToViewportCenter([])).toBeNull();
+  it("clamps to the first anchor when the center is above all anchors", () => {
+    const samples = [
+      { seconds: 5, centerPx: 200 },
+      { seconds: 6, centerPx: 260 },
+    ];
+    expect(interpolateSecondsAtCenter(samples, 100)).toBe(5);
   });
 
-  it("picks the same row regardless of which side of center is closer (symmetric)", () => {
-    // A row 30px above center and a row 30px below center are equidistant; the
-    // first listed wins ties, but a row marginally closer always wins on either
-    // side. This guards against re-introducing a scroll-direction bias that made
-    // scroll-up land one row early.
-    const above = { rowId: "above", distanceFromCenterPx: 30 };
-    const below = { rowId: "below", distanceFromCenterPx: 29 };
-    expect(pickRowClosestToViewportCenter([above, below])).toBe("below");
-    expect(pickRowClosestToViewportCenter([below, above])).toBe("below");
+  it("clamps to the last anchor when the center is below all anchors", () => {
+    const samples = [
+      { seconds: 5, centerPx: 200 },
+      { seconds: 6, centerPx: 260 },
+    ];
+    expect(interpolateSecondsAtCenter(samples, 999)).toBe(6);
+  });
+
+  it("linearly interpolates between bracketing anchors", () => {
+    const samples = [
+      { seconds: 10, centerPx: 100 },
+      { seconds: 14, centerPx: 300 },
+    ];
+    // Center 25% between the two anchors → 10 + 0.25 * (14 - 10) = 11.
+    expect(interpolateSecondsAtCenter(samples, 150)).toBeCloseTo(11, 5);
+    // Halfway → 12.
+    expect(interpolateSecondsAtCenter(samples, 200)).toBeCloseTo(12, 5);
+  });
+
+  it("sorts samples by position before interpolating (order-independent)", () => {
+    const samples = [
+      { seconds: 14, centerPx: 300 },
+      { seconds: 10, centerPx: 100 },
+    ];
+    expect(interpolateSecondsAtCenter(samples, 200)).toBeCloseTo(12, 5);
+  });
+
+  it("interpolates downward (later rows can map to earlier frames)", () => {
+    const samples = [
+      { seconds: 8, centerPx: 100 },
+      { seconds: 2, centerPx: 200 },
+    ];
+    expect(interpolateSecondsAtCenter(samples, 150)).toBeCloseTo(5, 5);
+  });
+
+  it("floors interpolated time at 0 and falls back to a single anchor", () => {
+    expect(
+      interpolateSecondsAtCenter([{ seconds: 7, centerPx: 150 }], 9999),
+    ).toBe(7);
+    expect(
+      interpolateSecondsAtCenter(
+        [
+          { seconds: -3, centerPx: 100 },
+          { seconds: 4, centerPx: 100 },
+        ],
+        100,
+      ),
+    ).toBe(0);
   });
 });
 
