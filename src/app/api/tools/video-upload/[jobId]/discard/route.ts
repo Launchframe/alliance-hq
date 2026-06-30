@@ -1,11 +1,15 @@
 import { NextResponse } from "next/server";
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 
 import { emitVideoJobStatus } from "@/lib/events/video-jobs";
 import { getDb, schema } from "@/lib/db";
 import { deleteObject } from "@/lib/storage";
 import { getOrCreateSession } from "@/lib/session";
 import { computeQualityScore } from "@/lib/video/quality-score";
+import {
+  resolveVideoJobAccess,
+  videoJobAccessErrorResponse,
+} from "@/lib/video/video-job-access.server";
 
 type Props = { params: Promise<{ jobId: string }> };
 
@@ -14,24 +18,15 @@ export async function PATCH(_request: Request, { params }: Props) {
   const { jobId } = await params;
   const db = getDb();
 
-  const [job] = await db
-    .select()
-    .from(schema.videoJobs)
-    .where(
-      and(
-        eq(schema.videoJobs.id, jobId),
-        eq(schema.videoJobs.sessionId, session.id),
-      ),
-    )
-    .limit(1);
-
-  if (!job) {
-    return NextResponse.json({ error: "Job not found" }, { status: 404 });
+  const access = await resolveVideoJobAccess(jobId, session.id, "mutate");
+  if (!access.ok) {
+    return videoJobAccessErrorResponse(access);
   }
+  const job = access.job;
 
-  if (job.status !== "review") {
+  if (job.status !== "review" && job.status !== "failed") {
     return NextResponse.json(
-      { error: "Only jobs awaiting review can be discarded." },
+      { error: "Only jobs awaiting review or failed can be discarded." },
       { status: 400 },
     );
   }
@@ -79,7 +74,7 @@ export async function PATCH(_request: Request, { params }: Props) {
     .where(eq(schema.videoJobs.id, jobId));
 
   await emitVideoJobStatus({
-    sessionId: session.id,
+    sessionId: job.sessionId,
     jobId,
     status: "discarded",
     fileName: job.fileName,

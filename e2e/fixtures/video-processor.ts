@@ -108,6 +108,23 @@ export async function insertPendingVideoJob(
     scoreTarget?: string;
   },
 ): Promise<string> {
+  return insertAllianceVideoJob(sql, {
+    ...input,
+    status: "pending_approval",
+  });
+}
+
+/** Insert an alliance-scoped video job at an arbitrary lifecycle status. */
+export async function insertAllianceVideoJob(
+  sql: Sql,
+  input: {
+    allianceId: string;
+    sessionId: string;
+    enqueuedByHqUserId: string | null;
+    scoreTarget?: string;
+    status: string;
+  },
+): Promise<string> {
   const jobId = nanoid(16);
   const now = new Date();
   const scoreTarget = input.scoreTarget ?? "desert-storm";
@@ -118,7 +135,7 @@ export async function insertPendingVideoJob(
     ) VALUES (
       ${jobId},
       ${input.sessionId},
-      ${"pending_approval"},
+      ${input.status},
       ${scoreTarget},
       ${scoreTarget},
       ${input.allianceId},

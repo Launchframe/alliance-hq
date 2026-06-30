@@ -10,6 +10,10 @@ import {
   upsertHqEventMemberMetadata,
 } from "@/lib/hq-events/provision-ashed";
 import { getAshedConnection, getOrCreateSession } from "@/lib/session";
+import {
+  resolveVideoJobAccess,
+  videoJobAccessErrorResponse,
+} from "@/lib/video/video-job-access.server";
 import { commitRosterFromVideoJob } from "@/lib/members/roster-video-commit";
 import { listAllianceMembers } from "@/lib/members/roster.server";
 import {
@@ -80,20 +84,11 @@ export async function POST(request: Request, { params }: Props) {
     const body = (await request.json()) as SubmitBody;
 
     const db = getDb();
-    const [job] = await db
-      .select()
-      .from(schema.videoJobs)
-      .where(
-        and(
-          eq(schema.videoJobs.id, jobId),
-          eq(schema.videoJobs.sessionId, session.id),
-        ),
-      )
-      .limit(1);
-
-    if (!job) {
-      return NextResponse.json({ error: "Job not found" }, { status: 404 });
+    const access = await resolveVideoJobAccess(jobId, session.id, "mutate");
+    if (!access.ok) {
+      return videoJobAccessErrorResponse(access);
     }
+    const job = access.job;
 
     const submitAllowedStatuses = new Set(["review", "complete", "submitting"]);
     if (!submitAllowedStatuses.has(job.status)) {
