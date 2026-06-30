@@ -1340,7 +1340,8 @@
       "onboarding_form": "Onboarding form",
       "walkthrough": "Link walkthrough",
       "roster_miss": "Not on roster",
-      "discord_button": "Discord link help"
+      "discord_button": "Discord link help",
+      "claim_conflict": "Commander invite conflict"
     }
   },
   "memberLinkHelpReview": {

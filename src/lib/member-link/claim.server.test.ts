@@ -35,6 +35,10 @@ vi.mock("@/lib/member-link/roster-link-resolve.server", () => ({
   reconcileAllianceMemberForRosterLink: vi.fn().mockResolvedValue(undefined),
 }));
 
+vi.mock("@/lib/member-link/member-link-help-queue.server", () => ({
+  recordMemberLinkHelpRequest: vi.fn().mockResolvedValue("help-1"),
+}));
+
 vi.mock("@/lib/game-season/game-servers.server", () => ({
   resolveAllianceGameServerNumber: vi.fn(),
 }));
@@ -99,6 +103,9 @@ const lookup = await import("@/lib/lastwar/player-lookup");
 const gameServers = await import("@/lib/game-season/game-servers.server");
 const vrRepo = await import("@/lib/vr/repository");
 const resolve = await import("@/lib/member-link/roster-link-resolve.server");
+const helpQueue = await import(
+  "@/lib/member-link/member-link-help-queue.server"
+);
 
 const baseInput = {
   sessionId: "sess-1",
@@ -219,6 +226,16 @@ describe("runWebMemberLinkClaimConfirm", () => {
     expect(alerts.emitMemberLinkClaimConflictAlert).toHaveBeenCalledWith(
       expect.objectContaining({ reason: "target_mismatch" }),
     );
+    expect(helpQueue.recordMemberLinkHelpRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        allianceId: "a1",
+        hqUserId: "u1",
+        context: "claim_conflict",
+        reportedName: "Alpha",
+        gameUserName: "Bravo",
+        gameUid: "1001369694001203",
+      }),
+    );
     expect(resolve.reconcileAllianceMemberForRosterLink).not.toHaveBeenCalled();
     expect(repository.linkHqMember).not.toHaveBeenCalled();
   });
@@ -274,6 +291,7 @@ describe("runWebMemberLinkClaimConfirm", () => {
       null,
     );
     expect(alerts.emitMemberLinkClaimConflictAlert).not.toHaveBeenCalled();
+    expect(helpQueue.recordMemberLinkHelpRequest).not.toHaveBeenCalled();
   });
 
   it("treats an already-claimed commander race as a conflict", async () => {

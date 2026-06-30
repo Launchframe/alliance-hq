@@ -1340,7 +1340,8 @@
       "onboarding_form": "Formulário de onboarding",
       "walkthrough": "Walkthrough de vínculo",
       "roster_miss": "Fora do roster",
-      "discord_button": "Ajuda no Discord"
+      "discord_button": "Ajuda no Discord",
+      "claim_conflict": "Conflito de convite de comandante"
     }
   },
   "memberLinkHelpReview": {
