@@ -7,6 +7,7 @@ import {
 } from "@/lib/db/error-message";
 import {
   AllianceServerRequiredError,
+  CommanderClaimInviteError,
   createHqInvite,
   type HqInviteKind,
 } from "@/lib/native-alliance/invites";
@@ -26,6 +27,7 @@ const bodySchema = z
     roleName: z.enum(["officer", "data_entry", "viewer", "member"]),
     redirectPath: z.string().trim().max(512).optional(),
     adminLabel: z.string().trim().max(120).optional(),
+    targetAshedMemberId: z.string().trim().min(1).max(64).optional(),
   })
   .superRefine((data, ctx) => {
     if (data.kind === "email" && !data.email) {
@@ -80,11 +82,18 @@ export async function POST(request: Request) {
       origin,
       redirectPath: sanitizeInternalRedirectPath(body.redirectPath),
       adminLabel: body.adminLabel,
+      targetAshedMemberId: body.targetAshedMemberId,
     });
 
     return NextResponse.json({ ok: true, invite });
   } catch (error) {
     if (error instanceof AllianceServerRequiredError) {
+      return NextResponse.json(
+        { error: error.message, code: error.code },
+        { status: 422 },
+      );
+    }
+    if (error instanceof CommanderClaimInviteError) {
       return NextResponse.json(
         { error: error.message, code: error.code },
         { status: 422 },

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { CopyToClipboardField } from "@/components/ui/CopyToClipboardField";
@@ -86,6 +86,26 @@ export function TeamInvitePanel({
   const [lastJoinCode, setLastJoinCode] = useState<string | null>(null);
   const [inviteFeedback, setInviteFeedback] = useState<ActionFeedback>(null);
   const [joinCodeFeedback, setJoinCodeFeedback] = useState<ActionFeedback>(null);
+
+  const [claimableCommanders, setClaimableCommanders] = useState<
+    Array<{ ashedMemberId: string; name: string }>
+  >([]);
+  const [claimCommanderSelected, setClaimCommanderSelected] = useState("");
+  const [claimAdminLabel, setClaimAdminLabel] = useState("");
+  const [claimFeedback, setClaimFeedback] = useState<ActionFeedback>(null);
+  const [lastClaimUrl, setLastClaimUrl] = useState<string | null>(null);
+  const [lastClaimPassphrase, setLastClaimPassphrase] = useState<string | null>(null);
+
+  useEffect(() => {
+    void fetch("/api/settings/team/claimable-commanders")
+      .then((res) => (res.ok ? res.json() : null))
+      .then(
+        (data: { commanders?: Array<{ ashedMemberId: string; name: string }> } | null) => {
+          setClaimableCommanders(data?.commanders ?? []);
+        },
+      )
+      .catch(() => undefined);
+  }, []);
 
   const roleOptions = useMemo(
     () =>
@@ -191,6 +211,81 @@ export function TeamInvitePanel({
       setJoinCodeFeedback({
         kind: "error",
         text: error instanceof Error ? error.message : t("joinCodeFailed"),
+      });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function sendClaimInvite() {
+    if (!claimCommanderSelected || gameServerNumber == null) return;
+
+    setBusy(true);
+    setClaimFeedback(null);
+    setLastClaimUrl(null);
+    setLastClaimPassphrase(null);
+
+    const selectedCommander = claimableCommanders.find(
+      (c) => c.ashedMemberId === claimCommanderSelected,
+    );
+
+    try {
+      const res = await fetch("/api/settings/team/invites", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          kind: "protected_link",
+          roleName: "member",
+          targetAshedMemberId: claimCommanderSelected,
+          adminLabel: claimAdminLabel.trim() || undefined,
+        }),
+      });
+      const body = (await res.json()) as {
+        error?: string;
+        code?: string;
+        invite?: {
+          inviteUrl: string;
+          passphrase?: string;
+          targetCommanderName?: string | null;
+        };
+      };
+      if (!res.ok) {
+        if (body.code === "commander_already_claimed") {
+          setClaimFeedback({ kind: "error", text: t("claimAlreadyClaimed") });
+          void fetch("/api/settings/team/claimable-commanders")
+            .then((r) => (r.ok ? r.json() : null))
+            .then(
+              (data: { commanders?: Array<{ ashedMemberId: string; name: string }> } | null) => {
+                setClaimableCommanders(data?.commanders ?? []);
+                setClaimCommanderSelected("");
+              },
+            )
+            .catch(() => undefined);
+        } else {
+          setClaimFeedback({
+            kind: "error",
+            text: body.error ?? t("claimFailed"),
+          });
+        }
+        return;
+      }
+      const displayName =
+        body.invite?.targetCommanderName ?? selectedCommander?.name ?? "";
+      setLastClaimUrl(body.invite?.inviteUrl ?? null);
+      setLastClaimPassphrase(body.invite?.passphrase ?? null);
+      setClaimFeedback({
+        kind: "success",
+        text: t("claimSentFor", { name: displayName }),
+      });
+      setClaimableCommanders((prev) =>
+        prev.filter((c) => c.ashedMemberId !== claimCommanderSelected),
+      );
+      setClaimCommanderSelected("");
+      setClaimAdminLabel("");
+    } catch (error) {
+      setClaimFeedback({
+        kind: "error",
+        text: error instanceof Error ? error.message : t("claimFailed"),
       });
     } finally {
       setBusy(false);
@@ -398,6 +493,75 @@ export function TeamInvitePanel({
             />
             <p className="mt-1 text-xs text-[#6e7681]">{t("joinCodeValueHint")}</p>
           </>
+        ) : null}
+      </div>
+
+      <div className="border-t border-[#30363d] pt-5">
+        <h3 className="text-sm font-semibold">{t("claimTitle")}</h3>
+        <p className="mt-1 text-sm text-[#8b949e]">{t("claimHint")}</p>
+        {claimableCommanders.length === 0 ? (
+          <p className="mt-3 text-sm text-[#6e7681]">{t("claimEmpty")}</p>
+        ) : (
+          <form
+            className="mt-3"
+            onSubmit={(event) => {
+              preventDefaultFormSubmit(event);
+              void sendClaimInvite();
+            }}
+          >
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="space-y-1 text-sm">
+                <span className="text-[#8b949e]">{t("claimCommanderLabel")}</span>
+                <select
+                  value={claimCommanderSelected}
+                  onChange={(e) => setClaimCommanderSelected(e.target.value)}
+                  className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
+                >
+                  <option value="">{t("claimCommanderPlaceholder")}</option>
+                  {claimableCommanders.map((commander) => (
+                    <option key={commander.ashedMemberId} value={commander.ashedMemberId}>
+                      {commander.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="space-y-1 text-sm">
+                <span className="text-[#8b949e]">{t("inviteAdminLabel")}</span>
+                <input
+                  type="text"
+                  value={claimAdminLabel}
+                  onChange={(e) => setClaimAdminLabel(e.target.value)}
+                  placeholder={t("inviteAdminLabelPlaceholder")}
+                  className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
+                />
+              </label>
+            </div>
+            <button
+              type="submit"
+              disabled={busy || !claimCommanderSelected || gameServerNumber == null}
+              className="mt-3 rounded-lg border border-[#388bfd] bg-[#388bfd]/10 px-4 py-2 text-sm text-[#58a6ff] disabled:opacity-50"
+            >
+              {t("claimButton")}
+            </button>
+          </form>
+        )}
+        <ActionFeedbackBanner feedback={claimFeedback} />
+        {lastClaimUrl ? (
+          <CopyToClipboardField
+            className="mt-3"
+            label={t("claimLinkLabel")}
+            value={lastClaimUrl}
+          />
+        ) : null}
+        {lastClaimPassphrase ? (
+          <CopyToClipboardField
+            className="mt-3"
+            label={t("invitePassphraseLabel")}
+            value={lastClaimPassphrase}
+          />
+        ) : null}
+        {lastClaimPassphrase ? (
+          <p className="mt-1 text-xs text-[#6e7681]">{t("invitePassphraseHint")}</p>
         ) : null}
       </div>
     </div>

@@ -897,7 +897,19 @@
       "joinCodeValueLabel": "Join code (shown once)",
       "joinCodeValueHint": "Share this code separately from your alliance tag.",
       "joinCodeFailed": "Could not create join code.",
-      "joinCodeCreated": "Join code generated."
+      "joinCodeCreated": "Join code generated.",
+      "claimTitle": "Commander claim invite",
+      "claimHint": "Invite someone to claim a specific roster commander. They confirm with their own UID — you never see it.",
+      "claimCommanderLabel": "Commander",
+      "claimCommanderPlaceholder": "Select a commander…",
+      "claimButton": "Generate claim link",
+      "claimEmpty": "Every roster commander is already linked to an account.",
+      "claimLinkLabel": "Claim link",
+      "claimSentFor": "Claim link ready for {name}.",
+      "claimAlreadyClaimed": "That commander was just linked by someone else.",
+      "claimFailed": "Could not create the claim link.",
+      "claimRowAction": "Claim link",
+      "claimRowHint": "This commander hasn't linked their HQ account yet."
     },
     "table": {
       "user": "User",
@@ -1328,7 +1340,8 @@
       "onboarding_form": "Onboarding form",
       "walkthrough": "Link walkthrough",
       "roster_miss": "Not on roster",
-      "discord_button": "Discord link help"
+      "discord_button": "Discord link help",
+      "claim_conflict": "Commander invite conflict"
     }
   },
   "memberLinkHelpReview": {
@@ -2895,7 +2908,10 @@
     "nameMismatchRetry": "Last War shows your name as {gameName}. Type it exactly (or paste from an alliance mate) and try again.",
     "confirmServerMissing": "We couldn't read your state server from Last War. Enter your alliance's state server number.",
     "confirmServerMismatch": "Last War shows server {lookupServer}, but this alliance is set to {allianceServer}. Enter the correct state server number for your alliance.",
-    "lookupFallback": "We couldn't reach Last War right now. Enter your state server number to continue — you can correct alliance settings later."
+    "lookupFallback": "We couldn't reach Last War right now. Enter your state server number to continue — you can correct alliance settings later.",
+    "claimUidInvalid": "Enter the 12–16 digit player UID from your Last War profile.",
+    "claimSelfServiceBlocked": "This invite is tied to a specific commander. Enter your player UID on the claim screen to finish linking.",
+    "claimConflict": "We couldn't finish this claim automatically. Your alliance officers have been notified to confirm your commander."
   },
   "onboard": {
     "title": "Link your character",
@@ -2949,7 +2965,10 @@
     "serverNumberInvalid": "Enter a valid server number (1–9999).",
     "submitServer": "Continue with this server",
     "backToForm": "Back to name and UID",
-    "memberTakenBody": "That UID is already linked to another HQ account. Platform admins have been notified — try a different account or contact support."
+    "memberTakenBody": "That UID is already linked to another HQ account. Platform admins have been notified — try a different account or contact support.",
+    "claimTitle": "Confirm your commander",
+    "claimSubtitle": "Your alliance invited you to claim {name}. Enter your player UID to confirm it's you.",
+    "claimSubmit": "Confirm & link"
   },
   "discordBot": {
     "errors": {

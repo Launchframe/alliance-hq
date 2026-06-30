@@ -2,7 +2,7 @@ import "server-only";
 
 import { createHash, randomBytes } from "crypto";
 
-import { and, eq, isNull } from "drizzle-orm";
+import { and, desc, eq, isNotNull, isNull } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { normalizeAshedEmail } from "@/lib/alliance/accessible";
@@ -24,6 +24,7 @@ import {
   type SystemRoleName,
 } from "@/lib/rbac/constants";
 import { systemRoleNameForId } from "@/lib/rbac/system-roles";
+import { getLinkedMemberIds } from "@/lib/vr/repository";
 
 import { provisionAllianceMembership } from "./provision-membership";
 import { assertAllianceLinkedGameServer } from "./alliance-server-gate.server";
@@ -33,6 +34,62 @@ export { AllianceServerRequiredError } from "./alliance-server-gate.server";
 const INVITE_TTL_DAYS = 14;
 
 export type HqInviteKind = "email" | "protected_link" | "discord_officer";
+
+export type CommanderClaimInviteErrorCode =
+  | "commander_not_found"
+  | "commander_already_claimed";
+
+/** Raised when a claim invite target is invalid or already bound to a user. */
+export class CommanderClaimInviteError extends Error {
+  readonly code: CommanderClaimInviteErrorCode;
+  constructor(code: CommanderClaimInviteErrorCode, message: string) {
+    super(message);
+    this.name = "CommanderClaimInviteError";
+    this.code = code;
+  }
+}
+
+/**
+ * Resolve the bound commander for a claim invite, asserting it exists in the
+ * alliance roster and is not already claimed by a user. Returns the
+ * commander display name (never the UID — see player-uid-privacy.mdc).
+ */
+async function assertClaimTargetClaimable(
+  allianceId: string,
+  ashedMemberId: string,
+): Promise<{ commanderName: string }> {
+  const db = getDb();
+  const [member] = await db
+    .select({
+      currentName: schema.allianceMembers.currentName,
+      status: schema.allianceMembers.status,
+    })
+    .from(schema.allianceMembers)
+    .where(
+      and(
+        eq(schema.allianceMembers.allianceId, allianceId),
+        eq(schema.allianceMembers.ashedMemberId, ashedMemberId),
+      ),
+    )
+    .limit(1);
+
+  if (!member || member.status === "former") {
+    throw new CommanderClaimInviteError(
+      "commander_not_found",
+      "Commander is not an active roster member.",
+    );
+  }
+
+  const linkedMemberIds = await getLinkedMemberIds(allianceId);
+  if (linkedMemberIds.has(ashedMemberId)) {
+    throw new CommanderClaimInviteError(
+      "commander_already_claimed",
+      "This commander is already linked to an account.",
+    );
+  }
+
+  return { commanderName: member.currentName };
+}
 
 async function ensureSystemRoleSeeded(
   roleName: SystemRoleName,
@@ -140,6 +197,8 @@ export type CreateHqInviteInput = {
   redirectPath?: string | null;
   adminLabel?: string | null;
   targetDiscordUserId?: string | null;
+  /** Roster member (ashed_member_id) this invite claims, if a commander claim invite. */
+  targetAshedMemberId?: string | null;
 };
 
 export type CreateHqInviteResult = {
@@ -151,6 +210,8 @@ export type CreateHqInviteResult = {
   kind: HqInviteKind;
   passphrase?: string;
   adminLabel?: string | null;
+  targetAshedMemberId?: string | null;
+  targetCommanderName?: string | null;
 };
 
 export async function createHqInvite(
@@ -177,6 +238,16 @@ export async function createHqInvite(
 
   if (input.roleName !== "owner") {
     await assertAllianceLinkedGameServer(input.allianceId);
+  }
+
+  const targetAshedMemberId = input.targetAshedMemberId?.trim() || null;
+  let targetCommanderName: string | null = null;
+  if (targetAshedMemberId) {
+    const target = await assertClaimTargetClaimable(
+      input.allianceId,
+      targetAshedMemberId,
+    );
+    targetCommanderName = target.commanderName;
   }
 
   let email: string | null = null;
@@ -212,6 +283,7 @@ export async function createHqInvite(
     passphraseHash,
     adminLabel: input.adminLabel?.trim() || null,
     targetDiscordUserId: input.targetDiscordUserId?.trim() || null,
+    targetAshedMemberId,
     requireMemberLink: input.kind === "discord_officer" ? 1 : 0,
     invitedByHqUserId: input.invitedByHqUserId ?? null,
     redirectPath,
@@ -228,6 +300,8 @@ export async function createHqInvite(
     kind,
     passphrase,
     adminLabel: input.adminLabel?.trim() || null,
+    targetAshedMemberId,
+    targetCommanderName,
   };
 }
 
@@ -243,6 +317,8 @@ export type HqInvitePreview = {
   requiresPassphrase: boolean;
   requiresDiscordLogin: boolean;
   boundEmail: string | null;
+  /** Commander display name when this is a commander claim invite (never UID). */
+  targetCommanderName: string | null;
 };
 
 export async function loadHqInvitePreview(
@@ -252,6 +328,7 @@ export async function loadHqInvitePreview(
   const db = getDb();
   const [row] = await db
     .select({
+      allianceId: schema.hqInvites.allianceId,
       expiresAt: schema.hqInvites.expiresAt,
       acceptedAt: schema.hqInvites.acceptedAt,
       roleId: schema.hqInvites.roleId,
@@ -259,6 +336,7 @@ export async function loadHqInvitePreview(
       kind: schema.hqInvites.kind,
       email: schema.hqInvites.email,
       targetDiscordUserId: schema.hqInvites.targetDiscordUserId,
+      targetAshedMemberId: schema.hqInvites.targetAshedMemberId,
       allianceName: schema.alliances.name,
       allianceTag: schema.alliances.tag,
     })
@@ -271,6 +349,21 @@ export async function loadHqInvitePreview(
     .limit(1);
 
   if (!row) return null;
+
+  let targetCommanderName: string | null = null;
+  if (row.targetAshedMemberId) {
+    const [member] = await db
+      .select({ currentName: schema.allianceMembers.currentName })
+      .from(schema.allianceMembers)
+      .where(
+        and(
+          eq(schema.allianceMembers.allianceId, row.allianceId),
+          eq(schema.allianceMembers.ashedMemberId, row.targetAshedMemberId),
+        ),
+      )
+      .limit(1);
+    targetCommanderName = member?.currentName ?? null;
+  }
 
   const kind = (row.kind ?? "email") as HqInviteKind;
   const now = new Date();
@@ -286,7 +379,38 @@ export async function loadHqInvitePreview(
     requiresPassphrase: kind === "protected_link" || kind === "discord_officer",
     requiresDiscordLogin: kind === "discord_officer",
     boundEmail: row.email,
+    targetCommanderName,
   };
+}
+
+/**
+ * Most-recent accepted commander claim invite for an HQ user in an alliance.
+ * Drives the streamlined onboarding "confirm your commander" step.
+ */
+export async function findAcceptedClaimInviteForUser(
+  allianceId: string,
+  hqUserId: string,
+): Promise<{ inviteId: string; targetAshedMemberId: string } | null> {
+  const db = getDb();
+  const [row] = await db
+    .select({
+      id: schema.hqInvites.id,
+      targetAshedMemberId: schema.hqInvites.targetAshedMemberId,
+    })
+    .from(schema.hqInvites)
+    .where(
+      and(
+        eq(schema.hqInvites.allianceId, allianceId),
+        eq(schema.hqInvites.acceptedByHqUserId, hqUserId),
+        isNotNull(schema.hqInvites.acceptedAt),
+        isNotNull(schema.hqInvites.targetAshedMemberId),
+      ),
+    )
+    .orderBy(desc(schema.hqInvites.acceptedAt))
+    .limit(1);
+
+  if (!row?.targetAshedMemberId) return null;
+  return { inviteId: row.id, targetAshedMemberId: row.targetAshedMemberId };
 }
 
 export function resolveHqInviteAcceptRedirect(options: {
@@ -343,6 +467,8 @@ export type AcceptHqInviteResult = {
   hqUserId: string;
   roleName: SystemRoleName | null;
   redirectPath: string | null;
+  /** Set when the accepted invite binds a specific roster commander to claim. */
+  targetAshedMemberId: string | null;
 };
 
 export async function rebindAcceptedInviteSession(input: {
@@ -397,6 +523,7 @@ export async function rebindAcceptedInviteSession(input: {
   }).then((result) => ({
     ...result,
     redirectPath: invite.redirectPath,
+    targetAshedMemberId: invite.targetAshedMemberId ?? null,
   }));
 }
 
@@ -508,6 +635,7 @@ export async function acceptHqInvite(
   return {
     ...result,
     redirectPath: invite.redirectPath,
+    targetAshedMemberId: invite.targetAshedMemberId ?? null,
   };
 }
 

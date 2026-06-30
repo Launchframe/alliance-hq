@@ -11,7 +11,8 @@ export type MemberLinkHelpContext =
   | "onboarding_form"
   | "walkthrough"
   | "roster_miss"
-  | "discord_button";
+  | "discord_button"
+  | "claim_conflict";
 
 export type MemberLinkHelpOrigin = "web" | "discord";
 
