@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   computeProjectedRosterRankCounts,
+  isNearFullRoster,
+  rosterNearFullThreshold,
   validateRosterRankQuota,
 } from "@/lib/members/roster-rank-quota.shared";
 
@@ -76,6 +78,14 @@ describe("roster-rank-quota.shared", () => {
         total: 101,
       }),
     ).toEqual(expect.arrayContaining(["r123_when_r4_full", "total_max"]));
+  });
+
+  it("treats roster within 3% of cap as near-full for invite UX", () => {
+    expect(rosterNearFullThreshold()).toBe(97);
+    expect(isNearFullRoster(96)).toBe(false);
+    expect(isNearFullRoster(97)).toBe(true);
+    expect(isNearFullRoster(99)).toBe(true);
+    expect(isNearFullRoster(100)).toBe(true);
   });
 
   it("requires solo member to be R5", () => {

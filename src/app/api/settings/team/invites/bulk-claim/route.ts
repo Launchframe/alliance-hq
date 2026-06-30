@@ -7,37 +7,22 @@ import {
 } from "@/lib/db/error-message";
 import {
   AllianceServerRequiredError,
-  CommanderClaimInviteError,
-  createHqInvite,
-  type HqInviteKind,
+  createHqClaimInvitesBulk,
 } from "@/lib/native-alliance/invites";
 import {
   assertInviteRoleAllowed,
-  isSystemRoleName,
   resolveTeamInviteAccess,
 } from "@/lib/native-alliance/team-invites.server";
-import { sanitizeInternalRedirectPath } from "@/lib/navigation/safe-redirect.shared";
-import type { SystemRoleName } from "@/lib/rbac/constants";
+import { MAX_BULK_CLAIM_INVITES } from "@/lib/native-alliance/claim-invites.shared";
 import { readSessionId } from "@/lib/session";
 
-const bodySchema = z
-  .object({
-    kind: z.enum(["email", "protected_link"]).default("protected_link"),
-    email: z.string().trim().email().optional(),
-    roleName: z.enum(["officer", "data_entry", "viewer", "member"]),
-    redirectPath: z.string().trim().max(512).optional(),
-    adminLabel: z.string().trim().max(120).optional(),
-    targetAshedMemberId: z.string().trim().min(1).max(64).optional(),
-  })
-  .superRefine((data, ctx) => {
-    if (data.kind === "email" && !data.email) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "Email is required for email invites.",
-        path: ["email"],
-      });
-    }
-  });
+const bodySchema = z.object({
+  targetAshedMemberIds: z
+    .array(z.string().trim().min(1).max(64))
+    .min(1)
+    .max(MAX_BULK_CLAIM_INVITES),
+  adminLabel: z.string().trim().max(120).optional(),
+});
 
 export async function POST(request: Request) {
   const sessionId = await readSessionId();
@@ -57,12 +42,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
   }
 
-  if (!isSystemRoleName(body.roleName)) {
-    return NextResponse.json({ error: "Invalid invite role." }, { status: 400 });
-  }
-
   try {
-    assertInviteRoleAllowed(access.ctx, body.roleName as SystemRoleName);
+    assertInviteRoleAllowed(access.ctx, "member");
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Forbidden" },
@@ -73,27 +54,21 @@ export async function POST(request: Request) {
   const origin = new URL(request.url).origin;
 
   try {
-    const invite = await createHqInvite({
+    const result = await createHqClaimInvitesBulk({
       allianceId: access.allianceId,
-      kind: body.kind as HqInviteKind,
-      email: body.email,
-      roleName: body.roleName as SystemRoleName,
+      targetAshedMemberIds: body.targetAshedMemberIds,
       invitedByHqUserId: access.ctx.hqUserId,
       origin,
-      redirectPath: sanitizeInternalRedirectPath(body.redirectPath),
       adminLabel: body.adminLabel,
-      targetAshedMemberId: body.targetAshedMemberId,
     });
 
-    return NextResponse.json({ ok: true, invite });
+    return NextResponse.json({
+      ok: true,
+      created: result.created,
+      skipped: result.skipped,
+    });
   } catch (error) {
     if (error instanceof AllianceServerRequiredError) {
-      return NextResponse.json(
-        { error: error.message, code: error.code },
-        { status: 422 },
-      );
-    }
-    if (error instanceof CommanderClaimInviteError) {
       return NextResponse.json(
         { error: error.message, code: error.code },
         { status: 422 },
@@ -114,7 +89,7 @@ export async function POST(request: Request) {
         error:
           error instanceof Error && !detail.includes("Failed query")
             ? error.message
-            : "Invite failed.",
+            : "Bulk claim invites failed.",
         ...(process.env.NODE_ENV === "development" ? { detail } : {}),
       },
       { status: 400 },

@@ -202,6 +202,14 @@ const NAV_ACTIONS: HotkeyActionDef[] = [
     kind: "navigate",
     href: "/guides/discord-train",
   },
+  {
+    id: "nav.allianceOnboardingGuide",
+    labelKey: "actions.nav.allianceOnboardingGuide",
+    category: "navigation",
+    scope: "global",
+    kind: "navigate",
+    href: "/guides/alliance-onboarding",
+  },
 ];
 
 const ADMIN_SEQUENCE_KEYS = [

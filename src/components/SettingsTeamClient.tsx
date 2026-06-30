@@ -15,6 +15,20 @@ type Props = {
   canRefreshFromAshed?: boolean;
 };
 
+function CommanderOwnershipCell({
+  commanderName,
+  notLinkedLabel,
+}: {
+  commanderName: string | null;
+  notLinkedLabel: string;
+}) {
+  if (commanderName) {
+    return <span className="font-medium text-[#e6edf3]">{commanderName}</span>;
+  }
+
+  return <span className="text-[#6e7681]">{notLinkedLabel}</span>;
+}
+
 export function SettingsTeamClient({
   initialTeam,
   canRefreshFromAshed = false,
@@ -74,6 +88,12 @@ export function SettingsTeamClient({
                 ) : null}
               </div>
             </RecordDetailField>
+            <RecordDetailField label={t("table.commander")}>
+              <CommanderOwnershipCell
+                commanderName={member.commanderName}
+                notLinkedLabel={t("table.commanderNotLinked")}
+              />
+            </RecordDetailField>
             <RecordDetailField label={t("table.role")}>
               <span className="capitalize">{member.roleName}</span>
             </RecordDetailField>
@@ -88,6 +108,7 @@ export function SettingsTeamClient({
               <thead className="bg-[#161b22] text-[#8b949e]">
                 <tr>
                   <th className="px-4 py-3">{t("table.user")}</th>
+                  <th className="px-4 py-3">{t("table.commander")}</th>
                   <th className="px-4 py-3">{t("table.role")}</th>
                   <th className="px-4 py-3">{t("table.source")}</th>
                 </tr>
@@ -102,6 +123,12 @@ export function SettingsTeamClient({
                           {member.email}
                         </div>
                       ) : null}
+                    </td>
+                    <td className="px-4 py-3">
+                      <CommanderOwnershipCell
+                        commanderName={member.commanderName}
+                        notLinkedLabel={t("table.commanderNotLinked")}
+                      />
                     </td>
                     <td className="px-4 py-3 capitalize">{member.roleName}</td>
                     <td className="px-4 py-3">{member.source}</td>

@@ -116,7 +116,9 @@
     "discordBotGuide": "Ajuda do bot Discord",
     "discordBotGuideDescription": "Configure o bot Alliance HQ no seu servidor Discord",
     "discordTrainGuide": "Guia do trem no Discord",
-    "discordTrainGuideDescription": "Anúncios de condutor de trem no Discord"
+    "discordTrainGuideDescription": "Anúncios de condutor de trem no Discord",
+    "allianceOnboardingGuide": "Integração da aliança",
+    "allianceOnboardingGuideDescription": "Convites e vínculo de membros (Ashed vs nativa)"
   },
   "admin": {
     "title": "Portal Admin HQ",
@@ -897,10 +899,36 @@
       "joinCodeValueLabel": "Código de entrada (mostrado uma vez)",
       "joinCodeValueHint": "Compartilhe este código separadamente da tag da aliança.",
       "joinCodeFailed": "Não foi possível criar o código de entrada.",
-      "joinCodeCreated": "Código de entrada gerado."
+      "joinCodeCreated": "Código de entrada gerado.",
+      "claimTitle": "Convite para reivindicar comandante",
+      "claimHint": "Convide alguém para reivindicar um comandante específico do roster. A pessoa confirma com o próprio UID — você nunca o vê.",
+      "claimCommanderLabel": "Comandante",
+      "claimCommanderPlaceholder": "Selecione um comandante…",
+      "claimButton": "Gerar link de reivindicação",
+      "claimEmpty": "Todos os comandantes do roster já estão vinculados a uma conta.",
+      "claimLinkLabel": "Link de reivindicação",
+      "claimSentFor": "Link de reivindicação pronto para {name}.",
+      "claimAlreadyClaimed": "Esse comandante acabou de ser vinculado por outra pessoa.",
+      "claimFailed": "Não foi possível criar o link de reivindicação.",
+      "claimRowAction": "Link de reivindicação",
+      "claimRowHint": "Este comandante ainda não vinculou a conta HQ.",
+      "claimModeSingle": "Um comandante",
+      "claimModeBulk": "Vários",
+      "bulkClaimSelectAll": "Selecionar todos",
+      "bulkClaimClearAll": "Limpar tudo",
+      "bulkClaimSelectedCount": "{count} selecionados",
+      "bulkClaimButton": "Gerar {count} links de reivindicação",
+      "bulkClaimResultsTitle": "Links de reivindicação",
+      "bulkClaimSummary": "{created} links de reivindicação gerados. {skipped} comandantes já vinculados foram ignorados.",
+      "nearFullRosterBanner": "Seu roster tem {count} de {max} membros — perto do limite do jogo. Use convites de reivindicação de comandante para vincular quem já está no roster. A maioria das alianças fica com 99 membros para novos candidatos entrarem no jogo.",
+      "nearFullAdvancedTitle": "Links de convite e códigos de entrada",
+      "nearFullAdvancedHint": "Para acesso de oficial, visualizador ou entrada de dados. Convites com papel de membro aqui não adicionam jogadores que ainda não estão no roster do jogo.",
+      "memberRoleNearFullWarning": "Convites e códigos com papel de membro não adicionam alguém à aliança no jogo quando o roster está quase cheio. Use um convite de reivindicação de comandante se a pessoa já estiver no roster."
     },
     "table": {
       "user": "Usuário",
+      "commander": "Comandante",
+      "commanderNotLinked": "Não vinculado",
       "role": "Função",
       "source": "Origem"
     }
@@ -1025,7 +1053,8 @@
         "account": "Ir para Configurações da conta",
         "settings": "Ir para Configurações",
         "discordBotGuide": "Ir para Ajuda do bot Discord",
-        "discordTrainGuide": "Ir para Guia do trem no Discord"
+        "discordTrainGuide": "Ir para Guia do trem no Discord",
+        "allianceOnboardingGuide": "Ir para Integração da aliança"
       },
       "admin": {
         "overview": "Visão geral Admin",
@@ -1756,6 +1785,16 @@
       "identityLinks": "Vínculos de identidade",
       "hqUser": "Usuário HQ",
       "discord": "Discord",
+      "unlinkHqButton": "Desvincular conta HQ",
+      "unlinkDiscordButton": "Desvincular Discord",
+      "unlinkConfirmQuestion": "Desvincular este comandante?",
+      "unlinkHqConfirmDescription": "Isso remove o vínculo com a conta HQ e permite que alguém reivindique este comandante novamente. Use apenas para corrigir uma reivindicação incorreta.",
+      "unlinkDiscordConfirmDescription": "Isso remove todos os vínculos do Discord deste comandante nesta aliança. Será necessário vincular novamente no Discord.",
+      "unlinkConfirm": "Desvincular",
+      "unlinkCancel": "Cancelar",
+      "unlinkBusy": "Desvinculando…",
+      "unlinkSuccess": "Comandante desvinculado. Pode ser reivindicado novamente.",
+      "unlinkFailed": "Não foi possível desvincular. Tente novamente.",
       "tenureHistory": "Permanência em alianças",
       "current": "atual",
       "rankTimeline": "Linha do tempo de patentes",
@@ -2895,12 +2934,16 @@
     "nameMismatchRetry": "O Last War mostra seu nome como {gameName}. Digite exatamente (ou cole de um colega de aliança) e tente novamente.",
     "confirmServerMissing": "Não conseguimos ler seu servidor estadual no Last War. Informe o número do servidor estadual da sua aliança.",
     "confirmServerMismatch": "O Last War mostra o servidor {lookupServer}, mas esta aliança está definida como {allianceServer}. Informe o número correto do servidor estadual.",
-    "lookupFallback": "Não foi possível acessar o Last War agora. Informe o número do servidor estadual para continuar — você pode corrigir nas configurações depois."
+    "lookupFallback": "Não foi possível acessar o Last War agora. Informe o número do servidor estadual para continuar — você pode corrigir nas configurações depois.",
+    "claimUidInvalid": "Informe o UID de 12 a 16 dígitos do seu perfil do Last War.",
+    "claimSelfServiceBlocked": "Este convite está ligado a um comandante específico. Digite seu UID do jogador na tela de reivindicação para concluir o vínculo.",
+    "claimConflict": "Não foi possível concluir esta reivindicação automaticamente. Os oficiais da sua aliança foram avisados para confirmar seu comandante."
   },
   "onboard": {
     "title": "Vincule seu personagem",
     "welcomePrefix": "Bem-vindo à",
     "welcomeSubtitle": "Vamos conectar sua conta HQ ao seu perfil no jogo.",
+    "uidOnlySubtitle": "Informe seu UID de jogador e encontraremos seu comandante.",
     "nameLabel": "Nome no jogo",
     "nameHint": "Deve coincidir exatamente com o nome do seu comandante no Last War. Digite com cuidado ou peça a um colega de aliança para copiar do seu perfil e enviar para você.",
     "nameRequired": "Informe seu nome no jogo.",
@@ -2949,7 +2992,15 @@
     "serverNumberInvalid": "Informe um número de servidor válido (1–9999).",
     "submitServer": "Continuar com este servidor",
     "backToForm": "Voltar ao nome e UID",
-    "memberTakenBody": "Esse UID já está vinculado a outra conta HQ. Os administradores da plataforma foram notificados — tente outra conta ou fale com o suporte."
+    "memberTakenBody": "Esse UID já está vinculado a outra conta HQ. Os administradores da plataforma foram notificados — tente outra conta ou fale com o suporte.",
+    "claimTitle": "Confirme seu comandante",
+    "claimSubtitle": "Sua aliança convidou você para reivindicar {name}. Informe seu UID para confirmar que é você.",
+    "claimSubmit": "Confirmar e vincular",
+    "confirmIdentityTitle": "É você?",
+    "confirmIdentityBody": "Encontramos este comandante para esse UID de jogador. Confirme que é você para concluir a vinculação.",
+    "confirmIdentityServer": "Servidor {server}",
+    "confirmIdentityYes": "Sim, sou eu",
+    "confirmIdentityNo": "Não, informar outro UID"
   },
   "discordBot": {
     "errors": {
