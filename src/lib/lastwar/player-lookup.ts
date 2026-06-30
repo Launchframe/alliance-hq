@@ -231,6 +231,14 @@ export async function lookupPlayerByUid(
     };
   }
 
+  if (process.env.E2E_TEST === "true" && uid.trim() === "1234567890121299") {
+    return {
+      ok: true,
+      gameUserName: "E2eClaimTarget",
+      gameServerNumber: 1203,
+    };
+  }
+
   const url = buildLastWarPlayerLookupUrl(uid);
 
   try {

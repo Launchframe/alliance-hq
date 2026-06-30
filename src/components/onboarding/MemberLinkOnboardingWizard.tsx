@@ -85,8 +85,12 @@ export function MemberLinkOnboardingWizard({
   );
 
   const goToMemberLinkForm = useCallback(() => {
+    if (claimCommanderName) {
+      setPhase("claim");
+      return;
+    }
     setPhase("form");
-  }, []);
+  }, [claimCommanderName]);
 
   const applyOutcome = useCallback(
     (data: ApiResponse) => {
