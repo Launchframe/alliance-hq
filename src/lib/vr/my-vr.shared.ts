@@ -15,6 +15,7 @@ export type MyVrPercentile = {
 
 export type MyVrPayload = {
   seasonKey: string;
+  isPostSeason: boolean;
   currentVr: number | null;
   updatedAt: string | null;
   commanderName: string | null;

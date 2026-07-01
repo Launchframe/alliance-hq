@@ -128,12 +128,24 @@ export function resolveGuildAllianceIdWithLegacyFallback(input: {
   return legacyAllianceId;
 }
 
-export async function resolveSeasonKey(allianceId: string): Promise<string> {
+export async function resolveEffectiveSeasonForVr(
+  allianceId: string,
+): Promise<{ seasonKey: string; isPostSeason: boolean }> {
   const envKey = process.env.DISCORD_ALLIANCE_SEASON_KEY?.trim();
-  if (envKey) return envKey;
+  if (envKey) {
+    return { seasonKey: envKey, isPostSeason: false };
+  }
 
   const effective = await getEffectiveSeasonForAlliance(allianceId);
-  return effective.seasonKey;
+  return {
+    seasonKey: effective.seasonKey,
+    isPostSeason: effective.isPostSeason,
+  };
+}
+
+export async function resolveSeasonKey(allianceId: string): Promise<string> {
+  const { seasonKey } = await resolveEffectiveSeasonForVr(allianceId);
+  return seasonKey;
 }
 
 export async function writeDiscordBotAudit(input: {

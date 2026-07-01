@@ -6,6 +6,8 @@ export const MY_VR_COPY = {
   pageTitle: "My VR",
   pageSubtitle: "Track and update your season viral resistance.",
   seasonLabel: "Season {season}",
+  postSeasonNotice:
+    "Post-season week — you can still update your Season {season} VR here.",
   currentVrLabel: "Current VR",
   notReportedYet: "Not reported yet",
   tabNow: "Now",

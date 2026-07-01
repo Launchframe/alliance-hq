@@ -13,6 +13,7 @@ import {
   getMemberSeasonHigh,
   listMemberSeasonVrEvents,
   listSeasonVrRows,
+  resolveEffectiveSeasonForVr,
   resolveSeasonKey,
   saveHqVrPending,
   upsertMemberSeasonVr,
@@ -29,7 +30,9 @@ export async function loadMyVrForUser(input: {
     return null;
   }
 
-  const seasonKey = await resolveSeasonKey(input.allianceId);
+  const { seasonKey, isPostSeason } = await resolveEffectiveSeasonForVr(
+    input.allianceId,
+  );
   const [currentVr, seasonRows, events] = await Promise.all([
     getMemberSeasonHigh(input.allianceId, link.ashedMemberId, seasonKey),
     listSeasonVrRows(input.allianceId, seasonKey),
@@ -52,6 +55,7 @@ export async function loadMyVrForUser(input: {
 
   return {
     seasonKey,
+    isPostSeason,
     currentVr,
     updatedAt: seasonRow?.updatedAt.toISOString() ?? null,
     commanderName: link.memberDisplayName,

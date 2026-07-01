@@ -126,6 +126,16 @@ export function MyVrTrackerView({ initial }: Props) {
         </p>
       </header>
 
+      {data.isPostSeason ? (
+        <p
+          className="rounded-lg border border-[#30363d] bg-[#161b22] px-4 py-3 text-sm text-[#8b949e]"
+          role="status"
+          data-testid="my-vr-post-season-notice"
+        >
+          {copy.postSeasonNotice.replace("{season}", data.seasonKey)}
+        </p>
+      ) : null}
+
       <div
         className="flex gap-1 rounded-lg border border-[#30363d] bg-[#0d1117] p-1"
         role="tablist"
