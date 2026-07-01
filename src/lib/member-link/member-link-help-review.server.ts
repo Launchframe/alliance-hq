@@ -15,13 +15,15 @@ import {
   syncPrimaryGameUidFromHqMemberLink,
 } from "@/lib/member-link/repository.server";
 import { reconcileAllianceMemberForRosterLink } from "@/lib/member-link/roster-link-resolve.server";
+import { unlinkCommanderHqAccount } from "@/lib/member-link/unlink.server";
 import { normalizeName } from "@/lib/vr/link-helpers";
 import { getLinkedMemberIds } from "@/lib/vr/repository";
-import type {
-  HelpRequestClaimContact,
-  HelpRequestRosterRow,
-  MemberLinkClaimConflictReason,
-  MemberLinkHelpRequestReview,
+import {
+  helpRequestRosterNameNeedles,
+  type HelpRequestClaimContact,
+  type HelpRequestRosterRow,
+  type MemberLinkClaimConflictReason,
+  type MemberLinkHelpRequestReview,
 } from "@/lib/member-link/member-link-help-review.shared";
 
 function rosterNameMatches(
@@ -167,7 +169,11 @@ export async function loadMemberLinkHelpRequestReview(input: {
   const { linkedIds, hqByMember, discordByMember } = await loadClaimMaps(
     row.allianceId,
   );
-  const nameNeedles = [row.reportedName ?? "", row.gameUserName ?? ""];
+  const nameNeedles = helpRequestRosterNameNeedles({
+    context: row.context,
+    reportedName: row.reportedName,
+    gameUserName: row.gameUserName,
+  });
 
   const rosterRows = members.map((member) =>
     buildRosterRow(
@@ -211,6 +217,7 @@ export async function loadMemberLinkHelpRequestReview(input: {
       gameUserName: row.gameUserName,
       gameUidLast4: row.gameUid ? row.gameUid.slice(-4) : null,
       status: row.status,
+      inviteTargetAshedMemberId: row.linkedAshedMemberId ?? null,
       createdAt: row.createdAt,
       hqUserId: row.hqUserId,
       discordUsername: row.discordUsername,
@@ -243,14 +250,72 @@ export async function loadClaimantContactForMember(input: {
   return { hq: hq ?? undefined, discord: discord ?? undefined };
 }
 
-/** Reserved for a future break-glass unlink PR — not implemented in this slice. */
-export async function unlinkHqMemberLinkBreakGlass(_input: {
-  allianceId: string;
-  ashedMemberId: string;
+/** Break-glass HQ unlink during officer help review (mediation). */
+export async function unlinkHqMemberLinkBreakGlass(input: {
+  requestId: string;
+  targetAshedMemberId: string;
   sessionId: string;
   resolvedByHqUserId: string;
-}): Promise<{ ok: false; reason: "not_implemented" }> {
-  return { ok: false, reason: "not_implemented" };
+  allianceId?: string;
+  notifiedClaimant: true;
+}): Promise<
+  | { ok: true; memberName: string }
+  | { ok: false; reason: string }
+> {
+  const row = await getMemberLinkHelpRequestById(input.requestId);
+  if (!row) return { ok: false, reason: "not_found" };
+  if (input.allianceId && row.allianceId !== input.allianceId) {
+    return { ok: false, reason: "not_found" };
+  }
+  if (row.status !== "open") return { ok: false, reason: "already_closed" };
+
+  const db = getDb();
+  const [memberRow] = await db
+    .select({
+      ashedMemberId: schema.allianceMembers.ashedMemberId,
+      currentName: schema.allianceMembers.currentName,
+    })
+    .from(schema.allianceMembers)
+    .where(
+      and(
+        eq(schema.allianceMembers.allianceId, row.allianceId),
+        eq(schema.allianceMembers.ashedMemberId, input.targetAshedMemberId),
+        ne(schema.allianceMembers.status, "former"),
+      ),
+    )
+    .limit(1);
+  if (!memberRow) return { ok: false, reason: "member_not_found" };
+
+  const linkedIds = await getLinkedMemberIds(row.allianceId);
+  if (!linkedIds.has(input.targetAshedMemberId)) {
+    return { ok: false, reason: "not_linked" };
+  }
+
+  const unlinked = await unlinkCommanderHqAccount({
+    sessionId: input.sessionId,
+    actorHqUserId: input.resolvedByHqUserId,
+    allianceId: row.allianceId,
+    ashedMemberId: input.targetAshedMemberId,
+  });
+  if (!unlinked.ok) {
+    return { ok: false, reason: unlinked.reason };
+  }
+
+  await writeAuditLog({
+    sessionId: input.sessionId,
+    hqUserId: input.resolvedByHqUserId,
+    allianceId: row.allianceId,
+    action: "member_link_help_break_glass_unlink",
+    resourceType: "hq_member_link_help_request",
+    resourceId: input.requestId,
+    metadata: {
+      targetAshedMemberId: input.targetAshedMemberId,
+      notifiedClaimant: input.notifiedClaimant,
+      helpContext: row.context,
+    },
+  });
+
+  return { ok: true, memberName: memberRow.currentName };
 }
 
 export async function linkMemberLinkHelpRequest(input: {

@@ -29,9 +29,15 @@ vi.mock("@/lib/vr/repository", () => ({
   getLinkedMemberIds: vi.fn(),
 }));
 
+vi.mock("@/lib/member-link/unlink.server", () => ({
+  unlinkCommanderHqAccount: vi.fn(),
+}));
+
 const helpQueue = await import("@/lib/member-link/member-link-help-queue.server");
 const repository = await import("@/lib/member-link/repository.server");
 const vrRepository = await import("@/lib/vr/repository");
+const unlinkServer = await import("@/lib/member-link/unlink.server");
+const audit = await import("@/lib/bff/audit");
 
 const dbModule = vi.hoisted(() => {
   const chain = {
@@ -108,15 +114,65 @@ const openHelpRow = {
   linkedAshedMemberId: null,
 };
 
-describe("member-link-help-review break-glass stub", () => {
-  it("unlinkHqMemberLinkBreakGlass is not implemented yet", async () => {
-    const result = await unlinkHqMemberLinkBreakGlass({
-      allianceId: "a1",
-      ashedMemberId: "m1",
-      sessionId: "s1",
-      resolvedByHqUserId: "u1",
+describe("unlinkHqMemberLinkBreakGlass", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(helpQueue.getMemberLinkHelpRequestById).mockResolvedValue(
+      openHelpRow as never,
+    );
+    vi.mocked(vrRepository.getLinkedMemberIds).mockResolvedValue(
+      new Set(["m-claimed"]),
+    );
+    vi.mocked(unlinkServer.unlinkCommanderHqAccount).mockResolvedValue({
+      ok: true,
+      target: "hq",
+      removed: 1,
     });
-    expect(result).toEqual({ ok: false, reason: "not_implemented" });
+    dbModule.chain.limit.mockResolvedValue([
+      { ashedMemberId: "m-claimed", currentName: "Claimed Alpha" },
+    ]);
+  });
+
+  it("unlinks a claimed roster member and records help-context audit", async () => {
+    const result = await unlinkHqMemberLinkBreakGlass({
+      requestId: "req-1",
+      targetAshedMemberId: "m-claimed",
+      resolvedByHqUserId: "officer-1",
+      sessionId: "sess-1",
+      allianceId: "a1",
+      notifiedClaimant: true,
+    });
+
+    expect(result).toEqual({ ok: true, memberName: "Claimed Alpha" });
+    expect(unlinkServer.unlinkCommanderHqAccount).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorHqUserId: "officer-1",
+        allianceId: "a1",
+        ashedMemberId: "m-claimed",
+      }),
+    );
+    expect(audit.writeAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "member_link_help_break_glass_unlink",
+        resourceId: "req-1",
+      }),
+    );
+  });
+
+  it("rejects when the roster member is not linked", async () => {
+    vi.mocked(vrRepository.getLinkedMemberIds).mockResolvedValue(new Set());
+
+    const result = await unlinkHqMemberLinkBreakGlass({
+      requestId: "req-1",
+      targetAshedMemberId: "m-claimed",
+      resolvedByHqUserId: "officer-1",
+      sessionId: "sess-1",
+      allianceId: "a1",
+      notifiedClaimant: true,
+    });
+
+    expect(result).toEqual({ ok: false, reason: "not_linked" });
+    expect(unlinkServer.unlinkCommanderHqAccount).not.toHaveBeenCalled();
   });
 });
 
