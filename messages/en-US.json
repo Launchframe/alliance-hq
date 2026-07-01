@@ -1337,7 +1337,7 @@
   "memberLinkHelpRequests": {
     "title": "Ask an officer help requests",
     "adminTitle": "Member link help requests",
-    "subtitle": "Members who asked for officer help while linking their commander — onboarding, walkthrough, or blocked flows.",
+    "subtitle": "Members who asked for officer help while linking their commander — onboarding, walkthrough, roster misses, or claim conflicts.",
     "backToMembers": "Back to members",
     "backToAdmin": "Back to admin portal",
     "loadFailed": "Could not load help requests.",
@@ -1357,7 +1357,8 @@
       "onboarding_form": "Onboarding form",
       "walkthrough": "Link walkthrough",
       "roster_miss": "Not on roster",
-      "discord_button": "Discord link help"
+      "discord_button": "Discord link help",
+      "claim_conflict": "Claim conflict"
     }
   },
   "memberLinkHelpReview": {
@@ -1375,6 +1376,13 @@
       "lookupName": "Last War lookup name",
       "lookupMissing": "Lookup unavailable",
       "missing": "Not provided"
+    },
+    "claimConflictReason": {
+      "label": "Conflict type",
+      "name_collision": "Another commander is already linked under this in-game name",
+      "commander_taken": "This commander is already linked to another account",
+      "server_mismatch": "The UID belongs to a different game server than this alliance",
+      "target_mismatch": "The UID name does not match the invited commander"
     },
     "requesterContact": {
       "title": "Requester contact"

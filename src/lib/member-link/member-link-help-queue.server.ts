@@ -11,7 +11,14 @@ export type MemberLinkHelpContext =
   | "onboarding_form"
   | "walkthrough"
   | "roster_miss"
-  | "discord_button";
+  | "discord_button"
+  | "claim_conflict";
+
+export type MemberLinkClaimConflictReason =
+  | "name_collision"
+  | "commander_taken"
+  | "server_mismatch"
+  | "target_mismatch";
 
 export type MemberLinkHelpOrigin = "web" | "discord";
 
@@ -31,6 +38,7 @@ export type MemberLinkHelpRequestView = {
   discordUsername: string | null;
   hqUserId: string | null;
   status: MemberLinkHelpStatus;
+  claimConflictReason: MemberLinkClaimConflictReason | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -107,9 +115,105 @@ function inboxTitle(input: {
   return input.gameUserName?.trim() || input.requesterHandle.trim() || "Member";
 }
 
+function isUniqueViolation(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as { code?: unknown }).code === "23505"
+  );
+}
+
+function openHelpRequestSubjectFilter(input: {
+  hqUserId?: string | null;
+  discordUserId?: string | null;
+  requesterHandle: string;
+}) {
+  return input.hqUserId
+    ? eq(schema.hqMemberLinkHelpRequests.hqUserId, input.hqUserId)
+    : input.discordUserId
+      ? eq(schema.hqMemberLinkHelpRequests.discordUserId, input.discordUserId)
+      : eq(schema.hqMemberLinkHelpRequests.requesterHandle, input.requesterHandle);
+}
+
+function openClaimConflictSubjectFilter(input: {
+  hqUserId?: string | null;
+  requesterHandle: string;
+}) {
+  return input.hqUserId
+    ? eq(schema.hqMemberLinkHelpRequests.hqUserId, input.hqUserId)
+    : eq(schema.hqMemberLinkHelpRequests.requesterHandle, input.requesterHandle);
+}
+
+async function findOpenClaimConflictHelpRequest(input: {
+  allianceId: string;
+  targetAshedMemberId: string;
+  claimConflictReason: MemberLinkClaimConflictReason;
+  hqUserId?: string | null;
+  requesterHandle: string;
+}): Promise<{ id: string } | null> {
+  const db = getDb();
+  const [existing] = await db
+    .select({ id: schema.hqMemberLinkHelpRequests.id })
+    .from(schema.hqMemberLinkHelpRequests)
+    .where(
+      and(
+        eq(schema.hqMemberLinkHelpRequests.allianceId, input.allianceId),
+        eq(schema.hqMemberLinkHelpRequests.status, "open"),
+        eq(schema.hqMemberLinkHelpRequests.context, "claim_conflict"),
+        eq(
+          schema.hqMemberLinkHelpRequests.linkedAshedMemberId,
+          input.targetAshedMemberId,
+        ),
+        eq(
+          schema.hqMemberLinkHelpRequests.claimConflictReason,
+          input.claimConflictReason,
+        ),
+        openClaimConflictSubjectFilter(input),
+      ),
+    )
+    .limit(1);
+  return existing ?? null;
+}
+
+async function updateHelpRequestSnapshot(input: {
+  id: string;
+  origin: MemberLinkHelpOrigin;
+  context: MemberLinkHelpContext;
+  requesterHandle: string;
+  reportedName: string | null;
+  gameUid: string | null;
+  gameUserName: string | null;
+  discordUserId: string | null;
+  discordUsername: string | null;
+  linkedAshedMemberId: string | null;
+  claimConflictReason: MemberLinkClaimConflictReason | null;
+  updatedAt: Date;
+}): Promise<void> {
+  const db = getDb();
+  await db
+    .update(schema.hqMemberLinkHelpRequests)
+    .set({
+      origin: input.origin,
+      context: input.context,
+      requesterHandle: input.requesterHandle,
+      reportedName: input.reportedName,
+      gameUid: input.gameUid,
+      gameUserName: input.gameUserName,
+      discordUserId: input.discordUserId,
+      discordUsername: input.discordUsername,
+      linkedAshedMemberId: input.linkedAshedMemberId,
+      claimConflictReason: input.claimConflictReason,
+      updatedAt: input.updatedAt,
+    })
+    .where(eq(schema.hqMemberLinkHelpRequests.id, input.id));
+}
+
 /**
  * Persist an Ask-an-officer help request for alliance officers and platform
  * maintainers. De-duplicates open rows per alliance + requester identity.
+ * Claim-conflict rows additionally de-dupe on target commander + reason so
+ * retries do not stack duplicate review items.
  */
 export async function recordMemberLinkHelpRequest(input: {
   allianceId: string;
@@ -122,49 +226,63 @@ export async function recordMemberLinkHelpRequest(input: {
   gameUserName?: string | null;
   discordUserId?: string | null;
   discordUsername?: string | null;
+  targetAshedMemberId?: string | null;
+  claimConflictReason?: MemberLinkClaimConflictReason | null;
 }): Promise<string> {
   const db = getDb();
   const now = new Date();
   const gameUid = input.gameUid?.trim() || null;
-
-  const subjectFilter = input.hqUserId
-    ? eq(schema.hqMemberLinkHelpRequests.hqUserId, input.hqUserId)
-    : input.discordUserId
-      ? eq(schema.hqMemberLinkHelpRequests.discordUserId, input.discordUserId)
-      : eq(schema.hqMemberLinkHelpRequests.requesterHandle, input.requesterHandle);
-
-  const [existing] = await db
-    .select({ id: schema.hqMemberLinkHelpRequests.id })
-    .from(schema.hqMemberLinkHelpRequests)
-    .where(
-      and(
-        eq(schema.hqMemberLinkHelpRequests.allianceId, input.allianceId),
-        eq(schema.hqMemberLinkHelpRequests.status, "open"),
-        subjectFilter,
-      ),
-    )
-    .limit(1);
+  const targetAshedMemberId = input.targetAshedMemberId?.trim() || null;
+  const claimConflictReason = input.claimConflictReason ?? null;
+  const useClaimConflictDedup =
+    input.context === "claim_conflict" &&
+    targetAshedMemberId !== null &&
+    claimConflictReason !== null;
 
   const title = inboxTitle({
     gameUserName: input.gameUserName ?? null,
     requesterHandle: input.requesterHandle,
   });
 
-  if (existing) {
-    await db
-      .update(schema.hqMemberLinkHelpRequests)
-      .set({
-        origin: input.origin,
-        context: input.context,
-        requesterHandle: input.requesterHandle,
-        reportedName: input.reportedName?.trim() || null,
-        gameUid,
-        gameUserName: input.gameUserName?.trim() || null,
-        discordUserId: input.discordUserId ?? null,
-        discordUsername: input.discordUsername ?? null,
-        updatedAt: now,
+  const snapshot = {
+    origin: input.origin,
+    context: input.context,
+    requesterHandle: input.requesterHandle.trim(),
+    reportedName: input.reportedName?.trim() || null,
+    gameUid,
+    gameUserName: input.gameUserName?.trim() || null,
+    discordUserId: input.discordUserId ?? null,
+    discordUsername: input.discordUsername ?? null,
+    linkedAshedMemberId: useClaimConflictDedup ? targetAshedMemberId : null,
+    claimConflictReason: useClaimConflictDedup ? claimConflictReason : null,
+    updatedAt: now,
+  };
+
+  const existing = useClaimConflictDedup
+    ? await findOpenClaimConflictHelpRequest({
+        allianceId: input.allianceId,
+        targetAshedMemberId,
+        claimConflictReason,
+        hqUserId: input.hqUserId ?? null,
+        requesterHandle: input.requesterHandle.trim(),
       })
-      .where(eq(schema.hqMemberLinkHelpRequests.id, existing.id));
+    : await (async () => {
+        const [row] = await db
+          .select({ id: schema.hqMemberLinkHelpRequests.id })
+          .from(schema.hqMemberLinkHelpRequests)
+          .where(
+            and(
+              eq(schema.hqMemberLinkHelpRequests.allianceId, input.allianceId),
+              eq(schema.hqMemberLinkHelpRequests.status, "open"),
+              openHelpRequestSubjectFilter(input),
+            ),
+          )
+          .limit(1);
+        return row ?? null;
+      })();
+
+  if (existing) {
+    await updateHelpRequestSnapshot({ id: existing.id, ...snapshot });
     await materializeHelpInboxItem({
       allianceId: input.allianceId,
       requestId: existing.id,
@@ -174,22 +292,35 @@ export async function recordMemberLinkHelpRequest(input: {
   }
 
   const id = nanoid();
-  await db.insert(schema.hqMemberLinkHelpRequests).values({
-    id,
-    allianceId: input.allianceId,
-    hqUserId: input.hqUserId ?? null,
-    origin: input.origin,
-    discordUserId: input.discordUserId ?? null,
-    discordUsername: input.discordUsername ?? null,
-    context: input.context,
-    reportedName: input.reportedName?.trim() || null,
-    gameUid,
-    gameUserName: input.gameUserName?.trim() || null,
-    requesterHandle: input.requesterHandle.trim(),
-    status: "open",
-    createdAt: now,
-    updatedAt: now,
-  });
+  try {
+    await db.insert(schema.hqMemberLinkHelpRequests).values({
+      id,
+      allianceId: input.allianceId,
+      hqUserId: input.hqUserId ?? null,
+      status: "open",
+      createdAt: now,
+      ...snapshot,
+    });
+  } catch (error) {
+    if (!useClaimConflictDedup || !isUniqueViolation(error)) {
+      throw error;
+    }
+    const racedExisting = await findOpenClaimConflictHelpRequest({
+      allianceId: input.allianceId,
+      targetAshedMemberId,
+      claimConflictReason,
+      hqUserId: input.hqUserId ?? null,
+      requesterHandle: input.requesterHandle.trim(),
+    });
+    if (!racedExisting) throw error;
+    await updateHelpRequestSnapshot({ id: racedExisting.id, ...snapshot });
+    await materializeHelpInboxItem({
+      allianceId: input.allianceId,
+      requestId: racedExisting.id,
+      title,
+    });
+    return racedExisting.id;
+  }
 
   await materializeHelpInboxItem({
     allianceId: input.allianceId,
@@ -220,6 +351,9 @@ function mapHelpRow(
     discordUsername: row.discordUsername,
     hqUserId: row.hqUserId,
     status: row.status as MemberLinkHelpStatus,
+    claimConflictReason:
+      (row.claimConflictReason as MemberLinkClaimConflictReason | null) ??
+      null,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
