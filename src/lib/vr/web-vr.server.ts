@@ -7,6 +7,7 @@ import { peerMaxExcludingMember } from "@/lib/vr/anomaly";
 import { processVrCommand, processVrConfirmation } from "@/lib/vr/command";
 import { computeVrPercentile } from "@/lib/vr/percentile";
 import type { MyVrPayload, MyVrPostResponse } from "@/lib/vr/my-vr.shared";
+import { auditWebVrCommand } from "@/lib/vr/web-vr-audit.server";
 import {
   countSeasonReporters,
   getHqVrPending,
@@ -71,15 +72,47 @@ export async function loadMyVrForUser(input: {
 }
 
 export async function handleWebVrCommand(input: {
+  sessionId: string;
   allianceId: string;
   hqUserId: string;
   locale: string;
   explicitLevel?: number | null;
   confirm?: "yes" | "no" | null;
 }): Promise<MyVrPostResponse | { code: "member_link_required" }> {
+  const auditPayload = {
+    explicitLevel: input.explicitLevel ?? null,
+    confirm: input.confirm ?? null,
+  };
+  const { result, ashedMemberId } = await handleWebVrCommandCore(input);
+  await auditWebVrCommand({
+    sessionId: input.sessionId,
+    allianceId: input.allianceId,
+    hqUserId: input.hqUserId,
+    ashedMemberId,
+    payload: auditPayload,
+    result,
+  });
+  return result;
+}
+
+type WebVrCommandCoreOutcome = {
+  result: MyVrPostResponse | { code: "member_link_required" };
+  ashedMemberId: string | null;
+};
+
+async function handleWebVrCommandCore(input: {
+  allianceId: string;
+  hqUserId: string;
+  locale: string;
+  explicitLevel?: number | null;
+  confirm?: "yes" | "no" | null;
+}): Promise<WebVrCommandCoreOutcome> {
   const link = await getHqMemberLinkForUser(input.allianceId, input.hqUserId);
   if (!link) {
-    return { code: "member_link_required" };
+    return {
+      result: { code: "member_link_required" },
+      ashedMemberId: null,
+    };
   }
 
   const translate = createDiscordTranslator(
@@ -88,14 +121,17 @@ export async function handleWebVrCommand(input: {
   const seasonKey = await resolveSeasonKey(input.allianceId);
 
   if (input.confirm) {
-    return handleWebVrConfirm({
-      allianceId: input.allianceId,
-      hqUserId: input.hqUserId,
+    return {
+      result: await handleWebVrConfirm({
+        allianceId: input.allianceId,
+        hqUserId: input.hqUserId,
+        ashedMemberId: link.ashedMemberId,
+        seasonKey,
+        answer: input.confirm,
+        translate,
+      }),
       ashedMemberId: link.ashedMemberId,
-      seasonKey,
-      answer: input.confirm,
-      translate,
-    });
+    };
   }
 
   const pending = await getHqVrPending(input.allianceId, input.hqUserId);
@@ -112,8 +148,11 @@ export async function handleWebVrCommand(input: {
     !isValidBaseVr(input.explicitLevel, maxBaseVr)
   ) {
     return {
-      status: "validation_error",
-      message: formatVrValidationError(maxBaseVr),
+      result: {
+        status: "validation_error",
+        message: formatVrValidationError(maxBaseVr),
+      },
+      ashedMemberId: link.ashedMemberId,
     };
   }
 
@@ -142,23 +181,32 @@ export async function handleWebVrCommand(input: {
     });
     await saveHqVrPending(input.allianceId, input.hqUserId, null);
     return {
-      status: "set_vr",
-      message: result.reply,
-      newVr: result.action.vr,
+      result: {
+        status: "set_vr",
+        message: result.reply,
+        newVr: result.action.vr,
+      },
+      ashedMemberId: link.ashedMemberId,
     };
   }
 
   if (result.needsConfirmation && result.proposedVr != null) {
     return {
-      status: "anomaly_confirm",
-      message: result.reply,
-      proposedVr: result.proposedVr,
+      result: {
+        status: "anomaly_confirm",
+        message: result.reply,
+        proposedVr: result.proposedVr,
+      },
+      ashedMemberId: link.ashedMemberId,
     };
   }
 
   return {
-    status: "error",
-    message: result.reply,
+    result: {
+      status: "error",
+      message: result.reply,
+    },
+    ashedMemberId: link.ashedMemberId,
   };
 }
 

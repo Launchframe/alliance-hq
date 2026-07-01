@@ -47,6 +47,7 @@ export async function POST(request: Request) {
 
   const locale = await getLocale();
   const result = await handleWebVrCommand({
+    sessionId: session.id,
     allianceId,
     hqUserId: session.hqUserId,
     locale,

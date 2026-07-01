@@ -10,6 +10,10 @@ vi.mock("@/lib/game-season/game-servers.server", () => ({
   resolveMaxBaseVrForAlliance: vi.fn().mockResolvedValue(12750),
 }));
 
+vi.mock("@/lib/vr/web-vr-audit.server", () => ({
+  auditWebVrCommand: vi.fn(),
+}));
+
 vi.mock("@/lib/vr/repository", () => ({
   countSeasonReporters: vi.fn(),
   getHqVrPending: vi.fn(),
@@ -37,6 +41,7 @@ import {
   upsertMemberSeasonVr,
 } from "@/lib/vr/repository";
 import { handleWebVrCommand, loadMyVrForUser } from "@/lib/vr/web-vr.server";
+import { auditWebVrCommand } from "@/lib/vr/web-vr-audit.server";
 
 describe("handleWebVrCommand", () => {
   beforeEach(() => {
@@ -60,20 +65,37 @@ describe("handleWebVrCommand", () => {
   it("returns member_link_required when not linked", async () => {
     vi.mocked(getHqMemberLinkForUser).mockResolvedValue(null as never);
     const result = await handleWebVrCommand({
+      sessionId: "session-1",
       allianceId: "alliance-1",
       hqUserId: "hq-1",
       locale: "en-US",
     });
     expect(result).toEqual({ code: "member_link_required" });
+    expect(auditWebVrCommand).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ashedMemberId: null,
+        result: { code: "member_link_required" },
+      }),
+    );
   });
 
   it("bumps to 250 when no season high", async () => {
     const result = await handleWebVrCommand({
+      sessionId: "session-1",
       allianceId: "alliance-1",
       hqUserId: "hq-1",
       locale: "en-US",
     });
     expect(result).toMatchObject({ status: "set_vr", newVr: 250 });
+    expect(auditWebVrCommand).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sessionId: "session-1",
+        allianceId: "alliance-1",
+        hqUserId: "hq-1",
+        ashedMemberId: "member-1",
+        result: expect.objectContaining({ status: "set_vr", newVr: 250 }),
+      }),
+    );
     expect(upsertMemberSeasonVr).toHaveBeenCalledWith(
       expect.objectContaining({
         baseVr: 250,
@@ -91,6 +113,7 @@ describe("handleWebVrCommand", () => {
     });
     const translate = createDiscordTranslator("en-US");
     const result = await handleWebVrCommand({
+      sessionId: "session-1",
       allianceId: "alliance-1",
       hqUserId: "hq-1",
       locale: "en-US",
