@@ -25,10 +25,14 @@ export async function GET(request: Request) {
   const requests = await listMemberLinkHelpRequestsForAlliance(allianceId, status);
 
   return NextResponse.json({
-    requests: requests.map(({ hqUserId: _hqUserId, ...row }) => ({
-      ...row,
-      createdAt: row.createdAt.toISOString(),
-      updatedAt: row.updatedAt.toISOString(),
-    })),
+    requests: requests.map((requestRow) => {
+      const { hqUserId, ...row } = requestRow;
+      void hqUserId;
+      return {
+        ...row,
+        createdAt: row.createdAt.toISOString(),
+        updatedAt: row.updatedAt.toISOString(),
+      };
+    }),
   });
 }

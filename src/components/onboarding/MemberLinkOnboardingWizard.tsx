@@ -81,7 +81,7 @@ export function MemberLinkOnboardingWizard({
     number | null
   >(null);
   const [useLookupFallback, setUseLookupFallback] = useState(false);
-  const [claimCommanderName, setClaimCommanderName] = useState(
+  const [claimCommanderName] = useState(
     initialState.claimCommanderName ?? "",
   );
   const [confirmName, setConfirmName] = useState<string | null>(null);
