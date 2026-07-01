@@ -100,13 +100,15 @@ export default function AdminOpsInboxPage() {
             <li key={item.id}>
               <Link
                 href={item.href}
-                className="flex flex-col gap-1 px-4 py-3 transition-colors hover:bg-[#21262d] sm:flex-row sm:items-center sm:justify-between"
+                className="group flex flex-col gap-1 px-4 py-3 transition-colors hover:bg-[#21262d] sm:flex-row sm:items-center sm:justify-between"
               >
                 <div className="min-w-0">
                   <p className="text-xs font-medium uppercase tracking-wide text-[#58a6ff]">
                     {kindLabel(item.kind)}
                   </p>
-                  <p className="truncate font-medium">{item.title}</p>
+                  <p className="truncate font-medium group-hover:text-[#58a6ff] group-hover:underline">
+                    {item.title}
+                  </p>
                   {item.subtitle ? (
                     <p className="truncate text-sm text-[#8b949e]">
                       {item.subtitle}

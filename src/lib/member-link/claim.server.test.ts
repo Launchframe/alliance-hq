@@ -12,6 +12,8 @@ vi.mock("@/lib/events/admin-alerts", () => ({
 
 vi.mock("@/lib/lastwar/player-lookup", () => ({
   isValidGameUid: (value: string) => /^\d{12,16}$/.test(value.trim()),
+  isClaimInviteMirrorDevUid: (value: string) =>
+    value.trim() === "1234567890121288",
   lookupPlayerByUid: vi.fn(),
 }));
 
@@ -37,10 +39,6 @@ vi.mock("@/lib/member-link/roster-link-resolve.server", () => ({
 
 vi.mock("@/lib/member-link/member-link-help-queue.server", () => ({
   recordMemberLinkHelpRequest: vi.fn().mockResolvedValue("help-1"),
-}));
-
-vi.mock("@/lib/game-season/game-servers.server", () => ({
-  resolveAllianceGameServerNumber: vi.fn(),
 }));
 
 vi.mock("@/lib/vr/repository", () => ({
@@ -100,7 +98,6 @@ const invites = await import("@/lib/native-alliance/invites");
 const repository = await import("@/lib/member-link/repository.server");
 const alerts = await import("@/lib/events/admin-alerts");
 const lookup = await import("@/lib/lastwar/player-lookup");
-const gameServers = await import("@/lib/game-season/game-servers.server");
 const vrRepo = await import("@/lib/vr/repository");
 const resolve = await import("@/lib/member-link/roster-link-resolve.server");
 const helpQueue = await import(
@@ -147,9 +144,6 @@ describe("runWebMemberLinkClaimConfirm", () => {
       inviteId: "inv-1",
       targetAshedMemberId: "m-1",
     });
-    vi.mocked(gameServers.resolveAllianceGameServerNumber).mockResolvedValue(
-      1203,
-    );
     vi.mocked(vrRepo.getAllianceById).mockResolvedValue({
       tag: "LFgo",
     } as never);
@@ -197,22 +191,40 @@ describe("runWebMemberLinkClaimConfirm", () => {
     expect(repository.linkHqMember).not.toHaveBeenCalled();
   });
 
-  it("flags a server mismatch as a conflict and notifies officers", async () => {
+  it("links when the UID lookup server differs but the name matches the invite (transfer)", async () => {
     vi.mocked(lookup.lookupPlayerByUid).mockResolvedValue({
       ok: true,
       gameUserName: "Alpha",
       gameServerNumber: 1205,
     } as never);
     const result = await runWebMemberLinkClaimConfirm(baseInput);
-    expect(result.outcome).toBe("claim_conflict");
-    expect(alerts.emitMemberLinkClaimConflictAlert).toHaveBeenCalledWith(
-      expect.objectContaining({ reason: "server_mismatch" }),
-    );
-    expectClaimConflictHelpRequest({
-      reason: "server_mismatch",
-      gameUserName: "Alpha",
+    expect(result.outcome).toBe("linked");
+    expect(alerts.emitMemberLinkClaimConflictAlert).not.toHaveBeenCalled();
+    expect(helpQueue.recordMemberLinkHelpRequest).not.toHaveBeenCalled();
+    expect(repository.linkHqMember).toHaveBeenCalled();
+  });
+
+  it("mirrors the invite commander name for the dev claim-invite UID", async () => {
+    dbState.commanderRow = [
+      { currentName: "BOTCrime DwDx", previousNamesJson: null },
+    ];
+    vi.mocked(lookup.lookupPlayerByUid).mockResolvedValue({
+      ok: true,
+      gameUserName: "E2eClaimInviteMirror",
+      gameServerNumber: 1203,
+    } as never);
+
+    const result = await runWebMemberLinkClaimConfirm({
+      ...baseInput,
+      gameUid: "1234567890121288",
     });
-    expect(repository.linkHqMember).not.toHaveBeenCalled();
+
+    expect(result.outcome).toBe("linked");
+    expect(repository.linkHqMember).toHaveBeenCalledWith(
+      expect.objectContaining({
+        memberDisplayName: "BOTCrime DwDx",
+      }),
+    );
   });
 
   it("blocks when the fetched name collides with another claimed commander", async () => {
@@ -242,7 +254,7 @@ describe("runWebMemberLinkClaimConfirm", () => {
     expect(repository.linkHqMember).not.toHaveBeenCalled();
   });
 
-  it("blocks a same-server UID that does not match the invite target", async () => {
+  it("blocks a UID whose lookup name does not match the invite target", async () => {
     vi.mocked(lookup.lookupPlayerByUid).mockResolvedValue({
       ok: true,
       gameUserName: "Bravo",

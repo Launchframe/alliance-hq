@@ -364,28 +364,37 @@ test.describe("Member-link onboarding outcomes", () => {
     page,
   }) => {
     const sql = getE2eSql();
-    const { accepted, email } = await seedUnlinkedMemberOnboardSession(sql);
+    const { accepted, email, alliance } =
+      await seedUnlinkedMemberOnboardSession(sql);
+    await sql`
+      INSERT INTO hq_member_link_pending (
+        alliance_id,
+        hq_user_id,
+        pending_json,
+        expires_at,
+        updated_at
+      )
+      VALUES (
+        ${alliance.allianceId},
+        ${accepted.hqUserId},
+        ${sql.json({
+          kind: "link_awaiting_owner",
+          requestId: "e2e-request",
+          gameUserName: "Approved Commander",
+        })},
+        NOW() + INTERVAL '1 day',
+        NOW()
+      )
+      ON CONFLICT (alliance_id, hq_user_id) DO UPDATE
+      SET
+        pending_json = EXCLUDED.pending_json,
+        expires_at = EXCLUDED.expires_at,
+        updated_at = NOW()
+    `;
 
-    let memberLinkGets = 0;
     await page.route("**/api/member-link", async (route) => {
       if (route.request().method() !== "GET") {
         await route.continue();
-        return;
-      }
-      memberLinkGets += 1;
-      if (memberLinkGets === 1) {
-        await route.fulfill({
-          status: 200,
-          contentType: "application/json",
-          body: JSON.stringify({
-            linked: false,
-            link: null,
-            pending: {
-              kind: "link_awaiting_owner",
-              requestId: "e2e-request",
-            },
-          }),
-        });
         return;
       }
       await route.fulfill({

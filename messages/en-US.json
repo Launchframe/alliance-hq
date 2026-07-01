@@ -1377,6 +1377,7 @@
     "identity": {
       "title": "Submitted identity",
       "submittedName": "Submitted in-game name",
+      "invitedCommander": "Expected commander (via invitation)",
       "uidLast4": "Player UID",
       "uidLast4Value": "Ending …{last4}",
       "lookupName": "Last War lookup name",
@@ -1401,9 +1402,11 @@
       "noClaimantContact": "No claimant contact on file."
     },
     "roster": {
-      "unclaimedTitle": "Unclaimed roster members",
+      "unclaimedTitle": "Unclaimed members in your alliance",
       "claimedTitle": "Already claimed",
       "empty": "No roster members found.",
+      "searchPlaceholder": "Search by name…",
+      "searchNoResults": "No members match your search.",
       "nameMatch": "Name match",
       "claimedBadge": "Already linked to an account"
     },
@@ -1411,19 +1414,39 @@
       "title": "Mediation needed",
       "description": "This roster seat is already claimed. Reach out to both people below to resolve the conflict.",
       "requester": "Person requesting help",
-      "claimant": "Current roster holder"
+      "claimant": "Current roster holder",
+      "notifiedClaimant": "I have notified the current roster holder."
     },
     "noMatchHint": "Select an unclaimed roster member to link, or a claimed member to see contact info for mediation.",
-    "unlinkFuture": "Unlink existing claim",
-    "unlinkFutureHint": "Break-glass unlink will be available in a future update.",
+    "unlinkConfirmQuestion": "Unlink this HQ account from the roster member?",
+    "unlinkConfirmDescription": "{name} will lose access to this commander in Alliance HQ until they link again. Only continue if you have coordinated with the current holder.",
+    "unlinkConfirm": "Unlink",
+    "unlinkCancel": "Cancel",
+    "unlinkBusy": "Unlinking…",
+    "unlinkSuccess": "{name} was unlinked. Select them in the unclaimed list below, then link the requester.",
+    "linkSuccess": "Linked {requesterName} to {memberName}.",
+    "unlinkFailed": "Could not unlink this claim.",
+    "refreshFailed": "Could not refresh this page. Reload to see the latest roster.",
+    "working": "Working…",
+    "completed": {
+      "title": "Request resolved",
+      "description": "This help request is closed. The roster below shows the current link state."
+    },
+    "currentClaim": {
+      "title": "Linked account",
+      "description": "The requester is now linked to this roster member.",
+      "holder": "HQ account holder"
+    },
     "actions": {
       "linkSelected": "Link to selected member",
+      "unlinkClaim": "Unlink existing claim",
       "markResolved": "Mark resolved without linking",
       "dismiss": "Dismiss"
     },
     "errors": {
       "memberAlreadyClaimed": "That roster member is already claimed. Use the mediation panel to contact both parties.",
-      "hqUserRequired": "This request has no HQ web account — link manually after the member signs in."
+      "hqUserRequired": "This request has no HQ web account — link manually after the member signs in.",
+      "notLinked": "That roster member is not linked to an HQ account."
     }
   },
   "settings": {

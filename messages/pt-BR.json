@@ -1377,6 +1377,7 @@
     "identity": {
       "title": "Identidade enviada",
       "submittedName": "Nome no jogo enviado",
+      "invitedCommander": "Comandante convidado (claim invite)",
       "uidLast4": "UID do jogador",
       "uidLast4Value": "Terminando em …{last4}",
       "lookupName": "Nome no Last War (consulta)",
@@ -1404,6 +1405,8 @@
       "unclaimedTitle": "Membros do roster não reivindicados",
       "claimedTitle": "Já reivindicados",
       "empty": "Nenhum membro no roster.",
+      "searchPlaceholder": "Buscar por nome…",
+      "searchNoResults": "Nenhum membro corresponde à busca.",
       "nameMatch": "Correspondência de nome",
       "claimedBadge": "Já vinculado a uma conta"
     },
@@ -1411,19 +1414,39 @@
       "title": "Mediação necessária",
       "description": "Este lugar no roster já está reivindicado. Entre em contato com as duas pessoas abaixo para resolver o conflito.",
       "requester": "Pessoa pedindo ajuda",
-      "claimant": "Titular atual do roster"
+      "claimant": "Titular atual do roster",
+      "notifiedClaimant": "Notifiquei o titular atual do roster."
     },
     "noMatchHint": "Selecione um membro não reivindicado para vincular, ou um já reivindicado para ver os contatos de mediação.",
-    "unlinkFuture": "Desvincular reivindicação existente",
-    "unlinkFutureHint": "Desvinculação de emergência estará disponível em uma atualização futura.",
+    "unlinkConfirmQuestion": "Desvincular esta conta HQ do membro do roster?",
+    "unlinkConfirmDescription": "{name} perderá o acesso a este comandante no Alliance HQ até vincular de novo. Continue só se você já combinou com o titular atual.",
+    "unlinkConfirm": "Desvincular",
+    "unlinkCancel": "Cancelar",
+    "unlinkBusy": "Desvinculando…",
+    "unlinkSuccess": "{name} foi desvinculado. Selecione-o na lista de não reivindicados abaixo e vincule quem pediu ajuda.",
+    "linkSuccess": "{requesterName} vinculado a {memberName}.",
+    "unlinkFailed": "Não foi possível desvincular esta reivindicação.",
+    "refreshFailed": "Não foi possível atualizar a página. Recarregue para ver o roster atual.",
+    "working": "Processando…",
+    "completed": {
+      "title": "Pedido resolvido",
+      "description": "Este pedido de ajuda foi fechado. O roster abaixo mostra o vínculo atual."
+    },
+    "currentClaim": {
+      "title": "Conta vinculada",
+      "description": "Quem pediu ajuda agora está vinculado a este membro do roster.",
+      "holder": "Titular da conta HQ"
+    },
     "actions": {
       "linkSelected": "Vincular ao membro selecionado",
+      "unlinkClaim": "Desvincular reivindicação existente",
       "markResolved": "Marcar resolvido sem vincular",
       "dismiss": "Dispensar"
     },
     "errors": {
       "memberAlreadyClaimed": "Esse membro do roster já está reivindicado. Use o painel de mediação para contatar ambas as partes.",
-      "hqUserRequired": "Este pedido não tem conta HQ web — vincule manualmente depois que o membro entrar."
+      "hqUserRequired": "Este pedido não tem conta HQ web — vincule manualmente depois que o membro entrar.",
+      "notLinked": "Esse membro do roster não está vinculado a uma conta HQ."
     }
   },
   "settings": {

@@ -10,6 +10,7 @@ import {
 } from "@/lib/client/form-enter-submit.shared";
 import { fireCelebrationConfetti } from "@/lib/client/celebration-confetti";
 import { isValidGameUid } from "@/lib/lastwar/player-lookup";
+import type { MemberLinkOnboardingInitialState } from "@/lib/member-link/onboarding-bootstrap.shared";
 import type { MemberLinkOutcome } from "@/lib/member-link/outcome.shared";
 import { Link, useRouter } from "@/i18n/navigation";
 
@@ -19,6 +20,8 @@ type Props = {
   nextPath: string;
   /** Discord `/link` funnel: manual explore CTA instead of auto-redirect. */
   successPresentation?: "default" | "explore";
+  /** Server-resolved first step — avoids welcome/confetti flash before claim or pending UI. */
+  initialState?: MemberLinkOnboardingInitialState;
 };
 
 type Phase =
@@ -51,18 +54,19 @@ export function MemberLinkOnboardingWizard({
   allianceTag,
   nextPath,
   successPresentation = "default",
+  initialState = { phase: "welcome" },
 }: Props) {
   const t = useTranslations("onboard");
   const tLink = useTranslations("memberLink");
   const router = useRouter();
 
-  const [phase, setPhase] = useState<Phase>("welcome");
+  const [phase, setPhase] = useState<Phase>(initialState.phase);
   const [reportedName, setReportedName] = useState("");
   const [gameUid, setGameUid] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [candidates, setCandidates] = useState<
     Array<{ memberId: string; name: string }>
-  >([]);
+  >(initialState.candidates ?? []);
   const [linkedName, setLinkedName] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -77,7 +81,9 @@ export function MemberLinkOnboardingWizard({
     number | null
   >(null);
   const [useLookupFallback, setUseLookupFallback] = useState(false);
-  const [claimCommanderName, setClaimCommanderName] = useState("");
+  const [claimCommanderName] = useState(
+    initialState.claimCommanderName ?? "",
+  );
   const [confirmName, setConfirmName] = useState<string | null>(null);
 
   const walkthroughSteps = useMemo(
@@ -452,39 +458,6 @@ export function MemberLinkOnboardingWizard({
     }
     return false;
   }, [applyOutcome, linkedName, reportedName, t]);
-
-  useEffect(() => {
-    void fetch("/api/member-link")
-      .then((res) => (res.ok ? res.json() : null))
-      .then(
-        (data: {
-          pending?: { kind: string; candidates?: Array<{ memberId: string; name: string }> } | null;
-          claimTarget?: { ashedMemberId: string; commanderName: string } | null;
-          message?: string | null;
-        } | null) => {
-          if (!data) return;
-          if (data.pending) {
-            if (data.pending.kind === "link_walkthrough") {
-              setPhase("walkthrough");
-            } else if (data.pending.kind === "link_fuzzy_pick") {
-              setCandidates(data.pending.candidates ?? []);
-              setPhase("fuzzy");
-            } else if (data.pending.kind === "link_roster_miss") {
-              setPhase("roster_miss");
-            } else if (data.pending.kind === "link_awaiting_owner") {
-              setPhase("awaiting_owner");
-              setMessage(data.message ?? null);
-            }
-            return;
-          }
-          if (data.claimTarget?.commanderName) {
-            setClaimCommanderName(data.claimTarget.commanderName);
-            setPhase("claim");
-          }
-        },
-      )
-      .catch(() => undefined);
-  }, []);
 
   useEffect(() => {
     if (phase !== "awaiting_owner") return undefined;

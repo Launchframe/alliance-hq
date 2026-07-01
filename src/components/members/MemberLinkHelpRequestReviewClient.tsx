@@ -10,6 +10,10 @@ import type {
   HelpRequestRosterRow,
   MemberLinkHelpRequestReview,
 } from "@/lib/member-link/member-link-help-review.shared";
+import {
+  filterHelpRequestRosterRows,
+  helpRequestRequesterInGameName,
+} from "@/lib/member-link/member-link-help-review.shared";
 
 type ReviewPayload = Omit<MemberLinkHelpRequestReview, "request"> & {
   request: Omit<MemberLinkHelpRequestReview["request"], "createdAt"> & {
@@ -104,10 +108,25 @@ export function MemberLinkHelpRequestReviewClient({
 }: Props) {
   const t = useTranslations("memberLinkHelpReview");
   const router = useRouter();
-  const [review] = useState(initialReview);
+  const [review, setReview] = useState(initialReview);
   const [selectedMemberId, setSelectedMemberId] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [unclaimedSearch, setUnclaimedSearch] = useState("");
+  const [notifiedClaimant, setNotifiedClaimant] = useState(false);
+  const [unlinkConfirmOpen, setUnlinkConfirmOpen] = useState(false);
+  const [actionNotice, setActionNotice] = useState<{
+    tone: "success" | "error";
+    message: string;
+  } | null>(null);
+
+  const isResolved = review.request.status !== "open";
+
+  const filteredUnclaimed = useMemo(
+    () =>
+      filterHelpRequestRosterRows(review.roster.unclaimed, unclaimedSearch),
+    [review.roster.unclaimed, unclaimedSearch],
+  );
 
   const selectedUnclaimed = useMemo(
     () =>
@@ -126,14 +145,93 @@ export function MemberLinkHelpRequestReviewClient({
   );
 
   const requesterName =
-    review.request.reportedName ??
-    review.request.gameUserName ??
-    review.requester.requesterHandle;
+    helpRequestRequesterInGameName({
+      context: review.request.context,
+      reportedName: review.request.reportedName,
+      gameUserName: review.request.gameUserName,
+      requesterHandle: review.requester.requesterHandle,
+    }) || review.requester.requesterHandle;
+
+  async function refreshReview(): Promise<ReviewPayload | null> {
+    const res = await fetch(`${linkUrlPrefix}/${review.request.id}/review`);
+    if (!res.ok) {
+      setActionNotice({ tone: "error", message: t("refreshFailed") });
+      return null;
+    }
+    const payload = (await res.json()) as { review?: ReviewPayload };
+    if (payload.review) {
+      setReview(payload.review);
+      return payload.review;
+    }
+    return null;
+  }
+
+  function selectRosterMember(ashedMemberId: string, options?: { keepNotice?: boolean }) {
+    setSelectedMemberId(ashedMemberId);
+    setNotifiedClaimant(false);
+    setUnlinkConfirmOpen(false);
+    if (!options?.keepNotice) {
+      setActionNotice(null);
+    }
+  }
+
+  async function unlinkClaimed() {
+    if (!selectedClaimed || !notifiedClaimant) return;
+    const unlinkedMemberId = selectedClaimed.ashedMemberId;
+    const unlinkedName = selectedClaimed.currentName;
+    setBusy(true);
+    setError(null);
+    setActionNotice(null);
+    try {
+      const res = await fetch(`${linkUrlPrefix}/${review.request.id}/unlink`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          targetAshedMemberId: unlinkedMemberId,
+          notifiedClaimant: true,
+        }),
+      });
+      const payload = (await res.json().catch(() => null)) as {
+        ok?: boolean;
+        reason?: string;
+        memberName?: string;
+      } | null;
+      if (!res.ok) {
+        if (payload?.reason === "not_linked") {
+          setError(t("errors.notLinked"));
+        } else {
+          setError(t("unlinkFailed"));
+        }
+        return;
+      }
+      setUnlinkConfirmOpen(false);
+      setNotifiedClaimant(false);
+      const refreshed = await refreshReview();
+      const memberName = payload?.memberName ?? unlinkedName;
+      setActionNotice({
+        tone: "success",
+        message: t("unlinkSuccess", { name: memberName }),
+      });
+      const nextSelect =
+        refreshed?.roster.unclaimed.find(
+          (row) => row.ashedMemberId === unlinkedMemberId,
+        )?.ashedMemberId ??
+        refreshed?.request.inviteTargetAshedMemberId ??
+        unlinkedMemberId;
+      selectRosterMember(nextSelect, { keepNotice: true });
+      router.refresh();
+    } catch {
+      setError(t("unlinkFailed"));
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function linkSelected() {
     if (!selectedUnclaimed) return;
     setBusy(true);
     setError(null);
+    setActionNotice(null);
     try {
       const res = await fetch(`${linkUrlPrefix}/${review.request.id}/link`, {
         method: "POST",
@@ -157,7 +255,21 @@ export function MemberLinkHelpRequestReviewClient({
         }
         return;
       }
-      router.push(backHref);
+      const linkedMemberId = selectedUnclaimed.ashedMemberId;
+      const memberName = payload?.memberName ?? selectedUnclaimed.currentName;
+      const refreshed = await refreshReview();
+      setActionNotice({
+        tone: "success",
+        message: t("linkSuccess", {
+          memberName,
+          requesterName,
+        }),
+      });
+      const claimedId =
+        refreshed?.roster.claimed.find(
+          (row) => row.ashedMemberId === linkedMemberId,
+        )?.ashedMemberId ?? linkedMemberId;
+      selectRosterMember(claimedId, { keepNotice: true });
       router.refresh();
     } catch {
       setError(t("linkFailed"));
@@ -185,6 +297,72 @@ export function MemberLinkHelpRequestReviewClient({
     }
   }
 
+  function renderRosterList(
+    rows: HelpRequestRosterRow[],
+    claimed: boolean,
+    options?: { scrollable?: boolean; emptyMessage?: string },
+  ) {
+    if (rows.length === 0) {
+      return (
+        <p className="text-sm text-[#8b949e]">
+          {options?.emptyMessage ?? t("roster.empty")}
+        </p>
+      );
+    }
+
+    const list = (
+      <ul className="space-y-2">
+        {rows.map((row) => {
+          const selected = selectedMemberId === row.ashedMemberId;
+          return (
+            <li key={row.ashedMemberId}>
+              <label
+                className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 min-w-0 ${
+                  selected
+                    ? "border-[#388bfd] bg-[#388bfd]/10"
+                    : "border-[#30363d] bg-[#161b22]"
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="roster-member"
+                  className="mt-1 shrink-0"
+                    checked={selected}
+                    onChange={() => selectRosterMember(row.ashedMemberId)}
+                  />
+                <span className="min-w-0 flex-1">
+                  <span className="block font-medium break-words">
+                    {row.currentName}
+                  </span>
+                  {row.nameMatchHint ? (
+                    <span className="mt-1 inline-block rounded border border-[#238636] bg-[#238636]/10 px-2 py-0.5 text-xs text-[#3fb950]">
+                      {t("roster.nameMatch")}
+                    </span>
+                  ) : null}
+                  {claimed ? (
+                    <span className="mt-1 block text-xs text-[#8b949e]">
+                      {t("roster.claimedBadge")}
+                    </span>
+                  ) : null}
+                </span>
+              </label>
+            </li>
+          );
+        })}
+      </ul>
+    );
+
+    if (options?.scrollable) {
+      return (
+        <div className="max-h-[min(24rem,50vh)] overflow-y-auto pr-1">
+          {list}
+        </div>
+      );
+    }
+
+    return list;
+  }
+
   function renderRosterGroup(
     title: string,
     rows: HelpRequestRosterRow[],
@@ -202,45 +380,37 @@ export function MemberLinkHelpRequestReviewClient({
     return (
       <section className="space-y-2">
         <h2 className="text-sm font-semibold">{title}</h2>
-        <ul className="space-y-2">
-          {rows.map((row) => {
-            const selected = selectedMemberId === row.ashedMemberId;
-            return (
-              <li key={row.ashedMemberId}>
-                <label
-                  className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 min-w-0 ${
-                    selected
-                      ? "border-[#388bfd] bg-[#388bfd]/10"
-                      : "border-[#30363d] bg-[#161b22]"
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="roster-member"
-                    className="mt-1 shrink-0"
-                    checked={selected}
-                    onChange={() => setSelectedMemberId(row.ashedMemberId)}
-                  />
-                  <span className="min-w-0 flex-1">
-                    <span className="block font-medium break-words">
-                      {row.currentName}
-                    </span>
-                    {row.nameMatchHint ? (
-                      <span className="mt-1 inline-block rounded border border-[#238636] bg-[#238636]/10 px-2 py-0.5 text-xs text-[#3fb950]">
-                        {t("roster.nameMatch")}
-                      </span>
-                    ) : null}
-                    {claimed ? (
-                      <span className="mt-1 block text-xs text-[#8b949e]">
-                        {t("roster.claimedBadge")}
-                      </span>
-                    ) : null}
-                  </span>
-                </label>
-              </li>
-            );
-          })}
-        </ul>
+        {renderRosterList(rows, claimed)}
+      </section>
+    );
+  }
+
+  function renderUnclaimedRosterGroup() {
+    const rows = review.roster.unclaimed;
+    if (rows.length === 0) {
+      return (
+        <section className="space-y-2">
+          <h2 className="text-sm font-semibold">{t("roster.unclaimedTitle")}</h2>
+          <p className="text-sm text-[#8b949e]">{t("roster.empty")}</p>
+        </section>
+      );
+    }
+
+    return (
+      <section className="space-y-2 min-w-0">
+        <h2 className="text-sm font-semibold">{t("roster.unclaimedTitle")}</h2>
+        <input
+          type="search"
+          value={unclaimedSearch}
+          onChange={(e) => setUnclaimedSearch(e.target.value)}
+          placeholder={t("roster.searchPlaceholder")}
+          aria-label={t("roster.searchPlaceholder")}
+          className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 text-sm text-[#e6edf3] placeholder:text-[#8b949e] focus:border-[#58a6ff] focus:outline-none"
+        />
+        {renderRosterList(filteredUnclaimed, false, {
+          scrollable: rows.length > 6,
+          emptyMessage: t("roster.searchNoResults"),
+        })}
       </section>
     );
   }
@@ -271,11 +441,49 @@ export function MemberLinkHelpRequestReviewClient({
         </p>
       ) : null}
 
+      {busy ? (
+        <p className="text-sm text-[#58a6ff]" role="status" aria-live="polite">
+          {t("working")}
+        </p>
+      ) : null}
+
+      {actionNotice ? (
+        <p
+          className={`rounded-lg border px-3 py-2 text-sm ${
+            actionNotice.tone === "success"
+              ? "border-[#238636] bg-[#238636]/10 text-[#3fb950]"
+              : "border-[#da3633] bg-[#da3633]/10 text-[#f85149]"
+          }`}
+          role="status"
+        >
+          {actionNotice.message}
+        </p>
+      ) : null}
+
+      {isResolved ? (
+        <section className="rounded-xl border border-[#238636] bg-[#238636]/10 p-4 space-y-3">
+          <h2 className="text-sm font-semibold text-[#3fb950]">
+            {t("completed.title")}
+          </h2>
+          <p className="text-sm text-[#c9d1d9]">{t("completed.description")}</p>
+          <Link
+            href={backHref}
+            className="inline-block text-sm font-medium text-[#58a6ff] hover:underline"
+          >
+            {backLabel}
+          </Link>
+        </section>
+      ) : null}
+
       <section className="rounded-xl border border-[#30363d] bg-[#161b22] p-4 space-y-3">
         <h2 className="text-sm font-semibold">{t("identity.title")}</h2>
         <dl className="space-y-2 text-sm">
           <div>
-            <dt className="text-[#8b949e]">{t("identity.submittedName")}</dt>
+            <dt className="text-[#8b949e]">
+              {review.request.context === "claim_conflict"
+                ? t("identity.invitedCommander")
+                : t("identity.submittedName")}
+            </dt>
             <dd>{review.request.reportedName ?? t("identity.missing")}</dd>
           </div>
           <div>
@@ -311,7 +519,6 @@ export function MemberLinkHelpRequestReviewClient({
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-sm font-semibold">{t("requesterContact.title")}</h2>
         <ContactBlock
           title={t("requesterContact.title")}
           name={requesterName}
@@ -321,10 +528,33 @@ export function MemberLinkHelpRequestReviewClient({
         />
       </section>
 
-      {renderRosterGroup(t("roster.unclaimedTitle"), review.roster.unclaimed, false)}
+      {renderUnclaimedRosterGroup()}
       {renderRosterGroup(t("roster.claimedTitle"), review.roster.claimed, true)}
 
-      {selectedUnclaimed ? (
+      {isResolved && selectedClaimed?.claim ? (
+        <section className="space-y-3 rounded-xl border border-[#30363d] bg-[#161b22] p-4">
+          <h2 className="text-sm font-semibold">{t("currentClaim.title")}</h2>
+          <p className="text-sm text-[#8b949e]">{t("currentClaim.description")}</p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <ContactBlock
+              title={t("mediation.requester")}
+              name={requesterName}
+              email={review.requester.email}
+              discord={review.requester.discordUsername}
+              emptyLabel={t("contact.noContact")}
+            />
+            <ContactBlock
+              title={t("currentClaim.holder")}
+              name={claimContactName(selectedClaimed.claim)}
+              email={claimContactEmail(selectedClaimed.claim)}
+              discord={claimContactDiscord(selectedClaimed.claim)}
+              emptyLabel={t("contact.noClaimantContact")}
+            />
+          </div>
+        </section>
+      ) : null}
+
+      {!isResolved && selectedUnclaimed ? (
         <div className="flex flex-col sm:flex-row gap-2">
           <button
             type="button"
@@ -337,7 +567,7 @@ export function MemberLinkHelpRequestReviewClient({
         </div>
       ) : null}
 
-      {selectedClaimed ? (
+      {!isResolved && selectedClaimed ? (
         <section className="space-y-3 rounded-xl border border-[#9e6a03] bg-[#9e6a031a] p-4">
           <h2 className="text-sm font-semibold text-[#e3b341]">
             {t("mediation.title")}
@@ -359,21 +589,63 @@ export function MemberLinkHelpRequestReviewClient({
               emptyLabel={t("contact.noClaimantContact")}
             />
           </div>
-          <button
-            type="button"
-            disabled
-            title={t("unlinkFutureHint")}
-            className="w-full rounded-lg border border-[#30363d] px-4 py-2 text-sm text-[#8b949e] opacity-60 sm:w-auto"
-          >
-            {t("unlinkFuture")}
-          </button>
+          <label className="flex items-start gap-2 text-sm text-[#c9d1d9]">
+            <input
+              type="checkbox"
+              className="mt-0.5 shrink-0"
+              checked={notifiedClaimant}
+              onChange={(e) => {
+                setNotifiedClaimant(e.target.checked);
+                if (!e.target.checked) setUnlinkConfirmOpen(false);
+              }}
+            />
+            <span>{t("mediation.notifiedClaimant")}</span>
+          </label>
+          {unlinkConfirmOpen ? (
+            <div className="space-y-2 rounded-lg border border-[#30363d] bg-[#0d1117] p-3">
+              <p className="text-sm font-medium">{t("unlinkConfirmQuestion")}</p>
+              <p className="text-sm text-[#8b949e]">
+                {t("unlinkConfirmDescription", {
+                  name: selectedClaimed.currentName,
+                })}
+              </p>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void unlinkClaimed()}
+                  className="w-full rounded-lg bg-[#da3633] px-4 py-2 text-sm font-medium text-white disabled:opacity-50 sm:w-auto"
+                >
+                  {busy ? t("unlinkBusy") : t("unlinkConfirm")}
+                </button>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => setUnlinkConfirmOpen(false)}
+                  className="w-full rounded-lg border border-[#30363d] px-4 py-2 text-sm disabled:opacity-50 sm:w-auto"
+                >
+                  {t("unlinkCancel")}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              disabled={!notifiedClaimant || busy}
+              onClick={() => setUnlinkConfirmOpen(true)}
+              className="w-full rounded-lg border border-[#da3633] px-4 py-2 text-sm text-[#f85149] disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+            >
+              {t("actions.unlinkClaim")}
+            </button>
+          )}
         </section>
       ) : null}
 
-      {!selectedUnclaimed && !selectedClaimed ? (
+      {!isResolved && !selectedUnclaimed && !selectedClaimed ? (
         <p className="text-sm text-[#8b949e]">{t("noMatchHint")}</p>
       ) : null}
 
+      {!isResolved ? (
       <div className="flex flex-col sm:flex-row gap-2 border-t border-[#30363d] pt-4">
         <button
           type="button"
@@ -392,6 +664,7 @@ export function MemberLinkHelpRequestReviewClient({
           {t("actions.dismiss")}
         </button>
       </div>
+      ) : null}
     </div>
   );
 }
