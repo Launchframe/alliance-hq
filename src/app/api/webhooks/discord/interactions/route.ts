@@ -539,10 +539,7 @@ async function handleButton(payload: DiscordInteractionPayload) {
       discordUserId,
       locale,
     });
-    return discordButtonResponse(
-      result.reply,
-      buildWalkthroughDoneButton(t("buttons.done")),
-    );
+    return discordButtonResponse(result.reply);
   }
 
   if (parsed.kind === "link_ask_officer") {

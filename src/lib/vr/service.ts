@@ -18,7 +18,6 @@ import {
 import {
   advanceLinkWalkthrough,
   findUniqueSubstringRosterCandidate,
-  walkthroughMessage,
 } from "@/lib/vr/link-helpers";
 import { createDiscordRosterMissLinkRequest } from "@/lib/member-link/roster-link-request.server";
 import {
@@ -722,13 +721,12 @@ export async function handleDiscordLinkStartOver(input: {
   discordUserId: string;
   locale: DiscordBotLocale;
 }) {
-  const { translate, walkthroughSteps } = botContext(input.locale);
-  const pending: LinkPendingState = { kind: "link_walkthrough", step: 0 };
+  const { translate } = botContext(input.locale);
   const result: LinkCommandResult = {
-    reply: walkthroughMessage(0, translate, walkthroughSteps),
-    pending,
+    reply: translate("link.walkthroughDone"),
+    pending: null,
   };
-  await saveDiscordBotPending(input.allianceId, input.discordUserId, pending);
+  await saveDiscordBotPending(input.allianceId, input.discordUserId, null);
   await audit(input.allianceId, input.discordUserId, "link_start_over", {}, result);
   return result;
 }
