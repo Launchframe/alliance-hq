@@ -20,6 +20,7 @@ import { getLinkedMemberIds } from "@/lib/vr/repository";
 import type {
   HelpRequestClaimContact,
   HelpRequestRosterRow,
+  MemberLinkClaimConflictReason,
   MemberLinkHelpRequestReview,
 } from "@/lib/member-link/member-link-help-review.shared";
 
@@ -203,6 +204,9 @@ export async function loadMemberLinkHelpRequestReview(input: {
       allianceName: allianceRow?.name ?? null,
       origin: row.origin,
       context: row.context,
+      claimConflictReason:
+        (row.claimConflictReason as MemberLinkClaimConflictReason | null) ??
+        null,
       reportedName: row.reportedName,
       gameUserName: row.gameUserName,
       gameUidLast4: row.gameUid ? row.gameUid.slice(-4) : null,

@@ -38,6 +38,7 @@ export type MemberLinkHelpRequestView = {
   discordUsername: string | null;
   hqUserId: string | null;
   status: MemberLinkHelpStatus;
+  claimConflictReason: MemberLinkClaimConflictReason | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -350,6 +351,9 @@ function mapHelpRow(
     discordUsername: row.discordUsername,
     hqUserId: row.hqUserId,
     status: row.status as MemberLinkHelpStatus,
+    claimConflictReason:
+      (row.claimConflictReason as MemberLinkClaimConflictReason | null) ??
+      null,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };

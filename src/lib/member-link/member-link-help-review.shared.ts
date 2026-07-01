@@ -1,3 +1,9 @@
+export type MemberLinkClaimConflictReason =
+  | "name_collision"
+  | "commander_taken"
+  | "server_mismatch"
+  | "target_mismatch";
+
 export type HelpRequestClaimContact = {
   email: string | null;
   displayName: string | null;
@@ -22,6 +28,7 @@ export type MemberLinkHelpRequestReview = {
     allianceName: string | null;
     origin: string;
     context: string;
+    claimConflictReason: MemberLinkClaimConflictReason | null;
     reportedName: string | null;
     gameUserName: string | null;
     gameUidLast4: string | null;

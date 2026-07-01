@@ -1337,7 +1337,7 @@
   "memberLinkHelpRequests": {
     "title": "Pedidos de ajuda ao oficial",
     "adminTitle": "Pedidos de ajuda no vínculo",
-    "subtitle": "Membros que pediram ajuda de um oficial ao vincular o comandante — onboarding, walkthrough ou fluxos bloqueados.",
+    "subtitle": "Membros que pediram ajuda de um oficial ao vincular o comandante — onboarding, walkthrough, fora do roster ou conflitos de reivindicação.",
     "backToMembers": "Voltar aos membros",
     "backToAdmin": "Voltar ao portal admin",
     "loadFailed": "Não foi possível carregar os pedidos de ajuda.",
@@ -1376,6 +1376,13 @@
       "lookupName": "Nome no Last War (consulta)",
       "lookupMissing": "Consulta indisponível",
       "missing": "Não informado"
+    },
+    "claimConflictReason": {
+      "label": "Tipo de conflito",
+      "name_collision": "Outro comandante já está vinculado com este nome no jogo",
+      "commander_taken": "Este comandante já está vinculado a outra conta",
+      "server_mismatch": "O UID pertence a um servidor de jogo diferente desta aliança",
+      "target_mismatch": "O nome do UID não corresponde ao comandante convidado"
     },
     "requesterContact": {
       "title": "Contato do solicitante"

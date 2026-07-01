@@ -116,6 +116,25 @@ const baseInput = {
   displayName: "Player",
 };
 
+function expectClaimConflictHelpRequest(input: {
+  reason: "name_collision" | "commander_taken" | "server_mismatch" | "target_mismatch";
+  gameUserName: string | null;
+  reportedName?: string;
+}) {
+  expect(helpQueue.recordMemberLinkHelpRequest).toHaveBeenCalledWith(
+    expect.objectContaining({
+      allianceId: "a1",
+      hqUserId: "u1",
+      context: "claim_conflict",
+      reportedName: input.reportedName ?? "Alpha",
+      gameUserName: input.gameUserName,
+      gameUid: "1001369694001203",
+      targetAshedMemberId: "m-1",
+      claimConflictReason: input.reason,
+    }),
+  );
+}
+
 describe("runWebMemberLinkClaimConfirm", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -189,6 +208,10 @@ describe("runWebMemberLinkClaimConfirm", () => {
     expect(alerts.emitMemberLinkClaimConflictAlert).toHaveBeenCalledWith(
       expect.objectContaining({ reason: "server_mismatch" }),
     );
+    expectClaimConflictHelpRequest({
+      reason: "server_mismatch",
+      gameUserName: "Alpha",
+    });
     expect(repository.linkHqMember).not.toHaveBeenCalled();
   });
 
@@ -211,6 +234,11 @@ describe("runWebMemberLinkClaimConfirm", () => {
     expect(alerts.emitMemberLinkClaimConflictAlert).toHaveBeenCalledWith(
       expect.objectContaining({ reason: "name_collision" }),
     );
+    expectClaimConflictHelpRequest({
+      reason: "name_collision",
+      gameUserName: "Bravo",
+      reportedName: "Bravo",
+    });
     expect(repository.linkHqMember).not.toHaveBeenCalled();
   });
 
@@ -226,18 +254,10 @@ describe("runWebMemberLinkClaimConfirm", () => {
     expect(alerts.emitMemberLinkClaimConflictAlert).toHaveBeenCalledWith(
       expect.objectContaining({ reason: "target_mismatch" }),
     );
-    expect(helpQueue.recordMemberLinkHelpRequest).toHaveBeenCalledWith(
-      expect.objectContaining({
-        allianceId: "a1",
-        hqUserId: "u1",
-        context: "claim_conflict",
-        reportedName: "Alpha",
-        gameUserName: "Bravo",
-        gameUid: "1001369694001203",
-        targetAshedMemberId: "m-1",
-        claimConflictReason: "target_mismatch",
-      }),
-    );
+    expectClaimConflictHelpRequest({
+      reason: "target_mismatch",
+      gameUserName: "Bravo",
+    });
     expect(resolve.reconcileAllianceMemberForRosterLink).not.toHaveBeenCalled();
     expect(repository.linkHqMember).not.toHaveBeenCalled();
   });
@@ -312,6 +332,10 @@ describe("runWebMemberLinkClaimConfirm", () => {
     expect(alerts.emitMemberLinkClaimConflictAlert).toHaveBeenCalledWith(
       expect.objectContaining({ reason: "commander_taken" }),
     );
+    expectClaimConflictHelpRequest({
+      reason: "commander_taken",
+      gameUserName: "Alpha",
+    });
   });
 });
 
