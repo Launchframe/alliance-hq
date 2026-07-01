@@ -168,6 +168,13 @@ export const NAV_GROUPS: NavGroupDef[] = [
         descriptionKey: "viralResistanceDescription",
       },
       {
+        id: "my-vr",
+        labelKey: "myVr",
+        href: "/my-vr",
+        kind: "native",
+        descriptionKey: "myVrDescription",
+      },
+      {
         id: "trains",
         labelKey: "trains",
         href: "/trains",

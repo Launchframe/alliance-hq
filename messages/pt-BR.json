@@ -3107,7 +3107,8 @@
       "maxVr": "Você está no VR base máximo que rastreamos ({max}).",
       "stillWaiting": "Ainda aguardando: tem certeza que é {vr}? Toque Sim ou Não.",
       "declined": "Sem problemas. Envie /vr com o VR base corrigido quando estiver pronto.",
-      "anomalyConfirm": "Tem *certeza* que seu VR é {vr}? Isso ficaria bem à frente do grupo em VR base. Toque Sim se for sério — acreditamos em você (provavelmente)."
+      "anomalyConfirm": "Tem *certeza* que seu VR é {vr}? Isso ficaria bem à frente do grupo em VR base. Toque Sim se for sério — acreditamos em você (provavelmente).",
+      "seasonLocked": "A temporada terminou. Atualizações de VR estão fechadas até a próxima temporada começar."
     },
     "setup": {
       "linkAllianceSuccess": "Servidor registrado para **{tag}**. Os membros já podem se vincular com `/link-commander name:… uid:…` e informar o VR base com `/vr`.",

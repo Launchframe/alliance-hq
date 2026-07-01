@@ -790,6 +790,62 @@ export const memberSeasonVr = pgTable(
   ],
 );
 
+/** Timeline of VR level changes within a season (chart + history table). */
+export const memberSeasonVrEvents = pgTable(
+  "member_season_vr_events",
+  {
+    id: text("id").primaryKey(),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    seasonKey: text("season_key").notNull(),
+    ashedMemberId: text("ashed_member_id").notNull(),
+    baseVr: integer("base_vr").notNull(),
+    previousBaseVr: integer("previous_base_vr"),
+    source: text("source").notNull(),
+    reportedByHqUserId: text("reported_by_hq_user_id").references(
+      () => hqUsers.id,
+      { onDelete: "set null" },
+    ),
+    reportedByDiscordUserId: text("reported_by_discord_user_id"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("member_season_vr_events_member_season_created_idx").on(
+      table.allianceId,
+      table.seasonKey,
+      table.ashedMemberId,
+      table.createdAt,
+    ),
+  ],
+);
+
+/** Web VR anomaly confirm pending (parallel to discord_bot_pending). */
+export const hqVrPending = pgTable(
+  "hq_vr_pending",
+  {
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    hqUserId: text("hq_user_id")
+      .notNull()
+      .references(() => hqUsers.id, { onDelete: "cascade" }),
+    pendingJson: jsonb("pending_json").$type<Record<string, unknown>>().notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.allianceId, table.hqUserId],
+      name: "hq_vr_pending_alliance_hq_user_pk",
+    }),
+  ],
+);
+
 /** Short-lived Discord bot state (/link walkthrough, anomaly confirm, char picker). */
 export const discordBotPending = pgTable("discord_bot_pending", {
   discordUserId: text("discord_user_id").primaryKey(),
@@ -1070,6 +1126,8 @@ export type HqMemberLink = typeof hqMemberLinks.$inferSelect;
 export type HqMemberLinkPending = typeof hqMemberLinkPending.$inferSelect;
 export type DiscordMemberLink = typeof discordMemberLinks.$inferSelect;
 export type MemberSeasonVr = typeof memberSeasonVr.$inferSelect;
+export type MemberSeasonVrEvent = typeof memberSeasonVrEvents.$inferSelect;
+export type HqVrPending = typeof hqVrPending.$inferSelect;
 export type DiscordBotPending = typeof discordBotPending.$inferSelect;
 export type DiscordBotAudit = typeof discordBotAudit.$inferSelect;
 export type DiscordGuildAlliance = typeof discordGuildAlliances.$inferSelect;

@@ -18,6 +18,7 @@ const VIEW_ONLY_NATIVE_PAGES: Array<{ path: string; heading: RegExp }> = [
   { path: "/commanders", heading: /commanders index/i },
   { path: "/trains", heading: /alliance train/i },
   { path: "/viral-resistance", heading: /viral resistance/i },
+  { path: "/my-vr", heading: /^my vr$/i },
   { path: "/settings", heading: /alliance settings/i },
   { path: "/settings/team", heading: /team access/i },
   { path: "/account", heading: /^account$/i },

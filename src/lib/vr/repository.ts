@@ -1,9 +1,10 @@
-import { and, desc, eq, isNull, lt, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, isNull, lt, or, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { getDb, schema } from "@/lib/db";
-import { parseAshedMemberAllianceRank } from "@/lib/members/alliance-rank";
 import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
+import { parseAshedMemberAllianceRank } from "@/lib/members/alliance-rank";
+import type { VrSeasonContext } from "@/lib/vr/vr-season-lock.shared";
 import {
   denormalizeGameUidOnMember,
   openMemberAllianceTenure,
@@ -11,7 +12,7 @@ import {
 import { syncCommanderIdentityFromMemberLink } from "@/lib/members/commander-identity.server";
 import { isNativeAlliance } from "@/lib/native-alliance/operating-mode";
 import { buildFlagReason, peerMaxExcludingMember } from "@/lib/vr/anomaly";
-import { MAX_DISCORD_LINKS_PER_USER } from "@/lib/vr/constants";
+import { MAX_DISCORD_LINKS_PER_USER, type VrEventSource } from "@/lib/vr/constants";
 import {
   evaluateGuildRegistrationAuth,
   type GuildRegistrationAuth,
@@ -128,12 +129,39 @@ export function resolveGuildAllianceIdWithLegacyFallback(input: {
   return legacyAllianceId;
 }
 
-export async function resolveSeasonKey(allianceId: string): Promise<string> {
+export async function resolveVrSeasonContext(
+  allianceId: string,
+): Promise<VrSeasonContext> {
   const envKey = process.env.DISCORD_ALLIANCE_SEASON_KEY?.trim();
-  if (envKey) return envKey;
+  if (envKey) {
+    return {
+      seasonKey: envKey,
+      isPostSeason: false,
+      vrUpdatesLocked: false,
+      priorSeason: null,
+    };
+  }
 
   const effective = await getEffectiveSeasonForAlliance(allianceId);
-  return effective.seasonKey;
+  const vrUpdatesLocked = effective.isPostSeason;
+  return {
+    seasonKey: effective.seasonKey,
+    isPostSeason: effective.isPostSeason,
+    vrUpdatesLocked,
+    priorSeason: vrUpdatesLocked ? effective.seasonKey : null,
+  };
+}
+
+/** @deprecated Prefer resolveVrSeasonContext */
+export async function resolveEffectiveSeasonForVr(
+  allianceId: string,
+): Promise<VrSeasonContext> {
+  return resolveVrSeasonContext(allianceId);
+}
+
+export async function resolveSeasonKey(allianceId: string): Promise<string> {
+  const { seasonKey } = await resolveVrSeasonContext(allianceId);
+  return seasonKey;
 }
 
 export async function writeDiscordBotAudit(input: {
@@ -482,9 +510,15 @@ export async function upsertMemberSeasonVr(input: {
   discordUserId?: string | null;
   hqUserId?: string | null;
   flagReason?: string | null;
+  eventSource?: VrEventSource;
 }): Promise<void> {
   const db = getDb();
   const now = new Date();
+  const previousBaseVr = await getMemberSeasonHigh(
+    input.allianceId,
+    input.ashedMemberId,
+    input.seasonKey,
+  );
   const rows = await listSeasonVrRows(input.allianceId, input.seasonKey);
   const peerMax = peerMaxExcludingMember(rows, input.ashedMemberId);
   const flagReason =
@@ -523,6 +557,112 @@ export async function upsertMemberSeasonVr(input: {
         flagReason,
       },
     });
+
+  if (input.eventSource && previousBaseVr !== input.baseVr) {
+    await db.insert(schema.memberSeasonVrEvents).values({
+      id: nanoid(),
+      allianceId: input.allianceId,
+      seasonKey: input.seasonKey,
+      ashedMemberId: input.ashedMemberId,
+      baseVr: input.baseVr,
+      previousBaseVr,
+      source: input.eventSource,
+      reportedByHqUserId: input.hqUserId ?? null,
+      reportedByDiscordUserId: input.discordUserId ?? null,
+      createdAt: now,
+    });
+  }
+}
+
+export async function listMemberSeasonVrEvents(
+  allianceId: string,
+  seasonKey: string,
+  ashedMemberId: string,
+) {
+  const db = getDb();
+  return db
+    .select()
+    .from(schema.memberSeasonVrEvents)
+    .where(
+      and(
+        eq(schema.memberSeasonVrEvents.allianceId, allianceId),
+        eq(schema.memberSeasonVrEvents.seasonKey, seasonKey),
+        eq(schema.memberSeasonVrEvents.ashedMemberId, ashedMemberId),
+      ),
+    )
+    .orderBy(asc(schema.memberSeasonVrEvents.createdAt));
+}
+
+export async function getHqVrPending(
+  allianceId: string,
+  hqUserId: string,
+): Promise<VrPendingState | null> {
+  const db = getDb();
+  const [row] = await db
+    .select()
+    .from(schema.hqVrPending)
+    .where(
+      and(
+        eq(schema.hqVrPending.allianceId, allianceId),
+        eq(schema.hqVrPending.hqUserId, hqUserId),
+      ),
+    )
+    .limit(1);
+  if (!row) return null;
+  if (row.expiresAt.getTime() <= Date.now()) {
+    await db
+      .delete(schema.hqVrPending)
+      .where(
+        and(
+          eq(schema.hqVrPending.allianceId, allianceId),
+          eq(schema.hqVrPending.hqUserId, hqUserId),
+        ),
+      );
+    return null;
+  }
+  return parseVrPending(row.pendingJson);
+}
+
+export async function saveHqVrPending(
+  allianceId: string,
+  hqUserId: string,
+  pending: VrPendingState | null,
+): Promise<void> {
+  const db = getDb();
+  if (!pending) {
+    await db
+      .delete(schema.hqVrPending)
+      .where(
+        and(
+          eq(schema.hqVrPending.allianceId, allianceId),
+          eq(schema.hqVrPending.hqUserId, hqUserId),
+        ),
+      );
+    return;
+  }
+  const expiresAt = new Date(Date.now() + PENDING_TTL_MS);
+  await db
+    .insert(schema.hqVrPending)
+    .values({
+      allianceId,
+      hqUserId,
+      pendingJson: pending,
+      expiresAt,
+      updatedAt: new Date(),
+    })
+    .onConflictDoUpdate({
+      target: [schema.hqVrPending.allianceId, schema.hqVrPending.hqUserId],
+      set: { pendingJson: pending, expiresAt, updatedAt: new Date() },
+    });
+}
+
+export async function purgeExpiredHqVrPending(): Promise<number> {
+  const db = getDb();
+  const deleted = await db
+    .delete(schema.hqVrPending)
+    .where(lt(schema.hqVrPending.expiresAt, new Date()))
+    .returning({ hqUserId: schema.hqVrPending.hqUserId });
+  return deleted.length;
 }
 
 export async function listLeaderboardRows(allianceId: string, seasonKey: string) {
@@ -569,6 +709,7 @@ export async function officerOverrideSeasonVr(input: {
     baseVr: input.baseVr,
     hqUserId: input.hqUserId,
     flagReason: `officer_override:${input.reason}`,
+    eventSource: "officer_override",
   });
 }
 
