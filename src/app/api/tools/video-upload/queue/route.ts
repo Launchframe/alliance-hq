@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
-import { and, desc, eq, isNull, or } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, or } from "drizzle-orm";
 
 import { getDb, schema } from "@/lib/db";
 import { getAshedConnection, getOrCreateSession } from "@/lib/session";
 import { videoOcrRequiresAshedConnection } from "@/lib/video/ocr-provider.shared";
+import { ACTIVE_QUEUE_VIDEO_JOB_STATUSES } from "@/lib/video/video-lifecycle.shared";
 import {
   sessionCanProcessVideo,
   sessionCanReadAllianceVideoQueue,
@@ -19,6 +20,9 @@ export type AllianceQueueJob = {
   boardKey: string | null;
   enqueuedBy: string | null;
   createdAt: string;
+  frameCount: number | null;
+  uploadedFrameCount: number | null;
+  errorMessage: string | null;
 };
 
 export async function GET() {
@@ -31,7 +35,9 @@ export async function GET() {
 
     const allianceId = session.currentAllianceId;
     const [jobs, canProcess, connection] = await Promise.all([
-      allianceId ? listAlliancePendingVideoJobs(allianceId) : Promise.resolve([]),
+      allianceId
+        ? listAllianceActiveVideoJobs(allianceId)
+        : Promise.resolve([]),
       sessionCanProcessVideo(session.id),
       getAshedConnection(session.id),
     ]);
@@ -53,7 +59,14 @@ export async function GET() {
   }
 }
 
+/** @deprecated Use listAllianceActiveVideoJobs */
 export async function listAlliancePendingVideoJobs(
+  allianceId: string,
+): Promise<AllianceQueueJob[]> {
+  return listAllianceActiveVideoJobs(allianceId);
+}
+
+export async function listAllianceActiveVideoJobs(
   allianceId: string,
 ): Promise<AllianceQueueJob[]> {
   const db = getDb();
@@ -66,6 +79,9 @@ export async function listAlliancePendingVideoJobs(
       category: schema.videoJobs.category,
       boardKey: schema.videoJobs.boardKey,
       createdAt: schema.videoJobs.createdAt,
+      frameCount: schema.videoJobs.frameCount,
+      uploadedFrameCount: schema.videoJobs.uploadedFrameCount,
+      errorMessage: schema.videoJobs.errorMessage,
       enqueuedByName: schema.hqUsers.displayName,
       enqueuedByEmail: schema.hqUsers.email,
     })
@@ -77,7 +93,7 @@ export async function listAlliancePendingVideoJobs(
     .where(
       and(
         eq(schema.videoJobs.allianceId, allianceId),
-        eq(schema.videoJobs.status, "pending_approval"),
+        inArray(schema.videoJobs.status, [...ACTIVE_QUEUE_VIDEO_JOB_STATUSES]),
         or(
           eq(schema.videoJobs.passRole, "primary"),
           isNull(schema.videoJobs.passRole),
@@ -94,5 +110,8 @@ export async function listAlliancePendingVideoJobs(
     boardKey: row.boardKey,
     enqueuedBy: row.enqueuedByName ?? row.enqueuedByEmail ?? null,
     createdAt: row.createdAt.toISOString(),
+    frameCount: row.frameCount,
+    uploadedFrameCount: row.uploadedFrameCount,
+    errorMessage: row.errorMessage,
   }));
 }

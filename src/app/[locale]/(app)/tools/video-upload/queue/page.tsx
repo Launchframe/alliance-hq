@@ -7,7 +7,7 @@ import {
   sessionCanProcessVideo,
   sessionCanReadAllianceVideoQueue,
 } from "@/lib/video/processor-slots.server";
-import { listAlliancePendingVideoJobs } from "@/app/api/tools/video-upload/queue/route";
+import { listAllianceActiveVideoJobs } from "@/app/api/tools/video-upload/queue/route";
 import { VideoQueueClient } from "@/components/video/VideoQueueClient";
 
 export const dynamic = "force-dynamic";
@@ -24,7 +24,7 @@ export default async function VideoQueuePage() {
 
   const [jobs, canProcess, connection] = await Promise.all([
     session.currentAllianceId
-      ? listAlliancePendingVideoJobs(session.currentAllianceId)
+      ? listAllianceActiveVideoJobs(session.currentAllianceId)
       : Promise.resolve([]),
     sessionCanProcessVideo(session.id),
     getAshedConnection(session.id),

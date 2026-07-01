@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
-import { and, asc, eq } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 
 import { getDb, schema } from "@/lib/db";
 import { getOrCreateSession } from "@/lib/session";
+import {
+  resolveVideoJobAccess,
+  videoJobAccessErrorResponse,
+} from "@/lib/video/video-job-access.server";
 import type { VideoProcessTimings } from "@/lib/analytics/video-pipeline";
 import {
   getScoreTarget,
@@ -20,22 +24,12 @@ export async function GET(_request: Request, { params }: Props) {
   try {
     const session = await getOrCreateSession();
     const { jobId } = await params;
-    const db = getDb();
-
-    const [job] = await db
-      .select()
-      .from(schema.videoJobs)
-      .where(
-        and(
-          eq(schema.videoJobs.id, jobId),
-          eq(schema.videoJobs.sessionId, session.id),
-        ),
-      )
-      .limit(1);
-
-    if (!job) {
-      return NextResponse.json({ error: "Job not found" }, { status: 404 });
+    const access = await resolveVideoJobAccess(jobId, session.id, "read");
+    if (!access.ok) {
+      return videoJobAccessErrorResponse(access);
     }
+    const job = access.job;
+    const db = getDb();
 
     const scoreTargetId = job.scoreTarget ?? job.category ?? "desert-storm";
 

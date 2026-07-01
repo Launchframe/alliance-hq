@@ -1,9 +1,11 @@
-import { and, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
-import { getDb, schema } from "@/lib/db";
 import { getObjectRange, getObjectSize, getObjectStream } from "@/lib/storage";
 import { getOrCreateSession } from "@/lib/session";
+import {
+  resolveVideoJobAccess,
+  videoJobAccessErrorResponse,
+} from "@/lib/video/video-job-access.server";
 import { parseBytesRangeHeader } from "@/lib/video/http-byte-range";
 import {
   resolveJobVideoStorageKey,
@@ -12,31 +14,19 @@ import {
 
 type Props = { params: Promise<{ jobId: string }> };
 
-async function resolveOwnedJobVideo(jobId: string, sessionId: string) {
-  const db = getDb();
-  const [job] = await db
-    .select({
-      id: schema.videoJobs.id,
-      sessionId: schema.videoJobs.sessionId,
-      storageKey: schema.videoJobs.storageKey,
-      archiveStorageKey: schema.videoJobs.archiveStorageKey,
-      groupId: schema.videoJobs.groupId,
-      fileName: schema.videoJobs.fileName,
-    })
-    .from(schema.videoJobs)
-    .where(
-      and(
-        eq(schema.videoJobs.id, jobId),
-        eq(schema.videoJobs.sessionId, sessionId),
-      ),
-    )
-    .limit(1);
-
-  if (!job) {
-    return { error: NextResponse.json({ error: "Job not found" }, { status: 404 }) };
+async function resolveAccessibleJobVideo(jobId: string, sessionId: string) {
+  const access = await resolveVideoJobAccess(jobId, sessionId, "read");
+  if (!access.ok) {
+    return { error: videoJobAccessErrorResponse(access) };
   }
 
-  const storageKey = await resolveJobVideoStorageKey(job);
+  const job = access.job;
+  const storageKey = await resolveJobVideoStorageKey({
+    storageKey: job.storageKey,
+    archiveStorageKey: job.archiveStorageKey,
+    groupId: job.groupId,
+    fileName: job.fileName,
+  });
   if (!storageKey) {
     return {
       error: NextResponse.json({ error: "Video not available" }, { status: 404 }),
@@ -109,7 +99,7 @@ export async function HEAD(request: Request, { params }: Props) {
   try {
     const session = await getOrCreateSession();
     const { jobId } = await params;
-    const resolved = await resolveOwnedJobVideo(jobId, session.id);
+    const resolved = await resolveAccessibleJobVideo(jobId, session.id);
     if ("error" in resolved) return resolved.error;
 
     return await buildVideoResponse(
@@ -130,7 +120,7 @@ export async function GET(request: Request, { params }: Props) {
   try {
     const session = await getOrCreateSession();
     const { jobId } = await params;
-    const resolved = await resolveOwnedJobVideo(jobId, session.id);
+    const resolved = await resolveAccessibleJobVideo(jobId, session.id);
     if ("error" in resolved) return resolved.error;
 
     return await buildVideoResponse(

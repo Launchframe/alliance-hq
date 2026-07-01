@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { useRouter } from "@/i18n/navigation";
@@ -11,6 +11,10 @@ import {
   ResponsiveRecordViews,
 } from "@/components/ui/ResponsiveRecordViews";
 import type { AllianceQueueJob } from "@/app/api/tools/video-upload/queue/route";
+import {
+  isInFlightProcessingStatus,
+  videoJobLifecycleStage,
+} from "@/lib/video/video-lifecycle.shared";
 
 type Props = {
   initialJobs: AllianceQueueJob[];
@@ -29,6 +33,10 @@ export function VideoQueueClient({
   connectUrl,
 }: Props) {
   const t = useTranslations("videoQueue");
+  const tStatus = useTranslations("videoUpload.status");
+  const tUpload = useTranslations("videoUpload");
+  const tReview = useTranslations("videoReview");
+  const tAdminJobs = useTranslations("admin.videoJobsPage");
   const router = useRouter();
   const [jobs, setJobs] = useState<AllianceQueueJob[]>(initialJobs);
   const [actingJobId, setActingJobId] = useState<string | null>(null);
@@ -41,9 +49,24 @@ export function VideoQueueClient({
     setJobs(data.jobs);
   }, []);
 
+  useEffect(() => {
+    const onFocus = () => {
+      void refresh();
+    };
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, [refresh]);
+
   const goConnect = useCallback(() => {
     router.push(connectUrl);
   }, [router, connectUrl]);
+
+  const goReview = useCallback(
+    (jobId: string) => {
+      router.push(`/tools/video-upload/${jobId}/review`);
+    },
+    [router],
+  );
 
   async function approve(jobId: string) {
     setActingJobId(jobId);
@@ -89,7 +112,86 @@ export function VideoQueueClient({
     }
   }
 
+  async function discard(jobId: string) {
+    setActingJobId(jobId);
+    setError(null);
+    try {
+      const res = await fetch(`/api/tools/video-upload/${jobId}/discard`, {
+        method: "PATCH",
+      });
+      if (!res.ok) {
+        const data = (await res.json()) as { error?: string };
+        throw new Error(data.error ?? t("rejectFailed"));
+      }
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("rejectFailed"));
+    } finally {
+      setActingJobId(null);
+    }
+  }
+
+  async function reprocess(jobId: string) {
+    setActingJobId(jobId);
+    setError(null);
+    try {
+      const res = await fetch(`/api/tools/video-upload/${jobId}/reprocess`, {
+        method: "POST",
+      });
+      if (!res.ok) {
+        const data = (await res.json()) as {
+          error?: string;
+          code?: string;
+        };
+        if (data.code === "ashed_not_connected") {
+          goConnect();
+          return;
+        }
+        throw new Error(data.error ?? tAdminJobs("actionFailed"));
+      }
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : tAdminJobs("actionFailed"));
+    } finally {
+      setActingJobId(null);
+    }
+  }
+
   const showConnectBanner = canProcess && ashedRequired && !ashedConnected;
+
+  function statusLabel(status: string): string {
+    const knownStatuses = [
+      "queued",
+      "extracting",
+      "parsing",
+      "review",
+      "submitting",
+      "complete",
+      "failed",
+      "pending",
+      "pending_approval",
+      "processing",
+    ] as const;
+    if ((knownStatuses as readonly string[]).includes(status)) {
+      return tStatus(status as (typeof knownStatuses)[number]);
+    }
+    return status;
+  }
+
+  function progressDetail(job: AllianceQueueJob): string | null {
+    if (isInFlightProcessingStatus(job.status)) {
+      if (job.frameCount != null && job.uploadedFrameCount != null) {
+        return `${job.uploadedFrameCount}/${job.frameCount}`;
+      }
+      return null;
+    }
+    if (job.status === "failed" && job.errorMessage) {
+      return job.errorMessage;
+    }
+    return null;
+  }
+
+  const emptyMessage = tAdminJobs("empty");
 
   return (
     <div className="min-w-0 space-y-3">
@@ -110,11 +212,17 @@ export function VideoQueueClient({
 
       <ResponsiveRecordViews
         isEmpty={jobs.length === 0}
-        emptyMessage={t("empty")}
+        emptyMessage={emptyMessage}
         mobileCards={jobs.map((job) => (
           <RecordDetailCard key={job.id}>
             <RecordDetailField label={t("table.time")}>
               <FormattedDateTime value={job.createdAt} />
+            </RecordDetailField>
+            <RecordDetailField label={tAdminJobs("statusFilter")}>
+              <StatusBadge status={job.status} label={statusLabel(job.status)} />
+              {progressDetail(job) ? (
+                <p className="mt-1 text-xs text-[#8b949e]">{progressDetail(job)}</p>
+              ) : null}
             </RecordDetailField>
             <RecordDetailField label={t("table.uploadedBy")}>
               {job.enqueuedBy ?? "—"}
@@ -125,19 +233,23 @@ export function VideoQueueClient({
             <RecordDetailField label={t("table.file")}>
               <span className="wrap-break-word">{job.fileName ?? job.id}</span>
             </RecordDetailField>
-            {canProcess ? (
-              <RecordDetailField label={t("table.actions")}>
-                <JobActions
-                  jobId={job.id}
-                  acting={actingJobId === job.id}
-                  canApproveDirectly={!ashedRequired || ashedConnected}
-                  onApprove={() => void approve(job.id)}
-                  onReject={() => void reject(job.id)}
-                  onConnect={goConnect}
-                  t={t}
-                />
-              </RecordDetailField>
-            ) : null}
+            <RecordDetailField label={t("table.actions")}>
+              <JobActions
+                job={job}
+                acting={actingJobId === job.id}
+                canProcess={canProcess}
+                canApproveDirectly={!ashedRequired || ashedConnected}
+                onApprove={() => void approve(job.id)}
+                onReject={() => void reject(job.id)}
+                onDiscard={() => void discard(job.id)}
+                onReprocess={() => void reprocess(job.id)}
+                onReview={() => goReview(job.id)}
+                onConnect={goConnect}
+                t={t}
+                tUpload={tUpload}
+                tReview={tReview}
+              />
+            </RecordDetailField>
           </RecordDetailCard>
         ))}
         desktopTable={
@@ -146,12 +258,11 @@ export function VideoQueueClient({
               <thead className="bg-[#161b22] text-[#8b949e]">
                 <tr>
                   <th className="px-4 py-2">{t("table.time")}</th>
+                  <th className="px-4 py-2">{tAdminJobs("statusFilter")}</th>
                   <th className="px-4 py-2">{t("table.uploadedBy")}</th>
                   <th className="px-4 py-2">{t("table.target")}</th>
                   <th className="px-4 py-2">{t("table.file")}</th>
-                  {canProcess ? (
-                    <th className="px-4 py-2">{t("table.actions")}</th>
-                  ) : null}
+                  <th className="px-4 py-2">{t("table.actions")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -160,24 +271,39 @@ export function VideoQueueClient({
                     <td className="px-4 py-2 whitespace-nowrap text-[#8b949e]">
                       <FormattedDateTime value={job.createdAt} />
                     </td>
+                    <td className="px-4 py-2">
+                      <StatusBadge
+                        status={job.status}
+                        label={statusLabel(job.status)}
+                      />
+                      {progressDetail(job) ? (
+                        <p className="mt-1 max-w-xs truncate text-xs text-[#8b949e]">
+                          {progressDetail(job)}
+                        </p>
+                      ) : null}
+                    </td>
                     <td className="px-4 py-2">{job.enqueuedBy ?? "—"}</td>
                     <td className="px-4 py-2">{job.scoreTarget ?? "—"}</td>
                     <td className="max-w-xs truncate px-4 py-2">
                       {job.fileName ?? job.id}
                     </td>
-                    {canProcess ? (
-                      <td className="px-4 py-2">
-                        <JobActions
-                          jobId={job.id}
-                          acting={actingJobId === job.id}
-                          canApproveDirectly={!ashedRequired || ashedConnected}
-                          onApprove={() => void approve(job.id)}
-                          onReject={() => void reject(job.id)}
-                          onConnect={goConnect}
-                          t={t}
-                        />
-                      </td>
-                    ) : null}
+                    <td className="px-4 py-2">
+                      <JobActions
+                        job={job}
+                        acting={actingJobId === job.id}
+                        canProcess={canProcess}
+                        canApproveDirectly={!ashedRequired || ashedConnected}
+                        onApprove={() => void approve(job.id)}
+                        onReject={() => void reject(job.id)}
+                        onDiscard={() => void discard(job.id)}
+                        onReprocess={() => void reprocess(job.id)}
+                        onReview={() => goReview(job.id)}
+                        onConnect={goConnect}
+                        t={t}
+                        tUpload={tUpload}
+                        tReview={tReview}
+                      />
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -189,50 +315,158 @@ export function VideoQueueClient({
   );
 }
 
+function StatusBadge({ status, label }: { status: string; label: string }) {
+  const stage = videoJobLifecycleStage(status);
+  const tone =
+    stage === "needs_attention"
+      ? "border-[#f85149] text-[#f85149]"
+      : stage === "ready_to_review"
+        ? "border-[#3fb950] text-[#3fb950]"
+        : stage === "processing" || stage === "submitting"
+          ? "border-[#d29922] text-[#d29922]"
+          : "border-[#8b949e] text-[#8b949e]";
+
+  return (
+    <span
+      className={`inline-flex rounded-md border px-2 py-0.5 text-xs font-medium capitalize ${tone}`}
+    >
+      {label}
+    </span>
+  );
+}
+
 function JobActions({
+  job,
   acting,
+  canProcess,
   canApproveDirectly,
   onApprove,
   onReject,
+  onDiscard,
+  onReprocess,
+  onReview,
   onConnect,
   t,
+  tUpload,
+  tReview,
 }: {
-  jobId: string;
+  job: AllianceQueueJob;
   acting: boolean;
+  canProcess: boolean;
   canApproveDirectly: boolean;
   onApprove: () => void;
   onReject: () => void;
+  onDiscard: () => void;
+  onReprocess: () => void;
+  onReview: () => void;
   onConnect: () => void;
   t: ReturnType<typeof useTranslations>;
+  tUpload: ReturnType<typeof useTranslations>;
+  tReview: ReturnType<typeof useTranslations>;
 }) {
-  return (
-    <div className="flex flex-wrap items-center gap-2 text-sm font-normal">
-      {canApproveDirectly ? (
+  const stage = videoJobLifecycleStage(job.status);
+
+  if (stage === "needs_approval" && canProcess) {
+    return (
+      <div className="flex flex-wrap items-center gap-2 text-sm font-normal">
+        {canApproveDirectly ? (
+          <button
+            type="button"
+            disabled={acting}
+            onClick={onApprove}
+            className="rounded-md border border-[#3fb950] px-2.5 py-1 text-xs font-medium text-[#3fb950] hover:bg-[#3fb95020] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {t("approve")}
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={onConnect}
+            className="rounded-md border border-[#d29922] px-2.5 py-1 text-xs font-medium text-[#d29922] hover:bg-[#d2992220]"
+          >
+            {t("connectCta")}
+          </button>
+        )}
         <button
           type="button"
           disabled={acting}
-          onClick={onApprove}
-          className="rounded-md border border-[#3fb950] px-2.5 py-1 text-xs font-medium text-[#3fb950] hover:bg-[#3fb95020] disabled:cursor-not-allowed disabled:opacity-50"
+          onClick={onReject}
+          className="rounded-md border border-[#30363d] px-2.5 py-1 text-xs text-[#8b949e] hover:border-[#f85149] hover:text-[#f85149] disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {t("approve")}
+          {t("reject")}
         </button>
-      ) : (
-        <button
-          type="button"
-          onClick={onConnect}
-          className="rounded-md border border-[#d29922] px-2.5 py-1 text-xs font-medium text-[#d29922] hover:bg-[#d2992220]"
-        >
-          {t("connectCta")}
-        </button>
-      )}
+      </div>
+    );
+  }
+
+  if (stage === "processing" || stage === "submitting") {
+    return (
       <button
         type="button"
-        disabled={acting}
-        onClick={onReject}
-        className="rounded-md border border-[#30363d] px-2.5 py-1 text-xs text-[#8b949e] hover:border-[#f85149] hover:text-[#f85149] disabled:cursor-not-allowed disabled:opacity-50"
+        onClick={onReview}
+        className="rounded-md border border-[#30363d] px-2.5 py-1 text-xs text-[#8b949e] hover:border-[#58a6ff] hover:text-[#58a6ff]"
       >
-        {t("reject")}
+        {tUpload("reviewLink")}
       </button>
-    </div>
-  );
+    );
+  }
+
+  if (stage === "ready_to_review") {
+    return (
+      <div className="flex flex-wrap items-center gap-2 text-sm font-normal">
+        <button
+          type="button"
+          onClick={onReview}
+          className="rounded-md border border-[#3fb950] px-2.5 py-1 text-xs font-medium text-[#3fb950] hover:bg-[#3fb95020]"
+        >
+          {tUpload("reviewLink")}
+        </button>
+        <button
+          type="button"
+          disabled={acting}
+          onClick={onDiscard}
+          className="rounded-md border border-[#30363d] px-2.5 py-1 text-xs text-[#8b949e] hover:border-[#f85149] hover:text-[#f85149] disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {tReview("discardResults")}
+        </button>
+      </div>
+    );
+  }
+
+  if (stage === "needs_attention") {
+    return (
+      <div className="flex flex-wrap items-center gap-2 text-sm font-normal">
+        {canProcess ? (
+          canApproveDirectly ? (
+            <button
+              type="button"
+              disabled={acting}
+              onClick={onReprocess}
+              className="rounded-md border border-[#d29922] px-2.5 py-1 text-xs font-medium text-[#d29922] hover:bg-[#d2992220] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {tReview("reprocess")}
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={onConnect}
+              className="rounded-md border border-[#d29922] px-2.5 py-1 text-xs font-medium text-[#d29922] hover:bg-[#d2992220]"
+            >
+              {t("connectCta")}
+            </button>
+          )
+        ) : null}
+        <button
+          type="button"
+          disabled={acting}
+          onClick={onDiscard}
+          className="rounded-md border border-[#30363d] px-2.5 py-1 text-xs text-[#8b949e] hover:border-[#f85149] hover:text-[#f85149] disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {tReview("discardResults")}
+        </button>
+      </div>
+    );
+  }
+
+  return null;
 }

@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 
 import { getDb, schema } from "@/lib/db";
 import { getOrCreateSession } from "@/lib/session";
+import {
+  resolveVideoJobAccess,
+  videoJobAccessErrorResponse,
+} from "@/lib/video/video-job-access.server";
 
 type Props = { params: Promise<{ jobId: string }> };
 
@@ -18,19 +22,9 @@ export async function PATCH(request: Request, { params }: Props) {
     typeof body.ratingReason === "string" ? body.ratingReason : null;
   const db = getDb();
 
-  const [job] = await db
-    .select({ id: schema.videoJobs.id })
-    .from(schema.videoJobs)
-    .where(
-      and(
-        eq(schema.videoJobs.id, jobId),
-        eq(schema.videoJobs.sessionId, session.id),
-      ),
-    )
-    .limit(1);
-
-  if (!job) {
-    return NextResponse.json({ error: "Job not found" }, { status: 404 });
+  const access = await resolveVideoJobAccess(jobId, session.id, "mutate");
+  if (!access.ok) {
+    return videoJobAccessErrorResponse(access);
   }
 
   await db
