@@ -82,6 +82,11 @@ export function MyVrTrackerView({ initial }: Props) {
         return;
       }
 
+      if (payload.status === "season_locked") {
+        setError(payload.message ?? copy.seasonLockedError);
+        return;
+      }
+
       if (payload.status === "anomaly_rejected") {
         setAnomalyOpen(false);
         return;
@@ -112,6 +117,19 @@ export function MyVrTrackerView({ initial }: Props) {
 
   const displayVr = data.currentVr ?? 0;
   const hasReported = data.currentVr != null && data.currentVr > 0;
+  const updatesLocked = data.vrUpdatesLocked;
+
+  const postSeasonNoticeText =
+    data.priorSeason != null && data.seasonMaxVr != null
+      ? copy.postSeasonNotice
+          .replace("{maxVr}", String(data.seasonMaxVr))
+          .replace("{priorSeason}", data.priorSeason)
+      : data.priorSeason != null
+        ? copy.postSeasonNoticeUnreported.replace(
+            "{priorSeason}",
+            data.priorSeason,
+          )
+        : null;
 
   return (
     <div className="mx-auto flex w-full min-w-0 max-w-2xl flex-col gap-6 p-4 sm:p-6">
@@ -121,18 +139,20 @@ export function MyVrTrackerView({ initial }: Props) {
         </h1>
         <p className="text-sm text-[#8b949e]">{copy.pageSubtitle}</p>
         <p className="text-xs text-[#6e7681]">
-          {copy.seasonLabel.replace("{season}", data.seasonKey)}
+          {updatesLocked && data.priorSeason
+            ? copy.seasonLabel.replace("{season}", data.priorSeason)
+            : copy.seasonLabel.replace("{season}", data.seasonKey)}
           {data.commanderName ? ` · ${data.commanderName}` : ""}
         </p>
       </header>
 
-      {data.isPostSeason ? (
+      {updatesLocked && postSeasonNoticeText ? (
         <p
           className="rounded-lg border border-[#30363d] bg-[#161b22] px-4 py-3 text-sm text-[#8b949e]"
           role="status"
           data-testid="my-vr-post-season-notice"
         >
-          {copy.postSeasonNotice.replace("{season}", data.seasonKey)}
+          {postSeasonNoticeText}
         </p>
       ) : null}
 
@@ -179,16 +199,17 @@ export function MyVrTrackerView({ initial }: Props) {
           <div className="flex flex-col gap-2 sm:flex-row">
             <button
               type="button"
-              disabled={busy}
+              disabled={busy || updatesLocked}
               onClick={bump}
               className="min-w-0 flex-1 rounded-lg border border-[#238636] bg-[#238636] px-4 py-3 text-sm font-semibold text-white disabled:opacity-50"
               data-testid="my-vr-bump"
+              aria-disabled={updatesLocked}
             >
               {copy.bumpButton}
             </button>
             <button
               type="button"
-              disabled={busy}
+              disabled={busy || updatesLocked}
               onClick={() => {
                 setSetLevelDraft(
                   hasReported ? String(displayVr) : String(VR_STEP),
@@ -196,10 +217,17 @@ export function MyVrTrackerView({ initial }: Props) {
                 setSetDialogOpen(true);
               }}
               className="min-w-0 flex-1 rounded-lg border border-[#30363d] bg-[#21262d] px-4 py-3 text-sm font-medium text-[#e6edf3] disabled:opacity-50"
+              aria-disabled={updatesLocked}
             >
               {copy.updateVr}
             </button>
           </div>
+
+          {updatesLocked ? (
+            <p className="text-sm text-[#8b949e]" role="status">
+              {copy.seasonLockedError}
+            </p>
+          ) : null}
 
           {error ? <p className="text-sm text-[#f85149]">{error}</p> : null}
 

@@ -16,6 +16,9 @@ export type MyVrPercentile = {
 export type MyVrPayload = {
   seasonKey: string;
   isPostSeason: boolean;
+  vrUpdatesLocked: boolean;
+  priorSeason: string | null;
+  seasonMaxVr: number | null;
   currentVr: number | null;
   updatedAt: string | null;
   commanderName: string | null;
@@ -29,6 +32,7 @@ export type MyVrPostStatus =
   | "anomaly_confirm"
   | "anomaly_rejected"
   | "validation_error"
+  | "season_locked"
   | "error";
 
 export type MyVrPostResponse = {

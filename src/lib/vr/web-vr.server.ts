@@ -8,14 +8,14 @@ import { processVrCommand, processVrConfirmation } from "@/lib/vr/command";
 import { computeVrPercentile } from "@/lib/vr/percentile";
 import type { MyVrPayload, MyVrPostResponse } from "@/lib/vr/my-vr.shared";
 import { auditWebVrCommand } from "@/lib/vr/web-vr-audit.server";
+import { VR_SEASON_LOCKED_MESSAGE } from "@/lib/vr/vr-season-lock.shared";
 import {
   countSeasonReporters,
   getHqVrPending,
   getMemberSeasonHigh,
   listMemberSeasonVrEvents,
   listSeasonVrRows,
-  resolveEffectiveSeasonForVr,
-  resolveSeasonKey,
+  resolveVrSeasonContext,
   saveHqVrPending,
   upsertMemberSeasonVr,
 } from "@/lib/vr/repository";
@@ -31,15 +31,13 @@ export async function loadMyVrForUser(input: {
     return null;
   }
 
-  const { seasonKey, isPostSeason } = await resolveEffectiveSeasonForVr(
-    input.allianceId,
-  );
+  const season = await resolveVrSeasonContext(input.allianceId);
   const [currentVr, seasonRows, events] = await Promise.all([
-    getMemberSeasonHigh(input.allianceId, link.ashedMemberId, seasonKey),
-    listSeasonVrRows(input.allianceId, seasonKey),
+    getMemberSeasonHigh(input.allianceId, link.ashedMemberId, season.seasonKey),
+    listSeasonVrRows(input.allianceId, season.seasonKey),
     listMemberSeasonVrEvents(
       input.allianceId,
-      seasonKey,
+      season.seasonKey,
       link.ashedMemberId,
     ),
   ]);
@@ -54,9 +52,17 @@ export async function loadMyVrForUser(input: {
     (row) => row.ashedMemberId === link.ashedMemberId,
   );
 
+  const seasonMaxVr =
+    season.vrUpdatesLocked && currentVr != null && currentVr > 0
+      ? currentVr
+      : null;
+
   return {
-    seasonKey,
-    isPostSeason,
+    seasonKey: season.seasonKey,
+    isPostSeason: season.isPostSeason,
+    vrUpdatesLocked: season.vrUpdatesLocked,
+    priorSeason: season.priorSeason,
+    seasonMaxVr,
     currentVr,
     updatedAt: seasonRow?.updatedAt.toISOString() ?? null,
     commanderName: link.memberDisplayName,
@@ -118,7 +124,17 @@ async function handleWebVrCommandCore(input: {
   const translate = createDiscordTranslator(
     input.locale === "pt-BR" ? "pt-BR" : "en-US",
   );
-  const seasonKey = await resolveSeasonKey(input.allianceId);
+  const season = await resolveVrSeasonContext(input.allianceId);
+
+  if (season.vrUpdatesLocked) {
+    return {
+      result: {
+        status: "season_locked",
+        message: VR_SEASON_LOCKED_MESSAGE,
+      },
+      ashedMemberId: link.ashedMemberId,
+    };
+  }
 
   if (input.confirm) {
     return {
@@ -126,7 +142,7 @@ async function handleWebVrCommandCore(input: {
         allianceId: input.allianceId,
         hqUserId: input.hqUserId,
         ashedMemberId: link.ashedMemberId,
-        seasonKey,
+        seasonKey: season.seasonKey,
         answer: input.confirm,
         translate,
       }),
@@ -136,9 +152,9 @@ async function handleWebVrCommandCore(input: {
 
   const pending = await getHqVrPending(input.allianceId, input.hqUserId);
   const [seasonHigh, reporterCount, seasonRows] = await Promise.all([
-    getMemberSeasonHigh(input.allianceId, link.ashedMemberId, seasonKey),
-    countSeasonReporters(input.allianceId, seasonKey),
-    listSeasonVrRows(input.allianceId, seasonKey),
+    getMemberSeasonHigh(input.allianceId, link.ashedMemberId, season.seasonKey),
+    countSeasonReporters(input.allianceId, season.seasonKey),
+    listSeasonVrRows(input.allianceId, season.seasonKey),
   ]);
   const peerMax = peerMaxExcludingMember(seasonRows, link.ashedMemberId);
   const maxBaseVr = await resolveMaxBaseVrForAlliance(input.allianceId);
@@ -173,7 +189,7 @@ async function handleWebVrCommandCore(input: {
     await upsertMemberSeasonVr({
       allianceId: input.allianceId,
       ashedMemberId: result.action.ashedMemberId,
-      seasonKey,
+      seasonKey: season.seasonKey,
       baseVr: result.action.vr,
       hqUserId: input.hqUserId,
       flagReason: result.action.flagReason ?? null,
@@ -218,6 +234,14 @@ async function handleWebVrConfirm(input: {
   answer: "yes" | "no";
   translate: ReturnType<typeof createDiscordTranslator>;
 }): Promise<MyVrPostResponse> {
+  const season = await resolveVrSeasonContext(input.allianceId);
+  if (season.vrUpdatesLocked) {
+    return {
+      status: "season_locked",
+      message: VR_SEASON_LOCKED_MESSAGE,
+    };
+  }
+
   const pending = await getHqVrPending(input.allianceId, input.hqUserId);
   if (!pending || pending.kind !== "anomaly_confirm") {
     return {

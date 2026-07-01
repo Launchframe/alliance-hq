@@ -20,11 +20,12 @@ vi.mock("@/lib/vr/repository", () => ({
   getMemberSeasonHigh: vi.fn(),
   listMemberSeasonVrEvents: vi.fn().mockResolvedValue([]),
   listSeasonVrRows: vi.fn(),
-  resolveEffectiveSeasonForVr: vi.fn().mockResolvedValue({
+  resolveVrSeasonContext: vi.fn().mockResolvedValue({
     seasonKey: "1",
     isPostSeason: false,
+    vrUpdatesLocked: false,
+    priorSeason: null,
   }),
-  resolveSeasonKey: vi.fn().mockResolvedValue("1"),
   saveHqVrPending: vi.fn(),
   upsertMemberSeasonVr: vi.fn(),
 }));
@@ -36,10 +37,11 @@ import {
   getMemberSeasonHigh,
   listMemberSeasonVrEvents,
   listSeasonVrRows,
-  resolveEffectiveSeasonForVr,
+  resolveVrSeasonContext,
   saveHqVrPending,
   upsertMemberSeasonVr,
 } from "@/lib/vr/repository";
+import { VR_SEASON_LOCKED_MESSAGE } from "@/lib/vr/vr-season-lock.shared";
 import { handleWebVrCommand, loadMyVrForUser } from "@/lib/vr/web-vr.server";
 import { auditWebVrCommand } from "@/lib/vr/web-vr-audit.server";
 
@@ -124,6 +126,28 @@ describe("handleWebVrCommand", () => {
     expect(upsertMemberSeasonVr).toHaveBeenCalled();
     expect(translate).toBeDefined();
   });
+
+  it("rejects VR updates while the server is in post-season", async () => {
+    vi.mocked(resolveVrSeasonContext).mockResolvedValue({
+      seasonKey: "4",
+      isPostSeason: true,
+      vrUpdatesLocked: true,
+      priorSeason: "4",
+    });
+
+    const result = await handleWebVrCommand({
+      sessionId: "session-1",
+      allianceId: "alliance-1",
+      hqUserId: "hq-1",
+      locale: "en-US",
+    });
+
+    expect(result).toEqual({
+      status: "season_locked",
+      message: VR_SEASON_LOCKED_MESSAGE,
+    });
+    expect(upsertMemberSeasonVr).not.toHaveBeenCalled();
+  });
 });
 
 describe("loadMyVrForUser", () => {
@@ -148,9 +172,11 @@ describe("loadMyVrForUser", () => {
       },
     ] as never);
     vi.mocked(listMemberSeasonVrEvents).mockResolvedValue([]);
-    vi.mocked(resolveEffectiveSeasonForVr).mockResolvedValue({
+    vi.mocked(resolveVrSeasonContext).mockResolvedValue({
       seasonKey: "4",
       isPostSeason: true,
+      vrUpdatesLocked: true,
+      priorSeason: "4",
     });
   });
 
@@ -169,6 +195,9 @@ describe("loadMyVrForUser", () => {
     expect(payload).toMatchObject({
       seasonKey: "4",
       isPostSeason: true,
+      vrUpdatesLocked: true,
+      priorSeason: "4",
+      seasonMaxVr: 500,
       currentVr: 500,
       commanderName: "Tester",
     });

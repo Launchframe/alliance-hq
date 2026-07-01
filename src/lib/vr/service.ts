@@ -24,6 +24,7 @@ import {
   loadAllianceMembersForBot,
   loadAllianceMembersForMemberLinkWithLiveRetry,
 } from "@/lib/vr/member-roster";
+import { VR_SEASON_LOCKED_MESSAGE } from "@/lib/vr/vr-season-lock.shared";
 import {
   countSeasonReporters,
   getAllianceById,
@@ -37,7 +38,7 @@ import {
   listSeasonVrRows,
   linkDiscordMember,
   maybeClaimNativeOwnerFromDiscordLink,
-  resolveSeasonKey,
+  resolveVrSeasonContext,
   saveDiscordBotPending,
   upsertMemberSeasonVr,
   writeDiscordBotAudit,
@@ -443,6 +444,16 @@ export async function handleDiscordVrSlash(input: {
     return result;
   }
   if (target === "pick") {
+    const season = await resolveVrSeasonContext(input.allianceId);
+    if (season.vrUpdatesLocked) {
+      const result: VrCommandResult = {
+        reply: VR_SEASON_LOCKED_MESSAGE,
+        pending: null,
+        action: { type: "none" as const },
+      };
+      await audit(input.allianceId, input.discordUserId, "vr", input, result);
+      return result;
+    }
     const links = await listDiscordLinksForUser(input.allianceId, input.discordUserId);
     const result: VrCommandResult = {
       reply: translate("vr.pickCharacter"),
@@ -458,7 +469,18 @@ export async function handleDiscordVrSlash(input: {
     return result;
   }
 
-  const seasonKey = await resolveSeasonKey(input.allianceId);
+  const season = await resolveVrSeasonContext(input.allianceId);
+  if (season.vrUpdatesLocked) {
+    const result: VrCommandResult = {
+      reply: VR_SEASON_LOCKED_MESSAGE,
+      pending: null,
+      action: { type: "none" as const },
+    };
+    await audit(input.allianceId, input.discordUserId, "vr", input, result);
+    return result;
+  }
+
+  const seasonKey = season.seasonKey;
   const pendingRow = await getDiscordBotPending(input.discordUserId);
   const pending = (pendingRow?.pending ?? null) as VrPendingState | null;
   const [seasonHigh, reporterCount, seasonRows] = await Promise.all([
@@ -520,6 +542,17 @@ export async function handleDiscordVrButtonConfirm(input: {
   locale: DiscordBotLocale;
 }): Promise<VrCommandResult> {
   const { translate } = botContext(input.locale);
+  const season = await resolveVrSeasonContext(input.allianceId);
+  if (season.vrUpdatesLocked) {
+    const result: VrCommandResult = {
+      reply: VR_SEASON_LOCKED_MESSAGE,
+      pending: null,
+      action: { type: "none" as const },
+    };
+    await audit(input.allianceId, input.discordUserId, "vr_confirm", input, result);
+    return result;
+  }
+
   const pendingRow = await getDiscordBotPending(input.discordUserId);
   const pending = pendingRow?.pending as VrPendingState | null;
   if (!pending || pending.kind !== "anomaly_confirm") {
@@ -536,7 +569,7 @@ export async function handleDiscordVrButtonConfirm(input: {
   await saveDiscordBotPending(input.allianceId, input.discordUserId, result.pending);
 
   if (result.action.type === "set_vr") {
-    const seasonKey = await resolveSeasonKey(input.allianceId);
+    const seasonKey = season.seasonKey;
     await upsertMemberSeasonVr({
       allianceId: input.allianceId,
       ashedMemberId: result.action.ashedMemberId,

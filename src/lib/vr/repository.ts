@@ -2,8 +2,9 @@ import { and, asc, desc, eq, isNull, lt, or, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { getDb, schema } from "@/lib/db";
-import { parseAshedMemberAllianceRank } from "@/lib/members/alliance-rank";
 import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
+import { parseAshedMemberAllianceRank } from "@/lib/members/alliance-rank";
+import type { VrSeasonContext } from "@/lib/vr/vr-season-lock.shared";
 import {
   denormalizeGameUidOnMember,
   openMemberAllianceTenure,
@@ -128,23 +129,38 @@ export function resolveGuildAllianceIdWithLegacyFallback(input: {
   return legacyAllianceId;
 }
 
-export async function resolveEffectiveSeasonForVr(
+export async function resolveVrSeasonContext(
   allianceId: string,
-): Promise<{ seasonKey: string; isPostSeason: boolean }> {
+): Promise<VrSeasonContext> {
   const envKey = process.env.DISCORD_ALLIANCE_SEASON_KEY?.trim();
   if (envKey) {
-    return { seasonKey: envKey, isPostSeason: false };
+    return {
+      seasonKey: envKey,
+      isPostSeason: false,
+      vrUpdatesLocked: false,
+      priorSeason: null,
+    };
   }
 
   const effective = await getEffectiveSeasonForAlliance(allianceId);
+  const vrUpdatesLocked = effective.isPostSeason;
   return {
     seasonKey: effective.seasonKey,
     isPostSeason: effective.isPostSeason,
+    vrUpdatesLocked,
+    priorSeason: vrUpdatesLocked ? effective.seasonKey : null,
   };
 }
 
+/** @deprecated Prefer resolveVrSeasonContext */
+export async function resolveEffectiveSeasonForVr(
+  allianceId: string,
+): Promise<VrSeasonContext> {
+  return resolveVrSeasonContext(allianceId);
+}
+
 export async function resolveSeasonKey(allianceId: string): Promise<string> {
-  const { seasonKey } = await resolveEffectiveSeasonForVr(allianceId);
+  const { seasonKey } = await resolveVrSeasonContext(allianceId);
   return seasonKey;
 }
 
