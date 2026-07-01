@@ -15,8 +15,9 @@ import {
   allianceMemberRowToAshedMember,
   listAllianceMembers,
 } from "@/lib/members/roster.server";
-import { getAshedConnection } from "@/lib/session";
 import { getDb, schema } from "@/lib/db";
+import { getAshedConnection } from "@/lib/session";
+import { loadAllianceHqOcrOnly } from "@/lib/video/alliance-ocr-settings.server";
 import { putObject, frameStorageKey, prefersLocalStorage, r2Configured, streamObjectToFile } from "@/lib/storage";
 import { logPipelineStep } from "@/lib/video/pipeline-step-log";
 import {
@@ -136,7 +137,15 @@ export async function processVideoJob(
 
   const scoreTargetId = job.scoreTarget ?? job.category ?? "desert-storm";
   const isRosterTarget = isMemberRosterVideoTarget(scoreTargetId);
-  const ocrEngine = resolveVideoOcrEngineForJob(scoreTargetId, isRosterTarget);
+  const hqOcrOnly = job.allianceId
+    ? await loadAllianceHqOcrOnly(job.allianceId)
+    : false;
+  const ocrContext = { allianceHqOcrOnly: hqOcrOnly };
+  const ocrEngine = resolveVideoOcrEngineForJob(
+    scoreTargetId,
+    isRosterTarget,
+    ocrContext,
+  );
   const now = new Date();
 
   /**

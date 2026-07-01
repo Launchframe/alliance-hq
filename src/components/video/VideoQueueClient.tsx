@@ -20,8 +20,9 @@ type Props = {
   initialJobs: AllianceQueueJob[];
   canProcess: boolean;
   ashedConnected: boolean;
-  /** Whether the configured OCR engine needs a live Ashed credential to run. */
-  ashedRequired: boolean;
+  /** Whether env config requires Ashed when alliance override is off. */
+  envRequiresAshed: boolean;
+  initialHqOcrOnly: boolean;
   connectUrl: string;
 };
 
@@ -29,7 +30,8 @@ export function VideoQueueClient({
   initialJobs,
   canProcess,
   ashedConnected,
-  ashedRequired,
+  envRequiresAshed,
+  initialHqOcrOnly,
   connectUrl,
 }: Props) {
   const t = useTranslations("videoQueue");
@@ -41,12 +43,23 @@ export function VideoQueueClient({
   const [jobs, setJobs] = useState<AllianceQueueJob[]>(initialJobs);
   const [actingJobId, setActingJobId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [hqOcrOnly, setHqOcrOnly] = useState(initialHqOcrOnly);
+  const [ocrSettingsBusy, setOcrSettingsBusy] = useState(false);
+  const [ocrSettingsError, setOcrSettingsError] = useState<string | null>(null);
+
+  const ashedRequired = !hqOcrOnly && envRequiresAshed;
 
   const refresh = useCallback(async () => {
     const res = await fetch("/api/tools/video-upload/queue");
     if (!res.ok) return;
-    const data = (await res.json()) as { jobs: AllianceQueueJob[] };
+    const data = (await res.json()) as {
+      jobs: AllianceQueueJob[];
+      hqOcrOnly?: boolean;
+    };
     setJobs(data.jobs);
+    if (typeof data.hqOcrOnly === "boolean") {
+      setHqOcrOnly(data.hqOcrOnly);
+    }
   }, []);
 
   useEffect(() => {
@@ -67,6 +80,32 @@ export function VideoQueueClient({
     },
     [router],
   );
+
+  async function toggleHqOcrOnly(next: boolean) {
+    setOcrSettingsBusy(true);
+    setOcrSettingsError(null);
+    try {
+      const res = await fetch("/api/tools/video-upload/queue/ocr-settings", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ hqOcrOnly: next }),
+      });
+      const data = (await res.json()) as {
+        hqOcrOnly?: boolean;
+        error?: string;
+      };
+      if (!res.ok) {
+        throw new Error(data.error ?? t("ocrSettingsSaveFailed"));
+      }
+      setHqOcrOnly(Boolean(data.hqOcrOnly));
+    } catch (err) {
+      setOcrSettingsError(
+        err instanceof Error ? err.message : t("ocrSettingsSaveFailed"),
+      );
+    } finally {
+      setOcrSettingsBusy(false);
+    }
+  }
 
   async function approve(jobId: string) {
     setActingJobId(jobId);
@@ -195,6 +234,33 @@ export function VideoQueueClient({
 
   return (
     <div className="min-w-0 space-y-3">
+      {canProcess ? (
+        <section className="rounded-xl border border-[#30363d] bg-[#161b22] p-4">
+          <h2 className="text-sm font-semibold text-[#e6edf3]">
+            {t("ocrSettingsTitle")}
+          </h2>
+          <p className="mt-1 text-sm text-[#8b949e]">{t("ocrSettingsDescription")}</p>
+          <div className="mt-3 space-y-2">
+            <label className="flex items-start gap-3">
+              <input
+                type="checkbox"
+                className="mt-1"
+                checked={hqOcrOnly}
+                disabled={ocrSettingsBusy}
+                onChange={(e) => void toggleHqOcrOnly(e.target.checked)}
+              />
+              <span className="min-w-0 text-sm text-[#e6edf3]">
+                {t("hqOcrOnlyLabel")}
+              </span>
+            </label>
+            <p className="text-xs text-[#8b949e]">{t("hqOcrOnlyHint")}</p>
+          </div>
+          {ocrSettingsError ? (
+            <p className="mt-2 text-sm text-red-400">{ocrSettingsError}</p>
+          ) : null}
+        </section>
+      ) : null}
+
       {showConnectBanner ? (
         <div className="flex flex-col gap-2 rounded-xl border border-[#d29922] bg-[#d2992210] p-3 text-sm text-[#e6edf3] sm:flex-row sm:items-center sm:justify-between">
           <span>{t("connectBanner")}</span>

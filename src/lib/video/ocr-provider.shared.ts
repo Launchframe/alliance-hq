@@ -9,6 +9,11 @@ export type VideoOcrEngine = "ashed" | "native" | "mock";
 
 const PROVIDERS: ReadonlySet<string> = new Set(["ashed", "local", "mock"]);
 
+export type VideoOcrResolutionContext = {
+  /** Alliance queue setting — forces in-house Tesseract instead of Ashed OCR. */
+  allianceHqOcrOnly?: boolean;
+};
+
 export function resolveVideoOcrProvider(): VideoOcrProvider {
   const raw = process.env.VIDEO_OCR_PROVIDER?.trim().toLowerCase();
   if (!raw || !PROVIDERS.has(raw) || raw === "ashed") {
@@ -23,6 +28,16 @@ export function resolveVideoOcrProvider(): VideoOcrProvider {
   }
 
   return raw as VideoOcrProvider;
+}
+
+/** Env default, optionally overridden by the alliance video-queue setting. */
+export function resolveEffectiveVideoOcrProvider(
+  context?: VideoOcrResolutionContext,
+): VideoOcrProvider {
+  if (context?.allianceHqOcrOnly) {
+    return "local";
+  }
+  return resolveVideoOcrProvider();
 }
 
 export function videoOcrEngineForTarget(
@@ -43,21 +58,6 @@ export function engineRequiresAshed(engine: VideoOcrEngine): boolean {
   return engine === "ashed";
 }
 
-/**
- * Whether approving/running any queued job requires a live Ashed connection,
- * given the configured provider. Native/mock OCR (used by native alliances and
- * dev/e2e) never needs Ashed; the default `ashed` provider always does. The
- * roster vs non-roster distinction does not change this — only the `ashed`
- * provider yields an Ashed-bound engine. Mirrors the approve route gate.
- *
- * @server-only — reads `process.env.VIDEO_OCR_PROVIDER` which is not
- * NEXT_PUBLIC. Call only from server components, API routes, and server
- * actions; pass the result as a prop to client components.
- */
-export function videoOcrRequiresAshedConnection(): boolean {
-  return engineRequiresAshed(videoOcrEngineForTarget(resolveVideoOcrProvider(), true));
-}
-
 /** Resolve whether the worker should load an Ashed credential for this engine. */
 export async function resolveVideoJobAshedConnection(params: {
   engine: VideoOcrEngine;
@@ -67,7 +67,26 @@ export async function resolveVideoJobAshedConnection(params: {
   return params.loadConnection();
 }
 
-/** Resolve engine for a job from env + score target id. */
-export function resolveVideoOcrEngineForJob(scoreTargetId: string, isRoster: boolean): VideoOcrEngine {
-  return videoOcrEngineForTarget(resolveVideoOcrProvider(), isRoster);
+/** Resolve engine for a job from env/alliance override + score target id. */
+export function resolveVideoOcrEngineForJob(
+  scoreTargetId: string,
+  isRoster: boolean,
+  context?: VideoOcrResolutionContext,
+): VideoOcrEngine {
+  return videoOcrEngineForTarget(
+    resolveEffectiveVideoOcrProvider(context),
+    isRoster,
+  );
+}
+
+/**
+ * Whether approving/running queued jobs requires a live Ashed connection,
+ * given env and optional alliance override. Mirrors the approve-route gate.
+ */
+export function videoOcrRequiresAshedConnection(
+  context?: VideoOcrResolutionContext,
+): boolean {
+  return engineRequiresAshed(
+    videoOcrEngineForTarget(resolveEffectiveVideoOcrProvider(context), true),
+  );
 }

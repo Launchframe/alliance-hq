@@ -62,6 +62,8 @@ export const alliances = pgTable("alliances", {
   trainDiscordAnnouncementsEnabled: integer("train_discord_announcements_enabled")
     .notNull()
     .default(0),
+  /** When 1, video OCR for this alliance uses in-house Tesseract instead of Ashed. */
+  videoHqOcrOnly: integer("video_hq_ocr_only").notNull().default(0),
   /** ashed (default) — Base44 sync; native — HQ roster without Ashed seats. */
   operatingMode: text("operating_mode").notNull().default("ashed"),
   /** Native alliances: HQ user id for owner checks (Discord guild bind). */
