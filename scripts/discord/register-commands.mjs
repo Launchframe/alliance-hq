@@ -29,23 +29,12 @@ const vrLevelOption = {
 
 const commanderLinkOptions = [
   {
-    name: "name",
-    description:
-      "Your in-game name. Must match exactly — ask an alliance mate to copy it from your profile if needed.",
-    description_localizations: {
-      "pt-BR":
-        "Seu nome no jogo. Deve ser exatamente igual — peça a um colega de aliança para copiar do seu perfil e enviar para você, se precisar.",
-    },
-    type: 3,
-    required: true,
-  },
-  {
     name: "uid",
     description:
-      "Your 12–16 digit player ID, ending in your server number.",
+      "Your 12–16 digit player ID from your in-game profile (copy from the profile menu).",
     description_localizations: {
       "pt-BR":
-        "Seu ID de jogador com 12–16 dígitos, terminando no número do servidor.",
+        "Seu ID de jogador com 12–16 dígitos do perfil no jogo (copie no menu do perfil).",
     },
     type: 3,
     required: true,

@@ -9,14 +9,12 @@ describe("link slash options", () => {
         type: 2,
         data: {
           options: [
-            { name: "name", type: 3, value: "Hero" },
             { name: "uid", type: 3, value: "1234567890121203" },
             { name: "replace", type: 5, value: true },
           ],
         },
       }),
     ).toEqual({
-      name: "Hero",
       uid: "1234567890121203",
       replace: true,
     });

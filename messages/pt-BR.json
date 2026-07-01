@@ -3066,12 +3066,18 @@
       "nothingPending": "Nada para escolher agora.",
       "noWalkthrough": "Nenhum tutorial em andamento.",
       "noConfirm": "Nada para confirmar agora.",
-      "askOfficerNeedsNameAndUid": "Informe seu nome no jogo e UID com `/link-commander` antes de pedir ajuda a um oficial."
+      "askOfficerNeedsNameAndUid": "Informe seu UID com `/link-commander` antes de pedir ajuda a um oficial."
     },
     "link": {
       "userPrompt": "Clique no link abaixo para vincular sua conta do Discord ao Alliance HQ (expira em 30 min):\n{url}\n\nDepois, execute `/help` no Discord para o próximo passo.",
-      "promptFirstCommander": "Quer vincular seu primeiro comandante do Last War? Use `/link-commander name:… uid:…` (UID do seu perfil; o nome deve ser exatamente igual — peça a um colega de aliança para copiar para você).",
-      "usage": "Uso: `/link-commander name:… uid:…` (ou `/link-last-war-profile name:… uid:…`). Adicione outro comandante quando quiser; use `replace:true` para trocar o vínculo. `/unlink` remove um.",
+      "promptFirstCommander": "Quer vincular seu primeiro comandante do Last War? Use `/link-commander uid:…` (copie o UID do perfil no jogo).",
+      "usage": "Uso: `/link-commander uid:…` (ou `/link-last-war-profile uid:…`). Adicione outro comandante quando quiser; use `replace:true` para trocar o vínculo. `/unlink` remove um.",
+      "confirmIdentity": "**{name}** — É você? Encontramos este comandante para esse UID.",
+      "confirmIdentityServer": "Servidor de estado {server}",
+      "confirmIdentityYes": "Sim, sou eu",
+      "confirmIdentityNo": "Não, digitar meu UID de novo",
+      "confirmIdentityDeclined": "Sem problemas. Execute `/link-commander uid:…` de novo com o UID correto quando estiver pronto.",
+      "confirmExpired": "Essa confirmação expirou. Execute `/link-commander` novamente.",
       "linked": "Comandante **{name}** vinculado. Você já pode usar /vr.",
       "linkedAdditional": "Outro comandante vinculado: **{name}**. Com mais de um, use /vr e escolha qual comandante.",
       "updated": "Vínculo do comandante atualizado para **{name}**.",
@@ -3087,7 +3093,7 @@
       "awaitingOfficerResolveNoHq": "Verificamos seu comandante, mas o nome do roster ainda não confere. Seus oficiais foram notificados no Alliance HQ e vão confirmar o membro correto — você não precisa fazer mais nada. Você pode vincular uma conta do Alliance HQ depois para recursos web.",
       "rosterUnavailable": "Verificamos seu UID no jogo, mas não foi possível carregar o roster da aliança. Peça a um oficial para atualizar o roster ou ajudar na configuração.",
       "pickExpired": "Essa opção expirou. Execute `/link-commander` novamente.",
-      "walkthroughDone": "Ótimo. Execute `/link-commander` de novo com seu nome e UID quando estiver pronto.",
+      "walkthroughDone": "Ótimo. Execute `/link-commander uid:…` de novo quando estiver pronto.",
       "walkthroughIntro": "Vamos acertar seu nome no jogo.",
       "walkthroughTapDone": "Toque em **Concluído** quando terminar esta etapa.",
       "nameMismatchIntro": "Seu nome não corresponde ao que o Last War tem registrado. Siga estes passos — o jogo não permite copiar seu próprio nome.",
@@ -3100,7 +3106,7 @@
       ]
     },
     "vr": {
-      "notLinked": "Você ainda não tem um comandante vinculado. Use `/link-commander name:… uid:…` para vincular seu personagem.",
+      "notLinked": "Você ainda não tem um comandante vinculado. Use `/link-commander uid:…` para vincular seu personagem.",
       "pickCharacter": "Para qual personagem é este VR?",
       "success": "Entendido! Parabéns por {vr} VR.",
       "downgradeLimit": "O VR base não pode cair mais de um degrau (250) abaixo do seu recorde da temporada ({seasonHigh}).",
@@ -3154,7 +3160,7 @@
       "setupOwnerAshedSeat": "Este servidor ainda não está registrado. **Dono R5:** execute `/link-ashed tag:SuaTag`, conclua a etapa no navegador e depois `/link-alliance tag:SuaTag`.\n\n**Guia:** {guideUrl}",
       "setupLinkAlliance": "**Dono, oficial R4+ ou mantenedor:** registre este servidor com `/link-alliance tag:SuaTag`.\n\n**Guia:** {guideUrl}",
       "waitForOwnerAuth": "Aguardando o dono registrar este servidor com `/link-alliance`. Vincule seu comandante com `/link-commander` após o registro.",
-      "linkCommander": "Vincule seu comandante: `/link-commander name:… uid:…`. Você não pode copiar seu próprio nome no jogo — peça a um colega de aliança. Precisa de passos? Execute `/link-commander` com um nome errado, toque **Começar de novo** e depois **Concluído** após o tutorial.\n\n**Guia:** {guideUrl}",
+      "linkCommander": "Vincule seu comandante: `/link-commander uid:…` (copie o UID do perfil no jogo). Confirme o nome quando solicitado.\n\n**Guia:** {guideUrl}",
       "memberReady": "Você está vinculado. Use `/vr` ou `/immunity` quando o VR base mudar. `/who-is-conductor` mostra o condutor de hoje.\n\n**Guia:** {guideUrl}",
       "memberReadyMulti": "Você tem **{count}** comandantes vinculados. `/vr` e `/immunity` perguntarão qual usar. `/unlink` remove um vínculo.\n\n**Guia:** {guideUrl}",
       "ownerReady": "Você está vinculado como dono (**{tag}**). Conclua: `/set-vr-report-channel`, `/set-train-channel`, depois compartilhe `/link-commander` com os membros.\n\n**Guia:** {guideUrl}",

@@ -21,6 +21,8 @@ export type ProcessLinkInput = {
   translate: DiscordTranslate;
   walkthroughSteps: readonly string[];
   allianceTag?: string | null;
+  /** Set after the user confirms UID lookup identity (Discord / web parity). */
+  identityConfirmed?: boolean;
 };
 
 export function processLinkCommand(input: ProcessLinkInput): LinkCommandResult {
@@ -50,7 +52,10 @@ export function processLinkCommand(input: ProcessLinkInput): LinkCommandResult {
     };
   }
 
-  if (!namesMatch(input.reportedName, gameUserName)) {
+  if (
+    !input.identityConfirmed &&
+    !namesMatch(input.reportedName, gameUserName)
+  ) {
     return {
       reply: `${walkthroughMessage(0, t, input.walkthroughSteps)}\n\n${t("link.nameMismatchIntro")}`,
       pending: { kind: "link_walkthrough", step: 0 },
