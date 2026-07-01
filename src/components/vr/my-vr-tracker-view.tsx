@@ -83,7 +83,10 @@ export function MyVrTrackerView({ initial }: Props) {
       }
 
       if (payload.status === "season_locked") {
+        setSetDialogOpen(false);
+        setAnomalyOpen(false);
         setError(payload.message ?? copy.seasonLockedError);
+        await refresh();
         return;
       }
 
