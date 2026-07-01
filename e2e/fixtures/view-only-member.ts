@@ -42,12 +42,12 @@ export async function createViewOnlyMember(
   });
 
   const accepted = await acceptInviteViaApi(sql, baseURL, token, email);
-  if (options.operatingMode === "native") {
-    await createHqMemberLink(sql, {
-      allianceId: alliance.allianceId,
-      hqUserId: accepted.hqUserId,
-    });
-  }
+  // Commander link is required for /my-vr and other member-scoped HQ pages; it does
+  // not require a personal Ashed session credential.
+  await createHqMemberLink(sql, {
+    allianceId: alliance.allianceId,
+    hqUserId: accepted.hqUserId,
+  });
 
   return {
     sessionId: accepted.sessionId,
