@@ -133,31 +133,46 @@ export default function InboxPageClient() {
           {items.map((item) => (
             <li
               key={item.id}
-              className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+              className={`flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between ${
+                item.href ? "transition-colors hover:bg-[#21262d]" : ""
+              }`}
             >
-              <div className="min-w-0 flex-1">
-                <p className="text-xs font-medium uppercase tracking-wide text-[#58a6ff]">
-                  {kindLabel(item.kind)}
-                </p>
-                {item.href ? (
-                  <Link
-                    href={item.href}
-                    className="block truncate font-medium hover:text-[#58a6ff]"
-                  >
-                    {displayTitle(item)}
-                  </Link>
-                ) : (
-                  <p className="truncate font-medium">{displayTitle(item)}</p>
-                )}
-                {displayBody(item) ? (
-                  <p className="truncate text-sm text-[#8b949e]">
-                    {displayBody(item)}
+              {item.href ? (
+                <Link
+                  href={item.href}
+                  className="group min-w-0 flex-1 rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#388bfd]"
+                >
+                  <p className="text-xs font-medium uppercase tracking-wide text-[#58a6ff]">
+                    {kindLabel(item.kind)}
                   </p>
-                ) : null}
-                <p className="mt-1 text-xs text-[#8b949e]">
-                  <FormattedDateTime value={item.createdAt} />
-                </p>
-              </div>
+                  <p className="truncate font-medium text-[#e6edf3] group-hover:text-[#58a6ff] group-hover:underline">
+                    {displayTitle(item)}
+                  </p>
+                  {displayBody(item) ? (
+                    <p className="truncate text-sm text-[#8b949e]">
+                      {displayBody(item)}
+                    </p>
+                  ) : null}
+                  <p className="mt-1 text-xs text-[#8b949e]">
+                    <FormattedDateTime value={item.createdAt} />
+                  </p>
+                </Link>
+              ) : (
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-medium uppercase tracking-wide text-[#58a6ff]">
+                    {kindLabel(item.kind)}
+                  </p>
+                  <p className="truncate font-medium">{displayTitle(item)}</p>
+                  {displayBody(item) ? (
+                    <p className="truncate text-sm text-[#8b949e]">
+                      {displayBody(item)}
+                    </p>
+                  ) : null}
+                  <p className="mt-1 text-xs text-[#8b949e]">
+                    <FormattedDateTime value={item.createdAt} />
+                  </p>
+                </div>
+              )}
               <button
                 type="button"
                 disabled={dismissingId === item.id}
