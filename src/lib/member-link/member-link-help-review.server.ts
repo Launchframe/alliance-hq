@@ -9,6 +9,7 @@ import {
   satisfyHelpInboxItem,
 } from "@/lib/member-link/member-link-help-queue.server";
 import {
+  getHqMemberLinkByAllianceAndMember,
   linkHqMember,
   maybeSetOwnerMemberExternalId,
   saveHqMemberLinkPending,
@@ -286,8 +287,11 @@ export async function unlinkHqMemberLinkBreakGlass(input: {
     .limit(1);
   if (!memberRow) return { ok: false, reason: "member_not_found" };
 
-  const linkedIds = await getLinkedMemberIds(row.allianceId);
-  if (!linkedIds.has(input.targetAshedMemberId)) {
+  const hqLink = await getHqMemberLinkByAllianceAndMember(
+    row.allianceId,
+    input.targetAshedMemberId,
+  );
+  if (!hqLink) {
     return { ok: false, reason: "not_linked" };
   }
 
@@ -363,8 +367,11 @@ export async function linkMemberLinkHelpRequest(input: {
     .limit(1);
   if (!memberRow) return { ok: false, reason: "member_not_found" };
 
-  const linkedIds = await getLinkedMemberIds(row.allianceId);
-  if (linkedIds.has(input.targetAshedMemberId)) {
+  const existingHqLink = await getHqMemberLinkByAllianceAndMember(
+    row.allianceId,
+    input.targetAshedMemberId,
+  );
+  if (existingHqLink) {
     const claimant = await loadClaimantContactForMember({
       allianceId: row.allianceId,
       ashedMemberId: input.targetAshedMemberId,

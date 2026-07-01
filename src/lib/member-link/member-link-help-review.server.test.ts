@@ -19,6 +19,7 @@ vi.mock("@/lib/member-link/roster-link-resolve.server", () => ({
 }));
 
 vi.mock("@/lib/member-link/repository.server", () => ({
+  getHqMemberLinkByAllianceAndMember: vi.fn(),
   linkHqMember: vi.fn(),
   maybeSetOwnerMemberExternalId: vi.fn().mockResolvedValue(undefined),
   saveHqMemberLinkPending: vi.fn().mockResolvedValue(undefined),
@@ -120,9 +121,10 @@ describe("unlinkHqMemberLinkBreakGlass", () => {
     vi.mocked(helpQueue.getMemberLinkHelpRequestById).mockResolvedValue(
       openHelpRow as never,
     );
-    vi.mocked(vrRepository.getLinkedMemberIds).mockResolvedValue(
-      new Set(["m-claimed"]),
-    );
+    vi.mocked(repository.getHqMemberLinkByAllianceAndMember).mockResolvedValue({
+      id: "link-1",
+      hqUserId: "other-user",
+    } as never);
     vi.mocked(unlinkServer.unlinkCommanderHqAccount).mockResolvedValue({
       ok: true,
       target: "hq",
@@ -159,8 +161,10 @@ describe("unlinkHqMemberLinkBreakGlass", () => {
     );
   });
 
-  it("rejects when the roster member is not linked", async () => {
-    vi.mocked(vrRepository.getLinkedMemberIds).mockResolvedValue(new Set());
+  it("rejects when the roster member has no HQ link", async () => {
+    vi.mocked(repository.getHqMemberLinkByAllianceAndMember).mockResolvedValue(
+      null as never,
+    );
 
     const result = await unlinkHqMemberLinkBreakGlass({
       requestId: "req-1",
@@ -181,6 +185,9 @@ describe("linkMemberLinkHelpRequest", () => {
     vi.clearAllMocks();
     vi.mocked(helpQueue.getMemberLinkHelpRequestById).mockResolvedValue(
       openHelpRow as never,
+    );
+    vi.mocked(repository.getHqMemberLinkByAllianceAndMember).mockResolvedValue(
+      null as never,
     );
     vi.mocked(vrRepository.getLinkedMemberIds).mockResolvedValue(new Set());
     vi.mocked(repository.linkHqMember).mockResolvedValue({
@@ -213,10 +220,11 @@ describe("linkMemberLinkHelpRequest", () => {
     expect(repository.linkHqMember).not.toHaveBeenCalled();
   });
 
-  it("rejects when target member is already claimed", async () => {
-    vi.mocked(vrRepository.getLinkedMemberIds).mockResolvedValue(
-      new Set(["m1"]),
-    );
+  it("rejects when target member already has an HQ link", async () => {
+    vi.mocked(repository.getHqMemberLinkByAllianceAndMember).mockResolvedValue({
+      id: "link-1",
+      hqUserId: "other-user",
+    } as never);
     dbModule.chain.limit.mockReset();
     dbModule.chain.limit.mockResolvedValueOnce([
       { ashedMemberId: "m1", currentName: "Commander Alpha" },
@@ -235,6 +243,26 @@ describe("linkMemberLinkHelpRequest", () => {
       expect(result.reason).toBe("member_already_claimed");
     }
     expect(repository.linkHqMember).not.toHaveBeenCalled();
+  });
+
+  it("links when the roster member only has a Discord binding", async () => {
+    vi.mocked(vrRepository.getLinkedMemberIds).mockResolvedValue(
+      new Set(["m1"]),
+    );
+    vi.mocked(repository.getHqMemberLinkByAllianceAndMember).mockResolvedValue(
+      null as never,
+    );
+
+    const result = await linkMemberLinkHelpRequest({
+      requestId: "req-1",
+      targetAshedMemberId: "m1",
+      resolvedByHqUserId: "officer-1",
+      sessionId: "sess-1",
+      allianceId: "a1",
+    });
+
+    expect(result).toEqual({ ok: true, memberName: "Commander Alpha" });
+    expect(repository.linkHqMember).toHaveBeenCalled();
   });
 
   it("syncs owner external id and primary game uid after successful link", async () => {
