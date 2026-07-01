@@ -107,6 +107,19 @@ export function parseGameServerNumberFromUid(uid: string): number | null {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }
 
+/**
+ * Dev-only (`E2E_TEST=true`): claim confirm replaces the lookup name with the
+ * invited commander so any claim invite can be completed without burning fixed UIDs.
+ */
+export const E2E_CLAIM_INVITE_MIRROR_UID = "1234567890121288";
+
+export function isClaimInviteMirrorDevUid(uid: string): boolean {
+  return (
+    process.env.E2E_TEST === "true" &&
+    uid.trim() === E2E_CLAIM_INVITE_MIRROR_UID
+  );
+}
+
 export function parseLastWarGameServerNumber(
   payload: LastWarPlayerPayload | undefined,
   uid?: string,
@@ -235,6 +248,14 @@ export async function lookupPlayerByUid(
     return {
       ok: true,
       gameUserName: "E2eClaimTarget",
+      gameServerNumber: 1203,
+    };
+  }
+
+  if (isClaimInviteMirrorDevUid(uid)) {
+    return {
+      ok: true,
+      gameUserName: "E2eClaimInviteMirror",
       gameServerNumber: 1203,
     };
   }

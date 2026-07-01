@@ -66,6 +66,21 @@ The seed creates:
 
 `E2E_TEST=true` makes the Last War lookup return `ColdStartOwner` for that UID.
 
+### Dev Last War lookup UIDs (`E2E_TEST=true`)
+
+Requires `E2E_TEST=true` in `.env.local` and a dev server restart.
+
+| UID | Lookup name | Use |
+| --- | --- | --- |
+| `1234567890121203` | `ColdStartOwner` | Owner cold start, Discord dev seed |
+| `1234567890121204` | `E2eRosterMiss` | Roster miss / officer help queue |
+| `1234567890121205` | `E2eWrongServer` | Wrong-server onboarding (non-claim) |
+| `1234567890121206` | `Mew2407` | Substring roster match |
+| `1234567890121299` | `E2eClaimTarget` | Playwright claim invite (fixed name) |
+| **`1234567890121288`** | *(mirrors invite)* | **Manual claim testing — lookup name always matches the invited commander** |
+
+For claim-invite happy paths in a private window, use **`1234567890121288`**. You can reuse it for every invite without burning fixed-name UIDs. Conflict scenarios still use the other fixtures (e.g. `1204` roster miss, `1205` wrong name if you enter a UID that does not mirror).
+
 ## Start the App
 
 ```bash

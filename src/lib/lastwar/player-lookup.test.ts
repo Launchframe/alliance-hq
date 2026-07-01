@@ -155,4 +155,13 @@ describe("lookupPlayerByUid E2E fixtures", () => {
       gameServerNumber: 1847,
     });
   });
+
+  it("returns claim-invite mirror placeholder when E2E_TEST is enabled", async () => {
+    vi.stubEnv("E2E_TEST", "true");
+    await expect(lookupPlayerByUid("1234567890121288")).resolves.toEqual({
+      ok: true,
+      gameUserName: "E2eClaimInviteMirror",
+      gameServerNumber: 1203,
+    });
+  });
 });

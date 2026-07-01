@@ -5,7 +5,7 @@ import { and, eq } from "drizzle-orm";
 import { writeAuditLog } from "@/lib/bff/audit";
 import { getDb, schema } from "@/lib/db";
 import { emitMemberLinkClaimConflictAlert } from "@/lib/events/admin-alerts";
-import { isValidGameUid, lookupPlayerByUid } from "@/lib/lastwar/player-lookup";
+import { isValidGameUid, isClaimInviteMirrorDevUid, lookupPlayerByUid } from "@/lib/lastwar/player-lookup";
 import { syncAllianceMemberGameLevelFromLastWar } from "@/lib/lastwar/sync-member-game-level.server";
 import { findAcceptedClaimInviteForUser } from "@/lib/native-alliance/invites";
 import {
@@ -19,7 +19,6 @@ import { recordMemberLinkHelpRequest } from "@/lib/member-link/member-link-help-
 import { reconcileAllianceMemberForRosterLink } from "@/lib/member-link/roster-link-resolve.server";
 import { createMemberLinkTranslator } from "@/lib/member-link/translate.server";
 import type { MemberLinkApiResponse } from "@/lib/member-link/outcome.shared";
-import { resolveAllianceGameServerNumber } from "@/lib/game-season/game-servers.server";
 import { getAllianceById, getLinkedMemberIds } from "@/lib/vr/repository";
 import { namesMatch } from "@/lib/vr/link-helpers";
 
@@ -159,6 +158,7 @@ async function findClaimedNameCollision(input: {
 type ClaimConflictReason =
   | "name_collision"
   | "commander_taken"
+  /** @deprecated Legacy help rows only — claim confirm no longer emits this. */
   | "server_mismatch"
   | "target_mismatch";
 
@@ -210,7 +210,7 @@ async function surfaceClaimConflict(input: {
 /**
  * Confirm a commander claim invite by UID. Populates the bound commander record
  * (gameUid, currentName, previous names) and links the recipient. Surfaces
- * conflicts (name collisions, already-claimed races, server mismatch) to
+ * conflicts (name collisions, already-claimed races, invite/name mismatch) to
  * alliance officers and platform maintainers instead of silently linking.
  */
 export async function runWebMemberLinkClaimConfirm(input: {
@@ -259,39 +259,18 @@ export async function runWebMemberLinkClaimConfirm(input: {
   const alliance = await getAllianceById(input.allianceId);
   const allianceTag = alliance?.tag ?? "alliance";
 
-  const allianceServer = await resolveAllianceGameServerNumber(input.allianceId);
-  const playerServer = lookup.gameServerNumber ?? null;
-  if (
-    allianceServer != null &&
-    playerServer != null &&
-    playerServer !== allianceServer
-  ) {
-    await surfaceClaimConflict({
-      allianceId: input.allianceId,
-      allianceTag,
-      hqUserId: input.hqUserId,
-      handle,
-      commanderName: target.commanderName,
-      gameUserName: lookup.gameUserName,
-      gameUid: uid,
-      ashedMemberId: target.ashedMemberId,
-      reason: "server_mismatch",
-    });
-    return {
-      outcome: "claim_conflict",
-      message: translate("claimConflict"),
-      pending: null,
-    };
-  }
+  const lookupGameUserName = isClaimInviteMirrorDevUid(uid)
+    ? target.commanderName
+    : lookup.gameUserName;
 
-  if (!claimTargetMatchesLookupName(target, lookup.gameUserName)) {
+  if (!claimTargetMatchesLookupName(target, lookupGameUserName)) {
     await surfaceClaimConflict({
       allianceId: input.allianceId,
       allianceTag,
       hqUserId: input.hqUserId,
       handle,
       commanderName: target.commanderName,
-      gameUserName: lookup.gameUserName,
+      gameUserName: lookupGameUserName,
       gameUid: uid,
       ashedMemberId: target.ashedMemberId,
       reason: "target_mismatch",
@@ -315,7 +294,7 @@ export async function runWebMemberLinkClaimConfirm(input: {
 
   const collisionName = await findClaimedNameCollision({
     allianceId: input.allianceId,
-    gameUserName: lookup.gameUserName,
+    gameUserName: lookupGameUserName,
     targetAshedMemberId: target.ashedMemberId,
   });
   if (collisionName) {
@@ -325,7 +304,7 @@ export async function runWebMemberLinkClaimConfirm(input: {
       hqUserId: input.hqUserId,
       handle,
       commanderName: target.commanderName,
-      gameUserName: lookup.gameUserName,
+      gameUserName: lookupGameUserName,
       gameUid: uid,
       ashedMemberId: target.ashedMemberId,
       reason: "name_collision",
@@ -352,14 +331,14 @@ export async function runWebMemberLinkClaimConfirm(input: {
   await reconcileAllianceMemberForRosterLink({
     allianceId: input.allianceId,
     ashedMemberId: target.ashedMemberId,
-    gameUserName: lookup.gameUserName,
+    gameUserName: lookupGameUserName,
   });
 
   const linked = await linkHqMember({
     allianceId: input.allianceId,
     hqUserId: input.hqUserId,
     ashedMemberId: target.ashedMemberId,
-    memberDisplayName: lookup.gameUserName,
+    memberDisplayName: lookupGameUserName,
     gameUid: uid,
   });
 
@@ -370,7 +349,7 @@ export async function runWebMemberLinkClaimConfirm(input: {
       hqUserId: input.hqUserId,
       handle,
       commanderName: target.commanderName,
-      gameUserName: lookup.gameUserName,
+      gameUserName: lookupGameUserName,
       gameUid: uid,
       ashedMemberId: target.ashedMemberId,
       reason: "commander_taken",
@@ -417,8 +396,8 @@ export async function runWebMemberLinkClaimConfirm(input: {
 
   return {
     outcome: "linked",
-    message: translate("link.linked", { name: lookup.gameUserName }),
+    message: translate("link.linked", { name: lookupGameUserName }),
     pending: null,
-    linkedMemberName: lookup.gameUserName,
+    linkedMemberName: lookupGameUserName,
   };
 }
