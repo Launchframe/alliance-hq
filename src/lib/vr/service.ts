@@ -490,6 +490,7 @@ export async function handleDiscordVrSlash(input: {
       baseVr: result.action.vr,
       discordUserId: input.discordUserId,
       flagReason: result.action.flagReason ?? null,
+      eventSource: "discord",
     });
     await saveDiscordBotPending(input.allianceId, input.discordUserId, null);
   }
@@ -543,6 +544,7 @@ export async function handleDiscordVrButtonConfirm(input: {
       baseVr: result.action.vr,
       discordUserId: input.discordUserId,
       flagReason: result.action.flagReason ?? null,
+      eventSource: "discord",
     });
     await saveDiscordBotPending(input.allianceId, input.discordUserId, null);
   }

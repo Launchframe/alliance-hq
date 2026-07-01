@@ -78,6 +78,14 @@ const NAV_ACTIONS: HotkeyActionDef[] = [
     href: "/viral-resistance",
   },
   {
+    id: "nav.myVr",
+    labelKey: "actions.nav.myVr",
+    category: "navigation",
+    scope: "global",
+    kind: "navigate",
+    href: "/my-vr",
+  },
+  {
     id: "nav.trains",
     labelKey: "actions.nav.trains",
     category: "navigation",
