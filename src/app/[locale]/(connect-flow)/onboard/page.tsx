@@ -5,6 +5,8 @@ import { MemberLinkOnboardingWizard } from "@/components/onboarding/MemberLinkOn
 import { redirect } from "@/i18n/navigation";
 import { requireAuthForPage } from "@/lib/auth/page-guard";
 import { getDb, schema } from "@/lib/db";
+import { getWebMemberLinkStatus } from "@/lib/member-link/orchestrator.server";
+import { resolveMemberLinkOnboardingInitialState } from "@/lib/member-link/onboarding-bootstrap.shared";
 import { sessionHasHqMemberLink } from "@/lib/member-link/repository.server";
 import {
   DEFAULT_POST_INVITE_APP_PATH,
@@ -73,12 +75,24 @@ export default async function OnboardPage({ searchParams }: Props) {
     }
   }
 
+  const initialOnboardingState = effectiveHqUserId
+    ? resolveMemberLinkOnboardingInitialState(
+        await getWebMemberLinkStatus({
+          sessionId: freshSession.id,
+          allianceId,
+          hqUserId: effectiveHqUserId,
+          locale,
+        }),
+      )
+    : { phase: "welcome" as const };
+
   return (
     <MemberLinkOnboardingWizard
       allianceName={allianceName}
       allianceTag={allianceTag}
       nextPath={nextPath}
       successPresentation={source === "discord" ? "explore" : "default"}
+      initialState={initialOnboardingState}
     />
   );
 }
