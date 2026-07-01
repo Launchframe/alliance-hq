@@ -3084,7 +3084,8 @@
       "maxVr": "You're at the max base VR we track ({max}).",
       "stillWaiting": "Still waiting: are you sure it's {vr}? Tap Yes or No.",
       "declined": "No problem. Send /vr with your corrected base VR when ready.",
-      "anomalyConfirm": "Are you *sure* your VR is {vr}? That would be way ahead of the pack for base VR. Tap Yes if you're serious — we believe you (probably)."
+      "anomalyConfirm": "Are you *sure* your VR is {vr}? That would be way ahead of the pack for base VR. Tap Yes if you're serious — we believe you (probably).",
+      "seasonLocked": "The season is over. VR updates are closed until the next season starts."
     },
     "setup": {
       "linkAllianceSuccess": "Registered this server for **{tag}**. Members can now link with `/link-commander name:… uid:…` and report base VR with `/vr`.",

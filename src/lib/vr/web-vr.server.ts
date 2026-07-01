@@ -8,7 +8,7 @@ import { processVrCommand, processVrConfirmation } from "@/lib/vr/command";
 import { computeVrPercentile } from "@/lib/vr/percentile";
 import type { MyVrPayload, MyVrPostResponse } from "@/lib/vr/my-vr.shared";
 import { auditWebVrCommand } from "@/lib/vr/web-vr-audit.server";
-import { VR_SEASON_LOCKED_MESSAGE } from "@/lib/vr/vr-season-lock.shared";
+import { vrSeasonLockedMessage } from "@/lib/vr/vr-season-lock.shared";
 import {
   countSeasonReporters,
   getHqVrPending,
@@ -130,7 +130,7 @@ async function handleWebVrCommandCore(input: {
     return {
       result: {
         status: "season_locked",
-        message: VR_SEASON_LOCKED_MESSAGE,
+        message: vrSeasonLockedMessage(translate),
       },
       ashedMemberId: link.ashedMemberId,
     };
@@ -238,7 +238,7 @@ async function handleWebVrConfirm(input: {
   if (season.vrUpdatesLocked) {
     return {
       status: "season_locked",
-      message: VR_SEASON_LOCKED_MESSAGE,
+      message: vrSeasonLockedMessage(input.translate),
     };
   }
 

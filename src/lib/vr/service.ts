@@ -24,7 +24,7 @@ import {
   loadAllianceMembersForBot,
   loadAllianceMembersForMemberLinkWithLiveRetry,
 } from "@/lib/vr/member-roster";
-import { VR_SEASON_LOCKED_MESSAGE } from "@/lib/vr/vr-season-lock.shared";
+import { vrSeasonLockedMessage } from "@/lib/vr/vr-season-lock.shared";
 import {
   countSeasonReporters,
   getAllianceById,
@@ -447,7 +447,7 @@ export async function handleDiscordVrSlash(input: {
     const season = await resolveVrSeasonContext(input.allianceId);
     if (season.vrUpdatesLocked) {
       const result: VrCommandResult = {
-        reply: VR_SEASON_LOCKED_MESSAGE,
+        reply: vrSeasonLockedMessage(translate),
         pending: null,
         action: { type: "none" as const },
       };
@@ -472,7 +472,7 @@ export async function handleDiscordVrSlash(input: {
   const season = await resolveVrSeasonContext(input.allianceId);
   if (season.vrUpdatesLocked) {
     const result: VrCommandResult = {
-      reply: VR_SEASON_LOCKED_MESSAGE,
+      reply: vrSeasonLockedMessage(translate),
       pending: null,
       action: { type: "none" as const },
     };
@@ -545,7 +545,7 @@ export async function handleDiscordVrButtonConfirm(input: {
   const season = await resolveVrSeasonContext(input.allianceId);
   if (season.vrUpdatesLocked) {
     const result: VrCommandResult = {
-      reply: VR_SEASON_LOCKED_MESSAGE,
+      reply: vrSeasonLockedMessage(translate),
       pending: null,
       action: { type: "none" as const },
     };

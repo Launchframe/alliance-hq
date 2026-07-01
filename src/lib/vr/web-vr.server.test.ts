@@ -41,9 +41,8 @@ import {
   saveHqVrPending,
   upsertMemberSeasonVr,
 } from "@/lib/vr/repository";
-import { VR_SEASON_LOCKED_MESSAGE } from "@/lib/vr/vr-season-lock.shared";
-import { handleWebVrCommand, loadMyVrForUser } from "@/lib/vr/web-vr.server";
 import { auditWebVrCommand } from "@/lib/vr/web-vr-audit.server";
+import { handleWebVrCommand, loadMyVrForUser } from "@/lib/vr/web-vr.server";
 
 describe("handleWebVrCommand", () => {
   beforeEach(() => {
@@ -135,6 +134,7 @@ describe("handleWebVrCommand", () => {
       priorSeason: "4",
     });
 
+    const translate = createDiscordTranslator("en-US");
     const result = await handleWebVrCommand({
       sessionId: "session-1",
       allianceId: "alliance-1",
@@ -144,7 +144,7 @@ describe("handleWebVrCommand", () => {
 
     expect(result).toEqual({
       status: "season_locked",
-      message: VR_SEASON_LOCKED_MESSAGE,
+      message: translate("vr.seasonLocked"),
     });
     expect(upsertMemberSeasonVr).not.toHaveBeenCalled();
   });
