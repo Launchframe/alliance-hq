@@ -19,6 +19,7 @@ export type RematchMembersResult = {
 
 export async function rematchVideoJobMembers(
   jobId: string,
+  options: { callerSessionId: string },
 ): Promise<RematchMembersResult> {
   const db = getDb();
   const [job] = await db
@@ -35,13 +36,14 @@ export async function rematchVideoJobMembers(
     throw new Error("Job has no parsed rows to rematch.");
   }
 
-  const connection = await getAshedConnection(job.sessionId);
+  const { callerSessionId } = options;
+  const connection = await getAshedConnection(callerSessionId);
   if (!connection) {
     throw new Error("Ashed not connected for this session.");
   }
 
   const previousAllianceId = job.allianceId;
-  const allianceId = await resolveSessionAllianceId(job.sessionId, connection);
+  const allianceId = await resolveSessionAllianceId(callerSessionId, connection);
 
   let members: AshedMember[] = [];
   try {
@@ -51,7 +53,7 @@ export async function rematchVideoJobMembers(
   }
 
   const memberIndex = members.length ? buildMemberIndex(members) : null;
-  const allianceTag = await getSessionAllianceTag(job.sessionId);
+  const allianceTag = await getSessionAllianceTag(callerSessionId);
   const rows = await db
     .select()
     .from(schema.parsedRows)

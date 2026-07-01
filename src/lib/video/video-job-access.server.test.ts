@@ -29,10 +29,16 @@ vi.mock("@/lib/db", () => ({
     videoJobs: {
       id: "id",
     },
+    videoUploadGroups: {
+      id: "id",
+      primaryJobId: "primaryJobId",
+      sessionId: "sessionId",
+      allianceId: "allianceId",
+    },
   },
 }));
 
-import { resolveVideoJobAccess } from "@/lib/video/video-job-access.server";
+import { resolveVideoJobAccess, resolveVideoUploadGroupAccess } from "@/lib/video/video-job-access.server";
 
 const baseJob = {
   id: "job-1",
@@ -128,5 +134,53 @@ describe("resolveVideoJobAccess", () => {
     );
 
     expect(result).toEqual({ ok: false, status: 403 });
+  });
+});
+
+describe("resolveVideoUploadGroupAccess", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    sessionCanReadAllianceVideoQueue.mockResolvedValue(true);
+    sessionCanProcessVideo.mockResolvedValue(true);
+  });
+
+  it("delegates to primary job access for cross-device reviewers", async () => {
+    selectLimit
+      .mockResolvedValueOnce([
+        {
+          id: "group-1",
+          primaryJobId: "job-1",
+          sessionId: "uploader-session",
+          allianceId: "alliance-a",
+        },
+      ])
+      .mockResolvedValueOnce([baseJob]);
+    loadSession.mockResolvedValue({
+      id: "laptop-session",
+      currentAllianceId: "alliance-a",
+    });
+
+    const result = await resolveVideoUploadGroupAccess(
+      "group-1",
+      "laptop-session",
+      "mutate",
+    );
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.group.id).toBe("group-1");
+    }
+  });
+
+  it("returns 404 when group is missing", async () => {
+    selectLimit.mockResolvedValueOnce([]);
+
+    const result = await resolveVideoUploadGroupAccess(
+      "missing-group",
+      "laptop-session",
+      "mutate",
+    );
+
+    expect(result).toEqual({ ok: false, status: 404 });
   });
 });

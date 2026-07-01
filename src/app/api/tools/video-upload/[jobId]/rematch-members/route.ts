@@ -21,7 +21,9 @@ export async function POST(_request: Request, { params }: Props) {
       return videoJobAccessErrorResponse(access);
     }
 
-    const result = await rematchVideoJobMembers(jobId);
+    const result = await rematchVideoJobMembers(jobId, {
+      callerSessionId: session.id,
+    });
 
     return NextResponse.json({ ok: true, ...result });
   } catch (error) {
