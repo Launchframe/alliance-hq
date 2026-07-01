@@ -44,6 +44,9 @@ function e2eBaseUrl(): string {
  *  - Approving a job from another alliance (tenant isolation → 404).
  *  - Approving without Ashed returning a 500 or marking the job failed.
  */
+const QUEUE_CONNECT_URL =
+  "/connect?next=%2Ftools%2Fvideo-upload%2Fqueue";
+
 test.describe("Video enqueue/process RBAC", () => {
   test("officer can enqueue but cannot read the queue, approve, or reject", async ({
     request,
@@ -107,7 +110,7 @@ test.describe("Video enqueue/process RBAC", () => {
       };
       expect(body.canProcess).toBe(true);
       expect(body.ashedConnected).toBe(false);
-      expect(body.connectUrl).toBe("/connect");
+      expect(body.connectUrl).toBe(QUEUE_CONNECT_URL);
       expect(body.jobs.length).toBeGreaterThanOrEqual(1);
     }
   });
@@ -130,7 +133,7 @@ test.describe("Video enqueue/process RBAC", () => {
     expect(res.status()).toBe(409);
     const body = (await res.json()) as { code?: string; connectUrl?: string };
     expect(body.code).toBe("ashed_not_connected");
-    expect(body.connectUrl).toBe("/connect");
+    expect(body.connectUrl).toBe(QUEUE_CONNECT_URL);
 
     expect(await loadVideoJobStatus(sql, jobId)).toBe("pending_approval");
   });
