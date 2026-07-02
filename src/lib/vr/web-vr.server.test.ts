@@ -25,6 +25,7 @@ vi.mock("@/lib/vr/repository", () => ({
     isPostSeason: false,
     vrUpdatesLocked: false,
     priorSeason: null,
+    vrSandboxActive: false,
   }),
   saveHqVrPending: vi.fn(),
   upsertMemberSeasonVr: vi.fn(),
@@ -132,6 +133,7 @@ describe("handleWebVrCommand", () => {
       isPostSeason: true,
       vrUpdatesLocked: true,
       priorSeason: "4",
+      vrSandboxActive: false,
     });
 
     const translate = createDiscordTranslator("en-US");
@@ -177,6 +179,7 @@ describe("loadMyVrForUser", () => {
       isPostSeason: true,
       vrUpdatesLocked: true,
       priorSeason: "4",
+      vrSandboxActive: false,
     });
   });
 

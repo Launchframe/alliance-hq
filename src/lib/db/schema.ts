@@ -64,6 +64,10 @@ export const alliances = pgTable("alliances", {
     .default(0),
   /** When 1, video OCR for this alliance uses in-house Tesseract instead of Ashed. */
   videoHqOcrOnly: integer("video_hq_ocr_only").notNull().default(0),
+  /** When 1, self-report VR uses an isolated sandbox season key (practice mode). */
+  vrSandboxEnabled: integer("vr_sandbox_enabled").notNull().default(0),
+  /** Season key for sandbox VR rows; wiped when sandbox mode ends. */
+  vrSandboxSeasonKey: text("vr_sandbox_season_key"),
   /** ashed (default) — Base44 sync; native — HQ roster without Ashed seats. */
   operatingMode: text("operating_mode").notNull().default("ashed"),
   /** Native alliances: HQ user id for owner checks (Discord guild bind). */

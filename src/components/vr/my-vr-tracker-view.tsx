@@ -121,6 +121,11 @@ export function MyVrTrackerView({ initial }: Props) {
   const displayVr = data.currentVr ?? 0;
   const hasReported = data.currentVr != null && data.currentVr > 0;
   const updatesLocked = data.vrUpdatesLocked;
+  const seasonLabelText = data.vrSandboxActive
+    ? copy.sandboxSeasonLabel
+    : updatesLocked && data.priorSeason
+      ? copy.seasonLabel.replace("{season}", data.priorSeason)
+      : copy.seasonLabel.replace("{season}", data.seasonKey);
 
   const postSeasonNoticeText =
     data.priorSeason != null && data.seasonMaxVr != null
@@ -142,12 +147,20 @@ export function MyVrTrackerView({ initial }: Props) {
         </h1>
         <p className="text-sm text-[#8b949e]">{copy.pageSubtitle}</p>
         <p className="text-xs text-[#6e7681]">
-          {updatesLocked && data.priorSeason
-            ? copy.seasonLabel.replace("{season}", data.priorSeason)
-            : copy.seasonLabel.replace("{season}", data.seasonKey)}
+          {seasonLabelText}
           {data.commanderName ? ` · ${data.commanderName}` : ""}
         </p>
       </header>
+
+      {data.vrSandboxActive ? (
+        <p
+          className="rounded-lg border border-[#d29922]/50 bg-[#d2992210] px-4 py-3 text-sm text-[#d29922]"
+          role="status"
+          data-testid="my-vr-sandbox-notice"
+        >
+          {copy.sandboxActiveNotice}
+        </p>
+      ) : null}
 
       {updatesLocked && postSeasonNoticeText ? (
         <p

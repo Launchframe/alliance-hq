@@ -1586,6 +1586,19 @@
       "noChannel": "No train channel configured yet. Owner: run /set-train-channel in Discord.",
       "readOnlyHint": "Only train officers can change this setting."
     },
+    "vrSandbox": {
+      "title": "VR sandbox mode",
+      "description": "Let members practice reporting VR on Discord and My VR when the live season is closed or between seasons. Sandbox reports do not appear on the live leaderboard.",
+      "loading": "Loading…",
+      "loadFailed": "Could not load VR sandbox settings.",
+      "saveFailed": "Could not save VR sandbox settings.",
+      "enabledLabel": "Enable VR sandbox for this alliance",
+      "activeNotice": "Sandbox is on — /vr and My VR accept practice reports until you turn this off.",
+      "readOnlyHint": "Only alliance admins can change this setting.",
+      "disableConfirmBody": "Turn off sandbox and delete all practice VR data for this alliance? This cannot be undone.",
+      "disableConfirmAction": "End sandbox and wipe data",
+      "disableCancel": "Keep sandbox on"
+    },
     "discordServerSetup": {
       "title": "Discord bot — add another server",
       "body": "Your alliance can link multiple Discord servers to the same bot. An alliance owner, R4+ officer, or platform maintainer can add the bot to a Discord server they own or can manage, then register that server to your alliance tag so slash commands work there.",
@@ -3152,7 +3165,8 @@
       "stillWaiting": "Still waiting: are you sure it's {vr}? Tap Yes or No.",
       "declined": "No problem. Send /vr with your corrected base VR when ready.",
       "anomalyConfirm": "Are you *sure* your VR is {vr}? That would be way ahead of the pack for base VR. Tap Yes if you're serious — we believe you (probably).",
-      "seasonLocked": "The season is over. VR updates are closed until the next season starts."
+      "seasonLocked": "The season is over. VR updates are closed until the next season starts.",
+      "sandboxActive": "**Sandbox mode** — this VR report is practice only and does not count on the live leaderboard."
     },
     "setup": {
       "linkAllianceSuccess": "Registered this server for **{tag}**. Members can now link with `/link-commander uid:…` and report base VR with `/vr`.",

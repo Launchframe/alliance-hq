@@ -31,6 +31,7 @@ const lockedSeason = {
   isPostSeason: true,
   vrUpdatesLocked: true,
   priorSeason: "4",
+  vrSandboxActive: false,
 };
 
 describe("handleDiscordVrSlash post-season lock", () => {

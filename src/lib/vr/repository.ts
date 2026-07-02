@@ -3,13 +3,12 @@ import { nanoid } from "nanoid";
 
 import { getDb, schema } from "@/lib/db";
 import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
-import { parseAshedMemberAllianceRank } from "@/lib/members/alliance-rank";
-import type { VrSeasonContext } from "@/lib/vr/vr-season-lock.shared";
 import {
   denormalizeGameUidOnMember,
   openMemberAllianceTenure,
 } from "@/lib/members/member-tenure.server";
 import { syncCommanderIdentityFromMemberLink } from "@/lib/members/commander-identity.server";
+import { parseAshedMemberAllianceRank } from "@/lib/members/alliance-rank";
 import { isNativeAlliance } from "@/lib/native-alliance/operating-mode";
 import { buildFlagReason, peerMaxExcludingMember } from "@/lib/vr/anomaly";
 import { MAX_DISCORD_LINKS_PER_USER, type VrEventSource } from "@/lib/vr/constants";
@@ -21,6 +20,9 @@ import {
   ownerProvenByMemberLink,
 } from "@/lib/vr/discord-guild-registration";
 import { loadAllianceMembersForBot } from "@/lib/vr/member-roster";
+import { getAllianceVrSandboxState } from "@/lib/vr/vr-sandbox.server";
+import type { VrSeasonContext } from "@/lib/vr/vr-season-lock.shared";
+import { resolveVrSeasonContextFromParts } from "@/lib/vr/vr-season-lock.shared";
 import type { LinkPendingState, VrPendingState } from "@/lib/vr/types";
 
 const PENDING_TTL_MS = 30 * 60 * 1000;
@@ -163,24 +165,30 @@ export function resolveGuildAllianceIdWithLegacyFallback(input: {
 export async function resolveVrSeasonContext(
   allianceId: string,
 ): Promise<VrSeasonContext> {
-  const envKey = process.env.DISCORD_ALLIANCE_SEASON_KEY?.trim();
-  if (envKey) {
-    return {
-      seasonKey: envKey,
-      isPostSeason: false,
-      vrUpdatesLocked: false,
-      priorSeason: null,
-    };
-  }
+  const [sandbox, effective] = await Promise.all([
+    getAllianceVrSandboxState(allianceId),
+    getEffectiveSeasonForAlliance(allianceId),
+  ]);
 
-  const effective = await getEffectiveSeasonForAlliance(allianceId);
-  const vrUpdatesLocked = effective.isPostSeason;
-  return {
-    seasonKey: effective.seasonKey,
-    isPostSeason: effective.isPostSeason,
-    vrUpdatesLocked,
-    priorSeason: vrUpdatesLocked ? effective.seasonKey : null,
-  };
+  return resolveVrSeasonContextFromParts({
+    envSeasonKey: process.env.DISCORD_ALLIANCE_SEASON_KEY,
+    effective: {
+      seasonKey: effective.seasonKey,
+      isPostSeason: effective.isPostSeason,
+    },
+    sandbox,
+  });
+}
+
+/** Live season for leaderboards, officer review, and commanders — never sandbox. */
+export async function resolveLiveVrSeasonContext(
+  allianceId: string,
+): Promise<VrSeasonContext> {
+  return resolveVrSeasonContextFromParts({
+    envSeasonKey: process.env.DISCORD_ALLIANCE_SEASON_KEY,
+    effective: await getEffectiveSeasonForAlliance(allianceId),
+    sandbox: { enabled: false, seasonKey: null },
+  });
 }
 
 /** @deprecated Prefer resolveVrSeasonContext */
@@ -191,7 +199,7 @@ export async function resolveEffectiveSeasonForVr(
 }
 
 export async function resolveSeasonKey(allianceId: string): Promise<string> {
-  const { seasonKey } = await resolveVrSeasonContext(allianceId);
+  const { seasonKey } = await resolveLiveVrSeasonContext(allianceId);
   return seasonKey;
 }
 

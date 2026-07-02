@@ -1586,6 +1586,19 @@
       "noChannel": "Nenhum canal do trem configurado. Dono: execute /set-train-channel no Discord.",
       "readOnlyHint": "Somente oficiais do trem podem alterar esta opção."
     },
+    "vrSandbox": {
+      "title": "Modo sandbox de VR",
+      "description": "Permite que membros pratiquem o reporte de VR no Discord e em Meu VR quando a temporada ao vivo estiver fechada ou entre temporadas. Relatórios no sandbox não aparecem no placar ao vivo.",
+      "loading": "Carregando…",
+      "loadFailed": "Não foi possível carregar as configurações do sandbox de VR.",
+      "saveFailed": "Não foi possível salvar as configurações do sandbox de VR.",
+      "enabledLabel": "Ativar sandbox de VR para esta aliança",
+      "activeNotice": "Sandbox ativo — /vr e Meu VR aceitam relatórios de prática até você desativar.",
+      "readOnlyHint": "Somente administradores da aliança podem alterar esta configuração.",
+      "disableConfirmBody": "Desativar o sandbox e apagar todos os dados de VR de prática desta aliança? Isso não pode ser desfeito.",
+      "disableConfirmAction": "Encerrar sandbox e apagar dados",
+      "disableCancel": "Manter sandbox ativo"
+    },
     "discordServerSetup": {
       "title": "Bot do Discord — adicionar outro servidor",
       "body": "Sua aliança pode vincular vários servidores Discord ao mesmo bot. Um dono da aliança, oficial R4+ ou mantenedor da plataforma pode adicionar o bot a um servidor Discord que possui ou gerencia e depois registrar esse servidor com a tag da sua aliança para que os comandos slash funcionem lá.",
@@ -3152,7 +3165,8 @@
       "stillWaiting": "Ainda aguardando: tem certeza que é {vr}? Toque Sim ou Não.",
       "declined": "Sem problemas. Envie /vr com o VR base corrigido quando estiver pronto.",
       "anomalyConfirm": "Tem *certeza* que seu VR é {vr}? Isso ficaria bem à frente do grupo em VR base. Toque Sim se for sério — acreditamos em você (provavelmente).",
-      "seasonLocked": "A temporada terminou. Atualizações de VR estão fechadas até a próxima temporada começar."
+      "seasonLocked": "A temporada terminou. Atualizações de VR estão fechadas até a próxima temporada começar.",
+      "sandboxActive": "**Modo sandbox** — este relatório de VR é apenas prática e não conta no placar ao vivo."
     },
     "setup": {
       "linkAllianceSuccess": "Servidor registrado para **{tag}**. Os membros já podem se vincular com `/link-commander uid:…` e informar o VR base com `/vr`.",
