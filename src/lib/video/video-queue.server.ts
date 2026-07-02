@@ -5,6 +5,7 @@ import { and, desc, eq, inArray, isNull, or } from "drizzle-orm";
 import { resolveSessionAllianceId } from "@/lib/alliance/session-memberships";
 import { getDb, schema } from "@/lib/db";
 import { loadSession } from "@/lib/session";
+import { sessionCanReadAllianceVideoQueue } from "@/lib/video/processor-slots.server";
 import { ACTIVE_QUEUE_VIDEO_JOB_STATUSES } from "@/lib/video/video-lifecycle.shared";
 import type { AllianceQueueJob } from "@/lib/video/video-queue.shared";
 
@@ -86,11 +87,7 @@ export async function listAllianceActiveVideoJobs(
   return selectActiveQueueJobs(eq(schema.videoJobs.allianceId, allianceId));
 }
 
-/**
- * Jobs enqueued by this HQ user (used when alliance context is unset).
- * Wired from listVideoQueueJobsForSession once enqueue-only queue reads work
- * without a resolved alliance context.
- */
+/** Jobs enqueued by this HQ user (used when alliance context is unset). */
 export async function listEnqueuerActiveVideoJobs(
   hqUserId: string,
 ): Promise<AllianceQueueJob[]> {
@@ -109,6 +106,10 @@ export async function listVideoQueueJobsForSession(
 ): Promise<AllianceQueueJob[]> {
   const session = await loadSession(sessionId);
   if (!session) {
+    return [];
+  }
+
+  if (!(await sessionCanReadAllianceVideoQueue(sessionId, session))) {
     return [];
   }
 

@@ -381,6 +381,33 @@ describe("sessionCanReadAllianceVideoQueue", () => {
     await expect(sessionCanReadAllianceVideoQueue("s")).resolves.toBe(false);
   });
 
+  it("loads session once when alliance context is unset", async () => {
+    loadSession.mockResolvedValue({
+      id: "s",
+      hqUserId: "u",
+      currentAllianceId: null,
+      allianceId: null,
+    });
+    getRbacContext.mockResolvedValue({
+      isPlatformMaintainer: false,
+      roleName: "officer",
+      currentAllianceId: null,
+      hqUserId: "u",
+      permissions: new Set<string>(),
+    });
+    listSessionAlliances.mockResolvedValue([
+      { id: "alliance-1", tag: "LFgo", name: "LFgo", slug: "lfgo", roleName: "officer" },
+    ]);
+    sessionHasPermissionForAlliance.mockImplementation(
+      async (_sessionId, _allianceId, permission) =>
+        permission === "hq:video:enqueue",
+    );
+
+    await sessionCanReadAllianceVideoQueue("s");
+
+    expect(loadSession).toHaveBeenCalledTimes(1);
+  });
+
   it("allows enqueue officers without alliance context when they may enqueue somewhere", async () => {
     loadSession.mockResolvedValue({
       id: "s",

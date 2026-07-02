@@ -5,6 +5,7 @@ import { nanoid } from "nanoid";
 
 import { resolveSessionAllianceId, listSessionAlliances } from "@/lib/alliance/session-memberships";
 import { getDb, schema } from "@/lib/db";
+import type { Session } from "@/lib/db/schema";
 import { formatAllianceRankLabel } from "@/lib/members/alliance-rank";
 import { getAllianceOperatingMode } from "@/lib/native-alliance/operating-mode";
 import {
@@ -345,13 +346,14 @@ export async function sessionCanAccessAllianceVideoJob(
 
 async function sessionHasVideoEnqueueInAnyAlliance(
   sessionId: string,
+  session?: Session | null,
 ): Promise<boolean> {
-  const session = await loadSession(sessionId);
-  if (!session?.hqUserId) {
+  const resolvedSession = session ?? (await loadSession(sessionId));
+  if (!resolvedSession?.hqUserId) {
     return false;
   }
 
-  const alliances = await listSessionAlliances(session.hqUserId);
+  const alliances = await listSessionAlliances(resolvedSession.hqUserId);
   for (const alliance of alliances) {
     if (
       await sessionHasPermissionForAlliance(
@@ -375,8 +377,9 @@ async function sessionHasVideoEnqueueInAnyAlliance(
  */
 export async function sessionCanReadAllianceVideoQueue(
   sessionId: string,
+  sessionOverride?: Session | null,
 ): Promise<boolean> {
-  const session = await loadSession(sessionId);
+  const session = sessionOverride ?? (await loadSession(sessionId));
   if (!session?.hqUserId) {
     return false;
   }
@@ -391,7 +394,7 @@ export async function sessionCanReadAllianceVideoQueue(
 
   const allianceId = resolveSessionAllianceId(session);
   if (!allianceId) {
-    return sessionHasVideoEnqueueInAnyAlliance(sessionId);
+    return sessionHasVideoEnqueueInAnyAlliance(sessionId, session);
   }
 
   if (

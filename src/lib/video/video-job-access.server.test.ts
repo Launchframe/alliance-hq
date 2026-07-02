@@ -254,6 +254,39 @@ describe("resolveVideoUploadGroupAccess", () => {
     expect(sessionCanAccessAllianceVideoJob).toHaveBeenCalled();
   });
 
+  it("returns 404 when linked primary job exists but cross-tenant reviewer is unauthorized", async () => {
+    selectLimit
+      .mockResolvedValueOnce([
+        {
+          id: "group-1",
+          primaryJobId: null,
+          sessionId: "uploader-session",
+          allianceId: "alliance-a",
+        },
+      ])
+      .mockResolvedValueOnce([{ id: "job-1" }])
+      .mockResolvedValueOnce([baseJob]);
+    loadSession.mockResolvedValue({
+      id: "other-session",
+      currentAllianceId: null,
+      hqUserId: "other-hq-user",
+    });
+    sessionCanAccessAllianceVideoJob.mockResolvedValue(false);
+
+    const result = await resolveVideoUploadGroupAccess(
+      "group-1",
+      "other-session",
+      "read",
+    );
+
+    expect(result).toEqual({ ok: false, status: 404 });
+    expect(sessionCanAccessAllianceVideoJob).toHaveBeenCalledWith(
+      "other-session",
+      "alliance-a",
+      { enqueuedByHqUserId: "officer-hq-user" },
+    );
+  });
+
   it("returns 404 when group is missing", async () => {
     selectLimit.mockResolvedValueOnce([]);
 
