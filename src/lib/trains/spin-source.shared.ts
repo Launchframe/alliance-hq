@@ -77,30 +77,3 @@ export function isPoolSpinSource(
 ): source is PoolSpinSource {
   return source?.kind === "pool";
 }
-
-const ASHED_SCORE_CONDUCTOR_MECHANISMS = new Set([
-  "vs_high_score",
-  "vs_top_10",
-  "donations_top",
-]);
-
-const ASHED_SCORE_VIP_MECHANISMS = new Set([
-  "donations_second",
-  "event_top_x_lottery",
-]);
-
-/** True when the day's mechanism needs live Ashed score reads (not roster pools). */
-export function dayNeedsAshedConnection(
-  conductorMechanism: string | null | undefined,
-  vipMechanism: string | null | undefined,
-  paintTemplate?: WeekTemplateType | null,
-): boolean {
-  const conductor = effectiveConductorMechanism(
-    conductorMechanism,
-    paintTemplate,
-  );
-  if (conductor && ASHED_SCORE_CONDUCTOR_MECHANISMS.has(conductor)) {
-    return true;
-  }
-  return Boolean(vipMechanism && ASHED_SCORE_VIP_MECHANISMS.has(vipMechanism));
-}

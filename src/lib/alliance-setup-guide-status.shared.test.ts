@@ -2,9 +2,23 @@ import { describe, expect, it } from "vitest";
 
 import {
   allianceSetupGuideProgress,
+  commanderLinkTaskComplete,
   computeAllianceSetupGuideTasks,
+  resolveOwnerHasCommanderLink,
   taskIdsForOperatingMode,
 } from "@/lib/alliance-setup-guide-status.shared";
+
+const baseSignals = {
+  operatingMode: "ashed" as const,
+  gameServerLinked: true,
+  ownerHasCommanderLink: false,
+  viewerHasCommanderLink: false,
+  hasTeamInvite: true,
+  discordGuildRegistered: false,
+  ashedConnected: true,
+  rosterHardeningComplete: false,
+  rosterPopulated: true,
+};
 
 describe("alliance setup guide", () => {
   it("shows ashed officer tasks for ashed alliances", () => {
@@ -27,14 +41,7 @@ describe("alliance setup guide", () => {
 
   it("marks completion from signals", () => {
     const tasks = computeAllianceSetupGuideTasks({
-      operatingMode: "ashed",
-      gameServerLinked: true,
-      ownerHasCommanderLink: false,
-      hasTeamInvite: true,
-      discordGuildRegistered: false,
-      ashedConnected: true,
-      rosterHardeningComplete: false,
-      rosterPopulated: true,
+      ...baseSignals,
       viewerIsOfficer: true,
     });
 
@@ -44,5 +51,51 @@ describe("alliance setup guide", () => {
     expect(byId.connect_ashed).toBe(true);
     expect(byId.roster_hardening).toBe(false);
     expect(allianceSetupGuideProgress(tasks).allComplete).toBe(false);
+  });
+
+  it("uses viewer link for non-officer commander task", () => {
+    expect(
+      commanderLinkTaskComplete({
+        ...baseSignals,
+        ownerHasCommanderLink: false,
+        viewerHasCommanderLink: true,
+        viewerIsOfficer: false,
+      }),
+    ).toBe(true);
+  });
+
+  it("uses owner link for officer commander task", () => {
+    expect(
+      commanderLinkTaskComplete({
+        ...baseSignals,
+        ownerHasCommanderLink: true,
+        viewerHasCommanderLink: false,
+        viewerIsOfficer: true,
+      }),
+    ).toBe(true);
+  });
+
+  it("counts cold-start owner link when ownerHqUserId is unset", () => {
+    expect(
+      resolveOwnerHasCommanderLink({
+        ownerHqUserId: null,
+        ownerUserHasLink: false,
+        viewerHqUserId: "viewer-1",
+        viewerHasCommanderLink: true,
+        viewerRoleName: "owner",
+      }),
+    ).toBe(true);
+  });
+
+  it("reuses viewer link when viewer is stamped owner", () => {
+    expect(
+      resolveOwnerHasCommanderLink({
+        ownerHqUserId: "viewer-1",
+        ownerUserHasLink: false,
+        viewerHqUserId: "viewer-1",
+        viewerHasCommanderLink: true,
+        viewerRoleName: "owner",
+      }),
+    ).toBe(true);
   });
 });

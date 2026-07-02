@@ -15,7 +15,28 @@ export type OAuthAutoLinkDecision =
   | "auto_link"
   | "block_email_mismatch"
   | "block_unverified"
-  | "block_discord_cold_signin";
+  | "block_discord_no_email";
+
+/**
+ * When OAuth returns an email during a signed-in link, it must match the HQ
+ * account. Missing OAuth email (common on Discord) is allowed — the session
+ * proves which HQ row to attach.
+ */
+export function oauthEmailMatchesHqUserEmail(
+  oauthEmail: string | null | undefined,
+  hqUserEmail: string | null | undefined,
+): boolean {
+  const trimmed = oauthEmail?.trim();
+  if (!trimmed) {
+    return true;
+  }
+  const oauth = normalizeAshedEmail(trimmed);
+  const hq = normalizeAshedEmail(hqUserEmail ?? "");
+  if (!oauth || !hq) {
+    return false;
+  }
+  return oauth === hq;
+}
 
 /**
  * Whether OAuth may attach to an existing HQ user during cold sign-in (no session).
@@ -29,7 +50,15 @@ export function mayAutoLinkOAuthAtSignIn(
   }
 
   if (input.provider === "discord") {
-    return "block_discord_cold_signin";
+    const oauthEmail = normalizeAshedEmail(input.oauthEmail);
+    const hqEmail = normalizeAshedEmail(input.hqUserEmail);
+    if (!oauthEmail) {
+      return "block_discord_no_email";
+    }
+    if (!hqEmail || oauthEmail !== hqEmail) {
+      return "block_email_mismatch";
+    }
+    return "auto_link";
   }
 
   if (!input.emailVerified) {

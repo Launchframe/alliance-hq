@@ -8,8 +8,6 @@ import {
   FORM_SUBMIT_ENTER_KEY_HINT,
   preventDefaultFormSubmit,
 } from "@/lib/client/form-enter-submit.shared";
-import { Link } from "@/i18n/navigation";
-import { allianceSettingsPath } from "@/lib/alliance/alliance-settings-path.shared";
 import { MAX_BULK_CLAIM_INVITES } from "@/lib/native-alliance/claim-invites.shared";
 import type { SystemRoleName } from "@/lib/rbac/constants";
 
@@ -63,15 +61,9 @@ const ROLE_LABEL_KEYS: Record<
 
 type Props = {
   assignableRoles: SystemRoleName[];
-  gameServerNumber: number | null;
-  allianceTag: string;
 };
 
-export function TeamInvitePanel({
-  assignableRoles,
-  gameServerNumber,
-  allianceTag,
-}: Props) {
+export function TeamInvitePanel({ assignableRoles }: Props) {
   const t = useTranslations("team.invites");
   const [inviteKind, setInviteKind] = useState<InviteKind>("protected_link");
   const [inviteEmail, setInviteEmail] = useState("");
@@ -204,7 +196,6 @@ export function TeamInvitePanel({
 
   const inviteEmailValid = isValidInviteEmail(inviteEmail);
   const canSendInvite =
-    gameServerNumber != null &&
     inviteRole !== "" &&
     (inviteKind === "protected_link" ||
       (inviteKind === "email" && inviteEmailValid));
@@ -300,7 +291,7 @@ export function TeamInvitePanel({
   }
 
   async function sendClaimInvite() {
-    if (!claimCommanderSelected || gameServerNumber == null) return;
+    if (!claimCommanderSelected) return;
 
     setBusy(true);
     setClaimFeedback(null);
@@ -388,7 +379,7 @@ export function TeamInvitePanel({
   }
 
   async function sendBulkClaimInvites() {
-    if (bulkSelectedIds.size === 0 || gameServerNumber == null) return;
+    if (bulkSelectedIds.size === 0) return;
 
     setBusy(true);
     setBulkClaimFeedback(null);
@@ -563,7 +554,7 @@ export function TeamInvitePanel({
                 <button
                   type="submit"
                   disabled={
-                    busy || bulkSelectedIds.size === 0 || gameServerNumber == null
+                    busy || bulkSelectedIds.size === 0
                   }
                   className="mt-3 w-full rounded-lg border border-[#388bfd] bg-[#388bfd]/10 px-4 py-2 text-sm text-[#58a6ff] disabled:opacity-50 sm:w-auto"
                 >
@@ -641,7 +632,7 @@ export function TeamInvitePanel({
                   <button
                     type="submit"
                     disabled={
-                      busy || !claimCommanderSelected || gameServerNumber == null
+                      busy || !claimCommanderSelected
                     }
                     className="mt-3 rounded-lg border border-[#388bfd] bg-[#388bfd]/10 px-4 py-2 text-sm text-[#58a6ff] disabled:opacity-50"
                   >
@@ -853,7 +844,7 @@ export function TeamInvitePanel({
             </div>
             <button
               type="submit"
-              disabled={busy || gameServerNumber == null}
+              disabled={busy}
               className="mt-3 rounded-lg border border-[#238636] bg-[#238636] px-4 py-2 text-sm text-white disabled:opacity-50"
             >
               {t("joinCodeButton")}
@@ -881,23 +872,6 @@ export function TeamInvitePanel({
         <h2 className="text-lg font-semibold">{t("title")}</h2>
         <p className="mt-1 text-sm text-[#8b949e]">{t("description")}</p>
       </div>
-
-      {gameServerNumber == null ? (
-        <div
-          className="rounded-lg border border-[#9e6a03] bg-[#9e6a03]/10 p-4 text-sm text-[#e3b341]"
-          role="alert"
-        >
-          <p>{t("serverRequired")}</p>
-          {allianceTag ? (
-            <Link
-              href={allianceSettingsPath(allianceTag)}
-              className="mt-2 inline-block text-[#58a6ff] underline"
-            >
-              {t("serverRequiredLink")}
-            </Link>
-          ) : null}
-        </div>
-      ) : null}
 
       {nearFullRoster ? (
         <div

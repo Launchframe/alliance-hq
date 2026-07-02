@@ -61,6 +61,7 @@ export async function loadMyVrForUser(input: {
     seasonKey: season.seasonKey,
     isPostSeason: season.isPostSeason,
     vrUpdatesLocked: season.vrUpdatesLocked,
+    vrSandboxActive: season.vrSandboxActive,
     priorSeason: season.priorSeason,
     seasonMaxVr,
     currentVr,

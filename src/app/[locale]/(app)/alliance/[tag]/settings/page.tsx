@@ -8,6 +8,7 @@ import {
   resolveAllianceRouteForSession,
 } from "@/lib/alliance/alliance-route-context.server";
 import { AllianceSeasonSettings } from "@/components/settings/AllianceSeasonSettings";
+import { AllianceVrSandboxSettings } from "@/components/settings/AllianceVrSandboxSettings";
 import { AllianceSettingsSwitcher } from "@/components/settings/AllianceSettingsSwitcher";
 import { AllianceDiscordServerSetup } from "@/components/settings/AllianceDiscordServerSetup";
 import { AllianceTrainMinimumsSettings } from "@/components/settings/AllianceTrainMinimumsSettings";
@@ -77,6 +78,7 @@ export default async function AllianceSettingsPage({
       />
 
       <AllianceSeasonSettings allianceTag={alliance.tag} />
+      <AllianceVrSandboxSettings allianceTag={alliance.tag} />
       <AllianceDiscordServerSetup
         allianceTag={alliance.tag}
         installUrl={installUrl}

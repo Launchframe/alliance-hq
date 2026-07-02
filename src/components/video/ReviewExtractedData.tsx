@@ -1051,9 +1051,12 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
 
   if (displayJobStatus === "loading" || rematching) {
     return (
-      <p className="text-sm text-[#8b949e]">
-        {rematching ? t("rematchingMembers") : t("loading")}
-      </p>
+      <div className="space-y-2">
+        <p className="text-sm text-[#8b949e]">
+          {rematching ? t("rematchingMembers") : t("loading")}
+        </p>
+        {error ? <p className="text-sm text-[#f85149]">{error}</p> : null}
+      </div>
     );
   }
 

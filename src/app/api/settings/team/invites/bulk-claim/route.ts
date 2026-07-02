@@ -6,7 +6,6 @@ import {
   isMissingSchemaError,
 } from "@/lib/db/error-message";
 import {
-  AllianceServerRequiredError,
   createHqClaimInvitesBulk,
 } from "@/lib/native-alliance/invites";
 import {
@@ -68,12 +67,6 @@ export async function POST(request: Request) {
       skipped: result.skipped,
     });
   } catch (error) {
-    if (error instanceof AllianceServerRequiredError) {
-      return NextResponse.json(
-        { error: error.message, code: error.code },
-        { status: 422 },
-      );
-    }
     if (isMissingSchemaError(error)) {
       return NextResponse.json(
         {

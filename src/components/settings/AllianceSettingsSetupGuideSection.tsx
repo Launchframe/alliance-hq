@@ -2,10 +2,11 @@
 
 import { Compass } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { AllianceSetupGuidePanel } from "@/components/settings/AllianceSetupGuidePanel";
 import { Link } from "@/i18n/navigation";
+import { ALLIANCE_SETUP_STATUS_REFRESH_EVENT } from "@/lib/alliance-setup-guide-refresh.shared";
 import { allianceSetupGuideTaskHref } from "@/lib/alliance-setup-guide-nav";
 import type { AllianceSetupStatusPayload } from "@/lib/alliance-setup-guide-status-api";
 import type { AllianceSetupGuideTaskId } from "@/lib/alliance-setup-guide-status.shared";
@@ -19,6 +20,28 @@ export function AllianceSettingsSetupGuideSection({
 }) {
   const t = useTranslations("allianceSetupGuide");
   const [remote, setRemote] = useState(initial);
+
+  const loadStatus = useCallback(() => {
+    void fetch("/api/alliance/setup-status")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: AllianceSetupStatusPayload | null) => {
+        if (data) setRemote(data);
+      })
+      .catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
+    function handleRefresh() {
+      loadStatus();
+    }
+    window.addEventListener(ALLIANCE_SETUP_STATUS_REFRESH_EVENT, handleRefresh);
+    return () => {
+      window.removeEventListener(
+        ALLIANCE_SETUP_STATUS_REFRESH_EVENT,
+        handleRefresh,
+      );
+    };
+  }, [loadStatus]);
 
   async function patchPrefs(body: {
     setupGuideDismissed?: boolean;

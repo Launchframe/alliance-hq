@@ -28,7 +28,6 @@ import {
   type AllianceTrainWeekConfig,
 } from "@/lib/trains/train-week-calendar.shared";
 import {
-  throwAshedRequired,
   throwNoWheelCandidates,
   throwPoolEmpty,
   throwPoolExhausted,
@@ -59,6 +58,7 @@ import {
 } from "@/lib/trains/train-conductor-minimums.shared";
 import { writeAuditLog } from "@/lib/bff/audit";
 import { fetchEventTopScorers } from "@/lib/trains/event-scores.server";
+import { fetchNativeVrTopScorers } from "@/lib/trains/native-scores.server";
 import {
   fetchVsTopScorersForTrainDate,
 } from "@/lib/trains/vs-scores.server";
@@ -202,6 +202,24 @@ async function fetchSecondDonor(
   return second ? memberFromScore(second) : null;
 }
 
+async function fetchVsTopScorersForTrainDateResolved(input: {
+  connection: ParsedConnection | null;
+  ashedAllianceId: string;
+  hqAllianceId: string;
+  trainDate: string;
+  limit: number;
+}): Promise<RollCandidate[]> {
+  if (input.connection) {
+    return fetchVsTopScorersForTrainDate(
+      input.connection,
+      input.ashedAllianceId,
+      input.trainDate,
+      input.limit,
+    );
+  }
+  return fetchNativeVrTopScorers(input.hqAllianceId, input.limit);
+}
+
 async function buildPoolCandidates(input: {
   hqAllianceId: string;
   poolType: PoolType;
@@ -212,14 +230,17 @@ async function buildPoolCandidates(input: {
   eventKey?: string;
 }): Promise<RollCandidate[]> {
   if (input.poolType === "event_top_x") {
-    if (!input.connection) return [];
-    return fetchEventTopScorers(
-      input.connection,
-      input.ashedAllianceId,
-      input.eventKey ?? "capitol_war",
-      input.date,
-      input.eventTopN ?? 10,
-    );
+    const limit = input.eventTopN ?? 10;
+    if (input.connection) {
+      return fetchEventTopScorers(
+        input.connection,
+        input.ashedAllianceId,
+        input.eventKey ?? "capitol_war",
+        input.date,
+        limit,
+      );
+    }
+    return fetchNativeVrTopScorers(input.hqAllianceId, limit);
   }
 
   const [members, rankEvents] = await Promise.all([
@@ -697,19 +718,20 @@ export async function rollForConductor(input: {
 
   switch (mechanism) {
     case "vs_high_score": {
-      if (!input.connection) {
-        throwAshedRequired(
-          "VS auto-roll requires an Ashed connection. Use a roster pool mechanism for native alliances.",
+      const top = await fetchVsTopScorersForTrainDateResolved({
+        connection: input.connection,
+        ashedAllianceId: input.ashedAllianceId,
+        hqAllianceId: input.allianceId,
+        trainDate: input.date,
+        limit: 1,
+      });
+      const winner = top[0];
+      if (!winner) {
+        throwNoWheelCandidates(
+          "vs",
+          "No VR standings found for the wheel.",
         );
       }
-      const top = await fetchVsTopScorersForTrainDate(
-        input.connection,
-        input.ashedAllianceId,
-        input.date,
-        1,
-      );
-      const winner = top[0];
-      if (!winner) throw new Error("No VS scores found for the leaderboard.");
       result = {
         ...winner,
         mechanism,
@@ -718,19 +740,15 @@ export async function rollForConductor(input: {
       break;
     }
     case "vs_top_10": {
-      if (!input.connection) {
-        throwAshedRequired(
-          "VS auto-roll requires an Ashed connection. Use a roster pool mechanism for native alliances.",
-        );
-      }
-      const top10 = await fetchVsTopScorersForTrainDate(
-        input.connection,
-        input.ashedAllianceId,
-        input.date,
-        10,
-      );
+      const top10 = await fetchVsTopScorersForTrainDateResolved({
+        connection: input.connection,
+        ashedAllianceId: input.ashedAllianceId,
+        hqAllianceId: input.allianceId,
+        trainDate: input.date,
+        limit: 10,
+      });
       if (top10.length === 0) {
-        throwNoWheelCandidates("vs", "No VS scores found for the wheel.");
+        throwNoWheelCandidates("vs", "No VR standings found for the wheel.");
       }
       const winner = top10[Math.floor(Math.random() * top10.length)]!;
       result = {
@@ -742,16 +760,12 @@ export async function rollForConductor(input: {
       break;
     }
     case "donations_top": {
-      if (!input.connection) {
-        throwAshedRequired(
-          "Donation auto-roll requires an Ashed connection. Use a roster pool mechanism for native alliances.",
-        );
+      const winner = input.connection
+        ? await fetchTopDonor(input.connection, input.ashedAllianceId)
+        : null;
+      if (!winner) {
+        throwNoWheelCandidates("donation", "No donation scores found.");
       }
-      const winner = await fetchTopDonor(
-        input.connection,
-        input.ashedAllianceId,
-      );
-      if (!winner) throw new Error("No donation scores found.");
       result = { ...winner, mechanism, isAutomatic: true };
       break;
     }
@@ -852,25 +866,16 @@ export async function rollForVip(input: {
 
   switch (mechanism) {
     case "donations_second": {
-      if (!input.connection) {
-        throwAshedRequired(
-          "Donation VIP roll requires an Ashed connection. Use a roster pool mechanism for native alliances.",
-        );
+      const winner = input.connection
+        ? await fetchSecondDonor(input.connection, input.ashedAllianceId)
+        : null;
+      if (!winner) {
+        throwNoWheelCandidates("donation", "No donation scores found.");
       }
-      const winner = await fetchSecondDonor(
-        input.connection,
-        input.ashedAllianceId,
-      );
-      if (!winner) throw new Error("No second-place donor found.");
       result = { ...winner, mechanism, isAutomatic: true };
       break;
     }
     case "event_top_x_lottery": {
-      if (!input.connection) {
-        throwAshedRequired(
-          "Event VIP roll requires an Ashed connection. Use a roster pool mechanism for native alliances.",
-        );
-      }
       const config = (dayConfig.vipConfig ?? {
         eventKey: "capitol_war",
         topN: 10,

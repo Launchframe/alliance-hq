@@ -30,12 +30,7 @@ flowchart TD
 
   subgraph invite["2 — Generate invite"]
     I1[POST .../invites<br/>PA or team settings] --> I2[createHqInvite]
-    I2 --> I3{role owner?}
-    I3 -->|yes| I4[Skip game-server gate]
-    I3 -->|no| I5[assertAllianceLinkedGameServer]
-    I5 -->|no server| I6[422 alliance_server_required]
-    I4 --> I7[(hqInvites row + token)]
-    I5 -->|ok| I7
+    I2 --> I7[(hqInvites row + token)]
   end
 
   subgraph accept["3 — Invitee accepts"]
@@ -120,9 +115,10 @@ Common behavior for all kinds:
 
 1. Seed system role + permissions (`ensureSystemRoleSeeded`).
 2. Verify alliance exists.
-3. **Game-server gate:** non-`owner` roles call `assertAllianceLinkedGameServer` → `AllianceServerRequiredError` (HTTP 422, code `alliance_server_required`) when `alliances.game_server_id` is unset. **Owner invites skip this gate** so PA can send the first invite before any server exists.
-4. Generate token (32-byte, SHA-256 hash stored) with **14-day TTL**.
-5. Insert **`hqInvites`** row; return `inviteUrl` → `/invite/<token>?next=<safe path>`.
+3. Generate token (32-byte, SHA-256 hash stored) with **14-day TTL**.
+4. Insert **`hqInvites`** row; return `inviteUrl` → `/invite/<token>?next=<safe path>`.
+
+Invite and join-code creation **does not** require `alliances.game_server_id`. State-server matching happens at **member-link** time (`wrong_server`, owner cold-start server adoption).
 
 See [Invite kinds & records](#invite-kinds--records-created) below for per-kind differences.
 
@@ -323,11 +319,10 @@ Join codes are available from PA admin panel and team settings after server is l
 
 | Outcome / error | When | Tester note |
 |-----------------|------|-------------|
-| `422 alliance_server_required` | Non-owner invite or join code before server linked | Send **owner** invite first; owner must complete name+UID |
 | `name_mismatch` | Typed name ≠ Last War API name | **Retry on form** — use suggested name button |
 | `confirm_server` | Lookup/alliance server missing or mismatched (owner cold-start) | Owner enters state server number |
 | `lookup_fallback` | Last War API unreachable (owner cold-start) | Owner enters server; typed name trusted |
-| `wrong_server` | Non-owner roster-miss path server gate | Officer/member — contact R5 |
+| `wrong_server` | Player UID server ≠ alliance server (or alliance has no server yet) | Owner sets server via cold-start / Game season; non-owners contact R5 |
 | `lookup_error` | Invalid UID, player not found | UID format + spelling |
 | `roster_miss` | No bootstrap, no owner-approval route | Ask officer / owner approval |
 | `awaiting_owner` | Roster link request created | Owner must click email approve link |
@@ -358,7 +353,6 @@ See [native-alliance-onboarding-smoke-test.md](./native-alliance-onboarding-smok
 | Provision | `src/lib/native-alliance/provision.ts` |
 | Invites | `src/lib/native-alliance/invites.ts` |
 | Membership on accept | `src/lib/native-alliance/provision-membership.ts` |
-| Server gate | `src/lib/native-alliance/alliance-server-gate.server.ts` |
 | Join codes | `src/lib/native-alliance/join-codes.ts` |
 | Onboard page | `src/app/[locale]/(connect-flow)/onboard/page.tsx` |
 | Wizard | `src/components/onboarding/MemberLinkOnboardingWizard.tsx` |

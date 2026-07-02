@@ -6,8 +6,10 @@ import {
   findHqUserIdForOAuthAccount,
   hqUserHasOAuthProvider,
   linkOAuthAccountToHqUser,
+  loadSignInMethodSnapshot,
   tryAutoLinkOAuthAtSignIn,
 } from "@/lib/auth/account-linking.server";
+import { oauthEmailMatchesHqUserEmail } from "@/lib/auth/account-linking.shared";
 import { createHqAuthAdapter } from "@/lib/auth/adapter";
 import { bridgeAuthUserToBrowserSession } from "@/lib/auth/bridge-session";
 import { syncDiscordHqLinkFromOAuthSignIn } from "@/lib/auth/discord-hq-link.server";
@@ -53,12 +55,20 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         return Boolean(user.email);
       }
       if (isOAuthProvider(account?.provider)) {
-        if (!user.email || !account?.providerAccountId) {
+        if (!account?.providerAccountId) {
           return false;
         }
 
         const session = await auth();
         if (session?.user?.id) {
+          const hqEmail =
+            session.user.email ??
+            (await loadSignInMethodSnapshot(session.user.id))?.email ??
+            null;
+          if (!oauthEmailMatchesHqUserEmail(user.email, hqEmail)) {
+            return "/settings/account?linkError=OAuthAccountNotLinked";
+          }
+
           const existingOwnerId = await findHqUserIdForOAuthAccount({
             provider: account.provider,
             providerAccountId: account.providerAccountId,
@@ -78,6 +88,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             });
           }
           return true;
+        }
+
+        if (!user.email) {
+          return false;
         }
 
         const { allowed, decision } = await tryAutoLinkOAuthAtSignIn({
@@ -130,6 +144,29 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           displayName: user.name,
         });
         await maybeBootstrapPlatformMaintainer(hqUserId, user.email);
+      } else if (
+        account?.provider === "discord" &&
+        account.providerAccountId &&
+        typeof token.sub === "string" &&
+        token.sub.trim()
+      ) {
+        const hqUserId = token.sub.trim();
+        await syncOAuthProviderAvatar(hqUserId, "discord", {
+          providerUserId: account.providerAccountId,
+          avatarUrl: user?.image,
+        });
+        await syncDiscordHqLinkFromOAuthSignIn({
+          discordUserId: account.providerAccountId,
+          hqUserId,
+        });
+        const email = typeof token.email === "string" ? token.email : undefined;
+        if (email) {
+          await bridgeAuthUserToBrowserSession({
+            hqUserId,
+            email,
+            displayName: typeof token.name === "string" ? token.name : undefined,
+          });
+        }
       }
       return token;
     },

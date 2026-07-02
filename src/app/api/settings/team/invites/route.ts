@@ -6,7 +6,6 @@ import {
   isMissingSchemaError,
 } from "@/lib/db/error-message";
 import {
-  AllianceServerRequiredError,
   CommanderClaimInviteError,
   createHqInvite,
   type HqInviteKind,
@@ -87,12 +86,6 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ ok: true, invite });
   } catch (error) {
-    if (error instanceof AllianceServerRequiredError) {
-      return NextResponse.json(
-        { error: error.message, code: error.code },
-        { status: 422 },
-      );
-    }
     if (error instanceof CommanderClaimInviteError) {
       return NextResponse.json(
         { error: error.message, code: error.code },

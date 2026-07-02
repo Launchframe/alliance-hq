@@ -24,7 +24,11 @@ import {
   loadAllianceMembersForBot,
   loadAllianceMembersForMemberLinkWithLiveRetry,
 } from "@/lib/vr/member-roster";
-import { vrSeasonLockedMessage } from "@/lib/vr/vr-season-lock.shared";
+import {
+  vrSeasonLockedMessage,
+  withVrSandboxDiscordNotice,
+  type VrSeasonContext,
+} from "@/lib/vr/vr-season-lock.shared";
 import {
   countSeasonReporters,
   getAllianceById,
@@ -86,6 +90,21 @@ function botContext(locale: DiscordBotLocale) {
   const translate = createDiscordTranslator(locale);
   const walkthroughSteps = tStringArray(locale, "link.steps");
   return { translate, walkthroughSteps };
+}
+
+function applyVrSandboxReply(
+  result: VrCommandResult,
+  season: VrSeasonContext,
+  translate: ReturnType<typeof createDiscordTranslator>,
+): VrCommandResult {
+  return {
+    ...result,
+    reply: withVrSandboxDiscordNotice(
+      result.reply,
+      season.vrSandboxActive,
+      translate,
+    ),
+  };
 }
 
 function linkSuccessReply(
@@ -596,7 +615,7 @@ export async function handleDiscordVrSlash(input: {
     };
     await saveDiscordBotPending(input.allianceId, input.discordUserId, result.pending);
     await audit(input.allianceId, input.discordUserId, "vr", input, result);
-    return result;
+    return applyVrSandboxReply(result, season, translate);
   }
 
   const season = await resolveVrSeasonContext(input.allianceId);
@@ -648,7 +667,7 @@ export async function handleDiscordVrSlash(input: {
   }
 
   await audit(input.allianceId, input.discordUserId, "vr", input, result);
-  return result;
+  return applyVrSandboxReply(result, season, translate);
 }
 
 export async function handleDiscordVrCharacterPick(input: {
@@ -713,7 +732,7 @@ export async function handleDiscordVrButtonConfirm(input: {
   }
 
   await audit(input.allianceId, input.discordUserId, "vr_confirm", input, result);
-  return result;
+  return applyVrSandboxReply(result, season, translate);
 }
 
 export async function handleDiscordLinkStartOver(input: {

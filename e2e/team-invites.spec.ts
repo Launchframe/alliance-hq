@@ -5,6 +5,7 @@ import { expect, test } from "@playwright/test";
 
 import {
   authCookieHeader,
+  clearAllianceGameServerLink,
   createAllianceMembership,
   createAuthenticatedHqSession,
   createNativeAlliance,
@@ -80,6 +81,85 @@ test.describe("Team Access — officer invites", () => {
     });
 
     expect(res.status()).toBe(403);
+  });
+
+  test("officer invite API succeeds when alliance has no linked game server", async ({
+    request,
+  }) => {
+    const sql = getE2eSql();
+    const alliance = await createNativeAlliance(sql, {
+      tag: `TS${nanoid(3)}`,
+      name: "Team Invite No Server Alliance",
+    });
+    await clearAllianceGameServerLink(sql, alliance.allianceId);
+    const officer = await createAuthenticatedHqSession(sql, uniqueEmail("officer-no-server"));
+    await createAllianceMembership(sql, {
+      hqUserId: officer.hqUserId,
+      allianceId: alliance.allianceId,
+      roleName: "officer",
+      source: "manual",
+    });
+    await sql`
+      UPDATE sessions
+      SET current_alliance_id = ${alliance.allianceId}, alliance_tag = ${alliance.tag}
+      WHERE id = ${officer.sessionId}
+    `;
+
+    const res = await request.post("/api/settings/team/invites", {
+      headers: {
+        Cookie: authCookieHeader(officer),
+      },
+      data: {
+        kind: "protected_link",
+        roleName: "member",
+      },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = (await res.json()) as {
+      ok?: boolean;
+      invite?: { inviteUrl?: string };
+    };
+    expect(body.ok).toBe(true);
+    expect(body.invite?.inviteUrl).toBeTruthy();
+  });
+
+  test("officer join-code API succeeds when alliance has no linked game server", async ({
+    request,
+  }) => {
+    const sql = getE2eSql();
+    const alliance = await createNativeAlliance(sql, {
+      tag: `TJ${nanoid(3)}`,
+      name: "Team Join Code No Server Alliance",
+    });
+    await clearAllianceGameServerLink(sql, alliance.allianceId);
+    const officer = await createAuthenticatedHqSession(sql, uniqueEmail("officer-join-no-server"));
+    await createAllianceMembership(sql, {
+      hqUserId: officer.hqUserId,
+      allianceId: alliance.allianceId,
+      roleName: "officer",
+      source: "manual",
+    });
+    await sql`
+      UPDATE sessions
+      SET current_alliance_id = ${alliance.allianceId}, alliance_tag = ${alliance.tag}
+      WHERE id = ${officer.sessionId}
+    `;
+
+    const res = await request.post("/api/settings/team/join-codes", {
+      headers: {
+        Cookie: authCookieHeader(officer),
+      },
+      data: {
+        roleName: "member",
+        maxRedemptions: 5,
+      },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = (await res.json()) as { ok?: boolean; joinCode?: { code?: string } };
+    expect(body.ok).toBe(true);
+    expect(body.joinCode?.code).toBeTruthy();
   });
 
   test("member cannot access team invite API", async ({ request }) => {

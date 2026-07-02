@@ -30,7 +30,8 @@ export async function loadCommanderIndex(
   const db = getDb();
   const seasonKey = await resolveSeasonKey(allianceId);
 
-  const [memberRows, seasonRows, canEdit, ownedMemberIds] = await Promise.all([
+  const [memberRows, seasonRows, canEdit, ownedMemberIds, hqLinkRows] =
+    await Promise.all([
     db
       .select()
       .from(schema.allianceMembers)
@@ -58,7 +59,15 @@ export async function loadCommanderIndex(
     hqUserId
       ? listOwnedAshedMemberIdsForViewer({ hqUserId, allianceId })
       : Promise.resolve([] as string[]),
+    db
+      .select({ ashedMemberId: schema.hqMemberLinks.ashedMemberId })
+      .from(schema.hqMemberLinks)
+      .where(eq(schema.hqMemberLinks.allianceId, allianceId)),
   ]);
+
+  const hqLinkedMemberIds = new Set(
+    hqLinkRows.map((row) => row.ashedMemberId),
+  );
 
   const vrByMember = new Map(
     seasonRows.map((row) => [row.ashedMemberId, row.highestBaseVr]),
@@ -120,6 +129,7 @@ export async function loadCommanderIndex(
     mainSquad: row.mainSquad,
     mainSquadSource: sourceByMember.get(row.ashedMemberId) ?? null,
     highestBaseVr: row.highestBaseVr,
+    hqLinked: hqLinkedMemberIds.has(row.ashedMemberId),
   }));
 
   for (const memberRow of memberRows) {

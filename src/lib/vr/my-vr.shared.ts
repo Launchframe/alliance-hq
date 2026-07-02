@@ -17,6 +17,7 @@ export type MyVrPayload = {
   seasonKey: string;
   isPostSeason: boolean;
   vrUpdatesLocked: boolean;
+  vrSandboxActive: boolean;
   priorSeason: string | null;
   seasonMaxVr: number | null;
   currentVr: number | null;

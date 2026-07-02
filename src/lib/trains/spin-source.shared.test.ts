@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import {
   conductorSpinSource,
-  dayNeedsAshedConnection,
   isPoolSpinSource,
   vipSpinSource,
 } from "@/lib/trains/spin-source.shared";
@@ -37,22 +36,5 @@ describe("vipSpinSource", () => {
       kind: "pool",
       poolType: "event_top_x",
     });
-  });
-});
-
-describe("dayNeedsAshedConnection", () => {
-  it("is true for VS and donation mechanisms", () => {
-    expect(dayNeedsAshedConnection("vs_top_10", "conductor_pick", null)).toBe(
-      true,
-    );
-    expect(
-      dayNeedsAshedConnection("officer_pick", "donations_second", null),
-    ).toBe(true);
-  });
-
-  it("is false for roster pool days", () => {
-    expect(dayNeedsAshedConnection("r3_lottery", "conductor_pick", null)).toBe(
-      false,
-    );
   });
 });

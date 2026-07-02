@@ -3,8 +3,14 @@
 import { useCallback, useState } from "react";
 import { useTranslations } from "next-intl";
 
+import { AllianceLinkedCommandersBadge } from "@/components/alliance/AllianceLinkedCommandersBadge";
 import { Link } from "@/i18n/navigation";
-import type { CommanderIndexPayload, CommanderIndexRow } from "@/lib/commanders/index.shared";
+import type {
+  CommanderIndexHqLinkFilter,
+  CommanderIndexPayload,
+  CommanderIndexRow,
+} from "@/lib/commanders/index.shared";
+import { commanderIndexRowMatchesHqLinkFilter } from "@/lib/commanders/index.shared";
 import {
   MAIN_SQUAD_TYPES,
   MAIN_SQUAD_LABEL_KEYS,
@@ -46,6 +52,7 @@ export function CommandersIndexView({ initial }: Props) {
 
   // Filter state
   const [filterSquad, setFilterSquad] = useState<MainSquadType | "">("");
+  const [filterHqLink, setFilterHqLink] = useState<CommanderIndexHqLinkFilter>("all");
   const [filterMinThp, setFilterMinThp] = useState("");
   const [includeUnreported, setIncludeUnreported] = useState(true);
 
@@ -142,6 +149,7 @@ export function CommandersIndexView({ initial }: Props) {
   const minThpNum = filterMinThp.trim() ? Number.parseInt(filterMinThp.trim(), 10) : 0;
   const filtered = data.rows.filter((row) => {
     if (filterSquad && row.mainSquad !== filterSquad) return false;
+    if (!commanderIndexRowMatchesHqLinkFilter(row, filterHqLink)) return false;
     if (!includeUnreported && row.mainSquad == null) return false;
     if (minThpNum > 0 && row.totalHeroPower < minThpNum) return false;
     return true;
@@ -280,6 +288,42 @@ export function CommandersIndexView({ initial }: Props) {
         </label>
 
         <label className="flex flex-col gap-1 text-xs text-[#8b949e]">
+          {t("filterHqLink")}
+          <div
+            className="flex overflow-hidden rounded-lg border border-[#30363d] bg-[#161b22] text-sm"
+            role="group"
+            aria-label={t("filterHqLink")}
+          >
+            {(
+              [
+                ["all", "filterHqLinkAll"],
+                ["linked", "filterHqLinkLinked"],
+                ["not_linked", "filterHqLinkNotLinked"],
+              ] as const
+            ).map(([value, labelKey], index) => {
+              const active = filterHqLink === value;
+              return (
+                <button
+                  key={value}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => setFilterHqLink(value)}
+                  className={`px-3 py-2 transition-colors ${
+                    index > 0 ? "border-l border-[#30363d]" : ""
+                  } ${
+                    active
+                      ? "bg-[#1f6feb] text-white"
+                      : "text-[#8b949e] hover:text-[#e6edf3]"
+                  }`}
+                >
+                  {t(labelKey)}
+                </button>
+              );
+            })}
+          </div>
+        </label>
+
+        <label className="flex flex-col gap-1 text-xs text-[#8b949e]">
           {t("filterMinThp")}
           <input
             value={filterMinThp}
@@ -332,12 +376,17 @@ export function CommandersIndexView({ initial }: Props) {
                 >
                   <td className="px-4 py-3 text-[#8b949e]">{index + 1}</td>
                   <td className="px-4 py-3 font-medium text-[#e6edf3]">
-                    <Link
-                      href={`/members/${row.ashedMemberId}`}
-                      className="hover:underline"
-                    >
-                      {row.memberName}
-                    </Link>
+                    <div className="flex min-w-0 flex-wrap items-center gap-2">
+                      <Link
+                        href={`/members/${row.ashedMemberId}`}
+                        className="min-w-0 hover:underline"
+                      >
+                        {row.memberName}
+                      </Link>
+                      {row.hqLinked ? (
+                        <AllianceLinkedCommandersBadge label={t("badgeHqLinked")} />
+                      ) : null}
+                    </div>
                   </td>
                   <td className="px-4 py-3 font-mono text-[#e6edf3]">
                     {thpDisplay(row.totalHeroPower)}
