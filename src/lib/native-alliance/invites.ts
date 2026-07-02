@@ -27,9 +27,6 @@ import { systemRoleNameForId } from "@/lib/rbac/system-roles";
 import { getLinkedMemberIds } from "@/lib/vr/repository";
 
 import { provisionAllianceMembership } from "./provision-membership";
-import { assertAllianceLinkedGameServer } from "./alliance-server-gate.server";
-
-export { AllianceServerRequiredError } from "./alliance-server-gate.server";
 
 const INVITE_TTL_DAYS = 14;
 
@@ -234,10 +231,6 @@ export async function createHqInvite(
 
   if (!alliance) {
     throw new Error("Alliance not found.");
-  }
-
-  if (input.roleName !== "owner") {
-    await assertAllianceLinkedGameServer(input.allianceId);
   }
 
   const targetAshedMemberId = input.targetAshedMemberId?.trim() || null;

@@ -17,9 +17,6 @@ vi.mock("@/lib/native-alliance/team-invites.server", () => ({
 vi.mock("@/lib/native-alliance/invites", () => ({
   createHqClaimInvitesBulk: (input: unknown) =>
     createHqClaimInvitesBulkMock(input),
-  AllianceServerRequiredError: class AllianceServerRequiredError extends Error {
-    code = "alliance_server_required";
-  },
 }));
 
 import { POST } from "./route";

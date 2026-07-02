@@ -1,19 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getDb } from "@/lib/db";
-import { resolveAllianceGameServerNumber } from "@/lib/game-season/game-servers.server";
 import { getLinkedMemberIds } from "@/lib/vr/repository";
 
-import { AllianceServerRequiredError } from "./alliance-server-gate.server";
 import {
   createHqClaimInvitesBulk,
   createHqInvite,
   type CommanderClaimInviteError,
 } from "./invites";
-
-vi.mock("@/lib/game-season/game-servers.server", () => ({
-  resolveAllianceGameServerNumber: vi.fn(),
-}));
 
 vi.mock("@/lib/vr/repository", () => ({
   getLinkedMemberIds: vi.fn().mockResolvedValue(new Set<string>()),
@@ -43,38 +37,7 @@ describe("createHqInvite", () => {
     vi.mocked(getLinkedMemberIds).mockResolvedValue(new Set<string>());
   });
 
-  it("throws AllianceServerRequiredError when alliance has no game server", async () => {
-    let selectCalls = 0;
-    vi.mocked(getDb).mockReturnValue({
-      select: vi.fn(() => {
-        selectCalls += 1;
-        if (selectCalls === 1) {
-          return dbSelectChain([{ id: "role-member" }]);
-        }
-        if (selectCalls === 2) {
-          return dbSelectChain([{ permissionId: "members:read" }]);
-        }
-        if (selectCalls === 3) {
-          return dbSelectChain([{ id: "alliance-1" }]);
-        }
-        throw new Error(`unexpected select call ${selectCalls}`);
-      }),
-    } as never);
-
-    vi.mocked(resolveAllianceGameServerNumber).mockResolvedValue(null);
-
-    await expect(
-      createHqInvite({
-        allianceId: "alliance-1",
-        kind: "protected_link",
-        roleName: "member",
-        invitedByHqUserId: "user-1",
-        origin: "https://hq.test",
-      }),
-    ).rejects.toBeInstanceOf(AllianceServerRequiredError);
-  });
-
-  it("allows owner invite before alliance server is linked", async () => {
+  it("creates officer invite without requiring a linked game server", async () => {
     let selectCalls = 0;
     const insertValues = vi.fn().mockReturnValue({
       onConflictDoNothing: vi.fn().mockResolvedValue(undefined),
@@ -86,9 +49,12 @@ describe("createHqInvite", () => {
             limit: vi.fn(() => {
               selectCalls += 1;
               if (selectCalls === 1) {
-                return Promise.resolve([{ id: "role-owner" }]);
+                return Promise.resolve([{ id: "role-member" }]);
               }
               if (selectCalls === 2) {
+                return Promise.resolve([{ permissionId: "members:read" }]);
+              }
+              if (selectCalls === 3) {
                 return Promise.resolve([{ id: "alliance-1" }]);
               }
               return Promise.resolve([]);
@@ -102,13 +68,12 @@ describe("createHqInvite", () => {
     const result = await createHqInvite({
       allianceId: "alliance-1",
       kind: "protected_link",
-      roleName: "owner",
+      roleName: "member",
       invitedByHqUserId: "user-1",
       origin: "https://hq.test",
     });
 
-    expect(result.roleName).toBe("owner");
-    expect(resolveAllianceGameServerNumber).not.toHaveBeenCalled();
+    expect(result.roleName).toBe("member");
     expect(insertValues).toHaveBeenCalled();
   });
 
@@ -131,7 +96,6 @@ describe("createHqInvite", () => {
         })),
       })),
     } as never);
-    vi.mocked(resolveAllianceGameServerNumber).mockResolvedValue(1203);
 
     await expect(
       createHqInvite({
@@ -166,7 +130,6 @@ describe("createHqInvite", () => {
         throw new Error(`unexpected select call ${selectCalls}`);
       }),
     } as never);
-    vi.mocked(resolveAllianceGameServerNumber).mockResolvedValue(1203);
     vi.mocked(getLinkedMemberIds).mockResolvedValue(new Set<string>(["m-1"]));
 
     await expect(
@@ -203,7 +166,6 @@ describe("createHqInvite", () => {
         throw new Error(`unexpected select call ${selectCalls}`);
       }),
     } as never);
-    vi.mocked(resolveAllianceGameServerNumber).mockResolvedValue(1203);
 
     await expect(
       createHqInvite({
@@ -223,7 +185,6 @@ describe("createHqInvite", () => {
 describe("createHqClaimInvitesBulk", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(resolveAllianceGameServerNumber).mockResolvedValue(123);
     vi.mocked(getLinkedMemberIds).mockResolvedValue(new Set<string>());
   });
 
@@ -288,25 +249,6 @@ describe("createHqClaimInvitesBulk", () => {
     expect(result.skipped).toEqual([
       { ashedMemberId: "m2", code: "commander_already_claimed" },
     ]);
-    // Inserts only for the two successful invites.
     expect(insertCalls()).toBe(2);
-  });
-
-  it("bubbles non-claim errors (e.g. alliance server gate)", async () => {
-    vi.mocked(resolveAllianceGameServerNumber).mockResolvedValue(null);
-    mockDbWithQueue([
-      [{ id: "role-member" }],
-      [{ permissionId: "members:read" }],
-      [{ id: "alliance-1" }],
-    ]);
-
-    await expect(
-      createHqClaimInvitesBulk({
-        allianceId: "alliance-1",
-        targetAshedMemberIds: ["m1"],
-        invitedByHqUserId: "user-1",
-        origin: "https://hq.test",
-      }),
-    ).rejects.toBeInstanceOf(AllianceServerRequiredError);
   });
 });

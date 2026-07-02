@@ -336,7 +336,6 @@ export function AdminNativeAlliancePanel({
       <div className="border-t border-[#30363d] pt-4">
         <h3 className="text-sm font-semibold">{t("inviteTitle")}</h3>
         <p className="mt-1 text-sm text-[#8b949e]">{t("inviteTargetHint")}</p>
-        <p className="mt-2 text-xs text-[#6e7681]">{t("inviteServerRequiredNote")}</p>
         <form
           className="mt-3"
           onSubmit={(event) => {

@@ -103,7 +103,7 @@ From `src/lib/native-alliance/team-invites.server.ts`:
 - **Owner / maintainer / alliance admin:** officer, data_entry, viewer, member (+ owner via PA only).
 - **Officer:** data_entry, viewer, member — **not** officer or owner.
 
-Non-owner invites require linked game server (`assertAllianceLinkedGameServer` → 422 `alliance_server_required`). Owner invites skip that gate (first invite before server adoption).
+Invite and join-code creation does **not** require a linked game server. Server matching still happens at **member-link** time (name+UID / claim confirm).
 
 ---
 

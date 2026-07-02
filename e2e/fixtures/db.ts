@@ -183,7 +183,23 @@ async function createAllianceWithOperatingMode(
   return { allianceId, tag: options.tag };
 }
 
-/** Links a native alliance to the canonical game_servers row (required for createHqInvite gate). */
+/**
+ * Clears alliances.game_server_id while keeping game_server_number (denormalized).
+ * Matches resolveAllianceGameServerNumber() returning null — invites no longer require a link.
+ */
+export async function clearAllianceGameServerLink(
+  sql: Sql,
+  allianceId: string,
+): Promise<void> {
+  await sql`ALTER TABLE alliances ALTER COLUMN game_server_id DROP NOT NULL`;
+  await sql`
+    UPDATE alliances
+    SET game_server_id = NULL
+    WHERE id = ${allianceId}
+  `;
+}
+
+/** Links a native alliance to the canonical game_servers row. */
 export async function linkNativeAllianceToGameServer(
   sql: Sql,
   allianceId: string,
