@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 
 import { getOrCreateSession } from "@/lib/session";
 import {
-  loadAllianceHqOcrOnly,
+  isAllianceHqOcrOnlyLockedOnDeploy,
+  loadEffectiveAllianceHqOcrOnly,
   setAllianceHqOcrOnly,
 } from "@/lib/video/alliance-ocr-settings.server";
 import {
@@ -26,11 +27,15 @@ export async function GET() {
     }
 
     const [hqOcrOnly, canManage] = await Promise.all([
-      loadAllianceHqOcrOnly(allianceId),
+      loadEffectiveAllianceHqOcrOnly(allianceId),
       sessionCanProcessVideo(session.id),
     ]);
 
-    return NextResponse.json({ hqOcrOnly, canManage });
+    return NextResponse.json({
+      hqOcrOnly,
+      hqOcrOnlyLocked: isAllianceHqOcrOnlyLockedOnDeploy(),
+      canManage,
+    });
   } catch (error) {
     return NextResponse.json(
       {
@@ -63,10 +68,20 @@ export async function PATCH(request: Request) {
       );
     }
 
+    if (isAllianceHqOcrOnlyLockedOnDeploy() && !body.hqOcrOnly) {
+      return NextResponse.json(
+        { error: "Ashed OCR is not available on this server." },
+        { status: 409 },
+      );
+    }
+
     await setAllianceHqOcrOnly(allianceId, body.hqOcrOnly);
 
+    const effectiveHqOcrOnly = await loadEffectiveAllianceHqOcrOnly(allianceId);
+
     return NextResponse.json({
-      hqOcrOnly: body.hqOcrOnly,
+      hqOcrOnly: effectiveHqOcrOnly,
+      hqOcrOnlyLocked: isAllianceHqOcrOnlyLockedOnDeploy(),
       canManage: true,
     });
   } catch (error) {

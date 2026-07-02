@@ -23,6 +23,8 @@ type Props = {
   /** Whether env config requires Ashed when alliance override is off. */
   envRequiresAshed: boolean;
   initialHqOcrOnly: boolean;
+  /** When true, in-house OCR is forced by this deploy (no Ashed). */
+  initialHqOcrOnlyLocked: boolean;
   connectUrl: string;
 };
 
@@ -32,6 +34,7 @@ export function VideoQueueClient({
   ashedConnected,
   envRequiresAshed,
   initialHqOcrOnly,
+  initialHqOcrOnlyLocked,
   connectUrl,
 }: Props) {
   const t = useTranslations("videoQueue");
@@ -44,6 +47,7 @@ export function VideoQueueClient({
   const [actingJobId, setActingJobId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [hqOcrOnly, setHqOcrOnly] = useState(initialHqOcrOnly);
+  const [hqOcrOnlyLocked, setHqOcrOnlyLocked] = useState(initialHqOcrOnlyLocked);
   const [ocrSettingsBusy, setOcrSettingsBusy] = useState(false);
   const [ocrSettingsError, setOcrSettingsError] = useState<string | null>(null);
 
@@ -55,10 +59,14 @@ export function VideoQueueClient({
     const data = (await res.json()) as {
       jobs: AllianceQueueJob[];
       hqOcrOnly?: boolean;
+      hqOcrOnlyLocked?: boolean;
     };
     setJobs(data.jobs);
     if (typeof data.hqOcrOnly === "boolean") {
       setHqOcrOnly(data.hqOcrOnly);
+    }
+    if (typeof data.hqOcrOnlyLocked === "boolean") {
+      setHqOcrOnlyLocked(data.hqOcrOnlyLocked);
     }
   }, []);
 
@@ -82,6 +90,7 @@ export function VideoQueueClient({
   );
 
   async function toggleHqOcrOnly(next: boolean) {
+    if (hqOcrOnlyLocked) return;
     setOcrSettingsBusy(true);
     setOcrSettingsError(null);
     try {
@@ -252,15 +261,17 @@ export function VideoQueueClient({
               <input
                 type="checkbox"
                 className="mt-1"
-                checked={hqOcrOnly}
-                disabled={ocrSettingsBusy}
+                checked={hqOcrOnlyLocked ? true : hqOcrOnly}
+                disabled={ocrSettingsBusy || hqOcrOnlyLocked}
                 onChange={(e) => void toggleHqOcrOnly(e.target.checked)}
               />
               <span className="min-w-0 text-sm text-[#e6edf3]">
                 {t("hqOcrOnlyLabel")}
               </span>
             </label>
-            <p className="text-xs text-[#8b949e]">{t("hqOcrOnlyHint")}</p>
+            <p className="text-xs text-[#8b949e]">
+              {hqOcrOnlyLocked ? t("hqOcrOnlyDeployLockedHint") : t("hqOcrOnlyHint")}
+            </p>
           </div>
           {ocrSettingsError ? (
             <p className="mt-2 text-sm text-red-400">{ocrSettingsError}</p>

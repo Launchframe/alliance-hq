@@ -2,7 +2,10 @@ import { NextResponse } from "next/server";
 
 import { resolveSessionAllianceId } from "@/lib/alliance/session-memberships";
 import { getAshedConnection, getOrCreateSession } from "@/lib/session";
-import { loadAllianceHqOcrOnly } from "@/lib/video/alliance-ocr-settings.server";
+import {
+  isAllianceHqOcrOnlyLockedOnDeploy,
+  loadEffectiveAllianceHqOcrOnly,
+} from "@/lib/video/alliance-ocr-settings.server";
 import { videoOcrRequiresAshedConnection } from "@/lib/video/ocr-provider.shared";
 import {
   sessionCanProcessVideo,
@@ -32,7 +35,7 @@ export async function GET() {
       listVideoQueueJobsForSession(session.id),
       sessionCanProcessVideo(session.id),
       getAshedConnection(session.id),
-      allianceId ? loadAllianceHqOcrOnly(allianceId) : Promise.resolve(false),
+      allianceId ? loadEffectiveAllianceHqOcrOnly(allianceId) : Promise.resolve(false),
     ]);
 
     const ocrContext = { allianceHqOcrOnly: hqOcrOnly };
@@ -43,6 +46,7 @@ export async function GET() {
       ashedConnected: Boolean(connection),
       ashedRequired: videoOcrRequiresAshedConnection(ocrContext),
       hqOcrOnly,
+      hqOcrOnlyLocked: isAllianceHqOcrOnlyLockedOnDeploy(),
       connectUrl: `/connect?next=${encodeURIComponent("/tools/video-upload/queue")}`,
     });
   } catch (error) {
