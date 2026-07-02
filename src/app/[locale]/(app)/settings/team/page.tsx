@@ -18,7 +18,6 @@ import {
   assignableInviteRolesForContext,
   canManageTeamInvites,
 } from "@/lib/native-alliance/team-invites.server";
-import { resolveAllianceGameServerNumber } from "@/lib/game-season/game-servers.server";
 import { getAllianceOperatingMode } from "@/lib/native-alliance/operating-mode";
 import { requireAllianceSettingsSession } from "@/lib/settings/alliance-settings-access.server";
 import { getRbacContext, sessionIsAllianceAdmin } from "@/lib/rbac/context";
@@ -60,7 +59,6 @@ export default async function SettingsTeamPage({
     });
   const canManageInvites = rbac ? canManageTeamInvites(rbac) : false;
   const assignableInviteRoles = rbac ? assignableInviteRolesForContext(rbac) : [];
-  const gameServerNumber = await resolveAllianceGameServerNumber(allianceId);
 
   const [videoProcessors, videoProcessorCandidateList] = isAllianceAdmin
     ? await Promise.all([
@@ -102,11 +100,7 @@ export default async function SettingsTeamPage({
       </div>
 
       {canManageInvites ? (
-        <TeamInvitePanel
-          assignableRoles={assignableInviteRoles}
-          gameServerNumber={gameServerNumber}
-          allianceTag={allianceTag ?? ""}
-        />
+        <TeamInvitePanel assignableRoles={assignableInviteRoles} />
       ) : null}
 
       {isAllianceAdmin ? (

@@ -11,7 +11,6 @@ import { ROLE_IDS } from "@/lib/rbac/constants";
 import { systemRoleNameForId } from "@/lib/rbac/system-roles";
 
 import { provisionAllianceMembership } from "./provision-membership";
-import { assertAllianceLinkedGameServer } from "./alliance-server-gate.server";
 
 const DEFAULT_JOIN_CODE_TTL_DAYS = 7;
 
@@ -78,8 +77,6 @@ export async function createAllianceJoinCode(
   if (!alliance) {
     throw new Error("Alliance not found.");
   }
-
-  await assertAllianceLinkedGameServer(input.allianceId);
 
   const ttlDays = input.expiresInDays ?? DEFAULT_JOIN_CODE_TTL_DAYS;
   const now = new Date();

@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { createAllianceJoinCode } from "@/lib/native-alliance/join-codes";
-import { AllianceServerRequiredError } from "@/lib/native-alliance/alliance-server-gate.server";
 import {
   assertInviteRoleAllowed,
   isSystemRoleName,
@@ -61,12 +60,6 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ ok: true, joinCode });
   } catch (error) {
-    if (error instanceof AllianceServerRequiredError) {
-      return NextResponse.json(
-        { error: error.message, code: error.code },
-        { status: 422 },
-      );
-    }
     return NextResponse.json(
       {
         error:
