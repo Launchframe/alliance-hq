@@ -945,6 +945,7 @@
     "ocrSettingsDescription": "Applies to this alliance only. When enabled, approved videos use in-house text recognition instead of Ashed.",
     "hqOcrOnlyLabel": "Use in-house OCR only (disable Ashed)",
     "hqOcrOnlyHint": "Roster videos run through Alliance HQ's built-in reader. You can approve jobs without connecting Ashed.",
+    "hqOcrOnlyDeployLockedHint": "This server uses in-house OCR only. Ashed is not available here.",
     "ocrSettingsSaveFailed": "Could not save OCR settings.",
     "approve": "Approve",
     "reject": "Reject",
@@ -2615,6 +2616,7 @@
       "complete": "complete",
       "failed": "failed",
       "pending": "pending",
+      "pending_upload": "awaiting upload",
       "pending_approval": "awaiting approval",
       "processing": "processing"
     },
@@ -2647,6 +2649,21 @@
       "processNow": "Process now",
       "processing": "Starting…",
       "later": "Not now"
+    }
+  },
+  "videoUpload": {
+    "status": {
+      "queued": "queued",
+      "extracting": "extracting frames",
+      "parsing": "OCR running",
+      "review": "ready to review",
+      "submitting": "submitting",
+      "complete": "complete",
+      "failed": "failed",
+      "pending": "pending",
+      "pending_upload": "awaiting upload",
+      "pending_approval": "awaiting approval",
+      "processing": "processing"
     }
   },
   "videoJobs": {
