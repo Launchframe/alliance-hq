@@ -12,6 +12,7 @@ import { AllianceVrSandboxSettings } from "@/components/settings/AllianceVrSandb
 import { AllianceSettingsSwitcher } from "@/components/settings/AllianceSettingsSwitcher";
 import { AllianceDiscordServerSetup } from "@/components/settings/AllianceDiscordServerSetup";
 import { AllianceTrainMinimumsSettings } from "@/components/settings/AllianceTrainMinimumsSettings";
+import { AllianceTrainEconomyThresholdSettings } from "@/components/settings/AllianceTrainEconomyThresholdSettings";
 import { AllianceTrainDiscordSettings } from "@/components/settings/AllianceTrainDiscordSettings";
 import { AllianceTrainWeekSettings } from "@/components/settings/AllianceTrainWeekSettings";
 import {
@@ -89,6 +90,7 @@ export default async function AllianceSettingsPage({
       <AllianceTrainWeekSettings allianceTag={alliance.tag} />
       <AllianceTrainDiscordSettings allianceTag={alliance.tag} />
       <AllianceTrainMinimumsSettings allianceTag={alliance.tag} />
+      <AllianceTrainEconomyThresholdSettings allianceTag={alliance.tag} />
     </div>
   );
 }

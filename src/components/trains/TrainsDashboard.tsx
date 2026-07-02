@@ -493,6 +493,7 @@ export function TrainsDashboard({ initial }: Props) {
       vs_push_weekdays: t("templates.vs_push_weekdays"),
       r4_event_vip: t("templates.r4_event_vip"),
       economy_week: t("templates.economy_week"),
+      price_is_right: t("templates.price_is_right"),
       r3_recognition: t("templates.r3_recognition"),
       r4_train_week: t("templates.r4_train_week"),
       donations_week: t("templates.donations_week"),

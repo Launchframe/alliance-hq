@@ -10,6 +10,7 @@ import {
   allianceTrainWeekFromRow,
   getTrainWeekStart,
 } from "@/lib/trains/train-week-calendar.shared";
+import { resolvePaintTemplateForDay } from "@/lib/trains/week-template-registry.shared";
 import type {
   ConductorMechanismType,
   DayConfigInput,
@@ -19,6 +20,7 @@ import type {
 
 export type ResolvedRollDayConfig = DayConfigInput & {
   dayConfigId: string | null;
+  paintTemplate?: WeekTemplateType | null;
 };
 
 async function trainWeekStartForAlliance(
@@ -60,9 +62,11 @@ export async function resolveRollDayConfig(
     return {
       date: stored.date,
       conductorMechanism,
+      conductorConfig: stored.conductorConfig as DayConfigInput["conductorConfig"],
       vipMechanism: (stored.vipMechanism ?? "none") as VipMechanismType,
       vipConfig: stored.vipConfig as DayConfigInput["vipConfig"],
       dayConfigId: stored.id,
+      paintTemplate,
     };
   }
 
@@ -72,9 +76,12 @@ export async function resolveRollDayConfig(
   const templateType = (weekSchedule?.templateType ??
     anchorTemplate) as WeekTemplateType;
   const generated = generateDayConfigForDate(templateType, date, weekStart);
+  const paintTemplate = resolvePaintTemplateForDay(templateType, date, weekStart);
 
   return {
     ...generated,
+    conductorConfig: { paintTemplate },
     dayConfigId: null,
+    paintTemplate,
   };
 }

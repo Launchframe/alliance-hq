@@ -117,6 +117,17 @@ describe("generateDayConfigForDate", () => {
     expect(config.conductorMechanism).toBe("r3_lottery");
   });
 
+  it("returns price is right day config as r3 lottery", () => {
+    const weekStart = "2026-06-09";
+    const config = generateDayConfigForDate(
+      "price_is_right",
+      "2026-06-10",
+      weekStart,
+    );
+    expect(config.conductorMechanism).toBe("r3_lottery");
+    expect(config.vipMechanism).toBe("conductor_pick");
+  });
+
   it("returns r3 lottery for every r3_recognition weekday (wheel, not vs auto-roll)", () => {
     const weekStart = "2026-06-09";
     for (const date of [
