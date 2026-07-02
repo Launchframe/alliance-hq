@@ -36,6 +36,7 @@ import {
 import { withPaintTemplateConfig } from "@/lib/trains/calendar-cell-styles.shared";
 import { resolvePaintTemplateForDay } from "@/lib/trains/week-template-registry.shared";
 import { resolveRollDayConfig } from "@/lib/trains/day-config-resolve.server";
+import { filterPoolByEconomyThreshold } from "@/lib/trains/train-economy-threshold.server";
 import {
   getPoolSummary,
   listPoolEntries,
@@ -228,6 +229,7 @@ async function buildPoolCandidates(input: {
   connection: ParsedConnection | null;
   eventTopN?: number;
   eventKey?: string;
+  paintTemplate?: WeekTemplateType | null;
 }): Promise<RollCandidate[]> {
   if (input.poolType === "event_top_x") {
     const limit = input.eventTopN ?? 10;
@@ -268,6 +270,17 @@ async function buildPoolCandidates(input: {
       allianceRank: rank,
     });
   }
+
+  if (input.paintTemplate === "price_is_right") {
+    return filterPoolByEconomyThreshold({
+      allianceId: input.hqAllianceId,
+      trainDate: input.date,
+      connection: input.connection,
+      ashedAllianceId: input.ashedAllianceId,
+      candidates,
+    });
+  }
+
   return candidates;
 }
 
@@ -280,6 +293,7 @@ async function ensurePool(input: {
   useSequence: boolean;
   eventTopN?: number;
   eventKey?: string;
+  paintTemplate?: WeekTemplateType | null;
 }): Promise<void> {
   const has = await poolHasEntries(input.hqAllianceId, input.poolType);
   if (has) return;
@@ -292,6 +306,7 @@ async function ensurePool(input: {
     connection: input.connection,
     eventTopN: input.eventTopN,
     eventKey: input.eventKey,
+    paintTemplate: input.paintTemplate,
   });
   if (candidates.length === 0) {
     throwPoolEmpty(input.poolType);
@@ -786,6 +801,7 @@ export async function rollForConductor(input: {
         date: input.date,
         connection: input.connection,
         useSequence: mechanism === "r4_sequence",
+        paintTemplate: dayConfig.paintTemplate,
       });
       result = await rollFromPool(
         input.allianceId,
@@ -800,6 +816,7 @@ export async function rollForConductor(input: {
         date: input.date,
         connection: input.connection,
         ashedAllianceId: input.ashedAllianceId,
+        paintTemplate: dayConfig.paintTemplate,
       });
       if (poolRefreshed) {
         result = { ...result, poolRefreshed };
@@ -953,6 +970,7 @@ export async function reseedPool(input: {
   useSequence?: boolean;
   eventTopN?: number;
   eventKey?: string;
+  paintTemplate?: WeekTemplateType | null;
 }): Promise<{ generation: number; count: number }> {
   const candidates = await buildPoolCandidates({
     hqAllianceId: input.allianceId,
@@ -962,6 +980,7 @@ export async function reseedPool(input: {
     connection: input.connection,
     eventTopN: input.eventTopN,
     eventKey: input.eventKey,
+    paintTemplate: input.paintTemplate,
   });
   if (candidates.length === 0) {
     throwPoolEmpty(input.poolType);
@@ -1012,6 +1031,7 @@ export async function refreshExhaustedPoolsForDay(input: {
     const next = await refreshExhaustedPoolIfNeeded({
       ...base,
       poolType: conductorPool,
+      paintTemplate: dayConfig.paintTemplate,
     });
     if (next) refreshed.push(next);
   }

@@ -31,6 +31,10 @@ export const TEMPLATE_PALETTE_STYLES: Record<
     swatch: "bg-red-500",
     ring: "ring-red-500",
   },
+  price_is_right: {
+    swatch: "bg-cyan-500",
+    ring: "ring-cyan-500",
+  },
   r3_recognition: {
     swatch: "bg-emerald-400",
     ring: "ring-emerald-400",

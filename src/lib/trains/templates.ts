@@ -153,6 +153,7 @@ export function generateWeekDayConfigs(
     case "r4_event_vip":
       return dates.map((date) => r4EventVipDay(date, options));
     case "economy_week":
+    case "price_is_right":
     case "r3_recognition":
       return dates.map((date) => ({
         date,

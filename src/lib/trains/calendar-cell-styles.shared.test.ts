@@ -13,6 +13,11 @@ describe("calendarCellStyleClass", () => {
     expect(style).not.toContain("emerald");
   });
 
+  it("uses cyan styling for price_is_right paint", () => {
+    const style = calendarCellStyleClass("r3_lottery", "price_is_right");
+    expect(style).toContain("cyan");
+  });
+
   it("uses emerald for r3_recognition paint", () => {
     const style = calendarCellStyleClass("r3_lottery", "r3_recognition");
     expect(style).toContain("emerald");
