@@ -228,7 +228,10 @@ export function VideoProcessAfterUploadPanel({
       : preview.boardKey;
 
   return (
-    <section className="rounded-xl border border-[#3fb950] bg-[#161b22] p-4 sm:p-5">
+    <section
+      className="rounded-xl border border-[#3fb950] bg-[#161b22] p-4 sm:p-5"
+      data-testid="video-process-after-upload-panel"
+    >
       <h2 className="text-lg font-semibold text-[#e6edf3]">{t("title")}</h2>
       <p className="mt-1 text-sm text-[#8b949e]">{t("subtitle")}</p>
 
