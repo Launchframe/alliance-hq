@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, eq } from "drizzle-orm";
+import { and, eq, or, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { getDb, schema } from "@/lib/db";
@@ -60,9 +60,18 @@ export async function wipeVrSandboxData(
   await db
     .delete(schema.hqVrPending)
     .where(eq(schema.hqVrPending.allianceId, allianceId));
+  // VR-only pending — preserve in-flight /link walkthroughs and identity confirms.
   await db
     .delete(schema.discordBotPending)
-    .where(eq(schema.discordBotPending.allianceId, allianceId));
+    .where(
+      and(
+        eq(schema.discordBotPending.allianceId, allianceId),
+        or(
+          sql`${schema.discordBotPending.pendingJson}->>'kind' = 'anomaly_confirm'`,
+          sql`${schema.discordBotPending.pendingJson}->>'kind' = 'pick_character'`,
+        ),
+      ),
+    );
 }
 
 export async function setAllianceVrSandboxEnabled(

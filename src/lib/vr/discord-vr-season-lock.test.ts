@@ -20,7 +20,11 @@ vi.mock("@/lib/vr/repository", () => ({
 }));
 
 import {
+  countSeasonReporters,
+  getDiscordBotPending,
+  getMemberSeasonHigh,
   listDiscordLinksForUser,
+  listSeasonVrRows,
   resolveVrSeasonContext,
   upsertMemberSeasonVr,
 } from "@/lib/vr/repository";
@@ -74,5 +78,43 @@ describe("handleDiscordVrSlash post-season lock", () => {
 
     expect(result.reply).toBe(translate("vr.seasonLocked"));
     expect(upsertMemberSeasonVr).not.toHaveBeenCalled();
+  });
+});
+
+describe("handleDiscordVrSlash sandbox mode", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(resolveVrSeasonContext).mockResolvedValue({
+      seasonKey: "sandbox:abc",
+      isPostSeason: false,
+      vrUpdatesLocked: false,
+      priorSeason: null,
+      vrSandboxActive: true,
+    });
+    vi.mocked(listDiscordLinksForUser).mockResolvedValue([
+      {
+        id: "link-1",
+        allianceId: "alliance-1",
+        discordUserId: "discord-1",
+        ashedMemberId: "member-1",
+        memberDisplayName: "Tester",
+      },
+    ] as never);
+    vi.mocked(getDiscordBotPending).mockResolvedValue(null);
+    vi.mocked(getMemberSeasonHigh).mockResolvedValue(null);
+    vi.mocked(countSeasonReporters).mockResolvedValue(0);
+    vi.mocked(listSeasonVrRows).mockResolvedValue([]);
+  });
+
+  it("prefixes replies with sandbox notice when sandbox is active", async () => {
+    const translate = createDiscordTranslator("en-US");
+
+    const result = await handleDiscordVrSlash({
+      allianceId: "alliance-1",
+      discordUserId: "discord-1",
+      locale: "en-US",
+    });
+
+    expect(result.reply.startsWith(translate("vr.sandboxActive"))).toBe(true);
   });
 });
