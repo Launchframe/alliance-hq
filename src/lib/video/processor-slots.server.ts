@@ -3,8 +3,9 @@ import "server-only";
 import { and, eq, inArray } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
-import { resolveSessionAllianceId } from "@/lib/alliance/session-memberships";
+import { resolveSessionAllianceId, listSessionAlliances } from "@/lib/alliance/session-memberships";
 import { getDb, schema } from "@/lib/db";
+import type { Session } from "@/lib/db/schema";
 import { formatAllianceRankLabel } from "@/lib/members/alliance-rank";
 import { getAllianceOperatingMode } from "@/lib/native-alliance/operating-mode";
 import {
@@ -343,15 +344,42 @@ export async function sessionCanAccessAllianceVideoJob(
   return isAllianceVideoProcessor(allianceId, ctx.hqUserId);
 }
 
+async function sessionHasVideoEnqueueInAnyAlliance(
+  sessionId: string,
+  session?: Session | null,
+): Promise<boolean> {
+  const resolvedSession = session ?? (await loadSession(sessionId));
+  if (!resolvedSession?.hqUserId) {
+    return false;
+  }
+
+  const alliances = await listSessionAlliances(resolvedSession.hqUserId);
+  for (const alliance of alliances) {
+    if (
+      await sessionHasPermissionForAlliance(
+        sessionId,
+        alliance.id,
+        VIDEO_ENQUEUE_PERMISSION,
+      )
+    ) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 /**
  * Whether the session may view the alliance video queue: platform maintainer,
- * `hq:video:read` or `hq:video:enqueue` in the resolved alliance, or a
- * designated processor slot.
+ * `hq:video:read` or `hq:video:enqueue` in the resolved alliance, a
+ * designated processor slot, or (when alliance context is unset) any alliance
+ * where the user may enqueue uploads.
  */
 export async function sessionCanReadAllianceVideoQueue(
   sessionId: string,
+  sessionOverride?: Session | null,
 ): Promise<boolean> {
-  const session = await loadSession(sessionId);
+  const session = sessionOverride ?? (await loadSession(sessionId));
   if (!session?.hqUserId) {
     return false;
   }
@@ -366,7 +394,7 @@ export async function sessionCanReadAllianceVideoQueue(
 
   const allianceId = resolveSessionAllianceId(session);
   if (!allianceId) {
-    return false;
+    return sessionHasVideoEnqueueInAnyAlliance(sessionId, session);
   }
 
   if (

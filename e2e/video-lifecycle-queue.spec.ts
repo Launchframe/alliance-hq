@@ -160,6 +160,59 @@ test.describe("Video lifecycle queue — cross-device", () => {
     expect(review.status(), await review.text()).toBe(200);
   });
 
+  test("officer with unset alliance context sees only own enqueued jobs", async ({
+    request,
+  }) => {
+    const sql = getE2eSql();
+    const scenario = await createVideoProcessorScenario(sql, e2eBaseUrl());
+    const officerJobId = await insertAllianceVideoJob(sql, {
+      allianceId: scenario.allianceId,
+      sessionId: scenario.officer.sessionId,
+      enqueuedByHqUserId: scenario.officer.hqUserId,
+      status: "review",
+    });
+    const ownerJobId = await insertAllianceVideoJob(sql, {
+      allianceId: scenario.allianceId,
+      sessionId: scenario.owner.sessionId,
+      enqueuedByHqUserId: scenario.owner.hqUserId,
+      status: "review",
+    });
+
+    const laptopSessionId = nanoid(32);
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000);
+    await sql`
+      INSERT INTO sessions (
+        id, created_at, updated_at, expires_at, hq_user_id,
+        current_alliance_id, alliance_id
+      ) VALUES (
+        ${laptopSessionId},
+        ${now},
+        ${now},
+        ${expiresAt},
+        ${scenario.officer.hqUserId},
+        ${null},
+        ${null}
+      )
+    `;
+
+    const queue = await request.get("/api/tools/video-upload/queue", {
+      headers: {
+        Cookie: authCookieHeader({
+          sessionId: laptopSessionId,
+          nextAuthToken: scenario.officer.nextAuthToken,
+        }),
+      },
+    });
+    expect(queue.status(), await queue.text()).toBe(200);
+    const queueBody = (await queue.json()) as {
+      jobs: Array<{ id: string }>;
+    };
+    const ids = queueBody.jobs.map((job) => job.id);
+    expect(ids).toContain(officerJobId);
+    expect(ids).not.toContain(ownerJobId);
+  });
+
   test("different alliance cannot load review JSON for the job", async ({
     request,
   }) => {
