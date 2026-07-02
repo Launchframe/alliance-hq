@@ -329,7 +329,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           rows?: Array<ParsedRow & { scoreConflict?: number }>;
         };
         if (!res.ok) {
-          setJobStatus("failed");
+          setJobStatus("load_error");
           setError(data.error ?? tc("uploadFailed"));
           return;
         }
@@ -396,7 +396,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         setAllianceName(data.alliance?.jobName ?? null);
         setAllianceStale(Boolean(data.alliance?.stale));
       } catch (err) {
-        setJobStatus("failed");
+        setJobStatus("load_error");
         setError(
           err instanceof Error ? err.message : tc("connectionFailed"),
         );
@@ -419,6 +419,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     const terminalStatuses = new Set([
       "review",
       "failed",
+      "load_error",
       "complete",
       "discarded",
     ]);
@@ -1072,6 +1073,17 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
               ? t("pendingApproval")
               : t("processing", { status: displayJobStatus })}
         </p>
+        <Link href="/tools/video-upload" className="text-sm text-[#58a6ff] hover:underline">
+          {t("backToUploads")}
+        </Link>
+      </div>
+    );
+  }
+
+  if (displayJobStatus === "load_error") {
+    return (
+      <div className="space-y-4">
+        <p className="text-sm text-[#f85149]">{error ?? tc("uploadFailed")}</p>
         <Link href="/tools/video-upload" className="text-sm text-[#58a6ff] hover:underline">
           {t("backToUploads")}
         </Link>

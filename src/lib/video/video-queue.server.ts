@@ -86,7 +86,11 @@ export async function listAllianceActiveVideoJobs(
   return selectActiveQueueJobs(eq(schema.videoJobs.allianceId, allianceId));
 }
 
-/** Jobs enqueued by this HQ user when session alliance context is unset. */
+/**
+ * Jobs enqueued by this HQ user (used when alliance context is unset).
+ * Wired from listVideoQueueJobsForSession once enqueue-only queue reads work
+ * without a resolved alliance context.
+ */
 export async function listEnqueuerActiveVideoJobs(
   hqUserId: string,
 ): Promise<AllianceQueueJob[]> {
@@ -96,8 +100,9 @@ export async function listEnqueuerActiveVideoJobs(
 }
 
 /**
- * Action-required jobs for the signed-in session: alliance-wide when context
- * is known, otherwise jobs this user enqueued.
+ * Action-required jobs for the signed-in session (alliance-wide when context
+ * is known). Requires sessionCanReadAllianceVideoQueue, which today needs a
+ * resolved alliance — enqueuer-only listing without alliance context is deferred.
  */
 export async function listVideoQueueJobsForSession(
   sessionId: string,
@@ -108,15 +113,11 @@ export async function listVideoQueueJobsForSession(
   }
 
   const allianceId = resolveSessionAllianceId(session);
-  if (allianceId) {
-    return listAllianceActiveVideoJobs(allianceId);
+  if (!allianceId) {
+    return [];
   }
 
-  if (session.hqUserId) {
-    return listEnqueuerActiveVideoJobs(session.hqUserId);
-  }
-
-  return [];
+  return listAllianceActiveVideoJobs(allianceId);
 }
 
 /** @deprecated Use listAllianceActiveVideoJobs */

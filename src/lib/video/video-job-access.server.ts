@@ -82,7 +82,11 @@ export type VideoUploadGroupAccessResult =
 
 /**
  * Alliance-scoped access to a multi-pass upload group. Delegates to the primary
- * job when present; otherwise mirrors job access on the group row.
+ * job when present.
+ *
+ * When `primaryJobId` is null (pending_upload before activatePendingVideoUpload),
+ * only the uploader browser session may access the group — not HQ-user cross-device
+ * handoff on that upload window is deferred.
  */
 export async function resolveVideoUploadGroupAccess(
   groupId: string,
