@@ -1,6 +1,6 @@
 import "server-only";
 
-import { eq } from "drizzle-orm";
+import { and, eq, isNull, or } from "drizzle-orm";
 
 import { getDb, schema } from "@/lib/db";
 import type { VideoJob, VideoUploadGroup } from "@/lib/db/schema";
@@ -85,8 +85,8 @@ export type VideoUploadGroupAccessResult =
  * job when present.
  *
  * When `primaryJobId` is null (pending_upload before activatePendingVideoUpload),
- * only the uploader browser session may access the group — not HQ-user cross-device
- * handoff on that upload window is deferred.
+ * delegates to the group's primary pass job row when present; otherwise only the
+ * uploader browser session may access the group.
  */
 export async function resolveVideoUploadGroupAccess(
   groupId: string,
@@ -107,6 +107,32 @@ export async function resolveVideoUploadGroupAccess(
   if (group.primaryJobId) {
     const jobAccess = await resolveVideoJobAccess(
       group.primaryJobId,
+      sessionId,
+      level,
+    );
+    if (!jobAccess.ok) {
+      return jobAccess;
+    }
+    return { ok: true, group };
+  }
+
+  const [linkedPrimaryJob] = await db
+    .select({ id: schema.videoJobs.id })
+    .from(schema.videoJobs)
+    .where(
+      and(
+        eq(schema.videoJobs.groupId, groupId),
+        or(
+          eq(schema.videoJobs.passRole, "primary"),
+          isNull(schema.videoJobs.passRole),
+        ),
+      ),
+    )
+    .limit(1);
+
+  if (linkedPrimaryJob) {
+    const jobAccess = await resolveVideoJobAccess(
+      linkedPrimaryJob.id,
       sessionId,
       level,
     );

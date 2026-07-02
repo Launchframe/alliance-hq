@@ -223,6 +223,37 @@ describe("resolveVideoUploadGroupAccess", () => {
     }
   });
 
+  it("delegates to the group's primary pass job when primaryJobId is unset", async () => {
+    selectLimit
+      .mockResolvedValueOnce([
+        {
+          id: "group-1",
+          primaryJobId: null,
+          sessionId: "uploader-session",
+          allianceId: "alliance-a",
+        },
+      ])
+      .mockResolvedValueOnce([{ id: "job-1" }])
+      .mockResolvedValueOnce([baseJob]);
+    loadSession.mockResolvedValue({
+      id: "laptop-session",
+      currentAllianceId: null,
+      hqUserId: "owner-hq-user",
+    });
+
+    const result = await resolveVideoUploadGroupAccess(
+      "group-1",
+      "laptop-session",
+      "read",
+    );
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.group.id).toBe("group-1");
+    }
+    expect(sessionCanAccessAllianceVideoJob).toHaveBeenCalled();
+  });
+
   it("returns 404 when group is missing", async () => {
     selectLimit.mockResolvedValueOnce([]);
 

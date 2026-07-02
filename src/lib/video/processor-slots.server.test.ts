@@ -45,6 +45,7 @@ const getAllianceMembershipRbac = vi.hoisted(() => vi.fn());
 const sessionHasPermissionForAlliance = vi.hoisted(() => vi.fn());
 const loadSession = vi.hoisted(() => vi.fn());
 const getAllianceOperatingMode = vi.hoisted(() => vi.fn());
+const listSessionAlliances = vi.hoisted(() => vi.fn());
 
 vi.mock("drizzle-orm", () => ({
   and: vi.fn((...clauses: unknown[]) => clauses),
@@ -54,6 +55,14 @@ vi.mock("drizzle-orm", () => ({
 
 vi.mock("@/lib/native-alliance/operating-mode", () => ({
   getAllianceOperatingMode,
+}));
+
+vi.mock("@/lib/alliance/session-memberships", () => ({
+  resolveSessionAllianceId: (session: {
+    currentAllianceId?: string | null;
+    allianceId?: string | null;
+  }) => session.currentAllianceId ?? session.allianceId ?? null,
+  listSessionAlliances,
 }));
 
 vi.mock("nanoid", () => ({
@@ -134,6 +143,7 @@ beforeEach(() => {
   sessionHasPermissionForAlliance.mockReset();
   loadSession.mockReset();
   getAllianceOperatingMode.mockReset();
+  listSessionAlliances.mockReset();
   loadSession.mockResolvedValue({
     id: "s",
     hqUserId: "u",
@@ -368,6 +378,51 @@ describe("sessionCanReadAllianceVideoQueue", () => {
     });
     sessionHasPermissionForAlliance.mockResolvedValue(false);
     mockState.selectResults = [[]];
+    await expect(sessionCanReadAllianceVideoQueue("s")).resolves.toBe(false);
+  });
+
+  it("allows enqueue officers without alliance context when they may enqueue somewhere", async () => {
+    loadSession.mockResolvedValue({
+      id: "s",
+      hqUserId: "u",
+      currentAllianceId: null,
+      allianceId: null,
+    });
+    getRbacContext.mockResolvedValue({
+      isPlatformMaintainer: false,
+      roleName: "officer",
+      currentAllianceId: null,
+      hqUserId: "u",
+      permissions: new Set<string>(),
+    });
+    listSessionAlliances.mockResolvedValue([
+      { id: "alliance-1", tag: "LFgo", name: "LFgo", slug: "lfgo", roleName: "officer" },
+    ]);
+    sessionHasPermissionForAlliance.mockImplementation(
+      async (_sessionId, _allianceId, permission) =>
+        permission === "hq:video:enqueue",
+    );
+    await expect(sessionCanReadAllianceVideoQueue("s")).resolves.toBe(true);
+  });
+
+  it("denies without alliance context when the user cannot enqueue in any alliance", async () => {
+    loadSession.mockResolvedValue({
+      id: "s",
+      hqUserId: "u",
+      currentAllianceId: null,
+      allianceId: null,
+    });
+    getRbacContext.mockResolvedValue({
+      isPlatformMaintainer: false,
+      roleName: "officer",
+      currentAllianceId: null,
+      hqUserId: "u",
+      permissions: new Set<string>(),
+    });
+    listSessionAlliances.mockResolvedValue([
+      { id: "alliance-1", tag: "LFgo", name: "LFgo", slug: "lfgo", roleName: "officer" },
+    ]);
+    sessionHasPermissionForAlliance.mockResolvedValue(false);
     await expect(sessionCanReadAllianceVideoQueue("s")).resolves.toBe(false);
   });
 });
