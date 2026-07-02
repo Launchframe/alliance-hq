@@ -999,10 +999,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         return;
       }
       clearDraft();
-      setJobStatus("discarded");
-      if (!jobRating) {
-        setShowRatingPrompt(true);
-      }
+      router.push("/tools/video-upload");
     } catch (err) {
       setError(err instanceof Error ? err.message : tc("uploadFailed"));
     } finally {
