@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useCallback, useState } from "react";
 
 import { fireCelebrationConfetti } from "@/lib/client/celebration-confetti";
@@ -11,7 +12,6 @@ import {
   preventDefaultFormSubmit,
 } from "@/lib/client/form-enter-submit.shared";
 
-import { MY_VR_COPY as copy } from "./my-vr-copy.pending";
 import { VrHistoryChart } from "./vr-history-chart";
 import { VrProgressTable } from "./vr-progress-table";
 
@@ -22,6 +22,7 @@ type Props = {
 };
 
 export function MyVrTrackerView({ initial }: Props) {
+  const t = useTranslations("myVr");
   const [data, setData] = useState(initial);
   const [tab, setTab] = useState<TabId>("now");
   const [percentileOpen, setPercentileOpen] = useState(false);
@@ -37,10 +38,10 @@ export function MyVrTrackerView({ initial }: Props) {
     const res = await fetch("/api/vr/me");
     const body = (await res.json()) as MyVrPayload & { error?: string };
     if (!res.ok) {
-      throw new Error(body.error ?? copy.loadFailed);
+      throw new Error(body.error ?? t("loadFailed"));
     }
     setData(body);
-  }, []);
+  }, [t]);
 
   const onVrUpdated = useCallback(
     async (newVr: number) => {
@@ -62,7 +63,7 @@ export function MyVrTrackerView({ initial }: Props) {
       });
       const payload = (await res.json()) as MyVrPostResponse & { error?: string };
       if (!res.ok) {
-        setError(payload.error ?? payload.message ?? copy.updateFailed);
+        setError(payload.error ?? payload.message ?? t("updateFailed"));
         return;
       }
 
@@ -85,7 +86,7 @@ export function MyVrTrackerView({ initial }: Props) {
       if (payload.status === "season_locked") {
         setSetDialogOpen(false);
         setAnomalyOpen(false);
-        setError(payload.message ?? copy.seasonLockedError);
+        setError(payload.message ?? t("seasonLockedError"));
         await refresh();
         return;
       }
@@ -97,7 +98,7 @@ export function MyVrTrackerView({ initial }: Props) {
 
       setError(payload.message);
     } catch (e) {
-      setError(e instanceof Error ? e.message : copy.updateFailed);
+      setError(e instanceof Error ? e.message : t("updateFailed"));
     } finally {
       setBusy(false);
     }
@@ -108,7 +109,7 @@ export function MyVrTrackerView({ initial }: Props) {
   const submitSetLevel = () => {
     const level = Number.parseInt(setLevelDraft, 10);
     if (!Number.isFinite(level)) {
-      setError(copy.updateFailed);
+      setError(t("updateFailed"));
       return;
     }
     void postVr({ level });
@@ -122,30 +123,28 @@ export function MyVrTrackerView({ initial }: Props) {
   const hasReported = data.currentVr != null && data.currentVr > 0;
   const updatesLocked = data.vrUpdatesLocked;
   const seasonLabelText = data.vrSandboxActive
-    ? copy.sandboxSeasonLabel
+    ? t("sandboxSeasonLabel")
     : updatesLocked && data.priorSeason
-      ? copy.seasonLabel.replace("{season}", data.priorSeason)
-      : copy.seasonLabel.replace("{season}", data.seasonKey);
+      ? t("seasonLabel", { season: data.priorSeason })
+      : t("seasonLabel", { season: data.seasonKey });
 
   const postSeasonNoticeText =
     data.priorSeason != null && data.seasonMaxVr != null
-      ? copy.postSeasonNotice
-          .replace("{maxVr}", String(data.seasonMaxVr))
-          .replace("{priorSeason}", data.priorSeason)
+      ? t("postSeasonNotice", {
+          maxVr: data.seasonMaxVr,
+          priorSeason: data.priorSeason,
+        })
       : data.priorSeason != null
-        ? copy.postSeasonNoticeUnreported.replace(
-            "{priorSeason}",
-            data.priorSeason,
-          )
+        ? t("postSeasonNoticeUnreported", { priorSeason: data.priorSeason })
         : null;
 
   return (
     <div className="mx-auto flex w-full min-w-0 max-w-2xl flex-col gap-6 p-4 sm:p-6">
       <header className="min-w-0 space-y-1">
         <h1 className="text-2xl font-semibold tracking-tight text-[#e6edf3]">
-          {copy.pageTitle}
+          {t("pageTitle")}
         </h1>
-        <p className="text-sm text-[#8b949e]">{copy.pageSubtitle}</p>
+        <p className="text-sm text-[#8b949e]">{t("pageSubtitle")}</p>
         <p className="text-xs text-[#6e7681]">
           {seasonLabelText}
           {data.commanderName ? ` · ${data.commanderName}` : ""}
@@ -158,7 +157,7 @@ export function MyVrTrackerView({ initial }: Props) {
           role="status"
           data-testid="my-vr-sandbox-notice"
         >
-          {copy.sandboxActiveNotice}
+          {t("sandboxActiveNotice")}
         </p>
       ) : null}
 
@@ -175,7 +174,7 @@ export function MyVrTrackerView({ initial }: Props) {
       <div
         className="flex gap-1 rounded-lg border border-[#30363d] bg-[#0d1117] p-1"
         role="tablist"
-        aria-label="My VR sections"
+        aria-label={t("sectionsAriaLabel")}
       >
         {(["now", "history"] as const).map((id) => (
           <button
@@ -190,7 +189,7 @@ export function MyVrTrackerView({ initial }: Props) {
                 : "text-[#8b949e] hover:text-[#e6edf3]"
             }`}
           >
-            {id === "now" ? copy.tabNow : copy.tabHistory}
+            {id === "now" ? t("tabNow") : t("tabHistory")}
           </button>
         ))}
       </div>
@@ -199,7 +198,7 @@ export function MyVrTrackerView({ initial }: Props) {
         <section className="space-y-6" role="tabpanel">
           <div className="rounded-2xl border border-[#30363d] bg-gradient-to-b from-[#161b22] to-[#0d1117] px-6 py-10 text-center">
             <p className="text-xs font-medium uppercase tracking-widest text-[#8b949e]">
-              {copy.currentVrLabel}
+              {t("currentVrLabel")}
             </p>
             <p
               className="mt-3 font-mono text-5xl font-bold tabular-nums text-[#e6edf3] sm:text-6xl"
@@ -208,7 +207,7 @@ export function MyVrTrackerView({ initial }: Props) {
               {hasReported ? displayVr : "—"}
             </p>
             {!hasReported ? (
-              <p className="mt-2 text-sm text-[#8b949e]">{copy.notReportedYet}</p>
+              <p className="mt-2 text-sm text-[#8b949e]">{t("notReportedYet")}</p>
             ) : null}
           </div>
 
@@ -221,7 +220,7 @@ export function MyVrTrackerView({ initial }: Props) {
               data-testid="my-vr-bump"
               aria-disabled={updatesLocked}
             >
-              {copy.bumpButton}
+              {t("bumpButton")}
             </button>
             <button
               type="button"
@@ -235,13 +234,13 @@ export function MyVrTrackerView({ initial }: Props) {
               className="min-w-0 flex-1 rounded-lg border border-[#30363d] bg-[#21262d] px-4 py-3 text-sm font-medium text-[#e6edf3] disabled:opacity-50"
               aria-disabled={updatesLocked}
             >
-              {copy.updateVr}
+              {t("updateVr")}
             </button>
           </div>
 
           {updatesLocked ? (
             <p className="text-sm text-[#8b949e]" role="status">
-              {copy.seasonLockedError}
+              {t("seasonLockedError")}
             </p>
           ) : null}
 
@@ -254,7 +253,7 @@ export function MyVrTrackerView({ initial }: Props) {
               className="flex w-full items-center justify-between px-4 py-3 text-left text-sm font-medium text-[#e6edf3]"
               aria-expanded={percentileOpen}
             >
-              {copy.percentileTitle}
+              {t("percentileTitle")}
               <span className="text-[#8b949e]">{percentileOpen ? "−" : "+"}</span>
             </button>
             {percentileOpen ? (
@@ -262,15 +261,15 @@ export function MyVrTrackerView({ initial }: Props) {
                 {data.percentile ? (
                   <>
                     <p className="text-sm text-[#c9d1d9]">
-                      {copy.percentileRank
-                        .replace("{rank}", String(data.percentile.rank))
-                        .replace("{count}", String(data.percentile.reporterCount))}
+                      {t("percentileRank", {
+                        rank: data.percentile.rank,
+                        count: data.percentile.reporterCount,
+                      })}
                     </p>
                     <p className="text-sm text-[#8b949e]">
-                      {copy.percentileAtOrBelow.replace(
-                        "{percentile}",
-                        String(data.percentile.percentile),
-                      )}
+                      {t("percentileAtOrBelow", {
+                        percentile: data.percentile.percentile,
+                      })}
                     </p>
                     <div className="h-2 overflow-hidden rounded-full bg-[#21262d]">
                       <div
@@ -280,7 +279,7 @@ export function MyVrTrackerView({ initial }: Props) {
                     </div>
                   </>
                 ) : (
-                  <p className="text-sm text-[#8b949e]">{copy.percentileNotEnough}</p>
+                  <p className="text-sm text-[#8b949e]">{t("percentileNotEnough")}</p>
                 )}
               </div>
             ) : null}
@@ -291,7 +290,7 @@ export function MyVrTrackerView({ initial }: Props) {
               <VrHistoryChart events={data.events} />
             </div>
           ) : (
-            <p className="text-center text-sm text-[#6e7681]">{copy.chartPlaceholder}</p>
+            <p className="text-center text-sm text-[#6e7681]">{t("chartPlaceholder")}</p>
           )}
         </section>
       ) : (
@@ -303,7 +302,7 @@ export function MyVrTrackerView({ initial }: Props) {
       <Dialog
         open={setDialogOpen}
         onOpenChange={setSetDialogOpen}
-        title={copy.setDialogTitle}
+        title={t("setDialogTitle")}
       >
         <form
           className="relative z-[101] w-full max-w-md space-y-4 rounded-xl border border-[#30363d] bg-[#161b22] p-5 shadow-xl"
@@ -312,10 +311,10 @@ export function MyVrTrackerView({ initial }: Props) {
             submitSetLevel();
           }}
         >
-          <h2 className="text-lg font-semibold text-[#e6edf3]">{copy.setDialogTitle}</h2>
-          <p className="text-sm text-[#8b949e]">{copy.setDialogDescription}</p>
+          <h2 className="text-lg font-semibold text-[#e6edf3]">{t("setDialogTitle")}</h2>
+          <p className="text-sm text-[#8b949e]">{t("setDialogDescription")}</p>
           <label className="block space-y-1">
-            <span className="text-sm font-medium text-[#e6edf3]">{copy.setLabel}</span>
+            <span className="text-sm font-medium text-[#e6edf3]">{t("setLabel")}</span>
             <input
               type="number"
               step={VR_STEP}
@@ -332,7 +331,7 @@ export function MyVrTrackerView({ initial }: Props) {
               disabled={busy}
               className="rounded-lg border border-[#238636] bg-[#238636] px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
             >
-              {copy.setSubmit}
+              {t("setSubmit")}
             </button>
             <button
               type="button"
@@ -340,15 +339,15 @@ export function MyVrTrackerView({ initial }: Props) {
               onClick={() => setSetDialogOpen(false)}
               className="rounded-lg border border-[#30363d] px-4 py-2 text-sm text-[#e6edf3]"
             >
-              {copy.cancel}
+              {t("cancel")}
             </button>
           </div>
         </form>
       </Dialog>
 
-      <Dialog open={anomalyOpen} onOpenChange={setAnomalyOpen} title={copy.anomalyTitle}>
+      <Dialog open={anomalyOpen} onOpenChange={setAnomalyOpen} title={t("anomalyTitle")}>
         <div className="relative z-[101] w-full max-w-md space-y-4 rounded-xl border border-[#30363d] bg-[#161b22] p-5 shadow-xl">
-          <h2 className="text-lg font-semibold text-[#e6edf3]">{copy.anomalyTitle}</h2>
+          <h2 className="text-lg font-semibold text-[#e6edf3]">{t("anomalyTitle")}</h2>
           <p className="text-sm text-[#8b949e]">{anomalyMessage}</p>
           {anomalyProposed != null ? (
             <p className="font-mono text-2xl font-bold text-[#e6edf3]">{anomalyProposed}</p>
@@ -360,7 +359,7 @@ export function MyVrTrackerView({ initial }: Props) {
               onClick={() => confirmAnomaly("yes")}
               className="rounded-lg border border-[#238636] bg-[#238636] px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
             >
-              {copy.anomalyConfirm}
+              {t("anomalyConfirm")}
             </button>
             <button
               type="button"
@@ -368,7 +367,7 @@ export function MyVrTrackerView({ initial }: Props) {
               onClick={() => confirmAnomaly("no")}
               className="rounded-lg border border-[#30363d] px-4 py-2 text-sm text-[#e6edf3]"
             >
-              {copy.anomalyDecline}
+              {t("anomalyDecline")}
             </button>
           </div>
         </div>

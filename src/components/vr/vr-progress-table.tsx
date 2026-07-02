@@ -1,27 +1,13 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
 import type { MyVrEvent } from "@/lib/vr/my-vr.shared";
 import { VR_STEP } from "@/lib/vr/validation";
-
-import { MY_VR_COPY } from "./my-vr-copy.pending";
 
 type Props = {
   events: MyVrEvent[];
 };
-
-function formatChange(event: MyVrEvent): string {
-  if (event.previousBaseVr == null) {
-    return MY_VR_COPY.changeSet;
-  }
-  const delta = event.baseVr - event.previousBaseVr;
-  if (delta === VR_STEP) {
-    return MY_VR_COPY.changeBump;
-  }
-  return MY_VR_COPY.changeFrom.replace(
-    "{previous}",
-    String(event.previousBaseVr),
-  );
-}
 
 function formatDateTime(iso: string): string {
   return new Date(iso).toLocaleString(undefined, {
@@ -31,11 +17,24 @@ function formatDateTime(iso: string): string {
 }
 
 export function VrProgressTable({ events }: Props) {
+  const t = useTranslations("myVr");
+
+  function formatChange(event: MyVrEvent): string {
+    if (event.previousBaseVr == null) {
+      return t("changeSet");
+    }
+    const delta = event.baseVr - event.previousBaseVr;
+    if (delta === VR_STEP) {
+      return t("changeBump");
+    }
+    return t("changeFrom", { previous: event.previousBaseVr });
+  }
+
   const rows = [...events].reverse();
 
   if (rows.length === 0) {
     return (
-      <p className="text-sm text-[#8b949e]">{MY_VR_COPY.tableEmpty}</p>
+      <p className="text-sm text-[#8b949e]">{t("tableEmpty")}</p>
     );
   }
 
@@ -44,9 +43,9 @@ export function VrProgressTable({ events }: Props) {
       <table className="w-full min-w-[280px] border-collapse text-sm">
         <thead>
           <tr className="border-b border-[#30363d] text-left text-[#8b949e]">
-            <th className="px-2 py-2 font-medium">{MY_VR_COPY.tableDate}</th>
-            <th className="px-2 py-2 font-medium">{MY_VR_COPY.tableLevel}</th>
-            <th className="px-2 py-2 font-medium">{MY_VR_COPY.tableChange}</th>
+            <th className="px-2 py-2 font-medium">{t("tableDate")}</th>
+            <th className="px-2 py-2 font-medium">{t("tableLevel")}</th>
+            <th className="px-2 py-2 font-medium">{t("tableChange")}</th>
           </tr>
         </thead>
         <tbody>

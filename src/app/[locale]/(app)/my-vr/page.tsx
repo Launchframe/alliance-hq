@@ -1,14 +1,15 @@
+import { getTranslations } from "next-intl/server";
 import { redirect } from "next/navigation";
 
 import { MyVrTrackerView } from "@/components/vr/my-vr-tracker-view";
-import { MY_VR_COPY } from "@/components/vr/my-vr-copy.pending";
 import { loadMyVrForUser } from "@/lib/vr/web-vr.server";
 import { requirePageSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
 export async function generateMetadata() {
-  return { title: MY_VR_COPY.pageTitle };
+  const t = await getTranslations("myVr");
+  return { title: t("pageTitle") };
 }
 
 export default async function MyVrPage() {
