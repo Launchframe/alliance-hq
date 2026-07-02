@@ -6,19 +6,9 @@ import { resolveSessionAllianceId } from "@/lib/alliance/session-memberships";
 import { getDb, schema } from "@/lib/db";
 import { loadSession } from "@/lib/session";
 import { ACTIVE_QUEUE_VIDEO_JOB_STATUSES } from "@/lib/video/video-lifecycle.shared";
+import type { AllianceQueueJob } from "@/lib/video/video-queue.shared";
 
-export type AllianceQueueJob = {
-  id: string;
-  status: string;
-  fileName: string | null;
-  scoreTarget: string | null;
-  boardKey: string | null;
-  enqueuedBy: string | null;
-  createdAt: string;
-  frameCount: number | null;
-  uploadedFrameCount: number | null;
-  errorMessage: string | null;
-};
+export type { AllianceQueueJob } from "@/lib/video/video-queue.shared";
 
 const primaryPassFilter = or(
   eq(schema.videoJobs.passRole, "primary"),

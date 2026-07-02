@@ -10,7 +10,7 @@ import {
   RecordDetailField,
   ResponsiveRecordViews,
 } from "@/components/ui/ResponsiveRecordViews";
-import type { AllianceQueueJob } from "@/lib/video/video-queue.server";
+import type { AllianceQueueJob } from "@/lib/video/video-queue.shared";
 import {
   isInFlightProcessingStatus,
   videoJobLifecycleStage,

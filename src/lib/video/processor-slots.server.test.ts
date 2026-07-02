@@ -116,6 +116,7 @@ import {
   isAllianceVideoProcessor,
   listVideoProcessorCandidates,
   revokeVideoProcessor,
+  sessionCanAccessAllianceVideoJob,
   sessionCanProcessVideo,
   sessionCanReadAllianceVideoQueue,
 } from "@/lib/video/processor-slots.server";
@@ -368,6 +369,89 @@ describe("sessionCanReadAllianceVideoQueue", () => {
     sessionHasPermissionForAlliance.mockResolvedValue(false);
     mockState.selectResults = [[]];
     await expect(sessionCanReadAllianceVideoQueue("s")).resolves.toBe(false);
+  });
+});
+
+describe("sessionCanAccessAllianceVideoJob", () => {
+  it("allows platform maintainers", async () => {
+    getRbacContext.mockResolvedValue({
+      isPlatformMaintainer: true,
+      roleName: null,
+      currentAllianceId: null,
+      hqUserId: "u",
+      permissions: new Set<string>(),
+    });
+    await expect(
+      sessionCanAccessAllianceVideoJob("s", "alliance-1"),
+    ).resolves.toBe(true);
+  });
+
+  it("allows the enqueuing officer with hq:video:enqueue in the job alliance", async () => {
+    getRbacContext.mockResolvedValue({
+      isPlatformMaintainer: false,
+      roleName: "officer",
+      currentAllianceId: "alliance-other",
+      hqUserId: "officer-hq",
+      permissions: new Set<string>(),
+    });
+    sessionHasPermissionForAlliance.mockImplementation(
+      async (_sessionId, _allianceId, permission) =>
+        permission === "hq:video:enqueue",
+    );
+    await expect(
+      sessionCanAccessAllianceVideoJob("s", "alliance-1", {
+        enqueuedByHqUserId: "officer-hq",
+      }),
+    ).resolves.toBe(true);
+  });
+
+  it("denies a different user even when they enqueued another alliance job", async () => {
+    getRbacContext.mockResolvedValue({
+      isPlatformMaintainer: false,
+      roleName: "officer",
+      currentAllianceId: "alliance-1",
+      hqUserId: "other-hq",
+      permissions: new Set<string>(),
+    });
+    sessionHasPermissionForAlliance.mockResolvedValue(false);
+    mockState.selectResults = [[]];
+    await expect(
+      sessionCanAccessAllianceVideoJob("s", "alliance-1", {
+        enqueuedByHqUserId: "officer-hq",
+      }),
+    ).resolves.toBe(false);
+  });
+
+  it("allows hq:video:read in the job alliance regardless of session context", async () => {
+    getRbacContext.mockResolvedValue({
+      isPlatformMaintainer: false,
+      roleName: "owner",
+      currentAllianceId: "alliance-other",
+      hqUserId: "u",
+      permissions: new Set<string>(),
+    });
+    sessionHasPermissionForAlliance.mockImplementation(
+      async (_sessionId, allianceId, permission) =>
+        allianceId === "alliance-1" && permission === "hq:video:read",
+    );
+    await expect(
+      sessionCanAccessAllianceVideoJob("s", "alliance-1"),
+    ).resolves.toBe(true);
+  });
+
+  it("allows a designated processor in the job alliance", async () => {
+    getRbacContext.mockResolvedValue({
+      isPlatformMaintainer: false,
+      roleName: "officer",
+      currentAllianceId: "alliance-other",
+      hqUserId: "u",
+      permissions: new Set<string>(),
+    });
+    sessionHasPermissionForAlliance.mockResolvedValue(false);
+    mockState.selectResults = [[{ id: "slot" }]];
+    await expect(
+      sessionCanAccessAllianceVideoJob("s", "alliance-1"),
+    ).resolves.toBe(true);
   });
 });
 
