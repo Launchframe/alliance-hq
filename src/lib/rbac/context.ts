@@ -171,6 +171,15 @@ export async function sessionHasPermission(
   return ctx.permissions.has(permission);
 }
 
+/** RBAC for a specific alliance (ignores session.currentAllianceId). */
+export async function getAllianceMembershipRbac(
+  sessionId: string,
+  hqUserId: string,
+  allianceId: string,
+): Promise<{ roleName: string | null; permissions: Set<string> }> {
+  return loadUserPermissions(sessionId, hqUserId, allianceId);
+}
+
 export async function sessionHasPermissionForAlliance(
   sessionId: string,
   allianceId: string,

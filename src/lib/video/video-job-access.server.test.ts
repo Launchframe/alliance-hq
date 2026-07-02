@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const loadSession = vi.hoisted(() => vi.fn());
-const sessionCanReadAllianceVideoQueue = vi.hoisted(() => vi.fn());
-const sessionCanProcessVideo = vi.hoisted(() => vi.fn());
+const sessionCanAccessAllianceVideoJob = vi.hoisted(() => vi.fn());
+const sessionCanProcessVideoForAlliance = vi.hoisted(() => vi.fn());
 
 const selectLimit = vi.hoisted(() => vi.fn());
 
@@ -11,8 +11,8 @@ vi.mock("@/lib/session", () => ({
 }));
 
 vi.mock("@/lib/video/processor-slots.server", () => ({
-  sessionCanReadAllianceVideoQueue,
-  sessionCanProcessVideo,
+  sessionCanAccessAllianceVideoJob,
+  sessionCanProcessVideoForAlliance,
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -44,6 +44,7 @@ const baseJob = {
   id: "job-1",
   sessionId: "uploader-session",
   allianceId: "alliance-a",
+  enqueuedByHqUserId: "officer-hq-user",
   status: "review",
 };
 
@@ -51,16 +52,16 @@ describe("resolveVideoJobAccess", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     selectLimit.mockResolvedValue([baseJob]);
-    sessionCanReadAllianceVideoQueue.mockResolvedValue(true);
-    sessionCanProcessVideo.mockResolvedValue(true);
-  });
-
-  it("allows same-alliance queue reader to read a job from another session", async () => {
+    sessionCanAccessAllianceVideoJob.mockResolvedValue(true);
+    sessionCanProcessVideoForAlliance.mockResolvedValue(true);
     loadSession.mockResolvedValue({
       id: "laptop-session",
-      currentAllianceId: "alliance-a",
+      currentAllianceId: null,
+      hqUserId: "owner-hq-user",
     });
+  });
 
+  it("allows alliance access without matching session.currentAllianceId", async () => {
     const result = await resolveVideoJobAccess(
       "job-1",
       "laptop-session",
@@ -68,20 +69,19 @@ describe("resolveVideoJobAccess", () => {
     );
 
     expect(result.ok).toBe(true);
-    if (result.ok) {
-      expect(result.job.id).toBe("job-1");
-    }
+    expect(sessionCanAccessAllianceVideoJob).toHaveBeenCalledWith(
+      "laptop-session",
+      "alliance-a",
+      { enqueuedByHqUserId: "officer-hq-user" },
+    );
   });
 
-  it("denies cross-alliance access with 404", async () => {
-    loadSession.mockResolvedValue({
-      id: "other-session",
-      currentAllianceId: "alliance-b",
-    });
+  it("denies when alliance access check fails with 404", async () => {
+    sessionCanAccessAllianceVideoJob.mockResolvedValue(false);
 
     const result = await resolveVideoJobAccess(
       "job-1",
-      "other-session",
+      "laptop-session",
       "read",
     );
 
@@ -102,14 +102,11 @@ describe("resolveVideoJobAccess", () => {
     );
 
     expect(result.ok).toBe(true);
+    expect(sessionCanAccessAllianceVideoJob).not.toHaveBeenCalled();
   });
 
-  it("requires process permission for process level", async () => {
-    loadSession.mockResolvedValue({
-      id: "laptop-session",
-      currentAllianceId: "alliance-a",
-    });
-    sessionCanProcessVideo.mockResolvedValue(false);
+  it("requires process permission for the job alliance", async () => {
+    sessionCanProcessVideoForAlliance.mockResolvedValue(false);
 
     const result = await resolveVideoJobAccess(
       "job-1",
@@ -118,30 +115,53 @@ describe("resolveVideoJobAccess", () => {
     );
 
     expect(result).toEqual({ ok: false, status: 403 });
+    expect(sessionCanProcessVideoForAlliance).toHaveBeenCalledWith(
+      "laptop-session",
+      "alliance-a",
+    );
   });
 
-  it("denies mutate for same-alliance session without queue read permission", async () => {
+  it("allows uploader session without alliance access check", async () => {
+    sessionCanAccessAllianceVideoJob.mockResolvedValue(false);
     loadSession.mockResolvedValue({
-      id: "other-session",
+      id: "uploader-session",
       currentAllianceId: "alliance-a",
     });
-    sessionCanReadAllianceVideoQueue.mockResolvedValue(false);
 
     const result = await resolveVideoJobAccess(
       "job-1",
-      "other-session",
+      "uploader-session",
       "mutate",
     );
 
-    expect(result).toEqual({ ok: false, status: 403 });
+    expect(result.ok).toBe(true);
+    expect(sessionCanAccessAllianceVideoJob).not.toHaveBeenCalled();
+  });
+
+  it("allows enqueuing HQ user on a new session without uploader cookie match", async () => {
+    sessionCanAccessAllianceVideoJob.mockResolvedValue(false);
+    loadSession.mockResolvedValue({
+      id: "new-mobile-session",
+      currentAllianceId: null,
+      hqUserId: "officer-hq-user",
+    });
+
+    const result = await resolveVideoJobAccess(
+      "job-1",
+      "new-mobile-session",
+      "read",
+    );
+
+    expect(result.ok).toBe(true);
+    expect(sessionCanAccessAllianceVideoJob).not.toHaveBeenCalled();
   });
 });
 
 describe("resolveVideoUploadGroupAccess", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    sessionCanReadAllianceVideoQueue.mockResolvedValue(true);
-    sessionCanProcessVideo.mockResolvedValue(true);
+    sessionCanAccessAllianceVideoJob.mockResolvedValue(true);
+    sessionCanProcessVideoForAlliance.mockResolvedValue(true);
   });
 
   it("delegates to primary job access for cross-device reviewers", async () => {
