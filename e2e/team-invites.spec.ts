@@ -5,6 +5,7 @@ import { expect, test } from "@playwright/test";
 
 import {
   authCookieHeader,
+  clearAllianceGameServerLink,
   createAllianceMembership,
   createAuthenticatedHqSession,
   createNativeAlliance,
@@ -90,11 +91,7 @@ test.describe("Team Access — officer invites", () => {
       tag: `TS${nanoid(3)}`,
       name: "Team Invite No Server Alliance",
     });
-    await sql`
-      UPDATE alliances
-      SET game_server_id = NULL, game_server_number = NULL
-      WHERE id = ${alliance.allianceId}
-    `;
+    await clearAllianceGameServerLink(sql, alliance.allianceId);
     const officer = await createAuthenticatedHqSession(sql, uniqueEmail("officer-no-server"));
     await createAllianceMembership(sql, {
       hqUserId: officer.hqUserId,
@@ -135,11 +132,7 @@ test.describe("Team Access — officer invites", () => {
       tag: `TJ${nanoid(3)}`,
       name: "Team Join Code No Server Alliance",
     });
-    await sql`
-      UPDATE alliances
-      SET game_server_id = NULL, game_server_number = NULL
-      WHERE id = ${alliance.allianceId}
-    `;
+    await clearAllianceGameServerLink(sql, alliance.allianceId);
     const officer = await createAuthenticatedHqSession(sql, uniqueEmail("officer-join-no-server"));
     await createAllianceMembership(sql, {
       hqUserId: officer.hqUserId,
