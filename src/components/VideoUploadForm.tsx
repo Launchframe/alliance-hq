@@ -1,6 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 import { useRouter } from "@/i18n/navigation";
@@ -138,9 +139,22 @@ export function VideoUploadForm({
   const [resumingSurveyJobId, setResumingSurveyJobId] = useState<string | null>(
     null,
   );
+  const searchParams = useSearchParams();
+  const processJobQueryId = useMemo(() => {
+    if (!canProcess) return null;
+    return searchParams.get("processJob")?.trim() || null;
+  }, [canProcess, searchParams]);
   const [processPromptJobId, setProcessPromptJobId] = useState<string | null>(
     null,
   );
+  const [dismissedProcessJobId, setDismissedProcessJobId] = useState<
+    string | null
+  >(null);
+  const activeProcessPromptJobId =
+    processPromptJobId ??
+    (processJobQueryId && dismissedProcessJobId !== processJobQueryId
+      ? processJobQueryId
+      : null);
   const jobs = useMergedVideoJobs(initialJobs);
   const visibleJobs = contextScoreTarget
     ? jobs.filter((job) => jobMatchesScoreTarget(job, contextScoreTarget))
@@ -431,7 +445,7 @@ export function VideoUploadForm({
         ) : null}
 
         {error && <p className="mt-4 text-sm text-[#f85149]">{error}</p>}
-        {success && !processPromptJobId ? (
+        {success && !activeProcessPromptJobId ? (
           <p className="mt-4 text-sm text-[#3fb950]">{success}</p>
         ) : null}
 
@@ -444,12 +458,17 @@ export function VideoUploadForm({
         </button>
       </form>
 
-      {processPromptJobId && canProcess && !activeSurvey ? (
+      {activeProcessPromptJobId && canProcess && !activeSurvey ? (
         <VideoProcessAfterUploadPanel
-          jobId={processPromptJobId}
+          jobId={activeProcessPromptJobId}
           ashedConnected={ashedConnected}
           connectUrl={connectUrl}
-          onDismiss={() => setProcessPromptJobId(null)}
+          onDismiss={() => {
+            setProcessPromptJobId(null);
+            if (processJobQueryId) {
+              setDismissedProcessJobId(processJobQueryId);
+            }
+          }}
         />
       ) : null}
 

@@ -1592,7 +1592,7 @@
       "enabledLabel": "Enable VR sandbox for this alliance",
       "activeNotice": "Sandbox is on — /vr and My VR accept practice reports until you turn this off.",
       "readOnlyHint": "Only alliance admins can change this setting.",
-      "disableConfirmBody": "Turn off sandbox and delete all practice VR data for this alliance? This cannot be undone.",
+      "disableConfirmBody": "Turn off sandbox and delete all practice VR data for this alliance? Any in-flight web VR confirmations will be cancelled. This cannot be undone.",
       "disableConfirmAction": "End sandbox and wipe data",
       "disableCancel": "Keep sandbox on"
     },
@@ -1949,8 +1949,8 @@
     "errorCredentials": "Email or password is incorrect.",
     "errorGeneric": "We could not complete sign-in. Try again or use a different method.",
     "errorOAuthAccountNotLinkedTitle": "This Google or Discord account is not linked",
-    "errorOAuthAccountNotLinkedBody": "The email on that provider does not match your Alliance HQ account, or Discord must be linked from Settings after you sign in with your existing method.",
-    "errorOAuthAccountNotLinkedHint": "Sign in with the email address your invite used, then link Google or Discord under Settings → Sign-in & security.",
+    "errorOAuthAccountNotLinkedBody": "Google or Discord could not be connected to your Alliance HQ account. That usually means the provider email does not match your invite email, Google has not verified the email yet, or Discord did not share an email we can match. Discord can sign you in automatically when its verified email matches your invite; otherwise sign in with your invite email first, then link providers under Settings → Sign-in & security.",
+    "errorOAuthAccountNotLinkedHint": "Use the same email address your alliance invite was sent to, or open Settings → Sign-in & security after signing in with that email.",
     "errorOAuthAccountNotLinkedAccountLink": "Open sign-in & security settings",
     "backToSignIn": "Back to sign in"
   },
