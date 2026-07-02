@@ -4,7 +4,10 @@ import { and, asc, eq, isNull, or } from "drizzle-orm";
 
 import { getDb, schema } from "@/lib/db";
 import type { VideoJob } from "@/lib/db/schema";
-import { loadAllianceHqOcrOnly } from "@/lib/video/alliance-ocr-settings.server";
+import {
+  isAllianceHqOcrOnlyLockedOnDeploy,
+  loadEffectiveAllianceHqOcrOnly,
+} from "@/lib/video/alliance-ocr-settings.server";
 import {
   resolveVideoOcrEngineForJob,
   engineRequiresAshed,
@@ -148,7 +151,7 @@ export async function buildVideoProcessPreview(params: {
   const isRosterTarget = isMemberRosterVideoTarget(scoreTargetId);
   const allianceId = params.job.allianceId;
   const hqOcrOnly = allianceId
-    ? await loadAllianceHqOcrOnly(allianceId)
+    ? await loadEffectiveAllianceHqOcrOnly(allianceId)
     : false;
   const ocrContext = { allianceHqOcrOnly: hqOcrOnly };
   const primaryEngine = resolveVideoOcrEngineForJob(
@@ -189,6 +192,7 @@ export async function buildVideoProcessPreview(params: {
     experiment,
     experimentOptions,
     hqOcrOnly,
+    hqOcrOnlyLocked: isAllianceHqOcrOnlyLockedOnDeploy(),
     requiresAshedConnection,
     canProcess,
   };

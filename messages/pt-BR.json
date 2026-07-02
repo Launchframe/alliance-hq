@@ -945,6 +945,7 @@
     "ocrSettingsDescription": "Aplica-se somente a esta aliança. Quando ativado, vídeos aprovados usam reconhecimento de texto interno em vez do Ashed.",
     "hqOcrOnlyLabel": "Usar somente OCR interno (desativar Ashed)",
     "hqOcrOnlyHint": "Vídeos de roster passam pelo leitor integrado do Alliance HQ. Você pode aprovar trabalhos sem conectar o Ashed.",
+    "hqOcrOnlyDeployLockedHint": "Este servidor usa apenas OCR interno. O Ashed não está disponível neste ambiente.",
     "ocrSettingsSaveFailed": "Não foi possível salvar as configurações de OCR.",
     "approve": "Aprovar",
     "reject": "Rejeitar",
@@ -2615,6 +2616,7 @@
       "complete": "concluído",
       "failed": "falha",
       "pending": "pendente",
+      "pending_upload": "aguardando envio",
       "pending_approval": "aguardando aprovação",
       "processing": "processando"
     },
@@ -2647,6 +2649,21 @@
       "processNow": "Processar agora",
       "processing": "Iniciando…",
       "later": "Agora não"
+    }
+  },
+  "videoUpload": {
+    "status": {
+      "queued": "na fila",
+      "extracting": "extraindo frames",
+      "parsing": "OCR em andamento",
+      "review": "pronto para revisar",
+      "submitting": "enviando",
+      "complete": "concluído",
+      "failed": "falha",
+      "pending": "pendente",
+      "pending_upload": "aguardando envio",
+      "pending_approval": "aguardando aprovação",
+      "processing": "processando"
     }
   },
   "videoJobs": {

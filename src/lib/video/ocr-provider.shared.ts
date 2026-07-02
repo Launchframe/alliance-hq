@@ -30,14 +30,31 @@ export function resolveVideoOcrProvider(): VideoOcrProvider {
   return raw as VideoOcrProvider;
 }
 
+/** True when this deploy can run Ashed OCR (default production path). */
+export function isAshedOcrAvailableOnDeploy(): boolean {
+  return resolveVideoOcrProvider() === "ashed";
+}
+
+/** Alliance toggle with deploy override — non-Ashed deploys always use in-house OCR. */
+export function effectiveAllianceHqOcrOnly(storedHqOcrOnly: boolean): boolean {
+  if (!isAshedOcrAvailableOnDeploy()) {
+    return true;
+  }
+  return storedHqOcrOnly;
+}
+
 /** Env default, optionally overridden by the alliance video-queue setting. */
 export function resolveEffectiveVideoOcrProvider(
   context?: VideoOcrResolutionContext,
 ): VideoOcrProvider {
+  const deployProvider = resolveVideoOcrProvider();
+  if (deployProvider !== "ashed") {
+    return deployProvider;
+  }
   if (context?.allianceHqOcrOnly) {
     return "local";
   }
-  return resolveVideoOcrProvider();
+  return "ashed";
 }
 
 export function videoOcrEngineForTarget(
@@ -86,6 +103,9 @@ export function resolveVideoOcrEngineForJob(
 export function videoOcrRequiresAshedConnection(
   context?: VideoOcrResolutionContext,
 ): boolean {
+  if (!isAshedOcrAvailableOnDeploy()) {
+    return false;
+  }
   return engineRequiresAshed(
     videoOcrEngineForTarget(resolveEffectiveVideoOcrProvider(context), true),
   );

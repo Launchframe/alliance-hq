@@ -5,14 +5,14 @@
  * only on the first call.  The worker is reused across calls within the same
  * Node.js process lifetime.
  *
- * traineddata path strategy for Vercel:
- *  - Vercel bundles the file-system path at build time via next.config outputFileTracing.
- *  - We resolve the path relative to the module so it works in both dev and prod.
- *  - The `langPath` option tells Tesseract where to find *.traineddata files.
- *    Set TESSERACT_LANG_PATH env var to override (e.g. for lambda layer deployments).
+ * Language data (eng.traineddata.gz):
+ *  - **Default:** omit `langPath` so tesseract.js downloads from jsDelivr CDN.
+ *  - **Override:** set `TESSERACT_LANG_PATH` to a local directory containing
+ *    `eng.traineddata.gz`, or a CDN base URL (must end without trailing slash).
+ *  - Do **not** point at `tesseract.js-core` — that package ships WASM only, no
+ *    traineddata files (tesseract.js v7+).
  */
 
-import path from "node:path";
 import { createWorker, type Worker } from "tesseract.js";
 
 import type { RosterOcrConfig } from "@/lib/members/roster-ocr/types";
@@ -20,26 +20,26 @@ import { DEFAULT_ROSTER_OCR_CONFIG } from "@/lib/members/roster-ocr/types";
 
 let workerInstance: Worker | null = null;
 
-/** Resolve traineddata directory.  Override with TESSERACT_LANG_PATH for Vercel. */
-function resolveLangPath(): string {
-  if (process.env.TESSERACT_LANG_PATH) {
-    return process.env.TESSERACT_LANG_PATH;
+/** Optional worker options — only set langPath when explicitly configured. */
+export function buildTesseractWorkerOptions(): {
+  langPath?: string;
+  logger?: typeof console.log;
+} {
+  const options: { langPath?: string; logger?: typeof console.log } = {
+    logger: process.env.NODE_ENV === "development" ? console.log : undefined,
+  };
+
+  const langPath = process.env.TESSERACT_LANG_PATH?.trim();
+  if (langPath) {
+    options.langPath = langPath;
   }
-  // node_modules/tesseract.js-core ships traineddata under tessdata/
-  // In Vercel's bundled output the package is available at the same location.
-  return path.join(
-    path.dirname(require.resolve("tesseract.js")),
-    "../tesseract.js-core",
-  );
+
+  return options;
 }
 
 async function getWorker(): Promise<Worker> {
   if (!workerInstance) {
-    workerInstance = await createWorker("eng", 1, {
-      langPath: resolveLangPath(),
-      // Suppress tesseract.js internal progress logs in prod
-      logger: process.env.NODE_ENV === "development" ? console.log : undefined,
-    });
+    workerInstance = await createWorker("eng", 1, buildTesseractWorkerOptions());
   }
   return workerInstance;
 }

@@ -116,7 +116,7 @@ export function VideoProcessAfterUploadPanel({
   }, [preview, t]);
 
   async function toggleHqOcrOnly(next: boolean) {
-    if (!preview) return;
+    if (!preview || preview.hqOcrOnlyLocked) return;
     setOcrSettingsBusy(true);
     setError(null);
     try {
@@ -295,14 +295,19 @@ export function VideoProcessAfterUploadPanel({
             <input
               type="checkbox"
               className="mt-1"
-              checked={preview.hqOcrOnly}
-              disabled={ocrSettingsBusy || acting}
+              checked={preview.hqOcrOnlyLocked ? true : preview.hqOcrOnly}
+              disabled={ocrSettingsBusy || acting || preview.hqOcrOnlyLocked}
               onChange={(e) => void toggleHqOcrOnly(e.target.checked)}
             />
             <span className="min-w-0 text-sm text-[#e6edf3]">
               {tQueue("hqOcrOnlyLabel")}
             </span>
           </label>
+          <p className="text-xs text-[#8b949e]">
+            {preview.hqOcrOnlyLocked
+              ? tQueue("hqOcrOnlyDeployLockedHint")
+              : tQueue("hqOcrOnlyHint")}
+          </p>
         </div>
       ) : null}
 

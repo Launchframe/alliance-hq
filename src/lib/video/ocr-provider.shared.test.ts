@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
+  effectiveAllianceHqOcrOnly,
   engineRequiresAshed,
+  isAshedOcrAvailableOnDeploy,
   resolveEffectiveVideoOcrProvider,
   resolveVideoJobAshedConnection,
   resolveVideoOcrProvider,
@@ -99,6 +101,42 @@ describe("resolveEffectiveVideoOcrProvider", () => {
       "ashed",
     );
   });
+
+  it("uses local deploy provider even when alliance override is off", () => {
+    vi.stubEnv("VIDEO_OCR_PROVIDER", "local");
+    vi.stubEnv("NODE_ENV", "development");
+    expect(
+      resolveEffectiveVideoOcrProvider({ allianceHqOcrOnly: false }),
+    ).toBe("local");
+  });
+});
+
+describe("effectiveAllianceHqOcrOnly", () => {
+  it("forces true when Ashed is unavailable on deploy", () => {
+    vi.stubEnv("VIDEO_OCR_PROVIDER", "local");
+    vi.stubEnv("NODE_ENV", "development");
+    expect(effectiveAllianceHqOcrOnly(false)).toBe(true);
+    expect(effectiveAllianceHqOcrOnly(true)).toBe(true);
+  });
+
+  it("respects stored preference when Ashed is available", () => {
+    vi.stubEnv("VIDEO_OCR_PROVIDER", "");
+    expect(effectiveAllianceHqOcrOnly(false)).toBe(false);
+    expect(effectiveAllianceHqOcrOnly(true)).toBe(true);
+  });
+});
+
+describe("isAshedOcrAvailableOnDeploy", () => {
+  it("is false for local OCR deploy", () => {
+    vi.stubEnv("VIDEO_OCR_PROVIDER", "local");
+    vi.stubEnv("NODE_ENV", "development");
+    expect(isAshedOcrAvailableOnDeploy()).toBe(false);
+  });
+
+  it("is true for default ashed deploy", () => {
+    vi.stubEnv("VIDEO_OCR_PROVIDER", "");
+    expect(isAshedOcrAvailableOnDeploy()).toBe(true);
+  });
 });
 
 describe("videoOcrRequiresAshedConnection", () => {
@@ -127,6 +165,14 @@ describe("videoOcrRequiresAshedConnection", () => {
     vi.stubEnv("VIDEO_OCR_PROVIDER", "local");
     vi.stubEnv("VIDEO_OCR_ALLOW_NONPROD", "");
     expect(videoOcrRequiresAshedConnection()).toBe(true);
+  });
+
+  it("does not require Ashed when alliance override is off but deploy is local", () => {
+    vi.stubEnv("NODE_ENV", "development");
+    vi.stubEnv("VIDEO_OCR_PROVIDER", "local");
+    expect(
+      videoOcrRequiresAshedConnection({ allianceHqOcrOnly: false }),
+    ).toBe(false);
   });
 });
 

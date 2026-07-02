@@ -11,6 +11,12 @@ const sharpFileTracing = [
   "./node_modules/@img/**/*",
 ];
 
+/** Tesseract worker script + WASM core for in-house roster OCR on serverless. */
+const tesseractFileTracing = [
+  "./node_modules/tesseract.js/src/worker-script/**/*",
+  "./node_modules/tesseract.js-core/**/*",
+];
+
 const nextConfig: NextConfig = {
   env: {
     NEXT_PUBLIC_APP_VERSION:
@@ -21,9 +27,9 @@ const nextConfig: NextConfig = {
   },
   outputFileTracingIncludes: {
     "/guides/discord-train": ["./docs/guides/**/*"],
-    "/api/internal/video-process/queue": sharpFileTracing,
-    "/api/internal/video-process/[jobId]": sharpFileTracing,
-    "/api/members/roster-import/parse": sharpFileTracing,
+    "/api/internal/video-process/queue": [...sharpFileTracing, ...tesseractFileTracing],
+    "/api/internal/video-process/[jobId]": [...sharpFileTracing, ...tesseractFileTracing],
+    "/api/members/roster-import/parse": [...sharpFileTracing, ...tesseractFileTracing],
   },
   serverExternalPackages: ["ffmpeg-static", "sharp"],
 };
