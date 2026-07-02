@@ -6,9 +6,10 @@ import { getDb, schema } from "@/lib/db";
 import type { VideoJob, VideoUploadGroup } from "@/lib/db/schema";
 import { loadSession } from "@/lib/session";
 import {
-  sessionCanProcessVideo,
-  sessionCanReadAllianceVideoQueue,
+  sessionCanAccessAllianceVideoJob,
+  sessionCanProcessVideoForAlliance,
 } from "@/lib/video/processor-slots.server";
+import { isVideoJobOwningHqUser } from "@/lib/video/video-job-access.shared";
 
 export type VideoJobAccessLevel = "read" | "mutate" | "process";
 
@@ -42,37 +43,34 @@ export async function resolveVideoJobAccess(
   }
 
   const isUploaderSession = job.sessionId === sessionId;
+  const isOwningHqUser = isVideoJobOwningHqUser(session.hqUserId, job);
 
   if (!job.allianceId) {
-    if (isUploaderSession) {
+    if (isUploaderSession || isOwningHqUser) {
       return { ok: true, job };
     }
     return { ok: false, status: 404 };
   }
 
-  // Mirror approve-route tenant isolation: only block when both alliance ids are
-  // set and differ. Uploader session always retains access to its own job.
-  if (
-    session.currentAllianceId &&
-    job.allianceId !== session.currentAllianceId &&
-    !isUploaderSession
-  ) {
-    return { ok: false, status: 404 };
-  }
+  const allianceId = job.allianceId;
 
   if (level === "process") {
-    if (!(await sessionCanProcessVideo(sessionId))) {
+    if (!(await sessionCanProcessVideoForAlliance(sessionId, allianceId))) {
       return { ok: false, status: 403 };
     }
     return { ok: true, job };
   }
 
-  if (isUploaderSession) {
+  if (isUploaderSession || isOwningHqUser) {
     return { ok: true, job };
   }
 
-  if (!(await sessionCanReadAllianceVideoQueue(sessionId))) {
-    return { ok: false, status: 403 };
+  if (
+    !(await sessionCanAccessAllianceVideoJob(sessionId, allianceId, {
+      enqueuedByHqUserId: job.enqueuedByHqUserId,
+    }))
+  ) {
+    return { ok: false, status: 404 };
   }
 
   return { ok: true, job };
@@ -84,7 +82,11 @@ export type VideoUploadGroupAccessResult =
 
 /**
  * Alliance-scoped access to a multi-pass upload group. Delegates to the primary
- * job when present; otherwise mirrors job access on the group row.
+ * job when present.
+ *
+ * When `primaryJobId` is null (pending_upload before activatePendingVideoUpload),
+ * only the uploader browser session may access the group — not HQ-user cross-device
+ * handoff on that upload window is deferred.
  */
 export async function resolveVideoUploadGroupAccess(
   groupId: string,
@@ -129,16 +131,8 @@ export async function resolveVideoUploadGroupAccess(
     return { ok: false, status: 404 };
   }
 
-  if (
-    session.currentAllianceId &&
-    allianceId !== session.currentAllianceId &&
-    !isUploaderSession
-  ) {
-    return { ok: false, status: 404 };
-  }
-
   if (level === "process") {
-    if (!(await sessionCanProcessVideo(sessionId))) {
+    if (!(await sessionCanProcessVideoForAlliance(sessionId, allianceId))) {
       return { ok: false, status: 403 };
     }
     return { ok: true, group };
@@ -148,8 +142,10 @@ export async function resolveVideoUploadGroupAccess(
     return { ok: true, group };
   }
 
-  if (!(await sessionCanReadAllianceVideoQueue(sessionId))) {
-    return { ok: false, status: 403 };
+  if (
+    !(await sessionCanAccessAllianceVideoJob(sessionId, allianceId))
+  ) {
+    return { ok: false, status: 404 };
   }
 
   return { ok: true, group };

@@ -3,11 +3,20 @@ import "server-only";
 import { and, eq, inArray } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
+import { resolveSessionAllianceId } from "@/lib/alliance/session-memberships";
 import { getDb, schema } from "@/lib/db";
 import { formatAllianceRankLabel } from "@/lib/members/alliance-rank";
 import { getAllianceOperatingMode } from "@/lib/native-alliance/operating-mode";
-import { getRbacContext } from "@/lib/rbac/context";
-import { VIDEO_READ_PERMISSION } from "@/lib/rbac/constants";
+import {
+  getAllianceMembershipRbac,
+  getRbacContext,
+  sessionHasPermissionForAlliance,
+} from "@/lib/rbac/context";
+import {
+  VIDEO_ENQUEUE_PERMISSION,
+  VIDEO_READ_PERMISSION,
+} from "@/lib/rbac/constants";
+import { loadSession } from "@/lib/session";
 import type {
   VideoProcessorCandidate,
   VideoProcessorCandidateList,
@@ -260,34 +269,125 @@ export async function sessionCanProcessVideo(
   if (ctx.isPlatformMaintainer) {
     return true;
   }
-  if (ctx.roleName && BYPASS_ROLE_NAMES.has(ctx.roleName)) {
-    return true;
-  }
   if (!ctx.currentAllianceId) {
     return false;
   }
-  return isAllianceVideoProcessor(ctx.currentAllianceId, ctx.hqUserId);
+  return sessionCanProcessVideoForAlliance(sessionId, ctx.currentAllianceId);
 }
 
 /**
- * Whether the session may view the alliance video queue: anyone with the
- * `hq:video:read` permission (owner/maintainer/platform maintainer) or an
- * explicit processor slot.
+ * Whether the session may approve/run OCR for jobs in a specific alliance
+ * (uses membership in that alliance, not only session.currentAllianceId).
  */
-export async function sessionCanReadAllianceVideoQueue(
+export async function sessionCanProcessVideoForAlliance(
   sessionId: string,
+  allianceId: string,
 ): Promise<boolean> {
   const ctx = await getRbacContext(sessionId);
   if (!ctx) {
     return false;
   }
-  if (ctx.isPlatformMaintainer || ctx.permissions.has(VIDEO_READ_PERMISSION)) {
+  if (ctx.isPlatformMaintainer) {
     return true;
   }
-  if (!ctx.currentAllianceId) {
+  const { roleName } = await getAllianceMembershipRbac(
+    sessionId,
+    ctx.hqUserId,
+    allianceId,
+  );
+  if (roleName && BYPASS_ROLE_NAMES.has(roleName)) {
+    return true;
+  }
+  return isAllianceVideoProcessor(allianceId, ctx.hqUserId);
+}
+
+/**
+ * Cross-device access to a job in a specific alliance: platform maintainer,
+ * queue readers, designated processors, or the officer who enqueued the upload.
+ */
+export async function sessionCanAccessAllianceVideoJob(
+  sessionId: string,
+  allianceId: string,
+  options?: { enqueuedByHqUserId?: string | null },
+): Promise<boolean> {
+  const ctx = await getRbacContext(sessionId);
+  if (!ctx) {
     return false;
   }
-  return isAllianceVideoProcessor(ctx.currentAllianceId, ctx.hqUserId);
+  if (ctx.isPlatformMaintainer) {
+    return true;
+  }
+
+  if (
+    options?.enqueuedByHqUserId &&
+    options.enqueuedByHqUserId === ctx.hqUserId &&
+    (await sessionHasPermissionForAlliance(
+      sessionId,
+      allianceId,
+      VIDEO_ENQUEUE_PERMISSION,
+    ))
+  ) {
+    return true;
+  }
+
+  if (
+    await sessionHasPermissionForAlliance(
+      sessionId,
+      allianceId,
+      VIDEO_READ_PERMISSION,
+    )
+  ) {
+    return true;
+  }
+
+  return isAllianceVideoProcessor(allianceId, ctx.hqUserId);
+}
+
+/**
+ * Whether the session may view the alliance video queue: platform maintainer,
+ * `hq:video:read` or `hq:video:enqueue` in the resolved alliance, or a
+ * designated processor slot.
+ */
+export async function sessionCanReadAllianceVideoQueue(
+  sessionId: string,
+): Promise<boolean> {
+  const session = await loadSession(sessionId);
+  if (!session?.hqUserId) {
+    return false;
+  }
+
+  const ctx = await getRbacContext(sessionId);
+  if (!ctx) {
+    return false;
+  }
+  if (ctx.isPlatformMaintainer) {
+    return true;
+  }
+
+  const allianceId = resolveSessionAllianceId(session);
+  if (!allianceId) {
+    return false;
+  }
+
+  if (
+    await sessionHasPermissionForAlliance(
+      sessionId,
+      allianceId,
+      VIDEO_READ_PERMISSION,
+    )
+  ) {
+    return true;
+  }
+  if (
+    await sessionHasPermissionForAlliance(
+      sessionId,
+      allianceId,
+      VIDEO_ENQUEUE_PERMISSION,
+    )
+  ) {
+    return true;
+  }
+  return isAllianceVideoProcessor(allianceId, ctx.hqUserId);
 }
 
 export type GrantVideoProcessorResult =

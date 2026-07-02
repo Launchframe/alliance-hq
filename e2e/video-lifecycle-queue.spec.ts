@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { nanoid } from "nanoid";
 
 import { authCookieHeader, getE2eSql } from "./fixtures/db";
 import {
@@ -102,6 +103,61 @@ test.describe("Video lifecycle queue — cross-device", () => {
     const ids = body.jobs.map((job) => job.id);
     expect(ids).toContain(pendingId);
     expect(ids).not.toContain(completeId);
+  });
+
+  test("officer who enqueued on another session can load review JSON", async ({
+    request,
+  }) => {
+    const sql = getE2eSql();
+    const scenario = await createVideoProcessorScenario(sql, e2eBaseUrl());
+    const jobId = await insertAllianceVideoJob(sql, {
+      allianceId: scenario.allianceId,
+      sessionId: scenario.officer.sessionId,
+      enqueuedByHqUserId: scenario.officer.hqUserId,
+      status: "review",
+    });
+
+    const laptopSessionId = nanoid(32);
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000);
+    await sql`
+      INSERT INTO sessions (
+        id, created_at, updated_at, expires_at, hq_user_id,
+        current_alliance_id, alliance_id
+      ) VALUES (
+        ${laptopSessionId},
+        ${now},
+        ${now},
+        ${expiresAt},
+        ${scenario.officer.hqUserId},
+        ${scenario.allianceId},
+        ${scenario.allianceId}
+      )
+    `;
+
+    const queue = await request.get("/api/tools/video-upload/queue", {
+      headers: {
+        Cookie: authCookieHeader({
+          sessionId: laptopSessionId,
+          nextAuthToken: scenario.officer.nextAuthToken,
+        }),
+      },
+    });
+    expect(queue.status(), await queue.text()).toBe(200);
+    const queueBody = (await queue.json()) as {
+      jobs: Array<{ id: string }>;
+    };
+    expect(queueBody.jobs.some((job) => job.id === jobId)).toBe(true);
+
+    const review = await request.get(`/api/tools/video-upload/${jobId}`, {
+      headers: {
+        Cookie: authCookieHeader({
+          sessionId: laptopSessionId,
+          nextAuthToken: scenario.officer.nextAuthToken,
+        }),
+      },
+    });
+    expect(review.status(), await review.text()).toBe(200);
   });
 
   test("different alliance cannot load review JSON for the job", async ({

@@ -1,6 +1,7 @@
 import { getLocale, getTranslations } from "next-intl/server";
 
 import { redirect } from "@/i18n/navigation";
+import { resolveSessionAllianceId } from "@/lib/alliance/session-memberships";
 import { getAshedConnection, requirePageSession } from "@/lib/session";
 import { loadAllianceHqOcrOnly } from "@/lib/video/alliance-ocr-settings.server";
 import { videoOcrRequiresAshedConnection } from "@/lib/video/ocr-provider.shared";
@@ -8,7 +9,7 @@ import {
   sessionCanProcessVideo,
   sessionCanReadAllianceVideoQueue,
 } from "@/lib/video/processor-slots.server";
-import { listAllianceActiveVideoJobs } from "@/app/api/tools/video-upload/queue/route";
+import { listVideoQueueJobsForSession } from "@/lib/video/video-queue.server";
 import { VideoQueueClient } from "@/components/video/VideoQueueClient";
 
 export const dynamic = "force-dynamic";
@@ -23,15 +24,13 @@ export default async function VideoQueuePage() {
 
   const t = await getTranslations("videoQueue");
 
+  const allianceId = resolveSessionAllianceId(session);
+
   const [jobs, canProcess, connection, hqOcrOnly] = await Promise.all([
-    session.currentAllianceId
-      ? listAllianceActiveVideoJobs(session.currentAllianceId)
-      : Promise.resolve([]),
+    listVideoQueueJobsForSession(session.id),
     sessionCanProcessVideo(session.id),
     getAshedConnection(session.id),
-    session.currentAllianceId
-      ? loadAllianceHqOcrOnly(session.currentAllianceId)
-      : Promise.resolve(false),
+    allianceId ? loadAllianceHqOcrOnly(allianceId) : Promise.resolve(false),
   ]);
 
   const connectUrl = `/connect?next=${encodeURIComponent("/tools/video-upload/queue")}`;

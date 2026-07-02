@@ -9,6 +9,7 @@ import {
 
 describe("video lifecycle queue helpers", () => {
   it("lists active queue statuses", () => {
+    expect(isActiveQueueVideoJobStatus("pending_upload")).toBe(true);
     expect(isActiveQueueVideoJobStatus("pending_approval")).toBe(true);
     expect(isActiveQueueVideoJobStatus("review")).toBe(true);
     expect(isActiveQueueVideoJobStatus("failed")).toBe(true);
@@ -23,6 +24,7 @@ describe("video lifecycle queue helpers", () => {
   });
 
   it("maps lifecycle stages", () => {
+    expect(videoJobLifecycleStage("pending_upload")).toBe("needs_upload");
     expect(videoJobLifecycleStage("pending_approval")).toBe("needs_approval");
     expect(videoJobLifecycleStage("parsing")).toBe("processing");
     expect(videoJobLifecycleStage("review")).toBe("ready_to_review");

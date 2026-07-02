@@ -3,14 +3,14 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 
-import { useRouter } from "@/i18n/navigation";
+import { Link, useRouter } from "@/i18n/navigation";
 import { FormattedDateTime } from "@/components/timezone/TimezoneProvider";
 import {
   RecordDetailCard,
   RecordDetailField,
   ResponsiveRecordViews,
 } from "@/components/ui/ResponsiveRecordViews";
-import type { AllianceQueueJob } from "@/app/api/tools/video-upload/queue/route";
+import type { AllianceQueueJob } from "@/lib/video/video-queue.shared";
 import {
   isInFlightProcessingStatus,
   videoJobLifecycleStage,
@@ -200,6 +200,7 @@ export function VideoQueueClient({
 
   function statusLabel(status: string): string {
     const knownStatuses = [
+      "pending_upload",
       "queued",
       "extracting",
       "parsing",
@@ -218,6 +219,12 @@ export function VideoQueueClient({
   }
 
   function progressDetail(job: AllianceQueueJob): string | null {
+    if (job.status === "pending_upload") {
+      if (job.uploadedFrameCount != null && job.frameCount != null) {
+        return `${job.uploadedFrameCount}/${job.frameCount}`;
+      }
+      return null;
+    }
     if (isInFlightProcessingStatus(job.status)) {
       if (job.frameCount != null && job.uploadedFrameCount != null) {
         return `${job.uploadedFrameCount}/${job.frameCount}`;
@@ -384,7 +391,7 @@ export function VideoQueueClient({
 function StatusBadge({ status, label }: { status: string; label: string }) {
   const stage = videoJobLifecycleStage(status);
   const tone =
-    stage === "needs_attention"
+    stage === "needs_attention" || stage === "needs_upload"
       ? "border-[#f85149] text-[#f85149]"
       : stage === "ready_to_review"
         ? "border-[#3fb950] text-[#3fb950]"
@@ -431,6 +438,17 @@ function JobActions({
   tReview: ReturnType<typeof useTranslations>;
 }) {
   const stage = videoJobLifecycleStage(job.status);
+
+  if (stage === "needs_upload") {
+    return (
+      <Link
+        href="/tools/video-upload"
+        className="rounded-md border border-[#30363d] px-2.5 py-1 text-xs text-[#8b949e] hover:border-[#58a6ff] hover:text-[#58a6ff]"
+      >
+        {tUpload("viewAllUploads")}
+      </Link>
+    );
+  }
 
   if (stage === "needs_approval" && canProcess) {
     return (

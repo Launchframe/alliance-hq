@@ -302,98 +302,105 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
 
   const load = useCallback(
     async (options?: { skipRematch?: boolean }) => {
-      const res = await fetch(`/api/tools/video-upload/${jobId}`);
-      const data = (await res.json()) as {
-        error?: string;
-        job?: {
-          status: string;
-          fileName?: string | null;
-          allianceId?: string | null;
-          boardKey?: string | null;
-          hqEventId?: string | null;
-          rating?: string | null;
-          timingsJson?: VideoProcessTimings | null;
+      try {
+        const res = await fetch(`/api/tools/video-upload/${jobId}`);
+        const data = (await res.json()) as {
+          error?: string;
+          job?: {
+            status: string;
+            fileName?: string | null;
+            allianceId?: string | null;
+            boardKey?: string | null;
+            hqEventId?: string | null;
+            rating?: string | null;
+            timingsJson?: VideoProcessTimings | null;
+          };
+          hasSourceVideo?: boolean;
+          frameTimestamps?: FrameTimestampMap;
+          scoreTargetMeta?: ScoreTargetMeta | null;
+          alliance?: {
+            currentId?: string | null;
+            currentTag?: string | null;
+            jobTag?: string | null;
+            jobName?: string | null;
+            stale?: boolean;
+          };
+          parseSession?: { allianceId?: string | null };
+          rows?: Array<ParsedRow & { scoreConflict?: number }>;
         };
-        hasSourceVideo?: boolean;
-        frameTimestamps?: FrameTimestampMap;
-        scoreTargetMeta?: ScoreTargetMeta | null;
-        alliance?: {
-          currentId?: string | null;
-          currentTag?: string | null;
-          jobTag?: string | null;
-          jobName?: string | null;
-          stale?: boolean;
-        };
-        parseSession?: { allianceId?: string | null };
-        rows?: Array<ParsedRow & { scoreConflict?: number }>;
-      };
-      if (!res.ok) {
-        setJobStatus("failed");
-        setError(data.error ?? tc("uploadFailed"));
-        return;
-      }
-
-      if (data.alliance?.stale && !options?.skipRematch) {
-        const ok = await rematchMembers();
-        if (ok) {
-          await loadRef.current({ skipRematch: true });
+        if (!res.ok) {
+          setJobStatus("load_error");
+          setError(data.error ?? tc("uploadFailed"));
           return;
         }
-      }
 
-      setJobStatus(data.job?.status ?? "unknown");
-      if (
-        data.job?.rating === "thumbs_up" ||
-        data.job?.rating === "thumbs_down"
-      ) {
-        setJobRating(data.job.rating);
-      }
-      setFileName(data.job?.fileName ?? null);
-      setHasSourceVideo(Boolean(data.hasSourceVideo));
-      setFrameTimestamps(data.frameTimestamps ?? {});
-      setTimings(
-        isVideoProcessTimings(data.job?.timingsJson)
-          ? data.job.timingsJson
-          : null,
-      );
-      setScoreTargetMeta(data.scoreTargetMeta ?? null);
-      const serverRows = (data.rows ?? []).map((row) => ({
-        ...row,
-        scoreConflict: row.scoreConflict ?? 0,
-      }));
-      const restored = restoreVideoReviewDraftIfPresent(
-        jobId,
-        viewMode,
-        serverRows,
-      );
-      setRows(restored.rows);
-      if (restored.form) {
-        setEventId(restored.form.eventId);
-        setHqEventId(restored.form.hqEventId);
-        setBoardKey(restored.form.boardKey);
-        setTeam(restored.form.team);
-        setRecordedDate(restored.form.recordedDate);
-      } else {
-        if (data.job?.hqEventId) {
-          setHqEventId(data.job.hqEventId);
+        if (data.alliance?.stale && !options?.skipRematch) {
+          const ok = await rematchMembers();
+          if (ok) {
+            await loadRef.current({ skipRematch: true });
+            return;
+          }
         }
-        if (data.job?.boardKey) {
-          setBoardKey(data.job.boardKey);
+
+        setJobStatus(data.job?.status ?? "unknown");
+        if (
+          data.job?.rating === "thumbs_up" ||
+          data.job?.rating === "thumbs_down"
+        ) {
+          setJobRating(data.job.rating);
         }
+        setFileName(data.job?.fileName ?? null);
+        setHasSourceVideo(Boolean(data.hasSourceVideo));
+        setFrameTimestamps(data.frameTimestamps ?? {});
+        setTimings(
+          isVideoProcessTimings(data.job?.timingsJson)
+            ? data.job.timingsJson
+            : null,
+        );
+        setScoreTargetMeta(data.scoreTargetMeta ?? null);
+        const serverRows = (data.rows ?? []).map((row) => ({
+          ...row,
+          scoreConflict: row.scoreConflict ?? 0,
+        }));
+        const restored = restoreVideoReviewDraftIfPresent(
+          jobId,
+          viewMode,
+          serverRows,
+        );
+        setRows(restored.rows);
+        if (restored.form) {
+          setEventId(restored.form.eventId);
+          setHqEventId(restored.form.hqEventId);
+          setBoardKey(restored.form.boardKey);
+          setTeam(restored.form.team);
+          setRecordedDate(restored.form.recordedDate);
+        } else {
+          if (data.job?.hqEventId) {
+            setHqEventId(data.job.hqEventId);
+          }
+          if (data.job?.boardKey) {
+            setBoardKey(data.job.boardKey);
+          }
+        }
+        setDraftRestored(restored.restored);
+        markAutosaveReady(draftDirtyVersionRef.current, restored.savedAt);
+        setAllianceId(
+          data.alliance?.currentId ??
+            data.job?.allianceId ??
+            data.parseSession?.allianceId ??
+            null,
+        );
+        setAllianceTag(
+          data.alliance?.jobTag ?? data.alliance?.currentTag ?? null,
+        );
+        setAllianceName(data.alliance?.jobName ?? null);
+        setAllianceStale(Boolean(data.alliance?.stale));
+      } catch (err) {
+        setJobStatus("load_error");
+        setError(
+          err instanceof Error ? err.message : tc("connectionFailed"),
+        );
       }
-      setDraftRestored(restored.restored);
-      markAutosaveReady(draftDirtyVersionRef.current, restored.savedAt);
-      setAllianceId(
-        data.alliance?.currentId ??
-          data.job?.allianceId ??
-          data.parseSession?.allianceId ??
-          null,
-      );
-      setAllianceTag(
-        data.alliance?.jobTag ?? data.alliance?.currentTag ?? null,
-      );
-      setAllianceName(data.alliance?.jobName ?? null);
-      setAllianceStale(Boolean(data.alliance?.stale));
     },
     [jobId, markAutosaveReady, rematchMembers, setDraftRestored, tc, viewMode],
   );
@@ -412,6 +419,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     const terminalStatuses = new Set([
       "review",
       "failed",
+      "load_error",
       "complete",
       "discarded",
     ]);
@@ -1075,10 +1083,23 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     );
   }
 
+  if (displayJobStatus === "load_error") {
+    return (
+      <div className="space-y-4">
+        <p className="text-sm text-[#f85149]">{error ?? tc("uploadFailed")}</p>
+        <Link href="/tools/video-upload" className="text-sm text-[#58a6ff] hover:underline">
+          {t("backToUploads")}
+        </Link>
+      </div>
+    );
+  }
+
   if (displayJobStatus === "failed") {
     return (
       <div className="space-y-4">
-        <p className="text-sm text-[#f85149]">{t("processingFailed")}</p>
+        <p className="text-sm text-[#f85149]">
+          {error ?? t("processingFailed")}
+        </p>
         <Link href="/tools/video-upload" className="text-sm text-[#58a6ff] hover:underline">
           {t("backToUploads")}
         </Link>

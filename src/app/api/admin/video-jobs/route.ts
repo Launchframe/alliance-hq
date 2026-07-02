@@ -4,6 +4,7 @@ import { and, desc, eq } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { requirePlatformMaintainer } from "@/lib/rbac/require-permission";
 import { readSessionId } from "@/lib/session";
+import { parseAdminVideoJobsStatusFilter } from "@/lib/video/admin-video-jobs-query.shared";
 
 export async function GET(request: Request) {
   const sessionId = await readSessionId();
@@ -15,8 +16,7 @@ export async function GET(request: Request) {
   if (denied) return denied;
 
   const url = new URL(request.url);
-  const statusParam = url.searchParams.get("status");
-  const status = statusParam === null ? "failed" : statusParam;
+  const status = parseAdminVideoJobsStatusFilter(url.searchParams.get("status"));
   const bucket = url.searchParams.get("bucket");
   const passKey = url.searchParams.get("passKey");
   const rating = url.searchParams.get("rating");

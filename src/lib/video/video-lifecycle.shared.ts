@@ -1,5 +1,6 @@
 /** Statuses shown on the alliance active queue (/tools/video-upload/queue). */
 export const ACTIVE_QUEUE_VIDEO_JOB_STATUSES = [
+  "pending_upload",
   "pending_approval",
   "queued",
   "extracting",
@@ -30,6 +31,7 @@ export function isHiddenFromActiveQueue(status: string): boolean {
 }
 
 export type VideoJobLifecycleStage =
+  | "needs_upload"
   | "needs_approval"
   | "processing"
   | "ready_to_review"
@@ -39,6 +41,7 @@ export type VideoJobLifecycleStage =
 export function videoJobLifecycleStage(
   status: string,
 ): VideoJobLifecycleStage | null {
+  if (status === "pending_upload") return "needs_upload";
   if (status === "pending_approval") return "needs_approval";
   if (status === "queued" || status === "extracting" || status === "parsing") {
     return "processing";

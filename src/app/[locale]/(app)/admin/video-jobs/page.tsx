@@ -101,7 +101,11 @@ export default function AdminVideoJobsPage() {
   const loadJobs = useCallback(
     async (bucket: string, rating: string, passKey: string, status: string) => {
       const params = new URLSearchParams({ limit: "200" });
-      if (status) params.set("status", status);
+      if (status === "all") {
+        params.set("status", "all");
+      } else if (status) {
+        params.set("status", status);
+      }
       if (bucket) params.set("bucket", bucket);
       if (rating) params.set("rating", rating);
       if (passKey) params.set("passKey", passKey);
@@ -167,7 +171,7 @@ export default function AdminVideoJobsPage() {
             <option value="processing">{tJobs("statusProcessing")}</option>
             <option value="review">{tJobs("statusReview")}</option>
             <option value="complete">{tJobs("statusComplete")}</option>
-            <option value="">{tJobs("allStatuses")}</option>
+            <option value="all">{tJobs("allStatuses")}</option>
           </select>
         </div>
         <div className="flex items-center gap-2">

@@ -25,7 +25,7 @@ function e2eBaseUrl(): string {
  *
  *   officer (enqueue only) ── GET /api/tools/video-upload ─────────────▶ 200 (may upload)
  *        │
- *        ├── GET  /api/tools/video-upload/queue ───────────────────────▶ 403 (no read)
+ *        ├── GET  /api/tools/video-upload/queue ───────────────────────▶ 200 (enqueue handoff)
  *        └── POST /api/tools/video-upload/{job}/approve ───────────────▶ 403 (no process)
  *
  *   owner / processor (officer + slot) ── GET .../queue ──────────────▶ 200 { canProcess:true }
@@ -40,7 +40,7 @@ function e2eBaseUrl(): string {
  *  - Approving with Ashed transitions the job out of pending_approval.
  *
  * Must NOT occur:
- *  - An officer without a slot reading the queue, approving, or rejecting (no privilege escalation).
+ *  - An officer without a slot approving or rejecting (no privilege escalation).
  *  - Approving a job from another alliance (tenant isolation → 404).
  *  - Approving without Ashed returning a 500 or marking the job failed.
  */
@@ -48,7 +48,7 @@ const QUEUE_CONNECT_URL =
   "/connect?next=%2Ftools%2Fvideo-upload%2Fqueue";
 
 test.describe("Video enqueue/process RBAC", () => {
-  test("officer can enqueue but cannot read the queue, approve, or reject", async ({
+  test("officer can enqueue and read the queue but cannot approve or reject", async ({
     request,
   }) => {
     const sql = getE2eSql();
@@ -68,7 +68,9 @@ test.describe("Video enqueue/process RBAC", () => {
     const queue = await request.get("/api/tools/video-upload/queue", {
       headers: { Cookie: cookie },
     });
-    expect(queue.status()).toBe(403);
+    expect(queue.status(), await queue.text()).toBe(200);
+    const queueBody = (await queue.json()) as { canProcess?: boolean };
+    expect(queueBody.canProcess).toBe(false);
 
     const approve = await request.post(
       `/api/tools/video-upload/${jobId}/approve`,
