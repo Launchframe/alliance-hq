@@ -4,6 +4,7 @@ import { VideoUploadForm } from "@/components/VideoUploadForm";
 import { verifyBase44Connection } from "@/lib/base44/server";
 import { getDb, schema } from "@/lib/db";
 import { getAshedConnection, requirePageSession } from "@/lib/session";
+import { sessionCanProcessVideo } from "@/lib/video/processor-slots.server";
 import type { VideoJobRow } from "@/lib/types/video";
 import {
   jobMatchesScoreTarget,
@@ -52,7 +53,7 @@ export default async function VideoUploadPage({ searchParams }: Props) {
   const contextScoreTarget = parseVideoUploadScoreTargetParam(scoreTargetParam);
   const session = await requirePageSession();
   const db = getDb();
-  const [rows, memberName] = await Promise.all([
+  const [rows, memberName, canProcess, ashedConnection] = await Promise.all([
     db
       .select()
       .from(schema.videoJobs)
@@ -64,6 +65,8 @@ export default async function VideoUploadPage({ searchParams }: Props) {
       )
       .orderBy(desc(schema.videoJobs.createdAt)),
     resolveSurveyMemberName(session.id, session.hqUserId),
+    sessionCanProcessVideo(session.id),
+    getAshedConnection(session.id),
   ]);
 
   const jobIds = rows.map((job) => job.id);
@@ -138,6 +141,9 @@ export default async function VideoUploadPage({ searchParams }: Props) {
       contextScoreTarget={contextScoreTarget}
       allianceTag={allianceTag}
       allianceName={allianceName}
+      canProcess={canProcess}
+      ashedConnected={Boolean(ashedConnection)}
+      connectUrl={`/connect?next=${encodeURIComponent("/tools/video-upload")}`}
     />
   );
 }

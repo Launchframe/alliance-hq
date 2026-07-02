@@ -43,10 +43,9 @@ export default async function DiscordAuthorizePage({ searchParams }: PageProps) 
 
   const isHqLink = nonceRow.purpose === "user_link";
 
-  // HQ account link: Discord OAuth can only attach to an existing HQ account when
-  // a session already exists (see signIn callback in lib/auth). A cold Discord
-  // sign-in for someone who already has an account (Google/email) is rejected with
-  // OAuthAccountNotLinked, so sign in with the existing method first, then link.
+  // HQ account link: Discord OAuth attaches to the signed-in HQ user in the
+  // signIn callback (Discord often omits email — session identity is enough).
+  // Cold Discord sign-in auto-links when the Discord email matches an existing HQ row.
   if (isHqLink) {
     const session = await auth();
     const hqUserId = session?.user?.id?.trim();

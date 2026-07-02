@@ -31,6 +31,9 @@ function bodyMessageKey(details: TrainRollErrorDetails): string {
       if (details.candidateKind === "event") {
         return "wheelBlocked.noEventScores";
       }
+      if (details.candidateKind === "donation") {
+        return "wheelBlocked.noDonationScores";
+      }
       return "wheelBlocked.noCandidatesGeneric";
     case "ASHED_REQUIRED":
       return "wheelBlocked.ashedRequired";

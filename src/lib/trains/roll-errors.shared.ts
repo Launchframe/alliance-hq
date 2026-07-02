@@ -50,8 +50,16 @@ export function parseTrainRollError(
     return { code: "NO_WHEEL_CANDIDATES", candidateKind: "vs" };
   }
 
+  if (message === "No VR standings found for the wheel.") {
+    return { code: "NO_WHEEL_CANDIDATES", candidateKind: "vs" };
+  }
+
   if (message === "No event scores found for VIP wheel.") {
     return { code: "NO_WHEEL_CANDIDATES", candidateKind: "event" };
+  }
+
+  if (message === "No donation scores found.") {
+    return { code: "NO_WHEEL_CANDIDATES", candidateKind: "donation" };
   }
 
   if (

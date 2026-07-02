@@ -1,4 +1,5 @@
 import type { AllianceOperatingMode } from "@/lib/native-alliance/constants";
+import type { SystemRoleName } from "@/lib/rbac/constants";
 
 export const ALLIANCE_SETUP_GUIDE_SHARED_TASK_IDS = [
   "game_server",
@@ -35,7 +36,10 @@ export type AllianceSetupGuideTaskStatus = {
 export type AllianceSetupGuideSignals = {
   operatingMode: AllianceOperatingMode;
   gameServerLinked: boolean;
+  /** Alliance owner's commander is linked (officer checklist). */
   ownerHasCommanderLink: boolean;
+  /** Signed-in viewer has an hq_member_links row for this alliance. */
+  viewerHasCommanderLink: boolean;
   hasTeamInvite: boolean;
   discordGuildRegistered: boolean;
   ashedConnected: boolean;
@@ -43,6 +47,36 @@ export type AllianceSetupGuideSignals = {
   rosterPopulated: boolean;
   viewerIsOfficer: boolean;
 };
+
+/** Owner link signal for officers; viewer link for plain members. */
+export function commanderLinkTaskComplete(
+  signals: AllianceSetupGuideSignals,
+): boolean {
+  if (!signals.viewerIsOfficer) {
+    return signals.viewerHasCommanderLink;
+  }
+  return signals.ownerHasCommanderLink;
+}
+
+/**
+ * Resolve whether the alliance owner's commander is linked. When
+ * `ownerHqUserId` is not stamped yet, an owner who already linked counts.
+ */
+export function resolveOwnerHasCommanderLink(input: {
+  ownerHqUserId: string | null;
+  ownerUserHasLink: boolean;
+  viewerHqUserId: string;
+  viewerHasCommanderLink: boolean;
+  viewerRoleName: SystemRoleName | null;
+}): boolean {
+  if (input.ownerHqUserId) {
+    if (input.ownerHqUserId === input.viewerHqUserId) {
+      return input.viewerHasCommanderLink;
+    }
+    return input.ownerUserHasLink;
+  }
+  return input.viewerRoleName === "owner" && input.viewerHasCommanderLink;
+}
 
 export function taskIdsForOperatingMode(
   mode: AllianceOperatingMode,
@@ -74,7 +108,7 @@ export function computeAllianceSetupGuideTasks(
     roster_hardening: signals.rosterHardeningComplete,
     roster_populated: signals.rosterPopulated,
     game_server: signals.gameServerLinked,
-    owner_commander_link: signals.ownerHasCommanderLink,
+    owner_commander_link: commanderLinkTaskComplete(signals),
     team_invites: signals.hasTeamInvite,
     discord_guild: signals.discordGuildRegistered,
   };
