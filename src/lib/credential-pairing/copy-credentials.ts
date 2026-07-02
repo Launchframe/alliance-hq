@@ -26,6 +26,7 @@ export async function copyEncryptedCredentialsToSession(
     await db
       .update(schema.ashedCredentials)
       .set({
+        ashedUserId: source.ashedUserId,
         appId: source.appId,
         originUrl: source.originUrl,
         encryptedToken: source.encryptedToken,
@@ -40,6 +41,7 @@ export async function copyEncryptedCredentialsToSession(
   await db.insert(schema.ashedCredentials).values({
     id: nanoid(24),
     sessionId: targetSessionId,
+    ashedUserId: source.ashedUserId,
     appId: source.appId,
     originUrl: source.originUrl,
     encryptedToken: source.encryptedToken,
