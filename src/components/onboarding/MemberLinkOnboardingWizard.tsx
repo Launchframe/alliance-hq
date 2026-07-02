@@ -12,6 +12,7 @@ import { fireCelebrationConfetti } from "@/lib/client/celebration-confetti";
 import { isValidGameUid } from "@/lib/lastwar/player-lookup";
 import type { MemberLinkOnboardingInitialState } from "@/lib/member-link/onboarding-bootstrap.shared";
 import type { MemberLinkOutcome } from "@/lib/member-link/outcome.shared";
+import { dispatchAllianceSetupStatusRefresh } from "@/lib/alliance-setup-guide-refresh.shared";
 import { Link, useRouter } from "@/i18n/navigation";
 
 type Props = {
@@ -102,6 +103,7 @@ export function MemberLinkOnboardingWizard({
         case "linked":
           setLinkedName(data.linkedMemberName ?? reportedName);
           setPhase("success");
+          dispatchAllianceSetupStatusRefresh();
           if (
             typeof window !== "undefined" &&
             !window.matchMedia("(prefers-reduced-motion: reduce)").matches

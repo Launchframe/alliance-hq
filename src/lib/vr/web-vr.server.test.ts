@@ -25,6 +25,7 @@ vi.mock("@/lib/vr/repository", () => ({
     isPostSeason: false,
     vrUpdatesLocked: false,
     priorSeason: null,
+    vrSandboxActive: false,
   }),
   saveHqVrPending: vi.fn(),
   upsertMemberSeasonVr: vi.fn(),
@@ -132,6 +133,7 @@ describe("handleWebVrCommand", () => {
       isPostSeason: true,
       vrUpdatesLocked: true,
       priorSeason: "4",
+      vrSandboxActive: false,
     });
 
     const translate = createDiscordTranslator("en-US");
@@ -147,6 +149,33 @@ describe("handleWebVrCommand", () => {
       message: translate("vr.seasonLocked"),
     });
     expect(upsertMemberSeasonVr).not.toHaveBeenCalled();
+  });
+
+  it("allows VR updates in sandbox mode during post-season", async () => {
+    vi.mocked(resolveVrSeasonContext).mockResolvedValue({
+      seasonKey: "sandbox:abc",
+      isPostSeason: false,
+      vrUpdatesLocked: false,
+      priorSeason: null,
+      vrSandboxActive: true,
+    });
+    vi.mocked(getHqVrPending).mockResolvedValue(null);
+    vi.mocked(getMemberSeasonHigh).mockResolvedValue(null);
+    vi.mocked(countSeasonReporters).mockResolvedValue(0);
+    vi.mocked(listSeasonVrRows).mockResolvedValue([]);
+
+    const result = await handleWebVrCommand({
+      sessionId: "session-1",
+      allianceId: "alliance-1",
+      hqUserId: "hq-1",
+      locale: "en-US",
+      explicitLevel: 5000,
+    });
+
+    expect(result).toMatchObject({ status: "set_vr", newVr: 5000 });
+    expect(upsertMemberSeasonVr).toHaveBeenCalledWith(
+      expect.objectContaining({ seasonKey: "sandbox:abc" }),
+    );
   });
 });
 
@@ -177,6 +206,7 @@ describe("loadMyVrForUser", () => {
       isPostSeason: true,
       vrUpdatesLocked: true,
       priorSeason: "4",
+      vrSandboxActive: false,
     });
   });
 

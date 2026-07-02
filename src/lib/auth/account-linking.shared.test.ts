@@ -4,6 +4,7 @@ import {
   canUnlinkOAuthProvider,
   countSignInMethods,
   mayAutoLinkOAuthAtSignIn,
+  oauthEmailMatchesHqUserEmail,
 } from "./account-linking.shared";
 
 describe("mayAutoLinkOAuthAtSignIn", () => {
@@ -43,16 +44,40 @@ describe("mayAutoLinkOAuthAtSignIn", () => {
     ).toBe("block_unverified");
   });
 
-  it("blocks Discord cold sign-in when HQ user exists without a link", () => {
+  it("auto-links Discord when email matches an existing HQ user", () => {
     expect(
       mayAutoLinkOAuthAtSignIn({
         provider: "discord",
         oauthEmail: "player@example.com",
+        emailVerified: false,
+        hqUserEmail: "player@example.com",
+        hasExistingOAuthLink: false,
+      }),
+    ).toBe("auto_link");
+  });
+
+  it("blocks Discord cold sign-in when Discord email is missing", () => {
+    expect(
+      mayAutoLinkOAuthAtSignIn({
+        provider: "discord",
+        oauthEmail: "",
+        emailVerified: false,
+        hqUserEmail: "player@example.com",
+        hasExistingOAuthLink: false,
+      }),
+    ).toBe("block_discord_no_email");
+  });
+
+  it("blocks Discord when email does not match HQ user", () => {
+    expect(
+      mayAutoLinkOAuthAtSignIn({
+        provider: "discord",
+        oauthEmail: "other@example.com",
         emailVerified: true,
         hqUserEmail: "player@example.com",
         hasExistingOAuthLink: false,
       }),
-    ).toBe("block_discord_cold_signin");
+    ).toBe("block_email_mismatch");
   });
 
   it("allows when provider is already linked", () => {
@@ -65,6 +90,25 @@ describe("mayAutoLinkOAuthAtSignIn", () => {
         hasExistingOAuthLink: true,
       }),
     ).toBe("allow");
+  });
+});
+
+describe("oauthEmailMatchesHqUserEmail", () => {
+  it("allows link when OAuth omits email", () => {
+    expect(oauthEmailMatchesHqUserEmail(null, "player@example.com")).toBe(true);
+    expect(oauthEmailMatchesHqUserEmail("", "player@example.com")).toBe(true);
+  });
+
+  it("requires matching emails when OAuth provides one", () => {
+    expect(
+      oauthEmailMatchesHqUserEmail(
+        "Player@Example.com",
+        "player@example.com",
+      ),
+    ).toBe(true);
+    expect(
+      oauthEmailMatchesHqUserEmail("other@example.com", "player@example.com"),
+    ).toBe(false);
   });
 });
 

@@ -61,7 +61,6 @@ import type {
 import { effectiveConductorMechanism } from "@/lib/trains/conductor-mechanism.shared";
 import {
   conductorSpinSource,
-  dayNeedsAshedConnection,
   isPoolSpinSource,
   vipSpinSource,
 } from "@/lib/trains/spin-source.shared";
@@ -1219,11 +1218,6 @@ export function TrainsDashboard({ initial }: Props) {
       ? data.conductorStats
       : null;
   const nextInSequence = data.pools.r4_plus?.nextInSequence ?? null;
-  const showNativeAshedBanner =
-    data.operatingMode === "native" &&
-    dayNeedsAshedConnection(conductorMech, vipMech, conductorPaint);
-  const showNativeModeBanner =
-    data.operatingMode === "native" && data.canManageTrains;
   const showPivotBanner =
     data.canManageTrains &&
     data.weekStart === viewedWeek.weekStart &&
@@ -1342,12 +1336,6 @@ export function TrainsDashboard({ initial }: Props) {
         </p>
       ) : null}
 
-      {showNativeModeBanner ? (
-        <p className="rounded-xl border border-sky-500/30 bg-sky-500/10 px-4 py-3 text-sm text-sky-100">
-          {t("nativeModeBanner")}
-        </p>
-      ) : null}
-
       {showPivotBanner ? (
         <TrainPivotBanner onPivot={handlePivotToEconomy} busy={pivotBusy} />
       ) : null}
@@ -1460,12 +1448,6 @@ export function TrainsDashboard({ initial }: Props) {
             }
             data-testid="trains-conductor-card"
           />
-
-          {showNativeAshedBanner ? (
-            <p className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
-              {t("nativeAshedBanner")}
-            </p>
-          ) : null}
 
           {/* Quick actions */}
           {showQuickActions ? (

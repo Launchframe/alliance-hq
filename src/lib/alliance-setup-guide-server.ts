@@ -5,7 +5,9 @@ import { and, count, eq, gte, ne } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { MEMBER_ROSTER_VIDEO_SCORE_TARGET } from "@/lib/members/ashed-member-record";
 import { getAllianceOperatingMode } from "@/lib/native-alliance/operating-mode";
+import { resolveOwnerHasCommanderLink } from "@/lib/alliance-setup-guide-status.shared";
 import { sessionHasPermission } from "@/lib/rbac/context";
+import { systemRoleNameForId } from "@/lib/rbac/system-roles";
 
 const ROSTER_HARDENING_LOOKBACK_MS = 365 * 24 * 60 * 60 * 1000;
 
@@ -17,6 +19,7 @@ export async function loadAllianceSetupGuideSignals(input: {
   operatingMode: Awaited<ReturnType<typeof getAllianceOperatingMode>>;
   gameServerLinked: boolean;
   ownerHasCommanderLink: boolean;
+  viewerHasCommanderLink: boolean;
   hasTeamInvite: boolean;
   discordGuildRegistered: boolean;
   ashedConnected: boolean;
@@ -57,6 +60,7 @@ export async function loadAllianceSetupGuideSignals(input: {
         setupGuideDismissed: schema.allianceMemberships.setupGuideDismissed,
         setupGuideShowOnDashboard:
           schema.allianceMemberships.setupGuideShowOnDashboard,
+        roleId: schema.allianceMemberships.roleId,
       })
       .from(schema.allianceMemberships)
       .where(
@@ -123,26 +127,54 @@ export async function loadAllianceSetupGuideSignals(input: {
   ]);
 
   const ownerHqUserId = allianceRow?.ownerHqUserId ?? null;
-  const ownerHasCommanderLink = ownerHqUserId
-    ? Boolean(
-        await db
-          .select({ id: schema.hqMemberLinks.id })
-          .from(schema.hqMemberLinks)
-          .where(
-            and(
-              eq(schema.hqMemberLinks.allianceId, input.allianceId),
-              eq(schema.hqMemberLinks.hqUserId, ownerHqUserId),
-            ),
-          )
-          .limit(1)
-          .then((rows) => rows[0]),
+  const viewerRoleName = membershipRow?.roleId
+    ? systemRoleNameForId(membershipRow.roleId)
+    : null;
+
+  const viewerHasCommanderLink = Boolean(
+    await db
+      .select({ id: schema.hqMemberLinks.id })
+      .from(schema.hqMemberLinks)
+      .where(
+        and(
+          eq(schema.hqMemberLinks.allianceId, input.allianceId),
+          eq(schema.hqMemberLinks.hqUserId, input.hqUserId),
+        ),
       )
-    : false;
+      .limit(1)
+      .then((rows) => rows[0]),
+  );
+
+  const ownerUserHasLink =
+    ownerHqUserId && ownerHqUserId !== input.hqUserId
+      ? Boolean(
+          await db
+            .select({ id: schema.hqMemberLinks.id })
+            .from(schema.hqMemberLinks)
+            .where(
+              and(
+                eq(schema.hqMemberLinks.allianceId, input.allianceId),
+                eq(schema.hqMemberLinks.hqUserId, ownerHqUserId),
+              ),
+            )
+            .limit(1)
+            .then((rows) => rows[0]),
+        )
+      : false;
+
+  const ownerHasCommanderLink = resolveOwnerHasCommanderLink({
+    ownerHqUserId,
+    ownerUserHasLink,
+    viewerHqUserId: input.hqUserId,
+    viewerHasCommanderLink,
+    viewerRoleName,
+  });
 
   return {
     operatingMode,
     gameServerLinked: Boolean(allianceRow?.gameServerId),
     ownerHasCommanderLink,
+    viewerHasCommanderLink,
     hasTeamInvite: inviteCountRow > 0,
     discordGuildRegistered: guildCountRow > 0,
     ashedConnected: Boolean(credentialRow),

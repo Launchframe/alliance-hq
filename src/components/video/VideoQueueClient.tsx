@@ -35,8 +35,8 @@ export function VideoQueueClient({
   connectUrl,
 }: Props) {
   const t = useTranslations("videoQueue");
-  const tStatus = useTranslations("videoUpload.status");
-  const tUpload = useTranslations("videoUpload");
+  const tStatus = useTranslations("video.status");
+  const tUpload = useTranslations("video");
   const tReview = useTranslations("videoReview");
   const tAdminJobs = useTranslations("admin.videoJobsPage");
   const router = useRouter();

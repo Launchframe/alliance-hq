@@ -88,6 +88,37 @@ describe("resolveVideoJobAccess", () => {
     expect(result).toEqual({ ok: false, status: 404 });
   });
 
+  it("allows owner queue read when job has alliance but session currentAllianceId is null", async () => {
+    loadSession.mockResolvedValue({
+      id: "owner-session",
+      currentAllianceId: null,
+    });
+    sessionCanReadAllianceVideoQueue.mockResolvedValue(true);
+
+    const result = await resolveVideoJobAccess(
+      "job-1",
+      "owner-session",
+      "read",
+    );
+
+    expect(result.ok).toBe(true);
+  });
+
+  it("allows uploader session when job alliance is set but session currentAllianceId is null", async () => {
+    loadSession.mockResolvedValue({
+      id: "uploader-session",
+      currentAllianceId: null,
+    });
+
+    const result = await resolveVideoJobAccess(
+      "job-1",
+      "uploader-session",
+      "read",
+    );
+
+    expect(result.ok).toBe(true);
+  });
+
   it("allows uploader session for legacy jobs without alliance", async () => {
     selectLimit.mockResolvedValue([{ ...baseJob, allianceId: null }]);
     loadSession.mockResolvedValue({

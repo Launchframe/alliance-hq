@@ -9,6 +9,7 @@ import { RosterAllianceBanner } from "@/components/video/RosterAllianceBanner";
 import { AppSelect } from "@/components/ui/AppSelect";
 import { useMergedVideoJobs } from "@/components/video/VideoJobEventsProvider";
 import { VideoSurveyDialog } from "@/components/video/VideoSurveyDialog";
+import { VideoProcessAfterUploadPanel } from "@/components/video/VideoProcessAfterUploadPanel";
 import type { VideoJobRow } from "@/lib/types/video";
 import {
   uploadVideoFile,
@@ -69,6 +70,10 @@ type Props = {
   contextScoreTarget?: string | null;
   allianceTag?: string | null;
   allianceName?: string | null;
+  /** When true, show inline process prompt after upload instead of a dead-end waiting message. */
+  canProcess?: boolean;
+  ashedConnected?: boolean;
+  connectUrl?: string;
 };
 
 function statusLabel(
@@ -97,6 +102,9 @@ export function VideoUploadForm({
   contextScoreTarget = null,
   allianceTag = null,
   allianceName = null,
+  canProcess = false,
+  ashedConnected = false,
+  connectUrl = "/connect?next=%2Ftools%2Fvideo-upload",
 }: Props) {
   const t = useTranslations("video");
   const tNav = useTranslations("nav");
@@ -128,6 +136,9 @@ export function VideoUploadForm({
     ),
   );
   const [resumingSurveyJobId, setResumingSurveyJobId] = useState<string | null>(
+    null,
+  );
+  const [processPromptJobId, setProcessPromptJobId] = useState<string | null>(
     null,
   );
   const jobs = useMergedVideoJobs(initialJobs);
@@ -222,7 +233,12 @@ export function VideoUploadForm({
         },
       });
 
-      setSuccess(data.message ?? t("queuedSuccess"));
+      setSuccess(
+        canProcess ? null : (data.message ?? t("queuedSuccess")),
+      );
+      if (canProcess) {
+        setProcessPromptJobId(data.jobId);
+      }
       setSurveyCompleteByJobId((prev) => ({
         ...prev,
         [data.jobId]: false,
@@ -250,8 +266,15 @@ export function VideoUploadForm({
         ...prev,
         [session.jobId]: result.complete,
       }));
+      if (canProcess) {
+        setProcessPromptJobId(session.jobId);
+      }
     }
-    if (session?.navigateOnClose && session.jobId) {
+    if (
+      session?.navigateOnClose &&
+      session.jobId &&
+      !canProcess
+    ) {
       router.push(`/tools/video-upload/${session.jobId}/review`);
     }
   }
@@ -408,7 +431,9 @@ export function VideoUploadForm({
         ) : null}
 
         {error && <p className="mt-4 text-sm text-[#f85149]">{error}</p>}
-        {success && <p className="mt-4 text-sm text-[#3fb950]">{success}</p>}
+        {success && !processPromptJobId ? (
+          <p className="mt-4 text-sm text-[#3fb950]">{success}</p>
+        ) : null}
 
         <button
           type="submit"
@@ -418,6 +443,15 @@ export function VideoUploadForm({
           {uploading ? t("uploading") : t("uploadButton")}
         </button>
       </form>
+
+      {processPromptJobId && canProcess && !activeSurvey ? (
+        <VideoProcessAfterUploadPanel
+          jobId={processPromptJobId}
+          ashedConnected={ashedConnected}
+          connectUrl={connectUrl}
+          onDismiss={() => setProcessPromptJobId(null)}
+        />
+      ) : null}
 
       {visibleJobs.length > 0 && (
         <section className="min-w-0 rounded-xl border border-[#30363d] bg-[#161b22] p-4 sm:p-5">

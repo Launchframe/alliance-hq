@@ -50,7 +50,13 @@ export async function resolveVideoJobAccess(
     return { ok: false, status: 404 };
   }
 
-  if (session.currentAllianceId !== job.allianceId) {
+  // Mirror approve-route tenant isolation: only block when both alliance ids are
+  // set and differ. Uploader session always retains access to its own job.
+  if (
+    session.currentAllianceId &&
+    job.allianceId !== session.currentAllianceId &&
+    !isUploaderSession
+  ) {
     return { ok: false, status: 404 };
   }
 
@@ -123,7 +129,11 @@ export async function resolveVideoUploadGroupAccess(
     return { ok: false, status: 404 };
   }
 
-  if (session.currentAllianceId !== allianceId) {
+  if (
+    session.currentAllianceId &&
+    allianceId !== session.currentAllianceId &&
+    !isUploaderSession
+  ) {
     return { ok: false, status: 404 };
   }
 

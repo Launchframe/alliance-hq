@@ -491,6 +491,13 @@
       "when": 1785324800000,
       "tag": "0070_member_season_vr_events",
       "breakpoints": true
+    },
+    {
+      "idx": 69,
+      "version": "7",
+      "when": 1785411200000,
+      "tag": "0071_vr_sandbox",
+      "breakpoints": true
     }
   ]
 }

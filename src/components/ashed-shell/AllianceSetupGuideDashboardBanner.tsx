@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useState } from "react";
 
 import { AllianceSetupGuidePanel } from "@/components/settings/AllianceSetupGuidePanel";
+import { ALLIANCE_SETUP_STATUS_REFRESH_EVENT } from "@/lib/alliance-setup-guide-refresh.shared";
 import { allianceSetupGuideTaskHref } from "@/lib/alliance-setup-guide-nav";
 import type { AllianceSetupStatusPayload } from "@/lib/alliance-setup-guide-status-api";
 import type { AllianceSetupGuideTaskId } from "@/lib/alliance-setup-guide-status.shared";
@@ -34,6 +35,10 @@ export function AllianceSetupGuideDashboardBanner() {
     const isCancelled = () => cancelled;
     loadStatus(isCancelled);
 
+    function handleRefresh() {
+      loadStatus(isCancelled);
+    }
+
     function handleVisibilityChange() {
       if (document.visibilityState === "visible") {
         loadStatus(isCancelled);
@@ -41,9 +46,15 @@ export function AllianceSetupGuideDashboardBanner() {
     }
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener(ALLIANCE_SETUP_STATUS_REFRESH_EVENT, handleRefresh);
+
     return () => {
       cancelled = true;
       document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener(
+        ALLIANCE_SETUP_STATUS_REFRESH_EVENT,
+        handleRefresh,
+      );
     };
   }, [loadStatus]);
 
