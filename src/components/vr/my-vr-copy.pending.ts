@@ -12,6 +12,9 @@ export const MY_VR_COPY = {
     "The season is over. Season {priorSeason} has ended.",
   seasonLockedError:
     "The season is over. VR updates are closed until the next season starts.", // matches discordBot.vr.seasonLocked
+  sandboxActiveNotice:
+    "Sandbox mode — VR reports here are practice only and do not count on the live leaderboard.",
+  sandboxSeasonLabel: "Sandbox practice",
   currentVrLabel: "Current VR",
   notReportedYet: "Not reported yet",
   tabNow: "Now",
