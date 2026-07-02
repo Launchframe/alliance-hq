@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 
 import { nanoid } from "nanoid";
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 import {
   createAllianceMembership,
@@ -14,6 +14,15 @@ import {
 
 function uniqueEmail(prefix: string): string {
   return `${prefix}-${randomBytes(4).toString("hex")}@e2e.test`;
+}
+
+function waitForVrSandboxPatch(page: Page) {
+  return page.waitForResponse(
+    (res) =>
+      res.request().method() === "PATCH" &&
+      res.url().includes("/vr-sandbox") &&
+      res.ok(),
+  );
 }
 
 test.describe("Alliance VR sandbox settings", () => {
@@ -65,7 +74,9 @@ test.describe("Alliance VR sandbox settings", () => {
     await expect(toggle).toBeVisible();
     await expect(toggle).not.toBeChecked();
 
-    await toggle.check();
+    const enablePatch = waitForVrSandboxPatch(page);
+    await toggle.click();
+    await enablePatch;
     await expect(toggle).toBeChecked();
     await expect(
       page.getByText(/Sandbox is on — \/vr and My VR accept practice reports/i),
@@ -76,9 +87,11 @@ test.describe("Alliance VR sandbox settings", () => {
       page.getByText(/in-flight web VR confirmations will be cancelled/i),
     ).toBeVisible();
 
+    const disablePatch = waitForVrSandboxPatch(page);
     await page
       .getByRole("button", { name: /End sandbox and wipe data/i })
       .click();
+    await disablePatch;
 
     await expect(toggle).not.toBeChecked();
     await expect(
