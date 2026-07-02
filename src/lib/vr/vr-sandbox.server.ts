@@ -119,7 +119,7 @@ export async function loadVrSandboxSettings(
   const state = await getAllianceVrSandboxState(allianceId);
   return {
     enabled: state.enabled,
-    seasonKey: state.seasonKey,
+    seasonKey: canManage ? state.seasonKey : null,
     canManage,
   };
 }
