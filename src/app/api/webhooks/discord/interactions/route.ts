@@ -11,6 +11,7 @@ import {
   buildCharacterPickerButtons,
   buildLinkFailureButtons,
   buildLinkFuzzyButtons,
+  buildLinkIdentityConfirmButtons,
   buildTrainConfirmButtons,
   buildTrainPickButtons,
   buildVrConfirmButtons,
@@ -43,6 +44,7 @@ import {
   handleDiscordLinkAlliance,
   handleDiscordLinkCommanderSlash,
   handleDiscordLinkFuzzyPick,
+  handleDiscordLinkIdentityConfirm,
   handleDiscordLinkStartOver,
   handleDiscordLinkToAshedSeat,
   handleDiscordLinkUser,
@@ -122,17 +124,27 @@ async function handleLinkCommanderSlash(
     );
   }
 
-  const { name, uid, replace } = parseLinkSlashOptions(payload);
+  const { uid, replace } = parseLinkSlashOptions(payload);
   const result = await handleDiscordLinkCommanderSlash({
     allianceId: input.allianceId,
     guildId: input.guildId,
     discordUserId: input.discordUserId,
     discordUsername: input.discordUsername,
-    reportedName: name,
     gameUid: uid,
     replaceAll: replace,
     locale: input.locale,
   });
+
+  if (result.needsIdentityConfirmation) {
+    return discordMessageResponse(
+      result.reply,
+      buildLinkIdentityConfirmButtons({
+        yes: t("link.confirmIdentityYes"),
+        no: t("link.confirmIdentityNo"),
+      }),
+      EPHEMERAL,
+    );
+  }
 
   if (result.pending?.kind === "link_fuzzy_pick") {
     return discordMessageResponse(
@@ -434,6 +446,27 @@ async function handleButton(payload: DiscordInteractionPayload) {
     );
   }
 
+  if (parsed.kind === "link_confirm") {
+    const result = await handleDiscordLinkIdentityConfirm({
+      allianceId,
+      guildId: interactionGuildId(payload),
+      discordUserId,
+      discordUsername,
+      answer: parsed.answer,
+      locale,
+    });
+    if (result.needsOfficerAttention) {
+      return discordButtonResponse(
+        result.reply,
+        buildLinkFailureButtons({
+          startOver: t("buttons.startOver"),
+          askOfficer: t("buttons.askOfficer"),
+        }),
+      );
+    }
+    return discordButtonResponse(result.reply);
+  }
+
   if (parsed.kind === "vr_confirm") {
     const result = await handleDiscordVrButtonConfirm({
       allianceId,
@@ -506,19 +539,28 @@ async function handleButton(payload: DiscordInteractionPayload) {
       discordUserId,
       locale,
     });
-    return discordButtonResponse(
-      result.reply,
-      buildWalkthroughDoneButton(t("buttons.done")),
-    );
+    return discordButtonResponse(result.reply);
   }
 
   if (parsed.kind === "link_ask_officer") {
     const pendingRow = await getDiscordBotPending(discordUserId);
     const pending = pendingRow?.pending ?? null;
     const pendingGameUid =
-      pending?.kind === "link_fuzzy_pick" ? pending.gameUid : null;
+      pending?.kind === "link_fuzzy_pick"
+        ? pending.gameUid
+        : pending?.kind === "link_confirm_identity"
+          ? pending.gameUid
+          : pending?.kind === "link_roster_miss" && pending.gameUid
+            ? pending.gameUid
+            : null;
     const pendingReportedName =
-      pending?.kind === "link_fuzzy_pick" ? pending.reportedName : null;
+      pending?.kind === "link_fuzzy_pick"
+        ? pending.reportedName
+        : pending?.kind === "link_confirm_identity"
+          ? pending.gameUserName
+          : pending?.kind === "link_roster_miss" && pending.reportedName
+            ? pending.reportedName
+            : null;
     const gameUid =
       pendingGameUid && /^\d{12,16}$/.test(pendingGameUid) ? pendingGameUid : null;
     const reportedName = pendingReportedName?.trim() || null;

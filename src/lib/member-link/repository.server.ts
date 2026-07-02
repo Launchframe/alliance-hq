@@ -42,7 +42,35 @@ function parseLinkPending(value: unknown): LinkPendingState | null {
     };
   }
   if (r.kind === "link_roster_miss") {
-    return { kind: "link_roster_miss" };
+    return {
+      kind: "link_roster_miss",
+      ...(typeof r.gameUid === "string" ? { gameUid: r.gameUid } : {}),
+      ...(typeof r.gameUserName === "string"
+        ? { gameUserName: r.gameUserName }
+        : {}),
+      ...(typeof r.reportedName === "string"
+        ? { reportedName: r.reportedName }
+        : {}),
+    };
+  }
+  if (
+    r.kind === "link_confirm_identity" &&
+    typeof r.gameUid === "string" &&
+    typeof r.gameUserName === "string"
+  ) {
+    return {
+      kind: "link_confirm_identity",
+      gameUid: r.gameUid,
+      gameUserName: r.gameUserName,
+      ...(typeof r.gameUserLevel === "number"
+        ? { gameUserLevel: r.gameUserLevel }
+        : {}),
+      ...(typeof r.gameServerNumber === "number" ||
+      r.gameServerNumber === null
+        ? { gameServerNumber: r.gameServerNumber as number | null }
+        : {}),
+      ...(r.replaceAll === true ? { replaceAll: true } : {}),
+    };
   }
   if (
     r.kind === "link_awaiting_owner" &&

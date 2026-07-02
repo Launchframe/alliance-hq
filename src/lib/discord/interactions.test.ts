@@ -2,6 +2,7 @@ import nacl from "tweetnacl";
 import { describe, expect, it } from "vitest";
 
 import {
+  buildLinkIdentityConfirmButtons,
   buildVrConfirmButtons,
   discordComponentMessageResponse,
   discordMessageResponse,
@@ -56,18 +57,21 @@ describe("discord interactions", () => {
         type: 2,
         data: {
           options: [
-            { name: "name", type: 3, value: "PlayerOne" },
             { name: "uid", type: 3, value: "1234567890121203" },
             { name: "replace", type: 5, value: true },
           ],
         },
       }),
-    ).toEqual({ name: "PlayerOne", uid: "1234567890121203", replace: true });
+    ).toEqual({ uid: "1234567890121203", replace: true });
   });
 
   it("parses button custom ids", () => {
     expect(parseButtonCustomId("vr:confirm:7425:yes")).toEqual({
       kind: "vr_confirm",
+      answer: "yes",
+    });
+    expect(parseButtonCustomId("link:confirm:yes")).toEqual({
+      kind: "link_confirm",
       answer: "yes",
     });
     expect(parseButtonCustomId("link:pick:member-1")).toEqual({
@@ -89,6 +93,12 @@ describe("discord interactions", () => {
       answer: "yes",
     });
     expect(parseButtonCustomId("other")).toBeNull();
+  });
+
+  it("builds yes/no buttons for link identity confirm", () => {
+    const components = buildLinkIdentityConfirmButtons({ yes: "Yes", no: "No" });
+    expect(components[0]?.components).toHaveLength(2);
+    expect(components[0]?.components[0]?.custom_id).toBe("link:confirm:yes");
   });
 
   it("builds yes/no buttons for a proposed VR level", () => {

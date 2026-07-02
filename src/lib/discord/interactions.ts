@@ -107,13 +107,11 @@ export function parseVrSlashLevel(
 }
 
 export function parseLinkSlashOptions(payload: DiscordInteractionPayload): {
-  name?: string;
   uid?: string;
   replace?: boolean;
 } {
   const replaceOption = payload.data?.options?.find((o) => o.name === "replace");
   return {
-    name: parseSlashOptionString(payload, "name"),
     uid: parseSlashOptionString(payload, "uid"),
     replace: replaceOption?.value === true,
   };
@@ -121,6 +119,7 @@ export function parseLinkSlashOptions(payload: DiscordInteractionPayload): {
 
 export type ParsedButton =
   | { kind: "vr_confirm"; answer: "yes" | "no" }
+  | { kind: "link_confirm"; answer: "yes" | "no" }
   | { kind: "link_pick"; memberId: string }
   | { kind: "link_walkthrough_done" }
   | { kind: "vr_character"; linkId: string }
@@ -137,6 +136,10 @@ export function parseButtonCustomId(
   const vrConfirm = /^vr:confirm:(\d+):(yes|no)$/.exec(customId);
   if (vrConfirm) {
     return { kind: "vr_confirm", answer: vrConfirm[2] as "yes" | "no" };
+  }
+  const linkConfirm = /^link:confirm:(yes|no)$/.exec(customId);
+  if (linkConfirm) {
+    return { kind: "link_confirm", answer: linkConfirm[1] as "yes" | "no" };
   }
   const linkPick = /^link:pick:(.+)$/.exec(customId);
   if (linkPick) return { kind: "link_pick", memberId: linkPick[1]! };
@@ -169,6 +172,31 @@ export function parseButtonCustomId(
     };
   }
   return null;
+}
+
+export function buildLinkIdentityConfirmButtons(labels: {
+  yes: string;
+  no: string;
+}) {
+  return [
+    {
+      type: 1,
+      components: [
+        {
+          type: 2,
+          style: 3,
+          label: labels.yes.slice(0, 80),
+          custom_id: "link:confirm:yes",
+        },
+        {
+          type: 2,
+          style: 4,
+          label: labels.no.slice(0, 80),
+          custom_id: "link:confirm:no",
+        },
+      ],
+    },
+  ];
 }
 
 export function buildVrConfirmButtons(

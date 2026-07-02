@@ -79,6 +79,25 @@ describe("processLinkCommand", () => {
     expect(result.reply).toBe("verified:Lil Belly:LFgo");
   });
 
+  it("skips name mismatch walkthrough when identity is confirmed", () => {
+    const result = processLinkCommand({
+      reportedName: "wrong typed name",
+      gameUid: "1001369694001203",
+      lookup: { ok: true, gameUserName: "Lil Belly" },
+      members: [
+        { id: "lil-id", current_name: "Lil Belly", status: "active" },
+      ],
+      linkedMemberIds: new Set(),
+      pending: null,
+      translate,
+      walkthroughSteps,
+      identityConfirmed: true,
+    });
+
+    expect(result.linked).toBe(true);
+    expect(result.linkTarget?.memberDisplayName).toBe("Lil Belly");
+  });
+
   it("matches previous roster names exactly", () => {
     const members: AshedMember[] = [
       {

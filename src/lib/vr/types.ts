@@ -35,7 +35,20 @@ export type LinkPendingState =
       tag: string;
       candidates: Array<{ allianceId: string; name: string; tag: string }>;
     }
-  | { kind: "link_roster_miss" }
+  | {
+      kind: "link_roster_miss";
+      gameUid?: string;
+      gameUserName?: string;
+      reportedName?: string;
+    }
+  | {
+      kind: "link_confirm_identity";
+      gameUid: string;
+      gameUserName: string;
+      gameUserLevel?: number;
+      gameServerNumber?: number | null;
+      replaceAll?: boolean;
+    }
   | {
       kind: "link_awaiting_owner";
       requestId: string;
@@ -48,6 +61,7 @@ export type LinkCommandResult = {
   components?: unknown[];
   linked?: boolean;
   memberTaken?: boolean;
+  needsIdentityConfirmation?: boolean;
   needsOfficerAttention?: boolean;
   linkTarget?: {
     ashedMemberId: string;

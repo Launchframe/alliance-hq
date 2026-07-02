@@ -15,6 +15,8 @@ if (!token || !applicationId) {
   process.exit(1);
 }
 
+const DISCORD_DESCRIPTION_MAX = 100;
+
 const vrLevelOption = {
   name: "level",
   description: "Base VR (multiple of 250)",
@@ -29,23 +31,10 @@ const vrLevelOption = {
 
 const commanderLinkOptions = [
   {
-    name: "name",
-    description:
-      "Your in-game name. Must match exactly — ask an alliance mate to copy it from your profile if needed.",
-    description_localizations: {
-      "pt-BR":
-        "Seu nome no jogo. Deve ser exatamente igual — peça a um colega de aliança para copiar do seu perfil e enviar para você, se precisar.",
-    },
-    type: 3,
-    required: true,
-  },
-  {
     name: "uid",
-    description:
-      "Your 12–16 digit player ID, ending in your server number.",
+    description: "12–16 digit player ID from your in-game profile menu.",
     description_localizations: {
-      "pt-BR":
-        "Seu ID de jogador com 12–16 dígitos, terminando no número do servidor.",
+      "pt-BR": "ID de jogador (12–16 dígitos) no menu do perfil no jogo.",
     },
     type: 3,
     required: true,
@@ -134,10 +123,10 @@ const commandBody = [
   {
     name: "link-alliance",
     description:
-      "Register this Discord server for your alliance (R5 owner, R4+ officer, or platform maintainer).",
+      "Register this Discord server for your alliance (R5 owner, R4+ officer, or maintainer).",
     description_localizations: {
       "pt-BR":
-        "Registre este servidor do Discord para sua aliança (dono R5, oficial R4+ ou mantenedor da plataforma).",
+        "Registre este servidor Discord para sua aliança (R5, R4+ ou mantenedor).",
     },
     options: [
       {
@@ -327,6 +316,61 @@ const commandBody = [
     ],
   },
 ];
+
+/** @param {unknown} commands */
+function validateDiscordCommandDescriptions(commands) {
+  /** @type {string[]} */
+  const problems = [];
+
+  /** @param {string} path @param {string | undefined} value */
+  function check(path, value) {
+    if (value == null) return;
+    const len = value.length;
+    if (len < 1 || len > DISCORD_DESCRIPTION_MAX) {
+      problems.push(`${path} (${len} chars): ${JSON.stringify(value)}`);
+    }
+  }
+
+  /** @param {Record<string, unknown>} cmd @param {string} cmdPath */
+  function walkCommand(cmd, cmdPath) {
+    check(`${cmdPath}.description`, /** @type {string | undefined} */ (cmd.description));
+    const locs = /** @type {Record<string, string> | undefined} */ (
+      cmd.description_localizations
+    );
+    if (locs) {
+      for (const [locale, text] of Object.entries(locs)) {
+        check(`${cmdPath}.description_localizations.${locale}`, text);
+      }
+    }
+    const options = /** @type {Record<string, unknown>[] | undefined} */ (cmd.options);
+    if (options) {
+      for (const [index, option] of options.entries()) {
+        const optionPath = `${cmdPath}.options[${index}].${option.name ?? index}`;
+        check(`${optionPath}.description`, /** @type {string | undefined} */ (option.description));
+        const optionLocs = /** @type {Record<string, string> | undefined} */ (
+          option.description_localizations
+        );
+        if (optionLocs) {
+          for (const [locale, text] of Object.entries(optionLocs)) {
+            check(`${optionPath}.description_localizations.${locale}`, text);
+          }
+        }
+      }
+    }
+  }
+
+  for (const [index, command] of /** @type {Record<string, unknown>[]} */ (commands).entries()) {
+    walkCommand(command, `commands[${index}].${command.name ?? index}`);
+  }
+
+  if (problems.length > 0) {
+    console.error("Discord command descriptions must be 1–100 characters:");
+    for (const line of problems) console.error(`  - ${line}`);
+    process.exit(1);
+  }
+}
+
+validateDiscordCommandDescriptions(commandBody);
 
 const url = guildId
   ? `https://discord.com/api/v10/applications/${applicationId}/guilds/${guildId}/commands`

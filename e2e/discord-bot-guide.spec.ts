@@ -25,7 +25,7 @@ test.describe("Discord bot public guide", () => {
     await expect(
       page.getByRole("heading", { level: 2, name: "Troubleshooting" }),
     ).toBeVisible();
-    await expect(page.getByText("Getting your name and UID")).toBeVisible();
+    await expect(page.getByText("Getting your player UID")).toBeVisible();
   });
 
   test("r5 flow starts with add-bot step", async ({ page }) => {
