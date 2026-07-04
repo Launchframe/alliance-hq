@@ -28,6 +28,7 @@ import {
   tryRouteRosterMissToOwnerApproval,
   getRosterLinkRequestById,
   isOwnerColdStartEligible,
+  supersedePendingRosterLinkRequests,
 } from "@/lib/member-link/roster-link-request.server";
 import {
   createMemberLinkTranslator,
@@ -621,6 +622,13 @@ export async function runWebMemberLinkStartOver(input: {
   if (claimBlock) {
     return claimBlock;
   }
+
+  // Drop any pending owner-approval request so the member can submit again and
+  // the owner is not left with a stale inbox/review item they already dismissed.
+  await supersedePendingRosterLinkRequests({
+    allianceId: input.allianceId,
+    hqUserId: input.hqUserId,
+  });
 
   const { translate, walkthroughSteps } = translateContext(input.locale);
   const pending: LinkPendingState = { kind: "link_walkthrough", step: 0 };

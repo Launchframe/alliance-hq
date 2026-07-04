@@ -4,7 +4,10 @@ import { and, eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { getDb, schema } from "@/lib/db";
-import { ROSTER_LINK_INBOX_KIND } from "@/lib/member-link/roster-link-inbox.shared";
+import {
+  ROSTER_LINK_INBOX_KIND,
+  rosterLinkRequestHref,
+} from "@/lib/member-link/roster-link-inbox.shared";
 
 export async function materializeRosterLinkInboxItem(input: {
   allianceId: string;
@@ -33,8 +36,8 @@ export async function materializeRosterLinkInboxItem(input: {
     title: input.gameUserName,
     body: null,
     scoreTarget: input.gameUserName,
-    href: "/inbox",
-    requiredPermission: "inbox:read",
+    href: rosterLinkRequestHref(input.requestId),
+    requiredPermission: "members:write",
     active: 1,
     resourceId: input.requestId,
   });

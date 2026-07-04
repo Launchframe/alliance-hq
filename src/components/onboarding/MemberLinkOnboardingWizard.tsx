@@ -656,6 +656,14 @@ export function MemberLinkOnboardingWizard({
           >
             {t("awaitingOwnerRefresh")}
           </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void startOver()}
+            className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-4 py-2.5 text-sm font-medium text-[#e6edf3] disabled:opacity-50"
+          >
+            {tLink("buttons.startOver")}
+          </button>
         </div>
       ) : null}
 
