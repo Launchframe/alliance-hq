@@ -19,6 +19,7 @@ import {
   advanceLinkWalkthrough,
   findUniqueSubstringRosterCandidate,
 } from "@/lib/vr/link-helpers";
+import { ensureDiscordMemberLinksFromHq } from "@/lib/member-link/inherit-hq-to-discord.server";
 import { createDiscordRosterMissLinkRequest } from "@/lib/member-link/roster-link-request.server";
 import {
   loadAllianceMembersForBot,
@@ -568,7 +569,16 @@ async function resolveTargetLink(input: {
     if (link.discordUserId !== input.discordUserId) return null;
     return link;
   }
-  const links = await listDiscordLinksForUser(input.allianceId, input.discordUserId);
+  let links = await listDiscordLinksForUser(input.allianceId, input.discordUserId);
+  if (links.length === 0) {
+    // Users who linked a commander on the web, then `/link`ed Discord, should
+    // not need a second name+UID pass on Discord.
+    await ensureDiscordMemberLinksFromHq({
+      discordUserId: input.discordUserId,
+      allianceId: input.allianceId,
+    });
+    links = await listDiscordLinksForUser(input.allianceId, input.discordUserId);
+  }
   if (links.length === 0) return null;
   if (links.length === 1) return links[0]!;
   return "pick";

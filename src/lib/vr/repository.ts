@@ -942,11 +942,23 @@ export async function countRegisteredGuildsForAlliance(
   return Number(row?.value ?? 0);
 }
 
+/** Mirror web commanders onto Discord when HQ is linked (avoids circular import). */
+async function ensureDiscordMemberLinksFromHqLazy(input: {
+  allianceId: string;
+  discordUserId: string;
+}): Promise<void> {
+  const { ensureDiscordMemberLinksFromHq } = await import(
+    "@/lib/member-link/inherit-hq-to-discord.server"
+  );
+  await ensureDiscordMemberLinksFromHq(input);
+}
+
 /** R4+ officer proof via linked commander rank on the local roster (same gate as VR reports). */
 export async function callerIsAllianceOfficerViaMemberLink(input: {
   allianceId: string;
   discordUserId: string;
 }): Promise<boolean> {
+  await ensureDiscordMemberLinksFromHqLazy(input);
   const links = await listDiscordLinksForUser(input.allianceId, input.discordUserId);
   if (links.length === 0) {
     return false;
@@ -1259,6 +1271,7 @@ export async function callerIsAllianceOwner(input: {
   const alliance = await getAllianceById(input.allianceId);
   if (!alliance) return false;
 
+  await ensureDiscordMemberLinksFromHqLazy(input);
   const links = await listDiscordLinksForUser(input.allianceId, input.discordUserId);
 
   return ownerProvenByMemberLink({
@@ -1275,6 +1288,7 @@ export async function callerOwnsAllianceViaMemberLink(input: {
   allianceId: string;
   discordUserId: string;
 }): Promise<boolean> {
+  await ensureDiscordMemberLinksFromHqLazy(input);
   const [alliance, links] = await Promise.all([
     getAllianceById(input.allianceId),
     listDiscordLinksForUser(input.allianceId, input.discordUserId),
