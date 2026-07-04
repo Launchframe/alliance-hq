@@ -400,6 +400,7 @@ export async function loadTrainsDashboard(
       canManageTrains,
       canClearWeekSchedule,
       canUnlockConductor,
+      canPaintPastDays,
       ...trainDiscordFields,
       activeMemberCount: 0,
       ...EMPTY_DASHBOARD_FIELDS,

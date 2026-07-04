@@ -13,6 +13,7 @@ import type {
 } from "@/lib/trains/prompt-templates.shared";
 import { putObject, prefersLocalStorage, r2Configured } from "@/lib/storage";
 import { presignR2GetObject } from "@/lib/storage/r2";
+import { isDataOrHttpUrl } from "@/lib/trains/image-generation/provider";
 
 function mapGeneratedImageRow(
   row: typeof schema.trainConductorGeneratedImages.$inferSelect,
@@ -75,6 +76,10 @@ async function resolveDownloadUrl(input: {
 }
 
 async function fetchImageBytes(url: string): Promise<Buffer> {
+  if (!isDataOrHttpUrl(url)) {
+    throw new Error("Invalid image URL scheme — only http, https, and data URLs are allowed.");
+  }
+
   if (url.startsWith("data:image")) {
     const comma = url.indexOf(",");
     if (comma === -1) {

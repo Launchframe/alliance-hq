@@ -4,6 +4,7 @@ import { and, desc, eq, ilike, isNull, or, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { getDb, schema } from "@/lib/db";
+import { conductorImageDownloadPath } from "@/lib/trains/conductor-images.server";
 import type {
   CreatePromptTemplateInput,
   ListPromptTemplatesQuery,
@@ -122,8 +123,9 @@ async function loadUsageStats(templateId: string) {
 
   const [latestFinal] = await db
     .select({
+      id: schema.trainConductorGeneratedImages.id,
+      conductorRecordId: schema.trainConductorGeneratedImages.conductorRecordId,
       storageKey: schema.trainConductorGeneratedImages.storageKey,
-      externalImageUrls: schema.trainConductorGeneratedImages.externalImageUrls,
       selectedExternalUrl: schema.trainConductorGeneratedImages.selectedExternalUrl,
     })
     .from(schema.trainConductorGeneratedImages)
@@ -139,10 +141,20 @@ async function loadUsageStats(templateId: string) {
 
   let latestFinalizedImageUrl: string | null = null;
   if (latestFinal) {
-    latestFinalizedImageUrl =
-      latestFinal.selectedExternalUrl ??
-      latestFinal.externalImageUrls?.[0] ??
-      null;
+    // Prefer storage-backed URL to avoid returning large base64 data URLs
+    // (Craiyon stores draft data: URLs in selectedExternalUrl).
+    if (latestFinal.storageKey) {
+      latestFinalizedImageUrl = conductorImageDownloadPath(
+        latestFinal.conductorRecordId,
+        latestFinal.id,
+      );
+    } else {
+      const external = latestFinal.selectedExternalUrl;
+      // Only surface http(s) URLs; skip base64 data: blobs in the listing.
+      if (external && (external.startsWith("http://") || external.startsWith("https://"))) {
+        latestFinalizedImageUrl = external;
+      }
+    }
   }
 
   return {
