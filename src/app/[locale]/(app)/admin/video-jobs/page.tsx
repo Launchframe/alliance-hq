@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { FormattedDateTime } from "@/components/timezone/TimezoneProvider";
@@ -10,7 +11,7 @@ import {
   ResponsiveRecordViews,
 } from "@/components/ui/ResponsiveRecordViews";
 
-import { Link } from "@/i18n/navigation";
+import { Link, useRouter } from "@/i18n/navigation";
 
 import {
   canReprocessVideoJob,
@@ -18,6 +19,12 @@ import {
 } from "@/lib/video/admin-job-actions";
 import type { VideoProcessTimings } from "@/lib/analytics/video-pipeline";
 import type { QualityBucket } from "@/lib/video/quality-score";
+import {
+  adminVideoJobDetailHref,
+  adminVideoJobsListHref,
+  parseAdminVideoJobsListFilters,
+  type AdminVideoJobsListFilters,
+} from "@/lib/video/admin-video-jobs-query.shared";
 
 type VideoJob = {
   id: string;
@@ -89,43 +96,51 @@ function readTimings(
 export default function AdminVideoJobsPage() {
   const t = useTranslations("admin");
   const tJobs = useTranslations("admin.videoJobsPage");
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const filters = useMemo(
+    () => parseAdminVideoJobsListFilters(searchParams),
+    [searchParams],
+  );
   const [jobs, setJobs] = useState<VideoJob[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [actingJobId, setActingJobId] = useState<string | null>(null);
   const [errorDialogJob, setErrorDialogJob] = useState<VideoJob | null>(null);
-  const [selectedBucket, setSelectedBucket] = useState<string>("");
-  const [selectedRating, setSelectedRating] = useState<string>("");
-  const [selectedPassKey, setSelectedPassKey] = useState<string>("");
-  const [selectedStatus, setSelectedStatus] = useState<string>("failed");
 
-  const loadJobs = useCallback(
-    async (bucket: string, rating: string, passKey: string, status: string) => {
-      const params = new URLSearchParams({ limit: "200" });
-      if (status === "all") {
-        params.set("status", "all");
-      } else if (status) {
-        params.set("status", status);
-      }
-      if (bucket) params.set("bucket", bucket);
-      if (rating) params.set("rating", rating);
-      if (passKey) params.set("passKey", passKey);
-      const res = await fetch(`/api/admin/video-jobs?${params.toString()}`);
-      if (!res.ok) throw new Error(await res.text());
-      const data = (await res.json()) as { jobs: VideoJob[] };
-      setJobs(data.jobs);
+  const setFilters = useCallback(
+    (patch: Partial<AdminVideoJobsListFilters>) => {
+      router.replace(adminVideoJobsListHref({ ...filters, ...patch }), {
+        scroll: false,
+      });
     },
-    [],
+    [filters, router],
   );
+
+  const loadJobs = useCallback(async (next: AdminVideoJobsListFilters) => {
+    const params = new URLSearchParams({ limit: "200" });
+    if (next.status === "all") {
+      params.set("status", "all");
+    } else if (next.status) {
+      params.set("status", next.status);
+    }
+    if (next.bucket) params.set("bucket", next.bucket);
+    if (next.rating) params.set("rating", next.rating);
+    if (next.passKey) params.set("passKey", next.passKey);
+    const res = await fetch(`/api/admin/video-jobs?${params.toString()}`);
+    if (!res.ok) throw new Error(await res.text());
+    const data = (await res.json()) as { jobs: VideoJob[] };
+    setJobs(data.jobs);
+  }, []);
 
   useEffect(() => {
     void (async () => {
       try {
-        await loadJobs(selectedBucket, selectedRating, selectedPassKey, selectedStatus);
+        await loadJobs(filters);
       } catch (err) {
         setError(err instanceof Error ? err.message : t("loadFailed"));
       }
     })();
-  }, [loadJobs, selectedBucket, selectedRating, selectedPassKey, selectedStatus, t]);
+  }, [loadJobs, filters, t]);
 
   // Derive available pass keys from loaded jobs for the filter dropdown
   const availablePassKeys = Array.from(
@@ -143,7 +158,7 @@ export default function AdminVideoJobsPage() {
         const data = (await res.json()) as { error?: string };
         throw new Error(data.error ?? tJobs("actionFailed"));
       }
-      await loadJobs(selectedBucket, selectedRating, selectedPassKey, selectedStatus);
+      await loadJobs(filters);
     } catch (err) {
       setError(err instanceof Error ? err.message : tJobs("actionFailed"));
     } finally {
@@ -162,8 +177,8 @@ export default function AdminVideoJobsPage() {
         <div className="flex items-center gap-2">
           <label className="text-xs text-[#8b949e]">{tJobs("statusFilter")}</label>
           <select
-            value={selectedStatus}
-            onChange={(e) => setSelectedStatus(e.target.value)}
+            value={filters.status}
+            onChange={(e) => setFilters({ status: e.target.value })}
             className="rounded-lg border border-[#30363d] bg-[#161b22] px-2 py-1 text-xs text-[#e6edf3]"
           >
             <option value="failed">{tJobs("statusFailed")}</option>
@@ -177,8 +192,8 @@ export default function AdminVideoJobsPage() {
         <div className="flex items-center gap-2">
           <label className="text-xs text-[#8b949e]">{tJobs("bucketFilter")}</label>
           <select
-            value={selectedBucket}
-            onChange={(e) => setSelectedBucket(e.target.value)}
+            value={filters.bucket}
+            onChange={(e) => setFilters({ bucket: e.target.value })}
             className="rounded-lg border border-[#30363d] bg-[#161b22] px-2 py-1 text-xs text-[#e6edf3]"
           >
             {BUCKET_OPTIONS.map((opt) => (
@@ -189,8 +204,8 @@ export default function AdminVideoJobsPage() {
         <div className="flex items-center gap-2">
           <label className="text-xs text-[#8b949e]">{tJobs("ratingFilter")}</label>
           <select
-            value={selectedRating}
-            onChange={(e) => setSelectedRating(e.target.value)}
+            value={filters.rating}
+            onChange={(e) => setFilters({ rating: e.target.value })}
             className="rounded-lg border border-[#30363d] bg-[#161b22] px-2 py-1 text-xs text-[#e6edf3]"
           >
             <option value="">{tJobs("allRatings")}</option>
@@ -202,8 +217,8 @@ export default function AdminVideoJobsPage() {
           <div className="flex items-center gap-2">
             <label className="text-xs text-[#8b949e]">{tJobs("passFilter")}</label>
             <select
-              value={selectedPassKey}
-              onChange={(e) => setSelectedPassKey(e.target.value)}
+              value={filters.passKey}
+              onChange={(e) => setFilters({ passKey: e.target.value })}
               className="rounded-lg border border-[#30363d] bg-[#161b22] px-2 py-1 text-xs font-mono text-[#e6edf3]"
             >
               <option value="">{tJobs("allPasses")}</option>
@@ -266,7 +281,7 @@ export default function AdminVideoJobsPage() {
               <RecordDetailField label={tJobs("actions")}>
                 <div className="flex flex-wrap items-center gap-2 text-sm font-normal">
                   <Link
-                    href={`/admin/video-jobs/${job.id}`}
+                    href={adminVideoJobDetailHref(job.id, filters)}
                     className="text-[#58a6ff] hover:underline"
                   >
                     {tJobs("inspect")}
@@ -372,7 +387,7 @@ export default function AdminVideoJobsPage() {
                       <td className="px-4 py-2">
                         <div className="flex flex-wrap items-center gap-2">
                           <Link
-                            href={`/admin/video-jobs/${job.id}`}
+                            href={adminVideoJobDetailHref(job.id, filters)}
                             className="text-xs text-[#58a6ff] hover:underline"
                           >
                             {tJobs("inspect")}

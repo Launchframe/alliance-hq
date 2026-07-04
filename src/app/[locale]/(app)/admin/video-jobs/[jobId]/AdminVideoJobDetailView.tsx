@@ -1,5 +1,6 @@
 "use client";
 
+import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 
@@ -10,6 +11,11 @@ import {
   isRosterTesseractEvalComparison,
   type RosterTesseractEvalComparison,
 } from "@/lib/video/compare-roster-ocr-quality";
+import {
+  adminVideoJobDetailHref,
+  adminVideoJobsListHref,
+  parseAdminVideoJobsListFilters,
+} from "@/lib/video/admin-video-jobs-query.shared";
 import { SURVEY_SCROLL_STYLES, type SurveyScrollStyle } from "@/lib/video/survey";
 type JobDetail = {
   id: string;
@@ -21,6 +27,8 @@ type JobDetail = {
   createdAt: string;
   timingsJson: VideoProcessTimings | null;
   totalFileSizeBytes: number | null;
+  /** Display name or email of the HQ user who uploaded the video. */
+  uploadedBy?: string | null;
   rating?: string | null;
   ratingReason?: string | null;
   qualityBucket?: string | null;
@@ -282,6 +290,15 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
   const t = useTranslations("admin");
   const tDetail = useTranslations("admin.videoJobDetailPage");
   const tSurvey = useTranslations("videoSurvey");
+  const searchParams = useSearchParams();
+  const listFilters = useMemo(
+    () => parseAdminVideoJobsListFilters(searchParams),
+    [searchParams],
+  );
+  const listHref = useMemo(
+    () => adminVideoJobsListHref(listFilters),
+    [listFilters],
+  );
   const [data, setData] = useState<DetailResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<TabId>("frames");
@@ -624,7 +641,7 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
     <div className="min-w-0 space-y-4">
       <div className="flex flex-wrap items-center gap-3">
         <Link
-          href="/admin/video-jobs"
+          href={listHref}
           className="text-sm text-[#58a6ff] hover:underline"
         >
           {tDetail("backToList")}
@@ -638,6 +655,10 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
         <div>
           <p className="text-xs text-[#8b949e]">{t("table.status")}</p>
           <p>{job.status}</p>
+        </div>
+        <div>
+          <p className="text-xs text-[#8b949e]">{tDetail("uploadedBy")}</p>
+          <p className="wrap-break-word">{job.uploadedBy ?? "—"}</p>
         </div>
         <div>
           <p className="text-xs text-[#8b949e]">{t("table.target")}</p>
@@ -777,7 +798,7 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
               return (
                 <div key={pass.id} className="flex flex-col gap-1">
                   <Link
-                    href={`/admin/video-jobs/${pass.id}`}
+                    href={adminVideoJobDetailHref(pass.id, listFilters)}
                     className={`rounded-lg border px-3 py-1.5 text-sm ${
                       pass.id === jobId
                         ? "border-[#58a6ff] text-[#58a6ff]"

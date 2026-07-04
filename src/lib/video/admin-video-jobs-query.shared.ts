@@ -16,3 +16,66 @@ export function parseAdminVideoJobsStatusFilter(
   }
   return statusParam;
 }
+
+/** UI filters for /admin/video-jobs (persisted in the URL). */
+export type AdminVideoJobsListFilters = {
+  /** UI status including "all"; default "failed". */
+  status: string;
+  bucket: string;
+  rating: string;
+  passKey: string;
+};
+
+export const DEFAULT_ADMIN_VIDEO_JOBS_LIST_FILTERS: AdminVideoJobsListFilters = {
+  status: "failed",
+  bucket: "",
+  rating: "",
+  passKey: "",
+};
+
+type SearchParamsReader = {
+  get(name: string): string | null;
+};
+
+/** Read list filters from the page or detail URL query string. */
+export function parseAdminVideoJobsListFilters(
+  searchParams: SearchParamsReader,
+): AdminVideoJobsListFilters {
+  const statusRaw = searchParams.get("status");
+  return {
+    status:
+      statusRaw === null || statusRaw === ""
+        ? DEFAULT_ADMIN_VIDEO_JOBS_LIST_FILTERS.status
+        : statusRaw,
+    bucket: searchParams.get("bucket")?.trim() ?? "",
+    rating: searchParams.get("rating")?.trim() ?? "",
+    passKey: searchParams.get("passKey")?.trim() ?? "",
+  };
+}
+
+/** Build query params for the list page / inspect links (always includes status). */
+export function buildAdminVideoJobsListSearchParams(
+  filters: AdminVideoJobsListFilters,
+): URLSearchParams {
+  const params = new URLSearchParams();
+  params.set("status", filters.status || DEFAULT_ADMIN_VIDEO_JOBS_LIST_FILTERS.status);
+  if (filters.bucket) params.set("bucket", filters.bucket);
+  if (filters.rating) params.set("rating", filters.rating);
+  if (filters.passKey) params.set("passKey", filters.passKey);
+  return params;
+}
+
+export function adminVideoJobsListHref(
+  filters: AdminVideoJobsListFilters,
+): string {
+  const qs = buildAdminVideoJobsListSearchParams(filters).toString();
+  return `/admin/video-jobs?${qs}`;
+}
+
+export function adminVideoJobDetailHref(
+  jobId: string,
+  filters: AdminVideoJobsListFilters,
+): string {
+  const qs = buildAdminVideoJobsListSearchParams(filters).toString();
+  return `/admin/video-jobs/${jobId}?${qs}`;
+}

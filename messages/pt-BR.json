@@ -555,6 +555,7 @@
     "videoJobDetailPage": {
       "loading": "Carregando detalhes do job…",
       "backToList": "← Jobs de vídeo",
+      "uploadedBy": "Enviado por",
       "frameCount": "Frames",
       "totalTime": "Tempo total",
       "ocrTime": "Tempo OCR",
