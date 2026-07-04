@@ -1,10 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { tryPreApprovedMemberLink } from "@/lib/member-link/preapproved-link.server";
+import { surfaceClaimConflict } from "@/lib/member-link/claim.server";
 import { getHqMemberLinkForUser, linkHqMember } from "@/lib/member-link/repository.server";
 import { findAcceptedClaimInviteForUser } from "@/lib/native-alliance/invites";
 import { getDb } from "@/lib/db";
 import { getLinkedMemberIds } from "@/lib/vr/repository";
+
+vi.mock("@/lib/member-link/claim.server", () => ({
+  surfaceClaimConflict: vi.fn(),
+}));
 
 vi.mock("@/lib/member-link/repository.server", () => ({
   getHqMemberLinkForUser: vi.fn(),
@@ -28,6 +33,7 @@ vi.mock("@/lib/lastwar/sync-member-game-level.server", () => ({
 
 vi.mock("@/lib/vr/repository", () => ({
   getLinkedMemberIds: vi.fn(),
+  getAllianceById: vi.fn().mockResolvedValue({ tag: "LFgo" }),
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -154,5 +160,59 @@ describe("tryPreApprovedMemberLink", () => {
         gameUid: "123456789012",
       }),
     );
+  });
+
+  it("surfaces claim conflicts when Last War name does not match the invite target", async () => {
+    vi.mocked(getHqMemberLinkForUser).mockResolvedValue(null as never);
+    vi.mocked(findAcceptedClaimInviteForUser).mockResolvedValue({
+      inviteId: "inv-1",
+      targetAshedMemberId: "m-claim",
+    });
+    vi.mocked(getDb).mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockImplementation(() => {
+            const rows = Promise.resolve([
+              {
+                ashedMemberId: "m-claim",
+                currentName: "OtherName",
+                previousNamesJson: [],
+                status: "active",
+              },
+            ]);
+            return Object.assign(rows, {
+              limit: vi.fn().mockResolvedValue([
+                {
+                  ashedMemberId: "m-claim",
+                  currentName: "OtherName",
+                  previousNamesJson: [],
+                  status: "active",
+                },
+              ]),
+            });
+          }),
+        }),
+      }),
+    } as never);
+
+    await expect(
+      tryPreApprovedMemberLink({
+        allianceId: "alliance-1",
+        hqUserId: "hq-1",
+        gameUid: "123456789012",
+        lookup,
+        requesterHandle: "discord-user",
+      }),
+    ).resolves.toEqual({ ok: false, reason: "claim_conflict" });
+
+    expect(surfaceClaimConflict).toHaveBeenCalledWith(
+      expect.objectContaining({
+        allianceId: "alliance-1",
+        hqUserId: "hq-1",
+        handle: "discord-user",
+        reason: "target_mismatch",
+      }),
+    );
+    expect(linkHqMember).not.toHaveBeenCalled();
   });
 });

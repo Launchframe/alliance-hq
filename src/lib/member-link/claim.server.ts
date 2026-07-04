@@ -155,7 +155,7 @@ async function findClaimedNameCollision(input: {
   return null;
 }
 
-type ClaimConflictReason =
+export type ClaimConflictReason =
   | "name_collision"
   | "commander_taken"
   /** @deprecated Legacy help rows only — claim confirm no longer emits this. */
@@ -169,7 +169,7 @@ type ClaimConflictReason =
  * Without the persisted request the claimant-facing "officers notified" copy
  * would be a lie whenever no officer is connected to the live stream.
  */
-async function surfaceClaimConflict(input: {
+export async function surfaceClaimConflict(input: {
   allianceId: string;
   allianceTag: string;
   hqUserId: string;

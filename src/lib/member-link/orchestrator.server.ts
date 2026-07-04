@@ -517,11 +517,15 @@ export async function runWebMemberLinkSubmit(input: {
       return finishMemberLinkSubmit(ctx, bootstrapped);
     }
 
+    // Claim-invite pre-approve is Discord-only here: web submit is blocked earlier
+    // by blockSelfServiceWhenClaimPending when a claim invite is accepted.
     const preapproved = await tryPreApprovedMemberLink({
       allianceId: input.allianceId,
       hqUserId: input.hqUserId,
       gameUid: uid,
       lookup,
+      requesterHandle:
+        input.displayName?.trim() || input.userEmail?.trim() || input.hqUserId,
     });
     if (preapproved.ok) {
       return finishMemberLinkSubmit(ctx, {

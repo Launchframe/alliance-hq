@@ -16,6 +16,7 @@ import {
   deleteDiscordHqLinkForHqUser,
   upsertDiscordHqLink,
 } from "@/lib/vr/repository";
+import { inheritHqMemberLinksToDiscord } from "@/lib/member-link/inherit-hq-to-discord.server";
 
 vi.mock("@/lib/vr/repository", () => ({
   deleteDiscordHqLinkForHqUser: vi.fn(),
@@ -193,6 +194,10 @@ describe("completeDiscordBotHqLink", () => {
     ).toEqual({ ok: true });
 
     expect(upsertDiscordHqLink).toHaveBeenCalledWith({
+      discordUserId: "discord-1",
+      hqUserId: "hq-1",
+    });
+    expect(inheritHqMemberLinksToDiscord).toHaveBeenCalledWith({
       discordUserId: "discord-1",
       hqUserId: "hq-1",
     });

@@ -304,6 +304,7 @@ async function finalizeDiscordMemberLink(input: {
         hqUserId: hqLink.hqUserId,
         gameUid: uid,
         lookup: input.lookup,
+        requesterHandle: input.discordUsername ?? input.discordUserId,
       });
       if (preapproved.ok) {
         resolvedResult = {
@@ -326,6 +327,11 @@ async function finalizeDiscordMemberLink(input: {
           reply: translate("link.memberTaken"),
           pending: null,
           memberTaken: true,
+        };
+      } else if (preapproved.reason === "claim_conflict") {
+        resolvedResult = {
+          reply: translate("link.awaitingOfficerResolve"),
+          pending: null,
         };
       }
     }

@@ -8,12 +8,16 @@ import {
   saveHqMemberLinkPending,
   syncPrimaryGameUidFromHqMemberLink,
 } from "@/lib/member-link/repository.server";
+import {
+  type ClaimConflictReason,
+  surfaceClaimConflict,
+} from "@/lib/member-link/claim.server";
 import { findAcceptedClaimInviteForUser } from "@/lib/native-alliance/invites";
 import { reconcileAllianceMemberForRosterLink } from "@/lib/member-link/roster-link-resolve.server";
 import { getDb, schema } from "@/lib/db";
 import { and, eq } from "drizzle-orm";
 import { namesMatch } from "@/lib/vr/link-helpers";
-import { getLinkedMemberIds } from "@/lib/vr/repository";
+import { getAllianceById, getLinkedMemberIds } from "@/lib/vr/repository";
 import { syncAllianceMemberGameLevelFromLastWar } from "@/lib/lastwar/sync-member-game-level.server";
 import { isClaimInviteMirrorDevUid } from "@/lib/lastwar/player-lookup";
 
@@ -109,6 +113,30 @@ async function findClaimedNameCollision(input: {
   return false;
 }
 
+async function notifyClaimConflict(input: {
+  allianceId: string;
+  hqUserId: string;
+  requesterHandle?: string | null;
+  claimTarget: ClaimTargetRecord;
+  gameUserName: string;
+  gameUid: string;
+  reason: ClaimConflictReason;
+}): Promise<void> {
+  const handle = input.requesterHandle?.trim() || input.hqUserId;
+  const alliance = await getAllianceById(input.allianceId);
+  await surfaceClaimConflict({
+    allianceId: input.allianceId,
+    allianceTag: alliance?.tag ?? "alliance",
+    hqUserId: input.hqUserId,
+    handle,
+    commanderName: input.claimTarget.commanderName,
+    gameUserName: input.gameUserName,
+    gameUid: input.gameUid,
+    ashedMemberId: input.claimTarget.ashedMemberId,
+    reason: input.reason,
+  });
+}
+
 /**
  * Resolve a commander link that officers already approved: either the HQ user
  * already linked this UID on the web, or they accepted a commander claim invite.
@@ -122,6 +150,7 @@ export async function tryPreApprovedMemberLink(input: {
   hqUserId: string;
   gameUid: string;
   lookup: Extract<LastWarPlayerLookupResult, { ok: true }>;
+  requesterHandle?: string | null;
 }): Promise<
   | { ok: true; target: PreApprovedLinkTarget }
   | { ok: false; reason: "not_preapproved" | "claim_conflict" | "commander_taken" }
@@ -158,6 +187,15 @@ export async function tryPreApprovedMemberLink(input: {
     : input.lookup.gameUserName;
 
   if (!claimTargetMatchesLookupName(claimTarget, lookupGameUserName)) {
+    await notifyClaimConflict({
+      allianceId: input.allianceId,
+      hqUserId: input.hqUserId,
+      requesterHandle: input.requesterHandle,
+      claimTarget,
+      gameUserName: lookupGameUserName,
+      gameUid: uid,
+      reason: "target_mismatch",
+    });
     return { ok: false, reason: "claim_conflict" };
   }
 
@@ -168,6 +206,15 @@ export async function tryPreApprovedMemberLink(input: {
       targetAshedMemberId: claimTarget.ashedMemberId,
     })
   ) {
+    await notifyClaimConflict({
+      allianceId: input.allianceId,
+      hqUserId: input.hqUserId,
+      requesterHandle: input.requesterHandle,
+      claimTarget,
+      gameUserName: lookupGameUserName,
+      gameUid: uid,
+      reason: "name_collision",
+    });
     return { ok: false, reason: "claim_conflict" };
   }
 
