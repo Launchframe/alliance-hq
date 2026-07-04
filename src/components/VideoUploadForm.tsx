@@ -70,6 +70,7 @@ function scoreTargetOcrAccuracy(
 }
 
 const GROUP_ORDER = ["events", "recurring", "hq-native"] as const;
+const OCR_ACCURACY_CAPTION_ID = "video-ocr-accuracy-caption";
 
 type ActiveSurvey = {
   jobId: string;
@@ -387,6 +388,7 @@ export function VideoUploadForm({
                       </span>
                       <OcrAccuracyBadge
                         level={scoreTargetOcrAccuracy(target)}
+                        describedBy={OCR_ACCURACY_CAPTION_ID}
                       />
                     </span>
                   ),
@@ -394,7 +396,12 @@ export function VideoUploadForm({
               };
             }).filter((group): group is NonNullable<typeof group> => group !== null)}
           />
-          <p className="mt-2 text-xs text-[#8b949e]">{t("ocrAccuracy.label")}</p>
+          <p
+            id={OCR_ACCURACY_CAPTION_ID}
+            className="mt-2 text-xs text-[#8b949e]"
+          >
+            {t("ocrAccuracy.label")}
+          </p>
         </label>
 
         {needsBoardPicker ? (
