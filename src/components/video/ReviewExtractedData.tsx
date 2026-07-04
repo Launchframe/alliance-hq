@@ -54,7 +54,6 @@ import {
   useRosterReviewValidation,
 } from "@/components/video/RosterVideoReviewTable";
 import type { PassComparison } from "@/lib/video/compare-pass-results";
-import type { AllianceMembersPayload } from "@/lib/members/load";
 import {
   formatHeroPowerMForStorage,
   parsedRowsToRosterReviewRows,
@@ -87,6 +86,7 @@ type ParsedRow = {
 type MemberOption = {
   id: string;
   current_name: string;
+  previous_names?: string[];
 };
 
 type EventOption = {
@@ -175,6 +175,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   const [fileName, setFileName] = useState<string | null>(null);
   const [hasSourceVideo, setHasSourceVideo] = useState(false);
   const {
+    device: previewDevice,
     placement: previewPlacement,
     available: previewPlacements,
     open: previewOpen,
@@ -327,6 +328,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           };
           parseSession?: { allianceId?: string | null };
           rows?: Array<ParsedRow & { scoreConflict?: number }>;
+          members?: AshedMember[];
         };
         if (!res.ok) {
           setJobStatus("load_error");
@@ -341,6 +343,16 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
             return;
           }
         }
+
+        const jobMembers = data.members ?? [];
+        setMembers(
+          jobMembers.map((member) => ({
+            id: member.id,
+            current_name: member.current_name,
+            previous_names: member.previous_names,
+          })),
+        );
+        setRosterMembers(jobMembers);
 
         setJobStatus(data.job?.status ?? "unknown");
         if (
@@ -463,61 +475,36 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     liveJobStatusRef.current = null;
   }, [jobId]);
 
+  // Roster review: enrich stored rows from the job-alliance local roster once
+  // members arrive with the job payload (no personal Ashed credential required).
   useEffect(() => {
-    async function fetchMembers() {
-      if (scoreTargetMeta?.showRosterColumns) {
-        const res = await fetch("/api/members");
-        if (!res.ok) return;
-        const data = (await res.json()) as AllianceMembersPayload;
-        setRosterMembers(data.members);
-        if (data.alliance.tag) {
-          setAllianceTag(data.alliance.tag);
-        }
-        if (data.alliance.name) {
-          setAllianceName(data.alliance.name);
-        }
-        if (!rosterMembersHydratedRef.current) {
-          rosterMembersHydratedRef.current = true;
-          setRows((prev) => {
-            const mapped = parsedRowsToRosterReviewRows(
-              prev,
-              data.members,
-              data.alliance.tag,
-            );
-            return prev.map((row) => {
-              const next = mapped.find((entry) => entry.id === row.id);
-              if (!next) return row;
-              return {
-                ...row,
-                memberId: next.memberId,
-                memberName: next.memberName,
-                matchConfidence: next.matchConfidence,
-                allianceRank: next.allianceRank,
-                heroPowerM: next.heroPowerM,
-                memberLevel: next.memberLevel,
-                profession: next.profession,
-                allianceRankTitle: null,
-              };
-            });
-          });
-        }
-        return;
-      }
-
-      if (!allianceId) return;
-      const q = encodeURIComponent(JSON.stringify({ alliance_id: allianceId }));
-      const res = await fetch(`/api/bff/v1/entities/Member?q=${q}&sort=current_name`);
-      if (res.ok) {
-        const data = (await res.json()) as MemberOption[];
-        setMembers(
-          [...data].sort((a, b) =>
-            a.current_name.localeCompare(b.current_name),
-          ),
-        );
-      }
-    }
-    void fetchMembers();
-  }, [allianceId, scoreTargetMeta?.showRosterColumns]);
+    if (!scoreTargetMeta?.showRosterColumns) return;
+    if (rosterMembers.length === 0) return;
+    if (rosterMembersHydratedRef.current) return;
+    rosterMembersHydratedRef.current = true;
+    setRows((prev) => {
+      const mapped = parsedRowsToRosterReviewRows(
+        prev,
+        rosterMembers,
+        allianceTag,
+      );
+      return prev.map((row) => {
+        const next = mapped.find((entry) => entry.id === row.id);
+        if (!next) return row;
+        return {
+          ...row,
+          memberId: next.memberId,
+          memberName: next.memberName,
+          matchConfidence: next.matchConfidence,
+          allianceRank: next.allianceRank,
+          heroPowerM: next.heroPowerM,
+          memberLevel: next.memberLevel,
+          profession: next.profession,
+          allianceRankTitle: null,
+        };
+      });
+    });
+  }, [allianceTag, rosterMembers, scoreTargetMeta?.showRosterColumns]);
 
   const eventTypeLabel = scoreTargetMeta?.labelKey
     ? tNav(scoreTargetMeta.labelKey)
@@ -1104,13 +1091,21 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     );
   }
 
-  const showSidePreview = previewOpen && previewPlacement === "side";
-  const showTopPreview = previewOpen && previewPlacement === "top";
-  const showBottomPreview = previewOpen && previewPlacement === "bottom";
+  // Never paint the in-flow side column on phones — it forces ~half-width
+  // content plus horizontal scroll when prefs/SSR briefly resolve to "side".
+  const effectivePreviewPlacement =
+    previewPlacement === "side" && previewDevice === "mobile"
+      ? "bottom"
+      : previewPlacement;
+  const showSidePreview =
+    previewOpen && effectivePreviewPlacement === "side";
+  const showTopPreview = previewOpen && effectivePreviewPlacement === "top";
+  const showBottomPreview =
+    previewOpen && effectivePreviewPlacement === "bottom";
   const previewNode = previewOpen ? (
     <ReviewVideoPreview
       jobId={jobId}
-      placement={previewPlacement}
+      placement={effectivePreviewPlacement}
       available={previewPlacements}
       onPlacementChange={setPreviewPlacement}
       zoom={previewZoom}
@@ -1128,13 +1123,13 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
 
   return (
     <div
-      className={`relative flex min-w-0 w-full max-w-full ${
+      className={`relative flex min-w-0 w-full max-w-full overflow-x-hidden ${
         showSidePreview ? "flex-row" : "flex-col"
       }`}
     >
       {showTopPreview ? previewNode : null}
       <div
-        className="min-w-0 flex flex-1 flex-col"
+        className="flex min-w-0 max-w-full flex-1 flex-col overflow-x-hidden"
         style={
           showBottomPreview
             ? { paddingBottom: previewDockHeightPx }
@@ -1550,15 +1545,17 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         </button>
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-[#30363d]">
+      <div className="min-w-0 max-w-full overflow-x-auto rounded-xl border border-[#30363d]">
         <table className="w-full min-w-full text-sm">
           <thead className="bg-[#161b22] text-left text-[#8b949e]">
             <tr>
               {scoreTargetMeta?.showRankColumn ? (
                 <th className="w-14 px-3 py-3">{t("colRank")}</th>
               ) : null}
-              <th className="px-3 py-3">{t("colName")}</th>
-              <th className="min-w-[11rem] px-3 py-3">{t("colMember")}</th>
+              <th className="min-w-0 px-3 py-3">{t("colName")}</th>
+              <th className="min-w-[8rem] px-3 py-3 sm:min-w-[11rem]">
+                {t("colMember")}
+              </th>
               {scoreTargetMeta?.showScoreColumn !== false ? (
                 <th className="px-3 py-3">{t("colScore")}</th>
               ) : null}
@@ -1601,7 +1598,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                     />
                   </td>
                 ) : null}
-                <td className="max-w-[9rem] px-3 py-3 align-top font-medium">
+                <td className="min-w-0 max-w-[9rem] px-3 py-3 align-top font-medium">
                   <div className="truncate" title={row.ocrName}>
                     {row.ocrName}
                   </div>
@@ -1616,7 +1613,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                     </p>
                   ) : null}
                 </td>
-                <td className="min-w-[11rem] px-3 py-3 align-top">
+                <td className="min-w-[8rem] px-3 py-3 align-top sm:min-w-[11rem]">
                   <AppSelect
                     value={row.memberId ?? ""}
                     onChange={(next) => {
@@ -1640,6 +1637,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                       emptyLabel: t("unmatched"),
                       highlightMemberId: row.memberId,
                       highlightConfidence: row.matchConfidence,
+                      selectedMembers: rows,
                     })}
                   />
                 </td>

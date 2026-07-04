@@ -157,13 +157,13 @@ export function ReviewVideoPreview({
   }, [unavailable, jobId, effectiveZoom]);
 
   const containerClass = cn(
-    "z-30 flex max-w-[100vw] flex-col overflow-x-hidden bg-black",
+    "z-30 flex max-w-full flex-col overflow-x-hidden bg-black",
     placement === "side" &&
-      "relative sticky shrink-0 self-start border-l border-[#30363d] -mr-4 md:-mr-6",
+      "relative sticky shrink-0 self-start border-l border-[#30363d]",
     placement === "top" &&
-      "sticky -mx-4 -mt-4 border-b border-[#30363d] md:-mx-6 md:-mt-6",
+      "sticky w-full max-w-full border-b border-[#30363d]",
     placement === "bottom" &&
-      "fixed bottom-0 left-0 right-0 w-full max-w-[100vw] border-t border-[#30363d]",
+      "fixed bottom-0 left-0 right-0 w-full max-w-full border-t border-[#30363d]",
   );
 
   const displaySideWidth = draftSideWidth ?? sideWidthPx;

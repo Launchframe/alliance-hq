@@ -2,19 +2,24 @@ import { NextResponse } from "next/server";
 import { asc, eq } from "drizzle-orm";
 
 import { getDb, schema } from "@/lib/db";
+import {
+  allianceMemberRowToAshedMember,
+  listAllianceMembers,
+} from "@/lib/members/roster.server";
 import { getOrCreateSession } from "@/lib/session";
+import type { VideoProcessTimings } from "@/lib/analytics/video-pipeline";
+import type { AshedMember } from "@/lib/video/member-matcher";
 import {
   resolveVideoJobAccess,
   videoJobAccessErrorResponse,
 } from "@/lib/video/video-job-access.server";
-import type { VideoProcessTimings } from "@/lib/analytics/video-pipeline";
+import { isVideoProcessTimings } from "@/lib/video/pipeline-stats-display";
+import { resolveJobVideoStorageKey } from "@/lib/video/resolve-job-video-storage";
 import {
   getScoreTarget,
   isMemberRosterVideoTarget,
   toScoreTargetClientMeta,
 } from "@/lib/video/score-targets";
-import { isVideoProcessTimings } from "@/lib/video/pipeline-stats-display";
-import { resolveJobVideoStorageKey } from "@/lib/video/resolve-job-video-storage";
 
 type Props = {
   params: Promise<{ jobId: string }>;
@@ -141,6 +146,7 @@ export async function GET(_request: Request, { params }: Props) {
     let jobAllianceTag: string | null = session.allianceTag;
     let jobAllianceName: string | null = null;
     const allianceIdForJob = job.allianceId ?? parseSession?.allianceId ?? null;
+    let members: AshedMember[] = [];
     if (allianceIdForJob) {
       const [allianceRow] = await db
         .select({
@@ -154,6 +160,17 @@ export async function GET(_request: Request, { params }: Props) {
         jobAllianceTag = allianceRow.tag.trim();
       }
       jobAllianceName = allianceRow?.name ?? null;
+
+      // Local HQ roster for the job's alliance — works on any device without
+      // the viewer's personal Ashed credential (cross-device review).
+      const rosterRows = await listAllianceMembers(allianceIdForJob);
+      members = rosterRows
+        .map(allianceMemberRowToAshedMember)
+        .sort((a, b) =>
+          a.current_name.localeCompare(b.current_name, undefined, {
+            sensitivity: "base",
+          }),
+        );
     }
 
     return NextResponse.json({
@@ -187,6 +204,7 @@ export async function GET(_request: Request, { params }: Props) {
       },
       parseSession,
       rows,
+      members,
     });
   } catch (error) {
     return NextResponse.json(
