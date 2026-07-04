@@ -16,7 +16,6 @@ import {
   deleteDiscordHqLinkForHqUser,
   upsertDiscordHqLink,
 } from "@/lib/vr/repository";
-import { inheritHqMemberLinksToDiscord } from "@/lib/member-link/inherit-hq-to-discord.server";
 
 vi.mock("@/lib/vr/repository", () => ({
   deleteDiscordHqLinkForHqUser: vi.fn(),
