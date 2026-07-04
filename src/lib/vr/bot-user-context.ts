@@ -6,6 +6,7 @@ import {
 } from "@/lib/discord/i18n";
 import { buildDiscordBotGuideUrl } from "@/lib/guides/discord-bot-guide.server";
 import { helpMessageKeyToGuideRole } from "@/lib/guides/discord-bot-guide.shared";
+import { ensureDiscordMemberLinksFromHq } from "@/lib/member-link/inherit-hq-to-discord.server";
 import { allianceHasBotCredentials } from "@/lib/vr/member-roster";
 import {
   callerIsAllianceOwner,
@@ -44,17 +45,29 @@ export async function resolveDiscordBotUserContext(input: {
     ? (await getGuildAllianceId(guildId)) != null
     : false;
 
-  const [alliance, hqLink, userRegisteredCredentials, isPlatformMaintainer, anyLinks, memberLinks] =
+  const [alliance, hqLink, userRegisteredCredentials, isPlatformMaintainer] =
     await Promise.all([
       allianceId ? getAllianceById(allianceId) : Promise.resolve(null),
       getDiscordHqLink(input.discordUserId),
       userRegisteredAllianceCredentials(input.discordUserId),
       callerIsPlatformMaintainerViaDiscord(input.discordUserId),
-      listDiscordLinksForUserAnyAlliance(input.discordUserId),
-      allianceId
-        ? listDiscordLinksForUser(allianceId, input.discordUserId)
-        : Promise.resolve([]),
     ]);
+
+  // Mirror web commanders onto Discord when HQ is linked (covers users who
+  // `/link`ed before inherit shipped). Idempotent when links already exist.
+  if (hqLink) {
+    await ensureDiscordMemberLinksFromHq({
+      discordUserId: input.discordUserId,
+      allianceId: allianceId ?? undefined,
+    });
+  }
+
+  const [anyLinks, memberLinks] = await Promise.all([
+    listDiscordLinksForUserAnyAlliance(input.discordUserId),
+    allianceId
+      ? listDiscordLinksForUser(allianceId, input.discordUserId)
+      : Promise.resolve([]),
+  ]);
 
   const hasCredentials = allianceId
     ? await allianceHasBotCredentials(allianceId)

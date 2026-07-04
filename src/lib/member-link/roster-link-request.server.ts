@@ -93,6 +93,15 @@ export async function getRosterLinkRequestById(requestId: string) {
   return row ?? null;
 }
 
+/** Mark pending roster-link requests for this subject as superseded (and clear inbox). */
+export async function supersedePendingRosterLinkRequests(input: {
+  allianceId: string;
+  hqUserId: string | null;
+  discordUserId?: string | null;
+}): Promise<void> {
+  await supersedePendingRequests(input);
+}
+
 async function supersedePendingRequests(input: {
   allianceId: string;
   hqUserId: string | null;

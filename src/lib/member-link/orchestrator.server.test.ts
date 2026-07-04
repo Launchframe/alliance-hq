@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   runWebMemberLinkPreview,
+  runWebMemberLinkStartOver,
   runWebMemberLinkSubmit,
 } from "./orchestrator.server";
 
@@ -53,6 +54,7 @@ vi.mock("@/lib/member-link/roster-link-request.server", () => ({
   tryBootstrapOwnerColdStartMember: vi.fn().mockResolvedValue(null),
   tryRouteRosterMissToOwnerApproval: vi.fn().mockResolvedValue(null),
   getRosterLinkRequestById: vi.fn(),
+  supersedePendingRosterLinkRequests: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("@/lib/member-link/claim.server", () => ({
@@ -304,5 +306,34 @@ describe("runWebMemberLinkPreview (UID-only confirm step)", () => {
 
     expect(result.outcome).toBe("usage");
     expect(lookup.lookupPlayerByUid).not.toHaveBeenCalled();
+  });
+});
+
+describe("runWebMemberLinkStartOver", () => {
+  beforeEach(() => {
+    vi.mocked(claim.blockSelfServiceWhenClaimPending).mockResolvedValue(null);
+  });
+
+  it("supersedes pending roster-link requests before restarting walkthrough", async () => {
+    const repo = await import("@/lib/member-link/repository.server");
+
+    const result = await runWebMemberLinkStartOver({
+      allianceId: "a1",
+      hqUserId: "u1",
+      locale: "en-US",
+    });
+
+    expect(roster.supersedePendingRosterLinkRequests).toHaveBeenCalledWith({
+      allianceId: "a1",
+      hqUserId: "u1",
+    });
+    expect(repo.saveHqMemberLinkPending).toHaveBeenCalledWith(
+      "a1",
+      "u1",
+      expect.objectContaining({ kind: "link_walkthrough", step: 0 }),
+    );
+    expect(result.pending).toEqual(
+      expect.objectContaining({ kind: "link_walkthrough", step: 0 }),
+    );
   });
 });

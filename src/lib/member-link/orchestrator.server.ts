@@ -23,11 +23,13 @@ import {
   blockSelfServiceWhenClaimPending,
   getMemberLinkClaimTarget,
 } from "@/lib/member-link/claim.server";
+import { tryPreApprovedMemberLink } from "@/lib/member-link/preapproved-link.server";
 import {
   tryBootstrapOwnerColdStartMember,
   tryRouteRosterMissToOwnerApproval,
   getRosterLinkRequestById,
   isOwnerColdStartEligible,
+  supersedePendingRosterLinkRequests,
 } from "@/lib/member-link/roster-link-request.server";
 import {
   createMemberLinkTranslator,
@@ -515,6 +517,27 @@ export async function runWebMemberLinkSubmit(input: {
       return finishMemberLinkSubmit(ctx, bootstrapped);
     }
 
+    // Claim-invite pre-approve is Discord-only here: web submit is blocked earlier
+    // by blockSelfServiceWhenClaimPending when a claim invite is accepted.
+    const preapproved = await tryPreApprovedMemberLink({
+      allianceId: input.allianceId,
+      hqUserId: input.hqUserId,
+      gameUid: uid,
+      lookup,
+      requesterHandle:
+        input.displayName?.trim() || input.userEmail?.trim() || input.hqUserId,
+    });
+    if (preapproved.ok) {
+      return finishMemberLinkSubmit(ctx, {
+        outcome: "linked",
+        message: translate("link.linked", {
+          name: preapproved.target.memberDisplayName,
+        }),
+        pending: null,
+        linkedMemberName: preapproved.target.memberDisplayName,
+      });
+    }
+
     const suggestion = findUniqueSubstringRosterCandidate(
       finalRosterMembers,
       lookup.gameUserName,
@@ -621,6 +644,13 @@ export async function runWebMemberLinkStartOver(input: {
   if (claimBlock) {
     return claimBlock;
   }
+
+  // Drop any pending owner-approval request so the member can submit again and
+  // the owner is not left with a stale inbox/review item they already dismissed.
+  await supersedePendingRosterLinkRequests({
+    allianceId: input.allianceId,
+    hqUserId: input.hqUserId,
+  });
 
   const { translate, walkthroughSteps } = translateContext(input.locale);
   const pending: LinkPendingState = { kind: "link_walkthrough", step: 0 };

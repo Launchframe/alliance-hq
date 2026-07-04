@@ -5,8 +5,13 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { Link, useRouter } from "@/i18n/navigation";
-import { preventDefaultFormSubmit } from "@/lib/client/form-enter-submit.shared";
 import { SegmentedCodeInput } from "@/components/ui/SegmentedCodeInput";
+import {
+  FORM_SUBMIT_ENTER_KEY_HINT,
+  preventDefaultFormSubmit,
+} from "@/lib/client/form-enter-submit.shared";
+import { extractHqInviteToken } from "@/lib/native-alliance/invite-token-from-input.shared";
+import { resolveDiscordPostLinkOnboardingRedirect } from "@/lib/navigation/safe-redirect.shared";
 
 type Props = {
   initialCode?: string;
@@ -39,6 +44,20 @@ export function JoinCodeClient({
       setError(t("codeRequired"));
       return;
     }
+
+    // Commander claim links (and other HQ invites) can be pasted here after
+    // Discord `/link`. Send the user to the invite accept page, then onboard
+    // for UID — claim invites auto-link without owner approval.
+    const inviteToken = extractHqInviteToken(trimmed);
+    if (inviteToken) {
+      const next =
+        redirectToOverride ?? resolveDiscordPostLinkOnboardingRedirect();
+      router.push(
+        `/invite/${encodeURIComponent(inviteToken)}?next=${encodeURIComponent(next)}`,
+      );
+      return;
+    }
+
     setSubmitting(true);
     setError(null);
     try {

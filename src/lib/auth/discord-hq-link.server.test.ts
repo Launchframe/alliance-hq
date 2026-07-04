@@ -11,6 +11,7 @@ import {
   consumeDiscordAuthNonce,
   getValidDiscordAuthNonce,
 } from "@/lib/vr/auth-nonce";
+import { inheritHqMemberLinksToDiscord, revokeHqMirroredDiscordMemberLinks } from "@/lib/member-link/inherit-hq-to-discord.server";
 import {
   deleteDiscordHqLinkForHqUser,
   upsertDiscordHqLink,
@@ -19,6 +20,14 @@ import {
 vi.mock("@/lib/vr/repository", () => ({
   deleteDiscordHqLinkForHqUser: vi.fn(),
   upsertDiscordHqLink: vi.fn(),
+}));
+
+vi.mock("@/lib/member-link/inherit-hq-to-discord.server", () => ({
+  inheritHqMemberLinksToDiscord: vi.fn().mockResolvedValue({
+    inherited: 0,
+    skipped: 0,
+  }),
+  revokeHqMirroredDiscordMemberLinks: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("@/lib/auth/account-linking.server", () => ({
@@ -65,18 +74,32 @@ describe("syncDiscordHqLinkFromOAuthSignIn", () => {
   });
 
   it("clears stale HQ bindings then upserts discord_hq_links", async () => {
-    const where = vi.fn().mockResolvedValue(undefined);
-    const deleteFn = vi.fn().mockReturnValue({ where });
-    vi.mocked(getDb).mockReturnValue({ delete: deleteFn } as never);
+    const staleWhere = vi.fn().mockResolvedValue([
+      { discordUserId: "discord-old" },
+    ]);
+    const deleteWhere = vi.fn().mockResolvedValue(undefined);
+    const select = vi.fn().mockReturnValue({
+      from: vi.fn().mockReturnValue({ where: staleWhere }),
+    });
+    const deleteFn = vi.fn().mockReturnValue({ where: deleteWhere });
+    vi.mocked(getDb).mockReturnValue({ select, delete: deleteFn } as never);
 
     await syncDiscordHqLinkFromOAuthSignIn({
       discordUserId: "  discord-1  ",
       hqUserId: "  hq-1  ",
     });
 
+    expect(revokeHqMirroredDiscordMemberLinks).toHaveBeenCalledWith({
+      discordUserId: "discord-old",
+      hqUserId: "hq-1",
+    });
     expect(deleteFn).toHaveBeenCalled();
-    expect(where).toHaveBeenCalled();
+    expect(deleteWhere).toHaveBeenCalled();
     expect(upsertDiscordHqLink).toHaveBeenCalledWith({
+      discordUserId: "discord-1",
+      hqUserId: "hq-1",
+    });
+    expect(inheritHqMemberLinksToDiscord).toHaveBeenCalledWith({
       discordUserId: "discord-1",
       hqUserId: "hq-1",
     });
@@ -143,22 +166,37 @@ describe("completeDiscordBotHqLink", () => {
       discordUserId: "discord-1",
     } as never);
 
-    const where = vi.fn().mockResolvedValue(undefined);
-    const deleteFn = vi.fn().mockReturnValue({ where });
-    const select = vi.fn().mockReturnValue({
+    const staleWhere = vi.fn().mockResolvedValue([]);
+    const deleteWhere = vi.fn().mockResolvedValue(undefined);
+    const deleteFn = vi.fn().mockReturnValue({ where: deleteWhere });
+    const oauthSelect = vi.fn().mockReturnValue({
       from: vi.fn().mockReturnValue({
         where: vi.fn().mockReturnValue({
           limit: vi.fn().mockResolvedValue([{ providerAccountId: "discord-1" }]),
         }),
       }),
     });
-    vi.mocked(getDb).mockReturnValue({ delete: deleteFn, select } as never);
+    let selectCall = 0;
+    vi.mocked(getDb).mockReturnValue({
+      delete: deleteFn,
+      select: vi.fn().mockImplementation(() => {
+        selectCall += 1;
+        if (selectCall === 1) {
+          return oauthSelect();
+        }
+        return { from: vi.fn().mockReturnValue({ where: staleWhere }) };
+      }),
+    } as never);
 
     expect(
       await completeDiscordBotHqLink({ nonce: "abc", hqUserId: "hq-1" }),
     ).toEqual({ ok: true });
 
     expect(upsertDiscordHqLink).toHaveBeenCalledWith({
+      discordUserId: "discord-1",
+      hqUserId: "hq-1",
+    });
+    expect(inheritHqMemberLinksToDiscord).toHaveBeenCalledWith({
       discordUserId: "discord-1",
       hqUserId: "hq-1",
     });

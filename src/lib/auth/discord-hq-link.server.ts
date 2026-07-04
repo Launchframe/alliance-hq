@@ -4,6 +4,10 @@ import { and, eq, ne } from "drizzle-orm";
 
 import { getDb, schema } from "@/lib/db";
 import {
+  inheritHqMemberLinksToDiscord,
+  revokeHqMirroredDiscordMemberLinks,
+} from "@/lib/member-link/inherit-hq-to-discord.server";
+import {
   consumeDiscordAuthNonce,
   getValidDiscordAuthNonce,
 } from "@/lib/vr/auth-nonce";
@@ -38,6 +42,23 @@ export async function syncDiscordHqLinkFromOAuthSignIn(input: {
   }
 
   const db = getDb();
+  const staleHqLinks = await db
+    .select({ discordUserId: schema.discordHqLinks.discordUserId })
+    .from(schema.discordHqLinks)
+    .where(
+      and(
+        eq(schema.discordHqLinks.hqUserId, hqUserId),
+        ne(schema.discordHqLinks.discordUserId, discordUserId),
+      ),
+    );
+
+  for (const stale of staleHqLinks) {
+    await revokeHqMirroredDiscordMemberLinks({
+      discordUserId: stale.discordUserId,
+      hqUserId,
+    });
+  }
+
   await db
     .delete(schema.discordHqLinks)
     .where(
@@ -48,6 +69,8 @@ export async function syncDiscordHqLinkFromOAuthSignIn(input: {
     );
 
   await upsertDiscordHqLink({ discordUserId, hqUserId });
+  // Web commanders should work on Discord without a second name+UID pass.
+  await inheritHqMemberLinksToDiscord({ discordUserId, hqUserId });
 }
 
 export async function getDiscordProviderAccountIdForHqUser(
