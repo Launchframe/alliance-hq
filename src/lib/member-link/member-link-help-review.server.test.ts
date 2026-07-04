@@ -32,6 +32,7 @@ vi.mock("@/lib/vr/repository", () => ({
 
 vi.mock("@/lib/member-link/unlink.server", () => ({
   unlinkCommanderHqAccount: vi.fn(),
+  unlinkCommanderDiscordLinks: vi.fn(),
 }));
 
 const helpQueue = await import("@/lib/member-link/member-link-help-queue.server");
@@ -130,12 +131,17 @@ describe("unlinkHqMemberLinkBreakGlass", () => {
       target: "hq",
       removed: 1,
     });
+    vi.mocked(unlinkServer.unlinkCommanderDiscordLinks).mockResolvedValue({
+      ok: true,
+      target: "discord",
+      removed: 1,
+    });
     dbModule.chain.limit.mockResolvedValue([
       { ashedMemberId: "m-claimed", currentName: "Claimed Alpha" },
     ]);
   });
 
-  it("unlinks a claimed roster member and records help-context audit", async () => {
+  it("unlinks HQ and Discord bindings and records help-context audit", async () => {
     const result = await unlinkHqMemberLinkBreakGlass({
       requestId: "req-1",
       targetAshedMemberId: "m-claimed",
@@ -145,11 +151,21 @@ describe("unlinkHqMemberLinkBreakGlass", () => {
       notifiedClaimant: true,
     });
 
-    expect(result).toEqual({ ok: true, memberName: "Claimed Alpha" });
+    expect(result).toEqual({
+      ok: true,
+      memberName: "Claimed Alpha",
+      removedHq: true,
+      removedDiscord: true,
+    });
     expect(unlinkServer.unlinkCommanderHqAccount).toHaveBeenCalledWith(
       expect.objectContaining({
         actorHqUserId: "officer-1",
         allianceId: "a1",
+        ashedMemberId: "m-claimed",
+      }),
+    );
+    expect(unlinkServer.unlinkCommanderDiscordLinks).toHaveBeenCalledWith(
+      expect.objectContaining({
         ashedMemberId: "m-claimed",
       }),
     );
@@ -161,10 +177,38 @@ describe("unlinkHqMemberLinkBreakGlass", () => {
     );
   });
 
-  it("rejects when the roster member has no HQ link", async () => {
-    vi.mocked(repository.getHqMemberLinkByAllianceAndMember).mockResolvedValue(
-      null as never,
-    );
+  it("succeeds when only a Discord link remains", async () => {
+    vi.mocked(unlinkServer.unlinkCommanderHqAccount).mockResolvedValue({
+      ok: false,
+      reason: "not_linked",
+    });
+
+    const result = await unlinkHqMemberLinkBreakGlass({
+      requestId: "req-1",
+      targetAshedMemberId: "m-claimed",
+      resolvedByHqUserId: "officer-1",
+      sessionId: "sess-1",
+      allianceId: "a1",
+      notifiedClaimant: true,
+    });
+
+    expect(result).toEqual({
+      ok: true,
+      memberName: "Claimed Alpha",
+      removedHq: false,
+      removedDiscord: true,
+    });
+  });
+
+  it("rejects when the roster member has no HQ or Discord link", async () => {
+    vi.mocked(unlinkServer.unlinkCommanderHqAccount).mockResolvedValue({
+      ok: false,
+      reason: "not_linked",
+    });
+    vi.mocked(unlinkServer.unlinkCommanderDiscordLinks).mockResolvedValue({
+      ok: false,
+      reason: "not_linked",
+    });
 
     const result = await unlinkHqMemberLinkBreakGlass({
       requestId: "req-1",
@@ -176,7 +220,6 @@ describe("unlinkHqMemberLinkBreakGlass", () => {
     });
 
     expect(result).toEqual({ ok: false, reason: "not_linked" });
-    expect(unlinkServer.unlinkCommanderHqAccount).not.toHaveBeenCalled();
   });
 });
 

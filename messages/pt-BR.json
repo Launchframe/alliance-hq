@@ -1450,7 +1450,9 @@
     "errors": {
       "memberAlreadyClaimed": "Esse membro do roster já está reivindicado. Use o painel de mediação para contatar ambas as partes.",
       "hqUserRequired": "Este pedido não tem conta HQ web — vincule manualmente depois que o membro entrar.",
-      "notLinked": "Esse membro do roster não está vinculado a uma conta HQ."
+      "notLinked": "Esse membro do roster não tem vínculo HQ nem Discord para remover.",
+      "alreadyClosed": "Este pedido de ajuda já está fechado.",
+      "memberNotFound": "Esse membro do roster não foi encontrado."
     }
   },
   "settings": {
@@ -1853,6 +1855,7 @@
       "identityLinks": "Vínculos de identidade",
       "hqUser": "Usuário HQ",
       "discord": "Discord",
+      "discordUserFallback": "Usuário Discord …{idSuffix}",
       "unlinkHqButton": "Desvincular conta HQ",
       "unlinkDiscordButton": "Desvincular Discord",
       "unlinkConfirmQuestion": "Desvincular este comandante?",

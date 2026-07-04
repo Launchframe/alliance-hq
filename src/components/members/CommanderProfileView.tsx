@@ -1,12 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { ProfileAvatar } from "@/components/profile/ProfileAvatar";
 import { CopyToClipboardField } from "@/components/ui/CopyToClipboardField";
 import { Link } from "@/i18n/navigation";
 import type { CommanderProfilePayload } from "@/lib/members/commander-profile.shared";
+import {
+  membersListHrefFromFilters,
+  readStoredMembersListFilters,
+} from "@/lib/members/members-list-filters.shared";
 import {
   MAIN_SQUAD_TYPES,
   MAIN_SQUAD_LABEL_KEYS,
@@ -27,6 +31,10 @@ export function CommanderProfileView({ initial }: Props) {
   const t = useTranslations("members.profile");
   const tInvites = useTranslations("team.invites");
   const { member, alliance } = initial;
+  const membersListHref = useMemo(
+    () => membersListHrefFromFilters(readStoredMembersListFilters()),
+    [],
+  );
 
   const [squadValue, setSquadValue] = useState<MainSquadType | "">(member.mainSquad ?? "");
   const [squadSaving, setSquadSaving] = useState(false);
@@ -151,7 +159,7 @@ export function CommanderProfileView({ initial }: Props) {
           </p>
         </div>
         <Link
-          href="/members"
+          href={membersListHref}
           className="rounded-lg border border-[#30363d] px-3 py-1.5 text-sm text-[#c9d1d9] hover:bg-[#161b22]"
         >
           {t("backToMembers")}
@@ -360,7 +368,10 @@ export function CommanderProfileView({ initial }: Props) {
                   <div className="min-w-0">
                     <dt className="text-xs text-[#6e7681]">{t("discord")}</dt>
                     <dd className="text-sm text-[#e6edf3]">
-                      {link.discordUsername ?? link.discordUserId}
+                      {link.discordUsername?.trim() ||
+                        t("discordUserFallback", {
+                          idSuffix: link.discordUserId.slice(-4),
+                        })}
                     </dd>
                   </div>
                   {index === 0 && initial.member.viewerCanBreakGlassUnlink ? (
