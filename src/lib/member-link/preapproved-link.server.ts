@@ -12,12 +12,13 @@ import {
   type ClaimConflictReason,
   surfaceClaimConflict,
 } from "@/lib/member-link/claim.server";
-import { findAcceptedClaimInviteForUser } from "@/lib/native-alliance/invites";
+import {
+  claimTargetMatchesLookupName,
+  findClaimedNameCollision,
+  loadMemberLinkClaimTarget,
+} from "@/lib/member-link/claim-target.server";
 import { reconcileAllianceMemberForRosterLink } from "@/lib/member-link/roster-link-resolve.server";
-import { getDb, schema } from "@/lib/db";
-import { and, eq } from "drizzle-orm";
-import { namesMatch } from "@/lib/vr/link-helpers";
-import { getAllianceById, getLinkedMemberIds } from "@/lib/vr/repository";
+import { getAllianceById } from "@/lib/vr/repository";
 import { syncAllianceMemberGameLevelFromLastWar } from "@/lib/lastwar/sync-member-game-level.server";
 import { isClaimInviteMirrorDevUid } from "@/lib/lastwar/player-lookup";
 
@@ -28,96 +29,12 @@ export type PreApprovedLinkTarget = {
   source: "hq_member_link" | "claim_invite";
 };
 
-type ClaimTargetRecord = {
-  ashedMemberId: string;
-  commanderName: string;
-  previousNames: string[];
-};
-
-async function loadClaimTarget(input: {
-  allianceId: string;
-  hqUserId: string;
-}): Promise<ClaimTargetRecord | null> {
-  const existingLink = await getHqMemberLinkForUser(
-    input.allianceId,
-    input.hqUserId,
-  );
-  if (existingLink) return null;
-
-  const claim = await findAcceptedClaimInviteForUser(
-    input.allianceId,
-    input.hqUserId,
-  );
-  if (!claim) return null;
-
-  const db = getDb();
-  const [member] = await db
-    .select({
-      currentName: schema.allianceMembers.currentName,
-      previousNamesJson: schema.allianceMembers.previousNamesJson,
-      status: schema.allianceMembers.status,
-    })
-    .from(schema.allianceMembers)
-    .where(
-      and(
-        eq(schema.allianceMembers.allianceId, input.allianceId),
-        eq(schema.allianceMembers.ashedMemberId, claim.targetAshedMemberId),
-      ),
-    )
-    .limit(1);
-
-  if (!member || member.status === "former") return null;
-
-  return {
-    ashedMemberId: claim.targetAshedMemberId,
-    commanderName: member.currentName,
-    previousNames: member.previousNamesJson ?? [],
-  };
-}
-
-function claimTargetMatchesLookupName(
-  target: ClaimTargetRecord,
-  gameUserName: string,
-): boolean {
-  return [target.commanderName, ...target.previousNames].some((name) =>
-    namesMatch(name, gameUserName),
-  );
-}
-
-async function findClaimedNameCollision(input: {
-  allianceId: string;
-  gameUserName: string;
-  targetAshedMemberId: string;
-}): Promise<boolean> {
-  const db = getDb();
-  const [linkedIds, members] = await Promise.all([
-    getLinkedMemberIds(input.allianceId),
-    db
-      .select({
-        ashedMemberId: schema.allianceMembers.ashedMemberId,
-        currentName: schema.allianceMembers.currentName,
-        previousNamesJson: schema.allianceMembers.previousNamesJson,
-      })
-      .from(schema.allianceMembers)
-      .where(eq(schema.allianceMembers.allianceId, input.allianceId)),
-  ]);
-
-  for (const member of members) {
-    if (member.ashedMemberId === input.targetAshedMemberId) continue;
-    if (!linkedIds.has(member.ashedMemberId)) continue;
-    const names = [member.currentName, ...(member.previousNamesJson ?? [])];
-    if (names.some((name) => namesMatch(name, input.gameUserName))) {
-      return true;
-    }
-  }
-  return false;
-}
-
 async function notifyClaimConflict(input: {
   allianceId: string;
   hqUserId: string;
   requesterHandle?: string | null;
-  claimTarget: ClaimTargetRecord;
+  commanderName: string;
+  ashedMemberId: string;
   gameUserName: string;
   gameUid: string;
   reason: ClaimConflictReason;
@@ -129,10 +46,10 @@ async function notifyClaimConflict(input: {
     allianceTag: alliance?.tag ?? "alliance",
     hqUserId: input.hqUserId,
     handle,
-    commanderName: input.claimTarget.commanderName,
+    commanderName: input.commanderName,
     gameUserName: input.gameUserName,
     gameUid: input.gameUid,
-    ashedMemberId: input.claimTarget.ashedMemberId,
+    ashedMemberId: input.ashedMemberId,
     reason: input.reason,
   });
 }
@@ -174,7 +91,7 @@ export async function tryPreApprovedMemberLink(input: {
     };
   }
 
-  const claimTarget = await loadClaimTarget({
+  const claimTarget = await loadMemberLinkClaimTarget({
     allianceId: input.allianceId,
     hqUserId: input.hqUserId,
   });
@@ -191,7 +108,8 @@ export async function tryPreApprovedMemberLink(input: {
       allianceId: input.allianceId,
       hqUserId: input.hqUserId,
       requesterHandle: input.requesterHandle,
-      claimTarget,
+      commanderName: claimTarget.commanderName,
+      ashedMemberId: claimTarget.ashedMemberId,
       gameUserName: lookupGameUserName,
       gameUid: uid,
       reason: "target_mismatch",
@@ -200,17 +118,18 @@ export async function tryPreApprovedMemberLink(input: {
   }
 
   if (
-    await findClaimedNameCollision({
+    (await findClaimedNameCollision({
       allianceId: input.allianceId,
       gameUserName: lookupGameUserName,
       targetAshedMemberId: claimTarget.ashedMemberId,
-    })
+    })) != null
   ) {
     await notifyClaimConflict({
       allianceId: input.allianceId,
       hqUserId: input.hqUserId,
       requesterHandle: input.requesterHandle,
-      claimTarget,
+      commanderName: claimTarget.commanderName,
+      ashedMemberId: claimTarget.ashedMemberId,
       gameUserName: lookupGameUserName,
       gameUid: uid,
       reason: "name_collision",
