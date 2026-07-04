@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 
 import {
-  formatBaseVrValidationError,
-  validateBaseVrForSeason,
+  formatInstituteLevelValidationError,
+  validateInstituteLevelForSeason,
 } from "@/lib/vr/validation";
 import {
   listFlaggedSeasonVr,
@@ -53,22 +53,22 @@ export async function POST(request: Request) {
 
   const body = (await request.json()) as {
     ashedMemberId?: string;
-    baseVr?: number;
+    instituteLevel?: number;
     reason?: string;
   };
   const ashedMemberId = body.ashedMemberId?.trim();
-  const baseVr = body.baseVr;
+  const instituteLevel = body.instituteLevel;
   const reason = body.reason?.trim() || "officer correction";
 
-  if (!ashedMemberId || baseVr == null || !Number.isInteger(baseVr)) {
+  if (!ashedMemberId || instituteLevel == null || !Number.isInteger(instituteLevel)) {
     return NextResponse.json({ error: "Invalid override payload." }, { status: 400 });
   }
 
   const seasonKey = await resolveSeasonKey(allianceId);
-  const validated = validateBaseVrForSeason(seasonKey, baseVr);
+  const validated = validateInstituteLevelForSeason(seasonKey, instituteLevel);
   if (!validated.ok) {
     return NextResponse.json(
-      { error: formatBaseVrValidationError(validated) },
+      { error: formatInstituteLevelValidationError(validated) },
       { status: 400 },
     );
   }

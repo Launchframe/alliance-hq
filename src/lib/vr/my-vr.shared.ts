@@ -23,6 +23,8 @@ export type MyVrPayload = {
   seasonMaxVr: number | null;
   currentVr: number | null;
   instituteLevel: number | null;
+  effectiveVr: number | null;
+  weeklyPassBoost: number;
   /** True when the Commander's weekly pass is active (+250 effective VR). */
   weeklyPassActive: boolean | null;
   updatedAt: string | null;
@@ -44,5 +46,7 @@ export type MyVrPostResponse = {
   status: MyVrPostStatus;
   message: string;
   newVr?: number;
+  newInstituteLevel?: number | null;
   proposedVr?: number;
+  proposedInstituteLevel?: number | null;
 };

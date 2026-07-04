@@ -19,13 +19,13 @@ const DISCORD_DESCRIPTION_MAX = 100;
 
 const vrLevelOption = {
   name: "level",
-  description: "Base VR (multiple of 250)",
+  description: "Institute building level (optional)",
   description_localizations: {
-    "pt-BR": "VR base (múltiplo de 250)",
+    "pt-BR": "Nível do edifício do instituto (opcional)",
   },
   type: 4,
-  min_value: 100,
-  max_value: 28000,
+  min_value: 1,
+  max_value: 60,
   required: false,
 };
 
@@ -106,9 +106,9 @@ const commandBody = [
   },
   {
     name: "vr",
-    description: "Bump your base viral resistance (VR) when you level up.",
+    description: "Bump your institute level when you upgrade your building.",
     description_localizations: {
-      "pt-BR": "Atualize seu VR base quando subir de nível.",
+      "pt-BR": "Atualize seu nível do instituto quando subir o edifício.",
     },
     options: [vrLevelOption],
   },

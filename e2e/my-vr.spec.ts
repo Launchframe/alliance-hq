@@ -28,8 +28,9 @@ test.describe("My VR tracker", () => {
     await expect(page.getByTestId("my-vr-hero-value")).toHaveText("100", {
       timeout: 15_000,
     });
+    await expect(page.getByTestId("my-vr-breakdown")).toHaveText("100");
     await expect(page.getByTestId("my-vr-institute-level")).toHaveText(
-      /level\s+1/i,
+      /institute level\s+1/i,
     );
   });
 });

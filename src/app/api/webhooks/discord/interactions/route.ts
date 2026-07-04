@@ -322,11 +322,11 @@ async function handleSlashCommand(payload: DiscordInteractionPayload) {
   }
 
   if (commandName === "vr" || commandName === "immunity") {
-    const explicitLevel = parseVrSlashLevel(payload);
+    const explicitInstituteLevel = parseVrSlashLevel(payload);
     const result = await handleDiscordVrSlash({
       allianceId,
       discordUserId,
-      explicitLevel,
+      explicitInstituteLevel,
       locale,
     });
 

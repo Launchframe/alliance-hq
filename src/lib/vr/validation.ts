@@ -2,6 +2,7 @@ import {
   baseVrForInstituteLevel,
   coerceInstituteLevelFromBaseVr,
   formatBaseVrValidationError,
+  formatInstituteLevelValidationError,
   instituteLevelForBaseVr,
   isValidBaseVrForSeason,
   isValidInstituteLevel,
@@ -12,6 +13,7 @@ import {
   nextInstituteLevel,
   previousInstituteLevel,
   validateBaseVrForSeason,
+  validateInstituteLevelForSeason,
 } from "@/lib/vr/institute-levels.shared";
 
 /** @deprecated Prefer season ladder; kept for Discord option registration ceiling. */
@@ -27,6 +29,7 @@ export {
   baseVrForInstituteLevel,
   coerceInstituteLevelFromBaseVr,
   formatBaseVrValidationError,
+  formatInstituteLevelValidationError,
   instituteLevelForBaseVr,
   isValidBaseVrForSeason,
   isValidInstituteLevel,
@@ -37,6 +40,7 @@ export {
   nextInstituteLevel,
   previousInstituteLevel,
   validateBaseVrForSeason,
+  validateInstituteLevelForSeason,
 };
 
 /** @deprecated Use isValidBaseVrForSeason(seasonKey, vr). */

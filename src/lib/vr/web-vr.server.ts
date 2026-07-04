@@ -6,6 +6,7 @@ import { peerMaxExcludingMember } from "@/lib/vr/anomaly";
 import { processVrCommand, processVrConfirmation } from "@/lib/vr/command";
 import { computeVrPercentile } from "@/lib/vr/percentile";
 import type { MyVrPayload, MyVrPostResponse } from "@/lib/vr/my-vr.shared";
+import { effectiveBaseVr, WEEKLY_PASS_BOOST } from "@/lib/vr/effective-vr.shared";
 import { auditWebVrCommand } from "@/lib/vr/web-vr-audit.server";
 import { vrSeasonLockedMessage } from "@/lib/vr/vr-season-lock.shared";
 import {
@@ -22,8 +23,9 @@ import {
 import type { VrPendingState } from "@/lib/vr/types";
 import {
   coerceInstituteLevelFromBaseVr,
-  formatBaseVrValidationError,
-  validateBaseVrForSeason,
+  formatInstituteLevelValidationError,
+  instituteLevelForBaseVr,
+  validateInstituteLevelForSeason,
 } from "@/lib/vr/validation";
 
 export async function loadMyVrForUser(input: {
@@ -68,6 +70,8 @@ export async function loadMyVrForUser(input: {
       ? coerceInstituteLevelFromBaseVr(season.seasonKey, currentVr)
       : null);
 
+  const passActive = commander?.weeklyPassActive ?? false;
+
   return {
     seasonKey: season.seasonKey,
     isPostSeason: season.isPostSeason,
@@ -77,6 +81,11 @@ export async function loadMyVrForUser(input: {
     seasonMaxVr,
     currentVr,
     instituteLevel,
+    effectiveVr:
+      currentVr != null && currentVr > 0
+        ? effectiveBaseVr(currentVr, passActive)
+        : null,
+    weeklyPassBoost: WEEKLY_PASS_BOOST,
     updatedAt: seasonRow?.updatedAt.toISOString() ?? null,
     commanderName: link.memberDisplayName,
     weeklyPassActive: commander?.weeklyPassActive ?? null,
@@ -99,11 +108,11 @@ export async function handleWebVrCommand(input: {
   allianceId: string;
   hqUserId: string;
   locale: string;
-  explicitLevel?: number | null;
+  explicitInstituteLevel?: number | null;
   confirm?: "yes" | "no" | null;
 }): Promise<MyVrPostResponse | { code: "member_link_required" }> {
   const auditPayload = {
-    explicitLevel: input.explicitLevel ?? null,
+    explicitInstituteLevel: input.explicitInstituteLevel ?? null,
     confirm: input.confirm ?? null,
   };
   const { result, ashedMemberId } = await handleWebVrCommandCore(input);
@@ -127,7 +136,7 @@ async function handleWebVrCommandCore(input: {
   allianceId: string;
   hqUserId: string;
   locale: string;
-  explicitLevel?: number | null;
+  explicitInstituteLevel?: number | null;
   confirm?: "yes" | "no" | null;
 }): Promise<WebVrCommandCoreOutcome> {
   const link = await getHqMemberLinkForUser(input.allianceId, input.hqUserId);
@@ -175,24 +184,26 @@ async function handleWebVrCommandCore(input: {
   ]);
   const peerMax = peerMaxExcludingMember(seasonRows, link.ashedMemberId);
 
-  if (input.explicitLevel != null) {
-    const validated = validateBaseVrForSeason(
+  let explicitBaseVr: number | undefined;
+  if (input.explicitInstituteLevel != null) {
+    const validated = validateInstituteLevelForSeason(
       season.seasonKey,
-      input.explicitLevel,
+      input.explicitInstituteLevel,
     );
     if (!validated.ok) {
       return {
         result: {
           status: "validation_error",
-          message: formatBaseVrValidationError(validated),
+          message: formatInstituteLevelValidationError(validated),
         },
         ashedMemberId: link.ashedMemberId,
       };
     }
+    explicitBaseVr = validated.baseVr;
   }
 
   const result = processVrCommand({
-    explicitLevel: input.explicitLevel,
+    explicitLevel: explicitBaseVr,
     seasonHigh,
     ashedMemberId: link.ashedMemberId,
     pending: pending as VrPendingState | null,
@@ -220,6 +231,10 @@ async function handleWebVrCommandCore(input: {
         status: "set_vr",
         message: result.reply,
         newVr: result.action.vr,
+        newInstituteLevel: instituteLevelForBaseVr(
+          season.seasonKey,
+          result.action.vr,
+        ),
       },
       ashedMemberId: link.ashedMemberId,
     };
@@ -231,6 +246,10 @@ async function handleWebVrCommandCore(input: {
         status: "anomaly_confirm",
         message: result.reply,
         proposedVr: result.proposedVr,
+        proposedInstituteLevel: instituteLevelForBaseVr(
+          season.seasonKey,
+          result.proposedVr,
+        ),
       },
       ashedMemberId: link.ashedMemberId,
     };
@@ -273,6 +292,7 @@ async function handleWebVrConfirm(input: {
     answer: input.answer,
     pending,
     translate: input.translate,
+    seasonKey: input.seasonKey,
   });
   await saveHqVrPending(input.allianceId, input.hqUserId, result.pending);
 
@@ -291,6 +311,10 @@ async function handleWebVrConfirm(input: {
       status: "set_vr",
       message: result.reply,
       newVr: result.action.vr,
+      newInstituteLevel: instituteLevelForBaseVr(
+        input.seasonKey,
+        result.action.vr,
+      ),
     };
   }
 

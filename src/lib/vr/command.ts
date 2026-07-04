@@ -4,8 +4,9 @@ import type { VrCommandResult, VrPendingState } from "@/lib/vr/types";
 import {
   formatBaseVrValidationError,
   initialBaseVrForBump,
+  instituteLevelForBaseVr,
   maxAllowedDowngradeForSeason,
-  maxBaseVrForSeason,
+  maxInstituteLevel,
   nextBaseVrForSeason,
   validateBaseVrForSeason,
 } from "@/lib/vr/validation";
@@ -25,7 +26,12 @@ export type ProcessVrConfirmationInput = {
   answer: "yes" | "no";
   pending: VrPendingState;
   translate: DiscordTranslate;
+  seasonKey: string;
 };
+
+function instituteLevelLabel(seasonKey: string, baseVr: number): number | string {
+  return instituteLevelForBaseVr(seasonKey, baseVr) ?? "?";
+}
 
 function applyExplicitLevel(
   value: number,
@@ -41,6 +47,8 @@ function applyExplicitLevel(
     };
   }
 
+  const level = instituteLevelLabel(seasonKey, value);
+
   if (
     shouldAnomalyConfirm({
       proposedVr: value,
@@ -49,7 +57,7 @@ function applyExplicitLevel(
     })
   ) {
     return {
-      reply: t("vr.anomalyConfirm", { vr: value }),
+      reply: t("vr.anomalyConfirm", { level, vr: value }),
       pending: {
         kind: "anomaly_confirm",
         proposedVr: value,
@@ -62,7 +70,7 @@ function applyExplicitLevel(
   }
 
   return {
-    reply: t("vr.success", { vr: value }),
+    reply: t("vr.success", { level, effectiveVr: value }),
     pending: null,
     action: {
       type: "set_vr",
@@ -74,11 +82,12 @@ function applyExplicitLevel(
 
 export function processVrCommand(input: ProcessVrCommandInput): VrCommandResult {
   const { explicitLevel, seasonHigh, pending, translate: t, seasonKey } = input;
-  const maxVr = maxBaseVrForSeason(seasonKey);
 
   if (pending?.kind === "anomaly_confirm" && explicitLevel == null) {
     return {
-      reply: t("vr.stillWaiting", { vr: pending.proposedVr }),
+      reply: t("vr.stillWaiting", {
+        level: instituteLevelLabel(seasonKey, pending.proposedVr),
+      }),
       pending,
       action: { type: "none" },
       needsConfirmation: true,
@@ -105,7 +114,7 @@ export function processVrCommand(input: ProcessVrCommandInput): VrCommandResult 
       : nextBaseVrForSeason(seasonKey, current);
   if (next == null) {
     return {
-      reply: t("vr.maxVr", { max: maxVr }),
+      reply: t("vr.maxVr", { maxLevel: maxInstituteLevel(seasonKey) }),
       pending: null,
       action: { type: "none" },
     };
@@ -120,7 +129,7 @@ export function processVrCommand(input: ProcessVrCommandInput): VrCommandResult 
 export function processVrConfirmation(
   input: ProcessVrConfirmationInput,
 ): VrCommandResult {
-  const { answer, pending, translate: t } = input;
+  const { answer, pending, translate: t, seasonKey } = input;
   if (pending.kind !== "anomaly_confirm") {
     return {
       reply: t("errors.nothingPending"),
@@ -137,8 +146,9 @@ export function processVrConfirmation(
     };
   }
 
+  const level = instituteLevelLabel(seasonKey, pending.proposedVr);
   return {
-    reply: t("vr.success", { vr: pending.proposedVr }),
+    reply: t("vr.success", { level, effectiveVr: pending.proposedVr }),
     pending: null,
     action: {
       type: "set_vr",

@@ -71,8 +71,8 @@ export function ViralResistanceView({ initial, officer: initialOfficer }: Props)
   }, [officer, t]);
 
   const submitOverride = async () => {
-    const baseVr = Number.parseInt(overrideVr, 10);
-    if (!overrideMemberId.trim() || !Number.isFinite(baseVr)) {
+    const instituteLevel = Number.parseInt(overrideVr, 10);
+    if (!overrideMemberId.trim() || !Number.isFinite(instituteLevel)) {
       setOverrideMessage(t("officer.invalid"));
       return;
     }
@@ -84,7 +84,7 @@ export function ViralResistanceView({ initial, officer: initialOfficer }: Props)
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ashedMemberId: overrideMemberId.trim(),
-          baseVr,
+          instituteLevel,
           reason: overrideReason.trim() || undefined,
         }),
       });

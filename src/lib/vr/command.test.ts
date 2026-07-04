@@ -46,7 +46,7 @@ describe("processVrCommand", () => {
       seasonHigh: 3400,
       explicitLevel: 2750,
     });
-    expect(result.reply).toMatch(/one institute level/i);
+    expect(result.reply).toMatch(/more than one below/i);
   });
 
   it("prompts anomaly confirm when far above peers", () => {
@@ -78,7 +78,7 @@ describe("processVrCommand", () => {
       peerMax: 9900,
     });
     expect(over.action).toEqual({ type: "none" });
-    expect(over.reply).toMatch(/10000/);
+    expect(over.reply).toMatch(/max institute level \(30\)/i);
   });
 });
 
@@ -92,6 +92,7 @@ describe("processVrConfirmation", () => {
         ashedMemberId: "member-1",
       },
       translate,
+      seasonKey: "1",
     });
     expect(result.action).toMatchObject({ type: "set_vr", vr: 8000 });
   });

@@ -11,6 +11,7 @@ import { syncAllianceMemberGameLevelFromLastWar } from "@/lib/lastwar/sync-membe
 import { peerMaxExcludingMember } from "@/lib/vr/anomaly";
 import { MAX_DISCORD_LINKS_PER_USER } from "@/lib/vr/constants";
 import { processVrCommand, processVrConfirmation } from "@/lib/vr/command";
+import { effectiveBaseVr } from "@/lib/vr/effective-vr.shared";
 import {
   processLinkCommand,
   processLinkFuzzyPick,
@@ -31,6 +32,11 @@ import {
   withVrSandboxDiscordNotice,
   type VrSeasonContext,
 } from "@/lib/vr/vr-season-lock.shared";
+import {
+  formatInstituteLevelValidationError,
+  instituteLevelForBaseVr,
+  validateInstituteLevelForSeason,
+} from "@/lib/vr/validation";
 import {
   countSeasonReporters,
   getAllianceById,
@@ -639,7 +645,7 @@ async function resolveTargetLink(input: {
 export async function handleDiscordVrSlash(input: {
   allianceId: string;
   discordUserId: string;
-  explicitLevel?: number | null;
+  explicitInstituteLevel?: number | null;
   linkId?: string | null;
   locale: DiscordBotLocale;
 }): Promise<VrCommandResult> {
@@ -701,8 +707,26 @@ export async function handleDiscordVrSlash(input: {
   ]);
   const peerMax = peerMaxExcludingMember(seasonRows, target.ashedMemberId);
 
+  let explicitBaseVr: number | undefined;
+  if (input.explicitInstituteLevel != null) {
+    const validated = validateInstituteLevelForSeason(
+      seasonKey,
+      input.explicitInstituteLevel,
+    );
+    if (!validated.ok) {
+      const result: VrCommandResult = {
+        reply: formatInstituteLevelValidationError(validated),
+        pending,
+        action: { type: "none" as const },
+      };
+      await audit(input.allianceId, input.discordUserId, "vr", input, result);
+      return applyVrSandboxReply(result, season, translate);
+    }
+    explicitBaseVr = validated.baseVr;
+  }
+
   const result = processVrCommand({
-    explicitLevel: input.explicitLevel,
+    explicitLevel: explicitBaseVr,
     seasonHigh,
     ashedMemberId: target.ashedMemberId,
     pending,
@@ -725,6 +749,20 @@ export async function handleDiscordVrSlash(input: {
       eventSource: "discord",
     });
     await saveDiscordBotPending(input.allianceId, input.discordUserId, null);
+    const commander = await getCommanderByAshedMemberId(
+      target.ashedMemberId,
+      input.allianceId,
+    );
+    const instituteLevel =
+      instituteLevelForBaseVr(seasonKey, result.action.vr) ?? "?";
+    const effectiveVr = effectiveBaseVr(
+      result.action.vr,
+      commander?.weeklyPassActive ?? false,
+    );
+    result.reply = translate("vr.success", {
+      level: instituteLevel,
+      effectiveVr,
+    });
   }
 
   await audit(input.allianceId, input.discordUserId, "vr", input, result);
@@ -923,7 +961,12 @@ export async function handleDiscordVrButtonConfirm(input: {
     return result;
   }
 
-  const result = processVrConfirmation({ answer: input.answer, pending, translate });
+  const result = processVrConfirmation({
+    answer: input.answer,
+    pending,
+    translate,
+    seasonKey: season.seasonKey,
+  });
   await saveDiscordBotPending(input.allianceId, input.discordUserId, result.pending);
 
   if (result.action.type === "set_vr") {
@@ -938,6 +981,20 @@ export async function handleDiscordVrButtonConfirm(input: {
       eventSource: "discord",
     });
     await saveDiscordBotPending(input.allianceId, input.discordUserId, null);
+    const commander = await getCommanderByAshedMemberId(
+      result.action.ashedMemberId,
+      input.allianceId,
+    );
+    const instituteLevel =
+      instituteLevelForBaseVr(seasonKey, result.action.vr) ?? "?";
+    const effectiveVr = effectiveBaseVr(
+      result.action.vr,
+      commander?.weeklyPassActive ?? false,
+    );
+    result.reply = translate("vr.success", {
+      level: instituteLevel,
+      effectiveVr,
+    });
   }
 
   await audit(input.allianceId, input.discordUserId, "vr_confirm", input, result);

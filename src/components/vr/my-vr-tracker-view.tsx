@@ -5,9 +5,10 @@ import { useCallback, useState } from "react";
 
 import { fireCelebrationConfetti } from "@/lib/client/celebration-confetti";
 import type { MyVrPayload, MyVrPostResponse } from "@/lib/vr/my-vr.shared";
+import { effectiveBaseVr } from "@/lib/vr/effective-vr.shared";
 import {
   coerceInstituteLevelFromBaseVr,
-  minBaseVrForSeason,
+  maxInstituteLevel,
 } from "@/lib/vr/validation";
 import { Dialog } from "@/components/ui/dialog";
 import {
@@ -30,12 +31,16 @@ export function MyVrTrackerView({ initial }: Props) {
   const [tab, setTab] = useState<TabId>("now");
   const [percentileOpen, setPercentileOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [passBusy, setPassBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [setDialogOpen, setSetDialogOpen] = useState(false);
   const [setLevelDraft, setSetLevelDraft] = useState("");
   const [anomalyOpen, setAnomalyOpen] = useState(false);
   const [anomalyMessage, setAnomalyMessage] = useState("");
   const [anomalyProposed, setAnomalyProposed] = useState<number | null>(null);
+  const [anomalyProposedLevel, setAnomalyProposedLevel] = useState<number | null>(
+    null,
+  );
 
   const refresh = useCallback(async () => {
     const res = await fetch("/api/vr/me");
@@ -49,15 +54,16 @@ export function MyVrTrackerView({ initial }: Props) {
   const onVrUpdated = useCallback(
     async (newVr: number) => {
       fireCelebrationConfetti();
-      // Refresh from server first so weeklyPassActive and other fields are current.
       await refresh();
-      // Optimistically apply the new VR and its derived institute level,
-      // preserving all other server-returned fields (including weeklyPassActive).
-      setData((prev) => ({
-        ...prev,
-        currentVr: newVr,
-        instituteLevel: coerceInstituteLevelFromBaseVr(prev.seasonKey, newVr),
-      }));
+      setData((prev) => {
+        const pass = prev.weeklyPassActive ?? false;
+        return {
+          ...prev,
+          currentVr: newVr,
+          instituteLevel: coerceInstituteLevelFromBaseVr(prev.seasonKey, newVr),
+          effectiveVr: effectiveBaseVr(newVr, pass),
+        };
+      });
     },
     [refresh],
   );
@@ -88,8 +94,14 @@ export function MyVrTrackerView({ initial }: Props) {
       if (payload.status === "anomaly_confirm" && payload.proposedVr != null) {
         setAnomalyMessage(payload.message);
         setAnomalyProposed(payload.proposedVr);
+        setAnomalyProposedLevel(payload.proposedInstituteLevel ?? null);
         setAnomalyOpen(true);
         setSetDialogOpen(false);
+        return;
+      }
+
+      if (payload.status === "validation_error") {
+        setError(payload.message);
         return;
       }
 
@@ -122,15 +134,39 @@ export function MyVrTrackerView({ initial }: Props) {
       setError(t("updateFailed"));
       return;
     }
-    void postVr({ level });
+    void postVr({ instituteLevel: level });
+  };
+
+  const toggleWeeklyPass = async (active: boolean) => {
+    setPassBusy(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/vr/weekly-pass", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ active }),
+      });
+      const payload = (await res.json()) as { error?: string };
+      if (!res.ok) {
+        setError(payload.error ?? t("weeklyPassUpdateFailed"));
+        return;
+      }
+      await refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t("weeklyPassUpdateFailed"));
+    } finally {
+      setPassBusy(false);
+    }
   };
 
   const confirmAnomaly = (answer: "yes" | "no") => {
     void postVr({ confirm: answer });
   };
 
-  const displayVr = data.currentVr ?? 0;
-  const hasReported = data.currentVr != null && data.currentVr > 0;
+  const baseVr = data.currentVr;
+  const heroVr = data.effectiveVr;
+  const hasReported = baseVr != null && baseVr > 0;
+  const maxLevel = maxInstituteLevel(data.seasonKey);
   const updatesLocked = data.vrUpdatesLocked;
   const seasonLabelText = data.vrSandboxActive
     ? t("sandboxSeasonLabel")
@@ -208,27 +244,29 @@ export function MyVrTrackerView({ initial }: Props) {
         <section className="space-y-6" role="tabpanel">
           <div className="rounded-2xl border border-[#30363d] bg-gradient-to-b from-[#161b22] to-[#0d1117] px-6 py-10 text-center">
             <p className="text-xs font-medium uppercase tracking-widest text-[#8b949e]">
-              {t("currentVrLabel")}
+              {t("effectiveVrLabel")}
             </p>
-            <div className="mt-3 flex items-center justify-center gap-3">
+            <p
+              className="mt-3 font-mono text-5xl font-bold tabular-nums text-[#e6edf3] sm:text-6xl"
+              data-testid="my-vr-hero-value"
+            >
+              {hasReported && heroVr != null ? heroVr : "—"}
+            </p>
+            {hasReported && baseVr != null ? (
               <p
-                className="font-mono text-5xl font-bold tabular-nums text-[#e6edf3] sm:text-6xl"
-                data-testid="my-vr-hero-value"
+                className="mt-2 font-mono text-sm text-[#8b949e]"
+                data-testid="my-vr-breakdown"
               >
-                {hasReported ? displayVr : "—"}
+                {data.weeklyPassActive
+                  ? t("vrBreakdownWithPass", {
+                      base: baseVr,
+                      pass: data.weeklyPassBoost,
+                    })
+                  : t("vrBreakdownBaseOnly", { base: baseVr })}
               </p>
-              {hasReported && data.weeklyPassActive ? (
-                <span
-                  className="rounded-full bg-[#1f6feb]/20 px-2.5 py-1 font-mono text-sm font-semibold text-[#58a6ff] ring-1 ring-inset ring-[#388bfd]/40"
-                  data-testid="my-vr-weekly-pass-badge"
-                  aria-label="+250 weekly pass active"
-                >
-                  +250
-                </span>
-              ) : null}
-            </div>
+            ) : null}
             {hasReported && data.instituteLevel != null ? (
-              <p className="mt-2 text-sm text-[#8b949e]" data-testid="my-vr-institute-level">
+              <p className="mt-1 text-sm text-[#6e7681]" data-testid="my-vr-institute-level">
                 {t("levelLine", { level: data.instituteLevel })}
               </p>
             ) : null}
@@ -236,6 +274,23 @@ export function MyVrTrackerView({ initial }: Props) {
               <p className="mt-2 text-sm text-[#8b949e]">{t("notReportedYet")}</p>
             ) : null}
           </div>
+
+          {hasReported ? (
+            <label className="flex items-center justify-between gap-3 rounded-xl border border-[#30363d] bg-[#161b22] px-4 py-3">
+              <span className="min-w-0 text-sm text-[#c9d1d9]">
+                {t("weeklyPassLabel")}
+              </span>
+              <input
+                type="checkbox"
+                checked={data.weeklyPassActive ?? false}
+                disabled={busy || passBusy || updatesLocked}
+                onChange={(e) => void toggleWeeklyPass(e.target.checked)}
+                className="h-4 w-4 shrink-0 rounded border-[#30363d] bg-[#0d1117] accent-[#238636]"
+                data-testid="my-vr-weekly-pass-toggle"
+                aria-label={t("weeklyPassLabel")}
+              />
+            </label>
+          ) : null}
 
           <div className="flex flex-col gap-2 sm:flex-row">
             <button
@@ -253,9 +308,9 @@ export function MyVrTrackerView({ initial }: Props) {
               disabled={busy || updatesLocked}
               onClick={() => {
                 setSetLevelDraft(
-                  hasReported
-                    ? String(displayVr)
-                    : String(minBaseVrForSeason(data.seasonKey)),
+                  hasReported && data.instituteLevel != null
+                    ? String(data.instituteLevel)
+                    : "1",
                 );
                 setSetDialogOpen(true);
               }}
@@ -346,7 +401,8 @@ export function MyVrTrackerView({ initial }: Props) {
             <input
               type="number"
               step={1}
-              min={minBaseVrForSeason(data.seasonKey)}
+              min={1}
+              max={maxLevel}
               value={setLevelDraft}
               onChange={(e) => setSetLevelDraft(e.target.value)}
               enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT}
@@ -377,8 +433,20 @@ export function MyVrTrackerView({ initial }: Props) {
         <div className="relative z-[101] w-full max-w-md space-y-4 rounded-xl border border-[#30363d] bg-[#161b22] p-5 shadow-xl">
           <h2 className="text-lg font-semibold text-[#e6edf3]">{t("anomalyTitle")}</h2>
           <p className="text-sm text-[#8b949e]">{anomalyMessage}</p>
+          {anomalyProposedLevel != null ? (
+            <p className="font-mono text-lg text-[#8b949e]">
+              {t("levelLine", { level: anomalyProposedLevel })}
+            </p>
+          ) : null}
           {anomalyProposed != null ? (
-            <p className="font-mono text-2xl font-bold text-[#e6edf3]">{anomalyProposed}</p>
+            <p className="font-mono text-2xl font-bold text-[#e6edf3]">
+              {data.weeklyPassActive
+                ? t("vrBreakdownWithPass", {
+                    base: anomalyProposed,
+                    pass: data.weeklyPassBoost,
+                  })
+                : t("vrBreakdownBaseOnly", { base: anomalyProposed })}
+            </p>
           ) : null}
           <div className="flex flex-col gap-2 sm:flex-row-reverse">
             <button

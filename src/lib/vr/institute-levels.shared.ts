@@ -211,6 +211,40 @@ export function formatBaseVrValidationError(
   return `Base VR must match an institute level. Nearest valid values: ${result.lower} and ${result.upper}.`;
 }
 
+export type InstituteLevelValidationResult =
+  | { ok: true; instituteLevel: number; baseVr: number }
+  | {
+      ok: false;
+      kind: "out_of_range";
+      min: number;
+      max: number;
+    };
+
+export function validateInstituteLevelForSeason(
+  seasonKey: string,
+  instituteLevel: number,
+): InstituteLevelValidationResult {
+  const min = minInstituteLevel();
+  const max = maxInstituteLevel(seasonKey);
+  if (!Number.isFinite(instituteLevel) || !Number.isInteger(instituteLevel)) {
+    return { ok: false, kind: "out_of_range", min, max };
+  }
+  if (instituteLevel < min || instituteLevel > max) {
+    return { ok: false, kind: "out_of_range", min, max };
+  }
+  const baseVr = baseVrForInstituteLevel(seasonKey, instituteLevel);
+  if (baseVr == null) {
+    return { ok: false, kind: "out_of_range", min, max };
+  }
+  return { ok: true, instituteLevel, baseVr };
+}
+
+export function formatInstituteLevelValidationError(
+  result: Extract<InstituteLevelValidationResult, { ok: false }>,
+): string {
+  return `Enter an institute level between ${result.min} and ${result.max}.`;
+}
+
 /** Best-effort level for legacy rows that only stored VR. */
 export function coerceInstituteLevelFromBaseVr(
   seasonKey: string,

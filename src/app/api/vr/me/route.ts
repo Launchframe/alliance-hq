@@ -41,7 +41,7 @@ export async function POST(request: Request) {
   }
 
   const body = (await request.json()) as {
-    level?: number | null;
+    instituteLevel?: number | null;
     confirm?: "yes" | "no" | null;
   };
 
@@ -51,7 +51,7 @@ export async function POST(request: Request) {
     allianceId,
     hqUserId: session.hqUserId,
     locale,
-    explicitLevel: body.level,
+    explicitInstituteLevel: body.instituteLevel,
     confirm: body.confirm,
   });
 

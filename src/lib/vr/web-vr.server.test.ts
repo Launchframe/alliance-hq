@@ -169,7 +169,7 @@ describe("handleWebVrCommand", () => {
       allianceId: "alliance-1",
       hqUserId: "hq-1",
       locale: "en-US",
-      explicitLevel: 5000,
+      explicitInstituteLevel: 20,
     });
 
     expect(result).toMatchObject({ status: "set_vr", newVr: 5000 });
@@ -229,6 +229,8 @@ describe("loadMyVrForUser", () => {
       priorSeason: "4",
       seasonMaxVr: 500,
       currentVr: 500,
+      effectiveVr: 500,
+      weeklyPassBoost: 250,
       instituteLevel: 5,
       commanderName: "Tester",
       weeklyPassActive: false,
