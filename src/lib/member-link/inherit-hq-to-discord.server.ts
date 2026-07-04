@@ -3,11 +3,6 @@ import "server-only";
 import { and, eq } from "drizzle-orm";
 
 import { getDb, schema } from "@/lib/db";
-import {
-  getDiscordHqLink,
-  getDiscordHqLinkByHqUserId,
-  linkDiscordMember,
-} from "@/lib/vr/repository";
 
 export type InheritHqMemberLinksResult = {
   inherited: number;
@@ -31,6 +26,8 @@ export async function inheritHqMemberLinksToDiscord(input: {
   if (!discordUserId || !hqUserId) {
     return { inherited: 0, skipped: 0 };
   }
+
+  const { linkDiscordMember } = await import("@/lib/vr/repository");
 
   const db = getDb();
   const conditions = [eq(schema.hqMemberLinks.hqUserId, hqUserId)];
@@ -84,6 +81,7 @@ export async function ensureDiscordMemberLinksFromHq(input: {
   discordUserId: string;
   allianceId?: string;
 }): Promise<InheritHqMemberLinksResult> {
+  const { getDiscordHqLink } = await import("@/lib/vr/repository");
   const hqLink = await getDiscordHqLink(input.discordUserId);
   if (!hqLink) {
     return { inherited: 0, skipped: 0 };
@@ -106,6 +104,9 @@ export async function inheritHqMemberLinkToDiscordIfLinked(input: {
   memberDisplayName?: string | null;
   gameUid: string;
 }): Promise<boolean> {
+  const { getDiscordHqLinkByHqUserId, linkDiscordMember } = await import(
+    "@/lib/vr/repository"
+  );
   const hqLink = await getDiscordHqLinkByHqUserId(input.hqUserId);
   if (!hqLink) {
     return false;
