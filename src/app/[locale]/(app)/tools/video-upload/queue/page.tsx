@@ -3,7 +3,10 @@ import { getLocale, getTranslations } from "next-intl/server";
 import { redirect } from "@/i18n/navigation";
 import { resolveSessionAllianceId } from "@/lib/alliance/session-memberships";
 import { getAshedConnection, requirePageSession } from "@/lib/session";
-import { loadAllianceHqOcrOnly } from "@/lib/video/alliance-ocr-settings.server";
+import {
+  isAllianceHqOcrOnlyLockedOnDeploy,
+  loadEffectiveAllianceHqOcrOnly,
+} from "@/lib/video/alliance-ocr-settings.server";
 import { videoOcrRequiresAshedConnection } from "@/lib/video/ocr-provider.shared";
 import {
   sessionCanProcessVideo,
@@ -26,11 +29,12 @@ export default async function VideoQueuePage() {
 
   const allianceId = resolveSessionAllianceId(session);
 
-  const [jobs, canProcess, connection, hqOcrOnly] = await Promise.all([
+  const [jobs, canProcess, connection, hqOcrOnly, hqOcrOnlyLocked] = await Promise.all([
     listVideoQueueJobsForSession(session.id),
     sessionCanProcessVideo(session.id),
     getAshedConnection(session.id),
-    allianceId ? loadAllianceHqOcrOnly(allianceId) : Promise.resolve(false),
+    allianceId ? loadEffectiveAllianceHqOcrOnly(allianceId) : Promise.resolve(false),
+    Promise.resolve(isAllianceHqOcrOnlyLockedOnDeploy()),
   ]);
 
   const connectUrl = `/connect?next=${encodeURIComponent("/tools/video-upload/queue")}`;
@@ -50,6 +54,7 @@ export default async function VideoQueuePage() {
         ashedConnected={Boolean(connection)}
         envRequiresAshed={envRequiresAshed}
         initialHqOcrOnly={hqOcrOnly}
+        initialHqOcrOnlyLocked={hqOcrOnlyLocked}
         connectUrl={connectUrl}
       />
     </div>
