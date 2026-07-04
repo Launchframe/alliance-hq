@@ -9,7 +9,10 @@ import {
   sessionCanAccessAllianceVideoJob,
   sessionCanProcessVideoForAlliance,
 } from "@/lib/video/processor-slots.server";
-import { isVideoJobOwningHqUser } from "@/lib/video/video-job-access.shared";
+import {
+  isVideoJobAccessibleViaSession,
+  isVideoJobOwningHqUser,
+} from "@/lib/video/video-job-access.shared";
 
 export type VideoJobAccessLevel = "read" | "mutate" | "process";
 
@@ -42,7 +45,11 @@ export async function resolveVideoJobAccess(
     return { ok: false, status: 403 };
   }
 
-  const isUploaderSession = job.sessionId === sessionId;
+  const isUploaderSession = isVideoJobAccessibleViaSession(
+    sessionId,
+    session.hqUserId,
+    job,
+  );
   const isOwningHqUser = isVideoJobOwningHqUser(session.hqUserId, job);
 
   if (!job.allianceId) {
@@ -101,8 +108,8 @@ export async function resolveVideoJobUploaderAccess(
   }
 
   if (
-    job.sessionId === sessionId ||
-    isVideoJobOwningHqUser(session.hqUserId, job)
+    isVideoJobOwningHqUser(session.hqUserId, job) ||
+    isVideoJobAccessibleViaSession(sessionId, session.hqUserId, job)
   ) {
     return { ok: true, job };
   }

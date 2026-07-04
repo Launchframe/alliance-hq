@@ -15,6 +15,32 @@ export function isVideoJobOwningHqUser(
   );
 }
 
+/**
+ * Session-scoped access that respects HQ attribution. Legacy viewers (no HQ user)
+ * keep session-only access; authenticated viewers only inherit session jobs that
+ * are unattributed or owned by their HQ user (avoids leaks on reused browser sessions).
+ */
+export function isVideoJobAccessibleViaSession(
+  sessionId: string,
+  sessionHqUserId: string | null | undefined,
+  job: {
+    sessionId: string;
+    hqUserId?: string | null;
+    enqueuedByHqUserId?: string | null;
+  },
+): boolean {
+  if (job.sessionId !== sessionId) {
+    return false;
+  }
+  if (!sessionHqUserId) {
+    return true;
+  }
+  if (!job.enqueuedByHqUserId && !job.hqUserId) {
+    return true;
+  }
+  return isVideoJobOwningHqUser(sessionHqUserId, job);
+}
+
 /** Owner fields for SSE payloads so other devices for the same HQ user receive events. */
 export function videoJobStatusOwnerFields(job: {
   sessionId: string;
@@ -45,8 +71,8 @@ export function isVideoJobStatusEventForViewer(
   sessionId: string,
   hqUserId: string | null | undefined,
 ): boolean {
-  if (event.sessionId === sessionId) {
+  if (isVideoJobOwningHqUser(hqUserId, event)) {
     return true;
   }
-  return isVideoJobOwningHqUser(hqUserId, event);
+  return isVideoJobAccessibleViaSession(sessionId, hqUserId, event);
 }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  isVideoJobAccessibleViaSession,
   isVideoJobOwningHqUser,
   isVideoJobStatusEventForViewer,
 } from "@/lib/video/video-job-access.shared";
@@ -30,6 +31,45 @@ describe("isVideoJobOwningHqUser", () => {
         enqueuedByHqUserId: "user-a",
       }),
     ).toBe(false);
+  });
+});
+
+describe("isVideoJobAccessibleViaSession", () => {
+  it("allows legacy session-only viewers", () => {
+    expect(
+      isVideoJobAccessibleViaSession("s1", null, {
+        sessionId: "s1",
+        enqueuedByHqUserId: "user-a",
+      }),
+    ).toBe(true);
+  });
+
+  it("denies attributed jobs to a different HQ user on the same session", () => {
+    expect(
+      isVideoJobAccessibleViaSession("shared", "user-b", {
+        sessionId: "shared",
+        enqueuedByHqUserId: "user-a",
+      }),
+    ).toBe(false);
+  });
+
+  it("allows the owning HQ user on the uploading session", () => {
+    expect(
+      isVideoJobAccessibleViaSession("s1", "user-a", {
+        sessionId: "s1",
+        enqueuedByHqUserId: "user-a",
+      }),
+    ).toBe(true);
+  });
+
+  it("allows unattributed jobs on the session for authenticated viewers", () => {
+    expect(
+      isVideoJobAccessibleViaSession("s1", "user-a", {
+        sessionId: "s1",
+        enqueuedByHqUserId: null,
+        hqUserId: null,
+      }),
+    ).toBe(true);
   });
 });
 
@@ -63,6 +103,36 @@ describe("isVideoJobStatusEventForViewer", () => {
       isVideoJobStatusEventForViewer(
         { sessionId: "phone", enqueuedByHqUserId: "user-a" },
         "laptop",
+        "user-b",
+      ),
+    ).toBe(false);
+  });
+
+  it("allows the same browser session when hqUserId is null (legacy)", () => {
+    expect(
+      isVideoJobStatusEventForViewer(
+        { sessionId: "phone", enqueuedByHqUserId: "user-a" },
+        "phone",
+        null,
+      ),
+    ).toBe(true);
+  });
+
+  it("rejects cross-device events when viewer hqUserId is null (legacy)", () => {
+    expect(
+      isVideoJobStatusEventForViewer(
+        { sessionId: "phone", enqueuedByHqUserId: "user-a" },
+        "laptop",
+        null,
+      ),
+    ).toBe(false);
+  });
+
+  it("rejects another user's job on a reused browser session", () => {
+    expect(
+      isVideoJobStatusEventForViewer(
+        { sessionId: "shared", enqueuedByHqUserId: "user-a" },
+        "shared",
         "user-b",
       ),
     ).toBe(false);

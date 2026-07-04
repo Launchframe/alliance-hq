@@ -226,6 +226,20 @@ describe("resolveVideoJobUploaderAccess", () => {
 
     expect(result).toEqual({ ok: false, status: 404 });
   });
+
+  it("denies a different HQ user reusing the uploader browser session", async () => {
+    loadSession.mockResolvedValue({
+      id: "uploader-session",
+      hqUserId: "other-hq-user",
+    });
+
+    const result = await resolveVideoJobUploaderAccess(
+      "job-1",
+      "uploader-session",
+    );
+
+    expect(result).toEqual({ ok: false, status: 404 });
+  });
 });
 
 describe("resolveVideoUploadGroupAccess", () => {

@@ -190,6 +190,11 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     followMe: previewFollowMe,
     setFollowMe: setPreviewFollowMe,
   } = useVideoPreviewLayout();
+  // Never use side placement on phones — prefs/SSR may briefly resolve to side.
+  const effectivePreviewPlacement =
+    previewPlacement === "side" && previewDevice === "mobile"
+      ? "bottom"
+      : previewPlacement;
   const previewAutoOpenedForJobRef = useRef<string | null>(null);
   const [previewSeekRequest, setPreviewSeekRequest] =
     useState<VideoSeekRequest>(null);
@@ -486,7 +491,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
       const mapped = parsedRowsToRosterReviewRows(
         prev,
         rosterMembers,
-        allianceTag,
+        allianceTag ?? "",
       );
       return prev.map((row) => {
         const next = mapped.find((entry) => entry.id === row.id);
@@ -736,7 +741,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     secondsForRow: secondsForFollowRow,
     onSeekSeconds: seekFollowSeconds,
     previewOpen,
-    previewPlacement,
+    previewPlacement: effectivePreviewPlacement,
     dockHeightPx: previewDockHeightPx,
   });
 
@@ -1091,12 +1096,6 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     );
   }
 
-  // Never paint the in-flow side column on phones — it forces ~half-width
-  // content plus horizontal scroll when prefs/SSR briefly resolve to "side".
-  const effectivePreviewPlacement =
-    previewPlacement === "side" && previewDevice === "mobile"
-      ? "bottom"
-      : previewPlacement;
   const showSidePreview =
     previewOpen && effectivePreviewPlacement === "side";
   const showTopPreview = previewOpen && effectivePreviewPlacement === "top";

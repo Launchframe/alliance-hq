@@ -1,6 +1,6 @@
 import "server-only";
 
-import { eq, or, type SQL } from "drizzle-orm";
+import { and, eq, isNull, or, type SQL } from "drizzle-orm";
 
 import { schema } from "@/lib/db";
 
@@ -16,8 +16,12 @@ export function videoJobsOwnedByViewerWhere(
     return eq(schema.videoJobs.sessionId, sessionId);
   }
   return or(
-    eq(schema.videoJobs.sessionId, sessionId),
     eq(schema.videoJobs.enqueuedByHqUserId, hqUserId),
     eq(schema.videoJobs.hqUserId, hqUserId),
+    and(
+      eq(schema.videoJobs.sessionId, sessionId),
+      isNull(schema.videoJobs.enqueuedByHqUserId),
+      isNull(schema.videoJobs.hqUserId),
+    ),
   )!;
 }
