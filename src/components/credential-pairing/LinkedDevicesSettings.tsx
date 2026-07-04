@@ -10,6 +10,10 @@ import {
   preventDefaultFormSubmit,
 } from "@/lib/client/form-enter-submit.shared";
 import { useRouter } from "@/i18n/navigation";
+import {
+  buildConnectHref,
+  stashConnectReturnPath,
+} from "@/lib/connect/connect-return-path.shared";
 import type { LinkedDeviceSummary } from "@/lib/credential-pairing/linked-devices";
 
 type Props = {
@@ -136,7 +140,8 @@ export function LinkedDevicesSettings({ refreshToken = 0 }: Props) {
       }
       setRevokeTarget(null);
       if (data.revokedCurrentSession) {
-        router.push("/connect");
+        stashConnectReturnPath("/account");
+        router.push(buildConnectHref("/account"));
         router.refresh();
         return;
       }

@@ -46,6 +46,11 @@ import {
   shouldShowAlliancePicker,
 } from "@/lib/credential-pairing/link-phone-phase";
 import {
+  clearStashedConnectReturnPath,
+  readStashedConnectReturnPath,
+  resolveConnectReturnPath,
+} from "@/lib/connect/connect-return-path.shared";
+import {
   markConnectWalkthroughSeen,
   readConnectWalkthroughSeen,
 } from "@/lib/connect/walkthrough.shared";
@@ -191,9 +196,17 @@ export function ConnectionWalkthrough({
     });
   }, []);
 
-  const afterConnectPath = returnTo?.startsWith("/") ? returnTo : "/";
+  const afterConnectPath = useMemo(
+    () =>
+      resolveConnectReturnPath({
+        queryNext: returnTo,
+        stashedPath: readStashedConnectReturnPath(),
+      }),
+    [returnTo],
+  );
 
   const continueToApp = useCallback(() => {
+    clearStashedConnectReturnPath();
     router.push(afterConnectPath);
     router.refresh();
   }, [afterConnectPath, router]);
@@ -332,8 +345,7 @@ export function ConnectionWalkthrough({
         markConnectWalkthroughSeen();
         onConnected?.(parsed.connection);
         if (skipLinkPhoneStep) {
-          router.push(afterConnectPath);
-          router.refresh();
+          continueToApp();
           return;
         }
         setConnectSuccess({
@@ -346,8 +358,7 @@ export function ConnectionWalkthrough({
 
       onConnected?.(parsed.connection);
       markConnectWalkthroughSeen();
-      router.push(afterConnectPath);
-      router.refresh();
+      continueToApp();
     } catch (e) {
       setError(e instanceof Error ? e.message : tc("connectionFailed"));
     } finally {
@@ -356,11 +367,10 @@ export function ConnectionWalkthrough({
   }, [
     alliancesForUi,
     appId,
-    afterConnectPath,
+    continueToApp,
     onConnected,
     originUrl,
     pasteInput,
-    router,
     selectedForUi,
     skipLinkPhoneStep,
     t,

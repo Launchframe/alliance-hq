@@ -4,6 +4,7 @@ import { X } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useState } from "react";
 
+import { usePathname } from "@/i18n/navigation";
 import { AllianceSetupGuidePanel } from "@/components/settings/AllianceSetupGuidePanel";
 import { ALLIANCE_SETUP_STATUS_REFRESH_EVENT } from "@/lib/alliance-setup-guide-refresh.shared";
 import { allianceSetupGuideTaskHref } from "@/lib/alliance-setup-guide-nav";
@@ -17,6 +18,7 @@ import type { AllianceSetupGuideTaskId } from "@/lib/alliance-setup-guide-status
  */
 export function AllianceSetupGuideDashboardBanner() {
   const t = useTranslations("allianceSetupGuide");
+  const pathname = usePathname();
   const [remote, setRemote] = useState<AllianceSetupStatusPayload | null>(null);
 
   const loadStatus = useCallback((isCancelled: () => boolean) => {
@@ -69,7 +71,7 @@ export function AllianceSetupGuideDashboardBanner() {
   }
 
   function handleTaskAction(id: AllianceSetupGuideTaskId) {
-    const href = allianceSetupGuideTaskHref(id);
+    const href = allianceSetupGuideTaskHref(id, pathname);
     if (href) {
       window.location.href = href;
     }

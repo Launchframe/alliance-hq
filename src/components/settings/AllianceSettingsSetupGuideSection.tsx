@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useState } from "react";
 
 import { AllianceSetupGuidePanel } from "@/components/settings/AllianceSetupGuidePanel";
-import { Link } from "@/i18n/navigation";
+import { Link, usePathname } from "@/i18n/navigation";
 import { ALLIANCE_SETUP_STATUS_REFRESH_EVENT } from "@/lib/alliance-setup-guide-refresh.shared";
 import { allianceSetupGuideTaskHref } from "@/lib/alliance-setup-guide-nav";
 import type { AllianceSetupStatusPayload } from "@/lib/alliance-setup-guide-status-api";
@@ -19,6 +19,7 @@ export function AllianceSettingsSetupGuideSection({
   initial: AllianceSetupStatusPayload | null;
 }) {
   const t = useTranslations("allianceSetupGuide");
+  const pathname = usePathname();
   const [remote, setRemote] = useState(initial);
 
   const loadStatus = useCallback(() => {
@@ -58,7 +59,7 @@ export function AllianceSettingsSetupGuideSection({
   }
 
   function handleTaskAction(id: AllianceSetupGuideTaskId) {
-    const href = allianceSetupGuideTaskHref(id);
+    const href = allianceSetupGuideTaskHref(id, pathname);
     if (href) {
       window.location.href = href;
     }
