@@ -10,6 +10,46 @@ export type InheritHqMemberLinksResult = {
 };
 
 /**
+ * Remove Discord member links that mirror this HQ user's web commanders.
+ * Used when an HQ account binds to a new Discord user so the old Discord
+ * account does not keep inherited commander access.
+ */
+export async function revokeHqMirroredDiscordMemberLinks(input: {
+  discordUserId: string;
+  hqUserId: string;
+}): Promise<void> {
+  const discordUserId = input.discordUserId.trim();
+  const hqUserId = input.hqUserId.trim();
+  if (!discordUserId || !hqUserId) {
+    return;
+  }
+
+  const {
+    deleteDiscordMemberLink,
+    getDiscordLinkByAllianceAndMember,
+  } = await import("@/lib/vr/repository");
+
+  const db = getDb();
+  const hqLinks = await db
+    .select({
+      allianceId: schema.hqMemberLinks.allianceId,
+      ashedMemberId: schema.hqMemberLinks.ashedMemberId,
+    })
+    .from(schema.hqMemberLinks)
+    .where(eq(schema.hqMemberLinks.hqUserId, hqUserId));
+
+  for (const hqLink of hqLinks) {
+    const discordLink = await getDiscordLinkByAllianceAndMember(
+      hqLink.allianceId,
+      hqLink.ashedMemberId,
+    );
+    if (discordLink?.discordUserId === discordUserId) {
+      await deleteDiscordMemberLink(discordLink.id);
+    }
+  }
+}
+
+/**
  * Copy HQ web commander links (`hq_member_links`) onto Discord
  * (`discord_member_links`) for the same person.
  *

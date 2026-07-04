@@ -150,6 +150,41 @@ describe("inheritHqMemberLinksToDiscord", () => {
       }),
     ).resolves.toEqual({ inherited: 0, skipped: 0 });
   });
+
+  it("stops inheriting when the Discord link cap is reached", async () => {
+    const where = vi.fn().mockResolvedValue([
+      {
+        allianceId: "alliance-1",
+        ashedMemberId: "m-1",
+        memberDisplayName: "Alpha",
+        gameUid: "123456789012",
+      },
+      {
+        allianceId: "alliance-1",
+        ashedMemberId: "m-2",
+        memberDisplayName: "Beta",
+        gameUid: "123456789013",
+      },
+    ]);
+    vi.mocked(getDb).mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        from: vi.fn().mockReturnValue({ where }),
+      }),
+    } as never);
+    vi.mocked(linkDiscordMember).mockResolvedValue({
+      ok: false,
+      reason: "cap_reached",
+    });
+
+    await expect(
+      inheritHqMemberLinksToDiscord({
+        discordUserId: "discord-1",
+        hqUserId: "hq-1",
+      }),
+    ).resolves.toEqual({ inherited: 0, skipped: 1 });
+
+    expect(linkDiscordMember).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("ensureDiscordMemberLinksFromHq", () => {

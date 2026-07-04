@@ -53,8 +53,8 @@ export async function resolveDiscordBotUserContext(input: {
       callerIsPlatformMaintainerViaDiscord(input.discordUserId),
     ]);
 
-  // Mirror web commanders onto Discord when HQ is linked but Discord member
-  // links are still empty (covers users who `/link`ed before inherit shipped).
+  // Mirror web commanders onto Discord when HQ is linked (covers users who
+  // `/link`ed before inherit shipped). Idempotent when links already exist.
   if (hqLink) {
     await ensureDiscordMemberLinksFromHq({
       discordUserId: input.discordUserId,

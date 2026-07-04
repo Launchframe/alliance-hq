@@ -4,10 +4,13 @@ import { and, eq, ne } from "drizzle-orm";
 
 import { getDb, schema } from "@/lib/db";
 import {
+  inheritHqMemberLinksToDiscord,
+  revokeHqMirroredDiscordMemberLinks,
+} from "@/lib/member-link/inherit-hq-to-discord.server";
+import {
   consumeDiscordAuthNonce,
   getValidDiscordAuthNonce,
 } from "@/lib/vr/auth-nonce";
-import { inheritHqMemberLinksToDiscord } from "@/lib/member-link/inherit-hq-to-discord.server";
 import {
   deleteDiscordHqLinkForHqUser,
   upsertDiscordHqLink,
@@ -39,6 +42,23 @@ export async function syncDiscordHqLinkFromOAuthSignIn(input: {
   }
 
   const db = getDb();
+  const staleHqLinks = await db
+    .select({ discordUserId: schema.discordHqLinks.discordUserId })
+    .from(schema.discordHqLinks)
+    .where(
+      and(
+        eq(schema.discordHqLinks.hqUserId, hqUserId),
+        ne(schema.discordHqLinks.discordUserId, discordUserId),
+      ),
+    );
+
+  for (const stale of staleHqLinks) {
+    await revokeHqMirroredDiscordMemberLinks({
+      discordUserId: stale.discordUserId,
+      hqUserId,
+    });
+  }
+
   await db
     .delete(schema.discordHqLinks)
     .where(

@@ -1,14 +1,7 @@
-import { parseAshedMemberAllianceRank } from "@/lib/members/alliance-rank";
-import { loadAllianceMembersForBot } from "@/lib/vr/member-roster";
 import {
+  callerIsAllianceOfficerViaMemberLink,
   callerIsAllianceOwner,
-  listDiscordLinksForUser,
 } from "@/lib/vr/repository";
-import type { AshedMember } from "@/lib/video/member-matcher";
-
-function memberAllianceRank(member: AshedMember): number {
-  return parseAshedMemberAllianceRank(member).rank ?? 0;
-}
 
 export async function callerCanRunVrReport(input: {
   allianceId: string;
@@ -23,14 +16,5 @@ export async function callerCanRunVrReport(input: {
     return true;
   }
 
-  // callerIsAllianceOwner already mirrors HQ web commanders onto Discord.
-  const [links, members] = await Promise.all([
-    listDiscordLinksForUser(input.allianceId, input.discordUserId),
-    loadAllianceMembersForBot(input.allianceId),
-  ]);
-
-  return links.some((link) => {
-    const member = members.find((m) => m.id === link.ashedMemberId);
-    return member != null && memberAllianceRank(member) >= 4;
-  });
+  return callerIsAllianceOfficerViaMemberLink(input);
 }
