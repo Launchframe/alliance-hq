@@ -2613,6 +2613,13 @@
     "title": "Enviar a partir de vídeo",
     "subtitle": "Grave a rolagem de um placar do Last War. Extraímos frames, OCR e você revisa antes de enviar ao Ashed.",
     "scoreTargetLabel": "Qual placar é este?",
+    "ocrAccuracy": {
+      "high": "Alta",
+      "mid": "Média",
+      "low": "Baixa",
+      "none": "Nenhuma",
+      "label": "O selo mostra o quão bem nosso OCR interno lê este evento."
+    },
     "categoryLabel": "Que tipo de placar é este?",
     "categories": {
       "vs": "VS / pontuações semanais",

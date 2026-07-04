@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 
+import { isVideoOcrAccuracy } from "@/lib/video/ocr-accuracy";
 import {
   ENABLED_SCORE_TARGETS,
+  SCORE_TARGETS,
   getScoreTarget,
   getScoreTargetOrThrow,
   isHqOnlySubmitTarget,
@@ -54,5 +56,18 @@ describe("score targets", () => {
     const meta = toScoreTargetClientMeta(target);
     expect(meta.showRosterColumns).toBe(true);
     expect(meta.showScoreColumn).toBe(false);
+  });
+
+  it("assigns a valid in-house OCR accuracy to every score target", () => {
+    for (const target of SCORE_TARGETS) {
+      expect(isVideoOcrAccuracy(target.inHouseOcrAccuracy)).toBe(true);
+    }
+    expect(getScoreTargetOrThrow("member-roster-video").inHouseOcrAccuracy).toBe(
+      "high",
+    );
+    expect(getScoreTargetOrThrow("desert-storm").inHouseOcrAccuracy).toBe("mid");
+    expect(getScoreTargetOrThrow("alliance-star").inHouseOcrAccuracy).toBe(
+      "none",
+    );
   });
 });

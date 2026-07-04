@@ -4,6 +4,7 @@ import {
   MEMBER_ROSTER_VIDEO_SCORE_TARGET,
   ROSTER_VIDEO_OCR_SCHEMA,
 } from "@/lib/members/ashed-member-record";
+import type { VideoOcrAccuracy } from "@/lib/video/ocr-accuracy";
 
 export type ScoreTargetGroup = "events" | "recurring" | "hq-native";
 
@@ -44,6 +45,12 @@ export type ScoreTargetDef = {
   defaultScoreType?: string;
   /** Max active rows at submit (podium) */
   maxSubmitRows?: number;
+  /**
+   * Expected in-house (Tesseract) OCR accuracy for this event type.
+   * Ashed is assumed to handle all targets; this sets expectations for
+   * fully-native alliances that rely on our OCR.
+   */
+  inHouseOcrAccuracy: VideoOcrAccuracy;
 };
 
 const ENTRIES_NUMBER_SCHEMA = {
@@ -102,6 +109,7 @@ export const SCORE_TARGETS: ScoreTargetDef[] = [
     seriesEntity: null,
     submitMethod: "bulk",
     submitContext: STORM_SUBMIT_CONTEXT,
+    inHouseOcrAccuracy: "mid",
   },
   {
     id: "canyon-storm",
@@ -115,6 +123,7 @@ export const SCORE_TARGETS: ScoreTargetDef[] = [
     seriesEntity: null,
     submitMethod: "bulk",
     submitContext: STORM_SUBMIT_CONTEXT,
+    inHouseOcrAccuracy: "mid",
   },
   {
     id: "alliance-exercise",
@@ -128,6 +137,7 @@ export const SCORE_TARGETS: ScoreTargetDef[] = [
     seriesEntity: null,
     submitMethod: "bulk",
     submitContext: ["eventId", "recordedDate"],
+    inHouseOcrAccuracy: "mid",
   },
   {
     id: "zombie-siege",
@@ -141,6 +151,7 @@ export const SCORE_TARGETS: ScoreTargetDef[] = [
     seriesEntity: null,
     submitMethod: "bulk",
     submitContext: ["eventId", "recordedDate"],
+    inHouseOcrAccuracy: "low",
   },
   {
     id: "vs-performance",
@@ -171,6 +182,7 @@ export const SCORE_TARGETS: ScoreTargetDef[] = [
     seriesEntity: null,
     submitMethod: "upsert",
     submitContext: ["recordedDate"],
+    inHouseOcrAccuracy: "low",
   },
   {
     id: "donations",
@@ -184,6 +196,7 @@ export const SCORE_TARGETS: ScoreTargetDef[] = [
     seriesEntity: null,
     submitMethod: "bulk",
     submitContext: ["recordedDate"],
+    inHouseOcrAccuracy: "mid",
   },
   {
     id: "frontline-breakthrough",
@@ -199,6 +212,7 @@ export const SCORE_TARGETS: ScoreTargetDef[] = [
     submitContext: ["hqEventId", "recordedDate"],
     defaultSeriesName: "Frontline Breakthrough",
     defaultScoreType: "points",
+    inHouseOcrAccuracy: "low",
   },
   {
     id: "seasonal",
@@ -215,6 +229,7 @@ export const SCORE_TARGETS: ScoreTargetDef[] = [
     boardTypes: ["kills", "resources", "points"],
     defaultSeriesName: "Seasonal",
     defaultScoreType: "points",
+    inHouseOcrAccuracy: "low",
   },
   {
     id: "alliance-star",
@@ -231,6 +246,7 @@ export const SCORE_TARGETS: ScoreTargetDef[] = [
     defaultSeriesName: "Alliance Star",
     defaultScoreType: "points",
     maxSubmitRows: 3,
+    inHouseOcrAccuracy: "none",
   },
   {
     id: MEMBER_ROSTER_VIDEO_SCORE_TARGET,
@@ -244,6 +260,7 @@ export const SCORE_TARGETS: ScoreTargetDef[] = [
     seriesEntity: null,
     submitMethod: "row-post",
     submitContext: [],
+    inHouseOcrAccuracy: "high",
   },
 ];
 

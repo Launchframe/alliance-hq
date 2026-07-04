@@ -161,6 +161,7 @@ export async function GET() {
         leaderboardModel: t.leaderboardModel,
         boardTypes: t.boardTypes,
         usesHqEvents: t.seriesEntity === "EventSeries",
+        inHouseOcrAccuracy: t.inHouseOcrAccuracy,
       })),
       upload: {
         mode: r2Configured() ? "r2" : "direct",
