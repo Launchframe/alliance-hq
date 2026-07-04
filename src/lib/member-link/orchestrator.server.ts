@@ -23,6 +23,7 @@ import {
   blockSelfServiceWhenClaimPending,
   getMemberLinkClaimTarget,
 } from "@/lib/member-link/claim.server";
+import { tryPreApprovedMemberLink } from "@/lib/member-link/preapproved-link.server";
 import {
   tryBootstrapOwnerColdStartMember,
   tryRouteRosterMissToOwnerApproval,
@@ -514,6 +515,27 @@ export async function runWebMemberLinkSubmit(input: {
     });
     if (bootstrapped) {
       return finishMemberLinkSubmit(ctx, bootstrapped);
+    }
+
+    // Claim-invite pre-approve is Discord-only here: web submit is blocked earlier
+    // by blockSelfServiceWhenClaimPending when a claim invite is accepted.
+    const preapproved = await tryPreApprovedMemberLink({
+      allianceId: input.allianceId,
+      hqUserId: input.hqUserId,
+      gameUid: uid,
+      lookup,
+      requesterHandle:
+        input.displayName?.trim() || input.userEmail?.trim() || input.hqUserId,
+    });
+    if (preapproved.ok) {
+      return finishMemberLinkSubmit(ctx, {
+        outcome: "linked",
+        message: translate("link.linked", {
+          name: preapproved.target.memberDisplayName,
+        }),
+        pending: null,
+        linkedMemberName: preapproved.target.memberDisplayName,
+      });
     }
 
     const suggestion = findUniqueSubstringRosterCandidate(

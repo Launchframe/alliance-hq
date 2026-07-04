@@ -196,6 +196,10 @@ describe("completeDiscordBotHqLink", () => {
       discordUserId: "discord-1",
       hqUserId: "hq-1",
     });
+    expect(inheritHqMemberLinksToDiscord).toHaveBeenCalledWith({
+      discordUserId: "discord-1",
+      hqUserId: "hq-1",
+    });
     expect(consumeDiscordAuthNonce).toHaveBeenCalledWith("nonce-1");
   });
 });

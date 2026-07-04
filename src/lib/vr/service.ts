@@ -20,6 +20,7 @@ import {
   findUniqueSubstringRosterCandidate,
 } from "@/lib/vr/link-helpers";
 import { ensureDiscordMemberLinksFromHq } from "@/lib/member-link/inherit-hq-to-discord.server";
+import { tryPreApprovedMemberLink } from "@/lib/member-link/preapproved-link.server";
 import { createDiscordRosterMissLinkRequest } from "@/lib/member-link/roster-link-request.server";
 import {
   loadAllianceMembersForBot,
@@ -292,6 +293,49 @@ async function finalizeDiscordMemberLink(input: {
     guildRegistered,
     gameUserName,
   };
+
+  // Already linked on HQ web, or accepted a commander claim invite: do not send
+  // officers through roster-link approval again.
+  if (!("linkTarget" in resolvedResult && resolvedResult.linkTarget)) {
+    const hqLink = await getDiscordHqLink(input.discordUserId);
+    if (hqLink?.hqUserId) {
+      const preapproved = await tryPreApprovedMemberLink({
+        allianceId: input.allianceId,
+        hqUserId: hqLink.hqUserId,
+        gameUid: uid,
+        lookup: input.lookup,
+        requesterHandle: input.discordUsername ?? input.discordUserId,
+      });
+      if (preapproved.ok) {
+        resolvedResult = {
+          reply: translate("link.linked", {
+            name: preapproved.target.memberDisplayName,
+          }),
+          pending: null,
+          linked: true,
+          linkTarget: {
+            ashedMemberId: preapproved.target.ashedMemberId,
+            memberDisplayName: preapproved.target.memberDisplayName,
+            gameUid: preapproved.target.gameUid,
+            ...(input.lookup.gameUserLevel != null
+              ? { gameUserLevel: input.lookup.gameUserLevel }
+              : {}),
+          },
+        };
+      } else if (preapproved.reason === "commander_taken") {
+        resolvedResult = {
+          reply: translate("link.memberTaken"),
+          pending: null,
+          memberTaken: true,
+        };
+      } else if (preapproved.reason === "claim_conflict") {
+        resolvedResult = {
+          reply: translate("link.awaitingOfficerResolve"),
+          pending: null,
+        };
+      }
+    }
+  }
 
   if ("linkTarget" in resolvedResult && resolvedResult.linkTarget) {
     const persisted = await persistLinkTarget({
