@@ -1,3 +1,4 @@
+import { buildConnectHref } from "@/lib/connect/connect-return-path.shared";
 import type { AllianceSetupGuideTaskId } from "@/lib/alliance-setup-guide-status.shared";
 
 /**
@@ -6,10 +7,11 @@ import type { AllianceSetupGuideTaskId } from "@/lib/alliance-setup-guide-status
  */
 export function allianceSetupGuideTaskHref(
   id: AllianceSetupGuideTaskId,
+  returnPath?: string | null,
 ): string | null {
   switch (id) {
     case "connect_ashed":
-      return "/connect";
+      return buildConnectHref(returnPath);
     case "roster_hardening":
     case "roster_populated":
       return "/members";

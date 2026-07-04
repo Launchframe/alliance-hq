@@ -2,8 +2,12 @@
 
 import { useTranslations } from "next-intl";
 
-import { Link } from "@/i18n/navigation";
+import { Link, usePathname } from "@/i18n/navigation";
 import type { AshedConnectionMeta } from "@/lib/jwt/connection-meta";
+import {
+  buildConnectHref,
+  stashConnectReturnPath,
+} from "@/lib/connect/connect-return-path.shared";
 
 type Props = {
   ashed: AshedConnectionMeta;
@@ -11,6 +15,8 @@ type Props = {
 
 export function TokenExpiryBanner({ ashed }: Props) {
   const t = useTranslations("tokenExpiry");
+  const pathname = usePathname();
+  const connectHref = buildConnectHref(pathname);
 
   if (!ashed.showExpiryReminder || !ashed.tokenExpiresAtFormatted) {
     return null;
@@ -32,7 +38,11 @@ export function TokenExpiryBanner({ ashed }: Props) {
                 <strong>{ashed.tokenExpiresAtFormatted}</strong>
               ),
             })}{" "}
-            <Link href="/connect" className="text-[#58a6ff] hover:underline">
+            <Link
+              href={connectHref}
+              onClick={() => stashConnectReturnPath(pathname)}
+              className="text-[#58a6ff] hover:underline"
+            >
               {t("reconnectLink")}
             </Link>
             .
@@ -40,7 +50,11 @@ export function TokenExpiryBanner({ ashed }: Props) {
         ) : (
           <>
             {t("reminderBanner", { date: ashed.tokenExpiresAtFormatted })}{" "}
-            <Link href="/connect" className="text-[#58a6ff] hover:underline">
+            <Link
+              href={connectHref}
+              onClick={() => stashConnectReturnPath(pathname)}
+              className="text-[#58a6ff] hover:underline"
+            >
               {t("updateLink")}
             </Link>
             .

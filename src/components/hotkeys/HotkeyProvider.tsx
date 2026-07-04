@@ -13,6 +13,10 @@ import {
 
 import { usePathname, useRouter } from "@/i18n/navigation";
 import {
+  buildConnectHref,
+  stashConnectReturnPath,
+} from "@/lib/connect/connect-return-path.shared";
+import {
   getHotkeyAction,
   isHotkeyActionAllowed,
   listVisibleHotkeyActions,
@@ -222,7 +226,8 @@ export function HotkeyProvider({
             onOpenMobileNav?.();
             return;
           case "connect-ashed":
-            router.push("/connect");
+            stashConnectReturnPath(pathname);
+            router.push(buildConnectHref(pathname));
             return;
           case "admin-sequence-start":
             if (action.href) {
@@ -246,6 +251,7 @@ export function HotkeyProvider({
     },
     [
       onOpenMobileNav,
+      pathname,
       permissionOptions,
       router,
       sessionPermissions,

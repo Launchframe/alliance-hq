@@ -3,12 +3,16 @@
 import { useSyncExternalStore } from "react";
 import { useTranslations } from "next-intl";
 
-import { Link } from "@/i18n/navigation";
+import { Link, usePathname } from "@/i18n/navigation";
 import {
   markAshedShellConnectDismissed,
   readAshedShellConnectDismissed,
   subscribeAshedShellConnectDismissed,
 } from "@/lib/connect/ashed-shell-prompts.shared";
+import {
+  buildConnectHref,
+  stashConnectReturnPath,
+} from "@/lib/connect/connect-return-path.shared";
 
 type Props = {
   show: boolean;
@@ -16,6 +20,8 @@ type Props = {
 
 export function ConnectAshedBanner({ show }: Props) {
   const t = useTranslations("onboard");
+  const pathname = usePathname();
+  const connectHref = buildConnectHref(pathname);
   const dismissed = useSyncExternalStore(
     subscribeAshedShellConnectDismissed,
     readAshedShellConnectDismissed,
@@ -34,7 +40,8 @@ export function ConnectAshedBanner({ show }: Props) {
         <p className="text-sm text-[#c9d1d9]">{t("connectAshedBanner")}</p>
         <div className="flex shrink-0 gap-2">
           <Link
-            href="/connect"
+            href={connectHref}
+            onClick={() => stashConnectReturnPath(pathname)}
             className="rounded-md border border-[#388bfd] bg-[#388bfd] px-3 py-1.5 text-xs font-medium text-white"
           >
             {t("connectAshedCta")}

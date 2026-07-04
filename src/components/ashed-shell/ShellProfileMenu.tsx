@@ -6,7 +6,11 @@ import { useTranslations } from "next-intl";
 
 import { useFeedback } from "@/components/feedback";
 import { ProfileAvatar } from "@/components/profile/ProfileAvatar";
-import { Link, useRouter } from "@/i18n/navigation";
+import { Link, usePathname, useRouter } from "@/i18n/navigation";
+import {
+  buildConnectHref,
+  stashConnectReturnPath,
+} from "@/lib/connect/connect-return-path.shared";
 
 type Props = {
   userLabel: string | null;
@@ -40,6 +44,8 @@ export function ShellProfileMenu({
     showGetInTouch,
   } = useFeedback();
   const router = useRouter();
+  const pathname = usePathname();
+  const connectHref = buildConnectHref(pathname);
   const menuId = React.useId();
   const triggerRef = React.useRef<HTMLButtonElement>(null);
   const [open, setOpen] = React.useState(false);
@@ -158,7 +164,8 @@ export function ShellProfileMenu({
     }
     return (
       <Link
-        href="/connect"
+        href={connectHref}
+        onClick={() => stashConnectReturnPath(pathname)}
         className="shrink-0 text-sm text-[#58a6ff] hover:underline"
       >
         {t("connect")}
@@ -228,10 +235,13 @@ export function ShellProfileMenu({
 
             {showConnectLink ? (
               <Link
-                href="/connect"
+                href={connectHref}
                 role="menuitem"
                 className="block px-3 py-2 text-sm text-[#58a6ff] hover:bg-[#21262d]"
-                onClick={closeMenu}
+                onClick={() => {
+                  stashConnectReturnPath(pathname);
+                  closeMenu();
+                }}
               >
                 {t("connect")}
               </Link>
