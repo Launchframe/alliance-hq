@@ -70,6 +70,10 @@ describe("discord interactions", () => {
       kind: "vr_confirm",
       answer: "yes",
     });
+    expect(parseButtonCustomId("weekly-pass:character:link-row-1")).toEqual({
+      kind: "weekly_pass_character",
+      linkId: "link-row-1",
+    });
     expect(parseButtonCustomId("link:confirm:yes")).toEqual({
       kind: "link_confirm",
       answer: "yes",

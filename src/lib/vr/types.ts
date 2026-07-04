@@ -1,6 +1,7 @@
 export type VrPendingState =
   | { kind: "anomaly_confirm"; proposedVr: number; ashedMemberId: string }
-  | { kind: "pick_character"; linkIds: string[] };
+  | { kind: "pick_character"; linkIds: string[] }
+  | { kind: "weekly_pass_pick_character"; linkIds: string[]; active: boolean };
 
 export type VrCommandAction =
   | {
@@ -17,6 +18,11 @@ export type VrCommandResult = {
   action: VrCommandAction;
   needsConfirmation?: boolean;
   proposedVr?: number;
+  characterPicker?: Array<{ linkId: string; label: string }>;
+};
+
+export type WeeklyPassCommandResult = {
+  reply: string;
   characterPicker?: Array<{ linkId: string; label: string }>;
 };
 

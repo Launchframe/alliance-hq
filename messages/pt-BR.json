@@ -3259,7 +3259,7 @@
       ]
     },
     "vr": {
-      "notLinked": "Você ainda não tem um comandante vinculado. Use `/link-commander uid:…` para vincular seu personagem.",
+      "notLinked": "Primeiro, copie o UID do seu Comandante no perfil do jogo (Last War → toque no avatar → … → Copiar ID do jogador). Depois execute `/link-commander uid:…` com esse UID para vincular seu personagem.",
       "pickCharacter": "Para qual personagem é este VR?",
       "success": "Entendido! Parabéns por {vr} VR.",
       "downgradeLimit": "O VR base não pode cair mais de um nível do instituto abaixo do seu recorde da temporada ({seasonHigh}).",
@@ -3269,6 +3269,14 @@
       "anomalyConfirm": "Tem *certeza* que seu VR é {vr}? Isso ficaria bem à frente do grupo em VR base. Toque Sim se for sério — acreditamos em você (provavelmente).",
       "seasonLocked": "A temporada terminou. Atualizações de VR estão fechadas até a próxima temporada começar.",
       "sandboxActive": "**Modo sandbox** — este relatório de VR é apenas prática e não conta no placar ao vivo."
+    },
+    "weeklyPass": {
+      "pickCharacter": "Para qual comandante você quer aplicar esta alteração?",
+      "pickExpired": "Esse seletor expirou. Execute `/weekly-pass` novamente para escolher um comandante.",
+      "commanderNotFound": "Não foi possível encontrar seu comandante nesta aliança.",
+      "updateFailed": "Não foi possível atualizar o passe semanal. Tente novamente mais tarde.",
+      "activated": "✅ Passe semanal ativado. Você receberá +250 VR em relatórios estratégicos.",
+      "deactivated": "Passe semanal desativado."
     },
     "setup": {
       "linkAllianceSuccess": "Servidor registrado para **{tag}**. Os membros já podem se vincular com `/link-commander uid:…` e informar o VR base com `/vr`.",

@@ -3,6 +3,7 @@ import {
   createDiscordTranslator,
   tStringArray,
   type DiscordBotLocale,
+  type DiscordTranslate,
 } from "@/lib/discord/i18n";
 import { lookupPlayerByUid } from "@/lib/lastwar/player-lookup";
 import type { LastWarPlayerLookupResult } from "@/lib/lastwar/player-lookup";
@@ -50,7 +51,13 @@ import {
   upsertMemberSeasonVr,
   writeDiscordBotAudit,
 } from "@/lib/vr/repository";
-import type { LinkCommandResult, LinkPendingState, VrCommandResult, VrPendingState } from "@/lib/vr/types";
+import type {
+  LinkCommandResult,
+  LinkPendingState,
+  VrCommandResult,
+  VrPendingState,
+  WeeklyPassCommandResult,
+} from "@/lib/vr/types";
 
 export {
   handleDiscordHelp,
@@ -744,11 +751,13 @@ export async function handleDiscordWeeklyPass(input: {
   guildId: string;
   locale: DiscordBotLocale;
   active: boolean;
-}): Promise<{ reply: string }> {
+  linkId?: string | null;
+}): Promise<WeeklyPassCommandResult> {
   const { translate } = botContext(input.locale);
   const target = await resolveTargetLink({
     allianceId: input.allianceId,
     discordUserId: input.discordUserId,
+    linkId: input.linkId,
   });
 
   if (target === null) {
@@ -760,26 +769,111 @@ export async function handleDiscordWeeklyPass(input: {
   }
 
   if (target === "pick") {
-    // TODO: pending copy approval — maintainer will move to messages/en-US.json
-    const reply =
-      "You have multiple linked commanders. Toggle weekly pass on Alliance HQ for each commander.";
+    const links = await listDiscordLinksForUser(
+      input.allianceId,
+      input.discordUserId,
+    );
+    const pending: VrPendingState = {
+      kind: "weekly_pass_pick_character",
+      linkIds: links.map((l) => l.id),
+      active: input.active,
+    };
+    await saveDiscordBotPending(input.allianceId, input.discordUserId, pending);
+    const reply = translate("weeklyPass.pickCharacter");
+    const characterPicker = links.map((l) => ({
+      linkId: l.id,
+      label: l.memberDisplayName ?? l.ashedMemberId,
+    }));
     await audit(input.allianceId, input.discordUserId, "weekly-pass", input, {
       reply,
+      pending,
     });
+    return { reply, characterPicker };
+  }
+
+  const result = await applyWeeklyPassForLink({
+    allianceId: input.allianceId,
+    discordUserId: input.discordUserId,
+    ashedMemberId: target.ashedMemberId,
+    active: input.active,
+    translate,
+  });
+  await saveDiscordBotPending(input.allianceId, input.discordUserId, null);
+  await audit(input.allianceId, input.discordUserId, "weekly-pass", input, result);
+  return result;
+}
+
+export async function handleDiscordWeeklyPassCharacterPick(input: {
+  allianceId: string;
+  discordUserId: string;
+  linkId: string;
+  locale: DiscordBotLocale;
+}): Promise<WeeklyPassCommandResult> {
+  const { translate } = botContext(input.locale);
+  const pendingRow = await getDiscordBotPending(input.discordUserId);
+  const pending = (pendingRow?.pending ?? null) as VrPendingState | null;
+
+  if (!pending || pending.kind !== "weekly_pass_pick_character") {
+    const reply = translate("weeklyPass.pickExpired");
+    await audit(
+      input.allianceId,
+      input.discordUserId,
+      "weekly-pass_pick",
+      input,
+      { reply },
+    );
     return { reply };
   }
 
+  const link = await getDiscordLinkById(input.linkId);
+  if (
+    !link ||
+    link.allianceId !== input.allianceId ||
+    link.discordUserId !== input.discordUserId ||
+    !pending.linkIds.includes(link.id)
+  ) {
+    const reply = translate("weeklyPass.pickExpired");
+    await audit(
+      input.allianceId,
+      input.discordUserId,
+      "weekly-pass_pick",
+      input,
+      { reply },
+    );
+    return { reply };
+  }
+
+  const result = await applyWeeklyPassForLink({
+    allianceId: input.allianceId,
+    discordUserId: input.discordUserId,
+    ashedMemberId: link.ashedMemberId,
+    active: pending.active,
+    translate,
+  });
+  await saveDiscordBotPending(input.allianceId, input.discordUserId, null);
+  await audit(
+    input.allianceId,
+    input.discordUserId,
+    "weekly-pass_pick",
+    input,
+    result,
+  );
+  return result;
+}
+
+async function applyWeeklyPassForLink(input: {
+  allianceId: string;
+  discordUserId: string;
+  ashedMemberId: string;
+  active: boolean;
+  translate: DiscordTranslate;
+}): Promise<WeeklyPassCommandResult> {
   const commander = await getCommanderByAshedMemberId(
-    target.ashedMemberId,
+    input.ashedMemberId,
     input.allianceId,
   );
   if (!commander) {
-    // TODO: pending copy approval — maintainer will move to messages/en-US.json
-    const reply = "Could not find your commander in this alliance.";
-    await audit(input.allianceId, input.discordUserId, "weekly-pass", input, {
-      reply,
-    });
-    return { reply };
+    return { reply: input.translate("weeklyPass.commanderNotFound") };
   }
 
   try {
@@ -790,22 +884,12 @@ export async function handleDiscordWeeklyPass(input: {
     });
   } catch (error) {
     console.error("[discord-bot] weekly-pass update failed", error);
-    // TODO: pending copy approval — maintainer will move to messages/en-US.json
-    const reply = "Could not update weekly pass. Try again later.";
-    await audit(input.allianceId, input.discordUserId, "weekly-pass", input, {
-      reply,
-      error: String(error),
-    });
-    return { reply };
+    return { reply: input.translate("weeklyPass.updateFailed") };
   }
 
-  // TODO: pending copy approval — maintainer will move to messages/en-US.json
   const reply = input.active
-    ? "✅ Weekly pass activated. You'll get +250 VR in strategy reports."
-    : "Weekly pass deactivated.";
-  await audit(input.allianceId, input.discordUserId, "weekly-pass", input, {
-    reply,
-  });
+    ? input.translate("weeklyPass.activated")
+    : input.translate("weeklyPass.deactivated");
   return { reply };
 }
 

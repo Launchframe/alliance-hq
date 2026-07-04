@@ -3259,7 +3259,7 @@
       ]
     },
     "vr": {
-      "notLinked": "You don't have a linked commander yet. Run `/link-commander uid:…` to link your in-game character.",
+      "notLinked": "First, copy your Commander UID from your in-game profile (Last War → tap your avatar → … → Copy player ID). Then run `/link-commander uid:…` with that UID to link your character.",
       "pickCharacter": "Which character is this VR for?",
       "success": "Got it! Congrats on {vr} VR.",
       "downgradeLimit": "Base VR can't drop more than one institute level below your season high of {seasonHigh}.",
@@ -3269,6 +3269,14 @@
       "anomalyConfirm": "Are you *sure* your VR is {vr}? That would be way ahead of the pack for base VR. Tap Yes if you're serious — we believe you (probably).",
       "seasonLocked": "The season is over. VR updates are closed until the next season starts.",
       "sandboxActive": "**Sandbox mode** — this VR report is practice only and does not count on the live leaderboard."
+    },
+    "weeklyPass": {
+      "pickCharacter": "Which commander do you want to apply this change to?",
+      "pickExpired": "That picker expired. Run `/weekly-pass` again to choose a commander.",
+      "commanderNotFound": "Could not find your commander in this alliance.",
+      "updateFailed": "Could not update weekly pass. Try again later.",
+      "activated": "✅ Weekly pass activated. You'll get +250 VR in strategy reports.",
+      "deactivated": "Weekly pass deactivated."
     },
     "setup": {
       "linkAllianceSuccess": "Registered this server for **{tag}**. Members can now link with `/link-commander uid:…` and report base VR with `/vr`.",

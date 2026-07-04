@@ -123,10 +123,17 @@ const commandBody = [
   {
     name: "weekly-pass",
     description: "Toggle your weekly pass (+250 VR boost for strategy reports).",
+    description_localizations: {
+      "pt-BR":
+        "Ative ou desative seu passe semanal (+250 VR em relatórios estratégicos).",
+    },
     options: [
       {
         name: "active",
         description: "Turn the weekly pass on or off.",
+        description_localizations: {
+          "pt-BR": "Ative ou desative o passe semanal.",
+        },
         type: 5,
         required: true,
       },

@@ -57,6 +57,7 @@ import {
   handleDiscordVrReport,
   handleDiscordVrSlash,
   handleDiscordWeeklyPass,
+  handleDiscordWeeklyPassCharacterPick,
   handleDiscordWalkthroughDone,
   resolveAllianceForGuild,
 } from "@/lib/vr/service";
@@ -366,6 +367,13 @@ async function handleSlashCommand(payload: DiscordInteractionPayload) {
       locale,
       active,
     });
+    if (result.characterPicker?.length) {
+      return discordMessageResponse(
+        result.reply,
+        buildCharacterPickerButtons(result.characterPicker, "weekly-pass"),
+        EPHEMERAL,
+      );
+    }
     return discordMessageResponse(result.reply, undefined, EPHEMERAL);
   }
 
@@ -545,6 +553,16 @@ async function handleButton(payload: DiscordInteractionPayload) {
       );
     }
     return discordButtonResponse(result.reply, undefined, { ephemeral: false });
+  }
+
+  if (parsed.kind === "weekly_pass_character") {
+    const result = await handleDiscordWeeklyPassCharacterPick({
+      allianceId,
+      discordUserId,
+      linkId: parsed.linkId,
+      locale,
+    });
+    return discordButtonResponse(result.reply, undefined, EPHEMERAL);
   }
 
   if (parsed.kind === "link_unlink") {
