@@ -79,13 +79,9 @@ export async function loadMyVrForUser(input: {
     instituteLevel,
     updatedAt: seasonRow?.updatedAt.toISOString() ?? null,
     commanderName: link.memberDisplayName,
-    // weeklyPassActive is populated by the weekly-pass schema task once the
-    // commanders.weekly_pass_active column exists. Stub null until then so
-    // the type is satisfied and the badge is hidden when data is absent.
-    weeklyPassActive: null,
+    weeklyPassActive: commander?.weeklyPassActive ?? null,
     percentile,
     reporterCount: reporterVrs.length,
-    weeklyPassActive: commander?.weeklyPassActive ?? null,
     events: events.map((event) => ({
       baseVr: event.baseVr,
       instituteLevel:

@@ -348,6 +348,9 @@ async function handleSlashCommand(payload: DiscordInteractionPayload) {
   }
 
   if (commandName === "weekly-pass") {
+    if (!guildId) {
+      return discordMessageResponse(t("errors.guildNotRegistered"));
+    }
     if (!allianceId) {
       return discordMessageResponse(
         await setupMessage(locale, guildId, discordUserId),
