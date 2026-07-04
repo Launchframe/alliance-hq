@@ -4,6 +4,7 @@ import * as React from "react";
 import { createPortal } from "react-dom";
 import { useTranslations } from "next-intl";
 
+import { useFeedback } from "@/components/feedback";
 import { ProfileAvatar } from "@/components/profile/ProfileAvatar";
 import { Link, useRouter } from "@/i18n/navigation";
 
@@ -31,6 +32,13 @@ export function ShellProfileMenu({
   showMenu,
 }: Props) {
   const t = useTranslations("shell.profileMenu");
+  const tFab = useTranslations("feedback.fab");
+  const {
+    showReportIssue,
+    startTranslationCorrection,
+    showExperienceFeedback,
+    showGetInTouch,
+  } = useFeedback();
   const router = useRouter();
   const menuId = React.useId();
   const triggerRef = React.useRef<HTMLButtonElement>(null);
@@ -228,6 +236,59 @@ export function ShellProfileMenu({
                 {t("connect")}
               </Link>
             ) : null}
+
+            <div className="mt-1 border-t border-[#30363d] pt-1">
+              <p className="px-3 py-1.5 text-xs font-medium uppercase tracking-wide text-[#8b949e]">
+                {tFab("openMenu")}
+              </p>
+              <button
+                type="button"
+                role="menuitem"
+                className="block w-full px-3 py-2 text-left text-sm text-[#e6edf3] hover:bg-[#21262d]"
+                onClick={() => {
+                  closeMenu();
+                  showReportIssue();
+                }}
+              >
+                {tFab("reportBug")}
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                className="block w-full px-3 py-2 text-left text-sm text-[#e6edf3] hover:bg-[#21262d]"
+                onClick={() => {
+                  closeMenu();
+                  startTranslationCorrection();
+                }}
+              >
+                {tFab("correctTranslation")}
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                className="block w-full px-3 py-2 text-left text-sm text-[#e6edf3] hover:bg-[#21262d]"
+                onClick={() => {
+                  closeMenu();
+                  showExperienceFeedback({
+                    source: "unsolicited",
+                    isSolicited: false,
+                  });
+                }}
+              >
+                {tFab("leaveFeedback")}
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                className="block w-full px-3 py-2 text-left text-sm text-[#e6edf3] hover:bg-[#21262d]"
+                onClick={() => {
+                  closeMenu();
+                  showGetInTouch();
+                }}
+              >
+                {tFab("getInTouch")}
+              </button>
+            </div>
 
             <div className="mt-1 border-t border-[#30363d] pt-1">
               <button

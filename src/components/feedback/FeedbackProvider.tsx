@@ -25,6 +25,7 @@ type FeedbackContextValue = {
   showExperienceFeedback: (options?: ExperienceOptions) => void;
   showReportIssue: () => void;
   startTranslationCorrection: () => void;
+  showGetInTouch: () => void;
   setWalkthroughFabSuppressed: (suppressed: boolean) => void;
 };
 
@@ -53,7 +54,9 @@ function shouldHideFab(pathname: string) {
     pathname.startsWith("/admin") ||
     pathname.startsWith("/connect") ||
     pathname.startsWith("/privacy") ||
-    pathname.startsWith("/terms")
+    pathname.startsWith("/terms") ||
+    // Video review/event: FAB covers bottom preview controls on phones.
+    /^\/tools\/video-upload\/[^/]+\/(review|event)$/.test(pathname)
   );
 }
 
@@ -119,7 +122,7 @@ export function FeedbackProvider({ children }: { children: React.ReactNode }) {
     [],
   );
 
-  function openDiscord() {
+  const openDiscord = React.useCallback(() => {
     const action = resolveDiscordInviteAction(
       process.env.NEXT_PUBLIC_DISCORD_INVITE_URL,
     );
@@ -128,16 +131,17 @@ export function FeedbackProvider({ children }: { children: React.ReactNode }) {
       return;
     }
     setDiscordNoticeOpen(true);
-  }
+  }, []);
 
   const value = React.useMemo(
     () => ({
       showExperienceFeedback,
       showReportIssue: () => setReportOpen(true),
       startTranslationCorrection: () => setTranslationMode(true),
+      showGetInTouch: openDiscord,
       setWalkthroughFabSuppressed,
     }),
-    [showExperienceFeedback],
+    [openDiscord, showExperienceFeedback],
   );
 
   return (
