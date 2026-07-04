@@ -20,6 +20,7 @@ type ReminderItem = {
 
 export default function InboxPageClient() {
   const t = useTranslations("inbox");
+  const tRoster = useTranslations("rosterLinkRequests");
   const [items, setItems] = useState<ReminderItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [dismissingId, setDismissingId] = useState<string | null>(null);
@@ -186,14 +187,24 @@ export default function InboxPageClient() {
         </ul>
       )}
 
-      <p className="text-sm text-[#8b949e]">
-        <Link
-          href="/settings/upload-reminders"
-          className="text-[#58a6ff] hover:underline"
-        >
-          {t("manageSchedules")}
-        </Link>
-      </p>
+      <div className="space-y-2 text-sm text-[#8b949e]">
+        <p>
+          <Link
+            href="/members/roster-link-requests"
+            className="text-[#58a6ff] hover:underline"
+          >
+            {tRoster("title")}
+          </Link>
+        </p>
+        <p>
+          <Link
+            href="/settings/upload-reminders"
+            className="text-[#58a6ff] hover:underline"
+          >
+            {t("manageSchedules")}
+          </Link>
+        </p>
+      </div>
     </div>
   );
 }
