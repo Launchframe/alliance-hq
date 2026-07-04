@@ -37,7 +37,7 @@ export async function materializeRosterLinkInboxItem(input: {
     body: null,
     scoreTarget: input.gameUserName,
     href: rosterLinkRequestHref(input.requestId),
-    requiredPermission: "inbox:read",
+    requiredPermission: "members:write",
     active: 1,
     resourceId: input.requestId,
   });

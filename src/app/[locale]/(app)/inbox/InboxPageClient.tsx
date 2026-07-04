@@ -18,7 +18,11 @@ type ReminderItem = {
   createdAt: string;
 };
 
-export default function InboxPageClient() {
+export default function InboxPageClient({
+  showRosterLinkRequestsLink = false,
+}: {
+  showRosterLinkRequestsLink?: boolean;
+}) {
   const t = useTranslations("inbox");
   const tRoster = useTranslations("rosterLinkRequests");
   const [items, setItems] = useState<ReminderItem[]>([]);
@@ -188,14 +192,16 @@ export default function InboxPageClient() {
       )}
 
       <div className="space-y-2 text-sm text-[#8b949e]">
-        <p>
-          <Link
-            href="/members/roster-link-requests"
-            className="text-[#58a6ff] hover:underline"
-          >
-            {tRoster("title")}
-          </Link>
-        </p>
+        {showRosterLinkRequestsLink ? (
+          <p>
+            <Link
+              href="/members/roster-link-requests"
+              className="text-[#58a6ff] hover:underline"
+            >
+              {tRoster("title")}
+            </Link>
+          </p>
+        ) : null}
         <p>
           <Link
             href="/settings/upload-reminders"
