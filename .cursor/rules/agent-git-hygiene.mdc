@@ -87,7 +87,7 @@ After a task is merged, abandoned, or handed back to the maintainer:
 
 ## Real Steel
 
-For this repo, run Real Steel in a dedicated worktree for the PR under review; do not rebase or commit on the maintainer’s primary checkout. The global **real-steel** skill (`~/.cursor/skills/real-steel/SKILL.md`) defines the review/pass workflow, while this rule adds the repo-specific worktree isolation requirement.
+For this repo, run Real Steel in a dedicated worktree for the PR under review; do not rebase or commit on the maintainer’s primary checkout. The global **real-steel** skill (`~/.cursor/skills/real-steel/SKILL.md`) defines the review/pass workflow; [`.cursor/skills/real-steel/SKILL.md`](../skills/real-steel/SKILL.md) adds Alliance HQ completion steps (including the `real-steel-ready` label when the chain finishes cleanly).
 
 ## Multitask mode
 

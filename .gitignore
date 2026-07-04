@@ -4,6 +4,8 @@
 .cursor/*
 !.cursor/rules/
 !.cursor/rules/**
+!.cursor/skills/
+!.cursor/skills/**
 .working_files/
 
 ## Ashed data exports
