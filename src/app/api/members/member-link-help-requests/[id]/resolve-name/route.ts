@@ -1,0 +1,52 @@
+import { NextResponse } from "next/server";
+import { z } from "zod";
+
+import { resolveClaimNameReview } from "@/lib/member-link/member-link-help-review.server";
+import { requireSessionPermission } from "@/lib/rbac/require-permission";
+import { getOrCreateSession } from "@/lib/session";
+
+export const dynamic = "force-dynamic";
+
+const bodySchema = z.object({
+  chosen: z.enum(["roster", "lookup"]),
+});
+
+type Props = { params: Promise<{ id: string }> };
+
+export async function POST(request: Request, { params }: Props) {
+  const session = await getOrCreateSession();
+  const denied = await requireSessionPermission(session.id, "members:write");
+  if (denied) return denied;
+
+  if (!session.hqUserId || !session.currentAllianceId) {
+    return NextResponse.json({ error: "No alliance context." }, { status: 400 });
+  }
+
+  const { id } = await params;
+  let body: z.infer<typeof bodySchema>;
+  try {
+    body = bodySchema.parse(await request.json());
+  } catch {
+    return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
+  }
+
+  const result = await resolveClaimNameReview({
+    requestId: id,
+    chosen: body.chosen,
+    resolvedByHqUserId: session.hqUserId,
+    sessionId: session.id,
+    allianceId: session.currentAllianceId,
+  });
+
+  if (!result.ok) {
+    const status =
+      result.reason === "not_found"
+        ? 404
+        : result.reason === "already_closed"
+          ? 409
+          : 400;
+    return NextResponse.json({ error: result.reason }, { status });
+  }
+
+  return NextResponse.json({ ok: true, memberName: result.memberName });
+}

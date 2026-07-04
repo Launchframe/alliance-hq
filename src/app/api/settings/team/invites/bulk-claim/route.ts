@@ -6,8 +6,9 @@ import {
   isMissingSchemaError,
 } from "@/lib/db/error-message";
 import {
-  createHqClaimInvitesBulk,
+  CommanderClaimInviteError,
 } from "@/lib/native-alliance/invites";
+import { createAllianceJoinCode } from "@/lib/native-alliance/join-codes";
 import {
   assertInviteRoleAllowed,
   resolveTeamInviteAccess,
@@ -50,42 +51,60 @@ export async function POST(request: Request) {
     );
   }
 
-  const origin = new URL(request.url).origin;
+  const created: Array<{
+    targetAshedMemberId: string;
+    targetCommanderName: string | null;
+    code: string;
+  }> = [];
+  const skipped: Array<{ ashedMemberId: string; code: string }> = [];
+  const seen = new Set<string>();
 
-  try {
-    const result = await createHqClaimInvitesBulk({
-      allianceId: access.allianceId,
-      targetAshedMemberIds: body.targetAshedMemberIds,
-      invitedByHqUserId: access.ctx.hqUserId,
-      origin,
-      adminLabel: body.adminLabel,
-    });
+  for (const rawId of body.targetAshedMemberIds) {
+    const ashedMemberId = rawId.trim();
+    if (!ashedMemberId || seen.has(ashedMemberId)) continue;
+    seen.add(ashedMemberId);
 
-    return NextResponse.json({
-      ok: true,
-      created: result.created,
-      skipped: result.skipped,
-    });
-  } catch (error) {
-    if (isMissingSchemaError(error)) {
+    try {
+      const joinCode = await createAllianceJoinCode({
+        allianceId: access.allianceId,
+        roleName: "member",
+        maxRedemptions: 1,
+        adminLabel: body.adminLabel,
+        createdByHqUserId: access.ctx.hqUserId,
+        targetAshedMemberId: ashedMemberId,
+      });
+      created.push({
+        targetAshedMemberId: ashedMemberId,
+        targetCommanderName: joinCode.targetCommanderName,
+        code: joinCode.code,
+      });
+    } catch (error) {
+      if (error instanceof CommanderClaimInviteError) {
+        skipped.push({ ashedMemberId, code: error.code });
+        continue;
+      }
+      if (isMissingSchemaError(error)) {
+        return NextResponse.json(
+          {
+            error:
+              "Invite storage schema is out of date. Contact a platform maintainer.",
+          },
+          { status: 503 },
+        );
+      }
+      const detail = collectDatabaseErrorText(error);
       return NextResponse.json(
         {
           error:
-            "Invite storage schema is out of date. Contact a platform maintainer.",
+            error instanceof Error && !detail.includes("Failed query")
+              ? error.message
+              : "Bulk claim invites failed.",
+          ...(process.env.NODE_ENV === "development" ? { detail } : {}),
         },
-        { status: 503 },
+        { status: 400 },
       );
     }
-    const detail = collectDatabaseErrorText(error);
-    return NextResponse.json(
-      {
-        error:
-          error instanceof Error && !detail.includes("Failed query")
-            ? error.message
-            : "Bulk claim invites failed.",
-        ...(process.env.NODE_ENV === "development" ? { detail } : {}),
-      },
-      { status: 400 },
-    );
   }
+
+  return NextResponse.json({ ok: true, created, skipped });
 }

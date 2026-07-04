@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const readSessionIdMock = vi.fn();
 const resolveTeamInviteAccessMock = vi.fn();
-const createHqClaimInvitesBulkMock = vi.fn();
+const createAllianceJoinCodeMock = vi.fn();
 
 vi.mock("@/lib/session", () => ({
   readSessionId: () => readSessionIdMock(),
@@ -14,9 +14,18 @@ vi.mock("@/lib/native-alliance/team-invites.server", () => ({
   assertInviteRoleAllowed: vi.fn(),
 }));
 
+vi.mock("@/lib/native-alliance/join-codes", () => ({
+  createAllianceJoinCode: (input: unknown) => createAllianceJoinCodeMock(input),
+}));
+
 vi.mock("@/lib/native-alliance/invites", () => ({
-  createHqClaimInvitesBulk: (input: unknown) =>
-    createHqClaimInvitesBulkMock(input),
+  CommanderClaimInviteError: class CommanderClaimInviteError extends Error {
+    code: string;
+    constructor(code: string, message: string) {
+      super(message);
+      this.code = code;
+    }
+  },
 }));
 
 import { POST } from "./route";
@@ -40,10 +49,19 @@ describe("POST /api/settings/team/invites/bulk-claim", () => {
     vi.clearAllMocks();
     readSessionIdMock.mockResolvedValue("sess-1");
     resolveTeamInviteAccessMock.mockResolvedValue(access);
-    createHqClaimInvitesBulkMock.mockResolvedValue({
-      created: [],
-      skipped: [],
-    });
+    createAllianceJoinCodeMock.mockImplementation(
+      (input: { targetAshedMemberId?: string }) =>
+        Promise.resolve({
+          joinCodeId: "jc-1",
+          code: `CODE-${input.targetAshedMemberId}`,
+          codeHint: "…CODE",
+          expiresAt: new Date().toISOString(),
+          maxRedemptions: 1,
+          roleName: "member",
+          targetAshedMemberId: input.targetAshedMemberId ?? null,
+          targetCommanderName: "Alpha",
+        }),
+    );
   });
 
   it("returns 401 without a session", async () => {
@@ -60,24 +78,32 @@ describe("POST /api/settings/team/invites/bulk-claim", () => {
     const res = await POST(jsonRequest({ targetAshedMemberIds: ids }));
 
     expect(res.status).toBe(400);
-    expect(createHqClaimInvitesBulkMock).not.toHaveBeenCalled();
+    expect(createAllianceJoinCodeMock).not.toHaveBeenCalled();
   });
 
-  it("scopes bulk creation to the session alliance", async () => {
+  it("creates single-use claim join codes for the session alliance", async () => {
     const res = await POST(
       jsonRequest({ targetAshedMemberIds: ["m1", "m2"], adminLabel: "Batch A" }),
     );
 
     expect(res.status).toBe(200);
-    expect(createHqClaimInvitesBulkMock).toHaveBeenCalledWith(
+    expect(createAllianceJoinCodeMock).toHaveBeenCalledTimes(2);
+    expect(createAllianceJoinCodeMock).toHaveBeenCalledWith(
       expect.objectContaining({
         allianceId: "alliance-1",
-        targetAshedMemberIds: ["m1", "m2"],
-        invitedByHqUserId: "officer-1",
+        roleName: "member",
+        maxRedemptions: 1,
+        targetAshedMemberId: "m1",
+        createdByHqUserId: "officer-1",
         adminLabel: "Batch A",
       }),
     );
-    const body = (await res.json()) as { ok?: boolean };
+    const body = (await res.json()) as {
+      ok?: boolean;
+      created?: Array<{ code: string; targetAshedMemberId: string }>;
+    };
     expect(body.ok).toBe(true);
+    expect(body.created).toHaveLength(2);
+    expect(body.created?.[0]?.code).toBe("CODE-m1");
   });
 });

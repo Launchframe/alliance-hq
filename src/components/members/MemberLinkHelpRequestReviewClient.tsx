@@ -152,6 +152,53 @@ export function MemberLinkHelpRequestReviewClient({
       requesterHandle: review.requester.requesterHandle,
     }) || review.requester.requesterHandle;
 
+  const rosterName = review.request.reportedName?.trim() ?? "";
+  const lookupName = review.request.gameUserName?.trim() ?? "";
+  const showNameReview =
+    review.request.context === "claim_conflict" &&
+    (review.request.claimConflictReason === "target_mismatch" ||
+      review.request.claimConflictReason === "name_collision") &&
+    Boolean(rosterName && lookupName);
+
+  async function resolveNameReview(chosen: "roster" | "lookup") {
+    setBusy(true);
+    setError(null);
+    setActionNotice(null);
+    try {
+      const res = await fetch(
+        `${resolveUrlPrefix}/${review.request.id}/resolve-name`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ chosen }),
+        },
+      );
+      const body = (await res.json()) as {
+        error?: string;
+        memberName?: string;
+      };
+      if (!res.ok) {
+        setActionNotice({
+          tone: "error",
+          message: body.error ?? t("nameReview.failed"),
+        });
+        return;
+      }
+      setActionNotice({
+        tone: "success",
+        message: t("nameReview.success", {
+          name: body.memberName ?? (chosen === "lookup" ? lookupName : rosterName),
+        }),
+      });
+      await refreshReview();
+      router.refresh();
+    } catch {
+      setActionNotice({ tone: "error", message: t("nameReview.failed") });
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function refreshReview(): Promise<ReviewPayload | null> {
     const res = await fetch(`${linkUrlPrefix}/${review.request.id}/review`);
     if (!res.ok) {
@@ -472,6 +519,31 @@ export function MemberLinkHelpRequestReviewClient({
           >
             {backLabel}
           </Link>
+        </section>
+      ) : null}
+
+      {showNameReview ? (
+        <section className="rounded-xl border border-[#30363d] bg-[#161b22] p-4 space-y-3">
+          <h2 className="text-sm font-semibold">{t("nameReview.title")}</h2>
+          <p className="text-sm text-[#8b949e]">{t("nameReview.body")}</p>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <button
+              type="button"
+              disabled={busy || isResolved || !rosterName}
+              onClick={() => void resolveNameReview("roster")}
+              className="rounded-lg border border-[#30363d] bg-[#0d1117] px-4 py-2 text-sm text-[#e6edf3] disabled:opacity-50"
+            >
+              {t("nameReview.keepRoster", { name: rosterName })}
+            </button>
+            <button
+              type="button"
+              disabled={busy || isResolved || !lookupName}
+              onClick={() => void resolveNameReview("lookup")}
+              className="rounded-lg border border-[#388bfd] bg-[#388bfd]/10 px-4 py-2 text-sm text-[#58a6ff] disabled:opacity-50"
+            >
+              {t("nameReview.useLookup", { name: lookupName })}
+            </button>
+          </div>
         </section>
       ) : null}
 

@@ -902,16 +902,18 @@
       "joinCodeFailed": "Could not create join code.",
       "joinCodeCreated": "Join code generated.",
       "claimTitle": "Commander claim invite",
-      "claimHint": "Invite teammates to claim Commander profiles from your alliance's roster.",
+      "claimHint": "Invite teammates to claim Commander profiles from your alliance's roster. They paste the code after Discord /link, then enter their UID.",
       "claimCommanderLabel": "Commander",
       "claimCommanderPlaceholder": "Select a commander…",
-      "claimButton": "Generate claim link",
+      "claimButton": "Generate claim code",
       "claimEmpty": "Every roster commander is already linked to an account.",
       "claimLinkLabel": "Claim link",
-      "claimSentFor": "Claim link ready for {name}.",
+      "claimCodeLabel": "Claim code",
+      "claimCodeHint": "Send this code in Discord or chat. Recipients run /link, paste the code, then enter their player UID.",
+      "claimSentFor": "Claim code ready for {name}.",
       "claimAlreadyClaimed": "That commander was just linked by someone else.",
-      "claimFailed": "Could not create the claim link.",
-      "claimRowAction": "Claim link",
+      "claimFailed": "Could not create the claim code.",
+      "claimRowAction": "Claim code",
       "claimRowHint": "This commander hasn't linked their HQ account yet.",
       "claimModeSingle": "One commander",
       "claimModeBulk": "Multiple",
@@ -1394,6 +1396,14 @@
       "commander_taken": "This commander is already linked to another account",
       "server_mismatch": "The UID belongs to a different game server than this alliance",
       "target_mismatch": "The UID name does not match the invited commander"
+    },
+    "nameReview": {
+      "title": "Choose the commander name to keep",
+      "body": "This member is already linked. Pick which name Alliance HQ should store for this commander.",
+      "keepRoster": "Keep roster name: {name}",
+      "useLookup": "Use Last War name: {name}",
+      "success": "Saved commander name as {name}.",
+      "failed": "Could not save the commander name."
     },
     "requesterContact": {
       "title": "Requester contact"

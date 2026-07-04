@@ -10,6 +10,10 @@ import type { SystemRoleName } from "@/lib/rbac/constants";
 import { ROLE_IDS } from "@/lib/rbac/constants";
 import { systemRoleNameForId } from "@/lib/rbac/system-roles";
 
+import {
+  assertCommanderClaimTargetClaimable,
+  CommanderClaimInviteError,
+} from "./invites";
 import { provisionAllianceMembership } from "./provision-membership";
 
 const DEFAULT_JOIN_CODE_TTL_DAYS = 7;
@@ -44,6 +48,8 @@ export type CreateAllianceJoinCodeInput = {
   adminLabel?: string | null;
   code?: string | null;
   createdByHqUserId?: string | null;
+  /** Commander claim: redeeming this code targets a specific roster member. */
+  targetAshedMemberId?: string | null;
 };
 
 export type CreateAllianceJoinCodeResult = {
@@ -53,6 +59,8 @@ export type CreateAllianceJoinCodeResult = {
   expiresAt: string;
   maxRedemptions: number;
   roleName: SystemRoleName;
+  targetAshedMemberId: string | null;
+  targetCommanderName: string | null;
 };
 
 export async function createAllianceJoinCode(
@@ -65,6 +73,29 @@ export async function createAllianceJoinCode(
   const roleId = ROLE_IDS[input.roleName];
   if (!roleId) {
     throw new Error("Invalid role.");
+  }
+
+  const targetAshedMemberId = input.targetAshedMemberId?.trim() || null;
+  let targetCommanderName: string | null = null;
+  if (targetAshedMemberId) {
+    if (input.roleName !== "member") {
+      throw new Error("Commander claim codes must use the member role.");
+    }
+    if (input.maxRedemptions !== 1) {
+      throw new Error("Commander claim codes are single-use.");
+    }
+    try {
+      const target = await assertCommanderClaimTargetClaimable(
+        input.allianceId,
+        targetAshedMemberId,
+      );
+      targetCommanderName = target.commanderName;
+    } catch (error) {
+      if (error instanceof CommanderClaimInviteError) {
+        throw error;
+      }
+      throw error;
+    }
   }
 
   const db = getDb();
@@ -101,6 +132,7 @@ export async function createAllianceJoinCode(
     redemptionCount: 0,
     expiresAt,
     adminLabel: input.adminLabel?.trim() || null,
+    targetAshedMemberId,
     createdByHqUserId: input.createdByHqUserId ?? null,
     createdAt: now,
   });
@@ -112,6 +144,8 @@ export async function createAllianceJoinCode(
     expiresAt: expiresAt.toISOString(),
     maxRedemptions: input.maxRedemptions,
     roleName: input.roleName,
+    targetAshedMemberId,
+    targetCommanderName,
   };
 }
 

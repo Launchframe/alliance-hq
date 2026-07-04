@@ -51,7 +51,7 @@ export class CommanderClaimInviteError extends Error {
  * alliance roster and is not already claimed by a user. Returns the
  * commander display name (never the UID — see player-uid-privacy.mdc).
  */
-async function assertClaimTargetClaimable(
+export async function assertCommanderClaimTargetClaimable(
   allianceId: string,
   ashedMemberId: string,
 ): Promise<{ commanderName: string }> {
@@ -239,7 +239,7 @@ export async function createHqInvite(
     if (input.roleName !== "member") {
       throw new Error("Invalid invite role.");
     }
-    const target = await assertClaimTargetClaimable(
+    const target = await assertCommanderClaimTargetClaimable(
       input.allianceId,
       targetAshedMemberId,
     );
@@ -444,7 +444,8 @@ export async function loadHqInvitePreview(
 }
 
 /**
- * Most-recent accepted commander claim invite for an HQ user in an alliance.
+ * Most-recent accepted commander claim for an HQ user in an alliance
+ * (protected-link invite or claim join-code redemption).
  * Drives the streamlined onboarding "confirm your commander" step.
  */
 export async function findAcceptedClaimInviteForUser(
@@ -452,7 +453,7 @@ export async function findAcceptedClaimInviteForUser(
   hqUserId: string,
 ): Promise<{ inviteId: string; targetAshedMemberId: string } | null> {
   const db = getDb();
-  const [row] = await db
+  const [inviteRow] = await db
     .select({
       id: schema.hqInvites.id,
       targetAshedMemberId: schema.hqInvites.targetAshedMemberId,
@@ -469,8 +470,41 @@ export async function findAcceptedClaimInviteForUser(
     .orderBy(desc(schema.hqInvites.acceptedAt))
     .limit(1);
 
-  if (!row?.targetAshedMemberId) return null;
-  return { inviteId: row.id, targetAshedMemberId: row.targetAshedMemberId };
+  if (inviteRow?.targetAshedMemberId) {
+    return {
+      inviteId: inviteRow.id,
+      targetAshedMemberId: inviteRow.targetAshedMemberId,
+    };
+  }
+
+  const [joinRow] = await db
+    .select({
+      id: schema.hqAllianceJoinCodes.id,
+      targetAshedMemberId: schema.hqAllianceJoinCodes.targetAshedMemberId,
+    })
+    .from(schema.hqAllianceJoinCodeRedemptions)
+    .innerJoin(
+      schema.hqAllianceJoinCodes,
+      eq(
+        schema.hqAllianceJoinCodeRedemptions.joinCodeId,
+        schema.hqAllianceJoinCodes.id,
+      ),
+    )
+    .where(
+      and(
+        eq(schema.hqAllianceJoinCodes.allianceId, allianceId),
+        eq(schema.hqAllianceJoinCodeRedemptions.hqUserId, hqUserId),
+        isNotNull(schema.hqAllianceJoinCodes.targetAshedMemberId),
+      ),
+    )
+    .orderBy(desc(schema.hqAllianceJoinCodeRedemptions.redeemedAt))
+    .limit(1);
+
+  if (!joinRow?.targetAshedMemberId) return null;
+  return {
+    inviteId: joinRow.id,
+    targetAshedMemberId: joinRow.targetAshedMemberId,
+  };
 }
 
 export function resolveHqInviteAcceptRedirect(options: {

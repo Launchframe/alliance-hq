@@ -6,6 +6,7 @@ import { writeAuditLog } from "@/lib/bff/audit";
 import { getDb, schema } from "@/lib/db";
 import {
   getMemberLinkHelpRequestById,
+  resolveMemberLinkHelpRequest,
   satisfyHelpInboxItem,
 } from "@/lib/member-link/member-link-help-queue.server";
 import {
@@ -465,4 +466,82 @@ export async function linkMemberLinkHelpRequest(input: {
     .limit(1);
 
   return { ok: true, memberName: updatedMember?.currentName ?? memberRow.currentName };
+}
+
+/**
+ * After a non-blocking claim name mismatch, officer picks roster vs Last War name.
+ * Member is already linked; this only settles which display name we persist.
+ */
+export async function resolveClaimNameReview(input: {
+  requestId: string;
+  chosen: "roster" | "lookup";
+  resolvedByHqUserId: string;
+  sessionId: string;
+  allianceId?: string;
+}): Promise<
+  | { ok: true; memberName: string }
+  | { ok: false; reason: string }
+> {
+  const row = await getMemberLinkHelpRequestById(input.requestId);
+  if (!row) return { ok: false, reason: "not_found" };
+  if (input.allianceId && row.allianceId !== input.allianceId) {
+    return { ok: false, reason: "not_found" };
+  }
+  if (row.status !== "open") return { ok: false, reason: "already_closed" };
+  if (row.context !== "claim_conflict") {
+    return { ok: false, reason: "not_name_review" };
+  }
+  if (
+    row.claimConflictReason !== "target_mismatch" &&
+    row.claimConflictReason !== "name_collision"
+  ) {
+    return { ok: false, reason: "not_name_review" };
+  }
+  if (!row.linkedAshedMemberId || !row.hqUserId) {
+    return { ok: false, reason: "missing_target" };
+  }
+
+  const rosterName = row.reportedName?.trim();
+  const lookupName = row.gameUserName?.trim();
+  if (!rosterName || !lookupName) {
+    return { ok: false, reason: "missing_names" };
+  }
+
+  const chosenName = input.chosen === "lookup" ? lookupName : rosterName;
+  const targetAshedMemberId = row.linkedAshedMemberId;
+
+  if (input.chosen === "lookup") {
+    await reconcileAllianceMemberForRosterLink({
+      allianceId: row.allianceId,
+      ashedMemberId: targetAshedMemberId,
+      gameUserName: chosenName,
+      ashedConnection: null,
+    });
+  }
+
+  const existingLink = await getHqMemberLinkByAllianceAndMember(
+    row.allianceId,
+    targetAshedMemberId,
+  );
+  if (existingLink && existingLink.hqUserId === row.hqUserId) {
+    await linkHqMember({
+      allianceId: row.allianceId,
+      hqUserId: row.hqUserId,
+      ashedMemberId: targetAshedMemberId,
+      memberDisplayName: chosenName,
+      gameUid: existingLink.gameUid,
+    });
+  }
+
+  const resolved = await resolveMemberLinkHelpRequest({
+    requestId: input.requestId,
+    allianceId: input.allianceId,
+    resolvedByHqUserId: input.resolvedByHqUserId,
+    sessionId: input.sessionId,
+    action: "resolve",
+    resolutionNote: `name:${input.chosen}`,
+  });
+  if (!resolved.ok) return resolved;
+
+  return { ok: true, memberName: chosenName };
 }

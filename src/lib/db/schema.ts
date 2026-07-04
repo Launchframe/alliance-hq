@@ -1636,6 +1636,8 @@ export const hqAllianceJoinCodes = pgTable("hq_alliance_join_codes", {
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   revokedAt: timestamp("revoked_at", { withTimezone: true }),
   adminLabel: text("admin_label"),
+  /** When set, redeeming binds the user to claim this roster commander (UID step). */
+  targetAshedMemberId: text("target_ashed_member_id"),
   createdByHqUserId: text("created_by_hq_user_id").references(
     () => hqUsers.id,
     { onDelete: "set null" },
