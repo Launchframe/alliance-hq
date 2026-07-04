@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 
+import { isDevOrPreviewEnvironment } from "@/lib/dev/env-guard";
 import { loadTrainsDashboard } from "@/lib/trains/load-dashboard";
 import { loadActiveAlliancePoolMembers } from "@/lib/members/game-roster";
 import {
+  clearWeekSchedule,
   getOrCreateWeekSchedule,
   getServerCalendarDate,
   getWeekStartMonday,
@@ -72,4 +74,36 @@ export async function POST(request: Request) {
   );
 
   return NextResponse.json({ schedule, dayConfigs });
+}
+
+/** Pre-production only: clear a persisted week schedule back to draft preview. */
+export async function DELETE(request: Request) {
+  if (!isDevOrPreviewEnvironment()) {
+    return new NextResponse(null, { status: 404 });
+  }
+
+  const session = await getOrCreateSession();
+  const denied = await requireTrainOfficer(session.id);
+  if (denied) return denied;
+
+  const ctx = await resolveTrainRequestContext();
+  if (ctx instanceof NextResponse) return ctx;
+
+  let weekStart: string | undefined;
+  try {
+    const body = (await request.json()) as { weekStart?: string };
+    weekStart = body.weekStart?.trim() || undefined;
+  } catch {
+    weekStart = undefined;
+  }
+
+  const resolvedWeekStart =
+    weekStart || getWeekStartMonday(getServerCalendarDate());
+
+  const result = await clearWeekSchedule(ctx.allianceId, resolvedWeekStart);
+  return NextResponse.json({
+    ok: true,
+    weekStart: resolvedWeekStart,
+    ...result,
+  });
 }

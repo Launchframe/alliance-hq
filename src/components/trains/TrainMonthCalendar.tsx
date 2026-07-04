@@ -19,6 +19,10 @@ import { buildMonthGrid } from "@/lib/trains/trains-display-calendar.shared";
 import type { TrainsDisplayWeekStartDow } from "@/lib/trains/trains-display-calendar.shared";
 import { expandPaintRange } from "@/lib/trains/paint-range.shared";
 import { calendarCellStyleClass } from "@/lib/trains/calendar-cell-styles.shared";
+import {
+  isProvisionalDayConfig,
+  provisionalDayConfigClass,
+} from "@/lib/trains/week-schedule-day-configs.shared";
 import { TemplatePaletteBadge } from "@/components/trains/TemplatePaletteBadge";
 import {
   TEMPLATE_PALETTE_STYLES,
@@ -54,6 +58,8 @@ type Props = {
     paletteTitle: string;
     paletteHint: string;
     weekdayHeaders: string[];
+    previewLegend?: string;
+    draftScheduleAriaLabel?: string;
   };
   externalMonth?: MonthSchedulePagePayload;
   onSelectDate: (date: string) => void;
@@ -340,6 +346,11 @@ export function TrainMonthCalendar({
     );
   }, [selectedRange]);
   const hasSelection = Boolean(selectedRange);
+  const hasProvisionalDays = useMemo(
+    () => dayConfigs.some((day) => isProvisionalDayConfig(day.id)),
+    [dayConfigs],
+  );
+  const draftAriaSuffix = navLabels.draftScheduleAriaLabel ?? "Draft schedule";
 
   return (
     <div className="flex flex-col gap-3">
@@ -448,7 +459,8 @@ export function TrainMonthCalendar({
                   ? "ring-1 ring-[#58a6ff]/50 ring-offset-1 ring-offset-[#0d1117]"
                   : "";
 
-            const cellClass = `flex min-h-[4.75rem] min-w-0 flex-col rounded-lg border-2 p-1 text-left ${style} ${ringClass} ${
+            const isProvisional = day ? isProvisionalDayConfig(day.id) : false;
+            const cellClass = `flex min-h-[4.75rem] min-w-0 flex-col rounded-lg border-2 p-1 text-left ${style} ${ringClass} ${provisionalDayConfigClass(isProvisional)} ${
               inMonth ? "opacity-100" : "pointer-events-none opacity-25"
             }`;
 
@@ -517,7 +529,9 @@ export function TrainMonthCalendar({
                   selectionMode ? undefined : () => handleDaySelect(date)
                 }
                 aria-pressed={isSelected}
-                aria-label={date}
+                aria-label={
+                  isProvisional ? `${date}, ${draftAriaSuffix}` : date
+                }
                 className={`${cellClass} hover:opacity-95`}
               >
                 {inner}
@@ -526,6 +540,12 @@ export function TrainMonthCalendar({
           })}
         </div>
       </div>
+
+      {hasProvisionalDays && navLabels.previewLegend ? (
+        <p className="text-[11px] leading-relaxed text-[#6e7681]">
+          {navLabels.previewLegend}
+        </p>
+      ) : null}
     </div>
   );
 }

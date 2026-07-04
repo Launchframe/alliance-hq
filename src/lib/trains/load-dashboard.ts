@@ -2,7 +2,8 @@ import {
   resolveAnchorTemplateType,
 } from "@/lib/trains/day-config-resolve.server";
 import { paintTemplateFromConductorConfig } from "@/lib/trains/calendar-cell-styles.shared";
-import { buildWeekScheduleDayConfigs } from "@/lib/trains/week-schedule-day-configs.shared";
+import { resolveWeekDisplayDayConfigs } from "@/lib/trains/week-schedule-day-configs.shared";
+import { isDevOrPreviewEnvironment } from "@/lib/dev/env-guard";
 import { resolveAllianceByTag } from "@/lib/alliance/resolve";
 import { getAllianceOperatingMode } from "@/lib/native-alliance/operating-mode";
 import type { AllianceOperatingMode } from "@/lib/native-alliance/constants";
@@ -29,7 +30,6 @@ import { getPoolSummary } from "@/lib/trains/pool";
 import {
   conductorMechanismPoolType,
   generateDayConfigForDate,
-  generateWeekDayConfigs,
 } from "@/lib/trains/templates";
 import {
   allianceTrainWeekFromRow,
@@ -141,6 +141,8 @@ export type TrainsDashboardPayload = {
   wheelSpinSpeed: TrainsWheelSpinSpeed;
   trainWeekStartDow: number;
   canManageTrains: boolean;
+  /** Pre-production only: train managers may clear a persisted week schedule. */
+  canClearWeekSchedule: boolean;
   canUnlockConductor: boolean;
   trainDiscordAnnouncementsEnabled: boolean;
   trainDiscordConfigured: boolean;
@@ -152,6 +154,8 @@ export type TrainsDashboardPayload = {
     templateType: string;
     isPivot: boolean;
   } | null;
+  /** True when `train_week_schedules` has a row for the current train week. */
+  schedulePersisted: boolean;
   dayConfigs: Array<{
     id: string;
     date: string;
@@ -189,6 +193,7 @@ export type TrainsDashboardPayload = {
 const EMPTY_DASHBOARD_FIELDS: Pick<
   TrainsDashboardPayload,
   | "schedule"
+  | "schedulePersisted"
   | "dayConfigs"
   | "weekRecords"
   | "roster"
@@ -202,6 +207,7 @@ const EMPTY_DASHBOARD_FIELDS: Pick<
 > = {
   operatingMode: "ashed",
   schedule: null,
+  schedulePersisted: false,
   dayConfigs: [],
   weekRecords: [],
   roster: [],
@@ -232,6 +238,8 @@ export async function loadTrainsDashboard(
   const allianceId = session.currentAllianceId ?? session.allianceId;
   const today = getServerCalendarDate();
   const canManageTrains = await sessionHasPermission(sessionId, "trains:write");
+  const canClearWeekSchedule =
+    canManageTrains && isDevOrPreviewEnvironment();
   const canUnlockConductor = await sessionIsPlatformMaintainer(sessionId);
   const trainDiscordSettings = allianceId
     ? await loadTrainDiscordSettings(allianceId, canManageTrains)
@@ -261,6 +269,7 @@ export async function loadTrainsDashboard(
       weekEnd: addCalendarDays(weekStart, 6),
       ...preferenceFields,
       canManageTrains,
+      canClearWeekSchedule,
       canUnlockConductor,
       ...trainDiscordFields,
       activeMemberCount: 0,
@@ -284,6 +293,7 @@ export async function loadTrainsDashboard(
       weekEnd: addCalendarDays(weekStart, 6),
       ...preferenceFields,
       canManageTrains,
+      canClearWeekSchedule,
       canUnlockConductor,
       ...trainDiscordFields,
       activeMemberCount: 0,
@@ -299,29 +309,26 @@ export async function loadTrainsDashboard(
     effectiveSeason.seasonKey,
   );
   const weekEnd = addCalendarDays(weekStart, 6);
-  const dayConfigRows = scheduleRow
-    ? await listDayConfigsForWeek(allianceId, weekStart, weekEnd)
-    : [];
+  const dayConfigRows = await listDayConfigsForWeek(
+    allianceId,
+    weekStart,
+    weekEnd,
+  );
   const dashboardTemplateType: WeekTemplateType = scheduleRow
     ? (scheduleRow.templateType as WeekTemplateType)
-    : "vs_push_week";
-  const dayConfigs: WeekScheduleDayConfig[] =
-    dayConfigRows.length > 0
-      ? buildWeekScheduleDayConfigs(
-          weekStart,
-          dashboardTemplateType,
-          dayConfigRows,
-        )
-      : [];
+    : await resolveAnchorTemplateType(allianceId, effectiveSeason.seasonKey);
+  const dayConfigs: WeekScheduleDayConfig[] = resolveWeekDisplayDayConfigs(
+    weekStart,
+    dashboardTemplateType,
+    dayConfigRows,
+  );
 
-  const weekRecordRows = scheduleRow
-    ? await listConductorRecordsForWeek(
-        allianceId,
-        weekStart,
-        weekEnd,
-        effectiveSeason.seasonKey,
-      )
-    : [];
+  const weekRecordRows = await listConductorRecordsForWeek(
+    allianceId,
+    weekStart,
+    weekEnd,
+    effectiveSeason.seasonKey,
+  );
 
   const mapRecord = mapConductorRecord;
 
@@ -357,6 +364,7 @@ export async function loadTrainsDashboard(
     weekEnd,
     ...preferenceFields,
     canManageTrains,
+    canClearWeekSchedule,
     canUnlockConductor,
     ...trainDiscordFields,
     activeMemberCount,
@@ -369,6 +377,7 @@ export async function loadTrainsDashboard(
           isPivot: scheduleRow.isPivot === 1,
         }
       : null,
+    schedulePersisted: scheduleRow != null,
     dayConfigs,
     weekRecords,
     roster: members.map((m) => ({
@@ -420,33 +429,21 @@ export async function loadWeekSchedulePage(
     effectiveSeason.seasonKey,
   );
 
-  const dayConfigRows = scheduleRow
-    ? await listDayConfigsForWeek(allianceId, weekStart, weekEnd)
-    : [];
+  const dayConfigRows = await listDayConfigsForWeek(
+    allianceId,
+    weekStart,
+    weekEnd,
+  );
 
   const templateType: WeekTemplateType = scheduleRow
     ? (scheduleRow.templateType as WeekTemplateType)
     : await resolveAnchorTemplateType(allianceId, effectiveSeason.seasonKey);
 
-  let dayConfigs: WeekScheduleDayConfig[];
-
-  if (dayConfigRows.length > 0) {
-    dayConfigs = buildWeekScheduleDayConfigs(
-      weekStart,
-      templateType,
-      dayConfigRows,
-    );
-  } else {
-    dayConfigs = generateWeekDayConfigs(templateType, weekStart).map((d) => ({
-      id: `preview-${d.date}`,
-      date: d.date,
-      conductorMechanism: d.conductorMechanism,
-      vipMechanism: d.vipMechanism ?? null,
-      vipConfig: d.vipConfig ?? null,
-      isOverride: false,
-      paintTemplate: templateType,
-    }));
-  }
+  const dayConfigs: WeekScheduleDayConfig[] = resolveWeekDisplayDayConfigs(
+    weekStart,
+    templateType,
+    dayConfigRows,
+  );
 
   const weekRecordRows = await listConductorRecordsForWeek(
     allianceId,

@@ -39,6 +39,40 @@ export async function getWeekSchedule(
   return row;
 }
 
+/** Deletes day configs in `[weekStart, weekEnd]` and the week schedule row. */
+export async function deleteWeekScheduleAndDayConfigs(
+  allianceId: string,
+  weekStart: string,
+  weekEnd: string,
+): Promise<{ deletedSchedule: boolean; deletedDayConfigs: number }> {
+  const db = getDb();
+  const deletedDayConfigs = await db
+    .delete(schema.trainDayConfigs)
+    .where(
+      and(
+        eq(schema.trainDayConfigs.allianceId, allianceId),
+        gte(schema.trainDayConfigs.date, weekStart),
+        lte(schema.trainDayConfigs.date, weekEnd),
+      ),
+    )
+    .returning({ id: schema.trainDayConfigs.id });
+
+  const deletedSchedules = await db
+    .delete(schema.trainWeekSchedules)
+    .where(
+      and(
+        eq(schema.trainWeekSchedules.allianceId, allianceId),
+        eq(schema.trainWeekSchedules.weekStart, weekStart),
+      ),
+    )
+    .returning({ id: schema.trainWeekSchedules.id });
+
+  return {
+    deletedSchedule: deletedSchedules.length > 0,
+    deletedDayConfigs: deletedDayConfigs.length,
+  };
+}
+
 export async function upsertWeekSchedule(input: {
   allianceId: string;
   weekStart: string;
