@@ -778,6 +778,8 @@ export const memberSeasonVr = pgTable(
     ashedMemberId: text("ashed_member_id").notNull(),
     seasonKey: text("season_key").notNull(),
     highestBaseVr: integer("highest_base_vr").notNull(),
+    /** Season institute building level (source of truth for VR ladder). */
+    instituteLevel: integer("institute_level"),
     flaggedAt: timestamp("flagged_at", { withTimezone: true }),
     flagReason: text("flag_reason"),
     updatedByDiscordUserId: text("updated_by_discord_user_id"),
@@ -811,6 +813,7 @@ export const memberSeasonVrEvents = pgTable(
     seasonKey: text("season_key").notNull(),
     ashedMemberId: text("ashed_member_id").notNull(),
     baseVr: integer("base_vr").notNull(),
+    instituteLevel: integer("institute_level"),
     previousBaseVr: integer("previous_base_vr"),
     source: text("source").notNull(),
     reportedByHqUserId: text("reported_by_hq_user_id").references(

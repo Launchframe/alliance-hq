@@ -3,9 +3,10 @@
 import { useTranslations } from "next-intl";
 
 import type { MyVrEvent } from "@/lib/vr/my-vr.shared";
-import { VR_STEP } from "@/lib/vr/validation";
+import { instituteLevelForBaseVr } from "@/lib/vr/validation";
 
 type Props = {
+  seasonKey: string;
   events: MyVrEvent[];
 };
 
@@ -16,7 +17,21 @@ function formatDateTime(iso: string): string {
   });
 }
 
-export function VrProgressTable({ events }: Props) {
+function isOneInstituteLevelBump(
+  seasonKey: string,
+  previousBaseVr: number,
+  baseVr: number,
+): boolean {
+  const previousLevel = instituteLevelForBaseVr(seasonKey, previousBaseVr);
+  const nextLevel = instituteLevelForBaseVr(seasonKey, baseVr);
+  return (
+    previousLevel != null &&
+    nextLevel != null &&
+    nextLevel === previousLevel + 1
+  );
+}
+
+export function VrProgressTable({ seasonKey, events }: Props) {
   const t = useTranslations("myVr");
 
   function formatChange(event: MyVrEvent): string {
@@ -24,8 +39,11 @@ export function VrProgressTable({ events }: Props) {
       return t("changeSet");
     }
     const delta = event.baseVr - event.previousBaseVr;
-    if (delta === VR_STEP) {
-      return t("changeBump");
+    if (
+      delta > 0 &&
+      isOneInstituteLevelBump(seasonKey, event.previousBaseVr, event.baseVr)
+    ) {
+      return t("changeBump", { delta });
     }
     return t("changeFrom", { previous: event.previousBaseVr });
   }
@@ -44,6 +62,7 @@ export function VrProgressTable({ events }: Props) {
         <thead>
           <tr className="border-b border-[#30363d] text-left text-[#8b949e]">
             <th className="px-2 py-2 font-medium">{t("tableDate")}</th>
+            <th className="px-2 py-2 font-medium">{t("tableInstituteLevel")}</th>
             <th className="px-2 py-2 font-medium">{t("tableLevel")}</th>
             <th className="px-2 py-2 font-medium">{t("tableChange")}</th>
           </tr>
@@ -56,6 +75,9 @@ export function VrProgressTable({ events }: Props) {
             >
               <td className="px-2 py-2 whitespace-nowrap">
                 {formatDateTime(event.createdAt)}
+              </td>
+              <td className="px-2 py-2 font-mono text-[#8b949e]">
+                {event.instituteLevel ?? "—"}
               </td>
               <td className="px-2 py-2 font-mono font-semibold">{event.baseVr}</td>
               <td className="px-2 py-2 text-[#8b949e]">{formatChange(event)}</td>

@@ -1,12 +1,15 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 
+import { AppSelect } from "@/components/ui/AppSelect";
 import type {
   ViralResistanceOfficerPayload,
   ViralResistancePayload,
 } from "@/lib/vr/load-leaderboard";
+import { buildMemberMatchSelectOptions } from "@/lib/video/member-select-options";
+import { coerceInstituteLevelFromBaseVr } from "@/lib/vr/validation";
 import {
   FORM_SUBMIT_ENTER_KEY_HINT,
   preventDefaultFormSubmit,
@@ -28,6 +31,15 @@ export function ViralResistanceView({ initial, officer: initialOfficer }: Props)
   const [overrideReason, setOverrideReason] = useState("");
   const [overrideBusy, setOverrideBusy] = useState(false);
   const [overrideMessage, setOverrideMessage] = useState<string | null>(null);
+
+  const memberOptions = useMemo(
+    () =>
+      buildMemberMatchSelectOptions(officer?.members ?? [], {
+        emptyLabel: t("officer.memberPlaceholder"),
+        highlightMemberId: overrideMemberId || null,
+      }),
+    [officer?.members, overrideMemberId, t],
+  );
 
   const refresh = useCallback(async () => {
     setRefreshing(true);
@@ -122,6 +134,7 @@ export function ViralResistanceView({ initial, officer: initialOfficer }: Props)
               <tr>
                 <th className="px-4 py-3">{t("colRank")}</th>
                 <th className="px-4 py-3">{t("colMember")}</th>
+                <th className="px-4 py-3">{t("colLevel")}</th>
                 <th className="px-4 py-3">{t("colVr")}</th>
                 <th className="px-4 py-3">{t("colThp")}</th>
               </tr>
@@ -141,6 +154,9 @@ export function ViralResistanceView({ initial, officer: initialOfficer }: Props)
                       </span>
                     ) : null}
                   </td>
+                  <td className="px-4 py-3 font-mono text-[#8b949e]">
+                    {row.instituteLevel}
+                  </td>
                   <td className="px-4 py-3 font-mono text-[#e6edf3]">
                     {row.highestBaseVr.toLocaleString()}
                   </td>
@@ -152,7 +168,7 @@ export function ViralResistanceView({ initial, officer: initialOfficer }: Props)
               {data.rows.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={4}
+                    colSpan={5}
                     className="px-4 py-8 text-center text-[#8b949e]"
                   >
                     {t("empty")}
@@ -178,11 +194,23 @@ export function ViralResistanceView({ initial, officer: initialOfficer }: Props)
                   key={row.id}
                   className="rounded-lg border border-[#d2992233] bg-[#d2992211] px-3 py-2 text-sm"
                 >
-                  <span className="font-mono text-[#e6edf3]">
-                    {row.ashedMemberId}
+                  <span className="font-medium text-[#e6edf3]">
+                    {officer.members.find((m) => m.id === row.ashedMemberId)
+                      ?.current_name ?? row.ashedMemberId}
                   </span>
                   <span className="mx-2 text-[#8b949e]">·</span>
                   <span className="font-mono">{row.highestBaseVr}</span>
+                  <span className="mx-2 text-[#8b949e]">·</span>
+                  <span className="text-[#8b949e]">
+                    {t("officer.levelLine", {
+                      level:
+                        row.instituteLevel ??
+                        coerceInstituteLevelFromBaseVr(
+                          officer.seasonKey,
+                          row.highestBaseVr,
+                        ),
+                    })}
+                  </span>
                   {row.flagReason ? (
                     <span className="mt-1 block text-xs text-[#d29922]">
                       {row.flagReason}
@@ -203,11 +231,13 @@ export function ViralResistanceView({ initial, officer: initialOfficer }: Props)
             }}
           >
             <label className="flex min-w-0 flex-1 flex-col gap-1 text-xs text-[#8b949e]">
-              {t("officer.memberId")}
-              <input
+              {t("officer.member")}
+              <AppSelect
                 value={overrideMemberId}
-                onChange={(e) => setOverrideMemberId(e.target.value)}
-                className="rounded-lg border border-[#30363d] bg-[#161b22] px-3 py-2 text-sm text-[#e6edf3]"
+                onChange={setOverrideMemberId}
+                options={memberOptions}
+                searchable
+                placeholder={t("officer.memberPlaceholder")}
               />
             </label>
             <label className="flex w-full flex-col gap-1 text-xs text-[#8b949e] sm:w-36">

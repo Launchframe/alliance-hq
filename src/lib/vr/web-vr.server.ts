@@ -1,7 +1,6 @@
 import "server-only";
 
 import { createDiscordTranslator } from "@/lib/discord/i18n";
-import { resolveMaxBaseVrForAlliance } from "@/lib/game-season/game-servers.server";
 import { getHqMemberLinkForUser } from "@/lib/member-link/repository.server";
 import { peerMaxExcludingMember } from "@/lib/vr/anomaly";
 import { processVrCommand, processVrConfirmation } from "@/lib/vr/command";
@@ -20,7 +19,11 @@ import {
   upsertMemberSeasonVr,
 } from "@/lib/vr/repository";
 import type { VrPendingState } from "@/lib/vr/types";
-import { isValidBaseVr, formatVrValidationError } from "@/lib/vr/validation";
+import {
+  coerceInstituteLevelFromBaseVr,
+  formatBaseVrValidationError,
+  validateBaseVrForSeason,
+} from "@/lib/vr/validation";
 
 export async function loadMyVrForUser(input: {
   allianceId: string;
@@ -57,6 +60,12 @@ export async function loadMyVrForUser(input: {
       ? currentVr
       : null;
 
+  const instituteLevel =
+    seasonRow?.instituteLevel ??
+    (currentVr != null
+      ? coerceInstituteLevelFromBaseVr(season.seasonKey, currentVr)
+      : null);
+
   return {
     seasonKey: season.seasonKey,
     isPostSeason: season.isPostSeason,
@@ -65,12 +74,16 @@ export async function loadMyVrForUser(input: {
     priorSeason: season.priorSeason,
     seasonMaxVr,
     currentVr,
+    instituteLevel,
     updatedAt: seasonRow?.updatedAt.toISOString() ?? null,
     commanderName: link.memberDisplayName,
     percentile,
     reporterCount: reporterVrs.length,
     events: events.map((event) => ({
       baseVr: event.baseVr,
+      instituteLevel:
+        event.instituteLevel ??
+        coerceInstituteLevelFromBaseVr(season.seasonKey, event.baseVr),
       previousBaseVr: event.previousBaseVr,
       createdAt: event.createdAt.toISOString(),
       source: event.source,
@@ -158,19 +171,21 @@ async function handleWebVrCommandCore(input: {
     listSeasonVrRows(input.allianceId, season.seasonKey),
   ]);
   const peerMax = peerMaxExcludingMember(seasonRows, link.ashedMemberId);
-  const maxBaseVr = await resolveMaxBaseVrForAlliance(input.allianceId);
 
-  if (
-    input.explicitLevel != null &&
-    !isValidBaseVr(input.explicitLevel, maxBaseVr)
-  ) {
-    return {
-      result: {
-        status: "validation_error",
-        message: formatVrValidationError(maxBaseVr),
-      },
-      ashedMemberId: link.ashedMemberId,
-    };
+  if (input.explicitLevel != null) {
+    const validated = validateBaseVrForSeason(
+      season.seasonKey,
+      input.explicitLevel,
+    );
+    if (!validated.ok) {
+      return {
+        result: {
+          status: "validation_error",
+          message: formatBaseVrValidationError(validated),
+        },
+        ashedMemberId: link.ashedMemberId,
+      };
+    }
   }
 
   const result = processVrCommand({
@@ -181,7 +196,7 @@ async function handleWebVrCommandCore(input: {
     reporterCount,
     peerMax,
     translate,
-    maxBaseVr,
+    seasonKey: season.seasonKey,
   });
 
   await saveHqVrPending(input.allianceId, input.hqUserId, result.pending);

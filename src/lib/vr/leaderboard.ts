@@ -3,11 +3,13 @@ import type { AshedMember } from "@/lib/video/member-matcher";
 import { assignSnakeDraft } from "@/lib/shared/snake-draft.shared";
 
 import type { MemberSeasonVr } from "@/lib/db/schema";
+import { coerceInstituteLevelFromBaseVr } from "@/lib/vr/institute-levels.shared";
 
 export type LeaderboardRow = {
   ashedMemberId: string;
   memberName: string;
   highestBaseVr: number;
+  instituteLevel: number;
   totalHeroPower: number;
   flagged: boolean;
   flagReason: string | null;
@@ -48,6 +50,7 @@ export function buildLeaderboardRows(
   seasonRows: MemberSeasonVr[],
   members: AshedMember[],
   links: Array<{ ashedMemberId: string; memberDisplayName: string | null }>,
+  seasonKey: string,
 ): LeaderboardRow[] {
   const memberById = new Map(members.map((m) => [m.id, m]));
   const linkNameById = new Map(
@@ -61,10 +64,14 @@ export function buildLeaderboardRows(
         linkNameById.get(row.ashedMemberId) ??
         member?.current_name ??
         row.ashedMemberId;
+      const instituteLevel =
+        row.instituteLevel ??
+        coerceInstituteLevelFromBaseVr(seasonKey, row.highestBaseVr);
       return {
         ashedMemberId: row.ashedMemberId,
         memberName,
         highestBaseVr: row.highestBaseVr,
+        instituteLevel,
         totalHeroPower: member ? memberTotalHeroPower(member) : 0,
         flagged: row.flaggedAt != null,
         flagReason: row.flagReason,

@@ -81,26 +81,26 @@ describe("handleWebVrCommand", () => {
     );
   });
 
-  it("bumps to 250 when no season high", async () => {
+  it("bumps to season min VR when no season high", async () => {
     const result = await handleWebVrCommand({
       sessionId: "session-1",
       allianceId: "alliance-1",
       hqUserId: "hq-1",
       locale: "en-US",
     });
-    expect(result).toMatchObject({ status: "set_vr", newVr: 250 });
+    expect(result).toMatchObject({ status: "set_vr", newVr: 100 });
     expect(auditWebVrCommand).toHaveBeenCalledWith(
       expect.objectContaining({
         sessionId: "session-1",
         allianceId: "alliance-1",
         hqUserId: "hq-1",
         ashedMemberId: "member-1",
-        result: expect.objectContaining({ status: "set_vr", newVr: 250 }),
+        result: expect.objectContaining({ status: "set_vr", newVr: 100 }),
       }),
     );
     expect(upsertMemberSeasonVr).toHaveBeenCalledWith(
       expect.objectContaining({
-        baseVr: 250,
+        baseVr: 100,
         eventSource: "web",
         hqUserId: "hq-1",
       }),
@@ -229,6 +229,7 @@ describe("loadMyVrForUser", () => {
       priorSeason: "4",
       seasonMaxVr: 500,
       currentVr: 500,
+      instituteLevel: 5,
       commanderName: "Tester",
     });
   });
