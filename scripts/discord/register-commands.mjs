@@ -24,8 +24,8 @@ const vrLevelOption = {
     "pt-BR": "VR base (múltiplo de 250)",
   },
   type: 4,
-  min_value: 250,
-  max_value: 12750,
+  min_value: 100,
+  max_value: 28000,
   required: false,
 };
 

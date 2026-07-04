@@ -72,6 +72,55 @@ describe("leaderboard", () => {
     expect(rows[0]?.ashedMemberId).toBe("m2");
   });
 
+  it("sorts standings by base VR even when weekly pass is active", () => {
+    const rows = buildLeaderboardRows(
+      [
+        {
+          id: "1",
+          allianceId: "a",
+          ashedMemberId: "pass-holder",
+          seasonKey: "5",
+          highestBaseVr: 12000,
+          instituteLevel: 54,
+          flaggedAt: null,
+          flagReason: null,
+          updatedByDiscordUserId: null,
+          updatedByHqUserId: null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+        {
+          id: "2",
+          allianceId: "a",
+          ashedMemberId: "base-leader",
+          seasonKey: "5",
+          highestBaseVr: 12200,
+          instituteLevel: 55,
+          flaggedAt: null,
+          flagReason: null,
+          updatedByDiscordUserId: null,
+          updatedByHqUserId: null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ],
+      [
+        { id: "pass-holder", current_name: "Pass Holder", total_hero_power: 100 },
+        { id: "base-leader", current_name: "Base Leader", total_hero_power: 100 },
+      ] as never[],
+      [],
+      "5",
+      new Map([["pass-holder", true]]),
+    );
+
+    expect(rows.map((row) => row.ashedMemberId)).toEqual([
+      "base-leader",
+      "pass-holder",
+    ]);
+    expect(rows.find((row) => row.ashedMemberId === "pass-holder"))
+      .toMatchObject({ weeklyPassActive: true, highestBaseVr: 12000 });
+  });
+
   it("maps heroPowerM to THP for native roster members", () => {
     expect(
       memberTotalHeroPower({
