@@ -3,6 +3,7 @@ import type { AshedMember } from "@/lib/video/member-matcher";
 import { assignSnakeDraft } from "@/lib/shared/snake-draft.shared";
 
 import type { MemberSeasonVr } from "@/lib/db/schema";
+import { effectiveBaseVr } from "@/lib/vr/effective-vr.shared";
 import { coerceInstituteLevelFromBaseVr } from "@/lib/vr/institute-levels.shared";
 
 export type LeaderboardRow = {
@@ -11,6 +12,7 @@ export type LeaderboardRow = {
   highestBaseVr: number;
   instituteLevel: number;
   totalHeroPower: number;
+  weeklyPassActive: boolean;
   flagged: boolean;
   flagReason: string | null;
 };
@@ -51,6 +53,7 @@ export function buildLeaderboardRows(
   members: AshedMember[],
   links: Array<{ ashedMemberId: string; memberDisplayName: string | null }>,
   seasonKey: string,
+  weeklyPassByMemberId?: ReadonlyMap<string, boolean>,
 ): LeaderboardRow[] {
   const memberById = new Map(members.map((m) => [m.id, m]));
   const linkNameById = new Map(
@@ -73,6 +76,7 @@ export function buildLeaderboardRows(
         highestBaseVr: row.highestBaseVr,
         instituteLevel,
         totalHeroPower: member ? memberTotalHeroPower(member) : 0,
+        weeklyPassActive: weeklyPassByMemberId?.get(row.ashedMemberId) ?? false,
         flagged: row.flaggedAt != null,
         flagReason: row.flagReason,
       };
@@ -144,7 +148,7 @@ export function buildTakedownTeams(
     teamIndex: index + 1,
     rallyLead: lead,
     fillers: fillerGroups[index] ?? [],
-    effectiveVr: lead.highestBaseVr,
+    effectiveVr: effectiveBaseVr(lead.highestBaseVr, lead.weeklyPassActive),
   }));
 
   return { ok: true, teams };

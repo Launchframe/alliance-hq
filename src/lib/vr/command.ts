@@ -19,8 +19,6 @@ export type ProcessVrCommandInput = {
   peerMax: number;
   translate: DiscordTranslate;
   seasonKey: string;
-  /** @deprecated Prefer seasonKey ladder; retained for call-site compatibility. */
-  maxBaseVr?: number;
 };
 
 export type ProcessVrConfirmationInput = {

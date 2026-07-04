@@ -37,6 +37,7 @@ import {
   getDiscordHqLink,
   getDiscordLinkById,
   getGuildAllianceId,
+  getCommanderByAshedMemberId,
   getLinkedMemberIds,
   getMemberSeasonHigh,
   listDiscordLinksForUser,
@@ -45,6 +46,7 @@ import {
   maybeClaimNativeOwnerFromDiscordLink,
   resolveVrSeasonContext,
   saveDiscordBotPending,
+  setWeeklyPass,
   upsertMemberSeasonVr,
   writeDiscordBotAudit,
 } from "@/lib/vr/repository";
@@ -734,6 +736,77 @@ export async function handleDiscordVrCharacterPick(input: {
     linkId: input.linkId,
     locale: input.locale,
   });
+}
+
+export async function handleDiscordWeeklyPass(input: {
+  discordUserId: string;
+  allianceId: string;
+  guildId: string;
+  locale: DiscordBotLocale;
+  active: boolean;
+}): Promise<{ reply: string }> {
+  const { translate } = botContext(input.locale);
+  const target = await resolveTargetLink({
+    allianceId: input.allianceId,
+    discordUserId: input.discordUserId,
+  });
+
+  if (target === null) {
+    const reply = translate("vr.notLinked");
+    await audit(input.allianceId, input.discordUserId, "weekly-pass", input, {
+      reply,
+    });
+    return { reply };
+  }
+
+  if (target === "pick") {
+    // TODO: pending copy approval — maintainer will move to messages/en-US.json
+    const reply =
+      "You have multiple linked commanders. Toggle weekly pass on Alliance HQ for each commander.";
+    await audit(input.allianceId, input.discordUserId, "weekly-pass", input, {
+      reply,
+    });
+    return { reply };
+  }
+
+  const commander = await getCommanderByAshedMemberId(
+    target.ashedMemberId,
+    input.allianceId,
+  );
+  if (!commander) {
+    // TODO: pending copy approval — maintainer will move to messages/en-US.json
+    const reply = "Could not find your commander in this alliance.";
+    await audit(input.allianceId, input.discordUserId, "weekly-pass", input, {
+      reply,
+    });
+    return { reply };
+  }
+
+  try {
+    await setWeeklyPass({
+      commanderId: commander.commanderId,
+      active: input.active,
+      source: "self",
+    });
+  } catch (error) {
+    console.error("[discord-bot] weekly-pass update failed", error);
+    // TODO: pending copy approval — maintainer will move to messages/en-US.json
+    const reply = "Could not update weekly pass. Try again later.";
+    await audit(input.allianceId, input.discordUserId, "weekly-pass", input, {
+      reply,
+      error: String(error),
+    });
+    return { reply };
+  }
+
+  // TODO: pending copy approval — maintainer will move to messages/en-US.json
+  const reply = input.active
+    ? "✅ Weekly pass activated. You'll get +250 VR in strategy reports."
+    : "Weekly pass deactivated.";
+  await audit(input.allianceId, input.discordUserId, "weekly-pass", input, {
+    reply,
+  });
+  return { reply };
 }
 
 export async function handleDiscordVrButtonConfirm(input: {

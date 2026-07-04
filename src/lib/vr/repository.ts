@@ -726,6 +726,70 @@ export async function listLeaderboardRows(allianceId: string, seasonKey: string)
     .orderBy(desc(schema.memberSeasonVr.highestBaseVr));
 }
 
+export async function listWeeklyPassActiveByAlliance(
+  allianceId: string,
+): Promise<Map<string, boolean>> {
+  const db = getDb();
+  const rows = await db
+    .select({
+      ashedMemberId: schema.commanderAllianceMemberships.ashedMemberId,
+      weeklyPassActive: schema.commanders.weeklyPassActive,
+    })
+    .from(schema.commanderAllianceMemberships)
+    .innerJoin(
+      schema.commanders,
+      eq(schema.commanderAllianceMemberships.commanderId, schema.commanders.id),
+    )
+    .where(eq(schema.commanderAllianceMemberships.allianceId, allianceId));
+
+  return new Map(
+    rows.map((row) => [row.ashedMemberId, row.weeklyPassActive]),
+  );
+}
+
+export async function getCommanderByAshedMemberId(
+  ashedMemberId: string,
+  allianceId: string,
+): Promise<{ commanderId: string; weeklyPassActive: boolean } | null> {
+  const db = getDb();
+  const [row] = await db
+    .select({
+      commanderId: schema.commanderAllianceMemberships.commanderId,
+      weeklyPassActive: schema.commanders.weeklyPassActive,
+    })
+    .from(schema.commanderAllianceMemberships)
+    .innerJoin(
+      schema.commanders,
+      eq(schema.commanderAllianceMemberships.commanderId, schema.commanders.id),
+    )
+    .where(
+      and(
+        eq(schema.commanderAllianceMemberships.allianceId, allianceId),
+        eq(schema.commanderAllianceMemberships.ashedMemberId, ashedMemberId),
+      ),
+    )
+    .limit(1);
+  return row ?? null;
+}
+
+export async function setWeeklyPass(input: {
+  commanderId: string;
+  active: boolean;
+  source: "self" | "officer";
+}): Promise<void> {
+  const db = getDb();
+  const now = new Date();
+  await db
+    .update(schema.commanders)
+    .set({
+      weeklyPassActive: input.active,
+      weeklyPassSource: input.source,
+      weeklyPassUpdatedAt: now,
+      updatedAt: now,
+    })
+    .where(eq(schema.commanders.id, input.commanderId));
+}
+
 export async function listFlaggedSeasonVr(allianceId: string, seasonKey: string) {
   const db = getDb();
   return db

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { effectiveBaseVr, WEEKLY_PASS_BOOST } from "@/lib/vr/effective-vr.shared";
 import {
   buildLeaderboardRows,
   buildTakedownTeams,
@@ -14,6 +15,7 @@ function sampleRow(
   vr: number,
   thp: number,
   name?: string,
+  weeklyPassActive = false,
 ) {
   return {
     ashedMemberId: id,
@@ -21,6 +23,7 @@ function sampleRow(
     highestBaseVr: vr,
     instituteLevel: 1,
     totalHeroPower: thp,
+    weeklyPassActive,
     flagged: false,
     flagReason: null,
   };
@@ -150,5 +153,27 @@ describe("leaderboard", () => {
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.needed).toBe(5);
+  });
+
+  it("effectiveBaseVr adds weekly pass boost when active", () => {
+    expect(effectiveBaseVr(7500, false)).toBe(7500);
+    expect(effectiveBaseVr(7500, true)).toBe(7500 + WEEKLY_PASS_BOOST);
+  });
+
+  it("buildTakedownTeams uses effective VR when weekly pass is active", () => {
+    const rows = [
+      sampleRow("lead1", 7500, 900, "Lead1", true),
+      ...Array.from({ length: 9 }, (_, index) =>
+        sampleRow(`m${index + 2}`, 7000 - index * 100, 800 - index * 10, `P${index}`),
+      ),
+    ];
+
+    const result = buildTakedownTeams(rows, 2);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    expect(result.teams[0]?.effectiveVr).toBe(7750);
+    const formatted = formatTakedownReport(result.teams, "3", "LFgo");
+    expect(formatted).toMatch(/inherits 7750 VR/);
   });
 });

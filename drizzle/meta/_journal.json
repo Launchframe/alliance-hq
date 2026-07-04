@@ -519,6 +519,20 @@
       "when": 1785670400000,
       "tag": "0074_vr_institute_level",
       "breakpoints": true
+    },
+    {
+      "idx": 73,
+      "version": "7",
+      "when": 1785670400000,
+      "tag": "0075_drop_max_base_vr",
+      "breakpoints": true
+    },
+    {
+      "idx": 74,
+      "version": "7",
+      "when": 1785756800000,
+      "tag": "0076_weekly_pass",
+      "breakpoints": true
     }
   ]
 }

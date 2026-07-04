@@ -97,6 +97,14 @@ export function parseSlashOptionInteger(
   return typeof option?.value === "number" ? option.value : undefined;
 }
 
+export function parseSlashOptionBoolean(
+  payload: DiscordInteractionPayload,
+  name: string,
+): boolean | undefined {
+  const option = payload.data?.options?.find((o) => o.name === name);
+  return typeof option?.value === "boolean" ? option.value : undefined;
+}
+
 export function parseVrSlashLevel(
   payload: DiscordInteractionPayload,
 ): number | null | undefined {

@@ -17,11 +17,9 @@ type GameSeasonRow = {
   id: string;
   seasonNumber: number;
   maxProfessionLevel: number | null;
-  maxBaseVr: number;
 };
 
 type DraftRow = {
-  maxBaseVr: string;
   maxProfessionLevel: string;
 };
 
@@ -30,7 +28,6 @@ function draftsFromRows(rows: GameSeasonRow[]): Record<string, DraftRow> {
     rows.map((row) => [
       row.id,
       {
-        maxBaseVr: String(row.maxBaseVr),
         maxProfessionLevel:
           row.maxProfessionLevel != null ? String(row.maxProfessionLevel) : "",
       },
@@ -72,16 +69,6 @@ export function AdminGameSeasonsConsole() {
     const draft = drafts[row.id];
     if (!draft) return;
 
-    const maxBaseVr = Number.parseInt(draft.maxBaseVr, 10);
-    if (
-      !Number.isFinite(maxBaseVr) ||
-      maxBaseVr < 250 ||
-      maxBaseVr > 12750
-    ) {
-      setError(t("invalidMaxVr"));
-      return;
-    }
-
     const professionRaw = draft.maxProfessionLevel.trim();
     const maxProfessionLevel =
       professionRaw === "" ? null : Number.parseInt(professionRaw, 10);
@@ -102,7 +89,6 @@ export function AdminGameSeasonsConsole() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           seasonId: row.id,
-          maxBaseVr,
           maxProfessionLevel,
         }),
       });
@@ -148,7 +134,6 @@ export function AdminGameSeasonsConsole() {
         <thead className="bg-[#161b22] text-[#8b949e]">
           <tr>
             <th className="px-4 py-3 font-medium">{t("seasonNumber")}</th>
-            <th className="px-4 py-3 font-medium">{t("maxBaseVr")}</th>
             <th className="px-4 py-3 font-medium">{t("maxProfessionLevel")}</th>
             <th className="px-4 py-3 font-medium">{t("actions")}</th>
           </tr>
@@ -157,19 +142,6 @@ export function AdminGameSeasonsConsole() {
           {seasons.map((row) => (
             <tr key={row.id} className="border-t border-[#30363d]">
               <td className="px-4 py-3 font-mono">S{row.seasonNumber}</td>
-              <td className="px-4 py-3">
-                <input
-                  type="number"
-                  min={250}
-                  max={12750}
-                  form={`season-save-${row.id}`}
-                  value={drafts[row.id]?.maxBaseVr ?? ""}
-                  onChange={(event) =>
-                    updateDraft(row.id, "maxBaseVr", event.target.value)
-                  }
-                  className="w-28 rounded-lg border border-[#30363d] bg-[#0d1117] px-2 py-1"
-                />
-              </td>
               <td className="px-4 py-3">
                 <input
                   type="number"
@@ -224,18 +196,6 @@ export function AdminGameSeasonsConsole() {
           void saveSeason(row);
         }}
       >
-      <RecordDetailField label={t("maxBaseVr")}>
-        <input
-          type="number"
-          min={250}
-          max={12750}
-          value={drafts[row.id]?.maxBaseVr ?? ""}
-          onChange={(event) =>
-            updateDraft(row.id, "maxBaseVr", event.target.value)
-          }
-          className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-2 py-1"
-        />
-      </RecordDetailField>
       <RecordDetailField label={t("maxProfessionLevel")}>
         <input
           type="number"

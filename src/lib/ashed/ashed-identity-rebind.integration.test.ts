@@ -57,7 +57,6 @@ async function createAlliance() {
     .values({
       id: "season-1",
       seasonNumber: 1,
-      maxBaseVr: 10000,
       createdAt: now,
       updatedAt: now,
     })

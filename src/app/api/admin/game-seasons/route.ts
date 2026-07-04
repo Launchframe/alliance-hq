@@ -20,7 +20,6 @@ export async function GET() {
       id: schema.gameSeasons.id,
       seasonNumber: schema.gameSeasons.seasonNumber,
       maxProfessionLevel: schema.gameSeasons.maxProfessionLevel,
-      maxBaseVr: schema.gameSeasons.maxBaseVr,
     })
     .from(schema.gameSeasons)
     .orderBy(asc(schema.gameSeasons.seasonNumber));
@@ -30,7 +29,6 @@ export async function GET() {
 
 const patchSchema = z.object({
   seasonId: z.string().trim().min(1),
-  maxBaseVr: z.number().int().min(250).max(12750).optional(),
   maxProfessionLevel: z.number().int().min(1).nullable().optional(),
 });
 
@@ -54,7 +52,6 @@ export async function PATCH(request: Request) {
   const [updated] = await db
     .update(schema.gameSeasons)
     .set({
-      ...(body.maxBaseVr !== undefined ? { maxBaseVr: body.maxBaseVr } : {}),
       ...(body.maxProfessionLevel !== undefined
         ? { maxProfessionLevel: body.maxProfessionLevel }
         : {}),
@@ -65,7 +62,6 @@ export async function PATCH(request: Request) {
       id: schema.gameSeasons.id,
       seasonNumber: schema.gameSeasons.seasonNumber,
       maxProfessionLevel: schema.gameSeasons.maxProfessionLevel,
-      maxBaseVr: schema.gameSeasons.maxBaseVr,
     });
 
   if (!updated) {

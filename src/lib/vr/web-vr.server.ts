@@ -10,6 +10,7 @@ import { auditWebVrCommand } from "@/lib/vr/web-vr-audit.server";
 import { vrSeasonLockedMessage } from "@/lib/vr/vr-season-lock.shared";
 import {
   countSeasonReporters,
+  getCommanderByAshedMemberId,
   getHqVrPending,
   getMemberSeasonHigh,
   listMemberSeasonVrEvents,
@@ -35,7 +36,7 @@ export async function loadMyVrForUser(input: {
   }
 
   const season = await resolveVrSeasonContext(input.allianceId);
-  const [currentVr, seasonRows, events] = await Promise.all([
+  const [currentVr, seasonRows, events, commander] = await Promise.all([
     getMemberSeasonHigh(input.allianceId, link.ashedMemberId, season.seasonKey),
     listSeasonVrRows(input.allianceId, season.seasonKey),
     listMemberSeasonVrEvents(
@@ -43,6 +44,7 @@ export async function loadMyVrForUser(input: {
       season.seasonKey,
       link.ashedMemberId,
     ),
+    getCommanderByAshedMemberId(link.ashedMemberId, input.allianceId),
   ]);
 
   const reporterVrs = seasonRows.map((row) => row.highestBaseVr);
@@ -83,6 +85,7 @@ export async function loadMyVrForUser(input: {
     weeklyPassActive: null,
     percentile,
     reporterCount: reporterVrs.length,
+    weeklyPassActive: commander?.weeklyPassActive ?? null,
     events: events.map((event) => ({
       baseVr: event.baseVr,
       instituteLevel:
