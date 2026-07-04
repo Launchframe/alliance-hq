@@ -52,7 +52,7 @@ test.describe("Alliance Discord server setup panel", () => {
       }),
     );
 
-    await page.goto(`/alliance/${tag}/settings`);
+    await page.goto("/settings/discord");
 
     await expect(
       page.getByRole("heading", { name: /Discord bot — add another server/i }),
@@ -105,7 +105,7 @@ test.describe("Alliance Discord server setup panel", () => {
       }),
     );
 
-    await page.goto(`/alliance/${tag}/settings`);
+    await page.goto("/settings/discord");
 
     await expect(
       page.getByRole("heading", { name: /Discord bot — add another server/i }),
@@ -136,7 +136,7 @@ test.describe("Alliance Discord server setup panel", () => {
       }),
     );
 
-    await page.goto(`/alliance/${tag}/settings`);
+    await page.goto("/settings/discord");
 
     await expect(
       page.getByRole("heading", { name: /Discord bot — add another server/i }),

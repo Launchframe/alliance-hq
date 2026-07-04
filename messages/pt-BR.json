@@ -1484,6 +1484,21 @@
     "uploadRemindersTitle": "Lembretes de upload",
     "uploadRemindersBody": "Configure quando os oficiais são lembrados de enviar pontuações de eventos e gerencie suas assinaturas pessoais.",
     "uploadRemindersLink": "Gerenciar lembretes de upload",
+    "discordSectionTitle": "Integração com Discord",
+    "discordSectionBody": "Instale o bot da aliança e registre seu servidor Discord para anúncios de trem e ferramentas para membros.",
+    "discordSectionLink": "Abrir configurações do Discord",
+    "trainsSectionTitle": "Trens",
+    "trainsSectionBody": "Configure o início da semana de trem, anúncios no Discord e mínimos do condutor.",
+    "trainsSectionLink": "Abrir configurações de trem",
+    "backToAllianceSettings": "Configurações da aliança",
+    "discord": {
+      "title": "Integração com Discord",
+      "subtitle": "Instalação do bot e registro do servidor para {tag}."
+    },
+    "trains": {
+      "title": "Trens",
+      "subtitle": "Configuração de trem para {tag}."
+    },
     "allianceContext": {
       "title": "Escolha uma aliança",
       "body": "As configurações da aliança se aplicam a uma aliança por vez. Escolha qual aliança você está gerenciando.",

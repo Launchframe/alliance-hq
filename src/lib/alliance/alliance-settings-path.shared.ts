@@ -3,10 +3,6 @@ export function allianceTagPathSegment(tag: string): string {
   return tag.trim().toLowerCase();
 }
 
-export function allianceSettingsPath(tag: string): string {
-  return `/alliance/${encodeURIComponent(allianceTagPathSegment(tag))}/settings`;
-}
-
 export function allianceSeasonApiPath(tag: string): string {
   return `/api/alliance/${encodeURIComponent(allianceTagPathSegment(tag))}/season`;
 }

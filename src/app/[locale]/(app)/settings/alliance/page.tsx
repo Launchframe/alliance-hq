@@ -1,22 +1,16 @@
 import { redirect } from "@/i18n/navigation";
 
-import { allianceSettingsPath } from "@/lib/alliance/alliance-settings-path.shared";
 import { requirePageSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
-/** Legacy path — redirect to tag-scoped alliance settings. */
+/** Legacy path — redirect to session-scoped alliance settings hub. */
 export default async function LegacyAllianceSettingsRedirect({
   params,
 }: {
   params: Promise<{ locale: string }>;
 }) {
   const { locale } = await params;
-  const session = await requirePageSession("/settings/alliance");
-
-  if (session.allianceTag) {
-    redirect({ href: allianceSettingsPath(session.allianceTag), locale });
-  }
-
+  await requirePageSession("/settings/alliance");
   redirect({ href: "/settings", locale });
 }

@@ -104,7 +104,6 @@ export default async function AppLayout({
         showVideoQueue={showVideoQueue}
         showVideoProcessorsNav={state.showVideoProcessorsNav}
         showAllianceSettings={Boolean(state.currentAllianceId)}
-        activeAllianceTag={state.allianceTag}
         currentAllianceId={
           state.currentAllianceId ?? state.allianceId ?? null
         }

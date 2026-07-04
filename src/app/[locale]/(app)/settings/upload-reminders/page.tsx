@@ -1,5 +1,7 @@
+import { getTranslations } from "next-intl/server";
 import { redirect } from "@/i18n/navigation";
 
+import { Link } from "@/i18n/navigation";
 import { UploadRemindersClient } from "@/components/settings/UploadRemindersClient";
 import { AllianceContextRequired } from "@/components/settings/AllianceContextRequired";
 import { getRbacContext } from "@/lib/rbac/context";
@@ -28,6 +30,16 @@ export default async function UploadRemindersPage({
   }
 
   const canManageSchedules = rbac.permissions.has("eur:schedules:write");
+  const tSettings = await getTranslations("settings");
 
-  return <UploadRemindersClient canManageSchedules={canManageSchedules} />;
+  return (
+    <div className="mx-auto w-full min-w-0 max-w-3xl space-y-6">
+      <div>
+        <Link href="/settings" className="text-sm text-[#58a6ff] hover:underline">
+          ← {tSettings("backToAllianceSettings")}
+        </Link>
+      </div>
+      <UploadRemindersClient canManageSchedules={canManageSchedules} />
+    </div>
+  );
 }

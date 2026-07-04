@@ -17,8 +17,6 @@ import {
   filterNavGroupsForPermissions,
   navLinkActive,
 } from "@/lib/nav/routes";
-import { allianceSettingsPath } from "@/lib/alliance/alliance-settings-path.shared";
-
 function cn(...parts: Array<string | false | null | undefined>) {
   return parts.filter(Boolean).join(" ");
 }
@@ -65,8 +63,6 @@ type Props = {
   showTeamAccess?: boolean;
   showVideoQueue?: boolean;
   showVideoProcessorsNav?: boolean;
-  showAllianceSettings?: boolean;
-  activeAllianceTag?: string | null;
   operatingMode?: "ashed" | "native" | null;
   canUseAshedEmbeds?: boolean;
   currentAllianceId?: string | null;
@@ -85,8 +81,6 @@ export function SidebarNav({
   showTeamAccess = false,
   showVideoQueue = false,
   showVideoProcessorsNav = false,
-  showAllianceSettings = false,
-  activeAllianceTag = null,
   operatingMode = null,
   canUseAshedEmbeds = true,
   currentAllianceId = null,
@@ -176,15 +170,6 @@ export function SidebarNav({
                           href: "/settings/team",
                           labelKey: "team" as const,
                           pageId: "team",
-                        },
-                      ]
-                    : []),
-                  ...(showAllianceSettings && activeAllianceTag
-                    ? [
-                        {
-                          href: allianceSettingsPath(activeAllianceTag),
-                          labelKey: "allianceSettings" as const,
-                          pageId: "allianceSettings",
                         },
                       ]
                     : []),

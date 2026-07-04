@@ -418,14 +418,18 @@ export function findActiveNavGroupId(
     }
 
     if (group.id === "alliance-management") {
-      const teamHrefs = showTeamAccess ? ["/settings/team"] : [];
-      if (teamHrefs.some((href) => navLinkActive(pathname, href))) {
-        return group.id;
+      const extraHrefs: string[] = [];
+      if (showTeamAccess) {
+        extraHrefs.push("/settings/team");
       }
-      if (
-        showAllianceSettings &&
-        /^\/alliance\/[^/]+\/settings\/?$/.test(pathname)
-      ) {
+      if (showAllianceSettings) {
+        extraHrefs.push(
+          "/settings/discord",
+          "/settings/trains",
+          "/settings/upload-reminders",
+        );
+      }
+      if (extraHrefs.some((href) => navLinkActive(pathname, href))) {
         return group.id;
       }
       continue;
