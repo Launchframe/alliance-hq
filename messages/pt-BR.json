@@ -2046,7 +2046,17 @@
     "cancelUnlink": "Cancelar",
     "unlinkProviderFailed": "Não foi possível desvincular esse provedor.",
     "unlinkProviderSuccess": "{provider} foi desvinculado.",
-    "unlinkLastMethodBlocked": "Mantenha pelo menos um método de entrada. Adicione senha ou passkey antes de desvincular o último."
+    "unlinkLastMethodBlocked": "Mantenha pelo menos um método de entrada. Adicione senha ou passkey antes de desvincular o último.",
+    "quickAccessLabel": "Vínculo rápido",
+    "methodLinkedDialogTitle": "{method} está vinculado",
+    "methodLinkedDialogBodyGoogle": "Sua conta Google está vinculada a esta conta HQ.",
+    "methodLinkedDialogBodyDiscord": "Sua conta Discord está vinculada a esta conta HQ.",
+    "methodLinkedDialogBodyPasskey": "{count, plural, one {# passkey registrada} other {# passkeys registradas}} nesta conta.",
+    "methodLinkedDialogBodyEmail": "Links mágicos para {email} sempre funcionam nesta conta.",
+    "methodUnlinkButton": "Desvincular",
+    "methodCloseButton": "Fechar",
+    "passkeyUnlinkSuccess": "Passkeys removidas.",
+    "passkeyUnlinkFailed": "Não foi possível remover as passkeys."
   },
   "getStarted": {
     "title": "Quase lá",

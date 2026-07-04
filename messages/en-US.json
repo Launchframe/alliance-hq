@@ -2046,7 +2046,17 @@
     "cancelUnlink": "Cancel",
     "unlinkProviderFailed": "Could not unlink that provider.",
     "unlinkProviderSuccess": "{provider} was unlinked.",
-    "unlinkLastMethodBlocked": "Keep at least one sign-in method. Add a password or passkey before unlinking your last backup."
+    "unlinkLastMethodBlocked": "Keep at least one sign-in method. Add a password or passkey before unlinking your last backup.",
+    "quickAccessLabel": "Quick link",
+    "methodLinkedDialogTitle": "{method} is linked",
+    "methodLinkedDialogBodyGoogle": "Your Google account is linked to this HQ account.",
+    "methodLinkedDialogBodyDiscord": "Your Discord account is linked to this HQ account.",
+    "methodLinkedDialogBodyPasskey": "{count, plural, one {# passkey is registered} other {# passkeys are registered}} on this account.",
+    "methodLinkedDialogBodyEmail": "Magic links to {email} always work for this account.",
+    "methodUnlinkButton": "Unlink",
+    "methodCloseButton": "Close",
+    "passkeyUnlinkSuccess": "Passkeys removed.",
+    "passkeyUnlinkFailed": "Could not remove passkeys."
   },
   "getStarted": {
     "title": "Almost there",
