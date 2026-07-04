@@ -25,23 +25,12 @@ import { getAllianceVrSandboxState } from "@/lib/vr/vr-sandbox.server";
 import type { VrSeasonContext } from "@/lib/vr/vr-season-lock.shared";
 import { resolveVrSeasonContextFromParts } from "@/lib/vr/vr-season-lock.shared";
 import type { LinkPendingState, VrPendingState } from "@/lib/vr/types";
+import { parseStoredVrPending } from "@/lib/vr/pending-state";
 
 const PENDING_TTL_MS = 30 * 60 * 1000;
 
 function parseVrPending(value: unknown): VrPendingState | null {
-  if (!value || typeof value !== "object") return null;
-  const r = value as Record<string, unknown>;
-  if (r.kind === "anomaly_confirm") {
-    return {
-      kind: "anomaly_confirm",
-      proposedVr: Number(r.proposedVr),
-      ashedMemberId: String(r.ashedMemberId),
-    };
-  }
-  if (r.kind === "pick_character" && Array.isArray(r.linkIds)) {
-    return { kind: "pick_character", linkIds: r.linkIds.map(String) };
-  }
-  return null;
+  return parseStoredVrPending(value);
 }
 
 function parseLinkPending(value: unknown): LinkPendingState | null {
