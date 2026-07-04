@@ -137,6 +137,9 @@ export type TrainsDashboardPayload = {
   today: string;
   weekStart: string;
   weekEnd: string;
+  allianceTag: string | null;
+  allianceName: string | null;
+  seasonKey: string | null;
   displayWeekStartDow: TrainsDisplayWeekStartDow;
   wheelSpinSpeed: TrainsWheelSpinSpeed;
   trainWeekStartDow: number;
@@ -256,6 +259,12 @@ export async function loadTrainsDashboard(
     ? await loadTrainWeekConfigForAlliance(allianceId)
     : allianceTrainWeekFromRow({});
   const weekStart = getTrainWeekStart(today, trainWeekConfig);
+  const allianceRow = allianceId ? await loadAllianceRow(allianceId) : null;
+  const allianceContext = {
+    allianceTag: allianceRow?.tag ?? session.allianceTag ?? null,
+    allianceName: allianceRow?.name ?? allianceRow?.tag ?? null,
+    seasonKey: null as string | null,
+  };
   const preferenceFields = {
     displayWeekStartDow: userPreferences.displayWeekStartDow,
     wheelSpinSpeed: userPreferences.wheelSpinSpeed,
@@ -267,6 +276,7 @@ export async function loadTrainsDashboard(
       today,
       weekStart,
       weekEnd: addCalendarDays(weekStart, 6),
+      ...allianceContext,
       ...preferenceFields,
       canManageTrains,
       canClearWeekSchedule,
@@ -287,10 +297,13 @@ export async function loadTrainsDashboard(
   const activeMemberCount = members.length;
 
   if (activeMemberCount === 0) {
+    const effectiveSeason = await getEffectiveSeasonForAlliance(allianceId);
     return {
       today,
       weekStart,
       weekEnd: addCalendarDays(weekStart, 6),
+      ...allianceContext,
+      seasonKey: effectiveSeason.seasonKey,
       ...preferenceFields,
       canManageTrains,
       canClearWeekSchedule,
@@ -362,6 +375,8 @@ export async function loadTrainsDashboard(
     today,
     weekStart,
     weekEnd,
+    ...allianceContext,
+    seasonKey: effectiveSeason.seasonKey,
     ...preferenceFields,
     canManageTrains,
     canClearWeekSchedule,

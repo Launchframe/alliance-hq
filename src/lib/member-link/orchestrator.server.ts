@@ -31,6 +31,7 @@ import {
   isOwnerColdStartEligible,
   supersedePendingRosterLinkRequests,
 } from "@/lib/member-link/roster-link-request.server";
+import { cacheAllianceMemberPortraitFromGameUid } from "@/lib/trains/portrait-resolution.server";
 import {
   createMemberLinkTranslator,
   memberLinkWalkthroughSteps,
@@ -178,6 +179,14 @@ async function persistHqLinkTarget(
   }
 
   await syncPrimaryGameUidFromHqMemberLink(ctx.hqUserId, linkTarget.gameUid);
+
+  void cacheAllianceMemberPortraitFromGameUid({
+    allianceId: ctx.allianceId,
+    ashedMemberId: linkTarget.ashedMemberId,
+    gameUid: linkTarget.gameUid,
+  }).catch((error) => {
+    console.error("[member-link] portrait cache failed", error);
+  });
 
   if (linkTarget.gameUserLevel != null) {
     try {
