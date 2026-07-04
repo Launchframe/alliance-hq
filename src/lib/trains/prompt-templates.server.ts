@@ -100,6 +100,7 @@ function canWriteTemplate(
   if (template.createdByHqUserId && template.createdByHqUserId === actor.hqUserId) {
     return true;
   }
+  if (template.visibility === "private") return false;
   return template.allianceId === actor.allianceId;
 }
 
@@ -111,7 +112,13 @@ async function loadUsageStats(templateId: string) {
       lastUsedAt: sql<Date | null>`max(${schema.trainConductorGeneratedImages.createdAt})`,
     })
     .from(schema.trainConductorGeneratedImages)
-    .where(eq(schema.trainConductorGeneratedImages.promptTemplateId, templateId));
+    .where(
+      and(
+        eq(schema.trainConductorGeneratedImages.promptTemplateId, templateId),
+        eq(schema.trainConductorGeneratedImages.quality, "final"),
+        eq(schema.trainConductorGeneratedImages.status, "completed"),
+      ),
+    );
 
   const [latestFinal] = await db
     .select({

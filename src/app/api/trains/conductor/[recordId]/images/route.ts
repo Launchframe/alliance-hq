@@ -3,6 +3,10 @@ import { z } from "zod";
 
 import { resolveTrainRequestContext } from "@/lib/trains/api-context";
 import { generateConductorDraftImages } from "@/lib/trains/conductor-images.server";
+import {
+  getPromptTemplateForActor,
+  loadPromptTemplateActor,
+} from "@/lib/trains/prompt-templates.server";
 import { IMAGE_MODEL_PROVIDERS } from "@/lib/trains/prompt-templates.shared";
 import { getOrCreateSession } from "@/lib/session";
 import { requireTrainOfficer } from "@/lib/rbac/require-permission";
@@ -36,12 +40,36 @@ export async function POST(request: Request, context: RouteContext) {
   const { recordId } = await context.params;
 
   try {
+    let promptTemplateRevisionId: string | null = null;
+    if (parsed.data.promptTemplateId) {
+      const actor = await loadPromptTemplateActor(session.id);
+      if (!actor) {
+        return NextResponse.json(
+          { error: "No alliance context." },
+          { status: 400 },
+        );
+      }
+
+      const template = await getPromptTemplateForActor(
+        actor,
+        parsed.data.promptTemplateId,
+      );
+      if (!template || template.templateType !== "image") {
+        return NextResponse.json(
+          { error: "Prompt template not found." },
+          { status: 404 },
+        );
+      }
+      promptTemplateRevisionId = template.currentRevision.id;
+    }
+
     const image = await generateConductorDraftImages({
       allianceId: ctx.allianceId,
       conductorRecordId: recordId,
       hqUserId: session.hqUserId,
       promptBody: parsed.data.promptBody,
       promptTemplateId: parsed.data.promptTemplateId ?? null,
+      promptTemplateRevisionId,
       modelProvider: parsed.data.modelProvider,
       modelType: parsed.data.modelType ?? "art",
       portraitUrl: parsed.data.portraitUrl ?? null,

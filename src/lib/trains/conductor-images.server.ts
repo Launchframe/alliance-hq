@@ -29,12 +29,24 @@ function mapGeneratedImageRow(
     status: row.status as ConductorGeneratedImage["status"],
     storageKey: row.storageKey,
     downloadUrl,
-    externalImageUrls: row.externalImageUrls ?? [],
+    externalImageUrls: generatedImageUrls(row),
     selectedExternalUrl: row.selectedExternalUrl,
     errorMessage: row.errorMessage,
     createdAt: row.createdAt.toISOString(),
     finalizedAt: row.finalizedAt ? row.finalizedAt.toISOString() : null,
   };
+}
+
+function generatedImageUrls(
+  row: Pick<
+    typeof schema.trainConductorGeneratedImages.$inferSelect,
+    "externalImageUrls"
+  >,
+): string[] {
+  if (!Array.isArray(row.externalImageUrls)) return [];
+  return row.externalImageUrls.filter(
+    (url): url is string => typeof url === "string" && url.trim().length > 0,
+  );
 }
 
 export function conductorImageStorageKey(input: {
@@ -188,6 +200,10 @@ export async function finalizeConductorDraftImage(input: {
 
   if (!row?.image) {
     throw new Error("Generated image not found.");
+  }
+
+  if (!generatedImageUrls(row.image).includes(input.selectedExternalUrl)) {
+    throw new Error("Selected image is not part of this generation.");
   }
 
   const provider = getImageGenerationProvider(
