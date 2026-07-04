@@ -28,5 +28,11 @@ export default async function ViralResistancePage() {
     ? await loadViralResistanceOfficerPanel(allianceId)
     : null;
 
-  return <ViralResistanceView initial={initial} officer={officer} />;
+  return (
+    <ViralResistanceView
+      initial={initial}
+      officer={officer}
+      showMyVrCta={canOfficer}
+    />
+  );
 }
