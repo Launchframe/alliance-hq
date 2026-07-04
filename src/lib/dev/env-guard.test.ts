@@ -48,4 +48,11 @@ describe("isDevOrPreviewEnvironment", () => {
     vi.stubEnv("NODE_ENV", "production");
     expect(isDevOrPreviewEnvironment()).toBe(true);
   });
+
+  it("is disabled on Vercel production even when E2E_TEST is set", () => {
+    vi.stubEnv("E2E_TEST", "true");
+    vi.stubEnv("VERCEL_ENV", "production");
+    vi.stubEnv("NODE_ENV", "production");
+    expect(isDevOrPreviewEnvironment()).toBe(false);
+  });
 });

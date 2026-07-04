@@ -20,4 +20,18 @@ describe("trains schedule DELETE guard", () => {
     );
     expect(res.status).toBe(404);
   });
+
+  it("400s when weekStart is not YYYY-MM-DD", async () => {
+    vi.stubEnv("E2E_TEST", "");
+    vi.stubEnv("VERCEL_ENV", "");
+    vi.stubEnv("NODE_ENV", "development");
+    const res = await DELETE(
+      new Request("http://localhost/api/trains/schedule", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ weekStart: "not-a-date" }),
+      }),
+    );
+    expect(res.status).toBe(400);
+  });
 });

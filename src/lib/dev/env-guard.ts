@@ -10,12 +10,15 @@
  * - Locally: enabled unless this is a production build (`NODE_ENV=production`).
  */
 export function isDevOrPreviewEnvironment(): boolean {
+  const vercelEnv = process.env.VERCEL_ENV?.trim();
+  if (vercelEnv === "production") {
+    return false;
+  }
   if (process.env.E2E_TEST === "true") {
     return true;
   }
-  const vercelEnv = process.env.VERCEL_ENV?.trim();
   if (vercelEnv) {
-    return vercelEnv !== "production";
+    return true;
   }
   return process.env.NODE_ENV !== "production";
 }

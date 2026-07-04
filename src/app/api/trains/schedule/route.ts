@@ -20,6 +20,8 @@ import {
 
 export const dynamic = "force-dynamic";
 
+const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
 export async function GET() {
   const session = await getOrCreateSession();
   const denied = await requireSessionPermission(session.id, "scores:read");
@@ -82,13 +84,6 @@ export async function DELETE(request: Request) {
     return new NextResponse(null, { status: 404 });
   }
 
-  const session = await getOrCreateSession();
-  const denied = await requireTrainOfficer(session.id);
-  if (denied) return denied;
-
-  const ctx = await resolveTrainRequestContext();
-  if (ctx instanceof NextResponse) return ctx;
-
   let weekStart: string | undefined;
   try {
     const body = (await request.json()) as { weekStart?: string };
@@ -99,6 +94,19 @@ export async function DELETE(request: Request) {
 
   const resolvedWeekStart =
     weekStart || getWeekStartMonday(getServerCalendarDate());
+  if (!DATE_PATTERN.test(resolvedWeekStart)) {
+    return NextResponse.json(
+      { error: "weekStart must be YYYY-MM-DD." },
+      { status: 400 },
+    );
+  }
+
+  const session = await getOrCreateSession();
+  const denied = await requireTrainOfficer(session.id);
+  if (denied) return denied;
+
+  const ctx = await resolveTrainRequestContext();
+  if (ctx instanceof NextResponse) return ctx;
 
   const result = await clearWeekSchedule(ctx.allianceId, resolvedWeekStart);
   return NextResponse.json({
