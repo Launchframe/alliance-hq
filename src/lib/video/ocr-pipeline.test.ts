@@ -27,6 +27,7 @@ const target = {
   seriesEntity: null,
   submitMethod: "bulk",
   submitContext: ["eventId", "recordedDate"],
+  inHouseOcrAccuracy: "mid",
 } satisfies ScoreTargetDef;
 
 describe("ocrAllFrames", () => {

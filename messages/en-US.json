@@ -2589,6 +2589,13 @@
     "title": "Upload from video",
     "subtitle": "Record yourself scrolling a Last War leaderboard. We extract frames, OCR scores, and let you review before submitting to Ashed.",
     "scoreTargetLabel": "What leaderboard is this?",
+    "ocrAccuracy": {
+      "high": "High",
+      "mid": "Mid",
+      "low": "Low",
+      "none": "None",
+      "label": "Badge shows how well our in-house OCR reads this event."
+    },
     "categoryLabel": "What kind of scoreboard is this?",
     "categories": {
       "vs": "VS / weekly scores",

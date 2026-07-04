@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "@/i18n/navigation";
 import { Link } from "@/i18n/navigation";
 import { RosterAllianceBanner } from "@/components/video/RosterAllianceBanner";
+import { OcrAccuracyBadge } from "@/components/video/OcrAccuracyBadge";
 import { AppSelect } from "@/components/ui/AppSelect";
 import { useMergedVideoJobs } from "@/components/video/VideoJobEventsProvider";
 import { VideoSurveyDialog } from "@/components/video/VideoSurveyDialog";
@@ -16,6 +17,10 @@ import {
   uploadVideoFile,
   type UploadConfig,
 } from "@/lib/video/client-upload";
+import {
+  isVideoOcrAccuracy,
+  type VideoOcrAccuracy,
+} from "@/lib/video/ocr-accuracy";
 import type { SurveyPayload } from "@/lib/video/survey";
 import {
   isLegacyDirectPostOverLimit,
@@ -53,7 +58,16 @@ type ScoreTargetOption = {
   leaderboardModel?: string;
   boardTypes?: string[];
   usesHqEvents?: boolean;
+  inHouseOcrAccuracy?: VideoOcrAccuracy;
 };
+
+function scoreTargetOcrAccuracy(
+  target: ScoreTargetOption,
+): VideoOcrAccuracy {
+  return isVideoOcrAccuracy(target.inHouseOcrAccuracy)
+    ? target.inHouseOcrAccuracy
+    : "none";
+}
 
 const GROUP_ORDER = ["events", "recurring", "hq-native"] as const;
 
@@ -113,7 +127,12 @@ export function VideoUploadForm({
   const router = useRouter();
 
   const [scoreTargets, setScoreTargets] = useState<ScoreTargetOption[]>([
-    { id: "desert-storm", labelKey: "desertStorm", group: "events" },
+    {
+      id: "desert-storm",
+      labelKey: "desertStorm",
+      group: "events",
+      inHouseOcrAccuracy: "mid",
+    },
   ]);
   const [file, setFile] = useState<File | null>(null);
   const [scoreTarget, setScoreTarget] = useState(
@@ -360,11 +379,22 @@ export function VideoUploadForm({
                 label: tNav(`groups.${group}`),
                 options: groupOptions.map((target) => ({
                   value: target.id,
-                  label: tNav(target.labelKey),
+                  searchText: tNav(target.labelKey),
+                  label: (
+                    <span className="flex w-full min-w-0 items-center justify-between gap-2">
+                      <span className="min-w-0 truncate">
+                        {tNav(target.labelKey)}
+                      </span>
+                      <OcrAccuracyBadge
+                        level={scoreTargetOcrAccuracy(target)}
+                      />
+                    </span>
+                  ),
                 })),
               };
             }).filter((group): group is NonNullable<typeof group> => group !== null)}
           />
+          <p className="mt-2 text-xs text-[#8b949e]">{t("ocrAccuracy.label")}</p>
         </label>
 
         {needsBoardPicker ? (
