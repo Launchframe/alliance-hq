@@ -44,7 +44,10 @@ Do **not** use whole-week `setWeekTemplate` for pivot — it clears overrides.
 ## Scheduling UX (product direction)
 
 - Officers plan on a **calendar** with template palette + per-day paint (Phase B).
-- Do **not** auto-create `vs_push_week` on first trains page visit with **zero members**.
+- When the roster has members (`activeMemberCount > 0`), show **preview** day configs from the anchor template — never a blank “create week” gate.
+- Persist `train_week_schedules` on the **first officer schedule mutation** (paint, template change, lock) via `ensureWeekScheduleBaseline` — not on page load.
+- **Clear week schedule** (`DELETE /api/trains/schedule`) is **pre-production only** (`isDevOrPreviewEnvironment`): train managers (`trains:write`) may discard a persisted week back to draft preview. Hidden and 404-gated in production. Does **not** delete conductor records.
+- Do **not** show schedulable train UI when **`activeMemberCount === 0`** (native alliances need roster first).
 - **Game season** is managed under **Settings**, not on the trains page.
 
 ## Pools
@@ -64,4 +67,4 @@ All queries filter by session **`allianceId`**.
 
 ## Native alliance gaps
 
-VS/donation rolls need Ashed scores. On native alliances, show plain copy and manual/officer paths; do not silently auto-create schedules before roster import.
+VS/donation rolls need Ashed scores. On native alliances, show plain copy and manual/officer paths; do not show schedule preview before roster import (`activeMemberCount === 0`).

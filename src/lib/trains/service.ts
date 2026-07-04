@@ -76,6 +76,7 @@ import {
 } from "@/lib/trains/templates";
 import {
   clearConductorAssignment,
+  deleteWeekScheduleAndDayConfigs,
   getConductorRecord,
   getWeekSchedule,
   listConductorRecordsForWeek,
@@ -619,6 +620,18 @@ export async function ensureWeekScheduleBaseline(
     );
   }
   return schedule;
+}
+
+/**
+ * Pre-production helper: remove the persisted week schedule and day configs so
+ * the dashboard returns to draft preview. Conductor records are left intact.
+ */
+export async function clearWeekSchedule(
+  allianceId: string,
+  weekStart: string,
+): Promise<{ deletedSchedule: boolean; deletedDayConfigs: number }> {
+  const weekEnd = addCalendarDays(weekStart, 6);
+  return deleteWeekScheduleAndDayConfigs(allianceId, weekStart, weekEnd);
 }
 
 export async function recomputeWeekPivotFlag(

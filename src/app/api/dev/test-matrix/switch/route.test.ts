@@ -15,6 +15,7 @@ describe("dev test-matrix switch route guard", () => {
   });
 
   it("POST 404s in production", async () => {
+    vi.stubEnv("E2E_TEST", "");
     vi.stubEnv("VERCEL_ENV", "production");
     vi.stubEnv("NODE_ENV", "production");
     const res = await POST(request("POST"));
@@ -22,6 +23,7 @@ describe("dev test-matrix switch route guard", () => {
   });
 
   it("DELETE 404s in production", async () => {
+    vi.stubEnv("E2E_TEST", "");
     vi.stubEnv("VERCEL_ENV", "production");
     vi.stubEnv("NODE_ENV", "production");
     const res = await DELETE(request("DELETE"));

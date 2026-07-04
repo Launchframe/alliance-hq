@@ -24,6 +24,10 @@ import {
 } from "@/lib/client/use-week-schedule-infinite-days";
 import { calendarCellStyleClass, calendarCellOpaqueStyleClass } from "@/lib/trains/calendar-cell-styles.shared";
 import {
+  isProvisionalDayConfig,
+  provisionalDayConfigClass,
+} from "@/lib/trains/week-schedule-day-configs.shared";
+import {
   canSpinConductorForDay,
   canSpinVipForDay,
 } from "@/lib/trains/conductor-mechanism.shared";
@@ -53,6 +57,7 @@ type Props = {
   onSelectDate: (date: string) => void;
   onWeekChange?: (page: WeekSchedulePagePayload) => void;
   onWeekLoadError?: (message: string) => void;
+  draftScheduleAriaLabel?: string;
 };
 
 const WEEK_CAROUSEL_VIEWPORT_HEIGHT_PX = 156;
@@ -105,6 +110,7 @@ type DayCellOptions = {
   className?: string;
   layout?: "grid" | "carousel";
   onSelect?: () => void;
+  draftScheduleAriaLabel?: string;
 };
 
 function WeekScheduleDayCell({
@@ -120,7 +126,9 @@ function WeekScheduleDayCell({
   className = "",
   layout = "grid",
   onSelect,
+  draftScheduleAriaLabel,
 }: DayCellOptions) {
+  const isProvisional = isProvisionalDayConfig(day.id);
   const isToday = day.date === today;
   const selectable =
     isCalendarDateOnOrAfter(day.date, weekStart) &&
@@ -209,7 +217,7 @@ function WeekScheduleDayCell({
     </>
   );
 
-  const baseClass = `flex flex-col justify-between rounded-lg border-2 text-left ${style} ${ringClass} ${className} ${
+  const baseClass = `flex flex-col justify-between rounded-lg border-2 text-left ${style} ${ringClass} ${provisionalDayConfigClass(isProvisional)} ${className} ${
     layout === "carousel"
       ? "min-h-[7.25rem] w-[min(10.75rem,calc(100vw-8.5rem))] p-2.5"
       : "min-h-[7.25rem] w-[min(17rem,calc(100vw-4.5rem))] p-2.5"
@@ -221,7 +229,11 @@ function WeekScheduleDayCell({
         type="button"
         onClick={onSelect}
         aria-pressed={showDetail}
-        aria-label={`${weekday} ${day.date.slice(5)}`}
+        aria-label={
+          isProvisional && draftScheduleAriaLabel
+            ? `${weekday} ${day.date.slice(5)}, ${draftScheduleAriaLabel}`
+            : `${weekday} ${day.date.slice(5)}`
+        }
         className={`${baseClass} transition-opacity hover:opacity-95`}
       >
         {cellInner}
@@ -250,6 +262,7 @@ type CarouselProps = {
   onWeekChange?: (page: WeekSchedulePagePayload) => void;
   onWeekLoadError?: (message: string) => void;
   onCarouselWeekLabelChange: (weekStart: string, weekEnd: string) => void;
+  draftScheduleAriaLabel?: string;
 };
 
 function WeekScheduleInfiniteDayCarousel({
@@ -266,6 +279,7 @@ function WeekScheduleInfiniteDayCarousel({
   onWeekChange,
   onWeekLoadError,
   onCarouselWeekLabelChange,
+  draftScheduleAriaLabel,
 }: CarouselProps) {
   const lastWeekStartRef = useRef<string | null>(null);
   const syncingDateRef = useRef(false);
@@ -440,6 +454,7 @@ function WeekScheduleInfiniteDayCarousel({
           vipLabels={vipLabels}
           templateShortLabels={templateShortLabels}
           layout="carousel"
+          draftScheduleAriaLabel={draftScheduleAriaLabel}
         />
       </div>
     );
@@ -498,6 +513,7 @@ export function WeekScheduleStrip({
   onSelectDate,
   onWeekChange,
   onWeekLoadError,
+  draftScheduleAriaLabel,
 }: Props) {
   const [viewWeekStart, setViewWeekStart] = useState(initialWeekStart);
   const lastNotifiedWeekStartRef = useRef(initialWeekStart);
@@ -658,6 +674,7 @@ export function WeekScheduleStrip({
             templateShortLabels={templateShortLabels}
             className="aspect-square min-w-0 p-1.5 min-h-0 w-auto"
             onSelect={selectable ? () => onSelectDate(day.date) : undefined}
+            draftScheduleAriaLabel={draftScheduleAriaLabel}
           />
         );
       })}
@@ -709,6 +726,7 @@ export function WeekScheduleStrip({
           onWeekLoadError={onWeekLoadError}
           onCarouselWeekLabelChange={handleCarouselWeekLabelChange}
           trainWeekConfig={trainWeekConfig}
+          draftScheduleAriaLabel={draftScheduleAriaLabel}
         />
       </div>
 

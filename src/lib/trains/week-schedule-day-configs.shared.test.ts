@@ -1,6 +1,41 @@
 import { describe, expect, it } from "vitest";
 
-import { buildWeekScheduleDayConfigs } from "@/lib/trains/week-schedule-day-configs.shared";
+import {
+  buildWeekScheduleDayConfigs,
+  isProvisionalDayConfig,
+  provisionalDayConfigClass,
+  resolveWeekDisplayDayConfigs,
+} from "@/lib/trains/week-schedule-day-configs.shared";
+
+describe("isProvisionalDayConfig", () => {
+  it("returns true for preview ids", () => {
+    expect(isProvisionalDayConfig("preview-2026-06-16")).toBe(true);
+  });
+
+  it("returns false for persisted ids", () => {
+    expect(isProvisionalDayConfig("dc-1")).toBe(false);
+  });
+});
+
+describe("provisionalDayConfigClass", () => {
+  it("returns muted classes for provisional cells", () => {
+    expect(provisionalDayConfigClass(true)).toContain("opacity-60");
+    expect(provisionalDayConfigClass(false)).toBe("");
+  });
+});
+
+describe("resolveWeekDisplayDayConfigs", () => {
+  it("returns seven preview rows when no DB rows exist", () => {
+    const configs = resolveWeekDisplayDayConfigs(
+      "2026-06-16",
+      "vs_push_week",
+      [],
+    );
+
+    expect(configs).toHaveLength(7);
+    expect(configs.every((day) => isProvisionalDayConfig(day.id))).toBe(true);
+  });
+});
 
 describe("buildWeekScheduleDayConfigs", () => {
   it("returns seven days when DB has six rows and the last day is missing", () => {

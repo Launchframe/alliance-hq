@@ -10,7 +10,9 @@ import { ConductorHistoryTable } from "@/components/trains/ConductorHistoryTable
 import { ConductorWheelModal } from "@/components/trains/ConductorWheelModal";
 import { TrainsHelpPanel } from "@/components/trains/TrainsHelpPanel";
 import { SpinWeekConductorFlow } from "@/components/trains/SpinWeekConductorFlow";
+import { ClearWeekScheduleDialog } from "@/components/trains/ClearWeekScheduleDialog";
 import { TrainPivotBanner } from "@/components/trains/TrainPivotBanner";
+import { TrainPlanWeekBanner } from "@/components/trains/TrainPlanWeekBanner";
 import { PastTemplatePaintConfirmDialog } from "@/components/trains/PastTemplatePaintConfirmDialog";
 import { TrainsServerTimeClock } from "@/components/trains/TrainsServerTimeClock";
 import { TrainsUserSettingsMenu } from "@/components/trains/TrainsUserSettingsMenu";
@@ -101,6 +103,7 @@ import {
 import {
   wheelSpeedMultiplier,
 } from "@/lib/trains/trains-wheel-speed.shared";
+import { isProvisionalDayConfig } from "@/lib/trains/week-schedule-day-configs.shared";
 
 type Props = {
   initial: TrainsDashboardPayload;
@@ -216,7 +219,8 @@ export function TrainsDashboard({ initial }: Props) {
   const [walkthroughKey, setWalkthroughKey] = useState(0);
   const [swapOpen, setSwapOpen] = useState(false);
   const [swapBusy, setSwapBusy] = useState(false);
-  const [scheduleBusy, setScheduleBusy] = useState(false);
+  const [clearWeekOpen, setClearWeekOpen] = useState(false);
+  const [clearWeekBusy, setClearWeekBusy] = useState(false);
   const [pendingPastPaint, setPendingPastPaint] = useState<{
     dates: string[];
     templateType: WeekTemplateType;
@@ -1012,46 +1016,31 @@ export function TrainsDashboard({ initial }: Props) {
     void paintDates(dates, "economy_week").finally(() => setPivotBusy(false));
   }, [data.today, data.weekEnd, data.weekStart, paintDates, setPivotBusy, trainWeekConfig]);
 
-  const createCurrentWeekSchedule = useCallback(async () => {
-    setScheduleBusy(true);
+  async function confirmClearWeekSchedule() {
+    if (!data.canClearWeekSchedule) return;
+    setClearWeekBusy(true);
     setError(null);
     try {
       const res = await fetch("/api/trains/schedule", {
-        method: "POST",
+        method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          weekStart: data.weekStart,
-          templateType: activeWeekTemplate,
-        }),
+        body: JSON.stringify({ weekStart: viewedWeek.weekStart }),
       });
-      const body = (await res.json()) as { error?: string; code?: string };
+      const body = (await res.json()) as { error?: string };
       if (!res.ok) {
-        setError(
-          body.code === "empty_pool"
-            ? t("emptyPoolScheduleBlocked")
-            : (body.error ?? t("scheduleFailed")),
-        );
+        setError(body.error ?? t("clearWeekSchedule.failed"));
         return;
       }
+      setClearWeekOpen(false);
       await refreshRef.current();
-      if (!trainsWalkthroughSeen()) {
-        setWalkthroughKey((key) => key + 1);
-        setWalkthroughOpen(true);
-      }
     } catch (e) {
-      setError(e instanceof Error ? e.message : t("scheduleFailed"));
+      setError(
+        e instanceof Error ? e.message : t("clearWeekSchedule.failed"),
+      );
     } finally {
-      setScheduleBusy(false);
+      setClearWeekBusy(false);
     }
-  }, [
-    activeWeekTemplate,
-    data.weekStart,
-    setError,
-    setScheduleBusy,
-    setWalkthroughKey,
-    setWalkthroughOpen,
-    t,
-  ]);
+  }
 
   const openPoolDetails = useCallback((poolType: PoolType) => {
     setPoolDetailsInitialType(poolType);
@@ -1225,6 +1214,16 @@ export function TrainsDashboard({ initial }: Props) {
     activeWeekTemplate === "vs_push_week" &&
     !data.schedule?.isPivot &&
     isWithinPivotWindow();
+  const showPlanWeekBanner =
+    data.canManageTrains &&
+    data.activeMemberCount > 0 &&
+    !data.schedulePersisted &&
+    data.weekStart === viewedWeek.weekStart;
+  const viewedWeekHasPersistedSchedule = viewedWeek.dayConfigs.some(
+    (day) => !isProvisionalDayConfig(day.id),
+  );
+  const showClearWeekSchedule =
+    data.canClearWeekSchedule && viewedWeekHasPersistedSchedule;
   const historyMechanismLabels = useMemo(
     () => ({ ...conductorShortLabels, ...vipShortLabels }),
     [conductorShortLabels, vipShortLabels],
@@ -1265,7 +1264,7 @@ export function TrainsDashboard({ initial }: Props) {
         <div className="flex w-full min-w-0 flex-col gap-2 sm:w-auto sm:items-end">
           <div className="flex items-center justify-end gap-2">
             <TrainsHelpPanel
-              showTakeTour={data.canManageTrains && data.dayConfigs.length > 0}
+              showTakeTour={data.canManageTrains && data.activeMemberCount > 0}
               onTakeTour={() => {
                 setWalkthroughKey((key) => key + 1);
                 setWalkthroughOpen(true);
@@ -1285,7 +1284,7 @@ export function TrainsDashboard({ initial }: Props) {
               onError={setError}
             />
           </div>
-          {data.schedule || viewedWeek.dayConfigs.length > 0 ? (
+          {data.activeMemberCount > 0 ? (
             <div
               className="flex w-full min-w-0 flex-col gap-1 sm:min-w-[15rem]"
               data-testid="trains-template-selector"
@@ -1337,11 +1336,13 @@ export function TrainsDashboard({ initial }: Props) {
         </p>
       ) : null}
 
+      {showPlanWeekBanner ? <TrainPlanWeekBanner /> : null}
+
       {showPivotBanner ? (
         <TrainPivotBanner onPivot={handlePivotToEconomy} busy={pivotBusy} />
       ) : null}
 
-      {data.dayConfigs.length > 0 ? (
+      {data.activeMemberCount > 0 ? (
         <section
           className="flex flex-col gap-4 rounded-2xl border border-[#30363d] bg-[#161b22]/40 p-4"
           data-testid="trains-schedule-section"
@@ -1351,6 +1352,19 @@ export function TrainsDashboard({ initial }: Props) {
               {t("scheduleSection")}
             </h2>
             <div className="flex flex-wrap items-center justify-end gap-2">
+              {showClearWeekSchedule ? (
+                <button
+                  type="button"
+                  onClick={() => setClearWeekOpen(true)}
+                  data-testid="trains-clear-week-btn"
+                  className="rounded-lg border border-[#da3633]/50 bg-[#da3633]/10 px-3 py-1.5 text-xs font-medium text-[#ff7b72] hover:bg-[#da3633]/20"
+                >
+                  <span className="mr-1.5 rounded bg-[#da3633]/25 px-1 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#ff7b72]">
+                    {t("clearWeekSchedule.preprodBadge")}
+                  </span>
+                  {t("clearWeekSchedule.action")}
+                </button>
+              ) : null}
               <TrainScheduleViewToggle
                 view={scheduleView}
                 weekLabel={t("viewWeek")}
@@ -1387,6 +1401,7 @@ export function TrainsDashboard({ initial }: Props) {
                 previousDay: t("dayNavPrevious"),
                 nextDay: t("dayNavNext"),
               }}
+              draftScheduleAriaLabel={t("previewDraftAriaLabel")}
               trainWeekConfig={trainWeekConfig}
               externalWeek={viewedWeek}
               onSelectDate={setSelectedDate}
@@ -1411,6 +1426,8 @@ export function TrainsDashboard({ initial }: Props) {
                 paletteTitle: t("paintPaletteTitle"),
                 paletteHint: t("paintPaletteHint"),
                 weekdayHeaders: weekdayHeaderLabels,
+                previewLegend: t("previewLegend"),
+                draftScheduleAriaLabel: t("previewDraftAriaLabel"),
               }}
               externalMonth={viewedMonth}
               onSelectDate={setSelectedDate}
@@ -1666,29 +1683,7 @@ export function TrainsDashboard({ initial }: Props) {
             </div>
           ) : null}
         </section>
-      ) : data.canManageTrains ? (
-        <section
-          className="flex flex-col gap-3 rounded-xl border border-dashed border-[#30363d] bg-[#161b22]/50 px-4 py-3 text-sm text-[#8b949e] sm:flex-row sm:items-center sm:justify-between"
-          data-testid="trains-no-schedule-section"
-        >
-          <span>{t("noScheduleYet")}</span>
-          <button
-            type="button"
-            disabled={scheduleBusy}
-            onClick={() => void createCurrentWeekSchedule()}
-            className="rounded-lg bg-[#238636] px-4 py-2 text-sm font-medium text-white hover:bg-[#2ea043] disabled:opacity-60"
-          >
-            {scheduleBusy ? t("creatingSchedule") : t("createSchedule")}
-          </button>
-        </section>
-      ) : (
-        <section
-          className="rounded-xl border border-dashed border-[#30363d] bg-[#161b22]/50 px-4 py-3 text-sm text-[#8b949e]"
-          data-testid="trains-no-schedule-section"
-        >
-          {t("noScheduleYetReadOnly")}
-        </section>
-      )}
+      ) : null}
 
       {data.conductorHistory.length > 0 ? (
         <ConductorHistoryTable
@@ -1944,10 +1939,21 @@ export function TrainsDashboard({ initial }: Props) {
         />
       ) : null}
 
+      <ClearWeekScheduleDialog
+        open={clearWeekOpen}
+        weekStart={viewedWeek.weekStart}
+        weekEnd={viewedWeek.weekEnd}
+        busy={clearWeekBusy}
+        onConfirm={() => void confirmClearWeekSchedule()}
+        onCancel={() => {
+          if (!clearWeekBusy) setClearWeekOpen(false);
+        }}
+      />
+
       <TrainsWalkthroughOverlay
         key={walkthroughKey}
         open={walkthroughOpen}
-        dashboardReady={data.dayConfigs.length > 0}
+        dashboardReady={data.activeMemberCount > 0}
         onComplete={() => setWalkthroughOpen(false)}
       />
     </div>
