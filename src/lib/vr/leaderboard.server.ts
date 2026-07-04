@@ -15,6 +15,6 @@ export async function loadAllianceLeaderboard(allianceId: string) {
     loadAllianceMembersForBot(allianceId),
     getAllianceById(allianceId),
   ]);
-  const rows = buildLeaderboardRows(seasonRows, members, links);
+  const rows = buildLeaderboardRows(seasonRows, members, links, seasonKey);
   return { seasonKey, allianceTag: alliance?.tag ?? null, rows };
 }

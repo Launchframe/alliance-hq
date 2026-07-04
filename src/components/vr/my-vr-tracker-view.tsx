@@ -5,7 +5,10 @@ import { useCallback, useState } from "react";
 
 import { fireCelebrationConfetti } from "@/lib/client/celebration-confetti";
 import type { MyVrPayload, MyVrPostResponse } from "@/lib/vr/my-vr.shared";
-import { VR_STEP } from "@/lib/vr/validation";
+import {
+  coerceInstituteLevelFromBaseVr,
+  minBaseVrForSeason,
+} from "@/lib/vr/validation";
 import { Dialog } from "@/components/ui/dialog";
 import {
   FORM_SUBMIT_ENTER_KEY_HINT,
@@ -47,7 +50,11 @@ export function MyVrTrackerView({ initial }: Props) {
     async (newVr: number) => {
       fireCelebrationConfetti();
       await refresh();
-      setData((prev) => ({ ...prev, currentVr: newVr }));
+      setData((prev) => ({
+        ...prev,
+        currentVr: newVr,
+        instituteLevel: coerceInstituteLevelFromBaseVr(prev.seasonKey, newVr),
+      }));
     },
     [refresh],
   );
@@ -206,6 +213,11 @@ export function MyVrTrackerView({ initial }: Props) {
             >
               {hasReported ? displayVr : "—"}
             </p>
+            {hasReported && data.instituteLevel != null ? (
+              <p className="mt-2 text-sm text-[#8b949e]" data-testid="my-vr-institute-level">
+                {t("levelLine", { level: data.instituteLevel })}
+              </p>
+            ) : null}
             {!hasReported ? (
               <p className="mt-2 text-sm text-[#8b949e]">{t("notReportedYet")}</p>
             ) : null}
@@ -227,7 +239,9 @@ export function MyVrTrackerView({ initial }: Props) {
               disabled={busy || updatesLocked}
               onClick={() => {
                 setSetLevelDraft(
-                  hasReported ? String(displayVr) : String(VR_STEP),
+                  hasReported
+                    ? String(displayVr)
+                    : String(minBaseVrForSeason(data.seasonKey)),
                 );
                 setSetDialogOpen(true);
               }}
@@ -295,7 +309,7 @@ export function MyVrTrackerView({ initial }: Props) {
         </section>
       ) : (
         <section className="rounded-xl border border-[#30363d] bg-[#161b22] p-4" role="tabpanel">
-          <VrProgressTable events={data.events} />
+          <VrProgressTable seasonKey={data.seasonKey} events={data.events} />
         </section>
       )}
 
@@ -317,8 +331,8 @@ export function MyVrTrackerView({ initial }: Props) {
             <span className="text-sm font-medium text-[#e6edf3]">{t("setLabel")}</span>
             <input
               type="number"
-              step={VR_STEP}
-              min={VR_STEP}
+              step={1}
+              min={minBaseVrForSeason(data.seasonKey)}
               value={setLevelDraft}
               onChange={(e) => setSetLevelDraft(e.target.value)}
               enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT}

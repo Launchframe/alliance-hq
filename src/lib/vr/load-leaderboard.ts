@@ -15,6 +15,11 @@ export type ViralResistancePayload = {
 export type ViralResistanceOfficerPayload = {
   seasonKey: string;
   flagged: Awaited<ReturnType<typeof listFlaggedSeasonVr>>;
+  members: Array<{
+    id: string;
+    current_name: string;
+    previous_names: string[];
+  }>;
 };
 
 export async function loadViralResistanceLeaderboard(
@@ -28,7 +33,7 @@ export async function loadViralResistanceLeaderboard(
   ]);
   return {
     seasonKey,
-    rows: buildLeaderboardRows(seasonRows, members, links),
+    rows: buildLeaderboardRows(seasonRows, members, links, seasonKey),
   };
 }
 
@@ -36,6 +41,17 @@ export async function loadViralResistanceOfficerPanel(
   allianceId: string,
 ): Promise<ViralResistanceOfficerPayload> {
   const seasonKey = await resolveSeasonKey(allianceId);
-  const flagged = await listFlaggedSeasonVr(allianceId, seasonKey);
-  return { seasonKey, flagged };
+  const [flagged, members] = await Promise.all([
+    listFlaggedSeasonVr(allianceId, seasonKey),
+    loadAllianceMembersForBot(allianceId),
+  ]);
+  return {
+    seasonKey,
+    flagged,
+    members: members.map((m) => ({
+      id: m.id,
+      current_name: m.current_name,
+      previous_names: m.previous_names ?? [],
+    })),
+  };
 }

@@ -2,11 +2,12 @@ import type { DiscordTranslate } from "@/lib/discord/i18n";
 import { shouldAnomalyConfirm } from "@/lib/vr/anomaly";
 import type { VrCommandResult, VrPendingState } from "@/lib/vr/types";
 import {
-  formatVrValidationError,
+  formatBaseVrValidationError,
   initialBaseVrForBump,
-  isValidBaseVr,
-  maxAllowedDowngrade,
-  nextBaseVr,
+  maxAllowedDowngradeForSeason,
+  maxBaseVrForSeason,
+  nextBaseVrForSeason,
+  validateBaseVrForSeason,
 } from "@/lib/vr/validation";
 
 export type ProcessVrCommandInput = {
@@ -17,7 +18,9 @@ export type ProcessVrCommandInput = {
   reporterCount: number;
   peerMax: number;
   translate: DiscordTranslate;
-  maxBaseVr: number;
+  seasonKey: string;
+  /** @deprecated Prefer seasonKey ladder; retained for call-site compatibility. */
+  maxBaseVr?: number;
 };
 
 export type ProcessVrConfirmationInput = {
@@ -30,9 +33,9 @@ function applyExplicitLevel(
   value: number,
   input: ProcessVrCommandInput,
 ): VrCommandResult {
-  const { translate: t, maxBaseVr } = input;
+  const { translate: t, seasonKey } = input;
   const seasonHigh = input.seasonHigh ?? 0;
-  if (value < maxAllowedDowngrade(seasonHigh)) {
+  if (value < maxAllowedDowngradeForSeason(seasonKey, seasonHigh)) {
     return {
       reply: t("vr.downgradeLimit", { seasonHigh }),
       pending: null,
@@ -72,7 +75,8 @@ function applyExplicitLevel(
 }
 
 export function processVrCommand(input: ProcessVrCommandInput): VrCommandResult {
-  const { explicitLevel, seasonHigh, pending, translate: t, maxBaseVr } = input;
+  const { explicitLevel, seasonHigh, pending, translate: t, seasonKey } = input;
+  const maxVr = maxBaseVrForSeason(seasonKey);
 
   if (pending?.kind === "anomaly_confirm" && explicitLevel == null) {
     return {
@@ -85,22 +89,25 @@ export function processVrCommand(input: ProcessVrCommandInput): VrCommandResult 
   }
 
   if (explicitLevel != null) {
-    if (!isValidBaseVr(explicitLevel, maxBaseVr)) {
+    const validated = validateBaseVrForSeason(seasonKey, explicitLevel);
+    if (!validated.ok) {
       return {
-        reply: formatVrValidationError(maxBaseVr),
+        reply: formatBaseVrValidationError(validated),
         pending,
         action: { type: "none" },
       };
     }
-    return applyExplicitLevel(explicitLevel, input);
+    return applyExplicitLevel(validated.baseVr, input);
   }
 
   const current = seasonHigh ?? 0;
   const next =
-    current <= 0 ? initialBaseVrForBump() : nextBaseVr(current);
-  if (!isValidBaseVr(next, maxBaseVr)) {
+    current <= 0
+      ? initialBaseVrForBump(seasonKey)
+      : nextBaseVrForSeason(seasonKey, current);
+  if (next == null) {
     return {
-      reply: t("vr.maxVr", { max: maxBaseVr }),
+      reply: t("vr.maxVr", { max: maxVr }),
       pending: null,
       action: { type: "none" },
     };
@@ -118,7 +125,7 @@ export function processVrConfirmation(
   const { answer, pending, translate: t } = input;
   if (pending.kind !== "anomaly_confirm") {
     return {
-      reply: t("errors.noConfirm"),
+      reply: t("errors.nothingPending"),
       pending: null,
       action: { type: "none" },
     };
@@ -139,7 +146,6 @@ export function processVrConfirmation(
       type: "set_vr",
       vr: pending.proposedVr,
       ashedMemberId: pending.ashedMemberId,
-      flagReason: "anomaly_confirmed",
     },
   };
 }

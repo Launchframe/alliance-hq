@@ -12,6 +12,7 @@ import { parseAshedMemberAllianceRank } from "@/lib/members/alliance-rank";
 import { isNativeAlliance } from "@/lib/native-alliance/operating-mode";
 import { buildFlagReason, peerMaxExcludingMember } from "@/lib/vr/anomaly";
 import { MAX_DISCORD_LINKS_PER_USER, type VrEventSource } from "@/lib/vr/constants";
+import { coerceInstituteLevelFromBaseVr } from "@/lib/vr/institute-levels.shared";
 import {
   evaluateGuildRegistrationAuth,
   type GuildRegistrationAuth,
@@ -546,6 +547,7 @@ export async function upsertMemberSeasonVr(input: {
   ashedMemberId: string;
   seasonKey: string;
   baseVr: number;
+  instituteLevel?: number | null;
   discordUserId?: string | null;
   hqUserId?: string | null;
   flagReason?: string | null;
@@ -558,6 +560,9 @@ export async function upsertMemberSeasonVr(input: {
     input.ashedMemberId,
     input.seasonKey,
   );
+  const instituteLevel =
+    input.instituteLevel ??
+    coerceInstituteLevelFromBaseVr(input.seasonKey, input.baseVr);
   const rows = await listSeasonVrRows(input.allianceId, input.seasonKey);
   const peerMax = peerMaxExcludingMember(rows, input.ashedMemberId);
   const flagReason =
@@ -574,6 +579,7 @@ export async function upsertMemberSeasonVr(input: {
       ashedMemberId: input.ashedMemberId,
       seasonKey: input.seasonKey,
       highestBaseVr: input.baseVr,
+      instituteLevel,
       updatedByDiscordUserId: input.discordUserId ?? null,
       updatedByHqUserId: input.hqUserId ?? null,
       flaggedAt: flagReason ? now : null,
@@ -589,6 +595,7 @@ export async function upsertMemberSeasonVr(input: {
       ],
       set: {
         highestBaseVr: input.baseVr,
+        instituteLevel,
         updatedByDiscordUserId: input.discordUserId ?? null,
         updatedByHqUserId: input.hqUserId ?? null,
         updatedAt: now,
@@ -604,6 +611,7 @@ export async function upsertMemberSeasonVr(input: {
       seasonKey: input.seasonKey,
       ashedMemberId: input.ashedMemberId,
       baseVr: input.baseVr,
+      instituteLevel,
       previousBaseVr,
       source: input.eventSource,
       reportedByHqUserId: input.hqUserId ?? null,
@@ -738,6 +746,7 @@ export async function officerOverrideSeasonVr(input: {
   ashedMemberId: string;
   seasonKey: string;
   baseVr: number;
+  instituteLevel?: number | null;
   hqUserId: string;
   reason: string;
 }): Promise<void> {
@@ -746,6 +755,7 @@ export async function officerOverrideSeasonVr(input: {
     ashedMemberId: input.ashedMemberId,
     seasonKey: input.seasonKey,
     baseVr: input.baseVr,
+    instituteLevel: input.instituteLevel,
     hqUserId: input.hqUserId,
     flagReason: `officer_override:${input.reason}`,
     eventSource: "officer_override",

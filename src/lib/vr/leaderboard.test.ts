@@ -19,6 +19,7 @@ function sampleRow(
     ashedMemberId: id,
     memberName: name ?? id,
     highestBaseVr: vr,
+    instituteLevel: 1,
     totalHeroPower: thp,
     flagged: false,
     flagReason: null,
@@ -35,6 +36,7 @@ describe("leaderboard", () => {
           ashedMemberId: "m1",
           seasonKey: "1",
           highestBaseVr: 5000,
+          instituteLevel: 20,
           flaggedAt: null,
           flagReason: null,
           updatedByDiscordUserId: null,
@@ -48,6 +50,7 @@ describe("leaderboard", () => {
           ashedMemberId: "m2",
           seasonKey: "1",
           highestBaseVr: 5000,
+          instituteLevel: 20,
           flaggedAt: null,
           flagReason: null,
           updatedByDiscordUserId: null,
@@ -61,6 +64,7 @@ describe("leaderboard", () => {
         { id: "m2", current_name: "Beta", total_hero_power: 200 },
       ] as never[],
       [],
+      "1",
     );
     expect(rows[0]?.ashedMemberId).toBe("m2");
   });

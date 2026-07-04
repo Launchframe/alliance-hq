@@ -2,6 +2,7 @@
 
 export type MyVrEvent = {
   baseVr: number;
+  instituteLevel: number | null;
   previousBaseVr: number | null;
   createdAt: string;
   source: string;
@@ -21,6 +22,7 @@ export type MyVrPayload = {
   priorSeason: string | null;
   seasonMaxVr: number | null;
   currentVr: number | null;
+  instituteLevel: number | null;
   updatedAt: string | null;
   commanderName: string | null;
   percentile: MyVrPercentile | null;

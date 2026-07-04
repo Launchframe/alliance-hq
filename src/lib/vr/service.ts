@@ -7,7 +7,6 @@ import {
 import { lookupPlayerByUid } from "@/lib/lastwar/player-lookup";
 import type { LastWarPlayerLookupResult } from "@/lib/lastwar/player-lookup";
 import { syncAllianceMemberGameLevelFromLastWar } from "@/lib/lastwar/sync-member-game-level.server";
-import { resolveMaxBaseVrForAlliance } from "@/lib/game-season/game-servers.server";
 import { peerMaxExcludingMember } from "@/lib/vr/anomaly";
 import { MAX_DISCORD_LINKS_PER_USER } from "@/lib/vr/constants";
 import { processVrCommand, processVrConfirmation } from "@/lib/vr/command";
@@ -692,7 +691,6 @@ export async function handleDiscordVrSlash(input: {
     listSeasonVrRows(input.allianceId, seasonKey),
   ]);
   const peerMax = peerMaxExcludingMember(seasonRows, target.ashedMemberId);
-  const maxBaseVr = await resolveMaxBaseVrForAlliance(input.allianceId);
 
   const result = processVrCommand({
     explicitLevel: input.explicitLevel,
@@ -702,7 +700,7 @@ export async function handleDiscordVrSlash(input: {
     reporterCount,
     peerMax,
     translate,
-    maxBaseVr,
+    seasonKey,
   });
 
   await saveDiscordBotPending(input.allianceId, input.discordUserId, result.pending);
