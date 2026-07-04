@@ -1,7 +1,8 @@
 import { getLocale } from "next-intl/server";
 
 import { AccountSettingsForm } from "@/components/AccountSettingsForm";
-import { hqUserHasOAuthProvider } from "@/lib/auth/account-linking.server";
+import { hqUserHasOAuthProvider, loadSignInMethodSnapshot } from "@/lib/auth/account-linking.server";
+import type { LinkedOAuthProvider } from "@/lib/auth/account-linking.shared";
 import { getAuthSsoAvailability } from "@/lib/auth/sso-config.server";
 import {
   getAshedConnectionMeta,
@@ -18,6 +19,8 @@ type Props = {
     discordLinked?: string;
     discordLinkError?: string;
     discordUnlinked?: string;
+    linked?: string;
+    linkError?: string;
   }>;
 };
 
@@ -38,6 +41,9 @@ export default async function AccountPage({ searchParams }: Props) {
     ? await hqUserHasOAuthProvider(hqUserId, "discord")
     : false;
   const ssoAvailability = getAuthSsoAvailability();
+  const signInSnapshot = hqUserId
+    ? await loadSignInMethodSnapshot(hqUserId)
+    : null;
 
   const discordLinked = Boolean(discordBotLink || hasDiscordOAuth);
   const linkNotice =
@@ -47,6 +53,24 @@ export default async function AccountPage({ searchParams }: Props) {
         ? ("unlinked" as const)
         : null;
 
+  const signInLinkNotice =
+    params.linked === "google" || params.linked === "discord"
+      ? (params.linked as LinkedOAuthProvider)
+      : null;
+
+  const initialSignInMethods = signInSnapshot
+    ? {
+        email: signInSnapshot.email,
+        hasPassword: signInSnapshot.hasPassword,
+        passkeyCount: signInSnapshot.passkeyCount,
+        linkedProviders: signInSnapshot.linkedProviders,
+        availableProviders: {
+          google: ssoAvailability.google,
+          discord: ssoAvailability.discord,
+        },
+      }
+    : null;
+
   return (
     <AccountSettingsForm
       initialAshed={ashed}
@@ -55,6 +79,10 @@ export default async function AccountPage({ searchParams }: Props) {
       discordAvailable={ssoAvailability.discord}
       discordLinkNotice={linkNotice}
       discordLinkError={params.discordLinkError?.trim() || null}
+      initialSignInMethods={initialSignInMethods}
+      signInLinkNotice={signInLinkNotice}
+      signInLinkError={params.linkError?.trim() || null}
+      ssoAvailability={ssoAvailability}
     />
   );
 }

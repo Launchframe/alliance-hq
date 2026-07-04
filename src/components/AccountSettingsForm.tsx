@@ -6,11 +6,14 @@ import { useLocale, useTranslations } from "next-intl";
 import { PairingQrWizard } from "@/components/credential-pairing/PairingQrWizard";
 import { LinkedDevicesSettings } from "@/components/credential-pairing/LinkedDevicesSettings";
 import { AccountDiscordLinkSection } from "@/components/account/AccountDiscordLinkSection";
+import { SignInMethodQuickAccess } from "@/components/auth/SignInMethodQuickAccess";
 import { AppSelect } from "@/components/ui/AppSelect";
 import { useAccountTimezone } from "@/components/timezone/TimezoneProvider";
 import { Link, useRouter } from "@/i18n/navigation";
 import { TokenExpiryNotice } from "@/components/TokenExpiryNotice";
 import { ashedLink, strongText } from "@/components/i18n/richText";
+import type { LinkedOAuthProvider } from "@/lib/auth/account-linking.shared";
+import type { AuthSsoAvailability } from "@/lib/auth/sso-config.shared";
 import type { AshedConnectionMeta } from "@/lib/jwt/connection-meta";
 import { DEFAULT_EXPIRY_REMINDER_DAYS } from "@/lib/jwt/decode";
 import type { AccountTimezoneId } from "@/lib/timezone/constants";
@@ -21,6 +24,17 @@ import {
 
 const REMINDER_OPTIONS = [7, 14, 21, 30];
 
+type SignInMethodsSnapshot = {
+  email: string;
+  hasPassword: boolean;
+  passkeyCount: number;
+  linkedProviders: LinkedOAuthProvider[];
+  availableProviders: {
+    google: boolean;
+    discord: boolean;
+  };
+};
+
 type Props = {
   initialAshed: AshedConnectionMeta | null;
   initialTimezoneId?: AccountTimezoneId;
@@ -28,6 +42,10 @@ type Props = {
   discordAvailable?: boolean;
   discordLinkNotice?: "linked" | "unlinked" | null;
   discordLinkError?: string | null;
+  initialSignInMethods?: SignInMethodsSnapshot | null;
+  signInLinkNotice?: LinkedOAuthProvider | null;
+  signInLinkError?: string | null;
+  ssoAvailability?: AuthSsoAvailability;
 };
 
 export function AccountSettingsForm({
@@ -37,6 +55,10 @@ export function AccountSettingsForm({
   discordAvailable = false,
   discordLinkNotice = null,
   discordLinkError = null,
+  initialSignInMethods = null,
+  signInLinkNotice = null,
+  signInLinkError = null,
+  ssoAvailability = { google: false, discord: false },
 }: Props) {
   const t = useTranslations("account");
   const tSettings = useTranslations("settings");
@@ -181,6 +203,15 @@ export function AccountSettingsForm({
         <p className="mt-2 text-sm text-[#8b949e]">
           {tSettings("accountSecurityBody")}
         </p>
+        {initialSignInMethods ? (
+          <SignInMethodQuickAccess
+            initialSnapshot={initialSignInMethods}
+            ssoAvailability={ssoAvailability}
+            linkNotice={signInLinkNotice}
+            linkError={signInLinkError}
+            callbackPath="/account"
+          />
+        ) : null}
         <Link
           href="/settings/account"
           className="mt-4 inline-block text-sm text-[#58a6ff] hover:underline"

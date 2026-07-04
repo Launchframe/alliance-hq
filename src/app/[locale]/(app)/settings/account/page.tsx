@@ -1,6 +1,8 @@
 import { eq } from "drizzle-orm";
+import { getTranslations } from "next-intl/server";
 
-import { AccountSecurityClient } from "@/components/auth/AccountSecurityClient";
+import { AccountPasskeysCard } from "@/components/auth/AccountPasskeysCard";
+import { AccountPasswordCard } from "@/components/auth/AccountPasswordCard";
 import { AccountSignInMethodsClient } from "@/components/auth/AccountSignInMethodsClient";
 import { redirect } from "@/i18n/navigation";
 import { requireAuthSession } from "@/lib/auth";
@@ -30,6 +32,7 @@ export default async function AccountSecurityPage({
     return null;
   }
 
+  const t = await getTranslations({ locale, namespace: "accountSecurity" });
   const hqUserId = session.user.id;
   const hasPassword = await hqUserHasPassword(hqUserId);
 
@@ -63,16 +66,24 @@ export default async function AccountSecurityPage({
   };
 
   return (
-    <div className="space-y-6">
-      <AccountSignInMethodsClient
-        initialSnapshot={initialSignInMethods}
-        linkNotice={linkNotice}
-        linkError={linkError?.trim() || null}
-      />
-      <AccountSecurityClient
-        hasPassword={hasPassword}
-        passkeyCount={passkeys.length}
-      />
+    <div className="mx-auto max-w-5xl space-y-6">
+      <header>
+        <h1 className="text-2xl font-semibold">{t("title")}</h1>
+        <p className="mt-1 text-sm text-[#8b949e]">{t("subtitle")}</p>
+      </header>
+      <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
+        <div className="min-w-0 space-y-6">
+          <AccountPasswordCard hasPassword={hasPassword} />
+          <AccountPasskeysCard passkeyCount={passkeys.length} />
+        </div>
+        <div className="min-w-0 w-full lg:max-w-md lg:justify-self-end">
+          <AccountSignInMethodsClient
+            initialSnapshot={initialSignInMethods}
+            linkNotice={linkNotice}
+            linkError={linkError?.trim() || null}
+          />
+        </div>
+      </div>
     </div>
   );
 }
