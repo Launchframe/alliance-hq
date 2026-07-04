@@ -239,6 +239,26 @@ export function VideoSurveyDialog({
   const nextEnabled = stepHasValidAnswer(step) && !submitting;
   const videoSrc = objectUrl ?? (file ? null : storedVideoSrc);
 
+  useEffect(() => {
+    if (!open || !videoSrc) return;
+    const video = videoRef.current;
+    if (!video) return;
+
+    const tryPlay = () => {
+      void video.play().catch(() => {
+        // Autoplay may be blocked; controls remain available.
+      });
+    };
+
+    if (video.readyState >= HTMLMediaElement.HAVE_METADATA) {
+      tryPlay();
+      return;
+    }
+
+    video.addEventListener("loadeddata", tryPlay, { once: true });
+    return () => video.removeEventListener("loadeddata", tryPlay);
+  }, [open, videoSrc]);
+
   function handleEnterAdvance(e: KeyboardEvent<HTMLFormElement>) {
     if (e.key !== "Enter" || e.shiftKey) return;
     const target = e.target as HTMLElement;
@@ -275,6 +295,7 @@ export function VideoSurveyDialog({
             ref={videoRef}
             src={videoSrc}
             controls
+            autoPlay
             muted
             playsInline
             className="max-h-48 w-full min-w-0 rounded-lg border border-[#30363d] bg-black object-contain"
