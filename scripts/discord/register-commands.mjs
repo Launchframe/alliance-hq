@@ -123,14 +123,10 @@ const commandBody = [
   {
     name: "weekly-pass",
     description: "Toggle your weekly pass (+250 VR boost for strategy reports).",
-    description_localizations: {
-      "pt-BR": "// TODO: pt-BR pending",
-    },
     options: [
       {
         name: "active",
         description: "Turn the weekly pass on or off.",
-        description_localizations: { "pt-BR": "// TODO: pt-BR pending" },
         type: 5,
         required: true,
       },
