@@ -95,7 +95,6 @@ export const gameSeasons = pgTable("game_seasons", {
   id: text("id").primaryKey(),
   seasonNumber: integer("season_number").notNull().unique(),
   maxProfessionLevel: integer("max_profession_level"),
-  maxBaseVr: integer("max_base_vr").notNull().default(10000),
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
     .notNull(),
@@ -1269,6 +1268,13 @@ export const commanders = pgTable(
       "self_report" | "officer_override" | null
     >(),
     mainSquadUpdatedAt: timestamp("main_squad_updated_at", {
+      withTimezone: true,
+    }),
+    weeklyPassActive: boolean("weekly_pass_active").notNull().default(false),
+    weeklyPassSource: text("weekly_pass_source").$type<
+      "self" | "officer" | null
+    >(),
+    weeklyPassUpdatedAt: timestamp("weekly_pass_updated_at", {
       withTimezone: true,
     }),
     currentAllianceId: text("current_alliance_id").references(

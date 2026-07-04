@@ -3,6 +3,7 @@ import {
   listDiscordLinksByAlliance,
   listFlaggedSeasonVr,
   listLeaderboardRows,
+  listWeeklyPassActiveByAlliance,
   resolveSeasonKey,
 } from "@/lib/vr/repository";
 import { buildLeaderboardRows, type LeaderboardRow } from "@/lib/vr/leaderboard";
@@ -26,14 +27,21 @@ export async function loadViralResistanceLeaderboard(
   allianceId: string,
 ): Promise<ViralResistancePayload> {
   const seasonKey = await resolveSeasonKey(allianceId);
-  const [seasonRows, links, members] = await Promise.all([
+  const [seasonRows, links, members, weeklyPassByMemberId] = await Promise.all([
     listLeaderboardRows(allianceId, seasonKey),
     listDiscordLinksByAlliance(allianceId),
     loadAllianceMembersForBot(allianceId),
+    listWeeklyPassActiveByAlliance(allianceId),
   ]);
   return {
     seasonKey,
-    rows: buildLeaderboardRows(seasonRows, members, links, seasonKey),
+    rows: buildLeaderboardRows(
+      seasonRows,
+      members,
+      links,
+      seasonKey,
+      weeklyPassByMemberId,
+    ),
   };
 }
 

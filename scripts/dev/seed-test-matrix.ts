@@ -31,7 +31,6 @@ import {
   type TestMatrixAllianceKey,
 } from "@/lib/dev/test-matrix";
 import {
-  DEFAULT_MAX_BASE_VR,
   gameSeasonIdForNumber,
   gameServerIdForNumber,
 } from "@/lib/game-season/game-servers.shared";
@@ -69,7 +68,6 @@ async function upsertTestGameServer(serverNumber: number): Promise<string> {
     .values({
       id: seasonId,
       seasonNumber,
-      maxBaseVr: DEFAULT_MAX_BASE_VR,
       createdAt: now,
       updatedAt: now,
     })

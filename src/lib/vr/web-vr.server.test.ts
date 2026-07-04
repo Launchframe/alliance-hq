@@ -6,16 +6,16 @@ vi.mock("@/lib/member-link/repository.server", () => ({
   getHqMemberLinkForUser: vi.fn(),
 }));
 
-vi.mock("@/lib/game-season/game-servers.server", () => ({
-  resolveMaxBaseVrForAlliance: vi.fn().mockResolvedValue(12750),
-}));
-
 vi.mock("@/lib/vr/web-vr-audit.server", () => ({
   auditWebVrCommand: vi.fn(),
 }));
 
 vi.mock("@/lib/vr/repository", () => ({
   countSeasonReporters: vi.fn(),
+  getCommanderByAshedMemberId: vi.fn().mockResolvedValue({
+    commanderId: "cmd-1",
+    weeklyPassActive: false,
+  }),
   getHqVrPending: vi.fn(),
   getMemberSeasonHigh: vi.fn(),
   listMemberSeasonVrEvents: vi.fn().mockResolvedValue([]),
@@ -231,6 +231,7 @@ describe("loadMyVrForUser", () => {
       currentVr: 500,
       instituteLevel: 5,
       commanderName: "Tester",
+      weeklyPassActive: false,
     });
   });
 });

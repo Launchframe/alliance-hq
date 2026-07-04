@@ -133,8 +133,8 @@ async function createAllianceWithOperatingMode(
   const gameServerId = `server-${serverNumber}`;
 
   await sql`
-    INSERT INTO game_seasons (id, season_number, max_base_vr, created_at, updated_at)
-    VALUES (${seasonId}, 1, 10000, ${now}, ${now})
+    INSERT INTO game_seasons (id, season_number, created_at, updated_at)
+    VALUES (${seasonId}, 1, ${now}, ${now})
     ON CONFLICT (id) DO NOTHING
   `;
 
@@ -210,8 +210,8 @@ export async function linkNativeAllianceToGameServer(
   const gameServerId = `server-${serverNumber}`;
 
   await sql`
-    INSERT INTO game_seasons (id, season_number, max_base_vr, created_at, updated_at)
-    VALUES (${seasonId}, 1, 10000, ${now}, ${now})
+    INSERT INTO game_seasons (id, season_number, created_at, updated_at)
+    VALUES (${seasonId}, 1, ${now}, ${now})
     ON CONFLICT (id) DO NOTHING
   `;
 

@@ -24,6 +24,7 @@ import {
   interactionGuildId,
   parseButtonCustomId,
   parseLinkSlashOptions,
+  parseSlashOptionBoolean,
   parseSlashOptionInteger,
   parseSlashOptionString,
   parseVrSlashLevel,
@@ -55,6 +56,7 @@ import {
   handleDiscordVrCharacterPick,
   handleDiscordVrReport,
   handleDiscordVrSlash,
+  handleDiscordWeeklyPass,
   handleDiscordWalkthroughDone,
   resolveAllianceForGuild,
 } from "@/lib/vr/service";
@@ -343,6 +345,25 @@ async function handleSlashCommand(payload: DiscordInteractionPayload) {
       );
     }
     return discordMessageResponse(result.reply);
+  }
+
+  if (commandName === "weekly-pass") {
+    if (!allianceId) {
+      return discordMessageResponse(
+        await setupMessage(locale, guildId, discordUserId),
+        undefined,
+        EPHEMERAL,
+      );
+    }
+    const active = parseSlashOptionBoolean(payload, "active") ?? true;
+    const result = await handleDiscordWeeklyPass({
+      discordUserId,
+      allianceId,
+      guildId,
+      locale,
+      active,
+    });
+    return discordMessageResponse(result.reply, undefined, EPHEMERAL);
   }
 
   if (commandName === "vr-report" || commandName === "takedown-teams") {

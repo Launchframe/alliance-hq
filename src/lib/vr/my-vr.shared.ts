@@ -28,6 +28,7 @@ export type MyVrPayload = {
   percentile: MyVrPercentile | null;
   reporterCount: number;
   events: MyVrEvent[];
+  weeklyPassActive: boolean | null;
 };
 
 export type MyVrPostStatus =
