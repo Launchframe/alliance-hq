@@ -22,6 +22,7 @@ const discordUserId = "discord-1";
 
 describe("callerCanRunVrReport", () => {
   beforeEach(() => {
+    vi.clearAllMocks();
     vi.mocked(callerIsAllianceOwner).mockResolvedValue(false);
     vi.mocked(listDiscordLinksForUser).mockResolvedValue([]);
     vi.mocked(loadAllianceMembersForBot).mockResolvedValue([]);

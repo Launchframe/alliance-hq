@@ -11,6 +11,7 @@ import {
   consumeDiscordAuthNonce,
   getValidDiscordAuthNonce,
 } from "@/lib/vr/auth-nonce";
+import { inheritHqMemberLinksToDiscord } from "@/lib/member-link/inherit-hq-to-discord.server";
 import {
   deleteDiscordHqLinkForHqUser,
   upsertDiscordHqLink,
@@ -19,6 +20,13 @@ import {
 vi.mock("@/lib/vr/repository", () => ({
   deleteDiscordHqLinkForHqUser: vi.fn(),
   upsertDiscordHqLink: vi.fn(),
+}));
+
+vi.mock("@/lib/member-link/inherit-hq-to-discord.server", () => ({
+  inheritHqMemberLinksToDiscord: vi.fn().mockResolvedValue({
+    inherited: 0,
+    skipped: 0,
+  }),
 }));
 
 vi.mock("@/lib/auth/account-linking.server", () => ({
@@ -77,6 +85,10 @@ describe("syncDiscordHqLinkFromOAuthSignIn", () => {
     expect(deleteFn).toHaveBeenCalled();
     expect(where).toHaveBeenCalled();
     expect(upsertDiscordHqLink).toHaveBeenCalledWith({
+      discordUserId: "discord-1",
+      hqUserId: "hq-1",
+    });
+    expect(inheritHqMemberLinksToDiscord).toHaveBeenCalledWith({
       discordUserId: "discord-1",
       hqUserId: "hq-1",
     });

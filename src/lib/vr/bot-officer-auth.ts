@@ -23,6 +23,7 @@ export async function callerCanRunVrReport(input: {
     return true;
   }
 
+  // callerIsAllianceOwner already mirrors HQ web commanders onto Discord.
   const [links, members] = await Promise.all([
     listDiscordLinksForUser(input.allianceId, input.discordUserId),
     loadAllianceMembersForBot(input.allianceId),

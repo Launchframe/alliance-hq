@@ -7,6 +7,7 @@ import {
   consumeDiscordAuthNonce,
   getValidDiscordAuthNonce,
 } from "@/lib/vr/auth-nonce";
+import { inheritHqMemberLinksToDiscord } from "@/lib/member-link/inherit-hq-to-discord.server";
 import {
   deleteDiscordHqLinkForHqUser,
   upsertDiscordHqLink,
@@ -48,6 +49,8 @@ export async function syncDiscordHqLinkFromOAuthSignIn(input: {
     );
 
   await upsertDiscordHqLink({ discordUserId, hqUserId });
+  // Web commanders should work on Discord without a second name+UID pass.
+  await inheritHqMemberLinksToDiscord({ discordUserId, hqUserId });
 }
 
 export async function getDiscordProviderAccountIdForHqUser(

@@ -9,6 +9,7 @@ import {
   openMemberAllianceTenure,
 } from "@/lib/members/member-tenure.server";
 import { syncCommanderIdentityFromMemberLink } from "@/lib/members/commander-identity.server";
+import { inheritHqMemberLinkToDiscordIfLinked } from "@/lib/member-link/inherit-hq-to-discord.server";
 import type { LinkPendingState } from "@/lib/vr/types";
 
 const PENDING_TTL_MS = 30 * 60 * 1000;
@@ -188,6 +189,13 @@ export async function linkHqMember(input: {
       memberDisplayName: input.memberDisplayName,
       hqUserId: input.hqUserId,
     });
+    await inheritHqMemberLinkToDiscordIfLinked({
+      hqUserId: input.hqUserId,
+      allianceId: input.allianceId,
+      ashedMemberId: input.ashedMemberId,
+      memberDisplayName: input.memberDisplayName,
+      gameUid: input.gameUid,
+    });
     return { ok: true, link: row!, mode: "updated" };
   }
 
@@ -223,6 +231,13 @@ export async function linkHqMember(input: {
     memberDisplayName: input.memberDisplayName,
     hqUserId: input.hqUserId,
     joinedAt: now,
+  });
+  await inheritHqMemberLinkToDiscordIfLinked({
+    hqUserId: input.hqUserId,
+    allianceId: input.allianceId,
+    ashedMemberId: input.ashedMemberId,
+    memberDisplayName: input.memberDisplayName,
+    gameUid: input.gameUid,
   });
 
   return { ok: true, link: row!, mode: "created" };
