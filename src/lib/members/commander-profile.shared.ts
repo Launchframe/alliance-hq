@@ -72,8 +72,19 @@ export type CommanderProfilePayload = {
     rank: number | null;
     updatedAt: string;
   }>;
-  commendations: Record<string, unknown>[];
-  violations: Record<string, unknown>[];
+  commendations: Array<{
+    id: string;
+    commendationType: string | null;
+    notes: string | null;
+    recordedDate: string | null;
+  }>;
+  violations: Array<{
+    id: string;
+    violationType: string | null;
+    notes: string | null;
+    recordedDate: string | null;
+    expungedAt: string | null;
+  }>;
   trainHighlights: Array<{
     date: string;
     role: "conductor" | "vip" | "substitute";

@@ -4,6 +4,10 @@ import { useState, useSyncExternalStore } from "react";
 import { useTranslations } from "next-intl";
 
 import { ProfileAvatar } from "@/components/profile/ProfileAvatar";
+import {
+  MemberCommendationCards,
+  MemberViolationCards,
+} from "@/components/members/MemberDisciplineCards";
 import { CopyToClipboardField } from "@/components/ui/CopyToClipboardField";
 import { Link } from "@/i18n/navigation";
 import type { CommanderProfilePayload } from "@/lib/members/commander-profile.shared";
@@ -149,7 +153,7 @@ export function CommanderProfileView({ initial }: Props) {
   }
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
+    <div className="mx-auto w-full min-w-0 max-w-3xl space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold">{member.currentName}</h1>
@@ -499,21 +503,17 @@ export function CommanderProfileView({ initial }: Props) {
         </ProfileSection>
       )}
 
-      {initial.commendations.length > 0 && (
+      {initial.commendations.length > 0 ? (
         <ProfileSection title={t("commendations")}>
-          <pre className="overflow-x-auto text-xs text-[#8b949e]">
-            {JSON.stringify(initial.commendations, null, 2)}
-          </pre>
+          <MemberCommendationCards rows={initial.commendations} />
         </ProfileSection>
-      )}
+      ) : null}
 
-      {initial.violations.length > 0 && (
+      {initial.violations.length > 0 ? (
         <ProfileSection title={t("violations")}>
-          <pre className="overflow-x-auto text-xs text-[#8b949e]">
-            {JSON.stringify(initial.violations, null, 2)}
-          </pre>
+          <MemberViolationCards rows={initial.violations} />
         </ProfileSection>
-      )}
+      ) : null}
 
       {initial.hqUser === null && initial.member.viewerCanIssueClaimInvite && (
         <section className="rounded-xl border border-[#30363d] bg-[#161b22] p-5">
@@ -592,7 +592,7 @@ function ProfileSection({
       <h2 className="text-sm font-semibold uppercase tracking-wide text-[#8b949e]">
         {title}
       </h2>
-      <div className="mt-4">{children}</div>
+      <div className="mt-4 min-w-0">{children}</div>
     </section>
   );
 }
