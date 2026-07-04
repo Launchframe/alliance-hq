@@ -7,6 +7,7 @@ import { FormattedDateTime } from "@/components/timezone/TimezoneProvider";
 import { MEMBER_LINK_HELP_INBOX_KIND } from "@/lib/member-link/member-link-help-inbox.shared";
 import { ROSTER_LINK_INBOX_KIND } from "@/lib/member-link/roster-link-inbox.shared";
 import { Link } from "@/i18n/navigation";
+import { dispatchInboxRemindersRefresh } from "@/lib/inbox-reminders-refresh.shared";
 
 type ReminderItem = {
   id: string;
@@ -56,6 +57,7 @@ export default function InboxPageClient({
       });
       if (!res.ok) throw new Error(t("dismissFailed"));
       await load();
+      dispatchInboxRemindersRefresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : t("dismissFailed"));
     } finally {
@@ -73,6 +75,7 @@ export default function InboxPageClient({
       });
       if (!res.ok) throw new Error(t("dismissFailed"));
       await load();
+      dispatchInboxRemindersRefresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : t("dismissFailed"));
     } finally {

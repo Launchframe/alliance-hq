@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 
 import { Link } from "@/i18n/navigation";
 import { FormattedDateTime } from "@/components/timezone/TimezoneProvider";
+import { dispatchInboxRemindersRefresh } from "@/lib/inbox-reminders-refresh.shared";
 import type {
   HelpRequestRosterRow,
   MemberLinkHelpRequestReview,
@@ -244,11 +245,18 @@ export function MemberLinkHelpRequestReviewClient({
         memberName?: string;
       } | null;
       if (!res.ok) {
-        if (payload?.reason === "not_linked") {
-          setError(t("errors.notLinked"));
-        } else {
-          setError(t("unlinkFailed"));
-        }
+        const reason = payload?.reason;
+        const message =
+          reason === "not_linked"
+            ? t("errors.notLinked")
+            : reason === "already_closed"
+              ? t("errors.alreadyClosed")
+              : reason === "member_not_found"
+                ? t("errors.memberNotFound")
+                : t("unlinkFailed");
+        setError(reason ? `${message} (${reason})` : message);
+        // Stale UI: HQ may already be gone while Discord still shows "claimed".
+        await refreshReview();
         return;
       }
       setUnlinkConfirmOpen(false);
@@ -266,6 +274,7 @@ export function MemberLinkHelpRequestReviewClient({
         refreshed?.request.inviteTargetAshedMemberId ??
         unlinkedMemberId;
       selectRosterMember(nextSelect, { keepNotice: true });
+      dispatchInboxRemindersRefresh();
       router.refresh();
     } catch {
       setError(t("unlinkFailed"));
@@ -293,13 +302,15 @@ export function MemberLinkHelpRequestReviewClient({
         memberName?: string;
       } | null;
       if (!res.ok) {
-        if (payload?.reason === "member_already_claimed") {
-          setError(t("errors.memberAlreadyClaimed"));
-        } else if (payload?.reason === "hq_user_required") {
-          setError(t("errors.hqUserRequired"));
-        } else {
-          setError(t("linkFailed"));
-        }
+        const reason = payload?.reason;
+        const message =
+          reason === "member_already_claimed"
+            ? t("errors.memberAlreadyClaimed")
+            : reason === "hq_user_required"
+              ? t("errors.hqUserRequired")
+              : t("linkFailed");
+        setError(reason ? `${message} (${reason})` : message);
+        await refreshReview();
         return;
       }
       const linkedMemberId = selectedUnclaimed.ashedMemberId;
@@ -317,6 +328,7 @@ export function MemberLinkHelpRequestReviewClient({
           (row) => row.ashedMemberId === linkedMemberId,
         )?.ashedMemberId ?? linkedMemberId;
       selectRosterMember(claimedId, { keepNotice: true });
+      dispatchInboxRemindersRefresh();
       router.refresh();
     } catch {
       setError(t("linkFailed"));
@@ -335,6 +347,7 @@ export function MemberLinkHelpRequestReviewClient({
         body: JSON.stringify({ action }),
       });
       if (!res.ok) throw new Error("resolve_failed");
+      dispatchInboxRemindersRefresh();
       router.push(backHref);
       router.refresh();
     } catch {

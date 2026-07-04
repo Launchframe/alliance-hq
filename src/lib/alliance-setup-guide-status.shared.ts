@@ -48,14 +48,19 @@ export type AllianceSetupGuideSignals = {
   viewerIsOfficer: boolean;
 };
 
-/** Owner link signal for officers; viewer link for plain members. */
+/**
+ * Owner link signal for officers; viewer link for plain members.
+ * Officers (including platform maintainers) also complete the task when they
+ * have linked their own commander — otherwise "Link commander" navigates to
+ * /onboard and immediately redirects away (looks like a no-op).
+ */
 export function commanderLinkTaskComplete(
   signals: AllianceSetupGuideSignals,
 ): boolean {
   if (!signals.viewerIsOfficer) {
     return signals.viewerHasCommanderLink;
   }
-  return signals.ownerHasCommanderLink;
+  return signals.ownerHasCommanderLink || signals.viewerHasCommanderLink;
 }
 
 /**

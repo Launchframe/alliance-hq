@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { Link } from "@/i18n/navigation";
+import { INBOX_REMINDERS_REFRESH_EVENT } from "@/lib/inbox-reminders-refresh.shared";
 
 const POLL_MS = 60_000;
 
@@ -28,9 +29,26 @@ export function ReminderInboxBell() {
 
     void load();
     const id = window.setInterval(() => void load(), POLL_MS);
+
+    function handleRefresh() {
+      void load();
+    }
+    function handleVisibility() {
+      if (document.visibilityState === "visible") {
+        void load();
+      }
+    }
+
+    window.addEventListener(INBOX_REMINDERS_REFRESH_EVENT, handleRefresh);
+    window.addEventListener("focus", handleRefresh);
+    document.addEventListener("visibilitychange", handleVisibility);
+
     return () => {
       cancelled = true;
       window.clearInterval(id);
+      window.removeEventListener(INBOX_REMINDERS_REFRESH_EVENT, handleRefresh);
+      window.removeEventListener("focus", handleRefresh);
+      document.removeEventListener("visibilitychange", handleVisibility);
     };
   }, []);
 

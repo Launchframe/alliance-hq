@@ -1,12 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 
 import { useFormatAccountDateTime } from "@/components/timezone/TimezoneProvider";
 import { RosterImportDialog } from "@/components/members/RosterImportDialog";
 import { CommanderConflictResolutionSheet } from "@/components/members/CommanderConflictResolutionSheet";
-import { Link } from "@/i18n/navigation";
+import { Link, usePathname, useRouter } from "@/i18n/navigation";
 import {
   formatMemberRankDisplay,
   isAshedMemberUnranked,
@@ -20,6 +21,9 @@ import type { AllianceMembersPayload } from "@/lib/members/load";
 import type { AshedMember } from "@/lib/video/member-matcher";
 import { MEMBER_ROSTER_VIDEO_SCORE_TARGET } from "@/lib/members/ashed-member-record";
 import { ashedUrlForPath } from "@/lib/nav/routes";
+import {
+  writeStoredMembersListFilters,
+} from "@/lib/members/members-list-filters.shared";
 import { buildVideoUploadHref } from "@/lib/video/score-target-nav";
 
 type Props = {
@@ -74,10 +78,17 @@ export function MembersListView({
 }: Props) {
   const t = useTranslations("members");
   const formatDateTime = useFormatAccountDateTime();
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
   const [data, setData] = useState(initial);
-  const [searchInput, setSearchInput] = useState("");
-  const [query, setQuery] = useState("");
-  const [showFormer, setShowFormer] = useState(false);
+  const [searchInput, setSearchInput] = useState(
+    () => searchParams.get("q") ?? "",
+  );
+  const [query, setQuery] = useState(() => (searchParams.get("q") ?? "").trim());
+  const [showFormer, setShowFormer] = useState(
+    () => searchParams.get("former") === "1",
+  );
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [editMode, setEditMode] = useState(false);
@@ -103,6 +114,19 @@ export function MembersListView({
     }, SEARCH_DEBOUNCE_MS);
     return () => window.clearTimeout(handle);
   }, [searchInput]);
+
+  useEffect(() => {
+    const params = new URLSearchParams();
+    const q = searchInput.trim();
+    if (q) params.set("q", q);
+    if (showFormer) params.set("former", "1");
+    const next = params.toString();
+    const current = searchParams.toString();
+    if (next !== current) {
+      router.replace(next ? `${pathname}?${next}` : pathname, { scroll: false });
+    }
+    writeStoredMembersListFilters({ searchInput, showFormer });
+  }, [searchInput, showFormer, pathname, router, searchParams]);
 
   const filtered = useMemo(() => {
     return data.members.filter((member) => {

@@ -18,7 +18,10 @@ import {
   syncPrimaryGameUidFromHqMemberLink,
 } from "@/lib/member-link/repository.server";
 import { reconcileAllianceMemberForRosterLink } from "@/lib/member-link/roster-link-resolve.server";
-import { unlinkCommanderHqAccount } from "@/lib/member-link/unlink.server";
+import {
+  unlinkCommanderDiscordLinks,
+  unlinkCommanderHqAccount,
+} from "@/lib/member-link/unlink.server";
 import { normalizeName } from "@/lib/vr/link-helpers";
 import { getLinkedMemberIds } from "@/lib/vr/repository";
 import {
@@ -253,7 +256,7 @@ export async function loadClaimantContactForMember(input: {
   return { hq: hq ?? undefined, discord: discord ?? undefined };
 }
 
-/** Break-glass HQ unlink during officer help review (mediation). */
+/** Break-glass unlink during officer help review (mediation). Removes HQ and Discord bindings. */
 export async function unlinkHqMemberLinkBreakGlass(input: {
   requestId: string;
   targetAshedMemberId: string;
@@ -262,7 +265,7 @@ export async function unlinkHqMemberLinkBreakGlass(input: {
   allianceId?: string;
   notifiedClaimant: true;
 }): Promise<
-  | { ok: true; memberName: string }
+  | { ok: true; memberName: string; removedHq: boolean; removedDiscord: boolean }
   | { ok: false; reason: string }
 > {
   const row = await getMemberLinkHelpRequestById(input.requestId);
@@ -289,22 +292,23 @@ export async function unlinkHqMemberLinkBreakGlass(input: {
     .limit(1);
   if (!memberRow) return { ok: false, reason: "member_not_found" };
 
-  const hqLink = await getHqMemberLinkByAllianceAndMember(
-    row.allianceId,
-    input.targetAshedMemberId,
-  );
-  if (!hqLink) {
-    return { ok: false, reason: "not_linked" };
-  }
-
-  const unlinked = await unlinkCommanderHqAccount({
+  const hqUnlink = await unlinkCommanderHqAccount({
     sessionId: input.sessionId,
     actorHqUserId: input.resolvedByHqUserId,
     allianceId: row.allianceId,
     ashedMemberId: input.targetAshedMemberId,
   });
-  if (!unlinked.ok) {
-    return { ok: false, reason: unlinked.reason };
+  const discordUnlink = await unlinkCommanderDiscordLinks({
+    sessionId: input.sessionId,
+    actorHqUserId: input.resolvedByHqUserId,
+    allianceId: row.allianceId,
+    ashedMemberId: input.targetAshedMemberId,
+  });
+
+  const removedHq = hqUnlink.ok;
+  const removedDiscord = discordUnlink.ok;
+  if (!removedHq && !removedDiscord) {
+    return { ok: false, reason: "not_linked" };
   }
 
   await writeAuditLog({
@@ -318,10 +322,17 @@ export async function unlinkHqMemberLinkBreakGlass(input: {
       targetAshedMemberId: input.targetAshedMemberId,
       notifiedClaimant: input.notifiedClaimant,
       helpContext: row.context,
+      removedHq,
+      removedDiscord,
     },
   });
 
-  return { ok: true, memberName: memberRow.currentName };
+  return {
+    ok: true,
+    memberName: memberRow.currentName,
+    removedHq,
+    removedDiscord,
+  };
 }
 
 export async function linkMemberLinkHelpRequest(input: {

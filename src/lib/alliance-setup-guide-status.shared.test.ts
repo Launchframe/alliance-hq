@@ -75,6 +75,17 @@ describe("alliance setup guide", () => {
     ).toBe(true);
   });
 
+  it("counts the officer's own commander link even when owner link is missing", () => {
+    expect(
+      commanderLinkTaskComplete({
+        ...baseSignals,
+        ownerHasCommanderLink: false,
+        viewerHasCommanderLink: true,
+        viewerIsOfficer: true,
+      }),
+    ).toBe(true);
+  });
+
   it("counts cold-start owner link when ownerHqUserId is unset", () => {
     expect(
       resolveOwnerHasCommanderLink({

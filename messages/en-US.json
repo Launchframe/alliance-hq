@@ -1460,7 +1460,9 @@
     "errors": {
       "memberAlreadyClaimed": "That roster member is already claimed. Use the mediation panel to contact both parties.",
       "hqUserRequired": "This request has no HQ web account — link manually after the member signs in.",
-      "notLinked": "That roster member is not linked to an HQ account."
+      "notLinked": "That roster member has no HQ or Discord link to remove.",
+      "alreadyClosed": "This help request is already closed.",
+      "memberNotFound": "That roster member was not found."
     }
   },
   "settings": {
@@ -1863,6 +1865,7 @@
       "identityLinks": "Identity links",
       "hqUser": "HQ user",
       "discord": "Discord",
+      "discordUserFallback": "Discord user …{idSuffix}",
       "unlinkHqButton": "Unlink HQ account",
       "unlinkDiscordButton": "Unlink Discord",
       "unlinkConfirmQuestion": "Unlink this commander?",
