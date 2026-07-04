@@ -1,5 +1,8 @@
 export type VideoJobStatusEvent = {
   sessionId: string;
+  /** HQ user who uploaded — present so other devices for the same user receive events. */
+  enqueuedByHqUserId?: string | null;
+  hqUserId?: string | null;
   jobId: string;
   status: string;
   fileName: string | null;

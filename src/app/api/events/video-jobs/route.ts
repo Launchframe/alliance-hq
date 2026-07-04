@@ -4,7 +4,8 @@ import {
   parseVideoJobStatusEvent,
   VIDEO_JOB_NOTIFY_CHANNEL,
 } from "@/lib/events/video-jobs";
-import { getRecentSessionVideoJobs } from "@/lib/events/video-jobs-query";
+import { getRecentOwnedVideoJobs } from "@/lib/events/video-jobs-query";
+import { isVideoJobStatusEventForViewer } from "@/lib/video/video-job-access.shared";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -19,6 +20,7 @@ export function sseChunk(event: string, data: unknown): string {
 export async function GET(request: Request) {
   const session = await getOrCreateSession();
   const sessionId = session.id;
+  const hqUserId = session.hqUserId;
 
   const encoder = new TextEncoder();
   let closed = false;
@@ -56,7 +58,7 @@ export async function GET(request: Request) {
       };
 
       try {
-        const jobs = await getRecentSessionVideoJobs(sessionId);
+        const jobs = await getRecentOwnedVideoJobs(sessionId, hqUserId);
         send("snapshot", { jobs });
       } catch (error) {
         send("error", {
@@ -78,7 +80,10 @@ export async function GET(request: Request) {
 
       void listenClient.listen(VIDEO_JOB_NOTIFY_CHANNEL, (payload) => {
         const event = parseVideoJobStatusEvent(payload);
-        if (!event || event.sessionId !== sessionId) {
+        if (
+          !event ||
+          !isVideoJobStatusEventForViewer(event, sessionId, hqUserId)
+        ) {
           return;
         }
         send("job", event);

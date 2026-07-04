@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 
 import { writeAuditLog } from "@/lib/bff/audit";
 import { emitVideoJobStatus } from "@/lib/events/video-jobs";
+import { videoJobStatusOwnerFields } from "@/lib/video/video-job-access.shared";
 import { getDb, schema } from "@/lib/db";
 import { assignRosterOcrExperiment } from "@/lib/members/roster-ocr/assign-roster-config";
 import { getAshedConnection, getOrCreateSession } from "@/lib/session";
@@ -132,7 +133,7 @@ export async function POST(_request: Request, { params }: Props) {
 
     // Notify the uploader's live session that processing has started.
     await emitVideoJobStatus({
-      sessionId: job.sessionId,
+      ...videoJobStatusOwnerFields(job),
       jobId,
       status: "queued",
       fileName: job.fileName,

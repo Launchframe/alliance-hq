@@ -19,6 +19,7 @@ import {
   type RosterTesseractEvalComparison,
 } from "@/lib/video/compare-roster-ocr-quality";
 import { emitVideoJobStatus } from "@/lib/events/video-jobs";
+import { videoJobStatusOwnerFields } from "@/lib/video/video-job-access.shared";
 import { mergeGroupComparisons } from "@/lib/video/group-comparisons.shared";
 import { persistOcrEvalSnapshot } from "@/lib/video/ocr-eval-snapshots.server";
 import { ocrRosterNativeFrames } from "@/lib/video/ocr-roster-native";
@@ -215,7 +216,7 @@ export async function processTesseractShadowRosterJob(
       .where(eq(schema.videoJobs.id, jobId));
 
     await emitVideoJobStatus({
-      sessionId: job.sessionId,
+      ...videoJobStatusOwnerFields(job),
       jobId,
       status,
       fileName: job.fileName,

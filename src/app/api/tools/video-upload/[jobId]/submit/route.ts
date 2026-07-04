@@ -3,6 +3,7 @@ import { and, eq, inArray } from "drizzle-orm";
 
 import { writeAuditLog } from "@/lib/bff/audit";
 import { emitVideoJobStatus } from "@/lib/events/video-jobs";
+import { videoJobStatusOwnerFields } from "@/lib/video/video-job-access.shared";
 import { getDb, schema } from "@/lib/db";
 import { base44EntityPost } from "@/lib/base44/fetch";
 import {
@@ -122,6 +123,8 @@ export async function POST(request: Request, { params }: Props) {
     /** Status before we wrote "submitting" — used for rollback so event-view re-submits roll back to "complete", not "review". */
     originalStatus: string;
     uploaderSessionId: string;
+    enqueuedByHqUserId: string | null;
+    hqUserId: string | null;
   } | null = null;
 
   try {
@@ -154,6 +157,8 @@ export async function POST(request: Request, { params }: Props) {
       category: job.category,
       originalStatus: job.status,
       uploaderSessionId: job.sessionId,
+      enqueuedByHqUserId: job.enqueuedByHqUserId,
+      hqUserId: job.hqUserId,
     };
 
     const scoreTargetId = job.scoreTarget ?? job.category ?? "desert-storm";
@@ -260,7 +265,7 @@ export async function POST(request: Request, { params }: Props) {
       advancedToSubmitting = true;
 
       await emitVideoJobStatus({
-        sessionId: job.sessionId,
+        ...videoJobStatusOwnerFields(job),
         jobId,
         status: "submitting",
         fileName: job.fileName,
@@ -308,7 +313,7 @@ export async function POST(request: Request, { params }: Props) {
         .where(eq(schema.videoJobs.id, jobId));
 
       await emitVideoJobStatus({
-        sessionId: job.sessionId,
+        ...videoJobStatusOwnerFields(job),
         jobId,
         status: "complete",
         fileName: job.fileName,
@@ -517,7 +522,7 @@ export async function POST(request: Request, { params }: Props) {
     advancedToSubmitting = true;
 
     await emitVideoJobStatus({
-      sessionId: job.sessionId,
+      ...videoJobStatusOwnerFields(job),
       jobId,
       status: "submitting",
       fileName: job.fileName,
@@ -571,7 +576,7 @@ export async function POST(request: Request, { params }: Props) {
       .where(eq(schema.videoJobs.id, jobId));
 
     await emitVideoJobStatus({
-      sessionId: job.sessionId,
+      ...videoJobStatusOwnerFields(job),
       jobId,
       status: "complete",
       fileName: job.fileName,
@@ -649,7 +654,11 @@ export async function POST(request: Request, { params }: Props) {
           .set({ status: rollbackStatus, updatedAt: new Date() })
           .where(eq(schema.videoJobs.id, jobId));
         await emitVideoJobStatus({
-          sessionId: jobSnapshot.uploaderSessionId,
+          ...videoJobStatusOwnerFields({
+            sessionId: jobSnapshot.uploaderSessionId,
+            enqueuedByHqUserId: jobSnapshot.enqueuedByHqUserId,
+            hqUserId: jobSnapshot.hqUserId,
+          }),
           jobId,
           status: rollbackStatus,
           fileName: jobSnapshot.fileName ?? null,

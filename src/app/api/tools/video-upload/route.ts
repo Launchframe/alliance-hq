@@ -17,6 +17,7 @@ import {
   MULTIPART_UPLOAD_THRESHOLD_BYTES,
 } from "@/lib/video/upload-limit";
 import { finalizeVideoUploadEnqueue } from "@/lib/video/finalize-video-upload";
+import { videoJobsOwnedByViewerWhere } from "@/lib/video/video-job-ownership.server";
 
 export async function POST(request: Request) {
   try {
@@ -130,7 +131,7 @@ export async function GET() {
       .from(schema.videoJobs)
       .where(
         and(
-          eq(schema.videoJobs.sessionId, session.id),
+          videoJobsOwnedByViewerWhere(session.id, session.hqUserId),
           ne(schema.videoJobs.status, "discarded"),
           ne(schema.videoJobs.status, "pending_upload"),
           or(

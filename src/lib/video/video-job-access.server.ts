@@ -76,6 +76,40 @@ export async function resolveVideoJobAccess(
   return { ok: true, job };
 }
 
+/**
+ * Uploader-only access (any device signed in as the same HQ user).
+ * Alliance processors are not included — use {@link resolveVideoJobAccess}.
+ */
+export async function resolveVideoJobUploaderAccess(
+  jobId: string,
+  sessionId: string,
+): Promise<VideoJobAccessResult> {
+  const db = getDb();
+  const [job] = await db
+    .select()
+    .from(schema.videoJobs)
+    .where(eq(schema.videoJobs.id, jobId))
+    .limit(1);
+
+  if (!job) {
+    return { ok: false, status: 404 };
+  }
+
+  const session = await loadSession(sessionId);
+  if (!session) {
+    return { ok: false, status: 403 };
+  }
+
+  if (
+    job.sessionId === sessionId ||
+    isVideoJobOwningHqUser(session.hqUserId, job)
+  ) {
+    return { ok: true, job };
+  }
+
+  return { ok: false, status: 404 };
+}
+
 export type VideoUploadGroupAccessResult =
   | { ok: true; group: VideoUploadGroup }
   | { ok: false; status: 403 | 404 };
