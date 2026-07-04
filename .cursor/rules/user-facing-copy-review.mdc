@@ -1,5 +1,5 @@
 ---
-description: Maintainer must approve English copy before any messages/*.json write or translation
+description: Copy is agreed in planning/review before code; implementation lands en-US + pt-BR together — no inline English
 globs:
   - messages/en-US.*
   - messages/pt-BR.*
@@ -15,43 +15,72 @@ alwaysApply: true
 
 This applies to UI, Discord bot replies, slash-command descriptions, email, error/empty-state text, onboarding, and help guides — anything a player or officer reads.
 
-## Hard stops (never do these without maintainer approval)
+**Goal:** No “inline English” or `TODO: copy pending maintainer` artifacts in shipped code. Copy is agreed with the maintainer **before** implementation; locale files and wired i18n keys land together in the implementation pass.
 
-- **Do not write or edit `messages/en-US.*`** — not even “small” typo fixes, hint tweaks, or keys added alongside a feature.
-- **Do not write or edit `messages/pt-BR.*`** — translations come **after** English is approved, never in the same turn as drafting English.
+## Maintainer-preferred flow
+
+### 1. Planning (optional but helpful)
+
+When scoping a feature, include a **copy catalog** in the plan or design discussion:
+
+- Proposed i18n key paths (or Discord command keys / email template ids)
+- Draft English for every new or changed string
+- Where each string appears (page, component, bot reply, etc.)
+
+Planning may be skipped for tiny copy-only fixes, but the **copy-review step below is not optional** when user-facing text changes.
+
+### 2. Copy review — before any implementation
+
+Present **all** English copy to the prompter/maintainer in chat (or accept their pasted/edited wording). The maintainer approves or edits at this stage.
+
+| Do in this phase | Do **not** in this phase |
+| --- | --- |
+| List keys + English values; revise until agreed | Edit `messages/en-US.*` or `messages/pt-BR.*` |
+| Note maintainer edits verbatim for the implementation pass | Ship TS/TSX with inline user-facing strings |
+| Call out Discord `register-commands.mjs` English if slash descriptions change | Run `npm run i18n:translate` or auto-translate |
+
+**Wait** until the maintainer replies with approval, edited wording, or an explicit “use this exact text: …”. Do not start feature implementation while copy is still draft-only.
+
+### 3. Approved → implement code + copy
+
+After English is approved, implement in one pass:
+
+1. **Wire i18n** — `useTranslations` / `getTranslations`, message keys, Discord registrations; **no** hardcoded user-facing English in TS/TSX when the project uses i18n.
+2. **Apply English** — `messages/en-US.*` (and any approved inline exceptions) match **exactly** what was approved.
+3. **Hand-translate** — `messages/pt-BR.*` and Discord `description_localizations` from that approved English in the **same PR / same implementation turn** (not a follow-up after merge).
+4. **Validate** — `npm run i18n:validate` after locale edits.
+
+If the maintainer approves copy mid-session (“approved”, “ship it”, “translate them”), that counts as step 2 complete — proceed to step 3 without re-asking.
+
+## Hard stops (never without maintainer approval)
+
+- **Do not write or edit `messages/en-US.*`** until English was approved in the copy-review phase (step 2).
+- **Do not write or edit `messages/pt-BR.*`** except from **already-approved** English during implementation (step 3).
 - **Do not run `npm run i18n:translate`**, Google Translate, or any automated translation pipeline.
-- **Do not edit English or localized strings in `scripts/discord/register-commands.mjs`** until the maintainer approves the English wording.
-- **Do not embed new user-facing strings inline in TS/TSX** when the project uses i18n keys — draft the key + English value for review first.
-
-If a feature needs copy, **stop implementation at the i18n boundary** and ask the maintainer to approve English before touching locale files.
-
-## Required flow
-
-1. **Draft only** — list affected message keys (or UI locations) and propose English text in chat. Use placeholders in code (`TODO: copy pending maintainer`) only if the maintainer agrees to land structure first.
-2. **Wait** — do not proceed until the maintainer replies with approval, edited wording, or an explicit “use this exact text: …”.
-3. **Apply English** — update `messages/en-US.*` (and inline strings if any) to match **exactly** what the maintainer approved.
-4. **Translate** — update `messages/pt-BR.*` and Discord `description_localizations` from the **approved English only**. Hand-translate; do not auto-translate.
-5. **Validate** — run `npm run i18n:validate` after locale edits.
+- **Do not edit English or localized strings in `scripts/discord/register-commands.mjs`** until English is approved.
+- **Do not embed new user-facing strings inline in TS/TSX** — not even temporarily. No `TODO: copy pending maintainer` placeholders unless the maintainer explicitly asks to land UI structure first **and** accepts that the PR stays draft until copy is approved and locales are filled.
 
 ## What counts as approval
 
 | Counts | Does **not** count |
 | --- | --- |
 | Maintainer pastes exact strings in chat | Agent-drafted copy the maintainer has not seen |
-| “Use that wording” / “approved” / “ship it” on a listed draft | Assumed approval because the task mentions a feature |
+| “Use that wording” / “approved” / “ship it” / “translate them” on a listed draft | Assumed approval because the task mentions a feature |
 | Maintainer edits `en-US.json` themselves — treat their file as source of truth | Prior PR copy, training-data phrasing, or “sounds better” agent rewrites |
-| Maintainer says “propagate my English changes to pt-BR” | Agent updating English and pt-BR in one step without review |
+| Maintainer says “propagate my English changes to pt-BR” | Implementing English in code before step 2 approval |
+| Bulk approval in chat (“I am approving all inline and constant English copy. Go ahead and translate them.”) | Landing English in locale files before that approval |
 
-When the maintainer edits English locally, **read their committed or saved `en-US.json` as canonical** — do not revert or “improve” it; only propagate to pt-BR and Discord localizations.
+When the maintainer edits English locally, **read their committed or saved `en-US.json` as canonical** — do not revert or “improve” it; propagate to pt-BR and Discord localizations.
 
 ## Agent checklist before any PR with copy
 
-- [ ] Every new/changed `en-US` string was shown to the maintainer or copied from their edits
-- [ ] `pt-BR` updated only from approved English (same PR is OK if maintainer asked for propagation)
+- [ ] Every new/changed English string was approved in chat (or copied from maintainer-edited `en-US.json`) **before** implementation
+- [ ] No inline user-facing English or copy TODO placeholders in TS/TSX (unless maintainer explicitly agreed to structure-first draft PR)
+- [ ] `en-US` and `pt-BR` (and Discord localizations if applicable) updated in the implementation pass from approved English
 - [ ] No automated translation used
 - [ ] `npm run i18n:validate` passes
 
 ## Related
 
-- Real Steel / AGENTS.md: new UI strings need en-US + pt-BR — **after maintainer approval of English**
+- Real Steel / AGENTS.md: new UI strings need en-US + pt-BR — **after** copy-review approval, **during** implementation
 - Player UID privacy: never expose UID in copy shown to non-owners (see `player-uid-privacy.mdc`)

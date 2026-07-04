@@ -52,4 +52,4 @@ Some actions must **not** be hotkeyed. Document in the PR instead of silently om
 
 ## Copy
 
-User-facing hotkey labels follow [user-facing-copy-review.mdc](user-facing-copy-review.mdc): approve English in `messages/en-US.json`, then translate `pt-BR`.
+User-facing hotkey labels follow [user-facing-copy-review.mdc](user-facing-copy-review.mdc): agree English in planning/review, then implement `en-US` + hand-translated `pt-BR` together.
