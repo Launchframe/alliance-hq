@@ -136,8 +136,19 @@ export function buildTakedownTeams(
     return { ok: false, error: "insufficient_players", needed, have: rows.length };
   }
 
-  const leads = rows.slice(0, teamCount);
-  const pool = rows
+  const teamOrder = rows.slice().sort((a, b) => {
+    const effectiveDelta =
+      effectiveBaseVr(b.highestBaseVr, b.weeklyPassActive) -
+      effectiveBaseVr(a.highestBaseVr, a.weeklyPassActive);
+    if (effectiveDelta !== 0) return effectiveDelta;
+    if (b.highestBaseVr !== a.highestBaseVr) {
+      return b.highestBaseVr - a.highestBaseVr;
+    }
+    return b.totalHeroPower - a.totalHeroPower;
+  });
+
+  const leads = teamOrder.slice(0, teamCount);
+  const pool = teamOrder
     .slice(teamCount)
     .slice()
     .sort((a, b) => b.totalHeroPower - a.totalHeroPower);

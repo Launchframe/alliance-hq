@@ -225,4 +225,25 @@ describe("leaderboard", () => {
     const formatted = formatTakedownReport(result.teams, "3", "LFgo");
     expect(formatted).toMatch(/inherits 7750 VR/);
   });
+
+  it("selects takedown leads by effective VR without changing standings rank", () => {
+    const rows = [
+      sampleRow("base-leader", 7600, 900, "Base Leader"),
+      sampleRow("pass-holder", 7500, 850, "Pass Holder", true),
+      ...Array.from({ length: 8 }, (_, index) =>
+        sampleRow(`m${index + 1}`, 7000 - index * 100, 800 - index * 10, `P${index}`),
+      ),
+    ];
+
+    const result = buildTakedownTeams(rows, 1);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    expect(result.teams[0]?.rallyLead.ashedMemberId).toBe("pass-holder");
+    expect(result.teams[0]?.effectiveVr).toBe(7750);
+    expect(rows.map((row) => row.ashedMemberId).slice(0, 2)).toEqual([
+      "base-leader",
+      "pass-holder",
+    ]);
+  });
 });
