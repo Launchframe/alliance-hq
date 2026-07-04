@@ -158,7 +158,7 @@ describe("ensureDiscordMemberLinksFromHq", () => {
   });
 
   it("no-ops when Discord has no HQ account link", async () => {
-    vi.mocked(getDiscordHqLink).mockResolvedValue(null);
+    vi.mocked(getDiscordHqLink).mockResolvedValue(null as never);
 
     await expect(
       ensureDiscordMemberLinksFromHq({
@@ -208,7 +208,7 @@ describe("inheritHqMemberLinkToDiscordIfLinked", () => {
   });
 
   it("returns false when HQ user has no Discord account link", async () => {
-    vi.mocked(getDiscordHqLinkByHqUserId).mockResolvedValue(null);
+    vi.mocked(getDiscordHqLinkByHqUserId).mockResolvedValue(null as never);
 
     await expect(
       inheritHqMemberLinkToDiscordIfLinked({
