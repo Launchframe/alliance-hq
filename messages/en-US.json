@@ -1563,6 +1563,20 @@
       "saveFailed": "Could not save train conductor minimums.",
       "officersOnly": "Only train officers can change these settings."
     },
+    "trainEconomyThreshold": {
+      "sectionTitle": "The Price Is Right",
+      "sectionBody": "On The Price Is Right train days, the conductor wheel draws from R3 members whose prior-day VS score is between 7,200,000 and the economy threshold plus fudge (threshold + threshold × fudge %).",
+      "loading": "Loading economy threshold…",
+      "loadFailed": "Could not load economy threshold settings.",
+      "thresholdLabel": "Economy threshold",
+      "thresholdPlaceholder": "Leave blank to disable VS filtering",
+      "fudgeLabel": "Economy threshold fudge %",
+      "fudgeHint": "Upper cap = threshold + threshold × this percentage. Lower cap is fixed at 7,200,000 VS.",
+      "save": "Save economy threshold",
+      "saving": "Saving…",
+      "saveFailed": "Could not save economy threshold settings.",
+      "officersOnly": "Only train officers can change these settings."
+    },
     "trainWeek": {
       "sectionTitle": "Train week start",
       "sectionBody": "When your alliance train week begins for schedule templates and weekly minimums. Default is Tuesday (Last War canonical). Changing this does not rewrite past day configs.",
@@ -2525,6 +2539,7 @@
       "vs_push_weekdays": "VS Push weekdays",
       "r4_event_vip": "R4 & Event VIP",
       "economy_week": "Economy week",
+      "price_is_right": "The Price Is Right",
       "r3_recognition": "R3 recognition",
       "r4_train_week": "R4 Week",
       "donations_week": "Donations week",

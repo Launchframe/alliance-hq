@@ -1563,6 +1563,20 @@
       "saveFailed": "Não foi possível salvar os mínimos do condutor.",
       "officersOnly": "Somente oficiais do trem podem alterar estas configurações."
     },
+    "trainEconomyThreshold": {
+      "sectionTitle": "The Price Is Right",
+      "sectionBody": "Nos dias The Price Is Right, a roleta do condutor sorteia entre R3 cuja pontuação VS do dia anterior está entre 7.200.000 e o limite de economia mais a margem (limite + limite × fudge %).",
+      "loading": "Carregando limite de economia…",
+      "loadFailed": "Não foi possível carregar as configurações de limite de economia.",
+      "thresholdLabel": "Economy threshold",
+      "thresholdPlaceholder": "Deixe em branco para desativar o filtro VS",
+      "fudgeLabel": "Economy threshold fudge %",
+      "fudgeHint": "Teto = limite + limite × esta porcentagem. Piso fixo: 7.200.000 VS.",
+      "save": "Salvar limite de economia",
+      "saving": "Salvando…",
+      "saveFailed": "Não foi possível salvar as configurações de limite de economia.",
+      "officersOnly": "Somente oficiais do trem podem alterar estas configurações."
+    },
     "trainWeek": {
       "sectionTitle": "Início da semana do trem",
       "sectionBody": "Quando a semana do trem da aliança começa para modelos e mínimos semanais. O padrão é terça-feira. Alterar isso não reescreve configurações de dias passados.",
@@ -2525,6 +2539,7 @@
       "vs_push_weekdays": "Dias úteis push VS",
       "r4_event_vip": "R4 e VIP de evento",
       "economy_week": "Semana economia",
+      "price_is_right": "The Price Is Right",
       "r3_recognition": "Reconhecimento R3",
       "r4_train_week": "Semana R4",
       "donations_week": "Semana doações",

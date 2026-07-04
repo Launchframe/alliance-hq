@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 
+import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
 import { resolveTrainRequestContext } from "@/lib/trains/api-context";
+import { resolveRollDayConfig } from "@/lib/trains/day-config-resolve.server";
 import { listPoolEntries, getPoolSummary } from "@/lib/trains/pool";
 import { reseedPool } from "@/lib/trains/service";
 import { getServerCalendarDate } from "@/lib/trains/game-time";
@@ -82,12 +84,20 @@ export async function POST(request: Request) {
   }
 
   try {
+    const date = body.date?.trim() || getServerCalendarDate();
+    const { seasonKey } = await getEffectiveSeasonForAlliance(ctx.allianceId);
+    const dayConfig = await resolveRollDayConfig(
+      ctx.allianceId,
+      date,
+      seasonKey,
+    );
     const result = await reseedPool({
       allianceId: ctx.allianceId,
       poolType: body.poolType,
-      date: body.date?.trim() || getServerCalendarDate(),
+      date,
       connection: ctx.connection,
       ashedAllianceId: ctx.ashedAllianceId,
+      paintTemplate: dayConfig.paintTemplate,
     });
     return NextResponse.json(result);
   } catch (error) {

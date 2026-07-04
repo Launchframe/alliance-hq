@@ -56,6 +56,12 @@ export const alliances = pgTable("alliances", {
   trainConductorMinimumsWindow: text("train_conductor_minimums_window")
     .notNull()
     .default("weekly"),
+  /** Max prior-day VS score for Price Is Right pool eligibility (null = off). */
+  trainEconomyThresholdPoints: integer("train_economy_threshold_points"),
+  /** Fudge % above economy threshold still eligible (default 1). */
+  trainEconomyThresholdFudgePct: integer("train_economy_threshold_fudge_pct")
+    .notNull()
+    .default(1),
   /** Train week start DOW in server calendar (0=Sun … 6=Sat; default Tue). */
   trainWeekStartDow: integer("train_week_start_dow").notNull().default(2),
   /** When 1, locked trains may post to configured Discord train channels. */
