@@ -7,6 +7,7 @@ import { useTranslations } from "next-intl";
 
 import { NeedsAttentionBadge } from "@/components/ui/NeedsAttentionBadge";
 import { useFormatAccountDateTime } from "@/components/timezone/TimezoneProvider";
+import { MembersGalleryView } from "@/components/members/MembersGalleryView";
 import { CommanderConflictResolutionSheet } from "@/components/members/CommanderConflictResolutionSheet";
 import {
   RosterCommanderFilterBar,
@@ -53,6 +54,8 @@ import {
   writeStoredRosterColumnPrefs,
 } from "@/lib/members/roster-column-prefs.shared";
 import { ashedUrlForPath } from "@/lib/nav/routes";
+
+type MembersListViewMode = "table" | "gallery";
 
 type Props = {
   initial: AllianceMembersPayload;
@@ -109,6 +112,7 @@ export function MembersListView({
   const [applying, setApplying] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [conflictSheetOpen, setConflictSheetOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<MembersListViewMode>("table");
   const skipInitialSearchFetch = useRef(true);
 
   const [filterSquad, setFilterSquad] = useState<MainSquadType | "">("");
@@ -788,6 +792,32 @@ export function MembersListView({
             />
             {t("showFormer")}
           </label>
+          <div className="flex items-center gap-1 self-end rounded-lg border border-hq-border bg-hq-canvas p-1 sm:pt-5">
+            <button
+              type="button"
+              aria-pressed={viewMode === "table"}
+              onClick={() => setViewMode("table")}
+              className={`rounded-md px-3 py-1.5 text-xs font-medium ${
+                viewMode === "table"
+                  ? "bg-hq-surface-muted text-hq-fg"
+                  : "text-hq-fg-muted hover:text-hq-fg"
+              }`}
+            >
+              {t("viewTable")}
+            </button>
+            <button
+              type="button"
+              aria-pressed={viewMode === "gallery"}
+              onClick={() => setViewMode("gallery")}
+              className={`rounded-md px-3 py-1.5 text-xs font-medium ${
+                viewMode === "gallery"
+                  ? "bg-hq-surface-muted text-hq-fg"
+                  : "text-hq-fg-muted hover:text-hq-fg"
+              }`}
+            >
+              {t("viewGallery")}
+            </button>
+          </div>
         </div>
         <RosterCommanderFilterBar
           filterSquad={filterSquad}
@@ -862,6 +892,16 @@ export function MembersListView({
           : t("lastSyncedUnknown")}
       </p>
 
+      {viewMode === "gallery" ? (
+        <MembersGalleryView
+          members={data.members}
+          allianceTag={data.alliance.tag}
+          searchQuery={query}
+          showFormer={showFormer}
+          emptyLabel={t("empty")}
+          rankUnknownLabel={t("noPreviousNames")}
+        />
+      ) : (
       <div className="relative min-w-0 overflow-x-auto rounded-xl border border-hq-border">
         {refreshing ? (
           <div
@@ -962,6 +1002,7 @@ export function MembersListView({
           </tbody>
         </table>
       </div>
+      )}
 
       {commanderData.canEdit ? (
         <RosterTeamBuilderSection rows={commanderData.rows} />

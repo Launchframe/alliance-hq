@@ -210,6 +210,20 @@ export async function presignR2PutObject(
   );
 }
 
+export async function presignR2GetObject(
+  storageKey: string,
+  expiresInSeconds = 604800,
+): Promise<string> {
+  return getSignedUrl(
+    getR2Client(),
+    new GetObjectCommand({
+      Bucket: bucket(),
+      Key: storageKey,
+    }),
+    { expiresIn: expiresInSeconds },
+  );
+}
+
 export type R2CompletedPart = {
   partNumber: number;
   etag: string;
