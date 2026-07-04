@@ -23,6 +23,8 @@ export type MyVrPayload = {
   seasonMaxVr: number | null;
   currentVr: number | null;
   instituteLevel: number | null;
+  /** True when the Commander's weekly pass is active (+250 effective VR). */
+  weeklyPassActive: boolean | null;
   updatedAt: string | null;
   commanderName: string | null;
   percentile: MyVrPercentile | null;

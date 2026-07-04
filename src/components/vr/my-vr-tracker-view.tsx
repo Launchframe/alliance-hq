@@ -49,7 +49,10 @@ export function MyVrTrackerView({ initial }: Props) {
   const onVrUpdated = useCallback(
     async (newVr: number) => {
       fireCelebrationConfetti();
+      // Refresh from server first so weeklyPassActive and other fields are current.
       await refresh();
+      // Optimistically apply the new VR and its derived institute level,
+      // preserving all other server-returned fields (including weeklyPassActive).
       setData((prev) => ({
         ...prev,
         currentVr: newVr,
@@ -207,12 +210,23 @@ export function MyVrTrackerView({ initial }: Props) {
             <p className="text-xs font-medium uppercase tracking-widest text-[#8b949e]">
               {t("currentVrLabel")}
             </p>
-            <p
-              className="mt-3 font-mono text-5xl font-bold tabular-nums text-[#e6edf3] sm:text-6xl"
-              data-testid="my-vr-hero-value"
-            >
-              {hasReported ? displayVr : "—"}
-            </p>
+            <div className="mt-3 flex items-center justify-center gap-3">
+              <p
+                className="font-mono text-5xl font-bold tabular-nums text-[#e6edf3] sm:text-6xl"
+                data-testid="my-vr-hero-value"
+              >
+                {hasReported ? displayVr : "—"}
+              </p>
+              {hasReported && data.weeklyPassActive ? (
+                <span
+                  className="rounded-full bg-[#1f6feb]/20 px-2.5 py-1 font-mono text-sm font-semibold text-[#58a6ff] ring-1 ring-inset ring-[#388bfd]/40"
+                  data-testid="my-vr-weekly-pass-badge"
+                  aria-label="+250 weekly pass active"
+                >
+                  +250
+                </span>
+              ) : null}
+            </div>
             {hasReported && data.instituteLevel != null ? (
               <p className="mt-2 text-sm text-[#8b949e]" data-testid="my-vr-institute-level">
                 {t("levelLine", { level: data.instituteLevel })}
