@@ -505,6 +505,13 @@
       "when": 1785497600000,
       "tag": "0072_train_economy_threshold",
       "breakpoints": true
+    },
+    {
+      "idx": 71,
+      "version": "7",
+      "when": 1785584000000,
+      "tag": "0073_join_code_commander_claim",
+      "breakpoints": true
     }
   ]
 }

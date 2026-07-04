@@ -86,15 +86,14 @@ export function TeamInvitePanel({ assignableRoles }: Props) {
   const [claimCommanderSelected, setClaimCommanderSelected] = useState("");
   const [claimAdminLabel, setClaimAdminLabel] = useState("");
   const [claimFeedback, setClaimFeedback] = useState<ActionFeedback>(null);
-  const [lastClaimUrl, setLastClaimUrl] = useState<string | null>(null);
-  const [lastClaimPassphrase, setLastClaimPassphrase] = useState<string | null>(null);
+  const [lastClaimCode, setLastClaimCode] = useState<string | null>(null);
 
   const [bulkClaimMode, setBulkClaimMode] = useState(false);
   const [bulkSelectedIds, setBulkSelectedIds] = useState<Set<string>>(new Set());
   const [bulkClaimAdminLabel, setBulkClaimAdminLabel] = useState("");
   const [bulkClaimFeedback, setBulkClaimFeedback] = useState<ActionFeedback>(null);
   const [bulkClaimResults, setBulkClaimResults] = useState<
-    Array<{ ashedMemberId: string; name: string; inviteUrl: string; passphrase: string | null }>
+    Array<{ ashedMemberId: string; name: string; code: string }>
   >([]);
   const [nearFullRoster, setNearFullRoster] = useState(false);
   const [activeRosterCount, setActiveRosterCount] = useState(0);
@@ -295,8 +294,7 @@ export function TeamInvitePanel({ assignableRoles }: Props) {
 
     setBusy(true);
     setClaimFeedback(null);
-    setLastClaimUrl(null);
-    setLastClaimPassphrase(null);
+    setLastClaimCode(null);
 
     const selectedCommander = claimableCommanders.find(
       (c) => c.ashedMemberId === claimCommanderSelected,
@@ -316,9 +314,8 @@ export function TeamInvitePanel({ assignableRoles }: Props) {
       const body = (await res.json()) as {
         error?: string;
         code?: string;
-        invite?: {
-          inviteUrl: string;
-          passphrase?: string;
+        joinCode?: {
+          code: string;
           targetCommanderName?: string | null;
         };
       };
@@ -336,9 +333,8 @@ export function TeamInvitePanel({ assignableRoles }: Props) {
         return;
       }
       const displayName =
-        body.invite?.targetCommanderName ?? selectedCommander?.name ?? "";
-      setLastClaimUrl(body.invite?.inviteUrl ?? null);
-      setLastClaimPassphrase(body.invite?.passphrase ?? null);
+        body.joinCode?.targetCommanderName ?? selectedCommander?.name ?? "";
+      setLastClaimCode(body.joinCode?.code ?? null);
       setClaimFeedback({
         kind: "success",
         text: t("claimSentFor", { name: displayName }),
@@ -403,8 +399,7 @@ export function TeamInvitePanel({ assignableRoles }: Props) {
         created?: Array<{
           targetAshedMemberId?: string | null;
           targetCommanderName?: string | null;
-          inviteUrl: string;
-          passphrase?: string | null;
+          code: string;
         }>;
         skipped?: Array<{ ashedMemberId: string; code: string }>;
       };
@@ -425,8 +420,7 @@ export function TeamInvitePanel({ assignableRoles }: Props) {
             c.targetCommanderName ??
             selectedSnapshot.find((s) => s.ashedMemberId === ashedMemberId)?.name ??
             "",
-          inviteUrl: c.inviteUrl,
-          passphrase: c.passphrase ?? null,
+          code: c.code,
         };
       });
 
@@ -572,21 +566,12 @@ export function TeamInvitePanel({ assignableRoles }: Props) {
                         <p className="text-sm font-medium">{result.name}</p>
                         <CopyToClipboardField
                           className="mt-2"
-                          label={t("claimLinkLabel")}
-                          value={result.inviteUrl}
+                          label={t("claimCodeLabel")}
+                          value={result.code}
                         />
-                        {result.passphrase ? (
-                          <CopyToClipboardField
-                            className="mt-2"
-                            label={t("invitePassphraseLabel")}
-                            value={result.passphrase}
-                          />
-                        ) : null}
                       </div>
                     ))}
-                    <p className="text-xs text-[#6e7681]">
-                      {t("invitePassphraseHint")}
-                    </p>
+                    <p className="text-xs text-[#6e7681]">{t("claimCodeHint")}</p>
                   </div>
                 ) : null}
               </form>
@@ -640,24 +625,15 @@ export function TeamInvitePanel({ assignableRoles }: Props) {
                   </button>
                 </form>
                 <ActionFeedbackBanner feedback={claimFeedback} />
-                {lastClaimUrl ? (
+                {lastClaimCode ? (
                   <CopyToClipboardField
                     className="mt-3"
-                    label={t("claimLinkLabel")}
-                    value={lastClaimUrl}
+                    label={t("claimCodeLabel")}
+                    value={lastClaimCode}
                   />
                 ) : null}
-                {lastClaimPassphrase ? (
-                  <CopyToClipboardField
-                    className="mt-3"
-                    label={t("invitePassphraseLabel")}
-                    value={lastClaimPassphrase}
-                  />
-                ) : null}
-                {lastClaimPassphrase ? (
-                  <p className="mt-1 text-xs text-[#6e7681]">
-                    {t("invitePassphraseHint")}
-                  </p>
+                {lastClaimCode ? (
+                  <p className="mt-1 text-xs text-[#6e7681]">{t("claimCodeHint")}</p>
                 ) : null}
               </>
             )}

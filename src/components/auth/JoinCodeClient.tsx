@@ -5,6 +5,7 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { Link, useRouter } from "@/i18n/navigation";
+import { SegmentedCodeInput } from "@/components/ui/SegmentedCodeInput";
 import {
   FORM_SUBMIT_ENTER_KEY_HINT,
   preventDefaultFormSubmit,
@@ -113,17 +114,22 @@ export function JoinCodeClient({
           void redeem();
         }}
       >
-        <label className="block space-y-1 text-sm">
-          <span className="text-[#8b949e]">{t("code")}</span>
-          <input
-            type="text"
+        <div className="space-y-2">
+          <label
+            htmlFor="join-code-input"
+            className="block text-sm text-[#8b949e]"
+          >
+            {t("code")}
+          </label>
+          <SegmentedCodeInput
+            id="join-code-input"
             value={code}
-            onChange={(e) => setCode(e.target.value)}
-            enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT}
-            className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 font-mono uppercase"
-            autoComplete="off"
+            onChange={setCode}
+            onSubmit={() => void redeem()}
+            aria-label={t("code")}
+            autoFocus={!initialCode}
           />
-        </label>
+        </div>
 
         {error ? <p className="text-sm text-[#f85149]">{error}</p> : null}
 

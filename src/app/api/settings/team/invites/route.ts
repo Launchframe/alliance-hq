@@ -10,6 +10,7 @@ import {
   createHqInvite,
   type HqInviteKind,
 } from "@/lib/native-alliance/invites";
+import { createAllianceJoinCode } from "@/lib/native-alliance/join-codes";
 import {
   assertInviteRoleAllowed,
   isSystemRoleName,
@@ -72,6 +73,27 @@ export async function POST(request: Request) {
   const origin = new URL(request.url).origin;
 
   try {
+    // Commander claims use a single-use join code (paste after Discord /link),
+    // not a second invite hyperlink + passphrase.
+    if (body.targetAshedMemberId) {
+      const joinCode = await createAllianceJoinCode({
+        allianceId: access.allianceId,
+        roleName: "member",
+        maxRedemptions: 1,
+        adminLabel: body.adminLabel,
+        createdByHqUserId: access.ctx.hqUserId,
+        targetAshedMemberId: body.targetAshedMemberId,
+      });
+      return NextResponse.json({
+        ok: true,
+        joinCode: {
+          code: joinCode.code,
+          expiresAt: joinCode.expiresAt,
+          targetCommanderName: joinCode.targetCommanderName,
+        },
+      });
+    }
+
     const invite = await createHqInvite({
       allianceId: access.allianceId,
       kind: body.kind as HqInviteKind,
@@ -81,7 +103,6 @@ export async function POST(request: Request) {
       origin,
       redirectPath: sanitizeInternalRedirectPath(body.redirectPath),
       adminLabel: body.adminLabel,
-      targetAshedMemberId: body.targetAshedMemberId,
     });
 
     return NextResponse.json({ ok: true, invite });

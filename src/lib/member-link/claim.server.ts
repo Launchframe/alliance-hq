@@ -173,82 +173,23 @@ export async function runWebMemberLinkClaimConfirm(input: {
     ? target.commanderName
     : lookup.gameUserName;
 
-  if (!claimTargetMatchesLookupName(target, lookupGameUserName)) {
-    await surfaceClaimConflict({
-      allianceId: input.allianceId,
-      allianceTag,
-      hqUserId: input.hqUserId,
-      handle,
-      commanderName: target.commanderName,
-      gameUserName: lookupGameUserName,
-      gameUid: uid,
-      ashedMemberId: target.ashedMemberId,
-      reason: "target_mismatch",
-    });
-    await writeAuditLog({
-      sessionId: input.sessionId,
-      hqUserId: input.hqUserId,
-      allianceId: input.allianceId,
-      action: "member_link.claim_conflict",
-      metadata: {
-        ashedMemberId: target.ashedMemberId,
-        reason: "target_mismatch",
-      },
-    });
-    return {
-      outcome: "claim_conflict",
-      message: translate("claimConflict"),
-      pending: null,
-    };
-  }
-
+  const nameMatches = claimTargetMatchesLookupName(target, lookupGameUserName);
   const collisionName = await findClaimedNameCollision({
     allianceId: input.allianceId,
     gameUserName: lookupGameUserName,
     targetAshedMemberId: target.ashedMemberId,
   });
-  if (collisionName) {
-    await surfaceClaimConflict({
-      allianceId: input.allianceId,
-      allianceTag,
-      hqUserId: input.hqUserId,
-      handle,
-      commanderName: target.commanderName,
-      gameUserName: lookupGameUserName,
-      gameUid: uid,
-      ashedMemberId: target.ashedMemberId,
-      reason: "name_collision",
-    });
-    await writeAuditLog({
-      sessionId: input.sessionId,
-      hqUserId: input.hqUserId,
-      allianceId: input.allianceId,
-      action: "member_link.claim_conflict",
-      metadata: {
-        ashedMemberId: target.ashedMemberId,
-        reason: "name_collision",
-      },
-    });
-    return {
-      outcome: "claim_conflict",
-      message: translate("claimConflict"),
-      pending: null,
-    };
-  }
 
-  // Populate the bound commander record with the authoritative Last War name
-  // (currentName + previous-names history) before linking.
-  await reconcileAllianceMemberForRosterLink({
-    allianceId: input.allianceId,
-    ashedMemberId: target.ashedMemberId,
-    gameUserName: lookupGameUserName,
-  });
-
+  // Name mismatches are non-blocking: link the claim target, keep the roster
+  // name for now, and queue officer review to pick roster vs Last War name.
+  // Only a UID already claimed by another HQ user blocks completion.
   const linked = await linkHqMember({
     allianceId: input.allianceId,
     hqUserId: input.hqUserId,
     ashedMemberId: target.ashedMemberId,
-    memberDisplayName: lookupGameUserName,
+    memberDisplayName: nameMatches
+      ? lookupGameUserName
+      : target.commanderName,
     gameUid: uid,
   });
 
@@ -269,6 +210,37 @@ export async function runWebMemberLinkClaimConfirm(input: {
       message: translate("claimConflict"),
       pending: null,
     };
+  }
+
+  if (nameMatches && !collisionName) {
+    await reconcileAllianceMemberForRosterLink({
+      allianceId: input.allianceId,
+      ashedMemberId: target.ashedMemberId,
+      gameUserName: lookupGameUserName,
+    });
+  } else {
+    const reason = !nameMatches ? "target_mismatch" : "name_collision";
+    await surfaceClaimConflict({
+      allianceId: input.allianceId,
+      allianceTag,
+      hqUserId: input.hqUserId,
+      handle,
+      commanderName: target.commanderName,
+      gameUserName: lookupGameUserName,
+      gameUid: uid,
+      ashedMemberId: target.ashedMemberId,
+      reason,
+    });
+    await writeAuditLog({
+      sessionId: input.sessionId,
+      hqUserId: input.hqUserId,
+      allianceId: input.allianceId,
+      action: "member_link.claim_name_review",
+      metadata: {
+        ashedMemberId: target.ashedMemberId,
+        reason,
+      },
+    });
   }
 
   try {

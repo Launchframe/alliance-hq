@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   linkMemberLinkHelpRequest,
+  resolveClaimNameReview,
   unlinkHqMemberLinkBreakGlass,
 } from "./member-link-help-review.server";
 
@@ -11,6 +12,7 @@ vi.mock("@/lib/bff/audit", () => ({
 
 vi.mock("@/lib/member-link/member-link-help-queue.server", () => ({
   getMemberLinkHelpRequestById: vi.fn(),
+  resolveMemberLinkHelpRequest: vi.fn().mockResolvedValue({ ok: true }),
   satisfyHelpInboxItem: vi.fn().mockResolvedValue(undefined),
 }));
 
@@ -94,6 +96,8 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
+const rosterResolve = await import("@/lib/member-link/roster-link-resolve.server");
+
 const openHelpRow = {
   id: "req-1",
   allianceId: "a1",
@@ -114,6 +118,104 @@ const openHelpRow = {
   resolvedByHqUserId: null,
   linkedAshedMemberId: null,
 };
+
+const nameReviewHelpRow = {
+  ...openHelpRow,
+  context: "claim_conflict",
+  claimConflictReason: "target_mismatch",
+  reportedName: "Roster Alpha",
+  gameUserName: "Last War Bravo",
+  linkedAshedMemberId: "m-1",
+};
+
+describe("resolveClaimNameReview", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(helpQueue.getMemberLinkHelpRequestById).mockResolvedValue(
+      nameReviewHelpRow as never,
+    );
+    vi.mocked(helpQueue.resolveMemberLinkHelpRequest).mockResolvedValue({
+      ok: true,
+    });
+    vi.mocked(repository.getHqMemberLinkByAllianceAndMember).mockResolvedValue({
+      id: "link-1",
+      hqUserId: "u1",
+      gameUid: "1001369694001203",
+    } as never);
+    vi.mocked(repository.linkHqMember).mockResolvedValue({
+      ok: true,
+      link: {} as never,
+      mode: "updated",
+    });
+  });
+
+  it("rejects non-name-review help requests", async () => {
+    vi.mocked(helpQueue.getMemberLinkHelpRequestById).mockResolvedValue(
+      openHelpRow as never,
+    );
+
+    const result = await resolveClaimNameReview({
+      requestId: "req-1",
+      chosen: "lookup",
+      resolvedByHqUserId: "officer-1",
+      sessionId: "sess-1",
+      allianceId: "a1",
+    });
+
+    expect(result).toEqual({ ok: false, reason: "not_name_review" });
+  });
+
+  it("syncs Last War name with optional Ashed connection when lookup is chosen", async () => {
+    const ashedConnection = { appId: "app", token: "tok", originUrl: "https://x" };
+
+    const result = await resolveClaimNameReview({
+      requestId: "req-1",
+      chosen: "lookup",
+      resolvedByHqUserId: "officer-1",
+      sessionId: "sess-1",
+      allianceId: "a1",
+      ashedConnection,
+    });
+
+    expect(result).toEqual({ ok: true, memberName: "Last War Bravo" });
+    expect(rosterResolve.reconcileAllianceMemberForRosterLink).toHaveBeenCalledWith(
+      expect.objectContaining({
+        allianceId: "a1",
+        ashedMemberId: "m-1",
+        gameUserName: "Last War Bravo",
+        ashedConnection,
+      }),
+    );
+    expect(repository.linkHqMember).toHaveBeenCalledWith(
+      expect.objectContaining({
+        memberDisplayName: "Last War Bravo",
+        gameUid: "1001369694001203",
+      }),
+    );
+    expect(helpQueue.resolveMemberLinkHelpRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "resolve",
+        resolutionNote: "name:lookup",
+      }),
+    );
+  });
+
+  it("keeps roster name without reconcile when roster is chosen", async () => {
+    const result = await resolveClaimNameReview({
+      requestId: "req-1",
+      chosen: "roster",
+      resolvedByHqUserId: "officer-1",
+      sessionId: "sess-1",
+      allianceId: "a1",
+    });
+
+    expect(result).toEqual({ ok: true, memberName: "Roster Alpha" });
+    expect(rosterResolve.reconcileAllianceMemberForRosterLink).not.toHaveBeenCalled();
+    expect(repository.linkHqMember).toHaveBeenCalledWith(
+      expect.objectContaining({ memberDisplayName: "Roster Alpha" }),
+    );
+  });
+});
 
 describe("unlinkHqMemberLinkBreakGlass", () => {
   beforeEach(() => {

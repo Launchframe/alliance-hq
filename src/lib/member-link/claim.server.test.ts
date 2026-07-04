@@ -227,7 +227,7 @@ describe("runWebMemberLinkClaimConfirm", () => {
     );
   });
 
-  it("blocks when the fetched name collides with another claimed commander", async () => {
+  it("links and queues officer name review when lookup name collides with another claimed commander", async () => {
     dbState.commanderRow = [{ currentName: "Bravo", previousNamesJson: null }];
     vi.mocked(lookup.lookupPlayerByUid).mockResolvedValue({
       ok: true,
@@ -242,7 +242,13 @@ describe("runWebMemberLinkClaimConfirm", () => {
     );
 
     const result = await runWebMemberLinkClaimConfirm(baseInput);
-    expect(result.outcome).toBe("claim_conflict");
+    expect(result.outcome).toBe("linked");
+    expect(repository.linkHqMember).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ashedMemberId: "m-1",
+        memberDisplayName: "Bravo",
+      }),
+    );
     expect(alerts.emitMemberLinkClaimConflictAlert).toHaveBeenCalledWith(
       expect.objectContaining({ reason: "name_collision" }),
     );
@@ -251,10 +257,10 @@ describe("runWebMemberLinkClaimConfirm", () => {
       gameUserName: "Bravo",
       reportedName: "Bravo",
     });
-    expect(repository.linkHqMember).not.toHaveBeenCalled();
+    expect(resolve.reconcileAllianceMemberForRosterLink).not.toHaveBeenCalled();
   });
 
-  it("blocks a UID whose lookup name does not match the invite target", async () => {
+  it("links and queues officer name review when lookup name does not match the claim target", async () => {
     vi.mocked(lookup.lookupPlayerByUid).mockResolvedValue({
       ok: true,
       gameUserName: "Bravo",
@@ -262,7 +268,13 @@ describe("runWebMemberLinkClaimConfirm", () => {
     } as never);
 
     const result = await runWebMemberLinkClaimConfirm(baseInput);
-    expect(result.outcome).toBe("claim_conflict");
+    expect(result.outcome).toBe("linked");
+    expect(repository.linkHqMember).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ashedMemberId: "m-1",
+        memberDisplayName: "Alpha",
+      }),
+    );
     expect(alerts.emitMemberLinkClaimConflictAlert).toHaveBeenCalledWith(
       expect.objectContaining({ reason: "target_mismatch" }),
     );
@@ -271,7 +283,6 @@ describe("runWebMemberLinkClaimConfirm", () => {
       gameUserName: "Bravo",
     });
     expect(resolve.reconcileAllianceMemberForRosterLink).not.toHaveBeenCalled();
-    expect(repository.linkHqMember).not.toHaveBeenCalled();
   });
 
   it("allows a UID whose fetched name matches a previous target name", async () => {
