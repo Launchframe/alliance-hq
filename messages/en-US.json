@@ -1699,7 +1699,6 @@
     "loading": "Loading alliances…",
     "loadFailed": "Could not load alliances.",
     "switchFailed": "Could not switch alliance.",
-    "contextHint": "Viewing data for {tag}",
     "activeBadge": "Active",
     "searchPlaceholder": "Search alliances…",
     "searchNoMatches": "No alliances match your search.",
@@ -2176,6 +2175,7 @@
     "colVr": "Base VR",
     "colThp": "Hero power",
     "flagged": "Review",
+    "openMyVrCta": "My VR",
     "officer": {
       "title": "Officer review",
       "subtitle": "Anomalies and manual corrections for this season.",

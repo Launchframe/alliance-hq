@@ -1699,7 +1699,6 @@
     "loading": "Carregando alianças…",
     "loadFailed": "Não foi possível carregar alianças.",
     "switchFailed": "Não foi possível trocar de aliança.",
-    "contextHint": "Visualizando dados de {tag}",
     "activeBadge": "Ativa",
     "searchPlaceholder": "Buscar alianças…",
     "searchNoMatches": "Nenhuma aliança corresponde à busca.",
@@ -2176,6 +2175,7 @@
     "colVr": "VR base",
     "colThp": "Poder de herói",
     "flagged": "Revisar",
+    "openMyVrCta": "Meu VR",
     "officer": {
       "title": "Revisão de oficiais",
       "subtitle": "Anomalias e correções manuais desta temporada.",

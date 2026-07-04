@@ -160,7 +160,6 @@ export function AllianceSessionSwitcher({
     return null;
   }
 
-  const current = alliances.find((a) => a.id === currentAllianceId);
   const activeBadgeLabel = t("activeBadge");
 
   if (alliances.length === 1 && !isPlatformMaintainer) {
@@ -222,11 +221,6 @@ export function AllianceSessionSwitcher({
             tag: switchTarget.tag ?? switchTarget.slug,
           })}
         </button>
-      ) : null}
-      {current?.tag && currentAllianceId ? (
-        <p className="mt-1 truncate text-xs text-[#8b949e]">
-          {t("contextHint", { tag: current.tag ?? current.slug })}
-        </p>
       ) : null}
       {error ? <p className="mt-1 text-xs text-[#f85149]">{error}</p> : null}
     </div>
