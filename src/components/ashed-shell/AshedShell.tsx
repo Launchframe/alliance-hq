@@ -162,7 +162,7 @@ export function AshedShell({
             showVideoQueue={showVideoQueue}
             onOpenMobileNav={openMobileNav}
           >
-          <div className="flex min-h-screen min-h-[100dvh] bg-[#0d1117] text-[#e6edf3]">
+          <div className="flex min-h-screen min-h-[100dvh] overflow-x-clip bg-[#0d1117] text-[#e6edf3]">
           <div
             className={cn(
               "fixed inset-0 z-40 bg-black/60 transition-opacity duration-300 ease-out lg:hidden",
