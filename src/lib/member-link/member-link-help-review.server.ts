@@ -3,6 +3,7 @@ import "server-only";
 import { and, eq, ne } from "drizzle-orm";
 
 import { writeAuditLog } from "@/lib/bff/audit";
+import type { ParsedConnection } from "@/lib/connectionString";
 import { getDb, schema } from "@/lib/db";
 import {
   getMemberLinkHelpRequestById,
@@ -478,6 +479,7 @@ export async function resolveClaimNameReview(input: {
   resolvedByHqUserId: string;
   sessionId: string;
   allianceId?: string;
+  ashedConnection?: ParsedConnection | null;
 }): Promise<
   | { ok: true; memberName: string }
   | { ok: false; reason: string }
@@ -515,7 +517,7 @@ export async function resolveClaimNameReview(input: {
       allianceId: row.allianceId,
       ashedMemberId: targetAshedMemberId,
       gameUserName: chosenName,
-      ashedConnection: null,
+      ashedConnection: input.ashedConnection ?? null,
     });
   }
 

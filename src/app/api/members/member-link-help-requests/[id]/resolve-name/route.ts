@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { resolveClaimNameReview } from "@/lib/member-link/member-link-help-review.server";
 import { requireSessionPermission } from "@/lib/rbac/require-permission";
-import { getOrCreateSession } from "@/lib/session";
+import { getAshedConnection, getOrCreateSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -36,6 +36,7 @@ export async function POST(request: Request, { params }: Props) {
     resolvedByHqUserId: session.hqUserId,
     sessionId: session.id,
     allianceId: session.currentAllianceId,
+    ashedConnection: await getAshedConnection(session.id),
   });
 
   if (!result.ok) {
