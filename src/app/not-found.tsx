@@ -1,11 +1,15 @@
 import Link from "next/link";
 import { getTranslations } from "next-intl/server";
 
+import { auth } from "@/lib/auth";
+
 /**
  * Unmatched routes that render outside `[locale]/layout` (no html/body from locale shell).
  */
 export default async function RootNotFoundPage() {
   const t = await getTranslations("httpErrors");
+  const session = await auth();
+  const signedIn = Boolean(session?.user?.id?.trim());
 
   return (
     <html lang="en-US">
@@ -14,7 +18,9 @@ export default async function RootNotFoundPage() {
           <div className="mx-auto w-full max-w-md space-y-4 rounded-xl border border-[#30363d] bg-[#161b22] p-6">
             <h1 className="text-xl font-semibold">{t("notFoundTitle")}</h1>
             <p className="text-sm text-[#8b949e]">{t("notFoundBody")}</p>
-            <p className="text-xs text-[#6e7681]">{t("notFoundHint")}</p>
+            <p className="text-xs text-[#6e7681]">
+              {signedIn ? t("notFoundHintSignedIn") : t("notFoundHint")}
+            </p>
             <div className="flex flex-col gap-2 pt-1">
               <Link
                 href="/"
@@ -23,10 +29,10 @@ export default async function RootNotFoundPage() {
                 {t("goHome")}
               </Link>
               <Link
-                href="/auth"
+                href={signedIn ? "/inbox" : "/auth"}
                 className="text-center text-sm text-[#58a6ff] hover:underline"
               >
-                {t("goSignIn")}
+                {signedIn ? t("goInbox") : t("goSignIn")}
               </Link>
             </div>
           </div>

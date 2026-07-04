@@ -30,8 +30,11 @@ export default async function MemberLinkHelpDetailPage({
   const review = allianceId
     ? await loadMemberLinkHelpRequestReview({ requestId: id, allianceId })
     : null;
-  if (!review || review.request.status !== "open") {
+  if (!review) {
     notFound();
+  }
+  if (review.request.status !== "open") {
+    redirect({ href: "/inbox", locale });
   }
 
   const t = await getTranslations("memberLinkHelpReview");
@@ -50,6 +53,7 @@ export default async function MemberLinkHelpDetailPage({
         resolveUrlPrefix="/api/members/member-link-help-requests"
         backHref="/members/member-link-help"
         backLabel={t("backToList")}
+        completeRedirectHref="/inbox"
       />
     </div>
   );
