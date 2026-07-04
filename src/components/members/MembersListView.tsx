@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 
 import { useFormatAccountDateTime } from "@/components/timezone/TimezoneProvider";
+import { MembersGalleryView } from "@/components/members/MembersGalleryView";
 import { RosterImportDialog } from "@/components/members/RosterImportDialog";
 import { CommanderConflictResolutionSheet } from "@/components/members/CommanderConflictResolutionSheet";
 import { Link, usePathname, useRouter } from "@/i18n/navigation";
@@ -25,6 +26,8 @@ import {
   writeStoredMembersListFilters,
 } from "@/lib/members/members-list-filters.shared";
 import { buildVideoUploadHref } from "@/lib/video/score-target-nav";
+
+type MembersListViewMode = "table" | "gallery";
 
 type Props = {
   initial: AllianceMembersPayload;
@@ -96,6 +99,7 @@ export function MembersListView({
   const [applying, setApplying] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [conflictSheetOpen, setConflictSheetOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<MembersListViewMode>("table");
   const skipInitialSearchFetch = useRef(true);
 
   const pendingConflictCount = useMemo(() => {
@@ -465,6 +469,32 @@ export function MembersListView({
           />
           {t("showFormer")}
         </label>
+        <div className="flex items-center gap-1 self-end rounded-lg border border-[#30363d] bg-[#0d1117] p-1 sm:pt-5">
+          <button
+            type="button"
+            aria-pressed={viewMode === "table"}
+            onClick={() => setViewMode("table")}
+            className={`rounded-md px-3 py-1.5 text-xs font-medium ${
+              viewMode === "table"
+                ? "bg-[#21262d] text-[#e6edf3]"
+                : "text-[#8b949e] hover:text-[#e6edf3]"
+            }`}
+          >
+            {t("viewTable")}
+          </button>
+          <button
+            type="button"
+            aria-pressed={viewMode === "gallery"}
+            onClick={() => setViewMode("gallery")}
+            className={`rounded-md px-3 py-1.5 text-xs font-medium ${
+              viewMode === "gallery"
+                ? "bg-[#21262d] text-[#e6edf3]"
+                : "text-[#8b949e] hover:text-[#e6edf3]"
+            }`}
+          >
+            {t("viewGallery")}
+          </button>
+        </div>
       </div>
 
       {editMode && (
@@ -528,6 +558,16 @@ export function MembersListView({
         })}
       </p>
 
+      {viewMode === "gallery" ? (
+        <MembersGalleryView
+          members={data.members}
+          allianceTag={data.alliance.tag}
+          searchQuery={query}
+          showFormer={showFormer}
+          emptyLabel={t("empty")}
+          rankUnknownLabel={t("noPreviousNames")}
+        />
+      ) : (
       <div className="min-w-0 overflow-hidden rounded-xl border border-[#30363d]">
         <table className="w-full min-w-0 table-fixed text-left text-sm md:table-auto">
           <thead className="border-b border-[#30363d] bg-[#161b22] text-xs uppercase tracking-wide text-[#8b949e]">
@@ -579,6 +619,7 @@ export function MembersListView({
           </tbody>
         </table>
       </div>
+      )}
     </div>
   );
 }

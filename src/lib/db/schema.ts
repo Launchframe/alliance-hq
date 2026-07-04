@@ -159,6 +159,8 @@ export const hqUsers = pgTable("hq_users", {
   /** google | discord | lastwar */
   avatarSource: text("avatar_source"),
   avatarRefreshedAt: timestamp("avatar_refreshed_at", { withTimezone: true }),
+  /** Preferred AI image provider for conductor announcements (craiyon | fal). */
+  preferredImageModel: text("preferred_image_model").default("craiyon"),
   /** Last War in-game UID when linked (Discord SSO bridge or future web link). */
   primaryGameUid: text("primary_game_uid"),
   createdAt: timestamp("created_at", { withTimezone: true })
@@ -1188,6 +1190,11 @@ export const allianceMembers = pgTable(
     isSample: boolean("is_sample"),
     /** Denormalized game UID from member links when known. */
     gameUid: text("game_uid"),
+    /** Cached commander portrait from Last War API or HQ avatar. */
+    portraitR2Key: text("portrait_r2_key"),
+    portraitUrl: text("portrait_url"),
+    /** lastwar | upload */
+    portraitSource: text("portrait_source"),
     /** Commander mirror state — see commander-identity-conflicts.shared.ts */
     commanderSyncStatus: text("commander_sync_status")
       .notNull()
@@ -2078,6 +2085,128 @@ export const trainRiders = pgTable("train_rider", {
     .notNull(),
 });
 
+export const trainPromptTemplates = pgTable("train_prompt_templates", {
+  id: text("id").primaryKey(),
+  allianceId: text("alliance_id").references(() => alliances.id, {
+    onDelete: "cascade",
+  }),
+  createdByHqUserId: text("created_by_hq_user_id").references(
+    () => hqUsers.id,
+    { onDelete: "set null" },
+  ),
+  templateType: text("template_type").notNull(),
+  title: text("title").notNull(),
+  currentRevisionId: text("current_revision_id"),
+  visibility: text("visibility").notNull().default("private"),
+  conductorMechanism: text("conductor_mechanism"),
+  seasonKey: text("season_key"),
+  eventTag: text("event_tag"),
+  targetConductorAshedMemberId: text("target_conductor_ashed_member_id"),
+  isDefault: integer("is_default").notNull().default(0),
+  archivedAt: timestamp("archived_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+export const trainPromptTemplateRevisions = pgTable(
+  "train_prompt_template_revisions",
+  {
+    id: text("id").primaryKey(),
+    templateId: text("template_id")
+      .notNull()
+      .references(() => trainPromptTemplates.id, { onDelete: "cascade" }),
+    body: text("body").notNull(),
+    title: text("title").notNull(),
+    visibility: text("visibility").notNull(),
+    conductorMechanism: text("conductor_mechanism"),
+    seasonKey: text("season_key"),
+    eventTag: text("event_tag"),
+    revisionNumber: integer("revision_number").notNull(),
+    createdByHqUserId: text("created_by_hq_user_id").references(
+      () => hqUsers.id,
+      { onDelete: "set null" },
+    ),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+);
+
+export const trainConductorGeneratedImages = pgTable(
+  "train_conductor_generated_images",
+  {
+    id: text("id").primaryKey(),
+    conductorRecordId: text("conductor_record_id")
+      .notNull()
+      .references(() => trainConductorRecords.id, { onDelete: "cascade" }),
+    promptTemplateId: text("prompt_template_id").references(
+      () => trainPromptTemplates.id,
+      { onDelete: "set null" },
+    ),
+    promptTemplateRevisionId: text("prompt_template_revision_id").references(
+      () => trainPromptTemplateRevisions.id,
+      { onDelete: "set null" },
+    ),
+    promptBodyUsed: text("prompt_body_used").notNull(),
+    modelProvider: text("model_provider").notNull(),
+    modelType: text("model_type"),
+    quality: text("quality").notNull().default("draft"),
+    status: text("status").notNull().default("pending"),
+    storageKey: text("storage_key"),
+    externalImageUrls: jsonb("external_image_urls").$type<string[]>(),
+    selectedExternalUrl: text("selected_external_url"),
+    errorMessage: text("error_message"),
+    createdByHqUserId: text("created_by_hq_user_id").references(
+      () => hqUsers.id,
+      { onDelete: "set null" },
+    ),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    finalizedAt: timestamp("finalized_at", { withTimezone: true }),
+  },
+);
+
+export const trainConductorAnnouncements = pgTable(
+  "train_conductor_announcements",
+  {
+    id: text("id").primaryKey(),
+    conductorRecordId: text("conductor_record_id")
+      .notNull()
+      .unique()
+      .references(() => trainConductorRecords.id, { onDelete: "cascade" }),
+    imageId: text("image_id").references(
+      () => trainConductorGeneratedImages.id,
+      { onDelete: "set null" },
+    ),
+    announcementText: text("announcement_text").notNull().default(""),
+    announcementTemplateId: text("announcement_template_id").references(
+      () => trainPromptTemplates.id,
+      { onDelete: "set null" },
+    ),
+    announcementTemplateRevisionId: text(
+      "announcement_template_revision_id",
+    ).references(() => trainPromptTemplateRevisions.id, {
+      onDelete: "set null",
+    }),
+    generationMethod: text("generation_method").notNull().default("manual"),
+    discordPostedAt: timestamp("discord_posted_at", { withTimezone: true }),
+    discordMessageId: text("discord_message_id"),
+    confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
+    createdByHqUserId: text("created_by_hq_user_id").references(
+      () => hqUsers.id,
+      { onDelete: "set null" },
+    ),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+);
+
 export const trainRiderCargoItems = pgTable("train_rider_cargo_item", {
   id: text("id").primaryKey(),
   riderId: text("rider_id")
@@ -2108,6 +2237,13 @@ export type MemberAllianceRankEvent =
 export type TrainWeekSchedule = typeof trainWeekSchedules.$inferSelect;
 export type TrainDayConfig = typeof trainDayConfigs.$inferSelect;
 export type TrainConductorRecord = typeof trainConductorRecords.$inferSelect;
+export type TrainPromptTemplate = typeof trainPromptTemplates.$inferSelect;
+export type TrainPromptTemplateRevision =
+  typeof trainPromptTemplateRevisions.$inferSelect;
+export type TrainConductorGeneratedImage =
+  typeof trainConductorGeneratedImages.$inferSelect;
+export type TrainConductorAnnouncement =
+  typeof trainConductorAnnouncements.$inferSelect;
 export type ConductorPoolEntry = typeof conductorPoolEntries.$inferSelect;
 export type InventoryItem = typeof inventoryItems.$inferSelect;
 export type Train = typeof trains.$inferSelect;
