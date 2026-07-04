@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { useTranslations } from "next-intl";
 
 import { ProfileAvatar } from "@/components/profile/ProfileAvatar";
@@ -31,9 +31,10 @@ export function CommanderProfileView({ initial }: Props) {
   const t = useTranslations("members.profile");
   const tInvites = useTranslations("team.invites");
   const { member, alliance } = initial;
-  const membersListHref = useMemo(
+  const membersListHref = useSyncExternalStore(
+    () => () => {},
     () => membersListHrefFromFilters(readStoredMembersListFilters()),
-    [],
+    () => "/members",
   );
 
   const [squadValue, setSquadValue] = useState<MainSquadType | "">(member.mainSquad ?? "");
