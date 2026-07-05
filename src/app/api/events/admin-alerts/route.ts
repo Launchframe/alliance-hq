@@ -6,6 +6,7 @@ import {
   createAdminAlertListenClient,
   parseAdminAlertEvent,
 } from "@/lib/events/admin-alerts";
+import { startPostgresListen } from "@/lib/db/postgres-listen";
 import { requirePlatformMaintainer } from "@/lib/rbac/require-permission";
 import { readSessionId } from "@/lib/session";
 
@@ -47,10 +48,18 @@ export async function GET() {
       listenClient = createAdminAlertListenClient();
       setTimeout(closeStream, SSE_MAX_CONNECTION_MS);
 
-      void listenClient.listen(ADMIN_ALERT_NOTIFY_CHANNEL, (payload) => {
-        const event = parseAdminAlertEvent(payload);
-        if (event) send(adminAlertSseEventName(event), event);
-      });
+      void startPostgresListen(
+        listenClient,
+        ADMIN_ALERT_NOTIFY_CHANNEL,
+        (payload) => {
+          const event = parseAdminAlertEvent(payload);
+          if (event) send(adminAlertSseEventName(event), event);
+        },
+        () => {
+          send("error", { message: "Live updates unavailable" });
+          closeStream();
+        },
+      );
     },
     cancel() {
       closed = true;

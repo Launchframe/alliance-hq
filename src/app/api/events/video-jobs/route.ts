@@ -1,4 +1,5 @@
 import { getOrCreateSession } from "@/lib/session";
+import { startPostgresListen } from "@/lib/db/postgres-listen";
 import {
   createVideoJobListenClient,
   parseVideoJobStatusEvent,
@@ -78,16 +79,24 @@ export async function GET(request: Request) {
         send("ping", { t: Date.now() });
       }, 25_000);
 
-      void listenClient.listen(VIDEO_JOB_NOTIFY_CHANNEL, (payload) => {
-        const event = parseVideoJobStatusEvent(payload);
-        if (
-          !event ||
-          !isVideoJobStatusEventForViewer(event, sessionId, hqUserId)
-        ) {
-          return;
-        }
-        send("job", event);
-      });
+      void startPostgresListen(
+        listenClient,
+        VIDEO_JOB_NOTIFY_CHANNEL,
+        (payload) => {
+          const event = parseVideoJobStatusEvent(payload);
+          if (
+            !event ||
+            !isVideoJobStatusEventForViewer(event, sessionId, hqUserId)
+          ) {
+            return;
+          }
+          send("job", event);
+        },
+        () => {
+          send("error", { message: "Live updates unavailable" });
+          closeStream({ reconnect: true });
+        },
+      );
 
       request.signal.addEventListener("abort", () => {
         closeStream();
