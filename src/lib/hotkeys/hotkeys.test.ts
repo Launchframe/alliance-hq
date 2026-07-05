@@ -15,7 +15,11 @@ import {
 } from "@/lib/hotkeys/registry-integrity.shared";
 import { TRAINS_HOTKEY_ACTION_IDS } from "@/lib/hotkeys/trains-hotkeys.shared";
 import { safeRunHotkeyHandler } from "@/lib/hotkeys/safe-execute.shared";
-import { HOTKEY_ACTIONS } from "@/lib/hotkeys/actions.registry";
+import {
+  HOTKEY_ACTIONS,
+  getHotkeyAction,
+  isHotkeyActionAllowed,
+} from "@/lib/hotkeys/actions.registry";
 import {
   findBindingConflict,
   resolveEffectiveBinding,
@@ -208,6 +212,21 @@ describe("hotkey registry integrity", () => {
       .sort();
 
     expect([...TRAINS_HOTKEY_ACTION_IDS].sort()).toEqual(registryTrainIds);
+  });
+
+  it("mirrors VR nav gates for officers vs members", () => {
+    const myVr = getHotkeyAction("nav.myVr");
+    const viralResistance = getHotkeyAction("nav.viralResistance");
+    expect(myVr).toBeDefined();
+    expect(viralResistance).toBeDefined();
+
+    const officerPerms = new Set(["members:write"]);
+    expect(isHotkeyActionAllowed(myVr!, officerPerms)).toBe(false);
+    expect(isHotkeyActionAllowed(viralResistance!, officerPerms)).toBe(true);
+
+    const memberPerms = new Set<string>();
+    expect(isHotkeyActionAllowed(myVr!, memberPerms)).toBe(true);
+    expect(isHotkeyActionAllowed(viralResistance!, memberPerms)).toBe(false);
   });
 });
 

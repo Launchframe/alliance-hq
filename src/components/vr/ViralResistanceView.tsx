@@ -1,9 +1,11 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
+import { Syringe } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { AppSelect } from "@/components/ui/AppSelect";
+import { Link } from "@/i18n/navigation";
 import type {
   ViralResistanceOfficerPayload,
   ViralResistancePayload,
@@ -18,9 +20,14 @@ import {
 type Props = {
   initial: ViralResistancePayload;
   officer: ViralResistanceOfficerPayload | null;
+  showMyVrCta?: boolean;
 };
 
-export function ViralResistanceView({ initial, officer: initialOfficer }: Props) {
+export function ViralResistanceView({
+  initial,
+  officer: initialOfficer,
+  showMyVrCta = false,
+}: Props) {
   const t = useTranslations("viralResistance");
   const [data, setData] = useState(initial);
   const [officer, setOfficer] = useState(initialOfficer);
@@ -108,13 +115,26 @@ export function ViralResistanceView({ initial, officer: initialOfficer }: Props)
   return (
     <div className="mx-auto flex w-full min-w-0 max-w-5xl flex-col gap-6 p-4 sm:p-6">
       <header className="min-w-0">
-        <h1 className="text-2xl font-semibold text-[#e6edf3]">{t("title")}</h1>
-        <p className="mt-2 text-sm text-[#8b949e]">{t("subtitle")}</p>
-        {data.seasonKey ? (
-          <p className="mt-1 text-xs text-[#8b949e]">
-            {t("seasonLine", { season: data.seasonKey })}
-          </p>
-        ) : null}
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
+            <h1 className="text-2xl font-semibold text-[#e6edf3]">{t("title")}</h1>
+            <p className="mt-2 text-sm text-[#8b949e]">{t("subtitle")}</p>
+            {data.seasonKey ? (
+              <p className="mt-1 text-xs text-[#8b949e]">
+                {t("seasonLine", { season: data.seasonKey })}
+              </p>
+            ) : null}
+          </div>
+          {showMyVrCta ? (
+            <Link
+              href="/my-vr"
+              className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg border border-[#388bfd] bg-[#388bfd] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#4493ff] sm:self-start"
+            >
+              <Syringe className="h-4 w-4 shrink-0" aria-hidden />
+              {t("openMyVrCta")}
+            </Link>
+          ) : null}
+        </div>
         <button
           type="button"
           onClick={() => void refresh()}

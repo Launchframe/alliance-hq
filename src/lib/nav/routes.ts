@@ -7,6 +7,8 @@ export type NavPageDef = {
   kind: NavRouteKind;
   /** When set, hide the link unless the session has this RBAC permission. */
   requiredPermission?: string;
+  /** When set, hide the link when the session has this RBAC permission. */
+  hideWhenPermission?: string;
   /**
    * Override for ashed.online iframe src when it is not trainwreckCase(href).
    * Normally omit — HQ kebab-case routes map by stripping hyphens.
@@ -49,10 +51,14 @@ export function filterNavGroupsForPermissions(
   return groups
     .map((group) => ({
       ...group,
-      pages: group.pages.filter(
-        (page) =>
-          !page.requiredPermission || permissions.has(page.requiredPermission),
-      ),
+      pages: group.pages.filter((page) => {
+        if (page.hideWhenPermission && permissions.has(page.hideWhenPermission)) {
+          return false;
+        }
+        return (
+          !page.requiredPermission || permissions.has(page.requiredPermission)
+        );
+      }),
     }))
     .filter((group) => group.pages.length > 0);
 }
@@ -166,6 +172,7 @@ export const NAV_GROUPS: NavGroupDef[] = [
         href: "/viral-resistance",
         kind: "native",
         descriptionKey: "viralResistanceDescription",
+        requiredPermission: "members:write",
       },
       {
         id: "my-vr",
@@ -173,6 +180,7 @@ export const NAV_GROUPS: NavGroupDef[] = [
         href: "/my-vr",
         kind: "native",
         descriptionKey: "myVrDescription",
+        hideWhenPermission: "members:write",
       },
       {
         id: "trains",

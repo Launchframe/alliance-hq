@@ -95,6 +95,27 @@ describe("filterNavGroupsForPermissions", () => {
     const video = filtered.find((group) => group.id === "video");
     expect(video?.pages.some((page) => page.id === "video-upload")).toBe(true);
   });
+
+  it("hides my-vr when members:write is granted", () => {
+    const filtered = filterNavGroupsForPermissions(
+      NAV_GROUPS,
+      new Set(["members:write"]),
+    );
+    const reporting = filtered.find((group) => group.id === "performance-reporting");
+    expect(reporting?.pages.some((page) => page.id === "my-vr")).toBe(false);
+    expect(reporting?.pages.some((page) => page.id === "viral-resistance")).toBe(
+      true,
+    );
+  });
+
+  it("shows only my-vr for members without members:write", () => {
+    const filtered = filterNavGroupsForPermissions(NAV_GROUPS, new Set());
+    const reporting = filtered.find((group) => group.id === "performance-reporting");
+    expect(reporting?.pages.some((page) => page.id === "my-vr")).toBe(true);
+    expect(reporting?.pages.some((page) => page.id === "viral-resistance")).toBe(
+      false,
+    );
+  });
 });
 
 describe("isNavActive", () => {
