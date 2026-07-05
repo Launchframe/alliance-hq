@@ -11,31 +11,65 @@ type Props = {
   "aria-label"?: string;
 };
 
-// Max alphanumeric characters across prefix + suffix (4+6=10 typical).
-// Hyphens are rendered as separators and don't count toward this limit.
-const MAX_ALPHANUM_SLOTS = 10;
-const MAX_CODE_LENGTH = MAX_ALPHANUM_SLOTS + 3; // allow a few hyphens + buffer
+/** Alliance tag segment before the hyphen (e.g. LFgo). */
+const PREFIX_MAX = 10;
+/** Random suffix after the hyphen (6 hex chars in generated codes). */
+const SUFFIX_MAX = 6;
+const MIN_PREFIX_VISIBLE_SLOTS = 4;
 
-type Cell = { char: string; isSeparator: boolean };
+type Cell = { char: string };
 
-function buildCells(value: string): { cells: Cell[]; cursorIdx: number } {
-  const chars = value.split("");
-  const filled: Cell[] = chars.map((c) => ({
-    char: c,
-    isSeparator: c === "-",
-  }));
+export function splitJoinCodeInput(value: string): {
+  prefix: string;
+  suffix: string;
+  hasHyphen: boolean;
+} {
+  const hyphenIdx = value.indexOf("-");
+  if (hyphenIdx === -1) {
+    return { prefix: value, suffix: "", hasHyphen: false };
+  }
+  return {
+    prefix: value.slice(0, hyphenIdx),
+    suffix: value.slice(hyphenIdx + 1).replace(/-/g, ""),
+    hasHyphen: true,
+  };
+}
 
-  const alphaNumersFilled = chars.filter((c) => c !== "-").length;
-  const emptyCount = Math.max(0, MAX_ALPHANUM_SLOTS - alphaNumersFilled);
-  const empty: Cell[] = Array.from({ length: emptyCount }, () => ({
-    char: "",
-    isSeparator: false,
-  }));
+export function normalizeJoinCodeInput(raw: string): string {
+  const cleaned = raw.toUpperCase().replace(/[^A-Z0-9-]/g, "");
+  const hyphenIdx = cleaned.indexOf("-");
+  if (hyphenIdx === -1) {
+    return cleaned.slice(0, PREFIX_MAX);
+  }
 
-  const cells = [...filled, ...empty];
-  const cursorIdx = cells.findIndex((c) => !c.char && !c.isSeparator);
+  const prefix = cleaned.slice(0, hyphenIdx).slice(0, PREFIX_MAX);
+  const suffix = cleaned
+    .slice(hyphenIdx + 1)
+    .replace(/-/g, "")
+    .slice(0, SUFFIX_MAX);
+  return `${prefix}-${suffix}`;
+}
 
-  return { cells, cursorIdx };
+function visibleSlotCount(filledLen: number, max: number, min: number): number {
+  return Math.min(max, Math.max(min, filledLen + 1));
+}
+
+function buildRowCells(chars: string, visibleSlots: number): Cell[] {
+  const filled = chars.split("").map((char) => ({ char }));
+  const emptyCount = Math.max(0, visibleSlots - filled.length);
+  const empty = Array.from({ length: emptyCount }, () => ({ char: "" }));
+  return [...filled, ...empty];
+}
+
+function cellClassName(cell: Cell, isCursor: boolean): string {
+  return [
+    "w-9 h-11 rounded-md border-2 flex items-center justify-center font-mono text-lg font-semibold shrink-0 transition-colors duration-150",
+    cell.char
+      ? "border-[#388bfd] bg-[#0d1117] text-[#e6edf3]"
+      : isCursor
+        ? "border-[#388bfd] bg-[#0d1117] animate-pulse"
+        : "border-[#30363d] bg-[#0d1117]",
+  ].join(" ");
 }
 
 export function SegmentedCodeInput({
@@ -49,49 +83,58 @@ export function SegmentedCodeInput({
   const inputRef = useRef<HTMLInputElement>(null);
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const raw = e.target.value
-      .toUpperCase()
-      .replace(/[^A-Z0-9-]/g, "")
-      .slice(0, MAX_CODE_LENGTH);
-    onChange(raw);
+    onChange(normalizeJoinCodeInput(e.target.value));
   }
 
-  const { cells, cursorIdx } = buildCells(value);
+  const { prefix, suffix, hasHyphen } = splitJoinCodeInput(value);
+  const cursorInPrefix = !hasHyphen;
+  const prefixVisibleSlots = visibleSlotCount(
+    prefix.length,
+    PREFIX_MAX,
+    MIN_PREFIX_VISIBLE_SLOTS,
+  );
+  const prefixCells = buildRowCells(prefix, prefixVisibleSlots);
+  const suffixCells = buildRowCells(suffix, SUFFIX_MAX);
+  const cursorPrefixIdx = prefixCells.findIndex((cell) => !cell.char);
+  const cursorSuffixIdx = suffixCells.findIndex((cell) => !cell.char);
 
   return (
     <div className="relative">
-      {/* Visual character cells — pointer-events-none so the input below captures all interactions */}
       <div
-        className="flex items-center gap-1.5 flex-wrap pointer-events-none select-none"
+        className="flex flex-col items-start gap-1.5 pointer-events-none select-none"
         aria-hidden
       >
-        {cells.map((cell, i) =>
-          cell.isSeparator ? (
-            <span
-              key={i}
-              className="w-3 flex items-center justify-center font-mono text-lg font-bold text-[#8b949e] shrink-0"
-            >
-              -
-            </span>
-          ) : (
+        <div className="flex items-center gap-1.5">
+          {prefixCells.map((cell, i) => (
             <div
-              key={i}
-              className={[
-                "w-9 h-11 rounded-md border-2 flex items-center justify-center font-mono text-lg font-semibold shrink-0 transition-colors duration-150",
-                cell.char
-                  ? "border-[#388bfd] bg-[#0d1117] text-[#e6edf3]"
-                  : i === cursorIdx
-                    ? "border-[#388bfd] bg-[#0d1117] animate-pulse"
-                    : "border-[#30363d] bg-[#0d1117]",
-              ].join(" ")}
+              key={`prefix-${i}`}
+              className={cellClassName(
+                cell,
+                cursorInPrefix && i === cursorPrefixIdx,
+              )}
             >
               {cell.char}
             </div>
-          ),
-        )}
+          ))}
+          <span className="flex h-11 w-3 shrink-0 items-center justify-center font-mono text-lg font-bold text-[#8b949e]">
+            -
+          </span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          {suffixCells.map((cell, i) => (
+            <div
+              key={`suffix-${i}`}
+              className={cellClassName(
+                cell,
+                hasHyphen && i === cursorSuffixIdx,
+              )}
+            >
+              {cell.char}
+            </div>
+          ))}
+        </div>
       </div>
 
-      {/* Hidden input — covers full area, captures all clicks and keyboard events */}
       <input
         ref={inputRef}
         id={id}
@@ -108,9 +151,7 @@ export function SegmentedCodeInput({
           if (e.key === "Enter") onSubmit?.();
         }}
         aria-label={ariaLabel}
-        // Covers the visual cells exactly so any click or tap focuses this input naturally.
-        // opacity-0 keeps it invisible while still being interactive and accessible.
-        className="absolute inset-0 w-full h-full opacity-0 cursor-text"
+        className="absolute inset-0 h-full w-full cursor-text opacity-0"
       />
     </div>
   );
