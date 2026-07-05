@@ -6,7 +6,11 @@ import { nanoid } from "nanoid";
 import { forwardJson } from "@/lib/bff/session";
 import type { ParsedConnection } from "@/lib/connectionString";
 import { getDb, schema } from "@/lib/db";
-import { parseAshedDisciplineRecord } from "@/lib/members/member-discipline.shared";
+import {
+  hasDisciplineUpsertKey,
+  parseAshedDisciplineRecord,
+  shouldSkipAshedUpsertForManualRow,
+} from "@/lib/members/member-discipline.shared";
 
 type AshedRecord = Record<string, unknown>;
 
@@ -48,7 +52,10 @@ async function upsertCommendationRow(input: {
   const now = new Date();
   const { parsed } = input;
 
+  if (!hasDisciplineUpsertKey(parsed)) return;
+
   let existingId: string | null = null;
+  let matchedByAshedId = false;
   if (parsed.ashedId) {
     const [byAshedId] = await db
       .select({ id: schema.memberCommendations.id })
@@ -61,6 +68,7 @@ async function upsertCommendationRow(input: {
       )
       .limit(1);
     existingId = byAshedId?.id ?? null;
+    matchedByAshedId = existingId != null;
   }
 
   if (!existingId && parsed.recordedDate) {
@@ -68,7 +76,10 @@ async function upsertCommendationRow(input: {
       ? eq(schema.memberCommendations.commendationType, parsed.type)
       : isNull(schema.memberCommendations.commendationType);
     const [byNaturalKey] = await db
-      .select({ id: schema.memberCommendations.id })
+      .select({
+        id: schema.memberCommendations.id,
+        ashedCommendationId: schema.memberCommendations.ashedCommendationId,
+      })
       .from(schema.memberCommendations)
       .where(
         and(
@@ -79,6 +90,15 @@ async function upsertCommendationRow(input: {
         ),
       )
       .limit(1);
+    if (
+      byNaturalKey &&
+      shouldSkipAshedUpsertForManualRow({
+        matchedByAshedId,
+        existingAshedId: byNaturalKey.ashedCommendationId,
+      })
+    ) {
+      return;
+    }
     existingId = byNaturalKey?.id ?? null;
   }
 
@@ -118,7 +138,10 @@ async function upsertViolationRow(input: {
   const now = new Date();
   const { parsed } = input;
 
+  if (!hasDisciplineUpsertKey(parsed)) return;
+
   let existingId: string | null = null;
+  let matchedByAshedId = false;
   if (parsed.ashedId) {
     const [byAshedId] = await db
       .select({ id: schema.memberViolations.id })
@@ -131,6 +154,7 @@ async function upsertViolationRow(input: {
       )
       .limit(1);
     existingId = byAshedId?.id ?? null;
+    matchedByAshedId = existingId != null;
   }
 
   if (!existingId && parsed.recordedDate) {
@@ -138,7 +162,10 @@ async function upsertViolationRow(input: {
       ? eq(schema.memberViolations.violationType, parsed.type)
       : isNull(schema.memberViolations.violationType);
     const [byNaturalKey] = await db
-      .select({ id: schema.memberViolations.id })
+      .select({
+        id: schema.memberViolations.id,
+        ashedViolationId: schema.memberViolations.ashedViolationId,
+      })
       .from(schema.memberViolations)
       .where(
         and(
@@ -149,6 +176,15 @@ async function upsertViolationRow(input: {
         ),
       )
       .limit(1);
+    if (
+      byNaturalKey &&
+      shouldSkipAshedUpsertForManualRow({
+        matchedByAshedId,
+        existingAshedId: byNaturalKey.ashedViolationId,
+      })
+    ) {
+      return;
+    }
     existingId = byNaturalKey?.id ?? null;
   }
 
@@ -188,7 +224,7 @@ export async function syncMemberCommendationsFromAshed(
   const rows = await fetchAshedEntityList(connection, "Commendation", ashedMemberId);
   for (const row of rows) {
     const parsed = parseAshedDisciplineRecord(row, "commendation");
-    if (!parsed.ashedId && !parsed.recordedDate && !parsed.type && !parsed.notes) {
+    if (!hasDisciplineUpsertKey(parsed)) {
       continue;
     }
     await upsertCommendationRow({
@@ -209,7 +245,7 @@ export async function syncMemberViolationsFromAshed(
   const rows = await fetchAshedEntityList(connection, "Violation", ashedMemberId);
   for (const row of rows) {
     const parsed = parseAshedDisciplineRecord(row, "violation");
-    if (!parsed.ashedId && !parsed.recordedDate && !parsed.type && !parsed.notes) {
+    if (!hasDisciplineUpsertKey(parsed)) {
       continue;
     }
     await upsertViolationRow({

@@ -299,7 +299,7 @@ export async function loadCommanderProfile(
   const connection =
     operatingMode === "ashed" ? await getAshedConnection(sessionId) : null;
   if (connection) {
-    void Promise.all([
+    await Promise.all([
       syncMemberCommendationsFromAshed(
         connection,
         allianceId,

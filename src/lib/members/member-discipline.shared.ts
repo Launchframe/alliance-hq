@@ -81,3 +81,19 @@ export function parseAshedDisciplineRecord(
     expungedAt: kind === "violation" ? readExpungedAt(record) : null,
   };
 }
+
+/** Ashed rows need a stable id or natural key before we upsert into HQ. */
+export function hasDisciplineUpsertKey(
+  parsed: ParsedAshedDisciplineRecord,
+): boolean {
+  return parsed.ashedId != null || parsed.recordedDate != null;
+}
+
+/** Preserve manual-only DB rows when Ashed sync matches on date/type only. */
+export function shouldSkipAshedUpsertForManualRow(input: {
+  matchedByAshedId: boolean;
+  existingAshedId: string | null | undefined;
+}): boolean {
+  if (input.matchedByAshedId) return false;
+  return input.existingAshedId == null;
+}

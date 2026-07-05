@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { parseAshedDisciplineRecord } from "@/lib/members/member-discipline.shared";
+import {
+  hasDisciplineUpsertKey,
+  parseAshedDisciplineRecord,
+  shouldSkipAshedUpsertForManualRow,
+} from "@/lib/members/member-discipline.shared";
 
 describe("parseAshedDisciplineRecord", () => {
   it("parses violation fields from Ashed snake_case", () => {
@@ -51,5 +55,66 @@ describe("parseAshedDisciplineRecord", () => {
       "violation",
     );
     expect(parsed.expungedAt?.toISOString()).toBe("2026-03-01T12:00:00.000Z");
+  });
+});
+
+describe("hasDisciplineUpsertKey", () => {
+  it("requires ashed id or recorded date", () => {
+    expect(
+      hasDisciplineUpsertKey({
+        ashedId: "c-1",
+        type: null,
+        notes: null,
+        recordedDate: null,
+        expungedAt: null,
+      }),
+    ).toBe(true);
+    expect(
+      hasDisciplineUpsertKey({
+        ashedId: null,
+        type: "Harassment",
+        notes: "Only notes",
+        recordedDate: "2026-01-01",
+        expungedAt: null,
+      }),
+    ).toBe(true);
+    expect(
+      hasDisciplineUpsertKey({
+        ashedId: null,
+        type: "Harassment",
+        notes: "Only notes",
+        recordedDate: null,
+        expungedAt: null,
+      }),
+    ).toBe(false);
+  });
+});
+
+describe("shouldSkipAshedUpsertForManualRow", () => {
+  it("updates rows matched by Ashed id", () => {
+    expect(
+      shouldSkipAshedUpsertForManualRow({
+        matchedByAshedId: true,
+        existingAshedId: "v-1",
+      }),
+    ).toBe(false);
+  });
+
+  it("skips natural-key matches on manual-only rows", () => {
+    expect(
+      shouldSkipAshedUpsertForManualRow({
+        matchedByAshedId: false,
+        existingAshedId: null,
+      }),
+    ).toBe(true);
+  });
+
+  it("updates natural-key matches when the row is already Ashed-linked", () => {
+    expect(
+      shouldSkipAshedUpsertForManualRow({
+        matchedByAshedId: false,
+        existingAshedId: "v-legacy",
+      }),
+    ).toBe(false);
   });
 });
