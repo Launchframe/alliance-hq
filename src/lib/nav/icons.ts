@@ -24,7 +24,6 @@ import {
   Upload,
   UserCog,
   Users,
-  Crosshair,
   Wallet,
 } from "lucide-react";
 
@@ -33,7 +32,6 @@ export const NAV_PAGE_ICONS: Record<string, LucideIcon> = {
   dashboard: LayoutDashboard,
   alliances: Handshake,
   members: Users,
-  commanders: Crosshair,
   "waiting-list": ClipboardList,
   "alliance-tasks": ListChecks,
   "merge-manager": GitMerge,

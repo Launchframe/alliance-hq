@@ -112,11 +112,9 @@ test.describe("Commanders index", () => {
     expect(payload.rows.length).toBeGreaterThanOrEqual(10);
     expect(JSON.stringify(payload)).not.toContain(secretUid);
 
-    await page.goto("/commanders");
-    await expect(
-      page.getByRole("heading", { name: /commanders index/i }),
-    ).toBeVisible();
-    await expect(page.getByText("CI Fighter 0")).toBeVisible();
+    await page.goto("/members");
+    await expect(page.getByRole("heading", { name: /^members$/i })).toBeVisible();
+    await expect(page.getByRole("link", { name: "CI Fighter 0" })).toBeVisible();
     await expect(page.getByText(secretUid)).toHaveCount(0);
 
     await expect(
@@ -184,7 +182,7 @@ test.describe("Commanders index", () => {
     );
     expect(patchRes.ok(), await patchRes.text()).toBeTruthy();
 
-    await page.goto("/commanders");
+    await page.goto("/members");
     await expect(page.getByText("Missile").first()).toBeVisible();
   });
 });

@@ -15,7 +15,6 @@ function e2eBaseUrl(): string {
 /** Native HQ pages a view-only member should reach without a personal Ashed credential. */
 const VIEW_ONLY_NATIVE_PAGES: Array<{ path: string; heading: RegExp }> = [
   { path: "/members", heading: /^members$/i },
-  { path: "/commanders", heading: /commanders index/i },
   { path: "/trains", heading: /alliance train/i },
   { path: "/my-vr", heading: /^my vr$/i },
   { path: "/settings", heading: /alliance settings/i },
@@ -102,6 +101,12 @@ for (const operatingMode of ["native", "ashed"] as const) {
     test("redirects /admin to members", async ({ page }) => {
       await page.goto("/admin");
       await expect(page).toHaveURL(/\/members$/);
+    });
+
+    test("redirects /commanders to unified members roster", async ({ page }) => {
+      await page.goto("/commanders");
+      await expect(page).toHaveURL(/\/members(?:\?.*)?$/);
+      await expect(page.getByRole("heading", { name: /^members$/i })).toBeVisible();
     });
 
     test("hides upload nav link", async ({ page }) => {

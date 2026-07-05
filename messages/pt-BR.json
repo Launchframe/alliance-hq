@@ -1822,6 +1822,23 @@
     "uploadRosterVideo": "Enviar vídeo do elenco",
     "rosterLinkRequests": "Solicitações de vínculo ao roster",
     "memberLinkHelpRequests": "Ajuda ao oficial",
+    "rosterColumns": {
+      "menuLabel": "Colunas",
+      "menuTitle": "Mostrar colunas",
+      "col": {
+        "name": "Nome atual",
+        "previousNames": "Nomes anteriores",
+        "allianceRank": "Patente",
+        "rankTitle": "Título",
+        "status": "Status",
+        "thp": "Poder de herói",
+        "mainSquad": "Esquadrão principal",
+        "inGameRank": "Patente no jogo",
+        "vr": "VR",
+        "hqLinked": "Vinculado ao HQ",
+        "squadEdit": "Definir esquadrão"
+      }
+    },
     "import": {
       "title": "Importar membros",
       "uploadHint": "Envie uma captura por página de patente (oficiais e listas R1–R5). Lemos nome, poder e nível com OCR.",

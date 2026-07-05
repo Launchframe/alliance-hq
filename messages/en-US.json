@@ -1822,6 +1822,23 @@
     "uploadRosterVideo": "Upload roster video",
     "rosterLinkRequests": "Roster link requests",
     "memberLinkHelpRequests": "Ask an officer help",
+    "rosterColumns": {
+      "menuLabel": "Columns",
+      "menuTitle": "Show columns",
+      "col": {
+        "name": "Current name",
+        "previousNames": "Previous names",
+        "allianceRank": "Rank",
+        "rankTitle": "Title",
+        "status": "Status",
+        "thp": "Hero power",
+        "mainSquad": "Main squad",
+        "inGameRank": "In-game rank",
+        "vr": "VR",
+        "hqLinked": "HQ linked",
+        "squadEdit": "Set squad"
+      }
+    },
     "import": {
       "title": "Import members",
       "uploadHint": "Upload one screenshot per rank page (officers screen and rank lists). We read names, power, and level with on-device OCR.",

@@ -105,14 +105,6 @@ export const NAV_GROUPS: NavGroupDef[] = [
         descriptionKey: "membersDescription",
       },
       {
-        id: "commanders",
-        labelKey: "commanders",
-        href: "/commanders",
-        kind: "native",
-        requiredPermission: "members:read",
-        descriptionKey: "commandersDescription",
-      },
-      {
         id: "waiting-list",
         labelKey: "waitingList",
         href: "/waiting-list",
@@ -411,6 +403,14 @@ export function navLinkActive(pathname: string, href: string): boolean {
       return false;
     }
     return pathname === href || pathname.startsWith(`${href}/`);
+  }
+  if (href === "/members") {
+    return (
+      pathname === "/members" ||
+      pathname.startsWith("/members/") ||
+      pathname === "/commanders" ||
+      pathname.startsWith("/commanders/")
+    );
   }
   return pathname === href || pathname.startsWith(`${href}/`);
 }

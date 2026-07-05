@@ -163,6 +163,11 @@ describe("navLinkActive", () => {
     expect(navLinkActive("/profile/settings", "/profile")).toBe(false);
   });
 
+  it("highlights members nav for legacy /commanders route", () => {
+    expect(navLinkActive("/commanders", "/members")).toBe(true);
+    expect(navLinkActive("/members", "/members")).toBe(true);
+  });
+
   it("keeps upload and queue nav highlights independent", () => {
     expect(navLinkActive("/tools/video-upload/queue", "/tools/video-upload")).toBe(
       false,
@@ -191,6 +196,11 @@ describe("NAV_GROUPS alliance-management", () => {
     expect(group).toBeDefined();
     const lastPage = group!.pages[group!.pages.length - 1];
     expect(lastPage?.id).toBe("alliance-settings");
+  });
+
+  it("does not include a separate commanders nav page", () => {
+    const group = NAV_GROUPS.find((g) => g.id === "alliance-management");
+    expect(group?.pages.some((page) => page.id === "commanders")).toBe(false);
   });
 
   it("does not include account in video group", () => {
