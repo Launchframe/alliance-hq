@@ -1,22 +1,32 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 
-import { startPostgresListen } from "./postgres-listen";
+import {
+  attachPostgresListenProbe,
+  startPostgresListen,
+} from "./postgres-listen";
 
 describe("startPostgresListen", () => {
   it("invokes onError and closes the client when listen rejects", async () => {
     const authError = new Error("28P01");
     const listen = vi.fn().mockRejectedValue(authError);
     const end = vi.fn().mockResolvedValue(undefined);
+    const unsafe = vi.fn();
     const onError = vi.fn();
     const consoleError = vi
       .spyOn(console, "error")
       .mockImplementation(() => undefined);
 
-    await startPostgresListen(
-      { listen, end } as Parameters<typeof startPostgresListen>[0],
+    const mockClient = { listen, end, unsafe };
+    const stopProbe = await startPostgresListen(
+      mockClient as unknown as Parameters<typeof startPostgresListen>[0],
       "test_channel",
       () => undefined,
       onError,
+      {
+        isIntentionalClose: () => false,
+        onDisconnect: vi.fn(),
+        probeIntervalMs: 60_000,
+      },
     );
 
     expect(listen).toHaveBeenCalledOnce();
@@ -26,6 +36,7 @@ describe("startPostgresListen", () => {
       "[postgres-listen] LISTEN failed:",
       authError,
     );
+    stopProbe();
 
     consoleError.mockRestore();
   });
@@ -36,10 +47,12 @@ describe("startPostgresListen", () => {
       callback("payload");
     });
     const end = vi.fn();
+    const unsafe = vi.fn().mockResolvedValue([]);
     const onError = vi.fn();
 
-    await startPostgresListen(
-      { listen, end } as Parameters<typeof startPostgresListen>[0],
+    const mockClient = { listen, end, unsafe };
+    const stopProbe = await startPostgresListen(
+      mockClient as unknown as Parameters<typeof startPostgresListen>[0],
       "test_channel",
       onPayload,
       onError,
@@ -49,11 +62,13 @@ describe("startPostgresListen", () => {
     expect(onPayload).toHaveBeenCalledWith("payload");
     expect(onError).not.toHaveBeenCalled();
     expect(end).not.toHaveBeenCalled();
+    stopProbe();
   });
 
   it("still closes the client when onError throws", async () => {
     const listen = vi.fn().mockRejectedValue(new Error("28P01"));
     const end = vi.fn().mockResolvedValue(undefined);
+    const unsafe = vi.fn();
     const onError = vi.fn().mockImplementation(() => {
       throw new Error("closeStream failed");
     });
@@ -61,8 +76,9 @@ describe("startPostgresListen", () => {
       .spyOn(console, "error")
       .mockImplementation(() => undefined);
 
+    const mockClient = { listen, end, unsafe };
     await startPostgresListen(
-      { listen, end } as Parameters<typeof startPostgresListen>[0],
+      mockClient as unknown as Parameters<typeof startPostgresListen>[0],
       "test_channel",
       () => undefined,
       onError,
@@ -80,16 +96,72 @@ describe("startPostgresListen", () => {
   it("swallows end rejections after listen fails", async () => {
     const listen = vi.fn().mockRejectedValue(new Error("28P01"));
     const end = vi.fn().mockRejectedValue(new Error("already closed"));
+    const unsafe = vi.fn();
     const onError = vi.fn();
     vi.spyOn(console, "error").mockImplementation(() => undefined);
 
+    const mockClient = { listen, end, unsafe };
     await expect(
       startPostgresListen(
-        { listen, end } as Parameters<typeof startPostgresListen>[0],
+        mockClient as unknown as Parameters<typeof startPostgresListen>[0],
         "test_channel",
         () => undefined,
         onError,
       ),
-    ).resolves.toBeUndefined();
+    ).resolves.toBeInstanceOf(Function);
+  });
+});
+
+describe("attachPostgresListenProbe", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("calls onDisconnect when probe query fails", async () => {
+    const probeError = new Error("CONNECTION_CLOSED");
+    const unsafe = vi.fn().mockRejectedValue(probeError);
+    const onDisconnect = vi.fn();
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    const stop = attachPostgresListenProbe(
+      { unsafe },
+      {
+        isIntentionalClose: () => false,
+        onDisconnect,
+        probeIntervalMs: 1_000,
+      },
+    );
+
+    await vi.advanceTimersByTimeAsync(1_000);
+
+    expect(unsafe).toHaveBeenCalledWith("select 1");
+    expect(onDisconnect).toHaveBeenCalledOnce();
+
+    stop();
+  });
+
+  it("does not call onDisconnect after intentional close", async () => {
+    let intentional = false;
+    const unsafe = vi.fn().mockRejectedValue(new Error("CONNECTION_CLOSED"));
+    const onDisconnect = vi.fn();
+
+    const stop = attachPostgresListenProbe(
+      { unsafe },
+      {
+        isIntentionalClose: () => intentional,
+        onDisconnect,
+        probeIntervalMs: 1_000,
+      },
+    );
+
+    intentional = true;
+    await vi.advanceTimersByTimeAsync(1_000);
+
+    expect(onDisconnect).not.toHaveBeenCalled();
+    stop();
   });
 });

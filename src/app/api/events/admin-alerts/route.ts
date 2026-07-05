@@ -14,12 +14,13 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export const SSE_MAX_CONNECTION_MS = 240_000;
+export const SSE_HEARTBEAT_INTERVAL_MS = 25_000;
 
 export function sseChunk(event: string, data: unknown): string {
   return `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   const sessionId = await readSessionId();
   if (!sessionId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -29,7 +30,12 @@ export async function GET() {
 
   const encoder = new TextEncoder();
   let closed = false;
-  let listenClient: ReturnType<typeof createAdminAlertListenClient> | null = null;
+  let intentionalClose = false;
+  let listenClient: ReturnType<typeof createAdminAlertListenClient> | null =
+    null;
+  let stopProbe: (() => void) | null = null;
+  let heartbeat: ReturnType<typeof setInterval> | null = null;
+  let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
   const stream = new ReadableStream({
     async start(controller) {
@@ -38,31 +44,72 @@ export async function GET() {
         controller.enqueue(encoder.encode(sseChunk(event, data)));
       };
 
-      const closeStream = () => {
+      const closeStream = (options?: { reconnect?: boolean }) => {
         if (closed) return;
+        if (options?.reconnect) {
+          send("reconnect", { t: Date.now() });
+        }
+        intentionalClose = true;
         closed = true;
+        stopProbe?.();
+        if (heartbeat) {
+          clearInterval(heartbeat);
+          heartbeat = null;
+        }
+        if (reconnectTimer) {
+          clearTimeout(reconnectTimer);
+          reconnectTimer = null;
+        }
         void listenClient?.end({ timeout: 0 }).catch(() => undefined);
         controller.close();
       };
 
-      listenClient = createAdminAlertListenClient();
-      setTimeout(closeStream, SSE_MAX_CONNECTION_MS);
+      const handleListenFailure = () => {
+        send("error", { message: "Live updates unavailable" });
+        closeStream({ reconnect: true });
+      };
 
-      void startPostgresListen(
+      listenClient = createAdminAlertListenClient();
+
+      reconnectTimer = setTimeout(
+        () => closeStream({ reconnect: true }),
+        SSE_MAX_CONNECTION_MS,
+      );
+
+      heartbeat = setInterval(() => {
+        send("ping", { t: Date.now() });
+      }, SSE_HEARTBEAT_INTERVAL_MS);
+
+      stopProbe = await startPostgresListen(
         listenClient,
         ADMIN_ALERT_NOTIFY_CHANNEL,
         (payload) => {
           const event = parseAdminAlertEvent(payload);
           if (event) send(adminAlertSseEventName(event), event);
         },
-        () => {
-          send("error", { message: "Live updates unavailable" });
-          closeStream();
+        handleListenFailure,
+        {
+          isIntentionalClose: () => intentionalClose || closed,
+          onDisconnect: handleListenFailure,
         },
       );
+
+      request.signal.addEventListener("abort", () => {
+        closeStream();
+      });
     },
     cancel() {
+      intentionalClose = true;
       closed = true;
+      stopProbe?.();
+      if (heartbeat) {
+        clearInterval(heartbeat);
+        heartbeat = null;
+      }
+      if (reconnectTimer) {
+        clearTimeout(reconnectTimer);
+        reconnectTimer = null;
+      }
       void listenClient?.end({ timeout: 0 }).catch(() => undefined);
     },
   });

@@ -46,10 +46,11 @@ When **`DATABASE_URL` is managed by the Neon ↔ Vercel integration**, you canno
 3. **Redeploy Production** so every function instance picks up the new password (warm instances can keep the old secret for several minutes otherwise).
 4. Confirm `https://frontline.gay/api/health/db` returns `{ "ok": true }`.
 
-During the mismatch window, normal page/API requests may fail session lookups; SSE routes (`/api/events/video-jobs`, `/api/events/admin-alerts`) that call Postgres **`LISTEN`** must not leave that failure as an unhandled promise rejection (see `src/lib/db/postgres-listen.ts`).
+During the mismatch window, normal page/API requests may fail session lookups; SSE routes (`/api/events/video-jobs`, `/api/events/admin-alerts`) that call Postgres **`LISTEN`** must not leave that failure as an unhandled promise rejection (see `src/lib/db/postgres-listen.ts`). If the dedicated LISTEN connection drops after setup (including failed silent re-subscribe inside postgres.js), periodic **`select 1` probes** close the SSE stream with a **`reconnect`** event so clients open a fresh request on a new serverless instance.
 
 **Not load-related:** `28P01` is always an auth/credential problem, not connection pool exhaustion.
 
+### 2b. R2 — bucket CORS for browser uploads
 
 Direct video upload sends a **cross-origin `PUT`** from the browser to `*.r2.cloudflarestorage.com`. Without bucket CORS, the **OPTIONS preflight returns 403** and the console shows `No 'Access-Control-Allow-Origin' header`.
 
