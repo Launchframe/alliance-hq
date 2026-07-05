@@ -21,6 +21,16 @@ export async function redeemJoinCodeInPage(
   );
   await page.getByRole("button", { name: /join alliance/i }).click();
   const response = await redeemResponse;
+
+  if (response.ok() && options?.expectUrl) {
+    // JoinCodeClient uses window.location.assign on success; the response
+    // body is often unavailable once navigation starts.
+    await expect(page).toHaveURL(options.expectUrl, {
+      timeout: options.timeoutMs ?? 15_000,
+    });
+    return;
+  }
+
   const body = (await response.json()) as { error?: string; redirectTo?: string };
   expect(response.ok(), body.error ?? "join-code redeem failed").toBe(true);
 
