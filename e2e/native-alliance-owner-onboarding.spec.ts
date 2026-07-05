@@ -12,6 +12,7 @@ import {
   loadAllianceGameServerNumber,
   playwrightAuthCookies,
 } from "./fixtures/db";
+import { redeemJoinCodeInPage } from "./fixtures/join-code";
 
 const OWNER_COMMANDER_NAME = "E2eNativeOwner";
 
@@ -139,9 +140,7 @@ test.describe("Native alliance — PA provision through owner onboarding", () =>
     const officerAuth = await createAuthenticatedHqSession(sql, officerEmail);
     await page.context().addCookies(playwrightAuthCookies(officerAuth));
     await page.goto("/join");
-    await page.getByLabel(/join code/i).fill(officerJoinCode);
-    await page.getByRole("button", { name: /join alliance/i }).click();
-    await expect(page).toHaveURL(/\/onboard/);
+    await redeemJoinCodeInPage(page, officerJoinCode, { expectUrl: /\/onboard/ });
 
     await openMemberLinkForm(page);
     const officerLinkRes = await submitUidThenConfirm(page, officerUid);

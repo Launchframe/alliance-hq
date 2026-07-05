@@ -15,6 +15,7 @@ import {
   loadDiscordHqLink,
   playwrightAuthCookies,
 } from "./fixtures/db";
+import { redeemJoinCodeInPage } from "./fixtures/join-code";
 
 test.describe("Discord /link complete — inline join code", () => {
   test("redeems join code and completes commander onboarding from Discord link", async ({
@@ -59,10 +60,9 @@ test.describe("Discord /link complete — inline join code", () => {
     const link = await loadDiscordHqLink(sql, discordUserId);
     expect(link?.hqUserId).toBe(auth.hqUserId);
 
-    await page.getByLabel(/join code/i).fill(code);
-    await page.getByRole("button", { name: /join alliance/i }).click();
-
-    await expect(page).toHaveURL(/\/onboard\?.*source=discord/);
+    await redeemJoinCodeInPage(page, code, {
+      expectUrl: /\/onboard\?.*source=discord/,
+    });
     await expect(page.getByText("Discord Link Join Alliance")).toBeVisible();
     await expect(page.getByRole("button", { name: /explore alliance hq/i })).toHaveCount(
       0,
@@ -191,8 +191,18 @@ test.describe("Discord /link complete — inline join code", () => {
 
     await expect(page.getByLabel(/join code/i)).toBeVisible();
 
-    await page.getByLabel(/join code/i).fill("BADCODE99");
+    const input = page.getByLabel(/join code/i);
+    await input.fill("BADCODE99");
+    await expect(input).toHaveValue("BADCODE99");
+
+    const redeemResponse = page.waitForResponse(
+      (res) =>
+        new URL(res.url()).pathname.endsWith("/api/join-codes/redeem") &&
+        res.request().method() === "POST",
+    );
     await page.getByRole("button", { name: /join alliance/i }).click();
+    const response = await redeemResponse;
+    expect(response.ok()).toBe(false);
 
     // Error displayed (API returns "Join code not found."); user stays on the
     // join-code page and is not redirected to /onboard.
