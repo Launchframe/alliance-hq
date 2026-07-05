@@ -3,6 +3,7 @@ import { SessionProvider } from "next-auth/react";
 import { getMessages, getTranslations, setRequestLocale } from "next-intl/server";
 import { hasLocale } from "next-intl";
 import { Analytics } from "@vercel/analytics/react";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import { JetBrains_Mono } from "next/font/google";
 import { notFound } from "next/navigation";
 import type { Viewport } from "next";
@@ -76,6 +77,7 @@ export default async function LocaleLayout({ children, params }: Props) {
           <SessionProvider>{children}</SessionProvider>
         </NextIntlClientProvider>
         <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   );

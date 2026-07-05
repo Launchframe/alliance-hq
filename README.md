@@ -108,6 +108,8 @@ Do **not** set `LOCAL_DATABASE_URL` on Vercel.
 
 3. Deploy — `npm run build` runs migrations and idempotent DB seeds automatically before `next build` (requires `DATABASE_URL` at build time).
 
+**Observability (Vercel):** The app already mounts `@vercel/analytics` (page views + custom events) and `@vercel/speed-insights` (Core Web Vitals) in `src/app/[locale]/layout.tsx`. Enable **Web Analytics** and **Speed Insights** in the Vercel project dashboard (no extra env vars). Custom ops events: `DB Health Check Failed` (Postgres SQLSTATE only) from `/api/health/db`, and video pipeline timings via `src/lib/analytics/video-pipeline.ts`.
+
 For local schema changes: `npm run db:generate` → commit new files under `drizzle/` → deploy. After `db:push` locally, run `npm run db:seed` once if you have not run a full build.
 
 Optional one-off (without redeploying): `DATABASE_URL="postgresql://…neon…" npm run db:prepare`
