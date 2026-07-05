@@ -1,6 +1,7 @@
 import { getTranslations } from "next-intl/server";
 
 import { ViralResistanceView } from "@/components/vr/ViralResistanceView";
+import { requirePagePermission } from "@/lib/rbac/page-permission";
 import { sessionHasPermission } from "@/lib/rbac/context";
 import {
   loadViralResistanceLeaderboard,
@@ -17,6 +18,7 @@ export async function generateMetadata() {
 
 export default async function ViralResistancePage() {
   const session = await requirePageSession("/viral-resistance");
+  await requirePagePermission(session.id, "members:write", "/my-vr");
   const allianceId = session.currentAllianceId ?? session.allianceId;
   if (!allianceId) {
     return <ViralResistanceView initial={{ seasonKey: "1", rows: [] }} officer={null} />;

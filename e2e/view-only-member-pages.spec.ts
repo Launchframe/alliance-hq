@@ -17,7 +17,6 @@ const VIEW_ONLY_NATIVE_PAGES: Array<{ path: string; heading: RegExp }> = [
   { path: "/members", heading: /^members$/i },
   { path: "/commanders", heading: /commanders index/i },
   { path: "/trains", heading: /alliance train/i },
-  { path: "/viral-resistance", heading: /viral resistance/i },
   { path: "/my-vr", heading: /^my vr$/i },
   { path: "/settings", heading: /alliance settings/i },
   { path: "/settings/team", heading: /team access/i },
@@ -39,7 +38,8 @@ const PERMISSION_GATED_NAV_PATHS = NAV_GROUPS.flatMap((group) => group.pages)
       page.requiredPermission &&
       !VIEW_ONLY_MEMBER_READ_PERMISSIONS.has(page.requiredPermission),
   )
-  .map((page) => page.href);
+  .map((page) => page.href)
+  .filter((href) => href !== "/viral-resistance");
 
 async function expectPageLoadsWithoutServerError(
   page: Page,
@@ -89,6 +89,13 @@ for (const operatingMode of ["native", "ashed"] as const) {
         await expectRedirectedToMembers(page, path);
       });
     }
+
+    test("redirects /viral-resistance to my-vr when write permission is missing", async ({
+      page,
+    }) => {
+      await page.goto("/viral-resistance");
+      await expect(page).toHaveURL(/\/my-vr$/);
+    });
 
     test("redirects /admin to members", async ({ page }) => {
       await page.goto("/admin");
