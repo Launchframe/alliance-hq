@@ -2,7 +2,6 @@ import "server-only";
 
 import { and, desc, eq, or } from "drizzle-orm";
 
-import { forwardJson } from "@/lib/bff/session";
 import { getDb, schema } from "@/lib/db";
 import { getAllianceOperatingMode } from "@/lib/native-alliance/operating-mode";
 import {
@@ -22,38 +21,14 @@ import { sessionHasMembershipForAlliance } from "@/lib/alliance/session-membersh
 import { allianceMemberRowToAshedMember } from "@/lib/members/roster.shared";
 import { getRbacContext, sessionHasPermission } from "@/lib/rbac/context";
 import type { CommanderProfilePayload } from "@/lib/members/commander-profile.shared";
+import {
+  syncMemberCommendationsFromAshed,
+  syncMemberViolationsFromAshed,
+} from "@/lib/members/member-discipline.server";
 import { getAshedConnection } from "@/lib/session";
 import { viewerCanEditMainSquad } from "@/lib/commanders/main-squad.server";
 
 export type { CommanderProfilePayload } from "@/lib/members/commander-profile.shared";
-
-type AshedRecord = Record<string, unknown>;
-
-async function fetchAshedEntityList(
-  connection: Awaited<ReturnType<typeof getAshedConnection>>,
-  entity: string,
-  memberId: string,
-): Promise<AshedRecord[]> {
-  if (!connection) return [];
-
-  try {
-    const query = new URLSearchParams({ member_id: memberId });
-    const upstream = await forwardJson(
-      connection,
-      `/entities/${entity}?${query.toString()}`,
-      { method: "GET" },
-    );
-    if (!upstream.ok) return [];
-    const body = (await upstream.json()) as unknown;
-    if (Array.isArray(body)) return body as AshedRecord[];
-    if (body && typeof body === "object" && Array.isArray((body as AshedRecord).items)) {
-      return (body as AshedRecord).items as AshedRecord[];
-    }
-    return [];
-  } catch {
-    return [];
-  }
-}
 
 function parseEventMetadata(metadata: unknown): {
   score: number | null;
@@ -323,12 +298,56 @@ export async function loadCommanderProfile(
 
   const connection =
     operatingMode === "ashed" ? await getAshedConnection(sessionId) : null;
-  const [commendations, violations] = connection
-    ? await Promise.all([
-        fetchAshedEntityList(connection, "Commendation", ashedMemberId),
-        fetchAshedEntityList(connection, "Violation", ashedMemberId),
-      ])
-    : [[], []];
+  if (connection) {
+    await Promise.all([
+      syncMemberCommendationsFromAshed(
+        connection,
+        allianceId,
+        ashedMemberId,
+        memberRow.currentName,
+      ),
+      syncMemberViolationsFromAshed(
+        connection,
+        allianceId,
+        ashedMemberId,
+        memberRow.currentName,
+      ),
+    ]);
+  }
+
+  const [commendationRows, violationRows] = await Promise.all([
+    db
+      .select({
+        id: schema.memberCommendations.id,
+        commendationType: schema.memberCommendations.commendationType,
+        notes: schema.memberCommendations.notes,
+        recordedDate: schema.memberCommendations.recordedDate,
+      })
+      .from(schema.memberCommendations)
+      .where(
+        and(
+          eq(schema.memberCommendations.allianceId, allianceId),
+          eq(schema.memberCommendations.ashedMemberId, ashedMemberId),
+        ),
+      )
+      .orderBy(desc(schema.memberCommendations.recordedDate)),
+    db
+      .select({
+        id: schema.memberViolations.id,
+        violationType: schema.memberViolations.violationType,
+        notes: schema.memberViolations.notes,
+        recordedDate: schema.memberViolations.recordedDate,
+        expungedAt: schema.memberViolations.expungedAt,
+      })
+      .from(schema.memberViolations)
+      .where(
+        and(
+          eq(schema.memberViolations.allianceId, allianceId),
+          eq(schema.memberViolations.ashedMemberId, ashedMemberId),
+        ),
+      )
+      .orderBy(desc(schema.memberViolations.recordedDate)),
+  ]);
 
   const ashedMember = allianceMemberRowToAshedMember(memberRow);
   const rankForDisplay =
@@ -416,8 +435,19 @@ export async function loadCommanderProfile(
         updatedAt: row.updatedAt.toISOString(),
       };
     }),
-    commendations,
-    violations,
+    commendations: commendationRows.map((row) => ({
+      id: row.id,
+      commendationType: row.commendationType,
+      notes: row.notes,
+      recordedDate: row.recordedDate,
+    })),
+    violations: violationRows.map((row) => ({
+      id: row.id,
+      violationType: row.violationType,
+      notes: row.notes,
+      recordedDate: row.recordedDate,
+      expungedAt: row.expungedAt?.toISOString() ?? null,
+    })),
     trainHighlights: trainRows.flatMap((row) => {
       const highlights: CommanderProfilePayload["trainHighlights"] = [];
       if (row.conductorMemberId === ashedMemberId) {
