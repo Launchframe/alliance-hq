@@ -1484,6 +1484,21 @@
     "uploadRemindersTitle": "Upload reminders",
     "uploadRemindersBody": "Configure when officers are reminded to upload event scores, and manage your personal reminder subscriptions.",
     "uploadRemindersLink": "Manage upload reminders",
+    "discordSectionTitle": "Discord integration",
+    "discordSectionBody": "Install the alliance bot and register your Discord server for train announcements and member tools.",
+    "discordSectionLink": "Open Discord settings",
+    "trainsSectionTitle": "Trains",
+    "trainsSectionBody": "Configure train week start, Discord announcements, and conductor minimums.",
+    "trainsSectionLink": "Open train settings",
+    "backToAllianceSettings": "Alliance settings",
+    "discord": {
+      "title": "Discord integration",
+      "subtitle": "Bot install and server registration for {tag}."
+    },
+    "trains": {
+      "title": "Trains",
+      "subtitle": "Train configuration for {tag}."
+    },
     "allianceContext": {
       "title": "Choose an alliance",
       "body": "Alliance settings apply to one alliance at a time. Pick which alliance you are managing.",

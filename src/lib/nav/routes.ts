@@ -357,13 +357,30 @@ export function isNavActive(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-/** Nav link active state — parent hubs (e.g. /settings) do not highlight on child routes. */
+/** Alliance settings hub sub-routes (not account/hotkeys). */
+const ALLIANCE_SETTINGS_HUB_CHILDREN = [
+  "/settings/discord",
+  "/settings/trains",
+  "/settings/upload-reminders",
+  "/settings/team",
+  "/settings/alliance",
+] as const;
+
+export function isAllianceSettingsHubChildPath(pathname: string): boolean {
+  return ALLIANCE_SETTINGS_HUB_CHILDREN.some(
+    (href) => pathname === href || pathname.startsWith(`${href}/`),
+  );
+}
+
+/** Nav link active state — parent hubs do not highlight unrelated child routes. */
 export function navLinkActive(pathname: string, href: string): boolean {
   if (href === "/") {
     return pathname === "/";
   }
   if (href === "/settings") {
-    return pathname === "/settings";
+    return (
+      pathname === "/settings" || isAllianceSettingsHubChildPath(pathname)
+    );
   }
   if (href === "/account") {
     return pathname === "/account";
@@ -418,14 +435,18 @@ export function findActiveNavGroupId(
     }
 
     if (group.id === "alliance-management") {
-      const teamHrefs = showTeamAccess ? ["/settings/team"] : [];
-      if (teamHrefs.some((href) => navLinkActive(pathname, href))) {
-        return group.id;
+      const extraHrefs: string[] = [];
+      if (showTeamAccess) {
+        extraHrefs.push("/settings/team");
       }
-      if (
-        showAllianceSettings &&
-        /^\/alliance\/[^/]+\/settings\/?$/.test(pathname)
-      ) {
+      if (showAllianceSettings) {
+        extraHrefs.push(
+          "/settings/discord",
+          "/settings/trains",
+          "/settings/upload-reminders",
+        );
+      }
+      if (extraHrefs.some((href) => navLinkActive(pathname, href))) {
         return group.id;
       }
       continue;

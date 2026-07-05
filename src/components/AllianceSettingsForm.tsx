@@ -4,7 +4,6 @@ import { useTranslations } from "next-intl";
 
 import { AllianceSeasonSettings } from "@/components/settings/AllianceSeasonSettings";
 import { Link } from "@/i18n/navigation";
-import { allianceSettingsPath } from "@/lib/alliance/alliance-settings-path.shared";
 
 type Props = {
   allianceTag: string | null;
@@ -32,15 +31,23 @@ export function AllianceSettingsForm({
         <>
           <AllianceSeasonSettings allianceTag={allianceTag} />
           <section className="rounded-xl border border-[#30363d] bg-[#161b22] p-5">
-            <h2 className="font-medium">{t("allianceSettingsLinkTitle")}</h2>
-            <p className="mt-2 text-sm text-[#8b949e]">
-              {t("allianceSettingsLinkBody")}
-            </p>
+            <h2 className="font-medium">{t("discordSectionTitle")}</h2>
+            <p className="mt-2 text-sm text-[#8b949e]">{t("discordSectionBody")}</p>
             <Link
-              href={allianceSettingsPath(allianceTag)}
+              href="/settings/discord"
               className="mt-4 inline-block text-sm text-[#58a6ff] hover:underline"
             >
-              {t("allianceSettingsLinkCta")} →
+              {t("discordSectionLink")} →
+            </Link>
+          </section>
+          <section className="rounded-xl border border-[#30363d] bg-[#161b22] p-5">
+            <h2 className="font-medium">{t("trainsSectionTitle")}</h2>
+            <p className="mt-2 text-sm text-[#8b949e]">{t("trainsSectionBody")}</p>
+            <Link
+              href="/settings/trains"
+              className="mt-4 inline-block text-sm text-[#58a6ff] hover:underline"
+            >
+              {t("trainsSectionLink")} →
             </Link>
           </section>
         </>
@@ -67,17 +74,6 @@ export function AllianceSettingsForm({
           className="mt-4 inline-block text-sm text-[#58a6ff] hover:underline"
         >
           {t("uploadRemindersLink")} →
-        </Link>
-      </section>
-
-      <section className="rounded-xl border border-[#30363d] bg-[#161b22] p-5">
-        <h2 className="font-medium">{t("accountSecurityTitle")}</h2>
-        <p className="mt-2 text-sm text-[#8b949e]">{t("accountSecurityBody")}</p>
-        <Link
-          href="/settings/account"
-          className="mt-4 inline-block text-sm text-[#58a6ff] hover:underline"
-        >
-          {t("accountSecurityLink")} →
         </Link>
       </section>
     </div>

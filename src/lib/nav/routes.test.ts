@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   ashedUrlForPath,
   filterNavGroupsForPermissions,
+  findActiveNavGroupId,
   isNavActive,
   legacyAshedRedirect,
   navLinkActive,
@@ -134,9 +135,23 @@ describe("isNavActive", () => {
 });
 
 describe("navLinkActive", () => {
-  it("does not highlight /settings on /settings/team", () => {
-    expect(navLinkActive("/settings/team", "/settings")).toBe(false);
+  it("highlights /settings on /settings/team", () => {
+    expect(navLinkActive("/settings/team", "/settings")).toBe(true);
     expect(navLinkActive("/settings/team", "/settings/team")).toBe(true);
+  });
+
+  it("highlights /settings on alliance settings sub-pages", () => {
+    expect(navLinkActive("/settings/discord", "/settings")).toBe(true);
+    expect(navLinkActive("/settings/trains", "/settings")).toBe(true);
+    expect(navLinkActive("/settings/upload-reminders", "/settings")).toBe(true);
+    expect(navLinkActive("/settings/team", "/settings")).toBe(true);
+    expect(navLinkActive("/settings/discord", "/settings/discord")).toBe(true);
+    expect(navLinkActive("/settings/trains", "/settings/trains")).toBe(true);
+  });
+
+  it("does not highlight /settings on account or hotkeys routes", () => {
+    expect(navLinkActive("/settings/account", "/settings")).toBe(false);
+    expect(navLinkActive("/settings/hotkeys", "/settings")).toBe(false);
   });
 
   it("does not highlight /account on nested paths", () => {
@@ -182,5 +197,34 @@ describe("NAV_GROUPS alliance-management", () => {
     const video = NAV_GROUPS.find((g) => g.id === "video");
     expect(video?.pages.some((p) => p.id === "account")).toBe(false);
     expect(video?.pages.some((p) => p.id === "video-queue")).toBe(true);
+  });
+});
+
+describe("findActiveNavGroupId alliance-management extras", () => {
+  it("includes alliance settings sub-pages when showAllianceSettings is true", () => {
+    expect(
+      findActiveNavGroupId("/settings/discord", {
+        showAllianceSettings: true,
+      }),
+    ).toBe("alliance-management");
+    expect(
+      findActiveNavGroupId("/settings/trains", {
+        showAllianceSettings: true,
+      }),
+    ).toBe("alliance-management");
+    expect(
+      findActiveNavGroupId("/settings/upload-reminders", {
+        showAllianceSettings: true,
+      }),
+    ).toBe("alliance-management");
+  });
+
+  it("does not match deleted tag-scoped alliance settings route", () => {
+    expect(
+      findActiveNavGroupId("/alliance/lfgo/settings", {
+        showAllianceSettings: true,
+      }),
+    ).toBeNull();
+    expect(navLinkActive("/alliance/lfgo/settings", "/settings")).toBe(false);
   });
 });
