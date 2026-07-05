@@ -3,12 +3,18 @@
  * No user identifiers, credentials, or alliance-specific data in payloads.
  */
 
+import { postgresErrorCode } from "@/lib/db/error-message";
+
 function vercelProductionAnalyticsEnabled(): boolean {
   return process.env.NODE_ENV === "production" && process.env.VERCEL === "1";
 }
 
 /** Postgres SQLSTATE when present on driver errors (e.g. 28P01 auth failure). */
 export function postgresSqlState(error: unknown): string | null {
+  const fromCauseChain = postgresErrorCode(error);
+  if (fromCauseChain) {
+    return fromCauseChain;
+  }
   if (!error || typeof error !== "object") {
     return null;
   }
