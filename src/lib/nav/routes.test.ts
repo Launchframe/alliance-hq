@@ -108,10 +108,13 @@ describe("filterNavGroupsForPermissions", () => {
     );
   });
 
-  it("keeps my-vr for members without members:write", () => {
+  it("shows only my-vr for members without members:write", () => {
     const filtered = filterNavGroupsForPermissions(NAV_GROUPS, new Set());
     const reporting = filtered.find((group) => group.id === "performance-reporting");
     expect(reporting?.pages.some((page) => page.id === "my-vr")).toBe(true);
+    expect(reporting?.pages.some((page) => page.id === "viral-resistance")).toBe(
+      false,
+    );
   });
 });
 

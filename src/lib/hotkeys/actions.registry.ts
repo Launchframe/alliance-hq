@@ -76,6 +76,7 @@ const NAV_ACTIONS: HotkeyActionDef[] = [
     scope: "global",
     kind: "navigate",
     href: "/viral-resistance",
+    requiredPermission: "members:write",
   },
   {
     id: "nav.myVr",
@@ -84,6 +85,7 @@ const NAV_ACTIONS: HotkeyActionDef[] = [
     scope: "global",
     kind: "navigate",
     href: "/my-vr",
+    hideWhenPermission: "members:write",
   },
   {
     id: "nav.trains",
@@ -413,6 +415,13 @@ export function isHotkeyActionAllowed(
     } else {
       return false;
     }
+  }
+
+  if (
+    action.hideWhenPermission &&
+    permissions.has(action.hideWhenPermission)
+  ) {
+    return false;
   }
 
   if (action.requiresDisconnected && options.isConnected) {

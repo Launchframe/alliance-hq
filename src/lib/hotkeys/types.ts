@@ -33,6 +33,8 @@ export type HotkeyActionDef = {
   /** Route for navigate actions */
   href?: string;
   requiredPermission?: string;
+  /** Hide when session has this permission (inverse gate for nav parity). */
+  hideWhenPermission?: string;
   /** When true, hide unless condition met (e.g. not connected to Ashed) */
   requiresDisconnected?: boolean;
   /** Admin sequence second-step key hint */

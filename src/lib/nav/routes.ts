@@ -172,6 +172,7 @@ export const NAV_GROUPS: NavGroupDef[] = [
         href: "/viral-resistance",
         kind: "native",
         descriptionKey: "viralResistanceDescription",
+        requiredPermission: "members:write",
       },
       {
         id: "my-vr",
