@@ -146,6 +146,10 @@ describe("POST /api/discord/authorize — alliance_credentials", () => {
         registeredByHqUserId: "hq-user-1",
       }),
     );
+    expect(capTokenExpiresAtAtSessionMock).toHaveBeenCalledWith(
+      new Date("2030-01-01T00:00:00.000Z"),
+      new Date("2030-06-01T00:00:00.000Z"),
+    );
     expect(consumeDiscordAuthNonceMock).toHaveBeenCalledWith("nonce-1");
   });
 
