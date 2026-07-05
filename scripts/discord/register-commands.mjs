@@ -19,13 +19,13 @@ const DISCORD_DESCRIPTION_MAX = 100;
 
 const vrLevelOption = {
   name: "level",
-  description: "Base VR (multiple of 250)",
+  description: "Institute building level (optional)",
   description_localizations: {
-    "pt-BR": "VR base (múltiplo de 250)",
+    "pt-BR": "Nível do edifício do instituto (opcional)",
   },
   type: 4,
-  min_value: 250,
-  max_value: 12750,
+  min_value: 1,
+  max_value: 60,
   required: false,
 };
 
@@ -106,9 +106,9 @@ const commandBody = [
   },
   {
     name: "vr",
-    description: "Bump your base viral resistance (VR) when you level up.",
+    description: "Bump your institute level when you upgrade your building.",
     description_localizations: {
-      "pt-BR": "Atualize seu VR base quando subir de nível.",
+      "pt-BR": "Atualize seu nível do instituto quando subir o edifício.",
     },
     options: [vrLevelOption],
   },
@@ -119,6 +119,25 @@ const commandBody = [
       "pt-BR": "Atalho para /vr",
     },
     options: [vrLevelOption],
+  },
+  {
+    name: "weekly-pass",
+    description: "Toggle your weekly pass (+250 VR boost for strategy reports).",
+    description_localizations: {
+      "pt-BR":
+        "Ative ou desative seu passe semanal (+250 VR em relatórios estratégicos).",
+    },
+    options: [
+      {
+        name: "active",
+        description: "Turn the weekly pass on or off.",
+        description_localizations: {
+          "pt-BR": "Ative ou desative o passe semanal.",
+        },
+        type: 5,
+        required: true,
+      },
+    ],
   },
   {
     name: "link-alliance",

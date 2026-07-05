@@ -24,6 +24,7 @@ import {
   interactionGuildId,
   parseButtonCustomId,
   parseLinkSlashOptions,
+  parseSlashOptionBoolean,
   parseSlashOptionInteger,
   parseSlashOptionString,
   parseVrSlashLevel,
@@ -55,6 +56,8 @@ import {
   handleDiscordVrCharacterPick,
   handleDiscordVrReport,
   handleDiscordVrSlash,
+  handleDiscordWeeklyPass,
+  handleDiscordWeeklyPassCharacterPick,
   handleDiscordWalkthroughDone,
   resolveAllianceForGuild,
 } from "@/lib/vr/service";
@@ -319,11 +322,11 @@ async function handleSlashCommand(payload: DiscordInteractionPayload) {
   }
 
   if (commandName === "vr" || commandName === "immunity") {
-    const explicitLevel = parseVrSlashLevel(payload);
+    const explicitInstituteLevel = parseVrSlashLevel(payload);
     const result = await handleDiscordVrSlash({
       allianceId,
       discordUserId,
-      explicitLevel,
+      explicitInstituteLevel,
       locale,
     });
 
@@ -343,6 +346,35 @@ async function handleSlashCommand(payload: DiscordInteractionPayload) {
       );
     }
     return discordMessageResponse(result.reply);
+  }
+
+  if (commandName === "weekly-pass") {
+    if (!guildId) {
+      return discordMessageResponse(t("errors.guildNotRegistered"));
+    }
+    if (!allianceId) {
+      return discordMessageResponse(
+        await setupMessage(locale, guildId, discordUserId),
+        undefined,
+        EPHEMERAL,
+      );
+    }
+    const active = parseSlashOptionBoolean(payload, "active") ?? true;
+    const result = await handleDiscordWeeklyPass({
+      discordUserId,
+      allianceId,
+      guildId,
+      locale,
+      active,
+    });
+    if (result.characterPicker?.length) {
+      return discordMessageResponse(
+        result.reply,
+        buildCharacterPickerButtons(result.characterPicker, "weekly-pass"),
+        EPHEMERAL,
+      );
+    }
+    return discordMessageResponse(result.reply, undefined, EPHEMERAL);
   }
 
   if (commandName === "vr-report" || commandName === "takedown-teams") {
@@ -521,6 +553,16 @@ async function handleButton(payload: DiscordInteractionPayload) {
       );
     }
     return discordButtonResponse(result.reply, undefined, { ephemeral: false });
+  }
+
+  if (parsed.kind === "weekly_pass_character") {
+    const result = await handleDiscordWeeklyPassCharacterPick({
+      allianceId,
+      discordUserId,
+      linkId: parsed.linkId,
+      locale,
+    });
+    return discordButtonResponse(result.reply, undefined, EPHEMERAL);
   }
 
   if (parsed.kind === "link_unlink") {

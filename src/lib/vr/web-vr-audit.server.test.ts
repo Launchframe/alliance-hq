@@ -18,7 +18,7 @@ describe("auditWebVrCommand", () => {
       allianceId: "alliance-1",
       hqUserId: "hq-1",
       ashedMemberId: "member-1",
-      payload: { explicitLevel: null, confirm: null },
+      payload: { explicitInstituteLevel: null, confirm: null },
       result: { status: "set_vr", message: "Saved.", newVr: 250 },
     });
 
@@ -33,7 +33,7 @@ describe("auditWebVrCommand", () => {
         metadata: {
           command: "vr",
           channel: "web",
-          payload: { explicitLevel: null, confirm: null },
+          payload: { explicitInstituteLevel: null, confirm: null },
           result: { status: "set_vr", message: "Saved.", newVr: 250 },
         },
       }),
@@ -49,8 +49,8 @@ describe("auditWebVrCommand", () => {
         sessionId: "session-1",
         allianceId: "alliance-1",
         hqUserId: "hq-1",
-        payload: { explicitLevel: 500, confirm: null },
-        result: { status: "validation_error", message: "Invalid VR." },
+        payload: { explicitInstituteLevel: 16, confirm: null },
+        result: { status: "validation_error", message: "Invalid level." },
       }),
     ).resolves.toBeUndefined();
 

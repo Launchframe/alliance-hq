@@ -3,7 +3,6 @@ import "server-only";
 import { eq } from "drizzle-orm";
 
 import {
-  DEFAULT_MAX_BASE_VR,
   gameSeasonIdForNumber,
   gameServerIdForNumber,
 } from "@/lib/game-season/game-servers.shared";
@@ -11,7 +10,6 @@ import { getDb, schema } from "@/lib/db";
 
 export {
   ABSOLUTE_VR_CEILING,
-  DEFAULT_MAX_BASE_VR,
   gameSeasonIdForNumber,
   gameServerIdForNumber,
 } from "@/lib/game-season/game-servers.shared";
@@ -27,7 +25,6 @@ export async function ensureGameSeason(seasonNumber: number): Promise<string> {
     .values({
       id,
       seasonNumber: normalized,
-      maxBaseVr: DEFAULT_MAX_BASE_VR,
       createdAt: now,
       updatedAt: now,
     })
@@ -142,27 +139,6 @@ export async function resolveAllianceGameServerNumber(
   }
 
   return row.serverNumber ?? null;
-}
-
-export async function resolveMaxBaseVrForAlliance(
-  allianceId: string,
-): Promise<number> {
-  const db = getDb();
-  const [row] = await db
-    .select({ maxBaseVr: schema.gameSeasons.maxBaseVr })
-    .from(schema.alliances)
-    .leftJoin(
-      schema.gameServers,
-      eq(schema.alliances.gameServerId, schema.gameServers.id),
-    )
-    .leftJoin(
-      schema.gameSeasons,
-      eq(schema.gameServers.seasonId, schema.gameSeasons.id),
-    )
-    .where(eq(schema.alliances.id, allianceId))
-    .limit(1);
-
-  return row?.maxBaseVr ?? DEFAULT_MAX_BASE_VR;
 }
 
 export async function listGameServersForSeasonCron(): Promise<

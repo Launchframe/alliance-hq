@@ -6,16 +6,16 @@ vi.mock("@/lib/member-link/repository.server", () => ({
   getHqMemberLinkForUser: vi.fn(),
 }));
 
-vi.mock("@/lib/game-season/game-servers.server", () => ({
-  resolveMaxBaseVrForAlliance: vi.fn().mockResolvedValue(12750),
-}));
-
 vi.mock("@/lib/vr/web-vr-audit.server", () => ({
   auditWebVrCommand: vi.fn(),
 }));
 
 vi.mock("@/lib/vr/repository", () => ({
   countSeasonReporters: vi.fn(),
+  getCommanderByAshedMemberId: vi.fn().mockResolvedValue({
+    commanderId: "cmd-1",
+    weeklyPassActive: false,
+  }),
   getHqVrPending: vi.fn(),
   getMemberSeasonHigh: vi.fn(),
   listMemberSeasonVrEvents: vi.fn().mockResolvedValue([]),
@@ -34,6 +34,7 @@ vi.mock("@/lib/vr/repository", () => ({
 import { getHqMemberLinkForUser } from "@/lib/member-link/repository.server";
 import {
   countSeasonReporters,
+  getCommanderByAshedMemberId,
   getHqVrPending,
   getMemberSeasonHigh,
   listMemberSeasonVrEvents,
@@ -62,6 +63,17 @@ describe("handleWebVrCommand", () => {
     vi.mocked(countSeasonReporters).mockResolvedValue(0);
     vi.mocked(listSeasonVrRows).mockResolvedValue([]);
     vi.mocked(getHqVrPending).mockResolvedValue(null);
+    vi.mocked(getCommanderByAshedMemberId).mockResolvedValue({
+      commanderId: "cmd-1",
+      weeklyPassActive: false,
+    } as never);
+    vi.mocked(resolveVrSeasonContext).mockResolvedValue({
+      seasonKey: "1",
+      isPostSeason: false,
+      vrUpdatesLocked: false,
+      priorSeason: null,
+      vrSandboxActive: false,
+    });
   });
 
   it("returns member_link_required when not linked", async () => {
@@ -81,26 +93,26 @@ describe("handleWebVrCommand", () => {
     );
   });
 
-  it("bumps to 250 when no season high", async () => {
+  it("bumps to season min VR when no season high", async () => {
     const result = await handleWebVrCommand({
       sessionId: "session-1",
       allianceId: "alliance-1",
       hqUserId: "hq-1",
       locale: "en-US",
     });
-    expect(result).toMatchObject({ status: "set_vr", newVr: 250 });
+    expect(result).toMatchObject({ status: "set_vr", newVr: 100 });
     expect(auditWebVrCommand).toHaveBeenCalledWith(
       expect.objectContaining({
         sessionId: "session-1",
         allianceId: "alliance-1",
         hqUserId: "hq-1",
         ashedMemberId: "member-1",
-        result: expect.objectContaining({ status: "set_vr", newVr: 250 }),
+        result: expect.objectContaining({ status: "set_vr", newVr: 100 }),
       }),
     );
     expect(upsertMemberSeasonVr).toHaveBeenCalledWith(
       expect.objectContaining({
-        baseVr: 250,
+        baseVr: 100,
         eventSource: "web",
         hqUserId: "hq-1",
       }),
@@ -151,6 +163,27 @@ describe("handleWebVrCommand", () => {
     expect(upsertMemberSeasonVr).not.toHaveBeenCalled();
   });
 
+  it("reports effective VR including weekly pass in set_vr success message", async () => {
+    vi.mocked(getCommanderByAshedMemberId).mockResolvedValue({
+      commanderId: "cmd-1",
+      weeklyPassActive: true,
+    } as never);
+
+    const result = await handleWebVrCommand({
+      sessionId: "session-1",
+      allianceId: "alliance-1",
+      hqUserId: "hq-1",
+      locale: "en-US",
+      explicitInstituteLevel: 1,
+    });
+
+    expect(result).toMatchObject({
+      status: "set_vr",
+      newVr: 100,
+      message: expect.stringMatching(/effective VR 350/),
+    });
+  });
+
   it("allows VR updates in sandbox mode during post-season", async () => {
     vi.mocked(resolveVrSeasonContext).mockResolvedValue({
       seasonKey: "sandbox:abc",
@@ -169,7 +202,7 @@ describe("handleWebVrCommand", () => {
       allianceId: "alliance-1",
       hqUserId: "hq-1",
       locale: "en-US",
-      explicitLevel: 5000,
+      explicitInstituteLevel: 20,
     });
 
     expect(result).toMatchObject({ status: "set_vr", newVr: 5000 });
@@ -208,6 +241,10 @@ describe("loadMyVrForUser", () => {
       priorSeason: "4",
       vrSandboxActive: false,
     });
+    vi.mocked(getCommanderByAshedMemberId).mockResolvedValue({
+      commanderId: "cmd-1",
+      weeklyPassActive: false,
+    } as never);
   });
 
   it("returns null when the user has no member link", async () => {
@@ -229,7 +266,11 @@ describe("loadMyVrForUser", () => {
       priorSeason: "4",
       seasonMaxVr: 500,
       currentVr: 500,
+      effectiveVr: 500,
+      weeklyPassBoost: 250,
+      instituteLevel: 5,
       commanderName: "Tester",
+      weeklyPassActive: false,
     });
   });
 });

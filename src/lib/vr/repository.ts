@@ -12,6 +12,7 @@ import { parseAshedMemberAllianceRank } from "@/lib/members/alliance-rank";
 import { isNativeAlliance } from "@/lib/native-alliance/operating-mode";
 import { buildFlagReason, peerMaxExcludingMember } from "@/lib/vr/anomaly";
 import { MAX_DISCORD_LINKS_PER_USER, type VrEventSource } from "@/lib/vr/constants";
+import { coerceInstituteLevelFromBaseVr } from "@/lib/vr/institute-levels.shared";
 import {
   evaluateGuildRegistrationAuth,
   type GuildRegistrationAuth,
@@ -24,23 +25,12 @@ import { getAllianceVrSandboxState } from "@/lib/vr/vr-sandbox.server";
 import type { VrSeasonContext } from "@/lib/vr/vr-season-lock.shared";
 import { resolveVrSeasonContextFromParts } from "@/lib/vr/vr-season-lock.shared";
 import type { LinkPendingState, VrPendingState } from "@/lib/vr/types";
+import { parseStoredVrPending } from "@/lib/vr/pending-state";
 
 const PENDING_TTL_MS = 30 * 60 * 1000;
 
 function parseVrPending(value: unknown): VrPendingState | null {
-  if (!value || typeof value !== "object") return null;
-  const r = value as Record<string, unknown>;
-  if (r.kind === "anomaly_confirm") {
-    return {
-      kind: "anomaly_confirm",
-      proposedVr: Number(r.proposedVr),
-      ashedMemberId: String(r.ashedMemberId),
-    };
-  }
-  if (r.kind === "pick_character" && Array.isArray(r.linkIds)) {
-    return { kind: "pick_character", linkIds: r.linkIds.map(String) };
-  }
-  return null;
+  return parseStoredVrPending(value);
 }
 
 function parseLinkPending(value: unknown): LinkPendingState | null {
@@ -546,6 +536,7 @@ export async function upsertMemberSeasonVr(input: {
   ashedMemberId: string;
   seasonKey: string;
   baseVr: number;
+  instituteLevel?: number | null;
   discordUserId?: string | null;
   hqUserId?: string | null;
   flagReason?: string | null;
@@ -558,6 +549,9 @@ export async function upsertMemberSeasonVr(input: {
     input.ashedMemberId,
     input.seasonKey,
   );
+  const instituteLevel =
+    input.instituteLevel ??
+    coerceInstituteLevelFromBaseVr(input.seasonKey, input.baseVr);
   const rows = await listSeasonVrRows(input.allianceId, input.seasonKey);
   const peerMax = peerMaxExcludingMember(rows, input.ashedMemberId);
   const flagReason =
@@ -574,6 +568,7 @@ export async function upsertMemberSeasonVr(input: {
       ashedMemberId: input.ashedMemberId,
       seasonKey: input.seasonKey,
       highestBaseVr: input.baseVr,
+      instituteLevel,
       updatedByDiscordUserId: input.discordUserId ?? null,
       updatedByHqUserId: input.hqUserId ?? null,
       flaggedAt: flagReason ? now : null,
@@ -589,6 +584,7 @@ export async function upsertMemberSeasonVr(input: {
       ],
       set: {
         highestBaseVr: input.baseVr,
+        instituteLevel,
         updatedByDiscordUserId: input.discordUserId ?? null,
         updatedByHqUserId: input.hqUserId ?? null,
         updatedAt: now,
@@ -604,6 +600,7 @@ export async function upsertMemberSeasonVr(input: {
       seasonKey: input.seasonKey,
       ashedMemberId: input.ashedMemberId,
       baseVr: input.baseVr,
+      instituteLevel,
       previousBaseVr,
       source: input.eventSource,
       reportedByHqUserId: input.hqUserId ?? null,
@@ -718,6 +715,70 @@ export async function listLeaderboardRows(allianceId: string, seasonKey: string)
     .orderBy(desc(schema.memberSeasonVr.highestBaseVr));
 }
 
+export async function listWeeklyPassActiveByAlliance(
+  allianceId: string,
+): Promise<Map<string, boolean>> {
+  const db = getDb();
+  const rows = await db
+    .select({
+      ashedMemberId: schema.commanderAllianceMemberships.ashedMemberId,
+      weeklyPassActive: schema.commanders.weeklyPassActive,
+    })
+    .from(schema.commanderAllianceMemberships)
+    .innerJoin(
+      schema.commanders,
+      eq(schema.commanderAllianceMemberships.commanderId, schema.commanders.id),
+    )
+    .where(eq(schema.commanderAllianceMemberships.allianceId, allianceId));
+
+  return new Map(
+    rows.map((row) => [row.ashedMemberId, row.weeklyPassActive]),
+  );
+}
+
+export async function getCommanderByAshedMemberId(
+  ashedMemberId: string,
+  allianceId: string,
+): Promise<{ commanderId: string; weeklyPassActive: boolean } | null> {
+  const db = getDb();
+  const [row] = await db
+    .select({
+      commanderId: schema.commanderAllianceMemberships.commanderId,
+      weeklyPassActive: schema.commanders.weeklyPassActive,
+    })
+    .from(schema.commanderAllianceMemberships)
+    .innerJoin(
+      schema.commanders,
+      eq(schema.commanderAllianceMemberships.commanderId, schema.commanders.id),
+    )
+    .where(
+      and(
+        eq(schema.commanderAllianceMemberships.allianceId, allianceId),
+        eq(schema.commanderAllianceMemberships.ashedMemberId, ashedMemberId),
+      ),
+    )
+    .limit(1);
+  return row ?? null;
+}
+
+export async function setWeeklyPass(input: {
+  commanderId: string;
+  active: boolean;
+  source: "self" | "officer";
+}): Promise<void> {
+  const db = getDb();
+  const now = new Date();
+  await db
+    .update(schema.commanders)
+    .set({
+      weeklyPassActive: input.active,
+      weeklyPassSource: input.source,
+      weeklyPassUpdatedAt: now,
+      updatedAt: now,
+    })
+    .where(eq(schema.commanders.id, input.commanderId));
+}
+
 export async function listFlaggedSeasonVr(allianceId: string, seasonKey: string) {
   const db = getDb();
   return db
@@ -738,6 +799,7 @@ export async function officerOverrideSeasonVr(input: {
   ashedMemberId: string;
   seasonKey: string;
   baseVr: number;
+  instituteLevel?: number | null;
   hqUserId: string;
   reason: string;
 }): Promise<void> {
@@ -746,6 +808,7 @@ export async function officerOverrideSeasonVr(input: {
     ashedMemberId: input.ashedMemberId,
     seasonKey: input.seasonKey,
     baseVr: input.baseVr,
+    instituteLevel: input.instituteLevel,
     hqUserId: input.hqUserId,
     flagReason: `officer_override:${input.reason}`,
     eventSource: "officer_override",

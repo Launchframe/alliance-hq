@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { effectiveBaseVr, WEEKLY_PASS_BOOST } from "@/lib/vr/effective-vr.shared";
 import {
   buildLeaderboardRows,
   buildTakedownTeams,
@@ -14,12 +15,15 @@ function sampleRow(
   vr: number,
   thp: number,
   name?: string,
+  weeklyPassActive = false,
 ) {
   return {
     ashedMemberId: id,
     memberName: name ?? id,
     highestBaseVr: vr,
+    instituteLevel: 1,
     totalHeroPower: thp,
+    weeklyPassActive,
     flagged: false,
     flagReason: null,
   };
@@ -35,6 +39,7 @@ describe("leaderboard", () => {
           ashedMemberId: "m1",
           seasonKey: "1",
           highestBaseVr: 5000,
+          instituteLevel: 20,
           flaggedAt: null,
           flagReason: null,
           updatedByDiscordUserId: null,
@@ -48,6 +53,7 @@ describe("leaderboard", () => {
           ashedMemberId: "m2",
           seasonKey: "1",
           highestBaseVr: 5000,
+          instituteLevel: 20,
           flaggedAt: null,
           flagReason: null,
           updatedByDiscordUserId: null,
@@ -61,8 +67,58 @@ describe("leaderboard", () => {
         { id: "m2", current_name: "Beta", total_hero_power: 200 },
       ] as never[],
       [],
+      "1",
     );
     expect(rows[0]?.ashedMemberId).toBe("m2");
+  });
+
+  it("sorts standings by base VR even when weekly pass is active", () => {
+    const rows = buildLeaderboardRows(
+      [
+        {
+          id: "1",
+          allianceId: "a",
+          ashedMemberId: "pass-holder",
+          seasonKey: "5",
+          highestBaseVr: 12000,
+          instituteLevel: 54,
+          flaggedAt: null,
+          flagReason: null,
+          updatedByDiscordUserId: null,
+          updatedByHqUserId: null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+        {
+          id: "2",
+          allianceId: "a",
+          ashedMemberId: "base-leader",
+          seasonKey: "5",
+          highestBaseVr: 12200,
+          instituteLevel: 55,
+          flaggedAt: null,
+          flagReason: null,
+          updatedByDiscordUserId: null,
+          updatedByHqUserId: null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ],
+      [
+        { id: "pass-holder", current_name: "Pass Holder", total_hero_power: 100 },
+        { id: "base-leader", current_name: "Base Leader", total_hero_power: 100 },
+      ] as never[],
+      [],
+      "5",
+      new Map([["pass-holder", true]]),
+    );
+
+    expect(rows.map((row) => row.ashedMemberId)).toEqual([
+      "base-leader",
+      "pass-holder",
+    ]);
+    expect(rows.find((row) => row.ashedMemberId === "pass-holder"))
+      .toMatchObject({ weeklyPassActive: true, highestBaseVr: 12000 });
   });
 
   it("maps heroPowerM to THP for native roster members", () => {
@@ -146,5 +202,48 @@ describe("leaderboard", () => {
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.needed).toBe(5);
+  });
+
+  it("effectiveBaseVr adds weekly pass boost when active", () => {
+    expect(effectiveBaseVr(7500, false)).toBe(7500);
+    expect(effectiveBaseVr(7500, true)).toBe(7500 + WEEKLY_PASS_BOOST);
+  });
+
+  it("buildTakedownTeams uses effective VR when weekly pass is active", () => {
+    const rows = [
+      sampleRow("lead1", 7500, 900, "Lead1", true),
+      ...Array.from({ length: 9 }, (_, index) =>
+        sampleRow(`m${index + 2}`, 7000 - index * 100, 800 - index * 10, `P${index}`),
+      ),
+    ];
+
+    const result = buildTakedownTeams(rows, 2);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    expect(result.teams[0]?.effectiveVr).toBe(7750);
+    const formatted = formatTakedownReport(result.teams, "3", "LFgo");
+    expect(formatted).toMatch(/inherits 7750 VR/);
+  });
+
+  it("selects takedown leads by effective VR without changing standings rank", () => {
+    const rows = [
+      sampleRow("base-leader", 7600, 900, "Base Leader"),
+      sampleRow("pass-holder", 7500, 850, "Pass Holder", true),
+      ...Array.from({ length: 8 }, (_, index) =>
+        sampleRow(`m${index + 1}`, 7000 - index * 100, 800 - index * 10, `P${index}`),
+      ),
+    ];
+
+    const result = buildTakedownTeams(rows, 1);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    expect(result.teams[0]?.rallyLead.ashedMemberId).toBe("pass-holder");
+    expect(result.teams[0]?.effectiveVr).toBe(7750);
+    expect(rows.map((row) => row.ashedMemberId).slice(0, 2)).toEqual([
+      "base-leader",
+      "pass-holder",
+    ]);
   });
 });

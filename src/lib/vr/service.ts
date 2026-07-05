@@ -3,14 +3,15 @@ import {
   createDiscordTranslator,
   tStringArray,
   type DiscordBotLocale,
+  type DiscordTranslate,
 } from "@/lib/discord/i18n";
 import { lookupPlayerByUid } from "@/lib/lastwar/player-lookup";
 import type { LastWarPlayerLookupResult } from "@/lib/lastwar/player-lookup";
 import { syncAllianceMemberGameLevelFromLastWar } from "@/lib/lastwar/sync-member-game-level.server";
-import { resolveMaxBaseVrForAlliance } from "@/lib/game-season/game-servers.server";
 import { peerMaxExcludingMember } from "@/lib/vr/anomaly";
 import { MAX_DISCORD_LINKS_PER_USER } from "@/lib/vr/constants";
 import { processVrCommand, processVrConfirmation } from "@/lib/vr/command";
+import { effectiveBaseVr } from "@/lib/vr/effective-vr.shared";
 import {
   processLinkCommand,
   processLinkFuzzyPick,
@@ -32,12 +33,18 @@ import {
   type VrSeasonContext,
 } from "@/lib/vr/vr-season-lock.shared";
 import {
+  formatInstituteLevelValidationError,
+  instituteLevelForBaseVr,
+  validateInstituteLevelForSeason,
+} from "@/lib/vr/validation";
+import {
   countSeasonReporters,
   getAllianceById,
   getDiscordBotPending,
   getDiscordHqLink,
   getDiscordLinkById,
   getGuildAllianceId,
+  getCommanderByAshedMemberId,
   getLinkedMemberIds,
   getMemberSeasonHigh,
   listDiscordLinksForUser,
@@ -46,10 +53,17 @@ import {
   maybeClaimNativeOwnerFromDiscordLink,
   resolveVrSeasonContext,
   saveDiscordBotPending,
+  setWeeklyPass,
   upsertMemberSeasonVr,
   writeDiscordBotAudit,
 } from "@/lib/vr/repository";
-import type { LinkCommandResult, LinkPendingState, VrCommandResult, VrPendingState } from "@/lib/vr/types";
+import type {
+  LinkCommandResult,
+  LinkPendingState,
+  VrCommandResult,
+  VrPendingState,
+  WeeklyPassCommandResult,
+} from "@/lib/vr/types";
 
 export {
   handleDiscordHelp,
@@ -631,7 +645,7 @@ async function resolveTargetLink(input: {
 export async function handleDiscordVrSlash(input: {
   allianceId: string;
   discordUserId: string;
-  explicitLevel?: number | null;
+  explicitInstituteLevel?: number | null;
   linkId?: string | null;
   locale: DiscordBotLocale;
 }): Promise<VrCommandResult> {
@@ -692,17 +706,34 @@ export async function handleDiscordVrSlash(input: {
     listSeasonVrRows(input.allianceId, seasonKey),
   ]);
   const peerMax = peerMaxExcludingMember(seasonRows, target.ashedMemberId);
-  const maxBaseVr = await resolveMaxBaseVrForAlliance(input.allianceId);
+
+  let explicitBaseVr: number | undefined;
+  if (input.explicitInstituteLevel != null) {
+    const validated = validateInstituteLevelForSeason(
+      seasonKey,
+      input.explicitInstituteLevel,
+    );
+    if (!validated.ok) {
+      const result: VrCommandResult = {
+        reply: formatInstituteLevelValidationError(validated),
+        pending,
+        action: { type: "none" as const },
+      };
+      await audit(input.allianceId, input.discordUserId, "vr", input, result);
+      return applyVrSandboxReply(result, season, translate);
+    }
+    explicitBaseVr = validated.baseVr;
+  }
 
   const result = processVrCommand({
-    explicitLevel: input.explicitLevel,
+    explicitLevel: explicitBaseVr,
     seasonHigh,
     ashedMemberId: target.ashedMemberId,
     pending,
     reporterCount,
     peerMax,
     translate,
-    maxBaseVr,
+    seasonKey,
   });
 
   await saveDiscordBotPending(input.allianceId, input.discordUserId, result.pending);
@@ -718,6 +749,20 @@ export async function handleDiscordVrSlash(input: {
       eventSource: "discord",
     });
     await saveDiscordBotPending(input.allianceId, input.discordUserId, null);
+    const commander = await getCommanderByAshedMemberId(
+      target.ashedMemberId,
+      input.allianceId,
+    );
+    const instituteLevel =
+      instituteLevelForBaseVr(seasonKey, result.action.vr) ?? "?";
+    const effectiveVr = effectiveBaseVr(
+      result.action.vr,
+      commander?.weeklyPassActive ?? false,
+    );
+    result.reply = translate("vr.success", {
+      level: instituteLevel,
+      effectiveVr,
+    });
   }
 
   await audit(input.allianceId, input.discordUserId, "vr", input, result);
@@ -736,6 +781,154 @@ export async function handleDiscordVrCharacterPick(input: {
     linkId: input.linkId,
     locale: input.locale,
   });
+}
+
+export async function handleDiscordWeeklyPass(input: {
+  discordUserId: string;
+  allianceId: string;
+  guildId: string;
+  locale: DiscordBotLocale;
+  active: boolean;
+  linkId?: string | null;
+}): Promise<WeeklyPassCommandResult> {
+  const { translate } = botContext(input.locale);
+  const target = await resolveTargetLink({
+    allianceId: input.allianceId,
+    discordUserId: input.discordUserId,
+    linkId: input.linkId,
+  });
+
+  if (target === null) {
+    const reply = translate("vr.notLinked");
+    await audit(input.allianceId, input.discordUserId, "weekly-pass", input, {
+      reply,
+    });
+    return { reply };
+  }
+
+  if (target === "pick") {
+    const links = await listDiscordLinksForUser(
+      input.allianceId,
+      input.discordUserId,
+    );
+    const pending: VrPendingState = {
+      kind: "weekly_pass_pick_character",
+      linkIds: links.map((l) => l.id),
+      active: input.active,
+    };
+    await saveDiscordBotPending(input.allianceId, input.discordUserId, pending);
+    const reply = translate("weeklyPass.pickCharacter");
+    const characterPicker = links.map((l) => ({
+      linkId: l.id,
+      label: l.memberDisplayName ?? l.ashedMemberId,
+    }));
+    await audit(input.allianceId, input.discordUserId, "weekly-pass", input, {
+      reply,
+      pending,
+    });
+    return { reply, characterPicker };
+  }
+
+  const result = await applyWeeklyPassForLink({
+    allianceId: input.allianceId,
+    discordUserId: input.discordUserId,
+    ashedMemberId: target.ashedMemberId,
+    active: input.active,
+    translate,
+  });
+  await saveDiscordBotPending(input.allianceId, input.discordUserId, null);
+  await audit(input.allianceId, input.discordUserId, "weekly-pass", input, result);
+  return result;
+}
+
+export async function handleDiscordWeeklyPassCharacterPick(input: {
+  allianceId: string;
+  discordUserId: string;
+  linkId: string;
+  locale: DiscordBotLocale;
+}): Promise<WeeklyPassCommandResult> {
+  const { translate } = botContext(input.locale);
+  const pendingRow = await getDiscordBotPending(input.discordUserId);
+  const pending = (pendingRow?.pending ?? null) as VrPendingState | null;
+
+  if (!pending || pending.kind !== "weekly_pass_pick_character") {
+    const reply = translate("weeklyPass.pickExpired");
+    await audit(
+      input.allianceId,
+      input.discordUserId,
+      "weekly-pass_pick",
+      input,
+      { reply },
+    );
+    return { reply };
+  }
+
+  const link = await getDiscordLinkById(input.linkId);
+  if (
+    !link ||
+    link.allianceId !== input.allianceId ||
+    link.discordUserId !== input.discordUserId ||
+    !pending.linkIds.includes(link.id)
+  ) {
+    const reply = translate("weeklyPass.pickExpired");
+    await audit(
+      input.allianceId,
+      input.discordUserId,
+      "weekly-pass_pick",
+      input,
+      { reply },
+    );
+    return { reply };
+  }
+
+  const result = await applyWeeklyPassForLink({
+    allianceId: input.allianceId,
+    discordUserId: input.discordUserId,
+    ashedMemberId: link.ashedMemberId,
+    active: pending.active,
+    translate,
+  });
+  await saveDiscordBotPending(input.allianceId, input.discordUserId, null);
+  await audit(
+    input.allianceId,
+    input.discordUserId,
+    "weekly-pass_pick",
+    input,
+    result,
+  );
+  return result;
+}
+
+async function applyWeeklyPassForLink(input: {
+  allianceId: string;
+  discordUserId: string;
+  ashedMemberId: string;
+  active: boolean;
+  translate: DiscordTranslate;
+}): Promise<WeeklyPassCommandResult> {
+  const commander = await getCommanderByAshedMemberId(
+    input.ashedMemberId,
+    input.allianceId,
+  );
+  if (!commander) {
+    return { reply: input.translate("weeklyPass.commanderNotFound") };
+  }
+
+  try {
+    await setWeeklyPass({
+      commanderId: commander.commanderId,
+      active: input.active,
+      source: "self",
+    });
+  } catch (error) {
+    console.error("[discord-bot] weekly-pass update failed", error);
+    return { reply: input.translate("weeklyPass.updateFailed") };
+  }
+
+  const reply = input.active
+    ? input.translate("weeklyPass.activated")
+    : input.translate("weeklyPass.deactivated");
+  return { reply };
 }
 
 export async function handleDiscordVrButtonConfirm(input: {
@@ -768,7 +961,12 @@ export async function handleDiscordVrButtonConfirm(input: {
     return result;
   }
 
-  const result = processVrConfirmation({ answer: input.answer, pending, translate });
+  const result = processVrConfirmation({
+    answer: input.answer,
+    pending,
+    translate,
+    seasonKey: season.seasonKey,
+  });
   await saveDiscordBotPending(input.allianceId, input.discordUserId, result.pending);
 
   if (result.action.type === "set_vr") {
@@ -783,6 +981,20 @@ export async function handleDiscordVrButtonConfirm(input: {
       eventSource: "discord",
     });
     await saveDiscordBotPending(input.allianceId, input.discordUserId, null);
+    const commander = await getCommanderByAshedMemberId(
+      result.action.ashedMemberId,
+      input.allianceId,
+    );
+    const instituteLevel =
+      instituteLevelForBaseVr(seasonKey, result.action.vr) ?? "?";
+    const effectiveVr = effectiveBaseVr(
+      result.action.vr,
+      commander?.weeklyPassActive ?? false,
+    );
+    result.reply = translate("vr.success", {
+      level: instituteLevel,
+      effectiveVr,
+    });
   }
 
   await audit(input.allianceId, input.discordUserId, "vr_confirm", input, result);

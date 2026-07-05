@@ -1,32 +1,80 @@
+import {
+  baseVrForInstituteLevel,
+  coerceInstituteLevelFromBaseVr,
+  formatBaseVrValidationError,
+  formatInstituteLevelValidationError,
+  instituteLevelForBaseVr,
+  isValidBaseVrForSeason,
+  isValidInstituteLevel,
+  maxBaseVrForSeason,
+  maxInstituteLevel,
+  minBaseVrForSeason,
+  minInstituteLevel,
+  nextInstituteLevel,
+  previousInstituteLevel,
+  validateBaseVrForSeason,
+  validateInstituteLevelForSeason,
+} from "@/lib/vr/institute-levels.shared";
+
+/** @deprecated Prefer season ladder; kept for Discord option registration ceiling. */
 export const VR_STEP = 250;
-export const VR_MIN = 250;
-/** Absolute ceiling for Discord slash registration; runtime caps use season max_base_vr. */
-export const VR_MAX = 12750;
+export const VR_MIN = 100;
+/** Absolute ceiling for Discord slash registration (S5 max). */
+export const VR_MAX = 28000;
 export const ANOMALY_GAP = 750;
 export const ANOMALY_MIN_REPORTERS = 10;
 export const OFFICER_REVIEW_THRESHOLD = 10250;
 
+export {
+  baseVrForInstituteLevel,
+  coerceInstituteLevelFromBaseVr,
+  formatBaseVrValidationError,
+  formatInstituteLevelValidationError,
+  instituteLevelForBaseVr,
+  isValidBaseVrForSeason,
+  isValidInstituteLevel,
+  maxBaseVrForSeason,
+  maxInstituteLevel,
+  minBaseVrForSeason,
+  minInstituteLevel,
+  nextInstituteLevel,
+  previousInstituteLevel,
+  validateBaseVrForSeason,
+  validateInstituteLevelForSeason,
+};
+
+/** @deprecated Use isValidBaseVrForSeason(seasonKey, vr). */
 export function isValidBaseVr(vr: number, maxVr: number = VR_MAX): boolean {
-  return (
-    Number.isInteger(vr) &&
-    vr >= VR_MIN &&
-    vr <= maxVr &&
-    vr % VR_STEP === 0
-  );
+  return Number.isInteger(vr) && vr >= VR_MIN && vr <= maxVr;
 }
 
-export function nextBaseVr(current: number): number {
-  return current + VR_STEP;
+export function nextBaseVrForSeason(
+  seasonKey: string,
+  currentVr: number | null,
+): number | null {
+  const currentLevel =
+    currentVr == null || currentVr <= 0
+      ? null
+      : coerceInstituteLevelFromBaseVr(seasonKey, currentVr);
+  const nextLevel = nextInstituteLevel(seasonKey, currentLevel);
+  if (nextLevel == null) return null;
+  return baseVrForInstituteLevel(seasonKey, nextLevel);
 }
 
-export function maxAllowedDowngrade(seasonHigh: number): number {
-  return Math.max(VR_MIN, seasonHigh - VR_STEP);
+export function maxAllowedDowngradeForSeason(
+  seasonKey: string,
+  seasonHigh: number,
+): number {
+  const level = coerceInstituteLevelFromBaseVr(seasonKey, seasonHigh);
+  const prev = previousInstituteLevel(seasonKey, level);
+  return baseVrForInstituteLevel(seasonKey, prev) ?? minBaseVrForSeason(seasonKey);
 }
 
+export function initialBaseVrForBump(seasonKey: string): number {
+  return minBaseVrForSeason(seasonKey);
+}
+
+/** @deprecated Use formatBaseVrValidationError(validateBaseVrForSeason(...)). */
 export function formatVrValidationError(maxVr: number = VR_MAX): string {
-  return `Base VR must be a whole number from ${VR_MIN} to ${maxVr} in steps of ${VR_STEP}.`;
-}
-
-export function initialBaseVrForBump(): number {
-  return VR_MIN;
+  return `Enter a value between ${VR_MIN} and ${maxVr}.`;
 }

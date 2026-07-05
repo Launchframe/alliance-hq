@@ -95,7 +95,6 @@ export const gameSeasons = pgTable("game_seasons", {
   id: text("id").primaryKey(),
   seasonNumber: integer("season_number").notNull().unique(),
   maxProfessionLevel: integer("max_profession_level"),
-  maxBaseVr: integer("max_base_vr").notNull().default(10000),
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
     .notNull(),
@@ -778,6 +777,8 @@ export const memberSeasonVr = pgTable(
     ashedMemberId: text("ashed_member_id").notNull(),
     seasonKey: text("season_key").notNull(),
     highestBaseVr: integer("highest_base_vr").notNull(),
+    /** Season institute building level (source of truth for VR ladder). */
+    instituteLevel: integer("institute_level"),
     flaggedAt: timestamp("flagged_at", { withTimezone: true }),
     flagReason: text("flag_reason"),
     updatedByDiscordUserId: text("updated_by_discord_user_id"),
@@ -811,6 +812,7 @@ export const memberSeasonVrEvents = pgTable(
     seasonKey: text("season_key").notNull(),
     ashedMemberId: text("ashed_member_id").notNull(),
     baseVr: integer("base_vr").notNull(),
+    instituteLevel: integer("institute_level"),
     previousBaseVr: integer("previous_base_vr"),
     source: text("source").notNull(),
     reportedByHqUserId: text("reported_by_hq_user_id").references(
@@ -1266,6 +1268,13 @@ export const commanders = pgTable(
       "self_report" | "officer_override" | null
     >(),
     mainSquadUpdatedAt: timestamp("main_squad_updated_at", {
+      withTimezone: true,
+    }),
+    weeklyPassActive: boolean("weekly_pass_active").notNull().default(false),
+    weeklyPassSource: text("weekly_pass_source").$type<
+      "self" | "officer" | null
+    >(),
+    weeklyPassUpdatedAt: timestamp("weekly_pass_updated_at", {
       withTimezone: true,
     }),
     currentAllianceId: text("current_alliance_id").references(

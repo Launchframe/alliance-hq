@@ -4,7 +4,7 @@ import { writeAuditLog } from "@/lib/bff/audit";
 import type { MyVrPostResponse } from "@/lib/vr/my-vr.shared";
 
 export type WebVrAuditPayload = {
-  explicitLevel?: number | null;
+  explicitInstituteLevel?: number | null;
   confirm?: "yes" | "no" | null;
 };
 

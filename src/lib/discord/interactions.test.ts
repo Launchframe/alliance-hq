@@ -2,6 +2,7 @@ import nacl from "tweetnacl";
 import { describe, expect, it } from "vitest";
 
 import {
+  buildCharacterPickerButtons,
   buildLinkIdentityConfirmButtons,
   buildVrConfirmButtons,
   discordComponentMessageResponse,
@@ -70,6 +71,10 @@ describe("discord interactions", () => {
       kind: "vr_confirm",
       answer: "yes",
     });
+    expect(parseButtonCustomId("weekly-pass:character:link-row-1")).toEqual({
+      kind: "weekly_pass_character",
+      linkId: "link-row-1",
+    });
     expect(parseButtonCustomId("link:confirm:yes")).toEqual({
       kind: "link_confirm",
       answer: "yes",
@@ -105,6 +110,16 @@ describe("discord interactions", () => {
     const components = buildVrConfirmButtons(7425, { yes: "Yes", no: "No" });
     expect(components[0]?.components).toHaveLength(2);
     expect(components[0]?.components[0]?.custom_id).toBe("vr:confirm:7425:yes");
+  });
+
+  it("builds weekly-pass character picker buttons", () => {
+    const components = buildCharacterPickerButtons(
+      [{ linkId: "link-row-1", label: "Commander One" }],
+      "weekly-pass",
+    );
+    expect(components[0]?.components[0]?.custom_id).toBe(
+      "weekly-pass:character:link-row-1",
+    );
   });
 
   it("defaults discord responses to non-ephemeral", () => {

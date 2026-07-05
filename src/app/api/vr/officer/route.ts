@@ -1,11 +1,15 @@
 import { NextResponse } from "next/server";
 
-import { isValidBaseVr } from "@/lib/vr/validation";
+import {
+  formatInstituteLevelValidationError,
+  validateInstituteLevelForSeason,
+} from "@/lib/vr/validation";
 import {
   listFlaggedSeasonVr,
   officerOverrideSeasonVr,
   resolveSeasonKey,
 } from "@/lib/vr/repository";
+import { loadAllianceMembersForBot } from "@/lib/vr/member-roster";
 import { getOrCreateSession } from "@/lib/session";
 import { requireSessionPermission } from "@/lib/rbac/require-permission";
 
@@ -22,8 +26,19 @@ export async function GET() {
   }
 
   const seasonKey = await resolveSeasonKey(allianceId);
-  const flagged = await listFlaggedSeasonVr(allianceId, seasonKey);
-  return NextResponse.json({ seasonKey, flagged });
+  const [flagged, members] = await Promise.all([
+    listFlaggedSeasonVr(allianceId, seasonKey),
+    loadAllianceMembersForBot(allianceId),
+  ]);
+  return NextResponse.json({
+    seasonKey,
+    flagged,
+    members: members.map((m) => ({
+      id: m.id,
+      current_name: m.current_name,
+      previous_names: m.previous_names ?? [],
+    })),
+  });
 }
 
 export async function POST(request: Request) {
@@ -38,26 +53,39 @@ export async function POST(request: Request) {
 
   const body = (await request.json()) as {
     ashedMemberId?: string;
-    baseVr?: number;
+    instituteLevel?: number;
     reason?: string;
   };
   const ashedMemberId = body.ashedMemberId?.trim();
-  const baseVr = body.baseVr;
+  const instituteLevel = body.instituteLevel;
   const reason = body.reason?.trim() || "officer correction";
 
-  if (!ashedMemberId || baseVr == null || !isValidBaseVr(baseVr)) {
+  if (!ashedMemberId || instituteLevel == null || !Number.isInteger(instituteLevel)) {
     return NextResponse.json({ error: "Invalid override payload." }, { status: 400 });
   }
 
   const seasonKey = await resolveSeasonKey(allianceId);
+  const validated = validateInstituteLevelForSeason(seasonKey, instituteLevel);
+  if (!validated.ok) {
+    return NextResponse.json(
+      { error: formatInstituteLevelValidationError(validated) },
+      { status: 400 },
+    );
+  }
+
   await officerOverrideSeasonVr({
     allianceId,
     ashedMemberId,
     seasonKey,
-    baseVr,
+    baseVr: validated.baseVr,
+    instituteLevel: validated.instituteLevel,
     hqUserId: session.hqUserId,
     reason,
   });
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({
+    ok: true,
+    instituteLevel: validated.instituteLevel,
+    baseVr: validated.baseVr,
+  });
 }

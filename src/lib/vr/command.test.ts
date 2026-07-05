@@ -9,60 +9,62 @@ describe("processVrCommand", () => {
   const base = {
     ashedMemberId: "member-1",
     reporterCount: 10,
-    peerMax: 7250,
+    peerMax: 7000,
     pending: null,
     translate,
-    maxBaseVr: 12750,
+    seasonKey: "1",
   };
 
-  it("increments from season high by 250", () => {
-    const result = processVrCommand({ ...base, seasonHigh: 7250 });
+  it("increments by one institute level (including +400 steps)", () => {
+    const result = processVrCommand({ ...base, seasonHigh: 3000 });
     expect(result.action).toEqual({
       type: "set_vr",
-      vr: 7500,
+      vr: 3400,
       ashedMemberId: "member-1",
     });
   });
 
-  it("starts at 250 when no season high exists", () => {
+  it("starts at season min VR when no season high exists", () => {
     const result = processVrCommand({ ...base, seasonHigh: null });
-    expect(result.action).toMatchObject({ type: "set_vr", vr: 250 });
+    expect(result.action).toMatchObject({ type: "set_vr", vr: 100 });
   });
 
-  it("rejects invalid explicit values", () => {
+  it("rejects invalid explicit values with nearest ladder neighbors", () => {
     const result = processVrCommand({
       ...base,
-      seasonHigh: 7250,
-      explicitLevel: 7251,
+      seasonHigh: 3000,
+      explicitLevel: 3300,
     });
     expect(result.action).toEqual({ type: "none" });
+    expect(result.reply).toMatch(/3000/);
+    expect(result.reply).toMatch(/3400/);
   });
 
-  it("blocks downgrade beyond one ladder step", () => {
+  it("blocks downgrade beyond one institute level", () => {
     const result = processVrCommand({
       ...base,
-      seasonHigh: 7500,
-      explicitLevel: 7000,
+      seasonHigh: 3400,
+      explicitLevel: 2750,
     });
-    expect(result.reply).toMatch(/one step/i);
+    expect(result.reply).toMatch(/more than one below/i);
   });
 
   it("prompts anomaly confirm when far above peers", () => {
     const result = processVrCommand({
       ...base,
-      seasonHigh: 7250,
+      seasonHigh: 3000,
       explicitLevel: 8000,
+      peerMax: 3000,
     });
     expect(result.needsConfirmation).toBe(true);
     expect(result.pending?.kind).toBe("anomaly_confirm");
   });
 
-  it("respects season max base VR cap", () => {
+  it("respects season max institute VR", () => {
     const result = processVrCommand({
       ...base,
-      seasonHigh: 7250,
+      seasonHigh: 9500,
       explicitLevel: 10000,
-      maxBaseVr: 10000,
       peerMax: 9900,
     });
     expect(result.action).toEqual({
@@ -73,11 +75,10 @@ describe("processVrCommand", () => {
     const over = processVrCommand({
       ...base,
       seasonHigh: 10000,
-      maxBaseVr: 10000,
       peerMax: 9900,
     });
     expect(over.action).toEqual({ type: "none" });
-    expect(over.reply).toMatch(/10000/);
+    expect(over.reply).toMatch(/max institute level \(30\)/i);
   });
 });
 
@@ -91,6 +92,7 @@ describe("processVrConfirmation", () => {
         ashedMemberId: "member-1",
       },
       translate,
+      seasonKey: "1",
     });
     expect(result.action).toMatchObject({ type: "set_vr", vr: 8000 });
   });

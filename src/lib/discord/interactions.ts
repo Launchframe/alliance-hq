@@ -97,6 +97,14 @@ export function parseSlashOptionInteger(
   return typeof option?.value === "number" ? option.value : undefined;
 }
 
+export function parseSlashOptionBoolean(
+  payload: DiscordInteractionPayload,
+  name: string,
+): boolean | undefined {
+  const option = payload.data?.options?.find((o) => o.name === name);
+  return typeof option?.value === "boolean" ? option.value : undefined;
+}
+
 export function parseVrSlashLevel(
   payload: DiscordInteractionPayload,
 ): number | null | undefined {
@@ -123,6 +131,7 @@ export type ParsedButton =
   | { kind: "link_pick"; memberId: string }
   | { kind: "link_walkthrough_done" }
   | { kind: "vr_character"; linkId: string }
+  | { kind: "weekly_pass_character"; linkId: string }
   | { kind: "link_unlink"; linkId: string }
   | { kind: "link_start_over" }
   | { kind: "link_ask_officer" }
@@ -150,6 +159,10 @@ export function parseButtonCustomId(
   if (customId === "link:ask_officer") return { kind: "link_ask_officer" };
   const charPick = /^vr:character:(.+)$/.exec(customId);
   if (charPick) return { kind: "vr_character", linkId: charPick[1]! };
+  const weeklyPassPick = /^weekly-pass:character:(.+)$/.exec(customId);
+  if (weeklyPassPick) {
+    return { kind: "weekly_pass_character", linkId: weeklyPassPick[1]! };
+  }
   const unlinkPick = /^link:unlink:(.+)$/.exec(customId);
   if (unlinkPick) return { kind: "link_unlink", linkId: unlinkPick[1]! };
   const trainPick = /^train:pick:([^:]+):(\d{4}-\d{2}-\d{2})$/.exec(customId);
@@ -242,8 +255,14 @@ export function buildLinkFuzzyButtons(
 
 export function buildCharacterPickerButtons(
   links: Array<{ linkId: string; label: string }>,
-  prefix: "vr" | "unlink" = "vr",
+  prefix: "vr" | "unlink" | "weekly-pass" = "vr",
 ) {
+  const customIdPrefix =
+    prefix === "unlink"
+      ? "link:unlink"
+      : prefix === "weekly-pass"
+        ? "weekly-pass:character"
+        : "vr:character";
   return [
     {
       type: 1,
@@ -251,7 +270,7 @@ export function buildCharacterPickerButtons(
         type: 2,
         style: prefix === "unlink" ? 4 : 1,
         label: l.label.slice(0, 80),
-        custom_id: `${prefix === "unlink" ? "link:unlink" : "vr:character"}:${l.linkId}`,
+        custom_id: `${customIdPrefix}:${l.linkId}`,
       })),
     },
   ];

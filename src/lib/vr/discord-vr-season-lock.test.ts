@@ -2,12 +2,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createDiscordTranslator } from "@/lib/discord/i18n";
 
-vi.mock("@/lib/game-season/game-servers.server", () => ({
-  resolveMaxBaseVrForAlliance: vi.fn(),
-}));
-
 vi.mock("@/lib/vr/repository", () => ({
   countSeasonReporters: vi.fn(),
+  getCommanderByAshedMemberId: vi.fn().mockResolvedValue({
+    commanderId: "cmd-1",
+    weeklyPassActive: false,
+  }),
   getDiscordBotPending: vi.fn(),
   getDiscordLinkById: vi.fn(),
   getMemberSeasonHigh: vi.fn(),

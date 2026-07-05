@@ -24,8 +24,13 @@ test.describe("My VR tracker", () => {
     await expect(page.getByTestId("my-vr-hero-value")).toHaveText("—");
 
     await page.getByTestId("my-vr-bump").click();
-    await expect(page.getByTestId("my-vr-hero-value")).toHaveText("250", {
+    // First report is institute level 1 (season min VR — 100 for S1–S5, 250 for S6).
+    await expect(page.getByTestId("my-vr-hero-value")).toHaveText("100", {
       timeout: 15_000,
     });
+    await expect(page.getByTestId("my-vr-breakdown")).toHaveText("100");
+    await expect(page.getByTestId("my-vr-institute-level")).toHaveText(
+      /institute level\s+1/i,
+    );
   });
 });

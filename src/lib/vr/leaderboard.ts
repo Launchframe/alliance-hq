@@ -3,12 +3,16 @@ import type { AshedMember } from "@/lib/video/member-matcher";
 import { assignSnakeDraft } from "@/lib/shared/snake-draft.shared";
 
 import type { MemberSeasonVr } from "@/lib/db/schema";
+import { effectiveBaseVr } from "@/lib/vr/effective-vr.shared";
+import { coerceInstituteLevelFromBaseVr } from "@/lib/vr/institute-levels.shared";
 
 export type LeaderboardRow = {
   ashedMemberId: string;
   memberName: string;
   highestBaseVr: number;
+  instituteLevel: number;
   totalHeroPower: number;
+  weeklyPassActive: boolean;
   flagged: boolean;
   flagReason: string | null;
 };
@@ -48,6 +52,8 @@ export function buildLeaderboardRows(
   seasonRows: MemberSeasonVr[],
   members: AshedMember[],
   links: Array<{ ashedMemberId: string; memberDisplayName: string | null }>,
+  seasonKey: string,
+  weeklyPassByMemberId?: ReadonlyMap<string, boolean>,
 ): LeaderboardRow[] {
   const memberById = new Map(members.map((m) => [m.id, m]));
   const linkNameById = new Map(
@@ -61,11 +67,16 @@ export function buildLeaderboardRows(
         linkNameById.get(row.ashedMemberId) ??
         member?.current_name ??
         row.ashedMemberId;
+      const instituteLevel =
+        row.instituteLevel ??
+        coerceInstituteLevelFromBaseVr(seasonKey, row.highestBaseVr);
       return {
         ashedMemberId: row.ashedMemberId,
         memberName,
         highestBaseVr: row.highestBaseVr,
+        instituteLevel,
         totalHeroPower: member ? memberTotalHeroPower(member) : 0,
+        weeklyPassActive: weeklyPassByMemberId?.get(row.ashedMemberId) ?? false,
         flagged: row.flaggedAt != null,
         flagReason: row.flagReason,
       };
@@ -125,8 +136,19 @@ export function buildTakedownTeams(
     return { ok: false, error: "insufficient_players", needed, have: rows.length };
   }
 
-  const leads = rows.slice(0, teamCount);
-  const pool = rows
+  const teamOrder = rows.slice().sort((a, b) => {
+    const effectiveDelta =
+      effectiveBaseVr(b.highestBaseVr, b.weeklyPassActive) -
+      effectiveBaseVr(a.highestBaseVr, a.weeklyPassActive);
+    if (effectiveDelta !== 0) return effectiveDelta;
+    if (b.highestBaseVr !== a.highestBaseVr) {
+      return b.highestBaseVr - a.highestBaseVr;
+    }
+    return b.totalHeroPower - a.totalHeroPower;
+  });
+
+  const leads = teamOrder.slice(0, teamCount);
+  const pool = teamOrder
     .slice(teamCount)
     .slice()
     .sort((a, b) => b.totalHeroPower - a.totalHeroPower);
@@ -137,7 +159,7 @@ export function buildTakedownTeams(
     teamIndex: index + 1,
     rallyLead: lead,
     fillers: fillerGroups[index] ?? [],
-    effectiveVr: lead.highestBaseVr,
+    effectiveVr: effectiveBaseVr(lead.highestBaseVr, lead.weeklyPassActive),
   }));
 
   return { ok: true, teams };

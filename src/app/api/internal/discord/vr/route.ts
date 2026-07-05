@@ -11,7 +11,7 @@ export const runtime = "nodejs";
 type VrRequestBody = {
   allianceId?: string;
   discordUserId?: string;
-  explicitLevel?: number | null;
+  explicitInstituteLevel?: number | null;
   confirm?: "yes" | "no";
 };
 
@@ -47,7 +47,7 @@ export async function POST(request: Request) {
       : await handleDiscordVrSlash({
           allianceId,
           discordUserId,
-          explicitLevel: body.explicitLevel,
+          explicitInstituteLevel: body.explicitInstituteLevel,
           locale: "en-US",
         });
 
