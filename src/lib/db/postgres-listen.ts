@@ -19,7 +19,12 @@ export async function startPostgresListen(
   try {
     await listenClient.listen(channel, onPayload);
   } catch (error) {
-    onError(error);
+    console.error("[postgres-listen] LISTEN failed:", error);
+    try {
+      onError(error);
+    } catch (handlerError) {
+      console.error("[postgres-listen] onError handler failed:", handlerError);
+    }
     await listenClient.end({ timeout: 0 }).catch(() => undefined);
   }
 }
