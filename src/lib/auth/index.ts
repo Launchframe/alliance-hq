@@ -1,5 +1,6 @@
 import "server-only";
 
+import { cookies } from "next/headers";
 import NextAuth from "next-auth";
 
 import {
@@ -13,6 +14,7 @@ import { oauthEmailMatchesHqUserEmail } from "@/lib/auth/account-linking.shared"
 import { createHqAuthAdapter } from "@/lib/auth/adapter";
 import { bridgeAuthUserToBrowserSession } from "@/lib/auth/bridge-session";
 import { syncDiscordHqLinkFromOAuthSignIn } from "@/lib/auth/discord-hq-link.server";
+import { oauthAccountLinkErrorRedirect } from "@/lib/auth/oauth-link-error-redirect.shared";
 import { buildAuthProviders } from "@/lib/auth/providers.server";
 import { ensureHqUserForAuthEmail } from "@/lib/auth/resolve-hq-user";
 import { maybeBootstrapPlatformMaintainer } from "@/lib/rbac/bootstrap-platform";
@@ -28,6 +30,16 @@ function isOAuthProvider(
   provider: string | undefined,
 ): provider is OAuthAvatarProvider {
   return provider === "google" || provider === "discord";
+}
+
+/** Honor the page that started OAuth linking (Auth.js callback-url cookie). */
+async function resolveOAuthAccountLinkErrorRedirect(): Promise<string> {
+  const jar = await cookies();
+  const callbackUrl =
+    jar.get("__Secure-authjs.callback-url")?.value ??
+    jar.get("authjs.callback-url")?.value ??
+    null;
+  return oauthAccountLinkErrorRedirect(callbackUrl);
 }
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
@@ -66,7 +78,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             (await loadSignInMethodSnapshot(session.user.id))?.email ??
             null;
           if (!oauthEmailMatchesHqUserEmail(user.email, hqEmail)) {
-            return "/settings/account?linkError=OAuthAccountNotLinked";
+            return resolveOAuthAccountLinkErrorRedirect();
           }
 
           const existingOwnerId = await findHqUserIdForOAuthAccount({
@@ -74,7 +86,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             providerAccountId: account.providerAccountId,
           });
           if (existingOwnerId && existingOwnerId !== session.user.id) {
-            return "/settings/account?linkError=OAuthAccountNotLinked";
+            return resolveOAuthAccountLinkErrorRedirect();
           }
 
           const alreadyLinked = await hqUserHasOAuthProvider(

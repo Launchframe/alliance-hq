@@ -17,6 +17,7 @@ import {
   linkNativeAllianceToGameServer,
   playwrightAuthCookies,
 } from "./fixtures/db";
+import { redeemJoinCodeInPage } from "./fixtures/join-code";
 
 function e2eBaseUrl(): string {
   return process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:5176";
@@ -688,9 +689,7 @@ test.describe("Member-link onboarding outcomes", () => {
 
     await page.context().addCookies(playwrightAuthCookies(auth));
     await page.goto("/join");
-    await page.getByLabel(/join code/i).fill(code);
-    await page.getByRole("button", { name: /join alliance/i }).click();
-    await expect(page).toHaveURL(/\/onboard/);
+    await redeemJoinCodeInPage(page, code, { expectUrl: /\/onboard/ });
 
     await page.getByRole("button", { name: /continue/i }).click();
     const response = await submitUidThenConfirm(page, "1234567890121203");

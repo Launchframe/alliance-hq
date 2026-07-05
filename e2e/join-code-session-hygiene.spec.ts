@@ -10,6 +10,7 @@ import {
   loadBrowserSessionAllianceContext,
   playwrightAuthCookies,
 } from "./fixtures/db";
+import { redeemJoinCodeInPage } from "./fixtures/join-code";
 
 test.describe("Join-code session hygiene", () => {
   test("sign-out clears sticky alliance fields after join-code redeem", async ({
@@ -33,10 +34,7 @@ test.describe("Join-code session hygiene", () => {
     await page.context().addCookies(playwrightAuthCookies(auth));
 
     await page.goto("/join");
-    await page.getByLabel(/join code/i).fill(code);
-    await page.getByRole("button", { name: /join alliance/i }).click();
-
-    await expect(page).toHaveURL(/\/onboard/);
+    await redeemJoinCodeInPage(page, code, { expectUrl: /\/onboard/ });
     await expect(page.getByText("Join Code Hygiene Alliance")).toBeVisible();
 
     const afterRedeem = await loadBrowserSessionAllianceContext(
@@ -85,9 +83,7 @@ test.describe("Join-code session hygiene", () => {
 
     await page.context().addCookies(playwrightAuthCookies(userA));
     await page.goto("/join");
-    await page.getByLabel(/join code/i).fill(code);
-    await page.getByRole("button", { name: /join alliance/i }).click();
-    await expect(page).toHaveURL(/\/onboard/);
+    await redeemJoinCodeInPage(page, code, { expectUrl: /\/onboard/ });
     await expect(page.getByText("Sticky Join Code Alliance")).toBeVisible();
 
     await page.getByRole("button", { name: /wrong account/i }).click();

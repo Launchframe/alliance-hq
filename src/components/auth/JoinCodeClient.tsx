@@ -74,7 +74,11 @@ export function JoinCodeClient({
         setError(body.error ?? t("redeemFailed"));
         return;
       }
-      router.push(redirectToOverride ?? body.redirectTo ?? "/dashboard");
+      // Full navigation so onboard reads the session alliance written by redeem.
+      window.location.assign(
+        redirectToOverride ?? body.redirectTo ?? "/dashboard",
+      );
+      return;
     } catch (e) {
       setError(e instanceof Error ? e.message : t("redeemFailed"));
     } finally {

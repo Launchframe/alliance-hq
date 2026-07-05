@@ -800,6 +800,11 @@ function hashJoinCodeForE2e(code: string): string {
   return createHash("sha256").update(normalized).digest("hex");
 }
 
+/** Match production join codes (A-Z0-9 + hyphen). Avoid nanoid `_`, which SegmentedCodeInput strips. */
+function generateE2eJoinCode(): string {
+  return `E2E-${randomBytes(3).toString("hex").toUpperCase()}`;
+}
+
 export async function createAllianceJoinCodeRow(
   sql: Sql,
   options: {
@@ -816,9 +821,7 @@ export async function createAllianceJoinCodeRow(
     now.getTime() + (options.expiresInDays ?? 7) * 24 * 60 * 60 * 1000,
   );
   const joinCodeId = nanoid(16);
-  const code = normalizeJoinCodeForE2e(
-    options.code ?? `E2E-${nanoid(6).toUpperCase()}`,
-  );
+  const code = normalizeJoinCodeForE2e(options.code ?? generateE2eJoinCode());
   const codeHash = hashJoinCodeForE2e(code);
   const codeHint =
     code.length <= 4 ? code : `…${code.slice(-4)}`;

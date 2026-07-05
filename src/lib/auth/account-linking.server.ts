@@ -13,6 +13,7 @@ import {
   type OAuthAutoLinkDecision,
   type SignInMethodSnapshot,
 } from "@/lib/auth/account-linking.shared";
+import { canRemovePasskeys } from "@/lib/auth/sign-in-method-linked.shared";
 import { createHqAuthAdapter } from "@/lib/auth/adapter";
 import { hqUserHasPassword } from "@/lib/auth/password.server";
 import { getDb, schema } from "@/lib/db";
@@ -240,6 +241,26 @@ export async function unlinkOAuthProviderForUser(input: {
     provider: input.provider,
     providerAccountId: account.providerAccountId,
   });
+
+  return { ok: true };
+}
+
+export async function unlinkPasskeysForUser(
+  hqUserId: string,
+): Promise<{ ok: true } | { ok: false; code: "none" | "last_method" }> {
+  const snapshot = await loadSignInMethodSnapshot(hqUserId);
+  if (!snapshot || snapshot.passkeyCount === 0) {
+    return { ok: false, code: "none" };
+  }
+
+  if (!canRemovePasskeys(snapshot)) {
+    return { ok: false, code: "last_method" };
+  }
+
+  const db = getDb();
+  await db
+    .delete(schema.hqAuthenticators)
+    .where(eq(schema.hqAuthenticators.hqUserId, hqUserId));
 
   return { ok: true };
 }
