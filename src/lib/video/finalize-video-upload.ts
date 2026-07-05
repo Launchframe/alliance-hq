@@ -2,6 +2,7 @@ import { nanoid } from "nanoid";
 
 import { writeAuditLog } from "@/lib/bff/audit";
 import { emitVideoJobStatus } from "@/lib/events/video-jobs";
+import { videoJobStatusOwnerFields } from "@/lib/video/video-job-access.shared";
 import { getDb, schema } from "@/lib/db";
 import { DEFAULT_PRIMARY_PASS } from "@/lib/video/pass-definitions";
 import {
@@ -106,7 +107,11 @@ export async function finalizeVideoUploadEnqueue(
   });
 
   await emitVideoJobStatus({
-    sessionId: input.sessionId,
+    ...videoJobStatusOwnerFields({
+      sessionId: input.sessionId,
+      enqueuedByHqUserId: input.enqueuedByHqUserId,
+      hqUserId: input.enqueuedByHqUserId,
+    }),
     jobId: input.jobId,
     status: "pending_approval",
     fileName: input.fileName,

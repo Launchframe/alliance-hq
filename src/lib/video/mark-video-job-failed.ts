@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { writeAuditLog } from "@/lib/bff/audit";
 import { getDb, schema } from "@/lib/db";
 import { emitVideoJobStatus } from "@/lib/events/video-jobs";
+import { videoJobStatusOwnerFields } from "@/lib/video/video-job-access.shared";
 
 /**
  * Mark a video job failed in the DB and notify SSE subscribers.
@@ -54,7 +55,7 @@ export async function markVideoJobFailed(
   }
 
   await emitVideoJobStatus({
-    sessionId: job.sessionId,
+    ...videoJobStatusOwnerFields(job),
     jobId,
     status: "failed",
     fileName: job.fileName,

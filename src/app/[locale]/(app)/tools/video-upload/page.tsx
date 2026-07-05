@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, ne } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, ne, or } from "drizzle-orm";
 
 import { VideoUploadForm } from "@/components/VideoUploadForm";
 import { verifyBase44Connection } from "@/lib/base44/server";
@@ -12,6 +12,7 @@ import {
 } from "@/lib/video/score-target-nav";
 import { resolveSurveyPlayerNameFromSources } from "@/lib/video/survey-player-name";
 import { isSurveyComplete, surveyRowToPayload } from "@/lib/video/survey";
+import { videoJobsOwnedByViewerWhere } from "@/lib/video/video-job-ownership.server";
 
 export const dynamic = "force-dynamic";
 
@@ -59,8 +60,13 @@ export default async function VideoUploadPage({ searchParams }: Props) {
       .from(schema.videoJobs)
       .where(
         and(
-          eq(schema.videoJobs.sessionId, session.id),
+          videoJobsOwnedByViewerWhere(session.id, session.hqUserId),
           ne(schema.videoJobs.status, "discarded"),
+          ne(schema.videoJobs.status, "pending_upload"),
+          or(
+            eq(schema.videoJobs.passRole, "primary"),
+            isNull(schema.videoJobs.passRole),
+          ),
         ),
       )
       .orderBy(desc(schema.videoJobs.createdAt)),

@@ -38,7 +38,11 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
-import { resolveVideoJobAccess, resolveVideoUploadGroupAccess } from "@/lib/video/video-job-access.server";
+import {
+  resolveVideoJobAccess,
+  resolveVideoJobUploaderAccess,
+  resolveVideoUploadGroupAccess,
+} from "@/lib/video/video-job-access.server";
 
 const baseJob = {
   id: "job-1",
@@ -185,6 +189,56 @@ describe("resolveVideoJobAccess", () => {
 
     expect(result.ok).toBe(true);
     expect(sessionCanAccessAllianceVideoJob).not.toHaveBeenCalled();
+  });
+});
+
+describe("resolveVideoJobUploaderAccess", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    selectLimit.mockResolvedValue([baseJob]);
+  });
+
+  it("allows the same HQ user on another device", async () => {
+    loadSession.mockResolvedValue({
+      id: "laptop-session",
+      hqUserId: "officer-hq-user",
+    });
+
+    const result = await resolveVideoJobUploaderAccess(
+      "job-1",
+      "laptop-session",
+    );
+
+    expect(result.ok).toBe(true);
+  });
+
+  it("denies a different HQ user even with alliance processor access", async () => {
+    loadSession.mockResolvedValue({
+      id: "other-session",
+      hqUserId: "other-hq-user",
+    });
+    sessionCanAccessAllianceVideoJob.mockResolvedValue(true);
+
+    const result = await resolveVideoJobUploaderAccess(
+      "job-1",
+      "other-session",
+    );
+
+    expect(result).toEqual({ ok: false, status: 404 });
+  });
+
+  it("denies a different HQ user reusing the uploader browser session", async () => {
+    loadSession.mockResolvedValue({
+      id: "uploader-session",
+      hqUserId: "other-hq-user",
+    });
+
+    const result = await resolveVideoJobUploaderAccess(
+      "job-1",
+      "uploader-session",
+    );
+
+    expect(result).toEqual({ ok: false, status: 404 });
   });
 });
 

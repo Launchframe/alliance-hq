@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { getDb, schema } from "@/lib/db";
 import { getOrCreateSession } from "@/lib/session";
@@ -12,22 +12,16 @@ import {
   surveyResumeStep,
   surveyRowToPayload,
 } from "@/lib/video/survey";
+import { resolveVideoJobUploaderAccess } from "@/lib/video/video-job-access.server";
 
 type Props = { params: Promise<{ jobId: string }> };
 
 async function loadOwnedJob(jobId: string, sessionId: string) {
-  const db = getDb();
-  const [job] = await db
-    .select({ id: schema.videoJobs.id })
-    .from(schema.videoJobs)
-    .where(
-      and(
-        eq(schema.videoJobs.id, jobId),
-        eq(schema.videoJobs.sessionId, sessionId),
-      ),
-    )
-    .limit(1);
-  return job ?? null;
+  const access = await resolveVideoJobUploaderAccess(jobId, sessionId);
+  if (!access.ok) {
+    return null;
+  }
+  return { id: access.job.id };
 }
 
 export async function GET(_request: Request, { params }: Props) {

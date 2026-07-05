@@ -1,17 +1,25 @@
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq, ne } from "drizzle-orm";
 
 import type { VideoJobStatusEvent } from "@/lib/events/video-jobs-types";
 import { getDb, schema } from "@/lib/db";
+import { videoJobsOwnedByViewerWhere } from "@/lib/video/video-job-ownership.server";
 
-export async function getRecentSessionVideoJobs(
+export async function getRecentOwnedVideoJobs(
   sessionId: string,
+  hqUserId: string | null,
   limit = 20,
 ): Promise<VideoJobStatusEvent[]> {
   const db = getDb();
   const jobs = await db
     .select()
     .from(schema.videoJobs)
-    .where(eq(schema.videoJobs.sessionId, sessionId))
+    .where(
+      and(
+        videoJobsOwnedByViewerWhere(sessionId, hqUserId),
+        ne(schema.videoJobs.status, "discarded"),
+        ne(schema.videoJobs.status, "pending_upload"),
+      ),
+    )
     .orderBy(desc(schema.videoJobs.updatedAt))
     .limit(limit);
 
@@ -35,6 +43,8 @@ export async function getRecentSessionVideoJobs(
 
     events.push({
       sessionId: job.sessionId,
+      enqueuedByHqUserId: job.enqueuedByHqUserId,
+      hqUserId: job.hqUserId,
       jobId: job.id,
       status: job.status,
       fileName: job.fileName,
@@ -49,6 +59,14 @@ export async function getRecentSessionVideoJobs(
   }
 
   return events;
+}
+
+/** @deprecated Prefer {@link getRecentOwnedVideoJobs} for cross-device lists. */
+export async function getRecentSessionVideoJobs(
+  sessionId: string,
+  limit = 20,
+): Promise<VideoJobStatusEvent[]> {
+  return getRecentOwnedVideoJobs(sessionId, null, limit);
 }
 
 export async function getVideoJobStatusEvent(
@@ -82,6 +100,8 @@ export async function getVideoJobStatusEvent(
 
   return {
     sessionId: job.sessionId,
+    enqueuedByHqUserId: job.enqueuedByHqUserId,
+    hqUserId: job.hqUserId,
     jobId: job.id,
     status: job.status,
     fileName: job.fileName,

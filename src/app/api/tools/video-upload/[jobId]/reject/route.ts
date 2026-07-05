@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 
 import { writeAuditLog } from "@/lib/bff/audit";
 import { emitVideoJobStatus } from "@/lib/events/video-jobs";
+import { videoJobStatusOwnerFields } from "@/lib/video/video-job-access.shared";
 import { getDb, schema } from "@/lib/db";
 import { deleteObject } from "@/lib/storage";
 import { getOrCreateSession } from "@/lib/session";
@@ -81,7 +82,7 @@ export async function POST(request: Request, { params }: Props) {
     });
 
     await emitVideoJobStatus({
-      sessionId: job.sessionId,
+      ...videoJobStatusOwnerFields(job),
       jobId,
       status: "discarded",
       fileName: job.fileName,

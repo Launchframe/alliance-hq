@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 
 import { writeAuditLog } from "@/lib/bff/audit";
 import { emitVideoJobStatus } from "@/lib/events/video-jobs";
+import { videoJobStatusOwnerFields } from "@/lib/video/video-job-access.shared";
 import { getDb, schema } from "@/lib/db";
 import { DEFAULT_PRIMARY_PASS } from "@/lib/video/pass-definitions";
 import {
@@ -80,7 +81,7 @@ export async function activatePendingVideoUpload(
   });
 
   await emitVideoJobStatus({
-    sessionId,
+    ...videoJobStatusOwnerFields(job),
     jobId,
     status: "pending_approval",
     fileName: job.fileName,

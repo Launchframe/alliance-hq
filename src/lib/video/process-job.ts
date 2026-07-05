@@ -39,6 +39,7 @@ import {
   isMemberRosterVideoTarget,
 } from "@/lib/video/score-targets";
 import { emitVideoJobStatus } from "@/lib/events/video-jobs";
+import { videoJobStatusOwnerFields } from "@/lib/video/video-job-access.shared";
 import { maybeEnqueueShadowPass } from "@/lib/video/enqueue-shadow-pass";
 import {
   AshedNotConnectedError,
@@ -101,7 +102,7 @@ export async function resetVideoJobForReprocess(jobId: string): Promise<void> {
     .where(eq(schema.videoJobs.id, jobId));
 
   await emitVideoJobStatus({
-    sessionId: job.sessionId,
+    ...videoJobStatusOwnerFields(job),
     jobId,
     status: "queued",
     fileName: job.fileName,
@@ -166,7 +167,7 @@ export async function processVideoJob(
       .where(eq(schema.videoJobs.id, jobId));
 
     await emitVideoJobStatus({
-      sessionId: job.sessionId,
+      ...videoJobStatusOwnerFields(job),
       jobId,
       status,
       fileName: job.fileName,
@@ -221,7 +222,7 @@ export async function processVideoJob(
         })
         .where(eq(schema.videoJobs.id, jobId));
       await emitVideoJobStatus({
-        sessionId: job.sessionId,
+        ...videoJobStatusOwnerFields(job),
         jobId,
         status: "pending_approval",
         fileName: job.fileName,

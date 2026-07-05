@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { and, eq, or } from "drizzle-orm";
 
 import { emitVideoJobStatus } from "@/lib/events/video-jobs";
+import { videoJobStatusOwnerFields } from "@/lib/video/video-job-access.shared";
 import { getDb, schema } from "@/lib/db";
 import { deleteObject } from "@/lib/storage";
 import { getOrCreateSession } from "@/lib/session";
@@ -90,7 +91,7 @@ export async function PATCH(_request: Request, { params }: Props) {
   }
 
   await emitVideoJobStatus({
-    sessionId: job.sessionId,
+    ...videoJobStatusOwnerFields(job),
     jobId,
     status: "discarded",
     fileName: job.fileName,

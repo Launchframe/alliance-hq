@@ -24,14 +24,38 @@ export async function GET(_request: Request, { params }: RouteParams) {
   const { jobId } = await params;
   const db = getDb();
 
-  const [job] = await db
-    .select()
+  const [row] = await db
+    .select({
+      job: schema.videoJobs,
+      uploaderName: schema.hqUsers.displayName,
+      uploaderEmail: schema.hqUsers.email,
+    })
     .from(schema.videoJobs)
+    .leftJoin(
+      schema.hqUsers,
+      eq(schema.hqUsers.id, schema.videoJobs.enqueuedByHqUserId),
+    )
     .where(eq(schema.videoJobs.id, jobId))
     .limit(1);
 
-  if (!job) {
+  if (!row) {
     return NextResponse.json({ error: "Job not found" }, { status: 404 });
+  }
+
+  const { job } = row;
+  let uploadedBy = row.uploaderName ?? row.uploaderEmail ?? null;
+
+  // Legacy jobs may only have hqUserId set (pre–enqueue attribution).
+  if (!uploadedBy && job.hqUserId) {
+    const [uploader] = await db
+      .select({
+        displayName: schema.hqUsers.displayName,
+        email: schema.hqUsers.email,
+      })
+      .from(schema.hqUsers)
+      .where(eq(schema.hqUsers.id, job.hqUserId))
+      .limit(1);
+    uploadedBy = uploader?.displayName ?? uploader?.email ?? null;
   }
 
   const frames = await db
@@ -169,6 +193,7 @@ export async function GET(_request: Request, { params }: RouteParams) {
   return NextResponse.json({
     job: {
       ...job,
+      uploadedBy,
       timingsJson: (job.timingsJson as VideoProcessTimings | null) ?? null,
     },
     frames,

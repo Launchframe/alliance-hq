@@ -9,7 +9,10 @@ import {
   sessionCanAccessAllianceVideoJob,
   sessionCanProcessVideoForAlliance,
 } from "@/lib/video/processor-slots.server";
-import { isVideoJobOwningHqUser } from "@/lib/video/video-job-access.shared";
+import {
+  isVideoJobAccessibleViaSession,
+  isVideoJobOwningHqUser,
+} from "@/lib/video/video-job-access.shared";
 
 export type VideoJobAccessLevel = "read" | "mutate" | "process";
 
@@ -42,7 +45,11 @@ export async function resolveVideoJobAccess(
     return { ok: false, status: 403 };
   }
 
-  const isUploaderSession = job.sessionId === sessionId;
+  const isUploaderSession = isVideoJobAccessibleViaSession(
+    sessionId,
+    session.hqUserId,
+    job,
+  );
   const isOwningHqUser = isVideoJobOwningHqUser(session.hqUserId, job);
 
   if (!job.allianceId) {
@@ -74,6 +81,40 @@ export async function resolveVideoJobAccess(
   }
 
   return { ok: true, job };
+}
+
+/**
+ * Uploader-only access (any device signed in as the same HQ user).
+ * Alliance processors are not included — use {@link resolveVideoJobAccess}.
+ */
+export async function resolveVideoJobUploaderAccess(
+  jobId: string,
+  sessionId: string,
+): Promise<VideoJobAccessResult> {
+  const db = getDb();
+  const [job] = await db
+    .select()
+    .from(schema.videoJobs)
+    .where(eq(schema.videoJobs.id, jobId))
+    .limit(1);
+
+  if (!job) {
+    return { ok: false, status: 404 };
+  }
+
+  const session = await loadSession(sessionId);
+  if (!session) {
+    return { ok: false, status: 403 };
+  }
+
+  if (
+    isVideoJobOwningHqUser(session.hqUserId, job) ||
+    isVideoJobAccessibleViaSession(sessionId, session.hqUserId, job)
+  ) {
+    return { ok: true, job };
+  }
+
+  return { ok: false, status: 404 };
 }
 
 export type VideoUploadGroupAccessResult =

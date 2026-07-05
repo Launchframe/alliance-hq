@@ -65,7 +65,13 @@ function getViewportSnapshot(): Viewport {
   return viewportCache;
 }
 
-const SERVER_VIEWPORT: Viewport = { width: 1280, height: 800 };
+/**
+ * Mobile-first SSR snapshot. A desktop-sized server viewport paints the side
+ * preview column into the HTML, which phones then show as a half-width page
+ * with horizontal scroll until hydration. Prefer a phone-sized default so the
+ * first paint matches portrait devices; wide desktops adjust after hydrate.
+ */
+const SERVER_VIEWPORT: Viewport = { width: 390, height: 844 };
 
 function getViewportServerSnapshot(): Viewport {
   return SERVER_VIEWPORT;
