@@ -3,7 +3,9 @@ export async function register() {
     return;
   }
 
-  process.on("unhandledRejection", (reason) => {
-    console.error("[unhandledRejection]", reason);
-  });
+  if (process.listenerCount("unhandledRejection") === 0) {
+    process.on("unhandledRejection", (reason) => {
+      console.error("[unhandledRejection]", reason);
+    });
+  }
 }

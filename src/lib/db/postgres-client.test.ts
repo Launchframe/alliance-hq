@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { withPostgresAuthRecovery } from "./postgres-client";
+import { withPostgresAuthRecovery } from "./index";
 
 describe("withPostgresAuthRecovery", () => {
   it("retries once after 28P01 auth failure", async () => {
@@ -26,5 +26,18 @@ describe("withPostgresAuthRecovery", () => {
         throw Object.assign(new Error("too many clients"), { code: "53300" });
       }),
     ).rejects.toMatchObject({ code: "53300" });
+  });
+
+  it("does not retry after a second 28P01 on the same call", async () => {
+    const authError = Object.assign(
+      new Error("password authentication failed"),
+      { code: "28P01" },
+    );
+
+    await expect(
+      withPostgresAuthRecovery(async () => {
+        throw authError;
+      }),
+    ).rejects.toBe(authError);
   });
 });

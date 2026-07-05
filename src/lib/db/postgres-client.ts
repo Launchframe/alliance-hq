@@ -1,6 +1,5 @@
 import postgres from "postgres";
 
-import { isPostgresAuthError } from "./error-message";
 import { getDatabaseUrl } from "./url";
 
 /** True on Vercel and other production Node runtimes — one pool slot per instance. */
@@ -54,23 +53,4 @@ export function getSqlClient(): ReturnType<typeof postgres> {
     sqlClient = postgres(url, postgresClientOptions());
   }
   return sqlClient;
-}
-
-/**
- * Retry once after resetting the pool when Neon credential rotation left a warm
- * serverless instance with a stale connection string.
- */
-export async function withPostgresAuthRecovery<T>(
-  fn: () => Promise<T>,
-): Promise<T> {
-  try {
-    return await fn();
-  } catch (error) {
-    if (!isPostgresAuthError(error)) {
-      throw error;
-    }
-    console.error("[postgres] auth failure — resetting pool and retrying once");
-    await resetSqlClient();
-    return await fn();
-  }
 }

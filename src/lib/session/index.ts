@@ -107,13 +107,15 @@ export async function bootstrapSessionResponse(
   const id = nanoid(32);
   const expiresAt = sessionExpiry();
   const now = new Date();
-  const db = getDb();
 
-  await db.insert(schema.sessions).values({
-    id,
-    createdAt: now,
-    updatedAt: now,
-    expiresAt,
+  await withPostgresAuthRecovery(async () => {
+    const db = getDb();
+    await db.insert(schema.sessions).values({
+      id,
+      createdAt: now,
+      updatedAt: now,
+      expiresAt,
+    });
   });
 
   const target = redirectTo.startsWith("/")
