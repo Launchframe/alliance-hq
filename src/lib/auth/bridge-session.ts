@@ -54,8 +54,31 @@ export async function resolveBridgeHqUserId(input: {
     );
   }
 
-  if (await getAshedCredentialRecord(freshSession.id)) {
-    await clearAshedConnection(freshSession.id);
+  const cred = await getAshedCredentialRecord(freshSession.id);
+  if (cred) {
+    const effectiveSigningInUser =
+      (await resolveEffectiveHqUserIdForSession(
+        freshSession.id,
+        input.hqUserId,
+      )) ?? input.hqUserId;
+
+    if (freshSession.hqUserId) {
+      const matchesOwner = await signingInUserMatchesConnectedSessionOwner({
+        sessionId: freshSession.id,
+        signingInHqUserId: effectiveSigningInUser,
+        sessionOwnerHqUserId: freshSession.hqUserId,
+      });
+      if (!matchesOwner) {
+        await clearAshedConnection(freshSession.id);
+      }
+    } else if (
+      !(await sessionHoldsAshedIdentityForHqUser(
+        freshSession.id,
+        effectiveSigningInUser,
+      ))
+    ) {
+      await clearAshedConnection(freshSession.id);
+    }
   }
 
   return input.hqUserId;

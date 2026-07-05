@@ -5,7 +5,7 @@ import { base44ListAlliances } from "@/lib/base44/fetch";
 import { verifyBase44Connection } from "@/lib/base44/server";
 import { parseConnectionInput } from "@/lib/connectionString";
 import { encryptSecret } from "@/lib/crypto/encrypt";
-import { capTokenExpiresAt } from "@/lib/member-link/privileged-link.shared";
+import { capTokenExpiresAtAtSession } from "@/lib/member-link/privileged-link.shared";
 import { resolveTokenExpiresAt } from "@/lib/jwt/connection-meta";
 import { isTokenExpired } from "@/lib/jwt/decode";
 import { syncAshedAllianceForBot } from "@/lib/rbac/sync-ashed-roles";
@@ -18,7 +18,7 @@ import {
 
 /** POST /api/discord/authorize — `alliance_credentials` only (`/link-ashed`). HQ login uses OAuth on `/discord/authorize/complete`. */
 export async function POST(request: Request) {
-  await getOrCreateSession();
+  const session = await getOrCreateSession();
 
   let body: {
     nonce?: string;
@@ -131,7 +131,10 @@ export async function POST(request: Request) {
   });
 
   let tokenExpiresAt = resolveTokenExpiresAt(parsed.connection.token);
-  tokenExpiresAt = capTokenExpiresAt(tokenExpiresAt);
+  tokenExpiresAt = capTokenExpiresAtAtSession(
+    tokenExpiresAt,
+    session.expiresAt,
+  );
   if (tokenExpiresAt && isTokenExpired(tokenExpiresAt)) {
     return NextResponse.json(
       { error: "Connection key is already expired. Copy a fresh one from Ashed." },

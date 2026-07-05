@@ -9,7 +9,7 @@ const syncAshedAllianceForBotMock = vi.fn();
 const upsertAllianceAshedCredentialMock = vi.fn();
 const encryptSecretMock = vi.fn();
 const resolveTokenExpiresAtMock = vi.fn();
-const capTokenExpiresAtMock = vi.fn();
+const capTokenExpiresAtAtSessionMock = vi.fn();
 const isTokenExpiredMock = vi.fn();
 const parseConnectionInputMock = vi.fn();
 
@@ -53,7 +53,8 @@ vi.mock("@/lib/jwt/connection-meta", () => ({
 }));
 
 vi.mock("@/lib/member-link/privileged-link.shared", () => ({
-  capTokenExpiresAt: (value: Date | null) => capTokenExpiresAtMock(value),
+  capTokenExpiresAtAtSession: (jwtExp: Date | null, sessionExpiresAt: Date | null) =>
+    capTokenExpiresAtAtSessionMock(jwtExp, sessionExpiresAt),
 }));
 
 vi.mock("@/lib/jwt/decode", () => ({
@@ -84,7 +85,10 @@ function postAuthorize(body: Record<string, string>) {
 describe("POST /api/discord/authorize — alliance_credentials", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    getOrCreateSessionMock.mockResolvedValue(undefined);
+    getOrCreateSessionMock.mockResolvedValue({
+      id: "sess-1",
+      expiresAt: new Date("2030-06-01T00:00:00.000Z"),
+    });
     getValidDiscordAuthNonceMock.mockResolvedValue({
       id: "nonce-1",
       purpose: "alliance_credentials",
@@ -111,7 +115,9 @@ describe("POST /api/discord/authorize — alliance_credentials", () => {
       roleName: "officer",
     });
     resolveTokenExpiresAtMock.mockReturnValue(new Date("2030-01-01T00:00:00.000Z"));
-    capTokenExpiresAtMock.mockImplementation((value: Date | null) => value);
+    capTokenExpiresAtAtSessionMock.mockImplementation(
+      (value: Date | null) => value,
+    );
     isTokenExpiredMock.mockReturnValue(false);
     encryptSecretMock.mockReturnValue("encrypted-token");
     consumeDiscordAuthNonceMock.mockResolvedValue(undefined);

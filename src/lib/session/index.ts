@@ -26,7 +26,7 @@ import {
   type AshedConnectionMeta,
 } from "@/lib/jwt/connection-meta";
 import { isTokenExpired } from "@/lib/jwt/decode";
-import { capTokenExpiresAt } from "@/lib/member-link/privileged-link.shared";
+import { capTokenExpiresAtAtSession } from "@/lib/member-link/privileged-link.shared";
 import { DEFAULT_EXPIRY_REMINDER_DAYS } from "@/lib/jwt/decode";
 import { getRbacContext } from "@/lib/rbac/context";
 import { sessionHoldsAshedIdentityForHqUser } from "@/lib/rbac/ashed-session-membership";
@@ -225,14 +225,21 @@ export async function getAshedConnectionMeta(
   return buildAshedConnectionMeta(cred, locale, timezone);
 }
 
-export async function applyPrivilegedTokenCapForSession(
+export async function applySessionTokenCapForSession(
   sessionId: string,
 ): Promise<void> {
+  const session = await loadSession(sessionId);
+  if (!session) {
+    return;
+  }
   const cred = await getAshedCredentialRecord(sessionId);
   if (!cred?.tokenExpiresAt) {
     return;
   }
-  const capped = capTokenExpiresAt(cred.tokenExpiresAt);
+  const capped = capTokenExpiresAtAtSession(
+    cred.tokenExpiresAt,
+    session.expiresAt,
+  );
   if (!capped || capped.getTime() === cred.tokenExpiresAt.getTime()) {
     return;
   }
@@ -262,18 +269,18 @@ export async function storeAshedConnection(
     expiryReminderDays?: number;
     locale?: string;
     ashedUserId?: string | null;
-    /** Cap JWT expiry at 30 days for owner/officer/platform maintainer connects. */
-    applyPrivilegedTokenCap?: boolean;
   },
 ) {
   const db = getDb();
   const locale = options?.locale ?? "en-US";
   const now = new Date();
+  const session = await loadSession(sessionId);
   const encryptedToken = encryptSecret(connection.token);
   let tokenExpiresAt = resolveTokenExpiresAt(connection.token);
-  if (options?.applyPrivilegedTokenCap) {
-    tokenExpiresAt = capTokenExpiresAt(tokenExpiresAt, now);
-  }
+  tokenExpiresAt = capTokenExpiresAtAtSession(
+    tokenExpiresAt,
+    session?.expiresAt ?? null,
+  );
   if (tokenExpiresAt && isTokenExpired(tokenExpiresAt)) {
     throw new Error("Connection key is already expired. Copy a fresh one from Ashed.");
   }

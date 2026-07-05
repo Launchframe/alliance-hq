@@ -2,8 +2,6 @@ export const PRIVILEGED_HQ_ROLE_NAMES = ["owner", "officer"] as const;
 
 export type PrivilegedHqRoleName = (typeof PRIVILEGED_HQ_ROLE_NAMES)[number];
 
-export const PRIVILEGED_TOKEN_MAX_DAYS = 30;
-
 const PRIVILEGED_ROLE_SET = new Set<string>(PRIVILEGED_HQ_ROLE_NAMES);
 
 /** Ashed connect is optional for every role; HQ invite + member link gate access. */
@@ -28,13 +26,22 @@ export function userRequiresAshedVerification(_input: {
   return false;
 }
 
-/** Cap stored credential expiry at min(jwtExp, now + 30 days). */
-export function capTokenExpiresAt(
+/** Cap stored credential expiry at min(jwtExp, browser session expiresAt). */
+export function capTokenExpiresAtAtSession(
   jwtExp: Date | null,
-  now: Date = new Date(),
+  sessionExpiresAt: Date | null,
 ): Date | null {
   if (!jwtExp) return null;
-  const ceiling = new Date(now);
-  ceiling.setUTCDate(ceiling.getUTCDate() + PRIVILEGED_TOKEN_MAX_DAYS);
-  return jwtExp.getTime() <= ceiling.getTime() ? jwtExp : ceiling;
+  if (!sessionExpiresAt) return jwtExp;
+  return jwtExp.getTime() <= sessionExpiresAt.getTime()
+    ? jwtExp
+    : sessionExpiresAt;
+}
+
+/** @deprecated Use capTokenExpiresAtAtSession — session-scoped cap replaces 30-day privileged window. */
+export function capTokenExpiresAt(
+  jwtExp: Date | null,
+  sessionExpiresAt: Date | null = null,
+): Date | null {
+  return capTokenExpiresAtAtSession(jwtExp, sessionExpiresAt);
 }
