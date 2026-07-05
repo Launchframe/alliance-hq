@@ -35,7 +35,21 @@ Complete these **in order** before marking the auth + email release done.
 
 **Do not** set `LOCAL_DATABASE_URL` on Vercel.
 
-### 2b. R2 — bucket CORS for browser uploads
+### 2a. Neon integration — `DATABASE_URL` and credential rotation
+
+When **`DATABASE_URL` is managed by the Neon ↔ Vercel integration**, you cannot edit it manually in Vercel. A deploy that lands while Neon and Vercel are out of sync can briefly surface Postgres **`28P01`** (password authentication failed) on warm serverless instances.
+
+**Rotate credentials (production incident or scheduled rotation):**
+
+1. Neon dashboard (or Vercel → Storage → Neon) → **Rotate credentials** for the production branch.
+2. Wait until Vercel shows the integration env vars updated (usually within a minute).
+3. **Redeploy Production** so every function instance picks up the new password (warm instances can keep the old secret for several minutes otherwise).
+4. Confirm `https://frontline.gay/api/health/db` returns `{ "ok": true }`.
+
+During the mismatch window, normal page/API requests may fail session lookups; SSE routes (`/api/events/video-jobs`, `/api/events/admin-alerts`) that call Postgres **`LISTEN`** must not leave that failure as an unhandled promise rejection (see `src/lib/db/postgres-listen.ts`).
+
+**Not load-related:** `28P01` is always an auth/credential problem, not connection pool exhaustion.
+
 
 Direct video upload sends a **cross-origin `PUT`** from the browser to `*.r2.cloudflarestorage.com`. Without bucket CORS, the **OPTIONS preflight returns 403** and the console shows `No 'Access-Control-Allow-Origin' header`.
 
