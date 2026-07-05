@@ -1,5 +1,6 @@
 import postgres from "postgres";
 
+import { isPostgresAuthError } from "@/lib/db/error-message";
 import { getDatabaseUrl } from "@/lib/db/url";
 
 export type VrLinkAttentionAlert = {
@@ -45,10 +46,27 @@ export type AdminAlertEvent =
 export const ADMIN_ALERT_NOTIFY_CHANNEL = "hq_admin_alerts";
 
 let notifyClient: ReturnType<typeof postgres> | null = null;
+let notifyClientUrl: string | null = null;
+
+function resetNotifyClient(): void {
+  if (!notifyClient) {
+    notifyClientUrl = null;
+    return;
+  }
+  const stale = notifyClient;
+  notifyClient = null;
+  notifyClientUrl = null;
+  void stale.end({ timeout: 0 }).catch(() => undefined);
+}
 
 function getNotifyClient() {
+  const url = getDatabaseUrl();
+  if (notifyClient && notifyClientUrl !== url) {
+    resetNotifyClient();
+  }
   if (!notifyClient) {
-    notifyClient = postgres(getDatabaseUrl(), { prepare: false, max: 1 });
+    notifyClientUrl = url;
+    notifyClient = postgres(url, { prepare: false, max: 1 });
   }
   return notifyClient;
 }
@@ -73,6 +91,17 @@ export async function emitAdminAlert(
     const sql = getNotifyClient();
     await sql`SELECT pg_notify(${ADMIN_ALERT_NOTIFY_CHANNEL}, ${JSON.stringify(event)})`;
   } catch (error) {
+    if (isPostgresAuthError(error)) {
+      resetNotifyClient();
+      try {
+        const sql = getNotifyClient();
+        await sql`SELECT pg_notify(${ADMIN_ALERT_NOTIFY_CHANNEL}, ${JSON.stringify(event)})`;
+        return;
+      } catch (retryError) {
+        console.error("[admin-alerts] pg_notify failed after auth reset:", retryError);
+        return;
+      }
+    }
     console.error("[admin-alerts] pg_notify failed:", error);
   }
 }

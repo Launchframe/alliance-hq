@@ -18,7 +18,7 @@ import {
 import { touchLinkedDeviceAccess } from "@/lib/credential-pairing/linked-devices";
 import { decryptSecret, encryptSecret } from "@/lib/crypto/encrypt";
 import type { ParsedConnection } from "@/lib/connectionString";
-import { getDb, schema } from "@/lib/db";
+import { getDb, schema, withPostgresAuthRecovery } from "@/lib/db";
 import type { AshedCredential, Session } from "@/lib/db/schema";
 import {
   buildAshedConnectionMeta,
@@ -67,20 +67,22 @@ export async function readSessionId(): Promise<string | undefined> {
 }
 
 export async function loadSession(sessionId: string): Promise<Session | null> {
-  const db = getDb();
-  const [row] = await db
-    .select()
-    .from(schema.sessions)
-    .where(eq(schema.sessions.id, sessionId))
-    .limit(1);
+  return withPostgresAuthRecovery(async () => {
+    const db = getDb();
+    const [row] = await db
+      .select()
+      .from(schema.sessions)
+      .where(eq(schema.sessions.id, sessionId))
+      .limit(1);
 
-  if (!row || row.expiresAt <= new Date()) {
-    return null;
-  }
+    if (!row || row.expiresAt <= new Date()) {
+      return null;
+    }
 
-  void touchLinkedDeviceAccess(sessionId);
+    void touchLinkedDeviceAccess(sessionId);
 
-  return row;
+    return row;
+  });
 }
 
 /** For Server Components — redirects to bootstrap if no valid session. */
@@ -137,12 +139,14 @@ export async function getOrCreateSession(): Promise<Session> {
   const expiresAt = sessionExpiry();
   const now = new Date();
 
-  const db = getDb();
-  await db.insert(schema.sessions).values({
-    id,
-    createdAt: now,
-    updatedAt: now,
-    expiresAt,
+  await withPostgresAuthRecovery(async () => {
+    const db = getDb();
+    await db.insert(schema.sessions).values({
+      id,
+      createdAt: now,
+      updatedAt: now,
+      expiresAt,
+    });
   });
 
   const cookieStore = await cookies();

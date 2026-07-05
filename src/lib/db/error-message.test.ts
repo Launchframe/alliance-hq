@@ -5,6 +5,7 @@ import {
   isConnectionPoolExhausted,
   isEncryptionKeyError,
   isMissingSchemaError,
+  isPostgresAuthError,
   postgresErrorCode,
   resolveDatabaseErrorPresentation,
 } from "./error-message";
@@ -51,6 +52,16 @@ describe("isEncryptionKeyError", () => {
         new Error("Unsupported state or unable to authenticate data"),
       ),
     ).toBe(true);
+  });
+});
+
+describe("isPostgresAuthError", () => {
+  it("detects 28P01 in wrapped errors", () => {
+    const pg = Object.assign(new Error("password authentication failed"), {
+      code: "28P01",
+    });
+    expect(isPostgresAuthError(new Error("Failed query", { cause: pg }))).toBe(true);
+    expect(isPostgresAuthError(new Error("too many clients"))).toBe(false);
   });
 });
 
