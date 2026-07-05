@@ -34,6 +34,7 @@ vi.mock("@/lib/vr/repository", () => ({
 import { getHqMemberLinkForUser } from "@/lib/member-link/repository.server";
 import {
   countSeasonReporters,
+  getCommanderByAshedMemberId,
   getHqVrPending,
   getMemberSeasonHigh,
   listMemberSeasonVrEvents,
@@ -62,6 +63,17 @@ describe("handleWebVrCommand", () => {
     vi.mocked(countSeasonReporters).mockResolvedValue(0);
     vi.mocked(listSeasonVrRows).mockResolvedValue([]);
     vi.mocked(getHqVrPending).mockResolvedValue(null);
+    vi.mocked(getCommanderByAshedMemberId).mockResolvedValue({
+      commanderId: "cmd-1",
+      weeklyPassActive: false,
+    } as never);
+    vi.mocked(resolveVrSeasonContext).mockResolvedValue({
+      seasonKey: "1",
+      isPostSeason: false,
+      vrUpdatesLocked: false,
+      priorSeason: null,
+      vrSandboxActive: false,
+    });
   });
 
   it("returns member_link_required when not linked", async () => {
@@ -151,6 +163,27 @@ describe("handleWebVrCommand", () => {
     expect(upsertMemberSeasonVr).not.toHaveBeenCalled();
   });
 
+  it("reports effective VR including weekly pass in set_vr success message", async () => {
+    vi.mocked(getCommanderByAshedMemberId).mockResolvedValue({
+      commanderId: "cmd-1",
+      weeklyPassActive: true,
+    } as never);
+
+    const result = await handleWebVrCommand({
+      sessionId: "session-1",
+      allianceId: "alliance-1",
+      hqUserId: "hq-1",
+      locale: "en-US",
+      explicitInstituteLevel: 1,
+    });
+
+    expect(result).toMatchObject({
+      status: "set_vr",
+      newVr: 100,
+      message: expect.stringMatching(/effective VR 350/),
+    });
+  });
+
   it("allows VR updates in sandbox mode during post-season", async () => {
     vi.mocked(resolveVrSeasonContext).mockResolvedValue({
       seasonKey: "sandbox:abc",
@@ -208,6 +241,10 @@ describe("loadMyVrForUser", () => {
       priorSeason: "4",
       vrSandboxActive: false,
     });
+    vi.mocked(getCommanderByAshedMemberId).mockResolvedValue({
+      commanderId: "cmd-1",
+      weeklyPassActive: false,
+    } as never);
   });
 
   it("returns null when the user has no member link", async () => {

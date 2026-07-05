@@ -1,6 +1,6 @@
 import "server-only";
 
-import { createDiscordTranslator } from "@/lib/discord/i18n";
+import { createDiscordTranslator, type DiscordTranslate } from "@/lib/discord/i18n";
 import { getHqMemberLinkForUser } from "@/lib/member-link/repository.server";
 import { peerMaxExcludingMember } from "@/lib/vr/anomaly";
 import { processVrCommand, processVrConfirmation } from "@/lib/vr/command";
@@ -27,6 +27,25 @@ import {
   instituteLevelForBaseVr,
   validateInstituteLevelForSeason,
 } from "@/lib/vr/validation";
+
+async function vrSetSuccessMessage(input: {
+  translate: DiscordTranslate;
+  seasonKey: string;
+  baseVr: number;
+  allianceId: string;
+  ashedMemberId: string;
+}): Promise<string> {
+  const commander = await getCommanderByAshedMemberId(
+    input.ashedMemberId,
+    input.allianceId,
+  );
+  const level = instituteLevelForBaseVr(input.seasonKey, input.baseVr) ?? "?";
+  const effectiveVr = effectiveBaseVr(
+    input.baseVr,
+    commander?.weeklyPassActive ?? false,
+  );
+  return input.translate("vr.success", { level, effectiveVr });
+}
 
 export async function loadMyVrForUser(input: {
   allianceId: string;
@@ -226,10 +245,17 @@ async function handleWebVrCommandCore(input: {
       eventSource: "web",
     });
     await saveHqVrPending(input.allianceId, input.hqUserId, null);
+    const message = await vrSetSuccessMessage({
+      translate,
+      seasonKey: season.seasonKey,
+      baseVr: result.action.vr,
+      allianceId: input.allianceId,
+      ashedMemberId: result.action.ashedMemberId,
+    });
     return {
       result: {
         status: "set_vr",
-        message: result.reply,
+        message,
         newVr: result.action.vr,
         newInstituteLevel: instituteLevelForBaseVr(
           season.seasonKey,
@@ -307,9 +333,16 @@ async function handleWebVrConfirm(input: {
       eventSource: "web",
     });
     await saveHqVrPending(input.allianceId, input.hqUserId, null);
+    const message = await vrSetSuccessMessage({
+      translate: input.translate,
+      seasonKey: input.seasonKey,
+      baseVr: result.action.vr,
+      allianceId: input.allianceId,
+      ashedMemberId: result.action.ashedMemberId,
+    });
     return {
       status: "set_vr",
-      message: result.reply,
+      message,
       newVr: result.action.vr,
       newInstituteLevel: instituteLevelForBaseVr(
         input.seasonKey,
