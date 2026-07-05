@@ -1,15 +1,14 @@
 import Link from "next/link";
 import { getTranslations } from "next-intl/server";
 
-import { auth } from "@/lib/auth";
+import { hasSignedInAppSession } from "@/lib/session/has-signed-in-app-session.server";
 
 /**
  * Unmatched routes that render outside `[locale]/layout` (no html/body from locale shell).
  */
 export default async function RootNotFoundPage() {
   const t = await getTranslations("httpErrors");
-  const session = await auth();
-  const signedIn = Boolean(session?.user?.id?.trim());
+  const signedIn = await hasSignedInAppSession();
 
   return (
     <html lang="en-US">
