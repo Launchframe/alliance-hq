@@ -357,13 +357,30 @@ export function isNavActive(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-/** Nav link active state — parent hubs (e.g. /settings) do not highlight on child routes. */
+/** Alliance settings hub sub-routes (not account/hotkeys). */
+const ALLIANCE_SETTINGS_HUB_CHILDREN = [
+  "/settings/discord",
+  "/settings/trains",
+  "/settings/upload-reminders",
+  "/settings/team",
+  "/settings/alliance",
+] as const;
+
+export function isAllianceSettingsHubChildPath(pathname: string): boolean {
+  return ALLIANCE_SETTINGS_HUB_CHILDREN.some(
+    (href) => pathname === href || pathname.startsWith(`${href}/`),
+  );
+}
+
+/** Nav link active state — parent hubs do not highlight unrelated child routes. */
 export function navLinkActive(pathname: string, href: string): boolean {
   if (href === "/") {
     return pathname === "/";
   }
   if (href === "/settings") {
-    return pathname === "/settings";
+    return (
+      pathname === "/settings" || isAllianceSettingsHubChildPath(pathname)
+    );
   }
   if (href === "/account") {
     return pathname === "/account";

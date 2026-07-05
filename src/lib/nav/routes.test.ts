@@ -135,16 +135,23 @@ describe("isNavActive", () => {
 });
 
 describe("navLinkActive", () => {
-  it("does not highlight /settings on /settings/team", () => {
-    expect(navLinkActive("/settings/team", "/settings")).toBe(false);
+  it("highlights /settings on /settings/team", () => {
+    expect(navLinkActive("/settings/team", "/settings")).toBe(true);
     expect(navLinkActive("/settings/team", "/settings/team")).toBe(true);
   });
 
-  it("does not highlight /settings on /settings/discord or /settings/trains", () => {
-    expect(navLinkActive("/settings/discord", "/settings")).toBe(false);
-    expect(navLinkActive("/settings/trains", "/settings")).toBe(false);
+  it("highlights /settings on alliance settings sub-pages", () => {
+    expect(navLinkActive("/settings/discord", "/settings")).toBe(true);
+    expect(navLinkActive("/settings/trains", "/settings")).toBe(true);
+    expect(navLinkActive("/settings/upload-reminders", "/settings")).toBe(true);
+    expect(navLinkActive("/settings/team", "/settings")).toBe(true);
     expect(navLinkActive("/settings/discord", "/settings/discord")).toBe(true);
     expect(navLinkActive("/settings/trains", "/settings/trains")).toBe(true);
+  });
+
+  it("does not highlight /settings on account or hotkeys routes", () => {
+    expect(navLinkActive("/settings/account", "/settings")).toBe(false);
+    expect(navLinkActive("/settings/hotkeys", "/settings")).toBe(false);
   });
 
   it("does not highlight /account on nested paths", () => {
@@ -218,5 +225,6 @@ describe("findActiveNavGroupId alliance-management extras", () => {
         showAllianceSettings: true,
       }),
     ).toBeNull();
+    expect(navLinkActive("/alliance/lfgo/settings", "/settings")).toBe(false);
   });
 });

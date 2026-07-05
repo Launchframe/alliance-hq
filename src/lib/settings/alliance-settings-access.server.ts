@@ -3,6 +3,7 @@ import "server-only";
 import { redirect } from "@/i18n/navigation";
 
 import {
+  listAlliancePickerOptions,
   listSessionAlliances,
   findSessionAllianceMembership,
   pickAllianceMembershipForSession,
@@ -110,9 +111,27 @@ export async function requireAllianceSettingsSession(
   }
 
   if (access.kind === "ready") {
+    const allianceId = resolveSessionAllianceId(access.session);
+    if (allianceId === null) {
+      const effectiveHqUserId = await resolveEffectiveHqUserIdForSession(
+        access.session.id,
+        access.session.hqUserId,
+      );
+      const isMaintainer = await sessionHasPermission(
+        access.session.id,
+        "hq:admin",
+      );
+      const alliances = effectiveHqUserId
+        ? await listAlliancePickerOptions(effectiveHqUserId, isMaintainer)
+        : [];
+      if (alliances.length > 0) {
+        return { pickAlliance: alliances };
+      }
+    }
+
     return {
       session: access.session,
-      allianceId: resolveSessionAllianceId(access.session),
+      allianceId,
     };
   }
 
