@@ -140,10 +140,14 @@ test.describe("Alliance Discord server setup panel", () => {
 
     await page.goto("/settings/discord");
 
+    const alliancePicker = page
+      .locator("div")
+      .filter({ has: page.getByRole("heading", { name: /choose an alliance/i }) });
+
     await expect(
-      page.getByRole("heading", { name: /choose an alliance/i }),
+      alliancePicker.getByRole("heading", { name: /choose an alliance/i }),
     ).toBeVisible();
-    await page.getByLabel("Alliance", { exact: true }).click();
+    await alliancePicker.getByLabel("Alliance", { exact: true }).click();
     await page.getByRole("option", { name: new RegExp(tag, "i") }).click();
 
     await expect(
