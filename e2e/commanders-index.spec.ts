@@ -114,7 +114,7 @@ test.describe("Commanders index", () => {
 
     await page.goto("/members");
     await expect(page.getByRole("heading", { name: /^members$/i })).toBeVisible();
-    await expect(page.getByText("CI Fighter 0")).toBeVisible();
+    await expect(page.getByRole("link", { name: "CI Fighter 0" })).toBeVisible();
     await expect(page.getByText(secretUid)).toHaveCount(0);
 
     await expect(
