@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { trackDatabaseHealthFailure } from "@/lib/analytics/vercel-observability";
 import { getDatabaseUrl } from "@/lib/db/url";
 import { getDb, schema } from "@/lib/db";
 
@@ -18,6 +19,7 @@ export async function GET() {
       tables: ["sessions", "ashed_credentials", "video_jobs"],
     });
   } catch (error) {
+    await trackDatabaseHealthFailure(error);
     return NextResponse.json(
       {
         ok: false,
