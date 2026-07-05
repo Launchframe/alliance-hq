@@ -3,8 +3,18 @@ import { describe, expect, it } from "vitest";
 import {
   buildConnectHref,
   DEFAULT_CONNECT_RETURN_FALLBACK,
+  parseConnectQueryReturn,
   resolveConnectReturnPath,
 } from "@/lib/connect/connect-return-path.shared";
+
+describe("parseConnectQueryReturn", () => {
+  it("returns sanitized query paths only", () => {
+    expect(parseConnectQueryReturn("/members")).toBe("/members");
+    expect(parseConnectQueryReturn(undefined)).toBeUndefined();
+    expect(parseConnectQueryReturn("https://evil.com")).toBeUndefined();
+    expect(parseConnectQueryReturn("/connect")).toBeUndefined();
+  });
+});
 
 describe("buildConnectHref", () => {
   it("encodes valid internal return paths", () => {

@@ -4,6 +4,20 @@ export const CONNECT_RETURN_STORAGE_KEY = "alliance-hq-connect-return";
 
 export const DEFAULT_CONNECT_RETURN_FALLBACK = "/members";
 
+/**
+ * Raw `?next=` value for server → client props. Does not apply stash or fallback —
+ * the walkthrough resolves those client-side after connect.
+ */
+export function parseConnectQueryReturn(
+  queryNext?: string | null,
+): string | undefined {
+  const fromQuery = sanitizeInternalRedirectPath(queryNext);
+  if (fromQuery && fromQuery !== "/connect") {
+    return fromQuery;
+  }
+  return undefined;
+}
+
 /** Build `/connect` href with optional sanitized `next` query param. */
 export function buildConnectHref(returnPath: string | null | undefined): string {
   const safe = sanitizeInternalRedirectPath(returnPath);
