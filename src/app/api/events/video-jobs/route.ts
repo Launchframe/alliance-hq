@@ -13,6 +13,7 @@ export const runtime = "nodejs";
 
 /** Close before Vercel's 300s function limit to avoid runtime timeout errors. */
 export const SSE_MAX_CONNECTION_MS = 240_000;
+export const SSE_HEARTBEAT_INTERVAL_MS = 25_000;
 
 export function sseChunk(event: string, data: unknown): string {
   return `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
@@ -25,7 +26,9 @@ export async function GET(request: Request) {
 
   const encoder = new TextEncoder();
   let closed = false;
+  let intentionalClose = false;
   let listenClient: ReturnType<typeof createVideoJobListenClient> | null = null;
+  let stopProbe: (() => void) | null = null;
   let heartbeat: ReturnType<typeof setInterval> | null = null;
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -45,7 +48,9 @@ export async function GET(request: Request) {
         if (options?.reconnect) {
           send("reconnect", { t: Date.now() });
         }
+        intentionalClose = true;
         closed = true;
+        stopProbe?.();
         if (heartbeat) {
           clearInterval(heartbeat);
           heartbeat = null;
@@ -56,6 +61,11 @@ export async function GET(request: Request) {
         }
         void listenClient?.end({ timeout: 0 }).catch(() => undefined);
         controller.close();
+      };
+
+      const handleListenFailure = () => {
+        send("error", { message: "Live updates unavailable" });
+        closeStream({ reconnect: true });
       };
 
       try {
@@ -77,9 +87,9 @@ export async function GET(request: Request) {
 
       heartbeat = setInterval(() => {
         send("ping", { t: Date.now() });
-      }, 25_000);
+      }, SSE_HEARTBEAT_INTERVAL_MS);
 
-      void startPostgresListen(
+      stopProbe = await startPostgresListen(
         listenClient,
         VIDEO_JOB_NOTIFY_CHANNEL,
         (payload) => {
@@ -92,9 +102,10 @@ export async function GET(request: Request) {
           }
           send("job", event);
         },
-        () => {
-          send("error", { message: "Live updates unavailable" });
-          closeStream({ reconnect: true });
+        handleListenFailure,
+        {
+          isIntentionalClose: () => intentionalClose || closed,
+          onDisconnect: handleListenFailure,
         },
       );
 
@@ -103,7 +114,9 @@ export async function GET(request: Request) {
       });
     },
     cancel() {
+      intentionalClose = true;
       closed = true;
+      stopProbe?.();
       if (heartbeat) {
         clearInterval(heartbeat);
         heartbeat = null;
