@@ -120,7 +120,9 @@ test.describe("Alliance Discord server setup panel", () => {
     ).toHaveCount(0);
   });
 
-  test("platform maintainer can install for any alliance route", async ({ page }) => {
+  test("platform maintainer picks alliance then can install Discord bot", async ({
+    page,
+  }) => {
     const sql = getE2eSql();
     const tag = `DS${nanoid(4)}`;
     await createNativeAlliance(sql, {
@@ -137,6 +139,12 @@ test.describe("Alliance Discord server setup panel", () => {
     );
 
     await page.goto("/settings/discord");
+
+    await expect(
+      page.getByRole("heading", { name: /choose an alliance/i }),
+    ).toBeVisible();
+    await page.getByLabel("Alliance", { exact: true }).click();
+    await page.getByRole("option", { name: new RegExp(tag, "i") }).click();
 
     await expect(
       page.getByRole("heading", { name: /Discord bot — add another server/i }),
