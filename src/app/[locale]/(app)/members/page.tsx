@@ -1,6 +1,7 @@
 import { getTranslations } from "next-intl/server";
 
 import { MembersListViewOrSetup } from "@/components/members/MembersListView";
+import { loadCommanderIndex } from "@/lib/commanders/index.server";
 import { canRefreshRosterFromAshed } from "@/lib/connect/ashed-shell-prompts.shared";
 import { loadAllianceMembers } from "@/lib/members/load";
 import { isNativeAlliance } from "@/lib/native-alliance/operating-mode";
@@ -27,8 +28,12 @@ export default async function MembersPage() {
   }
 
   let initial;
+  let commanderInitial;
   try {
-    initial = await loadAllianceMembers(session.id);
+    [initial, commanderInitial] = await Promise.all([
+      loadAllianceMembers(session.id),
+      loadCommanderIndex(session.id),
+    ]);
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Failed to load members";
@@ -48,6 +53,7 @@ export default async function MembersPage() {
   return (
     <MembersListViewOrSetup
       initial={initial}
+      commanderInitial={commanderInitial}
       canEditRanks={canWrite}
       canImportMembers={canWrite && initial.operatingMode === "native"}
       canRefreshFromAshed={canRefreshFromAshed}

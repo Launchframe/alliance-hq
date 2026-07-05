@@ -5,83 +5,88 @@ import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 
 import { useFormatAccountDateTime } from "@/components/timezone/TimezoneProvider";
-import { RosterImportDialog } from "@/components/members/RosterImportDialog";
 import { CommanderConflictResolutionSheet } from "@/components/members/CommanderConflictResolutionSheet";
-import { Link, usePathname, useRouter } from "@/i18n/navigation";
 import {
-  formatMemberRankDisplay,
-  isAshedMemberUnranked,
-  parseAshedMemberAllianceRank,
-} from "@/lib/members/alliance-rank";
+  RosterCommanderFilterBar,
+  RosterSquadSummaryStrip,
+} from "@/components/members/RosterCommanderToolbar";
+import { RosterColumnVisibilityMenu } from "@/components/members/RosterColumnVisibilityMenu";
+import {
+  rosterColumnHeaderLabel,
+  RosterMemberRow,
+} from "@/components/members/RosterMemberRow";
+import { RosterImportDialog } from "@/components/members/RosterImportDialog";
+import { RosterTeamBuilderSection } from "@/components/members/RosterTeamBuilderSection";
+import { Link, usePathname, useRouter } from "@/i18n/navigation";
+import type {
+  CommanderIndexHqLinkFilter,
+  CommanderIndexPayload,
+} from "@/lib/commanders/index.shared";
+import type { MainSquadType } from "@/lib/commanders/main-squad.shared";
+import { isAshedMemberUnranked } from "@/lib/members/alliance-rank";
 import {
   patchMembersAfterBulkRank,
   type BulkMemberRankAction,
 } from "@/lib/members/bulk-rank-update.shared";
 import type { AllianceMembersPayload } from "@/lib/members/load";
-import type { AshedMember } from "@/lib/video/member-matcher";
+import { writeStoredMembersListFilters } from "@/lib/members/members-list-filters.shared";
+import {
+  mergeMembersWithCommanderIndex,
+  rosterRowMatchesCommanderFilters,
+  sortRosterRows,
+  visibleRosterColumns,
+  type RosterColumnId,
+  type RosterSortDir,
+  type RosterSortKey,
+} from "@/lib/members/roster-index.shared";
+import {
+  resolveRosterColumnVisibility,
+  toggleRosterColumnVisibility,
+  writeStoredRosterColumnPrefs,
+} from "@/lib/members/roster-column-prefs.shared";
 import { MEMBER_ROSTER_VIDEO_SCORE_TARGET } from "@/lib/members/ashed-member-record";
 import { ashedUrlForPath } from "@/lib/nav/routes";
-import {
-  writeStoredMembersListFilters,
-} from "@/lib/members/members-list-filters.shared";
 import { buildVideoUploadHref } from "@/lib/video/score-target-nav";
 
 type Props = {
   initial: AllianceMembersPayload;
+  commanderInitial: CommanderIndexPayload;
   canEditRanks?: boolean;
   canImportMembers?: boolean;
-  /** Ashed-mode live sync — only when session has an Ashed credential. */
   canRefreshFromAshed?: boolean;
   canUploadRosterVideo?: boolean;
 };
 
 const SEARCH_DEBOUNCE_MS = 300;
 
-function memberStatusLabel(
-  status: string | undefined,
-  t: (key: "statusActive" | "statusFormer") => string,
-): string {
-  if (status === "former") {
-    return t("statusFormer");
-  }
-  if (status === "active" || !status) {
-    return t("statusActive");
-  }
-  return status.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-}
-
-function memberStatusBadgeClass(status?: string): string {
-  const base =
-    "inline-flex min-w-[5.5rem] items-center justify-center rounded-full px-2.5 py-0.5 text-xs font-medium";
-  if (status === "former") {
-    return `${base} bg-[#30363d] text-[#8b949e] ring-1 ring-[#484f58]`;
-  }
-  return `${base} bg-[#23863633] text-[#3fb950] ring-1 ring-[#23863666]`;
-}
-
-function memberRankFields(
-  member: AshedMember,
-  unknownLabel: string,
-): { rankLabel: string; titleLabel: string } {
-  return formatMemberRankDisplay(
-    parseAshedMemberAllianceRank(member),
-    unknownLabel,
-  );
-}
+const SORTABLE_COLUMNS: Partial<Record<RosterColumnId, RosterSortKey>> = {
+  name: "name",
+  thp: "thp",
+  mainSquad: "squad",
+  inGameRank: "allianceRank",
+  vr: "vr",
+  allianceRank: "allianceRank",
+  status: "status",
+};
 
 export function MembersListView({
   initial,
+  commanderInitial,
   canEditRanks = false,
   canImportMembers = false,
   canRefreshFromAshed = false,
   canUploadRosterVideo = false,
 }: Props) {
   const t = useTranslations("members");
+  const tCommanders = useTranslations("commandersIndex");
   const formatDateTime = useFormatAccountDateTime();
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
+
   const [data, setData] = useState(initial);
+  const [commanderData, setCommanderData] =
+    useState<CommanderIndexPayload>(commanderInitial);
   const [searchInput, setSearchInput] = useState(
     () => searchParams.get("q") ?? "",
   );
@@ -98,6 +103,44 @@ export function MembersListView({
   const [conflictSheetOpen, setConflictSheetOpen] = useState(false);
   const skipInitialSearchFetch = useRef(true);
 
+  const [filterSquad, setFilterSquad] = useState<MainSquadType | "">("");
+  const [filterHqLink, setFilterHqLink] =
+    useState<CommanderIndexHqLinkFilter>("all");
+  const [filterMinThp, setFilterMinThp] = useState("");
+  const [includeUnreported, setIncludeUnreported] = useState(true);
+  const [sortKey, setSortKey] = useState<RosterSortKey>("name");
+  const [sortDir, setSortDir] = useState<RosterSortDir>("asc");
+
+  const [pendingSquad, setPendingSquad] = useState<
+    Record<string, MainSquadType | "">
+  >({});
+  const [savingSquad, setSavingSquad] = useState<Record<string, boolean>>({});
+  const [saveError, setSaveError] = useState<Record<string, string>>({});
+
+  const showSquadEditColumn =
+    commanderData.canEdit || commanderData.canSelfReportMemberIds.length > 0;
+
+  const [columnVisibility, setColumnVisibility] = useState(() =>
+    resolveRosterColumnVisibility({
+      canWrite: canEditRanks,
+      showSquadEdit: showSquadEditColumn,
+    }),
+  );
+
+  useEffect(() => {
+    setColumnVisibility(
+      resolveRosterColumnVisibility({
+        canWrite: canEditRanks,
+        showSquadEdit: showSquadEditColumn,
+      }),
+    );
+  }, [canEditRanks, showSquadEditColumn]);
+
+  const visibleColumns = useMemo(
+    () => visibleRosterColumns(columnVisibility),
+    [columnVisibility],
+  );
+
   const pendingConflictCount = useMemo(() => {
     const fromPayload = data.commanderConflicts?.length ?? 0;
     if (fromPayload > 0) return fromPayload;
@@ -107,6 +150,9 @@ export function MembersListView({
 
   const isNative = initial.operatingMode === "native";
   const showRefresh = isNative || canRefreshFromAshed;
+  const minThpNum = filterMinThp.trim()
+    ? Number.parseInt(filterMinThp.trim(), 10)
+    : 0;
 
   useEffect(() => {
     const handle = window.setTimeout(() => {
@@ -128,7 +174,7 @@ export function MembersListView({
     writeStoredMembersListFilters({ searchInput, showFormer });
   }, [searchInput, showFormer, pathname, router, searchParams]);
 
-  const filtered = useMemo(() => {
+  const filteredMembers = useMemo(() => {
     return data.members.filter((member) => {
       if (!showFormer && member.status === "former") {
         return false;
@@ -136,6 +182,31 @@ export function MembersListView({
       return true;
     });
   }, [data.members, showFormer]);
+
+  const rosterRows = useMemo(() => {
+    const merged = mergeMembersWithCommanderIndex(
+      filteredMembers,
+      commanderData.rows,
+    );
+    const commanderFiltered = merged.filter((row) =>
+      rosterRowMatchesCommanderFilters(row, {
+        filterSquad,
+        filterHqLink,
+        filterMinThp: Number.isFinite(minThpNum) ? minThpNum : 0,
+        includeUnreported,
+      }),
+    );
+    return sortRosterRows(commanderFiltered, sortKey, sortDir);
+  }, [
+    filteredMembers,
+    commanderData.rows,
+    filterSquad,
+    filterHqLink,
+    minThpNum,
+    includeUnreported,
+    sortKey,
+    sortDir,
+  ]);
 
   useEffect(() => {
     if (skipInitialSearchFetch.current) {
@@ -151,15 +222,31 @@ export function MembersListView({
         if (query) params.set("q", query);
         if (showFormer) params.set("includeFormer", "1");
         const qs = params.toString();
-        const res = await fetch(`/api/members${qs ? `?${qs}` : ""}`);
-        const body = (await res.json()) as AllianceMembersPayload & {
+        const [membersRes, commandersRes] = await Promise.all([
+          fetch(`/api/members${qs ? `?${qs}` : ""}`),
+          fetch("/api/commanders/index"),
+        ]);
+        const membersBody = (await membersRes.json()) as AllianceMembersPayload & {
           error?: string;
         };
-        if (!res.ok) {
-          if (!cancelled) setError(body.error ?? t("loadFailed"));
+        const commandersBody =
+          (await commandersRes.json()) as CommanderIndexPayload & {
+            error?: string;
+          };
+        if (!membersRes.ok) {
+          if (!cancelled) setError(membersBody.error ?? t("loadFailed"));
           return;
         }
-        if (!cancelled) setData(body);
+        if (!commandersRes.ok) {
+          if (!cancelled) {
+            setError(commandersBody.error ?? tCommanders("loadFailed"));
+          }
+          return;
+        }
+        if (!cancelled) {
+          setData(membersBody);
+          setCommanderData(commandersBody);
+        }
       } catch (e) {
         if (!cancelled) {
           setError(e instanceof Error ? e.message : t("loadFailed"));
@@ -172,7 +259,7 @@ export function MembersListView({
     return () => {
       cancelled = true;
     };
-  }, [query, showFormer, t]);
+  }, [query, showFormer, t, tCommanders]);
 
   const exitEditMode = useCallback(() => {
     setEditMode(false);
@@ -192,14 +279,18 @@ export function MembersListView({
   }, []);
 
   const selectAllFiltered = useCallback(() => {
-    setSelectedIds(new Set(filtered.map((m) => m.id)));
-  }, [filtered]);
+    setSelectedIds(new Set(rosterRows.map((row) => row.ashedMemberId)));
+  }, [rosterRows]);
 
   const selectUnrankedFiltered = useCallback(() => {
     setSelectedIds(
-      new Set(filtered.filter((m) => isAshedMemberUnranked(m)).map((m) => m.id)),
+      new Set(
+        rosterRows
+          .filter((row) => isAshedMemberUnranked(row.member))
+          .map((row) => row.ashedMemberId),
+      ),
     );
-  }, [filtered]);
+  }, [rosterRows]);
 
   const refresh = useCallback(async () => {
     setRefreshing(true);
@@ -209,19 +300,34 @@ export function MembersListView({
       if (query) params.set("q", query);
       if (showFormer) params.set("includeFormer", "1");
       const qs = params.toString();
-      const res = await fetch(`/api/members${qs ? `?${qs}` : ""}`);
-      const body = (await res.json()) as AllianceMembersPayload & {
+      const [membersRes, commandersRes] = await Promise.all([
+        fetch(`/api/members${qs ? `?${qs}` : ""}`),
+        fetch("/api/commanders/index"),
+      ]);
+      const membersBody = (await membersRes.json()) as AllianceMembersPayload & {
         error?: string;
       };
-      if (!res.ok) {
-        setError(body.error ?? t("loadFailed"));
+      const commandersBody =
+        (await commandersRes.json()) as CommanderIndexPayload & {
+          error?: string;
+        };
+      if (!membersRes.ok) {
+        setError(membersBody.error ?? t("loadFailed"));
         return;
       }
-      setData(body);
+      if (!commandersRes.ok) {
+        setError(commandersBody.error ?? tCommanders("loadFailed"));
+        return;
+      }
+      setData(membersBody);
+      setCommanderData(commandersBody);
+      setPendingSquad({});
+      setSaveError({});
       const conflictCount =
-        body.commanderConflicts?.length ??
-        body.members.filter((m) => m.commander_sync_status === "name_conflict")
-          .length;
+        membersBody.commanderConflicts?.length ??
+        membersBody.members.filter(
+          (m) => m.commander_sync_status === "name_conflict",
+        ).length;
       if (conflictCount > 0) {
         setConflictSheetOpen(true);
       }
@@ -230,7 +336,69 @@ export function MembersListView({
     } finally {
       setRefreshing(false);
     }
-  }, [query, showFormer, t]);
+  }, [query, showFormer, t, tCommanders]);
+
+  const saveSquad = useCallback(
+    async (ashedMemberId: string) => {
+      const row = commanderData.rows.find(
+        (entry) => entry.ashedMemberId === ashedMemberId,
+      );
+      if (!row) return;
+
+      const squad = pendingSquad[ashedMemberId] ?? row.mainSquad ?? "";
+      if (!squad) return;
+
+      const isOwner =
+        commanderData.canSelfReportMemberIds.includes(ashedMemberId);
+      const method = isOwner && !commanderData.canEdit ? "POST" : "PATCH";
+
+      setSavingSquad((prev) => ({ ...prev, [ashedMemberId]: true }));
+      setSaveError((prev) => ({ ...prev, [ashedMemberId]: "" }));
+      try {
+        const res = await fetch(`/api/members/${ashedMemberId}/main-squad`, {
+          method,
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ mainSquad: squad }),
+        });
+        const body = (await res.json()) as { error?: string };
+        if (!res.ok) {
+          setSaveError((prev) => ({
+            ...prev,
+            [ashedMemberId]: body.error ?? tCommanders("saveFailed"),
+          }));
+          return;
+        }
+        setCommanderData((prev) => ({
+          ...prev,
+          rows: prev.rows.map((entry) =>
+            entry.ashedMemberId === ashedMemberId
+              ? {
+                  ...entry,
+                  mainSquad: squad as MainSquadType,
+                  mainSquadSource: commanderData.canEdit
+                    ? "officer_override"
+                    : "self_report",
+                }
+              : entry,
+          ),
+        }));
+        setPendingSquad((prev) => {
+          const next = { ...prev };
+          delete next[ashedMemberId];
+          return next;
+        });
+      } catch (e) {
+        setSaveError((prev) => ({
+          ...prev,
+          [ashedMemberId]:
+            e instanceof Error ? e.message : tCommanders("saveFailed"),
+        }));
+      } finally {
+        setSavingSquad((prev) => ({ ...prev, [ashedMemberId]: false }));
+      }
+    },
+    [commanderData.canEdit, commanderData.canSelfReportMemberIds, commanderData.rows, pendingSquad, tCommanders],
+  );
 
   const applyBulkRank = useCallback(
     async (action: BulkMemberRankAction, allianceRank?: number) => {
@@ -242,7 +410,7 @@ export function MembersListView({
       setApplying(true);
       setError(null);
 
-      let previousMembers: AshedMember[] = [];
+      let previousMembers = data.members;
       setData((prev) => {
         previousMembers = prev.members;
         return {
@@ -302,18 +470,43 @@ export function MembersListView({
         setApplying(false);
       }
     },
-    [applying, selectedIds, t],
+    [applying, data.members, selectedIds, t],
   );
 
+  const toggleColumn = useCallback(
+    (columnId: RosterColumnId, nextVisible: boolean) => {
+      setColumnVisibility((prev) => {
+        const next = toggleRosterColumnVisibility(prev, columnId, nextVisible);
+        writeStoredRosterColumnPrefs(next);
+        return next;
+      });
+    },
+    [],
+  );
+
+  const toggleSort = useCallback((columnId: RosterColumnId) => {
+    const nextSortKey = SORTABLE_COLUMNS[columnId];
+    if (!nextSortKey) return;
+    setSortKey((currentKey) => {
+      if (currentKey === nextSortKey) {
+        setSortDir((dir) => (dir === "asc" ? "desc" : "asc"));
+        return currentKey;
+      }
+      setSortDir(columnId === "name" || columnId === "status" ? "asc" : "desc");
+      return nextSortKey;
+    });
+  }, []);
+
   const ashedMembersUrl = ashedUrlForPath("/members");
-  const tableColSpan = editMode ? 7 : 6;
+  const tableColSpan =
+    visibleColumns.length + (editMode ? 1 : 0);
   const selectedCount = selectedIds.size;
   const bulkDisabled = selectedCount === 0 || applying;
 
   return (
-    <div className="mx-auto w-full min-w-0 max-w-5xl space-y-6">
+    <div className="mx-auto w-full min-w-0 max-w-6xl space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
-        <div>
+        <div className="min-w-0">
           <h1 className="text-2xl font-semibold">{t("title")}</h1>
           <p className="mt-1 text-sm text-[#8b949e]">
             {isNative ? t("subtitleNative") : t("subtitle")}
@@ -331,8 +524,17 @@ export function MembersListView({
               total: data.counts.total,
             })}
           </p>
+          {commanderData.seasonKey ? (
+            <p className="mt-1 text-xs text-[#8b949e]">
+              {tCommanders("seasonLine", { season: commanderData.seasonKey })}
+            </p>
+          ) : null}
         </div>
         <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap">
+          <RosterColumnVisibilityMenu
+            visibility={columnVisibility}
+            onToggle={toggleColumn}
+          />
           {canImportMembers && (
             <button
               type="button"
@@ -392,14 +594,14 @@ export function MembersListView({
             </button>
           ) : null}
           {!isNative && (
-          <a
-            href={ashedMembersUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="w-full rounded-lg border border-[#238636] bg-[#238636] px-4 py-2 text-center text-sm text-white hover:bg-[#2ea043] sm:w-auto"
-          >
-            {t("openInAshed")}
-          </a>
+            <a
+              href={ashedMembersUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="w-full rounded-lg border border-[#238636] bg-[#238636] px-4 py-2 text-center text-sm text-white hover:bg-[#2ea043] sm:w-auto"
+            >
+              {t("openInAshed")}
+            </a>
           )}
         </div>
       </div>
@@ -447,24 +649,38 @@ export function MembersListView({
         onResolved={() => void refresh()}
       />
 
-      <div className="flex flex-col gap-3 rounded-xl border border-[#30363d] bg-[#161b22] p-4 sm:flex-row sm:flex-wrap sm:items-center">
-        <label className="min-w-0 flex-1 text-sm">
-          <span className="mb-1 block text-xs text-[#8b949e]">{t("search")}</span>
-          <input
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            placeholder={t("searchPlaceholder")}
-            className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
-          />
-        </label>
-        <label className="flex items-center gap-2 text-sm text-[#8b949e] sm:pt-5">
-          <input
-            type="checkbox"
-            checked={showFormer}
-            onChange={(e) => setShowFormer(e.target.checked)}
-          />
-          {t("showFormer")}
-        </label>
+      <RosterSquadSummaryStrip summary={commanderData.summaryBySquad} />
+
+      <div className="flex flex-col gap-3 rounded-xl border border-[#30363d] bg-[#161b22] p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+          <label className="min-w-0 flex-1 text-sm">
+            <span className="mb-1 block text-xs text-[#8b949e]">{t("search")}</span>
+            <input
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              placeholder={t("searchPlaceholder")}
+              className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
+            />
+          </label>
+          <label className="flex items-center gap-2 text-sm text-[#8b949e] sm:pt-5">
+            <input
+              type="checkbox"
+              checked={showFormer}
+              onChange={(e) => setShowFormer(e.target.checked)}
+            />
+            {t("showFormer")}
+          </label>
+        </div>
+        <RosterCommanderFilterBar
+          filterSquad={filterSquad}
+          filterHqLink={filterHqLink}
+          filterMinThp={filterMinThp}
+          includeUnreported={includeUnreported}
+          onFilterSquadChange={setFilterSquad}
+          onFilterHqLinkChange={setFilterHqLink}
+          onFilterMinThpChange={setFilterMinThp}
+          onIncludeUnreportedChange={setIncludeUnreported}
+        />
       </div>
 
       {editMode && (
@@ -528,166 +744,97 @@ export function MembersListView({
         })}
       </p>
 
-      <div className="min-w-0 overflow-hidden rounded-xl border border-[#30363d]">
-        <table className="w-full min-w-0 table-fixed text-left text-sm md:table-auto">
+      <div className="min-w-0 overflow-x-auto rounded-xl border border-[#30363d]">
+        <table className="w-full min-w-0 text-left text-sm">
           <thead className="border-b border-[#30363d] bg-[#161b22] text-xs uppercase tracking-wide text-[#8b949e]">
             <tr>
-              {editMode && (
+              {editMode ? (
                 <th className="hidden w-10 px-2 py-3 md:table-cell" aria-hidden />
-              )}
+              ) : null}
               <th className="px-3 py-3 font-medium md:hidden sm:px-4">
                 {t("colName")}
               </th>
-              <th className="hidden px-4 py-3 font-medium md:table-cell">
-                {t("colName")}
-              </th>
-              <th className="hidden px-4 py-3 font-medium md:table-cell">
-                {t("colPreviousNames")}
-              </th>
-              <th className="hidden px-4 py-3 text-center font-medium md:table-cell">
-                {t("colRank")}
-              </th>
-              <th className="hidden px-4 py-3 font-medium md:table-cell">
-                {t("colTitle")}
-              </th>
-              <th className="hidden px-4 py-3 text-center font-medium md:table-cell">
-                {t("colStatus")}
-              </th>
+              {visibleColumns.map((columnId) => {
+                const sortable = SORTABLE_COLUMNS[columnId];
+                const active = sortable != null && sortKey === sortable;
+                return (
+                  <th
+                    key={columnId}
+                    className={`hidden px-4 py-3 font-medium md:table-cell ${
+                      sortable ? "cursor-pointer select-none" : ""
+                    } ${
+                      columnId === "allianceRank" || columnId === "status"
+                        ? "text-center"
+                        : ""
+                    }`}
+                    onClick={
+                      sortable ? () => toggleSort(columnId) : undefined
+                    }
+                  >
+                    <span className="inline-flex items-center gap-1">
+                      {rosterColumnHeaderLabel(columnId, t, tCommanders)}
+                      {active ? (sortDir === "asc" ? " ↑" : " ↓") : null}
+                    </span>
+                  </th>
+                );
+              })}
             </tr>
           </thead>
           <tbody>
-            {filtered.length === 0 ? (
+            {rosterRows.length === 0 ? (
               <tr>
                 <td
-                  colSpan={tableColSpan}
+                  colSpan={tableColSpan + 1}
                   className="px-3 py-8 text-center text-[#8b949e] sm:px-4"
                 >
                   {t("empty")}
                 </td>
               </tr>
             ) : (
-              filtered.map((member) => (
-                <MemberRow
-                  key={member.id}
-                  member={member}
-                  editMode={editMode}
-                  selected={selectedIds.has(member.id)}
-                  onToggleSelect={() => toggleSelected(member.id)}
-                />
-              ))
+              rosterRows.map((row) => {
+                const canEditRow =
+                  commanderData.canEdit ||
+                  commanderData.canSelfReportMemberIds.includes(
+                    row.ashedMemberId,
+                  );
+                return (
+                  <RosterMemberRow
+                    key={row.ashedMemberId}
+                    row={row}
+                    columnVisibility={columnVisibility}
+                    editMode={editMode}
+                    selected={selectedIds.has(row.ashedMemberId)}
+                    onToggleSelect={() => toggleSelected(row.ashedMemberId)}
+                    showSquadEditColumn={showSquadEditColumn}
+                    squadEdit={
+                      showSquadEditColumn
+                        ? {
+                            row,
+                            canEditRow,
+                            pendingSquad: pendingSquad[row.ashedMemberId],
+                            isSaving: savingSquad[row.ashedMemberId] ?? false,
+                            saveError: saveError[row.ashedMemberId],
+                            onPendingSquadChange: (value) =>
+                              setPendingSquad((prev) => ({
+                                ...prev,
+                                [row.ashedMemberId]: value,
+                              })),
+                            onSave: () => void saveSquad(row.ashedMemberId),
+                          }
+                        : null
+                    }
+                  />
+                );
+              })
             )}
           </tbody>
         </table>
       </div>
+
+      {commanderData.canEdit ? (
+        <RosterTeamBuilderSection rows={commanderData.rows} />
+      ) : null}
     </div>
-  );
-}
-
-type MemberRowProps = {
-  member: AshedMember;
-  editMode: boolean;
-  selected: boolean;
-  onToggleSelect: () => void;
-};
-
-function MemberRow({
-  member,
-  editMode,
-  selected,
-  onToggleSelect,
-}: MemberRowProps) {
-  const t = useTranslations("members");
-  const previous =
-    member.previous_names?.filter(Boolean).join(", ") || t("noPreviousNames");
-  const unknown = t("noPreviousNames");
-  const { rankLabel, titleLabel } = memberRankFields(member, unknown);
-  const statusLabel = memberStatusLabel(member.status, t);
-  const statusBadge = (
-    <span className={memberStatusBadgeClass(member.status)}>
-      {statusLabel}
-    </span>
-  );
-
-  const rowClass = [
-    "border-b border-[#30363d]/60 last:border-0",
-    editMode ? "cursor-pointer" : "hover:bg-[#161b22]/80",
-    selected ? "bg-[#388bfd]/15 ring-1 ring-inset ring-[#388bfd]/35" : "",
-  ]
-    .filter(Boolean)
-    .join(" ");
-
-  const selectionControl = editMode ? (
-    <input
-      type="checkbox"
-      checked={selected}
-      onChange={onToggleSelect}
-      onClick={(e) => e.stopPropagation()}
-      aria-label={t("selectMember", { name: member.current_name })}
-      className="size-4 shrink-0 rounded border-[#484f58] bg-[#0d1117] accent-[#388bfd]"
-    />
-  ) : null;
-
-  const nameContent = editMode ? (
-    member.current_name
-  ) : (
-    <Link
-      href={`/members/${member.id}`}
-      className="text-[#58a6ff] hover:underline"
-    >
-      {member.current_name}
-    </Link>
-  );
-
-  return (
-    <tr
-      className={rowClass}
-      onClick={editMode ? onToggleSelect : undefined}
-      aria-selected={editMode ? selected : undefined}
-    >
-      {editMode && (
-        <td className="hidden px-2 py-3 text-center md:table-cell">
-          {selectionControl}
-        </td>
-      )}
-      <td className="px-3 py-3 md:hidden sm:px-4">
-        <div className="flex min-w-0 items-start gap-3">
-          {editMode && selectionControl}
-          <div className="flex min-w-0 flex-col items-start gap-1.5">
-            <div className="wrap-break-word font-medium">{nameContent}</div>
-            <div className="wrap-break-word text-xs text-[#8b949e]">
-              <span className="font-medium text-[#6e7681]">
-                {t("colPreviousNames")}:{" "}
-              </span>
-              {previous}
-            </div>
-            <div className="text-xs text-[#8b949e]">
-              <span className="font-medium text-[#6e7681]">{t("colRank")}: </span>
-              <span className="font-mono">{rankLabel}</span>
-            </div>
-            <div className="text-xs text-[#8b949e]">
-              <span className="font-medium text-[#6e7681]">{t("colTitle")}: </span>
-              {titleLabel}
-            </div>
-            {statusBadge}
-          </div>
-        </div>
-      </td>
-      <td className="hidden px-4 py-3 font-medium md:table-cell">
-        {nameContent}
-      </td>
-      <td className="hidden wrap-break-word px-4 py-3 text-[#8b949e] md:table-cell">
-        {previous}
-      </td>
-      <td className="hidden px-4 py-3 text-center font-mono md:table-cell">
-        {rankLabel}
-      </td>
-      <td className="hidden px-4 py-3 text-[#8b949e] md:table-cell">
-        {titleLabel}
-      </td>
-      <td className="hidden px-4 py-3 text-center md:table-cell">
-        {statusBadge}
-      </td>
-    </tr>
   );
 }
 
@@ -716,6 +863,7 @@ export function MembersListViewOrSetup(
   return (
     <MembersListView
       initial={props.initial}
+      commanderInitial={props.commanderInitial}
       canEditRanks={props.canEditRanks}
       canImportMembers={props.canImportMembers}
       canRefreshFromAshed={props.canRefreshFromAshed}
