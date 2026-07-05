@@ -1,7 +1,10 @@
 import { getLocale } from "next-intl/server";
 
 import { ConnectFlowClient } from "@/components/ConnectFlowClient";
-import { resolveConnectReturnPath } from "@/lib/connect/connect-return-path.shared";
+import {
+  parseConnectQueryReturn,
+  resolveConnectReturnPath,
+} from "@/lib/connect/connect-return-path.shared";
 import { shouldSkipConnectWalkthrough, shouldSkipLinkPhoneStep } from "@/lib/connect/walkthrough.server";
 import { redirect } from "@/i18n/navigation";
 import { requireAuthForPage } from "@/lib/auth/page-guard";
@@ -42,7 +45,7 @@ export default async function ConnectPage({ searchParams }: Props) {
       });
       redirect({ href: afterConnect, locale });
     }
-    returnTo = resolveConnectReturnPath({ queryNext: next });
+    returnTo = parseConnectQueryReturn(next);
     showWelcomeChoice =
       welcome === "1" && state.hasAppAccess && !state.isConnected;
     skipWalkthroughToPaste = await shouldSkipConnectWalkthrough(session.id);
