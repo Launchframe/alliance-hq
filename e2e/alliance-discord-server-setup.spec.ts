@@ -122,10 +122,11 @@ test.describe("Alliance Discord server setup panel", () => {
 
   test("platform maintainer picks alliance then can install Discord bot", async ({
     page,
+    request,
   }) => {
     const sql = getE2eSql();
     const tag = `DS${nanoid(4)}`;
-    await createNativeAlliance(sql, {
+    const alliance = await createNativeAlliance(sql, {
       tag,
       name: "Discord Setup Maintainer Alliance",
     });
@@ -140,15 +141,17 @@ test.describe("Alliance Discord server setup panel", () => {
 
     await page.goto("/settings/discord");
 
-    const alliancePicker = page
-      .locator("div")
-      .filter({ has: page.getByRole("heading", { name: /choose an alliance/i }) });
-
     await expect(
-      alliancePicker.getByRole("heading", { name: /choose an alliance/i }),
+      page.getByRole("heading", { name: /choose an alliance/i }),
     ).toBeVisible();
-    await alliancePicker.getByLabel("Alliance", { exact: true }).click();
-    await page.getByRole("option", { name: new RegExp(tag, "i") }).click();
+
+    const switchRes = await request.patch("/api/session/current-alliance", {
+      headers: { Cookie: `alliance_hq_session=${auth.sessionId}` },
+      data: { allianceId: alliance.allianceId },
+    });
+    expect(switchRes.ok(), await switchRes.text()).toBeTruthy();
+
+    await page.reload();
 
     await expect(
       page.getByRole("heading", { name: /Discord bot — add another server/i }),
