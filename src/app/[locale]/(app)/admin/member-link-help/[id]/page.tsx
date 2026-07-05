@@ -2,6 +2,7 @@ import { getTranslations } from "next-intl/server";
 import { notFound } from "next/navigation";
 
 import { MemberLinkHelpRequestReviewClient } from "@/components/members/MemberLinkHelpRequestReviewClient";
+import { redirect } from "@/i18n/navigation";
 import { loadMemberLinkHelpRequestReview } from "@/lib/member-link/member-link-help-review.server";
 import { requirePageSession } from "@/lib/session";
 
@@ -15,13 +16,16 @@ export async function generateMetadata() {
 export default async function AdminMemberLinkHelpDetailPage({
   params,
 }: {
-  params: Promise<{ id: string }>;
+  params: Promise<{ locale: string; id: string }>;
 }) {
-  const { id } = await params;
+  const { locale, id } = await params;
   await requirePageSession("/admin/member-link-help");
   const review = await loadMemberLinkHelpRequestReview({ requestId: id });
-  if (!review || review.request.status !== "open") {
+  if (!review) {
     notFound();
+  }
+  if (review.request.status !== "open") {
+    redirect({ href: "/admin/member-link-help", locale });
   }
 
   const t = await getTranslations("memberLinkHelpReview");
@@ -39,6 +43,7 @@ export default async function AdminMemberLinkHelpDetailPage({
       resolveUrlPrefix="/api/admin/member-link-help-requests"
       backHref="/admin/member-link-help"
       backLabel={t("backToAdminList")}
+      completeRedirectHref="/admin/member-link-help"
       showAlliance
     />
   );

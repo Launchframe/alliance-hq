@@ -1994,11 +1994,13 @@
     "notFoundTitle": "Página não encontrada",
     "notFoundBody": "Essa página não existe ou você pode não ter permissão para vê-la.",
     "notFoundHint": "Confira o endereço ou entre na conta se for uma ferramenta da aliança.",
+    "notFoundHintSignedIn": "Confira o endereço. Se era um link de lembrete, a tarefa pode já estar concluída.",
     "serverErrorTitle": "Algo deu errado",
     "serverErrorBody": "O Alliance HQ encontrou um erro inesperado ao carregar esta página.",
     "serverErrorHint": "Se continuar acontecendo, saia e entre de novo ou fale com um oficial da aliança.",
     "tryAgain": "Tentar novamente",
     "goHome": "Ir para o Alliance HQ",
+    "goInbox": "Abrir caixa de lembretes",
     "goSignIn": "Entrar"
   },
   "accountSecurity": {

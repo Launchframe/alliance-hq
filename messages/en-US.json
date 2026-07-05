@@ -1994,11 +1994,13 @@
     "notFoundTitle": "Page not found",
     "notFoundBody": "That page doesn't exist, or you may not have permission to view it.",
     "notFoundHint": "Check the URL, or sign in if this is an alliance tool.",
+    "notFoundHintSignedIn": "Check the URL. If this was a reminder link, the task may already be finished.",
     "serverErrorTitle": "Something went wrong",
     "serverErrorBody": "Alliance HQ hit an unexpected error loading this page.",
     "serverErrorHint": "If this keeps happening, try signing out and back in, or contact your alliance officers.",
     "tryAgain": "Try again",
     "goHome": "Go to Alliance HQ",
+    "goInbox": "Open reminder inbox",
     "goSignIn": "Sign in"
   },
   "accountSecurity": {

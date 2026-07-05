@@ -28,6 +28,8 @@ type Props = {
   resolveUrlPrefix: string;
   backHref: string;
   backLabel: string;
+  /** Where to send the officer after the help request is closed (link, resolve, dismiss). */
+  completeRedirectHref: string;
   showAlliance?: boolean;
 };
 
@@ -105,6 +107,7 @@ export function MemberLinkHelpRequestReviewClient({
   resolveUrlPrefix,
   backHref,
   backLabel,
+  completeRedirectHref,
   showAlliance = false,
 }: Props) {
   const t = useTranslations("memberLinkHelpReview");
@@ -313,22 +316,8 @@ export function MemberLinkHelpRequestReviewClient({
         await refreshReview();
         return;
       }
-      const linkedMemberId = selectedUnclaimed.ashedMemberId;
-      const memberName = payload?.memberName ?? selectedUnclaimed.currentName;
-      const refreshed = await refreshReview();
-      setActionNotice({
-        tone: "success",
-        message: t("linkSuccess", {
-          memberName,
-          requesterName,
-        }),
-      });
-      const claimedId =
-        refreshed?.roster.claimed.find(
-          (row) => row.ashedMemberId === linkedMemberId,
-        )?.ashedMemberId ?? linkedMemberId;
-      selectRosterMember(claimedId, { keepNotice: true });
       dispatchInboxRemindersRefresh();
+      router.push(completeRedirectHref);
       router.refresh();
     } catch {
       setError(t("linkFailed"));
@@ -348,7 +337,7 @@ export function MemberLinkHelpRequestReviewClient({
       });
       if (!res.ok) throw new Error("resolve_failed");
       dispatchInboxRemindersRefresh();
-      router.push(backHref);
+      router.push(completeRedirectHref);
       router.refresh();
     } catch {
       setError(t("resolveFailed"));
