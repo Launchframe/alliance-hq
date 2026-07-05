@@ -127,7 +127,7 @@ Name+UID member link (`/onboard`, `/link-commander`, `/link-last-war-profile`) p
 | HQ RBAC | Manual `owner` / `officer` memberships grant role permissions from the invite. Platform maintainers get `hq:admin` from the maintainer flag. **Ashed-sourced** memberships still require a matching live session credential (unchanged). |
 | Discord owner gate | `callerIsAllianceOwner` requires a Discord member link whose `ashedMemberId` matches `alliances.ownerMemberExternalId`; Ashed credentials are not required for owner proof. |
 | Discord officer gate | R4+ checks use the alliance-scoped local roster when present. Optional Ashed credentials may supply roster reads for Ashed-sourced alliances that have no local roster yet. |
-| Token storage | Privileged web connects and `/link-ashed` credentials cap `tokenExpiresAt` at **min(JWT exp, now + 30 days)**. |
+| Token storage | Web connects and `/link-ashed` credentials cap `tokenExpiresAt` at **min(JWT exp, browser session expiresAt)**. |
 
 Legacy sessions (`hqUserId` null): allow-all until reconnect (unchanged). Regular `member` / `data_entry` / `viewer` invites: name+UID link only.
 

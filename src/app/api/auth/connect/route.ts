@@ -16,9 +16,6 @@ import {
   sessionHasActiveMembership,
 } from "@/lib/native-alliance/access";
 import { emailHasAshedConnectPermission } from "@/lib/access/invite-gate";
-import {
-  roleReceivesPrivilegedTokenCap,
-} from "@/lib/member-link/privileged-link.shared";
 import { verifyBase44Connection } from "@/lib/base44/server";
 import {
   AshedConnectAuthMismatchError,
@@ -37,7 +34,6 @@ import {
   getOrCreateSession,
   getSessionState,
   storeAshedConnection,
-  applyPrivilegedTokenCapForSession,
   updateSessionAlliance,
 } from "@/lib/session";
 
@@ -148,17 +144,12 @@ export async function POST(request: Request) {
       },
     );
 
-    const applyPrivilegedTokenCap =
-      Boolean(sessionRbac?.isPlatformMaintainer) ||
-      roleReceivesPrivilegedTokenCap(sessionRbac?.roleName);
-
     const ashed = await storeAshedConnection(
       session.id,
       parsed.connection,
       userLabel,
       {
         ashedUserId: me.id ?? null,
-        applyPrivilegedTokenCap,
         ...(body.expiryReminderDays !== undefined
           ? { expiryReminderDays: body.expiryReminderDays }
           : {}),
@@ -198,13 +189,6 @@ export async function POST(request: Request) {
       rbac.hqUserId,
       me.email,
     );
-
-    if (
-      bootstrappedMaintainer ||
-      roleReceivesPrivilegedTokenCap(rbac.roleName)
-    ) {
-      await applyPrivilegedTokenCapForSession(session.id);
-    }
 
     return NextResponse.json({
       ok: true,

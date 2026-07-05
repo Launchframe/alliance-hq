@@ -103,9 +103,16 @@ describe("resolveBridgeHqUserId", () => {
       ashedMembershipModule,
       "sessionHoldsAshedIdentityForHqUser",
     ).mockResolvedValue(false);
+    vi.spyOn(
+      sessionConnectIdentity,
+      "signingInUserMatchesConnectedSessionOwner",
+    ).mockResolvedValue(false);
     vi.spyOn(sessionModule, "getAshedCredentialRecord").mockResolvedValue({
       id: "cred-1",
     } as never);
+    vi.spyOn(sessionModule, "resolveEffectiveHqUserIdForSession").mockResolvedValue(
+      "user-b",
+    );
     const clearSpy = vi
       .spyOn(sessionModule, "clearAshedConnection")
       .mockResolvedValue(undefined);
@@ -165,6 +172,9 @@ describe("resolveBridgeHqUserId", () => {
     vi.spyOn(sessionModule, "getAshedCredentialRecord").mockResolvedValue({
       id: "cred-1",
     } as never);
+    vi.spyOn(sessionModule, "resolveEffectiveHqUserIdForSession").mockResolvedValue(
+      "user-b",
+    );
     const clearSpy = vi
       .spyOn(sessionModule, "clearAshedConnection")
       .mockResolvedValue(undefined);
@@ -173,5 +183,76 @@ describe("resolveBridgeHqUserId", () => {
       resolveBridgeHqUserId({ hqUserId: "user-b" }),
     ).resolves.toBe("user-b");
     expect(clearSpy).toHaveBeenCalledWith("sess-1");
+  });
+
+  it("preserves cred when effective signing-in user matches session owner via merge stub", async () => {
+    vi.spyOn(sessionModule, "getOrCreateSession").mockResolvedValue({
+      id: "sess-1",
+      hqUserId: "canonical-user",
+    } as never);
+    vi.spyOn(sessionModule, "loadSession").mockResolvedValue({
+      id: "sess-1",
+      hqUserId: "canonical-user",
+    } as never);
+    vi.spyOn(
+      ashedMembershipModule,
+      "sessionHoldsAshedIdentityForHqUser",
+    ).mockImplementation(async (_sessionId, hqUserId) => hqUserId === "canonical-user");
+    vi.spyOn(
+      sessionConnectIdentity,
+      "signingInUserMatchesConnectedSessionOwner",
+    ).mockImplementation(async (input) => {
+      if (input.signingInHqUserId === input.sessionOwnerHqUserId) {
+        return true;
+      }
+      return false;
+    });
+    vi.spyOn(sessionModule, "getAshedCredentialRecord").mockResolvedValue({
+      id: "cred-1",
+    } as never);
+    vi.spyOn(sessionModule, "resolveEffectiveHqUserIdForSession").mockResolvedValue(
+      "canonical-user",
+    );
+    const clearSpy = vi
+      .spyOn(sessionModule, "clearAshedConnection")
+      .mockResolvedValue(undefined);
+
+    await expect(
+      resolveBridgeHqUserId({ hqUserId: "magic-stub" }),
+    ).resolves.toBe("magic-stub");
+    expect(clearSpy).not.toHaveBeenCalled();
+  });
+
+  it("preserves cred when effective signing-in user matches session owner via email alias", async () => {
+    vi.spyOn(sessionModule, "getOrCreateSession").mockResolvedValue({
+      id: "sess-1",
+      hqUserId: "canonical-user",
+    } as never);
+    vi.spyOn(sessionModule, "loadSession").mockResolvedValue({
+      id: "sess-1",
+      hqUserId: "canonical-user",
+    } as never);
+    vi.spyOn(
+      ashedMembershipModule,
+      "sessionHoldsAshedIdentityForHqUser",
+    ).mockResolvedValue(false);
+    vi.spyOn(
+      sessionConnectIdentity,
+      "signingInUserMatchesConnectedSessionOwner",
+    ).mockResolvedValue(true);
+    vi.spyOn(sessionModule, "getAshedCredentialRecord").mockResolvedValue({
+      id: "cred-1",
+    } as never);
+    vi.spyOn(sessionModule, "resolveEffectiveHqUserIdForSession").mockResolvedValue(
+      "invite-stub",
+    );
+    const clearSpy = vi
+      .spyOn(sessionModule, "clearAshedConnection")
+      .mockResolvedValue(undefined);
+
+    await expect(
+      resolveBridgeHqUserId({ hqUserId: "invite-stub" }),
+    ).resolves.toBe("invite-stub");
+    expect(clearSpy).not.toHaveBeenCalled();
   });
 });

@@ -1,8 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  capTokenExpiresAt,
-  PRIVILEGED_TOKEN_MAX_DAYS,
+  capTokenExpiresAtAtSession,
   roleReceivesPrivilegedTokenCap,
   roleRequiresAshedVerification,
   userRequiresAshedVerification,
@@ -42,26 +41,31 @@ describe("roleReceivesPrivilegedTokenCap", () => {
   });
 });
 
-describe("capTokenExpiresAt", () => {
-  const now = new Date("2026-06-01T12:00:00.000Z");
+describe("capTokenExpiresAtAtSession", () => {
+  const sessionExpiresAt = new Date("2026-09-01T00:00:00.000Z");
 
-  it("returns jwt exp when within the cap window", () => {
+  it("returns jwt exp when it is before session expiry", () => {
     const jwtExp = new Date("2026-06-15T00:00:00.000Z");
-    expect(capTokenExpiresAt(jwtExp, now)?.toISOString()).toBe(
+    expect(
+      capTokenExpiresAtAtSession(jwtExp, sessionExpiresAt)?.toISOString(),
+    ).toBe(jwtExp.toISOString());
+  });
+
+  it("clamps jwt exp to browser session expiresAt", () => {
+    const jwtExp = new Date("2026-12-01T00:00:00.000Z");
+    expect(
+      capTokenExpiresAtAtSession(jwtExp, sessionExpiresAt)?.toISOString(),
+    ).toBe(sessionExpiresAt.toISOString());
+  });
+
+  it("returns jwt exp when session expiry is unknown", () => {
+    const jwtExp = new Date("2026-12-01T00:00:00.000Z");
+    expect(capTokenExpiresAtAtSession(jwtExp, null)?.toISOString()).toBe(
       jwtExp.toISOString(),
     );
   });
 
-  it("clamps jwt exp to now + 30 days", () => {
-    const jwtExp = new Date("2026-12-01T00:00:00.000Z");
-    const capped = capTokenExpiresAt(jwtExp, now);
-    expect(capped).not.toBeNull();
-    const expected = new Date(now);
-    expected.setUTCDate(expected.getUTCDate() + PRIVILEGED_TOKEN_MAX_DAYS);
-    expect(capped?.toISOString()).toBe(expected.toISOString());
-  });
-
   it("returns null for null jwt exp", () => {
-    expect(capTokenExpiresAt(null, now)).toBeNull();
+    expect(capTokenExpiresAtAtSession(null, sessionExpiresAt)).toBeNull();
   });
 });
