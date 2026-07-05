@@ -225,6 +225,31 @@ export async function getAshedConnectionMeta(
   return buildAshedConnectionMeta(cred, locale, timezone);
 }
 
+export async function applySessionTokenCapForSession(
+  sessionId: string,
+): Promise<void> {
+  const session = await loadSession(sessionId);
+  if (!session) {
+    return;
+  }
+  const cred = await getAshedCredentialRecord(sessionId);
+  if (!cred?.tokenExpiresAt) {
+    return;
+  }
+  const capped = capTokenExpiresAtAtSession(
+    cred.tokenExpiresAt,
+    session.expiresAt,
+  );
+  if (!capped || capped.getTime() === cred.tokenExpiresAt.getTime()) {
+    return;
+  }
+  const db = getDb();
+  await db
+    .update(schema.ashedCredentials)
+    .set({ tokenExpiresAt: capped, updatedAt: new Date() })
+    .where(eq(schema.ashedCredentials.id, cred.id));
+}
+
 export async function updateExpiryReminderDays(
   sessionId: string,
   expiryReminderDays: number,

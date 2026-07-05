@@ -112,9 +112,11 @@ export function AshedEmbed({ path, labelKey, scoreTargetId = null }: Props) {
           className="min-h-0 w-full flex-1 md:h-[min(70vh,720px)] md:flex-none"
           sandbox="allow-same-origin allow-scripts allow-forms allow-popups"
         />
-        <p className="hidden border-t border-[#30363d] px-4 py-2 text-xs text-[#8b949e] md:block">
-          {t("iframeHint")}
-        </p>
+        {!hintDismissed ? (
+          <p className="hidden border-t border-[#30363d] px-4 py-2 text-xs text-[#8b949e] md:block">
+            {t("iframeHint")}
+          </p>
+        ) : null}
       </div>
     </div>
   );
