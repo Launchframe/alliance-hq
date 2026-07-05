@@ -8,12 +8,25 @@ type Props = {
   passkeyCount: number;
 };
 
+type LinkedAccountsResponse = {
+  passkeyCount: number;
+};
+
 export function AccountPasskeysCard({ passkeyCount: initialPasskeyCount }: Props) {
   const t = useTranslations("accountSecurity");
   const [passkeyCount, setPasskeyCount] = useState(initialPasskeyCount);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  async function refreshPasskeyCount(): Promise<void> {
+    const res = await fetch("/api/auth/linked-accounts");
+    if (!res.ok) {
+      throw new Error("linked-accounts fetch failed");
+    }
+    const body = (await res.json()) as LinkedAccountsResponse;
+    setPasskeyCount(body.passkeyCount);
+  }
 
   async function registerPasskey() {
     setBusy(true);
@@ -28,7 +41,12 @@ export function AccountPasskeysCard({ passkeyCount: initialPasskeyCount }: Props
         setError(t("registerPasskeyFailed"));
         return;
       }
-      setPasskeyCount((count) => count + 1);
+      try {
+        await refreshPasskeyCount();
+      } catch {
+        window.location.reload();
+        return;
+      }
       setMessage(t("registerPasskeySuccess"));
     } catch (e) {
       setError(e instanceof Error ? e.message : t("registerPasskeyFailed"));
