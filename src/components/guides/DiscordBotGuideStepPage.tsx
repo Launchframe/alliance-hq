@@ -5,7 +5,6 @@ import { useTranslations } from "next-intl";
 import { GuideScreenshotSlot } from "@/components/guides/GuideScreenshotSlot";
 import { Link } from "@/i18n/navigation";
 import {
-  DISCORD_BOT_GUIDE_ROLE_STEPS,
   DISCORD_BOT_GUIDE_SCREENSHOTS,
   DISCORD_BOT_GUIDE_STEPS,
   guideStepsForRole,
@@ -42,10 +41,8 @@ export function DiscordBotGuideStepPage({ role, stepSlug }: Props) {
             href={`/guides/discord-bot/${role}`}
             className="text-[#58a6ff] hover:underline"
           >
-            {t("flow.backToRoles")}
+            ← {t(`roles.${role}.title`)}
           </Link>
-          <span className="text-[#484f58]"> · </span>
-          <span className="text-[#8b949e]">{t(`roles.${role}.title`)}</span>
         </p>
         <h1 className="text-2xl font-semibold tracking-tight">
           {t(`steps.${messageKey}.title`)}
