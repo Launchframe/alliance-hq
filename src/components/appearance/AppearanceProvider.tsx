@@ -5,6 +5,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useState,
   type ReactNode,
@@ -52,7 +53,8 @@ export function AppearanceProvider({ children }: { children: ReactNode }) {
     writeStoredAppearancePreference(next);
   }, []);
 
-  useEffect(() => {
+  // Re-apply after hydration — React may strip classes the bootstrap script set on <html>.
+  useLayoutEffect(() => {
     applyResolvedAppearanceToDocument(resolved);
   }, [resolved]);
 

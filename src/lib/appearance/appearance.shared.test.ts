@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  APPEARANCE_STORAGE_KEY,
+  buildAppearanceBootstrapScript,
   isAppearancePreference,
   resolveAppearance,
 } from "@/lib/appearance/appearance.shared";
@@ -27,5 +29,14 @@ describe("isAppearancePreference", () => {
   it("rejects unknown values", () => {
     expect(isAppearancePreference("auto")).toBe(false);
     expect(isAppearancePreference(null)).toBe(false);
+  });
+});
+
+describe("buildAppearanceBootstrapScript", () => {
+  it("embeds the storage key and resolves explicit preferences", () => {
+    const script = buildAppearanceBootstrapScript();
+    expect(script).toContain(APPEARANCE_STORAGE_KEY);
+    expect(script).toContain('pref === "light" || pref === "dark"');
+    expect(script).toContain('root.style.colorScheme = resolved');
   });
 });
