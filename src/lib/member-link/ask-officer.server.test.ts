@@ -77,7 +77,7 @@ describe("runWebMemberLinkAskOfficer", () => {
     expect(emitAdminAlert).not.toHaveBeenCalled();
   });
 
-  it("rejects when name is missing even with valid uid", async () => {
+  it("notifies officers with lookup-derived name when uid is provided without name", async () => {
     const result = await runWebMemberLinkAskOfficer({
       sessionId: "sess-1",
       allianceId: "a1",
@@ -86,8 +86,39 @@ describe("runWebMemberLinkAskOfficer", () => {
       gameUid: validUid,
     });
 
-    expect(result.outcome).toBe("usage");
-    expect(recordMemberLinkHelpRequest).not.toHaveBeenCalled();
+    expect(result.outcome).toBe("officer_notified");
+    expect(recordMemberLinkHelpRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        reportedName: validName,
+        gameUid: validUid,
+        gameUserName: validName,
+      }),
+    );
+  });
+
+  it("uses uid fallback label when name is missing and lookup fails", async () => {
+    vi.mocked(lookupPlayerByUid).mockResolvedValue({
+      ok: false,
+      reason: "not_found",
+      message: "not found",
+    });
+
+    const result = await runWebMemberLinkAskOfficer({
+      sessionId: "sess-1",
+      allianceId: "a1",
+      hqUserId: "u1",
+      locale: "en-US",
+      gameUid: validUid,
+    });
+
+    expect(result.outcome).toBe("officer_notified");
+    expect(recordMemberLinkHelpRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        reportedName: `UID ${validUid}`,
+        gameUid: validUid,
+        gameUserName: null,
+      }),
+    );
   });
 
   it("rejects walkthrough pending without name and uid", async () => {

@@ -3176,7 +3176,8 @@
       "nothingPending": "Nada para escolher agora.",
       "noWalkthrough": "Nenhum tutorial em andamento.",
       "ashedVerificationRequired": "Conecte o Ashed para ferramentas iframe e sync do roster; depois volte para vincular seu personagem, se precisar.",
-      "askOfficerNeedsNameAndUid": "Informe seu nome no jogo e UID do jogador antes de pedir ajuda a um oficial."
+      "askOfficerNeedsNameAndUid": "Informe seu nome no jogo e UID do jogador antes de pedir ajuda a um oficial.",
+      "askOfficerNeedsUid": "Informe seu UID antes de pedir ajuda a um oficial."
     },
     "usage": "Informe seu nome no jogo e UID do perfil Last War.",
     "linked": "Vinculado a {name}. Bem-vindo à aliança!",
