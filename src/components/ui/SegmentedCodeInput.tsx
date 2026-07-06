@@ -1,15 +1,28 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, type InputHTMLAttributes } from "react";
 
-type Props = {
+type BaseProps = {
   value: string;
   onChange: (value: string) => void;
   onSubmit?: () => void;
   id?: string;
   autoFocus?: boolean;
   "aria-label"?: string;
+  autoComplete?: string;
 };
+
+type JoinCodeProps = BaseProps & {
+  format?: "join-code";
+};
+
+type FixedCodeProps = BaseProps & {
+  format: "fixed";
+  length: number;
+  charset?: "numeric" | "alphanumeric";
+};
+
+type Props = JoinCodeProps | FixedCodeProps;
 
 /** Alliance tag segment before the hyphen (e.g. LFgo). */
 const PREFIX_MAX = 10;
@@ -50,6 +63,18 @@ export function normalizeJoinCodeInput(raw: string): string {
   return `${prefix}-${suffix}`;
 }
 
+export function normalizeFixedCodeInput(
+  raw: string,
+  length: number,
+  charset: "numeric" | "alphanumeric" = "numeric",
+): string {
+  const cleaned =
+    charset === "numeric"
+      ? raw.replace(/\D/g, "")
+      : raw.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  return cleaned.slice(0, length);
+}
+
 function visibleSlotCount(filledLen: number, max: number, min: number): number {
   return Math.min(max, Math.max(min, filledLen + 1));
 }
@@ -72,19 +97,62 @@ function cellClassName(cell: Cell, isCursor: boolean): string {
   ].join(" ");
 }
 
-export function SegmentedCodeInput({
+function HiddenCodeInput({
+  inputRef,
+  value,
+  onChange,
+  onSubmit,
+  id,
+  autoFocus,
+  ariaLabel,
+  autoComplete,
+  inputMode,
+  autoCapitalize,
+}: {
+  inputRef: React.RefObject<HTMLInputElement | null>;
+  value: string;
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onSubmit?: () => void;
+  id?: string;
+  autoFocus?: boolean;
+  ariaLabel?: string;
+  autoComplete?: string;
+  inputMode?: InputHTMLAttributes<HTMLInputElement>["inputMode"];
+  autoCapitalize?: InputHTMLAttributes<HTMLInputElement>["autoCapitalize"];
+}) {
+  return (
+    <input
+      ref={inputRef}
+      id={id}
+      type="text"
+      value={value}
+      onChange={onChange}
+      autoFocus={autoFocus}
+      autoComplete={autoComplete ?? "off"}
+      autoCorrect="off"
+      autoCapitalize={autoCapitalize ?? "off"}
+      spellCheck={false}
+      enterKeyHint="send"
+      inputMode={inputMode}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") onSubmit?.();
+      }}
+      aria-label={ariaLabel}
+      className="absolute inset-0 h-full w-full cursor-text opacity-0"
+    />
+  );
+}
+
+function JoinCodeLayout({
   value,
   onChange,
   onSubmit,
   id,
   autoFocus,
   "aria-label": ariaLabel,
-}: Props) {
+  autoComplete,
+}: BaseProps) {
   const inputRef = useRef<HTMLInputElement>(null);
-
-  function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
-    onChange(normalizeJoinCodeInput(e.target.value));
-  }
 
   const { prefix, suffix, hasHyphen } = splitJoinCodeInput(value);
   const cursorInPrefix = !hasHyphen;
@@ -101,7 +169,7 @@ export function SegmentedCodeInput({
   return (
     <div className="relative">
       <div
-        className="flex flex-col items-start gap-1.5 pointer-events-none select-none"
+        className="pointer-events-none flex select-none flex-col items-start gap-1.5"
         aria-hidden
       >
         <div className="flex items-center gap-1.5">
@@ -135,24 +203,85 @@ export function SegmentedCodeInput({
         </div>
       </div>
 
-      <input
-        ref={inputRef}
-        id={id}
-        type="text"
+      <HiddenCodeInput
+        inputRef={inputRef}
         value={value}
-        onChange={handleChange}
+        onChange={(e) => onChange(normalizeJoinCodeInput(e.target.value))}
+        onSubmit={onSubmit}
+        id={id}
         autoFocus={autoFocus}
-        autoComplete="off"
-        autoCorrect="off"
+        ariaLabel={ariaLabel}
+        autoComplete={autoComplete}
         autoCapitalize="characters"
-        spellCheck={false}
-        enterKeyHint="send"
-        onKeyDown={(e) => {
-          if (e.key === "Enter") onSubmit?.();
-        }}
-        aria-label={ariaLabel}
-        className="absolute inset-0 h-full w-full cursor-text opacity-0"
       />
     </div>
   );
+}
+
+function FixedCodeLayout({
+  value,
+  onChange,
+  onSubmit,
+  id,
+  autoFocus,
+  "aria-label": ariaLabel,
+  autoComplete,
+  length,
+  charset = "numeric",
+}: BaseProps & { length: number; charset: "numeric" | "alphanumeric" }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const cells = buildRowCells(value, length);
+  const cursorIdx = cells.findIndex((cell) => !cell.char);
+
+  return (
+    <div className="relative">
+      <div
+        className="pointer-events-none flex select-none items-center gap-1.5"
+        aria-hidden
+      >
+        {cells.map((cell, i) => (
+          <div
+            key={`fixed-${i}`}
+            className={cellClassName(cell, i === cursorIdx)}
+          >
+            {cell.char}
+          </div>
+        ))}
+      </div>
+
+      <HiddenCodeInput
+        inputRef={inputRef}
+        value={value}
+        onChange={(e) =>
+          onChange(normalizeFixedCodeInput(e.target.value, length, charset))
+        }
+        onSubmit={onSubmit}
+        id={id}
+        autoFocus={autoFocus}
+        ariaLabel={ariaLabel}
+        autoComplete={autoComplete}
+        inputMode={charset === "numeric" ? "numeric" : "text"}
+      />
+    </div>
+  );
+}
+
+export function SegmentedCodeInput(props: Props) {
+  if (props.format === "fixed") {
+    return (
+      <FixedCodeLayout
+        value={props.value}
+        onChange={props.onChange}
+        onSubmit={props.onSubmit}
+        id={props.id}
+        autoFocus={props.autoFocus}
+        aria-label={props["aria-label"]}
+        autoComplete={props.autoComplete}
+        length={props.length}
+        charset={props.charset ?? "numeric"}
+      />
+    );
+  }
+
+  return <JoinCodeLayout {...props} />;
 }

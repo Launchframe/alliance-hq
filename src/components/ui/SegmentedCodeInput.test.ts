@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  normalizeFixedCodeInput,
   normalizeJoinCodeInput,
   splitJoinCodeInput,
 } from "@/components/ui/SegmentedCodeInput";
@@ -21,6 +22,14 @@ describe("splitJoinCodeInput", () => {
       hasHyphen: false,
     });
   });
+
+  it("handles short alliance tags without padding", () => {
+    expect(splitJoinCodeInput("ABC-DEF123")).toEqual({
+      prefix: "ABC",
+      suffix: "DEF123",
+      hasHyphen: true,
+    });
+  });
 });
 
 describe("normalizeJoinCodeInput", () => {
@@ -32,5 +41,19 @@ describe("normalizeJoinCodeInput", () => {
     expect(normalizeJoinCodeInput("12345678901-ABCDEFGH")).toBe(
       "1234567890-ABCDEF",
     );
+  });
+});
+
+describe("normalizeFixedCodeInput", () => {
+  it("keeps only digits for numeric codes", () => {
+    expect(normalizeFixedCodeInput("12a3b4", 6, "numeric")).toBe("1234");
+  });
+
+  it("limits to the configured length", () => {
+    expect(normalizeFixedCodeInput("1234567890", 6, "numeric")).toBe("123456");
+  });
+
+  it("uppercases alphanumeric codes", () => {
+    expect(normalizeFixedCodeInput("ab12cd", 6, "alphanumeric")).toBe("AB12CD");
   });
 });

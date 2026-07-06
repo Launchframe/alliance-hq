@@ -7,6 +7,7 @@ import { signIn as signInWithWebAuthn } from "next-auth/webauthn";
 import { useEffect, useState } from "react";
 
 import { AuthMethodPickerRow } from "@/components/auth/AuthMethodPicker";
+import { SegmentedCodeInput } from "@/components/ui/SegmentedCodeInput";
 
 import { Link } from "@/i18n/navigation";
 import { FORM_SUBMIT_ENTER_KEY_HINT } from "@/lib/client/form-enter-submit.shared";
@@ -487,24 +488,26 @@ export function AuthSignInClient({
           </label>
 
           {codeSent ? (
-            <label className="block space-y-1 text-sm">
-              <span className="text-[#8b949e]">{t("verificationCode")}</span>
-              <input
-                type="text"
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                pattern="[0-9]{6}"
-                maxLength={6}
-                required
+            <div className="space-y-2">
+              <label
+                htmlFor="email-verification-code"
+                className="block text-sm text-[#8b949e]"
+              >
+                {t("verificationCode")}
+              </label>
+              <SegmentedCodeInput
+                id="email-verification-code"
+                format="fixed"
+                length={6}
+                charset="numeric"
                 value={verificationCode}
-                onChange={(e) =>
-                  setVerificationCode(e.target.value.replace(/\D/g, "").slice(0, 6))
-                }
-                enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT}
-                className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 font-mono tracking-[0.35em]"
+                onChange={setVerificationCode}
+                onSubmit={() => void verifyEmailCode()}
+                autoComplete="one-time-code"
+                aria-label={t("verificationCode")}
                 autoFocus
               />
-            </label>
+            </div>
           ) : null}
 
           {error ? <p className="text-sm text-[#f85149]">{error}</p> : null}
