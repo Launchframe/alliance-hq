@@ -25,6 +25,9 @@ describe("forcedFirstFrameIndexForFps", () => {
   it("targets ~100ms from probed frame rate", () => {
     expect(forcedFirstFrameIndexForFps(30)).toBe(3);
     expect(forcedFirstFrameIndexForFps(60)).toBe(6);
+    expect(
+      forcedFirstFrameIndexForFps(parseFfprobeFrameRate("30000/1001")),
+    ).toBe(3);
   });
 
   it("falls back to frame 3 when fps is unknown", () => {

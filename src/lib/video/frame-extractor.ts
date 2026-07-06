@@ -364,6 +364,7 @@ export async function extractLeaderboardFrames(
       logPipelineStep("ffmpeg.scene_detect", Date.now() - sceneStarted, {
         mode: "scene",
         sceneThreshold,
+        frameRateFps: videoProbe.frameRateFps,
         forcedFirstFrameIndex,
         frameCount: sceneFrameCount,
       });
