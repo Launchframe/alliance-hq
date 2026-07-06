@@ -130,10 +130,22 @@ export async function runTesseract(
 
 /** Terminate the worker. Call during graceful shutdown if needed. */
 export async function terminateTesseractWorker(): Promise<void> {
-  if (workerInstance) {
-    await workerInstance.terminate();
-    workerInstance = null;
-    workerInitPromise = null;
-    recognizeChain = Promise.resolve();
+  const pendingInit = workerInitPromise;
+  workerInitPromise = null;
+  recognizeChain = Promise.resolve();
+
+  let worker = workerInstance;
+  workerInstance = null;
+
+  if (!worker && pendingInit) {
+    try {
+      worker = await pendingInit;
+    } catch {
+      return;
+    }
+  }
+
+  if (worker) {
+    await worker.terminate();
   }
 }

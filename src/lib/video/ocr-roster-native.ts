@@ -59,7 +59,10 @@ export async function ocrRosterNativeFrames(
 ): Promise<OcrRosterNativeFramesResult> {
   const config = options?.config ?? DEFAULT_ROSTER_OCR_CONFIG;
   const passKey = options?.passKey ?? null;
-  const concurrency = options?.concurrency ?? TESSERACT_FRAME_CONCURRENCY;
+  const concurrency = Math.min(
+    options?.concurrency ?? TESSERACT_FRAME_CONCURRENCY,
+    NATIVE_ROSTER_TESSERACT_CONCURRENCY,
+  );
   const timer = options?.timer;
 
   timer?.logStep("tesseract.roster_batch_start", 0, {
