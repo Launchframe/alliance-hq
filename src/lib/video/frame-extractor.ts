@@ -14,6 +14,9 @@ import {
 
 const execFileAsync = promisify(execFile);
 
+/** Skip encoder/recording startup artifacts; still one forced frame (no extra OCR). */
+export const FORCED_FIRST_FRAME_OFFSET_SECONDS = 0.1;
+
 export type ExtractedFrame = {
   index: number;
   filePath: string;
@@ -29,20 +32,50 @@ export type ExtractLeaderboardFramesResult = {
   framesSkipped: number | null;
 };
 
-/**
- * Probe a video file with ffprobe to get its duration in seconds.
- * Returns null if ffprobe-static is not available or the probe fails.
- */
-export async function probeVideoDurationSeconds(
-  videoPath: string,
-): Promise<number | null> {
+type VideoProbeInfo = {
+  durationSeconds: number | null;
+  frameRateFps: number | null;
+};
+
+/** Parse ffprobe `avg_frame_rate` / `r_frame_rate` (e.g. `30000/1001`, `30/1`). */
+export function parseFfprobeFrameRate(value: string | undefined): number | null {
+  if (!value?.trim()) {
+    return null;
+  }
+  if (value.includes("/")) {
+    const [numRaw, denRaw] = value.split("/");
+    const num = Number(numRaw);
+    const den = Number(denRaw);
+    if (Number.isFinite(num) && Number.isFinite(den) && den > 0 && num > 0) {
+      return num / den;
+    }
+    return null;
+  }
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+/** Input frame index for the forced opening capture (~100ms; one frame only). */
+export function forcedFirstFrameIndexForFps(fps: number | null): number {
+  if (fps != null && fps > 0) {
+    return Math.max(1, Math.round(FORCED_FIRST_FRAME_OFFSET_SECONDS * fps));
+  }
+  // ~100ms at 30fps when ffprobe cannot read frame rate.
+  return 3;
+}
+
+async function probeVideoWithFfprobe(videoPath: string): Promise<VideoProbeInfo> {
   let ffprobePath: string;
   try {
     const ffprobeStatic = await import("ffprobe-static");
-    ffprobePath = (ffprobeStatic as unknown as { path: string }).path ?? (ffprobeStatic.default as unknown as { path: string })?.path;
-    if (!ffprobePath) return null;
+    ffprobePath =
+      (ffprobeStatic as unknown as { path: string }).path ??
+      (ffprobeStatic.default as unknown as { path: string })?.path;
+    if (!ffprobePath) {
+      return { durationSeconds: null, frameRateFps: null };
+    }
   } catch {
-    return null;
+    return { durationSeconds: null, frameRateFps: null };
   }
 
   return new Promise((resolve) => {
@@ -63,34 +96,59 @@ export async function probeVideoDurationSeconds(
     });
     proc.on("close", (code) => {
       if (code !== 0) {
-        resolve(null);
+        resolve({ durationSeconds: null, frameRateFps: null });
         return;
       }
       try {
         const parsed = JSON.parse(stdout) as {
           format?: { duration?: string };
-          streams?: Array<{ duration?: string; codec_type?: string }>;
+          streams?: Array<{
+            duration?: string;
+            codec_type?: string;
+            avg_frame_rate?: string;
+            r_frame_rate?: string;
+          }>;
         };
+        let durationSeconds: number | null = null;
         const fromFormat = parsed.format?.duration
           ? parseFloat(parsed.format.duration)
           : null;
         if (Number.isFinite(fromFormat) && fromFormat! > 0) {
-          resolve(fromFormat);
-          return;
+          durationSeconds = fromFormat;
         }
+
         const videoStream = parsed.streams?.find(
-          (s) => s.codec_type === "video" && s.duration,
+          (s) => s.codec_type === "video",
         );
-        const fromStream = videoStream?.duration
-          ? parseFloat(videoStream.duration)
-          : null;
-        resolve(Number.isFinite(fromStream) && fromStream! > 0 ? fromStream : null);
+        if (durationSeconds == null && videoStream?.duration) {
+          const fromStream = parseFloat(videoStream.duration);
+          if (Number.isFinite(fromStream) && fromStream > 0) {
+            durationSeconds = fromStream;
+          }
+        }
+
+        const frameRateFps =
+          parseFfprobeFrameRate(videoStream?.avg_frame_rate) ??
+          parseFfprobeFrameRate(videoStream?.r_frame_rate);
+
+        resolve({ durationSeconds, frameRateFps });
       } catch {
-        resolve(null);
+        resolve({ durationSeconds: null, frameRateFps: null });
       }
     });
-    proc.on("error", () => resolve(null));
+    proc.on("error", () => resolve({ durationSeconds: null, frameRateFps: null }));
   });
+}
+
+/**
+ * Probe a video file with ffprobe to get its duration in seconds.
+ * Returns null if ffprobe-static is not available or the probe fails.
+ */
+export async function probeVideoDurationSeconds(
+  videoPath: string,
+): Promise<number | null> {
+  const probe = await probeVideoWithFfprobe(videoPath);
+  return probe.durationSeconds;
 }
 
 export type FrameExtractMode = "scene" | "fps";
@@ -126,11 +184,14 @@ export function appendShowinfoFilter(vf: string): string {
  *
  * ffmpeg's `scene` metric compares each frame to its predecessor, so the first
  * frame (n=0) has no score and is never selected by `gt(scene,…)` alone. We OR
- * in `eq(n,0)` so the opening frame is always captured — otherwise leaderboard
- * rows visible at t=0 (before the user scrolls) are silently dropped.
+ * in one forced opening frame (~100ms in) so leaderboard rows visible before
+ * the user scrolls are captured without t=0 encoder/recording junk.
  */
-export function buildSceneSelectFilter(sceneThreshold: number): string {
-  return `select='eq(n,0)+gt(scene,${sceneThreshold})',scale=720:-1`;
+export function buildSceneSelectFilter(
+  sceneThreshold: number,
+  forcedFirstFrameIndex: number,
+): string {
+  return `select='eq(n,${forcedFirstFrameIndex})+gt(scene,${sceneThreshold})',scale=720:-1`;
 }
 
 /** Parse pts_time values emitted by ffmpeg's showinfo filter (one per output frame). */
@@ -248,7 +309,11 @@ export async function extractLeaderboardFrames(
     );
   }
 
-  const videoDurationSeconds = await probeVideoDurationSeconds(videoPath);
+  const videoProbe = await probeVideoWithFfprobe(videoPath);
+  const videoDurationSeconds = videoProbe.durationSeconds;
+  const forcedFirstFrameIndex = forcedFirstFrameIndexForFps(
+    videoProbe.frameRateFps,
+  );
 
   const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "hq-frames-"));
   const pattern = path.join(tmpDir, "frame_%04d.jpg");
@@ -292,19 +357,20 @@ export async function extractLeaderboardFrames(
         ffmpeg,
         videoPath,
         pattern,
-        buildSceneSelectFilter(sceneThreshold),
+        buildSceneSelectFilter(sceneThreshold, forcedFirstFrameIndex),
       );
       lastStderr = result.stderr;
       const sceneFrameCount = (await listExtractedFrameFiles(tmpDir)).length;
       logPipelineStep("ffmpeg.scene_detect", Date.now() - sceneStarted, {
         mode: "scene",
         sceneThreshold,
+        forcedFirstFrameIndex,
         frameCount: sceneFrameCount,
       });
 
-      // Scene mode now always forces frame 0 (eq(n,0)), so ">= 1" no longer
-      // signals real motion. Fall back to fps when the forced first frame is
-      // the only capture, to avoid missing slow/sub-threshold scrolling.
+      // Scene mode always forces one opening frame (~100ms), so "<= 1" no longer
+      // signals real motion. Fall back to fps when that forced frame is the only
+      // capture, to avoid missing slow/sub-threshold scrolling.
       if (sceneFrameCount <= 1) {
         mode = "fps";
         const fallbackStarted = Date.now();
