@@ -49,7 +49,7 @@ function ProfileAvatarInner({
   return (
     <span
       className={cn(
-        "inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full border border-[#30363d] bg-[#21262d] font-medium text-[#e6edf3]",
+        "inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full border border-hq-border bg-hq-surface-muted font-medium text-hq-fg",
         sizeClasses[size],
         className,
       )}

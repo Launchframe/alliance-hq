@@ -59,20 +59,20 @@ function resolveOcrTotalMs(
 }
 
 const QUALITY_BUCKET_COLORS: Record<string, string> = {
-  perfect: "bg-[#3fb95020] text-[#3fb950] border-[#3fb950]",
-  q1: "bg-[#3fb95010] text-[#3fb950] border-[#3fb950]",
+  perfect: "bg-[#3fb95020] text-hq-green border-hq-green",
+  q1: "bg-[#3fb95010] text-hq-green border-hq-green",
   q2: "bg-[#d2992210] text-[#d29922] border-[#d29922]",
   q3: "bg-[#d2992210] text-[#d29922] border-[#d29922]",
-  q4: "bg-[#f8514910] text-[#f85149] border-[#f85149]",
-  q5: "bg-[#f8514910] text-[#f85149] border-[#f85149]",
-  dropped_the_ball: "bg-[#f8514920] text-[#f85149] border-[#f85149]",
+  q4: "bg-[#f8514910] text-hq-danger border-hq-danger",
+  q5: "bg-[#f8514910] text-hq-danger border-hq-danger",
+  dropped_the_ball: "bg-[#f8514920] text-hq-danger border-hq-danger",
 };
 
 function QualityBadge({ bucket }: { bucket: string | null | undefined }) {
   if (!bucket) return null;
   const cls =
     QUALITY_BUCKET_COLORS[bucket] ??
-    "bg-[#21262d] text-[#8b949e] border-[#30363d]";
+    "bg-hq-surface-muted text-hq-fg-muted border-hq-border";
   return (
     <span className={`rounded-full border px-2 py-0.5 text-xs ${cls}`}>
       {bucket}
@@ -244,18 +244,18 @@ type FrameLegendProps = {
 
 function GalleryFrameLegend({ frame, tDetail }: FrameLegendProps) {
   return (
-    <div className="min-h-[4.5rem] shrink-0 border-t border-[#30363d] bg-[#161b22] px-4 py-3">
-      <p className="mb-2 text-xs font-medium text-[#8b949e]">
+    <div className="min-h-[4.5rem] shrink-0 border-t border-hq-border bg-hq-surface px-4 py-3">
+      <p className="mb-2 text-xs font-medium text-hq-fg-muted">
         {tDetail("frameLabel", { index: frame.frameIndex })}
       </p>
       <div className="flex flex-wrap gap-2 text-xs">
-        <span className="rounded-full bg-[#21262d] px-2.5 py-1 text-[#e6edf3]">
+        <span className="rounded-full bg-hq-surface-muted px-2.5 py-1 text-hq-fg">
           {tDetail("uploadMs", { ms: formatMs(frame.uploadMs) })}
         </span>
-        <span className="rounded-full bg-[#21262d] px-2.5 py-1 text-[#e6edf3]">
+        <span className="rounded-full bg-hq-surface-muted px-2.5 py-1 text-hq-fg">
           {tDetail("extractMs", { ms: formatMs(frame.extractMs) })}
         </span>
-        <span className="rounded-full bg-[#21262d] px-2.5 py-1 text-[#e6edf3]">
+        <span className="rounded-full bg-hq-surface-muted px-2.5 py-1 text-hq-fg">
           {tDetail("entryCount", { count: frame.ocrEntryCount ?? 0 })}
         </span>
         {frame.ocrError ? (
@@ -628,7 +628,7 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
   }
 
   if (!data) {
-    return <p className="text-sm text-[#8b949e]">{tDetail("loading")}</p>;
+    return <p className="text-sm text-hq-fg-muted">{tDetail("loading")}</p>;
   }
 
   const { job, parsedRows, editCount, deleteCount, addCount, sameFileResubmits, groupPasses, groupInfo } =
@@ -643,56 +643,56 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
       <div className="flex flex-wrap items-center gap-3">
         <Link
           href={listHref}
-          className="text-sm text-[#58a6ff] hover:underline"
+          className="text-sm text-hq-accent hover:underline"
         >
           {tDetail("backToList")}
         </Link>
-        <h1 className="min-w-0 truncate text-lg font-medium text-[#e6edf3]">
+        <h1 className="min-w-0 truncate text-lg font-medium text-hq-fg">
           {job.fileName ?? job.id}
         </h1>
       </div>
 
-      <div className="grid gap-3 rounded-xl border border-[#30363d] bg-[#161b22] p-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-3 rounded-xl border border-hq-border bg-hq-surface p-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
         <div>
-          <p className="text-xs text-[#8b949e]">{t("table.status")}</p>
+          <p className="text-xs text-hq-fg-muted">{t("table.status")}</p>
           <p>{job.status}</p>
         </div>
         <div>
-          <p className="text-xs text-[#8b949e]">{tDetail("uploadedBy")}</p>
+          <p className="text-xs text-hq-fg-muted">{tDetail("uploadedBy")}</p>
           <p className="wrap-break-word">{job.uploadedBy ?? "—"}</p>
         </div>
         <div>
-          <p className="text-xs text-[#8b949e]">{t("table.target")}</p>
+          <p className="text-xs text-hq-fg-muted">{t("table.target")}</p>
           <p>{job.scoreTarget ?? "—"}</p>
         </div>
         <div>
-          <p className="text-xs text-[#8b949e]">{t("table.time")}</p>
+          <p className="text-xs text-hq-fg-muted">{t("table.time")}</p>
           <p>
             <FormattedDateTime value={job.createdAt} />
           </p>
         </div>
         <div>
-          <p className="text-xs text-[#8b949e]">{tDetail("frameCount")}</p>
+          <p className="text-xs text-hq-fg-muted">{tDetail("frameCount")}</p>
           <p>{job.frameCount ?? frames.length}</p>
         </div>
         <div>
-          <p className="text-xs text-[#8b949e]">{tDetail("totalTime")}</p>
+          <p className="text-xs text-hq-fg-muted">{tDetail("totalTime")}</p>
           <p>{formatMs(timings?.totalMs)}</p>
         </div>
         <div>
-          <p className="text-xs text-[#8b949e]">{tDetail("ocrTime")}</p>
+          <p className="text-xs text-hq-fg-muted">{tDetail("ocrTime")}</p>
           <p>{formatMs(resolveOcrTotalMs(timings?.phases))}</p>
         </div>
         <div>
-          <p className="text-xs text-[#8b949e]">{tDetail("frameBytes")}</p>
+          <p className="text-xs text-hq-fg-muted">{tDetail("frameBytes")}</p>
           <p>{formatBytes(job.totalFileSizeBytes)}</p>
         </div>
         <div>
-          <p className="text-xs text-[#8b949e]">{tDetail("sameFileResubmits")}</p>
+          <p className="text-xs text-hq-fg-muted">{tDetail("sameFileResubmits")}</p>
           <p>{sameFileResubmits}</p>
         </div>
         <div>
-          <p className="text-xs text-[#8b949e]">{tDetail("rating")}</p>
+          <p className="text-xs text-hq-fg-muted">{tDetail("rating")}</p>
           <p>
             {job.rating === "thumbs_up"
               ? "👍"
@@ -702,11 +702,11 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
           </p>
         </div>
         <div>
-          <p className="text-xs text-[#8b949e]">{tDetail("qualityBucket")}</p>
+          <p className="text-xs text-hq-fg-muted">{tDetail("qualityBucket")}</p>
           <div className="flex items-center gap-1.5">
             <QualityBadge bucket={job.qualityBucket} />
             {job.qualityScore != null ? (
-              <span className="text-xs text-[#8b949e]">
+              <span className="text-xs text-hq-fg-muted">
                 ({(job.qualityScore * 100).toFixed(0)}%)
               </span>
             ) : null}
@@ -717,28 +717,28 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
         </div>
         {(job.passKey ?? job.passRole) ? (
           <div>
-            <p className="text-xs text-[#8b949e]">{tDetail("passKey")}</p>
+            <p className="text-xs text-hq-fg-muted">{tDetail("passKey")}</p>
             <p className="font-mono text-xs">{job.passKey ?? job.passRole}</p>
           </div>
         ) : null}
       </div>
 
       {data.survey ? (
-        <div className="rounded-xl border border-[#30363d] bg-[#161b22] p-4">
-          <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-[#8b949e]">
+        <div className="rounded-xl border border-hq-border bg-hq-surface p-4">
+          <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-hq-fg-muted">
             {tDetail("surveyTitle")}
           </p>
           <div className="grid gap-2 text-sm sm:grid-cols-3">
             <div>
-              <p className="text-xs text-[#8b949e]">{tDetail("surveyRowCount")}</p>
+              <p className="text-xs text-hq-fg-muted">{tDetail("surveyRowCount")}</p>
               <p>{data.survey.rowCountEstimate ?? "—"}</p>
             </div>
             <div>
-              <p className="text-xs text-[#8b949e]">{tDetail("surveyScrollStyle")}</p>
+              <p className="text-xs text-hq-fg-muted">{tDetail("surveyScrollStyle")}</p>
               <p>{formatSurveyScrollStyle(data.survey.scrollStyle, tSurvey)}</p>
             </div>
             <div>
-              <p className="text-xs text-[#8b949e]">{tDetail("surveySchoolingTuition")}</p>
+              <p className="text-xs text-hq-fg-muted">{tDetail("surveySchoolingTuition")}</p>
               <p>{formatSchoolingTuitionAnswer(data.survey, tSurvey)}</p>
             </div>
           </div>
@@ -746,37 +746,37 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
       ) : null}
 
       {rosterEval ? (
-        <div className="rounded-xl border border-[#30363d] bg-[#161b22] p-4">
-          <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-[#8b949e]">
+        <div className="rounded-xl border border-hq-border bg-hq-surface p-4">
+          <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-hq-fg-muted">
             {tDetail("rosterTesseractEvalTitle")}
           </p>
           <div className="grid gap-2 text-sm sm:grid-cols-3 lg:grid-cols-6">
             <div>
-              <p className="text-xs text-[#8b949e]">{tDetail("rosterEvalNameRecall")}</p>
+              <p className="text-xs text-hq-fg-muted">{tDetail("rosterEvalNameRecall")}</p>
               <p>{formatPct(rosterEval.metrics.nameRecall)}</p>
             </div>
             <div>
-              <p className="text-xs text-[#8b949e]">{tDetail("rosterEvalNamePrecision")}</p>
+              <p className="text-xs text-hq-fg-muted">{tDetail("rosterEvalNamePrecision")}</p>
               <p>{formatPct(rosterEval.metrics.namePrecision)}</p>
             </div>
             <div>
-              <p className="text-xs text-[#8b949e]">{tDetail("rosterEvalRankAgreement")}</p>
+              <p className="text-xs text-hq-fg-muted">{tDetail("rosterEvalRankAgreement")}</p>
               <p>{formatPct(rosterEval.metrics.rankAgreement)}</p>
             </div>
             <div>
-              <p className="text-xs text-[#8b949e]">{tDetail("rosterEvalPowerAgreement")}</p>
+              <p className="text-xs text-hq-fg-muted">{tDetail("rosterEvalPowerAgreement")}</p>
               <p>{formatPct(rosterEval.metrics.powerAgreement)}</p>
             </div>
             <div>
-              <p className="text-xs text-[#8b949e]">{tDetail("rosterEvalLevelAgreement")}</p>
+              <p className="text-xs text-hq-fg-muted">{tDetail("rosterEvalLevelAgreement")}</p>
               <p>{formatPct(rosterEval.metrics.levelAgreement)}</p>
             </div>
             <div>
-              <p className="text-xs text-[#8b949e]">{tDetail("rosterEvalPassKey")}</p>
+              <p className="text-xs text-hq-fg-muted">{tDetail("rosterEvalPassKey")}</p>
               <p className="font-mono text-xs">{rosterEval.tessPassKey ?? "—"}</p>
             </div>
           </div>
-          <p className="mt-3 text-xs text-[#8b949e]">
+          <p className="mt-3 text-xs text-hq-fg-muted">
             {tDetail("rosterEvalRowSummary", {
               primary: rosterEval.metrics.primaryRowCount,
               shadow: rosterEval.metrics.shadowRowCount,
@@ -787,8 +787,8 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
       ) : null}
 
       {groupPasses && groupPasses.length > 1 ? (
-        <div className="rounded-xl border border-[#30363d] bg-[#161b22] p-4">
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[#8b949e]">
+        <div className="rounded-xl border border-hq-border bg-hq-surface p-4">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-hq-fg-muted">
             {tDetail("siblingPasses")}
           </p>
           <div className="flex flex-wrap gap-2">
@@ -802,8 +802,8 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
                     href={adminVideoJobDetailHref(pass.id, listFilters)}
                     className={`rounded-lg border px-3 py-1.5 text-sm ${
                       pass.id === jobId
-                        ? "border-[#58a6ff] text-[#58a6ff]"
-                        : "border-[#30363d] text-[#8b949e] hover:text-[#e6edf3]"
+                        ? "border-hq-accent text-hq-accent"
+                        : "border-hq-border text-hq-fg-muted hover:text-hq-fg"
                     }`}
                   >
                     {pass.passKey ?? pass.passRole ?? pass.id.slice(0, 8)}
@@ -813,12 +813,12 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
                   {(isSelected || isAccuracy || isRecommended) ? (
                     <div className="flex flex-wrap gap-1">
                       {isSelected ? (
-                        <span className="rounded px-1.5 py-0.5 text-[10px] font-medium bg-[#3fb95020] text-[#3fb950]">
+                        <span className="rounded px-1.5 py-0.5 text-[10px] font-medium bg-[#3fb95020] text-hq-green">
                           {tDetail("passSelected")}
                         </span>
                       ) : null}
                       {isAccuracy ? (
-                        <span className="rounded px-1.5 py-0.5 text-[10px] font-medium bg-[#58a6ff20] text-[#58a6ff]">
+                        <span className="rounded px-1.5 py-0.5 text-[10px] font-medium bg-[#58a6ff20] text-hq-accent">
                           {tDetail("passAccuracyVoted")}
                         </span>
                       ) : null}
@@ -842,7 +842,7 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
         </pre>
       ) : null}
 
-      <div className="flex flex-wrap gap-2 border-b border-[#30363d] pb-2">
+      <div className="flex flex-wrap gap-2 border-b border-hq-border pb-2">
         {(["frames", "parse", "timings", "diagnostics"] as const).map((id) => (
           <button
             key={id}
@@ -850,8 +850,8 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
             onClick={() => setTab(id)}
             className={`rounded-lg px-3 py-1.5 text-sm ${
               tab === id
-                ? "bg-[#21262d] text-[#e6edf3]"
-                : "text-[#8b949e] hover:text-[#e6edf3]"
+                ? "bg-hq-surface-muted text-hq-fg"
+                : "text-hq-fg-muted hover:text-hq-fg"
             }`}
           >
             {tDetail(`tabs.${id}`)}
@@ -861,7 +861,7 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
 
       {tab === "frames" ? (
         frames.length === 0 ? (
-          <p className="text-sm text-[#8b949e]">{tDetail("framesEmpty")}</p>
+          <p className="text-sm text-hq-fg-muted">{tDetail("framesEmpty")}</p>
         ) : (
           <div className="space-y-4">
             {/* View mode switcher */}
@@ -874,8 +874,8 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
                     onClick={() => persistFrameViewMode(mode)}
                     className={`rounded-lg px-3 py-1.5 text-xs ${
                       frameViewMode === mode
-                        ? "bg-[#21262d] text-[#e6edf3]"
-                        : "text-[#8b949e] hover:text-[#e6edf3]"
+                        ? "bg-hq-surface-muted text-hq-fg"
+                        : "text-hq-fg-muted hover:text-hq-fg"
                     }`}
                   >
                     {tDetail(`viewMode.${mode}`)}
@@ -884,7 +884,7 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
               </div>
               {frameViewMode !== "list" ? (
                 <label className="flex min-w-0 flex-1 items-center gap-2 text-xs sm:max-w-xs">
-                  <span className="shrink-0 text-[#8b949e]">
+                  <span className="shrink-0 text-hq-fg-muted">
                     {tDetail("frameZoom")}
                   </span>
                   <input
@@ -898,7 +898,7 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
                     }
                     className="min-w-0 flex-1"
                   />
-                  <span className="w-10 shrink-0 text-center text-[#e6edf3]">
+                  <span className="w-10 shrink-0 text-center text-hq-fg">
                     {frameZoomPercent}%
                   </span>
                 </label>
@@ -911,7 +911,7 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
                 {frames.map((frame) => (
                   <li
                     key={frame.frameIndex}
-                    className="rounded-xl border border-[#30363d] bg-[#161b22] p-3"
+                    className="rounded-xl border border-hq-border bg-hq-surface p-3"
                   >
                     <div className="flex flex-col gap-3 sm:flex-row">
                       {/* eslint-disable-next-line @next/next/no-img-element -- admin-only JPEG from authenticated API route */}
@@ -920,24 +920,24 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
                         alt={tDetail("frameThumbnail", {
                           index: frame.frameIndex,
                         })}
-                        className="h-24 w-auto max-w-full rounded border border-[#30363d] object-contain"
+                        className="h-24 w-auto max-w-full rounded border border-hq-border object-contain"
                       />
                       <div className="min-w-0 flex-1 space-y-2">
-                        <p className="font-medium text-[#e6edf3]">
+                        <p className="font-medium text-hq-fg">
                           {tDetail("frameLabel", { index: frame.frameIndex })}
                         </p>
                         <div className="flex flex-wrap gap-2 text-xs">
-                          <span className="rounded bg-[#21262d] px-2 py-0.5 text-[#8b949e]">
+                          <span className="rounded bg-hq-surface-muted px-2 py-0.5 text-hq-fg-muted">
                             {tDetail("uploadMs", {
                               ms: formatMs(frame.uploadMs),
                             })}
                           </span>
-                          <span className="rounded bg-[#21262d] px-2 py-0.5 text-[#8b949e]">
+                          <span className="rounded bg-hq-surface-muted px-2 py-0.5 text-hq-fg-muted">
                             {tDetail("extractMs", {
                               ms: formatMs(frame.extractMs),
                             })}
                           </span>
-                          <span className="rounded bg-[#21262d] px-2 py-0.5 text-[#8b949e]">
+                          <span className="rounded bg-hq-surface-muted px-2 py-0.5 text-hq-fg-muted">
                             {tDetail("entryCount", {
                               count: frame.ocrEntryCount ?? 0,
                             })}
@@ -952,7 +952,7 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
                           <button
                             type="button"
                             onClick={() => toggleFrameRaw(frame.frameIndex)}
-                            className="text-xs text-[#58a6ff] hover:underline"
+                            className="text-xs text-hq-accent hover:underline"
                           >
                             {expandedFrames.has(frame.frameIndex)
                               ? tDetail("hideRaw")
@@ -960,7 +960,7 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
                           </button>
                         ) : null}
                         {expandedFrames.has(frame.frameIndex) ? (
-                          <pre className="max-h-48 overflow-auto rounded border border-[#30363d] bg-[#0d1117] p-2 text-xs text-[#8b949e]">
+                          <pre className="max-h-48 overflow-auto rounded border border-hq-border bg-hq-canvas p-2 text-xs text-hq-fg-muted">
                             {JSON.stringify(frame.ocrRawJson, null, 2)}
                           </pre>
                         ) : null}
@@ -973,7 +973,7 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
 
             {/* Gallery mode — 3D CSS carousel */}
             {frameViewMode === "gallery" ? (
-              <div className="flex flex-col overflow-hidden rounded-xl border border-[#30363d] bg-[#0d1117]">
+              <div className="flex flex-col overflow-hidden rounded-xl border border-hq-border bg-hq-canvas">
                 <div
                   className="relative h-[80vh] min-h-0 w-full select-none overflow-hidden"
                 >
@@ -1050,7 +1050,7 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
                           alt={tDetail("frameThumbnail", {
                             index: frame.frameIndex,
                           })}
-                          className="w-auto max-w-full rounded border border-[#30363d] object-contain"
+                          className="w-auto max-w-full rounded border border-hq-border object-contain"
                           style={{
                             maxHeight: imageMaxHeight,
                             maxWidth: "min(100%, 90vw)",
@@ -1064,7 +1064,7 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
                 {galleryFrame ? (
                   <GalleryFrameLegend frame={galleryFrame} tDetail={tDetail} />
                 ) : null}
-                <div className="flex items-center justify-center gap-3 border-t border-[#30363d] px-4 py-3">
+                <div className="flex items-center justify-center gap-3 border-t border-hq-border px-4 py-3">
                   <button
                     type="button"
                     onClick={() => {
@@ -1073,11 +1073,11 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
                       setGalleryIndex(safeGalleryIndex - 1);
                     }}
                     disabled={safeGalleryIndex === 0}
-                    className="rounded px-3 py-1 text-sm text-[#8b949e] hover:text-[#e6edf3] disabled:opacity-30"
+                    className="rounded px-3 py-1 text-sm text-hq-fg-muted hover:text-hq-fg disabled:opacity-30"
                   >
                     ← {tDetail("galleryPrev")}
                   </button>
-                  <span className="text-xs text-[#8b949e]">
+                  <span className="text-xs text-hq-fg-muted">
                     {safeGalleryIndex + 1} / {frames.length}
                   </span>
                   <button
@@ -1088,7 +1088,7 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
                       setGalleryIndex(safeGalleryIndex + 1);
                     }}
                     disabled={safeGalleryIndex === frames.length - 1}
-                    className="rounded px-3 py-1 text-sm text-[#8b949e] hover:text-[#e6edf3] disabled:opacity-30"
+                    className="rounded px-3 py-1 text-sm text-hq-fg-muted hover:text-hq-fg disabled:opacity-30"
                   >
                     {tDetail("galleryNext")} →
                   </button>
@@ -1107,7 +1107,7 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
                       alt={tDetail("frameThumbnail", {
                         index: videoModeFrame.frameIndex,
                       })}
-                      className="mx-auto w-auto max-w-full rounded-lg border border-[#30363d] object-contain"
+                      className="mx-auto w-auto max-w-full rounded-lg border border-hq-border object-contain"
                       style={{
                         height: `${frameDisplayHeight}px`,
                         maxHeight: "85vh",
@@ -1116,24 +1116,24 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
                     />
                   ) : null}
                   {videoModeFrame ? (
-                    <div className="mt-2 space-y-1 text-center text-xs text-[#8b949e]">
-                      <p className="text-[#e6edf3]">
+                    <div className="mt-2 space-y-1 text-center text-xs text-hq-fg-muted">
+                      <p className="text-hq-fg">
                         {tDetail("frameLabel", {
                           index: videoModeFrame.frameIndex,
                         })}
                       </p>
                       <div className="flex flex-wrap justify-center gap-1">
-                        <span className="rounded bg-[#21262d] px-1.5 py-0.5">
+                        <span className="rounded bg-hq-surface-muted px-1.5 py-0.5">
                           {tDetail("uploadMs", {
                             ms: formatMs(videoModeFrame.uploadMs),
                           })}
                         </span>
-                        <span className="rounded bg-[#21262d] px-1.5 py-0.5">
+                        <span className="rounded bg-hq-surface-muted px-1.5 py-0.5">
                           {tDetail("extractMs", {
                             ms: formatMs(videoModeFrame.extractMs),
                           })}
                         </span>
-                        <span className="rounded bg-[#21262d] px-1.5 py-0.5">
+                        <span className="rounded bg-hq-surface-muted px-1.5 py-0.5">
                           {tDetail("entryCount", {
                             count: videoModeFrame.ocrEntryCount ?? 0,
                           })}
@@ -1151,14 +1151,14 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
                   <button
                     type="button"
                     onClick={() => setVideoModePlaying((p) => !p)}
-                    className="rounded-lg border border-[#30363d] px-4 py-2 text-sm hover:bg-[#21262d]"
+                    className="rounded-lg border border-hq-border px-4 py-2 text-sm hover:bg-hq-surface-muted"
                   >
                     {videoModePlaying
                       ? tDetail("videoPause")
                       : tDetail("videoPlay")}
                   </button>
                   <label className="flex flex-wrap items-center justify-center gap-3 text-sm">
-                    <span className="text-[#8b949e]">
+                    <span className="text-hq-fg-muted">
                       {tDetail("videoFps")}
                     </span>
                     <input
@@ -1170,10 +1170,10 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
                       onChange={(e) => setVideoModeFps(Number(e.target.value))}
                       className="w-40"
                     />
-                    <span className="w-10 text-center text-[#e6edf3]">
+                    <span className="w-10 text-center text-hq-fg">
                       {videoModeFps.toFixed(2).replace(/\.?0+$/, "")}
                     </span>
-                    <span className="text-xs text-[#8b949e]">
+                    <span className="text-xs text-hq-fg-muted">
                       {tDetail("videoDuration", {
                         duration: videoDurationEstimate,
                       })}
@@ -1191,7 +1191,7 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
                       }}
                       className="w-64"
                     />
-                    <span className="text-xs text-[#8b949e]">
+                    <span className="text-xs text-hq-fg-muted">
                       {safeVideoModeIndex + 1} / {frames.length}
                     </span>
                   </div>
@@ -1204,18 +1204,18 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
 
       {tab === "parse" ? (
         <div className="space-y-3">
-          <p className="text-sm text-[#8b949e]">
+          <p className="text-sm text-hq-fg-muted">
             {tDetail("parseSummary", { editCount, deleteCount })}
             {addCount > 0 && (
               <> · {tDetail("addCount", { count: addCount })}</>
             )}
           </p>
           {parsedRows.length === 0 ? (
-            <p className="text-sm text-[#8b949e]">{tDetail("parseEmpty")}</p>
+            <p className="text-sm text-hq-fg-muted">{tDetail("parseEmpty")}</p>
           ) : (
-            <div className="overflow-x-auto rounded-xl border border-[#30363d]">
+            <div className="overflow-x-auto rounded-xl border border-hq-border">
               <table className="min-w-full text-left text-sm">
-                <thead className="bg-[#161b22] text-[#8b949e]">
+                <thead className="bg-hq-surface text-hq-fg-muted">
                   <tr>
                     <th className="px-3 py-2">{tDetail("colOcrName")}</th>
                     <th className="px-3 py-2">{tDetail("colScore")}</th>
@@ -1229,7 +1229,7 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
                   {parsedRows.map((row) => (
                     <tr
                       key={row.id}
-                      className={`border-t border-[#30363d] ${
+                      className={`border-t border-hq-border ${
                         row.deleted === 1 ? "opacity-50" : ""
                       }`}
                     >
@@ -1246,7 +1246,7 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
                           ? `${Math.round(row.matchConfidence * 100)}%`
                           : "—"}
                       </td>
-                      <td className="px-3 py-2 text-xs text-[#8b949e]">
+                      <td className="px-3 py-2 text-xs text-hq-fg-muted">
                         {row.manuallyAdded === 1 ? tDetail("added") : null}
                         {row.manuallyAdded === 1 && (row.edited === 1 || row.deleted === 1) ? " · " : null}
                         {row.edited === 1 ? tDetail("edited") : null}
@@ -1269,10 +1269,10 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
 
       {tab === "timings" ? (
         !timings ? (
-          <p className="text-sm text-[#8b949e]">{tDetail("timingsEmpty")}</p>
+          <p className="text-sm text-hq-fg-muted">{tDetail("timingsEmpty")}</p>
         ) : (
           <div className="space-y-4">
-            <p className="text-sm text-[#8b949e]">
+            <p className="text-sm text-hq-fg-muted">
               {tDetail("timingsSummary", {
                 total: formatMs(timings.totalMs),
                 ffmpeg: formatMs(timings.phases?.["ffmpeg.extract"]),
@@ -1283,13 +1283,13 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
             <ul className="space-y-2">
               {phaseBars.map(([phase, ms]) => (
                 <li key={phase}>
-                  <div className="mb-1 flex justify-between text-xs text-[#8b949e]">
+                  <div className="mb-1 flex justify-between text-xs text-hq-fg-muted">
                     <span className="truncate pr-2">{phase}</span>
                     <span className="shrink-0">{formatMs(ms)}</span>
                   </div>
-                  <div className="h-2 overflow-hidden rounded bg-[#21262d]">
+                  <div className="h-2 overflow-hidden rounded bg-hq-surface-muted">
                     <div
-                      className="h-full rounded bg-[#58a6ff]"
+                      className="h-full rounded bg-hq-accent"
                       style={{
                         width: `${Math.max(2, (ms / maxPhaseMs) * 100)}%`,
                       }}

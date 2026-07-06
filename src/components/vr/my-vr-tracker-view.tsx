@@ -187,11 +187,11 @@ export function MyVrTrackerView({ initial }: Props) {
   return (
     <div className="mx-auto flex w-full min-w-0 max-w-2xl flex-col gap-6 p-4 sm:p-6">
       <header className="min-w-0 space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight text-[#e6edf3]">
+        <h1 className="text-2xl font-semibold tracking-tight text-hq-fg">
           {t("pageTitle")}
         </h1>
-        <p className="text-sm text-[#8b949e]">{t("pageSubtitle")}</p>
-        <p className="text-xs text-[#6e7681]">
+        <p className="text-sm text-hq-fg-muted">{t("pageSubtitle")}</p>
+        <p className="text-xs text-hq-fg-subtle">
           {seasonLabelText}
           {data.commanderName ? ` · ${data.commanderName}` : ""}
         </p>
@@ -209,7 +209,7 @@ export function MyVrTrackerView({ initial }: Props) {
 
       {updatesLocked && postSeasonNoticeText ? (
         <p
-          className="rounded-lg border border-[#30363d] bg-[#161b22] px-4 py-3 text-sm text-[#8b949e]"
+          className="rounded-lg border border-hq-border bg-hq-surface px-4 py-3 text-sm text-hq-fg-muted"
           role="status"
           data-testid="my-vr-post-season-notice"
         >
@@ -218,7 +218,7 @@ export function MyVrTrackerView({ initial }: Props) {
       ) : null}
 
       <div
-        className="flex gap-1 rounded-lg border border-[#30363d] bg-[#0d1117] p-1"
+        className="flex gap-1 rounded-lg border border-hq-border bg-hq-canvas p-1"
         role="tablist"
         aria-label={t("sectionsAriaLabel")}
       >
@@ -231,8 +231,8 @@ export function MyVrTrackerView({ initial }: Props) {
             onClick={() => setTab(id)}
             className={`min-w-0 flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
               tab === id
-                ? "bg-[#21262d] text-[#e6edf3]"
-                : "text-[#8b949e] hover:text-[#e6edf3]"
+                ? "bg-hq-surface-muted text-hq-fg"
+                : "text-hq-fg-muted hover:text-hq-fg"
             }`}
           >
             {id === "now" ? t("tabNow") : t("tabHistory")}
@@ -242,19 +242,19 @@ export function MyVrTrackerView({ initial }: Props) {
 
       {tab === "now" ? (
         <section className="space-y-6" role="tabpanel">
-          <div className="rounded-2xl border border-[#30363d] bg-gradient-to-b from-[#161b22] to-[#0d1117] px-6 py-10 text-center">
-            <p className="text-xs font-medium uppercase tracking-widest text-[#8b949e]">
+          <div className="rounded-2xl border border-hq-border bg-gradient-to-b from-hq-surface to-hq-canvas px-6 py-10 text-center">
+            <p className="text-xs font-medium uppercase tracking-widest text-hq-fg-muted">
               {t("effectiveVrLabel")}
             </p>
             <p
-              className="mt-3 font-mono text-5xl font-bold tabular-nums text-[#e6edf3] sm:text-6xl"
+              className="mt-3 font-mono text-5xl font-bold tabular-nums text-hq-fg sm:text-6xl"
               data-testid="my-vr-hero-value"
             >
               {hasReported && heroVr != null ? heroVr : "—"}
             </p>
             {hasReported && baseVr != null ? (
               <p
-                className="mt-2 font-mono text-sm text-[#8b949e]"
+                className="mt-2 font-mono text-sm text-hq-fg-muted"
                 data-testid="my-vr-breakdown"
               >
                 {data.weeklyPassActive
@@ -266,17 +266,17 @@ export function MyVrTrackerView({ initial }: Props) {
               </p>
             ) : null}
             {hasReported && data.instituteLevel != null ? (
-              <p className="mt-1 text-sm text-[#6e7681]" data-testid="my-vr-institute-level">
+              <p className="mt-1 text-sm text-hq-fg-subtle" data-testid="my-vr-institute-level">
                 {t("levelLine", { level: data.instituteLevel })}
               </p>
             ) : null}
             {!hasReported ? (
-              <p className="mt-2 text-sm text-[#8b949e]">{t("notReportedYet")}</p>
+              <p className="mt-2 text-sm text-hq-fg-muted">{t("notReportedYet")}</p>
             ) : null}
           </div>
 
           {hasReported ? (
-            <label className="flex items-center justify-between gap-3 rounded-xl border border-[#30363d] bg-[#161b22] px-4 py-3">
+            <label className="flex items-center justify-between gap-3 rounded-xl border border-hq-border bg-hq-surface px-4 py-3">
               <span className="min-w-0 text-sm text-[#c9d1d9]">
                 {t("weeklyPassLabel")}
               </span>
@@ -285,7 +285,7 @@ export function MyVrTrackerView({ initial }: Props) {
                 checked={data.weeklyPassActive ?? false}
                 disabled={busy || passBusy || updatesLocked}
                 onChange={(e) => void toggleWeeklyPass(e.target.checked)}
-                className="h-4 w-4 shrink-0 rounded border-[#30363d] bg-[#0d1117] accent-[#238636]"
+                className="h-4 w-4 shrink-0 rounded border-hq-border bg-hq-canvas accent-hq-success"
                 data-testid="my-vr-weekly-pass-toggle"
                 aria-label={t("weeklyPassLabel")}
               />
@@ -297,7 +297,7 @@ export function MyVrTrackerView({ initial }: Props) {
               type="button"
               disabled={busy || updatesLocked}
               onClick={bump}
-              className="min-w-0 flex-1 rounded-lg border border-[#238636] bg-[#238636] px-4 py-3 text-sm font-semibold text-white disabled:opacity-50"
+              className="min-w-0 flex-1 rounded-lg border border-hq-success bg-hq-success px-4 py-3 text-sm font-semibold text-white disabled:opacity-50"
               data-testid="my-vr-bump"
               aria-disabled={updatesLocked}
             >
@@ -314,7 +314,7 @@ export function MyVrTrackerView({ initial }: Props) {
                 );
                 setSetDialogOpen(true);
               }}
-              className="min-w-0 flex-1 rounded-lg border border-[#30363d] bg-[#21262d] px-4 py-3 text-sm font-medium text-[#e6edf3] disabled:opacity-50"
+              className="min-w-0 flex-1 rounded-lg border border-hq-border bg-hq-surface-muted px-4 py-3 text-sm font-medium text-hq-fg disabled:opacity-50"
               aria-disabled={updatesLocked}
             >
               {t("updateVr")}
@@ -322,25 +322,25 @@ export function MyVrTrackerView({ initial }: Props) {
           </div>
 
           {updatesLocked ? (
-            <p className="text-sm text-[#8b949e]" role="status">
+            <p className="text-sm text-hq-fg-muted" role="status">
               {t("seasonLockedError")}
             </p>
           ) : null}
 
-          {error ? <p className="text-sm text-[#f85149]">{error}</p> : null}
+          {error ? <p className="text-sm text-hq-danger">{error}</p> : null}
 
-          <div className="rounded-xl border border-[#30363d] bg-[#161b22]">
+          <div className="rounded-xl border border-hq-border bg-hq-surface">
             <button
               type="button"
               onClick={() => setPercentileOpen((open) => !open)}
-              className="flex w-full items-center justify-between px-4 py-3 text-left text-sm font-medium text-[#e6edf3]"
+              className="flex w-full items-center justify-between px-4 py-3 text-left text-sm font-medium text-hq-fg"
               aria-expanded={percentileOpen}
             >
               {t("percentileTitle")}
-              <span className="text-[#8b949e]">{percentileOpen ? "−" : "+"}</span>
+              <span className="text-hq-fg-muted">{percentileOpen ? "−" : "+"}</span>
             </button>
             {percentileOpen ? (
-              <div className="space-y-3 border-t border-[#30363d] px-4 py-4">
+              <div className="space-y-3 border-t border-hq-border px-4 py-4">
                 {data.percentile ? (
                   <>
                     <p className="text-sm text-[#c9d1d9]">
@@ -349,35 +349,35 @@ export function MyVrTrackerView({ initial }: Props) {
                         count: data.percentile.reporterCount,
                       })}
                     </p>
-                    <p className="text-sm text-[#8b949e]">
+                    <p className="text-sm text-hq-fg-muted">
                       {t("percentileAtOrBelow", {
                         percentile: data.percentile.percentile,
                       })}
                     </p>
-                    <div className="h-2 overflow-hidden rounded-full bg-[#21262d]">
+                    <div className="h-2 overflow-hidden rounded-full bg-hq-surface-muted">
                       <div
-                        className="h-full rounded-full bg-[#58a6ff] transition-all"
+                        className="h-full rounded-full bg-hq-accent transition-all"
                         style={{ width: `${data.percentile.percentile}%` }}
                       />
                     </div>
                   </>
                 ) : (
-                  <p className="text-sm text-[#8b949e]">{t("percentileNotEnough")}</p>
+                  <p className="text-sm text-hq-fg-muted">{t("percentileNotEnough")}</p>
                 )}
               </div>
             ) : null}
           </div>
 
           {data.events.length >= 2 ? (
-            <div className="rounded-xl border border-[#30363d] bg-[#161b22] p-4">
+            <div className="rounded-xl border border-hq-border bg-hq-surface p-4">
               <VrHistoryChart events={data.events} />
             </div>
           ) : (
-            <p className="text-center text-sm text-[#6e7681]">{t("chartPlaceholder")}</p>
+            <p className="text-center text-sm text-hq-fg-subtle">{t("chartPlaceholder")}</p>
           )}
         </section>
       ) : (
-        <section className="rounded-xl border border-[#30363d] bg-[#161b22] p-4" role="tabpanel">
+        <section className="rounded-xl border border-hq-border bg-hq-surface p-4" role="tabpanel">
           <VrProgressTable seasonKey={data.seasonKey} events={data.events} />
         </section>
       )}
@@ -388,16 +388,16 @@ export function MyVrTrackerView({ initial }: Props) {
         title={t("setDialogTitle")}
       >
         <form
-          className="relative z-[101] w-full max-w-md space-y-4 rounded-xl border border-[#30363d] bg-[#161b22] p-5 shadow-xl"
+          className="relative z-[101] w-full max-w-md space-y-4 rounded-xl border border-hq-border bg-hq-surface p-5 shadow-xl"
           onSubmit={(event) => {
             preventDefaultFormSubmit(event);
             submitSetLevel();
           }}
         >
-          <h2 className="text-lg font-semibold text-[#e6edf3]">{t("setDialogTitle")}</h2>
-          <p className="text-sm text-[#8b949e]">{t("setDialogDescription")}</p>
+          <h2 className="text-lg font-semibold text-hq-fg">{t("setDialogTitle")}</h2>
+          <p className="text-sm text-hq-fg-muted">{t("setDialogDescription")}</p>
           <label className="block space-y-1">
-            <span className="text-sm font-medium text-[#e6edf3]">{t("setLabel")}</span>
+            <span className="text-sm font-medium text-hq-fg">{t("setLabel")}</span>
             <input
               type="number"
               step={1}
@@ -406,14 +406,14 @@ export function MyVrTrackerView({ initial }: Props) {
               value={setLevelDraft}
               onChange={(e) => setSetLevelDraft(e.target.value)}
               enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT}
-              className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 font-mono text-sm text-[#e6edf3]"
+              className="w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 font-mono text-sm text-hq-fg"
             />
           </label>
           <div className="flex flex-col gap-2 sm:flex-row-reverse">
             <button
               type="submit"
               disabled={busy}
-              className="rounded-lg border border-[#238636] bg-[#238636] px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+              className="rounded-lg border border-hq-success bg-hq-success px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
             >
               {t("setSubmit")}
             </button>
@@ -421,7 +421,7 @@ export function MyVrTrackerView({ initial }: Props) {
               type="button"
               disabled={busy}
               onClick={() => setSetDialogOpen(false)}
-              className="rounded-lg border border-[#30363d] px-4 py-2 text-sm text-[#e6edf3]"
+              className="rounded-lg border border-hq-border px-4 py-2 text-sm text-hq-fg"
             >
               {t("cancel")}
             </button>
@@ -430,16 +430,16 @@ export function MyVrTrackerView({ initial }: Props) {
       </Dialog>
 
       <Dialog open={anomalyOpen} onOpenChange={setAnomalyOpen} title={t("anomalyTitle")}>
-        <div className="relative z-[101] w-full max-w-md space-y-4 rounded-xl border border-[#30363d] bg-[#161b22] p-5 shadow-xl">
-          <h2 className="text-lg font-semibold text-[#e6edf3]">{t("anomalyTitle")}</h2>
-          <p className="text-sm text-[#8b949e]">{anomalyMessage}</p>
+        <div className="relative z-[101] w-full max-w-md space-y-4 rounded-xl border border-hq-border bg-hq-surface p-5 shadow-xl">
+          <h2 className="text-lg font-semibold text-hq-fg">{t("anomalyTitle")}</h2>
+          <p className="text-sm text-hq-fg-muted">{anomalyMessage}</p>
           {anomalyProposedLevel != null ? (
-            <p className="font-mono text-lg text-[#8b949e]">
+            <p className="font-mono text-lg text-hq-fg-muted">
               {t("levelLine", { level: anomalyProposedLevel })}
             </p>
           ) : null}
           {anomalyProposed != null ? (
-            <p className="font-mono text-2xl font-bold text-[#e6edf3]">
+            <p className="font-mono text-2xl font-bold text-hq-fg">
               {data.weeklyPassActive
                 ? t("vrBreakdownWithPass", {
                     base: anomalyProposed,
@@ -453,7 +453,7 @@ export function MyVrTrackerView({ initial }: Props) {
               type="button"
               disabled={busy}
               onClick={() => confirmAnomaly("yes")}
-              className="rounded-lg border border-[#238636] bg-[#238636] px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+              className="rounded-lg border border-hq-success bg-hq-success px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
             >
               {t("anomalyConfirm")}
             </button>
@@ -461,7 +461,7 @@ export function MyVrTrackerView({ initial }: Props) {
               type="button"
               disabled={busy}
               onClick={() => confirmAnomaly("no")}
-              className="rounded-lg border border-[#30363d] px-4 py-2 text-sm text-[#e6edf3]"
+              className="rounded-lg border border-hq-border px-4 py-2 text-sm text-hq-fg"
             >
               {t("anomalyDecline")}
             </button>

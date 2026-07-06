@@ -42,26 +42,26 @@ export default async function AuthErrorPage({ searchParams }: Props) {
   if (!isMagicLinkError(code)) {
     if (isOAuthAccountNotLinkedError(code)) {
       return (
-        <div className="mx-auto max-w-md space-y-4 rounded-xl border border-[#f85149]/40 bg-[#f85149]/10 p-6">
-          <h1 className="text-xl font-semibold text-[#e6edf3]">
+        <div className="mx-auto max-w-md space-y-4 rounded-xl border border-hq-danger/40 bg-hq-danger/10 p-6">
+          <h1 className="text-xl font-semibold text-hq-fg">
             {t("errorOAuthAccountNotLinkedTitle")}
           </h1>
-          <p className="text-sm text-[#8b949e]">
+          <p className="text-sm text-hq-fg-muted">
             {t("errorOAuthAccountNotLinkedBody")}
           </p>
-          <p className="text-xs text-[#6e7681]">
+          <p className="text-xs text-hq-fg-subtle">
             {t("errorOAuthAccountNotLinkedHint")}
           </p>
           <div className="flex flex-col gap-2 pt-1">
             <Link
               href={authRetryHref(callbackUrl)}
-              className="inline-block rounded-lg border border-[#238636] bg-[#238636] px-4 py-2 text-center text-sm text-white"
+              className="inline-block rounded-lg border border-hq-success bg-hq-success px-4 py-2 text-center text-sm text-white"
             >
               {t("backToSignIn")}
             </Link>
             <Link
               href="/settings/account"
-              className="text-center text-sm text-[#58a6ff] hover:underline"
+              className="text-center text-sm text-hq-accent hover:underline"
             >
               {t("errorOAuthAccountNotLinkedAccountLink")}
             </Link>
@@ -71,14 +71,14 @@ export default async function AuthErrorPage({ searchParams }: Props) {
     }
 
     return (
-      <div className="mx-auto max-w-md space-y-4 rounded-xl border border-[#30363d] bg-[#161b22] p-6">
+      <div className="mx-auto max-w-md space-y-4 rounded-xl border border-hq-border bg-hq-surface p-6">
         <h1 className="text-xl font-semibold">{t("errorTitle")}</h1>
-        <p className="text-sm text-[#8b949e]">
+        <p className="text-sm text-hq-fg-muted">
           {t(credentialErrorMessageKey(code))}
         </p>
         <Link
           href={authRetryHref(callbackUrl)}
-          className="inline-block text-sm text-[#58a6ff] hover:underline"
+          className="inline-block text-sm text-hq-accent hover:underline"
         >
           {t("backToSignIn")}
         </Link>
@@ -99,20 +99,20 @@ export default async function AuthErrorPage({ searchParams }: Props) {
   const retryHref = authRetryHref(callbackUrl);
 
   return (
-    <div className="mx-auto max-w-md space-y-4 rounded-xl border border-[#f85149]/40 bg-[#f85149]/10 p-6">
-      <h1 className="text-xl font-semibold text-[#e6edf3]">{t(titleKey)}</h1>
-      <p className="text-sm text-[#8b949e]">{t(bodyKey)}</p>
+    <div className="mx-auto max-w-md space-y-4 rounded-xl border border-hq-danger/40 bg-hq-danger/10 p-6">
+      <h1 className="text-xl font-semibold text-hq-fg">{t(titleKey)}</h1>
+      <p className="text-sm text-hq-fg-muted">{t(bodyKey)}</p>
       {code === "Verification" ? (
-        <p className="text-xs text-[#6e7681]">{t("errorVerificationHint")}</p>
+        <p className="text-xs text-hq-fg-subtle">{t("errorVerificationHint")}</p>
       ) : null}
       <div className="flex flex-col gap-2 pt-1">
         <Link
           href={retryHref}
-          className="inline-block rounded-lg border border-[#238636] bg-[#238636] px-4 py-2 text-center text-sm text-white"
+          className="inline-block rounded-lg border border-hq-success bg-hq-success px-4 py-2 text-center text-sm text-white"
         >
           {t("errorRequestNewLink")}
         </Link>
-        <Link href="/" className="text-center text-sm text-[#58a6ff] hover:underline">
+        <Link href="/" className="text-center text-sm text-hq-accent hover:underline">
           {t("home")}
         </Link>
       </div>

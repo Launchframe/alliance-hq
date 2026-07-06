@@ -23,10 +23,10 @@ type Campaign = {
 };
 
 const STATUS_COLORS: Record<string, string> = {
-  draft: "bg-[#21262d] text-[#8b949e] border-[#30363d]",
-  active: "bg-[#3fb95020] text-[#3fb950] border-[#3fb950]",
+  draft: "bg-hq-surface-muted text-hq-fg-muted border-hq-border",
+  active: "bg-[#3fb95020] text-hq-green border-hq-green",
   paused: "bg-[#d2992220] text-[#d29922] border-[#d29922]",
-  concluded: "bg-[#21262d] text-[#484f58] border-[#21262d]",
+  concluded: "bg-hq-surface-muted text-[#484f58] border-hq-surface-muted",
 };
 
 function StatusBadge({ status }: { status: string }) {
@@ -48,7 +48,7 @@ const EMPTY_FORM = {
 };
 
 const INPUT_CLASS =
-  "w-full rounded border border-[#30363d] bg-[#0d1117] px-3 py-1.5 text-sm text-[#e6edf3] focus:border-[#58a6ff] focus:outline-none";
+  "w-full rounded border border-hq-border bg-hq-canvas px-3 py-1.5 text-sm text-hq-fg focus:border-hq-accent focus:outline-none";
 
 export function AdminExperimentsView() {
   const t = useTranslations("admin.experimentsPage");
@@ -119,12 +119,12 @@ export function AdminExperimentsView() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-[#e6edf3]">{t("title")}</h1>
-          <p className="mt-1 text-sm text-[#8b949e]">{t("subtitle")}</p>
+          <h1 className="text-xl font-semibold text-hq-fg">{t("title")}</h1>
+          <p className="mt-1 text-sm text-hq-fg-muted">{t("subtitle")}</p>
         </div>
         <button
           onClick={() => setShowForm((v) => !v)}
-          className="rounded-md border border-[#30363d] bg-[#21262d] px-3 py-1.5 text-sm text-[#e6edf3] hover:border-[#58a6ff] hover:text-[#58a6ff] transition-colors"
+          className="rounded-md border border-hq-border bg-hq-surface-muted px-3 py-1.5 text-sm text-hq-fg hover:border-hq-accent hover:text-hq-accent transition-colors"
         >
           {showForm ? t("cancel") : t("newCampaign")}
         </button>
@@ -134,9 +134,9 @@ export function AdminExperimentsView() {
       {showForm && (
         <form
           onSubmit={(e) => void handleCreate(e)}
-          className="rounded-lg border border-[#30363d] bg-[#161b22] p-4 space-y-4"
+          className="rounded-lg border border-hq-border bg-hq-surface p-4 space-y-4"
         >
-          <h2 className="text-sm font-semibold text-[#e6edf3]">{t("newCampaign")}</h2>
+          <h2 className="text-sm font-semibold text-hq-fg">{t("newCampaign")}</h2>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label={t("form.name")}>
               <input
@@ -202,14 +202,14 @@ export function AdminExperimentsView() {
               className={INPUT_CLASS}
             />
           </Field>
-          {error && <p className="text-sm text-[#f85149]">{error}</p>}
+          {error && <p className="text-sm text-hq-danger">{error}</p>}
           <div className="rounded border border-[#d2992230] bg-[#d2992208] p-3 text-xs text-[#d29922]">
             {t("form.scopeWarning")}
           </div>
           <button
             type="submit"
             disabled={saving}
-            className="rounded-md bg-[#238636] px-4 py-1.5 text-sm font-medium text-white hover:bg-[#2ea043] disabled:opacity-50 transition-colors"
+            className="rounded-md bg-hq-success px-4 py-1.5 text-sm font-medium text-white hover:bg-hq-success-hover disabled:opacity-50 transition-colors"
           >
             {saving ? t("saving") : t("create")}
           </button>
@@ -218,44 +218,44 @@ export function AdminExperimentsView() {
 
       {/* Filters */}
       <div className="flex items-center gap-3">
-        <label className="text-xs text-[#8b949e]">{t("statusFilter")}</label>
+        <label className="text-xs text-hq-fg-muted">{t("statusFilter")}</label>
         {(["", "draft", "active", "paused", "concluded"] as const).map((s) => (
           <button
             key={s}
             onClick={() => setStatusFilter(s)}
-            className={`rounded-full border px-3 py-0.5 text-xs transition-colors ${statusFilter === s ? "border-[#58a6ff] text-[#58a6ff] bg-[#58a6ff15]" : "border-[#30363d] text-[#8b949e] hover:border-[#58a6ff] hover:text-[#58a6ff]"}`}
+            className={`rounded-full border px-3 py-0.5 text-xs transition-colors ${statusFilter === s ? "border-hq-accent text-hq-accent bg-[#58a6ff15]" : "border-hq-border text-hq-fg-muted hover:border-hq-accent hover:text-hq-accent"}`}
           >
             {s || t("all")}
           </button>
         ))}
       </div>
 
-      {error && !showForm && <p className="text-sm text-[#f85149]">{error}</p>}
-      {loading && <p className="text-sm text-[#8b949e]">{t("loading")}</p>}
+      {error && !showForm && <p className="text-sm text-hq-danger">{error}</p>}
+      {loading && <p className="text-sm text-hq-fg-muted">{t("loading")}</p>}
 
       {/* Campaign list */}
       {!loading && (
         <div className="space-y-2">
           {campaigns.length === 0 && (
-            <p className="text-center py-10 text-[#8b949e] text-sm">{t("empty")}</p>
+            <p className="text-center py-10 text-hq-fg-muted text-sm">{t("empty")}</p>
           )}
           {campaigns.map((c) => (
             <Link
               key={c.id}
               href={`/admin/experiments/${c.id}`}
-              className="block rounded-lg border border-[#30363d] bg-[#161b22] p-4 hover:border-[#58a6ff] transition-colors"
+              className="block rounded-lg border border-hq-border bg-hq-surface p-4 hover:border-hq-accent transition-colors"
             >
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="font-medium text-[#e6edf3]">{c.name}</span>
+                    <span className="font-medium text-hq-fg">{c.name}</span>
                     <StatusBadge status={c.status} />
                   </div>
                   {c.description && (
-                    <p className="mt-1 text-xs text-[#8b949e] truncate">{c.description}</p>
+                    <p className="mt-1 text-xs text-hq-fg-muted truncate">{c.description}</p>
                   )}
                 </div>
-                <div className="flex shrink-0 flex-col items-end gap-1 text-xs text-[#8b949e]">
+                <div className="flex shrink-0 flex-col items-end gap-1 text-xs text-hq-fg-muted">
                   <span className="font-mono text-[#79c0ff]">
                     {c.scoreTarget}
                     {c.boardKey ? ` · ${c.boardKey}` : ""}
@@ -277,7 +277,7 @@ export function AdminExperimentsView() {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-xs text-[#8b949e]">{label}</span>
+      <span className="mb-1 block text-xs text-hq-fg-muted">{label}</span>
       {children}
     </label>
   );

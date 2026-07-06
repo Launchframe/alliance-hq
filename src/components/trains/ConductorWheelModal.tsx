@@ -197,15 +197,15 @@ export function ConductorWheelModal({
       aria-modal="true"
       aria-labelledby="conductor-wheel-title"
     >
-      <div className="w-full max-w-lg rounded-2xl border border-[#30363d] bg-[#161b22] p-6 shadow-2xl">
+      <div className="w-full max-w-lg rounded-2xl border border-hq-border bg-hq-surface p-6 shadow-2xl">
         <h2
           id="conductor-wheel-title"
-          className="text-center text-sm uppercase tracking-wide text-[#8b949e]"
+          className="text-center text-sm uppercase tracking-wide text-hq-fg-muted"
         >
           {disqualified && phase === "revealed" ? t("disqualifiedTitle") : t("title")}
         </h2>
         {dayLabel ? (
-          <p className="mt-1 text-center text-base font-semibold text-[#e6edf3]">
+          <p className="mt-1 text-center text-base font-semibold text-hq-fg">
             {dayLabel}
           </p>
         ) : null}
@@ -221,13 +221,13 @@ export function ConductorWheelModal({
               return (
                 <div
                   key={i}
-                  className="flex items-center justify-center px-4 text-center font-bold text-[#e6edf3]"
+                  className="flex items-center justify-center px-4 text-center font-bold text-hq-fg"
                   style={{ height: ITEM_H }}
                 >
                   <span
                     className={
                       centerDisqualified
-                        ? "text-4xl text-[#f85149] transition-colors duration-500"
+                        ? "text-4xl text-hq-danger transition-colors duration-500"
                         : isCenter
                           ? "text-4xl text-white"
                           : "text-2xl opacity-75"
@@ -243,7 +243,7 @@ export function ConductorWheelModal({
           <div
             className={`pointer-events-none absolute inset-x-0 rounded-lg border ring-1 ${
               disqualified && phase === "revealed"
-                ? "border-[#f85149]/60 bg-[#f85149]/10 ring-[#f85149]/20"
+                ? "border-hq-danger/60 bg-hq-danger/10 ring-hq-danger/20"
                 : "border-[#388bfd]/60 bg-[#388bfd]/10 ring-[#388bfd]/20"
             }`}
             style={{ top: CENTER_OFFSET, height: ITEM_H }}
@@ -259,9 +259,9 @@ export function ConductorWheelModal({
         </div>
 
         {phase === "revealed" && disqualified && qualification ? (
-          <div className="mt-4 space-y-2 text-center text-sm text-[#e6edf3]">
-            <p className="text-[#f85149]">{t("disqualifiedBody")}</p>
-            <p className="text-xs text-[#8b949e]">
+          <div className="mt-4 space-y-2 text-center text-sm text-hq-fg">
+            <p className="text-hq-danger">{t("disqualifiedBody")}</p>
+            <p className="text-xs text-hq-fg-muted">
               {t("evaluationPeriod", { period: periodLabel ?? "" })}
             </p>
             {qualification.vs.minimum > 0 ? (
@@ -287,12 +287,12 @@ export function ConductorWheelModal({
 
         {phase === "revealed" && !disqualified && stats ? (
           <div className="mt-6 flex flex-wrap justify-center gap-2">
-            <span className="rounded-full bg-[#0d1117] px-3 py-1 text-xs text-[#8b949e] ring-1 ring-[#30363d]">
+            <span className="rounded-full bg-hq-canvas px-3 py-1 text-xs text-hq-fg-muted ring-1 ring-hq-border">
               {t("lastConducted", {
                 date: stats.lastConductedDate ?? t("never"),
               })}
             </span>
-            <span className="rounded-full bg-[#0d1117] px-3 py-1 text-xs text-[#8b949e] ring-1 ring-[#30363d]">
+            <span className="rounded-full bg-hq-canvas px-3 py-1 text-xs text-hq-fg-muted ring-1 ring-hq-border">
               {t("conductsThisYear", { count: stats.conductsThisYear })}
             </span>
           </div>
@@ -306,7 +306,7 @@ export function ConductorWheelModal({
               onOverride?.(overrideReason.trim());
             }}
           >
-            <label className="block text-xs text-[#8b949e]">
+            <label className="block text-xs text-hq-fg-muted">
               {t("overrideReasonLabel")}
               <input
                 type="text"
@@ -314,20 +314,20 @@ export function ConductorWheelModal({
                 onChange={(e) => setOverrideReason(e.target.value)}
                 enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT}
                 placeholder={t("overrideReasonPlaceholder")}
-                className="mt-1 w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 text-sm text-[#e6edf3]"
+                className="mt-1 w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 text-sm text-hq-fg"
               />
             </label>
             <div className="flex flex-wrap justify-center gap-2">
               <button
                 type="button"
                 onClick={() => onSpinAgain?.()}
-                className="rounded-lg bg-[#21262d] px-4 py-2 text-sm font-medium text-[#e6edf3] ring-1 ring-[#30363d] hover:bg-[#30363d]"
+                className="rounded-lg bg-hq-surface-muted px-4 py-2 text-sm font-medium text-hq-fg ring-1 ring-hq-border hover:bg-hq-border"
               >
                 {t("spinAgain")}
               </button>
               <button
                 type="submit"
-                className="rounded-lg bg-[#238636] px-4 py-2 text-sm font-medium text-white hover:bg-[#2ea043]"
+                className="rounded-lg bg-hq-success px-4 py-2 text-sm font-medium text-white hover:bg-hq-success-hover"
               >
                 {t("override")}
               </button>
@@ -340,7 +340,7 @@ export function ConductorWheelModal({
             <button
               type="button"
               onClick={onClose}
-              className="rounded-lg bg-[#238636] px-4 py-2 text-sm font-medium text-white hover:bg-[#2ea043]"
+              className="rounded-lg bg-hq-success px-4 py-2 text-sm font-medium text-white hover:bg-hq-success-hover"
             >
               {t("close")}
             </button>

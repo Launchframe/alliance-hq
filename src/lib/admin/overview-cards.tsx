@@ -117,7 +117,7 @@ export function AdminOverviewCardIcon({
   icon: LucideIcon;
 }) {
   return (
-    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[#30363d] bg-[#0d1117] text-[#58a6ff]">
+    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-hq-border bg-hq-canvas text-hq-accent">
       <Icon className="h-5 w-5" aria-hidden />
     </span>
   );

@@ -198,7 +198,7 @@ export function PairingQrWizard({
           type="button"
           onClick={() => void startPairing()}
           disabled={creating}
-          className="w-full rounded-lg border border-[#30363d] bg-[#21262d] px-4 py-2 text-sm font-medium text-[#e6edf3] hover:bg-[#30363d] disabled:opacity-50 sm:w-auto"
+          className="w-full rounded-lg border border-hq-border bg-hq-surface-muted px-4 py-2 text-sm font-medium text-hq-fg hover:bg-hq-border disabled:opacity-50 sm:w-auto"
         >
           {creating ? strings.generating : strings.showQr}
         </button>
@@ -207,17 +207,17 @@ export function PairingQrWizard({
       {error ? <p className="text-sm text-red-400">{error}</p> : null}
 
       {active && pairing ? (
-        <div className="rounded-xl border border-[#30363d] bg-[#161b22] p-4">
+        <div className="rounded-xl border border-hq-border bg-hq-surface p-4">
           {showLinked ? (
-            <p className="text-sm text-[#3fb950]">{strings.linked}</p>
+            <p className="text-sm text-hq-green">{strings.linked}</p>
           ) : showExpired ? (
             <div className="space-y-3">
-              <p className="text-sm text-[#8b949e]">{strings.expired}</p>
+              <p className="text-sm text-hq-fg-muted">{strings.expired}</p>
               <button
                 type="button"
                 onClick={() => void startPairing()}
                 disabled={creating}
-                className="rounded-lg bg-[#238636] px-4 py-2 text-sm font-medium text-white hover:bg-[#2ea043] disabled:opacity-50"
+                className="rounded-lg bg-hq-success px-4 py-2 text-sm font-medium text-white hover:bg-hq-success-hover disabled:opacity-50"
               >
                 {strings.showQr}
               </button>
@@ -227,11 +227,11 @@ export function PairingQrWizard({
               <div className="rounded-lg bg-white p-3">
                 <QRCodeSVG value={pairing.linkUrl} size={180} level="M" />
               </div>
-              <div className="min-w-0 space-y-2 text-sm text-[#8b949e]">
+              <div className="min-w-0 space-y-2 text-sm text-hq-fg-muted">
                 <p>{strings.scanHint}</p>
                 <p>
                   {strings.expiresIn}{" "}
-                  <span className="font-mono text-[#e6edf3]">
+                  <span className="font-mono text-hq-fg">
                     {formatCountdown(remaining)}
                   </span>
                 </p>
@@ -243,7 +243,7 @@ export function PairingQrWizard({
             <button
               type="button"
               onClick={reset}
-              className="mt-4 text-sm text-[#8b949e] underline hover:text-[#e6edf3]"
+              className="mt-4 text-sm text-hq-fg-muted underline hover:text-hq-fg"
             >
               {strings.hideQr}
             </button>
@@ -253,7 +253,7 @@ export function PairingQrWizard({
             <button
               type="button"
               onClick={reset}
-              className="mt-3 rounded-lg border border-[#30363d] px-4 py-2 text-sm text-[#e6edf3] hover:bg-[#21262d]"
+              className="mt-3 rounded-lg border border-hq-border px-4 py-2 text-sm text-hq-fg hover:bg-hq-surface-muted"
             >
               {strings.hideQr}
             </button>
@@ -262,7 +262,7 @@ export function PairingQrWizard({
       ) : null}
 
       {creating && autoStart && !pairing ? (
-        <p className="text-sm text-[#8b949e]">{strings.generating}</p>
+        <p className="text-sm text-hq-fg-muted">{strings.generating}</p>
       ) : null}
     </div>
   );

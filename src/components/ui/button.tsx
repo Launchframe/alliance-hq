@@ -8,11 +8,11 @@ type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
 };
 
 const variantClasses: Record<NonNullable<ButtonProps["variant"]>, string> = {
-  default: "bg-[#238636] text-white hover:bg-[#2ea043]",
-  ghost: "bg-transparent text-[#e6edf3] hover:bg-[#21262d]",
+  default: "bg-hq-success text-white hover:bg-hq-success-hover",
+  ghost: "bg-transparent text-hq-fg hover:bg-hq-surface-muted",
   outline:
-    "border border-[#30363d] bg-transparent text-[#e6edf3] hover:bg-[#21262d]",
-  destructive: "bg-[#da3633] text-white hover:bg-[#f85149]",
+    "border border-hq-border bg-transparent text-hq-fg hover:bg-hq-surface-muted",
+  destructive: "bg-hq-danger-emphasis text-white hover:bg-hq-danger",
 };
 
 const sizeClasses: Record<NonNullable<ButtonProps["size"]>, string> = {

@@ -139,15 +139,15 @@ export function InviteAcceptClient({
   }
 
   if (loading) {
-    return <p className="text-sm text-[#8b949e]">{t("loading")}</p>;
+    return <p className="text-sm text-hq-fg-muted">{t("loading")}</p>;
   }
 
   if (!preview) {
     return (
-      <div className="mx-auto max-w-md space-y-3 rounded-xl border border-[#f85149]/40 bg-[#f85149]/10 p-6">
+      <div className="mx-auto max-w-md space-y-3 rounded-xl border border-hq-danger/40 bg-hq-danger/10 p-6">
         <h1 className="text-xl font-semibold">{t("title")}</h1>
-        <p className="text-sm text-[#f85149]">{error ?? t("notFound")}</p>
-        <Link href="/dashboard" className="text-sm text-[#58a6ff] hover:underline">
+        <p className="text-sm text-hq-danger">{error ?? t("notFound")}</p>
+        <Link href="/dashboard" className="text-sm text-hq-accent hover:underline">
           {t("home")}
         </Link>
       </div>
@@ -156,13 +156,13 @@ export function InviteAcceptClient({
 
   if (preview.accepted) {
     return (
-      <div className="mx-auto max-w-md space-y-3 rounded-xl border border-[#30363d] bg-[#161b22] p-6">
+      <div className="mx-auto max-w-md space-y-3 rounded-xl border border-hq-border bg-hq-surface p-6">
         <h1 className="text-xl font-semibold">{t("title")}</h1>
-        <p className="text-sm text-[#8b949e]">{t("alreadyAccepted")}</p>
+        <p className="text-sm text-hq-fg-muted">{t("alreadyAccepted")}</p>
         {!isAuthenticated ? (
           <Link
             href={authHref}
-            className="inline-block rounded-lg border border-[#238636] bg-[#238636] px-4 py-2 text-sm text-white"
+            className="inline-block rounded-lg border border-hq-success bg-hq-success px-4 py-2 text-sm text-white"
           >
             {t("signInToContinue")}
           </Link>
@@ -171,7 +171,7 @@ export function InviteAcceptClient({
             type="button"
             disabled={submitting}
             onClick={() => void acceptInvite()}
-            className="inline-block rounded-lg border border-[#238636] bg-[#238636] px-4 py-2 text-sm text-white disabled:opacity-50"
+            className="inline-block rounded-lg border border-hq-success bg-hq-success px-4 py-2 text-sm text-white disabled:opacity-50"
           >
             {submitting ? t("accepting") : t("goToApp")}
           </button>
@@ -184,16 +184,16 @@ export function InviteAcceptClient({
     return (
       <div className="mx-auto max-w-md space-y-3 rounded-xl border border-[#d29922]/40 bg-[#d29922]/10 p-6">
         <h1 className="text-xl font-semibold">{t("title")}</h1>
-        <p className="text-sm text-[#8b949e]">{t("expired")}</p>
+        <p className="text-sm text-hq-fg-muted">{t("expired")}</p>
       </div>
     );
   }
 
   if (!isAuthenticated) {
     return (
-      <div className="mx-auto max-w-md space-y-4 rounded-xl border border-[#30363d] bg-[#161b22] p-6">
+      <div className="mx-auto max-w-md space-y-4 rounded-xl border border-hq-border bg-hq-surface p-6">
         <h1 className="text-xl font-semibold">{t("title")}</h1>
-        <p className="text-sm text-[#8b949e]">
+        <p className="text-sm text-hq-fg-muted">
           {t("introSignIn", {
             alliance: preview.allianceName,
             tag: preview.allianceTag ?? "—",
@@ -202,7 +202,7 @@ export function InviteAcceptClient({
         </p>
         <Link
           href={authHref}
-          className="inline-block w-full rounded-lg border border-[#238636] bg-[#238636] px-4 py-2 text-center text-sm text-white"
+          className="inline-block w-full rounded-lg border border-hq-success bg-hq-success px-4 py-2 text-center text-sm text-white"
         >
           {t("signInToAccept")}
         </Link>
@@ -211,9 +211,9 @@ export function InviteAcceptClient({
   }
 
   return (
-    <div className="mx-auto max-w-md space-y-4 rounded-xl border border-[#30363d] bg-[#161b22] p-6">
+    <div className="mx-auto max-w-md space-y-4 rounded-xl border border-hq-border bg-hq-surface p-6">
       <h1 className="text-xl font-semibold">{t("title")}</h1>
-      <p className="text-sm text-[#8b949e]">
+      <p className="text-sm text-hq-fg-muted">
         {preview.requiresPassphrase
           ? t("introPassphrase", {
               alliance: preview.allianceName,
@@ -236,53 +236,53 @@ export function InviteAcceptClient({
       >
         {preview.kind === "email" ? (
           <label className="block space-y-1 text-sm">
-            <span className="text-[#8b949e]">{t("email")}</span>
+            <span className="text-hq-fg-muted">{t("email")}</span>
             <input
               type="email"
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
+              className="w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2"
               autoComplete="email"
             />
-            <span className="block text-xs text-[#6e7681]">{t("emailHint")}</span>
+            <span className="block text-xs text-hq-fg-subtle">{t("emailHint")}</span>
           </label>
         ) : null}
 
         {preview.requiresPassphrase ? (
           <label className="block space-y-1 text-sm">
-            <span className="text-[#8b949e]">{t("passphrase")}</span>
+            <span className="text-hq-fg-muted">{t("passphrase")}</span>
             <input
               type="text"
               required
               value={passphrase}
               onChange={(e) => setPassphrase(e.target.value)}
-              className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 font-mono"
+              className="w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 font-mono"
               autoComplete="off"
             />
-            <span className="block text-xs text-[#6e7681]">
+            <span className="block text-xs text-hq-fg-subtle">
               {t("passphraseHint")}
             </span>
           </label>
         ) : null}
 
         <label className="block space-y-1 text-sm">
-          <span className="text-[#8b949e]">{t("displayName")}</span>
+          <span className="text-hq-fg-muted">{t("displayName")}</span>
           <input
             type="text"
             value={displayName}
             onChange={(e) => setDisplayName(e.target.value)}
             enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT}
-            className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
+            className="w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2"
           />
         </label>
 
-        {error ? <p className="text-sm text-[#f85149]">{error}</p> : null}
+        {error ? <p className="text-sm text-hq-danger">{error}</p> : null}
 
         <button
           type="submit"
           disabled={submitting}
-          className="w-full rounded-lg border border-[#238636] bg-[#238636] px-4 py-2 text-sm text-white disabled:opacity-50"
+          className="w-full rounded-lg border border-hq-success bg-hq-success px-4 py-2 text-sm text-white disabled:opacity-50"
         >
           {submitting ? t("accepting") : t("accept")}
         </button>

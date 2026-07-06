@@ -125,7 +125,7 @@ export function AdminTranslationReportsConsole() {
     <div className="space-y-4">
       <div>
         <h2 className="text-xl font-semibold">{t("title")}</h2>
-        <p className="text-sm text-[#8b949e]">{t("subtitle")}</p>
+        <p className="text-sm text-hq-fg-muted">{t("subtitle")}</p>
       </div>
 
       <div className="flex flex-wrap gap-2">
@@ -149,7 +149,7 @@ export function AdminTranslationReportsConsole() {
       </div>
 
       {error ? <p className="text-sm text-red-400">{error}</p> : null}
-      {message ? <p className="text-sm text-[#3fb950]">{message}</p> : null}
+      {message ? <p className="text-sm text-hq-green">{message}</p> : null}
 
       <AdminFeedbackMasterDetail
         table={
@@ -193,7 +193,7 @@ export function AdminTranslationReportsConsole() {
             ))}
             desktopTable={
               <AdminFeedbackTableShell>
-                <thead className="bg-[#161b22] text-[#8b949e]">
+                <thead className="bg-hq-surface text-hq-fg-muted">
                   <tr>
                     <th className="px-4 py-2">{t("colTime")}</th>
                     <th className="px-4 py-2">{t("colLocale")}</th>
@@ -206,13 +206,13 @@ export function AdminTranslationReportsConsole() {
                   {reports.map((report) => (
                     <tr
                       key={report.id}
-                      className={`cursor-pointer border-t border-[#30363d] hover:bg-[#21262d]/60 ${selectedId === report.id ? "bg-[#21262d]" : ""}`}
+                      className={`cursor-pointer border-t border-hq-border hover:bg-hq-surface-muted/60 ${selectedId === report.id ? "bg-hq-surface-muted" : ""}`}
                       onClick={() => {
                         setSelectedId(report.id);
                         setNotes(report.adminNotes ?? "");
                       }}
                     >
-                      <td className="px-4 py-2 whitespace-nowrap text-[#8b949e]">
+                      <td className="px-4 py-2 whitespace-nowrap text-hq-fg-muted">
                         {report.createdAt ? (
                           <FormattedDateTime value={report.createdAt} />
                         ) : (
@@ -273,14 +273,14 @@ export function AdminTranslationReportsConsole() {
                 </AdminDetailField>
               ) : null}
 
-              <div className="grid gap-3 rounded-lg border border-[#30363d] bg-[#0d1117] p-3">
+              <div className="grid gap-3 rounded-lg border border-hq-border bg-hq-canvas p-3">
                 <div>
-                  <p className="text-xs text-[#6e7681]">{t("displayed")}</p>
+                  <p className="text-xs text-hq-fg-subtle">{t("displayed")}</p>
                   <p className="mt-1 text-sm">{selected.displayedText}</p>
                 </div>
-                <div className="border-t border-[#30363d] pt-3">
-                  <p className="text-xs text-[#6e7681]">{t("suggested")}</p>
-                  <p className="mt-1 text-sm text-[#3fb950]">
+                <div className="border-t border-hq-border pt-3">
+                  <p className="text-xs text-hq-fg-subtle">{t("suggested")}</p>
+                  <p className="mt-1 text-sm text-hq-green">
                     {selected.suggestedTranslation}
                   </p>
                 </div>
@@ -303,7 +303,7 @@ export function AdminTranslationReportsConsole() {
                 }}
               >
               <label className="block space-y-1 text-sm">
-                <span className="text-[#8b949e]">{t("adminNotes")}</span>
+                <span className="text-hq-fg-muted">{t("adminNotes")}</span>
                 <Textarea
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
@@ -336,7 +336,7 @@ export function AdminTranslationReportsConsole() {
             </AdminFeedbackDetailPanel>
           ) : (
             <AdminFeedbackDetailPanel>
-              <p className="text-sm text-[#8b949e]">{t("selectReport")}</p>
+              <p className="text-sm text-hq-fg-muted">{t("selectReport")}</p>
             </AdminFeedbackDetailPanel>
           )
         }

@@ -23,38 +23,38 @@ export default async function PrivacyPage() {
   return (
     <article className="mx-auto max-w-2xl space-y-8 text-sm leading-relaxed">
       <header>
-        <p className="text-xs text-[#8b949e]">
-          <Link href="/" className="text-[#58a6ff] hover:underline">
+        <p className="text-xs text-hq-fg-muted">
+          <Link href="/" className="text-hq-accent hover:underline">
             {t("backToHome")}
           </Link>
         </p>
         <h1 className="mt-4 text-2xl font-semibold">{t("title")}</h1>
-        <p className="mt-2 text-[#8b949e]">{t("intro")}</p>
+        <p className="mt-2 text-hq-fg-muted">{t("intro")}</p>
       </header>
 
       <section className="space-y-3">
         <h2 className="text-lg font-medium">{t("noSellTitle")}</h2>
-        <p className="text-[#8b949e]">
+        <p className="text-hq-fg-muted">
           {t.rich("noSellBody1", { link: ashedLink, strong: strongText })}
         </p>
-        <p className="text-[#8b949e]">{t("noSellBody2")}</p>
+        <p className="text-hq-fg-muted">{t("noSellBody2")}</p>
       </section>
 
       <section className="space-y-3">
         <h2 className="text-lg font-medium">{t("whatWeStoreTitle")}</h2>
-        <ul className="list-disc space-y-2 pl-5 text-[#8b949e]">
+        <ul className="list-disc space-y-2 pl-5 text-hq-fg-muted">
           <li>{t("whatWeStoreItems.session")}</li>
           <li>{t("whatWeStoreItems.token")}</li>
           <li>{t("whatWeStoreItems.metadata")}</li>
           <li>{t("whatWeStoreItems.label")}</li>
         </ul>
-        <p className="text-[#8b949e]">{t("whatWeStoreFooter")}</p>
+        <p className="text-hq-fg-muted">{t("whatWeStoreFooter")}</p>
       </section>
 
       <section className="space-y-3">
         <h2 className="text-lg font-medium">{t("encryptionTitle")}</h2>
-        <p className="text-[#8b949e]">{t("encryptionIntro")}</p>
-        <ol className="list-decimal space-y-2 pl-5 text-[#8b949e]">
+        <p className="text-hq-fg-muted">{t("encryptionIntro")}</p>
+        <ol className="list-decimal space-y-2 pl-5 text-hq-fg-muted">
           <li>{t.rich("encryptionSteps.encrypted", { strong: strongText })}</li>
           <li>{t.rich("encryptionSteps.separateKey", { strong: strongText })}</li>
           <li>{t.rich("encryptionSteps.uniqueIv", { strong: strongText })}</li>
@@ -65,19 +65,19 @@ export default async function PrivacyPage() {
 
       <section className="space-y-3">
         <h2 className="text-lg font-medium">{t("whereDataTitle")}</h2>
-        <p className="text-[#8b949e]">{t("whereDataBody")}</p>
+        <p className="text-hq-fg-muted">{t("whereDataBody")}</p>
       </section>
 
       <section className="space-y-3">
         <h2 className="text-lg font-medium">{t("questionsTitle")}</h2>
-        <p className="text-[#8b949e]">
+        <p className="text-hq-fg-muted">
           {t.rich("questionsBody", {
             githubLink: (chunks) => (
               <a
                 href="https://github.com/Launchframe/alliance-hq"
                 target="_blank"
                 rel="noreferrer"
-                className="text-[#58a6ff] hover:underline"
+                className="text-hq-accent hover:underline"
               >
                 {chunks}
               </a>

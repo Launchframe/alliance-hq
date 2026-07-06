@@ -206,7 +206,7 @@ export function AdminBugReportsConsole() {
     <div className="space-y-4">
       <div>
         <h2 className="text-xl font-semibold">{t("title")}</h2>
-        <p className="text-sm text-[#8b949e]">{t("subtitle")}</p>
+        <p className="text-sm text-hq-fg-muted">{t("subtitle")}</p>
       </div>
 
       <div className="flex flex-wrap gap-2">
@@ -231,7 +231,7 @@ export function AdminBugReportsConsole() {
       </div>
 
       <label className="block w-full min-w-0 text-sm sm:max-w-xs">
-        <span className="text-[#8b949e]">{t("filterArea")}</span>
+        <span className="text-hq-fg-muted">{t("filterArea")}</span>
         <AppSelect
           className="mt-1"
           value={areaFilter}
@@ -248,7 +248,7 @@ export function AdminBugReportsConsole() {
       </label>
 
       {error ? <p className="text-sm text-red-400">{error}</p> : null}
-      {message ? <p className="text-sm text-[#3fb950]">{message}</p> : null}
+      {message ? <p className="text-sm text-hq-green">{message}</p> : null}
 
       <AdminFeedbackMasterDetail
         table={
@@ -284,7 +284,7 @@ export function AdminBugReportsConsole() {
             ))}
             desktopTable={
               <AdminFeedbackTableShell>
-                <thead className="bg-[#161b22] text-[#8b949e]">
+                <thead className="bg-hq-surface text-hq-fg-muted">
                   <tr>
                     <th className="px-4 py-2">{t("colTime")}</th>
                     <th className="px-4 py-2">{t("colSeverity")}</th>
@@ -297,10 +297,10 @@ export function AdminBugReportsConsole() {
                   {reports.map((report) => (
                     <tr
                       key={report.id}
-                      className={`cursor-pointer border-t border-[#30363d] hover:bg-[#21262d]/60 ${selectedId === report.id ? "bg-[#21262d]" : ""}`}
+                      className={`cursor-pointer border-t border-hq-border hover:bg-hq-surface-muted/60 ${selectedId === report.id ? "bg-hq-surface-muted" : ""}`}
                       onClick={() => selectReport(report.id)}
                     >
-                      <td className="px-4 py-2 whitespace-nowrap text-[#8b949e]">
+                      <td className="px-4 py-2 whitespace-nowrap text-hq-fg-muted">
                         {report.createdAt ? (
                           <FormattedDateTime value={report.createdAt} />
                         ) : (
@@ -330,7 +330,7 @@ export function AdminBugReportsConsole() {
           activeDetail || (selectedId && detailLoading) ? (
             <AdminFeedbackDetailPanel>
               {detailLoading && !activeDetail ? (
-                <p className="text-sm text-[#8b949e]">{t("loadingDetail")}</p>
+                <p className="text-sm text-hq-fg-muted">{t("loadingDetail")}</p>
               ) : activeDetail ? (
                 <>
                   <div className="flex flex-wrap items-center gap-2">
@@ -365,7 +365,7 @@ export function AdminBugReportsConsole() {
                     <AdminDetailField label={t("pageUrl")}>
                       <a
                         href={activeDetail.pageUrl}
-                        className="break-all text-[#58a6ff] hover:underline"
+                        className="break-all text-hq-accent hover:underline"
                         target="_blank"
                         rel="noreferrer"
                       >
@@ -407,7 +407,7 @@ export function AdminBugReportsConsole() {
                           <button
                             key={shot.id}
                             type="button"
-                            className="overflow-hidden rounded border border-[#30363d] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#58a6ff]"
+                            className="overflow-hidden rounded border border-hq-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hq-accent"
                             onClick={() => setScreenshotLightboxIndex(index)}
                           >
                             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -423,7 +423,7 @@ export function AdminBugReportsConsole() {
                   ) : null}
 
                   <div className="grid gap-2">
-                    <p className="text-xs text-[#6e7681]">{t("updateStatus")}</p>
+                    <p className="text-xs text-hq-fg-subtle">{t("updateStatus")}</p>
                     <div className="flex flex-wrap gap-2">
                       {BUG_STATUSES.map((status) => (
                         <Button
@@ -444,7 +444,7 @@ export function AdminBugReportsConsole() {
             </AdminFeedbackDetailPanel>
           ) : (
             <AdminFeedbackDetailPanel>
-              <p className="text-sm text-[#8b949e]">{t("selectReport")}</p>
+              <p className="text-sm text-hq-fg-muted">{t("selectReport")}</p>
             </AdminFeedbackDetailPanel>
           )
         }

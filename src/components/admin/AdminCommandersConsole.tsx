@@ -155,18 +155,18 @@ export function AdminCommandersConsole() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold">{t("title")}</h1>
-        <p className="mt-1 text-sm text-[#8b949e]">{t("subtitle")}</p>
+        <p className="mt-1 text-sm text-hq-fg-muted">{t("subtitle")}</p>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)]">
-        <section className="space-y-4 rounded-xl border border-[#30363d] bg-[#161b22] p-4">
+        <section className="space-y-4 rounded-xl border border-hq-border bg-hq-surface p-4">
           <div className="flex flex-wrap gap-3">
             <input
               type="search"
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
               placeholder={t("searchPlaceholder")}
-              className="min-w-[12rem] flex-1 rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 text-sm"
+              className="min-w-[12rem] flex-1 rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 text-sm"
             />
             <AppSelect
               value={allianceFilter}
@@ -200,11 +200,11 @@ export function AdminCommandersConsole() {
             />
           </div>
 
-          {error ? <p className="text-sm text-[#f85149]">{error}</p> : null}
+          {error ? <p className="text-sm text-hq-danger">{error}</p> : null}
 
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
-              <thead className="border-b border-[#30363d] text-xs uppercase text-[#8b949e]">
+              <thead className="border-b border-hq-border text-xs uppercase text-hq-fg-muted">
                 <tr>
                   <th className="px-2 py-2">{t("colName")}</th>
                   <th className="px-2 py-2">{t("colAlliance")}</th>
@@ -214,13 +214,13 @@ export function AdminCommandersConsole() {
               <tbody>
                 {listLoading ? (
                   <tr>
-                    <td colSpan={3} className="px-2 py-6 text-center text-[#8b949e]">
+                    <td colSpan={3} className="px-2 py-6 text-center text-hq-fg-muted">
                       {t("loading")}
                     </td>
                   </tr>
                 ) : commanders.length === 0 ? (
                   <tr>
-                    <td colSpan={3} className="px-2 py-6 text-center text-[#8b949e]">
+                    <td colSpan={3} className="px-2 py-6 text-center text-hq-fg-muted">
                       {t("empty")}
                     </td>
                   </tr>
@@ -228,11 +228,11 @@ export function AdminCommandersConsole() {
                   commanders.map((row) => (
                     <tr
                       key={`${row.allianceId}-${row.ashedMemberId}`}
-                      className="cursor-pointer border-b border-[#30363d]/60 hover:bg-[#0d1117]"
+                      className="cursor-pointer border-b border-hq-border/60 hover:bg-hq-canvas"
                       onClick={() => void loadDetail(row)}
                     >
                       <td className="px-2 py-2 font-medium">{row.currentName}</td>
-                      <td className="px-2 py-2 text-[#8b949e]">
+                      <td className="px-2 py-2 text-hq-fg-muted">
                         {allianceLabel(row)}
                       </td>
                       <td className="px-2 py-2">{row.status}</td>
@@ -243,14 +243,14 @@ export function AdminCommandersConsole() {
             </table>
           </div>
 
-          <div className="flex items-center justify-between text-sm text-[#8b949e]">
+          <div className="flex items-center justify-between text-sm text-hq-fg-muted">
             <span>{t("pagination", { total, page, totalPages })}</span>
             <div className="flex gap-2">
               <button
                 type="button"
                 disabled={page <= 1}
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
-                className="rounded border border-[#30363d] px-2 py-1 disabled:opacity-40"
+                className="rounded border border-hq-border px-2 py-1 disabled:opacity-40"
               >
                 {t("prevPage")}
               </button>
@@ -258,7 +258,7 @@ export function AdminCommandersConsole() {
                 type="button"
                 disabled={page >= totalPages}
                 onClick={() => setPage((p) => p + 1)}
-                className="rounded border border-[#30363d] px-2 py-1 disabled:opacity-40"
+                className="rounded border border-hq-border px-2 py-1 disabled:opacity-40"
               >
                 {t("nextPage")}
               </button>
@@ -266,39 +266,39 @@ export function AdminCommandersConsole() {
           </div>
         </section>
 
-        <aside className="rounded-xl border border-[#30363d] bg-[#161b22] p-4">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-[#8b949e]">
+        <aside className="rounded-xl border border-hq-border bg-hq-surface p-4">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-hq-fg-muted">
             {t("detailTitle")}
           </h2>
           {detailLoading ? (
-            <p className="mt-4 text-sm text-[#8b949e]">{t("loading")}</p>
+            <p className="mt-4 text-sm text-hq-fg-muted">{t("loading")}</p>
           ) : !selected ? (
-            <p className="mt-4 text-sm text-[#8b949e]">{t("selectRow")}</p>
+            <p className="mt-4 text-sm text-hq-fg-muted">{t("selectRow")}</p>
           ) : (
             <dl className="mt-4 space-y-3 text-sm">
               <div>
-                <dt className="text-xs text-[#6e7681]">{t("colName")}</dt>
+                <dt className="text-xs text-hq-fg-subtle">{t("colName")}</dt>
                 <dd>{selected.currentName}</dd>
               </div>
               <div>
-                <dt className="text-xs text-[#6e7681]">{t("colAlliance")}</dt>
+                <dt className="text-xs text-hq-fg-subtle">{t("colAlliance")}</dt>
                 <dd>{allianceLabel(selected)}</dd>
               </div>
               {selected.hqUserEmail ? (
                 <div>
-                  <dt className="text-xs text-[#6e7681]">{t("hqUser")}</dt>
+                  <dt className="text-xs text-hq-fg-subtle">{t("hqUser")}</dt>
                   <dd>{selected.hqUserDisplayName ?? selected.hqUserEmail}</dd>
                 </div>
               ) : null}
               {selected.discordUsername ? (
                 <div>
-                  <dt className="text-xs text-[#6e7681]">{t("discord")}</dt>
+                  <dt className="text-xs text-hq-fg-subtle">{t("discord")}</dt>
                   <dd>{selected.discordUsername}</dd>
                 </div>
               ) : null}
               {selected.tenureHistory.length > 0 ? (
                 <div>
-                  <dt className="text-xs text-[#6e7681]">{t("tenure")}</dt>
+                  <dt className="text-xs text-hq-fg-subtle">{t("tenure")}</dt>
                   <dd className="mt-1 space-y-1">
                     {selected.tenureHistory.map((row) => (
                       <p key={`${row.allianceId}-${row.joinedAt}`}>

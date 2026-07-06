@@ -12,7 +12,7 @@ export function LanguageSwitcher() {
   const pathname = usePathname();
 
   return (
-    <label className="inline-flex items-center gap-2 text-xs text-[#8b949e]">
+    <label className="inline-flex items-center gap-2 text-xs text-hq-fg-muted">
       <span className="sr-only">{t("label")}</span>
       <AppSelect
         value={locale}
@@ -20,7 +20,7 @@ export function LanguageSwitcher() {
           router.replace(pathname, { locale: next as AppLocale });
         }}
         aria-label={t("label")}
-        triggerClassName="rounded border border-[#30363d] bg-[#0d1117] px-2 py-1 text-xs"
+        triggerClassName="rounded border border-hq-border bg-hq-canvas px-2 py-1 text-xs"
         options={locales.map((code) => ({
           value: code,
           label: t(code),

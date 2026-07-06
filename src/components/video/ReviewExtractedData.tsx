@@ -134,10 +134,10 @@ type GroupInfo = {
 };
 
 function confidenceClass(confidence: number | null): string {
-  if (confidence == null || confidence === 0) return "border-[#f85149]";
-  if (confidence >= 0.9) return "border-[#3fb950]";
+  if (confidence == null || confidence === 0) return "border-hq-danger";
+  if (confidence >= 0.9) return "border-hq-green";
   if (confidence >= 0.6) return "border-[#d29922]";
-  return "border-[#f85149]";
+  return "border-hq-danger";
 }
 
 export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
@@ -1041,10 +1041,10 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   if (displayJobStatus === "loading" || rematching) {
     return (
       <div className="space-y-2">
-        <p className="text-sm text-[#8b949e]">
+        <p className="text-sm text-hq-fg-muted">
           {rematching ? t("rematchingMembers") : t("loading")}
         </p>
-        {error ? <p className="text-sm text-[#f85149]">{error}</p> : null}
+        {error ? <p className="text-sm text-hq-danger">{error}</p> : null}
       </div>
     );
   }
@@ -1058,14 +1058,14 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   ) {
     return (
       <div className="space-y-4">
-        <p className="text-sm text-[#8b949e]">
+        <p className="text-sm text-hq-fg-muted">
           {reprocessing
             ? t("reprocessing")
             : displayJobStatus === "pending_approval"
               ? t("pendingApproval")
               : t("processing", { status: displayJobStatus })}
         </p>
-        <Link href="/tools/video-upload" className="text-sm text-[#58a6ff] hover:underline">
+        <Link href="/tools/video-upload" className="text-sm text-hq-accent hover:underline">
           {t("backToUploads")}
         </Link>
       </div>
@@ -1075,8 +1075,8 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   if (displayJobStatus === "load_error") {
     return (
       <div className="space-y-4">
-        <p className="text-sm text-[#f85149]">{error ?? tc("uploadFailed")}</p>
-        <Link href="/tools/video-upload" className="text-sm text-[#58a6ff] hover:underline">
+        <p className="text-sm text-hq-danger">{error ?? tc("uploadFailed")}</p>
+        <Link href="/tools/video-upload" className="text-sm text-hq-accent hover:underline">
           {t("backToUploads")}
         </Link>
       </div>
@@ -1086,10 +1086,10 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   if (displayJobStatus === "failed") {
     return (
       <div className="space-y-4">
-        <p className="text-sm text-[#f85149]">
+        <p className="text-sm text-hq-danger">
           {error ?? t("processingFailed")}
         </p>
-        <Link href="/tools/video-upload" className="text-sm text-[#58a6ff] hover:underline">
+        <Link href="/tools/video-upload" className="text-sm text-hq-accent hover:underline">
           {t("backToUploads")}
         </Link>
       </div>
@@ -1140,7 +1140,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         <div className="flex flex-wrap items-start justify-between gap-3">
           <Link
             href="/tools/video-upload"
-            className="text-sm text-[#58a6ff] hover:underline"
+            className="text-sm text-hq-accent hover:underline"
           >
             {t("backToUploads")}
           </Link>
@@ -1149,7 +1149,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
               <button
                 type="button"
                 onClick={openComparisonSheet}
-                className="rounded-lg border border-[#30363d] px-3 py-1.5 text-sm text-[#e6edf3] hover:bg-[#21262d]"
+                className="rounded-lg border border-hq-border px-3 py-1.5 text-sm text-hq-fg hover:bg-hq-surface-muted"
               >
                 {t("comparisonSideBySide")}
               </button>
@@ -1160,8 +1160,8 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                 onClick={togglePreviewOpen}
                 className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm ${
                   previewOpen
-                    ? "border-[#58a6ff] bg-[#0c2d6b]/40 text-[#58a6ff]"
-                    : "border-[#30363d] text-[#e6edf3] hover:bg-[#21262d]"
+                    ? "border-hq-accent bg-[#0c2d6b]/40 text-hq-accent"
+                    : "border-hq-border text-hq-fg hover:bg-hq-surface-muted"
                 }`}
               >
                 <MonitorPlay className="h-4 w-4 shrink-0" aria-hidden />
@@ -1182,8 +1182,8 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                 title={t("followMeHint")}
                 className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm ${
                   previewFollowMe
-                    ? "border-[#58a6ff] bg-[#0c2d6b]/40 text-[#58a6ff]"
-                    : "border-[#30363d] text-[#e6edf3] hover:bg-[#21262d]"
+                    ? "border-hq-accent bg-[#0c2d6b]/40 text-hq-accent"
+                    : "border-hq-border text-hq-fg hover:bg-hq-surface-muted"
                 }`}
               >
                 <LocateFixed className="h-4 w-4 shrink-0" aria-hidden />
@@ -1201,7 +1201,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         <h1 className="mt-2 text-2xl font-semibold">
           {isEventView ? t("eventTitle") : t("title")}
         </h1>
-        <p className="mt-1 text-sm text-[#8b949e]">
+        <p className="mt-1 text-sm text-hq-fg-muted">
           {isEventView
             ? t("eventSubtitle")
             : t("summary", {
@@ -1221,7 +1221,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
 
       {draftEnabled && (draftRestored || draftSavedAt) ? (
         <div
-          className="rounded-xl border border-[#30363d] bg-[#161b22] px-4 py-3 text-sm text-[#8b949e]"
+          className="rounded-xl border border-hq-border bg-hq-surface px-4 py-3 text-sm text-hq-fg-muted"
           role="status"
         >
           {draftRestored ? <p>{t("draftRestored")}</p> : null}
@@ -1240,7 +1240,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
             type="button"
             onClick={() => void reprocess()}
             disabled={reprocessing}
-            className="mt-3 rounded-lg border border-[#238636] bg-[#238636] px-4 py-2 text-sm text-white disabled:opacity-50"
+            className="mt-3 rounded-lg border border-hq-success bg-hq-success px-4 py-2 text-sm text-white disabled:opacity-50"
           >
             {reprocessing ? t("reprocessing") : t("reprocess")}
           </button>
@@ -1254,7 +1254,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
       )}
 
       {hasDuplicateMembers && (
-        <div className="rounded-xl border border-[#f85149]/40 bg-[#f8514915] p-4 text-sm text-[#f85149]">
+        <div className="rounded-xl border border-hq-danger/40 bg-[#f8514915] p-4 text-sm text-hq-danger">
           <p className="font-medium">{t("duplicateMemberTitle")}</p>
           <ul className="mt-2 list-inside list-disc space-y-1">
             {duplicateMemberIssues.map((issue) => (
@@ -1266,12 +1266,12 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
               </li>
             ))}
           </ul>
-          <p className="mt-2 text-[#e6edf3]">{t("duplicateMemberHint")}</p>
+          <p className="mt-2 text-hq-fg">{t("duplicateMemberHint")}</p>
         </div>
       )}
 
       {hasDuplicateOcrNames && (
-        <div className="rounded-xl border border-[#f85149]/40 bg-[#f8514915] p-4 text-sm text-[#f85149]">
+        <div className="rounded-xl border border-hq-danger/40 bg-[#f8514915] p-4 text-sm text-hq-danger">
           <p>{t("duplicateOcrNameRow")}</p>
         </div>
       )}
@@ -1280,22 +1280,22 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         !isEventView &&
         groupInfo?.group &&
         !showComparisonSheet ? (
-        <div className="rounded-xl border border-[#58a6ff] bg-[#58a6ff10] p-4">
-          <p className="font-medium text-[#e6edf3]">{t("comparisonPromptTitle")}</p>
-          <p className="mt-1 text-sm text-[#8b949e]">{t("comparisonPromptBody")}</p>
+        <div className="rounded-xl border border-hq-accent bg-[#58a6ff10] p-4">
+          <p className="font-medium text-hq-fg">{t("comparisonPromptTitle")}</p>
+          <p className="mt-1 text-sm text-hq-fg-muted">{t("comparisonPromptBody")}</p>
           <div className="mt-3 flex flex-col gap-2">
             <div className="flex flex-wrap gap-3">
               <button
                 type="button"
                 onClick={() => void handleUseBetterPass()}
-                className="rounded-lg border border-[#238636] bg-[#238636] px-3 py-1.5 text-sm text-white"
+                className="rounded-lg border border-hq-success bg-hq-success px-3 py-1.5 text-sm text-white"
               >
                 {t("comparisonUseBetter")}
               </button>
               <button
                 type="button"
                 onClick={openComparisonSheet}
-                className="hidden rounded-lg border border-[#30363d] px-3 py-1.5 text-sm hover:bg-[#21262d] sm:inline-flex"
+                className="hidden rounded-lg border border-hq-border px-3 py-1.5 text-sm hover:bg-hq-surface-muted sm:inline-flex"
               >
                 {t("comparisonSideBySide")}
               </button>
@@ -1305,7 +1305,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                   setShowComparisonPrompt(false);
                   setComparisonDismissed(true);
                 }}
-                className="text-sm text-[#8b949e] hover:text-[#e6edf3]"
+                className="text-sm text-hq-fg-muted hover:text-hq-fg"
               >
                 {t("comparisonDismiss")}
               </button>
@@ -1313,7 +1313,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
             <button
               type="button"
               onClick={openComparisonSheet}
-              className="self-start text-sm text-[#58a6ff] hover:underline sm:hidden"
+              className="self-start text-sm text-hq-accent hover:underline sm:hidden"
             >
               {t("comparisonSideBySide")}
             </button>
@@ -1329,15 +1329,15 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         }}
       >
       {!scoreTargetMeta?.showRosterColumns ? (
-      <div className="grid gap-4 rounded-xl border border-[#30363d] bg-[#161b22] p-4 sm:grid-cols-[repeat(auto-fit,minmax(12rem,1fr))]">
+      <div className="grid gap-4 rounded-xl border border-hq-border bg-hq-surface p-4 sm:grid-cols-[repeat(auto-fit,minmax(12rem,1fr))]">
         {needsEventPicker ? (
           <label className="block text-sm sm:col-span-2">
-            <span className="mb-1 block text-[#8b949e]">{t("eventLabel")}</span>
+            <span className="mb-1 block text-hq-fg-muted">{t("eventLabel")}</span>
             {/* Non-HQ event target with no existing events: show an
                 auto-create note instead of a broken empty dropdown.
                 The server will provision an event entity automatically. */}
             {!scoreTargetMeta?.usesHqEvents && events.length === 0 ? (
-              <p className="mt-1 text-xs text-[#8b949e] max-w-xs">
+              <p className="mt-1 text-xs text-hq-fg-muted max-w-xs">
                 {t("noEventsAutoCreate")}
               </p>
             ) : (
@@ -1366,7 +1366,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
             {scoreTargetMeta?.usesHqEvents && events.length === 0 ? (
               <button
                 type="button"
-                className="mt-2 text-xs text-[#58a6ff] hover:underline"
+                className="mt-2 text-xs text-hq-accent hover:underline"
                 onClick={() => {
                   void (async () => {
                     const label = formatEventOptionLabel({
@@ -1405,7 +1405,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         ) : null}
         {needsBoardPicker ? (
           <label className="block text-sm">
-            <span className="mb-1 block text-[#8b949e]">{t("boardLabel")}</span>
+            <span className="mb-1 block text-hq-fg-muted">{t("boardLabel")}</span>
             <AppSelect
               value={boardKey}
               onChange={(next) => {
@@ -1423,7 +1423,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         ) : null}
         {scoreTargetMeta?.showTeamSelector ? (
           <label className="block text-sm">
-            <span className="mb-1 block text-[#8b949e]">{t("teamLabel")}</span>
+            <span className="mb-1 block text-hq-fg-muted">{t("teamLabel")}</span>
             <AppSelect
               value={team}
               onChange={(next) => {
@@ -1439,7 +1439,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           </label>
         ) : null}
         <label className="block text-sm">
-          <span className="mb-1 block text-[#8b949e]">{t("dateLabel")}</span>
+          <span className="mb-1 block text-hq-fg-muted">{t("dateLabel")}</span>
           <input
             type="date"
             value={recordedDate}
@@ -1448,7 +1448,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
               setRecordedDate(e.target.value);
             }}
             enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT}
-            className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
+            className="w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2"
           />
         </label>
       </div>
@@ -1463,10 +1463,10 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
               value={filterQuery}
               onChange={(e) => setFilterQuery(e.target.value)}
               placeholder={t("filterPlaceholder")}
-              className="flex-1 rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 text-sm placeholder:text-[#8b949e]"
+              className="flex-1 rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 text-sm placeholder:text-hq-fg-muted"
             />
             {filterQuery ? (
-              <p className="shrink-0 text-xs text-[#8b949e]">
+              <p className="shrink-0 text-xs text-hq-fg-muted">
                 {t("filterCount", {
                   shown: filteredRows.length,
                   total: activeRows.length,
@@ -1525,10 +1525,10 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           value={filterQuery}
           onChange={(e) => setFilterQuery(e.target.value)}
           placeholder={t("filterPlaceholder")}
-          className="flex-1 rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 text-sm placeholder:text-[#8b949e]"
+          className="flex-1 rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 text-sm placeholder:text-hq-fg-muted"
         />
         {filterQuery && (
-          <p className="shrink-0 text-xs text-[#8b949e]">
+          <p className="shrink-0 text-xs text-hq-fg-muted">
             {t("filterCount", {
               shown: filteredRows.length,
               total: activeRows.length,
@@ -1538,15 +1538,15 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         <button
           type="button"
           onClick={() => void handleAddRow("start")}
-          className="shrink-0 rounded-lg border border-[#30363d] px-3 py-2 text-sm hover:bg-[#21262d]"
+          className="shrink-0 rounded-lg border border-hq-border px-3 py-2 text-sm hover:bg-hq-surface-muted"
         >
           {t("addRow")}
         </button>
       </div>
 
-      <div className="min-w-0 max-w-full overflow-x-auto rounded-xl border border-[#30363d]">
+      <div className="min-w-0 max-w-full overflow-x-auto rounded-xl border border-hq-border">
         <table className="w-full min-w-full text-sm">
-          <thead className="bg-[#161b22] text-left text-[#8b949e]">
+          <thead className="bg-hq-surface text-left text-hq-fg-muted">
             <tr>
               {scoreTargetMeta?.showRankColumn ? (
                 <th className="w-14 px-3 py-3">{t("colRank")}</th>
@@ -1574,10 +1574,10 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                 previewSeekSecondsForFrame(row.frameIndex, frameTimestamps) !=
                   null;
               const rowClass = isDuplicateMember
-                ? "border-t border-[#30363d] bg-[#f8514910]"
+                ? "border-t border-hq-border bg-[#f8514910]"
                 : row.scoreConflict
-                  ? "border-t border-[#30363d] bg-[#d2992210]"
-                  : "border-t border-[#30363d]";
+                  ? "border-t border-hq-border bg-[#d2992210]"
+                  : "border-t border-hq-border";
 
               return (
               <tr key={row.id} className={rowClass}>
@@ -1593,7 +1593,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                         });
                       }}
                       aria-label={t("colRank")}
-                      className="w-12 rounded-lg border border-[#30363d] bg-[#0d1117] px-2 py-1.5"
+                      className="w-12 rounded-lg border border-hq-border bg-hq-canvas px-2 py-1.5"
                     />
                   </td>
                 ) : null}
@@ -1607,7 +1607,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                     </p>
                   ) : null}
                   {isDuplicateMember ? (
-                    <p className="mt-1 text-xs text-[#f85149]">
+                    <p className="mt-1 text-xs text-hq-danger">
                       {t("duplicateMemberRow")}
                     </p>
                   ) : null}
@@ -1661,12 +1661,12 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                           onChange={(e) =>
                             updateRow(row.id, { score: e.target.value })
                           }
-                          className={`w-28 rounded-lg border bg-[#0d1117] px-2 py-1.5 ${
+                          className={`w-28 rounded-lg border bg-hq-canvas px-2 py-1.5 ${
                             isNegative
-                              ? "border-[#f85149]"
+                              ? "border-hq-danger"
                               : showZeroWarning
                                 ? "border-[#d29922]"
-                                : "border-[#30363d]"
+                                : "border-hq-border"
                           }`}
                         />
                         {showZeroWarning && (
@@ -1675,7 +1675,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                           </p>
                         )}
                         {isNegative && (
-                          <p className="mt-1 text-xs text-[#f85149]">
+                          <p className="mt-1 text-xs text-hq-danger">
                             {t("scoreNegativeWarning")}
                           </p>
                         )}
@@ -1691,7 +1691,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                       ref={registerFollowAnchor(row.id)}
                       data-video-follow-anchor={row.id}
                       onClick={() => openRowVideoPreview(row)}
-                      className="inline-flex h-8 w-8 items-center justify-center rounded-md text-[#58a6ff] hover:bg-[#21262d]"
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-md text-hq-accent hover:bg-hq-surface-muted"
                       title={t("rowVideoPreview")}
                       aria-label={t("rowVideoPreview")}
                     >
@@ -1703,7 +1703,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                   <button
                     type="button"
                     onClick={() => deleteRow(row.id)}
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-md text-[#f85149] hover:bg-[#21262d]"
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-md text-hq-danger hover:bg-hq-surface-muted"
                     title={t("deleteRow")}
                     aria-label={t("deleteRow")}
                   >
@@ -1720,7 +1720,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         <button
           type="button"
           onClick={() => void handleAddRow("end")}
-          className="rounded-lg border border-[#30363d] px-3 py-2 text-sm hover:bg-[#21262d]"
+          className="rounded-lg border border-hq-border px-3 py-2 text-sm hover:bg-hq-surface-muted"
         >
           {t("addRow")}
         </button>
@@ -1728,20 +1728,20 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         </>
       )}
 
-      {error && <p className="text-sm text-[#f85149]">{error}</p>}
-      {success && <p className="text-sm text-[#3fb950]">{success}</p>}
+      {error && <p className="text-sm text-hq-danger">{error}</p>}
+      {success && <p className="text-sm text-hq-green">{success}</p>}
 
       <div className="flex flex-wrap gap-3">
         <Link
           href="/tools/video-upload"
-          className="rounded-lg border border-[#30363d] px-4 py-2 text-sm hover:bg-[#21262d]"
+          className="rounded-lg border border-hq-border px-4 py-2 text-sm hover:bg-hq-surface-muted"
         >
           {tc("back")}
         </Link>
         <button
           type="submit"
           disabled={!canSubmit}
-          className="rounded-lg border border-[#238636] bg-[#238636] px-4 py-2 text-sm text-white disabled:opacity-50"
+          className="rounded-lg border border-hq-success bg-hq-success px-4 py-2 text-sm text-white disabled:opacity-50"
         >
           {submitting
             ? t("submitting")
@@ -1760,7 +1760,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
             jobStatus === "complete"
           }
           onClick={() => void handleDiscard()}
-          className="rounded-lg border border-[#30363d] px-4 py-2 text-sm text-[#f85149] hover:bg-[#f8514910] disabled:opacity-50"
+          className="rounded-lg border border-hq-border px-4 py-2 text-sm text-hq-danger hover:bg-[#f8514910] disabled:opacity-50"
         >
           {discarding ? tc("loading") : t("discardResults")}
         </button>
@@ -1804,7 +1804,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         <button
           type="button"
           onClick={() => setPreviewOpen(true)}
-          className="fixed bottom-20 right-4 z-40 inline-flex items-center gap-2 rounded-full border border-[#58a6ff] bg-[#0c2d6b] px-4 py-2.5 text-sm font-medium text-[#e6edf3] shadow-lg hover:bg-[#1a4480] sm:bottom-6"
+          className="fixed bottom-20 right-4 z-40 inline-flex items-center gap-2 rounded-full border border-hq-accent bg-[#0c2d6b] px-4 py-2.5 text-sm font-medium text-hq-fg shadow-lg hover:bg-[#1a4480] sm:bottom-6"
           aria-label={t("previewVideo")}
         >
           <MonitorPlay className="h-4 w-4 shrink-0" aria-hidden />

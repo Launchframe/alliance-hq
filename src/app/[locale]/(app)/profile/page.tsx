@@ -24,10 +24,10 @@ export default async function ProfilePage() {
     <div className="mx-auto max-w-lg space-y-6">
       <div>
         <h1 className="text-2xl font-semibold">{t("title")}</h1>
-        <p className="mt-1 text-sm text-[#8b949e]">{t("subtitle")}</p>
+        <p className="mt-1 text-sm text-hq-fg-muted">{t("subtitle")}</p>
       </div>
 
-      <section className="rounded-xl border border-[#30363d] bg-[#161b22] p-5">
+      <section className="rounded-xl border border-hq-border bg-hq-surface p-5">
         <div className="mb-5 flex items-center gap-4">
           <ProfileAvatar
             displayName={displayName}
@@ -36,46 +36,46 @@ export default async function ProfilePage() {
             size="md"
           />
           <div className="min-w-0">
-            <p className="truncate text-lg font-medium text-[#e6edf3]">
+            <p className="truncate text-lg font-medium text-hq-fg">
               {displayName}
             </p>
-            <p className="truncate text-sm text-[#8b949e]">{email}</p>
+            <p className="truncate text-sm text-hq-fg-muted">{email}</p>
           </div>
         </div>
 
-        <dl className="space-y-4 border-t border-[#30363d] pt-4">
+        <dl className="space-y-4 border-t border-hq-border pt-4">
           <div>
-            <dt className="text-xs font-medium uppercase tracking-wider text-[#6e7681]">
+            <dt className="text-xs font-medium uppercase tracking-wider text-hq-fg-subtle">
               {t("displayName")}
             </dt>
-            <dd className="mt-1 text-sm text-[#e6edf3]">{displayName}</dd>
+            <dd className="mt-1 text-sm text-hq-fg">{displayName}</dd>
           </div>
           <div>
-            <dt className="text-xs font-medium uppercase tracking-wider text-[#6e7681]">
+            <dt className="text-xs font-medium uppercase tracking-wider text-hq-fg-subtle">
               {t("email")}
             </dt>
-            <dd className="mt-1 text-sm text-[#e6edf3]">{email}</dd>
+            <dd className="mt-1 text-sm text-hq-fg">{email}</dd>
           </div>
           {allianceTag && roleName ? (
             <div>
-              <dt className="text-xs font-medium uppercase tracking-wider text-[#6e7681]">
+              <dt className="text-xs font-medium uppercase tracking-wider text-hq-fg-subtle">
                 {t("allianceRole")}
               </dt>
-              <dd className="mt-1 text-sm text-[#e6edf3]">
+              <dd className="mt-1 text-sm text-hq-fg">
                 {t("allianceRoleValue", { tag: allianceTag, role: roleName })}
               </dd>
             </div>
           ) : allianceTag ? (
             <div>
-              <dt className="text-xs font-medium uppercase tracking-wider text-[#6e7681]">
+              <dt className="text-xs font-medium uppercase tracking-wider text-hq-fg-subtle">
                 {t("allianceRole")}
               </dt>
-              <dd className="mt-1 text-sm text-[#e6edf3]">{allianceTag}</dd>
+              <dd className="mt-1 text-sm text-hq-fg">{allianceTag}</dd>
             </div>
           ) : null}
           {isMaintainer ? (
             <div>
-              <span className="inline-flex rounded-full border border-[#388bfd]/40 bg-[#388bfd]/10 px-2.5 py-0.5 text-xs font-medium text-[#58a6ff]">
+              <span className="inline-flex rounded-full border border-[#388bfd]/40 bg-[#388bfd]/10 px-2.5 py-0.5 text-xs font-medium text-hq-accent">
                 {t("maintainerBadge")}
               </span>
             </div>
@@ -85,7 +85,7 @@ export default async function ProfilePage() {
 
       <Link
         href="/account"
-        className="inline-flex items-center text-sm text-[#58a6ff] hover:underline"
+        className="inline-flex items-center text-sm text-hq-accent hover:underline"
       >
         {t("accountSettingsLink")} →
       </Link>

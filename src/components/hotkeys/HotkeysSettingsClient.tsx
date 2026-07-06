@@ -152,8 +152,8 @@ export function HotkeysSettingsClient({
   return (
     <div className="mx-auto max-w-3xl space-y-6 min-w-0 w-full">
       <div>
-        <h1 className="text-2xl font-semibold text-[#e6edf3]">{t("settingsTitle")}</h1>
-        <p className="mt-2 text-sm text-[#8b949e]">{t("settingsDescription")}</p>
+        <h1 className="text-2xl font-semibold text-hq-fg">{t("settingsTitle")}</h1>
+        <p className="mt-2 text-sm text-hq-fg-muted">{t("settingsDescription")}</p>
       </div>
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -162,7 +162,7 @@ export function HotkeysSettingsClient({
           value={search}
           onChange={(event) => setSearch(event.target.value)}
           placeholder={t("searchPlaceholder")}
-          className="min-w-0 flex-1 rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 text-sm text-[#e6edf3]"
+          className="min-w-0 flex-1 rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 text-sm text-hq-fg"
         />
         <div className="flex gap-2">
           <button
@@ -170,8 +170,8 @@ export function HotkeysSettingsClient({
             onClick={() => setSortMode("alphabetical")}
             className={`rounded-lg border px-3 py-2 text-xs ${
               sortMode === "alphabetical"
-                ? "border-[#388bfd] text-[#e6edf3]"
-                : "border-[#30363d] text-[#8b949e]"
+                ? "border-[#388bfd] text-hq-fg"
+                : "border-hq-border text-hq-fg-muted"
             }`}
           >
             {t("sortAlphabetical")}
@@ -181,8 +181,8 @@ export function HotkeysSettingsClient({
             onClick={() => setSortMode("lastModified")}
             className={`rounded-lg border px-3 py-2 text-xs ${
               sortMode === "lastModified"
-                ? "border-[#388bfd] text-[#e6edf3]"
-                : "border-[#30363d] text-[#8b949e]"
+                ? "border-[#388bfd] text-hq-fg"
+                : "border-hq-border text-hq-fg-muted"
             }`}
           >
             {t("sortLastModified")}
@@ -191,7 +191,7 @@ export function HotkeysSettingsClient({
       </div>
 
       {message ? (
-        <p className="rounded-lg border border-[#30363d] bg-[#161b22] px-3 py-2 text-sm text-[#c9d1d9]">
+        <p className="rounded-lg border border-hq-border bg-hq-surface px-3 py-2 text-sm text-[#c9d1d9]">
           {message}
         </p>
       ) : null}
@@ -200,7 +200,7 @@ export function HotkeysSettingsClient({
         <button
           type="button"
           onClick={() => void resetBinding("all")}
-          className="rounded-lg border border-[#30363d] px-3 py-2 text-xs text-[#8b949e] hover:text-[#e6edf3]"
+          className="rounded-lg border border-hq-border px-3 py-2 text-xs text-hq-fg-muted hover:text-hq-fg"
         >
           {t("resetAll")}
         </button>
@@ -209,28 +209,28 @@ export function HotkeysSettingsClient({
       <div className="space-y-6">
         {grouped.map(([category, items]) => (
           <section key={category} className="space-y-3">
-            <h2 className="text-xs font-semibold uppercase tracking-wider text-[#6e7681]">
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-hq-fg-subtle">
               {t(`categories.${category}` as "categories.global")}
             </h2>
             <ul className="space-y-2">
               {items.map((row) => (
                 <li
                   key={row.action.id}
-                  className={`flex flex-col gap-3 rounded-xl border border-[#30363d] bg-[#161b22] p-4 sm:flex-row sm:items-center sm:justify-between ${
+                  className={`flex flex-col gap-3 rounded-xl border border-hq-border bg-hq-surface p-4 sm:flex-row sm:items-center sm:justify-between ${
                     row.allowed ? "" : "opacity-60"
                   }`}
                 >
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-[#e6edf3]">
+                    <p className="text-sm font-medium text-hq-fg">
                       {t(row.action.labelKey as "actions.global.openPalette")}
                     </p>
                     {!row.allowed ? (
-                      <p className="mt-1 text-xs text-[#8b949e]">
+                      <p className="mt-1 text-xs text-hq-fg-muted">
                         {t("permissionRequired")}
                       </p>
                     ) : null}
                     {row.updatedAt ? (
-                      <p className="mt-1 text-xs text-[#6e7681]">
+                      <p className="mt-1 text-xs text-hq-fg-subtle">
                         {t("lastModified", {
                           date: new Date(row.updatedAt).toLocaleString(),
                         })}
@@ -247,7 +247,7 @@ export function HotkeysSettingsClient({
                           type="button"
                           disabled={editingActionId === row.action.id}
                           onClick={() => void startEditing(row.action.id)}
-                          className="rounded-lg border border-[#30363d] px-3 py-1.5 text-xs text-[#e6edf3] hover:bg-[#21262d]"
+                          className="rounded-lg border border-hq-border px-3 py-1.5 text-xs text-hq-fg hover:bg-hq-surface-muted"
                         >
                           {t("editBinding")}
                         </button>
@@ -255,7 +255,7 @@ export function HotkeysSettingsClient({
                           <button
                             type="button"
                             onClick={() => void resetBinding(row.action.id)}
-                            className="rounded-lg border border-[#30363d] px-3 py-1.5 text-xs text-[#8b949e] hover:text-[#e6edf3]"
+                            className="rounded-lg border border-hq-border px-3 py-1.5 text-xs text-hq-fg-muted hover:text-hq-fg"
                           >
                             {t("resetBinding")}
                           </button>

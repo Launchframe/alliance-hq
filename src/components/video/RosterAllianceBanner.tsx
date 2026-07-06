@@ -25,14 +25,14 @@ export function RosterAllianceBanner({ tag, name, stale }: Props) {
           : "border-[#388bfd]/40 bg-[#388bfd]/10"
       }`}
     >
-      <p className="font-medium text-[#e6edf3]">{label}</p>
-      <p className="mt-1 text-[#8b949e]">{t("rosterAllianceHint")}</p>
+      <p className="font-medium text-hq-fg">{label}</p>
+      <p className="mt-1 text-hq-fg-muted">{t("rosterAllianceHint")}</p>
       {stale ? (
         <p className="mt-2 text-[#e3b341]">{t("rosterAllianceStale")}</p>
       ) : null}
       <Link
         href="/settings"
-        className="mt-2 inline-block text-[#58a6ff] hover:underline"
+        className="mt-2 inline-block text-hq-accent hover:underline"
       >
         {t("rosterAllianceSettingsLink")}
       </Link>

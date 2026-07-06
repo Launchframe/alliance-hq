@@ -1237,13 +1237,13 @@ export function TrainsDashboard({ initial }: Props) {
       <div className="mx-auto flex w-full max-w-lg flex-col gap-4 p-4 sm:p-6">
         <header>
           <h1 className="text-2xl font-semibold text-foreground">{t("title")}</h1>
-          <p className="mt-1 text-sm text-[#8b949e]">{t("subtitle")}</p>
+          <p className="mt-1 text-sm text-hq-fg-muted">{t("subtitle")}</p>
         </header>
-        <section className="rounded-2xl border border-[#30363d] bg-[#161b22] p-6 text-center">
+        <section className="rounded-2xl border border-hq-border bg-hq-surface p-6 text-center">
           <p className="text-sm text-[#c9d1d9]">{t("emptyRosterBody")}</p>
           <Link
             href="/members"
-            className="mt-4 inline-flex rounded-lg bg-[#238636] px-4 py-2 text-sm font-medium text-white hover:bg-[#2ea043]"
+            className="mt-4 inline-flex rounded-lg bg-hq-success px-4 py-2 text-sm font-medium text-white hover:bg-hq-success-hover"
           >
             {t("emptyRosterCta")}
           </Link>
@@ -1257,7 +1257,7 @@ export function TrainsDashboard({ initial }: Props) {
       <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0 flex-1">
           <h1 className="text-2xl font-semibold text-foreground">{t("title")}</h1>
-          <p className="mt-1 text-sm text-[#8b949e]">{t("subtitle")}</p>
+          <p className="mt-1 text-sm text-hq-fg-muted">{t("subtitle")}</p>
           <TrainsServerTimeClock
             selectedDate={selectedDate}
             today={data.today}
@@ -1294,7 +1294,7 @@ export function TrainsDashboard({ initial }: Props) {
             >
               <span
                 id="trains-week-template-label"
-                className="text-[10px] font-medium uppercase tracking-wide text-[#8b949e]"
+                className="text-[10px] font-medium uppercase tracking-wide text-hq-fg-muted"
               >
                 {t("templateSelectLabel")}
               </span>
@@ -1306,7 +1306,7 @@ export function TrainsDashboard({ initial }: Props) {
                 options={templateSelectOptions}
                 disabled={!data.canManageTrains}
                 aria-label={t("templateSelectAria")}
-                triggerClassName="rounded-xl border-[#30363d] bg-[#161b22]"
+                triggerClassName="rounded-xl border-hq-border bg-hq-surface"
                 className="w-full"
               />
               {activeWeekTemplate === "price_is_right" ? (
@@ -1366,11 +1366,11 @@ export function TrainsDashboard({ initial }: Props) {
 
       {data.activeMemberCount > 0 ? (
         <section
-          className="flex flex-col gap-4 rounded-2xl border border-[#30363d] bg-[#161b22]/40 p-4"
+          className="flex flex-col gap-4 rounded-2xl border border-hq-border bg-hq-surface/40 p-4"
           data-testid="trains-schedule-section"
         >
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <h2 className="text-sm font-medium text-[#8b949e]">
+            <h2 className="text-sm font-medium text-hq-fg-muted">
               {t("scheduleSection")}
             </h2>
             <div className="flex flex-wrap items-center justify-end gap-2">
@@ -1379,9 +1379,9 @@ export function TrainsDashboard({ initial }: Props) {
                   type="button"
                   onClick={() => setClearWeekOpen(true)}
                   data-testid="trains-clear-week-btn"
-                  className="rounded-lg border border-[#da3633]/50 bg-[#da3633]/10 px-3 py-1.5 text-xs font-medium text-[#ff7b72] hover:bg-[#da3633]/20"
+                  className="rounded-lg border border-hq-danger-emphasis/50 bg-hq-danger-emphasis/10 px-3 py-1.5 text-xs font-medium text-[#ff7b72] hover:bg-hq-danger-emphasis/20"
                 >
-                  <span className="mr-1.5 rounded bg-[#da3633]/25 px-1 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#ff7b72]">
+                  <span className="mr-1.5 rounded bg-hq-danger-emphasis/25 px-1 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#ff7b72]">
                     {t("clearWeekSchedule.preprodBadge")}
                   </span>
                   {t("clearWeekSchedule.action")}
@@ -1398,7 +1398,7 @@ export function TrainsDashboard({ initial }: Props) {
                 onClick={() => goToToday()}
                 disabled={isOnTodayView}
                 aria-label={t("goToTodayAria")}
-                className="rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-1.5 text-xs font-medium text-[#e6edf3] hover:bg-[#161b22] disabled:cursor-default disabled:opacity-50"
+                className="rounded-lg border border-hq-border bg-hq-canvas px-3 py-1.5 text-xs font-medium text-hq-fg hover:bg-hq-surface disabled:cursor-default disabled:opacity-50"
               >
                 {t("goToToday")}
               </button>
@@ -1492,10 +1492,10 @@ export function TrainsDashboard({ initial }: Props) {
           {/* Quick actions */}
           {showQuickActions ? (
             <div
-              className="flex flex-col gap-3 border-t border-[#30363d] pt-4"
+              className="flex flex-col gap-3 border-t border-hq-border pt-4"
               data-testid="trains-quick-actions"
             >
-              <h3 className="text-sm font-medium text-[#8b949e]">
+              <h3 className="text-sm font-medium text-hq-fg-muted">
                 {t("quickActions")}
               </h3>
               {(canRoll || canManualPick || canManualPickVip) &&
@@ -1551,7 +1551,7 @@ export function TrainsDashboard({ initial }: Props) {
                     type="button"
                     disabled={locked}
                     onClick={() => void runRoll("conductor")}
-                    className="rounded-lg bg-[#238636] px-4 py-2 text-sm font-medium text-white hover:bg-[#2ea043] disabled:opacity-50 w-full sm:w-auto"
+                    className="rounded-lg bg-hq-success px-4 py-2 text-sm font-medium text-white hover:bg-hq-success-hover disabled:opacity-50 w-full sm:w-auto"
                   >
                     {t("pickTopScorer")}
                   </button>
@@ -1563,7 +1563,7 @@ export function TrainsDashboard({ initial }: Props) {
                       setPickRole("conductor");
                       setPickOpen(true);
                     }}
-                    className="rounded-lg border border-[#30363d] bg-[#0d1117] px-4 py-2 text-sm font-medium text-[#e6edf3] hover:bg-[#161b22] w-full sm:w-auto"
+                    className="rounded-lg border border-hq-border bg-hq-canvas px-4 py-2 text-sm font-medium text-hq-fg hover:bg-hq-surface w-full sm:w-auto"
                   >
                     {t("pickConductorManually")}
                   </button>
@@ -1594,7 +1594,7 @@ export function TrainsDashboard({ initial }: Props) {
                       setPickRole("vip");
                       setPickOpen(true);
                     }}
-                    className="rounded-lg border border-[#30363d] bg-[#0d1117] px-4 py-2 text-sm font-medium text-[#e6edf3] hover:bg-[#161b22] w-full sm:w-auto"
+                    className="rounded-lg border border-hq-border bg-hq-canvas px-4 py-2 text-sm font-medium text-hq-fg hover:bg-hq-surface w-full sm:w-auto"
                   >
                     {t("pickVipManually")}
                   </button>
@@ -1602,8 +1602,8 @@ export function TrainsDashboard({ initial }: Props) {
                 {!locked && selectedRecord?.conductorMemberId ? (
                   data.trainDiscordConfigured ? (
                     trainReadyConfirm ? (
-                      <div className="flex w-full flex-wrap items-center gap-2 rounded-lg border border-[#238636]/40 bg-[#238636]/10 px-3 py-2">
-                        <span className="text-sm text-[#3fb950]">
+                      <div className="flex w-full flex-wrap items-center gap-2 rounded-lg border border-hq-success/40 bg-hq-success/10 px-3 py-2">
+                        <span className="text-sm text-hq-green">
                           {t("trainIsReady.confirm", {
                             name: selectedRecord.conductorMemberName ?? "—",
                             date: selectedDate,
@@ -1612,7 +1612,7 @@ export function TrainsDashboard({ initial }: Props) {
                         <button
                           type="button"
                           onClick={() => setTrainReadyConfirm(false)}
-                          className="rounded-md border border-[#30363d] px-3 py-1.5 text-xs text-[#e6edf3] hover:bg-[#0d1117]"
+                          className="rounded-md border border-hq-border px-3 py-1.5 text-xs text-hq-fg hover:bg-hq-canvas"
                         >
                           {t("trainIsReady.cancel")}
                         </button>
@@ -1622,7 +1622,7 @@ export function TrainsDashboard({ initial }: Props) {
                             setTrainReadyConfirm(false);
                             void lockConductor();
                           }}
-                          className="rounded-md bg-[#238636] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#2ea043]"
+                          className="rounded-md bg-hq-success px-3 py-1.5 text-xs font-medium text-white hover:bg-hq-success-hover"
                         >
                           {t("trainIsReady.confirmAction")}
                         </button>
@@ -1631,7 +1631,7 @@ export function TrainsDashboard({ initial }: Props) {
                       <button
                         type="button"
                         onClick={() => setTrainReadyConfirm(true)}
-                        className="rounded-lg bg-[#238636] px-4 py-2 text-sm font-medium text-white hover:bg-[#2ea043] w-full sm:w-auto"
+                        className="rounded-lg bg-hq-success px-4 py-2 text-sm font-medium text-white hover:bg-hq-success-hover w-full sm:w-auto"
                       >
                         {t("trainIsReady.action")}
                       </button>
@@ -1640,7 +1640,7 @@ export function TrainsDashboard({ initial }: Props) {
                     <button
                       type="button"
                       onClick={() => void lockConductor()}
-                      className="rounded-lg bg-[#238636] px-4 py-2 text-sm font-medium text-white hover:bg-[#2ea043] w-full sm:w-auto"
+                      className="rounded-lg bg-hq-success px-4 py-2 text-sm font-medium text-white hover:bg-hq-success-hover w-full sm:w-auto"
                     >
                       {t("lockConductor")}
                     </button>
@@ -1648,21 +1648,21 @@ export function TrainsDashboard({ initial }: Props) {
                 ) : null}
                 {locked && data.canUnlockConductor ? (
                   unlockConfirm ? (
-                    <div className="flex w-full flex-wrap items-center gap-2 rounded-lg border border-[#da3633]/40 bg-[#da3633]/10 px-3 py-2">
-                      <span className="text-sm text-[#f85149]">
+                    <div className="flex w-full flex-wrap items-center gap-2 rounded-lg border border-hq-danger-emphasis/40 bg-hq-danger-emphasis/10 px-3 py-2">
+                      <span className="text-sm text-hq-danger">
                         {t("unlockConfirm")}
                       </span>
                       <button
                         type="button"
                         onClick={() => setUnlockConfirm(false)}
-                        className="rounded-md border border-[#30363d] px-3 py-1.5 text-xs text-[#e6edf3] hover:bg-[#0d1117]"
+                        className="rounded-md border border-hq-border px-3 py-1.5 text-xs text-hq-fg hover:bg-hq-canvas"
                       >
                         {t("unlockCancel")}
                       </button>
                       <button
                         type="button"
                         onClick={() => void unlockConductor()}
-                        className="rounded-md bg-[#da3633] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#f85149]"
+                        className="rounded-md bg-hq-danger-emphasis px-3 py-1.5 text-xs font-medium text-white hover:bg-hq-danger"
                       >
                         {t("unlockConfirmAction")}
                       </button>
@@ -1671,7 +1671,7 @@ export function TrainsDashboard({ initial }: Props) {
                     <button
                       type="button"
                       onClick={() => setUnlockConfirm(true)}
-                      className="rounded-lg border border-[#da3633]/60 bg-[#da3633]/10 px-4 py-2 text-sm font-medium text-[#f85149] hover:bg-[#da3633]/20"
+                      className="rounded-lg border border-hq-danger-emphasis/60 bg-hq-danger-emphasis/10 px-4 py-2 text-sm font-medium text-hq-danger hover:bg-hq-danger-emphasis/20"
                     >
                       {t("unlockConductor")}
                     </button>
@@ -1688,7 +1688,7 @@ export function TrainsDashboard({ initial }: Props) {
                         conductorMech === "r3_lottery" ? "r3" : "r4_plus",
                       )
                     }
-                    className="rounded-md border border-[#30363d] px-3 py-1.5 text-xs text-[#8b949e] hover:text-[#e6edf3]"
+                    className="rounded-md border border-hq-border px-3 py-1.5 text-xs text-hq-fg-muted hover:text-hq-fg"
                   >
                     {t("reseedPool")}
                   </button>
@@ -1696,7 +1696,7 @@ export function TrainsDashboard({ initial }: Props) {
                     type="button"
                     onClick={() => setReseedHintOpen(true)}
                     aria-label={t("reseedPoolHint.infoLabel")}
-                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[#8b949e] hover:bg-[#0d1117] hover:text-[#e6edf3]"
+                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-hq-fg-muted hover:bg-hq-canvas hover:text-hq-fg"
                   >
                     <Info className="h-4 w-4" aria-hidden />
                   </button>
@@ -1781,15 +1781,15 @@ export function TrainsDashboard({ initial }: Props) {
         title={t("wheel.disqualifiedTitle")}
       >
         {conductorDisqualified?.qualification ? (
-          <div className="space-y-2 text-sm text-[#e6edf3]">
+          <div className="space-y-2 text-sm text-hq-fg">
             <p>
-              <span className="font-medium text-[#f85149]">
+              <span className="font-medium text-hq-danger">
                 {conductorDisqualified.memberName}
               </span>{" "}
               {t("wheel.disqualifiedBody")}
             </p>
             {conductorDisqualified.qualification.vs.minimum > 0 ? (
-              <p className="text-xs text-[#8b949e]">
+              <p className="text-xs text-hq-fg-muted">
                 {t("wheel.vsShortfall", {
                   score: conductorDisqualified.qualification.vs.score,
                   required:
@@ -1799,7 +1799,7 @@ export function TrainsDashboard({ initial }: Props) {
               </p>
             ) : null}
             {conductorDisqualified.qualification.donation.minimum > 0 ? (
-              <p className="text-xs text-[#8b949e]">
+              <p className="text-xs text-hq-fg-muted">
                 {t("wheel.donationShortfall", {
                   score: conductorDisqualified.qualification.donation.score,
                   required:
@@ -1883,7 +1883,7 @@ export function TrainsDashboard({ initial }: Props) {
       >
         <div className="flex flex-col gap-4">
           <div>
-            <h2 className="text-lg font-semibold text-[#e6edf3]">
+            <h2 className="text-lg font-semibold text-hq-fg">
               {t("reseedPoolHint.title")}
             </h2>
             <p className="mt-2 text-sm leading-relaxed text-[#c9d1d9]">
@@ -1894,7 +1894,7 @@ export function TrainsDashboard({ initial }: Props) {
             <button
               type="button"
               onClick={() => setReseedHintOpen(false)}
-              className="rounded-lg border border-[#30363d] px-4 py-2 text-sm font-medium text-[#e6edf3] hover:bg-[#0d1117]"
+              className="rounded-lg border border-hq-border px-4 py-2 text-sm font-medium text-hq-fg hover:bg-hq-canvas"
             >
               {t("reseedPoolHint.close")}
             </button>
@@ -1912,7 +1912,7 @@ export function TrainsDashboard({ initial }: Props) {
         {poolRefreshedHint ? (
           <div className="flex flex-col gap-4">
             <div>
-              <h2 className="text-lg font-semibold text-[#e6edf3]">
+              <h2 className="text-lg font-semibold text-hq-fg">
                 {t("poolRefreshedHint.title")}
               </h2>
               <p className="mt-2 text-sm leading-relaxed text-[#c9d1d9]">
@@ -1928,7 +1928,7 @@ export function TrainsDashboard({ initial }: Props) {
                       ),
                     })}
               </p>
-              <p className="mt-2 text-sm text-[#8b949e]">
+              <p className="mt-2 text-sm text-hq-fg-muted">
                 {t("poolRefreshedHint.generationLine", {
                   generation: poolRefreshedHint.generation,
                   count: poolRefreshedHint.memberCount,
@@ -1939,7 +1939,7 @@ export function TrainsDashboard({ initial }: Props) {
               <button
                 type="button"
                 onClick={dismissPoolRefreshedHint}
-                className="rounded-lg border border-[#30363d] px-4 py-2 text-sm font-medium text-[#e6edf3] hover:bg-[#0d1117]"
+                className="rounded-lg border border-hq-border px-4 py-2 text-sm font-medium text-hq-fg hover:bg-hq-canvas"
               >
                 {t("poolRefreshedHint.close")}
               </button>

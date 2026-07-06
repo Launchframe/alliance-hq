@@ -17,9 +17,9 @@ export function AdminSequenceOverlay() {
   );
 
   return (
-    <div className="fixed bottom-4 left-1/2 z-[90] w-[min(96vw,42rem)] -translate-x-1/2 rounded-xl border border-[#388bfd]/40 bg-[#161b22]/95 p-4 shadow-xl backdrop-blur">
-      <p className="text-sm font-medium text-[#e6edf3]">{t("adminSequenceTitle")}</p>
-      <p className="mt-1 text-xs text-[#8b949e]">{t("adminSequenceDescription")}</p>
+    <div className="fixed bottom-4 left-1/2 z-[90] w-[min(96vw,42rem)] -translate-x-1/2 rounded-xl border border-[#388bfd]/40 bg-hq-surface/95 p-4 shadow-xl backdrop-blur">
+      <p className="text-sm font-medium text-hq-fg">{t("adminSequenceTitle")}</p>
+      <p className="mt-1 text-xs text-hq-fg-muted">{t("adminSequenceDescription")}</p>
       <ul className="mt-3 grid max-h-48 gap-2 overflow-y-auto sm:grid-cols-2">
         {adminBindings.map((entry) => {
           const adminLink = ADMIN_LINKS.find(
@@ -28,7 +28,7 @@ export function AdminSequenceOverlay() {
           return (
             <li
               key={entry.actionId}
-              className="flex items-center justify-between gap-2 rounded-lg border border-[#30363d] px-3 py-2 text-xs"
+              className="flex items-center justify-between gap-2 rounded-lg border border-hq-border px-3 py-2 text-xs"
             >
               <span className="truncate text-[#c9d1d9]">
                 {adminLink

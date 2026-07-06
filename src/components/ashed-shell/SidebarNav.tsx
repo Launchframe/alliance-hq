@@ -43,8 +43,8 @@ function NavLink({
       className={cn(
         "flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm",
         active
-          ? "bg-[#1f3d5c] font-medium text-[#58a6ff]"
-          : "text-[#8b949e] hover:bg-[#21262d] hover:text-[#e6edf3]",
+          ? "bg-[#1f3d5c] font-medium text-hq-accent"
+          : "text-hq-fg-muted hover:bg-hq-surface-muted hover:text-hq-fg",
       )}
     >
       {icon
@@ -120,7 +120,7 @@ export function SidebarNav({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex shrink-0 items-center justify-between border-b border-[#30363d] px-4 py-4">
+      <div className="flex shrink-0 items-center justify-between border-b border-hq-border px-4 py-4">
         <Link
           href={operatingMode === "native" ? "/members" : "/dashboard"}
           className="flex min-w-0 items-center gap-3"
@@ -135,7 +135,7 @@ export function SidebarNav({
             <span className="block text-lg font-semibold tracking-tight">
               {t("brand")}
             </span>
-            <span className="mt-0.5 block truncate text-xs text-[#8b949e]">
+            <span className="mt-0.5 block truncate text-xs text-hq-fg-muted">
               {t("domain")}
             </span>
           </span>
@@ -143,7 +143,7 @@ export function SidebarNav({
         {onClose ? (
           <button
             type="button"
-            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[#30363d] text-[#e6edf3] md:hidden"
+            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-hq-border text-hq-fg md:hidden"
             onClick={onClose}
             aria-label={t("closeMenu")}
           >
@@ -205,9 +205,9 @@ export function SidebarNav({
               <button
                 type="button"
                 className={cn(
-                  "flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wider text-[#6e7681] transition-colors",
+                  "flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wider text-hq-fg-subtle transition-colors",
                   mobileCollapsible &&
-                    "hover:bg-[#21262d] hover:text-[#8b949e] md:pointer-events-none md:hover:bg-transparent",
+                    "hover:bg-hq-surface-muted hover:text-hq-fg-muted md:pointer-events-none md:hover:bg-transparent",
                 )}
                 onClick={() => {
                   if (mobileCollapsible) {
@@ -265,14 +265,14 @@ export function SidebarNav({
           );
         })}
 
-        <div className="mt-2 border-t border-[#30363d] pt-2">
+        <div className="mt-2 border-t border-hq-border pt-2">
           {FOOTER_NAV.map((route) => (
             <a
               key={route.href}
               href={route.href}
               target="_blank"
               rel="noreferrer"
-              className="block rounded-lg px-3 py-1.5 text-sm text-[#8b949e] hover:bg-[#21262d] hover:text-[#e6edf3]"
+              className="block rounded-lg px-3 py-1.5 text-sm text-hq-fg-muted hover:bg-hq-surface-muted hover:text-hq-fg"
             >
               {tc("externalLink", { label: tNav(route.labelKey) })}
             </a>
@@ -280,9 +280,9 @@ export function SidebarNav({
         </div>
       </nav>
 
-      <div className="shrink-0 border-t border-[#30363d] p-3 text-xs text-[#8b949e]">
+      <div className="shrink-0 border-t border-hq-border p-3 text-xs text-hq-fg-muted">
         <p>{t.rich("dataPoweredBy", { link: ashedLink })}</p>
-        <p className="mt-1.5 font-mono text-[10px] text-[#6e7681]">
+        <p className="mt-1.5 font-mono text-[10px] text-hq-fg-subtle">
           {t("version", { version: APP_VERSION })}
         </p>
       </div>

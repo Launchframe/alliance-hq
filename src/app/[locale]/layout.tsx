@@ -8,6 +8,8 @@ import { JetBrains_Mono } from "next/font/google";
 import { notFound } from "next/navigation";
 import type { Viewport } from "next";
 
+import { AppearanceProvider } from "@/components/appearance/AppearanceProvider";
+import { AppearanceScript } from "@/components/appearance/AppearanceScript";
 import { routing } from "@/i18n/routing";
 import { PRODUCTION_APP_ORIGIN } from "@/lib/public-site";
 
@@ -57,7 +59,10 @@ export async function generateMetadata({ params }: Props) {
 }
 
 export const viewport: Viewport = {
-  themeColor: "#0d1117",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+    { media: "(prefers-color-scheme: dark)", color: "#0d1117" },
+  ],
 };
 
 export default async function LocaleLayout({ children, params }: Props) {
@@ -71,11 +76,20 @@ export default async function LocaleLayout({ children, params }: Props) {
   const messages = await getMessages();
 
   return (
-    <html lang={locale} className={`${jetbrainsMono.variable} h-full`}>
+    <html
+      lang={locale}
+      className={`${jetbrainsMono.variable} h-full`}
+      suppressHydrationWarning
+    >
+      <head>
+        <AppearanceScript />
+      </head>
       <body className="min-h-full antialiased">
-        <NextIntlClientProvider messages={messages}>
-          <SessionProvider>{children}</SessionProvider>
-        </NextIntlClientProvider>
+        <AppearanceProvider>
+          <NextIntlClientProvider messages={messages}>
+            <SessionProvider>{children}</SessionProvider>
+          </NextIntlClientProvider>
+        </AppearanceProvider>
         <Analytics />
         <SpeedInsights />
       </body>

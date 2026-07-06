@@ -19,7 +19,7 @@ export function DiscordHqLinkExploreSuccess({
       <p className="whitespace-pre-line text-sm text-green-200">{labels.successBody}</p>
       <Link
         href={labels.exploreHref}
-        className="inline-block rounded-lg border border-[#238636] bg-[#238636] px-4 py-2 text-sm font-medium text-white hover:bg-[#2ea043]"
+        className="inline-block rounded-lg border border-hq-success bg-hq-success px-4 py-2 text-sm font-medium text-white hover:bg-hq-success-hover"
       >
         {labels.exploreCta}
       </Link>

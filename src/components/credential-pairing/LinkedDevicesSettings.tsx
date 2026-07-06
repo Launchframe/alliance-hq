@@ -162,22 +162,22 @@ export function LinkedDevicesSettings({ refreshToken = 0 }: Props) {
   }
 
   return (
-    <div className="mt-6 space-y-3 border-t border-[#30363d] pt-4">
+    <div className="mt-6 space-y-3 border-t border-hq-border pt-4">
       <div>
         <h3 className="font-medium">{t("listTitle")}</h3>
-        <p className="mt-1 text-sm text-[#8b949e]">{t("listBody")}</p>
+        <p className="mt-1 text-sm text-hq-fg-muted">{t("listBody")}</p>
       </div>
 
       {loading ? (
-        <p className="text-sm text-[#8b949e]">{t("loading")}</p>
+        <p className="text-sm text-hq-fg-muted">{t("loading")}</p>
       ) : devices.length === 0 ? (
-        <p className="text-sm text-[#8b949e]">{t("empty")}</p>
+        <p className="text-sm text-hq-fg-muted">{t("empty")}</p>
       ) : (
         <ul className="space-y-3">
           {devices.map((device) => (
             <li
               key={device.id}
-              className="rounded-lg border border-[#30363d] p-3"
+              className="rounded-lg border border-hq-border p-3"
             >
               <form
                 className="flex flex-wrap items-start justify-between gap-3"
@@ -202,21 +202,21 @@ export function LinkedDevicesSettings({ refreshToken = 0 }: Props) {
                         }))
                       }
                       enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT}
-                      className="min-w-0 flex-1 rounded-md border border-[#30363d] bg-[#0d1117] px-2 py-1 text-sm text-[#e6edf3]"
+                      className="min-w-0 flex-1 rounded-md border border-hq-border bg-hq-canvas px-2 py-1 text-sm text-hq-fg"
                     />
                     {device.isCurrentDevice ? (
-                      <span className="rounded bg-[#1f3d5c]/50 px-2 py-0.5 text-xs text-[#58a6ff]">
+                      <span className="rounded bg-[#1f3d5c]/50 px-2 py-0.5 text-xs text-hq-accent">
                         {t("thisDevice")}
                       </span>
                     ) : null}
                   </div>
-                  <p className="text-xs text-[#8b949e]">
+                  <p className="text-xs text-hq-fg-muted">
                     {device.osLabel ?? t("unknownOs")}
                   </p>
-                  <p className="text-xs text-[#8b949e]">
+                  <p className="text-xs text-hq-fg-muted">
                     {t("linkedAt", { when: formatTimestamp(device.linkedAt) })}
                   </p>
-                  <p className="text-xs text-[#8b949e]">
+                  <p className="text-xs text-hq-fg-muted">
                     {t("lastAccessAt", {
                       when: formatTimestamp(device.lastAccessAt),
                     })}
@@ -226,14 +226,14 @@ export function LinkedDevicesSettings({ refreshToken = 0 }: Props) {
                   <button
                     type="submit"
                     disabled={renamingId === device.id}
-                    className="rounded-lg border border-[#30363d] px-3 py-1.5 text-sm hover:bg-[#21262d] disabled:opacity-50"
+                    className="rounded-lg border border-hq-border px-3 py-1.5 text-sm hover:bg-hq-surface-muted disabled:opacity-50"
                   >
                     {renamingId === device.id ? t("savingName") : t("saveName")}
                   </button>
                   <button
                     type="button"
                     onClick={() => setRevokeTarget(device)}
-                    className="rounded-lg border border-[#f85149] px-3 py-1.5 text-sm text-[#f85149] hover:bg-[#f8514920]"
+                    className="rounded-lg border border-hq-danger px-3 py-1.5 text-sm text-hq-danger hover:bg-[#f8514920]"
                   >
                     {t("revoke")}
                   </button>
@@ -245,7 +245,7 @@ export function LinkedDevicesSettings({ refreshToken = 0 }: Props) {
       )}
 
       {error ? <p className="text-sm text-red-400">{error}</p> : null}
-      {message ? <p className="text-sm text-[#3fb950]">{message}</p> : null}
+      {message ? <p className="text-sm text-hq-green">{message}</p> : null}
 
       <Dialog
         open={revokeTarget !== null}
@@ -255,7 +255,7 @@ export function LinkedDevicesSettings({ refreshToken = 0 }: Props) {
         title={t("revokeTitle")}
       >
         <div className="space-y-4">
-          <p className="text-sm text-[#8b949e]">
+          <p className="text-sm text-hq-fg-muted">
             {t("revokeBody", {
               name: revokeTarget?.deviceName ?? "",
             })}
@@ -264,7 +264,7 @@ export function LinkedDevicesSettings({ refreshToken = 0 }: Props) {
             <button
               type="button"
               onClick={() => setRevokeTarget(null)}
-              className="rounded-lg border border-[#30363d] px-4 py-2 text-sm"
+              className="rounded-lg border border-hq-border px-4 py-2 text-sm"
             >
               {t("cancelRevoke")}
             </button>
@@ -272,7 +272,7 @@ export function LinkedDevicesSettings({ refreshToken = 0 }: Props) {
               type="button"
               disabled={revoking}
               onClick={() => void confirmRevoke()}
-              className="rounded-lg border border-[#f85149] bg-[#f8514920] px-4 py-2 text-sm text-[#f85149] disabled:opacity-50"
+              className="rounded-lg border border-hq-danger bg-[#f8514920] px-4 py-2 text-sm text-hq-danger disabled:opacity-50"
             >
               {revoking ? t("revoking") : t("confirmRevoke")}
             </button>

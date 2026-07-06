@@ -80,19 +80,19 @@ export function AllianceTrainDiscordSettings({ allianceTag }: Props) {
   };
 
   return (
-    <section className="rounded-xl border border-[#30363d] bg-[#161b22] p-4">
-      <h2 className="text-lg font-semibold text-[#e6edf3]">{t("title")}</h2>
-      <p className="mt-1 text-sm text-[#8b949e]">{t("description")}</p>
-      <p className="mt-2 text-sm text-[#8b949e]">
-        <Link href="/guides/discord-train" className="text-[#58a6ff] hover:underline">
+    <section className="rounded-xl border border-hq-border bg-hq-surface p-4">
+      <h2 className="text-lg font-semibold text-hq-fg">{t("title")}</h2>
+      <p className="mt-1 text-sm text-hq-fg-muted">{t("description")}</p>
+      <p className="mt-2 text-sm text-hq-fg-muted">
+        <Link href="/guides/discord-train" className="text-hq-accent hover:underline">
           {t("guideLink")}
         </Link>
       </p>
 
       {loading ? (
-        <p className="mt-4 text-sm text-[#8b949e]">{t("loading")}</p>
+        <p className="mt-4 text-sm text-hq-fg-muted">{t("loading")}</p>
       ) : error ? (
-        <p className="mt-4 text-sm text-[#f85149]">{error}</p>
+        <p className="mt-4 text-sm text-hq-danger">{error}</p>
       ) : display ? (
         <div className="mt-4 space-y-3">
           <label className="flex items-start gap-3">
@@ -103,15 +103,15 @@ export function AllianceTrainDiscordSettings({ allianceTag }: Props) {
               disabled={!display.canManage || busy}
               onChange={(e) => void toggle(e.target.checked)}
             />
-            <span className="text-sm text-[#e6edf3]">{t("enableAnnouncements")}</span>
+            <span className="text-sm text-hq-fg">{t("enableAnnouncements")}</span>
           </label>
-          <p className="text-sm text-[#8b949e]">
+          <p className="text-sm text-hq-fg-muted">
             {display.guildChannelCount > 0
               ? t("channelsConfigured", { count: display.guildChannelCount })
               : t("noChannel")}
           </p>
           {!display.canManage ? (
-            <p className="text-xs text-[#8b949e]">{t("readOnlyHint")}</p>
+            <p className="text-xs text-hq-fg-muted">{t("readOnlyHint")}</p>
           ) : null}
         </div>
       ) : null}

@@ -13,17 +13,17 @@ export function AdminDetailField({
 }) {
   return (
     <div className={className}>
-      <p className="text-xs font-medium uppercase tracking-wide text-[#6e7681]">
+      <p className="text-xs font-medium uppercase tracking-wide text-hq-fg-subtle">
         {label}
       </p>
-      <div className="mt-1 text-sm text-[#e6edf3]">{children}</div>
+      <div className="mt-1 text-sm text-hq-fg">{children}</div>
     </div>
   );
 }
 
 export function AdminStatusPill({ children }: { children: React.ReactNode }) {
   return (
-    <span className="inline-flex rounded-full border border-[#484f58] bg-[#21262d] px-2 py-0.5 text-xs text-[#c9d1d9]">
+    <span className="inline-flex rounded-full border border-[#484f58] bg-hq-surface-muted px-2 py-0.5 text-xs text-[#c9d1d9]">
       {children}
     </span>
   );
@@ -50,7 +50,7 @@ export function AdminFeedbackDetailPanel({
   children: React.ReactNode;
 }) {
   return (
-    <div className="space-y-4 rounded-xl border border-[#30363d] bg-[#161b22] p-4 lg:max-h-[min(80vh,720px)] lg:overflow-y-auto">
+    <div className="space-y-4 rounded-xl border border-hq-border bg-hq-surface p-4 lg:max-h-[min(80vh,720px)] lg:overflow-y-auto">
       {children}
     </div>
   );
@@ -62,7 +62,7 @@ export function AdminFeedbackTableShell({
   children: React.ReactNode;
 }) {
   return (
-    <div className="overflow-x-auto rounded-xl border border-[#30363d]">
+    <div className="overflow-x-auto rounded-xl border border-hq-border">
       <table className="min-w-full text-left text-sm">{children}</table>
     </div>
   );
@@ -74,10 +74,10 @@ export function AdminMetadataBlock({
   items: Array<{ label: string; value: React.ReactNode }>;
 }) {
   return (
-    <dl className="grid gap-2 rounded-lg border border-[#30363d] bg-[#0d1117] p-3 text-xs">
+    <dl className="grid gap-2 rounded-lg border border-hq-border bg-hq-canvas p-3 text-xs">
       {items.map((item) => (
         <div key={item.label} className="grid grid-cols-[7rem_minmax(0,1fr)] gap-2">
-          <dt className="text-[#6e7681]">{item.label}</dt>
+          <dt className="text-hq-fg-subtle">{item.label}</dt>
           <dd className="min-w-0 break-words text-[#c9d1d9]">{item.value}</dd>
         </div>
       ))}
@@ -89,7 +89,7 @@ export function AdminConsoleLogsBlock({ logs }: { logs: string | null }) {
   if (!logs?.trim()) return null;
   return (
     <AdminDetailField label="Console logs">
-      <pre className="max-h-48 overflow-auto rounded-lg border border-[#30363d] bg-[#0d1117] p-3 font-mono text-xs text-[#c9d1d9] whitespace-pre-wrap break-words">
+      <pre className="max-h-48 overflow-auto rounded-lg border border-hq-border bg-hq-canvas p-3 font-mono text-xs text-[#c9d1d9] whitespace-pre-wrap break-words">
         {logs}
       </pre>
     </AdminDetailField>

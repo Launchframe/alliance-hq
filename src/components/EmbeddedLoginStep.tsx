@@ -16,7 +16,7 @@ export function EmbeddedLoginStep() {
 
       <p className="mt-4">{t.rich("problemIntro", { link: ashedLink, strong: strongText })}</p>
 
-      <p className="mt-3 text-sm text-[#8b949e]">{t("workaroundIntro")}</p>
+      <p className="mt-3 text-sm text-hq-fg-muted">{t("workaroundIntro")}</p>
 
       <ol className="mt-4 list-decimal space-y-3 pl-5 text-sm">
         <li>{t.rich("stepForgotPassword", { link: ashedLink, strong: strongText })}</li>
@@ -25,7 +25,7 @@ export function EmbeddedLoginStep() {
         <li>{t.rich("stepFirstEmbedLogin", { strong: strongText })}</li>
       </ol>
 
-      <p className="mt-4 text-sm text-[#8b949e]">{t("googleStillWorksNote")}</p>
+      <p className="mt-4 text-sm text-hq-fg-muted">{t("googleStillWorksNote")}</p>
     </>
   );
 }

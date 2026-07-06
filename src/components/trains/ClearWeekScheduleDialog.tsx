@@ -33,10 +33,10 @@ export function ClearWeekScheduleDialog({
       title={t("title")}
     >
       <div className="space-y-4">
-        <p className="text-sm text-[#8b949e]">
+        <p className="text-sm text-hq-fg-muted">
           {t("body", { weekStart, weekEnd })}
         </p>
-        <p className="text-xs text-[#8b949e]">{t("hint")}</p>
+        <p className="text-xs text-hq-fg-muted">{t("hint")}</p>
         <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
           <Button
             type="button"

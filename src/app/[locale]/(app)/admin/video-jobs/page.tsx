@@ -56,20 +56,20 @@ const BUCKET_OPTIONS: Array<{ value: string; label: string }> = [
 ];
 
 const QUALITY_BUCKET_COLORS: Record<string, string> = {
-  perfect: "bg-[#3fb95020] text-[#3fb950] border-[#3fb950]",
-  q1: "bg-[#3fb95010] text-[#3fb950] border-[#3fb950]",
+  perfect: "bg-[#3fb95020] text-hq-green border-hq-green",
+  q1: "bg-[#3fb95010] text-hq-green border-hq-green",
   q2: "bg-[#d2992210] text-[#d29922] border-[#d29922]",
   q3: "bg-[#d2992210] text-[#d29922] border-[#d29922]",
-  q4: "bg-[#f8514910] text-[#f85149] border-[#f85149]",
-  q5: "bg-[#f8514910] text-[#f85149] border-[#f85149]",
-  dropped_the_ball: "bg-[#f8514920] text-[#f85149] border-[#f85149]",
+  q4: "bg-[#f8514910] text-hq-danger border-hq-danger",
+  q5: "bg-[#f8514910] text-hq-danger border-hq-danger",
+  dropped_the_ball: "bg-[#f8514920] text-hq-danger border-hq-danger",
 };
 
 function QualityBadge({ bucket }: { bucket: string | null | undefined }) {
   if (!bucket) return null;
   const cls =
     QUALITY_BUCKET_COLORS[bucket] ??
-    "bg-[#21262d] text-[#8b949e] border-[#30363d]";
+    "bg-hq-surface-muted text-hq-fg-muted border-hq-border";
   return (
     <span className={`rounded-full border px-2 py-0.5 text-xs ${cls}`}>
       {bucket}
@@ -175,11 +175,11 @@ export default function AdminVideoJobsPage() {
       {error ? <p className="text-sm text-red-400">{error}</p> : null}
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex items-center gap-2">
-          <label className="text-xs text-[#8b949e]">{tJobs("statusFilter")}</label>
+          <label className="text-xs text-hq-fg-muted">{tJobs("statusFilter")}</label>
           <select
             value={filters.status}
             onChange={(e) => setFilters({ status: e.target.value })}
-            className="rounded-lg border border-[#30363d] bg-[#161b22] px-2 py-1 text-xs text-[#e6edf3]"
+            className="rounded-lg border border-hq-border bg-hq-surface px-2 py-1 text-xs text-hq-fg"
           >
             <option value="failed">{tJobs("statusFailed")}</option>
             <option value="queued">{tJobs("statusQueued")}</option>
@@ -190,11 +190,11 @@ export default function AdminVideoJobsPage() {
           </select>
         </div>
         <div className="flex items-center gap-2">
-          <label className="text-xs text-[#8b949e]">{tJobs("bucketFilter")}</label>
+          <label className="text-xs text-hq-fg-muted">{tJobs("bucketFilter")}</label>
           <select
             value={filters.bucket}
             onChange={(e) => setFilters({ bucket: e.target.value })}
-            className="rounded-lg border border-[#30363d] bg-[#161b22] px-2 py-1 text-xs text-[#e6edf3]"
+            className="rounded-lg border border-hq-border bg-hq-surface px-2 py-1 text-xs text-hq-fg"
           >
             {BUCKET_OPTIONS.map((opt) => (
               <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -202,11 +202,11 @@ export default function AdminVideoJobsPage() {
           </select>
         </div>
         <div className="flex items-center gap-2">
-          <label className="text-xs text-[#8b949e]">{tJobs("ratingFilter")}</label>
+          <label className="text-xs text-hq-fg-muted">{tJobs("ratingFilter")}</label>
           <select
             value={filters.rating}
             onChange={(e) => setFilters({ rating: e.target.value })}
-            className="rounded-lg border border-[#30363d] bg-[#161b22] px-2 py-1 text-xs text-[#e6edf3]"
+            className="rounded-lg border border-hq-border bg-hq-surface px-2 py-1 text-xs text-hq-fg"
           >
             <option value="">{tJobs("allRatings")}</option>
             <option value="up">👍</option>
@@ -215,11 +215,11 @@ export default function AdminVideoJobsPage() {
         </div>
         {availablePassKeys.length > 0 && (
           <div className="flex items-center gap-2">
-            <label className="text-xs text-[#8b949e]">{tJobs("passFilter")}</label>
+            <label className="text-xs text-hq-fg-muted">{tJobs("passFilter")}</label>
             <select
               value={filters.passKey}
               onChange={(e) => setFilters({ passKey: e.target.value })}
-              className="rounded-lg border border-[#30363d] bg-[#161b22] px-2 py-1 text-xs font-mono text-[#e6edf3]"
+              className="rounded-lg border border-hq-border bg-hq-surface px-2 py-1 text-xs font-mono text-hq-fg"
             >
               <option value="">{tJobs("allPasses")}</option>
               {availablePassKeys.map((pk) => (
@@ -230,7 +230,7 @@ export default function AdminVideoJobsPage() {
         )}
         <Link
           href="/admin/video-jobs/analytics"
-          className="ml-auto rounded-md border border-[#30363d] px-3 py-1 text-xs text-[#8b949e] hover:border-[#58a6ff] hover:text-[#58a6ff] transition-colors"
+          className="ml-auto rounded-md border border-hq-border px-3 py-1 text-xs text-hq-fg-muted hover:border-hq-accent hover:text-hq-accent transition-colors"
         >
           {tJobs("analyticsLink")} →
         </Link>
@@ -272,7 +272,7 @@ export default function AdminVideoJobsPage() {
                 <div className="flex items-center gap-1.5">
                   <QualityBadge bucket={job.qualityBucket} />
                   {job.qualityScore != null ? (
-                    <span className="text-xs text-[#8b949e]">
+                    <span className="text-xs text-hq-fg-muted">
                       ({(job.qualityScore * 100).toFixed(0)}%)
                     </span>
                   ) : null}
@@ -282,7 +282,7 @@ export default function AdminVideoJobsPage() {
                 <div className="flex flex-wrap items-center gap-2 text-sm font-normal">
                   <Link
                     href={adminVideoJobDetailHref(job.id, filters)}
-                    className="text-[#58a6ff] hover:underline"
+                    className="text-hq-accent hover:underline"
                   >
                     {tJobs("inspect")}
                   </Link>
@@ -302,7 +302,7 @@ export default function AdminVideoJobsPage() {
                       canRequeue ? undefined : tJobs("actionUnavailable")
                     }
                     onClick={() => void runAction(job.id, "requeue")}
-                    className="text-[#58a6ff] hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+                    className="text-hq-accent hover:underline disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {tJobs("requeue")}
                   </button>
@@ -313,7 +313,7 @@ export default function AdminVideoJobsPage() {
                       canReprocess ? undefined : tJobs("actionUnavailable")
                     }
                     onClick={() => void runAction(job.id, "reprocess")}
-                    className="text-[#58a6ff] hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+                    className="text-hq-accent hover:underline disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {tJobs("reprocess")}
                   </button>
@@ -323,9 +323,9 @@ export default function AdminVideoJobsPage() {
           );
         })}
         desktopTable={
-          <div className="overflow-x-auto rounded-xl border border-[#30363d]">
+          <div className="overflow-x-auto rounded-xl border border-hq-border">
             <table className="min-w-full text-left text-sm">
-              <thead className="bg-[#161b22] text-[#8b949e]">
+              <thead className="bg-hq-surface text-hq-fg-muted">
                 <tr>
                   <th className="px-4 py-2">{t("table.time")}</th>
                   <th className="px-4 py-2">{t("table.status")}</th>
@@ -344,8 +344,8 @@ export default function AdminVideoJobsPage() {
                   const canRequeue = canRequeueVideoJob(job.status);
                   const canReprocess = canReprocessVideoJob(job.status);
                   return (
-                    <tr key={job.id} className="border-t border-[#30363d]">
-                      <td className="px-4 py-2 whitespace-nowrap text-[#8b949e]">
+                    <tr key={job.id} className="border-t border-hq-border">
+                      <td className="px-4 py-2 whitespace-nowrap text-hq-fg-muted">
                         <FormattedDateTime value={job.createdAt} />
                       </td>
                       <td className="px-4 py-2">{job.status}</td>
@@ -368,7 +368,7 @@ export default function AdminVideoJobsPage() {
                         <div className="flex items-center gap-1.5">
                           <QualityBadge bucket={job.qualityBucket} />
                           {job.qualityScore != null ? (
-                            <span className="text-xs text-[#8b949e]">
+                            <span className="text-xs text-hq-fg-muted">
                               ({(job.qualityScore * 100).toFixed(0)}%)
                             </span>
                           ) : null}
@@ -379,7 +379,7 @@ export default function AdminVideoJobsPage() {
                           <span title={job.ratingReason ?? undefined}>👍</span>
                         )}
                         {job.rating === "down" && (
-                          <span className="text-[#8b949e]" title={job.ratingReason ?? undefined}>
+                          <span className="text-hq-fg-muted" title={job.ratingReason ?? undefined}>
                             👎{job.ratingReason ? ` ${job.ratingReason}` : ""}
                           </span>
                         )}
@@ -388,7 +388,7 @@ export default function AdminVideoJobsPage() {
                         <div className="flex flex-wrap items-center gap-2">
                           <Link
                             href={adminVideoJobDetailHref(job.id, filters)}
-                            className="text-xs text-[#58a6ff] hover:underline"
+                            className="text-xs text-hq-accent hover:underline"
                           >
                             {tJobs("inspect")}
                           </Link>
@@ -408,7 +408,7 @@ export default function AdminVideoJobsPage() {
                               canRequeue ? undefined : tJobs("actionUnavailable")
                             }
                             onClick={() => void runAction(job.id, "requeue")}
-                            className="text-xs text-[#58a6ff] hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+                            className="text-xs text-hq-accent hover:underline disabled:cursor-not-allowed disabled:opacity-50"
                           >
                             {tJobs("requeue")}
                           </button>
@@ -421,7 +421,7 @@ export default function AdminVideoJobsPage() {
                                 : tJobs("actionUnavailable")
                             }
                             onClick={() => void runAction(job.id, "reprocess")}
-                            className="text-xs text-[#58a6ff] hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+                            className="text-xs text-hq-accent hover:underline disabled:cursor-not-allowed disabled:opacity-50"
                           >
                             {tJobs("reprocess")}
                           </button>
@@ -446,17 +446,17 @@ export default function AdminVideoJobsPage() {
             role="dialog"
             aria-modal="true"
             aria-labelledby="video-job-error-title"
-            className="max-h-[80vh] w-full max-w-lg overflow-hidden rounded-xl border border-[#30363d] bg-[#161b22] shadow-xl"
+            className="max-h-[80vh] w-full max-w-lg overflow-hidden rounded-xl border border-hq-border bg-hq-surface shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="border-b border-[#30363d] px-4 py-3">
+            <div className="border-b border-hq-border px-4 py-3">
               <h2
                 id="video-job-error-title"
-                className="text-sm font-medium text-[#e6edf3]"
+                className="text-sm font-medium text-hq-fg"
               >
                 {tJobs("errorDialogTitle")}
               </h2>
-              <p className="mt-1 truncate text-xs text-[#8b949e]">
+              <p className="mt-1 truncate text-xs text-hq-fg-muted">
                 {errorDialogJob.fileName ?? errorDialogJob.id}
               </p>
             </div>
@@ -465,11 +465,11 @@ export default function AdminVideoJobsPage() {
                 {errorDialogJob.errorMessage}
               </pre>
             </div>
-            <div className="border-t border-[#30363d] px-4 py-3">
+            <div className="border-t border-hq-border px-4 py-3">
               <button
                 type="button"
                 onClick={() => setErrorDialogJob(null)}
-                className="rounded-lg border border-[#30363d] px-3 py-1.5 text-sm text-[#e6edf3] hover:bg-[#21262d]"
+                className="rounded-lg border border-hq-border px-3 py-1.5 text-sm text-hq-fg hover:bg-hq-surface-muted"
               >
                 {tJobs("close")}
               </button>

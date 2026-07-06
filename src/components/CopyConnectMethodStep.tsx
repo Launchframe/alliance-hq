@@ -23,7 +23,7 @@ export function CopyConnectMethodStep({ method, onMethodChange }: Props) {
   if (method === "authorization") {
     return (
       <>
-        <p className="text-sm text-[#8b949e]">
+        <p className="text-sm text-hq-fg-muted">
           {t.rich("authorizationIntro", {
             headers: strongText,
             code: smallCode,
@@ -34,14 +34,14 @@ export function CopyConnectMethodStep({ method, onMethodChange }: Props) {
           alt={t("authorizationScreenshotAlt")}
           caption={t("authorizationScreenshotCaption")}
         />
-        <pre className="overflow-x-auto rounded-lg border border-[#30363d] bg-[#0d1117] p-3 font-mono text-xs text-[#e6edf3]">
+        <pre className="overflow-x-auto rounded-lg border border-hq-border bg-hq-canvas p-3 font-mono text-xs text-hq-fg">
           {t("authorizationExample")}
         </pre>
         <p className="mt-4 text-sm">
           <button
             type="button"
             onClick={() => onMethodChange("curl")}
-            className="text-[#58a6ff] hover:underline"
+            className="text-hq-accent hover:underline"
           >
             {t("tryCurlInstead")}
           </button>
@@ -52,8 +52,8 @@ export function CopyConnectMethodStep({ method, onMethodChange }: Props) {
 
   return (
     <>
-      <p className="rounded-lg border border-[#238636]/40 bg-[#238636]/10 px-3 py-2 text-sm">
-        <strong className="text-[#3fb950]">{t("easiestMethodLabel")}</strong>{" "}
+      <p className="rounded-lg border border-hq-success/40 bg-hq-success/10 px-3 py-2 text-sm">
+        <strong className="text-hq-green">{t("easiestMethodLabel")}</strong>{" "}
         {t("easiestMethodBody")}
       </p>
       <ol className="mt-4 list-decimal space-y-3 pl-5 text-sm">
@@ -65,7 +65,7 @@ export function CopyConnectMethodStep({ method, onMethodChange }: Props) {
           })}
         </li>
       </ol>
-      <p className="mt-3 text-sm text-[#8b949e]">
+      <p className="mt-3 text-sm text-hq-fg-muted">
         {t.rich("curlBashHint", { strong: strongText })}
       </p>
       <ConnectStepScreenshot
@@ -77,7 +77,7 @@ export function CopyConnectMethodStep({ method, onMethodChange }: Props) {
         <button
           type="button"
           onClick={() => onMethodChange("authorization")}
-          className="text-[#58a6ff] hover:underline"
+          className="text-hq-accent hover:underline"
         >
           {t("alternateAuthorization")}
         </button>

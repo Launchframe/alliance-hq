@@ -43,8 +43,8 @@ export default async function VideoQueuePage() {
   return (
     <div className="mx-auto min-w-0 max-w-4xl space-y-4 p-4 md:p-6">
       <header className="space-y-1">
-        <h1 className="text-lg font-semibold text-[#e6edf3]">{t("title")}</h1>
-        <p className="text-sm text-[#8b949e]">
+        <h1 className="text-lg font-semibold text-hq-fg">{t("title")}</h1>
+        <p className="text-sm text-hq-fg-muted">
           {hqOcrOnly ? t("descriptionHqOcr") : t("description")}
         </p>
       </header>

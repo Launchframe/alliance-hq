@@ -426,7 +426,7 @@ export function ConnectionWalkthrough({
             <p>
               {t.rich("steps.login.body", { link: ashedLink })}
             </p>
-            <p className="mt-2 text-sm text-[#8b949e]">
+            <p className="mt-2 text-sm text-hq-fg-muted">
               {t("steps.login.storageNote")}
             </p>
           </>
@@ -460,7 +460,7 @@ export function ConnectionWalkthrough({
                 network: strongText,
               })}
             </p>
-            <p className="mt-3 text-sm text-[#8b949e]">
+            <p className="mt-3 text-sm text-hq-fg-muted">
               {t.rich("steps.devtoolsNetwork.emptyListHint", {
                 reports: strongText,
                 code: inlineCode,
@@ -486,12 +486,12 @@ export function ConnectionWalkthrough({
 
           return (
             <div className="space-y-4">
-              <p className="text-[#8b949e]">
+              <p className="text-hq-fg-muted">
                 {t("signedInAsBefore")}{" "}
-                <strong className="text-[#e6edf3]">{userLabel}</strong>.
+                <strong className="text-hq-fg">{userLabel}</strong>.
               </p>
               {alliance ? (
-                <p className="text-sm text-[#8b949e]">
+                <p className="text-sm text-hq-fg-muted">
                   {t("allianceResolved", {
                     tag: alliance.tag,
                     name: alliance.name ?? alliance.tag,
@@ -506,7 +506,7 @@ export function ConnectionWalkthrough({
                   }
                 />
               ) : (
-                <p className="text-sm text-[#8b949e]">{t("noExpiryRead")}</p>
+                <p className="text-sm text-hq-fg-muted">{t("noExpiryRead")}</p>
               )}
             </div>
           );
@@ -515,11 +515,11 @@ export function ConnectionWalkthrough({
         return (
           <div className="space-y-4">
             {returningUser && !isPasteSuccess ? (
-              <p className="text-sm text-[#8b949e]">{t("returningUserHint")}</p>
+              <p className="text-sm text-hq-fg-muted">{t("returningUserHint")}</p>
             ) : null}
             <p>{t.rich("steps.paste.intro", { strong: strongText })}</p>
             <label className="block">
-              <span className="mb-1 block text-xs text-[#8b949e]">
+              <span className="mb-1 block text-xs text-hq-fg-muted">
                 {tc("pasteHere")}
               </span>
               <textarea
@@ -533,7 +533,7 @@ export function ConnectionWalkthrough({
                   })
                 }
                 placeholder={t("steps.paste.placeholder")}
-                className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 font-mono text-sm"
+                className="w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 font-mono text-sm"
               />
             </label>
             {showAlliancePicker ? (
@@ -548,50 +548,50 @@ export function ConnectionWalkthrough({
                 loadingMessage={t("steps.paste.allianceLoading")}
               />
             ) : null}
-            <details className="rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 text-sm">
-              <summary className="cursor-pointer text-[#e6edf3]">
+            <details className="rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 text-sm">
+              <summary className="cursor-pointer text-hq-fg">
                 {t("steps.paste.advancedSettingsSummary")}
               </summary>
-              <p className="mt-2 text-xs text-[#8b949e]">
+              <p className="mt-2 text-xs text-hq-fg-muted">
                 {t("steps.paste.advancedSettingsHint")}
               </p>
               <div className="mt-3 grid gap-3 sm:grid-cols-2">
                 <label className="block">
-                  <span className="mb-1 block text-xs text-[#8b949e]">
+                  <span className="mb-1 block text-xs text-hq-fg-muted">
                     {tc("appId")}
                   </span>
                   <input
                     value={appId}
                     onChange={(e) => setAppId(e.target.value)}
-                    className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 text-sm"
+                    className="w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 text-sm"
                   />
                 </label>
                 <label className="block">
-                  <span className="mb-1 block text-xs text-[#8b949e]">
+                  <span className="mb-1 block text-xs text-hq-fg-muted">
                     {tc("originUrl")}
                   </span>
                   <input
                     value={originUrl}
                     onChange={(e) => setOriginUrl(e.target.value)}
-                    className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 text-sm"
+                    className="w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 text-sm"
                   />
                 </label>
               </div>
             </details>
             {parsePreview && !parsePreview.ok && (
-              <p className="text-sm text-[#f85149]">{parsePreview.error}</p>
+              <p className="text-sm text-hq-danger">{parsePreview.error}</p>
             )}
             {previewConnectionString && (
               <div>
-                <span className="text-xs text-[#8b949e]">{tc("preview")}</span>
-                <pre className="mt-1 overflow-x-auto rounded-lg border border-[#30363d] bg-[#0d1117] p-3 text-xs">
+                <span className="text-xs text-hq-fg-muted">{tc("preview")}</span>
+                <pre className="mt-1 overflow-x-auto rounded-lg border border-hq-border bg-hq-canvas p-3 text-xs">
                   {maskConnectionString(previewConnectionString)}
                 </pre>
                 {previewExpiry && (
-                  <p className="mt-2 text-xs text-[#8b949e]">
+                  <p className="mt-2 text-xs text-hq-fg-muted">
                     {t.rich("steps.paste.tokenExpires", {
                       date: () => (
-                        <strong className="text-[#e6edf3]">{previewExpiry}</strong>
+                        <strong className="text-hq-fg">{previewExpiry}</strong>
                       ),
                     })}
                   </p>
@@ -603,12 +603,12 @@ export function ConnectionWalkthrough({
       case "link-phone":
         if (phoneLinkSkipped) {
           return (
-            <p className="text-sm text-[#8b949e]">
+            <p className="text-sm text-hq-fg-muted">
               {t.rich("steps.linkPhone.skippedBody", {
                 settingsLink: (chunks) => (
                   <Link
                     href="/account"
-                    className="text-[#58a6ff] hover:underline"
+                    className="text-hq-accent hover:underline"
                   >
                     {chunks}
                   </Link>
@@ -626,12 +626,12 @@ export function ConnectionWalkthrough({
       <header className="mb-6">
         <h1 className="text-2xl font-semibold">
           {isPasteSuccess ? (
-            <span className="text-[#3fb950]">{t("setupComplete.title")}</span>
+            <span className="text-hq-green">{t("setupComplete.title")}</span>
           ) : (
             t("title")
           )}
         </h1>
-        <p className="mt-2 text-[#8b949e]">
+        <p className="mt-2 text-hq-fg-muted">
           {isPasteSuccess
             ? t("setupComplete.body")
             : t.rich("subtitle", { link: ashedLink })}
@@ -646,19 +646,19 @@ export function ConnectionWalkthrough({
             key={id}
             className={`flex items-center gap-1.5 text-xs ${
               i === stepIndex
-                ? "text-[#e6edf3]"
+                ? "text-hq-fg"
                 : i < stepIndex
-                  ? "text-[#3fb950]"
-                  : "text-[#8b949e]"
+                  ? "text-hq-green"
+                  : "text-hq-fg-muted"
             }`}
           >
             <span
               className={`flex h-7 w-7 items-center justify-center rounded-full border text-[0.65rem] ${
                 i === stepIndex
-                  ? "border-[#58a6ff] bg-[#1f3d5c]"
+                  ? "border-hq-accent bg-[#1f3d5c]"
                   : i < stepIndex
-                    ? "border-[#238636]"
-                    : "border-[#30363d] bg-[#21262d]"
+                    ? "border-hq-success"
+                    : "border-hq-border bg-hq-surface-muted"
               }`}
             >
               {visibleIndex + 1}
@@ -671,7 +671,7 @@ export function ConnectionWalkthrough({
 
       {isPasteStep && !isPasteSuccess ? (
         <form
-          className="rounded-xl border border-[#30363d] bg-[#161b22] p-5"
+          className="rounded-xl border border-hq-border bg-hq-surface p-5"
           onSubmit={(event) => {
             preventDefaultFormSubmit(event);
             void connect();
@@ -687,7 +687,7 @@ export function ConnectionWalkthrough({
               <button
                 type="button"
                 onClick={() => setStepIndex(0)}
-                className="text-[#58a6ff] hover:underline"
+                className="text-hq-accent hover:underline"
               >
                 {t("showSetupInstructions")}
               </button>
@@ -695,31 +695,31 @@ export function ConnectionWalkthrough({
           ) : null}
 
           {error ? (
-            <p className="mt-4 text-sm text-[#f85149]" role="alert">
+            <p className="mt-4 text-sm text-hq-danger" role="alert">
               {error}
             </p>
           ) : null}
 
-          <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-[#30363d] pt-4">
+          <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-hq-border pt-4">
             <button
               type="button"
               onClick={() => changeStep((i) => Math.max(0, i - 1))}
               disabled={stepIndex === 0}
-              className="rounded-lg border border-[#30363d] px-4 py-2 text-sm text-[#e6edf3] hover:bg-[#21262d] disabled:opacity-50"
+              className="rounded-lg border border-hq-border px-4 py-2 text-sm text-hq-fg hover:bg-hq-surface-muted disabled:opacity-50"
             >
               {tc("back")}
             </button>
             <button
               type="submit"
               disabled={connecting || !canConnect}
-              className="rounded-lg border border-[#238636] bg-[#238636] px-4 py-2 text-sm text-white disabled:opacity-50"
+              className="rounded-lg border border-hq-success bg-hq-success px-4 py-2 text-sm text-white disabled:opacity-50"
             >
               {connecting ? tc("connecting") : tc("connect")}
             </button>
           </div>
         </form>
       ) : (
-      <section className="rounded-xl border border-[#30363d] bg-[#161b22] p-5">
+      <section className="rounded-xl border border-hq-border bg-hq-surface p-5">
         <div className="flex flex-wrap items-center gap-2">
           <h2 className="text-lg font-medium">{stepTitle}</h2>
           {isLinkPhoneStep ? (
@@ -747,14 +747,14 @@ export function ConnectionWalkthrough({
           </label>
         )}
 
-        {error && <p className="mt-4 text-sm text-[#f85149]">{error}</p>}
+        {error && <p className="mt-4 text-sm text-hq-danger">{error}</p>}
 
         <div className="mt-6 flex justify-end gap-2">
           <button
             type="button"
             onClick={() => changeStep((i) => Math.max(0, i - 1))}
             disabled={stepIndex === 0 || isLinkPhoneStep || isPasteSuccess}
-            className="rounded-lg border border-[#30363d] bg-[#21262d] px-4 py-2 text-sm disabled:opacity-50"
+            className="rounded-lg border border-hq-border bg-hq-surface-muted px-4 py-2 text-sm disabled:opacity-50"
           >
             {tc("back")}
           </button>
@@ -764,7 +764,7 @@ export function ConnectionWalkthrough({
                 <button
                   type="button"
                   onClick={() => setPhoneLinkSkipped(true)}
-                  className="rounded-lg border border-[#30363d] bg-[#21262d] px-4 py-2 text-sm"
+                  className="rounded-lg border border-hq-border bg-hq-surface-muted px-4 py-2 text-sm"
                 >
                   {t("steps.linkPhone.skip")}
                 </button>
@@ -772,7 +772,7 @@ export function ConnectionWalkthrough({
               <button
                 type="button"
                 onClick={continueToApp}
-                className="rounded-lg border border-[#238636] bg-[#238636] px-4 py-2 text-sm text-white"
+                className="rounded-lg border border-hq-success bg-hq-success px-4 py-2 text-sm text-white"
               >
                 {t(getContinueToHqLabelKey(phoneLinked))}
               </button>
@@ -785,7 +785,7 @@ export function ConnectionWalkthrough({
                   ? continueToApp
                   : () => setStepIndex(LINK_PHONE_STEP_INDEX)
               }
-              className="rounded-lg border border-[#238636] bg-[#238636] px-4 py-2 text-sm text-white"
+              className="rounded-lg border border-hq-success bg-hq-success px-4 py-2 text-sm text-white"
             >
               {t("steps.paste.continue")}
             </button>
@@ -794,7 +794,7 @@ export function ConnectionWalkthrough({
               type="button"
               onClick={() => changeStep((i) => i + 1)}
               disabled={!canAdvance}
-              className="rounded-lg border border-[#238636] bg-[#238636] px-4 py-2 text-sm text-white disabled:opacity-50"
+              className="rounded-lg border border-hq-success bg-hq-success px-4 py-2 text-sm text-white disabled:opacity-50"
             >
               {tc("next")}
             </button>

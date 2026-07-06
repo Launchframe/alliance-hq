@@ -76,9 +76,9 @@ export function AccountPasswordCard({ hasPassword: initialHasPassword }: Props) 
   }
 
   return (
-    <section className="space-y-4 rounded-xl border border-[#30363d] bg-[#161b22] p-5">
+    <section className="space-y-4 rounded-xl border border-hq-border bg-hq-surface p-5">
       <h2 className="font-medium">{t("passwordSectionTitle")}</h2>
-      <p className="text-sm text-[#8b949e]">
+      <p className="text-sm text-hq-fg-muted">
         {hasPassword ? t("passwordSectionBodySet") : t("passwordSectionBodyUnset")}
       </p>
       <form
@@ -89,24 +89,24 @@ export function AccountPasswordCard({ hasPassword: initialHasPassword }: Props) 
         }}
       >
         <label className="block space-y-1 text-sm">
-          <span className="text-[#8b949e]">{t("newPassword")}</span>
+          <span className="text-hq-fg-muted">{t("newPassword")}</span>
           <input
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
+            className="w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2"
             autoComplete="new-password"
             minLength={MIN_PASSWORD_LENGTH}
           />
         </label>
         <label className="block space-y-1 text-sm">
-          <span className="text-[#8b949e]">{t("confirmPassword")}</span>
+          <span className="text-hq-fg-muted">{t("confirmPassword")}</span>
           <input
             type="password"
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
             enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT}
-            className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
+            className="w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2"
             autoComplete="new-password"
             minLength={MIN_PASSWORD_LENGTH}
           />
@@ -114,13 +114,13 @@ export function AccountPasswordCard({ hasPassword: initialHasPassword }: Props) 
         <button
           type="submit"
           disabled={busy}
-          className="rounded-lg border border-[#238636] bg-[#238636] px-4 py-2 text-sm text-white disabled:opacity-50"
+          className="rounded-lg border border-hq-success bg-hq-success px-4 py-2 text-sm text-white disabled:opacity-50"
         >
           {busy ? t("saving") : hasPassword ? t("updatePassword") : t("setPassword")}
         </button>
       </form>
-      {message ? <p className="text-sm text-[#3fb950]">{message}</p> : null}
-      {error ? <p className="text-sm text-[#f85149]">{error}</p> : null}
+      {message ? <p className="text-sm text-hq-green">{message}</p> : null}
+      {error ? <p className="text-sm text-hq-danger">{error}</p> : null}
     </section>
   );
 }

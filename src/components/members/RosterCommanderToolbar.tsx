@@ -30,20 +30,20 @@ export function RosterSquadSummaryStrip({ summary }: Pick<Props, "summary">) {
       {(["aircraft", "tank", "missile"] as const).map((squad) => (
         <div
           key={squad}
-          className="flex items-center gap-2 rounded-lg border border-[#30363d] bg-[#161b22] px-3 py-2 text-sm"
+          className="flex items-center gap-2 rounded-lg border border-hq-border bg-hq-surface px-3 py-2 text-sm"
         >
-          <span className="font-medium text-[#e6edf3]">
+          <span className="font-medium text-hq-fg">
             {t(`squad.${MAIN_SQUAD_LABEL_KEYS[squad]}`)}
           </span>
-          <span className="text-[#8b949e]">
+          <span className="text-hq-fg-muted">
             {summary[squad].count} ·{" "}
             {t("avgThp", { thp: summary[squad].avgThp.toLocaleString() })}
           </span>
         </div>
       ))}
-      <div className="flex items-center gap-2 rounded-lg border border-[#30363d] bg-[#161b22] px-3 py-2 text-sm">
-        <span className="font-medium text-[#8b949e]">{t("unreported")}</span>
-        <span className="text-[#8b949e]">
+      <div className="flex items-center gap-2 rounded-lg border border-hq-border bg-hq-surface px-3 py-2 text-sm">
+        <span className="font-medium text-hq-fg-muted">{t("unreported")}</span>
+        <span className="text-hq-fg-muted">
           {summary.unreported.count} ·{" "}
           {t("avgThp", { thp: summary.unreported.avgThp.toLocaleString() })}
         </span>
@@ -66,14 +66,14 @@ export function RosterCommanderFilterBar({
 
   return (
     <div className="flex flex-wrap items-end gap-3">
-      <label className="flex flex-col gap-1 text-xs text-[#8b949e]">
+      <label className="flex flex-col gap-1 text-xs text-hq-fg-muted">
         {t("filterSquad")}
         <select
           value={filterSquad}
           onChange={(event) =>
             onFilterSquadChange(event.target.value as MainSquadType | "")
           }
-          className="rounded-lg border border-[#30363d] bg-[#161b22] px-3 py-2 text-sm text-[#e6edf3]"
+          className="rounded-lg border border-hq-border bg-hq-surface px-3 py-2 text-sm text-hq-fg"
         >
           <option value="">{t("filterSquadAll")}</option>
           {MAIN_SQUAD_TYPES.map((squad) => (
@@ -84,10 +84,10 @@ export function RosterCommanderFilterBar({
         </select>
       </label>
 
-      <label className="flex flex-col gap-1 text-xs text-[#8b949e]">
+      <label className="flex flex-col gap-1 text-xs text-hq-fg-muted">
         {t("filterHqLink")}
         <div
-          className="flex overflow-hidden rounded-lg border border-[#30363d] bg-[#161b22] text-sm"
+          className="flex overflow-hidden rounded-lg border border-hq-border bg-hq-surface text-sm"
           role="group"
           aria-label={t("filterHqLink")}
         >
@@ -106,11 +106,11 @@ export function RosterCommanderFilterBar({
                 aria-pressed={active}
                 onClick={() => onFilterHqLinkChange(value)}
                 className={`px-3 py-2 transition-colors ${
-                  index > 0 ? "border-l border-[#30363d]" : ""
+                  index > 0 ? "border-l border-hq-border" : ""
                 } ${
                   active
                     ? "bg-[#1f6feb] text-white"
-                    : "text-[#8b949e] hover:text-[#e6edf3]"
+                    : "text-hq-fg-muted hover:text-hq-fg"
                 }`}
               >
                 {t(labelKey)}
@@ -120,18 +120,18 @@ export function RosterCommanderFilterBar({
         </div>
       </label>
 
-      <label className="flex flex-col gap-1 text-xs text-[#8b949e]">
+      <label className="flex flex-col gap-1 text-xs text-hq-fg-muted">
         {t("filterMinThp")}
         <input
           value={filterMinThp}
           onChange={(event) => onFilterMinThpChange(event.target.value)}
           inputMode="numeric"
           placeholder="0"
-          className="w-32 rounded-lg border border-[#30363d] bg-[#161b22] px-3 py-2 text-sm text-[#e6edf3]"
+          className="w-32 rounded-lg border border-hq-border bg-hq-surface px-3 py-2 text-sm text-hq-fg"
         />
       </label>
 
-      <label className="flex items-center gap-2 text-sm text-[#8b949e]">
+      <label className="flex items-center gap-2 text-sm text-hq-fg-muted">
         <input
           type="checkbox"
           checked={includeUnreported}

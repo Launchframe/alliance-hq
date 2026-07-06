@@ -35,12 +35,12 @@ export function ConnectSignOutLink() {
         type="button"
         onClick={() => void signOut()}
         disabled={signingOut}
-        className="text-sm text-[#8b949e] underline hover:text-[#58a6ff] disabled:opacity-50"
+        className="text-sm text-hq-fg-muted underline hover:text-hq-accent disabled:opacity-50"
       >
         {signingOut ? t("signingOut") : t("wrongAccount")}
       </button>
       {signOutError ? (
-        <p className="max-w-xs text-right text-xs text-[#f85149]">{signOutError}</p>
+        <p className="max-w-xs text-right text-xs text-hq-danger">{signOutError}</p>
       ) : null}
     </div>
   );

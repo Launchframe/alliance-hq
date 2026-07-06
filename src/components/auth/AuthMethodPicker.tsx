@@ -57,8 +57,8 @@ export function MethodPickerButton({
       aria-pressed={linked ? true : undefined}
       className={
         linked
-          ? "flex min-w-[4.75rem] flex-1 flex-col items-center justify-center gap-1.5 rounded-lg border border-[#238636] bg-[#238636]/10 px-2 py-3 text-xs font-medium text-[#e6edf3] ring-1 ring-[#238636]/40 transition-colors hover:border-[#2ea043] hover:bg-[#238636]/15 disabled:opacity-50"
-          : "flex min-w-[4.75rem] flex-1 flex-col items-center justify-center gap-1.5 rounded-lg border border-[#30363d] bg-[#0d1117] px-2 py-3 text-xs font-medium text-[#e6edf3] transition-colors hover:border-[#484f58] hover:bg-[#161b22] disabled:opacity-50"
+          ? "flex min-w-[4.75rem] flex-1 flex-col items-center justify-center gap-1.5 rounded-lg border border-hq-success bg-hq-success/10 px-2 py-3 text-xs font-medium text-hq-fg ring-1 ring-hq-success/40 transition-colors hover:border-hq-success-hover hover:bg-hq-success/15 disabled:opacity-50"
+          : "flex min-w-[4.75rem] flex-1 flex-col items-center justify-center gap-1.5 rounded-lg border border-hq-border bg-hq-canvas px-2 py-3 text-xs font-medium text-hq-fg transition-colors hover:border-[#484f58] hover:bg-hq-surface disabled:opacity-50"
       }
     >
       {children}
@@ -129,7 +129,7 @@ export function AuthMethodPickerRow({
         linked={linkedState?.passkey}
         onClick={onPasskeyClick}
       >
-        <KeyRound className="h-5 w-5 text-[#8b949e]" aria-hidden />
+        <KeyRound className="h-5 w-5 text-hq-fg-muted" aria-hidden />
       </MethodPickerButton>
       {showEmail ? (
         <MethodPickerButton
@@ -138,7 +138,7 @@ export function AuthMethodPickerRow({
           linked={linkedState?.email}
           onClick={onEmailClick}
         >
-          <Mail className="h-5 w-5 text-[#8b949e]" aria-hidden />
+          <Mail className="h-5 w-5 text-hq-fg-muted" aria-hidden />
         </MethodPickerButton>
       ) : null}
     </div>

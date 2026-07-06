@@ -91,13 +91,13 @@ export function PassComparisonSheet(props: Props) {
   const shadowKey = shadowPass?.passKey ?? t("comparisonShadowFallback");
 
   return (
-    <div className="fixed inset-0 z-50 flex min-h-0 flex-col bg-[#0d1117]">
-      <div className="shrink-0 flex items-center justify-between border-b border-[#30363d] px-4 py-3">
-        <h2 className="font-semibold text-[#e6edf3]">{t("comparisonSheetTitle")}</h2>
+    <div className="fixed inset-0 z-50 flex min-h-0 flex-col bg-hq-canvas">
+      <div className="shrink-0 flex items-center justify-between border-b border-hq-border px-4 py-3">
+        <h2 className="font-semibold text-hq-fg">{t("comparisonSheetTitle")}</h2>
         <button
           type="button"
           onClick={onClose}
-          className="text-sm text-[#8b949e] hover:text-[#e6edf3]"
+          className="text-sm text-hq-fg-muted hover:text-hq-fg"
         >
           {t("comparisonClose")}
         </button>
@@ -105,15 +105,15 @@ export function PassComparisonSheet(props: Props) {
 
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         {/* Column headers */}
-        <div className="shrink-0 grid grid-cols-2 divide-x divide-[#30363d] border-b border-[#30363d]">
-          <div className="bg-[#161b22] px-3 py-2 text-center text-xs text-[#8b949e]">
+        <div className="shrink-0 grid grid-cols-2 divide-x divide-hq-border border-b border-hq-border">
+          <div className="bg-hq-surface px-3 py-2 text-center text-xs text-hq-fg-muted">
             {t("comparisonPassHeader", {
               pass: t("comparisonPassA"),
               key: primaryKey,
               count: primaryRows.length,
             })}
           </div>
-          <div className="bg-[#161b22] px-3 py-2 text-center text-xs text-[#8b949e]">
+          <div className="bg-hq-surface px-3 py-2 text-center text-xs text-hq-fg-muted">
             {t("comparisonPassHeader", {
               pass: t("comparisonPassB"),
               key: shadowKey,
@@ -125,11 +125,11 @@ export function PassComparisonSheet(props: Props) {
         {/* Aligned rows — flex-1 + min-h-0 so overflow scrolls instead of clipping */}
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
           {loadingRows ? (
-            <div className="flex items-center justify-center py-12 text-sm text-[#8b949e]">
+            <div className="flex items-center justify-center py-12 text-sm text-hq-fg-muted">
               {t("comparisonLoadingRows")}
             </div>
           ) : null}
-          <div className="grid grid-cols-2 divide-x divide-[#30363d] pb-6">
+          <div className="grid grid-cols-2 divide-x divide-hq-border pb-6">
             {!loadingRows && allKeys.map((key) => {
               const p = primaryByKey.get(key);
               const s = shadowByKey.get(key);
@@ -138,27 +138,27 @@ export function PassComparisonSheet(props: Props) {
               return (
                 <div key={key} className="contents">
                   <div
-                    className={`border-t border-[#30363d] px-3 py-2 text-sm ${onlyInP ? "bg-[#3fb95010]" : ""}`}
+                    className={`border-t border-hq-border px-3 py-2 text-sm ${onlyInP ? "bg-[#3fb95010]" : ""}`}
                   >
                     {p ? (
                       <>
                         <div className="font-medium">{p.memberName ?? p.ocrName}</div>
-                        <div className="font-mono text-xs text-[#8b949e]">{p.score}</div>
+                        <div className="font-mono text-xs text-hq-fg-muted">{p.score}</div>
                       </>
                     ) : (
-                      <div className="text-xs text-[#8b949e]">—</div>
+                      <div className="text-xs text-hq-fg-muted">—</div>
                     )}
                   </div>
                   <div
-                    className={`border-t border-[#30363d] px-3 py-2 text-sm ${onlyInS ? "bg-[#3fb95010]" : ""}`}
+                    className={`border-t border-hq-border px-3 py-2 text-sm ${onlyInS ? "bg-[#3fb95010]" : ""}`}
                   >
                     {s ? (
                       <>
                         <div className="font-medium">{s.memberName ?? s.ocrName}</div>
-                        <div className="font-mono text-xs text-[#8b949e]">{s.score}</div>
+                        <div className="font-mono text-xs text-hq-fg-muted">{s.score}</div>
                       </>
                     ) : (
-                      <div className="text-xs text-[#8b949e]">—</div>
+                      <div className="text-xs text-hq-fg-muted">—</div>
                     )}
                   </div>
                 </div>
@@ -169,8 +169,8 @@ export function PassComparisonSheet(props: Props) {
       </div>
 
       {/* Footer */}
-      <div className="shrink-0 space-y-3 border-t border-[#30363d] px-4 py-4">
-        <p className="text-sm text-[#8b949e]">{t("comparisonAccuracyPrompt")}</p>
+      <div className="shrink-0 space-y-3 border-t border-hq-border px-4 py-4">
+        <p className="text-sm text-hq-fg-muted">{t("comparisonAccuracyPrompt")}</p>
         <div className="flex flex-wrap gap-3">
           {comparison.passes.map((pass, i) => (
             <button
@@ -180,8 +180,8 @@ export function PassComparisonSheet(props: Props) {
               onClick={() => handleVote(pass.jobId)}
               className={`rounded-lg border px-3 py-1.5 text-sm disabled:opacity-60 ${
                 accuracyVoted === pass.jobId
-                  ? "border-[#3fb950] bg-[#3fb95020] text-[#3fb950]"
-                  : "border-[#30363d] hover:bg-[#21262d]"
+                  ? "border-hq-green bg-[#3fb95020] text-hq-green"
+                  : "border-hq-border hover:bg-hq-surface-muted"
               }`}
             >
               {i === 0 ? t("comparisonPassA") : t("comparisonPassB")} (
@@ -196,7 +196,7 @@ export function PassComparisonSheet(props: Props) {
             type="button"
             disabled={!!accuracyVoted}
             onClick={() => handleVote("same")}
-            className="rounded-lg border border-[#30363d] px-3 py-1.5 text-sm hover:bg-[#21262d] disabled:opacity-60"
+            className="rounded-lg border border-hq-border px-3 py-1.5 text-sm hover:bg-hq-surface-muted disabled:opacity-60"
           >
             {t("comparisonAboutSame")}
           </button>
@@ -207,7 +207,7 @@ export function PassComparisonSheet(props: Props) {
               key={pass.jobId}
               type="button"
               onClick={() => onSelectJob(pass.jobId)}
-              className="rounded-lg border border-[#238636] bg-[#238636] px-3 py-1.5 text-sm text-white"
+              className="rounded-lg border border-hq-success bg-hq-success px-3 py-1.5 text-sm text-white"
             >
               {i === 0 ? t("comparisonUseA") : t("comparisonUseB")}
             </button>

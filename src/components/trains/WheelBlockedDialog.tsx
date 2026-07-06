@@ -72,7 +72,7 @@ export function WheelBlockedDialog({
     <Dialog open={open} onOpenChange={(next) => !next && onClose()} title={t("wheelBlocked.title")}>
       <div className="flex flex-col gap-4">
         <div>
-          <h2 className="text-lg font-semibold text-[#e6edf3]">
+          <h2 className="text-lg font-semibold text-hq-fg">
             {t("wheelBlocked.title")}
           </h2>
           <p className="mt-2 text-sm leading-relaxed text-[#c9d1d9]">
@@ -84,7 +84,7 @@ export function WheelBlockedDialog({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg border border-[#30363d] px-4 py-2 text-sm font-medium text-[#e6edf3] hover:bg-[#0d1117]"
+            className="rounded-lg border border-hq-border px-4 py-2 text-sm font-medium text-hq-fg hover:bg-hq-canvas"
           >
             {t("wheelBlocked.close")}
           </button>
@@ -93,7 +93,7 @@ export function WheelBlockedDialog({
             <Link
               href="/members"
               onClick={onClose}
-              className="inline-flex justify-center rounded-lg bg-[#238636] px-4 py-2 text-sm font-medium text-white hover:bg-[#2ea043]"
+              className="inline-flex justify-center rounded-lg bg-hq-success px-4 py-2 text-sm font-medium text-white hover:bg-hq-success-hover"
             >
               {t("wheelBlocked.goToMembers")}
             </Link>

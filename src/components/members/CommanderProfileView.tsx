@@ -157,7 +157,7 @@ export function CommanderProfileView({ initial }: Props) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold">{member.currentName}</h1>
-          <p className="mt-1 text-sm text-[#8b949e]">
+          <p className="mt-1 text-sm text-hq-fg-muted">
             {t("allianceContext", {
               tag: alliance.tag ?? alliance.slug,
             })}
@@ -165,13 +165,13 @@ export function CommanderProfileView({ initial }: Props) {
         </div>
         <Link
           href={membersListHref}
-          className="rounded-lg border border-[#30363d] px-3 py-1.5 text-sm text-[#c9d1d9] hover:bg-[#161b22]"
+          className="rounded-lg border border-hq-border px-3 py-1.5 text-sm text-[#c9d1d9] hover:bg-hq-surface"
         >
           {t("backToMembers")}
         </Link>
       </div>
 
-      <section className="rounded-xl border border-[#30363d] bg-[#161b22] p-5">
+      <section className="rounded-xl border border-hq-border bg-hq-surface p-5">
         <div className="mb-5 flex items-center gap-4">
           <ProfileAvatar
             displayName={member.currentName}
@@ -180,10 +180,10 @@ export function CommanderProfileView({ initial }: Props) {
             size="md"
           />
           <div className="min-w-0">
-            <p className="truncate text-lg font-medium text-[#e6edf3]">
+            <p className="truncate text-lg font-medium text-hq-fg">
               {member.currentName}
             </p>
-            <p className="truncate text-sm text-[#8b949e]">
+            <p className="truncate text-sm text-hq-fg-muted">
               {member.gameUid
                 ? t("gameUid", { uid: member.gameUid })
                 : t("allianceContext", { tag: alliance.tag ?? alliance.slug })}
@@ -191,51 +191,51 @@ export function CommanderProfileView({ initial }: Props) {
           </div>
         </div>
 
-        <dl className="grid gap-4 border-t border-[#30363d] pt-4 sm:grid-cols-2">
+        <dl className="grid gap-4 border-t border-hq-border pt-4 sm:grid-cols-2">
           <div>
-            <dt className="text-xs font-medium uppercase tracking-wider text-[#6e7681]">
+            <dt className="text-xs font-medium uppercase tracking-wider text-hq-fg-subtle">
               {t("rank")}
             </dt>
-            <dd className="mt-1 text-sm text-[#e6edf3]">{member.rankLabel}</dd>
+            <dd className="mt-1 text-sm text-hq-fg">{member.rankLabel}</dd>
           </div>
           <div>
-            <dt className="text-xs font-medium uppercase tracking-wider text-[#6e7681]">
+            <dt className="text-xs font-medium uppercase tracking-wider text-hq-fg-subtle">
               {t("title")}
             </dt>
-            <dd className="mt-1 text-sm text-[#e6edf3]">{member.titleLabel}</dd>
+            <dd className="mt-1 text-sm text-hq-fg">{member.titleLabel}</dd>
           </div>
           <div>
-            <dt className="text-xs font-medium uppercase tracking-wider text-[#6e7681]">
+            <dt className="text-xs font-medium uppercase tracking-wider text-hq-fg-subtle">
               {t("status")}
             </dt>
-            <dd className="mt-1 text-sm text-[#e6edf3]">{member.status}</dd>
+            <dd className="mt-1 text-sm text-hq-fg">{member.status}</dd>
           </div>
           <div>
-            <dt className="text-xs font-medium uppercase tracking-wider text-[#6e7681]">
+            <dt className="text-xs font-medium uppercase tracking-wider text-hq-fg-subtle">
               {t("heroPower")}
             </dt>
-            <dd className="mt-1 text-sm text-[#e6edf3]">
+            <dd className="mt-1 text-sm text-hq-fg">
               {formatPowerM(member.heroPowerM)}
             </dd>
           </div>
           <div>
-            <dt className="text-xs font-medium uppercase tracking-wider text-[#6e7681]">
+            <dt className="text-xs font-medium uppercase tracking-wider text-hq-fg-subtle">
               {t("level")}
             </dt>
-            <dd className="mt-1 text-sm text-[#e6edf3]">
+            <dd className="mt-1 text-sm text-hq-fg">
               {member.memberLevel ?? "—"}
             </dd>
           </div>
           <div>
-            <dt className="text-xs font-medium uppercase tracking-wider text-[#6e7681]">
+            <dt className="text-xs font-medium uppercase tracking-wider text-hq-fg-subtle">
               {t("mainSquad")}
             </dt>
-            <dd className="mt-1 text-sm text-[#e6edf3]">
+            <dd className="mt-1 text-sm text-hq-fg">
               {member.mainSquad
                 ? t(`squad.${MAIN_SQUAD_LABEL_KEYS[member.mainSquad]}`)
                 : <span className="text-[#484f58]">{t("mainSquadNone")}</span>}
               {member.mainSquadSource ? (
-                <span className="ml-2 text-xs text-[#8b949e]">
+                <span className="ml-2 text-xs text-hq-fg-muted">
                   {t("mainSquadSource", {
                     source:
                       member.mainSquadSource === "officer_override"
@@ -248,10 +248,10 @@ export function CommanderProfileView({ initial }: Props) {
           </div>
           {member.previousNames.length > 0 ? (
             <div className="sm:col-span-2">
-              <dt className="text-xs font-medium uppercase tracking-wider text-[#6e7681]">
+              <dt className="text-xs font-medium uppercase tracking-wider text-hq-fg-subtle">
                 {t("previousNames")}
               </dt>
-              <dd className="mt-1 text-sm text-[#e6edf3]">
+              <dd className="mt-1 text-sm text-hq-fg">
                 {member.previousNames.join(", ")}
               </dd>
             </div>
@@ -260,8 +260,8 @@ export function CommanderProfileView({ initial }: Props) {
       </section>
 
       {member.canEditMainSquad ? (
-        <section className="rounded-xl border border-[#30363d] bg-[#161b22] p-5">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-[#8b949e]">
+        <section className="rounded-xl border border-hq-border bg-hq-surface p-5">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-hq-fg-muted">
             {t("mainSquad")}
           </h2>
           <form
@@ -271,7 +271,7 @@ export function CommanderProfileView({ initial }: Props) {
               void saveSquad();
             }}
           >
-            <label className="flex flex-col gap-1 text-xs text-[#8b949e]">
+            <label className="flex flex-col gap-1 text-xs text-hq-fg-muted">
               {t("mainSquad")}
               <select
                 value={squadValue}
@@ -280,7 +280,7 @@ export function CommanderProfileView({ initial }: Props) {
                   setSquadMessage(null);
                 }}
                 disabled={squadSaving}
-                className="rounded-lg border border-[#30363d] bg-[#161b22] px-3 py-2 text-sm text-[#e6edf3] disabled:opacity-50"
+                className="rounded-lg border border-hq-border bg-hq-surface px-3 py-2 text-sm text-hq-fg disabled:opacity-50"
               >
                 <option value="">{t("mainSquadNone")}</option>
                 {MAIN_SQUAD_TYPES.map((s) => (
@@ -293,40 +293,40 @@ export function CommanderProfileView({ initial }: Props) {
             <button
               type="submit"
               disabled={squadSaving || !squadValue}
-              className="rounded-lg bg-[#238636] px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+              className="rounded-lg bg-hq-success px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
             >
               {squadSaving ? t("mainSquadSaving") : t("mainSquadSaveLabel")}
             </button>
           </form>
           {squadMessage ? (
-            <p className="mt-3 text-sm text-[#8b949e]">{squadMessage}</p>
+            <p className="mt-3 text-sm text-hq-fg-muted">{squadMessage}</p>
           ) : null}
         </section>
       ) : null}
 
       {(initial.hqUser || initial.discordLinks.length > 0) && (
-        <section className="rounded-xl border border-[#30363d] bg-[#161b22] p-5">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-[#8b949e]">
+        <section className="rounded-xl border border-hq-border bg-hq-surface p-5">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-hq-fg-muted">
             {t("identityLinks")}
           </h2>
           <dl className="mt-4 space-y-3">
             {initial.hqUser && !hqUnlinked ? (
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div className="min-w-0">
-                  <dt className="text-xs text-[#6e7681]">{t("hqUser")}</dt>
-                  <dd className="text-sm text-[#e6edf3]">
+                  <dt className="text-xs text-hq-fg-subtle">{t("hqUser")}</dt>
+                  <dd className="text-sm text-hq-fg">
                     {initial.hqUser.displayName ?? initial.hqUser.id}
                     {initial.hqUser.email ? ` · ${initial.hqUser.email}` : ""}
                   </dd>
                 </div>
                 {initial.member.viewerCanBreakGlassUnlink ? (
                   unlinkConfirm === "hq" ? (
-                    <div className="max-w-sm space-y-2 rounded-lg border border-[#f85149]/40 bg-[#f85149]/5 p-3">
+                    <div className="max-w-sm space-y-2 rounded-lg border border-hq-danger/40 bg-hq-danger/5 p-3">
                       <div>
-                        <p className="text-xs font-medium text-[#f85149]">
+                        <p className="text-xs font-medium text-hq-danger">
                           {t("unlinkConfirmQuestion")}
                         </p>
-                        <p className="mt-1 text-xs text-[#8b949e]">
+                        <p className="mt-1 text-xs text-hq-fg-muted">
                           {t("unlinkHqConfirmDescription")}
                         </p>
                       </div>
@@ -335,7 +335,7 @@ export function CommanderProfileView({ initial }: Props) {
                           type="button"
                           disabled={unlinkBusy === "hq"}
                           onClick={() => void unlink("hq")}
-                          className="rounded-lg border border-[#f85149] bg-[#f85149]/10 px-2.5 py-1 text-xs text-[#f85149] disabled:opacity-50"
+                          className="rounded-lg border border-hq-danger bg-hq-danger/10 px-2.5 py-1 text-xs text-hq-danger disabled:opacity-50"
                         >
                           {unlinkBusy === "hq" ? t("unlinkBusy") : t("unlinkConfirm")}
                         </button>
@@ -343,7 +343,7 @@ export function CommanderProfileView({ initial }: Props) {
                           type="button"
                           disabled={unlinkBusy === "hq"}
                           onClick={() => setUnlinkConfirm(null)}
-                          className="rounded-lg border border-[#30363d] px-2.5 py-1 text-xs text-[#c9d1d9] disabled:opacity-50"
+                          className="rounded-lg border border-hq-border px-2.5 py-1 text-xs text-[#c9d1d9] disabled:opacity-50"
                         >
                           {t("unlinkCancel")}
                         </button>
@@ -356,7 +356,7 @@ export function CommanderProfileView({ initial }: Props) {
                         setUnlinkError(null);
                         setUnlinkConfirm("hq");
                       }}
-                      className="shrink-0 rounded-lg border border-[#30363d] px-2.5 py-1 text-xs text-[#8b949e] hover:text-[#f85149]"
+                      className="shrink-0 rounded-lg border border-hq-border px-2.5 py-1 text-xs text-hq-fg-muted hover:text-hq-danger"
                     >
                       {t("unlinkHqButton")}
                     </button>
@@ -371,8 +371,8 @@ export function CommanderProfileView({ initial }: Props) {
                   className="flex flex-wrap items-start justify-between gap-2"
                 >
                   <div className="min-w-0">
-                    <dt className="text-xs text-[#6e7681]">{t("discord")}</dt>
-                    <dd className="text-sm text-[#e6edf3]">
+                    <dt className="text-xs text-hq-fg-subtle">{t("discord")}</dt>
+                    <dd className="text-sm text-hq-fg">
                       {link.discordUsername?.trim() ||
                         t("discordUserFallback", {
                           idSuffix: link.discordUserId.slice(-4),
@@ -381,12 +381,12 @@ export function CommanderProfileView({ initial }: Props) {
                   </div>
                   {index === 0 && initial.member.viewerCanBreakGlassUnlink ? (
                     unlinkConfirm === "discord" ? (
-                      <div className="max-w-sm space-y-2 rounded-lg border border-[#f85149]/40 bg-[#f85149]/5 p-3">
+                      <div className="max-w-sm space-y-2 rounded-lg border border-hq-danger/40 bg-hq-danger/5 p-3">
                         <div>
-                          <p className="text-xs font-medium text-[#f85149]">
+                          <p className="text-xs font-medium text-hq-danger">
                             {t("unlinkConfirmQuestion")}
                           </p>
-                          <p className="mt-1 text-xs text-[#8b949e]">
+                          <p className="mt-1 text-xs text-hq-fg-muted">
                             {t("unlinkDiscordConfirmDescription")}
                           </p>
                         </div>
@@ -395,7 +395,7 @@ export function CommanderProfileView({ initial }: Props) {
                             type="button"
                             disabled={unlinkBusy === "discord"}
                             onClick={() => void unlink("discord")}
-                            className="rounded-lg border border-[#f85149] bg-[#f85149]/10 px-2.5 py-1 text-xs text-[#f85149] disabled:opacity-50"
+                            className="rounded-lg border border-hq-danger bg-hq-danger/10 px-2.5 py-1 text-xs text-hq-danger disabled:opacity-50"
                           >
                             {unlinkBusy === "discord"
                               ? t("unlinkBusy")
@@ -405,7 +405,7 @@ export function CommanderProfileView({ initial }: Props) {
                             type="button"
                             disabled={unlinkBusy === "discord"}
                             onClick={() => setUnlinkConfirm(null)}
-                            className="rounded-lg border border-[#30363d] px-2.5 py-1 text-xs text-[#c9d1d9] disabled:opacity-50"
+                            className="rounded-lg border border-hq-border px-2.5 py-1 text-xs text-[#c9d1d9] disabled:opacity-50"
                           >
                             {t("unlinkCancel")}
                           </button>
@@ -418,7 +418,7 @@ export function CommanderProfileView({ initial }: Props) {
                           setUnlinkError(null);
                           setUnlinkConfirm("discord");
                         }}
-                        className="shrink-0 rounded-lg border border-[#30363d] px-2.5 py-1 text-xs text-[#8b949e] hover:text-[#f85149]"
+                        className="shrink-0 rounded-lg border border-hq-border px-2.5 py-1 text-xs text-hq-fg-muted hover:text-hq-danger"
                       >
                         {t("unlinkDiscordButton")}
                       </button>
@@ -427,12 +427,12 @@ export function CommanderProfileView({ initial }: Props) {
                 </div>
               ))}
             {hqUnlinked || discordUnlinked ? (
-              <p className="text-sm text-[#3fb950]" role="status">
+              <p className="text-sm text-hq-green" role="status">
                 {t("unlinkSuccess")}
               </p>
             ) : null}
             {unlinkError ? (
-              <p className="text-sm text-[#f85149]" role="alert">
+              <p className="text-sm text-hq-danger" role="alert">
                 {unlinkError}
               </p>
             ) : null}
@@ -516,16 +516,16 @@ export function CommanderProfileView({ initial }: Props) {
       ) : null}
 
       {initial.hqUser === null && initial.member.viewerCanIssueClaimInvite && (
-        <section className="rounded-xl border border-[#30363d] bg-[#161b22] p-5">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-[#8b949e]">
+        <section className="rounded-xl border border-hq-border bg-hq-surface p-5">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-hq-fg-muted">
             {tInvites("claimRowAction")}
           </h2>
-          <p className="mt-2 text-sm text-[#8b949e]">{tInvites("claimRowHint")}</p>
+          <p className="mt-2 text-sm text-hq-fg-muted">{tInvites("claimRowHint")}</p>
           <button
             type="button"
             disabled={claimBusy || lastClaimUrl !== null}
             onClick={() => void generateClaimInvite()}
-            className="mt-3 rounded-lg border border-[#388bfd] bg-[#388bfd]/10 px-4 py-2 text-sm text-[#58a6ff] disabled:opacity-50"
+            className="mt-3 rounded-lg border border-[#388bfd] bg-[#388bfd]/10 px-4 py-2 text-sm text-hq-accent disabled:opacity-50"
           >
             {claimBusy ? "…" : tInvites("claimButton")}
           </button>
@@ -533,8 +533,8 @@ export function CommanderProfileView({ initial }: Props) {
             <p
               className={
                 claimFeedbackKind === "error"
-                  ? "mt-3 text-sm text-[#f85149]"
-                  : "mt-3 text-sm text-[#3fb950]"
+                  ? "mt-3 text-sm text-hq-danger"
+                  : "mt-3 text-sm text-hq-green"
               }
               role={claimFeedbackKind === "error" ? "alert" : "status"}
             >
@@ -555,7 +555,7 @@ export function CommanderProfileView({ initial }: Props) {
                 label={tInvites("invitePassphraseLabel")}
                 value={lastClaimPassphrase}
               />
-              <p className="mt-1 text-xs text-[#6e7681]">{tInvites("invitePassphraseHint")}</p>
+              <p className="mt-1 text-xs text-hq-fg-subtle">{tInvites("invitePassphraseHint")}</p>
             </>
           ) : null}
         </section>
@@ -588,8 +588,8 @@ function ProfileSection({
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-xl border border-[#30363d] bg-[#161b22] p-5">
-      <h2 className="text-sm font-semibold uppercase tracking-wide text-[#8b949e]">
+    <section className="rounded-xl border border-hq-border bg-hq-surface p-5">
+      <h2 className="text-sm font-semibold uppercase tracking-wide text-hq-fg-muted">
         {title}
       </h2>
       <div className="mt-4 min-w-0">{children}</div>

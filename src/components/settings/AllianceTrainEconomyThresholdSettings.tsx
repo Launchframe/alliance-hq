@@ -109,24 +109,24 @@ export function AllianceTrainEconomyThresholdSettings({ allianceTag }: Props) {
 
   if (loading) {
     return (
-      <section className="rounded-xl border border-[#30363d] bg-[#161b22] p-5">
-        <p className="text-sm text-[#8b949e]">{t("loading")}</p>
+      <section className="rounded-xl border border-hq-border bg-hq-surface p-5">
+        <p className="text-sm text-hq-fg-muted">{t("loading")}</p>
       </section>
     );
   }
 
   if (!displaySettings) {
     return error ? (
-      <section className="rounded-xl border border-[#30363d] bg-[#161b22] p-5">
-        <p className="text-sm text-[#f85149]">{error}</p>
+      <section className="rounded-xl border border-hq-border bg-hq-surface p-5">
+        <p className="text-sm text-hq-danger">{error}</p>
       </section>
     ) : null;
   }
 
   return (
-    <section className="rounded-xl border border-[#30363d] bg-[#161b22] p-5">
-      <h2 className="text-base font-semibold text-[#e6edf3]">{t("sectionTitle")}</h2>
-      <p className="mt-1 text-sm text-[#8b949e]">{t("sectionBody")}</p>
+    <section className="rounded-xl border border-hq-border bg-hq-surface p-5">
+      <h2 className="text-base font-semibold text-hq-fg">{t("sectionTitle")}</h2>
+      <p className="mt-1 text-sm text-hq-fg-muted">{t("sectionBody")}</p>
 
       <form
         onSubmit={(event) => {
@@ -136,7 +136,7 @@ export function AllianceTrainEconomyThresholdSettings({ allianceTag }: Props) {
       >
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
           <label className="block text-sm">
-            <span className="text-[#8b949e]">{t("thresholdLabel")}</span>
+            <span className="text-hq-fg-muted">{t("thresholdLabel")}</span>
             <input
               type="number"
               min={0}
@@ -145,11 +145,11 @@ export function AllianceTrainEconomyThresholdSettings({ allianceTag }: Props) {
               onChange={(e) => setThresholdPoints(e.target.value)}
               disabled={!displaySettings.canManage || busy}
               placeholder={t("thresholdPlaceholder")}
-              className="mt-1 w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 text-[#e6edf3] disabled:opacity-60"
+              className="mt-1 w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 text-hq-fg disabled:opacity-60"
             />
           </label>
           <label className="block text-sm">
-            <span className="text-[#8b949e]">{t("fudgeLabel")}</span>
+            <span className="text-hq-fg-muted">{t("fudgeLabel")}</span>
             <input
               type="number"
               min={0}
@@ -159,26 +159,26 @@ export function AllianceTrainEconomyThresholdSettings({ allianceTag }: Props) {
               onChange={(e) => setFudgePct(e.target.value)}
               enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT}
               disabled={!displaySettings.canManage || busy}
-              className="mt-1 w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 text-[#e6edf3] disabled:opacity-60"
+              className="mt-1 w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 text-hq-fg disabled:opacity-60"
             />
-            <span className="mt-1 block text-xs text-[#8b949e]">{t("fudgeHint")}</span>
+            <span className="mt-1 block text-xs text-hq-fg-muted">{t("fudgeHint")}</span>
           </label>
         </div>
 
-        {error ? <p className="mt-3 text-sm text-[#f85149]">{error}</p> : null}
+        {error ? <p className="mt-3 text-sm text-hq-danger">{error}</p> : null}
 
         {displaySettings.canManage ? (
           <div className="mt-4">
             <button
               type="submit"
               disabled={busy}
-              className="rounded-lg bg-[#238636] px-4 py-2 text-sm font-medium text-white hover:bg-[#2ea043] disabled:opacity-60"
+              className="rounded-lg bg-hq-success px-4 py-2 text-sm font-medium text-white hover:bg-hq-success-hover disabled:opacity-60"
             >
               {busy ? t("saving") : t("save")}
             </button>
           </div>
         ) : (
-          <p className="mt-4 text-xs text-[#8b949e]">{t("officersOnly")}</p>
+          <p className="mt-4 text-xs text-hq-fg-muted">{t("officersOnly")}</p>
         )}
       </form>
     </section>

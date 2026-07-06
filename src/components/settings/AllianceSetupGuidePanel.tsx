@@ -96,7 +96,7 @@ export function AllianceSetupGuidePanel({
 
   return (
     <div
-      className={`rounded-2xl border border-[#30363d] bg-[#161b22] p-4 sm:p-6 min-w-0 w-full max-w-full${className ? ` ${className}` : ""}`}
+      className={`rounded-2xl border border-hq-border bg-hq-surface p-4 sm:p-6 min-w-0 w-full max-w-full${className ? ` ${className}` : ""}`}
     >
       <div className="flex flex-col sm:flex-row sm:items-start gap-4 min-w-0">
         <ProgressRing completed={completedCount} total={totalCount} />
@@ -112,7 +112,7 @@ export function AllianceSetupGuidePanel({
           <button
             type="button"
             onClick={() => setShowAllTasks((value) => !value)}
-            className="inline-flex items-center gap-1 text-xs text-[#58a6ff] hover:underline shrink-0"
+            className="inline-flex items-center gap-1 text-xs text-hq-accent hover:underline shrink-0"
           >
             {showAllTasks ? t("showLess") : t("showAll")}
             <ChevronDown
@@ -129,14 +129,14 @@ export function AllianceSetupGuidePanel({
             className={`flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 rounded-xl border px-3 py-3 min-w-0 ${
               row.complete
                 ? "border-[#23863666] bg-[#2386361a]"
-                : "border-[#30363d] bg-[#0d1117]"
+                : "border-hq-border bg-hq-canvas"
             }`}
           >
             <div className="flex items-start gap-2.5 min-w-0 flex-1">
               {row.complete ? (
-                <Check className="h-4 w-4 text-[#3fb950] shrink-0 mt-0.5" aria-hidden />
+                <Check className="h-4 w-4 text-hq-green shrink-0 mt-0.5" aria-hidden />
               ) : (
-                <Circle className="h-4 w-4 text-[#8b949e] shrink-0 mt-0.5" aria-hidden />
+                <Circle className="h-4 w-4 text-hq-fg-muted shrink-0 mt-0.5" aria-hidden />
               )}
               <div className="min-w-0">
                 <p className="text-sm font-medium text-foreground">{row.title}</p>
@@ -147,7 +147,7 @@ export function AllianceSetupGuidePanel({
               <button
                 type="button"
                 onClick={() => onTaskAction(row.id)}
-                className="w-full sm:w-auto shrink-0 rounded-lg bg-[#238636] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#2ea043]"
+                className="w-full sm:w-auto shrink-0 rounded-lg bg-hq-success px-3 py-1.5 text-xs font-medium text-white hover:bg-hq-success-hover"
               >
                 {row.action}
               </button>

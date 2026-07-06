@@ -76,8 +76,8 @@ export default function AdminHqEventsPage() {
             onClick={() => setTab(key)}
             className={`rounded-lg px-3 py-1.5 text-sm ${
               tab === key
-                ? "bg-[#1f3d5c] text-[#58a6ff]"
-                : "text-[#8b949e] hover:bg-[#21262d]"
+                ? "bg-[#1f3d5c] text-hq-accent"
+                : "text-hq-fg-muted hover:bg-hq-surface-muted"
             }`}
           >
             {tEvents(`tabs.${key}`)}
@@ -106,9 +106,9 @@ export default function AdminHqEventsPage() {
             </RecordDetailCard>
           ))}
           desktopTable={
-            <div className="overflow-x-auto rounded-xl border border-[#30363d]">
+            <div className="overflow-x-auto rounded-xl border border-hq-border">
               <table className="min-w-full text-left text-sm">
-                <thead className="bg-[#161b22] text-[#8b949e]">
+                <thead className="bg-hq-surface text-hq-fg-muted">
                   <tr>
                     <th className="px-4 py-2">{t("table.time")}</th>
                     <th className="px-4 py-2">{t("table.name")}</th>
@@ -118,8 +118,8 @@ export default function AdminHqEventsPage() {
                 </thead>
                 <tbody>
                   {events.map((event) => (
-                    <tr key={event.id} className="border-t border-[#30363d]">
-                      <td className="px-4 py-2 whitespace-nowrap text-[#8b949e]">
+                    <tr key={event.id} className="border-t border-hq-border">
+                      <td className="px-4 py-2 whitespace-nowrap text-hq-fg-muted">
                         <FormattedDateTime value={event.createdAt} />
                       </td>
                       <td className="px-4 py-2">{event.name}</td>
@@ -135,9 +135,9 @@ export default function AdminHqEventsPage() {
       ) : null}
 
       {tab === "series" ? (
-        <div className="overflow-hidden rounded-xl border border-[#30363d]">
+        <div className="overflow-hidden rounded-xl border border-hq-border">
           <table className="w-full min-w-0 table-fixed text-left text-sm md:table-auto">
-            <thead className="bg-[#161b22] text-[#8b949e]">
+            <thead className="bg-hq-surface text-hq-fg-muted">
               <tr>
                 <th className="px-4 py-2">{t("table.name")}</th>
                 <th className="px-4 py-2">{t("table.target")}</th>
@@ -146,7 +146,7 @@ export default function AdminHqEventsPage() {
             </thead>
             <tbody>
               {series.map((row) => (
-                <tr key={row.id} className="border-t border-[#30363d]">
+                <tr key={row.id} className="border-t border-hq-border">
                   <td className="wrap-break-word px-4 py-2">{row.name}</td>
                   <td className="px-4 py-2">{row.scoreTarget}</td>
                   <td className="wrap-break-word px-4 py-2 font-mono text-xs">
@@ -160,9 +160,9 @@ export default function AdminHqEventsPage() {
       ) : null}
 
       {tab === "boards" ? (
-        <div className="overflow-hidden rounded-xl border border-[#30363d]">
+        <div className="overflow-hidden rounded-xl border border-hq-border">
           <table className="w-full min-w-0 table-fixed text-left text-sm md:table-auto">
-            <thead className="bg-[#161b22] text-[#8b949e]">
+            <thead className="bg-hq-surface text-hq-fg-muted">
               <tr>
                 <th className="px-4 py-2">{tEvents("boardKey")}</th>
                 <th className="px-4 py-2">{t("table.name")}</th>
@@ -171,7 +171,7 @@ export default function AdminHqEventsPage() {
             </thead>
             <tbody>
               {boards.map((board) => (
-                <tr key={board.id} className="border-t border-[#30363d]">
+                <tr key={board.id} className="border-t border-hq-border">
                   <td className="px-4 py-2">{board.boardKey}</td>
                   <td className="wrap-break-word px-4 py-2">
                     {board.name ?? "—"}

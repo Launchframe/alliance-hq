@@ -26,7 +26,7 @@ export function AlliancePicker({
 }: Props) {
   if (loading) {
     return (
-      <div className="text-sm text-[#8b949e]">
+      <div className="text-sm text-hq-fg-muted">
         {loadingMessage ?? "Loading alliances…"}
       </div>
     );
@@ -34,7 +34,7 @@ export function AlliancePicker({
 
   if (alliances.length === 0) {
     return (
-      <div className="rounded-lg border border-[#f85149]/40 bg-[#f8514910] px-3 py-2 text-sm text-[#f85149]">
+      <div className="rounded-lg border border-hq-danger/40 bg-[#f8514910] px-3 py-2 text-sm text-hq-danger">
         {emptyMessage ??
           "No alliance admin access found. You must be owner or collaborator on Ashed."}
       </div>
@@ -44,22 +44,22 @@ export function AlliancePicker({
   if (alliances.length === 1) {
     const only = alliances[0];
     return (
-      <div className="rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 text-sm">
+      <div className="rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 text-sm">
         <p className="font-medium">
           {only.tag}
           {only.name ? ` — ${only.name}` : ""}
         </p>
-        <p className="mt-1 text-xs capitalize text-[#8b949e]">
+        <p className="mt-1 text-xs capitalize text-hq-fg-muted">
           {only.accessRole}
         </p>
-        {hint ? <p className="mt-2 text-xs text-[#8b949e]">{hint}</p> : null}
+        {hint ? <p className="mt-2 text-xs text-hq-fg-muted">{hint}</p> : null}
       </div>
     );
   }
 
   return (
     <label className="block min-w-0">
-      <span className="mb-1 block text-xs text-[#8b949e]">{label}</span>
+      <span className="mb-1 block text-xs text-hq-fg-muted">{label}</span>
       <AppSelect
         value={selectedAllianceId}
         onChange={onSelect}
@@ -70,7 +70,7 @@ export function AlliancePicker({
           label: `${alliance.tag}${alliance.name ? ` — ${alliance.name}` : ""} (${alliance.accessRole})`,
         }))}
       />
-      {hint ? <p className="mt-1 text-xs text-[#8b949e]">{hint}</p> : null}
+      {hint ? <p className="mt-1 text-xs text-hq-fg-muted">{hint}</p> : null}
     </label>
   );
 }

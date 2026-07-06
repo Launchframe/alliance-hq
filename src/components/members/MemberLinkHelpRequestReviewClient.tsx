@@ -49,29 +49,29 @@ function ContactBlock({
   const t = useTranslations("memberLinkHelpReview");
   const hasAny = Boolean(name || email || discord);
   return (
-    <div className="rounded-lg border border-[#30363d] bg-[#0d1117] p-3 min-w-0">
-      <p className="text-xs font-medium uppercase tracking-wide text-[#58a6ff]">
+    <div className="rounded-lg border border-hq-border bg-hq-canvas p-3 min-w-0">
+      <p className="text-xs font-medium uppercase tracking-wide text-hq-accent">
         {title}
       </p>
       {!hasAny ? (
-        <p className="mt-2 text-sm text-[#8b949e]">{emptyLabel}</p>
+        <p className="mt-2 text-sm text-hq-fg-muted">{emptyLabel}</p>
       ) : (
         <dl className="mt-2 space-y-1 text-sm min-w-0">
           {name ? (
             <div className="min-w-0">
-              <dt className="text-[#8b949e]">{t("contact.inGameName")}</dt>
+              <dt className="text-hq-fg-muted">{t("contact.inGameName")}</dt>
               <dd className="break-words">{name}</dd>
             </div>
           ) : null}
           {email ? (
             <div className="min-w-0">
-              <dt className="text-[#8b949e]">{t("contact.email")}</dt>
+              <dt className="text-hq-fg-muted">{t("contact.email")}</dt>
               <dd className="break-all">{email}</dd>
             </div>
           ) : null}
           {discord ? (
             <div className="min-w-0">
-              <dt className="text-[#8b949e]">{t("contact.discord")}</dt>
+              <dt className="text-hq-fg-muted">{t("contact.discord")}</dt>
               <dd className="break-all">{discord}</dd>
             </div>
           ) : null}
@@ -353,7 +353,7 @@ export function MemberLinkHelpRequestReviewClient({
   ) {
     if (rows.length === 0) {
       return (
-        <p className="text-sm text-[#8b949e]">
+        <p className="text-sm text-hq-fg-muted">
           {options?.emptyMessage ?? t("roster.empty")}
         </p>
       );
@@ -369,7 +369,7 @@ export function MemberLinkHelpRequestReviewClient({
                 className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 min-w-0 ${
                   selected
                     ? "border-[#388bfd] bg-[#388bfd]/10"
-                    : "border-[#30363d] bg-[#161b22]"
+                    : "border-hq-border bg-hq-surface"
                 }`}
               >
                 <input
@@ -384,12 +384,12 @@ export function MemberLinkHelpRequestReviewClient({
                     {row.currentName}
                   </span>
                   {row.nameMatchHint ? (
-                    <span className="mt-1 inline-block rounded border border-[#238636] bg-[#238636]/10 px-2 py-0.5 text-xs text-[#3fb950]">
+                    <span className="mt-1 inline-block rounded border border-hq-success bg-hq-success/10 px-2 py-0.5 text-xs text-hq-green">
                       {t("roster.nameMatch")}
                     </span>
                   ) : null}
                   {claimed ? (
-                    <span className="mt-1 block text-xs text-[#8b949e]">
+                    <span className="mt-1 block text-xs text-hq-fg-muted">
                       {t("roster.claimedBadge")}
                     </span>
                   ) : null}
@@ -421,7 +421,7 @@ export function MemberLinkHelpRequestReviewClient({
       return (
         <section className="space-y-2">
           <h2 className="text-sm font-semibold">{title}</h2>
-          <p className="text-sm text-[#8b949e]">{t("roster.empty")}</p>
+          <p className="text-sm text-hq-fg-muted">{t("roster.empty")}</p>
         </section>
       );
     }
@@ -440,7 +440,7 @@ export function MemberLinkHelpRequestReviewClient({
       return (
         <section className="space-y-2">
           <h2 className="text-sm font-semibold">{t("roster.unclaimedTitle")}</h2>
-          <p className="text-sm text-[#8b949e]">{t("roster.empty")}</p>
+          <p className="text-sm text-hq-fg-muted">{t("roster.empty")}</p>
         </section>
       );
     }
@@ -454,7 +454,7 @@ export function MemberLinkHelpRequestReviewClient({
           onChange={(e) => setUnclaimedSearch(e.target.value)}
           placeholder={t("roster.searchPlaceholder")}
           aria-label={t("roster.searchPlaceholder")}
-          className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 text-sm text-[#e6edf3] placeholder:text-[#8b949e] focus:border-[#58a6ff] focus:outline-none"
+          className="w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 text-sm text-hq-fg placeholder:text-hq-fg-muted focus:border-hq-accent focus:outline-none"
         />
         {renderRosterList(filteredUnclaimed, false, {
           scrollable: rows.length > 6,
@@ -469,17 +469,17 @@ export function MemberLinkHelpRequestReviewClient({
       <div>
         <Link
           href={backHref}
-          className="inline-block text-sm text-[#58a6ff] hover:underline"
+          className="inline-block text-sm text-hq-accent hover:underline"
         >
           {backLabel}
         </Link>
         <h1 className="mt-2 text-2xl font-semibold">{t("title")}</h1>
         {showAlliance ? (
-          <p className="mt-1 text-xs font-medium uppercase tracking-wide text-[#58a6ff]">
+          <p className="mt-1 text-xs font-medium uppercase tracking-wide text-hq-accent">
             {review.request.allianceTag ?? review.request.allianceName}
           </p>
         ) : null}
-        <p className="mt-1 text-xs text-[#8b949e]">
+        <p className="mt-1 text-xs text-hq-fg-muted">
           <FormattedDateTime value={review.request.createdAt} />
         </p>
       </div>
@@ -491,7 +491,7 @@ export function MemberLinkHelpRequestReviewClient({
       ) : null}
 
       {busy ? (
-        <p className="text-sm text-[#58a6ff]" role="status" aria-live="polite">
+        <p className="text-sm text-hq-accent" role="status" aria-live="polite">
           {t("working")}
         </p>
       ) : null}
@@ -500,8 +500,8 @@ export function MemberLinkHelpRequestReviewClient({
         <p
           className={`rounded-lg border px-3 py-2 text-sm ${
             actionNotice.tone === "success"
-              ? "border-[#238636] bg-[#238636]/10 text-[#3fb950]"
-              : "border-[#da3633] bg-[#da3633]/10 text-[#f85149]"
+              ? "border-hq-success bg-hq-success/10 text-hq-green"
+              : "border-hq-danger-emphasis bg-hq-danger-emphasis/10 text-hq-danger"
           }`}
           role="status"
         >
@@ -510,14 +510,14 @@ export function MemberLinkHelpRequestReviewClient({
       ) : null}
 
       {isResolved ? (
-        <section className="rounded-xl border border-[#238636] bg-[#238636]/10 p-4 space-y-3">
-          <h2 className="text-sm font-semibold text-[#3fb950]">
+        <section className="rounded-xl border border-hq-success bg-hq-success/10 p-4 space-y-3">
+          <h2 className="text-sm font-semibold text-hq-green">
             {t("completed.title")}
           </h2>
           <p className="text-sm text-[#c9d1d9]">{t("completed.description")}</p>
           <Link
             href={backHref}
-            className="inline-block text-sm font-medium text-[#58a6ff] hover:underline"
+            className="inline-block text-sm font-medium text-hq-accent hover:underline"
           >
             {backLabel}
           </Link>
@@ -525,15 +525,15 @@ export function MemberLinkHelpRequestReviewClient({
       ) : null}
 
       {showNameReview ? (
-        <section className="rounded-xl border border-[#30363d] bg-[#161b22] p-4 space-y-3">
+        <section className="rounded-xl border border-hq-border bg-hq-surface p-4 space-y-3">
           <h2 className="text-sm font-semibold">{t("nameReview.title")}</h2>
-          <p className="text-sm text-[#8b949e]">{t("nameReview.body")}</p>
+          <p className="text-sm text-hq-fg-muted">{t("nameReview.body")}</p>
           <div className="flex flex-col gap-2 sm:flex-row">
             <button
               type="button"
               disabled={busy || isResolved || !rosterName}
               onClick={() => void resolveNameReview("roster")}
-              className="rounded-lg border border-[#30363d] bg-[#0d1117] px-4 py-2 text-sm text-[#e6edf3] disabled:opacity-50"
+              className="rounded-lg border border-hq-border bg-hq-canvas px-4 py-2 text-sm text-hq-fg disabled:opacity-50"
             >
               {t("nameReview.keepRoster", { name: rosterName })}
             </button>
@@ -541,7 +541,7 @@ export function MemberLinkHelpRequestReviewClient({
               type="button"
               disabled={busy || isResolved || !lookupName}
               onClick={() => void resolveNameReview("lookup")}
-              className="rounded-lg border border-[#388bfd] bg-[#388bfd]/10 px-4 py-2 text-sm text-[#58a6ff] disabled:opacity-50"
+              className="rounded-lg border border-[#388bfd] bg-[#388bfd]/10 px-4 py-2 text-sm text-hq-accent disabled:opacity-50"
             >
               {t("nameReview.useLookup", { name: lookupName })}
             </button>
@@ -549,11 +549,11 @@ export function MemberLinkHelpRequestReviewClient({
         </section>
       ) : null}
 
-      <section className="rounded-xl border border-[#30363d] bg-[#161b22] p-4 space-y-3">
+      <section className="rounded-xl border border-hq-border bg-hq-surface p-4 space-y-3">
         <h2 className="text-sm font-semibold">{t("identity.title")}</h2>
         <dl className="space-y-2 text-sm">
           <div>
-            <dt className="text-[#8b949e]">
+            <dt className="text-hq-fg-muted">
               {review.request.context === "claim_conflict"
                 ? t("identity.invitedCommander")
                 : t("identity.submittedName")}
@@ -561,7 +561,7 @@ export function MemberLinkHelpRequestReviewClient({
             <dd>{review.request.reportedName ?? t("identity.missing")}</dd>
           </div>
           <div>
-            <dt className="text-[#8b949e]">{t("identity.uidLast4")}</dt>
+            <dt className="text-hq-fg-muted">{t("identity.uidLast4")}</dt>
             <dd>
               {review.request.gameUidLast4
                 ? t("identity.uidLast4Value", {
@@ -571,7 +571,7 @@ export function MemberLinkHelpRequestReviewClient({
             </dd>
           </div>
           <div>
-            <dt className="text-[#8b949e]">{t("identity.lookupName")}</dt>
+            <dt className="text-hq-fg-muted">{t("identity.lookupName")}</dt>
             <dd>
               {review.request.gameUserName ?? t("identity.lookupMissing")}
             </dd>
@@ -579,7 +579,7 @@ export function MemberLinkHelpRequestReviewClient({
           {review.request.context === "claim_conflict" &&
           review.request.claimConflictReason ? (
             <div>
-              <dt className="text-[#8b949e]">
+              <dt className="text-hq-fg-muted">
                 {t("claimConflictReason.label")}
               </dt>
               <dd>
@@ -606,9 +606,9 @@ export function MemberLinkHelpRequestReviewClient({
       {renderRosterGroup(t("roster.claimedTitle"), review.roster.claimed, true)}
 
       {isResolved && selectedClaimed?.claim ? (
-        <section className="space-y-3 rounded-xl border border-[#30363d] bg-[#161b22] p-4">
+        <section className="space-y-3 rounded-xl border border-hq-border bg-hq-surface p-4">
           <h2 className="text-sm font-semibold">{t("currentClaim.title")}</h2>
-          <p className="text-sm text-[#8b949e]">{t("currentClaim.description")}</p>
+          <p className="text-sm text-hq-fg-muted">{t("currentClaim.description")}</p>
           <div className="grid gap-3 sm:grid-cols-2">
             <ContactBlock
               title={t("mediation.requester")}
@@ -634,7 +634,7 @@ export function MemberLinkHelpRequestReviewClient({
             type="button"
             disabled={busy}
             onClick={() => void linkSelected()}
-            className="w-full rounded-lg bg-[#238636] px-4 py-2 text-sm font-medium text-white disabled:opacity-50 sm:w-auto"
+            className="w-full rounded-lg bg-hq-success px-4 py-2 text-sm font-medium text-white disabled:opacity-50 sm:w-auto"
           >
             {t("actions.linkSelected")}
           </button>
@@ -676,9 +676,9 @@ export function MemberLinkHelpRequestReviewClient({
             <span>{t("mediation.notifiedClaimant")}</span>
           </label>
           {unlinkConfirmOpen ? (
-            <div className="space-y-2 rounded-lg border border-[#30363d] bg-[#0d1117] p-3">
+            <div className="space-y-2 rounded-lg border border-hq-border bg-hq-canvas p-3">
               <p className="text-sm font-medium">{t("unlinkConfirmQuestion")}</p>
-              <p className="text-sm text-[#8b949e]">
+              <p className="text-sm text-hq-fg-muted">
                 {t("unlinkConfirmDescription", {
                   name: selectedClaimed.currentName,
                 })}
@@ -688,7 +688,7 @@ export function MemberLinkHelpRequestReviewClient({
                   type="button"
                   disabled={busy}
                   onClick={() => void unlinkClaimed()}
-                  className="w-full rounded-lg bg-[#da3633] px-4 py-2 text-sm font-medium text-white disabled:opacity-50 sm:w-auto"
+                  className="w-full rounded-lg bg-hq-danger-emphasis px-4 py-2 text-sm font-medium text-white disabled:opacity-50 sm:w-auto"
                 >
                   {busy ? t("unlinkBusy") : t("unlinkConfirm")}
                 </button>
@@ -696,7 +696,7 @@ export function MemberLinkHelpRequestReviewClient({
                   type="button"
                   disabled={busy}
                   onClick={() => setUnlinkConfirmOpen(false)}
-                  className="w-full rounded-lg border border-[#30363d] px-4 py-2 text-sm disabled:opacity-50 sm:w-auto"
+                  className="w-full rounded-lg border border-hq-border px-4 py-2 text-sm disabled:opacity-50 sm:w-auto"
                 >
                   {t("unlinkCancel")}
                 </button>
@@ -707,7 +707,7 @@ export function MemberLinkHelpRequestReviewClient({
               type="button"
               disabled={!notifiedClaimant || busy}
               onClick={() => setUnlinkConfirmOpen(true)}
-              className="w-full rounded-lg border border-[#da3633] px-4 py-2 text-sm text-[#f85149] disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+              className="w-full rounded-lg border border-hq-danger-emphasis px-4 py-2 text-sm text-hq-danger disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
             >
               {t("actions.unlinkClaim")}
             </button>
@@ -716,16 +716,16 @@ export function MemberLinkHelpRequestReviewClient({
       ) : null}
 
       {!isResolved && !selectedUnclaimed && !selectedClaimed ? (
-        <p className="text-sm text-[#8b949e]">{t("noMatchHint")}</p>
+        <p className="text-sm text-hq-fg-muted">{t("noMatchHint")}</p>
       ) : null}
 
       {!isResolved ? (
-      <div className="flex flex-col sm:flex-row gap-2 border-t border-[#30363d] pt-4">
+      <div className="flex flex-col sm:flex-row gap-2 border-t border-hq-border pt-4">
         <button
           type="button"
           disabled={busy}
           onClick={() => void resolve("resolve")}
-          className="w-full rounded-lg border border-[#30363d] px-4 py-2 text-sm disabled:opacity-50 sm:w-auto"
+          className="w-full rounded-lg border border-hq-border px-4 py-2 text-sm disabled:opacity-50 sm:w-auto"
         >
           {t("actions.markResolved")}
         </button>
@@ -733,7 +733,7 @@ export function MemberLinkHelpRequestReviewClient({
           type="button"
           disabled={busy}
           onClick={() => void resolve("dismiss")}
-          className="w-full rounded-lg border border-[#30363d] px-4 py-2 text-sm text-[#8b949e] disabled:opacity-50 sm:w-auto"
+          className="w-full rounded-lg border border-hq-border px-4 py-2 text-sm text-hq-fg-muted disabled:opacity-50 sm:w-auto"
         >
           {t("actions.dismiss")}
         </button>

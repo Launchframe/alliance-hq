@@ -94,12 +94,12 @@ export function AllianceTrainWeekSettings({ allianceTag }: Props) {
   };
 
   return (
-    <section className="rounded-2xl border border-[#30363d] bg-[#161b22] p-6">
-      <h2 className="text-lg font-semibold text-[#e6edf3]">{t("sectionTitle")}</h2>
-      <p className="mt-1 text-sm text-[#8b949e]">{t("sectionBody")}</p>
+    <section className="rounded-2xl border border-hq-border bg-hq-surface p-6">
+      <h2 className="text-lg font-semibold text-hq-fg">{t("sectionTitle")}</h2>
+      <p className="mt-1 text-sm text-hq-fg-muted">{t("sectionBody")}</p>
 
       {loading ? (
-        <p className="mt-4 text-sm text-[#8b949e]">{t("loading")}</p>
+        <p className="mt-4 text-sm text-hq-fg-muted">{t("loading")}</p>
       ) : (
         <form
           className="mt-4 space-y-4"
@@ -118,8 +118,8 @@ export function AllianceTrainWeekSettings({ allianceTag }: Props) {
                   key={option.value}
                   className={`cursor-pointer rounded-lg border px-3 py-1.5 text-sm ${
                     trainWeekStartDow === option.value
-                      ? "border-[#58a6ff] bg-[#58a6ff]/15 text-[#e6edf3]"
-                      : "border-[#30363d] text-[#8b949e]"
+                      ? "border-hq-accent bg-hq-accent/15 text-hq-fg"
+                      : "border-hq-border text-hq-fg-muted"
                   }`}
                 >
                   <input
@@ -134,11 +134,11 @@ export function AllianceTrainWeekSettings({ allianceTag }: Props) {
                 </label>
               ))}
             </div>
-            <p className="text-xs text-[#8b949e]">{t("startDayHint")}</p>
+            <p className="text-xs text-hq-fg-muted">{t("startDayHint")}</p>
           </fieldset>
 
           {!canManage ? (
-            <p className="text-xs text-[#8b949e]">{t("adminsOnly")}</p>
+            <p className="text-xs text-hq-fg-muted">{t("adminsOnly")}</p>
           ) : (
             <Button type="submit" disabled={busy}>
               {busy ? t("saving") : t("save")}

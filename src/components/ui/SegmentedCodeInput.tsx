@@ -92,10 +92,10 @@ function cellClassName(cell: Cell, isCursor: boolean): string {
   return [
     "w-9 h-11 rounded-md border-2 flex items-center justify-center font-mono text-lg font-semibold shrink-0 transition-colors duration-150",
     cell.char
-      ? "border-[#388bfd] bg-[#0d1117] text-[#e6edf3]"
+      ? "border-[#388bfd] bg-hq-canvas text-hq-fg"
       : isCursor
-        ? "border-[#388bfd] bg-[#0d1117] animate-pulse"
-        : "border-[#30363d] bg-[#0d1117]",
+        ? "border-[#388bfd] bg-hq-canvas animate-pulse"
+        : "border-hq-border bg-hq-canvas",
   ].join(" ");
 }
 
@@ -190,7 +190,7 @@ function JoinCodeLayout({
               {cell.char}
             </div>
           ))}
-          <span className="flex h-11 w-3 shrink-0 items-center justify-center font-mono text-lg font-bold text-[#8b949e]">
+          <span className="flex h-11 w-3 shrink-0 items-center justify-center font-mono text-lg font-bold text-hq-fg-muted">
             -
           </span>
         </div>

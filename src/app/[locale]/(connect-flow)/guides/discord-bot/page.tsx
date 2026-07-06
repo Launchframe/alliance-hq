@@ -21,8 +21,8 @@ export default async function DiscordBotGuidePage() {
 
   return (
     <div className="min-w-0">
-      <p className="mb-6 text-xs text-[#8b949e]">
-        <Link href="/" className="text-[#58a6ff] hover:underline">
+      <p className="mb-6 text-xs text-hq-fg-muted">
+        <Link href="/" className="text-hq-accent hover:underline">
           {t("hub.backToHome")}
         </Link>
       </p>

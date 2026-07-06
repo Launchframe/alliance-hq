@@ -17,7 +17,7 @@ export function DiscordHqLinkClient({
     <button
       type="button"
       onClick={() => void signIn("discord", { callbackUrl })}
-      className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#5865F2] px-4 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+      className="flex w-full items-center justify-center gap-2 rounded-lg bg-hq-discord px-4 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90"
     >
       {labels.continueWithDiscord}
     </button>

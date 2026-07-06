@@ -17,7 +17,7 @@ export function TrainScheduleViewToggle({
 }: Props) {
   return (
     <div
-      className="inline-flex rounded-lg border border-[#30363d] bg-[#0d1117] p-0.5"
+      className="inline-flex rounded-lg border border-hq-border bg-hq-canvas p-0.5"
       role="tablist"
       aria-label="Schedule view"
       data-testid="trains-schedule-view-toggle"
@@ -29,8 +29,8 @@ export function TrainScheduleViewToggle({
         onClick={() => onChange("week")}
         className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
           view === "week"
-            ? "bg-[#161b22] text-[#e6edf3]"
-            : "text-[#8b949e] hover:text-[#e6edf3]"
+            ? "bg-hq-surface text-hq-fg"
+            : "text-hq-fg-muted hover:text-hq-fg"
         }`}
       >
         {weekLabel}
@@ -42,8 +42,8 @@ export function TrainScheduleViewToggle({
         onClick={() => onChange("month")}
         className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
           view === "month"
-            ? "bg-[#161b22] text-[#e6edf3]"
-            : "text-[#8b949e] hover:text-[#e6edf3]"
+            ? "bg-hq-surface text-hq-fg"
+            : "text-hq-fg-muted hover:text-hq-fg"
         }`}
       >
         {monthLabel}

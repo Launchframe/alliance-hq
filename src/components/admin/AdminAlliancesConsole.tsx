@@ -219,11 +219,11 @@ export function AdminAlliancesConsole() {
   }
 
   function inviteRowClassName(alliance: Alliance): string {
-    const base = "border-t border-[#30363d] align-top";
+    const base = "border-t border-hq-border align-top";
     const selected = alliance.id === effectiveInviteTargetAllianceId;
     return [
       base,
-      "cursor-pointer transition-colors hover:bg-[#161b22]",
+      "cursor-pointer transition-colors hover:bg-hq-surface",
       selected ? "bg-[#1f3d5c]/25 ring-1 ring-inset ring-[#388bfd]/40" : "",
     ]
       .filter(Boolean)
@@ -234,7 +234,7 @@ export function AdminAlliancesConsole() {
     const native = isNativeAlliance(alliance);
     if (!native) {
       return (
-        <span className="text-sm text-[#8b949e]">
+        <span className="text-sm text-hq-fg-muted">
           {alliance.gameServerNumber ?? "—"}
         </span>
       );
@@ -268,12 +268,12 @@ export function AdminAlliancesConsole() {
               [alliance.id]: event.target.value.replace(/\D/g, ""),
             }))
           }
-          className="w-20 rounded-lg border border-[#30363d] bg-[#0d1117] px-2 py-1 text-sm"
+          className="w-20 rounded-lg border border-hq-border bg-hq-canvas px-2 py-1 text-sm"
         />
         <button
           type="submit"
           disabled={!dirty || savingServerId === alliance.id}
-          className="rounded-lg border border-[#238636] bg-[#238636]/10 px-2 py-1 text-xs text-[#3fb950] disabled:opacity-40"
+          className="rounded-lg border border-hq-success bg-hq-success/10 px-2 py-1 text-xs text-hq-green disabled:opacity-40"
         >
           {savingServerId === alliance.id
             ? t("serverColumn.saving")
@@ -300,11 +300,11 @@ export function AdminAlliancesConsole() {
       />
 
       {effectiveInviteTargetAllianceId ? (
-        <div className="rounded-xl border border-[#30363d] bg-[#161b22] p-4">
-          <h3 className="text-sm font-medium text-[#e6edf3]">
+        <div className="rounded-xl border border-hq-border bg-hq-surface p-4">
+          <h3 className="text-sm font-medium text-hq-fg">
             {t("sessionContext.title")}
           </h3>
-          <p className="mt-1 text-sm text-[#8b949e]">
+          <p className="mt-1 text-sm text-hq-fg-muted">
             {t("sessionContext.hint")}
           </p>
           <div className="mt-3 max-w-md">
@@ -321,26 +321,26 @@ export function AdminAlliancesConsole() {
         {serverError ? (
           <p
             role="alert"
-            className="rounded-lg border border-[#f85149]/40 bg-[#f85149]/10 px-3 py-2 text-sm text-[#f85149]"
+            className="rounded-lg border border-hq-danger/40 bg-hq-danger/10 px-3 py-2 text-sm text-hq-danger"
           >
             {serverError}
           </p>
         ) : null}
-        <div className="flex flex-wrap items-end gap-3 rounded-xl border border-[#30363d] bg-[#161b22] p-4">
+        <div className="flex flex-wrap items-end gap-3 rounded-xl border border-hq-border bg-hq-surface p-4">
           <label className="min-w-0 flex-1 space-y-1 text-sm sm:min-w-[14rem]">
-            <span className="text-[#8b949e]">{t("search.label")}</span>
+            <span className="text-hq-fg-muted">{t("search.label")}</span>
             <input
               type="search"
               value={searchInput}
               onChange={(event) => setSearchInput(event.target.value)}
               placeholder={t("search.placeholder")}
               aria-label={t("search.label")}
-              className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
+              className="w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2"
             />
           </label>
 
           <label className="min-w-0 space-y-1 text-sm sm:min-w-[12rem]">
-            <span className="text-[#8b949e]">{t("filters.operatingMode")}</span>
+            <span className="text-hq-fg-muted">{t("filters.operatingMode")}</span>
             <AppSelect
               value={operatingMode}
               onChange={(next) => {
@@ -357,7 +357,7 @@ export function AdminAlliancesConsole() {
           </label>
 
           <label className="min-w-0 space-y-1 text-sm sm:min-w-[12rem]">
-            <span className="text-[#8b949e]">{t("filters.sort")}</span>
+            <span className="text-hq-fg-muted">{t("filters.sort")}</span>
             <AppSelect
               value={sort}
               onChange={(next) => {
@@ -377,7 +377,7 @@ export function AdminAlliancesConsole() {
           </label>
 
           <label className="min-w-0 space-y-1 text-sm sm:min-w-[10rem]">
-            <span className="text-[#8b949e]">{t("filters.order")}</span>
+            <span className="text-hq-fg-muted">{t("filters.order")}</span>
             <AppSelect
               value={order}
               onChange={(next) => {
@@ -393,7 +393,7 @@ export function AdminAlliancesConsole() {
           </label>
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-[#8b949e]">
+        <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-hq-fg-muted">
           <p>
             {total === 0
               ? t("pagination.empty")
@@ -408,7 +408,7 @@ export function AdminAlliancesConsole() {
               type="button"
               disabled={!canGoPrev || loading}
               onClick={() => setOffset((current) => Math.max(0, current - PAGE_SIZE))}
-              className="rounded-lg border border-[#30363d] px-3 py-1.5 text-[#c9d1d9] disabled:opacity-40"
+              className="rounded-lg border border-hq-border px-3 py-1.5 text-[#c9d1d9] disabled:opacity-40"
             >
               {t("pagination.prev")}
             </button>
@@ -416,7 +416,7 @@ export function AdminAlliancesConsole() {
               type="button"
               disabled={!canGoNext || loading}
               onClick={() => setOffset((current) => current + PAGE_SIZE)}
-              className="rounded-lg border border-[#30363d] px-3 py-1.5 text-[#c9d1d9] disabled:opacity-40"
+              className="rounded-lg border border-hq-border px-3 py-1.5 text-[#c9d1d9] disabled:opacity-40"
             >
               {t("pagination.next")}
             </button>
@@ -440,17 +440,17 @@ export function AdminAlliancesConsole() {
                     <div className="flex flex-wrap items-center gap-2">
                       <span>{alliance.name}</span>
                       {native ? (
-                        <span className="rounded bg-[#388bfd]/15 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-[#58a6ff]">
+                        <span className="rounded bg-[#388bfd]/15 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-hq-accent">
                           {t("table.nativeBadge")}
                         </span>
                       ) : null}
                       {selected ? (
-                        <span className="text-xs text-[#58a6ff]">
+                        <span className="text-xs text-hq-accent">
                           {tNative("selectedForInvite")}
                         </span>
                       ) : null}
                     </div>
-                    <div className="text-sm font-normal text-[#8b949e]">
+                    <div className="text-sm font-normal text-hq-fg-muted">
                       {alliance.slug}
                       {alliance.ashedAllianceId
                         ? ` · ${alliance.ashedAllianceId}`
@@ -485,9 +485,9 @@ export function AdminAlliancesConsole() {
             );
           })}
           desktopTable={
-            <div className="overflow-x-auto rounded-xl border border-[#30363d]">
+            <div className="overflow-x-auto rounded-xl border border-hq-border">
               <table className="min-w-full text-left text-sm">
-                <thead className="bg-[#161b22] text-[#8b949e]">
+                <thead className="bg-hq-surface text-hq-fg-muted">
                   <tr>
                     <th className="px-4 py-2">{t("table.alliance")}</th>
                     <th className="px-4 py-2">{t("table.server")}</th>
@@ -523,7 +523,7 @@ export function AdminAlliancesConsole() {
                       >
                         <td className="px-4 py-2">
                           <div className="font-medium">{alliance.name}</div>
-                          <div className="flex flex-wrap items-center gap-2 text-xs text-[#8b949e]">
+                          <div className="flex flex-wrap items-center gap-2 text-xs text-hq-fg-muted">
                             <span>
                               {alliance.slug}
                               {alliance.ashedAllianceId
@@ -531,12 +531,12 @@ export function AdminAlliancesConsole() {
                                 : ""}
                             </span>
                             {native ? (
-                              <span className="rounded bg-[#388bfd]/15 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-[#58a6ff]">
+                              <span className="rounded bg-[#388bfd]/15 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-hq-accent">
                                 {t("table.nativeBadge")}
                               </span>
                             ) : null}
                             {selected ? (
-                              <span className="text-[#58a6ff]">
+                              <span className="text-hq-accent">
                                 {tNative("selectedForInvite")}
                               </span>
                             ) : null}
@@ -548,13 +548,13 @@ export function AdminAlliancesConsole() {
                         <td className="px-4 py-2 text-xs">
                           {alliance.ownerEmail ?? "—"}
                         </td>
-                        <td className="max-w-xs px-4 py-2 text-xs text-[#8b949e]">
+                        <td className="max-w-xs px-4 py-2 text-xs text-hq-fg-muted">
                           {alliance.collaborators.length
                             ? alliance.collaborators.join(", ")
                             : "—"}
                         </td>
                         <td className="px-4 py-2">{alliance.memberCount}</td>
-                        <td className="px-4 py-2 whitespace-nowrap text-xs text-[#8b949e]">
+                        <td className="px-4 py-2 whitespace-nowrap text-xs text-hq-fg-muted">
                           {alliance.rolesSyncedAt ? (
                             <FormattedDateTime
                               value={alliance.rolesSyncedAt}

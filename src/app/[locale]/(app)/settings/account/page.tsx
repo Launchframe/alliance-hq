@@ -69,7 +69,7 @@ export default async function AccountSecurityPage({
     <div className="mx-auto max-w-5xl space-y-6">
       <header>
         <h1 className="text-2xl font-semibold">{t("title")}</h1>
-        <p className="mt-1 text-sm text-[#8b949e]">{t("subtitle")}</p>
+        <p className="mt-1 text-sm text-hq-fg-muted">{t("subtitle")}</p>
       </header>
       <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
         <div className="min-w-0 space-y-6">

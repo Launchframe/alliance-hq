@@ -38,8 +38,8 @@ export default async function DiscordBotGuideRolePage({ params }: Props) {
 
   return (
     <div className="min-w-0">
-      <p className="mb-6 text-xs text-[#8b949e]">
-        <Link href="/guides/discord-bot" className="text-[#58a6ff] hover:underline">
+      <p className="mb-6 text-xs text-hq-fg-muted">
+        <Link href="/guides/discord-bot" className="text-hq-accent hover:underline">
           {t("hub.title")}
         </Link>
       </p>

@@ -256,8 +256,8 @@ export function RosterImportDialog({
 
         {step === "upload" ? (
           <div className="space-y-4">
-            <p className="text-sm text-[#8b949e]">{t("uploadHint")}</p>
-            <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-[#30363d] bg-[#0d1117] px-6 py-10 text-sm text-[#8b949e] hover:border-[#58a6ff]">
+            <p className="text-sm text-hq-fg-muted">{t("uploadHint")}</p>
+            <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-hq-border bg-hq-canvas px-6 py-10 text-sm text-hq-fg-muted hover:border-hq-accent">
               <span>{parsing ? t("parsing") : t("uploadPrompt")}</span>
               <input
                 type="file"
@@ -278,20 +278,20 @@ export function RosterImportDialog({
             }}
           >
             <div className="flex flex-wrap gap-2 text-xs">
-              <span className="rounded-full bg-[#23863633] px-2.5 py-1 text-[#3fb950]">
+              <span className="rounded-full bg-[#23863633] px-2.5 py-1 text-hq-green">
                 {t("matchedBadge", { count: matchedCount })}
               </span>
-              <span className="rounded-full bg-[#388bfd33] px-2.5 py-1 text-[#58a6ff]">
+              <span className="rounded-full bg-[#388bfd33] px-2.5 py-1 text-hq-accent">
                 {t("newBadge", { count: newCount })}
               </span>
-              <span className="rounded-full bg-[#30363d] px-2.5 py-1 text-[#8b949e]">
+              <span className="rounded-full bg-hq-border px-2.5 py-1 text-hq-fg-muted">
                 {t("totalBadge", { count: rows.length })}
               </span>
             </div>
 
-            <div className="overflow-x-auto rounded-lg border border-[#30363d]">
+            <div className="overflow-x-auto rounded-lg border border-hq-border">
               <table className="min-w-full text-left text-sm">
-                <thead className="bg-[#0d1117] text-xs text-[#8b949e]">
+                <thead className="bg-hq-canvas text-xs text-hq-fg-muted">
                   <tr>
                     <th className="px-3 py-2">{t("colName")}</th>
                     <th className="px-3 py-2">{t("colMatch")}</th>
@@ -306,14 +306,14 @@ export function RosterImportDialog({
                     return (
                     <tr
                       key={row.rowKey}
-                      className={`border-t border-[#30363d] ${
+                      className={`border-t border-hq-border ${
                         hasConflict ? "bg-[#f8514911]" : ""
                       }`}
                     >
                       <td className="px-3 py-2">
                         <input
                           type="text"
-                          className="w-full min-w-[8rem] rounded border border-[#30363d] bg-[#0d1117] px-2 py-1"
+                          className="w-full min-w-[8rem] rounded border border-hq-border bg-hq-canvas px-2 py-1"
                           value={row.extractedName}
                           onChange={(e) =>
                             updateRow(row.rowKey, {
@@ -322,7 +322,7 @@ export function RosterImportDialog({
                           }
                         />
                         {hasConflict ? (
-                          <p className="mt-1 text-xs text-[#f85149]">
+                          <p className="mt-1 text-xs text-hq-danger">
                             {t("nameConflictHint", {
                               name: normalizeCommanderName(row.extractedName),
                             })}
@@ -331,7 +331,7 @@ export function RosterImportDialog({
                       </td>
                       <td className="px-3 py-2">
                         <select
-                          className="w-full min-w-[10rem] rounded border border-[#30363d] bg-[#0d1117] px-2 py-1"
+                          className="w-full min-w-[10rem] rounded border border-hq-border bg-hq-canvas px-2 py-1"
                           value={row.matchMemberId ?? ""}
                           onChange={(e) =>
                             updateRow(row.rowKey, {
@@ -351,7 +351,7 @@ export function RosterImportDialog({
                         <input
                           type="number"
                           step="0.1"
-                          className="w-24 rounded border border-[#30363d] bg-[#0d1117] px-2 py-1"
+                          className="w-24 rounded border border-hq-border bg-hq-canvas px-2 py-1"
                           value={row.heroPowerM ?? ""}
                           onChange={(e) =>
                             updateRow(row.rowKey, {
@@ -365,7 +365,7 @@ export function RosterImportDialog({
                       <td className="px-3 py-2">
                         <input
                           type="number"
-                          className="w-20 rounded border border-[#30363d] bg-[#0d1117] px-2 py-1"
+                          className="w-20 rounded border border-hq-border bg-hq-canvas px-2 py-1"
                           value={row.memberLevel ?? ""}
                           onChange={(e) =>
                             updateRow(row.rowKey, {
@@ -379,7 +379,7 @@ export function RosterImportDialog({
                       <td className="px-3 py-2">
                         <button
                           type="button"
-                          className="text-xs text-[#f85149] hover:underline"
+                          className="text-xs text-hq-danger hover:underline"
                           onClick={() => removeRow(row.rowKey)}
                         >
                           {t("removeRow")}
@@ -392,7 +392,7 @@ export function RosterImportDialog({
               </table>
             </div>
 
-            <label className="flex items-start gap-2 text-sm text-[#8b949e]">
+            <label className="flex items-start gap-2 text-sm text-hq-fg-muted">
               <input
                 type="checkbox"
                 checked={markAbsentInactive}
@@ -400,17 +400,17 @@ export function RosterImportDialog({
                 className="mt-1 size-4 rounded border-[#484f58] accent-[#388bfd]"
               />
               <span>
-                <span className="block text-[#e6edf3]">{t("inactiveSweep")}</span>
+                <span className="block text-hq-fg">{t("inactiveSweep")}</span>
                 <span className="text-xs">{t("inactiveSweepHelp")}</span>
               </span>
             </label>
 
-            {error ? <p className="text-sm text-[#f85149]">{error}</p> : null}
+            {error ? <p className="text-sm text-hq-danger">{error}</p> : null}
 
             <div className="flex flex-wrap justify-end gap-2 pt-2">
               <button
                 type="button"
-                className="rounded-lg border border-[#30363d] px-4 py-2 text-sm"
+                className="rounded-lg border border-hq-border px-4 py-2 text-sm"
                 onClick={() => setStep("upload")}
                 disabled={committing}
               >
@@ -418,7 +418,7 @@ export function RosterImportDialog({
               </button>
               <button
                 type="submit"
-                className="rounded-lg border border-[#238636] bg-[#238636] px-4 py-2 text-sm text-white disabled:opacity-50"
+                className="rounded-lg border border-hq-success bg-hq-success px-4 py-2 text-sm text-white disabled:opacity-50"
                 disabled={committing || rows.length === 0 || batchConflicts.length > 0}
               >
                 {committing ? t("committing") : t("commit")}
@@ -427,13 +427,13 @@ export function RosterImportDialog({
           </form>
         )}
 
-        {step === "upload" && error ? <p className="text-sm text-[#f85149]">{error}</p> : null}
+        {step === "upload" && error ? <p className="text-sm text-hq-danger">{error}</p> : null}
 
         {step === "upload" ? (
           <div className="flex flex-wrap justify-end gap-2 pt-2">
             <button
               type="button"
-              className="rounded-lg border border-[#30363d] px-4 py-2 text-sm"
+              className="rounded-lg border border-hq-border px-4 py-2 text-sm"
               onClick={() => handleOpenChange(false)}
               disabled={parsing}
             >

@@ -113,7 +113,7 @@ export function ScreenshotModeOverlay({ open, onClose, onCapture }: Props) {
               <Button
                 variant="outline"
                 size="icon"
-                className="pointer-events-auto shrink-0 border-[#484f58] bg-[#161b22]/90 text-white shadow-sm backdrop-blur-sm hover:bg-[#21262d]"
+                className="pointer-events-auto shrink-0 border-[#484f58] bg-hq-surface/90 text-white shadow-sm backdrop-blur-sm hover:bg-hq-surface-muted"
                 onClick={onClose}
                 aria-label={t("cancel")}
               >
@@ -131,7 +131,7 @@ export function ScreenshotModeOverlay({ open, onClose, onCapture }: Props) {
           </div>
 
           <div
-            className="pointer-events-none absolute inset-x-4 top-16 bottom-24 rounded-lg border-2 border-dashed border-[#238636]/70"
+            className="pointer-events-none absolute inset-x-4 top-16 bottom-24 rounded-lg border-2 border-dashed border-hq-success/70"
             aria-hidden
           />
 
@@ -140,7 +140,7 @@ export function ScreenshotModeOverlay({ open, onClose, onCapture }: Props) {
           >
             <Button
               size="icon"
-              className="pointer-events-auto h-14 w-14 rounded-full border-2 border-[#30363d] bg-[#238636] p-0 text-white shadow-lg hover:bg-[#2ea043]"
+              className="pointer-events-auto h-14 w-14 rounded-full border-2 border-hq-border bg-hq-success p-0 text-white shadow-lg hover:bg-hq-success-hover"
               onClick={handleCapture}
               aria-label={t("takeScreenshot")}
             >

@@ -52,11 +52,11 @@ export function MemberLinkHelpRequestsClient({
     <div className="space-y-6 min-w-0 w-full max-w-full">
       <div>
         <h1 className="text-2xl font-semibold">{t(titleKey)}</h1>
-        <p className="mt-1 text-sm text-[#8b949e]">{t("subtitle")}</p>
+        <p className="mt-1 text-sm text-hq-fg-muted">{t("subtitle")}</p>
         {backHref && backLabel ? (
           <Link
             href={backHref}
-            className="mt-2 inline-block text-sm text-[#58a6ff] hover:underline"
+            className="mt-2 inline-block text-sm text-hq-accent hover:underline"
           >
             {backLabel}
           </Link>
@@ -70,24 +70,24 @@ export function MemberLinkHelpRequestsClient({
       ) : null}
 
       {requests.length === 0 ? (
-        <p className="text-sm text-[#8b949e]">{t("empty")}</p>
+        <p className="text-sm text-hq-fg-muted">{t("empty")}</p>
       ) : (
         <ul className="space-y-4">
           {requests.map((request) => (
             <li
               key={request.id}
-              className="rounded-xl border border-[#30363d] bg-[#161b22] p-4 space-y-3 min-w-0"
+              className="rounded-xl border border-hq-border bg-hq-surface p-4 space-y-3 min-w-0"
             >
               <div className="min-w-0">
                 {showAlliance ? (
-                  <p className="text-xs font-medium uppercase tracking-wide text-[#58a6ff]">
+                  <p className="text-xs font-medium uppercase tracking-wide text-hq-accent">
                     {request.allianceTag ?? request.allianceName ?? t("unknownAlliance")}
                   </p>
                 ) : null}
                 <p className="font-medium">
                   {request.gameUserName ?? request.requesterHandle}
                 </p>
-                <p className="text-xs text-[#8b949e] mt-1">
+                <p className="text-xs text-hq-fg-muted mt-1">
                   {t("requester", { handle: request.requesterHandle })}
                 </p>
                 {request.reportedName ? (
@@ -100,7 +100,7 @@ export function MemberLinkHelpRequestsClient({
                     {t("uidLast4", { last4: request.gameUidLast4 })}
                   </p>
                 ) : null}
-                <p className="text-xs text-[#8b949e] mt-2">
+                <p className="text-xs text-hq-fg-muted mt-2">
                   {request.origin === "discord"
                     ? t("originDiscord", {
                         user: request.discordUsername ?? t("originDiscordUnknown"),
@@ -110,14 +110,14 @@ export function MemberLinkHelpRequestsClient({
                 <p className="mt-2 inline-block rounded-lg border border-[#9e6a03] bg-[#9e6a031a] px-2 py-1 text-xs text-[#e3b341]">
                   {t(`context.${request.context}`)}
                 </p>
-                <p className="text-xs text-[#6e7681] mt-2">
+                <p className="text-xs text-hq-fg-subtle mt-2">
                   <FormattedDateTime value={request.createdAt} />
                 </p>
               </div>
 
               <Link
                 href={`${detailHrefPrefix}/${request.id}`}
-                className="inline-flex w-full sm:w-auto justify-center rounded-lg bg-[#238636] px-4 py-2 text-sm font-medium text-white hover:bg-[#2ea043]"
+                className="inline-flex w-full sm:w-auto justify-center rounded-lg bg-hq-success px-4 py-2 text-sm font-medium text-white hover:bg-hq-success-hover"
               >
                 {t("reviewRequest")}
               </Link>
