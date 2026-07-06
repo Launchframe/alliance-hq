@@ -4,6 +4,7 @@ import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 
+import { VideoJobDiagnosticsPanel } from "@/components/admin/VideoJobDiagnosticsPanel";
 import { FormattedDateTime } from "@/components/timezone/TimezoneProvider";
 import { Link } from "@/i18n/navigation";
 import type { VideoProcessTimings } from "@/lib/analytics/video-pipeline";
@@ -134,7 +135,7 @@ type DetailResponse = {
   rosterTesseractEval?: unknown;
 };
 
-type TabId = "frames" | "parse" | "timings";
+type TabId = "frames" | "parse" | "timings" | "diagnostics";
 type FrameViewMode = "list" | "gallery" | "video";
 
 const BASE_FRAME_HEIGHT_PX = 192;
@@ -842,7 +843,7 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
       ) : null}
 
       <div className="flex flex-wrap gap-2 border-b border-[#30363d] pb-2">
-        {(["frames", "parse", "timings"] as const).map((id) => (
+        {(["frames", "parse", "timings", "diagnostics"] as const).map((id) => (
           <button
             key={id}
             type="button"
@@ -1260,6 +1261,10 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
             </div>
           )}
         </div>
+      ) : null}
+
+      {tab === "diagnostics" ? (
+        <VideoJobDiagnosticsPanel key={jobId} jobId={jobId} />
       ) : null}
 
       {tab === "timings" ? (

@@ -564,7 +564,31 @@
       "tabs": {
         "frames": "Frames",
         "parse": "Resultados",
-        "timings": "Tempos"
+        "timings": "Tempos",
+        "diagnostics": "Diagnóstico"
+      },
+      "diagnosticsLoading": "Carregando diagnóstico…",
+      "diagnosticsLoadFailed": "Falha ao carregar diagnóstico.",
+      "diagnosticsRetry": "Tentar de novo",
+      "diagnosticsHintsTitle": "Dicas",
+      "diagnosticsOcrEngine": "Motor OCR",
+      "diagnosticsAlliance": "Aliança",
+      "diagnosticsUploadedFrameCount": "Frames OCR concluídos",
+      "diagnosticsOcrEntries": "Total de entradas OCR",
+      "diagnosticsParsedRows": "Linhas parseadas no banco",
+      "diagnosticsSameSession": "Uploader = sessão do processador",
+      "diagnosticsYes": "Sim",
+      "diagnosticsNo": "Não",
+      "diagnosticsApprovedAt": "Aprovado em",
+      "diagnosticsUpdatedAt": "Última atualização",
+      "diagnosticsFramesWithErrors": "Frames com erro OCR",
+      "diagnosticsJsonTitle": "JSON completo do inspect (copiar)",
+      "diagnosticsHints": {
+        "stuck_parsing_no_ocr": "Os frames foram extraídos, mas o OCR não terminou — o job está preso em parsing. Provável interrupção do worker serverless (sem timings, ocr_entry_count nulo em todos os frames). Marque como falha e reprocesse, ou corrija o host de processamento.",
+        "stuck_parsing_native_ocr": "Tesseract interno em serverless é frágil (cold start + limite de 300s). Considere um VIDEO_WORKER_BASE_URL de longa duração para alianças só com OCR HQ.",
+        "queued_stale": "O job está na fila há vários minutos sem iniciar — o disparo de processamento pode ter falhado. Tente Reenfileirar no admin.",
+        "failed_with_message": "Job falhou: {message}",
+        "healthy_review": "Processamento concluído — linhas parseadas disponíveis para revisão."
       },
       "framesEmpty": "Nenhum frame armazenado para este job.",
       "frameLabel": "Frame {index}",

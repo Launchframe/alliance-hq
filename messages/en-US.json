@@ -564,7 +564,31 @@
       "tabs": {
         "frames": "Frames",
         "parse": "Parse results",
-        "timings": "Timings"
+        "timings": "Timings",
+        "diagnostics": "Diagnostics"
+      },
+      "diagnosticsLoading": "Loading diagnostics…",
+      "diagnosticsLoadFailed": "Failed to load diagnostics.",
+      "diagnosticsRetry": "Retry",
+      "diagnosticsHintsTitle": "Hints",
+      "diagnosticsOcrEngine": "OCR engine",
+      "diagnosticsAlliance": "Alliance",
+      "diagnosticsUploadedFrameCount": "OCR frames completed",
+      "diagnosticsOcrEntries": "Total OCR entries",
+      "diagnosticsParsedRows": "Parsed rows in DB",
+      "diagnosticsSameSession": "Uploader = processor session",
+      "diagnosticsYes": "Yes",
+      "diagnosticsNo": "No",
+      "diagnosticsApprovedAt": "Approved at",
+      "diagnosticsUpdatedAt": "Last updated",
+      "diagnosticsFramesWithErrors": "Frames with OCR errors",
+      "diagnosticsJsonTitle": "Full inspect JSON (copy)",
+      "diagnosticsHints": {
+        "stuck_parsing_no_ocr": "Frames were extracted but OCR never finished — job is stuck in parsing. Likely the serverless worker was killed mid-OCR (no timings, null ocr_entry_count on all frames). Mark failed and reprocess, or fix the processing host.",
+        "stuck_parsing_native_ocr": "In-house Tesseract on serverless is fragile (cold start + 300s limit). Consider a long-running VIDEO_WORKER_BASE_URL for HQ OCR-only alliances.",
+        "queued_stale": "Job has been queued for several minutes without starting — processing trigger may have been dropped. Try admin Requeue.",
+        "failed_with_message": "Job failed: {message}",
+        "healthy_review": "Processing completed — parsed rows are available for review."
       },
       "framesEmpty": "No frames stored for this job.",
       "frameLabel": "Frame {index}",
