@@ -4,13 +4,17 @@ import { parseRosterImage } from "@/lib/members/roster-ocr/parse-roster-image";
 import type { ParsedRosterRow, RosterOcrConfig } from "@/lib/members/roster-ocr/types";
 import { DEFAULT_ROSTER_OCR_CONFIG } from "@/lib/members/roster-ocr/types";
 import { mapWithConcurrency } from "@/lib/video/map-with-concurrency";
+import { logPipelineStep } from "@/lib/video/pipeline-step-log";
 import type { PipelineTimer } from "@/lib/video/pipeline-timer";
 import {
   collapseRosterMembersByNameRank,
   type ExtractedRosterMember,
 } from "@/lib/video/roster-extract";
 
-const TESSERACT_FRAME_CONCURRENCY = 2;
+/** One frame at a time — native OCR shares a single tesseract.js worker per process. */
+export const NATIVE_ROSTER_TESSERACT_CONCURRENCY = 1;
+
+const TESSERACT_FRAME_CONCURRENCY = NATIVE_ROSTER_TESSERACT_CONCURRENCY;
 
 export type NativeRosterFrameTiming = {
   frameIndex: number;
@@ -55,7 +59,10 @@ export async function ocrRosterNativeFrames(
 ): Promise<OcrRosterNativeFramesResult> {
   const config = options?.config ?? DEFAULT_ROSTER_OCR_CONFIG;
   const passKey = options?.passKey ?? null;
-  const concurrency = options?.concurrency ?? TESSERACT_FRAME_CONCURRENCY;
+  const concurrency = Math.min(
+    options?.concurrency ?? TESSERACT_FRAME_CONCURRENCY,
+    NATIVE_ROSTER_TESSERACT_CONCURRENCY,
+  );
   const timer = options?.timer;
 
   timer?.logStep("tesseract.roster_batch_start", 0, {
@@ -106,6 +113,21 @@ export async function ocrRosterNativeFrames(
       entryCount: frame.rows.length,
       error: frame.error,
     }));
+
+  const errorFrames = frameTimings.filter((frame) => frame.error);
+  if (members.length === 0 || errorFrames.length > 0) {
+    logPipelineStep("tesseract.roster_batch_summary", 0, {
+      jobId: options?.jobId,
+      rowCount: members.length,
+      errorFrameCount: errorFrames.length,
+      errors: errorFrames.map((frame) => ({
+        frameIndex: frame.frameIndex,
+        error: frame.error,
+      })),
+      frameMs: frameTimings.map((frame) => frame.ms),
+      entryCounts: frameTimings.map((frame) => frame.entryCount),
+    });
+  }
 
   return { members, frameTimings, concurrency };
 }

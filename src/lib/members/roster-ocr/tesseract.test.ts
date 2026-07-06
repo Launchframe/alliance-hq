@@ -1,8 +1,39 @@
 import { existsSync } from "node:fs";
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { buildTesseractWorkerOptions } from "@/lib/members/roster-ocr/tesseract";
+
+const recognizeState = { active: 0, maxConcurrent: 0 };
+
+vi.mock("tesseract.js", () => ({
+  createWorker: vi.fn(async () => ({
+    setParameters: vi.fn(async () => undefined),
+    recognize: vi.fn(async () => {
+      recognizeState.active += 1;
+      recognizeState.maxConcurrent = Math.max(
+        recognizeState.maxConcurrent,
+        recognizeState.active,
+      );
+      await new Promise((resolve) => setTimeout(resolve, 15));
+      recognizeState.active -= 1;
+      return {
+        data: {
+          blocks: [
+            {
+              paragraphs: [
+                {
+                  lines: [{ text: "R5 Player", confidence: 90 }],
+                },
+              ],
+            },
+          ],
+        },
+      };
+    }),
+    terminate: vi.fn(async () => undefined),
+  })),
+}));
 
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -25,5 +56,31 @@ describe("buildTesseractWorkerOptions", () => {
     expect(buildTesseractWorkerOptions().langPath).toBe(
       "https://cdn.jsdelivr.net/npm/@tesseract.js-data/eng/4.0.0_best_int",
     );
+  });
+});
+
+describe("runTesseract", () => {
+  beforeEach(() => {
+    recognizeState.active = 0;
+    recognizeState.maxConcurrent = 0;
+  });
+
+  afterEach(async () => {
+    const { terminateTesseractWorker } = await import("@/lib/members/roster-ocr/tesseract");
+    await terminateTesseractWorker();
+    vi.resetModules();
+  });
+
+  it("serializes concurrent recognize() calls on the shared worker", async () => {
+    const { runTesseract } = await import("@/lib/members/roster-ocr/tesseract");
+    const imageBuffer = Buffer.from("fake-png");
+
+    await Promise.all([
+      runTesseract(imageBuffer),
+      runTesseract(imageBuffer),
+      runTesseract(imageBuffer),
+    ]);
+
+    expect(recognizeState.maxConcurrent).toBe(1);
   });
 });
