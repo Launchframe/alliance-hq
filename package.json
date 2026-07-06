@@ -61,6 +61,7 @@
     "jose": "^6.2.3",
     "lucide-react": "^1.18.0",
     "marked": "^15.0.12",
+    "mermaid": "^11.16.0",
     "modern-screenshot": "^4.7.0",
     "nanoid": "^5.1.11",
     "next": "16.2.9",
