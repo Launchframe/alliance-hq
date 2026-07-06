@@ -8,6 +8,7 @@ import {
   DISCORD_BOT_GUIDE_ROLE_STEPS,
   DISCORD_BOT_GUIDE_SCREENSHOTS,
   DISCORD_BOT_GUIDE_STEPS,
+  guideStepsForRole,
   stepSlugToMessageKey,
   type DiscordBotGuideRoleSlug,
 } from "@/lib/guides/discord-bot-guide.shared";
@@ -21,7 +22,7 @@ export function DiscordBotGuideStepPage({ role, stepSlug }: Props) {
   const t = useTranslations("guides.discordBot");
   const messageKey = stepSlugToMessageKey(stepSlug);
   const def = DISCORD_BOT_GUIDE_STEPS[stepSlug];
-  const steps = DISCORD_BOT_GUIDE_ROLE_STEPS[role];
+  const steps = guideStepsForRole(role);
   const stepIndex = steps.indexOf(stepSlug);
   const prevSlug = stepIndex > 0 ? steps[stepIndex - 1] : null;
   const nextSlug =
@@ -53,6 +54,15 @@ export function DiscordBotGuideStepPage({ role, stepSlug }: Props) {
           {t(`steps.${messageKey}.summary`)}
         </p>
       </header>
+
+      {stepSlug === "install-bot" ? (
+        <Link
+          href="/discord/setup"
+          className="inline-flex w-full items-center justify-center rounded-lg border border-[#5865F2] bg-[#5865F2] px-4 py-3 text-sm font-semibold text-white hover:opacity-90 sm:w-auto"
+        >
+          {t("steps.installBot.wizardCta")}
+        </Link>
+      ) : null}
 
       {command ? (
         <div className="rounded-lg border border-[#30363d] bg-[#0d1117] px-4 py-3">

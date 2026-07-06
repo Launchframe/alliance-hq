@@ -4,7 +4,8 @@ Use this workflow to test Discord auth without waiting on a deployed Discord bot
 
 ## What This Covers
 
-- `/link` with no options: Discord returns a browser URL; the browser page starts **Discord OAuth** to bind `discord_hq_links` (no alliance required).
+- **Install wizard** (`/discord/setup`): primary path — HQ sign-in, Discord link, tag, Ashed walkthrough, bot OAuth with redirect to `/discord/install/complete` (auto-registers the guild).
+- `/link` with no options: Discord returns a browser URL; the browser page starts **Discord OAuth** to bind `discord_hq_links` (recovery when the wizard was skipped).
 - `/link-commander name:... uid:...` (or `/link-last-war-profile`): links a commander inline in a **registered** guild.
 - `/link-alliance tag:...`: binds a guild when the caller is proven as owner by member link or platform maintainer.
 - `/link-ashed tag:...`: opens the Ashed connection-key flow (requires HQ link from `/link` first).
@@ -46,6 +47,20 @@ DISCORD_DEV_USER_ID=dev-user-1
 ```
 
 These keys are for local testing only. Do not use them for a real Discord application.
+
+## Discord Developer Portal — bot install redirect
+
+When using the **install wizard**, register this OAuth2 redirect URI on your Discord application (same app as `DISCORD_APPLICATION_ID` / `AUTH_DISCORD_ID`):
+
+```text
+{NEXT_PUBLIC_APP_URL}/discord/install/complete
+```
+
+Local example: `http://localhost:5175/discord/install/complete`
+
+Production: `https://your-hq-domain/discord/install/complete`
+
+Without this redirect, the wizard’s **Add bot to Discord** step completes in Discord but cannot register the guild on HQ.
 
 ## Seed the Local Fixture
 

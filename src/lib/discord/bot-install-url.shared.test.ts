@@ -32,4 +32,19 @@ describe("buildDiscordBotInstallUrl", () => {
     });
     expect(new URL(url!).searchParams.get("permissions")).toBe("2048");
   });
+
+  it("includes redirect_uri, response_type, and state when provided", () => {
+    const url = buildDiscordBotInstallUrl({
+      clientId: "abc",
+      redirectUri: "https://hq.example.com/discord/install/complete",
+      state: "nonce-123",
+    });
+    expect(url).not.toBeNull();
+    const parsed = new URL(url!);
+    expect(parsed.searchParams.get("redirect_uri")).toBe(
+      "https://hq.example.com/discord/install/complete",
+    );
+    expect(parsed.searchParams.get("response_type")).toBe("code");
+    expect(parsed.searchParams.get("state")).toBe("nonce-123");
+  });
 });

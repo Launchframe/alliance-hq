@@ -263,6 +263,13 @@ export const NAV_GROUPS: NavGroupDef[] = [
     labelKey: "support",
     pages: [
       {
+        id: "getting-started-guide",
+        labelKey: "gettingStartedGuide",
+        href: "/guides/getting-started",
+        kind: "native",
+        descriptionKey: "gettingStartedGuideDescription",
+      },
+      {
         id: "discord-bot-guide",
         labelKey: "discordBotGuide",
         href: "/guides/discord-bot",
@@ -385,6 +392,9 @@ export function navLinkActive(pathname: string, href: string): boolean {
   }
   if (href === "/tools/video-processors") {
     return pathname === "/tools/video-processors";
+  }
+  if (href === "/guides/getting-started") {
+    return pathname === "/guides/getting-started";
   }
   if (href === "/guides/discord-bot") {
     return pathname === "/guides/discord-bot" || pathname.startsWith("/guides/discord-bot/");

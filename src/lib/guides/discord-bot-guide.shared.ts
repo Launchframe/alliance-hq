@@ -38,6 +38,7 @@ export const DISCORD_BOT_GUIDE_STEPS: Record<string, DiscordBotGuideStepDef> = {
     troubleshootingIds: ["guildNotRegistered", "commandsMissing"],
   },
   "link-hq": {
+    optional: true,
     showCommand: true,
   },
   "link-self": {
@@ -52,6 +53,7 @@ export const DISCORD_BOT_GUIDE_STEPS: Record<string, DiscordBotGuideStepDef> = {
     ],
   },
   "register-guild": {
+    optional: true,
     showCommand: true,
     troubleshootingIds: ["guildNotRegistered"],
   },
@@ -96,9 +98,6 @@ export const DISCORD_BOT_GUIDE_ROLE_STEPS: Record<
 > = {
   r5: [
     "install-bot",
-    "link-hq",
-    "optional-ashed",
-    "register-guild",
     "link-self",
     "vr-channel",
     "train-channel",
@@ -115,6 +114,13 @@ export const DISCORD_BOT_GUIDE_ROLE_STEPS: Record<
   ],
   member: ["link-self", "report-vr", "check-conductor", "language"],
   "link-only": ["link-self", "after-link"],
+};
+
+/** Recovery slash-command steps shown after the primary R5 flow. */
+export const DISCORD_BOT_GUIDE_ROLE_RECOVERY_STEPS: Partial<
+  Record<DiscordBotGuideRoleSlug, string[]>
+> = {
+  r5: ["link-hq", "optional-ashed", "register-guild"],
 };
 
 export const DISCORD_BOT_GUIDE_SCREENSHOTS: Record<string, string> = {
@@ -141,7 +147,17 @@ export function isStepInRole(
   role: DiscordBotGuideRoleSlug,
   stepSlug: string,
 ): boolean {
-  return DISCORD_BOT_GUIDE_ROLE_STEPS[role].includes(stepSlug);
+  if (DISCORD_BOT_GUIDE_ROLE_STEPS[role].includes(stepSlug)) {
+    return true;
+  }
+  return DISCORD_BOT_GUIDE_ROLE_RECOVERY_STEPS[role]?.includes(stepSlug) ?? false;
+}
+
+export function guideStepsForRole(role: DiscordBotGuideRoleSlug): string[] {
+  return [
+    ...DISCORD_BOT_GUIDE_ROLE_STEPS[role],
+    ...(DISCORD_BOT_GUIDE_ROLE_RECOVERY_STEPS[role] ?? []),
+  ];
 }
 
 export function buildDiscordBotGuidePath(
@@ -172,7 +188,7 @@ export function helpMessageKeyToGuideRole(
     case "help.ownerReady":
     case "help.ownerReadyMulti":
     case "help.setupOwnerLinkHq":
-    case "help.setupOwnerAshedSeat":
+    case "help.setupOwnerLinkCommander":
     case "help.setupLinkAlliance":
       return "r5";
     default:

@@ -30,6 +30,18 @@ export function DiscordBotGuideHub() {
         </p>
       </header>
 
+      <section className="rounded-xl border border-[#d4a017]/30 bg-[#d4a017]/10 p-5 sm:p-6">
+        <p className="text-sm leading-relaxed text-[#e6edf3]">
+          {t.rich("hub.r5Callout", {
+            link: (chunks) => (
+              <Link href="/guides/getting-started" className="text-[#58a6ff] hover:underline">
+                {chunks}
+              </Link>
+            ),
+          })}
+        </p>
+      </section>
+
       <section className="space-y-3 rounded-xl border border-[#30363d] bg-[#161b22] p-5 sm:p-6">
         <h2 className="text-lg font-medium">{t("hub.overviewTitle")}</h2>
         <p className="text-sm leading-relaxed text-[#8b949e]">

@@ -62,6 +62,7 @@ import {
   resolveAllianceForGuild,
 } from "@/lib/vr/service";
 import { resolveSetupMessage } from "@/lib/vr/bot-user-context";
+import { resolveAllianceIdForDiscordMemberLink } from "@/lib/vr/resolve-member-link-alliance.server";
 import { isDiscordCommanderLinkCommand } from "@/lib/vr/discord-command-names";
 import {
   handleDiscordSetTrainChannel,
@@ -119,7 +120,22 @@ async function handleLinkCommanderSlash(
   },
 ) {
   const t = createDiscordTranslator(input.locale);
-  if (!input.allianceId) {
+  const { uid, replace } = parseLinkSlashOptions(payload);
+
+  let allianceId = input.allianceId;
+  if (!allianceId && input.guildId && uid) {
+    const lookup = await lookupPlayerByUid(uid);
+    if (lookup.ok) {
+      allianceId = await resolveAllianceIdForDiscordMemberLink({
+        guildId: input.guildId,
+        discordUserId: input.discordUserId,
+        reportedName: lookup.gameUserName,
+        gameUid: uid,
+      });
+    }
+  }
+
+  if (!allianceId) {
     return discordMessageResponse(
       await setupMessage(input.locale, input.guildId, input.discordUserId),
       undefined,
@@ -127,9 +143,8 @@ async function handleLinkCommanderSlash(
     );
   }
 
-  const { uid, replace } = parseLinkSlashOptions(payload);
   const result = await handleDiscordLinkCommanderSlash({
-    allianceId: input.allianceId,
+    allianceId,
     guildId: input.guildId,
     discordUserId: input.discordUserId,
     discordUsername: input.discordUsername,

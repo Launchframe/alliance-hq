@@ -47,7 +47,7 @@ describe("pickHelpMessageKey", () => {
     ).toBe("help.setupOwnerLinkHq");
   });
 
-  it("prompts ashed seat when guild is not registered but Discord has HQ link", () => {
+  it("prompts link-commander when guild is not registered and Discord has HQ link but no commander", () => {
     expect(
       pickHelpMessageKey(
         ctx({
@@ -55,9 +55,24 @@ describe("pickHelpMessageKey", () => {
           hasCredentials: false,
           hasHqLink: true,
           userRegisteredCredentials: false,
+          hasAnyMemberLink: false,
         }),
       ),
-    ).toBe("help.setupOwnerAshedSeat");
+    ).toBe("help.setupOwnerLinkCommander");
+  });
+
+  it("prompts link-alliance when guild is not registered and owner has a commander link", () => {
+    expect(
+      pickHelpMessageKey(
+        ctx({
+          guildRegistered: false,
+          hasCredentials: false,
+          hasHqLink: true,
+          userRegisteredCredentials: false,
+          hasAnyMemberLink: true,
+        }),
+      ),
+    ).toBe("help.setupLinkAlliance");
   });
 
   it("prompts link-alliance when owner has credentials", () => {

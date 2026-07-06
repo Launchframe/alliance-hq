@@ -5,10 +5,7 @@ import { redirect } from "@/i18n/navigation";
 import { Link } from "@/i18n/navigation";
 import { AllianceDiscordServerSetup } from "@/components/settings/AllianceDiscordServerSetup";
 import { AllianceContextRequired } from "@/components/settings/AllianceContextRequired";
-import {
-  getDiscordBotInstallUrl,
-  isDiscordBotInstallConfigured,
-} from "@/lib/discord/bot-install-url.server";
+import { isDiscordBotInstallConfigured } from "@/lib/discord/bot-install-url.server";
 import { getDb, schema } from "@/lib/db";
 import { sessionHasPermissionForAlliance } from "@/lib/rbac/context";
 import { requireAllianceSettingsSession } from "@/lib/settings/alliance-settings-access.server";
@@ -54,9 +51,7 @@ export default async function SettingsDiscordPage({
     throw new Error("Alliance tag required.");
   }
 
-  const [installUrl, registeredGuildCount, canManageDiscordSetup] =
-    await Promise.all([
-      Promise.resolve(getDiscordBotInstallUrl()),
+  const [registeredGuildCount, canManageDiscordSetup] = await Promise.all([
       countRegisteredGuildsForAlliance(access.allianceId),
       sessionHasPermissionForAlliance(
         access.session.id,
@@ -79,7 +74,6 @@ export default async function SettingsDiscordPage({
 
       <AllianceDiscordServerSetup
         allianceTag={allianceTag}
-        installUrl={installUrl}
         installConfigured={isDiscordBotInstallConfigured()}
         registeredGuildCount={registeredGuildCount}
         canManage={canManageDiscordSetup}

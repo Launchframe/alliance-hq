@@ -1,5 +1,6 @@
 import { Link } from "@/i18n/navigation";
 import { requirePageSession } from "@/lib/session";
+import { getTranslations } from "next-intl/server";
 
 export const dynamic = "force-dynamic";
 
@@ -11,10 +12,17 @@ export const metadata = {
 
 export default async function AllianceOnboardingGuideHubPage() {
   await requirePageSession("/guides/alliance-onboarding");
+  const tGettingStarted = await getTranslations("guides.gettingStarted");
 
   return (
     <div className="mx-auto flex w-full max-w-3xl min-w-0 flex-col gap-8 pb-12">
       <header className="space-y-2">
+        <Link
+          href="/guides/getting-started"
+          className="text-sm text-[#58a6ff] hover:underline"
+        >
+          ← {tGettingStarted("title")}
+        </Link>
         <h1 className="text-2xl font-semibold text-[#e6edf3]">
           Alliance onboarding
         </h1>

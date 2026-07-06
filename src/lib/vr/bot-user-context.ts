@@ -5,6 +5,10 @@ import {
   type DiscordTranslate,
 } from "@/lib/discord/i18n";
 import { buildDiscordBotGuideUrl } from "@/lib/guides/discord-bot-guide.server";
+import {
+  buildDiscordInstallWizardUrl,
+  buildR5GettingStartedGuideUrl,
+} from "@/lib/guides/setup-guide.server";
 import { helpMessageKeyToGuideRole } from "@/lib/guides/discord-bot-guide.shared";
 import { ensureDiscordMemberLinksFromHq } from "@/lib/member-link/inherit-hq-to-discord.server";
 import { allianceHasBotCredentials } from "@/lib/vr/member-roster";
@@ -107,7 +111,10 @@ export function pickHelpMessageKey(ctx: DiscordBotUserContext): string {
     if (!ctx.hasHqLink) {
       return "help.setupOwnerLinkHq";
     }
-    return "help.setupOwnerAshedSeat";
+    if (!ctx.hasAnyMemberLink) {
+      return "help.setupOwnerLinkCommander";
+    }
+    return "help.setupLinkAlliance";
   }
   if (ctx.memberLinkCount === 0) {
     return "help.linkCommander";
@@ -129,15 +136,23 @@ export function formatHelpReply(
   locale: DiscordBotLocale,
 ): string {
   const role = helpMessageKeyToGuideRole(key);
-  const guideUrl = buildDiscordBotGuideUrl(
+  const gettingStartedUrl = buildR5GettingStartedGuideUrl(locale);
+  const installWizardUrl = buildDiscordInstallWizardUrl(locale);
+  const botGuideUrl = buildDiscordBotGuideUrl(
     locale,
     role ? { role } : undefined,
   );
+  const guideUrl =
+    key.startsWith("help.setup") || key === "help.setupLinkHq"
+      ? gettingStartedUrl
+      : botGuideUrl;
   return t(key, {
     tag: ctx.allianceTag ?? "YourTag",
     count: ctx.memberLinkCount,
     appUrl: discordAppBaseUrl(),
     guideUrl,
+    installWizardUrl,
+    botGuideUrl,
   });
 }
 

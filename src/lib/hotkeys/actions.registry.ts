@@ -200,6 +200,14 @@ const NAV_ACTIONS: HotkeyActionDef[] = [
     href: "/settings",
   },
   {
+    id: "nav.gettingStartedGuide",
+    labelKey: "actions.nav.gettingStartedGuide",
+    category: "navigation",
+    scope: "global",
+    kind: "navigate",
+    href: "/guides/getting-started",
+  },
+  {
     id: "nav.discordBotGuide",
     labelKey: "actions.nav.discordBotGuide",
     category: "navigation",

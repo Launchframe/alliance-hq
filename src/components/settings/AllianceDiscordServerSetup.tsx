@@ -6,7 +6,6 @@ import { Link } from "@/i18n/navigation";
 
 type Props = {
   allianceTag: string;
-  installUrl: string | null;
   installConfigured: boolean;
   registeredGuildCount: number;
   canManage: boolean;
@@ -14,7 +13,6 @@ type Props = {
 
 export function AllianceDiscordServerSetup({
   allianceTag,
-  installUrl,
   installConfigured,
   registeredGuildCount,
   canManage,
@@ -36,15 +34,13 @@ export function AllianceDiscordServerSetup({
 
       {canManage ? (
         <div className="mt-4 space-y-3">
-          {installConfigured && installUrl ? (
-            <a
-              href={installUrl}
-              target="_blank"
-              rel="noopener noreferrer"
+          {installConfigured ? (
+            <Link
+              href={`/discord/setup?tag=${encodeURIComponent(allianceTag)}`}
               className="inline-flex rounded-lg border border-[#5865F2] bg-[#5865F2] px-4 py-2 text-sm font-medium text-white hover:opacity-90"
             >
               {t("installButton")}
-            </a>
+            </Link>
           ) : (
             <p className="text-sm text-[#f85149]">{t("installUnavailable")}</p>
           )}
@@ -63,8 +59,15 @@ export function AllianceDiscordServerSetup({
       )}
 
       <Link
-        href="/guides/discord-bot/r5/install-bot"
+        href="/guides/getting-started"
         className="mt-4 inline-block text-sm text-[#58a6ff] hover:underline"
+      >
+        {t("gettingStartedLink")} →
+      </Link>
+
+      <Link
+        href="/guides/discord-bot/r5/install-bot"
+        className="mt-2 inline-block text-sm text-[#58a6ff] hover:underline"
       >
         {t("guideLink")} →
       </Link>
