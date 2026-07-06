@@ -14,7 +14,6 @@
  */
 
 import { createRequire } from "node:module";
-import path from "node:path";
 
 import { createWorker, type Worker } from "tesseract.js";
 
@@ -26,8 +25,7 @@ const require = createRequire(import.meta.url);
 let workerInstance: Worker | null = null;
 
 function resolveTesseractWorkerPath(): string {
-  const pkgRoot = path.dirname(require.resolve("tesseract.js/package.json"));
-  return path.join(pkgRoot, "src/worker-script/node/index.js");
+  return require.resolve("tesseract.js/src/worker-script/node/index.js");
 }
 
 /** Optional worker options — only set langPath when explicitly configured. */

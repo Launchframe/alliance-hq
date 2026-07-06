@@ -1,3 +1,5 @@
+import { existsSync } from "node:fs";
+
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { buildTesseractWorkerOptions } from "@/lib/members/roster-ocr/tesseract";
@@ -11,7 +13,8 @@ describe("buildTesseractWorkerOptions", () => {
     vi.stubEnv("TESSERACT_LANG_PATH", "");
     const options = buildTesseractWorkerOptions();
     expect(options.langPath).toBeUndefined();
-    expect(options.workerPath).toContain("worker-script/node/index.js");
+    expect(options.workerPath).toMatch(/[/\\]worker-script[/\\]node[/\\]index\.js$/);
+    expect(existsSync(options.workerPath)).toBe(true);
   });
 
   it("passes trimmed TESSERACT_LANG_PATH when set", () => {
