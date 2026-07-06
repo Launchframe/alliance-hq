@@ -1629,6 +1629,52 @@ export const hqMemberLinkHelpRequests = pgTable(
   ],
 );
 
+/** Discord install wizard: officer requests HQ alliance creation when tag is not on HQ yet. */
+export const hqAllianceSetupRequests = pgTable(
+  "hq_alliance_setup_requests",
+  {
+    id: text("id").primaryKey(),
+    tag: text("tag").notNull(),
+    allianceName: text("alliance_name").notNull(),
+    gameServerNumber: integer("game_server_number").notNull(),
+    requesterHqUserId: text("requester_hq_user_id")
+      .notNull()
+      .references(() => hqUsers.id, { onDelete: "cascade" }),
+    requesterEmail: text("requester_email"),
+    discordUserId: text("discord_user_id"),
+    /** open | fulfilled | dismissed */
+    status: text("status").notNull().default("open"),
+    fulfilledAllianceId: text("fulfilled_alliance_id").references(
+      () => alliances.id,
+      { onDelete: "set null" },
+    ),
+    fulfilledByHqUserId: text("fulfilled_by_hq_user_id").references(
+      () => hqUsers.id,
+      { onDelete: "set null" },
+    ),
+    fulfilledAt: timestamp("fulfilled_at", { withTimezone: true }),
+    resolutionNote: text("resolution_note"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("hq_alliance_setup_requests_status_idx").on(table.status),
+    index("hq_alliance_setup_requests_tag_status_idx").on(
+      table.tag,
+      table.status,
+    ),
+    index("hq_alliance_setup_requests_requester_tag_status_idx").on(
+      table.requesterHqUserId,
+      table.tag,
+      table.status,
+    ),
+  ],
+);
+
 export const hqRosterLinkActionTokens = pgTable(
   "hq_roster_link_action_tokens",
   {

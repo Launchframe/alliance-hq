@@ -138,6 +138,7 @@
       "system": "System",
       "gameSeasons": "Game seasons",
       "alliances": "Alliances",
+      "allianceSetupRequests": "Alliance setup requests",
       "audit": "Audit log",
       "videoJobs": "Video jobs",
       "videoJobAnalytics": "Analytics",
@@ -508,6 +509,24 @@
       "joinCodeLabel": "Join code (shown once)",
       "joinCodeFailed": "Could not create join code.",
       "joinCodeCreated": "Join code generated."
+    },
+    "allianceSetupRequests": {
+      "title": "Alliance setup requests",
+      "subtitle": "Officers who skipped Ashed import in the Discord install wizard and need an HQ alliance created.",
+      "backToAdmin": "Back to admin portal",
+      "empty": "No open setup requests.",
+      "loadFailed": "Could not load setup requests.",
+      "dismissFailed": "Could not dismiss this request.",
+      "dismissed": "Request dismissed.",
+      "provisionButton": "Create alliance",
+      "dismissButton": "Dismiss",
+      "requesterEmail": "Requester: {email}",
+      "requesterUnknown": "Requester: unknown",
+      "tag": "Tag: {tag}",
+      "serverNumber": "Server: {number}",
+      "createdAt": "Submitted {date}",
+      "navLink": "Setup requests",
+      "openCount": "{count} open"
     },
     "commendationsPage": {
       "loadFailed": "Failed to load commendations.",
@@ -3502,6 +3521,11 @@
     "subtitle": "Sign in, link Discord, enter your alliance tag, connect Ashed, then add the bot. When Discord sends you back, your server is registered automatically.",
     "guideLink": "Getting started for R5",
     "botInstallError": "Could not start bot install. Try again or ask a platform maintainer.",
+    "errors": {
+      "allianceNotReady": "Submit an alliance setup request above, or wait for your alliance request to be approved.",
+      "provisionRequestOpen": "A setup request with this alliance tag is already pending.",
+      "tagNotEligible": "Alliance tag \"{tag}\" is not eligible for bot setup in this runtime environment."
+    },
     "steps": {
       "discord": {
         "title": "Link your Discord account",
@@ -3515,11 +3539,32 @@
         "label": "Alliance tag"
       },
       "ashed": {
-        "title": "Connect Ashed (recommended)",
-        "body": "If your alliance uses ashed.online, connect now so HQ imports your roster and keeps it in sync.",
-        "done": "Ashed connected for this tag.",
-        "skipNative": "We don't use Ashed — continue without roster sync",
-        "nativeSkipped": "If you're an R5, please reach out to @getboggled on Discord. If you're not, have your R5 reach out and we'll be happy to help!\n\nYou can still add the Discord bot, but full HQ setup for native alliances requires maintainer help first."
+        "title": "Import from Ashed (recommended)",
+        "body": "If your alliance is on ashed.online, connect now to import your alliance and roster into HQ.",
+        "done": "Alliance imported from Ashed for this tag.",
+        "skipImport": "Skip Ashed import for now",
+        "allianceNotOnHq": "Your alliance is not on HQ yet. Submit the form below so a platform maintainer can set it up, or <link>Join our Discord server</link>."
+      },
+      "allianceSetup": {
+        "title": "Request alliance setup",
+        "body": "Tell us your alliance name and state server. A platform maintainer will create your alliance on HQ, then you can add the Discord bot.",
+        "allianceNameLabel": "Alliance name",
+        "allianceNamePlaceholder": "Last Frontier Guardians",
+        "serverNumberLabel": "State server number",
+        "serverNumberHint": "Your Last War state server, e.g. 1203.",
+        "submitButton": "Submit setup request",
+        "submitting": "Submitting…",
+        "submitSuccess": "Your request was submitted.",
+        "submitFailed": "Could not submit setup request. Try again or <link>join our Discord server</link> for help.",
+        "fieldsRequired": "Alliance name and state server number are required.",
+        "serverNumberInvalid": "Enter a valid state server number (1–9999).",
+        "pendingTitle": "Setup request pending",
+        "pendingBody": "We received your request for tag {tag}. Once your alliance is on HQ, click Check again. Questions? <link>Join our Discord server</link>.",
+        "checkAgainButton": "Check again",
+        "checkingAgain": "Checking…",
+        "allianceReady": "Your alliance is on HQ.",
+        "continueButton": "Continue",
+        "botBlockedHint": "Finish alliance setup above before adding the bot."
       },
       "bot": {
         "title": "Add bot to Discord",
@@ -3537,9 +3582,9 @@
       "errorHeading": "Could not finish install",
       "expiredSession": "This install link expired. Open the install wizard and add the bot again.",
       "sessionMismatch": "This install was started by a different Alliance HQ account. Sign in with the same account and try again.",
-      "missingAlliance": "Connect Ashed or pick a registered tag before adding the bot.",
+      "missingAlliance": "Finish alliance setup in the install wizard before adding the bot.",
       "notOwner": "Only your R5, an R4+ officer with a linked commander, the person who linked Ashed credentials, or a platform maintainer can register this server.",
-      "noCredentials": "Connect Ashed first, or ask an R4+ officer or platform maintainer to register this server.",
+      "noCredentials": "Finish alliance setup, or ask an R4+ officer or platform maintainer to register this server.",
       "noHqLink": "Link your Discord account in the install wizard before adding the bot.",
       "genericError": "Something went wrong registering this server. Try the install wizard again.",
       "successHeading": "Server registered!",

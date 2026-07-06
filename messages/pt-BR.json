@@ -138,6 +138,7 @@
       "system": "Sistema",
       "gameSeasons": "Temporadas do jogo",
       "alliances": "Alianças",
+      "allianceSetupRequests": "Solicitações de configuração de aliança",
       "audit": "Log de auditoria",
       "videoJobs": "Jobs de vídeo",
       "hqEvents": "Eventos HQ",
@@ -508,6 +509,24 @@
       "joinCodeLabel": "Código (mostrado uma vez)",
       "joinCodeFailed": "Não foi possível criar o código.",
       "joinCodeCreated": "Código gerado."
+    },
+    "allianceSetupRequests": {
+      "title": "Solicitações de configuração de aliança",
+      "subtitle": "Oficiais que pularam a importação do Ashed no assistente de instalação do Discord e precisam de uma aliança criada no HQ.",
+      "backToAdmin": "Voltar ao portal admin",
+      "empty": "Nenhuma solicitação de configuração aberta.",
+      "loadFailed": "Não foi possível carregar as solicitações de configuração.",
+      "dismissFailed": "Não foi possível dispensar esta solicitação.",
+      "dismissed": "Solicitação dispensada.",
+      "provisionButton": "Criar aliança",
+      "dismissButton": "Dispensar",
+      "requesterEmail": "Solicitante: {email}",
+      "requesterUnknown": "Solicitante: desconhecido",
+      "tag": "Tag: {tag}",
+      "serverNumber": "Servidor: {number}",
+      "createdAt": "Enviada em {date}",
+      "navLink": "Solicitações de configuração",
+      "openCount": "{count} abertas"
     },
     "commendationsPage": {
       "loadFailed": "Falha ao carregar comendações.",
@@ -3502,6 +3521,11 @@
     "subtitle": "Entre, vincule o Discord, informe a tag da aliança, conecte o Ashed e adicione o bot. Quando o Discord redirecionar de volta, seu servidor será registrado automaticamente.",
     "guideLink": "Primeiros passos — R5",
     "botInstallError": "Não foi possível iniciar a instalação do bot. Tente novamente ou fale com um mantenedor da plataforma.",
+    "errors": {
+      "allianceNotReady": "Envie uma solicitação de configuração de aliança acima ou aguarde a aprovação da sua solicitação.",
+      "provisionRequestOpen": "Já existe uma solicitação de configuração pendente com esta tag de aliança.",
+      "tagNotEligible": "A tag de aliança \"{tag}\" não é elegível para instalação do bot neste ambiente."
+    },
     "steps": {
       "discord": {
         "title": "Vincule sua conta Discord",
@@ -3515,11 +3539,32 @@
         "label": "Tag da aliança"
       },
       "ashed": {
-        "title": "Conectar Ashed (recomendado)",
-        "body": "Se sua aliança usa ashed.online, conecte agora para importar o roster e mantê-lo sincronizado.",
-        "done": "Ashed conectado para esta tag.",
-        "skipNative": "Não usamos Ashed — continuar sem sincronização de roster",
-        "nativeSkipped": "Se você é R5, fale com @getboggled no Discord. Se não for, peça ao seu R5 para entrar em contato — teremos prazer em ajudar!\n\nVocê ainda pode adicionar o bot Discord, mas a configuração completa do HQ para alianças nativas exige ajuda do mantenedor primeiro."
+        "title": "Importar do Ashed (recomendado)",
+        "body": "Se sua aliança está no ashed.online, conecte agora para importar a aliança e o roster para o HQ.",
+        "done": "Aliança importada do Ashed para esta tag.",
+        "skipImport": "Pular importação do Ashed por enquanto",
+        "allianceNotOnHq": "Sua aliança ainda não está no HQ. Envie o formulário abaixo para um mantenedor da plataforma configurar, ou <link>entre no nosso servidor Discord</link>."
+      },
+      "allianceSetup": {
+        "title": "Solicitar configuração da aliança",
+        "body": "Informe o nome da aliança e o servidor de estado. Um mantenedor da plataforma criará sua aliança no HQ; depois você poderá adicionar o bot Discord.",
+        "allianceNameLabel": "Nome da aliança",
+        "allianceNamePlaceholder": "Last Frontier Guardians",
+        "serverNumberLabel": "Número do servidor de estado",
+        "serverNumberHint": "Seu servidor de estado no Last War, ex.: 1203.",
+        "submitButton": "Enviar solicitação de configuração",
+        "submitting": "Enviando…",
+        "submitSuccess": "Sua solicitação foi enviada.",
+        "submitFailed": "Não foi possível enviar a solicitação de configuração. Tente novamente ou <link>entre no nosso servidor Discord</link> para obter ajuda.",
+        "fieldsRequired": "Nome da aliança e número do servidor de estado são obrigatórios.",
+        "serverNumberInvalid": "Informe um número de servidor de estado válido (1–9999).",
+        "pendingTitle": "Solicitação de configuração pendente",
+        "pendingBody": "Recebemos sua solicitação para a tag {tag}. Quando sua aliança estiver no HQ, clique em Verificar novamente. Dúvidas? <link>Entre no nosso servidor Discord</link>.",
+        "checkAgainButton": "Verificar novamente",
+        "checkingAgain": "Verificando…",
+        "allianceReady": "Sua aliança está no HQ.",
+        "continueButton": "Continuar",
+        "botBlockedHint": "Conclua a configuração da aliança acima antes de adicionar o bot."
       },
       "bot": {
         "title": "Adicionar bot ao Discord",
@@ -3537,9 +3582,9 @@
       "errorHeading": "Não foi possível concluir a instalação",
       "expiredSession": "Este link de instalação expirou. Abra o assistente e adicione o bot novamente.",
       "sessionMismatch": "Esta instalação foi iniciada por outra conta Alliance HQ. Entre com a mesma conta e tente de novo.",
-      "missingAlliance": "Conecte o Ashed ou escolha uma tag registrada antes de adicionar o bot.",
+      "missingAlliance": "Conclua a configuração da aliança no assistente de instalação antes de adicionar o bot.",
       "notOwner": "Somente seu R5, um oficial R4+ com comandante vinculado, quem vinculou credenciais Ashed para esta tag ou um mantenedor da plataforma pode registrar este servidor.",
-      "noCredentials": "Conecte o Ashed primeiro, ou peça a um oficial R4+ ou mantenedor para registrar este servidor.",
+      "noCredentials": "Conclua a configuração da aliança ou peça a um oficial R4+ ou mantenedor para registrar este servidor.",
       "noHqLink": "Vincule sua conta Discord no assistente antes de adicionar o bot.",
       "genericError": "Algo deu errado ao registrar este servidor. Tente o assistente novamente.",
       "successHeading": "Servidor registrado!",
