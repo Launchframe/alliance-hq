@@ -23,6 +23,9 @@ import { DEFAULT_ROSTER_OCR_CONFIG } from "@/lib/members/roster-ocr/types";
 const require = createRequire(import.meta.url);
 
 let workerInstance: Worker | null = null;
+let workerInitPromise: Promise<Worker> | null = null;
+/** Serialize recognize() — tesseract.js workers are not safe for concurrent use. */
+let recognizeChain: Promise<unknown> = Promise.resolve();
 
 function resolveTesseractWorkerPath(): string {
   return require.resolve("tesseract.js/src/worker-script/node/index.js");
@@ -52,10 +55,18 @@ export function buildTesseractWorkerOptions(): {
 }
 
 async function getWorker(): Promise<Worker> {
-  if (!workerInstance) {
-    workerInstance = await createWorker("eng", 1, buildTesseractWorkerOptions());
+  if (workerInstance) {
+    return workerInstance;
   }
-  return workerInstance;
+  if (!workerInitPromise) {
+    workerInitPromise = createWorker("eng", 1, buildTesseractWorkerOptions()).then(
+      (worker) => {
+        workerInstance = worker;
+        return worker;
+      },
+    );
+  }
+  return workerInitPromise;
 }
 
 export type OcrLineResult = {
@@ -73,38 +84,48 @@ export async function runTesseract(
   imageBuffer: Buffer,
   config: Partial<RosterOcrConfig> = {},
 ): Promise<OcrLineResult[]> {
-  const psm = config.tesseractPsm ?? DEFAULT_ROSTER_OCR_CONFIG.tesseractPsm ?? 6;
-  const minConf =
-    config.minWordConfidence ??
-    DEFAULT_ROSTER_OCR_CONFIG.minWordConfidence ??
-    40;
+  const run = async (): Promise<OcrLineResult[]> => {
+    const psm = config.tesseractPsm ?? DEFAULT_ROSTER_OCR_CONFIG.tesseractPsm ?? 6;
+    const minConf =
+      config.minWordConfidence ??
+      DEFAULT_ROSTER_OCR_CONFIG.minWordConfidence ??
+      40;
 
-  const worker = await getWorker();
+    const worker = await getWorker();
 
-  await worker.setParameters({
-    tessedit_pageseg_mode: String(psm) as Parameters<typeof worker.setParameters>[0]["tessedit_pageseg_mode"],
-    ...(config.charWhitelist
-      ? { tessedit_char_whitelist: config.charWhitelist }
-      : {}),
-  });
+    await worker.setParameters({
+      tessedit_pageseg_mode: String(psm) as Parameters<
+        typeof worker.setParameters
+      >[0]["tessedit_pageseg_mode"],
+      ...(config.charWhitelist
+        ? { tessedit_char_whitelist: config.charWhitelist }
+        : {}),
+    });
 
-  const { data } = await worker.recognize(imageBuffer);
+    const { data } = await worker.recognize(imageBuffer);
 
-  // Flatten all lines from all paragraphs
-  const lines: OcrLineResult[] = [];
-  for (const block of data.blocks ?? []) {
-    for (const para of block.paragraphs ?? []) {
-      for (const line of para.lines ?? []) {
-        const text = line.text.replace(/\n/g, " ").trim();
-        if (!text) continue;
-        const conf = line.confidence ?? 0;
-        if (conf < minConf) continue;
-        lines.push({ text, confidence: conf });
+    const lines: OcrLineResult[] = [];
+    for (const block of data.blocks ?? []) {
+      for (const para of block.paragraphs ?? []) {
+        for (const line of para.lines ?? []) {
+          const text = line.text.replace(/\n/g, " ").trim();
+          if (!text) continue;
+          const conf = line.confidence ?? 0;
+          if (conf < minConf) continue;
+          lines.push({ text, confidence: conf });
+        }
       }
     }
-  }
 
-  return lines;
+    return lines;
+  };
+
+  const result = recognizeChain.then(run, run);
+  recognizeChain = result.then(
+    () => undefined,
+    () => undefined,
+  );
+  return result;
 }
 
 /** Terminate the worker. Call during graceful shutdown if needed. */
@@ -112,5 +133,7 @@ export async function terminateTesseractWorker(): Promise<void> {
   if (workerInstance) {
     await workerInstance.terminate();
     workerInstance = null;
+    workerInitPromise = null;
+    recognizeChain = Promise.resolve();
   }
 }
