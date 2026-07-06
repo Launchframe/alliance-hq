@@ -337,6 +337,10 @@ export function ConnectionWalkthrough({
           setError(t("inviteRequired"));
           return;
         }
+        if (data.code === "ashed_connect_auth_mismatch") {
+          setError(t("authMismatch"));
+          return;
+        }
         setError(data.error ?? tc("connectionFailed"));
         return;
       }
@@ -650,6 +654,12 @@ export function ConnectionWalkthrough({
               >
                 {t("showSetupInstructions")}
               </button>
+            </p>
+          ) : null}
+
+          {error ? (
+            <p className="mt-4 text-sm text-[#f85149]" role="alert">
+              {error}
             </p>
           ) : null}
 
