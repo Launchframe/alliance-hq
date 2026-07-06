@@ -2,6 +2,8 @@
 
 import { useRef, type InputHTMLAttributes } from "react";
 
+import { FORM_SUBMIT_ENTER_KEY_HINT } from "@/lib/client/form-enter-submit.shared";
+
 type BaseProps = {
   value: string;
   onChange: (value: string) => void;
@@ -132,10 +134,14 @@ function HiddenCodeInput({
       autoCorrect="off"
       autoCapitalize={autoCapitalize ?? "off"}
       spellCheck={false}
-      enterKeyHint="send"
+      enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT}
       inputMode={inputMode}
       onKeyDown={(e) => {
-        if (e.key === "Enter") onSubmit?.();
+        if (e.key !== "Enter" || !onSubmit) return;
+        // Avoid double submit when the input sits inside a <form> (native Enter
+        // would also fire onSubmit on the form after this handler runs).
+        e.preventDefault();
+        onSubmit();
       }}
       aria-label={ariaLabel}
       className="absolute inset-0 h-full w-full cursor-text opacity-0"
