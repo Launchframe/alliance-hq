@@ -1,9 +1,24 @@
 import type { ReactNode } from "react";
 
+import { resolveDiscordInviteUrl } from "@/lib/discord/community-invite.shared";
+
 export function ashedLink(chunks: ReactNode) {
   return (
     <a
       href="https://ashed.online"
+      target="_blank"
+      rel="noreferrer"
+      className="text-[#58a6ff] hover:underline"
+    >
+      {chunks}
+    </a>
+  );
+}
+
+export function discordServerLink(chunks: ReactNode) {
+  return (
+    <a
+      href={resolveDiscordInviteUrl()}
       target="_blank"
       rel="noreferrer"
       className="text-[#58a6ff] hover:underline"

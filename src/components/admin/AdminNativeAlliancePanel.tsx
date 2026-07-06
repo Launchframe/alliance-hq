@@ -53,11 +53,19 @@ export type NativeAllianceOption = {
   name: string;
 };
 
+export type NativeAllianceCreateDraft = {
+  name?: string;
+  tag?: string;
+  gameServerNumber?: string;
+  ownerEmail?: string;
+};
+
 type Props = {
   nativeAlliances: NativeAllianceOption[];
   selectedAllianceId: string;
   onSelectAlliance: (allianceId: string) => void;
   onCreated: () => void;
+  initialCreateDraft?: NativeAllianceCreateDraft | null;
 };
 
 type InviteKind = "email" | "protected_link";
@@ -68,12 +76,15 @@ export function AdminNativeAlliancePanel({
   selectedAllianceId,
   onSelectAlliance,
   onCreated,
+  initialCreateDraft,
 }: Props) {
   const t = useTranslations("admin.nativeAlliance");
-  const [name, setName] = useState("");
-  const [tag, setTag] = useState("");
-  const [gameServerNumber, setGameServerNumber] = useState("");
-  const [ownerEmail, setOwnerEmail] = useState("");
+  const [name, setName] = useState(initialCreateDraft?.name ?? "");
+  const [tag, setTag] = useState(initialCreateDraft?.tag ?? "");
+  const [gameServerNumber, setGameServerNumber] = useState(
+    initialCreateDraft?.gameServerNumber ?? "",
+  );
+  const [ownerEmail, setOwnerEmail] = useState(initialCreateDraft?.ownerEmail ?? "");
   const [inviteKind, setInviteKind] = useState<InviteKind>("protected_link");
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteAdminLabel, setInviteAdminLabel] = useState("");

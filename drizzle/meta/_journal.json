@@ -540,6 +540,13 @@
       "when": 1785843200000,
       "tag": "0077_discord_bot_install_sessions",
       "breakpoints": true
+    },
+    {
+      "idx": 76,
+      "version": "7",
+      "when": 1785929600000,
+      "tag": "0078_alliance_setup_requests",
+      "breakpoints": true
     }
   ]
 }

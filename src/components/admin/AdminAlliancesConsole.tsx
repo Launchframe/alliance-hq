@@ -1,10 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 
 import { AdminNativeAlliancePanel } from "@/components/admin/AdminNativeAlliancePanel";
+import type { NativeAllianceCreateDraft } from "@/components/admin/AdminNativeAlliancePanel";
 import { AllianceSessionSwitcher } from "@/components/alliance/AllianceSessionSwitcher";
+import { Link } from "@/i18n/navigation";
 import { FormattedDateTime } from "@/components/timezone/TimezoneProvider";
 import { AppSelect } from "@/components/ui/AppSelect";
 import {
@@ -48,6 +51,23 @@ function isNativeAlliance(alliance: Alliance): boolean {
 export function AdminAlliancesConsole() {
   const t = useTranslations("admin.alliancesPage");
   const tNative = useTranslations("admin.nativeAlliance");
+  const tSetupRequests = useTranslations("admin.allianceSetupRequests");
+  const searchParams = useSearchParams();
+  const initialCreateDraft = useMemo((): NativeAllianceCreateDraft | null => {
+    const setupName = searchParams.get("setupName")?.trim();
+    const setupTag = searchParams.get("setupTag")?.trim();
+    const setupServer = searchParams.get("setupServer")?.trim();
+    const setupOwnerEmail = searchParams.get("setupOwnerEmail")?.trim();
+    if (!setupName && !setupTag && !setupServer && !setupOwnerEmail) {
+      return null;
+    }
+    return {
+      name: setupName || undefined,
+      tag: setupTag || undefined,
+      gameServerNumber: setupServer || undefined,
+      ownerEmail: setupOwnerEmail || undefined,
+    };
+  }, [searchParams]);
   const [alliances, setAlliances] = useState<Alliance[]>([]);
   const [inviteAllianceOptions, setInviteAllianceOptions] = useState<
     Array<{ id: string; slug: string; name: string }>
@@ -292,11 +312,20 @@ export function AdminAlliancesConsole() {
 
   return (
     <div className="space-y-8">
+      <p className="text-sm">
+        <Link
+          href="/admin/alliance-setup-requests"
+          className="text-[#58a6ff] hover:underline"
+        >
+          {tSetupRequests("navLink")}
+        </Link>
+      </p>
       <AdminNativeAlliancePanel
         nativeAlliances={inviteAllianceOptions}
         selectedAllianceId={effectiveInviteTargetAllianceId}
         onSelectAlliance={setInviteTargetAllianceId}
         onCreated={() => refreshAfterMutation()}
+        initialCreateDraft={initialCreateDraft}
       />
 
       {effectiveInviteTargetAllianceId ? (
