@@ -160,7 +160,7 @@ test.describe("Alliance Discord server setup panel", () => {
       page.getByText(/server they own or can manage/i),
     ).toBeVisible();
     await expect(
-      page.getByText(/R5 owner, R4\+ officer with a linked commander, or platform maintainer/i),
+      page.getByText(/alliance owner, R4\+ officer, or platform maintainer/i),
     ).toBeVisible();
 
     const installLink = page.getByRole("link", {

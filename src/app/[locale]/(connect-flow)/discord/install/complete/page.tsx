@@ -75,7 +75,9 @@ export default async function DiscordInstallCompletePage({
               ? "notOwner"
               : result.reason === "no_credentials"
                 ? "noCredentials"
-                : "genericError";
+                : result.reason === "no_hq_link"
+                  ? "noHqLink"
+                  : "genericError";
 
     return (
       <main className="flex min-h-[60vh] items-center justify-center p-6">
