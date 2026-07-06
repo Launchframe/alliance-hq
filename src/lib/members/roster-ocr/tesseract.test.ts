@@ -9,7 +9,9 @@ afterEach(() => {
 describe("buildTesseractWorkerOptions", () => {
   it("omits langPath by default so tesseract.js uses CDN traineddata", () => {
     vi.stubEnv("TESSERACT_LANG_PATH", "");
-    expect(buildTesseractWorkerOptions().langPath).toBeUndefined();
+    const options = buildTesseractWorkerOptions();
+    expect(options.langPath).toBeUndefined();
+    expect(options.workerPath).toContain("worker-script/node/index.js");
   });
 
   it("passes trimmed TESSERACT_LANG_PATH when set", () => {

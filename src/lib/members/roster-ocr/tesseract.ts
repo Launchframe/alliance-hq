@@ -13,19 +13,35 @@
  *    traineddata files (tesseract.js v7+).
  */
 
+import { createRequire } from "node:module";
+import path from "node:path";
+
 import { createWorker, type Worker } from "tesseract.js";
 
 import type { RosterOcrConfig } from "@/lib/members/roster-ocr/types";
 import { DEFAULT_ROSTER_OCR_CONFIG } from "@/lib/members/roster-ocr/types";
 
+const require = createRequire(import.meta.url);
+
 let workerInstance: Worker | null = null;
+
+function resolveTesseractWorkerPath(): string {
+  const pkgRoot = path.dirname(require.resolve("tesseract.js/package.json"));
+  return path.join(pkgRoot, "src/worker-script/node/index.js");
+}
 
 /** Optional worker options — only set langPath when explicitly configured. */
 export function buildTesseractWorkerOptions(): {
+  workerPath: string;
   langPath?: string;
   logger?: typeof console.log;
 } {
-  const options: { langPath?: string; logger?: typeof console.log } = {
+  const options: {
+    workerPath: string;
+    langPath?: string;
+    logger?: typeof console.log;
+  } = {
+    workerPath: resolveTesseractWorkerPath(),
     logger: process.env.NODE_ENV === "development" ? console.log : undefined,
   };
 
