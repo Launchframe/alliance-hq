@@ -197,6 +197,37 @@ describe("runWebMemberLinkAskOfficer", () => {
     expect(JSON.stringify(payload)).not.toMatch(/1001369694001203/);
   });
 
+  it("resolves uid from roster_miss pending when input omits gameUid", async () => {
+    vi.mocked(repository.getHqMemberLinkPending).mockResolvedValue({
+      allianceId: "a1",
+      pending: {
+        kind: "link_roster_miss",
+        gameUid: validUid,
+        reportedName: validName,
+      },
+    });
+
+    const result = await runWebMemberLinkAskOfficer({
+      sessionId: "sess-1",
+      allianceId: "a1",
+      hqUserId: "u1",
+      locale: "en-US",
+    });
+
+    expect(result.outcome).toBe("officer_notified");
+    expect(recordMemberLinkHelpRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        reportedName: validName,
+        gameUid: validUid,
+      }),
+    );
+    expect(repository.saveHqMemberLinkPending).toHaveBeenCalledWith(
+      "a1",
+      "u1",
+      null,
+    );
+  });
+
   it("notifies officers and clears pending when roster_miss is active", async () => {
     vi.mocked(repository.getHqMemberLinkPending).mockResolvedValue({
       allianceId: "a1",
