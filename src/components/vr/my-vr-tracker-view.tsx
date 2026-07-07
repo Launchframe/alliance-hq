@@ -199,7 +199,7 @@ export function MyVrTrackerView({ initial }: Props) {
 
       {data.vrSandboxActive ? (
         <p
-          className="rounded-lg border border-[#d29922]/50 bg-[#d2992210] px-4 py-3 text-sm text-[#d29922]"
+          className="rounded-lg border border-hq-warning/50 bg-hq-warning/10 px-4 py-3 text-sm text-hq-warning"
           role="status"
           data-testid="my-vr-sandbox-notice"
         >
@@ -277,7 +277,7 @@ export function MyVrTrackerView({ initial }: Props) {
 
           {hasReported ? (
             <label className="flex items-center justify-between gap-3 rounded-xl border border-hq-border bg-hq-surface px-4 py-3">
-              <span className="min-w-0 text-sm text-[#c9d1d9]">
+              <span className="min-w-0 text-sm text-hq-fg">
                 {t("weeklyPassLabel")}
               </span>
               <input
@@ -343,7 +343,7 @@ export function MyVrTrackerView({ initial }: Props) {
               <div className="space-y-3 border-t border-hq-border px-4 py-4">
                 {data.percentile ? (
                   <>
-                    <p className="text-sm text-[#c9d1d9]">
+                    <p className="text-sm text-hq-fg">
                       {t("percentileRank", {
                         rank: data.percentile.rank,
                         count: data.percentile.reporterCount,
