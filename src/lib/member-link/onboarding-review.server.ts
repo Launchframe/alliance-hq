@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, count, desc, eq, inArray } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { writeAuditLog } from "@/lib/bff/audit";
@@ -185,8 +185,17 @@ export async function listPendingOnboardingReviews(
 export async function countPendingOnboardingReviews(
   allianceId: string,
 ): Promise<number> {
-  const rows = await listPendingOnboardingReviews(allianceId);
-  return rows.length;
+  const db = getDb();
+  const [result] = await db
+    .select({ total: count() })
+    .from(schema.hqMemberOnboardingReviews)
+    .where(
+      and(
+        eq(schema.hqMemberOnboardingReviews.allianceId, allianceId),
+        eq(schema.hqMemberOnboardingReviews.status, "pending"),
+      ),
+    );
+  return result?.total ?? 0;
 }
 
 async function resolveReviewStatus(input: {
@@ -337,6 +346,6 @@ export async function canSessionReviewOnboardingLinks(input: {
   const alliance = await loadAllianceMemberOnboardingRow(input.allianceId);
   if (!alliance) return false;
   const ctx = await getRbacContext(input.sessionId);
-  if (!alliance || !ctx) return false;
+  if (!ctx) return false;
   return canReviewMemberLinks(ctx, alliance);
 }

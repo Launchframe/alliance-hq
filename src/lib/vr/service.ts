@@ -512,6 +512,28 @@ async function finalizeDiscordMemberLink(input: {
       return resolvedResult;
     }
 
+    if (selfService.reason === "member_taken") {
+      await saveDiscordBotPending(input.allianceId, input.discordUserId, null);
+      resolvedResult = {
+        ...resolvedResult,
+        reply: translate("link.memberTaken"),
+        pending: null,
+        memberTaken: true,
+      };
+      await audit(
+        input.allianceId,
+        input.discordUserId,
+        input.auditAction ?? "link",
+        input,
+        {
+          ...resolvedResult,
+          selfService: false,
+          diagnostics: linkDiagnostics,
+        },
+      );
+      return resolvedResult;
+    }
+
     const suggestion = findUniqueSubstringRosterCandidate(
       finalRosterMembers,
       gameUserName,
