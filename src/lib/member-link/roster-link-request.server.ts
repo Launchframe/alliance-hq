@@ -305,6 +305,11 @@ async function resolveMemberLinkServerGate(input: {
   return { ok: true, playerServer };
 }
 
+function isColdStartEligibleInviteRole(roleId: string): boolean {
+  const roleName = systemRoleNameForId(roleId);
+  return roleName === "owner" || roleName === "officer";
+}
+
 async function resolveColdStartOwnerGate(input: {
   allianceId: string;
   hqUserId: string;
@@ -324,7 +329,7 @@ async function resolveColdStartOwnerGate(input: {
     input.allianceId,
     input.hqUserId,
   );
-  if (invite && systemRoleNameForId(invite.roleId) === "owner") {
+  if (invite && isColdStartEligibleInviteRole(invite.roleId)) {
     return { allowed: true, inviteId: invite.id };
   }
 
