@@ -36,4 +36,24 @@ describe("resolveAllianceSwitchTargetPath", () => {
       }),
     ).toBe("/members");
   });
+
+  it("redirects to Ashed landing when switching from a native HQ path", () => {
+    expect(
+      resolveAllianceSwitchTargetPath({
+        currentPath: "/members",
+        apiRedirectPath: "/dashboard",
+        targetOperatingMode: "ashed",
+      }),
+    ).toBe("/dashboard");
+  });
+
+  it("preserves native HQ path when target alliance is also native", () => {
+    expect(
+      resolveAllianceSwitchTargetPath({
+        currentPath: "/members",
+        apiRedirectPath: "/members",
+        targetOperatingMode: "native",
+      }),
+    ).toBe("/members");
+  });
 });

@@ -28,7 +28,16 @@ export function isNativeHqPath(pathname: string): boolean {
 export function resolveAllianceSwitchTargetPath(input: {
   currentPath: string;
   apiRedirectPath: string;
+  /** When switching into an Ashed alliance, leave native-only HQ pages so the shell reloads with embed nav. */
+  targetOperatingMode?: "ashed" | "native" | null;
 }): string {
+  if (
+    input.targetOperatingMode === "ashed" &&
+    isNativeHqPath(input.currentPath)
+  ) {
+    return input.apiRedirectPath;
+  }
+
   if (isNativeHqPath(input.currentPath)) {
     return input.currentPath;
   }
