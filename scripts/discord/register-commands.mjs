@@ -31,15 +31,6 @@ const vrLevelOption = {
 
 const commanderLinkOptions = [
   {
-    name: "uid",
-    description: "12–16 digit player ID from your in-game profile menu.",
-    description_localizations: {
-      "pt-BR": "ID de jogador (12–16 dígitos) no menu do perfil no jogo.",
-    },
-    type: 3,
-    required: true,
-  },
-  {
     name: "replace",
     description:
       "Replace all your linked commanders with this one (switch main character).",

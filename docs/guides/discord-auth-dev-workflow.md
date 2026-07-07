@@ -6,7 +6,7 @@ Use this workflow to test Discord auth without waiting on a deployed Discord bot
 
 - **Install wizard** (`/discord/setup`): primary path — HQ sign-in, Discord link, tag, Ashed walkthrough, bot OAuth with redirect to `/discord/install/complete` (auto-registers the guild).
 - `/link` with no options: Discord returns a browser URL; the browser page starts **Discord OAuth** to bind `discord_hq_links` (recovery when the wizard was skipped).
-- `/link-commander name:... uid:...` (or `/link-last-war-profile`): links a commander inline in a **registered** guild.
+- `/link-commander` (or `/link-last-war-profile`): returns a secure HTTPS link to enter player ID in a registered guild.
 - `/link-alliance tag:...`: binds a guild when the caller is proven as owner by member link or platform maintainer.
 - `/link-ashed tag:...`: opens the Ashed connection-key flow (requires HQ link from `/link` first).
 - Bad signatures, unregistered guilds, wrong names, used/expired nonces, and UID conflicts.
@@ -235,7 +235,7 @@ npm run discord:register-commands
 7. In the dev guild, run the same smoke checklist:
 
 - `/link` opens the Discord OAuth browser flow (no alliance required).
-- `/link-commander name:... uid:...` links inline in a registered guild.
+- `/link-commander` returns a secure link to enter player ID in a registered guild.
 - `/link-alliance tag:...` works for an owner proven by member link.
 - `/link-ashed tag:...` opens the Ashed key form after HQ link.
 

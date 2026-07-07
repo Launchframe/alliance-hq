@@ -115,14 +115,11 @@ export function parseVrSlashLevel(
 }
 
 export function parseLinkSlashOptions(payload: DiscordInteractionPayload): {
-  uid?: string;
   replace?: boolean;
 } {
   const replaceOption = payload.data?.options?.find((o) => o.name === "replace");
-  return {
-    uid: parseSlashOptionString(payload, "uid"),
-    replace: replaceOption?.value === true,
-  };
+  if (replaceOption == null) return {};
+  return { replace: replaceOption.value === true };
 }
 
 export type ParsedButton =

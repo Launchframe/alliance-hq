@@ -57,13 +57,11 @@ describe("discord interactions", () => {
       parseLinkSlashOptions({
         type: 2,
         data: {
-          options: [
-            { name: "uid", type: 3, value: "1234567890121203" },
-            { name: "replace", type: 5, value: true },
-          ],
+          options: [{ name: "replace", type: 5, value: true }],
         },
       }),
-    ).toEqual({ uid: "1234567890121203", replace: true });
+    ).toEqual({ replace: true });
+    expect(parseLinkSlashOptions({ type: 2, data: { options: [] } })).toEqual({});
   });
 
   it("parses button custom ids", () => {
