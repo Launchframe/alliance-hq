@@ -3449,7 +3449,7 @@
       "tagNotFoundWithHq": "No alliance found with tag **{tag}**. Check the spelling on ashed.online, or run `/link-ashed tag:{tag}` if your alliance is not in Alliance HQ yet.",
       "tagRequired": "Add your alliance tag. Example: `/link-alliance tag:LFgo` or `/link-ashed tag:LFgo`.",
       "tagNotEligible": "Alliance tag **{tag}** is not currently eligible for bot setup on this deployment.",
-      "linkAllianceNeedCommander": "Link your commander with `/link-commander uid:…`, then run `/link-alliance tag:{tag}`. **Optional:** `/link-ashed tag:{tag}` enables live Ashed roster sync.",
+      "linkAllianceNeedCommander": "Link your commander with `/link-commander`, then run `/link-alliance tag:{tag}`. **Optional:** `/link-ashed tag:{tag}` enables live Ashed roster sync.",
       "linkHqFirst": "Link your Alliance HQ account first — run `/link` in Discord, then run `/help` for setup steps.",
       "tagAmbiguous": "We found multiple alliances with tag **{tag}**. Reply with `/link-alliance tag:{tag} name:Your Alliance Name` to pick the right one.",
       "notOwner": "Only your **R5 (alliance owner)**, an R4+ officer with a linked commander, the person who linked Ashed credentials for this tag, or a platform maintainer can register this server. Run `/help` or see Getting started for R5 on Alliance HQ.",
@@ -3457,23 +3457,24 @@
       "insufficientForTeams": "Need at least **{needed}** VR reporters for **{teams}** takedown teams (5 players each). Only **{have}** on the board right now.",
       "teamsRequired": "Add `teams:N` (1–5). Example: `/takedown-teams teams:2` for two rally teams.",
       "teamsTooMany": "At most **{max}** takedown teams per request. Example: `/vr-report teams:3`.",
-      "hqLinkRequired": "Link your in-game commander first with `/link-commander uid:…`, then try again.",
+      "hqLinkRequired": "Link your in-game commander first with `/link-commander`, then try again.",
       "waitForGuildRegistration": "This server is not registered to an alliance yet. Wait for the owner to finish setup, or run `/help` for the owner checklist.",
       "invalidLanguage": "Choose English or Português.",
       "nothingPending": "Nothing to pick right now.",
       "noWalkthrough": "No walkthrough in progress.",
       "noConfirm": "Nothing to confirm right now.",
-      "askOfficerNeedsNameAndUid": "Enter your player UID with `/link-commander` before asking an officer for help."
+      "askOfficerNeedsNameAndUid": "Run `/link-commander` and complete the secure link before asking an officer for help."
     },
     "link": {
       "userPrompt": "Click the link below to link your Discord account to Alliance HQ (expires in 30 min):\n{url}\n\nAfter linking, run `/help` in Discord for your next step.",
-      "promptFirstCommander": "Would you like to link your first Last War commander? Run `/link-commander uid:…` (copy your player UID from your in-game profile).",
-      "usage": "Usage: `/link-commander uid:…` (or `/link-last-war-profile uid:…`). Add another commander anytime; use `replace:true` to switch your only link. Use `/unlink` to remove one.",
+      "commanderPrompt": "Open this secure link to enter your player ID (expires in 30 min):\n{url}\n\nYour player ID is never shared in Discord chat.",
+      "promptFirstCommander": "Would you like to link your first Last War commander? Run `/link-commander` for a secure link.",
+      "usage": "Run `/link-commander` (or `/link-last-war-profile`) for a secure link to enter your player ID. Use `replace:true` to switch your only link. Use `/unlink` to remove one.",
       "confirmIdentity": "**{name}** — Is this you? We found this commander for that player UID.",
       "confirmIdentityServer": "State server {server}",
       "confirmIdentityYes": "Yes, that's me",
       "confirmIdentityNo": "No, re-enter my UID",
-      "confirmIdentityDeclined": "No problem. Run `/link-commander uid:…` again with the correct player UID when ready.",
+      "confirmIdentityDeclined": "No problem. Run `/link-commander` again when ready.",
       "confirmExpired": "That confirmation expired. Run `/link-commander` again.",
       "linked": "Linked commander **{name}**. You're ready to use /vr.",
       "linkedAdditional": "Linked another commander: **{name}**. Use /vr and pick which commander when you have more than one.",
@@ -3493,7 +3494,7 @@
       "rosterFull": "Your alliance is full. Last War verified **{gameName}**, but we could not find **{gameName}** in your alliance and there is not enough room in your alliance for us to create a new member. An officer will review your link request.",
       "rosterUnavailable": "We verified your UID with the game, but couldn't load the alliance roster. Ask an officer to refresh the roster or help with setup.",
       "pickExpired": "That commander option expired. Run `/link-commander` again.",
-      "walkthroughDone": "Great. Run `/link-commander uid:…` again when ready.",
+      "walkthroughDone": "Great. Run `/link-commander` again when ready.",
       "walkthroughIntro": "Let's get your player UID right.",
       "walkthroughTapDone": "Tap **Done** when you've finished this step.",
       "nameMismatchIntro": "We couldn't verify that UID. Follow these steps and try again.",
@@ -3501,11 +3502,11 @@
         "Open Last War and go to your Player Profile (tap your avatar, then … in the top right).",
         "Copy your player UID from that screen — you can copy your own player ID.",
         "Double-check every digit before you confirm.",
-        "Run `/link-commander uid:…` again with the correct UID."
+        "Run `/link-commander` again on Discord to open the secure link."
       ]
     },
     "vr": {
-      "notLinked": "First, copy your Commander UID from your in-game profile (Last War → tap your avatar → … → Copy player ID). Then run `/link-commander uid:…` with that UID to link your character.",
+      "notLinked": "First, run `/link-commander` on Discord for a secure link. Enter your player ID from Last War (tap avatar → … → Copy player ID) on that page to link your character.",
       "pickCharacter": "Which character is this VR for?",
       "success": "Got it! Institute level {level} — effective VR {effectiveVr}.",
       "downgradeLimit": "Institute level can't drop more than one below your season high.",
@@ -3525,7 +3526,7 @@
       "deactivated": "Weekly pass deactivated."
     },
     "setup": {
-      "linkAllianceSuccess": "Registered this server for **{tag}**. Members can now link with `/link-commander uid:…` and report institute level with `/vr`.",
+      "linkAllianceSuccess": "Registered this server for **{tag}**. Members can now link with `/link-commander` and report institute level with `/vr`.",
       "linkAshedSeatPrompt": "Click the link below to securely connect your Ashed credentials for **{tag}** (expires in 30 min):\n{url}\n\nNext: return to Discord and run `/link-alliance tag:{tag}` to register this server.",
       "languageSuccess": "Language updated."
     },
@@ -3565,10 +3566,10 @@
       "dmGeneral": "**Alliance HQ bot** — run `/help` in your alliance server for steps matched to your role.\n\nQuick list: `/link`, `/link-commander`, `/vr`, `/immunity`, `/who-is-conductor`, `/language`. Owners set up with `/link-alliance`. Officers (R4+): `/vr-report`, `/set-conductor`, `/train-is-ready`.\n\n**Full setup guide:** {guideUrl}",
       "setupLinkHq": "Link your Discord account to Alliance HQ: run `/link` and complete the browser sign-in.",
       "setupOwnerLinkHq": "This server isn't registered yet. **R5:** open the install wizard in your browser (sign in, tag, Ashed, add bot).\n\n**Install wizard:** {installWizardUrl}\n\n**Guide:** {guideUrl}",
-      "setupOwnerLinkCommander": "Register this server with the install wizard, then run **`/link-commander uid:…`**.\n\n**Install wizard:** {installWizardUrl}\n\n**Guide:** {guideUrl}",
+      "setupOwnerLinkCommander": "Register this server with the install wizard, then run **`/link-commander`**.\n\n**Install wizard:** {installWizardUrl}\n\n**Guide:** {guideUrl}",
       "setupLinkAlliance": "Use the install wizard to register this server, or **`/link-alliance tag:{tag}`** if you already completed Ashed setup.\n\n**Install wizard:** {installWizardUrl}\n\n**Guide:** {guideUrl}",
       "waitForOwnerAuth": "Waiting for the alliance owner to register this server with `/link-alliance`. Link your commander with `/link-commander` once the server is registered.",
-      "linkCommander": "Link your commander: `/link-commander uid:…` (copy your player UID from your in-game profile). Confirm the commander name when prompted.\n\n**Guide:** {guideUrl}",
+      "linkCommander": "Link your commander: run `/link-commander` in Discord, open the secure link, and enter your player ID from your in-game profile. Confirm the commander name when prompted.\n\n**Guide:** {guideUrl}",
       "memberReady": "You're linked. Use `/vr` or `/immunity` when your base VR changes. `/who-is-conductor` shows today's train conductor.\n\n**Guide:** {guideUrl}",
       "memberReadyMulti": "You have **{count}** linked commanders. `/vr` and `/immunity` will ask which one. `/unlink` removes a link.\n\n**Guide:** {guideUrl}",
       "ownerReady": "You're linked as owner (**{tag}**). Finish setup: `/set-vr-report-channel`, `/set-train-channel`, then share `/link-commander` with members.\n\n**Guide:** {guideUrl}",
@@ -3612,9 +3613,34 @@
     "errorPrefix": "Something went wrong:",
     "missingNonce": "No authorization link found. Return to Discord and run the setup command again (`/link` for HQ account linking, or `/help` for next steps).",
     "allianceUnknownNoHqLink": "This Discord server isn't registered to an alliance yet. If you're the alliance owner, run `/link` in Discord first, then run `/help` for setup steps. Otherwise ask your owner to finish setup.",
-    "allianceUnknownWithHqLink": "This Discord server isn't registered to an alliance yet. As the alliance owner, run `/link-commander uid:…`, then `/link-alliance tag:YourTag`. **Optional:** `/link-ashed tag:YourTag` for live Ashed roster sync. Members can link commanders with `/link-commander` after the server is registered.",
+    "allianceUnknownWithHqLink": "This Discord server isn't registered to an alliance yet. As the alliance owner, run `/link-commander`, then `/link-alliance tag:YourTag`. **Optional:** `/link-ashed tag:YourTag` for live Ashed roster sync. Members can link commanders with `/link-commander` after the server is registered.",
     "expiredHeading": "Link expired or already used",
     "expiredBody": "Return to Discord and run the setup command again to get a fresh link."
+  },
+  "discordMemberLink": {
+    "heading": "Link your Last War commander",
+    "subheading": "Enter your player ID on this secure page. It is never sent through Discord chat.",
+    "subheadingColdStart": "Enter your player ID on this secure page. If this server is not registered yet, we match your alliance from Last War after you submit.",
+    "missingNonce": "No link found. Return to Discord and run `/link-commander` again.",
+    "expiredHeading": "Link expired or already used",
+    "expiredBody": "Return to Discord and run `/link-commander` again to get a fresh link.",
+    "guildNotRegisteredHeading": "Server not registered yet",
+    "guildNotRegisteredBody": "This Discord server is not registered to an alliance yet. Ask your owner to finish setup, then run `/link-commander` again.",
+    "playerIdLabel": "Player ID",
+    "playerIdHint": "12–16 digits from Last War → your profile → Copy player ID.",
+    "replaceNote": "This link will replace all your existing commander links with the new one.",
+    "continue": "Continue",
+    "confirmHeading": "We found this commander for that player ID. Is this you?",
+    "confirmServer": "State server {server}",
+    "confirmYes": "Yes, that's me",
+    "confirmNo": "No, go back",
+    "fuzzyHeading": "Pick your commander from the roster:",
+    "successHeading": "Commander linked",
+    "successBody": "Linked **{name}**. Return to Discord — you're ready to use /vr and other bot commands.",
+    "officerHeading": "Officers notified",
+    "backToDiscord": "You can close this tab and return to Discord.",
+    "invalidPlayerId": "Enter a 12–16 digit player ID from your in-game profile.",
+    "genericError": "Something went wrong. Return to Discord and run `/link-commander` again."
   },
   "discordSetup": {
     "title": "Discord bot install wizard",
@@ -3688,7 +3714,7 @@
       "noHqLink": "Link your Discord account in the install wizard before adding the bot.",
       "genericError": "Something went wrong registering this server. Try the install wizard again.",
       "successHeading": "Server registered!",
-      "successBody": "Your Discord server is linked to **{tag}**. Return to Discord and run `/link-commander uid:…` with your player UID.",
+      "successBody": "Your Discord server is linked to **{tag}**. Return to Discord and run `/link-commander` to link your commander.",
       "nextGuideLink": "Link your commander — setup guide →"
     }
   },
@@ -3782,8 +3808,8 @@
         "linkSelf": {
           "title": "Link your commander",
           "summary": "Match your in-game character with your player UID — confirm the commander name when prompted.",
-          "command": "/link-commander uid:123456789012 — or /link-last-war-profile with the same option",
-          "instructions": "Your Discord server must be registered first (the install wizard does this automatically).\n\nIn Discord:\n1. Copy your player UID from your Last War profile.\n2. Run /link-commander uid:123456789012.\n3. Confirm the commander name when prompted.\n\nYou can link up to 5 commanders per Discord account. Use /unlink to remove one.",
+          "command": "/link-commander — or /link-last-war-profile (same flow)",
+          "instructions": "Your Discord server must be registered first (the install wizard does this automatically).\n\nIn Discord:\n1. Run /link-commander.\n2. Open the secure link and enter your player ID from your Last War profile.\n3. Confirm the commander name when prompted.\n\nYou can link up to 5 commanders per Discord account. Use /unlink to remove one.",
           "tip": "Copy your player UID from your Last War profile menu. Double-check the digits before you tap Yes."
         },
         "registerGuild": {
@@ -3813,7 +3839,7 @@
         "tellMembers": {
           "title": "Tell members to link",
           "summary": "Share the member path so roster members can link commanders and report VR.",
-          "instructions": "Post a short note in your alliance channel:\n• Run /link-commander uid:… (copy player UID from the in-game profile).\n• Confirm the commander name when prompted.\n• Use /vr or /immunity when your base VR changes."
+          "instructions": "Post a short note in your alliance channel:\n• Run /link-commander and complete the secure link (player ID from the in-game profile).\n• Confirm the commander name when prompted.\n• Use /vr or /immunity when your base VR changes."
         },
         "serverPrereq": {
           "title": "Confirm the server is registered",
@@ -3835,7 +3861,7 @@
         "helpMembers": {
           "title": "Help members who are stuck",
           "summary": "Point members to the link-only guide path when they cannot get their UID or confirm identity.",
-          "instructions": "Common fixes:\n• Wrong commander on confirm — tap No and run /link-commander uid:… again with the correct player UID.\n• Roster miss — refresh the roster on Alliance HQ or approve their link as an officer.\n• Still stuck — share the link-only role path from this guide, or help them use Ask an officer."
+          "instructions": "Common fixes:\n• Wrong commander on confirm — tap No and run /link-commander again with the correct player ID on the secure page.\n• Roster miss — refresh the roster on Alliance HQ or approve their link as an officer.\n• Still stuck — share the link-only role path from this guide, or help them use Ask an officer."
         },
         "reportVr": {
           "title": "Report base VR",
@@ -3866,11 +3892,11 @@
         "expand": "Show help",
         "copyNameUid": {
           "title": "Getting your player UID",
-          "body": "Open Last War → tap your avatar → tap … (top right) on your profile.\n\n• **UID:** tap Copy on your player ID — you can copy your own UID.\n\nRun /link-commander uid:… with that UID, then confirm the commander name when prompted."
+          "body": "Open Last War → tap your avatar → tap … (top right) on your profile.\n\n• **Player ID:** tap Copy on your player ID — you can copy your own ID.\n\nRun /link-commander on Discord, open the secure link, enter that ID, then confirm the commander name when prompted."
         },
         "nameMismatch": {
           "title": "Wrong commander on confirm",
-          "body": "You tapped No on the identity prompt, or the name didn't look right. Run /link-commander uid:… again with the correct player UID and confirm only when the commander name matches you."
+          "body": "You tapped No on the identity prompt, or the name didn't look right. Run /link-commander again, enter the correct player ID on the secure page, and confirm only when the commander name matches you."
         },
         "rosterMiss": {
           "title": "Name not on the roster yet",

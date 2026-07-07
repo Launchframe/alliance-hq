@@ -5,6 +5,7 @@ import {
   type DiscordBotLocale,
   type DiscordTranslate,
 } from "@/lib/discord/i18n";
+import { createDiscordAuthNonce } from "@/lib/vr/auth-nonce";
 import { lookupPlayerByUid } from "@/lib/lastwar/player-lookup";
 import type { LastWarPlayerLookupResult } from "@/lib/lastwar/player-lookup";
 import { syncCommanderIdentityFromMemberLink } from "@/lib/members/commander-identity.server";
@@ -85,12 +86,13 @@ export { handleDiscordVrReport } from "@/lib/vr/bot-vr-report";
 export { resolveDiscordAllianceId, resolveAllianceForGuild } from "@/lib/vr/repository";
 
 async function audit(
-  allianceId: string,
+  allianceId: string | null,
   discordUserId: string,
   command: string,
   payload: unknown,
   result: unknown,
 ) {
+  if (!allianceId) return;
   try {
     await writeDiscordBotAudit({
       allianceId,
@@ -590,8 +592,32 @@ async function finalizeDiscordMemberLink(input: {
   return resolvedResult;
 }
 
+async function issueDiscordMemberLinkPrompt(input: {
+  allianceId: string | null;
+  guildId?: string | null;
+  discordUserId: string;
+  replaceAll?: boolean;
+  locale: DiscordBotLocale;
+}): Promise<LinkCommandResult> {
+  const { translate } = botContext(input.locale);
+  const nonce = await createDiscordAuthNonce({
+    discordUserId: input.discordUserId,
+    guildId: input.guildId ?? null,
+    purpose: "member_link",
+    memberLinkReplaceAll: input.replaceAll,
+  });
+  const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "").replace(/\/$/, "");
+  const url = `${appUrl}/discord/link-commander?nonce=${nonce}`;
+  const result: LinkCommandResult = {
+    reply: translate("link.commanderPrompt", { url }),
+    pending: null,
+  };
+  await audit(input.allianceId, input.discordUserId, "link", input, result);
+  return result;
+}
+
 export async function handleDiscordLinkCommanderSlash(input: {
-  allianceId: string;
+  allianceId: string | null;
   guildId?: string | null;
   discordUserId: string;
   discordUsername?: string;
@@ -606,6 +632,9 @@ export async function handleDiscordLinkCommanderSlash(input: {
   const uid = input.gameUid?.trim();
 
   if (pending?.kind === "link_walkthrough" && !uid) {
+    if (!input.allianceId) {
+      return issueDiscordMemberLinkPrompt(input);
+    }
     const result = processLinkCommand({
       reportedName: "",
       gameUid: "",
@@ -623,8 +652,12 @@ export async function handleDiscordLinkCommanderSlash(input: {
   }
 
   if (!uid) {
+    return issueDiscordMemberLinkPrompt(input);
+  }
+
+  if (!input.allianceId) {
     const result: LinkCommandResult = {
-      reply: translate("link.usage"),
+      reply: translate("errors.waitForGuildRegistration"),
       pending: null,
     };
     await audit(input.allianceId, input.discordUserId, "link", input, result);
