@@ -1519,6 +1519,7 @@
       "label": "Conflict type",
       "name_collision": "Another commander is already linked under this in-game name",
       "commander_taken": "This commander is already linked to another account",
+      "discord_hq_unlinked": "This UID is linked on Discord but not yet tied to an HQ account",
       "server_mismatch": "The UID belongs to a different game server than this alliance",
       "target_mismatch": "The UID name does not match the invited commander"
     },
@@ -3333,6 +3334,8 @@
     "linked": "Linked to {name}. Welcome to the alliance!",
     "updated": "Updated your link for {name}.",
     "memberTaken": "That in-game member is already linked to a different account.",
+    "memberTakenEscalated": "That UID is already linked to another account. Platform admins and alliance officers were notified — try a different account or contact support.",
+    "crossLayerDiscordFirst": "That player UID is already linked on Discord. If that's you, run /link in Discord to connect this HQ account, then try again. Alliance officers and platform maintainers were notified to help if you're stuck.",
     "fuzzyPrompt": "We verified {gameName} but couldn't find an exact roster match. Pick your member:",
     "rosterMiss": "We checked the {tag} roster and couldn't match that name to anyone. Try Start over for name help, or ask an officer for help.",
     "rosterMissGeneric": "We couldn't match that name to anyone on the roster. Try Start over for name help, or ask an officer for help.",

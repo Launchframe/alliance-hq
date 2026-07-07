@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  describeGameUidClaimConflict,
   hasConflictingDiscordGameUidClaim,
   hasConflictingHqGameUidClaim,
 } from "@/lib/member-link/link-claim-guards.shared";
@@ -43,6 +44,32 @@ describe("link-claim-guards.shared", () => {
         ],
       }),
     ).toBe(false);
+  });
+
+  it("classifies discord-only UID claims separately from HQ hijacks", () => {
+    expect(
+      describeGameUidClaimConflict({
+        hqUserId: "hq-new",
+        ashedMemberId: "member-old",
+        hqClaims: [],
+        discordClaims: [
+          {
+            discordUserId: "discord-existing",
+            hqUserId: null,
+            ashedMemberId: "member-old",
+          },
+        ],
+      }),
+    ).toBe("discord_only");
+
+    expect(
+      describeGameUidClaimConflict({
+        hqUserId: "hq-new",
+        ashedMemberId: "member-old",
+        hqClaims: [{ hqUserId: "hq-existing", ashedMemberId: "member-old" }],
+        discordClaims: [],
+      }),
+    ).toBe("hq_other_user");
   });
 
   it("blocks Discord linking when an unlinked Discord user enters an HQ-claimed UID", () => {

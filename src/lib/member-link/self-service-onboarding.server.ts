@@ -49,6 +49,7 @@ export type SelfServiceLinkResult =
   | {
       ok: false;
       reason: "not_eligible" | "roster_full" | "member_taken" | "wrong_server";
+      attemptedAshedMemberId?: string;
     };
 
 export async function loadAllianceMemberOnboardingRow(allianceId: string) {
@@ -302,7 +303,7 @@ export async function trySelfServiceMemberLink(input: {
         : {}),
     });
     if (!linked.ok) {
-      return { ok: false, reason: "member_taken" };
+      return { ok: false, reason: "member_taken", attemptedAshedMemberId: exact.id };
     }
     return {
       ok: true,
@@ -332,7 +333,11 @@ export async function trySelfServiceMemberLink(input: {
       : {}),
   });
   if (!linked.ok) {
-    return { ok: false, reason: "member_taken" };
+    return {
+      ok: false,
+      reason: "member_taken",
+      attemptedAshedMemberId: ashedMemberId,
+    };
   }
 
   const suggestion = findUniqueSubstringRosterCandidate(

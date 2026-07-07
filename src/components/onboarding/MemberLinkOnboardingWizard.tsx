@@ -165,7 +165,7 @@ export function MemberLinkOnboardingWizard({
           break;
         case "member_taken":
           setPhase("form");
-          setFormError(t("memberTakenBody"));
+          setFormError(data.message?.trim() || t("memberTakenBody"));
           break;
         case "lookup_error":
         case "usage":

@@ -136,14 +136,21 @@ export type LinkHqMemberResult =
   | { ok: true; link: typeof schema.hqMemberLinks.$inferSelect; mode: "created" | "updated" }
   | { ok: false; reason: "member_linked_to_other_user" };
 
-async function isGameUidClaimedByOtherHqUser(input: {
-  allianceId: string;
-  hqUserId: string;
-  ashedMemberId: string;
-  gameUid: string;
-}): Promise<boolean> {
-  const gameUid = input.gameUid.trim();
-  if (!gameUid) return false;
+async function loadGameUidClaimsForAlliance(
+  allianceId: string,
+  gameUid: string,
+): Promise<{
+  hqClaims: Array<{ hqUserId: string; ashedMemberId: string }>;
+  discordClaims: Array<{
+    discordUserId: string;
+    ashedMemberId: string;
+    hqUserId: string | null;
+  }>;
+}> {
+  const trimmedUid = gameUid.trim();
+  if (!trimmedUid) {
+    return { hqClaims: [], discordClaims: [] };
+  }
 
   const db = getDb();
   const [hqClaims, discordClaims] = await Promise.all([
@@ -155,8 +162,8 @@ async function isGameUidClaimedByOtherHqUser(input: {
       .from(schema.hqMemberLinks)
       .where(
         and(
-          eq(schema.hqMemberLinks.allianceId, input.allianceId),
-          eq(schema.hqMemberLinks.gameUid, gameUid),
+          eq(schema.hqMemberLinks.allianceId, allianceId),
+          eq(schema.hqMemberLinks.gameUid, trimmedUid),
         ),
       ),
     db
@@ -175,11 +182,25 @@ async function isGameUidClaimedByOtherHqUser(input: {
       )
       .where(
         and(
-          eq(schema.discordMemberLinks.allianceId, input.allianceId),
-          eq(schema.discordMemberLinks.gameUid, gameUid),
+          eq(schema.discordMemberLinks.allianceId, allianceId),
+          eq(schema.discordMemberLinks.gameUid, trimmedUid),
         ),
       ),
   ]);
+
+  return { hqClaims, discordClaims };
+}
+
+async function isGameUidClaimedByOtherHqUser(input: {
+  allianceId: string;
+  hqUserId: string;
+  ashedMemberId: string;
+  gameUid: string;
+}): Promise<boolean> {
+  const { hqClaims, discordClaims } = await loadGameUidClaimsForAlliance(
+    input.allianceId,
+    input.gameUid,
+  );
 
   return hasConflictingHqGameUidClaim({
     hqUserId: input.hqUserId,
@@ -188,6 +209,8 @@ async function isGameUidClaimedByOtherHqUser(input: {
     discordClaims,
   });
 }
+
+export { loadGameUidClaimsForAlliance };
 
 export async function linkHqMember(input: {
   allianceId: string;

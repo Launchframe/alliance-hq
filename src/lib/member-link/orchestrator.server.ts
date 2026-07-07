@@ -1,6 +1,6 @@
 import "server-only";
 
-import { emitAdminAlert, emitMemberLinkUidTakenAlert } from "@/lib/events/admin-alerts";
+import { emitAdminAlert } from "@/lib/events/admin-alerts";
 import {
   recordMemberLinkHelpRequest,
   resolveWebHelpContext,
@@ -23,6 +23,7 @@ import {
   blockSelfServiceWhenClaimPending,
   getMemberLinkClaimTarget,
 } from "@/lib/member-link/claim.server";
+import { surfaceWebMemberLinkTakenConflict } from "@/lib/member-link/member-taken-conflict.server";
 import { tryPreApprovedMemberLink } from "@/lib/member-link/preapproved-link.server";
 import {
   tryBootstrapOwnerColdStartMember,
@@ -213,21 +214,17 @@ async function persistHqLinkTarget(
     const handle =
       ctx.displayName?.trim() || ctx.userEmail?.trim() || ctx.hqUserId;
     const alliance = await getAllianceById(ctx.allianceId);
-    try {
-      await emitMemberLinkUidTakenAlert({
-        allianceId: ctx.allianceId,
-        allianceTag: alliance?.tag ?? "alliance",
-        ashedMemberId: linkTarget.ashedMemberId,
-        hqUserId: ctx.hqUserId,
-        handle,
-      });
-    } catch (error) {
-      console.error("[member-link] uid-taken admin alert failed", error);
-    }
-    return toMemberLinkApiResponse(
-      { reply: translate("link.memberTaken"), pending: null },
-      { memberTaken: true },
-    );
+    return surfaceWebMemberLinkTakenConflict({
+      allianceId: ctx.allianceId,
+      allianceTag: alliance?.tag ?? "alliance",
+      hqUserId: ctx.hqUserId,
+      handle,
+      locale: ctx.locale,
+      gameUid: linkTarget.gameUid,
+      ashedMemberId: linkTarget.ashedMemberId,
+      gameUserName: linkTarget.memberDisplayName,
+      reportedName: linkTarget.memberDisplayName,
+    });
   }
 
   ctx.auditBag.ashedMemberId = linkTarget.ashedMemberId;
@@ -676,12 +673,21 @@ export async function runWebMemberLinkSubmit(input: {
     }
 
     if (selfService.reason === "member_taken") {
+      const handle =
+        ctx.displayName?.trim() || ctx.userEmail?.trim() || ctx.hqUserId;
       return finishMemberLinkSubmit(
         ctx,
-        toMemberLinkApiResponse(
-          { reply: translate("link.memberTaken"), pending: null },
-          { memberTaken: true },
-        ),
+        await surfaceWebMemberLinkTakenConflict({
+          allianceId: input.allianceId,
+          allianceTag: alliance?.tag ?? "alliance",
+          hqUserId: input.hqUserId,
+          handle,
+          locale: input.locale,
+          gameUid: uid,
+          ashedMemberId: selfService.attemptedAshedMemberId ?? "",
+          gameUserName: lookup.gameUserName,
+          reportedName: name,
+        }),
       );
     }
 

@@ -576,7 +576,8 @@ export function MemberLinkHelpRequestReviewClient({
               {review.request.gameUserName ?? t("identity.lookupMissing")}
             </dd>
           </div>
-          {review.request.context === "claim_conflict" &&
+          {(review.request.context === "claim_conflict" ||
+            review.request.context === "cross_layer_claim") &&
           review.request.claimConflictReason ? (
             <div>
               <dt className="text-hq-fg-muted">
