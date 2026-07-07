@@ -5,13 +5,24 @@ import { useCallback, useState } from "react";
 import { isValidGameUid } from "@/lib/lastwar/player-lookup";
 import type { DiscordMemberLinkWebOutcome } from "@/lib/vr/discord-member-link-web.shared";
 
-type Phase = "form" | "confirm" | "fuzzy" | "success" | "officer" | "error";
+type Phase =
+  | "form"
+  | "confirm"
+  | "fuzzy"
+  | "success"
+  | "officer"
+  | "wrong_server"
+  | "error";
 
 type Props = {
   nonce: string;
   allianceTag: string | null;
   replaceAll: boolean;
+  guildRegistered: boolean;
   labels: {
+    heading: string;
+    subheading: string;
+    subheadingColdStart: string;
     playerIdLabel: string;
     playerIdHint: string;
     replaceNote: string;
@@ -24,6 +35,7 @@ type Props = {
     successHeading: string;
     successBody: string;
     officerHeading: string;
+    wrongServerHeading: string;
     backToDiscord: string;
     invalidPlayerId: string;
     genericError: string;
@@ -34,6 +46,7 @@ export function DiscordMemberLinkClient({
   nonce,
   allianceTag,
   replaceAll,
+  guildRegistered,
   labels,
 }: Props) {
   const [phase, setPhase] = useState<Phase>("form");
@@ -47,6 +60,21 @@ export function DiscordMemberLinkClient({
   const [message, setMessage] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  const subheading = guildRegistered ? labels.subheading : labels.subheadingColdStart;
+
+  function renderHeader() {
+    return (
+      <>
+        <h1 className="mb-1 text-lg font-semibold text-hq-fg">{labels.heading}</h1>
+        {phase === "form" ? (
+          <p className="mb-5 text-sm text-hq-fg-muted">{subheading}</p>
+        ) : (
+          <div className="mb-5" />
+        )}
+      </>
+    );
+  }
 
   const applyOutcome = useCallback((data: DiscordMemberLinkWebOutcome) => {
     switch (data.outcome) {
@@ -70,6 +98,10 @@ export function DiscordMemberLinkClient({
         setMessage(data.message);
         setPhase("officer");
         break;
+      case "wrong_server":
+        setMessage(data.message);
+        setPhase("wrong_server");
+        break;
       case "declined":
         setGameUid("");
         setGameUserName(null);
@@ -90,10 +122,17 @@ export function DiscordMemberLinkClient({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
-    const data = (await res.json()) as DiscordMemberLinkWebOutcome & { error?: string };
-    if (!res.ok && data.error) {
+    const data = (await res.json()) as DiscordMemberLinkWebOutcome & {
+      error?: string;
+      message?: string;
+    };
+    if (!res.ok) {
       setPhase("error");
-      setMessage(data.error);
+      setMessage(
+        data.outcome === "error"
+          ? data.message
+          : (data.message ?? data.error ?? labels.genericError),
+      );
       return;
     }
     applyOutcome(data);
@@ -145,6 +184,7 @@ export function DiscordMemberLinkClient({
   if (phase === "success") {
     return (
       <div className="space-y-3 text-center">
+        {renderHeader()}
         <p className="text-lg font-semibold text-hq-fg">{labels.successHeading}</p>
         {linkedName ? (
           <p className="text-sm text-hq-fg-muted">
@@ -156,9 +196,21 @@ export function DiscordMemberLinkClient({
     );
   }
 
+  if (phase === "wrong_server") {
+    return (
+      <div className="space-y-3">
+        {renderHeader()}
+        <p className="font-semibold text-hq-fg">{labels.wrongServerHeading}</p>
+        {message ? <p className="text-sm text-hq-fg-muted">{message}</p> : null}
+        <p className="text-sm text-hq-fg-muted">{labels.backToDiscord}</p>
+      </div>
+    );
+  }
+
   if (phase === "officer" || phase === "error") {
     return (
       <div className="space-y-3">
+        {renderHeader()}
         <p className="font-semibold text-hq-fg">
           {phase === "officer" ? labels.officerHeading : labels.genericError}
         </p>
@@ -171,6 +223,7 @@ export function DiscordMemberLinkClient({
   if (phase === "confirm" && gameUserName) {
     return (
       <div className="space-y-4">
+        {renderHeader()}
         <p className="text-sm text-hq-fg-muted">{labels.confirmHeading}</p>
         <p className="text-lg font-semibold text-hq-fg">{gameUserName}</p>
         {gameServerNumber != null ? (
@@ -203,6 +256,7 @@ export function DiscordMemberLinkClient({
   if (phase === "fuzzy") {
     return (
       <div className="space-y-4">
+        {renderHeader()}
         {message ? <p className="text-sm text-hq-fg-muted">{message}</p> : null}
         <p className="text-sm font-medium text-hq-fg">{labels.fuzzyHeading}</p>
         <ul className="space-y-2">
@@ -225,6 +279,7 @@ export function DiscordMemberLinkClient({
 
   return (
     <form onSubmit={(e) => void handlePreview(e)} className="space-y-4">
+      {renderHeader()}
       {allianceTag ? (
         <p className="text-xs font-medium uppercase tracking-wide text-hq-fg-muted">
           {allianceTag}

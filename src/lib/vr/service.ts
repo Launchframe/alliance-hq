@@ -499,6 +499,8 @@ async function finalizeDiscordMemberLink(input: {
         ...resolvedResult,
         reply: translate("helpTopics.wrongServer.body"),
         pending: null,
+        needsOfficerAttention: false,
+        wrongServer: true,
       };
       await audit(
         input.allianceId,

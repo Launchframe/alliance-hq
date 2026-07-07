@@ -50,3 +50,9 @@ export function resolvePostInviteOnboardingRedirect(options: {
 export function resolveDiscordPostLinkOnboardingRedirect(): string {
   return `/onboard?next=${encodeURIComponent(DISCORD_POST_LINK_COMMANDER_DESTINATION)}&source=discord`;
 }
+
+/** Secure web flow opened from `/link-commander` (nonce required). */
+export function resolveDiscordMemberLinkPagePath(nonce: string): string {
+  const trimmed = nonce.trim();
+  return `/discord/link-commander?nonce=${encodeURIComponent(trimmed)}`;
+}

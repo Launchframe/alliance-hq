@@ -3524,6 +3524,11 @@
       "success": "Desvinculado **{name}**. Execute `/link-commander` para conectar de novo.",
       "nameNotFound": "Nenhum personagem vinculado corresponde a **{name}**. Use `/unlink` sem nome para escolher na lista.",
       "expired": "Essa opção expirou. Execute `/unlink` novamente."
+    },
+    "helpTopics": {
+      "wrongServer": {
+        "body": "Seu UID pertence a um servidor estadual diferente desta aliança. Confira se entrou na aliança certa ou peça um novo convite ao R5."
+      }
     }
   },
   "discordAuthorize": {
@@ -3564,6 +3569,7 @@
     "heading": "Vincule seu comandante do Last War",
     "subheading": "Informe seu ID de jogador nesta página segura. Ele nunca é enviado pelo chat do Discord.",
     "subheadingColdStart": "Informe seu ID de jogador nesta página segura. Se o servidor ainda não estiver registrado, identificamos sua aliança pelo Last War depois do envio.",
+    "discordOAuthSubheading": "Entre com a mesma conta do Discord que executou `/link-commander` no seu servidor. Nunca enviamos credenciais pelo chat do Discord.",
     "missingNonce": "Nenhum link encontrado. Volte ao Discord e execute `/link-commander` novamente.",
     "expiredHeading": "Link expirado ou já usado",
     "expiredBody": "Volte ao Discord e execute `/link-commander` novamente para obter um link novo.",
@@ -3581,6 +3587,7 @@
     "successHeading": "Comandante vinculado",
     "successBody": "Vinculado **{name}**. Volte ao Discord — você já pode usar /vr e outros comandos do bot.",
     "officerHeading": "Oficiais notificados",
+    "wrongServerHeading": "Servidor estadual incorreto",
     "backToDiscord": "Você pode fechar esta aba e voltar ao Discord.",
     "invalidPlayerId": "Informe um ID de jogador com 12–16 dígitos do perfil no jogo.",
     "genericError": "Algo deu errado. Volte ao Discord e execute `/link-commander` novamente."
