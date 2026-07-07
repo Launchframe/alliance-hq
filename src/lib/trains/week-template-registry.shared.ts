@@ -24,6 +24,19 @@ export const SELECTABLE_WEEK_TEMPLATES = WEEK_TEMPLATES.filter(
   (template) => !isWeekTemplateSegment(template),
 ) as Exclude<WeekTemplateType, WeekTemplateSegmentId>[];
 
+/** Week templates with `trains.templateDetails.*` hint copy in the selector UI. */
+export const WEEK_TEMPLATES_WITH_DETAIL_HINTS: readonly WeekTemplateType[] = [
+  "vs_push_week",
+  "vs_push_weekdays",
+  "r4_event_vip",
+  "economy_week",
+  "price_is_right",
+  "r3_recognition",
+  "r4_train_week",
+  "donations_week",
+  "custom",
+] as const;
+
 export type CompositeWeekTemplateSegment = {
   template: WeekTemplateType;
   /** Train week index: Tue=0 … Mon=6 (alliance default). */

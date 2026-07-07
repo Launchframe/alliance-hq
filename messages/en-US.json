@@ -1620,8 +1620,8 @@
       "officersOnly": "Only train officers can change these settings."
     },
     "trainEconomyThreshold": {
-      "sectionTitle": "The Price Is Right",
-      "sectionBody": "On The Price Is Right train days, the conductor wheel draws from R3 members whose prior-day VS score is between 7,200,000 and the economy threshold plus fudge (threshold + threshold × fudge %).",
+      "sectionTitle": "The Price Is Freight",
+      "sectionBody": "On The Price Is Freight train days, the conductor wheel draws from R3 members whose prior-day VS score is between 7,200,000 and the economy threshold plus fudge (threshold + threshold × fudge %). VIP is a free pick — today's conductor chooses VIP directly.",
       "loading": "Loading economy threshold…",
       "loadFailed": "Could not load economy threshold settings.",
       "thresholdLabel": "Economy threshold",
@@ -2652,7 +2652,7 @@
       "vs_push_weekdays": "VS Push weekdays",
       "r4_event_vip": "R4 & Event VIP",
       "economy_week": "Economy week",
-      "price_is_right": "The Price Is Right",
+      "price_is_right": "The Price Is Freight",
       "r3_recognition": "R3 recognition",
       "r4_train_week": "R4 Week",
       "donations_week": "Donations week",
@@ -2661,6 +2661,17 @@
     "templatesShort": {
       "vs_push_weekdays": "VS Push",
       "r4_event_vip": "R4 & Event VIP"
+    },
+    "templateDetails": {
+      "vs_push_week": "Conductor: Tue and Fri = prior-day VS #1 (auto); Wed, Thu, and Sat = random draw from VS top 10; Sun–Mon = R4+ officer rotation. VIP: Conductor picks VIP on VS weekdays; event top-10 lottery Sun–Mon.",
+      "vs_push_weekdays": "Conductor: Mon = top donor; Tue and Fri = prior-day VS #1; Wed, Thu, and Sat = random from VS top 10. VIP: Mon = 2nd donor; Tue–Sat = conductor free pick.",
+      "r4_event_vip": "Conductor: R4+ officer rotation. VIP: Event top-10 lottery wheel (default event: Capitol War). Typical for weekend train days.",
+      "economy_week": "Conductor: R3 wheel every day — full R3 pool, no VS score band. VIP: Today's conductor picks VIP directly (free pick). Use to pivot mid-week when pushing less VS.",
+      "price_is_right": "Conductor: R3 wheel draw from members whose prior-day VS score is between 7,200,000 and the economy threshold plus fudge. VIP: Today's conductor picks VIP directly (free pick).",
+      "r3_recognition": "Conductor: R3 wheel every day — full R3 pool (same draw as Economy week, without VS filtering). VIP: Today's conductor picks VIP directly (free pick).",
+      "r4_train_week": "Conductor: R4+ officer rotation — walks the pool in order, one conductor per day. VIP: Today's conductor picks VIP directly (free pick).",
+      "donations_week": "Conductor: Top alliance donor (auto). VIP: Second-place donor (auto; officers can override if leaderboard data is wrong).",
+      "custom": "Conductor / VIP: No preset rules — set each day's mechanisms on the calendar or pick manually when you roll."
     },
     "wheel": {
       "title": "All aboard!",

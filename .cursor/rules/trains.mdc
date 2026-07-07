@@ -19,8 +19,8 @@ globs:
 
 | Template | Typical use |
 |----------|-------------|
-| `vs_push_week` | **Composite:** Mon–Fri `vs_push_weekdays` + Sat–Sun `r4_event_vip` |
-| `vs_push_weekdays` | Segment — Mon `vs_top_10`, Tue `vs_high_score`, Wed–Fri `vs_top_10` |
+| `vs_push_week` | **Composite:** Tue–Sat `vs_push_weekdays` + Sun–Mon `r4_event_vip` |
+| `vs_push_weekdays` | Mon `donations_top`; Tue/Fri `vs_high_score`; Wed/Thu/Sat `vs_top_10` |
 | `r4_event_vip` | Segment — `r4_sequence` conductor + `event_top_x_lottery` VIP (silvery cell) |
 | `economy_week` / `r3_recognition` | R3 lottery all days when saving inventory |
 | `r4_train_week` | Officer sequence all days |

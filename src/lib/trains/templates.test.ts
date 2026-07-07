@@ -57,7 +57,7 @@ describe("vs_push_week template", () => {
     expect(configs[1]?.conductorMechanism).toBe("vs_top_10");
     expect(configs[1]?.vipMechanism).toBe("conductor_pick");
     expect(configs[2]?.conductorMechanism).toBe("vs_top_10");
-    expect(configs[3]?.conductorMechanism).toBe("vs_top_10");
+    expect(configs[3]?.conductorMechanism).toBe("vs_high_score");
     expect(configs[4]?.conductorMechanism).toBe("vs_top_10");
     expect(configs[4]?.vipMechanism).toBe("conductor_pick");
     expect(configs[5]?.conductorMechanism).toBe("r4_sequence");
@@ -105,6 +105,22 @@ describe("generateDayConfigForDate", () => {
     );
     expect(config.conductorMechanism).toBe("vs_high_score");
     expect(config.vipMechanism).toBe("conductor_pick");
+  });
+
+  it("returns prior-day VS #1 on Friday and top-10 lottery on Saturday", () => {
+    const weekStart = "2026-06-09";
+    const friday = generateDayConfigForDate(
+      "vs_push_week",
+      "2026-06-12",
+      weekStart,
+    );
+    const saturday = generateDayConfigForDate(
+      "vs_push_week",
+      "2026-06-13",
+      weekStart,
+    );
+    expect(friday.conductorMechanism).toBe("vs_high_score");
+    expect(saturday.conductorMechanism).toBe("vs_top_10");
   });
 
   it("returns economy day config for any weekday", () => {

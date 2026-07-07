@@ -69,7 +69,10 @@ import {
 import { canStartConductorSwap } from "@/lib/trains/conductor-swap.shared";
 import type { PoolRefreshedInfo, PoolType, RollResult, WeekTemplateType } from "@/lib/trains/types";
 import type { MemberQualificationPayload } from "@/lib/trains/train-conductor-minimums.shared";
-import { SELECTABLE_WEEK_TEMPLATES } from "@/lib/trains/week-template-registry.shared";
+import {
+  SELECTABLE_WEEK_TEMPLATES,
+  WEEK_TEMPLATES_WITH_DETAIL_HINTS,
+} from "@/lib/trains/week-template-registry.shared";
 import {
   applyOptimisticConductorPick,
   applyOptimisticConductorRoll,
@@ -1306,6 +1309,14 @@ export function TrainsDashboard({ initial }: Props) {
                 triggerClassName="rounded-xl border-[#30363d] bg-[#161b22]"
                 className="w-full"
               />
+              {WEEK_TEMPLATES_WITH_DETAIL_HINTS.includes(activeWeekTemplate) ? (
+                <p
+                  className="text-xs leading-relaxed text-[#8b949e]"
+                  data-testid="trains-template-detail-hint"
+                >
+                  {t(`templateDetails.${activeWeekTemplate}`)}
+                </p>
+              ) : null}
             </div>
           ) : null}
         </div>
