@@ -5,6 +5,10 @@ import { useTranslations } from "next-intl";
 
 import { AppSelect } from "@/components/ui/AppSelect";
 import {
+  AdminUserSignInMethodsPanel,
+  type AdminUserSignInMethodsSnapshot,
+} from "@/components/admin/AdminUserSignInMethodsPanel";
+import {
   ADMIN_USERS_PAGE_SIZE_DEFAULT,
   buildAdminUsersSearchParams,
   type AdminUsersQueryParams,
@@ -70,6 +74,7 @@ type AdminUser = {
   linkedDeviceCount: number;
   memberships: Membership[];
   memberLinks: MemberLink[];
+  signInMethods: AdminUserSignInMethodsSnapshot | null;
 };
 
 type UsersListResponse = {
@@ -418,6 +423,10 @@ export function AdminUsersConsole() {
                   count: selectedUser.linkedDeviceCount,
                 })}
               </p>
+            </div>
+
+            <div className="border-t border-hq-border pt-4">
+              <AdminUserSignInMethodsPanel snapshot={selectedUser.signInMethods} />
             </div>
 
             <label className="flex items-center gap-2 text-sm">
