@@ -8,6 +8,7 @@ import {
   createAllianceMembership,
   createAshedAlliance,
   createAuthenticatedHqSession,
+  createHqMemberLink,
   createNativeAlliance,
   createPlatformMaintainerSession,
   getE2eSql,
@@ -294,6 +295,10 @@ test.describe("Alliance switcher — session context reset", () => {
       roleName: "officer",
       source: "manual",
     });
+    await createHqMemberLink(sql, {
+      allianceId: nativeAlliance.allianceId,
+      hqUserId: session.hqUserId,
+    });
     await createAllianceMembership(sql, {
       hqUserId: session.hqUserId,
       allianceId: ashedAlliance.allianceId,
@@ -312,8 +317,10 @@ test.describe("Alliance switcher — session context reset", () => {
     await page.goto("/members");
 
     await expect(page.getByRole("link", { name: "Dashboard" })).toHaveCount(0);
+    await expect(page).toHaveURL(/\/members/);
 
     const picker = page.getByLabel("Alliance", { exact: true });
+    await expect(picker).toBeVisible();
     await picker.click();
     await page
       .getByRole("option", { name: new RegExp(ashedAlliance.tag) })
