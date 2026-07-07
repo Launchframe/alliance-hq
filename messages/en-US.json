@@ -3191,7 +3191,8 @@
       "nothingPending": "Nothing to pick right now.",
       "noWalkthrough": "No walkthrough in progress.",
       "ashedVerificationRequired": "Connect Ashed to use iframe tools and live roster sync, then return to link your character if needed.",
-      "askOfficerNeedsNameAndUid": "Enter your in-game name and player UID before asking an officer for help."
+      "askOfficerNeedsNameAndUid": "Enter your in-game name and player UID before asking an officer for help.",
+      "askOfficerNeedsUid": "Enter your player UID before asking an officer for help."
     },
     "usage": "Enter your in-game name and UID from your Last War profile.",
     "linked": "Linked to {name}. Welcome to the alliance!",

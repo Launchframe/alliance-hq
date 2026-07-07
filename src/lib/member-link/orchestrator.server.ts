@@ -105,6 +105,72 @@ function isValidMemberLinkGameUid(value: string): boolean {
   return /^\d{12,16}$/.test(value);
 }
 
+function resolveAskOfficerGameUid(
+  input: { gameUid?: string | null },
+  pending: LinkPendingState | null,
+): string {
+  const fromInput = input.gameUid?.trim() ?? "";
+  if (isValidMemberLinkGameUid(fromInput)) {
+    return fromInput;
+  }
+
+  if (pending?.kind === "link_fuzzy_pick" || pending?.kind === "link_confirm_identity") {
+    const fromPending = pending.gameUid.trim();
+    if (isValidMemberLinkGameUid(fromPending)) {
+      return fromPending;
+    }
+  }
+
+  if (pending?.kind === "link_roster_miss" && pending.gameUid) {
+    const fromPending = pending.gameUid.trim();
+    if (isValidMemberLinkGameUid(fromPending)) {
+      return fromPending;
+    }
+  }
+
+  return "";
+}
+
+function resolveAskOfficerReportedName(
+  input: { reportedName?: string | null },
+  pending: LinkPendingState | null,
+  gameUid: string,
+  gameUserName: string | null,
+): string {
+  const fromInput = input.reportedName?.trim() ?? "";
+  if (fromInput) {
+    return fromInput;
+  }
+
+  if (pending?.kind === "link_fuzzy_pick") {
+    const fromPending = pending.reportedName.trim();
+    if (fromPending) {
+      return fromPending;
+    }
+  }
+
+  if (pending?.kind === "link_roster_miss") {
+    const fromPending =
+      pending.reportedName?.trim() || pending.gameUserName?.trim() || "";
+    if (fromPending) {
+      return fromPending;
+    }
+  }
+
+  if (pending?.kind === "link_confirm_identity") {
+    const fromPending = pending.gameUserName.trim();
+    if (fromPending) {
+      return fromPending;
+    }
+  }
+
+  if (gameUserName?.trim()) {
+    return gameUserName.trim();
+  }
+
+  return gameUid ? `UID ${gameUid}` : "";
+}
+
 async function emitLinkAttention(
   ctx: FlowContext,
   opts?: { gameUid?: string | null },
@@ -750,14 +816,13 @@ export async function runWebMemberLinkAskOfficer(input: {
     pending?.kind === "link_roster_miss" ||
     pending?.kind === "link_walkthrough";
 
-  const gameUid = input.gameUid?.trim() ?? "";
-  const reportedName = input.reportedName?.trim() ?? "";
   const translate = createMemberLinkTranslator(input.locale);
+  const gameUid = resolveAskOfficerGameUid(input, pending);
 
-  if (!isValidMemberLinkGameUid(gameUid) || !reportedName) {
+  if (!isValidMemberLinkGameUid(gameUid)) {
     return {
       outcome: "usage",
-      message: translate("errors.askOfficerNeedsNameAndUid"),
+      message: translate("errors.askOfficerNeedsUid"),
       pending: pendingAllowsAskOfficer ? pending : null,
     };
   }
@@ -771,6 +836,13 @@ export async function runWebMemberLinkAskOfficer(input: {
   } catch (error) {
     console.error("[member-link] ask-officer lookup failed", error);
   }
+
+  const reportedName = resolveAskOfficerReportedName(
+    input,
+    pending,
+    gameUid,
+    gameUserName,
+  );
 
   const requesterHandle =
     ctx.displayName?.trim() || ctx.userEmail?.trim() || ctx.hqUserId;
