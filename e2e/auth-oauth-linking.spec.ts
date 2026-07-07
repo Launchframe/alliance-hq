@@ -38,4 +38,36 @@ test.describe("Auth OAuth account linking errors", () => {
       page.getByText(/Discord can sign you in automatically when its verified email matches your invite/i),
     ).toBeVisible();
   });
+
+  test("OAuthSignInRequired error page shows provider-specific guidance", async ({
+    page,
+  }) => {
+    await page.goto(
+      "/auth/error?error=OAuthSignInRequired&email=player%40example.com&providers=google",
+    );
+
+    await expect(
+      page.getByRole("heading", { name: /Use Google or Discord to sign in/i }),
+    ).toBeVisible();
+
+    await expect(
+      page.getByText(/Please sign in with Google using player@example.com/i),
+    ).toBeVisible();
+
+    await expect(
+      page.getByText(/Email verification codes and magic links cannot be used/i),
+    ).toBeVisible();
+  });
+
+  test("auth sign-in page surfaces OAuthSignInRequired guidance", async ({
+    page,
+  }) => {
+    await page.goto(
+      "/auth?error=OAuthSignInRequired&email=player%40example.com&providers=google",
+    );
+
+    await expect(
+      page.getByText(/Please sign in with Google using player@example.com/i),
+    ).toBeVisible();
+  });
 });

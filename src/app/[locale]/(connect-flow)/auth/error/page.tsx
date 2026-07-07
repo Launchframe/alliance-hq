@@ -1,13 +1,25 @@
 import { getTranslations } from "next-intl/server";
 
 import { Link } from "@/i18n/navigation";
-import { isOAuthAccountNotLinkedError } from "@/lib/auth/auth-sign-in-errors.shared";
+import {
+  isOAuthAccountNotLinkedError,
+  isOAuthSignInRequiredError,
+} from "@/lib/auth/auth-sign-in-errors.shared";
+import {
+  formatLinkedOAuthProviderList,
+  parseOAuthSignInRequiredSearchParams,
+} from "@/lib/auth/email-sign-in-restriction.shared";
 import { sanitizeInternalRedirectPath } from "@/lib/navigation/safe-redirect.shared";
 
 export const dynamic = "force-dynamic";
 
 type Props = {
-  searchParams: Promise<{ error?: string; callbackUrl?: string }>;
+  searchParams: Promise<{
+    error?: string;
+    callbackUrl?: string;
+    email?: string;
+    providers?: string;
+  }>;
 };
 
 function authRetryHref(callbackUrl: string | undefined): string {
@@ -36,8 +48,13 @@ function isMagicLinkError(code: string): boolean {
 
 export default async function AuthErrorPage({ searchParams }: Props) {
   const t = await getTranslations("auth");
-  const { error, callbackUrl } = await searchParams;
+  const { error, callbackUrl, email, providers } = await searchParams;
   const code = error?.trim() || "Default";
+  const oauthSignInRequired = parseOAuthSignInRequiredSearchParams({
+    error: code,
+    email,
+    providers,
+  });
 
   if (!isMagicLinkError(code)) {
     if (isOAuthAccountNotLinkedError(code)) {
@@ -66,6 +83,38 @@ export default async function AuthErrorPage({ searchParams }: Props) {
               {t("errorOAuthAccountNotLinkedAccountLink")}
             </Link>
           </div>
+        </div>
+      );
+    }
+
+    if (isOAuthSignInRequiredError(code) && oauthSignInRequired) {
+      const providerLabels = formatLinkedOAuthProviderList(
+        oauthSignInRequired.linkedProviders,
+        {
+          google: t("methodGoogle"),
+          discord: t("methodDiscord"),
+        },
+      );
+
+      return (
+        <div className="mx-auto max-w-md space-y-4 rounded-xl border border-hq-danger/40 bg-hq-danger/10 p-6">
+          <h1 className="text-xl font-semibold text-hq-fg">
+            {t("errorOAuthSignInRequiredTitle")}
+          </h1>
+          <p className="text-sm text-hq-fg-muted">{t("errorOAuthSignInRequiredBody")}</p>
+          <p className="text-sm text-hq-fg">
+            {t("errorOAuthSignInRequiredAction", {
+              providers: providerLabels,
+              email: oauthSignInRequired.email,
+            })}
+          </p>
+          <p className="text-xs text-hq-fg-subtle">{t("errorOAuthSignInRequiredHint")}</p>
+          <Link
+            href={authRetryHref(callbackUrl)}
+            className="inline-block rounded-lg border border-hq-success bg-hq-success px-4 py-2 text-center text-sm text-white"
+          >
+            {t("backToSignIn")}
+          </Link>
         </div>
       );
     }
