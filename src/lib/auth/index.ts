@@ -11,6 +11,8 @@ import {
   tryAutoLinkOAuthAtSignIn,
 } from "@/lib/auth/account-linking.server";
 import { oauthEmailMatchesHqUserEmail } from "@/lib/auth/account-linking.shared";
+import { buildOAuthSignInRequiredAuthPath } from "@/lib/auth/email-sign-in-restriction.shared";
+import { resolveEmailSignInRestrictionForEmail } from "@/lib/auth/email-sign-in-restriction.server";
 import { createHqAuthAdapter } from "@/lib/auth/adapter";
 import { bridgeAuthUserToBrowserSession } from "@/lib/auth/bridge-session";
 import { syncDiscordHqLinkFromOAuthSignIn } from "@/lib/auth/discord-hq-link.server";
@@ -59,13 +61,21 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   providers: buildAuthProviders(),
   callbacks: {
     async signIn({ user, account, profile }) {
-      if (
-        account?.provider === "password" ||
-        account?.provider === "passkey" ||
-        account?.provider === "email-code"
-      ) {
+      if (account?.provider === "password" || account?.provider === "passkey") {
         return Boolean(user.email);
       }
+
+      if (account?.provider === "email-code" || account?.provider === "resend") {
+        if (!user.email) {
+          return false;
+        }
+        const restriction = await resolveEmailSignInRestrictionForEmail(user.email);
+        if (restriction.blocked) {
+          return buildOAuthSignInRequiredAuthPath(restriction);
+        }
+        return true;
+      }
+
       if (isOAuthProvider(account?.provider)) {
         if (!account?.providerAccountId) {
           return false;

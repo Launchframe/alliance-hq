@@ -13,6 +13,7 @@ import {
   sendMagicLinkViaResend,
   shouldLogMagicLinkToStdout,
 } from "@/lib/auth/magic-link-email.server";
+import { assertEmailSignInAllowed } from "@/lib/auth/email-sign-in-restriction.server";
 import { verifyPasswordLogin } from "@/lib/auth/password.server";
 import { verifyAuthEmailCode } from "@/lib/auth/email-code.server";
 import {
@@ -126,6 +127,8 @@ export function buildAuthProviders(): Provider[] {
           : RESEND_DEV_EMAIL_FROM),
       apiKey: process.env.RESEND_API_KEY,
       async sendVerificationRequest({ identifier: to, provider, url, theme }) {
+        await assertEmailSignInAllowed(to);
+
         const devLog = shouldLogMagicLinkToStdout();
         if (devLog) {
           logMagicLinkToStdout(to, url);

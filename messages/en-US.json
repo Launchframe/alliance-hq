@@ -2187,6 +2187,10 @@
     "errorOAuthAccountNotLinkedBody": "Google or Discord could not be connected to your Alliance HQ account. That usually means the provider email does not match your invite email, Google has not verified the email yet, or Discord did not share an email we can match. Discord can sign you in automatically when its verified email matches your invite; otherwise sign in with your invite email first, then link providers under Settings → Sign-in & security.",
     "errorOAuthAccountNotLinkedHint": "Use the same email address your alliance invite was sent to, or open Settings → Sign-in & security after signing in with that email.",
     "errorOAuthAccountNotLinkedAccountLink": "Open sign-in & security settings",
+    "errorOAuthSignInRequiredTitle": "Use Google or Discord to sign in",
+    "errorOAuthSignInRequiredBody": "This account was created with a more secure sign-in method. Email verification codes and magic links cannot be used.",
+    "errorOAuthSignInRequiredAction": "Please sign in with {providers} using {email}.",
+    "errorOAuthSignInRequiredHint": "After you sign in, you can add a password or passkey under Settings → Sign-in & security if you want email sign-in later.",
     "backToSignIn": "Back to sign in"
   },
   "httpErrors": {

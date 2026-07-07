@@ -2,6 +2,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import * as dbModule from "@/lib/db";
 
+vi.mock("@/lib/auth/email-sign-in-restriction.server", () => ({
+  assertEmailSignInAllowed: vi.fn().mockResolvedValue(undefined),
+}));
+
 import {
   AuthEmailCodeError,
   AUTH_EMAIL_CODE_MAX_VERIFY_ATTEMPTS,
