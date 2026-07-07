@@ -1309,18 +1309,21 @@ export function TrainsDashboard({ initial }: Props) {
                 triggerClassName="rounded-xl border-[#30363d] bg-[#161b22]"
                 className="w-full"
               />
-              {WEEK_TEMPLATES_WITH_DETAIL_HINTS.includes(activeWeekTemplate) ? (
-                <p
-                  className="text-xs leading-relaxed text-[#8b949e]"
-                  data-testid="trains-template-detail-hint"
-                >
-                  {t(`templateDetails.${activeWeekTemplate}`)}
-                </p>
-              ) : null}
             </div>
           ) : null}
         </div>
       </header>
+
+      {data.canManageTrains &&
+      data.activeMemberCount > 0 &&
+      WEEK_TEMPLATES_WITH_DETAIL_HINTS.includes(activeWeekTemplate) ? (
+        <p
+          className="text-xs leading-relaxed text-[#8b949e]"
+          data-testid="trains-template-detail-hint"
+        >
+          {t(`templateDetails.${activeWeekTemplate}`)}
+        </p>
+      ) : null}
 
       {error ? (
         <p className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-300">
