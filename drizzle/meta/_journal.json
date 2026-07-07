@@ -547,6 +547,13 @@
       "when": 1785929600000,
       "tag": "0078_alliance_setup_requests",
       "breakpoints": true
+    },
+    {
+      "idx": 77,
+      "version": "7",
+      "when": 1786016000000,
+      "tag": "0079_self_service_onboarding",
+      "breakpoints": true
     }
   ]
 }

@@ -33,13 +33,13 @@ import {
   sendRosterLinkOwnerApprovalEmail,
 } from "@/lib/member-link/roster-link-owner-email.server";
 import { createMemberLinkTranslator } from "@/lib/member-link/translate.server";
+import { createNativeAllianceMemberForRosterLink } from "@/lib/member-link/roster-member-create.server";
 import {
   bindDiscordRosterLinkRequest,
   reconcileAllianceMemberForRosterLink,
 } from "@/lib/member-link/roster-link-resolve.server";
 import type { ParsedConnection } from "@/lib/connectionString";
 import { isNativeAlliance } from "@/lib/native-alliance/operating-mode";
-import { nativeRosterAshedAllianceId } from "@/lib/native-alliance/provision";
 import { systemRoleNameForId } from "@/lib/rbac/system-roles";
 import { namesMatch } from "@/lib/vr/link-helpers";
 
@@ -694,33 +694,6 @@ export async function createDiscordRosterMissLinkRequest(input: {
     console.error("[roster-link] discord roster miss request failed", error);
     return null;
   }
-}
-
-async function createNativeAllianceMemberForRosterLink(input: {
-  allianceId: string;
-  gameUserName: string;
-  gameUserLevel?: number | null;
-}): Promise<string> {
-  const db = getDb();
-  const now = new Date();
-  const ashedMemberId = nanoid(16);
-  const ashedAllianceId = nativeRosterAshedAllianceId(input.allianceId);
-
-  await db.insert(schema.allianceMembers).values({
-    id: nanoid(),
-    allianceId: input.allianceId,
-    ashedMemberId,
-    ashedAllianceId,
-    currentName: input.gameUserName,
-    previousNamesJson: [],
-    status: "active",
-    memberLevel: input.gameUserLevel ?? null,
-    syncedAt: now,
-    createdAt: now,
-    updatedAt: now,
-  });
-
-  return ashedMemberId;
 }
 
 async function loadHqUserEmail(hqUserId: string): Promise<string | null> {
