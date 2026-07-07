@@ -83,12 +83,12 @@ Alliance HQ models **in-game** alliance mechanics (trains, VS weeks, R1–R5 ran
 - **Credentials:** per-alliance Ashed JWT in `alliance_ashed_credentials` (encrypted with `TOKEN_ENCRYPTION_KEY`). Resolve via `getAllianceAshedCredential` → `loadAllianceMembersForBot`.
 - **JWT scope:** never call Ashed with a credential for a different alliance. `loadAllianceMembersForBot` is the sole member-read entry point for bot code. Legacy `VR_BOT_ASHED_BEARER_TOKEN` requires matching `VR_BOT_ASHED_ALLIANCE_TAG`.
 - **Setup flow (secure):**
-  1. Anyone: `/link` → ephemeral HQ authorize URL (`purpose=user_link`) → Discord OAuth → `discord_hq_links` (no alliance required).
+  1. Anyone: `/link` → ephemeral HQ authorize URL (`purpose=user_link`) → Discord OAuth → `discord_hq_links` (no alliance required). Also mirrors any existing `hq_member_links` into `discord_member_links` so bot commands do not require a second name+UID pass.
   2. Owner (optional Ashed path): `/link-ashed tag:LFgo` → ephemeral HQ authorize URL (`purpose=alliance_credentials`) for roster sync tools (requires step 1).
   3. Owner completes HQ `/discord/authorize` with connection key only when using step 2 (stores `alliance_ashed_credentials`).
   4. Owner or platform maintainer: `/link-alliance tag:LFgo` → `discord_guild_alliances` (owner via member link / `callerIsAllianceOwner`, or platform maintainer — **no Ashed or HQ link required** for native alliances).
   5. Owner: `/set-vr-report-channel` in the nightly standings channel.
-  6. Members: `/link-commander name:… uid:…` or `/link-last-war-profile` (alias) → `discord_member_links` (guild must be registered; up to 5 commanders per Discord user). **Do not** use `/link` for commander binding.
+  6. Members: `/link-commander name:… uid:…` or `/link-last-war-profile` (alias) → `discord_member_links` when they have not already linked on the web. If they linked a commander on HQ web and then `/link`, commanders are inherited automatically (lazy inherit also runs on `/vr`, help, and owner/officer gates).
 - **Ashed optional:** Ashed credentials are never required for auth or member link. See [`.cursor/rules/ashed-optional-auth.mdc`](.cursor/rules/ashed-optional-auth.mdc).
 - **VR reports:** `/vr-report` (top 25) and `/vr-report teams:N` / `/takedown-teams` (5-player rally teams, snake THP balance) are **officer-gated** (`callerCanRunVrReport`: R4+ linked member or owner). Replies are ephemeral; nightly cron posts public top-25 to each guild's configured channel via `loadAllianceLeaderboard` + `listRegisteredGuildsWithReportChannel`.
 - **Train commands:** `/set-train-channel` (owner), `/who-is-conductor`, `/set-conductor`, `/train-is-ready` (officer gate via `callerCanManageTrains` → same as VR reports). Guild tenant from registration only; alliance-level `train_discord_announcements_enabled` (HQ settings) + per-guild `train_channel_id`. Lock/announce shared logic in `lib/trains/discord-bot.server.ts`; HQ lock route calls `maybeAnnounceTrainReady`. Departing-soon cron: `/api/internal/train/departing-soon`. Operator guide: `/guides/discord-train` (source `docs/guides/discord-train-operator.md`, en-US only until translated).
@@ -113,7 +113,7 @@ Do **not** conflate **Discord user**, **`discord_member_links` (in-game member)*
 | Ashed | Roster, owner, collaborators — **source of truth** for in-game membership | User connect JWT (web) or `alliance_ashed_credentials` (bot roster reads) |
 
 - **Member actions** (`/link-commander`, `/link-last-war-profile`, `/vr`): prove Discord user ↔ in-game commander via name+UID roster match; guild tenant from `resolveAllianceForGuild`.
-- **HQ account link** (`/link`): Discord OAuth via `user_link` nonce; records `discord_hq_links`; works without a registered guild.
+- **HQ account link** (`/link`): Discord OAuth via `user_link` nonce; records `discord_hq_links`; works without a registered guild; inherits web commanders into `discord_member_links`.
 - **Owner setup** (`/link-alliance`, optional `/link-ashed`): guild registration via owner member link or platform maintainer; Ashed credentials optional for native alliances.
 - **Cron / web-triggered jobs:** service or session auth; resolve `allianceId` explicitly; do not impersonate a Discord user.
 
@@ -127,7 +127,7 @@ Name+UID member link (`/onboard`, `/link-commander`, `/link-last-war-profile`) p
 | HQ RBAC | Manual `owner` / `officer` memberships grant role permissions from the invite. Platform maintainers get `hq:admin` from the maintainer flag. **Ashed-sourced** memberships still require a matching live session credential (unchanged). |
 | Discord owner gate | `callerIsAllianceOwner` requires a Discord member link whose `ashedMemberId` matches `alliances.ownerMemberExternalId`; Ashed credentials are not required for owner proof. |
 | Discord officer gate | R4+ checks use the alliance-scoped local roster when present. Optional Ashed credentials may supply roster reads for Ashed-sourced alliances that have no local roster yet. |
-| Token storage | Privileged web connects and `/link-ashed` credentials cap `tokenExpiresAt` at **min(JWT exp, now + 30 days)**. |
+| Token storage | Web connects and `/link-ashed` credentials cap `tokenExpiresAt` at **min(JWT exp, browser session expiresAt)**. |
 
 Legacy sessions (`hqUserId` null): allow-all until reconnect (unchanged). Regular `member` / `data_entry` / `viewer` invites: name+UID link only.
 
