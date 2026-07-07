@@ -45,7 +45,7 @@ export function RosterTeamBuilderSection({ rows }: Props) {
     : null;
 
   return (
-    <section className="rounded-2xl border border-hq-border bg-[#0D0D0D] p-4 sm:p-6">
+    <section className="rounded-2xl border border-hq-border bg-hq-surface p-4 sm:p-6">
       <h2 className="text-lg font-semibold text-hq-fg">
         {t("teamBuilder.title")}
       </h2>

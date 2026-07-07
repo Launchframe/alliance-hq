@@ -128,7 +128,7 @@ export function ViralResistanceView({
           {showMyVrCta ? (
             <Link
               href="/my-vr"
-              className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg border border-[#388bfd] bg-[#388bfd] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#4493ff] sm:self-start"
+              className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg border border-hq-accent bg-hq-accent px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:opacity-90 sm:self-start"
             >
               <Syringe className="h-4 w-4 shrink-0" aria-hidden />
               {t("openMyVrCta")}
@@ -148,7 +148,7 @@ export function ViralResistanceView({
       {error ? (
         <p className="text-sm text-hq-danger">{error}</p>
       ) : (
-        <div className="overflow-x-auto rounded-2xl border border-hq-border bg-[#0D0D0D]">
+        <div className="overflow-x-auto rounded-2xl border border-hq-border bg-hq-surface">
           <table className="min-w-full text-left text-sm">
             <thead className="border-b border-hq-border text-xs uppercase tracking-wide text-hq-fg-muted">
               <tr>
@@ -169,7 +169,7 @@ export function ViralResistanceView({
                   <td className="px-4 py-3 font-medium text-hq-fg">
                     {row.memberName}
                     {row.flagged ? (
-                      <span className="ml-2 text-xs text-[#d29922]">
+                      <span className="ml-2 text-xs text-hq-warning">
                         {t("flagged")}
                       </span>
                     ) : null}
@@ -201,7 +201,7 @@ export function ViralResistanceView({
       )}
 
       {officer ? (
-        <section className="rounded-2xl border border-hq-border bg-[#0D0D0D] p-4 sm:p-6">
+        <section className="rounded-2xl border border-hq-border bg-hq-surface p-4 sm:p-6">
           <h2 className="text-lg font-semibold text-hq-fg">
             {t("officer.title")}
           </h2>
@@ -212,7 +212,7 @@ export function ViralResistanceView({
               {officer.flagged.map((row) => (
                 <li
                   key={row.id}
-                  className="rounded-lg border border-[#d2992233] bg-[#d2992211] px-3 py-2 text-sm"
+                  className="rounded-lg border border-hq-warning/30 bg-hq-warning/10 px-3 py-2 text-sm"
                 >
                   <span className="font-medium text-hq-fg">
                     {officer.members.find((m) => m.id === row.ashedMemberId)
@@ -232,7 +232,7 @@ export function ViralResistanceView({
                     })}
                   </span>
                   {row.flagReason ? (
-                    <span className="mt-1 block text-xs text-[#d29922]">
+                    <span className="mt-1 block text-xs text-hq-warning">
                       {row.flagReason}
                     </span>
                   ) : null}
