@@ -757,9 +757,29 @@
       "statusFilter": "Status",
       "all": "Todos",
       "arms": {
+        "title": "Grupos",
+        "add": "Adicionar grupo",
         "loadConfigs": "Carregando configurações…",
         "configDefault": "Padrão (sem passagem shadow — comportamento do grupo controle)",
-        "configPickerLabel": "Configuração de análise"
+        "configPickerLabel": "Configuração de análise",
+        "deltaNote": "Δ de 👍 % é relativo ao grupo controle.",
+        "form": {
+          "name": "Nome do grupo",
+          "weight": "Peso de tráfego",
+          "isControl": "Grupo controle",
+          "save": "Adicionar grupo"
+        },
+        "col": {
+          "name": "Grupo",
+          "config": "Config",
+          "weight": "Peso",
+          "jobs": "Jobs",
+          "rated": "Avaliados",
+          "thumbsUp": "👍 %",
+          "avgQuality": "Qualidade média",
+          "delta": "Δ vs controle",
+          "buckets": "Faixas"
+        }
       },
       "started": "Iniciado",
       "concluded": "Concluído",

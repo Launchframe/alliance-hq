@@ -78,7 +78,7 @@ export function AdminMetadataBlock({
       {items.map((item) => (
         <div key={item.label} className="grid grid-cols-[7rem_minmax(0,1fr)] gap-2">
           <dt className="text-hq-fg-subtle">{item.label}</dt>
-          <dd className="min-w-0 break-words text-[#c9d1d9]">{item.value}</dd>
+          <dd className="min-w-0 break-words text-hq-fg">{item.value}</dd>
         </div>
       ))}
     </dl>
@@ -89,7 +89,7 @@ export function AdminConsoleLogsBlock({ logs }: { logs: string | null }) {
   if (!logs?.trim()) return null;
   return (
     <AdminDetailField label="Console logs">
-      <pre className="max-h-48 overflow-auto rounded-lg border border-hq-border bg-hq-canvas p-3 font-mono text-xs text-[#c9d1d9] whitespace-pre-wrap break-words">
+      <pre className="max-h-48 overflow-auto rounded-lg border border-hq-border bg-hq-canvas p-3 font-mono text-xs text-hq-fg whitespace-pre-wrap break-words">
         {logs}
       </pre>
     </AdminDetailField>
