@@ -58,13 +58,17 @@ test.describe("Trains schedule preview (no blank state)", () => {
       }),
     );
 
+    await page.addInitScript(() => {
+      window.localStorage.setItem("trains_walkthrough_seen", "1");
+    });
+
     await page.goto("/trains");
 
-    await expect(page.getByRole("heading", { name: /alliance train/i })).toBeVisible();
     await expect(page.getByTestId("trains-schedule-section")).toBeVisible();
     await expect(page.getByTestId("trains-no-schedule-section")).toHaveCount(0);
     await expect(page.getByTestId("trains-plan-week-banner")).toBeVisible();
     await expect(page.getByTestId("trains-template-selector")).toBeVisible();
+    await expect(page.getByTestId("trains-template-detail-hint")).toBeVisible();
   });
 
   test("month view shows preview legend for draft days", async ({ page }) => {

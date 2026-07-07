@@ -37,7 +37,7 @@ Stored on `train_day_configs`: `conductorMechanism`, `vipMechanism`, optional co
 
 | Template | Typical conductor | Typical VIP |
 |----------|-------------------|-------------|
-| **vs_push_week** | Mon: `vs_high_score`; Tue–Fri: `vs_top_10`; Sat–Sun: `r4_sequence` | Mon: `donations_second`; Tue–Fri: `conductor_pick`; Sat/Sun: `event_top_x_lottery` |
+| **vs_push_week** | Tue/Fri: `vs_high_score`; Wed/Thu/Sat: `vs_top_10`; Sun–Mon: `r4_sequence` | Tue–Sat: `conductor_pick`; Sun/Mon: `event_top_x_lottery` |
 | **economy_week** / **r3_recognition** | `r3_lottery` | `conductor_pick` |
 | **r4_train_week** | `r4_sequence` | `conductor_pick` |
 | **donations_week** | `donations_top` | `donations_second` |

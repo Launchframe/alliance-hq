@@ -2663,7 +2663,15 @@
       "r4_event_vip": "R4 e VIP evento"
     },
     "templateDetails": {
-      "price_is_right": "Condutor: roleta R3 entre membros cuja pontuação VS do dia anterior está entre 7.200.000 e o limite de economia mais a margem. VIP: o condutor do dia escolhe o VIP diretamente (escolha livre)."
+      "vs_push_week": "Condutor: ter e sex = VS #1 do dia anterior (automático); qua, qui e sáb = sorteio aleatório entre o top 10 de VS; dom–seg = rodízio de oficiais R4+. VIP: condutor escolhe o VIP nos dias de VS; loteria top 10 de evento dom–seg.",
+      "vs_push_weekdays": "Condutor: seg = maior doador; ter e sex = VS #1 do dia anterior; qua, qui e sáb = sorteio no top 10 de VS. VIP: seg = 2º doador; ter–sáb = escolha livre do condutor.",
+      "r4_event_vip": "Condutor: rodízio de oficiais R4+. VIP: roleta loteria top 10 do evento (padrão: Capitol War). Típico para dias de fim de semana.",
+      "economy_week": "Condutor: roleta R3 todos os dias — pool R3 completo, sem faixa de pontuação VS. VIP: o condutor do dia escolhe o VIP diretamente (escolha livre). Use para pivotar no meio da semana quando empurrar menos VS.",
+      "price_is_right": "Condutor: roleta R3 entre membros cuja pontuação VS do dia anterior está entre 7.200.000 e o limite de economia mais a margem. VIP: o condutor do dia escolhe o VIP diretamente (escolha livre).",
+      "r3_recognition": "Condutor: roleta R3 todos os dias — pool R3 completo (mesmo sorteio da Semana economia, sem filtro VS). VIP: o condutor do dia escolhe o VIP diretamente (escolha livre).",
+      "r4_train_week": "Condutor: rodízio de oficiais R4+ — percorre o pool em ordem, um condutor por dia. VIP: o condutor do dia escolhe o VIP diretamente (escolha livre).",
+      "donations_week": "Condutor: maior doador da aliança (automático). VIP: segundo doador (automático; oficiais podem corrigir manualmente se o placar estiver errado).",
+      "custom": "Condutor / VIP: sem regras predefinidas — defina os mecanismos de cada dia no calendário ou escolha manualmente ao sortear."
     },
     "wheel": {
       "title": "Todos a bordo!",

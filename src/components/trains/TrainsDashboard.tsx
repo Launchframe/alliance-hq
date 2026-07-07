@@ -69,7 +69,10 @@ import {
 import { canStartConductorSwap } from "@/lib/trains/conductor-swap.shared";
 import type { PoolRefreshedInfo, PoolType, RollResult, WeekTemplateType } from "@/lib/trains/types";
 import type { MemberQualificationPayload } from "@/lib/trains/train-conductor-minimums.shared";
-import { SELECTABLE_WEEK_TEMPLATES } from "@/lib/trains/week-template-registry.shared";
+import {
+  SELECTABLE_WEEK_TEMPLATES,
+  WEEK_TEMPLATES_WITH_DETAIL_HINTS,
+} from "@/lib/trains/week-template-registry.shared";
 import {
   applyOptimisticConductorPick,
   applyOptimisticConductorRoll,
@@ -1233,7 +1236,7 @@ export function TrainsDashboard({ initial }: Props) {
     return (
       <div className="mx-auto flex w-full max-w-lg flex-col gap-4 p-4 sm:p-6">
         <header>
-          <h1 className="text-2xl font-semibold text-[#e6edf3]">{t("title")}</h1>
+          <h1 className="text-2xl font-semibold text-foreground">{t("title")}</h1>
           <p className="mt-1 text-sm text-[#8b949e]">{t("subtitle")}</p>
         </header>
         <section className="rounded-2xl border border-[#30363d] bg-[#161b22] p-6 text-center">
@@ -1253,7 +1256,7 @@ export function TrainsDashboard({ initial }: Props) {
     <div className="mx-auto flex w-full min-w-0 max-w-5xl flex-col gap-6 p-4 sm:p-6">
       <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0 flex-1">
-          <h1 className="text-2xl font-semibold text-[#e6edf3]">{t("title")}</h1>
+          <h1 className="text-2xl font-semibold text-foreground">{t("title")}</h1>
           <p className="mt-1 text-sm text-[#8b949e]">{t("subtitle")}</p>
           <TrainsServerTimeClock
             selectedDate={selectedDate}
@@ -1318,6 +1321,17 @@ export function TrainsDashboard({ initial }: Props) {
           ) : null}
         </div>
       </header>
+
+      {data.canManageTrains &&
+      data.activeMemberCount > 0 &&
+      WEEK_TEMPLATES_WITH_DETAIL_HINTS.includes(activeWeekTemplate) ? (
+        <p
+          className="text-xs leading-relaxed text-[#8b949e]"
+          data-testid="trains-template-detail-hint"
+        >
+          {t(`templateDetails.${activeWeekTemplate}`)}
+        </p>
+      ) : null}
 
       {error ? (
         <p className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-300">

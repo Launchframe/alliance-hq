@@ -56,18 +56,19 @@ function pushWeekDay(
       vipMechanism: "conductor_pick",
     };
   }
-  if (calDow >= 3 && calDow <= 5) {
+  if (calDow === 3 || calDow === 4 || calDow === 6) {
+    // Wed, Thu, Sat — random draw from prior-day VS top 10.
     return {
       date,
       conductorMechanism: "vs_top_10",
       vipMechanism: "conductor_pick",
     };
   }
-  if (calDow === 6) {
-    // Last VS top-X conductor pick — Friday scores via T-1.
+  if (calDow === 5) {
+    // Fri — prior-day VS #1 (auto).
     return {
       date,
-      conductorMechanism: "vs_top_10",
+      conductorMechanism: "vs_high_score",
       vipMechanism: "conductor_pick",
     };
   }
