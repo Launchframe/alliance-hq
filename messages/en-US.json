@@ -1952,6 +1952,7 @@
     "refreshing": "Refreshing…",
     "openInAshed": "Open in Ashed ↗",
     "lastSynced": "Last synced {time}",
+    "lastSyncedUnknown": "Last synced time unknown",
     "colName": "Current name",
     "colPreviousNames": "Previous names",
     "colRank": "Rank",

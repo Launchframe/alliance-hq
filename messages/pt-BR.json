@@ -1895,6 +1895,7 @@
     "refreshing": "Atualizando…",
     "openInAshed": "Abrir no Ashed ↗",
     "lastSynced": "Última sincronização {time}",
+    "lastSyncedUnknown": "Horário da última sincronização desconhecido",
     "colName": "Nome atual",
     "colPreviousNames": "Nomes anteriores",
     "colRank": "Patente",
