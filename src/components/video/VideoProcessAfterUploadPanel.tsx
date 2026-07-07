@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 
-import { Link, useRouter } from "@/i18n/navigation";
+import { Link } from "@/i18n/navigation";
+import { useShellNavigation } from "@/components/ashed-shell/useShellNavigation";
 import { AppSelect } from "@/components/ui/AppSelect";
 import type { VideoProcessPreview } from "@/lib/video/video-process-preview.shared";
 
@@ -33,7 +34,7 @@ export function VideoProcessAfterUploadPanel({
   const tQueue = useTranslations("videoQueue");
   const tNav = useTranslations("nav");
   const tVideo = useTranslations("video");
-  const router = useRouter();
+  const { push, beginNavigation } = useShellNavigation();
 
   const [preview, setPreview] = useState<VideoProcessPreview | null>(null);
   const [loading, setLoading] = useState(true);
@@ -173,6 +174,7 @@ export function VideoProcessAfterUploadPanel({
   async function processNow() {
     setActing(true);
     setError(null);
+    let navigated = false;
     try {
       const res = await fetch(`/api/tools/video-upload/${jobId}/approve`, {
         method: "POST",
@@ -180,16 +182,22 @@ export function VideoProcessAfterUploadPanel({
       const data = (await res.json()) as { error?: string; code?: string };
       if (!res.ok) {
         if (data.code === "ashed_not_connected") {
-          router.push(connectUrl);
+          beginNavigation();
+          push(connectUrl);
+          navigated = true;
           return;
         }
         throw new Error(data.error ?? tQueue("approveFailed"));
       }
-      router.push(`/tools/video-upload/${jobId}/review`);
+      beginNavigation();
+      push(`/tools/video-upload/${jobId}/review`);
+      navigated = true;
     } catch (err) {
       setError(err instanceof Error ? err.message : tQueue("approveFailed"));
     } finally {
-      setActing(false);
+      if (!navigated) {
+        setActing(false);
+      }
     }
   }
 
@@ -345,7 +353,10 @@ export function VideoProcessAfterUploadPanel({
         {needsConnect ? (
           <button
             type="button"
-            onClick={() => router.push(connectUrl)}
+            onClick={() => {
+              beginNavigation();
+              push(connectUrl);
+            }}
             className="rounded-lg border border-[#d29922] px-4 py-2 text-sm font-medium text-[#d29922] hover:bg-[#d2992220]"
           >
             {tQueue("connectCta")}

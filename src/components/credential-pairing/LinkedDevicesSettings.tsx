@@ -9,7 +9,7 @@ import {
   FORM_SUBMIT_ENTER_KEY_HINT,
   preventDefaultFormSubmit,
 } from "@/lib/client/form-enter-submit.shared";
-import { useRouter } from "@/i18n/navigation";
+import { useShellNavigation } from "@/components/ashed-shell/useShellNavigation";
 import {
   buildConnectHref,
   stashConnectReturnPath,
@@ -23,7 +23,7 @@ type Props = {
 export function LinkedDevicesSettings({ refreshToken = 0 }: Props) {
   const t = useTranslations("deviceLink.devices");
   const formatWhen = useFormatAccountDateTime();
-  const router = useRouter();
+  const { pushAndRefresh } = useShellNavigation();
   const [devices, setDevices] = useState<LinkedDeviceSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -141,8 +141,7 @@ export function LinkedDevicesSettings({ refreshToken = 0 }: Props) {
       setRevokeTarget(null);
       if (data.revokedCurrentSession) {
         stashConnectReturnPath("/account");
-        router.push(buildConnectHref("/account"));
-        router.refresh();
+        pushAndRefresh(buildConnectHref("/account"), "signOut");
         return;
       }
       setMessage(t("revoked"));

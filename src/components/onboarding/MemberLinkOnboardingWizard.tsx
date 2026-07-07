@@ -13,7 +13,8 @@ import { isValidGameUid } from "@/lib/lastwar/player-lookup";
 import type { MemberLinkOnboardingInitialState } from "@/lib/member-link/onboarding-bootstrap.shared";
 import type { MemberLinkOutcome } from "@/lib/member-link/outcome.shared";
 import { dispatchAllianceSetupStatusRefresh } from "@/lib/alliance-setup-guide-refresh.shared";
-import { Link, useRouter } from "@/i18n/navigation";
+import { useShellNavigation } from "@/components/ashed-shell/useShellNavigation";
+import { Link } from "@/i18n/navigation";
 
 type Props = {
   allianceName: string;
@@ -62,7 +63,7 @@ export function MemberLinkOnboardingWizard({
 }: Props) {
   const t = useTranslations("onboard");
   const tLink = useTranslations("memberLink");
-  const router = useRouter();
+  const { pushAndRefresh } = useShellNavigation();
 
   const [phase, setPhase] = useState<Phase>(initialState.phase);
   const [reportedName, setReportedName] = useState("");
@@ -115,8 +116,7 @@ export function MemberLinkOnboardingWizard({
           }
           if (successPresentation === "default" && discordBotLinked) {
             window.setTimeout(() => {
-              router.push(nextPath);
-              router.refresh();
+              pushAndRefresh(nextPath, "memberLink");
             }, 1800);
           }
           break;
@@ -185,7 +185,7 @@ export function MemberLinkOnboardingWizard({
           setFormError(data.message);
       }
     },
-    [discordBotLinked, nextPath, reportedName, router, successPresentation, t],
+    [discordBotLinked, nextPath, pushAndRefresh, reportedName, successPresentation, t],
   );
 
   function buildSubmitBody(extra?: {
@@ -363,11 +363,9 @@ export function MemberLinkOnboardingWizard({
         setFormError(t("requestFailed"));
         return;
       }
-      router.push("/get-started");
-      router.refresh();
+      pushAndRefresh("/get-started", "memberLink");
     } catch {
       setFormError(t("requestFailed"));
-    } finally {
       setBusy(false);
     }
   }

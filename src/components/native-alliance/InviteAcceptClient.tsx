@@ -5,7 +5,8 @@ import { useTranslations } from "next-intl";
 import { signIn } from "next-auth/react";
 
 import { DiscordIcon } from "@/components/auth/AuthMethodPicker";
-import { Link, useRouter } from "@/i18n/navigation";
+import { Link } from "@/i18n/navigation";
+import { useShellNavigation } from "@/components/ashed-shell/useShellNavigation";
 import {
   FORM_SUBMIT_ENTER_KEY_HINT,
   preventDefaultFormSubmit,
@@ -67,7 +68,7 @@ export function InviteAcceptClient({
   ssoAvailability,
 }: Props) {
   const t = useTranslations("invite");
-  const router = useRouter();
+  const { push, beginSessionChange, beginNavigation } = useShellNavigation();
   const [preview, setPreview] = useState<InvitePreview | null>(null);
   const [email, setEmail] = useState(userEmail ?? "");
   const [passphrase, setPassphrase] = useState("");
@@ -124,13 +125,15 @@ export function InviteAcceptClient({
 
   async function acceptInvite() {
     if (!isAuthenticated) {
-      router.push(authHref);
+      beginNavigation();
+      push(authHref);
       return;
     }
 
     setSubmitting(true);
     setError(null);
     setShowAccountHint(false);
+    let navigated = false;
     try {
       const res = await fetch(
         `/api/invite/${encodeURIComponent(token)}/accept`,
@@ -164,17 +167,23 @@ export function InviteAcceptClient({
           return;
         }
         if (body.code === "auth_required") {
-          router.push(authHref);
+          beginNavigation();
+          push(authHref);
+          navigated = true;
           return;
         }
         setError(body.error ?? t("acceptFailed"));
         return;
       }
-      router.push(body.redirectTo ?? postAcceptHref);
+      beginSessionChange("invite");
+      push(body.redirectTo ?? postAcceptHref);
+      navigated = true;
     } catch (e) {
       setError(e instanceof Error ? e.message : t("acceptFailed"));
     } finally {
-      setSubmitting(false);
+      if (!navigated) {
+        setSubmitting(false);
+      }
     }
   }
 

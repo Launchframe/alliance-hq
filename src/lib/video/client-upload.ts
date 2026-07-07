@@ -50,8 +50,11 @@ export async function uploadVideoFile(options: {
   hqEventId?: string;
   uploadConfig: UploadConfig;
   onProgress?: (loaded: number, total: number) => void;
+  /** Fires once a server-side job row exists (R2 init or direct POST). */
+  onJobCreated?: (jobId: string) => void;
 }): Promise<{ jobId: string; message: string; status: string }> {
-  const { file, scoreTarget, boardKey, uploadConfig, onProgress } = options;
+  const { file, scoreTarget, boardKey, uploadConfig, onProgress, onJobCreated } =
+    options;
 
   if (uploadConfig.mode === "direct") {
     const formData = new FormData();
@@ -72,6 +75,7 @@ export async function uploadVideoFile(options: {
       throw new Error(data.error ?? "Upload failed");
     }
     onProgress?.(file.size, file.size);
+    onJobCreated?.(data.jobId);
     return {
       jobId: data.jobId,
       message: data.message ?? "Video uploaded.",
@@ -97,11 +101,13 @@ export async function uploadVideoFile(options: {
   }
 
   if (init.mode === "r2_put") {
+    onJobCreated?.(init.jobId);
     await putWithProgress(init.putUrl, file, init.contentType, onProgress);
     return completeUpload(init.jobId);
   }
 
   if (init.mode === "r2_multipart") {
+    onJobCreated?.(init.jobId);
     const parts = await uploadMultipartParts(
       file,
       init.presignedParts,

@@ -4,7 +4,7 @@ import { useTranslations } from "next-intl";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
-import { useRouter } from "@/i18n/navigation";
+import { useShellNavigation } from "@/components/ashed-shell/useShellNavigation";
 import { Link } from "@/i18n/navigation";
 import { RosterAllianceBanner } from "@/components/video/RosterAllianceBanner";
 import { OcrAccuracyBadge } from "@/components/video/OcrAccuracyBadge";
@@ -125,7 +125,7 @@ export function VideoUploadForm({
   const t = useTranslations("video");
   const tNav = useTranslations("nav");
   const tc = useTranslations("common");
-  const router = useRouter();
+  const { push } = useShellNavigation();
 
   const [scoreTargets, setScoreTargets] = useState<ScoreTargetOption[]>([
     {
@@ -256,14 +256,26 @@ export function VideoUploadForm({
     setError(null);
     setSuccess(null);
 
+    const uploadFile = file;
+    setActiveSurvey({
+      jobId: "",
+      file: uploadFile,
+      initialSurvey: null,
+      navigateOnClose: false,
+    });
+    setFile(null);
+
     try {
       const data = await uploadVideoFile({
-        file,
+        file: uploadFile,
         scoreTarget,
         boardKey: effectiveBoardKey || undefined,
         uploadConfig,
         onProgress: (loaded, total) => {
           setUploadProgress({ loaded, total });
+        },
+        onJobCreated: (jobId) => {
+          setActiveSurvey((prev) => (prev ? { ...prev, jobId } : null));
         },
       });
 
@@ -277,15 +289,18 @@ export function VideoUploadForm({
         ...prev,
         [data.jobId]: false,
       }));
-      setActiveSurvey({
-        jobId: data.jobId,
-        file,
-        initialSurvey: null,
-        navigateOnClose: data.status !== "pending_approval",
-      });
-      setFile(null);
+      setActiveSurvey((prev) =>
+        prev
+          ? {
+              ...prev,
+              jobId: data.jobId,
+              navigateOnClose: data.status !== "pending_approval",
+            }
+          : null,
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : tc("uploadFailed"));
+      setActiveSurvey(null);
     } finally {
       setUploading(false);
       setUploadProgress(null);
@@ -309,7 +324,7 @@ export function VideoUploadForm({
       session.jobId &&
       !canProcess
     ) {
-      router.push(`/tools/video-upload/${session.jobId}/review`);
+      push(`/tools/video-upload/${session.jobId}/review`);
     }
   }
 

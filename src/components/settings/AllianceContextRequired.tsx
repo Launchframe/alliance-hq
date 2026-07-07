@@ -3,8 +3,9 @@
 import { useCallback, useState } from "react";
 import { useTranslations } from "next-intl";
 
+import { useShellActivityOptional } from "@/components/ashed-shell/ShellActivityProvider";
+import { useShellNavigation } from "@/components/ashed-shell/useShellNavigation";
 import { AppSelect } from "@/components/ui/AppSelect";
-import { useRouter } from "@/i18n/navigation";
 import type { SessionAllianceOption } from "@/lib/alliance/types";
 
 type Props = {
@@ -13,7 +14,8 @@ type Props = {
 
 export function AllianceContextRequired({ alliances }: Props) {
   const t = useTranslations("settings.allianceContext");
-  const router = useRouter();
+  const { refresh } = useShellNavigation();
+  const shellActivity = useShellActivityOptional();
   const [allianceId, setAllianceId] = useState("");
   const [switching, setSwitching] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -23,8 +25,12 @@ export function AllianceContextRequired({ alliances }: Props) {
       if (!nextAllianceId) {
         return;
       }
+      const selected = alliances.find((row) => row.id === nextAllianceId);
       setSwitching(true);
       setError(null);
+      shellActivity?.beginAllianceSwitch(
+        selected?.tag ?? selected?.slug ?? undefined,
+      );
       try {
         const res = await fetch("/api/session/current-alliance", {
           method: "PATCH",
@@ -36,14 +42,14 @@ export function AllianceContextRequired({ alliances }: Props) {
           throw new Error(data.error ?? t("switchFailed"));
         }
         setAllianceId(nextAllianceId);
-        router.refresh();
+        refresh();
       } catch (err) {
+        shellActivity?.endActivity();
         setError(err instanceof Error ? err.message : t("switchFailed"));
-      } finally {
         setSwitching(false);
       }
     },
-    [router, t],
+    [alliances, refresh, shellActivity, t],
   );
 
   return (

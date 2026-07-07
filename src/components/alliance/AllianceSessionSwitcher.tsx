@@ -5,10 +5,12 @@ import { useLocale, useTranslations } from "next-intl";
 
 import { AllianceLinkedCommandersBadge } from "@/components/alliance/AllianceLinkedCommandersBadge";
 import { AlliancePickerOptionLabel } from "@/components/alliance/AlliancePickerOptionLabel";
+import { useShellActivityOptional } from "@/components/ashed-shell/ShellActivityProvider";
 import { AppSelect } from "@/components/ui/AppSelect";
 import { alliancePickerOptionSearchText } from "@/lib/alliance/alliance-picker-label.shared";
 import { resolveAllianceSwitchTargetPath } from "@/lib/alliance/switch-nav.shared";
 import type { SessionAllianceOption } from "@/lib/alliance/types";
+import { pathsMatchForNavigation } from "@/lib/shell-activity/navigation-progress.shared";
 import { getPathname, usePathname } from "@/i18n/navigation";
 
 type Props = {
@@ -37,6 +39,7 @@ export function AllianceSessionSwitcher({
   const t = useTranslations("alliancePicker");
   const locale = useLocale();
   const pathname = usePathname();
+  const shellActivity = useShellActivityOptional();
   const [alliances, setAlliances] = useState(initialAlliances);
   const [currentAllianceId, setCurrentAllianceId] = useState(
     initialCurrentAllianceId ?? "",
@@ -105,8 +108,13 @@ export function AllianceSessionSwitcher({
       if (!allianceId || allianceId === currentAllianceId) {
         return;
       }
+      const selected = alliances.find((row) => row.id === allianceId);
       setSwitching(true);
       setError(null);
+      shellActivity?.beginAllianceSwitch(
+        selected?.tag ?? selected?.slug ?? undefined,
+      );
+      let navigated = false;
       try {
         const res = await fetch("/api/session/current-alliance", {
           method: "PATCH",
@@ -127,6 +135,7 @@ export function AllianceSessionSwitcher({
         onSwitched?.(nextId);
 
         if (stayOnCurrentPage) {
+          navigated = true;
           window.location.reload();
           return;
         }
@@ -141,21 +150,39 @@ export function AllianceSessionSwitcher({
 
         // Same-URL assign can skip a full document load, leaving app-shell nav props stale.
         if (
-          localizedTarget === window.location.pathname ||
-          targetPath === pathname
+          pathsMatchForNavigation(
+            localizedTarget,
+            window.location.pathname,
+            targetPath,
+            pathname,
+          )
         ) {
+          navigated = true;
           window.location.reload();
           return;
         }
 
+        navigated = true;
         window.location.assign(localizedTarget);
       } catch (err) {
+        shellActivity?.endActivity();
         setError(err instanceof Error ? err.message : t("switchFailed"));
       } finally {
-        setSwitching(false);
+        if (!navigated) {
+          setSwitching(false);
+        }
       }
     },
-    [currentAllianceId, locale, onSwitched, pathname, stayOnCurrentPage, t],
+    [
+      alliances,
+      currentAllianceId,
+      locale,
+      onSwitched,
+      pathname,
+      shellActivity,
+      stayOnCurrentPage,
+      t,
+    ],
   );
 
   const searchable =

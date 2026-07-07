@@ -1,5 +1,6 @@
 "use client";
 
+import { Loader2 } from "lucide-react";
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 
@@ -31,9 +32,12 @@ type Props = {
 export function AshedEmbed({ path, labelKey, scoreTargetId = null }: Props) {
   const t = useTranslations("ashedEmbed");
   const tNav = useTranslations("nav");
+  const tShell = useTranslations("shellActivity");
   const url = ashedUrlForPath(path);
   const title = labelKey ? tNav(labelKey) : path;
   const [hintDismissed, setHintDismissed] = useState(readLoginHintDismissed);
+  const [loadedPath, setLoadedPath] = useState<string | null>(null);
+  const iframeLoading = loadedPath !== path;
 
   function dismissHint() {
     setHintDismissed(true);
@@ -84,7 +88,7 @@ export function AshedEmbed({ path, labelKey, scoreTargetId = null }: Props) {
         </div>
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-hq-canvas md:rounded-xl md:border md:border-hq-border">
+      <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-hq-canvas md:rounded-xl md:border md:border-hq-border">
         {!hintDismissed ? (
           <div className="border-b border-[#d29922]/30 bg-[#d29922]/10 px-4 py-3">
             <div className="flex flex-wrap items-start justify-between gap-3">
@@ -106,11 +110,25 @@ export function AshedEmbed({ path, labelKey, scoreTargetId = null }: Props) {
             </div>
           </div>
         ) : null}
+        {iframeLoading ? (
+          <div
+            className="absolute inset-0 z-10 flex items-center justify-center bg-hq-canvas/80 md:rounded-xl"
+            role="status"
+            aria-live="polite"
+          >
+            <div className="flex items-center gap-2 text-sm text-hq-fg-muted">
+              <Loader2 className="h-5 w-5 animate-spin text-hq-accent" aria-hidden />
+              {tShell("loadingPage")}
+            </div>
+          </div>
+        ) : null}
         <iframe
+          key={path}
           src={url}
           title={t("iframeTitle", { path: title })}
           className="min-h-0 w-full flex-1 md:h-[min(70vh,720px)] md:flex-none"
           sandbox="allow-same-origin allow-scripts allow-forms allow-popups"
+          onLoad={() => setLoadedPath(path)}
         />
         {!hintDismissed ? (
           <p className="hidden border-t border-hq-border px-4 py-2 text-xs text-hq-fg-muted md:block">

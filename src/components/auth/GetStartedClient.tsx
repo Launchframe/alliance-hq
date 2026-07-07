@@ -3,11 +3,12 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 
-import { Link, useRouter } from "@/i18n/navigation";
+import { Link } from "@/i18n/navigation";
+import { useShellNavigation } from "@/components/ashed-shell/useShellNavigation";
 
 export function GetStartedClient() {
   const t = useTranslations("getStarted");
-  const router = useRouter();
+  const { pushAndRefresh } = useShellNavigation();
   const [signingOut, setSigningOut] = useState(false);
   const [signOutError, setSignOutError] = useState<string | null>(null);
 
@@ -18,13 +19,12 @@ export function GetStartedClient() {
       const res = await fetch("/api/auth/sign-out", { method: "POST" });
       if (!res.ok) {
         setSignOutError(t("signOutFailed"));
+        setSigningOut(false);
         return;
       }
-      router.push("/auth");
-      router.refresh();
+      pushAndRefresh("/auth", "signOut");
     } catch {
       setSignOutError(t("signOutFailed"));
-    } finally {
       setSigningOut(false);
     }
   }

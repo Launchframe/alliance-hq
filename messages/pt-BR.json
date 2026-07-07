@@ -1140,6 +1140,16 @@
       "unknownEmail": "Sem e-mail cadastrado"
     }
   },
+  "shellActivity": {
+    "loadingPage": "Loading…",
+    "switchingAlliance": "Switching alliance…",
+    "switchingAllianceTo": "Switching to {tag}…",
+    "signingOut": "Signing out…",
+    "continuingToApp": "Opening Alliance HQ…",
+    "acceptingInvite": "Accepting invite…",
+    "acceptingJoinCode": "Joining alliance…",
+    "completingMemberLink": "Completing setup…"
+  },
   "hotkeys": {
     "openPalette": "Abrir atalhos de teclado",
     "paletteTitle": "Ações rápidas",
@@ -3380,7 +3390,7 @@
     "defaultHint": "Defina <localDb>LOCAL_DATABASE_URL</localDb> e <encKey>TOKEN_ENCRYPTION_KEY</encKey> em <envFile>.env.local</envFile> e, em seguida, execute <dbPush>npm run db:push</dbPush>."
   },
   "videoSurvey": {
-    "title": "Enquanto aguarda…",
+    "title": "Enquanto aguarda, conte-nos um pouco sobre este vídeo.",
     "processingNote": "Seu vídeo está sendo processado em segundo plano. Se tiver um momento, algumas notas opcionais nos ajudam a ajustar o pipeline.",
     "q1Label": "Quantas linhas do placar existem aproximadamente no seu vídeo?",
     "q1Placeholder": "ex.: 50",

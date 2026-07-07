@@ -84,6 +84,7 @@ export function VideoSurveyDialog({
   });
   const [accumulated, setAccumulated] = useState<SurveyAccumulated>(emptyAccumulated);
   const [submitting, setSubmitting] = useState(false);
+  const pendingSubmitRef = useRef<SurveyAccumulated | null>(null);
 
   const storedVideoSrc = `/api/tools/video-upload/${jobId}/video`;
 
@@ -125,6 +126,7 @@ export function VideoSurveyDialog({
         schoolingTuitionAnswer: "",
       });
       setAccumulated(emptyAccumulated());
+      pendingSubmitRef.current = null;
     });
     return () => cancelAnimationFrame(raf);
   }, [open, jobId, initialSurvey]);
@@ -154,12 +156,17 @@ export function VideoSurveyDialog({
     return accumulated;
   }
 
-  async function postAndClose(nextAccumulated: SurveyAccumulated) {
+  async function postPayload(nextAccumulated: SurveyAccumulated) {
     const payload = buildPayload(nextAccumulated);
     const complete = isSurveyComplete(payload);
 
     if (!hasSurveyAnswers(payload)) {
       onClose({ complete: false });
+      return;
+    }
+
+    if (!jobId) {
+      pendingSubmitRef.current = nextAccumulated;
       return;
     }
 
@@ -179,6 +186,17 @@ export function VideoSurveyDialog({
       setSubmitting(false);
       onClose({ complete });
     }
+  }
+
+  useEffect(() => {
+    if (!jobId || !pendingSubmitRef.current) return;
+    const nextAccumulated = pendingSubmitRef.current;
+    pendingSubmitRef.current = null;
+    void postPayload(nextAccumulated);
+  }, [jobId]);
+
+  async function postAndClose(nextAccumulated: SurveyAccumulated) {
+    await postPayload(nextAccumulated);
   }
 
   function handleOpenChange(nextOpen: boolean) {

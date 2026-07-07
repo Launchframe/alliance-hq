@@ -3,6 +3,7 @@ import { getLocale, getTranslations } from "next-intl/server";
 import { TimezoneProvider } from "@/components/timezone/TimezoneProvider";
 import { redirect } from "@/i18n/navigation";
 import { AshedShell } from "@/components/ashed-shell/AshedShell";
+import { ShellActivityBoundary } from "@/components/ashed-shell/ShellActivityBoundary";
 import { requireAuthForPage } from "@/lib/auth/page-guard";
 import {
   collectDatabaseErrorText,
@@ -86,7 +87,8 @@ export default async function AppLayout({
 
   return (
     <TimezoneProvider initialTimezoneId={state.timezone}>
-      <AshedShell
+      <ShellActivityBoundary>
+        <AshedShell
         sessionId={state.sessionId}
         userLabel={state.userLabel}
         displayName={state.rbac?.displayName ?? null}
@@ -113,7 +115,8 @@ export default async function AppLayout({
         devQuickSwitch={isDevOrPreviewEnvironment()}
       >
         {children}
-      </AshedShell>
+        </AshedShell>
+      </ShellActivityBoundary>
     </TimezoneProvider>
   );
 }

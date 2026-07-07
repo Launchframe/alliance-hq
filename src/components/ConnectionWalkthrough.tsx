@@ -33,7 +33,8 @@ import {
   inlineCode,
   strongText,
 } from "@/components/i18n/richText";
-import { useRouter, Link } from "@/i18n/navigation";
+import { Link } from "@/i18n/navigation";
+import { useShellNavigation } from "@/components/ashed-shell/useShellNavigation";
 import type { AshedConnectionMeta } from "@/lib/jwt/connection-meta";
 import type { AccessibleAlliance } from "@/lib/alliance/types";
 import {
@@ -95,7 +96,7 @@ export function ConnectionWalkthrough({
   const t = useTranslations("connect");
   const tc = useTranslations("common");
   const locale = useLocale();
-  const router = useRouter();
+  const { pushAndRefresh } = useShellNavigation();
   const [stepIndex, setStepIndex] = useState(() =>
     skipWalkthroughToPaste ? PASTE_STEP_INDEX : 0,
   );
@@ -216,9 +217,8 @@ export function ConnectionWalkthrough({
 
   const continueToApp = useCallback(() => {
     clearStashedConnectReturnPath();
-    router.push(afterConnectPath);
-    router.refresh();
-  }, [afterConnectPath, router]);
+    pushAndRefresh(afterConnectPath, "connect");
+  }, [afterConnectPath, pushAndRefresh]);
 
   const parsePreview = useMemo(() => {
     if (!pasteInput.trim()) return null;

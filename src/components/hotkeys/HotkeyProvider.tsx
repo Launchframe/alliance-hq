@@ -12,6 +12,7 @@ import {
 } from "react";
 
 import { usePathname, useRouter } from "@/i18n/navigation";
+import { useShellNavigation } from "@/components/ashed-shell/useShellNavigation";
 import {
   buildConnectHref,
   stashConnectReturnPath,
@@ -79,7 +80,7 @@ export function HotkeyProvider({
   showVideoQueue = false,
   onOpenMobileNav,
 }: Props) {
-  const router = useRouter();
+  const { push: navigateWithActivity, router } = useShellNavigation();
   const pathname = usePathname();
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [adminSequenceMode, setAdminSequenceMode] = useState(false);
@@ -220,24 +221,24 @@ export function HotkeyProvider({
             setPaletteOpen(true);
             return;
           case "open-hotkey-reference":
-            router.push("/settings/hotkeys");
+            navigateWithActivity("/settings/hotkeys");
             return;
           case "focus-sidebar":
             onOpenMobileNav?.();
             return;
           case "connect-ashed":
             stashConnectReturnPath(pathname);
-            router.push(buildConnectHref(pathname));
+            navigateWithActivity(buildConnectHref(pathname));
             return;
           case "admin-sequence-start":
             if (action.href) {
-              router.push(action.href);
+              navigateWithActivity(action.href);
             }
             startAdminSequenceMode();
             return;
           case "navigate":
             if (action.href) {
-              router.push(action.href);
+              navigateWithActivity(action.href);
             }
             return;
           default:
