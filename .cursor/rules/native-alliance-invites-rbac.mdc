@@ -67,11 +67,11 @@ Both paths share: invite → accept → `/onboard` → member link or claim conf
 - Generic **member** invite / join code still works but is weaker (no pre-bound commander); use when the officer does not know which roster row yet.
 - **Officer / viewer / data_entry** invites remain required for RBAC — claim invites are always `member` role.
 
-### Fresh native (owner-only cold start — e.g. BigD)
+### Fresh native (leadership cold start — e.g. BigD, owner-less shell)
 
-- Only the **owner** has HQ access at first; `alliance_members` may be empty or owner-only.
-- Owner must **member-link first** (cold-start can adopt game server + create first roster row).
-- Then issue **officer** invites; officers link themselves (often **owner approval** or roster miss until roster exists).
+- First **owner or officer** invitee can **member-link** on an empty roster (cold-start adopts game server + create first roster row).
+- Owner-less shells: issue an **officer** invite first; that officer cold-starts without waiting for an owner email or roster-link approval.
+- After the first roster row exists, additional officers link via self-service (when enabled), roster match, or owner approval as usual.
 - Grow roster (video OCR, owner approval on roster-link requests, sync if Ashed added later).
 - Shift to **claim invites** once roster names exist and officers can pick unclaimed commanders.
 - **Join codes** optional for broad `member` RBAC enrollment; everyone still completes `/onboard`.

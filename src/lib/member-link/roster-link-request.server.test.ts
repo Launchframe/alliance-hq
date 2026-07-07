@@ -231,6 +231,29 @@ describe("tryBootstrapOwnerColdStartMember", () => {
     expect(result?.outcome).toBe("linked");
   });
 
+  it("auto-links officer invite on empty roster when ownerHqUserId is not set yet", async () => {
+    dbModule.chain.limit
+      .mockResolvedValueOnce([{ ownerHqUserId: null }])
+      .mockResolvedValueOnce([
+        { id: "inv-officer", roleId: "role-officer", acceptedAt: new Date() },
+      ]);
+
+    const result = await tryBootstrapOwnerColdStartMember({
+      allianceId: "a1",
+      hqUserId: "u1",
+      locale: "en-US",
+      reportedName: "Commander",
+      gameUid: "1234567890121203",
+      lookup: { ok: true, gameUserName: "Commander", gameServerNumber: 1203 },
+      rosterCount: 0,
+    });
+
+    expect(result?.outcome).toBe("linked");
+    expect(repository.maybeSetOwnerMemberExternalId).toHaveBeenCalledWith(
+      expect.objectContaining({ allianceId: "a1", hqUserId: "u1" }),
+    );
+  });
+
   it("returns null for non-native alliance", async () => {
     vi.mocked(operatingMode.isNativeAlliance).mockResolvedValue(false);
 
@@ -247,7 +270,7 @@ describe("tryBootstrapOwnerColdStartMember", () => {
     expect(result).toBeNull();
   });
 
-  it("returns null for non-owner invite", async () => {
+  it("returns null for member invite", async () => {
     dbModule.chain.limit
       .mockResolvedValueOnce([{ ownerHqUserId: null }])
       .mockResolvedValueOnce([

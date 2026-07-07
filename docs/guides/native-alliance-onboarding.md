@@ -200,7 +200,7 @@ flowchart TD
   H --> Z[Clear pending, sync primaryGameUid, audit]
 ```
 
-#### 5a. Owner cold-start bootstrap
+#### 5a. Leadership cold-start bootstrap (owner or officer)
 
 **Function:** `tryBootstrapOwnerColdStartMember` — `src/lib/member-link/roster-link-request.server.ts`
 
@@ -208,7 +208,7 @@ Runs only when **all** of:
 
 - Native alliance (`isNativeAlliance`)
 - Empty roster (`rosterCount === 0`)
-- Owner gate: `alliances.ownerHqUserId` matches **or** accepted invite with `owner` role
+- Leadership gate: `alliances.ownerHqUserId` matches **or** accepted invite with `owner` or `officer` role
 - `namesMatch(reportedName, lookup.gameUserName)` — case-insensitive, whitespace-normalized
 
 Then:
