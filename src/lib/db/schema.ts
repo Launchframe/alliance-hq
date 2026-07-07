@@ -559,6 +559,61 @@ export const parseSessions = pgTable("parse_sessions", {
     .notNull(),
 });
 
+export const dataUploadBatchStatuses = ["active", "moved", "deleted"] as const;
+export type DataUploadBatchStatus = (typeof dataUploadBatchStatuses)[number];
+
+/** Ledger of score batches submitted from HQ video upload (and future ingest paths). */
+export const dataUploadBatches = pgTable(
+  "data_upload_batches",
+  {
+    id: text("id").primaryKey(),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    scoreTarget: text("score_target").notNull(),
+    submitEntity: text("submit_entity").notNull(),
+    recordedDate: text("recorded_date").notNull(),
+    contextJson: jsonb("context_json")
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default({}),
+    rowCount: integer("row_count").notNull().default(0),
+    sourceJobId: text("source_job_id").references(() => videoJobs.id, {
+      onDelete: "set null",
+    }),
+    parseSessionId: text("parse_session_id").references(() => parseSessions.id, {
+      onDelete: "set null",
+    }),
+    createdByHqUserId: text("created_by_hq_user_id").references(
+      () => hqUsers.id,
+      { onDelete: "set null" },
+    ),
+    submittedAt: timestamp("submitted_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    status: text("status").notNull().default("active"),
+    movedToDate: text("moved_to_date"),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("idx_data_upload_batches_alliance_status").on(
+      table.allianceId,
+      table.status,
+    ),
+    index("idx_data_upload_batches_alliance_entity_date").on(
+      table.allianceId,
+      table.submitEntity,
+      table.recordedDate,
+    ),
+  ],
+);
+
 export const parsedRows = pgTable("parsed_rows", {
   id: text("id").primaryKey(),
   parseSessionId: text("parse_session_id")
@@ -1170,6 +1225,7 @@ export type AllianceVideoProcessor =
   typeof allianceVideoProcessors.$inferSelect;
 export type VideoFrame = typeof videoFrames.$inferSelect;
 export type ParseSession = typeof parseSessions.$inferSelect;
+export type DataUploadBatch = typeof dataUploadBatches.$inferSelect;
 export type ParsedRow = typeof parsedRows.$inferSelect;
 export type AuditLogEntry = typeof auditLog.$inferInsert;
 export type DiscordAuthNonce = typeof discordAuthNonces.$inferSelect;

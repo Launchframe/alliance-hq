@@ -58,6 +58,7 @@ import {
   videoSubmitClaimLostError,
   videoSubmitNotReadyError,
 } from "@/lib/video/submit-job-ready.shared";
+import { recordDataUploadBatch } from "@/lib/data-management/batch-ledger.server";
 
 type Props = {
   params: Promise<{ jobId: string }>;
@@ -727,6 +728,19 @@ export async function POST(request: Request, { params }: Props) {
     });
 
     await dispatchScoreSubmit(connection, target, payloads);
+
+    await recordDataUploadBatch({
+      allianceId,
+      target,
+      submitContext: {
+        ...submitContext,
+        eventId: ashedEventId,
+      },
+      rowCount: activeRows.length,
+      sourceJobId: jobId,
+      parseSessionId: job.parseSessionId,
+      createdByHqUserId: job.enqueuedByHqUserId ?? session.hqUserId ?? null,
+    });
 
     if (submitContext.hqEventId) {
       for (const row of activeRows) {

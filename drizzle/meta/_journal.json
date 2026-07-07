@@ -666,6 +666,13 @@
       "when": 1787395200000,
       "tag": "0095_bank_management",
       "breakpoints": true
+    },
+    {
+      "idx": 94,
+      "version": "7",
+      "when": 1787481600000,
+      "tag": "0096_data_upload_batches",
+      "breakpoints": true
     }
   ]
 }
