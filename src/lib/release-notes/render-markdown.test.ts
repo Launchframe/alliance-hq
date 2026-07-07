@@ -20,4 +20,13 @@ describe("renderReleaseNoteMarkdown", () => {
     expect(html).toContain("<pre>");
     expect(html).toContain("<code");
   });
+
+  it("escapes HTML in mermaid fences before dangerouslySetInnerHTML", () => {
+    const html = renderReleaseNoteMarkdown(
+      "```mermaid\nflowchart TD\n  A[<img src=x onerror=alert(1)>] --> B\n```",
+    );
+
+    expect(html).toContain("&lt;img src=x onerror=alert(1)&gt;");
+    expect(html).not.toContain("<img src=x");
+  });
 });
