@@ -3,6 +3,10 @@ import "server-only";
 import { z } from "zod";
 
 import {
+  assertDiscordMemberLinkWebSession,
+  type DiscordMemberLinkWebSessionDenyReason,
+} from "@/lib/auth/discord-member-link-gate.server";
+import {
   consumeDiscordAuthNonce,
   getValidDiscordAuthNonce,
 } from "@/lib/vr/auth-nonce";
@@ -17,11 +21,21 @@ import {
 } from "@/lib/vr/repository";
 import { resolveAllianceIdForDiscordMemberLink } from "@/lib/vr/resolve-member-link-alliance.server";
 import { lookupPlayerByUid } from "@/lib/lastwar/player-lookup";
+import type { LinkCommandResult } from "@/lib/vr/types";
 import {
   handleDiscordLinkCommanderSlash,
   handleDiscordLinkFuzzyPick,
   handleDiscordLinkIdentityConfirm,
 } from "@/lib/vr/service";
+
+const SESSION_DENY_MESSAGES: Record<DiscordMemberLinkWebSessionDenyReason, string> = {
+  invalid_nonce:
+    "Link expired or already used. Return to Discord and run /link-commander again.",
+  not_signed_in: "Sign in to continue linking your commander.",
+  discord_mismatch:
+    "This Alliance HQ account is linked to a different Discord user. Sign in with the same Discord account that ran /link-commander in your server.",
+  needs_join_code: "Redeem your alliance join code before linking your commander.",
+};
 
 async function resolveMemberLinkContext(nonce: string) {
   const nonceRow = await getValidDiscordAuthNonce(nonce);
@@ -34,6 +48,68 @@ async function resolveMemberLinkContext(nonce: string) {
   const allianceId = await getGuildAllianceId(nonceRow.guildId);
   const locale = (await getDiscordUserLocale(nonceRow.discordUserId)) ?? "en-US";
   return { nonceRow, allianceId, locale };
+}
+
+function sessionDenyOutcome(
+  reason: DiscordMemberLinkWebSessionDenyReason,
+): DiscordMemberLinkWebOutcome {
+  return { outcome: "error", message: SESSION_DENY_MESSAGES[reason] };
+}
+
+async function requireAuthenticatedMemberLinkSession(
+  nonce: string,
+  hqUserId: string | null,
+): Promise<DiscordMemberLinkWebOutcome | null> {
+  const session = await assertDiscordMemberLinkWebSession({ nonce, hqUserId });
+  if (!session.ok) {
+    return sessionDenyOutcome(session.reason);
+  }
+  return null;
+}
+
+async function mapLinkCommandResultToWebOutcome(
+  result: LinkCommandResult,
+  consumeNonceOnLink: { nonceId: string; linked: boolean },
+): Promise<DiscordMemberLinkWebOutcome> {
+  if (result.wrongServer) {
+    return { outcome: "wrong_server", message: result.reply };
+  }
+
+  if (result.needsIdentityConfirmation && result.pending?.kind === "link_confirm_identity") {
+    return {
+      outcome: "confirm_identity",
+      gameUserName: result.pending.gameUserName,
+      gameServerNumber:
+        typeof result.pending.gameServerNumber === "number"
+          ? result.pending.gameServerNumber
+          : null,
+    };
+  }
+
+  if (result.pending?.kind === "link_fuzzy_pick") {
+    return {
+      outcome: "fuzzy_pick",
+      message: result.reply,
+      candidates: result.pending.candidates,
+    };
+  }
+
+  if (result.needsOfficerAttention) {
+    return { outcome: "officer_attention", message: result.reply };
+  }
+
+  if (result.linked && result.linkTarget) {
+    if (consumeNonceOnLink.linked) {
+      await consumeDiscordAuthNonce(consumeNonceOnLink.nonceId);
+    }
+    return {
+      outcome: "linked",
+      message: result.reply,
+      memberDisplayName: result.linkTarget.memberDisplayName,
+    };
+  }
+
+  return { outcome: "error", message: result.reply };
 }
 
 export async function getDiscordMemberLinkPageMeta(nonce: string) {
@@ -54,14 +130,14 @@ const previewSchema = z.object({
 
 export async function previewDiscordMemberLinkFromWeb(
   body: z.infer<typeof previewSchema>,
+  hqUserId: string | null,
 ): Promise<DiscordMemberLinkWebOutcome> {
+  const denied = await requireAuthenticatedMemberLinkSession(body.nonce, hqUserId);
+  if (denied) return denied;
+
   const ctx = await resolveMemberLinkContext(body.nonce);
   if (!ctx) {
-    return {
-      outcome: "error",
-      message:
-        "Link expired or already used. Return to Discord and run /link-commander again.",
-    };
+    return sessionDenyOutcome("invalid_nonce");
   }
 
   const gameUid = body.gameUid.trim();
@@ -103,39 +179,10 @@ export async function previewDiscordMemberLinkFromWeb(
     locale: ctx.locale,
   });
 
-  if (result.needsIdentityConfirmation && result.pending?.kind === "link_confirm_identity") {
-    return {
-      outcome: "confirm_identity",
-      gameUserName: result.pending.gameUserName,
-      gameServerNumber:
-        typeof result.pending.gameServerNumber === "number"
-          ? result.pending.gameServerNumber
-          : null,
-    };
-  }
-
-  if (result.pending?.kind === "link_fuzzy_pick") {
-    return {
-      outcome: "fuzzy_pick",
-      message: result.reply,
-      candidates: result.pending.candidates,
-    };
-  }
-
-  if (result.needsOfficerAttention) {
-    return { outcome: "officer_attention", message: result.reply };
-  }
-
-  if (result.linked && result.linkTarget) {
-    await consumeDiscordAuthNonce(ctx.nonceRow.id);
-    return {
-      outcome: "linked",
-      message: result.reply,
-      memberDisplayName: result.linkTarget.memberDisplayName,
-    };
-  }
-
-  return { outcome: "error", message: result.reply };
+  return await mapLinkCommandResultToWebOutcome(result, {
+    nonceId: ctx.nonceRow.id,
+    linked: Boolean(result.linked && result.linkTarget),
+  });
 }
 
 const confirmSchema = z.object({
@@ -145,14 +192,14 @@ const confirmSchema = z.object({
 
 export async function confirmDiscordMemberLinkFromWeb(
   body: z.infer<typeof confirmSchema>,
+  hqUserId: string | null,
 ): Promise<DiscordMemberLinkWebOutcome> {
+  const denied = await requireAuthenticatedMemberLinkSession(body.nonce, hqUserId);
+  if (denied) return denied;
+
   const ctx = await resolveMemberLinkContext(body.nonce);
   if (!ctx?.allianceId) {
-    return {
-      outcome: "error",
-      message:
-        "Link expired or already used. Return to Discord and run /link-commander again.",
-    };
+    return sessionDenyOutcome("invalid_nonce");
   }
 
   const result = await handleDiscordLinkIdentityConfirm({
@@ -167,28 +214,10 @@ export async function confirmDiscordMemberLinkFromWeb(
     return { outcome: "declined", message: result.reply };
   }
 
-  if (result.pending?.kind === "link_fuzzy_pick") {
-    return {
-      outcome: "fuzzy_pick",
-      message: result.reply,
-      candidates: result.pending.candidates,
-    };
-  }
-
-  if (result.needsOfficerAttention) {
-    return { outcome: "officer_attention", message: result.reply };
-  }
-
-  if (result.linked && result.linkTarget) {
-    await consumeDiscordAuthNonce(ctx.nonceRow.id);
-    return {
-      outcome: "linked",
-      message: result.reply,
-      memberDisplayName: result.linkTarget.memberDisplayName,
-    };
-  }
-
-  return { outcome: "error", message: result.reply };
+  return await mapLinkCommandResultToWebOutcome(result, {
+    nonceId: ctx.nonceRow.id,
+    linked: Boolean(result.linked && result.linkTarget),
+  });
 }
 
 const pickSchema = z.object({
@@ -198,14 +227,14 @@ const pickSchema = z.object({
 
 export async function pickDiscordMemberLinkFromWeb(
   body: z.infer<typeof pickSchema>,
+  hqUserId: string | null,
 ): Promise<DiscordMemberLinkWebOutcome> {
+  const denied = await requireAuthenticatedMemberLinkSession(body.nonce, hqUserId);
+  if (denied) return denied;
+
   const ctx = await resolveMemberLinkContext(body.nonce);
   if (!ctx?.allianceId) {
-    return {
-      outcome: "error",
-      message:
-        "Link expired or already used. Return to Discord and run /link-commander again.",
-    };
+    return sessionDenyOutcome("invalid_nonce");
   }
 
   const result = await handleDiscordLinkFuzzyPick({
@@ -215,20 +244,10 @@ export async function pickDiscordMemberLinkFromWeb(
     locale: ctx.locale,
   });
 
-  if (result.needsOfficerAttention) {
-    return { outcome: "officer_attention", message: result.reply };
-  }
-
-  if (result.linked && result.linkTarget) {
-    await consumeDiscordAuthNonce(ctx.nonceRow.id);
-    return {
-      outcome: "linked",
-      message: result.reply,
-      memberDisplayName: result.linkTarget.memberDisplayName,
-    };
-  }
-
-  return { outcome: "error", message: result.reply };
+  return await mapLinkCommandResultToWebOutcome(result, {
+    nonceId: ctx.nonceRow.id,
+    linked: Boolean(result.linked && result.linkTarget),
+  });
 }
 
 export { previewSchema, confirmSchema, pickSchema };

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
+import { requireAuthSession } from "@/lib/auth";
 import {
   confirmDiscordMemberLinkFromWeb,
   pickDiscordMemberLinkFromWeb,
@@ -34,6 +35,15 @@ const bodySchema = z.discriminatedUnion("action", [
 ]);
 
 export async function POST(request: Request) {
+  const authSession = await requireAuthSession();
+  const hqUserId = authSession?.user?.id?.trim() ?? null;
+  if (!hqUserId) {
+    return NextResponse.json(
+      { outcome: "error", message: "Sign in to continue linking your commander." },
+      { status: 401 },
+    );
+  }
+
   let parsed: z.infer<typeof bodySchema>;
   try {
     parsed = bodySchema.parse(await request.json());
@@ -42,24 +52,33 @@ export async function POST(request: Request) {
   }
 
   if (parsed.action === "preview") {
-    const result = await previewDiscordMemberLinkFromWeb({
-      nonce: parsed.nonce,
-      gameUid: parsed.gameUid,
-    });
+    const result = await previewDiscordMemberLinkFromWeb(
+      {
+        nonce: parsed.nonce,
+        gameUid: parsed.gameUid,
+      },
+      hqUserId,
+    );
     return NextResponse.json(result);
   }
 
   if (parsed.action === "confirm") {
-    const result = await confirmDiscordMemberLinkFromWeb({
-      nonce: parsed.nonce,
-      answer: parsed.answer,
-    });
+    const result = await confirmDiscordMemberLinkFromWeb(
+      {
+        nonce: parsed.nonce,
+        answer: parsed.answer,
+      },
+      hqUserId,
+    );
     return NextResponse.json(result);
   }
 
-  const result = await pickDiscordMemberLinkFromWeb({
-    nonce: parsed.nonce,
-    memberId: parsed.memberId,
-  });
+  const result = await pickDiscordMemberLinkFromWeb(
+    {
+      nonce: parsed.nonce,
+      memberId: parsed.memberId,
+    },
+    hqUserId,
+  );
   return NextResponse.json(result);
 }

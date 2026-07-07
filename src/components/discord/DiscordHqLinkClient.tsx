@@ -4,14 +4,19 @@ import { signIn } from "next-auth/react";
 
 export function DiscordHqLinkClient({
   nonce,
+  callbackPath,
   labels,
 }: {
   nonce: string;
+  /** When set, Discord OAuth returns here (e.g. link-commander gate). */
+  callbackPath?: string;
   labels: {
     continueWithDiscord: string;
   };
 }) {
-  const callbackUrl = `/discord/authorize/complete?nonce=${encodeURIComponent(nonce)}`;
+  const callbackUrl =
+    callbackPath ??
+    `/discord/authorize/complete?nonce=${encodeURIComponent(nonce)}`;
 
   return (
     <button

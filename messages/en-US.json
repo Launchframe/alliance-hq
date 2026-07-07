@@ -3581,6 +3581,11 @@
       "success": "Unlinked **{name}**. Run `/link-commander` again to connect a commander.",
       "nameNotFound": "No linked character matches **{name}**. Run `/unlink` without a name to pick from a list.",
       "expired": "That unlink option expired. Run `/unlink` again."
+    },
+    "helpTopics": {
+      "wrongServer": {
+        "body": "Your player UID is for a different state server than this alliance. Double-check you joined the right alliance, or ask your R5 for the correct invite."
+      }
     }
   },
   "discordAuthorize": {
@@ -3621,6 +3626,7 @@
     "heading": "Link your Last War commander",
     "subheading": "Enter your player ID on this secure page. It is never sent through Discord chat.",
     "subheadingColdStart": "Enter your player ID on this secure page. If this server is not registered yet, we match your alliance from Last War after you submit.",
+    "discordOAuthSubheading": "Sign in with the same Discord account that ran `/link-commander` in your server. We never send credentials through Discord chat.",
     "missingNonce": "No link found. Return to Discord and run `/link-commander` again.",
     "expiredHeading": "Link expired or already used",
     "expiredBody": "Return to Discord and run `/link-commander` again to get a fresh link.",
@@ -3638,6 +3644,7 @@
     "successHeading": "Commander linked",
     "successBody": "Linked **{name}**. Return to Discord — you're ready to use /vr and other bot commands.",
     "officerHeading": "Officers notified",
+    "wrongServerHeading": "Wrong state server",
     "backToDiscord": "You can close this tab and return to Discord.",
     "invalidPlayerId": "Enter a 12–16 digit player ID from your in-game profile.",
     "genericError": "Something went wrong. Return to Discord and run `/link-commander` again."
