@@ -6,16 +6,20 @@ import {
   allianceMemberRowToAshedMember,
   listAllianceMembers,
   listActiveAllianceMembersForPool,
+  getAllianceRosterLastSyncedAt,
   syncAllianceMembersFromAshed,
 } from "@/lib/members/roster.server";
 import { getAllianceOperatingMode } from "@/lib/native-alliance/operating-mode";
+import { shouldSyncRosterFromAshed } from "@/lib/members/roster-sync.shared";
 import type { AshedMember } from "@/lib/video/member-matcher";
 
 export type LoadAllianceGameRosterInput = {
   allianceId: string;
   connection?: ParsedConnection | null;
   ashedAllianceId?: string | null;
+  /** @deprecated Use `forceRefreshFromAshed` instead. */
   syncFromAshed?: boolean;
+  forceRefreshFromAshed?: boolean;
 };
 
 export async function loadAllianceGameRoster(
@@ -28,16 +32,31 @@ export async function loadAllianceGameRoster(
     return rows.map(allianceMemberRowToAshedMember);
   }
 
+  const forceRefreshFromAshed = input.forceRefreshFromAshed === true;
+
   if (
     input.syncFromAshed !== false &&
     input.connection &&
     input.ashedAllianceId
   ) {
-    await syncAllianceMembersFromAshed({
-      hqAllianceId: input.allianceId,
-      ashedAllianceId: input.ashedAllianceId,
-      connection: input.connection,
-    });
+    const [lastSyncedAt, localRows] = await Promise.all([
+      getAllianceRosterLastSyncedAt(input.allianceId),
+      listAllianceMembers(input.allianceId),
+    ]);
+
+    if (
+      shouldSyncRosterFromAshed({
+        forceRefresh: forceRefreshFromAshed,
+        lastSyncedAt,
+        localMemberCount: localRows.length,
+      })
+    ) {
+      await syncAllianceMembersFromAshed({
+        hqAllianceId: input.allianceId,
+        ashedAllianceId: input.ashedAllianceId,
+        connection: input.connection,
+      });
+    }
   }
 
   const rows = await listAllianceMembers(input.allianceId);

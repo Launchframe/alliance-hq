@@ -299,9 +299,10 @@ export function MembersListView({
       const params = new URLSearchParams();
       if (query) params.set("q", query);
       if (showFormer) params.set("includeFormer", "1");
+      params.set("refresh", "1");
       const qs = params.toString();
       const [membersRes, commandersRes] = await Promise.all([
-        fetch(`/api/members${qs ? `?${qs}` : ""}`),
+        fetch(`/api/members?${qs}`),
         fetch("/api/commanders/index"),
       ]);
       const membersBody = (await membersRes.json()) as AllianceMembersPayload & {
