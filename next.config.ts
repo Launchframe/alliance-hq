@@ -5,11 +5,13 @@ import packageJson from "./package.json" with { type: "json" };
 
 const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts");
 
-/** Vercel serverless runs linux-x64 — avoid tracing every @img platform binary. */
+/** Vercel serverless runs linux-x64 — include sharp and libvips native binaries. */
 const sharpFileTracing = [
   "./node_modules/sharp/**/*",
   "./node_modules/@img/sharp-linux-x64/**/*",
   "./node_modules/@img/sharp-libvips-linux-x64/**/*",
+  "./node_modules/@img/sharp-libvips-linux-x64/lib/libvips-cpp.so*",
+  "./node_modules/@img/colour/**/*",
 ];
 
 /**
@@ -55,7 +57,6 @@ const nextConfig: NextConfig = {
   },
   serverExternalPackages: [
     "ffmpeg-static",
-    "sharp",
     "tesseract.js",
     "tesseract.js-core",
     "wasm-feature-detect",
