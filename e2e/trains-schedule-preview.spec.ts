@@ -58,6 +58,12 @@ test.describe("Trains schedule preview (no blank state)", () => {
       }),
     );
 
+    // Officers auto-open the first-run walkthrough, which scrolls the page header
+    // out of the stable viewport before assertions run.
+    await page.addInitScript(() => {
+      window.localStorage.setItem("trains_walkthrough_seen", "1");
+    });
+
     await page.goto("/trains");
 
     await expect(page.getByRole("heading", { name: /alliance train/i })).toBeVisible();
