@@ -533,6 +533,13 @@
       "when": 1785756800000,
       "tag": "0076_weekly_pass",
       "breakpoints": true
+    },
+    {
+      "idx": 75,
+      "version": "7",
+      "when": 1785843200000,
+      "tag": "0077_discord_bot_install_sessions",
+      "breakpoints": true
     }
   ]
 }

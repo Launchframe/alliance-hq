@@ -119,6 +119,8 @@
     "adminPortal": "Admin portal",
     "discordBotGuide": "Discord bot help",
     "discordBotGuideDescription": "Set up the Alliance HQ bot in your Discord server",
+    "gettingStartedGuide": "Getting started — R5",
+    "gettingStartedGuideDescription": "R5 setup: web-first or Discord-first",
     "discordTrainGuide": "Discord train guide",
     "discordTrainGuideDescription": "Train conductor announcements in Discord",
     "allianceOnboardingGuide": "Alliance onboarding",
@@ -1090,6 +1092,7 @@
         "account": "Go to Account settings",
         "settings": "Go to Settings",
         "discordBotGuide": "Go to Discord bot help",
+        "gettingStartedGuide": "Go to Getting started — R5",
         "discordTrainGuide": "Go to Discord train guide",
         "allianceOnboardingGuide": "Go to Alliance onboarding help"
       },
@@ -1675,9 +1678,10 @@
       "installButton": "Add bot to a Discord server",
       "installUnavailable": "Bot install is not configured on this deployment. Ask a platform maintainer to set DISCORD_APPLICATION_ID.",
       "nextStepsLabel": "After adding the bot",
-      "nextStepsBody": "In the new Discord server:\n1. Run /link and complete the browser sign-in.\n2. Run /link-alliance tag:{tag} (R5 owner, R4+ officer with a linked commander, or platform maintainer).\n3. Run /set-vr-report-channel and /set-train-channel in the channels you want.\n\nDiscord requires Manage Server permission to add the bot. Slash commands may take a few minutes to appear after install.",
+      "nextStepsBody": "In the new Discord server:\n1. Open the install wizard from Alliance HQ (Settings → Discord or /discord/setup).\n2. Run /link-commander in Discord after install finishes.\n3. Run /set-vr-report-channel and /set-train-channel in the channels you want.\n\nDiscord requires Manage Server permission to add the bot. Slash commands may take a few minutes to appear after install.",
       "readOnlyHint": "Only alliance owners, train officers, and platform maintainers can add or register Discord servers. Ask an R4+ officer or platform maintainer to complete setup.",
-      "guideLink": "Second-server setup guide"
+      "gettingStartedLink": "Getting started for R5",
+      "guideLink": "Discord bot setup guide"
     }
   },
   "account": {
@@ -3291,11 +3295,10 @@
       "tagNotFoundWithHq": "No alliance found with tag **{tag}**. Check the spelling on ashed.online, or run `/link-ashed tag:{tag}` if your alliance is not in Alliance HQ yet.",
       "tagRequired": "Add your alliance tag. Example: `/link-alliance tag:LFgo` or `/link-ashed tag:LFgo`.",
       "tagNotEligible": "Alliance tag **{tag}** is not currently eligible for bot setup on this deployment.",
-      "credentialsRequired": "Connect Ashed credentials with `/link-ashed tag:{tag}`, complete the browser step, then run `/link-alliance tag:{tag}`.",
-      "linkHqBeforeAshed": "Link your Alliance HQ account first — run `/link` in Discord, then `/link-ashed tag:{tag}`.",
-      "ownerSeatRequiresAshed": "Link the alliance owner with `/link-commander uid:…`, then run `/link-alliance tag:YourTag`.",
+      "linkAllianceNeedCommander": "Link your commander with `/link-commander uid:…`, then run `/link-alliance tag:{tag}`. **Optional:** `/link-ashed tag:{tag}` enables live Ashed roster sync.",
+      "linkHqFirst": "Link your Alliance HQ account first — run `/link` in Discord, then run `/help` for setup steps.",
       "tagAmbiguous": "We found multiple alliances with tag **{tag}**. Reply with `/link-alliance tag:{tag} name:Your Alliance Name` to pick the right one.",
-      "notOwner": "Only an alliance owner (R5), R4+ officer with a linked commander, or a platform maintainer can register this server. Run `/link` first, link your commander, then `/help` for the setup checklist.",
+      "notOwner": "Only your **R5 (alliance owner)**, an R4+ officer with a linked commander, the person who linked Ashed credentials for this tag, or a platform maintainer can register this server. Run `/help` or see Getting started for R5 on Alliance HQ.",
       "notOfficer": "Only alliance officers (R4+) or the owner can run VR reports. Link a commander with `/link-commander` if you haven't yet.",
       "insufficientForTeams": "Need at least **{needed}** VR reporters for **{teams}** takedown teams (5 players each). Only **{have}** on the board right now.",
       "teamsRequired": "Add `teams:N` (1–5). Example: `/takedown-teams teams:2` for two rally teams.",
@@ -3404,9 +3407,9 @@
     "help": {
       "dmGeneral": "**Alliance HQ bot** — run `/help` in your alliance server for steps matched to your role.\n\nQuick list: `/link`, `/link-commander`, `/vr`, `/immunity`, `/who-is-conductor`, `/language`. Owners set up with `/link-alliance`. Officers (R4+): `/vr-report`, `/set-conductor`, `/train-is-ready`.\n\n**Full setup guide:** {guideUrl}",
       "setupLinkHq": "Link your Discord account to Alliance HQ: run `/link` and complete the browser sign-in.",
-      "setupOwnerLinkHq": "This server isn't registered yet. **R5 owner:** follow the owner path in our setup guide — sign in with `/link`, then register the server.\n\n**Guide:** {guideUrl}",
-      "setupOwnerAshedSeat": "This server isn't registered yet. **R5 owner:** run `/link-ashed tag:YourTag`, complete the browser step, then `/link-alliance tag:YourTag`.\n\n**Guide:** {guideUrl}",
-      "setupLinkAlliance": "**Owner, R4+ officer, or platform maintainer:** register this server with `/link-alliance tag:YourTag`.\n\n**Guide:** {guideUrl}",
+      "setupOwnerLinkHq": "This server isn't registered yet. **R5:** open the install wizard in your browser (sign in, tag, Ashed, add bot).\n\n**Install wizard:** {installWizardUrl}\n\n**Guide:** {guideUrl}",
+      "setupOwnerLinkCommander": "Register this server with the install wizard, then run **`/link-commander uid:…`**.\n\n**Install wizard:** {installWizardUrl}\n\n**Guide:** {guideUrl}",
+      "setupLinkAlliance": "Use the install wizard to register this server, or **`/link-alliance tag:{tag}`** if you already completed Ashed setup.\n\n**Install wizard:** {installWizardUrl}\n\n**Guide:** {guideUrl}",
       "waitForOwnerAuth": "Waiting for the alliance owner to register this server with `/link-alliance`. Link your commander with `/link-commander` once the server is registered.",
       "linkCommander": "Link your commander: `/link-commander uid:…` (copy your player UID from your in-game profile). Confirm the commander name when prompted.\n\n**Guide:** {guideUrl}",
       "memberReady": "You're linked. Use `/vr` or `/immunity` when your base VR changes. `/who-is-conductor` shows today's train conductor.\n\n**Guide:** {guideUrl}",
@@ -3429,7 +3432,8 @@
     "userLinkSubheading": "Sign in with the same Discord account that ran `/link` in your server. We never send credentials through Discord chat.",
     "tagLabel": "Alliance tag",
     "keyLabel": "Ashed connection key",
-    "keyHint": "Find this on ashed.online under Settings → Connection Key. Treat it like a password.",
+    "keyHint": "This is a JWT from your logged-in browser session on ashed.online — not a copy-paste field on the site. Use DevTools → Network → Copy as cURL (see our walkthrough below). Treat it like a password.",
+    "connectGuideLink": "How to get your connection key (Connect Ashed walkthrough)",
     "nameLabel": "In-game name",
     "nameHint": "This must match your Last War commander name exactly. Type carefully, or ask an alliance mate to copy your player name from your profile and send it to you.",
     "uidLabel": "Player UID",
@@ -3449,11 +3453,61 @@
     "hqLinkNoDiscordOAuth": "Sign in with Discord (not email or Google) to complete this link.",
     "hqLinkWrongPurpose": "This link is not for Alliance HQ sign-in. Return to Discord and run the correct setup command.",
     "errorPrefix": "Something went wrong:",
-    "missingNonce": "No authorization link found. Return to Discord and run the setup command again (`/link` for HQ account linking, or `/link-ashed` after you've linked your HQ account).",
+    "missingNonce": "No authorization link found. Return to Discord and run the setup command again (`/link` for HQ account linking, or `/help` for next steps).",
     "allianceUnknownNoHqLink": "This Discord server isn't registered to an alliance yet. If you're the alliance owner, run `/link` in Discord first, then run `/help` for setup steps. Otherwise ask your owner to finish setup.",
-    "allianceUnknownWithHqLink": "This Discord server isn't registered to an alliance yet. As the alliance owner, run `/link-ashed tag:YourTag`, complete the browser step, then run `/link-alliance tag:YourTag`. Members can link commanders with `/link-commander` after the server is registered.",
+    "allianceUnknownWithHqLink": "This Discord server isn't registered to an alliance yet. As the alliance owner, run `/link-commander uid:…`, then `/link-alliance tag:YourTag`. **Optional:** `/link-ashed tag:YourTag` for live Ashed roster sync. Members can link commanders with `/link-commander` after the server is registered.",
     "expiredHeading": "Link expired or already used",
     "expiredBody": "Return to Discord and run the setup command again to get a fresh link."
+  },
+  "discordSetup": {
+    "title": "Discord bot install wizard",
+    "subtitle": "Sign in, link Discord, enter your alliance tag, connect Ashed, then add the bot. When Discord sends you back, your server is registered automatically.",
+    "guideLink": "Getting started for R5",
+    "botInstallError": "Could not start bot install. Try again or ask a platform maintainer.",
+    "steps": {
+      "discord": {
+        "title": "Link your Discord account",
+        "body": "Alliance HQ needs your Discord account linked before adding the bot or connecting Ashed.",
+        "button": "Continue with Discord",
+        "done": "Discord account linked."
+      },
+      "tag": {
+        "title": "Alliance tag",
+        "body": "Enter your in-game alliance tag (letters only, e.g. LFgo).",
+        "label": "Alliance tag"
+      },
+      "ashed": {
+        "title": "Connect Ashed (recommended)",
+        "body": "If your alliance uses ashed.online, connect now so HQ imports your roster and keeps it in sync.",
+        "done": "Ashed connected for this tag.",
+        "skipNative": "We don't use Ashed — continue without roster sync",
+        "nativeSkipped": "If you're an R5, please reach out to @getboggled on Discord. If you're not, have your R5 reach out and we'll be happy to help!\n\nYou can still add the Discord bot, but full HQ setup for native alliances requires maintainer help first."
+      },
+      "bot": {
+        "title": "Add bot to Discord",
+        "body": "Pick the Discord server where your alliance lives. You need Manage Server permission.\n\nWhen Discord sends you back here, the server is registered to your tag automatically.",
+        "button": "Add bot to Discord",
+        "loading": "Opening Discord…",
+        "unavailable": "Bot install is not configured on this deployment."
+      }
+    },
+    "installComplete": {
+      "title": "Discord bot installed",
+      "subtitle": "Your Discord server is registered to your alliance.",
+      "missingParams": "Missing install details from Discord. Try the install wizard again.",
+      "backToWizard": "Back to install wizard",
+      "errorHeading": "Could not finish install",
+      "expiredSession": "This install link expired. Open the install wizard and add the bot again.",
+      "sessionMismatch": "This install was started by a different Alliance HQ account. Sign in with the same account and try again.",
+      "missingAlliance": "Connect Ashed or pick a registered tag before adding the bot.",
+      "notOwner": "Only your R5, an R4+ officer with a linked commander, the person who linked Ashed credentials, or a platform maintainer can register this server.",
+      "noCredentials": "Connect Ashed first, or ask an R4+ officer or platform maintainer to register this server.",
+      "noHqLink": "Link your Discord account in the install wizard before adding the bot.",
+      "genericError": "Something went wrong registering this server. Try the install wizard again.",
+      "successHeading": "Server registered!",
+      "successBody": "Your Discord server is linked to **{tag}**. Return to Discord and run `/link-commander uid:…` with your player UID.",
+      "nextGuideLink": "Link your commander — setup guide →"
+    }
   },
   "inbox": {
     "title": "Reminders",
@@ -3478,6 +3532,11 @@
     }
   },
   "guides": {
+    "gettingStarted": {
+      "title": "Getting started — R5",
+      "description": "R5 setup for Alliance HQ: web-first or Discord-first, with Ashed sync when you have it.",
+      "backToHome": "Alliance HQ home"
+    },
     "discordBot": {
       "hub": {
         "title": "Discord bot setup guide",
@@ -3486,14 +3545,15 @@
         "overviewTitle": "What this bot does",
         "overviewBody": "Alliance HQ adds a bot to your Discord server. It does not replace your alliance leadership — it gives you slash commands for in-game tasks (link your commander, report VR, train conductor tools) while keeping sensitive steps on a secure web page when needed. You never paste passwords or connection keys into Discord.",
         "prerequisitesTitle": "Before you start",
-        "prerequisitesBody": "• You need permission to use slash commands in the server.\n• Owners need their alliance tag (letters only, e.g. LFgo).\n• Everyone linking a character needs their player UID from the Last War profile screen.",
+        "prerequisitesBody": "• You need permission to use slash commands in the server.\n• R5 needs their alliance tag (letters only, e.g. LFgo).\n• Everyone linking a character needs their player UID from the Last War profile screen.",
+        "r5Callout": "<link>Getting started for R5</link> — new alliance? Start with web-first or Discord-first setup before this checklist.",
         "rolePrompt": "What's your role in your alliance?",
         "pickRole": "Choose a path — you can switch anytime."
       },
       "roles": {
         "r5": {
           "title": "R5 — alliance owner",
-          "description": "First-time or second-server setup: add the bot, link HQ, optional roster sync, register the server, link your commander, then channel setup."
+          "description": "Install wizard, link your commander, set VR and train channels, then tell members to link."
         },
         "r4": {
           "title": "R4 — alliance officer",
@@ -3513,6 +3573,8 @@
         "backToRoles": "← All roles",
         "backToFlow": "← Back to flowchart",
         "optional": "Optional",
+        "recoveryTitle": "Recovery paths",
+        "recoveryBody": "Use these slash-command steps only if you added the bot before the install wizard or need to finish from Discord alone.",
         "tapStep": "Tap a step for detailed instructions.",
         "instructionsHeading": "Instructions",
         "commandLabel": "Discord command"
@@ -3520,33 +3582,34 @@
       "steps": {
         "installBot": {
           "title": "Add the bot to your Discord server",
-          "summary": "Invite Alliance HQ into the Discord server you want to use — required before slash commands work there.",
-          "instructions": "From Alliance HQ (recommended):\n1. Sign in and open Settings → Alliance settings for your tag.\n2. Click **Add bot to a Discord server** and pick the target server (you need Manage Server permission).\n\nOr ask someone with the install link from your maintainer.\n\nAfter Discord adds the bot, continue with **Link your Discord to Alliance HQ** (/link) in that same server.\n\nSlash commands can take a few minutes to appear globally after install."
+          "summary": "One web wizard: HQ account, Ashed sync, and bot install — your Discord server is linked when install finishes.",
+          "instructions": "**New alliance? R5 start here:** Getting started for R5 at /guides/getting-started.\n\nUse the **install wizard** at /discord/setup — sign in, link Discord, enter your alliance tag, connect Ashed, then add the bot. When Discord sends you back, your server is registered automatically.\n\nAfter that, run **`/link-commander`** in Discord.",
+          "wizardCta": "Open install wizard"
         },
         "linkHq": {
           "title": "Link your Discord to Alliance HQ",
-          "summary": "Sign your Discord account into Alliance HQ — required before Ashed credentials or guild registration.",
+          "summary": "Recovery path — sign your Discord account into Alliance HQ.",
           "command": "/link",
-          "instructions": "1. Run /link in your alliance Discord server.\n2. Open the secure link and sign in with the same Discord account.\n3. Return to Discord — you're ready for the next setup steps.\n\nThis is not commander binding — use /link-commander later for your in-game character."
+          "instructions": "**Recovery path.** If you added the bot before using the install wizard, run **`/link`** in Discord to sign in, then use the install wizard at /discord/setup or **`/link-alliance`**."
         },
         "linkSelf": {
           "title": "Link your commander",
           "summary": "Match your in-game character with your player UID — confirm the commander name when prompted.",
           "command": "/link-commander uid:123456789012 — or /link-last-war-profile with the same option",
-          "instructions": "The server must be registered with /link-alliance first.\n\nIn Discord:\n1. Copy your player UID from your Last War profile.\n2. Run /link-commander uid:123456789012.\n3. Confirm the commander name when prompted.\n\nYou can link up to 5 commanders per Discord account. Use /unlink to remove one.",
+          "instructions": "Your Discord server must be registered first (the install wizard does this automatically).\n\nIn Discord:\n1. Copy your player UID from your Last War profile.\n2. Run /link-commander uid:123456789012.\n3. Confirm the commander name when prompted.\n\nYou can link up to 5 commanders per Discord account. Use /unlink to remove one.",
           "tip": "Copy your player UID from your Last War profile menu. Double-check the digits before you tap Yes."
         },
         "registerGuild": {
           "title": "Register this Discord server",
-          "summary": "Bind this Discord server to your alliance so bot commands know which roster to use.",
+          "summary": "Recovery path — manually bind this Discord server to your alliance.",
           "command": "/link-alliance tag:YourTag",
-          "instructions": "1. Use your alliance tag only (e.g. LFgo) — not a numeric ID.\n2. Run /link-alliance tag:YourTag in this server.\n3. You must be the in-game owner (R5) or an R4+ officer with a linked commander, the person who linked Ashed credentials, or a platform maintainer.\n4. When successful, everyone can run /link-commander in this server."
+          "instructions": "**Recovery path.** The install wizard at /discord/setup registers your server automatically. Manual: **`/link-alliance tag:YourTag`** when you are proven as R5, officer, or Ashed credential registrant."
         },
         "optionalAshed": {
           "title": "Optional: roster sync tools",
-          "summary": "Connect Ashed credentials if your alliance uses ashed.online for roster sync and iframe tools. Not required for basic bot use.",
+          "summary": "Recovery path — connect Ashed credentials for roster sync.",
           "command": "/link-ashed tag:YourTag",
-          "instructions": "1. Complete the Link your Discord to Alliance HQ step first (/link).\n2. Run /link-ashed tag:YourTag.\n3. Open the secure browser link and submit your Ashed connection key.\n4. This enables live roster reads for the bot — skip if you run a native alliance without Ashed."
+          "instructions": "**Recovery path.** Prefer the install wizard at /discord/setup or Connect Ashed at /connect. From Discord only: **`/link-ashed tag:YourTag`** → on-page walkthrough."
         },
         "vrChannel": {
           "title": "Nightly VR report channel",

@@ -3,7 +3,9 @@ import { notFound } from "next/navigation";
 import { DiscordBotGuideStepPage } from "@/components/guides/DiscordBotGuideStepPage";
 import {
   DISCORD_BOT_GUIDE_ROLE_SLUGS,
+  DISCORD_BOT_GUIDE_ROLE_RECOVERY_STEPS,
   DISCORD_BOT_GUIDE_ROLE_STEPS,
+  guideStepsForRole,
   isDiscordBotGuideRoleSlug,
   isStepInRole,
 } from "@/lib/guides/discord-bot-guide.shared";
@@ -15,7 +17,7 @@ type Props = {
 
 export function generateStaticParams() {
   return DISCORD_BOT_GUIDE_ROLE_SLUGS.flatMap((role) =>
-    DISCORD_BOT_GUIDE_ROLE_STEPS[role].map((step) => ({ role, step })),
+    guideStepsForRole(role).map((step) => ({ role, step })),
   );
 }
 

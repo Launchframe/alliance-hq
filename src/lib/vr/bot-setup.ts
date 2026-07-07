@@ -157,9 +157,8 @@ export async function handleDiscordLinkToAshedSeat(input: {
 
   const hqLink = await getDiscordHqLink(input.discordUserId);
   if (!hqLink) {
-    const appUrl = discordAppBaseUrl();
     return {
-      reply: t("errors.linkHqBeforeAshed", { tag, appUrl }),
+      reply: t("errors.linkHqFirst", { tag }),
     };
   }
 
@@ -227,13 +226,12 @@ export async function handleDiscordLinkAlliance(input: {
   });
 
   if (!registration.allowed) {
-    const appUrl = discordAppBaseUrl();
     const hqLink = await getDiscordHqLink(input.discordUserId);
     const reply =
       registration.reason === "no_credentials"
         ? hqLink
-          ? t("errors.credentialsRequired", { tag: resolved.tag })
-          : t("errors.linkHqBeforeAshed", { tag: resolved.tag, appUrl })
+          ? t("errors.linkAllianceNeedCommander", { tag: resolved.tag })
+          : t("errors.linkHqFirst", { tag: resolved.tag })
         : registration.reason === "not_owner" || registration.reason === "no_hq_link"
           ? t("errors.notOwner")
           : t("errors.notOwner");

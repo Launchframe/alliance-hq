@@ -40,6 +40,7 @@ const DEFAULT_HOTKEY_BINDINGS_IMPL = {
   "nav.account": seq("g", ","),
   "nav.settings": seq("g", ";"),
   "nav.discordBotGuide": seq("g", "x"),
+  "nav.gettingStartedGuide": seq("g", "w"),
   "nav.discordTrainGuide": seq("g", "y"),
   "nav.allianceOnboardingGuide": seq("g", "h"),
 

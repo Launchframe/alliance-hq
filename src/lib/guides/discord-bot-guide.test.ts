@@ -19,8 +19,14 @@ describe("discord-bot-guide.shared", () => {
     expect(stepSlugToMessageKey("register-guild")).toBe("registerGuild");
   });
 
-  it("starts r5 and r4 flows with install-bot", () => {
-    expect(DISCORD_BOT_GUIDE_ROLE_STEPS.r5[0]).toBe("install-bot");
+  it("orders r5 primary flow after install wizard", () => {
+    expect(DISCORD_BOT_GUIDE_ROLE_STEPS.r5).toEqual([
+      "install-bot",
+      "link-self",
+      "vr-channel",
+      "train-channel",
+      "tell-members",
+    ]);
     expect(DISCORD_BOT_GUIDE_ROLE_STEPS.r4[0]).toBe("install-bot");
     expect(getDiscordBotGuideStep("install-bot")).not.toBeNull();
   });

@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 
-import { DiscordAuthorizeForm } from "@/components/discord/DiscordAuthorizeForm";
+import { ConnectionWalkthrough } from "@/components/ConnectionWalkthrough";
 import { DiscordHqLinkClient } from "@/components/discord/DiscordHqLinkClient";
 import { auth } from "@/lib/auth";
 import { hqUserHasOAuthProvider } from "@/lib/auth/account-linking.server";
@@ -43,9 +43,6 @@ export default async function DiscordAuthorizePage({ searchParams }: PageProps) 
 
   const isHqLink = nonceRow.purpose === "user_link";
 
-  // HQ account link: Discord OAuth attaches to the signed-in HQ user in the
-  // signIn callback (Discord often omits email — session identity is enough).
-  // Cold Discord sign-in auto-links when the Discord email matches an existing HQ row.
   if (isHqLink) {
     const session = await auth();
     const hqUserId = session?.user?.id?.trim();
@@ -56,7 +53,6 @@ export default async function DiscordAuthorizePage({ searchParams }: PageProps) 
       redirect(`/auth?callbackUrl=${encodeURIComponent(selfPath)}`);
     }
 
-    // Already linked Discord → bind the nonce directly (no extra OAuth round-trip).
     if (await hqUserHasOAuthProvider(hqUserId, "discord")) {
       redirect(completePath);
     }
@@ -68,7 +64,13 @@ export default async function DiscordAuthorizePage({ searchParams }: PageProps) 
 
   return (
     <main className="flex min-h-[60vh] items-center justify-center p-6">
-      <div className="w-full max-w-md rounded-xl border border-[#30363d] bg-[#161b22] p-6">
+      <div
+        className={
+          isHqLink
+            ? "w-full max-w-md rounded-xl border border-[#30363d] bg-[#161b22] p-6"
+            : "w-full max-w-3xl rounded-xl border border-[#30363d] bg-[#161b22] p-6"
+        }
+      >
         <h1 className="mb-1 text-lg font-semibold text-[#e6edf3]">{heading}</h1>
         <p className="mb-5 text-sm text-[#8b949e]">{subheading}</p>
 
@@ -80,20 +82,19 @@ export default async function DiscordAuthorizePage({ searchParams }: PageProps) 
             }}
           />
         ) : (
-          <DiscordAuthorizeForm
-            nonce={nonce}
-            tag={displayTag}
-            labels={{
-              tagLabel: t("tagLabel"),
-              keyLabel: t("keyLabel"),
-              keyHint: t("keyHint"),
-              submit: t("submit"),
-              submitting: t("submitting"),
-              successHeading: t("successHeading"),
-              successBody: t("successBody"),
-              errorPrefix: t("errorPrefix"),
-            }}
-          />
+          <>
+            <p className="mb-4 text-xs font-medium uppercase tracking-wide text-[#8b949e]">
+              {t("tagLabel")}:{" "}
+              <span className="font-mono text-base normal-case text-[#e6edf3]">
+                {displayTag}
+              </span>
+            </p>
+            <ConnectionWalkthrough
+              skipLinkPhoneStep
+              connectApiUrl="/api/discord/authorize"
+              connectApiExtraBody={{ nonce }}
+            />
+          </>
         )}
       </div>
     </main>

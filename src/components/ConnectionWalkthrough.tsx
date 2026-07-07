@@ -75,6 +75,12 @@ type Props = {
   skipLinkPhoneStep?: boolean;
   /** Internal path after a successful connect (defaults to `/`). */
   returnTo?: string;
+  /** Alternate POST target (e.g. Discord setup / authorize recovery). */
+  connectApiUrl?: string;
+  /** Merged into the connect POST body when `connectApiUrl` is set. */
+  connectApiExtraBody?: Record<string, unknown>;
+  /** When set with `connectApiUrl`, skip navigation after a successful connect. */
+  onConnectApiSuccess?: (data: Record<string, unknown>) => void;
 };
 
 export function ConnectionWalkthrough({
@@ -82,6 +88,9 @@ export function ConnectionWalkthrough({
   skipWalkthroughToPaste = false,
   skipLinkPhoneStep = false,
   returnTo,
+  connectApiUrl,
+  connectApiExtraBody,
+  onConnectApiSuccess,
 }: Props) {
   const t = useTranslations("connect");
   const tc = useTranslations("common");
@@ -291,9 +300,11 @@ export function ConnectionWalkthrough({
 
   const canConnect =
     !!parsePreview?.ok &&
-    !alliancesLoading &&
-    alliancesForUi.length > 0 &&
-    (alliancesForUi.length === 1 || !!selectedForUi);
+    (connectApiUrl?.trim()
+      ? true
+      : !alliancesLoading &&
+        alliancesForUi.length > 0 &&
+        (alliancesForUi.length === 1 || !!selectedForUi));
 
   const canAdvance =
     isPasteStep || isLinkPhoneStep || !stepChecklist || checked[stepId];
@@ -310,18 +321,32 @@ export function ConnectionWalkthrough({
     }
 
     try {
-      const res = await fetch("/api/auth/connect", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          input: pasteInput,
-          appId,
-          originUrl,
-          allianceId:
-            selectedForUi ||
-            (alliancesForUi.length === 1 ? alliancesForUi[0]?.id : undefined),
-        }),
-      });
+      const useAlternateConnect = Boolean(connectApiUrl?.trim());
+      const res = await fetch(
+        useAlternateConnect ? connectApiUrl!.trim() : "/api/auth/connect",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(
+            useAlternateConnect
+              ? {
+                  input: pasteInput,
+                  connectionKey: pasteInput,
+                  ...connectApiExtraBody,
+                }
+              : {
+                  input: pasteInput,
+                  appId,
+                  originUrl,
+                  allianceId:
+                    selectedForUi ||
+                    (alliancesForUi.length === 1
+                      ? alliancesForUi[0]?.id
+                      : undefined),
+                },
+          ),
+        },
+      );
 
       const data = (await res.json()) as {
         error?: string;
@@ -330,6 +355,8 @@ export function ConnectionWalkthrough({
         userLabel?: string;
         ashed?: AshedConnectionMeta;
         alliance?: { id: string; tag: string; name?: string };
+        tag?: string;
+        allianceId?: string;
       };
 
       if (!res.ok) {
@@ -342,6 +369,13 @@ export function ConnectionWalkthrough({
           return;
         }
         setError(data.error ?? tc("connectionFailed"));
+        return;
+      }
+
+      if (useAlternateConnect && data.ok) {
+        markConnectWalkthroughSeen();
+        onConnectApiSuccess?.(data);
+        onConnected?.(parsed.connection);
         return;
       }
 
@@ -371,8 +405,11 @@ export function ConnectionWalkthrough({
   }, [
     alliancesForUi,
     appId,
+    connectApiExtraBody,
+    connectApiUrl,
     continueToApp,
     onConnected,
+    onConnectApiSuccess,
     originUrl,
     pasteInput,
     selectedForUi,

@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 
+import { Link } from "@/i18n/navigation";
 import { FORM_SUBMIT_ENTER_KEY_HINT } from "@/lib/client/form-enter-submit.shared";
 
 type State =
@@ -21,6 +22,7 @@ export function DiscordAuthorizeForm({
     tagLabel: string;
     keyLabel: string;
     keyHint: string;
+    connectGuideLink: string;
     submit: string;
     submitting: string;
     successHeading: string;
@@ -104,6 +106,14 @@ export function DiscordAuthorizeForm({
           disabled={state.status === "loading"}
         />
         <p className="mt-1 text-xs text-[#6e7681]">{labels.keyHint}</p>
+        <p className="mt-2 text-xs">
+          <Link
+            href="/connect"
+            className="font-medium text-[#58a6ff] hover:underline"
+          >
+            {labels.connectGuideLink}
+          </Link>
+        </p>
       </div>
 
       {state.status === "error" && (

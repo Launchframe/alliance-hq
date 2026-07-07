@@ -984,6 +984,29 @@ export type ParseSession = typeof parseSessions.$inferSelect;
 export type ParsedRow = typeof parsedRows.$inferSelect;
 export type AuditLogEntry = typeof auditLog.$inferInsert;
 export type DiscordAuthNonce = typeof discordAuthNonces.$inferSelect;
+
+/** One-time state for the web Discord bot install wizard OAuth callback. */
+export const discordBotInstallSessions = pgTable("discord_bot_install_sessions", {
+  id: text("id").primaryKey(),
+  nonce: text("nonce").notNull().unique(),
+  hqUserId: text("hq_user_id")
+    .notNull()
+    .references(() => hqUsers.id, { onDelete: "cascade" }),
+  discordUserId: text("discord_user_id").notNull(),
+  allianceTag: text("alliance_tag").notNull(),
+  allianceId: text("alliance_id").references(() => alliances.id, {
+    onDelete: "set null",
+  }),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  usedAt: timestamp("used_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+export type DiscordBotInstallSession =
+  typeof discordBotInstallSessions.$inferSelect;
+
 export type DiscordHqLink = typeof discordHqLinks.$inferSelect;
 export type HqEventSeries = typeof hqEventSeries.$inferSelect;
 export type HqEvent = typeof hqEvents.$inferSelect;
