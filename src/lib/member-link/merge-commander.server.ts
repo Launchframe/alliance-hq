@@ -7,8 +7,41 @@ import { syncCommanderIdentityFromMemberLink } from "@/lib/members/commander-ide
 import { reconcileAllianceMemberForRosterLink } from "@/lib/member-link/roster-link-resolve.server";
 import {
   deleteDiscordMemberLink,
+  getDiscordHqLink,
   getDiscordLinkByAllianceAndMember,
 } from "@/lib/vr/repository";
+
+export function isMergeTargetClaimedByOther(input: {
+  requesterHqUserId?: string | null;
+  requesterDiscordUserId?: string | null;
+  targetHqUserId?: string | null;
+  targetDiscordUserId?: string | null;
+  targetDiscordHqUserId?: string | null;
+}): boolean {
+  if (
+    input.targetHqUserId &&
+    input.targetHqUserId !== input.requesterHqUserId
+  ) {
+    return true;
+  }
+
+  if (!input.targetDiscordUserId) {
+    return false;
+  }
+
+  if (input.targetDiscordUserId === input.requesterDiscordUserId) {
+    return false;
+  }
+
+  if (
+    input.requesterHqUserId &&
+    input.targetDiscordHqUserId === input.requesterHqUserId
+  ) {
+    return false;
+  }
+
+  return true;
+}
 
 export async function mergeSelfServiceMemberIntoRosterTarget(input: {
   allianceId: string;
@@ -73,15 +106,19 @@ export async function mergeSelfServiceMemberIntoRosterTarget(input: {
       input.targetAshedMemberId,
     ),
   ]);
+  const targetDiscordHqLink = targetDiscordLink
+    ? await getDiscordHqLink(targetDiscordLink.discordUserId)
+    : null;
 
-  const targetClaimedByOther =
-    (targetHqLink &&
-      input.hqUserId &&
-      targetHqLink.hqUserId !== input.hqUserId) ||
-    (targetDiscordLink &&
-      input.discordUserId &&
-      targetDiscordLink.discordUserId !== input.discordUserId);
-  if (targetClaimedByOther) {
+  if (
+    isMergeTargetClaimedByOther({
+      requesterHqUserId: input.hqUserId,
+      requesterDiscordUserId: input.discordUserId,
+      targetHqUserId: targetHqLink?.hqUserId ?? null,
+      targetDiscordUserId: targetDiscordLink?.discordUserId ?? null,
+      targetDiscordHqUserId: targetDiscordHqLink?.hqUserId ?? null,
+    })
+  ) {
     return { ok: false, reason: "target_already_claimed" };
   }
 
