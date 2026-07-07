@@ -15,3 +15,30 @@ export function isDiscordCommanderLinkCommand(
     (DISCORD_COMMANDER_LINK_COMMANDS as readonly string[]).includes(commandName)
   );
 }
+
+/** Slash commands that report or confirm institute / base VR. */
+export const DISCORD_VR_SLASH_COMMANDS = ["vr", "immunity", "institute"] as const;
+
+export function isDiscordVrSlashCommand(
+  commandName: string | undefined,
+): boolean {
+  return (
+    commandName != null &&
+    (DISCORD_VR_SLASH_COMMANDS as readonly string[]).includes(commandName)
+  );
+}
+
+/** Slash commands that set Discord bot reply locale. */
+export const DISCORD_LANGUAGE_SLASH_COMMANDS = [
+  "language",
+  "linguagem",
+] as const;
+
+export function isDiscordLanguageSlashCommand(
+  commandName: string | undefined,
+): boolean {
+  return (
+    commandName != null &&
+    (DISCORD_LANGUAGE_SLASH_COMMANDS as readonly string[]).includes(commandName)
+  );
+}

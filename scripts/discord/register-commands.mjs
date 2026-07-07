@@ -121,6 +121,14 @@ const commandBody = [
     options: [vrLevelOption],
   },
   {
+    name: "institute",
+    description: "Alias for /vr",
+    description_localizations: {
+      "pt-BR": "Atalho para /vr",
+    },
+    options: [vrLevelOption],
+  },
+  {
     name: "weekly-pass",
     description: "Toggle your weekly pass (+250 VR boost for strategy reports).",
     description_localizations: {
@@ -317,6 +325,28 @@ const commandBody = [
     description: "Choose bot reply language.",
     description_localizations: {
       "pt-BR": "Escolha o idioma das respostas do bot.",
+    },
+    options: [
+      {
+        name: "locale",
+        description: "Bot language",
+        description_localizations: {
+          "pt-BR": "Idioma do bot",
+        },
+        type: 3,
+        required: true,
+        choices: [
+          { name: "English", value: "English" },
+          { name: "Português (Brasil)", value: "Português" },
+        ],
+      },
+    ],
+  },
+  {
+    name: "linguagem",
+    description: "Alias for /language",
+    description_localizations: {
+      "pt-BR": "Atalho para /language",
     },
     options: [
       {
