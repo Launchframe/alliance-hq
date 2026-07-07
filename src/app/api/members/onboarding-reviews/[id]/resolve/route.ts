@@ -52,6 +52,7 @@ export async function POST(request: Request, { params }: Props) {
       reviewId: id,
       allianceId,
       resolvedByHqUserId: session.hqUserId,
+      sessionId: session.id,
     });
     if (!result.ok) {
       return NextResponse.json({ error: result.reason }, { status: 400 });
@@ -64,6 +65,7 @@ export async function POST(request: Request, { params }: Props) {
       reviewId: id,
       allianceId,
       resolvedByHqUserId: session.hqUserId,
+      sessionId: session.id,
     });
     if (!result.ok) {
       return NextResponse.json({ error: result.reason }, { status: 400 });
@@ -80,6 +82,7 @@ export async function POST(request: Request, { params }: Props) {
     allianceId,
     targetAshedMemberId: body.targetAshedMemberId,
     resolvedByHqUserId: session.hqUserId,
+    sessionId: session.id,
   });
   if (!result.ok) {
     return NextResponse.json({ error: result.reason }, { status: 400 });
