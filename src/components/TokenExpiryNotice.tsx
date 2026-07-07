@@ -26,8 +26,8 @@ export function TokenExpiryBanner({ ashed }: Props) {
     <div
       className={`border-b px-6 py-3 text-sm ${
         ashed.isTokenExpired
-          ? "border-[#f85149]/40 bg-[#f8514915] text-[#f85149]"
-          : "border-[#d29922]/40 bg-[#d2992215] text-[#e6edf3]"
+          ? "border-hq-danger/40 bg-[#f8514915] text-hq-danger"
+          : "border-[#d29922]/40 bg-[#d2992215] text-hq-fg"
       }`}
     >
       <p>
@@ -41,7 +41,7 @@ export function TokenExpiryBanner({ ashed }: Props) {
             <Link
               href={connectHref}
               onClick={() => stashConnectReturnPath(pathname)}
-              className="text-[#58a6ff] hover:underline"
+              className="text-hq-accent hover:underline"
             >
               {t("reconnectLink")}
             </Link>
@@ -53,7 +53,7 @@ export function TokenExpiryBanner({ ashed }: Props) {
             <Link
               href={connectHref}
               onClick={() => stashConnectReturnPath(pathname)}
-              className="text-[#58a6ff] hover:underline"
+              className="text-hq-accent hover:underline"
             >
               {t("updateLink")}
             </Link>
@@ -79,21 +79,21 @@ export function TokenExpiryNotice({
 
   return (
     <div
-      className={`rounded-lg border border-[#30363d] bg-[#0d1117] px-4 py-3 text-sm ${className ?? ""}`}
+      className={`rounded-lg border border-hq-border bg-hq-canvas px-4 py-3 text-sm ${className ?? ""}`}
     >
       <p>
         {t.rich("connectedNotice", {
           date: () => (
-            <strong className="text-[#e6edf3]">{formattedDate}</strong>
+            <strong className="text-hq-fg">{formattedDate}</strong>
           ),
           days: () => (
-            <strong className="text-[#e6edf3]">
+            <strong className="text-hq-fg">
               {t("reminderDaysCount", { days: reminderDays })}
             </strong>
           ),
         })}
       </p>
-      <p className="mt-2 text-[#8b949e]">
+      <p className="mt-2 text-hq-fg-muted">
         <strong className="text-[#d29922]">{tc("note")}:</strong>{" "}
         {t("logoutWarning")}
       </p>

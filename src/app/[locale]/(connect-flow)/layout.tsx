@@ -10,7 +10,7 @@ export default async function ConnectFlowLayout({
   const session = await auth();
 
   return (
-    <div className="flex min-h-screen flex-col bg-[#0d1117] text-[#e6edf3]">
+    <div className="flex min-h-screen flex-col bg-hq-canvas text-hq-fg">
       <header className="flex justify-end px-4 pt-4">
         {session?.user ? <ConnectSignOutLink /> : null}
       </header>

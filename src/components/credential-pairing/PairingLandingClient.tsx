@@ -55,19 +55,19 @@ export function PairingLandingClient({ code }: Props) {
 
   return (
     <div className="mx-auto w-full min-w-0 max-w-md space-y-4 text-center">
-      <h1 className="text-xl font-semibold text-[#e6edf3]">{t("title")}</h1>
+      <h1 className="text-xl font-semibold text-hq-fg">{t("title")}</h1>
 
       {phase === "linking" ? (
-        <p className="text-sm text-[#8b949e]">{t("linking")}</p>
+        <p className="text-sm text-hq-fg-muted">{t("linking")}</p>
       ) : null}
 
       {phase === "success" ? (
         <div className="space-y-4">
-          <p className="text-sm text-[#3fb950]">{t("success")}</p>
+          <p className="text-sm text-hq-green">{t("success")}</p>
           <button
             type="button"
             onClick={() => router.push("/")}
-            className="w-full rounded-lg bg-[#238636] px-4 py-2 text-sm font-medium text-white hover:bg-[#2ea043] sm:w-auto"
+            className="w-full rounded-lg bg-hq-success px-4 py-2 text-sm font-medium text-white hover:bg-hq-success-hover sm:w-auto"
           >
             {t("continue")}
           </button>
@@ -77,7 +77,7 @@ export function PairingLandingClient({ code }: Props) {
       {phase === "error" ? (
         <div className="space-y-3">
           <p className="text-sm text-red-400">{errorMessage ?? t("failed")}</p>
-          <p className="text-sm text-[#8b949e]">{t("retryHint")}</p>
+          <p className="text-sm text-hq-fg-muted">{t("retryHint")}</p>
         </div>
       ) : null}
     </div>

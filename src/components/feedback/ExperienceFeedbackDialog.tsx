@@ -117,7 +117,7 @@ export function ExperienceFeedbackDialog({
         <>
           <div>
             <h2 className="text-lg font-semibold">{title}</h2>
-            <p className="mt-1 text-sm text-[#8b949e]">{t("description")}</p>
+            <p className="mt-1 text-sm text-hq-fg-muted">{t("description")}</p>
           </div>
           <div className="flex justify-center gap-4">
             <Button variant="outline" className="h-16 w-16 text-2xl" onClick={() => handleRating(true)} aria-label={t("positive")}>
@@ -147,7 +147,7 @@ export function ExperienceFeedbackDialog({
             <h2 className="text-lg font-semibold">
               {positiveExperience ? t("commentsPositive") : t("commentsNegative")}
             </h2>
-            <p className="mt-1 text-sm text-[#8b949e]">{t("commentsDescription")}</p>
+            <p className="mt-1 text-sm text-hq-fg-muted">{t("commentsDescription")}</p>
           </div>
           <Textarea
             value={comments}
@@ -173,7 +173,7 @@ export function ExperienceFeedbackDialog({
         <>
           <div>
             <h2 className="text-lg font-semibold">{t("outreachTitle")}</h2>
-            <p className="mt-1 text-sm text-[#8b949e]">{t("outreachDescription")}</p>
+            <p className="mt-1 text-sm text-hq-fg-muted">{t("outreachDescription")}</p>
           </div>
           <div className="flex gap-2">
             <Button variant="outline" className="flex-1" onClick={() => handleOutreach(false)}>
@@ -190,7 +190,7 @@ export function ExperienceFeedbackDialog({
         <>
           <div>
             <h2 className="text-lg font-semibold">{t("thankYouTitle")}</h2>
-            <p className="mt-1 text-sm text-[#8b949e]">{t("thankYouDescription")}</p>
+            <p className="mt-1 text-sm text-hq-fg-muted">{t("thankYouDescription")}</p>
           </div>
           <div className="flex justify-end">
             <Button onClick={onClose}>{t("done")}</Button>

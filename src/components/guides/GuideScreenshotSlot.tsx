@@ -11,16 +11,16 @@ export function GuideScreenshotSlot({ src, alt, caption, className }: Props) {
   if (!src) {
     return (
       <figure
-        className={`mt-4 overflow-hidden rounded-lg border border-dashed border-[#30363d] bg-[#0d1117]/60${className ? ` ${className}` : ""}`}
+        className={`mt-4 overflow-hidden rounded-lg border border-dashed border-hq-border bg-hq-canvas/60${className ? ` ${className}` : ""}`}
       >
         <div className="flex min-h-[10rem] flex-col items-center justify-center gap-2 px-4 py-8 text-center">
-          <p className="text-xs font-medium uppercase tracking-wide text-[#6e7681]">
+          <p className="text-xs font-medium uppercase tracking-wide text-hq-fg-subtle">
             Screenshot placeholder
           </p>
-          <p className="max-w-sm text-xs text-[#8b949e]">{alt}</p>
+          <p className="max-w-sm text-xs text-hq-fg-muted">{alt}</p>
         </div>
         {caption ? (
-          <figcaption className="border-t border-[#30363d] px-3 py-2 text-xs text-[#8b949e]">
+          <figcaption className="border-t border-hq-border px-3 py-2 text-xs text-hq-fg-muted">
             {caption}
           </figcaption>
         ) : null}
@@ -30,13 +30,13 @@ export function GuideScreenshotSlot({ src, alt, caption, className }: Props) {
 
   return (
     <figure
-      className={`mt-4 overflow-hidden rounded-lg border border-[#30363d] bg-[#0d1117]${className ? ` ${className}` : ""}`}
+      className={`mt-4 overflow-hidden rounded-lg border border-hq-border bg-hq-canvas${className ? ` ${className}` : ""}`}
     >
       <a
         href={src}
         target="_blank"
         rel="noreferrer"
-        className="block focus:outline-none focus-visible:ring-2 focus-visible:ring-[#58a6ff]"
+        className="block focus:outline-none focus-visible:ring-2 focus-visible:ring-hq-accent"
         title="Open full-size screenshot"
       >
         <Image
@@ -50,7 +50,7 @@ export function GuideScreenshotSlot({ src, alt, caption, className }: Props) {
         />
       </a>
       {caption ? (
-        <figcaption className="border-t border-[#30363d] px-3 py-2 text-xs text-[#8b949e]">
+        <figcaption className="border-t border-hq-border px-3 py-2 text-xs text-hq-fg-muted">
           {caption}
         </figcaption>
       ) : null}

@@ -42,7 +42,7 @@ describe("calendarCellStyleClass", () => {
 describe("calendarCellOpaqueStyleClass", () => {
   it("replaces translucent mechanism fill with a solid surface", () => {
     const style = calendarCellOpaqueStyleClass("r4_sequence", "r4_train_week");
-    expect(style).toContain("bg-[#161b22]");
+    expect(style).toContain("bg-hq-surface");
     expect(style).not.toMatch(/bg-\S+\/\d+/);
     expect(style).toContain("purple");
   });

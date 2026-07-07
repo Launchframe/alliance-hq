@@ -38,31 +38,31 @@ export default async function AppLayout({
     const pgCode = postgresErrorCode(error);
 
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#0d1117] p-6 text-[#e6edf3]">
-        <div className="max-w-md rounded-xl border border-[#30363d] bg-[#161b22] p-6 text-center">
+      <div className="flex min-h-screen items-center justify-center bg-hq-canvas p-6 text-hq-fg">
+        <div className="max-w-md rounded-xl border border-hq-border bg-hq-surface p-6 text-center">
           <h1 className="text-lg font-semibold">{t(titleKey)}</h1>
-          <p className="mt-2 text-sm text-[#8b949e]">
+          <p className="mt-2 text-sm text-hq-fg-muted">
             {devDetail ??
               t.rich(hintKey, {
                 localDb: (chunks) => (
-                  <code className="text-[#58a6ff]">{chunks}</code>
+                  <code className="text-hq-accent">{chunks}</code>
                 ),
                 encKey: (chunks) => (
-                  <code className="text-[#58a6ff]">{chunks}</code>
+                  <code className="text-hq-accent">{chunks}</code>
                 ),
                 envFile: (chunks) => (
-                  <code className="text-[#58a6ff]">{chunks}</code>
+                  <code className="text-hq-accent">{chunks}</code>
                 ),
                 dbPush: (chunks) => (
-                  <code className="text-[#58a6ff]">{chunks}</code>
+                  <code className="text-hq-accent">{chunks}</code>
                 ),
                 pgCode: () => (
-                  <code className="text-[#58a6ff]">{pgCode ?? "unknown"}</code>
+                  <code className="text-hq-accent">{pgCode ?? "unknown"}</code>
                 ),
               })}
           </p>
           {process.env.NODE_ENV === "development" && devDetail ? (
-            <p className="mt-3 break-all text-left font-mono text-xs text-[#6e7681]">
+            <p className="mt-3 break-all text-left font-mono text-xs text-hq-fg-subtle">
               {collectDatabaseErrorText(error).slice(0, 1200)}
             </p>
           ) : null}

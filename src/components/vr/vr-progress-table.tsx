@@ -52,7 +52,7 @@ export function VrProgressTable({ seasonKey, events }: Props) {
 
   if (rows.length === 0) {
     return (
-      <p className="text-sm text-[#8b949e]">{t("tableEmpty")}</p>
+      <p className="text-sm text-hq-fg-muted">{t("tableEmpty")}</p>
     );
   }
 
@@ -60,7 +60,7 @@ export function VrProgressTable({ seasonKey, events }: Props) {
     <div className="min-w-0 overflow-x-auto">
       <table className="w-full min-w-[280px] border-collapse text-sm">
         <thead>
-          <tr className="border-b border-[#30363d] text-left text-[#8b949e]">
+          <tr className="border-b border-hq-border text-left text-hq-fg-muted">
             <th className="px-2 py-2 font-medium">{t("tableDate")}</th>
             <th className="px-2 py-2 font-medium">{t("tableInstituteLevel")}</th>
             <th className="px-2 py-2 font-medium">{t("tableLevel")}</th>
@@ -71,16 +71,16 @@ export function VrProgressTable({ seasonKey, events }: Props) {
           {rows.map((event) => (
             <tr
               key={`${event.createdAt}-${event.baseVr}`}
-              className="border-b border-[#21262d] text-[#e6edf3]"
+              className="border-b border-hq-surface-muted text-hq-fg"
             >
               <td className="px-2 py-2 whitespace-nowrap">
                 {formatDateTime(event.createdAt)}
               </td>
-              <td className="px-2 py-2 font-mono text-[#8b949e]">
+              <td className="px-2 py-2 font-mono text-hq-fg-muted">
                 {event.instituteLevel ?? "—"}
               </td>
               <td className="px-2 py-2 font-mono font-semibold">{event.baseVr}</td>
-              <td className="px-2 py-2 text-[#8b949e]">{formatChange(event)}</td>
+              <td className="px-2 py-2 text-hq-fg-muted">{formatChange(event)}</td>
             </tr>
           ))}
         </tbody>

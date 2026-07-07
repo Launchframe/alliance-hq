@@ -1,20 +1,92 @@
 @import "tailwindcss";
 
 :root {
-  --background: #0d1117;
-  --foreground: #e6edf3;
+  --hq-canvas: #ffffff;
+  --hq-surface: #f6f8fa;
+  --hq-surface-muted: #eaeef2;
+  --hq-border: #d0d7de;
+  --hq-fg: #1f2328;
+  --hq-fg-muted: #656d76;
+  --hq-fg-subtle: #6e7781;
+  --hq-accent: #0969da;
+  --hq-success: #1a7f37;
+  --hq-success-hover: #2da44e;
+  --hq-danger: #cf222e;
+  --hq-danger-emphasis: #d1242f;
+  --hq-discord: #5865f2;
+  --hq-green: #1a7f37;
+  --hq-orange: #bc4c00;
+  --hq-pink: #bf3989;
+  --hq-backdrop: rgb(31 35 40 / 0.45);
+  --hq-selected-bg: #ddf4ff;
+  --hq-selected-fg: #0550ae;
+  --hq-pill-bg: #ffffff;
+  --hq-pill-fg: #424a53;
+  --hq-pill-border: #d0d7de;
+  --hq-warning: #9a6700;
+
+  --background: var(--hq-canvas);
+  --foreground: var(--hq-fg);
 }
 
-/* yet-another-react-lightbox — match Alliance HQ dark chrome */
+:root.dark {
+  --hq-canvas: #0d1117;
+  --hq-surface: #161b22;
+  --hq-surface-muted: #21262d;
+  --hq-border: #30363d;
+  --hq-fg: #e6edf3;
+  --hq-fg-muted: #8b949e;
+  --hq-fg-subtle: #6e7681;
+  --hq-accent: #58a6ff;
+  --hq-success: #238636;
+  --hq-success-hover: #2ea043;
+  --hq-danger: #f85149;
+  --hq-danger-emphasis: #da3633;
+  --hq-discord: #5865f2;
+  --hq-green: #3fb950;
+  --hq-orange: #ffa657;
+  --hq-pink: #f778ba;
+  --hq-backdrop: rgb(1 4 9 / 0.92);
+  --hq-selected-bg: #1f3d5c;
+  --hq-selected-fg: #58a6ff;
+  --hq-pill-bg: #21262d;
+  --hq-pill-fg: #c9d1d9;
+  --hq-pill-border: #484f58;
+  --hq-warning: #d29922;
+}
+
+/* yet-another-react-lightbox — match Alliance HQ chrome */
 .yarl__root {
-  --yarl__color_backdrop: rgb(1 4 9 / 0.92);
-  --yarl__color_button: #e6edf3;
-  --yarl__color_button_active: #58a6ff;
+  --yarl__color_backdrop: var(--hq-backdrop);
+  --yarl__color_button: var(--hq-fg);
+  --yarl__color_button_active: var(--hq-accent);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-hq-canvas: var(--hq-canvas);
+  --color-hq-surface: var(--hq-surface);
+  --color-hq-surface-muted: var(--hq-surface-muted);
+  --color-hq-border: var(--hq-border);
+  --color-hq-fg: var(--hq-fg);
+  --color-hq-fg-muted: var(--hq-fg-muted);
+  --color-hq-fg-subtle: var(--hq-fg-subtle);
+  --color-hq-accent: var(--hq-accent);
+  --color-hq-success: var(--hq-success);
+  --color-hq-success-hover: var(--hq-success-hover);
+  --color-hq-danger: var(--hq-danger);
+  --color-hq-danger-emphasis: var(--hq-danger-emphasis);
+  --color-hq-discord: var(--hq-discord);
+  --color-hq-green: var(--hq-green);
+  --color-hq-orange: var(--hq-orange);
+  --color-hq-pink: var(--hq-pink);
+  --color-hq-selected: var(--hq-selected-bg);
+  --color-hq-selected-fg: var(--hq-selected-fg);
+  --color-hq-pill: var(--hq-pill-bg);
+  --color-hq-pill-fg: var(--hq-pill-fg);
+  --color-hq-pill-border: var(--hq-pill-border);
+  --color-hq-warning: var(--hq-warning);
   --font-mono: var(--font-mono-family), ui-monospace, SFMono-Regular, Menlo,
     Monaco, Consolas, "Liberation Mono", monospace;
   /* Week schedule 7-column grid needs ~1180px; below that use day carousel. */
@@ -67,11 +139,11 @@ a {
   .alliance-tag-text {
     background: linear-gradient(
       90deg,
-      #f778ba,
-      #ffa657,
-      #58a6ff,
-      #3fb950,
-      #f778ba
+      var(--hq-pink),
+      var(--hq-orange),
+      var(--hq-accent),
+      var(--hq-green),
+      var(--hq-pink)
     );
     background-size: 200% auto;
     -webkit-background-clip: text;
@@ -91,7 +163,7 @@ a {
 
 @media (prefers-reduced-motion: reduce) {
   .alliance-tag-text {
-    color: #ffa657;
+    color: var(--hq-orange);
   }
 }
 

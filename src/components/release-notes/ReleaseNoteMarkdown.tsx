@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef } from "react";
 
+import { useAppearance } from "@/components/appearance/AppearanceProvider";
 import { renderReleaseNoteMarkdown } from "@/lib/release-notes/render-markdown";
 
 type Props = {
@@ -9,7 +10,10 @@ type Props = {
   className?: string;
 };
 
-async function renderMermaidBlocks(container: HTMLElement): Promise<void> {
+async function renderMermaidBlocks(
+  container: HTMLElement,
+  theme: "light" | "dark",
+): Promise<void> {
   const blocks = container.querySelectorAll<HTMLElement>(".mermaid");
   if (blocks.length === 0) {
     return;
@@ -18,7 +22,7 @@ async function renderMermaidBlocks(container: HTMLElement): Promise<void> {
   const mermaid = (await import("mermaid")).default;
   mermaid.initialize({
     startOnLoad: false,
-    theme: "dark",
+    theme: theme === "dark" ? "dark" : "default",
     securityLevel: "strict",
   });
 
@@ -37,6 +41,7 @@ async function renderMermaidBlocks(container: HTMLElement): Promise<void> {
 
 export function ReleaseNoteMarkdown({ markdown, className = "" }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const { resolved: appearance } = useAppearance();
   const html = useMemo(() => renderReleaseNoteMarkdown(markdown), [markdown]);
 
   useEffect(() => {
@@ -49,7 +54,7 @@ export function ReleaseNoteMarkdown({ markdown, className = "" }: Props) {
 
     void (async () => {
       try {
-        await renderMermaidBlocks(container);
+        await renderMermaidBlocks(container, appearance);
       } catch {
         if (!cancelled) {
           // Leave the source diagram visible if rendering fails.
@@ -60,7 +65,7 @@ export function ReleaseNoteMarkdown({ markdown, className = "" }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [html]);
+  }, [appearance, html]);
 
   if (!html) {
     return null;
@@ -69,7 +74,7 @@ export function ReleaseNoteMarkdown({ markdown, className = "" }: Props) {
   return (
     <div
       ref={containerRef}
-      className={`prose prose-invert max-w-none text-sm text-[#c9d1d9] [&_.mermaid]:my-4 [&_a]:text-[#58a6ff] [&_a]:underline [&_li]:my-1 [&_ol]:list-decimal [&_ol]:pl-5 [&_p]:my-2 [&_ul]:list-disc [&_ul]:pl-5 ${className}`}
+      className={`prose ${appearance === "dark" ? "prose-invert" : ""} max-w-none text-sm text-hq-fg [&_.mermaid]:my-4 [&_a]:text-hq-accent [&_a]:underline [&_li]:my-1 [&_ol]:list-decimal [&_ol]:pl-5 [&_p]:my-2 [&_ul]:list-disc [&_ul]:pl-5 ${className}`}
       dangerouslySetInnerHTML={{ __html: html }}
     />
   );

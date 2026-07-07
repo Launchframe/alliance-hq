@@ -51,8 +51,8 @@ export function AdminPortalShell({ children }: Props) {
     cn(
       "block rounded-lg px-3 py-2 text-sm transition-colors",
       active
-        ? "bg-[#1f3d5c] font-medium text-[#58a6ff]"
-        : "text-[#8b949e] hover:bg-[#21262d] hover:text-[#e6edf3]",
+        ? "bg-hq-selected font-medium text-hq-selected-fg"
+        : "text-hq-fg-muted hover:bg-hq-surface-muted hover:text-hq-fg",
     );
 
   return (
@@ -60,11 +60,11 @@ export function AdminPortalShell({ children }: Props) {
       <div className="lg:hidden">
         <div className="mb-3">
           <h1 className="text-xl font-semibold">{t("title")}</h1>
-          <p className="mt-1 text-sm text-[#8b949e]">{t("subtitle")}</p>
+          <p className="mt-1 text-sm text-hq-fg-muted">{t("subtitle")}</p>
         </div>
         <button
           type="button"
-          className="inline-flex items-center gap-2 rounded-lg border border-[#30363d] bg-[#161b22] px-3 py-2 text-sm text-[#e6edf3] transition-colors hover:bg-[#21262d]"
+          className="inline-flex items-center gap-2 rounded-lg border border-hq-border bg-hq-surface px-3 py-2 text-sm text-hq-fg transition-colors hover:bg-hq-surface-muted"
           onClick={() => setMobileNavOpen(true)}
           aria-expanded={mobileNavOpen}
           aria-label={t("nav.openSections")}
@@ -87,17 +87,17 @@ export function AdminPortalShell({ children }: Props) {
 
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-[70] flex w-full max-w-[min(100vw,18rem)] flex-col border-r border-[#30363d] bg-[#161b22] transition-transform duration-300 ease-out lg:hidden",
+          "fixed inset-y-0 left-0 z-[70] flex w-full max-w-[min(100vw,18rem)] flex-col border-r border-hq-border bg-hq-surface transition-transform duration-300 ease-out lg:hidden",
           mobileNavOpen
             ? "translate-x-0"
             : "-translate-x-full pointer-events-none",
         )}
       >
-        <div className="flex items-center justify-between border-b border-[#30363d] px-4 py-3">
+        <div className="flex items-center justify-between border-b border-hq-border px-4 py-3">
           <p className="text-sm font-semibold">{t("nav.sectionsTitle")}</p>
           <button
             type="button"
-            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[#30363d] text-[#e6edf3]"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-hq-border text-hq-fg"
             onClick={closeMobileNav}
             aria-label={t("nav.closeSections")}
           >
@@ -124,10 +124,10 @@ export function AdminPortalShell({ children }: Props) {
 
       <div className="hidden lg:block">
         <h1 className="text-2xl font-semibold">{t("title")}</h1>
-        <p className="mt-1 text-sm text-[#8b949e]">{t("subtitle")}</p>
+        <p className="mt-1 text-sm text-hq-fg-muted">{t("subtitle")}</p>
       </div>
 
-      <nav className="hidden flex-wrap gap-2 border-b border-[#30363d] pb-4 lg:flex">
+      <nav className="hidden flex-wrap gap-2 border-b border-hq-border pb-4 lg:flex">
         {ADMIN_LINKS.map((link) => {
           const active = adminLinkActive(pathname, link.href);
           return (
@@ -137,8 +137,8 @@ export function AdminPortalShell({ children }: Props) {
               className={cn(
                 "rounded-lg px-3 py-1.5 text-sm transition-colors",
                 active
-                  ? "bg-[#1f3d5c] font-medium text-[#58a6ff]"
-                  : "text-[#8b949e] hover:bg-[#21262d] hover:text-[#e6edf3]",
+                  ? "bg-hq-selected font-medium text-hq-selected-fg"
+                  : "text-hq-fg-muted hover:bg-hq-surface-muted hover:text-hq-fg",
               )}
             >
               {t(`nav.${link.labelKey}`)}

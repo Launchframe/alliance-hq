@@ -90,12 +90,12 @@ export function WeekTemplateChangeDialog({
     >
       <div className="flex flex-col gap-4">
         <div>
-          <h2 className="text-lg font-semibold text-[#e6edf3]">{t("title")}</h2>
+          <h2 className="text-lg font-semibold text-hq-fg">{t("title")}</h2>
           <p className="mt-2 text-sm leading-relaxed text-[#c9d1d9]">{body}</p>
         </div>
 
         {todayInWeek ? (
-          <label className="flex items-start gap-2 text-sm text-[#e6edf3]">
+          <label className="flex items-start gap-2 text-sm text-hq-fg">
             <input
               type="checkbox"
               checked={includeToday}
@@ -113,7 +113,7 @@ export function WeekTemplateChangeDialog({
               setIncludeToday(false);
               onClose();
             }}
-            className="rounded-lg border border-[#30363d] px-4 py-2 text-sm font-medium text-[#e6edf3] hover:bg-[#0d1117]"
+            className="rounded-lg border border-hq-border px-4 py-2 text-sm font-medium text-hq-fg hover:bg-hq-canvas"
           >
             {t("cancel")}
           </button>
@@ -124,7 +124,7 @@ export function WeekTemplateChangeDialog({
               onConfirm({ includeToday, dates });
               setIncludeToday(false);
             }}
-            className="rounded-lg bg-[#238636] px-4 py-2 text-sm font-medium text-white hover:bg-[#2ea043] disabled:opacity-60"
+            className="rounded-lg bg-hq-success px-4 py-2 text-sm font-medium text-white hover:bg-hq-success-hover disabled:opacity-60"
           >
             {t("confirm")}
           </button>

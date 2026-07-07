@@ -64,58 +64,58 @@ export default function AdminOpsInboxPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold">{t("title")}</h1>
-        <p className="mt-1 text-sm text-[#8b949e]">{t("subtitle")}</p>
+        <p className="mt-1 text-sm text-hq-fg-muted">{t("subtitle")}</p>
       </div>
 
       {summary ? (
         <dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="rounded-lg border border-[#30363d] bg-[#161b22] px-4 py-3">
-            <dt className="text-xs text-[#8b949e]">{t("counts.failed")}</dt>
+          <div className="rounded-lg border border-hq-border bg-hq-surface px-4 py-3">
+            <dt className="text-xs text-hq-fg-muted">{t("counts.failed")}</dt>
             <dd className="text-xl font-semibold">{summary.videoJobsFailed}</dd>
           </div>
-          <div className="rounded-lg border border-[#30363d] bg-[#161b22] px-4 py-3">
-            <dt className="text-xs text-[#8b949e]">{t("counts.stuck")}</dt>
+          <div className="rounded-lg border border-hq-border bg-hq-surface px-4 py-3">
+            <dt className="text-xs text-hq-fg-muted">{t("counts.stuck")}</dt>
             <dd className="text-xl font-semibold">
               {summary.videoJobsStuckQueued}
             </dd>
           </div>
-          <div className="rounded-lg border border-[#30363d] bg-[#161b22] px-4 py-3">
-            <dt className="text-xs text-[#8b949e]">{t("counts.bugs")}</dt>
+          <div className="rounded-lg border border-hq-border bg-hq-surface px-4 py-3">
+            <dt className="text-xs text-hq-fg-muted">{t("counts.bugs")}</dt>
             <dd className="text-xl font-semibold">{summary.bugReportsOpen}</dd>
           </div>
-          <div className="rounded-lg border border-[#30363d] bg-[#161b22] px-4 py-3">
-            <dt className="text-xs text-[#8b949e]">{t("counts.memberLinkHelp")}</dt>
+          <div className="rounded-lg border border-hq-border bg-hq-surface px-4 py-3">
+            <dt className="text-xs text-hq-fg-muted">{t("counts.memberLinkHelp")}</dt>
             <dd className="text-xl font-semibold">{summary.memberLinkHelpOpen}</dd>
           </div>
         </dl>
       ) : null}
 
-      {error ? <p className="text-sm text-[#f85149]">{error}</p> : null}
+      {error ? <p className="text-sm text-hq-danger">{error}</p> : null}
 
       {items.length === 0 && !error ? (
-        <p className="text-sm text-[#8b949e]">{t("empty")}</p>
+        <p className="text-sm text-hq-fg-muted">{t("empty")}</p>
       ) : (
-        <ul className="divide-y divide-[#30363d] rounded-xl border border-[#30363d] bg-[#161b22]">
+        <ul className="divide-y divide-hq-border rounded-xl border border-hq-border bg-hq-surface">
           {items.map((item) => (
             <li key={item.id}>
               <Link
                 href={item.href}
-                className="group flex flex-col gap-1 px-4 py-3 transition-colors hover:bg-[#21262d] sm:flex-row sm:items-center sm:justify-between"
+                className="group flex flex-col gap-1 px-4 py-3 transition-colors hover:bg-hq-surface-muted sm:flex-row sm:items-center sm:justify-between"
               >
                 <div className="min-w-0">
-                  <p className="text-xs font-medium uppercase tracking-wide text-[#58a6ff]">
+                  <p className="text-xs font-medium uppercase tracking-wide text-hq-accent">
                     {kindLabel(item.kind)}
                   </p>
-                  <p className="truncate font-medium group-hover:text-[#58a6ff] group-hover:underline">
+                  <p className="truncate font-medium group-hover:text-hq-accent group-hover:underline">
                     {item.title}
                   </p>
                   {item.subtitle ? (
-                    <p className="truncate text-sm text-[#8b949e]">
+                    <p className="truncate text-sm text-hq-fg-muted">
                       {item.subtitle}
                     </p>
                   ) : null}
                 </div>
-                <p className="shrink-0 text-xs text-[#8b949e]">
+                <p className="shrink-0 text-xs text-hq-fg-muted">
                   <FormattedDateTime value={item.createdAt} />
                 </p>
               </Link>

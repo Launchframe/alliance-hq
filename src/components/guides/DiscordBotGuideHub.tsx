@@ -10,8 +10,8 @@ import {
 } from "@/lib/guides/discord-bot-guide.shared";
 const ROLE_ACCENT: Record<DiscordBotGuideRoleSlug, string> = {
   r5: "border-[#d4a017]/40 bg-[#d4a017]/10 hover:border-[#d4a017]/70",
-  r4: "border-[#58a6ff]/40 bg-[#58a6ff]/10 hover:border-[#58a6ff]/70",
-  member: "border-[#3fb950]/40 bg-[#3fb950]/10 hover:border-[#3fb950]/70",
+  r4: "border-hq-accent/40 bg-hq-accent/10 hover:border-hq-accent/70",
+  member: "border-hq-green/40 bg-hq-green/10 hover:border-hq-green/70",
   "link-only":
     "border-[#bc8cff]/40 bg-[#bc8cff]/10 hover:border-[#bc8cff]/70",
 };
@@ -25,16 +25,16 @@ export function DiscordBotGuideHub() {
         <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
           {t("hub.title")}
         </h1>
-        <p className="text-sm leading-relaxed text-[#8b949e] sm:text-base">
+        <p className="text-sm leading-relaxed text-hq-fg-muted sm:text-base">
           {t("hub.subtitle")}
         </p>
       </header>
 
       <section className="rounded-xl border border-[#d4a017]/30 bg-[#d4a017]/10 p-5 sm:p-6">
-        <p className="text-sm leading-relaxed text-[#e6edf3]">
+        <p className="text-sm leading-relaxed text-hq-fg">
           {t.rich("hub.r5Callout", {
             link: (chunks) => (
-              <Link href="/guides/getting-started" className="text-[#58a6ff] hover:underline">
+              <Link href="/guides/getting-started" className="text-hq-accent hover:underline">
                 {chunks}
               </Link>
             ),
@@ -42,16 +42,16 @@ export function DiscordBotGuideHub() {
         </p>
       </section>
 
-      <section className="space-y-3 rounded-xl border border-[#30363d] bg-[#161b22] p-5 sm:p-6">
+      <section className="space-y-3 rounded-xl border border-hq-border bg-hq-surface p-5 sm:p-6">
         <h2 className="text-lg font-medium">{t("hub.overviewTitle")}</h2>
-        <p className="text-sm leading-relaxed text-[#8b949e]">
+        <p className="text-sm leading-relaxed text-hq-fg-muted">
           {t("hub.overviewBody")}
         </p>
       </section>
 
       <section className="space-y-3">
         <h2 className="text-lg font-medium">{t("hub.prerequisitesTitle")}</h2>
-        <p className="whitespace-pre-line text-sm leading-relaxed text-[#8b949e]">
+        <p className="whitespace-pre-line text-sm leading-relaxed text-hq-fg-muted">
           {t("hub.prerequisitesBody")}
         </p>
       </section>
@@ -59,7 +59,7 @@ export function DiscordBotGuideHub() {
       <section className="space-y-4">
         <div>
           <h2 className="text-lg font-medium">{t("hub.rolePrompt")}</h2>
-          <p className="mt-1 text-sm text-[#8b949e]">{t("hub.pickRole")}</p>
+          <p className="mt-1 text-sm text-hq-fg-muted">{t("hub.pickRole")}</p>
         </div>
 
         <ul className="grid min-w-0 gap-3 sm:grid-cols-2">
@@ -74,11 +74,11 @@ export function DiscordBotGuideHub() {
                     {t(`roles.${role}.title`)}
                   </span>
                   <ChevronRight
-                    className="mt-0.5 h-4 w-4 shrink-0 text-[#8b949e] transition-transform group-hover:translate-x-0.5"
+                    className="mt-0.5 h-4 w-4 shrink-0 text-hq-fg-muted transition-transform group-hover:translate-x-0.5"
                     aria-hidden
                   />
                 </span>
-                <span className="text-sm leading-relaxed text-[#8b949e]">
+                <span className="text-sm leading-relaxed text-hq-fg-muted">
                   {t(`roles.${role}.description`)}
                 </span>
               </Link>

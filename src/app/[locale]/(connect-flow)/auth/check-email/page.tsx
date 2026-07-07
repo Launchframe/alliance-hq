@@ -22,14 +22,14 @@ export default async function AuthCheckEmailPage({ searchParams }: Props) {
       : "/auth";
 
   return (
-    <div className="mx-auto max-w-md space-y-4 rounded-xl border border-[#30363d] bg-[#161b22] p-6">
+    <div className="mx-auto max-w-md space-y-4 rounded-xl border border-hq-border bg-hq-surface p-6">
       <h1 className="text-xl font-semibold">{t("checkEmailTitle")}</h1>
-      <p className="text-sm text-[#8b949e]">
+      <p className="text-sm text-hq-fg-muted">
         {t("checkEmailBody", { email: email?.trim() || t("yourInbox") })}
       </p>
-      <p className="text-sm text-[#8b949e]">{t("checkEmailSpamHint")}</p>
-      <p className="text-xs text-[#6e7681]">{t("checkEmailHint")}</p>
-      <Link href={retryHref} className="inline-block text-sm text-[#58a6ff] hover:underline">
+      <p className="text-sm text-hq-fg-muted">{t("checkEmailSpamHint")}</p>
+      <p className="text-xs text-hq-fg-subtle">{t("checkEmailHint")}</p>
+      <Link href={retryHref} className="inline-block text-sm text-hq-accent hover:underline">
         {t("tryAgain")}
       </Link>
     </div>

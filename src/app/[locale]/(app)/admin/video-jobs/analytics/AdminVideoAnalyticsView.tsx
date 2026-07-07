@@ -8,13 +8,13 @@ import type { AnalyticsResponse, PassKeyRow, BucketRow } from "@/app/api/admin/v
 import type { RosterOcrEvalResponse } from "@/app/api/admin/video-jobs/roster-ocr-eval/route";
 
 const QUALITY_BUCKET_COLORS: Record<string, string> = {
-  perfect: "text-[#3fb950]",
-  q1: "text-[#3fb950]",
+  perfect: "text-hq-green",
+  q1: "text-hq-green",
   q2: "text-[#d29922]",
   q3: "text-[#d29922]",
-  q4: "text-[#f85149]",
-  q5: "text-[#f85149]",
-  dropped_the_ball: "text-[#f85149]",
+  q4: "text-hq-danger",
+  q5: "text-hq-danger",
+  dropped_the_ball: "text-hq-danger",
 };
 
 const BUCKET_ORDER = ["perfect", "q1", "q2", "q3", "q4", "q5", "dropped_the_ball"];
@@ -34,10 +34,10 @@ function pct(n: number | null | undefined, d: number | null | undefined): string
 
 function KpiCard({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
-    <div className="rounded-lg border border-[#30363d] bg-[#161b22] p-4">
-      <div className="text-xs uppercase tracking-wide text-[#8b949e]">{label}</div>
-      <div className="mt-1 text-2xl font-semibold text-[#e6edf3]">{value}</div>
-      {sub && <div className="mt-0.5 text-xs text-[#8b949e]">{sub}</div>}
+    <div className="rounded-lg border border-hq-border bg-hq-surface p-4">
+      <div className="text-xs uppercase tracking-wide text-hq-fg-muted">{label}</div>
+      <div className="mt-1 text-2xl font-semibold text-hq-fg">{value}</div>
+      {sub && <div className="mt-0.5 text-xs text-hq-fg-muted">{sub}</div>}
     </div>
   );
 }
@@ -68,7 +68,7 @@ function PassKeyTable({
     <div className="overflow-x-auto">
       <table className="w-full text-xs">
         <thead>
-          <tr className="border-b border-[#30363d] text-[#8b949e] uppercase tracking-wide">
+          <tr className="border-b border-hq-border text-hq-fg-muted uppercase tracking-wide">
             <th className="pb-2 text-left">{t("col.pass")}</th>
             <th className="pb-2 text-right">{t("col.jobs")}</th>
             <th className="pb-2 text-right">{t("col.rated")}</th>
@@ -84,19 +84,19 @@ function PassKeyTable({
           {rows.map((row) => {
             const buckets = bucketMap.get(row.passKey) ?? {};
             return (
-              <tr key={row.passKey} className="border-b border-[#21262d] hover:bg-[#161b22] transition-colors">
+              <tr key={row.passKey} className="border-b border-hq-surface-muted hover:bg-hq-surface transition-colors">
                 <td className="py-2 font-mono text-[#79c0ff]">{row.passKey}</td>
-                <td className="py-2 text-right text-[#e6edf3]">{row.total}</td>
-                <td className="py-2 text-right text-[#8b949e]">{row.rated}</td>
-                <td className="py-2 text-right font-medium text-[#e6edf3]">
+                <td className="py-2 text-right text-hq-fg">{row.total}</td>
+                <td className="py-2 text-right text-hq-fg-muted">{row.rated}</td>
+                <td className="py-2 text-right font-medium text-hq-fg">
                   {pct(row.thumbsUp, row.rated)}
                 </td>
-                <td className="py-2 text-right text-[#8b949e]">
+                <td className="py-2 text-right text-hq-fg-muted">
                   {row.avgQualityScore != null ? row.avgQualityScore.toFixed(2) : "—"}
                 </td>
-                <td className="py-2 text-right text-[#8b949e]">{row.userSelected}</td>
-                <td className="py-2 text-right text-[#8b949e]">{row.sysRecommended}</td>
-                <td className="py-2 text-right text-[#8b949e]">
+                <td className="py-2 text-right text-hq-fg-muted">{row.userSelected}</td>
+                <td className="py-2 text-right text-hq-fg-muted">{row.sysRecommended}</td>
+                <td className="py-2 text-right text-hq-fg-muted">
                   {pct(
                     row.userSelected > 0 && row.sysRecommended > 0
                       ? Math.min(row.userSelected, row.sysRecommended)
@@ -227,25 +227,25 @@ export function AdminVideoAnalyticsView() {
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-xl font-semibold text-[#e6edf3]">{t("title")}</h1>
-          <p className="mt-1 text-sm text-[#8b949e]">{t("subtitle")}</p>
+          <h1 className="text-xl font-semibold text-hq-fg">{t("title")}</h1>
+          <p className="mt-1 text-sm text-hq-fg-muted">{t("subtitle")}</p>
         </div>
         <Link
           href="/admin/experiments"
-          className="shrink-0 rounded-md border border-[#30363d] px-3 py-1.5 text-xs text-[#8b949e] hover:border-[#58a6ff] hover:text-[#58a6ff] transition-colors"
+          className="shrink-0 rounded-md border border-hq-border px-3 py-1.5 text-xs text-hq-fg-muted hover:border-hq-accent hover:text-hq-accent transition-colors"
         >
           {t("experimentsLink")} →
         </Link>
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap items-center gap-3 rounded-lg border border-[#30363d] bg-[#161b22] p-3">
+      <div className="flex flex-wrap items-center gap-3 rounded-lg border border-hq-border bg-hq-surface p-3">
         <div className="flex items-center gap-2">
-          <label className="text-xs text-[#8b949e]">{t("filter.scoreTarget")}</label>
+          <label className="text-xs text-hq-fg-muted">{t("filter.scoreTarget")}</label>
           <select
             value={scoreTarget}
             onChange={(e) => { setScoreTarget(e.target.value); setPassKey(""); }}
-            className="rounded border border-[#30363d] bg-[#0d1117] px-2 py-1 text-xs text-[#e6edf3] focus:border-[#58a6ff] focus:outline-none"
+            className="rounded border border-hq-border bg-hq-canvas px-2 py-1 text-xs text-hq-fg focus:border-hq-accent focus:outline-none"
           >
             <option value="">{t("filter.allTargets")}</option>
             {availableTargets.map((st) => (
@@ -254,11 +254,11 @@ export function AdminVideoAnalyticsView() {
           </select>
         </div>
         <div className="flex items-center gap-2">
-          <label className="text-xs text-[#8b949e]">{t("filter.passKey")}</label>
+          <label className="text-xs text-hq-fg-muted">{t("filter.passKey")}</label>
           <select
             value={passKey}
             onChange={(e) => setPassKey(e.target.value)}
-            className="rounded border border-[#30363d] bg-[#0d1117] px-2 py-1 text-xs font-mono text-[#e6edf3] focus:border-[#58a6ff] focus:outline-none"
+            className="rounded border border-hq-border bg-hq-canvas px-2 py-1 text-xs font-mono text-hq-fg focus:border-hq-accent focus:outline-none"
           >
             <option value="">{t("filter.allPasses")}</option>
             {availablePassKeys.map((pk) => (
@@ -267,12 +267,12 @@ export function AdminVideoAnalyticsView() {
           </select>
         </div>
         <div className="flex items-center gap-2">
-          <label className="text-xs text-[#8b949e]">{t("filter.window")}</label>
+          <label className="text-xs text-hq-fg-muted">{t("filter.window")}</label>
           {(["7", "30", "90", "0"] as const).map((d) => (
             <button
               key={d}
               onClick={() => setDays(d)}
-              className={`rounded-full border px-2.5 py-0.5 text-xs transition-colors ${days === d ? "border-[#58a6ff] text-[#58a6ff] bg-[#58a6ff15]" : "border-[#30363d] text-[#8b949e] hover:border-[#58a6ff] hover:text-[#58a6ff]"}`}
+              className={`rounded-full border px-2.5 py-0.5 text-xs transition-colors ${days === d ? "border-hq-accent text-hq-selected-fg bg-hq-selected" : "border-hq-border text-hq-fg-muted hover:border-hq-accent hover:text-hq-accent"}`}
             >
               {d === "0" ? t("filter.allTime") : `${d}d`}
             </button>
@@ -287,8 +287,8 @@ export function AdminVideoAnalyticsView() {
         </div>
       )}
 
-      {error && <p className="text-sm text-[#f85149]">{error}</p>}
-      {loading && <p className="text-sm text-[#8b949e]">{t("loading")}</p>}
+      {error && <p className="text-sm text-hq-danger">{error}</p>}
+      {loading && <p className="text-sm text-hq-fg-muted">{t("loading")}</p>}
 
       {data && (
         <>
@@ -317,15 +317,15 @@ export function AdminVideoAnalyticsView() {
           </div>
 
           {(!scoreTarget || scoreTarget === "member-roster-video") && rosterEval ? (
-            <section className="space-y-4 rounded-lg border border-[#30363d] bg-[#161b22] p-4">
+            <section className="space-y-4 rounded-lg border border-hq-border bg-hq-surface p-4">
               <div>
-                <h2 className="text-sm font-semibold text-[#e6edf3]">
+                <h2 className="text-sm font-semibold text-hq-fg">
                   {t("rosterOcrEval.title")}
                 </h2>
-                <p className="mt-1 text-xs text-[#8b949e]">{t("rosterOcrEval.subtitle")}</p>
+                <p className="mt-1 text-xs text-hq-fg-muted">{t("rosterOcrEval.subtitle")}</p>
               </div>
               {rosterEval.jobCount === 0 ? (
-                <p className="text-xs text-[#8b949e]">{t("rosterOcrEval.empty")}</p>
+                <p className="text-xs text-hq-fg-muted">{t("rosterOcrEval.empty")}</p>
               ) : (
                 <>
                   <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
@@ -358,7 +358,7 @@ export function AdminVideoAnalyticsView() {
                     <div className="overflow-x-auto">
                       <table className="w-full text-xs">
                         <thead>
-                          <tr className="border-b border-[#30363d] text-[#8b949e] uppercase tracking-wide">
+                          <tr className="border-b border-hq-border text-hq-fg-muted uppercase tracking-wide">
                             <th className="pb-2 text-left">{t("rosterOcrEval.colPass")}</th>
                             <th className="pb-2 text-right">{t("rosterOcrEval.colJobs")}</th>
                             <th className="pb-2 text-right">{t("rosterOcrEval.nameRecall")}</th>
@@ -368,16 +368,16 @@ export function AdminVideoAnalyticsView() {
                         </thead>
                         <tbody>
                           {rosterEval.byPassKey.map((row) => (
-                            <tr key={row.tessPassKey} className="border-b border-[#21262d]">
+                            <tr key={row.tessPassKey} className="border-b border-hq-surface-muted">
                               <td className="py-2 font-mono text-[#79c0ff]">{row.tessPassKey}</td>
-                              <td className="py-2 text-right text-[#e6edf3]">{row.jobCount}</td>
-                              <td className="py-2 text-right text-[#8b949e]">
+                              <td className="py-2 text-right text-hq-fg">{row.jobCount}</td>
+                              <td className="py-2 text-right text-hq-fg-muted">
                                 {pct(row.avgNameRecall, 1)}
                               </td>
-                              <td className="py-2 text-right text-[#8b949e]">
+                              <td className="py-2 text-right text-hq-fg-muted">
                                 {pct(row.avgNamePrecision, 1)}
                               </td>
-                              <td className="py-2 text-right text-[#8b949e]">
+                              <td className="py-2 text-right text-hq-fg-muted">
                                 {pct(row.avgRankAgreement, 1)}
                               </td>
                             </tr>
@@ -388,12 +388,12 @@ export function AdminVideoAnalyticsView() {
                   ) : null}
                   {rosterEval.dailySeries.length > 0 ? (
                     <div className="overflow-x-auto">
-                      <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-[#8b949e]">
+                      <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-hq-fg-muted">
                         {t("rosterOcrEval.dailyTrend")}
                       </h3>
                       <table className="w-full text-xs">
                         <thead>
-                          <tr className="border-b border-[#30363d] text-[#8b949e] uppercase tracking-wide">
+                          <tr className="border-b border-hq-border text-hq-fg-muted uppercase tracking-wide">
                             <th className="pb-2 text-left">{t("rosterOcrEval.colDate")}</th>
                             <th className="pb-2 text-left">{t("rosterOcrEval.colPass")}</th>
                             <th className="pb-2 text-right">{t("rosterOcrEval.colJobs")}</th>
@@ -404,13 +404,13 @@ export function AdminVideoAnalyticsView() {
                         </thead>
                         <tbody>
                           {rosterEval.dailySeries.map((row) => (
-                            <tr key={`${row.date}-${row.passKey}`} className="border-b border-[#21262d]">
-                              <td className="py-2 text-[#e6edf3]">{row.date}</td>
+                            <tr key={`${row.date}-${row.passKey}`} className="border-b border-hq-surface-muted">
+                              <td className="py-2 text-hq-fg">{row.date}</td>
                               <td className="py-2 font-mono text-[#79c0ff]">{row.passKey}</td>
-                              <td className="py-2 text-right text-[#e6edf3]">{row.jobCount}</td>
-                              <td className="py-2 text-right text-[#8b949e]">{pct(row.nameRecall, 1)}</td>
-                              <td className="py-2 text-right text-[#8b949e]">{pct(row.namePrecision, 1)}</td>
-                              <td className="py-2 text-right text-[#8b949e]">{pct(row.rankAgreement, 1)}</td>
+                              <td className="py-2 text-right text-hq-fg">{row.jobCount}</td>
+                              <td className="py-2 text-right text-hq-fg-muted">{pct(row.nameRecall, 1)}</td>
+                              <td className="py-2 text-right text-hq-fg-muted">{pct(row.namePrecision, 1)}</td>
+                              <td className="py-2 text-right text-hq-fg-muted">{pct(row.rankAgreement, 1)}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -429,14 +429,14 @@ export function AdminVideoAnalyticsView() {
             const totalReasons = reasons.reduce((s, r) => s + r.count, 0);
 
             return (
-              <section key={st} className="space-y-4 rounded-lg border border-[#30363d] bg-[#161b22] p-4">
-                <h2 className="flex items-center gap-2 text-sm font-semibold text-[#e6edf3]">
+              <section key={st} className="space-y-4 rounded-lg border border-hq-border bg-hq-surface p-4">
+                <h2 className="flex items-center gap-2 text-sm font-semibold text-hq-fg">
                   <span className="font-mono text-[#79c0ff]">{st}</span>
-                  <span className="text-[#8b949e] font-normal text-xs">— {t("passKeyPerformance")}</span>
+                  <span className="text-hq-fg-muted font-normal text-xs">— {t("passKeyPerformance")}</span>
                 </h2>
 
                 {rows.length === 0 ? (
-                  <p className="text-xs text-[#8b949e]">{t("noData")}</p>
+                  <p className="text-xs text-hq-fg-muted">{t("noData")}</p>
                 ) : (
                   <PassKeyTable
                     rows={rows}
@@ -448,7 +448,7 @@ export function AdminVideoAnalyticsView() {
                 {/* Rating reason breakdown */}
                 {reasons.length > 0 && (
                   <div className="mt-4">
-                    <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-[#8b949e]">
+                    <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-hq-fg-muted">
                       {t("ratingReasons")}
                     </h3>
                     <div className="space-y-1.5">
@@ -456,18 +456,18 @@ export function AdminVideoAnalyticsView() {
                         .sort((a, b) => b.count - a.count)
                         .map((r) => (
                           <div key={r.reason} className="flex items-center gap-3">
-                            <span className="w-28 shrink-0 text-xs text-[#8b949e]">
+                            <span className="w-28 shrink-0 text-xs text-hq-fg-muted">
                               {REASON_LABELS[r.reason] ?? r.reason}
                             </span>
-                            <div className="flex-1 overflow-hidden rounded-full bg-[#21262d]">
+                            <div className="flex-1 overflow-hidden rounded-full bg-hq-surface-muted">
                               <div
-                                className="h-2 rounded-full bg-[#f85149]"
+                                className="h-2 rounded-full bg-hq-danger"
                                 style={{
                                   width: `${totalReasons > 0 ? (r.count / totalReasons) * 100 : 0}%`,
                                 }}
                               />
                             </div>
-                            <span className="w-8 text-right text-xs text-[#8b949e]">{r.count}</span>
+                            <span className="w-8 text-right text-xs text-hq-fg-muted">{r.count}</span>
                           </div>
                         ))}
                     </div>
@@ -478,7 +478,7 @@ export function AdminVideoAnalyticsView() {
           })}
 
           {targetList.length === 0 && !loading && (
-            <p className="text-center py-10 text-sm text-[#8b949e]">{t("noData")}</p>
+            <p className="text-center py-10 text-sm text-hq-fg-muted">{t("noData")}</p>
           )}
         </>
       )}

@@ -27,7 +27,7 @@ function githubLink(chunks: ReactNode) {
       href={GITHUB_REPO_URL}
       target="_blank"
       rel="noreferrer"
-      className="text-[#58a6ff] hover:underline"
+      className="text-hq-accent hover:underline"
     >
       {chunks}
     </a>
@@ -40,7 +40,7 @@ function licenseLink(chunks: ReactNode) {
       href={LICENSE_URL}
       target="_blank"
       rel="noreferrer"
-      className="text-[#58a6ff] hover:underline"
+      className="text-hq-accent hover:underline"
     >
       {chunks}
     </a>
@@ -53,21 +53,21 @@ export default async function TermsPage() {
   return (
     <article className="mx-auto max-w-2xl space-y-8 text-sm leading-relaxed">
       <header>
-        <p className="text-xs text-[#8b949e]">
-          <Link href="/" className="text-[#58a6ff] hover:underline">
+        <p className="text-xs text-hq-fg-muted">
+          <Link href="/" className="text-hq-accent hover:underline">
             {t("backToHome")}
           </Link>
         </p>
         <h1 className="mt-4 text-2xl font-semibold">{t("title")}</h1>
-        <p className="mt-2 text-[#8b949e]">{t("intro")}</p>
+        <p className="mt-2 text-hq-fg-muted">{t("intro")}</p>
       </header>
 
       <section className="space-y-3">
         <h2 className="text-lg font-medium">{t("acceptableUseTitle")}</h2>
-        <p className="text-[#8b949e]">
+        <p className="text-hq-fg-muted">
           {t.rich("acceptableUseBody1", { link: ashedLink })}
         </p>
-        <ul className="list-disc space-y-2 pl-5 text-[#8b949e]">
+        <ul className="list-disc space-y-2 pl-5 text-hq-fg-muted">
           <li>{t("acceptableUseItems.noAbuse")}</li>
           <li>{t("acceptableUseItems.noHarm")}</li>
           <li>{t("acceptableUseItems.noMisuse")}</li>
@@ -76,17 +76,17 @@ export default async function TermsPage() {
 
       <section className="space-y-3">
         <h2 className="text-lg font-medium">{t("enforcementTitle")}</h2>
-        <p className="text-[#8b949e]">
+        <p className="text-hq-fg-muted">
           {t.rich("enforcementBody", { strong: strongText })}
         </p>
       </section>
 
       <section className="space-y-3">
         <h2 className="text-lg font-medium">{t("openSourceTitle")}</h2>
-        <p className="text-[#8b949e]">
+        <p className="text-hq-fg-muted">
           {t.rich("openSourceBody1", { strong: strongText })}
         </p>
-        <p className="text-[#8b949e]">
+        <p className="text-hq-fg-muted">
           {t.rich("openSourceBody2", {
             licenseLink,
             githubLink,
@@ -96,19 +96,19 @@ export default async function TermsPage() {
 
       <section className="space-y-3">
         <h2 className="text-lg font-medium">{t("disclaimerTitle")}</h2>
-        <p className="text-[#8b949e]">
+        <p className="text-hq-fg-muted">
           {t.rich("disclaimerBody", { strong: strongText })}
         </p>
       </section>
 
       <section className="space-y-3">
         <h2 className="text-lg font-medium">{t("changesTitle")}</h2>
-        <p className="text-[#8b949e]">{t("changesBody")}</p>
+        <p className="text-hq-fg-muted">{t("changesBody")}</p>
       </section>
 
       <section className="space-y-3">
         <h2 className="text-lg font-medium">{t("questionsTitle")}</h2>
-        <p className="text-[#8b949e]">
+        <p className="text-hq-fg-muted">
           {t.rich("questionsBody", { githubLink })}
         </p>
       </section>

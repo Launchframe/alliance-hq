@@ -166,7 +166,7 @@ export function ShellProfileMenu({
       <Link
         href={connectHref}
         onClick={() => stashConnectReturnPath(pathname)}
-        className="shrink-0 text-sm text-[#58a6ff] hover:underline"
+        className="shrink-0 text-sm text-hq-accent hover:underline"
       >
         {t("connect")}
       </Link>
@@ -180,7 +180,7 @@ export function ShellProfileMenu({
             data-shell-profile-menu={menuId}
             role="menu"
             aria-label={t("openMenu")}
-            className="fixed z-[100] overflow-hidden rounded-lg border border-[#30363d] bg-[#161b22] py-1 shadow-lg"
+            className="fixed z-[100] overflow-hidden rounded-lg border border-hq-border bg-hq-surface py-1 shadow-lg"
             style={{
               top: menuRect.top,
               right: menuRect.right,
@@ -188,7 +188,7 @@ export function ShellProfileMenu({
             }}
           >
             <div
-              className="flex items-center gap-3 border-b border-[#30363d] px-3 py-2.5"
+              className="flex items-center gap-3 border-b border-hq-border px-3 py-2.5"
               role="presentation"
             >
               <ProfileAvatar
@@ -198,17 +198,17 @@ export function ShellProfileMenu({
                 size="sm"
               />
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium text-[#e6edf3]">
+                <p className="truncate text-sm font-medium text-hq-fg">
                   {headerName}
                 </p>
-                <p className="truncate text-xs text-[#8b949e]">{headerEmail}</p>
+                <p className="truncate text-xs text-hq-fg-muted">{headerEmail}</p>
               </div>
             </div>
 
             <Link
               href="/profile"
               role="menuitem"
-              className="block px-3 py-2 text-sm text-[#e6edf3] hover:bg-[#21262d]"
+              className="block px-3 py-2 text-sm text-hq-fg hover:bg-hq-surface-muted"
               onClick={closeMenu}
             >
               {t("profile")}
@@ -216,7 +216,7 @@ export function ShellProfileMenu({
             <Link
               href="/account"
               role="menuitem"
-              className="block px-3 py-2 text-sm text-[#e6edf3] hover:bg-[#21262d]"
+              className="block px-3 py-2 text-sm text-hq-fg hover:bg-hq-surface-muted"
               onClick={closeMenu}
             >
               {t("account")}
@@ -226,7 +226,7 @@ export function ShellProfileMenu({
               <Link
                 href="/admin"
                 role="menuitem"
-                className="block px-3 py-2 text-sm text-[#e6edf3] hover:bg-[#21262d]"
+                className="block px-3 py-2 text-sm text-hq-fg hover:bg-hq-surface-muted"
                 onClick={closeMenu}
               >
                 {t("adminPortal")}
@@ -237,7 +237,7 @@ export function ShellProfileMenu({
               <Link
                 href={connectHref}
                 role="menuitem"
-                className="block px-3 py-2 text-sm text-[#58a6ff] hover:bg-[#21262d]"
+                className="block px-3 py-2 text-sm text-hq-accent hover:bg-hq-surface-muted"
                 onClick={() => {
                   stashConnectReturnPath(pathname);
                   closeMenu();
@@ -247,14 +247,14 @@ export function ShellProfileMenu({
               </Link>
             ) : null}
 
-            <div className="mt-1 border-t border-[#30363d] pt-1">
-              <p className="px-3 py-1.5 text-xs font-medium uppercase tracking-wide text-[#8b949e]">
+            <div className="mt-1 border-t border-hq-border pt-1">
+              <p className="px-3 py-1.5 text-xs font-medium uppercase tracking-wide text-hq-fg-muted">
                 {tFab("openMenu")}
               </p>
               <button
                 type="button"
                 role="menuitem"
-                className="block w-full px-3 py-2 text-left text-sm text-[#e6edf3] hover:bg-[#21262d]"
+                className="block w-full px-3 py-2 text-left text-sm text-hq-fg hover:bg-hq-surface-muted"
                 onClick={() => {
                   closeMenu();
                   showReportIssue();
@@ -265,7 +265,7 @@ export function ShellProfileMenu({
               <button
                 type="button"
                 role="menuitem"
-                className="block w-full px-3 py-2 text-left text-sm text-[#e6edf3] hover:bg-[#21262d]"
+                className="block w-full px-3 py-2 text-left text-sm text-hq-fg hover:bg-hq-surface-muted"
                 onClick={() => {
                   closeMenu();
                   startTranslationCorrection();
@@ -276,7 +276,7 @@ export function ShellProfileMenu({
               <button
                 type="button"
                 role="menuitem"
-                className="block w-full px-3 py-2 text-left text-sm text-[#e6edf3] hover:bg-[#21262d]"
+                className="block w-full px-3 py-2 text-left text-sm text-hq-fg hover:bg-hq-surface-muted"
                 onClick={() => {
                   closeMenu();
                   showExperienceFeedback({
@@ -290,7 +290,7 @@ export function ShellProfileMenu({
               <button
                 type="button"
                 role="menuitem"
-                className="block w-full px-3 py-2 text-left text-sm text-[#e6edf3] hover:bg-[#21262d]"
+                className="block w-full px-3 py-2 text-left text-sm text-hq-fg hover:bg-hq-surface-muted"
                 onClick={() => {
                   closeMenu();
                   showGetInTouch();
@@ -300,12 +300,12 @@ export function ShellProfileMenu({
               </button>
             </div>
 
-            <div className="mt-1 border-t border-[#30363d] pt-1">
+            <div className="mt-1 border-t border-hq-border pt-1">
               <button
                 type="button"
                 role="menuitem"
                 className={cn(
-                  "block w-full px-3 py-2 text-left text-sm text-[#f85149] hover:bg-[#21262d]",
+                  "block w-full px-3 py-2 text-left text-sm text-hq-danger hover:bg-hq-surface-muted",
                   signingOut && "cursor-not-allowed opacity-50",
                 )}
                 disabled={signingOut}
@@ -324,7 +324,7 @@ export function ShellProfileMenu({
       <button
         ref={triggerRef}
         type="button"
-        className="inline-flex shrink-0 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#58a6ff]"
+        className="inline-flex shrink-0 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hq-accent"
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label={t("openMenu")}

@@ -21,8 +21,8 @@ export function DiscordHqLinkCompleteSuccess({
         </p>
       </div>
 
-      <div className="rounded-xl border border-[#30363d] bg-[#161b22] p-6">
-        <p className="mb-4 text-sm text-[#8b949e]">{labels.joinIntro}</p>
+      <div className="rounded-xl border border-hq-border bg-hq-surface p-6">
+        <p className="mb-4 text-sm text-hq-fg-muted">{labels.joinIntro}</p>
         <JoinCodeClient
           showBackLink={false}
           showHeader={false}

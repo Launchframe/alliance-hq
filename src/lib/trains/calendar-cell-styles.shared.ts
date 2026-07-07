@@ -62,7 +62,7 @@ export function calendarCellOpaqueStyleClass(
 ): string {
   const style = calendarCellStyleClass(conductorMechanism, paintTemplate);
   const withoutBg = style.replace(/\bbg-[\w-]+(?:\/[\d.]+)?\b/g, "").trim();
-  return `${withoutBg} bg-[#161b22]`;
+  return `${withoutBg} bg-hq-surface`;
 }
 
 export function withPaintTemplateConfig<T extends { conductorConfig?: unknown }>(

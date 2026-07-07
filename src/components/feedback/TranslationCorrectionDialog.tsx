@@ -90,11 +90,11 @@ function TranslationCorrectionForm({
         void handleSubmit();
       }}
     >
-      <p id="translation-correction-dialog-title" className="text-sm text-[#8b949e]">
+      <p id="translation-correction-dialog-title" className="text-sm text-hq-fg-muted">
         {t("selectedLabel", { text: truncate(selectionText) })}
       </p>
       <label className="block space-y-1 text-sm">
-        <span className="text-[#8b949e]">{t("correctionLabel")}</span>
+        <span className="text-hq-fg-muted">{t("correctionLabel")}</span>
         <Textarea
           value={suggested}
           onChange={(e) => setSuggested(e.target.value)}
@@ -147,7 +147,7 @@ export function TranslationCorrectionDialog({
 
   return createPortal(
     <div
-      className="fixed z-95 w-[min(96vw,24rem)] rounded-xl border border-[#30363d] bg-[#161b22] p-4 shadow-xl"
+      className="fixed z-95 w-[min(96vw,24rem)] rounded-xl border border-hq-border bg-hq-surface p-4 shadow-xl"
       style={{ top: anchor.top, left: anchor.left }}
       role="dialog"
       aria-modal="true"

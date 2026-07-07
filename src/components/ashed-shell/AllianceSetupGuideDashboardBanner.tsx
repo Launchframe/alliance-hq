@@ -93,7 +93,7 @@ export function AllianceSetupGuideDashboardBanner() {
         type="button"
         onClick={() => void dismiss()}
         aria-label={t("dismiss")}
-        className="absolute right-3 top-3 z-10 inline-flex h-7 w-7 items-center justify-center rounded-lg text-[#8b949e] transition-colors hover:bg-[#21262d] hover:text-foreground"
+        className="absolute right-3 top-3 z-10 inline-flex h-7 w-7 items-center justify-center rounded-lg text-hq-fg-muted transition-colors hover:bg-hq-surface-muted hover:text-foreground"
       >
         <X className="h-4 w-4" aria-hidden />
       </button>

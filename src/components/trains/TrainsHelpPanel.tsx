@@ -43,7 +43,7 @@ export function TrainsHelpPanel({ showTakeTour = false, onTakeTour }: Props) {
         data-testid="trains-help-trigger"
         aria-label={t("openLabel")}
         onClick={() => setOpen(true)}
-        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[#30363d] bg-[#0d1117] text-[#8b949e] hover:bg-[#161b22] hover:text-[#e6edf3]"
+        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-hq-border bg-hq-canvas text-hq-fg-muted hover:bg-hq-surface hover:text-hq-fg"
       >
         <CircleHelp className="h-4 w-4" aria-hidden />
       </button>
@@ -51,17 +51,17 @@ export function TrainsHelpPanel({ showTakeTour = false, onTakeTour }: Props) {
       <Dialog open={open} onOpenChange={setOpen} title={t("title")}>
         <div className="flex flex-col gap-4">
           <div>
-            <h2 className="text-lg font-semibold text-[#e6edf3]">{t("title")}</h2>
+            <h2 className="text-lg font-semibold text-hq-fg">{t("title")}</h2>
             <p className="mt-2 text-sm leading-relaxed text-[#c9d1d9]">
               {t("serverTimeBody")}
             </p>
-            <p className="mt-2 rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 text-xs tabular-nums text-[#8b949e]">
+            <p className="mt-2 rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 text-xs tabular-nums text-hq-fg-muted">
               {serverTimeLine}
             </p>
           </div>
 
           <div>
-            <h3 className="text-sm font-medium text-[#e6edf3]">
+            <h3 className="text-sm font-medium text-hq-fg">
               {t("quickStartTitle")}
             </h3>
             <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-[#c9d1d9]">
@@ -87,7 +87,7 @@ export function TrainsHelpPanel({ showTakeTour = false, onTakeTour }: Props) {
             <button
               type="button"
               onClick={() => setOpen(false)}
-              className="rounded-lg border border-[#30363d] px-4 py-2 text-sm font-medium text-[#e6edf3] hover:bg-[#0d1117]"
+              className="rounded-lg border border-hq-border px-4 py-2 text-sm font-medium text-hq-fg hover:bg-hq-canvas"
             >
               {t("close")}
             </button>

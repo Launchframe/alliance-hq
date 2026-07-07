@@ -65,14 +65,14 @@ function SpinSourceRow({
   const isPool = isPoolSpinSource(source);
 
   return (
-    <div className="flex min-w-0 flex-col gap-2 rounded-lg border border-[#30363d] bg-[#0d1117]/50 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between">
+    <div className="flex min-w-0 flex-col gap-2 rounded-lg border border-hq-border bg-hq-canvas/50 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between">
       <div className="min-w-0">
-        <div className="text-[10px] font-medium uppercase tracking-wide text-[#8b949e]">
+        <div className="text-[10px] font-medium uppercase tracking-wide text-hq-fg-muted">
           {roleLabel}
         </div>
-        <div className="mt-0.5 text-sm font-medium text-[#e6edf3]">{label}</div>
+        <div className="mt-0.5 text-sm font-medium text-hq-fg">{label}</div>
         {isPool && poolSummary ? (
-          <div className="mt-1 text-xs text-[#8b949e]">
+          <div className="mt-1 text-xs text-hq-fg-muted">
             {poolSummary.total === 0
               ? t("poolNotSeeded")
               : t("poolRemaining", {
@@ -93,17 +93,17 @@ function SpinSourceRow({
           </div>
         ) : null}
         {isPool && !poolSummary ? (
-          <div className="mt-1 text-xs text-[#8b949e]">{t("poolNotSeeded")}</div>
+          <div className="mt-1 text-xs text-hq-fg-muted">{t("poolNotSeeded")}</div>
         ) : null}
         {!isPool ? (
-          <div className="mt-1 text-xs text-[#8b949e]">{t("liveLeaderboardHint")}</div>
+          <div className="mt-1 text-xs text-hq-fg-muted">{t("liveLeaderboardHint")}</div>
         ) : null}
       </div>
       {isPool ? (
         <button
           type="button"
           onClick={() => onViewPool(source.poolType)}
-          className="shrink-0 rounded-md border border-[#30363d] px-3 py-1.5 text-xs font-medium text-[#e6edf3] hover:bg-[#161b22] w-full sm:w-auto"
+          className="shrink-0 rounded-md border border-hq-border px-3 py-1.5 text-xs font-medium text-hq-fg hover:bg-hq-surface w-full sm:w-auto"
         >
           {t("viewPool")}
         </button>
@@ -158,7 +158,7 @@ export function TrainSpinSourcePanel({
 
   return (
     <div className="flex flex-col gap-2">
-      <h4 className="text-xs font-medium uppercase tracking-wide text-[#8b949e]">
+      <h4 className="text-xs font-medium uppercase tracking-wide text-hq-fg-muted">
         {t("heading")}
       </h4>
       {rows}

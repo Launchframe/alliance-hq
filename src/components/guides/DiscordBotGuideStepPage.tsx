@@ -39,7 +39,7 @@ export function DiscordBotGuideStepPage({ role, stepSlug }: Props) {
         <p className="text-sm">
           <Link
             href={`/guides/discord-bot/${role}`}
-            className="text-[#58a6ff] hover:underline"
+            className="text-hq-accent hover:underline"
           >
             ← {t(`roles.${role}.title`)}
           </Link>
@@ -47,7 +47,7 @@ export function DiscordBotGuideStepPage({ role, stepSlug }: Props) {
         <h1 className="text-2xl font-semibold tracking-tight">
           {t(`steps.${messageKey}.title`)}
         </h1>
-        <p className="text-sm leading-relaxed text-[#8b949e]">
+        <p className="text-sm leading-relaxed text-hq-fg-muted">
           {t(`steps.${messageKey}.summary`)}
         </p>
       </header>
@@ -62,11 +62,11 @@ export function DiscordBotGuideStepPage({ role, stepSlug }: Props) {
       ) : null}
 
       {command ? (
-        <div className="rounded-lg border border-[#30363d] bg-[#0d1117] px-4 py-3">
-          <p className="text-xs font-medium uppercase tracking-wide text-[#6e7681]">
+        <div className="rounded-lg border border-hq-border bg-hq-canvas px-4 py-3">
+          <p className="text-xs font-medium uppercase tracking-wide text-hq-fg-subtle">
             {t("flow.commandLabel")}
           </p>
-          <p className="mt-1 font-mono text-sm text-[#e6edf3]">{command}</p>
+          <p className="mt-1 font-mono text-sm text-hq-fg">{command}</p>
         </div>
       ) : null}
 
@@ -76,7 +76,7 @@ export function DiscordBotGuideStepPage({ role, stepSlug }: Props) {
           {t(`steps.${messageKey}.instructions`)}
         </p>
         {tip ? (
-          <p className="rounded-lg border border-[#30363d] bg-[#161b22] px-4 py-3 text-sm leading-relaxed text-[#8b949e]">
+          <p className="rounded-lg border border-hq-border bg-hq-surface px-4 py-3 text-sm leading-relaxed text-hq-fg-muted">
             {tip}
           </p>
         ) : null}
@@ -97,18 +97,18 @@ export function DiscordBotGuideStepPage({ role, stepSlug }: Props) {
             {def.troubleshootingIds.map((id) => (
               <details
                 key={id}
-                className="group rounded-lg border border-[#30363d] bg-[#161b22] open:border-[#58a6ff]/40"
+                className="group rounded-lg border border-hq-border bg-hq-surface open:border-hq-accent/40"
               >
                 <summary className="cursor-pointer list-none px-4 py-3 text-sm font-medium marker:content-none [&::-webkit-details-marker]:hidden">
                   <span className="flex items-center justify-between gap-2">
                     {t(`troubleshooting.${id}.title`)}
-                    <span className="text-xs text-[#6e7681] group-open:hidden">
+                    <span className="text-xs text-hq-fg-subtle group-open:hidden">
                       {t("troubleshooting.expand")}
                     </span>
                   </span>
                 </summary>
-                <div className="space-y-3 border-t border-[#30363d] px-4 py-3">
-                  <p className="whitespace-pre-line text-sm leading-relaxed text-[#8b949e]">
+                <div className="space-y-3 border-t border-hq-border px-4 py-3">
+                  <p className="whitespace-pre-line text-sm leading-relaxed text-hq-fg-muted">
                     {t(`troubleshooting.${id}.body`)}
                   </p>
                   {id === "copyNameUid" ? (
@@ -126,13 +126,13 @@ export function DiscordBotGuideStepPage({ role, stepSlug }: Props) {
       ) : null}
 
       <nav
-        className="flex min-w-0 flex-col gap-3 border-t border-[#30363d] pt-6 sm:flex-row sm:justify-between"
+        className="flex min-w-0 flex-col gap-3 border-t border-hq-border pt-6 sm:flex-row sm:justify-between"
         aria-label="Step navigation"
       >
         {prevSlug ? (
           <Link
             href={`/guides/discord-bot/${role}/${prevSlug}`}
-            className="text-sm text-[#58a6ff] hover:underline"
+            className="text-sm text-hq-accent hover:underline"
           >
             ← {t(`steps.${stepSlugToMessageKey(prevSlug)}.title`)}
           </Link>
@@ -142,14 +142,14 @@ export function DiscordBotGuideStepPage({ role, stepSlug }: Props) {
         {nextSlug ? (
           <Link
             href={`/guides/discord-bot/${role}/${nextSlug}`}
-            className="text-sm text-[#58a6ff] hover:underline sm:text-right"
+            className="text-sm text-hq-accent hover:underline sm:text-right"
           >
             {t(`steps.${stepSlugToMessageKey(nextSlug)}.title`)} →
           </Link>
         ) : (
           <Link
             href={`/guides/discord-bot/${role}`}
-            className="text-sm text-[#58a6ff] hover:underline sm:text-right"
+            className="text-sm text-hq-accent hover:underline sm:text-right"
           >
             {t("flow.backToFlow")}
           </Link>

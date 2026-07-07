@@ -70,10 +70,10 @@ export function AllianceSettingsSetupGuideSection({
   }
 
   return (
-    <section className="rounded-xl border border-[#30363d] bg-[#161b22] p-5 min-w-0 w-full max-w-full">
+    <section className="rounded-xl border border-hq-border bg-hq-surface p-5 min-w-0 w-full max-w-full">
       <div className="flex items-center gap-3 mb-4">
-        <div className="p-2 rounded-lg bg-[#58a6ff]/20">
-          <Compass className="h-5 w-5 text-[#58a6ff]" />
+        <div className="p-2 rounded-lg bg-hq-accent/20">
+          <Compass className="h-5 w-5 text-hq-accent" />
         </div>
         <h2 className="text-lg font-semibold text-foreground">{t("sectionTitle")}</h2>
       </div>
@@ -97,7 +97,7 @@ export function AllianceSettingsSetupGuideSection({
             })
           }
           aria-label={t("showOnDashboardLabel")}
-          className="shrink-0 mt-0.5 h-4 w-4 rounded border-[#30363d] bg-[#0d1117] accent-[#58a6ff]"
+          className="shrink-0 mt-0.5 h-4 w-4 rounded border-hq-border bg-hq-canvas accent-hq-accent"
         />
       </div>
 
@@ -114,7 +114,7 @@ export function AllianceSettingsSetupGuideSection({
         {t("rosterVideoHint")}{" "}
         <Link
           href={buildVideoUploadHref(MEMBER_ROSTER_VIDEO_SCORE_TARGET)}
-          className="text-[#58a6ff] hover:underline"
+          className="text-hq-accent hover:underline"
         >
           {t("rosterVideoCta")}
         </Link>

@@ -121,15 +121,15 @@ export function TranslationSelectionTooltip({ blocked }: Props) {
         ? createPortal(
             <div
               data-translation-selection-ui
-              className="fixed z-94 max-w-[min(96vw,17.5rem)] rounded-lg border border-[#484f58] bg-[#21262d] p-1 shadow-xl ring-1 ring-white/10"
+              className="fixed z-94 max-w-[min(96vw,17.5rem)] rounded-lg border border-[#484f58] bg-hq-surface-muted p-1 shadow-xl ring-1 ring-white/10"
               style={{ top: tooltip.anchor.top, left: tooltip.anchor.left }}
             >
               <button
                 type="button"
-                className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm font-medium text-[#e6edf3] hover:bg-[#30363d]"
+                className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm font-medium text-hq-fg hover:bg-hq-border"
                 onClick={openDialogFromTooltip}
               >
-                <Pencil className="h-4 w-4 shrink-0 text-[#58a6ff]" aria-hidden />
+                <Pencil className="h-4 w-4 shrink-0 text-hq-accent" aria-hidden />
                 {t("suggestTooltip")}
               </button>
             </div>,

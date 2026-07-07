@@ -360,11 +360,11 @@ export function TrainMonthCalendar({
           onClick={() => void loadMonth(addCalendarMonths(viewMonthKey, -1))}
           disabled={loading}
           aria-label={navLabels.previousMonth}
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[#30363d] text-[#e6edf3] hover:bg-[#0d1117] disabled:opacity-50"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-hq-border text-hq-fg hover:bg-hq-canvas disabled:opacity-50"
         >
           <ChevronLeft className="h-4 w-4" aria-hidden />
         </button>
-        <span className="min-w-0 truncate text-center text-sm font-medium tabular-nums text-[#e6edf3]">
+        <span className="min-w-0 truncate text-center text-sm font-medium tabular-nums text-hq-fg">
           {formatMonthLabel(displayPage.monthKey)}
         </span>
         <button
@@ -372,18 +372,18 @@ export function TrainMonthCalendar({
           onClick={() => void loadMonth(addCalendarMonths(viewMonthKey, 1))}
           disabled={loading}
           aria-label={navLabels.nextMonth}
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[#30363d] text-[#e6edf3] hover:bg-[#0d1117] disabled:opacity-50"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-hq-border text-hq-fg hover:bg-hq-canvas disabled:opacity-50"
         >
           <ChevronRight className="h-4 w-4" aria-hidden />
         </button>
       </div>
 
       {canPaint ? (
-        <div className="rounded-xl border border-[#30363d] bg-[#0d1117]/60 p-3">
-          <p className="text-xs font-medium text-[#8b949e]">
+        <div className="rounded-xl border border-hq-border bg-hq-canvas/60 p-3">
+          <p className="text-xs font-medium text-hq-fg-muted">
             {navLabels.paletteTitle}
           </p>
-          <p className="mt-0.5 text-[10px] text-[#6e7681]">
+          <p className="mt-0.5 text-[10px] text-hq-fg-subtle">
             {navLabels.paletteHint}
           </p>
           <div className="mt-2 flex flex-wrap gap-1.5">
@@ -397,8 +397,8 @@ export function TrainMonthCalendar({
                   onClick={() => applyTemplateToSelection(template)}
                   className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
                     hasSelection
-                      ? `border-[#30363d] text-[#c9d1d9] hover:bg-[#161b22] hover:ring-1 ${palette.ring}`
-                      : "border-[#30363d] text-[#c9d1d9]"
+                      ? `border-hq-border text-[#c9d1d9] hover:bg-hq-surface hover:ring-1 ${palette.ring}`
+                      : "border-hq-border text-[#c9d1d9]"
                   }`}
                 >
                   <TemplatePaletteBadge template={template} shape="square" />
@@ -417,7 +417,7 @@ export function TrainMonthCalendar({
           {navLabels.weekdayHeaders.map((label) => (
             <div
               key={label}
-              className="text-center text-[10px] font-medium uppercase tracking-wide text-[#6e7681]"
+              className="text-center text-[10px] font-medium uppercase tracking-wide text-hq-fg-subtle"
             >
               {label}
             </div>
@@ -452,11 +452,11 @@ export function TrainMonthCalendar({
 
             const inSelectionPreview = Boolean(selectionPreviewDates?.has(date));
             const ringClass = inSelectionPreview
-              ? "ring-2 ring-[#d29922] ring-offset-1 ring-offset-[#0d1117]"
+              ? "ring-2 ring-[#d29922] ring-offset-1 ring-offset-hq-canvas"
               : isSelected
-                ? "ring-2 ring-[#58a6ff] ring-offset-1 ring-offset-[#0d1117]"
+                ? "ring-2 ring-hq-accent ring-offset-1 ring-offset-hq-canvas"
                 : isToday
-                  ? "ring-1 ring-[#58a6ff]/50 ring-offset-1 ring-offset-[#0d1117]"
+                  ? "ring-1 ring-hq-accent/50 ring-offset-1 ring-offset-hq-canvas"
                   : "";
 
             const isProvisional = day ? isProvisionalDayConfig(day.id) : false;
@@ -486,7 +486,7 @@ export function TrainMonthCalendar({
                 {inMonth && conductorName ? (
                   <div
                     className={`truncate text-[10px] font-bold leading-tight ${
-                      locked ? "text-white" : "text-[#8b949e]"
+                      locked ? "text-white" : "text-hq-fg-muted"
                     }`}
                     title={conductorName}
                   >
@@ -496,7 +496,7 @@ export function TrainMonthCalendar({
                 {inMonth && vipName ? (
                   <div
                     className={`truncate text-[9px] leading-tight ${
-                      locked ? "opacity-95" : "text-[#6e7681]"
+                      locked ? "opacity-95" : "text-hq-fg-subtle"
                     }`}
                     title={vipName}
                   >
@@ -542,7 +542,7 @@ export function TrainMonthCalendar({
       </div>
 
       {hasProvisionalDays && navLabels.previewLegend ? (
-        <p className="text-[11px] leading-relaxed text-[#6e7681]">
+        <p className="text-[11px] leading-relaxed text-hq-fg-subtle">
           {navLabels.previewLegend}
         </p>
       ) : null}

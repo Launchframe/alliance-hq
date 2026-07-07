@@ -31,20 +31,20 @@ export function ConductorHistoryTable({
 }: Props) {
   if (rows.length === 0) {
     return (
-      <section className="rounded-2xl border border-[#30363d] bg-[#161b22] p-5">
-        <h2 className="text-lg font-semibold text-[#e6edf3]">{labels.title}</h2>
-        <p className="mt-2 text-sm text-[#8b949e]">{labels.empty}</p>
+      <section className="rounded-2xl border border-hq-border bg-hq-surface p-5">
+        <h2 className="text-lg font-semibold text-hq-fg">{labels.title}</h2>
+        <p className="mt-2 text-sm text-hq-fg-muted">{labels.empty}</p>
       </section>
     );
   }
 
   return (
-    <section className="rounded-2xl border border-[#30363d] bg-[#161b22] p-5">
-      <h2 className="text-lg font-semibold text-[#e6edf3]">{labels.title}</h2>
+    <section className="rounded-2xl border border-hq-border bg-hq-surface p-5">
+      <h2 className="text-lg font-semibold text-hq-fg">{labels.title}</h2>
       <div className="mt-4 overflow-x-auto">
         <table className="w-full min-w-[36rem] text-left text-sm">
           <thead>
-            <tr className="border-b border-[#30363d] text-xs uppercase tracking-wide text-[#8b949e]">
+            <tr className="border-b border-hq-border text-xs uppercase tracking-wide text-hq-fg-muted">
               <th className="px-2 py-2 font-medium">{labels.date}</th>
               <th className="px-2 py-2 font-medium">{labels.conductor}</th>
               <th className="px-2 py-2 font-medium">{labels.vip}</th>
@@ -68,38 +68,38 @@ export function ConductorHistoryTable({
               return (
                 <tr
                   key={row.id}
-                  className="border-b border-[#30363d]/60 last:border-0"
+                  className="border-b border-hq-border/60 last:border-0"
                 >
-                  <td className="px-2 py-2.5 tabular-nums text-[#e6edf3]">
+                  <td className="px-2 py-2.5 tabular-nums text-hq-fg">
                     {row.date}
                   </td>
                   <td className="px-2 py-2.5">
-                    <div className="font-medium text-[#e6edf3]">
+                    <div className="font-medium text-hq-fg">
                       {row.conductorMemberName ?? labels.noneYet}
                     </div>
                     {conductorMech ? (
-                      <div className="text-xs text-[#8b949e]">{conductorMech}</div>
+                      <div className="text-xs text-hq-fg-muted">{conductorMech}</div>
                     ) : null}
                   </td>
                   <td className="px-2 py-2.5">
-                    <div className="font-medium text-[#e6edf3]">
+                    <div className="font-medium text-hq-fg">
                       {row.vipMemberName ?? labels.noneYet}
                     </div>
                     {vipMech ? (
-                      <div className="text-xs text-[#8b949e]">{vipMech}</div>
+                      <div className="text-xs text-hq-fg-muted">{vipMech}</div>
                     ) : null}
                   </td>
                   <td className="px-2 py-2.5">
-                    <div className="font-medium text-[#e6edf3]">
+                    <div className="font-medium text-hq-fg">
                       {guardian ?? labels.noneYet}
                     </div>
-                    <div className="text-xs text-[#8b949e]">
+                    <div className="text-xs text-hq-fg-muted">
                       {row.guardianIsVip
                         ? labels.guardianIsVip
                         : labels.guardianIsConductor}
                     </div>
                   </td>
-                  <td className="px-2 py-2.5 text-xs text-[#8b949e]">
+                  <td className="px-2 py-2.5 text-xs text-hq-fg-muted">
                     {row.lockedAt
                       ? new Date(row.lockedAt).toLocaleString()
                       : labels.noneYet}

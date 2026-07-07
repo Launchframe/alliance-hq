@@ -6,7 +6,7 @@ export function ashedLink(chunks: ReactNode) {
       href="https://ashed.online"
       target="_blank"
       rel="noreferrer"
-      className="text-[#58a6ff] hover:underline"
+      className="text-hq-accent hover:underline"
     >
       {chunks}
     </a>
@@ -14,16 +14,16 @@ export function ashedLink(chunks: ReactNode) {
 }
 
 export function strongText(chunks: ReactNode) {
-  return <strong className="text-[#e6edf3]">{chunks}</strong>;
+  return <strong className="text-hq-fg">{chunks}</strong>;
 }
 
 export function mutedText(chunks: ReactNode) {
-  return <span className="text-[#8b949e]">{chunks}</span>;
+  return <span className="text-hq-fg-muted">{chunks}</span>;
 }
 
 export function inlineCode(chunks: ReactNode) {
   return (
-    <code className="rounded bg-[#0d1117] px-1.5 py-0.5 font-mono text-[0.9em]">
+    <code className="rounded bg-hq-canvas px-1.5 py-0.5 font-mono text-[0.9em]">
       {chunks}
     </code>
   );
@@ -31,7 +31,7 @@ export function inlineCode(chunks: ReactNode) {
 
 export function smallCode(chunks: ReactNode) {
   return (
-    <code className="rounded bg-[#0d1117] px-1 font-mono text-[0.85em]">
+    <code className="rounded bg-hq-canvas px-1 font-mono text-[0.85em]">
       {chunks}
     </code>
   );

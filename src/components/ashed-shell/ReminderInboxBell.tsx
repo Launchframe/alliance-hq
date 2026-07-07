@@ -58,7 +58,7 @@ export function ReminderInboxBell() {
   return (
     <Link
       href="/inbox"
-      className="relative inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[#30363d] text-[#e6edf3] transition-colors hover:bg-[#21262d]"
+      className="relative inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-hq-border text-hq-fg transition-colors hover:bg-hq-surface-muted"
       aria-label={
         count > 0 ? t("bellLabelWithCount", { count }) : t("bellLabel")
       }
@@ -66,7 +66,7 @@ export function ReminderInboxBell() {
       <Bell className="h-5 w-5" aria-hidden />
       {badgeLabel ? (
         <span
-          className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-[#f85149] px-1 text-[10px] font-semibold text-white"
+          className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-hq-danger px-1 text-[10px] font-semibold text-white"
           aria-hidden
         >
           {badgeLabel}

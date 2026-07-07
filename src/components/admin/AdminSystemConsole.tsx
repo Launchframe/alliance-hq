@@ -41,52 +41,52 @@ export function AdminSystemConsole() {
   }, [t]);
 
   if (error) return <p className="text-sm text-red-400">{error}</p>;
-  if (!stats) return <p className="text-sm text-[#8b949e]">{t("loading")}</p>;
+  if (!stats) return <p className="text-sm text-hq-fg-muted">{t("loading")}</p>;
 
   const countEntries = Object.entries(stats.counts);
 
   return (
     <div className="space-y-6">
-      <section className="rounded-xl border border-[#30363d] bg-[#161b22] p-5">
+      <section className="rounded-xl border border-hq-border bg-hq-surface p-5">
         <h2 className="font-medium">{t("databaseTitle")}</h2>
-        <p className={`mt-2 text-sm ${stats.database.ok ? "text-[#3fb950]" : "text-red-400"}`}>
+        <p className={`mt-2 text-sm ${stats.database.ok ? "text-hq-green" : "text-red-400"}`}>
           {stats.database.ok ? t("databaseOk") : stats.database.error ?? t("databaseBad")}
         </p>
-        <p className="mt-1 font-mono text-xs text-[#8b949e]">
+        <p className="mt-1 font-mono text-xs text-hq-fg-muted">
           {t("databaseHost", { host: stats.database.host })}
         </p>
       </section>
 
-      <section className="rounded-xl border border-[#30363d] bg-[#161b22] p-5">
+      <section className="rounded-xl border border-hq-border bg-hq-surface p-5">
         <h2 className="font-medium">{t("countsTitle")}</h2>
         <dl className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
           {countEntries.map(([key, value]) => (
-            <div key={key} className="rounded-lg border border-[#30363d] px-3 py-2">
-              <dt className="text-xs text-[#8b949e]">{t(`counts.${key}` as never)}</dt>
+            <div key={key} className="rounded-lg border border-hq-border px-3 py-2">
+              <dt className="text-xs text-hq-fg-muted">{t(`counts.${key}` as never)}</dt>
               <dd className="text-lg font-semibold">{value}</dd>
             </div>
           ))}
         </dl>
       </section>
 
-      <section className="rounded-xl border border-[#30363d] bg-[#161b22] p-5">
+      <section className="rounded-xl border border-hq-border bg-hq-surface p-5">
         <h2 className="font-medium">{t("configTitle")}</h2>
         <ul className="mt-3 space-y-1 text-sm">
           {Object.entries(stats.config).map(([key, ok]) => (
-            <li key={key} className={ok ? "text-[#3fb950]" : "text-[#f85149]"}>
+            <li key={key} className={ok ? "text-hq-green" : "text-hq-danger"}>
               {t(`config.${key}` as never)}: {ok ? "✓" : "✗"}
             </li>
           ))}
         </ul>
-        <p className="mt-3 text-xs text-[#8b949e]">{t("bootstrapHint")}</p>
+        <p className="mt-3 text-xs text-hq-fg-muted">{t("bootstrapHint")}</p>
       </section>
 
       {stats.recentQueuedJobs.length > 0 ? (
-        <section className="rounded-xl border border-[#30363d] bg-[#161b22] p-5">
+        <section className="rounded-xl border border-hq-border bg-hq-surface p-5">
           <h2 className="font-medium">{t("queuedTitle")}</h2>
           <ul className="mt-3 space-y-2 text-sm">
             {stats.recentQueuedJobs.map((job) => (
-              <li key={job.id} className="font-mono text-xs text-[#8b949e]">
+              <li key={job.id} className="font-mono text-xs text-hq-fg-muted">
                 {job.fileName ?? job.id} · {formatDateTime(job.createdAt)}
               </li>
             ))}
@@ -94,16 +94,16 @@ export function AdminSystemConsole() {
         </section>
       ) : null}
 
-      <section className="rounded-xl border border-[#30363d] bg-[#161b22] p-5">
+      <section className="rounded-xl border border-hq-border bg-hq-surface p-5">
         <h2 className="font-medium">{t("rolesTitle")}</h2>
         <div className="mt-3 space-y-4">
           {roles.map((role) => (
             <div key={role.id}>
               <p className="font-medium capitalize">{role.name}</p>
               {role.description ? (
-                <p className="text-xs text-[#8b949e]">{role.description}</p>
+                <p className="text-xs text-hq-fg-muted">{role.description}</p>
               ) : null}
-              <p className="mt-1 text-xs text-[#8b949e]">
+              <p className="mt-1 text-xs text-hq-fg-muted">
                 {role.permissions.join(", ")}
               </p>
             </div>

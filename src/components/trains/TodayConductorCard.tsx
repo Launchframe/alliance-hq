@@ -49,13 +49,13 @@ export function TodayConductorCard({
 
   return (
     <section
-      className="rounded-2xl border border-[#30363d] bg-[#161b22] p-5"
+      className="rounded-2xl border border-hq-border bg-hq-surface p-5"
       data-testid={dataTestId}
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold text-[#e6edf3]">{dayLabel}</h2>
-          <p className="mt-1 text-3xl font-bold tracking-tight text-[#58a6ff]">
+          <h2 className="text-lg font-semibold text-hq-fg">{dayLabel}</h2>
+          <p className="mt-1 text-3xl font-bold tracking-tight text-hq-accent">
             {record?.conductorMemberName ?? labels.awaiting}
           </p>
           {substituteBadge ? (
@@ -76,23 +76,23 @@ export function TodayConductorCard({
       </div>
 
       <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        <div className="rounded-xl border border-[#30363d] bg-[#0d1117] p-3">
-          <div className="text-xs uppercase tracking-wide text-[#8b949e]">
+        <div className="rounded-xl border border-hq-border bg-hq-canvas p-3">
+          <div className="text-xs uppercase tracking-wide text-hq-fg-muted">
             {labels.vip}
           </div>
-          <div className="mt-1 text-lg font-medium text-[#e6edf3]">
+          <div className="mt-1 text-lg font-medium text-hq-fg">
             {record?.vipMemberName ?? labels.noneYet}
           </div>
         </div>
-        <div className="rounded-xl border border-[#30363d] bg-[#0d1117] p-3">
-          <div className="text-xs uppercase tracking-wide text-[#8b949e]">
+        <div className="rounded-xl border border-hq-border bg-hq-canvas p-3">
+          <div className="text-xs uppercase tracking-wide text-hq-fg-muted">
             {labels.guardian}
           </div>
-          <div className="mt-1 text-lg font-medium text-[#e6edf3]">
+          <div className="mt-1 text-lg font-medium text-hq-fg">
             {hasGuardianContext ? (guardianName ?? labels.noneYet) : labels.noneYet}
           </div>
           {hasGuardianContext ? (
-            <div className="mt-1 text-xs text-[#8b949e]">
+            <div className="mt-1 text-xs text-hq-fg-muted">
               {record?.guardianIsVip
                 ? labels.guardianIsVip
                 : labels.guardianIsConductor}
@@ -100,16 +100,16 @@ export function TodayConductorCard({
           ) : null}
         </div>
         {stats ? (
-          <div className="rounded-xl border border-[#30363d] bg-[#0d1117] p-3 text-sm text-[#8b949e] sm:col-span-2 lg:col-span-1">
+          <div className="rounded-xl border border-hq-border bg-hq-canvas p-3 text-sm text-hq-fg-muted sm:col-span-2 lg:col-span-1">
             <div>
               {labels.lastConducted}:{" "}
-              <span className="text-[#e6edf3]">
+              <span className="text-hq-fg">
                 {stats.lastConductedDate ?? labels.noneYet}
               </span>
             </div>
             <div className="mt-1">
               {labels.conductsThisYear}:{" "}
-              <span className="text-[#e6edf3]">{stats.conductsThisYear}</span>
+              <span className="text-hq-fg">{stats.conductsThisYear}</span>
             </div>
           </div>
         ) : null}

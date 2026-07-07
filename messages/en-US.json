@@ -757,9 +757,29 @@
       "statusFilter": "Status",
       "all": "All",
       "arms": {
+        "title": "Arms",
+        "add": "Add arm",
         "loadConfigs": "Loading configs…",
         "configDefault": "Default (no extra shadow pass — control arm behavior)",
-        "configPickerLabel": "Parse config"
+        "configPickerLabel": "Parse config",
+        "deltaNote": "Δ thumbs-up % is relative to the control arm.",
+        "form": {
+          "name": "Arm name",
+          "weight": "Traffic weight",
+          "isControl": "Control arm",
+          "save": "Add arm"
+        },
+        "col": {
+          "name": "Arm",
+          "config": "Config",
+          "weight": "Weight",
+          "jobs": "Jobs",
+          "rated": "Rated",
+          "thumbsUp": "👍 %",
+          "avgQuality": "Avg quality",
+          "delta": "Δ vs control",
+          "buckets": "Buckets"
+        }
       },
       "started": "Started",
       "concluded": "Concluded",
@@ -1711,6 +1731,12 @@
     "timezoneServerTime": "Server Time",
     "timezoneSaved": "Time zone saved",
     "timezoneSaveFailed": "Could not save time zone",
+    "appearanceSection": "Appearance",
+    "appearanceBody": "Alliance HQ follows your device light or dark mode by default. Choose Light or Dark to override it on this browser.",
+    "appearanceLabel": "Color theme",
+    "appearanceSystem": "Match system",
+    "appearanceLight": "Light",
+    "appearanceDark": "Dark",
     "aboutBody": "Alliance HQ at <strong>frontline.gay</strong> is a community wrapper for <link>ashed.online</link>. All alliance data credit belongs to Ashed.",
     "discordSection": "Discord bot",
     "discordLinkedBody": "Your Discord account is linked to Alliance HQ, so bot commands like /vr and /link-commander recognize you. Unlinking removes this connection and your Discord sign-in method; bot commands won't recognize you until you link again.",

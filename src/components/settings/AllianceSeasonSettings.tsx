@@ -150,16 +150,16 @@ export function AllianceSeasonSettings({ allianceTag }: Props) {
 
   if (loading) {
     return (
-      <section className="rounded-xl border border-[#30363d] bg-[#161b22] p-5">
-        <p className="text-sm text-[#8b949e]">{t("loading")}</p>
+      <section className="rounded-xl border border-hq-border bg-hq-surface p-5">
+        <p className="text-sm text-hq-fg-muted">{t("loading")}</p>
       </section>
     );
   }
 
   if (!displaySeason) {
     return error ? (
-      <section className="rounded-xl border border-[#30363d] bg-[#161b22] p-5">
-        <p className="text-sm text-[#f85149]">{error}</p>
+      <section className="rounded-xl border border-hq-border bg-hq-surface p-5">
+        <p className="text-sm text-hq-danger">{error}</p>
       </section>
     ) : null;
   }
@@ -180,18 +180,18 @@ export function AllianceSeasonSettings({ allianceTag }: Props) {
         : null;
 
   return (
-    <section className="rounded-xl border border-[#30363d] bg-[#161b22] p-5">
+    <section className="rounded-xl border border-hq-border bg-hq-surface p-5">
       <h2 className="font-medium">{t("sectionTitle")}</h2>
-      <p className="mt-2 text-sm text-[#8b949e]">{t("sectionBody")}</p>
+      <p className="mt-2 text-sm text-hq-fg-muted">{t("sectionBody")}</p>
 
       <div className="mt-4 space-y-1">
-        <p className="text-xs font-medium uppercase tracking-wide text-[#8b949e]">
+        <p className="text-xs font-medium uppercase tracking-wide text-hq-fg-muted">
           {t("label")}
         </p>
-        <p className="text-lg font-semibold text-[#e6edf3]">
+        <p className="text-lg font-semibold text-hq-fg">
           {t("seasonLine", { season: displaySeason.seasonKey })}
         </p>
-        <p className="text-sm text-[#8b949e]">
+        <p className="text-sm text-hq-fg-muted">
           {sourceLabel}
           {displaySeason.gameServerNumber != null
             ? ` · ${t("serverLine", { server: displaySeason.gameServerNumber })}`
@@ -215,7 +215,7 @@ export function AllianceSeasonSettings({ allianceTag }: Props) {
             void saveServer();
           }}
         >
-          <label className="text-xs text-[#8b949e]" htmlFor="settings-game-server">
+          <label className="text-xs text-hq-fg-muted" htmlFor="settings-game-server">
             {t("serverNumberLabel")}
           </label>
           <input
@@ -225,9 +225,9 @@ export function AllianceSeasonSettings({ allianceTag }: Props) {
             value={serverDraft}
             onChange={(e) => setServerDraft(e.target.value.replace(/\D/g, ""))}
             enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT}
-            className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 text-sm text-[#e6edf3]"
+            className="w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 text-sm text-hq-fg"
           />
-          <p className="text-xs text-[#6e7681]">
+          <p className="text-xs text-hq-fg-subtle">
             {displaySeason.gameServerNumber == null
               ? t("serverNumberHint")
               : t("serverNumberUpdateHint")}
@@ -235,7 +235,7 @@ export function AllianceSeasonSettings({ allianceTag }: Props) {
           <button
             type="submit"
             disabled={busy || !serverDraft.trim()}
-            className="w-fit rounded-lg bg-[#238636] px-3 py-1.5 text-sm font-medium text-white disabled:opacity-60"
+            className="w-fit rounded-lg bg-hq-success px-3 py-1.5 text-sm font-medium text-white disabled:opacity-60"
           >
             {busy ? t("saving") : t("saveServer")}
           </button>
@@ -250,7 +250,7 @@ export function AllianceSeasonSettings({ allianceTag }: Props) {
             void saveOverride();
           }}
         >
-          <label className="text-xs text-[#8b949e]" htmlFor="settings-season-override">
+          <label className="text-xs text-hq-fg-muted" htmlFor="settings-season-override">
             {t("overrideLabel")}
           </label>
           <input
@@ -260,13 +260,13 @@ export function AllianceSeasonSettings({ allianceTag }: Props) {
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT}
-            className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 text-sm text-[#e6edf3]"
+            className="w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 text-sm text-hq-fg"
           />
           <div className="flex flex-wrap gap-2">
             <button
               type="submit"
               disabled={busy}
-              className="rounded-lg bg-[#238636] px-3 py-1.5 text-sm font-medium text-white disabled:opacity-60"
+              className="rounded-lg bg-hq-success px-3 py-1.5 text-sm font-medium text-white disabled:opacity-60"
             >
               {busy ? t("saving") : t("saveOverride")}
             </button>
@@ -275,7 +275,7 @@ export function AllianceSeasonSettings({ allianceTag }: Props) {
                 type="button"
                 disabled={busy}
                 onClick={() => void clearOverride()}
-                className="rounded-lg border border-[#30363d] px-3 py-1.5 text-sm text-[#e6edf3] disabled:opacity-60"
+                className="rounded-lg border border-hq-border px-3 py-1.5 text-sm text-hq-fg disabled:opacity-60"
               >
                 {t("clearOverride")}
               </button>
@@ -284,7 +284,7 @@ export function AllianceSeasonSettings({ allianceTag }: Props) {
         </form>
       ) : null}
 
-      {error ? <p className="mt-2 text-sm text-[#f85149]">{error}</p> : null}
+      {error ? <p className="mt-2 text-sm text-hq-danger">{error}</p> : null}
     </section>
   );
 }

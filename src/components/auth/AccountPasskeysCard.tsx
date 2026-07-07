@@ -56,9 +56,9 @@ export function AccountPasskeysCard({ passkeyCount: initialPasskeyCount }: Props
   }
 
   return (
-    <section className="space-y-4 rounded-xl border border-[#30363d] bg-[#161b22] p-5">
+    <section className="space-y-4 rounded-xl border border-hq-border bg-hq-surface p-5">
       <h2 className="font-medium">{t("passkeySectionTitle")}</h2>
-      <p className="text-sm text-[#8b949e]">
+      <p className="text-sm text-hq-fg-muted">
         {passkeyCount > 0
           ? t("passkeySectionBodyCount", { count: passkeyCount })
           : t("passkeySectionBodyNone")}
@@ -67,12 +67,12 @@ export function AccountPasskeysCard({ passkeyCount: initialPasskeyCount }: Props
         type="button"
         disabled={busy}
         onClick={() => void registerPasskey()}
-        className="rounded-lg border border-[#30363d] bg-[#0d1117] px-4 py-2 text-sm text-[#e6edf3] hover:border-[#58a6ff] disabled:opacity-50"
+        className="rounded-lg border border-hq-border bg-hq-canvas px-4 py-2 text-sm text-hq-fg hover:border-hq-accent disabled:opacity-50"
       >
         {busy ? t("saving") : t("addPasskey")}
       </button>
-      {message ? <p className="text-sm text-[#3fb950]">{message}</p> : null}
-      {error ? <p className="text-sm text-[#f85149]">{error}</p> : null}
+      {message ? <p className="text-sm text-hq-green">{message}</p> : null}
+      {error ? <p className="text-sm text-hq-danger">{error}</p> : null}
     </section>
   );
 }

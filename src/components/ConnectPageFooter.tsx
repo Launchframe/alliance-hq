@@ -10,15 +10,15 @@ export function ConnectPageFooter() {
   const t = useTranslations("footer");
 
   return (
-    <footer className="border-t border-[#30363d] px-4 py-6 text-center text-xs text-[#8b949e]">
+    <footer className="border-t border-hq-border px-4 py-6 text-center text-xs text-hq-fg-muted">
       <p>
         {t.rich("attribution", { link: ashedLink })}
       </p>
       <div className="mt-3 flex flex-col items-center gap-2 sm:flex-row sm:justify-center sm:gap-4">
-        <Link href="/privacy" className="text-[#58a6ff] hover:underline">
+        <Link href="/privacy" className="text-hq-accent hover:underline">
           {t("privacyPolicy")}
         </Link>
-        <Link href="/terms" className="text-[#58a6ff] hover:underline">
+        <Link href="/terms" className="text-hq-accent hover:underline">
           {t("termsOfService")}
         </Link>
         <LanguageSwitcher />

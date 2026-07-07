@@ -20,7 +20,7 @@ type Props = {
 
 function FabMenuIcon({ children }: { children: React.ReactNode }) {
   return (
-    <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center text-[#8b949e]">
+    <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center text-hq-fg-muted">
       {children}
     </span>
   );
@@ -41,7 +41,7 @@ export function FeedbackFab({
   return (
     <div className={FEEDBACK_FAB_FIXED_CLASSES}>
       {open ? (
-        <div className="pointer-events-auto absolute bottom-16 right-0 w-56 rounded-xl border-2 border-[#484f58] bg-[#21262d] p-2 shadow-2xl shadow-black/60 ring-1 ring-white/10">
+        <div className="pointer-events-auto absolute bottom-16 right-0 w-56 rounded-xl border-2 border-[#484f58] bg-hq-surface-muted p-2 shadow-2xl shadow-black/60 ring-1 ring-white/10">
           <div className="grid gap-1">
             <Button
               variant="ghost"

@@ -62,11 +62,11 @@ export function ConductorPickModal({
       aria-modal="true"
       aria-labelledby="conductor-pick-title"
     >
-      <div className="flex max-h-[min(80vh,560px)] w-full max-w-md flex-col rounded-2xl border border-[#30363d] bg-[#161b22] shadow-2xl">
-        <div className="border-b border-[#30363d] p-4">
+      <div className="flex max-h-[min(80vh,560px)] w-full max-w-md flex-col rounded-2xl border border-hq-border bg-hq-surface shadow-2xl">
+        <div className="border-b border-hq-border p-4">
           <h2
             id="conductor-pick-title"
-            className="text-lg font-semibold text-[#e6edf3]"
+            className="text-lg font-semibold text-hq-fg"
           >
             {title}
           </h2>
@@ -75,14 +75,14 @@ export function ConductorPickModal({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder={searchPlaceholder}
-            className="mt-3 w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 text-sm text-[#e6edf3] placeholder:text-[#8b949e] focus:border-[#58a6ff] focus:outline-none"
+            className="mt-3 w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 text-sm text-hq-fg placeholder:text-hq-fg-muted focus:border-hq-accent focus:outline-none"
             autoFocus
           />
         </div>
 
         <ul className="min-h-0 flex-1 overflow-y-auto p-2">
           {filtered.length === 0 ? (
-            <li className="px-3 py-6 text-center text-sm text-[#8b949e]">
+            <li className="px-3 py-6 text-center text-sm text-hq-fg-muted">
               {emptyLabel}
             </li>
           ) : (
@@ -95,8 +95,8 @@ export function ConductorPickModal({
                     onClick={() => setSelectedId(member.memberId)}
                     className={`w-full rounded-lg px-3 py-2.5 text-left text-sm font-medium ${
                       isSelected
-                        ? "bg-[#58a6ff]/15 text-[#58a6ff]"
-                        : "text-[#e6edf3] hover:bg-[#0d1117]"
+                        ? "bg-hq-accent/15 text-hq-accent"
+                        : "text-hq-fg hover:bg-hq-canvas"
                     }`}
                   >
                     {member.memberName}
@@ -108,22 +108,22 @@ export function ConductorPickModal({
         </ul>
 
         {showGuardianToggle && guardianIsVipLabel ? (
-          <label className="flex cursor-pointer items-center gap-2 border-t border-[#30363d] px-4 py-3 text-sm text-[#c9d1d9]">
+          <label className="flex cursor-pointer items-center gap-2 border-t border-hq-border px-4 py-3 text-sm text-[#c9d1d9]">
             <input
               type="checkbox"
               checked={guardianIsVip}
               onChange={(e) => setGuardianIsVip(e.target.checked)}
-              className="h-4 w-4 rounded border-[#30363d] bg-[#0d1117]"
+              className="h-4 w-4 rounded border-hq-border bg-hq-canvas"
             />
             {guardianIsVipLabel}
           </label>
         ) : null}
 
-        <div className="flex flex-col-reverse gap-2 border-t border-[#30363d] p-3 sm:flex-row sm:justify-end">
+        <div className="flex flex-col-reverse gap-2 border-t border-hq-border p-3 sm:flex-row sm:justify-end">
           <button
             type="button"
             onClick={handleClose}
-            className="rounded-lg border border-[#30363d] px-4 py-2 text-sm text-[#e6edf3] hover:bg-[#0d1117]"
+            className="rounded-lg border border-hq-border px-4 py-2 text-sm text-hq-fg hover:bg-hq-canvas"
           >
             {cancelLabel}
           </button>
@@ -137,7 +137,7 @@ export function ConductorPickModal({
               setSelectedId(null);
               setGuardianIsVip(false);
             }}
-            className="rounded-lg bg-[#238636] px-4 py-2 text-sm font-medium text-white hover:bg-[#2ea043] disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded-lg bg-hq-success px-4 py-2 text-sm font-medium text-white hover:bg-hq-success-hover disabled:cursor-not-allowed disabled:opacity-50"
           >
             {confirmLabel}
           </button>

@@ -35,7 +35,7 @@ export default async function UploadRemindersPage({
   return (
     <div className="mx-auto w-full min-w-0 max-w-3xl space-y-6">
       <div>
-        <Link href="/settings" className="text-sm text-[#58a6ff] hover:underline">
+        <Link href="/settings" className="text-sm text-hq-accent hover:underline">
           ← {tSettings("backToAllianceSettings")}
         </Link>
       </div>

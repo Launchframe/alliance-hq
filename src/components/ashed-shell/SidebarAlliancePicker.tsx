@@ -19,9 +19,9 @@ export function SidebarAlliancePicker({
   const t = useTranslations("alliancePicker");
 
   return (
-    <div className="border-b border-[#30363d] px-3 py-3">
+    <div className="border-b border-hq-border px-3 py-3">
       <label className="block min-w-0">
-        <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-[#6e7681]">
+        <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-hq-fg-subtle">
           {t("label")}
         </span>
         <AllianceSessionSwitcher

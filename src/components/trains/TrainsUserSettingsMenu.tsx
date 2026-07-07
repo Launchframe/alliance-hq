@@ -166,7 +166,7 @@ export function TrainsUserSettingsMenu({
             data-trains-user-settings-menu={menuId}
             role="menu"
             aria-label={t("menuLabel")}
-            className="fixed z-[100] overflow-hidden rounded-xl border border-[#30363d] bg-[#161b22] p-3 shadow-lg"
+            className="fixed z-[100] overflow-hidden rounded-xl border border-hq-border bg-hq-surface p-3 shadow-lg"
             style={{
               top: menuRect.top,
               right: menuRect.right,
@@ -174,7 +174,7 @@ export function TrainsUserSettingsMenu({
             }}
           >
             <fieldset disabled={!canEdit || saving} className="space-y-4 border-0 p-0">
-              <legend className="mb-2 text-xs font-medium uppercase tracking-wide text-[#8b949e]">
+              <legend className="mb-2 text-xs font-medium uppercase tracking-wide text-hq-fg-muted">
                 {t("calendarWeekStart")}
               </legend>
               <div className="flex flex-col gap-1.5">
@@ -192,7 +192,7 @@ export function TrainsUserSettingsMenu({
                 ).map((option) => (
                   <label
                     key={option.value}
-                    className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-[#e6edf3] hover:bg-[#21262d]"
+                    className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-hq-fg hover:bg-hq-surface-muted"
                   >
                     <input
                       type="radio"
@@ -211,14 +211,14 @@ export function TrainsUserSettingsMenu({
               </div>
 
               <div>
-                <p className="mb-2 text-xs font-medium uppercase tracking-wide text-[#8b949e]">
+                <p className="mb-2 text-xs font-medium uppercase tracking-wide text-hq-fg-muted">
                   {t("wheelSpeed")}
                 </p>
                 <div className="flex flex-col gap-1.5">
                   {TRAINS_WHEEL_SPIN_SPEEDS.map((speed) => (
                     <label
                       key={speed}
-                      className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-[#e6edf3] hover:bg-[#21262d]"
+                      className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-hq-fg hover:bg-hq-surface-muted"
                     >
                       <input
                         type="radio"
@@ -250,7 +250,7 @@ export function TrainsUserSettingsMenu({
         aria-label={t("menuLabel")}
         disabled={!canEdit && !open}
         onClick={() => setOpen((current) => !current)}
-        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[#30363d] bg-[#0d1117] text-[#8b949e] hover:bg-[#161b22] hover:text-[#e6edf3] disabled:opacity-50"
+        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-hq-border bg-hq-canvas text-hq-fg-muted hover:bg-hq-surface hover:text-hq-fg disabled:opacity-50"
       >
         <Settings2 className="h-4 w-4" aria-hidden />
       </button>

@@ -70,7 +70,7 @@ const RANK_OPTIONS = [1, 2, 3, 4, 5] as const;
 
 function confidenceClass(confidence: number | null): string {
   if (confidence == null || confidence === 0) return "border-[#484f58]";
-  if (confidence >= 0.9) return "border-[#3fb950]";
+  if (confidence >= 0.9) return "border-hq-green";
   if (confidence >= 0.6) return "border-[#d29922]";
   return "border-[#484f58]";
 }
@@ -202,9 +202,9 @@ export function RosterVideoReviewTable({
 
   return (
     <div className="space-y-4">
-      <div className="rounded-xl border border-[#30363d] bg-[#161b22] p-4 text-sm">
-        <p className="font-medium text-[#e6edf3]">{t("rosterQuotaTitle")}</p>
-        <p className="mt-2 text-[#8b949e]">
+      <div className="rounded-xl border border-hq-border bg-hq-surface p-4 text-sm">
+        <p className="font-medium text-hq-fg">{t("rosterQuotaTitle")}</p>
+        <p className="mt-2 text-hq-fg-muted">
           {t("rosterQuotaSummary", {
             r5: projectedCounts.r5,
             r4: projectedCounts.r4,
@@ -217,13 +217,13 @@ export function RosterVideoReviewTable({
           })}
         </p>
         {quotaErrors.length > 0 ? (
-          <ul className="mt-2 list-inside list-disc text-[#f85149]">
+          <ul className="mt-2 list-inside list-disc text-hq-danger">
             {quotaErrors.map((code) => (
               <li key={code}>{quotaErrorLabel(code)}</li>
             ))}
           </ul>
         ) : canSubmitRanks ? (
-          <p className="mt-2 text-[#3fb950]">{t("rosterQuotaOk")}</p>
+          <p className="mt-2 text-hq-green">{t("rosterQuotaOk")}</p>
         ) : null}
         {rowsMissingRank ? (
           <p className="mt-2 text-[#d29922]">{t("rosterRankRequired")}</p>
@@ -235,9 +235,9 @@ export function RosterVideoReviewTable({
         ) : null}
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-[#30363d]">
+      <div className="overflow-x-auto rounded-xl border border-hq-border">
         <table className="min-w-full text-sm">
-          <thead className="bg-[#161b22] text-left text-[#8b949e]">
+          <thead className="bg-hq-surface text-left text-hq-fg-muted">
             <tr>
               <th className="px-4 py-3">{t("colName")}</th>
               <th className="px-4 py-3">{t("colMember")}</th>
@@ -262,8 +262,8 @@ export function RosterVideoReviewTable({
               const closestCandidate = fuzzyCandidates[0];
               const rowClass =
                 isDuplicateMember || isDuplicateName || isNameMismatch
-                  ? "border-t border-[#30363d] bg-[#f8514910]"
-                  : "border-t border-[#30363d]";
+                  ? "border-t border-hq-border bg-[#f8514910]"
+                  : "border-t border-hq-border";
 
               return (
                 <tr key={row.id} className={rowClass}>
@@ -275,26 +275,26 @@ export function RosterVideoReviewTable({
                       </p>
                     ) : null}
                     {isNameMismatch && row.memberName ? (
-                      <p className="mt-1 text-xs text-[#8b949e]">
+                      <p className="mt-1 text-xs text-hq-fg-muted">
                         {t("rosterNameMismatchRosterName", {
                           name: row.memberName,
                         })}
                       </p>
                     ) : null}
                     {isNameMismatch && closestCandidate && !row.memberId ? (
-                      <p className="mt-1 text-xs text-[#8b949e]">
+                      <p className="mt-1 text-xs text-hq-fg-muted">
                         {t("rosterNameMismatchClosest", {
                           name: closestCandidate.name,
                         })}
                       </p>
                     ) : null}
                     {isDuplicateMember ? (
-                      <p className="mt-1 text-xs text-[#f85149]">
+                      <p className="mt-1 text-xs text-hq-danger">
                         {t("duplicateMemberRow")}
                       </p>
                     ) : null}
                     {isDuplicateName ? (
-                      <p className="mt-1 text-xs text-[#f85149]">
+                      <p className="mt-1 text-xs text-hq-danger">
                         {t("duplicateOcrNameRow")}
                       </p>
                     ) : null}
@@ -342,7 +342,7 @@ export function RosterVideoReviewTable({
                         row.allianceRank == null ||
                         row.allianceRank < 1 ||
                         row.allianceRank > 5
-                          ? "border-[#f85149]"
+                          ? "border-hq-danger"
                           : "border-[#484f58]"
                       }`}
                       options={[
@@ -359,7 +359,7 @@ export function RosterVideoReviewTable({
                       type="number"
                       step="0.1"
                       min={0}
-                      className="w-24 rounded border border-[#30363d] bg-[#0d1117] px-2 py-1.5"
+                      className="w-24 rounded border border-hq-border bg-hq-canvas px-2 py-1.5"
                       value={row.heroPowerM ?? ""}
                       placeholder="—"
                       onChange={(e) =>
@@ -376,7 +376,7 @@ export function RosterVideoReviewTable({
                     <input
                       type="number"
                       min={1}
-                      className="w-20 rounded border border-[#30363d] bg-[#0d1117] px-2 py-1.5"
+                      className="w-20 rounded border border-hq-border bg-hq-canvas px-2 py-1.5"
                       value={row.memberLevel ?? ""}
                       placeholder="—"
                       onChange={(e) => {
@@ -422,7 +422,7 @@ export function RosterVideoReviewTable({
                         <button
                           type="button"
                           onClick={() => onPreviewFrame(row.frameIndex)}
-                          className="inline-flex items-center gap-1 text-xs text-[#58a6ff] hover:underline"
+                          className="inline-flex items-center gap-1 text-xs text-hq-accent hover:underline"
                         >
                           <Video className="size-3.5" aria-hidden />
                           {t("rowVideoPreview")}
@@ -431,7 +431,7 @@ export function RosterVideoReviewTable({
                       <button
                         type="button"
                         onClick={() => onDeleteRow(row.id)}
-                        className="text-left text-xs text-[#f85149] hover:underline"
+                        className="text-left text-xs text-hq-danger hover:underline"
                       >
                         {t("deleteRow")}
                       </button>

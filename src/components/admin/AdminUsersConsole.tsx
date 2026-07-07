@@ -98,9 +98,9 @@ function allianceLabel(row: {
 
 function AdminIdLine({ label, value }: { label: string; value: string }) {
   return (
-    <p className="font-mono text-xs leading-relaxed text-[#8b949e]">
+    <p className="font-mono text-xs leading-relaxed text-hq-fg-muted">
       <span className="text-[#c9d1d9]">{label}</span>{" "}
-      <span className="break-all text-[#e6edf3]">{value}</span>
+      <span className="break-all text-hq-fg">{value}</span>
     </p>
   );
 }
@@ -266,21 +266,21 @@ export function AdminUsersConsole() {
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
       <div className="space-y-4">
-        <div className="space-y-3 rounded-xl border border-[#30363d] bg-[#161b22] p-4">
+        <div className="space-y-3 rounded-xl border border-hq-border bg-hq-surface p-4">
           <label className="block min-w-0 space-y-1 text-sm">
-            <span className="text-[#8b949e]">{t("search.label")}</span>
+            <span className="text-hq-fg-muted">{t("search.label")}</span>
             <input
               type="search"
               value={searchInput}
               onChange={(event) => setSearchInput(event.target.value)}
               placeholder={t("search.placeholder")}
               aria-label={t("search.label")}
-              className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
+              className="w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2"
             />
           </label>
 
           <label className="block min-w-0 space-y-1 text-sm">
-            <span className="text-[#8b949e]">{t("filters.alliance")}</span>
+            <span className="text-hq-fg-muted">{t("filters.alliance")}</span>
             <AppSelect
               value={allianceFilter}
               onChange={(next) => {
@@ -313,7 +313,7 @@ export function AdminUsersConsole() {
           </label>
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-[#8b949e]">
+        <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-hq-fg-muted">
           <p>
             {total === 0
               ? t("pagination.empty")
@@ -328,7 +328,7 @@ export function AdminUsersConsole() {
               type="button"
               disabled={!canGoPrev || listLoading}
               onClick={() => setPage((current) => Math.max(1, current - 1))}
-              className="rounded-lg border border-[#30363d] px-3 py-1.5 text-[#c9d1d9] disabled:opacity-40"
+              className="rounded-lg border border-hq-border px-3 py-1.5 text-[#c9d1d9] disabled:opacity-40"
             >
               {t("pagination.prev")}
             </button>
@@ -336,21 +336,21 @@ export function AdminUsersConsole() {
               type="button"
               disabled={!canGoNext || listLoading}
               onClick={() => setPage((current) => current + 1)}
-              className="rounded-lg border border-[#30363d] px-3 py-1.5 text-[#c9d1d9] disabled:opacity-40"
+              className="rounded-lg border border-hq-border px-3 py-1.5 text-[#c9d1d9] disabled:opacity-40"
             >
               {t("pagination.next")}
             </button>
           </div>
         </div>
 
-        <div className="overflow-hidden rounded-xl border border-[#30363d]">
+        <div className="overflow-hidden rounded-xl border border-hq-border">
           {listLoading && listUsers.length === 0 ? (
-            <p className="p-4 text-sm text-[#8b949e]">{t("loading")}</p>
+            <p className="p-4 text-sm text-hq-fg-muted">{t("loading")}</p>
           ) : listUsers.length === 0 ? (
-            <p className="p-4 text-sm text-[#8b949e]">{t("empty")}</p>
+            <p className="p-4 text-sm text-hq-fg-muted">{t("empty")}</p>
           ) : (
             <table className="min-w-full text-left text-sm">
-              <thead className="bg-[#161b22] text-[#8b949e]">
+              <thead className="bg-hq-surface text-hq-fg-muted">
                 <tr>
                   <th className="px-4 py-2">{t("table.email")}</th>
                   <th className="px-4 py-2">{t("table.linkedDevices")}</th>
@@ -361,25 +361,25 @@ export function AdminUsersConsole() {
                 {listUsers.map((user) => (
                   <tr
                     key={user.id}
-                    className={`cursor-pointer border-t border-[#30363d] transition-colors hover:bg-[#161b22] ${
-                      selectedUserId === user.id ? "bg-[#1f3d5c]/40" : ""
+                    className={`cursor-pointer border-t border-hq-border transition-colors hover:bg-hq-surface ${
+                      selectedUserId === user.id ? "bg-hq-selected/40" : ""
                     }`}
                     onClick={() => selectListUser(user)}
                   >
                     <td className="px-4 py-2">
                       <div>{user.email}</div>
                       {user.displayName ? (
-                        <div className="text-xs text-[#8b949e]">
+                        <div className="text-xs text-hq-fg-muted">
                           {user.displayName}
                         </div>
                       ) : null}
                     </td>
-                    <td className="px-4 py-2 font-mono text-xs text-[#8b949e]">
+                    <td className="px-4 py-2 font-mono text-xs text-hq-fg-muted">
                       {user.linkedDeviceCount}
                     </td>
-                    <td className="px-4 py-2 text-xs text-[#8b949e]">
+                    <td className="px-4 py-2 text-xs text-hq-fg-muted">
                       {user.isPlatformMaintainer ? (
-                        <span className="mr-2 rounded bg-[#238636]/20 px-1.5 py-0.5 text-[#3fb950]">
+                        <span className="mr-2 rounded bg-hq-success/20 px-1.5 py-0.5 text-hq-green">
                           platform
                         </span>
                       ) : null}
@@ -400,20 +400,20 @@ export function AdminUsersConsole() {
         </div>
       </div>
 
-      <div className="space-y-4 rounded-xl border border-[#30363d] bg-[#161b22] p-5">
+      <div className="space-y-4 rounded-xl border border-hq-border bg-hq-surface p-5">
         {detailLoading ? (
-          <p className="text-sm text-[#8b949e]">{t("loadingDetail")}</p>
+          <p className="text-sm text-hq-fg-muted">{t("loadingDetail")}</p>
         ) : !selectedUser ? (
-          <p className="text-sm text-[#8b949e]">{t("selectUser")}</p>
+          <p className="text-sm text-hq-fg-muted">{t("selectUser")}</p>
         ) : (
           <>
             <div>
               <h2 className="text-lg font-medium">{selectedUser.email}</h2>
-              <p className="mt-1 text-sm text-[#8b949e]">{t("editorHint")}</p>
-              <div className="mt-3 space-y-1 rounded-lg border border-[#30363d] bg-[#0d1117] p-3">
+              <p className="mt-1 text-sm text-hq-fg-muted">{t("editorHint")}</p>
+              <div className="mt-3 space-y-1 rounded-lg border border-hq-border bg-hq-canvas p-3">
                 <AdminIdLine label={t("ids.hqUserId")} value={selectedUser.id} />
               </div>
-              <p className="mt-2 text-sm text-[#8b949e]">
+              <p className="mt-2 text-sm text-hq-fg-muted">
                 {t("linkedDevicesSummary", {
                   count: selectedUser.linkedDeviceCount,
                 })}
@@ -434,7 +434,7 @@ export function AdminUsersConsole() {
               onClick={() =>
                 void patchUser({ isPlatformMaintainer: platformMaintainer })
               }
-              className="rounded-lg border border-[#30363d] bg-[#21262d] px-3 py-1.5 text-sm disabled:opacity-50"
+              className="rounded-lg border border-hq-border bg-hq-surface-muted px-3 py-1.5 text-sm disabled:opacity-50"
             >
               {t("savePlatform")}
             </button>
@@ -442,17 +442,17 @@ export function AdminUsersConsole() {
             <div>
               <h3 className="font-medium">{t("membershipsTitle")}</h3>
               {selectedUser.memberships.length === 0 ? (
-                <p className="mt-2 text-sm text-[#8b949e]">{t("noMemberships")}</p>
+                <p className="mt-2 text-sm text-hq-fg-muted">{t("noMemberships")}</p>
               ) : (
                 <div className="mt-3 space-y-3">
                   {selectedUser.memberships.map((membership) => (
                     <div
                       key={membership.id}
-                      className="flex flex-wrap items-end gap-3 rounded-lg border border-[#30363d] p-3"
+                      className="flex flex-wrap items-end gap-3 rounded-lg border border-hq-border p-3"
                     >
                       <div className="min-w-40 flex-1">
                         <p className="font-medium">{membership.allianceName}</p>
-                        <p className="text-xs text-[#8b949e]">
+                        <p className="text-xs text-hq-fg-muted">
                           {allianceLabel(membership)} · {membership.source}
                         </p>
                         <div className="mt-2 space-y-1">
@@ -467,7 +467,7 @@ export function AdminUsersConsole() {
                         </div>
                       </div>
                       <label className="block min-w-0 text-sm">
-                        <span className="mb-1 block text-xs text-[#8b949e]">
+                        <span className="mb-1 block text-xs text-hq-fg-muted">
                           {t("roleLabel")}
                         </span>
                         <AppSelect
@@ -499,7 +499,7 @@ export function AdminUsersConsole() {
                             },
                           })
                         }
-                        className="rounded-lg border border-[#238636] bg-[#238636] px-3 py-2 text-sm text-white disabled:opacity-50"
+                        className="rounded-lg border border-hq-success bg-hq-success px-3 py-2 text-sm text-white disabled:opacity-50"
                       >
                         {t("saveRole")}
                       </button>
@@ -512,18 +512,18 @@ export function AdminUsersConsole() {
             <div>
               <h3 className="font-medium">{t("memberLinksTitle")}</h3>
               {selectedUser.memberLinks.length === 0 ? (
-                <p className="mt-2 text-sm text-[#8b949e]">{t("noMemberLinks")}</p>
+                <p className="mt-2 text-sm text-hq-fg-muted">{t("noMemberLinks")}</p>
               ) : (
                 <div className="mt-3 space-y-3">
                   {selectedUser.memberLinks.map((link) => (
                     <div
                       key={link.id}
-                      className="space-y-2 rounded-lg border border-[#30363d] p-3"
+                      className="space-y-2 rounded-lg border border-hq-border p-3"
                     >
                       <p className="font-medium">
                         {link.memberDisplayName ?? t("memberLinkUnnamed")}
                       </p>
-                      <p className="text-xs text-[#8b949e]">
+                      <p className="text-xs text-hq-fg-muted">
                         {allianceLabel(link)} · {link.allianceName}
                       </p>
                       <div className="space-y-1">
@@ -543,12 +543,12 @@ export function AdminUsersConsole() {
               )}
             </div>
 
-            <div className="border-t border-[#30363d] pt-4">
+            <div className="border-t border-hq-border pt-4">
               <h3 className="font-medium">{t("assignTitle")}</h3>
-              <p className="mt-1 text-sm text-[#8b949e]">{t("assignHint")}</p>
+              <p className="mt-1 text-sm text-hq-fg-muted">{t("assignHint")}</p>
               <div className="mt-3 flex flex-wrap gap-3">
                 <label className="block min-w-0 text-sm sm:min-w-40">
-                  <span className="mb-1 block text-xs text-[#8b949e]">
+                  <span className="mb-1 block text-xs text-hq-fg-muted">
                     {t("allianceLabel")}
                   </span>
                   <AppSelect
@@ -564,7 +564,7 @@ export function AdminUsersConsole() {
                   />
                 </label>
                 <label className="block min-w-0 text-sm sm:min-w-32">
-                  <span className="mb-1 block text-xs text-[#8b949e]">
+                  <span className="mb-1 block text-xs text-hq-fg-muted">
                     {t("roleLabel")}
                   </span>
                   <AppSelect
@@ -588,7 +588,7 @@ export function AdminUsersConsole() {
                       },
                     })
                   }
-                  className="self-end rounded-lg border border-[#238636] bg-[#238636] px-3 py-2 text-sm text-white disabled:opacity-50"
+                  className="self-end rounded-lg border border-hq-success bg-hq-success px-3 py-2 text-sm text-white disabled:opacity-50"
                 >
                   {t("assignRole")}
                 </button>
@@ -598,7 +598,7 @@ export function AdminUsersConsole() {
         )}
 
         {error ? <p className="text-sm text-red-400">{error}</p> : null}
-        {message ? <p className="text-sm text-[#3fb950]">{message}</p> : null}
+        {message ? <p className="text-sm text-hq-green">{message}</p> : null}
       </div>
     </div>
   );

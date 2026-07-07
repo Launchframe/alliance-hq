@@ -124,8 +124,8 @@ export function RosterLinkRequestsClient({
     <div className="space-y-6 min-w-0 w-full max-w-full">
       <div>
         <h1 className="text-2xl font-semibold">{t("title")}</h1>
-        <p className="mt-1 text-sm text-[#8b949e]">{t("subtitle")}</p>
-        <Link href="/members" className="mt-2 inline-block text-sm text-[#58a6ff] hover:underline">
+        <p className="mt-1 text-sm text-hq-fg-muted">{t("subtitle")}</p>
+        <Link href="/members" className="mt-2 inline-block text-sm text-hq-accent hover:underline">
           {t("backToMembers")}
         </Link>
       </div>
@@ -137,7 +137,7 @@ export function RosterLinkRequestsClient({
       ) : null}
 
       {sortedRequests.length === 0 ? (
-        <p className="text-sm text-[#8b949e]">{t("empty")}</p>
+        <p className="text-sm text-hq-fg-muted">{t("empty")}</p>
       ) : (
         <ul className="space-y-4">
           {sortedRequests.map((request) => {
@@ -153,16 +153,16 @@ export function RosterLinkRequestsClient({
               key={request.id}
               className={`rounded-xl border p-4 space-y-3 min-w-0 ${
                 request.id === highlightId
-                  ? "border-[#58a6ff] bg-[#58a6ff1a]"
-                  : "border-[#30363d] bg-[#161b22]"
+                  ? "border-hq-accent bg-[#58a6ff1a]"
+                  : "border-hq-border bg-hq-surface"
               }`}
             >
               <div className="min-w-0">
                 <p className="font-medium">{request.gameUserName}</p>
-                <p className="text-xs text-[#8b949e] mt-1">
+                <p className="text-xs text-hq-fg-muted mt-1">
                   {t("typedName", { name: request.reportedName })}
                 </p>
-                <p className="text-xs text-[#8b949e]">
+                <p className="text-xs text-hq-fg-muted">
                   {t("uidLast4", { last4: request.gameUidLast4 })}
                   {request.gameServerNumber != null
                     ? ` · ${t("server", { server: request.gameServerNumber })}`
@@ -190,7 +190,7 @@ export function RosterLinkRequestsClient({
 
               {suggestionStale ? (
                 <p
-                  className="rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 text-xs text-[#8b949e]"
+                  className="rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 text-xs text-hq-fg-muted"
                   role="note"
                 >
                   {t("suggestionStale", {
@@ -199,10 +199,10 @@ export function RosterLinkRequestsClient({
                 </p>
               ) : null}
 
-              <label className="block text-xs text-[#8b949e]">
+              <label className="block text-xs text-hq-fg-muted">
                 {t("matchLabel")}
                 <select
-                  className="mt-1 w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 text-sm text-foreground"
+                  className="mt-1 w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 text-sm text-foreground"
                   value={selection}
                   onChange={(event) =>
                     setSelectedMemberByRequest((prev) => ({
@@ -225,7 +225,7 @@ export function RosterLinkRequestsClient({
                   type="button"
                   disabled={busyId === request.id || !selection}
                   onClick={() => void resolve(request.id, "accept", selection)}
-                  className="rounded-lg bg-[#238636] px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+                  className="rounded-lg bg-hq-success px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
                 >
                   {t("approveMatch")}
                 </button>
@@ -233,7 +233,7 @@ export function RosterLinkRequestsClient({
                   type="button"
                   disabled={busyId === request.id}
                   onClick={() => void resolve(request.id, "reject")}
-                  className="rounded-lg border border-[#30363d] px-4 py-2 text-sm text-foreground disabled:opacity-50"
+                  className="rounded-lg border border-hq-border px-4 py-2 text-sm text-foreground disabled:opacity-50"
                 >
                   {t("decline")}
                 </button>

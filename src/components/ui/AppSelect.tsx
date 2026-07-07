@@ -67,7 +67,7 @@ function flattenOptions(
 }
 
 const defaultTriggerClass =
-  "flex w-full min-w-0 items-center justify-between gap-2 rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 text-left text-sm text-[#e6edf3] transition-colors hover:bg-[#161b22] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#58a6ff] disabled:cursor-not-allowed disabled:opacity-50";
+  "flex w-full min-w-0 items-center justify-between gap-2 rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 text-left text-sm text-hq-fg transition-colors hover:bg-hq-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hq-accent disabled:cursor-not-allowed disabled:opacity-50";
 
 export function AppSelect({
   value,
@@ -366,9 +366,9 @@ export function AppSelect({
             "flex w-full min-w-0 items-center gap-2 px-3 py-2.5 text-left text-sm",
             option.disabled
               ? "cursor-not-allowed text-[#484f58]"
-              : "text-[#e6edf3] hover:bg-[#21262d]",
-            isSelected && "bg-[#1f3d5c] text-[#58a6ff]",
-            isActive && !isSelected && "bg-[#21262d]",
+              : "text-hq-fg hover:bg-hq-surface-muted",
+            isSelected && "bg-hq-selected text-hq-selected-fg",
+            isActive && !isSelected && "bg-hq-surface-muted",
           )}
           onMouseEnter={() => {
             const index = enabledOptions.findIndex(
@@ -401,10 +401,10 @@ export function AppSelect({
               left: menuRect.left,
               width: menuRect.width,
             }}
-            className="fixed z-[300] max-h-60 overflow-hidden rounded-lg border border-[#30363d] bg-[#161b22] shadow-lg"
+            className="fixed z-[300] max-h-60 overflow-hidden rounded-lg border border-hq-border bg-hq-surface shadow-lg"
           >
             {searchable && !useCombobox ? (
-              <div className="border-b border-[#30363d] p-2">
+              <div className="border-b border-hq-border p-2">
                 <input
                   ref={searchInputRef}
                   id={searchInputId}
@@ -426,7 +426,7 @@ export function AppSelect({
                   onMouseDown={(event) => event.stopPropagation()}
                   placeholder={searchPlaceholder}
                   aria-controls={listboxId}
-                  className="w-full rounded-md border border-[#30363d] bg-[#0d1117] px-2.5 py-2 text-sm text-[#e6edf3] placeholder:text-[#6e7681] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#58a6ff]"
+                  className="w-full rounded-md border border-hq-border bg-hq-canvas px-2.5 py-2 text-sm text-hq-fg placeholder:text-hq-fg-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hq-accent"
                   autoComplete="off"
                   aria-label={searchPlaceholder}
                 />
@@ -441,7 +441,7 @@ export function AppSelect({
               {groups?.length && !searchable
                 ? groups.map((group) => (
                     <li key={group.label} role="none">
-                      <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-[#6e7681]">
+                      <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-hq-fg-subtle">
                         {group.label}
                       </div>
                       <ul role="group" aria-label={group.label}>
@@ -456,7 +456,7 @@ export function AppSelect({
                   : (
                     <li
                       role="none"
-                      className="px-3 py-2 text-sm text-[#8b949e]"
+                      className="px-3 py-2 text-sm text-hq-fg-muted"
                     >
                       {noSearchResultsLabel}
                     </li>
@@ -511,7 +511,7 @@ export function AppSelect({
             tabIndex={-1}
             disabled={disabled}
             aria-hidden
-            className="absolute inset-y-0 right-0 flex w-9 items-center justify-center text-[#8b949e]"
+            className="absolute inset-y-0 right-0 flex w-9 items-center justify-center text-hq-fg-muted"
             onMouseDown={(event) => event.preventDefault()}
             onClick={() => {
               if (open) {
@@ -553,7 +553,7 @@ export function AppSelect({
           <span
             className={cn(
               "min-w-0 flex-1 truncate",
-              !selectedOption && placeholder ? "text-[#8b949e]" : undefined,
+              !selectedOption && placeholder ? "text-hq-fg-muted" : undefined,
             )}
           >
             {selectedLabel}
@@ -561,7 +561,7 @@ export function AppSelect({
           <ChevronDown
             aria-hidden
             className={cn(
-              "h-4 w-4 shrink-0 text-[#8b949e] transition-transform",
+              "h-4 w-4 shrink-0 text-hq-fg-muted transition-transform",
               open && "rotate-180",
             )}
           />

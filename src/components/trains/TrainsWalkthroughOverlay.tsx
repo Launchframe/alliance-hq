@@ -372,19 +372,19 @@ export function TrainsWalkthroughOverlay({
           current: stepIndex + 1,
           total: activeSteps.length,
         })}
-        className={`fixed z-50 rounded-2xl border border-[#30363d] bg-[#161b22] shadow-2xl left-4 right-4 bottom-4 top-auto max-w-xs mx-auto md:mx-0 md:left-auto md:right-auto md:bottom-auto transition-opacity duration-200 ${
+        className={`fixed z-50 rounded-2xl border border-hq-border bg-hq-surface shadow-2xl left-4 right-4 bottom-4 top-auto max-w-xs mx-auto md:mx-0 md:left-auto md:right-auto md:bottom-auto transition-opacity duration-200 ${
           isVisible ? "opacity-100" : "opacity-0 pointer-events-none"
         }`}
         style={{ width: DIALOG_WIDTH, ...dialogStyle }}
       >
-        <div className="h-1 w-full overflow-hidden rounded-t-2xl bg-[#0d1117]">
+        <div className="h-1 w-full overflow-hidden rounded-t-2xl bg-hq-canvas">
           <div
             className="h-full bg-[#8957e5] transition-all duration-500"
             style={{ width: `${progress}%` }}
           />
         </div>
         <div className="p-5">
-          <p className="mb-2 text-xs font-medium uppercase tracking-wide text-[#8b949e]">
+          <p className="mb-2 text-xs font-medium uppercase tracking-wide text-hq-fg-muted">
             {t("stepCounter", {
               current: stepIndex + 1,
               total: activeSteps.length,
@@ -395,19 +395,19 @@ export function TrainsWalkthroughOverlay({
               isVisible ? "opacity-100" : "opacity-0"
             }`}
           >
-            <p className="text-sm leading-relaxed text-[#e6edf3]">{message}</p>
+            <p className="text-sm leading-relaxed text-hq-fg">{message}</p>
             <div className="mt-4 flex flex-wrap justify-end gap-2">
               <button
                 type="button"
                 onClick={finish}
-                className="rounded-lg border border-[#30363d] px-4 py-2 text-sm font-medium text-[#e6edf3] hover:bg-[#0d1117]"
+                className="rounded-lg border border-hq-border px-4 py-2 text-sm font-medium text-hq-fg hover:bg-hq-canvas"
               >
                 {t("skip")}
               </button>
               <button
                 type="button"
                 onClick={advance}
-                className="rounded-lg bg-[#238636] px-4 py-2 text-sm font-medium text-white hover:bg-[#2ea043]"
+                className="rounded-lg bg-hq-success px-4 py-2 text-sm font-medium text-white hover:bg-hq-success-hover"
               >
                 {stepIndex < activeSteps.length - 1 ? t("next") : t("done")}
               </button>

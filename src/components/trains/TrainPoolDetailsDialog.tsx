@@ -56,8 +56,8 @@ type Props = {
 function tabButtonClass(active: boolean): string {
   return `rounded-md px-3 py-1 text-xs font-medium transition-colors ${
     active
-      ? "bg-[#161b22] text-[#e6edf3]"
-      : "text-[#8b949e] hover:text-[#e6edf3]"
+      ? "bg-hq-surface text-hq-fg"
+      : "text-hq-fg-muted hover:text-hq-fg"
   }`;
 }
 
@@ -243,11 +243,11 @@ export function TrainPoolDetailsDialog({
     >
       <div className="flex flex-col gap-4">
         <div>
-          <h2 className="text-lg font-semibold text-[#e6edf3]">
+          <h2 className="text-lg font-semibold text-hq-fg">
             {poolTitleKey ? t(poolTitleKey) : t("title")}
           </h2>
           {roleLabel ? (
-            <p className="mt-0.5 text-xs font-medium uppercase tracking-wide text-[#8b949e]">
+            <p className="mt-0.5 text-xs font-medium uppercase tracking-wide text-hq-fg-muted">
               {roleLabel}
             </p>
           ) : null}
@@ -255,7 +255,7 @@ export function TrainPoolDetailsDialog({
             <p className="mt-2 text-sm text-[#c9d1d9]">{eventContextLine}</p>
           ) : null}
           {payload ? (
-            <p className="mt-1 text-sm text-[#8b949e]">
+            <p className="mt-1 text-sm text-hq-fg-muted">
               {t("summaryLine", {
                 remaining: payload.summary.remaining,
                 total: payload.summary.total,
@@ -270,7 +270,7 @@ export function TrainPoolDetailsDialog({
 
         {options.length > 1 ? (
           <div
-            className="inline-flex w-full rounded-lg border border-[#30363d] bg-[#0d1117] p-0.5 sm:w-auto"
+            className="inline-flex w-full rounded-lg border border-hq-border bg-hq-canvas p-0.5 sm:w-auto"
             role="tablist"
             aria-label={t("poolSwitcherLabel")}
           >
@@ -295,7 +295,7 @@ export function TrainPoolDetailsDialog({
         ) : null}
 
         <div
-          className="inline-flex w-full rounded-lg border border-[#30363d] bg-[#0d1117] p-0.5 sm:w-auto"
+          className="inline-flex w-full rounded-lg border border-hq-border bg-hq-canvas p-0.5 sm:w-auto"
           role="tablist"
           aria-label={t("memberTabsLabel")}
         >
@@ -310,7 +310,7 @@ export function TrainPoolDetailsDialog({
           >
             {t("tabEligible")}
             {payload ? (
-              <span className="ml-1 tabular-nums text-[#8b949e]">
+              <span className="ml-1 tabular-nums text-hq-fg-muted">
                 ({payload.summary.remaining})
               </span>
             ) : null}
@@ -326,7 +326,7 @@ export function TrainPoolDetailsDialog({
           >
             {t("tabChosen")}
             {payload ? (
-              <span className="ml-1 tabular-nums text-[#8b949e]">
+              <span className="ml-1 tabular-nums text-hq-fg-muted">
                 ({payload.summary.total - payload.summary.remaining})
               </span>
             ) : null}
@@ -334,17 +334,17 @@ export function TrainPoolDetailsDialog({
         </div>
 
         {loading ? (
-          <p className="text-sm text-[#8b949e]">{t("loading")}</p>
+          <p className="text-sm text-hq-fg-muted">{t("loading")}</p>
         ) : null}
 
         {fetchError ? (
-          <p className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-300">
+          <p className="rounded-lg border border-hq-danger/40 bg-hq-danger/10 px-3 py-2 text-sm text-hq-danger">
             {fetchError}
           </p>
         ) : null}
 
         {!loading && payload && filteredEntries.length === 0 ? (
-          <p className="text-sm text-[#8b949e]">
+          <p className="text-sm text-hq-fg-muted">
             {payload.summary.total === 0
               ? t("emptyUnseeded")
               : memberTab === "eligible"
@@ -368,33 +368,33 @@ export function TrainPoolDetailsDialog({
               return (
               <li
                 key={entry.id}
-                className="flex min-w-0 items-center justify-between gap-3 rounded-lg border border-[#30363d] bg-[#0d1117]/60 px-3 py-2"
+                className="flex min-w-0 items-center justify-between gap-3 rounded-lg border border-hq-border bg-hq-canvas/60 px-3 py-2"
               >
                 <div className="min-w-0">
-                  <div className="truncate text-sm font-medium text-[#e6edf3]">
+                  <div className="truncate text-sm font-medium text-hq-fg">
                     {listPosition != null ? (
-                      <span className="mr-2 tabular-nums text-[#8b949e]">
+                      <span className="mr-2 tabular-nums text-hq-fg-muted">
                         #{listPosition}
                       </span>
                     ) : null}
                     {entry.memberName}
                   </div>
                   {entry.allianceRank != null ? (
-                    <div className="text-xs text-[#8b949e]">
+                    <div className="text-xs text-hq-fg-muted">
                       {t("rankLabel", { rank: entry.allianceRank })}
                     </div>
                   ) : null}
                 </div>
                 <div className="flex shrink-0 flex-col items-end gap-0.5">
                   {showEventScores ? (
-                    <span className="font-mono text-sm tabular-nums text-[#e6edf3]">
+                    <span className="font-mono text-sm tabular-nums text-hq-fg">
                       {entry.vsScore != null
                         ? t("scorePoints", { score: entry.vsScore })
                         : t("scoreUnavailable")}
                     </span>
                   ) : null}
                   {memberTab === "chosen" && entry.selectedForDate ? (
-                    <span className="text-xs tabular-nums text-[#8b949e]">
+                    <span className="text-xs tabular-nums text-hq-fg-muted">
                       {entry.selectedForDate.slice(5)}
                     </span>
                   ) : null}
@@ -409,7 +409,7 @@ export function TrainPoolDetailsDialog({
           <button
             type="button"
             onClick={handleClose}
-            className="rounded-lg border border-[#30363d] px-4 py-2 text-sm font-medium text-[#e6edf3] hover:bg-[#0d1117]"
+            className="rounded-lg border border-hq-border px-4 py-2 text-sm font-medium text-hq-fg hover:bg-hq-canvas"
           >
             {t("close")}
           </button>

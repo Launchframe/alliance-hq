@@ -150,7 +150,7 @@ export function AllianceSessionSwitcher({
 
   if (loading) {
     return (
-      <div className={`text-xs text-[#8b949e] ${className ?? ""}`.trim()}>
+      <div className={`text-xs text-hq-fg-muted ${className ?? ""}`.trim()}>
         {t("loading")}
       </div>
     );
@@ -167,10 +167,10 @@ export function AllianceSessionSwitcher({
     const label = only.tag ?? only.slug;
     return (
       <div className={className}>
-        <p className="truncate text-sm font-medium text-[#e6edf3]">
+        <p className="truncate text-sm font-medium text-hq-fg">
           {label}
           {only.name && only.name !== label ? (
-            <span className="font-normal text-[#8b949e]"> — {only.name}</span>
+            <span className="font-normal text-hq-fg-muted"> — {only.name}</span>
           ) : null}
           {only.hasLinkedCommanders ? (
             <span className="ml-2 inline-flex align-middle">
@@ -179,7 +179,7 @@ export function AllianceSessionSwitcher({
           ) : null}
         </p>
         {only.roleName ? (
-          <p className="mt-0.5 text-xs capitalize text-[#8b949e]">
+          <p className="mt-0.5 text-xs capitalize text-hq-fg-muted">
             {only.roleName}
           </p>
         ) : null}
@@ -215,14 +215,14 @@ export function AllianceSessionSwitcher({
           type="button"
           disabled={switching}
           onClick={() => void onSelect(switchTargetAllianceId!)}
-          className="mt-2 w-full rounded-lg border border-[#388bfd] bg-[#388bfd]/10 px-3 py-2 text-sm text-[#58a6ff] hover:bg-[#388bfd]/20 disabled:opacity-50 sm:w-auto"
+          className="mt-2 w-full rounded-lg border border-[#388bfd] bg-[#388bfd]/10 px-3 py-2 text-sm text-hq-accent hover:bg-[#388bfd]/20 disabled:opacity-50 sm:w-auto"
         >
           {t("switchToSelected", {
             tag: switchTarget.tag ?? switchTarget.slug,
           })}
         </button>
       ) : null}
-      {error ? <p className="mt-1 text-xs text-[#f85149]">{error}</p> : null}
+      {error ? <p className="mt-1 text-xs text-hq-danger">{error}</p> : null}
     </div>
   );
 }

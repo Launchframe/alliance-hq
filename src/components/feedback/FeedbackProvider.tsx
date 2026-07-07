@@ -209,7 +209,7 @@ export function FeedbackProvider({ children }: { children: React.ReactNode }) {
         onOpenChange={setDiscordNoticeOpen}
         title={tDiscord("unavailableTitle")}
       >
-        <p className="text-sm text-[#8b949e]">{tDiscord("unavailableDescription")}</p>
+        <p className="text-sm text-hq-fg-muted">{tDiscord("unavailableDescription")}</p>
         <Button
           className="mt-4 w-full"
           onClick={() => setDiscordNoticeOpen(false)}

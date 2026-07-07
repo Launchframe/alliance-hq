@@ -284,9 +284,9 @@ export function VideoSurveyDialog({
         onKeyDownCapture={handleEnterAdvance}
       >
         <div className="min-w-0">
-          <h2 className="text-base font-semibold text-[#e6edf3]">{t("title")}</h2>
+          <h2 className="text-base font-semibold text-hq-fg">{t("title")}</h2>
           {step === 1 ? (
-            <p className="mt-1 text-xs text-[#8b949e]">{t("processingNote")}</p>
+            <p className="mt-1 text-xs text-hq-fg-muted">{t("processingNote")}</p>
           ) : null}
         </div>
 
@@ -298,18 +298,18 @@ export function VideoSurveyDialog({
             autoPlay
             muted
             playsInline
-            className="max-h-48 w-full min-w-0 rounded-lg border border-[#30363d] bg-black object-contain"
+            className="max-h-48 w-full min-w-0 rounded-lg border border-hq-border bg-black object-contain"
           />
         ) : null}
 
-        <p className="text-xs font-medium text-[#8b949e]">
+        <p className="text-xs font-medium text-hq-fg-muted">
           {t("stepIndicator", { current: step, total: TOTAL_STEPS })}
         </p>
 
         <div className="min-w-0 space-y-4">
           {step === 1 ? (
             <label className="block text-sm">
-              <span className="mb-2 block font-medium text-[#e6edf3]">
+              <span className="mb-2 block font-medium text-hq-fg">
                 {t("q1Label")}
               </span>
               <input
@@ -326,14 +326,14 @@ export function VideoSurveyDialog({
                   }))
                 }
                 placeholder={t("q1Placeholder")}
-                className="w-full min-w-0 rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2.5 text-sm text-[#e6edf3] placeholder:text-[#8b949e]"
+                className="w-full min-w-0 rounded-lg border border-hq-border bg-hq-canvas px-3 py-2.5 text-sm text-hq-fg placeholder:text-hq-fg-muted"
               />
             </label>
           ) : null}
 
           {step === 2 ? (
             <fieldset className="min-w-0">
-              <legend className="mb-3 text-sm font-medium text-[#e6edf3]">
+              <legend className="mb-3 text-sm font-medium text-hq-fg">
                 {t("q2Label")}
               </legend>
               <div className="flex flex-col gap-2">
@@ -348,8 +348,8 @@ export function VideoSurveyDialog({
                       }
                       className={`w-full rounded-xl border px-4 py-3 text-left text-sm transition-colors ${
                         selected
-                          ? "border-[#58a6ff] bg-[#58a6ff]/10 text-[#e6edf3]"
-                          : "border-[#30363d] bg-[#0d1117] text-[#e6edf3] hover:border-[#484f58]"
+                          ? "border-hq-accent bg-hq-accent/10 text-hq-fg"
+                          : "border-hq-border bg-hq-canvas text-hq-fg hover:border-[#484f58]"
                       }`}
                     >
                       {t(`scrollStyle.${style}`)}
@@ -362,7 +362,7 @@ export function VideoSurveyDialog({
 
           {step === 3 ? (
             <fieldset className="min-w-0">
-              <legend className="mb-3 text-sm font-medium text-[#e6edf3]">
+              <legend className="mb-3 text-sm font-medium text-hq-fg">
                 {q3Label}
               </legend>
               <div className="flex flex-col gap-2">
@@ -386,8 +386,8 @@ export function VideoSurveyDialog({
                       }
                       className={`w-full rounded-xl border px-4 py-3 text-left text-sm transition-colors ${
                         selected
-                          ? "border-[#58a6ff] bg-[#58a6ff]/10 text-[#e6edf3]"
-                          : "border-[#30363d] bg-[#0d1117] text-[#e6edf3] hover:border-[#484f58]"
+                          ? "border-hq-accent bg-hq-accent/10 text-hq-fg"
+                          : "border-hq-border bg-hq-canvas text-hq-fg hover:border-[#484f58]"
                       }`}
                     >
                       {t(labelKey)}
@@ -404,14 +404,14 @@ export function VideoSurveyDialog({
             type="button"
             onClick={handleSkip}
             disabled={submitting}
-            className="rounded-lg border border-[#30363d] px-4 py-2 text-sm text-[#e6edf3] hover:bg-[#21262d] disabled:opacity-50"
+            className="rounded-lg border border-hq-border px-4 py-2 text-sm text-hq-fg hover:bg-hq-surface-muted disabled:opacity-50"
           >
             {t("skip")}
           </button>
           <button
             type="submit"
             disabled={!nextEnabled}
-            className="rounded-lg border border-[#238636] bg-[#238636] px-4 py-2 text-sm text-white disabled:opacity-50"
+            className="rounded-lg border border-hq-success bg-hq-success px-4 py-2 text-sm text-white disabled:opacity-50"
           >
             {submitting ? t("submitting") : t("next")}
           </button>

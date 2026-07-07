@@ -47,11 +47,11 @@ export function AllianceContextRequired({ alliances }: Props) {
   );
 
   return (
-    <div className="mx-auto max-w-lg rounded-xl border border-[#30363d] bg-[#161b22] p-6">
+    <div className="mx-auto max-w-lg rounded-xl border border-hq-border bg-hq-surface p-6">
       <h1 className="text-xl font-semibold">{t("title")}</h1>
-      <p className="mt-2 text-sm text-[#8b949e]">{t("body")}</p>
+      <p className="mt-2 text-sm text-hq-fg-muted">{t("body")}</p>
       <label className="mt-4 block min-w-0">
-        <span className="mb-1 block text-sm text-[#8b949e]">{t("label")}</span>
+        <span className="mb-1 block text-sm text-hq-fg-muted">{t("label")}</span>
         <AppSelect
           value={allianceId}
           onChange={(next) => void onSelect(next)}
@@ -64,7 +64,7 @@ export function AllianceContextRequired({ alliances }: Props) {
           }))}
         />
       </label>
-      {error ? <p className="mt-2 text-sm text-[#f85149]">{error}</p> : null}
+      {error ? <p className="mt-2 text-sm text-hq-danger">{error}</p> : null}
     </div>
   );
 }

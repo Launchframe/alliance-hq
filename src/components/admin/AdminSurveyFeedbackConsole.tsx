@@ -98,7 +98,7 @@ export function AdminSurveyFeedbackConsole() {
     <div className="space-y-4">
       <div>
         <h2 className="text-xl font-semibold">{t("title")}</h2>
-        <p className="text-sm text-[#8b949e]">{t("subtitle")}</p>
+        <p className="text-sm text-hq-fg-muted">{t("subtitle")}</p>
       </div>
 
       <div className="flex flex-wrap gap-2">
@@ -192,7 +192,7 @@ export function AdminSurveyFeedbackConsole() {
             ))}
             desktopTable={
               <AdminFeedbackTableShell>
-                <thead className="bg-[#161b22] text-[#8b949e]">
+                <thead className="bg-hq-surface text-hq-fg-muted">
                   <tr>
                     <th className="px-4 py-2">{t("colTime")}</th>
                     <th className="px-4 py-2">{t("colSource")}</th>
@@ -204,10 +204,10 @@ export function AdminSurveyFeedbackConsole() {
                   {rows.map((row) => (
                     <tr
                       key={row.id}
-                      className={`cursor-pointer border-t border-[#30363d] hover:bg-[#21262d]/60 ${selectedId === row.id ? "bg-[#21262d]" : ""}`}
+                      className={`cursor-pointer border-t border-hq-border hover:bg-hq-surface-muted/60 ${selectedId === row.id ? "bg-hq-surface-muted" : ""}`}
                       onClick={() => setSelectedId(row.id)}
                     >
-                      <td className="px-4 py-2 whitespace-nowrap text-[#8b949e]">
+                      <td className="px-4 py-2 whitespace-nowrap text-hq-fg-muted">
                         {row.createdAt ? (
                           <FormattedDateTime value={row.createdAt} />
                         ) : (
@@ -270,7 +270,7 @@ export function AdminSurveyFeedbackConsole() {
                 <AdminDetailField label={t("videoJob")}>
                   <Link
                     href="/admin/video-jobs"
-                    className="text-[#58a6ff] hover:underline"
+                    className="text-hq-accent hover:underline"
                   >
                     {selected.videoJobId}
                   </Link>
@@ -298,7 +298,7 @@ export function AdminSurveyFeedbackConsole() {
             </AdminFeedbackDetailPanel>
           ) : (
             <AdminFeedbackDetailPanel>
-              <p className="text-sm text-[#8b949e]">{t("selectRow")}</p>
+              <p className="text-sm text-hq-fg-muted">{t("selectRow")}</p>
             </AdminFeedbackDetailPanel>
           )
         }

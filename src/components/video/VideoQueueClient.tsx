@@ -251,11 +251,11 @@ export function VideoQueueClient({
   return (
     <div className="min-w-0 space-y-3">
       {canProcess ? (
-        <section className="rounded-xl border border-[#30363d] bg-[#161b22] p-4">
-          <h2 className="text-sm font-semibold text-[#e6edf3]">
+        <section className="rounded-xl border border-hq-border bg-hq-surface p-4">
+          <h2 className="text-sm font-semibold text-hq-fg">
             {t("ocrSettingsTitle")}
           </h2>
-          <p className="mt-1 text-sm text-[#8b949e]">{t("ocrSettingsDescription")}</p>
+          <p className="mt-1 text-sm text-hq-fg-muted">{t("ocrSettingsDescription")}</p>
           <div className="mt-3 space-y-2">
             <label className="flex items-start gap-3">
               <input
@@ -265,11 +265,11 @@ export function VideoQueueClient({
                 disabled={ocrSettingsBusy || hqOcrOnlyLocked}
                 onChange={(e) => void toggleHqOcrOnly(e.target.checked)}
               />
-              <span className="min-w-0 text-sm text-[#e6edf3]">
+              <span className="min-w-0 text-sm text-hq-fg">
                 {t("hqOcrOnlyLabel")}
               </span>
             </label>
-            <p className="text-xs text-[#8b949e]">
+            <p className="text-xs text-hq-fg-muted">
               {hqOcrOnlyLocked ? t("hqOcrOnlyDeployLockedHint") : t("hqOcrOnlyHint")}
             </p>
           </div>
@@ -280,7 +280,7 @@ export function VideoQueueClient({
       ) : null}
 
       {showConnectBanner ? (
-        <div className="flex flex-col gap-2 rounded-xl border border-[#d29922] bg-[#d2992210] p-3 text-sm text-[#e6edf3] sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-2 rounded-xl border border-[#d29922] bg-[#d2992210] p-3 text-sm text-hq-fg sm:flex-row sm:items-center sm:justify-between">
           <span>{t("connectBanner")}</span>
           <button
             type="button"
@@ -305,7 +305,7 @@ export function VideoQueueClient({
             <RecordDetailField label={tAdminJobs("statusFilter")}>
               <StatusBadge status={job.status} label={statusLabel(job.status)} />
               {progressDetail(job) ? (
-                <p className="mt-1 text-xs text-[#8b949e]">{progressDetail(job)}</p>
+                <p className="mt-1 text-xs text-hq-fg-muted">{progressDetail(job)}</p>
               ) : null}
             </RecordDetailField>
             <RecordDetailField label={t("table.uploadedBy")}>
@@ -337,9 +337,9 @@ export function VideoQueueClient({
           </RecordDetailCard>
         ))}
         desktopTable={
-          <div className="overflow-x-auto rounded-xl border border-[#30363d]">
+          <div className="overflow-x-auto rounded-xl border border-hq-border">
             <table className="min-w-full text-left text-sm">
-              <thead className="bg-[#161b22] text-[#8b949e]">
+              <thead className="bg-hq-surface text-hq-fg-muted">
                 <tr>
                   <th className="px-4 py-2">{t("table.time")}</th>
                   <th className="px-4 py-2">{tAdminJobs("statusFilter")}</th>
@@ -351,8 +351,8 @@ export function VideoQueueClient({
               </thead>
               <tbody>
                 {jobs.map((job) => (
-                  <tr key={job.id} className="border-t border-[#30363d]">
-                    <td className="px-4 py-2 whitespace-nowrap text-[#8b949e]">
+                  <tr key={job.id} className="border-t border-hq-border">
+                    <td className="px-4 py-2 whitespace-nowrap text-hq-fg-muted">
                       <FormattedDateTime value={job.createdAt} />
                     </td>
                     <td className="px-4 py-2">
@@ -361,7 +361,7 @@ export function VideoQueueClient({
                         label={statusLabel(job.status)}
                       />
                       {progressDetail(job) ? (
-                        <p className="mt-1 max-w-xs truncate text-xs text-[#8b949e]">
+                        <p className="mt-1 max-w-xs truncate text-xs text-hq-fg-muted">
                           {progressDetail(job)}
                         </p>
                       ) : null}
@@ -403,12 +403,12 @@ function StatusBadge({ status, label }: { status: string; label: string }) {
   const stage = videoJobLifecycleStage(status);
   const tone =
     stage === "needs_attention" || stage === "needs_upload"
-      ? "border-[#f85149] text-[#f85149]"
+      ? "border-hq-danger/40 bg-hq-danger/10 text-hq-danger"
       : stage === "ready_to_review"
-        ? "border-[#3fb950] text-[#3fb950]"
+        ? "border-hq-success/40 bg-hq-success/10 text-hq-success"
         : stage === "processing" || stage === "submitting"
-          ? "border-[#d29922] text-[#d29922]"
-          : "border-[#8b949e] text-[#8b949e]";
+          ? "border-hq-warning/40 bg-hq-warning/10 text-hq-warning"
+          : "border-hq-pill-border bg-hq-pill text-hq-pill-fg";
 
   return (
     <span
@@ -454,7 +454,7 @@ function JobActions({
     return (
       <Link
         href="/tools/video-upload"
-        className="rounded-md border border-[#30363d] px-2.5 py-1 text-xs text-[#8b949e] hover:border-[#58a6ff] hover:text-[#58a6ff]"
+        className="rounded-md border border-hq-border px-2.5 py-1 text-xs text-hq-fg-muted hover:border-hq-accent hover:text-hq-accent"
       >
         {tUpload("viewAllUploads")}
       </Link>
@@ -469,7 +469,7 @@ function JobActions({
             type="button"
             disabled={acting}
             onClick={onApprove}
-            className="rounded-md border border-[#3fb950] px-2.5 py-1 text-xs font-medium text-[#3fb950] hover:bg-[#3fb95020] disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded-md border border-hq-green px-2.5 py-1 text-xs font-medium text-hq-green hover:bg-[#3fb95020] disabled:cursor-not-allowed disabled:opacity-50"
           >
             {t("approve")}
           </button>
@@ -486,7 +486,7 @@ function JobActions({
           type="button"
           disabled={acting}
           onClick={onReject}
-          className="rounded-md border border-[#30363d] px-2.5 py-1 text-xs text-[#8b949e] hover:border-[#f85149] hover:text-[#f85149] disabled:cursor-not-allowed disabled:opacity-50"
+          className="rounded-md border border-hq-border px-2.5 py-1 text-xs text-hq-fg-muted hover:border-hq-danger hover:text-hq-danger disabled:cursor-not-allowed disabled:opacity-50"
         >
           {t("reject")}
         </button>
@@ -499,7 +499,7 @@ function JobActions({
       <button
         type="button"
         onClick={onReview}
-        className="rounded-md border border-[#30363d] px-2.5 py-1 text-xs text-[#8b949e] hover:border-[#58a6ff] hover:text-[#58a6ff]"
+        className="rounded-md border border-hq-border px-2.5 py-1 text-xs text-hq-fg-muted hover:border-hq-accent hover:text-hq-accent"
       >
         {tUpload("reviewLink")}
       </button>
@@ -512,7 +512,7 @@ function JobActions({
         <button
           type="button"
           onClick={onReview}
-          className="rounded-md border border-[#3fb950] px-2.5 py-1 text-xs font-medium text-[#3fb950] hover:bg-[#3fb95020]"
+          className="rounded-md border border-hq-green px-2.5 py-1 text-xs font-medium text-hq-green hover:bg-[#3fb95020]"
         >
           {tUpload("reviewLink")}
         </button>
@@ -520,7 +520,7 @@ function JobActions({
           type="button"
           disabled={acting}
           onClick={onDiscard}
-          className="rounded-md border border-[#30363d] px-2.5 py-1 text-xs text-[#8b949e] hover:border-[#f85149] hover:text-[#f85149] disabled:cursor-not-allowed disabled:opacity-50"
+          className="rounded-md border border-hq-border px-2.5 py-1 text-xs text-hq-fg-muted hover:border-hq-danger hover:text-hq-danger disabled:cursor-not-allowed disabled:opacity-50"
         >
           {tReview("discardResults")}
         </button>
@@ -555,7 +555,7 @@ function JobActions({
           type="button"
           disabled={acting}
           onClick={onDiscard}
-          className="rounded-md border border-[#30363d] px-2.5 py-1 text-xs text-[#8b949e] hover:border-[#f85149] hover:text-[#f85149] disabled:cursor-not-allowed disabled:opacity-50"
+          className="rounded-md border border-hq-border px-2.5 py-1 text-xs text-hq-fg-muted hover:border-hq-danger hover:text-hq-danger disabled:cursor-not-allowed disabled:opacity-50"
         >
           {tReview("discardResults")}
         </button>

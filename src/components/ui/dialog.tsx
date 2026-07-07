@@ -59,7 +59,7 @@ export function Dialog({
         }}
       />
       <div
-        className={`relative z-[101] max-h-[min(90vh,720px)] w-full max-w-lg overflow-y-auto rounded-xl border border-[#30363d] bg-[#161b22] p-5 shadow-xl ${className}`}
+        className={`relative z-[101] max-h-[min(90vh,720px)] w-full max-w-lg overflow-y-auto rounded-xl border border-hq-border bg-hq-surface p-5 shadow-xl ${className}`}
       >
         {children}
       </div>
