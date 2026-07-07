@@ -154,10 +154,10 @@ export function OnboardingReviewsClient({
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold">{t("title")}</h1>
-          <p className="mt-1 text-sm text-[#8b949e]">{t("subtitle")}</p>
+          <p className="mt-1 text-sm text-hq-fg-muted">{t("subtitle")}</p>
           <Link
             href="/members"
-            className="mt-2 inline-block text-sm text-[#58a6ff] hover:underline"
+            className="mt-2 inline-block text-sm text-hq-accent hover:underline"
           >
             {t("backToMembers")}
           </Link>
@@ -167,7 +167,7 @@ export function OnboardingReviewsClient({
             type="button"
             disabled={busyId === "approve-all"}
             onClick={() => setConfirmApproveAll(true)}
-            className="rounded-lg border border-[#238636] bg-[#238636]/10 px-4 py-2 text-sm text-[#3fb950] hover:bg-[#238636]/20 disabled:opacity-50"
+            className="rounded-lg border border-hq-success bg-hq-success/10 px-4 py-2 text-sm text-hq-green hover:bg-hq-success/20 disabled:opacity-50"
           >
             {t("approveAll")}
           </button>
@@ -175,20 +175,20 @@ export function OnboardingReviewsClient({
       </div>
 
       {confirmApproveAll ? (
-        <div className="rounded-xl border border-[#30363d] bg-[#161b22] p-4 space-y-3">
+        <div className="rounded-xl border border-hq-border bg-hq-surface p-4 space-y-3">
           <p className="text-sm">{t("approveAllConfirmBody", { count: reviews.length })}</p>
           <div className="flex gap-2">
             <button
               type="button"
               onClick={() => void approveAll()}
-              className="rounded-lg bg-[#238636] px-4 py-2 text-sm text-white"
+              className="rounded-lg bg-hq-success px-4 py-2 text-sm text-white"
             >
               {t("approveAllConfirmAction")}
             </button>
             <button
               type="button"
               onClick={() => setConfirmApproveAll(false)}
-              className="rounded-lg border border-[#30363d] px-4 py-2 text-sm"
+              className="rounded-lg border border-hq-border px-4 py-2 text-sm"
             >
               {t("approveAllCancel")}
             </button>
@@ -204,8 +204,8 @@ export function OnboardingReviewsClient({
 
       {sortedReviews.length === 0 ? (
         <div className="space-y-2">
-          <p className="text-sm text-[#8b949e]">{t("empty")}</p>
-          <p className="text-xs text-[#6e7681]">{t("emptyHint")}</p>
+          <p className="text-sm text-hq-fg-muted">{t("empty")}</p>
+          <p className="text-xs text-hq-fg-subtle">{t("emptyHint")}</p>
         </div>
       ) : (
         <ul className="space-y-4">
@@ -225,29 +225,29 @@ export function OnboardingReviewsClient({
                 key={review.id}
                 className={`rounded-xl border p-4 space-y-3 min-w-0 ${
                   review.id === highlightId
-                    ? "border-[#58a6ff] bg-[#58a6ff1a]"
-                    : "border-[#30363d] bg-[#161b22]"
+                    ? "border-hq-accent bg-[#58a6ff1a]"
+                    : "border-hq-border bg-hq-surface"
                 }`}
               >
                 <div className="grid gap-3 sm:grid-cols-2 min-w-0">
                   <div>
-                    <p className="text-xs text-[#8b949e]">{t("commanderNameLabel")}</p>
+                    <p className="text-xs text-hq-fg-muted">{t("commanderNameLabel")}</p>
                     <p className="font-medium">{review.gameUserName}</p>
                   </div>
                   {review.suggestedMatchedRosterName ? (
                     <div>
-                      <p className="text-xs text-[#8b949e]">
+                      <p className="text-xs text-hq-fg-muted">
                         {t("suggestedRosterNameLabel")}
                       </p>
                       <p className="font-medium">{review.suggestedMatchedRosterName}</p>
                     </div>
                   ) : null}
                   <div>
-                    <p className="text-xs text-[#8b949e]">{t("linkedRosterNameLabel")}</p>
+                    <p className="text-xs text-hq-fg-muted">{t("linkedRosterNameLabel")}</p>
                     <p>{review.linkedRosterName}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-[#8b949e]">
+                    <p className="text-xs text-hq-fg-muted">
                       {review.requesterEmail
                         ? t("requester", { handle: hqHandle })
                         : review.discordUsername
@@ -260,7 +260,7 @@ export function OnboardingReviewsClient({
                   </div>
                 </div>
 
-                <p className="text-xs text-[#8b949e]">
+                <p className="text-xs text-hq-fg-muted">
                   {t("uidLast4", { last4: review.gameUidLast4 })}
                   {review.gameServerNumber != null
                     ? ` · ${t("server", { server: review.gameServerNumber })}`
@@ -288,7 +288,7 @@ export function OnboardingReviewsClient({
 
                 {suggestionStale ? (
                   <p
-                    className="rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 text-xs text-[#8b949e]"
+                    className="rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 text-xs text-hq-fg-muted"
                     role="note"
                   >
                     {t("suggestionStale", {
@@ -297,10 +297,10 @@ export function OnboardingReviewsClient({
                   </p>
                 ) : null}
 
-                <label className="block text-xs text-[#8b949e]">
+                <label className="block text-xs text-hq-fg-muted">
                   {t("matchLabel")}
                   <select
-                    className="mt-1 w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 text-sm text-foreground"
+                    className="mt-1 w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 text-sm text-hq-fg"
                     value={selection}
                     onChange={(event) =>
                       setSelectedMemberByReview((prev) => ({
@@ -325,7 +325,7 @@ export function OnboardingReviewsClient({
                     type="button"
                     disabled={busyId === review.id}
                     onClick={() => void resolve(review.id, "approve")}
-                    className="rounded-lg bg-[#238636] px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+                    className="rounded-lg bg-hq-success px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
                   >
                     {t("approve")}
                   </button>
@@ -333,7 +333,7 @@ export function OnboardingReviewsClient({
                     type="button"
                     disabled={busyId === review.id || !selection}
                     onClick={() => void resolve(review.id, "merge", selection)}
-                    className="rounded-lg border border-[#388bfd] bg-[#388bfd]/10 px-4 py-2 text-sm text-[#58a6ff] disabled:opacity-50"
+                    className="rounded-lg border border-hq-accent bg-hq-accent/10 px-4 py-2 text-sm text-hq-accent disabled:opacity-50"
                   >
                     {t("linkToRoster")}
                   </button>
@@ -341,7 +341,7 @@ export function OnboardingReviewsClient({
                     type="button"
                     disabled={busyId === review.id}
                     onClick={() => void resolve(review.id, "dismiss")}
-                    className="rounded-lg border border-[#30363d] px-4 py-2 text-sm text-foreground disabled:opacity-50"
+                    className="rounded-lg border border-hq-border px-4 py-2 text-sm text-hq-fg disabled:opacity-50"
                   >
                     {t("dismiss")}
                   </button>
