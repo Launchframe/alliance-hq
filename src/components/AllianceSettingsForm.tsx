@@ -31,6 +31,16 @@ export function AllianceSettingsForm({
         <>
           <AllianceSeasonSettings allianceTag={allianceTag} />
           <section className="rounded-xl border border-hq-border bg-hq-surface p-5">
+            <h2 className="font-medium">{t("memberOnboardingSection.title")}</h2>
+            <p className="mt-2 text-sm text-hq-fg-muted">{t("memberOnboardingSection.body")}</p>
+            <Link
+              href="/settings/member-onboarding"
+              className="mt-4 inline-block text-sm text-hq-accent hover:underline"
+            >
+              {t("memberOnboardingSection.link")} →
+            </Link>
+          </section>
+          <section className="rounded-xl border border-hq-border bg-hq-surface p-5">
             <h2 className="font-medium">{t("discordSectionTitle")}</h2>
             <p className="mt-2 text-sm text-hq-fg-muted">{t("discordSectionBody")}</p>
             <Link

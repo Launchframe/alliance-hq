@@ -1,11 +1,16 @@
-export const ROSTER_MAX_MEMBERS = 100;
+/** HQ roster row cap (onboarding + video OCR). Last War in-game alliances cap at 100. */
+export const ROSTER_MAX_MEMBERS = 200;
 export const ROSTER_MAX_R4 = 10;
 export const ROSTER_R5_REQUIRED = 1;
+
+/** Max R1–R3 slots when R4 is at {@link ROSTER_MAX_R4} (reserves room for R5). */
+export const ROSTER_MAX_R123_WHEN_R4_FULL =
+  ROSTER_MAX_MEMBERS - ROSTER_MAX_R4 - ROSTER_R5_REQUIRED;
 
 /**
  * UI treats the roster as "full" when active count is within this fraction of
  * {@link ROSTER_MAX_MEMBERS}. Alliances often cap at 99/100 in-game so applicants
- * are not blocked at exactly 100.
+ * are not blocked at exactly the in-game limit.
  */
 export const ROSTER_NEAR_FULL_MARGIN_FRACTION = 0.03;
 
@@ -119,7 +124,10 @@ export function validateRosterRankQuota(
   if (counts.total > ROSTER_MAX_MEMBERS) {
     errors.push("total_max");
   }
-  if (counts.r4 === ROSTER_MAX_R4 && counts.r1 + counts.r2 + counts.r3 > 89) {
+  if (
+    counts.r4 === ROSTER_MAX_R4 &&
+    counts.r1 + counts.r2 + counts.r3 > ROSTER_MAX_R123_WHEN_R4_FULL
+  ) {
     errors.push("r123_when_r4_full");
   }
   if (counts.total === 1 && counts.r5 !== 1) {

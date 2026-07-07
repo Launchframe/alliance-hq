@@ -346,6 +346,20 @@ See [native-alliance-onboarding-smoke-test.md](./native-alliance-onboarding-smok
 
 ---
 
+## Self-service member onboarding
+
+By default, members who accept an invite or redeem a join code can link immediately after Last War verifies their player UID — on **Alliance HQ (`/onboard`)** or **Discord (`/link-commander`)**.
+
+The verified Last War name is stored during the link. If no roster entry matches, Alliance HQ may create one and let the member in right away. Officers review those links on **Members → Onboarding review** — to confirm the roster entry or merge with an existing unlinked entry when HQ suggests a duplicate.
+
+**Discord:** Self-service requires a linked HQ account plus invite/join-code proof. Discord-only users without HQ stay on the strict roster-link request path.
+
+**Owner settings:** Settings → Member onboarding (`/settings/member-onboarding`).
+
+**HQ roster cap (200):** JIT roster row creation is blocked at 200 active HQ roster rows (Last War in-game alliances cap at 100). Exact-match self-service links to unlinked rows still work below the HQ cap.
+
+---
+
 ## Key source files
 
 | Area | Path |

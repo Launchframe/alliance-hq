@@ -12,13 +12,15 @@ export type MemberLinkHelpContext =
   | "walkthrough"
   | "roster_miss"
   | "discord_button"
-  | "claim_conflict";
+  | "claim_conflict"
+  | "cross_layer_claim";
 
 export type MemberLinkClaimConflictReason =
   | "name_collision"
   | "commander_taken"
   | "server_mismatch"
-  | "target_mismatch";
+  | "target_mismatch"
+  | "discord_hq_unlinked";
 
 export type MemberLinkHelpOrigin = "web" | "discord";
 
@@ -147,6 +149,7 @@ function openClaimConflictSubjectFilter(input: {
 
 async function findOpenClaimConflictHelpRequest(input: {
   allianceId: string;
+  context: "claim_conflict" | "cross_layer_claim";
   targetAshedMemberId: string;
   claimConflictReason: MemberLinkClaimConflictReason;
   hqUserId?: string | null;
@@ -160,7 +163,7 @@ async function findOpenClaimConflictHelpRequest(input: {
       and(
         eq(schema.hqMemberLinkHelpRequests.allianceId, input.allianceId),
         eq(schema.hqMemberLinkHelpRequests.status, "open"),
-        eq(schema.hqMemberLinkHelpRequests.context, "claim_conflict"),
+        eq(schema.hqMemberLinkHelpRequests.context, input.context),
         eq(
           schema.hqMemberLinkHelpRequests.linkedAshedMemberId,
           input.targetAshedMemberId,
@@ -235,7 +238,8 @@ export async function recordMemberLinkHelpRequest(input: {
   const targetAshedMemberId = input.targetAshedMemberId?.trim() || null;
   const claimConflictReason = input.claimConflictReason ?? null;
   const useClaimConflictDedup =
-    input.context === "claim_conflict" &&
+    (input.context === "claim_conflict" ||
+      input.context === "cross_layer_claim") &&
     targetAshedMemberId !== null &&
     claimConflictReason !== null;
 
@@ -261,6 +265,7 @@ export async function recordMemberLinkHelpRequest(input: {
   const existing = useClaimConflictDedup
     ? await findOpenClaimConflictHelpRequest({
         allianceId: input.allianceId,
+        context: input.context as "claim_conflict" | "cross_layer_claim",
         targetAshedMemberId,
         claimConflictReason,
         hqUserId: input.hqUserId ?? null,
@@ -307,6 +312,7 @@ export async function recordMemberLinkHelpRequest(input: {
     }
     const racedExisting = await findOpenClaimConflictHelpRequest({
       allianceId: input.allianceId,
+      context: input.context as "claim_conflict" | "cross_layer_claim",
       targetAshedMemberId,
       claimConflictReason,
       hqUserId: input.hqUserId ?? null,

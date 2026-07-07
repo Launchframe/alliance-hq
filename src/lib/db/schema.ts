@@ -82,6 +82,14 @@ export const alliances = pgTable("alliances", {
   }),
   /** Native alliances: game roster external id for the owner member row. */
   ownerMemberExternalId: text("owner_member_external_id"),
+  /** When 1, invite/join-code members may self-link after UID verification. */
+  selfServiceOnboardingEnabled: integer("self_service_onboarding_enabled")
+    .notNull()
+    .default(1),
+  /** officer (default) | owner — minimum role for invites and link review. */
+  inviteOnboardingMinRole: text("invite_onboarding_min_role")
+    .notNull()
+    .default("officer"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
     .notNull(),
@@ -1580,6 +1588,59 @@ export const hqRosterLinkRequests = pgTable(
   ],
 );
 
+/** Post-link officer review for self-service invite/join-code onboarding. */
+export const hqMemberOnboardingReviews = pgTable(
+  "hq_member_onboarding_reviews",
+  {
+    id: text("id").primaryKey(),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    hqUserId: text("hq_user_id").references(() => hqUsers.id, {
+      onDelete: "set null",
+    }),
+    inviteId: text("invite_id").references(() => hqInvites.id, {
+      onDelete: "set null",
+    }),
+    joinCodeId: text("join_code_id").references(() => hqAllianceJoinCodes.id, {
+      onDelete: "set null",
+    }),
+    /** web | discord */
+    origin: text("origin").notNull().default("web"),
+    discordUserId: text("discord_user_id"),
+    discordUsername: text("discord_username"),
+    linkedAshedMemberId: text("linked_ashed_member_id").notNull(),
+    gameUid: text("game_uid").notNull(),
+    gameUserName: text("game_user_name").notNull(),
+    gameServerNumber: integer("game_server_number"),
+    gameUserLevel: integer("game_user_level"),
+    /** pending | approved | merged | dismissed */
+    status: text("status").notNull().default("pending"),
+    suggestedTargetAshedMemberId: text("suggested_target_ashed_member_id"),
+    suggestionMethod: text("suggestion_method"),
+    suggestedMatchedRosterName: text("suggested_matched_roster_name"),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+    resolvedByHqUserId: text("resolved_by_hq_user_id").references(
+      () => hqUsers.id,
+      { onDelete: "set null" },
+    ),
+    mergedIntoAshedMemberId: text("merged_into_ashed_member_id"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("hq_member_onboarding_reviews_alliance_id_idx").on(table.allianceId),
+    index("hq_member_onboarding_reviews_status_idx").on(
+      table.allianceId,
+      table.status,
+    ),
+  ],
+);
+
 /** Member-initiated "Ask an officer" help during onboarding / Discord link flows. */
 export const hqMemberLinkHelpRequests = pgTable(
   "hq_member_link_help_requests",
@@ -1624,6 +1685,52 @@ export const hqMemberLinkHelpRequests = pgTable(
     index("hq_member_link_help_requests_alliance_id_idx").on(table.allianceId),
     index("hq_member_link_help_requests_status_idx").on(
       table.allianceId,
+      table.status,
+    ),
+  ],
+);
+
+/** Discord install wizard: officer requests HQ alliance creation when tag is not on HQ yet. */
+export const hqAllianceSetupRequests = pgTable(
+  "hq_alliance_setup_requests",
+  {
+    id: text("id").primaryKey(),
+    tag: text("tag").notNull(),
+    allianceName: text("alliance_name").notNull(),
+    gameServerNumber: integer("game_server_number").notNull(),
+    requesterHqUserId: text("requester_hq_user_id")
+      .notNull()
+      .references(() => hqUsers.id, { onDelete: "cascade" }),
+    requesterEmail: text("requester_email"),
+    discordUserId: text("discord_user_id"),
+    /** open | fulfilled | dismissed */
+    status: text("status").notNull().default("open"),
+    fulfilledAllianceId: text("fulfilled_alliance_id").references(
+      () => alliances.id,
+      { onDelete: "set null" },
+    ),
+    fulfilledByHqUserId: text("fulfilled_by_hq_user_id").references(
+      () => hqUsers.id,
+      { onDelete: "set null" },
+    ),
+    fulfilledAt: timestamp("fulfilled_at", { withTimezone: true }),
+    resolutionNote: text("resolution_note"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("hq_alliance_setup_requests_status_idx").on(table.status),
+    index("hq_alliance_setup_requests_tag_status_idx").on(
+      table.tag,
+      table.status,
+    ),
+    index("hq_alliance_setup_requests_requester_tag_status_idx").on(
+      table.requesterHqUserId,
+      table.tag,
       table.status,
     ),
   ],
@@ -2130,6 +2237,8 @@ export type CommanderAllianceMembership =
   typeof commanderAllianceMemberships.$inferSelect;
 export type HqInvite = typeof hqInvites.$inferSelect;
 export type HqRosterLinkRequest = typeof hqRosterLinkRequests.$inferSelect;
+export type HqMemberOnboardingReview =
+  typeof hqMemberOnboardingReviews.$inferSelect;
 export type HqRosterLinkActionToken =
   typeof hqRosterLinkActionTokens.$inferSelect;
 export type HqAllianceJoinCode = typeof hqAllianceJoinCodes.$inferSelect;

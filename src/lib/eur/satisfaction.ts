@@ -2,6 +2,7 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { getDb, schema } from "@/lib/db";
+import { resolveOnboardingReviewInboxHref } from "@/lib/member-link/onboarding-review-inbox.shared";
 import { resolveRosterLinkInboxHref } from "@/lib/member-link/roster-link-inbox.shared";
 
 const SATISFIED_JOB_STATUSES = ["review", "submitting", "complete"] as const;
@@ -151,11 +152,17 @@ export async function loadReminderInboxForUser(options: {
       kind: item.kind,
       title: item.title,
       body: item.body,
-      href: resolveRosterLinkInboxHref({
-        kind: item.kind,
-        resourceId: item.resourceId,
-        href: item.href,
-      }),
+      href:
+        resolveOnboardingReviewInboxHref({
+          kind: item.kind,
+          resourceId: item.resourceId,
+          href: item.href,
+        }) ??
+        resolveRosterLinkInboxHref({
+          kind: item.kind,
+          resourceId: item.resourceId,
+          href: item.href,
+        }),
       scoreTarget: item.scoreTarget,
       createdAt: item.createdAt,
       dismissed: dismissedIds.has(item.id),

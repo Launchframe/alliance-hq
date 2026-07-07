@@ -562,6 +562,14 @@ export function MembersListView({
           )}
           {canEditRanks && (
             <Link
+              href="/members/onboarding-reviews"
+              className="w-full rounded-lg border border-[#30363d] px-4 py-2 text-center text-sm text-[#e6edf3] hover:bg-[#21262d] sm:w-auto"
+            >
+              {t("onboardingReviews")}
+            </Link>
+          )}
+          {canEditRanks && (
+            <Link
               href="/members/member-link-help"
               className="w-full rounded-lg border border-hq-border px-4 py-2 text-center text-sm text-hq-fg hover:bg-hq-surface-muted sm:w-auto"
             >

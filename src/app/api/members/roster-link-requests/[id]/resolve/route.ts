@@ -6,7 +6,9 @@ import {
   getRosterLinkRequestById,
   rejectRosterLinkRequest,
 } from "@/lib/member-link/roster-link-request.server";
-import { requireSessionPermission } from "@/lib/rbac/require-permission";
+import { canReviewMemberLinks } from "@/lib/member-link/invite-onboarding-access.server";
+import { loadAllianceMemberOnboardingRow } from "@/lib/member-link/self-service-onboarding.server";
+import { getRbacContext } from "@/lib/rbac/context";
 import { getAshedConnection, getOrCreateSession } from "@/lib/session";
 
 const bodySchema = z.object({
@@ -20,12 +22,15 @@ type Props = {
 
 export async function POST(request: Request, { params }: Props) {
   const session = await getOrCreateSession();
-  const denied = await requireSessionPermission(session.id, "members:write");
-  if (denied) return denied;
-
   const allianceId = session.currentAllianceId ?? session.allianceId;
   if (!allianceId || !session.hqUserId) {
     return NextResponse.json({ error: "No alliance selected." }, { status: 400 });
+  }
+
+  const alliance = await loadAllianceMemberOnboardingRow(allianceId);
+  const ctx = await getRbacContext(session.id);
+  if (!alliance || !ctx || !canReviewMemberLinks(ctx, alliance)) {
+    return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
 
   const { id } = await params;

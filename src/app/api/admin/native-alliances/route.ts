@@ -4,6 +4,7 @@ import { z } from "zod";
 import { getRbacContext } from "@/lib/rbac/context";
 import { requirePlatformMaintainer } from "@/lib/rbac/require-permission";
 import type { SystemRoleName } from "@/lib/rbac/constants";
+import { fulfillOpenSetupRequestForTag } from "@/lib/alliance/alliance-setup-request.server";
 import { createNativeAlliance } from "@/lib/native-alliance/provision";
 import { readSessionId } from "@/lib/session";
 
@@ -50,6 +51,14 @@ export async function POST(request: Request) {
       ownerRole: (body.ownerRole ?? "owner") as SystemRoleName,
       invitedByHqUserId: ctx?.hqUserId ?? null,
     });
+
+    if (ctx?.hqUserId) {
+      await fulfillOpenSetupRequestForTag({
+        tag: result.tag,
+        allianceId: result.allianceId,
+        fulfilledByHqUserId: ctx.hqUserId,
+      });
+    }
 
     return NextResponse.json({ ok: true, alliance: result });
   } catch (error) {

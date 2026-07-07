@@ -540,6 +540,27 @@
       "when": 1785843200000,
       "tag": "0077_discord_bot_install_sessions",
       "breakpoints": true
+    },
+    {
+      "idx": 76,
+      "version": "7",
+      "when": 1785929600000,
+      "tag": "0078_alliance_setup_requests",
+      "breakpoints": true
+    },
+    {
+      "idx": 77,
+      "version": "7",
+      "when": 1786016000000,
+      "tag": "0079_self_service_onboarding",
+      "breakpoints": true
+    },
+    {
+      "idx": 78,
+      "version": "7",
+      "when": 1786102400000,
+      "tag": "0080_cross_layer_claim_help_dedup",
+      "breakpoints": true
     }
   ]
 }

@@ -1,4 +1,5 @@
 import type { AshedMember } from "@/lib/video/member-matcher";
+import { stringSimilarity } from "@/lib/video/member-matcher";
 
 import type { DiscordTranslate } from "@/lib/discord/i18n";
 
@@ -93,6 +94,58 @@ export function findUniqueSubstringRosterCandidate(
     return null;
   }
   return [...matches.values()][0] ?? null;
+}
+
+export type OfficerReviewRosterCandidate = {
+  ashedMemberId: string;
+  memberName: string;
+  matchedRosterName: string;
+  method: "fuzzy";
+  score: number;
+};
+
+const OFFICER_REVIEW_FUZZY_MIN_SCORE = 0.72;
+const OFFICER_REVIEW_FUZZY_MAX_RESULTS = 8;
+
+/** Levenshtein-ranked unlinked roster rows for officer review UI hints only. */
+export function findOfficerReviewRosterCandidates(
+  members: AshedMember[],
+  linkedMemberIds: Set<string>,
+  gameUserName: string,
+): OfficerReviewRosterCandidate[] {
+  const needle = normalizeName(gameUserName);
+  if (!needle) return [];
+
+  const scored: OfficerReviewRosterCandidate[] = [];
+
+  for (const member of members) {
+    if (member.status === "former") continue;
+    if (linkedMemberIds.has(member.id)) continue;
+
+    const candidates = [member.current_name, ...(member.previous_names ?? [])];
+    let bestScore = 0;
+    let bestName = member.current_name;
+    for (const candidate of candidates) {
+      const score = stringSimilarity(candidate, gameUserName);
+      if (score > bestScore) {
+        bestScore = score;
+        bestName = candidate;
+      }
+    }
+    if (bestScore >= OFFICER_REVIEW_FUZZY_MIN_SCORE) {
+      scored.push({
+        ashedMemberId: member.id,
+        memberName: member.current_name,
+        matchedRosterName: bestName,
+        method: "fuzzy",
+        score: bestScore,
+      });
+    }
+  }
+
+  return scored
+    .sort((a, b) => b.score - a.score)
+    .slice(0, OFFICER_REVIEW_FUZZY_MAX_RESULTS);
 }
 
 export function advanceLinkWalkthrough(input: {

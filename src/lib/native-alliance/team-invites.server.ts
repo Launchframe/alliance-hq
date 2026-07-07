@@ -16,6 +16,11 @@ import {
   type RbacContext,
 } from "@/lib/rbac/context";
 import { loadSession, ensureCurrentAllianceForSession } from "@/lib/session";
+import { getDb, schema } from "@/lib/db";
+import { eq } from "drizzle-orm";
+import {
+  canManageInvitesAndOnboarding,
+} from "@/lib/member-link/invite-onboarding-access.server";
 
 const ADMIN_ASSIGNABLE_ROLES: SystemRoleName[] = [
   "officer",
@@ -98,6 +103,23 @@ export async function resolveTeamInviteAccess(
 
   if (!canManageTeamInvites(ctx)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const db = getDb();
+  const [alliance] = await db
+    .select({
+      ownerHqUserId: schema.alliances.ownerHqUserId,
+      inviteOnboardingMinRole: schema.alliances.inviteOnboardingMinRole,
+    })
+    .from(schema.alliances)
+    .where(eq(schema.alliances.id, allianceId))
+    .limit(1);
+
+  if (
+    alliance &&
+    !canManageInvitesAndOnboarding(ctx, alliance)
+  ) {
+    return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
 
   if (

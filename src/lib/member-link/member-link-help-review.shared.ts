@@ -3,7 +3,8 @@ export type MemberLinkClaimConflictReason =
   | "commander_taken"
   /** Legacy help rows only — claim confirm no longer emits server_mismatch. */
   | "server_mismatch"
-  | "target_mismatch";
+  | "target_mismatch"
+  | "discord_hq_unlinked";
 
 export type HelpRequestClaimContact = {
   email: string | null;
@@ -27,7 +28,7 @@ export function helpRequestRosterNameNeedles(input: {
   reportedName: string | null;
   gameUserName: string | null;
 }): string[] {
-  if (input.context === "claim_conflict") {
+  if (input.context === "claim_conflict" || input.context === "cross_layer_claim") {
     const lookup = input.gameUserName?.trim();
     return lookup ? [lookup] : [];
   }
@@ -43,7 +44,7 @@ export function helpRequestRequesterInGameName(input: {
   gameUserName: string | null;
   requesterHandle: string;
 }): string {
-  if (input.context === "claim_conflict") {
+  if (input.context === "claim_conflict" || input.context === "cross_layer_claim") {
     return (
       input.gameUserName?.trim() ||
       input.requesterHandle.trim() ||

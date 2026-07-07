@@ -80,17 +80,17 @@ Engineering flow reference (APIs, mermaid): [`docs/guides/native-alliance-onboar
 
 ---
 
-## Last War 100-member cap (in-game)
+## HQ roster cap vs Last War in-game limit
 
-`ROSTER_MAX_MEMBERS = 100` reflects the in-game alliance size limit (`src/lib/members/roster-rank-quota.shared.ts`). It is enforced on **video roster OCR commit**, not on invite creation.
+`ROSTER_MAX_MEMBERS = 200` is the **HQ** roster row cap (`src/lib/members/roster-rank-quota.shared.ts`) for onboarding JIT creation and **video roster OCR commit**. Last War in-game alliances still cap at **100** members — HQ intentionally allows 2× headroom while onboarding tooling matures.
 
-When the in-game roster is full:
+When the **in-game** roster is full:
 
 - No new players can join the **game** alliance.
 - HQ onboarding is **claiming existing roster slots**, not onboarding net-new commanders.
-- Generic member invites for people **not on the roster** will stall at roster miss / owner approval and cannot fix in-game membership.
+- Generic member invites for people **not on the roster** may stall at roster miss / owner approval and cannot fix in-game membership.
 
-**UI near-full threshold:** `isNearFullRoster()` in `src/lib/members/roster-rank-quota.shared.ts` — active roster count ≥ `ceil(100 × (1 − 0.03))` (= **97**). Team settings (`TeamInvitePanel`) uses this to prioritize commander claim invites, collapse generic invite/join-code into an advanced section, default bulk claim mode, and warn on member-role selection.
+**UI near-full threshold:** `isNearFullRoster()` — active roster count ≥ `ceil(200 × (1 − 0.03))` (= **194**). Team settings (`TeamInvitePanel`) uses this to prioritize commander claim invites, collapse generic invite/join-code into an advanced section, default bulk claim mode, and warn on member-role selection.
 
 Product guidance: at near-full roster, steer officers toward **commander claim invites** for unlinked members; keep officer/viewer/data_entry invites for permission changes.
 

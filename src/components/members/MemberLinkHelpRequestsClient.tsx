@@ -17,7 +17,8 @@ export type MemberLinkHelpRequestView = {
     | "walkthrough"
     | "roster_miss"
     | "discord_button"
-    | "claim_conflict";
+    | "claim_conflict"
+    | "cross_layer_claim";
   requesterHandle: string;
   reportedName: string | null;
   gameUserName: string | null;
