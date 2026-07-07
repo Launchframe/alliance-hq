@@ -31,6 +31,7 @@ import {
   isOwnerColdStartEligible,
   supersedePendingRosterLinkRequests,
 } from "@/lib/member-link/roster-link-request.server";
+import { trySelfServiceMemberLink } from "@/lib/member-link/self-service-onboarding.server";
 import {
   createMemberLinkTranslator,
   memberLinkWalkthroughSteps,
@@ -543,6 +544,81 @@ export async function runWebMemberLinkSubmit(input: {
       lookup.gameUserName,
     );
 
+    const selfService = await trySelfServiceMemberLink({
+      allianceId: input.allianceId,
+      hqUserId: input.hqUserId,
+      gameUid: uid,
+      lookup,
+      members: finalRosterMembers,
+      linkedMemberIds,
+      origin: "web",
+      gameServerNumber: lookup.gameServerNumber,
+      persistLink: async (target) => {
+        const linked = await linkHqMember({
+          allianceId: input.allianceId,
+          hqUserId: input.hqUserId,
+          ashedMemberId: target.ashedMemberId,
+          memberDisplayName: target.memberDisplayName,
+          gameUid: target.gameUid,
+        });
+        if (!linked.ok) {
+          return { ok: false, reason: "member_taken" as const };
+        }
+        ctx.auditBag.ashedMemberId = target.ashedMemberId;
+        try {
+          await maybeSetOwnerMemberExternalId({
+            allianceId: input.allianceId,
+            hqUserId: input.hqUserId,
+            ashedMemberId: target.ashedMemberId,
+          });
+        } catch (error) {
+          console.error("[member-link] owner externalId sync failed", error);
+        }
+        await syncPrimaryGameUidFromHqMemberLink(
+          input.hqUserId,
+          target.gameUid,
+        );
+        if (target.gameUserLevel != null) {
+          try {
+            await syncAllianceMemberGameLevelFromLastWar({
+              allianceId: input.allianceId,
+              ashedMemberId: target.ashedMemberId,
+              gameUserLevel: target.gameUserLevel,
+            });
+          } catch (error) {
+            console.error("[member-link] level sync failed", error);
+          }
+        }
+        return { ok: true as const };
+      },
+    });
+
+    if (selfService.ok) {
+      await saveHqMemberLinkPending(input.allianceId, input.hqUserId, null);
+      let message = translate("link.linked", {
+        name: selfService.memberDisplayName,
+      });
+      if (selfService.reviewCreated) {
+        message = `${message} ${translate("selfServiceLinkedFootnote")}`;
+      }
+      return finishMemberLinkSubmit(ctx, {
+        outcome: "linked",
+        message,
+        pending: null,
+        linkedMemberName: selfService.memberDisplayName,
+      });
+    }
+
+    if (selfService.reason === "member_taken") {
+      return finishMemberLinkSubmit(
+        ctx,
+        toMemberLinkApiResponse(
+          { reply: translate("link.memberTaken"), pending: null },
+          { memberTaken: true },
+        ),
+      );
+    }
+
     const routed = await tryRouteRosterMissToOwnerApproval({
       allianceId: input.allianceId,
       allianceTag: alliance?.tag ?? "alliance",
@@ -556,6 +632,12 @@ export async function runWebMemberLinkSubmit(input: {
       suggestedMatchedRosterName: suggestion?.matchedRosterName ?? null,
     });
     if (routed) {
+      if (selfService.reason === "roster_full") {
+        return finishMemberLinkSubmit(ctx, {
+          ...routed,
+          message: translate("rosterFull", { gameName: lookup.gameUserName }),
+        });
+      }
       return finishMemberLinkSubmit(ctx, routed);
     }
   }

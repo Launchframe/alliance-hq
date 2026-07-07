@@ -449,6 +449,7 @@ export function TeamInvitePanel({ assignableRoles }: Props) {
   function renderClaimSection(highlighted: boolean) {
     return (
       <div
+        id="commander-claim-invites"
         className={
           highlighted
             ? "rounded-lg border border-[#388bfd]/30 bg-[#0d1117]/50 p-4"
