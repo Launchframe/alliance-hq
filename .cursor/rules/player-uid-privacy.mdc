@@ -12,7 +12,7 @@ Last War **player UID** (`game_uid`, 12–16 digits) is **sensitive account-bind
 Do **not** show UID to anyone except the **HQ user who linked that Commander** via name+UID (proved by `hq_user_commanders` / `hq_member_links` for the viewer's session):
 
 - **Allowed:** that linked HQ user viewing **their own** Commander profile; Discord bot may echo UID back to the Discord user after name+UID auth proves ownership (ephemeral/private reply).
-- **Not allowed:** alliance **R5/officers/admins** viewing **another member's** profile (in-game alliance owner role does **not** grant UID visibility); platform maintainers; other members; public Discord channel replies; exports; audit UIs.
+- **Not allowed:** alliance **R5/officers/admins** viewing **another member's** profile (in-game alliance owner role does **not** grant UID visibility); other members; public Discord channel replies; exports; general audit UIs.
 
 Do **not** show UID in:
 
@@ -24,6 +24,19 @@ Do **not** show UID in:
 - Logs, error messages, or API responses sent to the browser for non-owners
 
 **Input exception:** UID may appear in a **private input field** during initial member-link onboarding only. After link succeeds, do not echo it back except to the owner on their own profile or authenticated Discord owner context.
+
+## Platform maintainer break-glass (UID inspector)
+
+When a member **voluntarily shares** their player ID for support, platform maintainers may look up bindings via **`/admin/uid-inspector`** (API: `GET /api/admin/uid-inspector`). This is intentional break-glass — UIDs remain plaintext in DB for integrations.
+
+| Requirement | Implementation |
+| --- | --- |
+| RBAC | `requirePlatformMaintainer` / `hq:admin` only — no alliance officer or member path |
+| Audit | `admin_uid_inspector_lookup` with **`gameUidLast4` only** in metadata (never full UID in audit rows) |
+| Scope | Full UID in API/UI **only** for authenticated platform maintainer sessions on this route |
+| Logs | Server paths must still redact UID in application logs and error payloads outside this gated route |
+
+Do **not** extend this exception to alliance admin lists, exports, officer tooling, or Discord public replies.
 
 ## Storage (do not hash today)
 
