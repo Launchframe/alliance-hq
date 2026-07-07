@@ -117,7 +117,7 @@ export function DiscordAuthorizeForm({
       </div>
 
       {state.status === "error" && (
-        <p className="rounded-lg border border-red-700 bg-red-950/40 px-4 py-3 text-sm text-red-300">
+        <p className="rounded-lg border border-hq-danger/40 bg-hq-danger/10 px-4 py-3 text-sm text-hq-danger">
           {labels.errorPrefix} {state.message}
         </p>
       )}

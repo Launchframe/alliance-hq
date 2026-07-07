@@ -259,7 +259,7 @@ function GalleryFrameLegend({ frame, tDetail }: FrameLegendProps) {
           {tDetail("entryCount", { count: frame.ocrEntryCount ?? 0 })}
         </span>
         {frame.ocrError ? (
-          <span className="rounded-full bg-red-950/50 px-2.5 py-1 text-red-300">
+          <span className="rounded-full border border-hq-danger/30 bg-hq-danger/10 px-2.5 py-1 text-hq-danger">
             {frame.ocrError}
           </span>
         ) : null}
@@ -837,7 +837,7 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
       ) : null}
 
       {job.errorMessage ? (
-        <pre className="overflow-auto rounded-xl border border-red-900/50 bg-red-950/30 p-3 text-xs text-red-300">
+        <pre className="overflow-auto rounded-xl border border-hq-danger/40 bg-hq-danger/10 p-3 text-xs text-hq-danger">
           {job.errorMessage}
         </pre>
       ) : null}
@@ -943,7 +943,7 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
                             })}
                           </span>
                           {frame.ocrError ? (
-                            <span className="rounded bg-red-950/50 px-2 py-0.5 text-red-300">
+                            <span className="rounded border border-hq-danger/30 bg-hq-danger/10 px-2 py-0.5 text-hq-danger">
                               {frame.ocrError}
                             </span>
                           ) : null}
@@ -1139,7 +1139,7 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
                           })}
                         </span>
                         {videoModeFrame.ocrError ? (
-                          <span className="rounded bg-red-950/50 px-1.5 py-0.5 text-red-300">
+                          <span className="rounded border border-hq-danger/30 bg-hq-danger/10 px-1.5 py-0.5 text-hq-danger">
                             {videoModeFrame.ocrError}
                           </span>
                         ) : null}

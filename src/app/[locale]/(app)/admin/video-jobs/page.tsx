@@ -461,7 +461,7 @@ export default function AdminVideoJobsPage() {
               </p>
             </div>
             <div className="max-h-[50vh] overflow-auto px-4 py-3">
-              <pre className="whitespace-pre-wrap break-words font-mono text-xs text-red-300">
+              <pre className="whitespace-pre-wrap break-words font-mono text-xs text-hq-danger">
                 {errorDialogJob.errorMessage}
               </pre>
             </div>
