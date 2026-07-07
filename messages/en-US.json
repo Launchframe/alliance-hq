@@ -1620,8 +1620,8 @@
       "officersOnly": "Only train officers can change these settings."
     },
     "trainEconomyThreshold": {
-      "sectionTitle": "The Price Is Right",
-      "sectionBody": "On The Price Is Right train days, the conductor wheel draws from R3 members whose prior-day VS score is between 7,200,000 and the economy threshold plus fudge (threshold + threshold × fudge %).",
+      "sectionTitle": "The Price Is Freight",
+      "sectionBody": "On The Price Is Freight train days, the conductor wheel draws from R3 members whose prior-day VS score is between 7,200,000 and the economy threshold plus fudge (threshold + threshold × fudge %). VIP is a free pick — today's conductor chooses VIP directly.",
       "loading": "Loading economy threshold…",
       "loadFailed": "Could not load economy threshold settings.",
       "thresholdLabel": "Economy threshold",
@@ -2652,7 +2652,7 @@
       "vs_push_weekdays": "VS Push weekdays",
       "r4_event_vip": "R4 & Event VIP",
       "economy_week": "Economy week",
-      "price_is_right": "The Price Is Right",
+      "price_is_right": "The Price Is Freight",
       "r3_recognition": "R3 recognition",
       "r4_train_week": "R4 Week",
       "donations_week": "Donations week",
@@ -2661,6 +2661,9 @@
     "templatesShort": {
       "vs_push_weekdays": "VS Push",
       "r4_event_vip": "R4 & Event VIP"
+    },
+    "templateDetails": {
+      "price_is_right": "Conductor: R3 wheel draw from members whose prior-day VS score is between 7,200,000 and the economy threshold plus fudge. VIP: today's conductor picks VIP directly (free pick)."
     },
     "wheel": {
       "title": "All aboard!",
