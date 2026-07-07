@@ -270,25 +270,28 @@ describe("tryBootstrapOwnerColdStartMember", () => {
     expect(result).toBeNull();
   });
 
-  it("returns null for member invite", async () => {
-    dbModule.chain.limit
-      .mockResolvedValueOnce([{ ownerHqUserId: null }])
-      .mockResolvedValueOnce([
-        { id: "inv-1", roleId: "role-member", acceptedAt: new Date() },
-      ]);
+  it.each(["role-member", "role-viewer", "role-data-entry"])(
+    "returns null for %s invite",
+    async (roleId) => {
+      dbModule.chain.limit
+        .mockResolvedValueOnce([{ ownerHqUserId: null }])
+        .mockResolvedValueOnce([
+          { id: "inv-1", roleId, acceptedAt: new Date() },
+        ]);
 
-    const result = await tryBootstrapOwnerColdStartMember({
-      allianceId: "a1",
-      hqUserId: "u1",
-      locale: "en-US",
-      reportedName: "Commander",
-      gameUid: "1234567890121203",
-      lookup: { ok: true, gameUserName: "Commander", gameServerNumber: 1203 },
-      rosterCount: 0,
-    });
+      const result = await tryBootstrapOwnerColdStartMember({
+        allianceId: "a1",
+        hqUserId: "u1",
+        locale: "en-US",
+        reportedName: "Commander",
+        gameUid: "1234567890121203",
+        lookup: { ok: true, gameUserName: "Commander", gameServerNumber: 1203 },
+        rosterCount: 0,
+      });
 
-    expect(result).toBeNull();
-  });
+      expect(result).toBeNull();
+    },
+  );
 
   it("returns null when reported name does not match game name", async () => {
     dbModule.chain.limit.mockResolvedValueOnce([{ ownerHqUserId: "u1" }]);

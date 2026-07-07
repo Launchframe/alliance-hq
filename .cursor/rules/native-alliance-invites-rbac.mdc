@@ -29,7 +29,7 @@ Use this rule when changing team invites, onboarding, member-link, or officer to
 | Layer | Table | Created when | Answers |
 | --- | --- | --- | --- |
 | **HQ RBAC** | `alliance_memberships` | Invite accept (`acceptHqInvite`) or manual assign | “What can this HQ user **do** in the app?” (owner, officer, member, viewer, …) |
-| **Roster commander** | `alliance_members` | Ashed/sync, video OCR commit, owner-approved roster link, owner cold-start | “Who is on **our roster snapshot**?” (`current_name`, ranks — may lag in-game renames) |
+| **Roster commander** | `alliance_members` | Ashed/sync, video OCR commit, owner-approved roster link, leadership cold-start | “Who is on **our roster snapshot**?” (`current_name`, ranks — may lag in-game renames) |
 | **Character binding** | `hq_member_links` | Member-link submit or claim confirm | “Which roster commander does **this HQ account** represent?” |
 
 Invite accept **never** creates `alliance_members` or `hq_member_links`. Every native alliance user still passes `/onboard` until linked (`sessionRequiresMemberLink`).

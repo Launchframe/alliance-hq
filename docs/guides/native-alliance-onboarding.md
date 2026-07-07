@@ -8,7 +8,7 @@
 
 - Hub: `/guides/alliance-onboarding`
 - [Ashed-sync — linking a full roster](./ashed-alliance-member-onboarding.md)
-- [Fresh native — owner-only cold start](./fresh-native-alliance-onboarding.md)
+- [Fresh native — leadership cold start](./fresh-native-alliance-onboarding.md)
 
 Agent rule: [`.cursor/rules/native-alliance-invites-rbac.mdc`](../.cursor/rules/native-alliance-invites-rbac.mdc)
 
