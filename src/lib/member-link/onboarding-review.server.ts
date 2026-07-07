@@ -3,6 +3,7 @@ import "server-only";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
+import { writeAuditLog } from "@/lib/bff/audit";
 import { getDb, schema } from "@/lib/db";
 import { canReviewMemberLinks } from "@/lib/member-link/invite-onboarding-access.server";
 import { mergeSelfServiceMemberIntoRosterTarget } from "@/lib/member-link/merge-commander.server";
@@ -192,6 +193,7 @@ async function resolveReviewStatus(input: {
   reviewId: string;
   allianceId: string;
   resolvedByHqUserId: string;
+  sessionId: string;
   status: "approved" | "merged" | "dismissed";
   mergedIntoAshedMemberId?: string | null;
 }): Promise<{ ok: true } | { ok: false; reason: string }> {
@@ -217,6 +219,33 @@ async function resolveReviewStatus(input: {
     .where(eq(schema.hqMemberOnboardingReviews.id, input.reviewId));
 
   await satisfyOnboardingReviewInboxItem(input.reviewId);
+
+  const actionByStatus = {
+    approved: "member_link.onboarding_review_approved",
+    dismissed: "member_link.onboarding_review_dismissed",
+    merged: "member_link.onboarding_review_merged",
+  } as const;
+
+  await writeAuditLog({
+    sessionId: input.sessionId,
+    hqUserId: input.resolvedByHqUserId,
+    allianceId: input.allianceId,
+    action: actionByStatus[input.status],
+    resourceType: "hq_member_onboarding_review",
+    resourceId: input.reviewId,
+    metadata: {
+      reviewId: input.reviewId,
+      status: input.status,
+      gameUserName: review.gameUserName,
+      linkedAshedMemberId: review.linkedAshedMemberId,
+      requesterHqUserId: review.hqUserId,
+      origin: review.origin,
+      ...(input.mergedIntoAshedMemberId
+        ? { mergedIntoAshedMemberId: input.mergedIntoAshedMemberId }
+        : {}),
+    },
+  });
+
   return { ok: true };
 }
 
@@ -224,6 +253,7 @@ export async function approveOnboardingReview(input: {
   reviewId: string;
   allianceId: string;
   resolvedByHqUserId: string;
+  sessionId: string;
 }): Promise<{ ok: true } | { ok: false; reason: string }> {
   return resolveReviewStatus({
     ...input,
@@ -235,6 +265,7 @@ export async function dismissOnboardingReview(input: {
   reviewId: string;
   allianceId: string;
   resolvedByHqUserId: string;
+  sessionId: string;
 }): Promise<{ ok: true } | { ok: false; reason: string }> {
   return resolveReviewStatus({
     ...input,
@@ -245,6 +276,7 @@ export async function dismissOnboardingReview(input: {
 export async function approveAllOnboardingReviews(input: {
   allianceId: string;
   resolvedByHqUserId: string;
+  sessionId: string;
 }): Promise<number> {
   const pending = await listPendingOnboardingReviews(input.allianceId);
   let count = 0;
@@ -253,6 +285,7 @@ export async function approveAllOnboardingReviews(input: {
       reviewId: review.id,
       allianceId: input.allianceId,
       resolvedByHqUserId: input.resolvedByHqUserId,
+      sessionId: input.sessionId,
     });
     if (result.ok) count += 1;
   }
@@ -264,6 +297,7 @@ export async function mergeOnboardingReview(input: {
   allianceId: string;
   targetAshedMemberId: string;
   resolvedByHqUserId: string;
+  sessionId: string;
 }): Promise<{ ok: true } | { ok: false; reason: string }> {
   const review = await getOnboardingReviewById(input.reviewId);
   if (!review || review.allianceId !== input.allianceId) {
@@ -290,6 +324,7 @@ export async function mergeOnboardingReview(input: {
     reviewId: input.reviewId,
     allianceId: input.allianceId,
     resolvedByHqUserId: input.resolvedByHqUserId,
+    sessionId: input.sessionId,
     status: "merged",
     mergedIntoAshedMemberId: input.targetAshedMemberId,
   });

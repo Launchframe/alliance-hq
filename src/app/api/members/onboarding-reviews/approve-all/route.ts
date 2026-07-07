@@ -26,6 +26,7 @@ export async function POST() {
   const count = await approveAllOnboardingReviews({
     allianceId,
     resolvedByHqUserId: session.hqUserId,
+    sessionId: session.id,
   });
 
   return NextResponse.json({ ok: true, count });
