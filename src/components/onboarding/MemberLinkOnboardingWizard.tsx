@@ -373,10 +373,6 @@ export function MemberLinkOnboardingWizard({
     setFormError(null);
     const name = reportedName.trim();
     const uid = gameUid.trim();
-    if (!name) {
-      setFormError(t("nameRequired"));
-      return;
-    }
     if (!isValidGameUid(uid)) {
       setFormError(t("askOfficerNeedsUid"));
       return;
@@ -385,8 +381,8 @@ export function MemberLinkOnboardingWizard({
     setBusy(true);
     try {
       const data = await postJson<ApiResponse>("/api/member-link/ask-officer", {
-        reportedName: name,
         gameUid: uid,
+        ...(name ? { reportedName: name } : {}),
       });
       applyOutcome(data);
     } catch {
