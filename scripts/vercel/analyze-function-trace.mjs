@@ -64,7 +64,8 @@ function main() {
   for (const budget of functionTraceBudgets) {
     const nftAbs = path.join(repoRoot, budget.nftPath);
     if (!fs.existsSync(nftAbs)) {
-      console.warn(`Skipping ${budget.route}: missing ${budget.nftPath}`);
+      console.error(`Missing NFT manifest for ${budget.route}: ${budget.nftPath}`);
+      failed = true;
       continue;
     }
 
