@@ -1309,6 +1309,14 @@ export function TrainsDashboard({ initial }: Props) {
                 triggerClassName="rounded-xl border-[#30363d] bg-[#161b22]"
                 className="w-full"
               />
+              {activeWeekTemplate === "price_is_right" ? (
+                <p
+                  className="text-xs leading-relaxed text-[#8b949e]"
+                  data-testid="trains-template-detail-hint"
+                >
+                  {t("templateDetails.price_is_right")}
+                </p>
+              ) : null}
             </div>
           ) : null}
         </div>
