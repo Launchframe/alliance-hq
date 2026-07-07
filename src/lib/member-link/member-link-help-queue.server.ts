@@ -149,6 +149,7 @@ function openClaimConflictSubjectFilter(input: {
 
 async function findOpenClaimConflictHelpRequest(input: {
   allianceId: string;
+  context: "claim_conflict" | "cross_layer_claim";
   targetAshedMemberId: string;
   claimConflictReason: MemberLinkClaimConflictReason;
   hqUserId?: string | null;
@@ -162,7 +163,7 @@ async function findOpenClaimConflictHelpRequest(input: {
       and(
         eq(schema.hqMemberLinkHelpRequests.allianceId, input.allianceId),
         eq(schema.hqMemberLinkHelpRequests.status, "open"),
-        eq(schema.hqMemberLinkHelpRequests.context, "claim_conflict"),
+        eq(schema.hqMemberLinkHelpRequests.context, input.context),
         eq(
           schema.hqMemberLinkHelpRequests.linkedAshedMemberId,
           input.targetAshedMemberId,
@@ -264,6 +265,7 @@ export async function recordMemberLinkHelpRequest(input: {
   const existing = useClaimConflictDedup
     ? await findOpenClaimConflictHelpRequest({
         allianceId: input.allianceId,
+        context: input.context as "claim_conflict" | "cross_layer_claim",
         targetAshedMemberId,
         claimConflictReason,
         hqUserId: input.hqUserId ?? null,
@@ -310,6 +312,7 @@ export async function recordMemberLinkHelpRequest(input: {
     }
     const racedExisting = await findOpenClaimConflictHelpRequest({
       allianceId: input.allianceId,
+      context: input.context as "claim_conflict" | "cross_layer_claim",
       targetAshedMemberId,
       claimConflictReason,
       hqUserId: input.hqUserId ?? null,
