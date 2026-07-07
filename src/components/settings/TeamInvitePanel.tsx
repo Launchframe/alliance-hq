@@ -8,6 +8,7 @@ import {
   FORM_SUBMIT_ENTER_KEY_HINT,
   preventDefaultFormSubmit,
 } from "@/lib/client/form-enter-submit.shared";
+import { ROSTER_MAX_MEMBERS } from "@/lib/members/roster-rank-quota.shared";
 import { MAX_BULK_CLAIM_INVITES } from "@/lib/native-alliance/claim-invites.shared";
 import type { SystemRoleName } from "@/lib/rbac/constants";
 
@@ -97,7 +98,7 @@ export function TeamInvitePanel({ assignableRoles }: Props) {
   >([]);
   const [nearFullRoster, setNearFullRoster] = useState(false);
   const [activeRosterCount, setActiveRosterCount] = useState(0);
-  const [rosterMaxMembers, setRosterMaxMembers] = useState(100);
+  const [rosterMaxMembers, setRosterMaxMembers] = useState(ROSTER_MAX_MEMBERS);
 
   const bulkSelectableCap = useMemo(
     () => Math.min(claimableCommanders.length, MAX_BULK_CLAIM_INVITES),
@@ -151,7 +152,7 @@ export function TeamInvitePanel({ assignableRoles }: Props) {
 
       const nearFull = Boolean(data.roster?.nearFull);
       const activeCount = data.roster?.activeCount ?? 0;
-      const maxMembers = data.roster?.maxMembers ?? 100;
+      const maxMembers = data.roster?.maxMembers ?? ROSTER_MAX_MEMBERS;
       setNearFullRoster(nearFull);
       setActiveRosterCount(activeCount);
       setRosterMaxMembers(maxMembers);

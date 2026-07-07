@@ -30,8 +30,8 @@ describe("self-service-onboarding.shared", () => {
   });
 
   it("blocks JIT roster creation at cap", () => {
-    expect(canCreateRosterMemberDuringOnboarding(99)).toBe(true);
-    expect(canCreateRosterMemberDuringOnboarding(100)).toBe(false);
+    expect(canCreateRosterMemberDuringOnboarding(199)).toBe(true);
+    expect(canCreateRosterMemberDuringOnboarding(200)).toBe(false);
   });
 
   it("parses invite onboarding min role", () => {

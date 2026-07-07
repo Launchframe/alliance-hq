@@ -356,7 +356,7 @@ The verified Last War name is stored during the link. If no roster entry matches
 
 **Owner settings:** Settings → Member onboarding (`/settings/member-onboarding`).
 
-**100-member cap:** JIT roster row creation is blocked at 100 active members; exact-match self-service links to unlinked rows still work.
+**HQ roster cap (200):** JIT roster row creation is blocked at 200 active HQ roster rows (Last War in-game alliances cap at 100). Exact-match self-service links to unlinked rows still work below the HQ cap.
 
 ---
 
