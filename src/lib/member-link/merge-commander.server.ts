@@ -144,6 +144,24 @@ export async function mergeSelfServiceMemberIntoRosterTarget(input: {
     }
   }
 
+  await db
+    .update(schema.allianceMembers)
+    .set({ status: "former", updatedAt: now })
+    .where(eq(schema.allianceMembers.id, sourceMember.id));
+
+  await db
+    .update(schema.commanderAllianceMemberships)
+    .set({ status: "former", leftAt: now, updatedAt: now })
+    .where(
+      and(
+        eq(schema.commanderAllianceMemberships.allianceId, input.allianceId),
+        eq(
+          schema.commanderAllianceMemberships.ashedMemberId,
+          input.sourceAshedMemberId,
+        ),
+      ),
+    );
+
   await reconcileAllianceMemberForRosterLink({
     allianceId: input.allianceId,
     ashedMemberId: input.targetAshedMemberId,
@@ -159,11 +177,6 @@ export async function mergeSelfServiceMemberIntoRosterTarget(input: {
       memberDisplayName: input.gameUserName,
     });
   }
-
-  await db
-    .update(schema.allianceMembers)
-    .set({ status: "former", updatedAt: now })
-    .where(eq(schema.allianceMembers.id, sourceMember.id));
 
   return { ok: true };
 }

@@ -7,6 +7,7 @@ import {
 } from "@/lib/discord/i18n";
 import { lookupPlayerByUid } from "@/lib/lastwar/player-lookup";
 import type { LastWarPlayerLookupResult } from "@/lib/lastwar/player-lookup";
+import { syncCommanderIdentityFromMemberLink } from "@/lib/members/commander-identity.server";
 import { syncAllianceMemberGameLevelFromLastWar } from "@/lib/lastwar/sync-member-game-level.server";
 import { peerMaxExcludingMember } from "@/lib/vr/anomaly";
 import { MAX_DISCORD_LINKS_PER_USER } from "@/lib/vr/constants";
@@ -440,9 +441,6 @@ async function finalizeDiscordMemberLink(input: {
         }
         if (hqLink?.hqUserId) {
           try {
-            const { syncCommanderIdentityFromMemberLink } = await import(
-              "@/lib/members/commander-identity.server"
-            );
             await syncCommanderIdentityFromMemberLink({
               allianceId: input.allianceId,
               ashedMemberId: target.ashedMemberId,
@@ -491,6 +489,27 @@ async function finalizeDiscordMemberLink(input: {
         },
       );
       return result;
+    }
+
+    if (selfService.reason === "wrong_server") {
+      await saveDiscordBotPending(input.allianceId, input.discordUserId, null);
+      resolvedResult = {
+        ...resolvedResult,
+        reply: translate("helpTopics.wrongServer.body"),
+        pending: null,
+      };
+      await audit(
+        input.allianceId,
+        input.discordUserId,
+        input.auditAction ?? "link",
+        input,
+        {
+          ...resolvedResult,
+          selfService: false,
+          diagnostics: linkDiagnostics,
+        },
+      );
+      return resolvedResult;
     }
 
     const suggestion = findUniqueSubstringRosterCandidate(

@@ -3,7 +3,9 @@ import "server-only";
 import { and, desc, eq, inArray, isNotNull, isNull } from "drizzle-orm";
 
 import { getDb, schema } from "@/lib/db";
+import { resolveAllianceGameServerNumber } from "@/lib/game-season/game-servers.server";
 import type { LastWarPlayerLookupResult } from "@/lib/lastwar/player-lookup";
+import { parseGameServerNumberFromUid } from "@/lib/lastwar/player-lookup";
 import {
   canReviewMemberLinks,
   canManageInvitesAndOnboarding,
@@ -14,9 +16,11 @@ import {
   canCreateRosterMemberDuringOnboarding,
   countActiveRosterMembers,
   isSelfServiceOnboardingEnabled,
+  isSelfServiceServerEligible,
   parseInviteOnboardingMinRole,
 } from "@/lib/member-link/self-service-onboarding.shared";
 import { getRbacContext } from "@/lib/rbac/context";
+import { getDiscordHqLink } from "@/lib/vr/repository";
 import {
   findExactMemberByName,
   findUniqueSubstringRosterCandidate,
@@ -42,7 +46,10 @@ export type SelfServiceLinkResult =
       memberDisplayName: string;
       reviewCreated: boolean;
     }
-  | { ok: false; reason: "not_eligible" | "roster_full" | "member_taken" };
+  | {
+      ok: false;
+      reason: "not_eligible" | "roster_full" | "member_taken" | "wrong_server";
+    };
 
 export async function loadAllianceMemberOnboardingRow(allianceId: string) {
   const db = getDb();
@@ -160,7 +167,6 @@ export async function isInviteGatedMemberLink(input: {
 }> {
   let hqUserId = input.hqUserId?.trim() || null;
   if (!hqUserId && input.discordUserId) {
-    const { getDiscordHqLink } = await import("@/lib/vr/repository");
     const link = await getDiscordHqLink(input.discordUserId);
     hqUserId = link?.hqUserId ?? null;
   }
@@ -263,6 +269,22 @@ export async function trySelfServiceMemberLink(input: {
   });
   if (!gate.gated) {
     return { ok: false, reason: "not_eligible" };
+  }
+
+  const playerServerNumber =
+    input.lookup.gameServerNumber ??
+    input.gameServerNumber ??
+    parseGameServerNumberFromUid(input.gameUid);
+  const allianceServerNumber = await resolveAllianceGameServerNumber(
+    input.allianceId,
+  );
+  if (
+    !isSelfServiceServerEligible({
+      playerServerNumber,
+      allianceServerNumber,
+    })
+  ) {
+    return { ok: false, reason: "wrong_server" };
   }
 
   const exact = findExactUnlinkedMember(

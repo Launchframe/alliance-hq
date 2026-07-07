@@ -8,6 +8,7 @@ import {
   openMemberAllianceTenure,
 } from "@/lib/members/member-tenure.server";
 import { syncCommanderIdentityFromMemberLink } from "@/lib/members/commander-identity.server";
+import { hasConflictingDiscordGameUidClaim } from "@/lib/member-link/link-claim-guards.shared";
 import { parseAshedMemberAllianceRank } from "@/lib/members/alliance-rank";
 import { isNativeAlliance } from "@/lib/native-alliance/operating-mode";
 import { buildFlagReason, peerMaxExcludingMember } from "@/lib/vr/anomaly";
@@ -335,6 +336,61 @@ export type LinkDiscordMemberResult =
   | { ok: true; link: typeof schema.discordMemberLinks.$inferSelect; mode: "created" | "updated" | "replaced" }
   | { ok: false; reason: "cap_reached" | "member_linked_to_other_discord" };
 
+async function isGameUidClaimedByOtherDiscordUser(input: {
+  allianceId: string;
+  discordUserId: string;
+  ashedMemberId: string;
+  gameUid: string;
+}): Promise<boolean> {
+  const gameUid = input.gameUid.trim();
+  if (!gameUid) return false;
+
+  const db = getDb();
+  const [hqLink, hqClaims, discordClaims] = await Promise.all([
+    getDiscordHqLink(input.discordUserId),
+    db
+      .select({
+        hqUserId: schema.hqMemberLinks.hqUserId,
+        ashedMemberId: schema.hqMemberLinks.ashedMemberId,
+      })
+      .from(schema.hqMemberLinks)
+      .where(
+        and(
+          eq(schema.hqMemberLinks.allianceId, input.allianceId),
+          eq(schema.hqMemberLinks.gameUid, gameUid),
+        ),
+      ),
+    db
+      .select({
+        discordUserId: schema.discordMemberLinks.discordUserId,
+        ashedMemberId: schema.discordMemberLinks.ashedMemberId,
+        hqUserId: schema.discordHqLinks.hqUserId,
+      })
+      .from(schema.discordMemberLinks)
+      .leftJoin(
+        schema.discordHqLinks,
+        eq(
+          schema.discordHqLinks.discordUserId,
+          schema.discordMemberLinks.discordUserId,
+        ),
+      )
+      .where(
+        and(
+          eq(schema.discordMemberLinks.allianceId, input.allianceId),
+          eq(schema.discordMemberLinks.gameUid, gameUid),
+        ),
+      ),
+  ]);
+
+  return hasConflictingDiscordGameUidClaim({
+    discordUserId: input.discordUserId,
+    hqUserId: hqLink?.hqUserId ?? null,
+    ashedMemberId: input.ashedMemberId,
+    hqClaims,
+    discordClaims,
+  });
+}
+
 export async function linkDiscordMember(input: {
   allianceId: string;
   discordUserId: string;
@@ -346,6 +402,10 @@ export async function linkDiscordMember(input: {
 }): Promise<LinkDiscordMemberResult> {
   const db = getDb();
   const now = new Date();
+
+  if (await isGameUidClaimedByOtherDiscordUser(input)) {
+    return { ok: false, reason: "member_linked_to_other_discord" };
+  }
 
   if (input.replaceAll) {
     await deleteDiscordMemberLinksForUser(input.allianceId, input.discordUserId);

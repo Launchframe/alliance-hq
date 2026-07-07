@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   canCreateRosterMemberDuringOnboarding,
   isSelfServiceOnboardingEnabled,
+  isSelfServiceServerEligible,
   parseInviteOnboardingMinRole,
 } from "@/lib/member-link/self-service-onboarding.shared";
 import {
@@ -37,6 +38,33 @@ describe("self-service-onboarding.shared", () => {
     expect(parseInviteOnboardingMinRole("owner")).toBe("owner");
     expect(parseInviteOnboardingMinRole("officer")).toBe("officer");
     expect(parseInviteOnboardingMinRole(null)).toBe("officer");
+  });
+
+  it("requires self-service members to match the alliance state server", () => {
+    expect(
+      isSelfServiceServerEligible({
+        playerServerNumber: 1203,
+        allianceServerNumber: 1203,
+      }),
+    ).toBe(true);
+    expect(
+      isSelfServiceServerEligible({
+        playerServerNumber: 1205,
+        allianceServerNumber: 1203,
+      }),
+    ).toBe(false);
+    expect(
+      isSelfServiceServerEligible({
+        playerServerNumber: null,
+        allianceServerNumber: 1203,
+      }),
+    ).toBe(false);
+    expect(
+      isSelfServiceServerEligible({
+        playerServerNumber: 1203,
+        allianceServerNumber: null,
+      }),
+    ).toBe(false);
   });
 });
 

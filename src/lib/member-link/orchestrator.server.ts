@@ -685,6 +685,14 @@ export async function runWebMemberLinkSubmit(input: {
       );
     }
 
+    if (selfService.reason === "wrong_server") {
+      return finishMemberLinkSubmit(ctx, {
+        outcome: "wrong_server",
+        message: translate("wrongServer"),
+        pending: null,
+      });
+    }
+
     const routed = await tryRouteRosterMissToOwnerApproval({
       allianceId: input.allianceId,
       allianceTag: alliance?.tag ?? "alliance",

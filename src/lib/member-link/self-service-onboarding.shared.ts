@@ -18,6 +18,17 @@ export function canCreateRosterMemberDuringOnboarding(
   return activeMemberCount < maxMembers;
 }
 
+export function isSelfServiceServerEligible(input: {
+  playerServerNumber: number | null | undefined;
+  allianceServerNumber: number | null | undefined;
+}): boolean {
+  return (
+    input.playerServerNumber != null &&
+    input.allianceServerNumber != null &&
+    input.playerServerNumber === input.allianceServerNumber
+  );
+}
+
 export { countActiveRosterMembers, ROSTER_MAX_MEMBERS };
 
 export function parseInviteOnboardingMinRole(
