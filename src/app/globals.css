@@ -18,6 +18,12 @@
   --hq-orange: #bc4c00;
   --hq-pink: #bf3989;
   --hq-backdrop: rgb(31 35 40 / 0.45);
+  --hq-selected-bg: #ddf4ff;
+  --hq-selected-fg: #0550ae;
+  --hq-pill-bg: #f6f8fa;
+  --hq-pill-fg: #656d76;
+  --hq-pill-border: #d0d7de;
+  --hq-warning: #9a6700;
 
   --background: var(--hq-canvas);
   --foreground: var(--hq-fg);
@@ -41,6 +47,12 @@
   --hq-orange: #ffa657;
   --hq-pink: #f778ba;
   --hq-backdrop: rgb(1 4 9 / 0.92);
+  --hq-selected-bg: #1f3d5c;
+  --hq-selected-fg: #58a6ff;
+  --hq-pill-bg: #21262d;
+  --hq-pill-fg: #c9d1d9;
+  --hq-pill-border: #484f58;
+  --hq-warning: #d29922;
 }
 
 /* yet-another-react-lightbox — match Alliance HQ chrome */
@@ -69,6 +81,12 @@
   --color-hq-green: var(--hq-green);
   --color-hq-orange: var(--hq-orange);
   --color-hq-pink: var(--hq-pink);
+  --color-hq-selected: var(--hq-selected-bg);
+  --color-hq-selected-fg: var(--hq-selected-fg);
+  --color-hq-pill: var(--hq-pill-bg);
+  --color-hq-pill-fg: var(--hq-pill-fg);
+  --color-hq-pill-border: var(--hq-pill-border);
+  --color-hq-warning: var(--hq-warning);
   --font-mono: var(--font-mono-family), ui-monospace, SFMono-Regular, Menlo,
     Monaco, Consolas, "Liberation Mono", monospace;
   /* Week schedule 7-column grid needs ~1180px; below that use day carousel. */

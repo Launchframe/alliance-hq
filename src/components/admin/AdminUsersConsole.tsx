@@ -362,7 +362,7 @@ export function AdminUsersConsole() {
                   <tr
                     key={user.id}
                     className={`cursor-pointer border-t border-hq-border transition-colors hover:bg-hq-surface ${
-                      selectedUserId === user.id ? "bg-[#1f3d5c]/40" : ""
+                      selectedUserId === user.id ? "bg-hq-selected/40" : ""
                     }`}
                     onClick={() => selectListUser(user)}
                   >

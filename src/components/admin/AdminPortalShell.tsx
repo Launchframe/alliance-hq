@@ -51,7 +51,7 @@ export function AdminPortalShell({ children }: Props) {
     cn(
       "block rounded-lg px-3 py-2 text-sm transition-colors",
       active
-        ? "bg-[#1f3d5c] font-medium text-hq-accent"
+        ? "bg-hq-selected font-medium text-hq-selected-fg"
         : "text-hq-fg-muted hover:bg-hq-surface-muted hover:text-hq-fg",
     );
 
@@ -137,7 +137,7 @@ export function AdminPortalShell({ children }: Props) {
               className={cn(
                 "rounded-lg px-3 py-1.5 text-sm transition-colors",
                 active
-                  ? "bg-[#1f3d5c] font-medium text-hq-accent"
+                  ? "bg-hq-selected font-medium text-hq-selected-fg"
                   : "text-hq-fg-muted hover:bg-hq-surface-muted hover:text-hq-fg",
               )}
             >

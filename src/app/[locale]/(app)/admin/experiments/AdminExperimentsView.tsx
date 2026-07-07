@@ -223,7 +223,7 @@ export function AdminExperimentsView() {
           <button
             key={s}
             onClick={() => setStatusFilter(s)}
-            className={`rounded-full border px-3 py-0.5 text-xs transition-colors ${statusFilter === s ? "border-hq-accent text-hq-accent bg-[#58a6ff15]" : "border-hq-border text-hq-fg-muted hover:border-hq-accent hover:text-hq-accent"}`}
+              className={`rounded-full border px-3 py-0.5 text-xs transition-colors ${statusFilter === s ? "border-hq-accent text-hq-selected-fg bg-hq-selected" : "border-hq-border text-hq-fg-muted hover:border-hq-accent hover:text-hq-accent"}`}
           >
             {s || t("all")}
           </button>

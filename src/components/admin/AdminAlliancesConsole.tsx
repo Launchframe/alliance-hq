@@ -224,7 +224,7 @@ export function AdminAlliancesConsole() {
     return [
       base,
       "cursor-pointer transition-colors hover:bg-hq-surface",
-      selected ? "bg-[#1f3d5c]/25 ring-1 ring-inset ring-[#388bfd]/40" : "",
+      selected ? "bg-hq-selected/25 ring-1 ring-inset ring-hq-accent/40" : "",
     ]
       .filter(Boolean)
       .join(" ");

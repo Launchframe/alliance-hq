@@ -23,7 +23,7 @@ export function AdminDetailField({
 
 export function AdminStatusPill({ children }: { children: React.ReactNode }) {
   return (
-    <span className="inline-flex rounded-full border border-[#484f58] bg-hq-surface-muted px-2 py-0.5 text-xs text-[#c9d1d9]">
+    <span className="inline-flex rounded-full border border-hq-pill-border bg-hq-pill px-2 py-0.5 text-xs text-hq-pill-fg">
       {children}
     </span>
   );

@@ -539,12 +539,12 @@ export function VideoUploadForm({
                 </div>
                 <div className="flex flex-wrap items-center gap-2 sm:shrink-0">
                   <span
-                    className={`rounded-full px-2 py-0.5 text-xs ${
+                    className={`rounded-full px-2 py-0.5 text-xs font-medium ${
                       job.status === "complete"
-                        ? "bg-[#23863633] text-hq-green"
+                        ? "bg-hq-success/15 text-hq-success"
                         : job.status === "failed"
-                          ? "bg-[#f8514933] text-hq-danger"
-                          : "bg-[#1f3d5c] text-hq-accent"
+                          ? "bg-hq-danger/15 text-hq-danger"
+                          : "bg-hq-selected text-hq-selected-fg"
                     }`}
                   >
                     {statusLabel(t, job.status)}

@@ -403,12 +403,12 @@ function StatusBadge({ status, label }: { status: string; label: string }) {
   const stage = videoJobLifecycleStage(status);
   const tone =
     stage === "needs_attention" || stage === "needs_upload"
-      ? "border-hq-danger text-hq-danger"
+      ? "border-hq-danger/40 bg-hq-danger/10 text-hq-danger"
       : stage === "ready_to_review"
-        ? "border-hq-green text-hq-green"
+        ? "border-hq-success/40 bg-hq-success/10 text-hq-success"
         : stage === "processing" || stage === "submitting"
-          ? "border-[#d29922] text-[#d29922]"
-          : "border-hq-fg-muted text-hq-fg-muted";
+          ? "border-hq-warning/40 bg-hq-warning/10 text-hq-warning"
+          : "border-hq-pill-border bg-hq-pill text-hq-pill-fg";
 
   return (
     <span

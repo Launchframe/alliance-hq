@@ -43,7 +43,7 @@ function NavLink({
       className={cn(
         "flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm",
         active
-          ? "bg-[#1f3d5c] font-medium text-hq-accent"
+          ? "bg-hq-selected font-medium text-hq-selected-fg"
           : "text-hq-fg-muted hover:bg-hq-surface-muted hover:text-hq-fg",
       )}
     >

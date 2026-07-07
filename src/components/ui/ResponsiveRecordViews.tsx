@@ -68,7 +68,7 @@ export function RecordDetailCard({
         interactive &&
           "cursor-pointer transition-colors hover:border-[#484f58] hover:bg-hq-surface-muted/40",
         selected &&
-          "border-hq-accent/60 bg-[#1f3d5c]/25 ring-1 ring-inset ring-hq-accent/30",
+          "border-hq-accent/60 bg-hq-selected/25 ring-1 ring-inset ring-hq-accent/30",
         className,
       )}
     >

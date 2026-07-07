@@ -367,7 +367,7 @@ export function AppSelect({
             option.disabled
               ? "cursor-not-allowed text-[#484f58]"
               : "text-hq-fg hover:bg-hq-surface-muted",
-            isSelected && "bg-[#1f3d5c] text-hq-accent",
+            isSelected && "bg-hq-selected text-hq-selected-fg",
             isActive && !isSelected && "bg-hq-surface-muted",
           )}
           onMouseEnter={() => {

@@ -655,7 +655,7 @@ export function ConnectionWalkthrough({
             <span
               className={`flex h-7 w-7 items-center justify-center rounded-full border text-[0.65rem] ${
                 i === stepIndex
-                  ? "border-hq-accent bg-[#1f3d5c]"
+                  ? "border-hq-accent bg-hq-selected text-hq-selected-fg"
                   : i < stepIndex
                     ? "border-hq-success"
                     : "border-hq-border bg-hq-surface-muted"

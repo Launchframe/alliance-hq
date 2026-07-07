@@ -205,7 +205,7 @@ export function LinkedDevicesSettings({ refreshToken = 0 }: Props) {
                       className="min-w-0 flex-1 rounded-md border border-hq-border bg-hq-canvas px-2 py-1 text-sm text-hq-fg"
                     />
                     {device.isCurrentDevice ? (
-                      <span className="rounded bg-[#1f3d5c]/50 px-2 py-0.5 text-xs text-hq-accent">
+                      <span className="rounded bg-hq-selected/50 px-2 py-0.5 text-xs text-hq-selected-fg">
                         {t("thisDevice")}
                       </span>
                     ) : null}

@@ -76,7 +76,7 @@ export default function AdminHqEventsPage() {
             onClick={() => setTab(key)}
             className={`rounded-lg px-3 py-1.5 text-sm ${
               tab === key
-                ? "bg-[#1f3d5c] text-hq-accent"
+                ? "bg-hq-selected text-hq-selected-fg"
                 : "text-hq-fg-muted hover:bg-hq-surface-muted"
             }`}
           >
