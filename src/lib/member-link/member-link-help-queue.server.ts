@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, count, desc, eq, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { writeAuditLog } from "@/lib/bff/audit";
@@ -396,6 +396,22 @@ export async function listMemberLinkHelpRequestsForAlliance(
       allianceName: row.allianceName,
     }),
   );
+}
+
+export async function countOpenMemberLinkHelpRequestsForAlliance(
+  allianceId: string,
+): Promise<number> {
+  const db = getDb();
+  const [result] = await db
+    .select({ total: count() })
+    .from(schema.hqMemberLinkHelpRequests)
+    .where(
+      and(
+        eq(schema.hqMemberLinkHelpRequests.allianceId, allianceId),
+        eq(schema.hqMemberLinkHelpRequests.status, "open"),
+      ),
+    );
+  return result?.total ?? 0;
 }
 
 export async function listMemberLinkHelpRequestsForAdmin(
