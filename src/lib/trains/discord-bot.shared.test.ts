@@ -9,17 +9,17 @@ import {
 } from "@/lib/trains/discord-bot.shared";
 
 describe("discord train message formatting", () => {
-  it("formats ready message with VIP and app link", () => {
+  it("formats ready message with VIP and trains link", () => {
     const text = formatTrainReadyMessage({
       conductorName: "Alice",
       vipName: "Bob",
       date: "2026-06-20",
-      appUrl: "https://hq.example.com",
+      trainsUrl: "https://hq.example.com/pt-BR/trains",
     });
     expect(text).toContain("Alice");
     expect(text).toContain("Bob");
     expect(text).toContain("on the platform");
-    expect(text).toContain("https://hq.example.com/trains");
+    expect(text).toContain("https://hq.example.com/pt-BR/trains");
   });
 
   it("formats status for draft conductor", () => {

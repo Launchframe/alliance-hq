@@ -1,6 +1,8 @@
 import "server-only";
 
 import type { ParsedConnection } from "@/lib/connectionString";
+import type { DiscordBotLocale } from "@/lib/discord/i18n";
+import { buildDiscordBotAppUrl } from "@/lib/discord/app-url.shared";
 import { postDiscordChannelMessage } from "@/lib/discord/post-message.server";
 import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
 import { getAllianceOperatingMode } from "@/lib/native-alliance/operating-mode";
@@ -77,8 +79,11 @@ export async function resolveTrainAllianceRuntimeContext(
   };
 }
 
-function appBaseUrl(): string | null {
-  return process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/$/, "") || null;
+function trainsUrlForLocale(locale: DiscordBotLocale = "en-US"): string | null {
+  if (!process.env.NEXT_PUBLIC_APP_URL?.trim()) {
+    return null;
+  }
+  return buildDiscordBotAppUrl(locale, "/trains");
 }
 
 export async function shouldAnnounceTrainForAlliance(
@@ -97,6 +102,7 @@ export async function announceTrainReadyToAlliance(input: {
   conductorName: string;
   vipName?: string | null;
   guildId?: string | null;
+  locale?: DiscordBotLocale;
 }): Promise<{ posted: number; skipped: number }> {
   if (!(await getAllianceTrainDiscordAnnouncementsEnabled(input.allianceId))) {
     return { posted: 0, skipped: 0 };
@@ -106,7 +112,7 @@ export async function announceTrainReadyToAlliance(input: {
     conductorName: input.conductorName,
     vipName: input.vipName,
     date: input.date,
-    appUrl: appBaseUrl(),
+    trainsUrl: trainsUrlForLocale(input.locale),
   });
 
   const targets = input.guildId
@@ -161,6 +167,7 @@ export async function maybeAnnounceTrainReady(input: {
   guildId?: string | null;
   conductorName?: string | null;
   vipName?: string | null;
+  locale?: DiscordBotLocale;
 }): Promise<{ posted: number; skipped: number }> {
   let conductorName = input.conductorName?.trim();
   let vipName = input.vipName;
@@ -185,6 +192,7 @@ export async function maybeAnnounceTrainReady(input: {
     conductorName,
     vipName,
     guildId: input.guildId,
+    locale: input.locale,
   });
 }
 
@@ -192,6 +200,7 @@ export async function lockTrainAndAnnounce(input: {
   allianceId: string;
   date: string;
   guildId?: string | null;
+  locale?: DiscordBotLocale;
 }): Promise<{
   record: (typeof import("@/lib/db/schema").trainConductorRecords.$inferSelect);
   announce: { posted: number; skipped: number };
@@ -206,6 +215,7 @@ export async function lockTrainAndAnnounce(input: {
     guildId: input.guildId,
     conductorName: locked.conductorMemberName,
     vipName: locked.vipMemberName,
+    locale: input.locale,
   });
   return { record: locked, announce };
 }
@@ -295,7 +305,7 @@ export async function processDepartingSoonReminders(): Promise<{
     const message = formatTrainDepartingSoonMessage({
       conductorName: record.conductorMemberName,
       date: today,
-      appUrl: appBaseUrl(),
+      trainsUrl: trainsUrlForLocale(),
     });
 
     let alliancePosted = 0;

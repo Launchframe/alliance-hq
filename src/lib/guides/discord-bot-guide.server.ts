@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { DiscordBotLocale } from "@/lib/discord/i18n";
+import { discordBotAppOrigin } from "@/lib/discord/app-url.shared";
 
 import {
   buildDiscordBotGuidePath,
@@ -11,11 +12,5 @@ export function buildDiscordBotGuideUrl(
   locale: DiscordBotLocale,
   options?: { role?: DiscordBotGuideRoleSlug; step?: string },
 ): string {
-  const base = (process.env.NEXT_PUBLIC_APP_URL ?? "").replace(/\/$/, "");
-  const origin =
-    base ||
-    (typeof process.env.VERCEL_URL === "string" && process.env.VERCEL_URL
-      ? `https://${process.env.VERCEL_URL}`
-      : "http://localhost:5175");
-  return `${origin}${buildDiscordBotGuidePath(locale, options)}`;
+  return `${discordBotAppOrigin()}${buildDiscordBotGuidePath(locale, options)}`;
 }

@@ -146,6 +146,24 @@ describe("formatHelpReply", () => {
     }
   });
 
+  it("uses locale-prefixed guideUrl for pt-BR", () => {
+    const prev = process.env.NEXT_PUBLIC_APP_URL;
+    process.env.NEXT_PUBLIC_APP_URL = "https://frontline.gay";
+    try {
+      const reply = formatHelpReply(
+        (key, values) => `${key}:${values?.guideUrl ?? ""}`,
+        "help.linkCommander",
+        ctx({ memberLinkCount: 0 }),
+        "pt-BR",
+      );
+      expect(reply).toBe(
+        "help.linkCommander:https://frontline.gay/pt-BR/guides/discord-bot/link-only",
+      );
+    } finally {
+      process.env.NEXT_PUBLIC_APP_URL = prev;
+    }
+  });
+
   it("uses hub guideUrl for dmGeneral without a role mapping", () => {
     const prev = process.env.NEXT_PUBLIC_APP_URL;
     process.env.NEXT_PUBLIC_APP_URL = "https://frontline.gay";

@@ -9,6 +9,7 @@ import {
   buildDiscordInstallWizardUrl,
   buildR5GettingStartedGuideUrl,
 } from "@/lib/guides/setup-guide.server";
+import { buildDiscordBotAppUrl, discordBotAppOrigin } from "@/lib/discord/app-url.shared";
 import { helpMessageKeyToGuideRole } from "@/lib/guides/discord-bot-guide.shared";
 import { ensureDiscordMemberLinksFromHq } from "@/lib/member-link/inherit-hq-to-discord.server";
 import { allianceHasBotCredentials } from "@/lib/vr/member-roster";
@@ -126,7 +127,7 @@ export function pickHelpMessageKey(ctx: DiscordBotUserContext): string {
 }
 
 export function discordAppBaseUrl(): string {
-  return (process.env.NEXT_PUBLIC_APP_URL ?? "").replace(/\/$/, "");
+  return discordBotAppOrigin();
 }
 
 export function formatHelpReply(
@@ -149,7 +150,7 @@ export function formatHelpReply(
   return t(key, {
     tag: ctx.allianceTag ?? "YourTag",
     count: ctx.memberLinkCount,
-    appUrl: discordAppBaseUrl(),
+    appUrl: buildDiscordBotAppUrl(locale, "/"),
     guideUrl,
     installWizardUrl,
     botGuideUrl,
