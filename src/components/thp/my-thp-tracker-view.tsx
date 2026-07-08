@@ -107,7 +107,7 @@ export function MyThpTrackerView({ initial }: Props) {
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch("/api/thp/me", {
+      const res = await fetch("/api/thp/me/submit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -127,7 +127,7 @@ export function MyThpTrackerView({ initial }: Props) {
     try {
       const form = new FormData();
       form.set("screenshot", file);
-      const res = await fetch("/api/thp/me", {
+      const res = await fetch("/api/thp/me/submit", {
         method: "POST",
         body: form,
       });
