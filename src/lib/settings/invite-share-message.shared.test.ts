@@ -18,13 +18,13 @@ describe("invite share messages", () => {
     expect(message).toContain("secret");
   });
 
-  it("builds join code message", () => {
+  it("builds join code message with welcome URL", () => {
     const message = buildJoinCodeShareMessage({
       allianceName: "LFgo",
-      joinCode: "LFGO-A1B2C3",
+      welcomeUrl: "https://hq.example/welcome?tag=LFgo&code=LFGO-A1B2C3",
     });
-    expect(message).toContain("LFGO-A1B2C3");
-    expect(message).toContain("/join");
+    expect(message).toContain("https://hq.example/welcome");
+    expect(message).not.toContain("/join");
   });
 
   it("builds claim code message", () => {

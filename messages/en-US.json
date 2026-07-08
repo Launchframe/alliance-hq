@@ -1217,6 +1217,7 @@
         "generating": "Generating…",
         "generateFailed": "Could not generate the invite.",
         "shareMessageLabel": "Message to copy",
+        "welcomeUrlLabel": "Welcome link",
         "copyShareMessage": "Copy message",
         "copied": "Copied",
         "back": "Back",

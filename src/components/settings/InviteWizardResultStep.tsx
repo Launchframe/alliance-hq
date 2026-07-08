@@ -60,6 +60,10 @@ export function InviteWizardResultStep({
             message={result.shareMessage}
           />
           <CopyToClipboardField
+            label={tWizard("welcomeUrlLabel")}
+            value={result.welcomeUrl}
+          />
+          <CopyToClipboardField
             label={t("inviteLinkLabel")}
             value={result.inviteUrl}
           />
@@ -83,6 +87,10 @@ export function InviteWizardResultStep({
             message={result.shareMessage}
           />
           <CopyToClipboardField
+            label={tWizard("welcomeUrlLabel")}
+            value={result.welcomeUrl}
+          />
+          <CopyToClipboardField
             label={t("joinCodeValueLabel")}
             value={result.code}
           />
@@ -98,6 +106,10 @@ export function InviteWizardResultStep({
           <CopyShareMessageField
             label={tWizard("shareMessageLabel")}
             message={result.shareMessage}
+          />
+          <CopyToClipboardField
+            label={tWizard("welcomeUrlLabel")}
+            value={result.welcomeUrl}
           />
           <CopyToClipboardField
             label={t("claimCodeLabel")}
@@ -125,6 +137,11 @@ export function InviteWizardResultStep({
                 className="mt-2"
                 label={tWizard("shareMessageLabel")}
                 message={item.shareMessage}
+              />
+              <CopyToClipboardField
+                className="mt-2"
+                label={tWizard("welcomeUrlLabel")}
+                value={item.welcomeUrl}
               />
               <CopyToClipboardField
                 className="mt-2"

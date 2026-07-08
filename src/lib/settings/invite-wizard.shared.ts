@@ -26,6 +26,7 @@ export type InviteWizardTargets = {
 export type InviteWizardResultInvite = {
   kind: "invite_link";
   inviteUrl: string;
+  welcomeUrl: string;
   passphrase?: string;
   shareMessage: string;
 };
@@ -33,12 +34,14 @@ export type InviteWizardResultInvite = {
 export type InviteWizardResultJoinCode = {
   kind: "join_code";
   code: string;
+  welcomeUrl: string;
   shareMessage: string;
 };
 
 export type InviteWizardResultClaimSingle = {
   kind: "claim_single";
   code: string;
+  welcomeUrl: string;
   commanderName: string;
   shareMessage: string;
 };
@@ -49,6 +52,7 @@ export type InviteWizardResultClaimBulk = {
     ashedMemberId: string;
     name: string;
     code: string;
+    welcomeUrl: string;
     shareMessage: string;
   }>;
   skippedCount: number;
