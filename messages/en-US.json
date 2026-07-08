@@ -2249,7 +2249,7 @@
 
     "errorOAuthAccountNotLinkedBody": "Google or Discord could not be connected to your Alliance HQ account. Sign in with your HQ email first, then link Google or Discord under Settings → Sign-in & security. Cold sign-in with Discord or Google only works when that provider account is already linked or when the provider email matches your HQ email.",
     "errorOAuthAccountNotLinkedHint": "Sign in with the email you use for Alliance HQ, then open Settings → Sign-in & security to link Discord or Google.",
-
+    "errorOAuthAccountNotLinkedWrongAccountHint": "You can also update your account email or unlink the wrong Google or Discord account under Settings → Sign-in & security.",
     "errorOAuthAccountNotLinkedAccountLink": "Open sign-in & security settings",
     "errorOAuthAccountAlreadyLinkedTitle": "This Discord or Google account belongs to another HQ user",
     "errorOAuthAccountAlreadyLinkedBody": "That Discord or Google account is already linked to a different Alliance HQ account. Sign in to that account to manage it, or ask an officer if you need help consolidating accounts.",

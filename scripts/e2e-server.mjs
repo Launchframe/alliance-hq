@@ -83,6 +83,11 @@ function buildEnv(dbUrl) {
     HOME: process.env.HOME ?? "",
     NODE_ENV: "production",
     CI: process.env.CI ?? "",
+    // Next production server OOMs under the default ~4GB heap in CI/local
+    // Playwright runs that hit many auth/session routes in sequence.
+    NODE_OPTIONS: [process.env.NODE_OPTIONS, "--max-old-space-size=8192"]
+      .filter(Boolean)
+      .join(" "),
     E2E_DATABASE_URL: dbUrl,
     LOCAL_DATABASE_URL: dbUrl,
     DATABASE_URL: dbUrl,
