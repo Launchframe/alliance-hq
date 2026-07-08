@@ -3,11 +3,13 @@
  * Imported by next.config.ts and scripts/vercel/analyze-function-trace.mjs — keep in sync.
  */
 
-/** Vercel serverless runs linux-x64 — avoid tracing every @img platform binary. */
+/** Vercel serverless runs linux-x64 — include sharp and libvips native binaries. */
 export const sharpFileTracing = [
   "./node_modules/sharp/**/*",
   "./node_modules/@img/sharp-linux-x64/**/*",
   "./node_modules/@img/sharp-libvips-linux-x64/**/*",
+  "./node_modules/@img/sharp-libvips-linux-x64/lib/libvips-cpp.so*",
+  "./node_modules/@img/colour/**/*",
 ];
 
 /**
@@ -41,6 +43,7 @@ export const videoOcrTracedRoutes = {
   "/api/internal/video-process/queue": videoOcrFileTracing,
   "/api/internal/video-process/[jobId]": videoOcrFileTracing,
   "/api/members/roster-import/parse": videoOcrFileTracing,
+  "/api/tools/video-upload/[jobId]/reprocess": videoOcrFileTracing,
 };
 
 /**
@@ -63,5 +66,11 @@ export const functionTraceBudgets = [
     route: "/api/members/roster-import/parse",
     nftPath: ".next/server/app/api/members/roster-import/parse/route.js.nft.json",
     maxUncompressedBytes: 200 * 1024 * 1024,
+  },
+  {
+    route: "/api/tools/video-upload/[jobId]/reprocess",
+    nftPath:
+      ".next/server/app/api/tools/video-upload/[jobId]/reprocess/route.js.nft.json",
+    maxUncompressedBytes: 230 * 1024 * 1024,
   },
 ];
