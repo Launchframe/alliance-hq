@@ -1,16 +1,16 @@
 import { NextResponse } from "next/server";
 
 import { loadMembersAttentionSummary } from "@/lib/members/members-attention-summary.server";
-import { readSessionId } from "@/lib/session";
+import { requireSessionPermission } from "@/lib/rbac/require-permission";
+import { getOrCreateSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const sessionId = await readSessionId();
-  if (!sessionId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const session = await getOrCreateSession();
+  const denied = await requireSessionPermission(session.id, "members:write");
+  if (denied) return denied;
 
-  const summary = await loadMembersAttentionSummary(sessionId);
+  const summary = await loadMembersAttentionSummary(session.id);
   return NextResponse.json({ ok: true, summary });
 }

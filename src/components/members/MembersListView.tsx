@@ -624,64 +624,60 @@ export function MembersListView({
             <Link
               href={buildVideoUploadHref(MEMBER_ROSTER_VIDEO_SCORE_TARGET)}
               className="relative inline-flex w-full items-center justify-center rounded-lg border border-[#388bfd] bg-[#388bfd]/10 px-4 py-2 text-center text-sm text-hq-accent hover:bg-[#388bfd]/20 sm:w-auto"
-              aria-label={
-                attention.rosterVideoUpload > 0
-                  ? t("uploadRosterVideoAttention", {
-                      count: attention.rosterVideoUpload,
-                    })
-                  : undefined
-              }
             >
               {t("uploadRosterVideo")}
               <NeedsAttentionBadge count={attention.rosterVideoUpload} />
+              {attention.rosterVideoUpload > 0 ? (
+                <span className="sr-only">{t("uploadRosterVideoAttention")}</span>
+              ) : null}
             </Link>
           )}
           {canEditRanks && (
             <Link
               href="/members/roster-link-requests"
               className="relative inline-flex w-full items-center justify-center rounded-lg border border-hq-border px-4 py-2 text-center text-sm text-hq-fg hover:bg-hq-surface-muted sm:w-auto"
-              aria-label={
-                attention.rosterLinkRequests > 0
-                  ? t("rosterLinkRequestsAttention", {
-                      count: attention.rosterLinkRequests,
-                    })
-                  : undefined
-              }
             >
               {t("rosterLinkRequests")}
               <NeedsAttentionBadge count={attention.rosterLinkRequests} />
+              {attention.rosterLinkRequests > 0 ? (
+                <span className="sr-only">
+                  {t("rosterLinkRequestsAttention", {
+                    count: attention.rosterLinkRequests,
+                  })}
+                </span>
+              ) : null}
             </Link>
           )}
           {canEditRanks && (
             <Link
               href="/members/onboarding-reviews"
               className="relative inline-flex w-full items-center justify-center rounded-lg border border-[#30363d] px-4 py-2 text-center text-sm text-[#e6edf3] hover:bg-[#21262d] sm:w-auto"
-              aria-label={
-                attention.onboardingReviews > 0
-                  ? t("onboardingReviewsAttention", {
-                      count: attention.onboardingReviews,
-                    })
-                  : undefined
-              }
             >
               {t("onboardingReviews")}
               <NeedsAttentionBadge count={attention.onboardingReviews} />
+              {attention.onboardingReviews > 0 ? (
+                <span className="sr-only">
+                  {t("onboardingReviewsAttention", {
+                    count: attention.onboardingReviews,
+                  })}
+                </span>
+              ) : null}
             </Link>
           )}
           {canEditRanks && (
             <Link
               href="/members/member-link-help"
               className="relative inline-flex w-full items-center justify-center rounded-lg border border-hq-border px-4 py-2 text-center text-sm text-hq-fg hover:bg-hq-surface-muted sm:w-auto"
-              aria-label={
-                attention.memberLinkHelp > 0
-                  ? t("memberLinkHelpRequestsAttention", {
-                      count: attention.memberLinkHelp,
-                    })
-                  : undefined
-              }
             >
               {t("memberLinkHelpRequests")}
               <NeedsAttentionBadge count={attention.memberLinkHelp} />
+              {attention.memberLinkHelp > 0 ? (
+                <span className="sr-only">
+                  {t("memberLinkHelpRequestsAttention", {
+                    count: attention.memberLinkHelp,
+                  })}
+                </span>
+              ) : null}
             </Link>
           )}
           {canEditRanks && (
@@ -689,15 +685,19 @@ export function MembersListView({
               type="button"
               onClick={() => (editMode ? exitEditMode() : setEditMode(true))}
               className="relative inline-flex w-full items-center justify-center rounded-lg border border-[#388bfd] bg-[#388bfd]/10 px-4 py-2 text-sm text-hq-accent hover:bg-[#388bfd]/20 sm:w-auto"
-              aria-label={
-                attention.unrankedMembers > 0
-                  ? t("editRanksAttention", { count: attention.unrankedMembers })
-                  : undefined
-              }
             >
               {editMode ? t("doneEditing") : t("editRanks")}
               {!editMode ? (
-                <NeedsAttentionBadge count={attention.unrankedMembers} />
+                <>
+                  <NeedsAttentionBadge count={attention.unrankedMembers} />
+                  {attention.unrankedMembers > 0 ? (
+                    <span className="sr-only">
+                      {t("editRanksAttention", {
+                        count: attention.unrankedMembers,
+                      })}
+                    </span>
+                  ) : null}
+                </>
               ) : null}
             </button>
           )}
