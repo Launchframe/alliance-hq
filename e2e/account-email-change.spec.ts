@@ -33,6 +33,12 @@ test.describe("Account email change", () => {
       }),
     );
 
+    await sql`
+      UPDATE sessions
+      SET user_label = ${originalEmail.toLowerCase()}
+      WHERE id = ${session.sessionId}
+    `;
+
     const requestRes = await page.request.post("/api/user/email-change/request", {
       data: { newEmail: targetEmail },
     });
@@ -50,6 +56,11 @@ test.describe("Account email change", () => {
     `;
     expect(row?.id).toBe(session.hqUserId);
     expect(row?.email).toBe(targetEmail.toLowerCase());
+
+    const [browserSession] = await sql<{ user_label: string | null }[]>`
+      SELECT user_label FROM sessions WHERE id = ${session.sessionId}
+    `;
+    expect(browserSession?.user_label).toBe(targetEmail.toLowerCase());
   });
 
   test("invite accept succeeds after email matches invite address", async ({

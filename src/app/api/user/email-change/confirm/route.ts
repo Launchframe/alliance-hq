@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { auth } from "@/lib/auth";
+import { bridgeAuthUserToBrowserSession } from "@/lib/auth/bridge-session";
 import {
   ChangeHqEmailError,
   confirmHqEmailChange,
@@ -54,6 +55,15 @@ export async function POST(request: Request) {
       codeRaw: code,
       sessionId,
     });
+
+    await bridgeAuthUserToBrowserSession({
+      hqUserId,
+      email: result.email,
+      displayName: session.user.name,
+      // confirmHqEmailChange already set emailVerifiedAt on hq_users.
+      markEmailVerified: false,
+    });
+
     return NextResponse.json({ ok: true, email: result.email });
   } catch (error) {
     if (error instanceof ChangeHqEmailError) {
