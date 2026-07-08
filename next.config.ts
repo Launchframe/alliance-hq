@@ -3,7 +3,7 @@ import createNextIntlPlugin from "next-intl/plugin";
 
 import packageJson from "./package.json" with { type: "json" };
 import {
-  sharpNativeFileTracing,
+  globalOutputFileTracingIncludes,
   videoOcrFileTracingExcludes,
   videoOcrTracedRoutes,
 } from "./scripts/vercel/video-ocr-file-tracing.mjs";
@@ -19,8 +19,7 @@ const nextConfig: NextConfig = {
     proxyClientMaxBodySize: "200mb",
   },
   outputFileTracingIncludes: {
-    // Turbopack externalizes sharp for the whole app; every lambda needs libvips.
-    "*": sharpNativeFileTracing,
+    ...globalOutputFileTracingIncludes,
     "/guides/discord-train": ["./docs/guides/**/*"],
     ...videoOcrTracedRoutes,
   },

@@ -57,6 +57,16 @@ export const videoOcrTracedRoutes = {
 };
 
 /**
+ * Mirrored in next.config.ts outputFileTracingIncludes["*"].
+ * Turbopack externalizes sharp app-wide — any route that dynamic-imports OCR/sharp
+ * needs libvips at runtime. Prefer dynamic import at feature boundaries (see THP OCR)
+ * so unrelated routes stay lean; global tracing is the deploy safety net.
+ */
+export const globalOutputFileTracingIncludes = {
+  "*": sharpNativeFileTracing,
+};
+
+/**
  * Uncompressed size budgets (bytes). CI runs on linux-x64 to approximate Vercel.
  * Primary gate: video-process queue cron worker (largest import graph).
  */
@@ -76,5 +86,12 @@ export const functionTraceBudgets = [
     route: "/api/members/roster-import/parse",
     nftPath: ".next/server/app/api/members/roster-import/parse/route.js.nft.json",
     maxUncompressedBytes: 200 * 1024 * 1024,
+  },
+  {
+    route: "/api/webhooks/discord/interactions",
+    nftPath:
+      ".next/server/app/api/webhooks/discord/interactions/route.js.nft.json",
+    maxUncompressedBytes: 250 * 1024 * 1024,
+    requireLibvips: true,
   },
 ];

@@ -8,10 +8,7 @@ import {
 } from "@/lib/thp/breakdown.shared";
 import { peerMaxThpExcludingCommander } from "@/lib/thp/anomaly";
 import { processThpCommand, processThpConfirmation, processThpOcrResult } from "@/lib/thp/command";
-import {
-  parsePowerDetailsImage,
-  toThpBreakdown,
-} from "@/lib/thp/hero-power-ocr/parse-power-details-image";
+import { toThpBreakdown } from "@/lib/thp/hero-power-ocr/parse-power-details";
 import type { MyThpPayload, MyThpPostResponse, ThpBreakdown } from "@/lib/thp/my-thp.shared";
 import { computeThpPercentileChange } from "@/lib/thp/percentile-change";
 import { computeThpPercentile } from "@/lib/thp/percentile";
@@ -140,6 +137,9 @@ export async function handleWebThpCommand(input: {
   let explicitBreakdown = input.breakdown ?? null;
 
   if (input.screenshotBuffer) {
+    const { parsePowerDetailsImage } = await import(
+      "@/lib/thp/hero-power-ocr/parse-power-details-image"
+    );
     const ocr = await parsePowerDetailsImage(input.screenshotBuffer);
     explicitBreakdown = toThpBreakdown(ocr.breakdown);
     explicitTotal = ocr.heroPowerTotal;

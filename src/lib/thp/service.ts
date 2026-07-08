@@ -9,10 +9,7 @@ import {
   processThpConfirmation,
   processThpOcrResult,
 } from "@/lib/thp/command";
-import {
-  parsePowerDetailsImage,
-  toThpBreakdown,
-} from "@/lib/thp/hero-power-ocr/parse-power-details-image";
+import { toThpBreakdown } from "@/lib/thp/hero-power-ocr/parse-power-details";
 import {
   countAllianceThpReporters,
   getCommanderIdForMember,
@@ -109,6 +106,9 @@ async function runThpForLink(input: {
   let explicitTotal = input.explicitTotal ?? null;
   let explicitBreakdown = null;
   if (input.screenshotBuffer) {
+    const { parsePowerDetailsImage } = await import(
+      "@/lib/thp/hero-power-ocr/parse-power-details-image"
+    );
     const ocr = await parsePowerDetailsImage(input.screenshotBuffer);
     explicitBreakdown = toThpBreakdown(ocr.breakdown);
     explicitTotal = ocr.heroPowerTotal;
