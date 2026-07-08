@@ -42,19 +42,33 @@ test.describe("Invite auth gate", () => {
 
     await page.goto(`/invite/${encodeURIComponent(token)}`);
 
-    await expect(
-      page.getByRole("link", { name: /sign in to accept/i }),
-    ).toBeVisible();
     await expect(page.getByLabel(/email/i)).toHaveCount(0);
     await expect(
       page.getByRole("button", { name: /accept invite/i }),
     ).toHaveCount(0);
 
-    const signInHref = await page
-      .getByRole("link", { name: /sign in to accept/i })
-      .getAttribute("href");
-    expect(signInHref).toContain("/auth");
-    expect(signInHref).toContain(encodeURIComponent(token));
+    const discordPrimaryButton = page.getByRole("button", {
+      name: /continue with discord/i,
+    });
+    const otherSignInLink = page.getByRole("link", {
+      name: /other sign-in options/i,
+    });
+    const legacySignInLink = page.getByRole("link", {
+      name: /sign in to accept/i,
+    });
+
+    if (await discordPrimaryButton.isVisible()) {
+      await expect(otherSignInLink).toBeVisible();
+      const signInHref = await otherSignInLink.getAttribute("href");
+      expect(signInHref).toContain("/auth");
+      expect(signInHref).toContain("from=invite");
+      expect(signInHref).toContain(encodeURIComponent(token));
+    } else {
+      await expect(legacySignInLink).toBeVisible();
+      const signInHref = await legacySignInLink.getAttribute("href");
+      expect(signInHref).toContain("/auth");
+      expect(signInHref).toContain(encodeURIComponent(token));
+    }
   });
 
   test("invite accept API returns auth_required without NextAuth session", async () => {
