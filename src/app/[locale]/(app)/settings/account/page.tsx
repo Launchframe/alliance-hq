@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { getTranslations } from "next-intl/server";
 
 import { AccountChangeEmailCard } from "@/components/auth/AccountChangeEmailCard";
+import { AccountConsolidateCard } from "@/components/auth/AccountConsolidateCard";
 import { AccountPasskeysCard } from "@/components/auth/AccountPasskeysCard";
 import { AccountPasswordCard } from "@/components/auth/AccountPasswordCard";
 import { AccountSignInMethodsClient } from "@/components/auth/AccountSignInMethodsClient";
@@ -75,6 +76,7 @@ export default async function AccountSecurityPage({
       <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
         <div className="min-w-0 space-y-6">
           <AccountChangeEmailCard initialEmail={signInSnapshot.email} />
+          <AccountConsolidateCard />
           <AccountPasswordCard hasPassword={hasPassword} />
           <AccountPasskeysCard passkeyCount={passkeys.length} />
         </div>

@@ -4,6 +4,9 @@ import { getDatabaseUrl } from "./url";
 
 /** True on Vercel and other production Node runtimes — one pool slot per instance. */
 export function isServerlessPostgresRuntime(): boolean {
+  if (process.env.E2E_TEST === "true") {
+    return false;
+  }
   return process.env.VERCEL === "1" || process.env.NODE_ENV === "production";
 }
 

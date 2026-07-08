@@ -158,6 +158,11 @@ export function InviteAcceptClient({
           setShowAccountHint(true);
           return;
         }
+        if (body.code === "invite_belongs_to_other_account") {
+          setError(t("belongsToOtherAccount"));
+          setShowAccountHint(true);
+          return;
+        }
         if (body.code === "auth_required") {
           router.push(authHref);
           return;
@@ -352,10 +357,16 @@ export function InviteAcceptClient({
         {error ? <p className="text-sm text-hq-danger">{error}</p> : null}
         {showAccountHint ? (
           <p className="text-sm text-hq-fg-muted">
-            {t("wrongAccountHint")}{" "}
-            <Link href="/settings/account" className="text-hq-accent hover:underline">
-              {t("wrongAccountHintLink")}
-            </Link>
+            {error === t("belongsToOtherAccount")
+              ? t("belongsToOtherAccountHint")
+              : (
+                <>
+                  {t("wrongAccountHint")}{" "}
+                  <Link href="/settings/account" className="text-hq-accent hover:underline">
+                    {t("wrongAccountHintLink")}
+                  </Link>
+                </>
+              )}
           </p>
         ) : null}
 

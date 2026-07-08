@@ -88,6 +88,12 @@ export async function POST(
     if (message === "Email does not match this invite.") {
       return NextResponse.json({ code: "email_mismatch" }, { status: 400 });
     }
+    if (message === "This invite belongs to another account.") {
+      return NextResponse.json(
+        { code: "invite_belongs_to_other_account", error: message },
+        { status: 400 },
+      );
+    }
     return NextResponse.json({ error: message }, { status: 400 });
   }
 }
