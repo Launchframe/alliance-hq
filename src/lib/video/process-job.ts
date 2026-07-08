@@ -33,7 +33,6 @@ import { ocrAllFrames, defaultAshFrameConcurrency } from "@/lib/video/ocr-pipeli
 import { collapseEntriesBySanitizedName } from "@/lib/video/normalize-rows";
 import { dedupeMatchedParseEntries } from "@/lib/video/parse-row-dedup";
 import { PipelineTimer } from "@/lib/video/pipeline-timer";
-import { processRosterVideoParse } from "@/lib/video/process-roster-job";
 import {
   getScoreTargetOrThrow,
   isMemberRosterVideoTarget,
@@ -63,55 +62,7 @@ import path from "node:path";
 import { nanoid } from "nanoid";
 
 export type { VideoProcessTimings } from "@/lib/analytics/video-pipeline";
-
-export async function resetVideoJobForReprocess(jobId: string): Promise<void> {
-  const db = getDb();
-  const [job] = await db
-    .select()
-    .from(schema.videoJobs)
-    .where(eq(schema.videoJobs.id, jobId))
-    .limit(1);
-
-  if (!job) {
-    throw new Error(`Job not found: ${jobId}`);
-  }
-
-  if (job.parseSessionId) {
-    await db
-      .delete(schema.parsedRows)
-      .where(eq(schema.parsedRows.parseSessionId, job.parseSessionId));
-    await db
-      .delete(schema.parseSessions)
-      .where(eq(schema.parseSessions.id, job.parseSessionId));
-  }
-
-  await db.delete(schema.videoFrames).where(eq(schema.videoFrames.jobId, jobId));
-
-  await db
-    .update(schema.videoJobs)
-    .set({
-      status: "queued",
-      parseSessionId: null,
-      frameCount: null,
-      uploadedFrameCount: 0,
-      errorMessage: null,
-      timingsJson: null,
-      totalFileSizeBytes: null,
-      updatedAt: new Date(),
-    })
-    .where(eq(schema.videoJobs.id, jobId));
-
-  await emitVideoJobStatus({
-    ...videoJobStatusOwnerFields(job),
-    jobId,
-    status: "queued",
-    fileName: job.fileName,
-    scoreTarget: job.scoreTarget ?? job.category,
-    frameCount: null,
-    uploadedFrameCount: 0,
-    errorMessage: null,
-  });
-}
+export { resetVideoJobForReprocess } from "@/lib/video/reset-video-job-for-reprocess";
 
 export async function processVideoJob(
   jobId: string,
@@ -337,6 +288,7 @@ export async function processVideoJob(
       const rosterConfig = isValidRosterOcrConfig(job.extractionConfigJson)
         ? job.extractionConfigJson
         : undefined;
+      const { processRosterVideoParse } = await import("@/lib/video/process-roster-job");
       const rosterResult = await processRosterVideoParse({
         jobId,
         sessionId: processingSessionId,

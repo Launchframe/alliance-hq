@@ -5,8 +5,6 @@
  * small text (member names, power values) is easier for Tesseract to read.
  */
 
-import sharp from "sharp";
-
 import type { RosterOcrConfig } from "@/lib/members/roster-ocr/types";
 import { DEFAULT_ROSTER_OCR_CONFIG } from "@/lib/members/roster-ocr/types";
 
@@ -30,6 +28,7 @@ export async function preprocessRosterImage(
   input: Buffer,
   config: Partial<RosterOcrConfig> = {},
 ): Promise<PreprocessResult> {
+  const sharp = (await import("sharp")).default;
   const scale = config.preprocessScale ?? DEFAULT_ROSTER_OCR_CONFIG.preprocessScale ?? 2.0;
 
   const image = sharp(input);

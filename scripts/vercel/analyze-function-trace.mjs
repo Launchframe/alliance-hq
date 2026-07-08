@@ -22,6 +22,7 @@ import {
 } from "./trace-size.shared.mjs";
 import {
   functionTraceBudgets,
+  sharpNativeFileTracing,
   videoOcrFileTracingExcludes,
   videoOcrTracedRoutes,
 } from "./video-ocr-file-tracing.mjs";
@@ -69,13 +70,26 @@ function main() {
       continue;
     }
 
-    const includes = videoOcrTracedRoutes[budget.route] ?? [];
+    const routeIncludes = videoOcrTracedRoutes[budget.route] ?? [];
+    const includes = [...sharpNativeFileTracing, ...routeIncludes];
     const files = buildEffectiveTraceSet({
       repoRoot,
       nftJsonPath: nftAbs,
       includes,
       excludes: videoOcrFileTracingExcludes,
     });
+
+    if (budget.requireLibvips) {
+      const hasLibvips = [...files].some((file) =>
+        file.includes("libvips-cpp.so"),
+      );
+      if (!hasLibvips) {
+        failed = true;
+        console.error(
+          `\n${budget.route} trace is missing libvips-cpp shared objects (global sharp tracing).`,
+        );
+      }
+    }
 
     const summary = summarizeTraceFiles(repoRoot, files);
     printRouteReport({

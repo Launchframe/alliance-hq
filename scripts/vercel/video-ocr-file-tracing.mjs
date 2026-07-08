@@ -3,12 +3,23 @@
  * Imported by next.config.ts and scripts/vercel/analyze-function-trace.mjs — keep in sync.
  */
 
-/** Vercel serverless runs linux-x64 — avoid tracing every @img platform binary. */
-export const sharpFileTracing = [
+/** App-root sharp + libvips (linux-x64). Used globally because Turbopack externalizes sharp app-wide. */
+export const sharpNativeFileTracing = [
   "./node_modules/sharp/**/*",
   "./node_modules/@img/sharp-linux-x64/**/*",
   "./node_modules/@img/sharp-libvips-linux-x64/**/*",
+  "./node_modules/@img/sharp-libvips-linux-x64/lib/libvips-cpp.so*",
+  "./node_modules/@img/colour/**/*",
+  // Next.js ships its own sharp for image optimization; trace both layouts.
+  "./node_modules/next/node_modules/sharp/**/*",
+  "./node_modules/next/node_modules/@img/sharp-linux-x64/**/*",
+  "./node_modules/next/node_modules/@img/sharp-libvips-linux-x64/**/*",
+  "./node_modules/next/node_modules/@img/sharp-libvips-linux-x64/lib/libvips-cpp.so*",
+  "./node_modules/next/node_modules/@img/colour/**/*",
 ];
+
+/** @deprecated alias — prefer sharpNativeFileTracing */
+export const sharpFileTracing = sharpNativeFileTracing;
 
 /**
  * In-house roster OCR (tesseract.js v7). Spawns a Node worker thread that
@@ -21,7 +32,7 @@ export const tesseractFileTracing = [
   "./node_modules/wasm-feature-detect/**/*",
 ];
 
-export const videoOcrFileTracing = [...sharpFileTracing, ...tesseractFileTracing];
+export const videoOcrFileTracing = [...sharpNativeFileTracing, ...tesseractFileTracing];
 
 /** Non-LSTM cores are never selected for roster OCR (OEM.LSTM_ONLY). */
 export const videoOcrFileTracingExcludes = [
@@ -41,6 +52,18 @@ export const videoOcrTracedRoutes = {
   "/api/internal/video-process/queue": videoOcrFileTracing,
   "/api/internal/video-process/[jobId]": videoOcrFileTracing,
   "/api/members/roster-import/parse": videoOcrFileTracing,
+  "/api/tools/video-upload/[jobId]/reprocess": videoOcrFileTracing,
+  "/api/admin/video-jobs/[jobId]/reprocess": videoOcrFileTracing,
+};
+
+/**
+ * Mirrored in next.config.ts outputFileTracingIncludes["*"].
+ * Turbopack externalizes sharp app-wide — any route that dynamic-imports OCR/sharp
+ * needs libvips at runtime. Prefer dynamic import at feature boundaries (see THP OCR)
+ * so unrelated routes stay lean; global tracing is the deploy safety net.
+ */
+export const globalOutputFileTracingIncludes = {
+  "*": sharpNativeFileTracing,
 };
 
 /**
@@ -63,5 +86,12 @@ export const functionTraceBudgets = [
     route: "/api/members/roster-import/parse",
     nftPath: ".next/server/app/api/members/roster-import/parse/route.js.nft.json",
     maxUncompressedBytes: 200 * 1024 * 1024,
+  },
+  {
+    route: "/api/webhooks/discord/interactions",
+    nftPath:
+      ".next/server/app/api/webhooks/discord/interactions/route.js.nft.json",
+    maxUncompressedBytes: 250 * 1024 * 1024,
+    requireLibvips: true,
   },
 ];

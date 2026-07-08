@@ -4,10 +4,8 @@ import { eq } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { getAshedConnection, getOrCreateSession } from "@/lib/session";
 import { sessionCanProcessVideo } from "@/lib/video/processor-slots.server";
-import {
-  processVideoJob,
-  resetVideoJobForReprocess,
-} from "@/lib/video/process-job";
+import { processVideoJob } from "@/lib/video/process-job";
+import { resetVideoJobForReprocess } from "@/lib/video/reset-video-job-for-reprocess";
 
 type Props = {
   params: Promise<{ jobId: string }>;
