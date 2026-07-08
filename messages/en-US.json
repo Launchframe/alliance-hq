@@ -34,6 +34,7 @@
     "next": "Next",
     "connect": "Connect",
     "connecting": "Connecting…",
+    "redirecting": "Redirecting…",
     "loading": "Loading…",
     "preview": "Preview",
     "note": "Note",
@@ -1418,6 +1419,7 @@
     "showAll": "Show all steps",
     "showLess": "Show fewer",
     "dismiss": "Hide",
+    "navigating": "Opening…",
     "rosterVideoHint": "For Ashed alliances, upload a roster scroll video to align live in-game names with your roster before members link.",
     "rosterVideoCta": "Upload roster video",
     "tasks": {
@@ -3804,6 +3806,7 @@
         "title": "Link your Discord account",
         "body": "Alliance HQ needs your Discord account linked before adding the bot or connecting Ashed.",
         "button": "Continue with Discord",
+        "linking": "Opening Discord…",
         "done": "Discord account linked."
       },
       "tag": {

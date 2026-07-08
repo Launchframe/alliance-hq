@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -410,9 +410,18 @@ export function TrainMonthCalendar({
         </div>
       ) : null}
 
-      <div
-        className={`transition-opacity ${loading ? "opacity-50" : ""}`}
-      >
+      <div className="relative">
+        {loading ? (
+          <div
+            className="absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-hq-canvas/70"
+            aria-busy="true"
+            role="status"
+          >
+            <Loader2 className="h-5 w-5 animate-spin text-hq-accent" aria-hidden />
+          </div>
+        ) : null}
+
+        <div className={loading ? "pointer-events-none" : undefined}>
         <div className="mb-1 grid grid-cols-7 gap-1">
           {navLabels.weekdayHeaders.map((label) => (
             <div
@@ -538,6 +547,7 @@ export function TrainMonthCalendar({
               </button>
             );
           })}
+        </div>
         </div>
       </div>
 

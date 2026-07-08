@@ -78,6 +78,7 @@ export function DiscordSetupWizard({
   const [setupFormError, setSetupFormError] = useState<string | null>(null);
   const [setupSuccess, setSetupSuccess] = useState<string | null>(null);
   const [botLoading, setBotLoading] = useState(false);
+  const [discordLinking, setDiscordLinking] = useState(false);
   const [botError, setBotError] = useState<string | null>(null);
   const [setupBusy, setSetupBusy] = useState(false);
   const [statusChecking, setStatusChecking] = useState(false);
@@ -238,6 +239,7 @@ export function DiscordSetupWizard({
       };
       if (!res.ok || !data.ok || !data.installUrl) {
         setBotError(resolveBotInstallError(data));
+        setBotLoading(false);
         return;
       }
       if (data.installSessionNonce) {
@@ -246,7 +248,6 @@ export function DiscordSetupWizard({
       window.location.href = data.installUrl;
     } catch {
       setBotError(t("botInstallError"));
-    } finally {
       setBotLoading(false);
     }
   }
@@ -275,12 +276,14 @@ export function DiscordSetupWizard({
           ) : (
             <button
               type="button"
-              onClick={() =>
-                void signIn("discord", { callbackUrl: "/discord/setup" })
-              }
-              className="mt-4 flex w-full items-center justify-center rounded-lg bg-[#5865F2] px-4 py-2.5 text-sm font-semibold text-white hover:opacity-90 sm:w-auto"
+              disabled={discordLinking}
+              onClick={() => {
+                setDiscordLinking(true);
+                void signIn("discord", { callbackUrl: "/discord/setup" });
+              }}
+              className="mt-4 flex w-full items-center justify-center rounded-lg bg-[#5865F2] px-4 py-2.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50 sm:w-auto"
             >
-              {t("steps.discord.button")}
+              {discordLinking ? t("steps.discord.linking") : t("steps.discord.button")}
             </button>
           )}
         </li>

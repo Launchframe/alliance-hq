@@ -34,6 +34,7 @@
     "next": "Próximo",
     "connect": "Conectar",
     "connecting": "Conectando…",
+    "redirecting": "Redirecionando…",
     "loading": "Carregando…",
     "preview": "Pré-visualização",
     "note": "Nota",
@@ -1418,6 +1419,7 @@
     "showAll": "Mostrar todos os passos",
     "showLess": "Mostrar menos",
     "dismiss": "Ocultar",
+    "navigating": "Abrindo…",
     "rosterVideoHint": "Para alianças Ashed, envie um vídeo da lista no jogo para alinhar nomes ao roster antes dos membros vincularem.",
     "rosterVideoCta": "Enviar vídeo do roster",
     "tasks": {
@@ -3749,6 +3751,7 @@
         "title": "Vincule sua conta Discord",
         "body": "O Alliance HQ precisa da sua conta Discord vinculada antes de adicionar o bot ou conectar o Ashed.",
         "button": "Continuar com Discord",
+        "linking": "Abrindo Discord…",
         "done": "Conta Discord vinculada."
       },
       "tag": {

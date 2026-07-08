@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, ChevronDown, Circle } from "lucide-react";
+import { Check, ChevronDown, Circle, Loader2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useMemo, useState } from "react";
 
@@ -18,6 +18,7 @@ export type AllianceSetupGuidePanelProps = {
   allComplete: boolean;
   variant: AllianceSetupGuidePanelVariant;
   onTaskAction: (id: AllianceSetupGuideTaskId) => void;
+  activeTaskId?: AllianceSetupGuideTaskId | null;
   className?: string;
 };
 
@@ -73,6 +74,7 @@ export function AllianceSetupGuidePanel({
   allComplete,
   variant,
   onTaskAction,
+  activeTaskId = null,
   className,
 }: AllianceSetupGuidePanelProps) {
   const t = useTranslations("allianceSetupGuide");
@@ -147,9 +149,17 @@ export function AllianceSetupGuidePanel({
               <button
                 type="button"
                 onClick={() => onTaskAction(row.id)}
-                className="w-full sm:w-auto shrink-0 rounded-lg bg-hq-success px-3 py-1.5 text-xs font-medium text-white hover:bg-hq-success-hover"
+                disabled={activeTaskId !== null}
+                className="inline-flex w-full sm:w-auto shrink-0 items-center justify-center gap-1.5 rounded-lg bg-hq-success px-3 py-1.5 text-xs font-medium text-white hover:bg-hq-success-hover disabled:opacity-50"
               >
-                {row.action}
+                {activeTaskId === row.id ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+                    {t("navigating")}
+                  </>
+                ) : (
+                  row.action
+                )}
               </button>
             ) : null}
           </li>
