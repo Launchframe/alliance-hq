@@ -13,11 +13,11 @@ test.describe("Auth OAuth account linking errors", () => {
     ).toBeVisible();
 
     await expect(
-      page.getByText(/Discord can sign you in automatically when its verified email matches your invite/i),
+      page.getByText(/Sign in with your HQ email first/i),
     ).toBeVisible();
 
     await expect(
-      page.getByText(/sign in with your invite email first/i),
+      page.getByText(/Settings → Sign-in & security/i),
     ).toBeVisible();
 
     await expect(
@@ -35,7 +35,7 @@ test.describe("Auth OAuth account linking errors", () => {
     await page.goto("/auth?error=OAuthAccountNotLinked");
 
     await expect(
-      page.getByText(/Discord can sign you in automatically when its verified email matches your invite/i),
+      page.getByText(/Sign in with your HQ email first/i),
     ).toBeVisible();
   });
 

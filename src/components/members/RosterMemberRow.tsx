@@ -3,6 +3,7 @@
 import { useTranslations } from "next-intl";
 
 import { AllianceLinkedCommandersBadge } from "@/components/alliance/AllianceLinkedCommandersBadge";
+import { OAuthIdentitySplitBadge } from "@/components/auth/OAuthIdentitySplitBadge";
 import { Link } from "@/i18n/navigation";
 import {
   MAIN_SQUAD_LABEL_KEYS,
@@ -127,6 +128,23 @@ export function RosterMemberRow({
       {member.current_name}
     </Link>
   );
+
+  const nameBadges =
+    commander?.oauthIdentitySplit || commander?.hqLinked ? (
+      <span className="inline-flex flex-wrap items-center gap-1">
+        {commander.oauthIdentitySplit ? (
+          <OAuthIdentitySplitBadge
+            label={tCommanders("badgeOAuthSplit")}
+            title={tCommanders("badgeOAuthSplitHint")}
+          />
+        ) : null}
+        {columnVisibility.hqLinked &&
+        !visibleColumns.includes("hqLinked") &&
+        commander.hqLinked ? (
+          <AllianceLinkedCommandersBadge label={tCommanders("badgeHqLinked")} />
+        ) : null}
+      </span>
+    ) : null;
 
   function renderCell(columnId: RosterColumnId) {
     switch (columnId) {
@@ -255,7 +273,10 @@ export function RosterMemberRow({
         <div className="flex min-w-0 items-start gap-3">
           {editMode ? selectionControl : null}
           <div className="flex min-w-0 flex-col items-start gap-1.5">
-            <div className="wrap-break-word font-medium">{nameContent}</div>
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <span className="wrap-break-word font-medium">{nameContent}</span>
+              {nameBadges}
+            </div>
             {mobileFields.map((columnId) => (
               <div
                 key={columnId}
@@ -288,13 +309,7 @@ export function RosterMemberRow({
           {columnId === "name" ? (
             <div className="flex min-w-0 flex-wrap items-center gap-2">
               {renderCell(columnId)}
-              {columnVisibility.hqLinked &&
-              !visibleColumns.includes("hqLinked") &&
-              commander?.hqLinked ? (
-                <AllianceLinkedCommandersBadge
-                  label={tCommanders("badgeHqLinked")}
-                />
-              ) : null}
+              {nameBadges}
             </div>
           ) : (
             renderCell(columnId)

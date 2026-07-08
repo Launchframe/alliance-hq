@@ -16,6 +16,7 @@ describe("resolveEmailSignInRestriction", () => {
         hasPassword: false,
         passkeyCount: 0,
         linkedProviders: [],
+        oauthAccounts: [],
       }),
     ).toEqual({ blocked: false });
   });
@@ -27,6 +28,13 @@ describe("resolveEmailSignInRestriction", () => {
         hasPassword: false,
         passkeyCount: 0,
         linkedProviders: ["google"],
+        oauthAccounts: [
+          {
+            provider: "google",
+            providerAccountId: "g1",
+            providerEmail: null,
+          },
+        ],
       }),
     ).toEqual({
       blocked: true,
@@ -42,6 +50,13 @@ describe("resolveEmailSignInRestriction", () => {
         hasPassword: true,
         passkeyCount: 0,
         linkedProviders: ["google"],
+        oauthAccounts: [
+          {
+            provider: "google",
+            providerAccountId: "g1",
+            providerEmail: null,
+          },
+        ],
       }),
     ).toEqual({ blocked: false });
   });
@@ -53,6 +68,13 @@ describe("resolveEmailSignInRestriction", () => {
         hasPassword: false,
         passkeyCount: 1,
         linkedProviders: ["discord"],
+        oauthAccounts: [
+          {
+            provider: "discord",
+            providerAccountId: "d1",
+            providerEmail: null,
+          },
+        ],
       }),
     ).toEqual({ blocked: false });
   });

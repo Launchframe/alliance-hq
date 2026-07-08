@@ -40,4 +40,13 @@ describe("oauthAccountLinkErrorRedirect", () => {
       "/settings/account?linkError=OAuthAccountNotLinked",
     );
   });
+
+  it("supports custom link error codes", () => {
+    expect(
+      oauthAccountLinkErrorRedirect(
+        "/settings/account?linked=discord",
+        "OAuthAccountAlreadyLinked",
+      ),
+    ).toBe("/settings/account?linkError=OAuthAccountAlreadyLinked");
+  });
 });

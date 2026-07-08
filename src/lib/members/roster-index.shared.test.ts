@@ -33,6 +33,7 @@ function commanderRow(
     mainSquadSource: null,
     highestBaseVr: null,
     hqLinked: false,
+    oauthIdentitySplit: false,
     ...overrides,
   };
 }

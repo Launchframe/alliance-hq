@@ -3,8 +3,9 @@ import { describe, expect, it } from "vitest";
 import {
   canUnlinkOAuthProvider,
   countSignInMethods,
+  linkedProvidersFromOAuthAccounts,
   mayAutoLinkOAuthAtSignIn,
-  oauthEmailMatchesHqUserEmail,
+  normalizeOAuthProviderEmail,
 } from "./account-linking.shared";
 
 describe("mayAutoLinkOAuthAtSignIn", () => {
@@ -20,7 +21,7 @@ describe("mayAutoLinkOAuthAtSignIn", () => {
     ).toBe("auto_link");
   });
 
-  it("blocks Google when email does not match", () => {
+  it("blocks Google cold sign-in when email does not match", () => {
     expect(
       mayAutoLinkOAuthAtSignIn({
         provider: "google",
@@ -29,7 +30,7 @@ describe("mayAutoLinkOAuthAtSignIn", () => {
         hqUserEmail: "player@example.com",
         hasExistingOAuthLink: false,
       }),
-    ).toBe("block_email_mismatch");
+    ).toBe("block_sign_in_with_hq_email");
   });
 
   it("blocks Google when email is not verified", () => {
@@ -68,7 +69,7 @@ describe("mayAutoLinkOAuthAtSignIn", () => {
     ).toBe("block_discord_no_email");
   });
 
-  it("blocks Discord when email does not match HQ user", () => {
+  it("blocks Discord cold sign-in when email does not match HQ user", () => {
     expect(
       mayAutoLinkOAuthAtSignIn({
         provider: "discord",
@@ -77,7 +78,7 @@ describe("mayAutoLinkOAuthAtSignIn", () => {
         hqUserEmail: "player@example.com",
         hasExistingOAuthLink: false,
       }),
-    ).toBe("block_email_mismatch");
+    ).toBe("block_sign_in_with_hq_email");
   });
 
   it("allows when provider is already linked", () => {
@@ -93,22 +94,32 @@ describe("mayAutoLinkOAuthAtSignIn", () => {
   });
 });
 
-describe("oauthEmailMatchesHqUserEmail", () => {
-  it("allows link when OAuth omits email", () => {
-    expect(oauthEmailMatchesHqUserEmail(null, "player@example.com")).toBe(true);
-    expect(oauthEmailMatchesHqUserEmail("", "player@example.com")).toBe(true);
+describe("normalizeOAuthProviderEmail", () => {
+  it("normalizes and trims provider emails", () => {
+    expect(normalizeOAuthProviderEmail(" Player@Example.com ")).toBe(
+      "player@example.com",
+    );
+    expect(normalizeOAuthProviderEmail("")).toBeNull();
+    expect(normalizeOAuthProviderEmail(null)).toBeNull();
   });
+});
 
-  it("requires matching emails when OAuth provides one", () => {
+describe("linkedProvidersFromOAuthAccounts", () => {
+  it("returns provider names in order", () => {
     expect(
-      oauthEmailMatchesHqUserEmail(
-        "Player@Example.com",
-        "player@example.com",
-      ),
-    ).toBe(true);
-    expect(
-      oauthEmailMatchesHqUserEmail("other@example.com", "player@example.com"),
-    ).toBe(false);
+      linkedProvidersFromOAuthAccounts([
+        {
+          provider: "discord",
+          providerAccountId: "1",
+          providerEmail: "discord@example.com",
+        },
+        {
+          provider: "google",
+          providerAccountId: "2",
+          providerEmail: null,
+        },
+      ]),
+    ).toEqual(["discord", "google"]);
   });
 });
 
@@ -120,6 +131,13 @@ describe("countSignInMethods", () => {
         hasPassword: true,
         passkeyCount: 2,
         linkedProviders: ["google"],
+        oauthAccounts: [
+          {
+            provider: "google",
+            providerAccountId: "g1",
+            providerEmail: null,
+          },
+        ],
       }),
     ).toBe(4);
   });
@@ -134,6 +152,13 @@ describe("canUnlinkOAuthProvider", () => {
           hasPassword: false,
           passkeyCount: 0,
           linkedProviders: ["google"],
+          oauthAccounts: [
+            {
+              provider: "google",
+              providerAccountId: "g1",
+              providerEmail: null,
+            },
+          ],
         },
         "google",
       ),
@@ -148,6 +173,13 @@ describe("canUnlinkOAuthProvider", () => {
           hasPassword: true,
           passkeyCount: 0,
           linkedProviders: ["google"],
+          oauthAccounts: [
+            {
+              provider: "google",
+              providerAccountId: "g1",
+              providerEmail: null,
+            },
+          ],
         },
         "google",
       ),

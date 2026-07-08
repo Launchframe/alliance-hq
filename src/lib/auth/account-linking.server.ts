@@ -8,9 +8,12 @@ import { normalizeAshedEmail } from "@/lib/alliance/accessible";
 import {
   canUnlinkOAuthProvider,
   countSignInMethods,
+  linkedProvidersFromOAuthAccounts,
   mayAutoLinkOAuthAtSignIn,
+  normalizeOAuthProviderEmail,
   type LinkedOAuthProvider,
   type OAuthAutoLinkDecision,
+  type OAuthProviderAccountSnapshot,
   type SignInMethodSnapshot,
 } from "@/lib/auth/account-linking.shared";
 import { canRemovePasskeys } from "@/lib/auth/sign-in-method-linked.shared";
@@ -34,6 +37,40 @@ function readOAuthEmailVerified(
   return false;
 }
 
+function toOAuthProviderAccountSnapshot(
+  row: Pick<
+    typeof schema.hqAuthAccounts.$inferSelect,
+    "provider" | "providerAccountId" | "providerEmail"
+  >,
+): OAuthProviderAccountSnapshot | null {
+  if (!isOAuthLinkProvider(row.provider)) {
+    return null;
+  }
+  return {
+    provider: row.provider,
+    providerAccountId: row.providerAccountId,
+    providerEmail: row.providerEmail,
+  };
+}
+
+export async function loadOAuthProviderAccountsForUser(
+  hqUserId: string,
+): Promise<OAuthProviderAccountSnapshot[]> {
+  const db = getDb();
+  const rows = await db
+    .select({
+      provider: schema.hqAuthAccounts.provider,
+      providerAccountId: schema.hqAuthAccounts.providerAccountId,
+      providerEmail: schema.hqAuthAccounts.providerEmail,
+    })
+    .from(schema.hqAuthAccounts)
+    .where(eq(schema.hqAuthAccounts.hqUserId, hqUserId));
+
+  return rows
+    .map(toOAuthProviderAccountSnapshot)
+    .filter((row): row is OAuthProviderAccountSnapshot => row !== null);
+}
+
 export async function loadSignInMethodSnapshot(
   hqUserId: string,
 ): Promise<SignInMethodSnapshot | null> {
@@ -47,25 +84,19 @@ export async function loadSignInMethodSnapshot(
     return null;
   }
 
-  const oauthRows = await db
-    .select({ provider: schema.hqAuthAccounts.provider })
-    .from(schema.hqAuthAccounts)
-    .where(eq(schema.hqAuthAccounts.hqUserId, hqUserId));
+  const oauthAccounts = await loadOAuthProviderAccountsForUser(hqUserId);
 
   const passkeys = await db
     .select({ credentialID: schema.hqAuthenticators.credentialID })
     .from(schema.hqAuthenticators)
     .where(eq(schema.hqAuthenticators.hqUserId, hqUserId));
 
-  const linkedProviders = oauthRows
-    .map((row) => row.provider)
-    .filter(isOAuthLinkProvider);
-
   return {
     email: user.email,
     hasPassword: await hqUserHasPassword(hqUserId),
     passkeyCount: passkeys.length,
-    linkedProviders,
+    oauthAccounts,
+    linkedProviders: linkedProvidersFromOAuthAccounts(oauthAccounts),
   };
 }
 
@@ -87,39 +118,135 @@ export async function findHqUserIdForOAuthAccount(input: {
   return row?.hqUserId ?? null;
 }
 
+export async function getOAuthProviderAccountForUser(input: {
+  hqUserId: string;
+  provider: LinkedOAuthProvider;
+}): Promise<OAuthProviderAccountSnapshot | null> {
+  const db = getDb();
+  const [row] = await db
+    .select({
+      provider: schema.hqAuthAccounts.provider,
+      providerAccountId: schema.hqAuthAccounts.providerAccountId,
+      providerEmail: schema.hqAuthAccounts.providerEmail,
+    })
+    .from(schema.hqAuthAccounts)
+    .where(
+      and(
+        eq(schema.hqAuthAccounts.hqUserId, input.hqUserId),
+        eq(schema.hqAuthAccounts.provider, input.provider),
+      ),
+    )
+    .limit(1);
+
+  return row ? toOAuthProviderAccountSnapshot(row) : null;
+}
+
 export async function hqUserHasOAuthProvider(
   hqUserId: string,
   provider: LinkedOAuthProvider,
 ): Promise<boolean> {
+  const account = await getOAuthProviderAccountForUser({ hqUserId, provider });
+  return account !== null;
+}
+
+export async function updateOAuthProviderEmail(input: {
+  provider: LinkedOAuthProvider;
+  providerAccountId: string;
+  providerEmail: string | null;
+}): Promise<void> {
   const db = getDb();
-  const [row] = await db
-    .select({ id: schema.hqAuthAccounts.id })
-    .from(schema.hqAuthAccounts)
+  await db
+    .update(schema.hqAuthAccounts)
+    .set({ providerEmail: input.providerEmail })
     .where(
       and(
-        eq(schema.hqAuthAccounts.hqUserId, hqUserId),
-        eq(schema.hqAuthAccounts.provider, provider),
+        eq(schema.hqAuthAccounts.provider, input.provider),
+        eq(schema.hqAuthAccounts.providerAccountId, input.providerAccountId),
       ),
-    )
-    .limit(1);
-  return Boolean(row);
+    );
 }
 
 export async function linkOAuthAccountToHqUser(input: {
   hqUserId: string;
   account: Pick<Account, "type" | "provider" | "providerAccountId">;
+  providerEmail?: string | null;
 }): Promise<void> {
+  const provider = input.account.provider;
+  if (!isOAuthLinkProvider(provider)) {
+    throw new Error("Unsupported OAuth provider.");
+  }
+
+  const providerEmail = normalizeOAuthProviderEmail(input.providerEmail);
   const adapter = createHqAuthAdapter();
   if (!adapter.linkAccount) {
     throw new Error("Auth adapter does not support linkAccount.");
   }
+
   await adapter.linkAccount({
     id: nanoid(16),
     userId: input.hqUserId,
     type: "oauth",
     provider: input.account.provider,
     providerAccountId: input.account.providerAccountId,
+    providerEmail,
   });
+}
+
+export type SignedInOAuthLinkResult =
+  | { ok: true; action: "linked" | "refreshed" }
+  | {
+      ok: false;
+      code: "provider_account_on_other_user" | "provider_type_already_linked";
+    };
+
+/**
+ * Attach an OAuth provider account to the signed-in HQ user by provider user ID.
+ * Does not compare provider email to hq_users.email.
+ */
+export async function linkOAuthAccountForSignedInUser(input: {
+  hqUserId: string;
+  account: Pick<Account, "type" | "provider" | "providerAccountId">;
+  providerEmail?: string | null;
+}): Promise<SignedInOAuthLinkResult> {
+  const provider = input.account.provider;
+  if (!isOAuthLinkProvider(provider)) {
+    throw new Error("Unsupported OAuth provider.");
+  }
+
+  const providerAccountId = input.account.providerAccountId;
+  const providerEmail = normalizeOAuthProviderEmail(input.providerEmail);
+
+  const existingOwnerId = await findHqUserIdForOAuthAccount({
+    provider,
+    providerAccountId,
+  });
+  if (existingOwnerId && existingOwnerId !== input.hqUserId) {
+    return { ok: false, code: "provider_account_on_other_user" };
+  }
+
+  const existingForUser = await getOAuthProviderAccountForUser({
+    hqUserId: input.hqUserId,
+    provider,
+  });
+
+  if (existingForUser) {
+    if (existingForUser.providerAccountId === providerAccountId) {
+      await updateOAuthProviderEmail({
+        provider,
+        providerAccountId,
+        providerEmail,
+      });
+      return { ok: true, action: "refreshed" };
+    }
+    return { ok: false, code: "provider_type_already_linked" };
+  }
+
+  await linkOAuthAccountToHqUser({
+    hqUserId: input.hqUserId,
+    account: input.account,
+    providerEmail,
+  });
+  return { ok: true, action: "linked" };
 }
 
 export async function resolveOAuthColdSignInDecision(input: {
@@ -129,7 +256,7 @@ export async function resolveOAuthColdSignInDecision(input: {
 }): Promise<OAuthAutoLinkDecision> {
   const normalized = normalizeAshedEmail(input.oauthEmail);
   if (!normalized) {
-    return "block_email_mismatch";
+    return "block_sign_in_with_hq_email";
   }
 
   const db = getDb();
@@ -179,7 +306,7 @@ export async function tryAutoLinkOAuthAtSignIn(input: {
 
   const normalized = normalizeAshedEmail(input.oauthEmail);
   if (!normalized) {
-    return { allowed: false, decision: "block_email_mismatch" };
+    return { allowed: false, decision: "block_sign_in_with_hq_email" };
   }
 
   const db = getDb();
@@ -196,6 +323,7 @@ export async function tryAutoLinkOAuthAtSignIn(input: {
   await linkOAuthAccountToHqUser({
     hqUserId: existing.id,
     account: input.account,
+    providerEmail: input.oauthEmail,
   });
 
   return { allowed: true, decision: "auto_link" };

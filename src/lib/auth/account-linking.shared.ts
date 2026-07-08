@@ -2,6 +2,12 @@ import { normalizeAshedEmail } from "@/lib/alliance/accessible";
 
 export type OAuthLinkProvider = "google" | "discord";
 
+export type OAuthProviderAccountSnapshot = {
+  provider: OAuthLinkProvider;
+  providerAccountId: string;
+  providerEmail: string | null;
+};
+
 export type MayAutoLinkOAuthInput = {
   provider: OAuthLinkProvider;
   oauthEmail: string;
@@ -13,34 +19,13 @@ export type MayAutoLinkOAuthInput = {
 export type OAuthAutoLinkDecision =
   | "allow"
   | "auto_link"
-  | "block_email_mismatch"
+  | "block_sign_in_with_hq_email"
   | "block_unverified"
   | "block_discord_no_email";
 
 /**
- * When OAuth returns an email during a signed-in link, it must match the HQ
- * account. Missing OAuth email (common on Discord) is allowed — the session
- * proves which HQ row to attach.
- */
-export function oauthEmailMatchesHqUserEmail(
-  oauthEmail: string | null | undefined,
-  hqUserEmail: string | null | undefined,
-): boolean {
-  const trimmed = oauthEmail?.trim();
-  if (!trimmed) {
-    return true;
-  }
-  const oauth = normalizeAshedEmail(trimmed);
-  const hq = normalizeAshedEmail(hqUserEmail ?? "");
-  if (!oauth || !hq) {
-    return false;
-  }
-  return oauth === hq;
-}
-
-/**
  * Whether OAuth may attach to an existing HQ user during cold sign-in (no session).
- * Account-page linking while signed in is handled separately in the signIn callback.
+ * Signed-in linking uses provider account IDs only — see the Auth.js signIn callback.
  */
 export function mayAutoLinkOAuthAtSignIn(
   input: MayAutoLinkOAuthInput,
@@ -56,7 +41,7 @@ export function mayAutoLinkOAuthAtSignIn(
       return "block_discord_no_email";
     }
     if (!hqEmail || oauthEmail !== hqEmail) {
-      return "block_email_mismatch";
+      return "block_sign_in_with_hq_email";
     }
     return "auto_link";
   }
@@ -68,7 +53,7 @@ export function mayAutoLinkOAuthAtSignIn(
   const oauthEmail = normalizeAshedEmail(input.oauthEmail);
   const hqEmail = normalizeAshedEmail(input.hqUserEmail);
   if (!oauthEmail || !hqEmail || oauthEmail !== hqEmail) {
-    return "block_email_mismatch";
+    return "block_sign_in_with_hq_email";
   }
 
   return "auto_link";
@@ -81,7 +66,14 @@ export type SignInMethodSnapshot = {
   hasPassword: boolean;
   passkeyCount: number;
   linkedProviders: LinkedOAuthProvider[];
+  oauthAccounts: OAuthProviderAccountSnapshot[];
 };
+
+export function linkedProvidersFromOAuthAccounts(
+  accounts: OAuthProviderAccountSnapshot[],
+): LinkedOAuthProvider[] {
+  return accounts.map((row) => row.provider);
+}
 
 export function countSignInMethods(methods: SignInMethodSnapshot): number {
   let count = 0;
@@ -94,7 +86,7 @@ export function countSignInMethods(methods: SignInMethodSnapshot): number {
   if (methods.passkeyCount > 0) {
     count += 1;
   }
-  count += methods.linkedProviders.length;
+  count += methods.oauthAccounts.length;
   return count;
 }
 
@@ -102,12 +94,21 @@ export function canUnlinkOAuthProvider(
   methods: SignInMethodSnapshot,
   provider: LinkedOAuthProvider,
 ): boolean {
-  if (!methods.linkedProviders.includes(provider)) {
+  if (!methods.oauthAccounts.some((row) => row.provider === provider)) {
     return false;
   }
   const withoutProvider: SignInMethodSnapshot = {
     ...methods,
+    oauthAccounts: methods.oauthAccounts.filter((row) => row.provider !== provider),
     linkedProviders: methods.linkedProviders.filter((row) => row !== provider),
   };
   return countSignInMethods(withoutProvider) >= 1;
+}
+
+/** Normalize provider email for storage; empty → null. */
+export function normalizeOAuthProviderEmail(
+  email: string | null | undefined,
+): string | null {
+  const normalized = normalizeAshedEmail(email ?? "");
+  return normalized || null;
 }

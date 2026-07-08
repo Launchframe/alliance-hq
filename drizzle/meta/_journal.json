@@ -575,6 +575,13 @@
       "when": 1786275200000,
       "tag": "0082_hq_account_merge_pending",
       "breakpoints": true
+    },
+    {
+      "idx": 81,
+      "version": "7",
+      "when": 1786361600000,
+      "tag": "0083_hq_auth_provider_email",
+      "breakpoints": true
     }
   ]
 }

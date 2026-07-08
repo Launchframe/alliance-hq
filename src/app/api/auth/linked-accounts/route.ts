@@ -24,6 +24,7 @@ export async function GET() {
     hasPassword: snapshot.hasPassword,
     passkeyCount: snapshot.passkeyCount,
     linkedProviders: snapshot.linkedProviders,
+    oauthAccounts: snapshot.oauthAccounts,
     availableProviders: {
       google: sso.google,
       discord: sso.discord,

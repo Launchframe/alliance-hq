@@ -11,6 +11,7 @@ import { nanoid } from "nanoid";
 
 import { normalizeAshedEmail } from "@/lib/alliance/accessible";
 import { getDb, schema } from "@/lib/db";
+import { normalizeOAuthProviderEmail } from "@/lib/auth/account-linking.shared";
 
 function toAdapterUser(row: typeof schema.hqUsers.$inferSelect): AdapterUser {
   return {
@@ -161,12 +162,16 @@ export function createHqAuthAdapter(): Adapter {
     async linkAccount(account) {
       const db = getDb();
       const id = String(account.id ?? nanoid(16));
+      const extended = account as AdapterAccount & {
+        providerEmail?: string | null;
+      };
       await db.insert(schema.hqAuthAccounts).values({
         id,
         hqUserId: String(account.userId),
         type: String(account.type),
         provider: String(account.provider),
         providerAccountId: String(account.providerAccountId),
+        providerEmail: normalizeOAuthProviderEmail(extended.providerEmail),
       });
       return { ...account, id };
     },

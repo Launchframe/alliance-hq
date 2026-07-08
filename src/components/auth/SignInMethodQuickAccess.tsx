@@ -9,7 +9,10 @@ import {
   AuthMethodPickerRow,
 } from "@/components/auth/AuthMethodPicker";
 import { Dialog } from "@/components/ui/dialog";
-import type { LinkedOAuthProvider } from "@/lib/auth/account-linking.shared";
+import type {
+  LinkedOAuthProvider,
+  OAuthProviderAccountSnapshot,
+} from "@/lib/auth/account-linking.shared";
 import {
   resolveSignInMethodLinkedFlags,
   type QuickAccessMethod,
@@ -21,11 +24,28 @@ type LinkedAccountsResponse = {
   hasPassword: boolean;
   passkeyCount: number;
   linkedProviders: LinkedOAuthProvider[];
+  oauthAccounts: OAuthProviderAccountSnapshot[];
   availableProviders: {
     google: boolean;
     discord: boolean;
   };
 };
+
+function resolveLinkErrorMessage(
+  linkError: string | null | undefined,
+  tAuth: (key: string) => string,
+): string | null {
+  switch (linkError?.trim()) {
+    case "OAuthAccountAlreadyLinked":
+      return tAuth("errorOAuthAccountAlreadyLinkedBody");
+    case "OAuthProviderTypeAlreadyLinked":
+      return tAuth("errorOAuthProviderTypeAlreadyLinkedBody");
+    case "OAuthAccountNotLinked":
+      return tAuth("errorOAuthAccountNotLinkedBody");
+    default:
+      return null;
+  }
+}
 
 type Props = {
   initialSnapshot: LinkedAccountsResponse;
@@ -55,12 +75,16 @@ export function SignInMethodQuickAccess({
       : null,
   );
   const [error, setError] = useState<string | null>(
-    linkError === "OAuthAccountNotLinked"
-      ? tAuth("errorOAuthAccountNotLinkedBody")
-      : null,
+    resolveLinkErrorMessage(linkError, tAuth),
   );
 
-  const linkedState = resolveSignInMethodLinkedFlags(snapshot);
+  const linkedState = resolveSignInMethodLinkedFlags({
+    email: snapshot.email,
+    hasPassword: snapshot.hasPassword,
+    passkeyCount: snapshot.passkeyCount,
+    linkedProviders: snapshot.linkedProviders,
+    oauthAccounts: snapshot.oauthAccounts,
+  });
   const availability = {
     google: ssoAvailability.google && snapshot.availableProviders.google,
     discord: ssoAvailability.discord && snapshot.availableProviders.discord,
