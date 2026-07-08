@@ -1451,6 +1451,28 @@ export const authEmailCodes = pgTable(
   ],
 );
 
+/** Pending OTP proof before merging a source HQ user into the signed-in account. */
+export const hqAccountMergePending = pgTable(
+  "hq_account_merge_pending",
+  {
+    id: text("id").primaryKey(),
+    canonicalHqUserId: text("canonical_hq_user_id")
+      .notNull()
+      .references(() => hqUsers.id, { onDelete: "cascade" }),
+    sourceHqUserId: text("source_hq_user_id")
+      .notNull()
+      .references(() => hqUsers.id, { onDelete: "cascade" }),
+    codeHash: text("code_hash").notNull(),
+    failedAttempts: integer("failed_attempts").notNull().default(0),
+    verifiedAt: timestamp("verified_at", { withTimezone: true }),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    index("hq_account_merge_pending_canonical_idx").on(table.canonicalHqUserId),
+  ],
+);
+
 /** Pending OTP verification before updating hq_users.email in place. */
 export const hqEmailChangePending = pgTable(
   "hq_email_change_pending",

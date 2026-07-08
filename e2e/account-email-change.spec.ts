@@ -161,14 +161,14 @@ test.describe("Account email change", () => {
     await page.goto("/settings/account");
 
     await expect(page.getByRole("heading", { name: /Account email/i })).toBeVisible();
+    const emailSection = page
+      .getByRole("heading", { name: /Account email/i })
+      .locator("..");
     await expect(
-      page
-        .getByRole("heading", { name: /Account email/i })
-        .locator("..")
-        .getByText(session.email, { exact: true }),
+      emailSection.getByText(session.email, { exact: true }),
     ).toBeVisible();
     await expect(
-      page.getByRole("button", { name: /Send verification code/i }),
+      emailSection.getByRole("button", { name: /Send verification code/i }),
     ).toBeVisible();
   });
 });
