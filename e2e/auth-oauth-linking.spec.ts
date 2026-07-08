@@ -3,12 +3,40 @@ import { expect, test } from "@playwright/test";
 
 import {
   authCookieHeader,
+  createAllianceMembership,
   createAuthenticatedHqSession,
   createHqDiscordOAuthAccount,
+  createHqMemberLink,
   createHqUserOnly,
+  createNativeAlliance,
   getE2eSql,
   playwrightAuthCookies,
 } from "./fixtures/db";
+
+async function bootstrapSettingsPageSession(
+  sql: ReturnType<typeof getE2eSql>,
+  session: Awaited<ReturnType<typeof createAuthenticatedHqSession>>,
+) {
+  const alliance = await createNativeAlliance(sql, {
+    tag: `OA${nanoid(3)}`,
+    name: "OAuth Linking Alliance",
+  });
+  await createAllianceMembership(sql, {
+    hqUserId: session.hqUserId,
+    allianceId: alliance.allianceId,
+    roleName: "member",
+    source: "manual",
+  });
+  await createHqMemberLink(sql, {
+    allianceId: alliance.allianceId,
+    hqUserId: session.hqUserId,
+  });
+  await sql`
+    UPDATE sessions
+    SET current_alliance_id = ${alliance.allianceId}
+    WHERE id = ${session.sessionId}
+  `;
+}
 
 test.describe("Auth OAuth account linking errors", () => {
   test("OAuthAccountNotLinked error page shows updated guidance", async ({
@@ -85,6 +113,7 @@ test.describe("Auth OAuth account linking errors", () => {
       sql,
       `linkerr-${nanoid(6)}@alliance-hq.test`,
     );
+    await bootstrapSettingsPageSession(sql, session);
     await page.context().addCookies(playwrightAuthCookies(session));
 
     await page.goto("/settings/account?linkError=OAuthAccountAlreadyLinked");
@@ -107,6 +136,7 @@ test.describe("Auth OAuth provider-ID linking", () => {
     const providerEmail = `discord-${nanoid(6)}@discord.test`;
     const discordUserId = `discord-${nanoid(10)}`;
     const session = await createAuthenticatedHqSession(sql, hqEmail);
+    await bootstrapSettingsPageSession(sql, session);
 
     await page.context().addCookies(playwrightAuthCookies(session));
 
