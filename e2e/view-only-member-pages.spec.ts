@@ -19,6 +19,7 @@ function e2eBaseUrl(): string {
 /** Native HQ pages a view-only member should reach without a personal Ashed credential. */
 const VIEW_ONLY_NATIVE_PAGES: Array<{ path: string; heading: RegExp }> = [
   { path: "/members", heading: /^members$/i },
+  { path: "/data-management", heading: /data management/i },
   { path: "/trains", heading: /alliance train/i },
   { path: "/battle-plan", heading: /battle plan/i },
   { path: "/bank-management", heading: /bank management/i },
@@ -41,6 +42,7 @@ const VIEW_ONLY_MEMBER_READ_PERMISSIONS = new Set([
   "members:read",
   "battle_plan:read",
   "bank:read",
+  "data:read",
 ]);
 
 const PERMISSION_GATED_NAV_PATHS = NAV_GROUPS.flatMap((group) => group.pages)
