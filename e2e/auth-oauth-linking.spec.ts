@@ -89,11 +89,11 @@ test.describe("Auth OAuth account linking errors", () => {
 
     await page.goto("/settings/account?linkError=OAuthAccountAlreadyLinked");
 
+    const signInMethods = page.locator("section").filter({
+      has: page.getByRole("heading", { name: /Sign-in methods/i }),
+    });
     await expect(
-      page
-        .getByRole("heading", { name: /Sign-in methods/i })
-        .locator("..")
-        .getByText(/already linked to a different Alliance HQ account/i),
+      signInMethods.getByText(/already linked to a different Alliance HQ account/i),
     ).toBeVisible();
   });
 });
@@ -137,14 +137,28 @@ test.describe("Auth OAuth provider-ID linking", () => {
     `;
     expect(accountRow?.provider_email).toBe(providerEmail.toLowerCase());
 
+    const accountsRes = await page.request.get("/api/auth/linked-accounts", {
+      headers: { Cookie: authCookieHeader(session) },
+    });
+    expect(accountsRes.ok()).toBeTruthy();
+    const accountsBody = (await accountsRes.json()) as {
+      oauthAccounts?: Array<{ provider: string; providerEmail: string | null }>;
+    };
+    expect(accountsBody.oauthAccounts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          provider: "discord",
+          providerEmail: providerEmail.toLowerCase(),
+        }),
+      ]),
+    );
+
     await page.goto("/settings/account");
+    const signInMethods = page.locator("section").filter({
+      has: page.getByRole("heading", { name: /Sign-in methods/i }),
+    });
     await expect(
-      page.getByText(
-        new RegExp(
-          `Email on file with provider:.*${providerEmail.replace(".", "\\.")}`,
-          "i",
-        ),
-      ),
+      signInMethods.getByText(providerEmail.toLowerCase(), { exact: false }),
     ).toBeVisible();
   });
 

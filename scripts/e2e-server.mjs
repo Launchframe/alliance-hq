@@ -50,6 +50,21 @@ function ocrProviderEnvLines() {
   return [`VIDEO_OCR_PROVIDER=${provider}`, "VIDEO_OCR_ALLOW_NONPROD=true"];
 }
 
+/** Dummy OAuth client IDs so sign-in method UI renders Google/Discord rows in e2e. */
+function e2eOAuthEnv() {
+  return {
+    AUTH_GOOGLE_ID: "e2e-google-client-id",
+    AUTH_GOOGLE_SECRET: "e2e-google-client-secret",
+    AUTH_DISCORD_ID: "e2e-discord-client-id",
+    AUTH_DISCORD_SECRET: "e2e-discord-client-secret",
+  };
+}
+
+function e2eOAuthEnvLines() {
+  const oauth = e2eOAuthEnv();
+  return Object.entries(oauth).map(([key, value]) => `${key}=${value}`);
+}
+
 function prepareEnvFile(dbUrl) {
   // Park the developer's real .env.local (self-healing + idempotent) before
   // writing the generated one. The marker on line 1 lets restoreEnvFile() —
@@ -67,6 +82,7 @@ function prepareEnvFile(dbUrl) {
       "HQ_ASHED_INVITE_REQUIRED=false",
       "E2E_TEST=true",
       `E2E_EMAIL_CODE=${process.env.E2E_EMAIL_CODE?.trim() || "424242"}`,
+      ...e2eOAuthEnvLines(),
       ...ocrProviderEnvLines(),
       "",
     ].join("\n"),
@@ -96,6 +112,7 @@ function buildEnv(dbUrl) {
     HQ_ASHED_INVITE_REQUIRED: "false",
     E2E_TEST: "true",
     E2E_EMAIL_CODE: process.env.E2E_EMAIL_CODE?.trim() || "424242",
+    ...e2eOAuthEnv(),
   };
   const provider = process.env.VIDEO_OCR_PROVIDER?.trim();
   if (provider) {
