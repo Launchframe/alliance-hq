@@ -2,6 +2,7 @@ import "server-only";
 
 import type { DiscordBotLocale } from "@/lib/discord/i18n";
 import { createDiscordTranslator } from "@/lib/discord/i18n";
+import { isThpConfirmPending, thpConfirmEventSource } from "@/lib/discord/bot-pending-guards.shared";
 import { ensureDiscordMemberLinksFromHq } from "@/lib/member-link/inherit-hq-to-discord.server";
 import { peerMaxThpExcludingCommander } from "@/lib/thp/anomaly";
 import {
@@ -257,11 +258,8 @@ export async function handleDiscordThpButtonConfirm(input: {
 }): Promise<ThpCommandResult> {
   const { translate } = botContext(input.locale);
   const pendingRow = await getDiscordBotPending(input.discordUserId);
-  const pending = pendingRow?.pending as ThpPendingState | null;
-  if (
-    !pending ||
-    (pending.kind !== "anomaly_confirm" && pending.kind !== "ocr_confirm")
-  ) {
+  const pending = pendingRow?.pending;
+  if (!isThpConfirmPending(pending)) {
     const result: ThpCommandResult = {
       reply: translate("errors.noConfirm"),
       pending: null,
@@ -302,7 +300,7 @@ export async function handleDiscordThpButtonConfirm(input: {
         membership?.memberName ??
         membership?.ashedMemberId ??
         pending.commanderId,
-      source: pending.kind === "ocr_confirm" ? "screenshot_ocr" : "discord",
+      source: thpConfirmEventSource(pending),
       discordUserId: input.discordUserId,
     });
     await saveDiscordBotPending(input.allianceId, input.discordUserId, null);
