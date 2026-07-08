@@ -8,5 +8,6 @@ export type DiscordMemberLinkWebOutcome =
   | { outcome: "linked"; message: string; memberDisplayName: string }
   | { outcome: "officer_attention"; message: string }
   | { outcome: "wrong_server"; message: string }
+  | { outcome: "guild_not_registered" }
   | { outcome: "declined"; message: string }
   | { outcome: "error"; message: string };

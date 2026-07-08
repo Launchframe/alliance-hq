@@ -2,6 +2,10 @@
 
 import { useCallback, useState } from "react";
 
+import {
+  FORM_SUBMIT_ENTER_KEY_HINT,
+  preventDefaultFormSubmit,
+} from "@/lib/client/form-enter-submit.shared";
 import { isValidGameUid } from "@/lib/lastwar/player-lookup";
 import type { DiscordMemberLinkWebOutcome } from "@/lib/vr/discord-member-link-web.shared";
 
@@ -12,6 +16,7 @@ type Phase =
   | "success"
   | "officer"
   | "wrong_server"
+  | "guild_not_registered"
   | "error";
 
 type Props = {
@@ -36,6 +41,8 @@ type Props = {
     successBody: string;
     officerHeading: string;
     wrongServerHeading: string;
+    guildNotRegisteredHeading: string;
+    guildNotRegisteredBody: string;
     backToDiscord: string;
     invalidPlayerId: string;
     genericError: string;
@@ -101,6 +108,9 @@ export function DiscordMemberLinkClient({
       case "wrong_server":
         setMessage(data.message);
         setPhase("wrong_server");
+        break;
+      case "guild_not_registered":
+        setPhase("guild_not_registered");
         break;
       case "declined":
         setGameUid("");
@@ -207,6 +217,17 @@ export function DiscordMemberLinkClient({
     );
   }
 
+  if (phase === "guild_not_registered") {
+    return (
+      <div className="space-y-3">
+        {renderHeader()}
+        <p className="font-semibold text-hq-fg">{labels.guildNotRegisteredHeading}</p>
+        <p className="text-sm text-hq-fg-muted">{labels.guildNotRegisteredBody}</p>
+        <p className="text-sm text-hq-fg-muted">{labels.backToDiscord}</p>
+      </div>
+    );
+  }
+
   if (phase === "officer" || phase === "error") {
     return (
       <div className="space-y-3">
@@ -278,7 +299,13 @@ export function DiscordMemberLinkClient({
   }
 
   return (
-    <form onSubmit={(e) => void handlePreview(e)} className="space-y-4">
+    <form
+      onSubmit={(event) => {
+        preventDefaultFormSubmit(event);
+        void handlePreview(event);
+      }}
+      className="space-y-4"
+    >
       {renderHeader()}
       {allianceTag ? (
         <p className="text-xs font-medium uppercase tracking-wide text-hq-fg-muted">
@@ -300,6 +327,7 @@ export function DiscordMemberLinkClient({
           autoComplete="off"
           autoCorrect="off"
           spellCheck={false}
+          enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT}
           value={gameUid}
           onChange={(e) => setGameUid(e.target.value.replace(/\D/g, ""))}
           className="w-full rounded-lg border border-hq-border bg-hq-bg px-3 py-2.5 font-mono text-sm text-hq-fg"

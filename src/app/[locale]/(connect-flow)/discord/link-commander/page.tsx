@@ -139,6 +139,8 @@ export default async function DiscordLinkCommanderPage({ searchParams }: PagePro
             successBody: t("successBody"),
             officerHeading: t("officerHeading"),
             wrongServerHeading: t("wrongServerHeading"),
+            guildNotRegisteredHeading: t("guildNotRegisteredHeading"),
+            guildNotRegisteredBody: t("guildNotRegisteredBody"),
             backToDiscord: t("backToDiscord"),
             invalidPlayerId: t("invalidPlayerId"),
             genericError: t("genericError"),
