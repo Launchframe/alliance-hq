@@ -18,6 +18,10 @@ import {
 } from "@/lib/auth/account-linking.shared";
 import { canRemovePasskeys } from "@/lib/auth/sign-in-method-linked.shared";
 import { createHqAuthAdapter } from "@/lib/auth/adapter";
+import {
+  isPostgresUniqueViolation,
+  readPostgresConstraintName,
+} from "@/lib/auth/postgres-unique.shared";
 import { hqUserHasPassword } from "@/lib/auth/password.server";
 import { getDb, schema } from "@/lib/db";
 
@@ -199,6 +203,44 @@ export type SignedInOAuthLinkResult =
       code: "provider_account_on_other_user" | "provider_type_already_linked";
     };
 
+const HQ_AUTH_PROVIDER_ACCOUNT_UNIQUE = "hq_auth_accounts_provider_account_unique";
+const HQ_AUTH_HQ_USER_PROVIDER_UNIQUE = "hq_auth_accounts_hq_user_provider_unique";
+
+async function resolveSignedInOAuthLinkUniqueViolation(input: {
+  error: unknown;
+  hqUserId: string;
+  provider: LinkedOAuthProvider;
+  providerAccountId: string;
+  providerEmail: string | null;
+}): Promise<SignedInOAuthLinkResult | null> {
+  if (!isPostgresUniqueViolation(input.error)) {
+    return null;
+  }
+
+  const constraint = readPostgresConstraintName(input.error);
+  if (constraint === HQ_AUTH_HQ_USER_PROVIDER_UNIQUE) {
+    return { ok: false, code: "provider_type_already_linked" };
+  }
+
+  const existingOwnerId = await findHqUserIdForOAuthAccount({
+    provider: input.provider,
+    providerAccountId: input.providerAccountId,
+  });
+  if (!existingOwnerId) {
+    return null;
+  }
+  if (existingOwnerId !== input.hqUserId) {
+    return { ok: false, code: "provider_account_on_other_user" };
+  }
+
+  await updateOAuthProviderEmail({
+    provider: input.provider,
+    providerAccountId: input.providerAccountId,
+    providerEmail: input.providerEmail,
+  });
+  return { ok: true, action: "refreshed" };
+}
+
 /**
  * Attach an OAuth provider account to the signed-in HQ user by provider user ID.
  * Does not compare provider email to hq_users.email.
@@ -241,12 +283,26 @@ export async function linkOAuthAccountForSignedInUser(input: {
     return { ok: false, code: "provider_type_already_linked" };
   }
 
-  await linkOAuthAccountToHqUser({
-    hqUserId: input.hqUserId,
-    account: input.account,
-    providerEmail,
-  });
-  return { ok: true, action: "linked" };
+  try {
+    await linkOAuthAccountToHqUser({
+      hqUserId: input.hqUserId,
+      account: input.account,
+      providerEmail,
+    });
+    return { ok: true, action: "linked" };
+  } catch (error) {
+    const raced = await resolveSignedInOAuthLinkUniqueViolation({
+      error,
+      hqUserId: input.hqUserId,
+      provider,
+      providerAccountId,
+      providerEmail,
+    });
+    if (raced) {
+      return raced;
+    }
+    throw error;
+  }
 }
 
 export async function resolveOAuthColdSignInDecision(input: {

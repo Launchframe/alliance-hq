@@ -111,7 +111,9 @@ prepareEnvFile(dbUrl);
 // restoreEnvFile() is idempotent, so running it more than once is harmless.
 // (A SIGKILL of this process is uncatchable — the Playwright globalTeardown
 // restore is the backstop for that, and the next run still self-heals.)
-process.on("exit", restoreEnvFile);
+process.on("exit", () => {
+  restoreEnvFile();
+});
 
 const serverEnv = buildEnv(dbUrl);
 run("npm run db:migrate", serverEnv);

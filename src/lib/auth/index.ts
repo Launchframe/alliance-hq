@@ -7,13 +7,11 @@ import {
   findHqUserIdForOAuthAccount,
   linkOAuthAccountForSignedInUser,
   tryAutoLinkOAuthAtSignIn,
-  updateOAuthProviderEmail,
 } from "@/lib/auth/account-linking.server";
 import { buildOAuthSignInRequiredAuthPath } from "@/lib/auth/email-sign-in-restriction.shared";
 import { resolveEmailSignInRestrictionForEmail } from "@/lib/auth/email-sign-in-restriction.server";
 import { createHqAuthAdapter } from "@/lib/auth/adapter";
 import { bridgeAuthUserToBrowserSession } from "@/lib/auth/bridge-session";
-import { syncDiscordHqLinkFromOAuthSignIn } from "@/lib/auth/discord-hq-link.server";
 import {
   OAUTH_ACCOUNT_ALREADY_LINKED,
   OAUTH_ACCOUNT_NOT_LINKED,
@@ -24,10 +22,10 @@ import { buildAuthProviders } from "@/lib/auth/providers.server";
 import { ensureHqUserForAuthEmail } from "@/lib/auth/resolve-hq-user";
 import { loadHqUserEmailById } from "@/lib/auth/change-hq-email.server";
 import { resolveSessionHqUserId } from "@/lib/auth/resolve-session-hq-user.server";
+import { syncOAuthJwtMetadata } from "@/lib/auth/sync-oauth-jwt-metadata.server";
 import { maybeBootstrapPlatformMaintainer } from "@/lib/rbac/bootstrap-platform";
 import {
   type OAuthAvatarProvider,
-  syncOAuthProviderAvatar,
 } from "@/lib/profile/resolve-avatar";
 import { resolveBrowserSessionHqUserId } from "@/lib/session";
 
@@ -157,21 +155,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (signedInHqUserId && isOAuthProvider(account?.provider)) {
         token.sub = signedInHqUserId;
         if (account?.providerAccountId) {
-          await updateOAuthProviderEmail({
+          await syncOAuthJwtMetadata({
+            hqUserId: signedInHqUserId,
             provider: account.provider,
             providerAccountId: account.providerAccountId,
             providerEmail: user?.email ?? null,
-          });
-          await syncOAuthProviderAvatar(signedInHqUserId, account.provider, {
-            providerUserId: account.providerAccountId,
             avatarUrl: user?.image,
           });
-          if (account.provider === "discord") {
-            await syncDiscordHqLinkFromOAuthSignIn({
-              discordUserId: account.providerAccountId,
-              hqUserId: signedInHqUserId,
-            });
-          }
         }
         const email =
           typeof signedInSession?.user?.email === "string"
@@ -202,21 +192,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           isOAuthProvider(account?.provider) &&
           account.providerAccountId
         ) {
-          await syncOAuthProviderAvatar(hqUserId, account.provider, {
-            providerUserId: account.providerAccountId,
-            avatarUrl: user.image,
-          });
-          await updateOAuthProviderEmail({
+          await syncOAuthJwtMetadata({
+            hqUserId,
             provider: account.provider,
             providerAccountId: account.providerAccountId,
             providerEmail: user.email,
-          });
-        }
-
-        if (account?.provider === "discord" && account.providerAccountId) {
-          await syncDiscordHqLinkFromOAuthSignIn({
-            discordUserId: account.providerAccountId,
-            hqUserId,
+            avatarUrl: user.image,
           });
         }
 
@@ -233,14 +214,15 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.sub.trim()
       ) {
         const hqUserId = token.sub.trim();
-        await syncOAuthProviderAvatar(hqUserId, "discord", {
-          providerUserId: account.providerAccountId,
-          avatarUrl: user?.image,
-        });
-        await syncDiscordHqLinkFromOAuthSignIn({
-          discordUserId: account.providerAccountId,
-          hqUserId,
-        });
+        if (account?.providerAccountId) {
+          await syncOAuthJwtMetadata({
+            hqUserId,
+            provider: "discord",
+            providerAccountId: account.providerAccountId,
+            providerEmail: user?.email ?? null,
+            avatarUrl: user?.image,
+          });
+        }
         const email = typeof token.email === "string" ? token.email : undefined;
         if (email) {
           await bridgeAuthUserToBrowserSession({
