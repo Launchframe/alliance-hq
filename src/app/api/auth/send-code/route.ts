@@ -4,6 +4,7 @@ import {
   AuthEmailCodeError,
   issueAuthEmailCode,
 } from "@/lib/auth/email-code.server";
+import { EmailSignInRestrictedError } from "@/lib/auth/email-sign-in-restriction.server";
 import {
   clientIpFromRequest,
   SendCodeRateLimitError,
@@ -45,6 +46,16 @@ export async function POST(request: Request) {
     await issueAuthEmailCode(email);
     return NextResponse.json({ ok: true });
   } catch (error) {
+    if (error instanceof EmailSignInRestrictedError) {
+      return NextResponse.json(
+        {
+          error: error.code,
+          email: error.restriction.email,
+          linkedProviders: error.restriction.linkedProviders,
+        },
+        { status: 409 },
+      );
+    }
     if (error instanceof AuthEmailCodeError) {
       const status = error.code === "rate_limited" ? 429 : 400;
       return NextResponse.json({ error: error.code }, { status });

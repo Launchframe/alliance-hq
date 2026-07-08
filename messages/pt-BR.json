@@ -300,6 +300,9 @@
       "chooseAlliance": "Escolher aliança…",
       "assignRole": "Atribuir função",
       "linkedDevicesSummary": "{count, plural, =0 {Nenhum dispositivo móvel adicional vinculado via QR.} one {# dispositivo móvel adicional vinculado via QR.} other {# dispositivos móveis adicionais vinculados via QR.}}",
+      "signInMethodsTitle": "Métodos de entrada",
+      "signInMethodsHint": "Instantâneo somente leitura para suporte. Os membros gerenciam seus métodos em Configurações → Segurança da conta.",
+      "signInMethodsUnavailable": "Detalhes dos métodos de entrada não estão disponíveis para este usuário.",
       "memberLinksTitle": "Vínculos de personagem no jogo",
       "noMemberLinks": "Nenhum vínculo de comandante ainda.",
       "memberLinkUnnamed": "(sem nome de exibição)",
@@ -2127,6 +2130,10 @@
     "errorOAuthAccountNotLinkedBody": "Não foi possível conectar Google ou Discord à sua conta Alliance HQ. Em geral isso significa que o e-mail do provedor não corresponde ao do convite, o Google ainda não verificou o e-mail ou o Discord não compartilhou um e-mail que possamos comparar. O Discord pode entrar automaticamente quando o e-mail verificado dele corresponde ao do convite; caso contrário, entre primeiro com o e-mail do convite e depois vincule os provedores em Configurações → Entrada e segurança.",
     "errorOAuthAccountNotLinkedHint": "Use o mesmo endereço de e-mail para o qual o convite da aliança foi enviado, ou abra Configurações → Entrada e segurança depois de entrar com esse e-mail.",
     "errorOAuthAccountNotLinkedAccountLink": "Abrir entrada e segurança",
+    "errorOAuthSignInRequiredTitle": "Use Google ou Discord para entrar",
+    "errorOAuthSignInRequiredBody": "Esta conta foi criada com um método de entrada mais seguro. Códigos de verificação por e-mail e links mágicos não podem ser usados.",
+    "errorOAuthSignInRequiredAction": "Entre com {providers} usando {email}.",
+    "errorOAuthSignInRequiredHint": "Depois de entrar, você pode adicionar uma senha ou passkey em Configurações → Segurança da conta se quiser usar e-mail depois.",
     "backToSignIn": "Voltar para entrar"
   },
   "httpErrors": {
