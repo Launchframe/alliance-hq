@@ -53,6 +53,16 @@ export async function recordDataUploadBatch(input: {
   createdByHqUserId: string | null;
 }): Promise<string> {
   const db = getDb();
+
+  const [existing] = await db
+    .select({ id: schema.dataUploadBatches.id })
+    .from(schema.dataUploadBatches)
+    .where(eq(schema.dataUploadBatches.sourceJobId, input.sourceJobId))
+    .limit(1);
+  if (existing) {
+    return existing.id;
+  }
+
   const now = new Date();
   const id = nanoid(16);
 
@@ -129,17 +139,26 @@ export function decorateBatchForViewer(
   return { ...batch, ...flags };
 }
 
-export async function markDataBatchDeleted(batchId: string): Promise<void> {
+export async function markDataBatchDeleted(
+  batchId: string,
+  allianceId: string,
+): Promise<void> {
   const db = getDb();
   const now = new Date();
   await db
     .update(schema.dataUploadBatches)
     .set({ status: "deleted", deletedAt: now, updatedAt: now })
-    .where(eq(schema.dataUploadBatches.id, batchId));
+    .where(
+      and(
+        eq(schema.dataUploadBatches.id, batchId),
+        eq(schema.dataUploadBatches.allianceId, allianceId),
+      ),
+    );
 }
 
 export async function markDataBatchMoved(
   batchId: string,
+  allianceId: string,
   newRecordedDate: string,
 ): Promise<void> {
   const db = getDb();
@@ -151,5 +170,10 @@ export async function markDataBatchMoved(
       movedToDate: newRecordedDate,
       updatedAt: now,
     })
-    .where(eq(schema.dataUploadBatches.id, batchId));
+    .where(
+      and(
+        eq(schema.dataUploadBatches.id, batchId),
+        eq(schema.dataUploadBatches.allianceId, allianceId),
+      ),
+    );
 }

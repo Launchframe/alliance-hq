@@ -166,6 +166,7 @@ const NAV_ACTIONS: HotkeyActionDef[] = [
     scope: "global",
     kind: "navigate",
     href: "/data-management",
+    requiredPermission: "data:read",
   },
   {
     id: "nav.videoUpload",

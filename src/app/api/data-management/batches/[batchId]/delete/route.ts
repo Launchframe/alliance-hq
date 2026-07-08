@@ -52,7 +52,7 @@ export async function POST(_request: Request, { params }: Props) {
     );
   }
 
-  await markDataBatchDeleted(batchId);
+  await markDataBatchDeleted(batchId, ctx.allianceId);
   await writeAuditLog({
     sessionId: ctx.sessionId,
     allianceId: ctx.allianceId,

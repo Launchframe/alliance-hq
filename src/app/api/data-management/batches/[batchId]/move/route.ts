@@ -79,7 +79,7 @@ export async function POST(request: Request, { params }: Props) {
     );
   }
 
-  await markDataBatchMoved(batchId, newRecordedDate);
+  await markDataBatchMoved(batchId, ctx.allianceId, newRecordedDate);
   await writeAuditLog({
     sessionId: ctx.sessionId,
     allianceId: ctx.allianceId,
