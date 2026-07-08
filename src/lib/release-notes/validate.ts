@@ -1,5 +1,7 @@
 import type { ReleaseNoteEntry } from "./types";
 import { compareAppVersions } from "./version";
+import { hydrateReleaseNoteEntry } from "./markdown";
+import type { ReleaseNoteEdgeEntry } from "./markdown";
 
 export function validateReleaseNoteEntries(value: unknown): ReleaseNoteEntry[] {
   if (!Array.isArray(value)) {
@@ -17,17 +19,15 @@ export function validateReleaseNoteEntries(value: unknown): ReleaseNoteEntry[] {
     const version = String(record.version ?? "").trim();
     const title = String(record.title ?? "").trim();
     const summary = String(record.summary ?? "");
-    const bodyMarkdown = String(record.bodyMarkdown ?? summary);
 
     if (!version || !title) {
       continue;
     }
 
-    entries.push({
+    const edgeEntry: ReleaseNoteEdgeEntry | ReleaseNoteEntry = {
       version,
       title,
       summary,
-      bodyMarkdown,
       ...(record.shippedAt ? { shippedAt: String(record.shippedAt) } : {}),
       ...(Array.isArray(record.breaking)
         ? { breaking: record.breaking.map(String) }
@@ -35,7 +35,12 @@ export function validateReleaseNoteEntries(value: unknown): ReleaseNoteEntry[] {
       ...(Array.isArray(record.maintainerNotes)
         ? { maintainerNotes: record.maintainerNotes.map(String) }
         : {}),
-    });
+      ...(typeof record.bodyMarkdown === "string" && record.bodyMarkdown
+        ? { bodyMarkdown: record.bodyMarkdown }
+        : {}),
+    };
+
+    entries.push(hydrateReleaseNoteEntry(edgeEntry));
   }
 
   return entries.sort((a, b) => compareAppVersions(a.version, b.version));

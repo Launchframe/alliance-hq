@@ -1,6 +1,7 @@
 import type { ReleaseNoteEntry } from "./types";
 import { HQ_RELEASE_NOTES_EDGE_CONFIG_KEY, RELEASE_NOTES_DIR } from "./types";
 import {
+  compactReleaseNoteForEdgeConfig,
   distillReleaseNoteMarkdown,
   listReleaseNoteFiles,
   readReleaseNoteFile,
@@ -38,6 +39,8 @@ export function collectShippedReleaseNoteEntries(
   return entries.sort((a, b) => compareAppVersions(a.version, b.version));
 }
 
+export const HQ_RELEASE_NOTES_EDGE_CONFIG_MAX_BYTES = 64 * 1024;
+
 export async function publishReleaseNotesToEdgeConfig(
   options: PublishReleaseNotesOptions,
 ): Promise<PublishReleaseNotesResult> {
@@ -70,6 +73,14 @@ export async function publishReleaseNotesToEdgeConfig(
     throw new Error("VERCEL_API_TOKEN and EDGE_CONFIG_ID are required to publish");
   }
 
+  const edgeEntries = entries.map(compactReleaseNoteForEdgeConfig);
+  const payloadBytes = Buffer.byteLength(JSON.stringify(edgeEntries), "utf8");
+  if (payloadBytes > HQ_RELEASE_NOTES_EDGE_CONFIG_MAX_BYTES) {
+    throw new Error(
+      `Release notes Edge Config payload is ${payloadBytes} bytes (limit ${HQ_RELEASE_NOTES_EDGE_CONFIG_MAX_BYTES}). Trim maintainer notes or archive older shipped notes.`,
+    );
+  }
+
   const response = await fetch(
     `https://api.vercel.com/v1/edge-config/${edgeConfigId}/items`,
     {
@@ -83,7 +94,7 @@ export async function publishReleaseNotesToEdgeConfig(
           {
             operation: "upsert",
             key: HQ_RELEASE_NOTES_EDGE_CONFIG_KEY,
-            value: entries,
+            value: edgeEntries,
           },
         ],
       }),

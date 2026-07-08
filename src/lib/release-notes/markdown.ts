@@ -210,21 +210,88 @@ export function replaceOrInsertMarkdownSection(
 }
 
 function buildPublicBodyMarkdown(body: string): string {
-  const sections = [
-    RELEASE_NOTE_SECTION_HEADINGS.summary,
-    RELEASE_NOTE_SECTION_HEADINGS.breaking,
-    RELEASE_NOTE_SECTION_HEADINGS.maintainerNotes,
-  ];
+  const summary =
+    extractMarkdownSection(body, RELEASE_NOTE_SECTION_HEADINGS.summary) ?? "";
+  const breaking = extractMarkdownBullets(
+    extractMarkdownSection(body, RELEASE_NOTE_SECTION_HEADINGS.breaking),
+  );
+  const maintainerNotes = extractMarkdownBullets(
+    extractMarkdownSection(
+      body,
+      RELEASE_NOTE_SECTION_HEADINGS.maintainerNotes,
+    ),
+  );
 
-  const parts: string[] = [];
-  for (const heading of sections) {
-    const section = extractMarkdownSection(body, heading);
-    if (section) {
-      parts.push(`## ${heading}\n\n${section}`);
-    }
+  return buildReleaseNoteBodyMarkdown({ summary, breaking, maintainerNotes });
+}
+
+/** Reconstruct /releases markdown from distilled fields (Edge Config omits bodyMarkdown). */
+export function buildReleaseNoteBodyMarkdown(parts: {
+  summary: string;
+  breaking?: string[];
+  maintainerNotes?: string[];
+}): string {
+  const sections: string[] = [];
+
+  const summary = parts.summary.trim();
+  if (summary) {
+    sections.push(`## ${RELEASE_NOTE_SECTION_HEADINGS.summary}\n\n${summary}`);
   }
 
-  return parts.join("\n\n").trim();
+  if (parts.breaking && parts.breaking.length > 0) {
+    sections.push(
+      `## ${RELEASE_NOTE_SECTION_HEADINGS.breaking}\n\n${parts.breaking.map((bullet) => `- ${bullet}`).join("\n")}`,
+    );
+  }
+
+  if (parts.maintainerNotes && parts.maintainerNotes.length > 0) {
+    sections.push(
+      `## ${RELEASE_NOTE_SECTION_HEADINGS.maintainerNotes}\n\n${parts.maintainerNotes.map((bullet) => `- ${bullet}`).join("\n")}`,
+    );
+  }
+
+  return sections.join("\n\n").trim();
+}
+
+export type ReleaseNoteEdgeEntry = Omit<ReleaseNoteEntry, "bodyMarkdown">;
+
+/** Drop duplicated bodyMarkdown before Edge Config publish (64 KiB item limit). */
+export function compactReleaseNoteForEdgeConfig(
+  entry: ReleaseNoteEntry,
+): ReleaseNoteEdgeEntry {
+  const { bodyMarkdown: _bodyMarkdown, ...compact } = entry;
+  return compact;
+}
+
+export function hydrateReleaseNoteEntry(
+  entry: ReleaseNoteEntry | ReleaseNoteEdgeEntry,
+): ReleaseNoteEntry {
+  if (
+    "bodyMarkdown" in entry &&
+    typeof entry.bodyMarkdown === "string" &&
+    entry.bodyMarkdown.length > 0
+  ) {
+    return entry;
+  }
+
+  const { version, title, summary, shippedAt, breaking, maintainerNotes } =
+    entry;
+
+  return {
+    version,
+    title,
+    summary,
+    bodyMarkdown: buildReleaseNoteBodyMarkdown({
+      summary,
+      breaking,
+      maintainerNotes,
+    }),
+    ...(shippedAt ? { shippedAt } : {}),
+    ...(breaking && breaking.length > 0 ? { breaking } : {}),
+    ...(maintainerNotes && maintainerNotes.length > 0
+      ? { maintainerNotes }
+      : {}),
+  };
 }
 
 export function distillReleaseNoteMarkdown(
