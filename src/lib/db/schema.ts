@@ -1451,6 +1451,25 @@ export const authEmailCodes = pgTable(
   ],
 );
 
+/** Pending OTP verification before updating hq_users.email in place. */
+export const hqEmailChangePending = pgTable(
+  "hq_email_change_pending",
+  {
+    id: text("id").primaryKey(),
+    hqUserId: text("hq_user_id")
+      .notNull()
+      .references(() => hqUsers.id, { onDelete: "cascade" }),
+    newEmail: text("new_email").notNull(),
+    codeHash: text("code_hash").notNull(),
+    failedAttempts: integer("failed_attempts").notNull().default(0),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    index("hq_email_change_pending_hq_user_id_idx").on(table.hqUserId),
+  ],
+);
+
 /** OAuth / WebAuthn provider links for HQ users (Auth.js adapter). */
 export const hqAuthAccounts = pgTable(
   "hq_auth_accounts",

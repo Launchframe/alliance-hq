@@ -561,6 +561,13 @@
       "when": 1786102400000,
       "tag": "0080_cross_layer_claim_help_dedup",
       "breakpoints": true
+    },
+    {
+      "idx": 79,
+      "version": "7",
+      "when": 1786188800000,
+      "tag": "0081_hq_email_change_pending",
+      "breakpoints": true
     }
   ]
 }

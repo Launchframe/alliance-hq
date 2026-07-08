@@ -410,6 +410,9 @@ export function AuthSignInClient({
               <p className="text-sm text-hq-fg-muted">
                 {t("errorOAuthAccountNotLinkedBody")}
               </p>
+              <p className="text-sm text-hq-fg-muted">
+                {t("errorOAuthAccountNotLinkedWrongAccountHint")}
+              </p>
               <Link
                 href="/settings/account"
                 className="inline-block text-sm text-hq-accent hover:underline"

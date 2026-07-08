@@ -110,6 +110,7 @@ export function AccountSignInMethodsClient({
     <section className="space-y-4 rounded-xl border border-hq-border bg-hq-surface p-5">
       <h2 className="font-medium">{t("signInMethodsTitle")}</h2>
       <p className="text-sm text-hq-fg-muted">{t("signInMethodsBody")}</p>
+      <p className="text-sm text-hq-fg-muted">{t("wrongProviderHint")}</p>
 
       {discordLinked ? (
         <p

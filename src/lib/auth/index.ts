@@ -19,6 +19,8 @@ import { syncDiscordHqLinkFromOAuthSignIn } from "@/lib/auth/discord-hq-link.ser
 import { oauthAccountLinkErrorRedirect } from "@/lib/auth/oauth-link-error-redirect.shared";
 import { buildAuthProviders } from "@/lib/auth/providers.server";
 import { ensureHqUserForAuthEmail } from "@/lib/auth/resolve-hq-user";
+import { loadHqUserEmailById } from "@/lib/auth/change-hq-email.server";
+import { resolveSessionHqUserId } from "@/lib/auth/resolve-session-hq-user.server";
 import { maybeBootstrapPlatformMaintainer } from "@/lib/rbac/bootstrap-platform";
 import {
   type OAuthAvatarProvider,
@@ -136,7 +138,18 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       // Magic-link send also invokes signIn before hq_users exists; do not bridge here.
       return Boolean(user.email);
     },
-    async jwt({ token, user, account }) {
+    async jwt({ token, user, account, trigger, session }) {
+      if (
+        trigger === "update" &&
+        session &&
+        typeof session === "object" &&
+        "email" in session &&
+        typeof session.email === "string" &&
+        session.email.trim()
+      ) {
+        token.email = session.email.trim();
+      }
+
       if (user?.email) {
         const hqUserId = await ensureHqUserForAuthEmail(user.email, user.name);
         token.sub = hqUserId;
@@ -211,21 +224,28 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
 export async function requireAuthSession() {
   const session = await auth();
-  if (!session?.user?.email) {
+  if (!session?.user) {
     return null;
   }
 
-  const hqUserId = await ensureHqUserForAuthEmail(
-    session.user.email,
-    session.user.name,
-  );
+  const hqUserId = await resolveSessionHqUserId(session);
+  if (!hqUserId) {
+    return null;
+  }
+
+  const email =
+    (await loadHqUserEmailById(hqUserId)) ?? session.user.email?.trim() ?? null;
+  if (!email) {
+    return null;
+  }
 
   await bridgeAuthUserToBrowserSession({
     hqUserId,
-    email: session.user.email,
+    email,
     displayName: session.user.name,
   });
 
   session.user.id = await resolveBrowserSessionHqUserId(hqUserId);
+  session.user.email = email;
   return session;
 }

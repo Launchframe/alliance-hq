@@ -2,16 +2,25 @@ import { NextResponse } from "next/server";
 
 import { auth } from "@/lib/auth";
 import {
-  PasswordAuthError,
-  setPasswordForHqUser,
-} from "@/lib/auth/password.server";
+  ChangeHqEmailError,
+  loadHqUserEmailById,
+  requestHqEmailChange,
+} from "@/lib/auth/change-hq-email.server";
 import { resolveSessionHqUserId } from "@/lib/auth/resolve-session-hq-user.server";
 
 export async function POST(request: Request) {
   const session = await auth();
-  if (!session?.user?.email) {
+  if (!session?.user) {
     return NextResponse.json({ error: "auth_required" }, { status: 401 });
   }
+
+  const hqUserId = await resolveSessionHqUserId(session);
+  if (!hqUserId) {
+    return NextResponse.json({ error: "auth_required" }, { status: 401 });
+  }
+
+  const currentEmail =
+    (await loadHqUserEmailById(hqUserId)) ?? session.user.email ?? "";
 
   let body: unknown;
   try {
@@ -20,39 +29,32 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "invalid_json" }, { status: 400 });
   }
 
-  const password =
+  const newEmail =
     typeof body === "object" &&
     body !== null &&
-    "password" in body &&
-    typeof body.password === "string"
-      ? body.password
+    "newEmail" in body &&
+    typeof body.newEmail === "string"
+      ? body.newEmail
       : "";
-  const confirmPassword =
-    typeof body === "object" &&
-    body !== null &&
-    "confirmPassword" in body &&
-    typeof body.confirmPassword === "string"
-      ? body.confirmPassword
-      : password;
 
   try {
-    const hqUserId = await resolveSessionHqUserId(session);
-    if (!hqUserId) {
-      return NextResponse.json({ error: "auth_required" }, { status: 401 });
-    }
-    await setPasswordForHqUser({
+    await requestHqEmailChange({
       hqUserId,
-      password,
-      confirmPassword,
+      currentEmail,
+      newEmailRaw: newEmail,
     });
     return NextResponse.json({ ok: true });
   } catch (error) {
-    if (error instanceof PasswordAuthError) {
+    if (error instanceof ChangeHqEmailError) {
       const status =
-        error.code === "invalid_credentials" ? 404 : 400;
+        error.code === "rate_limited"
+          ? 429
+          : error.code === "email_in_use"
+            ? 409
+            : 400;
       return NextResponse.json({ error: error.code }, { status });
     }
-    console.error("[password/set]", error);
+    console.error("[email-change/request]", error);
     return NextResponse.json({ error: "server_error" }, { status: 500 });
   }
 }

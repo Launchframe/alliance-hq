@@ -4,7 +4,8 @@ import { getLocale } from "next-intl/server";
 
 import { auth } from "@/lib/auth";
 import { bridgeAuthUserToPageSession } from "@/lib/auth/bridge-session";
-import { ensureHqUserForAuthEmail } from "@/lib/auth/resolve-hq-user";
+import { loadHqUserEmailById } from "@/lib/auth/change-hq-email.server";
+import { resolveSessionHqUserId } from "@/lib/auth/resolve-session-hq-user.server";
 import { redirect } from "@/i18n/navigation";
 import { sanitizeInternalRedirectPath } from "@/lib/navigation/safe-redirect.shared";
 
@@ -15,7 +16,7 @@ export async function requireAuthForPage(callbackPath = "/") {
   const authSession = await auth();
   const user = authSession?.user;
 
-  if (!authSession || !user?.id || !user.email) {
+  if (!authSession || !user?.email) {
     const query =
       safeCallback && safeCallback !== "/"
         ? `?callbackUrl=${encodeURIComponent(safeCallback)}`
@@ -24,22 +25,29 @@ export async function requireAuthForPage(callbackPath = "/") {
     throw new Error("Auth redirect");
   }
 
-  // The Auth.js JWT may carry a `user.id` that is not a row in this DB's
-  // `hq_users` (e.g. token minted against another database). Resolve/create the
-  // canonical row by email so the session FK target exists, matching
-  // `requireAuthSession`.
-  const hqUserId = await ensureHqUserForAuthEmail(user.email, user.name);
+  const hqUserId = await resolveSessionHqUserId(authSession);
+  if (!hqUserId) {
+    const query =
+      safeCallback && safeCallback !== "/"
+        ? `?callbackUrl=${encodeURIComponent(safeCallback)}`
+        : "";
+    redirect({ href: `/auth${query}`, locale });
+    throw new Error("Auth redirect");
+  }
+
+  const email = (await loadHqUserEmailById(hqUserId)) ?? user.email;
 
   await bridgeAuthUserToPageSession(
     {
       hqUserId,
-      email: user.email,
+      email,
       displayName: user.name,
     },
     safeCallback,
   );
 
   user.id = hqUserId;
+  user.email = email;
 
   return authSession;
 }
