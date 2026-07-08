@@ -5,7 +5,7 @@ import { getDb, schema } from "@/lib/db";
 import { requirePlatformMaintainer } from "@/lib/rbac/require-permission";
 import { readSessionId } from "@/lib/session";
 import { canReprocessVideoJob } from "@/lib/video/admin-job-actions";
-import { resetVideoJobForReprocess } from "@/lib/video/process-job";
+import { resetVideoJobForReprocess } from "@/lib/video/reset-video-job-for-reprocess";
 import { dispatchVideoProcessing } from "@/lib/video/trigger-processing";
 
 type Props = {

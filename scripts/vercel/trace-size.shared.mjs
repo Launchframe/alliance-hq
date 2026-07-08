@@ -22,7 +22,7 @@ export function walkFiles(dir) {
 
 /**
  * Expand a repo-root-relative glob used in outputFileTracingIncludes/Excludes.
- * Supports `/**` suffix recursion and exact file paths.
+ * Supports recursive directory globs, filename prefix globs (lib/foo.so*), and exact paths.
  */
 export function expandTracingPattern(repoRoot, pattern) {
   const normalized = pattern.replace(/^\.\//, "");
@@ -47,6 +47,22 @@ export function expandTracingPattern(repoRoot, pattern) {
   if (idx >= 0) {
     const dir = path.resolve(repoRoot, normalized.slice(0, idx));
     return walkFiles(dir);
+  }
+
+  if (normalized.endsWith("*")) {
+    const lastSlash = normalized.lastIndexOf("/");
+    if (lastSlash < 0) {
+      throw new Error(`Unsupported tracing pattern: ${pattern}`);
+    }
+    const dir = path.resolve(repoRoot, normalized.slice(0, lastSlash));
+    const namePrefix = normalized.slice(lastSlash + 1, -1);
+    if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) {
+      return [];
+    }
+    return fs
+      .readdirSync(dir, { withFileTypes: true })
+      .filter((entry) => entry.isFile() && entry.name.startsWith(namePrefix))
+      .map((entry) => path.join(dir, entry.name));
   }
 
   throw new Error(`Unsupported tracing pattern: ${pattern}`);

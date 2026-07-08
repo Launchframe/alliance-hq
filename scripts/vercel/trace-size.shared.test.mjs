@@ -43,6 +43,34 @@ describe("expandTracingPattern", () => {
       ),
     ).toEqual(["b.txt"]);
   });
+
+  it("expands filename prefix globs in a directory", () => {
+    const root = tempRoot();
+    const libDir = path.join(root, "node_modules/@img/sharp-libvips-linux-x64/lib");
+    fs.mkdirSync(libDir, { recursive: true });
+    fs.writeFileSync(path.join(libDir, "libvips-cpp.so.42"), "a");
+    fs.writeFileSync(path.join(libDir, "libvips-cpp.so.42.5.2"), "b");
+    fs.writeFileSync(path.join(libDir, "other.so"), "c");
+
+    expect(
+      expandTracingPattern(
+        root,
+        "./node_modules/@img/sharp-libvips-linux-x64/lib/libvips-cpp.so*",
+      )
+        .map((p) => path.basename(p))
+        .sort(),
+    ).toEqual(["libvips-cpp.so.42", "libvips-cpp.so.42.5.2"]);
+  });
+
+  it("returns empty for missing prefix-glob directories", () => {
+    const root = tempRoot();
+    expect(
+      expandTracingPattern(
+        root,
+        "./node_modules/@img/sharp-libvips-linux-x64/lib/libvips-cpp.so*",
+      ),
+    ).toEqual([]);
+  });
 });
 
 describe("buildEffectiveTraceSet", () => {
