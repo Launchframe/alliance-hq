@@ -50,6 +50,12 @@ export type DiscordInteractionPayload = {
     name?: string;
     options?: Array<{ name: string; type: number; value?: unknown }>;
     custom_id?: string;
+    resolved?: {
+      attachments?: Record<
+        string,
+        { url?: string; filename?: string; content_type?: string }
+      >;
+    };
   };
   member?: {
     user?: { id?: string; username?: string };
@@ -124,10 +130,12 @@ export function parseLinkSlashOptions(payload: DiscordInteractionPayload): {
 
 export type ParsedButton =
   | { kind: "vr_confirm"; answer: "yes" | "no" }
+  | { kind: "thp_confirm"; answer: "yes" | "no" }
   | { kind: "link_confirm"; answer: "yes" | "no" }
   | { kind: "link_pick"; memberId: string }
   | { kind: "link_walkthrough_done" }
   | { kind: "vr_character"; linkId: string }
+  | { kind: "thp_character"; linkId: string }
   | { kind: "weekly_pass_character"; linkId: string }
   | { kind: "link_unlink"; linkId: string }
   | { kind: "link_start_over" }
@@ -143,6 +151,10 @@ export function parseButtonCustomId(
   if (vrConfirm) {
     return { kind: "vr_confirm", answer: vrConfirm[2] as "yes" | "no" };
   }
+  const thpConfirm = /^thp:confirm:(yes|no)$/.exec(customId);
+  if (thpConfirm) {
+    return { kind: "thp_confirm", answer: thpConfirm[1] as "yes" | "no" };
+  }
   const linkConfirm = /^link:confirm:(yes|no)$/.exec(customId);
   if (linkConfirm) {
     return { kind: "link_confirm", answer: linkConfirm[1] as "yes" | "no" };
@@ -156,6 +168,8 @@ export function parseButtonCustomId(
   if (customId === "link:ask_officer") return { kind: "link_ask_officer" };
   const charPick = /^vr:character:(.+)$/.exec(customId);
   if (charPick) return { kind: "vr_character", linkId: charPick[1]! };
+  const thpCharPick = /^thp:character:(.+)$/.exec(customId);
+  if (thpCharPick) return { kind: "thp_character", linkId: thpCharPick[1]! };
   const weeklyPassPick = /^weekly-pass:character:(.+)$/.exec(customId);
   if (weeklyPassPick) {
     return { kind: "weekly_pass_character", linkId: weeklyPassPick[1]! };
@@ -209,6 +223,28 @@ export function buildLinkIdentityConfirmButtons(labels: {
   ];
 }
 
+export function buildThpConfirmButtons(labels: { yes: string; no: string }) {
+  return [
+    {
+      type: 1,
+      components: [
+        {
+          type: 2,
+          style: 3,
+          label: labels.yes.slice(0, 80),
+          custom_id: "thp:confirm:yes",
+        },
+        {
+          type: 2,
+          style: 4,
+          label: labels.no.slice(0, 80),
+          custom_id: "thp:confirm:no",
+        },
+      ],
+    },
+  ];
+}
+
 export function buildVrConfirmButtons(
   proposedVr: number,
   labels: { yes: string; no: string },
@@ -252,14 +288,16 @@ export function buildLinkFuzzyButtons(
 
 export function buildCharacterPickerButtons(
   links: Array<{ linkId: string; label: string }>,
-  prefix: "vr" | "unlink" | "weekly-pass" = "vr",
+  prefix: "vr" | "unlink" | "weekly-pass" | "thp" = "vr",
 ) {
   const customIdPrefix =
     prefix === "unlink"
       ? "link:unlink"
       : prefix === "weekly-pass"
         ? "weekly-pass:character"
-        : "vr:character";
+        : prefix === "thp"
+          ? "thp:character"
+          : "vr:character";
   return [
     {
       type: 1,

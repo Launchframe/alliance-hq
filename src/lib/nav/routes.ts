@@ -175,6 +175,14 @@ export const NAV_GROUPS: NavGroupDef[] = [
         hideWhenPermission: "members:write",
       },
       {
+        id: "my-thp",
+        labelKey: "myThp",
+        href: "/my-thp",
+        kind: "native",
+        descriptionKey: "myThpDescription",
+        hideWhenPermission: "members:write",
+      },
+      {
         id: "trains",
         labelKey: "trains",
         href: "/trains",

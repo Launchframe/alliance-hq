@@ -7,11 +7,16 @@ import {
   type DiscordBotLocale,
 } from "@/lib/discord/i18n";
 import {
+  downloadDiscordAttachment,
+  parseResolvedAttachment,
+} from "@/lib/discord/attachments";
+import {
   DISCORD_PING_RESPONSE,
   buildCharacterPickerButtons,
   buildLinkFailureButtons,
   buildLinkFuzzyButtons,
   buildLinkIdentityConfirmButtons,
+  buildThpConfirmButtons,
   buildTrainConfirmButtons,
   buildTrainPickButtons,
   buildVrConfirmButtons,
@@ -39,6 +44,12 @@ import {
   resolveDiscordHelpContext,
 } from "@/lib/member-link/member-link-help-queue.server";
 import { getDiscordBotPending } from "@/lib/vr/repository";
+import {
+  handleDiscordThpButtonConfirm,
+  handleDiscordThpCharacterPick,
+  handleDiscordThpSlash,
+} from "@/lib/thp/service";
+import { isDiscordThpSlashCommand } from "@/lib/thp/discord-command-names";
 import {
   handleDiscordHelp,
   handleDiscordLanguage,
@@ -308,6 +319,45 @@ async function handleSlashCommand(payload: DiscordInteractionPayload) {
     return discordMessageResponse(result.reply);
   }
 
+  if (isDiscordThpSlashCommand(commandName)) {
+    const explicitTotal = parseSlashOptionInteger(payload, "total");
+    let screenshotBuffer: Buffer | null = null;
+    const attachment = parseResolvedAttachment(payload, "screenshot");
+    if (attachment) {
+      try {
+        screenshotBuffer = await downloadDiscordAttachment(attachment);
+      } catch (error) {
+        console.error("[discord-bot] thp screenshot download failed", error);
+        return discordMessageResponse(t("thp.ocrFailed"), undefined, EPHEMERAL);
+      }
+    }
+
+    const result = await handleDiscordThpSlash({
+      allianceId,
+      discordUserId,
+      explicitTotal,
+      screenshotBuffer,
+      locale,
+    });
+
+    if (result.characterPicker?.length) {
+      return discordMessageResponse(
+        result.reply,
+        buildCharacterPickerButtons(result.characterPicker, "thp"),
+      );
+    }
+    if (result.needsConfirmation && result.proposedTotal != null) {
+      return discordMessageResponse(
+        result.reply,
+        buildThpConfirmButtons({
+          yes: t("buttons.yes"),
+          no: t("buttons.no"),
+        }),
+      );
+    }
+    return discordMessageResponse(result.reply);
+  }
+
   if (commandName === "weekly-pass") {
     if (!guildId) {
       return discordMessageResponse(t("errors.guildNotRegistered"));
@@ -469,6 +519,16 @@ async function handleButton(payload: DiscordInteractionPayload) {
     return discordButtonResponse(result.reply, undefined, { ephemeral: false });
   }
 
+  if (parsed.kind === "thp_confirm") {
+    const result = await handleDiscordThpButtonConfirm({
+      allianceId,
+      discordUserId,
+      answer: parsed.answer,
+      locale,
+    });
+    return discordButtonResponse(result.reply, undefined, { ephemeral: false });
+  }
+
   if (parsed.kind === "link_pick") {
     const result = await handleDiscordLinkFuzzyPick({
       allianceId,
@@ -506,6 +566,26 @@ async function handleButton(payload: DiscordInteractionPayload) {
       return discordButtonResponse(
         result.reply,
         buildVrConfirmButtons(result.proposedVr, {
+          yes: t("buttons.yes"),
+          no: t("buttons.no"),
+        }),
+        { ephemeral: false },
+      );
+    }
+    return discordButtonResponse(result.reply, undefined, { ephemeral: false });
+  }
+
+  if (parsed.kind === "thp_character") {
+    const result = await handleDiscordThpCharacterPick({
+      allianceId,
+      discordUserId,
+      linkId: parsed.linkId,
+      locale,
+    });
+    if (result.needsConfirmation && result.proposedTotal != null) {
+      return discordButtonResponse(
+        result.reply,
+        buildThpConfirmButtons({
           yes: t("buttons.yes"),
           no: t("buttons.no"),
         }),

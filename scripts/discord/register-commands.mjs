@@ -29,6 +29,28 @@ const vrLevelOption = {
   required: false,
 };
 
+const thpOptions = [
+  {
+    name: "total",
+    description: "Total hero power from Power Details (optional)",
+    description_localizations: {
+      "pt-BR": "Poder total de heróis na tela Power Details (opcional)",
+    },
+    type: 4,
+    min_value: 1,
+    required: false,
+  },
+  {
+    name: "screenshot",
+    description: "Screenshot of your Power Details screen (optional)",
+    description_localizations: {
+      "pt-BR": "Captura da tela Power Details (opcional)",
+    },
+    type: 11,
+    required: false,
+  },
+];
+
 const commanderLinkOptions = [
   {
     name: "replace",
@@ -118,6 +140,22 @@ const commandBody = [
       "pt-BR": "Atalho para /vr",
     },
     options: [vrLevelOption],
+  },
+  {
+    name: "thp",
+    description: "Report your total hero power from Power Details.",
+    description_localizations: {
+      "pt-BR": "Informe seu poder total de heróis (Power Details).",
+    },
+    options: thpOptions,
+  },
+  {
+    name: "hero-power",
+    description: "Alias for /thp",
+    description_localizations: {
+      "pt-BR": "Atalho para /thp",
+    },
+    options: thpOptions,
   },
   {
     name: "weekly-pass",
