@@ -22,7 +22,6 @@ type Props = {
   initialScoreTarget: string;
 };
 
-
 export function DataManagementClient({
   initialBatches,
   scoreTargets,
