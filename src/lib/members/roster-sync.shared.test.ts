@@ -60,4 +60,16 @@ describe("shouldSyncRosterFromAshed", () => {
       }),
     ).toBe(false);
   });
+
+  it("syncs when cache is stale and roster is non-empty", () => {
+    const stale = new Date(now - ROSTER_ASHED_AUTO_SYNC_MAX_AGE_MS - 1);
+    expect(
+      shouldSyncRosterFromAshed({
+        forceRefresh: false,
+        lastSyncedAt: stale,
+        localMemberCount: 120,
+        nowMs: now,
+      }),
+    ).toBe(true);
+  });
 });

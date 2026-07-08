@@ -26,7 +26,7 @@ export type AllianceMembersPayload = {
     active: number;
     former: number;
   };
-  fetchedAt: string;
+  fetchedAt: string | null;
   operatingMode: "ashed" | "native";
   commanderConflicts: CommanderIdentityConflict[];
   gameServerNumber?: number | null;
@@ -71,9 +71,9 @@ async function enrichMembersPayload(
   };
 }
 
-async function rosterFetchedAtIso(hqAllianceId: string): Promise<string> {
+async function rosterFetchedAtIso(hqAllianceId: string): Promise<string | null> {
   const lastSyncedAt = await getAllianceRosterLastSyncedAt(hqAllianceId);
-  return (lastSyncedAt ?? new Date()).toISOString();
+  return lastSyncedAt?.toISOString() ?? null;
 }
 
 async function loadLocalMembersPayload(

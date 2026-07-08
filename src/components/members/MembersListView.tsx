@@ -748,9 +748,9 @@ export function MembersListView({
       {error && <p className="text-sm text-hq-danger">{error}</p>}
 
       <p className="text-xs text-hq-fg-muted">
-        {t("lastSynced", {
-          time: formatDateTime(data.fetchedAt),
-        })}
+        {data.fetchedAt
+          ? t("lastSynced", { time: formatDateTime(data.fetchedAt) })
+          : t("lastSyncedUnknown")}
       </p>
 
       <div className="min-w-0 overflow-x-auto rounded-xl border border-hq-border">
