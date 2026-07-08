@@ -128,6 +128,10 @@ describe("discord interactions", () => {
     expect(discordComponentMessageResponse("hello").type).toBe(7);
   });
 
+  it("clears stale buttons when component reply omits new rows", () => {
+    expect(discordComponentMessageResponse("confirmed").data.components).toEqual([]);
+  });
+
   it("supports ephemeral link replies (UID privacy)", () => {
     expect(discordMessageResponse("linked", undefined, { ephemeral: true }).data.flags).toBe(
       64,
