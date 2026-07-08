@@ -19,13 +19,13 @@ export function RecordDetailField({
   valueClassName?: string;
 }) {
   return (
-    <div className={cn("rounded-lg bg-[#0d1117] px-3 py-2.5", className)}>
-      <dt className="text-[10px] font-semibold uppercase tracking-wider text-[#58a6ff]">
+    <div className={cn("rounded-lg bg-hq-canvas px-3 py-2.5", className)}>
+      <dt className="text-[10px] font-semibold uppercase tracking-wider text-hq-accent">
         {label}
       </dt>
       <dd
         className={cn(
-          "mt-1 min-w-0 text-base font-medium leading-snug text-[#e6edf3]",
+          "mt-1 min-w-0 text-base font-medium leading-snug text-hq-fg",
           valueClassName,
         )}
       >
@@ -64,11 +64,11 @@ export function RecordDetailCard({
           : undefined
       }
       className={cn(
-        "space-y-2 rounded-xl border border-[#30363d] bg-[#161b22] p-3",
+        "space-y-2 rounded-xl border border-hq-border bg-hq-surface p-3",
         interactive &&
-          "cursor-pointer transition-colors hover:border-[#484f58] hover:bg-[#21262d]/40",
+          "cursor-pointer transition-colors hover:border-[#484f58] hover:bg-hq-surface-muted/40",
         selected &&
-          "border-[#58a6ff]/60 bg-[#1f3d5c]/25 ring-1 ring-inset ring-[#58a6ff]/30",
+          "border-hq-accent/60 bg-hq-selected/25 ring-1 ring-inset ring-hq-accent/30",
         className,
       )}
     >
@@ -97,7 +97,7 @@ export function ResponsiveRecordViews({
     return (
       <p
         className={cn(
-          "rounded-xl border border-[#30363d] px-4 py-6 text-sm text-[#8b949e]",
+          "rounded-xl border border-hq-border px-4 py-6 text-sm text-hq-fg-muted",
           className,
         )}
       >

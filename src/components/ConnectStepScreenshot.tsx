@@ -8,12 +8,12 @@ type Props = {
 
 export function ConnectStepScreenshot({ src, alt, caption }: Props) {
   return (
-    <figure className="mt-4 overflow-hidden rounded-lg border border-[#30363d] bg-[#0d1117]">
+    <figure className="mt-4 overflow-hidden rounded-lg border border-hq-border bg-hq-canvas">
       <a
         href={src}
         target="_blank"
         rel="noreferrer"
-        className="block focus:outline-none focus-visible:ring-2 focus-visible:ring-[#58a6ff]"
+        className="block focus:outline-none focus-visible:ring-2 focus-visible:ring-hq-accent"
         title="Open full-size screenshot"
       >
         <Image
@@ -27,7 +27,7 @@ export function ConnectStepScreenshot({ src, alt, caption }: Props) {
         />
       </a>
       {caption && (
-        <figcaption className="border-t border-[#30363d] px-3 py-2 text-xs text-[#8b949e]">
+        <figcaption className="border-t border-hq-border px-3 py-2 text-xs text-hq-fg-muted">
           {caption}
         </figcaption>
       )}

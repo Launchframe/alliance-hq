@@ -190,20 +190,20 @@ export function UploadRemindersClient({ canManageSchedules }: Props) {
     <div className="mx-auto max-w-2xl space-y-8">
       <div>
         <h1 className="text-2xl font-semibold">{t("title")}</h1>
-        <p className="mt-1 text-sm text-[#8b949e]">{t("subtitle")}</p>
+        <p className="mt-1 text-sm text-hq-fg-muted">{t("subtitle")}</p>
         <p className="mt-2 text-sm">
-          <Link href="/inbox" className="text-[#58a6ff] hover:underline">
+          <Link href="/inbox" className="text-hq-accent hover:underline">
             {t("openInbox")}
           </Link>
         </p>
       </div>
 
-      {error ? <p className="text-sm text-[#f85149]">{error}</p> : null}
+      {error ? <p className="text-sm text-hq-danger">{error}</p> : null}
 
       <section className="space-y-3">
         <h2 className="text-lg font-medium">{t("personalTitle")}</h2>
-        <p className="text-sm text-[#8b949e]">{t("personalBody")}</p>
-        <ul className="divide-y divide-[#30363d] rounded-xl border border-[#30363d] bg-[#161b22]">
+        <p className="text-sm text-hq-fg-muted">{t("personalBody")}</p>
+        <ul className="divide-y divide-hq-border rounded-xl border border-hq-border bg-hq-surface">
           {ENABLED_SCORE_TARGETS.map((target) => (
             <li
               key={target.id}
@@ -216,7 +216,7 @@ export function UploadRemindersClient({ canManageSchedules }: Props) {
                 onClick={() =>
                   void toggleSubscription(target.id, !isSubscribed(target.id))
                 }
-                className="shrink-0 rounded-lg border border-[#30363d] px-3 py-1 text-sm hover:bg-[#21262d] disabled:opacity-50"
+                className="shrink-0 rounded-lg border border-hq-border px-3 py-1 text-sm hover:bg-hq-surface-muted disabled:opacity-50"
               >
                 {isSubscribed(target.id) ? t("subscribed") : t("subscribe")}
               </button>
@@ -229,11 +229,11 @@ export function UploadRemindersClient({ canManageSchedules }: Props) {
         <>
           <section className="space-y-3">
             <h2 className="text-lg font-medium">{t("allianceTitle")}</h2>
-            <p className="text-sm text-[#8b949e]">{t("allianceBody")}</p>
+            <p className="text-sm text-hq-fg-muted">{t("allianceBody")}</p>
             {schedules.length === 0 ? (
-              <p className="text-sm text-[#8b949e]">{t("noSchedules")}</p>
+              <p className="text-sm text-hq-fg-muted">{t("noSchedules")}</p>
             ) : (
-              <ul className="divide-y divide-[#30363d] rounded-xl border border-[#30363d] bg-[#161b22]">
+              <ul className="divide-y divide-hq-border rounded-xl border border-hq-border bg-hq-surface">
                 {schedules.map((row) => (
                   <li key={row.id} className="space-y-2 px-4 py-3">
                     <div className="flex flex-wrap items-start justify-between gap-2">
@@ -241,7 +241,7 @@ export function UploadRemindersClient({ canManageSchedules }: Props) {
                         <p className="font-medium">
                           {row.customLabel ?? row.scoreTarget ?? t("unnamedEvent")}
                         </p>
-                        <p className="text-sm text-[#8b949e]">
+                        <p className="text-sm text-hq-fg-muted">
                           {describeSchedule(row)}
                         </p>
                       </div>
@@ -250,7 +250,7 @@ export function UploadRemindersClient({ canManageSchedules }: Props) {
                           type="button"
                           disabled={saving}
                           onClick={() => void toggleScheduleActive(row)}
-                          className="rounded-lg border border-[#30363d] px-2 py-1 text-xs hover:bg-[#21262d] disabled:opacity-50"
+                          className="rounded-lg border border-hq-border px-2 py-1 text-xs hover:bg-hq-surface-muted disabled:opacity-50"
                         >
                           {row.active ? t("active") : t("paused")}
                         </button>
@@ -260,7 +260,7 @@ export function UploadRemindersClient({ canManageSchedules }: Props) {
                               type="button"
                               disabled={saving}
                               onClick={() => void deleteSchedule(row.id)}
-                              className="rounded-lg border border-[#f85149] px-2 py-1 text-xs text-[#f85149] hover:bg-[#21262d] disabled:opacity-50"
+                              className="rounded-lg border border-hq-danger px-2 py-1 text-xs text-hq-danger hover:bg-hq-surface-muted disabled:opacity-50"
                             >
                               {t("confirmDelete")}
                             </button>
@@ -268,7 +268,7 @@ export function UploadRemindersClient({ canManageSchedules }: Props) {
                               type="button"
                               disabled={saving}
                               onClick={() => setPendingDeleteId(null)}
-                              className="rounded-lg border border-[#30363d] px-2 py-1 text-xs hover:bg-[#21262d] disabled:opacity-50"
+                              className="rounded-lg border border-hq-border px-2 py-1 text-xs hover:bg-hq-surface-muted disabled:opacity-50"
                             >
                               {t("cancelDelete")}
                             </button>
@@ -278,7 +278,7 @@ export function UploadRemindersClient({ canManageSchedules }: Props) {
                             type="button"
                             disabled={saving}
                             onClick={() => setPendingDeleteId(row.id)}
-                            className="rounded-lg border border-[#30363d] px-2 py-1 text-xs text-[#f85149] hover:bg-[#21262d] disabled:opacity-50"
+                            className="rounded-lg border border-hq-border px-2 py-1 text-xs text-hq-danger hover:bg-hq-surface-muted disabled:opacity-50"
                           >
                             {t("delete")}
                           </button>
@@ -291,7 +291,7 @@ export function UploadRemindersClient({ canManageSchedules }: Props) {
             )}
           </section>
 
-          <section className="space-y-4 rounded-xl border border-[#30363d] bg-[#161b22] p-5">
+          <section className="space-y-4 rounded-xl border border-hq-border bg-hq-surface p-5">
             <h2 className="font-medium">{t("addSchedule")}</h2>
             <form
               className="space-y-4"
@@ -302,7 +302,7 @@ export function UploadRemindersClient({ canManageSchedules }: Props) {
             >
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="block text-sm">
-                <span className="text-[#8b949e]">{t("scheduleKind")}</span>
+                <span className="text-hq-fg-muted">{t("scheduleKind")}</span>
                 <select
                   value={scheduleKind}
                   onChange={(e) =>
@@ -310,18 +310,18 @@ export function UploadRemindersClient({ canManageSchedules }: Props) {
                       e.target.value as "weekly" | "interval_after_last",
                     )
                   }
-                  className="mt-1 w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 text-sm"
+                  className="mt-1 w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 text-sm"
                 >
                   <option value="weekly">{t("kindWeekly")}</option>
                   <option value="interval_after_last">{t("kindInterval")}</option>
                 </select>
               </label>
               <label className="block text-sm">
-                <span className="text-[#8b949e]">{t("scoreTarget")}</span>
+                <span className="text-hq-fg-muted">{t("scoreTarget")}</span>
                 <select
                   value={scoreTarget}
                   onChange={(e) => setScoreTarget(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 text-sm"
+                  className="mt-1 w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 text-sm"
                 >
                   <option value="">{t("customEvent")}</option>
                   {ENABLED_SCORE_TARGETS.map((target) => (
@@ -333,22 +333,22 @@ export function UploadRemindersClient({ canManageSchedules }: Props) {
               </label>
               {!scoreTarget ? (
                 <label className="block text-sm sm:col-span-2">
-                  <span className="text-[#8b949e]">{t("customLabel")}</span>
+                  <span className="text-hq-fg-muted">{t("customLabel")}</span>
                   <input
                     value={customLabel}
                     onChange={(e) => setCustomLabel(e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 text-sm"
+                    className="mt-1 w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 text-sm"
                   />
                 </label>
               ) : null}
               {scheduleKind === "weekly" ? (
                 <>
                   <label className="block text-sm">
-                    <span className="text-[#8b949e]">{t("dayOfWeek")}</span>
+                    <span className="text-hq-fg-muted">{t("dayOfWeek")}</span>
                     <select
                       value={weeklyDow}
                       onChange={(e) => setWeeklyDow(Number(e.target.value))}
-                      className="mt-1 w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 text-sm"
+                      className="mt-1 w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 text-sm"
                     >
                       {DOW_LABELS.map((label, i) => (
                         <option key={label} value={i}>
@@ -358,19 +358,19 @@ export function UploadRemindersClient({ canManageSchedules }: Props) {
                     </select>
                   </label>
                   <label className="block text-sm">
-                    <span className="text-[#8b949e]">{t("startTime")}</span>
+                    <span className="text-hq-fg-muted">{t("startTime")}</span>
                     <input
                       type="time"
                       value={weeklyTime}
                       onChange={(e) => setWeeklyTime(e.target.value)}
-                      className="mt-1 w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 text-sm"
+                      className="mt-1 w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 text-sm"
                     />
                   </label>
                 </>
               ) : (
                 <>
                   <label className="block text-sm">
-                    <span className="text-[#8b949e]">{t("intervalDays")}</span>
+                    <span className="text-hq-fg-muted">{t("intervalDays")}</span>
                     <input
                       type="number"
                       min={1}
@@ -378,22 +378,22 @@ export function UploadRemindersClient({ canManageSchedules }: Props) {
                       onChange={(e) =>
                         setIntervalDays(Number.parseInt(e.target.value, 10) || 1)
                       }
-                      className="mt-1 w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 text-sm"
+                      className="mt-1 w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 text-sm"
                     />
                   </label>
                   <label className="block text-sm">
-                    <span className="text-[#8b949e]">{t("startTime")}</span>
+                    <span className="text-hq-fg-muted">{t("startTime")}</span>
                     <input
                       type="time"
                       value={anchorTimeSt}
                       onChange={(e) => setAnchorTimeSt(e.target.value)}
-                      className="mt-1 w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 text-sm"
+                      className="mt-1 w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 text-sm"
                     />
                   </label>
                 </>
               )}
               <label className="block text-sm sm:col-span-2">
-                <span className="text-[#8b949e]">{t("reminderDelay")}</span>
+                <span className="text-hq-fg-muted">{t("reminderDelay")}</span>
                 <input
                   type="number"
                   min={0}
@@ -405,14 +405,14 @@ export function UploadRemindersClient({ canManageSchedules }: Props) {
                     )
                   }
                   enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT}
-                  className="mt-1 w-full max-w-xs rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 text-sm"
+                  className="mt-1 w-full max-w-xs rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 text-sm"
                 />
               </label>
             </div>
             <button
               type="submit"
               disabled={saving}
-              className="rounded-lg bg-[#238636] px-4 py-2 text-sm font-medium text-white hover:bg-[#2ea043] disabled:opacity-50"
+              className="rounded-lg bg-hq-success px-4 py-2 text-sm font-medium text-white hover:bg-hq-success-hover disabled:opacity-50"
             >
               {t("saveSchedule")}
             </button>

@@ -8,7 +8,7 @@
 
 - Hub: `/guides/alliance-onboarding`
 - [Ashed-sync — linking a full roster](./ashed-alliance-member-onboarding.md)
-- [Fresh native — owner-only cold start](./fresh-native-alliance-onboarding.md)
+- [Fresh native — leadership cold start](./fresh-native-alliance-onboarding.md)
 
 Agent rule: [`.cursor/rules/native-alliance-invites-rbac.mdc`](../.cursor/rules/native-alliance-invites-rbac.mdc)
 
@@ -200,7 +200,7 @@ flowchart TD
   H --> Z[Clear pending, sync primaryGameUid, audit]
 ```
 
-#### 5a. Owner cold-start bootstrap
+#### 5a. Leadership cold-start bootstrap (owner or officer)
 
 **Function:** `tryBootstrapOwnerColdStartMember` — `src/lib/member-link/roster-link-request.server.ts`
 
@@ -208,7 +208,7 @@ Runs only when **all** of:
 
 - Native alliance (`isNativeAlliance`)
 - Empty roster (`rosterCount === 0`)
-- Owner gate: `alliances.ownerHqUserId` matches **or** accepted invite with `owner` role
+- Leadership gate: `alliances.ownerHqUserId` matches **or** accepted invite with `owner` or `officer` role
 - `namesMatch(reportedName, lookup.gameUserName)` — case-insensitive, whitespace-normalized
 
 Then:
@@ -343,6 +343,20 @@ See [native-alliance-onboarding-smoke-test.md](./native-alliance-onboarding-smok
 5. Expect `linked` → `/members`; alliance now has state server.
 6. PA or owner issues officer/member invites.
 7. Each invitee: accept → `/onboard` → name+UID → **`awaiting_owner`** until owner approves (or exact roster match if already imported).
+
+---
+
+## Self-service member onboarding
+
+By default, members who accept an invite or redeem a join code can link immediately after Last War verifies their player UID — on **Alliance HQ (`/onboard`)** or **Discord (`/link-commander`)**.
+
+The verified Last War name is stored during the link. If no roster entry matches, Alliance HQ may create one and let the member in right away. Officers review those links on **Members → Onboarding review** — to confirm the roster entry or merge with an existing unlinked entry when HQ suggests a duplicate.
+
+**Discord:** Self-service requires a linked HQ account plus invite/join-code proof. Discord-only users without HQ stay on the strict roster-link request path.
+
+**Owner settings:** Settings → Member onboarding (`/settings/member-onboarding`).
+
+**HQ roster cap (200):** JIT roster row creation is blocked at 200 active HQ roster rows (Last War in-game alliances cap at 100). Exact-match self-service links to unlinked rows still work below the HQ cap.
 
 ---
 

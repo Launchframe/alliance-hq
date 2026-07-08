@@ -59,8 +59,8 @@ export default async function VideoProcessorsPage() {
   return (
     <div className="mx-auto min-w-0 max-w-3xl space-y-4 p-4 md:p-6">
       <header className="space-y-1">
-        <h1 className="text-lg font-semibold text-[#e6edf3]">{t("title")}</h1>
-        <p className="text-sm text-[#8b949e]">{t("pageDescription")}</p>
+        <h1 className="text-lg font-semibold text-hq-fg">{t("title")}</h1>
+        <p className="text-sm text-hq-fg-muted">{t("pageDescription")}</p>
       </header>
       <VideoProcessorsPanel
         initialProcessors={processors}

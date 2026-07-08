@@ -20,9 +20,14 @@ export async function GET(request: Request) {
     const q = url.searchParams.get("q")?.trim() || undefined;
     const includeFormer = url.searchParams.get("includeFormer") === "1";
 
+    const refresh =
+      url.searchParams.get("refresh") === "1" ||
+      url.searchParams.get("refresh") === "true";
+
     const payload = await loadAllianceMembers(session.id, {
       q,
       includeFormer,
+      refresh,
     });
     return NextResponse.json(payload);
   } catch (error) {

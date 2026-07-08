@@ -165,7 +165,7 @@ export function MemberLinkOnboardingWizard({
           break;
         case "member_taken":
           setPhase("form");
-          setFormError(t("memberTakenBody"));
+          setFormError(data.message?.trim() || t("memberTakenBody"));
           break;
         case "lookup_error":
         case "usage":
@@ -466,7 +466,7 @@ export function MemberLinkOnboardingWizard({
   }, [phase, refreshMemberLinkStatus]);
 
   return (
-    <div className="mx-auto w-full max-w-lg space-y-6 rounded-xl border border-[#30363d] bg-[#161b22] p-6">
+    <div className="mx-auto w-full max-w-lg space-y-6 rounded-xl border border-hq-border bg-hq-surface p-6">
       {phase === "welcome" ? (
         <>
           <AllianceWelcomeHero
@@ -474,11 +474,11 @@ export function MemberLinkOnboardingWizard({
             allianceTag={allianceTag}
             welcomePrefix={t("welcomePrefix")}
           />
-          <p className="text-center text-sm text-[#8b949e]">{t("welcomeSubtitle")}</p>
+          <p className="text-center text-sm text-hq-fg-muted">{t("welcomeSubtitle")}</p>
           <button
             type="button"
             onClick={goToMemberLinkForm}
-            className="w-full rounded-lg border border-[#238636] bg-[#238636] px-4 py-2.5 text-sm font-medium text-white"
+            className="w-full rounded-lg border border-hq-success bg-hq-success px-4 py-2.5 text-sm font-medium text-white"
           >
             {t("continue")}
           </button>
@@ -495,7 +495,7 @@ export function MemberLinkOnboardingWizard({
         >
           <div>
             <h2 className="text-lg font-semibold">{t("title")}</h2>
-            <p className="mt-1 text-sm text-[#8b949e]">{t("uidOnlySubtitle")}</p>
+            <p className="mt-1 text-sm text-hq-fg-muted">{t("uidOnlySubtitle")}</p>
           </div>
           <label className="block space-y-1">
             <span className="text-sm font-medium">{t("uidLabel")}</span>
@@ -505,45 +505,45 @@ export function MemberLinkOnboardingWizard({
               value={gameUid}
               onChange={(e) => setGameUid(e.target.value.replace(/\D/g, ""))}
               enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT}
-              className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 font-mono text-sm text-[#e6edf3]"
+              className="w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 font-mono text-sm text-hq-fg"
               autoComplete="off"
             />
-            <span className="text-xs text-[#8b949e]">{t("uidHint")}</span>
+            <span className="text-xs text-hq-fg-muted">{t("uidHint")}</span>
           </label>
           {formError ? (
-            <p className="text-sm text-[#f85149]">{formError}</p>
+            <p className="text-sm text-hq-danger">{formError}</p>
           ) : null}
           {message && !formError ? (
-            <p className="text-sm text-[#3fb950]">{message}</p>
+            <p className="text-sm text-hq-green">{message}</p>
           ) : null}
           <button
             type="submit"
             disabled={busy}
-            className="w-full rounded-lg border border-[#238636] bg-[#238636] px-4 py-2.5 text-sm font-medium text-white disabled:opacity-50"
+            className="w-full rounded-lg border border-hq-success bg-hq-success px-4 py-2.5 text-sm font-medium text-white disabled:opacity-50"
           >
             {busy ? t("submitting") : t("submit")}
           </button>
-          <div className="space-y-2 rounded-lg border border-[#30363d] bg-[#0d1117] p-3">
-            <p className="text-xs text-[#8b949e]">{t("linkHelpHint")}</p>
+          <div className="space-y-2 rounded-lg border border-hq-border bg-hq-canvas p-3">
+            <p className="text-xs text-hq-fg-muted">{t("linkHelpHint")}</p>
             <button
               type="button"
               disabled={busy}
               onClick={() => void askOfficer()}
-              className="w-full rounded-lg border border-[#da3633] bg-[#da3633]/20 px-4 py-2.5 text-sm font-medium text-[#ff7b72] disabled:opacity-50"
+              className="w-full rounded-lg border border-hq-danger-emphasis bg-hq-danger-emphasis/20 px-4 py-2.5 text-sm font-medium text-[#ff7b72] disabled:opacity-50"
             >
               {tLink("buttons.askOfficer")}
             </button>
           </div>
-          <div className="border-t border-[#30363d] pt-3 text-center">
+          <div className="border-t border-hq-border pt-3 text-center">
             <button
               type="button"
               disabled={busy}
               onClick={() => void wrongAlliance()}
-              className="text-sm text-[#8b949e] underline hover:text-[#58a6ff] disabled:opacity-50"
+              className="text-sm text-hq-fg-muted underline hover:text-hq-accent disabled:opacity-50"
             >
               {t("wrongAlliance")}
             </button>
-            <p className="mt-1 text-xs text-[#8b949e]">{t("wrongAllianceHint")}</p>
+            <p className="mt-1 text-xs text-hq-fg-muted">{t("wrongAllianceHint")}</p>
           </div>
         </form>
       ) : null}
@@ -552,7 +552,7 @@ export function MemberLinkOnboardingWizard({
         <div className="space-y-4">
           <h2 className="text-lg font-semibold">{t("walkthroughTitle")}</h2>
           {message ? (
-            <pre className="whitespace-pre-wrap rounded-lg border border-[#30363d] bg-[#0d1117] p-3 text-sm text-[#e6edf3]">
+            <pre className="whitespace-pre-wrap rounded-lg border border-hq-border bg-hq-canvas p-3 text-sm text-hq-fg">
               {message}
             </pre>
           ) : (
@@ -575,7 +575,7 @@ export function MemberLinkOnboardingWizard({
               type="button"
               disabled={busy}
               onClick={() => void askOfficer()}
-              className="w-full rounded-lg border border-[#da3633] bg-[#da3633]/20 px-4 py-2.5 text-sm font-medium text-[#ff7b72] disabled:opacity-50"
+              className="w-full rounded-lg border border-hq-danger-emphasis bg-hq-danger-emphasis/20 px-4 py-2.5 text-sm font-medium text-[#ff7b72] disabled:opacity-50"
             >
               {tLink("buttons.askOfficer")}
             </button>
@@ -587,7 +587,7 @@ export function MemberLinkOnboardingWizard({
         <div className="space-y-4">
           <h2 className="text-lg font-semibold">{t("fuzzyTitle")}</h2>
           {message ? (
-            <p className="text-sm text-[#8b949e]">{message}</p>
+            <p className="text-sm text-hq-fg-muted">{message}</p>
           ) : null}
           <ul className="space-y-2">
             {candidates.map((c) => (
@@ -596,7 +596,7 @@ export function MemberLinkOnboardingWizard({
                   type="button"
                   disabled={busy}
                   onClick={() => void confirmPick(c.memberId)}
-                  className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-4 py-3 text-left text-sm font-medium text-[#e6edf3] hover:border-[#58a6ff] disabled:opacity-50"
+                  className="w-full rounded-lg border border-hq-border bg-hq-canvas px-4 py-3 text-left text-sm font-medium text-hq-fg hover:border-hq-accent disabled:opacity-50"
                 >
                   {c.name}
                 </button>
@@ -609,13 +609,13 @@ export function MemberLinkOnboardingWizard({
       {phase === "roster_miss" ? (
         <div className="space-y-4">
           <h2 className="text-lg font-semibold">{t("rosterMissTitle")}</h2>
-          <p className="text-sm text-[#8b949e]">{message}</p>
+          <p className="text-sm text-hq-fg-muted">{message}</p>
           <div className="flex flex-col gap-2 sm:flex-row">
             <button
               type="button"
               disabled={busy}
               onClick={() => void startOver()}
-              className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-4 py-2.5 text-sm font-medium text-[#e6edf3] disabled:opacity-50"
+              className="w-full rounded-lg border border-hq-border bg-hq-canvas px-4 py-2.5 text-sm font-medium text-hq-fg disabled:opacity-50"
             >
               {tLink("buttons.startOver")}
             </button>
@@ -623,7 +623,7 @@ export function MemberLinkOnboardingWizard({
               type="button"
               disabled={busy}
               onClick={() => void askOfficer()}
-              className="w-full rounded-lg border border-[#da3633] bg-[#da3633]/20 px-4 py-2.5 text-sm font-medium text-[#ff7b72] disabled:opacity-50"
+              className="w-full rounded-lg border border-hq-danger-emphasis bg-hq-danger-emphasis/20 px-4 py-2.5 text-sm font-medium text-[#ff7b72] disabled:opacity-50"
             >
               {tLink("buttons.askOfficer")}
             </button>
@@ -632,7 +632,7 @@ export function MemberLinkOnboardingWizard({
             type="button"
             disabled={busy}
             onClick={() => void wrongAlliance()}
-            className="w-full text-sm text-[#8b949e] underline hover:text-[#58a6ff] disabled:opacity-50"
+            className="w-full text-sm text-hq-fg-muted underline hover:text-hq-accent disabled:opacity-50"
           >
             {t("wrongAlliance")}
           </button>
@@ -642,13 +642,13 @@ export function MemberLinkOnboardingWizard({
       {phase === "awaiting_owner" ? (
         <div className="space-y-4">
           <h2 className="text-lg font-semibold">{t("awaitingOwnerTitle")}</h2>
-          <p className="text-sm text-[#8b949e]">{message ?? t("awaitingOwnerBody")}</p>
-          <p className="text-xs text-[#6e7681]">{t("awaitingOwnerHint")}</p>
+          <p className="text-sm text-hq-fg-muted">{message ?? t("awaitingOwnerBody")}</p>
+          <p className="text-xs text-hq-fg-subtle">{t("awaitingOwnerHint")}</p>
           <button
             type="button"
             disabled={busy}
             onClick={() => void refreshMemberLinkStatus()}
-            className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-4 py-2.5 text-sm font-medium text-[#e6edf3] disabled:opacity-50"
+            className="w-full rounded-lg border border-hq-border bg-hq-canvas px-4 py-2.5 text-sm font-medium text-hq-fg disabled:opacity-50"
           >
             {t("awaitingOwnerRefresh")}
           </button>
@@ -656,7 +656,7 @@ export function MemberLinkOnboardingWizard({
             type="button"
             disabled={busy}
             onClick={() => void startOver()}
-            className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-4 py-2.5 text-sm font-medium text-[#e6edf3] disabled:opacity-50"
+            className="w-full rounded-lg border border-hq-border bg-hq-canvas px-4 py-2.5 text-sm font-medium text-hq-fg disabled:opacity-50"
           >
             {tLink("buttons.startOver")}
           </button>
@@ -666,13 +666,13 @@ export function MemberLinkOnboardingWizard({
       {phase === "wrong_server" ? (
         <div className="space-y-4">
           <h2 className="text-lg font-semibold">{t("wrongServerTitle")}</h2>
-          <p className="text-sm text-[#f85149]">{formError ?? message}</p>
-          <p className="text-sm text-[#8b949e]">{t("wrongServerBody")}</p>
+          <p className="text-sm text-hq-danger">{formError ?? message}</p>
+          <p className="text-sm text-hq-fg-muted">{t("wrongServerBody")}</p>
           <button
             type="button"
             disabled={busy}
             onClick={() => void wrongAlliance()}
-            className="w-full text-sm text-[#8b949e] underline hover:text-[#58a6ff] disabled:opacity-50"
+            className="w-full text-sm text-hq-fg-muted underline hover:text-hq-accent disabled:opacity-50"
           >
             {t("wrongAlliance")}
           </button>
@@ -692,7 +692,7 @@ export function MemberLinkOnboardingWizard({
               ? t("lookupFallbackTitle")
               : t("confirmServerTitle")}
           </h2>
-          <p className="text-sm text-[#8b949e]">
+          <p className="text-sm text-hq-fg-muted">
             {message ??
               (phase === "lookup_fallback"
                 ? t("lookupFallbackBody")
@@ -701,16 +701,16 @@ export function MemberLinkOnboardingWizard({
                   : t("confirmServerMissingBody"))}
           </p>
           {serverConfirmReason === "mismatch" ? (
-            <dl className="grid grid-cols-2 gap-2 rounded-lg border border-[#30363d] bg-[#0d1117] p-3 text-sm">
+            <dl className="grid grid-cols-2 gap-2 rounded-lg border border-hq-border bg-hq-canvas p-3 text-sm">
               <div>
-                <dt className="text-[#8b949e]">Last War</dt>
-                <dd className="font-medium text-[#e6edf3]">
+                <dt className="text-hq-fg-muted">Last War</dt>
+                <dd className="font-medium text-hq-fg">
                   {lookupServerNumber ?? "—"}
                 </dd>
               </div>
               <div>
-                <dt className="text-[#8b949e]">{t("serverNumberLabel")}</dt>
-                <dd className="font-medium text-[#e6edf3]">
+                <dt className="text-hq-fg-muted">{t("serverNumberLabel")}</dt>
+                <dd className="font-medium text-hq-fg">
                   {allianceServerNumber ?? "—"}
                 </dd>
               </div>
@@ -723,10 +723,10 @@ export function MemberLinkOnboardingWizard({
                 type="text"
                 value={reportedName}
                 onChange={(e) => setReportedName(e.target.value)}
-                className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 text-sm text-[#e6edf3]"
+                className="w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 text-sm text-hq-fg"
                 autoComplete="off"
               />
-              <span className="text-xs text-[#8b949e]">{t("nameHint")}</span>
+              <span className="text-xs text-hq-fg-muted">{t("nameHint")}</span>
             </label>
           ) : null}
           <label className="block space-y-1">
@@ -739,18 +739,18 @@ export function MemberLinkOnboardingWizard({
                 setServerDraft(e.target.value.replace(/\D/g, ""))
               }
               enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT}
-              className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 font-mono text-sm text-[#e6edf3]"
+              className="w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 font-mono text-sm text-hq-fg"
               autoComplete="off"
             />
-            <span className="text-xs text-[#8b949e]">{t("serverNumberHint")}</span>
+            <span className="text-xs text-hq-fg-muted">{t("serverNumberHint")}</span>
           </label>
           {formError ? (
-            <p className="text-sm text-[#f85149]">{formError}</p>
+            <p className="text-sm text-hq-danger">{formError}</p>
           ) : null}
           <button
             type="submit"
             disabled={busy}
-            className="w-full rounded-lg border border-[#238636] bg-[#238636] px-4 py-2.5 text-sm font-medium text-white disabled:opacity-50"
+            className="w-full rounded-lg border border-hq-success bg-hq-success px-4 py-2.5 text-sm font-medium text-white disabled:opacity-50"
           >
             {busy ? t("submitting") : t("submitServer")}
           </button>
@@ -758,7 +758,7 @@ export function MemberLinkOnboardingWizard({
             type="button"
             disabled={busy}
             onClick={backToLinkForm}
-            className="w-full text-sm text-[#8b949e] underline hover:text-[#58a6ff] disabled:opacity-50"
+            className="w-full text-sm text-hq-fg-muted underline hover:text-hq-accent disabled:opacity-50"
           >
             {t("backToForm")}
           </button>
@@ -769,28 +769,28 @@ export function MemberLinkOnboardingWizard({
         <div className="space-y-4">
           <div>
             <h2 className="text-lg font-semibold">{t("confirmIdentityTitle")}</h2>
-            <p className="mt-1 text-sm text-[#8b949e]">
+            <p className="mt-1 text-sm text-hq-fg-muted">
               {t("confirmIdentityBody")}
             </p>
           </div>
-          <div className="rounded-lg border border-[#30363d] bg-[#0d1117] p-4 text-center">
-            <p className="text-xl font-semibold text-[#e6edf3]">
+          <div className="rounded-lg border border-hq-border bg-hq-canvas p-4 text-center">
+            <p className="text-xl font-semibold text-hq-fg">
               {confirmName ?? "—"}
             </p>
             {lookupServerNumber != null ? (
-              <p className="mt-1 text-xs text-[#8b949e]">
+              <p className="mt-1 text-xs text-hq-fg-muted">
                 {t("confirmIdentityServer", { server: lookupServerNumber })}
               </p>
             ) : null}
           </div>
           {formError ? (
-            <p className="text-sm text-[#f85149]">{formError}</p>
+            <p className="text-sm text-hq-danger">{formError}</p>
           ) : null}
           <button
             type="button"
             disabled={busy}
             onClick={() => void submitConfirmedLink()}
-            className="w-full rounded-lg border border-[#238636] bg-[#238636] px-4 py-2.5 text-sm font-medium text-white disabled:opacity-50"
+            className="w-full rounded-lg border border-hq-success bg-hq-success px-4 py-2.5 text-sm font-medium text-white disabled:opacity-50"
           >
             {busy ? t("submitting") : t("confirmIdentityYes")}
           </button>
@@ -798,7 +798,7 @@ export function MemberLinkOnboardingWizard({
             type="button"
             disabled={busy}
             onClick={reenterUid}
-            className="w-full text-sm text-[#8b949e] underline hover:text-[#58a6ff] disabled:opacity-50"
+            className="w-full text-sm text-hq-fg-muted underline hover:text-hq-accent disabled:opacity-50"
           >
             {t("confirmIdentityNo")}
           </button>
@@ -815,7 +815,7 @@ export function MemberLinkOnboardingWizard({
         >
           <div>
             <h2 className="text-lg font-semibold">{t("claimTitle")}</h2>
-            <p className="mt-1 text-sm text-[#8b949e]">
+            <p className="mt-1 text-sm text-hq-fg-muted">
               {t("claimSubtitle", { name: claimCommanderName })}
             </p>
           </div>
@@ -827,18 +827,18 @@ export function MemberLinkOnboardingWizard({
               value={gameUid}
               onChange={(e) => setGameUid(e.target.value.replace(/\D/g, ""))}
               enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT}
-              className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 font-mono text-sm text-[#e6edf3]"
+              className="w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 font-mono text-sm text-hq-fg"
               autoComplete="off"
             />
-            <span className="text-xs text-[#8b949e]">{t("uidHint")}</span>
+            <span className="text-xs text-hq-fg-muted">{t("uidHint")}</span>
           </label>
           {formError ? (
-            <p className="text-sm text-[#f85149]">{formError}</p>
+            <p className="text-sm text-hq-danger">{formError}</p>
           ) : null}
           <button
             type="submit"
             disabled={busy}
-            className="w-full rounded-lg border border-[#238636] bg-[#238636] px-4 py-2.5 text-sm font-medium text-white disabled:opacity-50"
+            className="w-full rounded-lg border border-hq-success bg-hq-success px-4 py-2.5 text-sm font-medium text-white disabled:opacity-50"
           >
             {busy ? t("submitting") : t("claimSubmit")}
           </button>
@@ -847,10 +847,10 @@ export function MemberLinkOnboardingWizard({
 
       {phase === "success" ? (
         <div className="space-y-4 text-center">
-          <h2 className="text-xl font-semibold text-[#3fb950]">
+          <h2 className="text-xl font-semibold text-hq-green">
             {t("linkedTitle")}
           </h2>
-          <p className="text-sm text-[#8b949e]">
+          <p className="text-sm text-hq-fg-muted">
             {successPresentation === "explore"
               ? t("linkedExploreBody", { name: linkedName ?? reportedName })
               : t("linkedBody", { name: linkedName ?? reportedName })}
@@ -859,11 +859,11 @@ export function MemberLinkOnboardingWizard({
             <>
               <Link
                 href={nextPath}
-                className="inline-block rounded-lg border border-[#238636] bg-[#238636] px-4 py-2 text-sm font-medium text-white hover:bg-[#2ea043]"
+                className="inline-block rounded-lg border border-hq-success bg-hq-success px-4 py-2 text-sm font-medium text-white hover:bg-hq-success-hover"
               >
                 {t("linkedExploreCta")}
               </Link>
-              <p className="text-xs text-[#8b949e]">{t("linkedExploreDismiss")}</p>
+              <p className="text-xs text-hq-fg-muted">{t("linkedExploreDismiss")}</p>
             </>
           ) : null}
         </div>

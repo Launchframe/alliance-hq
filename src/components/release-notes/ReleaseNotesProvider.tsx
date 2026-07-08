@@ -56,8 +56,8 @@ function ReleaseNoteSection({
 
   return (
     <div className="min-w-0 space-y-2">
-      <h4 className="text-sm font-semibold text-[#e6edf3]">{heading}</h4>
-      <ul className="list-disc space-y-1 pl-5 text-sm text-[#8b949e]">
+      <h4 className="text-sm font-semibold text-hq-fg">{heading}</h4>
+      <ul className="list-disc space-y-1 pl-5 text-sm text-hq-fg-muted">
         {bullets.map((bullet, index) => (
           <li key={`${heading}-${index}`} className="min-w-0 whitespace-normal">
             <ReleaseNoteMarkdown markdown={bullet} />
@@ -232,13 +232,13 @@ export function ReleaseNotesProvider({ sessionId, children }: ProviderProps) {
             aria-label={t("closeDrawer")}
             onClick={() => handleDrawerOpenChange(false)}
           />
-          <div className="relative z-[101] flex max-h-[85vh] w-full max-w-lg flex-col rounded-t-2xl border border-[#30363d] bg-[#161b22] shadow-xl sm:rounded-2xl">
+          <div className="relative z-[101] flex max-h-[85vh] w-full max-w-lg flex-col rounded-t-2xl border border-hq-border bg-hq-surface shadow-xl sm:rounded-2xl">
             <div className="mx-auto mt-3 h-1.5 w-12 shrink-0 rounded-full bg-[#484f58]" />
-            <div className="shrink-0 border-b border-[#30363d] px-4 pb-4 pt-3 text-left">
-              <h2 className="text-lg font-semibold text-[#e6edf3]">
+            <div className="shrink-0 border-b border-hq-border px-4 pb-4 pt-3 text-left">
+              <h2 className="text-lg font-semibold text-hq-fg">
                 {t("drawerTitle")}
               </h2>
-              <p className="text-sm text-[#8b949e]">
+              <p className="text-sm text-hq-fg-muted">
                 {t("drawerSubtitle", {
                   version: currentVersion ?? APP_VERSION,
                 })}
@@ -249,13 +249,13 @@ export function ReleaseNotesProvider({ sessionId, children }: ProviderProps) {
               {displayEntries.map((entry) => (
                 <section
                   key={entry.version}
-                  className="min-w-0 space-y-3 border-b border-[#30363d] pb-6 last:border-b-0 last:pb-0"
+                  className="min-w-0 space-y-3 border-b border-hq-border pb-6 last:border-b-0 last:pb-0"
                 >
                   <div>
-                    <h3 className="text-base font-semibold text-[#e6edf3]">
+                    <h3 className="text-base font-semibold text-hq-fg">
                       {entry.title}
                     </h3>
-                    <p className="text-xs text-[#8b949e]">
+                    <p className="text-xs text-hq-fg-muted">
                       v{entry.version}
                       {entry.shippedAt
                         ? ` · ${entry.shippedAt.slice(0, 10)}`
@@ -279,10 +279,10 @@ export function ReleaseNotesProvider({ sessionId, children }: ProviderProps) {
               ))}
             </div>
 
-            <div className="shrink-0 space-y-3 border-t border-[#30363d] px-4 py-4">
+            <div className="shrink-0 space-y-3 border-t border-hq-border px-4 py-4">
               <Link
                 href="/releases"
-                className="block text-center text-sm font-medium underline text-[#58a6ff] hover:text-[#ffd58d]"
+                className="block text-center text-sm font-medium underline text-hq-accent hover:text-[#ffd58d]"
                 onClick={() => {
                   fullyDismissRef.current = true;
                   setDrawerOpen(false);
@@ -293,7 +293,7 @@ export function ReleaseNotesProvider({ sessionId, children }: ProviderProps) {
               </Link>
               <button
                 type="button"
-                className="w-full rounded-lg bg-[#238636] px-4 py-2.5 text-sm font-medium text-white hover:bg-[#2ea043]"
+                className="w-full rounded-lg bg-hq-success px-4 py-2.5 text-sm font-medium text-white hover:bg-hq-success-hover"
                 onClick={dismissReleaseNotes}
                 data-testid="hq-release-notes-dismiss"
               >

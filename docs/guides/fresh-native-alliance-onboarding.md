@@ -1,8 +1,8 @@
-# Fresh native alliance — onboarding from owner only
+# Fresh native alliance — onboarding from leadership cold start
 
 > **TODO:** Translate to Portuguese (`pt-BR`) when operator docs are localized.  
-> **Audience:** **owners** of **native** alliances (`operatingMode: native`) with **no Ashed roster** yet — e.g. a new HQ tenant where only the owner has signed in.  
-> **Goal:** grow from one HQ user to a linked officer team and a roster where every member can claim their commander.
+> **Audience:** **owners and first officers** of **native** alliances (`operatingMode: native`) with **no Ashed roster** yet — e.g. a new HQ tenant or owner-less shell where only one leadership invite has been accepted.  
+> **Goal:** grow from one linked leadership user to a linked officer team and a roster where every member can claim their commander.
 
 ---
 
@@ -10,33 +10,35 @@
 
 | Ashed-sync alliance | Fresh native (this guide) |
 | --- | --- |
-| Roster often imported on day one | Roster starts **empty** (or owner-only) |
-| Officers focus on **linking** existing rows | Owner builds roster **and** HQ access together |
+| Roster often imported on day one | Roster starts **empty** |
+| Officers focus on **linking** existing rows | First **owner or officer** invitee cold-starts roster + game server |
 | Ashed optional for native RBAC | **No Ashed required** — iframe/sync tools optional later |
 
 You do **not** need Ashed to run a native alliance on HQ. RBAC comes from **invites**; roster rows appear as people link, get approved, or you import from video OCR.
 
 ---
 
-## Phase 1 — Owner only (day zero)
+## Phase 1 — First leadership link (day zero)
 
 ```mermaid
 flowchart TD
-  A[PA provisions native alliance] --> B[Owner receives owner invite]
-  B --> C[Owner signs in and accepts invite]
+  A[PA provisions native alliance] --> B[Leadership invite: owner or officer]
+  B --> C[Invitee signs in and accepts invite]
   C --> D[/onboard — UID confirm]
-  D --> E[Owner cold-start: first roster row + game server]
-  E --> F[Owner can open Team access]
+  D --> E[Leadership cold-start: first roster row + game server]
+  E --> F[Leadership can open Team access]
 ```
 
-### Owner checklist
+### First invitee checklist (owner or officer)
 
-1. **Accept** the owner invite (email or protected link from platform maintainer).
+1. **Accept** the leadership invite (owner from PA, or officer for owner-less shells).
 2. Complete **`/onboard`**: enter **player UID only**, confirm the resolved commander name, submit.
-3. On first link with an empty native roster, HQ can **adopt your game server** and create your commander row automatically (owner cold-start).
+3. On first link with an empty native roster, HQ can **adopt your game server** and create your commander row automatically (leadership cold-start).
 4. Confirm **Settings → Alliance** shows the correct game server.
 
-Until the owner links, non-owner invites may be blocked by the **game server required** gate.
+**Owner-less shells:** issue an **officer** invite first — that officer cold-starts without waiting for an owner email or roster-link approval.
+
+Until someone leadership-linked has adopted the game server, downstream invites may be blocked by the **game server required** gate.
 
 ---
 
@@ -45,12 +47,14 @@ Until the owner links, non-owner invites may be blocked by the **game server req
 1. **Settings → Team access** → invite each R4/R5 with role **Officer** (protected link + passphrase is common for bulk handoff in chat).
 2. Each officer: accept invite → sign in → **`/onboard`** → UID confirm.
 
-### If an officer is not on the roster yet
+### If a later officer is not on the roster yet
 
-With a sparse roster, exact name match may fail → **roster miss** or **awaiting owner approval** (for invite-gated email/protected-link paths):
+After the first roster row exists, additional officers may still hit **roster miss** or **awaiting owner approval** (invite-gated email/protected-link paths):
 
 - Owner receives email with **approve / reject** links.
 - On approve, HQ can create the roster row and link the officer.
+
+The **first** officer on an empty roster cold-starts directly (same gate as owner).
 
 Discord `/link-commander` is a separate path; this guide covers **web HQ** onboarding.
 

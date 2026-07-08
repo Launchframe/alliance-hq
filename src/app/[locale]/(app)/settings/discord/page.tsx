@@ -63,11 +63,11 @@ export default async function SettingsDiscordPage({
   return (
     <div className="mx-auto w-full min-w-0 max-w-lg space-y-6">
       <div>
-        <Link href="/settings" className="text-sm text-[#58a6ff] hover:underline">
+        <Link href="/settings" className="text-sm text-hq-accent hover:underline">
           ← {tSettings("backToAllianceSettings")}
         </Link>
         <h1 className="mt-4 text-2xl font-semibold">{t("title")}</h1>
-        <p className="mt-1 text-sm text-[#8b949e]">
+        <p className="mt-1 text-sm text-hq-fg-muted">
           {t("subtitle", { tag: allianceTag })}
         </p>
       </div>

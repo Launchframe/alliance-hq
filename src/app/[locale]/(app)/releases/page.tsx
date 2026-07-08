@@ -22,28 +22,28 @@ export default async function ReleasesPage() {
   return (
     <div className="mx-auto flex w-full max-w-3xl min-w-0 flex-col gap-6">
       <header className="space-y-2">
-        <h1 className="text-2xl font-semibold text-[#e6edf3]">{t("pageTitle")}</h1>
-        <p className="text-sm text-[#8b949e]">{t("pageDescription")}</p>
+        <h1 className="text-2xl font-semibold text-hq-fg">{t("pageTitle")}</h1>
+        <p className="text-sm text-hq-fg-muted">{t("pageDescription")}</p>
       </header>
 
       {entries.length === 0 ? (
-        <p className="text-sm text-[#8b949e]">{t("emptyHistory")}</p>
+        <p className="text-sm text-hq-fg-muted">{t("emptyHistory")}</p>
       ) : (
-        <article className="space-y-10 rounded-xl border border-[#30363d] bg-[#161b22] p-5 sm:p-6">
+        <article className="space-y-10 rounded-xl border border-hq-border bg-hq-surface p-5 sm:p-6">
           {entries.map((entry, index) => (
             <section
               key={entry.version}
               className={
                 index < entries.length - 1
-                  ? "border-b border-[#30363d] pb-8"
+                  ? "border-b border-hq-border pb-8"
                   : undefined
               }
             >
               <header className="mb-4 space-y-1">
-                <h2 className="text-lg font-semibold text-[#e6edf3]">
+                <h2 className="text-lg font-semibold text-hq-fg">
                   {entry.title}
                 </h2>
-                <p className="text-xs text-[#8b949e]">
+                <p className="text-xs text-hq-fg-muted">
                   v{entry.version}
                   {entry.shippedAt ? ` · ${entry.shippedAt.slice(0, 10)}` : ""}
                 </p>

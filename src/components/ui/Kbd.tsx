@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 
 const kbdClassName =
-  "inline-flex min-h-[1.35rem] min-w-[1.35rem] items-center justify-center rounded-md border border-[#30363d] bg-[#21262d] px-1.5 font-mono text-[0.8125rem] font-medium leading-none text-[#e6edf3] shadow-[inset_0_-1px_0_#0d1117]";
+  "inline-flex min-h-[1.35rem] min-w-[1.35rem] items-center justify-center rounded-md border border-hq-border bg-hq-surface-muted px-1.5 font-mono text-[0.8125rem] font-medium leading-none text-hq-fg shadow-[inset_0_-1px_0_#0d1117]";
 
 type KbdProps = {
   children: ReactNode;
@@ -32,7 +32,7 @@ export function KbdCombo({ keys, className }: KbdComboProps) {
       {keys.map((key, index) => (
         <span key={`${key}-${index}`} className="inline-flex items-center gap-1">
           {index > 0 && (
-            <span className="font-mono text-xs text-[#8b949e]" aria-hidden>
+            <span className="font-mono text-xs text-hq-fg-muted" aria-hidden>
               +
             </span>
           )}
@@ -57,7 +57,7 @@ export function KbdOr({ options, className }: KbdOrProps) {
       {options.map((option, index) => (
         <span key={index} className="inline-flex items-center gap-1.5">
           {index > 0 && (
-            <span className="text-xs text-[#8b949e]">or</span>
+            <span className="text-xs text-hq-fg-muted">or</span>
           )}
           {option}
         </span>

@@ -35,7 +35,7 @@ export function ConnectAshedBanner({ show }: Props) {
   }
 
   return (
-    <div className="border-b border-[#30363d] bg-[#161b22]/95 px-4 py-3">
+    <div className="border-b border-hq-border bg-hq-surface/95 px-4 py-3">
       <div className="mx-auto flex max-w-5xl flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm text-[#c9d1d9]">{t("connectAshedBanner")}</p>
         <div className="flex shrink-0 gap-2">
@@ -49,7 +49,7 @@ export function ConnectAshedBanner({ show }: Props) {
           <button
             type="button"
             onClick={dismiss}
-            className="rounded-md border border-[#30363d] px-3 py-1.5 text-xs text-[#8b949e] hover:text-[#e6edf3]"
+            className="rounded-md border border-hq-border px-3 py-1.5 text-xs text-hq-fg-muted hover:text-hq-fg"
           >
             {t("connectAshedDismiss")}
           </button>

@@ -1,4 +1,7 @@
-export type DiscordAuthNoncePurpose = "alliance_credentials" | "user_link";
+export type DiscordAuthNoncePurpose =
+  | "alliance_credentials"
+  | "user_link"
+  | "member_link";
 
 export type GuildRegistrationDenialReason =
   | "no_hq_link"

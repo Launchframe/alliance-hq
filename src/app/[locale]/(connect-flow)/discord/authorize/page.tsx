@@ -21,8 +21,8 @@ export default async function DiscordAuthorizePage({ searchParams }: PageProps) 
   if (!nonce) {
     return (
       <main className="flex min-h-[60vh] items-center justify-center p-6">
-        <div className="w-full max-w-md rounded-xl border border-[#30363d] bg-[#161b22] p-6 text-center">
-          <p className="text-sm text-[#8b949e]">{t("missingNonce")}</p>
+        <div className="w-full max-w-md rounded-xl border border-hq-border bg-hq-surface p-6 text-center">
+          <p className="text-sm text-hq-fg-muted">{t("missingNonce")}</p>
         </div>
       </main>
     );
@@ -33,9 +33,9 @@ export default async function DiscordAuthorizePage({ searchParams }: PageProps) 
   if (!nonceRow) {
     return (
       <main className="flex min-h-[60vh] items-center justify-center p-6">
-        <div className="w-full max-w-md rounded-xl border border-red-700/50 bg-[#161b22] p-6 text-center">
+        <div className="w-full max-w-md rounded-xl border border-red-700/50 bg-hq-surface p-6 text-center">
           <p className="font-semibold text-red-400">{t("expiredHeading")}</p>
-          <p className="mt-2 text-sm text-[#8b949e]">{t("expiredBody")}</p>
+          <p className="mt-2 text-sm text-hq-fg-muted">{t("expiredBody")}</p>
         </div>
       </main>
     );
@@ -67,12 +67,12 @@ export default async function DiscordAuthorizePage({ searchParams }: PageProps) 
       <div
         className={
           isHqLink
-            ? "w-full max-w-md rounded-xl border border-[#30363d] bg-[#161b22] p-6"
-            : "w-full max-w-3xl rounded-xl border border-[#30363d] bg-[#161b22] p-6"
+            ? "w-full max-w-md rounded-xl border border-hq-border bg-hq-surface p-6"
+            : "w-full max-w-3xl rounded-xl border border-hq-border bg-hq-surface p-6"
         }
       >
-        <h1 className="mb-1 text-lg font-semibold text-[#e6edf3]">{heading}</h1>
-        <p className="mb-5 text-sm text-[#8b949e]">{subheading}</p>
+        <h1 className="mb-1 text-lg font-semibold text-hq-fg">{heading}</h1>
+        <p className="mb-5 text-sm text-hq-fg-muted">{subheading}</p>
 
         {isHqLink ? (
           <DiscordHqLinkClient

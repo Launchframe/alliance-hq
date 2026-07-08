@@ -95,7 +95,7 @@ Implement and preserve in tests (`src/lib/vr/link-command.test.ts`):
 3. `findExactMemberByName(members, gameUserName)` — **exact** on current + previous names only.
 4. If exact row found and not already linked → `linkTarget` with that `ashed_member_id` and submitted `game_uid`.
 5. If no exact row → **`needsOfficerAttention`** / roster miss — explain game name vs stale roster; **no candidate picker**.
-6. **Invite-gated roster miss** (native alliance, accepted email/protected invite, linked game server, UID server match): orchestrator creates `hq_roster_link_requests`, emails owner Accept/Reject links, materializes inbox reminder → outcome **`awaiting_owner`** (not `roster_miss`). Join-code entrants and non-invite paths still use `roster_miss` unless owner cold-start bootstrap applies.
+6. **Invite-gated roster miss** (native alliance, accepted email/protected invite, linked game server, UID server match): orchestrator creates `hq_roster_link_requests`, emails owner Accept/Reject links, materializes inbox reminder → outcome **`awaiting_owner`** (not `roster_miss`). Join-code entrants and non-invite paths still use `roster_miss` unless leadership cold-start bootstrap applies (empty native roster + owner or officer invite).
 7. `memberTaken` if `ashed_member_id` already has `hq_member_links` for another user.
 
 **Roster load:** `loadAllianceMembersForMemberLink` — prefer local `alliance_members`, then live Ashed. Audit `rosterSource` on submit failures.
@@ -148,6 +148,15 @@ Update `e2e/invite-roles.spec.ts`, `e2e/onboard-member-link.spec.ts`, and unit t
 | Onboard UI | `src/components/onboarding/MemberLinkOnboardingWizard.tsx` |
 | App gates | `src/lib/native-alliance/access.ts`, `src/app/[locale]/(app)/layout.tsx` |
 | Audit | `src/lib/onboarding/onboarding-audit.server.ts` |
+
+## Self-service onboarding review (officers)
+
+When `alliances.self_service_onboarding_enabled` is on and the member is invite/join-code gated:
+
+- **Exact** unlinked roster name match → immediate link (no review row).
+- **No exact match** + roster room → JIT `alliance_members` row + link + `hq_member_onboarding_reviews` queue.
+- **Officer review** confirms the link or **merges** duplicate roster rows — officers do **not** edit commander names; Last War `gameUserName` is authoritative.
+- **Substring / fuzzy** suggestions (`findUniqueSubstringRosterCandidate`, `findOfficerReviewRosterCandidates`) are hint-only — never auto-link or auto-merge.
 
 ## Related rules
 

@@ -8,6 +8,7 @@ import {
   FORM_SUBMIT_ENTER_KEY_HINT,
   preventDefaultFormSubmit,
 } from "@/lib/client/form-enter-submit.shared";
+import { ROSTER_MAX_MEMBERS } from "@/lib/members/roster-rank-quota.shared";
 import { MAX_BULK_CLAIM_INVITES } from "@/lib/native-alliance/claim-invites.shared";
 import type { SystemRoleName } from "@/lib/rbac/constants";
 
@@ -32,8 +33,8 @@ function ActionFeedbackBanner({ feedback }: { feedback: ActionFeedback }) {
     <p
       className={
         feedback.kind === "error"
-          ? "mt-3 text-sm text-[#f85149]"
-          : "mt-3 text-sm text-[#3fb950]"
+          ? "mt-3 text-sm text-hq-danger"
+          : "mt-3 text-sm text-hq-green"
       }
       role={feedback.kind === "error" ? "alert" : "status"}
     >
@@ -97,7 +98,7 @@ export function TeamInvitePanel({ assignableRoles }: Props) {
   >([]);
   const [nearFullRoster, setNearFullRoster] = useState(false);
   const [activeRosterCount, setActiveRosterCount] = useState(0);
-  const [rosterMaxMembers, setRosterMaxMembers] = useState(100);
+  const [rosterMaxMembers, setRosterMaxMembers] = useState(ROSTER_MAX_MEMBERS);
 
   const bulkSelectableCap = useMemo(
     () => Math.min(claimableCommanders.length, MAX_BULK_CLAIM_INVITES),
@@ -151,7 +152,7 @@ export function TeamInvitePanel({ assignableRoles }: Props) {
 
       const nearFull = Boolean(data.roster?.nearFull);
       const activeCount = data.roster?.activeCount ?? 0;
-      const maxMembers = data.roster?.maxMembers ?? 100;
+      const maxMembers = data.roster?.maxMembers ?? ROSTER_MAX_MEMBERS;
       setNearFullRoster(nearFull);
       setActiveRosterCount(activeCount);
       setRosterMaxMembers(maxMembers);
@@ -449,20 +450,21 @@ export function TeamInvitePanel({ assignableRoles }: Props) {
   function renderClaimSection(highlighted: boolean) {
     return (
       <div
+        id="commander-claim-invites"
         className={
           highlighted
-            ? "rounded-lg border border-[#388bfd]/30 bg-[#0d1117]/50 p-4"
-            : "border-t border-[#30363d] pt-5"
+            ? "rounded-lg border border-[#388bfd]/30 bg-hq-canvas/50 p-4"
+            : "border-t border-hq-border pt-5"
         }
       >
         <h3 className="text-sm font-semibold">{t("claimTitle")}</h3>
-        <p className="mt-1 text-sm text-[#8b949e]">{t("claimHint")}</p>
+        <p className="mt-1 text-sm text-hq-fg-muted">{t("claimHint")}</p>
         {claimableCommanders.length === 0 ? (
-          <p className="mt-3 text-sm text-[#6e7681]">{t("claimEmpty")}</p>
+          <p className="mt-3 text-sm text-hq-fg-subtle">{t("claimEmpty")}</p>
         ) : (
           <>
             <div
-              className="mt-3 inline-flex rounded-lg border border-[#30363d] p-0.5 text-sm"
+              className="mt-3 inline-flex rounded-lg border border-hq-border p-0.5 text-sm"
               role="group"
             >
               <button
@@ -474,8 +476,8 @@ export function TeamInvitePanel({ assignableRoles }: Props) {
                 aria-pressed={!bulkClaimMode}
                 className={
                   bulkClaimMode
-                    ? "rounded-md px-3 py-1 text-[#8b949e]"
-                    : "rounded-md bg-[#388bfd]/15 px-3 py-1 text-[#58a6ff]"
+                    ? "rounded-md px-3 py-1 text-hq-fg-muted"
+                    : "rounded-md bg-[#388bfd]/15 px-3 py-1 text-hq-accent"
                 }
               >
                 {t("claimModeSingle")}
@@ -489,8 +491,8 @@ export function TeamInvitePanel({ assignableRoles }: Props) {
                 aria-pressed={bulkClaimMode}
                 className={
                   bulkClaimMode
-                    ? "rounded-md bg-[#388bfd]/15 px-3 py-1 text-[#58a6ff]"
-                    : "rounded-md px-3 py-1 text-[#8b949e]"
+                    ? "rounded-md bg-[#388bfd]/15 px-3 py-1 text-hq-accent"
+                    : "rounded-md px-3 py-1 text-hq-fg-muted"
                 }
               >
                 {t("claimModeBulk")}
@@ -506,21 +508,21 @@ export function TeamInvitePanel({ assignableRoles }: Props) {
                 }}
               >
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-[#8b949e]">
+                  <span className="text-hq-fg-muted">
                     {t("bulkClaimSelectedCount", { count: bulkSelectedIds.size })}
                   </span>
                   <button
                     type="button"
                     onClick={toggleBulkSelectAll}
-                    className="text-[#58a6ff] hover:underline"
+                    className="text-hq-accent hover:underline"
                   >
                     {bulkAllSelected ? t("bulkClaimClearAll") : t("bulkClaimSelectAll")}
                   </button>
                 </div>
-                <ul className="mt-2 max-h-64 min-w-0 space-y-1 overflow-y-auto rounded-lg border border-[#30363d] p-2">
+                <ul className="mt-2 max-h-64 min-w-0 space-y-1 overflow-y-auto rounded-lg border border-hq-border p-2">
                   {claimableCommanders.map((commander) => (
                     <li key={commander.ashedMemberId}>
-                      <label className="flex items-center gap-2 rounded-md px-2 py-1 text-sm hover:bg-[#161b22]">
+                      <label className="flex items-center gap-2 rounded-md px-2 py-1 text-sm hover:bg-hq-surface">
                         <input
                           type="checkbox"
                           checked={bulkSelectedIds.has(commander.ashedMemberId)}
@@ -536,13 +538,13 @@ export function TeamInvitePanel({ assignableRoles }: Props) {
                   ))}
                 </ul>
                 <label className="mt-3 block space-y-1 text-sm">
-                  <span className="text-[#8b949e]">{t("inviteAdminLabel")}</span>
+                  <span className="text-hq-fg-muted">{t("inviteAdminLabel")}</span>
                   <input
                     type="text"
                     value={bulkClaimAdminLabel}
                     onChange={(e) => setBulkClaimAdminLabel(e.target.value)}
                     placeholder={t("inviteAdminLabelPlaceholder")}
-                    className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
+                    className="w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2"
                   />
                 </label>
                 <button
@@ -550,7 +552,7 @@ export function TeamInvitePanel({ assignableRoles }: Props) {
                   disabled={
                     busy || bulkSelectedIds.size === 0
                   }
-                  className="mt-3 w-full rounded-lg border border-[#388bfd] bg-[#388bfd]/10 px-4 py-2 text-sm text-[#58a6ff] disabled:opacity-50 sm:w-auto"
+                  className="mt-3 w-full rounded-lg border border-[#388bfd] bg-[#388bfd]/10 px-4 py-2 text-sm text-hq-accent disabled:opacity-50 sm:w-auto"
                 >
                   {t("bulkClaimButton", { count: bulkSelectedIds.size })}
                 </button>
@@ -561,7 +563,7 @@ export function TeamInvitePanel({ assignableRoles }: Props) {
                     {bulkClaimResults.map((result) => (
                       <div
                         key={result.ashedMemberId}
-                        className="rounded-lg border border-[#30363d] p-3"
+                        className="rounded-lg border border-hq-border p-3"
                       >
                         <p className="text-sm font-medium">{result.name}</p>
                         <CopyToClipboardField
@@ -571,7 +573,7 @@ export function TeamInvitePanel({ assignableRoles }: Props) {
                         />
                       </div>
                     ))}
-                    <p className="text-xs text-[#6e7681]">{t("claimCodeHint")}</p>
+                    <p className="text-xs text-hq-fg-subtle">{t("claimCodeHint")}</p>
                   </div>
                 ) : null}
               </form>
@@ -586,11 +588,11 @@ export function TeamInvitePanel({ assignableRoles }: Props) {
                 >
                   <div className="grid gap-3 sm:grid-cols-2">
                     <label className="space-y-1 text-sm">
-                      <span className="text-[#8b949e]">{t("claimCommanderLabel")}</span>
+                      <span className="text-hq-fg-muted">{t("claimCommanderLabel")}</span>
                       <select
                         value={claimCommanderSelected}
                         onChange={(e) => setClaimCommanderSelected(e.target.value)}
-                        className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
+                        className="w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2"
                       >
                         <option value="">{t("claimCommanderPlaceholder")}</option>
                         {claimableCommanders.map((commander) => (
@@ -604,13 +606,13 @@ export function TeamInvitePanel({ assignableRoles }: Props) {
                       </select>
                     </label>
                     <label className="space-y-1 text-sm">
-                      <span className="text-[#8b949e]">{t("inviteAdminLabel")}</span>
+                      <span className="text-hq-fg-muted">{t("inviteAdminLabel")}</span>
                       <input
                         type="text"
                         value={claimAdminLabel}
                         onChange={(e) => setClaimAdminLabel(e.target.value)}
                         placeholder={t("inviteAdminLabelPlaceholder")}
-                        className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
+                        className="w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2"
                       />
                     </label>
                   </div>
@@ -619,7 +621,7 @@ export function TeamInvitePanel({ assignableRoles }: Props) {
                     disabled={
                       busy || !claimCommanderSelected
                     }
-                    className="mt-3 rounded-lg border border-[#388bfd] bg-[#388bfd]/10 px-4 py-2 text-sm text-[#58a6ff] disabled:opacity-50"
+                    className="mt-3 rounded-lg border border-[#388bfd] bg-[#388bfd]/10 px-4 py-2 text-sm text-hq-accent disabled:opacity-50"
                   >
                     {t("claimButton")}
                   </button>
@@ -633,7 +635,7 @@ export function TeamInvitePanel({ assignableRoles }: Props) {
                   />
                 ) : null}
                 {lastClaimCode ? (
-                  <p className="mt-1 text-xs text-[#6e7681]">{t("claimCodeHint")}</p>
+                  <p className="mt-1 text-xs text-hq-fg-subtle">{t("claimCodeHint")}</p>
                 ) : null}
               </>
             )}
@@ -646,9 +648,9 @@ export function TeamInvitePanel({ assignableRoles }: Props) {
   function renderGenericInviteSections() {
     return (
       <>
-        <div className="border-t border-[#30363d] pt-5">
+        <div className="border-t border-hq-border pt-5">
           <h3 className="text-sm font-semibold">{t("inviteTitle")}</h3>
-          <p className="mt-1 text-sm text-[#8b949e]">{t("inviteHint")}</p>
+          <p className="mt-1 text-sm text-hq-fg-muted">{t("inviteHint")}</p>
           <form
             className="mt-3"
             onSubmit={(event) => {
@@ -658,11 +660,11 @@ export function TeamInvitePanel({ assignableRoles }: Props) {
           >
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="space-y-1 text-sm sm:col-span-2">
-                <span className="text-[#8b949e]">{t("inviteKind")}</span>
+                <span className="text-hq-fg-muted">{t("inviteKind")}</span>
                 <select
                   value={inviteKind}
                   onChange={(e) => setInviteKind(e.target.value as InviteKind)}
-                  className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
+                  className="w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2"
                 >
                   <option value="protected_link">{t("inviteKindProtected")}</option>
                   <option value="email">{t("inviteKindEmail")}</option>
@@ -670,39 +672,39 @@ export function TeamInvitePanel({ assignableRoles }: Props) {
               </label>
               {inviteKind === "email" ? (
                 <label className="space-y-1 text-sm">
-                  <span className="text-[#8b949e]">{t("inviteEmail")}</span>
+                  <span className="text-hq-fg-muted">{t("inviteEmail")}</span>
                   <input
                     type="email"
                     required
                     value={inviteEmail}
                     onChange={(e) => setInviteEmail(e.target.value)}
-                    className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
+                    className="w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2"
                     autoComplete="email"
                   />
-                  <span className="block text-xs text-[#6e7681]">
+                  <span className="block text-xs text-hq-fg-subtle">
                     {t("inviteEmailHint")}
                   </span>
                 </label>
               ) : (
                 <label className="space-y-1 text-sm">
-                  <span className="text-[#8b949e]">{t("inviteAdminLabel")}</span>
+                  <span className="text-hq-fg-muted">{t("inviteAdminLabel")}</span>
                   <input
                     type="text"
                     value={inviteAdminLabel}
                     onChange={(e) => setInviteAdminLabel(e.target.value)}
                     placeholder={t("inviteAdminLabelPlaceholder")}
-                    className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
+                    className="w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2"
                   />
                 </label>
               )}
               <label className="space-y-1 text-sm">
-                <span className="text-[#8b949e]">{t("inviteRole")}</span>
+                <span className="text-hq-fg-muted">{t("inviteRole")}</span>
                 <select
                   value={inviteRole}
                   onChange={(e) =>
                     setInviteRole(e.target.value as SystemRoleName | "")
                   }
-                  className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
+                  className="w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2"
                 >
                   <option value="">{t("inviteRolePlaceholder")}</option>
                   {roleOptions.map((option) => (
@@ -721,16 +723,16 @@ export function TeamInvitePanel({ assignableRoles }: Props) {
                 </p>
               ) : null}
               <label className="space-y-1 text-sm sm:col-span-2">
-                <span className="text-[#8b949e]">{t("inviteRedirectOptional")}</span>
+                <span className="text-hq-fg-muted">{t("inviteRedirectOptional")}</span>
                 <input
                   type="text"
                   value={inviteRedirectPath}
                   onChange={(e) => setInviteRedirectPath(e.target.value)}
                   enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT}
                   placeholder="/members"
-                  className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 font-mono text-sm"
+                  className="w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 font-mono text-sm"
                 />
-                <span className="block text-xs text-[#6e7681]">
+                <span className="block text-xs text-hq-fg-subtle">
                   {t("inviteRedirectHint")}
                 </span>
               </label>
@@ -738,7 +740,7 @@ export function TeamInvitePanel({ assignableRoles }: Props) {
             <button
               type="submit"
               disabled={busy || !canSendInvite}
-              className="mt-3 rounded-lg border border-[#388bfd] bg-[#388bfd]/10 px-4 py-2 text-sm text-[#58a6ff] disabled:opacity-50"
+              className="mt-3 rounded-lg border border-[#388bfd] bg-[#388bfd]/10 px-4 py-2 text-sm text-hq-accent disabled:opacity-50"
             >
               {t("inviteButton")}
             </button>
@@ -759,13 +761,13 @@ export function TeamInvitePanel({ assignableRoles }: Props) {
             />
           ) : null}
           {lastPassphrase ? (
-            <p className="mt-1 text-xs text-[#6e7681]">{t("invitePassphraseHint")}</p>
+            <p className="mt-1 text-xs text-hq-fg-subtle">{t("invitePassphraseHint")}</p>
           ) : null}
         </div>
 
-        <div className="border-t border-[#30363d] pt-5">
+        <div className="border-t border-hq-border pt-5">
           <h3 className="text-sm font-semibold">{t("joinCodeTitle")}</h3>
-          <p className="mt-1 text-sm text-[#8b949e]">{t("joinCodeHint")}</p>
+          <p className="mt-1 text-sm text-hq-fg-muted">{t("joinCodeHint")}</p>
           <form
             className="mt-3"
             onSubmit={(event) => {
@@ -775,13 +777,13 @@ export function TeamInvitePanel({ assignableRoles }: Props) {
           >
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="space-y-1 text-sm">
-                <span className="text-[#8b949e]">{t("joinCodeRole")}</span>
+                <span className="text-hq-fg-muted">{t("joinCodeRole")}</span>
                 <select
                   value={joinCodeRole}
                   onChange={(e) =>
                     setJoinCodeRole(e.target.value as SystemRoleName)
                   }
-                  className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
+                  className="w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2"
                 >
                   {roleOptions.map((option) => (
                     <option key={option.value} value={option.value}>
@@ -796,32 +798,32 @@ export function TeamInvitePanel({ assignableRoles }: Props) {
                 </p>
               ) : null}
               <label className="space-y-1 text-sm">
-                <span className="text-[#8b949e]">{t("joinCodeMaxUses")}</span>
+                <span className="text-hq-fg-muted">{t("joinCodeMaxUses")}</span>
                 <input
                   type="number"
                   min={1}
                   max={500}
                   value={joinCodeMaxUses}
                   onChange={(e) => setJoinCodeMaxUses(e.target.value)}
-                  className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
+                  className="w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2"
                 />
               </label>
               <label className="space-y-1 text-sm sm:col-span-2">
-                <span className="text-[#8b949e]">{t("joinCodeLabelField")}</span>
+                <span className="text-hq-fg-muted">{t("joinCodeLabelField")}</span>
                 <input
                   type="text"
                   value={joinCodeLabel}
                   onChange={(e) => setJoinCodeLabel(e.target.value)}
                   enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT}
                   placeholder={t("joinCodeLabelPlaceholder")}
-                  className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
+                  className="w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2"
                 />
               </label>
             </div>
             <button
               type="submit"
               disabled={busy}
-              className="mt-3 rounded-lg border border-[#238636] bg-[#238636] px-4 py-2 text-sm text-white disabled:opacity-50"
+              className="mt-3 rounded-lg border border-hq-success bg-hq-success px-4 py-2 text-sm text-white disabled:opacity-50"
             >
               {t("joinCodeButton")}
             </button>
@@ -834,7 +836,7 @@ export function TeamInvitePanel({ assignableRoles }: Props) {
                 label={t("joinCodeValueLabel")}
                 value={lastJoinCode}
               />
-              <p className="mt-1 text-xs text-[#6e7681]">{t("joinCodeValueHint")}</p>
+              <p className="mt-1 text-xs text-hq-fg-subtle">{t("joinCodeValueHint")}</p>
             </>
           ) : null}
         </div>
@@ -843,10 +845,10 @@ export function TeamInvitePanel({ assignableRoles }: Props) {
   }
 
   return (
-    <div className="space-y-8 rounded-xl border border-[#30363d] bg-[#161b22] p-5">
+    <div className="space-y-8 rounded-xl border border-hq-border bg-hq-surface p-5">
       <div>
         <h2 className="text-lg font-semibold">{t("title")}</h2>
-        <p className="mt-1 text-sm text-[#8b949e]">{t("description")}</p>
+        <p className="mt-1 text-sm text-hq-fg-muted">{t("description")}</p>
       </div>
 
       {nearFullRoster ? (
@@ -864,10 +866,10 @@ export function TeamInvitePanel({ assignableRoles }: Props) {
       {nearFullRoster ? renderClaimSection(true) : null}
 
       {nearFullRoster ? (
-        <details className="border-t border-[#30363d] pt-5">
-          <summary className="cursor-pointer text-sm font-semibold text-[#8b949e] marker:content-none [&::-webkit-details-marker]:hidden">
+        <details className="border-t border-hq-border pt-5">
+          <summary className="cursor-pointer text-sm font-semibold text-hq-fg-muted marker:content-none [&::-webkit-details-marker]:hidden">
             {t("nearFullAdvancedTitle")}
-            <span className="mt-1 block text-xs font-normal text-[#6e7681]">
+            <span className="mt-1 block text-xs font-normal text-hq-fg-subtle">
               {t("nearFullAdvancedHint")}
             </span>
           </summary>

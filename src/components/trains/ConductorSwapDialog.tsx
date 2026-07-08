@@ -55,30 +55,30 @@ export function ConductorSwapDialog({
     >
       <div className="flex flex-col gap-4">
         <div>
-          <h2 className="text-lg font-semibold text-[#e6edf3]">{t("title")}</h2>
+          <h2 className="text-lg font-semibold text-hq-fg">{t("title")}</h2>
           <p className="mt-2 text-sm leading-relaxed text-[#c9d1d9]">
             {t("body")}
           </p>
         </div>
 
-        <div className="rounded-lg border border-[#30363d] bg-[#0d1117] p-3">
-          <p className="text-xs uppercase tracking-wide text-[#8b949e]">
+        <div className="rounded-lg border border-hq-border bg-hq-canvas p-3">
+          <p className="text-xs uppercase tracking-wide text-hq-fg-muted">
             {t("thisDay")}
           </p>
-          <p className="mt-1 text-sm font-medium text-[#e6edf3]">
+          <p className="mt-1 text-sm font-medium text-hq-fg">
             {spinWeekDayLabel(sourceDate)}
           </p>
-          <p className="mt-0.5 text-sm text-[#58a6ff]">
+          <p className="mt-0.5 text-sm text-hq-accent">
             {sourceRecord.conductorMemberName}
           </p>
         </div>
 
         <div className="space-y-2">
-          <p className="text-xs font-medium uppercase tracking-wide text-[#8b949e]">
+          <p className="text-xs font-medium uppercase tracking-wide text-hq-fg-muted">
             {t("swapWith")}
           </p>
           {candidates.length === 0 ? (
-            <p className="text-sm text-[#8b949e]">{t("noCandidates")}</p>
+            <p className="text-sm text-hq-fg-muted">{t("noCandidates")}</p>
           ) : (
             <ul className="max-h-48 space-y-2 overflow-y-auto">
               {candidates.map((record) => {
@@ -91,13 +91,13 @@ export function ConductorSwapDialog({
                       className={`w-full rounded-lg border px-3 py-2 text-left transition-colors ${
                         selected
                           ? "border-[#8957e5] bg-[#8957e5]/10"
-                          : "border-[#30363d] bg-[#161b22] hover:bg-[#0d1117]"
+                          : "border-hq-border bg-hq-surface hover:bg-hq-canvas"
                       }`}
                     >
-                      <div className="text-sm font-medium text-[#e6edf3]">
+                      <div className="text-sm font-medium text-hq-fg">
                         {spinWeekDayLabel(record.date)}
                       </div>
-                      <div className="text-sm text-[#8b949e]">
+                      <div className="text-sm text-hq-fg-muted">
                         {record.conductorMemberName ?? t("noConductorYet")}
                       </div>
                     </button>
@@ -133,7 +133,7 @@ export function ConductorSwapDialog({
               setTargetDate(null);
               onClose();
             }}
-            className="rounded-lg border border-[#30363d] px-4 py-2 text-sm font-medium text-[#e6edf3] hover:bg-[#0d1117] disabled:opacity-60"
+            className="rounded-lg border border-hq-border px-4 py-2 text-sm font-medium text-hq-fg hover:bg-hq-canvas disabled:opacity-60"
           >
             {t("cancel")}
           </button>
@@ -144,7 +144,7 @@ export function ConductorSwapDialog({
               if (!targetDate) return;
               onConfirm(targetDate);
             }}
-            className="rounded-lg bg-[#238636] px-4 py-2 text-sm font-medium text-white hover:bg-[#2ea043] disabled:opacity-60"
+            className="rounded-lg bg-hq-success px-4 py-2 text-sm font-medium text-white hover:bg-hq-success-hover disabled:opacity-60"
           >
             {busy ? t("swapping") : t("confirm")}
           </button>

@@ -166,9 +166,9 @@ export function AdminAuditConsole() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-end gap-3 rounded-xl border border-[#30363d] bg-[#161b22] p-4">
+      <div className="flex flex-wrap items-end gap-3 rounded-xl border border-hq-border bg-hq-surface p-4">
         <label className="min-w-0 space-y-1 text-sm sm:min-w-[12rem]">
-          <span className="text-[#8b949e]">{tAudit("filters.alliance")}</span>
+          <span className="text-hq-fg-muted">{tAudit("filters.alliance")}</span>
           <AppSelect
             value={allianceId ?? ""}
             onChange={(next) => setAllianceId(next || undefined)}
@@ -185,7 +185,7 @@ export function AdminAuditConsole() {
         </label>
 
         <label className="min-w-0 space-y-1 text-sm sm:min-w-[12rem]">
-          <span className="text-[#8b949e]">{tAudit("filters.action")}</span>
+          <span className="text-hq-fg-muted">{tAudit("filters.action")}</span>
           <AppSelect
             value={action ?? ""}
             onChange={(next) => setAction(next || undefined)}
@@ -198,30 +198,30 @@ export function AdminAuditConsole() {
         </label>
 
         <label className="space-y-1 text-sm">
-          <span className="text-[#8b949e]">{tAudit("filters.since")}</span>
+          <span className="text-hq-fg-muted">{tAudit("filters.since")}</span>
           <input
             type="date"
-            className="block rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 text-sm"
+            className="block rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 text-sm"
             value={sinceDate}
             onChange={(e) => setSinceDate(e.target.value)}
           />
         </label>
 
         <label className="space-y-1 text-sm">
-          <span className="text-[#8b949e]">{tAudit("filters.until")}</span>
+          <span className="text-hq-fg-muted">{tAudit("filters.until")}</span>
           <input
             type="date"
-            className="block rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 text-sm"
+            className="block rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 text-sm"
             value={untilDate}
             onChange={(e) => setUntilDate(e.target.value)}
           />
         </label>
 
         <label className="space-y-1 text-sm">
-          <span className="text-[#8b949e]">{tAudit("filters.hqUserId")}</span>
+          <span className="text-hq-fg-muted">{tAudit("filters.hqUserId")}</span>
           <input
             type="text"
-            className="block min-w-[10rem] rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 font-mono text-xs"
+            className="block min-w-[10rem] rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 font-mono text-xs"
             value={hqUserIdInput}
             placeholder={tAudit("filters.hqUserIdPlaceholder")}
             onChange={(e) => setHqUserIdInput(e.target.value)}
@@ -230,7 +230,7 @@ export function AdminAuditConsole() {
 
         <button
           type="button"
-          className="rounded-lg border border-[#30363d] px-3 py-2 text-sm text-[#8b949e] hover:bg-[#21262d]"
+          className="rounded-lg border border-hq-border px-3 py-2 text-sm text-hq-fg-muted hover:bg-hq-surface-muted"
           onClick={clearFilters}
         >
           {tAudit("filters.clear")}
@@ -240,9 +240,9 @@ export function AdminAuditConsole() {
       {error ? <p className="text-sm text-red-400">{error}</p> : null}
 
       {loading ? (
-        <p className="text-sm text-[#8b949e]">{tAudit("loading")}</p>
+        <p className="text-sm text-hq-fg-muted">{tAudit("loading")}</p>
       ) : entries.length === 0 ? (
-        <p className="text-sm text-[#8b949e]">{tAudit("empty")}</p>
+        <p className="text-sm text-hq-fg-muted">{tAudit("empty")}</p>
       ) : (
         <ResponsiveRecordViews
           mobileCards={entries.map((entry) => (
@@ -270,9 +270,9 @@ export function AdminAuditConsole() {
             </RecordDetailCard>
           ))}
           desktopTable={
-            <div className="overflow-x-auto rounded-xl border border-[#30363d]">
+            <div className="overflow-x-auto rounded-xl border border-hq-border">
               <table className="min-w-full text-left text-sm">
-                <thead className="bg-[#161b22] text-[#8b949e]">
+                <thead className="bg-hq-surface text-hq-fg-muted">
                   <tr>
                     <th className="px-4 py-2">{t("table.time")}</th>
                     <th className="px-4 py-2">{t("table.action")}</th>
@@ -283,8 +283,8 @@ export function AdminAuditConsole() {
                 </thead>
                 <tbody>
                   {entries.map((entry) => (
-                    <tr key={entry.id} className="border-t border-[#30363d]">
-                      <td className="px-4 py-2 whitespace-nowrap text-[#8b949e]">
+                    <tr key={entry.id} className="border-t border-hq-border">
+                      <td className="px-4 py-2 whitespace-nowrap text-hq-fg-muted">
                         <FormattedDateTime value={entry.createdAt} />
                       </td>
                       <td className="px-4 py-2">{entry.action}</td>

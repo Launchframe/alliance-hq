@@ -66,32 +66,32 @@ export function OcrRatingPrompt({ onClose, onRate }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
-      <div className="mx-4 w-full max-w-sm rounded-2xl border border-[#30363d] bg-[#161b22] p-8 text-center">
+      <div className="mx-4 w-full max-w-sm rounded-2xl border border-hq-border bg-hq-surface p-8 text-center">
         {phase === "pick" ? (
           <>
-            <p className="mb-6 text-lg font-medium text-[#e6edf3]">
+            <p className="mb-6 text-lg font-medium text-hq-fg">
               {t("ratingPrompt")}
             </p>
             <div className="flex justify-center gap-6">
               <button
                 type="button"
                 onClick={() => void handlePick("thumbs_up")}
-                className="flex flex-col items-center gap-2 rounded-xl border border-[#30363d] p-4 transition-colors hover:border-[#3fb950] hover:bg-[#3fb95010]"
+                className="flex flex-col items-center gap-2 rounded-xl border border-hq-border p-4 transition-colors hover:border-hq-green hover:bg-[#3fb95010]"
                 aria-label={t("ratingThumbsUp")}
               >
-                <ThumbsUp className="size-8 text-[#e6edf3]" strokeWidth={2} />
-                <span className="text-xs text-[#8b949e]">
+                <ThumbsUp className="size-8 text-hq-fg" strokeWidth={2} />
+                <span className="text-xs text-hq-fg-muted">
                   {t("ratingThumbsUp")}
                 </span>
               </button>
               <button
                 type="button"
                 onClick={() => void handlePick("thumbs_down")}
-                className="flex flex-col items-center gap-2 rounded-xl border border-[#30363d] p-4 transition-colors hover:border-[#f85149] hover:bg-[#f8514910]"
+                className="flex flex-col items-center gap-2 rounded-xl border border-hq-border p-4 transition-colors hover:border-hq-danger hover:bg-[#f8514910]"
                 aria-label={t("ratingThumbsDown")}
               >
-                <ThumbsDown className="size-8 text-[#e6edf3]" strokeWidth={2} />
-                <span className="text-xs text-[#8b949e]">
+                <ThumbsDown className="size-8 text-hq-fg" strokeWidth={2} />
+                <span className="text-xs text-hq-fg-muted">
                   {t("ratingThumbsDown")}
                 </span>
               </button>
@@ -99,14 +99,14 @@ export function OcrRatingPrompt({ onClose, onRate }: Props) {
             <button
               type="button"
               onClick={onClose}
-              className="mt-6 text-sm text-[#8b949e] hover:text-[#e6edf3]"
+              className="mt-6 text-sm text-hq-fg-muted hover:text-hq-fg"
             >
               {t("ratingSkip")}
             </button>
           </>
         ) : phase === "reason" ? (
           <>
-            <p className="mb-5 text-lg font-medium text-[#e6edf3]">
+            <p className="mb-5 text-lg font-medium text-hq-fg">
               {t("ratingReasonPrompt")}
             </p>
             <div className="flex flex-col gap-2">
@@ -115,7 +115,7 @@ export function OcrRatingPrompt({ onClose, onRate }: Props) {
                   key={reason}
                   type="button"
                   onClick={() => void handleReason(reason)}
-                  className="w-full rounded-xl border border-[#30363d] px-4 py-2.5 text-left text-sm text-[#e6edf3] transition-colors hover:border-[#58a6ff] hover:bg-[#58a6ff10]"
+                  className="w-full rounded-xl border border-hq-border px-4 py-2.5 text-left text-sm text-hq-fg transition-colors hover:border-hq-accent hover:bg-[#58a6ff10]"
                 >
                   {t(`ratingReason_${reason}`)}
                 </button>
@@ -124,20 +124,20 @@ export function OcrRatingPrompt({ onClose, onRate }: Props) {
             <button
               type="button"
               onClick={onClose}
-              className="mt-5 text-sm text-[#8b949e] hover:text-[#e6edf3]"
+              className="mt-5 text-sm text-hq-fg-muted hover:text-hq-fg"
             >
               {t("ratingSkip")}
             </button>
           </>
         ) : (
           <>
-            <p className="mb-6 text-lg font-medium text-[#e6edf3]">
+            <p className="mb-6 text-lg font-medium text-hq-fg">
               {t("ratingThankYou")}
             </p>
             <button
               type="button"
               onClick={onClose}
-              className="rounded-lg border border-[#30363d] px-4 py-2 text-sm text-[#e6edf3] hover:bg-[#21262d]"
+              className="rounded-lg border border-hq-border px-4 py-2 text-sm text-hq-fg hover:bg-hq-surface-muted"
             >
               {t("ratingClose")}
             </button>

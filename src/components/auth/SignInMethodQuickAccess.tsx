@@ -228,7 +228,7 @@ export function SignInMethodQuickAccess({
 
   return (
     <>
-      <p className="mt-4 text-xs font-medium uppercase tracking-wide text-[#8b949e]">
+      <p className="mt-4 text-xs font-medium uppercase tracking-wide text-hq-fg-muted">
         {t("quickAccessLabel")}
       </p>
       <div className="mt-2">
@@ -253,8 +253,8 @@ export function SignInMethodQuickAccess({
         />
       </div>
 
-      {message ? <p className="mt-3 text-sm text-[#3fb950]">{message}</p> : null}
-      {error ? <p className="mt-3 text-sm text-[#f85149]">{error}</p> : null}
+      {message ? <p className="mt-3 text-sm text-hq-green">{message}</p> : null}
+      {error ? <p className="mt-3 text-sm text-hq-danger">{error}</p> : null}
 
       <Dialog
         open={dialogMethod != null}
@@ -266,13 +266,13 @@ export function SignInMethodQuickAccess({
         title={dialogTitle}
       >
         <div className="space-y-4">
-          <p className="text-sm text-[#8b949e]">{dialogBody}</p>
+          <p className="text-sm text-hq-fg-muted">{dialogBody}</p>
           <div className="flex flex-wrap justify-end gap-2">
             <button
               type="button"
               disabled={busy}
               onClick={() => setDialogMethod(null)}
-              className="rounded-lg border border-[#30363d] px-4 py-2 text-sm text-[#e6edf3] disabled:opacity-50"
+              className="rounded-lg border border-hq-border px-4 py-2 text-sm text-hq-fg disabled:opacity-50"
             >
               {t("methodCloseButton")}
             </button>
@@ -293,7 +293,7 @@ export function SignInMethodQuickAccess({
                     void unlinkPasskeys();
                   }
                 }}
-                className="rounded-lg border border-[#f85149] bg-[#f85149]/10 px-4 py-2 text-sm font-medium text-[#f85149] disabled:opacity-50"
+                className="rounded-lg border border-hq-danger bg-hq-danger/10 px-4 py-2 text-sm font-medium text-hq-danger disabled:opacity-50"
               >
                 {busy ? t("saving") : t("methodUnlinkButton")}
               </button>

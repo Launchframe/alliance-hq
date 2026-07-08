@@ -36,7 +36,7 @@ function AnalogClockFace({ now }: { now: Date }) {
   return (
     <svg
       viewBox="0 0 120 120"
-      className="mx-auto h-28 w-28 text-[#e6edf3]"
+      className="mx-auto h-28 w-28 text-hq-fg"
       aria-hidden
     >
       <circle cx="60" cy="60" r="54" fill="#0d1117" stroke="#30363d" strokeWidth="2" />
@@ -146,7 +146,7 @@ export function TrainsServerTimeClock({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="mt-2 inline-flex rounded-lg border border-[#30363d] bg-[#0d1117]/80 px-2.5 py-1 text-[10px] tabular-nums text-[#8b949e] transition-colors hover:border-[#58a6ff]/40 hover:text-[#c9d1d9]"
+        className="mt-2 inline-flex rounded-lg border border-hq-border bg-hq-canvas/80 px-2.5 py-1 text-[10px] tabular-nums text-hq-fg-muted transition-colors hover:border-hq-accent/40 hover:text-[#c9d1d9]"
         data-testid="trains-server-time-notice"
         aria-label={t("openBoard")}
       >
@@ -163,15 +163,15 @@ export function TrainsServerTimeClock({
               </p>
             </>
           ) : null}
-          <div className="rounded-lg border border-[#30363d] bg-[#0d1117] p-3">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-[#8b949e]">
+          <div className="rounded-lg border border-hq-border bg-hq-canvas p-3">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-hq-fg-muted">
               {t("departureHeading", { date: selectedDate.slice(5) })}
             </p>
-            <p className="mt-1 text-sm font-medium text-[#e6edf3]">
+            <p className="mt-1 text-sm font-medium text-hq-fg">
               {departureLabel}
             </p>
           </div>
-          <p className="text-xs text-[#8b949e]">{t("timezoneNote")}</p>
+          <p className="text-xs text-hq-fg-muted">{t("timezoneNote")}</p>
         </div>
       </Dialog>
     </>

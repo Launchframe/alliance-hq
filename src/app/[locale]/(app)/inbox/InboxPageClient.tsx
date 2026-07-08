@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 
 import { FormattedDateTime } from "@/components/timezone/TimezoneProvider";
 import { MEMBER_LINK_HELP_INBOX_KIND } from "@/lib/member-link/member-link-help-inbox.shared";
+import { ONBOARDING_REVIEW_INBOX_KIND } from "@/lib/member-link/onboarding-review-inbox.shared";
 import { ROSTER_LINK_INBOX_KIND } from "@/lib/member-link/roster-link-inbox.shared";
 import { Link } from "@/i18n/navigation";
 import { dispatchInboxRemindersRefresh } from "@/lib/inbox-reminders-refresh.shared";
@@ -87,6 +88,7 @@ export default function InboxPageClient({
     if (kind === "eur_occurrence") return t("kind.eurOccurrence");
     if (kind === "video_jobs_pending") return t("kind.videoJobsPending");
     if (kind === ROSTER_LINK_INBOX_KIND) return t("kind.memberLinkRequest");
+    if (kind === ONBOARDING_REVIEW_INBOX_KIND) return t("kind.memberOnboardingReview");
     if (kind === MEMBER_LINK_HELP_INBOX_KIND) return t("kind.memberLinkHelp");
     return kind;
   }
@@ -95,6 +97,10 @@ export default function InboxPageClient({
     if (item.kind === ROSTER_LINK_INBOX_KIND) {
       const name = item.scoreTarget?.trim() || item.title;
       return t("kind.memberLinkRequestTitle", { name });
+    }
+    if (item.kind === ONBOARDING_REVIEW_INBOX_KIND) {
+      const name = item.scoreTarget?.trim() || item.title;
+      return t("kind.memberOnboardingReviewTitle", { name });
     }
     if (item.kind === MEMBER_LINK_HELP_INBOX_KIND) {
       const name = item.scoreTarget?.trim() || item.title;
@@ -107,6 +113,9 @@ export default function InboxPageClient({
     if (item.kind === ROSTER_LINK_INBOX_KIND) {
       return t("kind.memberLinkRequestBody");
     }
+    if (item.kind === ONBOARDING_REVIEW_INBOX_KIND) {
+      return t("kind.memberOnboardingReviewBody");
+    }
     if (item.kind === MEMBER_LINK_HELP_INBOX_KIND) {
       return t("kind.memberLinkHelpBody");
     }
@@ -118,31 +127,31 @@ export default function InboxPageClient({
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold">{t("title")}</h1>
-          <p className="mt-1 text-sm text-[#8b949e]">{t("subtitle")}</p>
+          <p className="mt-1 text-sm text-hq-fg-muted">{t("subtitle")}</p>
         </div>
         {items.length > 0 ? (
           <button
             type="button"
             disabled={dismissingId === "all"}
             onClick={() => void dismissAll()}
-            className="shrink-0 rounded-lg border border-[#30363d] px-3 py-1.5 text-sm text-[#e6edf3] hover:bg-[#21262d] disabled:opacity-50"
+            className="shrink-0 rounded-lg border border-hq-border px-3 py-1.5 text-sm text-hq-fg hover:bg-hq-surface-muted disabled:opacity-50"
           >
             {t("dismissAll")}
           </button>
         ) : null}
       </div>
 
-      {error ? <p className="text-sm text-[#f85149]">{error}</p> : null}
+      {error ? <p className="text-sm text-hq-danger">{error}</p> : null}
 
       {items.length === 0 && !error ? (
-        <p className="text-sm text-[#8b949e]">{t("empty")}</p>
+        <p className="text-sm text-hq-fg-muted">{t("empty")}</p>
       ) : (
-        <ul className="divide-y divide-[#30363d] rounded-xl border border-[#30363d] bg-[#161b22]">
+        <ul className="divide-y divide-hq-border rounded-xl border border-hq-border bg-hq-surface">
           {items.map((item) => (
             <li
               key={item.id}
               className={`flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between ${
-                item.href ? "transition-colors hover:bg-[#21262d]" : ""
+                item.href ? "transition-colors hover:bg-hq-surface-muted" : ""
               }`}
             >
               {item.href ? (
@@ -150,33 +159,33 @@ export default function InboxPageClient({
                   href={item.href}
                   className="group min-w-0 flex-1 rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#388bfd]"
                 >
-                  <p className="text-xs font-medium uppercase tracking-wide text-[#58a6ff]">
+                  <p className="text-xs font-medium uppercase tracking-wide text-hq-accent">
                     {kindLabel(item.kind)}
                   </p>
-                  <p className="truncate font-medium text-[#e6edf3] group-hover:text-[#58a6ff] group-hover:underline">
+                  <p className="truncate font-medium text-hq-fg group-hover:text-hq-accent group-hover:underline">
                     {displayTitle(item)}
                   </p>
                   {displayBody(item) ? (
-                    <p className="truncate text-sm text-[#8b949e]">
+                    <p className="truncate text-sm text-hq-fg-muted">
                       {displayBody(item)}
                     </p>
                   ) : null}
-                  <p className="mt-1 text-xs text-[#8b949e]">
+                  <p className="mt-1 text-xs text-hq-fg-muted">
                     <FormattedDateTime value={item.createdAt} />
                   </p>
                 </Link>
               ) : (
                 <div className="min-w-0 flex-1">
-                  <p className="text-xs font-medium uppercase tracking-wide text-[#58a6ff]">
+                  <p className="text-xs font-medium uppercase tracking-wide text-hq-accent">
                     {kindLabel(item.kind)}
                   </p>
                   <p className="truncate font-medium">{displayTitle(item)}</p>
                   {displayBody(item) ? (
-                    <p className="truncate text-sm text-[#8b949e]">
+                    <p className="truncate text-sm text-hq-fg-muted">
                       {displayBody(item)}
                     </p>
                   ) : null}
-                  <p className="mt-1 text-xs text-[#8b949e]">
+                  <p className="mt-1 text-xs text-hq-fg-muted">
                     <FormattedDateTime value={item.createdAt} />
                   </p>
                 </div>
@@ -185,7 +194,7 @@ export default function InboxPageClient({
                 type="button"
                 disabled={dismissingId === item.id}
                 onClick={() => void dismissOne(item.id)}
-                className="shrink-0 self-start rounded-lg border border-[#30363d] px-3 py-1.5 text-sm text-[#8b949e] hover:bg-[#21262d] hover:text-[#e6edf3] disabled:opacity-50 sm:self-center"
+                className="shrink-0 self-start rounded-lg border border-hq-border px-3 py-1.5 text-sm text-hq-fg-muted hover:bg-hq-surface-muted hover:text-hq-fg disabled:opacity-50 sm:self-center"
               >
                 {t("dismiss")}
               </button>
@@ -194,12 +203,12 @@ export default function InboxPageClient({
         </ul>
       )}
 
-      <div className="space-y-2 text-sm text-[#8b949e]">
+      <div className="space-y-2 text-sm text-hq-fg-muted">
         {showRosterLinkRequestsLink ? (
           <p>
             <Link
               href="/members/roster-link-requests"
-              className="text-[#58a6ff] hover:underline"
+              className="text-hq-accent hover:underline"
             >
               {tRoster("title")}
             </Link>
@@ -208,7 +217,7 @@ export default function InboxPageClient({
         <p>
           <Link
             href="/settings/upload-reminders"
-            className="text-[#58a6ff] hover:underline"
+            className="text-hq-accent hover:underline"
           >
             {t("manageSchedules")}
           </Link>

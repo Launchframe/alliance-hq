@@ -447,11 +447,12 @@ test.describe("Member-link onboarding outcomes", () => {
     await expect(page.getByRole("button", { name: /wrong account/i })).toBeVisible();
   });
 
-  test("invite roster miss submits awaiting_owner without API mocks", async ({
+  test("invite roster miss self-service links immediately and queues review", async ({
     page,
   }) => {
     const sql = getE2eSql();
-    const { accepted, email } = await seedUnlinkedMemberOnboardSession(sql);
+    const { accepted, email, alliance } =
+      await seedUnlinkedMemberOnboardSession(sql);
 
     await page.context().addCookies(
       playwrightAuthCookies({
@@ -466,11 +467,37 @@ test.describe("Member-link onboarding outcomes", () => {
     const response = await submitUidThenConfirm(page, "1234567890121204");
     expect(response.ok()).toBe(true);
     const body = (await response.json()) as { outcome?: string };
-    expect(body.outcome).toBe("awaiting_owner");
+    expect(body.outcome).toBe("linked");
 
-    await expect(
-      page.getByRole("heading", { name: /waiting for roster confirmation/i }),
-    ).toBeVisible();
+    const requestId = await getLatestPendingRosterLinkRequestId(sql, {
+      allianceId: alliance.allianceId,
+      hqUserId: accepted.hqUserId,
+    });
+    expect(requestId).toBeNull();
+
+    const [memberLink] = await sql<{ game_uid: string }[]>`
+      SELECT game_uid FROM hq_member_links
+      WHERE alliance_id = ${alliance.allianceId}
+        AND hq_user_id = ${accepted.hqUserId}
+      LIMIT 1
+    `;
+    expect(memberLink?.game_uid).toBe("1234567890121204");
+
+    const [review] = await sql<
+      { status: string; game_user_name: string; hq_user_id: string | null }[]
+    >`
+      SELECT status, game_user_name, hq_user_id
+      FROM hq_member_onboarding_reviews
+      WHERE alliance_id = ${alliance.allianceId}
+        AND hq_user_id = ${accepted.hqUserId}
+      ORDER BY created_at DESC
+      LIMIT 1
+    `;
+    expect(review).toMatchObject({
+      status: "pending",
+      game_user_name: "E2eRosterMiss",
+      hq_user_id: accepted.hqUserId,
+    });
   });
 
   test("owner accept token links invitee after roster approval", async ({
@@ -480,6 +507,11 @@ test.describe("Member-link onboarding outcomes", () => {
     const maintainer = await createPlatformMaintainerSession(sql);
     const { accepted, email, alliance } =
       await seedUnlinkedMemberOnboardSession(sql);
+    await sql`
+      UPDATE alliances
+      SET self_service_onboarding_enabled = 0
+      WHERE id = ${alliance.allianceId}
+    `;
 
     await page.context().addCookies(
       playwrightAuthCookies({
@@ -594,27 +626,31 @@ test.describe("Member-link onboarding outcomes", () => {
     const response = await submitUidThenConfirm(page, "1234567890121206");
     expect(response.ok()).toBe(true);
     const body = (await response.json()) as { outcome?: string };
-    expect(body.outcome).toBe("awaiting_owner");
+    expect(body.outcome).toBe("linked");
 
     const requestId = await getLatestPendingRosterLinkRequestId(sql, {
       allianceId: alliance.allianceId,
       hqUserId: accepted.hqUserId,
     });
-    expect(requestId).toBeTruthy();
+    expect(requestId).toBeNull();
 
-    const [requestRow] = await sql<
+    const [reviewRow] = await sql<
       {
+        id: string;
         suggested_target_ashed_member_id: string | null;
         suggestion_method: string | null;
       }[]
     >`
-      SELECT suggested_target_ashed_member_id, suggestion_method
-      FROM hq_roster_link_requests
-      WHERE id = ${requestId!}
+      SELECT id, suggested_target_ashed_member_id, suggestion_method
+      FROM hq_member_onboarding_reviews
+      WHERE alliance_id = ${alliance.allianceId}
+        AND hq_user_id = ${accepted.hqUserId}
+        AND status = 'pending'
+      ORDER BY created_at DESC
       LIMIT 1
     `;
-    expect(requestRow?.suggested_target_ashed_member_id).toBe(mewMemberId);
-    expect(requestRow?.suggestion_method).toBe("substring");
+    expect(reviewRow?.suggested_target_ashed_member_id).toBe(mewMemberId);
+    expect(reviewRow?.suggestion_method).toBe("substring");
 
     // Officer with members:write reviews the queue.
     const officerEmail = `officer-suggest-${nanoid(6)}@e2e.test`;
@@ -645,26 +681,28 @@ test.describe("Member-link onboarding outcomes", () => {
       }),
     );
     await page.goto(
-      `/members/roster-link-requests?request=${encodeURIComponent(requestId!)}`,
+      `/members/onboarding-reviews?review=${encodeURIComponent(reviewRow!.id)}`,
     );
 
     // The suggested match is explained and preselected, but not auto-applied.
-    await expect(page.getByText(/suggested match: mew/i)).toBeVisible();
+    await expect(
+      page.getByText(/this member may already be on your roster as mew/i),
+    ).toBeVisible();
     await expect(page.locator("select").first()).toHaveValue(mewMemberId);
 
-    const approve = page.getByRole("button", { name: /approve match/i });
-    await expect(approve).toBeEnabled();
-    await approve.click();
+    const merge = page.getByRole("button", { name: /link to roster member/i });
+    await expect(merge).toBeEnabled();
+    await merge.click();
 
     await expect.poll(async () => {
-      const [memberLink] = await sql<{ game_uid: string }[]>`
-        SELECT game_uid FROM hq_member_links
+      const [memberLink] = await sql<{ ashed_member_id: string }[]>`
+        SELECT ashed_member_id FROM hq_member_links
         WHERE alliance_id = ${alliance.allianceId}
           AND hq_user_id = ${accepted.hqUserId}
         LIMIT 1
       `;
-      return memberLink?.game_uid ?? null;
-    }).toBe("1234567890121206");
+      return memberLink?.ashed_member_id ?? null;
+    }).toBe(mewMemberId);
   });
 
   test("join-code owner cold-starts first roster member on empty native alliance", async ({

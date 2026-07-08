@@ -90,13 +90,13 @@ export default async function SettingsTeamPage({
   return (
     <div className="mx-auto w-full min-w-0 max-w-3xl space-y-6">
       <div>
-        <Link href="/settings" className="text-sm text-[#58a6ff] hover:underline">
+        <Link href="/settings" className="text-sm text-hq-accent hover:underline">
           ← {t("backToSettings")}
         </Link>
         <h1 className="mt-4 text-2xl font-semibold">
           {t("titleWithTag", { tag: tagLabel })}
         </h1>
-        <p className="mt-2 text-sm text-[#8b949e]">{t("description")}</p>
+        <p className="mt-2 text-sm text-hq-fg-muted">{t("description")}</p>
       </div>
 
       {canManageInvites ? (
@@ -118,7 +118,7 @@ export default async function SettingsTeamPage({
       />
 
       {canRefreshFromAshed ? (
-        <p className="text-xs text-[#6e7681]">{t("ashedNote")}</p>
+        <p className="text-xs text-hq-fg-subtle">{t("ashedNote")}</p>
       ) : null}
     </div>
   );

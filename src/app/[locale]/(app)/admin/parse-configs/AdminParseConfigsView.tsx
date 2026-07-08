@@ -22,9 +22,9 @@ type ParseConfig = {
 };
 
 const STATUS_COLORS: Record<string, string> = {
-  draft: "bg-[#21262d] text-[#8b949e] border-[#30363d]",
-  active: "bg-[#3fb95020] text-[#3fb950] border-[#3fb950]",
-  archived: "bg-[#21262d] text-[#484f58] border-[#21262d]",
+  draft: "bg-hq-surface-muted text-hq-fg-muted border-hq-border",
+  active: "bg-[#3fb95020] text-hq-green border-hq-green",
+  archived: "bg-hq-surface-muted text-[#484f58] border-hq-surface-muted",
 };
 
 function StatusBadge({ status }: { status: string }) {
@@ -143,12 +143,12 @@ export function AdminParseConfigsView() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-[#e6edf3]">{t("title")}</h1>
-          <p className="mt-1 text-sm text-[#8b949e]">{t("subtitle")}</p>
+          <h1 className="text-xl font-semibold text-hq-fg">{t("title")}</h1>
+          <p className="mt-1 text-sm text-hq-fg-muted">{t("subtitle")}</p>
         </div>
         <button
           onClick={() => setShowForm((v) => !v)}
-          className="rounded-md border border-[#30363d] bg-[#21262d] px-3 py-1.5 text-sm text-[#e6edf3] hover:border-[#58a6ff] hover:text-[#58a6ff] transition-colors"
+          className="rounded-md border border-hq-border bg-hq-surface-muted px-3 py-1.5 text-sm text-hq-fg hover:border-hq-accent hover:text-hq-accent transition-colors"
         >
           {showForm ? t("cancel") : t("newConfig")}
         </button>
@@ -158,16 +158,16 @@ export function AdminParseConfigsView() {
       {showForm && (
         <form
           onSubmit={(e) => void handleCreate(e)}
-          className="rounded-lg border border-[#30363d] bg-[#161b22] p-4 space-y-4"
+          className="rounded-lg border border-hq-border bg-hq-surface p-4 space-y-4"
         >
-          <h2 className="text-sm font-semibold text-[#e6edf3]">{t("newConfig")}</h2>
+          <h2 className="text-sm font-semibold text-hq-fg">{t("newConfig")}</h2>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label={t("form.name")}>
               <input
                 required
                 value={form.name}
                 onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                className="w-full rounded border border-[#30363d] bg-[#0d1117] px-3 py-1.5 text-sm text-[#e6edf3] focus:border-[#58a6ff] focus:outline-none"
+                className="w-full rounded border border-hq-border bg-hq-canvas px-3 py-1.5 text-sm text-hq-fg focus:border-hq-accent focus:outline-none"
               />
             </Field>
             <Field label={t("form.passKey")} help={t("form.passKeyHelp")}>
@@ -176,7 +176,7 @@ export function AdminParseConfigsView() {
                 placeholder="scene_0.33"
                 value={form.passKey}
                 onChange={(e) => setForm((f) => ({ ...f, passKey: e.target.value }))}
-                className="w-full rounded border border-[#30363d] bg-[#0d1117] px-3 py-1.5 text-sm font-mono text-[#e6edf3] focus:border-[#58a6ff] focus:outline-none"
+                className="w-full rounded border border-hq-border bg-hq-canvas px-3 py-1.5 text-sm font-mono text-hq-fg focus:border-hq-accent focus:outline-none"
               />
             </Field>
           </div>
@@ -184,7 +184,7 @@ export function AdminParseConfigsView() {
             <input
               value={form.description}
               onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-              className="w-full rounded border border-[#30363d] bg-[#0d1117] px-3 py-1.5 text-sm text-[#e6edf3] focus:border-[#58a6ff] focus:outline-none"
+              className="w-full rounded border border-hq-border bg-hq-canvas px-3 py-1.5 text-sm text-hq-fg focus:border-hq-accent focus:outline-none"
             />
           </Field>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -192,7 +192,7 @@ export function AdminParseConfigsView() {
               <select
                 value={form.mode}
                 onChange={(e) => setForm((f) => ({ ...f, mode: e.target.value as "scene" | "fps" }))}
-                className="w-full rounded border border-[#30363d] bg-[#0d1117] px-3 py-1.5 text-sm text-[#e6edf3] focus:border-[#58a6ff] focus:outline-none"
+                className="w-full rounded border border-hq-border bg-hq-canvas px-3 py-1.5 text-sm text-hq-fg focus:border-hq-accent focus:outline-none"
               >
                 <option value="scene">scene</option>
                 <option value="fps">fps</option>
@@ -207,7 +207,7 @@ export function AdminParseConfigsView() {
                   max="1"
                   value={form.sceneThreshold}
                   onChange={(e) => setForm((f) => ({ ...f, sceneThreshold: e.target.value }))}
-                  className="w-full rounded border border-[#30363d] bg-[#0d1117] px-3 py-1.5 text-sm text-[#e6edf3] focus:border-[#58a6ff] focus:outline-none"
+                  className="w-full rounded border border-hq-border bg-hq-canvas px-3 py-1.5 text-sm text-hq-fg focus:border-hq-accent focus:outline-none"
                 />
               </Field>
             )}
@@ -218,7 +218,7 @@ export function AdminParseConfigsView() {
                 min="0.5"
                 value={form.sampleFps}
                 onChange={(e) => setForm((f) => ({ ...f, sampleFps: e.target.value }))}
-                className="w-full rounded border border-[#30363d] bg-[#0d1117] px-3 py-1.5 text-sm text-[#e6edf3] focus:border-[#58a6ff] focus:outline-none"
+                className="w-full rounded border border-hq-border bg-hq-canvas px-3 py-1.5 text-sm text-hq-fg focus:border-hq-accent focus:outline-none"
               />
             </Field>
           </div>
@@ -233,15 +233,15 @@ export function AdminParseConfigsView() {
                   e.currentTarget.form?.requestSubmit();
                 })
               }
-              className="w-full rounded border border-[#30363d] bg-[#0d1117] px-3 py-1.5 text-sm text-[#e6edf3] focus:border-[#58a6ff] focus:outline-none"
+              className="w-full rounded border border-hq-border bg-hq-canvas px-3 py-1.5 text-sm text-hq-fg focus:border-hq-accent focus:outline-none"
             />
           </Field>
-          {error && <p className="text-sm text-[#f85149]">{error}</p>}
+          {error && <p className="text-sm text-hq-danger">{error}</p>}
           <div className="flex gap-2">
             <button
               type="submit"
               disabled={saving}
-              className="rounded-md bg-[#238636] px-4 py-1.5 text-sm font-medium text-white hover:bg-[#2ea043] disabled:opacity-50 transition-colors"
+              className="rounded-md bg-hq-success px-4 py-1.5 text-sm font-medium text-white hover:bg-hq-success-hover disabled:opacity-50 transition-colors"
             >
               {saving ? t("saving") : t("create")}
             </button>
@@ -251,11 +251,11 @@ export function AdminParseConfigsView() {
 
       {/* Filters */}
       <div className="flex items-center gap-3">
-        <label className="text-xs text-[#8b949e]">{t("statusFilter")}</label>
+        <label className="text-xs text-hq-fg-muted">{t("statusFilter")}</label>
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
-          className="rounded border border-[#30363d] bg-[#161b22] px-2 py-1 text-xs text-[#e6edf3] focus:border-[#58a6ff] focus:outline-none"
+          className="rounded border border-hq-border bg-hq-surface px-2 py-1 text-xs text-hq-fg focus:border-hq-accent focus:outline-none"
         >
           <option value="">{t("allStatuses")}</option>
           <option value="draft">draft</option>
@@ -265,16 +265,16 @@ export function AdminParseConfigsView() {
       </div>
 
       {/* Error / loading */}
-      {error && !showForm && <p className="text-sm text-[#f85149]">{error}</p>}
-      {patchError && <p className="text-sm text-[#f85149]">{patchError}</p>}
-      {loading && <p className="text-sm text-[#8b949e]">{t("loading")}</p>}
+      {error && !showForm && <p className="text-sm text-hq-danger">{error}</p>}
+      {patchError && <p className="text-sm text-hq-danger">{patchError}</p>}
+      {loading && <p className="text-sm text-hq-fg-muted">{t("loading")}</p>}
 
       {/* Table */}
       {!loading && (
-        <div className="overflow-x-auto rounded-lg border border-[#30363d]">
+        <div className="overflow-x-auto rounded-lg border border-hq-border">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-[#30363d] bg-[#161b22] text-[#8b949e] text-xs uppercase tracking-wide">
+              <tr className="border-b border-hq-border bg-hq-surface text-hq-fg-muted text-xs uppercase tracking-wide">
                 <th className="px-4 py-2 text-left">{t("col.name")}</th>
                 <th className="px-4 py-2 text-left">{t("col.passKey")}</th>
                 <th className="px-4 py-2 text-left">{t("col.config")}</th>
@@ -285,7 +285,7 @@ export function AdminParseConfigsView() {
             <tbody>
               {configs.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-4 py-6 text-center text-[#8b949e]">
+                  <td colSpan={5} className="px-4 py-6 text-center text-hq-fg-muted">
                     {t("empty")}
                   </td>
                 </tr>
@@ -293,18 +293,18 @@ export function AdminParseConfigsView() {
               {configs.map((cfg) => (
                 <tr
                   key={cfg.id}
-                  className="border-b border-[#21262d] hover:bg-[#161b22] transition-colors"
+                  className="border-b border-hq-surface-muted hover:bg-hq-surface transition-colors"
                 >
-                  <td className="px-4 py-3 text-[#e6edf3]">
+                  <td className="px-4 py-3 text-hq-fg">
                     <div className="font-medium">{cfg.name}</div>
                     {cfg.description && (
-                      <div className="text-xs text-[#8b949e] mt-0.5">{cfg.description}</div>
+                      <div className="text-xs text-hq-fg-muted mt-0.5">{cfg.description}</div>
                     )}
                   </td>
                   <td className="px-4 py-3 font-mono text-xs text-[#79c0ff]">
                     {cfg.passKey}
                   </td>
-                  <td className="px-4 py-3 text-xs text-[#8b949e]">
+                  <td className="px-4 py-3 text-xs text-hq-fg-muted">
                     {configSummary(cfg.configJson)}
                   </td>
                   <td className="px-4 py-3">
@@ -317,14 +317,14 @@ export function AdminParseConfigsView() {
                               void handlePatch(cfg.id, { status: s });
                               setEditingId(null);
                             }}
-                            className={`rounded px-2 py-0.5 text-xs border transition-colors ${s === cfg.status ? "opacity-50 cursor-default" : "hover:border-[#58a6ff] hover:text-[#58a6ff]"} ${STATUS_COLORS[s]}`}
+                            className={`rounded px-2 py-0.5 text-xs border transition-colors ${s === cfg.status ? "opacity-50 cursor-default" : "hover:border-hq-accent hover:text-hq-accent"} ${STATUS_COLORS[s]}`}
                           >
                             {s}
                           </button>
                         ))}
                         <button
                           onClick={() => setEditingId(null)}
-                          className="text-xs text-[#8b949e] hover:text-[#e6edf3]"
+                          className="text-xs text-hq-fg-muted hover:text-hq-fg"
                         >
                           ✕
                         </button>
@@ -337,13 +337,13 @@ export function AdminParseConfigsView() {
                     <div className="flex items-center gap-3">
                       <button
                         onClick={() => setEditingId(editingId === cfg.id ? null : cfg.id)}
-                        className="text-xs text-[#8b949e] hover:text-[#58a6ff] transition-colors"
+                        className="text-xs text-hq-fg-muted hover:text-hq-accent transition-colors"
                       >
                         {t("changeStatus")}
                       </button>
                       <Link
                         href={`/admin/experiments?configId=${cfg.id}`}
-                        className="text-xs text-[#8b949e] hover:text-[#58a6ff] transition-colors"
+                        className="text-xs text-hq-fg-muted hover:text-hq-accent transition-colors"
                       >
                         {t("viewExperiments")}
                       </Link>
@@ -370,7 +370,7 @@ function Field({
 }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-xs text-[#8b949e]">{label}</span>
+      <span className="mb-1 block text-xs text-hq-fg-muted">{label}</span>
       {children}
       {help && (
         <span className="mt-1 block text-xs text-[#484f58] leading-relaxed">{help}</span>

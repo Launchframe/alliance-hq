@@ -62,8 +62,11 @@ import {
   resolveAllianceForGuild,
 } from "@/lib/vr/service";
 import { resolveSetupMessage } from "@/lib/vr/bot-user-context";
-import { resolveAllianceIdForDiscordMemberLink } from "@/lib/vr/resolve-member-link-alliance.server";
-import { isDiscordCommanderLinkCommand } from "@/lib/vr/discord-command-names";
+import {
+  isDiscordCommanderLinkCommand,
+  isDiscordLanguageSlashCommand,
+  isDiscordVrSlashCommand,
+} from "@/lib/vr/discord-command-names";
 import {
   handleDiscordSetTrainChannel,
   handleDiscordTrainConductorPick,
@@ -119,75 +122,17 @@ async function handleLinkCommanderSlash(
     discordUsername: string | undefined;
   },
 ) {
-  const t = createDiscordTranslator(input.locale);
-  const { uid, replace } = parseLinkSlashOptions(payload);
-
-  let allianceId = input.allianceId;
-  if (!allianceId && input.guildId && uid) {
-    const lookup = await lookupPlayerByUid(uid);
-    if (lookup.ok) {
-      allianceId = await resolveAllianceIdForDiscordMemberLink({
-        guildId: input.guildId,
-        discordUserId: input.discordUserId,
-        reportedName: lookup.gameUserName,
-        gameUid: uid,
-      });
-    }
-  }
-
-  if (!allianceId) {
-    return discordMessageResponse(
-      await setupMessage(input.locale, input.guildId, input.discordUserId),
-      undefined,
-      EPHEMERAL,
-    );
-  }
+  const { replace } = parseLinkSlashOptions(payload);
 
   const result = await handleDiscordLinkCommanderSlash({
-    allianceId,
+    allianceId: input.allianceId,
     guildId: input.guildId,
     discordUserId: input.discordUserId,
     discordUsername: input.discordUsername,
-    gameUid: uid,
     replaceAll: replace,
     locale: input.locale,
   });
 
-  if (result.needsIdentityConfirmation) {
-    return discordMessageResponse(
-      result.reply,
-      buildLinkIdentityConfirmButtons({
-        yes: t("link.confirmIdentityYes"),
-        no: t("link.confirmIdentityNo"),
-      }),
-      EPHEMERAL,
-    );
-  }
-
-  if (result.pending?.kind === "link_fuzzy_pick") {
-    return discordMessageResponse(
-      result.reply,
-      buildLinkFuzzyButtons(result.pending.candidates),
-      EPHEMERAL,
-    );
-  }
-  if (result.pending?.kind === "link_walkthrough") {
-    return discordMessageResponse(
-      result.reply,
-      buildWalkthroughDoneButton(t("buttons.done")),
-      EPHEMERAL,
-    );
-  }
-  if (result.needsOfficerAttention) {
-    return discordMessageResponse(
-      result.reply,
-      buildLinkFailureButtons({
-        startOver: t("buttons.startOver"),
-        askOfficer: t("buttons.askOfficer"),
-      }),
-      EPHEMERAL,
-    );
-  }
   return discordMessageResponse(result.reply, undefined, EPHEMERAL);
 }
 
@@ -211,7 +156,7 @@ async function handleSlashCommand(payload: DiscordInteractionPayload) {
     return discordMessageResponse(result.reply);
   }
 
-  if (commandName === "language") {
+  if (isDiscordLanguageSlashCommand(commandName)) {
     const choice = parseSlashOptionString(payload, "locale");
     const parsed = parseLanguageChoice(choice);
     if (!parsed) {
@@ -336,7 +281,7 @@ async function handleSlashCommand(payload: DiscordInteractionPayload) {
     );
   }
 
-  if (commandName === "vr" || commandName === "immunity") {
+  if (isDiscordVrSlashCommand(commandName)) {
     const explicitInstituteLevel = parseVrSlashLevel(payload);
     const result = await handleDiscordVrSlash({
       allianceId,

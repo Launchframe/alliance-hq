@@ -129,9 +129,9 @@ export function AdminGameSeasonsConsole() {
   }
 
   const desktopTable = (
-    <div className="overflow-x-auto rounded-xl border border-[#30363d]">
+    <div className="overflow-x-auto rounded-xl border border-hq-border">
       <table className="min-w-full text-left text-sm">
-        <thead className="bg-[#161b22] text-[#8b949e]">
+        <thead className="bg-hq-surface text-hq-fg-muted">
           <tr>
             <th className="px-4 py-3 font-medium">{t("seasonNumber")}</th>
             <th className="px-4 py-3 font-medium">{t("maxProfessionLevel")}</th>
@@ -140,7 +140,7 @@ export function AdminGameSeasonsConsole() {
         </thead>
         <tbody>
           {seasons.map((row) => (
-            <tr key={row.id} className="border-t border-[#30363d]">
+            <tr key={row.id} className="border-t border-hq-border">
               <td className="px-4 py-3 font-mono">S{row.seasonNumber}</td>
               <td className="px-4 py-3">
                 <input
@@ -157,7 +157,7 @@ export function AdminGameSeasonsConsole() {
                     )
                   }
                   enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT}
-                  className="w-28 rounded-lg border border-[#30363d] bg-[#0d1117] px-2 py-1"
+                  className="w-28 rounded-lg border border-hq-border bg-hq-canvas px-2 py-1"
                 />
               </td>
               <td className="px-4 py-3">
@@ -172,7 +172,7 @@ export function AdminGameSeasonsConsole() {
                   <button
                     type="submit"
                     disabled={savingId === row.id}
-                    className="rounded-lg border border-[#238636] bg-[#238636] px-3 py-1.5 text-xs text-white disabled:opacity-50"
+                    className="rounded-lg border border-hq-success bg-hq-success px-3 py-1.5 text-xs text-white disabled:opacity-50"
                   >
                     {savingId === row.id ? t("saving") : t("save")}
                   </button>
@@ -206,13 +206,13 @@ export function AdminGameSeasonsConsole() {
             updateDraft(row.id, "maxProfessionLevel", event.target.value)
           }
           enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT}
-          className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-2 py-1"
+          className="w-full rounded-lg border border-hq-border bg-hq-canvas px-2 py-1"
         />
       </RecordDetailField>
       <button
         type="submit"
         disabled={savingId === row.id}
-        className="mt-2 w-full rounded-lg border border-[#238636] bg-[#238636] px-3 py-2 text-sm text-white disabled:opacity-50"
+        className="mt-2 w-full rounded-lg border border-hq-success bg-hq-success px-3 py-2 text-sm text-white disabled:opacity-50"
       >
         {savingId === row.id ? t("saving") : t("save")}
       </button>
@@ -224,13 +224,13 @@ export function AdminGameSeasonsConsole() {
     <div className="space-y-4">
       <div>
         <h2 className="text-lg font-semibold">{t("title")}</h2>
-        <p className="mt-1 text-sm text-[#8b949e]">{t("subtitle")}</p>
+        <p className="mt-1 text-sm text-hq-fg-muted">{t("subtitle")}</p>
       </div>
 
       {loading ? (
-        <p className="text-sm text-[#8b949e]">{t("loading")}</p>
+        <p className="text-sm text-hq-fg-muted">{t("loading")}</p>
       ) : seasons.length === 0 ? (
-        <p className="text-sm text-[#8b949e]">{t("empty")}</p>
+        <p className="text-sm text-hq-fg-muted">{t("empty")}</p>
       ) : (
         <ResponsiveRecordViews
           mobileCards={<div className="space-y-3 md:hidden">{mobileCards}</div>}
@@ -238,8 +238,8 @@ export function AdminGameSeasonsConsole() {
         />
       )}
 
-      {message ? <p className="text-sm text-[#3fb950]">{message}</p> : null}
-      {error ? <p className="text-sm text-[#f85149]">{error}</p> : null}
+      {message ? <p className="text-sm text-hq-green">{message}</p> : null}
+      {error ? <p className="text-sm text-hq-danger">{error}</p> : null}
     </div>
   );
 }

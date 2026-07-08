@@ -117,10 +117,10 @@ export function ViralResistanceView({
       <header className="min-w-0">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0">
-            <h1 className="text-2xl font-semibold text-[#e6edf3]">{t("title")}</h1>
-            <p className="mt-2 text-sm text-[#8b949e]">{t("subtitle")}</p>
+            <h1 className="text-2xl font-semibold text-hq-fg">{t("title")}</h1>
+            <p className="mt-2 text-sm text-hq-fg-muted">{t("subtitle")}</p>
             {data.seasonKey ? (
-              <p className="mt-1 text-xs text-[#8b949e]">
+              <p className="mt-1 text-xs text-hq-fg-muted">
                 {t("seasonLine", { season: data.seasonKey })}
               </p>
             ) : null}
@@ -128,7 +128,7 @@ export function ViralResistanceView({
           {showMyVrCta ? (
             <Link
               href="/my-vr"
-              className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg border border-[#388bfd] bg-[#388bfd] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#4493ff] sm:self-start"
+              className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg border border-hq-accent bg-hq-accent px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:opacity-90 sm:self-start"
             >
               <Syringe className="h-4 w-4 shrink-0" aria-hidden />
               {t("openMyVrCta")}
@@ -139,18 +139,18 @@ export function ViralResistanceView({
           type="button"
           onClick={() => void refresh()}
           disabled={refreshing}
-          className="mt-3 rounded-lg border border-[#30363d] px-3 py-1.5 text-xs text-[#8b949e] hover:text-[#e6edf3] disabled:opacity-50"
+          className="mt-3 rounded-lg border border-hq-border px-3 py-1.5 text-xs text-hq-fg-muted hover:text-hq-fg disabled:opacity-50"
         >
           {refreshing ? t("refreshing") : t("refresh")}
         </button>
       </header>
 
       {error ? (
-        <p className="text-sm text-[#f85149]">{error}</p>
+        <p className="text-sm text-hq-danger">{error}</p>
       ) : (
-        <div className="overflow-x-auto rounded-2xl border border-[#30363d] bg-[#0D0D0D]">
+        <div className="overflow-x-auto rounded-2xl border border-hq-border bg-hq-surface">
           <table className="min-w-full text-left text-sm">
-            <thead className="border-b border-[#30363d] text-xs uppercase tracking-wide text-[#8b949e]">
+            <thead className="border-b border-hq-border text-xs uppercase tracking-wide text-hq-fg-muted">
               <tr>
                 <th className="px-4 py-3">{t("colRank")}</th>
                 <th className="px-4 py-3">{t("colMember")}</th>
@@ -163,24 +163,24 @@ export function ViralResistanceView({
               {data.rows.map((row, index) => (
                 <tr
                   key={row.ashedMemberId}
-                  className="border-b border-[#21262d] last:border-0"
+                  className="border-b border-hq-surface-muted last:border-0"
                 >
-                  <td className="px-4 py-3 text-[#8b949e]">{index + 1}</td>
-                  <td className="px-4 py-3 font-medium text-[#e6edf3]">
+                  <td className="px-4 py-3 text-hq-fg-muted">{index + 1}</td>
+                  <td className="px-4 py-3 font-medium text-hq-fg">
                     {row.memberName}
                     {row.flagged ? (
-                      <span className="ml-2 text-xs text-[#d29922]">
+                      <span className="ml-2 text-xs text-hq-warning">
                         {t("flagged")}
                       </span>
                     ) : null}
                   </td>
-                  <td className="px-4 py-3 font-mono text-[#8b949e]">
+                  <td className="px-4 py-3 font-mono text-hq-fg-muted">
                     {row.instituteLevel}
                   </td>
-                  <td className="px-4 py-3 font-mono text-[#e6edf3]">
+                  <td className="px-4 py-3 font-mono text-hq-fg">
                     {row.highestBaseVr.toLocaleString()}
                   </td>
-                  <td className="px-4 py-3 font-mono text-[#8b949e]">
+                  <td className="px-4 py-3 font-mono text-hq-fg-muted">
                     {row.totalHeroPower.toLocaleString()}
                   </td>
                 </tr>
@@ -189,7 +189,7 @@ export function ViralResistanceView({
                 <tr>
                   <td
                     colSpan={5}
-                    className="px-4 py-8 text-center text-[#8b949e]"
+                    className="px-4 py-8 text-center text-hq-fg-muted"
                   >
                     {t("empty")}
                   </td>
@@ -201,27 +201,27 @@ export function ViralResistanceView({
       )}
 
       {officer ? (
-        <section className="rounded-2xl border border-[#30363d] bg-[#0D0D0D] p-4 sm:p-6">
-          <h2 className="text-lg font-semibold text-[#e6edf3]">
+        <section className="rounded-2xl border border-hq-border bg-hq-surface p-4 sm:p-6">
+          <h2 className="text-lg font-semibold text-hq-fg">
             {t("officer.title")}
           </h2>
-          <p className="mt-1 text-sm text-[#8b949e]">{t("officer.subtitle")}</p>
+          <p className="mt-1 text-sm text-hq-fg-muted">{t("officer.subtitle")}</p>
 
           {officer.flagged.length > 0 ? (
             <ul className="mt-4 space-y-2">
               {officer.flagged.map((row) => (
                 <li
                   key={row.id}
-                  className="rounded-lg border border-[#d2992233] bg-[#d2992211] px-3 py-2 text-sm"
+                  className="rounded-lg border border-hq-warning/30 bg-hq-warning/10 px-3 py-2 text-sm"
                 >
-                  <span className="font-medium text-[#e6edf3]">
+                  <span className="font-medium text-hq-fg">
                     {officer.members.find((m) => m.id === row.ashedMemberId)
                       ?.current_name ?? row.ashedMemberId}
                   </span>
-                  <span className="mx-2 text-[#8b949e]">·</span>
+                  <span className="mx-2 text-hq-fg-muted">·</span>
                   <span className="font-mono">{row.highestBaseVr}</span>
-                  <span className="mx-2 text-[#8b949e]">·</span>
-                  <span className="text-[#8b949e]">
+                  <span className="mx-2 text-hq-fg-muted">·</span>
+                  <span className="text-hq-fg-muted">
                     {t("officer.levelLine", {
                       level:
                         row.instituteLevel ??
@@ -232,7 +232,7 @@ export function ViralResistanceView({
                     })}
                   </span>
                   {row.flagReason ? (
-                    <span className="mt-1 block text-xs text-[#d29922]">
+                    <span className="mt-1 block text-xs text-hq-warning">
                       {row.flagReason}
                     </span>
                   ) : null}
@@ -240,7 +240,7 @@ export function ViralResistanceView({
               ))}
             </ul>
           ) : (
-            <p className="mt-4 text-sm text-[#8b949e]">{t("officer.noFlags")}</p>
+            <p className="mt-4 text-sm text-hq-fg-muted">{t("officer.noFlags")}</p>
           )}
 
           <form
@@ -250,7 +250,7 @@ export function ViralResistanceView({
               void submitOverride();
             }}
           >
-            <label className="flex min-w-0 flex-1 flex-col gap-1 text-xs text-[#8b949e]">
+            <label className="flex min-w-0 flex-1 flex-col gap-1 text-xs text-hq-fg-muted">
               {t("officer.member")}
               <AppSelect
                 value={overrideMemberId}
@@ -260,34 +260,34 @@ export function ViralResistanceView({
                 placeholder={t("officer.memberPlaceholder")}
               />
             </label>
-            <label className="flex w-full flex-col gap-1 text-xs text-[#8b949e] sm:w-36">
+            <label className="flex w-full flex-col gap-1 text-xs text-hq-fg-muted sm:w-36">
               {t("officer.baseVr")}
               <input
                 value={overrideVr}
                 onChange={(e) => setOverrideVr(e.target.value)}
                 inputMode="numeric"
-                className="rounded-lg border border-[#30363d] bg-[#161b22] px-3 py-2 text-sm text-[#e6edf3]"
+                className="rounded-lg border border-hq-border bg-hq-surface px-3 py-2 text-sm text-hq-fg"
               />
             </label>
-            <label className="flex min-w-0 flex-1 flex-col gap-1 text-xs text-[#8b949e]">
+            <label className="flex min-w-0 flex-1 flex-col gap-1 text-xs text-hq-fg-muted">
               {t("officer.reason")}
               <input
                 value={overrideReason}
                 onChange={(e) => setOverrideReason(e.target.value)}
                 enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT}
-                className="rounded-lg border border-[#30363d] bg-[#161b22] px-3 py-2 text-sm text-[#e6edf3]"
+                className="rounded-lg border border-hq-border bg-hq-surface px-3 py-2 text-sm text-hq-fg"
               />
             </label>
             <button
               type="submit"
               disabled={overrideBusy}
-              className="w-full rounded-lg bg-[#238636] px-4 py-2 text-sm font-medium text-white disabled:opacity-50 sm:w-auto"
+              className="w-full rounded-lg bg-hq-success px-4 py-2 text-sm font-medium text-white disabled:opacity-50 sm:w-auto"
             >
               {overrideBusy ? t("officer.saving") : t("officer.save")}
             </button>
           </form>
           {overrideMessage ? (
-            <p className="mt-3 text-sm text-[#8b949e]">{overrideMessage}</p>
+            <p className="mt-3 text-sm text-hq-fg-muted">{overrideMessage}</p>
           ) : null}
         </section>
       ) : null}

@@ -79,16 +79,16 @@ export function DiscordAuthorizeForm({
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
       <div>
-        <p className="mb-1 text-xs font-medium uppercase tracking-wide text-[#8b949e]">
+        <p className="mb-1 text-xs font-medium uppercase tracking-wide text-hq-fg-muted">
           {labels.tagLabel}
         </p>
-        <p className="font-mono text-base font-semibold text-[#e6edf3]">{tag}</p>
+        <p className="font-mono text-base font-semibold text-hq-fg">{tag}</p>
       </div>
 
       <div>
         <label
           htmlFor="connection-key"
-          className="mb-1 block text-sm font-medium text-[#e6edf3]"
+          className="mb-1 block text-sm font-medium text-hq-fg"
         >
           {labels.keyLabel}
         </label>
@@ -97,7 +97,7 @@ export function DiscordAuthorizeForm({
           type="password"
           autoComplete="off"
           spellCheck={false}
-          className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 font-mono text-sm text-[#e6edf3] placeholder:text-[#6e7681] focus:border-[#58a6ff] focus:outline-none"
+          className="w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 font-mono text-sm text-hq-fg placeholder:text-hq-fg-subtle focus:border-hq-accent focus:outline-none"
           placeholder="Paste your Ashed connection key"
           value={connectionKey}
           onChange={(e) => setConnectionKey(e.target.value)}
@@ -105,11 +105,11 @@ export function DiscordAuthorizeForm({
           required
           disabled={state.status === "loading"}
         />
-        <p className="mt-1 text-xs text-[#6e7681]">{labels.keyHint}</p>
+        <p className="mt-1 text-xs text-hq-fg-subtle">{labels.keyHint}</p>
         <p className="mt-2 text-xs">
           <Link
             href="/connect"
-            className="font-medium text-[#58a6ff] hover:underline"
+            className="font-medium text-hq-accent hover:underline"
           >
             {labels.connectGuideLink}
           </Link>
@@ -117,7 +117,7 @@ export function DiscordAuthorizeForm({
       </div>
 
       {state.status === "error" && (
-        <p className="rounded-lg border border-red-700 bg-red-950/40 px-4 py-3 text-sm text-red-300">
+        <p className="rounded-lg border border-hq-danger/40 bg-hq-danger/10 px-4 py-3 text-sm text-hq-danger">
           {labels.errorPrefix} {state.message}
         </p>
       )}
@@ -125,7 +125,7 @@ export function DiscordAuthorizeForm({
       <button
         type="submit"
         disabled={state.status === "loading" || !credentialsReady}
-        className="w-full rounded-lg bg-[#238636] px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+        className="w-full rounded-lg bg-hq-success px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
       >
         {state.status === "loading" ? labels.submitting : labels.submit}
       </button>

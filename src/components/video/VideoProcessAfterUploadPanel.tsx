@@ -206,16 +206,16 @@ export function VideoProcessAfterUploadPanel({
 
   if (loading && !preview) {
     return (
-      <section className="rounded-xl border border-[#30363d] bg-[#161b22] p-4 sm:p-5">
-        <p className="text-sm text-[#8b949e]">{t("loading")}</p>
+      <section className="rounded-xl border border-hq-border bg-hq-surface p-4 sm:p-5">
+        <p className="text-sm text-hq-fg-muted">{t("loading")}</p>
       </section>
     );
   }
 
   if (!preview) {
     return (
-      <section className="rounded-xl border border-[#f85149] bg-[#161b22] p-4 sm:p-5">
-        <p className="text-sm text-[#f85149]">{error ?? t("loadFailed")}</p>
+      <section className="rounded-xl border border-hq-danger bg-hq-surface p-4 sm:p-5">
+        <p className="text-sm text-hq-danger">{error ?? t("loadFailed")}</p>
       </section>
     );
   }
@@ -229,59 +229,59 @@ export function VideoProcessAfterUploadPanel({
 
   return (
     <section
-      className="rounded-xl border border-[#3fb950] bg-[#161b22] p-4 sm:p-5"
+      className="rounded-xl border border-hq-green bg-hq-surface p-4 sm:p-5"
       data-testid="video-process-after-upload-panel"
     >
-      <h2 className="text-lg font-semibold text-[#e6edf3]">{t("title")}</h2>
-      <p className="mt-1 text-sm text-[#8b949e]">{t("subtitle")}</p>
+      <h2 className="text-lg font-semibold text-hq-fg">{t("title")}</h2>
+      <p className="mt-1 text-sm text-hq-fg-muted">{t("subtitle")}</p>
 
       <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
         <div>
-          <dt className="text-[#8b949e]">{t("statFile")}</dt>
-          <dd className="mt-0.5 break-all font-medium text-[#e6edf3]">
+          <dt className="text-hq-fg-muted">{t("statFile")}</dt>
+          <dd className="mt-0.5 break-all font-medium text-hq-fg">
             {preview.fileName ?? preview.jobId}
           </dd>
         </div>
         <div>
-          <dt className="text-[#8b949e]">{t("statSize")}</dt>
-          <dd className="mt-0.5 font-medium text-[#e6edf3]">
+          <dt className="text-hq-fg-muted">{t("statSize")}</dt>
+          <dd className="mt-0.5 font-medium text-hq-fg">
             {formatBytes(preview.fileSizeBytes)}
           </dd>
         </div>
         <div>
-          <dt className="text-[#8b949e]">{t("statTarget")}</dt>
-          <dd className="mt-0.5 font-medium text-[#e6edf3]">{scoreTargetLabel}</dd>
+          <dt className="text-hq-fg-muted">{t("statTarget")}</dt>
+          <dd className="mt-0.5 font-medium text-hq-fg">{scoreTargetLabel}</dd>
         </div>
         {boardLabel ? (
           <div>
-            <dt className="text-[#8b949e]">{t("statBoard")}</dt>
-            <dd className="mt-0.5 font-medium text-[#e6edf3]">{boardLabel}</dd>
+            <dt className="text-hq-fg-muted">{t("statBoard")}</dt>
+            <dd className="mt-0.5 font-medium text-hq-fg">{boardLabel}</dd>
           </div>
         ) : null}
         {preview.passKey ? (
           <div>
-            <dt className="text-[#8b949e]">{t("statPass")}</dt>
-            <dd className="mt-0.5 font-medium text-[#e6edf3]">{preview.passKey}</dd>
+            <dt className="text-hq-fg-muted">{t("statPass")}</dt>
+            <dd className="mt-0.5 font-medium text-hq-fg">{preview.passKey}</dd>
           </div>
         ) : null}
       </dl>
 
       <div className="mt-4 space-y-2">
-        <h3 className="text-sm font-medium text-[#e6edf3]">{t("enginesTitle")}</h3>
+        <h3 className="text-sm font-medium text-hq-fg">{t("enginesTitle")}</h3>
         <ul className="space-y-1 text-sm text-[#c9d1d9]">
           <li>
-            <span className="text-[#8b949e]">{t("primaryEngineLabel")}: </span>
+            <span className="text-hq-fg-muted">{t("primaryEngineLabel")}: </span>
             {engineLabel(preview.primaryEngine)}
           </li>
           {preview.shadowFollowups.length === 0 ? (
-            <li className="text-[#8b949e]">{t("noShadowFollowups")}</li>
+            <li className="text-hq-fg-muted">{t("noShadowFollowups")}</li>
           ) : (
             preview.shadowFollowups.map((shadow) => (
               <li key={shadow.kind}>
-                <span className="text-[#8b949e]">{t("followupEngineLabel")}: </span>
+                <span className="text-hq-fg-muted">{t("followupEngineLabel")}: </span>
                 {shadowLabel(shadow.kind)}
                 {shadow.conditional ? (
-                  <span className="text-[#8b949e]"> — {t("shadowConditional")}</span>
+                  <span className="text-hq-fg-muted"> — {t("shadowConditional")}</span>
                 ) : null}
               </li>
             ))
@@ -290,8 +290,8 @@ export function VideoProcessAfterUploadPanel({
       </div>
 
       {preview.canProcess ? (
-        <div className="mt-4 space-y-3 rounded-lg border border-[#30363d] bg-[#0d1117] p-3">
-          <h3 className="text-sm font-medium text-[#e6edf3]">
+        <div className="mt-4 space-y-3 rounded-lg border border-hq-border bg-hq-canvas p-3">
+          <h3 className="text-sm font-medium text-hq-fg">
             {tQueue("ocrSettingsTitle")}
           </h3>
           <label className="flex items-start gap-3">
@@ -302,11 +302,11 @@ export function VideoProcessAfterUploadPanel({
               disabled={ocrSettingsBusy || acting || preview.hqOcrOnlyLocked}
               onChange={(e) => void toggleHqOcrOnly(e.target.checked)}
             />
-            <span className="min-w-0 text-sm text-[#e6edf3]">
+            <span className="min-w-0 text-sm text-hq-fg">
               {tQueue("hqOcrOnlyLabel")}
             </span>
           </label>
-          <p className="text-xs text-[#8b949e]">
+          <p className="text-xs text-hq-fg-muted">
             {preview.hqOcrOnlyLocked
               ? tQueue("hqOcrOnlyDeployLockedHint")
               : tQueue("hqOcrOnlyHint")}
@@ -316,7 +316,7 @@ export function VideoProcessAfterUploadPanel({
 
       {preview.canProcess && experimentOptions.length > 1 ? (
         <label className="mt-4 block">
-          <span className="mb-2 block text-sm text-[#8b949e]">
+          <span className="mb-2 block text-sm text-hq-fg-muted">
             {t("experimentLabel")}
           </span>
           <AppSelect
@@ -326,11 +326,11 @@ export function VideoProcessAfterUploadPanel({
             options={experimentOptions}
             disabled={acting}
           />
-          <p className="mt-2 text-xs text-[#8b949e]">{t("experimentHint")}</p>
+          <p className="mt-2 text-xs text-hq-fg-muted">{t("experimentHint")}</p>
         </label>
       ) : preview.experiment ? (
         <p className="mt-4 text-sm text-[#c9d1d9]">
-          <span className="text-[#8b949e]">{t("experimentActive")}: </span>
+          <span className="text-hq-fg-muted">{t("experimentActive")}: </span>
           {preview.experiment.campaignName} — {preview.experiment.armName}
         </p>
       ) : null}
@@ -339,7 +339,7 @@ export function VideoProcessAfterUploadPanel({
         <p className="mt-4 text-sm text-[#d29922]">{tQueue("connectBanner")}</p>
       ) : null}
 
-      {error ? <p className="mt-4 text-sm text-[#f85149]">{error}</p> : null}
+      {error ? <p className="mt-4 text-sm text-hq-danger">{error}</p> : null}
 
       <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
         {needsConnect ? (
@@ -355,7 +355,7 @@ export function VideoProcessAfterUploadPanel({
             type="button"
             disabled={acting || !preview.canProcess}
             onClick={() => void processNow()}
-            className="rounded-lg border border-[#238636] bg-[#238636] px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+            className="rounded-lg border border-hq-success bg-hq-success px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
           >
             {acting ? t("processing") : t("processNow")}
           </button>
@@ -364,13 +364,13 @@ export function VideoProcessAfterUploadPanel({
           type="button"
           disabled={acting}
           onClick={onDismiss}
-          className="rounded-lg border border-[#30363d] px-4 py-2 text-sm text-[#8b949e] hover:border-[#58a6ff] hover:text-[#58a6ff] disabled:opacity-50"
+          className="rounded-lg border border-hq-border px-4 py-2 text-sm text-hq-fg-muted hover:border-hq-accent hover:text-hq-accent disabled:opacity-50"
         >
           {t("later")}
         </button>
         <Link
           href="/tools/video-upload/queue"
-          className="rounded-lg border border-[#30363d] px-4 py-2 text-center text-sm text-[#58a6ff] hover:underline"
+          className="rounded-lg border border-hq-border px-4 py-2 text-center text-sm text-hq-accent hover:underline"
         >
           {tNav("videoQueue")} →
         </Link>

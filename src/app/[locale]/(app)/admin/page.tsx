@@ -15,13 +15,13 @@ export default async function AdminOverviewPage() {
         <Link
           key={card.href}
           href={card.href}
-          className="rounded-xl border border-[#30363d] bg-[#161b22] p-5 transition-colors hover:border-[#58a6ff]"
+          className="rounded-xl border border-hq-border bg-hq-surface p-5 transition-colors hover:border-hq-accent"
         >
           <div className="flex items-start gap-3">
             <AdminOverviewCardIcon icon={card.icon} />
             <div className="min-w-0">
               <h2 className="font-medium">{t(card.titleKey)}</h2>
-              <p className="mt-2 text-sm text-[#8b949e]">{t(card.descKey)}</p>
+              <p className="mt-2 text-sm text-hq-fg-muted">{t(card.descKey)}</p>
             </div>
           </div>
         </Link>

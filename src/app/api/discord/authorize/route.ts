@@ -48,6 +48,16 @@ export async function POST(request: Request) {
     );
   }
 
+  if (nonceRow.purpose === "member_link") {
+    return NextResponse.json(
+      {
+        error:
+          "This link is for commander linking. Open the /discord/link-commander page from /link-commander in Discord.",
+      },
+      { status: 422 },
+    );
+  }
+
   const connectionKey = body.connectionKey?.trim();
   if (!connectionKey) {
     return NextResponse.json(

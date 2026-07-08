@@ -7,6 +7,7 @@ import { listCommanderIdentityConflictsForAlliance } from "@/lib/members/command
 import type { CommanderIdentityConflict } from "@/lib/members/commander-identity-conflicts.shared";
 import { searchAllianceMembers } from "@/lib/members/members-search.server";
 import {
+  getAllianceRosterLastSyncedAt,
   resolveHqAllianceId,
 } from "@/lib/members/roster.server";
 import { getAllianceOperatingMode } from "@/lib/native-alliance/operating-mode";
@@ -70,6 +71,11 @@ async function enrichMembersPayload(
   };
 }
 
+async function rosterFetchedAtIso(hqAllianceId: string): Promise<string> {
+  const lastSyncedAt = await getAllianceRosterLastSyncedAt(hqAllianceId);
+  return (lastSyncedAt ?? new Date()).toISOString();
+}
+
 async function loadLocalMembersPayload(
   hqAllianceId: string,
   allianceRow: { tag: string; name: string | null },
@@ -96,7 +102,7 @@ async function loadLocalMembersPayload(
         active,
         former: members.length - active,
       },
-      fetchedAt: new Date().toISOString(),
+      fetchedAt: await rosterFetchedAtIso(hqAllianceId),
       operatingMode,
     },
     hqAllianceId,
@@ -105,7 +111,12 @@ async function loadLocalMembersPayload(
 
 export async function loadAllianceMembers(
   sessionId: string,
-  options?: { q?: string; includeFormer?: boolean },
+  options?: {
+    q?: string;
+    includeFormer?: boolean;
+    /** Pull a fresh roster from Ashed instead of using cached rows only. */
+    refresh?: boolean;
+  },
 ): Promise<AllianceMembersPayload> {
   const session = await loadSession(sessionId);
   if (!session) {
@@ -193,6 +204,7 @@ export async function loadAllianceMembers(
       allianceId: resolvedHqAllianceId,
       connection,
       ashedAllianceId: alliance.id,
+      forceRefreshFromAshed: options?.refresh === true,
     }),
   );
 
@@ -207,7 +219,7 @@ export async function loadAllianceMembers(
         active,
         former: members.length - active,
       },
-      fetchedAt: new Date().toISOString(),
+      fetchedAt: await rosterFetchedAtIso(resolvedHqAllianceId),
       operatingMode,
     },
     resolvedHqAllianceId,

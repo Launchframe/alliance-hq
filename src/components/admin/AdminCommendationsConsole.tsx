@@ -108,7 +108,7 @@ export function AdminCommendationsConsole() {
                 type="button"
                 disabled={saving}
                 onClick={() => void toggleActive(row.id, row.active !== 1)}
-                className="text-base font-medium text-[#58a6ff] hover:underline disabled:opacity-50"
+                className="text-base font-medium text-hq-accent hover:underline disabled:opacity-50"
               >
                 {row.active === 1 ? t("activeYes") : t("activeNo")}
               </button>
@@ -116,9 +116,9 @@ export function AdminCommendationsConsole() {
           </RecordDetailCard>
         ))}
         desktopTable={
-          <div className="overflow-x-auto rounded-xl border border-[#30363d]">
+          <div className="overflow-x-auto rounded-xl border border-hq-border">
             <table className="min-w-full text-left text-sm">
-              <thead className="bg-[#161b22] text-[#8b949e]">
+              <thead className="bg-hq-surface text-hq-fg-muted">
                 <tr>
                   <th className="px-4 py-2">{t("table.slug")}</th>
                   <th className="px-4 py-2">{t("table.label")}</th>
@@ -128,7 +128,7 @@ export function AdminCommendationsConsole() {
               </thead>
               <tbody>
                 {commendations.map((row) => (
-                  <tr key={row.id} className="border-t border-[#30363d]">
+                  <tr key={row.id} className="border-t border-hq-border">
                     <td className="px-4 py-2 font-mono text-xs">{row.slug}</td>
                     <td className="px-4 py-2">{row.label}</td>
                     <td className="px-4 py-2">{row.sortOrder}</td>
@@ -137,7 +137,7 @@ export function AdminCommendationsConsole() {
                         type="button"
                         disabled={saving}
                         onClick={() => void toggleActive(row.id, row.active !== 1)}
-                        className="text-[#58a6ff] hover:underline disabled:opacity-50"
+                        className="text-hq-accent hover:underline disabled:opacity-50"
                       >
                         {row.active === 1 ? t("activeYes") : t("activeNo")}
                       </button>
@@ -150,7 +150,7 @@ export function AdminCommendationsConsole() {
         }
       />
 
-      <section className="rounded-xl border border-[#30363d] bg-[#161b22] p-5">
+      <section className="rounded-xl border border-hq-border bg-hq-surface p-5">
         <h2 className="font-medium">{t("createTitle")}</h2>
         <form
           className="mt-3 flex flex-wrap gap-3"
@@ -163,19 +163,19 @@ export function AdminCommendationsConsole() {
             value={slug}
             onChange={(e) => setSlug(e.target.value)}
             placeholder={t("slugPlaceholder")}
-            className="rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 text-sm"
+            className="rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 text-sm"
           />
           <input
             value={label}
             onChange={(e) => setLabel(e.target.value)}
             enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT}
             placeholder={t("labelPlaceholder")}
-            className="rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 text-sm"
+            className="rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 text-sm"
           />
           <button
             type="submit"
             disabled={saving || !slug.trim() || !label.trim()}
-            className="rounded-lg bg-[#238636] px-4 py-2 text-sm text-white disabled:opacity-50"
+            className="rounded-lg bg-hq-success px-4 py-2 text-sm text-white disabled:opacity-50"
           >
             {t("createButton")}
           </button>

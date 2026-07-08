@@ -30,8 +30,8 @@ function ActionFeedbackBanner({ feedback }: { feedback: ActionFeedback }) {
       role="alert"
       className={
         feedback.kind === "error"
-          ? "rounded-lg border border-[#f85149]/40 bg-[#f85149]/10 px-3 py-2 text-sm text-[#f85149]"
-          : "rounded-lg border border-[#3fb950]/40 bg-[#3fb950]/10 px-3 py-2 text-sm text-[#3fb950]"
+          ? "rounded-lg border border-hq-danger/40 bg-hq-danger/10 px-3 py-2 text-sm text-hq-danger"
+          : "rounded-lg border border-hq-green/40 bg-hq-green/10 px-3 py-2 text-sm text-hq-green"
       }
     >
       {feedback.text}
@@ -53,11 +53,19 @@ export type NativeAllianceOption = {
   name: string;
 };
 
+export type NativeAllianceCreateDraft = {
+  name?: string;
+  tag?: string;
+  gameServerNumber?: string;
+  ownerEmail?: string;
+};
+
 type Props = {
   nativeAlliances: NativeAllianceOption[];
   selectedAllianceId: string;
   onSelectAlliance: (allianceId: string) => void;
   onCreated: () => void;
+  initialCreateDraft?: NativeAllianceCreateDraft | null;
 };
 
 type InviteKind = "email" | "protected_link";
@@ -68,12 +76,15 @@ export function AdminNativeAlliancePanel({
   selectedAllianceId,
   onSelectAlliance,
   onCreated,
+  initialCreateDraft,
 }: Props) {
   const t = useTranslations("admin.nativeAlliance");
-  const [name, setName] = useState("");
-  const [tag, setTag] = useState("");
-  const [gameServerNumber, setGameServerNumber] = useState("");
-  const [ownerEmail, setOwnerEmail] = useState("");
+  const [name, setName] = useState(initialCreateDraft?.name ?? "");
+  const [tag, setTag] = useState(initialCreateDraft?.tag ?? "");
+  const [gameServerNumber, setGameServerNumber] = useState(
+    initialCreateDraft?.gameServerNumber ?? "",
+  );
+  const [ownerEmail, setOwnerEmail] = useState(initialCreateDraft?.ownerEmail ?? "");
   const [inviteKind, setInviteKind] = useState<InviteKind>("protected_link");
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteAdminLabel, setInviteAdminLabel] = useState("");
@@ -267,10 +278,10 @@ export function AdminNativeAlliancePanel({
   }
 
   return (
-    <section className="space-y-6 rounded-xl border border-[#30363d] bg-[#161b22] p-4 sm:p-6">
+    <section className="space-y-6 rounded-xl border border-hq-border bg-hq-surface p-4 sm:p-6">
       <div>
         <h2 className="text-lg font-semibold">{t("title")}</h2>
-        <p className="mt-1 text-sm text-[#8b949e]">{t("subtitle")}</p>
+        <p className="mt-1 text-sm text-hq-fg-muted">{t("subtitle")}</p>
       </div>
 
       <form
@@ -281,23 +292,23 @@ export function AdminNativeAlliancePanel({
       >
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="space-y-1 text-sm">
-          <span className="text-[#8b949e]">{t("name")}</span>
+          <span className="text-hq-fg-muted">{t("name")}</span>
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
+            className="w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2"
           />
         </label>
         <label className="space-y-1 text-sm">
-          <span className="text-[#8b949e]">{t("tag")}</span>
+          <span className="text-hq-fg-muted">{t("tag")}</span>
           <input
             value={tag}
             onChange={(e) => setTag(e.target.value)}
-            className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
+            className="w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2"
           />
         </label>
         <label className="space-y-1 text-sm">
-          <span className="text-[#8b949e]">{t("serverNumber")}</span>
+          <span className="text-hq-fg-muted">{t("serverNumber")}</span>
           <input
             type="number"
             min={1}
@@ -305,20 +316,20 @@ export function AdminNativeAlliancePanel({
             value={gameServerNumber}
             onChange={(e) => setGameServerNumber(e.target.value)}
             placeholder="1203"
-            className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
+            className="w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2"
           />
-          <span className="block text-xs text-[#6e7681]">
+          <span className="block text-xs text-hq-fg-subtle">
             {t("serverNumberHint")}
           </span>
         </label>
         <label className="space-y-1 text-sm sm:col-span-2">
-          <span className="text-[#8b949e]">{t("ownerEmailOptional")}</span>
+          <span className="text-hq-fg-muted">{t("ownerEmailOptional")}</span>
           <input
             type="email"
             value={ownerEmail}
             onChange={(e) => setOwnerEmail(e.target.value)}
             enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT}
-            className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
+            className="w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2"
           />
         </label>
       </div>
@@ -326,16 +337,16 @@ export function AdminNativeAlliancePanel({
       <button
         type="submit"
         disabled={busy}
-        className="rounded-lg border border-[#238636] bg-[#238636] px-4 py-2 text-sm text-white disabled:opacity-50"
+        className="rounded-lg border border-hq-success bg-hq-success px-4 py-2 text-sm text-white disabled:opacity-50"
       >
         {t("createButton")}
       </button>
       </form>
       <ActionFeedbackBanner feedback={createFeedback} />
 
-      <div className="border-t border-[#30363d] pt-4">
+      <div className="border-t border-hq-border pt-4">
         <h3 className="text-sm font-semibold">{t("inviteTitle")}</h3>
-        <p className="mt-1 text-sm text-[#8b949e]">{t("inviteTargetHint")}</p>
+        <p className="mt-1 text-sm text-hq-fg-muted">{t("inviteTargetHint")}</p>
         <form
           className="mt-3"
           onSubmit={(event) => {
@@ -345,7 +356,7 @@ export function AdminNativeAlliancePanel({
         >
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="space-y-1 text-sm sm:col-span-2">
-            <span className="text-[#8b949e]">{t("chooseAlliance")}</span>
+            <span className="text-hq-fg-muted">{t("chooseAlliance")}</span>
             <AppSelect
               value={selectedAllianceId}
               onChange={onSelectAlliance}
@@ -363,11 +374,11 @@ export function AdminNativeAlliancePanel({
             />
           </label>
           <label className="space-y-1 text-sm sm:col-span-2">
-            <span className="text-[#8b949e]">{t("inviteKind")}</span>
+            <span className="text-hq-fg-muted">{t("inviteKind")}</span>
             <select
               value={inviteKind}
               onChange={(e) => setInviteKind(e.target.value as InviteKind)}
-              className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
+              className="w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2"
             >
               <option value="protected_link">{t("inviteKindProtected")}</option>
               <option value="email">{t("inviteKindEmail")}</option>
@@ -375,39 +386,39 @@ export function AdminNativeAlliancePanel({
           </label>
           {inviteKind === "email" ? (
             <label className="space-y-1 text-sm">
-              <span className="text-[#8b949e]">{t("inviteEmail")}</span>
+              <span className="text-hq-fg-muted">{t("inviteEmail")}</span>
               <input
                 type="email"
                 required
                 value={inviteEmail}
                 onChange={(e) => setInviteEmail(e.target.value)}
-                className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
+                className="w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2"
                 autoComplete="email"
               />
-              <span className="block text-xs text-[#6e7681]">
+              <span className="block text-xs text-hq-fg-subtle">
                 {t("inviteEmailHint")}
               </span>
             </label>
           ) : (
             <label className="space-y-1 text-sm">
-              <span className="text-[#8b949e]">{t("inviteAdminLabel")}</span>
+              <span className="text-hq-fg-muted">{t("inviteAdminLabel")}</span>
               <input
                 type="text"
                 value={inviteAdminLabel}
                 onChange={(e) => setInviteAdminLabel(e.target.value)}
                 placeholder={t("inviteAdminLabelPlaceholder")}
-                className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
+                className="w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2"
               />
             </label>
           )}
           <label className="space-y-1 text-sm">
-            <span className="text-[#8b949e]">{t("inviteRole")}</span>
+            <span className="text-hq-fg-muted">{t("inviteRole")}</span>
             <select
               value={inviteRole}
               onChange={(e) =>
                 setInviteRole(e.target.value as InviteRoleName | "")
               }
-              className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
+              className="w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2"
             >
               <option value="">{t("inviteRolePlaceholder")}</option>
               <option value="owner">{t("roleOwner")}</option>
@@ -416,16 +427,16 @@ export function AdminNativeAlliancePanel({
             </select>
           </label>
           <label className="space-y-1 text-sm sm:col-span-2">
-            <span className="text-[#8b949e]">{t("inviteRedirectOptional")}</span>
+            <span className="text-hq-fg-muted">{t("inviteRedirectOptional")}</span>
             <input
               type="text"
               value={inviteRedirectPath}
               onChange={(e) => setInviteRedirectPath(e.target.value)}
               enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT}
               placeholder="/trains"
-              className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 font-mono text-sm"
+              className="w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 font-mono text-sm"
             />
-            <span className="block text-xs text-[#6e7681]">
+            <span className="block text-xs text-hq-fg-subtle">
               {t("inviteRedirectHint")}
             </span>
           </label>
@@ -433,7 +444,7 @@ export function AdminNativeAlliancePanel({
         <button
           type="submit"
           disabled={busy || !selectedAllianceId || !canSendInvite}
-          className="mt-3 rounded-lg border border-[#388bfd] bg-[#388bfd]/10 px-4 py-2 text-sm text-[#58a6ff] disabled:opacity-50"
+          className="mt-3 rounded-lg border border-[#388bfd] bg-[#388bfd]/10 px-4 py-2 text-sm text-hq-accent disabled:opacity-50"
         >
           {t("inviteButton")}
         </button>
@@ -454,13 +465,13 @@ export function AdminNativeAlliancePanel({
           />
         ) : null}
         {lastPassphrase ? (
-          <p className="mt-2 text-xs text-[#6e7681]">{t("invitePassphraseHint")}</p>
+          <p className="mt-2 text-xs text-hq-fg-subtle">{t("invitePassphraseHint")}</p>
         ) : null}
       </div>
 
-      <div className="border-t border-[#30363d] pt-4">
+      <div className="border-t border-hq-border pt-4">
         <h3 className="text-sm font-semibold">{t("joinCodeTitle")}</h3>
-        <p className="mt-1 text-sm text-[#8b949e]">{t("joinCodeHint")}</p>
+        <p className="mt-1 text-sm text-hq-fg-muted">{t("joinCodeHint")}</p>
         <form
           className="mt-3"
           onSubmit={(event) => {
@@ -470,13 +481,13 @@ export function AdminNativeAlliancePanel({
         >
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="space-y-1 text-sm">
-            <span className="text-[#8b949e]">{t("inviteRole")}</span>
+            <span className="text-hq-fg-muted">{t("inviteRole")}</span>
             <select
               value={joinCodeRole}
               onChange={(e) =>
                 setJoinCodeRole(e.target.value as "owner" | "officer" | "member")
               }
-              className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
+              className="w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2"
             >
               <option value="owner">{t("roleOwner")}</option>
               <option value="officer">{t("roleOfficer")}</option>
@@ -484,31 +495,31 @@ export function AdminNativeAlliancePanel({
             </select>
           </label>
           <label className="space-y-1 text-sm">
-            <span className="text-[#8b949e]">{t("joinCodeMaxUses")}</span>
+            <span className="text-hq-fg-muted">{t("joinCodeMaxUses")}</span>
             <input
               type="number"
               min={1}
               max={500}
               value={joinCodeMaxUses}
               onChange={(e) => setJoinCodeMaxUses(e.target.value)}
-              className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
+              className="w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2"
             />
           </label>
           <label className="space-y-1 text-sm sm:col-span-2">
-            <span className="text-[#8b949e]">{t("inviteAdminLabel")}</span>
+            <span className="text-hq-fg-muted">{t("inviteAdminLabel")}</span>
             <input
               type="text"
               value={joinCodeLabel}
               onChange={(e) => setJoinCodeLabel(e.target.value)}
               enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT}
-              className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
+              className="w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2"
             />
           </label>
         </div>
         <button
           type="submit"
           disabled={busy || !selectedAllianceId}
-          className="mt-3 rounded-lg border border-[#388bfd] bg-[#388bfd]/10 px-4 py-2 text-sm text-[#58a6ff] disabled:opacity-50"
+          className="mt-3 rounded-lg border border-[#388bfd] bg-[#388bfd]/10 px-4 py-2 text-sm text-hq-accent disabled:opacity-50"
         >
           {t("joinCodeButton")}
         </button>

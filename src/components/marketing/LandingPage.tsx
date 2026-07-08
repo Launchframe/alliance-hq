@@ -32,13 +32,13 @@ export async function LandingPage() {
           />
         </div>
         <h1 className="text-3xl font-semibold tracking-tight">{t("title")}</h1>
-        <p className="text-lg text-[#8b949e]">{t("tagline")}</p>
+        <p className="text-lg text-hq-fg-muted">{t("tagline")}</p>
       </header>
 
       <div className="flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
         <Link
           href="/auth"
-          className="w-full rounded-lg border border-[#238636] bg-[#238636] px-6 py-3 text-center text-sm font-medium text-white sm:w-auto"
+          className="w-full rounded-lg border border-hq-success bg-hq-success px-6 py-3 text-center text-sm font-medium text-white sm:w-auto"
         >
           {t("signInCta")}
         </Link>
@@ -46,33 +46,33 @@ export async function LandingPage() {
           href={GITHUB_URL}
           target="_blank"
           rel="noreferrer"
-          className="w-full rounded-lg border border-[#30363d] px-6 py-3 text-center text-sm text-[#8b949e] transition-colors hover:border-[#484f58] hover:text-[#e6edf3] sm:w-auto"
+          className="w-full rounded-lg border border-hq-border px-6 py-3 text-center text-sm text-hq-fg-muted transition-colors hover:border-[#484f58] hover:text-hq-fg sm:w-auto"
         >
           {t("githubCta")}
         </a>
       </div>
 
-      <p className="text-center text-xs text-[#6e7681]">{t("signupHint")}</p>
+      <p className="text-center text-xs text-hq-fg-subtle">{t("signupHint")}</p>
 
-      <section className="space-y-3 rounded-xl border border-[#30363d] bg-[#161b22] p-6">
+      <section className="space-y-3 rounded-xl border border-hq-border bg-hq-surface p-6">
         <h2 className="text-lg font-medium">{t("purposeTitle")}</h2>
-        <p className="text-sm leading-relaxed text-[#8b949e]">
+        <p className="text-sm leading-relaxed text-hq-fg-muted">
           {t.rich("purposeBody", { link: ashedLink, strong: strongText })}
         </p>
       </section>
 
-      <section className="space-y-3 rounded-xl border border-[#30363d] bg-[#161b22] p-6">
+      <section className="space-y-3 rounded-xl border border-hq-border bg-hq-surface p-6">
         <h2 className="text-lg font-medium">{t("featuresTitle")}</h2>
-        <ul className="list-disc space-y-2 pl-5 text-sm text-[#8b949e]">
+        <ul className="list-disc space-y-2 pl-5 text-sm text-hq-fg-muted">
           {FEATURE_KEYS.map((key) => (
             <li key={key}>{t(key)}</li>
           ))}
         </ul>
       </section>
 
-      <section className="space-y-3 rounded-xl border border-[#30363d] bg-[#161b22] p-6">
+      <section className="space-y-3 rounded-xl border border-hq-border bg-hq-surface p-6">
         <h2 className="text-lg font-medium">{t("howTitle")}</h2>
-        <ol className="list-decimal space-y-2 pl-5 text-sm text-[#8b949e]">
+        <ol className="list-decimal space-y-2 pl-5 text-sm text-hq-fg-muted">
           {HOW_TO_KEYS.map((key) => (
             <li key={key}>{t(key)}</li>
           ))}

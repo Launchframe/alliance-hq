@@ -299,9 +299,10 @@ export function MembersListView({
       const params = new URLSearchParams();
       if (query) params.set("q", query);
       if (showFormer) params.set("includeFormer", "1");
+      params.set("refresh", "1");
       const qs = params.toString();
       const [membersRes, commandersRes] = await Promise.all([
-        fetch(`/api/members${qs ? `?${qs}` : ""}`),
+        fetch(`/api/members?${qs}`),
         fetch("/api/commanders/index"),
       ]);
       const membersBody = (await membersRes.json()) as AllianceMembersPayload & {
@@ -508,7 +509,7 @@ export function MembersListView({
       <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
         <div className="min-w-0">
           <h1 className="text-2xl font-semibold">{t("title")}</h1>
-          <p className="mt-1 text-sm text-[#8b949e]">
+          <p className="mt-1 text-sm text-hq-fg-muted">
             {isNative ? t("subtitleNative") : t("subtitle")}
           </p>
           <p className="mt-2 text-sm">
@@ -517,7 +518,7 @@ export function MembersListView({
               name: data.alliance.name ?? data.alliance.tag,
             })}
           </p>
-          <p className="mt-1 text-xs text-[#8b949e]">
+          <p className="mt-1 text-xs text-hq-fg-muted">
             {t("counts", {
               active: data.counts.active,
               former: data.counts.former,
@@ -525,7 +526,7 @@ export function MembersListView({
             })}
           </p>
           {commanderData.seasonKey ? (
-            <p className="mt-1 text-xs text-[#8b949e]">
+            <p className="mt-1 text-xs text-hq-fg-muted">
               {tCommanders("seasonLine", { season: commanderData.seasonKey })}
             </p>
           ) : null}
@@ -539,7 +540,7 @@ export function MembersListView({
             <button
               type="button"
               onClick={() => setImportOpen(true)}
-              className="w-full rounded-lg border border-[#238636] bg-[#238636] px-4 py-2 text-sm text-white hover:bg-[#2ea043] sm:w-auto"
+              className="w-full rounded-lg border border-hq-success bg-hq-success px-4 py-2 text-sm text-white hover:bg-hq-success-hover sm:w-auto"
             >
               {t("importMembers")}
             </button>
@@ -547,7 +548,7 @@ export function MembersListView({
           {canUploadRosterVideo && (
             <Link
               href={buildVideoUploadHref(MEMBER_ROSTER_VIDEO_SCORE_TARGET)}
-              className="w-full rounded-lg border border-[#388bfd] bg-[#388bfd]/10 px-4 py-2 text-center text-sm text-[#58a6ff] hover:bg-[#388bfd]/20 sm:w-auto"
+              className="w-full rounded-lg border border-[#388bfd] bg-[#388bfd]/10 px-4 py-2 text-center text-sm text-hq-accent hover:bg-[#388bfd]/20 sm:w-auto"
             >
               {t("uploadRosterVideo")}
             </Link>
@@ -555,15 +556,23 @@ export function MembersListView({
           {canEditRanks && (
             <Link
               href="/members/roster-link-requests"
-              className="w-full rounded-lg border border-[#30363d] px-4 py-2 text-center text-sm text-[#e6edf3] hover:bg-[#21262d] sm:w-auto"
+              className="w-full rounded-lg border border-hq-border px-4 py-2 text-center text-sm text-hq-fg hover:bg-hq-surface-muted sm:w-auto"
             >
               {t("rosterLinkRequests")}
             </Link>
           )}
           {canEditRanks && (
             <Link
-              href="/members/member-link-help"
+              href="/members/onboarding-reviews"
               className="w-full rounded-lg border border-[#30363d] px-4 py-2 text-center text-sm text-[#e6edf3] hover:bg-[#21262d] sm:w-auto"
+            >
+              {t("onboardingReviews")}
+            </Link>
+          )}
+          {canEditRanks && (
+            <Link
+              href="/members/member-link-help"
+              className="w-full rounded-lg border border-hq-border px-4 py-2 text-center text-sm text-hq-fg hover:bg-hq-surface-muted sm:w-auto"
             >
               {t("memberLinkHelpRequests")}
             </Link>
@@ -572,7 +581,7 @@ export function MembersListView({
             <button
               type="button"
               onClick={() => (editMode ? exitEditMode() : setEditMode(true))}
-              className="w-full rounded-lg border border-[#388bfd] bg-[#388bfd]/10 px-4 py-2 text-sm text-[#58a6ff] hover:bg-[#388bfd]/20 sm:w-auto"
+              className="w-full rounded-lg border border-[#388bfd] bg-[#388bfd]/10 px-4 py-2 text-sm text-hq-accent hover:bg-[#388bfd]/20 sm:w-auto"
             >
               {editMode ? t("doneEditing") : t("editRanks")}
             </button>
@@ -582,7 +591,7 @@ export function MembersListView({
               type="button"
               onClick={() => void refresh()}
               disabled={refreshing}
-              className="w-full rounded-lg border border-[#30363d] bg-[#21262d] px-4 py-2 text-sm disabled:opacity-50 sm:w-auto"
+              className="w-full rounded-lg border border-hq-border bg-hq-surface-muted px-4 py-2 text-sm disabled:opacity-50 sm:w-auto"
             >
               {refreshing
                 ? isNative
@@ -598,7 +607,7 @@ export function MembersListView({
               href={ashedMembersUrl}
               target="_blank"
               rel="noreferrer"
-              className="w-full rounded-lg border border-[#238636] bg-[#238636] px-4 py-2 text-center text-sm text-white hover:bg-[#2ea043] sm:w-auto"
+              className="w-full rounded-lg border border-hq-success bg-hq-success px-4 py-2 text-center text-sm text-white hover:bg-hq-success-hover sm:w-auto"
             >
               {t("openInAshed")}
             </a>
@@ -619,21 +628,21 @@ export function MembersListView({
 
       {pendingConflictCount > 0 && canImportMembers ? (
         <div
-          className="flex flex-col gap-3 rounded-xl border border-[#f85149]/40 bg-[#f8514911] p-4 sm:flex-row sm:items-center sm:justify-between"
+          className="flex flex-col gap-3 rounded-xl border border-hq-danger/40 bg-[#f8514911] p-4 sm:flex-row sm:items-center sm:justify-between"
           role="alert"
         >
           <div>
-            <p className="text-sm font-medium text-[#f85149]">
+            <p className="text-sm font-medium text-hq-danger">
               {t("commanderConflicts.bannerTitle", { count: pendingConflictCount })}
             </p>
-            <p className="mt-1 text-xs text-[#8b949e]">
+            <p className="mt-1 text-xs text-hq-fg-muted">
               {t("commanderConflicts.bannerDescription")}
             </p>
           </div>
           <button
             type="button"
             onClick={() => setConflictSheetOpen(true)}
-            className="w-full shrink-0 rounded-lg border border-[#f85149] px-4 py-2 text-sm text-[#f85149] hover:bg-[#f8514922] sm:w-auto"
+            className="w-full shrink-0 rounded-lg border border-hq-danger px-4 py-2 text-sm text-hq-danger hover:bg-[#f8514922] sm:w-auto"
           >
             {t("commanderConflicts.resolve")}
           </button>
@@ -651,18 +660,18 @@ export function MembersListView({
 
       <RosterSquadSummaryStrip summary={commanderData.summaryBySquad} />
 
-      <div className="flex flex-col gap-3 rounded-xl border border-[#30363d] bg-[#161b22] p-4">
+      <div className="flex flex-col gap-3 rounded-xl border border-hq-border bg-hq-surface p-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
           <label className="min-w-0 flex-1 text-sm">
-            <span className="mb-1 block text-xs text-[#8b949e]">{t("search")}</span>
+            <span className="mb-1 block text-xs text-hq-fg-muted">{t("search")}</span>
             <input
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
               placeholder={t("searchPlaceholder")}
-              className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
+              className="w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2"
             />
           </label>
-          <label className="flex items-center gap-2 text-sm text-[#8b949e] sm:pt-5">
+          <label className="flex items-center gap-2 text-sm text-hq-fg-muted sm:pt-5">
             <input
               type="checkbox"
               checked={showFormer}
@@ -686,21 +695,21 @@ export function MembersListView({
       {editMode && (
         <div className="flex flex-col gap-3 rounded-xl border border-[#388bfd]/40 bg-[#388bfd]/5 p-4">
           <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-            <p className="text-sm font-medium text-[#58a6ff]">
+            <p className="text-sm font-medium text-hq-accent">
               {t("selectedCount", { count: selectedCount })}
             </p>
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
                 onClick={selectAllFiltered}
-                className="rounded-lg border border-[#30363d] bg-[#21262d] px-3 py-1.5 text-xs hover:bg-[#30363d]"
+                className="rounded-lg border border-hq-border bg-hq-surface-muted px-3 py-1.5 text-xs hover:bg-hq-border"
               >
                 {t("selectAll")}
               </button>
               <button
                 type="button"
                 onClick={selectUnrankedFiltered}
-                className="rounded-lg border border-[#30363d] bg-[#21262d] px-3 py-1.5 text-xs hover:bg-[#30363d]"
+                className="rounded-lg border border-hq-border bg-hq-surface-muted px-3 py-1.5 text-xs hover:bg-hq-border"
               >
                 {t("selectUnranked")}
               </button>
@@ -713,7 +722,7 @@ export function MembersListView({
                 type="button"
                 disabled={bulkDisabled}
                 onClick={() => void applyBulkRank("set", rank)}
-                className="rounded-lg border border-[#238636] bg-[#238636] px-3 py-1.5 text-xs font-medium text-white disabled:opacity-40"
+                className="rounded-lg border border-hq-success bg-hq-success px-3 py-1.5 text-xs font-medium text-white disabled:opacity-40"
               >
                 {t(
                   `setRankR${rank}` as
@@ -728,7 +737,7 @@ export function MembersListView({
               type="button"
               disabled={bulkDisabled}
               onClick={() => void applyBulkRank("clear")}
-              className="rounded-lg border border-[#f85149]/50 bg-[#f85149]/10 px-3 py-1.5 text-xs text-[#f85149] disabled:opacity-40"
+              className="rounded-lg border border-hq-danger/50 bg-hq-danger/10 px-3 py-1.5 text-xs text-hq-danger disabled:opacity-40"
             >
               {applying ? t("applyingRanks") : t("removeRank")}
             </button>
@@ -736,17 +745,17 @@ export function MembersListView({
         </div>
       )}
 
-      {error && <p className="text-sm text-[#f85149]">{error}</p>}
+      {error && <p className="text-sm text-hq-danger">{error}</p>}
 
-      <p className="text-xs text-[#8b949e]">
+      <p className="text-xs text-hq-fg-muted">
         {t("lastSynced", {
           time: formatDateTime(data.fetchedAt),
         })}
       </p>
 
-      <div className="min-w-0 overflow-x-auto rounded-xl border border-[#30363d]">
+      <div className="min-w-0 overflow-x-auto rounded-xl border border-hq-border">
         <table className="w-full min-w-0 text-left text-sm">
-          <thead className="border-b border-[#30363d] bg-[#161b22] text-xs uppercase tracking-wide text-[#8b949e]">
+          <thead className="border-b border-hq-border bg-hq-surface text-xs uppercase tracking-wide text-hq-fg-muted">
             <tr>
               {editMode ? (
                 <th className="hidden w-10 px-2 py-3 md:table-cell" aria-hidden />
@@ -785,7 +794,7 @@ export function MembersListView({
               <tr>
                 <td
                   colSpan={tableColSpan + 1}
-                  className="px-3 py-8 text-center text-[#8b949e] sm:px-4"
+                  className="px-3 py-8 text-center text-hq-fg-muted sm:px-4"
                 >
                   {t("empty")}
                 </td>
@@ -843,10 +852,10 @@ function MembersListMissingTag() {
   return (
     <div className="mx-auto max-w-lg space-y-4 rounded-xl border border-[#d29922]/40 bg-[#d29922]/10 p-6">
       <h1 className="text-xl font-semibold text-[#e3b341]">{t("title")}</h1>
-      <p className="text-sm text-[#8b949e]">{t("missingTag")}</p>
+      <p className="text-sm text-hq-fg-muted">{t("missingTag")}</p>
       <Link
         href="/account"
-        className="inline-block rounded-lg border border-[#238636] bg-[#238636] px-4 py-2 text-sm text-white"
+        className="inline-block rounded-lg border border-hq-success bg-hq-success px-4 py-2 text-sm text-white"
       >
         {t("goToSettings")}
       </Link>

@@ -106,32 +106,32 @@ export function AccountSignInMethodsClient({
   const linked = new Set(snapshot.linkedProviders);
 
   return (
-    <section className="space-y-4 rounded-xl border border-[#30363d] bg-[#161b22] p-5">
+    <section className="space-y-4 rounded-xl border border-hq-border bg-hq-surface p-5">
       <h2 className="font-medium">{t("signInMethodsTitle")}</h2>
-      <p className="text-sm text-[#8b949e]">{t("signInMethodsBody")}</p>
+      <p className="text-sm text-hq-fg-muted">{t("signInMethodsBody")}</p>
 
       <ul className="space-y-3 text-sm">
-        <li className="flex flex-col gap-2 rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
+        <li className="flex flex-col gap-2 rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="font-medium text-[#e6edf3]">{t("methodEmailMagicLink")}</p>
-            <p className="text-[#8b949e]">{snapshot.email}</p>
+            <p className="font-medium text-hq-fg">{t("methodEmailMagicLink")}</p>
+            <p className="text-hq-fg-muted">{snapshot.email}</p>
           </div>
-          <span className="text-xs text-[#3fb950]">{t("methodAlwaysAvailable")}</span>
+          <span className="text-xs text-hq-green">{t("methodAlwaysAvailable")}</span>
         </li>
 
-        <li className="flex flex-col gap-2 rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
+        <li className="flex flex-col gap-2 rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="font-medium text-[#e6edf3]">{t("methodPassword")}</p>
-            <p className="text-[#8b949e]">
+            <p className="font-medium text-hq-fg">{t("methodPassword")}</p>
+            <p className="text-hq-fg-muted">
               {snapshot.hasPassword ? t("methodConnected") : t("methodNotSet")}
             </p>
           </div>
         </li>
 
-        <li className="flex flex-col gap-2 rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
+        <li className="flex flex-col gap-2 rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="font-medium text-[#e6edf3]">{t("methodPasskey")}</p>
-            <p className="text-[#8b949e]">
+            <p className="font-medium text-hq-fg">{t("methodPasskey")}</p>
+            <p className="text-hq-fg-muted">
               {snapshot.passkeyCount > 0
                 ? t("passkeySectionBodyCount", { count: snapshot.passkeyCount })
                 : t("methodNotSet")}
@@ -147,13 +147,13 @@ export function AccountSignInMethodsClient({
           return (
             <li
               key={provider}
-              className="flex flex-col gap-2 rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
+              className="flex flex-col gap-2 rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
             >
               <div>
-                <p className="font-medium text-[#e6edf3]">
+                <p className="font-medium text-hq-fg">
                   {providerLabel(t, provider)}
                 </p>
-                <p className="text-[#8b949e]">
+                <p className="text-hq-fg-muted">
                   {isLinked ? t("methodConnected") : t("methodNotLinked")}
                 </p>
               </div>
@@ -164,7 +164,7 @@ export function AccountSignInMethodsClient({
                       type="button"
                       disabled={busyProvider !== null}
                       onClick={() => void unlinkProvider(provider)}
-                      className="rounded-lg border border-[#f85149] bg-[#f85149]/10 px-3 py-1.5 text-xs text-[#f85149] disabled:opacity-50"
+                      className="rounded-lg border border-hq-danger bg-hq-danger/10 px-3 py-1.5 text-xs text-hq-danger disabled:opacity-50"
                     >
                       {busyProvider === provider ? t("saving") : t("confirmUnlink")}
                     </button>
@@ -172,7 +172,7 @@ export function AccountSignInMethodsClient({
                       type="button"
                       disabled={busyProvider !== null}
                       onClick={() => setPendingUnlink(null)}
-                      className="rounded-lg border border-[#30363d] px-3 py-1.5 text-xs text-[#e6edf3] disabled:opacity-50"
+                      className="rounded-lg border border-hq-border px-3 py-1.5 text-xs text-hq-fg disabled:opacity-50"
                     >
                       {t("cancelUnlink")}
                     </button>
@@ -182,7 +182,7 @@ export function AccountSignInMethodsClient({
                     type="button"
                     disabled={busyProvider !== null}
                     onClick={() => setPendingUnlink(provider)}
-                    className="rounded-lg border border-[#30363d] px-3 py-1.5 text-xs text-[#e6edf3] hover:border-[#f85149] disabled:opacity-50"
+                    className="rounded-lg border border-hq-border px-3 py-1.5 text-xs text-hq-fg hover:border-hq-danger disabled:opacity-50"
                   >
                     {t("unlinkProvider")}
                   </button>
@@ -192,7 +192,7 @@ export function AccountSignInMethodsClient({
                   type="button"
                   disabled={busyProvider !== null}
                   onClick={() => void linkProvider(provider)}
-                  className="rounded-lg border border-[#238636] bg-[#238636] px-3 py-1.5 text-xs text-white disabled:opacity-50"
+                  className="rounded-lg border border-hq-success bg-hq-success px-3 py-1.5 text-xs text-white disabled:opacity-50"
                 >
                   {busyProvider === provider
                     ? t("saving")
@@ -204,8 +204,8 @@ export function AccountSignInMethodsClient({
         })}
       </ul>
 
-      {message ? <p className="text-sm text-[#3fb950]">{message}</p> : null}
-      {error ? <p className="text-sm text-[#f85149]">{error}</p> : null}
+      {message ? <p className="text-sm text-hq-green">{message}</p> : null}
+      {error ? <p className="text-sm text-hq-danger">{error}</p> : null}
     </section>
   );
 }

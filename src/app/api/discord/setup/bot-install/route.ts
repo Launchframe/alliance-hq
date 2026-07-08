@@ -41,7 +41,8 @@ export async function POST(request: Request) {
   if (!isTagEligible(tag)) {
     return NextResponse.json(
       {
-        error: `Alliance tag "${tag}" is not eligible for bot setup on this deployment.`,
+        ok: false,
+        code: "tag_not_eligible",
       },
       { status: 403 },
     );
@@ -61,8 +62,8 @@ export async function POST(request: Request) {
   if (!allianceId) {
     return NextResponse.json(
       {
-        error:
-          "Connect Ashed first so your alliance exists on HQ, or use a tag that is already registered.",
+        ok: false,
+        code: "alliance_not_ready",
       },
       { status: 422 },
     );

@@ -71,10 +71,10 @@ type OcrEvalArmRow = {
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 const STATUS_COLORS: Record<string, string> = {
-  draft: "bg-[#21262d] text-[#8b949e] border-[#30363d]",
-  active: "bg-[#3fb95020] text-[#3fb950] border-[#3fb950]",
+  draft: "bg-hq-surface-muted text-hq-fg-muted border-hq-border",
+  active: "bg-[#3fb95020] text-hq-green border-hq-green",
   paused: "bg-[#d2992220] text-[#d29922] border-[#d29922]",
-  concluded: "bg-[#21262d] text-[#484f58] border-[#21262d]",
+  concluded: "bg-hq-surface-muted text-[#484f58] border-hq-surface-muted",
 };
 
 const ARM_COLORS = [
@@ -98,19 +98,19 @@ function delta(armRate: number | null, controlRate: number | null): string {
 }
 
 function deltaColor(armRate: number | null, controlRate: number | null): string {
-  if (armRate == null || controlRate == null) return "text-[#8b949e]";
-  return armRate >= controlRate ? "text-[#3fb950]" : "text-[#f85149]";
+  if (armRate == null || controlRate == null) return "text-hq-fg-muted";
+  return armRate >= controlRate ? "text-hq-green" : "text-hq-danger";
 }
 
 const BUCKET_ORDER = ["perfect", "q1", "q2", "q3", "q4", "q5", "dropped_the_ball"];
 const BUCKET_COLORS: Record<string, string> = {
-  perfect: "text-[#3fb950]",
-  q1: "text-[#3fb950]",
+  perfect: "text-hq-green",
+  q1: "text-hq-green",
   q2: "text-[#d29922]",
   q3: "text-[#d29922]",
-  q4: "text-[#f85149]",
-  q5: "text-[#f85149]",
-  dropped_the_ball: "text-[#f85149]",
+  q4: "text-hq-danger",
+  q5: "text-hq-danger",
+  dropped_the_ball: "text-hq-danger",
 };
 
 // ─── SVG Timeline ────────────────────────────────────────────────────────────
@@ -157,7 +157,7 @@ function TimelineChart({
 
   if (allDates.length < 2) {
     return (
-      <p className="text-xs text-[#8b949e] py-4 text-center">{t("chart.noData")}</p>
+      <p className="text-xs text-hq-fg-muted py-4 text-center">{t("chart.noData")}</p>
     );
   }
 
@@ -290,7 +290,7 @@ function TimelineChart({
               className="inline-block h-2 w-6 rounded-full"
               style={{ backgroundColor: ARM_COLORS[idx % ARM_COLORS.length] }}
             />
-            <span className="text-xs text-[#8b949e]">
+            <span className="text-xs text-hq-fg-muted">
               {arm.name}
               {arm.isControl ? " (control)" : ""}
             </span>
@@ -454,8 +454,8 @@ export function AdminExperimentDetailView({ campaignId }: { campaignId: string }
     }
   }
 
-  if (loading) return <p className="text-sm text-[#8b949e]">{t("loading")}</p>;
-  if (error) return <p className="text-sm text-[#f85149]">{error}</p>;
+  if (loading) return <p className="text-sm text-hq-fg-muted">{t("loading")}</p>;
+  if (error) return <p className="text-sm text-hq-danger">{error}</p>;
   if (!data) return null;
 
   const { campaign, arms, dailySeries, population, ocrEvalByArm } = data;
@@ -476,7 +476,7 @@ export function AdminExperimentDetailView({ campaignId }: { campaignId: string }
   return (
     <div className="space-y-6">
       {/* Back */}
-      <Link href="/admin/experiments" className="text-xs text-[#8b949e] hover:text-[#58a6ff] transition-colors">
+      <Link href="/admin/experiments" className="text-xs text-hq-fg-muted hover:text-hq-accent transition-colors">
         ← {t("backToList")}
       </Link>
 
@@ -484,12 +484,12 @@ export function AdminExperimentDetailView({ campaignId }: { campaignId: string }
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-xl font-semibold text-[#e6edf3]">{campaign.name}</h1>
+            <h1 className="text-xl font-semibold text-hq-fg">{campaign.name}</h1>
             <span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${statusCls}`}>
               {campaign.status}
             </span>
           </div>
-          <div className="mt-1 flex flex-wrap gap-3 text-xs text-[#8b949e]">
+          <div className="mt-1 flex flex-wrap gap-3 text-xs text-hq-fg-muted">
             <span className="font-mono text-[#79c0ff]">
               {campaign.scoreTarget}
               {campaign.boardKey ? ` · ${campaign.boardKey}` : ""}
@@ -503,7 +503,7 @@ export function AdminExperimentDetailView({ campaignId }: { campaignId: string }
             )}
           </div>
           {campaign.hypothesis && (
-            <p className="mt-2 text-sm text-[#8b949e] italic">{campaign.hypothesis}</p>
+            <p className="mt-2 text-sm text-hq-fg-muted italic">{campaign.hypothesis}</p>
           )}
         </div>
 
@@ -513,7 +513,7 @@ export function AdminExperimentDetailView({ campaignId }: { campaignId: string }
             <button
               onClick={() => void transition("active")}
               disabled={transitioning}
-              className="rounded-md bg-[#238636] px-3 py-1.5 text-sm font-medium text-white hover:bg-[#2ea043] disabled:opacity-50 transition-colors"
+              className="rounded-md bg-hq-success px-3 py-1.5 text-sm font-medium text-white hover:bg-hq-success-hover disabled:opacity-50 transition-colors"
             >
               {t("startCampaign")}
             </button>
@@ -529,7 +529,7 @@ export function AdminExperimentDetailView({ campaignId }: { campaignId: string }
               </button>
               <button
                 onClick={() => setShowConcludeForm(true)}
-                className="rounded-md border border-[#30363d] px-3 py-1.5 text-sm text-[#8b949e] hover:border-[#58a6ff] hover:text-[#58a6ff] transition-colors"
+                className="rounded-md border border-hq-border px-3 py-1.5 text-sm text-hq-fg-muted hover:border-hq-accent hover:text-hq-accent transition-colors"
               >
                 {t("conclude")}
               </button>
@@ -540,13 +540,13 @@ export function AdminExperimentDetailView({ campaignId }: { campaignId: string }
               <button
                 onClick={() => void transition("active")}
                 disabled={transitioning}
-                className="rounded-md bg-[#238636] px-3 py-1.5 text-sm font-medium text-white hover:bg-[#2ea043] disabled:opacity-50 transition-colors"
+                className="rounded-md bg-hq-success px-3 py-1.5 text-sm font-medium text-white hover:bg-hq-success-hover disabled:opacity-50 transition-colors"
               >
                 {t("resume")}
               </button>
               <button
                 onClick={() => setShowConcludeForm(true)}
-                className="rounded-md border border-[#30363d] px-3 py-1.5 text-sm text-[#8b949e] hover:border-[#58a6ff] hover:text-[#58a6ff] transition-colors"
+                className="rounded-md border border-hq-border px-3 py-1.5 text-sm text-hq-fg-muted hover:border-hq-accent hover:text-hq-accent transition-colors"
               >
                 {t("conclude")}
               </button>
@@ -559,7 +559,7 @@ export function AdminExperimentDetailView({ campaignId }: { campaignId: string }
       {showConcludeForm && (
         <div className="rounded-lg border border-[#d29922] bg-[#d2992208] p-4 space-y-3">
           <h3 className="text-sm font-semibold text-[#d29922]">{t("concludeTitle")}</h3>
-          <p className="text-xs text-[#8b949e]">{t("concludeHint")}</p>
+          <p className="text-xs text-hq-fg-muted">{t("concludeHint")}</p>
           {lowSampleArms.length > 0 && (
             <div className="space-y-1">
               {lowSampleArms.map((arm) => (
@@ -577,20 +577,20 @@ export function AdminExperimentDetailView({ campaignId }: { campaignId: string }
             placeholder={t("conclusionPlaceholder")}
             value={concludeText}
             onChange={(e) => setConcludeText(e.target.value)}
-            className="w-full rounded border border-[#30363d] bg-[#0d1117] px-3 py-2 text-sm text-[#e6edf3] focus:border-[#58a6ff] focus:outline-none"
+            className="w-full rounded border border-hq-border bg-hq-canvas px-3 py-2 text-sm text-hq-fg focus:border-hq-accent focus:outline-none"
           />
-          {transitionError && <p className="text-xs text-[#f85149]">{transitionError}</p>}
+          {transitionError && <p className="text-xs text-hq-danger">{transitionError}</p>}
           <div className="flex gap-2">
             <button
               onClick={() => void transition("concluded", { conclusion: concludeText })}
               disabled={!concludeText.trim() || transitioning}
-              className="rounded-md bg-[#d29922] px-4 py-1.5 text-sm font-medium text-[#0d1117] hover:opacity-90 disabled:opacity-50 transition-opacity"
+              className="rounded-md bg-[#d29922] px-4 py-1.5 text-sm font-medium text-hq-canvas hover:opacity-90 disabled:opacity-50 transition-opacity"
             >
               {transitioning ? t("saving") : t("confirmConclude")}
             </button>
             <button
               onClick={() => setShowConcludeForm(false)}
-              className="rounded-md border border-[#30363d] px-4 py-1.5 text-sm text-[#8b949e] hover:text-[#e6edf3] transition-colors"
+              className="rounded-md border border-hq-border px-4 py-1.5 text-sm text-hq-fg-muted hover:text-hq-fg transition-colors"
             >
               {t("cancel")}
             </button>
@@ -599,34 +599,34 @@ export function AdminExperimentDetailView({ campaignId }: { campaignId: string }
       )}
 
       {transitionError && !showConcludeForm && (
-        <p className="text-sm text-[#f85149]">{transitionError}</p>
+        <p className="text-sm text-hq-danger">{transitionError}</p>
       )}
 
       {/* Concluded outcome */}
       {campaign.conclusion && (
-        <div className="rounded-lg border border-[#30363d] bg-[#161b22] p-4">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-[#8b949e]">{t("outcome")}</h3>
-          <p className="mt-2 text-sm text-[#e6edf3]">{campaign.conclusion}</p>
+        <div className="rounded-lg border border-hq-border bg-hq-surface p-4">
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-hq-fg-muted">{t("outcome")}</h3>
+          <p className="mt-2 text-sm text-hq-fg">{campaign.conclusion}</p>
         </div>
       )}
 
       {/* Population panel */}
-      <section className="rounded-lg border border-[#30363d] bg-[#161b22] p-4 space-y-3">
-        <h2 className="text-sm font-semibold text-[#e6edf3]">{t("population.title")}</h2>
-        <p className="text-xs text-[#8b949e]">{t("population.hint")}</p>
+      <section className="rounded-lg border border-hq-border bg-hq-surface p-4 space-y-3">
+        <h2 className="text-sm font-semibold text-hq-fg">{t("population.title")}</h2>
+        <p className="text-xs text-hq-fg-muted">{t("population.hint")}</p>
 
         {mixedPopulation && (
-          <div className="rounded border border-[#f85149] bg-[#f8514910] px-3 py-2 text-xs text-[#f85149]">
+          <div className="rounded border border-hq-danger bg-[#f8514910] px-3 py-2 text-xs text-hq-danger">
             ⚠ {t("population.mixedWarning")}
           </div>
         )}
 
         {population.length === 0 ? (
-          <p className="text-xs text-[#8b949e]">{t("population.noData")}</p>
+          <p className="text-xs text-hq-fg-muted">{t("population.noData")}</p>
         ) : (
           <table className="w-full text-xs">
             <thead>
-              <tr className="border-b border-[#21262d] text-[#8b949e]">
+              <tr className="border-b border-hq-surface-muted text-hq-fg-muted">
                 <th className="pb-1 text-left">{t("population.col.scoreTarget")}</th>
                 <th className="pb-1 text-left">{t("population.col.boardKey")}</th>
                 <th className="pb-1 text-left">{t("population.col.hqEvent")}</th>
@@ -635,11 +635,11 @@ export function AdminExperimentDetailView({ campaignId }: { campaignId: string }
             </thead>
             <tbody>
               {population.map((row, i) => (
-                <tr key={i} className="border-b border-[#21262d]">
+                <tr key={i} className="border-b border-hq-surface-muted">
                   <td className="py-1 font-mono text-[#79c0ff]">{row.scoreTarget}</td>
-                  <td className="py-1 text-[#8b949e]">{row.boardKey ?? "—"}</td>
-                  <td className="py-1 text-[#8b949e]">{row.hqEventId ?? "—"}</td>
-                  <td className="py-1 text-right text-[#e6edf3]">{row.count}</td>
+                  <td className="py-1 text-hq-fg-muted">{row.boardKey ?? "—"}</td>
+                  <td className="py-1 text-hq-fg-muted">{row.hqEventId ?? "—"}</td>
+                  <td className="py-1 text-right text-hq-fg">{row.count}</td>
                 </tr>
               ))}
             </tbody>
@@ -648,13 +648,13 @@ export function AdminExperimentDetailView({ campaignId }: { campaignId: string }
       </section>
 
       {/* Arms */}
-      <section className="rounded-lg border border-[#30363d] bg-[#161b22] p-4 space-y-4">
+      <section className="rounded-lg border border-hq-border bg-hq-surface p-4 space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-[#e6edf3]">{t("arms.title")}</h2>
+          <h2 className="text-sm font-semibold text-hq-fg">{t("arms.title")}</h2>
           {campaign.status === "draft" && (
             <button
               onClick={() => setShowArmForm((v) => !v)}
-              className="rounded border border-[#30363d] px-2 py-1 text-xs text-[#8b949e] hover:border-[#58a6ff] hover:text-[#58a6ff] transition-colors"
+              className="rounded border border-hq-border px-2 py-1 text-xs text-hq-fg-muted hover:border-hq-accent hover:text-hq-accent transition-colors"
             >
               {showArmForm ? t("cancel") : t("arms.add")}
             </button>
@@ -662,25 +662,25 @@ export function AdminExperimentDetailView({ campaignId }: { campaignId: string }
         </div>
 
         {showArmForm && (
-          <form onSubmit={(e) => void addArm(e)} className="grid grid-cols-2 gap-3 rounded border border-[#30363d] p-3 sm:grid-cols-4">
+          <form onSubmit={(e) => void addArm(e)} className="grid grid-cols-2 gap-3 rounded border border-hq-border p-3 sm:grid-cols-4">
             <label className="block">
-              <span className="text-xs text-[#8b949e]">{t("arms.form.name")}</span>
+              <span className="text-xs text-hq-fg-muted">{t("arms.form.name")}</span>
               <input
                 required
                 value={armForm.name}
                 onChange={(e) => setArmForm((f) => ({ ...f, name: e.target.value }))}
-                className="mt-1 w-full rounded border border-[#30363d] bg-[#0d1117] px-2 py-1 text-xs text-[#e6edf3] focus:border-[#58a6ff] focus:outline-none"
+                className="mt-1 w-full rounded border border-hq-border bg-hq-canvas px-2 py-1 text-xs text-hq-fg focus:border-hq-accent focus:outline-none"
               />
             </label>
             <label className="block">
-              <span className="text-xs text-[#8b949e]">{t("arms.configPickerLabel")}</span>
+              <span className="text-xs text-hq-fg-muted">{t("arms.configPickerLabel")}</span>
               {loadingConfigs ? (
                 <p className="mt-1 text-xs text-[#484f58]">{t("arms.loadConfigs")}</p>
               ) : (
                 <select
                   value={armForm.configId}
                   onChange={(e) => setArmForm((f) => ({ ...f, configId: e.target.value }))}
-                  className="mt-1 w-full rounded border border-[#30363d] bg-[#0d1117] px-2 py-1 text-xs text-[#e6edf3] focus:border-[#58a6ff] focus:outline-none"
+                  className="mt-1 w-full rounded border border-hq-border bg-hq-canvas px-2 py-1 text-xs text-hq-fg focus:border-hq-accent focus:outline-none"
                 >
                   <option value="">{t("arms.configDefault")}</option>
                   {availableConfigs.map((cfg) => (
@@ -692,14 +692,14 @@ export function AdminExperimentDetailView({ campaignId }: { campaignId: string }
               )}
             </label>
             <label className="block">
-              <span className="text-xs text-[#8b949e]">{t("arms.form.weight")}</span>
+              <span className="text-xs text-hq-fg-muted">{t("arms.form.weight")}</span>
               <input
                 type="number"
                 min="1"
                 value={armForm.trafficWeight}
                 onChange={(e) => setArmForm((f) => ({ ...f, trafficWeight: e.target.value }))}
                 enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT}
-                className="mt-1 w-full rounded border border-[#30363d] bg-[#0d1117] px-2 py-1 text-xs text-[#e6edf3] focus:border-[#58a6ff] focus:outline-none"
+                className="mt-1 w-full rounded border border-hq-border bg-hq-canvas px-2 py-1 text-xs text-hq-fg focus:border-hq-accent focus:outline-none"
               />
             </label>
             <label className="flex items-end gap-2 pb-1">
@@ -709,13 +709,13 @@ export function AdminExperimentDetailView({ campaignId }: { campaignId: string }
                 onChange={(e) => setArmForm((f) => ({ ...f, isControl: e.target.checked }))}
                 className="h-3.5 w-3.5"
               />
-              <span className="text-xs text-[#8b949e]">{t("arms.form.isControl")}</span>
+              <span className="text-xs text-hq-fg-muted">{t("arms.form.isControl")}</span>
             </label>
-            {armError && <p className="col-span-4 text-xs text-[#f85149]">{armError}</p>}
+            {armError && <p className="col-span-4 text-xs text-hq-danger">{armError}</p>}
             <button
               type="submit"
               disabled={savingArm}
-              className="col-span-4 rounded-md bg-[#238636] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#2ea043] disabled:opacity-50 transition-colors"
+              className="col-span-4 rounded-md bg-hq-success px-3 py-1.5 text-xs font-medium text-white hover:bg-hq-success-hover disabled:opacity-50 transition-colors"
             >
               {savingArm ? t("saving") : t("arms.form.save")}
             </button>
@@ -726,7 +726,7 @@ export function AdminExperimentDetailView({ campaignId }: { campaignId: string }
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead>
-              <tr className="border-b border-[#30363d] text-[#8b949e] uppercase tracking-wide">
+              <tr className="border-b border-hq-border text-hq-fg-muted uppercase tracking-wide">
                 <th className="pb-2 text-left">{t("arms.col.name")}</th>
                 <th className="pb-2 text-left">{t("arms.col.config")}</th>
                 <th className="pb-2 text-right">{t("arms.col.weight")}</th>
@@ -748,16 +748,16 @@ export function AdminExperimentDetailView({ campaignId }: { campaignId: string }
                 const color = ARM_COLORS[idx % ARM_COLORS.length];
 
                 return (
-                  <tr key={arm.id} className="border-b border-[#21262d]">
+                  <tr key={arm.id} className="border-b border-hq-surface-muted">
                     <td className="py-2">
                       <div className="flex items-center gap-2">
                         <span
                           className="inline-block h-2 w-2 rounded-full shrink-0"
                           style={{ backgroundColor: color }}
                         />
-                        <span className="text-[#e6edf3]">{arm.name}</span>
+                        <span className="text-hq-fg">{arm.name}</span>
                         {isCtrl && (
-                          <span className="rounded bg-[#58a6ff20] px-1 text-[10px] text-[#58a6ff]">
+                          <span className="rounded bg-[#58a6ff20] px-1 text-[10px] text-hq-accent">
                             control
                           </span>
                         )}
@@ -770,16 +770,16 @@ export function AdminExperimentDetailView({ campaignId }: { campaignId: string }
                         <span className="text-[#484f58]">default</span>
                       )}
                     </td>
-                    <td className="py-2 text-right text-[#8b949e]">{arm.trafficWeight}</td>
-                    <td className="py-2 text-right text-[#e6edf3]">{arm.jobCount}</td>
-                    <td className="py-2 text-right text-[#8b949e]">{arm.ratedCount}</td>
-                    <td className="py-2 text-right text-[#e6edf3]">
+                    <td className="py-2 text-right text-hq-fg-muted">{arm.trafficWeight}</td>
+                    <td className="py-2 text-right text-hq-fg">{arm.jobCount}</td>
+                    <td className="py-2 text-right text-hq-fg-muted">{arm.ratedCount}</td>
+                    <td className="py-2 text-right text-hq-fg">
                       {pct(arm.thumbsUpCount, arm.ratedCount)}
                     </td>
-                    <td className="py-2 text-right text-[#8b949e]">
+                    <td className="py-2 text-right text-hq-fg-muted">
                       {arm.avgQualityScore != null ? arm.avgQualityScore.toFixed(2) : "—"}
                     </td>
-                    <td className={`py-2 text-right font-medium ${isCtrl ? "text-[#8b949e]" : deltaColor(armRate, ctrlRate)}`}>
+                    <td className={`py-2 text-right font-medium ${isCtrl ? "text-hq-fg-muted" : deltaColor(armRate, ctrlRate)}`}>
                       {isCtrl ? "—" : delta(armRate, ctrlRate)}
                     </td>
                     <td className="py-2">
@@ -799,22 +799,22 @@ export function AdminExperimentDetailView({ campaignId }: { campaignId: string }
         </div>
 
         {arms.length > 0 && controlArm && (
-          <p className="text-xs text-[#8b949e]">
+          <p className="text-xs text-hq-fg-muted">
             {t("arms.deltaNote")}
           </p>
         )}
       </section>
 
       {ocrEvalByArm && ocrEvalByArm.length > 0 ? (
-        <section className="space-y-4 rounded-lg border border-[#30363d] bg-[#161b22] p-4">
+        <section className="space-y-4 rounded-lg border border-hq-border bg-hq-surface p-4">
           <div>
-            <h2 className="text-sm font-semibold text-[#e6edf3]">{tRosterOcr("title")}</h2>
-            <p className="mt-1 text-xs text-[#8b949e]">{tRosterOcr("subtitle")}</p>
+            <h2 className="text-sm font-semibold text-hq-fg">{tRosterOcr("title")}</h2>
+            <p className="mt-1 text-xs text-hq-fg-muted">{tRosterOcr("subtitle")}</p>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
               <thead>
-                <tr className="border-b border-[#30363d] text-[#8b949e] uppercase tracking-wide">
+                <tr className="border-b border-hq-border text-hq-fg-muted uppercase tracking-wide">
                   <th className="pb-2 text-left">{t("arms.col.name")}</th>
                   <th className="pb-2 text-right">{tRosterOcr("colJobs")}</th>
                   <th className="pb-2 text-right">{tRosterOcr("nameRecall")}</th>
@@ -828,14 +828,14 @@ export function AdminExperimentDetailView({ campaignId }: { campaignId: string }
                 {ocrEvalByArm.map((row) => {
                   const arm = arms.find((a) => a.id === row.armId);
                   return (
-                    <tr key={row.armId} className="border-b border-[#21262d]">
-                      <td className="py-2 text-[#e6edf3]">{arm?.name ?? row.armId}</td>
-                      <td className="py-2 text-right text-[#e6edf3]">{row.jobCount}</td>
-                      <td className="py-2 text-right text-[#8b949e]">{pct(row.avgNameRecall, 1)}</td>
-                      <td className="py-2 text-right text-[#8b949e]">{pct(row.avgNamePrecision, 1)}</td>
-                      <td className="py-2 text-right text-[#8b949e]">{pct(row.avgRankAgreement, 1)}</td>
-                      <td className="py-2 text-right text-[#8b949e]">{pct(row.avgPowerAgreement, 1)}</td>
-                      <td className="py-2 text-right text-[#8b949e]">{pct(row.avgLevelAgreement, 1)}</td>
+                    <tr key={row.armId} className="border-b border-hq-surface-muted">
+                      <td className="py-2 text-hq-fg">{arm?.name ?? row.armId}</td>
+                      <td className="py-2 text-right text-hq-fg">{row.jobCount}</td>
+                      <td className="py-2 text-right text-hq-fg-muted">{pct(row.avgNameRecall, 1)}</td>
+                      <td className="py-2 text-right text-hq-fg-muted">{pct(row.avgNamePrecision, 1)}</td>
+                      <td className="py-2 text-right text-hq-fg-muted">{pct(row.avgRankAgreement, 1)}</td>
+                      <td className="py-2 text-right text-hq-fg-muted">{pct(row.avgPowerAgreement, 1)}</td>
+                      <td className="py-2 text-right text-hq-fg-muted">{pct(row.avgLevelAgreement, 1)}</td>
                     </tr>
                   );
                 })}
@@ -847,9 +847,9 @@ export function AdminExperimentDetailView({ campaignId }: { campaignId: string }
 
       {/* Timeline chart */}
       {dailySeries.length > 0 && (
-        <section className="rounded-lg border border-[#30363d] bg-[#161b22] p-4 space-y-3">
-          <h2 className="text-sm font-semibold text-[#e6edf3]">{t("chart.title")}</h2>
-          <p className="text-xs text-[#8b949e]">{t("chart.hint")}</p>
+        <section className="rounded-lg border border-hq-border bg-hq-surface p-4 space-y-3">
+          <h2 className="text-sm font-semibold text-hq-fg">{t("chart.title")}</h2>
+          <p className="text-xs text-hq-fg-muted">{t("chart.hint")}</p>
           <TimelineChart
             series={dailySeries}
             arms={arms}
@@ -860,26 +860,26 @@ export function AdminExperimentDetailView({ campaignId }: { campaignId: string }
 
       {/* Promote winner */}
       {campaign.status === "concluded" && (
-        <section className="rounded-lg border border-[#30363d] bg-[#161b22] p-4 space-y-3">
-          <h2 className="text-sm font-semibold text-[#e6edf3]">{t("promote.title")}</h2>
-          <p className="text-xs text-[#8b949e]">{t("promote.hint")}</p>
+        <section className="rounded-lg border border-hq-border bg-hq-surface p-4 space-y-3">
+          <h2 className="text-sm font-semibold text-hq-fg">{t("promote.title")}</h2>
+          <p className="text-xs text-hq-fg-muted">{t("promote.hint")}</p>
 
           {promoted ? (
-            <div className="rounded border border-[#3fb950] bg-[#3fb95010] px-3 py-3 space-y-1">
-              <p className="text-sm font-medium text-[#3fb950]">✓ {t("promote.successTitle")}</p>
-              <p className="text-xs text-[#8b949e]">{t("promote.successHint")}</p>
+            <div className="rounded border border-hq-green bg-[#3fb95010] px-3 py-3 space-y-1">
+              <p className="text-sm font-medium text-hq-green">✓ {t("promote.successTitle")}</p>
+              <p className="text-xs text-hq-fg-muted">{t("promote.successHint")}</p>
             </div>
           ) : promotableArms.length === 0 ? (
             <p className="text-xs text-[#484f58]">{t("promote.noVariantArms")}</p>
           ) : (
             <form onSubmit={(e) => void promoteArm(e)} className="space-y-3">
               <label className="block">
-                <span className="mb-1 block text-xs text-[#8b949e]">{t("promote.selectArm")}</span>
+                <span className="mb-1 block text-xs text-hq-fg-muted">{t("promote.selectArm")}</span>
                 <select
                   required
                   value={promoteConfigId}
                   onChange={(e) => setPromoteConfigId(e.target.value)}
-                  className="w-full rounded border border-[#30363d] bg-[#0d1117] px-3 py-1.5 text-sm text-[#e6edf3] focus:border-[#58a6ff] focus:outline-none"
+                  className="w-full rounded border border-hq-border bg-hq-canvas px-3 py-1.5 text-sm text-hq-fg focus:border-hq-accent focus:outline-none"
                 >
                   <option value="">—</option>
                   {promotableArms.map((arm) => {
@@ -894,21 +894,21 @@ export function AdminExperimentDetailView({ campaignId }: { campaignId: string }
                 </select>
               </label>
               <label className="block">
-                <span className="mb-1 block text-xs text-[#8b949e]">{t("promote.notes")}</span>
+                <span className="mb-1 block text-xs text-hq-fg-muted">{t("promote.notes")}</span>
                 <input
                   placeholder={t("promote.notesPlaceholder")}
                   value={promoteNotes}
                   onChange={(e) => setPromoteNotes(e.target.value)}
-                  className="w-full rounded border border-[#30363d] bg-[#0d1117] px-3 py-1.5 text-sm text-[#e6edf3] focus:border-[#58a6ff] focus:outline-none"
+                  className="w-full rounded border border-hq-border bg-hq-canvas px-3 py-1.5 text-sm text-hq-fg focus:border-hq-accent focus:outline-none"
                 />
               </label>
               {promoteError && (
-                <p className="text-xs text-[#f85149]">{promoteError}</p>
+                <p className="text-xs text-hq-danger">{promoteError}</p>
               )}
               <button
                 type="submit"
                 disabled={!promoteConfigId || promoting}
-                className="rounded-md bg-[#238636] px-4 py-1.5 text-sm font-medium text-white hover:bg-[#2ea043] disabled:opacity-50 transition-colors"
+                className="rounded-md bg-hq-success px-4 py-1.5 text-sm font-medium text-white hover:bg-hq-success-hover disabled:opacity-50 transition-colors"
               >
                 {promoting ? t("saving") : t("promote.confirmCta")}
               </button>

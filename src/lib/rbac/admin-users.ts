@@ -6,6 +6,9 @@ import {
   countCompletedDeviceLinksForUsers,
 } from "@/lib/credential-pairing/device-link-stats";
 import { grantHqAccess } from "@/lib/access/invite-gate";
+import { loadSignInMethodSnapshot } from "@/lib/auth/account-linking.server";
+import type { LinkedOAuthProvider } from "@/lib/auth/account-linking.shared";
+import { getAuthSsoAvailability } from "@/lib/auth/sso-config.server";
 import { getDb, schema } from "@/lib/db";
 
 import { buildAdminUsersSearchWhere } from "./admin-users-query.server";
@@ -51,6 +54,17 @@ export type AdminUserListRow = {
   }>;
 };
 
+export type AdminUserSignInMethods = {
+  email: string;
+  hasPassword: boolean;
+  passkeyCount: number;
+  linkedProviders: LinkedOAuthProvider[];
+  availableProviders: {
+    google: boolean;
+    discord: boolean;
+  };
+};
+
 export type AdminUserRow = {
   id: string;
   email: string;
@@ -61,6 +75,7 @@ export type AdminUserRow = {
   linkedDeviceCount: number;
   memberships: AdminMembershipRow[];
   memberLinks: AdminMemberLinkRow[];
+  signInMethods: AdminUserSignInMethods | null;
 };
 
 export type AdminRoleOption = {
@@ -192,6 +207,7 @@ function buildAdminUserRow(
   linkedDeviceCount: number,
   memberships: AdminMembershipRow[],
   memberLinks: AdminMemberLinkRow[],
+  signInMethods: AdminUserSignInMethods | null,
 ): AdminUserRow {
   return {
     id: user.id,
@@ -206,6 +222,28 @@ function buildAdminUserRow(
     memberLinks: memberLinks.sort((a, b) =>
       a.allianceName.localeCompare(b.allianceName),
     ),
+    signInMethods,
+  };
+}
+
+async function loadAdminUserSignInMethods(
+  hqUserId: string,
+): Promise<AdminUserSignInMethods | null> {
+  const snapshot = await loadSignInMethodSnapshot(hqUserId);
+  if (!snapshot) {
+    return null;
+  }
+
+  const ssoAvailability = getAuthSsoAvailability();
+  return {
+    email: snapshot.email,
+    hasPassword: snapshot.hasPassword,
+    passkeyCount: snapshot.passkeyCount,
+    linkedProviders: snapshot.linkedProviders,
+    availableProviders: {
+      google: ssoAvailability.google,
+      discord: ssoAvailability.discord,
+    },
   };
 }
 
@@ -294,10 +332,12 @@ export async function loadAdminUserById(
     return null;
   }
 
-  const [membershipRows, memberLinkRows, deviceLinkCounts] = await Promise.all([
+  const [membershipRows, memberLinkRows, deviceLinkCounts, signInMethods] =
+    await Promise.all([
     loadMembershipRowsForUsers([hqUserId]),
     loadMemberLinkRowsForUsers([hqUserId]),
     countCompletedDeviceLinksForUsers([hqUserId]),
+    loadAdminUserSignInMethods(hqUserId),
   ]);
 
   return buildAdminUserRow(
@@ -305,6 +345,7 @@ export async function loadAdminUserById(
     deviceLinkCounts.get(hqUserId) ?? 0,
     membershipRows,
     memberLinkRows,
+    signInMethods,
   );
 }
 
@@ -338,6 +379,7 @@ export async function loadAdminUsersDirectory(): Promise<{
         deviceLinkCounts.get(user.id) ?? 0,
         membershipsByUser.get(user.id) ?? [],
         memberLinksByUser.get(user.id) ?? [],
+        null,
       ),
     ),
     roles: meta.roles,

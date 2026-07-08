@@ -159,11 +159,11 @@ export function ReviewVideoPreview({
   const containerClass = cn(
     "z-30 flex max-w-full flex-col overflow-x-hidden bg-black",
     placement === "side" &&
-      "relative sticky shrink-0 self-start border-l border-[#30363d]",
+      "relative sticky shrink-0 self-start border-l border-hq-border",
     placement === "top" &&
-      "sticky w-full max-w-full border-b border-[#30363d]",
+      "sticky w-full max-w-full border-b border-hq-border",
     placement === "bottom" &&
-      "fixed bottom-0 left-0 right-0 w-full max-w-full border-t border-[#30363d]",
+      "fixed bottom-0 left-0 right-0 w-full max-w-full border-t border-hq-border",
   );
 
   const displaySideWidth = draftSideWidth ?? sideWidthPx;
@@ -258,7 +258,7 @@ export function ReviewVideoPreview({
           role="separator"
           aria-orientation="vertical"
           aria-label={t("previewResizeWidth")}
-          className="absolute bottom-0 left-0 top-0 z-10 w-2 cursor-col-resize touch-none hover:bg-[#58a6ff]/25"
+          className="absolute bottom-0 left-0 top-0 z-10 w-2 cursor-col-resize touch-none hover:bg-hq-accent/25"
           onPointerDown={onSideResizePointerDown}
           onPointerMove={onSideResizePointerMove}
           onPointerUp={onSideResizePointerUp}
@@ -271,7 +271,7 @@ export function ReviewVideoPreview({
           aria-orientation="horizontal"
           aria-label={t("previewResizeHeight")}
           className={cn(
-            "absolute left-1/2 z-10 flex h-4 w-14 -translate-x-1/2 cursor-row-resize touch-none items-center justify-center rounded-full bg-[#21262d] text-[#8b949e] hover:bg-[#30363d] hover:text-[#e6edf3]",
+            "absolute left-1/2 z-10 flex h-4 w-14 -translate-x-1/2 cursor-row-resize touch-none items-center justify-center rounded-full bg-hq-surface-muted text-hq-fg-muted hover:bg-hq-border hover:text-hq-fg",
             placement === "bottom" ? "-top-2" : "-bottom-2",
           )}
           onPointerDown={onDockResizePointerDown}
@@ -354,8 +354,8 @@ function PanelChrome({
   const zoomLabel = filled ? zoomFitLabel : zoomFillLabel;
   const ZoomIcon = filled ? ZoomOut : ZoomIn;
   return (
-    <div className="flex shrink-0 items-center justify-between gap-2 border-b border-[#30363d] bg-[#161b22] px-3 py-2">
-      <span className="truncate text-sm font-medium text-[#e6edf3]">
+    <div className="flex shrink-0 items-center justify-between gap-2 border-b border-hq-border bg-hq-surface px-3 py-2">
+      <span className="truncate text-sm font-medium text-hq-fg">
         {label}
       </span>
       <div className="flex shrink-0 items-center gap-1.5">
@@ -369,8 +369,8 @@ function PanelChrome({
             className={cn(
               "inline-flex h-7 w-7 items-center justify-center rounded-md transition-colors",
               filled
-                ? "bg-[#30363d] text-[#e6edf3]"
-                : "text-[#8b949e] hover:bg-[#21262d] hover:text-[#e6edf3]",
+                ? "bg-hq-border text-hq-fg"
+                : "text-hq-fg-muted hover:bg-hq-surface-muted hover:text-hq-fg",
             )}
           >
             <ZoomIcon className="h-4 w-4" aria-hidden />
@@ -380,7 +380,7 @@ function PanelChrome({
           <div
             role="group"
             aria-label={placementLabel}
-            className="flex items-center gap-0.5 rounded-lg border border-[#30363d] p-0.5"
+            className="flex items-center gap-0.5 rounded-lg border border-hq-border p-0.5"
           >
             {available.map((option) => {
               const Icon = PLACEMENT_ICON[option];
@@ -396,8 +396,8 @@ function PanelChrome({
                   className={cn(
                     "inline-flex h-7 w-7 items-center justify-center rounded-md transition-colors",
                     active
-                      ? "bg-[#30363d] text-[#e6edf3]"
-                      : "text-[#8b949e] hover:bg-[#21262d] hover:text-[#e6edf3]",
+                      ? "bg-hq-border text-hq-fg"
+                      : "text-hq-fg-muted hover:bg-hq-surface-muted hover:text-hq-fg",
                   )}
                 >
                   <Icon className="h-4 w-4" aria-hidden />
@@ -410,7 +410,7 @@ function PanelChrome({
           type="button"
           onClick={onClose}
           aria-label={closeLabel}
-          className="inline-flex h-7 w-7 items-center justify-center rounded-md text-[#8b949e] hover:bg-[#21262d] hover:text-[#e6edf3]"
+          className="inline-flex h-7 w-7 items-center justify-center rounded-md text-hq-fg-muted hover:bg-hq-surface-muted hover:text-hq-fg"
         >
           <X className="h-4 w-4" aria-hidden />
         </button>
@@ -442,7 +442,7 @@ function VideoBody({
   if (unavailable) {
     return (
       <div ref={bodyRef} className="flex min-h-0 flex-1 flex-col">
-        <p className="flex min-h-0 flex-1 items-center justify-center px-4 text-center text-sm text-[#8b949e]">
+        <p className="flex min-h-0 flex-1 items-center justify-center px-4 text-center text-sm text-hq-fg-muted">
           {unavailableLabel}
         </p>
       </div>
@@ -458,7 +458,7 @@ function VideoBody({
         className="relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain touch-pan-y"
         {...panHandlers}
       >
-        <p className="pointer-events-none absolute left-0 right-0 top-1 z-[1] px-2 text-center text-[10px] text-[#8b949e]/90">
+        <p className="pointer-events-none absolute left-0 right-0 top-1 z-[1] px-2 text-center text-[10px] text-hq-fg-muted/90">
           {panHintLabel}
         </p>
         <video

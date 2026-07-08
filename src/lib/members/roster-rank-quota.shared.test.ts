@@ -70,22 +70,22 @@ describe("roster-rank-quota.shared", () => {
 
     expect(
       validateRosterRankQuota({
-        r1: 40,
-        r2: 30,
-        r3: 20,
+        r1: 100,
+        r2: 50,
+        r3: 40,
         r4: 10,
         r5: 1,
-        total: 101,
+        total: 201,
       }),
     ).toEqual(expect.arrayContaining(["r123_when_r4_full", "total_max"]));
   });
 
   it("treats roster within 3% of cap as near-full for invite UX", () => {
-    expect(rosterNearFullThreshold()).toBe(97);
-    expect(isNearFullRoster(96)).toBe(false);
-    expect(isNearFullRoster(97)).toBe(true);
-    expect(isNearFullRoster(99)).toBe(true);
-    expect(isNearFullRoster(100)).toBe(true);
+    expect(rosterNearFullThreshold()).toBe(194);
+    expect(isNearFullRoster(193)).toBe(false);
+    expect(isNearFullRoster(194)).toBe(true);
+    expect(isNearFullRoster(199)).toBe(true);
+    expect(isNearFullRoster(200)).toBe(true);
   });
 
   it("requires solo member to be R5", () => {

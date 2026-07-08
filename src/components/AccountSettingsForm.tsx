@@ -8,6 +8,7 @@ import { LinkedDevicesSettings } from "@/components/credential-pairing/LinkedDev
 import { AccountDiscordLinkSection } from "@/components/account/AccountDiscordLinkSection";
 import { SignInMethodQuickAccess } from "@/components/auth/SignInMethodQuickAccess";
 import { AppSelect } from "@/components/ui/AppSelect";
+import { useAppearance } from "@/components/appearance/AppearanceProvider";
 import { useAccountTimezone } from "@/components/timezone/TimezoneProvider";
 import { Link, useRouter } from "@/i18n/navigation";
 import { TokenExpiryNotice } from "@/components/TokenExpiryNotice";
@@ -17,6 +18,7 @@ import type { AuthSsoAvailability } from "@/lib/auth/sso-config.shared";
 import type { AshedConnectionMeta } from "@/lib/jwt/connection-meta";
 import { DEFAULT_EXPIRY_REMINDER_DAYS } from "@/lib/jwt/decode";
 import type { AccountTimezoneId } from "@/lib/timezone/constants";
+import type { AppearancePreference } from "@/lib/appearance/appearance.shared";
 import {
   ACCOUNT_TIMEZONE_OPTION_IDS,
   formatTimezoneOptionLabel,
@@ -67,6 +69,8 @@ export function AccountSettingsForm({
   const locale = useLocale();
   const router = useRouter();
   const { timezoneId, setTimezoneId } = useAccountTimezone();
+  const { preference: appearancePreference, setPreference: setAppearancePreference } =
+    useAppearance();
   const [saving, setSaving] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
@@ -184,23 +188,23 @@ export function AccountSettingsForm({
     <div className="mx-auto max-w-lg space-y-6">
       <div>
         <h1 className="text-2xl font-semibold">{t("title")}</h1>
-        <p className="mt-1 text-sm text-[#8b949e]">{t("subtitle")}</p>
+        <p className="mt-1 text-sm text-hq-fg-muted">{t("subtitle")}</p>
       </div>
 
-      <section className="rounded-xl border border-[#30363d] bg-[#161b22] p-5">
+      <section className="rounded-xl border border-hq-border bg-hq-surface p-5">
         <h2 className="font-medium">{tSettings("hotkeysTitle")}</h2>
-        <p className="mt-2 text-sm text-[#8b949e]">{tSettings("hotkeysBody")}</p>
+        <p className="mt-2 text-sm text-hq-fg-muted">{tSettings("hotkeysBody")}</p>
         <Link
           href="/settings/hotkeys"
-          className="mt-4 inline-block text-sm text-[#58a6ff] hover:underline"
+          className="mt-4 inline-block text-sm text-hq-accent hover:underline"
         >
           {tSettings("hotkeysLink")} →
         </Link>
       </section>
 
-      <section className="rounded-xl border border-[#30363d] bg-[#161b22] p-5">
+      <section className="rounded-xl border border-hq-border bg-hq-surface p-5">
         <h2 className="font-medium">{tSettings("accountSecurityTitle")}</h2>
-        <p className="mt-2 text-sm text-[#8b949e]">
+        <p className="mt-2 text-sm text-hq-fg-muted">
           {tSettings("accountSecurityBody")}
         </p>
         {initialSignInMethods ? (
@@ -214,17 +218,17 @@ export function AccountSettingsForm({
         ) : null}
         <Link
           href="/settings/account"
-          className="mt-4 inline-block text-sm text-[#58a6ff] hover:underline"
+          className="mt-4 inline-block text-sm text-hq-accent hover:underline"
         >
           {tSettings("accountSecurityLink")} →
         </Link>
       </section>
 
-      <section className="rounded-xl border border-[#30363d] bg-[#161b22] p-5">
+      <section className="rounded-xl border border-hq-border bg-hq-surface p-5">
         <h2 className="font-medium">{t("timezoneSection")}</h2>
-        <p className="mt-2 text-sm text-[#8b949e]">{t("timezoneBody")}</p>
+        <p className="mt-2 text-sm text-hq-fg-muted">{t("timezoneBody")}</p>
         <label className="mt-4 block text-sm">
-          <span className="mb-2 block text-[#8b949e]">{t("timezoneLabel")}</span>
+          <span className="mb-2 block text-hq-fg-muted">{t("timezoneLabel")}</span>
           <AppSelect
             value={timezoneId}
             onChange={(next) => {
@@ -246,7 +250,29 @@ export function AccountSettingsForm({
         </label>
       </section>
 
-      <section className="rounded-xl border border-[#30363d] bg-[#161b22] p-5">
+      <section className="rounded-xl border border-hq-border bg-hq-surface p-5">
+        <h2 className="font-medium">{t("appearanceSection")}</h2>
+        <p className="mt-2 text-sm text-hq-fg-muted">{t("appearanceBody")}</p>
+        <label className="mt-4 block text-sm">
+          <span className="mb-2 block text-hq-fg-muted">
+            {t("appearanceLabel")}
+          </span>
+          <AppSelect
+            value={appearancePreference}
+            onChange={(next) => {
+              setAppearancePreference(next as AppearancePreference);
+            }}
+            aria-label={t("appearanceLabel")}
+            options={[
+              { value: "system", label: t("appearanceSystem") },
+              { value: "light", label: t("appearanceLight") },
+              { value: "dark", label: t("appearanceDark") },
+            ]}
+          />
+        </label>
+      </section>
+
+      <section className="rounded-xl border border-hq-border bg-hq-surface p-5">
         <h2 className="font-medium">{t("tokenSection")}</h2>
         {ashed?.tokenExpiresAtFormatted ? (
           <div className="mt-3 space-y-4">
@@ -255,7 +281,7 @@ export function AccountSettingsForm({
               reminderDays={reminderDays}
             />
             <label className="block text-sm">
-              <span className="mb-2 block text-[#8b949e]">{t("remindMe")}</span>
+              <span className="mb-2 block text-hq-fg-muted">{t("remindMe")}</span>
               <AppSelect
                 value={String(reminderDays)}
                 onChange={(next) => {
@@ -274,10 +300,10 @@ export function AccountSettingsForm({
           </div>
         ) : (
           <div className="mt-2 space-y-3">
-            <p className="text-sm text-[#8b949e]">{t("reconnectHint")}</p>
+            <p className="text-sm text-hq-fg-muted">{t("reconnectHint")}</p>
             <Link
               href="/connect?next=/account"
-              className="inline-block rounded-lg border border-[#238636] bg-[#238636] px-4 py-2 text-sm font-medium text-white hover:bg-[#2ea043]"
+              className="inline-block rounded-lg border border-hq-success bg-hq-success px-4 py-2 text-sm font-medium text-white hover:bg-hq-success-hover"
             >
               {ashed ? t("reconnectAshedCta") : t("connectAshedCta")}
             </Link>
@@ -292,10 +318,10 @@ export function AccountSettingsForm({
         linkError={discordLinkError}
       />
 
-      <section className="rounded-xl border border-[#30363d] bg-[#161b22] p-5">
+      <section className="rounded-xl border border-hq-border bg-hq-surface p-5">
         <h2 className="font-medium">{tDevice("sectionTitle")}</h2>
-        <p className="mt-2 text-sm text-[#8b949e]">{tDevice("sectionBody")}</p>
-        <p className="mt-2 text-sm text-[#8b949e]">{tDevice("storageNote")}</p>
+        <p className="mt-2 text-sm text-hq-fg-muted">{tDevice("sectionBody")}</p>
+        <p className="mt-2 text-sm text-hq-fg-muted">{tDevice("storageNote")}</p>
         <div className="mt-4">
           <PairingQrWizard
             purpose="device_link"
@@ -316,28 +342,28 @@ export function AccountSettingsForm({
       </section>
 
       {ashed ? (
-        <section className="rounded-xl border border-[#30363d] bg-[#161b22] p-5">
+        <section className="rounded-xl border border-hq-border bg-hq-surface p-5">
           <h2 className="font-medium">{t("disconnectSection")}</h2>
-          <p className="mt-2 text-sm text-[#8b949e]">{t("disconnectBody")}</p>
+          <p className="mt-2 text-sm text-hq-fg-muted">{t("disconnectBody")}</p>
           <button
             type="button"
             onClick={() => void disconnectAshed()}
             disabled={disconnecting}
-            className="mt-4 rounded-lg border border-[#f85149] px-4 py-2 text-sm text-[#f85149] hover:bg-[#f8514920] disabled:opacity-50"
+            className="mt-4 rounded-lg border border-hq-danger px-4 py-2 text-sm text-hq-danger hover:bg-[#f8514920] disabled:opacity-50"
           >
             {disconnecting ? t("disconnecting") : t("disconnectButton")}
           </button>
         </section>
       ) : null}
 
-      <section className="rounded-xl border border-[#30363d] bg-[#161b22] p-5">
+      <section className="rounded-xl border border-hq-border bg-hq-surface p-5">
         <h2 className="font-medium">{t("signOutSection")}</h2>
-        <p className="mt-2 text-sm text-[#8b949e]">{t("signOutBody")}</p>
+        <p className="mt-2 text-sm text-hq-fg-muted">{t("signOutBody")}</p>
         <button
           type="button"
           onClick={() => void signOutHq()}
           disabled={signingOut}
-          className="mt-4 rounded-lg border border-[#f85149] px-4 py-2 text-sm text-[#f85149] hover:bg-[#f8514920] disabled:opacity-50"
+          className="mt-4 rounded-lg border border-hq-danger px-4 py-2 text-sm text-hq-danger hover:bg-[#f8514920] disabled:opacity-50"
         >
           {signingOut ? t("signingOut") : t("signOutButton")}
         </button>
@@ -347,15 +373,15 @@ export function AccountSettingsForm({
         <p
           className={`text-sm ${
             message === t("reminderSaved") || message === t("timezoneSaved")
-              ? "text-[#3fb950]"
-              : "text-[#f85149]"
+              ? "text-hq-green"
+              : "text-hq-danger"
           }`}
         >
           {message}
         </p>
       ) : null}
 
-      <section className="rounded-xl border border-[#30363d] bg-[#161b22] p-5 text-sm text-[#8b949e]">
+      <section className="rounded-xl border border-hq-border bg-hq-surface p-5 text-sm text-hq-fg-muted">
         <p>
           {t.rich("aboutBody", {
             strong: strongText,

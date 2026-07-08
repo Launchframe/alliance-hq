@@ -2,6 +2,10 @@ import type { NextConfig } from "next";
 import createNextIntlPlugin from "next-intl/plugin";
 
 import packageJson from "./package.json" with { type: "json" };
+import {
+  videoOcrFileTracingExcludes,
+  videoOcrTracedRoutes,
+} from "./scripts/vercel/video-ocr-file-tracing.mjs";
 
 const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts");
 
@@ -37,23 +41,10 @@ const nextConfig: NextConfig = {
   },
   outputFileTracingIncludes: {
     "/guides/discord-train": ["./docs/guides/**/*"],
-    "/api/internal/video-process/queue": videoOcrFileTracing,
-    "/api/internal/video-process/[jobId]": videoOcrFileTracing,
-    "/api/members/roster-import/parse": videoOcrFileTracing,
+    ...videoOcrTracedRoutes,
   },
   outputFileTracingExcludes: {
-    "*": [
-      // Non-LSTM cores are never selected for roster OCR (OEM.LSTM_ONLY).
-      "./node_modules/tesseract.js-core/tesseract-core.js",
-      "./node_modules/tesseract.js-core/tesseract-core.wasm",
-      "./node_modules/tesseract.js-core/tesseract-core.wasm.js",
-      "./node_modules/tesseract.js-core/tesseract-core-simd.js",
-      "./node_modules/tesseract.js-core/tesseract-core-simd.wasm",
-      "./node_modules/tesseract.js-core/tesseract-core-simd.wasm.js",
-      "./node_modules/tesseract.js-core/tesseract-core-relaxedsimd.js",
-      "./node_modules/tesseract.js-core/tesseract-core-relaxedsimd.wasm",
-      "./node_modules/tesseract.js-core/tesseract-core-relaxedsimd.wasm.js",
-    ],
+    "*": videoOcrFileTracingExcludes,
   },
   serverExternalPackages: [
     "ffmpeg-static",

@@ -23,10 +23,10 @@ function CommanderOwnershipCell({
   notLinkedLabel: string;
 }) {
   if (commanderName) {
-    return <span className="font-medium text-[#e6edf3]">{commanderName}</span>;
+    return <span className="font-medium text-hq-fg">{commanderName}</span>;
   }
 
-  return <span className="text-[#6e7681]">{notLinkedLabel}</span>;
+  return <span className="text-hq-fg-subtle">{notLinkedLabel}</span>;
 }
 
 export function SettingsTeamClient({
@@ -62,7 +62,7 @@ export function SettingsTeamClient({
             type="button"
             onClick={() => void refreshFromAshed()}
             disabled={refreshing}
-            className="w-full rounded-lg bg-[#238636] px-4 py-2 text-sm font-medium text-white hover:bg-[#2ea043] disabled:opacity-50 sm:w-auto"
+            className="w-full rounded-lg bg-hq-success px-4 py-2 text-sm font-medium text-white hover:bg-hq-success-hover disabled:opacity-50 sm:w-auto"
           >
             {refreshing ? t("refreshing") : t("refreshFromAshed")}
           </button>
@@ -82,7 +82,7 @@ export function SettingsTeamClient({
                   {member.displayName ?? member.email}
                 </div>
                 {member.displayName ? (
-                  <div className="text-sm font-normal text-[#8b949e]">
+                  <div className="text-sm font-normal text-hq-fg-muted">
                     {member.email}
                   </div>
                 ) : null}
@@ -103,9 +103,9 @@ export function SettingsTeamClient({
           </RecordDetailCard>
         ))}
         desktopTable={
-          <div className="overflow-hidden rounded-xl border border-[#30363d]">
+          <div className="overflow-hidden rounded-xl border border-hq-border">
             <table className="min-w-full text-left text-sm">
-              <thead className="bg-[#161b22] text-[#8b949e]">
+              <thead className="bg-hq-surface text-hq-fg-muted">
                 <tr>
                   <th className="px-4 py-3">{t("table.user")}</th>
                   <th className="px-4 py-3">{t("table.commander")}</th>
@@ -115,11 +115,11 @@ export function SettingsTeamClient({
               </thead>
               <tbody>
                 {team.map((member) => (
-                  <tr key={member.email} className="border-t border-[#30363d]">
+                  <tr key={member.email} className="border-t border-hq-border">
                     <td className="px-4 py-3">
                       <div>{member.displayName ?? member.email}</div>
                       {member.displayName ? (
-                        <div className="text-xs text-[#8b949e]">
+                        <div className="text-xs text-hq-fg-muted">
                           {member.email}
                         </div>
                       ) : null}

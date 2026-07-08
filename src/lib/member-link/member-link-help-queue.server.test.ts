@@ -117,6 +117,34 @@ describe("recordMemberLinkHelpRequest claim_conflict dedup", () => {
     expect(updateSet).toHaveBeenCalledTimes(2);
   });
 
+  it("deduplicates cross_layer_claim retries on the same commander tuple", async () => {
+    const updateWhere = vi.fn(() => Promise.resolve());
+    const updateSet = vi.fn(() => ({ where: updateWhere }));
+    const insertValues = vi.fn(() => Promise.resolve());
+    vi.mocked(getDb).mockReturnValue({
+      select: vi.fn(() => selectReturning([{ id: "help-cross" }])),
+      update: vi.fn(() => ({ set: updateSet })),
+      insert: vi.fn(() => ({ values: insertValues })),
+    } as never);
+
+    const id = await recordMemberLinkHelpRequest({
+      allianceId: "alliance-1",
+      hqUserId: "user-1",
+      origin: "web",
+      context: "cross_layer_claim",
+      requesterHandle: "player@example.com",
+      reportedName: "Alpha",
+      gameUid: "1001369694001203",
+      gameUserName: "Alpha",
+      targetAshedMemberId: "member-1",
+      claimConflictReason: "discord_hq_unlinked",
+    });
+
+    expect(id).toBe("help-cross");
+    expect(insertValues).toHaveBeenCalledTimes(1);
+    expect(updateSet).toHaveBeenCalledTimes(2);
+  });
+
   it("recovers when a concurrent insert wins the open claim conflict unique race", async () => {
     const uniqueError = Object.assign(new Error("duplicate key"), {
       code: "23505",

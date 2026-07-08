@@ -45,11 +45,11 @@ export function RosterTeamBuilderSection({ rows }: Props) {
     : null;
 
   return (
-    <section className="rounded-2xl border border-[#30363d] bg-[#0D0D0D] p-4 sm:p-6">
-      <h2 className="text-lg font-semibold text-[#e6edf3]">
+    <section className="rounded-2xl border border-hq-border bg-hq-surface p-4 sm:p-6">
+      <h2 className="text-lg font-semibold text-hq-fg">
         {t("teamBuilder.title")}
       </h2>
-      <p className="mt-1 text-sm text-[#8b949e]">{t("teamBuilder.subtitle")}</p>
+      <p className="mt-1 text-sm text-hq-fg-muted">{t("teamBuilder.subtitle")}</p>
 
       <form
         className="mt-4 flex flex-wrap items-end gap-3"
@@ -58,7 +58,7 @@ export function RosterTeamBuilderSection({ rows }: Props) {
           setShowTeams(true);
         }}
       >
-        <label className="flex flex-col gap-1 text-xs text-[#8b949e]">
+        <label className="flex flex-col gap-1 text-xs text-hq-fg-muted">
           {t("teamBuilder.teamCount")}
           <input
             type="number"
@@ -77,18 +77,18 @@ export function RosterTeamBuilderSection({ rows }: Props) {
               )
             }
             inputMode="numeric"
-            className="w-20 rounded-lg border border-[#30363d] bg-[#161b22] px-3 py-2 text-sm text-[#e6edf3]"
+            className="w-20 rounded-lg border border-hq-border bg-hq-surface px-3 py-2 text-sm text-hq-fg"
           />
         </label>
 
-        <label className="flex flex-col gap-1 text-xs text-[#8b949e]">
+        <label className="flex flex-col gap-1 text-xs text-hq-fg-muted">
           {t("teamBuilder.squadFilter")}
           <select
             value={teamSquadFilter}
             onChange={(event) =>
               setTeamSquadFilter(event.target.value as MainSquadType | "")
             }
-            className="rounded-lg border border-[#30363d] bg-[#161b22] px-3 py-2 text-sm text-[#e6edf3]"
+            className="rounded-lg border border-hq-border bg-hq-surface px-3 py-2 text-sm text-hq-fg"
           >
             <option value="">{t("filterSquadAll")}</option>
             {MAIN_SQUAD_TYPES.map((squad) => (
@@ -99,7 +99,7 @@ export function RosterTeamBuilderSection({ rows }: Props) {
           </select>
         </label>
 
-        <label className="flex items-center gap-2 text-sm text-[#8b949e]">
+        <label className="flex items-center gap-2 text-sm text-hq-fg-muted">
           <input
             type="checkbox"
             checked={teamIncludeUnreported}
@@ -123,25 +123,25 @@ export function RosterTeamBuilderSection({ rows }: Props) {
               {teamsResult.teams.map((team) => (
                 <div
                   key={team.teamIndex}
-                  className="min-w-[220px] flex-1 rounded-xl border border-[#30363d] bg-[#161b22] p-4"
+                  className="min-w-[220px] flex-1 rounded-xl border border-hq-border bg-hq-surface p-4"
                 >
                   <div className="mb-3 flex items-center justify-between">
-                    <span className="text-sm font-semibold text-[#e6edf3]">
+                    <span className="text-sm font-semibold text-hq-fg">
                       {t("teamBuilder.teamLabel", { index: team.teamIndex })}
                     </span>
-                    <span className="font-mono text-xs text-[#8b949e]">
+                    <span className="font-mono text-xs text-hq-fg-muted">
                       {team.teamTotalHeroPower.toLocaleString()} THP
                     </span>
                   </div>
                   <ul className="space-y-1">
                     <li className="flex items-center gap-2 text-sm">
-                      <span className="rounded bg-[#1f6feb33] px-1.5 py-0.5 text-xs font-medium text-[#58a6ff]">
+                      <span className="rounded bg-[#1f6feb33] px-1.5 py-0.5 text-xs font-medium text-hq-accent">
                         {t("teamBuilder.lead")}
                       </span>
-                      <span className="truncate text-[#e6edf3]">
+                      <span className="truncate text-hq-fg">
                         {team.lead.memberName}
                       </span>
-                      <span className="ml-auto font-mono text-xs text-[#8b949e]">
+                      <span className="ml-auto font-mono text-xs text-hq-fg-muted">
                         {team.lead.totalHeroPower.toLocaleString()}
                       </span>
                     </li>
@@ -154,7 +154,7 @@ export function RosterTeamBuilderSection({ rows }: Props) {
                         <span className="truncate text-[#c9d1d9]">
                           {filler.memberName}
                         </span>
-                        <span className="ml-auto font-mono text-xs text-[#8b949e]">
+                        <span className="ml-auto font-mono text-xs text-hq-fg-muted">
                           {filler.totalHeroPower.toLocaleString()}
                         </span>
                       </li>
@@ -164,7 +164,7 @@ export function RosterTeamBuilderSection({ rows }: Props) {
               ))}
             </div>
           ) : (
-            <p className="text-sm text-[#f85149]">
+            <p className="text-sm text-hq-danger">
               {t("teamBuilder.insufficient", {
                 needed: teamsResult.needed,
                 have: teamsResult.have,

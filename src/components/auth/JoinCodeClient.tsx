@@ -91,13 +91,13 @@ export function JoinCodeClient({
       className={
         embedded
           ? "space-y-4"
-          : "mx-auto max-w-md space-y-4 rounded-xl border border-[#30363d] bg-[#161b22] p-6"
+          : "mx-auto max-w-md space-y-4 rounded-xl border border-hq-border bg-hq-surface p-6"
       }
     >
       {showBackLink ? (
         <Link
           href="/get-started"
-          className="mb-2 flex items-center gap-1 self-start text-xs text-[#8b949e] transition-colors hover:text-[#e6edf3]"
+          className="mb-2 flex items-center gap-1 self-start text-xs text-hq-fg-muted transition-colors hover:text-hq-fg"
         >
           <ArrowLeft className="h-3 w-3" aria-hidden />
           {t("backToGetStarted")}
@@ -107,7 +107,7 @@ export function JoinCodeClient({
       {showHeader ? (
         <>
           <h1 className="text-xl font-semibold">{t("title")}</h1>
-          <p className="text-sm text-[#8b949e]">{t("body")}</p>
+          <p className="text-sm text-hq-fg-muted">{t("body")}</p>
         </>
       ) : null}
 
@@ -121,7 +121,7 @@ export function JoinCodeClient({
         <div className="space-y-2">
           <label
             htmlFor="join-code-input"
-            className="block text-sm text-[#8b949e]"
+            className="block text-sm text-hq-fg-muted"
           >
             {t("code")}
           </label>
@@ -135,12 +135,12 @@ export function JoinCodeClient({
           />
         </div>
 
-        {error ? <p className="text-sm text-[#f85149]">{error}</p> : null}
+        {error ? <p className="text-sm text-hq-danger">{error}</p> : null}
 
         <button
           type="submit"
           disabled={submitting}
-          className="w-full rounded-lg border border-[#238636] bg-[#238636] px-4 py-2 text-sm text-white disabled:opacity-50"
+          className="w-full rounded-lg border border-hq-success bg-hq-success px-4 py-2 text-sm text-white disabled:opacity-50"
         >
           {submitting ? t("redeeming") : t("redeem")}
         </button>

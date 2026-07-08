@@ -5,8 +5,10 @@ import {
   type DiscordBotLocale,
   type DiscordTranslate,
 } from "@/lib/discord/i18n";
+import { createDiscordAuthNonce } from "@/lib/vr/auth-nonce";
 import { lookupPlayerByUid } from "@/lib/lastwar/player-lookup";
 import type { LastWarPlayerLookupResult } from "@/lib/lastwar/player-lookup";
+import { syncCommanderIdentityFromMemberLink } from "@/lib/members/commander-identity.server";
 import { syncAllianceMemberGameLevelFromLastWar } from "@/lib/lastwar/sync-member-game-level.server";
 import { peerMaxExcludingMember } from "@/lib/vr/anomaly";
 import { MAX_DISCORD_LINKS_PER_USER } from "@/lib/vr/constants";
@@ -23,6 +25,7 @@ import {
 import { ensureDiscordMemberLinksFromHq } from "@/lib/member-link/inherit-hq-to-discord.server";
 import { tryPreApprovedMemberLink } from "@/lib/member-link/preapproved-link.server";
 import { createDiscordRosterMissLinkRequest } from "@/lib/member-link/roster-link-request.server";
+import { trySelfServiceMemberLink } from "@/lib/member-link/self-service-onboarding.server";
 import {
   loadAllianceMembersForBot,
   loadAllianceMembersForMemberLinkWithLiveRetry,
@@ -83,12 +86,13 @@ export { handleDiscordVrReport } from "@/lib/vr/bot-vr-report";
 export { resolveDiscordAllianceId, resolveAllianceForGuild } from "@/lib/vr/repository";
 
 async function audit(
-  allianceId: string,
+  allianceId: string | null,
   discordUserId: string,
   command: string,
   payload: unknown,
   result: unknown,
 ) {
+  if (!allianceId) return;
   try {
     await writeDiscordBotAudit({
       allianceId,
@@ -394,6 +398,146 @@ async function finalizeDiscordMemberLink(input: {
   let rosterLinkRequestCreated: boolean | null = null;
   if (resolvedResult.needsOfficerAttention) {
     const hqLink = await getDiscordHqLink(input.discordUserId);
+    const selfService = await trySelfServiceMemberLink({
+      allianceId: input.allianceId,
+      hqUserId: hqLink?.hqUserId ?? null,
+      discordUserId: input.discordUserId,
+      discordUsername: input.discordUsername,
+      gameUid: uid,
+      lookup: input.lookup,
+      members: finalRosterMembers,
+      linkedMemberIds,
+      origin: "discord",
+      gameServerNumber: input.lookup.gameServerNumber,
+      persistLink: async (target) => {
+        const linked = await linkDiscordMember({
+          allianceId: input.allianceId,
+          discordUserId: input.discordUserId,
+          discordUsername: input.discordUsername,
+          ashedMemberId: target.ashedMemberId,
+          memberDisplayName: target.memberDisplayName,
+          gameUid: target.gameUid,
+          replaceAll: input.replaceAll,
+        });
+        if (!linked.ok) {
+          return { ok: false as const, reason: "member_taken" as const };
+        }
+        if (target.gameUserLevel != null) {
+          try {
+            await syncAllianceMemberGameLevelFromLastWar({
+              allianceId: input.allianceId,
+              ashedMemberId: target.ashedMemberId,
+              gameUserLevel: target.gameUserLevel,
+            });
+          } catch (error) {
+            console.error("[discord-bot] member level sync failed", error);
+          }
+        }
+        try {
+          await maybeClaimNativeOwnerFromDiscordLink({
+            allianceId: input.allianceId,
+            ashedMemberId: target.ashedMemberId,
+          });
+        } catch (error) {
+          console.error("[discord-bot] native owner claim failed", error);
+        }
+        if (hqLink?.hqUserId) {
+          try {
+            await syncCommanderIdentityFromMemberLink({
+              allianceId: input.allianceId,
+              ashedMemberId: target.ashedMemberId,
+              hqUserId: hqLink.hqUserId,
+              gameUid: target.gameUid,
+              memberDisplayName: target.memberDisplayName,
+            });
+          } catch (error) {
+            console.error("[discord-bot] commander identity sync failed", error);
+          }
+        }
+        return { ok: true as const };
+      },
+    });
+
+    if (selfService.ok) {
+      await saveDiscordBotPending(input.allianceId, input.discordUserId, null);
+      const replyKey = selfService.reviewCreated
+        ? hqLink?.hqUserId
+          ? "link.linkedWithReview"
+          : "link.linkedWithReviewNoHq"
+        : "link.linked";
+      const result: LinkCommandResult = {
+        reply: translate(replyKey, { name: selfService.memberDisplayName }),
+        pending: null,
+        linked: true,
+        linkTarget: {
+          ashedMemberId: selfService.ashedMemberId,
+          memberDisplayName: selfService.memberDisplayName,
+          gameUid: uid,
+          ...(input.lookup.gameUserLevel != null
+            ? { gameUserLevel: input.lookup.gameUserLevel }
+            : {}),
+        },
+      };
+      await audit(
+        input.allianceId,
+        input.discordUserId,
+        input.auditAction ?? "link",
+        input,
+        {
+          ...result,
+          selfService: true,
+          reviewCreated: selfService.reviewCreated,
+          diagnostics: linkDiagnostics,
+        },
+      );
+      return result;
+    }
+
+    if (selfService.reason === "wrong_server") {
+      await saveDiscordBotPending(input.allianceId, input.discordUserId, null);
+      resolvedResult = {
+        ...resolvedResult,
+        reply: translate("helpTopics.wrongServer.body"),
+        pending: null,
+        needsOfficerAttention: false,
+        wrongServer: true,
+      };
+      await audit(
+        input.allianceId,
+        input.discordUserId,
+        input.auditAction ?? "link",
+        input,
+        {
+          ...resolvedResult,
+          selfService: false,
+          diagnostics: linkDiagnostics,
+        },
+      );
+      return resolvedResult;
+    }
+
+    if (selfService.reason === "member_taken") {
+      await saveDiscordBotPending(input.allianceId, input.discordUserId, null);
+      resolvedResult = {
+        ...resolvedResult,
+        reply: translate("link.memberTaken"),
+        pending: null,
+        memberTaken: true,
+      };
+      await audit(
+        input.allianceId,
+        input.discordUserId,
+        input.auditAction ?? "link",
+        input,
+        {
+          ...resolvedResult,
+          selfService: false,
+          diagnostics: linkDiagnostics,
+        },
+      );
+      return resolvedResult;
+    }
+
     const suggestion = findUniqueSubstringRosterCandidate(
       finalRosterMembers,
       gameUserName,
@@ -415,12 +559,16 @@ async function finalizeDiscordMemberLink(input: {
     });
     if (requestId) {
       rosterLinkRequestCreated = true;
+      const rosterFull = selfService.reason === "roster_full";
       resolvedResult = {
         ...resolvedResult,
         reply: translate(
-          hqLink?.hqUserId
-            ? "link.awaitingOfficerResolve"
-            : "link.awaitingOfficerResolveNoHq",
+          rosterFull
+            ? "link.rosterFull"
+            : hqLink?.hqUserId
+              ? "link.awaitingOfficerResolve"
+              : "link.awaitingOfficerResolveNoHq",
+          rosterFull ? { gameName: gameUserName } : undefined,
         ),
       };
     } else {
@@ -446,8 +594,32 @@ async function finalizeDiscordMemberLink(input: {
   return resolvedResult;
 }
 
+async function issueDiscordMemberLinkPrompt(input: {
+  allianceId: string | null;
+  guildId?: string | null;
+  discordUserId: string;
+  replaceAll?: boolean;
+  locale: DiscordBotLocale;
+}): Promise<LinkCommandResult> {
+  const { translate } = botContext(input.locale);
+  const nonce = await createDiscordAuthNonce({
+    discordUserId: input.discordUserId,
+    guildId: input.guildId ?? null,
+    purpose: "member_link",
+    memberLinkReplaceAll: input.replaceAll,
+  });
+  const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "").replace(/\/$/, "");
+  const url = `${appUrl}/discord/link-commander?nonce=${nonce}`;
+  const result: LinkCommandResult = {
+    reply: translate("link.commanderPrompt", { url }),
+    pending: null,
+  };
+  await audit(input.allianceId, input.discordUserId, "link", input, result);
+  return result;
+}
+
 export async function handleDiscordLinkCommanderSlash(input: {
-  allianceId: string;
+  allianceId: string | null;
   guildId?: string | null;
   discordUserId: string;
   discordUsername?: string;
@@ -462,6 +634,9 @@ export async function handleDiscordLinkCommanderSlash(input: {
   const uid = input.gameUid?.trim();
 
   if (pending?.kind === "link_walkthrough" && !uid) {
+    if (!input.allianceId) {
+      return issueDiscordMemberLinkPrompt(input);
+    }
     const result = processLinkCommand({
       reportedName: "",
       gameUid: "",
@@ -479,8 +654,12 @@ export async function handleDiscordLinkCommanderSlash(input: {
   }
 
   if (!uid) {
+    return issueDiscordMemberLinkPrompt(input);
+  }
+
+  if (!input.allianceId) {
     const result: LinkCommandResult = {
-      reply: translate("link.usage"),
+      reply: translate("errors.waitForGuildRegistration"),
       pending: null,
     };
     await audit(input.allianceId, input.discordUserId, "link", input, result);

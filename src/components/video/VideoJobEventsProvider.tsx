@@ -72,7 +72,7 @@ function VideoJobCompletionBanners({
   }
 
   return (
-    <div className="space-y-0 border-b border-[#30363d]">
+    <div className="space-y-0 border-b border-hq-border">
       {banners.map((banner) => {
         const isFailed = banner.kind === "failed";
         const fileLabel = banner.fileName ?? banner.jobId;
@@ -82,8 +82,8 @@ function VideoJobCompletionBanners({
             key={`${banner.jobId}:${banner.kind}`}
             className={`flex flex-wrap items-center justify-between gap-3 px-6 py-3 text-sm ${
               isFailed
-                ? "border-[#f85149]/40 bg-[#f8514915] text-[#f85149]"
-                : "border-[#238636]/40 bg-[#23863615] text-[#e6edf3]"
+                ? "border-hq-danger/40 bg-[#f8514915] text-hq-danger"
+                : "border-hq-success/40 bg-[#23863615] text-hq-fg"
             }`}
           >
             <p>
@@ -101,14 +101,14 @@ function VideoJobCompletionBanners({
               {isFailed ? (
                 <Link
                   href="/tools/video-upload"
-                  className="font-medium text-[#58a6ff] hover:underline"
+                  className="font-medium text-hq-accent hover:underline"
                 >
                   {t("failedBannerCta")}
                 </Link>
               ) : (
                 <Link
                   href={reviewPathForJob(banner.jobId)}
-                  className="font-medium text-[#3fb950] hover:underline"
+                  className="font-medium text-hq-green hover:underline"
                 >
                   {t("readyBannerCta")}
                 </Link>
@@ -116,7 +116,7 @@ function VideoJobCompletionBanners({
               <button
                 type="button"
                 onClick={() => onDismiss(banner.jobId)}
-                className="text-[#8b949e] hover:text-[#e6edf3]"
+                className="text-hq-fg-muted hover:text-hq-fg"
               >
                 {t("dismiss")}
               </button>

@@ -7,6 +7,7 @@ import { nanoid } from "nanoid";
 
 import { normalizeAshedEmail } from "@/lib/alliance/accessible";
 import { getDb, schema } from "@/lib/db";
+import { assertEmailSignInAllowed } from "@/lib/auth/email-sign-in-restriction.server";
 import {
   PRODUCTION_EMAIL_FROM,
   RESEND_DEV_EMAIL_FROM,
@@ -109,6 +110,8 @@ export async function issueAuthEmailCode(rawEmail: string): Promise<void> {
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     throw new AuthEmailCodeError("Invalid email.", "invalid_email");
   }
+
+  await assertEmailSignInAllowed(email);
 
   if (
     process.env.E2E_TEST === "true" &&

@@ -160,7 +160,7 @@ export function AshedShell({
             showVideoQueue={showVideoQueue}
             onOpenMobileNav={openMobileNav}
           >
-          <div className="flex min-h-screen min-h-[100dvh] overflow-x-clip bg-[#0d1117] text-[#e6edf3]">
+          <div className="flex min-h-screen min-h-[100dvh] overflow-x-clip bg-hq-canvas text-hq-fg">
           <div
             className={cn(
               "fixed inset-0 z-40 bg-black/60 transition-opacity duration-300 ease-out lg:hidden",
@@ -174,7 +174,7 @@ export function AshedShell({
 
           <aside
             className={cn(
-              "fixed inset-y-0 left-0 z-50 flex h-screen max-h-[100dvh] w-full max-w-[min(100vw,20rem)] flex-col border-r border-[#30363d] bg-[#161b22] transition-transform duration-300 ease-out lg:sticky lg:top-0 lg:z-auto lg:w-60 lg:max-w-none lg:shrink-0 lg:self-start lg:translate-x-0",
+              "fixed inset-y-0 left-0 z-50 flex h-screen max-h-[100dvh] w-full max-w-[min(100vw,20rem)] flex-col border-r border-hq-border bg-hq-surface transition-transform duration-300 ease-out lg:sticky lg:top-0 lg:z-auto lg:w-60 lg:max-w-none lg:shrink-0 lg:self-start lg:translate-x-0",
               mobileNavOpen
                 ? "translate-x-0"
                 : "-translate-x-full max-lg:pointer-events-none",
@@ -200,10 +200,10 @@ export function AshedShell({
           </aside>
 
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-            <header className="sticky top-0 z-30 flex min-h-[3.25rem] shrink-0 items-center gap-3 border-b border-[#30363d] bg-[#161b22] px-4 py-2 md:px-6 md:py-3">
+            <header className="sticky top-0 z-30 flex min-h-[3.25rem] shrink-0 items-center gap-3 border-b border-hq-border bg-hq-surface px-4 py-2 md:px-6 md:py-3">
               <button
                 type="button"
-                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[#30363d] text-[#e6edf3] transition-colors hover:bg-[#21262d] lg:hidden"
+                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-hq-border text-hq-fg transition-colors hover:bg-hq-surface-muted lg:hidden"
                 onClick={openMobileNav}
                 aria-label={t("openMenu")}
                 aria-expanded={mobileNavOpen}
@@ -212,7 +212,7 @@ export function AshedShell({
                 <Menu className="h-5 w-5" aria-hidden />
               </button>
 
-              <div className="min-w-0 flex-1 truncate text-sm text-[#8b949e]">
+              <div className="min-w-0 flex-1 truncate text-sm text-hq-fg-muted">
                 {showSignedInChrome ? (
                   <span className="hidden sm:inline">
                     {isNativeAlliance

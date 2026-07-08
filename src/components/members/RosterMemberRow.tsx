@@ -46,9 +46,9 @@ function memberStatusBadgeClass(status?: string): string {
   const base =
     "inline-flex min-w-[5.5rem] items-center justify-center rounded-full px-2.5 py-0.5 text-xs font-medium";
   if (status === "former") {
-    return `${base} bg-[#30363d] text-[#8b949e] ring-1 ring-[#484f58]`;
+    return `${base} bg-hq-border text-hq-fg-muted ring-1 ring-[#484f58]`;
   }
-  return `${base} bg-[#23863633] text-[#3fb950] ring-1 ring-[#23863666]`;
+  return `${base} bg-[#23863633] text-hq-green ring-1 ring-[#23863666]`;
 }
 
 type SquadEditProps = {
@@ -99,8 +99,8 @@ export function RosterMemberRow({
   );
 
   const rowClass = [
-    "border-b border-[#30363d]/60 last:border-0",
-    editMode ? "cursor-pointer" : "hover:bg-[#161b22]/80",
+    "border-b border-hq-border/60 last:border-0",
+    editMode ? "cursor-pointer" : "hover:bg-hq-surface/80",
     selected ? "bg-[#388bfd]/15 ring-1 ring-inset ring-[#388bfd]/35" : "",
   ]
     .filter(Boolean)
@@ -113,7 +113,7 @@ export function RosterMemberRow({
       onChange={onToggleSelect}
       onClick={(event) => event.stopPropagation()}
       aria-label={tMembers("selectMember", { name: member.current_name })}
-      className="size-4 shrink-0 rounded border-[#484f58] bg-[#0d1117] accent-[#388bfd]"
+      className="size-4 shrink-0 rounded border-[#484f58] bg-hq-canvas accent-[#388bfd]"
     />
   ) : null;
 
@@ -122,7 +122,7 @@ export function RosterMemberRow({
   ) : (
     <Link
       href={`/members/${member.id}`}
-      className="text-[#58a6ff] hover:underline"
+      className="text-hq-accent hover:underline"
     >
       {member.current_name}
     </Link>
@@ -153,7 +153,7 @@ export function RosterMemberRow({
                 {tCommanders("sourceOfficer")}
               </span>
             ) : commander.mainSquadSource === "self_report" ? (
-              <span className="ml-1 text-xs text-[#3fb950]">
+              <span className="ml-1 text-xs text-hq-green">
                 {tCommanders("sourceSelf")}
               </span>
             ) : null}
@@ -202,7 +202,7 @@ export function RosterMemberRow({
                 )
               }
               disabled={squadEdit.isSaving}
-              className="rounded-md border border-[#30363d] bg-[#161b22] px-2 py-1 text-xs text-[#e6edf3] disabled:opacity-50"
+              className="rounded-md border border-hq-border bg-hq-surface px-2 py-1 text-xs text-hq-fg disabled:opacity-50"
             >
               <option value="">{tCommanders("squadNone")}</option>
               {MAIN_SQUAD_TYPES.map((squad) => (
@@ -216,7 +216,7 @@ export function RosterMemberRow({
               <button
                 type="submit"
                 disabled={squadEdit.isSaving}
-                className="rounded-md bg-[#238636] px-2 py-1 text-xs font-medium text-white disabled:opacity-50"
+                className="rounded-md bg-hq-success px-2 py-1 text-xs font-medium text-white disabled:opacity-50"
               >
                 {squadEdit.isSaving
                   ? tCommanders("saving")
@@ -224,7 +224,7 @@ export function RosterMemberRow({
               </button>
             ) : null}
             {squadEdit.saveError ? (
-              <span className="text-xs text-[#f85149]">{squadEdit.saveError}</span>
+              <span className="text-xs text-hq-danger">{squadEdit.saveError}</span>
             ) : null}
           </form>
         );
@@ -259,9 +259,9 @@ export function RosterMemberRow({
             {mobileFields.map((columnId) => (
               <div
                 key={columnId}
-                className="text-xs text-[#8b949e] wrap-break-word"
+                className="text-xs text-hq-fg-muted wrap-break-word"
               >
-                <span className="font-medium text-[#6e7681]">
+                <span className="font-medium text-hq-fg-subtle">
                   {tMembers(`rosterColumns.col.${columnId}`)}:{" "}
                 </span>
                 {renderCell(columnId)}
@@ -282,7 +282,7 @@ export function RosterMemberRow({
               ? "text-center"
               : columnId === "name"
                 ? "font-medium"
-                : "text-[#8b949e]"
+                : "text-hq-fg-muted"
           } ${columnId === "previousNames" ? "wrap-break-word" : ""}`}
         >
           {columnId === "name" ? (

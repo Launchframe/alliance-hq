@@ -7,8 +7,8 @@ export default function manifest(): MetadataRoute.Manifest {
     description: "Alliance tools for Last War — built on ashed.online.",
     start_url: "/",
     display: "standalone",
-    background_color: "#161b22",
-    theme_color: "#0d1117",
+    background_color: "#ffffff",
+    theme_color: "#ffffff",
     icons: [
       {
         src: "/brand/hq-icon-app.svg",

@@ -155,9 +155,9 @@ function WeekScheduleDayCell({
   const vipName = record?.vipMemberName;
 
   const ringClass = showDetail
-    ? "ring-2 ring-[#58a6ff] ring-offset-1 ring-offset-[#0d1117]"
+    ? "ring-2 ring-hq-accent ring-offset-1 ring-offset-hq-canvas"
     : isToday
-      ? "ring-1 ring-[#58a6ff]/50 ring-offset-1 ring-offset-[#0d1117]"
+      ? "ring-1 ring-hq-accent/50 ring-offset-1 ring-offset-hq-canvas"
       : "";
 
   const cellInner = (
@@ -190,21 +190,21 @@ function WeekScheduleDayCell({
             {conductorName ? (
               <div
                 className={`truncate text-[11px] font-bold leading-tight ${
-                  locked ? "text-white" : "text-[#8b949e]"
+                  locked ? "text-white" : "text-hq-fg-muted"
                 }`}
                 title={conductorName}
               >
                 {conductorName}
               </div>
             ) : (
-              <div className="truncate text-[10px] italic leading-tight text-[#8b949e]">
+              <div className="truncate text-[10px] italic leading-tight text-hq-fg-muted">
                 —
               </div>
             )}
             {vipName ? (
               <div
                 className={`truncate text-[9px] font-medium leading-tight ${
-                  locked ? "opacity-95" : "text-[#6e7681]"
+                  locked ? "opacity-95" : "text-hq-fg-subtle"
                 }`}
                 title={vipName}
               >
@@ -463,7 +463,7 @@ function WeekScheduleInfiniteDayCarousel({
   return (
     <div className={`flex flex-col gap-2 ${bootstrapping ? "opacity-50" : ""}`}>
       <div
-        className="relative touch-none select-none overflow-hidden rounded-xl border border-[#30363d] bg-[#0d1117]/40"
+        className="relative touch-none select-none overflow-hidden rounded-xl border border-hq-border bg-hq-canvas/40"
         style={{ height: `${WEEK_CAROUSEL_VIEWPORT_HEIGHT_PX}px` }}
       >
         <div
@@ -480,7 +480,7 @@ function WeekScheduleInfiniteDayCarousel({
           type="button"
           onClick={() => navigateByCalendarDay(-1)}
           aria-label={navLabels.previousDay ?? "Previous day"}
-          className="rounded px-2 py-1 text-xs text-[#8b949e] hover:text-[#e6edf3]"
+          className="rounded px-2 py-1 text-xs text-hq-fg-muted hover:text-hq-fg"
         >
           <ChevronLeft className="h-4 w-4" aria-hidden />
         </button>
@@ -488,7 +488,7 @@ function WeekScheduleInfiniteDayCarousel({
           type="button"
           onClick={() => navigateByCalendarDay(1)}
           aria-label={navLabels.nextDay ?? "Next day"}
-          className="rounded px-2 py-1 text-xs text-[#8b949e] hover:text-[#e6edf3]"
+          className="rounded px-2 py-1 text-xs text-hq-fg-muted hover:text-hq-fg"
         >
           <ChevronRight className="h-4 w-4" aria-hidden />
         </button>
@@ -683,7 +683,7 @@ export function WeekScheduleStrip({
 
   return (
     <div className="flex flex-col gap-2">
-      <p className="text-center text-xs font-medium tabular-nums text-[#8b949e] week-schedule-grid:hidden">
+      <p className="text-center text-xs font-medium tabular-nums text-hq-fg-muted week-schedule-grid:hidden">
         {formatWeekRange(carouselWeekStart, carouselWeekEnd)}
       </p>
 
@@ -693,11 +693,11 @@ export function WeekScheduleStrip({
           onClick={() => shiftWeek(-1)}
           disabled={loading}
           aria-label={navLabels.previousWeek}
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[#30363d] text-[#e6edf3] hover:bg-[#0d1117] disabled:opacity-50"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-hq-border text-hq-fg hover:bg-hq-canvas disabled:opacity-50"
         >
           <ChevronLeft className="h-4 w-4" aria-hidden />
         </button>
-        <span className="min-w-0 truncate text-center text-xs font-medium tabular-nums text-[#8b949e]">
+        <span className="min-w-0 truncate text-center text-xs font-medium tabular-nums text-hq-fg-muted">
           {formatWeekRange(displayPage.weekStart, weekEnd)}
         </span>
         <button
@@ -705,7 +705,7 @@ export function WeekScheduleStrip({
           onClick={() => shiftWeek(1)}
           disabled={loading}
           aria-label={navLabels.nextWeek}
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[#30363d] text-[#e6edf3] hover:bg-[#0d1117] disabled:opacity-50"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-hq-border text-hq-fg hover:bg-hq-canvas disabled:opacity-50"
         >
           <ChevronRight className="h-4 w-4" aria-hidden />
         </button>

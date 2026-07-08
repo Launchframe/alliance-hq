@@ -82,21 +82,21 @@ export function AccountDiscordLinkSection({
   }
 
   return (
-    <section className="rounded-xl border border-[#30363d] bg-[#161b22] p-5">
+    <section className="rounded-xl border border-hq-border bg-hq-surface p-5">
       <h2 className="font-medium">{t("discordSection")}</h2>
-      <p className="mt-2 text-sm text-[#8b949e]">
+      <p className="mt-2 text-sm text-hq-fg-muted">
         {linked ? t("discordLinkedBody") : t("discordUnlinkedBody")}
       </p>
       {successMessage ? (
-        <p className="mt-3 text-sm text-[#3fb950]">{successMessage}</p>
+        <p className="mt-3 text-sm text-hq-green">{successMessage}</p>
       ) : null}
       {errorMessage ? (
-        <p className="mt-3 text-sm text-[#f85149]">{errorMessage}</p>
+        <p className="mt-3 text-sm text-hq-danger">{errorMessage}</p>
       ) : null}
       {messageState ? (
         <p
           className={`mt-3 text-sm ${
-            messageState.type === "success" ? "text-[#3fb950]" : "text-[#f85149]"
+            messageState.type === "success" ? "text-hq-green" : "text-hq-danger"
           }`}
         >
           {messageState.text}
@@ -107,7 +107,7 @@ export function AccountDiscordLinkSection({
           type="button"
           onClick={() => void unlinkDiscord()}
           disabled={busy}
-          className="mt-4 rounded-lg border border-[#f85149] px-4 py-2 text-sm text-[#f85149] hover:bg-[#f8514920] disabled:opacity-50"
+          className="mt-4 rounded-lg border border-hq-danger px-4 py-2 text-sm text-hq-danger hover:bg-[#f8514920] disabled:opacity-50"
         >
           {busy ? t("discordUnlinking") : t("discordUnlinkButton")}
         </button>
@@ -116,7 +116,7 @@ export function AccountDiscordLinkSection({
           type="button"
           onClick={() => void linkDiscord()}
           disabled={busy || !discordAvailable}
-          className="mt-4 rounded-lg border border-[#5865F2] bg-[#5865F2] px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+          className="mt-4 rounded-lg border border-hq-discord bg-hq-discord px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
         >
           {busy ? t("discordLinking") : t("discordLinkButton")}
         </button>

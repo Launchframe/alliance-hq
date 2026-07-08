@@ -4,6 +4,7 @@ import { nanoid } from "nanoid";
 
 import { getDb, schema } from "@/lib/db";
 import type { DiscordAuthNoncePurpose } from "@/lib/vr/discord-guild-registration";
+import { DISCORD_MEMBER_LINK_TAG } from "@/lib/vr/discord-member-link-nonce.shared";
 
 const NONCE_TTL_MS = 30 * 60 * 1000; // 30 minutes
 
@@ -15,16 +16,24 @@ export async function createDiscordAuthNonce(input: {
   guildId: string | null;
   tag?: string;
   purpose?: DiscordAuthNoncePurpose;
+  /** When purpose is `member_link`, encodes replace-all on the stored tag row. */
+  memberLinkReplaceAll?: boolean;
 }): Promise<string> {
   const db = getDb();
   const nonce = randomBytes(24).toString("hex");
   const now = new Date();
   const expiresAt = new Date(now.getTime() + NONCE_TTL_MS);
   const purpose = input.purpose ?? "alliance_credentials";
-  const tag =
-    purpose === "user_link"
-      ? DISCORD_USER_LINK_TAG
-      : input.tag?.trim().toLowerCase() ?? "";
+  let tag: string;
+  if (purpose === "user_link") {
+    tag = DISCORD_USER_LINK_TAG;
+  } else if (purpose === "member_link") {
+    tag = input.memberLinkReplaceAll
+      ? `${DISCORD_MEMBER_LINK_TAG}:replace`
+      : DISCORD_MEMBER_LINK_TAG;
+  } else {
+    tag = input.tag?.trim().toLowerCase() ?? "";
+  }
 
   if (purpose === "alliance_credentials" && !tag) {
     throw new Error("Alliance credential nonces require a tag.");

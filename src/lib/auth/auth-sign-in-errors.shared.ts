@@ -1,5 +1,6 @@
 export type AuthSignInErrorMessageKey =
   | "errorOAuthAccountNotLinked"
+  | "errorOAuthSignInRequired"
   | "errorConfiguration"
   | "errorCredentials"
   | "errorGeneric";
@@ -15,6 +16,8 @@ export function mapAuthSignInErrorCode(
   switch (code) {
     case "OAuthAccountNotLinked":
       return "errorOAuthAccountNotLinked";
+    case "OAuthSignInRequired":
+      return "errorOAuthSignInRequired";
     case "Configuration":
       return "errorConfiguration";
     case "CredentialsSignin":
@@ -26,4 +29,8 @@ export function mapAuthSignInErrorCode(
 
 export function isOAuthAccountNotLinkedError(error: string | undefined): boolean {
   return error?.trim() === "OAuthAccountNotLinked";
+}
+
+export function isOAuthSignInRequiredError(error: string | undefined): boolean {
+  return error?.trim() === "OAuthSignInRequired";
 }

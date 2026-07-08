@@ -90,14 +90,14 @@ export function AllianceVrSandboxSettings({ allianceTag }: Props) {
   };
 
   return (
-    <section className="rounded-xl border border-[#30363d] bg-[#161b22] p-4">
-      <h2 className="text-lg font-semibold text-[#e6edf3]">{t("title")}</h2>
-      <p className="mt-1 text-sm text-[#8b949e]">{t("description")}</p>
+    <section className="rounded-xl border border-hq-border bg-hq-surface p-4">
+      <h2 className="text-lg font-semibold text-hq-fg">{t("title")}</h2>
+      <p className="mt-1 text-sm text-hq-fg-muted">{t("description")}</p>
 
       {loading ? (
-        <p className="mt-4 text-sm text-[#8b949e]">{t("loading")}</p>
+        <p className="mt-4 text-sm text-hq-fg-muted">{t("loading")}</p>
       ) : error ? (
-        <p className="mt-4 text-sm text-[#f85149]">{error}</p>
+        <p className="mt-4 text-sm text-hq-danger">{error}</p>
       ) : display ? (
         <div className="mt-4 space-y-3">
           <label className="flex items-start gap-3">
@@ -108,7 +108,7 @@ export function AllianceVrSandboxSettings({ allianceTag }: Props) {
               disabled={!display.canManage || busy}
               onChange={(e) => onToggle(e.target.checked)}
             />
-            <span className="min-w-0 text-sm text-[#e6edf3]">
+            <span className="min-w-0 text-sm text-hq-fg">
               {t("enabledLabel")}
             </span>
           </label>
@@ -116,17 +116,17 @@ export function AllianceVrSandboxSettings({ allianceTag }: Props) {
             <p className="text-sm text-[#d29922]">{t("activeNotice")}</p>
           ) : null}
           {!display.canManage ? (
-            <p className="text-xs text-[#8b949e]">{t("readOnlyHint")}</p>
+            <p className="text-xs text-hq-fg-muted">{t("readOnlyHint")}</p>
           ) : null}
           {confirmDisable ? (
-            <div className="rounded-lg border border-[#f85149]/40 bg-[#0d1117] p-3">
-              <p className="text-sm text-[#e6edf3]">{t("disableConfirmBody")}</p>
+            <div className="rounded-lg border border-hq-danger/40 bg-hq-canvas p-3">
+              <p className="text-sm text-hq-fg">{t("disableConfirmBody")}</p>
               <div className="mt-3 flex flex-wrap gap-2">
                 <button
                   type="button"
                   disabled={busy}
                   onClick={() => void applyEnabled(false)}
-                  className="rounded-lg border border-[#f85149] px-3 py-1.5 text-sm text-[#f85149] hover:bg-[#f8514920] disabled:opacity-50"
+                  className="rounded-lg border border-hq-danger px-3 py-1.5 text-sm text-hq-danger hover:bg-[#f8514920] disabled:opacity-50"
                 >
                   {t("disableConfirmAction")}
                 </button>
@@ -134,7 +134,7 @@ export function AllianceVrSandboxSettings({ allianceTag }: Props) {
                   type="button"
                   disabled={busy}
                   onClick={() => setConfirmDisable(false)}
-                  className="rounded-lg border border-[#30363d] px-3 py-1.5 text-sm text-[#8b949e] hover:text-[#e6edf3] disabled:opacity-50"
+                  className="rounded-lg border border-hq-border px-3 py-1.5 text-sm text-hq-fg-muted hover:text-hq-fg disabled:opacity-50"
                 >
                   {t("disableCancel")}
                 </button>

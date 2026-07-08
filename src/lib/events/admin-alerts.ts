@@ -32,7 +32,8 @@ export type MemberLinkClaimConflictAlert = {
     | "name_collision"
     | "commander_taken"
     | "server_mismatch"
-    | "target_mismatch";
+    | "target_mismatch"
+    | "discord_hq_unlinked";
   updatedAt: string;
 };
 

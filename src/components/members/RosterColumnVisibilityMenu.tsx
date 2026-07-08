@@ -37,16 +37,16 @@ export function RosterColumnVisibilityMenu({ visibility, onToggle }: Props) {
         aria-expanded={open}
         aria-haspopup="true"
         onClick={() => setOpen((value) => !value)}
-        className="w-full rounded-lg border border-[#30363d] bg-[#21262d] px-4 py-2 text-sm hover:bg-[#30363d] sm:w-auto"
+        className="w-full rounded-lg border border-hq-border bg-hq-surface-muted px-4 py-2 text-sm hover:bg-hq-border sm:w-auto"
       >
         {t("menuLabel")}
       </button>
       {open ? (
         <div
           role="menu"
-          className="absolute right-0 z-20 mt-2 min-w-[14rem] rounded-xl border border-[#30363d] bg-[#161b22] p-3 shadow-lg"
+          className="absolute right-0 z-20 mt-2 min-w-[14rem] rounded-xl border border-hq-border bg-hq-surface p-3 shadow-lg"
         >
-          <p className="mb-2 text-xs font-medium uppercase tracking-wide text-[#8b949e]">
+          <p className="mb-2 text-xs font-medium uppercase tracking-wide text-hq-fg-muted">
             {t("menuTitle")}
           </p>
           <ul className="space-y-2">
@@ -54,7 +54,7 @@ export function RosterColumnVisibilityMenu({ visibility, onToggle }: Props) {
               const locked = rosterColumnAlwaysVisible(columnId);
               return (
                 <li key={columnId}>
-                  <label className="flex items-center gap-2 text-sm text-[#e6edf3]">
+                  <label className="flex items-center gap-2 text-sm text-hq-fg">
                     <input
                       type="checkbox"
                       checked={visibility[columnId]}
@@ -63,7 +63,7 @@ export function RosterColumnVisibilityMenu({ visibility, onToggle }: Props) {
                         onToggle(columnId, event.target.checked)
                       }
                     />
-                    <span className={locked ? "text-[#8b949e]" : undefined}>
+                    <span className={locked ? "text-hq-fg-muted" : undefined}>
                       {t(`col.${columnId}`)}
                     </span>
                   </label>

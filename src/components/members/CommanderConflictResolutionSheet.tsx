@@ -173,7 +173,7 @@ export function CommanderConflictResolutionSheet({
           void saveAll();
         }}
       >
-        <p className="text-sm text-[#8b949e]">{t("description")}</p>
+        <p className="text-sm text-hq-fg-muted">{t("description")}</p>
 
         <ul className="space-y-3">
           {rows.map((row, index) => {
@@ -184,25 +184,25 @@ export function CommanderConflictResolutionSheet({
                 key={row.ashedMemberId}
                 className={`rounded-lg border p-3 ${
                   hasBatchConflict
-                    ? "border-[#f85149] bg-[#f8514911]"
-                    : "border-[#30363d]"
+                    ? "border-hq-danger bg-[#f8514911]"
+                    : "border-hq-border"
                 }`}
               >
                 {row.existingMemberName ? (
-                  <p className="mb-2 text-xs text-[#f85149]">
+                  <p className="mb-2 text-xs text-hq-danger">
                     {t("takenBy", { name: row.existingMemberName })}
                   </p>
                 ) : null}
-                <label className="block text-xs text-[#8b949e]">{t("nameLabel")}</label>
+                <label className="block text-xs text-hq-fg-muted">{t("nameLabel")}</label>
                 <input
                   type="text"
-                  className="mt-1 w-full rounded border border-[#30363d] bg-[#0d1117] px-2 py-1.5 text-sm"
+                  className="mt-1 w-full rounded border border-hq-border bg-hq-canvas px-2 py-1.5 text-sm"
                   value={row.currentName}
                   onChange={(e) => updateRow(row.ashedMemberId, e.target.value)}
                   enterKeyHint={isLastRow ? FORM_SUBMIT_ENTER_KEY_HINT : undefined}
                 />
                 {hasBatchConflict ? (
-                  <p className="mt-1 text-xs text-[#f85149]">
+                  <p className="mt-1 text-xs text-hq-danger">
                     {t("duplicateInBatch", {
                       name: normalizeCommanderName(row.currentName),
                     })}
@@ -213,12 +213,12 @@ export function CommanderConflictResolutionSheet({
           })}
         </ul>
 
-        {error ? <p className="text-sm text-[#f85149]">{error}</p> : null}
+        {error ? <p className="text-sm text-hq-danger">{error}</p> : null}
 
         <div className="flex justify-end gap-2">
           <button
             type="button"
-            className="rounded-lg border border-[#30363d] px-4 py-2 text-sm"
+            className="rounded-lg border border-hq-border px-4 py-2 text-sm"
             onClick={() => handleOpenChange(false)}
             disabled={saving}
           >
@@ -226,7 +226,7 @@ export function CommanderConflictResolutionSheet({
           </button>
           <button
             type="submit"
-            className="rounded-lg bg-[#238636] px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+            className="rounded-lg bg-hq-success px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
             disabled={saving || batchConflicts.length > 0}
           >
             {saving ? t("saving") : t("save")}

@@ -69,6 +69,7 @@ export type LinkCommandResult = {
   memberTaken?: boolean;
   needsIdentityConfirmation?: boolean;
   needsOfficerAttention?: boolean;
+  wrongServer?: boolean;
   linkTarget?: {
     ashedMemberId: string;
     memberDisplayName: string;

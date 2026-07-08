@@ -31,15 +31,6 @@ const vrLevelOption = {
 
 const commanderLinkOptions = [
   {
-    name: "uid",
-    description: "12–16 digit player ID from your in-game profile menu.",
-    description_localizations: {
-      "pt-BR": "ID de jogador (12–16 dígitos) no menu do perfil no jogo.",
-    },
-    type: 3,
-    required: true,
-  },
-  {
     name: "replace",
     description:
       "Replace all your linked commanders with this one (switch main character).",
@@ -114,6 +105,14 @@ const commandBody = [
   },
   {
     name: "immunity",
+    description: "Alias for /vr",
+    description_localizations: {
+      "pt-BR": "Atalho para /vr",
+    },
+    options: [vrLevelOption],
+  },
+  {
+    name: "institute",
     description: "Alias for /vr",
     description_localizations: {
       "pt-BR": "Atalho para /vr",
@@ -317,6 +316,28 @@ const commandBody = [
     description: "Choose bot reply language.",
     description_localizations: {
       "pt-BR": "Escolha o idioma das respostas do bot.",
+    },
+    options: [
+      {
+        name: "locale",
+        description: "Bot language",
+        description_localizations: {
+          "pt-BR": "Idioma do bot",
+        },
+        type: 3,
+        required: true,
+        choices: [
+          { name: "English", value: "English" },
+          { name: "Português (Brasil)", value: "Português" },
+        ],
+      },
+    ],
+  },
+  {
+    name: "linguagem",
+    description: "Alias for /language",
+    description_localizations: {
+      "pt-BR": "Atalho para /language",
     },
     options: [
       {
