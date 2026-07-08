@@ -213,10 +213,17 @@ export async function assessMergeHqUsers(input: {
     .from(schema.hqAuthAccounts)
     .where(eq(schema.hqAuthAccounts.hqUserId, sourceId));
 
+  const [sourceCommanderCount] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(schema.hqUserCommanders)
+    .where(eq(schema.hqUserCommanders.hqUserId, sourceId));
+
   const hasMergeableData =
     sourceMemberships.length > 0 ||
     sourceLinks.length > 0 ||
     sourceDiscord !== null ||
+    source.ashedUserId != null ||
+    (sourceCommanderCount?.count ?? 0) > 0 ||
     (sourceAuthCount?.count ?? 0) > 0 ||
     (await db
       .select({ id: schema.hqInvites.id })
@@ -363,6 +370,38 @@ export async function mergeHqUsersIntoCanonical(input: {
           .update(schema.hqMemberLinks)
           .set({ hqUserId: canonicalId, updatedAt: now })
           .where(eq(schema.hqMemberLinks.id, link.id));
+      }
+    }
+
+    const sourceCommanders = await tx
+      .select({
+        id: schema.hqUserCommanders.id,
+        commanderId: schema.hqUserCommanders.commanderId,
+      })
+      .from(schema.hqUserCommanders)
+      .where(eq(schema.hqUserCommanders.hqUserId, sourceId));
+
+    for (const commander of sourceCommanders) {
+      const [existing] = await tx
+        .select({ id: schema.hqUserCommanders.id })
+        .from(schema.hqUserCommanders)
+        .where(
+          and(
+            eq(schema.hqUserCommanders.hqUserId, canonicalId),
+            eq(schema.hqUserCommanders.commanderId, commander.commanderId),
+          ),
+        )
+        .limit(1);
+
+      if (existing) {
+        await tx
+          .delete(schema.hqUserCommanders)
+          .where(eq(schema.hqUserCommanders.id, commander.id));
+      } else {
+        await tx
+          .update(schema.hqUserCommanders)
+          .set({ hqUserId: canonicalId, updatedAt: now })
+          .where(eq(schema.hqUserCommanders.id, commander.id));
       }
     }
 
@@ -518,6 +557,25 @@ export async function mergeHqUsersIntoCanonical(input: {
           ne(schema.sessions.id, input.sessionId ?? ""),
         ),
       );
+
+    const [canonicalRow] = await tx
+      .select({ ashedUserId: schema.hqUsers.ashedUserId })
+      .from(schema.hqUsers)
+      .where(eq(schema.hqUsers.id, canonicalId))
+      .limit(1);
+
+    const [sourceRow] = await tx
+      .select({ ashedUserId: schema.hqUsers.ashedUserId })
+      .from(schema.hqUsers)
+      .where(eq(schema.hqUsers.id, sourceId))
+      .limit(1);
+
+    if (!canonicalRow?.ashedUserId && sourceRow?.ashedUserId) {
+      await tx
+        .update(schema.hqUsers)
+        .set({ ashedUserId: sourceRow.ashedUserId, updatedAt: now })
+        .where(eq(schema.hqUsers.id, canonicalId));
+    }
 
     await tx.delete(schema.hqUsers).where(eq(schema.hqUsers.id, sourceId));
   });
