@@ -842,6 +842,66 @@ export const memberSeasonVrEvents = pgTable(
   ],
 );
 
+/** Commander-scoped total hero power event history (append-only). */
+export const commanderThpEvents = pgTable(
+  "commander_thp_events",
+  {
+    id: text("id").primaryKey(),
+    commanderId: text("commander_id")
+      .notNull()
+      .references(() => commanders.id, { onDelete: "cascade" }),
+    total: doublePrecision("total").notNull(),
+    breakdown: jsonb("breakdown"),
+    previousTotal: doublePrecision("previous_total"),
+    source: text("source").notNull(),
+    allianceId: text("alliance_id").references(() => alliances.id, {
+      onDelete: "set null",
+    }),
+    reportedByHqUserId: text("reported_by_hq_user_id").references(
+      () => hqUsers.id,
+      { onDelete: "set null" },
+    ),
+    reportedByDiscordUserId: text("reported_by_discord_user_id"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("commander_thp_events_commander_created_idx").on(
+      table.commanderId,
+      table.createdAt,
+    ),
+    index("commander_thp_events_alliance_created_idx").on(
+      table.allianceId,
+      table.createdAt,
+    ),
+  ],
+);
+
+/** Web THP anomaly / OCR confirm pending (parallel to discord_bot_pending). */
+export const hqThpPending = pgTable(
+  "hq_thp_pending",
+  {
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    hqUserId: text("hq_user_id")
+      .notNull()
+      .references(() => hqUsers.id, { onDelete: "cascade" }),
+    pendingJson: jsonb("pending_json").$type<Record<string, unknown>>().notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.allianceId, table.hqUserId],
+      name: "hq_thp_pending_alliance_hq_user_pk",
+    }),
+  ],
+);
+
 /** Web VR anomaly confirm pending (parallel to discord_bot_pending). */
 export const hqVrPending = pgTable(
   "hq_vr_pending",
@@ -1291,6 +1351,9 @@ export const commanders = pgTable(
     powerLevel: text("power_level"),
     currentKills: doublePrecision("current_kills"),
     currentTotalHeroPower: doublePrecision("current_total_hero_power"),
+    /** Latest self-reported or synced THP component breakdown. */
+    currentThpBreakdown: jsonb("current_thp_breakdown"),
+    thpUpdatedAt: timestamp("thp_updated_at", { withTimezone: true }),
     currentSquadPowerJson: jsonb("current_squad_power_json"),
     mainSquad: text("main_squad").$type<
       "aircraft" | "tank" | "missile" | null

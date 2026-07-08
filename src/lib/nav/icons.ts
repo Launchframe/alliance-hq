@@ -25,6 +25,7 @@ import {
   UserCog,
   Users,
   Wallet,
+  Zap,
 } from "lucide-react";
 
 /** Unique lucide icon per sidebar nav page id */
@@ -41,6 +42,7 @@ export const NAV_PAGE_ICONS: Record<string, LucideIcon> = {
   reports: FileText,
   "viral-resistance": Shield,
   "my-vr": Syringe,
+  "my-thp": Zap,
   trains: Train,
   "desert-storm": TreePalm,
   "canyon-storm": Mountain,

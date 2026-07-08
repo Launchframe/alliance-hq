@@ -257,6 +257,8 @@ export async function commitRosterImport(
         allianceId: input.allianceId,
         ashedMemberId: existing.ashedMemberId,
         memberDisplayName: name,
+        thpSource: eventSource,
+        hqUserId: input.hqUserId,
       });
 
       updated += 1;
@@ -315,6 +317,8 @@ export async function commitRosterImport(
       allianceId: input.allianceId,
       ashedMemberId,
       memberDisplayName: name,
+      thpSource: eventSource,
+      hqUserId: input.hqUserId,
     });
     created += 1;
   }

@@ -96,6 +96,11 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
+vi.mock("@/lib/thp/sync-from-member.server", () => ({
+  seedCommanderThpHistoryFromAshed: vi.fn(async () => 0),
+  syncCommanderThpAfterMemberSync: vi.fn(async () => false),
+}));
+
 import {
   linkHqUserToCommander,
   resolveCommanderByUid,
