@@ -116,6 +116,7 @@ export function AllianceSessionSwitcher({
         const data = (await res.json()) as {
           error?: string;
           currentAllianceId?: string;
+          operatingMode?: "ashed" | "native";
           redirectPath?: string;
         };
         if (!res.ok) {
@@ -134,8 +135,20 @@ export function AllianceSessionSwitcher({
         const targetPath = resolveAllianceSwitchTargetPath({
           currentPath: pathname,
           apiRedirectPath: apiRedirect,
+          targetOperatingMode: data.operatingMode ?? null,
         });
-        window.location.assign(getPathname({ href: targetPath, locale }));
+        const localizedTarget = getPathname({ href: targetPath, locale });
+
+        // Same-URL assign can skip a full document load, leaving app-shell nav props stale.
+        if (
+          localizedTarget === window.location.pathname ||
+          targetPath === pathname
+        ) {
+          window.location.reload();
+          return;
+        }
+
+        window.location.assign(localizedTarget);
       } catch (err) {
         setError(err instanceof Error ? err.message : t("switchFailed"));
       } finally {

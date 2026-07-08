@@ -8,6 +8,7 @@ import {
   createAllianceMembership,
   createAshedAlliance,
   createAuthenticatedHqSession,
+  createHqMemberLink,
   createNativeAlliance,
   createPlatformMaintainerSession,
   getE2eSql,
@@ -273,5 +274,59 @@ test.describe("Alliance switcher — session context reset", () => {
       LIMIT 1
     `;
     expect(row?.current_alliance_id).toBe(allianceA.allianceId);
+  });
+
+  test("switching native to Ashed alliance refreshes sidebar embed nav", async ({
+    page,
+  }) => {
+    const sql = getE2eSql();
+    const nativeAlliance = await createNativeAlliance(sql, {
+      tag: `NSW${nanoid(3)}`,
+      name: "Native Switch Source",
+    });
+    const ashedAlliance = await createAshedAlliance(sql, {
+      tag: `ASW${nanoid(3)}`,
+      name: "Ashed Switch Target",
+    });
+    const session = await createAuthenticatedHqSession(sql, uniqueEmail("nav-switch"));
+    await createAllianceMembership(sql, {
+      hqUserId: session.hqUserId,
+      allianceId: nativeAlliance.allianceId,
+      roleName: "officer",
+      source: "manual",
+    });
+    await createHqMemberLink(sql, {
+      allianceId: nativeAlliance.allianceId,
+      hqUserId: session.hqUserId,
+    });
+    await createAllianceMembership(sql, {
+      hqUserId: session.hqUserId,
+      allianceId: ashedAlliance.allianceId,
+      roleName: "officer",
+      source: "manual",
+    });
+    await attachAshedConnectionToSession(sql, session.sessionId);
+
+    await sql`
+      UPDATE sessions
+      SET current_alliance_id = ${nativeAlliance.allianceId}, alliance_tag = ${nativeAlliance.tag}
+      WHERE id = ${session.sessionId}
+    `;
+
+    await page.context().addCookies(playwrightAuthCookies(session));
+    await page.goto("/members");
+
+    await expect(page.getByRole("link", { name: "Dashboard" })).toHaveCount(0);
+    await expect(page).toHaveURL(/\/members/);
+
+    const picker = page.getByLabel("Alliance", { exact: true });
+    await expect(picker).toBeVisible();
+    await picker.click();
+    await page
+      .getByRole("option", { name: new RegExp(ashedAlliance.tag) })
+      .click();
+
+    await expect(page).toHaveURL(/\/dashboard/);
+    await expect(page.getByRole("link", { name: "Dashboard" })).toBeVisible();
   });
 });
