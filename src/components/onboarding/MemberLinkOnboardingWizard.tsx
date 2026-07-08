@@ -23,6 +23,8 @@ type Props = {
   successPresentation?: "default" | "explore";
   /** Server-resolved first step — avoids welcome/confetti flash before claim or pending UI. */
   initialState?: MemberLinkOnboardingInitialState;
+  /** HQ account already linked to Discord (`discord_hq_links`). */
+  discordBotLinked?: boolean;
 };
 
 type Phase =
@@ -56,6 +58,7 @@ export function MemberLinkOnboardingWizard({
   nextPath,
   successPresentation = "default",
   initialState = { phase: "welcome" },
+  discordBotLinked = false,
 }: Props) {
   const t = useTranslations("onboard");
   const tLink = useTranslations("memberLink");
@@ -110,7 +113,7 @@ export function MemberLinkOnboardingWizard({
           ) {
             fireCelebrationConfetti();
           }
-          if (successPresentation === "default") {
+          if (successPresentation === "default" && discordBotLinked) {
             window.setTimeout(() => {
               router.push(nextPath);
               router.refresh();
@@ -182,7 +185,7 @@ export function MemberLinkOnboardingWizard({
           setFormError(data.message);
       }
     },
-    [nextPath, reportedName, router, successPresentation, t],
+    [discordBotLinked, nextPath, reportedName, router, successPresentation, t],
   );
 
   function buildSubmitBody(extra?: {
@@ -855,17 +858,41 @@ export function MemberLinkOnboardingWizard({
               ? t("linkedExploreBody", { name: linkedName ?? reportedName })
               : t("linkedBody", { name: linkedName ?? reportedName })}
           </p>
-          {successPresentation === "explore" ? (
+          {discordBotLinked ? (
+            <p
+              className="rounded-lg border border-hq-discord/35 bg-hq-discord/10 px-3 py-2.5 text-sm leading-snug text-hq-fg"
+              role="status"
+            >
+              {t("linkedDiscordBotReady")}
+            </p>
+          ) : (
+            <div className="space-y-3 text-left">
+              <p className="text-sm text-hq-fg-muted">{t("linkedDiscordLinkPrompt")}</p>
+              <Link
+                href="/settings/account"
+                className="inline-block rounded-lg border border-hq-discord bg-hq-discord px-4 py-2 text-sm font-medium text-white hover:opacity-90"
+              >
+                {t("linkedDiscordLinkCta")}
+              </Link>
+            </div>
+          )}
+          {successPresentation === "explore" || !discordBotLinked ? (
             <>
               <Link
                 href={nextPath}
                 className="inline-block rounded-lg border border-hq-success bg-hq-success px-4 py-2 text-sm font-medium text-white hover:bg-hq-success-hover"
               >
-                {t("linkedExploreCta")}
+                {successPresentation === "explore"
+                  ? t("linkedExploreCta")
+                  : t("linkedContinueCta")}
               </Link>
-              <p className="text-xs text-hq-fg-muted">{t("linkedExploreDismiss")}</p>
+              {successPresentation === "explore" ? (
+                <p className="text-xs text-hq-fg-muted">{t("linkedExploreDismiss")}</p>
+              ) : null}
             </>
-          ) : null}
+          ) : (
+            <p className="text-xs text-hq-fg-muted">{t("linkedDiscordRedirectHint")}</p>
+          )}
         </div>
       ) : null}
     </div>

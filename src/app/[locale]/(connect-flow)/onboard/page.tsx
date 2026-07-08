@@ -18,6 +18,7 @@ import {
   resolveEffectiveHqUserIdForSession,
   requirePageSession,
 } from "@/lib/session";
+import { getDiscordHqLinkByHqUserId } from "@/lib/vr/repository";
 
 export const dynamic = "force-dynamic";
 
@@ -86,6 +87,10 @@ export default async function OnboardPage({ searchParams }: Props) {
       )
     : { phase: "welcome" as const };
 
+  const discordBotLinked = effectiveHqUserId
+    ? (await getDiscordHqLinkByHqUserId(effectiveHqUserId)) != null
+    : false;
+
   return (
     <MemberLinkOnboardingWizard
       allianceName={allianceName}
@@ -93,6 +98,7 @@ export default async function OnboardPage({ searchParams }: Props) {
       nextPath={nextPath}
       successPresentation={source === "discord" ? "explore" : "default"}
       initialState={initialOnboardingState}
+      discordBotLinked={discordBotLinked}
     />
   );
 }

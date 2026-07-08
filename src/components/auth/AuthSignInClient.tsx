@@ -31,6 +31,8 @@ type Props = {
   authError?: string;
   oauthSignInRequired?: OAuthSignInRequiredDetails | null;
   ssoAvailability: AuthSsoAvailability;
+  /** Alliance invite accept — recommend Discord sign-in for bot access. */
+  inviteFlow?: boolean;
 };
 
 type AuthStep = "picker" | "email-sign-in" | "email-magic" | "email-verify-code";
@@ -78,6 +80,7 @@ export function AuthSignInClient({
   authError,
   oauthSignInRequired = null,
   ssoAvailability,
+  inviteFlow = false,
 }: Props) {
   const t = useTranslations("auth");
   const [step, setStep] = useState<AuthStep>("picker");
@@ -431,7 +434,7 @@ export function AuthSignInClient({
           className="rounded-lg border border-hq-discord/35 bg-hq-discord/10 px-3 py-2.5 text-sm leading-snug text-hq-fg"
           role="note"
         >
-          {t("discordSignInHint")}
+          {inviteFlow ? t("inviteDiscordPrimaryHint") : t("discordSignInHint")}
         </p>
       ) : null}
 
