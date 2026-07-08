@@ -48,7 +48,30 @@ type MemberLink = {
   allianceTag: string | null;
   ashedMemberId: string;
   memberDisplayName: string | null;
+  gameUid: string;
   linkedAt: string;
+};
+
+type LinkedCommanderMembership = {
+  allianceId: string;
+  allianceName: string;
+  allianceSlug: string;
+  allianceTag: string | null;
+  ashedMemberId: string;
+  status: string;
+};
+
+type LinkedCommander = {
+  commanderId: string;
+  gameUid: string | null;
+  primaryName: string | null;
+  isPrimary: boolean;
+  linkedAt: string;
+  gameServerNumber: number | null;
+  heroPowerM: number | null;
+  memberLevel: number | null;
+  mainSquad: string | null;
+  rosterMemberships: LinkedCommanderMembership[];
 };
 
 type AdminUserListRow = {
@@ -74,6 +97,7 @@ type AdminUser = {
   linkedDeviceCount: number;
   memberships: Membership[];
   memberLinks: MemberLink[];
+  linkedCommanders: LinkedCommander[];
   signInMethods: AdminUserSignInMethodsSnapshot | null;
 };
 
@@ -519,6 +543,111 @@ export function AdminUsersConsole() {
             </div>
 
             <div>
+              <h3 className="font-medium">{t("linkedCommandersTitle")}</h3>
+              {selectedUser.linkedCommanders.length === 0 ? (
+                <p className="mt-2 text-sm text-hq-fg-muted">
+                  {t("noLinkedCommanders")}
+                </p>
+              ) : (
+                <div className="mt-3 space-y-3">
+                  {selectedUser.linkedCommanders.map((commander) => (
+                    <div
+                      key={commander.commanderId}
+                      className="space-y-2 rounded-lg border border-hq-border p-3"
+                    >
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-medium">
+                          {commander.primaryName ?? t("commanderUnnamed")}
+                        </p>
+                        {commander.isPrimary ? (
+                          <span className="rounded bg-hq-accent/15 px-1.5 py-0.5 text-xs text-hq-accent">
+                            {t("primaryCommanderBadge")}
+                          </span>
+                        ) : null}
+                      </div>
+                      <p className="text-xs text-hq-fg-muted">
+                        {t("commanderLinkedAt", {
+                          time: new Date(commander.linkedAt).toLocaleString(),
+                        })}
+                      </p>
+                      <div className="space-y-1">
+                        <AdminIdLine
+                          label={t("ids.commanderId")}
+                          value={commander.commanderId}
+                        />
+                        <AdminIdLine
+                          label={t("ids.gameUid")}
+                          value={commander.gameUid ?? t("unknownGameUid")}
+                        />
+                        {commander.gameServerNumber != null ? (
+                          <AdminIdLine
+                            label={t("ids.gameServerNumber")}
+                            value={String(commander.gameServerNumber)}
+                          />
+                        ) : null}
+                      </div>
+                      <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-hq-fg-muted">
+                        {commander.heroPowerM != null ? (
+                          <span>
+                            {t("commanderHeroPower", {
+                              value: commander.heroPowerM.toFixed(1),
+                            })}
+                          </span>
+                        ) : null}
+                        {commander.memberLevel != null ? (
+                          <span>
+                            {t("commanderMemberLevel", {
+                              value: commander.memberLevel,
+                            })}
+                          </span>
+                        ) : null}
+                        {commander.mainSquad ? (
+                          <span>
+                            {t("commanderMainSquad", {
+                              squad: commander.mainSquad,
+                            })}
+                          </span>
+                        ) : null}
+                      </div>
+                      {commander.rosterMemberships.length > 0 ? (
+                        <div className="space-y-2 border-t border-hq-border pt-2">
+                          <p className="text-xs font-medium text-hq-fg-muted">
+                            {t("commanderRosterMembershipsTitle")}
+                          </p>
+                          {commander.rosterMemberships.map((membership) => (
+                            <div
+                              key={`${membership.allianceId}-${membership.ashedMemberId}`}
+                              className="rounded-md border border-hq-border/70 bg-hq-canvas px-2 py-1.5"
+                            >
+                              <p className="text-sm">{membership.allianceName}</p>
+                              <p className="text-xs text-hq-fg-muted">
+                                {allianceLabel(membership)} · {membership.status}
+                              </p>
+                              <div className="mt-1 space-y-1">
+                                <AdminIdLine
+                                  label={t("ids.allianceId")}
+                                  value={membership.allianceId}
+                                />
+                                <AdminIdLine
+                                  label={t("ids.ashedMemberId")}
+                                  value={membership.ashedMemberId}
+                                />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-hq-fg-muted">
+                          {t("noCommanderRosterMemberships")}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div>
               <h3 className="font-medium">{t("memberLinksTitle")}</h3>
               {selectedUser.memberLinks.length === 0 ? (
                 <p className="mt-2 text-sm text-hq-fg-muted">{t("noMemberLinks")}</p>
@@ -544,6 +673,10 @@ export function AdminUsersConsole() {
                         <AdminIdLine
                           label={t("ids.ashedMemberId")}
                           value={link.ashedMemberId}
+                        />
+                        <AdminIdLine
+                          label={t("ids.gameUid")}
+                          value={link.gameUid}
                         />
                       </div>
                     </div>

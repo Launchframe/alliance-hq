@@ -24,7 +24,31 @@ export type AdminMemberLinkRow = {
   allianceTag: string | null;
   ashedMemberId: string;
   memberDisplayName: string | null;
+  gameUid: string;
   linkedAt: Date;
+};
+
+export type AdminLinkedCommanderMembershipRow = {
+  allianceId: string;
+  allianceName: string;
+  allianceSlug: string;
+  allianceTag: string | null;
+  ashedMemberId: string;
+  status: string;
+};
+
+/** Platform-maintainer-only: includes game UID for support. */
+export type AdminLinkedCommanderRow = {
+  commanderId: string;
+  gameUid: string | null;
+  primaryName: string | null;
+  isPrimary: boolean;
+  linkedAt: Date;
+  gameServerNumber: number | null;
+  heroPowerM: number | null;
+  memberLevel: number | null;
+  mainSquad: string | null;
+  rosterMemberships: AdminLinkedCommanderMembershipRow[];
 };
 
 export type AdminMembershipRow = {
@@ -75,6 +99,7 @@ export type AdminUserRow = {
   linkedDeviceCount: number;
   memberships: AdminMembershipRow[];
   memberLinks: AdminMemberLinkRow[];
+  linkedCommanders: AdminLinkedCommanderRow[];
   signInMethods: AdminUserSignInMethods | null;
 };
 
@@ -168,6 +193,7 @@ async function loadMemberLinkRowsForUsers(
       allianceTag: schema.alliances.tag,
       ashedMemberId: schema.hqMemberLinks.ashedMemberId,
       memberDisplayName: schema.hqMemberLinks.memberDisplayName,
+      gameUid: schema.hqMemberLinks.gameUid,
       linkedAt: schema.hqMemberLinks.linkedAt,
     })
     .from(schema.hqMemberLinks)
@@ -176,6 +202,96 @@ async function loadMemberLinkRowsForUsers(
       eq(schema.alliances.id, schema.hqMemberLinks.allianceId),
     )
     .where(inArray(schema.hqMemberLinks.hqUserId, hqUserIds));
+}
+
+type LinkedCommanderOwnershipRow = AdminLinkedCommanderRow & { hqUserId: string };
+
+async function loadLinkedCommanderRowsForUsers(
+  hqUserIds: string[],
+): Promise<LinkedCommanderOwnershipRow[]> {
+  if (hqUserIds.length === 0) {
+    return [];
+  }
+
+  const db = getDb();
+  const ownershipRows = await db
+    .select({
+      hqUserId: schema.hqUserCommanders.hqUserId,
+      commanderId: schema.commanders.id,
+      gameUid: schema.commanders.gameUid,
+      primaryName: schema.commanders.primaryName,
+      isPrimary: schema.hqUserCommanders.isPrimary,
+      linkedAt: schema.hqUserCommanders.linkedAt,
+      gameServerNumber: schema.commanders.gameServerNumber,
+      heroPowerM: schema.commanders.heroPowerM,
+      memberLevel: schema.commanders.memberLevel,
+      mainSquad: schema.commanders.mainSquad,
+    })
+    .from(schema.hqUserCommanders)
+    .innerJoin(
+      schema.commanders,
+      eq(schema.commanders.id, schema.hqUserCommanders.commanderId),
+    )
+    .where(inArray(schema.hqUserCommanders.hqUserId, hqUserIds))
+    .orderBy(
+      desc(schema.hqUserCommanders.isPrimary),
+      desc(schema.hqUserCommanders.linkedAt),
+    );
+
+  const commanderIds = [...new Set(ownershipRows.map((row) => row.commanderId))];
+  const membershipRows =
+    commanderIds.length === 0
+      ? []
+      : await db
+          .select({
+            commanderId: schema.commanderAllianceMemberships.commanderId,
+            allianceId: schema.commanderAllianceMemberships.allianceId,
+            allianceName: schema.alliances.name,
+            allianceSlug: schema.alliances.slug,
+            allianceTag: schema.alliances.tag,
+            ashedMemberId: schema.commanderAllianceMemberships.ashedMemberId,
+            status: schema.commanderAllianceMemberships.status,
+          })
+          .from(schema.commanderAllianceMemberships)
+          .innerJoin(
+            schema.alliances,
+            eq(schema.alliances.id, schema.commanderAllianceMemberships.allianceId),
+          )
+          .where(
+            inArray(schema.commanderAllianceMemberships.commanderId, commanderIds),
+          )
+          .orderBy(schema.alliances.name);
+
+  const membershipsByCommander = new Map<
+    string,
+    AdminLinkedCommanderMembershipRow[]
+  >();
+  for (const row of membershipRows) {
+    const list = membershipsByCommander.get(row.commanderId) ?? [];
+    list.push({
+      allianceId: row.allianceId,
+      allianceName: row.allianceName,
+      allianceSlug: row.allianceSlug,
+      allianceTag: row.allianceTag,
+      ashedMemberId: row.ashedMemberId,
+      status: row.status,
+    });
+    membershipsByCommander.set(row.commanderId, list);
+  }
+
+  return ownershipRows.map((row) => ({
+    hqUserId: row.hqUserId,
+    commanderId: row.commanderId,
+    gameUid: row.gameUid,
+    primaryName: row.primaryName,
+    isPrimary: row.isPrimary,
+    linkedAt: row.linkedAt,
+    gameServerNumber: row.gameServerNumber,
+    heroPowerM: row.heroPowerM,
+    memberLevel: row.memberLevel,
+    mainSquad: row.mainSquad,
+    rosterMemberships: membershipsByCommander.get(row.commanderId) ?? [],
+  }));
 }
 
 function groupMembershipsByUser(
@@ -202,11 +318,35 @@ function groupMemberLinksByUser(
   return map;
 }
 
+function groupLinkedCommandersByUser(
+  rows: LinkedCommanderOwnershipRow[],
+): Map<string, AdminLinkedCommanderRow[]> {
+  const map = new Map<string, AdminLinkedCommanderRow[]>();
+  for (const row of rows) {
+    const list = map.get(row.hqUserId) ?? [];
+    list.push({
+      commanderId: row.commanderId,
+      gameUid: row.gameUid,
+      primaryName: row.primaryName,
+      isPrimary: row.isPrimary,
+      linkedAt: row.linkedAt,
+      gameServerNumber: row.gameServerNumber,
+      heroPowerM: row.heroPowerM,
+      memberLevel: row.memberLevel,
+      mainSquad: row.mainSquad,
+      rosterMemberships: row.rosterMemberships,
+    });
+    map.set(row.hqUserId, list);
+  }
+  return map;
+}
+
 function buildAdminUserRow(
   user: typeof schema.hqUsers.$inferSelect,
   linkedDeviceCount: number,
   memberships: AdminMembershipRow[],
   memberLinks: AdminMemberLinkRow[],
+  linkedCommanders: AdminLinkedCommanderRow[],
   signInMethods: AdminUserSignInMethods | null,
 ): AdminUserRow {
   return {
@@ -222,6 +362,7 @@ function buildAdminUserRow(
     memberLinks: memberLinks.sort((a, b) =>
       a.allianceName.localeCompare(b.allianceName),
     ),
+    linkedCommanders,
     signInMethods,
   };
 }
@@ -332,10 +473,11 @@ export async function loadAdminUserById(
     return null;
   }
 
-  const [membershipRows, memberLinkRows, deviceLinkCounts, signInMethods] =
+  const [membershipRows, memberLinkRows, linkedCommanderRows, deviceLinkCounts, signInMethods] =
     await Promise.all([
     loadMembershipRowsForUsers([hqUserId]),
     loadMemberLinkRowsForUsers([hqUserId]),
+    loadLinkedCommanderRowsForUsers([hqUserId]),
     countCompletedDeviceLinksForUsers([hqUserId]),
     loadAdminUserSignInMethods(hqUserId),
   ]);
@@ -345,6 +487,7 @@ export async function loadAdminUserById(
     deviceLinkCounts.get(hqUserId) ?? 0,
     membershipRows,
     memberLinkRows,
+    groupLinkedCommandersByUser(linkedCommanderRows).get(hqUserId) ?? [],
     signInMethods,
   );
 }
@@ -364,13 +507,15 @@ export async function loadAdminUsersDirectory(): Promise<{
   ]);
 
   const hqUserIds = users.map((row) => row.id);
-  const [membershipRows, memberLinkRows] = await Promise.all([
+  const [membershipRows, memberLinkRows, linkedCommanderRows] = await Promise.all([
     loadMembershipRowsForUsers(hqUserIds),
     loadMemberLinkRowsForUsers(hqUserIds),
+    loadLinkedCommanderRowsForUsers(hqUserIds),
   ]);
 
   const membershipsByUser = groupMembershipsByUser(membershipRows);
   const memberLinksByUser = groupMemberLinksByUser(memberLinkRows);
+  const linkedCommandersByUser = groupLinkedCommandersByUser(linkedCommanderRows);
 
   return {
     users: users.map((user) =>
@@ -379,6 +524,7 @@ export async function loadAdminUsersDirectory(): Promise<{
         deviceLinkCounts.get(user.id) ?? 0,
         membershipsByUser.get(user.id) ?? [],
         memberLinksByUser.get(user.id) ?? [],
+        linkedCommandersByUser.get(user.id) ?? [],
         null,
       ),
     ),

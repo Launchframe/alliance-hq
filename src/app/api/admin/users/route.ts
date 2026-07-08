@@ -21,6 +21,10 @@ function serializeAdminUser(user: AdminUserRow) {
       ...link,
       linkedAt: link.linkedAt.toISOString(),
     })),
+    linkedCommanders: user.linkedCommanders.map((commander) => ({
+      ...commander,
+      linkedAt: commander.linkedAt.toISOString(),
+    })),
   };
 }
 
