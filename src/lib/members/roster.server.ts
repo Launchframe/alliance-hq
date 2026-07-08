@@ -14,7 +14,7 @@ import { syncTenureFromMemberStatus } from "@/lib/members/member-tenure.server";
 import { syncCommanderFromAllianceMember } from "@/lib/members/commander-identity.server";
 import type { CommanderIdentityConflict } from "@/lib/members/commander-identity-conflicts.shared";
 import { normalizedRankFromAshedMember } from "@/lib/members/roster.shared";
-import { shouldSyncRosterFromAshed } from "@/lib/members/roster-sync.shared";
+import { allianceMembersAfterOptionalAshedSync } from "@/lib/members/roster-ashed-sync.server";
 
 export {
   allianceMemberRowToAshedMember,
@@ -222,18 +222,15 @@ export async function listAllianceMembersWithAshedSyncIfNeeded(input: {
     listAllianceMembers(input.hqAllianceId),
   ]);
 
-  if (
-    shouldSyncRosterFromAshed({
-      forceRefresh: input.forceRefresh === true,
-      lastSyncedAt,
-      localMemberCount: localRows.length,
-    })
-  ) {
-    await syncAllianceMembersFromAshed(input);
-    return listAllianceMembers(input.hqAllianceId);
-  }
-
-  return localRows;
+  return allianceMembersAfterOptionalAshedSync({
+    forceRefresh: input.forceRefresh === true,
+    lastSyncedAt,
+    localRows,
+    syncFromAshed: async () => {
+      await syncAllianceMembersFromAshed(input);
+    },
+    reloadMembers: () => listAllianceMembers(input.hqAllianceId),
+  });
 }
 
 export async function listActiveAllianceMembersForPool(
