@@ -22,7 +22,7 @@ import {
   resolveActiveReleaseNoteFile,
 } from "../../src/lib/release-notes/compile";
 import { postReleaseNoteToDiscord } from "../../src/lib/release-notes/discord";
-import { PRODUCTION_APP_ORIGIN } from "../../src/lib/public-site";
+import { resolveReleaseNotesPageUrl } from "../../src/lib/release-notes/public-origin";
 import {
   extractTagDiffReleaseInputs,
   resolveLatestTag,
@@ -320,7 +320,7 @@ async function main() {
         );
       }
 
-      const appUrl = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "");
+      const releasesUrl = resolveReleaseNotesPageUrl();
       const entry =
         publishedEntry ??
         (await publishReleaseNotesToEdgeConfig({
@@ -336,7 +336,7 @@ async function main() {
         token,
         channelId,
         entry,
-        releasesUrl: appUrl ? `${appUrl}/releases` : undefined,
+        releasesUrl,
       });
     }
 
@@ -380,8 +380,7 @@ async function main() {
   }
 
   console.log(`\nShipped v${nextVersion}`);
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? PRODUCTION_APP_ORIGIN;
-  console.log(`Production: ${appUrl}`);
+  console.log(`Production: ${resolveReleaseNotesPageUrl()}`);
 }
 
 main().catch((error) => {

@@ -13,6 +13,7 @@ import "./load-env";
 
 import { collectShippedReleaseNoteEntries } from "../../src/lib/release-notes/publish";
 import { postReleaseNoteToDiscord } from "../../src/lib/release-notes/discord";
+import { resolveReleaseNotesPageUrl } from "../../src/lib/release-notes/public-origin";
 import { compareAppVersions } from "../../src/lib/release-notes/version";
 
 function parseArgs(argv: string[]) {
@@ -53,8 +54,7 @@ async function main() {
     throw new Error(`No shipped release note for version ${args.version}`);
   }
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "");
-  const releasesUrl = appUrl ? `${appUrl}/releases` : undefined;
+  const releasesUrl = resolveReleaseNotesPageUrl();
 
   await postReleaseNoteToDiscord({
     token,
