@@ -25,18 +25,19 @@ Do **not** show UID in:
 
 **Input exception:** UID may appear in a **private input field** during initial member-link onboarding only. After link succeeds, do not echo it back except to the owner on their own profile or authenticated Discord owner context.
 
-## Platform maintainer break-glass (UID inspector)
+## Platform maintainer break-glass
 
-When a member **voluntarily shares** their player ID for support, platform maintainers may look up bindings via **`/admin/uid-inspector`** (API: `GET /api/admin/uid-inspector`). This is intentional break-glass — UIDs remain plaintext in DB for integrations.
+Platform maintainers may see full game UID on **maintainer-only admin surfaces** for support. UIDs remain plaintext in DB for integrations. Do **not** extend this to alliance officer tooling, exports, or Discord public replies.
 
-| Requirement | Implementation |
+| Surface | API | RBAC | Audit |
+| --- | --- | --- | --- |
+| UID inspector (member shares ID) | `GET /api/admin/uid-inspector` | `requirePlatformMaintainer` / `hq:admin` | `admin_uid_inspector_lookup` with **`gameUidLast4` only** in metadata |
+| HQ user detail (linked commanders + member links) | `GET /api/admin/users?hqUserId=…` | Same; list/search responses omit UID | Passive read — no per-view audit (detail fetch is routine admin context) |
+
+| Requirement | Both surfaces |
 | --- | --- |
-| RBAC | `requirePlatformMaintainer` / `hq:admin` only — no alliance officer or member path |
-| Audit | `admin_uid_inspector_lookup` with **`gameUidLast4` only** in metadata (never full UID in audit rows) |
-| Scope | Full UID in API/UI **only** for authenticated platform maintainer sessions on this route |
-| Logs | Server paths must still redact UID in application logs and error payloads outside this gated route |
-
-Do **not** extend this exception to alliance admin lists, exports, officer tooling, or Discord public replies.
+| Scope | Full UID in API/UI **only** for authenticated platform maintainer sessions on these routes |
+| Logs | Server paths must still redact UID in application logs and error payloads outside these gated routes |
 
 ## Storage (do not hash today)
 
