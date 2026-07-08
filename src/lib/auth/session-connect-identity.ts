@@ -17,6 +17,18 @@ export class AshedConnectAuthMismatchError extends Error {
   }
 }
 
+/** HQ row exists for the Ashed email but has never connected; SSO must use that email. */
+export class AshedConnectEmailStubCollisionError extends Error {
+  readonly code = "ashed_connect_email_stub_collision" as const;
+
+  constructor() {
+    super(
+      "Please sign in to Alliance HQ with the same email you use on ashed.online, then connect again.",
+    );
+    this.name = "AshedConnectEmailStubCollisionError";
+  }
+}
+
 /** Magic-link / email-code only — not Google, Discord, passkey, or password sign-in. */
 const ASHED_CONNECT_MERGE_FRIENDLY_AUTH_PROVIDERS = new Set([
   "resend",
@@ -45,6 +57,48 @@ async function authHqUserMayMergeViaVerifiedAshedConnect(
   );
 }
 
+async function throwIfEmailStubBlocksSsoConnect(input: {
+  authHqUserId: string;
+  canonicalHqUserId: string;
+  ashedEmail: string;
+}): Promise<void> {
+  if (input.authHqUserId === input.canonicalHqUserId) {
+    return;
+  }
+
+  if (await hqUsersShareEmail(input.authHqUserId, input.canonicalHqUserId)) {
+    return;
+  }
+
+  if (await authHqUserMayMergeViaVerifiedAshedConnect(input.authHqUserId)) {
+    return;
+  }
+
+  const db = getDb();
+  const [canonicalRow] = await db
+    .select({
+      email: schema.hqUsers.email,
+      ashedUserId: schema.hqUsers.ashedUserId,
+    })
+    .from(schema.hqUsers)
+    .where(eq(schema.hqUsers.id, input.canonicalHqUserId))
+    .limit(1);
+
+  const canonicalEmail = canonicalRow?.email
+    ? normalizeAshedEmail(canonicalRow.email)
+    : "";
+  const ashedEmail = normalizeAshedEmail(input.ashedEmail);
+
+  if (
+    canonicalRow &&
+    !canonicalRow.ashedUserId &&
+    canonicalEmail &&
+    canonicalEmail === ashedEmail
+  ) {
+    throw new AshedConnectEmailStubCollisionError();
+  }
+}
+
 /**
  * Blocks connecting Ashed credentials that belong to another HQ user while a
  * different account (e.g. Google SSO) is signed in on this browser session.
@@ -64,6 +118,8 @@ export async function assertAuthMayMergeIntoCanonicalHqUser(input: {
   ) {
     return;
   }
+
+  await throwIfEmailStubBlocksSsoConnect(input);
 
   const db = getDb();
   const [authRow] = await db

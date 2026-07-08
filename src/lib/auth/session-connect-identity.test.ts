@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   AshedConnectAuthMismatchError,
+  AshedConnectEmailStubCollisionError,
   assertAuthMayMergeIntoCanonicalHqUser,
   hqUsersShareEmail,
   sessionMergedAuthStubHqUserId,
@@ -105,12 +106,24 @@ describe("assertAuthMayMergeIntoCanonicalHqUser", () => {
       .fn()
       .mockResolvedValueOnce([{ email: "other@gmail.com" }])
       .mockResolvedValueOnce([{ email: "maintainer@e2e.test" }])
+      .mockResolvedValueOnce([{ email: "other@gmail.com" }])
+      .mockResolvedValueOnce([{ email: "maintainer@e2e.test" }])
+      .mockResolvedValueOnce([
+        {
+          email: "maintainer@e2e.test",
+          ashedUserId: "ashed-maintainer",
+        },
+      ])
       .mockResolvedValueOnce([
         { email: "other@gmail.com", ashedUserId: null },
       ]);
     const where = vi
       .fn()
       .mockReturnValueOnce({ limit })
+      .mockReturnValueOnce({ limit })
+      .mockReturnValueOnce({ limit })
+      .mockReturnValueOnce({ limit })
+      .mockResolvedValueOnce([{ provider: "google" }])
       .mockReturnValueOnce({ limit })
       .mockReturnValueOnce({ limit })
       .mockResolvedValueOnce([{ provider: "google" }]);
@@ -135,6 +148,8 @@ describe("assertAuthMayMergeIntoCanonicalHqUser", () => {
       .fn()
       .mockResolvedValueOnce([{ email: "magic-b@e2e.test" }])
       .mockResolvedValueOnce([{ email: "magic-a@e2e.test" }])
+      .mockResolvedValueOnce([{ email: "magic-b@e2e.test" }])
+      .mockResolvedValueOnce([{ email: "magic-a@e2e.test" }])
       .mockResolvedValueOnce([
         { email: "magic-b@e2e.test", ashedUserId: null },
       ])
@@ -145,6 +160,9 @@ describe("assertAuthMayMergeIntoCanonicalHqUser", () => {
       .fn()
       .mockReturnValueOnce({ limit })
       .mockReturnValueOnce({ limit })
+      .mockReturnValueOnce({ limit })
+      .mockReturnValueOnce({ limit })
+      .mockResolvedValueOnce([])
       .mockReturnValueOnce({ limit })
       .mockResolvedValueOnce([])
       .mockReturnValueOnce({ limit });
@@ -169,6 +187,8 @@ describe("assertAuthMayMergeIntoCanonicalHqUser", () => {
       .fn()
       .mockResolvedValueOnce([{ email: "intruder@e2e.test" }])
       .mockResolvedValueOnce([{ email: "maintainer@e2e.test" }])
+      .mockResolvedValueOnce([{ email: "intruder@e2e.test" }])
+      .mockResolvedValueOnce([{ email: "maintainer@e2e.test" }])
       .mockResolvedValueOnce([
         { email: "intruder@e2e.test", ashedUserId: null },
       ])
@@ -179,6 +199,9 @@ describe("assertAuthMayMergeIntoCanonicalHqUser", () => {
       .fn()
       .mockReturnValueOnce({ limit })
       .mockReturnValueOnce({ limit })
+      .mockReturnValueOnce({ limit })
+      .mockReturnValueOnce({ limit })
+      .mockResolvedValueOnce([])
       .mockReturnValueOnce({ limit })
       .mockResolvedValueOnce([])
       .mockReturnValueOnce({ limit });
@@ -196,6 +219,40 @@ describe("assertAuthMayMergeIntoCanonicalHqUser", () => {
         ashedUserId: "ashed-maintainer",
       }),
     ).rejects.toBeInstanceOf(AshedConnectAuthMismatchError);
+  });
+
+  it("rejects Google SSO when an email-only HQ stub owns the Ashed email", async () => {
+    const limit = vi
+      .fn()
+      .mockResolvedValueOnce([{ email: "officer@gmail.com" }])
+      .mockResolvedValueOnce([{ email: "officer@ashed.example.com" }])
+      .mockResolvedValueOnce([{ email: "officer@gmail.com" }])
+      .mockResolvedValueOnce([{ email: "officer@ashed.example.com" }])
+      .mockResolvedValueOnce([
+        { email: "officer@ashed.example.com", ashedUserId: null },
+      ]);
+    const where = vi
+      .fn()
+      .mockReturnValueOnce({ limit })
+      .mockReturnValueOnce({ limit })
+      .mockReturnValueOnce({ limit })
+      .mockReturnValueOnce({ limit })
+      .mockResolvedValueOnce([{ provider: "google" }])
+      .mockReturnValueOnce({ limit });
+    const from = vi.fn().mockReturnValue({ where });
+    const select = vi.fn().mockReturnValue({ from });
+
+    const { getDb } = await import("@/lib/db");
+    vi.mocked(getDb).mockReturnValue({ select } as never);
+
+    await expect(
+      assertAuthMayMergeIntoCanonicalHqUser({
+        authHqUserId: "google-officer",
+        canonicalHqUserId: "email-stub",
+        ashedEmail: "officer@ashed.example.com",
+        ashedUserId: "ashed-officer",
+      }),
+    ).rejects.toBeInstanceOf(AshedConnectEmailStubCollisionError);
   });
 });
 

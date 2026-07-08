@@ -186,6 +186,17 @@ describe("resolveCanonicalHqUserForAshedConnect", () => {
       )
       .mockReturnValueOnce(chainSelect([{ email: "other@gmail.com" }]))
       .mockReturnValueOnce(chainSelect([{ email: "maintainer@e2e.test" }]))
+      .mockReturnValueOnce(chainSelect([{ email: "other@gmail.com" }]))
+      .mockReturnValueOnce(chainSelect([{ email: "maintainer@e2e.test" }]))
+      .mockReturnValueOnce(chainSelectWhere([{ provider: "google" }]))
+      .mockReturnValueOnce(
+        chainSelect([
+          {
+            email: "maintainer@e2e.test",
+            ashedUserId: "ashed-maintainer",
+          },
+        ]),
+      )
       .mockReturnValueOnce(
         chainSelect([{ email: "other@gmail.com", ashedUserId: null }]),
       )

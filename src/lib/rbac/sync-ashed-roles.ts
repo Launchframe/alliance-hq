@@ -57,13 +57,6 @@ export async function upsertHqUser(user: AshedUserInfo): Promise<string> {
   return result.hqUserId;
 }
 
-async function upsertHqUserStub(email: string) {
-  const result = await resolveCanonicalHqUserForAshedConnect({
-    ashedEmail: email,
-  });
-  return result.hqUserId;
-}
-
 async function resolveRosterHqUserId(email: string): Promise<string | null> {
   const normalized = normalizeAshedEmail(email);
   const db = getDb();
@@ -74,10 +67,7 @@ async function resolveRosterHqUserId(email: string): Promise<string | null> {
     .limit(1);
 
   if (!existing) {
-    if (isAshedInviteRequired()) {
-      return null;
-    }
-    return upsertHqUserStub(email);
+    return null;
   }
 
   if (
