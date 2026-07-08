@@ -54,6 +54,8 @@ export async function recordDataUploadBatch(input: {
 }): Promise<string> {
   const db = getDb();
 
+  // One ledger row per video job — safe to call only after submit completes, and
+  // also idempotent if a prior attempt wrote upstream before a local failure.
   const [existing] = await db
     .select({ id: schema.dataUploadBatches.id })
     .from(schema.dataUploadBatches)
