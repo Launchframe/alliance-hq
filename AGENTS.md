@@ -60,7 +60,7 @@ Apply on every Real Steel pass for this repo:
 - **Legacy sessions** — behavior when `hq_user_id` is null (allow-all until reconnect) must remain consistent
 - **Bootstrap safety** — `PLATFORM_BOOTSTRAP_EMAIL` only promotes when zero platform maintainers exist; no privilege escalation on reconnect
 - **Deploy seeds** — `db:prepare` migrations/seeds idempotent; safe to run on every Vercel build; every `drizzle/NNNN_*.sql` must appear in `drizzle/meta/_journal.json` (`npm run db:validate-journal`)
-- **i18n** — agree English copy with the maintainer in planning/review **before** code (see [`.cursor/rules/user-facing-copy-review.mdc`](.cursor/rules/user-facing-copy-review.mdc)); then implement wired keys + `en-US` + hand-translated `pt-BR` in the same pass; run `npm run i18n:validate`
+- **i18n** — maintainer must approve English copy before `messages/en-US.*` or `messages/pt-BR.*` change (see [`.cursor/rules/user-facing-copy-review.mdc`](.cursor/rules/user-facing-copy-review.mdc)); then en-US + pt-BR; run `npm run i18n:validate`
 - **Video pipeline** — admin requeue/reprocess must not double-process or lose job state
 - **No prod SQL for ops** — admin UI should cover role assignment, commendations, and job recovery without ad-hoc queries
 - **Native alliance invites** — `createHqInvite` (team settings + `/api/admin/native-alliances/.../invites`) does **not** require a linked game server; a missing alliance state server must never block invite or join-code creation. Set the state server later (owner name+UID onboarding, alliance **Game season** settings, or platform maintainer via **Admin → Alliances**). Server matching still happens at member-link time (`wrong_server`). **Commander claim invites** are member-role invites with `targetAshedMemberId` (bulk via `createHqClaimInvitesBulk`). Operator guides: `/guides/alliance-onboarding`; agent rule: `.cursor/rules/native-alliance-invites-rbac.mdc`.
@@ -136,4 +136,26 @@ Legacy sessions (`hqUserId` null): allow-all until reconnect (unchanged). Regula
 **Player UID privacy:** treat Last War player UIDs / `game_uid` as sensitive account-binding data — never display them, never log them, and never allow name+UID to relink a claimed Commander without account-level security; see [`.cursor/rules/player-uid-privacy.mdc`](.cursor/rules/player-uid-privacy.mdc).
 
 Detail: [`.cursor/rules/discord-identity-auth-layers.mdc`](.cursor/rules/discord-identity-auth-layers.mdc) (architecture) and [`.cursor/rules/discord-bot-multitenancy.mdc`](.cursor/rules/discord-bot-multitenancy.mdc) (tenant + credentials guardrails).
+
+## Learned User Preferences
+
+- Rebase stacked child PRs (`git rebase --onto`) when the parent was pre-rebase — do not merge conflict resolutions into the child.
+- Propagate Drizzle renumbers parent→child in stacked work; never drop migration SQL or `_journal.json` entries on rebase or force-push.
+- Maintainer must review and approve release notes before `release:ship`; set note frontmatter `status: ready` only after approval.
+- Real Steel: when Discord or onboarding hosted-guide copy changes, verify operator guides and `e2e/discord-bot-guide.spec.ts`.
+- Start feature work from new git worktrees off `origin/main`.
+- Hotkey changes need fault isolation and compile-time target validation for navigable pages.
+- Member-facing copy must never mention platform admins or maintainers; say alliance officers were notified instead.
+
+## Learned Workspace Facts
+
+- Migration renumbering after `0004` is SQL file rename plus `_journal.json` update (Drizzle snapshots only cover `0000`–`0004`).
+- Reserve migration sequence numbers for in-flight PRs in stacked work.
+- `db:validate-journal` allows intentional sequence gaps in `_journal.json`.
+- Discord `/link-commander` matches web member-link: UID-only lookup plus identity confirm (no typed in-game name).
+- Roster substring match direction: roster name (≥4 chars) must be a subset of the in-game name, with a single match.
+- Release workflow: draft notes in `docs/release-notes/` (`status: draft`); push `package.json` bump and `status: ready` note for cross-machine ship; run `npm run release:ship -- --yes --version X.Y.Z` (not `--minor` when `package.json` is already bumped).
+- E2e “no linked game server” fixtures: null `game_server_id` only — keep `game_server_number` NOT NULL on `alliances`.
+- HQ `ROSTER_MAX_MEMBERS` is intentionally 2× the in-game alliance cap (200 vs 100) during onboarding tuning so missed roster matches still leave room for full JIT linking; may lower as tooling improves.
+- Discord-first users who have not run `/link` hit cross-layer UID conflicts on web self-service; self-service path is Discord `/link` then retry web — officer help queue (`cross_layer_claim` / `discord_hq_unlinked`) mediates stuck cases.
 
