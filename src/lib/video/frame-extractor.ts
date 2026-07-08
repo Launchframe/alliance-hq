@@ -1,4 +1,4 @@
-import { execFile, spawn } from "node:child_process";
+import { execFile } from "node:child_process";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -37,7 +37,7 @@ type VideoProbeInfo = {
   frameRateFps: number | null;
 };
 
-/** Parse ffprobe `avg_frame_rate` / `r_frame_rate` (e.g. `30000/1001`, `30/1`). */
+/** Parse ffprobe-style frame rate strings (e.g. `30000/1001`, `30/1`). */
 export function parseFfprobeFrameRate(value: string | undefined): number | null {
   if (!value?.trim()) {
     return null;
@@ -60,94 +60,50 @@ export function forcedFirstFrameIndexForFps(fps: number | null): number {
   if (fps != null && fps > 0) {
     return Math.max(1, Math.round(FORCED_FIRST_FRAME_OFFSET_SECONDS * fps));
   }
-  // ~100ms at 30fps when ffprobe cannot read frame rate.
+  // ~100ms at 30fps when frame rate cannot be read from the container.
   return 3;
 }
 
-async function probeVideoWithFfprobe(videoPath: string): Promise<VideoProbeInfo> {
-  let ffprobePath: string;
-  try {
-    const ffprobeStatic = await import("ffprobe-static");
-    ffprobePath =
-      (ffprobeStatic as unknown as { path: string }).path ??
-      (ffprobeStatic.default as unknown as { path: string })?.path;
-    if (!ffprobePath) {
-      return { durationSeconds: null, frameRateFps: null };
-    }
-  } catch {
-    return { durationSeconds: null, frameRateFps: null };
+/** Parse `Duration: HH:MM:SS.xx` from ffmpeg `-i` stderr. */
+export function parseFfmpegDurationSeconds(stderr: string): number | null {
+  const match = stderr.match(/Duration:\s*(\d+):(\d{2}):(\d{2}(?:\.\d+)?)/);
+  if (!match) {
+    return null;
   }
-
-  return new Promise((resolve) => {
-    const args = [
-      "-v",
-      "quiet",
-      "-print_format",
-      "json",
-      "-show_format",
-      "-show_streams",
-      videoPath,
-    ];
-
-    const proc = spawn(ffprobePath, args);
-    let stdout = "";
-    proc.stdout.on("data", (chunk: Buffer) => {
-      stdout += chunk.toString();
-    });
-    proc.on("close", (code) => {
-      if (code !== 0) {
-        resolve({ durationSeconds: null, frameRateFps: null });
-        return;
-      }
-      try {
-        const parsed = JSON.parse(stdout) as {
-          format?: { duration?: string };
-          streams?: Array<{
-            duration?: string;
-            codec_type?: string;
-            avg_frame_rate?: string;
-            r_frame_rate?: string;
-          }>;
-        };
-        let durationSeconds: number | null = null;
-        const fromFormat = parsed.format?.duration
-          ? parseFloat(parsed.format.duration)
-          : null;
-        if (Number.isFinite(fromFormat) && fromFormat! > 0) {
-          durationSeconds = fromFormat;
-        }
-
-        const videoStream = parsed.streams?.find(
-          (s) => s.codec_type === "video",
-        );
-        if (durationSeconds == null && videoStream?.duration) {
-          const fromStream = parseFloat(videoStream.duration);
-          if (Number.isFinite(fromStream) && fromStream > 0) {
-            durationSeconds = fromStream;
-          }
-        }
-
-        const frameRateFps =
-          parseFfprobeFrameRate(videoStream?.avg_frame_rate) ??
-          parseFfprobeFrameRate(videoStream?.r_frame_rate);
-
-        resolve({ durationSeconds, frameRateFps });
-      } catch {
-        resolve({ durationSeconds: null, frameRateFps: null });
-      }
-    });
-    proc.on("error", () => resolve({ durationSeconds: null, frameRateFps: null }));
-  });
+  const total =
+    Number(match[1]) * 3600 +
+    Number(match[2]) * 60 +
+    Number.parseFloat(match[3]!);
+  return Number.isFinite(total) && total > 0 ? total : null;
 }
 
-/**
- * Probe a video file with ffprobe to get its duration in seconds.
- * Returns null if ffprobe-static is not available or the probe fails.
- */
+/** Parse nominal fps from ffmpeg `-i` stderr (e.g. `..., 29.97 fps,`). */
+export function parseFfmpegFrameRateFromStderr(stderr: string): number | null {
+  const match = stderr.match(/,\s*(\d+(?:\.\d+)?)\s*fps\b/i);
+  if (!match) {
+    return null;
+  }
+  const fps = Number.parseFloat(match[1]!);
+  return Number.isFinite(fps) && fps > 0 ? fps : null;
+}
+
+async function probeVideoWithFfmpeg(videoPath: string): Promise<VideoProbeInfo> {
+  if (!(await ffmpegAvailable())) {
+    return { durationSeconds: null, frameRateFps: null };
+  }
+  const ffmpeg = resolveFfmpegBinary();
+  const stderr = await probeVideo(ffmpeg, videoPath);
+  return {
+    durationSeconds: parseFfmpegDurationSeconds(stderr),
+    frameRateFps: parseFfmpegFrameRateFromStderr(stderr),
+  };
+}
+
+/** Probe duration via ffmpeg `-i` (no ffprobe binary required). */
 export async function probeVideoDurationSeconds(
   videoPath: string,
 ): Promise<number | null> {
-  const probe = await probeVideoWithFfprobe(videoPath);
+  const probe = await probeVideoWithFfmpeg(videoPath);
   return probe.durationSeconds;
 }
 
@@ -309,7 +265,7 @@ export async function extractLeaderboardFrames(
     );
   }
 
-  const videoProbe = await probeVideoWithFfprobe(videoPath);
+  const videoProbe = await probeVideoWithFfmpeg(videoPath);
   const videoDurationSeconds = videoProbe.durationSeconds;
   const forcedFirstFrameIndex = forcedFirstFrameIndexForFps(
     videoProbe.frameRateFps,

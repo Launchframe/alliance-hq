@@ -22,20 +22,34 @@ export const sharpNativeFileTracing = [
 export const sharpFileTracing = sharpNativeFileTracing;
 
 /**
- * In-house roster OCR (tesseract.js v7). Spawns a Node worker thread that
- * loads WASM from tesseract.js-core at runtime. traineddata comes from jsDelivr
- * unless TESSERACT_LANG_PATH is set.
+ * In-house roster OCR (tesseract.js v7). createWorker("eng", 1) loads an LSTM
+ * core variant at runtime (see worker-script/node/getCore.js). Include the three
+ * LSTM fallbacks only — not the full tesseract.js-core tree (6+ WASM builds).
+ * traineddata comes from jsDelivr unless TESSERACT_LANG_PATH is set.
  */
+export const TESSERACT_LSTM_CORE_VARIANTS = [
+  "relaxedsimd-lstm",
+  "simd-lstm",
+  "lstm",
+];
+
 export const tesseractFileTracing = [
-  "./node_modules/tesseract.js/**/*",
-  "./node_modules/tesseract.js-core/**/*",
+  "./node_modules/tesseract.js/src/worker-script/**/*",
+  "./node_modules/tesseract.js/src/worker/node/**/*",
   "./node_modules/wasm-feature-detect/**/*",
+  "./node_modules/tesseract.js-core/index.js",
+  "./node_modules/tesseract.js-core/package.json",
+  ...TESSERACT_LSTM_CORE_VARIANTS.flatMap((variant) => [
+    `./node_modules/tesseract.js-core/tesseract-core-${variant}.js`,
+    `./node_modules/tesseract.js-core/tesseract-core-${variant}.wasm`,
+    `./node_modules/tesseract.js-core/tesseract-core-${variant}.wasm.js`,
+  ]),
 ];
 
 export const videoOcrFileTracing = [...sharpNativeFileTracing, ...tesseractFileTracing];
 
 /** Non-LSTM cores are never selected for roster OCR (OEM.LSTM_ONLY). */
-export const videoOcrFileTracingExcludes = [
+export const tesseractNonLstmExcludes = [
   "./node_modules/tesseract.js-core/tesseract-core.js",
   "./node_modules/tesseract.js-core/tesseract-core.wasm",
   "./node_modules/tesseract.js-core/tesseract-core.wasm.js",
@@ -45,6 +59,35 @@ export const videoOcrFileTracingExcludes = [
   "./node_modules/tesseract.js-core/tesseract-core-relaxedsimd.js",
   "./node_modules/tesseract.js-core/tesseract-core-relaxedsimd.wasm",
   "./node_modules/tesseract.js-core/tesseract-core-relaxedsimd.wasm.js",
+];
+
+/**
+ * Platform binaries NFT may pull in via imports. Do NOT exclude
+ * next/node_modules/sharp — global sharpNativeFileTracing depends on it (#213).
+ */
+export const videoOcrPlatformExcludes = [
+  "./node_modules/@img/sharp-wasm32/**/*",
+  "./node_modules/@img/sharp-darwin-arm64/**/*",
+  "./node_modules/@img/sharp-darwin-x64/**/*",
+  "./node_modules/@img/sharp-linux-arm/**/*",
+  "./node_modules/@img/sharp-linux-arm64/**/*",
+  "./node_modules/@img/sharp-linuxmusl-arm64/**/*",
+  "./node_modules/@img/sharp-linuxmusl-x64/**/*",
+  "./node_modules/@img/sharp-win32-ia32/**/*",
+  "./node_modules/@img/sharp-win32-x64/**/*",
+  "./node_modules/@img/sharp-libvips-darwin-arm64/**/*",
+  "./node_modules/@img/sharp-libvips-darwin-x64/**/*",
+  "./node_modules/@img/sharp-libvips-linux-arm/**/*",
+  "./node_modules/@img/sharp-libvips-linux-arm64/**/*",
+  "./node_modules/@img/sharp-libvips-linuxmusl-arm64/**/*",
+  "./node_modules/@img/sharp-libvips-linuxmusl-x64/**/*",
+  "./node_modules/@img/sharp-libvips-win32-x64/**/*",
+  "./node_modules/ffprobe-static/**/*",
+];
+
+export const videoOcrFileTracingExcludes = [
+  ...tesseractNonLstmExcludes,
+  ...videoOcrPlatformExcludes,
 ];
 
 /** Routes that bundle video OCR native deps — monitored in CI for Vercel 250 MB limit. */

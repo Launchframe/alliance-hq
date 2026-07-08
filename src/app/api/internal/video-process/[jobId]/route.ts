@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
-import { markVideoJobFailed } from "@/lib/video/mark-video-job-failed";
-import { isAshedNotConnectedError } from "@/lib/video/errors";
+import { videoProcessJobToResponse } from "@/lib/video/video-process-dispatch.server";
+import { runVideoProcessJobLocally } from "@/lib/video/video-process-local.server";
 
 export const maxDuration = 300;
 export const runtime = "nodejs";
@@ -28,36 +28,19 @@ export async function POST(_request: Request, { params }: Props) {
   const analyticsSource =
     _request.headers.get("x-video-worker") === "1" ? "worker" : "api";
 
-  try {
-    const { processVideoJob } = await import("@/lib/video/process-job");
-    const timings = await processVideoJob(jobId, { analyticsSource });
-    return NextResponse.json({ ok: true, jobId, status: "review", timings });
-  } catch (error) {
-    // Recoverable: process-job already reverted the job to pending_approval.
-    if (isAshedNotConnectedError(error)) {
-      return NextResponse.json(
-        {
-          ok: false,
-          jobId,
-          status: "pending_approval",
-          code: "ashed_not_connected",
-        },
-        { status: 409 },
-      );
-    }
-    const message =
-      error instanceof Error ? error.message : "Processing failed";
-    await markVideoJobFailed(jobId, message);
+  const result = await runVideoProcessJobLocally(jobId, { analyticsSource });
+  if (result.code === "ashed_not_connected") {
     return NextResponse.json(
       {
         ok: false,
         jobId,
-        status: "failed",
-        error: message,
+        status: "pending_approval",
+        code: "ashed_not_connected",
       },
-      { status: 500 },
+      { status: 409 },
     );
   }
+  return videoProcessJobToResponse(result);
 }
 
 /** Allow same handler for fire-and-forget from upload route without auth in local dev */
