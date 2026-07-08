@@ -222,6 +222,13 @@ export function TrainsDashboard({ initial }: Props) {
   const [walkthroughKey, setWalkthroughKey] = useState(0);
   const [swapOpen, setSwapOpen] = useState(false);
   const [swapBusy, setSwapBusy] = useState(false);
+  const [rollingRole, setRollingRole] = useState<"conductor" | "vip" | null>(
+    null,
+  );
+  const [reseedingPool, setReseedingPool] = useState<PoolType | null>(null);
+  const [conductorLockBusy, setConductorLockBusy] = useState<
+    "lock" | "unlock" | null
+  >(null);
   const [clearWeekOpen, setClearWeekOpen] = useState(false);
   const [clearWeekBusy, setClearWeekBusy] = useState(false);
   const [pendingPastPaint, setPendingPastPaint] = useState<{
@@ -621,8 +628,10 @@ export function TrainsDashboard({ initial }: Props) {
   );
 
   const runRoll = async (role: "conductor" | "vip") => {
+    if (rollingRole || reseedingPool || conductorLockBusy) return;
     setError(null);
     setWheelBlocked(null);
+    setRollingRole(role);
     try {
       const res = await fetch("/api/trains/conductor/roll", {
         method: "POST",
@@ -710,6 +719,8 @@ export function TrainsDashboard({ initial }: Props) {
       setWheelOpen(true);
     } catch (e) {
       setError(e instanceof Error ? e.message : t("rollFailed"));
+    } finally {
+      setRollingRole(null);
     }
   };
 
@@ -771,25 +782,31 @@ export function TrainsDashboard({ initial }: Props) {
   );
 
   const lockConductor = async () => {
-    await withOptimisticMutation(
-      (snap) =>
-        applyOptimisticLock(snap, selectedDate, new Date().toISOString()),
-      async () => {
-        const res = await fetch("/api/trains/conductor/lock", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ date: selectedDate }),
-        });
-        const body = (await res.json()) as RollResponse;
-        if (res.ok && body.poolsRefreshed?.length) {
-          presentPoolRefreshedHints(body.poolsRefreshed);
-        }
-        return {
-          ok: res.ok,
-          error: res.ok ? undefined : (body.error ?? t("lockFailed")),
-        };
-      },
-    );
+    if (rollingRole || reseedingPool || conductorLockBusy) return;
+    setConductorLockBusy("lock");
+    try {
+      await withOptimisticMutation(
+        (snap) =>
+          applyOptimisticLock(snap, selectedDate, new Date().toISOString()),
+        async () => {
+          const res = await fetch("/api/trains/conductor/lock", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ date: selectedDate }),
+          });
+          const body = (await res.json()) as RollResponse;
+          if (res.ok && body.poolsRefreshed?.length) {
+            presentPoolRefreshedHints(body.poolsRefreshed);
+          }
+          return {
+            ok: res.ok,
+            error: res.ok ? undefined : (body.error ?? t("lockFailed")),
+          };
+        },
+      );
+    } finally {
+      setConductorLockBusy(null);
+    }
   };
 
   const confirmConductorSwap = async (targetDate: string) => {
@@ -825,22 +842,28 @@ export function TrainsDashboard({ initial }: Props) {
   };
 
   const unlockConductor = async () => {
+    if (rollingRole || reseedingPool || conductorLockBusy) return;
     setUnlockConfirm(false);
-    await withOptimisticMutation(
-      (snap) => applyOptimisticUnlock(snap, selectedDate),
-      async () => {
-        const res = await fetch("/api/trains/conductor/unlock", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ date: selectedDate }),
-        });
-        const body = (await res.json()) as { error?: string };
-        return {
-          ok: res.ok,
-          error: res.ok ? undefined : (body.error ?? t("unlockFailed")),
-        };
-      },
-    );
+    setConductorLockBusy("unlock");
+    try {
+      await withOptimisticMutation(
+        (snap) => applyOptimisticUnlock(snap, selectedDate),
+        async () => {
+          const res = await fetch("/api/trains/conductor/unlock", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ date: selectedDate }),
+          });
+          const body = (await res.json()) as { error?: string };
+          return {
+            ok: res.ok,
+            error: res.ok ? undefined : (body.error ?? t("unlockFailed")),
+          };
+        },
+      );
+    } finally {
+      setConductorLockBusy(null);
+    }
   };
 
   const pickConductor = async (member: {
@@ -1118,7 +1141,9 @@ export function TrainsDashboard({ initial }: Props) {
   ]);
 
   const reseedPool = async (poolType: PoolType) => {
+    if (rollingRole || reseedingPool || conductorLockBusy) return;
     setError(null);
+    setReseedingPool(poolType);
     try {
       const res = await fetch("/api/trains/pool", {
         method: "POST",
@@ -1138,8 +1163,13 @@ export function TrainsDashboard({ initial }: Props) {
       void refreshRef.current();
     } catch (e) {
       setError(e instanceof Error ? e.message : t("poolFailed"));
+    } finally {
+      setReseedingPool(null);
     }
   };
+
+  const trainQuickActionBusy =
+    rollingRole !== null || reseedingPool !== null || conductorLockBusy !== null;
 
   const locked = Boolean(selectedRecord?.lockedAt);
   const conductorPaint = selectedDayConfig?.paintTemplate;
@@ -1534,14 +1564,17 @@ export function TrainsDashboard({ initial }: Props) {
                 ) ? (
                   <button
                     type="button"
+                    disabled={trainQuickActionBusy}
                     onClick={() => void runRoll("conductor")}
-                    className="rounded-lg bg-[#8957e5] px-4 py-2 text-sm font-medium text-white hover:bg-[#9d6ff0] w-full sm:w-auto"
+                    className="rounded-lg bg-[#8957e5] px-4 py-2 text-sm font-medium text-white hover:bg-[#9d6ff0] disabled:opacity-50 w-full sm:w-auto"
                   >
-                    {conductorMech === "r4_sequence" && nextInSequence
-                      ? t("assignNextInSequence", {
-                          name: nextInSequence.memberName,
-                        })
-                      : t("spinWheel")}
+                    {rollingRole === "conductor"
+                      ? t("spinning")
+                      : conductorMech === "r4_sequence" && nextInSequence
+                        ? t("assignNextInSequence", {
+                            name: nextInSequence.memberName,
+                          })
+                        : t("spinWheel")}
                   </button>
                 ) : null}
                 {canRoll &&
@@ -1549,11 +1582,11 @@ export function TrainsDashboard({ initial }: Props) {
                   conductorMech === "donations_top") ? (
                   <button
                     type="button"
-                    disabled={locked}
+                    disabled={locked || trainQuickActionBusy}
                     onClick={() => void runRoll("conductor")}
                     className="rounded-lg bg-hq-success px-4 py-2 text-sm font-medium text-white hover:bg-hq-success-hover disabled:opacity-50 w-full sm:w-auto"
                   >
-                    {t("pickTopScorer")}
+                    {rollingRole === "conductor" ? t("spinning") : t("pickTopScorer")}
                   </button>
                 ) : null}
                 {canManualPick ? (
@@ -1581,10 +1614,11 @@ export function TrainsDashboard({ initial }: Props) {
                 {canRoll && canSpinVip(vipMech, locked) ? (
                   <button
                     type="button"
+                    disabled={trainQuickActionBusy}
                     onClick={() => void runRoll("vip")}
-                    className="rounded-lg bg-[#bf8700] px-4 py-2 text-sm font-medium text-white hover:bg-[#d29922] w-full sm:w-auto"
+                    className="rounded-lg bg-[#bf8700] px-4 py-2 text-sm font-medium text-white hover:bg-[#d29922] disabled:opacity-50 w-full sm:w-auto"
                   >
-                    {t("spinVipWheel")}
+                    {rollingRole === "vip" ? t("spinning") : t("spinVipWheel")}
                   </button>
                 ) : null}
                 {canManualPickVip ? (
@@ -1618,13 +1652,16 @@ export function TrainsDashboard({ initial }: Props) {
                         </button>
                         <button
                           type="button"
+                          disabled={trainQuickActionBusy}
                           onClick={() => {
                             setTrainReadyConfirm(false);
                             void lockConductor();
                           }}
-                          className="rounded-md bg-hq-success px-3 py-1.5 text-xs font-medium text-white hover:bg-hq-success-hover"
+                          className="rounded-md bg-hq-success px-3 py-1.5 text-xs font-medium text-white hover:bg-hq-success-hover disabled:opacity-50"
                         >
-                          {t("trainIsReady.confirmAction")}
+                          {conductorLockBusy === "lock"
+                            ? t("locking")
+                            : t("trainIsReady.confirmAction")}
                         </button>
                       </div>
                     ) : (
@@ -1639,10 +1676,13 @@ export function TrainsDashboard({ initial }: Props) {
                   ) : (
                     <button
                       type="button"
+                      disabled={trainQuickActionBusy}
                       onClick={() => void lockConductor()}
-                      className="rounded-lg bg-hq-success px-4 py-2 text-sm font-medium text-white hover:bg-hq-success-hover w-full sm:w-auto"
+                      className="rounded-lg bg-hq-success px-4 py-2 text-sm font-medium text-white hover:bg-hq-success-hover disabled:opacity-50 w-full sm:w-auto"
                     >
-                      {t("lockConductor")}
+                      {conductorLockBusy === "lock"
+                        ? t("locking")
+                        : t("lockConductor")}
                     </button>
                   )
                 ) : null}
@@ -1661,19 +1701,25 @@ export function TrainsDashboard({ initial }: Props) {
                       </button>
                       <button
                         type="button"
+                        disabled={trainQuickActionBusy}
                         onClick={() => void unlockConductor()}
-                        className="rounded-md bg-hq-danger-emphasis px-3 py-1.5 text-xs font-medium text-white hover:bg-hq-danger"
+                        className="rounded-md bg-hq-danger-emphasis px-3 py-1.5 text-xs font-medium text-white hover:bg-hq-danger disabled:opacity-50"
                       >
-                        {t("unlockConfirmAction")}
+                        {conductorLockBusy === "unlock"
+                          ? t("unlocking")
+                          : t("unlockConfirmAction")}
                       </button>
                     </div>
                   ) : (
                     <button
                       type="button"
+                      disabled={trainQuickActionBusy}
                       onClick={() => setUnlockConfirm(true)}
-                      className="rounded-lg border border-hq-danger-emphasis/60 bg-hq-danger-emphasis/10 px-4 py-2 text-sm font-medium text-hq-danger hover:bg-hq-danger-emphasis/20"
+                      className="rounded-lg border border-hq-danger-emphasis/60 bg-hq-danger-emphasis/10 px-4 py-2 text-sm font-medium text-hq-danger hover:bg-hq-danger-emphasis/20 disabled:opacity-50"
                     >
-                      {t("unlockConductor")}
+                      {conductorLockBusy === "unlock"
+                        ? t("unlocking")
+                        : t("unlockConductor")}
                     </button>
                   )
                 ) : null}
@@ -1683,14 +1729,17 @@ export function TrainsDashboard({ initial }: Props) {
                 <div className="flex items-center gap-1.5 self-start">
                   <button
                     type="button"
+                    disabled={trainQuickActionBusy}
                     onClick={() =>
                       void reseedPool(
                         conductorMech === "r3_lottery" ? "r3" : "r4_plus",
                       )
                     }
-                    className="rounded-md border border-hq-border px-3 py-1.5 text-xs text-hq-fg-muted hover:text-hq-fg"
+                    className="rounded-md border border-hq-border px-3 py-1.5 text-xs text-hq-fg-muted hover:text-hq-fg disabled:opacity-50"
                   >
-                    {t("reseedPool")}
+                    {reseedingPool
+                      ? t("reseedingPool")
+                      : t("reseedPool")}
                   </button>
                   <button
                     type="button"

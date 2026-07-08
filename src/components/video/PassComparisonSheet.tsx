@@ -30,10 +30,17 @@ type Props = {
   onClose: () => void;
   onSelectJob: (jobId: string) => void;
   onAccuracyVote: (jobId: string) => void;
+  groupActionBusy?: string | null;
 };
 
 export function PassComparisonSheet(props: Props) {
-  const { comparison, onClose, onSelectJob, onAccuracyVote } = props;
+  const {
+    comparison,
+    onClose,
+    onSelectJob,
+    onAccuracyVote,
+    groupActionBusy = null,
+  } = props;
   const t = useTranslations("videoReview");
   const [primaryRows, setPrimaryRows] = useState<ParsedRow[]>([]);
   const [shadowRows, setShadowRows] = useState<ParsedRow[]>([]);
@@ -176,7 +183,7 @@ export function PassComparisonSheet(props: Props) {
             <button
               key={pass.jobId}
               type="button"
-              disabled={!!accuracyVoted}
+              disabled={!!accuracyVoted || !!groupActionBusy}
               onClick={() => handleVote(pass.jobId)}
               className={`rounded-lg border px-3 py-1.5 text-sm disabled:opacity-60 ${
                 accuracyVoted === pass.jobId
@@ -194,7 +201,7 @@ export function PassComparisonSheet(props: Props) {
           ))}
           <button
             type="button"
-            disabled={!!accuracyVoted}
+            disabled={!!accuracyVoted || !!groupActionBusy}
             onClick={() => handleVote("same")}
             className="rounded-lg border border-hq-border px-3 py-1.5 text-sm hover:bg-hq-surface-muted disabled:opacity-60"
           >
@@ -206,10 +213,15 @@ export function PassComparisonSheet(props: Props) {
             <button
               key={pass.jobId}
               type="button"
+              disabled={!!groupActionBusy}
               onClick={() => onSelectJob(pass.jobId)}
-              className="rounded-lg border border-hq-success bg-hq-success px-3 py-1.5 text-sm text-white"
+              className="rounded-lg border border-hq-success bg-hq-success px-3 py-1.5 text-sm text-white disabled:opacity-50"
             >
-              {i === 0 ? t("comparisonUseA") : t("comparisonUseB")}
+              {groupActionBusy === `select:${pass.jobId}`
+                ? t("submitting")
+                : i === 0
+                  ? t("comparisonUseA")
+                  : t("comparisonUseB")}
             </button>
           ))}
         </div>

@@ -206,6 +206,7 @@
       "loadingDetail": "Loading report…",
       "saveFailed": "Could not update status.",
       "saved": "Status updated.",
+      "saving": "Saving…",
       "selectReport": "Select a report to view details.",
       "filterOpen": "Open",
       "filterTriaged": "Triaged",
@@ -637,7 +638,8 @@
       "statusProcessing": "Processing",
       "statusReview": "Review",
       "statusComplete": "Complete",
-      "allStatuses": "All statuses"
+      "allStatuses": "All statuses",
+      "listLoading": "Loading jobs…"
     },
     "videoJobDetailPage": {
       "loading": "Loading job details…",
@@ -2866,6 +2868,7 @@
       "substitutingFor": "Substituting for {name}"
     },
     "reseedPool": "Re-seed pool",
+    "reseedingPool": "Reseeding pool…",
     "reseedPoolHint": {
       "infoLabel": "What does re-seed pool do?",
       "title": "Re-seed pool",
@@ -3085,6 +3088,7 @@
     "selectedFile": "Selected: {name} ({size})",
     "chooseFileFirst": "Choose a video file first.",
     "uploading": "Uploading…",
+    "preparingUpload": "Preparing upload…",
     "uploadButton": "Upload video",
     "boardLabel": "Leaderboard type",
     "boardTypes": {
@@ -3227,6 +3231,7 @@
     "ratingThumbsDown": "Needs work",
     "ratingSkip": "Skip",
     "addRow": "Add row",
+    "addingRow": "Adding row…",
     "comparisonPromptTitle": "We tried a different approach that may have gotten better results.",
     "comparisonPromptBody": "A second pass found more unique rows. Would you like to use those results?",
     "comparisonUseBetter": "Use results with more rows",
@@ -3463,6 +3468,7 @@
     "suggested": "Suggested translation",
     "displayed": "Displayed text",
     "saved": "Updated.",
+    "saving": "Saving…",
     "saveFailed": "Update failed.",
     "awarded": "Commendations awarded: {badges}",
     "localePatched": "Wrote \"{value}\" to messages/{locale}.json ({key})."

@@ -104,6 +104,7 @@ export default function AdminVideoJobsPage() {
   );
   const [jobs, setJobs] = useState<VideoJob[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [listLoading, setListLoading] = useState(true);
   const [actingJobId, setActingJobId] = useState<string | null>(null);
   const [errorDialogJob, setErrorDialogJob] = useState<VideoJob | null>(null);
 
@@ -133,13 +134,23 @@ export default function AdminVideoJobsPage() {
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
     void (async () => {
+      setListLoading(true);
       try {
         await loadJobs(filters);
+        if (!cancelled) setError(null);
       } catch (err) {
-        setError(err instanceof Error ? err.message : t("loadFailed"));
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : t("loadFailed"));
+        }
+      } finally {
+        if (!cancelled) setListLoading(false);
       }
     })();
+    return () => {
+      cancelled = true;
+    };
   }, [loadJobs, filters, t]);
 
   // Derive available pass keys from loaded jobs for the filter dropdown
@@ -235,6 +246,13 @@ export default function AdminVideoJobsPage() {
           {tJobs("analyticsLink")} →
         </Link>
       </div>
+      <div className="relative">
+        {listLoading ? (
+          <p className="py-8 text-center text-sm text-hq-fg-muted" role="status">
+            {tJobs("listLoading")}
+          </p>
+        ) : null}
+        <div className={listLoading ? "pointer-events-none opacity-40" : undefined}>
       <ResponsiveRecordViews
         isEmpty={jobs.length === 0}
         emptyMessage={tJobs("empty")}
@@ -435,6 +453,8 @@ export default function AdminVideoJobsPage() {
           </div>
         }
       />
+        </div>
+      </div>
 
       {errorDialogJob ? (
         <div

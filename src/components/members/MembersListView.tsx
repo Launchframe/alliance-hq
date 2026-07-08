@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Loader2 } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 
@@ -753,8 +754,22 @@ export function MembersListView({
           : t("lastSyncedUnknown")}
       </p>
 
-      <div className="min-w-0 overflow-x-auto rounded-xl border border-hq-border">
-        <table className="w-full min-w-0 text-left text-sm">
+      <div className="relative min-w-0 overflow-x-auto rounded-xl border border-hq-border">
+        {refreshing ? (
+          <div
+            className="absolute inset-0 z-10 flex items-center justify-center gap-2 bg-hq-canvas/70 text-sm text-hq-fg-muted"
+            role="status"
+            aria-live="polite"
+          >
+            <Loader2 className="h-4 w-4 animate-spin text-hq-accent" aria-hidden />
+            {t("refreshing")}
+          </div>
+        ) : null}
+        <table
+          className={`w-full min-w-0 text-left text-sm ${
+            refreshing ? "pointer-events-none opacity-50" : ""
+          }`}
+        >
           <thead className="border-b border-hq-border bg-hq-surface text-xs uppercase tracking-wide text-hq-fg-muted">
             <tr>
               {editMode ? (
