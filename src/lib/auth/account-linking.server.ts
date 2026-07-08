@@ -221,6 +221,12 @@ async function resolveSignedInOAuthLinkUniqueViolation(input: {
   if (constraint === HQ_AUTH_HQ_USER_PROVIDER_UNIQUE) {
     return { ok: false, code: "provider_type_already_linked" };
   }
+  if (
+    constraint !== null &&
+    constraint !== HQ_AUTH_PROVIDER_ACCOUNT_UNIQUE
+  ) {
+    return null;
+  }
 
   const existingOwnerId = await findHqUserIdForOAuthAccount({
     provider: input.provider,
