@@ -107,12 +107,12 @@ Do **not** conflate **Discord user**, **`discord_member_links` (in-game member)*
 | Layer | Identity | Typical entry |
 | --- | --- | --- |
 | Discord bot (HQ identity) | `discord_hq_links` | `/link` → Discord OAuth (`user_link` nonce) — no alliance required |
-| Discord bot (member link) | `discord_member_links` per guild alliance | `/link-commander` or `/link-last-war-profile` (name + UID) after guild registration |
+| Discord bot (member link) | `discord_member_links` per guild alliance | `/link-commander` or `/link-last-war-profile` → secure web form (`member_link` nonce) |
 | Discord bot (optional Ashed) | `alliance_ashed_credentials` | `/link-ashed` for roster reads / Ashed tools — not auth |
 | HQ web | `hq_users` + `alliance_memberships` / session permission | BFF routes with `requireSessionPermission` |
 | Ashed | Roster, owner, collaborators — **source of truth** for in-game membership | User connect JWT (web) or `alliance_ashed_credentials` (bot roster reads) |
 
-- **Member actions** (`/link-commander`, `/link-last-war-profile`, `/vr`): prove Discord user ↔ in-game commander via name+UID roster match; guild tenant from `resolveAllianceForGuild`.
+- **Member actions** (`/link-commander`, `/link-last-war-profile`, `/vr`): prove Discord user ↔ in-game commander via player ID on the secure web form (or inherited HQ link); guild tenant from `resolveAllianceForGuild`.
 - **HQ account link** (`/link`): Discord OAuth via `user_link` nonce; records `discord_hq_links`; works without a registered guild; inherits web commanders into `discord_member_links`.
 - **Owner setup** (`/link-alliance`, optional `/link-ashed`): guild registration via owner member link or platform maintainer; Ashed credentials optional for native alliances.
 - **Cron / web-triggered jobs:** service or session auth; resolve `allianceId` explicitly; do not impersonate a Discord user.

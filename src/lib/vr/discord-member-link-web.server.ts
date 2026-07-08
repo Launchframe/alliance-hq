@@ -16,6 +16,7 @@ import type { DiscordMemberLinkWebOutcome } from "@/lib/vr/discord-member-link-w
 import { memberLinkReplaceAllFromNonceTag } from "@/lib/vr/discord-member-link-nonce.shared";
 import {
   getAllianceById,
+  getDiscordBotPending,
   getDiscordUserLocale,
   getGuildAllianceId,
 } from "@/lib/vr/repository";
@@ -37,17 +38,51 @@ const SESSION_DENY_MESSAGES: Record<DiscordMemberLinkWebSessionDenyReason, strin
   needs_join_code: "Redeem your alliance join code before linking your commander.",
 };
 
-async function resolveMemberLinkContext(nonce: string) {
+type MemberLinkContext = {
+  nonceRow: NonNullable<Awaited<ReturnType<typeof getValidDiscordAuthNonce>>>;
+  allianceId: string | null;
+  locale: DiscordBotLocale;
+};
+
+async function resolveMemberLinkContext(nonce: string): Promise<MemberLinkContext | null> {
   const nonceRow = await getValidDiscordAuthNonce(nonce);
   if (!nonceRow || nonceRow.purpose !== "member_link") {
     return null;
   }
   if (!nonceRow.guildId) {
-    return { nonceRow, allianceId: null as string | null, locale: "en-US" as DiscordBotLocale };
+    return { nonceRow, allianceId: null, locale: "en-US" };
   }
   const allianceId = await getGuildAllianceId(nonceRow.guildId);
   const locale = (await getDiscordUserLocale(nonceRow.discordUserId)) ?? "en-US";
   return { nonceRow, allianceId, locale };
+}
+
+async function resolveMemberLinkAllianceId(
+  ctx: MemberLinkContext,
+  options?: { gameUid?: string; pendingFallback?: boolean },
+): Promise<string | null> {
+  if (ctx.allianceId) return ctx.allianceId;
+
+  const gameUid = options?.gameUid?.trim();
+  if (gameUid && ctx.nonceRow.guildId) {
+    const lookup = await lookupPlayerByUid(gameUid);
+    if (lookup.ok) {
+      const resolved = await resolveAllianceIdForDiscordMemberLink({
+        guildId: ctx.nonceRow.guildId,
+        discordUserId: ctx.nonceRow.discordUserId,
+        reportedName: lookup.gameUserName,
+        gameUid,
+      });
+      if (resolved) return resolved;
+    }
+  }
+
+  if (options?.pendingFallback) {
+    const pendingRow = await getDiscordBotPending(ctx.nonceRow.discordUserId);
+    return pendingRow?.allianceId ?? null;
+  }
+
+  return null;
 }
 
 function sessionDenyOutcome(
@@ -148,25 +183,10 @@ export async function previewDiscordMemberLinkFromWeb(
     };
   }
 
-  let allianceId = ctx.allianceId;
-  if (!allianceId && ctx.nonceRow.guildId) {
-    const lookupForAlliance = await lookupPlayerByUid(gameUid);
-    if (lookupForAlliance.ok) {
-      allianceId = await resolveAllianceIdForDiscordMemberLink({
-        guildId: ctx.nonceRow.guildId,
-        discordUserId: ctx.nonceRow.discordUserId,
-        reportedName: lookupForAlliance.gameUserName,
-        gameUid,
-      });
-    }
-  }
+  const allianceId = await resolveMemberLinkAllianceId(ctx, { gameUid });
 
   if (!allianceId) {
-    return {
-      outcome: "error",
-      message:
-        "This Discord server is not registered to an alliance yet. Ask your owner to finish setup, then run /link-commander again.",
-    };
+    return { outcome: "guild_not_registered" };
   }
 
   const replaceAll = memberLinkReplaceAllFromNonceTag(ctx.nonceRow.tag);
@@ -198,12 +218,17 @@ export async function confirmDiscordMemberLinkFromWeb(
   if (denied) return denied;
 
   const ctx = await resolveMemberLinkContext(body.nonce);
-  if (!ctx?.allianceId) {
+  if (!ctx) {
     return sessionDenyOutcome("invalid_nonce");
   }
 
+  const allianceId = await resolveMemberLinkAllianceId(ctx, { pendingFallback: true });
+  if (!allianceId) {
+    return { outcome: "guild_not_registered" };
+  }
+
   const result = await handleDiscordLinkIdentityConfirm({
-    allianceId: ctx.allianceId,
+    allianceId,
     guildId: ctx.nonceRow.guildId,
     discordUserId: ctx.nonceRow.discordUserId,
     answer: body.answer,
@@ -233,12 +258,17 @@ export async function pickDiscordMemberLinkFromWeb(
   if (denied) return denied;
 
   const ctx = await resolveMemberLinkContext(body.nonce);
-  if (!ctx?.allianceId) {
+  if (!ctx) {
     return sessionDenyOutcome("invalid_nonce");
   }
 
+  const allianceId = await resolveMemberLinkAllianceId(ctx, { pendingFallback: true });
+  if (!allianceId) {
+    return { outcome: "guild_not_registered" };
+  }
+
   const result = await handleDiscordLinkFuzzyPick({
-    allianceId: ctx.allianceId,
+    allianceId,
     discordUserId: ctx.nonceRow.discordUserId,
     memberId: body.memberId,
     locale: ctx.locale,
