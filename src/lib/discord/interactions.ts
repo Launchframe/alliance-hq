@@ -424,7 +424,8 @@ export function discordComponentMessageResponse(
     data: {
       content,
       ...(ephemeral ? { flags: 64 } : {}),
-      ...(components !== undefined ? { components } : {}),
+      // Omitting components leaves stale buttons clickable; always clear unless replaced.
+      components: components ?? [],
     },
   };
 }
