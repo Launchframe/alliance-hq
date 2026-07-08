@@ -94,6 +94,18 @@ export async function POST(
         { status: 400 },
       );
     }
+    if (message === "Sign in with Discord to accept this invite.") {
+      return NextResponse.json(
+        { code: "discord_login_required", error: message },
+        { status: 400 },
+      );
+    }
+    if (message === "Discord account does not match this invite.") {
+      return NextResponse.json(
+        { code: "discord_user_mismatch", error: message },
+        { status: 400 },
+      );
+    }
     return NextResponse.json({ error: message }, { status: 400 });
   }
 }

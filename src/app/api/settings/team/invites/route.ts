@@ -16,18 +16,22 @@ import {
   isSystemRoleName,
   resolveTeamInviteAccess,
 } from "@/lib/native-alliance/team-invites.server";
+import { isValidDiscordUserId } from "@/lib/native-alliance/discord-officer-invite.shared";
 import { sanitizeInternalRedirectPath } from "@/lib/navigation/safe-redirect.shared";
 import type { SystemRoleName } from "@/lib/rbac/constants";
 import { readSessionId } from "@/lib/session";
 
 const bodySchema = z
   .object({
-    kind: z.enum(["email", "protected_link"]).default("protected_link"),
+    kind: z
+      .enum(["email", "protected_link", "discord_officer"])
+      .default("protected_link"),
     email: z.string().trim().email().optional(),
     roleName: z.enum(["officer", "data_entry", "viewer", "member"]),
     redirectPath: z.string().trim().max(512).optional(),
     adminLabel: z.string().trim().max(120).optional(),
     targetAshedMemberId: z.string().trim().min(1).max(64).optional(),
+    targetDiscordUserId: z.string().trim().min(1).max(32).optional(),
   })
   .superRefine((data, ctx) => {
     if (data.kind === "email" && !data.email) {
@@ -36,6 +40,22 @@ const bodySchema = z
         message: "Email is required for email invites.",
         path: ["email"],
       });
+    }
+    if (data.kind === "discord_officer") {
+      if (data.roleName !== "officer") {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Discord officer invites must use the officer role.",
+          path: ["roleName"],
+        });
+      }
+      if (!data.targetDiscordUserId || !isValidDiscordUserId(data.targetDiscordUserId)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "A valid Discord user ID is required.",
+          path: ["targetDiscordUserId"],
+        });
+      }
     }
   });
 
@@ -103,6 +123,7 @@ export async function POST(request: Request) {
       origin,
       redirectPath: sanitizeInternalRedirectPath(body.redirectPath),
       adminLabel: body.adminLabel,
+      targetDiscordUserId: body.targetDiscordUserId,
     });
 
     return NextResponse.json({ ok: true, invite });

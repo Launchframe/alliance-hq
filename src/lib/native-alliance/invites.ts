@@ -26,6 +26,15 @@ import {
 import { systemRoleNameForId } from "@/lib/rbac/system-roles";
 import { getLinkedMemberIds } from "@/lib/vr/repository";
 
+import {
+  getDiscordProviderAccountIdForHqUser,
+  syncDiscordHqLinkFromSignedInUser,
+} from "@/lib/auth/discord-hq-link.server";
+
+import {
+  isValidDiscordUserId,
+  normalizeDiscordUserId,
+} from "./discord-officer-invite.shared";
 import { provisionAllianceMembership } from "./provision-membership";
 
 const INVITE_TTL_DAYS = 14;
@@ -209,6 +218,7 @@ export type CreateHqInviteResult = {
   adminLabel?: string | null;
   targetAshedMemberId?: string | null;
   targetCommanderName?: string | null;
+  targetDiscordUserId?: string | null;
 };
 
 export async function createHqInvite(
@@ -249,6 +259,7 @@ export async function createHqInvite(
   let email: string | null = null;
   let passphrase: string | undefined;
   let passphraseHash: string | null = null;
+  let targetDiscordUserId: string | null = null;
 
   if (kind === "email") {
     email = normalizeAshedEmail(input.email?.trim() ?? "");
@@ -259,7 +270,15 @@ export async function createHqInvite(
     passphrase = generateHumanPassphrase();
     passphraseHash = await hashPassphrase(passphrase);
   } else if (kind === "discord_officer") {
-    throw new Error("Discord officer invites require Auth Phase 2.");
+    if (input.roleName !== "officer") {
+      throw new Error("Discord officer invites must use the officer role.");
+    }
+    targetDiscordUserId = normalizeDiscordUserId(input.targetDiscordUserId ?? "");
+    if (!isValidDiscordUserId(targetDiscordUserId)) {
+      throw new Error("A valid Discord user ID is required.");
+    }
+    passphrase = generateHumanPassphrase();
+    passphraseHash = await hashPassphrase(passphrase);
   }
 
   const redirectPath = sanitizeInternalRedirectPath(input.redirectPath);
@@ -278,7 +297,7 @@ export async function createHqInvite(
     tokenHash,
     passphraseHash,
     adminLabel: input.adminLabel?.trim() || null,
-    targetDiscordUserId: input.targetDiscordUserId?.trim() || null,
+    targetDiscordUserId: targetDiscordUserId || null,
     targetAshedMemberId,
     requireMemberLink: input.kind === "discord_officer" ? 1 : 0,
     invitedByHqUserId: input.invitedByHqUserId ?? null,
@@ -298,6 +317,10 @@ export async function createHqInvite(
     adminLabel: input.adminLabel?.trim() || null,
     targetAshedMemberId,
     targetCommanderName,
+    targetDiscordUserId:
+      kind === "discord_officer"
+        ? normalizeDiscordUserId(input.targetDiscordUserId ?? "")
+        : null,
   };
 }
 
@@ -377,6 +400,8 @@ export type HqInvitePreview = {
   requiresPassphrase: boolean;
   requiresDiscordLogin: boolean;
   boundEmail: string | null;
+  /** Last four digits of the bound Discord user, when applicable. */
+  boundDiscordUserIdHint: string | null;
   /** Commander display name when this is a commander claim invite (never UID). */
   targetCommanderName: string | null;
 };
@@ -439,6 +464,9 @@ export async function loadHqInvitePreview(
     requiresPassphrase: kind === "protected_link" || kind === "discord_officer",
     requiresDiscordLogin: kind === "discord_officer",
     boundEmail: row.email,
+    boundDiscordUserIdHint: row.targetDiscordUserId
+      ? row.targetDiscordUserId.slice(-4)
+      : null,
     targetCommanderName,
   };
 }
@@ -590,6 +618,20 @@ export async function rebindAcceptedInviteSession(input: {
     if (normalizedEmail !== normalizeAshedEmail(invite.email)) {
       throw new Error("Email does not match this invite.");
     }
+  } else if (kind === "discord_officer") {
+    const discordAccountId = await getDiscordProviderAccountIdForHqUser(
+      input.hqUserId,
+    );
+    const targetDiscordUserId = invite.targetDiscordUserId?.trim() ?? "";
+    if (!discordAccountId) {
+      throw new Error("Sign in with Discord to accept this invite.");
+    }
+    if (
+      !targetDiscordUserId ||
+      discordAccountId !== targetDiscordUserId
+    ) {
+      throw new Error("Discord account does not match this invite.");
+    }
   }
 
   if (invite.acceptedByHqUserId && invite.acceptedByHqUserId !== input.hqUserId) {
@@ -688,7 +730,37 @@ export async function acceptHqInvite(
       throw new Error("Incorrect passphrase.");
     }
   } else if (kind === "discord_officer") {
-    throw new Error("Discord officer invites require Auth Phase 2.");
+    if (!invite.passphraseHash) {
+      throw new Error("Invite passphrase is missing.");
+    }
+    if (invite.passphraseConsumedAt) {
+      throw new Error("Passphrase already used.");
+    }
+    const passphrase = input.passphrase?.trim() ?? "";
+    if (!passphrase) {
+      throw new Error("Passphrase is required.");
+    }
+    const valid = await verifyPassphrase(passphrase, invite.passphraseHash);
+    if (!valid) {
+      throw new Error("Incorrect passphrase.");
+    }
+
+    const targetDiscordUserId = invite.targetDiscordUserId?.trim() ?? "";
+    if (!isValidDiscordUserId(targetDiscordUserId)) {
+      throw new Error("Invite Discord target is missing.");
+    }
+
+    const discordAccountId = await getDiscordProviderAccountIdForHqUser(
+      input.hqUserId,
+    );
+    if (!discordAccountId) {
+      throw new Error("Sign in with Discord to accept this invite.");
+    }
+    if (discordAccountId !== targetDiscordUserId) {
+      throw new Error("Discord account does not match this invite.");
+    }
+
+    await syncDiscordHqLinkFromSignedInUser(input.hqUserId);
   }
 
   const hqUserId = input.hqUserId;
@@ -699,7 +771,9 @@ export async function acceptHqInvite(
     .set({
       acceptedAt: now,
       acceptedByHqUserId: hqUserId,
-      ...(kind === "protected_link" ? { passphraseConsumedAt: now } : {}),
+      ...(kind === "protected_link" || kind === "discord_officer"
+        ? { passphraseConsumedAt: now }
+        : {}),
     })
     .where(
       and(

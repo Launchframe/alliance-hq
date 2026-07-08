@@ -315,6 +315,7 @@ export async function acceptInviteViaApi(
   email: string,
   next?: string,
   sessionId?: string,
+  passphrase?: string,
 ): Promise<{
   sessionId: string;
   redirectTo: string;
@@ -346,6 +347,7 @@ export async function acceptInviteViaApi(
       email,
       displayName: "E2E User",
       next,
+      passphrase,
     }),
   });
 
