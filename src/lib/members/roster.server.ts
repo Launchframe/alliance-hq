@@ -14,6 +14,7 @@ import { syncTenureFromMemberStatus } from "@/lib/members/member-tenure.server";
 import { syncCommanderFromAllianceMember } from "@/lib/members/commander-identity.server";
 import type { CommanderIdentityConflict } from "@/lib/members/commander-identity-conflicts.shared";
 import { normalizedRankFromAshedMember } from "@/lib/members/roster.shared";
+import { shouldSyncRosterFromAshed } from "@/lib/members/roster-sync.shared";
 
 export {
   allianceMemberRowToAshedMember,
@@ -209,6 +210,32 @@ export async function listAllianceMembers(
     .where(eq(schema.allianceMembers.allianceId, hqAllianceId));
 }
 
+/** Sync from Ashed when empty, stale (>24h), or forced; reuse local rows on cache hits. */
+export async function listAllianceMembersWithAshedSyncIfNeeded(input: {
+  hqAllianceId: string;
+  ashedAllianceId: string;
+  connection: ParsedConnection;
+  forceRefresh?: boolean;
+}): Promise<AllianceMember[]> {
+  const [lastSyncedAt, localRows] = await Promise.all([
+    getAllianceRosterLastSyncedAt(input.hqAllianceId),
+    listAllianceMembers(input.hqAllianceId),
+  ]);
+
+  if (
+    shouldSyncRosterFromAshed({
+      forceRefresh: input.forceRefresh === true,
+      lastSyncedAt,
+      localMemberCount: localRows.length,
+    })
+  ) {
+    await syncAllianceMembersFromAshed(input);
+    return listAllianceMembers(input.hqAllianceId);
+  }
+
+  return localRows;
+}
+
 export async function listActiveAllianceMembersForPool(
   hqAllianceId: string,
 ): Promise<AllianceMember[]> {
@@ -229,12 +256,11 @@ export async function listActiveAllianceMembersForPoolWithSync(input: {
   ashedAllianceId: string;
   connection: ParsedConnection;
 }): Promise<AllianceMember[]> {
-  let members = await listActiveAllianceMembersForPool(input.hqAllianceId);
-  if (members.length === 0) {
-    await syncAllianceMembersFromAshed(input);
-    members = await listActiveAllianceMembersForPool(input.hqAllianceId);
-  }
-  return members;
+  await listAllianceMembersWithAshedSyncIfNeeded({
+    ...input,
+    forceRefresh: false,
+  });
+  return listActiveAllianceMembersForPool(input.hqAllianceId);
 }
 
 export async function setAllianceMemberRank(input: {
