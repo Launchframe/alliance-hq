@@ -1,5 +1,5 @@
 import type { DiscordTranslate } from "@/lib/discord/i18n";
-import { formatThpTotalForDiscord } from "@/lib/discord/bot-pending-guards.shared";
+import { formatThpTotalForDiscord } from "@/lib/thp/format.shared";
 import {
   sumThpBreakdown,
   validateThpTotal,

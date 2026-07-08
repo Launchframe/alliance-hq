@@ -94,4 +94,10 @@ export const functionTraceBudgets = [
     maxUncompressedBytes: 250 * 1024 * 1024,
     requireLibvips: true,
   },
+  {
+    route: "/api/thp/me/submit",
+    nftPath: ".next/server/app/api/thp/me/submit/route.js.nft.json",
+    maxUncompressedBytes: 200 * 1024 * 1024,
+    requireLibvips: true,
+  },
 ];

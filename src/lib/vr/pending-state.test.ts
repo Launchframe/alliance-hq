@@ -26,4 +26,24 @@ describe("parseStoredVrPending", () => {
       }),
     ).toBeNull();
   });
+
+  it("rejects THP anomaly confirm mistaken for VR", () => {
+    expect(
+      parseStoredVrPending({
+        kind: "anomaly_confirm",
+        proposedTotal: 999_999_999,
+        proposedBreakdown: null,
+        commanderId: "cmd-1",
+      }),
+    ).toBeNull();
+  });
+
+  it("rejects VR anomaly confirm with missing proposedVr", () => {
+    expect(
+      parseStoredVrPending({
+        kind: "anomaly_confirm",
+        ashedMemberId: "member-1",
+      }),
+    ).toBeNull();
+  });
 });

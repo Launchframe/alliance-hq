@@ -2,7 +2,7 @@ import { getTranslations } from "next-intl/server";
 import { redirect } from "next/navigation";
 
 import { MyThpTrackerView } from "@/components/thp/my-thp-tracker-view";
-import { loadMyThpForUser } from "@/lib/thp/web-thp.server";
+import { loadMyThpForUser } from "@/lib/thp/web-thp-read.server";
 import { requirePageSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
