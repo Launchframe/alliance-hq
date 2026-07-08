@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { normalizeAshedEmail } from "@/lib/alliance/accessible";
 import { auth } from "@/lib/auth";
 import { bridgeAuthUserToBrowserSession } from "@/lib/auth/bridge-session";
 import {
@@ -8,7 +9,7 @@ import {
   loadHqUserEmailById,
 } from "@/lib/auth/change-hq-email.server";
 import { resolveSessionHqUserId } from "@/lib/auth/resolve-session-hq-user.server";
-import { readSessionId } from "@/lib/session";
+import { loadSession, readSessionId } from "@/lib/session";
 
 export async function POST(request: Request) {
   const session = await auth();
@@ -48,6 +49,12 @@ export async function POST(request: Request) {
 
   try {
     const sessionId = await readSessionId();
+    const browserSession = sessionId ? await loadSession(sessionId) : null;
+    const previousEmail = normalizeAshedEmail(currentEmail);
+    const labelMatchedEmail =
+      Boolean(previousEmail) &&
+      browserSession?.userLabel?.trim().toLowerCase() === previousEmail;
+
     const result = await confirmHqEmailChange({
       hqUserId,
       currentEmail,
@@ -59,7 +66,7 @@ export async function POST(request: Request) {
     await bridgeAuthUserToBrowserSession({
       hqUserId,
       email: result.email,
-      displayName: session.user.name,
+      displayName: labelMatchedEmail ? result.email : session.user.name,
       // confirmHqEmailChange already set emailVerifiedAt on hq_users.
       markEmailVerified: false,
     });
