@@ -547,6 +547,7 @@ export function MemberLinkOnboardingWizard({
               {t("wrongAlliance")}
             </button>
             <p className="mt-1 text-xs text-hq-fg-muted">{t("wrongAllianceHint")}</p>
+            <p className="mt-1 text-xs text-hq-fg-muted">{t("wrongAccountHint")}</p>
           </div>
         </form>
       ) : null}

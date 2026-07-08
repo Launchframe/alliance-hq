@@ -75,6 +75,7 @@ export function InviteAcceptClient({
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showAccountHint, setShowAccountHint] = useState(false);
 
   const authHref = buildAuthHref(token, queryRedirect, preview?.boundEmail);
 
@@ -129,6 +130,7 @@ export function InviteAcceptClient({
 
     setSubmitting(true);
     setError(null);
+    setShowAccountHint(false);
     try {
       const res = await fetch(
         `/api/invite/${encodeURIComponent(token)}/accept`,
@@ -153,6 +155,7 @@ export function InviteAcceptClient({
       if (!res.ok) {
         if (body.code === "email_mismatch") {
           setError(t("emailMismatch"));
+          setShowAccountHint(true);
           return;
         }
         if (body.code === "auth_required") {
@@ -347,6 +350,14 @@ export function InviteAcceptClient({
         </label>
 
         {error ? <p className="text-sm text-hq-danger">{error}</p> : null}
+        {showAccountHint ? (
+          <p className="text-sm text-hq-fg-muted">
+            {t("wrongAccountHint")}{" "}
+            <Link href="/settings/account" className="text-hq-accent hover:underline">
+              {t("wrongAccountHintLink")}
+            </Link>
+          </p>
+        ) : null}
 
         <button
           type="submit"
