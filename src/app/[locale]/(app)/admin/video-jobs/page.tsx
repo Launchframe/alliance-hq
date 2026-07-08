@@ -130,7 +130,7 @@ export default function AdminVideoJobsPage() {
     const res = await fetch(`/api/admin/video-jobs?${params.toString()}`);
     if (!res.ok) throw new Error(await res.text());
     const data = (await res.json()) as { jobs: VideoJob[] };
-    setJobs(data.jobs);
+    return data.jobs;
   }, []);
 
   useEffect(() => {
@@ -138,8 +138,11 @@ export default function AdminVideoJobsPage() {
     void (async () => {
       setListLoading(true);
       try {
-        await loadJobs(filters);
-        if (!cancelled) setError(null);
+        const loaded = await loadJobs(filters);
+        if (!cancelled) {
+          setJobs(loaded);
+          setError(null);
+        }
       } catch (err) {
         if (!cancelled) {
           setError(err instanceof Error ? err.message : t("loadFailed"));
@@ -169,7 +172,8 @@ export default function AdminVideoJobsPage() {
         const data = (await res.json()) as { error?: string };
         throw new Error(data.error ?? tJobs("actionFailed"));
       }
-      await loadJobs(filters);
+      const loaded = await loadJobs(filters);
+      setJobs(loaded);
     } catch (err) {
       setError(err instanceof Error ? err.message : tJobs("actionFailed"));
     } finally {
