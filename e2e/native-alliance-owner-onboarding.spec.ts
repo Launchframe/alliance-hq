@@ -13,6 +13,7 @@ import {
   playwrightAuthCookies,
 } from "./fixtures/db";
 import { redeemJoinCodeInPage } from "./fixtures/join-code";
+import { continueAfterMemberLinkSuccess } from "./fixtures/onboard-success";
 
 const OWNER_COMMANDER_NAME = "E2eNativeOwner";
 
@@ -177,12 +178,8 @@ test.describe("Native alliance — PA provision through owner onboarding", () =>
     };
     expect(linkBody.outcome, linkBody.message ?? "no message").toBe("linked");
 
-    await expect(
-      page.getByRole("heading", { name: /you're linked/i }),
-    ).toBeVisible({ timeout: 15_000 });
-
     // 6. Owner reaches the app shell (native /dashboard → /members) with Ashed connect copy.
-    await expect(page).toHaveURL(/\/members$/, { timeout: 20_000 });
+    await continueAfterMemberLinkSuccess(page, { expectUrl: /\/members$/ });
     await expect(
       page.getByText(/connect ashed for iframe tools and live roster sync/i),
     ).toBeVisible();
