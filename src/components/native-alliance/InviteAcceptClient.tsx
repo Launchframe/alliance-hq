@@ -2,12 +2,15 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
+import { signIn } from "next-auth/react";
 
+import { DiscordIcon } from "@/components/auth/AuthMethodPicker";
 import { Link, useRouter } from "@/i18n/navigation";
 import {
   FORM_SUBMIT_ENTER_KEY_HINT,
   preventDefaultFormSubmit,
 } from "@/lib/client/form-enter-submit.shared";
+import type { AuthSsoAvailability } from "@/lib/auth/sso-config.shared";
 import { resolveInviteRedirect } from "@/lib/navigation/safe-redirect.shared";
 
 type InvitePreview = {
@@ -22,6 +25,7 @@ type InvitePreview = {
   requiresPassphrase: boolean;
   requiresDiscordLogin: boolean;
   boundEmail: string | null;
+  targetCommanderName: string | null;
 };
 
 type Props = {
@@ -29,6 +33,7 @@ type Props = {
   queryRedirect?: string;
   isAuthenticated: boolean;
   userEmail?: string | null;
+  ssoAvailability: AuthSsoAvailability;
 };
 
 function authCallbackPath(token: string, queryRedirect?: string): string {
@@ -39,11 +44,27 @@ function authCallbackPath(token: string, queryRedirect?: string): string {
   return `${invitePath}?next=${encodeURIComponent(queryRedirect)}`;
 }
 
+function buildAuthHref(
+  token: string,
+  queryRedirect: string | undefined,
+  boundEmail: string | null | undefined,
+): string {
+  const params = new URLSearchParams({
+    callbackUrl: authCallbackPath(token, queryRedirect),
+    from: "invite",
+  });
+  if (boundEmail?.trim()) {
+    params.set("email", boundEmail.trim());
+  }
+  return `/auth?${params.toString()}`;
+}
+
 export function InviteAcceptClient({
   token,
   queryRedirect,
   isAuthenticated,
   userEmail,
+  ssoAvailability,
 }: Props) {
   const t = useTranslations("invite");
   const router = useRouter();
@@ -55,9 +76,7 @@ export function InviteAcceptClient({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const authHref = `/auth?callbackUrl=${encodeURIComponent(authCallbackPath(token, queryRedirect))}${
-    preview?.boundEmail ? `&email=${encodeURIComponent(preview.boundEmail)}` : ""
-  }`;
+  const authHref = buildAuthHref(token, queryRedirect, preview?.boundEmail);
 
   const postAcceptHref = useMemo(
     () =>
@@ -88,6 +107,19 @@ export function InviteAcceptClient({
       }
     })();
   }, [t, token]);
+
+  async function signInWithDiscord() {
+    setSubmitting(true);
+    setError(null);
+    try {
+      await signIn("discord", {
+        callbackUrl: authCallbackPath(token, queryRedirect),
+      });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t("signInFailed"));
+      setSubmitting(false);
+    }
+  }
 
   async function acceptInvite() {
     if (!isAuthenticated) {
@@ -138,6 +170,60 @@ export function InviteAcceptClient({
     }
   }
 
+  function renderSignInGate(introKey: "introSignInDiscord" | "introSignIn") {
+    if (!preview) {
+      return null;
+    }
+
+    return (
+      <div className="mx-auto max-w-md space-y-4 rounded-xl border border-hq-border bg-hq-surface p-6">
+        <h1 className="text-xl font-semibold">{t("title")}</h1>
+        <p className="text-sm text-hq-fg-muted">
+          {t(introKey, {
+            alliance: preview.allianceName,
+            tag: preview.allianceTag ?? "—",
+            role: preview.roleName ?? "member",
+          })}
+        </p>
+        {preview.targetCommanderName ? (
+          <p className="text-sm text-hq-fg-muted">
+            {t("introSignInClaim", { name: preview.targetCommanderName })}
+          </p>
+        ) : null}
+        {ssoAvailability.discord ? (
+          <>
+            <p
+              className="rounded-lg border border-hq-discord/35 bg-hq-discord/10 px-3 py-2.5 text-sm leading-snug text-hq-fg"
+              role="note"
+            >
+              {t("discordPrimaryHint")}
+            </p>
+            <button
+              type="button"
+              disabled={submitting}
+              onClick={() => void signInWithDiscord()}
+              className="flex w-full items-center justify-center gap-2 rounded-lg border border-hq-discord bg-hq-discord px-4 py-2.5 text-sm font-medium text-white disabled:opacity-50"
+            >
+              <DiscordIcon />
+              {submitting ? t("signingIn") : t("signInWithDiscord")}
+            </button>
+          </>
+        ) : null}
+        {error ? <p className="text-sm text-hq-danger">{error}</p> : null}
+        <Link
+          href={authHref}
+          className={`inline-block w-full rounded-lg border px-4 py-2 text-center text-sm ${
+            ssoAvailability.discord
+              ? "border-hq-border text-hq-fg hover:border-[#484f58]"
+              : "border-hq-success bg-hq-success text-white"
+          }`}
+        >
+          {ssoAvailability.discord ? t("otherSignInOptions") : t("signInToAccept")}
+        </Link>
+      </div>
+    );
+  }
+
   if (loading) {
     return <p className="text-sm text-hq-fg-muted">{t("loading")}</p>;
   }
@@ -160,12 +246,7 @@ export function InviteAcceptClient({
         <h1 className="text-xl font-semibold">{t("title")}</h1>
         <p className="text-sm text-hq-fg-muted">{t("alreadyAccepted")}</p>
         {!isAuthenticated ? (
-          <Link
-            href={authHref}
-            className="inline-block rounded-lg border border-hq-success bg-hq-success px-4 py-2 text-sm text-white"
-          >
-            {t("signInToContinue")}
-          </Link>
+          renderSignInGate("introSignIn")
         ) : (
           <button
             type="button"
@@ -190,24 +271,7 @@ export function InviteAcceptClient({
   }
 
   if (!isAuthenticated) {
-    return (
-      <div className="mx-auto max-w-md space-y-4 rounded-xl border border-hq-border bg-hq-surface p-6">
-        <h1 className="text-xl font-semibold">{t("title")}</h1>
-        <p className="text-sm text-hq-fg-muted">
-          {t("introSignIn", {
-            alliance: preview.allianceName,
-            tag: preview.allianceTag ?? "—",
-            role: preview.roleName ?? "member",
-          })}
-        </p>
-        <Link
-          href={authHref}
-          className="inline-block w-full rounded-lg border border-hq-success bg-hq-success px-4 py-2 text-center text-sm text-white"
-        >
-          {t("signInToAccept")}
-        </Link>
-      </div>
-    );
+    return renderSignInGate("introSignInDiscord");
   }
 
   return (
@@ -226,6 +290,11 @@ export function InviteAcceptClient({
               role: preview.roleName ?? "member",
             })}
       </p>
+      {preview.targetCommanderName ? (
+        <p className="text-sm text-hq-fg-muted">
+          {t("introAcceptClaim", { name: preview.targetCommanderName })}
+        </p>
+      ) : null}
 
       <form
         className="space-y-4"

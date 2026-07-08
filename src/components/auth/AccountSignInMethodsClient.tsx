@@ -104,11 +104,21 @@ export function AccountSignInMethodsClient({
   }
 
   const linked = new Set(snapshot.linkedProviders);
+  const discordLinked = linked.has("discord");
 
   return (
     <section className="space-y-4 rounded-xl border border-hq-border bg-hq-surface p-5">
       <h2 className="font-medium">{t("signInMethodsTitle")}</h2>
       <p className="text-sm text-hq-fg-muted">{t("signInMethodsBody")}</p>
+
+      {discordLinked ? (
+        <p
+          className="rounded-lg border border-hq-discord/35 bg-hq-discord/10 px-3 py-2.5 text-sm leading-snug text-hq-fg"
+          role="status"
+        >
+          {t("discordBotReadyHint")}
+        </p>
+      ) : null}
 
       <ul className="space-y-3 text-sm">
         <li className="flex flex-col gap-2 rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
