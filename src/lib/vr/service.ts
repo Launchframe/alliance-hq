@@ -5,6 +5,7 @@ import {
   type DiscordBotLocale,
   type DiscordTranslate,
 } from "@/lib/discord/i18n";
+import { isVrAnomalyConfirmPending } from "@/lib/discord/bot-pending-guards.shared";
 import { createDiscordAuthNonce } from "@/lib/vr/auth-nonce";
 import { lookupPlayerByUid } from "@/lib/lastwar/player-lookup";
 import type { LastWarPlayerLookupResult } from "@/lib/lastwar/player-lookup";
@@ -1129,8 +1130,8 @@ export async function handleDiscordVrButtonConfirm(input: {
   }
 
   const pendingRow = await getDiscordBotPending(input.discordUserId);
-  const pending = pendingRow?.pending as VrPendingState | null;
-  if (!pending || pending.kind !== "anomaly_confirm") {
+  const pending = pendingRow?.pending;
+  if (!isVrAnomalyConfirmPending(pending)) {
     const result: VrCommandResult = {
       reply: translate("errors.noConfirm"),
       pending: null,

@@ -1,4 +1,5 @@
 import type { DiscordTranslate } from "@/lib/discord/i18n";
+import { formatThpTotalForDiscord } from "@/lib/discord/bot-pending-guards.shared";
 import {
   sumThpBreakdown,
   validateThpTotal,
@@ -55,7 +56,9 @@ function applyProposed(
     })
   ) {
     return {
-      reply: t("thp.anomalyConfirm", { total: proposed.total.toLocaleString() }),
+      reply: t("thp.anomalyConfirm", {
+        total: formatThpTotalForDiscord(proposed.total),
+      }),
       pending: {
         kind: confirmKind,
         proposedTotal: proposed.total,
@@ -70,7 +73,7 @@ function applyProposed(
   }
 
   return {
-    reply: t("thp.success", { total: proposed.total.toLocaleString() }),
+    reply: t("thp.success", { total: formatThpTotalForDiscord(proposed.total) }),
     pending: null,
     action: {
       type: "set_thp",
@@ -127,6 +130,17 @@ export function processThpConfirmation(
     };
   }
 
+  if (
+    typeof pending.proposedTotal !== "number" ||
+    !Number.isFinite(pending.proposedTotal)
+  ) {
+    return {
+      reply: t("errors.noConfirm"),
+      pending: null,
+      action: { type: "none" },
+    };
+  }
+
   if (input.answer === "no") {
     return {
       reply: t("thp.declined"),
@@ -145,7 +159,7 @@ export function processThpConfirmation(
 
   return {
     reply: t("thp.success", {
-      total: pending.proposedTotal.toLocaleString(),
+      total: formatThpTotalForDiscord(pending.proposedTotal),
     }),
     pending: null,
     action: {
