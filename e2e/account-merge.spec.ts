@@ -103,7 +103,10 @@ test.describe("Account merge", () => {
 
     await expect(page.getByRole("heading", { name: /Combine accounts/i })).toBeVisible();
     await expect(
-      page.getByRole("button", { name: /Send verification code/i }).nth(1),
+      page
+        .getByRole("heading", { name: /Combine accounts/i })
+        .locator("..")
+        .getByRole("button", { name: /Send verification code/i }),
     ).toBeVisible();
   });
 });
