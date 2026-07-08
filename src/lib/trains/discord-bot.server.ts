@@ -305,6 +305,7 @@ export async function processDepartingSoonReminders(): Promise<{
     const message = formatTrainDepartingSoonMessage({
       conductorName: record.conductorMemberName,
       date: today,
+      // Public guild channel — no per-member locale; default en-US (no /pt-BR prefix).
       trainsUrl: trainsUrlForLocale(),
     });
 
