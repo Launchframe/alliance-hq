@@ -23,6 +23,41 @@ jobs:
       - run: npm run i18n:validate
       - run: npm run lint
 
+  function-trace:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: alliance_hq_build
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/alliance_hq_build
+      LOCAL_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/alliance_hq_build
+      TOKEN_ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      AUTH_SECRET: ci-build-auth-secret-min-32-characters-long
+      CI: "true"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - run: corepack enable
+      - run: npm ci
+      - run: npm run build
+      - run: npm run vercel:analyze-function-trace
+
   e2e:
     runs-on: ubuntu-latest
     services:
