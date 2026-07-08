@@ -8,7 +8,7 @@ Alliance HQ tracks **total hero power** per Commander (lifetime, cross-alliance)
 |---------|-----|
 | Discord `/thp` | `total` option and/or `screenshot` attachment; `/hero-power` is an alias |
 | Web **My THP** | Manual total, line-item breakdown, or screenshot upload |
-| Ashed sync | Roster sync continues to update the unified commander value with `source: ashed_sync` |
+| Ashed sync / roster import | `syncCommanderFromAllianceMember` → `upsertCommanderThp` (`ashed_sync`, `roster_import`, `video_parse`) |
 
 Prerequisite: linked commander (`/link-commander` on Discord or HQ member link on web).
 
