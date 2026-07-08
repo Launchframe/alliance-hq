@@ -1,6 +1,7 @@
 "use client";
 
 import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type {
@@ -515,6 +516,7 @@ export function WeekScheduleStrip({
   onWeekLoadError,
   draftScheduleAriaLabel,
 }: Props) {
+  const tc = useTranslations("common");
   const [viewWeekStart, setViewWeekStart] = useState(initialWeekStart);
   const lastNotifiedWeekStartRef = useRef(initialWeekStart);
   const [page, setPage] = useState<WeekSchedulePagePayload>({
@@ -715,8 +717,10 @@ export function WeekScheduleStrip({
             className="absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-hq-canvas/70"
             aria-busy="true"
             role="status"
+            aria-label={tc("loading")}
           >
             <Loader2 className="h-5 w-5 animate-spin text-hq-accent" aria-hidden />
+            <span className="sr-only">{tc("loading")}</span>
           </div>
         ) : null}
 

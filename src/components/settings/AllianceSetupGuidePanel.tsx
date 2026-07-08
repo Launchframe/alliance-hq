@@ -150,6 +150,7 @@ export function AllianceSetupGuidePanel({
                 type="button"
                 onClick={() => onTaskAction(row.id)}
                 disabled={activeTaskId !== null}
+                aria-busy={activeTaskId === row.id}
                 className="inline-flex w-full sm:w-auto shrink-0 items-center justify-center gap-1.5 rounded-lg bg-hq-success px-3 py-1.5 text-xs font-medium text-white hover:bg-hq-success-hover disabled:opacity-50"
               >
                 {activeTaskId === row.id ? (

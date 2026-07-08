@@ -229,6 +229,7 @@ export function CommanderConflictResolutionSheet({
             type="submit"
             className="inline-flex items-center justify-center gap-2 rounded-lg bg-hq-success px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
             disabled={saving || batchConflicts.length > 0}
+            aria-busy={saving}
           >
             {saving ? (
               <>

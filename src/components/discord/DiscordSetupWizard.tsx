@@ -277,9 +277,14 @@ export function DiscordSetupWizard({
             <button
               type="button"
               disabled={discordLinking}
+              aria-busy={discordLinking}
               onClick={() => {
                 setDiscordLinking(true);
-                void signIn("discord", { callbackUrl: "/discord/setup" });
+                void signIn("discord", { callbackUrl: "/discord/setup" }).catch(
+                  () => {
+                    setDiscordLinking(false);
+                  },
+                );
               }}
               className="mt-4 flex w-full items-center justify-center rounded-lg bg-[#5865F2] px-4 py-2.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50 sm:w-auto"
             >
