@@ -26,6 +26,7 @@ const DEFAULT_HOTKEY_BINDINGS_IMPL = {
   "nav.reports": seq("g", "r"),
   "nav.viralResistance": seq("g", "i"),
   "nav.myVr": seq("g", "j"),
+  "nav.myThp": seq("g", "f"),
   "nav.trains": seq("g", "t"),
   "nav.desertStorm": seq("g", "s"),
   "nav.canyonStorm": seq("g", "c"),

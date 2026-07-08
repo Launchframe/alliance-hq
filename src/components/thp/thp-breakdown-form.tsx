@@ -88,7 +88,7 @@ export function ThpBreakdownForm({ initial, busy, onSubmit, onCancel }: Props) {
       <div className="flex flex-col gap-2 sm:flex-row-reverse">
         <button
           type="submit"
-          disabled={busy}
+          disabled={busy || total <= 0}
           className="rounded-lg border border-hq-success bg-hq-success px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
         >
           {t("breakdownSubmit")}

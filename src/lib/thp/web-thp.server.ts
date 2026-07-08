@@ -245,12 +245,20 @@ async function handleWebThpConfirm(input: {
     };
   }
 
+  if (pending.commanderId !== input.commanderId) {
+    await saveHqThpPending(input.allianceId, input.hqUserId, null);
+    return {
+      status: "error",
+      message: input.translate("errors.noConfirm"),
+    };
+  }
+
   const allianceRows = await listAllianceCommanderThpRows(input.allianceId);
   const peerMax = peerMaxThpExcludingCommander(
     allianceRows
       .filter((row) => row.total != null)
       .map((row) => ({ commanderId: row.commanderId, total: row.total! })),
-    input.commanderId,
+    pending.commanderId,
   );
 
   const result = processThpConfirmation({
@@ -263,7 +271,7 @@ async function handleWebThpConfirm(input: {
 
   if (result.action.type === "set_thp") {
     await upsertCommanderThp({
-      commanderId: input.commanderId,
+      commanderId: pending.commanderId,
       total: result.action.total,
       breakdown: result.action.breakdown,
       allianceId: input.allianceId,
