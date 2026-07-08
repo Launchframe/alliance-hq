@@ -91,6 +91,15 @@ const NAV_ACTIONS: HotkeyActionDef[] = [
     hideWhenPermission: "members:write",
   },
   {
+    id: "nav.myThp",
+    labelKey: "actions.nav.myThp",
+    category: "navigation",
+    scope: "global",
+    kind: "navigate",
+    href: "/my-thp",
+    hideWhenPermission: "members:write",
+  },
+  {
     id: "nav.trains",
     labelKey: "actions.nav.trains",
     category: "navigation",

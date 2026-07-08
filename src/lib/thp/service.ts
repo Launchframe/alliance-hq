@@ -1,3 +1,5 @@
+import "server-only";
+
 import type { DiscordBotLocale } from "@/lib/discord/i18n";
 import { createDiscordTranslator } from "@/lib/discord/i18n";
 import { ensureDiscordMemberLinksFromHq } from "@/lib/member-link/inherit-hq-to-discord.server";
@@ -296,7 +298,10 @@ export async function handleDiscordThpButtonConfirm(input: {
       breakdown: result.action.breakdown,
       allianceId: input.allianceId,
       ashedMemberId: membership?.ashedMemberId,
-      memberName: membership?.ashedMemberId,
+      memberName:
+        membership?.memberName ??
+        membership?.ashedMemberId ??
+        pending.commanderId,
       source: pending.kind === "ocr_confirm" ? "screenshot_ocr" : "discord",
       discordUserId: input.discordUserId,
     });

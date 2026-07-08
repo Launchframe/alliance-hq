@@ -1,3 +1,5 @@
+import "server-only";
+
 import { and, asc, eq, inArray, isNotNull } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
@@ -289,8 +291,19 @@ export async function getCommanderMembershipInAlliance(
   const [row] = await db
     .select({
       ashedMemberId: schema.commanderAllianceMemberships.ashedMemberId,
+      memberName: schema.allianceMembers.currentName,
     })
     .from(schema.commanderAllianceMemberships)
+    .leftJoin(
+      schema.allianceMembers,
+      and(
+        eq(schema.allianceMembers.allianceId, allianceId),
+        eq(
+          schema.allianceMembers.ashedMemberId,
+          schema.commanderAllianceMemberships.ashedMemberId,
+        ),
+      ),
+    )
     .where(
       and(
         eq(schema.commanderAllianceMemberships.commanderId, commanderId),

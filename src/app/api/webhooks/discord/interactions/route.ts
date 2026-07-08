@@ -344,6 +344,7 @@ async function handleSlashCommand(payload: DiscordInteractionPayload) {
       return discordMessageResponse(
         result.reply,
         buildCharacterPickerButtons(result.characterPicker, "thp"),
+        EPHEMERAL,
       );
     }
     if (result.needsConfirmation && result.proposedTotal != null) {
@@ -353,9 +354,10 @@ async function handleSlashCommand(payload: DiscordInteractionPayload) {
           yes: t("buttons.yes"),
           no: t("buttons.no"),
         }),
+        EPHEMERAL,
       );
     }
-    return discordMessageResponse(result.reply);
+    return discordMessageResponse(result.reply, undefined, EPHEMERAL);
   }
 
   if (commandName === "weekly-pass") {
@@ -526,7 +528,7 @@ async function handleButton(payload: DiscordInteractionPayload) {
       answer: parsed.answer,
       locale,
     });
-    return discordButtonResponse(result.reply, undefined, { ephemeral: false });
+    return discordButtonResponse(result.reply, undefined, EPHEMERAL);
   }
 
   if (parsed.kind === "link_pick") {
@@ -589,10 +591,10 @@ async function handleButton(payload: DiscordInteractionPayload) {
           yes: t("buttons.yes"),
           no: t("buttons.no"),
         }),
-        { ephemeral: false },
+        EPHEMERAL,
       );
     }
-    return discordButtonResponse(result.reply, undefined, { ephemeral: false });
+    return discordButtonResponse(result.reply, undefined, EPHEMERAL);
   }
 
   if (parsed.kind === "weekly_pass_character") {
