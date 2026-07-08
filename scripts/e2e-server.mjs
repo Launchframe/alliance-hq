@@ -126,10 +126,20 @@ run("npm run db:seed-rbac", serverEnv);
 run("rm -rf .next");
 run("npx next build", serverEnv);
 
-const child = spawn("npx", ["next", "start", "-p", port], {
-  stdio: "inherit",
-  env: serverEnv,
-});
+const child = spawn(
+  process.execPath,
+  [
+    "--max-old-space-size=8192",
+    "node_modules/next/dist/bin/next",
+    "start",
+    "-p",
+    port,
+  ],
+  {
+    stdio: "inherit",
+    env: serverEnv,
+  },
+);
 
 child.on("exit", (code, signal) => {
   process.exit(code ?? (signal ? 1 : 0));

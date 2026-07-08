@@ -149,38 +149,45 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.email = session.email.trim();
       }
 
-      const signedInSession = await auth();
-      const signedInHqUserId = signedInSession?.user?.id?.trim() || null;
+      // After signed-in OAuth link (or cold re-sign-in), prefer the linked HQ
+      // owner. Do not call auth() here — it re-enters jwt and can OOM the process.
+      if (isOAuthProvider(account?.provider) && account.providerAccountId) {
+        const linkedOwnerId = await findHqUserIdForOAuthAccount({
+          provider: account.provider,
+          providerAccountId: account.providerAccountId,
+        });
+        if (linkedOwnerId) {
+          token.sub = linkedOwnerId;
+          const ownerEmail =
+            (await loadHqUserEmailById(linkedOwnerId)) ??
+            (typeof user?.email === "string" ? user.email : null) ??
+            (typeof token.email === "string" ? token.email : null);
+          if (ownerEmail) {
+            token.email = ownerEmail;
+          }
+          if (typeof user?.name === "string" && user.name.trim()) {
+            token.name = user.name;
+          }
 
-      if (signedInHqUserId && isOAuthProvider(account?.provider)) {
-        token.sub = signedInHqUserId;
-        if (account?.providerAccountId) {
           await syncOAuthJwtMetadata({
-            hqUserId: signedInHqUserId,
+            hqUserId: linkedOwnerId,
             provider: account.provider,
             providerAccountId: account.providerAccountId,
             providerEmail: user?.email ?? null,
             avatarUrl: user?.image,
           });
-        }
-        const email =
-          typeof signedInSession?.user?.email === "string"
-            ? signedInSession.user.email
-            : undefined;
-        if (email) {
-          token.email = email;
-          await bridgeAuthUserToBrowserSession({
-            hqUserId: signedInHqUserId,
-            email,
-            displayName:
-              typeof signedInSession?.user?.name === "string"
-                ? signedInSession.user.name
-                : undefined,
-          });
-        }
-        return token;
-      }
 
+          if (ownerEmail) {
+            await bridgeAuthUserToBrowserSession({
+              hqUserId: linkedOwnerId,
+              email: ownerEmail,
+              displayName:
+                typeof token.name === "string" ? token.name : undefined,
+            });
+          }
+          return token;
+        }
+      }
 
       if (user?.email) {
         const hqUserId = await ensureHqUserForAuthEmail(user.email, user.name);
@@ -214,15 +221,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.sub.trim()
       ) {
         const hqUserId = token.sub.trim();
-        if (account?.providerAccountId) {
-          await syncOAuthJwtMetadata({
-            hqUserId,
-            provider: "discord",
-            providerAccountId: account.providerAccountId,
-            providerEmail: user?.email ?? null,
-            avatarUrl: user?.image,
-          });
-        }
+        await syncOAuthJwtMetadata({
+          hqUserId,
+          provider: "discord",
+          providerAccountId: account.providerAccountId,
+          providerEmail: user?.email ?? null,
+          avatarUrl: user?.image,
+        });
         const email = typeof token.email === "string" ? token.email : undefined;
         if (email) {
           await bridgeAuthUserToBrowserSession({
