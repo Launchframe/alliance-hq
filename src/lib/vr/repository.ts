@@ -25,10 +25,17 @@ import { loadAllianceMembersForBot } from "@/lib/vr/member-roster";
 import { getAllianceVrSandboxState } from "@/lib/vr/vr-sandbox.server";
 import type { VrSeasonContext } from "@/lib/vr/vr-season-lock.shared";
 import { resolveVrSeasonContextFromParts } from "@/lib/vr/vr-season-lock.shared";
+import type { ThpPendingState } from "@/lib/thp/types";
+import { parseStoredThpPending } from "@/lib/thp/pending-state";
 import type { LinkPendingState, VrPendingState } from "@/lib/vr/types";
 import { parseStoredVrPending } from "@/lib/vr/pending-state";
 
 const PENDING_TTL_MS = 30 * 60 * 1000;
+
+export type DiscordBotPendingState =
+  | VrPendingState
+  | LinkPendingState
+  | ThpPendingState;
 
 function parseVrPending(value: unknown): VrPendingState | null {
   return parseStoredVrPending(value);
@@ -212,9 +219,21 @@ export async function writeDiscordBotAudit(input: {
   });
 }
 
+function parseThpPending(value: unknown): ThpPendingState | null {
+  return parseStoredThpPending(value);
+}
+
+function parseDiscordBotPending(value: unknown): DiscordBotPendingState | null {
+  return (
+    parseThpPending(value) ??
+    parseVrPending(value) ??
+    parseLinkPending(value)
+  );
+}
+
 export async function getDiscordBotPending(
   discordUserId: string,
-): Promise<{ allianceId: string; pending: VrPendingState | LinkPendingState | null } | null> {
+): Promise<{ allianceId: string; pending: DiscordBotPendingState | null } | null> {
   const db = getDb();
   const [row] = await db
     .select()
@@ -228,15 +247,14 @@ export async function getDiscordBotPending(
       .where(eq(schema.discordBotPending.discordUserId, discordUserId));
     return null;
   }
-  const pending =
-    parseVrPending(row.pendingJson) ?? parseLinkPending(row.pendingJson);
+  const pending = parseDiscordBotPending(row.pendingJson);
   return { allianceId: row.allianceId, pending };
 }
 
 export async function saveDiscordBotPending(
   allianceId: string,
   discordUserId: string,
-  pending: VrPendingState | LinkPendingState | null,
+  pending: DiscordBotPendingState | null,
 ): Promise<void> {
   const db = getDb();
   if (!pending) {

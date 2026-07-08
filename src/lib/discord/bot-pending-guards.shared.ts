@@ -55,7 +55,3 @@ export function thpConfirmEventSource(
   }
   return "discord";
 }
-
-export function formatThpTotalForDiscord(total: number): string {
-  return total.toLocaleString();
-}

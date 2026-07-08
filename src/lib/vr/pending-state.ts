@@ -5,10 +5,22 @@ export function parseStoredVrPending(value: unknown): VrPendingState | null {
   if (!value || typeof value !== "object") return null;
   const r = value as Record<string, unknown>;
   if (r.kind === "anomaly_confirm") {
+    if (
+      typeof r.proposedTotal === "number" ||
+      typeof r.commanderId === "string"
+    ) {
+      return null;
+    }
+    const proposedVr = Number(r.proposedVr);
+    const ashedMemberId =
+      typeof r.ashedMemberId === "string" ? r.ashedMemberId.trim() : "";
+    if (!Number.isFinite(proposedVr) || ashedMemberId.length === 0) {
+      return null;
+    }
     return {
       kind: "anomaly_confirm",
-      proposedVr: Number(r.proposedVr),
-      ashedMemberId: String(r.ashedMemberId),
+      proposedVr,
+      ashedMemberId,
     };
   }
   if (r.kind === "pick_character" && Array.isArray(r.linkIds)) {

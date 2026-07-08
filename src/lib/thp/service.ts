@@ -20,7 +20,6 @@ import {
   upsertCommanderThp,
 } from "@/lib/thp/repository";
 import type { ThpCommandResult, ThpPendingState } from "@/lib/thp/types";
-import type { LinkPendingState, VrPendingState } from "@/lib/vr/types";
 import {
   getDiscordBotPending,
   getDiscordLinkById,
@@ -28,10 +27,6 @@ import {
   saveDiscordBotPending,
   writeDiscordBotAudit,
 } from "@/lib/vr/repository";
-
-function asDiscordPending(pending: ThpPendingState | null) {
-  return pending as unknown as VrPendingState | LinkPendingState | null;
-}
 
 function botContext(locale: DiscordBotLocale) {
   return { translate: createDiscordTranslator(locale) };
@@ -154,7 +149,7 @@ async function runThpForLink(input: {
     ? processThpOcrResult(commandInput)
     : processThpCommand(commandInput);
 
-  await saveDiscordBotPending(input.allianceId, input.discordUserId, asDiscordPending(result.pending));
+  await saveDiscordBotPending(input.allianceId, input.discordUserId, result.pending);
 
   if (result.action.type === "set_thp") {
     await upsertCommanderThp({
@@ -203,7 +198,7 @@ export async function handleDiscordThpSlash(input: {
         label: l.memberDisplayName ?? l.ashedMemberId,
       })),
     };
-    await saveDiscordBotPending(input.allianceId, input.discordUserId, asDiscordPending(result.pending));
+    await saveDiscordBotPending(input.allianceId, input.discordUserId, result.pending);
     await audit(input.allianceId, input.discordUserId, "thp", input, result);
     return result;
   }
@@ -283,7 +278,7 @@ export async function handleDiscordThpButtonConfirm(input: {
     translate,
     peerMax,
   });
-  await saveDiscordBotPending(input.allianceId, input.discordUserId, asDiscordPending(result.pending));
+  await saveDiscordBotPending(input.allianceId, input.discordUserId, result.pending);
 
   if (result.action.type === "set_thp") {
     const membership = await getCommanderMembershipInAlliance(
