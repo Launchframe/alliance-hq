@@ -64,6 +64,7 @@ export default async function AccountPage({ searchParams }: Props) {
         hasPassword: signInSnapshot.hasPassword,
         passkeyCount: signInSnapshot.passkeyCount,
         linkedProviders: signInSnapshot.linkedProviders,
+        oauthAccounts: signInSnapshot.oauthAccounts,
         availableProviders: {
           google: ssoAvailability.google,
           discord: ssoAvailability.discord,

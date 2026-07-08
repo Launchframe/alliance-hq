@@ -13,6 +13,13 @@ describe("resolveSignInMethodLinkedFlags", () => {
         hasPassword: true,
         passkeyCount: 2,
         linkedProviders: ["google"],
+        oauthAccounts: [
+          {
+            provider: "google",
+            providerAccountId: "g1",
+            providerEmail: null,
+          },
+        ],
       }),
     ).toEqual({
       google: true,
@@ -29,6 +36,7 @@ describe("resolveSignInMethodLinkedFlags", () => {
         hasPassword: false,
         passkeyCount: 0,
         linkedProviders: [],
+        oauthAccounts: [],
       }).email,
     ).toBe(false);
   });
@@ -42,6 +50,7 @@ describe("canRemovePasskeys", () => {
         hasPassword: false,
         passkeyCount: 1,
         linkedProviders: [],
+        oauthAccounts: [],
       }),
     ).toBe(false);
   });
@@ -53,6 +62,7 @@ describe("canRemovePasskeys", () => {
         hasPassword: false,
         passkeyCount: 1,
         linkedProviders: [],
+        oauthAccounts: [],
       }),
     ).toBe(true);
   });

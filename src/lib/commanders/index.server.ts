@@ -13,6 +13,7 @@ import {
   resolveCommanderSessionContext,
 } from "@/lib/members/commander-access.server";
 import { allianceMemberRowToAshedMember } from "@/lib/members/roster.shared";
+import { loadOAuthIdentitySplitsForAlliance } from "@/lib/auth/oauth-identity-split.server";
 import { sessionHasPermission } from "@/lib/rbac/context";
 import { memberTotalHeroPower } from "@/lib/vr/leaderboard";
 import { resolveSeasonKey } from "@/lib/vr/repository";
@@ -30,7 +31,7 @@ export async function loadCommanderIndex(
   const db = getDb();
   const seasonKey = await resolveSeasonKey(allianceId);
 
-  const [memberRows, seasonRows, canEdit, ownedMemberIds, hqLinkRows] =
+  const [memberRows, seasonRows, canEdit, ownedMemberIds, hqLinkRows, oauthSplits] =
     await Promise.all([
     db
       .select()
@@ -63,6 +64,7 @@ export async function loadCommanderIndex(
       .select({ ashedMemberId: schema.hqMemberLinks.ashedMemberId })
       .from(schema.hqMemberLinks)
       .where(eq(schema.hqMemberLinks.allianceId, allianceId)),
+    loadOAuthIdentitySplitsForAlliance(allianceId),
   ]);
 
   const hqLinkedMemberIds = new Set(
@@ -130,6 +132,7 @@ export async function loadCommanderIndex(
     mainSquadSource: sourceByMember.get(row.ashedMemberId) ?? null,
     highestBaseVr: row.highestBaseVr,
     hqLinked: hqLinkedMemberIds.has(row.ashedMemberId),
+    oauthIdentitySplit: oauthSplits.has(row.ashedMemberId),
   }));
 
   for (const memberRow of memberRows) {

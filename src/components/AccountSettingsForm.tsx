@@ -13,7 +13,10 @@ import { useAccountTimezone } from "@/components/timezone/TimezoneProvider";
 import { Link, useRouter } from "@/i18n/navigation";
 import { TokenExpiryNotice } from "@/components/TokenExpiryNotice";
 import { ashedLink, strongText } from "@/components/i18n/richText";
-import type { LinkedOAuthProvider } from "@/lib/auth/account-linking.shared";
+import type {
+  LinkedOAuthProvider,
+  OAuthProviderAccountSnapshot,
+} from "@/lib/auth/account-linking.shared";
 import type { AuthSsoAvailability } from "@/lib/auth/sso-config.shared";
 import type { AshedConnectionMeta } from "@/lib/jwt/connection-meta";
 import { DEFAULT_EXPIRY_REMINDER_DAYS } from "@/lib/jwt/decode";
@@ -31,6 +34,7 @@ type SignInMethodsSnapshot = {
   hasPassword: boolean;
   passkeyCount: number;
   linkedProviders: LinkedOAuthProvider[];
+  oauthAccounts: OAuthProviderAccountSnapshot[];
   availableProviders: {
     google: boolean;
     discord: boolean;

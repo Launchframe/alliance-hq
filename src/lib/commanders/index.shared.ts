@@ -12,6 +12,8 @@ export type CommanderIndexRow = {
   highestBaseVr: number | null;
   /** Roster member bound to an HQ account via hq_member_links. */
   hqLinked: boolean;
+  /** Discord OAuth is on a different HQ account than this member's commander link. */
+  oauthIdentitySplit: boolean;
 };
 
 export type CommanderIndexHqLinkFilter = "all" | "linked" | "not_linked";

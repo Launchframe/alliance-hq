@@ -4,18 +4,45 @@ import { useCallback, useState } from "react";
 import { signIn } from "next-auth/react";
 import { useTranslations } from "next-intl";
 
-import type { LinkedOAuthProvider } from "@/lib/auth/account-linking.shared";
+import type {
+  LinkedOAuthProvider,
+  OAuthProviderAccountSnapshot,
+} from "@/lib/auth/account-linking.shared";
 
 type LinkedAccountsResponse = {
   email: string;
   hasPassword: boolean;
   passkeyCount: number;
   linkedProviders: LinkedOAuthProvider[];
+  oauthAccounts: OAuthProviderAccountSnapshot[];
   availableProviders: {
     google: boolean;
     discord: boolean;
   };
 };
+
+function resolveLinkErrorMessage(
+  linkError: string | null | undefined,
+  tAuth: (key: string) => string,
+): string | null {
+  switch (linkError?.trim()) {
+    case "OAuthAccountAlreadyLinked":
+      return tAuth("errorOAuthAccountAlreadyLinkedBody");
+    case "OAuthProviderTypeAlreadyLinked":
+      return tAuth("errorOAuthProviderTypeAlreadyLinkedBody");
+    case "OAuthAccountNotLinked":
+      return tAuth("errorOAuthAccountNotLinkedBody");
+    default:
+      return null;
+  }
+}
+
+function oauthAccountForProvider(
+  accounts: OAuthProviderAccountSnapshot[],
+  provider: LinkedOAuthProvider,
+): OAuthProviderAccountSnapshot | undefined {
+  return accounts.find((row) => row.provider === provider);
+}
 
 type Props = {
   initialSnapshot: LinkedAccountsResponse;
@@ -41,9 +68,7 @@ export function AccountSignInMethodsClient({
     linkNotice ? t("linkedProviderSuccess", { provider: providerLabel(t, linkNotice) }) : null,
   );
   const [error, setError] = useState<string | null>(
-    linkError === "OAuthAccountNotLinked"
-      ? tAuth("errorOAuthAccountNotLinkedBody")
-      : null,
+    resolveLinkErrorMessage(linkError, tAuth),
   );
 
   const loadSnapshot = useCallback(async () => {
@@ -154,19 +179,25 @@ export function AccountSignInMethodsClient({
           if (!snapshot.availableProviders[provider]) {
             return null;
           }
-          const isLinked = linked.has(provider);
+          const account = oauthAccountForProvider(snapshot.oauthAccounts, provider);
+          const isLinked = Boolean(account);
           return (
             <li
               key={provider}
               className="flex flex-col gap-2 rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
             >
-              <div>
+              <div className="min-w-0">
                 <p className="font-medium text-hq-fg">
                   {providerLabel(t, provider)}
                 </p>
                 <p className="text-hq-fg-muted">
                   {isLinked ? t("methodConnected") : t("methodNotLinked")}
                 </p>
+                {account?.providerEmail ? (
+                  <p className="mt-0.5 truncate text-xs text-hq-fg-muted">
+                    {t("providerEmailOnFile", { email: account.providerEmail })}
+                  </p>
+                ) : null}
               </div>
               {isLinked ? (
                 pendingUnlink === provider ? (

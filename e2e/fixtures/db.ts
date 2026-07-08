@@ -954,17 +954,22 @@ export async function loadAllianceGameServerNumber(
 
 export async function createHqDiscordOAuthAccount(
   sql: Sql,
-  input: { hqUserId: string; discordUserId: string },
+  input: {
+    hqUserId: string;
+    discordUserId: string;
+    providerEmail?: string | null;
+  },
 ): Promise<void> {
   await sql`
     INSERT INTO hq_auth_accounts (
-      id, hq_user_id, type, provider, provider_account_id
+      id, hq_user_id, type, provider, provider_account_id, provider_email
     ) VALUES (
       ${nanoid(16)},
       ${input.hqUserId},
       ${"oauth"},
       ${"discord"},
-      ${input.discordUserId}
+      ${input.discordUserId},
+      ${input.providerEmail ?? null}
     )
   `;
 }

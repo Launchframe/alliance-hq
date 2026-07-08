@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { AppSelect } from "@/components/ui/AppSelect";
+import { OAuthIdentitySplitBadge } from "@/components/auth/OAuthIdentitySplitBadge";
 import {
   AdminUserSignInMethodsPanel,
   type AdminUserSignInMethodsSnapshot,
@@ -81,6 +82,7 @@ type AdminUserListRow = {
   isPlatformMaintainer: boolean;
   createdAt: string;
   linkedDeviceCount: number;
+  oauthIdentitySplit: boolean;
   memberships: Array<{
     allianceSlug: string;
     allianceTag: string | null;
@@ -396,7 +398,12 @@ export function AdminUsersConsole() {
                     onClick={() => selectListUser(user)}
                   >
                     <td className="px-4 py-2">
-                      <div>{user.email}</div>
+                      <div className="flex min-w-0 flex-wrap items-center gap-2">
+                        <span>{user.email}</span>
+                        {user.oauthIdentitySplit ? (
+                          <OAuthIdentitySplitBadge label={t("oauthSplitBadge")} />
+                        ) : null}
+                      </div>
                       {user.displayName ? (
                         <div className="text-xs text-hq-fg-muted">
                           {user.displayName}
@@ -437,7 +444,12 @@ export function AdminUsersConsole() {
         ) : (
           <>
             <div>
-              <h2 className="text-lg font-medium">{selectedUser.email}</h2>
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="text-lg font-medium">{selectedUser.email}</h2>
+                {selectedUser.signInMethods?.oauthIdentitySplit ? (
+                  <OAuthIdentitySplitBadge label={t("oauthSplitBadge")} />
+                ) : null}
+              </div>
               <p className="mt-1 text-sm text-hq-fg-muted">{t("editorHint")}</p>
               <div className="mt-3 space-y-1 rounded-lg border border-hq-border bg-hq-canvas p-3">
                 <AdminIdLine label={t("ids.hqUserId")} value={selectedUser.id} />

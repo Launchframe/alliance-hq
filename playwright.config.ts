@@ -25,11 +25,18 @@ function e2eServerEnv(): Record<string, string> {
     HOME: process.env.HOME ?? "",
     NODE_ENV: "production",
     CI: process.env.CI ?? "",
+    NODE_OPTIONS: [process.env.NODE_OPTIONS, "--max-old-space-size=8192"]
+      .filter(Boolean)
+      .join(" "),
     TOKEN_ENCRYPTION_KEY: tokenEncryptionKey,
     AUTH_SECRET: authSecret,
     HQ_ASHED_INVITE_REQUIRED: "false",
     E2E_TEST: "true",
     E2E_EMAIL_CODE: process.env.E2E_EMAIL_CODE?.trim() || "424242",
+    AUTH_GOOGLE_ID: "e2e-google-client-id",
+    AUTH_GOOGLE_SECRET: "e2e-google-client-secret",
+    AUTH_DISCORD_ID: "e2e-discord-client-id",
+    AUTH_DISCORD_SECRET: "e2e-discord-client-secret",
   };
   if (e2eDatabaseUrl) {
     env.E2E_DATABASE_URL = e2eDatabaseUrl;

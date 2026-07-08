@@ -2,22 +2,37 @@
 
 import { useTranslations } from "next-intl";
 
-import type { LinkedOAuthProvider } from "@/lib/auth/account-linking.shared";
+import { OAuthIdentitySplitBadge } from "@/components/auth/OAuthIdentitySplitBadge";
+import type {
+  LinkedOAuthProvider,
+  OAuthProviderAccountSnapshot,
+} from "@/lib/auth/account-linking.shared";
+import type { OAuthIdentitySplitRow } from "@/lib/auth/oauth-identity-split.shared";
 
 export type AdminUserSignInMethodsSnapshot = {
   email: string;
   hasPassword: boolean;
   passkeyCount: number;
   linkedProviders: LinkedOAuthProvider[];
+  oauthAccounts: OAuthProviderAccountSnapshot[];
   availableProviders: {
     google: boolean;
     discord: boolean;
   };
+  oauthIdentitySplit: boolean;
+  oauthIdentitySplits: OAuthIdentitySplitRow[];
 };
 
 type Props = {
   snapshot: AdminUserSignInMethodsSnapshot | null;
 };
+
+function oauthAccountForProvider(
+  accounts: OAuthProviderAccountSnapshot[],
+  provider: LinkedOAuthProvider,
+): OAuthProviderAccountSnapshot | undefined {
+  return accounts.find((row) => row.provider === provider);
+}
 
 export function AdminUserSignInMethodsPanel({ snapshot }: Props) {
   const t = useTranslations("admin.usersPage");
@@ -32,14 +47,34 @@ export function AdminUserSignInMethodsPanel({ snapshot }: Props) {
     );
   }
 
-  const linked = new Set(snapshot.linkedProviders);
-
   return (
     <section className="space-y-3">
       <div>
         <h3 className="font-medium">{t("signInMethodsTitle")}</h3>
         <p className="mt-1 text-sm text-hq-fg-muted">{t("signInMethodsHint")}</p>
       </div>
+
+      {snapshot.oauthIdentitySplit ? (
+        <div
+          className="space-y-2 rounded-lg border border-[#d29922]/40 bg-[#d29922]/10 px-3 py-2.5 text-sm"
+          role="status"
+        >
+          <div className="flex flex-wrap items-center gap-2">
+            <OAuthIdentitySplitBadge label={t("oauthSplitBadge")} />
+            <p className="text-hq-fg">{t("oauthSplitAdminHint")}</p>
+          </div>
+          <ul className="space-y-1 text-xs text-hq-fg-muted">
+            {snapshot.oauthIdentitySplits.map((split) => (
+              <li key={`${split.ashedMemberId}:${split.discordUserId}`}>
+                {t("oauthSplitAdminRow", {
+                  alliance: split.allianceSlug,
+                  oauthEmail: split.oauthHqUserEmail || t("oauthSplitUnknownEmail"),
+                })}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
 
       <ul className="space-y-2 text-sm">
         <li className="flex flex-col gap-1 rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
@@ -78,13 +113,14 @@ export function AdminUserSignInMethodsPanel({ snapshot }: Props) {
           if (!snapshot.availableProviders[provider]) {
             return null;
           }
-          const isLinked = linked.has(provider);
+          const account = oauthAccountForProvider(snapshot.oauthAccounts, provider);
+          const isLinked = Boolean(account);
           return (
             <li
               key={provider}
               className="flex flex-col gap-1 rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
             >
-              <div>
+              <div className="min-w-0">
                 <p className="font-medium text-hq-fg">
                   {provider === "google"
                     ? tSecurity("methodGoogle")
@@ -95,6 +131,11 @@ export function AdminUserSignInMethodsPanel({ snapshot }: Props) {
                     ? tSecurity("methodConnected")
                     : tSecurity("methodNotLinked")}
                 </p>
+                {account?.providerEmail ? (
+                  <p className="mt-0.5 truncate text-xs text-hq-fg-muted">
+                    {t("providerEmailLabel", { email: account.providerEmail })}
+                  </p>
+                ) : null}
               </div>
             </li>
           );

@@ -50,6 +50,21 @@ function ocrProviderEnvLines() {
   return [`VIDEO_OCR_PROVIDER=${provider}`, "VIDEO_OCR_ALLOW_NONPROD=true"];
 }
 
+/** Dummy OAuth client IDs so sign-in method UI renders Google/Discord rows in e2e. */
+function e2eOAuthEnv() {
+  return {
+    AUTH_GOOGLE_ID: "e2e-google-client-id",
+    AUTH_GOOGLE_SECRET: "e2e-google-client-secret",
+    AUTH_DISCORD_ID: "e2e-discord-client-id",
+    AUTH_DISCORD_SECRET: "e2e-discord-client-secret",
+  };
+}
+
+function e2eOAuthEnvLines() {
+  const oauth = e2eOAuthEnv();
+  return Object.entries(oauth).map(([key, value]) => `${key}=${value}`);
+}
+
 function prepareEnvFile(dbUrl) {
   // Park the developer's real .env.local (self-healing + idempotent) before
   // writing the generated one. The marker on line 1 lets restoreEnvFile() —
@@ -67,6 +82,7 @@ function prepareEnvFile(dbUrl) {
       "HQ_ASHED_INVITE_REQUIRED=false",
       "E2E_TEST=true",
       `E2E_EMAIL_CODE=${process.env.E2E_EMAIL_CODE?.trim() || "424242"}`,
+      ...e2eOAuthEnvLines(),
       ...ocrProviderEnvLines(),
       "",
     ].join("\n"),
@@ -83,6 +99,11 @@ function buildEnv(dbUrl) {
     HOME: process.env.HOME ?? "",
     NODE_ENV: "production",
     CI: process.env.CI ?? "",
+    // Next production server OOMs under the default ~4GB heap in CI/local
+    // Playwright runs that hit many auth/session routes in sequence.
+    NODE_OPTIONS: [process.env.NODE_OPTIONS, "--max-old-space-size=8192"]
+      .filter(Boolean)
+      .join(" "),
     E2E_DATABASE_URL: dbUrl,
     LOCAL_DATABASE_URL: dbUrl,
     DATABASE_URL: dbUrl,
@@ -91,6 +112,7 @@ function buildEnv(dbUrl) {
     HQ_ASHED_INVITE_REQUIRED: "false",
     E2E_TEST: "true",
     E2E_EMAIL_CODE: process.env.E2E_EMAIL_CODE?.trim() || "424242",
+    ...e2eOAuthEnv(),
   };
   const provider = process.env.VIDEO_OCR_PROVIDER?.trim();
   if (provider) {
@@ -111,7 +133,9 @@ prepareEnvFile(dbUrl);
 // restoreEnvFile() is idempotent, so running it more than once is harmless.
 // (A SIGKILL of this process is uncatchable — the Playwright globalTeardown
 // restore is the backstop for that, and the next run still self-heals.)
-process.on("exit", restoreEnvFile);
+process.on("exit", () => {
+  restoreEnvFile();
+});
 
 const serverEnv = buildEnv(dbUrl);
 run("npm run db:migrate", serverEnv);
@@ -119,10 +143,20 @@ run("npm run db:seed-rbac", serverEnv);
 run("rm -rf .next");
 run("npx next build", serverEnv);
 
-const child = spawn("npx", ["next", "start", "-p", port], {
-  stdio: "inherit",
-  env: serverEnv,
-});
+const child = spawn(
+  process.execPath,
+  [
+    "--max-old-space-size=8192",
+    "node_modules/next/dist/bin/next",
+    "start",
+    "-p",
+    port,
+  ],
+  {
+    stdio: "inherit",
+    env: serverEnv,
+  },
+);
 
 child.on("exit", (code, signal) => {
   process.exit(code ?? (signal ? 1 : 0));

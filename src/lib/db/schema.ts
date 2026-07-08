@@ -1503,11 +1503,17 @@ export const hqAuthAccounts = pgTable(
     type: text("type").notNull(),
     provider: text("provider").notNull(),
     providerAccountId: text("provider_account_id").notNull(),
+    /** Email returned by the provider at link/sign-in time (may differ from hq_users.email). */
+    providerEmail: text("provider_email"),
   },
   (table) => [
     unique("hq_auth_accounts_provider_account_unique").on(
       table.provider,
       table.providerAccountId,
+    ),
+    unique("hq_auth_accounts_hq_user_provider_unique").on(
+      table.hqUserId,
+      table.provider,
     ),
   ],
 );

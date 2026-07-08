@@ -5,26 +5,27 @@ import NextAuth from "next-auth";
 
 import {
   findHqUserIdForOAuthAccount,
-  hqUserHasOAuthProvider,
-  linkOAuthAccountToHqUser,
-  loadSignInMethodSnapshot,
+  linkOAuthAccountForSignedInUser,
   tryAutoLinkOAuthAtSignIn,
 } from "@/lib/auth/account-linking.server";
-import { oauthEmailMatchesHqUserEmail } from "@/lib/auth/account-linking.shared";
 import { buildOAuthSignInRequiredAuthPath } from "@/lib/auth/email-sign-in-restriction.shared";
 import { resolveEmailSignInRestrictionForEmail } from "@/lib/auth/email-sign-in-restriction.server";
 import { createHqAuthAdapter } from "@/lib/auth/adapter";
 import { bridgeAuthUserToBrowserSession } from "@/lib/auth/bridge-session";
-import { syncDiscordHqLinkFromOAuthSignIn } from "@/lib/auth/discord-hq-link.server";
-import { oauthAccountLinkErrorRedirect } from "@/lib/auth/oauth-link-error-redirect.shared";
+import {
+  OAUTH_ACCOUNT_ALREADY_LINKED,
+  OAUTH_ACCOUNT_NOT_LINKED,
+  OAUTH_PROVIDER_TYPE_ALREADY_LINKED,
+  oauthAccountLinkErrorRedirect,
+} from "@/lib/auth/oauth-link-error-redirect.shared";
 import { buildAuthProviders } from "@/lib/auth/providers.server";
 import { ensureHqUserForAuthEmail } from "@/lib/auth/resolve-hq-user";
 import { loadHqUserEmailById } from "@/lib/auth/change-hq-email.server";
 import { resolveSessionHqUserId } from "@/lib/auth/resolve-session-hq-user.server";
+import { syncOAuthJwtMetadata } from "@/lib/auth/sync-oauth-jwt-metadata.server";
 import { maybeBootstrapPlatformMaintainer } from "@/lib/rbac/bootstrap-platform";
 import {
   type OAuthAvatarProvider,
-  syncOAuthProviderAvatar,
 } from "@/lib/profile/resolve-avatar";
 import { resolveBrowserSessionHqUserId } from "@/lib/session";
 
@@ -37,13 +38,15 @@ function isOAuthProvider(
 }
 
 /** Honor the page that started OAuth linking (Auth.js callback-url cookie). */
-async function resolveOAuthAccountLinkErrorRedirect(): Promise<string> {
+async function resolveOAuthAccountLinkErrorRedirect(
+  linkError: string = OAUTH_ACCOUNT_NOT_LINKED,
+): Promise<string> {
   const jar = await cookies();
   const callbackUrl =
     jar.get("__Secure-authjs.callback-url")?.value ??
     jar.get("authjs.callback-url")?.value ??
     null;
-  return oauthAccountLinkErrorRedirect(callbackUrl);
+  return oauthAccountLinkErrorRedirect(callbackUrl, linkError);
 }
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
@@ -85,32 +88,28 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
         const session = await auth();
         if (session?.user?.id) {
-          const hqEmail =
-            session.user.email ??
-            (await loadSignInMethodSnapshot(session.user.id))?.email ??
-            null;
-          if (!oauthEmailMatchesHqUserEmail(user.email, hqEmail)) {
-            return resolveOAuthAccountLinkErrorRedirect();
-          }
-
-          const existingOwnerId = await findHqUserIdForOAuthAccount({
-            provider: account.provider,
-            providerAccountId: account.providerAccountId,
+          const linkResult = await linkOAuthAccountForSignedInUser({
+            hqUserId: session.user.id,
+            account,
+            providerEmail: user.email,
           });
-          if (existingOwnerId && existingOwnerId !== session.user.id) {
-            return resolveOAuthAccountLinkErrorRedirect();
+
+          if (!linkResult.ok) {
+            const linkError =
+              linkResult.code === "provider_account_on_other_user"
+                ? OAUTH_ACCOUNT_ALREADY_LINKED
+                : OAUTH_PROVIDER_TYPE_ALREADY_LINKED;
+            return resolveOAuthAccountLinkErrorRedirect(linkError);
           }
 
-          const alreadyLinked = await hqUserHasOAuthProvider(
-            session.user.id,
-            account.provider,
-          );
-          if (!alreadyLinked) {
-            await linkOAuthAccountToHqUser({
-              hqUserId: session.user.id,
-              account,
-            });
-          }
+          return true;
+        }
+
+        const existingOwnerId = await findHqUserIdForOAuthAccount({
+          provider: account.provider,
+          providerAccountId: account.providerAccountId,
+        });
+        if (existingOwnerId) {
           return true;
         }
 
@@ -150,6 +149,46 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.email = session.email.trim();
       }
 
+      // After signed-in OAuth link (or cold re-sign-in), prefer the linked HQ
+      // owner. Do not call auth() here — it re-enters jwt and can OOM the process.
+      if (isOAuthProvider(account?.provider) && account.providerAccountId) {
+        const linkedOwnerId = await findHqUserIdForOAuthAccount({
+          provider: account.provider,
+          providerAccountId: account.providerAccountId,
+        });
+        if (linkedOwnerId) {
+          token.sub = linkedOwnerId;
+          const ownerEmail =
+            (await loadHqUserEmailById(linkedOwnerId)) ??
+            (typeof user?.email === "string" ? user.email : null) ??
+            (typeof token.email === "string" ? token.email : null);
+          if (ownerEmail) {
+            token.email = ownerEmail;
+          }
+          if (typeof user?.name === "string" && user.name.trim()) {
+            token.name = user.name;
+          }
+
+          await syncOAuthJwtMetadata({
+            hqUserId: linkedOwnerId,
+            provider: account.provider,
+            providerAccountId: account.providerAccountId,
+            providerEmail: user?.email ?? null,
+            avatarUrl: user?.image,
+          });
+
+          if (ownerEmail) {
+            await bridgeAuthUserToBrowserSession({
+              hqUserId: linkedOwnerId,
+              email: ownerEmail,
+              displayName:
+                typeof token.name === "string" ? token.name : undefined,
+            });
+          }
+          return token;
+        }
+      }
+
       if (user?.email) {
         const hqUserId = await ensureHqUserForAuthEmail(user.email, user.name);
         token.sub = hqUserId;
@@ -160,16 +199,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           isOAuthProvider(account?.provider) &&
           account.providerAccountId
         ) {
-          await syncOAuthProviderAvatar(hqUserId, account.provider, {
-            providerUserId: account.providerAccountId,
-            avatarUrl: user.image,
-          });
-        }
-
-        if (account?.provider === "discord" && account.providerAccountId) {
-          await syncDiscordHqLinkFromOAuthSignIn({
-            discordUserId: account.providerAccountId,
+          await syncOAuthJwtMetadata({
             hqUserId,
+            provider: account.provider,
+            providerAccountId: account.providerAccountId,
+            providerEmail: user.email,
+            avatarUrl: user.image,
           });
         }
 
@@ -186,13 +221,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.sub.trim()
       ) {
         const hqUserId = token.sub.trim();
-        await syncOAuthProviderAvatar(hqUserId, "discord", {
-          providerUserId: account.providerAccountId,
-          avatarUrl: user?.image,
-        });
-        await syncDiscordHqLinkFromOAuthSignIn({
-          discordUserId: account.providerAccountId,
+        await syncOAuthJwtMetadata({
           hqUserId,
+          provider: "discord",
+          providerAccountId: account.providerAccountId,
+          providerEmail: user?.email ?? null,
+          avatarUrl: user?.image,
         });
         const email = typeof token.email === "string" ? token.email : undefined;
         if (email) {

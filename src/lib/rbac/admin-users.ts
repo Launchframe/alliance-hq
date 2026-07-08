@@ -7,7 +7,15 @@ import {
 } from "@/lib/credential-pairing/device-link-stats";
 import { grantHqAccess } from "@/lib/access/invite-gate";
 import { loadSignInMethodSnapshot } from "@/lib/auth/account-linking.server";
-import type { LinkedOAuthProvider } from "@/lib/auth/account-linking.shared";
+import type {
+  LinkedOAuthProvider,
+  OAuthProviderAccountSnapshot,
+} from "@/lib/auth/account-linking.shared";
+import type { OAuthIdentitySplitRow } from "@/lib/auth/oauth-identity-split.shared";
+import {
+  hqUserIdsWithOAuthIdentitySplit,
+  loadOAuthIdentitySplitForHqUser,
+} from "@/lib/auth/oauth-identity-split.server";
 import { getAuthSsoAvailability } from "@/lib/auth/sso-config.server";
 import { getDb, schema } from "@/lib/db";
 
@@ -71,6 +79,7 @@ export type AdminUserListRow = {
   isPlatformMaintainer: boolean;
   createdAt: Date;
   linkedDeviceCount: number;
+  oauthIdentitySplit: boolean;
   memberships: Array<{
     allianceSlug: string;
     allianceTag: string | null;
@@ -83,10 +92,13 @@ export type AdminUserSignInMethods = {
   hasPassword: boolean;
   passkeyCount: number;
   linkedProviders: LinkedOAuthProvider[];
+  oauthAccounts: OAuthProviderAccountSnapshot[];
   availableProviders: {
     google: boolean;
     discord: boolean;
   };
+  oauthIdentitySplit: boolean;
+  oauthIdentitySplits: OAuthIdentitySplitRow[];
 };
 
 export type AdminUserRow = {
@@ -375,16 +387,23 @@ async function loadAdminUserSignInMethods(
     return null;
   }
 
-  const ssoAvailability = getAuthSsoAvailability();
+  const [ssoAvailability, splitSummary] = await Promise.all([
+    Promise.resolve(getAuthSsoAvailability()),
+    loadOAuthIdentitySplitForHqUser(hqUserId),
+  ]);
+
   return {
     email: snapshot.email,
     hasPassword: snapshot.hasPassword,
     passkeyCount: snapshot.passkeyCount,
     linkedProviders: snapshot.linkedProviders,
+    oauthAccounts: snapshot.oauthAccounts,
     availableProviders: {
       google: ssoAvailability.google,
       discord: ssoAvailability.discord,
     },
+    oauthIdentitySplit: splitSummary.hasSplit,
+    oauthIdentitySplits: splitSummary.splits,
   };
 }
 
@@ -431,9 +450,10 @@ export async function searchAdminUsers(
     .offset(offset);
 
   const hqUserIds = userRows.map((row) => row.id);
-  const [membershipRows, deviceLinkCounts] = await Promise.all([
+  const [membershipRows, deviceLinkCounts, splitUserIds] = await Promise.all([
     loadMembershipRowsForUsers(hqUserIds),
     countCompletedDeviceLinksForUsers(hqUserIds),
+    hqUserIdsWithOAuthIdentitySplit(hqUserIds),
   ]);
   const membershipsByUser = groupMembershipsByUser(membershipRows);
 
@@ -444,6 +464,7 @@ export async function searchAdminUsers(
     isPlatformMaintainer: user.isPlatformMaintainer === 1,
     createdAt: user.createdAt,
     linkedDeviceCount: deviceLinkCounts.get(user.id) ?? 0,
+    oauthIdentitySplit: splitUserIds.has(user.id),
     memberships: (membershipsByUser.get(user.id) ?? []).map((membership) => ({
       allianceSlug: membership.allianceSlug,
       allianceTag: membership.allianceTag,
