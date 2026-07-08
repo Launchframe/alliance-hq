@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   AshedConnectAuthMismatchError,
   AshedConnectEmailStubCollisionError,
+  assertAshedConnectAuthBinding,
   assertAuthMayMergeIntoCanonicalHqUser,
   hqUsersShareEmail,
   sessionMergedAuthStubHqUserId,
@@ -251,6 +252,93 @@ describe("assertAuthMayMergeIntoCanonicalHqUser", () => {
         canonicalHqUserId: "email-stub",
         ashedEmail: "officer@ashed.example.com",
         ashedUserId: "ashed-officer",
+      }),
+    ).rejects.toBeInstanceOf(AshedConnectEmailStubCollisionError);
+  });
+
+  it("rejects Discord SSO when an email-only HQ stub owns the Ashed email", async () => {
+    const limit = vi
+      .fn()
+      .mockResolvedValueOnce([{ email: "officer@discord.example" }])
+      .mockResolvedValueOnce([{ email: "officer@ashed.example.com" }])
+      .mockResolvedValueOnce([{ email: "officer@discord.example" }])
+      .mockResolvedValueOnce([{ email: "officer@ashed.example.com" }])
+      .mockResolvedValueOnce([
+        { email: "officer@ashed.example.com", ashedUserId: null },
+      ]);
+    const where = vi
+      .fn()
+      .mockReturnValueOnce({ limit })
+      .mockReturnValueOnce({ limit })
+      .mockReturnValueOnce({ limit })
+      .mockReturnValueOnce({ limit })
+      .mockResolvedValueOnce([{ provider: "discord" }])
+      .mockReturnValueOnce({ limit });
+    const from = vi.fn().mockReturnValue({ where });
+    const select = vi.fn().mockReturnValue({ from });
+
+    const { getDb } = await import("@/lib/db");
+    vi.mocked(getDb).mockReturnValue({ select } as never);
+
+    await expect(
+      assertAuthMayMergeIntoCanonicalHqUser({
+        authHqUserId: "discord-officer",
+        canonicalHqUserId: "email-stub",
+        ashedEmail: "officer@ashed.example.com",
+        ashedUserId: "ashed-officer",
+      }),
+    ).rejects.toBeInstanceOf(AshedConnectEmailStubCollisionError);
+  });
+});
+
+describe("assertAshedConnectAuthBinding", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("returns early when authHqUserId is null (legacy session)", async () => {
+    await expect(
+      assertAshedConnectAuthBinding({
+        authHqUserId: null,
+        ashedUserId: "ashed-abc",
+        ashedEmail: "player@example.com",
+      }),
+    ).resolves.toBeUndefined();
+  });
+
+  it("throws email stub collision via canonical email lookup", async () => {
+    const limit = vi
+      .fn()
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ id: "email-stub" }])
+      .mockResolvedValueOnce([{ email: "officer@gmail.com" }])
+      .mockResolvedValueOnce([{ email: "officer@ashed.example.com" }])
+      .mockResolvedValueOnce([{ email: "officer@gmail.com" }])
+      .mockResolvedValueOnce([{ email: "officer@ashed.example.com" }])
+      .mockResolvedValueOnce([
+        { email: "officer@ashed.example.com", ashedUserId: null },
+      ]);
+    const where = vi
+      .fn()
+      .mockReturnValueOnce({ limit })
+      .mockReturnValueOnce({ limit })
+      .mockReturnValueOnce({ limit })
+      .mockReturnValueOnce({ limit })
+      .mockReturnValueOnce({ limit })
+      .mockReturnValueOnce({ limit })
+      .mockResolvedValueOnce([{ provider: "google" }])
+      .mockReturnValueOnce({ limit });
+    const from = vi.fn().mockReturnValue({ where });
+    const select = vi.fn().mockReturnValue({ from });
+
+    const { getDb } = await import("@/lib/db");
+    vi.mocked(getDb).mockReturnValue({ select } as never);
+
+    await expect(
+      assertAshedConnectAuthBinding({
+        authHqUserId: "google-officer",
+        ashedUserId: "ashed-officer",
+        ashedEmail: "officer@ashed.example.com",
       }),
     ).rejects.toBeInstanceOf(AshedConnectEmailStubCollisionError);
   });
