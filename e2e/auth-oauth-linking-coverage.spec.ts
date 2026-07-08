@@ -62,16 +62,27 @@ function e2eOAuthCompletePath(
 
 async function stubOAuthProviderSignIn(
   page: Page,
+  baseURL: string,
   provider: "discord" | "google",
   providerAccountId: string,
   providerEmail?: string,
 ) {
+  const completeUrl = `${baseURL.replace(/\/$/, "")}${e2eOAuthCompletePath(
+    provider,
+    providerAccountId,
+    providerEmail,
+  )}`;
+
   await page.route(`**/api/auth/signin/${provider}**`, async (route) => {
+    if (route.request().method() !== "POST") {
+      await route.continue();
+      return;
+    }
+    // Auth.js client signIn() POSTs with X-Auth-Return-Redirect and expects JSON { url }.
     await route.fulfill({
-      status: 302,
-      headers: {
-        Location: e2eOAuthCompletePath(provider, providerAccountId, providerEmail),
-      },
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ url: completeUrl }),
     });
   });
 }
@@ -192,7 +203,13 @@ test.describe("OAuth linking — browser shim round-trip", () => {
 
     const discordUserId = `discord-${nanoid(10)}`;
     const providerEmail = `browser-${nanoid(4)}@discord.test`;
-    await stubOAuthProviderSignIn(page, "discord", discordUserId, providerEmail);
+    await stubOAuthProviderSignIn(
+      page,
+      e2eBaseUrl(),
+      "discord",
+      discordUserId,
+      providerEmail,
+    );
 
     await page.goto("/settings/account");
     await page
@@ -221,7 +238,13 @@ test.describe("OAuth linking — browser shim round-trip", () => {
 
     const googleAccountId = `google-${nanoid(12)}`;
     const providerEmail = `browser-${nanoid(4)}@google.test`;
-    await stubOAuthProviderSignIn(page, "google", googleAccountId, providerEmail);
+    await stubOAuthProviderSignIn(
+      page,
+      e2eBaseUrl(),
+      "google",
+      googleAccountId,
+      providerEmail,
+    );
 
     await page.goto("/settings/account");
     await page.getByRole("button", { name: /link google/i }).click();
