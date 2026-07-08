@@ -5,6 +5,7 @@ import {
   type DiscordBotLocale,
   type DiscordTranslate,
 } from "@/lib/discord/i18n";
+import { buildDiscordBotAppUrl } from "@/lib/discord/app-url.shared";
 import { isVrAnomalyConfirmPending } from "@/lib/discord/bot-pending-guards.shared";
 import { createDiscordAuthNonce } from "@/lib/vr/auth-nonce";
 import { lookupPlayerByUid } from "@/lib/lastwar/player-lookup";
@@ -609,8 +610,10 @@ async function issueDiscordMemberLinkPrompt(input: {
     purpose: "member_link",
     memberLinkReplaceAll: input.replaceAll,
   });
-  const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "").replace(/\/$/, "");
-  const url = `${appUrl}/discord/link-commander?nonce=${nonce}`;
+  const url = buildDiscordBotAppUrl(
+    input.locale,
+    `/discord/link-commander?nonce=${nonce}`,
+  );
   const result: LinkCommandResult = {
     reply: translate("link.commanderPrompt", { url }),
     pending: null,

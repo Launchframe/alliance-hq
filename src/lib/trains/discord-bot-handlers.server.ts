@@ -307,6 +307,7 @@ export async function handleDiscordTrainIsReady(input: {
       allianceId: input.allianceId,
       date,
       guildId: input.guildId,
+      locale: input.locale,
     });
     const reply =
       announce.posted > 0

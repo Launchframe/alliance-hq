@@ -9,13 +9,13 @@ export function formatTrainReadyMessage(input: {
   conductorName: string;
   vipName?: string | null;
   date: string;
-  appUrl?: string | null;
+  trainsUrl?: string | null;
 }): string {
   const vipLine = input.vipName?.trim()
     ? `\nVIP: **${input.vipName.trim()}**`
     : "";
-  const footer = input.appUrl?.trim()
-    ? `\n\nManage trains: ${input.appUrl.trim()}/trains`
+  const footer = input.trainsUrl?.trim()
+    ? `\n\nManage trains: ${input.trainsUrl.trim()}`
     : "";
   return (
     `Today's train conductor (${input.date}): **${input.conductorName.trim()}**` +
@@ -27,10 +27,10 @@ export function formatTrainReadyMessage(input: {
 export function formatTrainDepartingSoonMessage(input: {
   conductorName: string;
   date: string;
-  appUrl?: string | null;
+  trainsUrl?: string | null;
 }): string {
-  const footer = input.appUrl?.trim()
-    ? `\n\n${input.appUrl.trim()}/trains`
+  const footer = input.trainsUrl?.trim()
+    ? `\n\n${input.trainsUrl.trim()}`
     : "";
   return (
     `Reminder: **${input.conductorName.trim()}**'s train (${input.date}) departs soon. Last chance to board.` +

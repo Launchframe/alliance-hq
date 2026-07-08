@@ -15,7 +15,7 @@ import {
   upsertGuildAlliance,
   writeDiscordBotAudit,
 } from "@/lib/vr/repository";
-import { discordAppBaseUrl } from "@/lib/vr/bot-user-context";
+import { buildDiscordBotAppUrl } from "@/lib/discord/app-url.shared";
 import { resolveAllianceByTag } from "@/lib/vr/resolve-alliance-tag";
 import { createDiscordAuthNonce } from "@/lib/vr/auth-nonce";
 import type { LinkPendingState } from "@/lib/vr/types";
@@ -60,6 +60,7 @@ async function resolveTagForSetup(input: {
   tag: string;
   discordUserId: string;
   allianceName?: string;
+  locale: DiscordBotLocale;
   translate: DiscordTranslate;
 }): Promise<
   | { ok: true; allianceId: string; tag: string; name: string }
@@ -81,7 +82,7 @@ async function resolveTagForSetup(input: {
 
   if (resolved.reason === "not_found") {
     const hqLink = await getDiscordHqLink(input.discordUserId);
-    const appUrl = discordAppBaseUrl();
+    const appUrl = buildDiscordBotAppUrl(input.locale, "/");
     return {
       ok: false,
       reply: hqLink
@@ -128,8 +129,10 @@ export async function handleDiscordLinkUser(input: {
     purpose: "user_link",
   });
 
-  const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "").replace(/\/$/, "");
-  const authorizeUrl = `${appUrl}/discord/authorize?nonce=${nonce}`;
+  const authorizeUrl = buildDiscordBotAppUrl(
+    input.locale,
+    `/discord/authorize?nonce=${nonce}`,
+  );
 
   return { reply: t("link.userPrompt", { url: authorizeUrl }) };
 }
@@ -169,8 +172,10 @@ export async function handleDiscordLinkToAshedSeat(input: {
     purpose: "alliance_credentials",
   });
 
-  const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "").replace(/\/$/, "");
-  const authorizeUrl = `${appUrl}/discord/authorize?nonce=${nonce}`;
+  const authorizeUrl = buildDiscordBotAppUrl(
+    input.locale,
+    `/discord/authorize?nonce=${nonce}`,
+  );
 
   return { reply: t("setup.linkAshedSeatPrompt", { tag, url: authorizeUrl }) };
 }
@@ -202,6 +207,7 @@ export async function handleDiscordLinkAlliance(input: {
     tag,
     discordUserId: input.discordUserId,
     allianceName,
+    locale: input.locale,
     translate: t,
   });
 
