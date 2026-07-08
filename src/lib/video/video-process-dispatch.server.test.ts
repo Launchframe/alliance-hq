@@ -1,7 +1,9 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  dispatchVideoJobRemote,
   externalVideoWorkerBaseUrl,
+  resolveVideoProcessEndpoint,
   videoQueueDispatchesExternally,
 } from "@/lib/video/video-process-dispatch.server";
 
@@ -45,5 +47,80 @@ describe("videoQueueDispatchesExternally", () => {
     process.env.VIDEO_WORKER_BASE_URL = "https://video-worker.fly.dev";
     process.env.NEXT_PUBLIC_APP_URL = "https://frontline.gay";
     expect(videoQueueDispatchesExternally()).toBe(true);
+  });
+});
+
+describe("resolveVideoProcessEndpoint", () => {
+  const env = { ...process.env };
+
+  afterEach(() => {
+    process.env = env;
+  });
+
+  it("uses worker base URL when configured", () => {
+    process.env.VIDEO_WORKER_BASE_URL = "https://worker.example";
+    expect(resolveVideoProcessEndpoint("job-1")).toBe(
+      "https://worker.example/api/internal/video-process/job-1",
+    );
+  });
+});
+
+describe("dispatchVideoJobRemote", () => {
+  const env = { ...process.env };
+
+  beforeEach(() => {
+    process.env = { ...env };
+    process.env.VIDEO_WORKER_SECRET = "test-secret";
+    process.env.VIDEO_WORKER_BASE_URL = "https://worker.example";
+  });
+
+  afterEach(() => {
+    process.env = env;
+    vi.unstubAllGlobals();
+  });
+
+  it("returns 503 when VIDEO_WORKER_SECRET is unset", async () => {
+    delete process.env.VIDEO_WORKER_SECRET;
+    const result = await dispatchVideoJobRemote("job-1");
+    expect(result.httpStatus).toBe(503);
+    expect(result.ok).toBe(false);
+  });
+
+  it("maps worker JSON payload into a result", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          ok: true,
+          processed: true,
+          status: "review",
+        }),
+      })),
+    );
+
+    const result = await dispatchVideoJobRemote("job-1", { source: "cron" });
+    expect(result).toMatchObject({
+      ok: true,
+      processed: true,
+      jobId: "job-1",
+      status: "review",
+      httpStatus: 200,
+    });
+  });
+
+  it("returns 502 when fetch throws", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw new Error("ECONNREFUSED");
+      }),
+    );
+
+    const result = await dispatchVideoJobRemote("job-1");
+    expect(result.httpStatus).toBe(502);
+    expect(result.error).toContain("ECONNREFUSED");
+    expect(result.processed).toBe(false);
   });
 });

@@ -60,13 +60,27 @@ export async function dispatchVideoJobRemote(
   }
 
   const source = options?.source ?? "queue";
-  const res = await fetch(resolveVideoProcessEndpoint(jobId), {
-    method: "POST",
-    headers: {
-      authorization: `Bearer ${secret}`,
-      "x-video-worker": source === "upload" ? "0" : "1",
-    },
-  });
+  let res: Response;
+  try {
+    res = await fetch(resolveVideoProcessEndpoint(jobId), {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${secret}`,
+        "x-video-worker": source === "upload" ? "0" : "1",
+      },
+    });
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Worker dispatch failed";
+    return {
+      ok: false,
+      processed: false,
+      jobId,
+      status: "failed",
+      error: message,
+      httpStatus: 502,
+    };
+  }
 
   let payload: Record<string, unknown> | null = null;
   try {
