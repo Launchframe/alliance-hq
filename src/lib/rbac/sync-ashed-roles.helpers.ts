@@ -23,3 +23,25 @@ export function shouldRevokeAshedMembership(
 ): boolean {
   return source === "ashed" && !rosterEmails.has(normalizeAshedEmail(email));
 }
+
+export function normalizeAllianceTagForMatch(
+  tag: string | null | undefined,
+): string {
+  return tag?.trim().toLowerCase() ?? "";
+}
+
+/** HQ shell rows created before Ashed connect (native provision, invite bootstrap). */
+export function isUnlinkedHqAllianceShell(row: {
+  ashedAllianceId: string | null;
+}): boolean {
+  return !row.ashedAllianceId?.trim();
+}
+
+export function allianceTagsMatchForShellAdoption(
+  shellTag: string | null | undefined,
+  ashedTag: string,
+): boolean {
+  const normalizedShell = normalizeAllianceTagForMatch(shellTag);
+  const normalizedAshed = normalizeAllianceTagForMatch(ashedTag);
+  return Boolean(normalizedShell && normalizedAshed && normalizedShell === normalizedAshed);
+}

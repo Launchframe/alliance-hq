@@ -124,6 +124,7 @@ export async function PATCH(request: Request) {
         sessionId: session.id,
         allianceTag: alliance.tag,
         authHqUserId: session.hqUserId,
+        preferHqAllianceId: session.currentAllianceId,
         currentUser: {
           id: me.id,
           email: me.email,

@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import {
@@ -8,6 +8,8 @@ import {
 } from "@/lib/alliance/accessible";
 import {
   buildAllianceRosterEmails,
+  isUnlinkedHqAllianceShell,
+  normalizeAllianceTagForMatch,
   shouldRevokeAshedMembership,
 } from "@/lib/rbac/sync-ashed-roles.helpers";
 import { resolveRosterHqUserId } from "@/lib/rbac/sync-ashed-roles-roster.server";
@@ -82,9 +84,136 @@ async function allianceHasOwner(allianceId: string): Promise<boolean> {
   return Boolean(ownerMembership);
 }
 
+type HqAllianceRow = typeof schema.alliances.$inferSelect;
+
+async function hqUserHasActiveMembershipOnAlliance(
+  hqUserId: string,
+  allianceId: string,
+): Promise<boolean> {
+  const db = getDb();
+  const [membership] = await db
+    .select({ id: schema.allianceMemberships.id })
+    .from(schema.allianceMemberships)
+    .where(
+      and(
+        eq(schema.allianceMemberships.hqUserId, hqUserId),
+        eq(schema.allianceMemberships.allianceId, allianceId),
+        eq(schema.allianceMemberships.status, "active"),
+      ),
+    )
+    .limit(1);
+
+  return Boolean(membership);
+}
+
+async function findAdoptableHqAllianceShell(input: {
+  ashedTag: string;
+  preferHqAllianceId?: string | null;
+  authHqUserId?: string | null;
+}): Promise<HqAllianceRow | null> {
+  const db = getDb();
+  const preferId = input.preferHqAllianceId?.trim();
+
+  if (preferId) {
+    const [preferred] = await db
+      .select()
+      .from(schema.alliances)
+      .where(eq(schema.alliances.id, preferId))
+      .limit(1);
+
+    if (
+      preferred &&
+      isUnlinkedHqAllianceShell(preferred) &&
+      (!input.authHqUserId ||
+        (await hqUserHasActiveMembershipOnAlliance(
+          input.authHqUserId,
+          preferred.id,
+        )))
+    ) {
+      return preferred;
+    }
+  }
+
+  const tagLower = normalizeAllianceTagForMatch(input.ashedTag);
+  if (!tagLower) {
+    return null;
+  }
+
+  const candidates = await db
+    .select()
+    .from(schema.alliances)
+    .where(
+      and(
+        isNull(schema.alliances.ashedAllianceId),
+        sql`lower(trim(${schema.alliances.tag})) = ${tagLower}`,
+      ),
+    );
+
+  if (candidates.length !== 1) {
+    return null;
+  }
+
+  const [candidate] = candidates;
+  if (
+    input.authHqUserId &&
+    !(await hqUserHasActiveMembershipOnAlliance(
+      input.authHqUserId,
+      candidate.id,
+    ))
+  ) {
+    return null;
+  }
+
+  return candidate;
+}
+
+async function applyAshedAllianceFieldsToHqRow(
+  hqAllianceId: string,
+  ashedAlliance: AshedAllianceRow,
+  allianceTag: string,
+  existing: Pick<HqAllianceRow, "name" | "slug">,
+): Promise<void> {
+  const db = getDb();
+  const now = new Date();
+  const tag = ashedAlliance.tag?.trim() || allianceTag.trim();
+  const collaborators = (ashedAlliance.collaborators ?? []).map(normalizeAshedEmail);
+  const gameServerNumber = parseAshedGameServerNumber(ashedAlliance);
+
+  await db
+    .update(schema.alliances)
+    .set({
+      tag,
+      name: ashedAlliance.name ?? existing.name,
+      ashedAllianceId: ashedAlliance.id ?? null,
+      ownerAshedUserId: ashedAlliance.owner_id ?? null,
+      ownerEmail: ashedAlliance.owner_email
+        ? normalizeAshedEmail(ashedAlliance.owner_email)
+        : null,
+      collaboratorsJson: collaborators,
+      rolesSyncedAt: now,
+      operatingMode: "ashed",
+      ...(gameServerNumber != null ? { gameServerNumber } : {}),
+      updatedAt: now,
+    })
+    .where(eq(schema.alliances.id, hqAllianceId));
+
+  if (gameServerNumber != null) {
+    try {
+      await linkAllianceToGameServer(hqAllianceId, gameServerNumber);
+      await applySeasonSync(hqAllianceId);
+    } catch (error) {
+      console.warn("[sync-ashed] season sync failed", hqAllianceId, error);
+    }
+  }
+}
+
 async function upsertAllianceFromAshed(
   ashedAlliance: AshedAllianceRow,
   allianceTag: string,
+  options?: {
+    preferHqAllianceId?: string | null;
+    authHqUserId?: string | null;
+  },
 ): Promise<{ allianceId: string; wasCreated: boolean }> {
   const db = getDb();
   const now = new Date();
@@ -125,6 +254,21 @@ async function upsertAllianceFromAshed(
       }
     }
     return { allianceId: existing.id, wasCreated: false };
+  }
+
+  const shell = await findAdoptableHqAllianceShell({
+    ashedTag: tag,
+    preferHqAllianceId: options?.preferHqAllianceId,
+    authHqUserId: options?.authHqUserId,
+  });
+  if (shell) {
+    await applyAshedAllianceFieldsToHqRow(
+      shell.id,
+      ashedAlliance,
+      allianceTag,
+      shell,
+    );
+    return { allianceId: shell.id, wasCreated: false };
   }
 
   const id = nanoid(16);
@@ -251,9 +395,16 @@ async function syncAshedAllianceRolesCore(options: {
   allianceTag: string;
   currentUser: AshedUserInfo;
   authHqUserId?: string | null;
+  preferHqAllianceId?: string | null;
 }): Promise<SyncAshedAllianceRolesResult> {
-  const { connection, sessionId, allianceTag, currentUser, authHqUserId } =
-    options;
+  const {
+    connection,
+    sessionId,
+    allianceTag,
+    currentUser,
+    authHqUserId,
+    preferHqAllianceId,
+  } = options;
   const ashedAlliance = await fetchAllianceByTag(connection, allianceTag);
   if (!ashedAlliance?.id) {
     throw new Error(`Alliance "${allianceTag}" not found in Ashed.`);
@@ -262,6 +413,10 @@ async function syncAshedAllianceRolesCore(options: {
   const { allianceId: hqAllianceId, wasCreated } = await upsertAllianceFromAshed(
     ashedAlliance,
     allianceTag,
+    {
+      preferHqAllianceId,
+      authHqUserId,
+    },
   );
   const hasOwner = await allianceHasOwner(hqAllianceId);
   const ashedAccessRole = userAllianceAccessRole(ashedAlliance, currentUser);
@@ -320,6 +475,7 @@ export async function syncAshedAllianceRoles(options: {
   allianceTag: string;
   currentUser: AshedUserInfo;
   authHqUserId?: string | null;
+  preferHqAllianceId?: string | null;
 }): Promise<SyncAshedAllianceRolesResult> {
   return syncAshedAllianceRolesCore(options);
 }

@@ -169,6 +169,7 @@ export async function POST(request: Request) {
       sessionId: session.id,
       allianceTag: alliance.tag,
       authHqUserId,
+      preferHqAllianceId: session.currentAllianceId,
       currentUser: {
         id: me.id,
         email: me.email,
