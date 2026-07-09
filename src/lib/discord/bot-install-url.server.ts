@@ -1,6 +1,7 @@
 import "server-only";
 
 import { buildDiscordBotInstallUrl } from "@/lib/discord/bot-install-url.shared";
+import { discordBotAppOrigin } from "@/lib/discord/app-url.shared";
 
 function readDiscordApplicationId(): string | null {
   const raw =
@@ -11,13 +12,7 @@ function readDiscordApplicationId(): string | null {
 }
 
 export function getDiscordBotInstallRedirectUri(): string {
-  const base = (process.env.NEXT_PUBLIC_APP_URL ?? "").replace(/\/$/, "");
-  const origin =
-    base ||
-    (typeof process.env.VERCEL_URL === "string" && process.env.VERCEL_URL
-      ? `https://${process.env.VERCEL_URL}`
-      : "http://localhost:5175");
-  return `${origin}/discord/install/complete`;
+  return `${discordBotAppOrigin()}/discord/install/complete`;
 }
 
 export function getDiscordBotInstallUrl(): string | null {
