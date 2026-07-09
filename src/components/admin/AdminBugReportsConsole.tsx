@@ -76,6 +76,7 @@ export function AdminBugReportsConsole() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [statusSaving, setStatusSaving] = useState<string | null>(null);
   const [screenshotLightboxIndex, setScreenshotLightboxIndex] = useState<
     number | null
   >(null);
@@ -169,9 +170,10 @@ export function AdminBugReportsConsole() {
   }, [selectedId, t]);
 
   async function updateStatus(status: (typeof BUG_STATUSES)[number]) {
-    if (!activeDetail) return;
+    if (!activeDetail || statusSaving) return;
     setError(null);
     setMessage(null);
+    setStatusSaving(status);
     try {
       const res = await fetch(`/api/admin/bug-reports/${activeDetail.id}`, {
         method: "PATCH",
@@ -185,6 +187,8 @@ export function AdminBugReportsConsole() {
       await loadDetail(activeDetail.id);
     } catch (err) {
       setError(err instanceof Error ? err.message : t("saveFailed"));
+    } finally {
+      setStatusSaving(null);
     }
   }
 
@@ -432,9 +436,12 @@ export function AdminBugReportsConsole() {
                           variant={
                             activeDetail.status === status ? "default" : "outline"
                           }
+                          disabled={!!statusSaving}
                           onClick={() => void updateStatus(status)}
                         >
-                          {t(`status.${status}`)}
+                          {statusSaving === status
+                            ? t("saving")
+                            : t(`status.${status}`)}
                         </Button>
                       ))}
                     </div>

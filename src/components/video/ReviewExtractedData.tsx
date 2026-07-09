@@ -170,6 +170,10 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   const [submitting, setSubmitting] = useState(false);
   const [reprocessing, setReprocessing] = useState(false);
   const [rematching, setRematching] = useState(false);
+  const [groupActionBusy, setGroupActionBusy] = useState<string | null>(null);
+  const [addingRowBusy, setAddingRowBusy] = useState<ManualRowPosition | null>(
+    null,
+  );
   const [success, setSuccess] = useState<string | null>(null);
   const [timings, setTimings] = useState<VideoProcessTimings | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
@@ -609,19 +613,30 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   }, [jobId, jobStatus, comparisonDismissed, viewMode]);
 
   const updateGroupSelection = useCallback(
-    async (patch: { selectedJobId?: string; accuracyJobId?: string }) => {
+    async (
+      patch: { selectedJobId?: string; accuracyJobId?: string },
+      busyKey?: string,
+    ) => {
       if (!groupInfo?.group) return false;
-      const res = await fetch(`/api/tools/video-upload/groups/${groupInfo.group.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(patch),
-      });
-      if (!res.ok) {
-        const data = (await res.json()) as { error?: string };
-        setError(data.error ?? tc("uploadFailed"));
-        return false;
+      setGroupActionBusy(busyKey ?? "group");
+      try {
+        const res = await fetch(
+          `/api/tools/video-upload/groups/${groupInfo.group.id}`,
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(patch),
+          },
+        );
+        if (!res.ok) {
+          const data = (await res.json()) as { error?: string };
+          setError(data.error ?? tc("uploadFailed"));
+          return false;
+        }
+        return true;
+      } finally {
+        setGroupActionBusy(null);
       }
-      return true;
     },
     [groupInfo, tc],
   );
@@ -658,7 +673,10 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     const comp = groupInfo?.group?.comparisonJson;
     const recommendedId = comp?.recommendedJobId;
     if (!recommendedId || !groupInfo?.group) return;
-    const ok = await updateGroupSelection({ selectedJobId: recommendedId });
+    const ok = await updateGroupSelection(
+      { selectedJobId: recommendedId },
+      "better-pass",
+    );
     if (!ok) return;
     setShowComparisonPrompt(false);
     setComparisonDismissed(true);
@@ -1025,17 +1043,23 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   }
 
   async function handleAddRow(position: ManualRowPosition) {
-    const res = await fetch(`/api/tools/video-upload/${jobId}/rows`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ position }),
-    });
-    if (!res.ok) return;
-    const data = (await res.json()) as { row: ParsedRow };
-    markDraftDirty();
-    setRows((prev) =>
-      mergeParsedRowInReviewOrder(prev, data.row, scoreTargetMeta?.id),
-    );
+    if (addingRowBusy) return;
+    setAddingRowBusy(position);
+    try {
+      const res = await fetch(`/api/tools/video-upload/${jobId}/rows`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ position }),
+      });
+      if (!res.ok) return;
+      const data = (await res.json()) as { row: ParsedRow };
+      markDraftDirty();
+      setRows((prev) =>
+        mergeParsedRowInReviewOrder(prev, data.row, scoreTargetMeta?.id),
+      );
+    } finally {
+      setAddingRowBusy(null);
+    }
   }
 
   if (displayJobStatus === "loading" || rematching) {
@@ -1287,10 +1311,13 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
             <div className="flex flex-wrap gap-3">
               <button
                 type="button"
+                disabled={!!groupActionBusy}
                 onClick={() => void handleUseBetterPass()}
-                className="rounded-lg border border-hq-success bg-hq-success px-3 py-1.5 text-sm text-white"
+                className="rounded-lg border border-hq-success bg-hq-success px-3 py-1.5 text-sm text-white disabled:opacity-50"
               >
-                {t("comparisonUseBetter")}
+                {groupActionBusy === "better-pass"
+                  ? t("submitting")
+                  : t("comparisonUseBetter")}
               </button>
               <button
                 type="button"
@@ -1537,10 +1564,11 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         )}
         <button
           type="button"
+          disabled={!!addingRowBusy}
           onClick={() => void handleAddRow("start")}
-          className="shrink-0 rounded-lg border border-hq-border px-3 py-2 text-sm hover:bg-hq-surface-muted"
+          className="shrink-0 rounded-lg border border-hq-border px-3 py-2 text-sm hover:bg-hq-surface-muted disabled:opacity-50"
         >
-          {t("addRow")}
+          {addingRowBusy === "start" ? t("addingRow") : t("addRow")}
         </button>
       </div>
 
@@ -1719,10 +1747,11 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
       <div className="flex justify-end">
         <button
           type="button"
+          disabled={!!addingRowBusy}
           onClick={() => void handleAddRow("end")}
-          className="rounded-lg border border-hq-border px-3 py-2 text-sm hover:bg-hq-surface-muted"
+          className="rounded-lg border border-hq-border px-3 py-2 text-sm hover:bg-hq-surface-muted disabled:opacity-50"
         >
-          {t("addRow")}
+          {addingRowBusy === "end" ? t("addingRow") : t("addRow")}
         </button>
       </div>
         </>
@@ -1783,7 +1812,10 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           onClose={closeComparisonSheet}
           onSelectJob={(selectedJobId: string) => {
             void (async () => {
-              const ok = await updateGroupSelection({ selectedJobId });
+              const ok = await updateGroupSelection(
+                { selectedJobId },
+                `select:${selectedJobId}`,
+              );
               if (!ok) return;
               setShowComparisonSheet(false);
               setShowComparisonPrompt(false);
@@ -1792,8 +1824,12 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
             })();
           }}
           onAccuracyVote={(accuracyJobId: string) => {
-            void updateGroupSelection({ accuracyJobId });
+            void updateGroupSelection(
+              { accuracyJobId },
+              `accuracy:${accuracyJobId}`,
+            );
           }}
+          groupActionBusy={groupActionBusy}
         />
       ) : null}
         </div>

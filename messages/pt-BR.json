@@ -206,6 +206,7 @@
       "loadingDetail": "Carregando relatório…",
       "saveFailed": "Não foi possível atualizar o status.",
       "saved": "Status atualizado.",
+      "saving": "Salvando…",
       "selectReport": "Selecione um relatório para ver detalhes.",
       "filterOpen": "Abertos",
       "filterTriaged": "Triados",
@@ -637,7 +638,8 @@
       "statusProcessing": "Processando",
       "statusReview": "Revisão",
       "statusComplete": "Concluído",
-      "allStatuses": "Todos os status"
+      "allStatuses": "Todos os status",
+      "listLoading": "Carregando jobs…"
     },
     "videoJobDetailPage": {
       "loading": "Carregando detalhes do job…",
@@ -2811,6 +2813,7 @@
       "substitutingFor": "Substituindo {name}"
     },
     "reseedPool": "Recriar pool",
+    "reseedingPool": "Recriando pool…",
     "reseedPoolHint": {
       "infoLabel": "O que significa recriar o pool?",
       "title": "Recriar pool",
@@ -3030,6 +3033,7 @@
     "selectedFile": "Selecionado: {name} ({size})",
     "chooseFileFirst": "Escolha um arquivo de vídeo primeiro.",
     "uploading": "Enviando…",
+    "preparingUpload": "Preparando envio…",
     "uploadButton": "Enviar vídeo",
     "boardLabel": "Tipo de placar",
     "boardTypes": {
@@ -3172,6 +3176,7 @@
     "ratingThumbsDown": "Precisa melhorar",
     "ratingSkip": "Pular",
     "addRow": "Adicionar linha",
+    "addingRow": "Adicionando linha…",
     "comparisonPromptTitle": "Tentamos uma abordagem diferente que pode ter obtido melhores resultados.",
     "comparisonPromptBody": "Uma segunda passagem encontrou mais linhas únicas. Deseja usar esses resultados?",
     "comparisonUseBetter": "Usar resultados com mais linhas",
@@ -3408,6 +3413,7 @@
     "suggested": "Tradução sugerida",
     "displayed": "Texto exibido",
     "saved": "Atualizado.",
+    "saving": "Salvando…",
     "saveFailed": "Falha ao atualizar.",
     "awarded": "Comendações concedidas: {badges}",
     "localePatched": "Gravou \"{value}\" em messages/{locale}.json ({key})."

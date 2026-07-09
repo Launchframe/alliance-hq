@@ -48,6 +48,7 @@ export function AdminTranslationReportsConsole() {
   const [filter, setFilter] = useState<string>("pending");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [notes, setNotes] = useState("");
+  const [statusSaving, setStatusSaving] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -78,9 +79,10 @@ export function AdminTranslationReportsConsole() {
   }, [filter, t]);
 
   async function updateStatus(status: "applied" | "dismissed") {
-    if (!selected) return;
+    if (!selected || statusSaving) return;
     setError(null);
     setMessage(null);
+    setStatusSaving(status);
     try {
       const res = await fetch(`/api/admin/translation-reports/${selected.id}`, {
         method: "PATCH",
@@ -118,6 +120,8 @@ export function AdminTranslationReportsConsole() {
       setNotes("");
     } catch (err) {
       setError(err instanceof Error ? err.message : t("saveFailed"));
+    } finally {
+      setStatusSaving(null);
     }
   }
 
@@ -319,16 +323,17 @@ export function AdminTranslationReportsConsole() {
 
               {selected.status === "pending" ? (
                 <div className="flex gap-2">
-                  <Button type="submit" className="flex-1">
-                    {t("apply")}
+                  <Button type="submit" className="flex-1" disabled={!!statusSaving}>
+                    {statusSaving === "applied" ? t("saving") : t("apply")}
                   </Button>
                   <Button
                     type="button"
                     variant="outline"
                     className="flex-1"
+                    disabled={!!statusSaving}
                     onClick={() => void updateStatus("dismissed")}
                   >
-                    {t("dismiss")}
+                    {statusSaving === "dismissed" ? t("saving") : t("dismiss")}
                   </Button>
                 </div>
               ) : null}

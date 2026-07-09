@@ -1,5 +1,6 @@
 "use client";
 
+import { Loader2 } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
@@ -104,6 +105,7 @@ export default function AdminVideoJobsPage() {
   );
   const [jobs, setJobs] = useState<VideoJob[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [listLoading, setListLoading] = useState(true);
   const [actingJobId, setActingJobId] = useState<string | null>(null);
   const [errorDialogJob, setErrorDialogJob] = useState<VideoJob | null>(null);
 
@@ -129,17 +131,30 @@ export default function AdminVideoJobsPage() {
     const res = await fetch(`/api/admin/video-jobs?${params.toString()}`);
     if (!res.ok) throw new Error(await res.text());
     const data = (await res.json()) as { jobs: VideoJob[] };
-    setJobs(data.jobs);
+    return data.jobs;
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
     void (async () => {
+      setListLoading(true);
       try {
-        await loadJobs(filters);
+        const loaded = await loadJobs(filters);
+        if (!cancelled) {
+          setJobs(loaded);
+          setError(null);
+        }
       } catch (err) {
-        setError(err instanceof Error ? err.message : t("loadFailed"));
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : t("loadFailed"));
+        }
+      } finally {
+        if (!cancelled) setListLoading(false);
       }
     })();
+    return () => {
+      cancelled = true;
+    };
   }, [loadJobs, filters, t]);
 
   // Derive available pass keys from loaded jobs for the filter dropdown
@@ -158,7 +173,8 @@ export default function AdminVideoJobsPage() {
         const data = (await res.json()) as { error?: string };
         throw new Error(data.error ?? tJobs("actionFailed"));
       }
-      await loadJobs(filters);
+      const loaded = await loadJobs(filters);
+      setJobs(loaded);
     } catch (err) {
       setError(err instanceof Error ? err.message : tJobs("actionFailed"));
     } finally {
@@ -235,6 +251,21 @@ export default function AdminVideoJobsPage() {
           {tJobs("analyticsLink")} →
         </Link>
       </div>
+      <div className="relative min-h-[12rem]">
+        {listLoading ? (
+          <div
+            className="absolute inset-0 z-10 flex items-center justify-center gap-2 bg-hq-canvas/70 text-sm text-hq-fg-muted"
+            role="status"
+            aria-live="polite"
+          >
+            <Loader2
+              className="h-4 w-4 animate-spin text-hq-accent"
+              aria-hidden
+            />
+            {tJobs("listLoading")}
+          </div>
+        ) : null}
+        <div className={listLoading ? "pointer-events-none opacity-50" : undefined}>
       <ResponsiveRecordViews
         isEmpty={jobs.length === 0}
         emptyMessage={tJobs("empty")}
@@ -435,6 +466,8 @@ export default function AdminVideoJobsPage() {
           </div>
         }
       />
+        </div>
+      </div>
 
       {errorDialogJob ? (
         <div

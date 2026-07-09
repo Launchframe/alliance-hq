@@ -146,6 +146,7 @@ export function VideoUploadForm({
     total: number;
   } | null>(null);
   const [uploadConfig, setUploadConfig] = useState<UploadConfig | null>(null);
+  const [uploadConfigLoading, setUploadConfigLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [activeSurvey, setActiveSurvey] = useState<ActiveSurvey | null>(null);
@@ -202,7 +203,8 @@ export function VideoUploadForm({
           }
         },
       )
-      .catch(() => undefined);
+      .catch(() => undefined)
+      .finally(() => setUploadConfigLoading(false));
   }, [contextScoreTarget]);
 
   const selectedTarget = scoreTargets.find((t) => t.id === scoreTarget);
@@ -359,7 +361,17 @@ export function VideoUploadForm({
       <form
         onSubmit={(e) => void handleSubmit(e)}
         className="min-w-0 rounded-xl border border-hq-border bg-hq-surface p-4 sm:p-5"
+        aria-busy={uploadConfigLoading}
       >
+        {uploadConfigLoading ? (
+          <p className="mb-4 text-sm text-hq-fg-muted" role="status">
+            {t("preparingUpload")}
+          </p>
+        ) : null}
+        <fieldset
+          disabled={uploadConfigLoading}
+          className="min-w-0 border-0 p-0"
+        >
         {isMemberRosterVideoTarget(scoreTarget) && allianceTag ? (
           <div className="mb-4">
             <RosterAllianceBanner tag={allianceTag} name={allianceName} />
@@ -493,6 +505,7 @@ export function VideoUploadForm({
         >
           {uploading ? t("uploading") : t("uploadButton")}
         </button>
+        </fieldset>
       </form>
 
       {activeProcessPromptJobId && canProcess && !activeSurvey ? (
