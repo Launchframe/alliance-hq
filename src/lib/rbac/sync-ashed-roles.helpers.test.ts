@@ -73,4 +73,8 @@ describe("allianceTagsMatchForShellAdoption", () => {
     expect(allianceTagsMatchForShellAdoption("", "roar")).toBe(false);
     expect(allianceTagsMatchForShellAdoption("roar", "")).toBe(false);
   });
+
+  it("returns false when tags differ", () => {
+    expect(allianceTagsMatchForShellAdoption("roar", "lfgo")).toBe(false);
+  });
 });

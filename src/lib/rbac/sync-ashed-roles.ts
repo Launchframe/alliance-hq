@@ -7,6 +7,7 @@ import {
   normalizeAshedEmail,
 } from "@/lib/alliance/accessible";
 import {
+  allianceTagsMatchForShellAdoption,
   buildAllianceRosterEmails,
   isUnlinkedHqAllianceShell,
   normalizeAllianceTagForMatch,
@@ -124,6 +125,7 @@ async function findAdoptableHqAllianceShell(input: {
     if (
       preferred &&
       isUnlinkedHqAllianceShell(preferred) &&
+      allianceTagsMatchForShellAdoption(preferred.tag, input.ashedTag) &&
       (!input.authHqUserId ||
         (await hqUserHasActiveMembershipOnAlliance(
           input.authHqUserId,
