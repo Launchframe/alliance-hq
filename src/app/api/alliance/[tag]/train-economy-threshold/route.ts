@@ -19,6 +19,9 @@ export const dynamic = "force-dynamic";
 const patchSchema = z.object({
   thresholdPoints: z.number().int().min(0).nullable().optional(),
   fudgePct: z.number().int().min(0).max(100).optional(),
+  weightingEnabled: z.boolean().optional(),
+  hardCutoffEnabled: z.boolean().optional(),
+  maxTicketMemberIds: z.array(z.string().min(1)).optional(),
 });
 
 type RouteContext = { params: Promise<{ tag: string }> };
@@ -78,14 +81,22 @@ export async function PATCH(request: Request, context: RouteContext) {
     }
 
     const before = await loadTrainEconomyThreshold(alliance.allianceId, true);
-    const saved = await saveTrainEconomyThreshold(
-      alliance.allianceId,
-      body.data,
-    );
+    let saved: Awaited<ReturnType<typeof saveTrainEconomyThreshold>>;
+    try {
+      saved = await saveTrainEconomyThreshold(alliance.allianceId, body.data);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Could not save settings.";
+      return NextResponse.json({ error: message }, { status: 400 });
+    }
 
     const changed =
       before.thresholdPoints !== saved.thresholdPoints ||
-      before.fudgePct !== saved.fudgePct;
+      before.fudgePct !== saved.fudgePct ||
+      before.weightingEnabled !== saved.weightingEnabled ||
+      before.hardCutoffEnabled !== saved.hardCutoffEnabled ||
+      JSON.stringify(before.maxTicketMemberIds) !==
+        JSON.stringify(saved.maxTicketMemberIds);
 
     if (!changed) {
       return NextResponse.json({
@@ -109,10 +120,16 @@ export async function PATCH(request: Request, context: RouteContext) {
         before: {
           thresholdPoints: before.thresholdPoints,
           fudgePct: before.fudgePct,
+          weightingEnabled: before.weightingEnabled,
+          hardCutoffEnabled: before.hardCutoffEnabled,
+          maxTicketMemberIds: before.maxTicketMemberIds,
         },
         after: {
           thresholdPoints: saved.thresholdPoints,
           fudgePct: saved.fudgePct,
+          weightingEnabled: saved.weightingEnabled,
+          hardCutoffEnabled: saved.hardCutoffEnabled,
+          maxTicketMemberIds: saved.maxTicketMemberIds,
         },
       },
     });

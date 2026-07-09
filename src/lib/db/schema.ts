@@ -62,6 +62,19 @@ export const alliances = pgTable("alliances", {
   trainEconomyThresholdFudgePct: integer("train_economy_threshold_fudge_pct")
     .notNull()
     .default(1),
+  trainPriceIsRightWeightingEnabled: integer(
+    "train_price_is_right_weighting_enabled",
+  )
+    .notNull()
+    .default(0),
+  trainPriceIsRightHardCutoffEnabled: integer(
+    "train_price_is_right_hard_cutoff_enabled",
+  )
+    .notNull()
+    .default(0),
+  trainPriceIsRightMaxTicketMemberIds: jsonb(
+    "train_price_is_right_max_ticket_member_ids",
+  ).$type<string[]>(),
   /** Train week start DOW in server calendar (0=Sun … 6=Sat; default Tue). */
   trainWeekStartDow: integer("train_week_start_dow").notNull().default(2),
   /** When 1, locked trains may post to configured Discord train channels. */
@@ -2155,6 +2168,8 @@ export const conductorPoolEntries = pgTable(
     memberName: text("member_name").notNull(),
     allianceRank: integer("alliance_rank"),
     sequencePosition: integer("sequence_position"),
+    ticketCount: integer("ticket_count"),
+    priorDayVsScore: integer("prior_day_vs_score"),
     selectedAt: timestamp("selected_at", { withTimezone: true }),
     selectedForDate: text("selected_for_date"),
     createdAt: timestamp("created_at", { withTimezone: true })

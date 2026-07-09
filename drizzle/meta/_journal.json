@@ -589,6 +589,13 @@
       "when": 1786448000000,
       "tag": "0084_commander_thp",
       "breakpoints": true
+    },
+    {
+      "idx": 83,
+      "version": "7",
+      "when": 1786534400000,
+      "tag": "0085_price_is_right_ticket_weighting",
+      "breakpoints": true
     }
   ]
 }

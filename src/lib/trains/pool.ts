@@ -83,6 +83,8 @@ export async function seedPool(
         memberName: c.memberName,
         allianceRank: c.allianceRank ?? null,
         sequencePosition: i + 1,
+        ticketCount: c.ticketCount ?? null,
+        priorDayVsScore: c.priorDayVsScore ?? null,
       })
       .onConflictDoNothing();
   }
@@ -110,6 +112,8 @@ export async function startNewPoolGeneration(
       memberName: c.memberName,
       allianceRank: c.allianceRank ?? null,
       sequencePosition: i + 1,
+      ticketCount: c.ticketCount ?? null,
+      priorDayVsScore: c.priorDayVsScore ?? null,
     });
   }
 
@@ -167,7 +171,62 @@ export async function pickRandomPoolEntry(
     );
 
   if (rows.length === 0) return null;
+  return pickUniformPoolEntry(rows);
+}
+
+export function pickWeightedPoolEntryFromRows<
+  T extends { ticketCount: number | null },
+>(rows: T[]): T | null {
+  if (rows.length === 0) return null;
+
+  const weightedRows = rows.filter(
+    (row) => row.ticketCount != null && row.ticketCount > 0,
+  );
+  if (weightedRows.length === 0 || weightedRows.length < rows.length) {
+    return pickUniformPoolEntry(rows);
+  }
+
+  const totalWeight = weightedRows.reduce(
+    (sum, row) => sum + (row.ticketCount ?? 0),
+    0,
+  );
+  if (totalWeight <= 0) {
+    return pickUniformPoolEntry(rows);
+  }
+
+  let roll = Math.random() * totalWeight;
+  for (const row of weightedRows) {
+    roll -= row.ticketCount ?? 0;
+    if (roll <= 0) return row;
+  }
+  return weightedRows[weightedRows.length - 1] ?? null;
+}
+
+function pickUniformPoolEntry<T>(rows: T[]): T | null {
+  if (rows.length === 0) return null;
   return rows[Math.floor(Math.random() * rows.length)] ?? null;
+}
+
+export async function pickWeightedRandomPoolEntry(
+  allianceId: string,
+  poolType: PoolType,
+): Promise<(typeof schema.conductorPoolEntries.$inferSelect) | null> {
+  const db = getDb();
+  const generation = await getCurrentPoolGeneration(allianceId, poolType);
+
+  const rows = await db
+    .select()
+    .from(schema.conductorPoolEntries)
+    .where(
+      and(
+        eq(schema.conductorPoolEntries.allianceId, allianceId),
+        eq(schema.conductorPoolEntries.poolType, poolType),
+        eq(schema.conductorPoolEntries.generation, generation),
+        isNull(schema.conductorPoolEntries.selectedAt),
+      ),
+    );
+
+  return pickWeightedPoolEntryFromRows(rows);
 }
 
 export async function markPoolEntrySelected(

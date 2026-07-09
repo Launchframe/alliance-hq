@@ -9,6 +9,8 @@ import { getAllianceOperatingMode } from "@/lib/native-alliance/operating-mode";
 import type { AllianceOperatingMode } from "@/lib/native-alliance/constants";
 import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
 import { loadActiveAlliancePoolMembers, loadAllianceRow } from "@/lib/members/game-roster";
+import { loadPriceIsRightTicketSettings } from "@/lib/trains/train-economy-threshold.server";
+import { resolveCliffPoints } from "@/lib/trains/train-price-is-right-tickets.shared";
 import { getAshedConnection, loadSession } from "@/lib/session";
 import { sessionHasPermission, sessionIsPlatformMaintainer } from "@/lib/rbac/context";
 import {
@@ -188,6 +190,8 @@ export type TrainsDashboardPayload = {
     conductsThisYear: number;
   } | null;
   inventoryCount: number;
+  priceIsRightWeightingEnabled: boolean;
+  priceIsRightCliffPoints: number | null;
 };
 
 const EMPTY_DASHBOARD_FIELDS: Pick<
@@ -204,6 +208,8 @@ const EMPTY_DASHBOARD_FIELDS: Pick<
   | "conductorStats"
   | "inventoryCount"
   | "operatingMode"
+  | "priceIsRightWeightingEnabled"
+  | "priceIsRightCliffPoints"
 > = {
   operatingMode: "ashed",
   schedule: null,
@@ -217,6 +223,8 @@ const EMPTY_DASHBOARD_FIELDS: Pick<
   conductorHistory: [],
   conductorStats: null,
   inventoryCount: 0,
+  priceIsRightWeightingEnabled: false,
+  priceIsRightCliffPoints: null,
 };
 
 async function loadTrainWeekConfigForAlliance(
@@ -357,6 +365,7 @@ export async function loadTrainsDashboard(
     30,
   );
   const conductorHistory = historyRows.map(mapRecord);
+  const pirSettings = await loadPriceIsRightTicketSettings(allianceId);
 
   return {
     today,
@@ -395,6 +404,10 @@ export async function loadTrainsDashboard(
     conductorHistory,
     conductorStats,
     inventoryCount: inventory.length,
+    priceIsRightWeightingEnabled: pirSettings.weightingEnabled,
+    priceIsRightCliffPoints: pirSettings.weightingEnabled
+      ? resolveCliffPoints(pirSettings)
+      : null,
   };
 }
 
