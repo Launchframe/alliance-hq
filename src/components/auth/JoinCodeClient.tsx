@@ -4,7 +4,8 @@ import { ArrowLeft } from "lucide-react";
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 
-import { Link, useRouter } from "@/i18n/navigation";
+import { Link } from "@/i18n/navigation";
+import { useShellNavigation } from "@/components/ashed-shell/useShellNavigation";
 import { SegmentedCodeInput } from "@/components/ui/SegmentedCodeInput";
 import {
   FORM_SUBMIT_ENTER_KEY_HINT,
@@ -33,7 +34,7 @@ export function JoinCodeClient({
   redirectToOverride,
 }: Props) {
   const t = useTranslations("join");
-  const router = useRouter();
+  const { push, assign } = useShellNavigation();
   const [code, setCode] = useState(initialCode ?? "");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -52,7 +53,7 @@ export function JoinCodeClient({
     if (inviteToken) {
       const next =
         redirectToOverride ?? resolveDiscordPostLinkOnboardingRedirect();
-      router.push(
+      push(
         `/invite/${encodeURIComponent(inviteToken)}?next=${encodeURIComponent(next)}`,
       );
       return;
@@ -74,10 +75,7 @@ export function JoinCodeClient({
         setError(body.error ?? t("redeemFailed"));
         return;
       }
-      // Full navigation so onboard reads the session alliance written by redeem.
-      window.location.assign(
-        redirectToOverride ?? body.redirectTo ?? "/dashboard",
-      );
+      assign(redirectToOverride ?? body.redirectTo ?? "/dashboard", "joinCode");
       return;
     } catch (e) {
       setError(e instanceof Error ? e.message : t("redeemFailed"));
@@ -130,7 +128,6 @@ export function JoinCodeClient({
             value={code}
             onChange={setCode}
             onSubmit={() => void redeem()}
-            aria-label={t("code")}
             autoFocus={!initialCode}
           />
         </div>

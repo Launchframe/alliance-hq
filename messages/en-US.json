@@ -1145,6 +1145,16 @@
       "unknownEmail": "No email on file"
     }
   },
+  "shellActivity": {
+    "loadingPage": "Loading…",
+    "switchingAlliance": "Switching alliance…",
+    "switchingAllianceTo": "Switching to {tag}…",
+    "signingOut": "Signing out…",
+    "continuingToApp": "Opening Alliance HQ…",
+    "acceptingInvite": "Accepting invite…",
+    "acceptingJoinCode": "Joining alliance…",
+    "completingMemberLink": "Completing setup…"
+  },
   "hotkeys": {
     "openPalette": "Open keyboard shortcuts",
     "paletteTitle": "Quick actions",
@@ -3518,7 +3528,7 @@
     "defaultHint": "Set <localDb>LOCAL_DATABASE_URL</localDb> and <encKey>TOKEN_ENCRYPTION_KEY</encKey> in <envFile>.env.local</envFile>, then run <dbPush>npm run db:push</dbPush>."
   },
   "videoSurvey": {
-    "title": "While you wait…",
+    "title": "While you wait, please tell us a bit about this video.",
     "processingNote": "Your video is processing in the background. If you have a moment, a few optional notes help us tune the pipeline.",
     "q1Label": "Roughly how many leaderboard rows are there in your video?",
     "q1Placeholder": "e.g. 50",

@@ -1,10 +1,10 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 
 import { Link } from "@/i18n/navigation";
+import { useShellNavigation } from "@/components/ashed-shell/useShellNavigation";
 import { FormattedDateTime } from "@/components/timezone/TimezoneProvider";
 import { dispatchInboxRemindersRefresh } from "@/lib/inbox-reminders-refresh.shared";
 import type {
@@ -111,7 +111,7 @@ export function MemberLinkHelpRequestReviewClient({
   showAlliance = false,
 }: Props) {
   const t = useTranslations("memberLinkHelpReview");
-  const router = useRouter();
+  const { refresh, pushAndRefresh } = useShellNavigation();
   const [review, setReview] = useState(initialReview);
   const [selectedMemberId, setSelectedMemberId] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
@@ -195,7 +195,7 @@ export function MemberLinkHelpRequestReviewClient({
         }),
       });
       await refreshReview();
-      router.refresh();
+      refresh();
     } catch {
       setActionNotice({ tone: "error", message: t("nameReview.failed") });
     } finally {
@@ -278,7 +278,7 @@ export function MemberLinkHelpRequestReviewClient({
         unlinkedMemberId;
       selectRosterMember(nextSelect, { keepNotice: true });
       dispatchInboxRemindersRefresh();
-      router.refresh();
+      refresh();
     } catch {
       setError(t("unlinkFailed"));
     } finally {
@@ -317,8 +317,7 @@ export function MemberLinkHelpRequestReviewClient({
         return;
       }
       dispatchInboxRemindersRefresh();
-      router.push(completeRedirectHref);
-      router.refresh();
+      pushAndRefresh(completeRedirectHref, "memberLink");
     } catch {
       setError(t("linkFailed"));
     } finally {
@@ -337,8 +336,7 @@ export function MemberLinkHelpRequestReviewClient({
       });
       if (!res.ok) throw new Error("resolve_failed");
       dispatchInboxRemindersRefresh();
-      router.push(completeRedirectHref);
-      router.refresh();
+      pushAndRefresh(completeRedirectHref, "memberLink");
     } catch {
       setError(t("resolveFailed"));
     } finally {

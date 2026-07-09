@@ -1,10 +1,12 @@
 "use client";
 
 import { createElement } from "react";
-import { ChevronDown, X } from "lucide-react";
+import { ChevronDown, Loader2, X } from "lucide-react";
+import { useLinkStatus } from "next/link";
 import { useTranslations } from "next-intl";
 
 import { Link, usePathname } from "@/i18n/navigation";
+import { useBeginNavigation } from "@/components/ashed-shell/ShellActivityProvider";
 import { ashedLink } from "@/components/i18n/richText";
 import { APP_VERSION } from "@/lib/feedback/constants";
 import { SidebarAlliancePicker } from "@/components/ashed-shell/SidebarAlliancePicker";
@@ -21,6 +23,47 @@ function cn(...parts: Array<string | false | null | undefined>) {
   return parts.filter(Boolean).join(" ");
 }
 
+function NavLinkInner({
+  pageId,
+  label,
+  active,
+}: {
+  pageId: string;
+  label: string;
+  active: boolean;
+}) {
+  const { pending } = useLinkStatus();
+  const icon = navPageIcon(pageId);
+
+  return (
+    <>
+      {icon
+        ? createElement(icon, {
+            className: cn(
+              "h-4 w-4 shrink-0",
+              pending && "opacity-60",
+            ),
+            "aria-hidden": true,
+          })
+        : null}
+      <span
+        className={cn(
+          "min-w-0 truncate",
+          pending && !active && "opacity-70",
+        )}
+      >
+        {label}
+      </span>
+      {pending ? (
+        <Loader2
+          className="ml-auto h-3.5 w-3.5 shrink-0 animate-spin text-hq-fg-muted"
+          aria-hidden
+        />
+      ) : null}
+    </>
+  );
+}
+
 function NavLink({
   href,
   pageId,
@@ -34,12 +77,15 @@ function NavLink({
   active: boolean;
   onNavigate?: () => void;
 }) {
-  const icon = navPageIcon(pageId);
+  const beginNavigation = useBeginNavigation();
 
   return (
     <Link
       href={href}
-      onClick={onNavigate}
+      onClick={() => {
+        beginNavigation();
+        onNavigate?.();
+      }}
       className={cn(
         "flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm",
         active
@@ -47,13 +93,7 @@ function NavLink({
           : "text-hq-fg-muted hover:bg-hq-surface-muted hover:text-hq-fg",
       )}
     >
-      {icon
-        ? createElement(icon, {
-            className: "h-4 w-4 shrink-0",
-            "aria-hidden": true,
-          })
-        : null}
-      <span className="min-w-0 truncate">{label}</span>
+      <NavLinkInner pageId={pageId} label={label} active={active} />
     </Link>
   );
 }
@@ -94,6 +134,7 @@ export function SidebarNav({
   onClose,
 }: Props) {
   const pathname = usePathname();
+  const beginNavigation = useBeginNavigation();
   const t = useTranslations("shell");
   const tNav = useTranslations("nav");
   const tNavGroups = useTranslations("navGroups");
@@ -124,7 +165,10 @@ export function SidebarNav({
         <Link
           href={operatingMode === "native" ? "/members" : "/dashboard"}
           className="flex min-w-0 items-center gap-3"
-          onClick={onNavigate}
+          onClick={() => {
+            beginNavigation();
+            onNavigate?.();
+          }}
         >
           <img
             src="/brand/hq-icon-mark.svg"

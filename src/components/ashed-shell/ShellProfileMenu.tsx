@@ -6,7 +6,8 @@ import { useTranslations } from "next-intl";
 
 import { useFeedback } from "@/components/feedback";
 import { ProfileAvatar } from "@/components/profile/ProfileAvatar";
-import { Link, usePathname, useRouter } from "@/i18n/navigation";
+import { useShellNavigation } from "@/components/ashed-shell/useShellNavigation";
+import { Link, usePathname } from "@/i18n/navigation";
 import {
   buildConnectHref,
   stashConnectReturnPath,
@@ -43,7 +44,7 @@ export function ShellProfileMenu({
     showExperienceFeedback,
     showGetInTouch,
   } = useFeedback();
-  const router = useRouter();
+  const { pushAndRefresh } = useShellNavigation();
   const pathname = usePathname();
   const connectHref = buildConnectHref(pathname);
   const menuId = React.useId();
@@ -148,12 +149,12 @@ export function ShellProfileMenu({
     try {
       const res = await fetch("/api/auth/sign-out", { method: "POST" });
       if (!res.ok) {
+        setSigningOut(false);
         return;
       }
       closeMenu();
-      router.push("/auth");
-      router.refresh();
-    } finally {
+      pushAndRefresh("/auth", "signOut");
+    } catch {
       setSigningOut(false);
     }
   }
