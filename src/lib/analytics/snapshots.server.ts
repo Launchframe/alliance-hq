@@ -348,7 +348,7 @@ export async function loadRecentCompletedVideoJobTimes(
       and(
         eq(schema.videoJobs.allianceId, allianceId),
         inArray(schema.videoJobs.status, ["review", "submitting", "complete"]),
-        sql`coalesce(${schema.videoJobs.updatedAt}, ${schema.videoJobs.createdAt}) >= ${since}`,
+        sql`coalesce(${schema.videoJobs.updatedAt}, ${schema.videoJobs.createdAt}) >= ${since.toISOString()}`,
       ),
     );
 
