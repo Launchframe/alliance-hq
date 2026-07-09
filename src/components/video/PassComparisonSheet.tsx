@@ -191,12 +191,14 @@ export function PassComparisonSheet(props: Props) {
                   : "border-hq-border hover:bg-hq-surface-muted"
               }`}
             >
-              {i === 0 ? t("comparisonPassA") : t("comparisonPassB")} (
-              {pass.passKey ??
-                (i === 0
-                  ? t("comparisonPrimaryFallback")
-                  : t("comparisonShadowFallback"))}
-              )
+              {groupActionBusy === `accuracy:${pass.jobId}`
+                ? t("submitting")
+                : `${i === 0 ? t("comparisonPassA") : t("comparisonPassB")} (${
+                    pass.passKey ??
+                    (i === 0
+                      ? t("comparisonPrimaryFallback")
+                      : t("comparisonShadowFallback"))
+                  })`}
             </button>
           ))}
           <button
@@ -205,7 +207,9 @@ export function PassComparisonSheet(props: Props) {
             onClick={() => handleVote("same")}
             className="rounded-lg border border-hq-border px-3 py-1.5 text-sm hover:bg-hq-surface-muted disabled:opacity-60"
           >
-            {t("comparisonAboutSame")}
+            {groupActionBusy === "accuracy:same"
+              ? t("submitting")
+              : t("comparisonAboutSame")}
           </button>
         </div>
         <div className="flex flex-wrap gap-3">

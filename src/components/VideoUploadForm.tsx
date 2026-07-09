@@ -368,6 +368,10 @@ export function VideoUploadForm({
             {t("preparingUpload")}
           </p>
         ) : null}
+        <fieldset
+          disabled={uploadConfigLoading}
+          className="min-w-0 border-0 p-0"
+        >
         {isMemberRosterVideoTarget(scoreTarget) && allianceTag ? (
           <div className="mb-4">
             <RosterAllianceBanner tag={allianceTag} name={allianceName} />
@@ -501,6 +505,7 @@ export function VideoUploadForm({
         >
           {uploading ? t("uploading") : t("uploadButton")}
         </button>
+        </fieldset>
       </form>
 
       {activeProcessPromptJobId && canProcess && !activeSurvey ? (

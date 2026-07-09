@@ -1,5 +1,6 @@
 "use client";
 
+import { Loader2 } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
@@ -250,13 +251,21 @@ export default function AdminVideoJobsPage() {
           {tJobs("analyticsLink")} →
         </Link>
       </div>
-      <div className="relative">
+      <div className="relative min-h-[12rem]">
         {listLoading ? (
-          <p className="py-8 text-center text-sm text-hq-fg-muted" role="status">
+          <div
+            className="absolute inset-0 z-10 flex items-center justify-center gap-2 bg-hq-canvas/70 text-sm text-hq-fg-muted"
+            role="status"
+            aria-live="polite"
+          >
+            <Loader2
+              className="h-4 w-4 animate-spin text-hq-accent"
+              aria-hidden
+            />
             {tJobs("listLoading")}
-          </p>
+          </div>
         ) : null}
-        <div className={listLoading ? "pointer-events-none opacity-40" : undefined}>
+        <div className={listLoading ? "pointer-events-none opacity-50" : undefined}>
       <ResponsiveRecordViews
         isEmpty={jobs.length === 0}
         emptyMessage={tJobs("empty")}
