@@ -11,6 +11,8 @@ import {
   YAxis,
 } from "recharts";
 
+import { analyticsTooltipProps } from "@/components/analytics/AnalyticsChartTooltip";
+
 import { YouAreHereLegend, VIEWER_MARKER_COLOR } from "@/components/analytics/YouAreHereMarker";
 
 type Bucket = {
@@ -38,13 +40,7 @@ export function HistogramChart({ buckets }: Props) {
             <CartesianGrid stroke="#30363d" strokeDasharray="3 3" />
             <XAxis dataKey="label" tick={{ fill: "#8b949e", fontSize: 11 }} />
             <YAxis tick={{ fill: "#8b949e", fontSize: 11 }} allowDecimals={false} />
-            <Tooltip
-              contentStyle={{
-                background: "#161b22",
-                border: "1px solid #30363d",
-                borderRadius: 8,
-              }}
-            />
+            <Tooltip {...analyticsTooltipProps} />
             <Bar dataKey="count" name="Members">
               {buckets.map((bucket) => (
                 <Cell

@@ -3,6 +3,7 @@
 import { useCallback, useSyncExternalStore } from "react";
 
 import {
+  clampHqRatio,
   DEFAULT_HYBRID_ASHED_LAYOUT,
   hybridAshedLayoutStorageKey,
   parseHybridAshedLayoutPrefs,
@@ -101,12 +102,13 @@ export function useHybridAshedLayout(pageId: string) {
 
   const setHqRatio = useCallback(
     (hqRatio: number) => {
+      const current = readHybridPrefs(storageKey);
       write({
-        ...prefs,
-        desktop: { ...prefs.desktop, hqRatio },
+        ...current,
+        desktop: { ...current.desktop, hqRatio: clampHqRatio(hqRatio) },
       });
     },
-    [prefs, write],
+    [storageKey, write],
   );
 
   const setHqCollapsed = useCallback(

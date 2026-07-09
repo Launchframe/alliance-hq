@@ -29,9 +29,13 @@ export const DEFAULT_HYBRID_ASHED_LAYOUT: HybridAshedLayoutPrefs = {
   },
 };
 
+export function clampHqRatio(value: number): number {
+  return Math.min(MAX_HQ_RATIO, Math.max(MIN_HQ_RATIO, value));
+}
+
 function clampRatio(value: unknown): number {
   const num = typeof value === "number" ? value : DEFAULT_HQ_RATIO;
-  return Math.min(MAX_HQ_RATIO, Math.max(MIN_HQ_RATIO, num));
+  return clampHqRatio(num);
 }
 
 export function parseHybridAshedLayoutPrefs(

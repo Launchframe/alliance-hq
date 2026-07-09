@@ -8,6 +8,7 @@ import { AshedEmbedPane } from "@/components/hybrid-ashed/AshedEmbedPane";
 import { useHybridAshedLayout } from "@/components/hybrid-ashed/useHybridAshedLayout";
 import type { HybridAshedPageId } from "@/lib/nav/hybrid-pages";
 import { HYBRID_ASHED_PAGES } from "@/lib/nav/hybrid-pages";
+import { clampHqRatio } from "@/lib/nav/hybrid-ashed-layout.shared";
 
 type Props = {
   pageId: HybridAshedPageId;
@@ -26,34 +27,37 @@ export function HybridAshedPageShell({ pageId, canUseAshedPane, children }: Prop
   const dragRef = useRef<{ startX: number; startRatio: number } | null>(null);
   const [dragging, setDragging] = useState(false);
 
-  const onPointerMove = useCallback(
-    (event: PointerEvent) => {
+  const onDividerPointerDown = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      if (event.button !== 0) return;
+      dragRef.current = { startX: event.clientX, startRatio: desktop.hqRatio };
+      setDragging(true);
+      event.currentTarget.setPointerCapture(event.pointerId);
+      event.preventDefault();
+    },
+    [desktop.hqRatio],
+  );
+
+  const onDividerPointerMove = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
       if (!dragRef.current) return;
       const container = document.getElementById(`hybrid-shell-${pageId}`);
       if (!container) return;
       const width = container.clientWidth;
       if (width <= 0) return;
       const delta = (event.clientX - dragRef.current.startX) / width;
-      setHqRatio(dragRef.current.startRatio + delta);
+      setHqRatio(clampHqRatio(dragRef.current.startRatio + delta));
     },
     [pageId, setHqRatio],
   );
 
-  const startDrag = useCallback(
-    (event: React.PointerEvent<HTMLDivElement>) => {
-      dragRef.current = { startX: event.clientX, startRatio: desktop.hqRatio };
-      setDragging(true);
-      const handlePointerUp = () => {
-        dragRef.current = null;
-        setDragging(false);
-        window.removeEventListener("pointermove", onPointerMove);
-        window.removeEventListener("pointerup", handlePointerUp);
-      };
-      window.addEventListener("pointermove", onPointerMove);
-      window.addEventListener("pointerup", handlePointerUp);
-    },
-    [desktop.hqRatio, onPointerMove],
-  );
+  const endDividerDrag = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    dragRef.current = null;
+    setDragging(false);
+  }, []);
 
   if (!canUseAshedPane) {
     return <>{children}</>;
@@ -141,8 +145,11 @@ export function HybridAshedPageShell({ pageId, canUseAshedPane, children }: Prop
 
         {!desktop.hqCollapsed && !desktop.ashedCollapsed ? (
           <div
-            className="w-1 shrink-0 cursor-col-resize bg-hq-border hover:bg-hq-accent/60"
-            onPointerDown={startDrag}
+            className="relative z-10 w-1 shrink-0 cursor-col-resize bg-hq-border hover:bg-hq-accent/60 before:absolute before:inset-y-0 before:-left-1 before:-right-1 before:content-['']"
+            onPointerDown={onDividerPointerDown}
+            onPointerMove={onDividerPointerMove}
+            onPointerUp={endDividerDrag}
+            onPointerCancel={endDividerDrag}
           />
         ) : null}
 
@@ -158,7 +165,11 @@ export function HybridAshedPageShell({ pageId, canUseAshedPane, children }: Prop
                 <PanelRightClose className="h-4 w-4" />
               </button>
             </div>
-            <AshedEmbedPane path={page.ashedPath} title={title} />
+            <AshedEmbedPane
+              path={page.ashedPath}
+              title={title}
+              disablePointerEvents={dragging}
+            />
           </div>
         ) : (
           <button

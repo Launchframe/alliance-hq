@@ -1,3 +1,11 @@
+import { isUidBypassEnabled } from "@/lib/dev/env-guard";
+import {
+  E2E_CLAIM_INVITE_MIRROR_UID,
+  lookupPlayerUidBypass,
+} from "@/lib/lastwar/player-lookup-bypass.shared";
+
+export { E2E_CLAIM_INVITE_MIRROR_UID } from "@/lib/lastwar/player-lookup-bypass.shared";
+
 const GAME_UID_PATTERN = /^\d{12,16}$/;
 
 export function isValidGameUid(uid: string): boolean {
@@ -107,17 +115,8 @@ export function parseGameServerNumberFromUid(uid: string): number | null {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }
 
-/**
- * Dev-only (`E2E_TEST=true`): claim confirm replaces the lookup name with the
- * invited commander so any claim invite can be completed without burning fixed UIDs.
- */
-export const E2E_CLAIM_INVITE_MIRROR_UID = "1234567890121288";
-
 export function isClaimInviteMirrorDevUid(uid: string): boolean {
-  return (
-    process.env.E2E_TEST === "true" &&
-    uid.trim() === E2E_CLAIM_INVITE_MIRROR_UID
-  );
+  return isUidBypassEnabled() && uid.trim() === E2E_CLAIM_INVITE_MIRROR_UID;
 }
 
 export function parseLastWarGameServerNumber(
@@ -199,65 +198,11 @@ export async function lookupPlayerByUid(
     };
   }
 
-  if (process.env.E2E_TEST === "true") {
-    const trimmedUid = uid.trim();
-    if (trimmedUid === "1234567890121203") {
-      return {
-        ok: true,
-        gameUserName: "ColdStartOwner",
-        gameServerNumber: 1203,
-      };
+  if (isUidBypassEnabled()) {
+    const bypass = lookupPlayerUidBypass(uid);
+    if (bypass) {
+      return bypass;
     }
-    const ownerOnboardingMatch = trimmedUid.match(/^1234567890(\d{4})$/);
-    if (ownerOnboardingMatch) {
-      const gameServerNumber = Number.parseInt(ownerOnboardingMatch[1]!, 10);
-      return {
-        ok: true,
-        gameUserName: "E2eNativeOwner",
-        gameServerNumber,
-      };
-    }
-  }
-
-  if (process.env.E2E_TEST === "true" && uid.trim() === "1234567890121204") {
-    return {
-      ok: true,
-      gameUserName: "E2eRosterMiss",
-      gameServerNumber: 1203,
-    };
-  }
-
-  if (process.env.E2E_TEST === "true" && uid.trim() === "1234567890121205") {
-    return {
-      ok: true,
-      gameUserName: "E2eWrongServer",
-      gameServerNumber: 1205,
-    };
-  }
-
-  // Decorated in-game name whose roster row is "Mew" (substring single-match).
-  if (process.env.E2E_TEST === "true" && uid.trim() === "1234567890121206") {
-    return {
-      ok: true,
-      gameUserName: "Mew2407",
-      gameServerNumber: 1203,
-    };
-  }
-
-  if (process.env.E2E_TEST === "true" && uid.trim() === "1234567890121299") {
-    return {
-      ok: true,
-      gameUserName: "E2eClaimTarget",
-      gameServerNumber: 1203,
-    };
-  }
-
-  if (isClaimInviteMirrorDevUid(uid)) {
-    return {
-      ok: true,
-      gameUserName: "E2eClaimInviteMirror",
-      gameServerNumber: 1203,
-    };
   }
 
   const url = buildLastWarPlayerLookupUrl(uid);

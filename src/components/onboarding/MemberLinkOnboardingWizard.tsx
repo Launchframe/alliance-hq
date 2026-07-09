@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { AllianceWelcomeHero } from "@/components/onboarding/AllianceWelcomeHero";
+import { PlayerUidBypassHint } from "@/components/onboarding/PlayerUidBypassHint";
 import {
   FORM_SUBMIT_ENTER_KEY_HINT,
   preventDefaultFormSubmit,
@@ -511,6 +512,7 @@ export function MemberLinkOnboardingWizard({
             />
             <span className="text-xs text-hq-fg-muted">{t("uidHint")}</span>
           </label>
+          <PlayerUidBypassHint onSelectUid={setGameUid} />
           {formError ? (
             <p className="text-sm text-hq-danger">{formError}</p>
           ) : null}
@@ -834,6 +836,7 @@ export function MemberLinkOnboardingWizard({
             />
             <span className="text-xs text-hq-fg-muted">{t("uidHint")}</span>
           </label>
+          <PlayerUidBypassHint onSelectUid={setGameUid} />
           {formError ? (
             <p className="text-sm text-hq-danger">{formError}</p>
           ) : null}

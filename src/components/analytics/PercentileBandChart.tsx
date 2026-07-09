@@ -12,6 +12,8 @@ import {
   YAxis,
 } from "recharts";
 
+import { analyticsTooltipProps } from "@/components/analytics/AnalyticsChartTooltip";
+
 import { YouAreHereLegend, VIEWER_MARKER_COLOR } from "@/components/analytics/YouAreHereMarker";
 
 export type PercentileBandPoint = {
@@ -59,11 +61,7 @@ export function PercentileBandChart({
               tickFormatter={(value) => valueFormatter(Number(value))}
             />
             <Tooltip
-              contentStyle={{
-                background: "#161b22",
-                border: "1px solid #30363d",
-                borderRadius: 8,
-              }}
+              {...analyticsTooltipProps}
               formatter={(value) => valueFormatter(Number(value))}
             />
             <Legend />

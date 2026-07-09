@@ -3895,7 +3895,23 @@
     "confirmIdentityBody": "We found this commander for that player UID. Confirm it's you to finish linking.",
     "confirmIdentityServer": "State server {server}",
     "confirmIdentityYes": "Yes, that's me",
-    "confirmIdentityNo": "No, re-enter my UID"
+    "confirmIdentityNo": "No, re-enter my UID",
+    "uidBypass": {
+      "title": "Pre-production test UIDs",
+      "badge": "Pre-prod only",
+      "body": "These fake player IDs skip the real Last War lookup. Tap a UID to fill the field.",
+      "useExampleUid": "Use example UID",
+      "ownerPatternExample": "Example: {uid} → E2eNativeOwner on server {server}.",
+      "entries": {
+        "coldStartOwner": "Owner cold start and Discord dev seed — links as ColdStartOwner on server 1203.",
+        "rosterMiss": "Roster miss flow — verified name not on roster; officer help queue.",
+        "wrongServer": "Wrong-server onboarding — UID resolves to server 1205.",
+        "substringMatch": "Substring roster match — lookup name Mew2407 matches roster row Mew.",
+        "claimTarget": "Fixed-name claim invite target — must match invited commander E2eClaimTarget.",
+        "claimMirror": "Claim invite mirror — lookup name always matches whoever was invited (reusable).",
+        "ownerPattern": "Pattern UID for native owner onboarding — last four digits set the state server."
+      }
+    }
   },
   "discordBot": {
     "errors": {

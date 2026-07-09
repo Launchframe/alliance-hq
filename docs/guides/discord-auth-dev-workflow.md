@@ -79,11 +79,13 @@ The seed creates:
 - Owner roster member `ColdStartOwner`
 - UID `1234567890121203`
 
-`E2E_TEST=true` makes the Last War lookup return `ColdStartOwner` for that UID.
+`E2E_TEST=true` (or any pre-production deployment) makes the Last War lookup return `ColdStartOwner` for that UID.
 
-### Dev Last War lookup UIDs (`E2E_TEST=true`)
+### Dev Last War lookup UIDs (pre-production)
 
-Requires `E2E_TEST=true` in `.env.local` and a dev server restart.
+Enabled on **Vercel preview/dev**, **local dev**, and when `E2E_TEST=true` (Playwright). **Disabled on Vercel production.**
+
+The onboarding Player UID form shows a hint box listing these in non-production environments.
 
 | UID | Lookup name | Use |
 | --- | --- | --- |

@@ -21,9 +21,10 @@ function readLoginHintDismissed(): boolean {
 type Props = {
   path: string;
   title: string;
+  disablePointerEvents?: boolean;
 };
 
-export function AshedEmbedPane({ path, title }: Props) {
+export function AshedEmbedPane({ path, title, disablePointerEvents }: Props) {
   const t = useTranslations("ashedEmbed");
   const tShell = useTranslations("shellActivity");
   const url = ashedUrlForPath(path);
@@ -77,7 +78,7 @@ export function AshedEmbedPane({ path, title }: Props) {
         key={path}
         src={url}
         title={t("iframeTitle", { path: title })}
-        className="min-h-0 w-full flex-1"
+        className={`min-h-0 w-full flex-1${disablePointerEvents ? " pointer-events-none" : ""}`}
         sandbox="allow-same-origin allow-scripts allow-forms allow-popups"
         onLoad={() => setLoadedPath(path)}
       />

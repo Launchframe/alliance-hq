@@ -3839,6 +3839,22 @@
     "confirmIdentityServer": "Servidor {server}",
     "confirmIdentityYes": "Sim, sou eu",
     "confirmIdentityNo": "Não, informar outro UID",
+    "uidBypass": {
+      "title": "UIDs de teste (pré-produção)",
+      "badge": "Só pré-prod",
+      "body": "Estes IDs falsos ignoram a consulta real ao Last War. Toque em um UID para preencher o campo.",
+      "useExampleUid": "Usar UID de exemplo",
+      "ownerPatternExample": "Exemplo: {uid} → E2eNativeOwner no servidor {server}.",
+      "entries": {
+        "coldStartOwner": "Cold start do owner e seed Discord — vincula como ColdStartOwner no servidor 1203.",
+        "rosterMiss": "Fluxo de roster miss — nome verificado ausente no roster; fila de ajuda do oficial.",
+        "wrongServer": "Onboarding de servidor errado — UID resolve para o servidor 1205.",
+        "substringMatch": "Match parcial no roster — nome Mew2407 corresponde à linha Mew.",
+        "claimTarget": "Alvo fixo de claim invite — deve corresponder ao convidado E2eClaimTarget.",
+        "claimMirror": "Espelho de claim invite — o nome da consulta sempre corresponde ao convidado (reutilizável).",
+        "ownerPattern": "UID padrão para onboarding de owner nativo — os últimos quatro dígitos definem o servidor."
+      }
+    },
     "rosterFullTitle": "Roster is full",
     "rosterFullBody": "Your alliance is full. Last War verified {gameName}, but we could not find {gameName} in your alliance and there is not enough room in your alliance for us to create a new member. An officer will review your link request."
   },
