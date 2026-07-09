@@ -330,7 +330,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
 
   const rematchMembers = useCallback(async () => {
     setRematching(true);
-    setError(null);
+    clearActionError();
     try {
       const res = await fetch(
         `/api/tools/video-upload/${jobId}/rematch-members`,
@@ -338,12 +338,12 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
       );
       const data = (await res.json()) as { error?: string };
       if (!res.ok) {
-        setError(data.error ?? tc("uploadFailed"));
+        setActionError(data.error ?? tc("uploadFailed"));
         return false;
       }
       return true;
     } catch (err) {
-      setError(err instanceof Error ? err.message : tc("uploadFailed"));
+      setActionError(err instanceof Error ? err.message : tc("uploadFailed"));
       return false;
     } finally {
       setRematching(false);
@@ -385,7 +385,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         };
         if (!res.ok) {
           setJobStatus("load_error");
-          setError(data.error ?? tc("uploadFailed"));
+          setActionError(data.error ?? tc("uploadFailed"));
           return;
         }
 
@@ -462,7 +462,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         setAllianceStale(Boolean(data.alliance?.stale));
       } catch (err) {
         setJobStatus("load_error");
-        setError(
+        setActionError(
           err instanceof Error ? err.message : tc("connectionFailed"),
         );
       }
@@ -674,7 +674,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         );
         if (!res.ok) {
           const data = (await res.json()) as { error?: string };
-          setError(data.error ?? tc("uploadFailed"));
+          setActionError(data.error ?? tc("uploadFailed"));
           return false;
         }
         return true;
@@ -933,12 +933,12 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
 
   async function handleSubmit() {
     if (hasDuplicateMembers || hasDuplicateOcrNames) {
-      setError(t("duplicateMemberBlocked"));
+      setActionError(t("duplicateMemberBlocked"));
       return;
     }
 
     setSubmitting(true);
-    setError(null);
+    clearActionError();
     setSuccess(null);
     try {
       const isRoster = scoreTargetMeta?.showRosterColumns;
@@ -984,7 +984,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         solicitedSource?: "solicited_first_upload" | "solicited_third_upload";
       };
       if (!res.ok) {
-        setError(data.error ?? tc("uploadFailed"));
+        setActionError(data.error ?? tc("uploadFailed"));
         return;
       }
       clearDraft();
@@ -1011,7 +1011,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         setShowRatingPrompt(true);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : tc("uploadFailed"));
+      setActionError(err instanceof Error ? err.message : tc("uploadFailed"));
     } finally {
       setSubmitting(false);
     }
@@ -1056,8 +1056,8 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         connectUrl?: string;
       };
       if (!res.ok) {
-        if (data.code === "ashed_not_connected" && data.connectUrl) {
-          router.push(data.connectUrl);
+        if (data.code === "ashed_not_connected") {
+          router.push(data.connectUrl ?? "/connect");
           return;
         }
         setActionError(data.error ?? tc("uploadFailed"), data.connectUrl);
@@ -1075,20 +1075,20 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
 
   async function handleDiscard() {
     setDiscarding(true);
-    setError(null);
+    clearActionError();
     try {
       const res = await fetch(`/api/tools/video-upload/${jobId}/discard`, {
         method: "PATCH",
       });
       if (!res.ok) {
         const data = (await res.json()) as { error?: string };
-        setError(data.error ?? tc("uploadFailed"));
+        setActionError(data.error ?? tc("uploadFailed"));
         return;
       }
       clearDraft();
       router.push("/tools/video-upload");
     } catch (err) {
-      setError(err instanceof Error ? err.message : tc("uploadFailed"));
+      setActionError(err instanceof Error ? err.message : tc("uploadFailed"));
     } finally {
       setDiscarding(false);
     }
@@ -1108,13 +1108,13 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
       if (!res.ok) {
         const data = (await res.json()) as { error?: string };
         setJobRating(null);
-        setError(data.error ?? tc("uploadFailed"));
+        setActionError(data.error ?? tc("uploadFailed"));
         return false;
       }
       return true;
     } catch (err) {
       setJobRating(null);
-      setError(err instanceof Error ? err.message : tc("uploadFailed"));
+      setActionError(err instanceof Error ? err.message : tc("uploadFailed"));
       return false;
     }
   }
@@ -1244,8 +1244,8 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         }
       >
         <div className="mx-auto min-w-0 w-full max-w-5xl flex-1 space-y-6 px-4 pb-6 md:px-0">
-      {renderActionErrorBanner()}
-      <div>
+          {renderActionErrorBanner()}
+          <div>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <Link
             href="/tools/video-upload"
