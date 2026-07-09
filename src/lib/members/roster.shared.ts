@@ -1,5 +1,6 @@
 import {
   formatAshedMemberRankValue,
+  isAshedMemberUnranked,
   parseAshedMemberAllianceRank,
 } from "@/lib/members/alliance-rank";
 import type { AllianceMember } from "@/lib/db/schema";
@@ -49,6 +50,24 @@ export function allianceMemberRowToAshedMember(row: AllianceMember): AshedMember
     rank: rankValue,
     total_hero_power: totalHeroPower,
   };
+}
+
+/** Rank check for stored roster rows — matches members list unranked filtering. */
+export function isStoredAllianceMemberUnranked(
+  row: Pick<AllianceMember, "allianceRank" | "allianceRankTitle" | "ashedRankRaw">,
+): boolean {
+  const rankValue =
+    row.ashedRankRaw ??
+    (row.allianceRank != null
+      ? formatAshedMemberRankValue(row.allianceRank, row.allianceRankTitle)
+      : undefined);
+
+  return isAshedMemberUnranked({
+    alliance_rank: row.allianceRank ?? undefined,
+    allianceRank: row.allianceRank ?? undefined,
+    alliance_rank_title: row.allianceRankTitle,
+    rank: rankValue,
+  });
 }
 
 /** Parse rank fields when upserting from a live Ashed Member payload. */

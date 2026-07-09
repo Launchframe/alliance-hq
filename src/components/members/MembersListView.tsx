@@ -5,6 +5,7 @@ import { Loader2 } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 
+import { NeedsAttentionBadge } from "@/components/ui/NeedsAttentionBadge";
 import { useFormatAccountDateTime } from "@/components/timezone/TimezoneProvider";
 import { CommanderConflictResolutionSheet } from "@/components/members/CommanderConflictResolutionSheet";
 import {
@@ -24,7 +25,12 @@ import type {
   CommanderIndexPayload,
 } from "@/lib/commanders/index.shared";
 import type { MainSquadType } from "@/lib/commanders/main-squad.shared";
+import {
+  EMPTY_MEMBERS_ATTENTION_SUMMARY,
+  type MembersAttentionSummary,
+} from "@/lib/members/members-attention-summary.shared";
 import { isAshedMemberUnranked } from "@/lib/members/alliance-rank";
+import { computeActiveHqLinkCounts } from "@/lib/members/members-linking-metrics.shared";
 import {
   patchMembersAfterBulkRank,
   type BulkMemberRankAction,
@@ -59,6 +65,7 @@ type Props = {
 };
 
 const SEARCH_DEBOUNCE_MS = 300;
+const ATTENTION_SUMMARY_POLL_MS = 60_000;
 
 const SORTABLE_COLUMNS: Partial<Record<RosterColumnId, RosterSortKey>> = {
   name: "name",
@@ -118,6 +125,12 @@ export function MembersListView({
   const [savingSquad, setSavingSquad] = useState<Record<string, boolean>>({});
   const [saveError, setSaveError] = useState<Record<string, string>>({});
 
+  const showOfficerAttention =
+    canEditRanks || canUploadRosterVideo;
+  const [attention, setAttention] = useState<MembersAttentionSummary>(
+    EMPTY_MEMBERS_ATTENTION_SUMMARY,
+  );
+
   const showSquadEditColumn =
     commanderData.canEdit || commanderData.canSelfReportMemberIds.length > 0;
 
@@ -154,6 +167,59 @@ export function MembersListView({
   const minThpNum = filterMinThp.trim()
     ? Number.parseInt(filterMinThp.trim(), 10)
     : 0;
+
+  const hqLinkCounts = useMemo(
+    () =>
+      computeActiveHqLinkCounts({
+        members: data.members,
+        commanderRows: commanderData.rows,
+      }),
+    [commanderData.rows, data.members],
+  );
+
+  const loadAttentionSummary = useCallback(async () => {
+    if (!showOfficerAttention) {
+      return;
+    }
+    try {
+      const res = await fetch("/api/members/attention-summary");
+      if (!res.ok) {
+        return;
+      }
+      const body = (await res.json()) as {
+        summary?: MembersAttentionSummary;
+      };
+      setAttention(body.summary ?? EMPTY_MEMBERS_ATTENTION_SUMMARY);
+    } catch {
+      /* ignore poll errors */
+    }
+  }, [showOfficerAttention]);
+
+  useEffect(() => {
+    if (!showOfficerAttention) {
+      return;
+    }
+
+    void loadAttentionSummary();
+    const id = window.setInterval(() => {
+      void loadAttentionSummary();
+    }, ATTENTION_SUMMARY_POLL_MS);
+
+    function handleVisibility() {
+      if (document.visibilityState === "visible") {
+        void loadAttentionSummary();
+      }
+    }
+
+    window.addEventListener("focus", loadAttentionSummary);
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    return () => {
+      window.clearInterval(id);
+      window.removeEventListener("focus", loadAttentionSummary);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
+  }, [loadAttentionSummary, showOfficerAttention]);
 
   useEffect(() => {
     const handle = window.setTimeout(() => {
@@ -333,12 +399,13 @@ export function MembersListView({
       if (conflictCount > 0) {
         setConflictSheetOpen(true);
       }
+      void loadAttentionSummary();
     } catch (e) {
       setError(e instanceof Error ? e.message : t("loadFailed"));
     } finally {
       setRefreshing(false);
     }
-  }, [query, showFormer, t, tCommanders]);
+  }, [query, showFormer, t, tCommanders, loadAttentionSummary]);
 
   const saveSquad = useCallback(
     async (ashedMemberId: string) => {
@@ -526,6 +593,14 @@ export function MembersListView({
               total: data.counts.total,
             })}
           </p>
+          {hqLinkCounts.total > 0 ? (
+            <p className="mt-1 text-xs text-hq-fg-muted">
+              {t("hqLinkCounts", {
+                linked: hqLinkCounts.linked,
+                unlinked: hqLinkCounts.unlinked,
+              })}
+            </p>
+          ) : null}
           {commanderData.seasonKey ? (
             <p className="mt-1 text-xs text-hq-fg-muted">
               {tCommanders("seasonLine", { season: commanderData.seasonKey })}
@@ -549,42 +624,82 @@ export function MembersListView({
           {canUploadRosterVideo && (
             <Link
               href={buildVideoUploadHref(MEMBER_ROSTER_VIDEO_SCORE_TARGET)}
-              className="w-full rounded-lg border border-[#388bfd] bg-[#388bfd]/10 px-4 py-2 text-center text-sm text-hq-accent hover:bg-[#388bfd]/20 sm:w-auto"
+              className="relative inline-flex w-full items-center justify-center rounded-lg border border-[#388bfd] bg-[#388bfd]/10 px-4 py-2 text-center text-sm text-hq-accent hover:bg-[#388bfd]/20 sm:w-auto"
             >
               {t("uploadRosterVideo")}
+              <NeedsAttentionBadge count={attention.rosterVideoUpload} />
+              {attention.rosterVideoUpload > 0 ? (
+                <span className="sr-only">{t("uploadRosterVideoAttention")}</span>
+              ) : null}
             </Link>
           )}
           {canEditRanks && (
             <Link
               href="/members/roster-link-requests"
-              className="w-full rounded-lg border border-hq-border px-4 py-2 text-center text-sm text-hq-fg hover:bg-hq-surface-muted sm:w-auto"
+              className="relative inline-flex w-full items-center justify-center rounded-lg border border-hq-border px-4 py-2 text-center text-sm text-hq-fg hover:bg-hq-surface-muted sm:w-auto"
             >
               {t("rosterLinkRequests")}
+              <NeedsAttentionBadge count={attention.rosterLinkRequests} />
+              {attention.rosterLinkRequests > 0 ? (
+                <span className="sr-only">
+                  {t("rosterLinkRequestsAttention", {
+                    count: attention.rosterLinkRequests,
+                  })}
+                </span>
+              ) : null}
             </Link>
           )}
           {canEditRanks && (
             <Link
               href="/members/onboarding-reviews"
-              className="w-full rounded-lg border border-[#30363d] px-4 py-2 text-center text-sm text-[#e6edf3] hover:bg-[#21262d] sm:w-auto"
+              className="relative inline-flex w-full items-center justify-center rounded-lg border border-[#30363d] px-4 py-2 text-center text-sm text-[#e6edf3] hover:bg-[#21262d] sm:w-auto"
             >
               {t("onboardingReviews")}
+              <NeedsAttentionBadge count={attention.onboardingReviews} />
+              {attention.onboardingReviews > 0 ? (
+                <span className="sr-only">
+                  {t("onboardingReviewsAttention", {
+                    count: attention.onboardingReviews,
+                  })}
+                </span>
+              ) : null}
             </Link>
           )}
           {canEditRanks && (
             <Link
               href="/members/member-link-help"
-              className="w-full rounded-lg border border-hq-border px-4 py-2 text-center text-sm text-hq-fg hover:bg-hq-surface-muted sm:w-auto"
+              className="relative inline-flex w-full items-center justify-center rounded-lg border border-hq-border px-4 py-2 text-center text-sm text-hq-fg hover:bg-hq-surface-muted sm:w-auto"
             >
               {t("memberLinkHelpRequests")}
+              <NeedsAttentionBadge count={attention.memberLinkHelp} />
+              {attention.memberLinkHelp > 0 ? (
+                <span className="sr-only">
+                  {t("memberLinkHelpRequestsAttention", {
+                    count: attention.memberLinkHelp,
+                  })}
+                </span>
+              ) : null}
             </Link>
           )}
           {canEditRanks && (
             <button
               type="button"
               onClick={() => (editMode ? exitEditMode() : setEditMode(true))}
-              className="w-full rounded-lg border border-[#388bfd] bg-[#388bfd]/10 px-4 py-2 text-sm text-hq-accent hover:bg-[#388bfd]/20 sm:w-auto"
+              className="relative inline-flex w-full items-center justify-center rounded-lg border border-[#388bfd] bg-[#388bfd]/10 px-4 py-2 text-sm text-hq-accent hover:bg-[#388bfd]/20 sm:w-auto"
             >
               {editMode ? t("doneEditing") : t("editRanks")}
+              {!editMode ? (
+                <>
+                  <NeedsAttentionBadge count={attention.unrankedMembers} />
+                  {attention.unrankedMembers > 0 ? (
+                    <span className="sr-only">
+                      {t("editRanksAttention", {
+                        count: attention.unrankedMembers,
+                      })}
+                    </span>
+                  ) : null}
+                </>
+              ) : null}
             </button>
           )}
           {showRefresh ? (

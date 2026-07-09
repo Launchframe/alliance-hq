@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, desc, eq } from "drizzle-orm";
+import { and, count, desc, eq } from "drizzle-orm";
 
 import { getAshedAllianceIdIfLinked } from "@/lib/alliance/ashed-write-guard";
 import type { ParsedConnection } from "@/lib/connectionString";
@@ -54,6 +54,22 @@ export async function listPendingRosterLinkRequests(
     suggestionMethod: row.suggestionMethod,
     suggestedMatchedRosterName: row.suggestedMatchedRosterName,
   }));
+}
+
+export async function countPendingRosterLinkRequests(
+  allianceId: string,
+): Promise<number> {
+  const db = getDb();
+  const [result] = await db
+    .select({ total: count() })
+    .from(schema.hqRosterLinkRequests)
+    .where(
+      and(
+        eq(schema.hqRosterLinkRequests.allianceId, allianceId),
+        eq(schema.hqRosterLinkRequests.status, "pending"),
+      ),
+    );
+  return result?.total ?? 0;
 }
 
 export async function reconcileAllianceMemberForRosterLink(input: {
