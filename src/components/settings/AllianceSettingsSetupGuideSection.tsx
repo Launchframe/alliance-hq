@@ -21,6 +21,8 @@ export function AllianceSettingsSetupGuideSection({
   const t = useTranslations("allianceSetupGuide");
   const pathname = usePathname();
   const [remote, setRemote] = useState(initial);
+  const [activeTaskId, setActiveTaskId] =
+    useState<AllianceSetupGuideTaskId | null>(null);
 
   const loadStatus = useCallback(() => {
     void fetch("/api/alliance/setup-status")
@@ -61,6 +63,7 @@ export function AllianceSettingsSetupGuideSection({
   function handleTaskAction(id: AllianceSetupGuideTaskId) {
     const href = allianceSetupGuideTaskHref(id, pathname);
     if (href) {
+      setActiveTaskId(id);
       window.location.href = href;
     }
   }
@@ -107,6 +110,7 @@ export function AllianceSettingsSetupGuideSection({
         totalCount={remote.totalCount}
         allComplete={remote.allComplete}
         variant="settings"
+        activeTaskId={activeTaskId}
         onTaskAction={handleTaskAction}
       />
 

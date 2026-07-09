@@ -359,14 +359,16 @@ export function AuthSignInClient({
       });
       if (result?.error) {
         setError(t("passkeyFailed"));
+        setSubmitting(false);
         return;
       }
       if (result?.url) {
         window.location.href = result.url;
+        return;
       }
+      setSubmitting(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : t("passkeyFailed"));
-    } finally {
       setSubmitting(false);
     }
   }
@@ -457,6 +459,12 @@ export function AuthSignInClient({
           onPasskeyClick={() => void signInWithPasskey()}
           onEmailClick={() => goToEmailStep("email-sign-in")}
         />
+      ) : null}
+
+      {step === "picker" && submitting ? (
+        <p className="text-sm text-hq-fg-muted" role="status" aria-live="polite">
+          {t("signingIn")}
+        </p>
       ) : null}
 
       {step === "email-sign-in" ? (

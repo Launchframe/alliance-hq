@@ -20,6 +20,8 @@ export function AllianceSetupGuideDashboardBanner() {
   const t = useTranslations("allianceSetupGuide");
   const pathname = usePathname();
   const [remote, setRemote] = useState<AllianceSetupStatusPayload | null>(null);
+  const [activeTaskId, setActiveTaskId] =
+    useState<AllianceSetupGuideTaskId | null>(null);
 
   const loadStatus = useCallback((isCancelled: () => boolean) => {
     void fetch("/api/alliance/setup-status")
@@ -73,6 +75,7 @@ export function AllianceSetupGuideDashboardBanner() {
   function handleTaskAction(id: AllianceSetupGuideTaskId) {
     const href = allianceSetupGuideTaskHref(id, pathname);
     if (href) {
+      setActiveTaskId(id);
       window.location.href = href;
     }
   }
@@ -103,6 +106,7 @@ export function AllianceSetupGuideDashboardBanner() {
         totalCount={remote.totalCount}
         allComplete={remote.allComplete}
         variant="dashboard"
+        activeTaskId={activeTaskId}
         onTaskAction={handleTaskAction}
       />
     </div>

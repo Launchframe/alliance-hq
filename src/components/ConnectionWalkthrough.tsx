@@ -104,6 +104,7 @@ export function ConnectionWalkthrough({
   const [originUrl, setOriginUrl] = useState(DEFAULT_ORIGIN_URL);
   const [appId, setAppId] = useState(DEFAULT_APP_ID);
   const [connecting, setConnecting] = useState(false);
+  const [redirecting, setRedirecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [connectSuccess, setConnectSuccess] = useState<{
     ashed: AshedConnectionMeta;
@@ -215,6 +216,7 @@ export function ConnectionWalkthrough({
   );
 
   const continueToApp = useCallback(() => {
+    setRedirecting(true);
     clearStashedConnectReturnPath();
     router.push(afterConnectPath);
     router.refresh();
@@ -312,6 +314,7 @@ export function ConnectionWalkthrough({
   const connect = useCallback(async () => {
     setConnecting(true);
     setError(null);
+    let navigatingAway = false;
 
     const parsed = parseConnectionInput(pasteInput, { appId, originUrl });
     if (!parsed.ok) {
@@ -383,6 +386,7 @@ export function ConnectionWalkthrough({
         markConnectWalkthroughSeen();
         onConnected?.(parsed.connection);
         if (skipLinkPhoneStep) {
+          navigatingAway = true;
           continueToApp();
           return;
         }
@@ -396,11 +400,14 @@ export function ConnectionWalkthrough({
 
       onConnected?.(parsed.connection);
       markConnectWalkthroughSeen();
+      navigatingAway = true;
       continueToApp();
     } catch (e) {
       setError(e instanceof Error ? e.message : tc("connectionFailed"));
     } finally {
-      setConnecting(false);
+      if (!navigatingAway) {
+        setConnecting(false);
+      }
     }
   }, [
     alliancesForUi,
@@ -772,9 +779,10 @@ export function ConnectionWalkthrough({
               <button
                 type="button"
                 onClick={continueToApp}
-                className="rounded-lg border border-hq-success bg-hq-success px-4 py-2 text-sm text-white"
+                disabled={redirecting}
+                className="rounded-lg border border-hq-success bg-hq-success px-4 py-2 text-sm text-white disabled:opacity-50"
               >
-                {t(getContinueToHqLabelKey(phoneLinked))}
+                {redirecting ? tc("redirecting") : t(getContinueToHqLabelKey(phoneLinked))}
               </button>
             </>
           ) : isPasteSuccess ? (
@@ -785,9 +793,12 @@ export function ConnectionWalkthrough({
                   ? continueToApp
                   : () => setStepIndex(LINK_PHONE_STEP_INDEX)
               }
-              className="rounded-lg border border-hq-success bg-hq-success px-4 py-2 text-sm text-white"
+              disabled={skipLinkPhoneStep && redirecting}
+              className="rounded-lg border border-hq-success bg-hq-success px-4 py-2 text-sm text-white disabled:opacity-50"
             >
-              {t("steps.paste.continue")}
+              {skipLinkPhoneStep && redirecting
+                ? tc("redirecting")
+                : t("steps.paste.continue")}
             </button>
           ) : !isPasteStep ? (
             <button

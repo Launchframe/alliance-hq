@@ -1,6 +1,7 @@
 "use client";
 
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type {
@@ -515,6 +516,7 @@ export function WeekScheduleStrip({
   onWeekLoadError,
   draftScheduleAriaLabel,
 }: Props) {
+  const tc = useTranslations("common");
   const [viewWeekStart, setViewWeekStart] = useState(initialWeekStart);
   const lastNotifiedWeekStartRef = useRef(initialWeekStart);
   const [page, setPage] = useState<WeekSchedulePagePayload>({
@@ -651,9 +653,7 @@ export function WeekScheduleStrip({
   const { weekStart, weekEnd, dayConfigs, weekRecords } = displayPage;
 
   const dayGrid = (
-    <div
-      className={`hidden grid-cols-7 gap-1.5 week-schedule-grid:grid ${loading ? "opacity-50" : ""}`}
-    >
+    <div className="hidden grid-cols-7 gap-1.5 week-schedule-grid:grid">
       {dayConfigs.map((day) => {
         const isSelected = day.date === selectedDate;
         const selectable =
@@ -711,26 +711,42 @@ export function WeekScheduleStrip({
         </button>
       </div>
 
-      <div className="week-schedule-grid:hidden">
-        <WeekScheduleInfiniteDayCarousel
-          seedPage={mobileSeedPage}
-          liveWeek={displayPage}
-          today={today}
-          selectedDate={selectedDate}
-          conductorLabels={conductorLabels}
-          vipLabels={vipLabels}
-          templateShortLabels={templateShortLabels}
-          navLabels={navLabels}
-          onSelectDate={onSelectDate}
-          onWeekChange={onWeekChange}
-          onWeekLoadError={onWeekLoadError}
-          onCarouselWeekLabelChange={handleCarouselWeekLabelChange}
-          trainWeekConfig={trainWeekConfig}
-          draftScheduleAriaLabel={draftScheduleAriaLabel}
-        />
-      </div>
+      <div className="relative">
+        {loading ? (
+          <div
+            className="absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-hq-canvas/70"
+            aria-busy="true"
+            role="status"
+            aria-label={tc("loading")}
+          >
+            <Loader2 className="h-5 w-5 animate-spin text-hq-accent" aria-hidden />
+            <span className="sr-only">{tc("loading")}</span>
+          </div>
+        ) : null}
 
-      {dayGrid}
+        <div className={loading ? "pointer-events-none" : undefined}>
+          <div className="week-schedule-grid:hidden">
+            <WeekScheduleInfiniteDayCarousel
+              seedPage={mobileSeedPage}
+              liveWeek={displayPage}
+              today={today}
+              selectedDate={selectedDate}
+              conductorLabels={conductorLabels}
+              vipLabels={vipLabels}
+              templateShortLabels={templateShortLabels}
+              navLabels={navLabels}
+              onSelectDate={onSelectDate}
+              onWeekChange={onWeekChange}
+              onWeekLoadError={onWeekLoadError}
+              onCarouselWeekLabelChange={handleCarouselWeekLabelChange}
+              trainWeekConfig={trainWeekConfig}
+              draftScheduleAriaLabel={draftScheduleAriaLabel}
+            />
+          </div>
+
+          {dayGrid}
+        </div>
+      </div>
     </div>
   );
 }
