@@ -13,11 +13,12 @@ import { seedMemberStatHistoriesFromAshed } from "@/lib/members/member-stat-hist
 import { syncTenureFromMemberStatus } from "@/lib/members/member-tenure.server";
 import { syncCommanderFromAllianceMember } from "@/lib/members/commander-identity.server";
 import type { CommanderIdentityConflict } from "@/lib/members/commander-identity-conflicts.shared";
-import { normalizedRankFromAshedMember } from "@/lib/members/roster.shared";
+import { normalizedRankFromAshedMember, isStoredAllianceMemberUnranked } from "@/lib/members/roster.shared";
 import { allianceMembersAfterOptionalAshedSync } from "@/lib/members/roster-ashed-sync.server";
 
 export {
   allianceMemberRowToAshedMember,
+  isStoredAllianceMemberUnranked,
   normalizedRankFromAshedMember,
   readAshedRankRawFromMember,
 } from "@/lib/members/roster.shared";
@@ -260,6 +261,27 @@ export async function listActiveAllianceMembersForPoolWithSync(input: {
     forceRefresh: false,
   });
   return listActiveAllianceMembersForPool(input.hqAllianceId);
+}
+
+export async function countActiveUnrankedAllianceMembers(
+  hqAllianceId: string,
+): Promise<number> {
+  const db = getDb();
+  const rows = await db
+    .select({
+      allianceRank: schema.allianceMembers.allianceRank,
+      allianceRankTitle: schema.allianceMembers.allianceRankTitle,
+      ashedRankRaw: schema.allianceMembers.ashedRankRaw,
+    })
+    .from(schema.allianceMembers)
+    .where(
+      and(
+        eq(schema.allianceMembers.allianceId, hqAllianceId),
+        ne(schema.allianceMembers.status, "former"),
+      ),
+    );
+
+  return rows.filter(isStoredAllianceMemberUnranked).length;
 }
 
 export async function setAllianceMemberRank(input: {

@@ -11,12 +11,11 @@ import {
 } from "@/lib/member-link/onboarding-review.server";
 import { loadAllianceMemberOnboardingRow } from "@/lib/member-link/self-service-onboarding.server";
 import { countPendingRosterLinkRequests } from "@/lib/member-link/roster-link-resolve.server";
-import { isAshedMemberUnranked } from "@/lib/members/alliance-rank";
+import { countActiveUnrankedAllianceMembers } from "@/lib/members/roster.server";
 import {
   EMPTY_MEMBERS_ATTENTION_SUMMARY,
   type MembersAttentionSummary,
 } from "@/lib/members/members-attention-summary.shared";
-import { loadAllianceMembers } from "@/lib/members/load";
 import { getRbacContext, sessionHasPermission } from "@/lib/rbac/context";
 import { loadSession } from "@/lib/session";
 
@@ -48,7 +47,7 @@ export async function loadMembersAttentionSummary(
     onboardingReviews,
     memberLinkHelp,
     setupSignals,
-    membersPayload,
+    unrankedMembers,
   ] = await Promise.all([
     canReviewRosterLinks
       ? countPendingRosterLinkRequests(allianceId)
@@ -62,13 +61,8 @@ export async function loadMembersAttentionSummary(
       hqUserId: session.hqUserId,
       sessionId,
     }),
-    loadAllianceMembers(sessionId),
+    countActiveUnrankedAllianceMembers(allianceId),
   ]);
-
-  const unrankedMembers = membersPayload.members.filter(
-    (member) =>
-      member.status !== "former" && isAshedMemberUnranked(member as Record<string, unknown>),
-  ).length;
 
   return {
     rosterLinkRequests,

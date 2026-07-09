@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   allianceMemberRowToAshedMember,
+  isStoredAllianceMemberUnranked,
   normalizedRankFromAshedMember,
 } from "@/lib/members/roster.shared";
 import { parseAshedMemberAllianceRank } from "@/lib/members/alliance-rank";
@@ -97,5 +98,43 @@ describe("allianceMemberRowToAshedMember", () => {
       rosterRow({ heroPowerM: 8.5 }),
     );
     expect(member.total_hero_power).toBe(8_500_000);
+  });
+});
+
+describe("isStoredAllianceMemberUnranked", () => {
+  it("returns true when stored rank fields are empty", () => {
+    expect(
+      isStoredAllianceMemberUnranked(
+        rosterRow({
+          allianceRank: null,
+          allianceRankTitle: null,
+          ashedRankRaw: null,
+        }),
+      ),
+    ).toBe(true);
+  });
+
+  it("returns false when allianceRank is set", () => {
+    expect(
+      isStoredAllianceMemberUnranked(
+        rosterRow({
+          allianceRank: 3,
+          allianceRankTitle: null,
+          ashedRankRaw: "R3",
+        }),
+      ),
+    ).toBe(false);
+  });
+
+  it("returns false when ashedRankRaw parses to a rank", () => {
+    expect(
+      isStoredAllianceMemberUnranked(
+        rosterRow({
+          allianceRank: null,
+          allianceRankTitle: null,
+          ashedRankRaw: "Warlord",
+        }),
+      ),
+    ).toBe(false);
   });
 });

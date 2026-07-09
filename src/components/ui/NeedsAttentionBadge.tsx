@@ -1,5 +1,3 @@
-"use client";
-
 type Props = {
   count: number;
   className?: string;
