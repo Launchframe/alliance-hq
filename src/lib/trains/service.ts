@@ -36,7 +36,12 @@ import {
 import { withPaintTemplateConfig } from "@/lib/trains/calendar-cell-styles.shared";
 import { resolvePaintTemplateForDay } from "@/lib/trains/week-template-registry.shared";
 import { resolveRollDayConfig } from "@/lib/trains/day-config-resolve.server";
-import { filterPoolByEconomyThreshold } from "@/lib/trains/train-economy-threshold.server";
+import {
+  buildPriceIsRightWeightedCandidates,
+  filterPoolByEconomyThreshold,
+  loadPriceIsRightTicketSettings,
+} from "@/lib/trains/train-economy-threshold.server";
+import { priceIsRightWeightingActive } from "@/lib/trains/train-price-is-right-tickets.shared";
 import {
   getPoolSummary,
   listPoolEntries,
@@ -44,10 +49,12 @@ import {
   markPoolMemberSelectedForDate,
   pickNextPoolEntry,
   pickRandomPoolEntry,
+  pickWeightedRandomPoolEntry,
   poolHasEntries,
   releasePoolSelectionForDate,
   seedPool,
   startNewPoolGeneration,
+  updateCurrentPoolEntryTicketWeights,
 } from "@/lib/trains/pool";
 import {
   evaluateConductorQualification,
@@ -273,6 +280,23 @@ async function buildPoolCandidates(input: {
   }
 
   if (input.paintTemplate === "price_is_right") {
+    const ticketSettings = await loadPriceIsRightTicketSettings(
+      input.hqAllianceId,
+    );
+    // Weighted mode requires live VS scores; skip if no Ashed connection is
+    // available so native alliances without a connection can still roll.
+    if (priceIsRightWeightingActive(ticketSettings) && input.connection != null) {
+      const weighted = await buildPriceIsRightWeightedCandidates({
+        allianceId: input.hqAllianceId,
+        trainDate: input.date,
+        connection: input.connection,
+        ashedAllianceId: input.ashedAllianceId,
+        candidates,
+        settings: ticketSettings,
+      });
+      return weighted.candidates;
+    }
+
     return filterPoolByEconomyThreshold({
       allianceId: input.hqAllianceId,
       trainDate: input.date,
@@ -320,18 +344,58 @@ async function ensurePool(input: {
   }
 }
 
+async function refreshPriceIsRightPoolTicketWeights(input: {
+  allianceId: string;
+  poolType: PoolType;
+  date: string;
+  connection: ParsedConnection | null;
+  ashedAllianceId: string;
+}): Promise<void> {
+  const entries = await listPoolEntries(input.allianceId, input.poolType);
+  if (entries.length === 0) return;
+
+  const settings = await loadPriceIsRightTicketSettings(input.allianceId);
+  if (!priceIsRightWeightingActive(settings)) return;
+
+  const weighted = await buildPriceIsRightWeightedCandidates({
+    allianceId: input.allianceId,
+    trainDate: input.date,
+    connection: input.connection,
+    ashedAllianceId: input.ashedAllianceId,
+    candidates: entries.map((entry) => ({
+      memberId: entry.memberId,
+      memberName: entry.memberName,
+      allianceRank: entry.allianceRank,
+    })),
+    settings,
+  });
+
+  await updateCurrentPoolEntryTicketWeights(
+    input.allianceId,
+    input.poolType,
+    weighted.candidates.map((candidate) => ({
+      memberId: candidate.memberId,
+      ticketCount: candidate.ticketCount ?? 0,
+      priorDayVsScore: candidate.priorDayVsScore ?? null,
+    })),
+  );
+}
+
 async function rollFromPool(
   allianceId: string,
   poolType: PoolType,
   date: string,
   useSequence: boolean,
   mechanism: ConductorMechanismType | VipMechanismType,
+  useWeightedPick = false,
 ): Promise<RollResult> {
   const summary = await getPoolSummary(allianceId, poolType);
   const entry =
     useSequence
       ? await pickNextPoolEntry(allianceId, poolType)
-      : await pickRandomPoolEntry(allianceId, poolType);
+      : useWeightedPick
+        ? await pickWeightedRandomPoolEntry(allianceId, poolType)
+        : await pickRandomPoolEntry(allianceId, poolType);
 
   if (!entry && summary.exhausted) {
     throwPoolExhausted(poolType);
@@ -816,12 +880,30 @@ export async function rollForConductor(input: {
         useSequence: mechanism === "r4_sequence",
         paintTemplate: dayConfig.paintTemplate,
       });
+      const pirSettings =
+        dayConfig.paintTemplate === "price_is_right"
+          ? await loadPriceIsRightTicketSettings(input.allianceId)
+          : null;
+      const useWeightedPick =
+        pirSettings != null &&
+        priceIsRightWeightingActive(pirSettings) &&
+        input.connection != null;
+      if (useWeightedPick) {
+        await refreshPriceIsRightPoolTicketWeights({
+          allianceId: input.allianceId,
+          poolType,
+          date: input.date,
+          connection: input.connection,
+          ashedAllianceId: input.ashedAllianceId,
+        });
+      }
       result = await rollFromPool(
         input.allianceId,
         poolType,
         input.date,
         mechanism === "r4_sequence",
         mechanism,
+        useWeightedPick,
       );
       const poolRefreshed = await refreshExhaustedPoolIfNeeded({
         allianceId: input.allianceId,

@@ -62,6 +62,8 @@ export type RollCandidate = {
   memberId: string;
   memberName: string;
   allianceRank?: number | null;
+  ticketCount?: number;
+  priorDayVsScore?: number;
 };
 
 export type RollResult = {

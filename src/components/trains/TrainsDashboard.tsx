@@ -20,6 +20,7 @@ import {
   TrainsWalkthroughOverlay,
   trainsWalkthroughSeen,
 } from "@/components/trains/TrainsWalkthroughOverlay";
+import { PriceIsRightTicketsPanel } from "@/components/trains/PriceIsRightTicketsPanel";
 import { TodayConductorCard } from "@/components/trains/TodayConductorCard";
 import { WeekTemplateChangeDialog } from "@/components/trains/WeekTemplateChangeDialog";
 import { useHotkeys } from "@/components/hotkeys/HotkeyProvider";
@@ -1518,6 +1519,11 @@ export function TrainsDashboard({ initial }: Props) {
             }
             data-testid="trains-conductor-card"
           />
+
+          {conductorPaint === "price_is_right" &&
+          data.priceIsRightWeightingEnabled ? (
+            <PriceIsRightTicketsPanel trainDate={selectedDate} />
+          ) : null}
 
           {/* Quick actions */}
           {showQuickActions ? (
