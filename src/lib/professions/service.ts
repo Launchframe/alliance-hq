@@ -7,6 +7,7 @@ import type { MyEngTeamContext, MyWlTeamContext, WlSuggestion } from "./types";
 import {
   createEngAssignment,
   getActiveAssignmentsForTeam,
+  getCommanderAllianceProfession,
   getEngActiveAssignment,
   getEngAssignment,
   getOfficerWlOverview,
@@ -180,16 +181,52 @@ export async function getSuggestionsForEng(
   });
 }
 
+async function assertCommanderAllianceProfession(
+  allianceId: string,
+  commanderId: string,
+  expectedProfession: "Engineer" | "War Leader",
+): Promise<void> {
+  const membership = await getCommanderAllianceProfession(allianceId, commanderId);
+  if (!membership) {
+    throw new Error("Commander is not a member of this alliance.");
+  }
+  if (membership.profession !== expectedProfession) {
+    throw new Error(`Commander must be a ${expectedProfession}.`);
+  }
+}
+
 /** Assign an Eng to a WL team. Creates the team if it doesn't exist. */
 export async function assignEngToWl(input: {
   allianceId: string;
   engCommanderId: string;
   wlCommanderId: string;
 }): Promise<{ assignmentId: string; wlTeamId: string }> {
+  await assertCommanderAllianceProfession(
+    input.allianceId,
+    input.engCommanderId,
+    "Engineer",
+  );
+  await assertCommanderAllianceProfession(
+    input.allianceId,
+    input.wlCommanderId,
+    "War Leader",
+  );
+
+  const existingActive = await getEngActiveAssignment(
+    input.allianceId,
+    input.engCommanderId,
+  );
+  if (existingActive) {
+    if (existingActive.wlCommanderId === input.wlCommanderId) {
+      throw new Error("Engineer is already assigned to this War Leader's team.");
+    }
+    throw new Error("Engineer is already assigned to another War Leader's team.");
+  }
+
   // Ensure WL team exists
   const wlTeamId = await upsertWlTeam(input.allianceId, input.wlCommanderId);
 
-  // Check if already assigned
+  // Check if already assigned on this team (inactive row re-activation guard)
   const existing = await getEngAssignment(wlTeamId, input.engCommanderId);
   if (existing?.status === "active") {
     throw new Error("Engineer is already assigned to this War Leader's team.");
@@ -477,6 +514,14 @@ export async function officerSetProfession(input: {
     .limit(1);
 
   if (!commander) throw new Error("Commander not found.");
+
+  const membership = await getCommanderAllianceProfession(
+    input.allianceId,
+    input.commanderId,
+  );
+  if (!membership) {
+    throw new Error("Commander is not a member of this alliance.");
+  }
 
   const from = commander.profession as "Engineer" | "War Leader" | null;
   if (from === input.toProfession) {

@@ -85,6 +85,35 @@ async function getEngNamesByTeamIds(
 }
 
 // ---------------------------------------------------------------------------
+// Alliance membership
+// ---------------------------------------------------------------------------
+
+/** Active alliance membership with profession, or null if not a current member. */
+export async function getCommanderAllianceProfession(
+  allianceId: string,
+  commanderId: string,
+): Promise<{ profession: string | null } | null> {
+  const db = getDb();
+  const [row] = await db
+    .select({ profession: schema.commanders.profession })
+    .from(schema.commanders)
+    .innerJoin(
+      schema.commanderAllianceMemberships,
+      eq(schema.commanders.id, schema.commanderAllianceMemberships.commanderId),
+    )
+    .where(
+      and(
+        eq(schema.commanderAllianceMemberships.allianceId, allianceId),
+        eq(schema.commanders.id, commanderId),
+        isNull(schema.commanderAllianceMemberships.leftAt),
+      ),
+    )
+    .limit(1);
+
+  return row ?? null;
+}
+
+// ---------------------------------------------------------------------------
 // Teams
 // ---------------------------------------------------------------------------
 

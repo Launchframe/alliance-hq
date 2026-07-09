@@ -15,7 +15,15 @@ export async function POST(request: Request) {
   const ctx = await resolveProfessionRequestContext();
   if (ctx instanceof NextResponse) return ctx;
 
-  const body = (await request.json()) as { engCommanderId?: string };
+  let body: { engCommanderId?: string } = {};
+  try {
+    const raw = await request.text();
+    if (raw.trim()) {
+      body = JSON.parse(raw) as { engCommanderId?: string };
+    }
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
+  }
 
   if (ctx.profession === "War Leader") {
     if (!body.engCommanderId?.trim()) {

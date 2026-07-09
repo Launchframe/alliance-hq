@@ -8,7 +8,7 @@ import {
   updateCommanderProfession,
 } from "@/lib/professions/service";
 import { upsertProfessionChannel } from "@/lib/professions/repository";
-import { getGuildAllianceId, callerIsAllianceOwner } from "@/lib/vr/repository";
+import { callerIsAllianceOwner, resolveAllianceForGuild } from "@/lib/vr/repository";
 
 const APP_URL = process.env.NEXTAUTH_URL?.replace(/\/$/, "") ?? "https://frontline.gay";
 
@@ -27,9 +27,7 @@ export async function handleDiscordSwitchProfession(input: {
   discordUserId: string;
   locale: DiscordBotLocale;
 }): Promise<ProfessionBotReply> {
-  const allianceId = input.guildId
-    ? await getGuildAllianceId(input.guildId)
-    : null;
+  const allianceId = await resolveAllianceForGuild(input.guildId);
 
   if (!allianceId) {
     return {
@@ -73,9 +71,7 @@ export async function handleDiscordProfessionSelect(input: {
   profession: "Engineer" | "War Leader";
   locale: DiscordBotLocale;
 }): Promise<ProfessionBotReply> {
-  const allianceId = input.guildId
-    ? await getGuildAllianceId(input.guildId)
-    : null;
+  const allianceId = await resolveAllianceForGuild(input.guildId);
 
   if (!allianceId) {
     return { reply: "Server not registered. Use `/link-alliance` first." };
@@ -86,7 +82,7 @@ export async function handleDiscordProfessionSelect(input: {
     return { reply: "Commander not linked. Use `/link-commander` first." };
   }
 
-  await updateCommanderProfession(ctx.commanderId, input.profession);
+  await updateCommanderProfession(ctx.commanderId, input.profession, allianceId);
 
   if (input.profession === "Engineer") {
     return {
@@ -113,9 +109,7 @@ export async function handleDiscordProfessionSwitchConfirm(input: {
     return { reply: "No changes made." };
   }
 
-  const allianceId = input.guildId
-    ? await getGuildAllianceId(input.guildId)
-    : null;
+  const allianceId = await resolveAllianceForGuild(input.guildId);
 
   if (!allianceId) {
     return { reply: "Server not registered. Use `/link-alliance` first." };
@@ -174,9 +168,7 @@ export async function handleDiscordMyEngineers(input: {
   discordUserId: string;
   locale: DiscordBotLocale;
 }): Promise<ProfessionBotReply> {
-  const allianceId = input.guildId
-    ? await getGuildAllianceId(input.guildId)
-    : null;
+  const allianceId = await resolveAllianceForGuild(input.guildId);
 
   if (!allianceId) {
     return { reply: "Server not registered. Use `/link-alliance` first." };
@@ -237,7 +229,7 @@ export async function handleDiscordSetProfessionChannel(input: {
   discordUserId: string;
   locale: DiscordBotLocale;
 }): Promise<ProfessionBotReply> {
-  const allianceId = await getGuildAllianceId(input.guildId);
+  const allianceId = await resolveAllianceForGuild(input.guildId);
   if (!allianceId) {
     return { reply: "Server not registered. Use `/link-alliance` first." };
   }
