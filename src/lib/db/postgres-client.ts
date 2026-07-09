@@ -22,11 +22,35 @@ export function postgresClientOptions(): NonNullable<Parameters<typeof postgres>
 }
 
 let sqlClient: ReturnType<typeof postgres> | null = null;
+let sqlClientUrl: string | null = null;
 
-/** Shared postgres.js pool — use for queries, drizzle, and pg_notify (not LISTEN/SSE). */
-export function getSqlClient(): ReturnType<typeof postgres> {
+/** Drop the module singleton so the next getSqlClient() re-reads DATABASE_URL. */
+export async function resetSqlClient(): Promise<void> {
   if (!sqlClient) {
-    sqlClient = postgres(getDatabaseUrl(), postgresClientOptions());
+    sqlClientUrl = null;
+    return;
+  }
+  const client = sqlClient;
+  sqlClient = null;
+  sqlClientUrl = null;
+  await client.end({ timeout: 0 }).catch(() => undefined);
+}
+
+/**
+ * Shared postgres.js pool — use for queries, drizzle, and pg_notify (not LISTEN/SSE).
+ * Recreates the client when DATABASE_URL changes (Neon ↔ Vercel integration sync).
+ */
+export function getSqlClient(): ReturnType<typeof postgres> {
+  const url = getDatabaseUrl();
+  if (sqlClient && sqlClientUrl !== url) {
+    const stale = sqlClient;
+    sqlClient = null;
+    sqlClientUrl = null;
+    void stale.end({ timeout: 0 }).catch(() => undefined);
+  }
+  if (!sqlClient) {
+    sqlClientUrl = url;
+    sqlClient = postgres(url, postgresClientOptions());
   }
   return sqlClient;
 }

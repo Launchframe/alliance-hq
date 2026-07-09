@@ -48,6 +48,8 @@ When **`DATABASE_URL` is managed by the Neon ↔ Vercel integration**, you canno
 
 During the mismatch window, normal page/API requests may fail session lookups; SSE routes (`/api/events/video-jobs`, `/api/events/admin-alerts`) that call Postgres **`LISTEN`** must not leave that failure as an unhandled promise rejection (see `src/lib/db/postgres-listen.ts`). If the dedicated LISTEN connection drops after setup (including failed silent re-subscribe inside postgres.js), periodic **`select 1` probes** close the SSE stream with a **`reconnect`** event so clients open a fresh request on a new serverless instance.
 
+**Warm instances after rotation:** `getSqlClient()` keeps a module singleton until the instance is recycled (~10 minutes on Vercel). Code resets that pool on **`28P01`** (`withPostgresAuthRecovery` on session load and health checks) and when `DATABASE_URL` changes at read time — but you still need step 3 (redeploy) so `process.env.DATABASE_URL` updates on every instance.
+
 **Not load-related:** `28P01` is always an auth/credential problem, not connection pool exhaustion.
 
 ### 2b. R2 — bucket CORS for browser uploads
