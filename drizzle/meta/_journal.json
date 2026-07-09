@@ -596,6 +596,13 @@
       "when": 1786534400000,
       "tag": "0085_price_is_right_ticket_weighting",
       "breakpoints": true
+    },
+    {
+      "idx": 84,
+      "version": "7",
+      "when": 1786620800000,
+      "tag": "0086_battle_plan",
+      "breakpoints": true
     }
   ]
 }

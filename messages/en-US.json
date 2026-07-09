@@ -92,6 +92,8 @@
     "myThpDescription": "Track and update your total hero power",
     "trains": "Alliance Train",
     "trainsDescription": "Daily Conductor schedule, wheel rolls, and train lock-in",
+    "battlePlan": "Battle Plan",
+    "battlePlanDescription": "Schedule territory captures and coordinate map markers",
     "desertStorm": "Desert Storm",
     "canyonStorm": "Canyon Storm",
     "otherEvents": "Other Events",
@@ -4359,5 +4361,60 @@
     "professionSwitched": "{name} switched to {profession}",
     "webLink": "View in Alliance HQ",
     "switchProfession": "Switch Profession"
+  },
+  "battlePlan": {
+    "title": "Battle Plan",
+    "subtitle": "Schedule territory captures so members know when and where to show up.",
+    "upcoming": {
+      "title": "Upcoming captures",
+      "empty": "No upcoming captures are scheduled yet."
+    },
+    "calendar": {
+      "previousMonth": "Previous month",
+      "nextMonth": "Next month",
+      "weekdayHeaders": ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
+      "more": "+{count} more"
+    },
+    "settings": {
+      "title": "Capture policy",
+      "subtitle": "Peace time uses in-and-out captures. War time pushes fast takedowns.",
+      "defaultPolicy": "Default capture policy",
+      "policyPeace": "Peace — In-and-out",
+      "policyWar": "War — All gas, no brakes",
+      "savePolicy": "Save default policy"
+    },
+    "markers": {
+      "title": "Map markers",
+      "subtitle": "Label in-game markers 1 through 5 so events point to the right location.",
+      "placeholder": "Optional territory label"
+    },
+    "event": {
+      "createTitle": "Schedule capture",
+      "editTitle": "Edit capture",
+      "scheduledAt": "Capture time",
+      "territoryType": "Territory type",
+      "stronghold": "Stronghold",
+      "city": "City",
+      "markerNumber": "Map marker",
+      "markerLabel": "Marker {marker}",
+      "capturePolicy": "Capture policy override",
+      "useAllianceDefault": "Use alliance default",
+      "status": "Status",
+      "statusScheduled": "Scheduled",
+      "statusCompleted": "Completed",
+      "statusCancelled": "Cancelled",
+      "notes": "Notes for members",
+      "policyLine": "Policy: {policy}"
+    },
+    "actions": {
+      "scheduleCapture": "Schedule capture",
+      "save": "Save",
+      "saving": "Saving…",
+      "cancel": "Cancel",
+      "delete": "Delete"
+    },
+    "errors": {
+      "saveFailed": "Could not save battle plan changes."
+    }
   }
 }

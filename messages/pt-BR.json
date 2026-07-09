@@ -92,6 +92,8 @@
     "myThpDescription": "Acompanhe e atualize seu poder total de heróis",
     "trains": "Trem da Aliança",
     "trainsDescription": "Agenda diária do Condutor, roleta e confirmação",
+    "battlePlan": "Plano de Batalha",
+    "battlePlanDescription": "Agende capturas de território e coordene marcadores no mapa",
     "desertStorm": "Desert Storm",
     "canyonStorm": "Canyon Storm",
     "otherEvents": "Outros Eventos",
@@ -4358,5 +4360,60 @@
     "professionSwitched": "{name} mudou para {profession}",
     "webLink": "Ver no Alliance HQ",
     "switchProfession": "Trocar Profissão"
+  },
+  "battlePlan": {
+    "title": "Plano de Batalha",
+    "subtitle": "Agende capturas de território para que os membros saibam quando e onde comparecer.",
+    "upcoming": {
+      "title": "Próximas capturas",
+      "empty": "Nenhuma captura futura foi agendada ainda."
+    },
+    "calendar": {
+      "previousMonth": "Mês anterior",
+      "nextMonth": "Próximo mês",
+      "weekdayHeaders": ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"],
+      "more": "+{count} mais"
+    },
+    "settings": {
+      "title": "Política de captura",
+      "subtitle": "Em tempo de paz, use capturas rápidas de entrada e saída. Em guerra, avance sem freio.",
+      "defaultPolicy": "Política padrão de captura",
+      "policyPeace": "Paz — Entrada e saída",
+      "policyWar": "Guerra — Acelerar ao máximo",
+      "savePolicy": "Salvar política padrão"
+    },
+    "markers": {
+      "title": "Marcadores do mapa",
+      "subtitle": "Nomeie os marcadores 1 a 5 do jogo para que os eventos apontem para o local certo.",
+      "placeholder": "Rótulo opcional do território"
+    },
+    "event": {
+      "createTitle": "Agendar captura",
+      "editTitle": "Editar captura",
+      "scheduledAt": "Horário da captura",
+      "territoryType": "Tipo de território",
+      "stronghold": "Fortaleza",
+      "city": "Cidade",
+      "markerNumber": "Marcador do mapa",
+      "markerLabel": "Marcador {marker}",
+      "capturePolicy": "Substituir política de captura",
+      "useAllianceDefault": "Usar padrão da aliança",
+      "status": "Status",
+      "statusScheduled": "Agendada",
+      "statusCompleted": "Concluída",
+      "statusCancelled": "Cancelada",
+      "notes": "Notas para os membros",
+      "policyLine": "Política: {policy}"
+    },
+    "actions": {
+      "scheduleCapture": "Agendar captura",
+      "save": "Salvar",
+      "saving": "Salvando…",
+      "cancel": "Cancelar",
+      "delete": "Excluir"
+    },
+    "errors": {
+      "saveFailed": "Não foi possível salvar as alterações do plano de batalha."
+    }
   }
 }

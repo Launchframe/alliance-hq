@@ -30,6 +30,8 @@ const HQ_PERMISSIONS = [
   { id: "ashed:connect", description: "Connect an Ashed account to HQ" },
   { id: "inbox:read", description: "View alliance reminder inbox" },
   { id: "eur:schedules:write", description: "Manage event upload reminder schedules" },
+  { id: "battle_plan:read", description: "View alliance battle plan schedule" },
+  { id: "battle_plan:write", description: "Manage alliance battle plan schedule" },
 ];
 
 function getDatabaseUrl() {
@@ -63,6 +65,8 @@ async function main() {
       "trains:write",
       "inbox:read",
       "eur:schedules:write",
+      "battle_plan:read",
+      "battle_plan:write",
     ]),
   ];
   roleTemplates.maintainer.permissions = [...roleTemplates.owner.permissions];
@@ -73,10 +77,19 @@ async function main() {
       "trains:write",
       "inbox:read",
       "eur:schedules:write",
+      "battle_plan:read",
+      "battle_plan:write",
     ]),
   ];
   roleTemplates.data_entry.permissions = [
-    ...new Set([...roleTemplates.data_entry.permissions, "inbox:read"]),
+    ...new Set([
+      ...roleTemplates.data_entry.permissions,
+      "inbox:read",
+      "battle_plan:read",
+    ]),
+  ];
+  roleTemplates.viewer.permissions = [
+    ...new Set([...roleTemplates.viewer.permissions, "battle_plan:read"]),
   ];
   roleTemplates.member = {
     description:
