@@ -37,6 +37,7 @@ export function isUnlinkedHqAllianceShell(row: {
   return !row.ashedAllianceId?.trim();
 }
 
+/** Case-insensitive tag equality for native shell adoption (`findAdoptableHqAllianceShell`). */
 export function allianceTagsMatchForShellAdoption(
   shellTag: string | null | undefined,
   ashedTag: string,

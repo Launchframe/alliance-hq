@@ -1,4 +1,4 @@
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import {
@@ -7,12 +7,10 @@ import {
   normalizeAshedEmail,
 } from "@/lib/alliance/accessible";
 import {
-  allianceTagsMatchForShellAdoption,
   buildAllianceRosterEmails,
-  isUnlinkedHqAllianceShell,
-  normalizeAllianceTagForMatch,
   shouldRevokeAshedMembership,
 } from "@/lib/rbac/sync-ashed-roles.helpers";
+import { findAdoptableHqAllianceShell } from "@/lib/rbac/sync-ashed-roles-shell.server";
 import { resolveRosterHqUserId } from "@/lib/rbac/sync-ashed-roles-roster.server";
 import type { AshedAllianceRow, AshedUserRef } from "@/lib/alliance/types";
 import { parseAshedGameServerNumber } from "@/lib/game-season/ashed";
@@ -87,88 +85,6 @@ async function allianceHasOwner(allianceId: string): Promise<boolean> {
 
 type HqAllianceRow = typeof schema.alliances.$inferSelect;
 
-async function hqUserHasActiveMembershipOnAlliance(
-  hqUserId: string,
-  allianceId: string,
-): Promise<boolean> {
-  const db = getDb();
-  const [membership] = await db
-    .select({ id: schema.allianceMemberships.id })
-    .from(schema.allianceMemberships)
-    .where(
-      and(
-        eq(schema.allianceMemberships.hqUserId, hqUserId),
-        eq(schema.allianceMemberships.allianceId, allianceId),
-        eq(schema.allianceMemberships.status, "active"),
-      ),
-    )
-    .limit(1);
-
-  return Boolean(membership);
-}
-
-async function findAdoptableHqAllianceShell(input: {
-  ashedTag: string;
-  preferHqAllianceId?: string | null;
-  authHqUserId?: string | null;
-}): Promise<HqAllianceRow | null> {
-  const db = getDb();
-  const preferId = input.preferHqAllianceId?.trim();
-
-  if (preferId) {
-    const [preferred] = await db
-      .select()
-      .from(schema.alliances)
-      .where(eq(schema.alliances.id, preferId))
-      .limit(1);
-
-    if (
-      preferred &&
-      isUnlinkedHqAllianceShell(preferred) &&
-      allianceTagsMatchForShellAdoption(preferred.tag, input.ashedTag) &&
-      (!input.authHqUserId ||
-        (await hqUserHasActiveMembershipOnAlliance(
-          input.authHqUserId,
-          preferred.id,
-        )))
-    ) {
-      return preferred;
-    }
-  }
-
-  const tagLower = normalizeAllianceTagForMatch(input.ashedTag);
-  if (!tagLower) {
-    return null;
-  }
-
-  const candidates = await db
-    .select()
-    .from(schema.alliances)
-    .where(
-      and(
-        isNull(schema.alliances.ashedAllianceId),
-        sql`lower(trim(${schema.alliances.tag})) = ${tagLower}`,
-      ),
-    );
-
-  if (candidates.length !== 1) {
-    return null;
-  }
-
-  const [candidate] = candidates;
-  if (
-    input.authHqUserId &&
-    !(await hqUserHasActiveMembershipOnAlliance(
-      input.authHqUserId,
-      candidate.id,
-    ))
-  ) {
-    return null;
-  }
-
-  return candidate;
-}
-
 async function applyAshedAllianceFieldsToHqRow(
   hqAllianceId: string,
   ashedAlliance: AshedAllianceRow,
@@ -178,12 +94,14 @@ async function applyAshedAllianceFieldsToHqRow(
   const db = getDb();
   const now = new Date();
   const tag = ashedAlliance.tag?.trim() || allianceTag.trim();
+  const slug = slugFromTag(tag);
   const collaborators = (ashedAlliance.collaborators ?? []).map(normalizeAshedEmail);
   const gameServerNumber = parseAshedGameServerNumber(ashedAlliance);
 
   await db
     .update(schema.alliances)
     .set({
+      slug,
       tag,
       name: ashedAlliance.name ?? existing.name,
       ashedAllianceId: ashedAlliance.id ?? null,
