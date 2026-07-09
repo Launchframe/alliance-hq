@@ -39,14 +39,10 @@ export async function POST(request: Request) {
         ? await rollForVip({
             allianceId: ctx.allianceId,
             date,
-            connection: ctx.connection,
-            ashedAllianceId: ctx.ashedAllianceId,
           })
         : await rollForConductor({
             allianceId: ctx.allianceId,
             date,
-            connection: ctx.connection,
-            ashedAllianceId: ctx.ashedAllianceId,
           });
 
     const record = await getConductorRecord(ctx.allianceId, date);

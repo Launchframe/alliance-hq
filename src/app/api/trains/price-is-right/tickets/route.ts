@@ -60,11 +60,7 @@ export async function GET(request: Request) {
   }
 
   const [members, rankEvents] = await Promise.all([
-    loadActiveAlliancePoolMembers({
-      allianceId: ctx.allianceId,
-      ashedAllianceId: ctx.ashedAllianceId,
-      connection: ctx.connection,
-    }),
+    loadActiveAlliancePoolMembers({ allianceId: ctx.allianceId }),
     getAllianceRanksAsOf(ctx.allianceId, trainDate),
   ]);
   const rankByMember = new Map(
@@ -96,8 +92,6 @@ export async function GET(request: Request) {
   const weighted = await buildPriceIsRightWeightedCandidates({
     allianceId: ctx.allianceId,
     trainDate,
-    connection: ctx.connection,
-    ashedAllianceId: ctx.ashedAllianceId,
     candidates,
     settings,
     viewerMemberId,

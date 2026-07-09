@@ -1,11 +1,9 @@
 import "server-only";
 
-import type { ParsedConnection } from "@/lib/connectionString";
 import type { DiscordBotLocale } from "@/lib/discord/i18n";
 import { buildDiscordBotAppUrl } from "@/lib/discord/app-url.shared";
 import { postDiscordChannelMessage } from "@/lib/discord/post-message.server";
 import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
-import { getAllianceOperatingMode } from "@/lib/native-alliance/operating-mode";
 import { getMemberRankAsOf } from "@/lib/trains/rank-history";
 import {
   getConductorRecord,
@@ -23,61 +21,10 @@ import {
 } from "@/lib/trains/discord-bot.shared";
 import { resolveTrainNextDeparture } from "@/lib/trains/trains-server-time.shared";
 import {
-  getAllianceById,
-  getAllianceAshedCredential,
   getAllianceTrainDiscordAnnouncementsEnabled,
   listGuildTrainChannelsForAlliance,
   listRegisteredGuildsWithTrainChannel,
 } from "@/lib/vr/repository";
-import { decryptSecret } from "@/lib/crypto/encrypt";
-import { buildBotAshedConnection } from "@/lib/vr/member-roster";
-
-export type TrainAllianceRuntimeContext = {
-  allianceId: string;
-  ashedAllianceId: string;
-  connection: ParsedConnection | null;
-  operatingMode: "ashed" | "native";
-};
-
-export async function resolveTrainAllianceRuntimeContext(
-  allianceId: string,
-): Promise<TrainAllianceRuntimeContext> {
-  const operatingMode = await getAllianceOperatingMode(allianceId);
-  if (operatingMode === "native") {
-    return {
-      allianceId,
-      ashedAllianceId: allianceId,
-      connection: null,
-      operatingMode,
-    };
-  }
-
-  const alliance = await getAllianceById(allianceId);
-  const ashedAllianceId = alliance?.ashedAllianceId?.trim() || allianceId;
-  const credential = await getAllianceAshedCredential(allianceId);
-  let connection: ParsedConnection | null = null;
-  if (credential) {
-    try {
-      connection = {
-        token: decryptSecret(credential.encryptedToken),
-        appId: credential.appId,
-        originUrl: credential.originUrl,
-      };
-    } catch {
-      connection = null;
-    }
-  }
-  if (!connection) {
-    connection = buildBotAshedConnection();
-  }
-
-  return {
-    allianceId,
-    ashedAllianceId,
-    connection,
-    operatingMode,
-  };
-}
 
 function trainsUrlForLocale(locale: DiscordBotLocale = "en-US"): string | null {
   if (!process.env.NEXT_PUBLIC_APP_URL?.trim()) {
@@ -150,12 +97,9 @@ export async function lockTrainForAlliance(input: {
   }
 
   const locked = await lockConductorRecord(record.id, input.allianceId);
-  const runtime = await resolveTrainAllianceRuntimeContext(input.allianceId);
   await refreshExhaustedPoolsForDay({
     allianceId: input.allianceId,
     date: input.date,
-    connection: runtime.connection,
-    ashedAllianceId: runtime.ashedAllianceId,
     seasonKey,
   });
   return locked;
@@ -253,7 +197,6 @@ export async function draftConductorForAlliance(input: {
   });
 }
 
-
 export async function processDepartingSoonReminders(): Promise<{
   posted: number;
   skipped: number;
@@ -305,7 +248,6 @@ export async function processDepartingSoonReminders(): Promise<{
     const message = formatTrainDepartingSoonMessage({
       conductorName: record.conductorMemberName,
       date: today,
-      // Public guild channel — no per-member locale; default en-US (no /pt-BR prefix).
       trainsUrl: trainsUrlForLocale(),
     });
 

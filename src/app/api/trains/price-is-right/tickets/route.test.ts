@@ -30,8 +30,6 @@ vi.mock("@/lib/trains/train-economy-threshold.server", () => ({
 const BASE_CTX = {
   sessionId: "sess-1",
   allianceId: "ally-1",
-  ashedAllianceId: "ashed-1",
-  connection: null,
   operatingMode: "native" as const,
 };
 

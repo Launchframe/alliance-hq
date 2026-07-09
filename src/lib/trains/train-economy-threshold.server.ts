@@ -2,8 +2,8 @@ import "server-only";
 
 import { eq } from "drizzle-orm";
 
-import type { ParsedConnection } from "@/lib/connectionString";
 import { getDb, schema } from "@/lib/db";
+import { fetchHqSeasonVsScoresByMember } from "@/lib/trains/native-scores.server";
 import type { RollCandidate } from "@/lib/trains/types";
 import {
   buildPriceIsRightTicketBoard,
@@ -22,7 +22,6 @@ import {
   type TrainEconomyThresholdSettings,
 } from "@/lib/trains/train-economy-threshold.shared";
 import { vsScoreReferenceDate } from "@/lib/trains/vs-week-days.shared";
-import { fetchVsScoresByRecordedDate } from "@/lib/trains/vs-scores.server";
 
 export type TrainEconomyThresholdRow = TrainEconomyThresholdSettings &
   PriceIsRightTicketSettings & {
@@ -161,8 +160,6 @@ export async function loadPriceIsRightTicketSettings(
 export async function filterPoolByEconomyThreshold(input: {
   allianceId: string;
   trainDate: string;
-  connection: ParsedConnection | null;
-  ashedAllianceId: string;
   candidates: RollCandidate[];
   settings?: TrainEconomyThresholdSettings;
 }): Promise<RollCandidate[]> {
@@ -174,16 +171,7 @@ export async function filterPoolByEconomyThreshold(input: {
   }
 
   const threshold = settings.thresholdPoints!;
-  const scoreDate = vsScoreReferenceDate(input.trainDate);
-  let vsScores = new Map<string, number>();
-
-  if (input.connection) {
-    vsScores = await fetchVsScoresByRecordedDate(
-      input.connection,
-      input.ashedAllianceId,
-      scoreDate,
-    );
-  }
+  const vsScores = await fetchHqSeasonVsScoresByMember(input.allianceId);
 
   return input.candidates.filter((candidate) =>
     isVsScoreEconomyEligible(
@@ -197,8 +185,6 @@ export async function filterPoolByEconomyThreshold(input: {
 export async function buildPriceIsRightWeightedCandidates(input: {
   allianceId: string;
   trainDate: string;
-  connection: ParsedConnection | null;
-  ashedAllianceId: string;
   candidates: RollCandidate[];
   settings?: PriceIsRightTicketSettings;
   viewerMemberId?: string | null;
@@ -211,15 +197,7 @@ export async function buildPriceIsRightWeightedCandidates(input: {
     input.settings ??
     (await loadPriceIsRightTicketSettings(input.allianceId));
   const scoreDate = vsScoreReferenceDate(input.trainDate);
-  let vsScores = new Map<string, number>();
-
-  if (input.connection) {
-    vsScores = await fetchVsScoresByRecordedDate(
-      input.connection,
-      input.ashedAllianceId,
-      scoreDate,
-    );
-  }
+  const vsScores = await fetchHqSeasonVsScoresByMember(input.allianceId);
 
   const board = buildPriceIsRightTicketBoard(
     input.candidates,

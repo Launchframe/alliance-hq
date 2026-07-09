@@ -66,8 +66,6 @@ export async function POST(request: Request) {
     const poolsRefreshed = await refreshExhaustedPoolsForDay({
       allianceId: ctx.allianceId,
       date,
-      connection: ctx.connection,
-      ashedAllianceId: ctx.ashedAllianceId,
       seasonKey,
     });
 

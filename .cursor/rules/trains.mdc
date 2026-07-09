@@ -86,6 +86,6 @@ Schema: `train_price_is_right_*` on `alliances`; `ticket_count` / `prior_day_vs_
 
 All queries filter by session **`allianceId`**.
 
-## Native alliance gaps
+## Data sources
 
-VS/donation rolls need Ashed scores. On native alliances, show plain copy and manual/officer paths; do not show schedule preview before roster import (`activeMemberCount === 0`).
+Trains are HQ-local: VR standings, pools, economy filters, and Price Is Right tickets use `memberSeasonVr` and the HQ roster. No live Ashed API calls. Donation wheels require manual officer picks until HQ stores donation scores. Do not show schedule preview before roster import (`activeMemberCount === 0`).

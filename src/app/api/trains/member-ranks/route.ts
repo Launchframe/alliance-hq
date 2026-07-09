@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import { resolveTrainRequestContext } from "@/lib/trains/api-context";
 import { getAllianceRanksAsOf } from "@/lib/trains/rank-history";
-import { confirmMemberRank, confirmMemberRankLocal } from "@/lib/trains/rank-sync";
+import { confirmMemberRankLocal } from "@/lib/trains/rank-sync";
 import { getServerCalendarDate } from "@/lib/trains/game-time";
 import { getRbacContext } from "@/lib/rbac/require-permission";
 import { getOrCreateSession } from "@/lib/session";
@@ -75,10 +75,7 @@ export async function POST(request: Request) {
       recordedByHqUserId: rbac?.hqUserId ?? null,
     } as const;
 
-    const event =
-      ctx.operatingMode === "native" || !ctx.connection
-        ? await confirmMemberRankLocal(rankInput)
-        : await confirmMemberRank({ ...rankInput, connection: ctx.connection });
+    const event = await confirmMemberRankLocal(rankInput);
     return NextResponse.json({ event });
   } catch (error) {
     return NextResponse.json(
