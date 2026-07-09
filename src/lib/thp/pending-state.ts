@@ -1,7 +1,7 @@
 import { parseThpBreakdownInput } from "@/lib/thp/breakdown.shared";
 import type { ThpPendingState } from "@/lib/thp/types";
 
-/** Parses THP pending JSON loaded from discord_bot_pending. */
+/** Parses THP pending JSON loaded from stored pending-state tables. */
 export function parseStoredThpPending(value: unknown): ThpPendingState | null {
   if (!value || typeof value !== "object") {
     return null;
