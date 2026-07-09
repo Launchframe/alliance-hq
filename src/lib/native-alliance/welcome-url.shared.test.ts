@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildWelcomeInviteUrl,
   buildWelcomeJoinCodeUrl,
-  extractInviteTokenFromAcceptUrl,
+  normalizeAllianceTagForUrl,
 } from "@/lib/native-alliance/welcome-url.shared";
 
 describe("welcome-url.shared", () => {
@@ -19,11 +19,10 @@ describe("welcome-url.shared", () => {
     );
   });
 
-  it("extracts token from legacy invite accept URL", () => {
+  it("falls back to HQ when alliance tag is missing", () => {
+    expect(normalizeAllianceTagForUrl(null)).toBe("HQ");
     expect(
-      extractInviteTokenFromAcceptUrl(
-        "https://hq.example/invite/abcDEF123?next=%2Fmembers",
-      ),
-    ).toBe("abcDEF123");
+      buildWelcomeJoinCodeUrl("https://hq.example", null, "LFGO-A1B2C3"),
+    ).toBe("https://hq.example/welcome?tag=HQ&code=LFGO-A1B2C3");
   });
 });

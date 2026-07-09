@@ -23,17 +23,3 @@ export function buildWelcomeInviteUrl(origin: string, token: string): string {
   });
   return `${base}/welcome?${params.toString()}`;
 }
-
-export function extractInviteTokenFromAcceptUrl(inviteUrl: string): string | null {
-  try {
-    const url = new URL(inviteUrl);
-    const parts = url.pathname.split("/").filter(Boolean);
-    const inviteIndex = parts.indexOf("invite");
-    if (inviteIndex === -1 || inviteIndex + 1 >= parts.length) {
-      return null;
-    }
-    return decodeURIComponent(parts[inviteIndex + 1] ?? "");
-  } catch {
-    return null;
-  }
-}

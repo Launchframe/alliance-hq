@@ -3,11 +3,11 @@ import "server-only";
 import { eq } from "drizzle-orm";
 
 import { getDb, schema } from "@/lib/db";
+import { extractHqInviteToken } from "@/lib/native-alliance/invite-token-from-input.shared";
 import { buildInviteShareMessage } from "@/lib/native-alliance/invite-share-message.server";
 import {
   buildWelcomeInviteUrl,
   buildWelcomeJoinCodeUrl,
-  extractInviteTokenFromAcceptUrl,
 } from "@/lib/native-alliance/welcome-url.shared";
 
 export async function loadAllianceInviteShareContext(allianceId: string): Promise<{
@@ -78,7 +78,7 @@ export function buildInviteLinkSharePayload(input: {
   inviteUrl: string;
   passphrase?: string | null;
 }): { welcomeUrl: string; shareMessage: string } {
-  const token = extractInviteTokenFromAcceptUrl(input.inviteUrl);
+  const token = extractHqInviteToken(input.inviteUrl);
   const welcomeUrl = token
     ? buildWelcomeInviteUrl(input.origin, token)
     : input.inviteUrl;
