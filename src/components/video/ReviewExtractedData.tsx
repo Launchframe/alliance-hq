@@ -140,9 +140,52 @@ function confidenceClass(confidence: number | null): string {
   return "border-hq-danger";
 }
 
+function ReviewActionErrorBanner({
+  message,
+  connectUrl,
+  connectLabel,
+  onDismiss,
+  dismissLabel,
+}: {
+  message: string;
+  connectUrl?: string;
+  connectLabel: string;
+  onDismiss: () => void;
+  dismissLabel: string;
+}) {
+  return (
+    <div
+      className="rounded-xl border border-hq-danger/50 bg-[#f8514918] px-4 py-3 shadow-sm"
+      role="alert"
+    >
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-sm font-medium leading-snug text-hq-danger">{message}</p>
+        <div className="flex shrink-0 flex-wrap gap-2">
+          {connectUrl ? (
+            <Link
+              href={connectUrl}
+              className="rounded-lg border border-hq-danger/60 bg-[#f8514910] px-3 py-1.5 text-sm font-medium text-hq-danger hover:bg-[#f8514925]"
+            >
+              {connectLabel}
+            </Link>
+          ) : null}
+          <button
+            type="button"
+            onClick={onDismiss}
+            className="rounded-lg border border-hq-border px-3 py-1.5 text-sm text-hq-fg hover:bg-hq-surface-muted"
+          >
+            {dismissLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   const router = useRouter();
   const t = useTranslations("videoReview");
+  const tQueue = useTranslations("videoQueue");
   const tc = useTranslations("common");
   const tNav = useTranslations("nav");
   const tMembers = useTranslations("members");
@@ -167,8 +210,9 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   );
   const [filterQuery, setFilterQuery] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [errorConnectUrl, setErrorConnectUrl] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [reprocessing, setReprocessing] = useState(false);
+  const [reprocessPending, setReprocessPending] = useState(false);
   const [rematching, setRematching] = useState(false);
   const [groupActionBusy, setGroupActionBusy] = useState<string | null>(null);
   const [addingRowBusy, setAddingRowBusy] = useState<ManualRowPosition | null>(
@@ -286,7 +330,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
 
   const rematchMembers = useCallback(async () => {
     setRematching(true);
-    setError(null);
+    clearActionError();
     try {
       const res = await fetch(
         `/api/tools/video-upload/${jobId}/rematch-members`,
@@ -294,12 +338,12 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
       );
       const data = (await res.json()) as { error?: string };
       if (!res.ok) {
-        setError(data.error ?? tc("uploadFailed"));
+        setActionError(data.error ?? tc("uploadFailed"));
         return false;
       }
       return true;
     } catch (err) {
-      setError(err instanceof Error ? err.message : tc("uploadFailed"));
+      setActionError(err instanceof Error ? err.message : tc("uploadFailed"));
       return false;
     } finally {
       setRematching(false);
@@ -341,7 +385,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         };
         if (!res.ok) {
           setJobStatus("load_error");
-          setError(data.error ?? tc("uploadFailed"));
+          setActionError(data.error ?? tc("uploadFailed"));
           return;
         }
 
@@ -418,7 +462,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         setAllianceStale(Boolean(data.alliance?.stale));
       } catch (err) {
         setJobStatus("load_error");
-        setError(
+        setActionError(
           err instanceof Error ? err.message : tc("connectionFailed"),
         );
       }
@@ -630,7 +674,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         );
         if (!res.ok) {
           const data = (await res.json()) as { error?: string };
-          setError(data.error ?? tc("uploadFailed"));
+          setActionError(data.error ?? tc("uploadFailed"));
           return false;
         }
         return true;
@@ -889,12 +933,12 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
 
   async function handleSubmit() {
     if (hasDuplicateMembers || hasDuplicateOcrNames) {
-      setError(t("duplicateMemberBlocked"));
+      setActionError(t("duplicateMemberBlocked"));
       return;
     }
 
     setSubmitting(true);
-    setError(null);
+    clearActionError();
     setSuccess(null);
     try {
       const isRoster = scoreTargetMeta?.showRosterColumns;
@@ -940,7 +984,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         solicitedSource?: "solicited_first_upload" | "solicited_third_upload";
       };
       if (!res.ok) {
-        setError(data.error ?? tc("uploadFailed"));
+        setActionError(data.error ?? tc("uploadFailed"));
         return;
       }
       clearDraft();
@@ -967,51 +1011,84 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         setShowRatingPrompt(true);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : tc("uploadFailed"));
+      setActionError(err instanceof Error ? err.message : tc("uploadFailed"));
     } finally {
       setSubmitting(false);
     }
   }
 
-  async function reprocess() {
-    setReprocessing(true);
+  function clearActionError() {
     setError(null);
+    setErrorConnectUrl(null);
+  }
+
+  function setActionError(message: string, connectUrl?: string) {
+    setError(message);
+    setErrorConnectUrl(connectUrl ?? null);
+  }
+
+  function renderActionErrorBanner() {
+    if (!error) {
+      return null;
+    }
+    return (
+      <ReviewActionErrorBanner
+        message={error}
+        connectUrl={errorConnectUrl ?? undefined}
+        connectLabel={tQueue("connectCta")}
+        onDismiss={clearActionError}
+        dismissLabel={t("comparisonClose")}
+      />
+    );
+  }
+
+  async function reprocess() {
+    setReprocessPending(true);
+    clearActionError();
     setSuccess(null);
     try {
       const res = await fetch(`/api/tools/video-upload/${jobId}/reprocess`, {
         method: "POST",
       });
-      const data = (await res.json()) as { error?: string };
+      const data = (await res.json()) as {
+        error?: string;
+        code?: string;
+        connectUrl?: string;
+      };
       if (!res.ok) {
-        setError(data.error ?? tc("uploadFailed"));
+        if (data.code === "ashed_not_connected") {
+          router.push(data.connectUrl ?? "/connect");
+          return;
+        }
+        setActionError(data.error ?? tc("uploadFailed"), data.connectUrl);
         return;
       }
       clearDraft();
       setRows([]);
       setJobStatus("queued");
     } catch (err) {
-      setError(err instanceof Error ? err.message : tc("uploadFailed"));
+      setActionError(err instanceof Error ? err.message : tc("uploadFailed"));
     } finally {
-      setReprocessing(false);
+      setReprocessPending(false);
     }
   }
 
   async function handleDiscard() {
     setDiscarding(true);
-    setError(null);
+    clearActionError();
     try {
       const res = await fetch(`/api/tools/video-upload/${jobId}/discard`, {
         method: "PATCH",
       });
       if (!res.ok) {
         const data = (await res.json()) as { error?: string };
-        setError(data.error ?? tc("uploadFailed"));
+        setActionError(data.error ?? tc("uploadFailed"));
         return;
       }
       clearDraft();
       router.push("/tools/video-upload");
     } catch (err) {
-      setError(err instanceof Error ? err.message : tc("uploadFailed"));
+      setActionError(err instanceof Error ? err.message : tc("uploadFailed"));
     } finally {
       setDiscarding(false);
     }
@@ -1031,13 +1108,13 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
       if (!res.ok) {
         const data = (await res.json()) as { error?: string };
         setJobRating(null);
-        setError(data.error ?? tc("uploadFailed"));
+        setActionError(data.error ?? tc("uploadFailed"));
         return false;
       }
       return true;
     } catch (err) {
       setJobRating(null);
-      setError(err instanceof Error ? err.message : tc("uploadFailed"));
+      setActionError(err instanceof Error ? err.message : tc("uploadFailed"));
       return false;
     }
   }
@@ -1064,17 +1141,16 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
 
   if (displayJobStatus === "loading" || rematching) {
     return (
-      <div className="space-y-2">
+      <div className="space-y-4">
+        {renderActionErrorBanner()}
         <p className="text-sm text-hq-fg-muted">
           {rematching ? t("rematchingMembers") : t("loading")}
         </p>
-        {error ? <p className="text-sm text-hq-danger">{error}</p> : null}
       </div>
     );
   }
 
   if (
-    reprocessing ||
     displayJobStatus === "pending_approval" ||
     displayJobStatus === "queued" ||
     displayJobStatus === "extracting" ||
@@ -1083,11 +1159,9 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     return (
       <div className="space-y-4">
         <p className="text-sm text-hq-fg-muted">
-          {reprocessing
-            ? t("reprocessing")
-            : displayJobStatus === "pending_approval"
-              ? t("pendingApproval")
-              : t("processing", { status: displayJobStatus })}
+          {displayJobStatus === "pending_approval"
+            ? t("pendingApproval")
+            : t("processing", { status: displayJobStatus })}
         </p>
         <Link href="/tools/video-upload" className="text-sm text-hq-accent hover:underline">
           {t("backToUploads")}
@@ -1099,7 +1173,13 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   if (displayJobStatus === "load_error") {
     return (
       <div className="space-y-4">
-        <p className="text-sm text-hq-danger">{error ?? tc("uploadFailed")}</p>
+        <ReviewActionErrorBanner
+          message={error ?? tc("uploadFailed")}
+          connectUrl={errorConnectUrl ?? undefined}
+          connectLabel={tQueue("connectCta")}
+          onDismiss={clearActionError}
+          dismissLabel={t("comparisonClose")}
+        />
         <Link href="/tools/video-upload" className="text-sm text-hq-accent hover:underline">
           {t("backToUploads")}
         </Link>
@@ -1110,9 +1190,13 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   if (displayJobStatus === "failed") {
     return (
       <div className="space-y-4">
-        <p className="text-sm text-hq-danger">
-          {error ?? t("processingFailed")}
-        </p>
+        <ReviewActionErrorBanner
+          message={error ?? t("processingFailed")}
+          connectUrl={errorConnectUrl ?? undefined}
+          connectLabel={tQueue("connectCta")}
+          onDismiss={clearActionError}
+          dismissLabel={t("comparisonClose")}
+        />
         <Link href="/tools/video-upload" className="text-sm text-hq-accent hover:underline">
           {t("backToUploads")}
         </Link>
@@ -1160,7 +1244,8 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         }
       >
         <div className="mx-auto min-w-0 w-full max-w-5xl flex-1 space-y-6 px-4 pb-6 md:px-0">
-      <div>
+          {renderActionErrorBanner()}
+          <div>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <Link
             href="/tools/video-upload"
@@ -1263,10 +1348,10 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           <button
             type="button"
             onClick={() => void reprocess()}
-            disabled={reprocessing}
+            disabled={reprocessPending}
             className="mt-3 rounded-lg border border-hq-success bg-hq-success px-4 py-2 text-sm text-white disabled:opacity-50"
           >
-            {reprocessing ? t("reprocessing") : t("reprocess")}
+            {reprocessPending ? t("reprocessing") : t("reprocess")}
           </button>
         </div>
       )}
@@ -1757,7 +1842,6 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         </>
       )}
 
-      {error && <p className="text-sm text-hq-danger">{error}</p>}
       {success && <p className="text-sm text-hq-green">{success}</p>}
 
       <div className="flex flex-wrap gap-3">
