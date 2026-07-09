@@ -126,7 +126,7 @@ export function HybridAshedPageShell({ pageId, canUseAshedPane, children }: Prop
                 <PanelLeftClose className="h-4 w-4" />
               </button>
             </div>
-            <div className="min-h-0 flex-1 overflow-auto">{children}</div>
+            <div className="min-h-0 min-w-0 flex-1 overflow-auto">{children}</div>
           </div>
         ) : (
           <button

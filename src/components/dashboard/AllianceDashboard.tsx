@@ -308,15 +308,19 @@ export function AllianceDashboard({
         </AnalyticsCard>
 
         <AnalyticsCard title={t("squad.title")}>
-          <div className="grid gap-4 lg:grid-cols-2">
-            <DistributionPieChart
+          <div className="grid min-w-0 gap-4 lg:grid-cols-2">
+            <div className="min-w-0">
+              <DistributionPieChart
               slices={squadSlices}
               viewerKey={
                 data.viewer.mainSquad ??
                 (data.viewer.memberId ? "unreported" : null)
               }
-            />
-            <SquadPowerBarChart rows={squadPowerRows} />
+              />
+            </div>
+            <div className="min-w-0">
+              <SquadPowerBarChart rows={squadPowerRows} />
+            </div>
           </div>
         </AnalyticsCard>
       </div>
