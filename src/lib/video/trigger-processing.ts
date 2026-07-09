@@ -1,14 +1,14 @@
+import "server-only";
+
 import { waitUntil } from "@vercel/functions";
 
-import { resolveAppOrigin } from "@/lib/app-origin";
 import { logPipelineStep } from "@/lib/video/pipeline-step-log";
+import {
+  resolveVideoProcessBaseUrl,
+  resolveVideoProcessEndpoint,
+} from "@/lib/video/video-process-dispatch.server";
 
-export function resolveVideoProcessBaseUrl(): string {
-  if (process.env.VIDEO_WORKER_BASE_URL) {
-    return process.env.VIDEO_WORKER_BASE_URL.replace(/\/$/, "");
-  }
-  return resolveAppOrigin();
-}
+export { resolveVideoProcessBaseUrl };
 
 export async function dispatchVideoProcessing(
   jobId: string,
@@ -22,8 +22,7 @@ export async function dispatchVideoProcessing(
     return;
   }
 
-  const base = resolveVideoProcessBaseUrl();
-  const url = `${base}/api/internal/video-process/${jobId}`;
+  const url = resolveVideoProcessEndpoint(jobId);
   const source = options?.source ?? "upload";
 
   const task = (async () => {

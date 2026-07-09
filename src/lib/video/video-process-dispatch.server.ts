@@ -22,6 +22,11 @@ export function externalVideoWorkerBaseUrl(): string | null {
   return raw ? raw.replace(/\/$/, "") : null;
 }
 
+/** Worker base URL when VIDEO_WORKER_BASE_URL is set; otherwise the public app origin. */
+export function resolveVideoProcessBaseUrl(): string {
+  return externalVideoWorkerBaseUrl() ?? resolveAppOrigin();
+}
+
 /**
  * When true, this runtime should not import the heavy process-job graph — queue
  * cron and similar entry points POST to VIDEO_WORKER_BASE_URL instead.
@@ -39,8 +44,7 @@ export function videoQueueDispatchesExternally(): boolean {
 }
 
 export function resolveVideoProcessEndpoint(jobId: string): string {
-  const base = externalVideoWorkerBaseUrl() ?? resolveAppOrigin();
-  return `${base}/api/internal/video-process/${jobId}`;
+  return `${resolveVideoProcessBaseUrl()}/api/internal/video-process/${jobId}`;
 }
 
 export async function dispatchVideoJobRemote(
