@@ -6,6 +6,7 @@ import {
   effectiveMinimum,
   evaluationPeriodForTrainDate,
   minimumsEnforcementEnabled,
+  minimumsSettingsForHqLocalEval,
   normalizeTrainMinimumsSettings,
 } from "@/lib/trains/train-conductor-minimums.shared";
 
@@ -71,6 +72,24 @@ describe("train-conductor-minimums", () => {
     expect(
       minimumsEnforcementEnabled(normalizeTrainMinimumsSettings({})),
     ).toBe(false);
+  });
+
+  it("minimumsSettingsForHqLocalEval clears donation threshold without HQ ledger", () => {
+    const withDonation = normalizeTrainMinimumsSettings({
+      minVsPoints: 1000,
+      minDonationPoints: 500,
+      leewayPct: 0,
+      window: "weekly",
+    });
+    expect(minimumsSettingsForHqLocalEval(withDonation)).toEqual({
+      minVsPoints: 1000,
+      minDonationPoints: null,
+      leewayPct: 0,
+      window: "weekly",
+    });
+
+    const vsOnly = normalizeTrainMinimumsSettings({ minVsPoints: 1000 });
+    expect(minimumsSettingsForHqLocalEval(vsOnly)).toBe(vsOnly);
   });
 
   it("assertConductorMinimumOverrideQualification rejects missing or qualified", () => {

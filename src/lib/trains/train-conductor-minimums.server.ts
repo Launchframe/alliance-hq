@@ -8,6 +8,7 @@ import {
   buildMemberQualification,
   evaluationPeriodForTrainDate,
   minimumsEnforcementEnabled,
+  minimumsSettingsForHqLocalEval,
   normalizeTrainMinimumsSettings,
   type MemberQualificationPayload,
   type TrainConductorMinimumsSettings,
@@ -95,7 +96,7 @@ export async function evaluateConductorQualification(input: {
   return buildMemberQualification({
     vsScore: vsTotals.get(input.memberId) ?? 0,
     donationScore: 0,
-    settings,
+    settings: minimumsSettingsForHqLocalEval(settings),
     periodStart: start,
     periodEnd: end,
   });

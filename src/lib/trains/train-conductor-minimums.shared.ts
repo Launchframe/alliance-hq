@@ -65,6 +65,16 @@ export function minimumsEnforcementEnabled(
   );
 }
 
+/** Donation minimums are not enforceable until HQ stores donation scores. */
+export function minimumsSettingsForHqLocalEval(
+  settings: TrainConductorMinimumsSettings,
+): TrainConductorMinimumsSettings {
+  if (settings.minDonationPoints != null && settings.minDonationPoints > 0) {
+    return { ...settings, minDonationPoints: null };
+  }
+  return settings;
+}
+
 /** Effective floor after leeway — e.g. min 1000 with 10% leeway → 900. */
 export function effectiveMinimum(minimum: number, leewayPct: number): number {
   if (minimum <= 0) return 0;
