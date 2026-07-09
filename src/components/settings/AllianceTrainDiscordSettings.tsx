@@ -6,7 +6,7 @@ import { Link } from "@/i18n/navigation";
 
 import { DiscordTrainChannelSetupLinks } from "@/components/settings/DiscordTrainChannelSetupLinks";
 import { allianceTrainDiscordApiPath } from "@/lib/alliance/alliance-settings-path.shared";
-import type { TrainDiscordGuildLink } from "@/lib/trains/train-discord-settings.server";
+import type { TrainDiscordGuildLink } from "@/lib/trains/train-discord-settings.shared";
 
 type Props = {
   allianceTag: string;

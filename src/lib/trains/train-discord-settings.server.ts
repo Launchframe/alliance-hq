@@ -6,12 +6,9 @@ import {
   listGuildTrainChannelsForAlliance,
   setAllianceTrainDiscordAnnouncementsEnabled,
 } from "@/lib/vr/repository";
+import type { TrainDiscordGuildLink } from "@/lib/trains/train-discord-settings.shared";
 
-export type TrainDiscordGuildLink = {
-  guildId: string;
-  hasTrainChannel: boolean;
-  discordOpenUrl: string;
-};
+export type { TrainDiscordGuildLink };
 
 export type TrainDiscordSettings = {
   announcementsEnabled: boolean;

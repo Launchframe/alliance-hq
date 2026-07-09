@@ -3,7 +3,7 @@
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 
-import type { TrainDiscordGuildLink } from "@/lib/trains/train-discord-settings.server";
+import type { TrainDiscordGuildLink } from "@/lib/trains/train-discord-settings.shared";
 
 type Props = {
   allianceTag: string;
