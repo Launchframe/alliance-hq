@@ -142,18 +142,10 @@ export const NAV_GROUPS: NavGroupDef[] = [
       },
       {
         id: "professions",
-        labelKey: "professions",
+        labelKey: "myProfession",
         href: "/professions",
         kind: "native",
-        descriptionKey: "professionsDescription",
-      },
-      {
-        id: "professions-officer",
-        labelKey: "professionsOfficer",
-        href: "/professions/officer",
-        kind: "native",
-        requiredPermission: "alliance:admin",
-        descriptionKey: "professionsOfficerDescription",
+        descriptionKey: "myProfessionDescription",
       },
       {
         id: "alliance-settings",

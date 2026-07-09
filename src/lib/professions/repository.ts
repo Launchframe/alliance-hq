@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, desc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { getDb, schema } from "@/lib/db";
@@ -13,6 +13,76 @@ import type {
   WlSuggestion,
   WlTeamEventKind,
 } from "./types";
+
+// ---------------------------------------------------------------------------
+// Profession history
+// ---------------------------------------------------------------------------
+
+export async function getProfessionSince(
+  allianceId: string,
+  commanderId: string,
+): Promise<Date | null> {
+  const db = getDb();
+  const [event] = await db
+    .select({ createdAt: schema.wlTeamEvents.createdAt })
+    .from(schema.wlTeamEvents)
+    .where(
+      and(
+        eq(schema.wlTeamEvents.allianceId, allianceId),
+        eq(schema.wlTeamEvents.actorCommanderId, commanderId),
+        eq(schema.wlTeamEvents.eventKind, "profession_switched"),
+      ),
+    )
+    .orderBy(desc(schema.wlTeamEvents.createdAt))
+    .limit(1);
+
+  if (event?.createdAt) return event.createdAt;
+
+  const [commander] = await db
+    .select({
+      profession: schema.commanders.profession,
+      updatedAt: schema.commanders.updatedAt,
+    })
+    .from(schema.commanders)
+    .where(eq(schema.commanders.id, commanderId))
+    .limit(1);
+
+  if (commander?.profession) return commander.updatedAt;
+  return null;
+}
+
+async function getEngNamesByTeamIds(
+  teamIds: string[],
+): Promise<Map<string, string[]>> {
+  if (teamIds.length === 0) return new Map();
+
+  const db = getDb();
+  const rows = await db
+    .select({
+      wlTeamId: schema.wlEngAssignments.wlTeamId,
+      engName: schema.commanders.primaryName,
+    })
+    .from(schema.wlEngAssignments)
+    .leftJoin(
+      schema.commanders,
+      eq(schema.wlEngAssignments.engCommanderId, schema.commanders.id),
+    )
+    .where(
+      and(
+        inArray(schema.wlEngAssignments.wlTeamId, teamIds),
+        eq(schema.wlEngAssignments.status, "active"),
+      ),
+    )
+    .orderBy(asc(schema.wlEngAssignments.assignedAt));
+
+  const map = new Map<string, string[]>();
+  for (const row of rows) {
+    const list = map.get(row.wlTeamId) ?? [];
+    list.push(row.engName ?? "Unknown");
+    map.set(row.wlTeamId, list);
+  }
+  return map;
+}
 
 // ---------------------------------------------------------------------------
 // Teams
@@ -297,6 +367,7 @@ export async function getWlSuggestions(input: {
     }
   }
 
+  const engNamesByTeamId = await getEngNamesByTeamIds(teamIds);
   const excludeSet = new Set(input.excludeWlCommanderIds);
 
   const suggestions: WlSuggestion[] = wlRows
@@ -308,6 +379,8 @@ export async function getWlSuggestions(input: {
         wlCommanderId: r.commanderId,
         wlName: r.currentName,
         activeEngCount,
+        minEngsPerTeam: input.minEngsPerTeam,
+        assignedEngNames: team ? (engNamesByTeamId.get(team.id) ?? []) : [],
         isCovered: activeEngCount >= input.minEngsPerTeam,
         wlTeamId: team?.id ?? null,
       };
@@ -385,6 +458,8 @@ export async function getOfficerWlOverview(
     }
   }
 
+  const engNamesByTeamId = await getEngNamesByTeamIds(teamIds);
+
   const wlRows: OfficerWlRow[] = wlMembers
     .map((m) => {
       const team = teamByWlCommanderId.get(m.commanderId);
@@ -395,6 +470,7 @@ export async function getOfficerWlOverview(
         wlTeamId: team?.id ?? null,
         activeEngCount,
         minEngsPerTeam,
+        assignedEngNames: team ? (engNamesByTeamId.get(team.id) ?? []) : [],
         isCovered: activeEngCount >= minEngsPerTeam,
       };
     })
@@ -409,6 +485,7 @@ export async function getOfficerWlOverview(
     .select({
       commanderId: schema.commanders.id,
       currentName: schema.commanders.primaryName,
+      profession: schema.commanders.profession,
     })
     .from(schema.commanders)
     .innerJoin(
@@ -448,6 +525,7 @@ export async function getOfficerWlOverview(
     .map((m) => ({
       engCommanderId: m.commanderId,
       engName: m.currentName,
+      profession: m.profession,
     }))
     .sort((a, b) => (a.engName ?? "").localeCompare(b.engName ?? ""));
 

@@ -1,22 +1,24 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 
-import { SwitchProfessionControl } from "@/components/professions/SwitchProfessionControl";
+import { EngCountBadge } from "@/components/professions/EngCountBadge";
 import { Button } from "@/components/ui/button";
 import type { WlSuggestion } from "@/lib/professions/types";
 
 type Props = {
   onAssigned: () => void;
-  /** If undefined, no cancel affordance is shown (first-time wizard). */
   onCancel?: () => void;
-  onProfessionSwitched?: () => void;
+  embedded?: boolean;
 };
 
-export function FindWLWizard({ onAssigned, onCancel, onProfessionSwitched }: Props) {
+export function FindWLWizard({ onAssigned, onCancel, embedded = false }: Props) {
+  const t = useTranslations("professions");
   const [suggestions, setSuggestions] = useState<WlSuggestion[]>([]);
   const [loading, setLoading] = useState(true);
   const [assigning, setAssigning] = useState<string | null>(null);
+  const [choosingRandom, setChoosingRandom] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -25,7 +27,7 @@ export function FindWLWizard({ onAssigned, onCancel, onProfessionSwitched }: Pro
       try {
         const res = await fetch("/api/professions/suggestions");
         if (res.ok) {
-          const data = await res.json() as { suggestions: WlSuggestion[] };
+          const data = (await res.json()) as { suggestions: WlSuggestion[] };
           setSuggestions(data.suggestions);
         }
       } finally {
@@ -44,9 +46,9 @@ export function FindWLWizard({ onAssigned, onCancel, onProfessionSwitched }: Pro
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ wlCommanderId }),
       });
-      const json = await res.json() as { error?: string };
+      const json = (await res.json()) as { error?: string };
       if (!res.ok) {
-        setError(json.error ?? "Assignment failed.");
+        setError(json.error ?? t("assignFailed"));
       } else {
         onAssigned();
       }
@@ -55,40 +57,57 @@ export function FindWLWizard({ onAssigned, onCancel, onProfessionSwitched }: Pro
     }
   }
 
+  async function chooseForMe() {
+    setChoosingRandom(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/professions/assign-random", {
+        method: "POST",
+      });
+      const json = (await res.json()) as { error?: string };
+      if (!res.ok) {
+        setError(json.error ?? t("assignFailed"));
+      } else {
+        onAssigned();
+      }
+    } finally {
+      setChoosingRandom(false);
+    }
+  }
+
+  const wrapperClass = embedded ? "space-y-4" : "p-6 max-w-xl space-y-5";
+
   return (
-    <div className="p-6 max-w-xl space-y-5">
-      <div className="flex items-start justify-between">
+    <div className={wrapperClass}>
+      <div className="flex items-start justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold text-hq-fg">Find a War Leader</h1>
-          <p className="text-sm text-hq-fg-muted mt-1">
-            Pick a War Leader to support. War Leaders with fewer Engineers are shown first.
-          </p>
+          <h2 className="text-lg font-semibold text-hq-fg">{t("wlSupportTitle")}</h2>
+          <p className="mt-1 text-sm text-hq-fg-muted">{t("wlSupportDesc")}</p>
         </div>
-        <div className="flex items-center gap-2">
-          {onProfessionSwitched ? (
-            <SwitchProfessionControl
-              currentProfession="Engineer"
-              onSwitched={onProfessionSwitched}
-            />
-          ) : null}
-          {onCancel ? (
-            <Button variant="ghost" size="sm" onClick={onCancel}>
-              Cancel
-            </Button>
-          ) : null}
-        </div>
+        {onCancel ? (
+          <Button variant="ghost" size="sm" onClick={onCancel}>
+            {t("switchCancel")}
+          </Button>
+        ) : null}
       </div>
 
-      {error && (
-        <p className="text-sm text-hq-danger">{error}</p>
-      )}
+      <div className="flex flex-wrap gap-2">
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => void chooseForMe()}
+          disabled={choosingRandom || loading}
+        >
+          {choosingRandom ? t("choosingForMe") : t("chooseForMe")}
+        </Button>
+      </div>
+
+      {error ? <p className="text-sm text-hq-danger">{error}</p> : null}
 
       {loading ? (
-        <p className="text-sm text-hq-fg-muted animate-pulse">Loading War Leaders…</p>
+        <p className="text-sm text-hq-fg-muted animate-pulse">{t("loadingWls")}</p>
       ) : suggestions.length === 0 ? (
-        <p className="text-sm text-hq-fg-muted">
-          No War Leaders found in your alliance, or all have enough Engineers.
-        </p>
+        <p className="text-sm text-hq-fg-muted">{t("noWlsAvailable")}</p>
       ) : (
         <ul className="space-y-2">
           {suggestions.map((s) => (
@@ -101,16 +120,18 @@ export function FindWLWizard({ onAssigned, onCancel, onProfessionSwitched }: Pro
                   {s.wlName ?? s.wlCommanderId}
                 </p>
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-hq-fg-muted">
-                    {s.activeEngCount} / needs {s.activeEngCount < 2 ? "2+" : s.activeEngCount + "+"} Engineers
-                  </span>
+                  <EngCountBadge
+                    activeCount={s.activeEngCount}
+                    minCount={s.minEngsPerTeam}
+                    engNames={s.assignedEngNames}
+                  />
                   {s.isCovered ? (
-                    <span className="text-[10px] bg-hq-success/15 text-hq-success px-1.5 py-0.5 rounded">
-                      Covered
+                    <span className="rounded bg-hq-success/15 px-1.5 py-0.5 text-[10px] text-hq-success">
+                      {t("covered")}
                     </span>
                   ) : (
-                    <span className="text-[10px] bg-hq-warning/15 text-hq-warning px-1.5 py-0.5 rounded">
-                      Needs support
+                    <span className="rounded bg-hq-warning/15 px-1.5 py-0.5 text-[10px] text-hq-warning">
+                      {t("needsSupport")}
                     </span>
                   )}
                 </div>
@@ -118,10 +139,10 @@ export function FindWLWizard({ onAssigned, onCancel, onProfessionSwitched }: Pro
               <Button
                 size="sm"
                 variant={s.isCovered ? "outline" : "default"}
-                onClick={() => assign(s.wlCommanderId)}
+                onClick={() => void assign(s.wlCommanderId)}
                 disabled={assigning === s.wlCommanderId}
               >
-                {assigning === s.wlCommanderId ? "Joining…" : "Join team"}
+                {assigning === s.wlCommanderId ? t("joining") : t("assignBtn")}
               </Button>
             </li>
           ))}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 
 import { Button } from "@/components/ui/button";
@@ -10,11 +10,13 @@ import type { Profession } from "@/lib/professions/types";
 type Props = {
   currentProfession: Profession;
   onSwitched: () => void;
+  icon?: ReactNode;
 };
 
 export function SwitchProfessionControl({
   currentProfession,
   onSwitched,
+  icon,
 }: Props) {
   const t = useTranslations("professions");
   const [open, setOpen] = useState(false);
@@ -47,7 +49,8 @@ export function SwitchProfessionControl({
 
   return (
     <>
-      <Button variant="ghost" size="sm" onClick={() => setOpen(true)}>
+      <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
+        {icon ? <span className="mr-1.5 inline-flex">{icon}</span> : null}
         {t("switchProfession")}
       </Button>
 

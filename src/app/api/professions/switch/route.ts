@@ -23,7 +23,7 @@ export async function POST(request: Request) {
   }
 
   if (!ctx.profession) {
-    await updateCommanderProfession(ctx.commanderId, toProfession);
+    await updateCommanderProfession(ctx.commanderId, toProfession, ctx.allianceId);
     return NextResponse.json({ ok: true, toProfession });
   }
 

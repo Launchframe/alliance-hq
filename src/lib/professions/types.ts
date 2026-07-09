@@ -25,15 +25,14 @@ export type WlSuggestion = {
   wlCommanderId: string;
   wlName: string | null;
   activeEngCount: number;
-  /** Whether the WL already has enough Engs per the alliance minimum. */
+  minEngsPerTeam: number;
+  assignedEngNames: string[];
   isCovered: boolean;
-  /** The existing team id if one exists, else null (gets created on assign). */
   wlTeamId: string | null;
 };
 
 /** Full team context returned for the Eng's "my team" view */
 export type MyEngTeamContext = {
-  /** null when the Eng hasn't been assigned to any team yet */
   assignment: {
     assignmentId: string;
     wlTeamId: string;
@@ -43,10 +42,10 @@ export type MyEngTeamContext = {
     coverageStartHour: number | null;
     coverageEndHour: number | null;
   } | null;
-  /** How many Engs are currently active on the same WL team */
+  teamEngs: AssignedEngRow[];
   teamEngCount: number;
-  /** Alliance-level minimum Engs per WL */
   minEngsPerTeam: number;
+  professionSince: string | null;
 };
 
 /** Full team context returned for the WL's intelligence dashboard */
@@ -55,6 +54,7 @@ export type MyWlTeamContext = {
   activeEngs: AssignedEngRow[];
   minEngsPerTeam: number;
   isCovered: boolean;
+  professionSince: string | null;
 };
 
 /** A row in the officer profession overview */
@@ -65,12 +65,14 @@ export type OfficerWlRow = {
   activeEngCount: number;
   minEngsPerTeam: number;
   isCovered: boolean;
+  assignedEngNames: string[];
 };
 
 /** A row for an unassigned Engineer in the officer view */
 export type OfficerUnassignedEngRow = {
   engCommanderId: string;
   engName: string | null;
+  profession: string | null;
 };
 
 /** An event in the officer activity feed */

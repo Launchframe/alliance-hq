@@ -5,12 +5,12 @@ import { and, eq } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import type { MyEngTeamContext, MyWlTeamContext, WlSuggestion } from "./types";
 import {
-  countActiveEngsForTeam,
   createEngAssignment,
   getActiveAssignmentsForTeam,
   getEngActiveAssignment,
   getEngAssignment,
   getOfficerWlOverview,
+  getProfessionSince,
   getRecentWlTeamEvents,
   getWlSuggestions,
   getWlTeam,
@@ -93,12 +93,22 @@ export async function resolveCommanderForDiscordUser(
 export async function updateCommanderProfession(
   commanderId: string,
   profession: "Engineer" | "War Leader",
+  allianceId?: string,
 ): Promise<void> {
   const db = getDb();
   await db
     .update(schema.commanders)
     .set({ profession, updatedAt: new Date() })
     .where(eq(schema.commanders.id, commanderId));
+
+  if (allianceId) {
+    await logWlTeamEvent({
+      allianceId,
+      eventKind: "profession_switched",
+      actorCommanderId: commanderId,
+      details: { to: profession, firstSet: true },
+    });
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -119,9 +129,11 @@ export async function getMyEngTeam(
 
   const minEngsPerTeam = alliance?.wlMinEngsPerTeam ?? 2;
   const assignment = await getEngActiveAssignment(allianceId, engCommanderId);
-  const teamEngCount = assignment
-    ? await countActiveEngsForTeam(assignment.wlTeamId)
-    : 0;
+  const teamEngs = assignment
+    ? await getActiveAssignmentsForTeam(assignment.wlTeamId)
+    : [];
+  const teamEngCount = teamEngs.length;
+  const since = await getProfessionSince(allianceId, engCommanderId);
 
   return {
     assignment: assignment
@@ -135,8 +147,10 @@ export async function getMyEngTeam(
           coverageEndHour: assignment.coverageEndHour,
         }
       : null,
+    teamEngs,
     teamEngCount,
     minEngsPerTeam,
+    professionSince: since?.toISOString() ?? null,
   };
 }
 
@@ -270,9 +284,16 @@ export async function getMyWlTeam(
 
   const minEngsPerTeam = alliance?.wlMinEngsPerTeam ?? 2;
   const team = await getWlTeam(allianceId, wlCommanderId);
+  const since = await getProfessionSince(allianceId, wlCommanderId);
 
   if (!team) {
-    return { wlTeamId: null, activeEngs: [], minEngsPerTeam, isCovered: false };
+    return {
+      wlTeamId: null,
+      activeEngs: [],
+      minEngsPerTeam,
+      isCovered: false,
+      professionSince: since?.toISOString() ?? null,
+    };
   }
 
   const activeEngs = await getActiveAssignmentsForTeam(team.id);
@@ -281,6 +302,7 @@ export async function getMyWlTeam(
     activeEngs,
     minEngsPerTeam,
     isCovered: activeEngs.length >= minEngsPerTeam,
+    professionSince: since?.toISOString() ?? null,
   };
 }
 
@@ -357,7 +379,6 @@ export async function switchProfession(input: {
   fromProfession: "Engineer" | "War Leader";
   toProfession: "Engineer" | "War Leader";
 }): Promise<{ freedEngs: string[] }> {
-  const db = getDb();
   const freedEngs: string[] = [];
 
   if (input.fromProfession === "War Leader") {
@@ -408,6 +429,74 @@ export async function switchProfession(input: {
   });
 
   return { freedEngs };
+}
+
+/** Randomly assign an Eng to an under-covered WL team. */
+export async function assignEngToRandomWl(
+  allianceId: string,
+  engCommanderId: string,
+): Promise<{ wlCommanderId: string; wlName: string | null }> {
+  const suggestions = await getSuggestionsForEng(allianceId, engCommanderId);
+  if (suggestions.length === 0) {
+    throw new Error("No War Leaders available for assignment.");
+  }
+
+  const minCount = Math.min(...suggestions.map((s) => s.activeEngCount));
+  const candidates = suggestions.filter((s) => s.activeEngCount === minCount);
+  const pick = candidates[Math.floor(Math.random() * candidates.length)]!;
+
+  await assignEngToWl({
+    allianceId,
+    engCommanderId,
+    wlCommanderId: pick.wlCommanderId,
+  });
+
+  return { wlCommanderId: pick.wlCommanderId, wlName: pick.wlName };
+}
+
+/** Officer assigns an Eng to a WL team. */
+export async function officerAssignEng(input: {
+  allianceId: string;
+  engCommanderId: string;
+  wlCommanderId: string;
+}): Promise<void> {
+  await assignEngToWl(input);
+}
+
+/** Officer sets a commander's profession. */
+export async function officerSetProfession(input: {
+  allianceId: string;
+  commanderId: string;
+  toProfession: "Engineer" | "War Leader";
+}): Promise<void> {
+  const db = getDb();
+  const [commander] = await db
+    .select({ profession: schema.commanders.profession })
+    .from(schema.commanders)
+    .where(eq(schema.commanders.id, input.commanderId))
+    .limit(1);
+
+  if (!commander) throw new Error("Commander not found.");
+
+  const from = commander.profession as "Engineer" | "War Leader" | null;
+  if (from === input.toProfession) {
+    throw new Error("Commander already has this profession.");
+  }
+
+  if (from) {
+    await switchProfession({
+      allianceId: input.allianceId,
+      commanderId: input.commanderId,
+      fromProfession: from,
+      toProfession: input.toProfession,
+    });
+  } else {
+    await updateCommanderProfession(
+      input.commanderId,
+      input.toProfession,
+      input.allianceId,
+    );
+  }
 }
 
 // ---------------------------------------------------------------------------

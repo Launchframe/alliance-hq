@@ -2,6 +2,7 @@ import { getTranslations } from "next-intl/server";
 
 import { ProfessionsPage } from "@/components/professions/ProfessionsPage";
 import { requirePageSession } from "@/lib/session";
+import { sessionHasPermission } from "@/lib/rbac/context";
 import { resolveCommanderForHqUser } from "@/lib/professions/service";
 
 export const dynamic = "force-dynamic";
@@ -19,11 +20,14 @@ export default async function ProfessionsRoute() {
     ? await resolveCommanderForHqUser(session.hqUserId, allianceId)
     : null;
 
+  const isOfficer = await sessionHasPermission(session.id, "alliance:admin");
+
   return (
     <ProfessionsPage
       allianceId={allianceId}
       commanderId={commanderCtx?.commanderId ?? null}
       profession={commanderCtx?.profession ?? null}
+      isOfficer={isOfficer}
     />
   );
 }
