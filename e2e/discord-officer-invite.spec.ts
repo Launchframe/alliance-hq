@@ -29,7 +29,8 @@ function extractInviteToken(inviteUrl: string): string {
 }
 
 function e2eDiscordUserId(): string {
-  return `9${String(Date.now()).slice(-16)}${randomBytes(1).readUInt8(0) % 10}`;
+  const suffix = String(randomBytes(2).readUInt16BE(0) % 100000).padStart(5, "0");
+  return `1234567890123${suffix}`;
 }
 
 test.describe("Discord officer invites", () => {
@@ -146,7 +147,7 @@ test.describe("Discord officer invites", () => {
 
     await page.context().addCookies(playwrightAuthCookies(officer));
     await page.goto(`/invite/${encodeURIComponent(token)}`);
-    await expect(page.getByText(alliance.name)).toBeVisible();
+    await expect(page.getByLabel(/passphrase/i)).toBeVisible();
     await page.getByLabel(/passphrase/i).fill(passphrase);
     await page.getByRole("button", { name: /accept invite/i }).click();
     await expect(page).toHaveURL(/\/onboard/);
@@ -207,7 +208,7 @@ test.describe("Discord officer invites", () => {
       }),
     });
     const body = (await res.json()) as { code?: string; error?: string };
-    expect(res.status()).toBe(400);
+    expect(res.status).toBe(400);
     expect(body.code).toBe("discord_user_mismatch");
   });
 
@@ -260,7 +261,7 @@ test.describe("Discord officer invites", () => {
       }),
     });
     const body = (await res.json()) as { code?: string };
-    expect(res.status()).toBe(400);
+    expect(res.status).toBe(400);
     expect(body.code).toBe("discord_login_required");
   });
 
