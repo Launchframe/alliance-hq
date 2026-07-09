@@ -207,16 +207,14 @@ test.describe("Member access — no Ashed embeds until connected", () => {
     await page.context().addCookies(playwrightAuthCookies(accepted));
     await page.goto("/members");
 
-    // Native alliances hide iframe nav; footer external link is always present.
-    await expect(page.getByRole("link", { name: /^dashboard$/i })).toHaveCount(
-      0,
-    );
+    // Native alliances hide iframe nav; dashboard is native HQ.
+    await expect(page.getByRole("link", { name: /^dashboard$/i })).toBeVisible();
     await expect(page.getByRole("link", { name: /open ashed/i })).toHaveCount(
       1,
     );
 
     await page.goto("/dashboard");
-    await expect(page).toHaveURL(/\/members/);
+    await expect(page).toHaveURL(/\/dashboard/);
   });
 
   test("member can attempt Ashed connect (not blocked by member role)", async ({
@@ -315,9 +313,7 @@ test.describe("Member access — no Ashed embeds until connected", () => {
     await page.context().addCookies(playwrightAuthCookies(accepted));
     await page.goto("/members");
 
-    await expect(page.getByRole("link", { name: /^dashboard$/i })).toHaveCount(
-      0,
-    );
+    await expect(page.getByRole("link", { name: /^dashboard$/i })).toBeVisible();
     await page.goto("/dashboard");
     await expect(page).toHaveURL(/\/dashboard/);
     await page.goto("/account");

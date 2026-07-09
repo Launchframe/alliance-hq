@@ -284,8 +284,8 @@ test.describe("Get-started routing", () => {
     await page.goto("/get-started");
 
     await expect(page).not.toHaveURL(/\/get-started/);
-    // /dashboard iframe routes redirect HQ-only sessions to /members
-    await expect(page).toHaveURL(/\/members/);
+    // HQ-only sessions land on native /dashboard with connect nudge
+    await expect(page).toHaveURL(/\/dashboard/);
     await expect(
       page.getByRole("link", { name: /^Connect Ashed$/i }),
     ).toBeVisible();

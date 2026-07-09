@@ -22,6 +22,7 @@ export function HybridAshedPageShell({ pageId, canUseAshedPane, children }: Prop
   const title = tNav(page.labelKey);
   const { prefs, setMobilePane, setHqRatio, setHqCollapsed, setAshedCollapsed } =
     useHybridAshedLayout(pageId);
+  const { desktop, mobile } = prefs;
   const dragRef = useRef<{ startX: number; startRatio: number } | null>(null);
   const [dragging, setDragging] = useState(false);
 
@@ -38,18 +39,26 @@ export function HybridAshedPageShell({ pageId, canUseAshedPane, children }: Prop
     [pageId, setHqRatio],
   );
 
-  const endDrag = useCallback(() => {
-    dragRef.current = null;
-    setDragging(false);
-    window.removeEventListener("pointermove", onPointerMove);
-    window.removeEventListener("pointerup", endDrag);
-  }, [onPointerMove]);
+  const startDrag = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      dragRef.current = { startX: event.clientX, startRatio: desktop.hqRatio };
+      setDragging(true);
+      const handlePointerUp = () => {
+        dragRef.current = null;
+        setDragging(false);
+        window.removeEventListener("pointermove", onPointerMove);
+        window.removeEventListener("pointerup", handlePointerUp);
+      };
+      window.addEventListener("pointermove", onPointerMove);
+      window.addEventListener("pointerup", handlePointerUp);
+    },
+    [desktop.hqRatio, onPointerMove],
+  );
 
   if (!canUseAshedPane) {
     return <>{children}</>;
   }
 
-  const { desktop, mobile } = prefs;
   const hqWidth = desktop.ashedCollapsed
     ? "100%"
     : desktop.hqCollapsed
@@ -133,12 +142,7 @@ export function HybridAshedPageShell({ pageId, canUseAshedPane, children }: Prop
         {!desktop.hqCollapsed && !desktop.ashedCollapsed ? (
           <div
             className="w-1 shrink-0 cursor-col-resize bg-hq-border hover:bg-hq-accent/60"
-            onPointerDown={(event) => {
-              dragRef.current = { startX: event.clientX, startRatio: desktop.hqRatio };
-              setDragging(true);
-              window.addEventListener("pointermove", onPointerMove);
-              window.addEventListener("pointerup", endDrag);
-            }}
+            onPointerDown={startDrag}
           />
         ) : null}
 

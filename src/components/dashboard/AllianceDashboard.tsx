@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { AnalyticsCard } from "@/components/analytics/AnalyticsCard";
@@ -57,27 +57,32 @@ export function AllianceDashboard() {
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    try {
-      const [summaryRes, vrRes] = await Promise.all([
-        fetch("/api/dashboard/summary"),
-        fetch("/api/dashboard/viral-resistance"),
-      ]);
-      if (!summaryRes.ok) throw new Error(t("loadFailed"));
-      const summary = (await summaryRes.json()) as DashboardSummaryPayload;
-      setData(summary);
-      if (vrRes.ok) {
-        setVrData(await vrRes.json());
-      }
-      setError(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t("loadFailed"));
-    }
-  }, [t]);
-
   useEffect(() => {
-    void load();
-  }, [load]);
+    let cancelled = false;
+    void (async () => {
+      try {
+        const [summaryRes, vrRes] = await Promise.all([
+          fetch("/api/dashboard/summary"),
+          fetch("/api/dashboard/viral-resistance"),
+        ]);
+        if (cancelled) return;
+        if (!summaryRes.ok) throw new Error(t("loadFailed"));
+        const summary = (await summaryRes.json()) as DashboardSummaryPayload;
+        setData(summary);
+        if (vrRes.ok) {
+          setVrData(await vrRes.json());
+        }
+        setError(null);
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : t("loadFailed"));
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [t]);
 
   const linkProgress = useMemo(() => {
     if (!data) return [];

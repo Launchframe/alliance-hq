@@ -178,8 +178,8 @@ test.describe("Native alliance — PA provision through owner onboarding", () =>
     };
     expect(linkBody.outcome, linkBody.message ?? "no message").toBe("linked");
 
-    // 6. Owner reaches the app shell (native /dashboard → /members) with Ashed connect copy.
-    await continueAfterMemberLinkSuccess(page, { expectUrl: /\/members$/ });
+    // 6. Owner reaches native /dashboard with Ashed connect copy.
+    await continueAfterMemberLinkSuccess(page, { expectUrl: /\/dashboard$/ });
     await expect(
       page.getByText(/connect ashed for iframe tools and live roster sync/i),
     ).toBeVisible();

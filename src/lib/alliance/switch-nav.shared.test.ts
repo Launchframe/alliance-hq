@@ -12,8 +12,9 @@ describe("isNativeHqPath", () => {
     expect(isNativeHqPath("/settings")).toBe(true);
   });
 
-  it("excludes Ashed iframe routes", () => {
-    expect(isNativeHqPath("/dashboard")).toBe(false);
+  it("includes native dashboard and excludes Ashed iframe routes", () => {
+    expect(isNativeHqPath("/dashboard")).toBe(true);
+    expect(isNativeHqPath("/dashboard/linking")).toBe(true);
     expect(isNativeHqPath("/donations")).toBe(false);
   });
 });
@@ -28,13 +29,22 @@ describe("resolveAllianceSwitchTargetPath", () => {
     ).toBe("/settings/team");
   });
 
-  it("uses API redirect on iframe routes", () => {
+  it("preserves native dashboard on switch", () => {
     expect(
       resolveAllianceSwitchTargetPath({
         currentPath: "/dashboard",
         apiRedirectPath: "/members",
       }),
-    ).toBe("/members");
+    ).toBe("/dashboard");
+  });
+
+  it("uses API redirect on iframe routes", () => {
+    expect(
+      resolveAllianceSwitchTargetPath({
+        currentPath: "/donations",
+        apiRedirectPath: "/dashboard",
+      }),
+    ).toBe("/dashboard");
   });
 
   it("redirects to Ashed landing when switching from a native HQ path", () => {

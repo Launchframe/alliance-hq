@@ -70,7 +70,7 @@ test.describe("Alliance switcher — session context reset", () => {
       currentAllianceId: allianceB.allianceId,
       tag: allianceB.tag,
       operatingMode: "native",
-      redirectPath: "/members",
+      redirectPath: "/dashboard",
     });
 
     expect(await sessionHasAshedCredential(sql, session.sessionId)).toBe(true);
@@ -200,7 +200,7 @@ test.describe("Alliance switcher — session context reset", () => {
       currentAllianceId: allianceB.allianceId,
       tag: allianceB.tag,
       operatingMode: "native",
-      redirectPath: "/members",
+      redirectPath: "/dashboard",
     });
     expect(await sessionHasAshedCredential(sql, session.sessionId)).toBe(true);
 
@@ -316,7 +316,7 @@ test.describe("Alliance switcher — session context reset", () => {
     await page.context().addCookies(playwrightAuthCookies(session));
     await page.goto("/members");
 
-    await expect(page.getByRole("link", { name: "Dashboard" })).toHaveCount(0);
+    await expect(page.getByRole("link", { name: "Dashboard" })).toBeVisible();
     await expect(page).toHaveURL(/\/members/);
 
     const picker = page.getByLabel("Alliance", { exact: true });

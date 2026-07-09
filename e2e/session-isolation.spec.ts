@@ -154,7 +154,7 @@ test.describe("Browser session isolation — Ashed credential binding", () => {
       }),
     );
     await page.goto("/dashboard");
-    await expect(page).toHaveURL(/\/members/);
+    await expect(page).toHaveURL(/\/dashboard/);
   });
 
   test("different HQ user signing in on same browser session clears stale Ashed cred", async ({

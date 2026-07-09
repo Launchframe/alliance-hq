@@ -1442,16 +1442,6 @@
       }
     }
   },
-  "dashboard": {
-    "title": "Dashboard",
-    "subtitle": "Alliance tools built on top of Ashed. Upload videos, manage scores, and jump to native Ashed pages from the sidebar.",
-    "videoCardTitle": "Upload from video",
-    "videoCardDescription": "Drop a screen recording — we extract scoreboard frames and send them to Ashed.",
-    "reportsCardTitle": "View reports on Ashed ↗",
-    "reportsCardDescription": "Open the full Ashed reports dashboard in a new tab.",
-    "aboutTitle": "About Alliance HQ",
-    "aboutBody": "This app extends <link>ashed.online</link> with alliance-specific tools. All core data and OCR processing remain on Ashed — we add convenience features the main app does not ship yet."
-  },
   "connect": {
     "progressLabel": "Setup progress",
     "title": "Connect your Ashed account",

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { AnalyticsCard } from "@/components/analytics/AnalyticsCard";
@@ -38,20 +38,25 @@ export function HeroPowerDetailClient() {
   const [data, setData] = useState<Payload | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    try {
-      const res = await fetch(`/api/dashboard/hero-power?range=${range}`);
-      if (!res.ok) throw new Error(t("loadFailed"));
-      setData(await res.json());
-      setError(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t("loadFailed"));
-    }
-  }, [range, t]);
-
   useEffect(() => {
-    void load();
-  }, [load]);
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch(`/api/dashboard/hero-power?range=${range}`);
+        if (cancelled) return;
+        if (!res.ok) throw new Error(t("loadFailed"));
+        setData(await res.json());
+        setError(null);
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : t("loadFailed"));
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [range, t]);
 
   if (error) {
     return <p className="text-sm text-red-200">{error}</p>;

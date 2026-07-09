@@ -1442,16 +1442,6 @@
       }
     }
   },
-  "dashboard": {
-    "title": "Painel de Controle",
-    "subtitle": "Ferramentas da Alliance construídas sobre o Ashed. Envie vídeos, gerencie pontuações e acesse páginas nativas do Ashed a partir da barra lateral.",
-    "videoCardTitle": "Enviar vídeo",
-    "videoCardDescription": "Grave a tela — extraímos os frames do placar e os enviamos para o Ashed.",
-    "reportsCardTitle": "Ver relatórios no Ashed ↗",
-    "reportsCardDescription": "Abra o painel de relatórios completo do Ashed em uma nova aba.",
-    "aboutTitle": "Sobre a Alliance HQ",
-    "aboutBody": "Este aplicativo complementa o <link>ashed.online</link> com ferramentas específicas para alianças. Todos os dados principais e o processamento via OCR permanecem no Ashed — nós adicionamos recursos de conveniência que o aplicativo principal ainda não oferece."
-  },
   "connect": {
     "progressLabel": "Progresso da configuração",
     "title": "Conecte sua conta Ashed",

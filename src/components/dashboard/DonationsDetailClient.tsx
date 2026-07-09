@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { AnalyticsCard } from "@/components/analytics/AnalyticsCard";
@@ -26,14 +26,17 @@ export function DonationsDetailClient() {
   const [range, setRange] = useState<Range>("90d");
   const [data, setData] = useState<Payload | null>(null);
 
-  const load = useCallback(async () => {
-    const res = await fetch(`/api/dashboard/donations?range=${range}`);
-    if (res.ok) setData(await res.json());
-  }, [range]);
-
   useEffect(() => {
-    void load();
-  }, [load]);
+    let cancelled = false;
+    void (async () => {
+      const res = await fetch(`/api/dashboard/donations?range=${range}`);
+      if (cancelled || !res.ok) return;
+      setData(await res.json());
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [range]);
 
   if (!data) {
     return <p className="text-sm text-hq-fg-muted">{t("loading")}</p>;
