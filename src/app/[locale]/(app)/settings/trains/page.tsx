@@ -9,6 +9,7 @@ import { AllianceTrainMinimumsSettings } from "@/components/settings/AllianceTra
 import { AllianceTrainWeekSettings } from "@/components/settings/AllianceTrainWeekSettings";
 import { AllianceVrSandboxSettings } from "@/components/settings/AllianceVrSandboxSettings";
 import { AllianceContextRequired } from "@/components/settings/AllianceContextRequired";
+import { isDiscordBotInstallConfigured } from "@/lib/discord/bot-install-url.server";
 import { getDb, schema } from "@/lib/db";
 import { requireAllianceSettingsSession } from "@/lib/settings/alliance-settings-access.server";
 import { requirePageSession } from "@/lib/session";
@@ -64,7 +65,10 @@ export default async function SettingsTrainsPage({
       </div>
 
       <AllianceTrainWeekSettings allianceTag={allianceTag} />
-      <AllianceTrainDiscordSettings allianceTag={allianceTag} />
+      <AllianceTrainDiscordSettings
+        allianceTag={allianceTag}
+        installConfigured={isDiscordBotInstallConfigured()}
+      />
       <AllianceTrainMinimumsSettings allianceTag={allianceTag} />
       <AllianceTrainEconomyThresholdSettings allianceTag={allianceTag} />
       <AllianceVrSandboxSettings allianceTag={allianceTag} />

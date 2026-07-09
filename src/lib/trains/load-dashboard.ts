@@ -253,6 +253,7 @@ export async function loadTrainsDashboard(
     : {
         announcementsEnabled: false,
         guildChannelCount: 0,
+        guilds: [],
         canManage: false,
       };
   const trainDiscordFields = {

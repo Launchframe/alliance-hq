@@ -1284,6 +1284,31 @@ export async function setAllianceTrainDiscordAnnouncementsEnabled(
     .where(eq(schema.alliances.id, allianceId));
 }
 
+export async function listAllianceDiscordGuildTrainSetup(
+  allianceId: string,
+): Promise<
+  Array<{
+    guildId: string;
+    hasTrainChannel: boolean;
+    discordOpenUrl: string;
+  }>
+> {
+  const db = getDb();
+  const rows = await db
+    .select({
+      guildId: schema.discordGuildAlliances.guildId,
+      trainChannelId: schema.discordGuildAlliances.trainChannelId,
+    })
+    .from(schema.discordGuildAlliances)
+    .where(eq(schema.discordGuildAlliances.allianceId, allianceId));
+
+  return rows.map((row) => ({
+    guildId: row.guildId,
+    hasTrainChannel: Boolean(row.trainChannelId?.trim()),
+    discordOpenUrl: `https://discord.com/channels/${row.guildId}`,
+  }));
+}
+
 export async function listGuildTrainChannelsForAlliance(
   allianceId: string,
 ): Promise<Array<{ guildId: string; channelId: string }>> {
