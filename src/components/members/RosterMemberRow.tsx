@@ -17,14 +17,10 @@ import {
 } from "@/lib/members/alliance-rank";
 import type { RosterColumnId, RosterMergedRow } from "@/lib/members/roster-index.shared";
 import {
-  rosterRowTotalHeroPower,
+  rosterRowPowerLevel,
+  rosterRowThpDisplay,
   visibleRosterColumns,
 } from "@/lib/members/roster-index.shared";
-
-function thpDisplay(value: number): string {
-  if (value <= 0) return "—";
-  return value.toLocaleString();
-}
 
 function rankDisplay(rank: number | null): string {
   return rank != null ? `R${rank}` : "—";
@@ -158,9 +154,13 @@ export function RosterMemberRow({
         return titleLabel;
       case "status":
         return statusBadge;
+      case "powerLevel":
+        return (
+          <span className="font-mono">{rosterRowPowerLevel(row)}</span>
+        );
       case "thp":
         return (
-          <span className="font-mono">{thpDisplay(rosterRowTotalHeroPower(row))}</span>
+          <span className="font-mono">{rosterRowThpDisplay(row)}</span>
         );
       case "mainSquad":
         return commander?.mainSquad ? (
@@ -327,6 +327,7 @@ export function rosterColumnHeaderLabel(
   tCommanders: (key: string) => string,
 ): string {
   if (columnId === "thp") return tCommanders("colThp");
+  if (columnId === "powerLevel") return tCommanders("colPowerLevel");
   if (columnId === "mainSquad") return tCommanders("colSquad");
   if (columnId === "inGameRank") return tCommanders("colInGameRank");
   if (columnId === "vr") return tCommanders("colVr");

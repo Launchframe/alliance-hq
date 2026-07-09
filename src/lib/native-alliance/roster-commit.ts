@@ -11,13 +11,14 @@ import { formatAshedMemberRankValue } from "@/lib/members/alliance-rank";
 import { syncMemberNameToAshed } from "@/lib/members/member-name-sync.server";
 import {
   appendMemberGameLevelEventIfChanged,
-  appendMemberPowerLevelEventIfChanged,
+  appendCommanderPowerLevelEventIfChanged,
 } from "@/lib/members/member-stat-history.server";
 import {
   syncCommanderFromAllianceMember,
   validateRosterImportCommanderIdentities,
 } from "@/lib/members/commander-identity.server";
 import { CommanderIdentityConflictError } from "@/lib/members/commander-identity-conflicts.shared";
+import { getCommanderIdForMember } from "@/lib/thp/repository";
 import { getServerCalendarDate } from "@/lib/trains/game-time";
 
 import { nativeRosterAshedAllianceId } from "./provision";
@@ -101,14 +102,19 @@ async function appendStatEventsForRow(input: {
   source: "roster_import" | "video_parse";
 }): Promise<void> {
   if (input.powerLevel) {
-    await appendMemberPowerLevelEventIfChanged({
-      allianceId: input.allianceId,
-      ashedMemberId: input.ashedMemberId,
-      memberName: input.memberName,
-      value: input.powerLevel,
-      source: input.source,
-      recordedByHqUserId: input.hqUserId,
-    });
+    const commanderId = await getCommanderIdForMember(
+      input.allianceId,
+      input.ashedMemberId,
+    );
+    if (commanderId) {
+      await appendCommanderPowerLevelEventIfChanged({
+        commanderId,
+        allianceId: input.allianceId,
+        value: input.powerLevel,
+        source: input.source,
+        recordedByHqUserId: input.hqUserId,
+      });
+    }
   }
   if (input.memberLevel != null) {
     await appendMemberGameLevelEventIfChanged({
@@ -201,10 +207,6 @@ export async function commitRosterImport(
             row.allianceRank,
             row.allianceRankTitle,
           ),
-          heroPowerM: row.heroPowerM ?? existing.heroPowerM,
-          memberLevel: row.memberLevel ?? existing.memberLevel,
-          powerLevel: row.powerLevel ?? existing.powerLevel,
-          profession: row.profession ?? existing.profession,
           syncedAt: now,
           updatedAt: now,
         })
@@ -257,6 +259,11 @@ export async function commitRosterImport(
         allianceId: input.allianceId,
         ashedMemberId: existing.ashedMemberId,
         memberDisplayName: name,
+        ashedStats: {
+          powerLevel: row.powerLevel ?? null,
+          memberLevel: row.memberLevel ?? null,
+          profession: row.profession ?? null,
+        },
         thpSource: eventSource,
         hqUserId: input.hqUserId,
       });
@@ -282,10 +289,6 @@ export async function commitRosterImport(
         row.allianceRank,
         row.allianceRankTitle,
       ),
-      heroPowerM: row.heroPowerM ?? null,
-      memberLevel: row.memberLevel ?? null,
-      powerLevel: row.powerLevel ?? null,
-      profession: row.profession ?? null,
       syncedAt: now,
       updatedAt: now,
     });
@@ -317,6 +320,11 @@ export async function commitRosterImport(
       allianceId: input.allianceId,
       ashedMemberId,
       memberDisplayName: name,
+      ashedStats: {
+        powerLevel: row.powerLevel ?? null,
+        memberLevel: row.memberLevel ?? null,
+        profession: row.profession ?? null,
+      },
       thpSource: eventSource,
       hqUserId: input.hqUserId,
     });

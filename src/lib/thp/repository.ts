@@ -9,7 +9,6 @@ import type { ThpEventSource } from "@/lib/thp/constants";
 import type { ThpBreakdown } from "@/lib/thp/my-thp.shared";
 import { parseStoredThpPending } from "@/lib/thp/pending-state";
 import type { ThpPendingState } from "@/lib/thp/types";
-import { getServerCalendarDate } from "@/lib/trains/game-time";
 
 const PENDING_TTL_MS = 30 * 60 * 1000;
 
@@ -148,47 +147,6 @@ export async function upsertCommanderThp(input: {
       updatedAt: now,
     })
     .where(eq(schema.commanders.id, input.commanderId));
-
-  if (input.allianceId && input.ashedMemberId && input.memberName) {
-    await db
-      .update(schema.allianceMembers)
-      .set({
-        currentTotalHeroPower: input.total,
-        updatedAt: now,
-      })
-      .where(
-        and(
-          eq(schema.allianceMembers.allianceId, input.allianceId),
-          eq(schema.allianceMembers.ashedMemberId, input.ashedMemberId),
-        ),
-      );
-
-    const recordedDate = getServerCalendarDate();
-    const [existingMemberEvent] = await db
-      .select({ id: schema.memberTotalHeroPowerEvents.id })
-      .from(schema.memberTotalHeroPowerEvents)
-      .where(
-        and(
-          eq(schema.memberTotalHeroPowerEvents.allianceId, input.allianceId),
-          eq(schema.memberTotalHeroPowerEvents.ashedMemberId, input.ashedMemberId),
-          eq(schema.memberTotalHeroPowerEvents.recordedDate, recordedDate),
-        ),
-      )
-      .limit(1);
-
-    if (!existingMemberEvent) {
-      await db.insert(schema.memberTotalHeroPowerEvents).values({
-        id: nanoid(),
-        allianceId: input.allianceId,
-        ashedMemberId: input.ashedMemberId,
-        memberName: input.memberName,
-        value: input.total,
-        recordedDate,
-        source: input.source,
-        recordedByHqUserId: input.hqUserId ?? null,
-      });
-    }
-  }
 
   return true;
 }

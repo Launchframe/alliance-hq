@@ -121,14 +121,31 @@ describe("leaderboard", () => {
       .toMatchObject({ weeklyPassActive: true, highestBaseVr: 12000 });
   });
 
-  it("maps heroPowerM to THP for native roster members", () => {
-    expect(
-      memberTotalHeroPower({
-        id: "m1",
-        current_name: "Alpha",
-        heroPowerM: 4.2,
-      } as never),
-    ).toBe(4_200_000);
+  it("prefers commander THP stats map values", () => {
+    const rows = buildLeaderboardRows(
+      [
+        {
+          id: "1",
+          allianceId: "a",
+          ashedMemberId: "m1",
+          seasonKey: "1",
+          highestBaseVr: 1000,
+          instituteLevel: 10,
+          flaggedAt: null,
+          flagReason: null,
+          updatedByDiscordUserId: null,
+          updatedByHqUserId: null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ],
+      [{ id: "m1", current_name: "Alpha", total_hero_power: 4_200_000 } as never],
+      [],
+      "1",
+      undefined,
+      new Map([["m1", { currentTotalHeroPower: 9_999_999 }]]),
+    );
+    expect(rows[0]?.totalHeroPower).toBe(9_999_999);
   });
 
   it("formats daily report via formatVrLeaderboard", () => {

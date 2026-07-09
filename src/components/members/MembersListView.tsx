@@ -69,6 +69,7 @@ const ATTENTION_SUMMARY_POLL_MS = 60_000;
 
 const SORTABLE_COLUMNS: Partial<Record<RosterColumnId, RosterSortKey>> = {
   name: "name",
+  powerLevel: "powerLevel",
   thp: "thp",
   mainSquad: "squad",
   inGameRank: "allianceRank",

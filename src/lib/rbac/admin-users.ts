@@ -53,7 +53,8 @@ export type AdminLinkedCommanderRow = {
   isPrimary: boolean;
   linkedAt: Date;
   gameServerNumber: number | null;
-  heroPowerM: number | null;
+  powerLevel: string | null;
+  currentTotalHeroPower: number | null;
   memberLevel: number | null;
   mainSquad: string | null;
   rosterMemberships: AdminLinkedCommanderMembershipRow[];
@@ -235,7 +236,8 @@ async function loadLinkedCommanderRowsForUsers(
       isPrimary: schema.hqUserCommanders.isPrimary,
       linkedAt: schema.hqUserCommanders.linkedAt,
       gameServerNumber: schema.commanders.gameServerNumber,
-      heroPowerM: schema.commanders.heroPowerM,
+      powerLevel: schema.commanders.powerLevel,
+      currentTotalHeroPower: schema.commanders.currentTotalHeroPower,
       memberLevel: schema.commanders.memberLevel,
       mainSquad: schema.commanders.mainSquad,
     })
@@ -299,7 +301,8 @@ async function loadLinkedCommanderRowsForUsers(
     isPrimary: row.isPrimary,
     linkedAt: row.linkedAt,
     gameServerNumber: row.gameServerNumber,
-    heroPowerM: row.heroPowerM,
+    powerLevel: row.powerLevel,
+    currentTotalHeroPower: row.currentTotalHeroPower,
     memberLevel: row.memberLevel,
     mainSquad: row.mainSquad,
     rosterMemberships: membershipsByCommander.get(row.commanderId) ?? [],
@@ -343,7 +346,8 @@ function groupLinkedCommandersByUser(
       isPrimary: row.isPrimary,
       linkedAt: row.linkedAt,
       gameServerNumber: row.gameServerNumber,
-      heroPowerM: row.heroPowerM,
+      powerLevel: row.powerLevel,
+      currentTotalHeroPower: row.currentTotalHeroPower,
       memberLevel: row.memberLevel,
       mainSquad: row.mainSquad,
       rosterMemberships: row.rosterMemberships,

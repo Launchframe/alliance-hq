@@ -5,26 +5,12 @@ import { nanoid } from "nanoid";
 
 import { getDb, schema } from "@/lib/db";
 import type { ThpEventSource } from "@/lib/thp/constants";
+import { resolveThpTotalFromSnapshot } from "@/lib/commanders/power-stats.shared";
+import type { CommanderAshedStats } from "@/lib/commanders/commander-ashed-stats.shared";
 import {
   getCommanderIdForMember,
   upsertCommanderThp,
 } from "@/lib/thp/repository";
-
-function resolveMemberThpTotal(memberRow: {
-  currentTotalHeroPower: number | null;
-  heroPowerM: number | null;
-}): number | null {
-  if (
-    typeof memberRow.currentTotalHeroPower === "number" &&
-    memberRow.currentTotalHeroPower > 0
-  ) {
-    return Math.round(memberRow.currentTotalHeroPower);
-  }
-  if (typeof memberRow.heroPowerM === "number" && memberRow.heroPowerM > 0) {
-    return Math.round(memberRow.heroPowerM * 1_000_000);
-  }
-  return null;
-}
 
 function parseRecordedDate(value: string): Date {
   const parsed = new Date(`${value}T12:00:00.000Z`);
@@ -80,6 +66,45 @@ async function backfillCommanderThpEvent(input: {
   return true;
 }
 
+async function backfillCommanderPowerLevelEvent(input: {
+  commanderId: string;
+  allianceId: string;
+  value: string;
+  recordedDate: string;
+  source: ThpEventSource;
+  createdAt: Date;
+}): Promise<boolean> {
+  const db = getDb();
+  const [existing] = await db
+    .select({ id: schema.commanderPowerLevelEvents.id })
+    .from(schema.commanderPowerLevelEvents)
+    .where(
+      and(
+        eq(schema.commanderPowerLevelEvents.commanderId, input.commanderId),
+        eq(schema.commanderPowerLevelEvents.allianceId, input.allianceId),
+        eq(schema.commanderPowerLevelEvents.recordedDate, input.recordedDate),
+        eq(schema.commanderPowerLevelEvents.value, input.value),
+      ),
+    )
+    .limit(1);
+
+  if (existing) {
+    return false;
+  }
+
+  await db.insert(schema.commanderPowerLevelEvents).values({
+    id: nanoid(),
+    commanderId: input.commanderId,
+    allianceId: input.allianceId,
+    value: input.value,
+    recordedDate: input.recordedDate,
+    source: input.source,
+    recordedAt: input.createdAt,
+    recordedByHqUserId: null,
+  });
+  return true;
+}
+
 export async function syncCommanderThpFromAllianceMember(input: {
   commanderId: string;
   allianceId: string;
@@ -105,19 +130,16 @@ export async function syncCommanderThpFromAllianceMember(input: {
   });
 }
 
-export async function syncCommanderThpAfterMemberSync(input: {
+export async function syncCommanderThpAfterAshedStats(input: {
   commanderId: string;
   allianceId: string;
   ashedMemberId: string;
   memberName: string;
-  memberRow: {
-    currentTotalHeroPower: number | null;
-    heroPowerM: number | null;
-  };
+  ashedStats: CommanderAshedStats | null | undefined;
   source: ThpEventSource;
   hqUserId?: string | null;
 }): Promise<boolean> {
-  const total = resolveMemberThpTotal(input.memberRow);
+  const total = resolveThpTotalFromSnapshot(input.ashedStats ?? {});
   if (total == null) {
     return false;
   }
@@ -170,17 +192,50 @@ export async function seedCommanderThpHistoryFromAshed(input: {
   return inserted;
 }
 
+export async function seedCommanderPowerLevelHistoryFromAshed(input: {
+  commanderId: string;
+  allianceId: string;
+  history?: Array<{ value: string; recorded_date: string }>;
+  source?: ThpEventSource;
+}): Promise<number> {
+  const points = [...(input.history ?? [])].sort((a, b) =>
+    a.recorded_date.localeCompare(b.recorded_date),
+  );
+  if (points.length === 0) {
+    return 0;
+  }
+
+  const source = input.source ?? "ashed_sync";
+  let inserted = 0;
+
+  for (const point of points) {
+    const value = point.value?.trim();
+    if (!value) continue;
+    const created = await backfillCommanderPowerLevelEvent({
+      commanderId: input.commanderId,
+      allianceId: input.allianceId,
+      value,
+      recordedDate: point.recorded_date,
+      source,
+      createdAt: parseRecordedDate(point.recorded_date),
+    });
+    if (created) {
+      inserted += 1;
+    }
+  }
+
+  return inserted;
+}
+
 export async function syncCommanderThpForMemberIfLinked(input: {
   allianceId: string;
   ashedMemberId: string;
   memberName: string;
-  memberRow: {
-    currentTotalHeroPower: number | null;
-    heroPowerM: number | null;
-  };
+  ashedStats: CommanderAshedStats | null | undefined;
   source: ThpEventSource;
   hqUserId?: string | null;
   history?: Array<{ value: number; recorded_date: string }>;
+  powerLevelHistory?: Array<{ value: string; recorded_date: string }>;
 }): Promise<void> {
   const commanderId = await getCommanderIdForMember(
     input.allianceId,
@@ -196,13 +251,19 @@ export async function syncCommanderThpForMemberIfLinked(input: {
     history: input.history,
     source: input.source,
   });
+  await seedCommanderPowerLevelHistoryFromAshed({
+    commanderId,
+    allianceId: input.allianceId,
+    history: input.powerLevelHistory,
+    source: input.source,
+  });
 
-  await syncCommanderThpAfterMemberSync({
+  await syncCommanderThpAfterAshedStats({
     commanderId,
     allianceId: input.allianceId,
     ashedMemberId: input.ashedMemberId,
     memberName: input.memberName,
-    memberRow: input.memberRow,
+    ashedStats: input.ashedStats,
     source: input.source,
     hqUserId: input.hqUserId,
   });

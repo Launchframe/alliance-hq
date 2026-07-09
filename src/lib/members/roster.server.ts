@@ -9,6 +9,7 @@ import { getDb, schema } from "@/lib/db";
 import type { AllianceMember } from "@/lib/db/schema";
 import type { AshedMemberRecord } from "@/lib/members/ashed-member-record";
 import { formatAshedMemberRankValue } from "@/lib/members/alliance-rank";
+import { ashedMemberRecordToCommanderStats } from "@/lib/commanders/commander-ashed-stats.shared";
 import { seedMemberStatHistoriesFromAshed } from "@/lib/members/member-stat-history.server";
 import { syncTenureFromMemberStatus } from "@/lib/members/member-tenure.server";
 import { syncCommanderFromAllianceMember } from "@/lib/members/commander-identity.server";
@@ -71,6 +72,8 @@ export async function syncAllianceMembersFromAshed(input: {
 
     const status = member.status ?? "active";
 
+    const ashedStats = ashedMemberRecordToCommanderStats(record);
+
     await db
       .insert(schema.allianceMembers)
       .values({
@@ -84,27 +87,12 @@ export async function syncAllianceMembersFromAshed(input: {
         allianceRank: normalized.allianceRank,
         allianceRankTitle: normalized.allianceRankTitle,
         ashedRankRaw: normalized.ashedRankRaw,
-        memberLevel:
-          typeof record.level === "number" ? Math.round(record.level) : null,
         joinDate: record.join_date ?? null,
-        profession: record.profession?.toString() ?? null,
-        professionalLevel:
-          typeof record.professional_level === "number"
-            ? record.professional_level
-            : null,
-        powerLevel: record.power_level ?? null,
-        currentKills:
-          typeof record.current_kills === "number" ? record.current_kills : null,
-        currentTotalHeroPower:
-          typeof record.current_total_hero_power === "number"
-            ? record.current_total_hero_power
-            : null,
         notes: record.notes ?? null,
         timezone: record.timezone ?? null,
         recordedDate: record.recorded_date ?? null,
         ashedCreatedAt,
         ashedUpdatedAt,
-        currentSquadPowerJson: record.current_squad_power ?? null,
         squadPowerSnapshotsJson: record.squad_power_snapshots ?? null,
         isSample: record.is_sample ?? null,
         syncedAt: now,
@@ -123,29 +111,12 @@ export async function syncAllianceMembersFromAshed(input: {
           allianceRank: normalized.allianceRank,
           allianceRankTitle: normalized.allianceRankTitle,
           ashedRankRaw: normalized.ashedRankRaw,
-          memberLevel:
-            typeof record.level === "number" ? Math.round(record.level) : null,
           joinDate: record.join_date ?? null,
-          profession: record.profession?.toString() ?? null,
-          professionalLevel:
-            typeof record.professional_level === "number"
-              ? record.professional_level
-              : null,
-          powerLevel: record.power_level ?? null,
-          currentKills:
-            typeof record.current_kills === "number"
-              ? record.current_kills
-              : null,
-          currentTotalHeroPower:
-            typeof record.current_total_hero_power === "number"
-              ? record.current_total_hero_power
-              : null,
           notes: record.notes ?? null,
           timezone: record.timezone ?? null,
           recordedDate: record.recorded_date ?? null,
           ashedCreatedAt,
           ashedUpdatedAt,
-          currentSquadPowerJson: record.current_squad_power ?? null,
           squadPowerSnapshotsJson: record.squad_power_snapshots ?? null,
           isSample: record.is_sample ?? null,
           syncedAt: now,
@@ -158,9 +129,7 @@ export async function syncAllianceMembersFromAshed(input: {
       ashedMemberId,
       memberName: member.current_name,
       levelHistory: record.level_history,
-      powerLevelHistory: record.power_level_history,
       professionalLevelHistory: record.professional_level_history,
-      totalHeroPowerHistory: record.total_hero_power_history,
     });
 
     await syncTenureFromMemberStatus({
@@ -173,8 +142,10 @@ export async function syncAllianceMembersFromAshed(input: {
       allianceId: input.hqAllianceId,
       ashedMemberId,
       memberDisplayName: member.current_name,
+      ashedStats,
       thpSource: "ashed_sync",
       thpHistory: record.total_hero_power_history,
+      powerLevelHistory: record.power_level_history,
     });
     if (syncResult.status === "deferred" && syncResult.conflict) {
       commanderConflicts.push(syncResult.conflict);

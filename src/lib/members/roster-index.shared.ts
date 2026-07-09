@@ -3,7 +3,10 @@ import { commanderIndexRowMatchesHqLinkFilter } from "@/lib/commanders/index.sha
 import type { CommanderIndexHqLinkFilter } from "@/lib/commanders/index.shared";
 import type { MainSquadType } from "@/lib/commanders/main-squad.shared";
 import type { AshedMember } from "@/lib/video/member-matcher";
-import { memberTotalHeroPower } from "@/lib/vr/leaderboard";
+import {
+  commanderPowerLevelDisplay,
+  formatThpDisplay,
+} from "@/lib/commanders/power-stats.shared";
 
 export type RosterColumnId =
   | "name"
@@ -11,6 +14,7 @@ export type RosterColumnId =
   | "allianceRank"
   | "rankTitle"
   | "status"
+  | "powerLevel"
   | "thp"
   | "mainSquad"
   | "inGameRank"
@@ -24,6 +28,7 @@ export const ROSTER_COLUMN_IDS: readonly RosterColumnId[] = [
   "allianceRank",
   "rankTitle",
   "status",
+  "powerLevel",
   "thp",
   "mainSquad",
   "inGameRank",
@@ -63,6 +68,7 @@ export function defaultRosterColumnVisibility(
     allianceRank: true,
     rankTitle: false,
     status: true,
+    powerLevel: true,
     thp: true,
     mainSquad: true,
     inGameRank: false,
@@ -91,10 +97,16 @@ export function mergeMembersWithCommanderIndex(
 }
 
 export function rosterRowTotalHeroPower(row: RosterMergedRow): number {
-  if (row.commander) {
-    return row.commander.totalHeroPower;
-  }
-  return memberTotalHeroPower(row.member);
+  return row.commander?.totalHeroPower ?? 0;
+}
+
+export function rosterRowPowerLevel(row: RosterMergedRow): string {
+  if (!row.commander) return "—";
+  return commanderPowerLevelDisplay({ powerLevel: row.commander.powerLevel });
+}
+
+export function rosterRowThpDisplay(row: RosterMergedRow): string {
+  return formatThpDisplay(rosterRowTotalHeroPower(row));
 }
 
 export function rosterRowMainSquad(
@@ -140,6 +152,7 @@ export function rosterRowMatchesCommanderFilters(
 
 export type RosterSortKey =
   | "name"
+  | "powerLevel"
   | "thp"
   | "squad"
   | "vr"
@@ -172,6 +185,12 @@ export function sortRosterRows(
       case "thp":
         cmp = rosterRowTotalHeroPower(a) - rosterRowTotalHeroPower(b);
         break;
+      case "powerLevel": {
+        const aM = a.commander?.powerLevel ?? "";
+        const bM = b.commander?.powerLevel ?? "";
+        cmp = aM.localeCompare(bM, undefined, { numeric: true });
+        break;
+      }
       case "squad":
         cmp =
           (squadOrder[rosterRowMainSquad(a) ?? ""] ?? 3) -

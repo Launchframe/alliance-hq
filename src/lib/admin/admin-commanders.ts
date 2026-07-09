@@ -29,7 +29,8 @@ export type AdminCommanderListRow = {
 
 export type AdminCommanderDetail = AdminCommanderListRow & {
   previousNames: string[];
-  heroPowerM: number | null;
+  powerLevel: string | null;
+  currentTotalHeroPower: number | null;
   memberLevel: number | null;
   hqUserId: string | null;
   discordUserId: string | null;
@@ -248,8 +249,9 @@ export async function loadAdminCommanderDetail(input: {
       status: sql<string>`coalesce(${schema.commanderAllianceMemberships.status}, ${schema.allianceMembers.status})`,
       allianceRank: sql<number | null>`coalesce(${schema.commanderAllianceMemberships.allianceRank}, ${schema.allianceMembers.allianceRank})`,
       gameUid: sql<string | null>`coalesce(${schema.commanders.gameUid}, ${schema.allianceMembers.gameUid})`,
-      heroPowerM: sql<number | null>`coalesce(${schema.commanders.heroPowerM}, ${schema.allianceMembers.heroPowerM})`,
-      memberLevel: sql<number | null>`coalesce(${schema.commanders.memberLevel}, ${schema.allianceMembers.memberLevel})`,
+      powerLevel: schema.commanders.powerLevel,
+      currentTotalHeroPower: schema.commanders.currentTotalHeroPower,
+      memberLevel: schema.commanders.memberLevel,
       allianceId: schema.allianceMembers.allianceId,
       allianceName: schema.alliances.name,
       allianceTag: schema.alliances.tag,
@@ -310,7 +312,8 @@ export async function loadAdminCommanderDetail(input: {
     previousNames: member.previousNamesJson ?? [],
     status: member.status,
     allianceRank: member.allianceRank,
-    heroPowerM: member.heroPowerM,
+    powerLevel: member.powerLevel,
+    currentTotalHeroPower: member.currentTotalHeroPower,
     memberLevel: member.memberLevel,
     allianceId: member.allianceId,
     allianceName: member.allianceName,

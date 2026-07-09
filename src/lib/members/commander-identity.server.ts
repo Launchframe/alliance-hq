@@ -25,10 +25,16 @@ import {
   type RosterImportNameRow,
 } from "@/lib/members/commander-identity-conflicts.shared";
 import { syncCommanderCurrentAllianceId } from "@/lib/commanders/main-squad.server";
+import {
+  type CommanderAshedStats,
+  commanderStatsFromAshedSnapshot,
+} from "@/lib/commanders/commander-ashed-stats.shared";
+import { resolveThpTotalFromSnapshot } from "@/lib/commanders/power-stats.shared";
 import type { ThpEventSource } from "@/lib/thp/constants";
 import {
+  seedCommanderPowerLevelHistoryFromAshed,
   seedCommanderThpHistoryFromAshed,
-  syncCommanderThpAfterMemberSync,
+  syncCommanderThpFromAllianceMember,
 } from "@/lib/thp/sync-from-member.server";
 
 type AllianceMemberRow = typeof schema.allianceMembers.$inferSelect;
@@ -46,34 +52,17 @@ function normalizeGameUid(gameUid: string): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
-function commanderStatsFromMemberRow(
-  memberRow: AllianceMemberRow | null | undefined,
-  fallbackName?: string | null,
-) {
-  const primaryName = memberRow?.currentName ?? fallbackName ?? null;
-  return {
-    primaryName,
-    primaryNameNormalized: primaryName
-      ? normalizeCommanderName(primaryName)
-      : null,
-    profession: memberRow?.profession ?? null,
-    professionalLevel: memberRow?.professionalLevel ?? null,
-    memberLevel: memberRow?.memberLevel ?? null,
-    heroPowerM: memberRow?.heroPowerM ?? null,
-    powerLevel: memberRow?.powerLevel ?? null,
-    currentKills: memberRow?.currentKills ?? null,
-    currentSquadPowerJson: memberRow?.currentSquadPowerJson ?? null,
-  };
-}
+export type { CommanderAshedStats } from "@/lib/commanders/commander-ashed-stats.shared";
 
 async function mirrorMemberThpToCommander(input: {
   commanderId: string;
   allianceId: string;
   ashedMemberId: string;
   memberName: string;
-  memberRow: AllianceMemberRow;
+  ashedStats?: CommanderAshedStats | null;
   thpSource?: ThpEventSource;
   thpHistory?: Array<{ value: number; recorded_date: string }>;
+  powerLevelHistory?: Array<{ value: string; recorded_date: string }>;
   hqUserId?: string | null;
 }): Promise<void> {
   const source = input.thpSource ?? "ashed_sync";
@@ -83,15 +72,24 @@ async function mirrorMemberThpToCommander(input: {
     history: input.thpHistory,
     source,
   });
-  await syncCommanderThpAfterMemberSync({
+  await seedCommanderPowerLevelHistoryFromAshed({
     commanderId: input.commanderId,
     allianceId: input.allianceId,
-    ashedMemberId: input.ashedMemberId,
-    memberName: input.memberName,
-    memberRow: input.memberRow,
+    history: input.powerLevelHistory,
     source,
-    hqUserId: input.hqUserId,
   });
+  const total = resolveThpTotalFromSnapshot(input.ashedStats ?? {});
+  if (total != null) {
+    await syncCommanderThpFromAllianceMember({
+      commanderId: input.commanderId,
+      allianceId: input.allianceId,
+      ashedMemberId: input.ashedMemberId,
+      memberName: input.memberName,
+      total,
+      source,
+      hqUserId: input.hqUserId,
+    });
+  }
 }
 
 async function loadAllianceMemberRow(
@@ -471,6 +469,7 @@ async function upsertCommanderRow(input: {
   ashedMemberId: string;
   memberDisplayName?: string | null;
   existingCommanderId?: string | null;
+  ashedStats?: CommanderAshedStats | null;
 }): Promise<{ commanderId: string }> {
   const db = getDb();
   const now = new Date();
@@ -478,7 +477,10 @@ async function upsertCommanderRow(input: {
     input.allianceId,
     input.ashedMemberId,
   );
-  const stats = commanderStatsFromMemberRow(memberRow, input.memberDisplayName);
+  const stats = commanderStatsFromAshedSnapshot(
+    input.ashedStats,
+    memberRow?.currentName ?? input.memberDisplayName ?? null,
+  );
   const normalizedUid = input.gameUid ? normalizeGameUid(input.gameUid) : null;
 
   if (normalizedUid) {
@@ -534,6 +536,7 @@ export async function upsertCommanderFromLink(input: {
   allianceId: string;
   ashedMemberId: string;
   memberDisplayName?: string | null;
+  ashedStats?: CommanderAshedStats | null;
 }): Promise<{ commanderId: string }> {
   const normalized = normalizeGameUid(input.gameUid);
   if (!normalized) {
@@ -570,6 +573,7 @@ export async function upsertCommanderFromLink(input: {
     ashedMemberId: input.ashedMemberId,
     memberDisplayName: input.memberDisplayName,
     existingCommanderId,
+    ashedStats: input.ashedStats,
   });
 }
 
@@ -693,8 +697,10 @@ export async function syncCommanderFromAllianceMember(input: {
   memberDisplayName?: string | null;
   joinedAt?: Date;
   leftAt?: Date | null;
+  ashedStats?: CommanderAshedStats | null;
   thpSource?: ThpEventSource;
   thpHistory?: Array<{ value: number; recorded_date: string }>;
+  powerLevelHistory?: Array<{ value: string; recorded_date: string }>;
   hqUserId?: string | null;
 }): Promise<CommanderSyncResult> {
   const memberRow = await loadAllianceMemberRow(
@@ -722,6 +728,7 @@ export async function syncCommanderFromAllianceMember(input: {
       allianceId: input.allianceId,
       ashedMemberId: input.ashedMemberId,
       memberDisplayName: displayName,
+      ashedStats: input.ashedStats,
     });
 
     await upsertCommanderAllianceMembership({
@@ -743,9 +750,10 @@ export async function syncCommanderFromAllianceMember(input: {
       allianceId: input.allianceId,
       ashedMemberId: input.ashedMemberId,
       memberName: displayName ?? memberRow.currentName ?? input.ashedMemberId,
-      memberRow,
+      ashedStats: input.ashedStats,
       thpSource: input.thpSource,
       thpHistory: input.thpHistory,
+      powerLevelHistory: input.powerLevelHistory,
       hqUserId: input.hqUserId,
     });
     return { status: "synced", commanderId };
@@ -863,6 +871,7 @@ export async function syncCommanderFromAllianceMember(input: {
       orphan?.ashedMemberId == null
         ? orphan?.commander.id ?? existingMembership?.commanderId ?? null
         : existingMembership?.commanderId ?? null,
+    ashedStats: input.ashedStats,
   });
 
   await upsertCommanderAllianceMembership({
@@ -884,9 +893,10 @@ export async function syncCommanderFromAllianceMember(input: {
     allianceId: input.allianceId,
     ashedMemberId: input.ashedMemberId,
     memberName: displayName ?? memberRow.currentName ?? input.ashedMemberId,
-    memberRow,
+    ashedStats: input.ashedStats,
     thpSource: input.thpSource,
     thpHistory: input.thpHistory,
+    powerLevelHistory: input.powerLevelHistory,
     hqUserId: input.hqUserId,
   });
   return { status: "synced", commanderId };
