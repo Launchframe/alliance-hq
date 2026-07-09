@@ -16,6 +16,10 @@ import {
   seedOAuthIdentitySplitScenario,
 } from "./fixtures/db";
 
+function e2eBaseUrl(): string {
+  return process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:5176";
+}
+
 async function bootstrapSettingsPageSession(
   sql: ReturnType<typeof getE2eSql>,
   session: Awaited<ReturnType<typeof createAuthenticatedHqSession>>,
@@ -334,8 +338,8 @@ test.describe("OAuth identity split badge", () => {
 
     await page.context().addCookies(playwrightAuthCookies(officer));
     await page.goto("/members");
-    await expect(page.getByText(commanderName)).toBeVisible();
     const row = page.locator("tr").filter({ hasText: commanderName });
+    await expect(row.first()).toBeVisible();
     await expect(row.getByText("Discord split", { exact: true })).toBeVisible();
   });
 
