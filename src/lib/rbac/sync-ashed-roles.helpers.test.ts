@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  allianceTagsMatchForShellAdoption,
   buildAllianceRosterEmails,
+  isUnlinkedHqAllianceShell,
   shouldRevokeAshedMembership,
 } from "@/lib/rbac/sync-ashed-roles.helpers";
 
@@ -46,5 +48,33 @@ describe("shouldRevokeAshedMembership", () => {
     expect(
       shouldRevokeAshedMembership("removed@example.com", roster, "manual"),
     ).toBe(false);
+  });
+});
+
+describe("isUnlinkedHqAllianceShell", () => {
+  it("returns true when ashedAllianceId is null or blank", () => {
+    expect(isUnlinkedHqAllianceShell({ ashedAllianceId: null })).toBe(true);
+    expect(isUnlinkedHqAllianceShell({ ashedAllianceId: "  " })).toBe(true);
+  });
+
+  it("returns false when ashedAllianceId is set", () => {
+    expect(
+      isUnlinkedHqAllianceShell({ ashedAllianceId: "ashed-abc" }),
+    ).toBe(false);
+  });
+});
+
+describe("allianceTagsMatchForShellAdoption", () => {
+  it("matches tags case-insensitively with surrounding whitespace", () => {
+    expect(allianceTagsMatchForShellAdoption(" ROAR ", "roar")).toBe(true);
+  });
+
+  it("returns false when either tag is missing", () => {
+    expect(allianceTagsMatchForShellAdoption("", "roar")).toBe(false);
+    expect(allianceTagsMatchForShellAdoption("roar", "")).toBe(false);
+  });
+
+  it("returns false when tags differ", () => {
+    expect(allianceTagsMatchForShellAdoption("roar", "lfgo")).toBe(false);
   });
 });
