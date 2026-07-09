@@ -89,6 +89,7 @@ const NAV_ACTIONS: HotkeyActionDef[] = [
     kind: "navigate",
     href: "/my-vr",
     hideWhenPermission: "members:write",
+    requiresAllianceMemberLink: true,
   },
   {
     id: "nav.myThp",
@@ -98,6 +99,7 @@ const NAV_ACTIONS: HotkeyActionDef[] = [
     kind: "navigate",
     href: "/my-thp",
     hideWhenPermission: "members:write",
+    requiresAllianceMemberLink: true,
   },
   {
     id: "nav.trains",
@@ -421,12 +423,20 @@ export function isHotkeyActionAllowed(
   permissions: ReadonlySet<string>,
   options: {
     bypassPermissions?: boolean;
+    hasAllianceMemberLink?: boolean;
     isConnected?: boolean;
     operatingMode?: "ashed" | "native" | null;
     showVideoQueue?: boolean;
   } = {},
 ): boolean {
   if (options.bypassPermissions) return true;
+
+  if (
+    action.requiresAllianceMemberLink &&
+    !options.hasAllianceMemberLink
+  ) {
+    return false;
+  }
 
   if (
     action.requiredPermission &&
@@ -466,6 +476,7 @@ export function listVisibleHotkeyActions(
   permissions: readonly string[],
   options: {
     bypassPermissions?: boolean;
+    hasAllianceMemberLink?: boolean;
     isConnected?: boolean;
     operatingMode?: "ashed" | "native" | null;
     showVideoQueue?: boolean;

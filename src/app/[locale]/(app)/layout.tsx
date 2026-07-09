@@ -111,6 +111,7 @@ export default async function AppLayout({
         }
         isPlatformMaintainer={state.rbac?.isPlatformMaintainer ?? false}
         membershipAlliances={state.membershipAlliances}
+        hasAllianceMemberLink={state.hasAllianceMemberLink}
         sessionPermissions={state.permissions}
         devQuickSwitch={isDevOrPreviewEnvironment()}
       >

@@ -16,6 +16,7 @@ import type { HotkeyBinding } from "@/lib/hotkeys/types";
 
 type Props = {
   sessionPermissions: readonly string[];
+  hasAllianceMemberLink?: boolean;
   isConnected: boolean;
   operatingMode?: "ashed" | "native" | null;
   showVideoQueue?: boolean;
@@ -23,6 +24,7 @@ type Props = {
 
 export function HotkeyCommandPalette({
   sessionPermissions,
+  hasAllianceMemberLink = false,
   isConnected,
   operatingMode = null,
   showVideoQueue = false,
@@ -43,11 +45,12 @@ export function HotkeyCommandPalette({
   const visibleActions = useMemo(
     () =>
       listVisibleHotkeyActions(sessionPermissions, {
+        hasAllianceMemberLink,
         isConnected,
         operatingMode,
         showVideoQueue,
       }).filter((action) => action.scope !== "admin-sequence"),
-    [isConnected, operatingMode, sessionPermissions, showVideoQueue],
+    [hasAllianceMemberLink, isConnected, operatingMode, sessionPermissions, showVideoQueue],
   );
 
   const bindingByActionId = useMemo(() => {

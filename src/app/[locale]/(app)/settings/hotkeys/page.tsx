@@ -17,6 +17,7 @@ export default async function HotkeysSettingsPage() {
   return (
     <HotkeysSettingsClient
       sessionPermissions={state.permissions}
+      hasAllianceMemberLink={state.hasAllianceMemberLink}
       isConnected={state.isConnected}
       operatingMode={state.operatingMode}
       showVideoQueue={showVideoQueue}

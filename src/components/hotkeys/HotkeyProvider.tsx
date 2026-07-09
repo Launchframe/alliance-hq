@@ -66,6 +66,7 @@ const ADMIN_SEQUENCE_TIMEOUT_MS = 5000;
 type Props = {
   children: ReactNode;
   sessionPermissions: readonly string[];
+  hasAllianceMemberLink?: boolean;
   isConnected: boolean;
   operatingMode?: "ashed" | "native" | null;
   showVideoQueue?: boolean;
@@ -75,6 +76,7 @@ type Props = {
 export function HotkeyProvider({
   children,
   sessionPermissions,
+  hasAllianceMemberLink = false,
   isConnected,
   operatingMode = null,
   showVideoQueue = false,
@@ -94,11 +96,12 @@ export function HotkeyProvider({
 
   const permissionOptions = useMemo(
     () => ({
+      hasAllianceMemberLink,
       isConnected,
       operatingMode,
       showVideoQueue,
     }),
-    [isConnected, operatingMode, showVideoQueue],
+    [hasAllianceMemberLink, isConnected, operatingMode, showVideoQueue],
   );
 
   const visibleActions = useMemo(

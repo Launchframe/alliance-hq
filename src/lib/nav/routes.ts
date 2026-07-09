@@ -9,6 +9,8 @@ export type NavPageDef = {
   requiredPermission?: string;
   /** When set, hide the link when the session has this RBAC permission. */
   hideWhenPermission?: string;
+  /** When true, hide unless the user has an HQ member link in the current alliance. */
+  requiresAllianceMemberLink?: boolean;
   /**
    * Override for ashed.online iframe src when it is not trainwreckCase(href).
    * Normally omit — HQ kebab-case routes map by stripping hyphens.
@@ -59,6 +61,22 @@ export function filterNavGroupsForPermissions(
           !page.requiredPermission || permissions.has(page.requiredPermission)
         );
       }),
+    }))
+    .filter((group) => group.pages.length > 0);
+}
+
+export function filterNavGroupsForAllianceMemberLink(
+  groups: NavGroupDef[],
+  options: { hasAllianceMemberLink: boolean },
+): NavGroupDef[] {
+  if (options.hasAllianceMemberLink) {
+    return groups;
+  }
+
+  return groups
+    .map((group) => ({
+      ...group,
+      pages: group.pages.filter((page) => !page.requiresAllianceMemberLink),
     }))
     .filter((group) => group.pages.length > 0);
 }
@@ -173,6 +191,7 @@ export const NAV_GROUPS: NavGroupDef[] = [
         kind: "native",
         descriptionKey: "myVrDescription",
         hideWhenPermission: "members:write",
+        requiresAllianceMemberLink: true,
       },
       {
         id: "my-thp",
@@ -181,6 +200,7 @@ export const NAV_GROUPS: NavGroupDef[] = [
         kind: "native",
         descriptionKey: "myThpDescription",
         hideWhenPermission: "members:write",
+        requiresAllianceMemberLink: true,
       },
       {
         id: "trains",
