@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  buildReleaseNoteBodyMarkdown,
+  compactReleaseNoteForEdgeConfig,
   distillReleaseNoteMarkdown,
+  hydrateReleaseNoteEntry,
   parseReleaseNoteMarkdown,
   stringifyReleaseNoteMarkdown,
 } from "./markdown";
@@ -91,5 +94,35 @@ describe("release note markdown", () => {
     );
 
     expect(distillReleaseNoteMarkdown("x.md", content)).toBeNull();
+  });
+
+  it("hydrates bodyMarkdown from compact Edge Config entries", () => {
+    const compact = compactReleaseNoteForEdgeConfig({
+      version: "0.16.1",
+      title: "Patch",
+      summary: "Summary line",
+      bodyMarkdown: "## Summary\n\nSummary line\n\n## Breaking changes\n\n- None",
+      breaking: ["None"],
+      maintainerNotes: ["Run db:prepare"],
+    });
+
+    expect(compact).not.toHaveProperty("bodyMarkdown");
+
+    const hydrated = hydrateReleaseNoteEntry(compact);
+    expect(hydrated.bodyMarkdown).toContain("## Summary");
+    expect(hydrated.bodyMarkdown).toContain("## Breaking changes");
+    expect(hydrated.bodyMarkdown).toContain("## Platform maintainer notes");
+  });
+
+  it("buildReleaseNoteBodyMarkdown matches distilled body", () => {
+    const built = buildReleaseNoteBodyMarkdown({
+      summary: "- Change",
+      breaking: ["API change"],
+      maintainerNotes: ["Migration 0077"],
+    });
+
+    expect(built).toContain("## Summary");
+    expect(built).toContain("- Change");
+    expect(built).toContain("Migration 0077");
   });
 });
