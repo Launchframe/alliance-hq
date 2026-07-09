@@ -4,13 +4,14 @@ export type InviteWizardType = "invite_link" | "join_code" | "commander_claim";
 
 export type InviteWizardStep = 1 | 2 | 3;
 
-export type InviteLinkSubtype = "protected_link" | "email";
+export type InviteLinkSubtype = "protected_link" | "email" | "discord_officer";
 
 export type ClaimMode = "single" | "bulk";
 
 export type InviteWizardTargets = {
   inviteLinkSubtype: InviteLinkSubtype;
   inviteEmail: string;
+  inviteDiscordUserId: string;
   inviteRole: SystemRoleName | "";
   inviteAdminLabel: string;
   inviteRedirectPath: string;
@@ -79,6 +80,7 @@ export function defaultInviteWizardTargets(
   return {
     inviteLinkSubtype: "protected_link",
     inviteEmail: "",
+    inviteDiscordUserId: "",
     inviteRole: defaultRole,
     inviteAdminLabel: "",
     inviteRedirectPath: "",

@@ -28,4 +28,19 @@ describe("invite wizard shared", () => {
       validateInviteWizardStep2({ type: "invite_link", targets }),
     ).toBe("inviteEmailRequired");
   });
+
+  it("validates Discord user ID on discord officer invites", () => {
+    const targets = defaultInviteWizardTargets(["officer"]);
+    targets.inviteLinkSubtype = "discord_officer";
+    targets.inviteDiscordUserId = "bad";
+
+    expect(
+      validateInviteWizardStep2({ type: "invite_link", targets }),
+    ).toBe("inviteDiscordUserIdRequired");
+
+    targets.inviteDiscordUserId = "12345678901234567";
+    expect(
+      validateInviteWizardStep2({ type: "invite_link", targets }),
+    ).toBeNull();
+  });
 });
