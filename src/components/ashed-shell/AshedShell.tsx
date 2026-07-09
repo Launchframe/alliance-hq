@@ -157,6 +157,7 @@ export function AshedShell({
         <FeedbackProvider>
           <HotkeyProvider
             sessionPermissions={sessionPermissions}
+            hasAllianceMemberLink={hasAllianceMemberLink}
             isConnected={isConnected}
             operatingMode={operatingMode}
             showVideoQueue={showVideoQueue}
@@ -272,6 +273,7 @@ export function AshedShell({
           </div>
           <HotkeyCommandPalette
             sessionPermissions={sessionPermissions}
+            hasAllianceMemberLink={hasAllianceMemberLink}
             isConnected={isConnected}
             operatingMode={operatingMode}
             showVideoQueue={showVideoQueue}

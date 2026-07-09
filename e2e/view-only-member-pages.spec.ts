@@ -1,8 +1,12 @@
 import { expect, test, type Page } from "@playwright/test";
+import { nanoid } from "nanoid";
 
 import { NAV_GROUPS } from "../src/lib/nav/routes";
 import {
   authCookieHeader,
+  createAllianceMembership,
+  createAshedAlliance,
+  createAuthenticatedHqSession,
   getE2eSql,
   playwrightAuthCookies,
 } from "./fixtures/db";
@@ -117,6 +121,35 @@ for (const operatingMode of ["native", "ashed"] as const) {
     });
   });
 }
+
+test.describe("Member without commander link — sidebar nav", () => {
+  test("hides My VR and My THP on ashed alliance", async ({ page }) => {
+    const sql = getE2eSql();
+    const alliance = await createAshedAlliance(sql, {
+      tag: `NL${nanoid(4)}`,
+      name: "No Link Member Alliance",
+    });
+    const email = `member-${nanoid(6)}@e2e.test`;
+    const auth = await createAuthenticatedHqSession(sql, email);
+    await createAllianceMembership(sql, {
+      hqUserId: auth.hqUserId,
+      allianceId: alliance.allianceId,
+      roleName: "member",
+      source: "manual",
+    });
+    await sql`
+      UPDATE sessions
+      SET current_alliance_id = ${alliance.allianceId}
+      WHERE id = ${auth.sessionId}
+    `;
+
+    await page.context().addCookies(playwrightAuthCookies(auth));
+    await page.goto("/members");
+
+    await expect(page.getByRole("link", { name: /^my vr$/i })).toHaveCount(0);
+    await expect(page.getByRole("link", { name: /^my thp$/i })).toHaveCount(0);
+  });
+});
 
 test.describe("View-only member APIs — ashed alliance without personal Ashed connect", () => {
   test("read endpoints succeed and upload is forbidden", async ({ request }) => {

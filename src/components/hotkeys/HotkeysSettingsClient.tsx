@@ -15,6 +15,7 @@ type SortMode = "alphabetical" | "lastModified";
 
 type Props = {
   sessionPermissions: readonly string[];
+  hasAllianceMemberLink?: boolean;
   isConnected: boolean;
   operatingMode?: "ashed" | "native" | null;
   showVideoQueue?: boolean;
@@ -22,6 +23,7 @@ type Props = {
 
 export function HotkeysSettingsClient({
   sessionPermissions,
+  hasAllianceMemberLink = false,
   isConnected,
   operatingMode = null,
   showVideoQueue = false,
@@ -46,6 +48,7 @@ export function HotkeysSettingsClient({
 
   const rows = useMemo(() => {
     const actions = listVisibleHotkeyActions(sessionPermissions, {
+      hasAllianceMemberLink,
       isConnected,
       operatingMode,
       showVideoQueue,
@@ -59,6 +62,7 @@ export function HotkeysSettingsClient({
       .map((action) => {
         const effective = bindingMap.get(action.id);
         const allowed = isHotkeyActionAllowed(action, permissionSet, {
+          hasAllianceMemberLink,
           isConnected,
           operatingMode,
           showVideoQueue,
@@ -89,6 +93,7 @@ export function HotkeysSettingsClient({
     return filtered;
   }, [
     effectiveBindings,
+    hasAllianceMemberLink,
     isConnected,
     operatingMode,
     overrides,
