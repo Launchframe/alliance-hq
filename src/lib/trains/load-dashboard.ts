@@ -431,7 +431,7 @@ export async function resolveAshedAllianceId(
 
   const allianceTag =
     session.allianceTag?.trim() || allianceRow?.tag?.trim() || null;
-  const connection = await getAshedConnection(sessionId);
+  const connection = allianceTag ? await getAshedConnection(sessionId) : null;
   if (connection && allianceTag) {
     try {
       const alliance = await resolveAllianceByTag(connection, allianceTag);

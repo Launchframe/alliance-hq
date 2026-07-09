@@ -78,6 +78,7 @@ describe("resolveTrainRequestContext", () => {
       connection: null,
       operatingMode: "ashed",
     });
+    expect(getAshedConnectionMock).not.toHaveBeenCalled();
     expect(resolveAllianceByTagMock).not.toHaveBeenCalled();
   });
 
@@ -101,6 +102,30 @@ describe("resolveTrainRequestContext", () => {
       connection: null,
       operatingMode: "ashed",
     });
+    expect(getAshedConnectionMock).toHaveBeenCalledWith("sess-ashed");
+    expect(resolveAllianceByTagMock).not.toHaveBeenCalled();
+  });
+
+  it("skips Ashed connection when tag is unavailable and ashed id is missing", async () => {
+    getOrCreateSessionMock.mockResolvedValue({
+      id: "sess-ashed",
+      allianceId: "hq-ashed",
+      currentAllianceId: "hq-ashed",
+      allianceTag: null,
+    });
+    getAllianceOperatingModeMock.mockResolvedValue("ashed");
+    loadAllianceRowMock.mockResolvedValue({ tag: null, ashedAllianceId: null });
+
+    const ctx = await resolveTrainRequestContext();
+
+    expect(ctx).toEqual({
+      sessionId: "sess-ashed",
+      allianceId: "hq-ashed",
+      ashedAllianceId: "hq-ashed",
+      connection: null,
+      operatingMode: "ashed",
+    });
+    expect(getAshedConnectionMock).not.toHaveBeenCalled();
   });
 
   it("resolves ashed alliance id live when connected and row is missing", async () => {
