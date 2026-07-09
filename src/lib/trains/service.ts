@@ -54,6 +54,7 @@ import {
   releasePoolSelectionForDate,
   seedPool,
   startNewPoolGeneration,
+  updateCurrentPoolEntryTicketWeights,
 } from "@/lib/trains/pool";
 import {
   evaluateConductorQualification,
@@ -339,6 +340,43 @@ async function ensurePool(input: {
   } else {
     await seedPool(input.hqAllianceId, input.poolType, candidates);
   }
+}
+
+async function refreshPriceIsRightPoolTicketWeights(input: {
+  allianceId: string;
+  poolType: PoolType;
+  date: string;
+  connection: ParsedConnection | null;
+  ashedAllianceId: string;
+}): Promise<void> {
+  const entries = await listPoolEntries(input.allianceId, input.poolType);
+  if (entries.length === 0) return;
+
+  const settings = await loadPriceIsRightTicketSettings(input.allianceId);
+  if (!priceIsRightWeightingActive(settings)) return;
+
+  const weighted = await buildPriceIsRightWeightedCandidates({
+    allianceId: input.allianceId,
+    trainDate: input.date,
+    connection: input.connection,
+    ashedAllianceId: input.ashedAllianceId,
+    candidates: entries.map((entry) => ({
+      memberId: entry.memberId,
+      memberName: entry.memberName,
+      allianceRank: entry.allianceRank,
+    })),
+    settings,
+  });
+
+  await updateCurrentPoolEntryTicketWeights(
+    input.allianceId,
+    input.poolType,
+    weighted.candidates.map((candidate) => ({
+      memberId: candidate.memberId,
+      ticketCount: candidate.ticketCount ?? 0,
+      priorDayVsScore: candidate.priorDayVsScore ?? null,
+    })),
+  );
 }
 
 async function rollFromPool(
@@ -846,6 +884,15 @@ export async function rollForConductor(input: {
           : null;
       const useWeightedPick =
         pirSettings != null && priceIsRightWeightingActive(pirSettings);
+      if (useWeightedPick) {
+        await refreshPriceIsRightPoolTicketWeights({
+          allianceId: input.allianceId,
+          poolType,
+          date: input.date,
+          connection: input.connection,
+          ashedAllianceId: input.ashedAllianceId,
+        });
+      }
       result = await rollFromPool(
         input.allianceId,
         poolType,

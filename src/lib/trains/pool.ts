@@ -179,12 +179,12 @@ export function pickWeightedPoolEntryFromRows<
 >(rows: T[]): T | null {
   if (rows.length === 0) return null;
 
-  const weightedRows = rows.filter(
-    (row) => row.ticketCount != null && row.ticketCount > 0,
-  );
-  if (weightedRows.length === 0 || weightedRows.length < rows.length) {
+  if (rows.some((row) => row.ticketCount == null)) {
     return pickUniformPoolEntry(rows);
   }
+
+  const weightedRows = rows.filter((row) => row.ticketCount != null && row.ticketCount > 0);
+  if (weightedRows.length === 0) return null;
 
   const totalWeight = weightedRows.reduce(
     (sum, row) => sum + (row.ticketCount ?? 0),
@@ -241,6 +241,46 @@ export async function markPoolEntrySelected(
       selectedForDate: date,
     })
     .where(eq(schema.conductorPoolEntries.id, entryId));
+}
+
+export async function updateCurrentPoolEntryTicketWeights(
+  allianceId: string,
+  poolType: PoolType,
+  weights: Array<{
+    memberId: string;
+    ticketCount: number;
+    priorDayVsScore: number | null;
+  }>,
+): Promise<void> {
+  const db = getDb();
+  const generation = await getCurrentPoolGeneration(allianceId, poolType);
+  const weightByMember = new Map(
+    weights.map((weight) => [weight.memberId, weight]),
+  );
+  const rows = await db
+    .select({
+      id: schema.conductorPoolEntries.id,
+      memberId: schema.conductorPoolEntries.memberId,
+    })
+    .from(schema.conductorPoolEntries)
+    .where(
+      and(
+        eq(schema.conductorPoolEntries.allianceId, allianceId),
+        eq(schema.conductorPoolEntries.poolType, poolType),
+        eq(schema.conductorPoolEntries.generation, generation),
+      ),
+    );
+
+  for (const row of rows) {
+    const weight = weightByMember.get(row.memberId);
+    await db
+      .update(schema.conductorPoolEntries)
+      .set({
+        ticketCount: weight?.ticketCount ?? 0,
+        priorDayVsScore: weight?.priorDayVsScore ?? null,
+      })
+      .where(eq(schema.conductorPoolEntries.id, row.id));
+  }
 }
 
 export async function resolvePoolGenerationForHistoricalDate(

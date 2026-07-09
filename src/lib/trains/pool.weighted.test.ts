@@ -13,6 +13,16 @@ describe("pickWeightedPoolEntryFromRows", () => {
     vi.restoreAllMocks();
   });
 
+  it("excludes zero-ticket rows from weighted picks", () => {
+    const rows = [
+      { id: "ineligible", ticketCount: 0 },
+      { id: "eligible", ticketCount: 1 },
+    ];
+    vi.spyOn(Math, "random").mockReturnValue(0);
+    expect(pickWeightedPoolEntryFromRows(rows)?.id).toBe("eligible");
+    vi.restoreAllMocks();
+  });
+
   it("favors higher ticket counts over many draws", () => {
     const rows = [
       { id: "low", ticketCount: 1 },
