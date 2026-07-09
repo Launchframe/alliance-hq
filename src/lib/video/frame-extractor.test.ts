@@ -6,8 +6,33 @@ import {
   forcedFirstFrameIndexForFps,
   listFrameJpegFiles,
   parseFfprobeFrameRate,
+  parseFfmpegDurationSeconds,
+  parseFfmpegFrameRateFromStderr,
   parseFfmpegShowinfoPtsTimes,
 } from "@/lib/video/frame-extractor";
+
+describe("parseFfmpegDurationSeconds", () => {
+  it("parses Duration from ffmpeg -i stderr", () => {
+    const stderr = `ffmpeg version 6.0
+  Duration: 00:01:23.45, start: 0.000000, bitrate: 1024 kb/s`;
+    expect(parseFfmpegDurationSeconds(stderr)).toBeCloseTo(83.45, 2);
+  });
+
+  it("returns null when duration is missing", () => {
+    expect(parseFfmpegDurationSeconds("no duration here")).toBeNull();
+  });
+});
+
+describe("parseFfmpegFrameRateFromStderr", () => {
+  it("parses nominal fps from stream line", () => {
+    const stderr = `Stream #0:0: Video: h264, yuv420p, 1280x720, 29.97 fps, 30 tbr`;
+    expect(parseFfmpegFrameRateFromStderr(stderr)).toBeCloseTo(29.97, 2);
+  });
+
+  it("returns null when fps is missing", () => {
+    expect(parseFfmpegFrameRateFromStderr("no fps")).toBeNull();
+  });
+});
 
 describe("parseFfprobeFrameRate", () => {
   it("parses fractional avg_frame_rate", () => {

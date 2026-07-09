@@ -2,8 +2,11 @@ import { NextResponse } from "next/server";
 import { asc, eq } from "drizzle-orm";
 
 import { getDb, schema } from "@/lib/db";
-import { markVideoJobFailed } from "@/lib/video/mark-video-job-failed";
-import { isAshedNotConnectedError } from "@/lib/video/errors";
+import {
+  dispatchVideoJobRemote,
+  videoProcessJobToResponse,
+  videoQueueDispatchesExternally,
+} from "@/lib/video/video-process-dispatch.server";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -49,39 +52,11 @@ export async function GET(request: Request) {
     `[video-worker] pulled job ${job.id} from queue (file=${job.fileName ?? "unknown"}, target=${job.scoreTarget ?? "unknown"}, queuedAt=${job.createdAt.toISOString()})`,
   );
 
-  try {
-    const { processVideoJob } = await import("@/lib/video/process-job");
-    const timings = await processVideoJob(job.id, { analyticsSource: "worker" });
-    return NextResponse.json({
-      ok: true,
-      processed: true,
-      jobId: job.id,
-      status: "review",
-      timings,
-    });
-  } catch (error) {
-    // Recoverable: process-job already reverted the job to pending_approval.
-    if (isAshedNotConnectedError(error)) {
-      return NextResponse.json({
-        ok: false,
-        processed: false,
-        jobId: job.id,
-        status: "pending_approval",
-        code: "ashed_not_connected",
-      });
-    }
-    const message =
-      error instanceof Error ? error.message : "Processing failed";
-    await markVideoJobFailed(job.id, message);
-    return NextResponse.json(
-      {
-        ok: false,
-        processed: true,
-        jobId: job.id,
-        status: "failed",
-        error: message,
-      },
-      { status: 500 },
-    );
-  }
+  const result = videoQueueDispatchesExternally()
+    ? await dispatchVideoJobRemote(job.id, { source: "cron" })
+    : await (
+        await import("@/lib/video/video-process-local.server")
+      ).runVideoProcessJobLocally(job.id, { analyticsSource: "worker" });
+
+  return videoProcessJobToResponse(result);
 }

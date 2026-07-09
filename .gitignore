@@ -8,6 +8,7 @@
 !.cursor/skills/**
 .working_files/
 worktrees/
+.worktrees/
 
 ## Ashed data exports
 LFgo_export*
