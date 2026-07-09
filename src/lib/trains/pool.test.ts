@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { activePoolGenerationForDate } from "@/lib/trains/pool";
+import { activePoolGenerationForDate, poolTypeUsesSequence } from "@/lib/trains/pool";
 
 describe("activePoolGenerationForDate", () => {
   it("returns generation 1 when no rows exist", () => {
@@ -39,5 +39,14 @@ describe("activePoolGenerationForDate", () => {
     expect(
       activePoolGenerationForDate([1, 2], entries, "2026-06-15"),
     ).toBe(2);
+  });
+});
+
+describe("poolTypeUsesSequence", () => {
+  it("only treats r4_plus as sequence pools", () => {
+    expect(poolTypeUsesSequence("r4_plus")).toBe(true);
+    expect(poolTypeUsesSequence("r3")).toBe(false);
+    expect(poolTypeUsesSequence("all_members")).toBe(false);
+    expect(poolTypeUsesSequence("event_top_x")).toBe(false);
   });
 });

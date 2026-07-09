@@ -522,6 +522,7 @@ export function TrainsDashboard({ initial }: Props) {
     () => ({
       vs_push_weekdays: t("templatesShort.vs_push_weekdays"),
       r4_event_vip: t("templatesShort.r4_event_vip"),
+      price_is_right: t("templatesShort.price_is_right"),
     }),
     [t],
   );
@@ -928,14 +929,25 @@ export function TrainsDashboard({ initial }: Props) {
   };
 
   const executePaintDates = useCallback(
-    (dates: string[], templateType: WeekTemplateType) => {
+    (
+      dates: string[],
+      templateType: WeekTemplateType,
+      options?: { updateWeekTemplate?: boolean },
+    ) => {
       return withOptimisticMutation(
-        (snap) => applyOptimisticPaint(snap, dates, templateType),
+        (snap) =>
+          applyOptimisticPaint(snap, dates, templateType, {
+            updateWeekTemplate: options?.updateWeekTemplate,
+          }),
         async () => {
           const res = await fetch("/api/trains/schedule/days", {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ dates, templateType }),
+            body: JSON.stringify({
+              dates,
+              templateType,
+              updateWeekTemplate: options?.updateWeekTemplate === true,
+            }),
           });
           const body = (await res.json()) as { error?: string };
           return {
@@ -949,7 +961,11 @@ export function TrainsDashboard({ initial }: Props) {
   );
 
   const paintDates = useCallback(
-    (dates: string[], templateType: WeekTemplateType) => {
+    (
+      dates: string[],
+      templateType: WeekTemplateType,
+      options?: { updateWeekTemplate?: boolean },
+    ) => {
       const allowedDates = data.canUnlockConductor
         ? dates
         : dates.filter((date) =>
@@ -970,7 +986,7 @@ export function TrainsDashboard({ initial }: Props) {
         }
       }
 
-      return executePaintDates(allowedDates, templateType);
+      return executePaintDates(allowedDates, templateType, options);
     },
     [
       data.canUnlockConductor,
@@ -1027,7 +1043,7 @@ export function TrainsDashboard({ initial }: Props) {
         setError(t("templateChangeConfirm.noDatesBody"));
         return;
       }
-      paintDates(options.dates, templateType);
+      paintDates(options.dates, templateType, { updateWeekTemplate: true });
     },
     [paintDates, pendingTemplateChange, setError, setPendingTemplateChange, t],
   );
@@ -1242,7 +1258,15 @@ export function TrainsDashboard({ initial }: Props) {
     selectedRecord?.conductorMemberId === data.conductorRecord?.conductorMemberId
       ? data.conductorStats
       : null;
-  const nextInSequence = data.pools.r4_plus?.nextInSequence ?? null;
+  const nextInSequence = useMemo(() => {
+    if (
+      !isPoolSpinSource(selectedConductorSpinSource) ||
+      selectedConductorSpinSource.poolType !== "r4_plus"
+    ) {
+      return null;
+    }
+    return data.pools.r4_plus?.nextInSequence ?? null;
+  }, [data.pools.r4_plus?.nextInSequence, selectedConductorSpinSource]);
   const showPivotBanner =
     data.canManageTrains &&
     data.weekStart === viewedWeek.weekStart &&
@@ -1927,6 +1951,7 @@ export function TrainsDashboard({ initial }: Props) {
             void executePaintDates(
               pendingPastPaint.dates,
               pendingPastPaint.templateType,
+              { updateWeekTemplate: true },
             )
               .then((ok) => {
                 if (ok) setPendingPastPaint(null);

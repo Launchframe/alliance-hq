@@ -107,7 +107,7 @@ export function resolvePaintTemplateForDay(
 
 /** Segment templates with a single combined cell label (not conductor + VIP lines). */
 export const COMBINED_SEGMENT_DISPLAY_TEMPLATES: ReadonlySet<WeekTemplateType> =
-  new Set(["r4_event_vip"]);
+  new Set(["r4_event_vip", "price_is_right"]);
 
 export function usesCombinedSegmentDisplay(
   paintTemplate: WeekTemplateType | null | undefined,

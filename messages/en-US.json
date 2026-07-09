@@ -3146,7 +3146,8 @@
     },
     "templatesShort": {
       "vs_push_weekdays": "VS Push",
-      "r4_event_vip": "R4 & Event VIP"
+      "r4_event_vip": "R4 & Event VIP",
+      "price_is_right": "Closest to 7.2M"
     },
     "templateDetails": {
       "vs_push_week": "Conductor: Tue and Fri = prior-day VS #1 (auto); Wed, Thu, and Sat = random draw from VS top 10; Sun–Mon = R4+ officer rotation. VIP: Conductor picks VIP on VS weekdays; event top-10 lottery Sun–Mon.",

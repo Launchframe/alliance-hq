@@ -129,6 +129,50 @@ describe("optimistic dashboard state", () => {
     );
   });
 
+  it("updates week templateType when painting with updateWeekTemplate", () => {
+    const base = {
+      data: {
+        weekStart: "2026-06-08",
+        weekEnd: "2026-06-14",
+        schedule: {
+          id: "sched-1",
+          weekStart: "2026-06-08",
+          templateType: "vs_push_week",
+          isPivot: false,
+        },
+        dayConfigs: [],
+        weekRecords: [],
+      },
+      viewedWeek: {
+        weekStart: "2026-06-08",
+        weekEnd: "2026-06-14",
+        templateType: "vs_push_week" as const,
+        dayConfigs: [],
+        weekRecords: [],
+      },
+      viewedMonth: {
+        monthKey: "2026-06",
+        monthStart: "2026-06-01",
+        monthEnd: "2026-06-30",
+        dayConfigs: [],
+        monthRecords: [],
+      },
+    } as unknown as Parameters<typeof applyOptimisticPaint>[0];
+
+    const painted = applyOptimisticPaint(
+      base,
+      ["2026-06-10", "2026-06-11"],
+      "price_is_right",
+      { updateWeekTemplate: true },
+    );
+    expect(painted.viewedWeek.templateType).toBe("price_is_right");
+    expect(painted.data.schedule?.templateType).toBe("price_is_right");
+    expect(
+      painted.viewedWeek.dayConfigs.find((d) => d.date === "2026-06-10")
+        ?.paintTemplate,
+    ).toBe("price_is_right");
+  });
+
   it("sets templateType on the viewed week when applying a week template", () => {
     const base = {
       data: {

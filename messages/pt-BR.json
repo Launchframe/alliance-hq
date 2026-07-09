@@ -3091,7 +3091,8 @@
     },
     "templatesShort": {
       "vs_push_weekdays": "Push VS",
-      "r4_event_vip": "R4 e VIP evento"
+      "r4_event_vip": "R4 e VIP evento",
+      "price_is_right": "Mais perto de 7,2M"
     },
     "templateDetails": {
       "vs_push_week": "Condutor: ter e sex = VS #1 do dia anterior (automático); qua, qui e sáb = sorteio aleatório entre o top 10 de VS; dom–seg = rodízio de oficiais R4+. VIP: condutor escolhe o VIP nos dias de VS; loteria top 10 de evento dom–seg.",

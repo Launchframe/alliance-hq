@@ -4,6 +4,7 @@ import {
   isWeekTemplateSegment,
   resolvePaintTemplateForDay,
   segmentTemplateForDayIndex,
+  usesCombinedSegmentDisplay,
 } from "@/lib/trains/week-template-registry.shared";
 
 describe("week template registry", () => {
@@ -34,5 +35,10 @@ describe("week template registry", () => {
     expect(resolvePaintTemplateForDay("economy_week", "2026-06-10", "2026-06-09")).toBe(
       "economy_week",
     );
+  });
+
+  it("uses combined segment labels for price_is_right days", () => {
+    expect(usesCombinedSegmentDisplay("price_is_right")).toBe(true);
+    expect(usesCombinedSegmentDisplay("economy_week")).toBe(false);
   });
 });

@@ -5,6 +5,11 @@ import { getDb, schema } from "@/lib/db";
 import { getServerCalendarDate } from "@/lib/trains/game-time";
 import type { PoolType, RollCandidate } from "@/lib/trains/types";
 
+/** Only R4+ officer pools advance in fixed sequence; lottery pools draw randomly. */
+export function poolTypeUsesSequence(poolType: PoolType): boolean {
+  return poolType === "r4_plus";
+}
+
 type PoolGenerationEntry = {
   generation: number;
   selectedForDate: string | null;
@@ -386,7 +391,9 @@ export async function getPoolSummary(
     );
 
   const remaining = rows.filter((r) => !r.selectedAt).length;
-  const nextEntry = await peekNextPoolEntry(allianceId, poolType);
+  const nextEntry = poolTypeUsesSequence(poolType)
+    ? await peekNextPoolEntry(allianceId, poolType)
+    : null;
   return {
     generation,
     total: rows.length,

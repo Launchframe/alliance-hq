@@ -44,6 +44,7 @@ export async function PATCH(request: Request) {
   const body = (await request.json()) as {
     dates?: string[];
     templateType?: WeekTemplateType;
+    updateWeekTemplate?: boolean;
   };
 
   const dates = (body.dates ?? []).filter(
@@ -82,6 +83,7 @@ export async function PATCH(request: Request) {
   try {
     await applyTemplateToDates(ctx.allianceId, dates, templateType, {
       platformAdminPastOverride: isPlatformAdmin,
+      updateWeekTemplate: body.updateWeekTemplate === true,
     });
     return NextResponse.json({ ok: true, dates, templateType });
   } catch (error) {
