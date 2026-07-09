@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { DiscordBotLocale } from "@/lib/discord/i18n";
+import { createDiscordTranslator } from "@/lib/discord/i18n";
 import {
   getMyWlTeam,
   resolveCommanderForDiscordUser,
@@ -27,27 +28,21 @@ export async function handleDiscordSwitchProfession(input: {
   discordUserId: string;
   locale: DiscordBotLocale;
 }): Promise<ProfessionBotReply> {
+  const t = createDiscordTranslator(input.locale);
   const allianceId = await resolveAllianceForGuild(input.guildId);
 
   if (!allianceId) {
-    return {
-      reply:
-        "This server is not registered with Alliance HQ. Use `/link-alliance` first.",
-    };
+    return { reply: t("errors.guildNotRegistered") };
   }
 
   const ctx = await resolveCommanderForDiscordUser(input.discordUserId, allianceId);
   if (!ctx) {
-    return {
-      reply:
-        "Your Discord account is not linked to a commander in this alliance. Use `/link-commander` first.",
-    };
+    return { reply: t("errors.hqLinkRequired") };
   }
 
   if (!ctx.profession) {
     return {
-      reply:
-        "You don't have a profession set yet. Choose your role:",
+      reply: t("profession.noProfessionSelect"),
       showProfessionSelect: true,
     };
   }
@@ -56,7 +51,10 @@ export async function handleDiscordSwitchProfession(input: {
     ctx.profession === "Engineer" ? "War Leader" : "Engineer";
 
   return {
-    reply: `You are currently **${ctx.profession}**. Switch to **${opposite}**?`,
+    reply: t("profession.switchConfirm", {
+      current: ctx.profession,
+      opposite,
+    }),
     showSwitchConfirm: opposite,
   };
 }
@@ -71,27 +69,28 @@ export async function handleDiscordProfessionSelect(input: {
   profession: "Engineer" | "War Leader";
   locale: DiscordBotLocale;
 }): Promise<ProfessionBotReply> {
+  const t = createDiscordTranslator(input.locale);
   const allianceId = await resolveAllianceForGuild(input.guildId);
 
   if (!allianceId) {
-    return { reply: "Server not registered. Use `/link-alliance` first." };
+    return { reply: t("errors.guildNotRegistered") };
   }
 
   const ctx = await resolveCommanderForDiscordUser(input.discordUserId, allianceId);
   if (!ctx) {
-    return { reply: "Commander not linked. Use `/link-commander` first." };
+    return { reply: t("errors.hqLinkRequired") };
   }
 
   await updateCommanderProfession(ctx.commanderId, input.profession, allianceId);
 
   if (input.profession === "Engineer") {
     return {
-      reply: `You are now an **Engineer**! Visit ${APP_URL}/professions to find a War Leader to support.`,
+      reply: t("profession.nowEngineer", { appUrl: APP_URL }),
     };
   }
 
   return {
-    reply: `You are now a **War Leader**! Visit ${APP_URL}/professions to set up your Engineering team.`,
+    reply: t("profession.nowWarLeader", { appUrl: APP_URL }),
   };
 }
 
@@ -105,24 +104,25 @@ export async function handleDiscordProfessionSwitchConfirm(input: {
   answer: "yes" | "no";
   locale: DiscordBotLocale;
 }): Promise<ProfessionBotReply> {
+  const t = createDiscordTranslator(input.locale);
   if (input.answer === "no") {
-    return { reply: "No changes made." };
+    return { reply: t("profession.switchCancelled") };
   }
 
   const allianceId = await resolveAllianceForGuild(input.guildId);
 
   if (!allianceId) {
-    return { reply: "Server not registered. Use `/link-alliance` first." };
+    return { reply: t("errors.guildNotRegistered") };
   }
 
   const ctx = await resolveCommanderForDiscordUser(input.discordUserId, allianceId);
   if (!ctx) {
-    return { reply: "Commander not linked. Use `/link-commander` first." };
+    return { reply: t("errors.hqLinkRequired") };
   }
 
   if (!ctx.profession) {
     return {
-      reply: "No profession set. Please select one:",
+      reply: t("profession.noProfessionSet"),
       showProfessionSelect: true,
     };
   }
@@ -140,12 +140,12 @@ export async function handleDiscordProfessionSwitchConfirm(input: {
 
   if (toProfession === "Engineer") {
     const lines = [
-      `You are now an **Engineer**.`,
-      `Visit ${APP_URL}/professions to find a War Leader to support.`,
+      t("profession.switchedToEngineer"),
+      t("profession.findWlPrompt", { appUrl: APP_URL }),
     ];
     if (fromProfession === "War Leader" && freedEngs.length > 0) {
       lines.push(
-        `Your ${freedEngs.length} assigned Engineer${freedEngs.length === 1 ? " has" : "s have"} been notified to find a new War Leader.`,
+        t("profession.freedEngsNotice", { count: String(freedEngs.length) }),
       );
     }
     return { reply: lines.join("\n") };
@@ -153,8 +153,8 @@ export async function handleDiscordProfessionSwitchConfirm(input: {
 
   return {
     reply: [
-      `You are now a **War Leader**.`,
-      `Visit ${APP_URL}/professions to set up your Engineering team.`,
+      t("profession.switchedToWarLeader"),
+      t("profession.setupTeamPrompt", { appUrl: APP_URL }),
     ].join("\n"),
   };
 }
@@ -168,21 +168,20 @@ export async function handleDiscordMyEngineers(input: {
   discordUserId: string;
   locale: DiscordBotLocale;
 }): Promise<ProfessionBotReply> {
+  const t = createDiscordTranslator(input.locale);
   const allianceId = await resolveAllianceForGuild(input.guildId);
 
   if (!allianceId) {
-    return { reply: "Server not registered. Use `/link-alliance` first." };
+    return { reply: t("errors.guildNotRegistered") };
   }
 
   const ctx = await resolveCommanderForDiscordUser(input.discordUserId, allianceId);
   if (!ctx) {
-    return { reply: "Commander not linked. Use `/link-commander` first." };
+    return { reply: t("errors.hqLinkRequired") };
   }
 
   if (ctx.profession !== "War Leader") {
-    return {
-      reply: "This command is for War Leaders only. Use `/switch-profession` to change your role.",
-    };
+    return { reply: t("profession.warLeaderOnly") };
   }
 
   const teamCtx = await getMyWlTeam(allianceId, ctx.commanderId);
@@ -190,9 +189,9 @@ export async function handleDiscordMyEngineers(input: {
   if (!teamCtx.activeEngs.length) {
     return {
       reply: [
-        "**Your Engineering Team**",
-        "No Engineers assigned yet.",
-        `Visit ${APP_URL}/professions to see your team and request support.`,
+        t("profession.teamHeader"),
+        t("profession.noEngineers"),
+        t("profession.teamDashboard", { appUrl: APP_URL }),
       ].join("\n"),
     };
   }
@@ -204,17 +203,22 @@ export async function handleDiscordMyEngineers(input: {
         ? ` · ${String(eng.coverageStartHour).padStart(2, "0")}:00–${String(eng.coverageEndHour).padStart(2, "0")}:00 UTC`
         : "";
     const since = new Date(eng.assignedAt).toLocaleDateString();
-    return `• **${name}**${coverage} (since ${since})`;
+    return t("profession.engLine", { name, coverage, since });
   });
 
-  const covered = teamCtx.isCovered ? "Covered ✓" : `Needs support (${teamCtx.activeEngs.length}/${teamCtx.minEngsPerTeam})`;
+  const covered = teamCtx.isCovered
+    ? t("profession.covered")
+    : t("profession.needsSupport", {
+        count: String(teamCtx.activeEngs.length),
+        min: String(teamCtx.minEngsPerTeam),
+      });
 
   return {
     reply: [
-      `**Your Engineering Team** — ${covered}`,
+      t("profession.teamHeaderCovered", { status: covered }),
       ...engLines,
       "",
-      `Full dashboard: ${APP_URL}/professions`,
+      t("profession.fullDashboard", { appUrl: APP_URL }),
     ].join("\n"),
   };
 }
@@ -229,9 +233,10 @@ export async function handleDiscordSetProfessionChannel(input: {
   discordUserId: string;
   locale: DiscordBotLocale;
 }): Promise<ProfessionBotReply> {
+  const t = createDiscordTranslator(input.locale);
   const allianceId = await resolveAllianceForGuild(input.guildId);
   if (!allianceId) {
-    return { reply: "Server not registered. Use `/link-alliance` first." };
+    return { reply: t("errors.guildNotRegistered") };
   }
 
   const isOwner = await callerIsAllianceOwner({
@@ -239,13 +244,11 @@ export async function handleDiscordSetProfessionChannel(input: {
     discordUserId: input.discordUserId,
   });
   if (!isOwner) {
-    return {
-      reply: "Only alliance owners can set the profession channel.",
-    };
+    return { reply: t("profession.notOwner") };
   }
 
   await upsertProfessionChannel(allianceId, input.guildId, input.channelId);
   return {
-    reply: `Profession announcements will be posted to <#${input.channelId}>.`,
+    reply: t("profession.channelSet", { channelId: input.channelId }),
   };
 }

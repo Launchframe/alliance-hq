@@ -26,7 +26,13 @@ import { notifyProfessionEvent } from "./notifications.server";
 // Commander resolution helpers
 // ---------------------------------------------------------------------------
 
-/** Resolve the primary commander id for an HQ user in a specific alliance. */
+/** Resolve the primary commander id for an HQ user in a specific alliance.
+ *
+ * Uses `hq_user_commanders.is_primary` only — not alliance-scoped member links.
+ * Multi-commander HQ users always resolve to their primary commander even when
+ * a different commander is linked in the current alliance. Prefer explicit
+ * `commanderId` from session/member-link context when per-alliance selection matters.
+ */
 export async function resolveCommanderForHqUser(
   hqUserId: string,
   allianceId: string,

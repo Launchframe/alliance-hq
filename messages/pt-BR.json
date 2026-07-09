@@ -1433,6 +1433,7 @@
         "viralResistance": "Ir para Resistência Viral",
         "myVr": "Ir para Meu VR",
         "myThp": "Ir para Meu THP",
+        "professions": "Ir para Profissão",
         "trains": "Ir para Trem da Aliança",
         "battlePlan": "Ir para Plano de Batalha",
         "bankManagement": "Ir para Gestão de Bancos",
@@ -4002,6 +4003,7 @@
     "confirmIdentityServer": "Servidor {server}",
     "confirmIdentityYes": "Sim, sou eu",
     "confirmIdentityNo": "Não, informar outro UID",
+<<<<<<< HEAD
     "uidBypass": {
       "title": "UIDs de teste (pré-produção)",
       "badge": "Só pré-prod",
@@ -4018,6 +4020,17 @@
         "ownerPattern": "UID padrão para onboarding de owner nativo — os últimos quatro dígitos definem o servidor."
       }
     },
+=======
+    "professionStepTitle": "Qual é o seu papel?",
+    "professionStepSubtitle": "Isso nos ajuda a combinar Engenheiros com Líderes de Guerra para cobertura de suporte 24h.",
+    "professionEngineerTitle": "Engenheiro",
+    "professionEngineerDesc": "Apoie Líderes de Guerra com cobertura contínua de defesa da base.",
+    "professionWarLeaderTitle": "Líder de Guerra",
+    "professionWarLeaderDesc": "Lidere batalhas — seja combinado com Engenheiros para proteger sua base o tempo todo.",
+    "professionSkip": "Pular por agora",
+    "professionSaveFailed": "Não foi possível salvar a profissão.",
+    "professionSaveError": "Algo deu errado. Você pode definir sua profissão depois no app.",
+>>>>>>> a88adc78 (Address Real Steel follow-ups: i18n, tests, hotkeys, RBAC)
     "rosterFullTitle": "Roster is full",
     "rosterFullBody": "Your alliance is full. Last War verified {gameName}, but we could not find {gameName} in your alliance and there is not enough room in your alliance for us to create a new member. An officer will review your link request."
   },
@@ -4159,6 +4172,30 @@
       "draftSaved": "Condutor rascunho para **{date}**: **{name}**. Use `/train-is-ready` para travar e anunciar.",
       "readyAnnounced": "**{name}** travado e anunciado para **{date}** no canal do trem.",
       "readyLocked": "**{name}** travado para **{date}**. (Anúncios desativados ou sem canal — verifique o HQ.)"
+    },
+    "profession": {
+      "noProfessionSelect": "Você ainda não definiu uma profissão. Escolha seu papel:",
+      "switchConfirm": "Você é **{current}** no momento. Trocar para **{opposite}**?",
+      "switchCancelled": "Nenhuma alteração feita.",
+      "noProfessionSet": "Nenhuma profissão definida. Selecione uma:",
+      "nowEngineer": "Agora você é **Engenheiro**! Acesse {appUrl}/professions para encontrar um Líder de Guerra para apoiar.",
+      "nowWarLeader": "Agora você é **Líder de Guerra**! Acesse {appUrl}/professions para montar sua equipe de Engenheiros.",
+      "switchedToEngineer": "Agora você é **Engenheiro**.",
+      "findWlPrompt": "Acesse {appUrl}/professions para encontrar um Líder de Guerra para apoiar.",
+      "freedEngsNotice": "Seu(s) {count} Engenheiro(s) designado(s) foram notificados para encontrar um novo Líder de Guerra.",
+      "switchedToWarLeader": "Agora você é **Líder de Guerra**.",
+      "setupTeamPrompt": "Acesse {appUrl}/professions para montar sua equipe de Engenheiros.",
+      "warLeaderOnly": "Este comando é apenas para Líderes de Guerra. Use `/switch-profession` para mudar seu papel.",
+      "teamHeader": "**Sua equipe de Engenheiros**",
+      "noEngineers": "Nenhum Engenheiro designado ainda.",
+      "teamDashboard": "Acesse {appUrl}/professions para ver sua equipe e solicitar suporte.",
+      "teamHeaderCovered": "**Sua equipe de Engenheiros** — {status}",
+      "covered": "Coberto ✓",
+      "needsSupport": "Precisa de suporte ({count}/{min})",
+      "engLine": "• **{name}**{coverage} (desde {since})",
+      "fullDashboard": "Painel completo: {appUrl}/professions",
+      "notOwner": "Apenas donos da aliança podem definir o canal de profissões.",
+      "channelSet": "Anúncios de profissão serão publicados em <#{channelId}>."
     },
     "buttons": {
       "yes": "Sim",

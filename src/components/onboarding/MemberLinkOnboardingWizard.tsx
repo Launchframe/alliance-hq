@@ -56,6 +56,7 @@ type ApiResponse = {
 };
 
 function ProfessionStep({ onComplete }: { onComplete: () => void }) {
+  const t = useTranslations("onboard");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -70,12 +71,12 @@ function ProfessionStep({ onComplete }: { onComplete: () => void }) {
       });
       if (!res.ok) {
         const json = await res.json() as { error?: string };
-        setError(json.error ?? "Could not save profession.");
+        setError(json.error ?? t("professionSaveFailed"));
         return;
       }
       onComplete();
     } catch {
-      setError("Something went wrong. You can set your profession later in the app.");
+      setError(t("professionSaveError"));
     } finally {
       setSaving(false);
     }
@@ -84,9 +85,9 @@ function ProfessionStep({ onComplete }: { onComplete: () => void }) {
   return (
     <div className="space-y-5 text-center">
       <div>
-        <h2 className="text-xl font-semibold text-hq-fg">What&apos;s your role?</h2>
+        <h2 className="text-xl font-semibold text-hq-fg">{t("professionStepTitle")}</h2>
         <p className="mt-1 text-sm text-hq-fg-muted">
-          This helps us match Engineers with War Leaders for 24/7 support coverage.
+          {t("professionStepSubtitle")}
         </p>
       </div>
       {error && <p className="text-sm text-hq-danger">{error}</p>}
@@ -97,9 +98,9 @@ function ProfessionStep({ onComplete }: { onComplete: () => void }) {
           onClick={() => void chooseProfession("Engineer")}
           className="w-full rounded-lg border border-hq-border bg-hq-surface px-4 py-3 text-left hover:border-hq-accent hover:bg-hq-surface-muted disabled:opacity-50"
         >
-          <p className="font-semibold text-hq-fg">Engineer</p>
+          <p className="font-semibold text-hq-fg">{t("professionEngineerTitle")}</p>
           <p className="mt-0.5 text-xs text-hq-fg-muted">
-            Support War Leaders with continuous base defense coverage.
+            {t("professionEngineerDesc")}
           </p>
         </button>
         <button
@@ -108,9 +109,9 @@ function ProfessionStep({ onComplete }: { onComplete: () => void }) {
           onClick={() => void chooseProfession("War Leader")}
           className="w-full rounded-lg border border-hq-border bg-hq-surface px-4 py-3 text-left hover:border-hq-accent hover:bg-hq-surface-muted disabled:opacity-50"
         >
-          <p className="font-semibold text-hq-fg">War Leader</p>
+          <p className="font-semibold text-hq-fg">{t("professionWarLeaderTitle")}</p>
           <p className="mt-0.5 text-xs text-hq-fg-muted">
-            Lead battles — get matched with Engineers to protect your base around the clock.
+            {t("professionWarLeaderDesc")}
           </p>
         </button>
       </div>
@@ -120,7 +121,7 @@ function ProfessionStep({ onComplete }: { onComplete: () => void }) {
         onClick={onComplete}
         className="text-xs text-hq-fg-muted hover:underline disabled:opacity-50"
       >
-        Skip for now
+        {t("professionSkip")}
       </button>
     </div>
   );

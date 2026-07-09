@@ -1433,6 +1433,7 @@
         "viralResistance": "Go to Viral Resistance",
         "myVr": "Go to My VR",
         "myThp": "Go to My THP",
+        "professions": "Go to Profession",
         "trains": "Go to Alliance Train",
         "battlePlan": "Go to Battle Plan",
         "bankManagement": "Go to Bank Management",
@@ -4059,6 +4060,7 @@
     "confirmIdentityServer": "State server {server}",
     "confirmIdentityYes": "Yes, that's me",
     "confirmIdentityNo": "No, re-enter my UID",
+<<<<<<< HEAD
     "uidBypass": {
       "title": "Pre-production test UIDs",
       "badge": "Pre-prod only",
@@ -4075,6 +4077,17 @@
         "ownerPattern": "Pattern UID for native owner onboarding — last four digits set the state server."
       }
     }
+=======
+    "professionStepTitle": "What's your role?",
+    "professionStepSubtitle": "This helps us match Engineers with War Leaders for 24/7 support coverage.",
+    "professionEngineerTitle": "Engineer",
+    "professionEngineerDesc": "Support War Leaders with continuous base defense coverage.",
+    "professionWarLeaderTitle": "War Leader",
+    "professionWarLeaderDesc": "Lead battles — get matched with Engineers to protect your base around the clock.",
+    "professionSkip": "Skip for now",
+    "professionSaveFailed": "Could not save profession.",
+    "professionSaveError": "Something went wrong. You can set your profession later in the app."
+>>>>>>> a88adc78 (Address Real Steel follow-ups: i18n, tests, hotkeys, RBAC)
   },
   "discordBot": {
     "errors": {
@@ -4214,6 +4227,30 @@
       "draftSaved": "Draft conductor for **{date}**: **{name}**. Run `/train-is-ready` when ready to lock and announce.",
       "readyAnnounced": "Locked and announced **{name}** for **{date}** in your train channel.",
       "readyLocked": "Locked **{name}** for **{date}**. (Announcements are off or no train channel — check Alliance HQ settings.)"
+    },
+    "profession": {
+      "noProfessionSelect": "You don't have a profession set yet. Choose your role:",
+      "switchConfirm": "You are currently **{current}**. Switch to **{opposite}**?",
+      "switchCancelled": "No changes made.",
+      "noProfessionSet": "No profession set. Please select one:",
+      "nowEngineer": "You are now an **Engineer**! Visit {appUrl}/professions to find a War Leader to support.",
+      "nowWarLeader": "You are now a **War Leader**! Visit {appUrl}/professions to set up your Engineering team.",
+      "switchedToEngineer": "You are now an **Engineer**.",
+      "findWlPrompt": "Visit {appUrl}/professions to find a War Leader to support.",
+      "freedEngsNotice": "Your {count} assigned Engineer(s) have been notified to find a new War Leader.",
+      "switchedToWarLeader": "You are now a **War Leader**.",
+      "setupTeamPrompt": "Visit {appUrl}/professions to set up your Engineering team.",
+      "warLeaderOnly": "This command is for War Leaders only. Use `/switch-profession` to change your role.",
+      "teamHeader": "**Your Engineering Team**",
+      "noEngineers": "No Engineers assigned yet.",
+      "teamDashboard": "Visit {appUrl}/professions to see your team and request support.",
+      "teamHeaderCovered": "**Your Engineering Team** — {status}",
+      "covered": "Covered ✓",
+      "needsSupport": "Needs support ({count}/{min})",
+      "engLine": "• **{name}**{coverage} (since {since})",
+      "fullDashboard": "Full dashboard: {appUrl}/professions",
+      "notOwner": "Only alliance owners can set the profession channel.",
+      "channelSet": "Profession announcements will be posted to <#{channelId}>."
     },
     "buttons": {
       "yes": "Yes",

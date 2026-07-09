@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { sessionHasPermission } from "@/lib/rbac/context";
+import { requireSessionPermission } from "@/lib/rbac/require-permission";
 import { getOrCreateSession } from "@/lib/session";
 import { officerAssignEng } from "@/lib/professions/service";
 
@@ -8,14 +8,12 @@ export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
   const session = await getOrCreateSession();
+  const denied = await requireSessionPermission(session.id, "alliance:admin");
+  if (denied) return denied;
+
   const allianceId = session.currentAllianceId ?? session.allianceId;
   if (!allianceId) {
     return NextResponse.json({ error: "No alliance selected." }, { status: 400 });
-  }
-
-  const allowed = await sessionHasPermission(session.id, "alliance:admin");
-  if (!allowed) {
-    return NextResponse.json({ error: "Forbidden." }, { status: 403 });
   }
 
   const body = (await request.json()) as {
