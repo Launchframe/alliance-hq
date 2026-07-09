@@ -10,9 +10,45 @@ const CACHE_TTL_MS = 60 * 60 * 1000;
 let cachedRecords: CptHedgeServerRecord[] | null = null;
 let cachedAt = 0;
 
-function chunkUrlFromHtml(html: string): string | null {
-  const match = html.match(/\/_next\/static\/chunks\/6591-[a-f0-9]+\.js/);
-  return match ? `https://cpt-hedge.com${match[0]}` : null;
+/** Next.js chunk URLs referenced from the /servers page. */
+export function chunkUrlsFromHtml(html: string): string[] {
+  const urls: string[] = [];
+  const seen = new Set<string>();
+  for (const match of html.matchAll(/\/_next\/static\/chunks\/[^\s"']+\.js/g)) {
+    const path = match[0]!;
+    if (seen.has(path)) continue;
+    seen.add(path);
+    urls.push(`https://cpt-hedge.com${path}`);
+  }
+  return urls;
+}
+
+let cachedChunkUrl: string | null = null;
+
+async function loadRecordsFromChunks(
+  html: string,
+  fetchPage: (url: string) => Promise<string>,
+): Promise<CptHedgeServerRecord[]> {
+  const urls: string[] = [];
+  if (cachedChunkUrl) urls.push(cachedChunkUrl);
+  for (const url of chunkUrlsFromHtml(html)) {
+    if (!urls.includes(url)) urls.push(url);
+  }
+
+  for (const url of urls) {
+    try {
+      const chunk = await fetchPage(url);
+      const records = parseCptHedgeServerRecords(chunk);
+      if (records.length > 0) {
+        cachedChunkUrl = url;
+        return records;
+      }
+    } catch {
+      // try the next chunk
+    }
+  }
+
+  return [];
 }
 
 async function fetchCptHedgePage(url: string): Promise<string> {
@@ -38,11 +74,7 @@ export async function loadCptHedgeServerRecords(
   let records = parseCptHedgeServerRecords(html);
 
   if (records.length === 0) {
-    const chunkUrl = chunkUrlFromHtml(html);
-    if (chunkUrl) {
-      const chunk = await fetchCptHedgePage(chunkUrl);
-      records = parseCptHedgeServerRecords(chunk);
-    }
+    records = await loadRecordsFromChunks(html, fetchCptHedgePage);
   }
 
   cachedRecords = records;
@@ -61,4 +93,5 @@ export async function fetchCptHedgeServerRecord(
 export function resetCptHedgeCacheForTests(): void {
   cachedRecords = null;
   cachedAt = 0;
+  cachedChunkUrl = null;
 }

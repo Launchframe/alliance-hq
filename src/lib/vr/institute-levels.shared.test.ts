@@ -11,11 +11,24 @@ import {
 
 describe("institute VR ladders", () => {
   it("uses season-specific progressions", () => {
+    // S1–S4 Optoelectronic Lab (cpt-hedge.com/buildings/optoelectronic-lab)
     expect(baseVrForInstituteLevel("1", 16)).toBe(3400);
+    expect(baseVrForInstituteLevel("4", 16)).toBe(3400);
+    // S5 Caffeine Institute (cpt-hedge.com/buildings/caffeine-institute)
     expect(baseVrForInstituteLevel("5", 16)).toBe(3250);
     expect(baseVrForInstituteLevel("6", 1)).toBe(250);
     expect(maxBaseVrForSeason("5")).toBe(28000);
     expect(maxBaseVrForSeason("1")).toBe(10000);
+  });
+
+  it("matches cpt-hedge Caffeine Institute ladder through level 20", () => {
+    const caffeine = [
+      100, 200, 300, 400, 500, 750, 1000, 1250, 1500, 1750, 2000, 2250, 2500,
+      2750, 3000, 3250, 3500, 3750, 4000, 4250,
+    ];
+    for (let level = 1; level <= caffeine.length; level++) {
+      expect(baseVrForInstituteLevel("5", level)).toBe(caffeine[level - 1]);
+    }
   });
 
   it("maps VR to the highest matching institute level", () => {

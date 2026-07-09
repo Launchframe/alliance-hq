@@ -8,6 +8,9 @@ import {
 const SERVER_1203_SNIPPET =
   '{"id":"1203","server":"State#1203","timestamp":"1735204501000","currentSeason":4,"isPostSeason":true,"seasonStartTimestamps":{"s2":"1754301600000","s3":"1763373600000","s4":"1773050400000"},"currentWeek":7,"updatedAt":1777907014381,"region":["korea","north america","south america"]}';
 
+const SERVER_1203_SEASON_5_SNIPPET =
+  '{"id":"1203","server":"State#1203","timestamp":"1735204501000","currentSeason":5,"isPostSeason":false,"seasonStartTimestamps":{"s2":"1754273400000","s3":"1763345400000","s4":"1773022200000","s5":"1783303800000"},"currentWeek":1,"updatedAt":1783307950897,"region":["korea","north america","south america"]}';
+
 describe("parseCptHedgeServerRecords", () => {
   it("extracts server 1203 from embedded blob", () => {
     const records = parseCptHedgeServerRecords(SERVER_1203_SNIPPET);
@@ -25,5 +28,15 @@ describe("parseCptHedgeServerRecords", () => {
     const records = parseCptHedgeServerRecords(SERVER_1203_SNIPPET);
     expect(findCptHedgeServerRecord(records, 1203)?.currentSeason).toBe(4);
     expect(findCptHedgeServerRecord(records, 999)).toBeNull();
+  });
+
+  it("parses season 5 servers (Caffeine Institute era)", () => {
+    const records = parseCptHedgeServerRecords(SERVER_1203_SEASON_5_SNIPPET);
+    expect(records[0]).toMatchObject({
+      id: "1203",
+      currentSeason: 5,
+      isPostSeason: false,
+      currentWeek: 1,
+    });
   });
 });
