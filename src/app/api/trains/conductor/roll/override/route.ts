@@ -38,8 +38,6 @@ export async function POST(request: Request) {
       memberId: parsed.data.memberId,
       memberName: parsed.data.memberName,
       mechanism: parsed.data.mechanism,
-      connection: ctx.connection,
-      ashedAllianceId: ctx.ashedAllianceId,
       overrideReason: parsed.data.overrideReason,
       sessionId: session.id,
       hqUserId: session.hqUserId,

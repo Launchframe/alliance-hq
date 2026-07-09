@@ -4,14 +4,13 @@ import {
 import { paintTemplateFromConductorConfig } from "@/lib/trains/calendar-cell-styles.shared";
 import { resolveWeekDisplayDayConfigs } from "@/lib/trains/week-schedule-day-configs.shared";
 import { isDevOrPreviewEnvironment } from "@/lib/dev/env-guard";
-import { resolveAllianceByTag } from "@/lib/alliance/resolve";
 import { getAllianceOperatingMode } from "@/lib/native-alliance/operating-mode";
 import type { AllianceOperatingMode } from "@/lib/native-alliance/constants";
 import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
 import { loadActiveAlliancePoolMembers, loadAllianceRow } from "@/lib/members/game-roster";
 import { loadPriceIsRightTicketSettings } from "@/lib/trains/train-economy-threshold.server";
 import { resolveCliffPoints } from "@/lib/trains/train-price-is-right-tickets.shared";
-import { getAshedConnection, loadSession } from "@/lib/session";
+import { loadSession } from "@/lib/session";
 import { sessionHasPermission, sessionIsPlatformMaintainer } from "@/lib/rbac/context";
 import {
   getConductorStats,
@@ -285,13 +284,7 @@ export async function loadTrainsDashboard(
     };
   }
 
-  const connection = await getAshedConnection(sessionId);
-  const ashedAllianceId = await resolveAshedAllianceId(sessionId);
-  const members = await loadActiveAlliancePoolMembers({
-    allianceId,
-    connection,
-    ashedAllianceId,
-  });
+  const members = await loadActiveAlliancePoolMembers({ allianceId });
   const activeMemberCount = members.length;
 
   if (activeMemberCount === 0) {
@@ -409,17 +402,6 @@ export async function loadTrainsDashboard(
       ? resolveCliffPoints(pirSettings)
       : null,
   };
-}
-
-export async function resolveAshedAllianceId(
-  sessionId: string,
-): Promise<string | null> {
-  const session = await loadSession(sessionId);
-  if (!session?.allianceTag) return null;
-  const connection = await getAshedConnection(sessionId);
-  if (!connection) return null;
-  const alliance = await resolveAllianceByTag(connection, session.allianceTag);
-  return alliance.id;
 }
 
 export async function loadWeekSchedulePage(

@@ -28,8 +28,6 @@ export async function POST(request: Request) {
     const { records, poolsRefreshed } = await lockConductorsForDates({
       allianceId: ctx.allianceId,
       dates,
-      connection: ctx.connection,
-      ashedAllianceId: ctx.ashedAllianceId,
     });
     return NextResponse.json({ records, poolsRefreshed });
   } catch (error) {

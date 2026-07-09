@@ -1,5 +1,3 @@
-import { base44Json } from "@/lib/base44/fetch";
-import type { ParsedConnection } from "@/lib/connectionString";
 import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
 import { loadActiveAlliancePoolMembers, loadAllianceRow } from "@/lib/members/game-roster";
 import type {
@@ -65,11 +63,7 @@ import {
   minimumsEnforcementEnabled,
 } from "@/lib/trains/train-conductor-minimums.shared";
 import { writeAuditLog } from "@/lib/bff/audit";
-import { fetchEventTopScorers } from "@/lib/trains/event-scores.server";
 import { fetchNativeVrTopScorers } from "@/lib/trains/native-scores.server";
-import {
-  fetchVsTopScorersForTrainDate,
-} from "@/lib/trains/vs-scores.server";
 import {
   getAllianceRanksAsOf,
   getMemberRankAsOf,
@@ -165,67 +159,10 @@ function weekDayConfigsForTemplate(
   );
 }
 
-type AshedScoreRow = {
-  id?: string;
-  member_id?: string;
-  memberId?: string;
-  member_name?: string;
-  memberName?: string;
-  current_name?: string;
-  score?: number;
-  points?: number;
-  total?: number;
-};
-
-function memberFromScore(row: AshedScoreRow): RollCandidate | null {
-  const memberId = row.member_id ?? row.memberId ?? row.id;
-  const memberName =
-    row.member_name ?? row.memberName ?? row.current_name ?? null;
-  if (!memberId || !memberName) return null;
-  return { memberId: String(memberId), memberName: String(memberName) };
-}
-
-function scoreValue(row: AshedScoreRow): number {
-  return Number(row.score ?? row.points ?? row.total ?? 0);
-}
-
-async function fetchTopDonor(
-  connection: ParsedConnection,
-  allianceId: string,
-): Promise<RollCandidate | null> {
-  const path = `/entities/Donation?q=${encodeURIComponent(JSON.stringify({ alliance_id: allianceId }))}&sort=-points&limit=2`;
-  const rows = await base44Json<AshedScoreRow[]>(connection, path);
-  const sorted = [...rows].sort((a, b) => scoreValue(b) - scoreValue(a));
-  const top = sorted[0];
-  return top ? memberFromScore(top) : null;
-}
-
-async function fetchSecondDonor(
-  connection: ParsedConnection,
-  allianceId: string,
-): Promise<RollCandidate | null> {
-  const path = `/entities/Donation?q=${encodeURIComponent(JSON.stringify({ alliance_id: allianceId }))}&sort=-points&limit=5`;
-  const rows = await base44Json<AshedScoreRow[]>(connection, path);
-  const sorted = [...rows].sort((a, b) => scoreValue(b) - scoreValue(a));
-  const second = sorted[1];
-  return second ? memberFromScore(second) : null;
-}
-
 async function fetchVsTopScorersForTrainDateResolved(input: {
-  connection: ParsedConnection | null;
-  ashedAllianceId: string;
   hqAllianceId: string;
-  trainDate: string;
   limit: number;
 }): Promise<RollCandidate[]> {
-  if (input.connection) {
-    return fetchVsTopScorersForTrainDate(
-      input.connection,
-      input.ashedAllianceId,
-      input.trainDate,
-      input.limit,
-    );
-  }
   return fetchNativeVrTopScorers(input.hqAllianceId, input.limit);
 }
 
@@ -233,32 +170,16 @@ async function buildPoolCandidates(input: {
   hqAllianceId: string;
   poolType: PoolType;
   date: string;
-  ashedAllianceId: string;
-  connection: ParsedConnection | null;
   eventTopN?: number;
-  eventKey?: string;
   paintTemplate?: WeekTemplateType | null;
 }): Promise<RollCandidate[]> {
   if (input.poolType === "event_top_x") {
     const limit = input.eventTopN ?? 10;
-    if (input.connection) {
-      return fetchEventTopScorers(
-        input.connection,
-        input.ashedAllianceId,
-        input.eventKey ?? "capitol_war",
-        input.date,
-        limit,
-      );
-    }
     return fetchNativeVrTopScorers(input.hqAllianceId, limit);
   }
 
   const [members, rankEvents] = await Promise.all([
-    loadActiveAlliancePoolMembers({
-      allianceId: input.hqAllianceId,
-      ashedAllianceId: input.ashedAllianceId,
-      connection: input.connection,
-    }),
+    loadActiveAlliancePoolMembers({ allianceId: input.hqAllianceId }),
     getAllianceRanksAsOf(input.hqAllianceId, input.date),
   ]);
   const rankByMember = new Map(
@@ -283,14 +204,10 @@ async function buildPoolCandidates(input: {
     const ticketSettings = await loadPriceIsRightTicketSettings(
       input.hqAllianceId,
     );
-    // Weighted mode requires live VS scores; skip if no Ashed connection is
-    // available so native alliances without a connection can still roll.
-    if (priceIsRightWeightingActive(ticketSettings) && input.connection != null) {
+    if (priceIsRightWeightingActive(ticketSettings)) {
       const weighted = await buildPriceIsRightWeightedCandidates({
         allianceId: input.hqAllianceId,
         trainDate: input.date,
-        connection: input.connection,
-        ashedAllianceId: input.ashedAllianceId,
         candidates,
         settings: ticketSettings,
       });
@@ -300,8 +217,6 @@ async function buildPoolCandidates(input: {
     return filterPoolByEconomyThreshold({
       allianceId: input.hqAllianceId,
       trainDate: input.date,
-      connection: input.connection,
-      ashedAllianceId: input.ashedAllianceId,
       candidates,
     });
   }
@@ -311,13 +226,10 @@ async function buildPoolCandidates(input: {
 
 async function ensurePool(input: {
   hqAllianceId: string;
-  ashedAllianceId: string;
   poolType: PoolType;
   date: string;
-  connection: ParsedConnection | null;
   useSequence: boolean;
   eventTopN?: number;
-  eventKey?: string;
   paintTemplate?: WeekTemplateType | null;
 }): Promise<void> {
   const has = await poolHasEntries(input.hqAllianceId, input.poolType);
@@ -327,10 +239,7 @@ async function ensurePool(input: {
     hqAllianceId: input.hqAllianceId,
     poolType: input.poolType,
     date: input.date,
-    ashedAllianceId: input.ashedAllianceId,
-    connection: input.connection,
     eventTopN: input.eventTopN,
-    eventKey: input.eventKey,
     paintTemplate: input.paintTemplate,
   });
   if (candidates.length === 0) {
@@ -348,8 +257,6 @@ async function refreshPriceIsRightPoolTicketWeights(input: {
   allianceId: string;
   poolType: PoolType;
   date: string;
-  connection: ParsedConnection | null;
-  ashedAllianceId: string;
 }): Promise<void> {
   const entries = await listPoolEntries(input.allianceId, input.poolType);
   if (entries.length === 0) return;
@@ -360,8 +267,6 @@ async function refreshPriceIsRightPoolTicketWeights(input: {
   const weighted = await buildPriceIsRightWeightedCandidates({
     allianceId: input.allianceId,
     trainDate: input.date,
-    connection: input.connection,
-    ashedAllianceId: input.ashedAllianceId,
     candidates: entries.map((entry) => ({
       memberId: entry.memberId,
       memberName: entry.memberName,
@@ -434,16 +339,12 @@ async function rollFromPool(
 async function applyConductorQualificationGate(input: {
   allianceId: string;
   date: string;
-  connection: ParsedConnection | null;
-  ashedAllianceId: string;
   result: RollResult;
 }): Promise<RollResult> {
   const qualification = await evaluateConductorQualification({
     allianceId: input.allianceId,
     memberId: input.result.memberId,
     trainDate: input.date,
-    connection: input.connection,
-    ashedAllianceId: input.ashedAllianceId,
   });
 
   if (qualification && !qualification.qualified) {
@@ -504,8 +405,6 @@ export async function confirmConductorMinimumOverride(input: {
   memberId: string;
   memberName: string;
   mechanism: ConductorMechanismType;
-  connection: ParsedConnection | null;
-  ashedAllianceId: string;
   overrideReason?: string;
   sessionId: string;
   hqUserId?: string | null;
@@ -520,8 +419,6 @@ export async function confirmConductorMinimumOverride(input: {
       allianceId: input.allianceId,
       memberId: input.memberId,
       trainDate: input.date,
-      connection: input.connection,
-      ashedAllianceId: input.ashedAllianceId,
     }),
   );
 
@@ -783,8 +680,6 @@ export async function applyTemplateToDates(
 export async function rollForConductor(input: {
   allianceId: string;
   date: string;
-  connection: ParsedConnection | null;
-  ashedAllianceId: string;
 }): Promise<RollResult> {
   assertRollAllowed(input.date);
 
@@ -811,10 +706,7 @@ export async function rollForConductor(input: {
   switch (mechanism) {
     case "vs_high_score": {
       const top = await fetchVsTopScorersForTrainDateResolved({
-        connection: input.connection,
-        ashedAllianceId: input.ashedAllianceId,
         hqAllianceId: input.allianceId,
-        trainDate: input.date,
         limit: 1,
       });
       const winner = top[0];
@@ -833,10 +725,7 @@ export async function rollForConductor(input: {
     }
     case "vs_top_10": {
       const top10 = await fetchVsTopScorersForTrainDateResolved({
-        connection: input.connection,
-        ashedAllianceId: input.ashedAllianceId,
         hqAllianceId: input.allianceId,
-        trainDate: input.date,
         limit: 10,
       });
       if (top10.length === 0) {
@@ -852,14 +741,10 @@ export async function rollForConductor(input: {
       break;
     }
     case "donations_top": {
-      const winner = input.connection
-        ? await fetchTopDonor(input.connection, input.ashedAllianceId)
-        : null;
-      if (!winner) {
-        throwNoWheelCandidates("donation", "No donation scores found.");
-      }
-      result = { ...winner, mechanism, isAutomatic: true };
-      break;
+      throwNoWheelCandidates(
+        "donation",
+        "Donation wheels require a manual conductor pick — HQ does not store donation scores yet.",
+      );
     }
     case "r3_lottery":
     case "r4_sequence": {
@@ -873,10 +758,8 @@ export async function rollForConductor(input: {
       }
       await ensurePool({
         hqAllianceId: input.allianceId,
-        ashedAllianceId: input.ashedAllianceId,
         poolType,
         date: input.date,
-        connection: input.connection,
         useSequence: mechanism === "r4_sequence",
         paintTemplate: dayConfig.paintTemplate,
       });
@@ -885,16 +768,12 @@ export async function rollForConductor(input: {
           ? await loadPriceIsRightTicketSettings(input.allianceId)
           : null;
       const useWeightedPick =
-        pirSettings != null &&
-        priceIsRightWeightingActive(pirSettings) &&
-        input.connection != null;
+        pirSettings != null && priceIsRightWeightingActive(pirSettings);
       if (useWeightedPick) {
         await refreshPriceIsRightPoolTicketWeights({
           allianceId: input.allianceId,
           poolType,
           date: input.date,
-          connection: input.connection,
-          ashedAllianceId: input.ashedAllianceId,
         });
       }
       result = await rollFromPool(
@@ -909,8 +788,6 @@ export async function rollForConductor(input: {
         allianceId: input.allianceId,
         poolType,
         date: input.date,
-        connection: input.connection,
-        ashedAllianceId: input.ashedAllianceId,
         paintTemplate: dayConfig.paintTemplate,
       });
       if (poolRefreshed) {
@@ -925,8 +802,6 @@ export async function rollForConductor(input: {
   const gated = await applyConductorQualificationGate({
     allianceId: input.allianceId,
     date: input.date,
-    connection: input.connection,
-    ashedAllianceId: input.ashedAllianceId,
     result,
   });
 
@@ -948,8 +823,6 @@ export async function rollForConductor(input: {
 export async function rollForVip(input: {
   allianceId: string;
   date: string;
-  connection: ParsedConnection | null;
-  ashedAllianceId: string;
 }): Promise<RollResult> {
   assertRollAllowed(input.date);
 
@@ -978,14 +851,10 @@ export async function rollForVip(input: {
 
   switch (mechanism) {
     case "donations_second": {
-      const winner = input.connection
-        ? await fetchSecondDonor(input.connection, input.ashedAllianceId)
-        : null;
-      if (!winner) {
-        throwNoWheelCandidates("donation", "No donation scores found.");
-      }
-      result = { ...winner, mechanism, isAutomatic: true };
-      break;
+      throwNoWheelCandidates(
+        "donation",
+        "Donation wheels require a manual VIP pick — HQ does not store donation scores yet.",
+      );
     }
     case "event_top_x_lottery": {
       const config = (dayConfig.vipConfig ?? {
@@ -1002,13 +871,10 @@ export async function rollForVip(input: {
       }
       await ensurePool({
         hqAllianceId: input.allianceId,
-        ashedAllianceId: input.ashedAllianceId,
         poolType,
         date: input.date,
-        connection: input.connection,
         useSequence: false,
         eventTopN: config.topN ?? 10,
-        eventKey: config.eventKey,
       });
       result = await rollFromPool(
         input.allianceId,
@@ -1021,10 +887,7 @@ export async function rollForVip(input: {
         allianceId: input.allianceId,
         poolType,
         date: input.date,
-        connection: input.connection,
-        ashedAllianceId: input.ashedAllianceId,
         eventTopN: config.topN ?? 10,
-        eventKey: config.eventKey,
       });
       if (poolRefreshed) {
         result = { ...result, poolRefreshed };
@@ -1060,21 +923,15 @@ export async function reseedPool(input: {
   allianceId: string;
   poolType: PoolType;
   date: string;
-  connection: ParsedConnection | null;
-  ashedAllianceId: string;
   useSequence?: boolean;
   eventTopN?: number;
-  eventKey?: string;
   paintTemplate?: WeekTemplateType | null;
 }): Promise<{ generation: number; count: number }> {
   const candidates = await buildPoolCandidates({
     hqAllianceId: input.allianceId,
-    ashedAllianceId: input.ashedAllianceId,
     poolType: input.poolType,
     date: input.date,
-    connection: input.connection,
     eventTopN: input.eventTopN,
-    eventKey: input.eventKey,
     paintTemplate: input.paintTemplate,
   });
   if (candidates.length === 0) {
@@ -1104,8 +961,6 @@ export async function refreshExhaustedPoolIfNeeded(
 export async function refreshExhaustedPoolsForDay(input: {
   allianceId: string;
   date: string;
-  connection: ParsedConnection | null;
-  ashedAllianceId: string;
   seasonKey: string;
 }): Promise<PoolRefreshedInfo[]> {
   const dayConfig = await resolveRollDayConfig(
@@ -1117,8 +972,6 @@ export async function refreshExhaustedPoolsForDay(input: {
   const base = {
     allianceId: input.allianceId,
     date: input.date,
-    connection: input.connection,
-    ashedAllianceId: input.ashedAllianceId,
   };
 
   const conductorPool = conductorMechanismPoolType(dayConfig.conductorMechanism);
@@ -1153,8 +1006,6 @@ export async function refreshExhaustedPoolsForDay(input: {
 export async function lockConductorsForDates(input: {
   allianceId: string;
   dates: string[];
-  connection: ParsedConnection | null;
-  ashedAllianceId: string;
 }): Promise<{
   records: Awaited<ReturnType<typeof lockConductorRecord>>[];
   poolsRefreshed: PoolRefreshedInfo[];
@@ -1181,8 +1032,6 @@ export async function lockConductorsForDates(input: {
     const refreshed = await refreshExhaustedPoolsForDay({
       allianceId: input.allianceId,
       date,
-      connection: input.connection,
-      ashedAllianceId: input.ashedAllianceId,
       seasonKey,
     });
     poolsRefreshed.push(...refreshed);

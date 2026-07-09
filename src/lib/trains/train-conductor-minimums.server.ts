@@ -2,21 +2,20 @@ import "server-only";
 
 import { eq } from "drizzle-orm";
 
-import type { ParsedConnection } from "@/lib/connectionString";
 import { getDb, schema } from "@/lib/db";
-import { loadAllianceRow } from "@/lib/members/game-roster";
-import { fetchDonationTotalsForDateRange } from "@/lib/trains/donation-scores.server";
+import { fetchHqSeasonVsScoresByMember } from "@/lib/trains/native-scores.server";
 import {
   buildMemberQualification,
   evaluationPeriodForTrainDate,
   minimumsEnforcementEnabled,
+  minimumsSettingsForHqLocalEval,
   normalizeTrainMinimumsSettings,
   type MemberQualificationPayload,
   type TrainConductorMinimumsSettings,
   type TrainMinimumsWindow,
 } from "@/lib/trains/train-conductor-minimums.shared";
 import { allianceTrainWeekFromRow } from "@/lib/trains/train-week-calendar.shared";
-import { fetchVsTotalsForDateRange } from "@/lib/trains/vs-scores.server";
+import { loadAllianceRow } from "@/lib/members/game-roster";
 
 export type TrainConductorMinimumsRow = TrainConductorMinimumsSettings & {
   canManage: boolean;
@@ -77,14 +76,9 @@ export async function evaluateConductorQualification(input: {
   allianceId: string;
   memberId: string;
   trainDate: string;
-  connection: ParsedConnection | null;
-  ashedAllianceId: string;
 }): Promise<MemberQualificationPayload | null> {
   const settings = await loadTrainConductorMinimums(input.allianceId, false);
   if (!minimumsEnforcementEnabled(settings)) {
-    return null;
-  }
-  if (!input.connection) {
     return null;
   }
 
@@ -96,25 +90,13 @@ export async function evaluateConductorQualification(input: {
     trainWeekConfig,
   );
 
-  const [vsTotals, donationTotals] = await Promise.all([
-    fetchVsTotalsForDateRange(
-      input.connection,
-      input.ashedAllianceId,
-      start,
-      end,
-    ),
-    fetchDonationTotalsForDateRange(
-      input.connection,
-      input.ashedAllianceId,
-      start,
-      end,
-    ),
-  ]);
+  // HQ stores season VR totals only (no per-day VS or donation ledger yet).
+  const vsTotals = await fetchHqSeasonVsScoresByMember(input.allianceId);
 
   return buildMemberQualification({
     vsScore: vsTotals.get(input.memberId) ?? 0,
-    donationScore: donationTotals.get(input.memberId) ?? 0,
-    settings,
+    donationScore: 0,
+    settings: minimumsSettingsForHqLocalEval(settings),
     periodStart: start,
     periodEnd: end,
   });

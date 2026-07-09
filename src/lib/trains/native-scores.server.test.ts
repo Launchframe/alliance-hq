@@ -32,7 +32,10 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
-import { fetchNativeVrTopScorers } from "@/lib/trains/native-scores.server";
+import {
+  fetchHqSeasonVsScoresByMember,
+  fetchNativeVrTopScorers,
+} from "@/lib/trains/native-scores.server";
 
 describe("fetchNativeVrTopScorers", () => {
   beforeEach(() => {
@@ -77,5 +80,31 @@ describe("fetchNativeVrTopScorers", () => {
     expect(result).toEqual([
       { memberId: "m1", memberName: "Alpha", allianceRank: 4 },
     ]);
+  });
+});
+
+describe("fetchHqSeasonVsScoresByMember", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.getEffectiveSeasonForAlliance.mockResolvedValue({ seasonKey: "3" });
+    mocks.selectChain.from.mockReturnValue(mocks.selectChain);
+    mocks.selectChain.where.mockResolvedValue([
+      { ashedMemberId: "m1", highestBaseVr: 120 },
+      { ashedMemberId: "m2", highestBaseVr: 0 },
+      { ashedMemberId: "m3", highestBaseVr: 45 },
+    ]);
+  });
+
+  it("returns positive season VR keyed by member id", async () => {
+    const scores = await fetchHqSeasonVsScoresByMember("a1");
+    expect(scores.get("m1")).toBe(120);
+    expect(scores.get("m3")).toBe(45);
+    expect(scores.has("m2")).toBe(false);
+  });
+
+  it("scopes query to alliance season", async () => {
+    await fetchHqSeasonVsScoresByMember("a1");
+    expect(mocks.getEffectiveSeasonForAlliance).toHaveBeenCalledWith("a1");
+    expect(mocks.selectChain.where).toHaveBeenCalled();
   });
 });

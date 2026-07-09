@@ -11,7 +11,7 @@ import {
   vsScoreContextForTrainDate,
   type VsScoreContext,
 } from "@/lib/trains/vs-week-days.shared";
-import { fetchVsScoresByRecordedDate } from "@/lib/trains/vs-scores.server";
+import { fetchHqSeasonVsScoresByMember } from "@/lib/trains/native-scores.server";
 import { getOrCreateSession } from "@/lib/session";
 import {
   requireSessionPermission,
@@ -44,21 +44,14 @@ export async function GET(request: Request) {
 
   if (poolType === "event_top_x" && trainDate) {
     const eventContext = vsScoreContextForTrainDate(trainDate);
-    let scoresByMember: Map<string, number> | null = null;
-    if (ctx.connection) {
-      scoresByMember = await fetchVsScoresByRecordedDate(
-        ctx.connection,
-        ctx.ashedAllianceId,
-        eventContext.scoreDate,
-      );
-    }
+    const scoresByMember = await fetchHqSeasonVsScoresByMember(ctx.allianceId);
 
     return NextResponse.json({
       summary,
       eventContext,
       entries: entries.map((entry) => ({
         ...entry,
-        vsScore: scoresByMember?.get(entry.memberId) ?? null,
+        vsScore: scoresByMember.get(entry.memberId) ?? null,
       })),
     });
   }
@@ -95,8 +88,6 @@ export async function POST(request: Request) {
       allianceId: ctx.allianceId,
       poolType: body.poolType,
       date,
-      connection: ctx.connection,
-      ashedAllianceId: ctx.ashedAllianceId,
       paintTemplate: dayConfig.paintTemplate,
     });
     return NextResponse.json(result);
