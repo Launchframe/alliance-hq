@@ -624,6 +624,13 @@
       "when": 1786880000000,
       "tag": "0089_battle_plan_event_markers",
       "breakpoints": true
+    },
+    {
+      "idx": 88,
+      "version": "7",
+      "when": 1786966400000,
+      "tag": "0090_alliance_daily_snapshots",
+      "breakpoints": true
     }
   ]
 }

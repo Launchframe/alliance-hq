@@ -169,7 +169,7 @@ export function SidebarNav({
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex shrink-0 items-center justify-between border-b border-hq-border px-4 py-4">
         <Link
-          href={operatingMode === "native" ? "/members" : "/dashboard"}
+          href="/dashboard"
           className="flex min-w-0 items-center gap-3"
           onClick={() => {
             beginNavigation();
