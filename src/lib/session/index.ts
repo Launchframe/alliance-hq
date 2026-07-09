@@ -27,6 +27,7 @@ import {
 } from "@/lib/jwt/connection-meta";
 import { isTokenExpired } from "@/lib/jwt/decode";
 import { capTokenExpiresAtAtSession } from "@/lib/member-link/privileged-link.shared";
+import { sessionHasHqMemberLink } from "@/lib/member-link/repository.server";
 import { DEFAULT_EXPIRY_REMINDER_DAYS } from "@/lib/jwt/decode";
 import { getRbacContext } from "@/lib/rbac/context";
 import { sessionHoldsAshedIdentityForHqUser } from "@/lib/rbac/ashed-session-membership";
@@ -543,6 +544,12 @@ export async function getSessionStateFor(
   const isNativeMembership = await sessionHasNativeMembership(session);
   const hasActiveMembership = await sessionHasActiveMembership(session);
   const requiresMemberLink = await sessionRequiresMemberLink(session);
+  const hasAllianceMemberLink =
+    Boolean(effectiveHqUserId && session.currentAllianceId) &&
+    (await sessionHasHqMemberLink(
+      session.currentAllianceId!,
+      effectiveHqUserId!,
+    ));
   const operatingMode = session.currentAllianceId
     ? await getAllianceOperatingMode(session.currentAllianceId)
     : null;
@@ -604,6 +611,7 @@ export async function getSessionStateFor(
     isConnected: connection !== null,
     hasAppAccess,
     requiresMemberLink,
+    hasAllianceMemberLink,
     canUseAshedEmbeds,
     isNativeAlliance: isNativeMembership,
     operatingMode,

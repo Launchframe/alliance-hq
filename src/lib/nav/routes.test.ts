@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   ashedUrlForPath,
+  filterNavGroupsForAllianceMemberLink,
   filterNavGroupsForPermissions,
   findActiveNavGroupId,
   isNavActive,
@@ -116,6 +117,41 @@ describe("filterNavGroupsForPermissions", () => {
     expect(reporting?.pages.some((page) => page.id === "viral-resistance")).toBe(
       false,
     );
+  });
+});
+
+describe("filterNavGroupsForAllianceMemberLink", () => {
+  it("hides my-vr and my-thp without an alliance member link", () => {
+    const filtered = filterNavGroupsForAllianceMemberLink(NAV_GROUPS, {
+      hasAllianceMemberLink: false,
+    });
+    const reporting = filtered.find((group) => group.id === "performance-reporting");
+    expect(reporting?.pages.some((page) => page.id === "my-vr")).toBe(false);
+    expect(reporting?.pages.some((page) => page.id === "my-thp")).toBe(false);
+    expect(reporting?.pages.some((page) => page.id === "viral-resistance")).toBe(
+      true,
+    );
+  });
+
+  it("keeps my-vr and my-thp when the user has an alliance member link", () => {
+    const filtered = filterNavGroupsForAllianceMemberLink(NAV_GROUPS, {
+      hasAllianceMemberLink: true,
+    });
+    const reporting = filtered.find((group) => group.id === "performance-reporting");
+    expect(reporting?.pages.some((page) => page.id === "my-vr")).toBe(true);
+    expect(reporting?.pages.some((page) => page.id === "my-thp")).toBe(true);
+  });
+
+  it("hides self-service pages for platform admins browsing another alliance", () => {
+    const filtered = filterNavGroupsForAllianceMemberLink(
+      filterNavGroupsForPermissions(NAV_GROUPS, new Set(["hq:admin"]), {
+        bypass: true,
+      }),
+      { hasAllianceMemberLink: false },
+    );
+    const reporting = filtered.find((group) => group.id === "performance-reporting");
+    expect(reporting?.pages.some((page) => page.id === "my-vr")).toBe(false);
+    expect(reporting?.pages.some((page) => page.id === "my-thp")).toBe(false);
   });
 });
 

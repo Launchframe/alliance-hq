@@ -54,6 +54,7 @@ type Props = {
   currentAllianceId?: string | null;
   membershipAlliances?: SessionAllianceOption[];
   isPlatformMaintainer?: boolean;
+  hasAllianceMemberLink?: boolean;
   sessionPermissions?: readonly string[];
   /** Dev/preview-only: render the test-matrix quick-switch panel. */
   devQuickSwitch?: boolean;
@@ -85,6 +86,7 @@ export function AshedShell({
   currentAllianceId = null,
   membershipAlliances = [],
   isPlatformMaintainer = false,
+  hasAllianceMemberLink = false,
   sessionPermissions = [],
   devQuickSwitch = false,
   children,
@@ -190,6 +192,7 @@ export function AshedShell({
               currentAllianceId={currentAllianceId}
               membershipAlliances={membershipAlliances}
               isPlatformMaintainer={isPlatformMaintainer}
+              hasAllianceMemberLink={hasAllianceMemberLink}
               sessionPermissions={sessionPermissions}
               mobileCollapsible
               expandedGroupId={expandedGroupId}

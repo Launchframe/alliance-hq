@@ -15,6 +15,7 @@ import type { SessionAllianceOption } from "@/lib/alliance/types";
 import {
   FOOTER_NAV,
   NAV_GROUPS,
+  filterNavGroupsForAllianceMemberLink,
   filterNavGroupsForOperatingMode,
   filterNavGroupsForPermissions,
   navLinkActive,
@@ -108,6 +109,7 @@ type Props = {
   currentAllianceId?: string | null;
   membershipAlliances?: SessionAllianceOption[];
   isPlatformMaintainer?: boolean;
+  hasAllianceMemberLink?: boolean;
   sessionPermissions?: readonly string[];
   mobileCollapsible?: boolean;
   expandedGroupId: string | null;
@@ -126,6 +128,7 @@ export function SidebarNav({
   currentAllianceId = null,
   membershipAlliances = [],
   isPlatformMaintainer = false,
+  hasAllianceMemberLink = false,
   sessionPermissions = [],
   mobileCollapsible = false,
   expandedGroupId,
@@ -140,10 +143,13 @@ export function SidebarNav({
   const tNavGroups = useTranslations("navGroups");
   const tc = useTranslations("common");
   const permissionSet = new Set(sessionPermissions);
-  const navGroups = filterNavGroupsForPermissions(
-    filterNavGroupsForOperatingMode(NAV_GROUPS, operatingMode),
-    permissionSet,
-    { bypass: showAdminPortal },
+  const navGroups = filterNavGroupsForAllianceMemberLink(
+    filterNavGroupsForPermissions(
+      filterNavGroupsForOperatingMode(NAV_GROUPS, operatingMode),
+      permissionSet,
+      { bypass: showAdminPortal },
+    ),
+    { hasAllianceMemberLink },
   )
     .map((group) => ({
       ...group,
