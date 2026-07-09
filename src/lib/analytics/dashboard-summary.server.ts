@@ -4,9 +4,11 @@ import { and, eq } from "drizzle-orm";
 
 import { computePercentile } from "@/lib/analytics/percentile.shared";
 import {
-  loadSquadSummaryForDashboard,
+  loadSquadSummaryFromCommanderIndex,
   loadUnlinkedMembersForOfficers,
 } from "@/lib/analytics/alliance-daily-snapshot.server";
+import { loadCommanderIndex } from "@/lib/commanders/index.server";
+import type { CommanderIndexPayload } from "@/lib/commanders/index.shared";
 import {
   computeViewerThpStanding,
   loadLatestSnapshot,
@@ -34,6 +36,7 @@ import type { DashboardSummaryPayload } from "@/lib/analytics/dashboard-summary.
 
 export async function loadDashboardSummary(
   sessionId: string,
+  commanderIndex?: CommanderIndexPayload,
 ): Promise<DashboardSummaryPayload> {
   const session = await loadSession(sessionId);
   const allianceId = session?.currentAllianceId ?? session?.allianceId ?? null;
@@ -46,6 +49,9 @@ export async function loadDashboardSummary(
   const canWriteMembers = permissions.has("members:write");
   const canManageTrains = permissions.has("trains:write");
 
+  const commanderIndexResolved =
+    commanderIndex ?? (await loadCommanderIndex(sessionId));
+
   const [
     viewer,
     inboxRows,
@@ -54,13 +60,16 @@ export async function loadDashboardSummary(
     videoCoverage,
     squad,
     latestSnapshot,
-    linkProgressSeries,
-    thpSeries,
-    donationSeries,
+    snapshotSeries,
     effectiveSeason,
     ashedConnection,
   ] = await Promise.all([
-    loadDashboardViewerContext(sessionId, session.hqUserId, allianceId),
+    loadDashboardViewerContext(
+      sessionId,
+      session.hqUserId,
+      allianceId,
+      commanderIndexResolved,
+    ),
     permissions.has("inbox:read")
       ? loadReminderInboxForUser({
           hqUserId: session.hqUserId,
@@ -73,10 +82,8 @@ export async function loadDashboardSummary(
       : Promise.resolve(null),
     loadDashboardTrainStatus(allianceId),
     loadVideoUploadCoverage(allianceId),
-    loadSquadSummaryForDashboard(sessionId),
+    Promise.resolve(loadSquadSummaryFromCommanderIndex(commanderIndexResolved)),
     loadLatestSnapshot(allianceId),
-    loadSnapshotSeries(allianceId, "90d"),
-    loadSnapshotSeries(allianceId, "90d"),
     loadSnapshotSeries(allianceId, "90d"),
     getEffectiveSeasonForAlliance(allianceId),
     getAshedConnection(sessionId),
@@ -98,9 +105,9 @@ export async function loadDashboardSummary(
     videoCoverage,
     squad,
     latestSnapshot,
-    linkProgressSeries,
-    thpSeries,
-    donationSeries,
+    linkProgressSeries: snapshotSeries,
+    thpSeries: snapshotSeries,
+    donationSeries: snapshotSeries,
     vrAvailable: !effectiveSeason.isPostSeason,
     canManageTrains,
     canWriteMembers,
@@ -190,7 +197,10 @@ export async function loadDonationsDashboard(
   };
 }
 
-export async function loadViralResistanceDashboard(sessionId: string) {
+export async function loadViralResistanceDashboard(
+  sessionId: string,
+  commanderIndex?: CommanderIndexPayload,
+) {
   const session = await loadSession(sessionId);
   const allianceId = session?.currentAllianceId ?? session?.allianceId ?? null;
   if (!session?.hqUserId || !allianceId) {
@@ -205,7 +215,12 @@ export async function loadViralResistanceDashboard(sessionId: string) {
   const db = getDb();
   const seasonKey = await resolveSeasonKey(allianceId);
   const [viewer, memberCount, seasonRows] = await Promise.all([
-    loadDashboardViewerContext(sessionId, session.hqUserId, allianceId),
+    loadDashboardViewerContext(
+      sessionId,
+      session.hqUserId,
+      allianceId,
+      commanderIndex,
+    ),
     db
       .select({ id: schema.allianceMembers.ashedMemberId })
       .from(schema.allianceMembers)
@@ -246,4 +261,16 @@ export async function loadViralResistanceDashboard(sessionId: string) {
     values: reporterValues,
     standing,
   };
+}
+
+export async function loadDashboardInitialData(sessionId: string): Promise<{
+  summary: DashboardSummaryPayload;
+  vr: Awaited<ReturnType<typeof loadViralResistanceDashboard>>;
+}> {
+  const commanderIndex = await loadCommanderIndex(sessionId);
+  const summary = await loadDashboardSummary(sessionId, commanderIndex);
+  const vr = summary.vrAvailable
+    ? await loadViralResistanceDashboard(sessionId, commanderIndex)
+    : { available: false as const };
+  return { summary, vr };
 }

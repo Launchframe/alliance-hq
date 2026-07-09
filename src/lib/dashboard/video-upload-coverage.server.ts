@@ -1,10 +1,10 @@
 import "server-only";
 
+import { loadRecentCompletedVideoJobTimes } from "@/lib/analytics/snapshots.server";
 import {
   getServerCalendarDate,
   getServerDayOfWeek,
 } from "@/lib/trains/game-time";
-import { loadRecentCompletedVideoTargets } from "@/lib/analytics/snapshots.server";
 
 export type VideoUploadCoverageTarget = {
   id: string;
@@ -41,36 +41,45 @@ export function isWeekendServerDay(today = getServerCalendarDate()): boolean {
   return dow === 0 || dow === 6;
 }
 
+function targetSatisfiedSince(
+  jobTimes: Map<string, Date>,
+  targetId: string,
+  since: Date,
+): boolean {
+  const completedAt = jobTimes.get(targetId);
+  return completedAt != null && completedAt >= since;
+}
+
 export async function loadVideoUploadCoverage(
   allianceId: string,
   now = new Date(),
 ): Promise<VideoUploadCoverageTarget[]> {
   const today = getServerCalendarDate(now);
   const vsLookbackHours = resolveVsPerformanceLookbackHours(today);
-  const targets: VideoUploadCoverageTarget[] = [];
+  const maxLookbackHours = Math.max(vsLookbackHours, 24);
+  const sinceMax = new Date(now.getTime() - maxLookbackHours * 60 * 60 * 1000);
+  const jobTimes = await loadRecentCompletedVideoJobTimes(allianceId, sinceMax);
 
-  for (const target of CORE_TARGETS) {
+  const targets: VideoUploadCoverageTarget[] = CORE_TARGETS.map((target) => {
     const lookbackHours =
       target.id === "vs-performance" ? vsLookbackHours : 24;
     const since = new Date(now.getTime() - lookbackHours * 60 * 60 * 1000);
-    const completed = await loadRecentCompletedVideoTargets(allianceId, since);
-    targets.push({
+    return {
       id: target.id,
       labelKey: target.labelKey,
       lookbackHours,
-      satisfied: completed.has(target.id),
+      satisfied: targetSatisfiedSince(jobTimes, target.id, since),
       uploadHref: target.uploadHref,
-    });
-  }
+    };
+  });
 
   if (isWeekendServerDay(today)) {
     const since = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-    const completed = await loadRecentCompletedVideoTargets(allianceId, since);
     targets.push({
       id: WEEKEND_EVENT_TARGET.id,
       labelKey: WEEKEND_EVENT_TARGET.labelKey,
       lookbackHours: 24,
-      satisfied: completed.has("vs-performance"),
+      satisfied: targetSatisfiedSince(jobTimes, "vs-performance", since),
       uploadHref: WEEKEND_EVENT_TARGET.uploadHref,
       weekendOnly: true,
     });

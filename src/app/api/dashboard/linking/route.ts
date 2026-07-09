@@ -5,6 +5,7 @@ import { requireSessionPermission } from "@/lib/rbac/require-permission";
 import { getOrCreateSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
 export async function GET(request: NextRequest) {
   const session = await getOrCreateSession();

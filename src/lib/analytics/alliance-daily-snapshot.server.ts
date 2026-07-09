@@ -9,6 +9,7 @@ import {
 import { getDb, schema } from "@/lib/db";
 import { computeActiveHqLinkCounts } from "@/lib/members/members-linking-metrics.shared";
 import { loadCommanderIndex } from "@/lib/commanders/index.server";
+import type { CommanderIndexPayload } from "@/lib/commanders/index.shared";
 import { getServerCalendarDate } from "@/lib/trains/game-time";
 
 export async function computeAllianceDailySnapshotForAlliance(
@@ -81,8 +82,9 @@ export async function runAllianceDailySnapshotPass(
   return count;
 }
 
-export async function loadSquadSummaryForDashboard(sessionId: string) {
-  const index = await loadCommanderIndex(sessionId);
+export async function loadSquadSummaryFromCommanderIndex(
+  index: CommanderIndexPayload,
+) {
   const squadPower = {
     aircraft: 0,
     tank: 0,
@@ -104,6 +106,11 @@ export async function loadSquadSummaryForDashboard(sessionId: string) {
     summaryBySquad: index.summaryBySquad,
     squadPower,
   };
+}
+
+export async function loadSquadSummaryForDashboard(sessionId: string) {
+  const index = await loadCommanderIndex(sessionId);
+  return loadSquadSummaryFromCommanderIndex(index);
 }
 
 export async function loadUnlinkedMembersForOfficers(sessionId: string) {

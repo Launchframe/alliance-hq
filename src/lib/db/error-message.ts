@@ -114,6 +114,12 @@ export function resolveDatabaseErrorPresentation(
   if (text.includes("ECONNREFUSED") || text.includes("ECONNRESET")) {
     return { titleKey: "databaseNotConfigured", hintKey: "postgresUnreachable" };
   }
+  if (
+    text.includes("endpoint could not be found") ||
+    text.includes("postgres:XX000")
+  ) {
+    return { titleKey: "serviceUnavailable", hintKey: "postgresUnreachable" };
+  }
 
   if (process.env.NODE_ENV === "development") {
     return {

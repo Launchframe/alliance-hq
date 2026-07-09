@@ -44,20 +44,35 @@ function snapshotToDonationSeries(
     }));
 }
 
-export function AllianceDashboard() {
+export function AllianceDashboard({
+  initialSummary = null,
+  initialVr = null,
+}: {
+  initialSummary?: DashboardSummaryPayload | null;
+  initialVr?: {
+    available: boolean;
+    values?: number[];
+    reporterCount?: number;
+    activeMemberCount?: number;
+    viewer?: { highestBaseVr: number | null };
+  } | null;
+}) {
   const t = useTranslations("dashboard");
   const tInbox = useTranslations("inbox");
-  const [data, setData] = useState<DashboardSummaryPayload | null>(null);
+  const [data, setData] = useState<DashboardSummaryPayload | null>(initialSummary);
   const [vrData, setVrData] = useState<{
     available: boolean;
     values?: number[];
     reporterCount?: number;
     activeMemberCount?: number;
     viewer?: { highestBaseVr: number | null };
-  } | null>(null);
+  } | null>(initialVr);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (initialSummary) {
+      return;
+    }
     let cancelled = false;
     void (async () => {
       try {
@@ -82,7 +97,7 @@ export function AllianceDashboard() {
     return () => {
       cancelled = true;
     };
-  }, [t]);
+  }, [initialSummary, t]);
 
   const linkProgress = useMemo(() => {
     if (!data) return [];

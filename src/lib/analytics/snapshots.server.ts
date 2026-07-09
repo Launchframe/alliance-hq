@@ -3,6 +3,7 @@ import "server-only";
 import { and, asc, eq, gte, inArray, sql } from "drizzle-orm";
 
 import { computePercentile, percentileAt } from "@/lib/analytics/percentile.shared";
+import { isMissingSchemaError } from "@/lib/db/error-message";
 import { getDb, schema } from "@/lib/db";
 import { addCalendarDays, getServerCalendarDate } from "@/lib/trains/game-time";
 
@@ -34,26 +35,8 @@ export function rangeStartDate(range: DashboardRange, today: string): string | n
   return addCalendarDays(today, -days);
 }
 
-export async function loadSnapshotSeries(
-  allianceId: string,
-  range: DashboardRange,
-): Promise<SnapshotRow[]> {
-  const db = getDb();
-  const today = getServerCalendarDate();
-  const start = rangeStartDate(range, today);
-
-  const conditions = [eq(schema.allianceDailySnapshots.allianceId, allianceId)];
-  if (start) {
-    conditions.push(gte(schema.allianceDailySnapshots.recordedDate, start));
-  }
-
-  const rows = await db
-    .select()
-    .from(schema.allianceDailySnapshots)
-    .where(and(...conditions))
-    .orderBy(asc(schema.allianceDailySnapshots.recordedDate));
-
-  return rows.map((row) => ({
+function mapSnapshotRow(row: typeof schema.allianceDailySnapshots.$inferSelect): SnapshotRow {
+  return {
     recordedDate: row.recordedDate,
     activeMemberCount: row.activeMemberCount,
     linkedCount: row.linkedCount,
@@ -66,7 +49,36 @@ export async function loadSnapshotSeries(
     donationP50: row.donationP50,
     donationP90: row.donationP90,
     donationP99: row.donationP99,
-  }));
+  };
+}
+
+export async function loadSnapshotSeries(
+  allianceId: string,
+  range: DashboardRange,
+): Promise<SnapshotRow[]> {
+  try {
+    const db = getDb();
+    const today = getServerCalendarDate();
+    const start = rangeStartDate(range, today);
+
+    const conditions = [eq(schema.allianceDailySnapshots.allianceId, allianceId)];
+    if (start) {
+      conditions.push(gte(schema.allianceDailySnapshots.recordedDate, start));
+    }
+
+    const rows = await db
+      .select()
+      .from(schema.allianceDailySnapshots)
+      .where(and(...conditions))
+      .orderBy(asc(schema.allianceDailySnapshots.recordedDate));
+
+    return rows.map(mapSnapshotRow);
+  } catch (error) {
+    if (isMissingSchemaError(error)) {
+      return [];
+    }
+    throw error;
+  }
 }
 
 export async function loadThpValuesForDate(
@@ -300,39 +312,37 @@ export async function listActiveAllianceIds(): Promise<string[]> {
 export async function loadLatestSnapshot(
   allianceId: string,
 ): Promise<SnapshotRow | null> {
-  const db = getDb();
-  const [row] = await db
-    .select()
-    .from(schema.allianceDailySnapshots)
-    .where(eq(schema.allianceDailySnapshots.allianceId, allianceId))
-    .orderBy(sql`${schema.allianceDailySnapshots.recordedDate} DESC`)
-    .limit(1);
+  try {
+    const db = getDb();
+    const [row] = await db
+      .select()
+      .from(schema.allianceDailySnapshots)
+      .where(eq(schema.allianceDailySnapshots.allianceId, allianceId))
+      .orderBy(sql`${schema.allianceDailySnapshots.recordedDate} DESC`)
+      .limit(1);
 
-  if (!row) return null;
-
-  return {
-    recordedDate: row.recordedDate,
-    activeMemberCount: row.activeMemberCount,
-    linkedCount: row.linkedCount,
-    unlinkedCount: row.unlinkedCount,
-    thpTotal: row.thpTotal,
-    thpP50: row.thpP50,
-    thpP90: row.thpP90,
-    thpP99: row.thpP99,
-    donationTotal: row.donationTotal,
-    donationP50: row.donationP50,
-    donationP90: row.donationP90,
-    donationP99: row.donationP99,
-  };
+    if (!row) return null;
+    return mapSnapshotRow(row);
+  } catch (error) {
+    if (isMissingSchemaError(error)) {
+      return null;
+    }
+    throw error;
+  }
 }
 
-export async function loadRecentCompletedVideoTargets(
+/** Latest completed video job time per score target since `since`. */
+export async function loadRecentCompletedVideoJobTimes(
   allianceId: string,
   since: Date,
-): Promise<Set<string>> {
+): Promise<Map<string, Date>> {
   const db = getDb();
   const rows = await db
-    .select({ scoreTarget: schema.videoJobs.scoreTarget })
+    .select({
+      scoreTarget: schema.videoJobs.scoreTarget,
+      updatedAt: schema.videoJobs.updatedAt,
+      createdAt: schema.videoJobs.createdAt,
+    })
     .from(schema.videoJobs)
     .where(
       and(
@@ -342,5 +352,22 @@ export async function loadRecentCompletedVideoTargets(
       ),
     );
 
-  return new Set(rows.map((row) => row.scoreTarget).filter(Boolean) as string[]);
+  const latestByTarget = new Map<string, Date>();
+  for (const row of rows) {
+    if (!row.scoreTarget) continue;
+    const at = row.updatedAt ?? row.createdAt;
+    const existing = latestByTarget.get(row.scoreTarget);
+    if (!existing || at > existing) {
+      latestByTarget.set(row.scoreTarget, at);
+    }
+  }
+  return latestByTarget;
+}
+
+export async function loadRecentCompletedVideoTargets(
+  allianceId: string,
+  since: Date,
+): Promise<Set<string>> {
+  const times = await loadRecentCompletedVideoJobTimes(allianceId, since);
+  return new Set(times.keys());
 }
