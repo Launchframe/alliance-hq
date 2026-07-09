@@ -7,13 +7,10 @@ import {
   normalizeAshedEmail,
 } from "@/lib/alliance/accessible";
 import {
-  hqUserHasAccessGrant,
-  isAshedInviteRequired,
-} from "@/lib/access/invite-gate";
-import {
   buildAllianceRosterEmails,
   shouldRevokeAshedMembership,
 } from "@/lib/rbac/sync-ashed-roles.helpers";
+import { resolveRosterHqUserId } from "@/lib/rbac/sync-ashed-roles-roster.server";
 import type { AshedAllianceRow, AshedUserRef } from "@/lib/alliance/types";
 import { parseAshedGameServerNumber } from "@/lib/game-season/ashed";
 import { applySeasonSync } from "@/lib/game-season/sync";
@@ -55,29 +52,6 @@ export async function upsertHqUser(user: AshedUserInfo): Promise<string> {
     displayName: user.full_name,
   });
   return result.hqUserId;
-}
-
-async function resolveRosterHqUserId(email: string): Promise<string | null> {
-  const normalized = normalizeAshedEmail(email);
-  const db = getDb();
-  const [existing] = await db
-    .select({ id: schema.hqUsers.id })
-    .from(schema.hqUsers)
-    .where(eq(schema.hqUsers.email, normalized))
-    .limit(1);
-
-  if (!existing) {
-    return null;
-  }
-
-  if (
-    isAshedInviteRequired() &&
-    !(await hqUserHasAccessGrant(existing.id))
-  ) {
-    return null;
-  }
-
-  return existing.id;
 }
 
 async function allianceHasOwner(allianceId: string): Promise<boolean> {
