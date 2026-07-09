@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 
 import { EngView } from "@/components/professions/EngView";
 import { WLView } from "@/components/professions/WLView";
@@ -19,6 +20,7 @@ type TeamData =
   | { profession: null | string; message?: string };
 
 export function ProfessionsPage({ allianceId, commanderId, profession }: Props) {
+  const t = useTranslations("professions");
   const [teamData, setTeamData] = useState<TeamData | null>(null);
   const [loading, setLoading] = useState(true);
   const [switching, setSwitching] = useState(false);
@@ -98,10 +100,8 @@ export function ProfessionsPage({ allianceId, commanderId, profession }: Props) 
   if (!resolvedProfession) {
     return (
       <div className="p-6 max-w-lg">
-        <h1 className="text-xl font-semibold text-hq-fg mb-2">Profession Hub</h1>
-        <p className="text-sm text-hq-fg-muted mb-6">
-          Your profession has not been set. Choose your role to get started.
-        </p>
+        <h1 className="text-xl font-semibold text-hq-fg mb-2">{t("title")}</h1>
+        <p className="text-sm text-hq-fg-muted mb-6">{t("chooseProfessionBody")}</p>
         {switchError && (
           <p className="text-sm text-hq-danger mb-4">{switchError}</p>
         )}
@@ -111,14 +111,14 @@ export function ProfessionsPage({ allianceId, commanderId, profession }: Props) 
             disabled={switching}
             variant="default"
           >
-            I am an Engineer
+            {t("eng")}
           </Button>
           <Button
             onClick={() => handleSetProfession("War Leader")}
             disabled={switching}
             variant="outline"
           >
-            I am a War Leader
+            {t("wl")}
           </Button>
         </div>
       </div>

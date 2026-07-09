@@ -4682,7 +4682,17 @@
     "moreEngsRequested": "{wl} requested more Engineers",
     "professionSwitched": "{name} switched to {profession}",
     "webLink": "View in Alliance HQ",
-    "switchProfession": "Switch Profession"
+    "switchProfession": "Switch Profession",
+    "switchProfessionConfirmTitle": "Switch profession?",
+    "switchProfessionConfirmBody": "Switch from {from} to {to}?",
+    "switchConsequencesToEng": "You will leave your current War Leader team and can pick a new one to support.",
+    "switchConsequencesToWl": "Your assigned Engineers will be released to find new War Leaders.",
+    "switchConfirm": "Switch to {to}",
+    "switchCancel": "Cancel",
+    "switching": "Switching…",
+    "switchFailed": "Could not switch profession.",
+    "chooseProfessionTitle": "Choose your profession",
+    "chooseProfessionBody": "Your profession has not been set. Choose your role to get started."
   },
   "battlePlan": {
     "title": "Battle Plan",

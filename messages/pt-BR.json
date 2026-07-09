@@ -4681,7 +4681,17 @@
     "moreEngsRequested": "{wl} solicitou mais Engenheiros",
     "professionSwitched": "{name} mudou para {profession}",
     "webLink": "Ver no Alliance HQ",
-    "switchProfession": "Trocar Profissão"
+    "switchProfession": "Trocar Profissão",
+    "switchProfessionConfirmTitle": "Trocar profissão?",
+    "switchProfessionConfirmBody": "Trocar de {from} para {to}?",
+    "switchConsequencesToEng": "Você sairá do time atual do Líder de Guerra e poderá escolher outro para apoiar.",
+    "switchConsequencesToWl": "Seus Engenheiros atribuídos serão liberados para encontrar novos Líderes de Guerra.",
+    "switchConfirm": "Trocar para {to}",
+    "switchCancel": "Cancelar",
+    "switching": "Trocando…",
+    "switchFailed": "Não foi possível trocar a profissão.",
+    "chooseProfessionTitle": "Escolha sua profissão",
+    "chooseProfessionBody": "Sua profissão ainda não foi definida. Escolha seu papel para começar."
   },
   "battlePlan": {
     "title": "Plano de Batalha",

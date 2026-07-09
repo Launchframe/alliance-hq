@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import { FindWLWizard } from "@/components/professions/FindWLWizard";
+import { SwitchProfessionControl } from "@/components/professions/SwitchProfessionControl";
 import { Button } from "@/components/ui/button";
 import type { MyEngTeamContext } from "@/lib/professions/types";
 
@@ -118,15 +119,22 @@ export function EngView({ teamContext, onRefresh }: Props) {
           onRefresh();
         }}
         onCancel={assignment ? () => setShowWizard(false) : undefined}
+        onProfessionSwitched={onRefresh}
       />
     );
   }
 
   return (
     <div className="p-6 max-w-xl space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold text-hq-fg">Profession Hub</h1>
-        <p className="text-sm text-hq-fg-muted">Engineer</p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold text-hq-fg">Profession Hub</h1>
+          <p className="text-sm text-hq-fg-muted">Engineer</p>
+        </div>
+        <SwitchProfessionControl
+          currentProfession="Engineer"
+          onSwitched={onRefresh}
+        />
       </div>
 
       {/* Current assignment */}

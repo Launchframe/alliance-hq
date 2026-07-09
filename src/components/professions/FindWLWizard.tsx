@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 
+import { SwitchProfessionControl } from "@/components/professions/SwitchProfessionControl";
 import { Button } from "@/components/ui/button";
 import type { WlSuggestion } from "@/lib/professions/types";
 
@@ -9,9 +10,10 @@ type Props = {
   onAssigned: () => void;
   /** If undefined, no cancel affordance is shown (first-time wizard). */
   onCancel?: () => void;
+  onProfessionSwitched?: () => void;
 };
 
-export function FindWLWizard({ onAssigned, onCancel }: Props) {
+export function FindWLWizard({ onAssigned, onCancel, onProfessionSwitched }: Props) {
   const [suggestions, setSuggestions] = useState<WlSuggestion[]>([]);
   const [loading, setLoading] = useState(true);
   const [assigning, setAssigning] = useState<string | null>(null);
@@ -62,11 +64,19 @@ export function FindWLWizard({ onAssigned, onCancel }: Props) {
             Pick a War Leader to support. War Leaders with fewer Engineers are shown first.
           </p>
         </div>
-        {onCancel && (
-          <Button variant="ghost" size="sm" onClick={onCancel}>
-            Cancel
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {onProfessionSwitched ? (
+            <SwitchProfessionControl
+              currentProfession="Engineer"
+              onSwitched={onProfessionSwitched}
+            />
+          ) : null}
+          {onCancel ? (
+            <Button variant="ghost" size="sm" onClick={onCancel}>
+              Cancel
+            </Button>
+          ) : null}
+        </div>
       </div>
 
       {error && (

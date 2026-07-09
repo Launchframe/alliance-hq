@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import { SwitchProfessionControl } from "@/components/professions/SwitchProfessionControl";
 import { Button } from "@/components/ui/button";
 import type { AssignedEngRow, MyWlTeamContext } from "@/lib/professions/types";
 
@@ -112,6 +113,10 @@ export function WLView({ teamContext, onRefresh }: Props) {
           <p className="text-sm text-hq-fg-muted">War Leader</p>
         </div>
         <div className="flex items-center gap-2">
+          <SwitchProfessionControl
+            currentProfession="War Leader"
+            onSwitched={onRefresh}
+          />
           <span
             className={`text-xs px-2 py-1 rounded font-medium ${
               isCovered
