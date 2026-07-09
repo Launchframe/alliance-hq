@@ -8,6 +8,7 @@ import {
 } from "@/lib/alliance/alliance-route-context.server";
 import { writeAuditLog } from "@/lib/bff/audit";
 import {
+  applySeasonSync,
   getEffectiveSeasonForAlliance,
   loadAllianceSeasonRow,
   setAllianceSeasonOverride,
@@ -23,6 +24,8 @@ export const dynamic = "force-dynamic";
 const patchSchema = z.object({
   seasonKeyOverride: z.string().trim().min(1).max(8).nullable().optional(),
   gameServerNumber: z.number().int().positive().max(9999).optional(),
+  /** Re-fetch season from cpt-hedge (ignored when a manual override is set). */
+  resyncSeason: z.boolean().optional(),
 });
 
 type RouteContext = { params: Promise<{ tag: string }> };
@@ -93,6 +96,9 @@ export async function PATCH(request: Request, context: RouteContext) {
     const beforeLinkedServer = await resolveAllianceGameServerNumber(
       alliance.allianceId,
     );
+    const beforeEffective = await getEffectiveSeasonForAlliance(
+      alliance.allianceId,
+    );
 
     if (body.data.gameServerNumber !== undefined) {
       const native = await isNativeAlliance(alliance.allianceId);
@@ -108,13 +114,48 @@ export async function PATCH(request: Request, context: RouteContext) {
       );
     }
 
-    const effective =
+    let effective =
       body.data.seasonKeyOverride !== undefined
         ? await setAllianceSeasonOverride(
             alliance.allianceId,
             body.data.seasonKeyOverride,
           )
-        : await getEffectiveSeasonForAlliance(alliance.allianceId);
+        : null;
+
+    if (effective == null && body.data.resyncSeason) {
+      const row = await loadAllianceSeasonRow(alliance.allianceId);
+      if (row?.seasonKeyOverride?.trim()) {
+        return NextResponse.json(
+          {
+            error:
+              "Clear the manual season override before refreshing from cpt-hedge.",
+          },
+          { status: 400 },
+        );
+      }
+      if (row?.gameServerNumber == null) {
+        return NextResponse.json(
+          {
+            error:
+              "Link a state server before refreshing from cpt-hedge.",
+          },
+          { status: 400 },
+        );
+      }
+      effective = await applySeasonSync(alliance.allianceId, {
+        forceRefresh: true,
+      });
+    }
+
+    if (effective == null && body.data.gameServerNumber !== undefined) {
+      effective = await applySeasonSync(alliance.allianceId, {
+        forceRefresh: true,
+      });
+    }
+
+    if (effective == null) {
+      effective = await getEffectiveSeasonForAlliance(alliance.allianceId);
+    }
     const row = await loadAllianceSeasonRow(alliance.allianceId);
     const native = await isNativeAlliance(alliance.allianceId);
     const linkedGameServerNumber = await resolveAllianceGameServerNumber(
@@ -158,6 +199,28 @@ export async function PATCH(request: Request, context: RouteContext) {
         metadata: {
           before: { gameServerNumber: beforeLinkedServer },
           after: { gameServerNumber: linkedGameServerNumber },
+        },
+      });
+    }
+
+    if (body.data.resyncSeason) {
+      await writeAuditLog({
+        sessionId: session.id,
+        allianceId: alliance.allianceId,
+        hqUserId: session.hqUserId ?? undefined,
+        action: "alliance.season_resync",
+        resourceType: "alliance",
+        resourceId: alliance.allianceId,
+        resourceName: alliance.name,
+        metadata: {
+          before: {
+            seasonKey: beforeEffective.seasonKey,
+            source: beforeEffective.source,
+          },
+          after: {
+            seasonKey: effective.seasonKey,
+            source: effective.source,
+          },
         },
       });
     }

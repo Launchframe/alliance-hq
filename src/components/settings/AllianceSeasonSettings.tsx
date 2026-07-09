@@ -53,7 +53,7 @@ export function AllianceSeasonSettings({ allianceTag }: Props) {
         }
         if (!cancelled) {
           setSeason(body);
-          setDraft(body.seasonKeyOverride ?? body.seasonKey);
+          setDraft(body.seasonKeyOverride ?? "");
           setServerDraft(
             body.gameServerNumber != null ? String(body.gameServerNumber) : "",
           );
@@ -87,9 +87,32 @@ export function AllianceSeasonSettings({ allianceTag }: Props) {
         return;
       }
       setSeason(body);
-      setDraft(body.seasonKeyOverride ?? body.seasonKey);
+      setDraft(body.seasonKeyOverride ?? "");
     } catch {
       setError(t("saveFailed"));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const resyncSeason = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(allianceSeasonApiPath(allianceTag), {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ resyncSeason: true }),
+      });
+      const body = (await res.json()) as AllianceSeasonPayload & { error?: string };
+      if (!res.ok) {
+        setError(body.error ?? t("resyncFailed"));
+        return;
+      }
+      setSeason(body);
+      setDraft(body.seasonKeyOverride ?? "");
+    } catch {
+      setError(t("resyncFailed"));
     } finally {
       setBusy(false);
     }
@@ -140,7 +163,7 @@ export function AllianceSeasonSettings({ allianceTag }: Props) {
         return;
       }
       setSeason(body);
-      setDraft(body.seasonKey);
+      setDraft(body.seasonKeyOverride ?? "");
     } catch {
       setError(t("clearFailed"));
     } finally {
@@ -178,6 +201,9 @@ export function AllianceSeasonSettings({ allianceTag }: Props) {
       : displaySeason.week != null
         ? t("inSeasonWeek", { week: displaySeason.week })
         : null;
+  const hasOverride = Boolean(displaySeason.seasonKeyOverride?.trim());
+  const canResync =
+    !hasOverride && displaySeason.gameServerNumber != null;
 
   return (
     <section className="rounded-xl border border-hq-border bg-hq-surface p-5">
@@ -253,24 +279,35 @@ export function AllianceSeasonSettings({ allianceTag }: Props) {
           <label className="text-xs text-hq-fg-muted" htmlFor="settings-season-override">
             {t("overrideLabel")}
           </label>
+          {hasOverride ? (
+            <p className="text-sm text-[#e3b341]" role="status">
+              {t("overrideActive", { season: displaySeason.seasonKeyOverride! })}
+            </p>
+          ) : (
+            <p className="text-sm text-hq-fg-muted" role="status">
+              {t("autoSyncActive", { source: sourceLabel })}
+            </p>
+          )}
           <input
             id="settings-season-override"
             type="text"
             inputMode="numeric"
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
+            placeholder={t("overridePlaceholder")}
             enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT}
             className="w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 text-sm text-hq-fg"
           />
+          <p className="text-xs text-hq-fg-subtle">{t("overrideHint")}</p>
           <div className="flex flex-wrap gap-2">
             <button
               type="submit"
-              disabled={busy}
+              disabled={busy || !draft.trim()}
               className="rounded-lg bg-hq-success px-3 py-1.5 text-sm font-medium text-white disabled:opacity-60"
             >
               {busy ? t("saving") : t("saveOverride")}
             </button>
-            {displaySeason.seasonKeyOverride ? (
+            {hasOverride ? (
               <button
                 type="button"
                 disabled={busy}
@@ -278,6 +315,16 @@ export function AllianceSeasonSettings({ allianceTag }: Props) {
                 className="rounded-lg border border-hq-border px-3 py-1.5 text-sm text-hq-fg disabled:opacity-60"
               >
                 {t("clearOverride")}
+              </button>
+            ) : null}
+            {canResync ? (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void resyncSeason()}
+                className="rounded-lg border border-hq-border px-3 py-1.5 text-sm text-hq-fg disabled:opacity-60"
+              >
+                {t("resyncSeason")}
               </button>
             ) : null}
           </div>
