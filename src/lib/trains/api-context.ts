@@ -14,55 +14,22 @@ export type TrainRequestContext = {
   operatingMode: "ashed" | "native";
 };
 
-export async function resolveTrainRequestContext(): Promise<
-  TrainRequestContext | NextResponse
-> {
-  const session = await getOrCreateSession();
-  const allianceId = session.currentAllianceId ?? session.allianceId;
-  if (!allianceId) {
-    return NextResponse.json({ error: "No alliance selected." }, { status: 400 });
-  }
-
-  const operatingMode = await getAllianceOperatingMode(allianceId);
-
-  if (operatingMode === "native") {
-    if (!session.allianceTag) {
-      return NextResponse.json(
-        { error: "Alliance tag not set in session." },
-        { status: 400 },
-      );
-    }
-
-    return {
-      sessionId: session.id,
-      allianceId,
-      ashedAllianceId: allianceId,
-      connection: null,
-      operatingMode,
-    };
-  }
-
-  if (!session.allianceTag) {
-    return NextResponse.json(
-      { error: "Alliance tag not set in session." },
-      { status: 400 },
-    );
-  }
-
-  const connection = await getAshedConnection(session.id);
-  if (!connection) {
-    return NextResponse.json(
-      { error: "Not connected to Ashed." },
-      { status: 401 },
-    );
-  }
-
-  const allianceRow = await loadAllianceRow(allianceId);
+async function resolveAshedAllianceIdForTrain(input: {
+  allianceId: string;
+  allianceTag: string | null;
+  connection: ParsedConnection | null;
+  allianceRow?: Awaited<ReturnType<typeof loadAllianceRow>>;
+}): Promise<string | NextResponse> {
+  const allianceRow =
+    input.allianceRow ?? (await loadAllianceRow(input.allianceId));
   let ashedAllianceId = allianceRow?.ashedAllianceId?.trim() || null;
 
-  if (!ashedAllianceId) {
+  if (!ashedAllianceId && input.connection && input.allianceTag) {
     try {
-      const alliance = await resolveAllianceByTag(connection, session.allianceTag);
+      const alliance = await resolveAllianceByTag(
+        input.connection,
+        input.allianceTag,
+      );
       ashedAllianceId = alliance.id;
     } catch (error) {
       const message =
@@ -79,6 +46,48 @@ export async function resolveTrainRequestContext(): Promise<
       );
     }
   }
+
+  return ashedAllianceId || input.allianceId;
+}
+
+export async function resolveTrainRequestContext(): Promise<
+  TrainRequestContext | NextResponse
+> {
+  const session = await getOrCreateSession();
+  const allianceId = session.currentAllianceId ?? session.allianceId;
+  if (!allianceId) {
+    return NextResponse.json({ error: "No alliance selected." }, { status: 400 });
+  }
+
+  const [operatingMode, allianceRow] = await Promise.all([
+    getAllianceOperatingMode(allianceId),
+    loadAllianceRow(allianceId),
+  ]);
+
+  if (operatingMode === "native") {
+    return {
+      sessionId: session.id,
+      allianceId,
+      ashedAllianceId: allianceId,
+      connection: null,
+      operatingMode,
+    };
+  }
+
+  const allianceTag =
+    session.allianceTag?.trim() || allianceRow?.tag?.trim() || null;
+  const storedAshedAllianceId = allianceRow?.ashedAllianceId?.trim() || null;
+  const connection =
+    !storedAshedAllianceId && allianceTag
+      ? await getAshedConnection(session.id)
+      : null;
+  const ashedAllianceId = await resolveAshedAllianceIdForTrain({
+    allianceId,
+    allianceTag,
+    connection,
+    allianceRow,
+  });
+  if (ashedAllianceId instanceof NextResponse) return ashedAllianceId;
 
   return {
     sessionId: session.id,

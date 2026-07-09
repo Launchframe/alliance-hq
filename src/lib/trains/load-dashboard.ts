@@ -415,11 +415,33 @@ export async function resolveAshedAllianceId(
   sessionId: string,
 ): Promise<string | null> {
   const session = await loadSession(sessionId);
-  if (!session?.allianceTag) return null;
+  if (!session) return null;
+
+  const allianceId = session.currentAllianceId ?? session.allianceId;
+  if (!allianceId) return null;
+
+  const operatingMode = await getAllianceOperatingMode(allianceId);
+  if (operatingMode === "native") {
+    return allianceId;
+  }
+
+  const allianceRow = await loadAllianceRow(allianceId);
+  const fromRow = allianceRow?.ashedAllianceId?.trim();
+  if (fromRow) return fromRow;
+
+  const allianceTag =
+    session.allianceTag?.trim() || allianceRow?.tag?.trim() || null;
   const connection = await getAshedConnection(sessionId);
-  if (!connection) return null;
-  const alliance = await resolveAllianceByTag(connection, session.allianceTag);
-  return alliance.id;
+  if (connection && allianceTag) {
+    try {
+      const alliance = await resolveAllianceByTag(connection, allianceTag);
+      return alliance.id;
+    } catch {
+      // Fall back to HQ alliance id for roster-only operations.
+    }
+  }
+
+  return allianceId;
 }
 
 export async function loadWeekSchedulePage(

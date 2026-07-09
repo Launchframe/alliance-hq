@@ -76,13 +76,9 @@ export async function POST(request: Request) {
     } as const;
 
     const event =
-      ctx.operatingMode === "native"
+      ctx.operatingMode === "native" || !ctx.connection
         ? await confirmMemberRankLocal(rankInput)
-        : ctx.connection
-          ? await confirmMemberRank({ ...rankInput, connection: ctx.connection })
-          : (() => {
-              throw new Error("Not connected to Ashed.");
-            })();
+        : await confirmMemberRank({ ...rankInput, connection: ctx.connection });
     return NextResponse.json({ event });
   } catch (error) {
     return NextResponse.json(
