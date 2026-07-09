@@ -100,7 +100,10 @@ export default async function SettingsTeamPage({
       </div>
 
       {canManageInvites ? (
-        <TeamInvitePanel assignableRoles={assignableInviteRoles} />
+        <TeamInvitePanel
+          assignableRoles={assignableInviteRoles}
+          allianceName={allianceName ?? tagLabel}
+        />
       ) : null}
 
       {isAllianceAdmin ? (

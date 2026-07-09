@@ -8,7 +8,6 @@ import {
   MemberCommendationCards,
   MemberViolationCards,
 } from "@/components/members/MemberDisciplineCards";
-import { CopyToClipboardField } from "@/components/ui/CopyToClipboardField";
 import { Link } from "@/i18n/navigation";
 import type { CommanderProfilePayload } from "@/lib/members/commander-profile.shared";
 import {
@@ -45,12 +44,6 @@ export function CommanderProfileView({ initial }: Props) {
   const [squadSaving, setSquadSaving] = useState(false);
   const [squadMessage, setSquadMessage] = useState<string | null>(null);
 
-  const [claimBusy, setClaimBusy] = useState(false);
-  const [claimFeedback, setClaimFeedback] = useState<string | null>(null);
-  const [claimFeedbackKind, setClaimFeedbackKind] = useState<"error" | "success">("success");
-  const [lastClaimUrl, setLastClaimUrl] = useState<string | null>(null);
-  const [lastClaimPassphrase, setLastClaimPassphrase] = useState<string | null>(null);
-
   const [hqUnlinked, setHqUnlinked] = useState(false);
   const [discordUnlinked, setDiscordUnlinked] = useState(false);
   const [unlinkBusy, setUnlinkBusy] = useState<"hq" | "discord" | null>(null);
@@ -81,47 +74,6 @@ export function CommanderProfileView({ initial }: Props) {
       setUnlinkError(e instanceof Error ? e.message : t("unlinkFailed"));
     } finally {
       setUnlinkBusy(null);
-    }
-  }
-
-  async function generateClaimInvite() {
-    setClaimBusy(true);
-    setClaimFeedback(null);
-    setLastClaimUrl(null);
-    setLastClaimPassphrase(null);
-    try {
-      const res = await fetch("/api/settings/team/invites", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          kind: "protected_link",
-          roleName: "member",
-          targetAshedMemberId: member.ashedMemberId,
-        }),
-      });
-      const body = (await res.json()) as {
-        error?: string;
-        code?: string;
-        invite?: { inviteUrl: string; passphrase?: string };
-      };
-      if (!res.ok) {
-        setClaimFeedbackKind("error");
-        setClaimFeedback(
-          body.code === "commander_already_claimed"
-            ? tInvites("claimAlreadyClaimed")
-            : body.error ?? tInvites("claimFailed"),
-        );
-        return;
-      }
-      setLastClaimUrl(body.invite?.inviteUrl ?? null);
-      setLastClaimPassphrase(body.invite?.passphrase ?? null);
-      setClaimFeedbackKind("success");
-      setClaimFeedback(tInvites("claimSentFor", { name: member.currentName }));
-    } catch (e) {
-      setClaimFeedbackKind("error");
-      setClaimFeedback(e instanceof Error ? e.message : tInvites("claimFailed"));
-    } finally {
-      setClaimBusy(false);
     }
   }
 
@@ -517,47 +469,21 @@ export function CommanderProfileView({ initial }: Props) {
 
       {initial.hqUser === null && initial.member.viewerCanIssueClaimInvite && (
         <section className="rounded-xl border border-hq-border bg-hq-surface p-5">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-hq-fg-muted">
-            {tInvites("claimRowAction")}
-          </h2>
-          <p className="mt-2 text-sm text-hq-fg-muted">{tInvites("claimRowHint")}</p>
-          <button
-            type="button"
-            disabled={claimBusy || lastClaimUrl !== null}
-            onClick={() => void generateClaimInvite()}
-            className="mt-3 rounded-lg border border-[#388bfd] bg-[#388bfd]/10 px-4 py-2 text-sm text-hq-accent disabled:opacity-50"
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-hq-fg-muted">
+              {tInvites("claimRowAction")}
+            </h2>
+            <span className="rounded-full border border-[#e3b341]/40 bg-[#e3b341]/10 px-2 py-0.5 text-xs font-medium text-[#e3b341]">
+              {tInvites("wizard.badgeDmOnly")}
+            </span>
+          </div>
+          <p className="mt-2 text-sm text-hq-fg-muted">{tInvites("wizard.typeClaimBody")}</p>
+          <Link
+            href={`/settings/team?inviteWizard=claim&commander=${encodeURIComponent(member.ashedMemberId)}`}
+            className="mt-3 inline-flex rounded-lg border border-[#388bfd] bg-[#388bfd]/10 px-4 py-2 text-sm text-hq-accent hover:bg-[#388bfd]/20"
           >
-            {claimBusy ? "…" : tInvites("claimButton")}
-          </button>
-          {claimFeedback ? (
-            <p
-              className={
-                claimFeedbackKind === "error"
-                  ? "mt-3 text-sm text-hq-danger"
-                  : "mt-3 text-sm text-hq-green"
-              }
-              role={claimFeedbackKind === "error" ? "alert" : "status"}
-            >
-              {claimFeedback}
-            </p>
-          ) : null}
-          {lastClaimUrl ? (
-            <CopyToClipboardField
-              className="mt-3"
-              label={tInvites("claimLinkLabel")}
-              value={lastClaimUrl}
-            />
-          ) : null}
-          {lastClaimPassphrase ? (
-            <>
-              <CopyToClipboardField
-                className="mt-3"
-                label={tInvites("invitePassphraseLabel")}
-                value={lastClaimPassphrase}
-              />
-              <p className="mt-1 text-xs text-hq-fg-subtle">{tInvites("invitePassphraseHint")}</p>
-            </>
-          ) : null}
+            {tInvites("wizard.openClaimWizard")}
+          </Link>
         </section>
       )}
 
