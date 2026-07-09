@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createDiscordTranslator } from "@/lib/discord/i18n";
+import { isThpConfirmPending } from "@/lib/discord/bot-pending-guards.shared";
 import { getHqMemberLinkForUser } from "@/lib/member-link/repository.server";
 import {
   validateThpTotal,
@@ -164,10 +165,7 @@ async function handleWebThpConfirm(input: {
   translate: ReturnType<typeof createDiscordTranslator>;
 }): Promise<MyThpPostResponse> {
   const pending = await getHqThpPending(input.allianceId, input.hqUserId);
-  if (
-    !pending ||
-    (pending.kind !== "anomaly_confirm" && pending.kind !== "ocr_confirm")
-  ) {
+  if (!isThpConfirmPending(pending)) {
     return {
       status: "error",
       message: input.translate("errors.noConfirm"),

@@ -37,6 +37,49 @@ describe("parseStoredThpPending", () => {
     });
   });
 
+  it("normalizes stored confirm fields", () => {
+    expect(
+      parseStoredThpPending({
+        kind: "ocr_confirm",
+        proposedTotal: 150_000_000,
+        proposedBreakdown: {
+          heroLevel: 1.4,
+          decorationsAndBuildings: 2.5,
+          gear: 3,
+          exclusiveWeapons: 4,
+          heroTier: 5,
+          heroSkill: 6,
+          wallOfHonor: 7,
+        },
+        commanderId: " cmd-3 ",
+      }),
+    ).toEqual({
+      kind: "ocr_confirm",
+      proposedTotal: 150_000_000,
+      proposedBreakdown: {
+        heroLevel: 1,
+        decorationsAndBuildings: 3,
+        gear: 3,
+        exclusiveWeapons: 4,
+        heroTier: 5,
+        heroSkill: 6,
+        wallOfHonor: 7,
+      },
+      commanderId: "cmd-3",
+    });
+  });
+
+  it("rejects non-finite confirm totals", () => {
+    expect(
+      parseStoredThpPending({
+        kind: "anomaly_confirm",
+        proposedTotal: Number.POSITIVE_INFINITY,
+        proposedBreakdown: null,
+        commanderId: "cmd-1",
+      }),
+    ).toBeNull();
+  });
+
   it("rejects VR anomaly pending shape", () => {
     expect(
       parseStoredThpPending({

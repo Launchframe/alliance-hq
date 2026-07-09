@@ -7,34 +7,11 @@ import { getDb, schema } from "@/lib/db";
 import { breakdownsEqual } from "@/lib/thp/breakdown.shared";
 import type { ThpEventSource } from "@/lib/thp/constants";
 import type { ThpBreakdown } from "@/lib/thp/my-thp.shared";
+import { parseStoredThpPending } from "@/lib/thp/pending-state";
 import type { ThpPendingState } from "@/lib/thp/types";
 import { getServerCalendarDate } from "@/lib/trains/game-time";
 
 const PENDING_TTL_MS = 30 * 60 * 1000;
-
-function parseThpPending(value: unknown): ThpPendingState | null {
-  if (!value || typeof value !== "object") return null;
-  const r = value as Record<string, unknown>;
-  if (
-    (r.kind === "anomaly_confirm" || r.kind === "ocr_confirm") &&
-    typeof r.proposedTotal === "number" &&
-    typeof r.commanderId === "string"
-  ) {
-    return {
-      kind: r.kind,
-      proposedTotal: r.proposedTotal,
-      proposedBreakdown: (r.proposedBreakdown as ThpBreakdown | null) ?? null,
-      commanderId: r.commanderId,
-    };
-  }
-  if (r.kind === "pick_character" && Array.isArray(r.linkIds)) {
-    return {
-      kind: "pick_character",
-      linkIds: r.linkIds as string[],
-    };
-  }
-  return null;
-}
 
 export async function getCommanderIdForMember(
   allianceId: string,
@@ -243,7 +220,7 @@ export async function getHqThpPending(
       );
     return null;
   }
-  return parseThpPending(row.pendingJson);
+  return parseStoredThpPending(row.pendingJson);
 }
 
 export async function saveHqThpPending(
