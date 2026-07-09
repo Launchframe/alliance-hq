@@ -63,6 +63,7 @@ export async function loadCommanderIndex(
         ashedMemberId: schema.commanderAllianceMemberships.ashedMemberId,
         powerLevel: schema.commanders.powerLevel,
         currentTotalHeroPower: schema.commanders.currentTotalHeroPower,
+        mainSquad: schema.commanders.mainSquad,
         mainSquadSource: schema.commanders.mainSquadSource,
       })
       .from(schema.commanderAllianceMemberships)
@@ -98,21 +99,12 @@ export async function loadCommanderIndex(
       totalHeroPower: commanderThpTotal({
         currentTotalHeroPower: stats?.currentTotalHeroPower ?? null,
       }),
-      mainSquad: memberRow.mainSquad ?? null,
-      mainSquadSource: null,
+      mainSquad: stats?.mainSquad ?? null,
+      mainSquadSource: stats?.mainSquadSource ?? null,
       allianceRank: memberRow.allianceRank ?? null,
       highestBaseVr: vrByMember.get(memberRow.ashedMemberId) ?? null,
     };
   });
-
-  const commanderIds = memberRows.map((row) => row.ashedMemberId).filter(Boolean);
-
-  const sourceByMember = new Map<string, "self_report" | "officer_override">();
-  for (const row of commanderStatsRows) {
-    if (row.mainSquadSource) {
-      sourceByMember.set(row.ashedMemberId, row.mainSquadSource);
-    }
-  }
 
   const rows = teamRows.map((row) => {
     const stats = commanderStatsByMember.get(row.ashedMemberId);
@@ -124,7 +116,7 @@ export async function loadCommanderIndex(
       powerLevel: stats?.powerLevel ?? null,
       totalHeroPower: row.totalHeroPower,
       mainSquad: row.mainSquad,
-      mainSquadSource: sourceByMember.get(row.ashedMemberId) ?? null,
+      mainSquadSource: row.mainSquadSource,
       highestBaseVr: row.highestBaseVr,
       hqLinked: hqLinkedMemberIds.has(row.ashedMemberId),
       oauthIdentitySplit: oauthSplits.has(row.ashedMemberId),
