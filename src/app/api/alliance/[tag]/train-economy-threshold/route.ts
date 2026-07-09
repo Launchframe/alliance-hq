@@ -21,7 +21,7 @@ const patchSchema = z.object({
   fudgePct: z.number().int().min(0).max(100).optional(),
   weightingEnabled: z.boolean().optional(),
   hardCutoffEnabled: z.boolean().optional(),
-  maxTicketMemberIds: z.array(z.string().min(1)).optional(),
+  maxTicketMemberIds: z.array(z.string().min(1)).max(10).optional(),
 });
 
 type RouteContext = { params: Promise<{ tag: string }> };

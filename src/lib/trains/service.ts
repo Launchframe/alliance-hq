@@ -283,7 +283,9 @@ async function buildPoolCandidates(input: {
     const ticketSettings = await loadPriceIsRightTicketSettings(
       input.hqAllianceId,
     );
-    if (priceIsRightWeightingActive(ticketSettings)) {
+    // Weighted mode requires live VS scores; skip if no Ashed connection is
+    // available so native alliances without a connection can still roll.
+    if (priceIsRightWeightingActive(ticketSettings) && input.connection != null) {
       const weighted = await buildPriceIsRightWeightedCandidates({
         allianceId: input.hqAllianceId,
         trainDate: input.date,
@@ -883,7 +885,9 @@ export async function rollForConductor(input: {
           ? await loadPriceIsRightTicketSettings(input.allianceId)
           : null;
       const useWeightedPick =
-        pirSettings != null && priceIsRightWeightingActive(pirSettings);
+        pirSettings != null &&
+        priceIsRightWeightingActive(pirSettings) &&
+        input.connection != null;
       if (useWeightedPick) {
         await refreshPriceIsRightPoolTicketWeights({
           allianceId: input.allianceId,

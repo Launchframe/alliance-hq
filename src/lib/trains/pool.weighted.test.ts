@@ -23,6 +23,14 @@ describe("pickWeightedPoolEntryFromRows", () => {
     vi.restoreAllMocks();
   });
 
+  it("returns null when all eligible rows have zero tickets (e.g. no VS scores from null connection)", () => {
+    const rows = [
+      { id: "a", ticketCount: 0 },
+      { id: "b", ticketCount: 0 },
+    ];
+    expect(pickWeightedPoolEntryFromRows(rows)).toBeNull();
+  });
+
   it("favors higher ticket counts over many draws", () => {
     const rows = [
       { id: "low", ticketCount: 1 },
