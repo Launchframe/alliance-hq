@@ -1261,6 +1261,7 @@
     "subtitle": "Alliance HQ uses <link>ashed.online</link> for alliance data. You'll copy one network request as a cURL command — we handle the rest.",
     "inviteRequired": "An admin invite is required before connecting Ashed in this environment. Accept your invite link first, or ask a platform maintainer for one.",
     "authMismatch": "This Ashed account belongs to a different Alliance HQ sign-in. Use “Wrong account?” at the top of the page to sign out, then sign in with the matching account and connect again.",
+    "emailStubCollision": "Please sign in to Alliance HQ with the same email you use on ashed.online, then connect again.",
     "successTitle": "Connected to Ashed",
     "signedInAsBefore": "Signed in as",
     "returningUserHint": "Welcome back — paste a fresh connection key from DevTools when you're ready.",

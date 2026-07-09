@@ -1261,6 +1261,7 @@
     "subtitle": "O Alliance HQ usa o <link>ashed.online</link> para dados da aliança. Você copiará uma solicitação de rede como um comando cURL — nós cuidamos do resto.",
     "inviteRequired": "Neste ambiente, é necessário um convite de administrador antes de conectar o Ashed. Aceite o link do convite primeiro ou peça um ao mantenedor da plataforma.",
     "authMismatch": "Esta conta Ashed pertence a outro login do Alliance HQ. Use “Conta errada?” no topo da página para sair, entre com a conta correspondente e conecte novamente.",
+    "emailStubCollision": "Entre no Alliance HQ com o mesmo e-mail que você usa em ashed.online e conecte novamente.",
     "successTitle": "Conectado ao Ashed",
     "signedInAsBefore": "Conectado como",
     "returningUserHint": "Bem-vindo de volta — cole uma nova chave de conexão do DevTools quando estiver pronto.",

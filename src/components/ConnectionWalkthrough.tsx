@@ -371,6 +371,10 @@ export function ConnectionWalkthrough({
           setError(t("authMismatch"));
           return;
         }
+        if (data.code === "ashed_connect_email_stub_collision") {
+          setError(t("emailStubCollision"));
+          return;
+        }
         setError(data.error ?? tc("connectionFailed"));
         return;
       }

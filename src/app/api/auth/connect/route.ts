@@ -19,6 +19,7 @@ import { emailHasAshedConnectPermission } from "@/lib/access/invite-gate";
 import { verifyBase44Connection } from "@/lib/base44/server";
 import {
   AshedConnectAuthMismatchError,
+  AshedConnectEmailStubCollisionError,
   assertAshedConnectAuthBinding,
 } from "@/lib/auth/session-connect-identity";
 import {
@@ -209,6 +210,13 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     if (error instanceof AshedConnectAuthMismatchError) {
+      return NextResponse.json(
+        { error: error.message, code: error.code },
+        { status: 403 },
+      );
+    }
+
+    if (error instanceof AshedConnectEmailStubCollisionError) {
       return NextResponse.json(
         { error: error.message, code: error.code },
         { status: 403 },
