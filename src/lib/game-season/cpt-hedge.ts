@@ -70,6 +70,10 @@ export async function loadCptHedgeServerRecords(
     return cachedRecords;
   }
 
+  if (forceRefresh) {
+    cachedChunkUrl = null;
+  }
+
   const html = await fetchCptHedgePage(CPT_HEDGE_SERVERS_URL);
   let records = parseCptHedgeServerRecords(html);
 
@@ -84,8 +88,9 @@ export async function loadCptHedgeServerRecords(
 
 export async function fetchCptHedgeServerRecord(
   serverNumber: number,
+  forceRefresh = false,
 ): Promise<CptHedgeServerRecord | null> {
-  const records = await loadCptHedgeServerRecords();
+  const records = await loadCptHedgeServerRecords(forceRefresh);
   return findCptHedgeServerRecord(records, serverNumber);
 }
 

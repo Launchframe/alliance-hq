@@ -96,6 +96,9 @@ export async function PATCH(request: Request, context: RouteContext) {
     const beforeLinkedServer = await resolveAllianceGameServerNumber(
       alliance.allianceId,
     );
+    const beforeEffective = await getEffectiveSeasonForAlliance(
+      alliance.allianceId,
+    );
 
     if (body.data.gameServerNumber !== undefined) {
       const native = await isNativeAlliance(alliance.allianceId);
@@ -130,11 +133,24 @@ export async function PATCH(request: Request, context: RouteContext) {
           { status: 400 },
         );
       }
-      effective = await applySeasonSync(alliance.allianceId);
+      if (row?.gameServerNumber == null) {
+        return NextResponse.json(
+          {
+            error:
+              "Link a state server before refreshing from cpt-hedge.",
+          },
+          { status: 400 },
+        );
+      }
+      effective = await applySeasonSync(alliance.allianceId, {
+        forceRefresh: true,
+      });
     }
 
     if (effective == null && body.data.gameServerNumber !== undefined) {
-      effective = await applySeasonSync(alliance.allianceId);
+      effective = await applySeasonSync(alliance.allianceId, {
+        forceRefresh: true,
+      });
     }
 
     if (effective == null) {
@@ -183,6 +199,28 @@ export async function PATCH(request: Request, context: RouteContext) {
         metadata: {
           before: { gameServerNumber: beforeLinkedServer },
           after: { gameServerNumber: linkedGameServerNumber },
+        },
+      });
+    }
+
+    if (body.data.resyncSeason) {
+      await writeAuditLog({
+        sessionId: session.id,
+        allianceId: alliance.allianceId,
+        hqUserId: session.hqUserId ?? undefined,
+        action: "alliance.season_resync",
+        resourceType: "alliance",
+        resourceId: alliance.allianceId,
+        resourceName: alliance.name,
+        metadata: {
+          before: {
+            seasonKey: beforeEffective.seasonKey,
+            source: beforeEffective.source,
+          },
+          after: {
+            seasonKey: effective.seasonKey,
+            source: effective.source,
+          },
         },
       });
     }

@@ -89,9 +89,15 @@ async function persistSeasonSync(
     .where(eq(schema.alliances.id, allianceId));
 }
 
+export type SeasonSyncOptions = {
+  /** Bypass in-memory cpt-hedge cache (explicit resync / clear override). */
+  forceRefresh?: boolean;
+};
+
 export async function applyGameServerSeasonSync(
   gameServerId: string,
   serverNumber: number,
+  options: SeasonSyncOptions = {},
 ): Promise<EffectiveSeason> {
   const db = getDb();
   const [serverRow] = await db
@@ -136,7 +142,10 @@ export async function applyGameServerSeasonSync(
   }
 
   try {
-    const cptRecord = await fetchCptHedgeServerRecord(serverNumber);
+    const cptRecord = await fetchCptHedgeServerRecord(
+      serverNumber,
+      options.forceRefresh,
+    );
     if (cptRecord) {
       const resolved = resolveSeasonFromCptHedgeRecord(cptRecord);
       const seasonNumber = Math.max(1, parseInt(resolved.seasonKey, 10) || 1);
@@ -244,6 +253,7 @@ export async function applyGameServerSeasonSync(
 
 export async function applySeasonSync(
   allianceId: string,
+  options: SeasonSyncOptions = {},
 ): Promise<EffectiveSeason> {
   const db = getDb();
   const row = await loadAllianceSeasonRow(allianceId);
@@ -257,7 +267,11 @@ export async function applySeasonSync(
       .update(schema.alliances)
       .set({ gameServerId, updatedAt: new Date() })
       .where(eq(schema.alliances.id, allianceId));
-    return applyGameServerSeasonSync(gameServerId, row.gameServerNumber);
+    return applyGameServerSeasonSync(
+      gameServerId,
+      row.gameServerNumber,
+      options,
+    );
   }
 
   if (row.seasonKeyOverride?.trim()) {
@@ -338,7 +352,7 @@ export async function setAllianceSeasonOverride(
     return resolveEffectiveSeasonFromRow(row!);
   }
 
-  return applySeasonSync(allianceId);
+  return applySeasonSync(allianceId, { forceRefresh: true });
 }
 
 export async function updateAllianceGameServerNumber(
