@@ -141,7 +141,9 @@ export type ParsedButton =
   | { kind: "link_start_over" }
   | { kind: "link_ask_officer" }
   | { kind: "train_pick"; memberId: string; date: string }
-  | { kind: "train_confirm"; memberId: string; date: string; answer: "yes" | "no" };
+  | { kind: "train_confirm"; memberId: string; date: string; answer: "yes" | "no" }
+  | { kind: "profession_select"; profession: "Engineer" | "War Leader" }
+  | { kind: "profession_switch_confirm"; answer: "yes" | "no" };
 
 export function parseButtonCustomId(
   customId: string | undefined,
@@ -195,7 +197,65 @@ export function parseButtonCustomId(
       answer: trainConfirm[3] as "yes" | "no",
     };
   }
+  const profSelect = /^profession:select:(Engineer|War Leader)$/.exec(customId);
+  if (profSelect) {
+    return {
+      kind: "profession_select",
+      profession: profSelect[1] as "Engineer" | "War Leader",
+    };
+  }
+  const profSwitchConfirm = /^profession:switch_confirm:(yes|no)$/.exec(customId);
+  if (profSwitchConfirm) {
+    return {
+      kind: "profession_switch_confirm",
+      answer: profSwitchConfirm[1] as "yes" | "no",
+    };
+  }
   return null;
+}
+
+export function buildProfessionSelectButtons() {
+  return [
+    {
+      type: 1,
+      components: [
+        {
+          type: 2,
+          style: 1,
+          label: "Engineer",
+          custom_id: "profession:select:Engineer",
+        },
+        {
+          type: 2,
+          style: 1,
+          label: "War Leader",
+          custom_id: "profession:select:War Leader",
+        },
+      ],
+    },
+  ];
+}
+
+export function buildProfessionSwitchConfirmButtons(toProfession: string) {
+  return [
+    {
+      type: 1,
+      components: [
+        {
+          type: 2,
+          style: 3,
+          label: `Yes, switch to ${toProfession}`,
+          custom_id: "profession:switch_confirm:yes",
+        },
+        {
+          type: 2,
+          style: 4,
+          label: "Cancel",
+          custom_id: "profession:switch_confirm:no",
+        },
+      ],
+    },
+  ];
 }
 
 export function buildLinkIdentityConfirmButtons(labels: {

@@ -407,6 +407,28 @@ const commandBody = [
       },
     ],
   },
+  // ----- War Leader Support ------------------------------------------------
+  {
+    name: "switch-profession",
+    description: "View or switch your profession: Engineer or War Leader.",
+    description_localizations: {
+      "pt-BR": "Veja ou troque sua profissão: Engenheiro ou Líder de Guerra.",
+    },
+  },
+  {
+    name: "my-engineers",
+    description: "War Leaders: view your assigned Engineers and coverage.",
+    description_localizations: {
+      "pt-BR": "Líderes de Guerra: veja seus Engenheiros e cobertura.",
+    },
+  },
+  {
+    name: "set-profession-channel",
+    description: "Register this channel for profession table announcements.",
+    description_localizations: {
+      "pt-BR": "Registre este canal para anúncios da tabela de profissões.",
+    },
+  },
 ];
 
 /** @param {unknown} commands */

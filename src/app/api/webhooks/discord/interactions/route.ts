@@ -88,6 +88,17 @@ import {
   handleDiscordSetConductor,
 } from "@/lib/trains/discord-bot-handlers.server";
 import { loadAllianceMembersForBot } from "@/lib/vr/member-roster";
+import {
+  handleDiscordMyEngineers,
+  handleDiscordProfessionSelect,
+  handleDiscordProfessionSwitchConfirm,
+  handleDiscordSetProfessionChannel,
+  handleDiscordSwitchProfession,
+} from "@/lib/professions/discord-bot-handlers.server";
+import {
+  buildProfessionSelectButtons,
+  buildProfessionSwitchConfirmButtons,
+} from "@/lib/discord/interactions";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -487,6 +498,55 @@ async function handleSlashCommand(payload: DiscordInteractionPayload) {
     return discordMessageResponse(result.reply, undefined, EPHEMERAL);
   }
 
+  if (commandName === "switch-profession") {
+    const result = await handleDiscordSwitchProfession({
+      guildId,
+      discordUserId,
+      locale,
+    });
+    if (result.showProfessionSelect) {
+      return discordMessageResponse(
+        result.reply,
+        buildProfessionSelectButtons(),
+        EPHEMERAL,
+      );
+    }
+    if (result.showSwitchConfirm) {
+      return discordMessageResponse(
+        result.reply,
+        buildProfessionSwitchConfirmButtons(result.showSwitchConfirm),
+        EPHEMERAL,
+      );
+    }
+    return discordMessageResponse(result.reply, undefined, EPHEMERAL);
+  }
+
+  if (commandName === "my-engineers") {
+    const result = await handleDiscordMyEngineers({
+      guildId,
+      discordUserId,
+      locale,
+    });
+    return discordMessageResponse(result.reply, undefined, EPHEMERAL);
+  }
+
+  if (commandName === "set-profession-channel") {
+    if (!guildId) {
+      return discordMessageResponse(t("errors.guildNotRegistered"));
+    }
+    const channelId = interactionChannelId(payload);
+    if (!channelId) {
+      return discordMessageResponse(t("errors.serverError"));
+    }
+    const result = await handleDiscordSetProfessionChannel({
+      guildId,
+      channelId,
+      discordUserId,
+      locale,
+    });
+    return discordMessageResponse(result.reply);
+  }
+
   return discordMessageResponse(t("errors.unknownCommand"));
 }
 
@@ -728,6 +788,32 @@ async function handleButton(payload: DiscordInteractionPayload) {
       memberId: parsed.memberId,
       date: parsed.date,
     });
+    return discordButtonResponse(result.reply, []);
+  }
+
+  if (parsed.kind === "profession_select") {
+    const result = await handleDiscordProfessionSelect({
+      guildId: interactionGuildId(payload),
+      discordUserId,
+      profession: parsed.profession,
+      locale,
+    });
+    return discordButtonResponse(result.reply, []);
+  }
+
+  if (parsed.kind === "profession_switch_confirm") {
+    const result = await handleDiscordProfessionSwitchConfirm({
+      guildId: interactionGuildId(payload),
+      discordUserId,
+      answer: parsed.answer,
+      locale,
+    });
+    if (result.showProfessionSelect) {
+      return discordButtonResponse(
+        result.reply,
+        buildProfessionSelectButtons(),
+      );
+    }
     return discordButtonResponse(result.reply, []);
   }
 
