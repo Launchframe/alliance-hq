@@ -4377,13 +4377,18 @@
       "stronghold": "Stronghold",
       "city": "City",
       "serverTimeSuffix": "ST",
-      "summary": "Next 24 hours: {cityCount} cities and {strongholdCount} strongholds to take.",
+      "markerLabel": "{marker} marker",
+      "summary": "Next 24 hours: {cityCount, plural, one {# city} other {# cities}} and {strongholdCount, plural, one {# stronghold} other {# strongholds}} to take.",
       "policyWar": "Expect these to be contested. Capture quickly and be on your guard.",
       "policyPeace": "In-and-out with these Strongholds. We're not in a rush to take them.",
       "seasonDisclaimer": "📣 DO NOT LOOT GOLD until the map marker gives you the okay.\nResistance leaders loot first so they can upgrade faster, push harder, and help us reach team goals faster 💪💪",
       "empty": "No captures are scheduled in the next 24 hours."
     },
     "calendar": {
+      "viewDay": "Daily",
+      "viewMonth": "Month",
+      "previousDay": "Previous day",
+      "nextDay": "Next day",
       "previousMonth": "Previous month",
       "nextMonth": "Next month",
       "weekdayHeaders": ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
@@ -4449,10 +4454,12 @@
       "confirmConflictSave": "Save and reassign marker"
     },
     "actions": {
+      "announce": "📣 Announce",
       "scheduleCapture": "Schedule capture",
       "save": "Save",
       "saving": "Saving…",
       "cancel": "Cancel",
+      "close": "Close",
       "delete": "Delete"
     },
     "errors": {

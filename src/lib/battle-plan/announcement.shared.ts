@@ -11,7 +11,7 @@ export type BattlePlanAnnouncementStrings = {
   stronghold: string;
   city: string;
   serverTimeSuffix: string;
-  summary: string;
+  summary: (cityCount: number, strongholdCount: number) => string;
   policyWar: string;
   policyPeace: string;
   seasonDisclaimer: string;
@@ -103,9 +103,7 @@ export function generateBattlePlanAnnouncement(
   );
 
   const sections = [
-    options.strings.summary
-      .replace("{cityCount}", String(cityCount))
-      .replace("{strongholdCount}", String(strongholdCount)),
+    options.strings.summary(cityCount, strongholdCount),
     groupLinesByServerDate(upcoming, options.strings).join("\n\n"),
     warTimeEvent ? options.strings.policyWar : options.strings.policyPeace,
   ];
@@ -124,12 +122,15 @@ export function buildAnnouncementStrings(
     stronghold: translate("announcement.stronghold"),
     city: translate("announcement.city"),
     serverTimeSuffix: translate("announcement.serverTimeSuffix"),
-    summary: translate("announcement.summary"),
+    summary: (cityCount, strongholdCount) =>
+      translate("announcement.summary", { cityCount, strongholdCount }),
     policyWar: translate("announcement.policyWar"),
     policyPeace: translate("announcement.policyPeace"),
     seasonDisclaimer: translate("announcement.seasonDisclaimer"),
     empty: translate("announcement.empty"),
     markerLabel: (preset) =>
-      translate(`markers.presets.${markerPresetI18nKey(preset)}`),
+      translate("announcement.markerLabel", {
+        marker: translate(`markers.presets.${markerPresetI18nKey(preset)}`),
+      }),
   };
 }

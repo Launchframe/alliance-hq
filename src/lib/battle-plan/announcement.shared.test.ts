@@ -11,15 +11,19 @@ const strings: BattlePlanAnnouncementStrings = {
   stronghold: "Stronghold",
   city: "City",
   serverTimeSuffix: "ST",
-  summary: "Next 24 hours: {cityCount} cities and {strongholdCount} strongholds.",
+  summary: (cityCount, strongholdCount) => {
+    const cityLabel = cityCount === 1 ? "city" : "cities";
+    const strongholdLabel = strongholdCount === 1 ? "stronghold" : "strongholds";
+    return `Next 24 hours: ${cityCount} ${cityLabel} and ${strongholdCount} ${strongholdLabel} to take.`;
+  },
   policyWar: "Expect these to be contested.",
   policyPeace: "In-and-out with these Strongholds.",
   seasonDisclaimer: "DO NOT LOOT GOLD",
   empty: "No captures scheduled.",
   markerLabel: (preset) => {
-    if (preset === "ordinal-1") return "1st";
-    if (preset === "ordinal-2") return "2nd";
-    if (preset === "hammer") return "Build here";
+    if (preset === "ordinal-1") return "1st marker";
+    if (preset === "ordinal-2") return "2nd marker";
+    if (preset === "hammer") return "Build here marker";
     return preset;
   },
 };
@@ -94,10 +98,10 @@ describe("generateBattlePlanAnnouncement", () => {
       now,
     });
 
-    expect(text).toContain("Next 24 hours: 1 cities and 2 strongholds.");
-    expect(text).toContain("20:00 ST - Stronghold [1st]");
-    expect(text).toContain("20:15 ST - Stronghold [2nd]");
-    expect(text).toContain("11:00 ST - City [Build here]");
+    expect(text).toContain("Next 24 hours: 1 city and 2 strongholds to take.");
+    expect(text).toContain("20:00 ST - Stronghold [1st marker]");
+    expect(text).toContain("20:15 ST - Stronghold [2nd marker]");
+    expect(text).toContain("11:00 ST - City [Build here marker]");
     expect(text).toContain("In-and-out with these Strongholds.");
     expect(text).not.toContain("DO NOT LOOT GOLD");
   });

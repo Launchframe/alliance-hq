@@ -4376,13 +4376,18 @@
       "stronghold": "Fortaleza",
       "city": "Cidade",
       "serverTimeSuffix": "HS",
-      "summary": "Próximas 24 horas: {cityCount} cidades e {strongholdCount} fortalezas para capturar.",
+      "markerLabel": "{marker} marcador",
+      "summary": "Próximas 24 horas: {cityCount, plural, one {# cidade} other {# cidades}} e {strongholdCount, plural, one {# fortaleza} other {# fortalezas}} para capturar.",
       "policyWar": "Espere contestação. Capture rápido e fique alerta.",
       "policyPeace": "Entrada e saída nessas fortalezas. Não temos pressa para capturá-las.",
       "seasonDisclaimer": "📣 NÃO SAQUE OURO até o marcador do mapa liberar.\nLíderes da Resistência saqueiam primeiro para evoluir mais rápido, avançar com força e ajudar a alcançar as metas do time 💪💪",
       "empty": "Nenhuma captura está agendada nas próximas 24 horas."
     },
     "calendar": {
+      "viewDay": "Diário",
+      "viewMonth": "Mês",
+      "previousDay": "Dia anterior",
+      "nextDay": "Próximo dia",
       "previousMonth": "Mês anterior",
       "nextMonth": "Próximo mês",
       "weekdayHeaders": ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"],
@@ -4448,10 +4453,12 @@
       "confirmConflictSave": "Salvar e reatribuir marcador"
     },
     "actions": {
+      "announce": "📣 Anunciar",
       "scheduleCapture": "Agendar captura",
       "save": "Salvar",
       "saving": "Salvando…",
       "cancel": "Cancelar",
+      "close": "Fechar",
       "delete": "Excluir"
     },
     "errors": {

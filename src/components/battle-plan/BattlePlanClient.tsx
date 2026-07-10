@@ -3,7 +3,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 
-import { BattlePlanAnnouncementPanel } from "@/components/battle-plan/BattlePlanAnnouncementPanel";
+import { BattlePlanAnnouncementDialog } from "@/components/battle-plan/BattlePlanAnnouncementDialog";
 import { BattlePlanCalendar } from "@/components/battle-plan/BattlePlanCalendar";
 import { BattlePlanSettingsPanel } from "@/components/battle-plan/BattlePlanSettingsPanel";
 import {
@@ -26,6 +26,7 @@ export function BattlePlanClient({ initial }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
+  const [announcementOpen, setAnnouncementOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<SerializedCaptureEvent | null>(
     null,
   );
@@ -168,15 +169,24 @@ export function BattlePlanClient({ initial }: Props) {
           <h1 className="text-2xl font-semibold text-hq-fg">{t("title")}</h1>
           <p className="mt-1 text-sm text-hq-fg-muted">{t("subtitle")}</p>
         </div>
-        {dashboard.canWrite ? (
+        <div className="flex flex-wrap gap-2">
           <button
             type="button"
-            className="rounded border border-hq-success bg-hq-success px-4 py-2 text-sm text-white"
-            onClick={() => openCreateModal()}
+            className="rounded border border-hq-border bg-hq-bg px-4 py-2 text-sm text-hq-fg hover:border-hq-accent"
+            onClick={() => setAnnouncementOpen(true)}
           >
-            {t("actions.scheduleCapture")}
+            {t("actions.announce")}
           </button>
-        ) : null}
+          {dashboard.canWrite ? (
+            <button
+              type="button"
+              className="rounded border border-hq-success bg-hq-success px-4 py-2 text-sm text-white"
+              onClick={() => openCreateModal()}
+            >
+              {t("actions.scheduleCapture")}
+            </button>
+          ) : null}
+        </div>
       </div>
 
       {error ? (
@@ -187,10 +197,6 @@ export function BattlePlanClient({ initial }: Props) {
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(18rem,1fr)]">
         <div className="space-y-6">
-          <BattlePlanAnnouncementPanel
-            events={dashboard.events}
-            effectiveSeasonKey={dashboard.effectiveSeasonKey}
-          />
           <UpcomingCapturesList
             events={dashboard.events}
             canWrite={dashboard.canWrite}
@@ -213,6 +219,13 @@ export function BattlePlanClient({ initial }: Props) {
           onSaveSettings={saveSettings}
         />
       </div>
+
+      <BattlePlanAnnouncementDialog
+        open={announcementOpen}
+        onOpenChange={setAnnouncementOpen}
+        events={dashboard.events}
+        effectiveSeasonKey={dashboard.effectiveSeasonKey}
+      />
 
       <CaptureEventModal
         open={modalOpen}

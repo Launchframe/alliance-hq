@@ -19,6 +19,7 @@ import {
 import {
   collectUsedMarkerPresets,
   findMarkerPresetConflict,
+  findNextAvailableMarkerPreset,
 } from "@/lib/battle-plan/marker-conflict.shared";
 import {
   markerPresetI18nKey,
@@ -78,14 +79,22 @@ function buildInitialValues(
   initial: SerializedCaptureEvent | null | undefined,
   defaultServerDate: string | null | undefined,
   defaultCapturePolicy: CapturePolicy,
+  events: readonly SerializedCaptureEvent[],
 ): CaptureEventFormValues {
+  const markerOptions = { excludeEventId: initial?.id };
   if (initial) {
-    return valuesFromEvent(initial);
+    const values = valuesFromEvent(initial);
+    return {
+      ...values,
+      iconPreset:
+        values.iconPreset ??
+        findNextAvailableMarkerPreset(events, markerOptions),
+    };
   }
   return {
     scheduledAt: defaultScheduledAt(defaultServerDate),
     territoryType: "stronghold",
-    iconPreset: null,
+    iconPreset: findNextAvailableMarkerPreset(events, markerOptions),
     capturePolicy: defaultCapturePolicy,
     notes: "",
     status: "scheduled",
@@ -119,7 +128,12 @@ function CaptureEventForm({
 }: CaptureEventFormProps) {
   const t = useTranslations("battlePlan");
   const [values, setValues] = useState<CaptureEventFormValues>(() =>
-    buildInitialValues(initial, defaultServerDate, defaultCapturePolicy),
+    buildInitialValues(
+      initial,
+      defaultServerDate,
+      defaultCapturePolicy,
+      events,
+    ),
   );
   const [markerPickerView, setMarkerPickerView] = useState<"quick" | "full">(
     "quick",
@@ -141,15 +155,24 @@ function CaptureEventForm({
     t(`markers.presets.${markerPresetI18nKey(preset)}`);
   const selectedMarkerLabel = values.iconPreset
     ? presetLabel(values.iconPreset)
-    : t("event.noMarker");
+    : t("event.marker");
 
   const handleSubmit = () => {
+    if (markerPickerView === "full") {
+      return;
+    }
     if (markerConflict && !awaitingConflictConfirmation) {
       setAwaitingConflictConfirmation(true);
       return;
     }
     setAwaitingConflictConfirmation(false);
     void onSubmit(values);
+  };
+
+  const returnToEventForm = () => {
+    window.setTimeout(() => {
+      setMarkerPickerView("quick");
+    }, 0);
   };
 
   return (
@@ -173,14 +196,13 @@ function CaptureEventForm({
           <button
             type="button"
             className="text-sm text-hq-accent underline underline-offset-2"
-            onClick={() => setMarkerPickerView("quick")}
+            onClick={returnToEventForm}
           >
             {t("event.backToEvent")}
           </button>
           <MarkerIconPalette
             value={values.iconPreset}
             usedPresets={usedPresets}
-            allowNone
             disabled={saving}
             onChange={(iconPreset) => {
               setAwaitingConflictConfirmation(false);
@@ -233,21 +255,6 @@ function CaptureEventForm({
           <fieldset className="space-y-2 text-sm">
             <legend className="text-hq-fg-muted">{t("event.marker")}</legend>
             <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                aria-pressed={values.iconPreset == null}
-                className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 ${
-                  values.iconPreset == null
-                    ? "border-hq-accent bg-hq-accent/10"
-                    : "border-hq-border bg-hq-bg"
-                }`}
-                onClick={() => {
-                  setAwaitingConflictConfirmation(false);
-                  setValues((current) => ({ ...current, iconPreset: null }));
-                }}
-              >
-                <span className="text-hq-fg-muted">{t("event.noMarker")}</span>
-              </button>
               {ORDINAL_MARKER_PRESETS.map((preset) => {
                 const selected = values.iconPreset === preset;
                 const inUse = usedPresets.has(preset);
@@ -393,7 +400,7 @@ function CaptureEventForm({
             <button
               type="submit"
               className="rounded border border-hq-success bg-hq-success px-4 py-2 text-sm text-white disabled:opacity-50"
-              disabled={saving}
+              disabled={saving || values.iconPreset == null}
               title={FORM_SUBMIT_ENTER_KEY_HINT}
             >
               {saving ? t("actions.saving") : t("actions.save")}
@@ -404,7 +411,8 @@ function CaptureEventForm({
             type="button"
             className="rounded border border-hq-success bg-hq-success px-4 py-2 text-sm text-white disabled:opacity-50"
             disabled={saving}
-            onClick={() => setMarkerPickerView("quick")}
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={returnToEventForm}
           >
             {t("event.doneSelectingMarker")}
           </button>
