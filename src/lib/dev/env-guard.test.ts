@@ -56,3 +56,25 @@ describe("isDevOrPreviewEnvironment", () => {
     expect(isDevOrPreviewEnvironment()).toBe(false);
   });
 });
+
+describe("isUidBypassEnabled", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("matches pre-production environments", async () => {
+    const { isUidBypassEnabled } = await import("@/lib/dev/env-guard");
+    vi.stubEnv("VERCEL_ENV", "preview");
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("E2E_TEST", "");
+    expect(isUidBypassEnabled()).toBe(true);
+  });
+
+  it("is disabled on Vercel production", async () => {
+    const { isUidBypassEnabled } = await import("@/lib/dev/env-guard");
+    vi.stubEnv("VERCEL_ENV", "production");
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("E2E_TEST", "");
+    expect(isUidBypassEnabled()).toBe(false);
+  });
+});

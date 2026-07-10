@@ -22,3 +22,11 @@ export function isDevOrPreviewEnvironment(): boolean {
   }
   return process.env.NODE_ENV !== "production";
 }
+
+/**
+ * Pre-production Last War UID stubs for onboarding and manual QA.
+ * Disabled on Vercel production; enabled on preview/dev and local non-prod builds.
+ */
+export function isUidBypassEnabled(): boolean {
+  return isDevOrPreviewEnvironment();
+}

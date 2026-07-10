@@ -107,7 +107,7 @@ export const NAV_GROUPS: NavGroupDef[] = [
         id: "dashboard",
         labelKey: "dashboard",
         href: "/dashboard",
-        kind: "iframe",
+        kind: "native",
       },
       {
         id: "alliances",

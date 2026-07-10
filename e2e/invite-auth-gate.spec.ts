@@ -42,6 +42,7 @@ test.describe("Invite auth gate", () => {
 
     await page.goto(`/invite/${encodeURIComponent(token)}`);
 
+    await expect(page.getByRole("heading", { name: /invite/i })).toBeVisible();
     await expect(page.getByLabel(/email/i)).toHaveCount(0);
     await expect(
       page.getByRole("button", { name: /accept invite/i }),
@@ -50,24 +51,16 @@ test.describe("Invite auth gate", () => {
     const discordPrimaryButton = page.getByRole("button", {
       name: /continue with discord/i,
     });
-    const otherSignInLink = page.getByRole("link", {
-      name: /other sign-in options/i,
-    });
-    const legacySignInLink = page.getByRole("link", {
-      name: /sign in to accept/i,
+    const signInLink = page.getByRole("link", {
+      name: /other sign-in options|sign in to accept/i,
     });
 
+    await expect(signInLink).toBeVisible();
+    const signInHref = await signInLink.getAttribute("href");
+    expect(signInHref).toContain("/auth");
+    expect(signInHref).toContain(encodeURIComponent(token));
     if (await discordPrimaryButton.isVisible()) {
-      await expect(otherSignInLink).toBeVisible();
-      const signInHref = await otherSignInLink.getAttribute("href");
-      expect(signInHref).toContain("/auth");
       expect(signInHref).toContain("from=invite");
-      expect(signInHref).toContain(encodeURIComponent(token));
-    } else {
-      await expect(legacySignInLink).toBeVisible();
-      const signInHref = await legacySignInLink.getAttribute("href");
-      expect(signInHref).toContain("/auth");
-      expect(signInHref).toContain(encodeURIComponent(token));
     }
   });
 
@@ -284,8 +277,8 @@ test.describe("Get-started routing", () => {
     await page.goto("/get-started");
 
     await expect(page).not.toHaveURL(/\/get-started/);
-    // /dashboard iframe routes redirect HQ-only sessions to /members
-    await expect(page).toHaveURL(/\/members/);
+    // HQ-only sessions land on native /dashboard with connect nudge
+    await expect(page).toHaveURL(/\/dashboard/);
     await expect(
       page.getByRole("link", { name: /^Connect Ashed$/i }),
     ).toBeVisible();

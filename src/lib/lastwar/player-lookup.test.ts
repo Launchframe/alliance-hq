@@ -120,8 +120,14 @@ describe("lookupPlayerByUid E2E fixtures", () => {
     vi.unstubAllEnvs();
   });
 
-  it("returns cold-start owner on server 1203 when E2E_TEST is enabled", async () => {
-    vi.stubEnv("E2E_TEST", "true");
+  function enableUidBypass() {
+    vi.stubEnv("VERCEL_ENV", "preview");
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("E2E_TEST", "");
+  }
+
+  it("returns cold-start owner on server 1203 when UID bypass is enabled", async () => {
+    enableUidBypass();
     await expect(lookupPlayerByUid("1234567890121203")).resolves.toEqual({
       ok: true,
       gameUserName: "ColdStartOwner",
@@ -129,8 +135,8 @@ describe("lookupPlayerByUid E2E fixtures", () => {
     });
   });
 
-  it("returns roster-miss player on server 1203 when E2E_TEST is enabled", async () => {
-    vi.stubEnv("E2E_TEST", "true");
+  it("returns roster-miss player on server 1203 when UID bypass is enabled", async () => {
+    enableUidBypass();
     await expect(lookupPlayerByUid("1234567890121204")).resolves.toEqual({
       ok: true,
       gameUserName: "E2eRosterMiss",
@@ -138,8 +144,8 @@ describe("lookupPlayerByUid E2E fixtures", () => {
     });
   });
 
-  it("returns wrong-server player on server 1205 when E2E_TEST is enabled", async () => {
-    vi.stubEnv("E2E_TEST", "true");
+  it("returns wrong-server player on server 1205 when UID bypass is enabled", async () => {
+    enableUidBypass();
     await expect(lookupPlayerByUid("1234567890121205")).resolves.toEqual({
       ok: true,
       gameUserName: "E2eWrongServer",
@@ -148,7 +154,7 @@ describe("lookupPlayerByUid E2E fixtures", () => {
   });
 
   it("returns owner onboarding player with server encoded in UID suffix", async () => {
-    vi.stubEnv("E2E_TEST", "true");
+    enableUidBypass();
     await expect(lookupPlayerByUid("12345678901847")).resolves.toEqual({
       ok: true,
       gameUserName: "E2eNativeOwner",
@@ -156,12 +162,21 @@ describe("lookupPlayerByUid E2E fixtures", () => {
     });
   });
 
-  it("returns claim-invite mirror placeholder when E2E_TEST is enabled", async () => {
-    vi.stubEnv("E2E_TEST", "true");
+  it("returns claim-invite mirror placeholder when UID bypass is enabled", async () => {
+    enableUidBypass();
     await expect(lookupPlayerByUid("1234567890121288")).resolves.toEqual({
       ok: true,
       gameUserName: "E2eClaimInviteMirror",
       gameServerNumber: 1203,
     });
+  });
+
+  it("does not return bypass fixtures on Vercel production", async () => {
+    vi.stubEnv("VERCEL_ENV", "production");
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("E2E_TEST", "");
+    const fetchImpl = vi.fn();
+    await lookupPlayerByUid("1234567890121203", fetchImpl);
+    expect(fetchImpl).toHaveBeenCalledOnce();
   });
 });

@@ -133,6 +133,123 @@
     "professionsOfficer": "Portal de Profissões",
     "professionsOfficerDescription": "Visão geral da cobertura para oficiais"
   },
+  "hybridAshed": {
+    "hqPane": "Alliance HQ",
+    "ashedPane": "Ashed",
+    "minimizeHq": "Minimizar painel HQ",
+    "minimizeAshed": "Minimizar painel Ashed",
+    "restoreHq": "Restaurar painel HQ",
+    "restoreAshed": "Restaurar painel Ashed"
+  },
+  "dashboard": {
+    "title": "Painel da aliança",
+    "subtitle": "Inteligência consolidada sobre vínculos HQ, trens, uploads e análises do roster.",
+    "loading": "Carregando painel…",
+    "loadFailed": "Falha ao carregar o painel",
+    "youAreHere": "Você está aqui",
+    "viewingAs": "Visualizando como {name}",
+    "linkToSeeStanding": "Vincule seu comandante para ver sua posição nos gráficos.",
+    "viewAll": "Ver tudo",
+    "details": "Detalhes",
+    "openItem": "Abrir",
+    "myVr": "Meu VR",
+    "uploadVideo": "Enviar vídeo",
+    "openTrains": "Abrir trens",
+    "inbox": {
+      "title": "Caixa de notificações",
+      "description": "Pedidos de ajuda, vínculos, lembretes de upload e vídeos pendentes.",
+      "empty": "Nenhum lembrete ativo.",
+      "rosterLinks": "{count, plural, one {# pedido de vínculo} other {# pedidos de vínculo}}",
+      "helpRequests": "{count, plural, one {# pedido de ajuda} other {# pedidos de ajuda}}"
+    },
+    "train": {
+      "title": "Status do trem",
+      "noTemplate": "O template desta semana ainda não foi definido.",
+      "selectTemplate": "Selecionar template da semana",
+      "awaitingConductor": "O condutor de hoje ainda não foi selecionado.",
+      "selectConductor": "Selecionar condutor de hoje",
+      "inProgress": "Trem em andamento"
+    },
+    "video": {
+      "title": "Cobertura de uploads",
+      "uploaded": "Enviado",
+      "uploadCta": "Enviar",
+      "targets": {
+        "vsPerformance": "Pontuações VS",
+        "donations": "Doações",
+        "allianceExercise": "Exercício da aliança",
+        "zombieSiege": "Cerco zumbi",
+        "weekendEvent": "Guerra do Capitólio / Meteoro (fim de semana)"
+      }
+    },
+    "linking": {
+      "title": "Progresso de vínculos HQ"
+    },
+    "thp": {
+      "title": "Poder total de herói"
+    },
+    "squad": {
+      "title": "Análise de esquadrão principal",
+      "aircraft": "Aeronaves",
+      "tank": "Tanques",
+      "missile": "Mísseis",
+      "unreported": "Não informado"
+    },
+    "donations": {
+      "title": "Doações",
+      "requiresAshed": "Conecte o Ashed para ver análises de doações."
+    },
+    "vr": {
+      "title": "Resistência viral",
+      "reportRate": "{reported} de {total} membros reportaram VR nesta temporada"
+    },
+    "heroPowerPage": {
+      "title": "Análise de THP",
+      "back": "Painel",
+      "loading": "Carregando…",
+      "loadFailed": "Falha ao carregar análise de THP",
+      "standing": "Posição {rank} de {total} · percentil {percentile}",
+      "chartTitle": "THP da aliança ao longo do tempo",
+      "tableTitle": "Classificação dos membros",
+      "member": "Membro",
+      "thp": "THP",
+      "you": "você",
+      "range": {
+        "30d": "30 dias",
+        "90d": "90 dias",
+        "all": "Todo o período"
+      }
+    },
+    "linkingPage": {
+      "title": "Análise de vínculos HQ",
+      "back": "Painel",
+      "loading": "Carregando…",
+      "youLinked": "Você está vinculado ao roster.",
+      "youUnlinked": "Você ainda não está vinculado — vincule seu comandante.",
+      "linked": "Vinculados",
+      "unlinked": "Não vinculados",
+      "total": "Membros ativos",
+      "chartTitle": "Progresso de vínculos ao longo do tempo",
+      "unlinkedTableTitle": "Membros não vinculados",
+      "range": {
+        "30d": "30 dias",
+        "90d": "90 dias",
+        "all": "Todo o período"
+      }
+    },
+    "donationsPage": {
+      "title": "Análise de doações",
+      "back": "Painel",
+      "loading": "Carregando…",
+      "requiresAshed": "Conecte o Ashed para ver histórico e percentis de doações.",
+      "chartTitle": "Doações ao longo do tempo",
+      "range": {
+        "30d": "30 dias",
+        "90d": "90 dias",
+        "all": "Todo o período"
+      }
+    }
+  },
   "admin": {
     "title": "Portal Admin HQ",
     "subtitle": "Observabilidade entre alianças para mantenedores da plataforma.",
@@ -1324,16 +1441,6 @@
         "template8": "Aplicar modelo 8"
       }
     }
-  },
-  "dashboard": {
-    "title": "Painel de Controle",
-    "subtitle": "Ferramentas da Alliance construídas sobre o Ashed. Envie vídeos, gerencie pontuações e acesse páginas nativas do Ashed a partir da barra lateral.",
-    "videoCardTitle": "Enviar vídeo",
-    "videoCardDescription": "Grave a tela — extraímos os frames do placar e os enviamos para o Ashed.",
-    "reportsCardTitle": "Ver relatórios no Ashed ↗",
-    "reportsCardDescription": "Abra o painel de relatórios completo do Ashed em uma nova aba.",
-    "aboutTitle": "Sobre a Alliance HQ",
-    "aboutBody": "Este aplicativo complementa o <link>ashed.online</link> com ferramentas específicas para alianças. Todos os dados principais e o processamento via OCR permanecem no Ashed — nós adicionamos recursos de conveniência que o aplicativo principal ainda não oferece."
   },
   "connect": {
     "progressLabel": "Progresso da configuração",
@@ -3732,6 +3839,22 @@
     "confirmIdentityServer": "Servidor {server}",
     "confirmIdentityYes": "Sim, sou eu",
     "confirmIdentityNo": "Não, informar outro UID",
+    "uidBypass": {
+      "title": "UIDs de teste (pré-produção)",
+      "badge": "Só pré-prod",
+      "body": "Estes IDs falsos ignoram a consulta real ao Last War. Toque em um UID para preencher o campo.",
+      "useExampleUid": "Usar UID de exemplo",
+      "ownerPatternExample": "Exemplo: {uid} → E2eNativeOwner no servidor {server}.",
+      "entries": {
+        "coldStartOwner": "Cold start do owner e seed Discord — vincula como ColdStartOwner no servidor 1203.",
+        "rosterMiss": "Fluxo de roster miss — nome verificado ausente no roster; fila de ajuda do oficial.",
+        "wrongServer": "Onboarding de servidor errado — UID resolve para o servidor 1205.",
+        "substringMatch": "Match parcial no roster — nome Mew2407 corresponde à linha Mew.",
+        "claimTarget": "Alvo fixo de claim invite — deve corresponder ao convidado E2eClaimTarget.",
+        "claimMirror": "Espelho de claim invite — o nome da consulta sempre corresponde ao convidado (reutilizável).",
+        "ownerPattern": "UID padrão para onboarding de owner nativo — os últimos quatro dígitos definem o servidor."
+      }
+    },
     "rosterFullTitle": "Roster is full",
     "rosterFullBody": "Your alliance is full. Last War verified {gameName}, but we could not find {gameName} in your alliance and there is not enough room in your alliance for us to create a new member. An officer will review your link request."
   },

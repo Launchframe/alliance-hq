@@ -2625,6 +2625,34 @@ export const inboxReminderItems = pgTable("inbox_reminder_items", {
     .notNull(),
 });
 
+/** Daily alliance analytics snapshots (link progress, THP, donations). */
+export const allianceDailySnapshots = pgTable(
+  "alliance_daily_snapshots",
+  {
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    recordedDate: text("recorded_date").notNull(),
+    activeMemberCount: integer("active_member_count").notNull().default(0),
+    linkedCount: integer("linked_count").notNull().default(0),
+    unlinkedCount: integer("unlinked_count").notNull().default(0),
+    thpTotal: doublePrecision("thp_total"),
+    thpP50: doublePrecision("thp_p50"),
+    thpP90: doublePrecision("thp_p90"),
+    thpP99: doublePrecision("thp_p99"),
+    donationTotal: doublePrecision("donation_total"),
+    donationP50: doublePrecision("donation_p50"),
+    donationP90: doublePrecision("donation_p90"),
+    donationP99: doublePrecision("donation_p99"),
+    computedAt: timestamp("computed_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.allianceId, table.recordedDate] }),
+  ],
+);
+
 export const inboxReminderDismissals = pgTable(
   "inbox_reminder_dismissals",
   {

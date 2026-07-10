@@ -24,8 +24,8 @@ function makeSession(partial: Partial<Session>): Session {
 }
 
 describe("allianceLandingPath", () => {
-  it("routes native alliances to /members", () => {
-    expect(allianceLandingPath("native")).toBe("/members");
+  it("routes native alliances to /dashboard", () => {
+    expect(allianceLandingPath("native")).toBe("/dashboard");
   });
 
   it("routes ashed alliances to /dashboard", () => {

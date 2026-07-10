@@ -133,6 +133,123 @@
     "professionsOfficer": "Profession Portal",
     "professionsOfficerDescription": "Alliance-wide WL coverage and assignments"
   },
+  "hybridAshed": {
+    "hqPane": "Alliance HQ",
+    "ashedPane": "Ashed",
+    "minimizeHq": "Minimize HQ pane",
+    "minimizeAshed": "Minimize Ashed pane",
+    "restoreHq": "Restore HQ pane",
+    "restoreAshed": "Restore Ashed pane"
+  },
+  "dashboard": {
+    "title": "Alliance dashboard",
+    "subtitle": "Top-level intelligence across HQ linking, trains, uploads, and roster analytics.",
+    "loading": "Loading dashboard…",
+    "loadFailed": "Failed to load dashboard",
+    "youAreHere": "You are here",
+    "viewingAs": "Viewing as {name}",
+    "linkToSeeStanding": "Link your commander to see where you stand in alliance charts.",
+    "viewAll": "View all",
+    "details": "Details",
+    "openItem": "Open",
+    "myVr": "My VR",
+    "uploadVideo": "Upload video",
+    "openTrains": "Open trains",
+    "inbox": {
+      "title": "Notification inbox",
+      "description": "Help requests, link requests, upload reminders, and pending video jobs.",
+      "empty": "No active reminders.",
+      "rosterLinks": "{count, plural, one {# roster link request} other {# roster link requests}}",
+      "helpRequests": "{count, plural, one {# help request} other {# help requests}}"
+    },
+    "train": {
+      "title": "Train status",
+      "noTemplate": "This week's train template is not set yet.",
+      "selectTemplate": "Select this week's template",
+      "awaitingConductor": "Today's conductor has not been selected yet.",
+      "selectConductor": "Select today's conductor",
+      "inProgress": "Train in progress"
+    },
+    "video": {
+      "title": "Video upload coverage",
+      "uploaded": "Uploaded",
+      "uploadCta": "Upload",
+      "targets": {
+        "vsPerformance": "VS scores",
+        "donations": "Donations",
+        "allianceExercise": "Alliance Exercise",
+        "zombieSiege": "Zombie Siege",
+        "weekendEvent": "Capitol War / Meteor (weekend)"
+      }
+    },
+    "linking": {
+      "title": "HQ link progress"
+    },
+    "thp": {
+      "title": "Total hero power"
+    },
+    "squad": {
+      "title": "Main squad analytics",
+      "aircraft": "Aircraft",
+      "tank": "Tank",
+      "missile": "Missile",
+      "unreported": "Unreported"
+    },
+    "donations": {
+      "title": "Donations",
+      "requiresAshed": "Connect Ashed to see donation analytics over time."
+    },
+    "vr": {
+      "title": "Viral Resistance",
+      "reportRate": "{reported} of {total} members reported VR this season"
+    },
+    "heroPowerPage": {
+      "title": "Hero power analytics",
+      "back": "Dashboard",
+      "loading": "Loading…",
+      "loadFailed": "Failed to load hero power analytics",
+      "standing": "Rank {rank} of {total} · {percentile}th percentile",
+      "chartTitle": "Alliance THP over time",
+      "tableTitle": "Member standings",
+      "member": "Member",
+      "thp": "THP",
+      "you": "you",
+      "range": {
+        "30d": "30 days",
+        "90d": "90 days",
+        "all": "All time"
+      }
+    },
+    "linkingPage": {
+      "title": "HQ linking analytics",
+      "back": "Dashboard",
+      "loading": "Loading…",
+      "youLinked": "You are linked to the roster.",
+      "youUnlinked": "You are not linked yet — link your commander to participate fully.",
+      "linked": "Linked",
+      "unlinked": "Unlinked",
+      "total": "Active members",
+      "chartTitle": "Link progress over time",
+      "unlinkedTableTitle": "Unlinked members",
+      "range": {
+        "30d": "30 days",
+        "90d": "90 days",
+        "all": "All time"
+      }
+    },
+    "donationsPage": {
+      "title": "Donations analytics",
+      "back": "Dashboard",
+      "loading": "Loading…",
+      "requiresAshed": "Connect Ashed to view donation history and percentiles.",
+      "chartTitle": "Donations over time",
+      "range": {
+        "30d": "30 days",
+        "90d": "90 days",
+        "all": "All time"
+      }
+    }
+  },
   "admin": {
     "title": "HQ Admin Portal",
     "subtitle": "Cross-alliance observability for platform maintainers.",
@@ -1324,16 +1441,6 @@
         "template8": "Apply template 8"
       }
     }
-  },
-  "dashboard": {
-    "title": "Dashboard",
-    "subtitle": "Alliance tools built on top of Ashed. Upload videos, manage scores, and jump to native Ashed pages from the sidebar.",
-    "videoCardTitle": "Upload from video",
-    "videoCardDescription": "Drop a screen recording — we extract scoreboard frames and send them to Ashed.",
-    "reportsCardTitle": "View reports on Ashed ↗",
-    "reportsCardDescription": "Open the full Ashed reports dashboard in a new tab.",
-    "aboutTitle": "About Alliance HQ",
-    "aboutBody": "This app extends <link>ashed.online</link> with alliance-specific tools. All core data and OCR processing remain on Ashed — we add convenience features the main app does not ship yet."
   },
   "connect": {
     "progressLabel": "Setup progress",
@@ -3788,7 +3895,23 @@
     "confirmIdentityBody": "We found this commander for that player UID. Confirm it's you to finish linking.",
     "confirmIdentityServer": "State server {server}",
     "confirmIdentityYes": "Yes, that's me",
-    "confirmIdentityNo": "No, re-enter my UID"
+    "confirmIdentityNo": "No, re-enter my UID",
+    "uidBypass": {
+      "title": "Pre-production test UIDs",
+      "badge": "Pre-prod only",
+      "body": "These fake player IDs skip the real Last War lookup. Tap a UID to fill the field.",
+      "useExampleUid": "Use example UID",
+      "ownerPatternExample": "Example: {uid} → E2eNativeOwner on server {server}.",
+      "entries": {
+        "coldStartOwner": "Owner cold start and Discord dev seed — links as ColdStartOwner on server 1203.",
+        "rosterMiss": "Roster miss flow — verified name not on roster; officer help queue.",
+        "wrongServer": "Wrong-server onboarding — UID resolves to server 1205.",
+        "substringMatch": "Substring roster match — lookup name Mew2407 matches roster row Mew.",
+        "claimTarget": "Fixed-name claim invite target — must match invited commander E2eClaimTarget.",
+        "claimMirror": "Claim invite mirror — lookup name always matches whoever was invited (reusable).",
+        "ownerPattern": "Pattern UID for native owner onboarding — last four digits set the state server."
+      }
+    }
   },
   "discordBot": {
     "errors": {

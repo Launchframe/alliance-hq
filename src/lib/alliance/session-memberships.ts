@@ -17,9 +17,9 @@ export type SwitchSessionAllianceResult = {
 };
 
 export function allianceLandingPath(
-  operatingMode: AllianceOperatingMode,
+  _operatingMode: AllianceOperatingMode,
 ): string {
-  return operatingMode === "native" ? "/members" : "/dashboard";
+  return "/dashboard";
 }
 
 export type { SessionAllianceOption };

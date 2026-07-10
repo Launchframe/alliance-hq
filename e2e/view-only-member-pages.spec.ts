@@ -106,9 +106,11 @@ for (const operatingMode of ["native", "ashed"] as const) {
       await expect(page).toHaveURL(/\/my-vr$/);
     });
 
-    test("redirects /admin to members", async ({ page }) => {
+    test("redirects /admin to dashboard when hq:admin is missing", async ({
+      page,
+    }) => {
       await page.goto("/admin");
-      await expect(page).toHaveURL(/\/members$/);
+      await expect(page).toHaveURL(/\/dashboard$/);
     });
 
     test("redirects /commanders to unified members roster", async ({ page }) => {
