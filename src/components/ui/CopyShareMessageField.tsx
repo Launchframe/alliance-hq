@@ -12,9 +12,16 @@ type Props = {
   message: string;
   label?: string;
   className?: string;
+  /** Default `beside` keeps the button next to the message. */
+  copyButtonPlacement?: "beside" | "above";
 };
 
-export function CopyShareMessageField({ message, label, className }: Props) {
+export function CopyShareMessageField({
+  message,
+  label,
+  className,
+  copyButtonPlacement = "beside",
+}: Props) {
   const t = useTranslations("team.invites.wizard");
   const tCommon = useTranslations("common");
   const [copied, setCopied] = useState(false);
@@ -45,32 +52,52 @@ export function CopyShareMessageField({ message, label, className }: Props) {
     }
   }
 
+  const copyButton = (
+    <button
+      type="button"
+      onClick={() => void handleCopy()}
+      className={cn(
+        "inline-flex items-center justify-center gap-1.5 rounded-md border border-[#388bfd] bg-[#388bfd]/10 px-2.5 py-1.5 text-xs text-[#58a6ff] transition-colors hover:bg-[#388bfd]/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#58a6ff]",
+        copyButtonPlacement === "above"
+          ? "w-full shrink-0 sm:w-auto"
+          : "shrink-0",
+      )}
+      aria-label={tCommon("copyToClipboard")}
+    >
+      {copied ? (
+        <>
+          <Check className="size-3.5" aria-hidden />
+          {t("copied")}
+        </>
+      ) : (
+        <>
+          <Copy className="size-3.5" aria-hidden />
+          {t("copyShareMessage")}
+        </>
+      )}
+    </button>
+  );
+
   return (
     <div className={cn("space-y-1", className)}>
       {label ? <p className="text-xs text-[#8b949e]">{label}</p> : null}
-      <div className="flex min-w-0 items-start gap-2 rounded-lg border border-[#30363d] bg-[#0d1117] p-2">
-        <p className="min-w-0 flex-1 whitespace-pre-wrap break-words text-sm text-[#e6edf3]">
-          {message}
-        </p>
-        <button
-          type="button"
-          onClick={() => void handleCopy()}
-          className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-[#388bfd] bg-[#388bfd]/10 px-2.5 py-1.5 text-xs text-[#58a6ff] transition-colors hover:bg-[#388bfd]/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#58a6ff]"
-          aria-label={tCommon("copyToClipboard")}
-        >
-          {copied ? (
-            <>
-              <Check className="size-3.5" aria-hidden />
-              {t("copied")}
-            </>
-          ) : (
-            <>
-              <Copy className="size-3.5" aria-hidden />
-              {t("copyShareMessage")}
-            </>
-          )}
-        </button>
-      </div>
+      {copyButtonPlacement === "above" ? (
+        <div className="space-y-2">
+          {copyButton}
+          <div className="min-w-0 rounded-lg border border-[#30363d] bg-[#0d1117] p-2">
+            <p className="min-w-0 whitespace-pre-wrap break-words text-sm text-[#e6edf3]">
+              {message}
+            </p>
+          </div>
+        </div>
+      ) : (
+        <div className="flex min-w-0 items-start gap-2 rounded-lg border border-[#30363d] bg-[#0d1117] p-2">
+          <p className="min-w-0 flex-1 whitespace-pre-wrap break-words text-sm text-[#e6edf3]">
+            {message}
+          </p>
+          {copyButton}
+        </div>
+      )}
       {copyFailed ? (
         <p className="text-xs text-[#f85149]" role="alert">
           {tCommon("copyFailed")}

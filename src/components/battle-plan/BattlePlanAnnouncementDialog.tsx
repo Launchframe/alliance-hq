@@ -54,6 +54,7 @@ export function BattlePlanAnnouncementDialog({
         <CopyShareMessageField
           message={message}
           label={t("announcement.copyLabel")}
+          copyButtonPlacement="above"
         />
         <div className="flex justify-end">
           <button
