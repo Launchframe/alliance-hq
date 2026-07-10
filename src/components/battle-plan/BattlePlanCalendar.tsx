@@ -5,10 +5,7 @@ import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { MarkerBadge } from "@/components/battle-plan/MarkerBadge";
-import type {
-  SerializedBattlePlanMarker,
-  SerializedCaptureEvent,
-} from "@/lib/battle-plan/types.shared";
+import type { SerializedCaptureEvent } from "@/lib/battle-plan/types.shared";
 import {
   addCalendarMonths,
   getMonthKey,
@@ -17,7 +14,6 @@ import {
   formatLocalCaptureTime,
   groupEventsByServerDate,
 } from "@/lib/battle-plan/display.shared";
-import { DEFAULT_MARKER_ICON_PRESETS } from "@/lib/battle-plan/marker-icons.shared";
 import { capturePolicyBarClassName } from "@/lib/battle-plan/marker-colors.shared";
 import {
   buildMonthGrid,
@@ -25,7 +21,6 @@ import {
 
 type Props = {
   events: SerializedCaptureEvent[];
-  markers: SerializedBattlePlanMarker[];
   todayServerDate: string;
   canWrite: boolean;
   onSelectDate?: (serverDate: string) => void;
@@ -34,7 +29,6 @@ type Props = {
 
 export function BattlePlanCalendar({
   events,
-  markers,
   todayServerDate,
   canWrite,
   onSelectDate,
@@ -44,10 +38,6 @@ export function BattlePlanCalendar({
   const [monthKey, setMonthKey] = useState(getMonthKey(todayServerDate));
   const grouped = useMemo(() => groupEventsByServerDate(events), [events]);
   const grid = useMemo(() => buildMonthGrid(monthKey), [monthKey]);
-  const markerIcons = useMemo(
-    () => new Map(markers.map((marker) => [marker.markerNumber, marker.iconPreset])),
-    [markers],
-  );
 
   return (
     <div className="rounded-lg border border-hq-border bg-hq-surface p-4">
@@ -129,13 +119,9 @@ export function BattlePlanCalendar({
                       }}
                       className={`flex w-full items-center gap-1 truncate rounded px-1 py-0.5 text-[10px] font-medium ${capturePolicyBarClassName(event.effectiveCapturePolicy)}`}
                     >
-                      <MarkerBadge
-                        iconPreset={
-                          markerIcons.get(event.markerNumber) ??
-                          DEFAULT_MARKER_ICON_PRESETS[event.markerNumber]
-                        }
-                        size="sm"
-                      />
+                      {event.iconPreset ? (
+                        <MarkerBadge iconPreset={event.iconPreset} size="sm" />
+                      ) : null}
                       <span className="truncate">
                         {formatLocalCaptureTime(event.scheduledAt)}
                         {" · "}

@@ -1,25 +1,20 @@
+import { isMarkerIconPreset } from "@/lib/battle-plan/marker-icons.shared";
 import {
-  isMarkerIconPreset,
-  resolveMarkerIconPreset,
-} from "@/lib/battle-plan/marker-icons.shared";
-import {
-  BATTLE_PLAN_MARKER_NUMBERS,
   CAPTURE_POLICIES,
   CAPTURE_EVENT_STATUSES,
   TERRITORY_TYPES,
-  type BattlePlanMarkerNumber,
   type CaptureEventStatus,
   type CapturePolicy,
-  type SerializedBattlePlanMarker,
   type SerializedBattlePlanSettings,
   type SerializedCaptureEvent,
   type TerritoryType,
 } from "@/lib/battle-plan/types.shared";
+import type { MarkerIconPreset } from "@/lib/battle-plan/marker-icons.shared";
 
 export type CaptureEventPayload = {
   scheduledAt: string;
   territoryType: TerritoryType;
-  markerNumber: BattlePlanMarkerNumber;
+  iconPreset?: MarkerIconPreset | null;
   capturePolicy: CapturePolicy;
   notes?: string | null;
   status?: CaptureEventStatus;
@@ -29,11 +24,6 @@ export type BattlePlanSettingsPayload = {
   defaultCapturePolicy?: CapturePolicy;
   /** Phase 2: Discord report toggle — API accepts the flag; no settings UI in phase 1. */
   discordReportsEnabled?: boolean;
-  planRevision: number;
-};
-
-export type BattlePlanMarkerPayload = {
-  iconPreset: string;
   planRevision: number;
 };
 
@@ -47,10 +37,6 @@ export function isTerritoryType(value: string): value is TerritoryType {
 
 export function isCaptureEventStatus(value: string): value is CaptureEventStatus {
   return (CAPTURE_EVENT_STATUSES as readonly string[]).includes(value);
-}
-
-export function isMarkerNumber(value: number): value is BattlePlanMarkerNumber {
-  return (BATTLE_PLAN_MARKER_NUMBERS as readonly number[]).includes(value);
 }
 
 export function serializeBattlePlanSettings(
@@ -71,28 +57,13 @@ export function serializeBattlePlanSettings(
   };
 }
 
-export function serializeBattlePlanMarker(row: {
-  id: string;
-  markerNumber: number;
-  iconPreset?: string | null;
-  updatedAt: Date;
-}): SerializedBattlePlanMarker {
-  const markerNumber = row.markerNumber as BattlePlanMarkerNumber;
-  return {
-    id: row.id,
-    markerNumber,
-    iconPreset: resolveMarkerIconPreset(markerNumber, row.iconPreset),
-    updatedAt: row.updatedAt.toISOString(),
-  };
-}
-
 export function serializeCaptureEvent(
   row: {
     id: string;
     scheduledAt: Date;
     serverCalendarDate: string;
     territoryType: string;
-    markerNumber: number;
+    iconPreset?: string | null;
     capturePolicy: string | null;
     notes: string | null;
     status: string;
@@ -105,6 +76,10 @@ export function serializeCaptureEvent(
     row.capturePolicy && isCapturePolicy(row.capturePolicy)
       ? row.capturePolicy
       : null;
+  const iconPreset =
+    row.iconPreset && isMarkerIconPreset(row.iconPreset)
+      ? row.iconPreset
+      : null;
   return {
     id: row.id,
     scheduledAt: row.scheduledAt.toISOString(),
@@ -112,7 +87,7 @@ export function serializeCaptureEvent(
     territoryType: isTerritoryType(row.territoryType)
       ? row.territoryType
       : "stronghold",
-    markerNumber: row.markerNumber as BattlePlanMarkerNumber,
+    iconPreset,
     capturePolicy,
     effectiveCapturePolicy: capturePolicy ?? defaultCapturePolicy,
     notes: row.notes,
@@ -135,8 +110,8 @@ export function validateCaptureEventPayload(
   if (!body.territoryType || !isTerritoryType(body.territoryType)) {
     return "territoryType must be stronghold or city.";
   }
-  if (!isMarkerNumber(body.markerNumber)) {
-    return "markerNumber must be between 1 and 5.";
+  if (body.iconPreset != null && !isMarkerIconPreset(body.iconPreset)) {
+    return "iconPreset must be a supported marker preset.";
   }
   if (!body.capturePolicy || !isCapturePolicy(body.capturePolicy)) {
     return "capturePolicy must be peace or war.";
@@ -158,19 +133,6 @@ export function validateBattlePlanSettingsPayload(
     !isCapturePolicy(body.defaultCapturePolicy)
   ) {
     return "defaultCapturePolicy must be peace or war.";
-  }
-  return null;
-}
-
-export function validateBattlePlanMarkerPayload(body: {
-  iconPreset?: string;
-  planRevision: number;
-}): string | null {
-  if (typeof body.planRevision !== "number" || body.planRevision < 0) {
-    return "planRevision is required.";
-  }
-  if (!body.iconPreset || !isMarkerIconPreset(body.iconPreset)) {
-    return "iconPreset must be a supported marker icon preset.";
   }
   return null;
 }

@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { findFutureMarkerConflict } from "@/lib/battle-plan/marker-conflict.shared";
+import {
+  collectUsedMarkerPresets,
+  findMarkerPresetConflict,
+} from "@/lib/battle-plan/marker-conflict.shared";
 import type { SerializedCaptureEvent } from "@/lib/battle-plan/types.shared";
 
 const baseEvent = (
@@ -10,7 +13,7 @@ const baseEvent = (
   scheduledAt: "2026-07-15T15:00:00.000Z",
   serverCalendarDate: "2026-07-15",
   territoryType: "stronghold",
-  markerNumber: 2,
+  iconPreset: "hammer",
   capturePolicy: "peace",
   effectiveCapturePolicy: "peace",
   notes: null,
@@ -20,35 +23,39 @@ const baseEvent = (
   ...overrides,
 });
 
-describe("findFutureMarkerConflict", () => {
-  const now = new Date("2026-07-10T12:00:00.000Z");
-
-  it("returns a future scheduled event using the same marker", () => {
+describe("findMarkerPresetConflict", () => {
+  it("returns a scheduled event using the same marker preset", () => {
     const events = [
-      baseEvent({ id: "a", markerNumber: 2 }),
-      baseEvent({ id: "b", markerNumber: 3 }),
+      baseEvent({ id: "a", iconPreset: "hammer" }),
+      baseEvent({ id: "b", iconPreset: "sun" }),
     ];
-    expect(findFutureMarkerConflict(events, 2, { now })).toMatchObject({
+    expect(findMarkerPresetConflict(events, "hammer")).toMatchObject({
       id: "a",
     });
   });
 
-  it("ignores the event being edited and past or cancelled captures", () => {
+  it("ignores null presets, the event being edited, and non-scheduled captures", () => {
     const events = [
-      baseEvent({ id: "self", markerNumber: 2 }),
-      baseEvent({
-        id: "past",
-        markerNumber: 2,
-        scheduledAt: "2026-07-09T15:00:00.000Z",
-      }),
-      baseEvent({
-        id: "cancelled",
-        markerNumber: 2,
-        status: "cancelled",
-      }),
+      baseEvent({ id: "self", iconPreset: "hammer" }),
+      baseEvent({ id: "cancelled", iconPreset: "hammer", status: "cancelled" }),
     ];
     expect(
-      findFutureMarkerConflict(events, 2, { excludeEventId: "self", now }),
+      findMarkerPresetConflict(events, "hammer", { excludeEventId: "self" }),
     ).toBeNull();
+    expect(findMarkerPresetConflict(events, null)).toBeNull();
+  });
+});
+
+describe("collectUsedMarkerPresets", () => {
+  it("collects presets from other scheduled events", () => {
+    const events = [
+      baseEvent({ id: "a", iconPreset: "hammer" }),
+      baseEvent({ id: "b", iconPreset: "sun" }),
+      baseEvent({ id: "c", iconPreset: null }),
+      baseEvent({ id: "d", iconPreset: "hammer", status: "completed" }),
+    ];
+    expect(collectUsedMarkerPresets(events, { excludeEventId: "self" })).toEqual(
+      new Set(["hammer", "sun"]),
+    );
   });
 });

@@ -2670,32 +2670,6 @@ export const battlePlanSettings = pgTable("battle_plan_settings", {
     .notNull(),
 });
 
-export const battlePlanMarkers = pgTable(
-  "battle_plan_markers",
-  {
-    id: text("id").primaryKey(),
-    allianceId: text("alliance_id")
-      .notNull()
-      .references(() => alliances.id, { onDelete: "cascade" }),
-    markerNumber: integer("marker_number").notNull(),
-    label: text("label"),
-    colorHex: text("color_hex"),
-    iconPreset: text("icon_preset"),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .defaultNow()
-      .notNull(),
-    updatedAt: timestamp("updated_at", { withTimezone: true })
-      .defaultNow()
-      .notNull(),
-  },
-  (table) => [
-    unique("battle_plan_markers_alliance_number").on(
-      table.allianceId,
-      table.markerNumber,
-    ),
-  ],
-);
-
 export const battlePlanCaptureEvents = pgTable(
   "battle_plan_capture_events",
   {
@@ -2706,7 +2680,7 @@ export const battlePlanCaptureEvents = pgTable(
     scheduledAt: timestamp("scheduled_at", { withTimezone: true }).notNull(),
     serverCalendarDate: text("server_calendar_date").notNull(),
     territoryType: text("territory_type").notNull(),
-    markerNumber: integer("marker_number").notNull(),
+    iconPreset: text("icon_preset"),
     capturePolicy: text("capture_policy"),
     notes: text("notes"),
     status: text("status").notNull().default("scheduled"),
@@ -2734,7 +2708,6 @@ export const battlePlanCaptureEvents = pgTable(
 );
 
 export type BattlePlanSettings = typeof battlePlanSettings.$inferSelect;
-export type BattlePlanMarker = typeof battlePlanMarkers.$inferSelect;
 export type BattlePlanCaptureEvent =
   typeof battlePlanCaptureEvents.$inferSelect;
 

@@ -1,17 +1,14 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, ne } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import type { CaptureEventPayload } from "@/lib/battle-plan/api.shared";
 import {
   isTerritoryType,
-  serializeBattlePlanMarker,
   serializeBattlePlanSettings,
   serializeCaptureEvent,
 } from "@/lib/battle-plan/api.shared";
 import type { CaptureEventLimitRow } from "@/lib/battle-plan/server-day-limits.shared";
 import { validateServerDayCaptureLimit } from "@/lib/battle-plan/server-day-limits.shared";
-import { BATTLE_PLAN_MARKER_NUMBERS } from "@/lib/battle-plan/types.shared";
-import { DEFAULT_MARKER_ICON_PRESETS } from "@/lib/battle-plan/marker-icons.shared";
 import { formatServerCalendarDate } from "@/lib/trains/game-time";
 import { getDb, schema } from "@/lib/db";
 
@@ -59,45 +56,9 @@ async function ensureBattlePlanSettings(allianceId: string) {
   return fallback[0]!;
 }
 
-async function ensureBattlePlanMarkers(allianceId: string) {
-  const db = getDb();
-  const existing = await db
-    .select()
-    .from(schema.battlePlanMarkers)
-    .where(eq(schema.battlePlanMarkers.allianceId, allianceId))
-    .orderBy(asc(schema.battlePlanMarkers.markerNumber));
-
-  if (existing.length >= BATTLE_PLAN_MARKER_NUMBERS.length) {
-    return existing;
-  }
-
-  const existingNumbers = new Set(existing.map((row) => row.markerNumber));
-  const missing = BATTLE_PLAN_MARKER_NUMBERS.filter(
-    (markerNumber) => !existingNumbers.has(markerNumber),
-  );
-
-  if (missing.length > 0) {
-    await db.insert(schema.battlePlanMarkers).values(
-      missing.map((markerNumber) => ({
-        id: nanoid(),
-        allianceId,
-        markerNumber,
-        iconPreset: DEFAULT_MARKER_ICON_PRESETS[markerNumber],
-      })),
-    );
-  }
-
-  return db
-    .select()
-    .from(schema.battlePlanMarkers)
-    .where(eq(schema.battlePlanMarkers.allianceId, allianceId))
-    .orderBy(asc(schema.battlePlanMarkers.markerNumber));
-}
-
 export async function loadBattlePlanRows(allianceId: string) {
-  const [settings, markers, events] = await Promise.all([
+  const [settings, events] = await Promise.all([
     ensureBattlePlanSettings(allianceId),
-    ensureBattlePlanMarkers(allianceId),
     getDb()
       .select()
       .from(schema.battlePlanCaptureEvents)
@@ -105,7 +66,7 @@ export async function loadBattlePlanRows(allianceId: string) {
       .orderBy(asc(schema.battlePlanCaptureEvents.scheduledAt)),
   ]);
 
-  return { settings, markers, events };
+  return { settings, events };
 }
 
 async function bumpBattlePlanRevisionWith(
@@ -171,34 +132,6 @@ export async function updateBattlePlanSettings(
   return updated[0]!;
 }
 
-export async function updateBattlePlanMarker(
-  allianceId: string,
-  markerNumber: number,
-  input: { planRevision: number; iconPreset: string },
-) {
-  await bumpBattlePlanRevision(allianceId, input.planRevision);
-  const db = getDb();
-  const updated = await db
-    .update(schema.battlePlanMarkers)
-    .set({
-      iconPreset: input.iconPreset,
-      updatedAt: new Date(),
-    })
-    .where(
-      and(
-        eq(schema.battlePlanMarkers.allianceId, allianceId),
-        eq(schema.battlePlanMarkers.markerNumber, markerNumber),
-      ),
-    )
-    .returning();
-
-  if (updated.length === 0) {
-    throw new Error("Marker not found.");
-  }
-
-  return updated[0]!;
-}
-
 async function listLimitRowsWith(
   db: BattlePlanExecutor,
   allianceId: string,
@@ -227,6 +160,31 @@ async function listLimitRowsWith(
   );
 }
 
+async function releaseIconPresetFromOtherEvents(
+  tx: BattlePlanExecutor,
+  allianceId: string,
+  iconPreset: string | null | undefined,
+  excludeEventId?: string,
+) {
+  if (!iconPreset) {
+    return;
+  }
+
+  const conditions = [
+    eq(schema.battlePlanCaptureEvents.allianceId, allianceId),
+    eq(schema.battlePlanCaptureEvents.iconPreset, iconPreset),
+    eq(schema.battlePlanCaptureEvents.status, "scheduled"),
+  ];
+  if (excludeEventId) {
+    conditions.push(ne(schema.battlePlanCaptureEvents.id, excludeEventId));
+  }
+
+  await tx
+    .update(schema.battlePlanCaptureEvents)
+    .set({ iconPreset: null, updatedAt: new Date() })
+    .where(and(...conditions));
+}
+
 export async function createCaptureEvent(
   allianceId: string,
   createdByHqUserId: string | null,
@@ -234,6 +192,7 @@ export async function createCaptureEvent(
 ) {
   const scheduledAt = new Date(body.scheduledAt);
   const serverCalendarDate = formatServerCalendarDate(scheduledAt);
+  const iconPreset = body.iconPreset ?? null;
   const db = getDb();
 
   return db.transaction(async (tx) => {
@@ -249,6 +208,8 @@ export async function createCaptureEvent(
       throw new Error(limitError);
     }
 
+    await releaseIconPresetFromOtherEvents(tx, allianceId, iconPreset);
+
     const inserted = await tx
       .insert(schema.battlePlanCaptureEvents)
       .values({
@@ -257,7 +218,7 @@ export async function createCaptureEvent(
         scheduledAt,
         serverCalendarDate,
         territoryType: body.territoryType,
-        markerNumber: body.markerNumber,
+        iconPreset,
         capturePolicy: body.capturePolicy ?? null,
         notes: body.notes?.trim() || null,
         status: body.status ?? "scheduled",
@@ -276,6 +237,7 @@ export async function updateCaptureEvent(
 ) {
   const scheduledAt = new Date(body.scheduledAt);
   const serverCalendarDate = formatServerCalendarDate(scheduledAt);
+  const iconPreset = body.iconPreset ?? null;
   const db = getDb();
 
   return db.transaction(async (tx) => {
@@ -292,13 +254,20 @@ export async function updateCaptureEvent(
       throw new Error(limitError);
     }
 
+    await releaseIconPresetFromOtherEvents(
+      tx,
+      allianceId,
+      iconPreset,
+      eventId,
+    );
+
     const updated = await tx
       .update(schema.battlePlanCaptureEvents)
       .set({
         scheduledAt,
         serverCalendarDate,
         territoryType: body.territoryType,
-        markerNumber: body.markerNumber,
+        iconPreset,
         capturePolicy: body.capturePolicy ?? null,
         notes: body.notes?.trim() || null,
         status: body.status ?? "scheduled",
@@ -350,7 +319,6 @@ export function serializeBattlePlanDashboard(
   const settings = serializeBattlePlanSettings(rows.settings);
   return {
     settings,
-    markers: rows.markers.map(serializeBattlePlanMarker),
     events: rows.events.map((event) =>
       serializeCaptureEvent(event, settings.defaultCapturePolicy),
     ),

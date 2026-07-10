@@ -617,6 +617,13 @@
       "when": 1786793600000,
       "tag": "0088_battle_plan_marker_icons",
       "breakpoints": true
+    },
+    {
+      "idx": 87,
+      "version": "7",
+      "when": 1786880000000,
+      "tag": "0089_battle_plan_event_markers",
+      "breakpoints": true
     }
   ]
 }

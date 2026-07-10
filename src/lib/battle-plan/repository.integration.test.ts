@@ -94,7 +94,7 @@ describeIntegration("battle plan repository", () => {
     await createCaptureEvent(allianceId, null, {
       scheduledAt: scheduledAtOnServerDate(serverDate, 11),
       territoryType: "stronghold",
-      markerNumber: 1,
+      iconPreset: "ordinal-1",
       capturePolicy: "peace",
       planRevision,
     });
@@ -103,7 +103,7 @@ describeIntegration("battle plan repository", () => {
     await createCaptureEvent(allianceId, null, {
       scheduledAt: scheduledAtOnServerDate(serverDate, 12),
       territoryType: "stronghold",
-      markerNumber: 2,
+      iconPreset: "ordinal-2",
       capturePolicy: "peace",
       planRevision,
     });
@@ -113,7 +113,7 @@ describeIntegration("battle plan repository", () => {
       createCaptureEvent(allianceId, null, {
         scheduledAt: scheduledAtOnServerDate(serverDate, 13),
         territoryType: "stronghold",
-        markerNumber: 3,
+        iconPreset: "ordinal-3",
         capturePolicy: "peace",
         planRevision,
       }),
@@ -129,5 +129,40 @@ describeIntegration("battle plan repository", () => {
           event.status === "scheduled",
       ),
     ).toHaveLength(2);
+  });
+
+  it("clears a marker from another scheduled event when reassigned", async () => {
+    const allianceId = await createAlliance();
+    allianceIds.push(allianceId);
+
+    const rows = await loadBattlePlanRows(allianceId);
+    let planRevision = rows.settings.planRevision;
+    const serverDate = getServerCalendarDate();
+
+    await createCaptureEvent(allianceId, null, {
+      scheduledAt: scheduledAtOnServerDate(serverDate, 10),
+      territoryType: "stronghold",
+      iconPreset: "hammer",
+      capturePolicy: "peace",
+      planRevision,
+    });
+    planRevision += 1;
+
+    await createCaptureEvent(allianceId, null, {
+      scheduledAt: scheduledAtOnServerDate(serverDate, 14),
+      territoryType: "city",
+      iconPreset: "hammer",
+      capturePolicy: "peace",
+      planRevision,
+    });
+    planRevision += 1;
+
+    const after = await loadBattlePlanRows(allianceId);
+    const first = after.events.find(
+      (event) => event.territoryType === "stronghold",
+    );
+    const second = after.events.find((event) => event.territoryType === "city");
+    expect(first?.iconPreset).toBeNull();
+    expect(second?.iconPreset).toBe("hammer");
   });
 });

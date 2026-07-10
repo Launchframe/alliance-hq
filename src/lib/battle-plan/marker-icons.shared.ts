@@ -1,5 +1,3 @@
-import type { BattlePlanMarkerNumber } from "@/lib/battle-plan/types.shared";
-
 export const MARKER_ICON_PRESETS = [
   "crossed-swords",
   "hammer",
@@ -8,6 +6,7 @@ export const MARKER_ICON_PRESETS = [
   "clover",
   "shield",
   "triangle",
+  "diamond",
   "crescent",
   "star-5",
   "hexagon",
@@ -24,27 +23,25 @@ export const MARKER_ICON_PRESETS = [
 
 export type MarkerIconPreset = (typeof MARKER_ICON_PRESETS)[number];
 
-export const DEFAULT_MARKER_ICON_PRESETS: Record<
-  BattlePlanMarkerNumber,
-  MarkerIconPreset
-> = {
-  1: "ordinal-1",
-  2: "ordinal-2",
-  3: "ordinal-3",
-  4: "ordinal-4",
-  5: "ordinal-5",
-};
+export const ORDINAL_MARKER_PRESETS = [
+  "ordinal-1",
+  "ordinal-2",
+  "ordinal-3",
+  "ordinal-4",
+  "ordinal-5",
+] as const satisfies readonly MarkerIconPreset[];
 
 export const MARKER_PRESET_I18N_KEYS: Record<MarkerIconPreset, string> = {
   "crossed-swords": "crossedSwords",
   hammer: "hammer",
   sun: "sun",
-  "star-4": "star4",
+  "star-4": "twinkle",
   clover: "clover",
   shield: "shield",
   triangle: "triangle",
+  diamond: "diamond",
   crescent: "crescent",
-  "star-5": "star5",
+  "star-5": "star",
   hexagon: "hexagon",
   square: "square",
   circle: "circle",
@@ -63,16 +60,13 @@ export function isMarkerIconPreset(value: string): value is MarkerIconPreset {
   return PRESET_SET.has(value);
 }
 
-export function resolveMarkerIconPreset(
-  markerNumber: BattlePlanMarkerNumber,
-  storedPreset: string | null | undefined,
-): MarkerIconPreset {
-  if (storedPreset && isMarkerIconPreset(storedPreset)) {
-    return storedPreset;
-  }
-  return DEFAULT_MARKER_ICON_PRESETS[markerNumber];
-}
-
 export function markerPresetI18nKey(preset: MarkerIconPreset): string {
   return MARKER_PRESET_I18N_KEYS[preset];
+}
+
+export function markerPresetLabel(
+  preset: MarkerIconPreset,
+  translate: (key: string) => string,
+): string {
+  return translate(`markers.presets.${markerPresetI18nKey(preset)}`);
 }

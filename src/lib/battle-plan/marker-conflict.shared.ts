@@ -1,27 +1,22 @@
-import type {
-  BattlePlanMarkerNumber,
-  SerializedCaptureEvent,
-} from "@/lib/battle-plan/types.shared";
-import {
-  DEFAULT_MARKER_ICON_PRESETS,
-  type MarkerIconPreset,
-} from "@/lib/battle-plan/marker-icons.shared";
+import type { MarkerIconPreset } from "@/lib/battle-plan/marker-icons.shared";
+import type { SerializedCaptureEvent } from "@/lib/battle-plan/types.shared";
 
-export function findFutureMarkerConflict(
+export function findMarkerPresetConflict(
   events: readonly SerializedCaptureEvent[],
-  markerNumber: BattlePlanMarkerNumber,
+  iconPreset: MarkerIconPreset | null,
   options: {
     excludeEventId?: string;
-    now?: Date;
   } = {},
 ): SerializedCaptureEvent | null {
-  const nowMs = (options.now ?? new Date()).getTime();
+  if (!iconPreset) {
+    return null;
+  }
+
   const conflicts = events.filter(
     (event) =>
       event.status === "scheduled" &&
-      event.markerNumber === markerNumber &&
-      event.id !== options.excludeEventId &&
-      new Date(event.scheduledAt).getTime() >= nowMs,
+      event.iconPreset === iconPreset &&
+      event.id !== options.excludeEventId,
   );
 
   conflicts.sort(
@@ -32,13 +27,17 @@ export function findFutureMarkerConflict(
   return conflicts[0] ?? null;
 }
 
-export function resolveMarkerLabel(
-  markers: ReadonlyArray<{ markerNumber: number; iconPreset: MarkerIconPreset }>,
-  markerNumber: BattlePlanMarkerNumber,
-  getPresetLabel: (preset: MarkerIconPreset) => string,
-): string {
-  const marker = markers.find((row) => row.markerNumber === markerNumber);
-  const preset =
-    marker?.iconPreset ?? DEFAULT_MARKER_ICON_PRESETS[markerNumber];
-  return getPresetLabel(preset);
+export function collectUsedMarkerPresets(
+  events: readonly SerializedCaptureEvent[],
+  options: { excludeEventId?: string } = {},
+): ReadonlySet<MarkerIconPreset> {
+  const used = new Set<MarkerIconPreset>();
+  for (const event of events) {
+    if (event.status !== "scheduled") continue;
+    if (event.id === options.excludeEventId) continue;
+    if (event.iconPreset) {
+      used.add(event.iconPreset);
+    }
+  }
+  return used;
 }

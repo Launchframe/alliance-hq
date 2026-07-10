@@ -7,17 +7,13 @@ import type { SerializedCaptureEvent } from "@/lib/battle-plan/types.shared";
 type Props = {
   markerLabel: string;
   conflictingEvent: SerializedCaptureEvent;
-  saving: boolean;
   onOpenEvent: (event: SerializedCaptureEvent) => void;
-  onClearMarker: (event: SerializedCaptureEvent) => void;
 };
 
 export function MarkerConflictNotice({
   markerLabel,
   conflictingEvent,
-  saving,
   onOpenEvent,
-  onClearMarker,
 }: Props) {
   const t = useTranslations("battlePlan");
   const dateTime = new Date(conflictingEvent.scheduledAt).toLocaleString();
@@ -47,14 +43,7 @@ export function MarkerConflictNotice({
           captureSummary,
         })}
       </p>
-      <button
-        type="button"
-        className="mt-2 rounded border border-hq-border bg-hq-bg px-3 py-1.5 text-xs font-medium text-hq-fg disabled:opacity-50"
-        disabled={saving}
-        onClick={() => onClearMarker(conflictingEvent)}
-      >
-        {t("event.clearMarker", { markerLabel })}
-      </button>
+      <p className="mt-2 text-xs text-hq-fg-muted">{t("event.markerSaveHint")}</p>
     </div>
   );
 }

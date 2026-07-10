@@ -12,7 +12,6 @@ import {
 } from "@/components/battle-plan/CaptureEventModal";
 import { UpcomingCapturesList } from "@/components/battle-plan/UpcomingCapturesList";
 import { extractHistoricalNotes } from "@/lib/battle-plan/notes-suggestions.shared";
-import type { MarkerIconPreset } from "@/lib/battle-plan/marker-icons.shared";
 import type { BattlePlanDashboardPayload } from "@/lib/battle-plan/types.shared";
 import type { SerializedCaptureEvent } from "@/lib/battle-plan/types.shared";
 
@@ -60,8 +59,10 @@ export function BattlePlanClient({ initial }: Props) {
   };
 
   const openEditModal = (event: SerializedCaptureEvent) => {
-    setEditingEvent(event);
-    setSelectedServerDate(event.serverCalendarDate);
+    const latest =
+      dashboard.events.find((row) => row.id === event.id) ?? event;
+    setEditingEvent(latest);
+    setSelectedServerDate(latest.serverCalendarDate);
     setModalOpen(true);
   };
 
@@ -129,38 +130,6 @@ export function BattlePlanClient({ initial }: Props) {
     }
   };
 
-  const cancelCaptureEvent = async (event: SerializedCaptureEvent) => {
-    setSaving(true);
-    setError(null);
-    try {
-      const response = await fetch(`/api/battle-plan/events/${event.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          scheduledAt: event.scheduledAt,
-          territoryType: event.territoryType,
-          markerNumber: event.markerNumber,
-          capturePolicy: event.effectiveCapturePolicy,
-          notes: event.notes,
-          status: "cancelled",
-          planRevision: dashboard.settings.planRevision,
-        }),
-      });
-      if (!response.ok) {
-        await handleMutationError(response);
-        return;
-      }
-      const data = (await response.json()) as {
-        dashboard: BattlePlanDashboardPayload;
-      };
-      applyDashboard(data.dashboard);
-    } catch {
-      setError(t("errors.saveFailed"));
-    } finally {
-      setSaving(false);
-    }
-  };
-
   const saveSettings = async (input: { defaultCapturePolicy: "peace" | "war" }) => {
     setSaving(true);
     setError(null);
@@ -171,36 +140,6 @@ export function BattlePlanClient({ initial }: Props) {
         body: JSON.stringify({
           planRevision: dashboard.settings.planRevision,
           defaultCapturePolicy: input.defaultCapturePolicy,
-        }),
-      });
-      if (!response.ok) {
-        await handleMutationError(response);
-        return;
-      }
-      const data = (await response.json()) as {
-        dashboard: BattlePlanDashboardPayload;
-      };
-      applyDashboard(data.dashboard);
-    } catch {
-      setError(t("errors.saveFailed"));
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const saveMarker = async (
-    markerNumber: number,
-    input: { iconPreset: MarkerIconPreset },
-  ) => {
-    setSaving(true);
-    setError(null);
-    try {
-      const response = await fetch(`/api/battle-plan/markers/${markerNumber}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          planRevision: dashboard.settings.planRevision,
-          iconPreset: input.iconPreset,
         }),
       });
       if (!response.ok) {
@@ -246,13 +185,11 @@ export function BattlePlanClient({ initial }: Props) {
         <div className="space-y-6">
           <UpcomingCapturesList
             events={dashboard.events}
-            markers={dashboard.markers}
             canWrite={dashboard.canWrite}
             onSelect={dashboard.canWrite ? openEditModal : undefined}
           />
           <BattlePlanCalendar
             events={dashboard.events}
-            markers={dashboard.markers}
             todayServerDate={dashboard.todayServerDate}
             canWrite={dashboard.canWrite}
             onSelectDate={dashboard.canWrite ? openCreateModal : undefined}
@@ -263,11 +200,9 @@ export function BattlePlanClient({ initial }: Props) {
         <BattlePlanSettingsPanel
           key={dashboard.settings.planRevision}
           settings={dashboard.settings}
-          markers={dashboard.markers}
           canWrite={dashboard.canWrite}
           saving={saving}
           onSaveSettings={saveSettings}
-          onSaveMarker={saveMarker}
         />
       </div>
 
@@ -276,7 +211,6 @@ export function BattlePlanClient({ initial }: Props) {
         initial={editingEvent}
         defaultServerDate={selectedServerDate}
         defaultCapturePolicy={dashboard.settings.defaultCapturePolicy}
-        markers={dashboard.markers}
         events={dashboard.events}
         noteSuggestions={noteSuggestions}
         saving={saving}
@@ -287,7 +221,6 @@ export function BattlePlanClient({ initial }: Props) {
         onSubmit={saveEvent}
         onDelete={editingEvent ? deleteEvent : undefined}
         onOpenEvent={openEditModal}
-        onClearMarkerConflict={cancelCaptureEvent}
       />
     </div>
   );

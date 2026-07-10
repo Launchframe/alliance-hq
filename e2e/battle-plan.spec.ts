@@ -84,13 +84,17 @@ test.describe("Battle plan — officer scheduling", () => {
     const serverDate = getServerCalendarDate();
     let planRevision = bootstrapBody.settings.planRevision;
 
-    for (const markerNumber of [1, 2] as const) {
+    for (const iconPreset of ["ordinal-1", "ordinal-2"] as const) {
       const response = await request.post("/api/battle-plan/events", {
         headers: { Cookie: cookie, "Content-Type": "application/json" },
         data: {
-          scheduledAt: scheduledAtOnServerDate(serverDate, 10 + markerNumber),
+          scheduledAt: scheduledAtOnServerDate(
+            serverDate,
+            iconPreset === "ordinal-1" ? 11 : 12,
+          ),
           territoryType: "stronghold",
-          markerNumber,
+          iconPreset,
+          capturePolicy: "peace",
           planRevision,
         },
       });
@@ -106,7 +110,8 @@ test.describe("Battle plan — officer scheduling", () => {
       data: {
         scheduledAt: scheduledAtOnServerDate(serverDate, 15),
         territoryType: "stronghold",
-        markerNumber: 3,
+        iconPreset: "ordinal-3",
+        capturePolicy: "peace",
         planRevision,
       },
     });
@@ -145,7 +150,8 @@ test.describe("Battle plan — officer scheduling", () => {
       data: {
         scheduledAt: scheduledAtOnServerDate(getServerCalendarDate()),
         territoryType: "stronghold",
-        markerNumber: 1,
+        iconPreset: "ordinal-1",
+        capturePolicy: "peace",
         planRevision: bootstrapBody.settings.planRevision,
       },
     });

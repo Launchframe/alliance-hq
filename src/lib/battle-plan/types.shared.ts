@@ -1,9 +1,5 @@
 import type { MarkerIconPreset } from "@/lib/battle-plan/marker-icons.shared";
 
-export const BATTLE_PLAN_MARKER_NUMBERS = [1, 2, 3, 4, 5] as const;
-export type BattlePlanMarkerNumber =
-  (typeof BATTLE_PLAN_MARKER_NUMBERS)[number];
-
 export const CAPTURE_POLICIES = ["peace", "war"] as const;
 export type CapturePolicy = (typeof CAPTURE_POLICIES)[number];
 
@@ -26,19 +22,12 @@ export type SerializedBattlePlanSettings = {
   updatedAt: string;
 };
 
-export type SerializedBattlePlanMarker = {
-  id: string;
-  markerNumber: BattlePlanMarkerNumber;
-  iconPreset: MarkerIconPreset;
-  updatedAt: string;
-};
-
 export type SerializedCaptureEvent = {
   id: string;
   scheduledAt: string;
   serverCalendarDate: string;
   territoryType: TerritoryType;
-  markerNumber: BattlePlanMarkerNumber;
+  iconPreset: MarkerIconPreset | null;
   capturePolicy: CapturePolicy | null;
   effectiveCapturePolicy: CapturePolicy;
   notes: string | null;
@@ -49,7 +38,6 @@ export type SerializedCaptureEvent = {
 
 export type BattlePlanDashboardPayload = {
   settings: SerializedBattlePlanSettings;
-  markers: SerializedBattlePlanMarker[];
   events: SerializedCaptureEvent[];
   canWrite: boolean;
   todayServerDate: string;

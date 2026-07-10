@@ -19,6 +19,30 @@ const ORDINAL_TEXT: Record<
   "ordinal-5": "5th",
 };
 
+function SwordBlade() {
+  return (
+    <g>
+      <path
+        d="M-1.25 -8.5 1.25 -8.5 1.6 6.2 -1.6 6.2 Z"
+        fill="#ef4444"
+        stroke="#991b1b"
+        strokeWidth="0.35"
+        strokeLinejoin="round"
+      />
+      <path d="M-1.25 -8.5 0 -7.2 1.25 -8.5 Z" fill="#fca5a5" />
+      <rect
+        x="-3.75"
+        y="5.8"
+        width="7.5"
+        height="1.9"
+        rx="0.45"
+        fill="#dc2626"
+      />
+      <circle cy="8.8" r="1.45" fill="#b91c1c" />
+    </g>
+  );
+}
+
 function OrdinalMarker({
   preset,
   className,
@@ -27,12 +51,7 @@ function OrdinalMarker({
   className?: string;
 }) {
   return (
-    <svg
-      viewBox="0 0 24 24"
-      className={className}
-      aria-hidden
-      role="img"
-    >
+    <svg viewBox="0 0 24 24" className={className} aria-hidden role="img">
       <text
         x="12"
         y="16.5"
@@ -63,36 +82,40 @@ export function MarkerIcon({ preset, className }: Props) {
     case "crossed-swords":
       return (
         <svg viewBox="0 0 24 24" className={className} aria-hidden role="img">
-          <g fill="#dc2626" stroke="#dc2626" strokeLinecap="round">
-            <path
-              d="M16 3 18.5 8.5 14 13"
-              strokeWidth="2.5"
-              fill="none"
-            />
-            <path d="M18.5 8.5 21 7 19 4.5Z" />
-            <path
-              d="M8 21 5.5 15.5 10 11"
-              strokeWidth="2.5"
-              fill="none"
-            />
-            <path d="M5.5 15.5 3 17 5 19.5Z" />
+          <g transform="translate(12 12)">
+            <g transform="rotate(45)">
+              <SwordBlade />
+            </g>
+            <g transform="rotate(-45)">
+              <SwordBlade />
+            </g>
           </g>
         </svg>
       );
     case "hammer":
       return (
         <svg viewBox="0 0 24 24" className={className} aria-hidden role="img">
-          <rect x="14" y="4" width="7" height="4.5" rx="0.75" fill="#f97316" />
-          <rect x="12.5" y="7" width="4" height="3" rx="0.5" fill="#f97316" />
-          <rect
-            x="5"
-            y="15"
-            width="13"
-            height="3"
-            rx="1"
-            fill="#f97316"
-            transform="rotate(-38 11.5 16.5)"
-          />
+          <g transform="rotate(-38 12 12)">
+            <path
+              d="M14.2 5.5 H21 V10 H19.5 V8.8 H16.2 V7.6 H14.2 Z"
+              fill="#fbbf24"
+              stroke="#c2410c"
+              strokeWidth="0.35"
+              strokeLinejoin="round"
+            />
+            <path d="M14.2 5.5 H16.2 V7.6 H14.2 Z" fill="#ea580c" />
+            <rect
+              x="10.2"
+              y="10"
+              width="3.8"
+              height="9.5"
+              rx="1.1"
+              fill="#d97706"
+              stroke="#9a3412"
+              strokeWidth="0.35"
+            />
+            <path d="M10.2 10.5 H12.5 V12 H10.2 Z" fill="#f59e0b" />
+          </g>
         </svg>
       );
     case "sun":
@@ -146,13 +169,21 @@ export function MarkerIcon({ preset, className }: Props) {
           <path d="M12 4 21 20H3Z" fill="#2563eb" />
         </svg>
       );
+    case "diamond":
+      return (
+        <svg viewBox="0 0 24 24" className={className} aria-hidden role="img">
+          <path d="M12 3 15.5 12 12 21 8.5 12Z" fill="#1e40af" />
+        </svg>
+      );
     case "crescent":
       return (
         <svg viewBox="0 0 24 24" className={className} aria-hidden role="img">
-          <path
-            d="M17 5.5a7.5 7.5 0 1 0 2.5 14.2A6 6 0 1 1 17 5.5Z"
-            fill="#d946ef"
-          />
+          <g transform="scale(-1 1) translate(-24 0)">
+            <path
+              d="M17 5.5a7.5 7.5 0 1 0 2.5 14.2A6 6 0 1 1 17 5.5Z"
+              fill="#d946ef"
+            />
+          </g>
         </svg>
       );
     case "star-5":

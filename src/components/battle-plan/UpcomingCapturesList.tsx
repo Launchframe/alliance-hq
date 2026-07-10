@@ -4,32 +4,22 @@ import { useMemo } from "react";
 import { useTranslations } from "next-intl";
 
 import { MarkerBadge } from "@/components/battle-plan/MarkerBadge";
-import type {
-  SerializedBattlePlanMarker,
-  SerializedCaptureEvent,
-} from "@/lib/battle-plan/types.shared";
 import { listUpcomingCaptureEvents } from "@/lib/battle-plan/display.shared";
-import { DEFAULT_MARKER_ICON_PRESETS } from "@/lib/battle-plan/marker-icons.shared";
+import type { SerializedCaptureEvent } from "@/lib/battle-plan/types.shared";
 
 type Props = {
   events: SerializedCaptureEvent[];
-  markers: SerializedBattlePlanMarker[];
-  onSelect?: (event: SerializedCaptureEvent) => void;
   canWrite: boolean;
+  onSelect?: (event: SerializedCaptureEvent) => void;
 };
 
 export function UpcomingCapturesList({
   events,
-  markers,
   onSelect,
   canWrite,
 }: Props) {
   const t = useTranslations("battlePlan");
   const upcoming = useMemo(() => listUpcomingCaptureEvents(events), [events]);
-  const markerIcons = useMemo(
-    () => new Map(markers.map((marker) => [marker.markerNumber, marker.iconPreset])),
-    [markers],
-  );
 
   if (upcoming.length === 0) {
     return (
@@ -57,13 +47,9 @@ export function UpcomingCapturesList({
             >
               <div className="flex items-center justify-between gap-3">
                 <span className="flex items-center gap-2 font-medium text-hq-fg">
-                  <MarkerBadge
-                    iconPreset={
-                      markerIcons.get(event.markerNumber) ??
-                      DEFAULT_MARKER_ICON_PRESETS[event.markerNumber]
-                    }
-                    size="sm"
-                  />
+                  {event.iconPreset ? (
+                    <MarkerBadge iconPreset={event.iconPreset} size="sm" />
+                  ) : null}
                   {event.territoryType === "stronghold"
                     ? t("event.stronghold")
                     : t("event.city")}

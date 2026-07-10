@@ -5,11 +5,10 @@ import { useTranslations } from "next-intl";
 
 import { MarkerBadge } from "@/components/battle-plan/MarkerBadge";
 import { MarkerConflictNotice } from "@/components/battle-plan/MarkerConflictNotice";
+import { MarkerIconPalette } from "@/components/battle-plan/MarkerIconPalette";
 import { NotesAutocomplete } from "@/components/battle-plan/NotesAutocomplete";
 import type {
-  BattlePlanMarkerNumber,
   CapturePolicy,
-  SerializedBattlePlanMarker,
   SerializedCaptureEvent,
   TerritoryType,
 } from "@/lib/battle-plan/types.shared";
@@ -17,14 +16,14 @@ import {
   fromDateTimeLocalValue,
   toDateTimeLocalValue,
 } from "@/lib/battle-plan/display.shared";
-import { BATTLE_PLAN_MARKER_NUMBERS } from "@/lib/battle-plan/types.shared";
 import {
-  findFutureMarkerConflict,
-  resolveMarkerLabel,
+  collectUsedMarkerPresets,
+  findMarkerPresetConflict,
 } from "@/lib/battle-plan/marker-conflict.shared";
 import {
-  DEFAULT_MARKER_ICON_PRESETS,
   markerPresetI18nKey,
+  ORDINAL_MARKER_PRESETS,
+  type MarkerIconPreset,
 } from "@/lib/battle-plan/marker-icons.shared";
 import {
   preventDefaultFormSubmit,
@@ -34,7 +33,7 @@ import {
 export type CaptureEventFormValues = {
   scheduledAt: string;
   territoryType: TerritoryType;
-  markerNumber: BattlePlanMarkerNumber;
+  iconPreset: MarkerIconPreset | null;
   capturePolicy: CapturePolicy;
   notes: string;
   status: "scheduled" | "completed" | "cancelled";
@@ -45,7 +44,6 @@ type Props = {
   initial?: SerializedCaptureEvent | null;
   defaultServerDate?: string | null;
   defaultCapturePolicy: CapturePolicy;
-  markers: SerializedBattlePlanMarker[];
   events: SerializedCaptureEvent[];
   noteSuggestions: readonly string[];
   saving: boolean;
@@ -53,7 +51,6 @@ type Props = {
   onSubmit: (values: CaptureEventFormValues) => Promise<void>;
   onDelete?: () => Promise<void>;
   onOpenEvent: (event: SerializedCaptureEvent) => void;
-  onClearMarkerConflict: (event: SerializedCaptureEvent) => Promise<void>;
 };
 
 function defaultScheduledAt(serverDate?: string | null): string {
@@ -70,7 +67,7 @@ function valuesFromEvent(event: SerializedCaptureEvent): CaptureEventFormValues 
   return {
     scheduledAt: toDateTimeLocalValue(event.scheduledAt),
     territoryType: event.territoryType,
-    markerNumber: event.markerNumber,
+    iconPreset: event.iconPreset,
     capturePolicy: event.effectiveCapturePolicy,
     notes: event.notes ?? "",
     status: event.status === "cancelled" ? "cancelled" : event.status,
@@ -88,7 +85,7 @@ function buildInitialValues(
   return {
     scheduledAt: defaultScheduledAt(defaultServerDate),
     territoryType: "stronghold",
-    markerNumber: 1,
+    iconPreset: null,
     capturePolicy: defaultCapturePolicy,
     notes: "",
     status: "scheduled",
@@ -99,7 +96,6 @@ type CaptureEventFormProps = {
   initial?: SerializedCaptureEvent | null;
   defaultServerDate?: string | null;
   defaultCapturePolicy: CapturePolicy;
-  markers: SerializedBattlePlanMarker[];
   events: SerializedCaptureEvent[];
   noteSuggestions: readonly string[];
   saving: boolean;
@@ -107,14 +103,12 @@ type CaptureEventFormProps = {
   onSubmit: (values: CaptureEventFormValues) => Promise<void>;
   onDelete?: () => Promise<void>;
   onOpenEvent: (event: SerializedCaptureEvent) => void;
-  onClearMarkerConflict: (event: SerializedCaptureEvent) => Promise<void>;
 };
 
 function CaptureEventForm({
   initial,
   defaultServerDate,
   defaultCapturePolicy,
-  markers,
   events,
   noteSuggestions,
   saving,
@@ -122,163 +116,237 @@ function CaptureEventForm({
   onSubmit,
   onDelete,
   onOpenEvent,
-  onClearMarkerConflict,
 }: CaptureEventFormProps) {
   const t = useTranslations("battlePlan");
   const [values, setValues] = useState<CaptureEventFormValues>(() =>
     buildInitialValues(initial, defaultServerDate, defaultCapturePolicy),
   );
-  const markersByNumber = useMemo(
-    () => new Map(markers.map((marker) => [marker.markerNumber, marker])),
-    [markers],
+  const [markerPickerView, setMarkerPickerView] = useState<"quick" | "full">(
+    "quick",
+  );
+  const [awaitingConflictConfirmation, setAwaitingConflictConfirmation] =
+    useState(false);
+  const usedPresets = useMemo(
+    () => collectUsedMarkerPresets(events, { excludeEventId: initial?.id }),
+    [events, initial?.id],
   );
   const markerConflict = useMemo(
     () =>
-      findFutureMarkerConflict(events, values.markerNumber, {
+      findMarkerPresetConflict(events, values.iconPreset, {
         excludeEventId: initial?.id,
       }),
-    [events, initial?.id, values.markerNumber],
+    [events, initial?.id, values.iconPreset],
   );
-  const selectedMarkerLabel = resolveMarkerLabel(
-    markers,
-    values.markerNumber,
-    (preset) => t(`markers.presets.${markerPresetI18nKey(preset)}`),
-  );
+  const presetLabel = (preset: MarkerIconPreset) =>
+    t(`markers.presets.${markerPresetI18nKey(preset)}`);
+  const selectedMarkerLabel = values.iconPreset
+    ? presetLabel(values.iconPreset)
+    : t("event.noMarker");
+
+  const handleSubmit = () => {
+    if (markerConflict && !awaitingConflictConfirmation) {
+      setAwaitingConflictConfirmation(true);
+      return;
+    }
+    setAwaitingConflictConfirmation(false);
+    void onSubmit(values);
+  };
 
   return (
     <form
       className="w-full max-w-lg rounded-lg border border-hq-border bg-hq-surface p-5 shadow-xl"
       onSubmit={(event) => {
         preventDefaultFormSubmit(event);
-        void onSubmit(values);
+        handleSubmit();
       }}
     >
       <h2 className="text-lg font-semibold text-hq-fg">
-        {initial ? t("event.editTitle") : t("event.createTitle")}
+        {markerPickerView === "full"
+          ? t("event.selectMarkerTitle")
+          : initial
+            ? t("event.editTitle")
+            : t("event.createTitle")}
       </h2>
 
-      <div className="mt-4 space-y-3">
-        <label className="block space-y-1 text-sm">
-          <span className="text-hq-fg-muted">{t("event.scheduledAt")}</span>
-          <input
-            type="datetime-local"
-            required
-            className="w-full rounded border border-hq-border bg-hq-bg px-3 py-2"
-            value={values.scheduledAt}
-            onChange={(event) =>
-              setValues((current) => ({
-                ...current,
-                scheduledAt: event.target.value,
-              }))
-            }
-          />
-        </label>
-
-        <label className="block space-y-1 text-sm">
-          <span className="text-hq-fg-muted">{t("event.territoryType")}</span>
-          <select
-            className="w-full rounded border border-hq-border bg-hq-bg px-3 py-2"
-            value={values.territoryType}
-            onChange={(event) =>
-              setValues((current) => ({
-                ...current,
-                territoryType: event.target.value as TerritoryType,
-              }))
-            }
+      {markerPickerView === "full" ? (
+        <div className="mt-4 space-y-3">
+          <button
+            type="button"
+            className="text-sm text-hq-accent underline underline-offset-2"
+            onClick={() => setMarkerPickerView("quick")}
           >
-            <option value="stronghold">{t("event.stronghold")}</option>
-            <option value="city">{t("event.city")}</option>
-          </select>
-        </label>
-
-        <fieldset className="space-y-2 text-sm">
-          <legend className="text-hq-fg-muted">{t("event.markerNumber")}</legend>
-          <div className="flex flex-wrap gap-2">
-            {BATTLE_PLAN_MARKER_NUMBERS.map((markerNumber) => {
-              const marker = markersByNumber.get(markerNumber);
-              const iconPreset =
-                marker?.iconPreset ?? DEFAULT_MARKER_ICON_PRESETS[markerNumber];
-              const selected = values.markerNumber === markerNumber;
-              return (
-                <button
-                  key={markerNumber}
-                  type="button"
-                  aria-pressed={selected}
-                  className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 ${
-                    selected
-                      ? "border-hq-accent bg-hq-accent/10"
-                      : "border-hq-border bg-hq-bg"
-                  }`}
-                  onClick={() =>
-                    setValues((current) => ({ ...current, markerNumber }))
-                  }
-                >
-                  <MarkerBadge iconPreset={iconPreset} size="sm" />
-                  <span className="text-hq-fg">
-                    {t(`markers.presets.${markerPresetI18nKey(iconPreset)}`)}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
+            {t("event.backToEvent")}
+          </button>
+          <MarkerIconPalette
+            value={values.iconPreset}
+            usedPresets={usedPresets}
+            allowNone
+            disabled={saving}
+            onChange={(iconPreset) => {
+              setAwaitingConflictConfirmation(false);
+              setValues((current) => ({ ...current, iconPreset }));
+            }}
+          />
           {markerConflict ? (
             <MarkerConflictNotice
               markerLabel={selectedMarkerLabel}
               conflictingEvent={markerConflict}
-              saving={saving}
               onOpenEvent={onOpenEvent}
-              onClearMarker={onClearMarkerConflict}
             />
           ) : null}
-        </fieldset>
-
-        <label className="block space-y-1 text-sm">
-          <span className="text-hq-fg-muted">{t("event.capturePolicy")}</span>
-          <select
-            className="w-full rounded border border-hq-border bg-hq-bg px-3 py-2"
-            value={values.capturePolicy}
-            onChange={(event) =>
-              setValues((current) => ({
-                ...current,
-                capturePolicy: event.target.value as CapturePolicy,
-              }))
-            }
-          >
-            <option value="peace">{t("settings.policyPeace")}</option>
-            <option value="war">{t("settings.policyWar")}</option>
-          </select>
-        </label>
-
-        {initial ? (
+        </div>
+      ) : (
+        <div className="mt-4 space-y-3">
           <label className="block space-y-1 text-sm">
-            <span className="text-hq-fg-muted">{t("event.status")}</span>
-            <select
+            <span className="text-hq-fg-muted">{t("event.scheduledAt")}</span>
+            <input
+              type="datetime-local"
+              required
               className="w-full rounded border border-hq-border bg-hq-bg px-3 py-2"
-              value={values.status}
+              value={values.scheduledAt}
               onChange={(event) =>
                 setValues((current) => ({
                   ...current,
-                  status: event.target.value as CaptureEventFormValues["status"],
+                  scheduledAt: event.target.value,
+                }))
+              }
+            />
+          </label>
+
+          <label className="block space-y-1 text-sm">
+            <span className="text-hq-fg-muted">{t("event.territoryType")}</span>
+            <select
+              className="w-full rounded border border-hq-border bg-hq-bg px-3 py-2"
+              value={values.territoryType}
+              onChange={(event) =>
+                setValues((current) => ({
+                  ...current,
+                  territoryType: event.target.value as TerritoryType,
                 }))
               }
             >
-              <option value="scheduled">{t("event.statusScheduled")}</option>
-              <option value="completed">{t("event.statusCompleted")}</option>
-              <option value="cancelled">{t("event.statusCancelled")}</option>
+              <option value="stronghold">{t("event.stronghold")}</option>
+              <option value="city">{t("event.city")}</option>
             </select>
           </label>
-        ) : null}
 
-        <label className="block space-y-1 text-sm">
-          <span className="text-hq-fg-muted">{t("event.notes")}</span>
-          <NotesAutocomplete
-            value={values.notes}
-            suggestions={noteSuggestions}
-            placeholder={t("event.notesPlaceholder")}
-            onChange={(notes) => setValues((current) => ({ ...current, notes }))}
-          />
-        </label>
-      </div>
+          <fieldset className="space-y-2 text-sm">
+            <legend className="text-hq-fg-muted">{t("event.marker")}</legend>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                aria-pressed={values.iconPreset == null}
+                className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 ${
+                  values.iconPreset == null
+                    ? "border-hq-accent bg-hq-accent/10"
+                    : "border-hq-border bg-hq-bg"
+                }`}
+                onClick={() => {
+                  setAwaitingConflictConfirmation(false);
+                  setValues((current) => ({ ...current, iconPreset: null }));
+                }}
+              >
+                <span className="text-hq-fg-muted">{t("event.noMarker")}</span>
+              </button>
+              {ORDINAL_MARKER_PRESETS.map((preset) => {
+                const selected = values.iconPreset === preset;
+                const inUse = usedPresets.has(preset);
+                return (
+                  <button
+                    key={preset}
+                    type="button"
+                    aria-pressed={selected}
+                    className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 ${
+                      selected
+                        ? "border-hq-accent bg-hq-accent/10"
+                        : inUse
+                          ? "border-amber-500/50 bg-amber-500/10"
+                          : "border-hq-border bg-hq-bg"
+                    }`}
+                    onClick={() => {
+                      setAwaitingConflictConfirmation(false);
+                      setValues((current) => ({ ...current, iconPreset: preset }));
+                    }}
+                  >
+                    <MarkerBadge iconPreset={preset} size="sm" />
+                    <span className="text-hq-fg">{presetLabel(preset)}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <button
+              type="button"
+              className="rounded border border-hq-border bg-hq-bg px-3 py-1.5 text-sm text-hq-fg hover:border-hq-accent"
+              onClick={() => setMarkerPickerView("full")}
+            >
+              {t("event.selectMarker")}
+            </button>
+            {values.iconPreset &&
+            !ORDINAL_MARKER_PRESETS.includes(
+              values.iconPreset as (typeof ORDINAL_MARKER_PRESETS)[number],
+            ) ? (
+              <div className="flex items-center gap-2 rounded border border-hq-border bg-hq-bg px-3 py-2">
+                <MarkerBadge iconPreset={values.iconPreset} size="sm" />
+                <span className="text-hq-fg">{presetLabel(values.iconPreset)}</span>
+              </div>
+            ) : null}
+            {markerConflict ? (
+              <MarkerConflictNotice
+                markerLabel={selectedMarkerLabel}
+                conflictingEvent={markerConflict}
+                onOpenEvent={onOpenEvent}
+              />
+            ) : null}
+          </fieldset>
+
+          <label className="block space-y-1 text-sm">
+            <span className="text-hq-fg-muted">{t("event.capturePolicy")}</span>
+            <select
+              className="w-full rounded border border-hq-border bg-hq-bg px-3 py-2"
+              value={values.capturePolicy}
+              onChange={(event) =>
+                setValues((current) => ({
+                  ...current,
+                  capturePolicy: event.target.value as CapturePolicy,
+                }))
+              }
+            >
+              <option value="peace">{t("settings.policyPeace")}</option>
+              <option value="war">{t("settings.policyWar")}</option>
+            </select>
+          </label>
+
+          {initial ? (
+            <label className="block space-y-1 text-sm">
+              <span className="text-hq-fg-muted">{t("event.status")}</span>
+              <select
+                className="w-full rounded border border-hq-border bg-hq-bg px-3 py-2"
+                value={values.status}
+                onChange={(event) =>
+                  setValues((current) => ({
+                    ...current,
+                    status: event.target.value as CaptureEventFormValues["status"],
+                  }))
+                }
+              >
+                <option value="scheduled">{t("event.statusScheduled")}</option>
+                <option value="completed">{t("event.statusCompleted")}</option>
+                <option value="cancelled">{t("event.statusCancelled")}</option>
+              </select>
+            </label>
+          ) : null}
+
+          <label className="block space-y-1 text-sm">
+            <span className="text-hq-fg-muted">{t("event.notes")}</span>
+            <NotesAutocomplete
+              value={values.notes}
+              suggestions={noteSuggestions}
+              placeholder={t("event.notesPlaceholder")}
+              onChange={(notes) => setValues((current) => ({ ...current, notes }))}
+            />
+          </label>
+        </div>
+      )}
 
       <div className="mt-5 flex flex-wrap items-center justify-between gap-2">
         <div className="flex gap-2">
@@ -290,7 +358,7 @@ function CaptureEventForm({
           >
             {t("actions.cancel")}
           </button>
-          {initial && onDelete ? (
+          {initial && onDelete && markerPickerView === "quick" ? (
             <button
               type="button"
               className="rounded border border-hq-danger px-3 py-2 text-sm text-hq-danger"
@@ -301,14 +369,46 @@ function CaptureEventForm({
             </button>
           ) : null}
         </div>
-        <button
-          type="submit"
-          className="rounded border border-hq-success bg-hq-success px-4 py-2 text-sm text-white disabled:opacity-50"
-          disabled={saving || markerConflict != null}
-          title={FORM_SUBMIT_ENTER_KEY_HINT}
-        >
-          {saving ? t("actions.saving") : t("actions.save")}
-        </button>
+        {markerPickerView === "quick" ? (
+          awaitingConflictConfirmation && markerConflict ? (
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                className="rounded border border-hq-border px-3 py-2 text-sm"
+                disabled={saving}
+                onClick={() => setAwaitingConflictConfirmation(false)}
+              >
+                {t("actions.cancel")}
+              </button>
+              <button
+                type="submit"
+                className="rounded border border-hq-success bg-hq-success px-4 py-2 text-sm text-white disabled:opacity-50"
+                disabled={saving}
+                title={FORM_SUBMIT_ENTER_KEY_HINT}
+              >
+                {saving ? t("actions.saving") : t("event.confirmConflictSave")}
+              </button>
+            </div>
+          ) : (
+            <button
+              type="submit"
+              className="rounded border border-hq-success bg-hq-success px-4 py-2 text-sm text-white disabled:opacity-50"
+              disabled={saving}
+              title={FORM_SUBMIT_ENTER_KEY_HINT}
+            >
+              {saving ? t("actions.saving") : t("actions.save")}
+            </button>
+          )
+        ) : (
+          <button
+            type="button"
+            className="rounded border border-hq-success bg-hq-success px-4 py-2 text-sm text-white disabled:opacity-50"
+            disabled={saving}
+            onClick={() => setMarkerPickerView("quick")}
+          >
+            {t("event.doneSelectingMarker")}
+          </button>
+        )}
       </div>
     </form>
   );
@@ -319,7 +419,6 @@ export function CaptureEventModal({
   initial,
   defaultServerDate,
   defaultCapturePolicy,
-  markers,
   events,
   noteSuggestions,
   saving,
@@ -327,7 +426,6 @@ export function CaptureEventModal({
   onSubmit,
   onDelete,
   onOpenEvent,
-  onClearMarkerConflict,
 }: Props) {
   if (!open) return null;
 
@@ -340,7 +438,6 @@ export function CaptureEventModal({
         initial={initial}
         defaultServerDate={defaultServerDate}
         defaultCapturePolicy={defaultCapturePolicy}
-        markers={markers}
         events={events}
         noteSuggestions={noteSuggestions}
         saving={saving}
@@ -348,7 +445,6 @@ export function CaptureEventModal({
         onSubmit={onSubmit}
         onDelete={onDelete}
         onOpenEvent={onOpenEvent}
-        onClearMarkerConflict={onClearMarkerConflict}
       />
     </div>
   );
@@ -358,7 +454,7 @@ export function captureEventFormToPayload(values: CaptureEventFormValues) {
   return {
     scheduledAt: fromDateTimeLocalValue(values.scheduledAt),
     territoryType: values.territoryType,
-    markerNumber: values.markerNumber,
+    iconPreset: values.iconPreset,
     capturePolicy: values.capturePolicy,
     notes: values.notes.trim() || null,
     status: values.status,
