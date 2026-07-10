@@ -1,4 +1,5 @@
 import { formatPriceIsRightVsScore } from "@/lib/trains/train-price-is-right-tickets.shared";
+import { PRICE_IS_RIGHT_MIN_VS_SCORE } from "@/lib/trains/train-economy-threshold.shared";
 
 export type PriceIsRightLeaderboardEntry = {
   rank: number;
@@ -13,7 +14,11 @@ export type PriceIsRightLeaderboardCandidate = {
   memberName: string;
 };
 
-/** Top scorers by prior-day VS (game-style individual ranking, not ticket count). */
+function distanceAboveSweetSpot(score: number): number {
+  return score - PRICE_IS_RIGHT_MIN_VS_SCORE;
+}
+
+/** R3 members with prior-day VS ≥ 7.2M, ranked closest to 7.2M from above. */
 export function buildPriceIsRightVsLeaderboard(
   candidates: PriceIsRightLeaderboardCandidate[],
   vsScores: Map<string, number>,
@@ -26,11 +31,13 @@ export function buildPriceIsRightVsLeaderboard(
       priorDayVsScore: vsScores.get(candidate.memberId) ?? 0,
       isViewer: viewerMemberId === candidate.memberId,
     }))
-    .filter((entry) => entry.priorDayVsScore > 0)
+    .filter(
+      (entry) => entry.priorDayVsScore >= PRICE_IS_RIGHT_MIN_VS_SCORE,
+    )
     .sort((a, b) => {
-      if (b.priorDayVsScore !== a.priorDayVsScore) {
-        return b.priorDayVsScore - a.priorDayVsScore;
-      }
+      const distA = distanceAboveSweetSpot(a.priorDayVsScore);
+      const distB = distanceAboveSweetSpot(b.priorDayVsScore);
+      if (distA !== distB) return distA - distB;
       return a.memberName.localeCompare(b.memberName);
     });
 
@@ -38,6 +45,12 @@ export function buildPriceIsRightVsLeaderboard(
     ...entry,
     rank: index + 1,
   }));
+}
+
+export function formatPriceIsRightLeaderboardEntryLine(
+  entry: Pick<PriceIsRightLeaderboardEntry, "rank" | "memberName" | "priorDayVsScore">,
+): string {
+  return `#${entry.rank} ${entry.memberName} — ${formatPriceIsRightVsScore(entry.priorDayVsScore)}`;
 }
 
 const PODIUM_MEDALS = ["🥇", "🥈", "🥉"] as const;
@@ -58,7 +71,7 @@ export function formatPriceIsRightLeaderboardDiscordMessage(input: {
 
   const lines = podium.map((entry, index) => {
     const medal = PODIUM_MEDALS[index] ?? `${entry.rank}.`;
-    return `${medal} **${entry.memberName}** — ${formatPriceIsRightVsScore(entry.priorDayVsScore)}`;
+    return `${medal} **${formatPriceIsRightLeaderboardEntryLine(entry)}**`;
   });
 
   const footer = input.trainsUrl?.trim()
@@ -66,8 +79,8 @@ export function formatPriceIsRightLeaderboardDiscordMessage(input: {
     : "";
 
   return (
-    `**The Price Is Freight — prior-day VS podium** (${input.trainDate})\n` +
-    `Scores from **${input.scoreDate}**:\n\n` +
+    `**The Price Is Freight — closest to 7.2M** (${input.trainDate})\n` +
+    `Prior-day VS from **${input.scoreDate}**:\n\n` +
     lines.join("\n") +
     footer
   );

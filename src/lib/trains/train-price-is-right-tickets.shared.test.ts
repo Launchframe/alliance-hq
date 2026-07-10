@@ -52,7 +52,7 @@ describe("train-price-is-right-tickets.shared", () => {
       ["b", 8_000_000],
       ["c", 6_000_000],
     ]);
-    const board = buildPriceIsRightTicketBoard(
+    const { board, missedFloor } = buildPriceIsRightTicketBoard(
       [
         { memberId: "a", memberName: "Alpha" },
         { memberId: "b", memberName: "Bravo" },
@@ -63,11 +63,56 @@ describe("train-price-is-right-tickets.shared", () => {
       "b",
     );
     expect(board).toHaveLength(2);
+    expect(board.every((row) => row.priorDayVsScore >= PRICE_IS_RIGHT_MIN_VS_SCORE)).toBe(
+      true,
+    );
+    expect(missedFloor).toEqual([
+      {
+        memberId: "c",
+        memberName: "Charlie",
+        priorDayVsScore: 6_000_000,
+        isViewer: false,
+      },
+    ]);
     const sum = board.reduce((acc, row) => acc + row.winProbability, 0);
     expect(sum).toBeCloseTo(1, 5);
     expect(computeWinProbabilities(board)).toEqual(
       board.map((row) => row.winProbability),
     );
+  });
+
+  it("includes >=7.2M members with zero tickets on the main board", () => {
+    const cliff = resolveCliffPoints(baseSettings);
+    const vsScores = new Map([["a", cliff + 1]]);
+    const { board, missedFloor } = buildPriceIsRightTicketBoard(
+      [{ memberId: "a", memberName: "Alpha" }],
+      vsScores,
+      { ...baseSettings, hardCutoffEnabled: true },
+    );
+    expect(board).toHaveLength(1);
+    expect(board[0]?.ticketCount).toBe(0);
+    expect(missedFloor).toEqual([]);
+  });
+
+  it("never lists the same member on the board and missed floor", () => {
+    const vsScores = new Map([
+      ["a", 7_200_000],
+      ["b", 7_100_000],
+      ["c", 8_500_000],
+    ]);
+    const { board, missedFloor } = buildPriceIsRightTicketBoard(
+      [
+        { memberId: "a", memberName: "Alpha" },
+        { memberId: "b", memberName: "Bravo" },
+        { memberId: "c", memberName: "Charlie" },
+      ],
+      vsScores,
+      baseSettings,
+    );
+    const boardIds = new Set(board.map((row) => row.memberId));
+    for (const row of missedFloor) {
+      expect(boardIds.has(row.memberId)).toBe(false);
+    }
   });
 
   it("samples a theoretical curve above the floor", () => {

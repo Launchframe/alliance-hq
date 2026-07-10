@@ -3,7 +3,7 @@ import "server-only";
 import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
 import { getHqMemberLinkForUser } from "@/lib/member-link/repository.server";
 import { loadActiveAlliancePoolMembers } from "@/lib/members/game-roster";
-import { fetchHqSeasonVsScoresByMember } from "@/lib/trains/native-scores.server";
+import { fetchAlliancePriorDayVsScoresForTrainDate } from "@/lib/trains/vs-scores.server";
 import {
   buildPriceIsRightVsLeaderboard,
   type PriceIsRightLeaderboardEntry,
@@ -41,7 +41,10 @@ export async function loadPriceIsRightVsLeaderboard(input: {
   const [members, rankEvents, vsScores] = await Promise.all([
     loadActiveAlliancePoolMembers({ allianceId: input.allianceId }),
     getAllianceRanksAsOf(input.allianceId, input.trainDate),
-    fetchHqSeasonVsScoresByMember(input.allianceId),
+    fetchAlliancePriorDayVsScoresForTrainDate(
+      input.allianceId,
+      input.trainDate,
+    ),
   ]);
 
   const rankByMember = new Map(

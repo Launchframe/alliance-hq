@@ -3055,13 +3055,14 @@
       "noScore": "—",
       "hero": "You have {count} raffle tickets for today's conductor wheel (based on {dayOfWeek}'s VS: {score})",
       "leaderboard": {
-        "title": "Prior-day VS podium",
-        "subtitle": "Top R3 scores from {day} — visible all day on Price Is Freight train days.",
+        "title": "Closest to 7.2M",
+        "subtitle": "R3 prior-day VS from {day} — ranked nearest 7.2M from above.",
         "loading": "Loading VS podium…",
         "loadFailed": "Could not load the VS podium.",
-        "podiumAria": "Top three prior-day VS scores",
+        "podiumAria": "Top three prior-day VS scores closest to 7.2M",
         "podium": {
-          "empty": "No score yet"
+          "empty": "No score yet",
+          "rankScore": "#{rank} · {score}"
         }
       },
       "chart": {
@@ -3081,6 +3082,12 @@
         "rowMeta": "VS {score} · {probability} chance",
         "expand": "Show full raffle pool",
         "collapse": "Show fewer rows"
+      },
+      "missedFloor": {
+        "title": "Members didn't make it",
+        "subtitle": "R3 commanders below 7.2M on the prior VS day — not eligible for today's raffle.",
+        "member": "Commander",
+        "vs": "Prior-day VS"
       }
     },
     "conductorHistory": {

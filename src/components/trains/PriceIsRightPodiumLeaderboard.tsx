@@ -83,11 +83,11 @@ function PodiumSlot({
       <p className="max-w-[8.5rem] truncate text-center text-sm font-semibold text-hq-fg">
         {entry.memberName}
       </p>
-      <p className="mt-0.5 flex items-center gap-1 text-sm font-semibold text-amber-200">
-        <span aria-hidden className="text-base">
-          ⬡
-        </span>
-        {formatPriceIsRightVsScore(entry.priorDayVsScore)}
+      <p className="mt-0.5 text-center text-sm font-semibold text-amber-200">
+        {t("podium.rankScore", {
+          rank: entry.rank,
+          score: formatPriceIsRightVsScore(entry.priorDayVsScore),
+        })}
       </p>
       <div
         className={`mt-3 w-full max-w-[7.5rem] rounded-t-xl border ${style.bar}`}
@@ -192,12 +192,14 @@ export function PriceIsRightPodiumLeaderboard({ trainDate }: Props) {
                 entry.isViewer ? "bg-amber-500/10" : ""
               }`}
             >
-              <span className="text-hq-fg-muted">{entry.rank}.</span>
               <span className="min-w-0 flex-1 truncate font-medium text-hq-fg">
                 {entry.memberName}
               </span>
               <span className="shrink-0 text-amber-200/90">
-                {formatPriceIsRightVsScore(entry.priorDayVsScore)}
+                {t("podium.rankScore", {
+                  rank: entry.rank,
+                  score: formatPriceIsRightVsScore(entry.priorDayVsScore),
+                })}
               </span>
             </li>
           ))}

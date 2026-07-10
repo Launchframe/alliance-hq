@@ -3000,13 +3000,14 @@
       "noScore": "—",
       "hero": "Você tem {count} tickets de rifa para a roleta de hoje (com base no VS de {dayOfWeek}: {score})",
       "leaderboard": {
-        "title": "Pódio VS do dia anterior",
-        "subtitle": "Melhores pontuações R3 de {day} — visível o dia todo nos dias Price Is Freight.",
+        "title": "Mais perto de 7,2M",
+        "subtitle": "VS R3 do dia anterior em {day} — classificação pela menor distância acima de 7,2M.",
         "loading": "Carregando pódio VS…",
         "loadFailed": "Não foi possível carregar o pódio VS.",
-        "podiumAria": "Três melhores pontuações VS do dia anterior",
+        "podiumAria": "Três melhores VS do dia anterior mais próximos de 7,2M",
         "podium": {
-          "empty": "Sem pontuação ainda"
+          "empty": "Sem pontuação ainda",
+          "rankScore": "#{rank} · {score}"
         }
       },
       "chart": {
@@ -3026,6 +3027,12 @@
         "rowMeta": "VS {score} · {probability} de chance",
         "expand": "Mostrar pool completo",
         "collapse": "Mostrar menos linhas"
+      },
+      "missedFloor": {
+        "title": "Membros que não passaram",
+        "subtitle": "Comandantes R3 abaixo de 7,2M no VS do dia anterior — sem elegibilidade na rifa de hoje.",
+        "member": "Comandante",
+        "vs": "VS do dia anterior"
       }
     },
     "conductorHistory": {

@@ -99,6 +99,9 @@ export async function GET(request: Request) {
 
   const viewerEntry =
     weighted.board.find((entry) => entry.memberId === viewerMemberId) ?? null;
+  const viewerMissedEntry =
+    weighted.missedFloor.find((entry) => entry.memberId === viewerMemberId) ??
+    null;
 
   return NextResponse.json({
     trainDate,
@@ -113,10 +116,15 @@ export async function GET(request: Request) {
       ? {
           memberId: viewerMemberId,
           ticketCount: viewerEntry?.ticketCount ?? 0,
-          priorDayVsScore: viewerEntry?.priorDayVsScore ?? null,
+          priorDayVsScore:
+            viewerEntry?.priorDayVsScore ??
+            viewerMissedEntry?.priorDayVsScore ??
+            null,
           winProbability: viewerEntry?.winProbability ?? 0,
+          missedFloor: viewerMissedEntry != null,
         }
       : null,
     board: weighted.board,
+    missedFloor: weighted.missedFloor,
   });
 }

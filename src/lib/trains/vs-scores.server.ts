@@ -1,10 +1,16 @@
 import "server-only";
 
+import { decryptSecret } from "@/lib/crypto/encrypt";
 import { base44Json } from "@/lib/base44/fetch";
 import type { ParsedConnection } from "@/lib/connectionString";
+import { DEFAULT_APP_ID } from "@/lib/connectionString";
 import { addCalendarDays } from "@/lib/trains/game-time";
 import type { RollCandidate } from "@/lib/trains/types";
 import { vsScoreReferenceDate } from "@/lib/trains/vs-week-days.shared";
+import {
+  getAllianceAshedCredential,
+  getAllianceById,
+} from "@/lib/vr/repository";
 
 type AshedVsScoreRow = {
   id?: string;
@@ -127,4 +133,79 @@ export async function fetchVsTotalsForDateRange(
   }
 
   return totals;
+}
+
+function buildLegacyBotAshedConnection(): ParsedConnection | null {
+  const token = process.env.VR_BOT_ASHED_BEARER_TOKEN?.trim();
+  if (!token) return null;
+  return {
+    token,
+    appId: process.env.BASE44_APP_ID?.trim() || DEFAULT_APP_ID,
+    originUrl: process.env.BASE44_ORIGIN_URL?.trim() || "https://ashed.online",
+  };
+}
+
+function legacyTokenAllowedForAlliance(allianceTag: string): boolean {
+  const guardTag = process.env.VR_BOT_ASHED_ALLIANCE_TAG?.trim();
+  if (!guardTag) return false;
+  return allianceTag.trim().toLowerCase() === guardTag.trim().toLowerCase();
+}
+
+async function resolveAllianceAshedConnection(
+  allianceId: string,
+): Promise<{ connection: ParsedConnection; ashedAllianceId: string } | null> {
+  const alliance = await getAllianceById(allianceId);
+  const ashedAllianceId = alliance?.ashedAllianceId?.trim();
+  if (!ashedAllianceId) return null;
+
+  const credential = await getAllianceAshedCredential(allianceId);
+  if (credential) {
+    try {
+      return {
+        connection: {
+          token: decryptSecret(credential.encryptedToken),
+          appId: credential.appId,
+          originUrl: credential.originUrl,
+        },
+        ashedAllianceId,
+      };
+    } catch (error) {
+      console.error("[vs-scores] failed to decrypt alliance credential", error);
+      return null;
+    }
+  }
+
+  if (!alliance?.tag || !legacyTokenAllowedForAlliance(alliance.tag)) {
+    return null;
+  }
+
+  const connection = buildLegacyBotAshedConnection();
+  if (!connection) return null;
+  return { connection, ashedAllianceId };
+}
+
+/** Prior-day VS scores keyed by roster member id (Ashed VSScore for recorded_date). */
+export async function fetchAlliancePriorDayVsScoresByMember(
+  allianceId: string,
+  recordedDate: string,
+): Promise<Map<string, number>> {
+  const resolved = await resolveAllianceAshedConnection(allianceId);
+  if (!resolved) return new Map();
+
+  return fetchVsScoresByRecordedDate(
+    resolved.connection,
+    resolved.ashedAllianceId,
+    recordedDate,
+  );
+}
+
+/** VS scores for the calendar day before trainDate. */
+export async function fetchAlliancePriorDayVsScoresForTrainDate(
+  allianceId: string,
+  trainDate: string,
+): Promise<Map<string, number>> {
+  return fetchAlliancePriorDayVsScoresByMember(
+    allianceId,
+    vsScoreReferenceDate(trainDate),
+  );
 }

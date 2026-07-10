@@ -9,10 +9,6 @@
       "schedule": "0 2 * * *"
     },
     {
-      "path": "/api/internal/train/price-is-right-leaderboard",
-      "schedule": "5 2 * * *"
-    },
-    {
       "path": "/api/internal/season-sync",
       "schedule": "5 2 * * 1"
     },
