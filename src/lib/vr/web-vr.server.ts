@@ -9,6 +9,7 @@ import type { MyVrPayload, MyVrPostResponse } from "@/lib/vr/my-vr.shared";
 import { effectiveBaseVr, WEEKLY_PASS_BOOST } from "@/lib/vr/effective-vr.shared";
 import { auditWebVrCommand } from "@/lib/vr/web-vr-audit.server";
 import { vrSeasonLockedMessage } from "@/lib/vr/vr-season-lock.shared";
+import { loadVrProgressChartPayload } from "@/lib/vr/load-progress-chart";
 import {
   countSeasonReporters,
   getCommanderByAshedMemberId,
@@ -57,16 +58,25 @@ export async function loadMyVrForUser(input: {
   }
 
   const season = await resolveVrSeasonContext(input.allianceId);
-  const [currentVr, seasonRows, events, commander] = await Promise.all([
-    getMemberSeasonHigh(input.allianceId, link.ashedMemberId, season.seasonKey),
-    listSeasonVrRows(input.allianceId, season.seasonKey),
-    listMemberSeasonVrEvents(
-      input.allianceId,
-      season.seasonKey,
-      link.ashedMemberId,
-    ),
-    getCommanderByAshedMemberId(link.ashedMemberId, input.allianceId),
-  ]);
+  const [currentVr, seasonRows, events, commander, progressChart] =
+    await Promise.all([
+      getMemberSeasonHigh(
+        input.allianceId,
+        link.ashedMemberId,
+        season.seasonKey,
+      ),
+      listSeasonVrRows(input.allianceId, season.seasonKey),
+      listMemberSeasonVrEvents(
+        input.allianceId,
+        season.seasonKey,
+        link.ashedMemberId,
+      ),
+      getCommanderByAshedMemberId(link.ashedMemberId, input.allianceId),
+      loadVrProgressChartPayload({
+        allianceId: input.allianceId,
+        viewerAshedMemberId: link.ashedMemberId,
+      }),
+    ]);
 
   const reporterVrs = seasonRows.map((row) => row.highestBaseVr);
   const percentile =
@@ -119,6 +129,7 @@ export async function loadMyVrForUser(input: {
       createdAt: event.createdAt.toISOString(),
       source: event.source,
     })),
+    progressChart,
   };
 }
 
@@ -196,10 +207,11 @@ async function handleWebVrCommandCore(input: {
   }
 
   const pending = await getHqVrPending(input.allianceId, input.hqUserId);
-  const [seasonHigh, reporterCount, seasonRows] = await Promise.all([
+  const [seasonHigh, reporterCount, seasonRows, commander] = await Promise.all([
     getMemberSeasonHigh(input.allianceId, link.ashedMemberId, season.seasonKey),
     countSeasonReporters(input.allianceId, season.seasonKey),
     listSeasonVrRows(input.allianceId, season.seasonKey),
+    getCommanderByAshedMemberId(link.ashedMemberId, input.allianceId),
   ]);
   const peerMax = peerMaxExcludingMember(seasonRows, link.ashedMemberId);
 
@@ -225,6 +237,7 @@ async function handleWebVrCommandCore(input: {
     explicitLevel: explicitBaseVr,
     seasonHigh,
     ashedMemberId: link.ashedMemberId,
+    commanderId: commander?.commanderId ?? null,
     pending: pending as VrPendingState | null,
     reporterCount,
     peerMax,
@@ -237,7 +250,8 @@ async function handleWebVrCommandCore(input: {
   if (result.action.type === "set_vr") {
     await upsertMemberSeasonVr({
       allianceId: input.allianceId,
-      ashedMemberId: result.action.ashedMemberId,
+      ashedMemberId: result.action.ashedMemberId || link.ashedMemberId,
+      commanderId: result.action.commanderId ?? commander?.commanderId,
       seasonKey: season.seasonKey,
       baseVr: result.action.vr,
       hqUserId: input.hqUserId,
@@ -325,7 +339,8 @@ async function handleWebVrConfirm(input: {
   if (result.action.type === "set_vr") {
     await upsertMemberSeasonVr({
       allianceId: input.allianceId,
-      ashedMemberId: result.action.ashedMemberId,
+      ashedMemberId: result.action.ashedMemberId || input.ashedMemberId,
+      commanderId: result.action.commanderId,
       seasonKey: input.seasonKey,
       baseVr: result.action.vr,
       hqUserId: input.hqUserId,
@@ -338,7 +353,7 @@ async function handleWebVrConfirm(input: {
       seasonKey: input.seasonKey,
       baseVr: result.action.vr,
       allianceId: input.allianceId,
-      ashedMemberId: result.action.ashedMemberId,
+      ashedMemberId: result.action.ashedMemberId || input.ashedMemberId,
     });
     return {
       status: "set_vr",

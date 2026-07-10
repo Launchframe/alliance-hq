@@ -631,6 +631,13 @@
       "when": 1786966400000,
       "tag": "0090_alliance_daily_snapshots",
       "breakpoints": true
+    },
+    {
+      "idx": 89,
+      "version": "7",
+      "when": 1787049600000,
+      "tag": "0091_commander_season_vr",
+      "breakpoints": true
     }
   ]
 }

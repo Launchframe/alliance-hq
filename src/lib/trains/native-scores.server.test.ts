@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   getEffectiveSeasonForAlliance: vi.fn(),
   listActiveAllianceMembersForPool: vi.fn(),
+  listAllianceSeasonVrForLeaderboard: vi.fn(),
   selectChain: {
     from: vi.fn(),
     where: vi.fn(),
@@ -16,6 +17,10 @@ vi.mock("@/lib/game-season/sync", () => ({
 
 vi.mock("@/lib/members/roster.server", () => ({
   listActiveAllianceMembersForPool: mocks.listActiveAllianceMembersForPool,
+}));
+
+vi.mock("@/lib/vr/repository", () => ({
+  listAllianceSeasonVrForLeaderboard: mocks.listAllianceSeasonVrForLeaderboard,
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -53,12 +58,22 @@ describe("fetchNativeVrTopScorers", () => {
         allianceRank: 3,
       },
     ]);
-    mocks.selectChain.from.mockReturnValue(mocks.selectChain);
-    mocks.selectChain.where.mockReturnValue(mocks.selectChain);
-    mocks.selectChain.orderBy.mockResolvedValue([
-      { ashedMemberId: "m1", highestBaseVr: 120 },
-      { ashedMemberId: "m2", highestBaseVr: 90 },
-      { ashedMemberId: "ghost", highestBaseVr: 200 },
+    mocks.listAllianceSeasonVrForLeaderboard.mockResolvedValue([
+      {
+        commanderId: "c1",
+        ashedMemberId: "m1",
+        highestBaseVr: 120,
+      },
+      {
+        commanderId: "c2",
+        ashedMemberId: "m2",
+        highestBaseVr: 90,
+      },
+      {
+        commanderId: "c3",
+        ashedMemberId: "ghost",
+        highestBaseVr: 200,
+      },
     ]);
   });
 
@@ -71,9 +86,9 @@ describe("fetchNativeVrTopScorers", () => {
   });
 
   it("respects limit and skips zero VR", async () => {
-    mocks.selectChain.orderBy.mockResolvedValue([
-      { ashedMemberId: "m2", highestBaseVr: 0 },
-      { ashedMemberId: "m1", highestBaseVr: 50 },
+    mocks.listAllianceSeasonVrForLeaderboard.mockResolvedValue([
+      { commanderId: "c2", ashedMemberId: "m2", highestBaseVr: 0 },
+      { commanderId: "c1", ashedMemberId: "m1", highestBaseVr: 50 },
     ]);
 
     const result = await fetchNativeVrTopScorers("a1", 1);
@@ -87,11 +102,10 @@ describe("fetchHqSeasonVsScoresByMember", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.getEffectiveSeasonForAlliance.mockResolvedValue({ seasonKey: "3" });
-    mocks.selectChain.from.mockReturnValue(mocks.selectChain);
-    mocks.selectChain.where.mockResolvedValue([
-      { ashedMemberId: "m1", highestBaseVr: 120 },
-      { ashedMemberId: "m2", highestBaseVr: 0 },
-      { ashedMemberId: "m3", highestBaseVr: 45 },
+    mocks.listAllianceSeasonVrForLeaderboard.mockResolvedValue([
+      { commanderId: "c1", ashedMemberId: "m1", highestBaseVr: 120 },
+      { commanderId: "c2", ashedMemberId: "m2", highestBaseVr: 0 },
+      { commanderId: "c3", ashedMemberId: "m3", highestBaseVr: 45 },
     ]);
   });
 
@@ -105,6 +119,9 @@ describe("fetchHqSeasonVsScoresByMember", () => {
   it("scopes query to alliance season", async () => {
     await fetchHqSeasonVsScoresByMember("a1");
     expect(mocks.getEffectiveSeasonForAlliance).toHaveBeenCalledWith("a1");
-    expect(mocks.selectChain.where).toHaveBeenCalled();
+    expect(mocks.listAllianceSeasonVrForLeaderboard).toHaveBeenCalledWith(
+      "a1",
+      "3",
+    );
   });
 });

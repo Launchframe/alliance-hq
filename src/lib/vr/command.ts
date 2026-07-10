@@ -15,6 +15,7 @@ export type ProcessVrCommandInput = {
   explicitLevel?: number | null;
   seasonHigh: number | null;
   ashedMemberId: string;
+  commanderId?: string | null;
   pending: VrPendingState | null;
   reporterCount: number;
   peerMax: number;
@@ -62,6 +63,7 @@ function applyExplicitLevel(
         kind: "anomaly_confirm",
         proposedVr: value,
         ashedMemberId: input.ashedMemberId,
+        ...(input.commanderId ? { commanderId: input.commanderId } : {}),
       },
       action: { type: "none" },
       needsConfirmation: true,
@@ -76,6 +78,7 @@ function applyExplicitLevel(
       type: "set_vr",
       vr: value,
       ashedMemberId: input.ashedMemberId,
+      ...(input.commanderId ? { commanderId: input.commanderId } : {}),
     },
   };
 }
@@ -153,7 +156,8 @@ export function processVrConfirmation(
     action: {
       type: "set_vr",
       vr: pending.proposedVr,
-      ashedMemberId: pending.ashedMemberId,
+      ashedMemberId: pending.ashedMemberId ?? "",
+      ...(pending.commanderId ? { commanderId: pending.commanderId } : {}),
     },
   };
 }

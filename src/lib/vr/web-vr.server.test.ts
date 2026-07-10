@@ -10,6 +10,14 @@ vi.mock("@/lib/vr/web-vr-audit.server", () => ({
   auditWebVrCommand: vi.fn(),
 }));
 
+vi.mock("@/lib/vr/load-progress-chart", () => ({
+  loadVrProgressChartPayload: vi.fn().mockResolvedValue({
+    seasonKey: "1",
+    vrUpdatesLocked: false,
+    series: [],
+  }),
+}));
+
 vi.mock("@/lib/vr/repository", () => ({
   countSeasonReporters: vi.fn(),
   getCommanderByAshedMemberId: vi.fn().mockResolvedValue({
