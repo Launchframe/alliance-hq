@@ -38,6 +38,36 @@ describe("parseStoredVrPending", () => {
     ).toBeNull();
   });
 
+  it("parses VR anomaly confirm with optional commanderId", () => {
+    expect(
+      parseStoredVrPending({
+        kind: "anomaly_confirm",
+        proposedVr: 4200,
+        ashedMemberId: "member-1",
+        commanderId: "cmd-1",
+      }),
+    ).toEqual({
+      kind: "anomaly_confirm",
+      proposedVr: 4200,
+      ashedMemberId: "member-1",
+      commanderId: "cmd-1",
+    });
+  });
+
+  it("parses legacy VR anomaly confirm without commanderId", () => {
+    expect(
+      parseStoredVrPending({
+        kind: "anomaly_confirm",
+        proposedVr: 4200,
+        ashedMemberId: "member-1",
+      }),
+    ).toEqual({
+      kind: "anomaly_confirm",
+      proposedVr: 4200,
+      ashedMemberId: "member-1",
+    });
+  });
+
   it("rejects VR anomaly confirm with missing proposedVr", () => {
     expect(
       parseStoredVrPending({

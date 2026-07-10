@@ -196,6 +196,11 @@ async function handleWebVrCommandCore(input: {
   }
 
   const pending = await getHqVrPending(input.allianceId, input.hqUserId);
+  const commander = await getCommanderByAshedMemberId(
+    link.ashedMemberId,
+    input.allianceId,
+  );
+  const commanderId = commander?.commanderId;
   const [seasonHigh, reporterCount, seasonRows] = await Promise.all([
     getMemberSeasonHigh(input.allianceId, link.ashedMemberId, season.seasonKey),
     countSeasonReporters(input.allianceId, season.seasonKey),
@@ -225,6 +230,7 @@ async function handleWebVrCommandCore(input: {
     explicitLevel: explicitBaseVr,
     seasonHigh,
     ashedMemberId: link.ashedMemberId,
+    commanderId,
     pending: pending as VrPendingState | null,
     reporterCount,
     peerMax,
@@ -240,6 +246,7 @@ async function handleWebVrCommandCore(input: {
       ashedMemberId: result.action.ashedMemberId,
       seasonKey: season.seasonKey,
       baseVr: result.action.vr,
+      commanderId: result.action.commanderId ?? commanderId,
       hqUserId: input.hqUserId,
       flagReason: result.action.flagReason ?? null,
       eventSource: "web",
@@ -328,6 +335,7 @@ async function handleWebVrConfirm(input: {
       ashedMemberId: result.action.ashedMemberId,
       seasonKey: input.seasonKey,
       baseVr: result.action.vr,
+      commanderId: result.action.commanderId ?? pending.commanderId,
       hqUserId: input.hqUserId,
       flagReason: result.action.flagReason ?? null,
       eventSource: "web",

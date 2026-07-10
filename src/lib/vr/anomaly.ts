@@ -12,6 +12,18 @@ export function peerMaxExcludingMember(
   return max;
 }
 
+export function peerMaxExcludingCommander(
+  rows: Array<{ commanderId: string; highestBaseVr: number }>,
+  excludeCommanderId: string,
+): number {
+  let max = 0;
+  for (const row of rows) {
+    if (row.commanderId === excludeCommanderId) continue;
+    if (row.highestBaseVr > max) max = row.highestBaseVr;
+  }
+  return max;
+}
+
 export function shouldAnomalyConfirm(input: {
   proposedVr: number;
   reporterCount: number;

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   anomalyConfirmMessage,
+  peerMaxExcludingCommander,
   peerMaxExcludingMember,
   shouldAnomalyConfirm,
 } from "@/lib/vr/anomaly";
@@ -15,6 +16,19 @@ describe("anomaly detection", () => {
 
   it("finds peer max excluding member", () => {
     expect(peerMaxExcludingMember(rows, "b")).toBe(7000);
+  });
+
+  it("finds peer max excluding commander", () => {
+    expect(
+      peerMaxExcludingCommander(
+        [
+          { commanderId: "a", highestBaseVr: 5000 },
+          { commanderId: "b", highestBaseVr: 7250 },
+          { commanderId: "c", highestBaseVr: 7000 },
+        ],
+        "b",
+      ),
+    ).toBe(7000);
   });
 
   it("requires confirmation when 750+ above peers with enough reporters", () => {

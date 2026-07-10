@@ -1,5 +1,11 @@
 export type VrPendingState =
-  | { kind: "anomaly_confirm"; proposedVr: number; ashedMemberId: string }
+  | {
+      kind: "anomaly_confirm";
+      proposedVr: number;
+      ashedMemberId: string;
+      /** Present on new writes; optional when reading legacy pending JSON. */
+      commanderId?: string;
+    }
   | { kind: "pick_character"; linkIds: string[] }
   | { kind: "weekly_pass_pick_character"; linkIds: string[]; active: boolean };
 
@@ -8,6 +14,7 @@ export type VrCommandAction =
       type: "set_vr";
       vr: number;
       ashedMemberId: string;
+      commanderId?: string;
       flagReason?: string | null;
     }
   | { type: "none" };

@@ -883,6 +883,11 @@ export async function handleDiscordVrSlash(input: {
   const seasonKey = season.seasonKey;
   const pendingRow = await getDiscordBotPending(input.discordUserId);
   const pending = (pendingRow?.pending ?? null) as VrPendingState | null;
+  const commander = await getCommanderByAshedMemberId(
+    target.ashedMemberId,
+    input.allianceId,
+  );
+  const commanderId = commander?.commanderId;
   const [seasonHigh, reporterCount, seasonRows] = await Promise.all([
     getMemberSeasonHigh(input.allianceId, target.ashedMemberId, seasonKey),
     countSeasonReporters(input.allianceId, seasonKey),
@@ -912,6 +917,7 @@ export async function handleDiscordVrSlash(input: {
     explicitLevel: explicitBaseVr,
     seasonHigh,
     ashedMemberId: target.ashedMemberId,
+    commanderId,
     pending,
     reporterCount,
     peerMax,
@@ -927,15 +933,12 @@ export async function handleDiscordVrSlash(input: {
       ashedMemberId: result.action.ashedMemberId,
       seasonKey,
       baseVr: result.action.vr,
+      commanderId: result.action.commanderId ?? commanderId,
       discordUserId: input.discordUserId,
       flagReason: result.action.flagReason ?? null,
       eventSource: "discord",
     });
     await saveDiscordBotPending(input.allianceId, input.discordUserId, null);
-    const commander = await getCommanderByAshedMemberId(
-      target.ashedMemberId,
-      input.allianceId,
-    );
     const instituteLevel =
       instituteLevelForBaseVr(seasonKey, result.action.vr) ?? "?";
     const effectiveVr = effectiveBaseVr(
@@ -1159,6 +1162,7 @@ export async function handleDiscordVrButtonConfirm(input: {
       ashedMemberId: result.action.ashedMemberId,
       seasonKey,
       baseVr: result.action.vr,
+      commanderId: result.action.commanderId ?? pending.commanderId,
       discordUserId: input.discordUserId,
       flagReason: result.action.flagReason ?? null,
       eventSource: "discord",

@@ -855,6 +855,80 @@ export const memberSeasonVrEvents = pgTable(
   ],
 );
 
+/**
+ * Highest self-reported base VR per commander per game season.
+ * Portable across alliance transfers (unlike member_season_vr).
+ */
+export const commanderSeasonVr = pgTable(
+  "commander_season_vr",
+  {
+    id: text("id").primaryKey(),
+    commanderId: text("commander_id")
+      .notNull()
+      .references(() => commanders.id, { onDelete: "cascade" }),
+    seasonKey: text("season_key").notNull(),
+    highestBaseVr: integer("highest_base_vr").notNull(),
+    instituteLevel: integer("institute_level"),
+    flaggedAt: timestamp("flagged_at", { withTimezone: true }),
+    flagReason: text("flag_reason"),
+    updatedByDiscordUserId: text("updated_by_discord_user_id"),
+    updatedByHqUserId: text("updated_by_hq_user_id").references(() => hqUsers.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    unique("commander_season_vr_commander_season_unique").on(
+      table.commanderId,
+      table.seasonKey,
+    ),
+    index("commander_season_vr_season_idx").on(table.seasonKey),
+  ],
+);
+
+/** Commander-scoped VR event timeline (append-only). */
+export const commanderSeasonVrEvents = pgTable(
+  "commander_season_vr_events",
+  {
+    id: text("id").primaryKey(),
+    commanderId: text("commander_id")
+      .notNull()
+      .references(() => commanders.id, { onDelete: "cascade" }),
+    seasonKey: text("season_key").notNull(),
+    baseVr: integer("base_vr").notNull(),
+    instituteLevel: integer("institute_level"),
+    previousBaseVr: integer("previous_base_vr"),
+    source: text("source").notNull(),
+    allianceId: text("alliance_id").references(() => alliances.id, {
+      onDelete: "set null",
+    }),
+    reportedByHqUserId: text("reported_by_hq_user_id").references(
+      () => hqUsers.id,
+      { onDelete: "set null" },
+    ),
+    reportedByDiscordUserId: text("reported_by_discord_user_id"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("commander_season_vr_events_commander_season_created_idx").on(
+      table.commanderId,
+      table.seasonKey,
+      table.createdAt,
+    ),
+    index("commander_season_vr_events_alliance_season_idx").on(
+      table.allianceId,
+      table.seasonKey,
+    ),
+  ],
+);
+
 /** Commander-scoped total hero power event history (append-only). */
 export const commanderThpEvents = pgTable(
   "commander_thp_events",
@@ -1243,6 +1317,8 @@ export type HqMemberLinkPending = typeof hqMemberLinkPending.$inferSelect;
 export type DiscordMemberLink = typeof discordMemberLinks.$inferSelect;
 export type MemberSeasonVr = typeof memberSeasonVr.$inferSelect;
 export type MemberSeasonVrEvent = typeof memberSeasonVrEvents.$inferSelect;
+export type CommanderSeasonVr = typeof commanderSeasonVr.$inferSelect;
+export type CommanderSeasonVrEvent = typeof commanderSeasonVrEvents.$inferSelect;
 export type HqVrPending = typeof hqVrPending.$inferSelect;
 export type DiscordBotPending = typeof discordBotPending.$inferSelect;
 export type DiscordBotAudit = typeof discordBotAudit.$inferSelect;

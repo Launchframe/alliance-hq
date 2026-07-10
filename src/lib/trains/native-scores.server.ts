@@ -1,11 +1,9 @@
 import "server-only";
 
-import { and, desc, eq } from "drizzle-orm";
-
-import { getDb, schema } from "@/lib/db";
 import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
 import { listActiveAllianceMembersForPool } from "@/lib/members/roster.server";
 import type { RollCandidate } from "@/lib/trains/types";
+import { listAllianceSeasonVrForLeaderboard } from "@/lib/vr/repository";
 
 /**
  * Season VR standings from HQ (Discord/web reports). Used for all train wheels,
@@ -24,23 +22,13 @@ export async function fetchNativeVrTopScorers(
     members.map((member) => [member.ashedMemberId, member.allianceRank ?? null]),
   );
 
-  const db = getDb();
-  const vrRows = await db
-    .select({
-      ashedMemberId: schema.memberSeasonVr.ashedMemberId,
-      highestBaseVr: schema.memberSeasonVr.highestBaseVr,
-    })
-    .from(schema.memberSeasonVr)
-    .where(
-      and(
-        eq(schema.memberSeasonVr.allianceId, allianceId),
-        eq(schema.memberSeasonVr.seasonKey, seasonKey),
-      ),
-    )
-    .orderBy(desc(schema.memberSeasonVr.highestBaseVr));
+  const vrRows = await listAllianceSeasonVrForLeaderboard(allianceId, seasonKey);
+  const sorted = [...vrRows].sort(
+    (a, b) => b.highestBaseVr - a.highestBaseVr,
+  );
 
   const candidates: RollCandidate[] = [];
-  for (const row of vrRows) {
+  for (const row of sorted) {
     if (candidates.length >= limit) break;
     const memberName = nameById.get(row.ashedMemberId);
     const vr = row.highestBaseVr;
@@ -60,19 +48,7 @@ export async function fetchHqSeasonVsScoresByMember(
   allianceId: string,
 ): Promise<Map<string, number>> {
   const { seasonKey } = await getEffectiveSeasonForAlliance(allianceId);
-  const db = getDb();
-  const rows = await db
-    .select({
-      ashedMemberId: schema.memberSeasonVr.ashedMemberId,
-      highestBaseVr: schema.memberSeasonVr.highestBaseVr,
-    })
-    .from(schema.memberSeasonVr)
-    .where(
-      and(
-        eq(schema.memberSeasonVr.allianceId, allianceId),
-        eq(schema.memberSeasonVr.seasonKey, seasonKey),
-      ),
-    );
+  const rows = await listAllianceSeasonVrForLeaderboard(allianceId, seasonKey);
 
   const scores = new Map<string, number>();
   for (const row of rows) {

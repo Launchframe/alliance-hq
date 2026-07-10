@@ -11,7 +11,7 @@ import { syncCommanderIdentityFromMemberLink } from "@/lib/members/commander-ide
 import { hasConflictingDiscordGameUidClaim } from "@/lib/member-link/link-claim-guards.shared";
 import { parseAshedMemberAllianceRank } from "@/lib/members/alliance-rank";
 import { isNativeAlliance } from "@/lib/native-alliance/operating-mode";
-import { buildFlagReason, peerMaxExcludingMember } from "@/lib/vr/anomaly";
+import { buildFlagReason, peerMaxExcludingCommander, peerMaxExcludingMember } from "@/lib/vr/anomaly";
 import { MAX_DISCORD_LINKS_PER_USER, type VrEventSource } from "@/lib/vr/constants";
 import { coerceInstituteLevelFromBaseVr } from "@/lib/vr/institute-levels.shared";
 import {
@@ -559,11 +559,48 @@ export async function deleteDiscordMemberLinksForUser(
   return deleted.length;
 }
 
+export async function resolveCommanderIdForMember(
+  allianceId: string,
+  ashedMemberId: string,
+): Promise<string | null> {
+  const row = await getCommanderByAshedMemberId(ashedMemberId, allianceId);
+  return row?.commanderId ?? null;
+}
+
+export async function getCommanderSeasonHigh(
+  commanderId: string,
+  seasonKey: string,
+): Promise<number | null> {
+  const db = getDb();
+  const [row] = await db
+    .select({ highestBaseVr: schema.commanderSeasonVr.highestBaseVr })
+    .from(schema.commanderSeasonVr)
+    .where(
+      and(
+        eq(schema.commanderSeasonVr.commanderId, commanderId),
+        eq(schema.commanderSeasonVr.seasonKey, seasonKey),
+      ),
+    )
+    .limit(1);
+  return row?.highestBaseVr ?? null;
+}
+
 export async function getMemberSeasonHigh(
   allianceId: string,
   ashedMemberId: string,
   seasonKey: string,
 ): Promise<number | null> {
+  const commanderId = await resolveCommanderIdForMember(
+    allianceId,
+    ashedMemberId,
+  );
+  if (commanderId) {
+    const commanderHigh = await getCommanderSeasonHigh(commanderId, seasonKey);
+    if (commanderHigh != null) {
+      return commanderHigh;
+    }
+  }
+
   const db = getDb();
   const [row] = await db
     .select({ highestBaseVr: schema.memberSeasonVr.highestBaseVr })
@@ -583,22 +620,57 @@ export async function countSeasonReporters(
   allianceId: string,
   seasonKey: string,
 ): Promise<number> {
-  const db = getDb();
-  const [row] = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(schema.memberSeasonVr)
-    .where(
-      and(
-        eq(schema.memberSeasonVr.allianceId, allianceId),
-        eq(schema.memberSeasonVr.seasonKey, seasonKey),
-      ),
-    );
-  return row?.count ?? 0;
+  const rows = await listAllianceSeasonVrForLeaderboard(allianceId, seasonKey);
+  return rows.length;
 }
 
-export async function listSeasonVrRows(allianceId: string, seasonKey: string) {
+/** Alliance-scoped VR rows for leaderboards (active memberships only). */
+export type AllianceSeasonVrRow = {
+  commanderId: string;
+  ashedMemberId: string;
+  highestBaseVr: number;
+  instituteLevel: number | null;
+  flaggedAt: Date | null;
+  flagReason: string | null;
+  updatedAt: Date;
+};
+
+export async function listAllianceSeasonVrForLeaderboard(
+  allianceId: string,
+  seasonKey: string,
+): Promise<AllianceSeasonVrRow[]> {
   const db = getDb();
-  return db
+  const commanderRows = await db
+    .select({
+      commanderId: schema.commanderSeasonVr.commanderId,
+      ashedMemberId: schema.commanderAllianceMemberships.ashedMemberId,
+      highestBaseVr: schema.commanderSeasonVr.highestBaseVr,
+      instituteLevel: schema.commanderSeasonVr.instituteLevel,
+      flaggedAt: schema.commanderSeasonVr.flaggedAt,
+      flagReason: schema.commanderSeasonVr.flagReason,
+      updatedAt: schema.commanderSeasonVr.updatedAt,
+    })
+    .from(schema.commanderSeasonVr)
+    .innerJoin(
+      schema.commanderAllianceMemberships,
+      and(
+        eq(
+          schema.commanderAllianceMemberships.commanderId,
+          schema.commanderSeasonVr.commanderId,
+        ),
+        eq(schema.commanderAllianceMemberships.allianceId, allianceId),
+        isNull(schema.commanderAllianceMemberships.leftAt),
+        eq(schema.commanderAllianceMemberships.status, "active"),
+      ),
+    )
+    .where(eq(schema.commanderSeasonVr.seasonKey, seasonKey));
+
+  if (commanderRows.length > 0) {
+    return commanderRows;
+  }
+
+  // Dual-read fallback for orphan legacy rows (no commander membership).
+  const legacy = await db
     .select()
     .from(schema.memberSeasonVr)
     .where(
@@ -607,6 +679,201 @@ export async function listSeasonVrRows(allianceId: string, seasonKey: string) {
         eq(schema.memberSeasonVr.seasonKey, seasonKey),
       ),
     );
+  return legacy.map((row) => ({
+    commanderId: "",
+    ashedMemberId: row.ashedMemberId,
+    highestBaseVr: row.highestBaseVr,
+    instituteLevel: row.instituteLevel,
+    flaggedAt: row.flaggedAt,
+    flagReason: row.flagReason,
+    updatedAt: row.updatedAt,
+  }));
+}
+
+/** @deprecated Prefer listAllianceSeasonVrForLeaderboard */
+export async function listSeasonVrRows(allianceId: string, seasonKey: string) {
+  const rows = await listAllianceSeasonVrForLeaderboard(allianceId, seasonKey);
+  return rows.map((row) => ({
+    id: "",
+    allianceId,
+    ashedMemberId: row.ashedMemberId,
+    seasonKey,
+    highestBaseVr: row.highestBaseVr,
+    instituteLevel: row.instituteLevel,
+    flaggedAt: row.flaggedAt,
+    flagReason: row.flagReason,
+    updatedByDiscordUserId: null as string | null,
+    updatedByHqUserId: null as string | null,
+    createdAt: row.updatedAt,
+    updatedAt: row.updatedAt,
+  }));
+}
+
+export async function upsertCommanderSeasonVr(input: {
+  commanderId: string;
+  allianceId: string;
+  ashedMemberId: string;
+  seasonKey: string;
+  baseVr: number;
+  instituteLevel?: number | null;
+  discordUserId?: string | null;
+  hqUserId?: string | null;
+  flagReason?: string | null;
+  eventSource?: VrEventSource;
+}): Promise<void> {
+  const db = getDb();
+  const now = new Date();
+  const previousBaseVr = await getCommanderSeasonHigh(
+    input.commanderId,
+    input.seasonKey,
+  );
+  const instituteLevel =
+    input.instituteLevel ??
+    coerceInstituteLevelFromBaseVr(input.seasonKey, input.baseVr);
+  const allianceRows = await listAllianceSeasonVrForLeaderboard(
+    input.allianceId,
+    input.seasonKey,
+  );
+  const peerMax = peerMaxExcludingCommander(
+    allianceRows
+      .filter((row) => row.commanderId.length > 0)
+      .map((row) => ({
+        commanderId: row.commanderId,
+        highestBaseVr: row.highestBaseVr,
+      })),
+    input.commanderId,
+  );
+  const flagReason =
+    input.flagReason ??
+    (input.baseVr >= peerMax + 750 || input.baseVr > 10250
+      ? buildFlagReason(input.baseVr, peerMax)
+      : null);
+
+  await db
+    .insert(schema.commanderSeasonVr)
+    .values({
+      id: nanoid(),
+      commanderId: input.commanderId,
+      seasonKey: input.seasonKey,
+      highestBaseVr: input.baseVr,
+      instituteLevel,
+      updatedByDiscordUserId: input.discordUserId ?? null,
+      updatedByHqUserId: input.hqUserId ?? null,
+      flaggedAt: flagReason ? now : null,
+      flagReason,
+      createdAt: now,
+      updatedAt: now,
+    })
+    .onConflictDoUpdate({
+      target: [
+        schema.commanderSeasonVr.commanderId,
+        schema.commanderSeasonVr.seasonKey,
+      ],
+      set: {
+        highestBaseVr: input.baseVr,
+        instituteLevel,
+        updatedByDiscordUserId: input.discordUserId ?? null,
+        updatedByHqUserId: input.hqUserId ?? null,
+        updatedAt: now,
+        flaggedAt: flagReason ? now : null,
+        flagReason,
+      },
+    });
+
+  if (input.eventSource && previousBaseVr !== input.baseVr) {
+    await db.insert(schema.commanderSeasonVrEvents).values({
+      id: nanoid(),
+      commanderId: input.commanderId,
+      seasonKey: input.seasonKey,
+      baseVr: input.baseVr,
+      instituteLevel,
+      previousBaseVr,
+      source: input.eventSource,
+      allianceId: input.allianceId,
+      reportedByHqUserId: input.hqUserId ?? null,
+      reportedByDiscordUserId: input.discordUserId ?? null,
+      createdAt: now,
+    });
+  }
+
+  // Dual-write legacy roster-keyed tables for rollback safety.
+  await writeLegacyMemberSeasonVr({
+    allianceId: input.allianceId,
+    ashedMemberId: input.ashedMemberId,
+    seasonKey: input.seasonKey,
+    baseVr: input.baseVr,
+    instituteLevel,
+    discordUserId: input.discordUserId,
+    hqUserId: input.hqUserId,
+    flagReason,
+    previousBaseVr,
+    eventSource: input.eventSource,
+    now,
+  });
+}
+
+async function writeLegacyMemberSeasonVr(input: {
+  allianceId: string;
+  ashedMemberId: string;
+  seasonKey: string;
+  baseVr: number;
+  instituteLevel: number | null;
+  discordUserId?: string | null;
+  hqUserId?: string | null;
+  flagReason: string | null;
+  previousBaseVr: number | null;
+  eventSource?: VrEventSource;
+  now: Date;
+}): Promise<void> {
+  const db = getDb();
+  await db
+    .insert(schema.memberSeasonVr)
+    .values({
+      id: nanoid(),
+      allianceId: input.allianceId,
+      ashedMemberId: input.ashedMemberId,
+      seasonKey: input.seasonKey,
+      highestBaseVr: input.baseVr,
+      instituteLevel: input.instituteLevel,
+      updatedByDiscordUserId: input.discordUserId ?? null,
+      updatedByHqUserId: input.hqUserId ?? null,
+      flaggedAt: input.flagReason ? input.now : null,
+      flagReason: input.flagReason,
+      createdAt: input.now,
+      updatedAt: input.now,
+    })
+    .onConflictDoUpdate({
+      target: [
+        schema.memberSeasonVr.allianceId,
+        schema.memberSeasonVr.ashedMemberId,
+        schema.memberSeasonVr.seasonKey,
+      ],
+      set: {
+        highestBaseVr: input.baseVr,
+        instituteLevel: input.instituteLevel,
+        updatedByDiscordUserId: input.discordUserId ?? null,
+        updatedByHqUserId: input.hqUserId ?? null,
+        updatedAt: input.now,
+        flaggedAt: input.flagReason ? input.now : null,
+        flagReason: input.flagReason,
+      },
+    });
+
+  if (input.eventSource && input.previousBaseVr !== input.baseVr) {
+    await db.insert(schema.memberSeasonVrEvents).values({
+      id: nanoid(),
+      allianceId: input.allianceId,
+      seasonKey: input.seasonKey,
+      ashedMemberId: input.ashedMemberId,
+      baseVr: input.baseVr,
+      instituteLevel: input.instituteLevel,
+      previousBaseVr: input.previousBaseVr,
+      source: input.eventSource,
+      reportedByHqUserId: input.hqUserId ?? null,
+      reportedByDiscordUserId: input.discordUserId ?? null,
+      createdAt: input.now,
+    });
+  }
 }
 
 export async function upsertMemberSeasonVr(input: {
@@ -619,7 +886,21 @@ export async function upsertMemberSeasonVr(input: {
   hqUserId?: string | null;
   flagReason?: string | null;
   eventSource?: VrEventSource;
+  commanderId?: string | null;
 }): Promise<void> {
+  const commanderId =
+    input.commanderId ??
+    (await resolveCommanderIdForMember(input.allianceId, input.ashedMemberId));
+
+  if (commanderId) {
+    await upsertCommanderSeasonVr({
+      ...input,
+      commanderId,
+    });
+    return;
+  }
+
+  // Orphan roster slot with no commander — legacy-only write.
   const db = getDb();
   const now = new Date();
   const previousBaseVr = await getMemberSeasonHigh(
@@ -638,54 +919,36 @@ export async function upsertMemberSeasonVr(input: {
       ? buildFlagReason(input.baseVr, peerMax)
       : null);
 
-  await db
-    .insert(schema.memberSeasonVr)
-    .values({
-      id: nanoid(),
-      allianceId: input.allianceId,
-      ashedMemberId: input.ashedMemberId,
-      seasonKey: input.seasonKey,
-      highestBaseVr: input.baseVr,
-      instituteLevel,
-      updatedByDiscordUserId: input.discordUserId ?? null,
-      updatedByHqUserId: input.hqUserId ?? null,
-      flaggedAt: flagReason ? now : null,
-      flagReason,
-      createdAt: now,
-      updatedAt: now,
-    })
-    .onConflictDoUpdate({
-      target: [
-        schema.memberSeasonVr.allianceId,
-        schema.memberSeasonVr.ashedMemberId,
-        schema.memberSeasonVr.seasonKey,
-      ],
-      set: {
-        highestBaseVr: input.baseVr,
-        instituteLevel,
-        updatedByDiscordUserId: input.discordUserId ?? null,
-        updatedByHqUserId: input.hqUserId ?? null,
-        updatedAt: now,
-        flaggedAt: flagReason ? now : null,
-        flagReason,
-      },
-    });
+  await writeLegacyMemberSeasonVr({
+    allianceId: input.allianceId,
+    ashedMemberId: input.ashedMemberId,
+    seasonKey: input.seasonKey,
+    baseVr: input.baseVr,
+    instituteLevel,
+    discordUserId: input.discordUserId,
+    hqUserId: input.hqUserId,
+    flagReason,
+    previousBaseVr,
+    eventSource: input.eventSource,
+    now,
+  });
+}
 
-  if (input.eventSource && previousBaseVr !== input.baseVr) {
-    await db.insert(schema.memberSeasonVrEvents).values({
-      id: nanoid(),
-      allianceId: input.allianceId,
-      seasonKey: input.seasonKey,
-      ashedMemberId: input.ashedMemberId,
-      baseVr: input.baseVr,
-      instituteLevel,
-      previousBaseVr,
-      source: input.eventSource,
-      reportedByHqUserId: input.hqUserId ?? null,
-      reportedByDiscordUserId: input.discordUserId ?? null,
-      createdAt: now,
-    });
-  }
+export async function listCommanderSeasonVrEvents(
+  commanderId: string,
+  seasonKey: string,
+) {
+  const db = getDb();
+  return db
+    .select()
+    .from(schema.commanderSeasonVrEvents)
+    .where(
+      and(
+        eq(schema.commanderSeasonVrEvents.commanderId, commanderId),
+        eq(schema.commanderSeasonVrEvents.seasonKey, seasonKey),
+      ),
+    )
+    .orderBy(asc(schema.commanderSeasonVrEvents.createdAt));
 }
 
 export async function listMemberSeasonVrEvents(
@@ -693,6 +956,29 @@ export async function listMemberSeasonVrEvents(
   seasonKey: string,
   ashedMemberId: string,
 ) {
+  const commanderId = await resolveCommanderIdForMember(
+    allianceId,
+    ashedMemberId,
+  );
+  if (commanderId) {
+    const events = await listCommanderSeasonVrEvents(commanderId, seasonKey);
+    if (events.length > 0) {
+      return events.map((event) => ({
+        id: event.id,
+        allianceId: event.allianceId ?? allianceId,
+        seasonKey: event.seasonKey,
+        ashedMemberId,
+        baseVr: event.baseVr,
+        instituteLevel: event.instituteLevel,
+        previousBaseVr: event.previousBaseVr,
+        source: event.source,
+        reportedByHqUserId: event.reportedByHqUserId,
+        reportedByDiscordUserId: event.reportedByDiscordUserId,
+        createdAt: event.createdAt,
+      }));
+    }
+  }
+
   const db = getDb();
   return db
     .select()
@@ -780,17 +1066,23 @@ export async function purgeExpiredHqVrPending(): Promise<number> {
 }
 
 export async function listLeaderboardRows(allianceId: string, seasonKey: string) {
-  const db = getDb();
-  return db
-    .select()
-    .from(schema.memberSeasonVr)
-    .where(
-      and(
-        eq(schema.memberSeasonVr.allianceId, allianceId),
-        eq(schema.memberSeasonVr.seasonKey, seasonKey),
-      ),
-    )
-    .orderBy(desc(schema.memberSeasonVr.highestBaseVr));
+  const rows = await listAllianceSeasonVrForLeaderboard(allianceId, seasonKey);
+  return rows
+    .map((row) => ({
+      id: row.commanderId || row.ashedMemberId,
+      allianceId,
+      ashedMemberId: row.ashedMemberId,
+      seasonKey,
+      highestBaseVr: row.highestBaseVr,
+      instituteLevel: row.instituteLevel,
+      flaggedAt: row.flaggedAt,
+      flagReason: row.flagReason,
+      updatedByDiscordUserId: null as string | null,
+      updatedByHqUserId: null as string | null,
+      createdAt: row.updatedAt,
+      updatedAt: row.updatedAt,
+    }))
+    .sort((a, b) => b.highestBaseVr - a.highestBaseVr);
 }
 
 export async function listWeeklyPassActiveByAlliance(
@@ -858,18 +1150,24 @@ export async function setWeeklyPass(input: {
 }
 
 export async function listFlaggedSeasonVr(allianceId: string, seasonKey: string) {
-  const db = getDb();
-  return db
-    .select()
-    .from(schema.memberSeasonVr)
-    .where(
-      and(
-        eq(schema.memberSeasonVr.allianceId, allianceId),
-        eq(schema.memberSeasonVr.seasonKey, seasonKey),
-        sql`${schema.memberSeasonVr.flaggedAt} IS NOT NULL`,
-      ),
-    )
-    .orderBy(desc(schema.memberSeasonVr.updatedAt));
+  const rows = await listAllianceSeasonVrForLeaderboard(allianceId, seasonKey);
+  return rows
+    .filter((row) => row.flaggedAt != null)
+    .map((row) => ({
+      id: row.commanderId || row.ashedMemberId,
+      allianceId,
+      ashedMemberId: row.ashedMemberId,
+      seasonKey,
+      highestBaseVr: row.highestBaseVr,
+      instituteLevel: row.instituteLevel,
+      flaggedAt: row.flaggedAt,
+      flagReason: row.flagReason,
+      updatedByDiscordUserId: null as string | null,
+      updatedByHqUserId: null as string | null,
+      createdAt: row.updatedAt,
+      updatedAt: row.updatedAt,
+    }))
+    .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
 }
 
 export async function officerOverrideSeasonVr(input: {

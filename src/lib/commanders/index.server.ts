@@ -16,7 +16,7 @@ import { allianceMemberRowToAshedMember } from "@/lib/members/roster.shared";
 import { loadOAuthIdentitySplitsForAlliance } from "@/lib/auth/oauth-identity-split.server";
 import { sessionHasPermission } from "@/lib/rbac/context";
 import { memberTotalHeroPower } from "@/lib/vr/leaderboard";
-import { resolveSeasonKey } from "@/lib/vr/repository";
+import { listAllianceSeasonVrForLeaderboard, resolveSeasonKey } from "@/lib/vr/repository";
 import { listOwnedAshedMemberIdsForViewer } from "@/lib/commanders/main-squad.server";
 
 export type { CommanderIndexPayload, CommanderIndexRow } from "@/lib/commanders/index.shared";
@@ -47,15 +47,7 @@ export async function loadCommanderIndex(
         desc(schema.allianceMembers.allianceRank),
         asc(schema.allianceMembers.currentName),
       ),
-    db
-      .select()
-      .from(schema.memberSeasonVr)
-      .where(
-        and(
-          eq(schema.memberSeasonVr.allianceId, allianceId),
-          eq(schema.memberSeasonVr.seasonKey, seasonKey),
-        ),
-      ),
+    listAllianceSeasonVrForLeaderboard(allianceId, seasonKey),
     sessionHasPermission(sessionId, "members:write"),
     hqUserId
       ? listOwnedAshedMemberIdsForViewer({ hqUserId, allianceId })

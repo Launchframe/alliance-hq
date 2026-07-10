@@ -58,6 +58,18 @@ export async function wipeVrSandboxData(
       ),
     );
   await db
+    .delete(schema.commanderSeasonVrEvents)
+    .where(
+      and(
+        eq(schema.commanderSeasonVrEvents.allianceId, allianceId),
+        eq(schema.commanderSeasonVrEvents.seasonKey, seasonKey),
+      ),
+    );
+  // Sandbox season keys are unique per alliance; wipe commander summary by season key.
+  await db
+    .delete(schema.commanderSeasonVr)
+    .where(eq(schema.commanderSeasonVr.seasonKey, seasonKey));
+  await db
     .delete(schema.hqVrPending)
     .where(eq(schema.hqVrPending.allianceId, allianceId));
   // VR-only pending — preserve in-flight /link walkthroughs and identity confirms.
