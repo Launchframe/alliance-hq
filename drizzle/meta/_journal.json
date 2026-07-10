@@ -652,6 +652,13 @@
       "when": 1787222400000,
       "tag": "0093_commander_power_stats",
       "breakpoints": true
+    },
+    {
+      "idx": 92,
+      "version": "7",
+      "when": 1787308800000,
+      "tag": "0094_hq_invite_revoked_at",
+      "breakpoints": true
     }
   ]
 }

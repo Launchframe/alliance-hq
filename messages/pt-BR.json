@@ -1260,6 +1260,13 @@
       "inventoryPageInfo": "Página {page} de {total}",
       "inventoryPagePrev": "Anterior",
       "inventoryPageNext": "Próxima",
+      "deactivateButton": "Desativar",
+      "deactivateConfirmTitle": "Desativar convite?",
+      "deactivateConfirmBody": "Isso revogará imediatamente o convite ou código de entrada. Quem ainda não usou não poderá mais fazê-lo. Essa ação não pode ser desfeita.",
+      "deactivateConfirm": "Desativar",
+      "deactivateCancel": "Cancelar",
+      "deactivating": "Desativando…",
+      "deactivateFailed": "Não foi possível desativar o convite.",
       "ownerOnlyGate": "Only the alliance owner can send invites and create join codes for this alliance. Ask your R5 to invite new members.",
       "forbidden": "You don't have permission to manage invites for this alliance."
     },

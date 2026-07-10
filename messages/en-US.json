@@ -1261,7 +1261,14 @@
       "inventoryFilterNoResults": "No results for the current filters.",
       "inventoryPageInfo": "Page {page} of {total}",
       "inventoryPagePrev": "Previous",
-      "inventoryPageNext": "Next"
+      "inventoryPageNext": "Next",
+      "deactivateButton": "Deactivate",
+      "deactivateConfirmTitle": "Deactivate invite?",
+      "deactivateConfirmBody": "This will immediately revoke the invite or join code. Anyone who has not yet used it will no longer be able to. This cannot be undone.",
+      "deactivateConfirm": "Deactivate",
+      "deactivateCancel": "Cancel",
+      "deactivating": "Deactivating…",
+      "deactivateFailed": "Could not deactivate the invite."
     },
     "table": {
       "user": "User",

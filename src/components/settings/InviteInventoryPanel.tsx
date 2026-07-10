@@ -1,11 +1,12 @@
 "use client";
 
-import { Check, ChevronLeft, ChevronRight, Copy, Eye } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Copy, Eye, ShieldOff } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { useFormatAccountDateTime } from "@/components/timezone/TimezoneProvider";
 import { AppSelect } from "@/components/ui/AppSelect";
+import { Dialog } from "@/components/ui/dialog";
 import type {
   InventoryAllianceOption,
   InviteInventoryDepletedReason,
@@ -115,12 +116,102 @@ function CodeHintReveal({ hint }: { hint: string }) {
   );
 }
 
+function DeactivateButton({
+  item,
+  allianceId,
+  onDeactivated,
+}: {
+  item: InviteInventoryItem;
+  allianceId: string;
+  onDeactivated: () => void;
+}) {
+  const t = useTranslations("team.invites");
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleConfirm() {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/settings/team/invites/deactivate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kind: item.kind, id: item.id, allianceId }),
+      });
+      const body = (await res.json()) as { error?: string };
+      if (!res.ok) {
+        throw new Error(body.error ?? t("deactivateFailed"));
+      }
+      setConfirmOpen(false);
+      onDeactivated();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("deactivateFailed"));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setConfirmOpen(true)}
+        className="inline-flex items-center gap-1.5 rounded-md border border-hq-danger/40 bg-hq-danger/10 px-2.5 py-1 text-xs text-hq-danger transition-colors hover:bg-hq-danger/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hq-danger"
+      >
+        <ShieldOff aria-hidden className="h-3.5 w-3.5" />
+        {t("deactivateButton")}
+      </button>
+
+      <Dialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title={t("deactivateConfirmTitle")}
+      >
+        <h2 className="text-base font-semibold text-hq-fg">
+          {t("deactivateConfirmTitle")}
+        </h2>
+        <p className="mt-2 text-sm text-hq-fg-muted">
+          {t("deactivateConfirmBody")}
+        </p>
+        {error ? (
+          <p className="mt-3 text-sm text-hq-danger" role="alert">
+            {error}
+          </p>
+        ) : null}
+        <div className="mt-5 flex justify-end gap-3">
+          <button
+            type="button"
+            onClick={() => setConfirmOpen(false)}
+            disabled={busy}
+            className="rounded-lg border border-hq-border bg-hq-surface-muted px-4 py-2 text-sm text-hq-fg transition-colors hover:bg-hq-border disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hq-accent"
+          >
+            {t("deactivateCancel")}
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleConfirm()}
+            disabled={busy}
+            className="rounded-lg bg-hq-danger px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hq-danger"
+          >
+            {busy ? t("deactivating") : t("deactivateConfirm")}
+          </button>
+        </div>
+      </Dialog>
+    </>
+  );
+}
+
 function InventoryRow({
   item,
   depleted,
+  allianceId,
+  onDeactivated,
 }: {
   item: InviteInventoryItem;
   depleted: boolean;
+  allianceId: string;
+  onDeactivated: () => void;
 }) {
   const t = useTranslations("team.invites");
   const formatDateTime = useFormatAccountDateTime();
@@ -162,13 +253,22 @@ function InventoryRow({
             </div>
           ) : null}
         </div>
-        <div className="text-right text-xs text-hq-fg-muted">
-          <p>{formatDateTime(new Date(item.createdAt))}</p>
-          <p>
-            {t("inventoryExpires", {
-              date: formatDateTime(new Date(item.expiresAt)),
-            })}
-          </p>
+        <div className="flex flex-col items-end gap-2">
+          <div className="text-right text-xs text-hq-fg-muted">
+            <p>{formatDateTime(new Date(item.createdAt))}</p>
+            <p>
+              {t("inventoryExpires", {
+                date: formatDateTime(new Date(item.expiresAt)),
+              })}
+            </p>
+          </div>
+          {!depleted ? (
+            <DeactivateButton
+              item={item}
+              allianceId={allianceId}
+              onDeactivated={onDeactivated}
+            />
+          ) : null}
         </div>
       </div>
       {usesLine ? (
@@ -359,6 +459,15 @@ export function InviteInventoryPanel({ refreshToken = 0 }: Props) {
     setPage(1);
   }
 
+  async function handleDeactivated() {
+    try {
+      const data = await fetchInventory(selectedAllianceId || undefined);
+      setInventory(data.inventory ?? { valid: [], depleted: [] });
+    } catch {
+      // swallow — inventory will still show stale data; user can manually refresh
+    }
+  }
+
   return (
     <div className="space-y-4">
       <div>
@@ -507,6 +616,8 @@ export function InviteInventoryPanel({ refreshToken = 0 }: Props) {
               key={`${item.kind}-${item.id}`}
               item={item}
               depleted={tab === "depleted"}
+              allianceId={selectedAllianceId}
+              onDeactivated={() => void handleDeactivated()}
             />
           ))}
         </ul>

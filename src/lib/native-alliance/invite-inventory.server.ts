@@ -89,6 +89,7 @@ export async function listAllianceInviteInventory(
     const { status, depletedReason } = classifyInviteLinkStatus({
       acceptedAt: row.acceptedAt,
       expiresAt: row.expiresAt,
+      revokedAt: row.revokedAt,
       now,
     });
 
@@ -107,7 +108,7 @@ export async function listAllianceInviteInventory(
       expiresAt: row.expiresAt.toISOString(),
       createdAt: row.createdAt.toISOString(),
       acceptedAt: row.acceptedAt?.toISOString() ?? null,
-      revokedAt: null,
+      revokedAt: row.revokedAt?.toISOString() ?? null,
       status,
       depletedReason,
     });

@@ -82,9 +82,13 @@ export function classifyJoinCodeStatus(input: {
 export function classifyInviteLinkStatus(input: {
   acceptedAt: Date | null;
   expiresAt: Date;
+  revokedAt?: Date | null;
   now?: Date;
 }): { status: "valid" | "depleted"; depletedReason: InviteInventoryDepletedReason | null } {
   const now = input.now ?? new Date();
+  if (input.revokedAt) {
+    return { status: "depleted", depletedReason: "revoked" };
+  }
   if (input.acceptedAt) {
     return { status: "depleted", depletedReason: "accepted" };
   }
