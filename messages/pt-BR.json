@@ -4369,6 +4369,19 @@
       "title": "Próximas capturas",
       "empty": "Nenhuma captura futura foi agendada ainda."
     },
+    "announcement": {
+      "title": "Anúncio no jogo",
+      "subtitle": "Copie e cole as capturas das próximas 24 horas no chat da aliança.",
+      "copyLabel": "Prévia do anúncio",
+      "stronghold": "Fortaleza",
+      "city": "Cidade",
+      "serverTimeSuffix": "HS",
+      "summary": "Próximas 24 horas: {cityCount} cidades e {strongholdCount} fortalezas para capturar.",
+      "policyWar": "Espere contestação. Capture rápido e fique alerta.",
+      "policyPeace": "Entrada e saída nessas fortalezas. Não temos pressa para capturá-las.",
+      "seasonDisclaimer": "📣 NÃO SAQUE OURO até o marcador do mapa liberar.\nLíderes da Resistência saqueiam primeiro para evoluir mais rápido, avançar com força e ajudar a alcançar as metas do time 💪💪",
+      "empty": "Nenhuma captura está agendada nas próximas 24 horas."
+    },
     "calendar": {
       "previousMonth": "Mês anterior",
       "nextMonth": "Próximo mês",

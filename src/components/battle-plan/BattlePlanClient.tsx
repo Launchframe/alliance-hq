@@ -3,6 +3,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 
+import { BattlePlanAnnouncementPanel } from "@/components/battle-plan/BattlePlanAnnouncementPanel";
 import { BattlePlanCalendar } from "@/components/battle-plan/BattlePlanCalendar";
 import { BattlePlanSettingsPanel } from "@/components/battle-plan/BattlePlanSettingsPanel";
 import {
@@ -35,7 +36,10 @@ export function BattlePlanClient({ initial }: Props) {
   );
 
   const applyDashboard = useCallback((next: BattlePlanDashboardPayload) => {
-    setDashboard(next);
+    setDashboard((current) => ({
+      ...next,
+      effectiveSeasonKey: next.effectiveSeasonKey ?? current.effectiveSeasonKey,
+    }));
     setError(null);
   }, []);
 
@@ -183,6 +187,10 @@ export function BattlePlanClient({ initial }: Props) {
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(18rem,1fr)]">
         <div className="space-y-6">
+          <BattlePlanAnnouncementPanel
+            events={dashboard.events}
+            effectiveSeasonKey={dashboard.effectiveSeasonKey}
+          />
           <UpcomingCapturesList
             events={dashboard.events}
             canWrite={dashboard.canWrite}

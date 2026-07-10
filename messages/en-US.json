@@ -4370,6 +4370,19 @@
       "title": "Upcoming captures",
       "empty": "No upcoming captures are scheduled yet."
     },
+    "announcement": {
+      "title": "In-game announcement",
+      "subtitle": "Copy and paste the next 24 hours of captures into alliance chat.",
+      "copyLabel": "Announcement preview",
+      "stronghold": "Stronghold",
+      "city": "City",
+      "serverTimeSuffix": "ST",
+      "summary": "Next 24 hours: {cityCount} cities and {strongholdCount} strongholds to take.",
+      "policyWar": "Expect these to be contested. Capture quickly and be on your guard.",
+      "policyPeace": "In-and-out with these Strongholds. We're not in a rush to take them.",
+      "seasonDisclaimer": "📣 DO NOT LOOT GOLD until the map marker gives you the okay.\nResistance leaders loot first so they can upgrade faster, push harder, and help us reach team goals faster 💪💪",
+      "empty": "No captures are scheduled in the next 24 hours."
+    },
     "calendar": {
       "previousMonth": "Previous month",
       "nextMonth": "Next month",

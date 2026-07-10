@@ -41,4 +41,5 @@ export type BattlePlanDashboardPayload = {
   events: SerializedCaptureEvent[];
   canWrite: boolean;
   todayServerDate: string;
+  effectiveSeasonKey?: string;
 };
