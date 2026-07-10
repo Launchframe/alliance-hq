@@ -20,6 +20,7 @@ function e2eBaseUrl(): string {
 const VIEW_ONLY_NATIVE_PAGES: Array<{ path: string; heading: RegExp }> = [
   { path: "/members", heading: /^members$/i },
   { path: "/trains", heading: /alliance train/i },
+  { path: "/battle-plan", heading: /battle plan/i },
   { path: "/my-vr", heading: /^my vr$/i },
   { path: "/settings", heading: /alliance settings/i },
   { path: "/settings/discord", heading: /discord integration/i },
@@ -35,7 +36,10 @@ const IFRAME_NAV_PATHS = NAV_GROUPS.flatMap((group) => group.pages)
   .map((page) => page.href);
 
 /** Read permissions the default view-only member fixture already has. */
-const VIEW_ONLY_MEMBER_READ_PERMISSIONS = new Set(["members:read"]);
+const VIEW_ONLY_MEMBER_READ_PERMISSIONS = new Set([
+  "members:read",
+  "battle_plan:read",
+]);
 
 const PERMISSION_GATED_NAV_PATHS = NAV_GROUPS.flatMap((group) => group.pages)
   .filter(
@@ -168,6 +172,11 @@ test.describe("View-only member APIs — ashed alliance without personal Ashed c
       headers: { Cookie: cookie },
     });
     expect(trainsRes.status(), await trainsRes.text()).toBe(200);
+
+    const battlePlanRes = await request.get("/api/battle-plan", {
+      headers: { Cookie: cookie },
+    });
+    expect(battlePlanRes.status(), await battlePlanRes.text()).toBe(200);
 
     const vrRes = await request.get("/api/vr/leaderboard", {
       headers: { Cookie: cookie },

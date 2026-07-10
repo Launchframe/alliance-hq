@@ -596,6 +596,34 @@
       "when": 1786534400000,
       "tag": "0085_price_is_right_ticket_weighting",
       "breakpoints": true
+    },
+    {
+      "idx": 84,
+      "version": "7",
+      "when": 1786620800000,
+      "tag": "0086_battle_plan",
+      "breakpoints": true
+    },
+    {
+      "idx": 85,
+      "version": "7",
+      "when": 1786707200000,
+      "tag": "0087_battle_plan_marker_colors",
+      "breakpoints": true
+    },
+    {
+      "idx": 86,
+      "version": "7",
+      "when": 1786793600000,
+      "tag": "0088_battle_plan_marker_icons",
+      "breakpoints": true
+    },
+    {
+      "idx": 87,
+      "version": "7",
+      "when": 1786880000000,
+      "tag": "0089_battle_plan_event_markers",
+      "breakpoints": true
     }
   ]
 }

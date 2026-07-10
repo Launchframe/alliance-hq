@@ -209,6 +209,14 @@ export const NAV_GROUPS: NavGroupDef[] = [
         kind: "native",
         descriptionKey: "trainsDescription",
       },
+      {
+        id: "battle-plan",
+        labelKey: "battlePlan",
+        href: "/battle-plan",
+        kind: "native",
+        requiredPermission: "battle_plan:read",
+        descriptionKey: "battlePlanDescription",
+      },
     ],
   },
   {

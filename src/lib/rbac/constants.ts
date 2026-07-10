@@ -22,7 +22,12 @@ export const HQ_PERMISSIONS = [
   { id: "ashed:connect", description: "Connect an Ashed account to HQ" },
   { id: "inbox:read", description: "View alliance reminder inbox" },
   { id: "eur:schedules:write", description: "Manage event upload reminder schedules" },
+  { id: "battle_plan:read", description: "View alliance battle plan schedule" },
+  { id: "battle_plan:write", description: "Manage alliance battle plan schedule" },
 ] as const;
+
+export const BATTLE_PLAN_READ_PERMISSION = "battle_plan:read";
+export const BATTLE_PLAN_WRITE_PERMISSION = "battle_plan:write";
 
 export const TRAINS_WRITE_PERMISSION = "trains:write";
 

@@ -2652,3 +2652,62 @@ export type EurOccurrence = typeof eurOccurrences.$inferSelect;
 export type EurUserSubscription = typeof eurUserSubscriptions.$inferSelect;
 export type InboxReminderItem = typeof inboxReminderItems.$inferSelect;
 
+// ---------------------------------------------------------------------------
+// Battle plan — territory capture scheduling
+// ---------------------------------------------------------------------------
+
+export const battlePlanSettings = pgTable("battle_plan_settings", {
+  allianceId: text("alliance_id")
+    .primaryKey()
+    .references(() => alliances.id, { onDelete: "cascade" }),
+  defaultCapturePolicy: text("default_capture_policy")
+    .notNull()
+    .default("peace"),
+  planRevision: integer("plan_revision").notNull().default(0),
+  discordReportsEnabled: integer("discord_reports_enabled").notNull().default(0),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+export const battlePlanCaptureEvents = pgTable(
+  "battle_plan_capture_events",
+  {
+    id: text("id").primaryKey(),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    scheduledAt: timestamp("scheduled_at", { withTimezone: true }).notNull(),
+    serverCalendarDate: text("server_calendar_date").notNull(),
+    territoryType: text("territory_type").notNull(),
+    iconPreset: text("icon_preset"),
+    capturePolicy: text("capture_policy"),
+    notes: text("notes"),
+    status: text("status").notNull().default("scheduled"),
+    createdByHqUserId: text("created_by_hq_user_id").references(
+      () => hqUsers.id,
+      { onDelete: "set null" },
+    ),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("battle_plan_capture_events_alliance_date_idx").on(
+      table.allianceId,
+      table.serverCalendarDate,
+    ),
+    index("battle_plan_capture_events_alliance_scheduled_idx").on(
+      table.allianceId,
+      table.scheduledAt,
+    ),
+  ],
+);
+
+export type BattlePlanSettings = typeof battlePlanSettings.$inferSelect;
+export type BattlePlanCaptureEvent =
+  typeof battlePlanCaptureEvents.$inferSelect;
+

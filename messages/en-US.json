@@ -92,6 +92,8 @@
     "myThpDescription": "Track and update your total hero power",
     "trains": "Alliance Train",
     "trainsDescription": "Daily Conductor schedule, wheel rolls, and train lock-in",
+    "battlePlan": "Battle Plan",
+    "battlePlanDescription": "Schedule territory captures and coordinate map markers",
     "desertStorm": "Desert Storm",
     "canyonStorm": "Canyon Storm",
     "otherEvents": "Other Events",
@@ -1263,6 +1265,7 @@
         "myVr": "Go to My VR",
         "myThp": "Go to My THP",
         "trains": "Go to Alliance Train",
+        "battlePlan": "Go to Battle Plan",
         "desertStorm": "Go to Desert Storm",
         "canyonStorm": "Go to Canyon Storm",
         "otherEvents": "Go to Other Events",
@@ -4382,5 +4385,108 @@
     "professionSwitched": "{name} switched to {profession}",
     "webLink": "View in Alliance HQ",
     "switchProfession": "Switch Profession"
+  },
+  "battlePlan": {
+    "title": "Battle Plan",
+    "subtitle": "Schedule territory captures so members know when and where to show up.",
+    "upcoming": {
+      "title": "Upcoming captures",
+      "empty": "No upcoming captures are scheduled yet."
+    },
+    "announcement": {
+      "title": "In-game announcement",
+      "subtitle": "Copy and paste the next 24 hours of captures into alliance chat.",
+      "copyLabel": "Announcement preview",
+      "stronghold": "Stronghold",
+      "city": "City",
+      "serverTimeSuffix": "ST",
+      "markerLabel": "{marker} marker",
+      "summary": "Next 24 hours: {cityCount, plural, one {# city} other {# cities}} and {strongholdCount, plural, one {# stronghold} other {# strongholds}} to take.",
+      "policyWar": "Expect these to be contested. Capture quickly and be on your guard.",
+      "policyPeace": "In-and-out with these Strongholds. We're not in a rush to take them.",
+      "seasonDisclaimer": "📣 DO NOT LOOT GOLD until the map marker gives you the okay.\nResistance leaders loot first so they can upgrade faster, push harder, and help us reach team goals faster 💪💪",
+      "empty": "No captures are scheduled in the next 24 hours."
+    },
+    "calendar": {
+      "viewDay": "Daily",
+      "viewMonth": "Month",
+      "previousDay": "Previous day",
+      "nextDay": "Next day",
+      "previousMonth": "Previous month",
+      "nextMonth": "Next month",
+      "weekdayHeaders": ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
+      "more": "+{count} more"
+    },
+    "settings": {
+      "title": "Capture policy",
+      "subtitle": "Peace time uses in-and-out captures. War time pushes fast takedowns.",
+      "defaultPolicy": "Default capture policy",
+      "policyPeace": "Peace — In-and-out",
+      "policyWar": "War — All gas, no brakes",
+      "savePolicy": "Save default policy"
+    },
+    "markers": {
+      "presets": {
+        "crossedSwords": "Attack here",
+        "hammer": "Build here",
+        "sun": "Sun",
+        "twinkle": "Twinkle",
+        "clover": "Clover",
+        "shield": "Shield",
+        "triangle": "Triangle",
+        "diamond": "Diamond",
+        "crescent": "Crescent",
+        "star": "Star",
+        "hexagon": "Hexagon",
+        "square": "Square",
+        "circle": "Circle",
+        "parallelogram": "Parallelogram",
+        "trapezoid": "Trapezoid",
+        "ordinal1": "1st",
+        "ordinal2": "2nd",
+        "ordinal3": "3rd",
+        "ordinal4": "4th",
+        "ordinal5": "5th"
+      }
+    },
+    "event": {
+      "createTitle": "Schedule capture",
+      "editTitle": "Edit capture",
+      "scheduledAt": "Capture time",
+      "territoryType": "Territory type",
+      "stronghold": "Stronghold",
+      "city": "City",
+      "marker": "Marker",
+      "noMarker": "None",
+      "selectMarker": "Select a marker",
+      "selectMarkerTitle": "Select a marker",
+      "doneSelectingMarker": "Done",
+      "backToEvent": "Back to event",
+      "markerInUseShort": "in use",
+      "capturePolicy": "Capture policy",
+      "status": "Status",
+      "statusScheduled": "Scheduled",
+      "statusCompleted": "Completed",
+      "statusCancelled": "Cancelled",
+      "notes": "Notes for members",
+      "notesPlaceholder": "Rally point, squad assignments, etc.",
+      "policyLine": "Policy: {policy}",
+      "captureSummary": "{territoryType} capture on {dateTime}",
+      "markerInUse": "Marker {markerLabel} is in use for a <link>{captureSummary}</link>.",
+      "markerSaveHint": "Saving will remove this marker from the other event.",
+      "confirmConflictSave": "Save and reassign marker"
+    },
+    "actions": {
+      "announce": "📣 Announce",
+      "scheduleCapture": "Schedule capture",
+      "save": "Save",
+      "saving": "Saving…",
+      "cancel": "Cancel",
+      "close": "Close",
+      "delete": "Delete"
+    },
+    "errors": {
+      "saveFailed": "Could not save battle plan changes."
+    }
   }
 }

@@ -92,6 +92,8 @@
     "myThpDescription": "Acompanhe e atualize seu poder total de heróis",
     "trains": "Trem da Aliança",
     "trainsDescription": "Agenda diária do Condutor, roleta e confirmação",
+    "battlePlan": "Plano de Batalha",
+    "battlePlanDescription": "Agende capturas de território e coordene marcadores no mapa",
     "desertStorm": "Desert Storm",
     "canyonStorm": "Canyon Storm",
     "otherEvents": "Outros Eventos",
@@ -1263,6 +1265,7 @@
         "myVr": "Ir para Meu VR",
         "myThp": "Ir para Meu THP",
         "trains": "Ir para Trem da Aliança",
+        "battlePlan": "Ir para Plano de Batalha",
         "desertStorm": "Ir para Desert Storm",
         "canyonStorm": "Ir para Canyon Storm",
         "otherEvents": "Ir para Outros Eventos",
@@ -4381,5 +4384,108 @@
     "professionSwitched": "{name} mudou para {profession}",
     "webLink": "Ver no Alliance HQ",
     "switchProfession": "Trocar Profissão"
+  },
+  "battlePlan": {
+    "title": "Plano de Batalha",
+    "subtitle": "Agende capturas de território para que os membros saibam quando e onde comparecer.",
+    "upcoming": {
+      "title": "Próximas capturas",
+      "empty": "Nenhuma captura futura foi agendada ainda."
+    },
+    "announcement": {
+      "title": "Anúncio no jogo",
+      "subtitle": "Copie e cole as capturas das próximas 24 horas no chat da aliança.",
+      "copyLabel": "Prévia do anúncio",
+      "stronghold": "Fortaleza",
+      "city": "Cidade",
+      "serverTimeSuffix": "HS",
+      "markerLabel": "{marker} marcador",
+      "summary": "Próximas 24 horas: {cityCount, plural, one {# cidade} other {# cidades}} e {strongholdCount, plural, one {# fortaleza} other {# fortalezas}} para capturar.",
+      "policyWar": "Espere contestação. Capture rápido e fique alerta.",
+      "policyPeace": "Entrada e saída nessas fortalezas. Não temos pressa para capturá-las.",
+      "seasonDisclaimer": "📣 NÃO SAQUE OURO até o marcador do mapa liberar.\nLíderes da Resistência saqueiam primeiro para evoluir mais rápido, avançar com força e ajudar a alcançar as metas do time 💪💪",
+      "empty": "Nenhuma captura está agendada nas próximas 24 horas."
+    },
+    "calendar": {
+      "viewDay": "Diário",
+      "viewMonth": "Mês",
+      "previousDay": "Dia anterior",
+      "nextDay": "Próximo dia",
+      "previousMonth": "Mês anterior",
+      "nextMonth": "Próximo mês",
+      "weekdayHeaders": ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"],
+      "more": "+{count} mais"
+    },
+    "settings": {
+      "title": "Política de captura",
+      "subtitle": "Em tempo de paz, use capturas rápidas de entrada e saída. Em guerra, avance sem freio.",
+      "defaultPolicy": "Política padrão de captura",
+      "policyPeace": "Paz — Entrada e saída",
+      "policyWar": "Guerra — Acelerar ao máximo",
+      "savePolicy": "Salvar política padrão"
+    },
+    "markers": {
+      "presets": {
+        "crossedSwords": "Atacar aqui",
+        "hammer": "Construir aqui",
+        "sun": "Sol",
+        "twinkle": "Brilho",
+        "clover": "Trevo",
+        "shield": "Escudo",
+        "triangle": "Triângulo",
+        "diamond": "Diamante",
+        "crescent": "Crescente",
+        "star": "Estrela",
+        "hexagon": "Hexágono",
+        "square": "Quadrado",
+        "circle": "Círculo",
+        "parallelogram": "Paralelogramo",
+        "trapezoid": "Trapézio",
+        "ordinal1": "1º",
+        "ordinal2": "2º",
+        "ordinal3": "3º",
+        "ordinal4": "4º",
+        "ordinal5": "5º"
+      }
+    },
+    "event": {
+      "createTitle": "Agendar captura",
+      "editTitle": "Editar captura",
+      "scheduledAt": "Horário da captura",
+      "territoryType": "Tipo de território",
+      "stronghold": "Fortaleza",
+      "city": "Cidade",
+      "marker": "Marcador",
+      "noMarker": "Nenhum",
+      "selectMarker": "Selecionar marcador",
+      "selectMarkerTitle": "Selecionar marcador",
+      "doneSelectingMarker": "Concluir",
+      "backToEvent": "Voltar ao evento",
+      "markerInUseShort": "em uso",
+      "capturePolicy": "Política de captura",
+      "status": "Status",
+      "statusScheduled": "Agendada",
+      "statusCompleted": "Concluída",
+      "statusCancelled": "Cancelada",
+      "notes": "Notas para os membros",
+      "notesPlaceholder": "Ponto de encontro, escalações, etc.",
+      "policyLine": "Política: {policy}",
+      "captureSummary": "captura de {territoryType} em {dateTime}",
+      "markerInUse": "O marcador {markerLabel} está em uso para uma <link>{captureSummary}</link>.",
+      "markerSaveHint": "Salvar removerá este marcador do outro evento.",
+      "confirmConflictSave": "Salvar e reatribuir marcador"
+    },
+    "actions": {
+      "announce": "📣 Anunciar",
+      "scheduleCapture": "Agendar captura",
+      "save": "Salvar",
+      "saving": "Salvando…",
+      "cancel": "Cancelar",
+      "close": "Fechar",
+      "delete": "Excluir"
+    },
+    "errors": {
+      "saveFailed": "Não foi possível salvar as alterações do plano de batalha."
+    }
   }
 }
