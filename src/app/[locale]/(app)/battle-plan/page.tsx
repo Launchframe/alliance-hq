@@ -3,6 +3,8 @@ import { notFound } from "next/navigation";
 
 import { BattlePlanClient } from "@/components/battle-plan/BattlePlanClient";
 import { loadBattlePlanDashboard } from "@/lib/battle-plan/load-dashboard.server";
+import { BATTLE_PLAN_READ_PERMISSION } from "@/lib/rbac/constants";
+import { requirePagePermission } from "@/lib/rbac/page-permission";
 import { requirePageSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -14,12 +16,10 @@ export async function generateMetadata() {
 
 export default async function BattlePlanPage() {
   const session = await requirePageSession("/battle-plan");
+  await requirePagePermission(session.id, BATTLE_PLAN_READ_PERMISSION);
   const dashboard = await loadBattlePlanDashboard(session.id);
 
-  if (!dashboard) {
-    notFound();
-  }
-  if ("forbidden" in dashboard) {
+  if (!dashboard || "forbidden" in dashboard) {
     notFound();
   }
 

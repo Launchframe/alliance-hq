@@ -71,20 +71,34 @@ export function BattlePlanCalendar({
             (event) => event.status === "scheduled",
           ).length;
           const isToday = cell.date === todayServerDate;
+          const daySelectable =
+            canWrite && onSelectDate != null && cell.inMonth;
           return (
-            <button
+            <div
               key={cell.date}
-              type="button"
-              disabled={!canWrite || !onSelectDate}
-              onClick={() => onSelectDate?.(cell.date)}
+              role={daySelectable ? "button" : undefined}
+              tabIndex={daySelectable ? 0 : undefined}
+              onClick={
+                daySelectable
+                  ? () => onSelectDate(cell.date)
+                  : undefined
+              }
+              onKeyDown={
+                daySelectable
+                  ? (event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        onSelectDate(cell.date);
+                      }
+                    }
+                  : undefined
+              }
               className={`min-h-20 rounded border p-1 text-left text-xs ${
                 cell.inMonth
                   ? "border-hq-border bg-hq-bg"
                   : "border-transparent bg-transparent text-hq-fg-subtle"
               } ${isToday ? "ring-1 ring-hq-accent" : ""} ${
-                canWrite && onSelectDate && cell.inMonth
-                  ? "hover:border-hq-accent"
-                  : ""
+                daySelectable ? "cursor-pointer hover:border-hq-accent" : ""
               }`}
             >
               <div className="font-medium text-hq-fg">{cell.date.slice(-2)}</div>
@@ -111,7 +125,7 @@ export function BattlePlanCalendar({
                   ) : null}
                 </div>
               ) : null}
-            </button>
+            </div>
           );
         })}
       </div>

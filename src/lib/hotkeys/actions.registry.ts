@@ -110,6 +110,15 @@ const NAV_ACTIONS: HotkeyActionDef[] = [
     href: "/trains",
   },
   {
+    id: "nav.battlePlan",
+    labelKey: "actions.nav.battlePlan",
+    category: "navigation",
+    scope: "global",
+    kind: "navigate",
+    href: "/battle-plan",
+    requiredPermission: "battle_plan:read",
+  },
+  {
     id: "nav.desertStorm",
     labelKey: "actions.nav.desertStorm",
     category: "navigation",

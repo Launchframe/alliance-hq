@@ -28,6 +28,7 @@ const DEFAULT_HOTKEY_BINDINGS_IMPL = {
   "nav.myVr": seq("g", "j"),
   "nav.myThp": seq("g", "f"),
   "nav.trains": seq("g", "t"),
+  "nav.battlePlan": seq("g", "h"),
   "nav.desertStorm": seq("g", "s"),
   "nav.canyonStorm": seq("g", "c"),
   "nav.otherEvents": seq("g", "n"),

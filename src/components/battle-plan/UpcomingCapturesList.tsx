@@ -4,7 +4,6 @@ import { useMemo } from "react";
 import { useTranslations } from "next-intl";
 
 import type { SerializedCaptureEvent } from "@/lib/battle-plan/types.shared";
-import { capturePolicyLabel } from "@/lib/battle-plan/api.shared";
 import { listUpcomingCaptureEvents } from "@/lib/battle-plan/display.shared";
 
 type Props = {
@@ -55,7 +54,10 @@ export function UpcomingCapturesList({ events, onSelect, canWrite }: Props) {
               </div>
               <p className="mt-1 text-xs text-hq-fg-subtle">
                 {t("event.policyLine", {
-                  policy: capturePolicyLabel(event.effectiveCapturePolicy),
+                  policy:
+                    event.effectiveCapturePolicy === "peace"
+                      ? t("settings.policyPeace")
+                      : t("settings.policyWar"),
                 })}
               </p>
               {event.notes ? (
