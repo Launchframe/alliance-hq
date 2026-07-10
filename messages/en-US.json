@@ -4389,6 +4389,12 @@
   "battlePlan": {
     "title": "Battle Plan",
     "subtitle": "Schedule territory captures so members know when and where to show up.",
+    "timeDisplay": {
+      "local": "Local time",
+      "server": "Server time (UTC−02:00)",
+      "editingLocal": "Times are entered in your local timezone.",
+      "editingServer": "Times are entered in Server Time (UTC−02:00)."
+    },
     "upcoming": {
       "title": "Upcoming captures",
       "empty": "No upcoming captures are scheduled yet."
@@ -4453,6 +4459,8 @@
       "createTitle": "Schedule capture",
       "editTitle": "Edit capture",
       "scheduledAt": "Capture time",
+      "scheduledDate": "Date",
+      "scheduledTime": "Time of day",
       "territoryType": "Territory type",
       "stronghold": "Stronghold",
       "city": "City",

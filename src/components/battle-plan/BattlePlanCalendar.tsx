@@ -1,23 +1,25 @@
 "use client";
 
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState, useSyncExternalStore } from "react";
 import { useTranslations } from "next-intl";
 
 import { BattlePlanCalendarViewToggle } from "@/components/battle-plan/BattlePlanCalendarViewToggle";
 import { MarkerBadge } from "@/components/battle-plan/MarkerBadge";
 import {
+  BATTLE_PLAN_CALENDAR_TABLET_MQ,
   buildDailyGrid,
   formatDailyRangeLabel,
   readStoredBattlePlanCalendarView,
   writeStoredBattlePlanCalendarView,
   type BattlePlanCalendarView,
 } from "@/lib/battle-plan/calendar-view.shared";
-import {
-  formatLocalCaptureTime,
-  groupEventsByServerDate,
-} from "@/lib/battle-plan/display.shared";
+import { groupEventsByServerDate } from "@/lib/battle-plan/display.shared";
 import { capturePolicyBarClassName } from "@/lib/battle-plan/marker-colors.shared";
+import {
+  formatCaptureTime,
+  type BattlePlanTimeDisplay,
+} from "@/lib/battle-plan/time-display.shared";
 import type { SerializedCaptureEvent } from "@/lib/battle-plan/types.shared";
 import {
   addCalendarDays,
@@ -30,6 +32,7 @@ import { buildMonthGrid } from "@/lib/trains/trains-display-calendar.shared";
 type Props = {
   events: SerializedCaptureEvent[];
   todayServerDate: string;
+  timeDisplay: BattlePlanTimeDisplay;
   canWrite: boolean;
   onSelectDate?: (serverDate: string) => void;
   onSelectEvent?: (event: SerializedCaptureEvent) => void;
@@ -42,6 +45,7 @@ function DayCell({
   scheduledEvents,
   isToday,
   variant,
+  timeDisplay,
   canWrite,
   onSelectDate,
   onSelectEvent,
@@ -53,6 +57,7 @@ function DayCell({
   scheduledEvents: SerializedCaptureEvent[];
   isToday: boolean;
   variant: "daily" | "month";
+  timeDisplay: BattlePlanTimeDisplay;
   canWrite: boolean;
   onSelectDate?: (serverDate: string) => void;
   onSelectEvent?: (event: SerializedCaptureEvent) => void;
@@ -82,7 +87,7 @@ function DayCell({
           : undefined
       }
       className={`rounded border p-2 text-left ${
-        variant === "daily" ? "min-h-40" : "min-h-24 p-1 text-xs"
+        variant === "daily" ? "min-h-32 sm:min-h-40" : "min-h-24 p-1 text-xs"
       } ${
         dimmed
           ? "border-transparent bg-transparent text-hq-fg-subtle"
@@ -114,7 +119,7 @@ function DayCell({
                 <MarkerBadge iconPreset={event.iconPreset} size="sm" />
               ) : null}
               <span className={variant === "daily" ? "text-left" : "truncate"}>
-                {formatLocalCaptureTime(event.scheduledAt)}
+                {formatCaptureTime(event.scheduledAt, timeDisplay)}
                 {" · "}
                 {variant === "daily"
                   ? territoryLabel(event)
@@ -135,16 +140,36 @@ function DayCell({
   );
 }
 
+function subscribeTabletMq(onStoreChange: () => void): () => void {
+  const media = window.matchMedia(BATTLE_PLAN_CALENDAR_TABLET_MQ);
+  media.addEventListener("change", onStoreChange);
+  return () => media.removeEventListener("change", onStoreChange);
+}
+
+function getTabletMqSnapshot(): boolean {
+  return window.matchMedia(BATTLE_PLAN_CALENDAR_TABLET_MQ).matches;
+}
+
+function useIsTabletUp(): boolean {
+  return useSyncExternalStore(
+    subscribeTabletMq,
+    getTabletMqSnapshot,
+    () => false,
+  );
+}
+
 export function BattlePlanCalendar({
   events,
   todayServerDate,
+  timeDisplay,
   canWrite,
   onSelectDate,
   onSelectEvent,
 }: Props) {
   const t = useTranslations("battlePlan");
   const weekdayHeaders = t.raw("calendar.weekdayHeaders") as string[];
-  const [calendarView, setCalendarView] = useState<BattlePlanCalendarView>(() =>
+  const isTabletUp = useIsTabletUp();
+  const [preferredView, setPreferredView] = useState<BattlePlanCalendarView>(() =>
     readStoredBattlePlanCalendarView(),
   );
   const [anchorDate, setAnchorDate] = useState(todayServerDate);
@@ -153,9 +178,12 @@ export function BattlePlanCalendar({
   const dailyGrid = useMemo(() => buildDailyGrid(anchorDate), [anchorDate]);
   const monthGrid = useMemo(() => buildMonthGrid(monthKey), [monthKey]);
 
+  const calendarView: BattlePlanCalendarView =
+    isTabletUp && preferredView === "month" ? "month" : "day";
+
   const handleViewChange = useCallback(
     (view: BattlePlanCalendarView) => {
-      setCalendarView(view);
+      setPreferredView(view);
       writeStoredBattlePlanCalendarView(view);
       if (view === "day") {
         setAnchorDate(todayServerDate);
@@ -174,10 +202,10 @@ export function BattlePlanCalendar({
   return (
     <div className="rounded-lg border border-hq-border bg-hq-surface p-4">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-1 items-center justify-center gap-2 md:flex-none md:justify-start md:gap-2">
           <button
             type="button"
-            className="rounded border border-hq-border p-1 text-hq-fg-muted hover:text-hq-fg"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-lg border border-hq-border text-hq-fg-muted hover:text-hq-fg md:h-8 md:w-8 md:rounded"
             onClick={() =>
               calendarView === "day"
                 ? setAnchorDate((current) => addCalendarDays(current, -1))
@@ -189,14 +217,14 @@ export function BattlePlanCalendar({
                 : t("calendar.previousMonth")
             }
           >
-            <ChevronLeft className="h-4 w-4" />
+            <ChevronLeft className="h-6 w-6 md:h-4 md:w-4" />
           </button>
-          <h2 className="min-w-40 text-center text-sm font-semibold text-hq-fg">
+          <h2 className="min-w-40 flex-1 text-center text-sm font-semibold text-hq-fg md:flex-none">
             {headerLabel}
           </h2>
           <button
             type="button"
-            className="rounded border border-hq-border p-1 text-hq-fg-muted hover:text-hq-fg"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-lg border border-hq-border text-hq-fg-muted hover:text-hq-fg md:h-8 md:w-8 md:rounded"
             onClick={() =>
               calendarView === "day"
                 ? setAnchorDate((current) => addCalendarDays(current, 1))
@@ -208,11 +236,12 @@ export function BattlePlanCalendar({
                 : t("calendar.nextMonth")
             }
           >
-            <ChevronRight className="h-4 w-4" />
+            <ChevronRight className="h-6 w-6 md:h-4 md:w-4" />
           </button>
         </div>
         <BattlePlanCalendarViewToggle
-          view={calendarView}
+          className="hidden md:inline-flex"
+          view={preferredView}
           dayLabel={t("calendar.viewDay")}
           monthLabel={t("calendar.viewMonth")}
           onChange={handleViewChange}
@@ -231,7 +260,9 @@ export function BattlePlanCalendar({
 
       <div
         className={`grid gap-2 ${
-          calendarView === "day" ? "mt-1 grid-cols-3" : "mt-1 grid-cols-7 gap-1"
+          calendarView === "day"
+            ? "mt-1 grid-cols-1 sm:grid-cols-3"
+            : "mt-1 grid-cols-7 gap-1"
         }`}
       >
         {(calendarView === "day" ? dailyGrid : monthGrid).map((cell) => {
@@ -253,6 +284,7 @@ export function BattlePlanCalendar({
               scheduledEvents={scheduledEvents}
               isToday={isToday}
               variant={calendarView === "day" ? "daily" : "month"}
+              timeDisplay={timeDisplay}
               canWrite={canWrite}
               onSelectDate={onSelectDate}
               onSelectEvent={onSelectEvent}

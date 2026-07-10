@@ -7,6 +7,9 @@ export const BATTLE_PLAN_CALENDAR_VIEW_STORAGE_KEY =
 
 export const DAILY_CALENDAR_VISIBLE_DAYS = 3;
 
+/** Tailwind `md` breakpoint — tablet and up. */
+export const BATTLE_PLAN_CALENDAR_TABLET_MQ = "(min-width: 768px)";
+
 const DEFAULT_VIEW: BattlePlanCalendarView = "day";
 
 export function isBattlePlanCalendarView(

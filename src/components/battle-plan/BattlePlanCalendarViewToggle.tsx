@@ -7,6 +7,7 @@ type Props = {
   dayLabel: string;
   monthLabel: string;
   onChange: (view: BattlePlanCalendarView) => void;
+  className?: string;
 };
 
 export function BattlePlanCalendarViewToggle({
@@ -14,10 +15,11 @@ export function BattlePlanCalendarViewToggle({
   dayLabel,
   monthLabel,
   onChange,
+  className = "inline-flex",
 }: Props) {
   return (
     <div
-      className="inline-flex rounded-lg border border-hq-border bg-hq-canvas p-0.5"
+      className={`rounded-lg border border-hq-border bg-hq-canvas p-0.5 ${className}`}
       role="tablist"
       aria-label="Calendar view"
       data-testid="battle-plan-calendar-view-toggle"
