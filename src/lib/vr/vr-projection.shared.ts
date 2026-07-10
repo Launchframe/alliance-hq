@@ -8,9 +8,17 @@ import {
 export const DEFAULT_PROJECTION_HORIZON_DAYS = 3;
 export const PROJECTION_HORIZON_OPTIONS = [1, 3, 7] as const;
 
+/** Ignore onboarding / learning-curve history older than this. */
+export const PROJECTION_LOOKBACK_DAYS = 4;
+/** Collapse rapid successive reports (wake-up double `/vr`, catch-up bumps). */
+export const PROJECTION_BURST_WINDOW_MS = 45 * 60 * 1000;
+/** Intervals shorter than this are treated as reporting bursts, not grind pace. */
+export const PROJECTION_MIN_INTERVAL_DAYS = 2 / 24; // 2 hours
 const DAY_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_BETA = 1.2;
 const DEFAULT_SAMPLE_COUNT = 32;
+/** Soft cap: even spenders rarely clear more than this many levels/day mid-season. */
+const MAX_LEVELS_PER_DAY = 6;
 
 export type VrProjectionEvent = {
   createdAt: string | Date;
@@ -25,7 +33,7 @@ export type VrPowerLawProjectionFit = {
   t0Ms: number;
 };
 
-type LevelEvent = {
+export type LevelEvent = {
   tMs: number;
   baseVr: number;
   level: number;
@@ -65,31 +73,128 @@ function normalizeEvents(
       };
     })
     .filter((event): event is LevelEvent => event != null)
-    .sort((a, b) => a.tMs - b.tMs);
+    .sort((a, b) => a.tMs - b.tMs || a.level - b.level);
+}
+
+/**
+ * VR only goes up. Erroneous dips (e.g. 2750 → 100 → 3250) are dropped so the
+ * series is a running max on institute level.
+ */
+export function enforceMonotonicLevels(events: readonly LevelEvent[]): LevelEvent[] {
+  const out: LevelEvent[] = [];
+  let maxLevel = 0;
+  for (const event of events) {
+    if (event.level < maxLevel) continue;
+    maxLevel = event.level;
+    out.push(event);
+  }
+  return out;
+}
+
+/**
+ * Collapse rapid successive reports into one point at the burst's max level.
+ * Timestamp = last report in the burst (when they finished catching up).
+ */
+export function collapseReportingBursts(
+  events: readonly LevelEvent[],
+  burstWindowMs = PROJECTION_BURST_WINDOW_MS,
+): LevelEvent[] {
+  if (events.length === 0) return [];
+  const out: LevelEvent[] = [];
+  let burst = [events[0]!];
+
+  const flush = () => {
+    const last = burst[burst.length - 1]!;
+    const best = burst.reduce((a, b) => (b.level >= a.level ? b : a));
+    out.push({
+      tMs: last.tMs,
+      level: best.level,
+      baseVr: best.baseVr,
+    });
+    burst = [];
+  };
+
+  for (let i = 1; i < events.length; i++) {
+    const event = events[i]!;
+    const prev = burst[burst.length - 1]!;
+    if (event.tMs - prev.tMs <= burstWindowMs) {
+      burst.push(event);
+    } else {
+      flush();
+      burst = [event];
+    }
+  }
+  flush();
+  return out;
+}
+
+/**
+ * Prefer recent history for pace fitting. Always keep the latest point.
+ * If the window leaves fewer than 2 points, expand backward until we have them.
+ */
+export function applyProjectionLookback(
+  events: readonly LevelEvent[],
+  nowMs: number,
+  lookbackDays = PROJECTION_LOOKBACK_DAYS,
+): LevelEvent[] {
+  if (events.length <= 2) return [...events];
+  const cutoff = nowMs - lookbackDays * DAY_MS;
+  const recent = events.filter((event) => event.tMs >= cutoff);
+  if (recent.length >= 2) return recent;
+
+  const needed = 2;
+  return events.slice(Math.max(0, events.length - needed));
+}
+
+/**
+ * Clean event stream used for pace fitting + projection anchor.
+ * Display charts should still show raw markers; only projection uses this.
+ */
+export function prepareEventsForProjection(
+  events: readonly VrProjectionEvent[],
+  seasonKey: string,
+  now: string | Date = new Date(),
+): LevelEvent[] {
+  const nowMs = toTimeMs(now) ?? Date.now();
+  const normalized = normalizeEvents(events, seasonKey);
+  const monotonic = enforceMonotonicLevels(normalized);
+  const collapsed = collapseReportingBursts(monotonic);
+  return applyProjectionLookback(collapsed, nowMs);
+}
+
+function buildFitIntervals(events: readonly LevelEvent[]): Array<{
+  midLevel: number;
+  daysPerLevel: number;
+}> {
+  const intervals: Array<{ midLevel: number; daysPerLevel: number }> = [];
+  for (let i = 1; i < events.length; i++) {
+    const previous = events[i - 1]!;
+    const current = events[i]!;
+    const deltaDays = (current.tMs - previous.tMs) / DAY_MS;
+    const deltaLevel = current.level - previous.level;
+    if (deltaDays < PROJECTION_MIN_INTERVAL_DAYS || deltaLevel <= 0) continue;
+    const daysPerLevel = deltaDays / deltaLevel;
+    // Reject absurdly fast pace that survived burst collapse (e.g. multi-day
+    // catch-up attributed to a short window).
+    if (1 / daysPerLevel > MAX_LEVELS_PER_DAY) continue;
+    intervals.push({
+      midLevel: (previous.level + current.level) / 2,
+      daysPerLevel,
+    });
+  }
+  return intervals;
 }
 
 export function fitPowerLawProjection(
   events: readonly VrProjectionEvent[],
   seasonKey: string,
+  now: string | Date = new Date(),
 ): VrPowerLawProjectionFit | null {
-  const normalized = normalizeEvents(events, seasonKey);
-  const latest = normalized.at(-1);
+  const prepared = prepareEventsForProjection(events, seasonKey, now);
+  const latest = prepared.at(-1);
   if (!latest) return null;
 
-  const intervals: Array<{ midLevel: number; daysPerLevel: number }> = [];
-  for (let i = 1; i < normalized.length; i++) {
-    const previous = normalized[i - 1]!;
-    const current = normalized[i]!;
-    const deltaDays = (current.tMs - previous.tMs) / DAY_MS;
-    const deltaLevel = current.level - previous.level;
-    if (deltaDays > 0 && deltaLevel > 0) {
-      intervals.push({
-        midLevel: (previous.level + current.level) / 2,
-        daysPerLevel: deltaDays / deltaLevel,
-      });
-    }
-  }
-
+  const intervals = buildFitIntervals(prepared);
   if (intervals.length === 0) return null;
 
   let beta = DEFAULT_BETA;
@@ -111,6 +216,9 @@ export function fitPowerLawProjection(
           0,
         ) / variance;
     }
+    // Keep beta in a sane band; negative β would accelerate forever.
+    if (!Number.isFinite(beta) || beta < 0.2) beta = DEFAULT_BETA;
+    if (beta > 3) beta = 3;
   }
 
   const k =
@@ -122,18 +230,25 @@ export function fitPowerLawProjection(
 
   if (!Number.isFinite(beta) || !Number.isFinite(k) || k <= 0) return null;
 
+  const nowMs = toTimeMs(now) ?? Date.now();
   return {
     beta,
     k,
+    // Anchor at "now" with current level so a reporting gap does not invent
+    // progress between the last event and the cutoff line.
     level0: latest.level,
-    t0Ms: latest.tMs,
+    t0Ms: Math.max(latest.tMs, nowMs),
   };
 }
 
 function projectedLevelAt(fit: VrPowerLawProjectionFit, atMs: number): number {
   const deltaDays = Math.max(0, (atMs - fit.t0Ms) / DAY_MS);
-  return (fit.level0 ** (fit.beta + 1) + (fit.beta + 1) * fit.k * deltaDays) **
+  const raw =
+    (fit.level0 ** (fit.beta + 1) + (fit.beta + 1) * fit.k * deltaDays) **
     (1 / (fit.beta + 1));
+  // Cap instantaneous pace relative to level0.
+  const capped = Math.min(raw, fit.level0 + MAX_LEVELS_PER_DAY * deltaDays);
+  return capped;
 }
 
 function baseVrForProjectedLevel(seasonKey: string, level: number): number {
@@ -151,16 +266,23 @@ export function projectVrSeries(input: {
   horizonDays: number;
   sampleCount?: number;
 }): Array<{ at: string; baseVr: number }> {
-  const normalized = normalizeEvents(input.events, input.seasonKey);
-  const latest = normalized.at(-1);
+  const prepared = prepareEventsForProjection(
+    input.events,
+    input.seasonKey,
+    input.now,
+  );
+  const latest = prepared.at(-1);
   if (!latest) return [];
 
   const nowMs = toTimeMs(input.now) ?? Date.now();
   const startMs = Math.max(latest.tMs, nowMs);
   const horizonMs = Math.max(0, input.horizonDays) * DAY_MS;
   const endMs = startMs + horizonMs;
-  const sampleCount = Math.max(2, Math.floor(input.sampleCount ?? DEFAULT_SAMPLE_COUNT));
-  const fit = fitPowerLawProjection(input.events, input.seasonKey);
+  const sampleCount = Math.max(
+    2,
+    Math.floor(input.sampleCount ?? DEFAULT_SAMPLE_COUNT),
+  );
+  const fit = fitPowerLawProjection(input.events, input.seasonKey, input.now);
 
   return Array.from({ length: sampleCount }, (_, index) => {
     const ratio = sampleCount === 1 ? 0 : index / (sampleCount - 1);
@@ -170,7 +292,8 @@ export function projectVrSeries(input: {
       : latest.baseVr;
     return {
       at: new Date(atMs).toISOString(),
-      baseVr,
+      // Never project below the known current VR.
+      baseVr: Math.max(baseVr, latest.baseVr),
     };
   });
 }

@@ -984,6 +984,200 @@ export async function listCommanderSeasonVrEvents(
     .orderBy(asc(schema.commanderSeasonVrEvents.createdAt));
 }
 
+async function recomputeCommanderSeasonSummaryFromEvents(
+  commanderId: string,
+  seasonKey: string,
+  allianceId: string,
+  ashedMemberId: string | null,
+  hqUserId: string | null,
+): Promise<void> {
+  const db = getDb();
+  const events = await listCommanderSeasonVrEvents(commanderId, seasonKey);
+  if (events.length === 0) {
+    await db
+      .delete(schema.commanderSeasonVr)
+      .where(
+        and(
+          eq(schema.commanderSeasonVr.commanderId, commanderId),
+          eq(schema.commanderSeasonVr.seasonKey, seasonKey),
+        ),
+      );
+    if (ashedMemberId) {
+      await db
+        .delete(schema.memberSeasonVr)
+        .where(
+          and(
+            eq(schema.memberSeasonVr.allianceId, allianceId),
+            eq(schema.memberSeasonVr.ashedMemberId, ashedMemberId),
+            eq(schema.memberSeasonVr.seasonKey, seasonKey),
+          ),
+        );
+    }
+    return;
+  }
+
+  const best = events.reduce((a, b) =>
+    b.baseVr > a.baseVr ||
+    (b.baseVr === a.baseVr && b.createdAt.getTime() > a.createdAt.getTime())
+      ? b
+      : a,
+  );
+  const instituteLevel =
+    best.instituteLevel ??
+    coerceInstituteLevelFromBaseVr(seasonKey, best.baseVr);
+  const now = new Date();
+
+  await db
+    .insert(schema.commanderSeasonVr)
+    .values({
+      id: nanoid(),
+      commanderId,
+      seasonKey,
+      highestBaseVr: best.baseVr,
+      instituteLevel,
+      flaggedAt: null,
+      flagReason: null,
+      updatedByDiscordUserId: null,
+      updatedByHqUserId: hqUserId,
+      createdAt: events[0]!.createdAt,
+      updatedAt: now,
+    })
+    .onConflictDoUpdate({
+      target: [
+        schema.commanderSeasonVr.commanderId,
+        schema.commanderSeasonVr.seasonKey,
+      ],
+      set: {
+        highestBaseVr: best.baseVr,
+        instituteLevel,
+        flaggedAt: null,
+        flagReason: null,
+        updatedByHqUserId: hqUserId,
+        updatedAt: now,
+      },
+    });
+
+  if (ashedMemberId) {
+    await writeLegacyMemberSeasonVr({
+      allianceId,
+      ashedMemberId,
+      seasonKey,
+      baseVr: best.baseVr,
+      instituteLevel,
+      hqUserId,
+      flagReason: null,
+      previousBaseVr: best.baseVr,
+      now,
+    });
+  }
+}
+
+export async function updateCommanderSeasonVrEvent(input: {
+  eventId: string;
+  allianceId: string;
+  instituteLevel: number;
+  baseVr: number;
+  hqUserId: string;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const db = getDb();
+  const [event] = await db
+    .select()
+    .from(schema.commanderSeasonVrEvents)
+    .where(eq(schema.commanderSeasonVrEvents.id, input.eventId))
+    .limit(1);
+  if (!event) return { ok: false, error: "Event not found." };
+
+  const membership = await db
+    .select({
+      ashedMemberId: schema.commanderAllianceMemberships.ashedMemberId,
+    })
+    .from(schema.commanderAllianceMemberships)
+    .where(
+      and(
+        eq(
+          schema.commanderAllianceMemberships.commanderId,
+          event.commanderId,
+        ),
+        eq(schema.commanderAllianceMemberships.allianceId, input.allianceId),
+        isNull(schema.commanderAllianceMemberships.leftAt),
+      ),
+    )
+    .limit(1);
+
+  await db
+    .update(schema.commanderSeasonVrEvents)
+    .set({
+      baseVr: input.baseVr,
+      instituteLevel: input.instituteLevel,
+    })
+    .where(eq(schema.commanderSeasonVrEvents.id, input.eventId));
+
+  // Dual-write legacy event row when ids match (backfill preserved ids).
+  await db
+    .update(schema.memberSeasonVrEvents)
+    .set({
+      baseVr: input.baseVr,
+      instituteLevel: input.instituteLevel,
+    })
+    .where(eq(schema.memberSeasonVrEvents.id, input.eventId));
+
+  await recomputeCommanderSeasonSummaryFromEvents(
+    event.commanderId,
+    event.seasonKey,
+    input.allianceId,
+    membership[0]?.ashedMemberId ?? null,
+    input.hqUserId,
+  );
+  return { ok: true };
+}
+
+export async function deleteCommanderSeasonVrEvent(input: {
+  eventId: string;
+  allianceId: string;
+  hqUserId: string;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const db = getDb();
+  const [event] = await db
+    .select()
+    .from(schema.commanderSeasonVrEvents)
+    .where(eq(schema.commanderSeasonVrEvents.id, input.eventId))
+    .limit(1);
+  if (!event) return { ok: false, error: "Event not found." };
+
+  const membership = await db
+    .select({
+      ashedMemberId: schema.commanderAllianceMemberships.ashedMemberId,
+    })
+    .from(schema.commanderAllianceMemberships)
+    .where(
+      and(
+        eq(
+          schema.commanderAllianceMemberships.commanderId,
+          event.commanderId,
+        ),
+        eq(schema.commanderAllianceMemberships.allianceId, input.allianceId),
+        isNull(schema.commanderAllianceMemberships.leftAt),
+      ),
+    )
+    .limit(1);
+
+  await db
+    .delete(schema.commanderSeasonVrEvents)
+    .where(eq(schema.commanderSeasonVrEvents.id, input.eventId));
+  await db
+    .delete(schema.memberSeasonVrEvents)
+    .where(eq(schema.memberSeasonVrEvents.id, input.eventId));
+
+  await recomputeCommanderSeasonSummaryFromEvents(
+    event.commanderId,
+    event.seasonKey,
+    input.allianceId,
+    membership[0]?.ashedMemberId ?? null,
+    input.hqUserId,
+  );
+  return { ok: true };
+}
+
 export async function listCommanderSeasonVrEventsBulk(
   commanderIds: string[],
   seasonKey: string,

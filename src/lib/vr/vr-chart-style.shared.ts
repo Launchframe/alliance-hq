@@ -29,7 +29,7 @@ export type VrChartShape = (typeof VR_CHART_SHAPES)[number];
 export type VrChartStyle = {
   color: (typeof VR_CHART_COLORS)[number];
   shape: VrChartShape;
-  dashArray: "" | "8 4" | "2 3";
+  dashArray: "" | "6 4";
 };
 
 function hashString(value: string): number {
@@ -41,42 +41,46 @@ function hashString(value: string): number {
   return hash >>> 0;
 }
 
-function dashArrayForRank(rank: number): VrChartStyle["dashArray"] {
-  if (rank === 1) return "";
-  if (rank === 2) return "8 4";
-  return "2 3";
+function dashArrayForViewer(isViewer: boolean): VrChartStyle["dashArray"] {
+  return isViewer ? "" : "6 4";
 }
 
 function styleFromIndexes(
   colorIndex: number,
   shapeIndex: number,
-  rank: number,
+  isViewer: boolean,
 ): VrChartStyle {
   return {
     color: VR_CHART_COLORS[colorIndex]!,
     shape: VR_CHART_SHAPES[shapeIndex]!,
-    dashArray: dashArrayForRank(rank),
+    dashArray: dashArrayForViewer(isViewer),
   };
 }
 
-export function assignVrChartStyle(stableId: string, rank: number): VrChartStyle {
+export function assignVrChartStyle(
+  stableId: string,
+  rankOrViewer: number | boolean = false,
+): VrChartStyle {
+  const isViewer =
+    typeof rankOrViewer === "boolean" ? rankOrViewer : rankOrViewer === 0;
   const colorIndex = hashString(stableId) % VR_CHART_COLORS.length;
   let shapeIndex = hashString(`${stableId}:shape`) % VR_CHART_SHAPES.length;
   if (VR_CHART_COLORS.length > 1 && colorIndex === shapeIndex) {
     shapeIndex = (shapeIndex + 1) % VR_CHART_SHAPES.length;
   }
-  return styleFromIndexes(colorIndex, shapeIndex, rank);
+  return styleFromIndexes(colorIndex, shapeIndex, isViewer);
 }
 
 export function assignVrChartStyles(
   ids: string[],
-  ranks: ReadonlyMap<string, number>,
+  viewerFlags: ReadonlyMap<string, boolean> | ReadonlyMap<string, number>,
 ): Map<string, VrChartStyle> {
   const used = new Set<string>();
   const styles = new Map<string, VrChartStyle>();
 
-  ids.forEach((id, index) => {
-    const rank = ranks.get(id) ?? index + 1;
+  ids.forEach((id) => {
+    const flag = viewerFlags.get(id);
+    const isViewer = typeof flag === "boolean" ? flag : false;
     const colorStart = hashString(id) % VR_CHART_COLORS.length;
     const shapeStart = hashString(`${id}:shape`) % VR_CHART_SHAPES.length;
 
@@ -100,7 +104,7 @@ export function assignVrChartStyles(
     }
 
     used.add(`${colorIndex}:${shapeIndex}`);
-    styles.set(id, styleFromIndexes(colorIndex, shapeIndex, rank));
+    styles.set(id, styleFromIndexes(colorIndex, shapeIndex, isViewer));
   });
 
   return styles;

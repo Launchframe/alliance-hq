@@ -2764,9 +2764,11 @@
       "horizon3d": "3d",
       "horizon7d": "7d",
       "nowLabel": "Now",
-      "projectionDisclaimer": "Projection uses recent institute-level pace and updates when you change the horizon.",
+      "projectionDisclaimer": "Projection uses recent institute-level pace (ignores dips, catch-up bursts, and early onboarding noise) and updates when you change the horizon.",
       "insufficientData": "Not enough progress yet for a pace projection.",
-      "ariaLabel": "VR progress and projection chart"
+      "ariaLabel": "VR progress and projection chart",
+      "commanderPicker": "{count} commanders",
+      "you": "you"
     },
     "officer": {
       "title": "Officer review",
@@ -2782,7 +2784,22 @@
       "saving": "Saving…",
       "saved": "Override saved.",
       "saveFailed": "Could not save override.",
-      "invalid": "Select a member and enter a valid institute level for this season."
+      "invalid": "Select a member and enter a valid institute level for this season.",
+      "eventsTitle": "Event history",
+      "eventsSubtitle": "Inspect, correct, or delete individual VR reports for a commander.",
+      "eventsLoad": "Load events",
+      "eventsLoading": "Loading events…",
+      "eventsEmpty": "No VR events for this member this season.",
+      "eventsColDate": "Date",
+      "eventsColLevel": "Institute level",
+      "eventsColVr": "Base VR",
+      "eventsColSource": "Source",
+      "eventsEdit": "Save level",
+      "eventsDelete": "Delete",
+      "eventsDeleting": "Deleting…",
+      "eventsSaved": "Event updated.",
+      "eventsDeleted": "Event deleted.",
+      "eventsFailed": "Could not update event."
     }
   },
   "myVr": {
@@ -2827,9 +2844,11 @@
       "horizon3d": "3d",
       "horizon7d": "7d",
       "nowLabel": "Now",
-      "projectionDisclaimer": "Projection uses recent institute-level pace and updates when you change the horizon.",
+      "projectionDisclaimer": "Projection uses recent institute-level pace (ignores dips, catch-up bursts, and early onboarding noise) and updates when you change the horizon.",
       "insufficientData": "Not enough progress yet for a pace projection.",
-      "ariaLabel": "VR progress and projection chart"
+      "ariaLabel": "VR progress and projection chart",
+      "commanderPicker": "{count} commanders",
+      "you": "you"
     },
     "tableDate": "Date",
     "tableInstituteLevel": "Institute level",

@@ -5,6 +5,7 @@ import { Syringe } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { AppSelect } from "@/components/ui/AppSelect";
+import { VrOfficerEventsPanel } from "@/components/vr/vr-officer-events-panel";
 import { VrProgressProjectionChart } from "@/components/vr/vr-progress-projection-chart";
 import { Link } from "@/i18n/navigation";
 import type {
@@ -301,6 +302,12 @@ export function ViralResistanceView({
           {overrideMessage ? (
             <p className="mt-3 text-sm text-hq-fg-muted">{overrideMessage}</p>
           ) : null}
+
+          <VrOfficerEventsPanel
+            seasonKey={officer.seasonKey}
+            memberOptions={memberOptions}
+            onChanged={refresh}
+          />
         </section>
       ) : null}
     </div>
