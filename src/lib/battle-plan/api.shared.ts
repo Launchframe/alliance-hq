@@ -113,6 +113,10 @@ export function validateCaptureEventPayload(
   if (body.iconPreset != null && !isMarkerIconPreset(body.iconPreset)) {
     return "iconPreset must be a supported marker preset.";
   }
+  const status = body.status ?? "scheduled";
+  if (status === "scheduled" && !body.iconPreset) {
+    return "iconPreset is required for scheduled captures.";
+  }
   if (!body.capturePolicy || !isCapturePolicy(body.capturePolicy)) {
     return "capturePolicy must be peace or war.";
   }

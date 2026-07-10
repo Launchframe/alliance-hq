@@ -170,13 +170,15 @@ export function BattlePlanClient({ initial }: Props) {
           <p className="mt-1 text-sm text-hq-fg-muted">{t("subtitle")}</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            className="rounded border border-hq-border bg-hq-bg px-4 py-2 text-sm text-hq-fg hover:border-hq-accent"
-            onClick={() => setAnnouncementOpen(true)}
-          >
-            {t("actions.announce")}
-          </button>
+          {dashboard.canWrite ? (
+            <button
+              type="button"
+              className="rounded border border-hq-border bg-hq-bg px-4 py-2 text-sm text-hq-fg hover:border-hq-accent"
+              onClick={() => setAnnouncementOpen(true)}
+            >
+              {t("actions.announce")}
+            </button>
+          ) : null}
           {dashboard.canWrite ? (
             <button
               type="button"

@@ -59,6 +59,9 @@ test.describe("Battle plan — read access", () => {
     await expect(
       page.getByRole("button", { name: /schedule capture/i }),
     ).toHaveCount(0);
+    await expect(
+      page.getByRole("button", { name: /announce/i }),
+    ).toHaveCount(0);
   });
 });
 
