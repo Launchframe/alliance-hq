@@ -63,6 +63,20 @@ test.describe("Battle plan — read access", () => {
       page.getByRole("button", { name: /announce/i }),
     ).toHaveCount(0);
   });
+
+  test("mobile viewport hides month calendar toggle", async ({ page }) => {
+    const sql = getE2eSql();
+    const member = await createViewOnlyMember(sql, e2eBaseUrl(), {
+      operatingMode: "native",
+    });
+    await page.context().addCookies(playwrightAuthCookies(member));
+    await page.setViewportSize({ width: 390, height: 844 });
+
+    await page.goto("/battle-plan");
+    await expect(page.getByRole("heading", { name: /battle plan/i })).toBeVisible();
+    await expect(page.getByTestId("battle-plan-time-display-toggle")).toBeVisible();
+    await expect(page.getByTestId("battle-plan-calendar-view-toggle")).toBeHidden();
+  });
 });
 
 test.describe("Battle plan — officer scheduling", () => {

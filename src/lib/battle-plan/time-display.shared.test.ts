@@ -6,6 +6,7 @@ import {
   formatCaptureTime,
   getZonedDateTimeParts,
   isBattlePlanTimeDisplay,
+  resolveBattlePlanIana,
   zonedDateTimeToIso,
 } from "@/lib/battle-plan/time-display.shared";
 import { SERVER_TIME_IANA } from "@/lib/timezone/constants";
@@ -47,5 +48,18 @@ describe("battle plan time display", () => {
     expect(formatCaptureTime(iso, "server")).not.toMatch(/AM|PM/i);
     expect(formatCaptureDateTime(iso, "server")).toMatch(/14:30/);
     expect(formatCaptureDateTime(iso, "server")).not.toMatch(/AM|PM/i);
+  });
+
+  it("maps a selected server calendar day to local display mode", () => {
+    const now = new Date("2026-07-10T18:45:00.000Z");
+    const localTz = resolveBattlePlanIana("local");
+    const parts = buildDefaultCaptureDateTime("local", "2026-07-12", now);
+    const noonOnServerDay = zonedDateTimeToIso(
+      "2026-07-12",
+      "12:00",
+      SERVER_TIME_IANA,
+    );
+    expect(parts.date).toBe(getZonedDateTimeParts(noonOnServerDay, localTz).date);
+    expect(parts.time).toBe(getZonedDateTimeParts(now, localTz).time);
   });
 });

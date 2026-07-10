@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState, useSyncExternalStore } from "react";
 import { useTranslations } from "next-intl";
 
 import { BattlePlanCalendarViewToggle } from "@/components/battle-plan/BattlePlanCalendarViewToggle";
@@ -140,18 +140,22 @@ function DayCell({
   );
 }
 
+function subscribeTabletMq(onStoreChange: () => void): () => void {
+  const media = window.matchMedia(BATTLE_PLAN_CALENDAR_TABLET_MQ);
+  media.addEventListener("change", onStoreChange);
+  return () => media.removeEventListener("change", onStoreChange);
+}
+
+function getTabletMqSnapshot(): boolean {
+  return window.matchMedia(BATTLE_PLAN_CALENDAR_TABLET_MQ).matches;
+}
+
 function useIsTabletUp(): boolean {
-  const [isTabletUp, setIsTabletUp] = useState(false);
-
-  useEffect(() => {
-    const media = window.matchMedia(BATTLE_PLAN_CALENDAR_TABLET_MQ);
-    const sync = () => setIsTabletUp(media.matches);
-    sync();
-    media.addEventListener("change", sync);
-    return () => media.removeEventListener("change", sync);
-  }, []);
-
-  return isTabletUp;
+  return useSyncExternalStore(
+    subscribeTabletMq,
+    getTabletMqSnapshot,
+    () => false,
+  );
 }
 
 export function BattlePlanCalendar({
