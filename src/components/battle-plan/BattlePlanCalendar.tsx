@@ -14,11 +14,12 @@ import {
   writeStoredBattlePlanCalendarView,
   type BattlePlanCalendarView,
 } from "@/lib/battle-plan/calendar-view.shared";
-import {
-  formatLocalCaptureTime,
-  groupEventsByServerDate,
-} from "@/lib/battle-plan/display.shared";
+import { groupEventsByServerDate } from "@/lib/battle-plan/display.shared";
 import { capturePolicyBarClassName } from "@/lib/battle-plan/marker-colors.shared";
+import {
+  formatCaptureTime,
+  type BattlePlanTimeDisplay,
+} from "@/lib/battle-plan/time-display.shared";
 import type { SerializedCaptureEvent } from "@/lib/battle-plan/types.shared";
 import {
   addCalendarDays,
@@ -31,6 +32,7 @@ import { buildMonthGrid } from "@/lib/trains/trains-display-calendar.shared";
 type Props = {
   events: SerializedCaptureEvent[];
   todayServerDate: string;
+  timeDisplay: BattlePlanTimeDisplay;
   canWrite: boolean;
   onSelectDate?: (serverDate: string) => void;
   onSelectEvent?: (event: SerializedCaptureEvent) => void;
@@ -43,6 +45,7 @@ function DayCell({
   scheduledEvents,
   isToday,
   variant,
+  timeDisplay,
   canWrite,
   onSelectDate,
   onSelectEvent,
@@ -54,6 +57,7 @@ function DayCell({
   scheduledEvents: SerializedCaptureEvent[];
   isToday: boolean;
   variant: "daily" | "month";
+  timeDisplay: BattlePlanTimeDisplay;
   canWrite: boolean;
   onSelectDate?: (serverDate: string) => void;
   onSelectEvent?: (event: SerializedCaptureEvent) => void;
@@ -115,7 +119,7 @@ function DayCell({
                 <MarkerBadge iconPreset={event.iconPreset} size="sm" />
               ) : null}
               <span className={variant === "daily" ? "text-left" : "truncate"}>
-                {formatLocalCaptureTime(event.scheduledAt)}
+                {formatCaptureTime(event.scheduledAt, timeDisplay)}
                 {" · "}
                 {variant === "daily"
                   ? territoryLabel(event)
@@ -153,6 +157,7 @@ function useIsTabletUp(): boolean {
 export function BattlePlanCalendar({
   events,
   todayServerDate,
+  timeDisplay,
   canWrite,
   onSelectDate,
   onSelectEvent,
@@ -275,6 +280,7 @@ export function BattlePlanCalendar({
               scheduledEvents={scheduledEvents}
               isToday={isToday}
               variant={calendarView === "day" ? "daily" : "month"}
+              timeDisplay={timeDisplay}
               canWrite={canWrite}
               onSelectDate={onSelectDate}
               onSelectEvent={onSelectEvent}

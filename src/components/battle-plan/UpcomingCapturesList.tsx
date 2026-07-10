@@ -5,16 +5,22 @@ import { useTranslations } from "next-intl";
 
 import { MarkerBadge } from "@/components/battle-plan/MarkerBadge";
 import { listUpcomingCaptureEvents } from "@/lib/battle-plan/display.shared";
+import {
+  formatCaptureDateTime,
+  type BattlePlanTimeDisplay,
+} from "@/lib/battle-plan/time-display.shared";
 import type { SerializedCaptureEvent } from "@/lib/battle-plan/types.shared";
 
 type Props = {
   events: SerializedCaptureEvent[];
+  timeDisplay: BattlePlanTimeDisplay;
   canWrite: boolean;
   onSelect?: (event: SerializedCaptureEvent) => void;
 };
 
 export function UpcomingCapturesList({
   events,
+  timeDisplay,
   onSelect,
   canWrite,
 }: Props) {
@@ -55,7 +61,7 @@ export function UpcomingCapturesList({
                     : t("event.city")}
                 </span>
                 <span className="text-xs text-hq-fg-muted">
-                  {new Date(event.scheduledAt).toLocaleString()}
+                  {formatCaptureDateTime(event.scheduledAt, timeDisplay)}
                 </span>
               </div>
               <p className="mt-1 text-xs text-hq-fg-subtle">

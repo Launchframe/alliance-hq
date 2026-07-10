@@ -2,21 +2,30 @@
 
 import { useTranslations } from "next-intl";
 
+import {
+  formatCaptureDateTime,
+  type BattlePlanTimeDisplay,
+} from "@/lib/battle-plan/time-display.shared";
 import type { SerializedCaptureEvent } from "@/lib/battle-plan/types.shared";
 
 type Props = {
   markerLabel: string;
   conflictingEvent: SerializedCaptureEvent;
+  timeDisplay: BattlePlanTimeDisplay;
   onOpenEvent: (event: SerializedCaptureEvent) => void;
 };
 
 export function MarkerConflictNotice({
   markerLabel,
   conflictingEvent,
+  timeDisplay,
   onOpenEvent,
 }: Props) {
   const t = useTranslations("battlePlan");
-  const dateTime = new Date(conflictingEvent.scheduledAt).toLocaleString();
+  const dateTime = formatCaptureDateTime(
+    conflictingEvent.scheduledAt,
+    timeDisplay,
+  );
   const territoryTypeLabel =
     conflictingEvent.territoryType === "stronghold"
       ? t("event.stronghold")

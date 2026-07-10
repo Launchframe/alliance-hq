@@ -4388,6 +4388,12 @@
   "battlePlan": {
     "title": "Plano de Batalha",
     "subtitle": "Agende capturas de território para que os membros saibam quando e onde comparecer.",
+    "timeDisplay": {
+      "local": "Horário local",
+      "server": "Horário do servidor (UTC−02:00)",
+      "editingLocal": "Os horários são informados no seu fuso horário local.",
+      "editingServer": "Os horários são informados no Horário do servidor (UTC−02:00)."
+    },
     "upcoming": {
       "title": "Próximas capturas",
       "empty": "Nenhuma captura futura foi agendada ainda."
@@ -4452,6 +4458,8 @@
       "createTitle": "Agendar captura",
       "editTitle": "Editar captura",
       "scheduledAt": "Horário da captura",
+      "scheduledDate": "Data",
+      "scheduledTime": "Horário",
       "territoryType": "Tipo de território",
       "stronghold": "Fortaleza",
       "city": "Cidade",

@@ -14,9 +14,12 @@ import type {
   TerritoryType,
 } from "@/lib/battle-plan/types.shared";
 import {
-  fromDateTimeLocalValue,
-  toDateTimeLocalValue,
-} from "@/lib/battle-plan/display.shared";
+  buildDefaultCaptureDateTime,
+  getZonedDateTimeParts,
+  resolveBattlePlanIana,
+  zonedDateTimeToIso,
+  type BattlePlanTimeDisplay,
+} from "@/lib/battle-plan/time-display.shared";
 import {
   collectUsedMarkerPresets,
   findMarkerPresetConflict,
@@ -33,7 +36,8 @@ import {
 } from "@/lib/client/form-enter-submit.shared";
 
 export type CaptureEventFormValues = {
-  scheduledAt: string;
+  scheduledDate: string;
+  scheduledTime: string;
   territoryType: TerritoryType;
   iconPreset: MarkerIconPreset | null;
   capturePolicy: CapturePolicy;
@@ -46,6 +50,7 @@ type Props = {
   initial?: SerializedCaptureEvent | null;
   defaultServerDate?: string | null;
   defaultCapturePolicy: CapturePolicy;
+  timeDisplay: BattlePlanTimeDisplay;
   events: SerializedCaptureEvent[];
   noteSuggestions: readonly string[];
   saving: boolean;
@@ -55,19 +60,17 @@ type Props = {
   onOpenEvent: (event: SerializedCaptureEvent) => void;
 };
 
-function defaultScheduledAt(serverDate?: string | null): string {
-  if (serverDate) {
-    return toDateTimeLocalValue(`${serverDate}T12:00:00.000-02:00`);
-  }
-  const now = new Date();
-  now.setMinutes(0, 0, 0);
-  now.setHours(now.getHours() + 1);
-  return toDateTimeLocalValue(now.toISOString());
-}
-
-function valuesFromEvent(event: SerializedCaptureEvent): CaptureEventFormValues {
+function valuesFromEvent(
+  event: SerializedCaptureEvent,
+  timeDisplay: BattlePlanTimeDisplay,
+): CaptureEventFormValues {
+  const parts = getZonedDateTimeParts(
+    event.scheduledAt,
+    resolveBattlePlanIana(timeDisplay),
+  );
   return {
-    scheduledAt: toDateTimeLocalValue(event.scheduledAt),
+    scheduledDate: parts.date,
+    scheduledTime: parts.time,
     territoryType: event.territoryType,
     iconPreset: event.iconPreset,
     capturePolicy: event.effectiveCapturePolicy,
@@ -80,11 +83,12 @@ function buildInitialValues(
   initial: SerializedCaptureEvent | null | undefined,
   defaultServerDate: string | null | undefined,
   defaultCapturePolicy: CapturePolicy,
+  timeDisplay: BattlePlanTimeDisplay,
   events: readonly SerializedCaptureEvent[],
 ): CaptureEventFormValues {
   const markerOptions = { excludeEventId: initial?.id };
   if (initial) {
-    const values = valuesFromEvent(initial);
+    const values = valuesFromEvent(initial, timeDisplay);
     return {
       ...values,
       iconPreset:
@@ -92,8 +96,10 @@ function buildInitialValues(
         findNextAvailableMarkerPreset(events, markerOptions),
     };
   }
+  const defaults = buildDefaultCaptureDateTime(timeDisplay, defaultServerDate);
   return {
-    scheduledAt: defaultScheduledAt(defaultServerDate),
+    scheduledDate: defaults.date,
+    scheduledTime: defaults.time,
     territoryType: "stronghold",
     iconPreset: findNextAvailableMarkerPreset(events, markerOptions),
     capturePolicy: defaultCapturePolicy,
@@ -106,6 +112,7 @@ type CaptureEventFormProps = {
   initial?: SerializedCaptureEvent | null;
   defaultServerDate?: string | null;
   defaultCapturePolicy: CapturePolicy;
+  timeDisplay: BattlePlanTimeDisplay;
   events: SerializedCaptureEvent[];
   noteSuggestions: readonly string[];
   saving: boolean;
@@ -119,6 +126,7 @@ function CaptureEventForm({
   initial,
   defaultServerDate,
   defaultCapturePolicy,
+  timeDisplay,
   events,
   noteSuggestions,
   saving,
@@ -133,6 +141,7 @@ function CaptureEventForm({
       initial,
       defaultServerDate,
       defaultCapturePolicy,
+      timeDisplay,
       events,
     ),
   );
@@ -214,27 +223,50 @@ function CaptureEventForm({
             <MarkerConflictNotice
               markerLabel={selectedMarkerLabel}
               conflictingEvent={markerConflict}
+              timeDisplay={timeDisplay}
               onOpenEvent={onOpenEvent}
             />
           ) : null}
         </div>
       ) : (
         <div className="mt-4 space-y-3">
-          <label className="block space-y-1 text-sm">
-            <span className="text-hq-fg-muted">{t("event.scheduledAt")}</span>
-            <input
-              type="datetime-local"
-              required
-              className="w-full rounded border border-hq-border bg-hq-bg px-3 py-2"
-              value={values.scheduledAt}
-              onChange={(event) =>
-                setValues((current) => ({
-                  ...current,
-                  scheduledAt: event.target.value,
-                }))
-              }
-            />
-          </label>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <label className="block space-y-1 text-sm">
+              <span className="text-hq-fg-muted">{t("event.scheduledDate")}</span>
+              <input
+                type="date"
+                required
+                className="w-full rounded border border-hq-border bg-hq-bg px-3 py-2"
+                value={values.scheduledDate}
+                onChange={(event) =>
+                  setValues((current) => ({
+                    ...current,
+                    scheduledDate: event.target.value,
+                  }))
+                }
+              />
+            </label>
+            <label className="block space-y-1 text-sm">
+              <span className="text-hq-fg-muted">{t("event.scheduledTime")}</span>
+              <input
+                type="time"
+                required
+                className="w-full rounded border border-hq-border bg-hq-bg px-3 py-2"
+                value={values.scheduledTime}
+                onChange={(event) =>
+                  setValues((current) => ({
+                    ...current,
+                    scheduledTime: event.target.value,
+                  }))
+                }
+              />
+            </label>
+          </div>
+          <p className="text-xs text-hq-fg-muted">
+            {timeDisplay === "server"
+              ? t("timeDisplay.editingServer")
+              : t("timeDisplay.editingLocal")}
+          </p>
 
           <label className="block space-y-1 text-sm">
             <span className="text-hq-fg-muted">{t("event.territoryType")}</span>
@@ -304,6 +336,7 @@ function CaptureEventForm({
               <MarkerConflictNotice
                 markerLabel={selectedMarkerLabel}
                 conflictingEvent={markerConflict}
+                timeDisplay={timeDisplay}
                 onOpenEvent={onOpenEvent}
               />
             ) : null}
@@ -434,6 +467,7 @@ export function CaptureEventModal({
   initial,
   defaultServerDate,
   defaultCapturePolicy,
+  timeDisplay,
   events,
   noteSuggestions,
   saving,
@@ -444,7 +478,7 @@ export function CaptureEventModal({
 }: Props) {
   if (!open) return null;
 
-  const formKey = `${initial?.id ?? "new"}:${defaultServerDate ?? "none"}:${defaultCapturePolicy}`;
+  const formKey = `${initial?.id ?? "new"}:${defaultServerDate ?? "none"}:${defaultCapturePolicy}:${timeDisplay}`;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
@@ -453,6 +487,7 @@ export function CaptureEventModal({
         initial={initial}
         defaultServerDate={defaultServerDate}
         defaultCapturePolicy={defaultCapturePolicy}
+        timeDisplay={timeDisplay}
         events={events}
         noteSuggestions={noteSuggestions}
         saving={saving}
@@ -465,9 +500,16 @@ export function CaptureEventModal({
   );
 }
 
-export function captureEventFormToPayload(values: CaptureEventFormValues) {
+export function captureEventFormToPayload(
+  values: CaptureEventFormValues,
+  timeDisplay: BattlePlanTimeDisplay,
+) {
   return {
-    scheduledAt: fromDateTimeLocalValue(values.scheduledAt),
+    scheduledAt: zonedDateTimeToIso(
+      values.scheduledDate,
+      values.scheduledTime,
+      resolveBattlePlanIana(timeDisplay),
+    ),
     territoryType: values.territoryType,
     iconPreset: values.iconPreset,
     capturePolicy: values.capturePolicy,

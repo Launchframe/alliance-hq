@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { BattlePlanAnnouncementDialog } from "@/components/battle-plan/BattlePlanAnnouncementDialog";
 import { BattlePlanCalendar } from "@/components/battle-plan/BattlePlanCalendar";
 import { BattlePlanSettingsPanel } from "@/components/battle-plan/BattlePlanSettingsPanel";
+import { BattlePlanTimeDisplayToggle } from "@/components/battle-plan/BattlePlanTimeDisplayToggle";
 import {
   CaptureEventModal,
   captureEventFormToPayload,
@@ -13,6 +14,11 @@ import {
 } from "@/components/battle-plan/CaptureEventModal";
 import { UpcomingCapturesList } from "@/components/battle-plan/UpcomingCapturesList";
 import { extractHistoricalNotes } from "@/lib/battle-plan/notes-suggestions.shared";
+import {
+  readStoredBattlePlanTimeDisplay,
+  writeStoredBattlePlanTimeDisplay,
+  type BattlePlanTimeDisplay,
+} from "@/lib/battle-plan/time-display.shared";
 import type { BattlePlanDashboardPayload } from "@/lib/battle-plan/types.shared";
 import type { SerializedCaptureEvent } from "@/lib/battle-plan/types.shared";
 
@@ -27,6 +33,9 @@ export function BattlePlanClient({ initial }: Props) {
   const [saving, setSaving] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [announcementOpen, setAnnouncementOpen] = useState(false);
+  const [timeDisplay, setTimeDisplay] = useState<BattlePlanTimeDisplay>(() =>
+    readStoredBattlePlanTimeDisplay(),
+  );
   const [editingEvent, setEditingEvent] = useState<SerializedCaptureEvent | null>(
     null,
   );
@@ -42,6 +51,11 @@ export function BattlePlanClient({ initial }: Props) {
       effectiveSeasonKey: next.effectiveSeasonKey ?? current.effectiveSeasonKey,
     }));
     setError(null);
+  }, []);
+
+  const handleTimeDisplayChange = useCallback((next: BattlePlanTimeDisplay) => {
+    setTimeDisplay(next);
+    writeStoredBattlePlanTimeDisplay(next);
   }, []);
 
   const handleMutationError = useCallback(
@@ -76,7 +90,7 @@ export function BattlePlanClient({ initial }: Props) {
     setError(null);
     try {
       const payload = {
-        ...captureEventFormToPayload(values),
+        ...captureEventFormToPayload(values, timeDisplay),
         planRevision: dashboard.settings.planRevision,
       };
       const response = await fetch(
@@ -169,7 +183,13 @@ export function BattlePlanClient({ initial }: Props) {
           <h1 className="text-2xl font-semibold text-hq-fg">{t("title")}</h1>
           <p className="mt-1 text-sm text-hq-fg-muted">{t("subtitle")}</p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <BattlePlanTimeDisplayToggle
+            value={timeDisplay}
+            localLabel={t("timeDisplay.local")}
+            serverLabel={t("timeDisplay.server")}
+            onChange={handleTimeDisplayChange}
+          />
           {dashboard.canWrite ? (
             <button
               type="button"
@@ -201,12 +221,14 @@ export function BattlePlanClient({ initial }: Props) {
         <div className="space-y-6">
           <UpcomingCapturesList
             events={dashboard.events}
+            timeDisplay={timeDisplay}
             canWrite={dashboard.canWrite}
             onSelect={dashboard.canWrite ? openEditModal : undefined}
           />
           <BattlePlanCalendar
             events={dashboard.events}
             todayServerDate={dashboard.todayServerDate}
+            timeDisplay={timeDisplay}
             canWrite={dashboard.canWrite}
             onSelectDate={dashboard.canWrite ? openCreateModal : undefined}
             onSelectEvent={dashboard.canWrite ? openEditModal : undefined}
@@ -234,6 +256,7 @@ export function BattlePlanClient({ initial }: Props) {
         initial={editingEvent}
         defaultServerDate={selectedServerDate}
         defaultCapturePolicy={dashboard.settings.defaultCapturePolicy}
+        timeDisplay={timeDisplay}
         events={dashboard.events}
         noteSuggestions={noteSuggestions}
         saving={saving}
