@@ -146,6 +146,7 @@ Detail: [`.cursor/rules/discord-identity-auth-layers.mdc`](.cursor/rules/discord
 - Start feature work from new git worktrees off `origin/main`.
 - Hotkey changes need fault isolation and compile-time target validation for navigable pages.
 - Member-facing copy must never mention platform admins or maintainers; say alliance officers were notified instead.
+- Run `npm run test:e2e` before pushing PR branch updates.
 
 ## Learned Workspace Facts
 
@@ -158,4 +159,7 @@ Detail: [`.cursor/rules/discord-identity-auth-layers.mdc`](.cursor/rules/discord
 - E2e “no linked game server” fixtures: null `game_server_id` only — keep `game_server_number` NOT NULL on `alliances`.
 - HQ `ROSTER_MAX_MEMBERS` is intentionally 2× the in-game alliance cap (200 vs 100) during onboarding tuning so missed roster matches still leave room for full JIT linking; may lower as tooling improves.
 - Discord-first users who have not run `/link` hit cross-layer UID conflicts on web self-service; self-service path is Discord `/link` then retry web — officer help queue (`cross_layer_claim` / `discord_hq_unlinked`) mediates stuck cases.
+- No synthetic default alliance tag (e.g. `HQ`) in invite/welcome URLs; unset `alliances.tag` needs explicit officer-visible handling, not a URL fallback.
+- Roster sync no longer upserts `hq_users` stubs for unknown roster emails — Ashed-sourced officer memberships require invite accept or SSO connect.
+- Keep native OCR deps (sharp/libvips) scoped to video-process routes; tracing or imports that pull them into other serverless handlers break unrelated endpoints.
 
