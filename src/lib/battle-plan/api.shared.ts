@@ -23,6 +23,7 @@ export type CaptureEventPayload = {
 
 export type BattlePlanSettingsPayload = {
   defaultCapturePolicy?: CapturePolicy;
+  /** Phase 2: Discord report toggle — API accepts the flag; no settings UI in phase 1. */
   discordReportsEnabled?: boolean;
   planRevision: number;
 };
@@ -157,8 +158,4 @@ export function validateBattlePlanSettingsPayload(
     return "defaultCapturePolicy must be peace or war.";
   }
   return null;
-}
-
-export function capturePolicyLabel(policy: CapturePolicy): string {
-  return policy === "peace" ? "In-and-out" : "All gas, no brakes";
 }

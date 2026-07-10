@@ -14,6 +14,11 @@ import { BATTLE_PLAN_MARKER_NUMBERS } from "@/lib/battle-plan/types.shared";
 import { formatServerCalendarDate } from "@/lib/trains/game-time";
 import { getDb, schema } from "@/lib/db";
 
+type BattlePlanExecutor = Pick<
+  ReturnType<typeof getDb>,
+  "select" | "insert" | "update" | "delete"
+>;
+
 export class BattlePlanRevisionConflictError extends Error {
   readonly code = "revision_conflict" as const;
 
@@ -101,11 +106,11 @@ export async function loadBattlePlanRows(allianceId: string) {
   return { settings, markers, events };
 }
 
-export async function bumpBattlePlanRevision(
+async function bumpBattlePlanRevisionWith(
+  db: BattlePlanExecutor,
   allianceId: string,
   expectedRevision: number,
 ) {
-  const db = getDb();
   const updated = await db
     .update(schema.battlePlanSettings)
     .set({
@@ -125,6 +130,13 @@ export async function bumpBattlePlanRevision(
   }
 
   return updated[0]!;
+}
+
+export async function bumpBattlePlanRevision(
+  allianceId: string,
+  expectedRevision: number,
+) {
+  return bumpBattlePlanRevisionWith(getDb(), allianceId, expectedRevision);
 }
 
 export async function updateBattlePlanSettings(
@@ -185,8 +197,10 @@ export async function updateBattlePlanMarker(
   return updated[0]!;
 }
 
-async function listLimitRows(allianceId: string): Promise<CaptureEventLimitRow[]> {
-  const db = getDb();
+async function listLimitRowsWith(
+  db: BattlePlanExecutor,
+  allianceId: string,
+): Promise<CaptureEventLimitRow[]> {
   const rows = await db
     .select({
       id: schema.battlePlanCaptureEvents.id,
@@ -218,36 +232,39 @@ export async function createCaptureEvent(
 ) {
   const scheduledAt = new Date(body.scheduledAt);
   const serverCalendarDate = formatServerCalendarDate(scheduledAt);
-  const limitRows = await listLimitRows(allianceId);
-  const limitError = validateServerDayCaptureLimit({
-    events: limitRows,
-    serverCalendarDate,
-    territoryType: body.territoryType,
-  });
-  if (limitError) {
-    throw new Error(limitError);
-  }
-
-  await bumpBattlePlanRevision(allianceId, body.planRevision);
-
   const db = getDb();
-  const inserted = await db
-    .insert(schema.battlePlanCaptureEvents)
-    .values({
-      id: nanoid(),
-      allianceId,
-      scheduledAt,
+
+  return db.transaction(async (tx) => {
+    await bumpBattlePlanRevisionWith(tx, allianceId, body.planRevision);
+
+    const limitRows = await listLimitRowsWith(tx, allianceId);
+    const limitError = validateServerDayCaptureLimit({
+      events: limitRows,
       serverCalendarDate,
       territoryType: body.territoryType,
-      markerNumber: body.markerNumber,
-      capturePolicy: body.capturePolicy ?? null,
-      notes: body.notes?.trim() || null,
-      status: body.status ?? "scheduled",
-      createdByHqUserId,
-    })
-    .returning();
+    });
+    if (limitError) {
+      throw new Error(limitError);
+    }
 
-  return inserted[0]!;
+    const inserted = await tx
+      .insert(schema.battlePlanCaptureEvents)
+      .values({
+        id: nanoid(),
+        allianceId,
+        scheduledAt,
+        serverCalendarDate,
+        territoryType: body.territoryType,
+        markerNumber: body.markerNumber,
+        capturePolicy: body.capturePolicy ?? null,
+        notes: body.notes?.trim() || null,
+        status: body.status ?? "scheduled",
+        createdByHqUserId,
+      })
+      .returning();
+
+    return inserted[0]!;
+  });
 }
 
 export async function updateCaptureEvent(
@@ -257,45 +274,48 @@ export async function updateCaptureEvent(
 ) {
   const scheduledAt = new Date(body.scheduledAt);
   const serverCalendarDate = formatServerCalendarDate(scheduledAt);
-  const limitRows = await listLimitRows(allianceId);
-  const limitError = validateServerDayCaptureLimit({
-    events: limitRows,
-    serverCalendarDate,
-    territoryType: body.territoryType,
-    excludeEventId: eventId,
-  });
-  if (limitError && (body.status ?? "scheduled") === "scheduled") {
-    throw new Error(limitError);
-  }
-
-  await bumpBattlePlanRevision(allianceId, body.planRevision);
-
   const db = getDb();
-  const updated = await db
-    .update(schema.battlePlanCaptureEvents)
-    .set({
-      scheduledAt,
+
+  return db.transaction(async (tx) => {
+    await bumpBattlePlanRevisionWith(tx, allianceId, body.planRevision);
+
+    const limitRows = await listLimitRowsWith(tx, allianceId);
+    const limitError = validateServerDayCaptureLimit({
+      events: limitRows,
       serverCalendarDate,
       territoryType: body.territoryType,
-      markerNumber: body.markerNumber,
-      capturePolicy: body.capturePolicy ?? null,
-      notes: body.notes?.trim() || null,
-      status: body.status ?? "scheduled",
-      updatedAt: new Date(),
-    })
-    .where(
-      and(
-        eq(schema.battlePlanCaptureEvents.id, eventId),
-        eq(schema.battlePlanCaptureEvents.allianceId, allianceId),
-      ),
-    )
-    .returning();
+      excludeEventId: eventId,
+    });
+    if (limitError && (body.status ?? "scheduled") === "scheduled") {
+      throw new Error(limitError);
+    }
 
-  if (updated.length === 0) {
-    throw new Error("Capture event not found.");
-  }
+    const updated = await tx
+      .update(schema.battlePlanCaptureEvents)
+      .set({
+        scheduledAt,
+        serverCalendarDate,
+        territoryType: body.territoryType,
+        markerNumber: body.markerNumber,
+        capturePolicy: body.capturePolicy ?? null,
+        notes: body.notes?.trim() || null,
+        status: body.status ?? "scheduled",
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(schema.battlePlanCaptureEvents.id, eventId),
+          eq(schema.battlePlanCaptureEvents.allianceId, allianceId),
+        ),
+      )
+      .returning();
 
-  return updated[0]!;
+    if (updated.length === 0) {
+      throw new Error("Capture event not found.");
+    }
+
+    return updated[0]!;
+  });
 }
 
 export async function deleteCaptureEvent(
