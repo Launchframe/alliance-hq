@@ -4408,12 +4408,8 @@
       "empty": "No captures are scheduled in the next 24 hours."
     },
     "calendar": {
-      "viewDay": "Daily",
-      "viewMonth": "Month",
       "previousDay": "Previous day",
       "nextDay": "Next day",
-      "previousMonth": "Previous month",
-      "nextMonth": "Next month",
       "weekdayHeaders": ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
       "more": "+{count} more"
     },

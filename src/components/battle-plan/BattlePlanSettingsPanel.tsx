@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 
+import { AppSelect } from "@/components/ui/AppSelect";
 import type {
   CapturePolicy,
   SerializedBattlePlanSettings,
@@ -37,17 +38,19 @@ export function BattlePlanSettingsPanel({
 
       <label className="block space-y-1 text-sm">
         <span className="text-hq-fg-muted">{t("settings.defaultPolicy")}</span>
-        <select
-          className="w-full rounded border border-hq-border bg-hq-bg px-3 py-2"
+        <AppSelect
           value={defaultCapturePolicy}
+          aria-label={t("settings.defaultPolicy")}
           disabled={!canWrite || saving}
-          onChange={(event) =>
-            setDefaultCapturePolicy(event.target.value as CapturePolicy)
+          triggerClassName="rounded border border-hq-border bg-hq-bg"
+          options={[
+            { value: "peace", label: t("settings.policyPeace") },
+            { value: "war", label: t("settings.policyWar") },
+          ]}
+          onChange={(value) =>
+            setDefaultCapturePolicy(value as CapturePolicy)
           }
-        >
-          <option value="peace">{t("settings.policyPeace")}</option>
-          <option value="war">{t("settings.policyWar")}</option>
-        </select>
+        />
       </label>
 
       {canWrite ? (

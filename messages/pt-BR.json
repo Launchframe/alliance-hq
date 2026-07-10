@@ -4407,12 +4407,8 @@
       "empty": "Nenhuma captura está agendada nas próximas 24 horas."
     },
     "calendar": {
-      "viewDay": "Diário",
-      "viewMonth": "Mês",
       "previousDay": "Dia anterior",
       "nextDay": "Próximo dia",
-      "previousMonth": "Mês anterior",
-      "nextMonth": "Próximo mês",
       "weekdayHeaders": ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"],
       "more": "+{count} mais"
     },

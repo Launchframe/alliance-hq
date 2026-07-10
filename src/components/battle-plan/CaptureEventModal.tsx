@@ -7,6 +7,7 @@ import { MarkerBadge } from "@/components/battle-plan/MarkerBadge";
 import { MarkerConflictNotice } from "@/components/battle-plan/MarkerConflictNotice";
 import { MarkerIconPalette } from "@/components/battle-plan/MarkerIconPalette";
 import { NotesAutocomplete } from "@/components/battle-plan/NotesAutocomplete";
+import { AppSelect } from "@/components/ui/AppSelect";
 import type {
   CapturePolicy,
   SerializedCaptureEvent,
@@ -237,19 +238,21 @@ function CaptureEventForm({
 
           <label className="block space-y-1 text-sm">
             <span className="text-hq-fg-muted">{t("event.territoryType")}</span>
-            <select
-              className="w-full rounded border border-hq-border bg-hq-bg px-3 py-2"
+            <AppSelect
               value={values.territoryType}
-              onChange={(event) =>
+              aria-label={t("event.territoryType")}
+              triggerClassName="rounded border border-hq-border bg-hq-bg"
+              options={[
+                { value: "stronghold", label: t("event.stronghold") },
+                { value: "city", label: t("event.city") },
+              ]}
+              onChange={(territoryType) =>
                 setValues((current) => ({
                   ...current,
-                  territoryType: event.target.value as TerritoryType,
+                  territoryType: territoryType as TerritoryType,
                 }))
               }
-            >
-              <option value="stronghold">{t("event.stronghold")}</option>
-              <option value="city">{t("event.city")}</option>
-            </select>
+            />
           </label>
 
           <fieldset className="space-y-2 text-sm">
@@ -308,38 +311,42 @@ function CaptureEventForm({
 
           <label className="block space-y-1 text-sm">
             <span className="text-hq-fg-muted">{t("event.capturePolicy")}</span>
-            <select
-              className="w-full rounded border border-hq-border bg-hq-bg px-3 py-2"
+            <AppSelect
               value={values.capturePolicy}
-              onChange={(event) =>
+              aria-label={t("event.capturePolicy")}
+              triggerClassName="rounded border border-hq-border bg-hq-bg"
+              options={[
+                { value: "peace", label: t("settings.policyPeace") },
+                { value: "war", label: t("settings.policyWar") },
+              ]}
+              onChange={(capturePolicy) =>
                 setValues((current) => ({
                   ...current,
-                  capturePolicy: event.target.value as CapturePolicy,
+                  capturePolicy: capturePolicy as CapturePolicy,
                 }))
               }
-            >
-              <option value="peace">{t("settings.policyPeace")}</option>
-              <option value="war">{t("settings.policyWar")}</option>
-            </select>
+            />
           </label>
 
           {initial ? (
             <label className="block space-y-1 text-sm">
               <span className="text-hq-fg-muted">{t("event.status")}</span>
-              <select
-                className="w-full rounded border border-hq-border bg-hq-bg px-3 py-2"
+              <AppSelect
                 value={values.status}
-                onChange={(event) =>
+                aria-label={t("event.status")}
+                triggerClassName="rounded border border-hq-border bg-hq-bg"
+                options={[
+                  { value: "scheduled", label: t("event.statusScheduled") },
+                  { value: "completed", label: t("event.statusCompleted") },
+                  { value: "cancelled", label: t("event.statusCancelled") },
+                ]}
+                onChange={(status) =>
                   setValues((current) => ({
                     ...current,
-                    status: event.target.value as CaptureEventFormValues["status"],
+                    status: status as CaptureEventFormValues["status"],
                   }))
                 }
-              >
-                <option value="scheduled">{t("event.statusScheduled")}</option>
-                <option value="completed">{t("event.statusCompleted")}</option>
-                <option value="cancelled">{t("event.statusCancelled")}</option>
-              </select>
+              />
             </label>
           ) : null}
 
