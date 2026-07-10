@@ -95,6 +95,7 @@ describeIntegration("battle plan repository", () => {
       scheduledAt: scheduledAtOnServerDate(serverDate, 11),
       territoryType: "stronghold",
       markerNumber: 1,
+      capturePolicy: "peace",
       planRevision,
     });
     planRevision += 1;
@@ -103,6 +104,7 @@ describeIntegration("battle plan repository", () => {
       scheduledAt: scheduledAtOnServerDate(serverDate, 12),
       territoryType: "stronghold",
       markerNumber: 2,
+      capturePolicy: "peace",
       planRevision,
     });
     planRevision += 1;
@@ -112,6 +114,7 @@ describeIntegration("battle plan repository", () => {
         scheduledAt: scheduledAtOnServerDate(serverDate, 13),
         territoryType: "stronghold",
         markerNumber: 3,
+        capturePolicy: "peace",
         planRevision,
       }),
     ).rejects.toThrow(/already has 2 scheduled stronghold captures/i);

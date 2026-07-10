@@ -1,3 +1,5 @@
+import type { MarkerIconPreset } from "@/lib/battle-plan/marker-icons.shared";
+
 export const BATTLE_PLAN_MARKER_NUMBERS = [1, 2, 3, 4, 5] as const;
 export type BattlePlanMarkerNumber =
   (typeof BATTLE_PLAN_MARKER_NUMBERS)[number];
@@ -27,8 +29,7 @@ export type SerializedBattlePlanSettings = {
 export type SerializedBattlePlanMarker = {
   id: string;
   markerNumber: BattlePlanMarkerNumber;
-  label: string | null;
-  colorHex: string;
+  iconPreset: MarkerIconPreset;
   updatedAt: string;
 };
 

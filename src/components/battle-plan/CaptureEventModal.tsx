@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { MarkerBadge } from "@/components/battle-plan/MarkerBadge";
+import { MarkerConflictNotice } from "@/components/battle-plan/MarkerConflictNotice";
 import { NotesAutocomplete } from "@/components/battle-plan/NotesAutocomplete";
 import type {
   BattlePlanMarkerNumber,
@@ -17,6 +18,14 @@ import {
   toDateTimeLocalValue,
 } from "@/lib/battle-plan/display.shared";
 import { BATTLE_PLAN_MARKER_NUMBERS } from "@/lib/battle-plan/types.shared";
+import {
+  findFutureMarkerConflict,
+  resolveMarkerLabel,
+} from "@/lib/battle-plan/marker-conflict.shared";
+import {
+  DEFAULT_MARKER_ICON_PRESETS,
+  markerPresetI18nKey,
+} from "@/lib/battle-plan/marker-icons.shared";
 import {
   preventDefaultFormSubmit,
   FORM_SUBMIT_ENTER_KEY_HINT,
@@ -37,11 +46,14 @@ type Props = {
   defaultServerDate?: string | null;
   defaultCapturePolicy: CapturePolicy;
   markers: SerializedBattlePlanMarker[];
+  events: SerializedCaptureEvent[];
   noteSuggestions: readonly string[];
   saving: boolean;
   onClose: () => void;
   onSubmit: (values: CaptureEventFormValues) => Promise<void>;
   onDelete?: () => Promise<void>;
+  onOpenEvent: (event: SerializedCaptureEvent) => void;
+  onClearMarkerConflict: (event: SerializedCaptureEvent) => Promise<void>;
 };
 
 function defaultScheduledAt(serverDate?: string | null): string {
@@ -88,11 +100,14 @@ type CaptureEventFormProps = {
   defaultServerDate?: string | null;
   defaultCapturePolicy: CapturePolicy;
   markers: SerializedBattlePlanMarker[];
+  events: SerializedCaptureEvent[];
   noteSuggestions: readonly string[];
   saving: boolean;
   onClose: () => void;
   onSubmit: (values: CaptureEventFormValues) => Promise<void>;
   onDelete?: () => Promise<void>;
+  onOpenEvent: (event: SerializedCaptureEvent) => void;
+  onClearMarkerConflict: (event: SerializedCaptureEvent) => Promise<void>;
 };
 
 function CaptureEventForm({
@@ -100,11 +115,14 @@ function CaptureEventForm({
   defaultServerDate,
   defaultCapturePolicy,
   markers,
+  events,
   noteSuggestions,
   saving,
   onClose,
   onSubmit,
   onDelete,
+  onOpenEvent,
+  onClearMarkerConflict,
 }: CaptureEventFormProps) {
   const t = useTranslations("battlePlan");
   const [values, setValues] = useState<CaptureEventFormValues>(() =>
@@ -113,6 +131,18 @@ function CaptureEventForm({
   const markersByNumber = useMemo(
     () => new Map(markers.map((marker) => [marker.markerNumber, marker])),
     [markers],
+  );
+  const markerConflict = useMemo(
+    () =>
+      findFutureMarkerConflict(events, values.markerNumber, {
+        excludeEventId: initial?.id,
+      }),
+    [events, initial?.id, values.markerNumber],
+  );
+  const selectedMarkerLabel = resolveMarkerLabel(
+    markers,
+    values.markerNumber,
+    (preset) => t(`markers.presets.${markerPresetI18nKey(preset)}`),
   );
 
   return (
@@ -166,6 +196,8 @@ function CaptureEventForm({
           <div className="flex flex-wrap gap-2">
             {BATTLE_PLAN_MARKER_NUMBERS.map((markerNumber) => {
               const marker = markersByNumber.get(markerNumber);
+              const iconPreset =
+                marker?.iconPreset ?? DEFAULT_MARKER_ICON_PRESETS[markerNumber];
               const selected = values.markerNumber === markerNumber;
               return (
                 <button
@@ -181,19 +213,23 @@ function CaptureEventForm({
                     setValues((current) => ({ ...current, markerNumber }))
                   }
                 >
-                  <MarkerBadge
-                    markerNumber={markerNumber}
-                    colorHex={marker?.colorHex ?? "#64748b"}
-                    size="sm"
-                  />
+                  <MarkerBadge iconPreset={iconPreset} size="sm" />
                   <span className="text-hq-fg">
-                    {marker?.label?.trim() ||
-                      t("event.markerLabel", { marker: markerNumber })}
+                    {t(`markers.presets.${markerPresetI18nKey(iconPreset)}`)}
                   </span>
                 </button>
               );
             })}
           </div>
+          {markerConflict ? (
+            <MarkerConflictNotice
+              markerLabel={selectedMarkerLabel}
+              conflictingEvent={markerConflict}
+              saving={saving}
+              onOpenEvent={onOpenEvent}
+              onClearMarker={onClearMarkerConflict}
+            />
+          ) : null}
         </fieldset>
 
         <label className="block space-y-1 text-sm">
@@ -268,7 +304,7 @@ function CaptureEventForm({
         <button
           type="submit"
           className="rounded border border-hq-success bg-hq-success px-4 py-2 text-sm text-white disabled:opacity-50"
-          disabled={saving}
+          disabled={saving || markerConflict != null}
           title={FORM_SUBMIT_ENTER_KEY_HINT}
         >
           {saving ? t("actions.saving") : t("actions.save")}
@@ -284,11 +320,14 @@ export function CaptureEventModal({
   defaultServerDate,
   defaultCapturePolicy,
   markers,
+  events,
   noteSuggestions,
   saving,
   onClose,
   onSubmit,
   onDelete,
+  onOpenEvent,
+  onClearMarkerConflict,
 }: Props) {
   if (!open) return null;
 
@@ -302,11 +341,14 @@ export function CaptureEventModal({
         defaultServerDate={defaultServerDate}
         defaultCapturePolicy={defaultCapturePolicy}
         markers={markers}
+        events={events}
         noteSuggestions={noteSuggestions}
         saving={saving}
         onClose={onClose}
         onSubmit={onSubmit}
         onDelete={onDelete}
+        onOpenEvent={onOpenEvent}
+        onClearMarkerConflict={onClearMarkerConflict}
       />
     </div>
   );

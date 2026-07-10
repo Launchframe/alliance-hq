@@ -1,20 +1,20 @@
-import type { BattlePlanMarkerNumber } from "@/lib/battle-plan/types.shared";
+import { MarkerIcon } from "@/components/battle-plan/MarkerIcon";
+import type { MarkerIconPreset } from "@/lib/battle-plan/marker-icons.shared";
 
 type Props = {
-  markerNumber: BattlePlanMarkerNumber;
-  colorHex: string;
+  iconPreset: MarkerIconPreset;
   size?: "sm" | "md";
+  className?: string;
 };
 
-export function MarkerBadge({ markerNumber, colorHex, size = "md" }: Props) {
-  const dimension = size === "sm" ? "h-5 w-5 text-[10px]" : "h-7 w-7 text-xs";
+export function MarkerBadge({ iconPreset, size = "md", className = "" }: Props) {
+  const dimension = size === "sm" ? "h-5 w-5" : "h-7 w-7";
   return (
     <span
-      className={`inline-flex shrink-0 items-center justify-center rounded-full font-semibold text-white ${dimension}`}
-      style={{ backgroundColor: colorHex }}
+      className={`inline-flex shrink-0 items-center justify-center ${dimension} ${className}`}
       aria-hidden
     >
-      {markerNumber}
+      <MarkerIcon preset={iconPreset} className="h-full w-full" />
     </span>
   );
 }

@@ -12,6 +12,7 @@ import {
 } from "@/components/battle-plan/CaptureEventModal";
 import { UpcomingCapturesList } from "@/components/battle-plan/UpcomingCapturesList";
 import { extractHistoricalNotes } from "@/lib/battle-plan/notes-suggestions.shared";
+import type { MarkerIconPreset } from "@/lib/battle-plan/marker-icons.shared";
 import type { BattlePlanDashboardPayload } from "@/lib/battle-plan/types.shared";
 import type { SerializedCaptureEvent } from "@/lib/battle-plan/types.shared";
 
@@ -128,6 +129,38 @@ export function BattlePlanClient({ initial }: Props) {
     }
   };
 
+  const cancelCaptureEvent = async (event: SerializedCaptureEvent) => {
+    setSaving(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/battle-plan/events/${event.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          scheduledAt: event.scheduledAt,
+          territoryType: event.territoryType,
+          markerNumber: event.markerNumber,
+          capturePolicy: event.effectiveCapturePolicy,
+          notes: event.notes,
+          status: "cancelled",
+          planRevision: dashboard.settings.planRevision,
+        }),
+      });
+      if (!response.ok) {
+        await handleMutationError(response);
+        return;
+      }
+      const data = (await response.json()) as {
+        dashboard: BattlePlanDashboardPayload;
+      };
+      applyDashboard(data.dashboard);
+    } catch {
+      setError(t("errors.saveFailed"));
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const saveSettings = async (input: { defaultCapturePolicy: "peace" | "war" }) => {
     setSaving(true);
     setError(null);
@@ -157,7 +190,7 @@ export function BattlePlanClient({ initial }: Props) {
 
   const saveMarker = async (
     markerNumber: number,
-    input: { label: string; colorHex: string },
+    input: { iconPreset: MarkerIconPreset },
   ) => {
     setSaving(true);
     setError(null);
@@ -167,8 +200,7 @@ export function BattlePlanClient({ initial }: Props) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           planRevision: dashboard.settings.planRevision,
-          label: input.label,
-          colorHex: input.colorHex,
+          iconPreset: input.iconPreset,
         }),
       });
       if (!response.ok) {
@@ -245,6 +277,7 @@ export function BattlePlanClient({ initial }: Props) {
         defaultServerDate={selectedServerDate}
         defaultCapturePolicy={dashboard.settings.defaultCapturePolicy}
         markers={dashboard.markers}
+        events={dashboard.events}
         noteSuggestions={noteSuggestions}
         saving={saving}
         onClose={() => {
@@ -253,6 +286,8 @@ export function BattlePlanClient({ initial }: Props) {
         }}
         onSubmit={saveEvent}
         onDelete={editingEvent ? deleteEvent : undefined}
+        onOpenEvent={openEditModal}
+        onClearMarkerConflict={cancelCaptureEvent}
       />
     </div>
   );

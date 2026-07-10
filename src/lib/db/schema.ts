@@ -2680,6 +2680,7 @@ export const battlePlanMarkers = pgTable(
     markerNumber: integer("marker_number").notNull(),
     label: text("label"),
     colorHex: text("color_hex"),
+    iconPreset: text("icon_preset"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),

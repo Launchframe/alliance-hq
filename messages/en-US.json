@@ -4386,10 +4386,29 @@
     },
     "markers": {
       "title": "Map markers",
-      "subtitle": "Label in-game markers 1 through 5 so events point to the right location.",
-      "color": "Marker color",
-      "label": "Territory label",
-      "placeholder": "Optional territory label"
+      "subtitle": "Choose an in-game marker icon for each map slot 1 through 5.",
+      "icon": "Marker icon",
+      "presets": {
+        "crossedSwords": "Attack here",
+        "hammer": "Build here",
+        "sun": "Sun",
+        "star4": "Four-pointed star",
+        "clover": "Clover",
+        "shield": "Shield",
+        "triangle": "Triangle",
+        "crescent": "Crescent moon",
+        "star5": "Five-pointed star",
+        "hexagon": "Hexagon",
+        "square": "Square",
+        "circle": "Circle",
+        "parallelogram": "Parallelogram",
+        "trapezoid": "Trapezoid",
+        "ordinal1": "1st",
+        "ordinal2": "2nd",
+        "ordinal3": "3rd",
+        "ordinal4": "4th",
+        "ordinal5": "5th"
+      }
     },
     "event": {
       "createTitle": "Schedule capture",
@@ -4407,7 +4426,10 @@
       "statusCancelled": "Cancelled",
       "notes": "Notes for members",
       "notesPlaceholder": "Rally point, squad assignments, etc.",
-      "policyLine": "Policy: {policy}"
+      "policyLine": "Policy: {policy}",
+      "captureSummary": "{territoryType} capture on {dateTime}",
+      "markerInUse": "Marker {markerLabel} is in use for a <link>{captureSummary}</link>.",
+      "clearMarker": "Clear {markerLabel} marker"
     },
     "actions": {
       "scheduleCapture": "Schedule capture",

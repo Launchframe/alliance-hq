@@ -4385,10 +4385,29 @@
     },
     "markers": {
       "title": "Marcadores do mapa",
-      "subtitle": "Nomeie os marcadores 1 a 5 do jogo para que os eventos apontem para o local certo.",
-      "color": "Cor do marcador",
-      "label": "Rótulo do território",
-      "placeholder": "Rótulo opcional do território"
+      "subtitle": "Escolha um ícone de marcador do jogo para cada slot 1 a 5 do mapa.",
+      "icon": "Ícone do marcador",
+      "presets": {
+        "crossedSwords": "Atacar aqui",
+        "hammer": "Construir aqui",
+        "sun": "Sol",
+        "star4": "Estrela de quatro pontas",
+        "clover": "Trevo",
+        "shield": "Escudo",
+        "triangle": "Triângulo",
+        "crescent": "Lua crescente",
+        "star5": "Estrela de cinco pontas",
+        "hexagon": "Hexágono",
+        "square": "Quadrado",
+        "circle": "Círculo",
+        "parallelogram": "Paralelogramo",
+        "trapezoid": "Trapézio",
+        "ordinal1": "1º",
+        "ordinal2": "2º",
+        "ordinal3": "3º",
+        "ordinal4": "4º",
+        "ordinal5": "5º"
+      }
     },
     "event": {
       "createTitle": "Agendar captura",
@@ -4406,7 +4425,10 @@
       "statusCancelled": "Cancelada",
       "notes": "Notas para os membros",
       "notesPlaceholder": "Ponto de encontro, escalações, etc.",
-      "policyLine": "Política: {policy}"
+      "policyLine": "Política: {policy}",
+      "captureSummary": "captura de {territoryType} em {dateTime}",
+      "markerInUse": "O marcador {markerLabel} está em uso para uma <link>{captureSummary}</link>.",
+      "clearMarker": "Liberar marcador {markerLabel}"
     },
     "actions": {
       "scheduleCapture": "Agendar captura",

@@ -4,11 +4,16 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { MarkerBadge } from "@/components/battle-plan/MarkerBadge";
+import { MarkerIconPalette } from "@/components/battle-plan/MarkerIconPalette";
 import type {
   CapturePolicy,
   SerializedBattlePlanMarker,
   SerializedBattlePlanSettings,
 } from "@/lib/battle-plan/types.shared";
+import {
+  markerPresetI18nKey,
+  type MarkerIconPreset,
+} from "@/lib/battle-plan/marker-icons.shared";
 
 type Props = {
   settings: SerializedBattlePlanSettings;
@@ -20,7 +25,7 @@ type Props = {
   }) => Promise<void>;
   onSaveMarker: (
     markerNumber: number,
-    input: { label: string; colorHex: string },
+    input: { iconPreset: MarkerIconPreset },
   ) => Promise<void>;
 };
 
@@ -37,13 +42,10 @@ export function BattlePlanSettingsPanel({
     settings.defaultCapturePolicy,
   );
   const [markerDrafts, setMarkerDrafts] = useState<
-    Record<number, { label: string; colorHex: string }>
+    Record<number, MarkerIconPreset>
   >(() =>
     Object.fromEntries(
-      markers.map((marker) => [
-        marker.markerNumber,
-        { label: marker.label ?? "", colorHex: marker.colorHex },
-      ]),
+      markers.map((marker) => [marker.markerNumber, marker.iconPreset]),
     ),
   );
 
@@ -85,64 +87,36 @@ export function BattlePlanSettingsPanel({
         <p className="mt-1 text-xs text-hq-fg-muted">{t("markers.subtitle")}</p>
         <div className="mt-3 space-y-3">
           {markers.map((marker) => {
-            const draft = markerDrafts[marker.markerNumber] ?? {
-              label: marker.label ?? "",
-              colorHex: marker.colorHex,
-            };
+            const draft =
+              markerDrafts[marker.markerNumber] ?? marker.iconPreset;
             return (
               <div key={marker.id} className="space-y-2 rounded border border-hq-border p-3">
                 <div className="flex items-center gap-2">
-                  <MarkerBadge
-                    markerNumber={marker.markerNumber}
-                    colorHex={draft.colorHex}
-                  />
+                  <MarkerBadge iconPreset={draft} />
                   <span className="text-sm font-medium text-hq-fg">
                     {t("event.markerLabel", { marker: marker.markerNumber })}
                   </span>
+                  <span className="text-sm text-hq-fg-muted">
+                    {t(`markers.presets.${markerPresetI18nKey(draft)}`)}
+                  </span>
                 </div>
-                <label className="block space-y-1 text-sm">
-                  <span className="text-hq-fg-muted">{t("markers.color")}</span>
-                  <input
-                    type="color"
-                    className="h-10 w-full cursor-pointer rounded border border-hq-border bg-hq-bg"
-                    value={draft.colorHex}
-                    disabled={!canWrite || saving}
-                    onChange={(event) =>
-                      setMarkerDrafts((current) => ({
-                        ...current,
-                        [marker.markerNumber]: {
-                          ...draft,
-                          colorHex: event.target.value,
-                        },
-                      }))
-                    }
-                  />
-                </label>
-                <label className="block space-y-1 text-sm">
-                  <span className="text-hq-fg-muted">{t("markers.label")}</span>
-                  <input
-                    className="w-full rounded border border-hq-border bg-hq-bg px-3 py-2"
-                    value={draft.label}
-                    disabled={!canWrite || saving}
-                    placeholder={t("markers.placeholder")}
-                    onChange={(event) =>
-                      setMarkerDrafts((current) => ({
-                        ...current,
-                        [marker.markerNumber]: {
-                          ...draft,
-                          label: event.target.value,
-                        },
-                      }))
-                    }
-                  />
-                </label>
+                <MarkerIconPalette
+                  value={draft}
+                  disabled={!canWrite || saving}
+                  onChange={(iconPreset) =>
+                    setMarkerDrafts((current) => ({
+                      ...current,
+                      [marker.markerNumber]: iconPreset,
+                    }))
+                  }
+                />
                 {canWrite ? (
                   <button
                     type="button"
                     className="rounded border border-hq-border px-3 py-2 text-sm"
-                    disabled={saving}
+                    disabled={saving || draft === marker.iconPreset}
                     onClick={() =>
-                      void onSaveMarker(marker.markerNumber, draft)
+                      void onSaveMarker(marker.markerNumber, { iconPreset: draft })
                     }
                   >
                     {t("actions.save")}

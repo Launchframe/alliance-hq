@@ -9,6 +9,7 @@ import type {
   SerializedCaptureEvent,
 } from "@/lib/battle-plan/types.shared";
 import { listUpcomingCaptureEvents } from "@/lib/battle-plan/display.shared";
+import { DEFAULT_MARKER_ICON_PRESETS } from "@/lib/battle-plan/marker-icons.shared";
 
 type Props = {
   events: SerializedCaptureEvent[];
@@ -25,8 +26,8 @@ export function UpcomingCapturesList({
 }: Props) {
   const t = useTranslations("battlePlan");
   const upcoming = useMemo(() => listUpcomingCaptureEvents(events), [events]);
-  const markerColors = useMemo(
-    () => new Map(markers.map((marker) => [marker.markerNumber, marker.colorHex])),
+  const markerIcons = useMemo(
+    () => new Map(markers.map((marker) => [marker.markerNumber, marker.iconPreset])),
     [markers],
   );
 
@@ -57,9 +58,9 @@ export function UpcomingCapturesList({
               <div className="flex items-center justify-between gap-3">
                 <span className="flex items-center gap-2 font-medium text-hq-fg">
                   <MarkerBadge
-                    markerNumber={event.markerNumber}
-                    colorHex={
-                      markerColors.get(event.markerNumber) ?? "#64748b"
+                    iconPreset={
+                      markerIcons.get(event.markerNumber) ??
+                      DEFAULT_MARKER_ICON_PRESETS[event.markerNumber]
                     }
                     size="sm"
                   />

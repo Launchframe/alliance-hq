@@ -610,6 +610,13 @@
       "when": 1786707200000,
       "tag": "0087_battle_plan_marker_colors",
       "breakpoints": true
+    },
+    {
+      "idx": 86,
+      "version": "7",
+      "when": 1786793600000,
+      "tag": "0088_battle_plan_marker_icons",
+      "breakpoints": true
     }
   ]
 }

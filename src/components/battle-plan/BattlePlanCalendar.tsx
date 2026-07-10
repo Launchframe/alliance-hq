@@ -17,6 +17,7 @@ import {
   formatLocalCaptureTime,
   groupEventsByServerDate,
 } from "@/lib/battle-plan/display.shared";
+import { DEFAULT_MARKER_ICON_PRESETS } from "@/lib/battle-plan/marker-icons.shared";
 import { capturePolicyBarClassName } from "@/lib/battle-plan/marker-colors.shared";
 import {
   buildMonthGrid,
@@ -43,8 +44,8 @@ export function BattlePlanCalendar({
   const [monthKey, setMonthKey] = useState(getMonthKey(todayServerDate));
   const grouped = useMemo(() => groupEventsByServerDate(events), [events]);
   const grid = useMemo(() => buildMonthGrid(monthKey), [monthKey]);
-  const markerColors = useMemo(
-    () => new Map(markers.map((marker) => [marker.markerNumber, marker.colorHex])),
+  const markerIcons = useMemo(
+    () => new Map(markers.map((marker) => [marker.markerNumber, marker.iconPreset])),
     [markers],
   );
 
@@ -129,9 +130,9 @@ export function BattlePlanCalendar({
                       className={`flex w-full items-center gap-1 truncate rounded px-1 py-0.5 text-[10px] font-medium ${capturePolicyBarClassName(event.effectiveCapturePolicy)}`}
                     >
                       <MarkerBadge
-                        markerNumber={event.markerNumber}
-                        colorHex={
-                          markerColors.get(event.markerNumber) ?? "#64748b"
+                        iconPreset={
+                          markerIcons.get(event.markerNumber) ??
+                          DEFAULT_MARKER_ICON_PRESETS[event.markerNumber]
                         }
                         size="sm"
                       />

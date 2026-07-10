@@ -11,7 +11,7 @@ import {
 import type { CaptureEventLimitRow } from "@/lib/battle-plan/server-day-limits.shared";
 import { validateServerDayCaptureLimit } from "@/lib/battle-plan/server-day-limits.shared";
 import { BATTLE_PLAN_MARKER_NUMBERS } from "@/lib/battle-plan/types.shared";
-import { DEFAULT_MARKER_COLORS } from "@/lib/battle-plan/marker-colors.shared";
+import { DEFAULT_MARKER_ICON_PRESETS } from "@/lib/battle-plan/marker-icons.shared";
 import { formatServerCalendarDate } from "@/lib/trains/game-time";
 import { getDb, schema } from "@/lib/db";
 
@@ -82,7 +82,7 @@ async function ensureBattlePlanMarkers(allianceId: string) {
         id: nanoid(),
         allianceId,
         markerNumber,
-        colorHex: DEFAULT_MARKER_COLORS[markerNumber],
+        iconPreset: DEFAULT_MARKER_ICON_PRESETS[markerNumber],
       })),
     );
   }
@@ -174,24 +174,16 @@ export async function updateBattlePlanSettings(
 export async function updateBattlePlanMarker(
   allianceId: string,
   markerNumber: number,
-  input: { planRevision: number; label?: string | null; colorHex?: string | null },
+  input: { planRevision: number; iconPreset: string },
 ) {
   await bumpBattlePlanRevision(allianceId, input.planRevision);
   const db = getDb();
-  const patch: {
-    label?: string | null;
-    colorHex?: string | null;
-    updatedAt: Date;
-  } = { updatedAt: new Date() };
-  if (input.label !== undefined) {
-    patch.label = input.label?.trim() || null;
-  }
-  if (input.colorHex !== undefined) {
-    patch.colorHex = input.colorHex?.trim() || null;
-  }
   const updated = await db
     .update(schema.battlePlanMarkers)
-    .set(patch)
+    .set({
+      iconPreset: input.iconPreset,
+      updatedAt: new Date(),
+    })
     .where(
       and(
         eq(schema.battlePlanMarkers.allianceId, allianceId),

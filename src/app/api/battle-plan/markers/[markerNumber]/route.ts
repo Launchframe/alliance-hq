@@ -39,8 +39,7 @@ export async function PATCH(request: Request, { params }: Props) {
   }
 
   const body = (await request.json()) as {
-    label?: string | null;
-    colorHex?: string | null;
+    iconPreset: string;
     planRevision: number;
   };
   const validationError = validateBattlePlanMarkerPayload(body);
