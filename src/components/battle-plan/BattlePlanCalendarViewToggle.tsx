@@ -15,11 +15,11 @@ export function BattlePlanCalendarViewToggle({
   dayLabel,
   monthLabel,
   onChange,
-  className = "",
+  className = "inline-flex",
 }: Props) {
   return (
     <div
-      className={`inline-flex rounded-lg border border-hq-border bg-hq-canvas p-0.5 ${className}`}
+      className={`rounded-lg border border-hq-border bg-hq-canvas p-0.5 ${className}`}
       role="tablist"
       aria-label="Calendar view"
       data-testid="battle-plan-calendar-view-toggle"

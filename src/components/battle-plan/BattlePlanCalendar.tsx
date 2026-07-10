@@ -198,10 +198,10 @@ export function BattlePlanCalendar({
   return (
     <div className="rounded-lg border border-hq-border bg-hq-surface p-4">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-1 items-center justify-center gap-2 md:flex-none md:justify-start">
+        <div className="flex flex-1 items-center justify-center gap-2 md:flex-none md:justify-start md:gap-2">
           <button
             type="button"
-            className="rounded border border-hq-border p-1 text-hq-fg-muted hover:text-hq-fg"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-lg border border-hq-border text-hq-fg-muted hover:text-hq-fg md:h-8 md:w-8 md:rounded"
             onClick={() =>
               calendarView === "day"
                 ? setAnchorDate((current) => addCalendarDays(current, -1))
@@ -213,14 +213,14 @@ export function BattlePlanCalendar({
                 : t("calendar.previousMonth")
             }
           >
-            <ChevronLeft className="h-4 w-4" />
+            <ChevronLeft className="h-6 w-6 md:h-4 md:w-4" />
           </button>
-          <h2 className="min-w-40 text-center text-sm font-semibold text-hq-fg">
+          <h2 className="min-w-40 flex-1 text-center text-sm font-semibold text-hq-fg md:flex-none">
             {headerLabel}
           </h2>
           <button
             type="button"
-            className="rounded border border-hq-border p-1 text-hq-fg-muted hover:text-hq-fg"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-lg border border-hq-border text-hq-fg-muted hover:text-hq-fg md:h-8 md:w-8 md:rounded"
             onClick={() =>
               calendarView === "day"
                 ? setAnchorDate((current) => addCalendarDays(current, 1))
@@ -232,7 +232,7 @@ export function BattlePlanCalendar({
                 : t("calendar.nextMonth")
             }
           >
-            <ChevronRight className="h-4 w-4" />
+            <ChevronRight className="h-6 w-6 md:h-4 md:w-4" />
           </button>
         </div>
         <BattlePlanCalendarViewToggle
