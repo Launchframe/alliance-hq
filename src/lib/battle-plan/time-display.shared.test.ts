@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildDefaultCaptureDateTime,
+  formatCaptureDateTime,
+  formatCaptureTime,
   getZonedDateTimeParts,
   isBattlePlanTimeDisplay,
   zonedDateTimeToIso,
@@ -37,5 +39,13 @@ describe("battle plan time display", () => {
     expect(parts.time).toBe(
       getZonedDateTimeParts(now, SERVER_TIME_IANA).time,
     );
+  });
+
+  it("formats server times in 24-hour clock", () => {
+    const iso = zonedDateTimeToIso("2026-07-10", "14:30", SERVER_TIME_IANA);
+    expect(formatCaptureTime(iso, "server")).toMatch(/14:30/);
+    expect(formatCaptureTime(iso, "server")).not.toMatch(/AM|PM/i);
+    expect(formatCaptureDateTime(iso, "server")).toMatch(/14:30/);
+    expect(formatCaptureDateTime(iso, "server")).not.toMatch(/AM|PM/i);
   });
 });

@@ -148,6 +148,7 @@ export function formatCaptureTime(
     timeZone: resolveBattlePlanIana(display),
     hour: "numeric",
     minute: "2-digit",
+    hour12: display !== "server",
   }).format(new Date(iso));
 }
 
@@ -155,6 +156,17 @@ export function formatCaptureDateTime(
   iso: string,
   display: BattlePlanTimeDisplay,
 ): string {
+  if (display === "server") {
+    return new Intl.DateTimeFormat(undefined, {
+      timeZone: resolveBattlePlanIana(display),
+      year: "numeric",
+      month: "numeric",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).format(new Date(iso));
+  }
   return new Intl.DateTimeFormat(undefined, {
     timeZone: resolveBattlePlanIana(display),
     dateStyle: "short",
