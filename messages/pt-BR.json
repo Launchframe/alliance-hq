@@ -1247,6 +1247,7 @@
       "inventoryDepletedRevoked": "Revogado",
       "inventoryDepletedUsesExhausted": "Todos os usos resgatados",
       "inventoryDepletedAccepted": "Aceito",
+      "inventoryRevealCode": "Clique para revelar",
       "ownerOnlyGate": "Only the alliance owner can send invites and create join codes for this alliance. Ask your R5 to invite new members.",
       "forbidden": "You don't have permission to manage invites for this alliance."
     },

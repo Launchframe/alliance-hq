@@ -1248,7 +1248,8 @@
       "inventoryDepletedExpired": "Expired",
       "inventoryDepletedRevoked": "Revoked",
       "inventoryDepletedUsesExhausted": "All uses redeemed",
-      "inventoryDepletedAccepted": "Accepted"
+      "inventoryDepletedAccepted": "Accepted",
+      "inventoryRevealCode": "Click to reveal"
     },
     "table": {
       "user": "User",

@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { Check, Copy, Eye } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { useFormatAccountDateTime } from "@/components/timezone/TimezoneProvider";
@@ -46,6 +47,68 @@ function depletedReasonKey(
   return "inventoryDepletedExpired";
 }
 
+function CodeHintReveal({ hint }: { hint: string }) {
+  const tCommon = useTranslations("common");
+  const tInvites = useTranslations("team.invites");
+  const [revealed, setRevealed] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, []);
+
+  async function handleCopy() {
+    try {
+      await navigator.clipboard.writeText(hint);
+      setCopied(true);
+      if (timerRef.current) clearTimeout(timerRef.current);
+      timerRef.current = setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // clipboard unavailable — ignore
+    }
+  }
+
+  if (!revealed) {
+    return (
+      <button
+        type="button"
+        onClick={() => setRevealed(true)}
+        className="inline-flex items-center gap-1.5 rounded-md border border-hq-border bg-hq-surface-muted px-2.5 py-1 text-xs text-hq-fg-muted transition-colors hover:bg-hq-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hq-accent"
+      >
+        <Eye aria-hidden className="h-3.5 w-3.5" />
+        {tInvites("inventoryRevealCode")}
+      </button>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-2">
+      <span className="font-mono text-xs text-hq-fg">{hint}</span>
+      <button
+        type="button"
+        onClick={() => void handleCopy()}
+        className="inline-flex items-center gap-1.5 rounded-md border border-hq-border bg-hq-surface-muted px-2.5 py-1 text-xs transition-colors hover:bg-hq-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hq-accent"
+        aria-label={tCommon("copyToClipboard")}
+      >
+        {copied ? (
+          <>
+            <Check aria-hidden className="h-3.5 w-3.5 text-hq-green" />
+            <span className="text-hq-green">{tCommon("copied")}</span>
+          </>
+        ) : (
+          <>
+            <Copy aria-hidden className="h-3.5 w-3.5" />
+            <span>{tCommon("copy")}</span>
+          </>
+        )}
+      </button>
+    </div>
+  );
+}
+
 function InventoryRow({
   item,
   depleted,
@@ -83,10 +146,14 @@ function InventoryRow({
           <p className="text-xs text-hq-fg-muted">
             {roleLabel}
             {item.email ? ` · ${item.email}` : null}
-            {item.codeHint ? ` · ${item.codeHint}` : null}
           </p>
           {item.adminLabel ? (
             <p className="text-xs text-hq-fg-muted">{item.adminLabel}</p>
+          ) : null}
+          {item.codeHint ? (
+            <div className="mt-1.5">
+              <CodeHintReveal hint={item.codeHint} />
+            </div>
           ) : null}
         </div>
         <div className="text-right text-xs text-hq-fg-muted">
@@ -109,11 +176,6 @@ function InventoryRow({
       {depleted && item.depletedReason ? (
         <p className="mt-2 text-xs text-hq-warning">
           {t(depletedReasonKey(item.depletedReason))}
-        </p>
-      ) : null}
-      {!depleted && item.kind !== "invite_link" ? (
-        <p className="mt-2 text-xs text-hq-fg-muted">
-          {t("inventoryCodeHintOnly")}
         </p>
       ) : null}
       {!depleted && item.kind === "invite_link" ? (
