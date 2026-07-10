@@ -2,7 +2,8 @@
 -- Legacy member_season_vr* tables are retained for dual-write / rollback.
 --
 -- Backfill joins via commander_alliance_memberships on (alliance_id, ashed_member_id).
--- Duplicate (commander_id, season_key) rows merge with GREATEST(highest_base_vr).
+-- Duplicate (commander_id, season_key) rows are collapsed before insert
+-- (a commander may have VR rows in multiple alliances for the same season).
 -- Orphan legacy rows (no resolvable commander) stay in member_season_vr* only.
 
 CREATE TABLE IF NOT EXISTS "commander_season_vr" (
@@ -41,7 +42,9 @@ CREATE INDEX IF NOT EXISTS "commander_season_vr_events_commander_season_created_
 CREATE INDEX IF NOT EXISTS "commander_season_vr_events_alliance_season_idx"
   ON "commander_season_vr_events" ("alliance_id", "season_key");
 
--- Summary backfill: one row per (commander_id, season_key); keep max VR on conflict.
+-- Summary backfill: collapse to one row per (commander_id, season_key) first.
+-- Prefer highest VR, then newest updated_at. DISTINCT ON avoids
+-- "ON CONFLICT DO UPDATE cannot affect row a second time".
 INSERT INTO "commander_season_vr" (
   "id",
   "commander_id",
@@ -56,21 +59,41 @@ INSERT INTO "commander_season_vr" (
   "updated_at"
 )
 SELECT
-  msv."id",
-  cam."commander_id",
-  msv."season_key",
-  msv."highest_base_vr",
-  msv."institute_level",
-  msv."flagged_at",
-  msv."flag_reason",
-  msv."updated_by_discord_user_id",
-  msv."updated_by_hq_user_id",
-  msv."created_at",
-  msv."updated_at"
-FROM "member_season_vr" msv
-INNER JOIN "commander_alliance_memberships" cam
-  ON cam."alliance_id" = msv."alliance_id"
- AND cam."ashed_member_id" = msv."ashed_member_id"
+  src."id",
+  src."commander_id",
+  src."season_key",
+  src."highest_base_vr",
+  src."institute_level",
+  src."flagged_at",
+  src."flag_reason",
+  src."updated_by_discord_user_id",
+  src."updated_by_hq_user_id",
+  src."created_at",
+  src."updated_at"
+FROM (
+  SELECT DISTINCT ON (cam."commander_id", msv."season_key")
+    msv."id",
+    cam."commander_id",
+    msv."season_key",
+    msv."highest_base_vr",
+    msv."institute_level",
+    msv."flagged_at",
+    msv."flag_reason",
+    msv."updated_by_discord_user_id",
+    msv."updated_by_hq_user_id",
+    msv."created_at",
+    msv."updated_at"
+  FROM "member_season_vr" msv
+  INNER JOIN "commander_alliance_memberships" cam
+    ON cam."alliance_id" = msv."alliance_id"
+   AND cam."ashed_member_id" = msv."ashed_member_id"
+  ORDER BY
+    cam."commander_id",
+    msv."season_key",
+    msv."highest_base_vr" DESC,
+    msv."updated_at" DESC,
+    msv."id"
+) AS src
 ON CONFLICT ("commander_id", "season_key") DO UPDATE SET
   "highest_base_vr" = GREATEST(
     "commander_season_vr"."highest_base_vr",
@@ -120,6 +143,7 @@ ON CONFLICT ("commander_id", "season_key") DO UPDATE SET
   );
 
 -- Event backfill (preserve ids / timestamps / alliance context).
+-- Deduplicate by event id in case a membership join is ambiguous.
 INSERT INTO "commander_season_vr_events" (
   "id",
   "commander_id",
@@ -134,21 +158,39 @@ INSERT INTO "commander_season_vr_events" (
   "created_at"
 )
 SELECT
-  msve."id",
-  cam."commander_id",
-  msve."season_key",
-  msve."base_vr",
-  msve."institute_level",
-  msve."previous_base_vr",
-  msve."source",
-  msve."alliance_id",
-  msve."reported_by_hq_user_id",
-  msve."reported_by_discord_user_id",
-  msve."created_at"
-FROM "member_season_vr_events" msve
-INNER JOIN "commander_alliance_memberships" cam
-  ON cam."alliance_id" = msve."alliance_id"
- AND cam."ashed_member_id" = msve."ashed_member_id"
+  src."id",
+  src."commander_id",
+  src."season_key",
+  src."base_vr",
+  src."institute_level",
+  src."previous_base_vr",
+  src."source",
+  src."alliance_id",
+  src."reported_by_hq_user_id",
+  src."reported_by_discord_user_id",
+  src."created_at"
+FROM (
+  SELECT DISTINCT ON (msve."id")
+    msve."id",
+    cam."commander_id",
+    msve."season_key",
+    msve."base_vr",
+    msve."institute_level",
+    msve."previous_base_vr",
+    msve."source",
+    msve."alliance_id",
+    msve."reported_by_hq_user_id",
+    msve."reported_by_discord_user_id",
+    msve."created_at"
+  FROM "member_season_vr_events" msve
+  INNER JOIN "commander_alliance_memberships" cam
+    ON cam."alliance_id" = msve."alliance_id"
+   AND cam."ashed_member_id" = msve."ashed_member_id"
+  ORDER BY
+    msve."id",
+    cam."joined_at" DESC NULLS LAST,
+    cam."id"
+) AS src
 ON CONFLICT ("id") DO NOTHING;
 
 -- Validation (run manually on prod after migrate):
