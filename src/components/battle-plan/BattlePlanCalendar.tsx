@@ -4,18 +4,27 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 
-import type { SerializedCaptureEvent } from "@/lib/battle-plan/types.shared";
+import { MarkerBadge } from "@/components/battle-plan/MarkerBadge";
+import type {
+  SerializedBattlePlanMarker,
+  SerializedCaptureEvent,
+} from "@/lib/battle-plan/types.shared";
 import {
   addCalendarMonths,
   getMonthKey,
 } from "@/lib/trains/game-time";
-import { groupEventsByServerDate } from "@/lib/battle-plan/display.shared";
+import {
+  formatLocalCaptureTime,
+  groupEventsByServerDate,
+} from "@/lib/battle-plan/display.shared";
+import { capturePolicyBarClassName } from "@/lib/battle-plan/marker-colors.shared";
 import {
   buildMonthGrid,
 } from "@/lib/trains/trains-display-calendar.shared";
 
 type Props = {
   events: SerializedCaptureEvent[];
+  markers: SerializedBattlePlanMarker[];
   todayServerDate: string;
   canWrite: boolean;
   onSelectDate?: (serverDate: string) => void;
@@ -24,6 +33,7 @@ type Props = {
 
 export function BattlePlanCalendar({
   events,
+  markers,
   todayServerDate,
   canWrite,
   onSelectDate,
@@ -33,6 +43,10 @@ export function BattlePlanCalendar({
   const [monthKey, setMonthKey] = useState(getMonthKey(todayServerDate));
   const grouped = useMemo(() => groupEventsByServerDate(events), [events]);
   const grid = useMemo(() => buildMonthGrid(monthKey), [monthKey]);
+  const markerColors = useMemo(
+    () => new Map(markers.map((marker) => [marker.markerNumber, marker.colorHex])),
+    [markers],
+  );
 
   return (
     <div className="rounded-lg border border-hq-border bg-hq-surface p-4">
@@ -67,9 +81,9 @@ export function BattlePlanCalendar({
       <div className="mt-1 grid grid-cols-7 gap-1">
         {grid.map((cell) => {
           const dayEvents = grouped.get(cell.date) ?? [];
-          const scheduledCount = dayEvents.filter(
+          const scheduledEvents = dayEvents.filter(
             (event) => event.status === "scheduled",
-          ).length;
+          );
           const isToday = cell.date === todayServerDate;
           const daySelectable =
             canWrite && onSelectDate != null && cell.inMonth;
@@ -93,7 +107,7 @@ export function BattlePlanCalendar({
                     }
                   : undefined
               }
-              className={`min-h-20 rounded border p-1 text-left text-xs ${
+              className={`min-h-24 rounded border p-1 text-left text-xs ${
                 cell.inMonth
                   ? "border-hq-border bg-hq-bg"
                   : "border-transparent bg-transparent text-hq-fg-subtle"
@@ -102,9 +116,9 @@ export function BattlePlanCalendar({
               }`}
             >
               <div className="font-medium text-hq-fg">{cell.date.slice(-2)}</div>
-              {scheduledCount > 0 ? (
+              {scheduledEvents.length > 0 ? (
                 <div className="mt-1 space-y-1">
-                  {dayEvents.slice(0, 2).map((event) => (
+                  {scheduledEvents.slice(0, 3).map((event) => (
                     <button
                       key={event.id}
                       type="button"
@@ -112,15 +126,25 @@ export function BattlePlanCalendar({
                         clickEvent.stopPropagation();
                         onSelectEvent?.(event);
                       }}
-                      className="block w-full truncate rounded bg-hq-accent/15 px-1 py-0.5 text-[10px] text-hq-fg"
+                      className={`flex w-full items-center gap-1 truncate rounded px-1 py-0.5 text-[10px] font-medium ${capturePolicyBarClassName(event.effectiveCapturePolicy)}`}
                     >
-                      #{event.markerNumber}{" "}
-                      {event.territoryType === "stronghold" ? "SH" : "C"}
+                      <MarkerBadge
+                        markerNumber={event.markerNumber}
+                        colorHex={
+                          markerColors.get(event.markerNumber) ?? "#64748b"
+                        }
+                        size="sm"
+                      />
+                      <span className="truncate">
+                        {formatLocalCaptureTime(event.scheduledAt)}
+                        {" · "}
+                        {event.territoryType === "stronghold" ? "SH" : "C"}
+                      </span>
                     </button>
                   ))}
-                  {scheduledCount > 2 ? (
+                  {scheduledEvents.length > 3 ? (
                     <div className="text-[10px] text-hq-fg-muted">
-                      {t("calendar.more", { count: scheduledCount - 2 })}
+                      {t("calendar.more", { count: scheduledEvents.length - 3 })}
                     </div>
                   ) : null}
                 </div>

@@ -28,6 +28,7 @@ export type SerializedBattlePlanMarker = {
   id: string;
   markerNumber: BattlePlanMarkerNumber;
   label: string | null;
+  colorHex: string;
   updatedAt: string;
 };
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { BattlePlanCalendar } from "@/components/battle-plan/BattlePlanCalendar";
@@ -11,6 +11,7 @@ import {
   type CaptureEventFormValues,
 } from "@/components/battle-plan/CaptureEventModal";
 import { UpcomingCapturesList } from "@/components/battle-plan/UpcomingCapturesList";
+import { extractHistoricalNotes } from "@/lib/battle-plan/notes-suggestions.shared";
 import type { BattlePlanDashboardPayload } from "@/lib/battle-plan/types.shared";
 import type { SerializedCaptureEvent } from "@/lib/battle-plan/types.shared";
 
@@ -28,6 +29,10 @@ export function BattlePlanClient({ initial }: Props) {
     null,
   );
   const [selectedServerDate, setSelectedServerDate] = useState<string | null>(null);
+  const noteSuggestions = useMemo(
+    () => extractHistoricalNotes(dashboard.events),
+    [dashboard.events],
+  );
 
   const applyDashboard = useCallback((next: BattlePlanDashboardPayload) => {
     setDashboard(next);
@@ -150,7 +155,10 @@ export function BattlePlanClient({ initial }: Props) {
     }
   };
 
-  const saveMarker = async (markerNumber: number, label: string) => {
+  const saveMarker = async (
+    markerNumber: number,
+    input: { label: string; colorHex: string },
+  ) => {
     setSaving(true);
     setError(null);
     try {
@@ -159,7 +167,8 @@ export function BattlePlanClient({ initial }: Props) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           planRevision: dashboard.settings.planRevision,
-          label,
+          label: input.label,
+          colorHex: input.colorHex,
         }),
       });
       if (!response.ok) {
@@ -205,11 +214,13 @@ export function BattlePlanClient({ initial }: Props) {
         <div className="space-y-6">
           <UpcomingCapturesList
             events={dashboard.events}
+            markers={dashboard.markers}
             canWrite={dashboard.canWrite}
             onSelect={dashboard.canWrite ? openEditModal : undefined}
           />
           <BattlePlanCalendar
             events={dashboard.events}
+            markers={dashboard.markers}
             todayServerDate={dashboard.todayServerDate}
             canWrite={dashboard.canWrite}
             onSelectDate={dashboard.canWrite ? openCreateModal : undefined}
@@ -232,6 +243,9 @@ export function BattlePlanClient({ initial }: Props) {
         open={modalOpen}
         initial={editingEvent}
         defaultServerDate={selectedServerDate}
+        defaultCapturePolicy={dashboard.settings.defaultCapturePolicy}
+        markers={dashboard.markers}
+        noteSuggestions={noteSuggestions}
         saving={saving}
         onClose={() => {
           setModalOpen(false);

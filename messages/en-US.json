@@ -4387,6 +4387,8 @@
     "markers": {
       "title": "Map markers",
       "subtitle": "Label in-game markers 1 through 5 so events point to the right location.",
+      "color": "Marker color",
+      "label": "Territory label",
       "placeholder": "Optional territory label"
     },
     "event": {
@@ -4398,13 +4400,13 @@
       "city": "City",
       "markerNumber": "Map marker",
       "markerLabel": "Marker {marker}",
-      "capturePolicy": "Capture policy override",
-      "useAllianceDefault": "Use alliance default",
+      "capturePolicy": "Capture policy",
       "status": "Status",
       "statusScheduled": "Scheduled",
       "statusCompleted": "Completed",
       "statusCancelled": "Cancelled",
       "notes": "Notes for members",
+      "notesPlaceholder": "Rally point, squad assignments, etc.",
       "policyLine": "Policy: {policy}"
     },
     "actions": {

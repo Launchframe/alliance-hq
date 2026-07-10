@@ -2679,6 +2679,7 @@ export const battlePlanMarkers = pgTable(
       .references(() => alliances.id, { onDelete: "cascade" }),
     markerNumber: integer("marker_number").notNull(),
     label: text("label"),
+    colorHex: text("color_hex"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),

@@ -9,7 +9,10 @@ import {
   requireBattlePlanAllianceContext,
   requireBattlePlanWrite,
 } from "@/lib/battle-plan/route-helpers.server";
-import { isMarkerNumber } from "@/lib/battle-plan/api.shared";
+import {
+  isMarkerNumber,
+  validateBattlePlanMarkerPayload,
+} from "@/lib/battle-plan/api.shared";
 import { getServerCalendarDate } from "@/lib/trains/game-time";
 
 type Props = { params: Promise<{ markerNumber: string }> };
@@ -37,8 +40,13 @@ export async function PATCH(request: Request, { params }: Props) {
 
   const body = (await request.json()) as {
     label?: string | null;
+    colorHex?: string | null;
     planRevision: number;
   };
+  const validationError = validateBattlePlanMarkerPayload(body);
+  if (validationError) {
+    return NextResponse.json({ error: validationError }, { status: 400 });
+  }
   if (typeof body.planRevision !== "number") {
     return NextResponse.json({ error: "planRevision is required." }, { status: 400 });
   }

@@ -1,4 +1,8 @@
 import {
+  isMarkerColorHex,
+  resolveMarkerColorHex,
+} from "@/lib/battle-plan/marker-colors.shared";
+import {
   BATTLE_PLAN_MARKER_NUMBERS,
   CAPTURE_POLICIES,
   CAPTURE_EVENT_STATUSES,
@@ -16,7 +20,7 @@ export type CaptureEventPayload = {
   scheduledAt: string;
   territoryType: TerritoryType;
   markerNumber: BattlePlanMarkerNumber;
-  capturePolicy?: CapturePolicy | null;
+  capturePolicy: CapturePolicy;
   notes?: string | null;
   status?: CaptureEventStatus;
 };
@@ -30,6 +34,7 @@ export type BattlePlanSettingsPayload = {
 
 export type BattlePlanMarkerPayload = {
   label?: string | null;
+  colorHex?: string | null;
   planRevision: number;
 };
 
@@ -71,12 +76,15 @@ export function serializeBattlePlanMarker(row: {
   id: string;
   markerNumber: number;
   label: string | null;
+  colorHex?: string | null;
   updatedAt: Date;
 }): SerializedBattlePlanMarker {
+  const markerNumber = row.markerNumber as BattlePlanMarkerNumber;
   return {
     id: row.id,
-    markerNumber: row.markerNumber as BattlePlanMarkerNumber,
+    markerNumber,
     label: row.label,
+    colorHex: resolveMarkerColorHex(markerNumber, row.colorHex),
     updatedAt: row.updatedAt.toISOString(),
   };
 }
@@ -133,10 +141,7 @@ export function validateCaptureEventPayload(
   if (!isMarkerNumber(body.markerNumber)) {
     return "markerNumber must be between 1 and 5.";
   }
-  if (
-    body.capturePolicy != null &&
-    !isCapturePolicy(body.capturePolicy)
-  ) {
+  if (!body.capturePolicy || !isCapturePolicy(body.capturePolicy)) {
     return "capturePolicy must be peace or war.";
   }
   if (body.status != null && !isCaptureEventStatus(body.status)) {
@@ -158,4 +163,26 @@ export function validateBattlePlanSettingsPayload(
     return "defaultCapturePolicy must be peace or war.";
   }
   return null;
+}
+
+export function validateBattlePlanMarkerPayload(body: {
+  label?: string | null;
+  colorHex?: string | null;
+  planRevision: number;
+}): string | null {
+  if (typeof body.planRevision !== "number" || body.planRevision < 0) {
+    return "planRevision is required.";
+  }
+  if (
+    body.colorHex != null &&
+    body.colorHex !== "" &&
+    !isMarkerColorHex(body.colorHex)
+  ) {
+    return "colorHex must be a #RRGGBB value.";
+  }
+  return null;
+}
+
+export function capturePolicyLabel(policy: CapturePolicy): string {
+  return policy === "peace" ? "In-and-out" : "All gas, no brakes";
 }

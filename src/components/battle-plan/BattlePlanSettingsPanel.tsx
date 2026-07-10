@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 
+import { MarkerBadge } from "@/components/battle-plan/MarkerBadge";
 import type {
   CapturePolicy,
   SerializedBattlePlanMarker,
@@ -17,7 +18,10 @@ type Props = {
   onSaveSettings: (input: {
     defaultCapturePolicy: CapturePolicy;
   }) => Promise<void>;
-  onSaveMarker: (markerNumber: number, label: string) => Promise<void>;
+  onSaveMarker: (
+    markerNumber: number,
+    input: { label: string; colorHex: string },
+  ) => Promise<void>;
 };
 
 export function BattlePlanSettingsPanel({
@@ -32,8 +36,15 @@ export function BattlePlanSettingsPanel({
   const [defaultCapturePolicy, setDefaultCapturePolicy] = useState(
     settings.defaultCapturePolicy,
   );
-  const [markerLabels, setMarkerLabels] = useState<Record<number, string>>(() =>
-    Object.fromEntries(markers.map((marker) => [marker.markerNumber, marker.label ?? ""])),
+  const [markerDrafts, setMarkerDrafts] = useState<
+    Record<number, { label: string; colorHex: string }>
+  >(() =>
+    Object.fromEntries(
+      markers.map((marker) => [
+        marker.markerNumber,
+        { label: marker.label ?? "", colorHex: marker.colorHex },
+      ]),
+    ),
   );
 
   return (
@@ -72,43 +83,74 @@ export function BattlePlanSettingsPanel({
       <div className="border-t border-hq-border pt-4">
         <h3 className="text-sm font-semibold text-hq-fg">{t("markers.title")}</h3>
         <p className="mt-1 text-xs text-hq-fg-muted">{t("markers.subtitle")}</p>
-        <div className="mt-3 space-y-2">
-          {markers.map((marker) => (
-            <label key={marker.id} className="block space-y-1 text-sm">
-              <span className="text-hq-fg-muted">
-                {t("event.markerLabel", { marker: marker.markerNumber })}
-              </span>
-              <div className="flex gap-2">
-                <input
-                  className="min-w-0 flex-1 rounded border border-hq-border bg-hq-bg px-3 py-2"
-                  value={markerLabels[marker.markerNumber] ?? ""}
-                  disabled={!canWrite || saving}
-                  placeholder={t("markers.placeholder")}
-                  onChange={(event) =>
-                    setMarkerLabels((current) => ({
-                      ...current,
-                      [marker.markerNumber]: event.target.value,
-                    }))
-                  }
-                />
+        <div className="mt-3 space-y-3">
+          {markers.map((marker) => {
+            const draft = markerDrafts[marker.markerNumber] ?? {
+              label: marker.label ?? "",
+              colorHex: marker.colorHex,
+            };
+            return (
+              <div key={marker.id} className="space-y-2 rounded border border-hq-border p-3">
+                <div className="flex items-center gap-2">
+                  <MarkerBadge
+                    markerNumber={marker.markerNumber}
+                    colorHex={draft.colorHex}
+                  />
+                  <span className="text-sm font-medium text-hq-fg">
+                    {t("event.markerLabel", { marker: marker.markerNumber })}
+                  </span>
+                </div>
+                <label className="block space-y-1 text-sm">
+                  <span className="text-hq-fg-muted">{t("markers.color")}</span>
+                  <input
+                    type="color"
+                    className="h-10 w-full cursor-pointer rounded border border-hq-border bg-hq-bg"
+                    value={draft.colorHex}
+                    disabled={!canWrite || saving}
+                    onChange={(event) =>
+                      setMarkerDrafts((current) => ({
+                        ...current,
+                        [marker.markerNumber]: {
+                          ...draft,
+                          colorHex: event.target.value,
+                        },
+                      }))
+                    }
+                  />
+                </label>
+                <label className="block space-y-1 text-sm">
+                  <span className="text-hq-fg-muted">{t("markers.label")}</span>
+                  <input
+                    className="w-full rounded border border-hq-border bg-hq-bg px-3 py-2"
+                    value={draft.label}
+                    disabled={!canWrite || saving}
+                    placeholder={t("markers.placeholder")}
+                    onChange={(event) =>
+                      setMarkerDrafts((current) => ({
+                        ...current,
+                        [marker.markerNumber]: {
+                          ...draft,
+                          label: event.target.value,
+                        },
+                      }))
+                    }
+                  />
+                </label>
                 {canWrite ? (
                   <button
                     type="button"
                     className="rounded border border-hq-border px-3 py-2 text-sm"
                     disabled={saving}
                     onClick={() =>
-                      void onSaveMarker(
-                        marker.markerNumber,
-                        markerLabels[marker.markerNumber] ?? "",
-                      )
+                      void onSaveMarker(marker.markerNumber, draft)
                     }
                   >
                     {t("actions.save")}
                   </button>
                 ) : null}
               </div>
-            </label>
-          ))}
+            );
+          })}
         </div>
       </div>
     </div>

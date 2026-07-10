@@ -1,11 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 
+import { MarkerBadge } from "@/components/battle-plan/MarkerBadge";
+import { NotesAutocomplete } from "@/components/battle-plan/NotesAutocomplete";
 import type {
   BattlePlanMarkerNumber,
   CapturePolicy,
+  SerializedBattlePlanMarker,
   SerializedCaptureEvent,
   TerritoryType,
 } from "@/lib/battle-plan/types.shared";
@@ -13,6 +16,7 @@ import {
   fromDateTimeLocalValue,
   toDateTimeLocalValue,
 } from "@/lib/battle-plan/display.shared";
+import { BATTLE_PLAN_MARKER_NUMBERS } from "@/lib/battle-plan/types.shared";
 import {
   preventDefaultFormSubmit,
   FORM_SUBMIT_ENTER_KEY_HINT,
@@ -22,7 +26,7 @@ export type CaptureEventFormValues = {
   scheduledAt: string;
   territoryType: TerritoryType;
   markerNumber: BattlePlanMarkerNumber;
-  capturePolicy: CapturePolicy | "";
+  capturePolicy: CapturePolicy;
   notes: string;
   status: "scheduled" | "completed" | "cancelled";
 };
@@ -31,6 +35,9 @@ type Props = {
   open: boolean;
   initial?: SerializedCaptureEvent | null;
   defaultServerDate?: string | null;
+  defaultCapturePolicy: CapturePolicy;
+  markers: SerializedBattlePlanMarker[];
+  noteSuggestions: readonly string[];
   saving: boolean;
   onClose: () => void;
   onSubmit: (values: CaptureEventFormValues) => Promise<void>;
@@ -52,7 +59,7 @@ function valuesFromEvent(event: SerializedCaptureEvent): CaptureEventFormValues 
     scheduledAt: toDateTimeLocalValue(event.scheduledAt),
     territoryType: event.territoryType,
     markerNumber: event.markerNumber,
-    capturePolicy: event.capturePolicy ?? "",
+    capturePolicy: event.effectiveCapturePolicy,
     notes: event.notes ?? "",
     status: event.status === "cancelled" ? "cancelled" : event.status,
   };
@@ -60,7 +67,8 @@ function valuesFromEvent(event: SerializedCaptureEvent): CaptureEventFormValues 
 
 function buildInitialValues(
   initial: SerializedCaptureEvent | null | undefined,
-  defaultServerDate?: string | null,
+  defaultServerDate: string | null | undefined,
+  defaultCapturePolicy: CapturePolicy,
 ): CaptureEventFormValues {
   if (initial) {
     return valuesFromEvent(initial);
@@ -69,7 +77,7 @@ function buildInitialValues(
     scheduledAt: defaultScheduledAt(defaultServerDate),
     territoryType: "stronghold",
     markerNumber: 1,
-    capturePolicy: "",
+    capturePolicy: defaultCapturePolicy,
     notes: "",
     status: "scheduled",
   };
@@ -78,6 +86,9 @@ function buildInitialValues(
 type CaptureEventFormProps = {
   initial?: SerializedCaptureEvent | null;
   defaultServerDate?: string | null;
+  defaultCapturePolicy: CapturePolicy;
+  markers: SerializedBattlePlanMarker[];
+  noteSuggestions: readonly string[];
   saving: boolean;
   onClose: () => void;
   onSubmit: (values: CaptureEventFormValues) => Promise<void>;
@@ -87,6 +98,9 @@ type CaptureEventFormProps = {
 function CaptureEventForm({
   initial,
   defaultServerDate,
+  defaultCapturePolicy,
+  markers,
+  noteSuggestions,
   saving,
   onClose,
   onSubmit,
@@ -94,7 +108,11 @@ function CaptureEventForm({
 }: CaptureEventFormProps) {
   const t = useTranslations("battlePlan");
   const [values, setValues] = useState<CaptureEventFormValues>(() =>
-    buildInitialValues(initial, defaultServerDate),
+    buildInitialValues(initial, defaultServerDate, defaultCapturePolicy),
+  );
+  const markersByNumber = useMemo(
+    () => new Map(markers.map((marker) => [marker.markerNumber, marker])),
+    [markers],
   );
 
   return (
@@ -143,25 +161,40 @@ function CaptureEventForm({
           </select>
         </label>
 
-        <label className="block space-y-1 text-sm">
-          <span className="text-hq-fg-muted">{t("event.markerNumber")}</span>
-          <select
-            className="w-full rounded border border-hq-border bg-hq-bg px-3 py-2"
-            value={values.markerNumber}
-            onChange={(event) =>
-              setValues((current) => ({
-                ...current,
-                markerNumber: Number(event.target.value) as BattlePlanMarkerNumber,
-              }))
-            }
-          >
-            {[1, 2, 3, 4, 5].map((marker) => (
-              <option key={marker} value={marker}>
-                {t("event.markerLabel", { marker })}
-              </option>
-            ))}
-          </select>
-        </label>
+        <fieldset className="space-y-2 text-sm">
+          <legend className="text-hq-fg-muted">{t("event.markerNumber")}</legend>
+          <div className="flex flex-wrap gap-2">
+            {BATTLE_PLAN_MARKER_NUMBERS.map((markerNumber) => {
+              const marker = markersByNumber.get(markerNumber);
+              const selected = values.markerNumber === markerNumber;
+              return (
+                <button
+                  key={markerNumber}
+                  type="button"
+                  aria-pressed={selected}
+                  className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 ${
+                    selected
+                      ? "border-hq-accent bg-hq-accent/10"
+                      : "border-hq-border bg-hq-bg"
+                  }`}
+                  onClick={() =>
+                    setValues((current) => ({ ...current, markerNumber }))
+                  }
+                >
+                  <MarkerBadge
+                    markerNumber={markerNumber}
+                    colorHex={marker?.colorHex ?? "#64748b"}
+                    size="sm"
+                  />
+                  <span className="text-hq-fg">
+                    {marker?.label?.trim() ||
+                      t("event.markerLabel", { marker: markerNumber })}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </fieldset>
 
         <label className="block space-y-1 text-sm">
           <span className="text-hq-fg-muted">{t("event.capturePolicy")}</span>
@@ -171,11 +204,10 @@ function CaptureEventForm({
             onChange={(event) =>
               setValues((current) => ({
                 ...current,
-                capturePolicy: event.target.value as CapturePolicy | "",
+                capturePolicy: event.target.value as CapturePolicy,
               }))
             }
           >
-            <option value="">{t("event.useAllianceDefault")}</option>
             <option value="peace">{t("settings.policyPeace")}</option>
             <option value="war">{t("settings.policyWar")}</option>
           </select>
@@ -203,12 +235,11 @@ function CaptureEventForm({
 
         <label className="block space-y-1 text-sm">
           <span className="text-hq-fg-muted">{t("event.notes")}</span>
-          <textarea
-            className="min-h-20 w-full rounded border border-hq-border bg-hq-bg px-3 py-2"
+          <NotesAutocomplete
             value={values.notes}
-            onChange={(event) =>
-              setValues((current) => ({ ...current, notes: event.target.value }))
-            }
+            suggestions={noteSuggestions}
+            placeholder={t("event.notesPlaceholder")}
+            onChange={(notes) => setValues((current) => ({ ...current, notes }))}
           />
         </label>
       </div>
@@ -251,6 +282,9 @@ export function CaptureEventModal({
   open,
   initial,
   defaultServerDate,
+  defaultCapturePolicy,
+  markers,
+  noteSuggestions,
   saving,
   onClose,
   onSubmit,
@@ -258,7 +292,7 @@ export function CaptureEventModal({
 }: Props) {
   if (!open) return null;
 
-  const formKey = `${initial?.id ?? "new"}:${defaultServerDate ?? "none"}`;
+  const formKey = `${initial?.id ?? "new"}:${defaultServerDate ?? "none"}:${defaultCapturePolicy}`;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
@@ -266,6 +300,9 @@ export function CaptureEventModal({
         key={formKey}
         initial={initial}
         defaultServerDate={defaultServerDate}
+        defaultCapturePolicy={defaultCapturePolicy}
+        markers={markers}
+        noteSuggestions={noteSuggestions}
         saving={saving}
         onClose={onClose}
         onSubmit={onSubmit}
@@ -280,7 +317,7 @@ export function captureEventFormToPayload(values: CaptureEventFormValues) {
     scheduledAt: fromDateTimeLocalValue(values.scheduledAt),
     territoryType: values.territoryType,
     markerNumber: values.markerNumber,
-    capturePolicy: values.capturePolicy || null,
+    capturePolicy: values.capturePolicy,
     notes: values.notes.trim() || null,
     status: values.status,
   };

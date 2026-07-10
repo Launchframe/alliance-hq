@@ -3,18 +3,32 @@
 import { useMemo } from "react";
 import { useTranslations } from "next-intl";
 
-import type { SerializedCaptureEvent } from "@/lib/battle-plan/types.shared";
+import { MarkerBadge } from "@/components/battle-plan/MarkerBadge";
+import type {
+  SerializedBattlePlanMarker,
+  SerializedCaptureEvent,
+} from "@/lib/battle-plan/types.shared";
 import { listUpcomingCaptureEvents } from "@/lib/battle-plan/display.shared";
 
 type Props = {
   events: SerializedCaptureEvent[];
+  markers: SerializedBattlePlanMarker[];
   onSelect?: (event: SerializedCaptureEvent) => void;
   canWrite: boolean;
 };
 
-export function UpcomingCapturesList({ events, onSelect, canWrite }: Props) {
+export function UpcomingCapturesList({
+  events,
+  markers,
+  onSelect,
+  canWrite,
+}: Props) {
   const t = useTranslations("battlePlan");
   const upcoming = useMemo(() => listUpcomingCaptureEvents(events), [events]);
+  const markerColors = useMemo(
+    () => new Map(markers.map((marker) => [marker.markerNumber, marker.colorHex])),
+    [markers],
+  );
 
   if (upcoming.length === 0) {
     return (
@@ -41,9 +55,14 @@ export function UpcomingCapturesList({ events, onSelect, canWrite }: Props) {
               }`}
             >
               <div className="flex items-center justify-between gap-3">
-                <span className="font-medium text-hq-fg">
-                  {t("event.markerLabel", { marker: event.markerNumber })}
-                  {" · "}
+                <span className="flex items-center gap-2 font-medium text-hq-fg">
+                  <MarkerBadge
+                    markerNumber={event.markerNumber}
+                    colorHex={
+                      markerColors.get(event.markerNumber) ?? "#64748b"
+                    }
+                    size="sm"
+                  />
                   {event.territoryType === "stronghold"
                     ? t("event.stronghold")
                     : t("event.city")}
