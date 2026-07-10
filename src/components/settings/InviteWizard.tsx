@@ -24,12 +24,14 @@ type Props = {
   assignableRoles: SystemRoleName[];
   allianceName: string;
   deepLinkClaimCommanderId?: string | null;
+  onGenerated?: () => void;
 };
 
 export function InviteWizard({
   assignableRoles,
   allianceName,
   deepLinkClaimCommanderId,
+  onGenerated,
 }: Props) {
   const t = useTranslations("team.invites");
   const tWizard = useTranslations("team.invites.wizard");
@@ -169,6 +171,7 @@ export function InviteWizard({
         commanders,
       });
       setResult(generated);
+      onGenerated?.();
       void loadClaimableCommanders();
       if (inviteType === "commander_claim") {
         setTargets((prev) => ({
