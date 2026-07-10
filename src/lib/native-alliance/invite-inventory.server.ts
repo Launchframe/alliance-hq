@@ -2,15 +2,28 @@ import "server-only";
 
 import { desc, eq } from "drizzle-orm";
 
+import { listSessionAlliances } from "@/lib/alliance/session-memberships";
 import { getDb, schema } from "@/lib/db";
 import {
   classifyInviteLinkStatus,
   classifyJoinCodeStatus,
+  type InventoryAllianceOption,
   type InviteInventoryItem,
   type InviteInventoryPayload,
 } from "@/lib/native-alliance/invite-inventory.shared";
 import type { HqInviteKind } from "@/lib/native-alliance/invites";
 import { systemRoleNameForId } from "@/lib/rbac/system-roles";
+
+const INVITE_CAPABLE_ROLES = new Set(["owner", "maintainer", "officer"]);
+
+export async function listAccessibleInventoryAlliances(
+  hqUserId: string,
+): Promise<InventoryAllianceOption[]> {
+  const alliances = await listSessionAlliances(hqUserId);
+  return alliances
+    .filter((a) => INVITE_CAPABLE_ROLES.has(a.roleName))
+    .map(({ id, name, tag, slug }) => ({ id, name, tag, slug }));
+}
 
 async function loadCommanderNamesByMemberId(
   allianceId: string,

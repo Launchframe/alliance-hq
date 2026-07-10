@@ -1249,7 +1249,19 @@
       "inventoryDepletedRevoked": "Revoked",
       "inventoryDepletedUsesExhausted": "All uses redeemed",
       "inventoryDepletedAccepted": "Accepted",
-      "inventoryRevealCode": "Click to reveal"
+      "inventoryRevealCode": "Click to reveal",
+      "inventoryFilterAlliance": "Alliance",
+      "inventoryFilterAlliancePlaceholder": "Search alliances…",
+      "inventoryFilterAllianceNoResults": "No matching alliances.",
+      "inventoryFilterType": "Type",
+      "inventoryFilterTypeAll": "All types",
+      "inventoryFilterDateFrom": "From",
+      "inventoryFilterDateTo": "To",
+      "inventoryFilterReset": "Reset filters",
+      "inventoryFilterNoResults": "No results for the current filters.",
+      "inventoryPageInfo": "Page {page} of {total}",
+      "inventoryPagePrev": "Previous",
+      "inventoryPageNext": "Next"
     },
     "table": {
       "user": "User",
