@@ -901,7 +901,6 @@ export async function upsertMemberSeasonVr(input: {
   }
 
   // Orphan roster slot with no commander — legacy-only write.
-  const db = getDb();
   const now = new Date();
   const previousBaseVr = await getMemberSeasonHigh(
     input.allianceId,
