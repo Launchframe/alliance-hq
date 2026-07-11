@@ -44,6 +44,7 @@ import {
 } from "@/lib/video/frame-video-seek";
 import { parsePodiumRankInput } from "@/lib/video/podium-rank-input";
 import { restoreVideoReviewDraftIfPresent } from "@/lib/video/review-extract-draft.shared";
+import { isVideoJobReadyForSubmit } from "@/lib/video/submit-job-ready.shared";
 import { useVideoReviewExtractDraft } from "@/components/video/useVideoReviewExtractDraft";
 import { accountTodayCalendarDate } from "@/lib/timezone/format";
 import { PassComparisonSheet } from "@/components/video/PassComparisonSheet";
@@ -888,6 +889,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
 
 
   const canSubmit =
+    isVideoJobReadyForSubmit(displayJobStatus) &&
     activeRows.length > 0 &&
     eventGateSatisfied &&
     (!needsBoardPicker || boardKey) &&

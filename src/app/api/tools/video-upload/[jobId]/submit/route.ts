@@ -42,6 +42,13 @@ import {
   type SubmitContext,
 } from "@/lib/video/submit-schemas";
 import { computeQualityScore } from "@/lib/video/quality-score";
+import {
+  isVideoJobReadyForSubmit,
+  VIDEO_SUBMIT_IN_PROGRESS_ERROR,
+  VIDEO_SUBMIT_READY_STATUSES,
+  videoSubmitClaimLostError,
+  videoSubmitNotReadyError,
+} from "@/lib/video/submit-job-ready.shared";
 
 type Props = {
   params: Promise<{ jobId: string }>;
@@ -70,24 +77,35 @@ type SubmitBody = {
   rows: SubmitRow[];
 };
 
+type ClaimVideoJobForSubmitResult =
+  | { ok: true }
+  | {
+      ok: false;
+      httpStatus: 400 | 409;
+      error: string;
+      jobStatus: string;
+    };
+
 /** Atomically claim review/complete → submitting so two devices cannot double-submit. */
 async function claimVideoJobForSubmit(
   db: ReturnType<typeof getDb>,
   jobId: string,
   currentStatus: string,
-): Promise<{ ok: true } | { ok: false; status: 400 | 409; error: string }> {
+): Promise<ClaimVideoJobForSubmitResult> {
   if (currentStatus === "submitting") {
     return {
       ok: false,
-      status: 409,
-      error: "Submit already in progress.",
+      httpStatus: 409,
+      error: VIDEO_SUBMIT_IN_PROGRESS_ERROR,
+      jobStatus: currentStatus,
     };
   }
-  if (currentStatus !== "review" && currentStatus !== "complete") {
+  if (!isVideoJobReadyForSubmit(currentStatus)) {
     return {
       ok: false,
-      status: 400,
-      error: "Job is not ready for submit.",
+      httpStatus: 400,
+      error: videoSubmitNotReadyError(currentStatus),
+      jobStatus: currentStatus,
     };
   }
 
@@ -97,16 +115,23 @@ async function claimVideoJobForSubmit(
     .where(
       and(
         eq(schema.videoJobs.id, jobId),
-        inArray(schema.videoJobs.status, ["review", "complete"]),
+        inArray(schema.videoJobs.status, [...VIDEO_SUBMIT_READY_STATUSES]),
       ),
     )
     .returning({ id: schema.videoJobs.id });
 
   if (!claimed) {
+    const [fresh] = await db
+      .select({ status: schema.videoJobs.status })
+      .from(schema.videoJobs)
+      .where(eq(schema.videoJobs.id, jobId))
+      .limit(1);
+    const jobStatus = fresh?.status ?? "unknown";
     return {
       ok: false,
-      status: 409,
-      error: "Job is not ready for submit.",
+      httpStatus: 409,
+      error: videoSubmitClaimLostError(jobStatus),
+      jobStatus,
     };
   }
 
@@ -138,16 +163,21 @@ export async function POST(request: Request, { params }: Props) {
     }
     const job = access.job;
 
-    const submitAllowedStatuses = new Set(["review", "complete"]);
-    if (!submitAllowedStatuses.has(job.status)) {
+    if (!isVideoJobReadyForSubmit(job.status)) {
       if (job.status === "submitting") {
         return NextResponse.json(
-          { error: "Submit already in progress." },
+          {
+            error: VIDEO_SUBMIT_IN_PROGRESS_ERROR,
+            status: job.status,
+          },
           { status: 409 },
         );
       }
       return NextResponse.json(
-        { error: "Job is not ready for submit." },
+        {
+          error: videoSubmitNotReadyError(job.status),
+          status: job.status,
+        },
         { status: 400 },
       );
     }
@@ -259,8 +289,8 @@ export async function POST(request: Request, { params }: Props) {
       const claim = await claimVideoJobForSubmit(db, jobId, job.status);
       if (!claim.ok) {
         return NextResponse.json(
-          { error: claim.error },
-          { status: claim.status },
+          { error: claim.error, status: claim.jobStatus },
+          { status: claim.httpStatus },
         );
       }
       advancedToSubmitting = true;
@@ -518,7 +548,10 @@ export async function POST(request: Request, { params }: Props) {
 
     const claim = await claimVideoJobForSubmit(db, jobId, job.status);
     if (!claim.ok) {
-      return NextResponse.json({ error: claim.error }, { status: claim.status });
+      return NextResponse.json(
+        { error: claim.error, status: claim.jobStatus },
+        { status: claim.httpStatus },
+      );
     }
     advancedToSubmitting = true;
 
