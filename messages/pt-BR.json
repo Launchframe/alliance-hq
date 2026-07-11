@@ -2730,9 +2730,11 @@
       "saved": "Correção salva.",
       "saveFailed": "Não foi possível salvar a correção.",
       "invalid": "Selecione um membro e informe um nível do instituto válido para esta temporada.",
-      "eventsTitle": "Histórico de eventos",
-      "eventsSubtitle": "Inspecione, corrija ou exclua relatórios individuais de VR de um comandante.",
-      "eventsLoad": "Carregar eventos",
+      "eventsHint": "Clique em uma linha do placar (ou em um membro sinalizado) para inspecionar e editar os relatórios de VR.",
+      "eventsOpenAria": "Abrir relatórios de VR de {name}",
+      "eventsBack": "Voltar para Resistência Viral",
+      "eventsMemberTitle": "Relatórios de VR de {name}",
+      "eventsSubtitle": "Inspecione, corrija ou exclua relatórios individuais de VR deste comandante.",
       "eventsLoading": "Carregando eventos…",
       "eventsEmpty": "Nenhum evento de VR para este membro nesta temporada.",
       "eventsColDate": "Data",
@@ -2744,7 +2746,8 @@
       "eventsDeleting": "Excluindo…",
       "eventsSaved": "Evento atualizado.",
       "eventsDeleted": "Evento excluído.",
-      "eventsFailed": "Não foi possível atualizar o evento."
+      "eventsFailed": "Não foi possível atualizar o evento.",
+      "eventsInvalid": "Informe um nível do instituto válido para esta temporada."
     }
   },
   "myVr": {
