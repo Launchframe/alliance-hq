@@ -1639,7 +1639,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
       scoreTargetMeta?.showTeamSelector ? (
         <div
           role="status"
-          className="rounded-xl border border-[#d29922] bg-[#d2992210] px-4 py-3 text-sm text-hq-fg"
+          className="rounded-xl border border-hq-warning/40 bg-hq-warning/10 px-4 py-3 text-sm text-hq-warning"
         >
           {t("existingStormScoresWarning", {
             eventName:

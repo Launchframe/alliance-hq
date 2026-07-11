@@ -14,6 +14,8 @@ type Props = {
   params: Promise<{ jobId: string }>;
 };
 
+const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
 /**
  * GET /api/tools/video-upload/[jobId]/score-overlap
  * ?eventId=&team=A|B&recordedDate=YYYY-MM-DD
@@ -38,6 +40,13 @@ export async function GET(request: Request, { params }: Props) {
     if (!isStormTeam(team) || !recordedDate) {
       return NextResponse.json(
         { error: "team and recordedDate are required." },
+        { status: 400 },
+      );
+    }
+
+    if (!DATE_PATTERN.test(recordedDate)) {
+      return NextResponse.json(
+        { error: "recordedDate must be YYYY-MM-DD." },
         { status: 400 },
       );
     }

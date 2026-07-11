@@ -1,0 +1,60 @@
+---
+description: Prefer HQ design tokens and reusable UI; avoid hardcoded one-off colors that break light/dark
+globs: src/**/*.{tsx,css}
+alwaysApply: false
+---
+
+# HQ theming (light / dark)
+
+Alliance HQ chrome must stay theme-safe. Prefer reusable tokens and components over one-off styles.
+
+## Source of truth
+
+Semantic colors live in [`src/app/globals.css`](src/app/globals.css):
+
+- `:root` — light values
+- `:root.dark` — dark values
+- `@theme inline` — Tailwind `hq-*` color names (`bg-hq-canvas`, `text-hq-fg`, `border-hq-warning`, …)
+
+Always use Tailwind `hq-*` utilities (or `var(--hq-…)` in CSS). Do **not** assume dark mode is the default.
+
+## Prefer tokens over hardcoded hex
+
+| Do | Don't |
+| --- | --- |
+| `border-hq-warning/40 bg-hq-warning/10 text-hq-warning` | `border-[#d29922] bg-[#d2992210] text-[#e3b341]` |
+| `text-hq-danger` / `border-hq-danger` | `text-[#f85149]` for errors |
+| `bg-hq-surface border-hq-border text-hq-fg` | One-off canvas/surface hex |
+
+If no token fits, **add a semantic CSS variable** to both `:root` and `:root.dark`, wire it in `@theme`, then use the new `hq-*` class in the same change. Do not ship a UI-only hex that only looks right in one theme.
+
+## Semantic roles
+
+Use tokens by meaning:
+
+- Surfaces: `hq-canvas`, `hq-surface`, `hq-surface-muted`, `hq-border`
+- Text: `hq-fg`, `hq-fg-muted`, `hq-fg-subtle`
+- Actions / links: `hq-accent`, `hq-selected` / `hq-selected-fg`
+- Status: `hq-warning` (caution banners), `hq-danger` (errors), `hq-success` / `hq-green` (success)
+- Brand: `hq-discord` (already tokenized)
+
+Prefer opacity modifiers on tokens (`/10`, `/40`, `/50`) over unique hex+alpha literals.
+
+## Reuse before invent
+
+1. Match an existing notice/banner pattern already in the app (e.g. warning: `border-hq-warning/40 bg-hq-warning/10 text-hq-warning`).
+2. If the same chrome appears in two or more places, extract a small shared component or shared class string — do not copy-paste divergent one-offs.
+3. Prefer existing shared UI primitives over new ad-hoc layout chrome when they fit.
+
+## Allowed exceptions
+
+- Third-party brand colors already exposed as tokens (e.g. `hq-discord`)
+- Charts / data viz with a fixed palette documented next to the series config
+- Decorative assets that are not interactive chrome (and are not expected to flip with theme)
+
+## Checklist before shipping UI
+
+- [ ] Colors go through `hq-*` (or a new token added in light **and** dark)
+- [ ] No new arbitrary hex for borders/backgrounds/text unless an exception above applies
+- [ ] Warning / error / success use the matching semantic token
+- [ ] Spot-check light and dark (or reason from token definitions) before merge
