@@ -1972,7 +1972,7 @@
       "hardCutoffLabel": "Corte rígido acima do cliff",
       "hardCutoffHint": "Membros com pontuação acima deste valor serão excluídos do sorteio.",
       "takedownLabel": "Equipe takedown (tickets máximos)",
-      "takedownHint": "Membros que sempre recebem o máximo de tickets. Útil para quem quer subir poder sem perder a chance de ser condutor.",
+      "takedownHint": "Membros que sempre recebem o máximo de tickets. Nos sábados do Price Is Freight, a loteria do condutor sorteia só desta lista (chance máxima igual).",
       "takedownSearchPlaceholder": "Buscar no roster para adicionar membros…",
       "takedownEmpty": "Nenhum membro correspondente no roster.",
       "chartCaption": "Curva de tickets e chance de vitória para o cliff configurado.",
@@ -3166,7 +3166,8 @@
         "r3": "Pool loteria R3",
         "r4_plus": "Pool sequência R4",
         "all_members": "Pool todos os membros",
-        "event_top_x": "Pool top evento"
+        "event_top_x": "Pool top evento",
+        "heavy_hitter": "Pool loteria heavy-hitter"
       },
       "vsLeaderboardTop1": "VS #1 (maior pontuação de segunda)",
       "vsLeaderboardTopN": "VS top {count}",
@@ -3206,7 +3207,8 @@
         "r3": "Pool loteria R3",
         "r4_plus": "Pool sequência R4",
         "all_members": "Pool todos os membros",
-        "event_top_x": "Pool top evento"
+        "event_top_x": "Pool top evento",
+        "heavy_hitter": "Pool loteria heavy-hitter"
       }
     },
     "priceIsRight": {
@@ -3264,6 +3266,7 @@
       "title": "Não dá para girar a roleta",
       "poolEmptyR3": "Nenhum membro da sua lista está com rank R3, então o pool da loteria está vazio. Defina ranks R3 na página Membros e tente de novo.",
       "poolEmptyR4Plus": "Nenhum membro da sua lista está com rank R4 ou R5, então o pool da sequência de oficiais está vazio. Defina esses ranks na página Membros e tente de novo.",
+      "poolEmptyHeavyHitter": "Nenhum heavy hitter está configurado para a loteria de sábado do Price Is Freight. Adicione membros em Configurações → Trens (equipe takedown / tickets máximos) e tente de novo.",
       "poolEmptyGeneric": "Nenhum membro elegível foi encontrado para este pool. Confira os ranks na página Membros e tente de novo.",
       "poolExhausted": "Todos os elegíveis deste pool já foram sorteados nesta geração. Recrie o pool para iniciar uma nova rodada.",
       "poolUnavailable": "O pool da roleta ainda não está pronto. Tente recriar o pool ou confira os ranks na página Membros.",
@@ -3281,6 +3284,7 @@
       "vsHighScore": "Top VS dia 1",
       "vsTop10": "Top 10 VS",
       "r3Lottery": "Loteria R3",
+      "heavyHitterLottery": "Loteria heavy-hitter",
       "r4Sequence": "Sequência oficiais",
       "donationsTop": "Top doador",
       "officerPick": "Escolha do oficial",
@@ -3291,6 +3295,7 @@
       "vsHighScore": "VS D1",
       "vsTop10": "VS T10",
       "r3Lottery": "R3",
+      "heavyHitterLottery": "HH",
       "r4Sequence": "R4",
       "donationsTop": "DOA",
       "officerPick": "OF",
@@ -3323,7 +3328,7 @@
       "vs_push_weekdays": "Condutor: seg = maior doador; ter e sex = VS #1 do dia anterior; qua, qui e sáb = sorteio no top 10 de VS. VIP: seg = 2º doador; ter–sáb = escolha livre do condutor.",
       "r4_event_vip": "Condutor: rodízio de oficiais R4+. VIP: roleta loteria top 10 do evento (padrão: Capitol War). Típico para dias de fim de semana.",
       "economy_week": "Condutor: roleta R3 todos os dias — pool R3 completo, sem faixa de pontuação VS. VIP: o condutor do dia escolhe o VIP diretamente (escolha livre). Use para pivotar no meio da semana quando empurrar menos VS.",
-      "price_is_right": "Condutor: roleta R3 entre membros cuja pontuação VS do dia anterior está entre 7.200.000 e o limite de economia mais a margem. VIP: o condutor do dia escolhe o VIP diretamente (escolha livre).",
+      "price_is_right": "Condutor: ter–sex e dom–seg = roleta R3 (tickets por VS ou faixa legada). Sábado = loteria heavy-hitter entre os overrides de tickets máximos / takedown (chance máxima igual). VIP: o condutor do dia escolhe o VIP diretamente (escolha livre).",
       "r3_recognition": "Condutor: roleta R3 todos os dias — pool R3 completo (mesmo sorteio da Semana economia, sem filtro VS). VIP: o condutor do dia escolhe o VIP diretamente (escolha livre).",
       "r4_train_week": "Condutor: rodízio de oficiais R4+ — percorre o pool em ordem, um condutor por dia. VIP: o condutor do dia escolhe o VIP diretamente (escolha livre).",
       "donations_week": "Condutor: maior doador da aliança (automático). VIP: segundo doador (automático; oficiais podem corrigir manualmente se o placar estiver errado).",

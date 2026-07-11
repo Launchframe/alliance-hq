@@ -755,8 +755,9 @@ export function canSpinConductor(
   mechanism: string | null | undefined,
   locked: boolean,
   paintTemplate?: WeekTemplateType | null,
+  date?: string | null,
 ): boolean {
-  return canSpinConductorForDay(mechanism, locked, paintTemplate);
+  return canSpinConductorForDay(mechanism, locked, paintTemplate, date);
 }
 
 export function canSpinVip(

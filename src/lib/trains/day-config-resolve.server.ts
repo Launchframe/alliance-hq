@@ -58,6 +58,7 @@ export async function resolveRollDayConfig(
       effectiveConductorMechanism(
         stored.conductorMechanism,
         paintTemplate,
+        date,
       ) ?? (stored.conductorMechanism as ConductorMechanismType);
     return {
       date: stored.date,

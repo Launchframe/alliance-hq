@@ -2,6 +2,7 @@ export const CONDUCTOR_MECHANISMS = [
   "vs_high_score",
   "vs_top_10",
   "r3_lottery",
+  "heavy_hitter_lottery",
   "r4_sequence",
   "donations_top",
   "officer_pick",
@@ -39,6 +40,7 @@ export const POOL_TYPES = [
   "r4_plus",
   "all_members",
   "event_top_x",
+  "heavy_hitter",
 ] as const;
 
 export type PoolType = (typeof POOL_TYPES)[number];

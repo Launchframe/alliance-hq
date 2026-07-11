@@ -154,13 +154,23 @@ export function generateWeekDayConfigs(
     case "r4_event_vip":
       return dates.map((date) => r4EventVipDay(date, options));
     case "economy_week":
-    case "price_is_right":
     case "r3_recognition":
       return dates.map((date) => ({
         date,
         conductorMechanism: "r3_lottery" as ConductorMechanismType,
         vipMechanism: "conductor_pick" as VipMechanismType,
       }));
+    case "price_is_right":
+      return dates.map((date) => {
+        const isSaturday = getServerDayOfWeek(date) === 6;
+        return {
+          date,
+          conductorMechanism: (isSaturday
+            ? "heavy_hitter_lottery"
+            : "r3_lottery") as ConductorMechanismType,
+          vipMechanism: "conductor_pick" as VipMechanismType,
+        };
+      });
     case "r4_train_week":
       return dates.map((date) => ({
         date,
@@ -190,6 +200,7 @@ export function mechanismNeedsWheel(
   return (
     mechanism === "vs_top_10" ||
     mechanism === "r3_lottery" ||
+    mechanism === "heavy_hitter_lottery" ||
     mechanism === "r4_sequence" ||
     mechanism === "event_top_x_lottery"
   );
@@ -212,6 +223,7 @@ export function supportsManualConductorPick(
   if (!mechanism) return false;
   return (
     mechanism === "r3_lottery" ||
+    mechanism === "heavy_hitter_lottery" ||
     mechanism === "vs_high_score" ||
     mechanism === "vs_top_10" ||
     mechanism === "donations_top" ||
@@ -223,10 +235,12 @@ export function supportsManualConductorPick(
 
 export function conductorMechanismPoolType(
   mechanism: ConductorMechanismType,
-): "r3" | "r4_plus" | "all_members" | null {
+): "r3" | "r4_plus" | "all_members" | "heavy_hitter" | null {
   switch (mechanism) {
     case "r3_lottery":
       return "r3";
+    case "heavy_hitter_lottery":
+      return "heavy_hitter";
     case "r4_sequence":
       return "r4_plus";
     default:

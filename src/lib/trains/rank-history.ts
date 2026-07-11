@@ -14,6 +14,8 @@ export function isMemberEligibleForPool(
   poolType: PoolType,
   rank: number | null,
 ): boolean {
+  // Heavy-hitter pool is membership-list based (any rank); see buildHeavyHitterPoolCandidates.
+  if (poolType === "heavy_hitter") return true;
   if (rank == null) return false;
   if (poolType === "r3") return rank === 3;
   if (poolType === "r4_plus") return rank >= 4;

@@ -20,6 +20,16 @@ describe("conductorSpinSource", () => {
       kind: "pool",
       poolType: "r3",
     });
+    expect(
+      conductorSpinSource("r3_lottery", "price_is_right", "2026-06-13"),
+    ).toEqual({
+      kind: "pool",
+      poolType: "heavy_hitter",
+    });
+    expect(conductorSpinSource("heavy_hitter_lottery", null)).toEqual({
+      kind: "pool",
+      poolType: "heavy_hitter",
+    });
   });
 
   it("maps VS top 10 to a leaderboard source", () => {

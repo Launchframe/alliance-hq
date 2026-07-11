@@ -48,5 +48,6 @@ describe("poolTypeUsesSequence", () => {
     expect(poolTypeUsesSequence("r3")).toBe(false);
     expect(poolTypeUsesSequence("all_members")).toBe(false);
     expect(poolTypeUsesSequence("event_top_x")).toBe(false);
+    expect(poolTypeUsesSequence("heavy_hitter")).toBe(false);
   });
 });

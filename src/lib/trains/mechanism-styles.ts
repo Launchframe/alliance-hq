@@ -4,6 +4,7 @@ export const MECHANISM_STYLES: Record<string, string> = {
   vs_high_score: "border-blue-500 bg-blue-500/15 text-blue-200",
   vs_top_10: "border-blue-500 bg-blue-500/15 text-blue-200",
   r3_lottery: "border-emerald-500 bg-emerald-500/15 text-emerald-200",
+  heavy_hitter_lottery: "border-cyan-500 bg-cyan-500/15 text-cyan-200",
   r4_sequence: "border-purple-500 bg-purple-500/15 text-purple-200",
   donations_top: "border-amber-500 bg-amber-500/15 text-amber-200",
   officer_pick: "border-slate-400 bg-slate-500/15 text-slate-200",

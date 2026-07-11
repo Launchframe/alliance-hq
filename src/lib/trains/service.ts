@@ -39,6 +39,7 @@ import {
   filterPoolByEconomyThreshold,
   loadPriceIsRightTicketSettings,
 } from "@/lib/trains/train-economy-threshold.server";
+import { buildHeavyHitterPoolCandidates } from "@/lib/trains/heavy-hitter-pool.server";
 import { priceIsRightWeightingActive } from "@/lib/trains/train-price-is-right-tickets.shared";
 import {
   getPoolSummary,
@@ -176,6 +177,10 @@ async function buildPoolCandidates(input: {
   if (input.poolType === "event_top_x") {
     const limit = input.eventTopN ?? 10;
     return fetchNativeVrTopScorers(input.hqAllianceId, limit);
+  }
+
+  if (input.poolType === "heavy_hitter") {
+    return buildHeavyHitterPoolCandidates(input.hqAllianceId, input.date);
   }
 
   const [members, rankEvents] = await Promise.all([
@@ -763,6 +768,7 @@ export async function rollForConductor(input: {
       );
     }
     case "r3_lottery":
+    case "heavy_hitter_lottery":
     case "r4_sequence": {
       const poolType = conductorMechanismPoolType(mechanism)!;
       if (record?.conductorMemberId) {
@@ -780,6 +786,7 @@ export async function rollForConductor(input: {
         paintTemplate: dayConfig.paintTemplate,
       });
       const pirSettings =
+        mechanism === "r3_lottery" &&
         dayConfig.paintTemplate === "price_is_right"
           ? await loadPriceIsRightTicketSettings(input.allianceId)
           : null;

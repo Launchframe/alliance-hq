@@ -34,8 +34,13 @@ export type SpinSource =
 export function conductorSpinSource(
   conductorMechanism: string | null | undefined,
   paintTemplate?: WeekTemplateType | null,
+  date?: string | null,
 ): SpinSource {
-  const mechanism = effectiveConductorMechanism(conductorMechanism, paintTemplate);
+  const mechanism = effectiveConductorMechanism(
+    conductorMechanism,
+    paintTemplate,
+    date,
+  );
   if (!mechanism) return null;
 
   const poolType = conductorMechanismPoolType(mechanism);

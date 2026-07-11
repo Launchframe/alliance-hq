@@ -29,13 +29,17 @@ export function showsConductorSpinWheel(
   conductorMechanism: string | null | undefined,
   locked: boolean,
   paintTemplate?: WeekTemplateType | null,
+  date?: string | null,
 ): boolean {
-  if (!canSpinConductorForDay(conductorMechanism, locked, paintTemplate)) {
+  if (
+    !canSpinConductorForDay(conductorMechanism, locked, paintTemplate, date)
+  ) {
     return false;
   }
   const mechanism = effectiveConductorMechanism(
     conductorMechanism,
     paintTemplate,
+    date,
   );
   return mechanism !== "r4_sequence";
 }
@@ -57,6 +61,7 @@ export function spinWheelDatesForRestOfWeek(input: {
         config?.conductorMechanism ?? null,
         locked,
         config?.paintTemplate,
+        date,
       );
     });
 }

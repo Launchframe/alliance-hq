@@ -1,11 +1,16 @@
 import { mechanismNeedsWheel } from "@/lib/trains/templates";
+import { isPriceIsRightHeavyHitterSaturday } from "@/lib/trains/heavy-hitter-pool.shared";
 import type { ConductorMechanismType, WeekTemplateType } from "@/lib/trains/types";
 
 /** Conductor mechanism used for rolls, pool reseed, and spin-wheel UI. */
 export function effectiveConductorMechanism(
   conductorMechanism: string | null | undefined,
   paintTemplate?: WeekTemplateType | null,
+  date?: string | null,
 ): ConductorMechanismType | null {
+  if (isPriceIsRightHeavyHitterSaturday(paintTemplate, date)) {
+    return "heavy_hitter_lottery";
+  }
   if (paintTemplate === "r4_event_vip") {
     return "r4_sequence";
   }
@@ -17,9 +22,14 @@ export function canSpinConductorForDay(
   conductorMechanism: string | null | undefined,
   locked: boolean,
   paintTemplate?: WeekTemplateType | null,
+  date?: string | null,
 ): boolean {
   if (locked) return false;
-  const mechanism = effectiveConductorMechanism(conductorMechanism, paintTemplate);
+  const mechanism = effectiveConductorMechanism(
+    conductorMechanism,
+    paintTemplate,
+    date,
+  );
   if (!mechanism) return false;
   if (mechanism === "vs_high_score" || mechanism === "donations_top") {
     return false;
