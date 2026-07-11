@@ -53,6 +53,27 @@ describe("videoOcrEngineForTarget", () => {
     expect(videoOcrEngineForTarget("mock", true)).toBe("mock");
     expect(videoOcrEngineForTarget("mock", false)).toBe("mock");
   });
+
+  it("forceNative never uses Ashed (deposit slip history)", () => {
+    expect(
+      videoOcrEngineForTarget("ashed", {
+        useNativeWhenLocal: true,
+        forceNative: true,
+      }),
+    ).toBe("native");
+    expect(
+      videoOcrEngineForTarget("local", {
+        useNativeWhenLocal: true,
+        forceNative: true,
+      }),
+    ).toBe("native");
+    expect(
+      videoOcrEngineForTarget("mock", {
+        useNativeWhenLocal: true,
+        forceNative: true,
+      }),
+    ).toBe("mock");
+  });
 });
 
 describe("engineRequiresAshed", () => {

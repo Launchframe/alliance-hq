@@ -4,7 +4,11 @@ vi.mock("@/lib/members/roster.server", () => ({
   listAllianceMembers: vi.fn(async () => []),
 }));
 
-import { mockOcrRosterFrames, mockOcrScoreFrames } from "@/lib/video/ocr-mock";
+import {
+  mockOcrDepositSlipFrames,
+  mockOcrRosterFrames,
+  mockOcrScoreFrames,
+} from "@/lib/video/ocr-mock";
 
 describe("mockOcrScoreFrames", () => {
   it("loads desert-storm fixture deterministically", async () => {
@@ -27,5 +31,16 @@ describe("mockOcrRosterFrames", () => {
     expect(members.length).toBeGreaterThan(0);
     expect(members[0]?.currentName).toBe("Recruiter StarDust");
     expect(members[0]?._sourceFrameIndex).toBe(2);
+  });
+});
+
+describe("mockOcrDepositSlipFrames", () => {
+  it("loads bank-deposit-slip-history fixture", async () => {
+    const history = await mockOcrDepositSlipFrames("bank-deposit-slip-history", [
+      { index: 0 },
+    ]);
+    expect(history.slips.length).toBeGreaterThan(0);
+    expect(history.slips[0]?.identity.commanderName).toBeTruthy();
+    expect(history.slips[0]?.amount).toBeGreaterThan(0);
   });
 });

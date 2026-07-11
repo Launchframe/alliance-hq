@@ -1,0 +1,255 @@
+/**
+ * Client-safe Deposit Slip History line parsers.
+ * Expects OCR text from the in-game "Deposit Slip History" overlay.
+ */
+
+import type {
+  DepositPolicy,
+  DepositStatus,
+  DepositTermDays,
+} from "@/lib/banks/types.shared";
+import { DEPOSIT_TERMS } from "@/lib/banks/types.shared";
+
+export const BANK_DEPOSIT_SLIP_HISTORY_SCORE_TARGET =
+  "bank-deposit-slip-history" as const;
+
+export type ParsedDepositSlipIdentity = {
+  gameServerNumber: number | null;
+  allianceTag: string | null;
+  commanderName: string;
+  /** Full OCR identity line, e.g. `#1211[Roar]snapz a saurus`. */
+  rawIdentity: string;
+};
+
+export type ParsedDepositSlipDraft = {
+  depositAt: string | null;
+  termDays: DepositTermDays | null;
+  amount: number | null;
+  status: DepositStatus;
+  outcomeAmount: number | null;
+  outcomeKind: "total_return" | "early_termination_refund" | null;
+  identity: ParsedDepositSlipIdentity;
+  /** Source frame index when known (video stitch). */
+  sourceFrameIndex?: number;
+};
+
+export type ParsedDepositSlipHistory = {
+  depositPolicy: DepositPolicy | null;
+  minimumDeposit: number | null;
+  slips: ParsedDepositSlipDraft[];
+};
+
+const TIMESTAMP_RE =
+  /(\d{4})-(\d{1,2})-(\d{1,2})\s+(\d{1,2}):(\d{2}):(\d{2})/;
+
+const IDENTITY_RE = /#(\d{3,5})\s*\[\s*([^\]]+?)\s*\]\s*(.+?)\s*$/;
+
+const DEPOSIT_RE =
+  /Deposit:\s*CrystalGold\s*x\s*([\d,]+)\s*,\s*Term:\s*(\d+)\s*day/i;
+
+const TOTAL_RETURN_RE =
+  /Total\s+return:\s*CrystalGold\s*x\s*([\d,]+)/i;
+
+const EARLY_REFUND_RE =
+  /Early\s+termination\s+refund:\s*CrystalGold\s*x\s*([\d,]+)/i;
+
+const MIN_DEPOSIT_RE =
+  /Minimum\s+Deposit\s+for\s+This\s+Bank:\s*([\d,]+)/i;
+
+function parseIntAmount(raw: string): number | null {
+  const n = Number(raw.replace(/,/g, ""));
+  return Number.isFinite(n) && n > 0 ? Math.trunc(n) : null;
+}
+
+function toDepositTermDays(n: number): DepositTermDays | null {
+  return (DEPOSIT_TERMS as readonly number[]).includes(n)
+    ? (n as DepositTermDays)
+    : null;
+}
+
+function slipDedupeKey(slip: ParsedDepositSlipDraft): string {
+  return [
+    slip.depositAt ?? "",
+    slip.identity.rawIdentity,
+    slip.amount ?? "",
+    slip.termDays ?? "",
+    slip.status,
+    slip.outcomeKind ?? "",
+    slip.outcomeAmount ?? "",
+  ].join("|");
+}
+
+function dedupeAndSortSlips(
+  slips: readonly ParsedDepositSlipDraft[],
+): ParsedDepositSlipDraft[] {
+  const seen = new Set<string>();
+  const unique: ParsedDepositSlipDraft[] = [];
+  for (const slip of slips) {
+    const key = slipDedupeKey(slip);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push(slip);
+  }
+  unique.sort((a, b) => {
+    const aMs = a.depositAt ? Date.parse(a.depositAt) : 0;
+    const bMs = b.depositAt ? Date.parse(b.depositAt) : 0;
+    return bMs - aMs;
+  });
+  return unique;
+}
+
+/** Game timestamps are wall-clock without TZ; treat as UTC for storage. */
+export function parseDepositSlipTimestamp(raw: string): string | null {
+  const match = raw.match(TIMESTAMP_RE);
+  if (!match) return null;
+  const [, y, mo, d, h, mi, s] = match;
+  const iso = `${y}-${mo!.padStart(2, "0")}-${d!.padStart(2, "0")}T${h!.padStart(2, "0")}:${mi}:${s}.000Z`;
+  const ms = Date.parse(iso);
+  return Number.isNaN(ms) ? null : new Date(ms).toISOString();
+}
+
+export function parseDepositSlipIdentity(
+  raw: string,
+): ParsedDepositSlipIdentity | null {
+  const cleaned = raw.replace(/\s+/g, " ").trim();
+  const match = cleaned.match(IDENTITY_RE);
+  if (!match) return null;
+  const gameServerNumber = Number(match[1]);
+  const allianceTag = match[2]!.trim();
+  const commanderName = match[3]!.trim();
+  if (!commanderName) return null;
+  return {
+    gameServerNumber: Number.isFinite(gameServerNumber)
+      ? gameServerNumber
+      : null,
+    allianceTag: allianceTag || null,
+    commanderName,
+    rawIdentity: cleaned,
+  };
+}
+
+export function parseDepositPolicyFromHeader(
+  lines: readonly string[],
+): DepositPolicy | null {
+  const blob = lines.join(" ").toLowerCase();
+  if (
+    blob.includes("owning alliance") ||
+    blob.includes("open only to the owning")
+  ) {
+    return "alliance";
+  }
+  if (blob.includes("same warzone")) {
+    return "warzone";
+  }
+  if (blob.includes("public") || blob.includes("all commanders")) {
+    return "public";
+  }
+  return null;
+}
+
+export function parseMinimumDeposit(lines: readonly string[]): number | null {
+  for (const line of lines) {
+    const match = line.match(MIN_DEPOSIT_RE);
+    if (match) return parseIntAmount(match[1]!);
+  }
+  return null;
+}
+
+/**
+ * Parse OCR lines from Deposit Slip History into drafts.
+ * Duplicate slips (scroll overlap across frames) should be merged via
+ * {@link mergeDepositSlipHistoryParses}.
+ */
+export function parseDepositSlipHistoryText(
+  lines: readonly string[],
+): ParsedDepositSlipHistory {
+  const depositPolicy = parseDepositPolicyFromHeader(lines);
+  const minimumDeposit = parseMinimumDeposit(lines);
+
+  const slips: ParsedDepositSlipDraft[] = [];
+
+  // Find identity lines; associate nearby timestamp + deposit/outcome lines.
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i]!.trim();
+    if (!line) continue;
+
+    const identity = parseDepositSlipIdentity(line);
+    if (!identity) continue;
+
+    // Timestamp is usually on the same visual row — search nearby lines.
+    let depositAt: string | null = null;
+    for (let j = Math.max(0, i - 2); j <= Math.min(lines.length - 1, i + 1); j += 1) {
+      const ts = parseDepositSlipTimestamp(lines[j]!.trim());
+      if (ts) {
+        depositAt = ts;
+        break;
+      }
+    }
+
+    let amount: number | null = null;
+    let termDays: DepositTermDays | null = null;
+    let status: DepositStatus = "locked";
+    let outcomeAmount: number | null = null;
+    let outcomeKind: ParsedDepositSlipDraft["outcomeKind"] = null;
+
+    for (let j = i; j < Math.min(lines.length, i + 5); j += 1) {
+      const probe = lines[j]!.trim();
+      // Stop if we hit another identity (next slip)
+      if (j > i && parseDepositSlipIdentity(probe)) break;
+
+      const depositMatch = probe.match(DEPOSIT_RE);
+      if (depositMatch) {
+        amount = parseIntAmount(depositMatch[1]!);
+        termDays = toDepositTermDays(Number(depositMatch[2]));
+      }
+      const totalMatch = probe.match(TOTAL_RETURN_RE);
+      if (totalMatch) {
+        outcomeAmount = parseIntAmount(totalMatch[1]!);
+        outcomeKind = "total_return";
+        status = "matured";
+      }
+      const earlyMatch = probe.match(EARLY_REFUND_RE);
+      if (earlyMatch) {
+        outcomeAmount = parseIntAmount(earlyMatch[1]!);
+        outcomeKind = "early_termination_refund";
+        status = "looted";
+      }
+    }
+
+    if (amount == null && depositAt == null) continue;
+
+    slips.push({
+      depositAt,
+      termDays,
+      amount,
+      status,
+      outcomeAmount,
+      outcomeKind,
+      identity,
+    });
+  }
+
+  return {
+    depositPolicy,
+    minimumDeposit,
+    slips: dedupeAndSortSlips(slips),
+  };
+}
+
+export function mergeDepositSlipHistoryParses(
+  parts: readonly ParsedDepositSlipHistory[],
+): ParsedDepositSlipHistory {
+  let depositPolicy: DepositPolicy | null = null;
+  let minimumDeposit: number | null = null;
+  const slips: ParsedDepositSlipDraft[] = [];
+  for (const part of parts) {
+    depositPolicy ??= part.depositPolicy;
+    minimumDeposit ??= part.minimumDeposit;
+    slips.push(...part.slips);
+  }
+  return {
+    depositPolicy,
+    minimumDeposit,
+    slips: dedupeAndSortSlips(slips),
+  };
+}

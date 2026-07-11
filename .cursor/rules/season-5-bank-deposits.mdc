@@ -1,0 +1,115 @@
+---
+description: Season 5 Bank Stronghold deposits & investments — in-game lifecycle, OCR pairing, synthetic blues
+globs:
+  - src/lib/banks/**
+  - src/components/banks/**
+  - src/app/api/banks/**
+  - src/lib/video/process-deposit-slip-job.ts
+  - src/lib/video/ocr-deposit-slip-native.ts
+  - src/components/video/DepositSlipVideoReviewTable.tsx
+---
+
+# Season 5 territory — deposits & investments
+
+Last War **Season 5** introduces **Bank Strongholds**. Officers track deposits so they can choose when to drop a bank without stranding (or looting) investor CrystalGold. HQ Bank Management + Deposit Slip History video OCR must model the **in-game deposit lifecycle**, not treat every OCR row as an independent insert.
+
+## In-game assets (Deposit Slip History UI)
+
+Rows in Deposit Slip History are color-coded:
+
+| UI color | OCR cues | HQ meaning |
+|----------|----------|------------|
+| **Blue** | `Deposit: CrystalGold x N, Term: T day(s).` only (no outcome line) | Deposit **initiated** — status `locked` |
+| **Green** | `Total return: CrystalGold x N.` | Successful **maturity / withdrawal** — terminal → status `matured` |
+| **Orange** | `Early termination refund: CrystalGold x N.` | **Looted / force-terminated** — terminal → status `looted` |
+
+Terms are **1, 3, or 5** days (`DEPOSIT_TERMS`).
+
+## Identity of a deposit
+
+A deposit is unique on:
+
+```text
+[bankStrongholdId, commanderId, initialDepositTime]
+```
+
+| Component | Notes |
+|-----------|--------|
+| `bankStrongholdId` | HQ `banks.id` for the owning stronghold (officer picks bank on OCR review; coords are **not** on the Deposit Slip History screen) |
+| `commanderId` | Prefer resolved `commanders.id` / roster member when known; OCR identity `#SERVER[TAG]Name` is the fallback matching key until linked |
+| `initialDepositTime` | Timestamp on the **blue** (initiate) row — wall clock as shown in-game |
+
+Do **not** treat a green/orange row’s timestamp as a new deposit’s `depositAt`.
+
+## Lifecycle
+
+```mermaid
+stateDiagram-v2
+  [*] --> locked: blue row (initiate)
+  locked --> matured: green row (total return)
+  locked --> looted: orange row (early termination refund)
+  matured --> [*]
+  looted --> [*]
+```
+
+### Blue — initiate
+
+- Creates (or confirms) the deposit under the unique key above.
+- Stores `termDays` ∈ {1, 3, 5}, `amount`, `status = locked`.
+- `maturesAt = depositAt + termDays` (calendar days per game rules; HQ uses the same interval for pairing).
+
+### Green — successful withdrawal
+
+When OCR sees a **green** row for Commander A:
+
+1. Find the **most recent blue** deposit for that commander at this bank that is still `locked` (or the unique key inferred below).
+2. Mark that deposit **`matured`** (`outcomeAt` = green row timestamp).
+3. Timing check: green timestamp should be **exactly `termDays` after** the blue `initialDepositTime` (1/3/5 respectively). Use this to validate pairing and to synthesize a missed blue (below).
+
+Green/orange rows are **terminal events**, not new deposits. They must correspond to a prior initiate.
+
+### Orange — looted (failure)
+
+When OCR sees an **orange** row for Commander A:
+
+1. Find the **most recent blue** deposit for that commander at this bank that is still `locked`.
+2. Mark that deposit **`looted`** (`outcomeAt` = orange row timestamp).
+3. Orange timestamp may be **any time ≥ blue** (early force-out when the bank drops / terminates). Do **not** require `termDays` alignment.
+
+## OCR miss → synthetic blue (initiate)
+
+If a terminal row arrives and no matching blue exists yet:
+
+### Green miss
+
+- Deduce `initialDepositTime = greenTimestamp − termDays`.
+- Create a **synthetic blue** deposit with that `depositAt`, same commander/bank/amount/term, then apply `matured` from the green row.
+- Synthetic time is **exact** under game rules (maturity is term-aligned).
+
+### Orange miss
+
+- True initiate time is **unknown**; only know `initialDepositTime ≥ (outcomeAt − termDays)` (and ≤ `outcomeAt`).
+- Create a **synthetic blue** with `depositAt` marked as an **estimate** (schema: nullable estimate flag / provenance — e.g. `depositAtEstimated = true` when implemented).
+- Prefer a conservative estimate window for risk math; do not invent a false exact initiate.
+- **Overwrite the estimate** when:
+  - **(a)** a later OCR pass finds the matching blue row, or
+  - **(b)** an officer manually corrects `depositAt`.
+
+Clear `depositAtEstimated` once a non-estimate source wins.
+
+## Agent / implementation checklist
+
+When changing bank deposit OCR, commit, or Bank Management:
+
+1. **Pair, don’t double-insert** — green/orange update an existing (or synthetic) initiate; never create a second deposit keyed only on the terminal timestamp.
+2. **Status map** — blue→`locked`, green→`matured`, orange→`looted` (`early_termination_refund` is looted, not matured).
+3. **Unique key** — enforce `[bankId, commanderId|identity, depositAt]` (or equivalent) so re-OCR is idempotent.
+4. **Estimates** — orange-only synthetics stay flagged until blue OCR or officer edit.
+5. **Risk / heatmap** — only `locked` deposits contribute to value-at-risk for drop timing; matured/looted are closed.
+6. **UID privacy** — do not display game UID; commander **name** (+ alliance tag from OCR) is the officer-facing identity.
+
+## Related
+
+- Slice A Bank Management UI/API: `src/lib/banks/**`
+- Deposit Slip History video OCR: `src/lib/banks/deposit-slip-ocr/**`, `process-deposit-slip-job.ts`
+- Score target id: `bank-deposit-slip-history`

@@ -15,6 +15,7 @@ export type SubmitContext = {
   boardKey?: string;
   commendationId?: string;
   hqEventId?: string;
+  bankId?: string;
 };
 
 export function buildSubmitPayloads(
@@ -128,6 +129,9 @@ export function validateSubmitContext(
     }
     if (field === "hqEventId" && !context.hqEventId) {
       return "hqEventId is required.";
+    }
+    if (field === "bankId" && !context.bankId) {
+      return "bankId is required.";
     }
   }
 

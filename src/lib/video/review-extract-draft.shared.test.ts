@@ -33,6 +33,7 @@ const baseForm = {
   boardKey: "kills",
   team: "A" as const,
   recordedDate: "2026-06-26",
+  bankId: "",
 };
 
 function makeDraft(overrides?: Partial<ReturnType<typeof buildVideoReviewDraft>>) {

@@ -3,6 +3,8 @@ import "server-only";
 import fs from "node:fs";
 import path from "node:path";
 
+import type { ParsedDepositSlipHistory } from "@/lib/banks/deposit-slip-ocr/parse-deposit-slip-text.shared";
+import { BANK_DEPOSIT_SLIP_HISTORY_SCORE_TARGET } from "@/lib/banks/deposit-slip-ocr/parse-deposit-slip-text.shared";
 import { listAllianceMembers } from "@/lib/members/roster.server";
 import { MEMBER_ROSTER_VIDEO_SCORE_TARGET } from "@/lib/members/ashed-member-record";
 import type { OcrEntry } from "@/lib/video/normalize-rows";
@@ -140,4 +142,53 @@ export async function mockOcrRosterFrames(
       _sourceFrameIndex: frameIndex,
     },
   ]);
+}
+
+export async function mockOcrDepositSlipFrames(
+  scoreTargetId: string,
+  frames: Array<{ index: number }>,
+): Promise<ParsedDepositSlipHistory> {
+  const targetId =
+    scoreTargetId === BANK_DEPOSIT_SLIP_HISTORY_SCORE_TARGET
+      ? "bank-deposit-slip-history"
+      : scoreTargetId;
+
+  const fixture =
+    loadJsonFixture<ParsedDepositSlipHistory>(
+      fixtureFileForScoreTarget(targetId),
+    ) ?? null;
+
+  const frameIndex = frames[0]?.index ?? 0;
+
+  if (fixture) {
+    return {
+      ...fixture,
+      slips: fixture.slips.map((slip) => ({
+        ...slip,
+        sourceFrameIndex: slip.sourceFrameIndex ?? frameIndex,
+      })),
+    };
+  }
+
+  return {
+    depositPolicy: "warzone",
+    minimumDeposit: 6000,
+    slips: [
+      {
+        depositAt: "2026-07-10T12:14:34.000Z",
+        termDays: 3,
+        amount: 6000,
+        status: "locked",
+        outcomeAmount: null,
+        outcomeKind: null,
+        identity: {
+          gameServerNumber: 1211,
+          allianceTag: "GRoW",
+          commanderName: "MockInvestor",
+          rawIdentity: "#1211[GRoW]MockInvestor",
+        },
+        sourceFrameIndex: frameIndex,
+      },
+    ],
+  };
 }

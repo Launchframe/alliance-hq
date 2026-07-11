@@ -29,6 +29,7 @@ export type VideoReviewDraftForm = {
   boardKey: string;
   team: "A" | "B";
   recordedDate: string;
+  bankId?: string;
 };
 
 export type VideoReviewDraftV1 = VideoReviewDraftForm & {
@@ -95,6 +96,7 @@ export function parseVideoReviewDraft(raw: string): VideoReviewDraftV1 | null {
     if (typeof draft.boardKey !== "string") return null;
     if (draft.team !== "A" && draft.team !== "B") return null;
     if (typeof draft.recordedDate !== "string") return null;
+    if (draft.bankId != null && typeof draft.bankId !== "string") return null;
     return draft;
   } catch {
     return null;
@@ -211,6 +213,7 @@ export function restoreVideoReviewDraftIfPresent<T extends VideoReviewDraftRow>(
       boardKey: draft.boardKey,
       team: draft.team,
       recordedDate: draft.recordedDate,
+      bankId: draft.bankId ?? "",
     },
     restored: true,
     savedAt: draft.savedAt ?? null,

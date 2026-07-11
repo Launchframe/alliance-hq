@@ -14,7 +14,10 @@ import {
   videoOcrRequiresAshedConnection,
 } from "@/lib/video/ocr-provider.shared";
 import { sessionCanProcessVideo } from "@/lib/video/processor-slots.server";
-import { isMemberRosterVideoTarget } from "@/lib/video/score-targets";
+import {
+  isMemberRosterVideoTarget,
+  isNativeOnlyVideoTarget,
+} from "@/lib/video/score-targets";
 import type {
   VideoProcessExperimentOption,
   VideoProcessPreview,
@@ -158,6 +161,7 @@ export async function buildVideoProcessPreview(params: {
     scoreTargetId,
     isRosterTarget,
     ocrContext,
+    { forceNative: isNativeOnlyVideoTarget(scoreTargetId) },
   );
 
   const [{ experiment, armConfigId }, experimentOptions, canProcess] =

@@ -4,6 +4,7 @@ import {
   MEMBER_ROSTER_VIDEO_SCORE_TARGET,
   ROSTER_VIDEO_OCR_SCHEMA,
 } from "@/lib/members/ashed-member-record";
+import { BANK_DEPOSIT_SLIP_HISTORY_SCORE_TARGET } from "@/lib/banks/deposit-slip-ocr/parse-deposit-slip-text.shared";
 import type { VideoOcrAccuracy } from "@/lib/video/ocr-accuracy";
 
 export type ScoreTargetGroup = "events" | "recurring" | "hq-native";
@@ -21,7 +22,8 @@ export type SubmitContextField =
   | "recordedDate"
   | "boardKey"
   | "commendationId"
-  | "hqEventId";
+  | "hqEventId"
+  | "bankId";
 
 export type SeasonalBoardType = "kills" | "resources" | "points";
 
@@ -51,6 +53,28 @@ export type ScoreTargetDef = {
    * fully-native alliances that rely on our OCR.
    */
   inHouseOcrAccuracy: VideoOcrAccuracy;
+};
+
+const DEPOSIT_SLIP_OCR_SCHEMA = {
+  type: "object",
+  properties: {
+    slips: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          commanderName: { type: "string" },
+          amount: { type: "number" },
+          termDays: { type: "number" },
+          depositAt: { type: "string" },
+          status: { type: "string" },
+          allianceTag: { type: "string" },
+        },
+        required: ["commanderName", "amount", "termDays", "depositAt"],
+      },
+    },
+  },
+  required: ["slips"],
 };
 
 const ENTRIES_NUMBER_SCHEMA = {
@@ -262,6 +286,20 @@ export const SCORE_TARGETS: ScoreTargetDef[] = [
     submitContext: [],
     inHouseOcrAccuracy: "high",
   },
+  {
+    id: BANK_DEPOSIT_SLIP_HISTORY_SCORE_TARGET,
+    labelKey: "bankDepositSlipHistory",
+    group: "hq-native",
+    submitEntity: "",
+    ocrSchema: DEPOSIT_SLIP_OCR_SCHEMA,
+    enabled: true,
+    leaderboardModel: "linear-full",
+    eventEntity: null,
+    seriesEntity: null,
+    submitMethod: "row-post",
+    submitContext: ["bankId"],
+    inHouseOcrAccuracy: "mid",
+  },
 ];
 
 export const ENABLED_SCORE_TARGETS = SCORE_TARGETS.filter((t) => t.enabled);
@@ -306,8 +344,20 @@ export function isMemberRosterVideoTarget(id: string): boolean {
   return id === MEMBER_ROSTER_VIDEO_SCORE_TARGET;
 }
 
+export function isBankDepositSlipHistoryTarget(id: string): boolean {
+  return id === BANK_DEPOSIT_SLIP_HISTORY_SCORE_TARGET;
+}
+
+/** Targets that always use in-house OCR (Ashed has no schema for them). */
+export function isNativeOnlyVideoTarget(id: string): boolean {
+  return isBankDepositSlipHistoryTarget(id);
+}
+
 export function isHqOnlySubmitTarget(target: ScoreTargetDef): boolean {
-  return isMemberRosterVideoTarget(target.id);
+  return (
+    isMemberRosterVideoTarget(target.id) ||
+    isBankDepositSlipHistoryTarget(target.id)
+  );
 }
 
 export type ScoreTargetClientMeta = {
@@ -324,11 +374,15 @@ export type ScoreTargetClientMeta = {
   showTeamSelector: boolean;
   showRosterColumns: boolean;
   showScoreColumn: boolean;
+  showDepositSlipColumns: boolean;
+  showBankSelector: boolean;
 };
 
 export function toScoreTargetClientMeta(
   target: ScoreTargetDef,
 ): ScoreTargetClientMeta {
+  const isDepositSlip = isBankDepositSlipHistoryTarget(target.id);
+  const isRoster = isMemberRosterVideoTarget(target.id);
   return {
     id: target.id,
     labelKey: target.labelKey,
@@ -343,7 +397,9 @@ export function toScoreTargetClientMeta(
       target.id === "vs-performance" ||
       target.leaderboardModel === "podium-commendation",
     showTeamSelector: target.submitContext.includes("team"),
-    showRosterColumns: isMemberRosterVideoTarget(target.id),
-    showScoreColumn: !isMemberRosterVideoTarget(target.id),
+    showRosterColumns: isRoster,
+    showScoreColumn: !isRoster && !isDepositSlip,
+    showDepositSlipColumns: isDepositSlip,
+    showBankSelector: target.submitContext.includes("bankId"),
   };
 }

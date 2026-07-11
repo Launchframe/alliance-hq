@@ -21,6 +21,7 @@ import {
 } from "@/lib/video/video-job-access.server";
 import { resolveHqAllianceIdFromStoredAllianceId } from "@/lib/video/video-job-alliance.server";
 import { commitRosterFromVideoJob } from "@/lib/members/roster-video-commit";
+import { commitDepositSlipsFromVideoJob } from "@/lib/banks/deposit-slip-ocr/deposit-slip-video-commit.server";
 import { listAllianceMembers } from "@/lib/members/roster.server";
 import {
   computeProjectedRosterRankCounts,
@@ -28,9 +29,12 @@ import {
 } from "@/lib/members/roster-rank-quota.shared";
 import { formatHeroPowerMForStorage } from "@/lib/video/roster-video-review.shared";
 import { getRbacContext } from "@/lib/rbac/context";
+import { BANK_WRITE_PERMISSION } from "@/lib/rbac/constants";
+import { requireAlliancePermission } from "@/lib/rbac/require-permission";
 import { findDuplicateMemberAssignments } from "@/lib/video/review-validation";
 import {
   getScoreTargetOrThrow,
+  isBankDepositSlipHistoryTarget,
   isMemberRosterVideoTarget,
   usesHqEventStore,
 } from "@/lib/video/score-targets";
@@ -69,6 +73,11 @@ type SubmitRow = {
   heroPowerM?: number | null;
   memberLevel?: number | null;
   profession?: string | null;
+  ocrName?: string | null;
+  powerLevel?: string | null;
+  allianceRankTitle?: string | null;
+  rosterRankRaw?: string | null;
+  frameIndex?: number | null;
   deleted?: boolean;
 };
 
@@ -79,6 +88,7 @@ type SubmitBody = {
   hqEventId?: string;
   boardKey?: string;
   commendationId?: string;
+  bankId?: string;
   rows: SubmitRow[];
 };
 
@@ -385,6 +395,147 @@ export async function POST(request: Request, { params }: Props) {
       return NextResponse.json({
         ok: true,
         submitted: activeRows.length,
+        ...result,
+        showSolicitedFeedback: false,
+        completedUploadCount: 0,
+      });
+    }
+
+    if (isBankDepositSlipHistoryTarget(scoreTargetId)) {
+      const allianceId = await resolveHqAllianceIdFromStoredAllianceId(
+        job.allianceId,
+      );
+      if (!allianceId) {
+        return NextResponse.json(
+          { error: "Alliance context missing on job." },
+          { status: 400 },
+        );
+      }
+
+      const denied = await requireAlliancePermission(
+        session.id,
+        allianceId,
+        BANK_WRITE_PERMISSION,
+      );
+      if (denied) return denied;
+      if (!job.parseSessionId) {
+        return NextResponse.json(
+          { error: "Parse session missing on job." },
+          { status: 400 },
+        );
+      }
+
+      const bankId = body.bankId?.trim();
+      if (!bankId) {
+        return NextResponse.json(
+          { error: "bankId is required." },
+          { status: 400 },
+        );
+      }
+
+      const activeRows = body.rows.filter((r) => !r.deleted);
+      if (activeRows.length === 0) {
+        return NextResponse.json(
+          { error: "No rows to submit." },
+          { status: 400 },
+        );
+      }
+
+      const claim = await claimVideoJobForSubmit(db, jobId, job.status);
+      if (!claim.ok) {
+        return NextResponse.json(
+          { error: claim.error, status: claim.jobStatus },
+          { status: claim.httpStatus },
+        );
+      }
+      advancedToSubmitting = true;
+
+      await emitVideoJobStatus({
+        ...videoJobStatusOwnerFields(job),
+        jobId,
+        status: "submitting",
+        fileName: job.fileName,
+        scoreTarget: scoreTargetId,
+        errorMessage: null,
+      });
+
+      for (const row of body.rows) {
+        await db
+          .update(schema.parsedRows)
+          .set({
+            ocrName: row.ocrName?.trim() || row.memberName?.trim() || "",
+            score: row.score ?? null,
+            powerLevel: row.powerLevel ?? null,
+            memberLevel:
+              row.memberLevel != null && row.memberLevel >= 1
+                ? Math.round(row.memberLevel)
+                : null,
+            profession: row.profession ?? null,
+            allianceRankTitle: row.allianceRankTitle ?? null,
+            rosterRankRaw: row.rosterRankRaw ?? null,
+            deleted: row.deleted ? 1 : 0,
+            edited: row.deleted ? 0 : 1,
+            updatedAt: new Date(),
+          })
+          .where(eq(schema.parsedRows.id, row.id));
+      }
+
+      const result = await commitDepositSlipsFromVideoJob({
+        allianceId,
+        bankId,
+        parseSessionId: job.parseSessionId,
+        rows: body.rows.map((row) => ({
+          id: row.id,
+          ocrName: row.ocrName?.trim() || row.memberName?.trim() || "",
+          score: row.score ?? null,
+          powerLevel: row.powerLevel ?? null,
+          memberLevel: row.memberLevel ?? null,
+          profession: row.profession ?? null,
+          allianceRankTitle: row.allianceRankTitle ?? null,
+          rosterRankRaw: row.rosterRankRaw ?? null,
+          frameIndex: row.frameIndex ?? null,
+          deleted: Boolean(row.deleted),
+        })),
+      });
+
+      await db
+        .update(schema.videoJobs)
+        .set({ status: "complete", updatedAt: new Date() })
+        .where(eq(schema.videoJobs.id, jobId));
+
+      await emitVideoJobStatus({
+        ...videoJobStatusOwnerFields(job),
+        jobId,
+        status: "complete",
+        fileName: job.fileName,
+        scoreTarget: scoreTargetId,
+        errorMessage: null,
+      });
+
+      await db
+        .update(schema.parseSessions)
+        .set({ status: "submitted", updatedAt: new Date() })
+        .where(eq(schema.parseSessions.id, job.parseSessionId));
+
+      await writeAuditLog({
+        sessionId: session.id,
+        allianceId,
+        action: "video.submit",
+        resourceType: "bank_deposit_slips",
+        resourceName: scoreTargetId,
+        resourceId: jobId,
+        metadata: {
+          rowCount: activeRows.length,
+          scoreTarget: scoreTargetId,
+          bankId,
+          createdCount: result.createdCount,
+          skippedCount: result.skippedCount,
+        },
+      });
+
+      return NextResponse.json({
+        ok: true,
+        submitted: result.createdCount,
         ...result,
         showSolicitedFeedback: false,
         completedUploadCount: 0,
