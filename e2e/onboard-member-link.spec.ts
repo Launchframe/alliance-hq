@@ -778,7 +778,9 @@ test.describe("Member-link onboarding outcomes", () => {
     await expect(
       page.getByRole("heading", { name: /confirm your commander/i }),
     ).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByText(/E2eClaimTarget/i)).toBeVisible();
+    await expect(
+      page.getByText(/Your alliance invited you to claim E2eClaimTarget/i),
+    ).toBeVisible();
 
     const blocked = await page.evaluate(async () => {
       const res = await fetch("/api/member-link", {
