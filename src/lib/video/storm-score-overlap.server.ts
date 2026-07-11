@@ -55,6 +55,8 @@ export async function findStormScoreOverlap(params: {
       ) {
         return { overlaps: true, source: "ashed" };
       }
+      // Ashed is scoped by event_id; HQ jobs do not store it yet.
+      return { overlaps: false, source: null };
     } catch {
       // Fall through to HQ job history when Ashed is unreachable.
     }
