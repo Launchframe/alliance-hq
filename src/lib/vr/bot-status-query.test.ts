@@ -80,6 +80,36 @@ describe("handleDiscordWhatIsMyVr", () => {
     });
     expect(result.reply).toMatch(/Alpha/);
     expect(result.reply).toMatch(/1000/);
+    expect(result.reply).not.toMatch(/123/);
+    expect(result.reply).not.toMatch(link.gameUid);
+  });
+
+  it("lists every linked commander in one public reply", async () => {
+    const secondLink = {
+      ...link,
+      id: "link-2",
+      ashedMemberId: "m2",
+      memberDisplayName: "Bravo",
+      gameUid: "456789012345",
+    };
+    vi.mocked(listDiscordLinksForUser).mockResolvedValue([link, secondLink]);
+    vi.mocked(getMemberSeasonHigh).mockImplementation(async (_a, memberId) =>
+      memberId === "m1" ? 1000 : 900,
+    );
+    vi.mocked(getCommanderByAshedMemberId).mockResolvedValue({
+      weeklyPassActive: false,
+    } as never);
+
+    const result = await handleDiscordWhatIsMyVr({
+      allianceId: "a1",
+      discordUserId: "d1",
+      locale: "en-US",
+    });
+    expect(result.reply).toMatch(/linked commanders/i);
+    expect(result.reply).toMatch(/Alpha/);
+    expect(result.reply).toMatch(/Bravo/);
+    expect(result.reply).not.toMatch(/123/);
+    expect(result.reply).not.toMatch(/456789012345/);
   });
 });
 
@@ -119,5 +149,38 @@ describe("handleDiscordWhatIsMyThp", () => {
     });
     expect(result.reply).toMatch(/Alpha/);
     expect(result.reply).toMatch(/163/);
+    expect(result.reply).not.toMatch(link.gameUid);
+  });
+
+  it("lists every linked commander in one public reply", async () => {
+    const secondLink = {
+      ...link,
+      id: "link-2",
+      ashedMemberId: "m2",
+      memberDisplayName: "Bravo",
+      gameUid: "456789012345",
+    };
+    vi.mocked(listDiscordLinksForUser).mockResolvedValue([link, secondLink]);
+    vi.mocked(getCommanderIdForMember).mockImplementation(async (_a, memberId) =>
+      memberId === "m1" ? "cmd-1" : "cmd-2",
+    );
+    vi.mocked(getCommanderThpState).mockImplementation(async (commanderId) => ({
+      currentTotalHeroPower:
+        commanderId === "cmd-1" ? 163_460_435 : 150_000_000,
+      currentThpBreakdown: null,
+      thpUpdatedAt: new Date(),
+      primaryName: commanderId === "cmd-1" ? "Alpha" : "Bravo",
+    }));
+
+    const result = await handleDiscordWhatIsMyThp({
+      allianceId: "a1",
+      discordUserId: "d1",
+      locale: "en-US",
+    });
+    expect(result.reply).toMatch(/linked commanders/i);
+    expect(result.reply).toMatch(/Alpha/);
+    expect(result.reply).toMatch(/Bravo/);
+    expect(result.reply).not.toMatch(link.gameUid);
+    expect(result.reply).not.toMatch(secondLink.gameUid);
   });
 });
