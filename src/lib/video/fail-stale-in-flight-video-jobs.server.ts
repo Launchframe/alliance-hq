@@ -67,7 +67,9 @@ export async function failStaleInFlightVideoJobs(options?: {
     if (!isVideoInFlightStale(row.updatedAt, nowMs, staleAfterMs)) {
       continue;
     }
-    const ok = await markVideoJobFailed(row.id, STALE_IN_FLIGHT_FAILURE_MESSAGE);
+    const ok = await markVideoJobFailed(row.id, STALE_IN_FLIGHT_FAILURE_MESSAGE, {
+      onlyIfStatuses: STALE_IN_FLIGHT_VIDEO_STATUSES,
+    });
     if (ok) {
       failedJobIds.push(row.id);
       console.warn(

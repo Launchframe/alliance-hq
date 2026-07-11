@@ -76,6 +76,7 @@ describe("failStaleInFlightVideoJobs", () => {
     expect(mockMarkVideoJobFailed).toHaveBeenCalledWith(
       "job-parse",
       STALE_IN_FLIGHT_FAILURE_MESSAGE,
+      { onlyIfStatuses: ["extracting", "parsing"] },
     );
   });
 
@@ -85,5 +86,26 @@ describe("failStaleInFlightVideoJobs", () => {
     });
     expect(result.failedJobIds).toEqual([]);
     expect(mockMarkVideoJobFailed).not.toHaveBeenCalled();
+  });
+
+  it("omits jobs when markVideoJobFailed rejects a status race", async () => {
+    const now = Date.parse("2026-07-11T18:15:00.000Z");
+    mockLimit.mockResolvedValue([
+      {
+        id: "job-finished",
+        status: "parsing",
+        updatedAt: new Date(now - VIDEO_IN_FLIGHT_STALE_MS - 1),
+      },
+    ]);
+    mockMarkVideoJobFailed.mockResolvedValue(false);
+
+    const result = await failStaleInFlightVideoJobs({ nowMs: now });
+
+    expect(result.failedJobIds).toEqual([]);
+    expect(mockMarkVideoJobFailed).toHaveBeenCalledWith(
+      "job-finished",
+      STALE_IN_FLIGHT_FAILURE_MESSAGE,
+      { onlyIfStatuses: ["extracting", "parsing"] },
+    );
   });
 });
