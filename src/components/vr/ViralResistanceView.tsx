@@ -5,6 +5,8 @@ import { Syringe } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { AppSelect } from "@/components/ui/AppSelect";
+import { VrOfficerEventsPanel } from "@/components/vr/vr-officer-events-panel";
+import { VrProgressProjectionChart } from "@/components/vr/vr-progress-projection-chart";
 import { Link } from "@/i18n/navigation";
 import type {
   ViralResistanceOfficerPayload,
@@ -144,6 +146,17 @@ export function ViralResistanceView({
           {refreshing ? t("refreshing") : t("refresh")}
         </button>
       </header>
+
+      {!error && (data.progressChart?.series.length ?? 0) > 0 ? (
+        <div className="rounded-2xl border border-hq-border bg-hq-surface p-4">
+          <VrProgressProjectionChart
+            series={data.progressChart.series}
+            seasonKey={data.progressChart.seasonKey}
+            vrUpdatesLocked={data.progressChart.vrUpdatesLocked}
+            ariaLabel={t("chart.ariaLabel")}
+          />
+        </div>
+      ) : null}
 
       {error ? (
         <p className="text-sm text-hq-danger">{error}</p>
@@ -289,6 +302,12 @@ export function ViralResistanceView({
           {overrideMessage ? (
             <p className="mt-3 text-sm text-hq-fg-muted">{overrideMessage}</p>
           ) : null}
+
+          <VrOfficerEventsPanel
+            seasonKey={officer.seasonKey}
+            memberOptions={memberOptions}
+            onChanged={refresh}
+          />
         </section>
       ) : null}
     </div>

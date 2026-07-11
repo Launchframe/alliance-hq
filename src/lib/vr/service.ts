@@ -883,10 +883,11 @@ export async function handleDiscordVrSlash(input: {
   const seasonKey = season.seasonKey;
   const pendingRow = await getDiscordBotPending(input.discordUserId);
   const pending = (pendingRow?.pending ?? null) as VrPendingState | null;
-  const [seasonHigh, reporterCount, seasonRows] = await Promise.all([
+  const [seasonHigh, reporterCount, seasonRows, commander] = await Promise.all([
     getMemberSeasonHigh(input.allianceId, target.ashedMemberId, seasonKey),
     countSeasonReporters(input.allianceId, seasonKey),
     listSeasonVrRows(input.allianceId, seasonKey),
+    getCommanderByAshedMemberId(target.ashedMemberId, input.allianceId),
   ]);
   const peerMax = peerMaxExcludingMember(seasonRows, target.ashedMemberId);
 
@@ -912,6 +913,7 @@ export async function handleDiscordVrSlash(input: {
     explicitLevel: explicitBaseVr,
     seasonHigh,
     ashedMemberId: target.ashedMemberId,
+    commanderId: commander?.commanderId ?? null,
     pending,
     reporterCount,
     peerMax,
@@ -924,7 +926,8 @@ export async function handleDiscordVrSlash(input: {
   if (result.action.type === "set_vr") {
     await upsertMemberSeasonVr({
       allianceId: input.allianceId,
-      ashedMemberId: result.action.ashedMemberId,
+      ashedMemberId: result.action.ashedMemberId || target.ashedMemberId,
+      commanderId: result.action.commanderId ?? commander?.commanderId,
       seasonKey,
       baseVr: result.action.vr,
       discordUserId: input.discordUserId,
@@ -932,10 +935,6 @@ export async function handleDiscordVrSlash(input: {
       eventSource: "discord",
     });
     await saveDiscordBotPending(input.allianceId, input.discordUserId, null);
-    const commander = await getCommanderByAshedMemberId(
-      target.ashedMemberId,
-      input.allianceId,
-    );
     const instituteLevel =
       instituteLevelForBaseVr(seasonKey, result.action.vr) ?? "?";
     const effectiveVr = effectiveBaseVr(
@@ -1154,9 +1153,14 @@ export async function handleDiscordVrButtonConfirm(input: {
 
   if (result.action.type === "set_vr") {
     const seasonKey = season.seasonKey;
+    const ashedMemberId =
+      result.action.ashedMemberId ||
+      (pending.kind === "anomaly_confirm" ? pending.ashedMemberId : null) ||
+      "";
     await upsertMemberSeasonVr({
       allianceId: input.allianceId,
-      ashedMemberId: result.action.ashedMemberId,
+      ashedMemberId,
+      commanderId: result.action.commanderId,
       seasonKey,
       baseVr: result.action.vr,
       discordUserId: input.discordUserId,
@@ -1165,7 +1169,7 @@ export async function handleDiscordVrButtonConfirm(input: {
     });
     await saveDiscordBotPending(input.allianceId, input.discordUserId, null);
     const commander = await getCommanderByAshedMemberId(
-      result.action.ashedMemberId,
+      ashedMemberId,
       input.allianceId,
     );
     const instituteLevel =

@@ -1,5 +1,12 @@
 export type VrPendingState =
-  | { kind: "anomaly_confirm"; proposedVr: number; ashedMemberId: string }
+  | {
+      kind: "anomaly_confirm";
+      proposedVr: number;
+      /** Preferred identity after commander-scoped VR cutover. */
+      commanderId?: string;
+      /** Legacy roster slot; kept for pending JSON written before cutover. */
+      ashedMemberId?: string;
+    }
   | { kind: "pick_character"; linkIds: string[] }
   | { kind: "weekly_pass_pick_character"; linkIds: string[]; active: boolean };
 
@@ -8,6 +15,7 @@ export type VrCommandAction =
       type: "set_vr";
       vr: number;
       ashedMemberId: string;
+      commanderId?: string;
       flagReason?: string | null;
     }
   | { type: "none" };

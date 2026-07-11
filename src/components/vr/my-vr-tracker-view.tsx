@@ -16,7 +16,7 @@ import {
   preventDefaultFormSubmit,
 } from "@/lib/client/form-enter-submit.shared";
 
-import { VrHistoryChart } from "./vr-history-chart";
+import { VrProgressProjectionChart } from "./vr-progress-projection-chart";
 import { VrProgressTable } from "./vr-progress-table";
 
 type TabId = "now" | "history";
@@ -368,9 +368,37 @@ export function MyVrTrackerView({ initial }: Props) {
             ) : null}
           </div>
 
-          {data.events.length >= 2 ? (
+          {data.progressChart && data.progressChart.series.length > 0 ? (
             <div className="rounded-xl border border-hq-border bg-hq-surface p-4">
-              <VrHistoryChart events={data.events} />
+              <VrProgressProjectionChart
+                series={data.progressChart.series}
+                seasonKey={data.progressChart.seasonKey}
+                vrUpdatesLocked={data.progressChart.vrUpdatesLocked}
+                ariaLabel={t("chart.ariaLabel")}
+              />
+            </div>
+          ) : data.events.length >= 2 ? (
+            <div className="rounded-xl border border-hq-border bg-hq-surface p-4">
+              <VrProgressProjectionChart
+                series={[
+                  {
+                    commanderId: "self",
+                    ashedMemberId: "self",
+                    memberName: data.commanderName ?? "You",
+                    rank: 1,
+                    currentBaseVr: data.currentVr ?? 0,
+                    isViewer: true,
+                    events: data.events.map((event) => ({
+                      at: event.createdAt,
+                      baseVr: event.baseVr,
+                      instituteLevel: event.instituteLevel,
+                    })),
+                  },
+                ]}
+                seasonKey={data.seasonKey}
+                vrUpdatesLocked={data.vrUpdatesLocked}
+                ariaLabel={t("chart.ariaLabel")}
+              />
             </div>
           ) : (
             <p className="text-center text-sm text-hq-fg-subtle">{t("chartPlaceholder")}</p>

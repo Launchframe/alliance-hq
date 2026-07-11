@@ -58,6 +58,23 @@ export async function wipeVrSandboxData(
       ),
     );
   await db
+    .delete(schema.commanderSeasonVrEvents)
+    .where(
+      and(
+        eq(schema.commanderSeasonVrEvents.allianceId, allianceId),
+        eq(schema.commanderSeasonVrEvents.seasonKey, seasonKey),
+      ),
+    );
+  // Commander summary is season-global; only wipe rows for commanders active in this alliance.
+  await db.execute(sql`
+    DELETE FROM commander_season_vr csv
+    USING commander_alliance_memberships cam
+    WHERE csv.commander_id = cam.commander_id
+      AND cam.alliance_id = ${allianceId}
+      AND cam.left_at IS NULL
+      AND csv.season_key = ${seasonKey}
+  `);
+  await db
     .delete(schema.hqVrPending)
     .where(eq(schema.hqVrPending.allianceId, allianceId));
   // VR-only pending — preserve in-flight /link walkthroughs and identity confirms.

@@ -8,8 +8,15 @@ import {
   loadViralResistanceOfficerPanel,
 } from "@/lib/vr/load-leaderboard";
 import { requirePageSession } from "@/lib/session";
+import type { VrProgressChartPayload } from "@/lib/vr/vr-progress-chart.shared";
 
 export const dynamic = "force-dynamic";
+
+const EMPTY_PROGRESS_CHART: VrProgressChartPayload = {
+  seasonKey: "1",
+  vrUpdatesLocked: false,
+  series: [],
+};
 
 export async function generateMetadata() {
   const t = await getTranslations("viralResistance");
@@ -21,7 +28,16 @@ export default async function ViralResistancePage() {
   await requirePagePermission(session.id, "members:write", "/my-vr");
   const allianceId = session.currentAllianceId ?? session.allianceId;
   if (!allianceId) {
-    return <ViralResistanceView initial={{ seasonKey: "1", rows: [] }} officer={null} />;
+    return (
+      <ViralResistanceView
+        initial={{
+          seasonKey: "1",
+          rows: [],
+          progressChart: EMPTY_PROGRESS_CHART,
+        }}
+        officer={null}
+      />
+    );
   }
 
   const initial = await loadViralResistanceLeaderboard(allianceId);

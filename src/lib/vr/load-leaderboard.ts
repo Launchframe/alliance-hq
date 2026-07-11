@@ -1,4 +1,5 @@
 import { loadAllianceMembersForBot } from "@/lib/vr/member-roster";
+import { loadVrProgressChartPayload } from "@/lib/vr/load-progress-chart";
 import {
   listDiscordLinksByAlliance,
   listFlaggedSeasonVr,
@@ -7,10 +8,12 @@ import {
   resolveSeasonKey,
 } from "@/lib/vr/repository";
 import { buildLeaderboardRows, type LeaderboardRow } from "@/lib/vr/leaderboard";
+import type { VrProgressChartPayload } from "@/lib/vr/vr-progress-chart.shared";
 
 export type ViralResistancePayload = {
   seasonKey: string;
   rows: LeaderboardRow[];
+  progressChart: VrProgressChartPayload;
 };
 
 export type ViralResistanceOfficerPayload = {
@@ -25,14 +28,21 @@ export type ViralResistanceOfficerPayload = {
 
 export async function loadViralResistanceLeaderboard(
   allianceId: string,
+  viewer?: { ashedMemberId?: string | null; commanderId?: string | null },
 ): Promise<ViralResistancePayload> {
   const seasonKey = await resolveSeasonKey(allianceId);
-  const [seasonRows, links, members, weeklyPassByMemberId] = await Promise.all([
-    listLeaderboardRows(allianceId, seasonKey),
-    listDiscordLinksByAlliance(allianceId),
-    loadAllianceMembersForBot(allianceId),
-    listWeeklyPassActiveByAlliance(allianceId),
-  ]);
+  const [seasonRows, links, members, weeklyPassByMemberId, progressChart] =
+    await Promise.all([
+      listLeaderboardRows(allianceId, seasonKey),
+      listDiscordLinksByAlliance(allianceId),
+      loadAllianceMembersForBot(allianceId),
+      listWeeklyPassActiveByAlliance(allianceId),
+      loadVrProgressChartPayload({
+        allianceId,
+        viewerAshedMemberId: viewer?.ashedMemberId,
+        viewerCommanderId: viewer?.commanderId,
+      }),
+    ]);
   return {
     seasonKey,
     rows: buildLeaderboardRows(
@@ -42,6 +52,7 @@ export async function loadViralResistanceLeaderboard(
       seasonKey,
       weeklyPassByMemberId,
     ),
+    progressChart,
   };
 }
 

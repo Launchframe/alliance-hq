@@ -1,5 +1,7 @@
 /** Client-safe types for the member VR tracker API. */
 
+import type { VrProgressChartPayload } from "@/lib/vr/vr-progress-chart.shared";
+
 export type MyVrEvent = {
   baseVr: number;
   instituteLevel: number | null;
@@ -32,6 +34,7 @@ export type MyVrPayload = {
   percentile: MyVrPercentile | null;
   reporterCount: number;
   events: MyVrEvent[];
+  progressChart: VrProgressChartPayload | null;
 };
 
 export type MyVrPostStatus =
