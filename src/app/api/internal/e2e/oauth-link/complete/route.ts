@@ -8,6 +8,7 @@ import {
   OAUTH_PROVIDER_TYPE_ALREADY_LINKED,
   oauthAccountLinkErrorRedirect,
 } from "@/lib/auth/oauth-link-error-redirect.shared";
+import { sanitizeInternalRedirectPath } from "@/lib/navigation/safe-redirect.shared";
 
 function e2eEnabled(): boolean {
   return process.env.E2E_TEST === "true";
@@ -15,6 +16,15 @@ function e2eEnabled(): boolean {
 
 function parseProvider(value: string | null): LinkedOAuthProvider | null {
   return value === "google" || value === "discord" ? value : null;
+}
+
+/** Allowed return surfaces for signed-in OAuth link (matches oauthAccountLinkErrorRedirect). */
+function parseCallbackPath(value: string | null): string {
+  const sanitized = sanitizeInternalRedirectPath(value);
+  if (sanitized === "/account" || sanitized === "/settings/account") {
+    return sanitized;
+  }
+  return "/settings/account";
 }
 
 /**
@@ -31,6 +41,7 @@ export async function GET(request: Request) {
   const provider = parseProvider(url.searchParams.get("provider"));
   const providerAccountId = url.searchParams.get("providerAccountId")?.trim() ?? "";
   const providerEmail = url.searchParams.get("providerEmail")?.trim() || null;
+  const callbackPath = parseCallbackPath(url.searchParams.get("callbackPath"));
 
   if (!provider || !providerAccountId) {
     return NextResponse.json({ error: "invalid_input" }, { status: 400 });
@@ -59,14 +70,11 @@ export async function GET(request: Request) {
       result.code === "provider_account_on_other_user"
         ? OAUTH_ACCOUNT_ALREADY_LINKED
         : OAUTH_PROVIDER_TYPE_ALREADY_LINKED;
-    const redirectPath = oauthAccountLinkErrorRedirect(
-      "/settings/account",
-      linkError,
-    );
+    const redirectPath = oauthAccountLinkErrorRedirect(callbackPath, linkError);
     return NextResponse.redirect(new URL(redirectPath, request.url));
   }
 
-  const success = new URL("/settings/account", request.url);
+  const success = new URL(callbackPath, request.url);
   success.searchParams.set("linked", provider);
   return NextResponse.redirect(success);
 }

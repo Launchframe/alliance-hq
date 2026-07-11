@@ -6,6 +6,7 @@ import { expect, test, type Page } from "@playwright/test";
 import {
   authCookieHeader,
   createAllianceMembership,
+  createAllianceRosterMember,
   createAuthenticatedHqSession,
   createHqDiscordOAuthAccount,
   createHqMemberLink,
@@ -53,10 +54,12 @@ function e2eOAuthCompletePath(
   provider: "discord" | "google",
   providerAccountId: string,
   providerEmail?: string,
+  callbackPath: "/account" | "/settings/account" = "/settings/account",
 ): string {
   const params = new URLSearchParams({
     provider,
     providerAccountId,
+    callbackPath,
   });
   if (providerEmail) {
     params.set("providerEmail", providerEmail);
@@ -70,11 +73,13 @@ async function stubOAuthProviderSignIn(
   provider: "discord" | "google",
   providerAccountId: string,
   providerEmail?: string,
+  callbackPath: "/account" | "/settings/account" = "/settings/account",
 ) {
   const completeUrl = `${baseURL.replace(/\/$/, "")}${e2eOAuthCompletePath(
     provider,
     providerAccountId,
     providerEmail,
+    callbackPath,
   )}`;
 
   await page.route(`**/api/auth/signin/${provider}**`, async (route) => {
@@ -110,6 +115,24 @@ test.describe("OAuth linking — error surfaces", () => {
     });
     await expect(
       signInMethods.getByText(/already has Google or Discord linked/i),
+    ).toBeVisible();
+  });
+
+  test("account page surfaces OAuthProviderTypeAlreadyLinked via quick-access", async ({
+    page,
+  }) => {
+    const sql = getE2eSql();
+    const session = await createAuthenticatedHqSession(
+      sql,
+      `account-type-${nanoid(6)}@alliance-hq.test`,
+    );
+    await bootstrapSettingsPageSession(sql, session);
+    await page.context().addCookies(playwrightAuthCookies(session));
+
+    await page.goto("/account?linkError=OAuthProviderTypeAlreadyLinked");
+
+    await expect(
+      page.getByText(/already has Google or Discord linked/i),
     ).toBeVisible();
   });
 
@@ -294,6 +317,69 @@ test.describe("OAuth linking — browser shim round-trip", () => {
       signInMethods.getByText(/already has Google or Discord linked/i),
     ).toBeVisible();
   });
+
+  test("account Quick link Discord completes through the e2e OAuth callback shim", async ({
+    page,
+  }) => {
+    const sql = getE2eSql();
+    const session = await createAuthenticatedHqSession(
+      sql,
+      `account-browser-${nanoid(6)}@alliance-hq.test`,
+    );
+    await bootstrapSettingsPageSession(sql, session);
+    await page.context().addCookies(playwrightAuthCookies(session));
+
+    const discordUserId = `discord-${nanoid(10)}`;
+    const providerEmail = `account-browser-${nanoid(4)}@discord.test`;
+    await stubOAuthProviderSignIn(
+      page,
+      e2eBaseUrl(),
+      "discord",
+      discordUserId,
+      providerEmail,
+      "/account",
+    );
+
+    await page.goto("/account");
+    const quickLink = page.getByRole("group", { name: /Quick link/i });
+    await quickLink.getByRole("button", { name: /^Discord$/i }).click();
+
+    await expect(page).toHaveURL(/\/account\?linked=discord/);
+    await expect(
+      page.getByText(/Discord is now linked to your account/i),
+    ).toBeVisible();
+  });
+
+  test("e2e OAuth complete shim returns provider-type error on /account callback", async ({
+    page,
+  }) => {
+    const sql = getE2eSql();
+    const session = await createAuthenticatedHqSession(
+      sql,
+      `account-type-shim-${nanoid(6)}@alliance-hq.test`,
+    );
+    await bootstrapSettingsPageSession(sql, session);
+    await createHqDiscordOAuthAccount(sql, {
+      hqUserId: session.hqUserId,
+      discordUserId: `discord-${nanoid(10)}`,
+      providerEmail: `existing-acct-${nanoid(4)}@discord.test`,
+    });
+    await page.context().addCookies(playwrightAuthCookies(session));
+
+    await page.goto(
+      e2eOAuthCompletePath(
+        "discord",
+        `discord-${nanoid(10)}`,
+        `other-acct-${nanoid(4)}@discord.test`,
+        "/account",
+      ),
+    );
+
+    await expect(page).toHaveURL(/\/account\?linkError=OAuthProviderTypeAlreadyLinked/);
+    await expect(
+      page.getByText(/already has Google or Discord linked/i),
+    ).toBeVisible();
+  });
 });
 
 test.describe("OAuth identity split badge", () => {
@@ -316,9 +402,14 @@ test.describe("OAuth identity split badge", () => {
       roleName: "officer",
       source: "manual",
     });
+    const officerRoster = await createAllianceRosterMember(sql, {
+      allianceId: alliance.allianceId,
+      currentName: "Officer Self",
+    });
     await createHqMemberLink(sql, {
       allianceId: alliance.allianceId,
       hqUserId: officer.hqUserId,
+      ashedMemberId: officerRoster.ashedMemberId,
       memberDisplayName: "Officer Self",
     });
     const { commanderName } = await seedOAuthIdentitySplitScenario(sql, {
@@ -341,6 +432,10 @@ test.describe("OAuth identity split badge", () => {
     const row = page.locator("tr").filter({ hasText: commanderName });
     await expect(row.first()).toBeVisible();
     await expect(row.getByText("Discord split", { exact: true })).toBeVisible();
+    // #211 HQ link metrics: officer + split commander both HQ-linked on active roster
+    await expect(
+      page.getByText(/2 linked on HQ · 0 not linked/i),
+    ).toBeVisible();
   });
 
   test("platform maintainer sees Discord split badge in HQ Users admin", async ({
