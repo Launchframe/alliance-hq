@@ -46,6 +46,22 @@ describe("VR projection prep", () => {
     expect(prepared.map((e) => e.level)).toEqual([14, 16, 17, 19]);
     expect(prepared.every((e) => e.baseVr !== 100)).toBe(true);
   });
+
+  it("keeps the fitting window to the last 72 hours when enough recent points exist", () => {
+    const prepared = prepareEventsForProjection(
+      [
+        { createdAt: "2026-07-04T12:00:00.000Z", baseVr: 3000, instituteLevel: 15 },
+        { createdAt: "2026-07-06T12:00:00.000Z", baseVr: 4000, instituteLevel: 19 },
+        { createdAt: "2026-07-08T12:00:00.000Z", baseVr: 4250, instituteLevel: 20 },
+        { createdAt: "2026-07-09T12:00:00.000Z", baseVr: 4500, instituteLevel: 21 },
+        { createdAt: "2026-07-10T12:00:00.000Z", baseVr: 4750, instituteLevel: 22 },
+      ],
+      "5",
+      "2026-07-10T12:00:00.000Z",
+    );
+
+    expect(prepared.map((e) => e.level)).toEqual([20, 21, 22]);
+  });
 });
 
 describe("VR projection", () => {
@@ -156,5 +172,38 @@ describe("VR projection", () => {
     expect(projected).toHaveLength(5);
     expect(projected[0]?.at).toBe("2026-07-02T00:00:00.000Z");
     expect(projected.at(-1)?.at).toBe("2026-07-05T00:00:00.000Z");
+  });
+
+  it("interpolates between late-season ladder values instead of stepping", () => {
+    const projected = projectVrSeries({
+      events: [
+        { createdAt: "2026-07-01T00:00:00.000Z", baseVr: 12200, instituteLevel: 55 },
+        { createdAt: "2026-07-02T00:00:00.000Z", baseVr: 12400, instituteLevel: 56 },
+      ],
+      seasonKey: "5",
+      now: "2026-07-02T00:00:00.000Z",
+      horizonDays: 1,
+      sampleCount: 3,
+    });
+
+    expect(projected[0]?.baseVr).toBe(12400);
+    expect(projected[1]?.baseVr).toBeGreaterThan(12400);
+    expect(projected[1]?.baseVr).toBeLessThan(13300);
+  });
+
+  it("damps consecutive recent +1 catch-up intervals", () => {
+    const projected = projectVrSeries({
+      events: [
+        { createdAt: "2026-07-10T00:00:00.000Z", baseVr: 4250, instituteLevel: 20 },
+        { createdAt: "2026-07-10T04:00:00.000Z", baseVr: 4500, instituteLevel: 21 },
+        { createdAt: "2026-07-10T08:00:00.000Z", baseVr: 4750, instituteLevel: 22 },
+      ],
+      seasonKey: "5",
+      now: "2026-07-10T08:00:00.000Z",
+      horizonDays: 1,
+      sampleCount: 2,
+    });
+
+    expect(projected.at(-1)?.baseVr).toBeLessThan(6000);
   });
 });

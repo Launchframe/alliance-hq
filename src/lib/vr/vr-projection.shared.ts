@@ -2,6 +2,7 @@ import {
   baseVrForInstituteLevel,
   coerceInstituteLevelFromBaseVr,
   instituteLevelForBaseVr,
+  instituteVrByLevel,
   maxInstituteLevel,
 } from "@/lib/vr/institute-levels.shared";
 
@@ -9,7 +10,9 @@ export const DEFAULT_PROJECTION_HORIZON_DAYS = 3;
 export const PROJECTION_HORIZON_OPTIONS = [1, 3, 7] as const;
 
 /** Ignore onboarding / learning-curve history older than this. */
-export const PROJECTION_LOOKBACK_DAYS = 4;
+export const PROJECTION_LOOKBACK_DAYS = 3;
+/** Smooth very recent catch-up reports without flattening normal season progress. */
+const PROJECTION_RECENT_SMOOTHING_DAYS = 3;
 /** Collapse rapid successive reports (wake-up double `/vr`, catch-up bumps). */
 export const PROJECTION_BURST_WINDOW_MS = 45 * 60 * 1000;
 /** Intervals shorter than this are treated as reporting bursts, not grind pace. */
@@ -19,6 +22,8 @@ const DEFAULT_BETA = 1.2;
 const DEFAULT_SAMPLE_COUNT = 32;
 /** Soft cap: even spenders rarely clear more than this many levels/day mid-season. */
 const MAX_LEVELS_PER_DAY = 6;
+/** Recent one-level catch-up reports are damped more aggressively than the hard cap. */
+const RECENT_MAX_LEVELS_PER_DAY = 4;
 
 export type VrProjectionEvent = {
   createdAt: string | Date;
@@ -167,6 +172,8 @@ function buildFitIntervals(events: readonly LevelEvent[]): Array<{
   daysPerLevel: number;
 }> {
   const intervals: Array<{ midLevel: number; daysPerLevel: number }> = [];
+  const latestMs = events.at(-1)?.tMs ?? 0;
+  const recentCutoffMs = latestMs - PROJECTION_RECENT_SMOOTHING_DAYS * DAY_MS;
   for (let i = 1; i < events.length; i++) {
     const previous = events[i - 1]!;
     const current = events[i]!;
@@ -177,9 +184,13 @@ function buildFitIntervals(events: readonly LevelEvent[]): Array<{
     // Reject absurdly fast pace that survived burst collapse (e.g. multi-day
     // catch-up attributed to a short window).
     if (1 / daysPerLevel > MAX_LEVELS_PER_DAY) continue;
+    const smoothedDaysPerLevel =
+      deltaLevel === 1 && current.tMs >= recentCutoffMs
+        ? Math.max(daysPerLevel, 1 / RECENT_MAX_LEVELS_PER_DAY)
+        : daysPerLevel;
     intervals.push({
       midLevel: (previous.level + current.level) / 2,
-      daysPerLevel,
+      daysPerLevel: smoothedDaysPerLevel,
     });
   }
   return intervals;
@@ -252,11 +263,16 @@ function projectedLevelAt(fit: VrPowerLawProjectionFit, atMs: number): number {
 }
 
 function baseVrForProjectedLevel(seasonKey: string, level: number): number {
-  const clamped = Math.min(
-    maxInstituteLevel(seasonKey),
-    Math.max(1, Math.floor(level)),
-  );
-  return baseVrForInstituteLevel(seasonKey, clamped)!;
+  const table = instituteVrByLevel(seasonKey);
+  const clamped = Math.min(table.length, Math.max(1, level));
+  const lowerLevel = Math.floor(clamped);
+  const upperLevel = Math.ceil(clamped);
+  const lowerVr = baseVrForInstituteLevel(seasonKey, lowerLevel)!;
+  const upperVr = baseVrForInstituteLevel(seasonKey, upperLevel)!;
+  if (lowerLevel === upperLevel) return lowerVr;
+
+  const ratio = clamped - lowerLevel;
+  return Math.round(lowerVr + (upperVr - lowerVr) * ratio);
 }
 
 export function projectVrSeries(input: {

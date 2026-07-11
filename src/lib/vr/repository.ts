@@ -1103,6 +1103,7 @@ export async function updateCommanderSeasonVrEvent(input: {
       ),
     )
     .limit(1);
+  if (!membership[0]) return { ok: false, error: "Event not found." };
 
   await db
     .update(schema.commanderSeasonVrEvents)
@@ -1160,6 +1161,7 @@ export async function deleteCommanderSeasonVrEvent(input: {
       ),
     )
     .limit(1);
+  if (!membership[0]) return { ok: false, error: "Event not found." };
 
   await db
     .delete(schema.commanderSeasonVrEvents)
