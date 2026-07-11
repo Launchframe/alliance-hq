@@ -7,6 +7,10 @@ export function isVideoWorkerAllowedPath(pathname: string): boolean {
     return true;
   }
   if (pathname.startsWith("/api/internal/video-process/")) {
+    // Queue cron stays on Vercel — not the dedicated OCR host.
+    if (pathname === "/api/internal/video-process/queue") {
+      return false;
+    }
     return true;
   }
   if (pathname.startsWith("/api/internal/video-archive/")) {

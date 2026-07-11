@@ -12,7 +12,7 @@ describe("isVideoWorkerAllowedPath", () => {
     ).toBe(true);
     expect(
       isVideoWorkerAllowedPath("/api/internal/video-process/queue"),
-    ).toBe(true);
+    ).toBe(false);
     expect(
       isVideoWorkerAllowedPath("/api/internal/video-archive/job-1"),
     ).toBe(true);
