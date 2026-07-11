@@ -10,11 +10,13 @@ import {
   resolveAshedEventId,
   upsertHqEventMemberMetadata,
 } from "@/lib/hq-events/provision-ashed";
+import { assertAllianceAshedLinked } from "@/lib/alliance/ashed-write-guard";
 import { getAshedConnection, getOrCreateSession } from "@/lib/session";
 import {
   resolveVideoJobAccess,
   videoJobAccessErrorResponse,
 } from "@/lib/video/video-job-access.server";
+import { resolveHqAllianceIdFromStoredAllianceId } from "@/lib/video/video-job-alliance.server";
 import { commitRosterFromVideoJob } from "@/lib/members/roster-video-commit";
 import { listAllianceMembers } from "@/lib/members/roster.server";
 import {
@@ -177,7 +179,9 @@ export async function POST(request: Request, { params }: Props) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
       }
 
-      const allianceId = job.allianceId;
+      const allianceId = await resolveHqAllianceIdFromStoredAllianceId(
+        job.allianceId,
+      );
       if (!allianceId) {
         return NextResponse.json(
           { error: "Alliance context missing on job." },
@@ -366,13 +370,17 @@ export async function POST(request: Request, { params }: Props) {
       return NextResponse.json({ error: "Ashed not connected" }, { status: 503 });
     }
 
-    const allianceId = job.allianceId;
-    if (!allianceId) {
+    const hqAllianceId = await resolveHqAllianceIdFromStoredAllianceId(
+      job.allianceId,
+    );
+    if (!hqAllianceId) {
       return NextResponse.json(
         { error: "Alliance context missing on job." },
         { status: 400 },
       );
     }
+    const { ashedAllianceId } = await assertAllianceAshedLinked(hqAllianceId);
+    const allianceId = hqAllianceId;
 
     const activeRows = body.rows.filter(
       (
@@ -410,7 +418,7 @@ export async function POST(request: Request, { params }: Props) {
     ) {
       const provisionBody = buildAshedEventProvisionBody(
         target.eventEntity,
-        allianceId,
+        ashedAllianceId,
         submitContext.recordedDate,
       );
       const newEvent = (await base44EntityPost(
@@ -505,7 +513,7 @@ export async function POST(request: Request, { params }: Props) {
 
     const payloads = buildSubmitPayloads(
       target,
-      allianceId,
+      ashedAllianceId,
       submitContext,
       activeRows.map((row) => ({
         memberId: row.memberId,

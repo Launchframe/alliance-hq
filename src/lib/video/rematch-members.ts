@@ -1,8 +1,10 @@
 import { eq } from "drizzle-orm";
 
-import { resolveSessionAllianceId, getSessionAllianceTag } from "@/lib/alliance/session-alliance";
+import { getSessionAllianceTag } from "@/lib/alliance/session-alliance";
+import { assertAllianceAshedLinked } from "@/lib/alliance/ashed-write-guard";
 import { base44ListMembers } from "@/lib/base44/fetch";
 import { getDb, schema } from "@/lib/db";
+import { resolveHqAllianceIdFromSession } from "@/lib/members/resolve-hq-alliance";
 import { getAshedConnection } from "@/lib/session";
 import {
   buildMemberIndex,
@@ -43,11 +45,12 @@ export async function rematchVideoJobMembers(
   }
 
   const previousAllianceId = job.allianceId;
-  const allianceId = await resolveSessionAllianceId(callerSessionId, connection);
+  const hqAllianceId = await resolveHqAllianceIdFromSession(callerSessionId);
+  const { ashedAllianceId } = await assertAllianceAshedLinked(hqAllianceId);
 
   let members: AshedMember[] = [];
   try {
-    members = await base44ListMembers(connection, allianceId);
+    members = await base44ListMembers(connection, ashedAllianceId);
   } catch {
     members = [];
   }
@@ -92,7 +95,7 @@ export async function rematchVideoJobMembers(
   await db
     .update(schema.parseSessions)
     .set({
-      allianceId,
+      allianceId: hqAllianceId,
       matchedCount,
       rowCount: rows.length,
       updatedAt: now,
@@ -102,13 +105,13 @@ export async function rematchVideoJobMembers(
   await db
     .update(schema.videoJobs)
     .set({
-      allianceId,
+      allianceId: hqAllianceId,
       updatedAt: now,
     })
     .where(eq(schema.videoJobs.id, jobId));
 
   return {
-    allianceId,
+    allianceId: hqAllianceId,
     rowCount: rows.length,
     matchedCount,
     previousAllianceId,

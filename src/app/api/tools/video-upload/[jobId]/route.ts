@@ -13,6 +13,10 @@ import {
   resolveVideoJobAccess,
   videoJobAccessErrorResponse,
 } from "@/lib/video/video-job-access.server";
+import {
+  isVideoJobAllianceStale,
+  resolveHqAllianceIdFromStoredAllianceId,
+} from "@/lib/video/video-job-alliance.server";
 import { isVideoProcessTimings } from "@/lib/video/pipeline-stats-display";
 import { resolveJobVideoStorageKey } from "@/lib/video/resolve-job-video-storage";
 import {
@@ -145,7 +149,27 @@ export async function GET(_request: Request, { params }: Props) {
 
     let jobAllianceTag: string | null = session.allianceTag;
     let jobAllianceName: string | null = null;
-    const allianceIdForJob = job.allianceId ?? parseSession?.allianceId ?? null;
+    const storedAllianceId = job.allianceId ?? parseSession?.allianceId ?? null;
+    const allianceIdForJob =
+      (await resolveHqAllianceIdFromStoredAllianceId(storedAllianceId)) ??
+      storedAllianceId;
+    // Heal legacy rows that stamped the Ashed alliance id onto the job.
+    if (
+      allianceIdForJob &&
+      job.allianceId &&
+      job.allianceId !== allianceIdForJob
+    ) {
+      await db
+        .update(schema.videoJobs)
+        .set({ allianceId: allianceIdForJob, updatedAt: new Date() })
+        .where(eq(schema.videoJobs.id, jobId));
+      if (job.parseSessionId) {
+        await db
+          .update(schema.parseSessions)
+          .set({ allianceId: allianceIdForJob, updatedAt: new Date() })
+          .where(eq(schema.parseSessions.id, job.parseSessionId));
+      }
+    }
     let members: AshedMember[] = [];
     if (allianceIdForJob) {
       const [allianceRow] = await db
@@ -185,7 +209,7 @@ export async function GET(_request: Request, { params }: Props) {
         frameCount: job.frameCount,
         errorMessage: job.errorMessage,
         parseSessionId: job.parseSessionId,
-        allianceId: job.allianceId,
+        allianceId: allianceIdForJob ?? job.allianceId,
         rating: job.rating,
         timingsJson,
       },
@@ -193,14 +217,16 @@ export async function GET(_request: Request, { params }: Props) {
       frameTimestamps,
       scoreTargetMeta: target ? toScoreTargetClientMeta(target) : null,
       alliance: {
-        jobId: job.allianceId,
-        currentId: session.allianceId,
+        jobId: allianceIdForJob ?? job.allianceId,
+        currentId: session.currentAllianceId,
         currentTag: session.allianceTag,
         jobTag: jobAllianceTag,
         jobName: jobAllianceName,
-        stale:
-          Boolean(session.allianceId && job.parseSessionId) &&
-          job.allianceId !== session.allianceId,
+        stale: isVideoJobAllianceStale({
+          jobHqAllianceId: allianceIdForJob,
+          sessionCurrentAllianceId: session.currentAllianceId,
+          hasParseSession: Boolean(job.parseSessionId),
+        }),
       },
       parseSession,
       rows,
