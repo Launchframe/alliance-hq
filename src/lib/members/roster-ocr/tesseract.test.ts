@@ -44,8 +44,16 @@ describe("buildTesseractWorkerOptions", () => {
     vi.stubEnv("TESSERACT_LANG_PATH", "");
     const options = buildTesseractWorkerOptions();
     expect(options.langPath).toBeUndefined();
+    // Must be a real filesystem string — Turbopack module ids break Worker().
+    expect(typeof options.workerPath).toBe("string");
     expect(options.workerPath).toMatch(/[/\\]worker-script[/\\]node[/\\]index\.js$/);
     expect(existsSync(options.workerPath)).toBe(true);
+  });
+
+  it("resolves workerPath via package.json so bundlers cannot rewrite it to a module id", () => {
+    const options = buildTesseractWorkerOptions();
+    expect(Number.isFinite(Number(options.workerPath))).toBe(false);
+    expect(options.workerPath.includes("node_modules")).toBe(true);
   });
 
   it("passes trimmed TESSERACT_LANG_PATH when set", () => {

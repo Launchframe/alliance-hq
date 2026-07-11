@@ -97,6 +97,10 @@ export const videoOcrTracedRoutes = {
   "/api/members/roster-import/parse": videoOcrFileTracing,
   "/api/tools/video-upload/[jobId]/reprocess": videoOcrFileTracing,
   "/api/admin/video-jobs/[jobId]/reprocess": videoOcrFileTracing,
+  // THP screenshot OCR (Discord slash + web My THP) dynamic-imports the same
+  // sharp/tesseract stack — worker-script + LSTM WASM must be on disk.
+  "/api/webhooks/discord/interactions": videoOcrFileTracing,
+  "/api/thp/me/submit": videoOcrFileTracing,
 };
 
 /**
