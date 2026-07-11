@@ -23,13 +23,16 @@ export async function GET(request: Request) {
 
   const today = getServerCalendarDate();
   const targets = await listRegisteredGuildsWithTrainChannel();
+  const allianceIds = [
+    ...new Set(targets.map((target) => target.allianceId)),
+  ];
   let posted = 0;
   let skipped = 0;
 
-  for (const target of targets) {
+  for (const allianceId of allianceIds) {
     try {
       const result = await postPriceIsRightLeaderboardToDiscord({
-        allianceId: target.allianceId,
+        allianceId,
         trainDate: today,
       });
       posted += result.posted;
@@ -37,7 +40,7 @@ export async function GET(request: Request) {
     } catch (error) {
       console.error(
         "[train-pir-leaderboard] failed for alliance",
-        target.allianceId,
+        allianceId,
         error,
       );
       skipped += 1;
