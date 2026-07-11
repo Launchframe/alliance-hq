@@ -87,6 +87,14 @@ describe("resolveVideoProcessEndpoint", () => {
     process.env = env;
   });
 
+  it("falls back to app origin when VIDEO_WORKER_BASE_URL is unset", () => {
+    delete process.env.VIDEO_WORKER_BASE_URL;
+    process.env.NEXT_PUBLIC_APP_URL = "https://frontline.gay";
+    expect(resolveVideoProcessEndpoint("job-1")).toBe(
+      "https://frontline.gay/api/internal/video-process/job-1",
+    );
+  });
+
   it("uses worker base URL when configured", () => {
     process.env.VIDEO_WORKER_BASE_URL = "https://worker.example";
     expect(resolveVideoProcessEndpoint("job-1")).toBe(

@@ -28,12 +28,9 @@ export function resolveVideoProcessBaseUrl(): string {
 }
 
 /**
- * When true, this runtime should not import the heavy process-job graph — queue
- * cron and similar entry points POST to VIDEO_WORKER_BASE_URL instead.
- *
- * Same host as the public app (default) still processes locally for backward
- * compatibility. Point VIDEO_WORKER_BASE_URL at a dedicated worker host for
- * Phase 2 split deploys.
+ * True when VIDEO_WORKER_BASE_URL points at a host different from the public app.
+ * The Vercel queue cron always HTTP-dispatches (never imports process-job); this
+ * flag means the worker is a split deploy rather than same-origin `[jobId]`.
  */
 export function videoQueueDispatchesExternally(): boolean {
   const worker = externalVideoWorkerBaseUrl();
@@ -43,6 +40,7 @@ export function videoQueueDispatchesExternally(): boolean {
   return worker !== resolveAppOrigin();
 }
 
+/** POST target for queue / upload triggers — app origin or dedicated worker. */
 export function resolveVideoProcessEndpoint(jobId: string): string {
   return `${resolveVideoProcessBaseUrl()}/api/internal/video-process/${jobId}`;
 }

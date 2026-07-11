@@ -3,13 +3,14 @@ import { asc, eq } from "drizzle-orm";
 
 import { getDb, schema } from "@/lib/db";
 import { failStaleInFlightVideoJobs } from "@/lib/video/fail-stale-in-flight-video-jobs.server";
-import {
-  dispatchVideoJobRemote,
-  videoQueueDispatchesExternally,
-} from "@/lib/video/video-process-dispatch.server";
+import { dispatchVideoJobRemote } from "@/lib/video/video-process-dispatch.server";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
+/**
+ * Awaits the worker `[jobId]` response (same host or VIDEO_WORKER_BASE_URL).
+ * Keep aligned with the worker route's maxDuration — do not import process-job here.
+ */
 export const maxDuration = 300;
 
 function authorize(request: Request): boolean {
@@ -25,7 +26,13 @@ function authorize(request: Request): boolean {
   return false;
 }
 
-/** Drain one queued job — Vercel Cron backup when upload-side triggers are dropped. */
+/**
+ * Drain one queued job — Vercel Cron backup when upload-side triggers are dropped.
+ *
+ * Always HTTP-POSTs to `/api/internal/video-process/[jobId]` (app origin or
+ * VIDEO_WORKER_BASE_URL). Never import the OCR pipeline here so this lambda
+ * stays slim under NFT / Vercel size limits.
+ */
 export async function GET(request: Request) {
   if (!authorize(request)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -62,12 +69,7 @@ export async function GET(request: Request) {
     `[video-worker] pulled job ${job.id} from queue (file=${job.fileName ?? "unknown"}, target=${job.scoreTarget ?? "unknown"}, queuedAt=${job.createdAt.toISOString()})`,
   );
 
-  const result = videoQueueDispatchesExternally()
-    ? await dispatchVideoJobRemote(job.id, { source: "cron" })
-    : await (
-        await import("@/lib/video/video-process-local.server")
-      ).runVideoProcessJobLocally(job.id, { analyticsSource: "worker" });
-
+  const result = await dispatchVideoJobRemote(job.id, { source: "cron" });
   return NextResponse.json(
     {
       ok: result.ok,
