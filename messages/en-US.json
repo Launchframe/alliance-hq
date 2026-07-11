@@ -1260,9 +1260,9 @@
   },
   "videoQueue": {
     "title": "Video queue",
-    "description": "Uploaded videos awaiting OCR. A designated video processor with a connected Ashed account approves jobs to run.",
-    "descriptionHqOcr": "Uploaded videos awaiting OCR. Approved jobs run through in-house processing — no Ashed connection required.",
-    "empty": "No videos are waiting for approval.",
+    "description": "Alliance videos in progress — awaiting approval, processing, review, or submit. Newest uploads appear first.",
+    "descriptionHqOcr": "Alliance videos in progress — awaiting approval, processing, review, or submit. With in-house OCR, approved jobs run without Ashed. Newest uploads appear first.",
+    "empty": "No active videos in the queue.",
     "connectBanner": "Connect your Ashed account to approve and run these jobs.",
     "connectCta": "Connect Ashed",
     "ocrSettingsTitle": "OCR processing",

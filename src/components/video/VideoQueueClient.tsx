@@ -246,7 +246,7 @@ export function VideoQueueClient({
     return null;
   }
 
-  const emptyMessage = tAdminJobs("empty");
+  const emptyMessage = t("empty");
 
   return (
     <div className="min-w-0 space-y-3">
