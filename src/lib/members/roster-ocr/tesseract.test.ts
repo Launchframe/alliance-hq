@@ -217,6 +217,13 @@ describe("buildTesseractWorkerOptions", () => {
     expect(existsSync(options.workerPath)).toBe(true);
   });
 
+  it("always provides a function logger (createWorker calls it on progress)", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    const options = buildTesseractWorkerOptions();
+    expect(typeof options.logger).toBe("function");
+    expect(() => options.logger({ status: "loading tesseract core", progress: 0 })).not.toThrow();
+  });
+
   it("resolves workerPath via package.json so bundlers cannot rewrite it to a module id", () => {
     const options = buildTesseractWorkerOptions();
     expect(Number.isFinite(Number(options.workerPath))).toBe(false);
@@ -231,6 +238,20 @@ describe("buildTesseractWorkerOptions", () => {
       existsSync(path.join(workerDir, "../../constants/imageType.js")),
     ).toBe(true);
     expect(existsSync(path.join(workerDir, "../../constants/OEM.js"))).toBe(true);
+  });
+
+  it("node getCore treats lstmOnly as boolean (upstream OEM.includes bug)", () => {
+    const repoRoot = path.resolve(import.meta.dirname, "../../../..");
+    const getCorePath = path.join(
+      repoRoot,
+      "node_modules/tesseract.js/src/worker-script/node/getCore.js",
+    );
+    const source = readFileSync(getCorePath, "utf8");
+    // createWorker passes boolean lstmOnly; [OEM.LSTM_ONLY].includes(true) is false
+    // and Node would require non-LSTM cores we intentionally do not NFT.
+    expect(source).not.toMatch(/\[OEM\.DEFAULT,\s*OEM\.LSTM_ONLY\]\.includes/);
+    expect(source).toMatch(/if\s*\(\s*lstmOnly\s*\)/);
+    expect(source).toMatch(/tesseract-core-relaxedsimd-lstm/);
   });
 
   it("passes trimmed TESSERACT_LANG_PATH when set", () => {

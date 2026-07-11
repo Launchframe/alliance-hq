@@ -42,6 +42,7 @@
     "test:e2e:install": "playwright install chromium",
     "vercel:analyze-function-trace": "node scripts/vercel/analyze-function-trace.mjs",
     "build:analyze-function-trace": "npm run build && npm run vercel:analyze-function-trace",
+    "postinstall": "node scripts/patch-tesseract-node-getcore.mjs",
     "prepare": "husky"
   },
   "dependencies": {

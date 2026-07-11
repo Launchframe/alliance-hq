@@ -66,11 +66,14 @@ export function resolveTesseractWorkerPath(): string {
   );
 }
 
+/** createWorker always invokes logger on progress — never pass undefined. */
+const noopTesseractLogger = (): void => undefined;
+
 /** Optional worker options — only set langPath when explicitly configured. */
 export function buildTesseractWorkerOptions(): {
   workerPath: string;
   langPath?: string;
-  logger?: typeof console.log;
+  logger: (message: unknown) => void;
 } {
   const workerPath = resolveTesseractWorkerPath();
   if (typeof workerPath !== "string") {
@@ -82,10 +85,13 @@ export function buildTesseractWorkerOptions(): {
   const options: {
     workerPath: string;
     langPath?: string;
-    logger?: typeof console.log;
+    logger: (message: unknown) => void;
   } = {
     workerPath,
-    logger: process.env.NODE_ENV === "development" ? console.log : undefined,
+    // Prod used to omit logger; createWorker still calls logger(progress) and
+    // throws TypeError: logger is not a function (crashes the Discord lambda).
+    logger:
+      process.env.NODE_ENV === "development" ? console.log : noopTesseractLogger,
   };
 
   const langPath = process.env.TESSERACT_LANG_PATH?.trim();
