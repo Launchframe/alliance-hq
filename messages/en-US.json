@@ -4060,7 +4060,6 @@
     "confirmIdentityServer": "State server {server}",
     "confirmIdentityYes": "Yes, that's me",
     "confirmIdentityNo": "No, re-enter my UID",
-<<<<<<< HEAD
     "uidBypass": {
       "title": "Pre-production test UIDs",
       "badge": "Pre-prod only",
@@ -4076,8 +4075,7 @@
         "claimMirror": "Claim invite mirror — lookup name always matches whoever was invited (reusable).",
         "ownerPattern": "Pattern UID for native owner onboarding — last four digits set the state server."
       }
-    }
-=======
+    },
     "professionStepTitle": "What's your role?",
     "professionStepSubtitle": "This helps us match Engineers with War Leaders for 24/7 support coverage.",
     "professionEngineerTitle": "Engineer",
@@ -4087,7 +4085,6 @@
     "professionSkip": "Skip for now",
     "professionSaveFailed": "Could not save profession.",
     "professionSaveError": "Something went wrong. You can set your profession later in the app."
->>>>>>> a88adc78 (Address Real Steel follow-ups: i18n, tests, hotkeys, RBAC)
   },
   "discordBot": {
     "errors": {

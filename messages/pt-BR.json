@@ -4003,7 +4003,6 @@
     "confirmIdentityServer": "Servidor {server}",
     "confirmIdentityYes": "Sim, sou eu",
     "confirmIdentityNo": "Não, informar outro UID",
-<<<<<<< HEAD
     "uidBypass": {
       "title": "UIDs de teste (pré-produção)",
       "badge": "Só pré-prod",
@@ -4020,7 +4019,6 @@
         "ownerPattern": "UID padrão para onboarding de owner nativo — os últimos quatro dígitos definem o servidor."
       }
     },
-=======
     "professionStepTitle": "Qual é o seu papel?",
     "professionStepSubtitle": "Isso nos ajuda a combinar Engenheiros com Líderes de Guerra para cobertura de suporte 24h.",
     "professionEngineerTitle": "Engenheiro",
@@ -4030,7 +4028,6 @@
     "professionSkip": "Pular por agora",
     "professionSaveFailed": "Não foi possível salvar a profissão.",
     "professionSaveError": "Algo deu errado. Você pode definir sua profissão depois no app.",
->>>>>>> a88adc78 (Address Real Steel follow-ups: i18n, tests, hotkeys, RBAC)
     "rosterFullTitle": "Roster is full",
     "rosterFullBody": "Your alliance is full. Last War verified {gameName}, but we could not find {gameName} in your alliance and there is not enough room in your alliance for us to create a new member. An officer will review your link request."
   },
