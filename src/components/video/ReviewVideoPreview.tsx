@@ -156,14 +156,17 @@ export function ReviewVideoPreview({
     return () => container.removeEventListener("wheel", onWheel);
   }, [unavailable, jobId, effectiveZoom]);
 
+  // sticky (not relative+sticky): sticky already positions absolute resize
+  // handles. z-20 keeps the pane under the shell header (z-30) while above
+  // scrolling review content.
   const containerClass = cn(
-    "z-30 flex max-w-full flex-col overflow-x-hidden bg-black",
+    "z-20 flex max-w-full flex-col overflow-x-clip bg-black",
     placement === "side" &&
-      "relative sticky shrink-0 self-start border-l border-hq-border",
+      "sticky shrink-0 self-start border-l border-hq-border",
     placement === "top" &&
       "sticky w-full max-w-full border-b border-hq-border",
     placement === "bottom" &&
-      "fixed bottom-0 left-0 right-0 w-full max-w-full border-t border-hq-border",
+      "fixed bottom-0 left-0 right-0 z-30 w-full max-w-full border-t border-hq-border",
   );
 
   const displaySideWidth = draftSideWidth ?? sideWidthPx;
