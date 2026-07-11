@@ -1,6 +1,7 @@
 import type { AshedMember } from "@/lib/video/member-matcher";
 
 import { assignSnakeDraft } from "@/lib/shared/snake-draft.shared";
+import { commanderThpTotal } from "@/lib/commanders/power-stats.shared";
 
 import type { MemberSeasonVr } from "@/lib/db/schema";
 import { effectiveBaseVr } from "@/lib/vr/effective-vr.shared";
@@ -28,22 +29,22 @@ export type TakedownTeamsResult =
   | { ok: true; teams: TakedownTeam[] }
   | { ok: false; error: "insufficient_players"; needed: number; have: number };
 
-export function memberTotalHeroPower(member: AshedMember): number {
+export function memberTotalHeroPower(
+  member: AshedMember,
+  commanderStats?: { currentTotalHeroPower?: number | null } | null,
+): number {
+  if (commanderStats) {
+    return commanderThpTotal(commanderStats);
+  }
   const record = member as AshedMember & {
     total_hero_power?: number;
     totalHeroPower?: number;
     hero_power?: number;
-    heroPowerM?: number | null;
   };
-  const fromHeroPowerM =
-    record.heroPowerM != null && record.heroPowerM > 0
-      ? Math.round(record.heroPowerM * 1_000_000)
-      : undefined;
   return (
     record.total_hero_power ??
     record.totalHeroPower ??
     record.hero_power ??
-    fromHeroPowerM ??
     0
   );
 }
@@ -54,6 +55,10 @@ export function buildLeaderboardRows(
   links: Array<{ ashedMemberId: string; memberDisplayName: string | null }>,
   seasonKey: string,
   weeklyPassByMemberId?: ReadonlyMap<string, boolean>,
+  commanderThpByMemberId?: ReadonlyMap<
+    string,
+    { currentTotalHeroPower?: number | null }
+  >,
 ): LeaderboardRow[] {
   const memberById = new Map(members.map((m) => [m.id, m]));
   const linkNameById = new Map(
@@ -75,7 +80,12 @@ export function buildLeaderboardRows(
         memberName,
         highestBaseVr: row.highestBaseVr,
         instituteLevel,
-        totalHeroPower: member ? memberTotalHeroPower(member) : 0,
+        totalHeroPower: member
+          ? memberTotalHeroPower(
+              member,
+              commanderThpByMemberId?.get(row.ashedMemberId) ?? null,
+            )
+          : 0,
         weeklyPassActive: weeklyPassByMemberId?.get(row.ashedMemberId) ?? false,
         flagged: row.flaggedAt != null,
         flagReason: row.flagReason,

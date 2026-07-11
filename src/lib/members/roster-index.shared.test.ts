@@ -28,6 +28,7 @@ function commanderRow(
     memberName: overrides.memberName ?? ashedMemberId,
     allianceRank: null,
     allianceRankTitle: null,
+    powerLevel: null,
     totalHeroPower: 1_000_000,
     mainSquad: null,
     mainSquadSource: null,

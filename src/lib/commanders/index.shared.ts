@@ -6,6 +6,7 @@ export type CommanderIndexRow = {
   memberName: string;
   allianceRank: number | null;
   allianceRankTitle: string | null;
+  powerLevel: string | null;
   totalHeroPower: number;
   mainSquad: MainSquadType | null;
   mainSquadSource: MainSquadSource | null;

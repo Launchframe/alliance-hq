@@ -4,14 +4,15 @@ import type {
 } from "@/lib/commanders/main-squad.shared";
 
 export type CommanderProfilePayload = {
-  member: {
+    member: {
     ashedMemberId: string;
     currentName: string;
     previousNames: string[];
     status: string;
     rankLabel: string;
     titleLabel: string;
-    heroPowerM: number | null;
+    powerLevel: string | null;
+    totalHeroPower: number | null;
     memberLevel: number | null;
     mainSquad: MainSquadType | null;
     mainSquadSource: MainSquadSource | null;

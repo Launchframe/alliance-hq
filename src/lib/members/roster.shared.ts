@@ -31,11 +31,6 @@ export function allianceMemberRowToAshedMember(row: AllianceMember): AshedMember
       ? formatAshedMemberRankValue(row.allianceRank, row.allianceRankTitle)
       : undefined);
 
-  const totalHeroPower =
-    row.heroPowerM != null && row.heroPowerM > 0
-      ? Math.round(row.heroPowerM * 1_000_000)
-      : undefined;
-
   return {
     id: row.ashedMemberId,
     current_name: row.currentName,
@@ -48,7 +43,6 @@ export function allianceMemberRowToAshedMember(row: AllianceMember): AshedMember
     allianceRank: row.allianceRank ?? undefined,
     allianceRankTitle: row.allianceRankTitle,
     rank: rankValue,
-    total_hero_power: totalHeroPower,
   };
 }
 

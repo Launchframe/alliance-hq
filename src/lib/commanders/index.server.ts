@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, isNull } from "drizzle-orm";
 
 import { getDb, schema } from "@/lib/db";
 import type { CommanderIndexPayload } from "@/lib/commanders/index.shared";
@@ -12,10 +12,9 @@ import {
   assertCommanderReadAccess,
   resolveCommanderSessionContext,
 } from "@/lib/members/commander-access.server";
-import { allianceMemberRowToAshedMember } from "@/lib/members/roster.shared";
 import { loadOAuthIdentitySplitsForAlliance } from "@/lib/auth/oauth-identity-split.server";
 import { sessionHasPermission } from "@/lib/rbac/context";
-import { memberTotalHeroPower } from "@/lib/vr/leaderboard";
+import { commanderThpTotal } from "@/lib/commanders/power-stats.shared";
 import {
   listAllianceSeasonVrForLeaderboard,
   resolveSeasonKey,
@@ -34,7 +33,7 @@ export async function loadCommanderIndex(
   const db = getDb();
   const seasonKey = await resolveSeasonKey(allianceId);
 
-  const [memberRows, seasonRows, canEdit, ownedMemberIds, hqLinkRows, oauthSplits] =
+  const [memberRows, seasonRows, canEdit, ownedMemberIds, hqLinkRows, oauthSplits, commanderStatsRows] =
     await Promise.all([
     db
       .select()
@@ -46,7 +45,6 @@ export async function loadCommanderIndex(
         ),
       )
       .orderBy(
-        desc(schema.allianceMembers.currentTotalHeroPower),
         desc(schema.allianceMembers.allianceRank),
         asc(schema.allianceMembers.currentName),
       ),
@@ -60,38 +58,12 @@ export async function loadCommanderIndex(
       .from(schema.hqMemberLinks)
       .where(eq(schema.hqMemberLinks.allianceId, allianceId)),
     loadOAuthIdentitySplitsForAlliance(allianceId),
-  ]);
-
-  const hqLinkedMemberIds = new Set(
-    hqLinkRows.map((row) => row.ashedMemberId),
-  );
-
-  const vrByMember = new Map(
-    seasonRows.map((row) => [row.ashedMemberId, row.highestBaseVr]),
-  );
-
-  const teamRows: CommanderTeamRow[] = memberRows.map((memberRow) => {
-    const ashedMember = allianceMemberRowToAshedMember(memberRow);
-    return {
-      ashedMemberId: memberRow.ashedMemberId,
-      memberName: memberRow.currentName,
-      totalHeroPower: memberTotalHeroPower(ashedMember),
-      mainSquad: memberRow.mainSquad ?? null,
-      mainSquadSource: null,
-      allianceRank: memberRow.allianceRank ?? null,
-      highestBaseVr: vrByMember.get(memberRow.ashedMemberId) ?? null,
-    };
-  });
-
-  const commanderIds = memberRows
-    .map((row) => row.ashedMemberId)
-    .filter(Boolean);
-
-  const sourceByMember = new Map<string, "self_report" | "officer_override">();
-  if (commanderIds.length > 0) {
-    const commanderRows = await db
+    db
       .select({
         ashedMemberId: schema.commanderAllianceMemberships.ashedMemberId,
+        powerLevel: schema.commanders.powerLevel,
+        currentTotalHeroPower: schema.commanders.currentTotalHeroPower,
+        mainSquad: schema.commanders.mainSquad,
         mainSquadSource: schema.commanders.mainSquadSource,
       })
       .from(schema.commanderAllianceMemberships)
@@ -102,33 +74,54 @@ export async function loadCommanderIndex(
       .where(
         and(
           eq(schema.commanderAllianceMemberships.allianceId, allianceId),
-          inArray(
-            schema.commanderAllianceMemberships.ashedMemberId,
-            commanderIds,
-          ),
           isNull(schema.commanderAllianceMemberships.leftAt),
         ),
-      );
+      ),
+  ]);
 
-    for (const row of commanderRows) {
-      if (row.mainSquadSource) {
-        sourceByMember.set(row.ashedMemberId, row.mainSquadSource);
-      }
-    }
-  }
+  const hqLinkedMemberIds = new Set(
+    hqLinkRows.map((row) => row.ashedMemberId),
+  );
 
-  const rows = teamRows.map((row) => ({
-    ashedMemberId: row.ashedMemberId,
-    memberName: row.memberName,
-    allianceRank: row.allianceRank,
-    allianceRankTitle: null as string | null,
-    totalHeroPower: row.totalHeroPower,
-    mainSquad: row.mainSquad,
-    mainSquadSource: sourceByMember.get(row.ashedMemberId) ?? null,
-    highestBaseVr: row.highestBaseVr,
-    hqLinked: hqLinkedMemberIds.has(row.ashedMemberId),
-    oauthIdentitySplit: oauthSplits.has(row.ashedMemberId),
-  }));
+  const vrByMember = new Map(
+    seasonRows.map((row) => [row.ashedMemberId, row.highestBaseVr]),
+  );
+
+  const commanderStatsByMember = new Map(
+    commanderStatsRows.map((row) => [row.ashedMemberId, row]),
+  );
+
+  const teamRows: CommanderTeamRow[] = memberRows.map((memberRow) => {
+    const stats = commanderStatsByMember.get(memberRow.ashedMemberId);
+    return {
+      ashedMemberId: memberRow.ashedMemberId,
+      memberName: memberRow.currentName,
+      totalHeroPower: commanderThpTotal({
+        currentTotalHeroPower: stats?.currentTotalHeroPower ?? null,
+      }),
+      mainSquad: stats?.mainSquad ?? null,
+      mainSquadSource: stats?.mainSquadSource ?? null,
+      allianceRank: memberRow.allianceRank ?? null,
+      highestBaseVr: vrByMember.get(memberRow.ashedMemberId) ?? null,
+    };
+  });
+
+  const rows = teamRows.map((row) => {
+    const stats = commanderStatsByMember.get(row.ashedMemberId);
+    return {
+      ashedMemberId: row.ashedMemberId,
+      memberName: row.memberName,
+      allianceRank: row.allianceRank,
+      allianceRankTitle: null as string | null,
+      powerLevel: stats?.powerLevel ?? null,
+      totalHeroPower: row.totalHeroPower,
+      mainSquad: row.mainSquad,
+      mainSquadSource: row.mainSquadSource,
+      highestBaseVr: row.highestBaseVr,
+      hqLinked: hqLinkedMemberIds.has(row.ashedMemberId),
+      oauthIdentitySplit: oauthSplits.has(row.ashedMemberId),
+    };
+  });
 
   for (const memberRow of memberRows) {
     const indexRow = rows.find(
@@ -138,6 +131,15 @@ export async function loadCommanderIndex(
       indexRow.allianceRankTitle = memberRow.allianceRankTitle ?? null;
     }
   }
+
+  rows.sort((a, b) => {
+    if (b.totalHeroPower !== a.totalHeroPower) {
+      return b.totalHeroPower - a.totalHeroPower;
+    }
+    return a.memberName.localeCompare(b.memberName, undefined, {
+      sensitivity: "base",
+    });
+  });
 
   return {
     seasonKey,

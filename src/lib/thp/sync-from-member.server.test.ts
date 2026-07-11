@@ -12,7 +12,7 @@ vi.mock("@/lib/thp/repository", () => ({
 
 import {
   seedCommanderThpHistoryFromAshed,
-  syncCommanderThpAfterMemberSync,
+  syncCommanderThpAfterAshedStats,
   syncCommanderThpForMemberIfLinked,
   syncCommanderThpFromAllianceMember,
 } from "@/lib/thp/sync-from-member.server";
@@ -57,23 +57,22 @@ describe("syncCommanderThpFromAllianceMember", () => {
   });
 });
 
-describe("syncCommanderThpAfterMemberSync", () => {
-  it("derives total from heroPowerM when currentTotalHeroPower is absent", async () => {
+describe("syncCommanderThpAfterAshedStats", () => {
+  it("derives total from currentTotalHeroPower", async () => {
     upsertCommanderThp.mockClear();
-    await syncCommanderThpAfterMemberSync({
+    await syncCommanderThpAfterAshedStats({
       commanderId: "cmd1",
       allianceId: "a1",
       ashedMemberId: "m1",
       memberName: "Alpha",
-      memberRow: {
-        currentTotalHeroPower: null,
-        heroPowerM: 163.46,
+      ashedStats: {
+        currentTotalHeroPower: 163_460_435,
       },
       source: "roster_import",
     });
     expect(upsertCommanderThp).toHaveBeenCalledWith(
       expect.objectContaining({
-        total: 163_460_000,
+        total: 163_460_435,
         source: "roster_import",
       }),
     );
@@ -103,7 +102,7 @@ describe("syncCommanderThpForMemberIfLinked", () => {
       allianceId: "a1",
       ashedMemberId: "m1",
       memberName: "Alpha",
-      memberRow: { currentTotalHeroPower: 100, heroPowerM: null },
+      ashedStats: { currentTotalHeroPower: 100 },
       source: "ashed_sync",
     });
     expect(upsertCommanderThp).not.toHaveBeenCalled();

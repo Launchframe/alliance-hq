@@ -112,7 +112,8 @@ export type AdminUidInspectorCommanderRecord = {
   primaryName: string | null;
   gameServerNumber: number | null;
   memberLevel: number | null;
-  heroPowerM: number | null;
+  powerLevel: string | null;
+  currentTotalHeroPower: number | null;
   currentAllianceId: string | null;
   currentAllianceTag: string | null;
   updatedAt: string;

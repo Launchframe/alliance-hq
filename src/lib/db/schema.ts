@@ -965,6 +965,40 @@ export const commanderThpEvents = pgTable(
   ],
 );
 
+/** Commander-scoped power level history (append-only). */
+export const commanderPowerLevelEvents = pgTable(
+  "commander_power_level_events",
+  {
+    id: text("id").primaryKey(),
+    commanderId: text("commander_id")
+      .notNull()
+      .references(() => commanders.id, { onDelete: "cascade" }),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    value: text("value").notNull(),
+    recordedDate: text("recorded_date").notNull(),
+    source: text("source").notNull(),
+    recordedAt: timestamp("recorded_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    recordedByHqUserId: text("recorded_by_hq_user_id").references(
+      () => hqUsers.id,
+      { onDelete: "set null" },
+    ),
+  },
+  (table) => [
+    index("commander_power_level_events_commander_date_idx").on(
+      table.commanderId,
+      table.recordedDate,
+    ),
+    index("commander_power_level_events_alliance_date_idx").on(
+      table.allianceId,
+      table.recordedDate,
+    ),
+  ],
+);
+
 /** Web THP anomaly / OCR confirm pending (parallel to discord_bot_pending). */
 export const hqThpPending = pgTable(
   "hq_thp_pending",
@@ -1345,17 +1379,7 @@ export const allianceMembers = pgTable(
     allianceRankTitle: text("alliance_rank_title"),
     /** Raw Ashed Member.rank string for display / round-trip. */
     ashedRankRaw: text("ashed_rank_raw"),
-    /** Display-only hero power (millions) from roster OCR import. */
-    heroPowerM: doublePrecision("hero_power_m"),
-    /** Display-only member level from roster OCR import. */
-    memberLevel: integer("member_level"),
     joinDate: text("join_date"),
-    profession: text("profession"),
-    professionalLevel: integer("professional_level"),
-    /** Base power string from Ashed, e.g. "162.8M". */
-    powerLevel: text("power_level"),
-    currentKills: doublePrecision("current_kills"),
-    currentTotalHeroPower: doublePrecision("current_total_hero_power"),
     /** Primary squad type for team analysis — aircraft | tank | missile. */
     mainSquad: text("main_squad").$type<
       "aircraft" | "tank" | "missile" | null
@@ -1365,7 +1389,6 @@ export const allianceMembers = pgTable(
     recordedDate: text("recorded_date"),
     ashedCreatedAt: timestamp("ashed_created_at", { withTimezone: true }),
     ashedUpdatedAt: timestamp("ashed_updated_at", { withTimezone: true }),
-    currentSquadPowerJson: jsonb("current_squad_power_json"),
     squadPowerSnapshotsJson: jsonb("squad_power_snapshots_json"),
     isSample: boolean("is_sample"),
     /** Denormalized game UID from member links when known. */
@@ -1436,9 +1459,10 @@ export const commanders = pgTable(
     profession: text("profession"),
     professionalLevel: integer("professional_level"),
     memberLevel: integer("member_level"),
-    heroPowerM: doublePrecision("hero_power_m"),
+    /** Troop-inclusive power string from Ashed or roster OCR, e.g. "162.8M". */
     powerLevel: text("power_level"),
     currentKills: doublePrecision("current_kills"),
+    /** Total Hero Power — deployment power independent of troop count. */
     currentTotalHeroPower: doublePrecision("current_total_hero_power"),
     /** Latest self-reported or synced THP component breakdown. */
     currentThpBreakdown: jsonb("current_thp_breakdown"),

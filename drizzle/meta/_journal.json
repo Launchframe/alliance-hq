@@ -645,6 +645,13 @@
       "when": 1787136000000,
       "tag": "0092_video_jobs_storm_team",
       "breakpoints": true
+    },
+    {
+      "idx": 91,
+      "version": "7",
+      "when": 1787222400000,
+      "tag": "0093_commander_power_stats",
+      "breakpoints": true
     }
   ]
 }

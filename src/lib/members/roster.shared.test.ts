@@ -20,20 +20,12 @@ function rosterRow(overrides: Partial<AllianceMember> = {}): AllianceMember {
     allianceRank: 4,
     allianceRankTitle: "Muse",
     ashedRankRaw: "Muse",
-    heroPowerM: null,
-    memberLevel: null,
     joinDate: null,
-    profession: null,
-    professionalLevel: null,
-    powerLevel: null,
-    currentKills: null,
-    currentTotalHeroPower: null,
     notes: null,
     timezone: null,
     recordedDate: null,
     ashedCreatedAt: null,
     ashedUpdatedAt: null,
-    currentSquadPowerJson: null,
     squadPowerSnapshotsJson: null,
     mainSquad: null,
     isSample: null,
@@ -91,13 +83,6 @@ describe("allianceMemberRowToAshedMember", () => {
       rank: 4,
       title: "Warlord",
     });
-  });
-
-  it("maps heroPowerM to total_hero_power", () => {
-    const member = allianceMemberRowToAshedMember(
-      rosterRow({ heroPowerM: 8.5 }),
-    );
-    expect(member.total_hero_power).toBe(8_500_000);
   });
 });
 

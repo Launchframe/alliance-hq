@@ -3,28 +3,28 @@ import "server-only";
 import { and, eq } from "drizzle-orm";
 
 import { getDb, schema } from "@/lib/db";
+import { getCommanderIdForMember } from "@/lib/thp/repository";
 
-/** Persist HQ roster level from Last War UID lookup (Discord /link). */
+/** Persist in-game level from Last War UID lookup onto the linked Commander. */
 export async function syncAllianceMemberGameLevelFromLastWar(input: {
   allianceId: string;
   ashedMemberId: string;
   gameUserLevel: number;
 }): Promise<void> {
+  const commanderId = await getCommanderIdForMember(
+    input.allianceId,
+    input.ashedMemberId,
+  );
+  if (!commanderId) {
+    return;
+  }
+
   const db = getDb();
   const now = new Date();
-
   const [existing] = await db
-    .select({
-      id: schema.allianceMembers.id,
-      memberLevel: schema.allianceMembers.memberLevel,
-    })
-    .from(schema.allianceMembers)
-    .where(
-      and(
-        eq(schema.allianceMembers.allianceId, input.allianceId),
-        eq(schema.allianceMembers.ashedMemberId, input.ashedMemberId),
-      ),
-    )
+    .select({ memberLevel: schema.commanders.memberLevel })
+    .from(schema.commanders)
+    .where(eq(schema.commanders.id, commanderId))
     .limit(1);
 
   if (!existing || existing.memberLevel === input.gameUserLevel) {
@@ -32,7 +32,7 @@ export async function syncAllianceMemberGameLevelFromLastWar(input: {
   }
 
   await db
-    .update(schema.allianceMembers)
+    .update(schema.commanders)
     .set({ memberLevel: input.gameUserLevel, updatedAt: now })
-    .where(eq(schema.allianceMembers.id, existing.id));
+    .where(eq(schema.commanders.id, commanderId));
 }

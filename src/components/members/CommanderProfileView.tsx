@@ -25,10 +25,10 @@ type Props = {
   initial: CommanderProfilePayload;
 };
 
-function formatPowerM(value: number | null): string {
-  if (value == null || value <= 0) return "—";
-  return `${value.toFixed(1)}M`;
-}
+import {
+  commanderPowerLevelDisplay,
+  formatThpDisplay,
+} from "@/lib/commanders/power-stats.shared";
 
 export function CommanderProfileView({ initial }: Props) {
   const t = useTranslations("members.profile");
@@ -164,10 +164,20 @@ export function CommanderProfileView({ initial }: Props) {
           </div>
           <div>
             <dt className="text-xs font-medium uppercase tracking-wider text-hq-fg-subtle">
-              {t("heroPower")}
+              {t("powerLevel")}
             </dt>
             <dd className="mt-1 text-sm text-hq-fg">
-              {formatPowerM(member.heroPowerM)}
+              {commanderPowerLevelDisplay({ powerLevel: member.powerLevel })}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-xs font-medium uppercase tracking-wider text-hq-fg-subtle">
+              {t("thp")}
+            </dt>
+            <dd className="mt-1 font-mono text-sm text-hq-fg">
+              {member.totalHeroPower != null
+                ? formatThpDisplay(member.totalHeroPower)
+                : "—"}
             </dd>
           </div>
           <div>

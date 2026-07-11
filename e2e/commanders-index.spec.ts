@@ -37,7 +37,7 @@ async function insertAllianceMember(
     INSERT INTO alliance_members (
       id, alliance_id, ashed_member_id, ashed_alliance_id, current_name,
       status, synced_at, created_at, updated_at,
-      current_total_hero_power, main_squad, game_uid
+      main_squad, game_uid
     ) VALUES (
       ${nanoid()},
       ${input.allianceId},
@@ -48,11 +48,43 @@ async function insertAllianceMember(
       ${now},
       ${now},
       ${now},
-      ${input.currentTotalHeroPower ?? null},
       ${input.mainSquad ?? null},
       ${input.gameUid ?? null}
     )
   `;
+
+  if (input.currentTotalHeroPower != null) {
+    const commanderId = nanoid(16);
+    await sql`
+      INSERT INTO commanders (
+        id, primary_name, primary_name_normalized, current_alliance_id,
+        current_total_hero_power, main_squad, created_at, updated_at
+      ) VALUES (
+        ${commanderId},
+        ${input.currentName},
+        ${input.currentName.toLowerCase()},
+        ${input.allianceId},
+        ${input.currentTotalHeroPower},
+        ${input.mainSquad ?? null},
+        ${now},
+        ${now}
+      )
+    `;
+    await sql`
+      INSERT INTO commander_alliance_memberships (
+        id, commander_id, alliance_id, ashed_member_id, status, joined_at, created_at, updated_at
+      ) VALUES (
+        ${nanoid(16)},
+        ${commanderId},
+        ${input.allianceId},
+        ${input.ashedMemberId},
+        'active',
+        ${now},
+        ${now},
+        ${now}
+      )
+    `;
+  }
 }
 
 test.describe("Commanders index", () => {

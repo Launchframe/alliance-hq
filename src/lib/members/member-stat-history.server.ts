@@ -4,6 +4,7 @@ import { and, eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { getDb, schema } from "@/lib/db";
+import { getCommanderIdForMember } from "@/lib/thp/repository";
 import { getServerCalendarDate } from "@/lib/trains/game-time";
 
 export type MemberStatSource =
@@ -94,29 +95,55 @@ export async function appendMemberPowerLevelEventIfChanged(input: {
   return true;
 }
 
+export async function appendCommanderPowerLevelEventIfChanged(input: {
+  commanderId: string;
+  allianceId: string;
+  value: string;
+  recordedDate?: string;
+  source: MemberStatSource;
+  recordedByHqUserId?: string | null;
+}): Promise<boolean> {
+  const recordedDate = input.recordedDate ?? getServerCalendarDate();
+  const db = getDb();
+
+  const [existing] = await db
+    .select({ value: schema.commanderPowerLevelEvents.value })
+    .from(schema.commanderPowerLevelEvents)
+    .where(
+      and(
+        eq(schema.commanderPowerLevelEvents.commanderId, input.commanderId),
+        eq(schema.commanderPowerLevelEvents.allianceId, input.allianceId),
+        eq(schema.commanderPowerLevelEvents.recordedDate, recordedDate),
+      ),
+    )
+    .limit(1);
+
+  if (existing?.value === input.value) {
+    return false;
+  }
+
+  await db.insert(schema.commanderPowerLevelEvents).values({
+    id: nanoid(),
+    commanderId: input.commanderId,
+    allianceId: input.allianceId,
+    value: input.value,
+    recordedDate,
+    source: input.source,
+    recordedByHqUserId: input.recordedByHqUserId ?? null,
+  });
+  return true;
+}
+
 export async function seedMemberStatHistoriesFromAshed(input: {
   allianceId: string;
   ashedMemberId: string;
   memberName: string;
   levelHistory?: Array<{ value: number; recorded_date: string }>;
-  powerLevelHistory?: Array<{ value: string; recorded_date: string }>;
   professionalLevelHistory?: Array<{ value: number; recorded_date: string }>;
-  totalHeroPowerHistory?: Array<{ value: number; recorded_date: string }>;
   killsHistory?: Array<{ value: number; recorded_date: string }>;
 }): Promise<void> {
   for (const point of input.levelHistory ?? []) {
     await appendMemberGameLevelEventIfChanged({
-      allianceId: input.allianceId,
-      ashedMemberId: input.ashedMemberId,
-      memberName: input.memberName,
-      value: point.value,
-      recordedDate: point.recorded_date,
-      source: "ashed_sync",
-    });
-  }
-
-  for (const point of input.powerLevelHistory ?? []) {
-    await appendMemberPowerLevelEventIfChanged({
       allianceId: input.allianceId,
       ashedMemberId: input.ashedMemberId,
       memberName: input.memberName,
@@ -148,37 +175,6 @@ export async function seedMemberStatHistoriesFromAshed(input: {
       .limit(1);
     if (!existing) {
       await db.insert(schema.memberProfessionLevelEvents).values({
-        id: nanoid(),
-        allianceId: input.allianceId,
-        ashedMemberId: input.ashedMemberId,
-        memberName: input.memberName,
-        value: point.value,
-        recordedDate: point.recorded_date,
-        source: "ashed_sync",
-      });
-    }
-  }
-
-  for (const point of input.totalHeroPowerHistory ?? []) {
-    const [existing] = await db
-      .select({ id: schema.memberTotalHeroPowerEvents.id })
-      .from(schema.memberTotalHeroPowerEvents)
-      .where(
-        and(
-          eq(schema.memberTotalHeroPowerEvents.allianceId, input.allianceId),
-          eq(
-            schema.memberTotalHeroPowerEvents.ashedMemberId,
-            input.ashedMemberId,
-          ),
-          eq(
-            schema.memberTotalHeroPowerEvents.recordedDate,
-            point.recorded_date,
-          ),
-        ),
-      )
-      .limit(1);
-    if (!existing) {
-      await db.insert(schema.memberTotalHeroPowerEvents).values({
         id: nanoid(),
         allianceId: input.allianceId,
         ashedMemberId: input.ashedMemberId,

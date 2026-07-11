@@ -29,13 +29,6 @@ function normalizeMemberLevel(value: number | null): number | null {
   return Math.round(value);
 }
 
-function resolveHeroPowerM(
-  powerLevel: string | null,
-): number | null {
-  const parsed = parsePowerLevelString(powerLevel);
-  return parsed.heroPowerM;
-}
-
 export async function commitRosterFromVideoJob(
   input: CommitRosterFromVideoInput,
 ): Promise<RosterImportCommitResult> {
@@ -54,15 +47,14 @@ export async function commitRosterFromVideoJob(
         return null;
       }
       const name = row.memberName ?? row.ocrName;
-      const heroPowerM = resolveHeroPowerM(row.powerLevel);
+      const { powerLevel } = parsePowerLevelString(row.powerLevel ?? null);
       return {
         extractedName: name,
         matchMemberId: row.memberId,
         allianceRank,
         allianceRankTitle: null,
-        heroPowerM,
+        powerLevel: powerLevel ?? row.powerLevel,
         memberLevel: normalizeMemberLevel(row.memberLevel),
-        powerLevel: row.powerLevel,
         profession: row.profession,
         status: "active" as const,
       };

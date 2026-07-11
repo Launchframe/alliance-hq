@@ -9,6 +9,7 @@ import {
 } from "@/lib/vr/repository";
 import { buildLeaderboardRows, type LeaderboardRow } from "@/lib/vr/leaderboard";
 import type { VrProgressChartPayload } from "@/lib/vr/vr-progress-chart.shared";
+import { loadCommanderRosterStatsByMember } from "@/lib/commanders/roster-stats.server";
 
 export type ViralResistancePayload = {
   seasonKey: string;
@@ -31,18 +32,31 @@ export async function loadViralResistanceLeaderboard(
   viewer?: { ashedMemberId?: string | null; commanderId?: string | null },
 ): Promise<ViralResistancePayload> {
   const seasonKey = await resolveSeasonKey(allianceId);
-  const [seasonRows, links, members, weeklyPassByMemberId, progressChart] =
-    await Promise.all([
-      listLeaderboardRows(allianceId, seasonKey),
-      listDiscordLinksByAlliance(allianceId),
-      loadAllianceMembersForBot(allianceId),
-      listWeeklyPassActiveByAlliance(allianceId),
-      loadVrProgressChartPayload({
-        allianceId,
-        viewerAshedMemberId: viewer?.ashedMemberId,
-        viewerCommanderId: viewer?.commanderId,
-      }),
-    ]);
+  const [
+    seasonRows,
+    links,
+    members,
+    weeklyPassByMemberId,
+    progressChart,
+    commanderStats,
+  ] = await Promise.all([
+    listLeaderboardRows(allianceId, seasonKey),
+    listDiscordLinksByAlliance(allianceId),
+    loadAllianceMembersForBot(allianceId),
+    listWeeklyPassActiveByAlliance(allianceId),
+    loadVrProgressChartPayload({
+      allianceId,
+      viewerAshedMemberId: viewer?.ashedMemberId,
+      viewerCommanderId: viewer?.commanderId,
+    }),
+    loadCommanderRosterStatsByMember(allianceId),
+  ]);
+  const commanderThpByMemberId = new Map(
+    [...commanderStats.entries()].map(([id, stats]) => [
+      id,
+      { currentTotalHeroPower: stats.totalHeroPower },
+    ]),
+  );
   return {
     seasonKey,
     rows: buildLeaderboardRows(
@@ -51,6 +65,7 @@ export async function loadViralResistanceLeaderboard(
       links,
       seasonKey,
       weeklyPassByMemberId,
+      commanderThpByMemberId,
     ),
     progressChart,
   };

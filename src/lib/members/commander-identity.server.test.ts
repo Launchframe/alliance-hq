@@ -97,8 +97,9 @@ vi.mock("@/lib/db", () => ({
 }));
 
 vi.mock("@/lib/thp/sync-from-member.server", () => ({
+  seedCommanderPowerLevelHistoryFromAshed: vi.fn(async () => 0),
   seedCommanderThpHistoryFromAshed: vi.fn(async () => 0),
-  syncCommanderThpAfterMemberSync: vi.fn(async () => false),
+  syncCommanderThpFromAllianceMember: vi.fn(async () => false),
 }));
 
 import {
@@ -155,6 +156,15 @@ describe("commander-identity.server", () => {
       allianceId: "alliance-a",
       ashedMemberId: "member-1",
       memberDisplayName: "Alice",
+      ashedStats: {
+        profession: "Engineer",
+        professionalLevel: 3,
+        memberLevel: 30,
+        powerLevel: "12.5M",
+        currentKills: 100,
+        currentTotalHeroPower: 200,
+        currentSquadPowerJson: { a: 1 },
+      },
     });
 
     expect(result.commanderId).toBe("commander-new");
@@ -270,6 +280,10 @@ describe("commander-identity.server", () => {
     await syncCommanderFromAllianceMember({
       allianceId: "alliance-a",
       ashedMemberId: "member-3",
+      ashedStats: {
+        memberLevel: 22,
+        powerLevel: "8.2M",
+      },
     });
 
     expect(mockState.insertedCommanders[0]).toMatchObject({
