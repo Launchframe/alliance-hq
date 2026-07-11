@@ -1228,15 +1228,25 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     />
   ) : null;
 
+  // overflow-x-clip (not hidden): hidden makes the other axis a scrollport and
+  // breaks position:sticky for the top/side preview — follow-me then scrolls
+  // the pane away. clip matches AshedShell and keeps sticky on the viewport.
+  // -mt cancels <main>'s p-4/md:p-6 so the sticky pane sits flush under the
+  // shell header instead of floating with a padded gap that pushes controls
+  // below the fold.
+  const stickyPreviewOpen = showTopPreview || showSidePreview;
+
   return (
     <div
-      className={`relative flex min-w-0 w-full max-w-full overflow-x-hidden ${
+      className={`relative flex min-w-0 w-full max-w-full overflow-x-clip ${
         showSidePreview ? "flex-row" : "flex-col"
-      }`}
+      } ${stickyPreviewOpen ? "-mt-4 md:-mt-6" : ""}`}
     >
       {showTopPreview ? previewNode : null}
       <div
-        className="flex min-w-0 max-w-full flex-1 flex-col overflow-x-hidden"
+        className={`flex min-w-0 max-w-full flex-1 flex-col overflow-x-clip ${
+          showSidePreview ? "pt-4 md:pt-6" : ""
+        }`}
         style={
           showBottomPreview
             ? { paddingBottom: previewDockHeightPx }
