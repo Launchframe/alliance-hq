@@ -18,6 +18,8 @@ FROM node:22-bookworm-slim AS builder
 WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV VIDEO_WORKER_STANDALONE=1
+# Middleware inlines VIDEO_WORKER_MODE at build time — must be set here, not only at runtime.
+ENV VIDEO_WORKER_MODE=1
 # Build-time placeholders so Next can compile without real secrets.
 ENV AUTH_SECRET=build-placeholder-auth-secret
 ENV TOKEN_ENCRYPTION_KEY=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef

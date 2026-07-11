@@ -33,7 +33,7 @@
     "release-notes:publish": "tsx scripts/release-notes/publish-notes.ts",
     "release:notify-discord": "tsx scripts/release-notes/notify-discord.ts",
     "video:worker": "node scripts/workers/video-processor.mjs",
-    "build:worker": "VIDEO_WORKER_STANDALONE=1 next build",
+    "build:worker": "VIDEO_WORKER_STANDALONE=1 VIDEO_WORKER_MODE=1 next build",
     "video:worker:docker": "docker compose -f deploy/video-worker/docker-compose.yml up --build",
     "test": "vitest run",
     "test:watch": "vitest",

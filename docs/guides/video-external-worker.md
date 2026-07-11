@@ -46,7 +46,7 @@ When `VIDEO_WORKER_MODE=1`, middleware 404s everything except process/archive/he
 | `AUTH_SECRET` | Yes | Yes (module init) |
 | `R2_*` | Yes | Same bucket |
 | `CRON_SECRET` | Yes (queue) | Not needed |
-| `VIDEO_WORKER_MODE` | Unset | `1` |
+| `VIDEO_WORKER_MODE` | Unset | `1` (also at **worker image build** — middleware inlines it) |
 | `VIDEO_WORKER_STANDALONE` | Unset | Build-only (`1` for `next build` → standalone) |
 
 ### Single-host (default)
