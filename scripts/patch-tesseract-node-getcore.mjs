@@ -68,11 +68,16 @@ if (current.includes("alliance-hq scripts/patch-tesseract-node-getcore.mjs")) {
   process.exit(0);
 }
 
-if (!current.includes("[OEM.DEFAULT, OEM.LSTM_ONLY].includes(oem)")) {
-  console.warn(
-    "[patch-tesseract-node-getcore] unexpected getCore.js contents; leaving untouched",
-  );
+if (/if\s*\(\s*lstmOnly\s*\)/.test(current)) {
+  // Upstream fixed natively — no patch needed.
   process.exit(0);
+}
+
+if (!current.includes("[OEM.DEFAULT, OEM.LSTM_ONLY].includes(oem)")) {
+  console.error(
+    "[patch-tesseract-node-getcore] unexpected getCore.js contents; cannot verify lstmOnly fix",
+  );
+  process.exit(process.env.CI ? 1 : 0);
 }
 
 writeFileSync(target, FIXED);

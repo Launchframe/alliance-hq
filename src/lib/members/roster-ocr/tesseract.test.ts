@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { buildTesseractWorkerOptions } from "@/lib/members/roster-ocr/tesseract";
 import { expandTracingPatterns } from "../../../../scripts/vercel/trace-size.shared.mjs";
 import {
+  TESSERACT_LSTM_CORE_VARIANTS,
   tesseractFileTracing,
   tesseractWorkerNodePackageTracing,
 } from "../../../../scripts/vercel/video-ocr-file-tracing.mjs";
@@ -252,6 +253,41 @@ describe("buildTesseractWorkerOptions", () => {
     expect(source).not.toMatch(/\[OEM\.DEFAULT,\s*OEM\.LSTM_ONLY\]\.includes/);
     expect(source).toMatch(/if\s*\(\s*lstmOnly\s*\)/);
     expect(source).toMatch(/tesseract-core-relaxedsimd-lstm/);
+  });
+
+  it("getCore lstmOnly tesseract.js-core requires are NFT-traced (walker skips core pkg)", () => {
+    const repoRoot = path.resolve(import.meta.dirname, "../../../..");
+    const getCorePath = path.join(
+      repoRoot,
+      "node_modules/tesseract.js/src/worker-script/node/getCore.js",
+    );
+    const source = readFileSync(getCorePath, "utf8");
+    const coreRequires = [
+      ...source.matchAll(/require\s*\(\s*['"](tesseract\.js-core\/[^'"]+)['"]\s*\)/g),
+    ].map((match) => match[1]!);
+
+    const lstmRequires = coreRequires.filter((req) => req.includes("-lstm"));
+    expect(lstmRequires).toEqual(
+      expect.arrayContaining([
+        "tesseract.js-core/tesseract-core-relaxedsimd-lstm",
+        "tesseract.js-core/tesseract-core-simd-lstm",
+        "tesseract.js-core/tesseract-core-lstm",
+      ]),
+    );
+    expect(TESSERACT_LSTM_CORE_VARIANTS).toEqual(
+      expect.arrayContaining(["relaxedsimd-lstm", "simd-lstm", "lstm"]),
+    );
+
+    const traced = expandTracingPatterns(repoRoot, tesseractFileTracing);
+    for (const req of lstmRequires) {
+      const stem = req.replace("tesseract.js-core/", "");
+      for (const suffix of [".js", ".wasm", ".wasm.js"]) {
+        const file = path.join(repoRoot, "node_modules/tesseract.js-core", `${stem}${suffix}`);
+        expect(traced.has(path.normalize(file)), `missing NFT trace for ${stem}${suffix}`).toBe(
+          true,
+        );
+      }
+    }
   });
 
   it("passes trimmed TESSERACT_LANG_PATH when set", () => {
