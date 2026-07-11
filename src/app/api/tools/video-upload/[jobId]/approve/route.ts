@@ -14,7 +14,10 @@ import {
   engineRequiresAshed,
 } from "@/lib/video/ocr-provider.shared";
 import { dispatchVideoProcessing } from "@/lib/video/trigger-processing";
-import { isMemberRosterVideoTarget } from "@/lib/video/score-targets";
+import {
+  isMemberRosterVideoTarget,
+  isNativeOnlyVideoTarget,
+} from "@/lib/video/score-targets";
 
 type Props = {
   params: Promise<{ jobId: string }>;
@@ -72,6 +75,7 @@ export async function POST(_request: Request, { params }: Props) {
       scoreTargetId,
       isMemberRosterVideoTarget(scoreTargetId),
       ocrContext,
+      { forceNative: isNativeOnlyVideoTarget(scoreTargetId) },
     );
 
     if (engineRequiresAshed(ocrEngine)) {

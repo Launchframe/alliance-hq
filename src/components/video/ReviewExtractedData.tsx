@@ -54,12 +54,17 @@ import {
   RosterVideoReviewTable,
   useRosterReviewValidation,
 } from "@/components/video/RosterVideoReviewTable";
+import {
+  DepositSlipVideoReviewTable,
+  useDepositSlipReviewValidation,
+} from "@/components/video/DepositSlipVideoReviewTable";
 import type { PassComparison } from "@/lib/video/compare-pass-results";
 import {
   formatHeroPowerMForStorage,
   parsedRowsToRosterReviewRows,
 } from "@/lib/video/roster-video-review.shared";
 import type { AshedMember } from "@/lib/video/member-matcher";
+import type { SerializedBank } from "@/lib/banks/types.shared";
 
 type ParsedRow = {
   id: string;
@@ -108,6 +113,8 @@ type ScoreTargetMeta = {
   showTeamSelector: boolean;
   showRosterColumns: boolean;
   showScoreColumn: boolean;
+  showDepositSlipColumns: boolean;
+  showBankSelector: boolean;
 };
 
 type Props = {
@@ -190,6 +197,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   const tc = useTranslations("common");
   const tNav = useTranslations("nav");
   const tMembers = useTranslations("members");
+  const tBanks = useTranslations("bankManagement");
   const locale = useLocale();
   const { timezoneId } = useAccountTimezone();
   const { showExperienceFeedback } = useFeedback();
@@ -262,6 +270,8 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   const [allianceName, setAllianceName] = useState<string | null>(null);
   const [allianceStale, setAllianceStale] = useState(false);
   const [rosterQuotaCanSubmit, setRosterQuotaCanSubmit] = useState(false);
+  const [banks, setBanks] = useState<SerializedBank[]>([]);
+  const [bankId, setBankId] = useState("");
   const rosterMembersHydratedRef = useRef(false);
   const liveJobStatusRef = useRef<string | null>(null);
   const draftDirtyVersionRef = useRef(0);
@@ -280,8 +290,9 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
       boardKey,
       team,
       recordedDate,
+      bankId,
     }),
-    [boardKey, eventId, hqEventId, recordedDate, team],
+    [bankId, boardKey, eventId, hqEventId, recordedDate, team],
   );
 
   const draftEnabled =
@@ -441,6 +452,9 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           setBoardKey(restored.form.boardKey);
           setTeam(restored.form.team);
           setRecordedDate(restored.form.recordedDate);
+          if (restored.form.bankId) {
+            setBankId(restored.form.bankId);
+          }
         } else {
           if (data.job?.hqEventId) {
             setHqEventId(data.job.hqEventId);
@@ -689,6 +703,20 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   ]);
 
   useEffect(() => {
+    if (!scoreTargetMeta?.showBankSelector) return;
+    void (async () => {
+      const res = await fetch("/api/banks");
+      if (!res.ok) return;
+      const data = (await res.json()) as { banks?: SerializedBank[] };
+      const list = data.banks ?? [];
+      setBanks(list);
+      if (!bankId && list[0]) {
+        setBankId(list[0].id);
+      }
+    })();
+  }, [scoreTargetMeta?.showBankSelector, bankId]);
+
+  useEffect(() => {
     const groupFetchStatuses = new Set(["review", "complete", "discarded"]);
     if (!groupFetchStatuses.has(jobStatus)) return;
     void (async () => {
@@ -903,6 +931,21 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     })),
   );
 
+  const depositSlipValidation = useDepositSlipReviewValidation(
+    activeRows.map((row) => ({
+      id: row.id,
+      ocrName: row.ocrName,
+      score: row.score,
+      powerLevel: row.powerLevel ?? null,
+      memberLevel: row.memberLevel ?? null,
+      profession: row.profession ?? null,
+      allianceRankTitle: row.allianceRankTitle ?? null,
+      rosterRankRaw: row.rosterRankRaw ?? null,
+      frameIndex: row.frameIndex,
+      deleted: row.deleted,
+    })),
+  );
+
   const scoreDuplicateRowIds = useMemo(
     () => duplicateMemberRowIds(scoreDuplicateMemberIssues),
     [scoreDuplicateMemberIssues],
@@ -949,6 +992,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     activeRows.length > 0 &&
     eventGateSatisfied &&
     (!needsBoardPicker || boardKey) &&
+    (!scoreTargetMeta?.showBankSelector || Boolean(bankId)) &&
     !hasDuplicateMembers &&
     !hasDuplicateOcrNames &&
     !hasUnresolvedNameMismatches &&
@@ -959,6 +1003,9 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     ) &&
     (scoreTargetMeta?.showRosterColumns
       ? rosterQuotaCanSubmit
+      : true) &&
+    (scoreTargetMeta?.showDepositSlipColumns
+      ? depositSlipValidation.canSubmitSlips
       : true);
 
   function updateRosterRow(id: string, patch: Partial<ParsedRow>) {
@@ -1000,6 +1047,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     setSuccess(null);
     try {
       const isRoster = scoreTargetMeta?.showRosterColumns;
+      const isDepositSlip = scoreTargetMeta?.showDepositSlipColumns;
       const res = await fetch(`/api/tools/video-upload/${jobId}/submit`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1009,6 +1057,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           boardKey: needsBoardPicker ? boardKey : undefined,
           team: scoreTargetMeta?.showTeamSelector ? team : undefined,
           recordedDate,
+          bankId: scoreTargetMeta?.showBankSelector ? bankId : undefined,
           rows: rows.map((r) =>
             isRoster
               ? {
@@ -1022,15 +1071,28 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                   profession: r.profession,
                   deleted: r.deleted === 1,
                 }
-              : {
-                  id: r.id,
-                  memberId: r.memberId,
-                  memberName:
-                    r.deleted === 1 ? r.memberName : r.memberName ?? r.ocrName,
-                  score: r.score ?? "",
-                  rank: r.rank,
-                  deleted: r.deleted === 1,
-                },
+              : isDepositSlip
+                ? {
+                    id: r.id,
+                    ocrName: r.ocrName,
+                    score: r.score ?? "",
+                    powerLevel: r.powerLevel ?? null,
+                    memberLevel: r.memberLevel,
+                    profession: r.profession,
+                    allianceRankTitle: r.allianceRankTitle ?? null,
+                    rosterRankRaw: r.rosterRankRaw ?? null,
+                    frameIndex: r.frameIndex ?? null,
+                    deleted: r.deleted === 1,
+                  }
+                : {
+                    id: r.id,
+                    memberId: r.memberId,
+                    memberName:
+                      r.deleted === 1 ? r.memberName : r.memberName ?? r.ocrName,
+                    score: r.score ?? "",
+                    rank: r.rank,
+                    deleted: r.deleted === 1,
+                  },
           ),
         }),
       });
@@ -1051,7 +1113,9 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           ? t("updateSuccess", { count: data.submitted ?? 0 })
           : scoreTargetMeta?.showRosterColumns
             ? t("rosterSubmitSuccess", { count: data.submitted ?? 0 })
-            : t("submitSuccess", { count: data.submitted ?? 0 }),
+            : scoreTargetMeta?.showDepositSlipColumns
+              ? t("depositSlipSubmitSuccess", { count: data.submitted ?? 0 })
+              : t("submitSuccess", { count: data.submitted ?? 0 }),
       );
       setJobStatus("complete");
       if (
@@ -1508,7 +1572,8 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           void handleSubmit();
         }}
       >
-      {!scoreTargetMeta?.showRosterColumns ? (
+      {!scoreTargetMeta?.showRosterColumns &&
+      !scoreTargetMeta?.showDepositSlipColumns ? (
       <div className="grid gap-4 rounded-xl border border-hq-border bg-hq-surface p-4 sm:grid-cols-[repeat(auto-fit,minmax(12rem,1fr))]">
         {needsEventPicker ? (
           <label className="block text-sm sm:col-span-2">
@@ -1666,6 +1731,43 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         </div>
       ) : null}
 
+      {scoreTargetMeta?.showBankSelector ? (
+        <div className="rounded-xl border border-hq-border bg-hq-surface p-4">
+          <label className="block text-sm">
+            <span className="mb-1 block text-hq-fg-muted">
+              {t("bankLabel")}
+            </span>
+            <AppSelect
+              value={bankId}
+              onChange={(next) => {
+                markDraftDirty();
+                setBankId(next);
+              }}
+              placeholder={t("bankPlaceholder")}
+              aria-label={t("bankLabel")}
+              options={
+                banks.length === 0
+                  ? [
+                      {
+                        value: "",
+                        label: tBanks("emptyBanks"),
+                        disabled: true,
+                      },
+                    ]
+                  : banks.map((bank) => ({
+                      value: bank.id,
+                      label: tBanks("coords", {
+                        server: bank.gameServerNumber,
+                        x: bank.coordX,
+                        y: bank.coordY,
+                      }),
+                    }))
+              }
+            />
+          </label>
+        </div>
+      ) : null}
+
       {scoreTargetMeta?.showRosterColumns ? (
         <>
           <div className="flex items-center gap-3">
@@ -1725,6 +1827,60 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
             }
             onQuotaChange={({ canSubmitRanks }) =>
               setRosterQuotaCanSubmit(canSubmitRanks)
+            }
+          />
+        </>
+      ) : scoreTargetMeta?.showDepositSlipColumns ? (
+        <>
+          <div className="flex items-center gap-3">
+            <input
+              type="search"
+              form=""
+              value={filterQuery}
+              onChange={(e) => setFilterQuery(e.target.value)}
+              placeholder={t("filterPlaceholder")}
+              className="flex-1 rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 text-sm placeholder:text-hq-fg-muted"
+            />
+            {filterQuery ? (
+              <p className="shrink-0 text-xs text-hq-fg-muted">
+                {t("filterCount", {
+                  shown: filteredRows.length,
+                  total: activeRows.length,
+                })}
+              </p>
+            ) : null}
+          </div>
+          <DepositSlipVideoReviewTable
+            rows={activeRows.map((row) => ({
+              id: row.id,
+              ocrName: row.ocrName,
+              score: row.score,
+              powerLevel: row.powerLevel ?? null,
+              memberLevel: row.memberLevel ?? null,
+              profession: row.profession ?? null,
+              allianceRankTitle: row.allianceRankTitle ?? null,
+              rosterRankRaw: row.rosterRankRaw ?? null,
+              frameIndex: row.frameIndex,
+              deleted: row.deleted,
+            }))}
+            filterQuery={filterQuery}
+            onUpdateRow={(id, patch) => updateRow(id, patch)}
+            onDeleteRow={deleteRow}
+            onPreviewFrame={(frameIndex) => {
+              const seconds = previewSeekSecondsForFrame(
+                frameIndex,
+                frameTimestamps,
+              );
+              if (seconds == null) return;
+              setPreviewSeekRequest((prev) => ({
+                seconds,
+                nonce: (prev?.nonce ?? 0) + 1,
+              }));
+              setPreviewOpen(true);
+            }}
+            rowCanVideoPreview={(frameIndex) =>
+              hasSourceVideo &&
+              previewSeekSecondsForFrame(frameIndex, frameTimestamps) != null
             }
           />
         </>
@@ -1960,9 +2116,11 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
             ? t("submitting")
             : scoreTargetMeta?.showRosterColumns
               ? t("saveRoster", { count: activeRows.length })
-              : isEventView
-                ? t("updateScores", { count: activeRows.length })
-                : t("saveScores", { count: activeRows.length })}
+              : scoreTargetMeta?.showDepositSlipColumns
+                ? t("saveDepositSlips", { count: activeRows.length })
+                : isEventView
+                  ? t("updateScores", { count: activeRows.length })
+                  : t("saveScores", { count: activeRows.length })}
         </button>
         {!isEventView ? (
         <button

@@ -37,7 +37,9 @@ import { dedupeMatchedParseEntries } from "@/lib/video/parse-row-dedup";
 import { PipelineTimer } from "@/lib/video/pipeline-timer";
 import {
   getScoreTargetOrThrow,
+  isBankDepositSlipHistoryTarget,
   isMemberRosterVideoTarget,
+  isNativeOnlyVideoTarget,
 } from "@/lib/video/score-targets";
 import { emitVideoJobStatus } from "@/lib/events/video-jobs";
 import { videoJobStatusOwnerFields } from "@/lib/video/video-job-access.shared";
@@ -49,7 +51,10 @@ import {
 import { dispatchVideoArchive } from "@/lib/video/trigger-archive";
 import { computePassComparison } from "@/lib/video/compare-pass-results";
 import { mergeGroupComparisons } from "@/lib/video/group-comparisons.shared";
-import { mockOcrScoreFrames } from "@/lib/video/ocr-mock";
+import {
+  mockOcrDepositSlipFrames,
+  mockOcrScoreFrames,
+} from "@/lib/video/ocr-mock";
 import {
   engineRequiresAshed,
   resolveVideoJobAshedConnection,
@@ -91,6 +96,7 @@ export async function processVideoJob(
 
   const scoreTargetId = job.scoreTarget ?? job.category ?? "desert-storm";
   const isRosterTarget = isMemberRosterVideoTarget(scoreTargetId);
+  const isDepositSlipTarget = isBankDepositSlipHistoryTarget(scoreTargetId);
   const jobHqAllianceId = await resolveHqAllianceIdFromStoredAllianceId(
     job.allianceId,
   );
@@ -102,6 +108,7 @@ export async function processVideoJob(
     scoreTargetId,
     isRosterTarget,
     ocrContext,
+    { forceNative: isNativeOnlyVideoTarget(scoreTargetId) },
   );
   const now = new Date();
 
@@ -317,6 +324,47 @@ export async function processVideoJob(
       ashedUploadTotalMs = rosterResult.ashedUploadTotalMs;
       ashedExtractTotalMs = rosterResult.ashedExtractTotalMs;
       totalRawOcrRows = rosterResult.totalRawOcrRows;
+
+      await timer.measureStep("storage.cleanup_frame_temp", () =>
+        cleanupFrameTempDir(frames),
+        { frameCount: frames.length },
+      );
+
+      await setStatus("parsing", { uploadedFrameCount: frames.length });
+    } else if (isDepositSlipTarget) {
+      const mockHistory =
+        ocrEngine === "mock"
+          ? await timer.measureStep("mock.deposit_slip_ocr_total", () =>
+              mockOcrDepositSlipFrames(
+                scoreTargetId,
+                frames.map((f) => ({ index: f.index })),
+              ),
+            )
+          : undefined;
+      const { processDepositSlipVideoParse } = await import(
+        "@/lib/video/process-deposit-slip-job"
+      );
+      const slipResult = await processDepositSlipVideoParse({
+        jobId,
+        sessionId: processingSessionId,
+        scoreTargetId,
+        target,
+        engine: ocrEngine,
+        frames: frames.map((f) => ({ index: f.index, buffer: f.buffer })),
+        timer,
+        now,
+        mockHistory,
+      });
+
+      allianceId = slipResult.hqAllianceId;
+      parseSessionId = slipResult.parseSessionId;
+      rowCount = slipResult.rowCount;
+      matchedCount = slipResult.matchedCount;
+      ocrFrameMs = slipResult.ocrFrameMs;
+      ocrConcurrency = slipResult.ocrConcurrency;
+      ashedUploadTotalMs = 0;
+      ashedExtractTotalMs = 0;
+      totalRawOcrRows = slipResult.totalRawOcrRows;
 
       await timer.measureStep("storage.cleanup_frame_temp", () =>
         cleanupFrameTempDir(frames),

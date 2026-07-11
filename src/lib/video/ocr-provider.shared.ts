@@ -14,6 +14,16 @@ export type VideoOcrResolutionContext = {
   allianceHqOcrOnly?: boolean;
 };
 
+export type VideoOcrEngineTargetOptions = {
+  /** Roster (and similar): when provider is `local`, use Tesseract. */
+  useNativeWhenLocal: boolean;
+  /**
+   * Deposit slip history (and similar): Ashed has no schema.
+   * Always native unless the deploy is in mock mode.
+   */
+  forceNative?: boolean;
+};
+
 export function resolveVideoOcrProvider(): VideoOcrProvider {
   const raw = process.env.VIDEO_OCR_PROVIDER?.trim().toLowerCase();
   if (!raw || !PROVIDERS.has(raw) || raw === "ashed") {
@@ -59,11 +69,19 @@ export function resolveEffectiveVideoOcrProvider(
 
 export function videoOcrEngineForTarget(
   provider: VideoOcrProvider,
-  isRosterTarget: boolean,
+  options: VideoOcrEngineTargetOptions | boolean,
 ): VideoOcrEngine {
+  const opts: VideoOcrEngineTargetOptions =
+    typeof options === "boolean"
+      ? { useNativeWhenLocal: options }
+      : options;
+
+  if (opts.forceNative) {
+    return provider === "mock" ? "mock" : "native";
+  }
   if (provider === "ashed") return "ashed";
   if (provider === "mock") return "mock";
-  return isRosterTarget ? "native" : "mock";
+  return opts.useNativeWhenLocal ? "native" : "mock";
 }
 
 export function shouldEnqueueAshedOcrShadowPasses(engine: VideoOcrEngine): boolean {
@@ -84,16 +102,18 @@ export async function resolveVideoJobAshedConnection(params: {
   return params.loadConnection();
 }
 
-/** Resolve engine for a job from env/alliance override + score target id. */
+/** Resolve engine for a job from env/alliance override + score target flags. */
 export function resolveVideoOcrEngineForJob(
   scoreTargetId: string,
   isRoster: boolean,
   context?: VideoOcrResolutionContext,
+  options?: { forceNative?: boolean },
 ): VideoOcrEngine {
-  return videoOcrEngineForTarget(
-    resolveEffectiveVideoOcrProvider(context),
-    isRoster,
-  );
+  void scoreTargetId;
+  return videoOcrEngineForTarget(resolveEffectiveVideoOcrProvider(context), {
+    useNativeWhenLocal: isRoster || Boolean(options?.forceNative),
+    forceNative: options?.forceNative,
+  });
 }
 
 /**
@@ -107,6 +127,8 @@ export function videoOcrRequiresAshedConnection(
     return false;
   }
   return engineRequiresAshed(
-    videoOcrEngineForTarget(resolveEffectiveVideoOcrProvider(context), true),
+    videoOcrEngineForTarget(resolveEffectiveVideoOcrProvider(context), {
+      useNativeWhenLocal: true,
+    }),
   );
 }

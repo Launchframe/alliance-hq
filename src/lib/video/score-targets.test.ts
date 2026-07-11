@@ -6,8 +6,10 @@ import {
   SCORE_TARGETS,
   getScoreTarget,
   getScoreTargetOrThrow,
+  isBankDepositSlipHistoryTarget,
   isHqOnlySubmitTarget,
   isMemberRosterVideoTarget,
+  isNativeOnlyVideoTarget,
   isZeroScoreWarningDisabled,
   toScoreTargetClientMeta,
 } from "@/lib/video/score-targets";
@@ -56,6 +58,24 @@ describe("score targets", () => {
     const meta = toScoreTargetClientMeta(target);
     expect(meta.showRosterColumns).toBe(true);
     expect(meta.showScoreColumn).toBe(false);
+  });
+
+  it("registers bank deposit slip history as HQ-only native OCR target", () => {
+    const target = getScoreTargetOrThrow("bank-deposit-slip-history");
+    expect(isBankDepositSlipHistoryTarget("bank-deposit-slip-history")).toBe(
+      true,
+    );
+    expect(isNativeOnlyVideoTarget("bank-deposit-slip-history")).toBe(true);
+    expect(isHqOnlySubmitTarget(target)).toBe(true);
+    // Enabled after maintainer copy approval for nav.bankDepositSlipHistory.
+    expect(target.enabled).toBe(true);
+
+    const meta = toScoreTargetClientMeta(target);
+    expect(meta.showDepositSlipColumns).toBe(true);
+    expect(meta.showBankSelector).toBe(true);
+    expect(meta.showScoreColumn).toBe(false);
+    expect(meta.showRosterColumns).toBe(false);
+    expect(meta.submitContext).toEqual(["bankId"]);
   });
 
   it("assigns a valid in-house OCR accuracy to every score target", () => {
