@@ -7,7 +7,7 @@ export type VideoSubmitReadyStatus =
 export const VIDEO_SUBMIT_IN_PROGRESS_ERROR = "Submit already in progress.";
 
 export function isVideoJobReadyForSubmit(status: string): boolean {
-  return status === "review" || status === "complete";
+  return (VIDEO_SUBMIT_READY_STATUSES as readonly string[]).includes(status);
 }
 
 export function videoSubmitNotReadyError(jobStatus: string): string {

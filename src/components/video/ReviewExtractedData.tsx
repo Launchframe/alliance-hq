@@ -888,8 +888,11 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     (!scoreTargetMeta?.usesHqEvents && events.length === 0);
 
 
+  const submitReadinessStatus =
+    liveJob?.status === "submitting" ? "submitting" : displayJobStatus;
+
   const canSubmit =
-    isVideoJobReadyForSubmit(displayJobStatus) &&
+    isVideoJobReadyForSubmit(submitReadinessStatus) &&
     activeRows.length > 0 &&
     eventGateSatisfied &&
     (!needsBoardPicker || boardKey) &&
