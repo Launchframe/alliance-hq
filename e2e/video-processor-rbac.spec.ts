@@ -182,6 +182,30 @@ test.describe("Video enqueue/process RBAC", () => {
     expect(await loadVideoJobStatus(sql, jobId)).toBe("discarded");
   });
 
+  test("connected officer without processor slot sees role hint on queue page", async ({
+    page,
+  }) => {
+    const sql = getE2eSql();
+    const scenario = await createVideoProcessorScenario(sql, e2eBaseUrl());
+    await seedLinkedRosterOfficer(sql, {
+      allianceId: scenario.allianceId,
+      hqUserId: scenario.officer.hqUserId,
+      allianceRank: 4,
+      allianceRankTitle: "Warlord",
+    });
+    await attachAshedConnectionToSession(sql, scenario.officer.sessionId);
+    await page.context().addCookies(playwrightAuthCookies(scenario.officer));
+
+    const response = await page.goto("/tools/video-upload/queue");
+    expect(response, "No response for /tools/video-upload/queue").toBeTruthy();
+    expect(response!.status()).toBeLessThan(500);
+    await expect(
+      page
+        .getByRole("status")
+        .getByText(/don't have the video processor role yet/i),
+    ).toBeVisible();
+  });
+
   test("processor cannot approve a job from another alliance", async ({
     request,
   }) => {

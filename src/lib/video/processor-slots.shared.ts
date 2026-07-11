@@ -21,3 +21,19 @@ export function videoProcessorEligibilityModeForOperatingMode(
     ? "native_r4_r5"
     : "ashed_connected_officers";
 }
+
+/**
+ * Ashed-connected officers can enqueue and view the queue, but approve/reject
+ * still requires an explicit processor slot (owners/maintainers bypass).
+ */
+export function shouldShowVideoProcessorRoleHint(input: {
+  ashedConnected: boolean;
+  canProcess: boolean;
+  roleName: string | null | undefined;
+}): boolean {
+  return (
+    input.ashedConnected &&
+    !input.canProcess &&
+    input.roleName === "officer"
+  );
+}
