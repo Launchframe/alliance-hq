@@ -3523,6 +3523,9 @@
       "points": "Points"
     },
     "teamLabel": "Team",
+    "teamA": "Team A",
+    "teamB": "Team B",
+    "existingStormScoresWarning": "It looks like scores were already uploaded for {eventName} Team {team}. Check ashed.online for scores.",
     "dateLabel": "Recorded date",
     "colName": "Name",
     "colMember": "Matched member",

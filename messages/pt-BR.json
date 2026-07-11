@@ -3468,6 +3468,9 @@
       "points": "Pontos"
     },
     "teamLabel": "Equipe",
+    "teamA": "Equipe A",
+    "teamB": "Equipe B",
+    "existingStormScoresWarning": "Parece que as pontuações já foram enviadas para {eventName} Equipe {team}. Confira as pontuações em ashed.online.",
     "dateLabel": "Data registrada",
     "colName": "Nome",
     "colMember": "Membro correspondido",
