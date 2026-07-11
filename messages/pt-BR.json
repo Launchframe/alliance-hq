@@ -4087,6 +4087,16 @@
       "invalidTotal": "Informe um THP total válido entre 1 e 1.000.000.000.",
       "commanderNotFound": "Não foi possível encontrar seu comandante nesta aliança. Execute `/link-commander` primeiro."
     },
+    "query": {
+      "vrNotLinked": "Você ainda não tem um comandante vinculado. Execute `/link-commander` e depois pergunte com `/what-is-my-vr`.",
+      "vrNoReport": "**{name}** — nenhum nível do instituto informado nesta temporada.",
+      "vrStatus": "**{name}** — nível do instituto **{level}** (VR efetivo **{effectiveVr}**).",
+      "vrHeader": "Seus comandantes vinculados:",
+      "thpNotLinked": "Você ainda não tem um comandante vinculado. Execute `/link-commander` e depois pergunte com `/what-is-my-thp`.",
+      "thpNoReport": "**{name}** — nenhum poder total de heróis informado ainda. Use `/thp` para informar.",
+      "thpStatus": "**{name}** — poder total de heróis **{total}**.",
+      "thpHeader": "Seus comandantes vinculados:"
+    },
     "weeklyPass": {
       "pickCharacter": "Para qual comandante você quer aplicar esta alteração?",
       "pickExpired": "Esse seletor expirou. Execute `/weekly-pass` novamente para escolher um comandante.",
@@ -4133,7 +4143,7 @@
     },
     "officerNotified": "Um oficial foi notificado no Alliance HQ. Eles podem falar com você aqui no Discord.",
     "help": {
-      "dmGeneral": "**Bot Alliance HQ** — use `/help` no servidor da aliança para passos conforme seu papel.\n\nComandos: `/link`, `/link-commander`, `/vr`, `/immunity`, `/who-is-conductor`, `/language`. Donos: `/link-alliance`. Oficiais (R4+): `/vr-report`, `/set-conductor`, `/train-is-ready`.\n\n**Guia completo:** {guideUrl}",
+      "dmGeneral": "**Bot Alliance HQ** — use `/help` no servidor da aliança para passos conforme seu papel.\n\nComandos: `/link`, `/link-commander`, `/vr`, `/immunity`, `/thp`, `/what-is-my-vr`, `/what-is-my-thp`, `/who-is-conductor`, `/language`. Donos: `/link-alliance`. Oficiais (R4+): `/vr-report`, `/set-conductor`, `/train-is-ready`.\n\n**Guia completo:** {guideUrl}",
       "setupLinkHq": "Vincule sua conta Discord ao Alliance HQ: execute `/link` e conclua o login no navegador.",
       "setupOwnerLinkHq": "Este servidor ainda não está registrado. **R5:** abra o assistente de instalação no navegador (entrar, tag, Ashed, adicionar bot).\n\n**Assistente:** {installWizardUrl}\n\n**Guia:** {guideUrl}",
       "setupOwnerLinkCommander": "Registre este servidor com o assistente de instalação, depois execute **`/link-commander`**.\n\n**Assistente:** {installWizardUrl}\n\n**Guia:** {guideUrl}",
@@ -4463,7 +4473,7 @@
           "title": "VR standings and takedown teams",
           "summary": "Officers can pull standings and balanced rally teams from Discord.",
           "command": "/vr-report — or /vr-report teams:N / /takedown-teams teams:N",
-          "instructions": "1. Link your commander first — you must be R4+ in-game on the linked character (or alliance owner).\n2. Run /vr-report for the top-25 standings (ephemeral reply).\n3. Run /vr-report teams:5 or /takedown-teams teams:5 for snake-balanced rally teams."
+          "instructions": "1. Link your commander first — you must be R4+ in-game on the linked character (or alliance owner).\n2. Run /vr-report for the top-25 standings (visible to the channel).\n3. Run /vr-report teams:5 or /takedown-teams teams:5 for snake-balanced rally teams."
         },
         "trainOps": {
           "title": "Train conductor workflow",

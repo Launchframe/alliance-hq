@@ -85,6 +85,10 @@ export {
   handleDiscordSetVrReportChannel,
 } from "@/lib/vr/bot-setup";
 export { handleDiscordVrReport } from "@/lib/vr/bot-vr-report";
+export {
+  handleDiscordWhatIsMyVr,
+  handleDiscordWhatIsMyThp,
+} from "@/lib/vr/bot-status-query";
 export { resolveDiscordAllianceId, resolveAllianceForGuild } from "@/lib/vr/repository";
 
 async function audit(

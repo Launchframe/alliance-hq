@@ -70,6 +70,8 @@ import {
   handleDiscordWeeklyPass,
   handleDiscordWeeklyPassCharacterPick,
   handleDiscordWalkthroughDone,
+  handleDiscordWhatIsMyThp,
+  handleDiscordWhatIsMyVr,
   resolveAllianceForGuild,
 } from "@/lib/vr/service";
 import { resolveSetupMessage } from "@/lib/vr/bot-user-context";
@@ -399,7 +401,26 @@ async function handleSlashCommand(payload: DiscordInteractionPayload) {
       teamCount,
       locale,
     });
-    return discordMessageResponse(result.reply, undefined, EPHEMERAL);
+    // Channel-visible so the whole alliance can read standings / teams.
+    return discordMessageResponse(result.reply, undefined, { ephemeral: false });
+  }
+
+  if (commandName === "what-is-my-vr") {
+    const result = await handleDiscordWhatIsMyVr({
+      allianceId,
+      discordUserId,
+      locale,
+    });
+    return discordMessageResponse(result.reply, undefined, { ephemeral: false });
+  }
+
+  if (commandName === "what-is-my-thp") {
+    const result = await handleDiscordWhatIsMyThp({
+      allianceId,
+      discordUserId,
+      locale,
+    });
+    return discordMessageResponse(result.reply, undefined, { ephemeral: false });
   }
 
   if (commandName === "who-is-conductor") {
