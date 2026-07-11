@@ -91,8 +91,11 @@ export async function processVideoJob(
 
   const scoreTargetId = job.scoreTarget ?? job.category ?? "desert-storm";
   const isRosterTarget = isMemberRosterVideoTarget(scoreTargetId);
-  const hqOcrOnly = job.allianceId
-    ? await loadEffectiveAllianceHqOcrOnly(job.allianceId)
+  const jobHqAllianceId = await resolveHqAllianceIdFromStoredAllianceId(
+    job.allianceId,
+  );
+  const hqOcrOnly = jobHqAllianceId
+    ? await loadEffectiveAllianceHqOcrOnly(jobHqAllianceId)
     : false;
   const ocrContext = { allianceHqOcrOnly: hqOcrOnly };
   const ocrEngine = resolveVideoOcrEngineForJob(
@@ -192,7 +195,7 @@ export async function processVideoJob(
     await setStatus("extracting");
     await writeAuditLog({
       sessionId: job.sessionId,
-      allianceId: job.allianceId,
+      allianceId: jobHqAllianceId ?? job.allianceId,
       action: "video.extract_start",
       resourceType: "video_job",
       resourceName: scoreTargetId,
@@ -697,7 +700,7 @@ export async function processVideoJob(
       id: job.id,
       sessionId: job.sessionId,
       processingSessionId: job.processingSessionId ?? null,
-      allianceId: job.allianceId ?? null,
+      allianceId: allianceId ?? jobHqAllianceId ?? job.allianceId ?? null,
       scoreTarget: job.scoreTarget ?? null,
       category: job.category ?? null,
       storageKey: job.storageKey ?? null,
@@ -780,7 +783,7 @@ export async function processVideoJob(
     );
     await writeAuditLog({
       sessionId: job.sessionId,
-      allianceId: job.allianceId,
+      allianceId: jobHqAllianceId ?? job.allianceId,
       action: "video.failed",
       resourceType: "video_job",
       resourceId: jobId,
