@@ -8,6 +8,7 @@ import { expandTracingPatterns } from "../../../../scripts/vercel/trace-size.sha
 import {
   TESSERACT_LSTM_CORE_VARIANTS,
   tesseractFileTracing,
+  tesseractNonLstmExcludes,
   tesseractWorkerNodePackageTracing,
 } from "../../../../scripts/vercel/video-ocr-file-tracing.mjs";
 
@@ -253,6 +254,39 @@ describe("buildTesseractWorkerOptions", () => {
     expect(source).not.toMatch(/\[OEM\.DEFAULT,\s*OEM\.LSTM_ONLY\]\.includes/);
     expect(source).toMatch(/if\s*\(\s*lstmOnly\s*\)/);
     expect(source).toMatch(/tesseract-core-relaxedsimd-lstm/);
+    expect(source).toMatch(
+      /patched by alliance-hq scripts\/patch-tesseract-node-getcore\.mjs/,
+    );
+  });
+
+  it("NFT non-LSTM excludes cover every non-LSTM core require in patched getCore", () => {
+    const repoRoot = path.resolve(import.meta.dirname, "../../../..");
+    const getCorePath = path.join(
+      repoRoot,
+      "node_modules/tesseract.js/src/worker-script/node/getCore.js",
+    );
+    const source = readFileSync(getCorePath, "utf8");
+    const nonLstmBases = [
+      "tesseract-core-relaxedsimd",
+      "tesseract-core-simd",
+      "tesseract-core",
+    ];
+
+    for (const base of nonLstmBases) {
+      expect(source).toContain(`require('tesseract.js-core/${base}')`);
+      for (const ext of [".js", ".wasm", ".wasm.js"]) {
+        expect(tesseractNonLstmExcludes).toContain(
+          `./node_modules/tesseract.js-core/${base}${ext}`,
+        );
+      }
+    }
+
+    for (const lstmVariant of ["relaxedsimd-lstm", "simd-lstm", "lstm"]) {
+      const lstmBase = `tesseract-core-${lstmVariant}`;
+      expect(tesseractNonLstmExcludes).not.toContain(
+        `./node_modules/tesseract.js-core/${lstmBase}.js`,
+      );
+    }
   });
 
   it("getCore lstmOnly tesseract.js-core requires are NFT-traced (walker skips core pkg)", () => {

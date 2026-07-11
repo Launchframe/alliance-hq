@@ -12,13 +12,15 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const target = path.join(
-  repoRoot,
-  "node_modules/tesseract.js/src/worker-script/node/getCore.js",
-);
+export const PATCH_MARKER =
+  "patched by alliance-hq scripts/patch-tesseract-node-getcore.mjs";
 
-const FIXED = `'use strict';
+export const UPSTREAM_BUG_SIGNATURE =
+  "[OEM.DEFAULT, OEM.LSTM_ONLY].includes(oem)";
+
+export const NATIVE_LSTM_ONLY_FIX = /if\s*\(\s*lstmOnly\s*\)/;
+
+export const PATCHED_GET_CORE_SOURCE = `'use strict';
 
 const { simd, relaxedSimd } = require('wasm-feature-detect');
 
@@ -26,7 +28,7 @@ let TesseractCore = null;
 /*
  * Load TesseractCore for Node. First arg is boolean \`lstmOnly\` from createWorker
  * (same contract as browser getCore). Upstream incorrectly compared against OEM
- * enums — patched by alliance-hq scripts/patch-tesseract-node-getcore.mjs.
+ * enums — ${PATCH_MARKER}.
  */
 module.exports = async (lstmOnly, _, res) => {
   if (TesseractCore === null) {
@@ -58,27 +60,58 @@ module.exports = async (lstmOnly, _, res) => {
 };
 `;
 
-if (!existsSync(target)) {
-  console.warn(`[patch-tesseract-node-getcore] skip: missing ${target}`);
-  process.exit(0);
+/**
+ * @param {string} target Absolute path to node getCore.js
+ * @returns {"missing" | "already_patched" | "native_fix" | "unexpected" | "patched"}
+ */
+export function patchGetCoreAtPath(target) {
+  if (!existsSync(target)) {
+    return "missing";
+  }
+
+  const current = readFileSync(target, "utf8");
+  if (current.includes(PATCH_MARKER)) {
+    return "already_patched";
+  }
+
+  if (NATIVE_LSTM_ONLY_FIX.test(current)) {
+    return "native_fix";
+  }
+
+  if (!current.includes(UPSTREAM_BUG_SIGNATURE)) {
+    return "unexpected";
+  }
+
+  writeFileSync(target, PATCHED_GET_CORE_SOURCE);
+  return "patched";
 }
 
-const current = readFileSync(target, "utf8");
-if (current.includes("alliance-hq scripts/patch-tesseract-node-getcore.mjs")) {
-  process.exit(0);
-}
+const isMain =
+  process.argv[1] &&
+  path.resolve(process.argv[1]) ===
+    path.resolve(path.dirname(fileURLToPath(import.meta.url)), "patch-tesseract-node-getcore.mjs");
 
-if (/if\s*\(\s*lstmOnly\s*\)/.test(current)) {
-  // Upstream fixed natively — no patch needed.
-  process.exit(0);
-}
-
-if (!current.includes("[OEM.DEFAULT, OEM.LSTM_ONLY].includes(oem)")) {
-  console.error(
-    "[patch-tesseract-node-getcore] unexpected getCore.js contents; cannot verify lstmOnly fix",
+if (isMain) {
+  const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+  const target = path.join(
+    repoRoot,
+    "node_modules/tesseract.js/src/worker-script/node/getCore.js",
   );
-  process.exit(process.env.CI ? 1 : 0);
-}
 
-writeFileSync(target, FIXED);
-console.log("[patch-tesseract-node-getcore] patched node getCore for lstmOnly boolean");
+  const result = patchGetCoreAtPath(target);
+  if (result === "missing") {
+    console.warn(`[patch-tesseract-node-getcore] skip: missing ${target}`);
+    process.exit(0);
+  }
+  if (result === "already_patched" || result === "native_fix") {
+    process.exit(0);
+  }
+  if (result === "unexpected") {
+    console.error(
+      "[patch-tesseract-node-getcore] unexpected getCore.js contents; cannot verify lstmOnly fix",
+    );
+    process.exit(process.env.CI ? 1 : 0);
+  }
+
+  console.log("[patch-tesseract-node-getcore] patched node getCore for lstmOnly boolean");
+}
