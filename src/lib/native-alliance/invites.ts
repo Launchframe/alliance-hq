@@ -371,6 +371,8 @@ export type HqInvitePreview = {
   roleName: SystemRoleName | null;
   expiresAt: string;
   expired: boolean;
+  /** Officer deactivated the invite; distinct from time-based `expired`. */
+  revoked: boolean;
   accepted: boolean;
   redirectPath: string | null;
   kind: HqInviteKind;
@@ -433,7 +435,8 @@ export async function loadHqInvitePreview(
     allianceTag: row.allianceTag,
     roleName: systemRoleNameForId(row.roleId),
     expiresAt: row.expiresAt.toISOString(),
-    expired: row.expiresAt <= now || row.revokedAt != null,
+    expired: row.expiresAt <= now,
+    revoked: row.revokedAt != null,
     accepted: row.acceptedAt != null,
     redirectPath: row.redirectPath,
     kind,
