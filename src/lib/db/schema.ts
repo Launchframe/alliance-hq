@@ -2985,8 +2985,6 @@ export type BattlePlanCaptureEvent =
 export type Bank = typeof banks.$inferSelect;
 export type BankDepositSlip = typeof bankDepositSlips.$inferSelect;
 
-export type InboxReminderItem = typeof inboxReminderItems.$inferSelect;
-
 // ---------------------------------------------------------------------------
 // War Leader Support — profession pairing system
 // ---------------------------------------------------------------------------
