@@ -190,69 +190,63 @@ export function ViralResistanceView({
                 <th className="px-4 py-3">{t("colLevel")}</th>
                 <th className="px-4 py-3">{t("colVr")}</th>
                 <th className="px-4 py-3">{t("colThp")}</th>
+                {officer ? (
+                  <th className="px-4 py-3">
+                    <span className="sr-only">{t("officer.eventsColAction")}</span>
+                  </th>
+                ) : null}
               </tr>
             </thead>
             <tbody>
-              {data.rows.map((row, index) => {
-                const openEvents = officer
-                  ? () =>
-                      setEventsMember({
-                        ashedMemberId: row.ashedMemberId,
-                        memberName: row.memberName,
-                      })
-                  : undefined;
-                return (
-                  <tr
-                    key={row.ashedMemberId}
-                    className={
-                      openEvents
-                        ? "cursor-pointer border-b border-hq-surface-muted last:border-0 hover:bg-hq-surface-muted/40"
-                        : "border-b border-hq-surface-muted last:border-0"
-                    }
-                    onClick={openEvents}
-                    onKeyDown={
-                      openEvents
-                        ? (event) => {
-                            if (event.key === "Enter" || event.key === " ") {
-                              event.preventDefault();
-                              openEvents();
-                            }
-                          }
-                        : undefined
-                    }
-                    tabIndex={openEvents ? 0 : undefined}
-                    role={openEvents ? "button" : undefined}
-                    aria-label={
-                      openEvents
-                        ? t("officer.eventsOpenAria", { name: row.memberName })
-                        : undefined
-                    }
-                  >
-                    <td className="px-4 py-3 text-hq-fg-muted">{index + 1}</td>
-                    <td className="px-4 py-3 font-medium text-hq-fg">
-                      {row.memberName}
-                      {row.flagged ? (
-                        <span className="ml-2 text-xs text-hq-warning">
-                          {t("flagged")}
-                        </span>
-                      ) : null}
+              {data.rows.map((row, index) => (
+                <tr
+                  key={row.ashedMemberId}
+                  className="border-b border-hq-surface-muted last:border-0"
+                >
+                  <td className="px-4 py-3 text-hq-fg-muted">{index + 1}</td>
+                  <td className="px-4 py-3 font-medium text-hq-fg">
+                    {row.memberName}
+                    {row.flagged ? (
+                      <span className="ml-2 text-xs text-hq-warning">
+                        {t("flagged")}
+                      </span>
+                    ) : null}
+                  </td>
+                  <td className="px-4 py-3 font-mono text-hq-fg-muted">
+                    {row.instituteLevel}
+                  </td>
+                  <td className="px-4 py-3 font-mono text-hq-fg">
+                    {row.highestBaseVr.toLocaleString()}
+                  </td>
+                  <td className="px-4 py-3 font-mono text-hq-fg-muted">
+                    {row.totalHeroPower.toLocaleString()}
+                  </td>
+                  {officer ? (
+                    <td className="px-4 py-3">
+                      <button
+                        type="button"
+                        data-testid={`vr-officer-open-events-${row.ashedMemberId}`}
+                        onClick={() =>
+                          setEventsMember({
+                            ashedMemberId: row.ashedMemberId,
+                            memberName: row.memberName,
+                          })
+                        }
+                        className="rounded-lg border border-hq-border px-2.5 py-1 text-xs font-medium text-hq-fg transition-colors hover:bg-hq-surface-muted"
+                        aria-label={t("officer.eventsOpenAria", {
+                          name: row.memberName,
+                        })}
+                      >
+                        {t("officer.eventsOpen")}
+                      </button>
                     </td>
-                    <td className="px-4 py-3 font-mono text-hq-fg-muted">
-                      {row.instituteLevel}
-                    </td>
-                    <td className="px-4 py-3 font-mono text-hq-fg">
-                      {row.highestBaseVr.toLocaleString()}
-                    </td>
-                    <td className="px-4 py-3 font-mono text-hq-fg-muted">
-                      {row.totalHeroPower.toLocaleString()}
-                    </td>
-                  </tr>
-                );
-              })}
+                  ) : null}
+                </tr>
+              ))}
               {data.rows.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={5}
+                    colSpan={officer ? 6 : 5}
                     className="px-4 py-8 text-center text-hq-fg-muted"
                   >
                     {t("empty")}

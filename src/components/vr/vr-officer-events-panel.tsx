@@ -178,6 +178,7 @@ export function VrOfficerEventsPanel({
       <header className="min-w-0">
         <button
           type="button"
+          data-testid="vr-officer-events-back"
           onClick={onBack}
           className="mb-3 flex items-center gap-1 self-start text-xs text-hq-fg-muted transition-colors hover:text-hq-fg"
         >
