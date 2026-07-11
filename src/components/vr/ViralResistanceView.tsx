@@ -74,6 +74,9 @@ export function ViralResistanceView({
       if (officerRes) {
         if (officerRes.ok) {
           setOfficer((await officerRes.json()) as ViralResistanceOfficerPayload);
+        } else {
+          setOfficer(null);
+          setEventsMember(null);
         }
       }
     } catch (e) {

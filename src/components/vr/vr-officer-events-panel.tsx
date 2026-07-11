@@ -4,7 +4,10 @@ import { useEffect, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { useTranslations } from "next-intl";
 
-import { coerceInstituteLevelFromBaseVr } from "@/lib/vr/validation";
+import {
+  coerceInstituteLevelFromBaseVr,
+  validateInstituteLevelForSeason,
+} from "@/lib/vr/validation";
 import {
   FORM_SUBMIT_ENTER_KEY_HINT,
 } from "@/lib/client/form-enter-submit.shared";
@@ -52,7 +55,8 @@ export function VrOfficerEventsPanel({
   const [events, setEvents] = useState<OfficerEvent[] | null>(null);
   const [draftLevels, setDraftLevels] = useState<Record<string, string>>({});
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -79,7 +83,7 @@ export function VrOfficerEventsPanel({
         if (cancelled) return;
         setMessage(error instanceof Error ? error.message : t("eventsFailed"));
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) setInitialLoading(false);
       }
     })();
     return () => {
@@ -88,7 +92,7 @@ export function VrOfficerEventsPanel({
   }, [ashedMemberId, seasonKey, t]);
 
   const reloadEvents = async () => {
-    setLoading(true);
+    setRefreshing(true);
     setMessage(null);
     try {
       const res = await fetch(
@@ -109,13 +113,14 @@ export function VrOfficerEventsPanel({
     } catch (error) {
       setMessage(error instanceof Error ? error.message : t("eventsFailed"));
     } finally {
-      setLoading(false);
+      setRefreshing(false);
     }
   };
 
   const saveEvent = async (eventId: string) => {
     const instituteLevel = Number.parseInt(draftLevels[eventId] ?? "", 10);
-    if (!Number.isFinite(instituteLevel)) {
+    const validated = validateInstituteLevelForSeason(seasonKey, instituteLevel);
+    if (!validated.ok) {
       setMessage(t("eventsInvalid"));
       return;
     }
@@ -125,7 +130,10 @@ export function VrOfficerEventsPanel({
       const res = await fetch("/api/vr/officer/events", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ eventId, instituteLevel }),
+        body: JSON.stringify({
+          eventId,
+          instituteLevel: validated.instituteLevel,
+        }),
       });
       const body = (await res.json()) as { error?: string };
       if (!res.ok) {
@@ -182,7 +190,7 @@ export function VrOfficerEventsPanel({
         <p className="mt-2 text-sm text-hq-fg-muted">{t("eventsSubtitle")}</p>
       </header>
 
-      {loading ? (
+      {initialLoading ? (
         <p className="text-sm text-hq-fg-muted">{t("eventsLoading")}</p>
       ) : events ? (
         events.length === 0 ? (
@@ -230,7 +238,7 @@ export function VrOfficerEventsPanel({
                       <div className="flex flex-wrap gap-2">
                         <button
                           type="button"
-                          disabled={busyId === event.id}
+                          disabled={busyId === event.id || refreshing}
                           onClick={() => void saveEvent(event.id)}
                           className="rounded border border-hq-border px-2 py-1 text-xs text-hq-fg disabled:opacity-50"
                         >
@@ -238,7 +246,7 @@ export function VrOfficerEventsPanel({
                         </button>
                         <button
                           type="button"
-                          disabled={busyId === event.id}
+                          disabled={busyId === event.id || refreshing}
                           onClick={() => void deleteEvent(event.id)}
                           className="rounded border border-hq-danger/40 px-2 py-1 text-xs text-hq-danger disabled:opacity-50"
                         >
