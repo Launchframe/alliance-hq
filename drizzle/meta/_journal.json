@@ -353,325 +353,339 @@
       "breakpoints": true
     },
     {
-      "idx": 49,
+      "idx": 50,
       "version": "7",
       "when": 1783596800000,
       "tag": "0050_game_server_season",
       "breakpoints": true
     },
     {
-      "idx": 50,
+      "idx": 51,
       "version": "7",
       "when": 1783683200000,
       "tag": "0051_hq_roster_link_requests",
       "breakpoints": true
     },
     {
-      "idx": 51,
+      "idx": 52,
       "version": "7",
       "when": 1783769600000,
       "tag": "0052_inbox_reminder_resource_id",
       "breakpoints": true
     },
     {
-      "idx": 52,
+      "idx": 53,
       "version": "7",
       "when": 1783856000000,
       "tag": "0053_member_alliance_tenure",
       "breakpoints": true
     },
     {
-      "idx": 53,
+      "idx": 54,
       "version": "7",
       "when": 1783942400000,
       "tag": "0054_video_processors",
       "breakpoints": true
     },
     {
-      "idx": 54,
+      "idx": 55,
       "version": "7",
       "when": 1784028800000,
       "tag": "0055_commander_identity",
       "breakpoints": true
     },
     {
-      "idx": 55,
+      "idx": 56,
       "version": "7",
       "when": 1784115200000,
       "tag": "0056_commander_nullable_uid",
       "breakpoints": true
     },
     {
-      "idx": 56,
+      "idx": 57,
       "version": "7",
       "when": 1784201600000,
       "tag": "0057_alliance_game_server_required",
       "breakpoints": true
     },
     {
-      "idx": 57,
+      "idx": 58,
       "version": "7",
       "when": 1784288000000,
       "tag": "0059_alliance_setup_guide_roster_link",
       "breakpoints": true
     },
     {
-      "idx": 58,
+      "idx": 59,
       "version": "7",
       "when": 1784374400000,
       "tag": "0060_roster_link_substring_suggestion",
       "breakpoints": true
     },
     {
-      "idx": 59,
+      "idx": 60,
       "version": "7",
       "when": 1784460800000,
       "tag": "0061_roster_link_request_discord_nullable_hq",
       "breakpoints": true
     },
     {
-      "idx": 60,
+      "idx": 61,
       "version": "7",
       "when": 1784633600000,
       "tag": "0062_ocr_eval_snapshots",
       "breakpoints": true
     },
     {
-      "idx": 61,
+      "idx": 62,
       "version": "7",
       "when": 1784720000000,
       "tag": "0063_hq_user_hotkey_bindings",
       "breakpoints": true
     },
     {
-      "idx": 62,
+      "idx": 63,
       "version": "7",
       "when": 1784806400000,
       "tag": "0064_commander_main_squad",
       "breakpoints": true
     },
     {
-      "idx": 63,
+      "idx": 64,
       "version": "7",
       "when": 1784892800000,
       "tag": "0065_hq_member_link_help_requests",
       "breakpoints": true
     },
     {
-      "idx": 64,
+      "idx": 65,
       "version": "7",
       "when": 1784979200000,
       "tag": "0066_member_link_help_linked_member",
       "breakpoints": true
     },
     {
-      "idx": 65,
+      "idx": 66,
       "version": "7",
       "when": 1785065600000,
       "tag": "0067_commander_claim_invite_target",
       "breakpoints": true
     },
     {
-      "idx": 66,
+      "idx": 67,
       "version": "7",
       "when": 1785152000000,
       "tag": "0068_member_link_help_claim_conflict_dedup",
       "breakpoints": true
     },
     {
-      "idx": 67,
+      "idx": 68,
       "version": "7",
       "when": 1785238400000,
       "tag": "0069_video_hq_ocr_only",
       "breakpoints": true
     },
     {
-      "idx": 68,
+      "idx": 69,
       "version": "7",
       "when": 1785324800000,
       "tag": "0070_member_season_vr_events",
       "breakpoints": true
     },
     {
-      "idx": 69,
+      "idx": 70,
       "version": "7",
       "when": 1785411200000,
       "tag": "0071_vr_sandbox",
       "breakpoints": true
     },
     {
-      "idx": 70,
+      "idx": 71,
       "version": "7",
       "when": 1785497600000,
       "tag": "0072_train_economy_threshold",
       "breakpoints": true
     },
     {
-      "idx": 71,
+      "idx": 72,
       "version": "7",
       "when": 1785584000000,
       "tag": "0073_join_code_commander_claim",
       "breakpoints": true
     },
     {
-      "idx": 72,
+      "idx": 73,
       "version": "7",
       "when": 1785670400000,
       "tag": "0074_vr_institute_level",
       "breakpoints": true
     },
     {
-      "idx": 73,
+      "idx": 74,
       "version": "7",
       "when": 1785670400000,
       "tag": "0075_drop_max_base_vr",
       "breakpoints": true
     },
     {
-      "idx": 74,
+      "idx": 75,
       "version": "7",
       "when": 1785756800000,
       "tag": "0076_weekly_pass",
       "breakpoints": true
     },
     {
-      "idx": 75,
+      "idx": 76,
       "version": "7",
       "when": 1785843200000,
       "tag": "0077_discord_bot_install_sessions",
       "breakpoints": true
     },
     {
-      "idx": 76,
+      "idx": 77,
       "version": "7",
       "when": 1785929600000,
       "tag": "0078_alliance_setup_requests",
       "breakpoints": true
     },
     {
-      "idx": 77,
+      "idx": 78,
       "version": "7",
       "when": 1786016000000,
       "tag": "0079_self_service_onboarding",
       "breakpoints": true
     },
     {
-      "idx": 78,
+      "idx": 79,
       "version": "7",
       "when": 1786102400000,
       "tag": "0080_cross_layer_claim_help_dedup",
       "breakpoints": true
     },
     {
-      "idx": 79,
+      "idx": 80,
       "version": "7",
       "when": 1786188800000,
       "tag": "0081_hq_email_change_pending",
       "breakpoints": true
     },
     {
-      "idx": 80,
+      "idx": 81,
       "version": "7",
       "when": 1786275200000,
       "tag": "0082_hq_account_merge_pending",
       "breakpoints": true
     },
     {
-      "idx": 81,
+      "idx": 82,
       "version": "7",
       "when": 1786361600000,
       "tag": "0083_hq_auth_provider_email",
       "breakpoints": true
     },
     {
-      "idx": 82,
+      "idx": 83,
       "version": "7",
       "when": 1786448000000,
       "tag": "0084_commander_thp",
       "breakpoints": true
     },
     {
-      "idx": 83,
+      "idx": 84,
       "version": "7",
       "when": 1786534400000,
       "tag": "0085_price_is_right_ticket_weighting",
       "breakpoints": true
     },
     {
-      "idx": 84,
+      "idx": 85,
       "version": "7",
       "when": 1786620800000,
       "tag": "0086_battle_plan",
       "breakpoints": true
     },
     {
-      "idx": 85,
+      "idx": 86,
       "version": "7",
       "when": 1786707200000,
       "tag": "0087_battle_plan_marker_colors",
       "breakpoints": true
     },
     {
-      "idx": 86,
+      "idx": 87,
       "version": "7",
       "when": 1786793600000,
       "tag": "0088_battle_plan_marker_icons",
       "breakpoints": true
     },
     {
-      "idx": 87,
+      "idx": 88,
       "version": "7",
       "when": 1786880000000,
       "tag": "0089_battle_plan_event_markers",
       "breakpoints": true
     },
     {
-      "idx": 88,
+      "idx": 89,
       "version": "7",
       "when": 1786966400000,
       "tag": "0090_alliance_daily_snapshots",
       "breakpoints": true
     },
     {
-      "idx": 89,
+      "idx": 90,
       "version": "7",
       "when": 1787049600000,
       "tag": "0091_commander_season_vr",
       "breakpoints": true
     },
     {
-      "idx": 90,
+      "idx": 91,
       "version": "7",
       "when": 1787136000000,
       "tag": "0092_video_jobs_storm_team",
       "breakpoints": true
     },
     {
-      "idx": 91,
+      "idx": 92,
       "version": "7",
       "when": 1787222400000,
       "tag": "0093_commander_power_stats",
       "breakpoints": true
     },
     {
-      "idx": 92,
+      "idx": 93,
       "version": "7",
       "when": 1787308800000,
       "tag": "0094_hq_invite_revoked_at",
       "breakpoints": true
     },
     {
-      "idx": 93,
+      "idx": 94,
       "version": "7",
       "when": 1787395200000,
       "tag": "0095_bank_management",
       "breakpoints": true
     },
     {
-      "idx": 94,
+      "idx": 95,
       "version": "7",
       "when": 1787481600000,
       "tag": "0096_data_upload_batches",
+      "breakpoints": true
+    },
+    {
+      "idx": 96,
+      "version": "7",
+      "when": 1787568000000,
+      "tag": "0097_wl_teams",
+      "breakpoints": true
+    },
+    {
+      "idx": 97,
+      "version": "7",
+      "when": 1787654400000,
+      "tag": "0098_wl_eng_one_active",
       "breakpoints": true
     }
   ]

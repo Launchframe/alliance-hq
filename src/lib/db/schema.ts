@@ -103,6 +103,8 @@ export const alliances = pgTable("alliances", {
   inviteOnboardingMinRole: text("invite_onboarding_min_role")
     .notNull()
     .default("officer"),
+  /** Minimum active Engineers per WL team before that WL is considered "covered". Officers may adjust. */
+  wlMinEngsPerTeam: integer("wl_min_engs_per_team").notNull().default(2),
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
     .notNull(),
@@ -2983,3 +2985,138 @@ export type BattlePlanCaptureEvent =
 export type Bank = typeof banks.$inferSelect;
 export type BankDepositSlip = typeof bankDepositSlips.$inferSelect;
 
+// ---------------------------------------------------------------------------
+// War Leader Support — profession pairing system
+// ---------------------------------------------------------------------------
+
+/** One WL team per (alliance, WL commander). Created on first Eng assignment. */
+export const wlTeams = pgTable(
+  "wl_teams",
+  {
+    id: text("id").primaryKey(),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    wlCommanderId: text("wl_commander_id")
+      .notNull()
+      .references(() => commanders.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    unique("wl_teams_alliance_wl_unique").on(table.allianceId, table.wlCommanderId),
+  ],
+);
+
+/** Engineer assignments to a WL team, including optional UTC coverage window. */
+export const wlEngAssignments = pgTable(
+  "wl_eng_assignments",
+  {
+    id: text("id").primaryKey(),
+    wlTeamId: text("wl_team_id")
+      .notNull()
+      .references(() => wlTeams.id, { onDelete: "cascade" }),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    engCommanderId: text("eng_commander_id")
+      .notNull()
+      .references(() => commanders.id, { onDelete: "cascade" }),
+    /** active | dismissed | self_removed */
+    status: text("status").notNull().default("active"),
+    /** UTC hour (0–23) when this Eng starts their Win-Win coverage shift. */
+    coverageStartHour: integer("coverage_start_hour"),
+    /** UTC hour (0–23) when this Eng ends their Win-Win coverage shift. */
+    coverageEndHour: integer("coverage_end_hour"),
+    assignedAt: timestamp("assigned_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    dismissedAt: timestamp("dismissed_at", { withTimezone: true }),
+    dismissedByCommanderId: text("dismissed_by_commander_id").references(
+      () => commanders.id,
+      { onDelete: "set null" },
+    ),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    unique("wl_eng_assignments_team_eng_unique").on(
+      table.wlTeamId,
+      table.engCommanderId,
+    ),
+    index("wl_eng_assignments_alliance_idx").on(table.allianceId),
+    index("wl_eng_assignments_eng_idx").on(table.engCommanderId),
+  ],
+);
+
+/** Append-only activity log powering the officer profession feed. */
+export const wlTeamEvents = pgTable(
+  "wl_team_events",
+  {
+    id: text("id").primaryKey(),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    wlTeamId: text("wl_team_id").references(() => wlTeams.id, {
+      onDelete: "set null",
+    }),
+    /** eng_assigned | eng_dismissed | eng_self_removed | more_engs_requested | profession_switched */
+    eventKind: text("event_kind").notNull(),
+    actorCommanderId: text("actor_commander_id").references(
+      () => commanders.id,
+      { onDelete: "set null" },
+    ),
+    subjectCommanderId: text("subject_commander_id").references(
+      () => commanders.id,
+      { onDelete: "set null" },
+    ),
+    detailsJson: jsonb("details_json").$type<Record<string, unknown>>(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("wl_team_events_alliance_created_idx").on(
+      table.allianceId,
+      table.createdAt,
+    ),
+  ],
+);
+
+/** Discord channels registered by officers for live profession table announcements. */
+export const professionChannels = pgTable(
+  "profession_channels",
+  {
+    id: text("id").primaryKey(),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    guildId: text("guild_id").notNull(),
+    channelId: text("channel_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    unique("profession_channels_alliance_guild_unique").on(
+      table.allianceId,
+      table.guildId,
+    ),
+  ],
+);
+
+export type WlTeam = typeof wlTeams.$inferSelect;
+export type WlEngAssignment = typeof wlEngAssignments.$inferSelect;
+export type WlTeamEvent = typeof wlTeamEvents.$inferSelect;
+export type ProfessionChannel = typeof professionChannels.$inferSelect;
