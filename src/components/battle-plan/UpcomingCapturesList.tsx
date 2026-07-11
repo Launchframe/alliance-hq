@@ -56,22 +56,30 @@ export function UpcomingCapturesList({
                   {event.iconPreset ? (
                     <MarkerBadge iconPreset={event.iconPreset} size="sm" />
                   ) : null}
-                  {event.territoryType === "stronghold"
-                    ? t("event.stronghold")
-                    : t("event.city")}
+                  {event.eventType === "drop"
+                    ? t("event.drop")
+                    : event.territoryType === "stronghold"
+                      ? t("event.stronghold")
+                      : t("event.city")}
                 </span>
                 <span className="text-xs text-hq-fg-muted">
                   {formatCaptureDateTime(event.scheduledAt, timeDisplay)}
                 </span>
               </div>
-              <p className="mt-1 text-xs text-hq-fg-subtle">
-                {t("event.policyLine", {
-                  policy:
-                    event.effectiveCapturePolicy === "peace"
-                      ? t("settings.policyPeace")
-                      : t("settings.policyWar"),
-                })}
-              </p>
+              {event.eventType === "drop" ? (
+                <p className="mt-1 text-xs text-hq-fg-subtle">
+                  {t("event.dropHint")}
+                </p>
+              ) : (
+                <p className="mt-1 text-xs text-hq-fg-subtle">
+                  {t("event.policyLine", {
+                    policy:
+                      event.effectiveCapturePolicy === "peace"
+                        ? t("settings.policyPeace")
+                        : t("settings.policyWar"),
+                  })}
+                </p>
+              )}
               {event.notes ? (
                 <p className="mt-1 text-xs text-hq-fg-muted">{event.notes}</p>
               ) : null}

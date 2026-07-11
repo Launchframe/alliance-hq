@@ -92,6 +92,8 @@ export function BattlePlanClient({ initial }: Props) {
       const payload = {
         ...captureEventFormToPayload(values, timeDisplay),
         planRevision: dashboard.settings.planRevision,
+        eventType: editingEvent?.eventType ?? "capture",
+        bankId: editingEvent?.bankId ?? null,
       };
       const response = await fetch(
         editingEvent

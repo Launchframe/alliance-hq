@@ -26,12 +26,15 @@ const strings: BattlePlanAnnouncementStrings = {
     if (preset === "hammer") return "Build here marker";
     return preset;
   },
+  dropLine: ({ markerLabel, dropServerTime }) =>
+    `We are dropping the Bank with marker ${markerLabel} at ${dropServerTime} ST. Please limit deposit terms on any new deposits with this bank.`,
 };
 
 const baseEvent = (
   overrides: Partial<SerializedCaptureEvent>,
 ): SerializedCaptureEvent => ({
   id: "evt-1",
+  eventType: "capture",
   scheduledAt: "2026-07-15T22:00:00.000-02:00",
   serverCalendarDate: "2026-07-15",
   territoryType: "stronghold",
@@ -40,6 +43,7 @@ const baseEvent = (
   effectiveCapturePolicy: "peace",
   notes: null,
   status: "scheduled",
+  bankId: null,
   createdAt: "2026-07-01T00:00:00.000Z",
   updatedAt: "2026-07-01T00:00:00.000Z",
   ...overrides,
@@ -132,5 +136,30 @@ describe("generateBattlePlanAnnouncement", () => {
         now,
       }),
     ).toBe("No captures scheduled.");
+  });
+
+  it("formats drop events with the deposit-limit wording", () => {
+    const events = [
+      baseEvent({
+        id: "drop-1",
+        eventType: "drop",
+        bankId: "bank-1",
+        scheduledAt: "2026-07-15T20:00:00.000-02:00",
+        iconPreset: "ordinal-1",
+      }),
+    ];
+
+    const text = generateBattlePlanAnnouncement(events, {
+      seasonKey: "5",
+      strings,
+      now,
+    });
+
+    expect(text).toContain(
+      "We are dropping the Bank with marker 1st marker at 20:00 ST. Please limit deposit terms on any new deposits with this bank.",
+    );
+    expect(text).toContain("Next 24 hours: 0 cities and 0 strongholds to take.");
+    expect(text).not.toContain("In-and-out with these Strongholds.");
+    expect(text).toContain("DO NOT LOOT GOLD");
   });
 });

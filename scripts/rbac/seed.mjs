@@ -32,6 +32,8 @@ const HQ_PERMISSIONS = [
   { id: "eur:schedules:write", description: "Manage event upload reminder schedules" },
   { id: "battle_plan:read", description: "View alliance battle plan schedule" },
   { id: "battle_plan:write", description: "Manage alliance battle plan schedule" },
+  { id: "bank:read", description: "View alliance bank strongholds and deposit risk" },
+  { id: "bank:write", description: "Manage alliance bank strongholds and deposit slips" },
 ];
 
 function getDatabaseUrl() {
@@ -67,6 +69,8 @@ async function main() {
       "eur:schedules:write",
       "battle_plan:read",
       "battle_plan:write",
+      "bank:read",
+      "bank:write",
     ]),
   ];
   roleTemplates.maintainer.permissions = [...roleTemplates.owner.permissions];
@@ -79,6 +83,8 @@ async function main() {
       "eur:schedules:write",
       "battle_plan:read",
       "battle_plan:write",
+      "bank:read",
+      "bank:write",
     ]),
   ];
   roleTemplates.data_entry.permissions = [
@@ -86,10 +92,15 @@ async function main() {
       ...roleTemplates.data_entry.permissions,
       "inbox:read",
       "battle_plan:read",
+      "bank:read",
     ]),
   ];
   roleTemplates.viewer.permissions = [
-    ...new Set([...roleTemplates.viewer.permissions, "battle_plan:read"]),
+    ...new Set([
+      ...roleTemplates.viewer.permissions,
+      "battle_plan:read",
+      "bank:read",
+    ]),
   ];
   roleTemplates.member = {
     description:

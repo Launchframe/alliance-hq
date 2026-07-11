@@ -1,11 +1,13 @@
 import { MAX_CAPTURES_PER_SERVER_DAY } from "@/lib/battle-plan/types.shared";
 import type { TerritoryType } from "@/lib/battle-plan/types.shared";
+import type { BattlePlanEventType } from "@/lib/banks/types.shared";
 
 export type CaptureEventLimitRow = {
   id: string;
   serverCalendarDate: string;
   territoryType: TerritoryType;
   status: string;
+  eventType?: BattlePlanEventType;
 };
 
 export function countScheduledCapturesForDay(
@@ -16,6 +18,7 @@ export function countScheduledCapturesForDay(
 ): number {
   return events.filter(
     (event) =>
+      (event.eventType ?? "capture") === "capture" &&
       event.status === "scheduled" &&
       event.serverCalendarDate === serverCalendarDate &&
       event.territoryType === territoryType &&

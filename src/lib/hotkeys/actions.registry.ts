@@ -119,6 +119,15 @@ const NAV_ACTIONS: HotkeyActionDef[] = [
     requiredPermission: "battle_plan:read",
   },
   {
+    id: "nav.bankManagement",
+    labelKey: "actions.nav.bankManagement",
+    category: "navigation",
+    scope: "global",
+    kind: "navigate",
+    href: "/bank-management",
+    requiredPermission: "bank:read",
+  },
+  {
     id: "nav.desertStorm",
     labelKey: "actions.nav.desertStorm",
     category: "navigation",

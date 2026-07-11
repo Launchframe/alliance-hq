@@ -142,6 +142,7 @@ async function listLimitRowsWith(
       serverCalendarDate: schema.battlePlanCaptureEvents.serverCalendarDate,
       territoryType: schema.battlePlanCaptureEvents.territoryType,
       status: schema.battlePlanCaptureEvents.status,
+      eventType: schema.battlePlanCaptureEvents.eventType,
     })
     .from(schema.battlePlanCaptureEvents)
     .where(eq(schema.battlePlanCaptureEvents.allianceId, allianceId));
@@ -154,6 +155,10 @@ async function listLimitRowsWith(
             serverCalendarDate: row.serverCalendarDate,
             territoryType: row.territoryType,
             status: row.status,
+            eventType:
+              row.eventType === "drop"
+                ? ("drop" as const)
+                : ("capture" as const),
           },
         ]
       : [],
@@ -195,17 +200,21 @@ export async function createCaptureEvent(
   const iconPreset = body.iconPreset ?? null;
   const db = getDb();
 
+  const eventType = body.eventType ?? "capture";
+
   return db.transaction(async (tx) => {
     await bumpBattlePlanRevisionWith(tx, allianceId, body.planRevision);
 
-    const limitRows = await listLimitRowsWith(tx, allianceId);
-    const limitError = validateServerDayCaptureLimit({
-      events: limitRows,
-      serverCalendarDate,
-      territoryType: body.territoryType,
-    });
-    if (limitError) {
-      throw new Error(limitError);
+    if (eventType === "capture") {
+      const limitRows = await listLimitRowsWith(tx, allianceId);
+      const limitError = validateServerDayCaptureLimit({
+        events: limitRows,
+        serverCalendarDate,
+        territoryType: body.territoryType,
+      });
+      if (limitError) {
+        throw new Error(limitError);
+      }
     }
 
     await releaseIconPresetFromOtherEvents(tx, allianceId, iconPreset);
@@ -215,6 +224,7 @@ export async function createCaptureEvent(
       .values({
         id: nanoid(),
         allianceId,
+        eventType,
         scheduledAt,
         serverCalendarDate,
         territoryType: body.territoryType,
@@ -222,6 +232,7 @@ export async function createCaptureEvent(
         capturePolicy: body.capturePolicy ?? null,
         notes: body.notes?.trim() || null,
         status: body.status ?? "scheduled",
+        bankId: body.bankId ?? null,
         createdByHqUserId,
       })
       .returning();
@@ -240,18 +251,22 @@ export async function updateCaptureEvent(
   const iconPreset = body.iconPreset ?? null;
   const db = getDb();
 
+  const eventType = body.eventType ?? "capture";
+
   return db.transaction(async (tx) => {
     await bumpBattlePlanRevisionWith(tx, allianceId, body.planRevision);
 
-    const limitRows = await listLimitRowsWith(tx, allianceId);
-    const limitError = validateServerDayCaptureLimit({
-      events: limitRows,
-      serverCalendarDate,
-      territoryType: body.territoryType,
-      excludeEventId: eventId,
-    });
-    if (limitError && (body.status ?? "scheduled") === "scheduled") {
-      throw new Error(limitError);
+    if (eventType === "capture") {
+      const limitRows = await listLimitRowsWith(tx, allianceId);
+      const limitError = validateServerDayCaptureLimit({
+        events: limitRows,
+        serverCalendarDate,
+        territoryType: body.territoryType,
+        excludeEventId: eventId,
+      });
+      if (limitError && (body.status ?? "scheduled") === "scheduled") {
+        throw new Error(limitError);
+      }
     }
 
     await releaseIconPresetFromOtherEvents(
@@ -264,6 +279,7 @@ export async function updateCaptureEvent(
     const updated = await tx
       .update(schema.battlePlanCaptureEvents)
       .set({
+        eventType,
         scheduledAt,
         serverCalendarDate,
         territoryType: body.territoryType,
@@ -271,6 +287,7 @@ export async function updateCaptureEvent(
         capturePolicy: body.capturePolicy ?? null,
         notes: body.notes?.trim() || null,
         status: body.status ?? "scheduled",
+        bankId: body.bankId ?? null,
         updatedAt: new Date(),
       })
       .where(
