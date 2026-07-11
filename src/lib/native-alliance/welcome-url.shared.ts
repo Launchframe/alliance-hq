@@ -48,6 +48,15 @@ export function buildWelcomeInviteUrl(origin: string, token: string): string {
   return `${base}/welcome?${params.toString()}`;
 }
 
+/** Absolute legacy join path for outbound share copy when welcome URLs are unavailable. */
+export function buildJoinCodeRedeemUrl(origin: string, code: string): string {
+  const trimmed = code.trim();
+  return buildAbsoluteAppUrl(
+    origin,
+    `/join?code=${encodeURIComponent(trimmed)}`,
+  );
+}
+
 export function resolveWizardWelcomeUrl(input: {
   origin: string;
   welcomeUrl?: string | null;

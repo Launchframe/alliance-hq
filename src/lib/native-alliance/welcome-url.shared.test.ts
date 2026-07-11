@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  buildJoinCodeRedeemUrl,
   buildWelcomeFallbackUrl,
   buildWelcomeInviteUrl,
   buildWelcomeJoinCodeUrl,
@@ -34,6 +35,12 @@ describe("welcome-url.shared", () => {
     expect(DEFAULT_WELCOME_FALLBACK_PATH).toBe("/dashboard");
     expect(buildWelcomeFallbackUrl("https://hq.example/")).toBe(
       "https://hq.example/dashboard",
+    );
+  });
+
+  it("builds absolute join redeem URL for share copy", () => {
+    expect(buildJoinCodeRedeemUrl("https://hq.example/", "LFGO-A1B2C3")).toBe(
+      "https://hq.example/join?code=LFGO-A1B2C3",
     );
   });
 

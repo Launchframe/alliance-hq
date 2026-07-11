@@ -50,7 +50,9 @@ describe("invite share payload builders", () => {
     });
     expect(payload.welcomeUrl).toBeNull();
     expect(payload.welcomeUrlRequiresAllianceTag).toBe(true);
-    expect(payload.shareMessage).toContain("/join?code=LFGO-A1B2C3");
+    expect(payload.shareMessage).toContain(
+      "https://hq.example/join?code=LFGO-A1B2C3",
+    );
     expect(payload.shareMessage).not.toContain("tag=HQ");
   });
 

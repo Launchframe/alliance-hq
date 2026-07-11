@@ -81,10 +81,12 @@ export function InviteWizardResultStep({
             label={tWizard("shareMessageLabel")}
             message={result.shareMessage}
           />
-          <CopyToClipboardField
-            label={tWizard("welcomeUrlLabel")}
-            value={result.welcomeUrl}
-          />
+          {result.welcomeUrl !== result.inviteUrl ? (
+            <CopyToClipboardField
+              label={tWizard("welcomeUrlLabel")}
+              value={result.welcomeUrl}
+            />
+          ) : null}
           <CopyToClipboardField
             label={t("inviteLinkLabel")}
             value={result.inviteUrl}

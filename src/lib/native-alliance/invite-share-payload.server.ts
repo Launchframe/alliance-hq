@@ -7,6 +7,7 @@ import { extractHqInviteToken } from "@/lib/native-alliance/invite-token-from-in
 import { buildInviteShareMessage } from "@/lib/native-alliance/invite-share-message.server";
 import type { InviteShareVariant } from "@/lib/native-alliance/invite-share-message.server";
 import {
+  buildJoinCodeRedeemUrl,
   buildWelcomeInviteUrl,
   buildWelcomeJoinCodeUrl,
 } from "@/lib/native-alliance/welcome-url.shared";
@@ -50,13 +51,15 @@ export function buildJoinCodeSharePayload(input: {
     input.code,
   );
   const welcomeUrlRequiresAllianceTag = welcomeUrl === null;
+  const shareDestinationUrl =
+    welcomeUrl ?? buildJoinCodeRedeemUrl(input.origin, input.code);
   return {
     welcomeUrl,
     welcomeUrlRequiresAllianceTag,
     shareMessage: buildInviteShareMessage({
       variant: input.variant,
       allianceName: input.allianceName,
-      welcomeUrl,
+      welcomeUrl: shareDestinationUrl,
       joinCode: input.code,
     }),
   };
