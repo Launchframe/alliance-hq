@@ -17,8 +17,23 @@ export function getScoreTargetIdForNavHref(href: string): string | null {
   return getScoreTarget(id)?.enabled ? id : null;
 }
 
-export function buildVideoUploadHref(scoreTargetId: string): string {
-  return `/tools/video-upload?scoreTarget=${encodeURIComponent(scoreTargetId)}`;
+export function buildVideoUploadHref(
+  scoreTargetId: string,
+  options?: { bankId?: string | null },
+): string {
+  const params = new URLSearchParams({ scoreTarget: scoreTargetId });
+  const bankId = options?.bankId?.trim();
+  if (bankId) {
+    params.set("bankId", bankId);
+  }
+  return `/tools/video-upload?${params.toString()}`;
+}
+
+export function parseVideoUploadBankIdParam(
+  value: string | undefined,
+): string | null {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : null;
 }
 
 export function resolveJobScoreTarget(job: {

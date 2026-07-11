@@ -64,6 +64,7 @@ import {
   parsedRowsToRosterReviewRows,
 } from "@/lib/video/roster-video-review.shared";
 import type { AshedMember } from "@/lib/video/member-matcher";
+import { readPreferredDepositSlipBankId } from "@/lib/banks/deposit-slip-upload-context.shared";
 import type { SerializedBank } from "@/lib/banks/types.shared";
 
 type ParsedRow = {
@@ -710,7 +711,17 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
       const data = (await res.json()) as { banks?: SerializedBank[] };
       const list = data.banks ?? [];
       setBanks(list);
-      if (!bankId && list[0]) {
+      if (bankId) return;
+      const preferredId = readPreferredDepositSlipBankId();
+      const preferred =
+        preferredId != null
+          ? list.find((bank) => bank.id === preferredId)
+          : undefined;
+      if (preferred) {
+        setBankId(preferred.id);
+        return;
+      }
+      if (list[0]) {
         setBankId(list[0].id);
       }
     })();

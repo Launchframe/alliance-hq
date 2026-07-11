@@ -1,10 +1,19 @@
 "use client";
 
+import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { Pencil, Plus } from "lucide-react";
+import { Pencil, Plus, Video } from "lucide-react";
 
+import { BANK_DEPOSIT_SLIP_HISTORY_SCORE_TARGET } from "@/lib/banks/deposit-slip-ocr/parse-deposit-slip-text.shared";
 import { activeDeposits } from "@/lib/banks/optimization.shared";
 import type { BankWithSlips } from "@/lib/banks/types.shared";
+import { buildVideoUploadHref } from "@/lib/video/score-target-nav";
+
+function depositSlipUploadHref(bankId: string): string {
+  return buildVideoUploadHref(BANK_DEPOSIT_SLIP_HISTORY_SCORE_TARGET, {
+    bankId,
+  });
+}
 
 type Props = {
   banks: BankWithSlips[];
@@ -107,6 +116,16 @@ export function BankList({
                       </p>
                     ) : null}
                   </button>
+                  {canWrite ? (
+                    <Link
+                      href={depositSlipUploadHref(bank.id)}
+                      aria-label={t("uploadDepositSlip")}
+                      title={t("uploadDepositSlip")}
+                      className="shrink-0 rounded border border-hq-border p-2 text-hq-fg-muted hover:border-hq-accent hover:text-hq-fg"
+                    >
+                      <Video className="h-3.5 w-3.5" aria-hidden />
+                    </Link>
+                  ) : null}
                   {canWrite ? (
                     <button
                       type="button"

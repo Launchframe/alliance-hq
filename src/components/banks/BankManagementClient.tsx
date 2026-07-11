@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 
 import { BankEditorModal } from "@/components/banks/BankEditorModal";
 import { BankList } from "@/components/banks/BankList";
+import { DepositFalloffChart } from "@/components/banks/DepositFalloffChart";
 import { DepositSlipEditorModal } from "@/components/banks/DepositSlipEditorModal";
 import { DepositSlipList } from "@/components/banks/DepositSlipList";
 import { InvestorRiskHeatmap } from "@/components/banks/InvestorRiskHeatmap";
@@ -13,7 +14,7 @@ import { fromDatetimeLocalValue } from "@/components/banks/datetime-local";
 import { Dialog } from "@/components/ui/dialog";
 import type { BankPayload, DepositSlipPayload } from "@/lib/banks/api.shared";
 import { findNextAvailableMarkerPreset } from "@/lib/battle-plan/marker-conflict.shared";
-import { recommendNextDrop } from "@/lib/banks/optimization.shared";
+import { estimateDropSafeAtIso, recommendNextDrop } from "@/lib/banks/optimization.shared";
 import type {
   BankManagementPayload,
   BankWithSlips,
@@ -72,6 +73,13 @@ export function BankManagementClient({ initial }: Props) {
     () => banks.find((bank) => bank.id === selectedBankId) ?? null,
     [banks, selectedBankId],
   );
+
+  const recommendedDropAtIso = useMemo(() => {
+    if (!recommendation || !selectedBank || recommendation.bankId !== selectedBank.id) {
+      return null;
+    }
+    return estimateDropSafeAtIso(recommendation.hoursUntilAllMature);
+  }, [recommendation, selectedBank]);
 
   const applyDashboard = useCallback((dashboard: BankManagementPayload) => {
     setBanks(dashboard.banks);
@@ -338,6 +346,12 @@ export function BankManagementClient({ initial }: Props) {
               cells={heatmaps[selectedBank.id] ?? []}
             />
           ) : null}
+          <DepositFalloffChart
+            bank={selectedBank}
+            banks={banks}
+            recommendedDropAtIso={recommendedDropAtIso}
+            canWrite={canWrite}
+          />
         </div>
       </div>
 

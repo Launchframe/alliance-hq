@@ -20,6 +20,16 @@ describe("score-target-nav", () => {
     );
   });
 
+  it("builds upload URL with optional bankId", () => {
+    expect(
+      buildVideoUploadHref("bank-deposit-slip-history", {
+        bankId: "bank_abc",
+      }),
+    ).toBe(
+      "/tools/video-upload?scoreTarget=bank-deposit-slip-history&bankId=bank_abc",
+    );
+  });
+
   it("parses enabled scoreTarget query values only", () => {
     expect(parseVideoUploadScoreTargetParam("donations")).toBe("donations");
     expect(parseVideoUploadScoreTargetParam("alliance-star")).toBeNull();
