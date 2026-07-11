@@ -1,9 +1,12 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import Link from "next/link";
+import { Pencil, Plus, Trash2, Video } from "lucide-react";
 
+import { BANK_DEPOSIT_SLIP_HISTORY_SCORE_TARGET } from "@/lib/banks/deposit-slip-ocr/parse-deposit-slip-text.shared";
 import type { BankWithSlips, SerializedDepositSlip } from "@/lib/banks/types.shared";
+import { buildVideoUploadHref } from "@/lib/video/score-target-nav";
 
 type Props = {
   bank: BankWithSlips | null;
@@ -58,8 +61,22 @@ export function DepositSlipList({ bank, canWrite, onAdd, onEdit, onDelete }: Pro
       </div>
 
       {slips.length === 0 ? (
-        <div className="rounded-lg border border-hq-border bg-hq-surface p-4 text-sm text-hq-fg-muted">
-          {t("emptyDeposits")}
+        <div className="min-w-0 space-y-3 rounded-lg border border-hq-border bg-hq-surface p-4 text-sm text-hq-fg-muted">
+          <p>{t("emptyDeposits")}</p>
+          {canWrite ? (
+            <>
+              <p className="text-xs text-hq-fg-muted">{t("emptyDepositsHint")}</p>
+              <Link
+                href={buildVideoUploadHref(BANK_DEPOSIT_SLIP_HISTORY_SCORE_TARGET, {
+                  bankId: bank.id,
+                })}
+                className="inline-flex items-center gap-1.5 rounded border border-hq-accent px-3 py-1.5 text-xs font-medium text-hq-accent hover:bg-hq-accent/10"
+              >
+                <Video className="h-3.5 w-3.5" aria-hidden />
+                {t("uploadDepositSlip")}
+              </Link>
+            </>
+          ) : null}
         </div>
       ) : (
         <ul className="space-y-2">

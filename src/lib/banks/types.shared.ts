@@ -75,6 +75,10 @@ export type BankManagementPayload = {
   nextCaptureLevel: number | null;
   /** Prefill for new bank forms from the session alliance. */
   allianceGameServerNumber: number | null;
+  /** From the most recently imported City List screenshot, if any. */
+  bankCapturesRemainingToday: number | null;
+  bankCapturesLimitToday: number | null;
+  bankCityListServerTime: string | null;
 };
 
 /** Deposit falloff projection horizons offered in the chart control. */

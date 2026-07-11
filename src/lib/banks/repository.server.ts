@@ -31,6 +31,130 @@ export async function loadAllianceGameServerNumber(
   return rows[0]?.gameServerNumber ?? null;
 }
 
+export type AllianceBankCityListSnapshot = {
+  bankCapturesRemainingToday: number | null;
+  bankCapturesLimitToday: number | null;
+  bankCityListServerTime: Date | null;
+  bankCityListCapturedCount: number | null;
+  bankCityListCapturedCap: number | null;
+  bankCityListImportedAt: Date | null;
+};
+
+export async function loadAllianceBankCityListSnapshot(
+  allianceId: string,
+): Promise<AllianceBankCityListSnapshot | null> {
+  const rows = await getDb()
+    .select({
+      bankCapturesRemainingToday: schema.alliances.bankCapturesRemainingToday,
+      bankCapturesLimitToday: schema.alliances.bankCapturesLimitToday,
+      bankCityListServerTime: schema.alliances.bankCityListServerTime,
+      bankCityListCapturedCount: schema.alliances.bankCityListCapturedCount,
+      bankCityListCapturedCap: schema.alliances.bankCityListCapturedCap,
+      bankCityListImportedAt: schema.alliances.bankCityListImportedAt,
+    })
+    .from(schema.alliances)
+    .where(eq(schema.alliances.id, allianceId))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+export type CityListBankUpsertInput = {
+  gameServerNumber: number;
+  coordX: number;
+  coordY: number;
+  level: number;
+  currentDepositValue: number | null;
+  currentDepositCount: number | null;
+};
+
+export async function upsertBanksFromCityList(
+  allianceId: string,
+  banks: CityListBankUpsertInput[],
+) {
+  const db = getDb();
+  const results = [];
+
+  for (const bank of banks) {
+    const existing = await db
+      .select()
+      .from(schema.banks)
+      .where(
+        and(
+          eq(schema.banks.allianceId, allianceId),
+          eq(schema.banks.gameServerNumber, bank.gameServerNumber),
+          eq(schema.banks.coordX, bank.coordX),
+          eq(schema.banks.coordY, bank.coordY),
+        ),
+      )
+      .limit(1);
+
+    if (existing[0]) {
+      const updated = await db
+        .update(schema.banks)
+        .set({
+          level: bank.level,
+          currentDepositCount: bank.currentDepositCount,
+          currentDepositValue: bank.currentDepositValue,
+          updatedAt: new Date(),
+        })
+        .where(eq(schema.banks.id, existing[0].id))
+        .returning();
+      results.push(updated[0]!);
+      continue;
+    }
+
+    const inserted = await db
+      .insert(schema.banks)
+      .values({
+        id: nanoid(),
+        allianceId,
+        gameServerNumber: bank.gameServerNumber,
+        coordX: bank.coordX,
+        coordY: bank.coordY,
+        level: bank.level,
+        depositPolicy: null,
+        // City List only shows banks we already hold.
+        priorCaptureCount: 1,
+        currentDepositCount: bank.currentDepositCount,
+        currentDepositValue: bank.currentDepositValue,
+      })
+      .returning();
+    results.push(inserted[0]!);
+  }
+
+  return results;
+}
+
+export async function updateAllianceBankCityListSnapshot(
+  allianceId: string,
+  snapshot: {
+    bankCapturesRemainingToday: number | null;
+    bankCapturesLimitToday: number | null;
+    bankCityListServerTime: Date | null;
+    bankCityListCapturedCount: number | null;
+    bankCityListCapturedCap: number | null;
+  },
+) {
+  const db = getDb();
+  const updated = await db
+    .update(schema.alliances)
+    .set({
+      bankCapturesRemainingToday: snapshot.bankCapturesRemainingToday,
+      bankCapturesLimitToday: snapshot.bankCapturesLimitToday,
+      bankCityListServerTime: snapshot.bankCityListServerTime,
+      bankCityListCapturedCount: snapshot.bankCityListCapturedCount,
+      bankCityListCapturedCap: snapshot.bankCityListCapturedCap,
+      bankCityListImportedAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .where(eq(schema.alliances.id, allianceId))
+    .returning({ id: schema.alliances.id });
+
+  if (updated.length === 0) {
+    throw new Error("Alliance not found.");
+  }
+}
+
 export async function listBanksForAlliance(allianceId: string) {
   return getDb()
     .select()
@@ -77,6 +201,9 @@ export function buildBankManagementPayload(
     effectiveSeasonKey?: string;
     nextCaptureLevel?: number | null;
     allianceGameServerNumber?: number | null;
+    bankCapturesRemainingToday?: number | null;
+    bankCapturesLimitToday?: number | null;
+    bankCityListServerTime?: string | null;
     now?: Date;
   },
 ): BankManagementPayload {
@@ -93,6 +220,9 @@ export function buildBankManagementPayload(
     effectiveSeasonKey: options.effectiveSeasonKey,
     nextCaptureLevel,
     allianceGameServerNumber: options.allianceGameServerNumber ?? null,
+    bankCapturesRemainingToday: options.bankCapturesRemainingToday ?? null,
+    bankCapturesLimitToday: options.bankCapturesLimitToday ?? null,
+    bankCityListServerTime: options.bankCityListServerTime ?? null,
   };
 }
 

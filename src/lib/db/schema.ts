@@ -105,6 +105,22 @@ export const alliances = pgTable("alliances", {
     .default("officer"),
   /** Minimum active Engineers per WL team before that WL is considered "covered". Officers may adjust. */
   wlMinEngsPerTeam: integer("wl_min_engs_per_team").notNull().default(2),
+  /** From City List OCR: Bank Stronghold captures left today (remaining). */
+  bankCapturesRemainingToday: integer("bank_captures_remaining_today"),
+  /** From City List OCR: daily capture limit (denominator). */
+  bankCapturesLimitToday: integer("bank_captures_limit_today"),
+  /** Server Time footer from the last imported City List screenshot. */
+  bankCityListServerTime: timestamp("bank_city_list_server_time", {
+    withTimezone: true,
+  }),
+  /** Bank Strongholds captured: N from last City List import. */
+  bankCityListCapturedCount: integer("bank_city_list_captured_count"),
+  /** Bank Strongholds captured: M (slot cap) from last City List import. */
+  bankCityListCapturedCap: integer("bank_city_list_captured_cap"),
+  /** When the alliance last imported a City List Bank Stronghold screenshot. */
+  bankCityListImportedAt: timestamp("bank_city_list_imported_at", {
+    withTimezone: true,
+  }),
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
     .notNull(),

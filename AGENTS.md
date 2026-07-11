@@ -75,7 +75,7 @@ Alliance HQ models **in-game** alliance mechanics (trains, VS weeks, R1–R5 ran
 - Train conductor mutations require **`trains:write`** (owner/maintainer/officer — not `data_entry`).
 - **Game season** — owner override → Monday cpt-hedge cron → age fallback (caps S4) → default `"1"`; see [`.cursor/rules/trains.mdc`](.cursor/rules/trains.mdc).
 - Full terminology and train rules: [`.cursor/rules/trains.mdc`](.cursor/rules/trains.mdc) (ranks + server time: [`.cursor/rules/alliance-affairs.mdc`](.cursor/rules/alliance-affairs.mdc)).
-- **Season 5 Bank Strongholds** — deposit lifecycle (blue initiate / green mature / orange loot), OCR pairing, and synthetic blues: [`.cursor/rules/season-5-bank-deposits.mdc`](.cursor/rules/season-5-bank-deposits.mdc).
+- **Season 5 Bank Strongholds** — ownership lifecycle (Looting → Investible; wild vs alliance via `priorCaptureCount`), deposit pairing (blue/green/orange + synthetics), City List OCR upsert, and drop optimization: [`.cursor/rules/season-5-bank-deposits.mdc`](.cursor/rules/season-5-bank-deposits.mdc).
 
 ## Discord bot: multi-tenant architecture
 
