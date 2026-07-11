@@ -13,7 +13,9 @@
  *    traineddata files (tesseract.js v7+).
  */
 
+import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
+import path from "node:path";
 
 import { createWorker, type Worker } from "tesseract.js";
 
@@ -27,8 +29,41 @@ let workerInitPromise: Promise<Worker> | null = null;
 /** Serialize recognize() — tesseract.js workers are not safe for concurrent use. */
 let recognizeChain: Promise<unknown> = Promise.resolve();
 
-function resolveTesseractWorkerPath(): string {
-  return require.resolve("tesseract.js/src/worker-script/node/index.js");
+/**
+ * Absolute filesystem path to the Node worker entry.
+ *
+ * Never `require.resolve` the worker script itself: Turbopack rewrites that call
+ * to a numeric module id, and `worker_threads.Worker(18409)` throws
+ * ERR_INVALID_ARG_TYPE ("filename" must be string | URL).
+ */
+export function resolveTesseractWorkerPath(): string {
+  const candidates: string[] = [
+    path.join(
+      process.cwd(),
+      "node_modules/tesseract.js/src/worker-script/node/index.js",
+    ),
+  ];
+
+  try {
+    const pkgJson = require.resolve("tesseract.js/package.json");
+    if (typeof pkgJson === "string") {
+      candidates.unshift(
+        path.join(path.dirname(pkgJson), "src/worker-script/node/index.js"),
+      );
+    }
+  } catch {
+    // Fall through to cwd candidate (Vercel NFT / local install layouts).
+  }
+
+  for (const workerPath of candidates) {
+    if (existsSync(workerPath)) {
+      return workerPath;
+    }
+  }
+
+  throw new Error(
+    `tesseract worker script missing (tried: ${candidates.join(", ")})`,
+  );
 }
 
 /** Optional worker options — only set langPath when explicitly configured. */
@@ -37,12 +72,19 @@ export function buildTesseractWorkerOptions(): {
   langPath?: string;
   logger?: typeof console.log;
 } {
+  const workerPath = resolveTesseractWorkerPath();
+  if (typeof workerPath !== "string") {
+    throw new Error(
+      `tesseract workerPath must be a filesystem string (got ${typeof workerPath})`,
+    );
+  }
+
   const options: {
     workerPath: string;
     langPath?: string;
     logger?: typeof console.log;
   } = {
-    workerPath: resolveTesseractWorkerPath(),
+    workerPath,
     logger: process.env.NODE_ENV === "development" ? console.log : undefined,
   };
 
