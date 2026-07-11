@@ -125,20 +125,28 @@ describe("dispatchVideoJobRemote", () => {
   });
 
   it("maps worker JSON payload into a result", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => ({
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({
         ok: true,
-        status: 200,
-        json: async () => ({
-          ok: true,
-          processed: true,
-          status: "review",
-        }),
-      })),
-    );
+        processed: true,
+        status: "review",
+      }),
+    }));
+    vi.stubGlobal("fetch", fetchMock);
 
     const result = await dispatchVideoJobRemote("job-1", { source: "cron" });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://worker.example/api/internal/video-process/job-1",
+      expect.objectContaining({
+        method: "POST",
+        headers: {
+          authorization: "Bearer test-secret",
+          "x-video-worker": "1",
+        },
+      }),
+    );
     expect(result).toMatchObject({
       ok: true,
       processed: true,
