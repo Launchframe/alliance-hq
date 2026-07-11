@@ -70,7 +70,11 @@ export async function fetchVsScoresByRecordedDate(
   for (const row of rows) {
     const memberId = memberIdFromRow(row);
     if (!memberId) continue;
-    scores.set(memberId, scoreValue(row));
+    const score = scoreValue(row);
+    const previous = scores.get(memberId);
+    if (previous == null || score > previous) {
+      scores.set(memberId, score);
+    }
   }
   return scores;
 }
