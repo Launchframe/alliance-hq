@@ -252,11 +252,12 @@ export function applyOptimisticPaint(
   snap: TrainsDashboardSnapshot,
   dates: string[],
   templateType: WeekTemplateType,
+  options?: { updateWeekTemplate?: boolean },
 ): TrainsDashboardSnapshot {
   const trainWeekConfig = allianceTrainWeekFromRow({
     trainWeekStartDow: snap.data.trainWeekStartDow,
   });
-  return {
+  let next: TrainsDashboardSnapshot = {
     data: {
       ...snap.data,
       dayConfigs: patchDayConfigsForDates(
@@ -285,6 +286,44 @@ export function applyOptimisticPaint(
       ),
     },
   };
+
+  if (!options?.updateWeekTemplate) {
+    return next;
+  }
+
+  const touchesViewedWeek = dates.some(
+    (date) =>
+      date >= next.viewedWeek.weekStart && date <= next.viewedWeek.weekEnd,
+  );
+  if (touchesViewedWeek) {
+    next = {
+      ...next,
+      viewedWeek: { ...next.viewedWeek, templateType },
+    };
+  }
+
+  if (
+    dates.some(
+      (date) => date >= next.data.weekStart && date <= next.data.weekEnd,
+    )
+  ) {
+    next = {
+      ...next,
+      data: {
+        ...next.data,
+        schedule: next.data.schedule
+          ? { ...next.data.schedule, templateType }
+          : {
+              id: "optimistic-schedule",
+              weekStart: next.data.weekStart,
+              templateType,
+              isPivot: false,
+            },
+      },
+    };
+  }
+
+  return next;
 }
 
 export function applyOptimisticWeekTemplate(

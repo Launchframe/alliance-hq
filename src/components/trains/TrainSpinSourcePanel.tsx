@@ -80,7 +80,8 @@ function SpinSourceRow({
                   total: poolSummary.total,
                   generation: poolSummary.generation,
                 })}
-            {poolSummary.nextInSequence ? (
+            {poolSummary.nextInSequence &&
+            source.poolType === "r4_plus" ? (
               <span className="mt-0.5 block text-[#c9d1d9]">
                 {t("nextInSequence", {
                   name: poolSummary.nextInSequence.memberName,

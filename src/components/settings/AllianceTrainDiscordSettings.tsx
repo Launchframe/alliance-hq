@@ -4,20 +4,27 @@ import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 
+import { DiscordTrainChannelSetupLinks } from "@/components/settings/DiscordTrainChannelSetupLinks";
 import { allianceTrainDiscordApiPath } from "@/lib/alliance/alliance-settings-path.shared";
+import type { TrainDiscordGuildLink } from "@/lib/trains/train-discord-settings.shared";
 
 type Props = {
   allianceTag: string;
+  installConfigured: boolean;
 };
 
 type Payload = {
   announcementsEnabled: boolean;
   guildChannelCount: number;
+  guilds: TrainDiscordGuildLink[];
   canManage: boolean;
   error?: string;
 };
 
-export function AllianceTrainDiscordSettings({ allianceTag }: Props) {
+export function AllianceTrainDiscordSettings({
+  allianceTag,
+  installConfigured,
+}: Props) {
   const t = useTranslations("settings.trainDiscord");
   const [settings, setSettings] = useState<Payload | null>(null);
   const [busy, setBusy] = useState(false);
@@ -110,6 +117,13 @@ export function AllianceTrainDiscordSettings({ allianceTag }: Props) {
               ? t("channelsConfigured", { count: display.guildChannelCount })
               : t("noChannel")}
           </p>
+          <DiscordTrainChannelSetupLinks
+            allianceTag={allianceTag}
+            guilds={display.guilds}
+            registeredGuildCount={display.guilds.length}
+            installConfigured={installConfigured}
+            canManage={display.canManage}
+          />
           {!display.canManage ? (
             <p className="text-xs text-hq-fg-muted">{t("readOnlyHint")}</p>
           ) : null}

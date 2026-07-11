@@ -3,7 +3,7 @@ import "server-only";
 import { eq } from "drizzle-orm";
 
 import { getDb, schema } from "@/lib/db";
-import { fetchHqSeasonVsScoresByMember } from "@/lib/trains/native-scores.server";
+import { fetchAlliancePriorDayVsScoresByMember } from "@/lib/trains/vs-scores.server";
 import type { RollCandidate } from "@/lib/trains/types";
 import {
   buildPriceIsRightTicketBoard,
@@ -12,6 +12,7 @@ import {
   priceIsRightWeightingActive,
   resolveCliffPoints,
   type PriceIsRightTicketBoardEntry,
+  type PriceIsRightMissedFloorEntry,
   type PriceIsRightTicketSettings,
 } from "@/lib/trains/train-price-is-right-tickets.shared";
 import {
@@ -171,7 +172,11 @@ export async function filterPoolByEconomyThreshold(input: {
   }
 
   const threshold = settings.thresholdPoints!;
-  const vsScores = await fetchHqSeasonVsScoresByMember(input.allianceId);
+  const scoreDate = vsScoreReferenceDate(input.trainDate);
+  const vsScores = await fetchAlliancePriorDayVsScoresByMember(
+    input.allianceId,
+    scoreDate,
+  );
 
   return input.candidates.filter((candidate) =>
     isVsScoreEconomyEligible(
@@ -191,15 +196,19 @@ export async function buildPriceIsRightWeightedCandidates(input: {
 }): Promise<{
   candidates: RollCandidate[];
   board: PriceIsRightTicketBoardEntry[];
+  missedFloor: PriceIsRightMissedFloorEntry[];
   scoreDate: string;
 }> {
   const settings =
     input.settings ??
     (await loadPriceIsRightTicketSettings(input.allianceId));
   const scoreDate = vsScoreReferenceDate(input.trainDate);
-  const vsScores = await fetchHqSeasonVsScoresByMember(input.allianceId);
+  const vsScores = await fetchAlliancePriorDayVsScoresByMember(
+    input.allianceId,
+    scoreDate,
+  );
 
-  const board = buildPriceIsRightTicketBoard(
+  const { board, missedFloor } = buildPriceIsRightTicketBoard(
     input.candidates,
     vsScores,
     settings,
@@ -219,5 +228,5 @@ export async function buildPriceIsRightWeightedCandidates(input: {
     ];
   });
 
-  return { candidates, board, scoreDate };
+  return { candidates, board, missedFloor, scoreDate };
 }

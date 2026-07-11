@@ -4,12 +4,14 @@ import { redirect } from "@/i18n/navigation";
 
 import { Link } from "@/i18n/navigation";
 import { AllianceDiscordServerSetup } from "@/components/settings/AllianceDiscordServerSetup";
+import { DiscordTrainChannelSetupLinks } from "@/components/settings/DiscordTrainChannelSetupLinks";
 import { AllianceContextRequired } from "@/components/settings/AllianceContextRequired";
 import { isDiscordBotInstallConfigured } from "@/lib/discord/bot-install-url.server";
 import { getDb, schema } from "@/lib/db";
 import { sessionHasPermissionForAlliance } from "@/lib/rbac/context";
 import { requireAllianceSettingsSession } from "@/lib/settings/alliance-settings-access.server";
 import { countRegisteredGuildsForAlliance } from "@/lib/vr/repository";
+import { loadTrainDiscordSettings } from "@/lib/trains/train-discord-settings.server";
 import { requirePageSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -51,13 +53,15 @@ export default async function SettingsDiscordPage({
     throw new Error("Alliance tag required.");
   }
 
-  const [registeredGuildCount, canManageDiscordSetup] = await Promise.all([
+  const [registeredGuildCount, canManageDiscordSetup, trainDiscordSettings] =
+    await Promise.all([
       countRegisteredGuildsForAlliance(access.allianceId),
       sessionHasPermissionForAlliance(
         access.session.id,
         access.allianceId,
         "trains:write",
       ),
+      loadTrainDiscordSettings(access.allianceId, true),
     ]);
 
   return (
@@ -78,6 +82,22 @@ export default async function SettingsDiscordPage({
         registeredGuildCount={registeredGuildCount}
         canManage={canManageDiscordSetup}
       />
+
+      {canManageDiscordSetup ? (
+        <section className="rounded-xl border border-hq-border bg-hq-surface p-5">
+          <h2 className="font-medium">{t("trainChannelTitle")}</h2>
+          <p className="mt-2 text-sm text-hq-fg-muted">{t("trainChannelBody")}</p>
+          <div className="mt-4">
+            <DiscordTrainChannelSetupLinks
+              allianceTag={allianceTag}
+              guilds={trainDiscordSettings.guilds}
+              registeredGuildCount={registeredGuildCount}
+              installConfigured={isDiscordBotInstallConfigured()}
+              canManage={canManageDiscordSetup}
+            />
+          </div>
+        </section>
+      ) : null}
     </div>
   );
 }

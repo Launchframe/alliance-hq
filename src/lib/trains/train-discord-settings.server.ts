@@ -2,13 +2,18 @@ import "server-only";
 
 import {
   getAllianceTrainDiscordAnnouncementsEnabled,
+  listAllianceDiscordGuildTrainSetup,
   listGuildTrainChannelsForAlliance,
   setAllianceTrainDiscordAnnouncementsEnabled,
 } from "@/lib/vr/repository";
+import type { TrainDiscordGuildLink } from "@/lib/trains/train-discord-settings.shared";
+
+export type { TrainDiscordGuildLink };
 
 export type TrainDiscordSettings = {
   announcementsEnabled: boolean;
   guildChannelCount: number;
+  guilds: TrainDiscordGuildLink[];
   canManage: boolean;
 };
 
@@ -16,13 +21,15 @@ export async function loadTrainDiscordSettings(
   allianceId: string,
   canManage: boolean,
 ): Promise<TrainDiscordSettings> {
-  const [announcementsEnabled, channels] = await Promise.all([
+  const [announcementsEnabled, channels, guilds] = await Promise.all([
     getAllianceTrainDiscordAnnouncementsEnabled(allianceId),
     listGuildTrainChannelsForAlliance(allianceId),
+    listAllianceDiscordGuildTrainSetup(allianceId),
   ]);
   return {
     announcementsEnabled,
     guildChannelCount: channels.length,
+    guilds,
     canManage,
   };
 }

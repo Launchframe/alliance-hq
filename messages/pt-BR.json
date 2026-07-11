@@ -1820,7 +1820,9 @@
     "backToAllianceSettings": "Configurações da aliança",
     "discord": {
       "title": "Integração com Discord",
-      "subtitle": "Instalação do bot e registro do servidor para {tag}."
+      "subtitle": "Instalação do bot e registro do servidor para {tag}.",
+      "trainChannelTitle": "Canal de anúncios do trem",
+      "trainChannelBody": "Escolha onde os pódios Price Is Freight e os anúncios de condutor travado aparecem no Discord."
     },
     "trains": {
       "title": "Trens",
@@ -1966,15 +1968,35 @@
     },
     "trainDiscord": {
       "title": "Anúncios de trem no Discord",
-      "description": "Quando ativado, travar o condutor pode publicar no canal do trem. O dono deve executar /set-train-channel no Discord primeiro.",
+      "description": "Quando ativado, travar o condutor e os pódios diários Price Is Freight podem publicar no canal do trem no Discord.",
       "guideLink": "Leia o guia do operador",
       "loading": "Carregando…",
       "loadFailed": "Não foi possível carregar as configurações do Discord.",
       "saveFailed": "Não foi possível salvar as configurações do Discord.",
       "enableAnnouncements": "Publicar anúncios de trem no Discord",
       "channelsConfigured": "{count, plural, one {# servidor Discord com canal do trem} other {# servidores Discord com canal do trem}}",
-      "noChannel": "Nenhum canal do trem configurado. Dono: execute /set-train-channel no Discord.",
-      "readOnlyHint": "Somente oficiais do trem podem alterar esta opção."
+      "noChannel": "Nenhum canal do trem configurado. Use o fluxo de configuração abaixo.",
+      "readOnlyHint": "Somente oficiais do trem podem alterar esta opção.",
+      "channelSetup": {
+        "title": "Definir canal de anúncios do trem",
+        "body": "Abra seu servidor Discord, escolha o canal onde os posts do trem devem aparecer e execute o comando abaixo nesse canal.",
+        "noGuild": "Registre um servidor Discord na sua aliança primeiro.",
+        "installBot": "Adicionar o bot a um servidor Discord",
+        "guildLabel": "Servidor …{id}",
+        "channelReady": "Canal do trem configurado",
+        "channelMissing": "Execute /set-train-channel no canal escolhido",
+        "openDiscord": "Abrir no Discord",
+        "setupFlow": "Configuração passo a passo",
+        "guideLink": "Guia do operador",
+        "pageTitle": "Definir canal do trem",
+        "pageBody": "Configure onde os anúncios de trem de **{tag}** (condutor travado + pódio Price Is Freight) são publicados no Discord.",
+        "missingTag": "Escolha uma aliança na página de configurações de trem primeiro.",
+        "backToTrains": "Voltar às configurações de trem",
+        "stepOpenDiscord": "Abra seu servidor Discord registrado usando o link abaixo.",
+        "stepPickChannel": "Vá ao canal onde os membros devem ver os anúncios do trem.",
+        "stepRunCommand": "Execute este comando no canal:",
+        "stepEnableAnnouncements": "No Alliance HQ → Configurações → Trens, ative os anúncios de trem no Discord."
+      }
     },
     "vrSandbox": {
       "title": "Modo sandbox de VR",
@@ -3110,6 +3132,17 @@
       "loadFailed": "Não foi possível carregar os tickets de rifa.",
       "noScore": "—",
       "hero": "Você tem {count} tickets de rifa para a roleta de hoje (com base no VS de {dayOfWeek}: {score})",
+      "leaderboard": {
+        "title": "Mais perto de 7,2M",
+        "subtitle": "VS R3 do dia anterior em {day} — classificação pela menor distância acima de 7,2M.",
+        "loading": "Carregando pódio VS…",
+        "loadFailed": "Não foi possível carregar o pódio VS.",
+        "podiumAria": "Três melhores VS do dia anterior mais próximos de 7,2M",
+        "podium": {
+          "empty": "Sem pontuação ainda",
+          "rankScore": "#{rank} · {score}"
+        }
+      },
       "chart": {
         "yToggleLabel": "Eixo Y do gráfico",
         "yTickets": "Tickets",
@@ -3127,6 +3160,12 @@
         "rowMeta": "VS {score} · {probability} de chance",
         "expand": "Mostrar pool completo",
         "collapse": "Mostrar menos linhas"
+      },
+      "missedFloor": {
+        "title": "Membros que não passaram",
+        "subtitle": "Comandantes R3 abaixo de 7,2M no VS do dia anterior — sem elegibilidade na rifa de hoje.",
+        "member": "Comandante",
+        "vs": "VS do dia anterior"
       }
     },
     "conductorHistory": {
@@ -3192,7 +3231,8 @@
     },
     "templatesShort": {
       "vs_push_weekdays": "Push VS",
-      "r4_event_vip": "R4 e VIP evento"
+      "r4_event_vip": "R4 e VIP evento",
+      "price_is_right": "Mais perto de 7,2M"
     },
     "templateDetails": {
       "vs_push_week": "Condutor: ter e sex = VS #1 do dia anterior (automático); qua, qui e sáb = sorteio aleatório entre o top 10 de VS; dom–seg = rodízio de oficiais R4+. VIP: condutor escolhe o VIP nos dias de VS; loteria top 10 de evento dom–seg.",

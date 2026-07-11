@@ -630,7 +630,11 @@ export async function applyTemplateToDates(
   allianceId: string,
   dates: string[],
   templateType: WeekTemplateType,
-  options?: { platformAdminPastOverride?: boolean },
+  options?: {
+    platformAdminPastOverride?: boolean;
+    /** When true, persist the week schedule's templateType (week template dropdown). */
+    updateWeekTemplate?: boolean;
+  },
 ): Promise<void> {
   if (dates.length === 0) return;
 
@@ -673,6 +677,18 @@ export async function applyTemplateToDates(
   }
 
   for (const weekStart of weekStarts) {
+    if (options?.updateWeekTemplate) {
+      const schedule = await getWeekSchedule(allianceId, weekStart, seasonKey);
+      if (schedule) {
+        await upsertWeekSchedule({
+          allianceId,
+          weekStart,
+          templateType,
+          seasonKey,
+          isPivot: schedule.isPivot === 1,
+        });
+      }
+    }
     await recomputeWeekPivotFlag(allianceId, weekStart);
   }
 }

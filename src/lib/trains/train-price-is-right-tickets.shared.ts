@@ -26,6 +26,18 @@ export type PriceIsRightTicketBoardEntry = {
   isViewer?: boolean;
 };
 
+export type PriceIsRightMissedFloorEntry = {
+  memberId: string;
+  memberName: string;
+  priorDayVsScore: number;
+  isViewer?: boolean;
+};
+
+export type PriceIsRightTicketBoardResult = {
+  board: PriceIsRightTicketBoardEntry[];
+  missedFloor: PriceIsRightMissedFloorEntry[];
+};
+
 export type PriceIsRightChartPoint = {
   score: number;
   tickets: number;
@@ -118,7 +130,7 @@ export function buildPriceIsRightTicketBoard(
   vsScores: Map<string, number>,
   settings: PriceIsRightTicketSettings,
   viewerMemberId?: string | null,
-): PriceIsRightTicketBoardEntry[] {
+): PriceIsRightTicketBoardResult {
   const entries = candidates.map((candidate) => {
     const priorDayVsScore = vsScores.get(candidate.memberId) ?? 0;
     const isTakedownOverride = settings.maxTicketMemberIds.includes(
@@ -140,13 +152,40 @@ export function buildPriceIsRightTicketBoard(
     };
   });
 
-  const eligible = entries.filter((entry) => entry.ticketCount > 0);
-  const totalTickets = eligible.reduce((sum, entry) => sum + entry.ticketCount, 0);
-  return eligible
+  const missedFloor = entries
+    .filter(
+      (entry) =>
+        entry.priorDayVsScore > 0 &&
+        entry.priorDayVsScore < PRICE_IS_RIGHT_MIN_VS_SCORE,
+    )
+    .map(({ memberId, memberName, priorDayVsScore, isViewer }) => ({
+      memberId,
+      memberName,
+      priorDayVsScore,
+      isViewer,
+    }))
+    .sort((a, b) => {
+      if (b.priorDayVsScore !== a.priorDayVsScore) {
+        return b.priorDayVsScore - a.priorDayVsScore;
+      }
+      return a.memberName.localeCompare(b.memberName);
+    });
+
+  const atOrAboveFloor = entries.filter(
+    (entry) => entry.priorDayVsScore >= PRICE_IS_RIGHT_MIN_VS_SCORE,
+  );
+  const ticketPool = atOrAboveFloor.filter((entry) => entry.ticketCount > 0);
+  const totalTickets = ticketPool.reduce(
+    (sum, entry) => sum + entry.ticketCount,
+    0,
+  );
+  const board = atOrAboveFloor
     .map((entry) => ({
       ...entry,
       winProbability:
-        totalTickets > 0 ? entry.ticketCount / totalTickets : 0,
+        entry.ticketCount > 0 && totalTickets > 0
+          ? entry.ticketCount / totalTickets
+          : 0,
     }))
     .sort((a, b) => {
       if (b.ticketCount !== a.ticketCount) {
@@ -154,6 +193,8 @@ export function buildPriceIsRightTicketBoard(
       }
       return a.memberName.localeCompare(b.memberName);
     });
+
+  return { board, missedFloor };
 }
 
 export function computeWinProbabilities(

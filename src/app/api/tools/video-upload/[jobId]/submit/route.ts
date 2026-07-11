@@ -34,6 +34,7 @@ import {
 } from "@/lib/feedback/solicited-eligibility";
 import { dispatchScoreSubmit } from "@/lib/video/submit-dispatch";
 import { notifyEurVideoEvidence } from "@/lib/eur/satisfaction";
+import { announcePriceIsRightLeaderboardAfterVsUpload } from "@/lib/trains/price-is-right-leaderboard-discord.server";
 import { buildAshedEventProvisionBody } from "@/lib/video/ashed-event-provision";
 import {
   buildSubmitPayloads,
@@ -636,6 +637,15 @@ export async function POST(request: Request, { params }: Props) {
     }
 
     void notifyEurVideoEvidence(allianceId).catch(() => {});
+
+    if (scoreTargetId === "vs-performance" && allianceId && submitContext.recordedDate) {
+      void announcePriceIsRightLeaderboardAfterVsUpload({
+        allianceId,
+        vsRecordedDate: submitContext.recordedDate,
+      }).catch((error) => {
+        console.error("[train-pir-leaderboard] post-submit announce failed", error);
+      });
+    }
 
     return NextResponse.json({
       ok: true,

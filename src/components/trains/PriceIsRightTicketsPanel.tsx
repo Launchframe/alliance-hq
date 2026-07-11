@@ -22,8 +22,15 @@ type TicketBoardPayload = {
     ticketCount: number;
     priorDayVsScore: number | null;
     winProbability: number;
+    missedFloor?: boolean;
   } | null;
   board: PriceIsRightTicketBoardEntry[];
+  missedFloor: Array<{
+    memberId: string;
+    memberName: string;
+    priorDayVsScore: number;
+    isViewer?: boolean;
+  }>;
 };
 
 type Props = {
@@ -259,6 +266,49 @@ export function PriceIsRightTicketsPanel({ trainDate }: Props) {
           </button>
         ) : null}
       </div>
+
+      {payload.missedFloor.length > 0 ? (
+        <div className="mt-6 border-t border-cyan-500/20 pt-5">
+          <div className="flex flex-col gap-1">
+            <h4 className="text-sm font-semibold text-hq-fg">
+              {t("missedFloor.title")}
+            </h4>
+            <p className="text-xs text-hq-fg-muted">{t("missedFloor.subtitle")}</p>
+          </div>
+          <div
+            className="mt-3 overflow-x-auto rounded-lg border border-hq-border"
+            data-testid="price-is-right-missed-floor"
+          >
+            <table className="min-w-full text-left text-sm">
+              <thead className="bg-hq-canvas/80 text-xs uppercase tracking-wide text-hq-fg-muted">
+                <tr>
+                  <th className="px-3 py-2 font-medium">
+                    {t("missedFloor.member")}
+                  </th>
+                  <th className="px-3 py-2 font-medium">{t("missedFloor.vs")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {payload.missedFloor.map((row) => (
+                  <tr
+                    key={row.memberId}
+                    className={`border-t border-hq-border/60 ${
+                      row.isViewer ? "bg-amber-500/10" : ""
+                    }`}
+                  >
+                    <td className="px-3 py-2 font-medium text-hq-fg">
+                      {row.memberName}
+                    </td>
+                    <td className="px-3 py-2 text-hq-fg-muted">
+                      {formatPriceIsRightVsScore(row.priorDayVsScore)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }

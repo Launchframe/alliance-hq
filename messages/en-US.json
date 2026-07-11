@@ -1879,7 +1879,9 @@
     "backToAllianceSettings": "Alliance settings",
     "discord": {
       "title": "Discord integration",
-      "subtitle": "Bot install and server registration for {tag}."
+      "subtitle": "Bot install and server registration for {tag}.",
+      "trainChannelTitle": "Train announcement channel",
+      "trainChannelBody": "Choose where Price Is Freight podium posts and conductor lock announcements appear in Discord."
     },
     "trains": {
       "title": "Trains",
@@ -2052,15 +2054,35 @@
     },
     "trainDiscord": {
       "title": "Discord train announcements",
-      "description": "When enabled, locking a conductor can post to your Discord train channel. The owner must run /set-train-channel in Discord first.",
+      "description": "When enabled, locking a conductor and daily Price Is Freight leaderboards can post to your Discord train channel.",
       "guideLink": "Read the operator guide",
       "loading": "Loading…",
       "loadFailed": "Could not load Discord train settings.",
       "saveFailed": "Could not save Discord train settings.",
       "enableAnnouncements": "Post train announcements to Discord",
       "channelsConfigured": "{count, plural, one {# registered Discord server has a train channel} other {# registered Discord servers have train channels}}",
-      "noChannel": "No train channel configured yet. Owner: run /set-train-channel in Discord.",
-      "readOnlyHint": "Only train officers can change this setting."
+      "noChannel": "No train channel configured yet. Use the setup flow below.",
+      "readOnlyHint": "Only train officers can change this setting.",
+      "channelSetup": {
+        "title": "Set train announcement channel",
+        "body": "Open your Discord server, pick the channel where train posts should appear, then run the slash command below in that channel.",
+        "noGuild": "Register a Discord server to your alliance first.",
+        "installBot": "Add the bot to a Discord server",
+        "guildLabel": "Server …{id}",
+        "channelReady": "Train channel configured",
+        "channelMissing": "Run /set-train-channel in your chosen channel",
+        "openDiscord": "Open in Discord",
+        "setupFlow": "Step-by-step setup",
+        "guideLink": "Operator guide",
+        "pageTitle": "Set your train channel",
+        "pageBody": "Configure where **{tag}** train announcements (conductor lock + Price Is Freight podium) are posted in Discord.",
+        "missingTag": "Choose an alliance on the trains settings page first.",
+        "backToTrains": "Back to train settings",
+        "stepOpenDiscord": "Open your registered Discord server using the link below.",
+        "stepPickChannel": "Go to the channel where members should see train announcements.",
+        "stepRunCommand": "Run this slash command in that channel:",
+        "stepEnableAnnouncements": "In Alliance HQ → Settings → Trains, enable Discord train announcements."
+      }
     },
     "vrSandbox": {
       "title": "VR sandbox mode",
@@ -3165,6 +3187,17 @@
       "loadFailed": "Could not load raffle tickets.",
       "noScore": "—",
       "hero": "You have {count} raffle tickets for today's conductor wheel (based on {dayOfWeek}'s VS: {score})",
+      "leaderboard": {
+        "title": "Closest to 7.2M",
+        "subtitle": "R3 prior-day VS from {day} — ranked nearest 7.2M from above.",
+        "loading": "Loading VS podium…",
+        "loadFailed": "Could not load the VS podium.",
+        "podiumAria": "Top three prior-day VS scores closest to 7.2M",
+        "podium": {
+          "empty": "No score yet",
+          "rankScore": "#{rank} · {score}"
+        }
+      },
       "chart": {
         "yToggleLabel": "Chart Y axis",
         "yTickets": "Tickets",
@@ -3182,6 +3215,12 @@
         "rowMeta": "VS {score} · {probability} chance",
         "expand": "Show full raffle pool",
         "collapse": "Show fewer rows"
+      },
+      "missedFloor": {
+        "title": "Members didn't make it",
+        "subtitle": "R3 commanders below 7.2M on the prior VS day — not eligible for today's raffle.",
+        "member": "Commander",
+        "vs": "Prior-day VS"
       }
     },
     "conductorHistory": {
@@ -3247,7 +3286,8 @@
     },
     "templatesShort": {
       "vs_push_weekdays": "VS Push",
-      "r4_event_vip": "R4 & Event VIP"
+      "r4_event_vip": "R4 & Event VIP",
+      "price_is_right": "Closest to 7.2M"
     },
     "templateDetails": {
       "vs_push_week": "Conductor: Tue and Fri = prior-day VS #1 (auto); Wed, Thu, and Sat = random draw from VS top 10; Sun–Mon = R4+ officer rotation. VIP: Conductor picks VIP on VS weekdays; event top-10 lottery Sun–Mon.",
