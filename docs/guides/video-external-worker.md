@@ -6,8 +6,8 @@ Alliance HQ can split **video OCR processing** onto a long-running host while ke
 | --- | --- |
 | **0** — CI function-trace budgets | Shipped |
 | **1** — Drop ffprobe, narrow tesseract LSTM tracing | Shipped (#222) |
-| **2a** — Slim Vercel queue cron (this doc) | Queue always HTTP-dispatches; no OCR NFT on cron |
-| **2b** — Dedicated worker host (Fly/Railway/Docker) | Not shipped — example URLs only |
+| **2a** — Slim Vercel queue cron | Queue always HTTP-dispatches; no OCR NFT on cron (#255) |
+| **2b** — Dedicated worker host | **Shipped in-repo** — `deploy/video-worker/` (Docker + Fly config) |
 
 Discord `/thp` and web My THP screenshot OCR stay on Vercel (out of Phase 2 video-worker scope).
 
@@ -20,60 +20,76 @@ flowchart LR
   cron[Vercel Cron queue] --> queueRoute["GET /api/internal/video-process/queue"]
   queueRoute -->|HTTP always| jobRoute
   jobRoute --> pipeline[process-job: ffmpeg + sharp + tesseract]
+  jobRoute --> archive["POST /api/internal/video-archive/:jobId"]
 ```
 
 | Surface | Role |
 | --- | --- |
-| `POST /api/internal/video-process/[jobId]` | Runs the full pipeline (`process-job`). **Fat** OCR endpoint. |
-| `GET /api/internal/video-process/queue` | Pulls one `queued` job and **always** POSTs to `[jobId]` (same origin or `VIDEO_WORKER_BASE_URL`). Never imports `process-job` — slim NFT. |
-| `scripts/workers/video-processor.mjs` | Optional long-running **DB poller** that POSTs the same `[jobId]` route (not a standalone OCR runtime). |
+| `POST /api/internal/video-process/[jobId]` | Full pipeline (`process-job`). **Fat** OCR endpoint — run on worker when split. |
+| `POST /api/internal/video-archive/[jobId]` | Post-process archive — also fat; worker should own it when split. |
+| `GET /api/internal/video-process/queue` | Vercel cron: pull one `queued` job and **always** POST `[jobId]`. Slim NFT. |
+| `GET /api/internal/video-worker/health` | Unauthenticated liveness for Fly/compose. |
+| `scripts/workers/video-processor.mjs` | Optional **DB poller** (`npm run video:worker`) — not the OCR runtime. |
+| `deploy/video-worker/` | Dockerfile + compose + Fly config for the OCR host. |
+
+When `VIDEO_WORKER_MODE=1`, middleware 404s everything except process/archive/health (so a public Fly URL is not a second HQ UI).
 
 ## Environment
 
-| Variable | Purpose |
-| --- | --- |
-| `VIDEO_WORKER_SECRET` | Bearer token for worker ↔ app (`Authorization: Bearer …`). Required in production. |
-| `VIDEO_WORKER_BASE_URL` | Base URL used for process/archive POSTs (no trailing slash). Unset → public app origin. |
-| `CRON_SECRET` | Vercel Cron auth for the queue route (unchanged). |
+| Variable | App (Vercel) | Worker host |
+| --- | --- | --- |
+| `VIDEO_WORKER_SECRET` | Required | Same value |
+| `VIDEO_WORKER_BASE_URL` | Worker origin when split; unset = app origin | **Worker’s own public URL** (so archive stays local) |
+| `NEXT_PUBLIC_APP_URL` | Public HQ | Public HQ (not the worker) |
+| `DATABASE_URL` | Yes | Same DB (do not set `LOCAL_DATABASE_URL` on Fly) |
+| `TOKEN_ENCRYPTION_KEY` | Yes | Same (Ashed session decrypt) |
+| `AUTH_SECRET` | Yes | Yes (module init) |
+| `R2_*` | Yes | Same bucket |
+| `CRON_SECRET` | Yes (queue) | Not needed |
+| `VIDEO_WORKER_MODE` | Unset | `1` |
+| `VIDEO_WORKER_STANDALONE` | Unset | Build-only (`1` for `next build` → standalone) |
 
-### Single-host (default today)
+### Single-host (default)
 
-Unset `VIDEO_WORKER_BASE_URL`, or set it equal to `NEXT_PUBLIC_APP_URL` / `VERCEL_URL`. Queue cron and upload triggers POST to the **same** deployment’s `[jobId]` route. Fat natives live only on that route (plus roster-import / reprocess / Discord·THP screenshot OCR).
+Unset `VIDEO_WORKER_BASE_URL` (or equal to app origin). Queue and upload triggers POST the same deployment’s `[jobId]`.
 
-### Split deploy (Phase 2b — not provisioned in-repo yet)
+### Split deploy (Phase 2b)
 
-Point `VIDEO_WORKER_BASE_URL` at a **different** host (e.g. a future `https://video-worker.example`), while `NEXT_PUBLIC_APP_URL` remains the public app.
+1. Deploy worker (`deploy/video-worker/README.md`).
+2. Set Vercel `VIDEO_WORKER_BASE_URL` to the worker HTTPS origin (different host than `NEXT_PUBLIC_APP_URL`).
+3. On the worker, set `VIDEO_WORKER_BASE_URL` to **itself** so `dispatchVideoArchive` does not bounce archive back to Vercel.
 
-- Upload / approve / queue cron → POST worker host `[jobId]`.
-- Worker host needs the same `VIDEO_WORKER_SECRET`, database, R2, and native stack (ffmpeg / sharp / tesseract).
-- There is **no** Dockerfile / Fly / Railway config in this repo yet — treat example hostnames as placeholders.
-
-## Sharp / libvips safety (#213)
-
-Turbopack externalizes `sharp` app-wide. **Global** `outputFileTracingIncludes["*"]` ships libvips on every serverless route — do not remove when trimming OCR bundles. Prefer dynamic `import()` at feature boundaries (THP screenshot OCR) so unrelated routes stay lean.
-
-## Local development
+## Local smoke
 
 ```bash
-# Terminal 1 — Next app (default http://localhost:5175)
-npm run dev
+# Worker on :5176
+npm run video:worker:docker
 
-# Terminal 2 — optional backup poller (hits the same app [jobId] route)
-VIDEO_WORKER_BASE_URL=http://localhost:5175 VIDEO_WORKER_SECRET=dev-secret \
-  node scripts/workers/video-processor.mjs
+curl -s http://localhost:5176/api/internal/video-worker/health
+
+# App on :5175
+VIDEO_WORKER_BASE_URL=http://localhost:5176 VIDEO_WORKER_SECRET=dev-secret npm run dev
 ```
+
+Enqueue a video job; confirm the worker logs ffmpeg/OCR and the job reaches `review`.
 
 ## CI / bundle budgets
 
 `npm run vercel:analyze-function-trace` (linux) after `npm run build`:
 
-- **Queue** — ≤ ~120 MB, must include libvips, must **not** include `ffmpeg-static` / `tesseract.js*`
-- **`[jobId]`** — ≤ 230 MB (full OCR stack)
+- **Queue** — ≤ ~120 MB; forbid `ffmpeg-static` / `tesseract.js*`
+- **`[jobId]`** — ≤ 230 MB (full OCR stack; still present on Vercel as single-host fallback)
 - Discord / THP — `requireLibvips` guards
+
+## Sharp / libvips safety (#213)
+
+Global `outputFileTracingIncludes["*"]` ships libvips on every Vercel route. Do not remove when trimming OCR. Prefer dynamic `import()` at feature boundaries (THP screenshot OCR).
 
 ## Related
 
+- `deploy/video-worker/README.md` — Fly secrets + deploy commands
 - `.env.example` — `VIDEO_WORKER_*` comments
-- `scripts/vercel/video-ocr-file-tracing.mjs` — shared tracing includes/excludes + budgets
-- `src/lib/video/video-process-dispatch.server.ts` — HTTP dispatch helper
-- `src/lib/video/video-process-local.server.ts` — local `process-job` runner (worker `[jobId]` only)
+- `scripts/vercel/video-ocr-file-tracing.mjs` — NFT includes/excludes + budgets
+- `src/lib/video/video-process-dispatch.server.ts` — HTTP dispatch
+- `src/lib/video/video-process-local.server.ts` — local `process-job` (worker `[jobId]`)
+- `src/lib/video/video-worker-mode.shared.ts` — allowlist for `VIDEO_WORKER_MODE=1`
