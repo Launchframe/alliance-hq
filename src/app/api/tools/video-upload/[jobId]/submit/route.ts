@@ -58,6 +58,7 @@ import {
   videoSubmitClaimLostError,
   videoSubmitNotReadyError,
 } from "@/lib/video/submit-job-ready.shared";
+import { recordDataUploadBatch } from "@/lib/data-management/batch-ledger.server";
 
 type Props = {
   params: Promise<{ jobId: string }>;
@@ -804,6 +805,23 @@ export async function POST(request: Request, { params }: Props) {
         .set({ qualityScore, qualityBucket, qualityComputedAt: new Date() })
         .where(eq(schema.videoJobs.id, jobId));
     }
+
+    // Record the batch only after local submit bookkeeping succeeds. Upstream
+    // (Ashed) is already written by dispatchScoreSubmit; a later failure still
+    // rolls the job back to review — idempotent sourceJobId avoids duplicate
+    // ledger rows on retry after a successful complete.
+    await recordDataUploadBatch({
+      allianceId,
+      target,
+      submitContext: {
+        ...submitContext,
+        eventId: ashedEventId,
+      },
+      rowCount: activeRows.length,
+      sourceJobId: jobId,
+      parseSessionId: job.parseSessionId,
+      createdByHqUserId: job.enqueuedByHqUserId ?? session.hqUserId ?? null,
+    });
 
     await writeAuditLog({
       sessionId: session.id,

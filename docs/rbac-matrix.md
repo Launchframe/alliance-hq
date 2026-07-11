@@ -124,7 +124,22 @@ Quick reference for UI gating (full mapping in catalog `navGroups`):
 | Members | `members:read`, `members:write` |
 | VS Performance | `scores:read` |
 | Reports | `reports:read`, `reports:generate` |
-| Data Management | `data:bulk_delete`, `data:bulk_move`, `upload:write` |
+| Data Management | `data:read` (view); move/delete — creator-scoped rules (see **Native Data Management** below) |
 | Settings (HQ) | `alliance:admin` |
 | Video upload (HQ) | `hq:video:enqueue` |
 | Video queue (HQ) | `hq:video:read` or explicit processor slot; approve/reject requires process capability |
+
+## Native Data Management (`/data-management`)
+
+The HQ-native page replaces the legacy Ashed iframe for batch management and is wrapped in [`HybridAshedPageShell`](../src/components/hybrid-ashed/HybridAshedPageShell.tsx) (`pageId: "dataManagement"`) so connected users can still open Ashed’s `/datamanagement` beside HQ. It uses **role + batch creator** scoping in [`batch-authorization.shared.ts`](../src/lib/data-management/batch-authorization.shared.ts), not the `data:bulk_delete` / `data:bulk_move` template permissions directly (those still apply to BFF/iframe-era `bulkMoveByDate` / `bulkDeleteByDate` calls).
+
+| Action | Who |
+|--------|-----|
+| View batches | `data:read` |
+| Move/delete any active batch | Owner, maintainer, or `alliance:admin` |
+| Move/delete own upload batch | Officer (`created_by_hq_user_id` matches session user) |
+| Move/delete | Denied for data_entry, viewer, member |
+
+Authorized mutations forward to Ashed `bulkMoveByDate` / `bulkDeleteByDate` via [`batch-actions.server.ts`](../src/lib/data-management/batch-actions.server.ts) (requires a live Ashed credential).
+
+**Batch ledger:** [`data_upload_batches`](../src/lib/db/schema.ts) rows are inserted only after the video job reaches `complete` and parse-session bookkeeping finishes (`recordDataUploadBatch` in the submit route). Inserts are idempotent on `source_job_id`. Upstream Ashed writes still occur earlier in the submit pipeline (`dispatchScoreSubmit`); a failure after that point can roll the job back to `review` while Ashed already holds the scores — a pre-existing ordering concern, separate from ledger alignment.
