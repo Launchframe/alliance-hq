@@ -13,7 +13,7 @@ import { videoJobStatusOwnerFields } from "@/lib/video/video-job-access.shared";
 export async function markVideoJobFailed(
   jobId: string,
   errorMessage: string,
-  options?: { audit?: boolean },
+  options?: { audit?: boolean; onlyIfStatuses?: readonly string[] },
 ): Promise<boolean> {
   const db = getDb();
   const [job] = await db
@@ -23,6 +23,13 @@ export async function markVideoJobFailed(
     .limit(1);
 
   if (!job) {
+    return false;
+  }
+
+  if (
+    options?.onlyIfStatuses &&
+    !options.onlyIfStatuses.includes(job.status)
+  ) {
     return false;
   }
 

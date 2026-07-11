@@ -144,6 +144,22 @@ describe("markVideoJobFailed", () => {
     expect(mockEmitVideoJobStatus).not.toHaveBeenCalled();
   });
 
+  it("skips update when onlyIfStatuses excludes the current status", async () => {
+    setupDb(
+      mockJobRow({
+        status: "review",
+      }),
+    );
+
+    const ok = await markVideoJobFailed("job-1", "stale sweep", {
+      onlyIfStatuses: ["extracting", "parsing"],
+    });
+
+    expect(ok).toBe(false);
+    expect(mockUpdate).not.toHaveBeenCalled();
+    expect(mockEmitVideoJobStatus).not.toHaveBeenCalled();
+  });
+
   it("marks in-flight extracting jobs failed with audit", async () => {
     setupDb(
       mockJobRow({

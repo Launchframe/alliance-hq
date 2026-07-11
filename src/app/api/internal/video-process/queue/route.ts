@@ -2,9 +2,9 @@ import { NextResponse } from "next/server";
 import { asc, eq } from "drizzle-orm";
 
 import { getDb, schema } from "@/lib/db";
+import { failStaleInFlightVideoJobs } from "@/lib/video/fail-stale-in-flight-video-jobs.server";
 import {
   dispatchVideoJobRemote,
-  videoProcessJobToResponse,
   videoQueueDispatchesExternally,
 } from "@/lib/video/video-process-dispatch.server";
 
@@ -31,6 +31,10 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
+  // Kill-time catch handlers never run on Vercel SIGKILL/timeout — sweep first so
+  // stuck extracting/parsing jobs become failed (SSE + requeueable).
+  const stale = await failStaleInFlightVideoJobs();
+
   const db = getDb();
   const [job] = await db
     .select({
@@ -45,7 +49,13 @@ export async function GET(request: Request) {
     .limit(1);
 
   if (!job) {
-    return NextResponse.json({ ok: true, processed: false, reason: "idle" });
+    return NextResponse.json({
+      ok: true,
+      processed: false,
+      reason: "idle",
+      staleFailed: stale.failedJobIds.length,
+      staleFailedJobIds: stale.failedJobIds,
+    });
   }
 
   console.log(
@@ -58,5 +68,18 @@ export async function GET(request: Request) {
         await import("@/lib/video/video-process-local.server")
       ).runVideoProcessJobLocally(job.id, { analyticsSource: "worker" });
 
-  return videoProcessJobToResponse(result);
+  return NextResponse.json(
+    {
+      ok: result.ok,
+      processed: result.processed,
+      jobId: result.jobId,
+      status: result.status,
+      ...(result.timings ? { timings: result.timings } : {}),
+      ...(result.code ? { code: result.code } : {}),
+      ...(result.error ? { error: result.error } : {}),
+      staleFailed: stale.failedJobIds.length,
+      staleFailedJobIds: stale.failedJobIds,
+    },
+    { status: result.httpStatus },
+  );
 }
