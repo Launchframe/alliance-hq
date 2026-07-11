@@ -4,6 +4,11 @@ import { nanoid } from "nanoid";
 import { expect, test } from "@playwright/test";
 
 import {
+  addCalendarDays,
+  getServerCalendarDate,
+  getServerDayOfWeek,
+} from "../src/lib/trains/game-time";
+import {
   createAllianceMembership,
   createAllianceRosterMember,
   createAuthenticatedHqSession,
@@ -90,6 +95,26 @@ test.describe("Price Is Freight raffle tickets", () => {
     });
 
     await page.goto("/trains");
+    await expect(page.getByTestId("trains-conductor-card")).toBeVisible({
+      timeout: 15_000,
+    });
+
+    const today = getServerCalendarDate();
+    // Saturday = heavy-hitter lottery (no VS raffle panel). Desktop week strip
+    // hides carousel "Previous day"; select Friday via the day cell instead.
+    // Train week starts Tuesday → Friday is weekStart + 3.
+    const friday = addCalendarDays(dashboard.weekStart, 3);
+    if (getServerDayOfWeek(today) === 6) {
+      await expect(
+        page.getByTestId("price-is-right-tickets-panel"),
+      ).toHaveCount(0);
+    }
+    if (today !== friday) {
+      await page
+        .locator(`button[aria-label*="${friday.slice(5)}"]`)
+        .first()
+        .click();
+    }
 
     await expect(page.getByTestId("price-is-right-tickets-panel")).toBeVisible();
     await expect(page.getByTestId("price-is-right-tickets-hero")).toBeVisible();

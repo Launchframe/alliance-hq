@@ -2058,7 +2058,7 @@
       "hardCutoffLabel": "Hard cutoff above cliff",
       "hardCutoffHint": "Members who score above this cutoff value will be excluded from the draw.",
       "takedownLabel": "Takedown team (max tickets)",
-      "takedownHint": "Members who always receive maximum tickets. Useful when you want some members to push their power without losing their shot at conductor.",
+      "takedownHint": "Members who always receive maximum tickets. On Price Is Freight Saturdays, the conductor lottery is drawn only from this list (equal max chance).",
       "takedownSearchPlaceholder": "Search roster to add members…",
       "takedownEmpty": "No matching roster members.",
       "chartCaption": "Ticket and win-chance curve for your cliff setting. Dots show yesterday's R3 scores (if available).",
@@ -3221,7 +3221,8 @@
         "r3": "R3 lottery pool",
         "r4_plus": "R4 officer sequence pool",
         "all_members": "All members pool",
-        "event_top_x": "Event top scorers pool"
+        "event_top_x": "Event top scorers pool",
+        "heavy_hitter": "Heavy-hitter lottery pool"
       },
       "vsLeaderboardTop1": "VS #1 (Monday high score)",
       "vsLeaderboardTopN": "VS top {count}",
@@ -3261,7 +3262,8 @@
         "r3": "R3 lottery pool",
         "r4_plus": "R4 officer sequence pool",
         "all_members": "All members pool",
-        "event_top_x": "Event top scorers pool"
+        "event_top_x": "Event top scorers pool",
+        "heavy_hitter": "Heavy-hitter lottery pool"
       }
     },
     "priceIsRight": {
@@ -3319,6 +3321,7 @@
       "title": "Can't spin the wheel",
       "poolEmptyR3": "No members on your roster are ranked R3, so the lottery pool is empty. Assign R3 ranks on the Members page, then try again.",
       "poolEmptyR4Plus": "No members on your roster are ranked R4 or R5, so the officer sequence pool is empty. Assign those ranks on the Members page, then try again.",
+      "poolEmptyHeavyHitter": "No heavy hitters are configured for Saturday's Price Is Freight lottery. Add members under Settings → Trains (Takedown team / max tickets), then try again.",
       "poolEmptyGeneric": "No eligible members were found for this pool. Check member ranks on the Members page, then try again.",
       "poolExhausted": "Everyone eligible for this pool has already been picked in the current generation. Re-seed the pool to start a fresh rotation.",
       "poolUnavailable": "The wheel pool isn't ready yet. Try re-seeding the pool or check member ranks on the Members page.",
@@ -3336,6 +3339,7 @@
       "vsHighScore": "VS Day 1 top",
       "vsTop10": "VS top 10",
       "r3Lottery": "R3 lottery",
+      "heavyHitterLottery": "Heavy-hitter lottery",
       "r4Sequence": "Officer sequence",
       "donationsTop": "Top donor",
       "officerPick": "Officer pick",
@@ -3346,6 +3350,7 @@
       "vsHighScore": "VS D1",
       "vsTop10": "VS T10",
       "r3Lottery": "R3",
+      "heavyHitterLottery": "HH",
       "r4Sequence": "R4",
       "donationsTop": "DON",
       "officerPick": "OFF",
@@ -3378,7 +3383,7 @@
       "vs_push_weekdays": "Conductor: Mon = top donor; Tue and Fri = prior-day VS #1; Wed, Thu, and Sat = random from VS top 10. VIP: Mon = 2nd donor; Tue–Sat = conductor free pick.",
       "r4_event_vip": "Conductor: R4+ officer rotation. VIP: Event top-10 lottery wheel (default event: Capitol War). Typical for weekend train days.",
       "economy_week": "Conductor: R3 wheel every day — full R3 pool, no VS score band. VIP: Today's conductor picks VIP directly (free pick). Use to pivot mid-week when pushing less VS.",
-      "price_is_right": "Conductor: R3 raffle wheel. With ticket weighting on, prior-day VS drives ticket counts (sweet spot near 7.2M). With weighting off, draws use the legacy VS band filter. VIP: Today's conductor picks VIP directly (free pick).",
+      "price_is_right": "Conductor: Tue–Fri and Sun–Mon = R3 raffle wheel (ticket weighting or legacy VS band). Saturday = heavy-hitter lottery among the max-ticket / takedown overrides (equal max chance). VIP: Today's conductor picks VIP directly (free pick).",
       "r3_recognition": "Conductor: R3 wheel every day — full R3 pool (same draw as Economy week, without VS filtering). VIP: Today's conductor picks VIP directly (free pick).",
       "r4_train_week": "Conductor: R4+ officer rotation — walks the pool in order, one conductor per day. VIP: Today's conductor picks VIP directly (free pick).",
       "donations_week": "Conductor: Top alliance donor (auto). VIP: Second-place donor (auto; officers can override if leaderboard data is wrong).",

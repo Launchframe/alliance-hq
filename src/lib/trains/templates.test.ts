@@ -133,7 +133,7 @@ describe("generateDayConfigForDate", () => {
     expect(config.conductorMechanism).toBe("r3_lottery");
   });
 
-  it("returns price is right day config as r3 lottery", () => {
+  it("returns price is right day config as r3 lottery on weekdays", () => {
     const weekStart = "2026-06-09";
     const config = generateDayConfigForDate(
       "price_is_right",
@@ -142,6 +142,17 @@ describe("generateDayConfigForDate", () => {
     );
     expect(config.conductorMechanism).toBe("r3_lottery");
     expect(config.vipMechanism).toBe("conductor_pick");
+  });
+
+  it("returns heavy-hitter lottery on Saturday for price is right", () => {
+    const weekStart = "2026-06-09";
+    const saturday = generateDayConfigForDate(
+      "price_is_right",
+      "2026-06-13",
+      weekStart,
+    );
+    expect(saturday.conductorMechanism).toBe("heavy_hitter_lottery");
+    expect(saturday.vipMechanism).toBe("conductor_pick");
   });
 
   it("returns r3 lottery for every r3_recognition weekday (wheel, not vs auto-roll)", () => {
@@ -162,6 +173,7 @@ describe("generateDayConfigForDate", () => {
 describe("supportsManualConductorPick", () => {
   it("allows manual override on leaderboard and pool days", () => {
     expect(supportsManualConductorPick("r3_lottery")).toBe(true);
+    expect(supportsManualConductorPick("heavy_hitter_lottery")).toBe(true);
     expect(supportsManualConductorPick("vs_high_score")).toBe(true);
     expect(supportsManualConductorPick("vs_top_10")).toBe(true);
     expect(supportsManualConductorPick("donations_top")).toBe(true);

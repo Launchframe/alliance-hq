@@ -19,6 +19,9 @@ function bodyMessageKey(details: TrainRollErrorDetails): string {
     case "POOL_EMPTY":
       if (details.poolType === "r3") return "wheelBlocked.poolEmptyR3";
       if (details.poolType === "r4_plus") return "wheelBlocked.poolEmptyR4Plus";
+      if (details.poolType === "heavy_hitter") {
+        return "wheelBlocked.poolEmptyHeavyHitter";
+      }
       return "wheelBlocked.poolEmptyGeneric";
     case "POOL_EXHAUSTED":
       return "wheelBlocked.poolExhausted";
@@ -52,7 +55,9 @@ function showMembersCta(details: TrainRollErrorDetails): boolean {
 function showReseedCta(details: TrainRollErrorDetails): boolean {
   return (
     details.code === "POOL_EXHAUSTED" &&
-    (details.poolType === "r3" || details.poolType === "r4_plus")
+    (details.poolType === "r3" ||
+      details.poolType === "r4_plus" ||
+      details.poolType === "heavy_hitter")
   );
 }
 

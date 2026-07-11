@@ -2,6 +2,7 @@ import {
   resolveAnchorTemplateType,
 } from "@/lib/trains/day-config-resolve.server";
 import { paintTemplateFromConductorConfig } from "@/lib/trains/calendar-cell-styles.shared";
+import { effectiveConductorMechanism } from "@/lib/trains/conductor-mechanism.shared";
 import { resolveWeekDisplayDayConfigs } from "@/lib/trains/week-schedule-day-configs.shared";
 import { isDevOrPreviewEnvironment } from "@/lib/dev/env-guard";
 import { getAllianceOperatingMode } from "@/lib/native-alliance/operating-mode";
@@ -123,14 +124,20 @@ function mapDayConfigRow(
     isOverride?: number | null;
   },
 ): WeekScheduleDayConfig {
+  const paintTemplate = paintTemplateFromConductorConfig(d.conductorConfig);
   return {
     id: d.id,
     date: d.date,
-    conductorMechanism: d.conductorMechanism,
+    conductorMechanism:
+      effectiveConductorMechanism(
+        d.conductorMechanism,
+        paintTemplate,
+        d.date,
+      ) ?? d.conductorMechanism,
     vipMechanism: d.vipMechanism,
     vipConfig: d.vipConfig,
     isOverride: d.isOverride === 1,
-    paintTemplate: paintTemplateFromConductorConfig(d.conductorConfig),
+    paintTemplate,
   };
 }
 
@@ -338,7 +345,13 @@ export async function loadTrainsDashboard(
   const record = weekRecords.find((r) => r.date === today) ?? null;
   const todayDayConfig = dayConfigs.find((d) => d.date === today) ?? null;
 
-  const poolTypes = ["r3", "r4_plus", "all_members", "event_top_x"] as const;
+  const poolTypes = [
+    "r3",
+    "r4_plus",
+    "all_members",
+    "event_top_x",
+    "heavy_hitter",
+  ] as const;
   const pools: TrainsDashboardPayload["pools"] = {};
   for (const poolType of poolTypes) {
     pools[poolType] = await getPoolSummary(allianceId, poolType);

@@ -13,6 +13,7 @@ import {
   loadTrainEconomyThreshold,
   saveTrainEconomyThreshold,
 } from "@/lib/trains/train-economy-threshold.server";
+import { syncHeavyHitterPool } from "@/lib/trains/heavy-hitter-pool.server";
 
 export const dynamic = "force-dynamic";
 
@@ -90,13 +91,16 @@ export async function PATCH(request: Request, context: RouteContext) {
       return NextResponse.json({ error: message }, { status: 400 });
     }
 
+    const maxTicketMembersChanged =
+      JSON.stringify(before.maxTicketMemberIds) !==
+      JSON.stringify(saved.maxTicketMemberIds);
+
     const changed =
       before.thresholdPoints !== saved.thresholdPoints ||
       before.fudgePct !== saved.fudgePct ||
       before.weightingEnabled !== saved.weightingEnabled ||
       before.hardCutoffEnabled !== saved.hardCutoffEnabled ||
-      JSON.stringify(before.maxTicketMemberIds) !==
-        JSON.stringify(saved.maxTicketMemberIds);
+      maxTicketMembersChanged;
 
     if (!changed) {
       return NextResponse.json({
@@ -106,6 +110,10 @@ export async function PATCH(request: Request, context: RouteContext) {
         canManage: true,
         unchanged: true,
       });
+    }
+
+    if (maxTicketMembersChanged) {
+      await syncHeavyHitterPool(alliance.allianceId);
     }
 
     await writeAuditLog({

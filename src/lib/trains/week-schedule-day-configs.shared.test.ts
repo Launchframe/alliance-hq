@@ -38,6 +38,21 @@ describe("resolveWeekDisplayDayConfigs", () => {
 });
 
 describe("buildWeekScheduleDayConfigs", () => {
+  it("remaps stored Saturday price_is_right days to heavy_hitter_lottery", () => {
+    const configs = buildWeekScheduleDayConfigs("2026-06-09", "price_is_right", [
+      {
+        id: "sat",
+        date: "2026-06-13",
+        conductorMechanism: "r3_lottery",
+        conductorConfig: { paintTemplate: "price_is_right" },
+        vipMechanism: "conductor_pick",
+        vipConfig: null,
+      },
+    ]);
+    const saturday = configs.find((day) => day.date === "2026-06-13");
+    expect(saturday?.conductorMechanism).toBe("heavy_hitter_lottery");
+  });
+
   it("returns seven days when DB has six rows and the last day is missing", () => {
     const weekStart = "2026-06-16";
     const rows = [

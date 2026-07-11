@@ -1,4 +1,5 @@
 import { paintTemplateFromConductorConfig } from "@/lib/trains/calendar-cell-styles.shared";
+import { effectiveConductorMechanism } from "@/lib/trains/conductor-mechanism.shared";
 import { generateWeekDayConfigs } from "@/lib/trains/templates";
 import type { WeekTemplateType } from "@/lib/trains/types";
 
@@ -37,14 +38,20 @@ type DayConfigRow = {
 };
 
 function mapDayConfigRow(row: DayConfigRow): MergedWeekScheduleDayConfig {
+  const paintTemplate = paintTemplateFromConductorConfig(row.conductorConfig);
   return {
     id: row.id,
     date: row.date,
-    conductorMechanism: row.conductorMechanism,
+    conductorMechanism:
+      effectiveConductorMechanism(
+        row.conductorMechanism,
+        paintTemplate,
+        row.date,
+      ) ?? row.conductorMechanism,
     vipMechanism: row.vipMechanism,
     vipConfig: row.vipConfig,
     isOverride: row.isOverride === 1,
-    paintTemplate: paintTemplateFromConductorConfig(row.conductorConfig),
+    paintTemplate,
   };
 }
 

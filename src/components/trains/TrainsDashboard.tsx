@@ -63,6 +63,7 @@ import type {
   WeekSchedulePagePayload,
 } from "@/lib/trains/load-dashboard";
 import { effectiveConductorMechanism } from "@/lib/trains/conductor-mechanism.shared";
+import { isPriceIsRightHeavyHitterSaturday } from "@/lib/trains/heavy-hitter-pool.shared";
 import {
   conductorSpinSource,
   isPoolSpinSource,
@@ -485,6 +486,7 @@ export function TrainsDashboard({ initial }: Props) {
       vs_high_score: t("mechanismsShort.vsHighScore"),
       vs_top_10: t("mechanismsShort.vsTop10"),
       r3_lottery: t("mechanismsShort.r3Lottery"),
+      heavy_hitter_lottery: t("mechanismsShort.heavyHitterLottery"),
       r4_sequence: t("mechanismsShort.r4Sequence"),
       donations_top: t("mechanismsShort.donationsTop"),
       officer_pick: t("mechanismsShort.officerPick"),
@@ -663,6 +665,7 @@ export function TrainsDashboard({ initial }: Props) {
       const rollConductorMech = effectiveConductorMechanism(
         rollDayConfig?.conductorMechanism,
         rollDayConfig?.paintTemplate,
+        selectedDate,
       );
 
       if (
@@ -1194,6 +1197,7 @@ export function TrainsDashboard({ initial }: Props) {
   const conductorMech = effectiveConductorMechanism(
     selectedDayConfig?.conductorMechanism,
     conductorPaint,
+    selectedDate,
   );
   const vipMech = selectedDayConfig?.vipMechanism;
   const canPaintTemplate =
@@ -1218,6 +1222,7 @@ export function TrainsDashboard({ initial }: Props) {
   const selectedConductorSpinSource = conductorSpinSource(
     selectedDayConfig?.conductorMechanism,
     conductorPaint,
+    selectedDate,
   );
   const selectedVipSpinSource = vipSpinSource(vipMech);
   const spinWeekContext = useMemo(() => {
@@ -1550,7 +1555,8 @@ export function TrainsDashboard({ initial }: Props) {
           ) : null}
 
           {conductorPaint === "price_is_right" &&
-          data.priceIsRightWeightingEnabled ? (
+          data.priceIsRightWeightingEnabled &&
+          !isPriceIsRightHeavyHitterSaturday(conductorPaint, selectedDate) ? (
             <PriceIsRightTicketsPanel trainDate={selectedDate} />
           ) : null}
 
@@ -1596,6 +1602,7 @@ export function TrainsDashboard({ initial }: Props) {
                   selectedDayConfig?.conductorMechanism,
                   locked,
                   conductorPaint,
+                  selectedDate,
                 ) ? (
                   <button
                     type="button"
@@ -1760,14 +1767,20 @@ export function TrainsDashboard({ initial }: Props) {
                 ) : null}
               </div>
 
-              {conductorMech === "r3_lottery" || conductorMech === "r4_sequence" ? (
+              {conductorMech === "r3_lottery" ||
+              conductorMech === "heavy_hitter_lottery" ||
+              conductorMech === "r4_sequence" ? (
                 <div className="flex items-center gap-1.5 self-start">
                   <button
                     type="button"
                     disabled={trainQuickActionBusy}
                     onClick={() =>
                       void reseedPool(
-                        conductorMech === "r3_lottery" ? "r3" : "r4_plus",
+                        conductorMech === "r3_lottery"
+                          ? "r3"
+                          : conductorMech === "heavy_hitter_lottery"
+                            ? "heavy_hitter"
+                            : "r4_plus",
                       )
                     }
                     className="rounded-md border border-hq-border px-3 py-1.5 text-xs text-hq-fg-muted hover:text-hq-fg disabled:opacity-50"

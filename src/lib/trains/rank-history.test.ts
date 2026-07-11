@@ -14,4 +14,10 @@ describe("isMemberEligibleForPool", () => {
     expect(isMemberEligibleForPool("r3", 3)).toBe(true);
     expect(isMemberEligibleForPool("r3", 4)).toBe(false);
   });
+
+  it("accepts any rank for heavy_hitter (membership-list pool)", () => {
+    expect(isMemberEligibleForPool("heavy_hitter", 3)).toBe(true);
+    expect(isMemberEligibleForPool("heavy_hitter", 5)).toBe(true);
+    expect(isMemberEligibleForPool("heavy_hitter", null)).toBe(true);
+  });
 });
