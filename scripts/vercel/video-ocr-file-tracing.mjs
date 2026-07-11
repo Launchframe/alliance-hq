@@ -33,6 +33,23 @@ export const TESSERACT_LSTM_CORE_VARIANTS = [
   "lstm",
 ];
 
+/**
+ * npm packages the Node worker thread require()s (and node-fetch's tree).
+ * NFT does not follow worker_threads → package requires (#253 covered in-package
+ * relative paths only; bmp-js from setImage.js is the next gap).
+ * Skip browser-only deps (idb-keyval, zlibjs) — Node entry never loads them.
+ */
+export const tesseractWorkerNodePackageTracing = [
+  "./node_modules/bmp-js/**/*",
+  "./node_modules/is-url/**/*",
+  "./node_modules/regenerator-runtime/**/*",
+  "./node_modules/node-fetch/**/*",
+  "./node_modules/whatwg-url/**/*",
+  "./node_modules/tr46/**/*",
+  "./node_modules/webidl-conversions/**/*",
+  "./node_modules/wasm-feature-detect/**/*",
+];
+
 export const tesseractFileTracing = [
   // Worker thread entry + helpers. NFT does not follow worker_threads requires —
   // ship sibling dirs worker-script reaches at runtime (#222 narrowed to worker-script/**
@@ -42,7 +59,7 @@ export const tesseractFileTracing = [
   "./node_modules/tesseract.js/src/utils/**/*",
   "./node_modules/tesseract.js/src/worker-script/**/*",
   "./node_modules/tesseract.js/src/worker/node/**/*",
-  "./node_modules/wasm-feature-detect/**/*",
+  ...tesseractWorkerNodePackageTracing,
   "./node_modules/tesseract.js-core/index.js",
   "./node_modules/tesseract.js-core/package.json",
   ...TESSERACT_LSTM_CORE_VARIANTS.flatMap((variant) => [
