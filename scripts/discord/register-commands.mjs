@@ -258,6 +258,20 @@ const commandBody = [
     ],
   },
   {
+    name: "what-is-my-vr",
+    description: "Show your current institute level (channel-visible).",
+    description_localizations: {
+      "pt-BR": "Mostra seu nível atual do instituto (visível no canal).",
+    },
+  },
+  {
+    name: "what-is-my-thp",
+    description: "Show your current total hero power (channel-visible).",
+    description_localizations: {
+      "pt-BR": "Mostra seu poder total de heróis atual (visível no canal).",
+    },
+  },
+  {
     name: "link-ashed",
     description: "Connect your Ashed seat so the bot can read your alliance roster (owner only).",
     description_localizations: {

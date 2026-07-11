@@ -4142,6 +4142,16 @@
       "invalidTotal": "Enter a valid total hero power between 1 and 1,000,000,000.",
       "commanderNotFound": "Could not find your commander in this alliance. Run `/link-commander` first."
     },
+    "query": {
+      "vrNotLinked": "You don't have a linked commander yet. Run `/link-commander` first, then ask again with `/what-is-my-vr`.",
+      "vrNoReport": "**{name}** — no institute level reported this season.",
+      "vrStatus": "**{name}** — institute level **{level}** (effective VR **{effectiveVr}**).",
+      "vrHeader": "Your linked commanders:",
+      "thpNotLinked": "You don't have a linked commander yet. Run `/link-commander` first, then ask again with `/what-is-my-thp`.",
+      "thpNoReport": "**{name}** — no total hero power reported yet. Use `/thp` to report.",
+      "thpStatus": "**{name}** — total hero power **{total}**.",
+      "thpHeader": "Your linked commanders:"
+    },
     "weeklyPass": {
       "pickCharacter": "Which commander do you want to apply this change to?",
       "pickExpired": "That picker expired. Run `/weekly-pass` again to choose a commander.",
@@ -4188,7 +4198,7 @@
     },
     "officerNotified": "An officer has been notified. They can reach out to you here on Discord.",
     "help": {
-      "dmGeneral": "**Alliance HQ bot** — run `/help` in your alliance server for steps matched to your role.\n\nQuick list: `/link`, `/link-commander`, `/vr`, `/immunity`, `/who-is-conductor`, `/language`. Owners set up with `/link-alliance`. Officers (R4+): `/vr-report`, `/set-conductor`, `/train-is-ready`.\n\n**Full setup guide:** {guideUrl}",
+      "dmGeneral": "**Alliance HQ bot** — run `/help` in your alliance server for steps matched to your role.\n\nQuick list: `/link`, `/link-commander`, `/vr`, `/immunity`, `/thp`, `/what-is-my-vr`, `/what-is-my-thp`, `/who-is-conductor`, `/language`. Owners set up with `/link-alliance`. Officers (R4+): `/vr-report`, `/set-conductor`, `/train-is-ready`.\n\n**Full setup guide:** {guideUrl}",
       "setupLinkHq": "Link your Discord account to Alliance HQ: run `/link` and complete the browser sign-in.",
       "setupOwnerLinkHq": "This server isn't registered yet. **R5:** open the install wizard in your browser (sign in, tag, Ashed, add bot).\n\n**Install wizard:** {installWizardUrl}\n\n**Guide:** {guideUrl}",
       "setupOwnerLinkCommander": "Register this server with the install wizard, then run **`/link-commander`**.\n\n**Install wizard:** {installWizardUrl}\n\n**Guide:** {guideUrl}",
@@ -4483,7 +4493,7 @@
           "title": "VR standings and takedown teams",
           "summary": "Officers can pull standings and balanced rally teams from Discord.",
           "command": "/vr-report — or /vr-report teams:N / /takedown-teams teams:N",
-          "instructions": "1. Link your commander first — you must be R4+ in-game on the linked character (or alliance owner).\n2. Run /vr-report for the top-25 standings (ephemeral reply).\n3. Run /vr-report teams:5 or /takedown-teams teams:5 for snake-balanced rally teams."
+          "instructions": "1. Link your commander first — you must be R4+ in-game on the linked character (or alliance owner).\n2. Run /vr-report for the top-25 standings (visible to the channel).\n3. Run /vr-report teams:5 or /takedown-teams teams:5 for snake-balanced rally teams."
         },
         "trainOps": {
           "title": "Train conductor workflow",
