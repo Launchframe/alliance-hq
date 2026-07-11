@@ -83,7 +83,7 @@ export async function POST(request: Request, { params }: Props) {
   await writeAuditLog({
     sessionId: ctx.sessionId,
     allianceId: ctx.allianceId,
-    hqUserId: ctx.rbac.hqUserId,
+    hqUserId: ctx.auditHqUserId,
     action: "data.batch.move",
     resourceType: "data_upload_batch",
     resourceName: batch.submitEntity,

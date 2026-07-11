@@ -6,9 +6,9 @@ import {
   decorateBatchForViewer,
   listAllianceDataBatches,
 } from "@/lib/data-management/batch-ledger.server";
+import { resolveDataManagementRbac } from "@/lib/data-management/api-context.server";
 import { resolveCanUseAshedEmbedsForSession } from "@/lib/dashboard/page-context.server";
 import { requirePagePermission } from "@/lib/rbac/page-permission";
-import { getRbacContext } from "@/lib/rbac/context";
 import { requirePageSession } from "@/lib/session";
 import { resolveSessionAllianceId } from "@/lib/alliance/session-memberships";
 import { SCORE_TARGETS } from "@/lib/video/score-targets";
@@ -30,7 +30,7 @@ export default async function DataManagementPage() {
   }
 
   const [rbac, canUseAshedEmbeds] = await Promise.all([
-    getRbacContext(session.id),
+    resolveDataManagementRbac(session.id, allianceId),
     resolveCanUseAshedEmbedsForSession(session.id),
   ]);
   if (!rbac) {

@@ -56,7 +56,7 @@ export async function POST(_request: Request, { params }: Props) {
   await writeAuditLog({
     sessionId: ctx.sessionId,
     allianceId: ctx.allianceId,
-    hqUserId: ctx.rbac.hqUserId,
+    hqUserId: ctx.auditHqUserId,
     action: "data.batch.delete",
     resourceType: "data_upload_batch",
     resourceName: batch.submitEntity,
