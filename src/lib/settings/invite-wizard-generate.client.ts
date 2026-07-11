@@ -1,3 +1,4 @@
+import { resolveWizardWelcomeUrl } from "@/lib/native-alliance/welcome-url.shared";
 import {
   buildClaimCodeShareMessage,
   buildInviteLinkShareMessage,
@@ -11,6 +12,26 @@ import type {
 import { isValidInviteEmail } from "@/lib/settings/invite-wizard.shared";
 
 type CommanderRow = { ashedMemberId: string; name: string };
+
+function clientOrigin(): string {
+  return typeof window !== "undefined" ? window.location.origin : "";
+}
+
+type SharePayloadFields = {
+  welcomeUrl?: string | null;
+  welcomeUrlRequiresAllianceTag?: boolean;
+  shareMessage?: string;
+};
+
+function resolveGeneratedWelcomeUrl(
+  payload: SharePayloadFields,
+): { welcomeUrl: string; welcomeUrlRequiresAllianceTag: boolean } {
+  return resolveWizardWelcomeUrl({
+    origin: clientOrigin(),
+    welcomeUrl: payload.welcomeUrl,
+    welcomeUrlRequiresAllianceTag: payload.welcomeUrlRequiresAllianceTag,
+  });
+}
 
 export async function generateInviteWizardResult(input: {
   type: InviteWizardType;
@@ -37,22 +58,31 @@ export async function generateInviteWizardResult(input: {
     });
     const body = (await res.json()) as {
       error?: string;
-      invite?: { inviteUrl: string; passphrase?: string };
+      invite?: SharePayloadFields & {
+        inviteUrl: string;
+        passphrase?: string;
+      };
     };
     if (!res.ok) {
       throw new Error(body.error ?? "Could not create invite.");
     }
     const inviteUrl = body.invite?.inviteUrl ?? "";
+    const welcomeUrl = body.invite?.welcomeUrl ?? inviteUrl;
     const passphrase = body.invite?.passphrase;
     return {
       kind: "invite_link",
       inviteUrl,
+      welcomeUrl,
+      welcomeUrlRequiresAllianceTag: false,
       passphrase,
-      shareMessage: buildInviteLinkShareMessage({
-        allianceName,
-        inviteUrl,
-        passphrase,
-      }),
+      shareMessage:
+        body.invite?.shareMessage ??
+        buildInviteLinkShareMessage({
+          allianceName,
+          inviteUrl,
+          welcomeUrl,
+          passphrase,
+        }),
     };
   }
 
@@ -69,16 +99,24 @@ export async function generateInviteWizardResult(input: {
     });
     const body = (await res.json()) as {
       error?: string;
-      joinCode?: { code: string };
+      joinCode?: SharePayloadFields & { code: string };
     };
     if (!res.ok) {
       throw new Error(body.error ?? "Could not create join code.");
     }
     const code = body.joinCode?.code ?? "";
+    const welcome = resolveGeneratedWelcomeUrl(body.joinCode ?? {});
     return {
       kind: "join_code",
       code,
-      shareMessage: buildJoinCodeShareMessage({ allianceName, joinCode: code }),
+      ...welcome,
+      shareMessage:
+        body.joinCode?.shareMessage ??
+        buildJoinCodeShareMessage({
+          allianceName,
+          joinCode: code,
+          welcomeUrl: welcome.welcomeUrl || undefined,
+        }),
     };
   }
 
@@ -93,11 +131,13 @@ export async function generateInviteWizardResult(input: {
     });
     const body = (await res.json()) as {
       error?: string;
-      created?: Array<{
-        targetAshedMemberId?: string | null;
-        targetCommanderName?: string | null;
-        code: string;
-      }>;
+      created?: Array<
+        SharePayloadFields & {
+          targetAshedMemberId?: string | null;
+          targetCommanderName?: string | null;
+          code: string;
+        }
+      >;
       skipped?: Array<{ ashedMemberId: string }>;
     };
     if (!res.ok) {
@@ -115,14 +155,19 @@ export async function generateInviteWizardResult(input: {
           commanders.find((c) => c.ashedMemberId === ashedMemberId)?.name ??
           "";
         const code = row.code;
+        const welcome = resolveGeneratedWelcomeUrl(row);
         return {
           ashedMemberId,
           name,
           code,
-          shareMessage: buildClaimCodeShareMessage({
-            allianceName,
-            joinCode: code,
-          }),
+          ...welcome,
+          shareMessage:
+            row.shareMessage ??
+            buildClaimCodeShareMessage({
+              allianceName,
+              joinCode: code,
+              welcomeUrl: welcome.welcomeUrl || undefined,
+            }),
         };
       }),
     };
@@ -144,7 +189,10 @@ export async function generateInviteWizardResult(input: {
   const body = (await res.json()) as {
     error?: string;
     code?: string;
-    joinCode?: { code: string; targetCommanderName?: string | null };
+    joinCode?: SharePayloadFields & {
+      code: string;
+      targetCommanderName?: string | null;
+    };
   };
   if (!res.ok) {
     if (body.code === "commander_already_claimed") {
@@ -153,13 +201,21 @@ export async function generateInviteWizardResult(input: {
     throw new Error(body.error ?? "Could not create claim code.");
   }
   const code = body.joinCode?.code ?? "";
+  const welcome = resolveGeneratedWelcomeUrl(body.joinCode ?? {});
   const commanderName =
     body.joinCode?.targetCommanderName ?? selected?.name ?? "";
   return {
     kind: "claim_single",
     code,
     commanderName,
-    shareMessage: buildClaimCodeShareMessage({ allianceName, joinCode: code }),
+    ...welcome,
+    shareMessage:
+      body.joinCode?.shareMessage ??
+      buildClaimCodeShareMessage({
+        allianceName,
+        joinCode: code,
+        welcomeUrl: welcome.welcomeUrl || undefined,
+      }),
   };
 }
 

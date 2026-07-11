@@ -29,6 +29,28 @@ export function InviteWizardResultStep({
 
   const isPublic = inviteType === "join_code";
 
+  function renderWelcomeLinkFields(input: {
+    welcomeUrl: string;
+    welcomeUrlRequiresAllianceTag?: boolean;
+  }) {
+    if (input.welcomeUrlRequiresAllianceTag) {
+      return (
+        <p className="text-sm text-[#e3b341]" role="status">
+          {tWizard("welcomeUrlRequiresTag")}
+        </p>
+      );
+    }
+    if (!input.welcomeUrl) {
+      return null;
+    }
+    return (
+      <CopyToClipboardField
+        label={tWizard("welcomeUrlLabel")}
+        value={input.welcomeUrl}
+      />
+    );
+  }
+
   return (
     <div className="space-y-4">
       <div>
@@ -59,6 +81,12 @@ export function InviteWizardResultStep({
             label={tWizard("shareMessageLabel")}
             message={result.shareMessage}
           />
+          {result.welcomeUrl !== result.inviteUrl ? (
+            <CopyToClipboardField
+              label={tWizard("welcomeUrlLabel")}
+              value={result.welcomeUrl}
+            />
+          ) : null}
           <CopyToClipboardField
             label={t("inviteLinkLabel")}
             value={result.inviteUrl}
@@ -82,6 +110,7 @@ export function InviteWizardResultStep({
             label={tWizard("shareMessageLabel")}
             message={result.shareMessage}
           />
+          {renderWelcomeLinkFields(result)}
           <CopyToClipboardField
             label={t("joinCodeValueLabel")}
             value={result.code}
@@ -99,6 +128,7 @@ export function InviteWizardResultStep({
             label={tWizard("shareMessageLabel")}
             message={result.shareMessage}
           />
+          {renderWelcomeLinkFields(result)}
           <CopyToClipboardField
             label={t("claimCodeLabel")}
             value={result.code}
@@ -126,6 +156,7 @@ export function InviteWizardResultStep({
                 label={tWizard("shareMessageLabel")}
                 message={item.shareMessage}
               />
+              {renderWelcomeLinkFields(item)}
               <CopyToClipboardField
                 className="mt-2"
                 label={t("claimCodeLabel")}

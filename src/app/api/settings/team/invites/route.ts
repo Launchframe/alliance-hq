@@ -6,6 +6,11 @@ import {
   isMissingSchemaError,
 } from "@/lib/db/error-message";
 import {
+  buildInviteLinkSharePayload,
+  buildJoinCodeSharePayload,
+  loadAllianceInviteShareContext,
+} from "@/lib/native-alliance/invite-share-payload.server";
+import {
   CommanderClaimInviteError,
   createHqInvite,
   type HqInviteKind,
@@ -84,12 +89,23 @@ export async function POST(request: Request) {
         createdByHqUserId: access.ctx.hqUserId,
         targetAshedMemberId: body.targetAshedMemberId,
       });
+      const alliance = await loadAllianceInviteShareContext(access.allianceId);
+      const share = buildJoinCodeSharePayload({
+        origin,
+        allianceName: alliance.allianceName,
+        allianceTag: alliance.allianceTag,
+        code: joinCode.code,
+        variant: "claim_code",
+      });
       return NextResponse.json({
         ok: true,
         joinCode: {
           code: joinCode.code,
           expiresAt: joinCode.expiresAt,
           targetCommanderName: joinCode.targetCommanderName,
+          welcomeUrl: share.welcomeUrl,
+          welcomeUrlRequiresAllianceTag: share.welcomeUrlRequiresAllianceTag,
+          shareMessage: share.shareMessage,
         },
       });
     }
@@ -105,7 +121,23 @@ export async function POST(request: Request) {
       adminLabel: body.adminLabel,
     });
 
-    return NextResponse.json({ ok: true, invite });
+    const alliance = await loadAllianceInviteShareContext(access.allianceId);
+    const share = buildInviteLinkSharePayload({
+      origin,
+      allianceName: alliance.allianceName,
+      inviteUrl: invite.inviteUrl,
+      passphrase: invite.passphrase,
+    });
+
+    return NextResponse.json({
+      ok: true,
+      invite: {
+        ...invite,
+        welcomeUrl: share.welcomeUrl,
+        welcomeUrlRequiresAllianceTag: share.welcomeUrlRequiresAllianceTag,
+        shareMessage: share.shareMessage,
+      },
+    });
   } catch (error) {
     if (error instanceof CommanderClaimInviteError) {
       return NextResponse.json(

@@ -1215,6 +1215,8 @@
         "generating": "Generating…",
         "generateFailed": "Could not generate the invite.",
         "shareMessageLabel": "Message to copy",
+        "welcomeUrlLabel": "Welcome link",
+        "welcomeUrlRequiresTag": "Links de boas-vindas precisam da tag in-game da aliança. Defina-a em Configurações da aliança e gere um novo convite.",
         "copyShareMessage": "Copy message",
         "copied": "Copied",
         "back": "Back",

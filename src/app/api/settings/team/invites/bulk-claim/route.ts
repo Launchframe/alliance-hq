@@ -10,6 +10,10 @@ import {
 } from "@/lib/native-alliance/invites";
 import { createAllianceJoinCode } from "@/lib/native-alliance/join-codes";
 import {
+  buildJoinCodeSharePayload,
+  loadAllianceInviteShareContext,
+} from "@/lib/native-alliance/invite-share-payload.server";
+import {
   assertInviteRoleAllowed,
   resolveTeamInviteAccess,
 } from "@/lib/native-alliance/team-invites.server";
@@ -55,9 +59,14 @@ export async function POST(request: Request) {
     targetAshedMemberId: string;
     targetCommanderName: string | null;
     code: string;
+    welcomeUrl: string | null;
+    welcomeUrlRequiresAllianceTag: boolean;
+    shareMessage: string;
   }> = [];
   const skipped: Array<{ ashedMemberId: string; code: string }> = [];
   const seen = new Set<string>();
+  const origin = new URL(request.url).origin;
+  const alliance = await loadAllianceInviteShareContext(access.allianceId);
 
   for (const rawId of body.targetAshedMemberIds) {
     const ashedMemberId = rawId.trim();
@@ -77,6 +86,13 @@ export async function POST(request: Request) {
         targetAshedMemberId: ashedMemberId,
         targetCommanderName: joinCode.targetCommanderName,
         code: joinCode.code,
+        ...buildJoinCodeSharePayload({
+          origin,
+          allianceName: alliance.allianceName,
+          allianceTag: alliance.allianceTag,
+          code: joinCode.code,
+          variant: "claim_code",
+        }),
       });
     } catch (error) {
       if (error instanceof CommanderClaimInviteError) {

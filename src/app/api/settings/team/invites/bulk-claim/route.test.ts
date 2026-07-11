@@ -18,6 +18,31 @@ vi.mock("@/lib/native-alliance/join-codes", () => ({
   createAllianceJoinCode: (input: unknown) => createAllianceJoinCodeMock(input),
 }));
 
+vi.mock("@/lib/native-alliance/invite-share-payload.server", () => ({
+  loadAllianceInviteShareContext: vi.fn(() =>
+    Promise.resolve({
+      allianceName: "Test Alliance",
+      allianceTag: "TEST",
+    }),
+  ),
+  buildJoinCodeSharePayload: vi.fn(
+    (input: {
+      origin: string;
+      allianceTag: string | null;
+      code: string;
+      variant: "claim_code" | "join_code";
+    }) => ({
+      welcomeUrl: input.allianceTag
+        ? `${input.origin}/welcome?tag=${input.allianceTag}&code=${input.code}`
+        : null,
+      welcomeUrlRequiresAllianceTag: !input.allianceTag,
+      shareMessage: input.allianceTag
+        ? `Welcome ${input.code}`
+        : `Join ${input.code}`,
+    }),
+  ),
+}));
+
 vi.mock("@/lib/native-alliance/invites", () => ({
   CommanderClaimInviteError: class CommanderClaimInviteError extends Error {
     code: string;
@@ -100,10 +125,17 @@ describe("POST /api/settings/team/invites/bulk-claim", () => {
     );
     const body = (await res.json()) as {
       ok?: boolean;
-      created?: Array<{ code: string; targetAshedMemberId: string }>;
+      created?: Array<{
+        code: string;
+        targetAshedMemberId: string;
+        welcomeUrl: string;
+        shareMessage: string;
+      }>;
     };
     expect(body.ok).toBe(true);
     expect(body.created).toHaveLength(2);
     expect(body.created?.[0]?.code).toBe("CODE-m1");
+    expect(body.created?.[0]?.welcomeUrl).toContain("/welcome?tag=TEST&code=CODE-m1");
+    expect(body.created?.[0]?.shareMessage).toBe("Welcome CODE-m1");
   });
 });

@@ -3,6 +3,10 @@ import { z } from "zod";
 
 import { createAllianceJoinCode } from "@/lib/native-alliance/join-codes";
 import {
+  buildJoinCodeSharePayload,
+  loadAllianceInviteShareContext,
+} from "@/lib/native-alliance/invite-share-payload.server";
+import {
   assertInviteRoleAllowed,
   isSystemRoleName,
   resolveTeamInviteAccess,
@@ -58,7 +62,25 @@ export async function POST(request: Request) {
       createdByHqUserId: access.ctx.hqUserId,
     });
 
-    return NextResponse.json({ ok: true, joinCode });
+    const origin = new URL(request.url).origin;
+    const alliance = await loadAllianceInviteShareContext(access.allianceId);
+    const share = buildJoinCodeSharePayload({
+      origin,
+      allianceName: alliance.allianceName,
+      allianceTag: alliance.allianceTag,
+      code: joinCode.code,
+      variant: "join_code",
+    });
+
+    return NextResponse.json({
+      ok: true,
+      joinCode: {
+        ...joinCode,
+        welcomeUrl: share.welcomeUrl,
+        welcomeUrlRequiresAllianceTag: share.welcomeUrlRequiresAllianceTag,
+        shareMessage: share.shareMessage,
+      },
+    });
   } catch (error) {
     return NextResponse.json(
       {
