@@ -4,6 +4,10 @@ import { nanoid } from "nanoid";
 import { expect, test } from "@playwright/test";
 
 import {
+  getServerCalendarDate,
+  getServerDayOfWeek,
+} from "../src/lib/trains/game-time";
+import {
   createAllianceMembership,
   createAllianceRosterMember,
   createAuthenticatedHqSession,
@@ -90,6 +94,15 @@ test.describe("Price Is Freight raffle tickets", () => {
     });
 
     await page.goto("/trains");
+
+    const today = getServerCalendarDate();
+    // Saturday is the heavy-hitter lottery — VS raffle ticket panel is hidden.
+    if (getServerDayOfWeek(today) === 6) {
+      await expect(
+        page.getByTestId("price-is-right-tickets-panel"),
+      ).toHaveCount(0);
+      await page.getByRole("button", { name: /previous day/i }).click();
+    }
 
     await expect(page.getByTestId("price-is-right-tickets-panel")).toBeVisible();
     await expect(page.getByTestId("price-is-right-tickets-hero")).toBeVisible();
