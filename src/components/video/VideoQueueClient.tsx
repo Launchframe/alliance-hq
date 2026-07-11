@@ -20,6 +20,8 @@ type Props = {
   initialJobs: AllianceQueueJob[];
   canProcess: boolean;
   ashedConnected: boolean;
+  /** Ashed-connected officer without a processor slot — ask owner/admin. */
+  showProcessorRoleHint?: boolean;
   /** Whether env config requires Ashed when alliance override is off. */
   envRequiresAshed: boolean;
   initialHqOcrOnly: boolean;
@@ -32,6 +34,7 @@ export function VideoQueueClient({
   initialJobs,
   canProcess,
   ashedConnected,
+  showProcessorRoleHint = false,
   envRequiresAshed,
   initialHqOcrOnly,
   initialHqOcrOnlyLocked,
@@ -250,6 +253,15 @@ export function VideoQueueClient({
 
   return (
     <div className="min-w-0 space-y-3">
+      {showProcessorRoleHint ? (
+        <div
+          role="status"
+          className="rounded-xl border border-[#d29922] bg-[#d2992210] p-3 text-sm text-hq-fg"
+        >
+          {t("processorRoleHint")}
+        </div>
+      ) : null}
+
       {canProcess ? (
         <section className="rounded-xl border border-hq-border bg-hq-surface p-4">
           <h2 className="text-sm font-semibold text-hq-fg">

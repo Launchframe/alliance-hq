@@ -1263,6 +1263,7 @@
     "empty": "Nenhum vídeo aguardando aprovação.",
     "connectBanner": "Conecte sua conta Ashed para aprovar e executar estes trabalhos.",
     "connectCta": "Conectar Ashed",
+    "processorRoleHint": "Você está conectado ao Ashed, mas ainda não tem a função de processador de vídeo. Peça ao dono da aliança ou a um admin da plataforma para concedê-la, para que você possa aprovar ou rejeitar vídeos na fila.",
     "ocrSettingsTitle": "Processamento OCR",
     "ocrSettingsDescription": "Aplica-se somente a esta aliança. Quando ativado, vídeos aprovados usam reconhecimento de texto interno em vez do Ashed.",
     "hqOcrOnlyLabel": "Usar somente OCR interno (desativar Ashed)",

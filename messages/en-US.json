@@ -1263,6 +1263,7 @@
     "empty": "No videos are waiting for approval.",
     "connectBanner": "Connect your Ashed account to approve and run these jobs.",
     "connectCta": "Connect Ashed",
+    "processorRoleHint": "You're connected to Ashed, but you don't have the video processor role yet. Ask your alliance owner or a platform admin to grant it so you can approve or reject queued videos.",
     "ocrSettingsTitle": "OCR processing",
     "ocrSettingsDescription": "Applies to this alliance only. When enabled, approved videos use in-house text recognition instead of Ashed.",
     "hqOcrOnlyLabel": "Use in-house OCR only (disable Ashed)",
