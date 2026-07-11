@@ -19,6 +19,7 @@ import type {
 import {
   DEFAULT_FALLOFF_HORIZON_HOURS,
   DEFAULT_FALLOFF_STEP_HOURS,
+  DEPOSIT_FALLOFF_SCOPES,
   FALLOFF_HORIZON_HOURS_OPTIONS,
 } from "@/lib/banks/types.shared";
 import { getDb, schema } from "@/lib/db";
@@ -132,6 +133,12 @@ export async function createDepositProjection(
   createdByHqUserId: string | null,
   body: DepositProjectionCreatePayload,
 ): Promise<SerializedDepositProjection> {
+  if (
+    !body.scope ||
+    !(DEPOSIT_FALLOFF_SCOPES as readonly string[]).includes(body.scope)
+  ) {
+    throw new Error("Invalid scope.");
+  }
   if (!body.name?.trim()) {
     throw new Error("Name is required.");
   }

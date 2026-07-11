@@ -4,6 +4,7 @@ import {
   buildVideoUploadHref,
   getScoreTargetIdForNavHref,
   jobMatchesScoreTarget,
+  parseVideoUploadBankIdParam,
   parseVideoUploadScoreTargetParam,
 } from "@/lib/video/score-target-nav";
 
@@ -34,6 +35,13 @@ describe("score-target-nav", () => {
     expect(parseVideoUploadScoreTargetParam("donations")).toBe("donations");
     expect(parseVideoUploadScoreTargetParam("alliance-star")).toBeNull();
     expect(parseVideoUploadScoreTargetParam("")).toBeNull();
+  });
+
+  it("parses optional bankId query values", () => {
+    expect(parseVideoUploadBankIdParam("bank_abc")).toBe("bank_abc");
+    expect(parseVideoUploadBankIdParam("  bank_abc  ")).toBe("bank_abc");
+    expect(parseVideoUploadBankIdParam("")).toBeNull();
+    expect(parseVideoUploadBankIdParam(undefined)).toBeNull();
   });
 
   it("matches jobs on scoreTarget or legacy category", () => {
