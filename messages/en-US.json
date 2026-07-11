@@ -2785,11 +2785,15 @@
       "saved": "Override saved.",
       "saveFailed": "Could not save override.",
       "invalid": "Select a member and enter a valid institute level for this season.",
-      "eventsTitle": "Event history",
-      "eventsSubtitle": "Inspect, correct, or delete individual VR reports for a commander.",
-      "eventsLoad": "Load events",
+      "eventsHint": "Open Reports on a leaderboard row (or a flagged member) to inspect and edit their VR reports.",
+      "eventsOpen": "Reports",
+      "eventsOpenAria": "Open VR reports for {name}",
+      "eventsBack": "Back to Viral Resistance",
+      "eventsMemberTitle": "{name} VR reports",
+      "eventsSubtitle": "Inspect, correct, or delete individual VR reports for this commander.",
       "eventsLoading": "Loading events…",
       "eventsEmpty": "No VR events for this member this season.",
+      "eventsColAction": "Actions",
       "eventsColDate": "Date",
       "eventsColLevel": "Institute level",
       "eventsColVr": "Base VR",
@@ -2799,7 +2803,8 @@
       "eventsDeleting": "Deleting…",
       "eventsSaved": "Event updated.",
       "eventsDeleted": "Event deleted.",
-      "eventsFailed": "Could not update event."
+      "eventsFailed": "Could not update event.",
+      "eventsInvalid": "Enter a valid institute level for this season."
     }
   },
   "myVr": {

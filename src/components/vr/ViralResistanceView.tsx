@@ -40,6 +40,10 @@ export function ViralResistanceView({
   const [overrideReason, setOverrideReason] = useState("");
   const [overrideBusy, setOverrideBusy] = useState(false);
   const [overrideMessage, setOverrideMessage] = useState<string | null>(null);
+  const [eventsMember, setEventsMember] = useState<{
+    ashedMemberId: string;
+    memberName: string;
+  } | null>(null);
 
   const memberOptions = useMemo(
     () =>
@@ -70,6 +74,9 @@ export function ViralResistanceView({
       if (officerRes) {
         if (officerRes.ok) {
           setOfficer((await officerRes.json()) as ViralResistanceOfficerPayload);
+        } else {
+          setOfficer(null);
+          setEventsMember(null);
         }
       }
     } catch (e) {
@@ -113,6 +120,19 @@ export function ViralResistanceView({
       setOverrideBusy(false);
     }
   };
+
+  if (officer && eventsMember) {
+    return (
+      <VrOfficerEventsPanel
+        key={eventsMember.ashedMemberId}
+        seasonKey={officer.seasonKey}
+        ashedMemberId={eventsMember.ashedMemberId}
+        memberName={eventsMember.memberName}
+        onBack={() => setEventsMember(null)}
+        onChanged={refresh}
+      />
+    );
+  }
 
   return (
     <div className="mx-auto flex w-full min-w-0 max-w-5xl flex-col gap-6 p-4 sm:p-6">
@@ -170,6 +190,11 @@ export function ViralResistanceView({
                 <th className="px-4 py-3">{t("colLevel")}</th>
                 <th className="px-4 py-3">{t("colVr")}</th>
                 <th className="px-4 py-3">{t("colThp")}</th>
+                {officer ? (
+                  <th className="px-4 py-3">
+                    <span className="sr-only">{t("officer.eventsColAction")}</span>
+                  </th>
+                ) : null}
               </tr>
             </thead>
             <tbody>
@@ -196,12 +221,32 @@ export function ViralResistanceView({
                   <td className="px-4 py-3 font-mono text-hq-fg-muted">
                     {row.totalHeroPower.toLocaleString()}
                   </td>
+                  {officer ? (
+                    <td className="px-4 py-3">
+                      <button
+                        type="button"
+                        data-testid={`vr-officer-open-events-${row.ashedMemberId}`}
+                        onClick={() =>
+                          setEventsMember({
+                            ashedMemberId: row.ashedMemberId,
+                            memberName: row.memberName,
+                          })
+                        }
+                        className="rounded-lg border border-hq-border px-2.5 py-1 text-xs font-medium text-hq-fg transition-colors hover:bg-hq-surface-muted"
+                        aria-label={t("officer.eventsOpenAria", {
+                          name: row.memberName,
+                        })}
+                      >
+                        {t("officer.eventsOpen")}
+                      </button>
+                    </td>
+                  ) : null}
                 </tr>
               ))}
               {data.rows.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={5}
+                    colSpan={officer ? 6 : 5}
                     className="px-4 py-8 text-center text-hq-fg-muted"
                   >
                     {t("empty")}
@@ -219,38 +264,51 @@ export function ViralResistanceView({
             {t("officer.title")}
           </h2>
           <p className="mt-1 text-sm text-hq-fg-muted">{t("officer.subtitle")}</p>
+          <p className="mt-2 text-sm text-hq-fg-muted">
+            {t("officer.eventsHint")}
+          </p>
 
           {officer.flagged.length > 0 ? (
             <ul className="mt-4 space-y-2">
-              {officer.flagged.map((row) => (
-                <li
-                  key={row.id}
-                  className="rounded-lg border border-hq-warning/30 bg-hq-warning/10 px-3 py-2 text-sm"
-                >
-                  <span className="font-medium text-hq-fg">
-                    {officer.members.find((m) => m.id === row.ashedMemberId)
-                      ?.current_name ?? row.ashedMemberId}
-                  </span>
-                  <span className="mx-2 text-hq-fg-muted">·</span>
-                  <span className="font-mono">{row.highestBaseVr}</span>
-                  <span className="mx-2 text-hq-fg-muted">·</span>
-                  <span className="text-hq-fg-muted">
-                    {t("officer.levelLine", {
-                      level:
-                        row.instituteLevel ??
-                        coerceInstituteLevelFromBaseVr(
-                          officer.seasonKey,
-                          row.highestBaseVr,
-                        ),
-                    })}
-                  </span>
-                  {row.flagReason ? (
-                    <span className="mt-1 block text-xs text-hq-warning">
-                      {row.flagReason}
-                    </span>
-                  ) : null}
-                </li>
-              ))}
+              {officer.flagged.map((row) => {
+                const memberName =
+                  officer.members.find((m) => m.id === row.ashedMemberId)
+                    ?.current_name ?? row.ashedMemberId;
+                return (
+                  <li key={row.id}>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setEventsMember({
+                          ashedMemberId: row.ashedMemberId,
+                          memberName,
+                        })
+                      }
+                      className="w-full rounded-lg border border-hq-warning/30 bg-hq-warning/10 px-3 py-2 text-left text-sm transition-colors hover:bg-hq-warning/20"
+                    >
+                      <span className="font-medium text-hq-fg">{memberName}</span>
+                      <span className="mx-2 text-hq-fg-muted">·</span>
+                      <span className="font-mono">{row.highestBaseVr}</span>
+                      <span className="mx-2 text-hq-fg-muted">·</span>
+                      <span className="text-hq-fg-muted">
+                        {t("officer.levelLine", {
+                          level:
+                            row.instituteLevel ??
+                            coerceInstituteLevelFromBaseVr(
+                              officer.seasonKey,
+                              row.highestBaseVr,
+                            ),
+                        })}
+                      </span>
+                      {row.flagReason ? (
+                        <span className="mt-1 block text-xs text-hq-warning">
+                          {row.flagReason}
+                        </span>
+                      ) : null}
+                    </button>
+                  </li>
+                );
+              })}
             </ul>
           ) : (
             <p className="mt-4 text-sm text-hq-fg-muted">{t("officer.noFlags")}</p>
@@ -302,12 +360,6 @@ export function ViralResistanceView({
           {overrideMessage ? (
             <p className="mt-3 text-sm text-hq-fg-muted">{overrideMessage}</p>
           ) : null}
-
-          <VrOfficerEventsPanel
-            seasonKey={officer.seasonKey}
-            memberOptions={memberOptions}
-            onChanged={refresh}
-          />
         </section>
       ) : null}
     </div>

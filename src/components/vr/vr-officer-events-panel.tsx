@@ -1,13 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { ArrowLeft } from "lucide-react";
 import { useTranslations } from "next-intl";
 
-import { AppSelect, type AppSelectOption } from "@/components/ui/AppSelect";
-import { coerceInstituteLevelFromBaseVr } from "@/lib/vr/validation";
+import {
+  coerceInstituteLevelFromBaseVr,
+  validateInstituteLevelForSeason,
+} from "@/lib/vr/validation";
 import {
   FORM_SUBMIT_ENTER_KEY_HINT,
-  preventDefaultFormSubmit,
 } from "@/lib/client/form-enter-submit.shared";
 
 type OfficerEvent = {
@@ -21,33 +23,80 @@ type OfficerEvent = {
 
 type Props = {
   seasonKey: string;
-  memberOptions: AppSelectOption[];
+  ashedMemberId: string;
+  memberName: string;
+  onBack: () => void;
   onChanged?: () => void | Promise<void>;
 };
 
+function draftsFromEvents(
+  seasonKey: string,
+  events: OfficerEvent[],
+): Record<string, string> {
+  return Object.fromEntries(
+    events.map((event) => [
+      event.id,
+      String(
+        event.instituteLevel ??
+          coerceInstituteLevelFromBaseVr(seasonKey, event.baseVr),
+      ),
+    ]),
+  );
+}
+
 export function VrOfficerEventsPanel({
   seasonKey,
-  memberOptions,
+  ashedMemberId,
+  memberName,
+  onBack,
   onChanged,
 }: Props) {
   const t = useTranslations("viralResistance.officer");
-  const [memberId, setMemberId] = useState("");
   const [events, setEvents] = useState<OfficerEvent[] | null>(null);
   const [draftLevels, setDraftLevels] = useState<Record<string, string>>({});
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
-  const loadEvents = async () => {
-    if (!memberId) {
-      setMessage(t("invalid"));
-      return;
-    }
-    setLoading(true);
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch(
+          `/api/vr/officer/events?ashedMemberId=${encodeURIComponent(ashedMemberId)}`,
+        );
+        const body = (await res.json()) as {
+          events?: OfficerEvent[];
+          error?: string;
+        };
+        if (cancelled) return;
+        if (!res.ok) {
+          setMessage(body.error ?? t("eventsFailed"));
+          setEvents(null);
+          return;
+        }
+        const next = body.events ?? [];
+        setEvents(next);
+        setDraftLevels(draftsFromEvents(seasonKey, next));
+      } catch (error) {
+        if (cancelled) return;
+        setMessage(error instanceof Error ? error.message : t("eventsFailed"));
+      } finally {
+        if (!cancelled) setInitialLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [ashedMemberId, seasonKey, t]);
+
+  const reloadEvents = async () => {
+    setRefreshing(true);
     setMessage(null);
     try {
       const res = await fetch(
-        `/api/vr/officer/events?ashedMemberId=${encodeURIComponent(memberId)}`,
+        `/api/vr/officer/events?ashedMemberId=${encodeURIComponent(ashedMemberId)}`,
       );
       const body = (await res.json()) as {
         events?: OfficerEvent[];
@@ -60,28 +109,19 @@ export function VrOfficerEventsPanel({
       }
       const next = body.events ?? [];
       setEvents(next);
-      setDraftLevels(
-        Object.fromEntries(
-          next.map((event) => [
-            event.id,
-            String(
-              event.instituteLevel ??
-                coerceInstituteLevelFromBaseVr(seasonKey, event.baseVr),
-            ),
-          ]),
-        ),
-      );
+      setDraftLevels(draftsFromEvents(seasonKey, next));
     } catch (error) {
       setMessage(error instanceof Error ? error.message : t("eventsFailed"));
     } finally {
-      setLoading(false);
+      setRefreshing(false);
     }
   };
 
   const saveEvent = async (eventId: string) => {
     const instituteLevel = Number.parseInt(draftLevels[eventId] ?? "", 10);
-    if (!Number.isFinite(instituteLevel)) {
-      setMessage(t("invalid"));
+    const validated = validateInstituteLevelForSeason(seasonKey, instituteLevel);
+    if (!validated.ok) {
+      setMessage(t("eventsInvalid"));
       return;
     }
     setBusyId(eventId);
@@ -90,7 +130,10 @@ export function VrOfficerEventsPanel({
       const res = await fetch("/api/vr/officer/events", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ eventId, instituteLevel }),
+        body: JSON.stringify({
+          eventId,
+          instituteLevel: validated.instituteLevel,
+        }),
       });
       const body = (await res.json()) as { error?: string };
       if (!res.ok) {
@@ -98,7 +141,7 @@ export function VrOfficerEventsPanel({
         return;
       }
       setMessage(t("eventsSaved"));
-      await loadEvents();
+      await reloadEvents();
       await onChanged?.();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : t("eventsFailed"));
@@ -121,7 +164,7 @@ export function VrOfficerEventsPanel({
         return;
       }
       setMessage(t("eventsDeleted"));
-      await loadEvents();
+      await reloadEvents();
       await onChanged?.();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : t("eventsFailed"));
@@ -131,49 +174,38 @@ export function VrOfficerEventsPanel({
   };
 
   return (
-    <div className="mt-8 border-t border-hq-border pt-6">
-      <h3 className="text-base font-semibold text-hq-fg">{t("eventsTitle")}</h3>
-      <p className="mt-1 text-sm text-hq-fg-muted">{t("eventsSubtitle")}</p>
-
-      <form
-        className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end"
-        onSubmit={(event) => {
-          preventDefaultFormSubmit(event);
-          void loadEvents();
-        }}
-      >
-        <label className="flex min-w-0 flex-1 flex-col gap-1 text-xs text-hq-fg-muted">
-          {t("member")}
-          <AppSelect
-            value={memberId}
-            onChange={setMemberId}
-            options={memberOptions}
-            searchable
-            placeholder={t("memberPlaceholder")}
-          />
-        </label>
+    <div className="mx-auto flex w-full min-w-0 max-w-5xl flex-col gap-6 p-4 sm:p-6">
+      <header className="min-w-0">
         <button
-          type="submit"
-          disabled={loading}
-          className="rounded-lg border border-hq-border px-4 py-2 text-sm font-medium text-hq-fg disabled:opacity-50"
+          type="button"
+          data-testid="vr-officer-events-back"
+          onClick={onBack}
+          className="mb-3 flex items-center gap-1 self-start text-xs text-hq-fg-muted transition-colors hover:text-hq-fg"
         >
-          {loading ? t("eventsLoading") : t("eventsLoad")}
+          <ArrowLeft className="h-3 w-3" aria-hidden />
+          {t("eventsBack")}
         </button>
-      </form>
+        <h1 className="text-2xl font-semibold text-hq-fg">
+          {t("eventsMemberTitle", { name: memberName })}
+        </h1>
+        <p className="mt-2 text-sm text-hq-fg-muted">{t("eventsSubtitle")}</p>
+      </header>
 
-      {events ? (
+      {initialLoading ? (
+        <p className="text-sm text-hq-fg-muted">{t("eventsLoading")}</p>
+      ) : events ? (
         events.length === 0 ? (
-          <p className="mt-4 text-sm text-hq-fg-muted">{t("eventsEmpty")}</p>
+          <p className="text-sm text-hq-fg-muted">{t("eventsEmpty")}</p>
         ) : (
-          <div className="mt-4 overflow-x-auto rounded-xl border border-hq-border">
+          <div className="overflow-x-auto rounded-2xl border border-hq-border bg-hq-surface">
             <table className="min-w-full text-left text-sm">
               <thead className="border-b border-hq-border text-xs uppercase tracking-wide text-hq-fg-muted">
                 <tr>
-                  <th className="px-3 py-2">{t("eventsColDate")}</th>
-                  <th className="px-3 py-2">{t("eventsColLevel")}</th>
-                  <th className="px-3 py-2">{t("eventsColVr")}</th>
-                  <th className="px-3 py-2">{t("eventsColSource")}</th>
-                  <th className="px-3 py-2" />
+                  <th className="px-4 py-3">{t("eventsColDate")}</th>
+                  <th className="px-4 py-3">{t("eventsColLevel")}</th>
+                  <th className="px-4 py-3">{t("eventsColVr")}</th>
+                  <th className="px-4 py-3">{t("eventsColSource")}</th>
+                  <th className="px-4 py-3" />
                 </tr>
               </thead>
               <tbody>
@@ -182,10 +214,10 @@ export function VrOfficerEventsPanel({
                     key={event.id}
                     className="border-b border-hq-surface-muted last:border-0"
                   >
-                    <td className="px-3 py-2 text-hq-fg-muted">
+                    <td className="px-4 py-3 text-hq-fg-muted">
                       {new Date(event.createdAt).toLocaleString()}
                     </td>
-                    <td className="px-3 py-2">
+                    <td className="px-4 py-3">
                       <input
                         value={draftLevels[event.id] ?? ""}
                         onChange={(e) =>
@@ -199,15 +231,15 @@ export function VrOfficerEventsPanel({
                         className="w-20 rounded border border-hq-border bg-hq-surface px-2 py-1 font-mono text-hq-fg"
                       />
                     </td>
-                    <td className="px-3 py-2 font-mono text-hq-fg">
+                    <td className="px-4 py-3 font-mono text-hq-fg">
                       {event.baseVr.toLocaleString()}
                     </td>
-                    <td className="px-3 py-2 text-hq-fg-muted">{event.source}</td>
-                    <td className="px-3 py-2">
+                    <td className="px-4 py-3 text-hq-fg-muted">{event.source}</td>
+                    <td className="px-4 py-3">
                       <div className="flex flex-wrap gap-2">
                         <button
                           type="button"
-                          disabled={busyId === event.id}
+                          disabled={busyId === event.id || refreshing}
                           onClick={() => void saveEvent(event.id)}
                           className="rounded border border-hq-border px-2 py-1 text-xs text-hq-fg disabled:opacity-50"
                         >
@@ -215,7 +247,7 @@ export function VrOfficerEventsPanel({
                         </button>
                         <button
                           type="button"
-                          disabled={busyId === event.id}
+                          disabled={busyId === event.id || refreshing}
                           onClick={() => void deleteEvent(event.id)}
                           className="rounded border border-hq-danger/40 px-2 py-1 text-xs text-hq-danger disabled:opacity-50"
                         >
@@ -234,7 +266,7 @@ export function VrOfficerEventsPanel({
       ) : null}
 
       {message ? (
-        <p className="mt-3 text-sm text-hq-fg-muted">{message}</p>
+        <p className="text-sm text-hq-fg-muted">{message}</p>
       ) : null}
     </div>
   );
