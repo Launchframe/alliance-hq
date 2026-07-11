@@ -145,9 +145,6 @@ export async function createDepositProjection(
   if (!isFalloffHorizonHours(body.horizonHours)) {
     throw new Error("Invalid horizonHours.");
   }
-  if (!Array.isArray(body.points) || !body.points.every(isFalloffPoint)) {
-    throw new Error("Invalid points payload.");
-  }
   if (body.scope === "bank" && !body.bankId) {
     throw new Error("bankId is required for bank-scoped projections.");
   }
@@ -168,6 +165,11 @@ export async function createDepositProjection(
 
   const now = new Date();
   const stepHours = body.stepHours ?? DEFAULT_FALLOFF_STEP_HOURS;
+  const points = buildDepositFalloffSeries(slips, {
+    hours: body.horizonHours,
+    stepHours,
+    now,
+  });
   const assumptions = {
     slipFingerprint: slips.map((slip) => ({
       id: slip.id,
@@ -200,7 +202,7 @@ export async function createDepositProjection(
       stepHours,
       createdByHqUserId,
       assumptionsJson: assumptions,
-      pointsJson: body.points,
+      pointsJson: points,
       createdAt: now,
     })
     .returning();

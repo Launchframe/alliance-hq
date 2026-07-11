@@ -12,7 +12,10 @@ import { AppSelect } from "@/components/ui/AppSelect";
 import { useMergedVideoJobs } from "@/components/video/VideoJobEventsProvider";
 import { VideoSurveyDialog } from "@/components/video/VideoSurveyDialog";
 import { VideoProcessAfterUploadPanel } from "@/components/video/VideoProcessAfterUploadPanel";
-import { writePreferredDepositSlipBankId } from "@/lib/banks/deposit-slip-upload-context.shared";
+import {
+  clearPreferredDepositSlipBankId,
+  writePreferredDepositSlipBankId,
+} from "@/lib/banks/deposit-slip-upload-context.shared";
 import type { VideoJobRow } from "@/lib/types/video";
 import {
   uploadVideoFile,
@@ -132,8 +135,11 @@ export function VideoUploadForm({
   const { push } = useShellNavigation();
 
   useEffect(() => {
-    if (!contextBankId) return;
-    writePreferredDepositSlipBankId(contextBankId);
+    if (contextBankId) {
+      writePreferredDepositSlipBankId(contextBankId);
+      return;
+    }
+    clearPreferredDepositSlipBankId();
   }, [contextBankId]);
 
   const [scoreTargets, setScoreTargets] = useState<ScoreTargetOption[]>([

@@ -135,7 +135,6 @@ export function DepositFalloffChart({
   const [livePoints, setLivePoints] = useState<FalloffPoint[]>([]);
   const [liveLoading, setLiveLoading] = useState(false);
   const [liveIsFallback, setLiveIsFallback] = useState(false);
-  const [liveError, setLiveError] = useState<string | null>(null);
 
   const [projections, setProjections] = useState<SerializedDepositProjection[]>([]);
   const [projectionsError, setProjectionsError] = useState<string | null>(null);
@@ -182,7 +181,6 @@ export function DepositFalloffChart({
   const fetchLive = useCallback(async () => {
     if (effectiveScope === "bank" && !bank) return;
     setLiveLoading(true);
-    setLiveError(null);
     try {
       const url =
         effectiveScope === "bank"
@@ -426,9 +424,6 @@ export function DepositFalloffChart({
         ) : null}
       </div>
 
-      {liveError ? (
-        <p className="text-xs text-hq-danger">{liveError}</p>
-      ) : null}
       {liveIsFallback ? (
         <p className="text-xs text-hq-fg-subtle">{t("falloff.localFallbackNotice")}</p>
       ) : null}

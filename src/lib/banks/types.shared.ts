@@ -150,7 +150,8 @@ export type DepositProjectionCreatePayload = {
   notes?: string | null;
   horizonHours: FalloffHorizonHours;
   stepHours?: number;
-  points: FalloffPoint[];
+  /** Ignored on create — server recomputes via `buildDepositFalloffSeries`. */
+  points?: FalloffPoint[];
 };
 
 /** GET /api/banks/deposit-projections/[id] */
