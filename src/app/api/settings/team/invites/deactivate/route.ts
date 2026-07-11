@@ -5,6 +5,7 @@ import { eq, and } from "drizzle-orm";
 
 import { listAccessibleInventoryAlliances } from "@/lib/native-alliance/invite-inventory.server";
 import { resolveTeamInviteAccess } from "@/lib/native-alliance/team-invites.server";
+import { auditInviteRevoked } from "@/lib/onboarding/onboarding-audit.server";
 import { readSessionId, loadSession } from "@/lib/session";
 import { getDb, schema } from "@/lib/db";
 
@@ -32,10 +33,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
   }
 
+  const session = await loadSession(sessionId);
+  const hqUserId = session?.hqUserId ?? access.ctx.hqUserId;
+  if (!hqUserId) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   let allianceId = access.allianceId;
   if (body.allianceId && body.allianceId !== access.allianceId) {
-    const session = await loadSession(sessionId);
-    const hqUserId = session?.hqUserId ?? access.ctx.hqUserId;
     const accessible = await listAccessibleInventoryAlliances(hqUserId);
     const allowed =
       access.ctx.isPlatformMaintainer ||
@@ -73,6 +78,14 @@ export async function POST(request: Request) {
       .set({ revokedAt: now })
       .where(eq(schema.hqInvites.id, body.id));
 
+    await auditInviteRevoked({
+      sessionId,
+      allianceId,
+      hqUserId,
+      kind: body.kind,
+      resourceId: body.id,
+    });
+
     return NextResponse.json({ ok: true });
   }
 
@@ -102,6 +115,14 @@ export async function POST(request: Request) {
     .update(schema.hqAllianceJoinCodes)
     .set({ revokedAt: now })
     .where(eq(schema.hqAllianceJoinCodes.id, body.id));
+
+  await auditInviteRevoked({
+    sessionId,
+    allianceId,
+    hqUserId,
+    kind: body.kind,
+    resourceId: body.id,
+  });
 
   return NextResponse.json({ ok: true });
 }
