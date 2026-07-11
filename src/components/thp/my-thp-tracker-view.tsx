@@ -1,7 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 
 import { fireCelebrationConfetti } from "@/lib/client/celebration-confetti";
 import {
@@ -13,6 +13,10 @@ import type {
   MyThpPostResponse,
   ThpBreakdown,
 } from "@/lib/thp/my-thp.shared";
+import {
+  isThpReportStale,
+  resolveThpLastReportedAt,
+} from "@/lib/thp/my-thp-chart.shared";
 import { Dialog } from "@/components/ui/dialog";
 
 import { ThpAnalyticsPanel } from "./thp-analytics-panel";
@@ -48,6 +52,14 @@ export function MyThpTrackerView({ initial }: Props) {
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [uploadingScreenshot, setUploadingScreenshot] = useState(false);
+
+  const showStaleReportHint = useMemo(() => {
+    const lastReportedAt = resolveThpLastReportedAt({
+      updatedAt: data.updatedAt,
+      events: data.events,
+    });
+    return isThpReportStale(lastReportedAt);
+  }, [data.events, data.updatedAt]);
 
   const refresh = useCallback(async () => {
     const res = await fetch("/api/thp/me");
@@ -179,6 +191,16 @@ export function MyThpTrackerView({ initial }: Props) {
           <p className="text-xs text-hq-fg-subtle">{data.commanderName}</p>
         ) : null}
       </header>
+
+      {showStaleReportHint ? (
+        <p
+          className="rounded-lg border border-hq-warning/50 bg-hq-warning/10 px-4 py-3 text-sm text-hq-warning"
+          role="status"
+          data-testid="my-thp-stale-report-hint"
+        >
+          {t("staleReportHint")}
+        </p>
+      ) : null}
 
       <div
         className="flex gap-1 rounded-lg border border-hq-border bg-hq-canvas p-1"

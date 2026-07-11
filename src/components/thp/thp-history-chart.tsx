@@ -1,6 +1,7 @@
 "use client";
 
 import type { MyThpEvent } from "@/lib/thp/my-thp.shared";
+import { thpChartYDomain } from "@/lib/thp/my-thp-chart.shared";
 
 type Props = {
   events: MyThpEvent[];
@@ -33,9 +34,9 @@ export function ThpHistoryChart({ events, className }: Props) {
 
   const innerW = CHART_WIDTH - PAD.left - PAD.right;
   const innerH = CHART_HEIGHT - PAD.top - PAD.bottom;
-  const minThp = Math.min(...events.map((e) => e.total));
-  const maxThp = Math.max(...events.map((e) => e.total));
-  const thpSpan = Math.max(maxThp - minThp, 1);
+  const { min: minThp, max: maxThp, span: thpSpan } = thpChartYDomain(
+    events.map((event) => event.total),
+  );
 
   const points = events.map((event, index) => {
     const x =
@@ -53,6 +54,7 @@ export function ThpHistoryChart({ events, className }: Props) {
       className={className ?? "h-auto w-full max-w-full"}
       role="img"
       aria-label="THP over time"
+      data-testid="my-thp-history-chart"
     >
       <line
         x1={PAD.left}
@@ -91,8 +93,8 @@ export function ThpHistoryChart({ events, className }: Props) {
         strokeLinecap="round"
         points={polyline}
       />
-      {points.map((point) => (
-        <g key={point.event.createdAt}>
+      {points.map((point, index) => (
+        <g key={`${point.event.createdAt}-${index}`}>
           <circle cx={point.x} cy={point.y} r={4} fill="#58a6ff" />
           <text
             x={point.x}

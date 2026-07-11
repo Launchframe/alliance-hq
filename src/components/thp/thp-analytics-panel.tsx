@@ -9,6 +9,7 @@ import {
   type MyThpPercentileChange,
   type ThpBreakdown,
 } from "@/lib/thp/my-thp.shared";
+import { computeThpTotalGrowth } from "@/lib/thp/my-thp-chart.shared";
 
 type Props = {
   events: MyThpEvent[];
@@ -51,12 +52,7 @@ export function ThpAnalyticsPanel({ events, breakdown, percentileChange }: Props
   const t = useTranslations("myThp");
   const [selectedDays, setSelectedDays] = useState<(typeof RANGE_DAYS)[number]>(30);
 
-  const growth = useMemo(() => {
-    if (events.length < 2) return null;
-    const first = events[0]!;
-    const last = events[events.length - 1]!;
-    return last.total - first.total;
-  }, [events]);
+  const growth = useMemo(() => computeThpTotalGrowth(events), [events]);
 
   const fastestGrowing = useMemo(() => {
     const first = earliestBreakdownEvent(events);
