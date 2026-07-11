@@ -58,7 +58,9 @@ export async function loadMyVrForUser(input: {
   }
 
   const season = await resolveVrSeasonContext(input.allianceId);
-  const [currentVr, seasonRows, events, commander, progressChart] =
+  // Resolve commander first so the chart payload can skip its own lookup.
+  const commander = await getCommanderByAshedMemberId(link.ashedMemberId, input.allianceId);
+  const [currentVr, seasonRows, events, progressChart] =
     await Promise.all([
       getMemberSeasonHigh(
         input.allianceId,
@@ -71,9 +73,9 @@ export async function loadMyVrForUser(input: {
         season.seasonKey,
         link.ashedMemberId,
       ),
-      getCommanderByAshedMemberId(link.ashedMemberId, input.allianceId),
       loadVrProgressChartPayload({
         allianceId: input.allianceId,
+        viewerCommanderId: commander?.commanderId ?? null,
         viewerAshedMemberId: link.ashedMemberId,
       }),
     ]);

@@ -11,7 +11,13 @@ export const PROJECTION_HORIZON_OPTIONS = [1, 3, 7] as const;
 
 /** Ignore onboarding / learning-curve history older than this. */
 export const PROJECTION_LOOKBACK_DAYS = 3;
-/** Smooth very recent catch-up reports without flattening normal season progress. */
+/**
+ * Window (relative to the latest event) within which single-level intervals
+ * are damped to at most RECENT_MAX_LEVELS_PER_DAY.
+ *
+ * Intentionally equals PROJECTION_LOOKBACK_DAYS so the damping covers the
+ * entire fitting window — all retained events are "recent" by design.
+ */
 const PROJECTION_RECENT_SMOOTHING_DAYS = 3;
 /** Collapse rapid successive reports (wake-up double `/vr`, catch-up bumps). */
 export const PROJECTION_BURST_WINDOW_MS = 45 * 60 * 1000;

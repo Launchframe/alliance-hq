@@ -33,42 +33,28 @@ type ProgressDiscordLink = {
   memberDisplayName: string | null;
 };
 
-function asRecord(value: unknown): Record<string, unknown> {
-  return value && typeof value === "object" ? (value as Record<string, unknown>) : {};
-}
+type CommanderVrEventRow = Awaited<ReturnType<typeof listCommanderSeasonVrEventsBulk>>[number];
 
 function eventRowsForCommander(
-  bulk: unknown,
+  bulk: CommanderVrEventRow[],
   commanderId: string,
-): Record<string, unknown>[] {
-  if (bulk instanceof Map) {
-    const rows = bulk.get(commanderId);
-    return Array.isArray(rows) ? rows.map(asRecord) : [];
-  }
-  if (Array.isArray(bulk)) {
-    return bulk
-      .map(asRecord)
-      .filter((row) => row.commanderId === commanderId);
-  }
-  const keyed = asRecord(bulk)[commanderId];
-  return Array.isArray(keyed) ? keyed.map(asRecord) : [];
+): CommanderVrEventRow[] {
+  return bulk.filter((row) => row.commanderId === commanderId);
 }
 
 function eventFromRow(
-  row: Record<string, unknown>,
+  row: CommanderVrEventRow,
   seasonKey: string,
 ): VrProgressChartEvent | null {
-  const baseVr = Number(row.baseVr ?? row.highestBaseVr);
-  const at = row.createdAt ?? row.updatedAt ?? row.at;
-  if (!Number.isFinite(baseVr) || !(typeof at === "string" || at instanceof Date)) {
-    return null;
-  }
+  const baseVr = row.baseVr;
+  const at = row.createdAt;
+  if (!Number.isFinite(baseVr)) return null;
   const instituteLevel =
-    typeof row.instituteLevel === "number"
+    row.instituteLevel != null
       ? row.instituteLevel
       : coerceInstituteLevelFromBaseVr(seasonKey, baseVr);
   return {
-    at: new Date(at).toISOString(),
+    at: at.toISOString(),
     baseVr,
     instituteLevel,
   };
