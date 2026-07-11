@@ -2886,6 +2886,7 @@
     "percentileChangeSummary": "{percentileThen}% → {percentileNow}% ({delta})",
     "percentileChangeNotEnough": "Ainda não há histórico suficiente para este período.",
     "chartPlaceholder": "Reporte seu THP pelo menos duas vezes para ver seu progresso ao longo do tempo.",
+    "staleReportHint": "Seu último relatório de poder total de heróis foi há mais de uma semana. Confira seu poder total de heróis agora para manter seu progresso e projeções precisos.",
     "analyticsTitle": "Crescimento e detalhamento",
     "totalGrowthLabel": "Crescimento total",
     "totalGrowthNotEnough": "Reporte seu THP pelo menos duas vezes para ver estatísticas de crescimento.",

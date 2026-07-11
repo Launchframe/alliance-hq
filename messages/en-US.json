@@ -2941,6 +2941,7 @@
     "percentileChangeSummary": "{percentileThen}% → {percentileNow}% ({delta})",
     "percentileChangeNotEnough": "Not enough history yet for this range.",
     "chartPlaceholder": "Report your THP at least twice to see your progress over time.",
+    "staleReportHint": "Your last total hero power report was more than a week ago. Check your total hero power now to keep your progress and projections accurate.",
     "analyticsTitle": "Growth & breakdown",
     "totalGrowthLabel": "Total growth",
     "totalGrowthNotEnough": "Report your THP at least twice to see growth stats.",
