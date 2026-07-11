@@ -431,9 +431,9 @@ test.describe("OAuth identity split badge", () => {
     await page.goto("/members");
     const row = page.locator("tr").filter({ hasText: commanderName }).first();
     await expect(row).toBeVisible();
-    // Name cell renders split badge in both mobile and desktop cells (CSS hide), so take .first().
+    // Mobile + desktop name cells both mount the badge; assert the viewport-visible one.
     await expect(
-      row.getByText("Discord split", { exact: true }).first(),
+      row.getByText("Discord split", { exact: true }).filter({ visible: true }),
     ).toBeVisible();
     // #211 HQ link metrics: officer + split commander both HQ-linked on active roster
     await expect(
