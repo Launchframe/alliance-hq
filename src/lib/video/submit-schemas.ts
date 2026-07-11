@@ -78,7 +78,9 @@ export function buildSubmitPayloads(
         alliance_id: allianceId,
         member_id: row.memberId,
         member_name: row.memberName,
-        score: row.score,
+        // Ashed keys VS days by competition_id (same calendar date as recorded_date).
+        competition_id: recordedDate,
+        score: parseScoreNumber(row.score),
         rank: row.rank ?? null,
         recorded_date: recordedDate,
       }));

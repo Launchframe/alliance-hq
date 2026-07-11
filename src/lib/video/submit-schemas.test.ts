@@ -78,6 +78,25 @@ describe("buildSubmitPayloads", () => {
       recorded_date: "2026-06-14",
     });
   });
+
+  it("builds VSScore rows with competition_id matching recorded date", () => {
+    const target = getScoreTargetOrThrow("vs-performance");
+    const rows = buildSubmitPayloads(
+      target,
+      "alliance-1",
+      { recordedDate: "2026-07-10" },
+      [{ memberId: "m1", memberName: "Alice", score: "8,956,952", rank: 1 }],
+    );
+    expect(rows[0]).toEqual({
+      alliance_id: "alliance-1",
+      member_id: "m1",
+      member_name: "Alice",
+      competition_id: "2026-07-10",
+      score: 8956952,
+      rank: 1,
+      recorded_date: "2026-07-10",
+    });
+  });
 });
 
 describe("validateSubmitContext", () => {

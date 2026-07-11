@@ -64,6 +64,7 @@
         "alliance_id",
         "member_id",
         "member_name",
+        "competition_id",
         "score",
         "rank",
         "recorded_date"
