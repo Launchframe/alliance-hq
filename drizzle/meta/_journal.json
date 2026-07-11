@@ -643,11 +643,14 @@
       "idx": 90,
       "version": "7",
       "when": 1787136000000,
-<<<<<<< HEAD
       "tag": "0092_video_jobs_storm_team",
-=======
-      "tag": "0092_commander_power_stats",
->>>>>>> 0752003 (feat(members): consolidate Power Level and THP on commanders)
+      "breakpoints": true
+    },
+    {
+      "idx": 91,
+      "version": "7",
+      "when": 1787222400000,
+      "tag": "0093_commander_power_stats",
       "breakpoints": true
     }
   ]
