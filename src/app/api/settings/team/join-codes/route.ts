@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { createAllianceJoinCode } from "@/lib/native-alliance/join-codes";
 import {
-  buildMultiUseJoinCodeSharePayload,
+  buildJoinCodeSharePayload,
   loadAllianceInviteShareContext,
 } from "@/lib/native-alliance/invite-share-payload.server";
 import {
@@ -64,11 +64,12 @@ export async function POST(request: Request) {
 
     const origin = new URL(request.url).origin;
     const alliance = await loadAllianceInviteShareContext(access.allianceId);
-    const share = buildMultiUseJoinCodeSharePayload({
+    const share = buildJoinCodeSharePayload({
       origin,
       allianceName: alliance.allianceName,
       allianceTag: alliance.allianceTag,
       code: joinCode.code,
+      variant: "join_code",
     });
 
     return NextResponse.json({
@@ -76,6 +77,7 @@ export async function POST(request: Request) {
       joinCode: {
         ...joinCode,
         welcomeUrl: share.welcomeUrl,
+        welcomeUrlRequiresAllianceTag: share.welcomeUrlRequiresAllianceTag,
         shareMessage: share.shareMessage,
       },
     });

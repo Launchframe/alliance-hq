@@ -1218,6 +1218,7 @@
         "generateFailed": "Could not generate the invite.",
         "shareMessageLabel": "Message to copy",
         "welcomeUrlLabel": "Welcome link",
+        "welcomeUrlRequiresTag": "Welcome links need your in-game alliance tag. Set it in Alliance settings, then generate a new invite.",
         "copyShareMessage": "Copy message",
         "copied": "Copied",
         "back": "Back",

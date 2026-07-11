@@ -25,10 +25,20 @@ vi.mock("@/lib/native-alliance/invite-share-payload.server", () => ({
       allianceTag: "TEST",
     }),
   ),
-  buildClaimCodeSharePayload: vi.fn(
-    (input: { origin: string; allianceTag: string | null; code: string }) => ({
-      welcomeUrl: `${input.origin}/welcome?tag=${input.allianceTag ?? "HQ"}&code=${input.code}`,
-      shareMessage: `Welcome ${input.code}`,
+  buildJoinCodeSharePayload: vi.fn(
+    (input: {
+      origin: string;
+      allianceTag: string | null;
+      code: string;
+      variant: "claim_code" | "join_code";
+    }) => ({
+      welcomeUrl: input.allianceTag
+        ? `${input.origin}/welcome?tag=${input.allianceTag}&code=${input.code}`
+        : null,
+      welcomeUrlRequiresAllianceTag: !input.allianceTag,
+      shareMessage: input.allianceTag
+        ? `Welcome ${input.code}`
+        : `Join ${input.code}`,
     }),
   ),
 }));

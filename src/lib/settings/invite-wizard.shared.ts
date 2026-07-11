@@ -23,38 +23,43 @@ export type InviteWizardTargets = {
   claimAdminLabel: string;
 };
 
+export type InviteWizardWelcomeUrlState = {
+  welcomeUrl: string;
+  welcomeUrlRequiresAllianceTag: boolean;
+};
+
 export type InviteWizardResultInvite = {
   kind: "invite_link";
   inviteUrl: string;
   welcomeUrl: string;
+  welcomeUrlRequiresAllianceTag: false;
   passphrase?: string;
   shareMessage: string;
 };
 
-export type InviteWizardResultJoinCode = {
+export type InviteWizardResultJoinCode = InviteWizardWelcomeUrlState & {
   kind: "join_code";
   code: string;
-  welcomeUrl: string;
   shareMessage: string;
 };
 
-export type InviteWizardResultClaimSingle = {
+export type InviteWizardResultClaimSingle = InviteWizardWelcomeUrlState & {
   kind: "claim_single";
   code: string;
-  welcomeUrl: string;
   commanderName: string;
   shareMessage: string;
 };
 
 export type InviteWizardResultClaimBulk = {
   kind: "claim_bulk";
-  items: Array<{
-    ashedMemberId: string;
-    name: string;
-    code: string;
-    welcomeUrl: string;
-    shareMessage: string;
-  }>;
+  items: Array<
+    InviteWizardWelcomeUrlState & {
+      ashedMemberId: string;
+      name: string;
+      code: string;
+      shareMessage: string;
+    }
+  >;
   skippedCount: number;
 };
 

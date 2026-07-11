@@ -6,8 +6,8 @@ import {
   isMissingSchemaError,
 } from "@/lib/db/error-message";
 import {
-  buildClaimCodeSharePayload,
   buildInviteLinkSharePayload,
+  buildJoinCodeSharePayload,
   loadAllianceInviteShareContext,
 } from "@/lib/native-alliance/invite-share-payload.server";
 import {
@@ -90,11 +90,12 @@ export async function POST(request: Request) {
         targetAshedMemberId: body.targetAshedMemberId,
       });
       const alliance = await loadAllianceInviteShareContext(access.allianceId);
-      const share = buildClaimCodeSharePayload({
+      const share = buildJoinCodeSharePayload({
         origin,
         allianceName: alliance.allianceName,
         allianceTag: alliance.allianceTag,
         code: joinCode.code,
+        variant: "claim_code",
       });
       return NextResponse.json({
         ok: true,
@@ -103,6 +104,7 @@ export async function POST(request: Request) {
           expiresAt: joinCode.expiresAt,
           targetCommanderName: joinCode.targetCommanderName,
           welcomeUrl: share.welcomeUrl,
+          welcomeUrlRequiresAllianceTag: share.welcomeUrlRequiresAllianceTag,
           shareMessage: share.shareMessage,
         },
       });
@@ -132,6 +134,7 @@ export async function POST(request: Request) {
       invite: {
         ...invite,
         welcomeUrl: share.welcomeUrl,
+        welcomeUrlRequiresAllianceTag: share.welcomeUrlRequiresAllianceTag,
         shareMessage: share.shareMessage,
       },
     });

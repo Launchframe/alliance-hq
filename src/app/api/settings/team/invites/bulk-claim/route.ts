@@ -10,7 +10,7 @@ import {
 } from "@/lib/native-alliance/invites";
 import { createAllianceJoinCode } from "@/lib/native-alliance/join-codes";
 import {
-  buildClaimCodeSharePayload,
+  buildJoinCodeSharePayload,
   loadAllianceInviteShareContext,
 } from "@/lib/native-alliance/invite-share-payload.server";
 import {
@@ -59,7 +59,8 @@ export async function POST(request: Request) {
     targetAshedMemberId: string;
     targetCommanderName: string | null;
     code: string;
-    welcomeUrl: string;
+    welcomeUrl: string | null;
+    welcomeUrlRequiresAllianceTag: boolean;
     shareMessage: string;
   }> = [];
   const skipped: Array<{ ashedMemberId: string; code: string }> = [];
@@ -85,11 +86,12 @@ export async function POST(request: Request) {
         targetAshedMemberId: ashedMemberId,
         targetCommanderName: joinCode.targetCommanderName,
         code: joinCode.code,
-        ...buildClaimCodeSharePayload({
+        ...buildJoinCodeSharePayload({
           origin,
           allianceName: alliance.allianceName,
           allianceTag: alliance.allianceTag,
           code: joinCode.code,
+          variant: "claim_code",
         }),
       });
     } catch (error) {
