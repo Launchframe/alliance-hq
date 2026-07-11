@@ -32,6 +32,8 @@ const HQ_PERMISSIONS = [
   { id: "eur:schedules:write", description: "Manage event upload reminder schedules" },
   { id: "battle_plan:read", description: "View alliance battle plan schedule" },
   { id: "battle_plan:write", description: "Manage alliance battle plan schedule" },
+  { id: "bank:read", description: "View alliance bank strongholds and deposit risk" },
+  { id: "bank:write", description: "Manage alliance bank strongholds and deposit slips" },
 ];
 
 function getDatabaseUrl() {
