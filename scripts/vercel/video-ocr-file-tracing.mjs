@@ -34,10 +34,12 @@ export const TESSERACT_LSTM_CORE_VARIANTS = [
 ];
 
 export const tesseractFileTracing = [
-  // Worker thread entry + helpers. Also ship constants/ — worker-script requires
-  // ../../constants/{imageType,OEM} at runtime (NFT does not follow Worker requires).
+  // Worker thread entry + helpers. NFT does not follow worker_threads requires —
+  // ship sibling dirs worker-script reaches at runtime (#222 narrowed to worker-script/**
+  // only; #253 constants/imageType, utils/getEnvironment+log same class of gap).
   "./node_modules/tesseract.js/package.json",
   "./node_modules/tesseract.js/src/constants/**/*",
+  "./node_modules/tesseract.js/src/utils/**/*",
   "./node_modules/tesseract.js/src/worker-script/**/*",
   "./node_modules/tesseract.js/src/worker/node/**/*",
   "./node_modules/wasm-feature-detect/**/*",
