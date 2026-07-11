@@ -91,6 +91,23 @@ function main() {
       }
     }
 
+    if (Array.isArray(budget.forbidPathSubstrings)) {
+      const forbiddenHits = [...files].filter((file) =>
+        budget.forbidPathSubstrings.some((needle) => file.includes(needle)),
+      );
+      if (forbiddenHits.length > 0) {
+        failed = true;
+        const sample = forbiddenHits.slice(0, 8).join("\n  • ");
+        console.error(
+          `\n${budget.route} trace includes forbidden OCR/native paths (dispatch-only route):`,
+        );
+        console.error(`  • ${sample}`);
+        if (forbiddenHits.length > 8) {
+          console.error(`  … and ${forbiddenHits.length - 8} more`);
+        }
+      }
+    }
+
     const summary = summarizeTraceFiles(repoRoot, files);
     printRouteReport({
       route: budget.route,

@@ -116,9 +116,9 @@ export const videoOcrFileTracingExcludes = [
   ...videoOcrPlatformExcludes,
 ];
 
-/** Routes that bundle video OCR native deps — monitored in CI for Vercel 250 MB limit. */
+/** Routes that explicitly include video OCR native deps (ffmpeg/tesseract stack). */
 export const videoOcrTracedRoutes = {
-  "/api/internal/video-process/queue": videoOcrFileTracing,
+  // Queue cron always HTTP-dispatches to [jobId] — do NOT force OCR NFT here.
   "/api/internal/video-process/[jobId]": videoOcrFileTracing,
   "/api/members/roster-import/parse": videoOcrFileTracing,
   "/api/tools/video-upload/[jobId]/reprocess": videoOcrFileTracing,
@@ -141,13 +141,20 @@ export const globalOutputFileTracingIncludes = {
 
 /**
  * Uncompressed size budgets (bytes). CI runs on linux-x64 to approximate Vercel.
- * Primary gate: video-process queue cron worker (largest import graph).
+ * Fat OCR gate: video-process [jobId]. Queue must stay dispatch-only (no ffmpeg/tesseract).
  */
 export const functionTraceBudgets = [
   {
     route: "/api/internal/video-process/queue",
     nftPath: ".next/server/app/api/internal/video-process/queue/route.js.nft.json",
-    maxUncompressedBytes: 230 * 1024 * 1024,
+    // Global sharp/libvips only (#213). No explicit OCR includes; forbid fat natives.
+    maxUncompressedBytes: 120 * 1024 * 1024,
+    requireLibvips: true,
+    forbidPathSubstrings: [
+      "ffmpeg-static",
+      "tesseract.js-core",
+      "tesseract.js/src",
+    ],
   },
   {
     route: "/api/internal/video-process/[jobId]",
