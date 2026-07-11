@@ -20,6 +20,7 @@ type InvitePreview = {
   roleName: string | null;
   expiresAt: string;
   expired: boolean;
+  revoked: boolean;
   accepted: boolean;
   redirectPath: string | null;
   kind: "email" | "protected_link" | "discord_officer";
@@ -274,6 +275,15 @@ export function InviteAcceptClient({
             {submitting ? t("accepting") : t("goToApp")}
           </button>
         )}
+      </div>
+    );
+  }
+
+  if (preview.revoked) {
+    return (
+      <div className="mx-auto max-w-md space-y-3 rounded-xl border border-[#d29922]/40 bg-[#d29922]/10 p-6">
+        <h1 className="text-xl font-semibold">{t("title")}</h1>
+        <p className="text-sm text-hq-fg-muted">{t("revoked")}</p>
       </div>
     );
   }

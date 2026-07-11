@@ -1,16 +1,65 @@
 import "server-only";
 
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, inArray } from "drizzle-orm";
 
+import { listSessionAlliances } from "@/lib/alliance/session-memberships";
 import { getDb, schema } from "@/lib/db";
 import {
   classifyInviteLinkStatus,
   classifyJoinCodeStatus,
+  type InventoryAllianceOption,
   type InviteInventoryItem,
   type InviteInventoryPayload,
 } from "@/lib/native-alliance/invite-inventory.shared";
 import type { HqInviteKind } from "@/lib/native-alliance/invites";
 import { systemRoleNameForId } from "@/lib/rbac/system-roles";
+
+const INVITE_CAPABLE_ROLES = new Set(["owner", "maintainer", "officer"]);
+
+export async function listAccessibleInventoryAlliances(
+  hqUserId: string,
+): Promise<InventoryAllianceOption[]> {
+  const alliances = await listSessionAlliances(hqUserId);
+  const candidates = alliances.filter((a) =>
+    INVITE_CAPABLE_ROLES.has(a.roleName),
+  );
+  if (candidates.length === 0) {
+    return [];
+  }
+
+  const db = getDb();
+  const settingsRows = await db
+    .select({
+      id: schema.alliances.id,
+      ownerHqUserId: schema.alliances.ownerHqUserId,
+      inviteOnboardingMinRole: schema.alliances.inviteOnboardingMinRole,
+    })
+    .from(schema.alliances)
+    .where(
+      inArray(
+        schema.alliances.id,
+        candidates.map((a) => a.id),
+      ),
+    );
+
+  const settingsById = new Map(settingsRows.map((row) => [row.id, row]));
+
+  return candidates
+    .filter((membership) => {
+      const alliance = settingsById.get(membership.id);
+      if (!alliance) {
+        return false;
+      }
+      if (alliance.inviteOnboardingMinRole === "owner") {
+        return (
+          membership.roleName === "owner" ||
+          alliance.ownerHqUserId === hqUserId
+        );
+      }
+      return true;
+    })
+    .map(({ id, name, tag, slug }) => ({ id, name, tag, slug }));
+}
 
 async function loadCommanderNamesByMemberId(
   allianceId: string,
@@ -76,6 +125,7 @@ export async function listAllianceInviteInventory(
     const { status, depletedReason } = classifyInviteLinkStatus({
       acceptedAt: row.acceptedAt,
       expiresAt: row.expiresAt,
+      revokedAt: row.revokedAt,
       now,
     });
 
@@ -94,7 +144,7 @@ export async function listAllianceInviteInventory(
       expiresAt: row.expiresAt.toISOString(),
       createdAt: row.createdAt.toISOString(),
       acceptedAt: row.acceptedAt?.toISOString() ?? null,
-      revokedAt: null,
+      revokedAt: row.revokedAt?.toISOString() ?? null,
       status,
       depletedReason,
     });

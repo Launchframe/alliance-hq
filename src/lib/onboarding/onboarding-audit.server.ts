@@ -58,6 +58,34 @@ export async function auditInviteAcceptFailed(input: {
   });
 }
 
+export type InviteRevokeKind =
+  | "invite_link"
+  | "join_code"
+  | "commander_claim";
+
+/** Officer deactivated an invite link or join/claim code from team inventory. */
+export async function auditInviteRevoked(input: {
+  sessionId: string;
+  allianceId: string;
+  hqUserId: string;
+  kind: InviteRevokeKind;
+  resourceId: string;
+}): Promise<void> {
+  const resourceType =
+    input.kind === "invite_link" ? "hq_invite" : "hq_alliance_join_code";
+  await writeAuditLog({
+    sessionId: input.sessionId,
+    allianceId: input.allianceId,
+    hqUserId: input.hqUserId,
+    action: "invite.revoked",
+    resourceType,
+    resourceId: input.resourceId,
+    metadata: {
+      kind: input.kind,
+    },
+  });
+}
+
 export async function auditMemberLinkSubmit(
   input: MemberLinkSubmitAuditInput,
 ): Promise<void> {
