@@ -3,23 +3,23 @@ import { describe, expect, it } from "vitest";
 import { buildAshedEventProvisionBody } from "@/lib/video/ashed-event-provision";
 
 describe("buildAshedEventProvisionBody", () => {
-  it("uses event_date for ZombieSiegeEvent", () => {
+  it.each([
+    "ZombieSiegeEvent",
+    "DesertStormEvent",
+    "CanyonStormEvent",
+  ] as const)("uses event_date for %s", (eventEntity) => {
     expect(
-      buildAshedEventProvisionBody(
-        "ZombieSiegeEvent",
-        "alliance-1",
-        "2026-06-16",
-      ),
+      buildAshedEventProvisionBody(eventEntity, "alliance-1", "2026-06-16"),
     ).toEqual({
       alliance_id: "alliance-1",
       event_date: "2026-06-16",
     });
   });
 
-  it("uses start/end dates for storm and exercise events", () => {
+  it("uses start/end dates for AllianceExercise", () => {
     expect(
       buildAshedEventProvisionBody(
-        "DesertStormEvent",
+        "AllianceExercise",
         "alliance-1",
         "2026-06-16",
       ),
