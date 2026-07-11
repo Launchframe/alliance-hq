@@ -11,7 +11,11 @@ import {
   toDatetimeLocalValue,
 } from "@/components/banks/datetime-local";
 import type { BankPayload } from "@/lib/banks/api.shared";
-import { DEPOSIT_POLICIES, type SerializedBank } from "@/lib/banks/types.shared";
+import {
+  DEPOSIT_POLICIES,
+  type DepositPolicy,
+  type SerializedBank,
+} from "@/lib/banks/types.shared";
 import {
   preventDefaultFormSubmit,
   FORM_SUBMIT_ENTER_KEY_HINT,
@@ -22,21 +26,25 @@ type BankFormValues = {
   coordX: string;
   coordY: string;
   level: string;
-  depositPolicy: string;
+  depositPolicy: DepositPolicy;
   priorCaptureCount: string;
   capturedAt: string;
   dropByAt: string;
   notes: string;
 };
 
-function buildInitialValues(initial: SerializedBank | null | undefined): BankFormValues {
+function buildInitialValues(
+  initial: SerializedBank | null | undefined,
+  defaultGameServerNumber: number | null | undefined,
+): BankFormValues {
   if (!initial) {
     return {
-      gameServerNumber: "",
+      gameServerNumber:
+        defaultGameServerNumber != null ? String(defaultGameServerNumber) : "",
       coordX: "",
       coordY: "",
       level: "",
-      depositPolicy: "",
+      depositPolicy: "alliance",
       priorCaptureCount: "0",
       capturedAt: "",
       dropByAt: "",
@@ -48,7 +56,7 @@ function buildInitialValues(initial: SerializedBank | null | undefined): BankFor
     coordX: String(initial.coordX),
     coordY: String(initial.coordY),
     level: String(initial.level),
-    depositPolicy: initial.depositPolicy ?? "",
+    depositPolicy: initial.depositPolicy ?? "alliance",
     priorCaptureCount: String(initial.priorCaptureCount ?? 0),
     capturedAt: toDatetimeLocalValue(initial.capturedAt),
     dropByAt: toDatetimeLocalValue(initial.dropByAt),
@@ -59,6 +67,7 @@ function buildInitialValues(initial: SerializedBank | null | undefined): BankFor
 type Props = {
   open: boolean;
   initial?: SerializedBank | null;
+  defaultGameServerNumber?: number | null;
   saving: boolean;
   error?: string | null;
   onClose: () => void;
@@ -69,6 +78,7 @@ type Props = {
 export function BankEditorModal({
   open,
   initial,
+  defaultGameServerNumber,
   saving,
   error,
   onClose,
@@ -77,7 +87,7 @@ export function BankEditorModal({
 }: Props) {
   const t = useTranslations("bankManagement");
   const [values, setValues] = useState<BankFormValues>(() =>
-    buildInitialValues(initial),
+    buildInitialValues(initial, defaultGameServerNumber),
   );
 
   if (!open) return null;
@@ -88,7 +98,7 @@ export function BankEditorModal({
       coordX: Number(values.coordX),
       coordY: Number(values.coordY),
       level: Number(values.level),
-      depositPolicy: (values.depositPolicy as BankPayload["depositPolicy"]) || null,
+      depositPolicy: values.depositPolicy,
       priorCaptureCount: values.priorCaptureCount
         ? Number(values.priorCaptureCount)
         : 0,
@@ -126,15 +136,15 @@ export function BankEditorModal({
           </div>
         ) : null}
 
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-          <label className="block space-y-1 text-sm">
+        <div className="grid grid-cols-2 gap-3">
+          <label className="block min-w-0 space-y-1 text-sm">
             <span className="text-hq-fg-muted">{t("fields.server")}</span>
             <input
               type="number"
               required
               min={1}
               step={1}
-              className="w-full rounded border border-hq-border bg-hq-canvas px-3 py-2 text-sm text-hq-fg"
+              className="w-full min-w-0 rounded border border-hq-border bg-hq-canvas px-3 py-2 text-sm text-hq-fg"
               value={values.gameServerNumber}
               onChange={(event) =>
                 setValues((current) => ({
@@ -144,62 +154,46 @@ export function BankEditorModal({
               }
             />
           </label>
-          <label className="block space-y-1 text-sm">
-            <span className="text-hq-fg-muted">{t("fields.coordX")}</span>
-            <input
-              type="number"
-              required
-              step={1}
-              className="w-full rounded border border-hq-border bg-hq-canvas px-3 py-2 text-sm text-hq-fg"
-              value={values.coordX}
-              onChange={(event) =>
-                setValues((current) => ({ ...current, coordX: event.target.value }))
-              }
-            />
-          </label>
-          <label className="block space-y-1 text-sm">
-            <span className="text-hq-fg-muted">{t("fields.coordY")}</span>
-            <input
-              type="number"
-              required
-              step={1}
-              className="w-full rounded border border-hq-border bg-hq-canvas px-3 py-2 text-sm text-hq-fg"
-              value={values.coordY}
-              onChange={(event) =>
-                setValues((current) => ({ ...current, coordY: event.target.value }))
-              }
-            />
-          </label>
-        </div>
-
-        <div className="grid grid-cols-2 gap-3">
-          <label className="block space-y-1 text-sm">
+          <label className="block min-w-0 space-y-1 text-sm">
             <span className="text-hq-fg-muted">{t("fields.level")}</span>
             <input
               type="number"
               required
               min={1}
               step={1}
-              className="w-full rounded border border-hq-border bg-hq-canvas px-3 py-2 text-sm text-hq-fg"
+              className="w-full min-w-0 rounded border border-hq-border bg-hq-canvas px-3 py-2 text-sm text-hq-fg"
               value={values.level}
               onChange={(event) =>
                 setValues((current) => ({ ...current, level: event.target.value }))
               }
             />
           </label>
-          <label className="block space-y-1 text-sm">
-            <span className="text-hq-fg-muted">{t("fields.priorCaptureCount")}</span>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <label className="block min-w-0 space-y-1 text-sm">
+            <span className="text-hq-fg-muted">{t("fields.coordX")}</span>
             <input
               type="number"
-              min={0}
+              required
               step={1}
-              className="w-full rounded border border-hq-border bg-hq-canvas px-3 py-2 text-sm text-hq-fg"
-              value={values.priorCaptureCount}
+              className="w-full min-w-0 rounded border border-hq-border bg-hq-canvas px-3 py-2 text-sm text-hq-fg"
+              value={values.coordX}
               onChange={(event) =>
-                setValues((current) => ({
-                  ...current,
-                  priorCaptureCount: event.target.value,
-                }))
+                setValues((current) => ({ ...current, coordX: event.target.value }))
+              }
+            />
+          </label>
+          <label className="block min-w-0 space-y-1 text-sm">
+            <span className="text-hq-fg-muted">{t("fields.coordY")}</span>
+            <input
+              type="number"
+              required
+              step={1}
+              className="w-full min-w-0 rounded border border-hq-border bg-hq-canvas px-3 py-2 text-sm text-hq-fg"
+              value={values.coordY}
+              onChange={(event) =>
+                setValues((current) => ({ ...current, coordY: event.target.value }))
               }
             />
           </label>
@@ -211,30 +205,30 @@ export function BankEditorModal({
             value={values.depositPolicy}
             aria-label={t("fields.depositPolicy")}
             triggerClassName="rounded border border-hq-border bg-hq-canvas"
-            options={[
-              { value: "", label: t("policyUnset") },
-              ...DEPOSIT_POLICIES.map((policy) => ({
-                value: policy,
-                label: t(
-                  `policy${policy.charAt(0).toUpperCase()}${policy.slice(1)}` as
-                    | "policyAlliance"
-                    | "policyWarzone"
-                    | "policyPublic",
-                ),
-              })),
-            ]}
+            options={DEPOSIT_POLICIES.map((policy) => ({
+              value: policy,
+              label: t(
+                `policy${policy.charAt(0).toUpperCase()}${policy.slice(1)}` as
+                  | "policyAlliance"
+                  | "policyWarzone"
+                  | "policyPublic",
+              ),
+            }))}
             onChange={(value) =>
-              setValues((current) => ({ ...current, depositPolicy: value }))
+              setValues((current) => ({
+                ...current,
+                depositPolicy: value as DepositPolicy,
+              }))
             }
           />
         </label>
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <label className="block space-y-1 text-sm">
+          <label className="block min-w-0 space-y-1 text-sm">
             <span className="text-hq-fg-muted">{t("fields.capturedAt")}</span>
             <input
               type="datetime-local"
-              className="w-full rounded border border-hq-border bg-hq-canvas px-3 py-2 text-sm text-hq-fg"
+              className="w-full min-w-0 rounded border border-hq-border bg-hq-canvas px-3 py-2 text-sm text-hq-fg"
               value={values.capturedAt}
               onChange={(event) =>
                 setValues((current) => ({
@@ -244,11 +238,11 @@ export function BankEditorModal({
               }
             />
           </label>
-          <label className="block space-y-1 text-sm">
+          <label className="block min-w-0 space-y-1 text-sm">
             <span className="text-hq-fg-muted">{t("fields.dropByAt")}</span>
             <input
               type="datetime-local"
-              className="w-full rounded border border-hq-border bg-hq-canvas px-3 py-2 text-sm text-hq-fg"
+              className="w-full min-w-0 rounded border border-hq-border bg-hq-canvas px-3 py-2 text-sm text-hq-fg"
               value={values.dropByAt}
               onChange={(event) =>
                 setValues((current) => ({ ...current, dropByAt: event.target.value }))
@@ -266,6 +260,28 @@ export function BankEditorModal({
             }
           />
         </label>
+
+        <details className="rounded-lg border border-hq-border bg-hq-canvas/40 px-3 py-2">
+          <summary className="cursor-pointer text-sm font-medium text-hq-fg">
+            {t("advancedSettings")}
+          </summary>
+          <label className="mt-3 block max-w-xs space-y-1 text-sm">
+            <span className="text-hq-fg-muted">{t("fields.priorCaptureCount")}</span>
+            <input
+              type="number"
+              min={0}
+              step={1}
+              className="w-full min-w-0 rounded border border-hq-border bg-hq-canvas px-3 py-2 text-sm text-hq-fg"
+              value={values.priorCaptureCount}
+              onChange={(event) =>
+                setValues((current) => ({
+                  ...current,
+                  priorCaptureCount: event.target.value,
+                }))
+              }
+            />
+          </label>
+        </details>
 
         <div className="flex flex-wrap items-center justify-between gap-2 pt-2">
           <div className="flex gap-2">

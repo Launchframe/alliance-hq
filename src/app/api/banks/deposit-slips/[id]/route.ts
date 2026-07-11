@@ -6,36 +6,18 @@ import {
   type DepositSlipPayload,
 } from "@/lib/banks/api.shared";
 import {
-  buildBankManagementPayload,
   deleteDepositSlip,
-  loadBanksWithSlips,
   updateDepositSlip,
 } from "@/lib/banks/repository.server";
+import { reloadBankManagementDashboard } from "@/lib/banks/reload-dashboard.server";
 import {
   requireBankAllianceContext,
   requireBankWrite,
 } from "@/lib/banks/route-helpers.server";
-import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
-import { BANK_WRITE_PERMISSION } from "@/lib/rbac/constants";
-import { sessionHasPermission } from "@/lib/rbac/context";
-import { getServerCalendarDate } from "@/lib/trains/game-time";
 
 export const dynamic = "force-dynamic";
 
 type RouteContext = { params: Promise<{ id: string }> };
-
-async function reloadDashboard(allianceId: string, sessionId: string) {
-  const [banks, canWrite, effectiveSeason] = await Promise.all([
-    loadBanksWithSlips(allianceId),
-    sessionHasPermission(sessionId, BANK_WRITE_PERMISSION),
-    getEffectiveSeasonForAlliance(allianceId),
-  ]);
-  return buildBankManagementPayload(banks, {
-    canWrite,
-    todayServerDate: getServerCalendarDate(),
-    effectiveSeasonKey: effectiveSeason.seasonKey,
-  });
-}
 
 export async function PUT(request: Request, context: RouteContext) {
   const auth = await requireBankAllianceContext();
@@ -56,7 +38,7 @@ export async function PUT(request: Request, context: RouteContext) {
 
   try {
     const row = await updateDepositSlip(allianceId, id, body);
-    const dashboard = await reloadDashboard(allianceId, sessionId);
+    const dashboard = await reloadBankManagementDashboard(allianceId, sessionId);
     return NextResponse.json({
       depositSlip: serializeDepositSlip(row),
       dashboard,
@@ -84,7 +66,7 @@ export async function DELETE(_request: Request, context: RouteContext) {
   const { id } = await context.params;
   try {
     await deleteDepositSlip(allianceId, id);
-    const dashboard = await reloadDashboard(allianceId, sessionId);
+    const dashboard = await reloadBankManagementDashboard(allianceId, sessionId);
     return NextResponse.json({ dashboard });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unexpected error.";

@@ -5,19 +5,12 @@ import {
   validateDepositSlipPayload,
   type DepositSlipPayload,
 } from "@/lib/banks/api.shared";
-import {
-  buildBankManagementPayload,
-  createDepositSlip,
-  loadBanksWithSlips,
-} from "@/lib/banks/repository.server";
+import { createDepositSlip } from "@/lib/banks/repository.server";
+import { reloadBankManagementDashboard } from "@/lib/banks/reload-dashboard.server";
 import {
   requireBankAllianceContext,
   requireBankWrite,
 } from "@/lib/banks/route-helpers.server";
-import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
-import { BANK_WRITE_PERMISSION } from "@/lib/rbac/constants";
-import { sessionHasPermission } from "@/lib/rbac/context";
-import { getServerCalendarDate } from "@/lib/trains/game-time";
 
 export const dynamic = "force-dynamic";
 
@@ -39,16 +32,7 @@ export async function POST(request: Request) {
 
   try {
     const row = await createDepositSlip(allianceId, body);
-    const [banks, canWrite, effectiveSeason] = await Promise.all([
-      loadBanksWithSlips(allianceId),
-      sessionHasPermission(sessionId, BANK_WRITE_PERMISSION),
-      getEffectiveSeasonForAlliance(allianceId),
-    ]);
-    const dashboard = buildBankManagementPayload(banks, {
-      canWrite,
-      todayServerDate: getServerCalendarDate(),
-      effectiveSeasonKey: effectiveSeason.seasonKey,
-    });
+    const dashboard = await reloadBankManagementDashboard(allianceId, sessionId);
     return NextResponse.json({
       depositSlip: serializeDepositSlip(row),
       dashboard,

@@ -6,20 +6,13 @@ import {
   type BankPayload,
 } from "@/lib/banks/api.shared";
 import { loadBankManagementDashboard } from "@/lib/banks/load-dashboard.server";
-import {
-  buildBankManagementPayload,
-  createBank,
-  loadBanksWithSlips,
-} from "@/lib/banks/repository.server";
+import { createBank } from "@/lib/banks/repository.server";
+import { reloadBankManagementDashboard } from "@/lib/banks/reload-dashboard.server";
 import {
   requireBankAllianceContext,
   requireBankRead,
   requireBankWrite,
 } from "@/lib/banks/route-helpers.server";
-import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
-import { sessionHasPermission } from "@/lib/rbac/context";
-import { BANK_WRITE_PERMISSION } from "@/lib/rbac/constants";
-import { getServerCalendarDate } from "@/lib/trains/game-time";
 
 export const dynamic = "force-dynamic";
 
@@ -72,16 +65,7 @@ export async function POST(request: Request) {
 
   try {
     const row = await createBank(allianceId, body);
-    const [banks, canWrite, effectiveSeason] = await Promise.all([
-      loadBanksWithSlips(allianceId),
-      sessionHasPermission(sessionId, BANK_WRITE_PERMISSION),
-      getEffectiveSeasonForAlliance(allianceId),
-    ]);
-    const dashboard = buildBankManagementPayload(banks, {
-      canWrite,
-      todayServerDate: getServerCalendarDate(),
-      effectiveSeasonKey: effectiveSeason.seasonKey,
-    });
+    const dashboard = await reloadBankManagementDashboard(allianceId, sessionId);
     return NextResponse.json({
       bank: serializeBank(row),
       dashboard,

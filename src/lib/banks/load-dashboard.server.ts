@@ -2,6 +2,7 @@ import "server-only";
 
 import {
   buildBankManagementPayload,
+  loadAllianceGameServerNumber,
   loadBanksWithSlips,
 } from "@/lib/banks/repository.server";
 import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
@@ -32,9 +33,10 @@ export async function loadBankManagementDashboard(
     return { forbidden: true as const };
   }
 
-  const [banks, effectiveSeason] = await Promise.all([
+  const [banks, effectiveSeason, allianceGameServerNumber] = await Promise.all([
     loadBanksWithSlips(allianceId),
     getEffectiveSeasonForAlliance(allianceId),
+    loadAllianceGameServerNumber(allianceId),
   ]);
 
   return buildBankManagementPayload(banks, {
@@ -42,5 +44,6 @@ export async function loadBankManagementDashboard(
     todayServerDate: getServerCalendarDate(),
     effectiveSeasonKey: effectiveSeason.seasonKey,
     nextCaptureLevel: options.nextCaptureLevel ?? null,
+    allianceGameServerNumber,
   });
 }

@@ -16,7 +16,7 @@ export type BankPayload = {
   level: number;
   capturedAt?: string | null;
   dropByAt?: string | null;
-  depositPolicy?: DepositPolicy | null;
+  depositPolicy: DepositPolicy;
   priorCaptureCount?: number;
   currentDepositCount?: number | null;
   currentDepositValue?: number | null;
@@ -145,7 +145,7 @@ export function validateBankPayload(body: BankPayload): string | null {
   ) {
     return "level must be a positive integer.";
   }
-  if (body.depositPolicy != null && !isDepositPolicy(body.depositPolicy)) {
+  if (!body.depositPolicy || !isDepositPolicy(body.depositPolicy)) {
     return "depositPolicy must be alliance, warzone, or public.";
   }
   if (body.capturedAt != null && body.capturedAt !== "") {

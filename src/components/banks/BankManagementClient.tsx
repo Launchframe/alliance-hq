@@ -43,6 +43,9 @@ export function BankManagementClient({ initial }: Props) {
   const [banks, setBanks] = useState<BankWithSlips[]>(initial.banks);
   const [heatmaps, setHeatmaps] = useState(initial.heatmaps);
   const [canWrite, setCanWrite] = useState(initial.canWrite);
+  const [allianceGameServerNumber, setAllianceGameServerNumber] = useState(
+    initial.allianceGameServerNumber,
+  );
 
   const [nextCaptureLevelInput, setNextCaptureLevelInput] = useState(
     initial.nextCaptureLevel != null ? String(initial.nextCaptureLevel) : "",
@@ -88,6 +91,7 @@ export function BankManagementClient({ initial }: Props) {
     setBanks(dashboard.banks);
     setHeatmaps(dashboard.heatmaps);
     setCanWrite(dashboard.canWrite);
+    setAllianceGameServerNumber(dashboard.allianceGameServerNumber);
     setError(null);
   }, []);
 
@@ -99,6 +103,7 @@ export function BankManagementClient({ initial }: Props) {
       setBanks(data.dashboard.banks);
       setHeatmaps(data.dashboard.heatmaps);
       setCanWrite(data.dashboard.canWrite);
+      setAllianceGameServerNumber(data.dashboard.allianceGameServerNumber);
     }
     setError(data?.error ?? t("errors.saveFailed"));
   }, [t]);
@@ -298,19 +303,19 @@ export function BankManagementClient({ initial }: Props) {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
+    <div className="w-full min-w-0 max-w-full space-y-6">
+      <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
+        <div className="min-w-0">
           <h1 className="text-2xl font-semibold text-hq-fg">{t("title")}</h1>
           <p className="mt-1 text-sm text-hq-fg-muted">{t("subtitle")}</p>
         </div>
-        <label className="block w-48 space-y-1 text-sm">
+        <label className="block w-full min-w-0 max-w-xs space-y-1 text-sm sm:w-48">
           <span className="text-hq-fg-muted">{t("nextCaptureLevel")}</span>
           <input
             type="number"
             min={1}
             step={1}
-            className="w-full rounded border border-hq-border bg-hq-canvas px-3 py-2 text-sm text-hq-fg"
+            className="w-full min-w-0 rounded border border-hq-border bg-hq-canvas px-3 py-2 text-sm text-hq-fg"
             value={nextCaptureLevelInput}
             onChange={(event) => setNextCaptureLevelInput(event.target.value)}
           />
@@ -331,8 +336,8 @@ export function BankManagementClient({ initial }: Props) {
         </div>
       ) : null}
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(18rem,1fr)]">
-        <div className="space-y-6">
+      <div className="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+        <div className="min-w-0 space-y-6">
           <BankList
             banks={banks}
             selectedBankId={selectedBankId}
@@ -350,7 +355,7 @@ export function BankManagementClient({ initial }: Props) {
           />
         </div>
 
-        <div className="space-y-6">
+        <div className="min-w-0 space-y-6">
           <RecommendedDropCard
             recommendation={recommendation}
             canWrite={canWrite}
@@ -370,6 +375,7 @@ export function BankManagementClient({ initial }: Props) {
         key={bankModalToken}
         open={bankModalOpen}
         initial={editingBank}
+        defaultGameServerNumber={allianceGameServerNumber}
         saving={saving}
         error={bankModalOpen ? error : null}
         onClose={() => {

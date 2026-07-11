@@ -36,49 +36,53 @@ export function InvestorRiskHeatmap({ bank, cells }: Props) {
   }
 
   return (
-    <div className="space-y-3 rounded-lg border border-hq-border bg-hq-surface p-4">
-      <div>
+    <div className="min-w-0 space-y-3 rounded-lg border border-hq-border bg-hq-surface p-4">
+      <div className="min-w-0">
         <h2 className="text-sm font-semibold text-hq-fg">
-          {t("heatmapTitle")} —{" "}
-          {t("coords", {
-            server: bank.gameServerNumber,
-            x: bank.coordX,
-            y: bank.coordY,
-          })}
+          <span className="break-words">
+            {t("heatmapTitle")} —{" "}
+            {t("coords", {
+              server: bank.gameServerNumber,
+              x: bank.coordX,
+              y: bank.coordY,
+            })}
+          </span>
         </h2>
         <p className="mt-1 text-xs text-hq-fg-muted">{t("heatmapHint")}</p>
       </div>
 
       {rows.length === 0 ? null : (
-        <div className="overflow-x-auto">
-          <div className="inline-flex min-w-full flex-col gap-1">
-            {rows.map((row, rowIndex) => (
-              <div key={rowIndex} className="flex gap-1">
-                {row.map((cell) => (
-                  <div
-                    key={cell.hourStartIso}
-                    role="img"
-                    aria-label={`${formatHour(cell.hourStartIso)}: ${cell.countAtRisk} / ${cell.valueAtRisk.toLocaleString()}`}
-                    title={`${formatHour(cell.hourStartIso)}\n${t("countAtRisk")}: ${cell.countAtRisk}\n${t("valueAtRisk")}: ${cell.valueAtRisk.toLocaleString()}`}
-                    className="h-5 w-5 shrink-0 rounded-sm sm:h-6 sm:w-6"
-                    style={cellStyle(cell.intensity)}
-                  />
-                ))}
-              </div>
-            ))}
-          </div>
+        <div className="flex w-full min-w-0 flex-col gap-1">
+          {rows.map((row, rowIndex) => (
+            <div
+              key={rowIndex}
+              className="grid w-full gap-0.5"
+              style={{ gridTemplateColumns: `repeat(${HOURS_PER_ROW}, minmax(0, 1fr))` }}
+            >
+              {row.map((cell) => (
+                <div
+                  key={cell.hourStartIso}
+                  role="img"
+                  aria-label={`${formatHour(cell.hourStartIso)}: ${cell.countAtRisk} / ${cell.valueAtRisk.toLocaleString()}`}
+                  title={`${formatHour(cell.hourStartIso)}\n${t("countAtRisk")}: ${cell.countAtRisk}\n${t("valueAtRisk")}: ${cell.valueAtRisk.toLocaleString()}`}
+                  className="aspect-square min-w-0 rounded-sm"
+                  style={cellStyle(cell.intensity)}
+                />
+              ))}
+            </div>
+          ))}
         </div>
       )}
 
-      <div className="flex items-center gap-2 text-xs text-hq-fg-muted">
+      <div className="flex flex-wrap items-center gap-2 text-xs text-hq-fg-muted">
         <span
-          className="h-3 w-3 rounded-sm"
+          className="h-3 w-3 shrink-0 rounded-sm"
           style={{ backgroundColor: "var(--hq-success)" }}
           aria-hidden
         />
         <span>{t("countAtRisk")}: 0</span>
         <span
-          className="ml-3 h-3 w-3 rounded-sm"
+          className="h-3 w-3 shrink-0 rounded-sm"
           style={{ backgroundColor: "var(--hq-danger)" }}
           aria-hidden
         />

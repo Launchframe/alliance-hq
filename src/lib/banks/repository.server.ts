@@ -20,6 +20,17 @@ import type {
 } from "@/lib/banks/types.shared";
 import { getDb, schema } from "@/lib/db";
 
+export async function loadAllianceGameServerNumber(
+  allianceId: string,
+): Promise<number | null> {
+  const rows = await getDb()
+    .select({ gameServerNumber: schema.alliances.gameServerNumber })
+    .from(schema.alliances)
+    .where(eq(schema.alliances.id, allianceId))
+    .limit(1);
+  return rows[0]?.gameServerNumber ?? null;
+}
+
 export async function listBanksForAlliance(allianceId: string) {
   return getDb()
     .select()
@@ -65,6 +76,7 @@ export function buildBankManagementPayload(
     todayServerDate: string;
     effectiveSeasonKey?: string;
     nextCaptureLevel?: number | null;
+    allianceGameServerNumber?: number | null;
     now?: Date;
   },
 ): BankManagementPayload {
@@ -80,6 +92,7 @@ export function buildBankManagementPayload(
     todayServerDate: options.todayServerDate,
     effectiveSeasonKey: options.effectiveSeasonKey,
     nextCaptureLevel,
+    allianceGameServerNumber: options.allianceGameServerNumber ?? null,
   };
 }
 
@@ -96,7 +109,7 @@ export async function createBank(allianceId: string, body: BankPayload) {
       level: body.level,
       capturedAt: body.capturedAt ? new Date(body.capturedAt) : null,
       dropByAt: body.dropByAt ? new Date(body.dropByAt) : null,
-      depositPolicy: body.depositPolicy ?? null,
+      depositPolicy: body.depositPolicy,
       priorCaptureCount: body.priorCaptureCount ?? 0,
       currentDepositCount: body.currentDepositCount ?? null,
       currentDepositValue: body.currentDepositValue ?? null,
@@ -121,7 +134,7 @@ export async function updateBank(
       level: body.level,
       capturedAt: body.capturedAt ? new Date(body.capturedAt) : null,
       dropByAt: body.dropByAt ? new Date(body.dropByAt) : null,
-      depositPolicy: body.depositPolicy ?? null,
+      depositPolicy: body.depositPolicy,
       priorCaptureCount: body.priorCaptureCount ?? 0,
       currentDepositCount: body.currentDepositCount ?? null,
       currentDepositValue: body.currentDepositValue ?? null,

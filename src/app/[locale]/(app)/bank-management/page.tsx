@@ -23,5 +23,9 @@ export default async function BankManagementPage() {
     notFound();
   }
 
-  return <BankManagementClient initial={dashboard} />;
+  return (
+    <div className="mx-auto w-full min-w-0 max-w-full">
+      <BankManagementClient initial={dashboard} />
+    </div>
+  );
 }

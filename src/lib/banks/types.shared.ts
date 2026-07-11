@@ -73,4 +73,6 @@ export type BankManagementPayload = {
   todayServerDate: string;
   effectiveSeasonKey?: string;
   nextCaptureLevel: number | null;
+  /** Prefill for new bank forms from the session alliance. */
+  allianceGameServerNumber: number | null;
 };

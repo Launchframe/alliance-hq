@@ -40,13 +40,13 @@ export function RecommendedDropCard({
     recommendation;
 
   return (
-    <div className="space-y-3 rounded-lg border border-hq-accent/40 bg-hq-accent/5 p-4">
-      <div>
+    <div className="min-w-0 space-y-3 rounded-lg border border-hq-accent/40 bg-hq-accent/5 p-4">
+      <div className="min-w-0">
         <h2 className="text-sm font-semibold text-hq-fg">
           {t("recommendedTitle")}
         </h2>
-        <div className="mt-1 flex flex-wrap items-center gap-2">
-          <span className="font-medium text-hq-fg">
+        <div className="mt-1 flex min-w-0 flex-wrap items-center gap-2">
+          <span className="break-words font-medium text-hq-fg">
             {t("coords", {
               server: bank.gameServerNumber,
               x: bank.coordX,
@@ -59,18 +59,18 @@ export function RecommendedDropCard({
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-2 text-center">
-        <div className="rounded border border-hq-border bg-hq-surface p-2">
+      <div className="grid grid-cols-1 gap-2 text-center sm:grid-cols-3">
+        <div className="min-w-0 rounded border border-hq-border bg-hq-surface p-2">
           <div className="text-xs text-hq-fg-muted">{t("valueAtRisk")}</div>
           <div className="text-sm font-semibold text-hq-fg">
             {valueAtRisk.toLocaleString()}
           </div>
         </div>
-        <div className="rounded border border-hq-border bg-hq-surface p-2">
+        <div className="min-w-0 rounded border border-hq-border bg-hq-surface p-2">
           <div className="text-xs text-hq-fg-muted">{t("countAtRisk")}</div>
           <div className="text-sm font-semibold text-hq-fg">{countAtRisk}</div>
         </div>
-        <div className="rounded border border-hq-border bg-hq-surface p-2">
+        <div className="min-w-0 rounded border border-hq-border bg-hq-surface p-2">
           <div className="text-xs text-hq-fg-muted">{t("hoursUntilClear")}</div>
           <div className="text-sm font-semibold text-hq-fg">
             {hoursUntilAllMature != null ? Math.ceil(hoursUntilAllMature) : "—"}
@@ -79,7 +79,7 @@ export function RecommendedDropCard({
       </div>
 
       {reasons.length > 0 ? (
-        <ul className="list-inside list-disc space-y-1 text-xs text-hq-fg-muted">
+        <ul className="list-inside list-disc space-y-1 break-words text-xs text-hq-fg-muted">
           {reasons.map((reason, index) => (
             <li key={index}>{reason}</li>
           ))}

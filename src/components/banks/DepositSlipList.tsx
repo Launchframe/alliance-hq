@@ -36,9 +36,9 @@ export function DepositSlipList({ bank, canWrite, onAdd, onEdit, onDelete }: Pro
   );
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between gap-2">
-        <h2 className="text-sm font-semibold text-hq-fg">
+    <div className="min-w-0 space-y-3">
+      <div className="flex min-w-0 items-start justify-between gap-2">
+        <h2 className="min-w-0 break-words text-sm font-semibold text-hq-fg">
           {t("depositsTitle")} — {t("coords", {
             server: bank.gameServerNumber,
             x: bank.coordX,
@@ -48,7 +48,7 @@ export function DepositSlipList({ bank, canWrite, onAdd, onEdit, onDelete }: Pro
         {canWrite ? (
           <button
             type="button"
-            className="inline-flex items-center gap-1.5 rounded border border-hq-success bg-hq-success px-3 py-1.5 text-xs font-medium text-white"
+            className="inline-flex shrink-0 items-center gap-1.5 rounded border border-hq-success bg-hq-success px-3 py-1.5 text-xs font-medium text-white"
             onClick={onAdd}
           >
             <Plus className="h-3.5 w-3.5" aria-hidden />
@@ -59,7 +59,7 @@ export function DepositSlipList({ bank, canWrite, onAdd, onEdit, onDelete }: Pro
 
       {slips.length === 0 ? (
         <div className="rounded-lg border border-hq-border bg-hq-surface p-4 text-sm text-hq-fg-muted">
-          {t("emptyBanks")}
+          {t("emptyDeposits")}
         </div>
       ) : (
         <ul className="space-y-2">
