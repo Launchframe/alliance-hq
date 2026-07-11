@@ -94,6 +94,8 @@
     "trainsDescription": "Agenda diária do Condutor, roleta e confirmação",
     "battlePlan": "Plano de Batalha",
     "battlePlanDescription": "Agende capturas de território e coordene marcadores no mapa",
+    "bankManagement": "Gestão de Bancos",
+    "bankManagementDescription": "Acompanhe Bancos, risco de investidores e o melhor momento para abandonar",
     "desertStorm": "Desert Storm",
     "canyonStorm": "Canyon Storm",
     "otherEvents": "Outros Eventos",
@@ -1406,6 +1408,7 @@
         "myThp": "Ir para Meu THP",
         "trains": "Ir para Trem da Aliança",
         "battlePlan": "Ir para Plano de Batalha",
+        "bankManagement": "Ir para Gestão de Bancos",
         "desertStorm": "Ir para Desert Storm",
         "canyonStorm": "Ir para Canyon Storm",
         "otherEvents": "Ir para Outros Eventos",
@@ -4656,7 +4659,8 @@
       "policyWar": "Espere contestação. Capture rápido e fique alerta.",
       "policyPeace": "Entrada e saída nessas fortalezas. Não temos pressa para capturá-las.",
       "seasonDisclaimer": "📣 NÃO SAQUE OURO até o marcador do mapa liberar.\nLíderes da Resistência saqueiam primeiro para evoluir mais rápido, avançar com força e ajudar a alcançar as metas do time 💪💪",
-      "empty": "Nenhuma captura está agendada nas próximas 24 horas."
+      "empty": "Nenhuma captura está agendada nas próximas 24 horas.",
+      "dropLine": "Vamos abandonar o Banco com o marcador {markerLabel} às {dropServerTime} HS. Limitem os prazos de novos depósitos neste banco."
     },
     "calendar": {
       "viewDay": "Diário",
@@ -4709,6 +4713,8 @@
       "territoryType": "Tipo de território",
       "stronghold": "Fortaleza",
       "city": "Cidade",
+      "drop": "Abandono de banco",
+      "dropHint": "Investidores devem limitar novos prazos de depósito neste banco.",
       "marker": "Marcador",
       "noMarker": "Nenhum",
       "selectMarker": "Selecionar marcador",
@@ -4741,5 +4747,72 @@
     "errors": {
       "saveFailed": "Não foi possível salvar as alterações do plano de batalha."
     }
+  },
+  "bankManagement": {
+    "title": "Gestão de Bancos",
+    "subtitle": "Acompanhe Bancos, risco de investidores e o melhor momento para abandonar um banco.",
+    "emptyBanks": "Nenhum banco ainda. Adicione um Banco para liberar recomendações de abandono.",
+    "addBank": "Adicionar banco",
+    "editBank": "Editar banco",
+    "deleteBank": "Excluir banco",
+    "banksTitle": "Bancos",
+    "depositsTitle": "Comprovantes de depósito",
+    "addDeposit": "Adicionar comprovante",
+    "editDeposit": "Editar comprovante",
+    "deleteDeposit": "Excluir comprovante",
+    "nextCaptureLevel": "Nível do próximo banco a capturar",
+    "nextCaptureLevelHint": "As recomendações sempre preferem abandonar o banco de menor nível primeiro.",
+    "recommendedTitle": "Próximo abandono recomendado",
+    "recommendedEmpty": "Adicione pelo menos um banco para ver uma recomendação.",
+    "scheduleDrop": "Agendar abandono",
+    "schedulingDrop": "Agendando…",
+    "heatmapTitle": "Mapa de risco dos investidores",
+    "heatmapHint": "Próximas 72 horas. Horas mais verdes significam menos depósitos bloqueados em risco se você abandonar então.",
+    "valueAtRisk": "Valor em risco",
+    "countAtRisk": "Depósitos em risco",
+    "hoursUntilClear": "Horas até todos amadurecerem",
+    "coords": "#{server} (X:{x}, Y:{y})",
+    "level": "Nv.{level}",
+    "policy": "Política de depósito",
+    "policyAlliance": "Membros da aliança",
+    "policyWarzone": "Mesma zona de guerra",
+    "policyPublic": "Público",
+    "policyUnset": "Não definida",
+    "fields": {
+      "server": "Servidor",
+      "coordX": "X",
+      "coordY": "Y",
+      "level": "Nível",
+      "capturedAt": "Capturado em",
+      "dropByAt": "Precisa abandonar até",
+      "depositPolicy": "Política de depósito",
+      "priorCaptureCount": "Capturas anteriores",
+      "notes": "Notas",
+      "depositAt": "Horário do depósito",
+      "termDays": "Prazo (dias)",
+      "amount": "Valor (CrystalGold)",
+      "status": "Status",
+      "commanderName": "Comandante",
+      "allianceTag": "Tag da aliança",
+      "outcomeAt": "Horário do resultado"
+    },
+    "status": {
+      "locked": "Bloqueado",
+      "matured": "Amadurecido",
+      "looted": "Saqueado"
+    },
+    "actions": {
+      "save": "Salvar",
+      "saving": "Salvando…",
+      "cancel": "Cancelar",
+      "delete": "Excluir",
+      "confirmDeleteBank": "Excluir este banco e todos os comprovantes?",
+      "confirmDeleteDeposit": "Excluir este comprovante?"
+    },
+    "errors": {
+      "saveFailed": "Não foi possível salvar as alterações da gestão de bancos.",
+      "scheduleFailed": "Não foi possível agendar o abandono do banco."
+    },
+    "dropScheduled": "Abandono agendado no Plano de Batalha."
   }
 }

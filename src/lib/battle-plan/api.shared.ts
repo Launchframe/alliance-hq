@@ -10,14 +10,20 @@ import {
   type TerritoryType,
 } from "@/lib/battle-plan/types.shared";
 import type { MarkerIconPreset } from "@/lib/battle-plan/marker-icons.shared";
+import {
+  BATTLE_PLAN_EVENT_TYPES,
+  type BattlePlanEventType,
+} from "@/lib/banks/types.shared";
 
 export type CaptureEventPayload = {
   scheduledAt: string;
   territoryType: TerritoryType;
   iconPreset?: MarkerIconPreset | null;
-  capturePolicy: CapturePolicy;
+  capturePolicy?: CapturePolicy | null;
   notes?: string | null;
   status?: CaptureEventStatus;
+  eventType?: BattlePlanEventType;
+  bankId?: string | null;
 };
 
 export type BattlePlanSettingsPayload = {
@@ -37,6 +43,12 @@ export function isTerritoryType(value: string): value is TerritoryType {
 
 export function isCaptureEventStatus(value: string): value is CaptureEventStatus {
   return (CAPTURE_EVENT_STATUSES as readonly string[]).includes(value);
+}
+
+export function isBattlePlanEventType(
+  value: string,
+): value is BattlePlanEventType {
+  return (BATTLE_PLAN_EVENT_TYPES as readonly string[]).includes(value);
 }
 
 export function serializeBattlePlanSettings(
@@ -60,6 +72,7 @@ export function serializeBattlePlanSettings(
 export function serializeCaptureEvent(
   row: {
     id: string;
+    eventType?: string | null;
     scheduledAt: Date;
     serverCalendarDate: string;
     territoryType: string;
@@ -67,6 +80,7 @@ export function serializeCaptureEvent(
     capturePolicy: string | null;
     notes: string | null;
     status: string;
+    bankId?: string | null;
     createdAt: Date;
     updatedAt: Date;
   },
@@ -80,8 +94,13 @@ export function serializeCaptureEvent(
     row.iconPreset && isMarkerIconPreset(row.iconPreset)
       ? row.iconPreset
       : null;
+  const eventType =
+    row.eventType && isBattlePlanEventType(row.eventType)
+      ? row.eventType
+      : "capture";
   return {
     id: row.id,
+    eventType,
     scheduledAt: row.scheduledAt.toISOString(),
     serverCalendarDate: row.serverCalendarDate,
     territoryType: isTerritoryType(row.territoryType)
@@ -92,6 +111,7 @@ export function serializeCaptureEvent(
     effectiveCapturePolicy: capturePolicy ?? defaultCapturePolicy,
     notes: row.notes,
     status: isCaptureEventStatus(row.status) ? row.status : "scheduled",
+    bankId: row.bankId ?? null,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
@@ -107,6 +127,10 @@ export function validateCaptureEventPayload(
   if (Number.isNaN(scheduledAt.getTime())) {
     return "scheduledAt must be a valid ISO timestamp.";
   }
+  const eventType = body.eventType ?? "capture";
+  if (!isBattlePlanEventType(eventType)) {
+    return "eventType must be capture or drop.";
+  }
   if (!body.territoryType || !isTerritoryType(body.territoryType)) {
     return "territoryType must be stronghold or city.";
   }
@@ -117,8 +141,18 @@ export function validateCaptureEventPayload(
   if (status === "scheduled" && !body.iconPreset) {
     return "iconPreset is required for scheduled captures.";
   }
-  if (!body.capturePolicy || !isCapturePolicy(body.capturePolicy)) {
+  if (eventType === "capture") {
+    if (!body.capturePolicy || !isCapturePolicy(body.capturePolicy)) {
+      return "capturePolicy must be peace or war.";
+    }
+  } else if (
+    body.capturePolicy != null &&
+    !isCapturePolicy(body.capturePolicy)
+  ) {
     return "capturePolicy must be peace or war.";
+  }
+  if (eventType === "drop" && !body.bankId?.trim()) {
+    return "bankId is required for drop events.";
   }
   if (body.status != null && !isCaptureEventStatus(body.status)) {
     return "status must be scheduled, completed, or cancelled.";

@@ -2806,6 +2806,8 @@ export const battlePlanCaptureEvents = pgTable(
     allianceId: text("alliance_id")
       .notNull()
       .references(() => alliances.id, { onDelete: "cascade" }),
+    /** Discriminator: capture (default) or bank drop. */
+    eventType: text("event_type").notNull().default("capture"),
     scheduledAt: timestamp("scheduled_at", { withTimezone: true }).notNull(),
     serverCalendarDate: text("server_calendar_date").notNull(),
     territoryType: text("territory_type").notNull(),
@@ -2813,6 +2815,8 @@ export const battlePlanCaptureEvents = pgTable(
     capturePolicy: text("capture_policy"),
     notes: text("notes"),
     status: text("status").notNull().default("scheduled"),
+    /** Optional FK when event_type is drop. */
+    bankId: text("bank_id"),
     createdByHqUserId: text("created_by_hq_user_id").references(
       () => hqUsers.id,
       { onDelete: "set null" },
@@ -2836,7 +2840,90 @@ export const battlePlanCaptureEvents = pgTable(
   ],
 );
 
+// ---------------------------------------------------------------------------
+// Bank management — Season 5 Bank Strongholds + deposit slips
+// ---------------------------------------------------------------------------
+
+export const banks = pgTable(
+  "banks",
+  {
+    id: text("id").primaryKey(),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    gameServerNumber: integer("game_server_number").notNull(),
+    coordX: integer("coord_x").notNull(),
+    coordY: integer("coord_y").notNull(),
+    level: integer("level").notNull(),
+    capturedAt: timestamp("captured_at", { withTimezone: true }),
+    dropByAt: timestamp("drop_by_at", { withTimezone: true }),
+    depositPolicy: text("deposit_policy"),
+    priorCaptureCount: integer("prior_capture_count").notNull().default(0),
+    currentDepositCount: integer("current_deposit_count"),
+    currentDepositValue: doublePrecision("current_deposit_value"),
+    notes: text("notes"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    unique("banks_alliance_server_coords_unique").on(
+      table.allianceId,
+      table.gameServerNumber,
+      table.coordX,
+      table.coordY,
+    ),
+    index("banks_alliance_id_idx").on(table.allianceId),
+  ],
+);
+
+export const bankDepositSlips = pgTable(
+  "bank_deposit_slips",
+  {
+    id: text("id").primaryKey(),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    bankId: text("bank_id")
+      .notNull()
+      .references(() => banks.id, { onDelete: "cascade" }),
+    depositAt: timestamp("deposit_at", { withTimezone: true }).notNull(),
+    termDays: integer("term_days").notNull(),
+    maturesAt: timestamp("matures_at", { withTimezone: true }).notNull(),
+    status: text("status").notNull().default("locked"),
+    outcomeAt: timestamp("outcome_at", { withTimezone: true }),
+    amount: integer("amount").notNull(),
+    depositAllianceTag: text("deposit_alliance_tag"),
+    depositAllianceId: text("deposit_alliance_id").references(
+      () => alliances.id,
+      { onDelete: "set null" },
+    ),
+    commanderName: text("commander_name").notNull(),
+    commanderId: text("commander_id").references(() => commanders.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("bank_deposit_slips_bank_status_idx").on(table.bankId, table.status),
+    index("bank_deposit_slips_alliance_matures_idx").on(
+      table.allianceId,
+      table.maturesAt,
+    ),
+  ],
+);
+
 export type BattlePlanSettings = typeof battlePlanSettings.$inferSelect;
 export type BattlePlanCaptureEvent =
   typeof battlePlanCaptureEvents.$inferSelect;
+export type Bank = typeof banks.$inferSelect;
+export type BankDepositSlip = typeof bankDepositSlips.$inferSelect;
 

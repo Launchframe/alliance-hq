@@ -217,6 +217,14 @@ export const NAV_GROUPS: NavGroupDef[] = [
         requiredPermission: "battle_plan:read",
         descriptionKey: "battlePlanDescription",
       },
+      {
+        id: "bank-management",
+        labelKey: "bankManagement",
+        href: "/bank-management",
+        kind: "native",
+        requiredPermission: "bank:read",
+        descriptionKey: "bankManagementDescription",
+      },
     ],
   },
   {

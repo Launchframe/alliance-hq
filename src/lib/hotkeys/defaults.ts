@@ -29,6 +29,7 @@ const DEFAULT_HOTKEY_BINDINGS_IMPL = {
   "nav.myThp": seq("g", "f"),
   "nav.trains": seq("g", "t"),
   "nav.battlePlan": seq("g", "h"),
+  "nav.bankManagement": seq("g", "9"),
   "nav.desertStorm": seq("g", "s"),
   "nav.canyonStorm": seq("g", "c"),
   "nav.otherEvents": seq("g", "n"),

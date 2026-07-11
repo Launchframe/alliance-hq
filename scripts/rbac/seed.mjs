@@ -67,6 +67,8 @@ async function main() {
       "eur:schedules:write",
       "battle_plan:read",
       "battle_plan:write",
+      "bank:read",
+      "bank:write",
     ]),
   ];
   roleTemplates.maintainer.permissions = [...roleTemplates.owner.permissions];
@@ -79,6 +81,8 @@ async function main() {
       "eur:schedules:write",
       "battle_plan:read",
       "battle_plan:write",
+      "bank:read",
+      "bank:write",
     ]),
   ];
   roleTemplates.data_entry.permissions = [
@@ -86,10 +90,15 @@ async function main() {
       ...roleTemplates.data_entry.permissions,
       "inbox:read",
       "battle_plan:read",
+      "bank:read",
     ]),
   ];
   roleTemplates.viewer.permissions = [
-    ...new Set([...roleTemplates.viewer.permissions, "battle_plan:read"]),
+    ...new Set([
+      ...roleTemplates.viewer.permissions,
+      "battle_plan:read",
+      "bank:read",
+    ]),
   ];
   roleTemplates.member = {
     description:

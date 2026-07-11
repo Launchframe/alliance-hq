@@ -67,9 +67,11 @@ function DayCell({
   const eventLimit = variant === "daily" ? 8 : 3;
   const eventTextClass = variant === "daily" ? "text-xs" : "text-[10px]";
   const territoryLabel = (event: SerializedCaptureEvent) =>
-    event.territoryType === "stronghold"
-      ? t("event.stronghold")
-      : t("event.city");
+    event.eventType === "drop"
+      ? t("event.drop")
+      : event.territoryType === "stronghold"
+        ? t("event.stronghold")
+        : t("event.city");
 
   return (
     <div

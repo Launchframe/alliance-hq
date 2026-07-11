@@ -1,4 +1,5 @@
 import type { MarkerIconPreset } from "@/lib/battle-plan/marker-icons.shared";
+import type { BattlePlanEventType } from "@/lib/banks/types.shared";
 
 export const CAPTURE_POLICIES = ["peace", "war"] as const;
 export type CapturePolicy = (typeof CAPTURE_POLICIES)[number];
@@ -15,6 +16,8 @@ export type CaptureEventStatus = (typeof CAPTURE_EVENT_STATUSES)[number];
 
 export const MAX_CAPTURES_PER_SERVER_DAY = 2;
 
+export type { BattlePlanEventType };
+
 export type SerializedBattlePlanSettings = {
   defaultCapturePolicy: CapturePolicy;
   planRevision: number;
@@ -24,6 +27,7 @@ export type SerializedBattlePlanSettings = {
 
 export type SerializedCaptureEvent = {
   id: string;
+  eventType: BattlePlanEventType;
   scheduledAt: string;
   serverCalendarDate: string;
   territoryType: TerritoryType;
@@ -32,6 +36,7 @@ export type SerializedCaptureEvent = {
   effectiveCapturePolicy: CapturePolicy;
   notes: string | null;
   status: CaptureEventStatus;
+  bankId: string | null;
   createdAt: string;
   updatedAt: string;
 };

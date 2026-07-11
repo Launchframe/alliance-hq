@@ -94,6 +94,8 @@
     "trainsDescription": "Daily Conductor schedule, wheel rolls, and train lock-in",
     "battlePlan": "Battle Plan",
     "battlePlanDescription": "Schedule territory captures and coordinate map markers",
+    "bankManagement": "Bank Management",
+    "bankManagementDescription": "Track Bank Strongholds, deposit risk, and drop timing",
     "desertStorm": "Desert Storm",
     "canyonStorm": "Canyon Storm",
     "otherEvents": "Other Events",
@@ -1406,6 +1408,7 @@
         "myThp": "Go to My THP",
         "trains": "Go to Alliance Train",
         "battlePlan": "Go to Battle Plan",
+        "bankManagement": "Go to Bank Management",
         "desertStorm": "Go to Desert Storm",
         "canyonStorm": "Go to Canyon Storm",
         "otherEvents": "Go to Other Events",
@@ -4657,7 +4660,8 @@
       "policyWar": "Expect these to be contested. Capture quickly and be on your guard.",
       "policyPeace": "In-and-out with these Strongholds. We're not in a rush to take them.",
       "seasonDisclaimer": "📣 DO NOT LOOT GOLD until the map marker gives you the okay.\nResistance leaders loot first so they can upgrade faster, push harder, and help us reach team goals faster 💪💪",
-      "empty": "No captures are scheduled in the next 24 hours."
+      "empty": "No captures are scheduled in the next 24 hours.",
+      "dropLine": "We are dropping the Bank with marker {markerLabel} at {dropServerTime} ST. Please limit deposit terms on any new deposits with this bank."
     },
     "calendar": {
       "viewDay": "Daily",
@@ -4710,6 +4714,8 @@
       "territoryType": "Territory type",
       "stronghold": "Stronghold",
       "city": "City",
+      "drop": "Bank drop",
+      "dropHint": "Investors should limit new deposit terms on this bank.",
       "marker": "Marker",
       "noMarker": "None",
       "selectMarker": "Select a marker",
@@ -4742,5 +4748,72 @@
     "errors": {
       "saveFailed": "Could not save battle plan changes."
     }
+  },
+  "bankManagement": {
+    "title": "Bank Management",
+    "subtitle": "Track Bank Strongholds, investor risk, and the best time to drop a bank.",
+    "emptyBanks": "No banks yet. Add a Bank Stronghold to unlock drop recommendations.",
+    "addBank": "Add bank",
+    "editBank": "Edit bank",
+    "deleteBank": "Delete bank",
+    "banksTitle": "Bank Strongholds",
+    "depositsTitle": "Deposit slips",
+    "addDeposit": "Add deposit slip",
+    "editDeposit": "Edit deposit slip",
+    "deleteDeposit": "Delete deposit slip",
+    "nextCaptureLevel": "Next bank level to capture",
+    "nextCaptureLevelHint": "Recommendations always prefer dropping your lowest-level bank first.",
+    "recommendedTitle": "Recommended next drop",
+    "recommendedEmpty": "Add at least one bank to see a drop recommendation.",
+    "scheduleDrop": "Schedule drop",
+    "schedulingDrop": "Scheduling…",
+    "heatmapTitle": "Investor risk heatmap",
+    "heatmapHint": "Next 72 hours. Greener hours mean fewer locked deposits at risk if you drop then.",
+    "valueAtRisk": "Value at risk",
+    "countAtRisk": "Deposits at risk",
+    "hoursUntilClear": "Hours until all mature",
+    "coords": "#{server} (X:{x}, Y:{y})",
+    "level": "Lv.{level}",
+    "policy": "Deposit policy",
+    "policyAlliance": "Alliance members",
+    "policyWarzone": "Same warzone",
+    "policyPublic": "Public",
+    "policyUnset": "Not set",
+    "fields": {
+      "server": "Server",
+      "coordX": "X",
+      "coordY": "Y",
+      "level": "Level",
+      "capturedAt": "Captured at",
+      "dropByAt": "Need to drop by",
+      "depositPolicy": "Deposit policy",
+      "priorCaptureCount": "Prior capture count",
+      "notes": "Notes",
+      "depositAt": "Deposit time",
+      "termDays": "Term (days)",
+      "amount": "Amount (CrystalGold)",
+      "status": "Status",
+      "commanderName": "Commander",
+      "allianceTag": "Alliance tag",
+      "outcomeAt": "Outcome time"
+    },
+    "status": {
+      "locked": "Locked",
+      "matured": "Matured",
+      "looted": "Looted"
+    },
+    "actions": {
+      "save": "Save",
+      "saving": "Saving…",
+      "cancel": "Cancel",
+      "delete": "Delete",
+      "confirmDeleteBank": "Delete this bank and all of its deposit slips?",
+      "confirmDeleteDeposit": "Delete this deposit slip?"
+    },
+    "errors": {
+      "saveFailed": "Could not save bank management changes.",
+      "scheduleFailed": "Could not schedule the bank drop."
+    },
+    "dropScheduled": "Drop scheduled on Battle Plan."
   }
 }

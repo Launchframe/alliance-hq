@@ -13,6 +13,7 @@ const baseEvent = (
   overrides: Partial<SerializedCaptureEvent>,
 ): SerializedCaptureEvent => ({
   id: "evt-1",
+  eventType: "capture",
   scheduledAt: "2026-07-15T15:00:00.000Z",
   serverCalendarDate: "2026-07-15",
   territoryType: "stronghold",
@@ -21,6 +22,7 @@ const baseEvent = (
   effectiveCapturePolicy: "peace",
   notes: null,
   status: "scheduled",
+  bankId: null,
   createdAt: "2026-07-01T00:00:00.000Z",
   updatedAt: "2026-07-01T00:00:00.000Z",
   ...overrides,

@@ -17,6 +17,10 @@ export type BattlePlanAnnouncementStrings = {
   seasonDisclaimer: string;
   empty: string;
   markerLabel: (preset: MarkerIconPreset) => string;
+  dropLine: (input: {
+    markerLabel: string;
+    dropServerTime: string;
+  }) => string;
 };
 
 export function formatServerCaptureTime(iso: string): string {
@@ -53,6 +57,15 @@ function formatEventLine(
   strings: BattlePlanAnnouncementStrings,
 ): string {
   const time = formatServerCaptureTime(event.scheduledAt);
+  if (event.eventType === "drop") {
+    const markerLabel = event.iconPreset
+      ? strings.markerLabel(event.iconPreset)
+      : "unmarked";
+    return strings.dropLine({
+      markerLabel,
+      dropServerTime: time,
+    });
+  }
   const territory =
     event.territoryType === "stronghold"
       ? strings.stronghold
@@ -94,19 +107,26 @@ export function generateBattlePlanAnnouncement(
     return options.strings.empty;
   }
 
-  const cityCount = upcoming.filter((event) => event.territoryType === "city").length;
-  const strongholdCount = upcoming.filter(
+  const captures = upcoming.filter((event) => event.eventType !== "drop");
+  const cityCount = captures.filter((event) => event.territoryType === "city")
+    .length;
+  const strongholdCount = captures.filter(
     (event) => event.territoryType === "stronghold",
   ).length;
-  const warTimeEvent = upcoming.some(
+  const warTimeEvent = captures.some(
     (event) => event.effectiveCapturePolicy === "war",
   );
 
   const sections = [
     options.strings.summary(cityCount, strongholdCount),
     groupLinesByServerDate(upcoming, options.strings).join("\n\n"),
-    warTimeEvent ? options.strings.policyWar : options.strings.policyPeace,
   ];
+
+  if (captures.length > 0) {
+    sections.push(
+      warTimeEvent ? options.strings.policyWar : options.strings.policyPeace,
+    );
+  }
 
   if (options.seasonKey === "5") {
     sections.push(options.strings.seasonDisclaimer);
@@ -132,5 +152,7 @@ export function buildAnnouncementStrings(
       translate("announcement.markerLabel", {
         marker: translate(`markers.presets.${markerPresetI18nKey(preset)}`),
       }),
+    dropLine: ({ markerLabel, dropServerTime }) =>
+      translate("announcement.dropLine", { markerLabel, dropServerTime }),
   };
 }

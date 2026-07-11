@@ -76,4 +76,20 @@ describe("server-day capture limits", () => {
       }),
     ).toBeNull();
   });
+
+  it("ignores drop events when counting capture limits", () => {
+    const withDrop = [
+      ...events,
+      {
+        id: "drop-1",
+        serverCalendarDate: "2026-07-09",
+        territoryType: "stronghold" as const,
+        status: "scheduled",
+        eventType: "drop" as const,
+      },
+    ];
+    expect(
+      countScheduledCapturesForDay(withDrop, "2026-07-09", "stronghold"),
+    ).toBe(2);
+  });
 });
