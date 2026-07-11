@@ -1,6 +1,6 @@
 import "server-only";
 
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, inArray } from "drizzle-orm";
 
 import { listSessionAlliances } from "@/lib/alliance/session-memberships";
 import { getDb, schema } from "@/lib/db";
@@ -20,8 +20,44 @@ export async function listAccessibleInventoryAlliances(
   hqUserId: string,
 ): Promise<InventoryAllianceOption[]> {
   const alliances = await listSessionAlliances(hqUserId);
-  return alliances
-    .filter((a) => INVITE_CAPABLE_ROLES.has(a.roleName))
+  const candidates = alliances.filter((a) =>
+    INVITE_CAPABLE_ROLES.has(a.roleName),
+  );
+  if (candidates.length === 0) {
+    return [];
+  }
+
+  const db = getDb();
+  const settingsRows = await db
+    .select({
+      id: schema.alliances.id,
+      ownerHqUserId: schema.alliances.ownerHqUserId,
+      inviteOnboardingMinRole: schema.alliances.inviteOnboardingMinRole,
+    })
+    .from(schema.alliances)
+    .where(
+      inArray(
+        schema.alliances.id,
+        candidates.map((a) => a.id),
+      ),
+    );
+
+  const settingsById = new Map(settingsRows.map((row) => [row.id, row]));
+
+  return candidates
+    .filter((membership) => {
+      const alliance = settingsById.get(membership.id);
+      if (!alliance) {
+        return false;
+      }
+      if (alliance.inviteOnboardingMinRole === "owner") {
+        return (
+          membership.roleName === "owner" ||
+          alliance.ownerHqUserId === hqUserId
+        );
+      }
+      return true;
+    })
     .map(({ id, name, tag, slug }) => ({ id, name, tag, slug }));
 }
 

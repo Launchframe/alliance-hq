@@ -407,7 +407,11 @@ export function InviteInventoryPanel({ refreshToken = 0 }: Props) {
   }, [inventory, tab, typeFilter, dateFrom, dateTo]);
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const pageRows = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const safePage = Math.min(page, pageCount);
+  const pageRows = filtered.slice(
+    (safePage - 1) * PAGE_SIZE,
+    safePage * PAGE_SIZE,
+  );
 
   const allianceOptions = alliances.map((a) => ({
     value: a.id,
@@ -629,7 +633,7 @@ export function InviteInventoryPanel({ refreshToken = 0 }: Props) {
           <button
             type="button"
             onClick={() => setPage((p) => Math.max(1, p - 1))}
-            disabled={page <= 1}
+            disabled={safePage <= 1}
             className="inline-flex items-center gap-1 rounded-md border border-hq-border bg-hq-surface-muted px-3 py-1.5 text-sm text-hq-fg-muted transition-colors hover:bg-hq-border disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hq-accent"
             aria-label={t("inventoryPagePrev")}
           >
@@ -637,12 +641,12 @@ export function InviteInventoryPanel({ refreshToken = 0 }: Props) {
             {t("inventoryPagePrev")}
           </button>
           <span className="text-xs text-hq-fg-muted">
-            {t("inventoryPageInfo", { page, total: pageCount })}
+            {t("inventoryPageInfo", { page: safePage, total: pageCount })}
           </span>
           <button
             type="button"
             onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
-            disabled={page >= pageCount}
+            disabled={safePage >= pageCount}
             className="inline-flex items-center gap-1 rounded-md border border-hq-border bg-hq-surface-muted px-3 py-1.5 text-sm text-hq-fg-muted transition-colors hover:bg-hq-border disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hq-accent"
             aria-label={t("inventoryPageNext")}
           >

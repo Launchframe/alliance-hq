@@ -391,6 +391,7 @@ export async function loadHqInvitePreview(
       allianceId: schema.hqInvites.allianceId,
       expiresAt: schema.hqInvites.expiresAt,
       acceptedAt: schema.hqInvites.acceptedAt,
+      revokedAt: schema.hqInvites.revokedAt,
       roleId: schema.hqInvites.roleId,
       redirectPath: schema.hqInvites.redirectPath,
       kind: schema.hqInvites.kind,
@@ -432,7 +433,7 @@ export async function loadHqInvitePreview(
     allianceTag: row.allianceTag,
     roleName: systemRoleNameForId(row.roleId),
     expiresAt: row.expiresAt.toISOString(),
-    expired: row.expiresAt <= now,
+    expired: row.expiresAt <= now || row.revokedAt != null,
     accepted: row.acceptedAt != null,
     redirectPath: row.redirectPath,
     kind,
@@ -638,6 +639,7 @@ export async function acceptHqInvite(
       and(
         eq(schema.hqInvites.tokenHash, tokenHash),
         isNull(schema.hqInvites.acceptedAt),
+        isNull(schema.hqInvites.revokedAt),
       ),
     )
     .limit(1);
@@ -705,6 +707,7 @@ export async function acceptHqInvite(
       and(
         eq(schema.hqInvites.id, invite.id),
         isNull(schema.hqInvites.acceptedAt),
+        isNull(schema.hqInvites.revokedAt),
       ),
     )
     .returning({ id: schema.hqInvites.id });
