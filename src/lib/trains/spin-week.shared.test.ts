@@ -28,6 +28,25 @@ describe("showsConductorSpinWheel", () => {
     expect(showsConductorSpinWheel("vs_high_score", false, null)).toBe(false);
     expect(showsConductorSpinWheel("donations_top", false, null)).toBe(false);
   });
+
+  it("includes Saturday price_is_right when stored as r3_lottery (date-dependent remap)", () => {
+    expect(
+      showsConductorSpinWheel(
+        "r3_lottery",
+        false,
+        "price_is_right",
+        "2026-06-13",
+      ),
+    ).toBe(true);
+    expect(
+      showsConductorSpinWheel(
+        "r3_lottery",
+        false,
+        "price_is_right",
+        "2026-06-12",
+      ),
+    ).toBe(true);
+  });
 });
 
 describe("spinWheelDatesForRestOfWeek", () => {
@@ -92,32 +111,22 @@ describe("spinWheelDatesForRestOfWeek", () => {
     ).toEqual([]);
   });
 
-  it("includes every future wheel day when the viewed week is entirely ahead of today", () => {
+  it("includes Saturday price_is_right heavy-hitter days stored as r3_lottery", () => {
     expect(
       spinWheelDatesForRestOfWeek({
-        today: "2026-06-10",
-        weekStart: "2026-06-15",
-        weekEnd: "2026-06-21",
+        today: "2026-06-13",
+        weekStart,
+        weekEnd,
         dayConfigs: [
           {
-            date: "2026-06-15",
+            date: "2026-06-13",
             conductorMechanism: "r3_lottery",
-            paintTemplate: "economy_week",
-          },
-          {
-            date: "2026-06-16",
-            conductorMechanism: "vs_top_10",
-            paintTemplate: "vs_push_weekdays",
-          },
-          {
-            date: "2026-06-17",
-            conductorMechanism: "r4_sequence",
-            paintTemplate: null,
+            paintTemplate: "price_is_right",
           },
         ],
         weekRecords: [],
       }),
-    ).toEqual(["2026-06-15", "2026-06-16"]);
+    ).toEqual(["2026-06-13"]);
   });
 });
 

@@ -75,7 +75,7 @@ Two alliance-configurable modes (settings → **The Price Is Freight**):
 - **Cliff** (`train_economy_threshold_points`): decay scale; defaults to **9M** when unset.
 - **Hard cutoff** (optional): VS > cliff → 0 tickets; fudge % ignored.
 - **Takedown / heavy-hitter override** (`train_price_is_right_max_ticket_member_ids`): listed members always get max tickets on weekday raffles; Saturday lottery is drawn only from this list.
-- Member-visible **raffle panel** on `/trains` when weighting on (hero + chart + ticket board).
+- Member-visible **raffle panel** on `/trains` when weighting on (hero + chart + ticket board) — **hidden on Saturday** (heavy-hitter draw does not use VS ticket weights).
 - **Prior-day VS podium** on all `price_is_right` days (`GET /api/trains/price-is-right/leaderboard`): ranks R3 members with prior-day VS ≥ 7.2M by distance above 7.2M (not VR). Discord announcement fires after **vs-performance** video submit when the next train day is PIF (`announcePriceIsRightLeaderboardAfterVsUpload`); manual/worker trigger at `/api/internal/train/price-is-right-leaderboard` (not cron-scheduled).
 
 Schema: `train_price_is_right_*` on `alliances`; `ticket_count` / `prior_day_vs_score` on `conductor_pool_entries`.

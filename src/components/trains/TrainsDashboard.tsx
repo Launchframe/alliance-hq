@@ -63,6 +63,7 @@ import type {
   WeekSchedulePagePayload,
 } from "@/lib/trains/load-dashboard";
 import { effectiveConductorMechanism } from "@/lib/trains/conductor-mechanism.shared";
+import { isPriceIsRightHeavyHitterSaturday } from "@/lib/trains/heavy-hitter-pool.shared";
 import {
   conductorSpinSource,
   isPoolSpinSource,
@@ -1554,7 +1555,8 @@ export function TrainsDashboard({ initial }: Props) {
           ) : null}
 
           {conductorPaint === "price_is_right" &&
-          data.priceIsRightWeightingEnabled ? (
+          data.priceIsRightWeightingEnabled &&
+          !isPriceIsRightHeavyHitterSaturday(conductorPaint, selectedDate) ? (
             <PriceIsRightTicketsPanel trainDate={selectedDate} />
           ) : null}
 
