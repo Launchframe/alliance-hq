@@ -4762,8 +4762,6 @@
     "editDeposit": "Editar comprovante",
     "deleteDeposit": "Excluir comprovante",
     "advancedSettings": "Configurações avançadas",
-    "nextCaptureLevel": "Nível do próximo banco a capturar",
-    "nextCaptureLevelHint": "As recomendações sempre preferem abandonar o banco de menor nível primeiro.",
     "recommendedTitle": "Próximo abandono recomendado",
     "recommendedEmpty": "Adicione pelo menos um banco para ver uma recomendação.",
     "scheduleDrop": "Agendar abandono",

@@ -47,10 +47,6 @@ export function BankManagementClient({ initial }: Props) {
     initial.allianceGameServerNumber,
   );
 
-  const [nextCaptureLevelInput, setNextCaptureLevelInput] = useState(
-    initial.nextCaptureLevel != null ? String(initial.nextCaptureLevel) : "",
-  );
-
   const [selectedBankId, setSelectedBankId] = useState<string | null>(
     initial.recommendation?.bankId ?? initial.banks[0]?.id ?? null,
   );
@@ -70,17 +66,7 @@ export function BankManagementClient({ initial }: Props) {
   const [slipModalToken, setSlipModalToken] = useState(0);
   const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null);
 
-  const nextCaptureLevel = useMemo(() => {
-    const parsed = Number(nextCaptureLevelInput);
-    return nextCaptureLevelInput.trim() !== "" && Number.isFinite(parsed)
-      ? parsed
-      : null;
-  }, [nextCaptureLevelInput]);
-
-  const recommendation = useMemo(
-    () => recommendNextDrop(banks, { nextCaptureLevel }),
-    [banks, nextCaptureLevel],
-  );
+  const recommendation = useMemo(() => recommendNextDrop(banks), [banks]);
 
   const selectedBank = useMemo(
     () => banks.find((bank) => bank.id === selectedBankId) ?? null,
@@ -304,25 +290,9 @@ export function BankManagementClient({ initial }: Props) {
 
   return (
     <div className="w-full min-w-0 max-w-full space-y-6">
-      <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
-        <div className="min-w-0">
-          <h1 className="text-2xl font-semibold text-hq-fg">{t("title")}</h1>
-          <p className="mt-1 text-sm text-hq-fg-muted">{t("subtitle")}</p>
-        </div>
-        <label className="block w-full min-w-0 max-w-xs space-y-1 text-sm sm:w-48">
-          <span className="text-hq-fg-muted">{t("nextCaptureLevel")}</span>
-          <input
-            type="number"
-            min={1}
-            step={1}
-            className="w-full min-w-0 rounded border border-hq-border bg-hq-canvas px-3 py-2 text-sm text-hq-fg"
-            value={nextCaptureLevelInput}
-            onChange={(event) => setNextCaptureLevelInput(event.target.value)}
-          />
-          <span className="block text-xs text-hq-fg-subtle">
-            {t("nextCaptureLevelHint")}
-          </span>
-        </label>
+      <div className="min-w-0">
+        <h1 className="text-2xl font-semibold text-hq-fg">{t("title")}</h1>
+        <p className="mt-1 text-sm text-hq-fg-muted">{t("subtitle")}</p>
       </div>
 
       {error ? (

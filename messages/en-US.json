@@ -4763,8 +4763,6 @@
     "editDeposit": "Edit deposit slip",
     "deleteDeposit": "Delete deposit slip",
     "advancedSettings": "Advanced settings",
-    "nextCaptureLevel": "Next bank level to capture",
-    "nextCaptureLevelHint": "Recommendations always prefer dropping your lowest-level bank first.",
     "recommendedTitle": "Recommended next drop",
     "recommendedEmpty": "Add at least one bank to see a drop recommendation.",
     "scheduleDrop": "Schedule drop",
