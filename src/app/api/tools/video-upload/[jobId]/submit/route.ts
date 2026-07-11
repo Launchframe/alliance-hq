@@ -30,6 +30,7 @@ import {
 import { formatHeroPowerMForStorage } from "@/lib/video/roster-video-review.shared";
 import { getRbacContext } from "@/lib/rbac/context";
 import { BANK_WRITE_PERMISSION } from "@/lib/rbac/constants";
+import { requireAlliancePermission } from "@/lib/rbac/require-permission";
 import { findDuplicateMemberAssignments } from "@/lib/video/review-validation";
 import {
   getScoreTargetOrThrow,
@@ -401,27 +402,22 @@ export async function POST(request: Request, { params }: Props) {
     }
 
     if (isBankDepositSlipHistoryTarget(scoreTargetId)) {
-      const ctx = await getRbacContext(session.id);
-      if (!ctx) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-      }
-      if (
-        !ctx.isPlatformMaintainer &&
-        !ctx.permissions.has(BANK_WRITE_PERMISSION)
-      ) {
-        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-      }
-      if (!ctx.hqUserId) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-      }
-
-      const allianceId = job.allianceId;
+      const allianceId = await resolveHqAllianceIdFromStoredAllianceId(
+        job.allianceId,
+      );
       if (!allianceId) {
         return NextResponse.json(
           { error: "Alliance context missing on job." },
           { status: 400 },
         );
       }
+
+      const denied = await requireAlliancePermission(
+        session.id,
+        allianceId,
+        BANK_WRITE_PERMISSION,
+      );
+      if (denied) return denied;
       if (!job.parseSessionId) {
         return NextResponse.json(
           { error: "Parse session missing on job." },
@@ -448,8 +444,8 @@ export async function POST(request: Request, { params }: Props) {
       const claim = await claimVideoJobForSubmit(db, jobId, job.status);
       if (!claim.ok) {
         return NextResponse.json(
-          { error: claim.error },
-          { status: claim.status },
+          { error: claim.error, status: claim.jobStatus },
+          { status: claim.httpStatus },
         );
       }
       advancedToSubmitting = true;
