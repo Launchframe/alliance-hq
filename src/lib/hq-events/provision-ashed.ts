@@ -2,12 +2,14 @@ import { and, eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import type { ParsedConnection } from "@/lib/connectionString";
+import { assertAllianceAshedLinked } from "@/lib/alliance/ashed-write-guard";
 import { base44EntityPost } from "@/lib/base44/fetch";
 import { getDb, schema } from "@/lib/db";
 import type { ScoreTargetDef, SeasonalBoardType } from "@/lib/video/score-targets";
 import { getScoreTargetOrThrow } from "@/lib/video/score-targets";
 
 type ProvisionOptions = {
+  /** HQ tenant alliance id (hq_events / series rows). */
   allianceId: string;
   scoreTargetId: string;
   hqEventId: string;
@@ -30,6 +32,8 @@ export async function resolveAshedEventId(
     throw new Error("Target does not use EventSeries provisioning.");
   }
 
+  const { ashedAllianceId } = await assertAllianceAshedLinked(options.allianceId);
+
   const db = getDb();
   const [hqEvent] = await db
     .select()
@@ -47,7 +51,15 @@ export async function resolveAshedEventId(
   }
 
   const scoreType = resolveScoreType(target, options.boardKey);
-  const series = await ensureEventSeries(connection, db, target, hqEvent, options.allianceId, scoreType);
+  const series = await ensureEventSeries(
+    connection,
+    db,
+    target,
+    hqEvent,
+    options.allianceId,
+    ashedAllianceId,
+    scoreType,
+  );
   const board = await ensureEventBoard(
     connection,
     db,
@@ -55,6 +67,7 @@ export async function resolveAshedEventId(
     hqEvent,
     series.ashedSeriesId!,
     options,
+    ashedAllianceId,
     scoreType,
   );
 
@@ -79,7 +92,8 @@ async function ensureEventSeries(
   db: ReturnType<typeof getDb>,
   target: ScoreTargetDef,
   hqEvent: typeof schema.hqEvents.$inferSelect,
-  allianceId: string,
+  hqAllianceId: string,
+  ashedAllianceId: string,
   scoreType: string,
 ) {
   if (hqEvent.seriesId) {
@@ -105,7 +119,7 @@ async function ensureEventSeries(
     const seriesId = nanoid(16);
     await db.insert(schema.hqEventSeries).values({
       id: seriesId,
-      allianceId,
+      allianceId: hqAllianceId,
       scoreTarget: target.id,
       name: target.defaultSeriesName ?? target.id,
       description: "",
@@ -133,7 +147,7 @@ async function ensureEventSeries(
     name: series!.name,
     description: series!.description ?? "",
     score_type: scoreType,
-    alliance_id: allianceId,
+    alliance_id: ashedAllianceId,
   })) as { id: string };
 
   await db
@@ -151,6 +165,7 @@ async function ensureEventBoard(
   hqEvent: typeof schema.hqEvents.$inferSelect,
   ashedSeriesId: string,
   options: ProvisionOptions,
+  ashedAllianceId: string,
   scoreType: string,
 ) {
   const boardKey =
@@ -183,7 +198,7 @@ async function ensureEventBoard(
     score_type: scoreType,
     minimum_participation: null,
     series_id: ashedSeriesId,
-    alliance_id: options.allianceId,
+    alliance_id: ashedAllianceId,
   })) as { id: string };
 
   if (existingBoard) {

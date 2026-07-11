@@ -14,10 +14,12 @@ import { isValidRosterOcrConfig } from "@/lib/members/roster-ocr/roster-ocr-conf
 import {
   allianceMemberRowToAshedMember,
   listAllianceMembers,
+  resolveHqAllianceId,
 } from "@/lib/members/roster.server";
 import { getDb, schema } from "@/lib/db";
 import { getAshedConnection } from "@/lib/session";
 import { loadEffectiveAllianceHqOcrOnly } from "@/lib/video/alliance-ocr-settings.server";
+import { resolveHqAllianceIdFromStoredAllianceId } from "@/lib/video/video-job-alliance.server";
 import { putObject, frameStorageKey, prefersLocalStorage, r2Configured, streamObjectToFile } from "@/lib/storage";
 import { logPipelineStep } from "@/lib/video/pipeline-step-log";
 import {
@@ -89,8 +91,11 @@ export async function processVideoJob(
 
   const scoreTargetId = job.scoreTarget ?? job.category ?? "desert-storm";
   const isRosterTarget = isMemberRosterVideoTarget(scoreTargetId);
-  const hqOcrOnly = job.allianceId
-    ? await loadEffectiveAllianceHqOcrOnly(job.allianceId)
+  const jobHqAllianceId = await resolveHqAllianceIdFromStoredAllianceId(
+    job.allianceId,
+  );
+  const hqOcrOnly = jobHqAllianceId
+    ? await loadEffectiveAllianceHqOcrOnly(jobHqAllianceId)
     : false;
   const ocrContext = { allianceHqOcrOnly: hqOcrOnly };
   const ocrEngine = resolveVideoOcrEngineForJob(
@@ -190,7 +195,7 @@ export async function processVideoJob(
     await setStatus("extracting");
     await writeAuditLog({
       sessionId: job.sessionId,
-      allianceId: job.allianceId,
+      allianceId: jobHqAllianceId ?? job.allianceId,
       action: "video.extract_start",
       resourceType: "video_job",
       resourceName: scoreTargetId,
@@ -440,9 +445,20 @@ export async function processVideoJob(
             .where(eq(schema.parseSessions.id, parseSessionId));
         });
       } else {
-      allianceId = await timer.measureStep("alliance.resolve", () =>
+      const ashedAllianceId = await timer.measureStep("alliance.resolve_ashed", () =>
         resolveSessionAllianceId(processingSessionId, connection!),
       );
+      allianceId = await timer.measureStep("alliance.resolve_hq", async () => {
+        const fromJob = await resolveHqAllianceIdFromStoredAllianceId(
+          job.allianceId,
+        );
+        if (fromJob) return fromJob;
+        try {
+          return await resolveHqAllianceIdFromSession(processingSessionId);
+        } catch {
+          return resolveHqAllianceId(null, ashedAllianceId);
+        }
+      });
 
     const { entries: rawEntries, frameTimings, concurrency } =
       await timer.measureStep(
@@ -514,7 +530,7 @@ export async function processVideoJob(
     try {
       members = await timer.measureStep(
         "ashed.list_members",
-        () => base44ListMembers(connection!, allianceId),
+        () => base44ListMembers(connection!, ashedAllianceId),
         (result) => ({ count: result.length }),
       );
     } catch {
@@ -684,7 +700,7 @@ export async function processVideoJob(
       id: job.id,
       sessionId: job.sessionId,
       processingSessionId: job.processingSessionId ?? null,
-      allianceId: job.allianceId ?? null,
+      allianceId: allianceId ?? jobHqAllianceId ?? job.allianceId ?? null,
       scoreTarget: job.scoreTarget ?? null,
       category: job.category ?? null,
       storageKey: job.storageKey ?? null,
@@ -767,7 +783,7 @@ export async function processVideoJob(
     );
     await writeAuditLog({
       sessionId: job.sessionId,
-      allianceId: job.allianceId,
+      allianceId: jobHqAllianceId ?? job.allianceId,
       action: "video.failed",
       resourceType: "video_job",
       resourceId: jobId,
