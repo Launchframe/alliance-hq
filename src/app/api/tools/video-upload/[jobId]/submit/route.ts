@@ -573,7 +573,12 @@ export async function POST(request: Request, { params }: Props) {
 
     await db
       .update(schema.videoJobs)
-      .set({ status: "complete", updatedAt: new Date() })
+      .set({
+        status: "complete",
+        team: submitContext.team ?? null,
+        recordedDate: submitContext.recordedDate,
+        updatedAt: new Date(),
+      })
       .where(eq(schema.videoJobs.id, jobId));
 
     await emitVideoJobStatus({
@@ -617,6 +622,8 @@ export async function POST(request: Request, { params }: Props) {
         scoreTarget: scoreTargetId,
         eventId: ashedEventId,
         hqEventId: submitContext.hqEventId,
+        team: submitContext.team ?? null,
+        recordedDate: submitContext.recordedDate,
       },
     });
 

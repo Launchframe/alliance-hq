@@ -208,6 +208,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   const [recordedDate, setRecordedDate] = useState(() =>
     accountTodayCalendarDate(timezoneId),
   );
+  const [stormOverlapWarning, setStormOverlapWarning] = useState(false);
   const [filterQuery, setFilterQuery] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [errorConnectUrl, setErrorConnectUrl] = useState<string | null>(null);
@@ -632,6 +633,58 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     eventTypeLabel,
     locale,
     timezoneId,
+  ]);
+
+  useEffect(() => {
+    if (
+      viewMode !== "review" ||
+      !scoreTargetMeta?.showTeamSelector ||
+      !recordedDate
+    ) {
+      return;
+    }
+
+    const controller = new AbortController();
+    const params = new URLSearchParams({
+      team,
+      recordedDate,
+    });
+    if (eventId) {
+      params.set("eventId", eventId);
+    }
+
+    void (async () => {
+      try {
+        const res = await fetch(
+          `/api/tools/video-upload/${jobId}/score-overlap?${params.toString()}`,
+          { signal: controller.signal },
+        );
+        if (!res.ok) {
+          if (!controller.signal.aborted) {
+            setStormOverlapWarning(false);
+          }
+          return;
+        }
+        const data = (await res.json()) as { overlaps?: boolean };
+        if (!controller.signal.aborted) {
+          setStormOverlapWarning(Boolean(data.overlaps));
+        }
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        if (!controller.signal.aborted) {
+          setStormOverlapWarning(false);
+        }
+      }
+    })();
+
+    return () => controller.abort();
+  }, [
+    viewMode,
+    scoreTargetMeta?.showTeamSelector,
+    jobId,
+    eventId,
+    team,
+    recordedDate,
   ]);
 
   useEffect(() => {
@@ -1544,21 +1597,36 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           </label>
         ) : null}
         {scoreTargetMeta?.showTeamSelector ? (
-          <label className="block text-sm">
+          <div className="block text-sm">
             <span className="mb-1 block text-hq-fg-muted">{t("teamLabel")}</span>
-            <AppSelect
-              value={team}
-              onChange={(next) => {
-                markDraftDirty();
-                setTeam(next as "A" | "B");
-              }}
+            <div
+              role="group"
               aria-label={t("teamLabel")}
-              options={[
-                { value: "A", label: "Team A" },
-                { value: "B", label: "Team B" },
-              ]}
-            />
-          </label>
+              className="flex items-center gap-0.5 rounded-lg border border-hq-border p-0.5"
+            >
+              {(["A", "B"] as const).map((option) => {
+                const active = team === option;
+                return (
+                  <button
+                    key={option}
+                    type="button"
+                    onClick={() => {
+                      markDraftDirty();
+                      setTeam(option);
+                    }}
+                    aria-pressed={active}
+                    className={`flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+                      active
+                        ? "bg-hq-border text-hq-fg"
+                        : "text-hq-fg-muted hover:bg-hq-surface-muted hover:text-hq-fg"
+                    }`}
+                  >
+                    {option === "A" ? t("teamA") : t("teamB")}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         ) : null}
         <label className="block text-sm">
           <span className="mb-1 block text-hq-fg-muted">{t("dateLabel")}</span>
@@ -1574,6 +1642,23 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           />
         </label>
       </div>
+      ) : null}
+
+      {stormOverlapWarning &&
+      viewMode === "review" &&
+      scoreTargetMeta?.showTeamSelector ? (
+        <div
+          role="status"
+          className="rounded-xl border border-hq-warning/40 bg-hq-warning/10 px-4 py-3 text-sm text-hq-warning"
+        >
+          {t("existingStormScoresWarning", {
+            eventName:
+              events.find((ev) => ev.id === eventId)?.label ??
+              eventTypeLabel ??
+              t("eventLabel"),
+            team: team === "B" ? "B" : "A",
+          })}
+        </div>
       ) : null}
 
       {scoreTargetMeta?.showRosterColumns ? (

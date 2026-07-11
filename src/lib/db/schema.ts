@@ -414,6 +414,10 @@ export const videoJobs = pgTable("video_jobs", {
   parseSessionId: text("parse_session_id"),
   /** Multi-board seasonal: kills | resources | points */
   boardKey: text("board_key"),
+  /** Desert Storm / Canyon Storm side: A | B */
+  team: text("team"),
+  /** Calendar date scores were recorded for (YYYY-MM-DD). */
+  recordedDate: text("recorded_date"),
   /** Alliance Star commendation (when enabled) */
   commendationId: text("commendation_id"),
   /** HQ native event occurrence */

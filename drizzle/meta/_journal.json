@@ -638,6 +638,13 @@
       "when": 1787049600000,
       "tag": "0091_commander_season_vr",
       "breakpoints": true
+    },
+    {
+      "idx": 90,
+      "version": "7",
+      "when": 1787136000000,
+      "tag": "0092_video_jobs_storm_team",
+      "breakpoints": true
     }
   ]
 }
