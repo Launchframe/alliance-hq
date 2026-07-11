@@ -131,7 +131,7 @@ Quick reference for UI gating (full mapping in catalog `navGroups`):
 
 ## Native Data Management (`/data-management`)
 
-The HQ-native page replaces the legacy Ashed iframe for batch management. It uses **role + batch creator** scoping in [`batch-authorization.shared.ts`](../src/lib/data-management/batch-authorization.shared.ts), not the `data:bulk_delete` / `data:bulk_move` template permissions directly (those still apply to BFF/iframe-era `bulkMoveByDate` / `bulkDeleteByDate` calls).
+The HQ-native page replaces the legacy Ashed iframe for batch management and is wrapped in [`HybridAshedPageShell`](../src/components/hybrid-ashed/HybridAshedPageShell.tsx) (`pageId: "dataManagement"`) so connected users can still open Ashed’s `/datamanagement` beside HQ. It uses **role + batch creator** scoping in [`batch-authorization.shared.ts`](../src/lib/data-management/batch-authorization.shared.ts), not the `data:bulk_delete` / `data:bulk_move` template permissions directly (those still apply to BFF/iframe-era `bulkMoveByDate` / `bulkDeleteByDate` calls).
 
 | Action | Who |
 |--------|-----|

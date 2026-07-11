@@ -1,10 +1,12 @@
 import { getTranslations } from "next-intl/server";
 
 import { DataManagementClient } from "@/components/data-management/DataManagementClient";
+import { HybridAshedPageShell } from "@/components/hybrid-ashed/HybridAshedPageShell";
 import {
   decorateBatchForViewer,
   listAllianceDataBatches,
 } from "@/lib/data-management/batch-ledger.server";
+import { resolveCanUseAshedEmbedsForSession } from "@/lib/dashboard/page-context.server";
 import { requirePagePermission } from "@/lib/rbac/page-permission";
 import { getRbacContext } from "@/lib/rbac/context";
 import { requirePageSession } from "@/lib/session";
@@ -27,7 +29,10 @@ export default async function DataManagementPage() {
     return null;
   }
 
-  const rbac = await getRbacContext(session.id);
+  const [rbac, canUseAshedEmbeds] = await Promise.all([
+    getRbacContext(session.id),
+    resolveCanUseAshedEmbedsForSession(session.id),
+  ]);
   if (!rbac) {
     return null;
   }
@@ -47,10 +52,19 @@ export default async function DataManagementPage() {
   });
 
   return (
-    <DataManagementClient
-      initialBatches={batches.map((batch) => decorateBatchForViewer(batch, rbac))}
-      scoreTargets={scoreTargets}
-      initialScoreTarget={initialScoreTarget}
-    />
+    <HybridAshedPageShell
+      pageId="dataManagement"
+      canUseAshedPane={canUseAshedEmbeds}
+    >
+      <div className="px-4 py-6 md:px-0">
+        <DataManagementClient
+          initialBatches={batches.map((batch) =>
+            decorateBatchForViewer(batch, rbac),
+          )}
+          scoreTargets={scoreTargets}
+          initialScoreTarget={initialScoreTarget}
+        />
+      </div>
+    </HybridAshedPageShell>
   );
 }
