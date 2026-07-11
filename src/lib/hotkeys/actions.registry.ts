@@ -102,6 +102,14 @@ const NAV_ACTIONS: HotkeyActionDef[] = [
     requiresAllianceMemberLink: true,
   },
   {
+    id: "nav.professions",
+    labelKey: "actions.nav.professions",
+    category: "navigation",
+    scope: "global",
+    kind: "navigate",
+    href: "/professions",
+  },
+  {
     id: "nav.trains",
     labelKey: "actions.nav.trains",
     category: "navigation",
@@ -166,6 +174,7 @@ const NAV_ACTIONS: HotkeyActionDef[] = [
     scope: "global",
     kind: "navigate",
     href: "/data-management",
+    requiredPermission: "data:read",
   },
   {
     id: "nav.videoUpload",

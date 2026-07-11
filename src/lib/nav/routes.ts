@@ -141,6 +141,13 @@ export const NAV_GROUPS: NavGroupDef[] = [
         kind: "iframe",
       },
       {
+        id: "professions",
+        labelKey: "myProfession",
+        href: "/professions",
+        kind: "native",
+        descriptionKey: "myProfessionDescription",
+      },
+      {
         id: "alliance-settings",
         labelKey: "allianceSettings",
         href: "/settings",
@@ -265,7 +272,8 @@ export const NAV_GROUPS: NavGroupDef[] = [
         id: "data-management",
         labelKey: "dataManagement",
         href: "/data-management",
-        kind: "iframe",
+        kind: "native",
+        requiredPermission: "data:read",
       },
       {
         id: "unmatched-names",
@@ -451,6 +459,9 @@ export function navLinkActive(pathname: string, href: string): boolean {
       pathname === "/guides/alliance-onboarding" ||
       pathname.startsWith("/guides/alliance-onboarding/")
     );
+  }
+  if (href === "/data-management") {
+    return pathname === "/data-management";
   }
   if (href === "/tools/video-upload") {
     if (pathname === "/tools/video-upload/queue") {

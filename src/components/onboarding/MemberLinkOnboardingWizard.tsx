@@ -41,7 +41,8 @@ type Phase =
   | "lookup_fallback"
   | "confirm_identity"
   | "claim"
-  | "success";
+  | "success"
+  | "profession";
 
 type ApiResponse = {
   outcome: MemberLinkOutcome;
@@ -53,6 +54,78 @@ type ApiResponse = {
   allianceServerNumber?: number | null;
   serverConfirmReason?: "missing" | "mismatch";
 };
+
+function ProfessionStep({ onComplete }: { onComplete: () => void }) {
+  const t = useTranslations("onboard");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function chooseProfession(profession: "Engineer" | "War Leader") {
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/professions/switch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ toProfession: profession }),
+      });
+      if (!res.ok) {
+        const json = await res.json() as { error?: string };
+        setError(json.error ?? t("professionSaveFailed"));
+        return;
+      }
+      onComplete();
+    } catch {
+      setError(t("professionSaveError"));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="space-y-5 text-center">
+      <div>
+        <h2 className="text-xl font-semibold text-hq-fg">{t("professionStepTitle")}</h2>
+        <p className="mt-1 text-sm text-hq-fg-muted">
+          {t("professionStepSubtitle")}
+        </p>
+      </div>
+      {error && <p className="text-sm text-hq-danger">{error}</p>}
+      <div className="flex flex-col gap-3">
+        <button
+          type="button"
+          disabled={saving}
+          onClick={() => void chooseProfession("Engineer")}
+          className="w-full rounded-lg border border-hq-border bg-hq-surface px-4 py-3 text-left hover:border-hq-accent hover:bg-hq-surface-muted disabled:opacity-50"
+        >
+          <p className="font-semibold text-hq-fg">{t("professionEngineerTitle")}</p>
+          <p className="mt-0.5 text-xs text-hq-fg-muted">
+            {t("professionEngineerDesc")}
+          </p>
+        </button>
+        <button
+          type="button"
+          disabled={saving}
+          onClick={() => void chooseProfession("War Leader")}
+          className="w-full rounded-lg border border-hq-border bg-hq-surface px-4 py-3 text-left hover:border-hq-accent hover:bg-hq-surface-muted disabled:opacity-50"
+        >
+          <p className="font-semibold text-hq-fg">{t("professionWarLeaderTitle")}</p>
+          <p className="mt-0.5 text-xs text-hq-fg-muted">
+            {t("professionWarLeaderDesc")}
+          </p>
+        </button>
+      </div>
+      <button
+        type="button"
+        disabled={saving}
+        onClick={onComplete}
+        className="text-xs text-hq-fg-muted hover:underline disabled:opacity-50"
+      >
+        {t("professionSkip")}
+      </button>
+    </div>
+  );
+}
 
 export function MemberLinkOnboardingWizard({
   allianceName,
@@ -115,11 +188,9 @@ export function MemberLinkOnboardingWizard({
           ) {
             fireCelebrationConfetti();
           }
-          if (successPresentation === "default" && discordBotLinked) {
-            window.setTimeout(() => {
-              pushAndRefresh(nextPath, "memberLink");
-            }, 1800);
-          }
+          window.setTimeout(() => {
+            setPhase("profession");
+          }, 2000);
           break;
         case "walkthrough":
         case "walkthrough_done":
@@ -848,6 +919,12 @@ export function MemberLinkOnboardingWizard({
             {busy ? t("submitting") : t("claimSubmit")}
           </button>
         </form>
+      ) : null}
+
+      {phase === "profession" ? (
+        <ProfessionStep
+          onComplete={() => pushAndRefresh(nextPath, "memberLink")}
+        />
       ) : null}
 
       {phase === "success" ? (

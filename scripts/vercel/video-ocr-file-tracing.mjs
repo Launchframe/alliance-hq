@@ -26,6 +26,9 @@ export const sharpFileTracing = sharpNativeFileTracing;
  * core variant at runtime (see worker-script/node/getCore.js). Include the three
  * LSTM fallbacks only — not the full tesseract.js-core tree (6+ WASM builds).
  * traineddata comes from jsDelivr unless TESSERACT_LANG_PATH is set.
+ *
+ * Requires scripts/patch-tesseract-node-getcore.mjs (postinstall): upstream Node
+ * getCore compared boolean lstmOnly to OEM enums and always required non-LSTM.
  */
 export const TESSERACT_LSTM_CORE_VARIANTS = [
   "relaxedsimd-lstm",
