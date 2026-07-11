@@ -9,3 +9,8 @@ export function isVideoJobAllianceStale(input: {
   if (!input.hasParseSession || !jobHq || !current) return false;
   return jobHq !== current;
 }
+
+export const VIDEO_JOB_ALLIANCE_UNRESOLVED_CODE = "job_alliance_unresolved";
+
+export const VIDEO_JOB_ALLIANCE_UNRESOLVED_ERROR =
+  "Couldn't load this job's alliance roster. Please refresh the page.";

@@ -4,8 +4,6 @@ import { eq } from "drizzle-orm";
 
 import { getDb, schema } from "@/lib/db";
 
-export { isVideoJobAllianceStale } from "@/lib/video/video-job-alliance.shared";
-
 /**
  * Normalize a video-job / parse-session `alliance_id` to the HQ tenant id.
  * Accepts either the HQ primary key or a legacy/mis-stamped Ashed alliance id.

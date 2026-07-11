@@ -13,10 +13,12 @@ import {
   resolveVideoJobAccess,
   videoJobAccessErrorResponse,
 } from "@/lib/video/video-job-access.server";
+import { resolveHqAllianceIdFromStoredAllianceId } from "@/lib/video/video-job-alliance.server";
 import {
   isVideoJobAllianceStale,
-  resolveHqAllianceIdFromStoredAllianceId,
-} from "@/lib/video/video-job-alliance.server";
+  VIDEO_JOB_ALLIANCE_UNRESOLVED_CODE,
+  VIDEO_JOB_ALLIANCE_UNRESOLVED_ERROR,
+} from "@/lib/video/video-job-alliance.shared";
 import { isVideoProcessTimings } from "@/lib/video/pipeline-stats-display";
 import { resolveJobVideoStorageKey } from "@/lib/video/resolve-job-video-storage";
 import {
@@ -151,24 +153,15 @@ export async function GET(_request: Request, { params }: Props) {
     let jobAllianceName: string | null = null;
     const storedAllianceId = job.allianceId ?? parseSession?.allianceId ?? null;
     const allianceIdForJob =
-      (await resolveHqAllianceIdFromStoredAllianceId(storedAllianceId)) ??
-      storedAllianceId;
-    // Heal legacy rows that stamped the Ashed alliance id onto the job.
-    if (
-      allianceIdForJob &&
-      job.allianceId &&
-      job.allianceId !== allianceIdForJob
-    ) {
-      await db
-        .update(schema.videoJobs)
-        .set({ allianceId: allianceIdForJob, updatedAt: new Date() })
-        .where(eq(schema.videoJobs.id, jobId));
-      if (job.parseSessionId) {
-        await db
-          .update(schema.parseSessions)
-          .set({ allianceId: allianceIdForJob, updatedAt: new Date() })
-          .where(eq(schema.parseSessions.id, job.parseSessionId));
-      }
+      await resolveHqAllianceIdFromStoredAllianceId(storedAllianceId);
+    if (storedAllianceId && !allianceIdForJob) {
+      return NextResponse.json(
+        {
+          error: VIDEO_JOB_ALLIANCE_UNRESOLVED_ERROR,
+          code: VIDEO_JOB_ALLIANCE_UNRESOLVED_CODE,
+        },
+        { status: 409 },
+      );
     }
     let members: AshedMember[] = [];
     if (allianceIdForJob) {

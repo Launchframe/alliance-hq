@@ -10,7 +10,10 @@ import {
   resolveAshedEventId,
   upsertHqEventMemberMetadata,
 } from "@/lib/hq-events/provision-ashed";
-import { assertAllianceAshedLinked } from "@/lib/alliance/ashed-write-guard";
+import {
+  AllianceNotAshedLinkedError,
+  assertAllianceAshedLinked,
+} from "@/lib/alliance/ashed-write-guard";
 import { getAshedConnection, getOrCreateSession } from "@/lib/session";
 import {
   resolveVideoJobAccess,
@@ -694,6 +697,12 @@ export async function POST(request: Request, { params }: Props) {
       } catch {
         // Best-effort rollback so the user can retry submit.
       }
+    }
+    if (error instanceof AllianceNotAshedLinkedError) {
+      return NextResponse.json(
+        { error: error.message, code: error.code },
+        { status: 409 },
+      );
     }
     return NextResponse.json(
       {

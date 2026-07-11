@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { AllianceNotAshedLinkedError } from "@/lib/alliance/ashed-write-guard";
 import { getOrCreateSession } from "@/lib/session";
 import { rematchVideoJobMembers } from "@/lib/video/rematch-members";
 import {
@@ -27,6 +28,12 @@ export async function POST(_request: Request, { params }: Props) {
 
     return NextResponse.json({ ok: true, ...result });
   } catch (error) {
+    if (error instanceof AllianceNotAshedLinkedError) {
+      return NextResponse.json(
+        { error: error.message, code: error.code },
+        { status: 409 },
+      );
+    }
     return NextResponse.json(
       {
         error: error instanceof Error ? error.message : "Rematch failed",
