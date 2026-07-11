@@ -133,16 +133,20 @@ export function ProfessionsPage({
 
   if (!allianceId || !commanderId) {
     return (
-      <div className="p-6 text-sm text-hq-fg-muted">
-        {t("linkRequired")}
+      <div className="space-y-6 p-6">
+        <h1 className="text-xl font-semibold text-hq-fg">{t("pageTitle")}</h1>
+        <p className="text-sm text-hq-fg-muted">{t("linkRequired")}</p>
       </div>
     );
   }
 
   if (loading && tab === "mine") {
     return (
-      <div className="animate-pulse p-6 text-sm text-hq-fg-muted">
-        {t("loading")}
+      <div className="space-y-6 p-6">
+        <h1 className="text-xl font-semibold text-hq-fg">{t("pageTitle")}</h1>
+        <div className="animate-pulse text-sm text-hq-fg-muted">
+          {t("loading")}
+        </div>
       </div>
     );
   }
