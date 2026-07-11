@@ -1260,9 +1260,9 @@
   },
   "videoQueue": {
     "title": "Fila de vídeos",
-    "description": "Vídeos enviados aguardando OCR. Um processador de vídeo designado com uma conta Ashed conectada aprova os trabalhos para execução.",
-    "descriptionHqOcr": "Vídeos enviados aguardando OCR. Trabalhos aprovados usam processamento interno — conexão Ashed não é necessária.",
-    "empty": "Nenhum vídeo aguardando aprovação.",
+    "description": "Vídeos da aliança em andamento — aguardando aprovação, processamento, revisão ou envio. Os uploads mais recentes aparecem primeiro.",
+    "descriptionHqOcr": "Vídeos da aliança em andamento — aguardando aprovação, processamento, revisão ou envio. Com OCR interno, trabalhos aprovados rodam sem Ashed. Os uploads mais recentes aparecem primeiro.",
+    "empty": "Nenhum vídeo ativo na fila.",
     "connectBanner": "Conecte sua conta Ashed para aprovar e executar estes trabalhos.",
     "connectCta": "Conectar Ashed",
     "ocrSettingsTitle": "Processamento OCR",
