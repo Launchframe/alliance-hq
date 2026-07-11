@@ -10,7 +10,10 @@ import {
 
 const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts");
 
+const isVideoWorkerStandalone = process.env.VIDEO_WORKER_STANDALONE === "1";
+
 const nextConfig: NextConfig = {
+  ...(isVideoWorkerStandalone ? { output: "standalone" as const } : {}),
   env: {
     NEXT_PUBLIC_APP_VERSION:
       process.env.NEXT_PUBLIC_APP_VERSION ?? packageJson.version,

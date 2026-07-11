@@ -1,0 +1,38 @@
+# Local smoke for the Phase 2b video OCR worker.
+# From repo root:
+#   docker compose -f deploy/video-worker/docker-compose.yml up --build
+#
+# Point the app at this host:
+#   VIDEO_WORKER_BASE_URL=http://localhost:5176 VIDEO_WORKER_SECRET=dev-secret npm run dev
+
+services:
+  video-worker:
+    build:
+      context: ../..
+      dockerfile: deploy/video-worker/Dockerfile
+      args:
+        VIDEO_WORKER_STANDALONE: "1"
+    ports:
+      - "5176:3000"
+    env_file:
+      - ../../.env.local
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      HOSTNAME: "0.0.0.0"
+      VIDEO_WORKER_MODE: "1"
+      # Worker must call its own archive/process URLs — not the public app.
+      VIDEO_WORKER_BASE_URL: http://localhost:5176
+      # Keep NEXT_PUBLIC_APP_URL as the public HQ origin from .env.local.
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/api/internal/video-worker/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
