@@ -1331,7 +1331,8 @@
       "target": "Target",
       "file": "File",
       "actions": "Actions"
-    }
+    },
+    "hqOcrOnlyScoreTargetLockedHint": "This video type always uses Alliance HQ in-house OCR."
   },
   "videoProcessors": {
     "title": "Video processors",
@@ -2544,7 +2545,6 @@
     "errorCredentials": "Email or password is incorrect.",
     "errorGeneric": "We could not complete sign-in. Try again or use a different method.",
     "errorOAuthAccountNotLinkedTitle": "This Google or Discord account is not linked",
-
     "errorOAuthAccountNotLinkedBody": "Google or Discord could not be connected to your Alliance HQ account. Sign in with your HQ email first, then link Google or Discord under Settings → Sign-in & security. Cold sign-in with Discord or Google only works when that provider account is already linked or when the provider email matches your HQ email.",
     "errorOAuthAccountNotLinkedHint": "Sign in with the email you use for Alliance HQ, then open Settings → Sign-in & security to link Discord or Google.",
     "errorOAuthAccountNotLinkedWrongAccountHint": "You can also update your account email or unlink the wrong Google or Discord account under Settings → Sign-in & security.",
@@ -4817,7 +4817,15 @@
       "nextDay": "Next day",
       "previousMonth": "Previous month",
       "nextMonth": "Next month",
-      "weekdayHeaders": ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
+      "weekdayHeaders": [
+        "Sun",
+        "Mon",
+        "Tue",
+        "Wed",
+        "Thu",
+        "Fri",
+        "Sat"
+      ],
       "more": "+{count} more"
     },
     "settings": {
@@ -4942,7 +4950,9 @@
       "status": "Status",
       "commanderName": "Commander",
       "allianceTag": "Alliance tag",
-      "outcomeAt": "Outcome time"
+      "outcomeAt": "Outcome time",
+      "projectionName": "Projection name",
+      "projectionNotes": "Notes"
     },
     "status": {
       "locked": "Locked",
@@ -4959,8 +4969,41 @@
     },
     "errors": {
       "saveFailed": "Could not save bank management changes.",
-      "scheduleFailed": "Could not schedule the bank drop."
+      "scheduleFailed": "Could not schedule the bank drop.",
+      "falloffSaveFailed": "Could not save the deposit falloff projection."
     },
-    "dropScheduled": "Drop scheduled on Battle Plan."
+    "dropScheduled": "Drop scheduled on Battle Plan.",
+    "uploadDepositSlip": "Upload deposit slip video",
+    "falloff": {
+      "title": "Deposit falloff projection",
+      "hint": "Projected locked value and maturity outflow over time. Save a snapshot to compare against what actually happens.",
+      "save": "Save projection",
+      "saveDialogTitle": "Save deposit falloff projection",
+      "horizon": "Horizon",
+      "horizonOption": "{hours}h",
+      "scope": "Scope",
+      "scopeBank": "This bank",
+      "scopeAlliance": "Alliance-wide",
+      "localFallbackNotice": "Showing a locally computed projection — live sync is unavailable right now.",
+      "viewingSaved": "Viewing saved projection: {name}",
+      "clearSelection": "Back to live",
+      "loading": "Loading…",
+      "liveEmpty": "No deposit data yet for this view.",
+      "lockedValue": "Projected locked value",
+      "maturingValue": "Maturing outflow",
+      "overlayActual": "Actual locked value",
+      "dropByMarker": "Planned drop time",
+      "recommendedMarker": "Recommended drop",
+      "deltaFinal": "Final delta",
+      "deltaMaxPositive": "Peak overshoot",
+      "deltaUnexpectedInflow": "Unexpected inflow",
+      "deltaEarlyLoot": "Early exit value",
+      "history": "Saved projections",
+      "historyEmpty": "No saved projections yet.",
+      "historyLoadError": "Could not load saved projections.",
+      "detailLoadError": "Could not load the saved projection's actual results.",
+      "nameRequired": "Name is required.",
+      "deleteProjection": "Delete projection"
+    }
   }
 }

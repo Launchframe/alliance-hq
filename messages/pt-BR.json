@@ -1331,7 +1331,8 @@
       "target": "Destino",
       "file": "Arquivo",
       "actions": "Ações"
-    }
+    },
+    "hqOcrOnlyScoreTargetLockedHint": "Este tipo de vídeo sempre usa o OCR interno do Alliance HQ."
   },
   "videoProcessors": {
     "title": "Processadores de vídeo",
@@ -4816,7 +4817,15 @@
       "nextDay": "Próximo dia",
       "previousMonth": "Mês anterior",
       "nextMonth": "Próximo mês",
-      "weekdayHeaders": ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"],
+      "weekdayHeaders": [
+        "Dom",
+        "Seg",
+        "Ter",
+        "Qua",
+        "Qui",
+        "Sex",
+        "Sáb"
+      ],
       "more": "+{count} mais"
     },
     "settings": {
@@ -4941,7 +4950,9 @@
       "status": "Status",
       "commanderName": "Comandante",
       "allianceTag": "Tag da aliança",
-      "outcomeAt": "Horário do resultado"
+      "outcomeAt": "Horário do resultado",
+      "projectionName": "Nome da projeção",
+      "projectionNotes": "Notas"
     },
     "status": {
       "locked": "Bloqueado",
@@ -4958,8 +4969,41 @@
     },
     "errors": {
       "saveFailed": "Não foi possível salvar as alterações da gestão de bancos.",
-      "scheduleFailed": "Não foi possível agendar o abandono do banco."
+      "scheduleFailed": "Não foi possível agendar o abandono do banco.",
+      "falloffSaveFailed": "Não foi possível salvar a projeção de queda dos depósitos."
     },
-    "dropScheduled": "Abandono agendado no Plano de Batalha."
+    "dropScheduled": "Abandono agendado no Plano de Batalha.",
+    "uploadDepositSlip": "Enviar vídeo do histórico de depósitos",
+    "falloff": {
+      "title": "Projeção de queda dos depósitos",
+      "hint": "Valor bloqueado projetado e saída por maturidade ao longo do tempo. Salve um instantâneo para comparar com o que realmente acontecer.",
+      "save": "Salvar projeção",
+      "saveDialogTitle": "Salvar projeção de queda dos depósitos",
+      "horizon": "Horizonte",
+      "horizonOption": "{hours}h",
+      "scope": "Escopo",
+      "scopeBank": "Este banco",
+      "scopeAlliance": "Toda a aliança",
+      "localFallbackNotice": "Mostrando uma projeção calculada localmente — a sincronização ao vivo está indisponível no momento.",
+      "viewingSaved": "Visualizando projeção salva: {name}",
+      "clearSelection": "Voltar ao ao vivo",
+      "loading": "Carregando…",
+      "liveEmpty": "Ainda não há dados de depósito nesta visualização.",
+      "lockedValue": "Valor bloqueado projetado",
+      "maturingValue": "Saída por maturidade",
+      "overlayActual": "Valor bloqueado real",
+      "dropByMarker": "Horário planejado de abandono",
+      "recommendedMarker": "Abandono recomendado",
+      "deltaFinal": "Delta final",
+      "deltaMaxPositive": "Pico de excesso",
+      "deltaUnexpectedInflow": "Entrada inesperada",
+      "deltaEarlyLoot": "Valor de saída antecipada",
+      "history": "Projeções salvas",
+      "historyEmpty": "Ainda não há projeções salvas.",
+      "historyLoadError": "Não foi possível carregar as projeções salvas.",
+      "detailLoadError": "Não foi possível carregar os resultados reais da projeção salva.",
+      "nameRequired": "O nome é obrigatório.",
+      "deleteProjection": "Excluir projeção"
+    }
   }
 }
