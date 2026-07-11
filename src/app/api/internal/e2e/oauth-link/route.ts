@@ -83,6 +83,9 @@ export async function POST(request: Request) {
       },
       providerEmail,
     });
+    if (!result.ok) {
+      return NextResponse.json(result, { status: 409 });
+    }
     return NextResponse.json(result);
   }
 

@@ -974,6 +974,111 @@ export async function createHqDiscordOAuthAccount(
   `;
 }
 
+export async function createHqGoogleOAuthAccount(
+  sql: Sql,
+  input: {
+    hqUserId: string;
+    googleAccountId: string;
+    providerEmail?: string | null;
+  },
+): Promise<void> {
+  await sql`
+    INSERT INTO hq_auth_accounts (
+      id, hq_user_id, type, provider, provider_account_id, provider_email
+    ) VALUES (
+      ${nanoid(16)},
+      ${input.hqUserId},
+      ${"oauth"},
+      ${"google"},
+      ${input.googleAccountId},
+      ${input.providerEmail ?? null}
+    )
+  `;
+}
+
+export async function createDiscordMemberLink(
+  sql: Sql,
+  input: {
+    allianceId: string;
+    discordUserId: string;
+    ashedMemberId: string;
+    discordDisplayName?: string | null;
+  },
+): Promise<void> {
+  const now = new Date();
+  await sql`
+    INSERT INTO discord_member_links (
+      id,
+      alliance_id,
+      discord_user_id,
+      ashed_member_id,
+      discord_username,
+      member_display_name,
+      game_uid,
+      linked_at,
+      updated_at
+    ) VALUES (
+      ${nanoid(16)},
+      ${input.allianceId},
+      ${input.discordUserId},
+      ${input.ashedMemberId},
+      ${input.discordDisplayName ?? null},
+      ${input.discordDisplayName ?? null},
+      ${"0"},
+      ${now},
+      ${now}
+    )
+    ON CONFLICT (alliance_id, discord_user_id, ashed_member_id) DO UPDATE SET
+      discord_username = EXCLUDED.discord_username,
+      member_display_name = EXCLUDED.member_display_name,
+      updated_at = EXCLUDED.updated_at
+  `;
+}
+
+/**
+ * Commander link expects HQ user A, but Discord OAuth is on HQ user B — surfaces
+ * the "Discord split" badge on roster and admin HQ Users.
+ */
+export async function seedOAuthIdentitySplitScenario(
+  sql: Sql,
+  input: {
+    allianceId: string;
+    commanderHqUserId: string;
+    oauthHqUserId: string;
+    discordUserId: string;
+    commanderName?: string;
+    oauthHqEmail?: string;
+    ashedMemberId?: string;
+  },
+): Promise<{ ashedMemberId: string; commanderName: string }> {
+  const commanderName = input.commanderName ?? "Split Commander";
+  const ashedMemberId = input.ashedMemberId ?? `e2e-split-${nanoid(8)}`;
+
+  await createAllianceRosterMember(sql, {
+    allianceId: input.allianceId,
+    currentName: commanderName,
+    ashedMemberId,
+  });
+  await createHqMemberLink(sql, {
+    allianceId: input.allianceId,
+    hqUserId: input.commanderHqUserId,
+    ashedMemberId,
+    memberDisplayName: commanderName,
+  });
+  await createDiscordMemberLink(sql, {
+    allianceId: input.allianceId,
+    discordUserId: input.discordUserId,
+    ashedMemberId,
+  });
+  await createHqDiscordOAuthAccount(sql, {
+    hqUserId: input.oauthHqUserId,
+    discordUserId: input.discordUserId,
+    providerEmail: input.oauthHqEmail ?? `oauth-split-${nanoid(6)}@discord.test`,
+  });
+
+  return { ashedMemberId, commanderName };
+}
+
 export async function createDiscordUserLinkNonce(
   sql: Sql,
   input: { discordUserId: string; guildId?: string | null; nonce?: string },
