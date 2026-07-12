@@ -108,6 +108,8 @@ export async function handleWebThpCommand(input: {
     explicitTotal,
     explicitBreakdown,
     currentTotal: commander?.currentTotalHeroPower ?? null,
+    previousUpdatedAt: commander?.thpUpdatedAt ?? null,
+    commanderName: link.memberDisplayName ?? commander?.primaryName ?? link.ashedMemberId,
     commanderId,
     pending: pending as ThpPendingState | null,
     reporterCount,
@@ -180,7 +182,10 @@ async function handleWebThpConfirm(input: {
     };
   }
 
-  const allianceRows = await listAllianceCommanderThpRows(input.allianceId);
+  const [allianceRows, commander] = await Promise.all([
+    listAllianceCommanderThpRows(input.allianceId),
+    getCommanderThpState(pending.commanderId),
+  ]);
   const peerMax = peerMaxThpExcludingCommander(
     allianceRows
       .filter((row) => row.total != null)
@@ -193,6 +198,9 @@ async function handleWebThpConfirm(input: {
     pending,
     translate: input.translate,
     peerMax,
+    currentTotal: commander?.currentTotalHeroPower ?? null,
+    previousUpdatedAt: commander?.thpUpdatedAt ?? null,
+    commanderName: input.memberName,
   });
   await saveHqThpPending(input.allianceId, input.hqUserId, result.pending);
 

@@ -6,12 +6,15 @@ import {
 } from "@/lib/thp/breakdown.shared";
 import type { ThpBreakdown } from "@/lib/thp/my-thp.shared";
 import { shouldThpAnomalyConfirm, buildThpFlagReason } from "@/lib/thp/anomaly";
+import { buildThpDiscordSuccessReply } from "@/lib/thp/discord-success-reply";
 import type { ThpCommandResult, ThpPendingState } from "@/lib/thp/types";
 
 export type ProcessThpCommandInput = {
   explicitTotal?: number | null;
   explicitBreakdown?: ThpBreakdown | null;
   currentTotal: number | null;
+  previousUpdatedAt?: Date | null;
+  commanderName?: string | null;
   commanderId: string;
   pending: ThpPendingState | null;
   reporterCount: number;
@@ -24,7 +27,27 @@ export type ProcessThpConfirmationInput = {
   pending: ThpPendingState;
   translate: DiscordTranslate;
   peerMax: number;
+  currentTotal: number | null;
+  previousUpdatedAt?: Date | null;
+  commanderName?: string | null;
 };
+
+function successReply(
+  t: DiscordTranslate,
+  total: number,
+  input: {
+    commanderName?: string | null;
+    currentTotal: number | null;
+    previousUpdatedAt?: Date | null;
+  },
+): string {
+  return buildThpDiscordSuccessReply(t, {
+    commanderName: input.commanderName ?? "Commander",
+    total,
+    previousTotal: input.currentTotal,
+    previousAt: input.previousUpdatedAt ?? null,
+  });
+}
 
 function resolveProposed(input: ProcessThpCommandInput): {
   total: number;
@@ -73,7 +96,7 @@ function applyProposed(
   }
 
   return {
-    reply: t("thp.success", { total: formatThpTotalForDiscord(proposed.total) }),
+    reply: successReply(t, proposed.total, input),
     pending: null,
     action: {
       type: "set_thp",
@@ -158,9 +181,7 @@ export function processThpConfirmation(
     : null;
 
   return {
-    reply: t("thp.success", {
-      total: formatThpTotalForDiscord(pending.proposedTotal),
-    }),
+    reply: successReply(t, pending.proposedTotal, input),
     pending: null,
     action: {
       type: "set_thp",

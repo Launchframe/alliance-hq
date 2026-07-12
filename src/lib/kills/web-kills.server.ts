@@ -82,6 +82,8 @@ export async function handleWebKillsCommand(input: {
   const result = processKillsCommand({
     explicitTotal,
     currentTotal: commander?.currentKills ?? null,
+    previousUpdatedAt: commander?.killsUpdatedAt ?? null,
+    commanderName: link.memberDisplayName ?? commander?.primaryName ?? link.ashedMemberId,
     commanderId,
     pending: pending as KillsPendingState | null,
     reporterCount,
@@ -148,7 +150,10 @@ async function handleWebKillsConfirm(input: {
     };
   }
 
-  const allianceRows = await listAllianceCommanderKillsRows(input.allianceId);
+  const [allianceRows, commander] = await Promise.all([
+    listAllianceCommanderKillsRows(input.allianceId),
+    getCommanderKillsState(pending.commanderId),
+  ]);
   const peerMax = peerMaxKillsExcludingCommander(
     allianceRows
       .filter((row) => row.total != null)
@@ -161,6 +166,9 @@ async function handleWebKillsConfirm(input: {
     pending,
     translate: input.translate,
     peerMax,
+    currentTotal: commander?.currentKills ?? null,
+    previousUpdatedAt: commander?.killsUpdatedAt ?? null,
+    commanderName: input.memberName,
   });
   await saveHqKillsPending(input.allianceId, input.hqUserId, result.pending);
 

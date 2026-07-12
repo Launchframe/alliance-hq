@@ -138,6 +138,9 @@ async function runThpForLink(input: {
     explicitTotal,
     explicitBreakdown,
     currentTotal: commander?.currentTotalHeroPower ?? null,
+    previousUpdatedAt: commander?.thpUpdatedAt ?? null,
+    commanderName:
+      input.memberDisplayName ?? commander?.primaryName ?? input.ashedMemberId,
     commanderId,
     pending,
     reporterCount,
@@ -264,12 +267,19 @@ export async function handleDiscordThpButtonConfirm(input: {
     return result;
   }
 
-  const allianceRows = await listAllianceCommanderThpRows(input.allianceId);
+  const [allianceRows, commander] = await Promise.all([
+    listAllianceCommanderThpRows(input.allianceId),
+    getCommanderThpState(pending.commanderId),
+  ]);
   const peerMax = peerMaxThpExcludingCommander(
     allianceRows
       .filter((row) => row.total != null)
       .map((row) => ({ commanderId: row.commanderId, total: row.total! })),
     pending.commanderId,
+  );
+  const membership = await getCommanderMembershipInAlliance(
+    pending.commanderId,
+    input.allianceId,
   );
 
   const result = processThpConfirmation({
@@ -277,14 +287,17 @@ export async function handleDiscordThpButtonConfirm(input: {
     pending,
     translate,
     peerMax,
+    currentTotal: commander?.currentTotalHeroPower ?? null,
+    previousUpdatedAt: commander?.thpUpdatedAt ?? null,
+    commanderName:
+      membership?.memberName ??
+      commander?.primaryName ??
+      membership?.ashedMemberId ??
+      pending.commanderId,
   });
   await saveDiscordBotPending(input.allianceId, input.discordUserId, result.pending);
 
   if (result.action.type === "set_thp") {
-    const membership = await getCommanderMembershipInAlliance(
-      pending.commanderId,
-      input.allianceId,
-    );
     await upsertCommanderThp({
       commanderId: pending.commanderId,
       total: result.action.total,
