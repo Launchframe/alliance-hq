@@ -12,12 +12,12 @@ describe("auditWebVrCommand", () => {
     vi.clearAllMocks();
   });
 
-  it("writes vr.web.command to audit_log with payload and result", async () => {
+  it("writes vr.web.command to audit_log with commander resource", async () => {
     await auditWebVrCommand({
       sessionId: "session-1",
       allianceId: "alliance-1",
       hqUserId: "hq-1",
-      ashedMemberId: "member-1",
+      commanderId: "cmd-1",
       payload: { explicitInstituteLevel: null, confirm: null },
       result: { status: "set_vr", message: "Saved.", newVr: 250 },
     });
@@ -28,8 +28,8 @@ describe("auditWebVrCommand", () => {
         allianceId: "alliance-1",
         hqUserId: "hq-1",
         action: "vr.web.command",
-        resourceType: "member_season_vr",
-        resourceId: "member-1",
+        resourceType: "commander_season_vr",
+        resourceId: "cmd-1",
         metadata: {
           command: "vr",
           channel: "web",

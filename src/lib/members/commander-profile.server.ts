@@ -257,16 +257,7 @@ export async function loadCommanderProfile(
           eq(schema.commanderSeasonVr.commanderId, commanderIdentity.commanderId),
         )
         .orderBy(desc(schema.commanderSeasonVr.seasonKey))
-    : await db
-        .select()
-        .from(schema.memberSeasonVr)
-        .where(
-          and(
-            eq(schema.memberSeasonVr.allianceId, allianceId),
-            eq(schema.memberSeasonVr.ashedMemberId, ashedMemberId),
-          ),
-        )
-        .orderBy(desc(schema.memberSeasonVr.seasonKey));
+    : [];
 
   const eventScoreRows = await db
     .select({

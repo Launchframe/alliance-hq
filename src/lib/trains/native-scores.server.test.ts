@@ -4,11 +4,6 @@ const mocks = vi.hoisted(() => ({
   getEffectiveSeasonForAlliance: vi.fn(),
   listActiveAllianceMembersForPool: vi.fn(),
   listAllianceSeasonVrForLeaderboard: vi.fn(),
-  selectChain: {
-    from: vi.fn(),
-    where: vi.fn(),
-    orderBy: vi.fn(),
-  },
 }));
 
 vi.mock("@/lib/game-season/sync", () => ({
@@ -21,20 +16,6 @@ vi.mock("@/lib/members/roster.server", () => ({
 
 vi.mock("@/lib/vr/repository", () => ({
   listAllianceSeasonVrForLeaderboard: mocks.listAllianceSeasonVrForLeaderboard,
-}));
-
-vi.mock("@/lib/db", () => ({
-  getDb: () => ({
-    select: () => mocks.selectChain,
-  }),
-  schema: {
-    memberSeasonVr: {
-      ashedMemberId: "ashedMemberId",
-      highestBaseVr: "highestBaseVr",
-      allianceId: "allianceId",
-      seasonKey: "seasonKey",
-    },
-  },
 }));
 
 import {
