@@ -62,6 +62,8 @@ export async function GET(_request: Request, { params }: Props) {
       matchConfidence: number | null;
       matchMethod: string | null;
       scoreConflict: number;
+      dedupeClusterId: string | null;
+      dedupeFlag: boolean;
       deleted: number;
       manuallyAdded: number;
     }> = [];
@@ -80,6 +82,7 @@ export async function GET(_request: Request, { params }: Props) {
             scoreTarget: ps.scoreTarget,
             allianceId: ps.allianceId,
             status: ps.status,
+            dedupeReport: ps.dedupeReportJson ?? null,
           }
         : null;
 
@@ -111,6 +114,8 @@ export async function GET(_request: Request, { params }: Props) {
           matchConfidence: r.matchConfidence,
           matchMethod: r.matchMethod,
           scoreConflict: r.scoreConflict,
+          dedupeClusterId: r.dedupeClusterId ?? null,
+          dedupeFlag: Boolean(r.dedupeClusterId),
           deleted: r.deleted,
           manuallyAdded: r.manuallyAdded,
         }));
@@ -222,6 +227,7 @@ export async function GET(_request: Request, { params }: Props) {
         }),
       },
       parseSession,
+      dedupeReport: parseSession?.dedupeReport ?? null,
       rows,
       members,
     });

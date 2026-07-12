@@ -569,6 +569,8 @@ export const parseSessions = pgTable("parse_sessions", {
   matchedCount: integer("matched_count").notNull().default(0),
   status: text("status").notNull().default("open"),
   rawExtractJson: jsonb("raw_extract_json"),
+  /** Cross-frame dedupe report (auto-merged + flagged clusters). */
+  dedupeReportJson: jsonb("dedupe_report_json"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
     .notNull(),
@@ -653,6 +655,8 @@ export const parsedRows = pgTable("parsed_rows", {
   /** 1 when OCR produced multiple scores for the same sanitized name */
   scoreConflict: integer("score_conflict").notNull().default(0),
   frameIndex: integer("frame_index"),
+  /** Flagged dedupe cluster id (null when not part of a flagged cluster). */
+  dedupeClusterId: text("dedupe_cluster_id"),
   deleted: integer("deleted").notNull().default(0),
   edited: integer("edited").notNull().default(0),
   /** 1 when row was manually added by the user on the review page */

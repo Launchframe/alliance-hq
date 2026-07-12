@@ -3,10 +3,15 @@ import "server-only";
 import { and, eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
+import type { DedupedDepositSlip } from "@/lib/banks/deposit-slip-ocr/deposit-slip-dedupe.shared";
 import { depositSlipDraftToParsedRowFields } from "@/lib/banks/deposit-slip-ocr/draft-row.shared";
 import type { ParsedDepositSlipHistory } from "@/lib/banks/deposit-slip-ocr/parse-deposit-slip-text.shared";
 import { getDb, schema } from "@/lib/db";
 import { resolveHqAllianceIdFromSession } from "@/lib/members/resolve-hq-alliance";
+import {
+  emptyDedupeReport,
+  type DedupeReport,
+} from "@/lib/video/dedupe/merge-report.shared";
 import { ocrDepositSlipNativeFrames } from "@/lib/video/ocr-deposit-slip-native";
 import type { VideoOcrEngine } from "@/lib/video/ocr-provider.shared";
 import type { PipelineTimer } from "@/lib/video/pipeline-timer";
@@ -35,6 +40,25 @@ export type ProcessDepositSlipVideoParseResult = {
   totalRawOcrRows: number;
 };
 
+function asDedupedSlips(
+  slips: ParsedDepositSlipHistory["slips"],
+): DedupedDepositSlip[] {
+  return slips.map((slip, index) => {
+    const withId = slip as DedupedDepositSlip;
+    if (typeof withId.slipId === "string" && withId.slipId.length > 0) {
+      return withId;
+    }
+    return {
+      ...slip,
+      identity: { ...slip.identity },
+      slipId: nanoid(16),
+      dedupeClusterId: withId.dedupeClusterId ?? null,
+      // Preserve index hint for mocks without slipId.
+      sourceFrameIndex: slip.sourceFrameIndex ?? index,
+    };
+  });
+}
+
 export async function processDepositSlipVideoParse(
   input: ProcessDepositSlipVideoParseInput,
 ): Promise<ProcessDepositSlipVideoParseResult> {
@@ -45,6 +69,7 @@ export async function processDepositSlipVideoParse(
   );
 
   let history: ParsedDepositSlipHistory;
+  let dedupeReport: DedupeReport;
   let ocrFrameMs: number[];
   let ocrConcurrency: number;
   let totalRawOcrRows: number;
@@ -57,15 +82,24 @@ export async function processDepositSlipVideoParse(
   }>;
 
   if (input.engine === "mock") {
-    history = input.mockHistory ?? { depositPolicy: null, minimumDeposit: null, slips: [] };
+    history = input.mockHistory ?? {
+      depositPolicy: null,
+      minimumDeposit: null,
+      slips: [],
+    };
+    dedupeReport = emptyDedupeReport(history.slips.length);
     ocrFrameMs = input.frames.map(() => 1);
     ocrConcurrency = 1;
     totalRawOcrRows = history.slips.length;
     frameTimings = input.frames.map((frame) => ({
       frameIndex: frame.index,
       ms: 1,
-      entryCount: history.slips.filter((s) => s.sourceFrameIndex === frame.index)
-        .length || (frame.index === (input.frames[0]?.index ?? 0) ? history.slips.length : 0),
+      entryCount:
+        history.slips.filter((s) => s.sourceFrameIndex === frame.index)
+          .length ||
+        (frame.index === (input.frames[0]?.index ?? 0)
+          ? history.slips.length
+          : 0),
       error: null,
     }));
   } else {
@@ -79,9 +113,12 @@ export async function processDepositSlipVideoParse(
       (result) => ({
         frameCount: input.frames.length,
         rowCount: result.history.slips.length,
+        autoMerged: result.dedupeReport.autoMergedCount,
+        flagged: result.dedupeReport.flaggedCount,
       }),
     );
     history = native.history;
+    dedupeReport = native.dedupeReport;
     ocrFrameMs = native.frameTimings.map((f) => f.ms);
     ocrConcurrency = native.concurrency;
     totalRawOcrRows = native.frameTimings.reduce(
@@ -111,6 +148,7 @@ export async function processDepositSlipVideoParse(
     ),
   );
 
+  const dedupedSlips = asDedupedSlips(history.slips);
   const parseSessionId = nanoid(16);
   await input.timer.measureStep("db.create_parse_session", async () => {
     await db.insert(schema.parseSessions).values({
@@ -119,19 +157,20 @@ export async function processDepositSlipVideoParse(
       sessionId: input.sessionId,
       scoreTarget: input.scoreTargetId,
       allianceId: hqAllianceId,
-      rowCount: history.slips.length,
+      rowCount: dedupedSlips.length,
       matchedCount: 0,
       status: "open",
-      rawExtractJson: history,
+      rawExtractJson: { ...history, slips: dedupedSlips },
+      dedupeReportJson: dedupeReport,
       createdAt: input.now,
       updatedAt: input.now,
     });
   });
 
-  if (history.slips.length > 0) {
+  if (dedupedSlips.length > 0) {
     await input.timer.measureStep("db.insert_parsed_rows", async () => {
       await db.insert(schema.parsedRows).values(
-        history.slips.map((slip) => {
+        dedupedSlips.map((slip) => {
           const fields = depositSlipDraftToParsedRowFields(slip);
           return {
             id: nanoid(16),
@@ -151,6 +190,7 @@ export async function processDepositSlipVideoParse(
             matchMethod: null,
             scoreConflict: 0,
             frameIndex: fields.frameIndex,
+            dedupeClusterId: slip.dedupeClusterId ?? null,
             deleted: 0,
             edited: 0,
             manuallyAdded: 0,
@@ -174,7 +214,7 @@ export async function processDepositSlipVideoParse(
   return {
     parseSessionId,
     hqAllianceId,
-    rowCount: history.slips.length,
+    rowCount: dedupedSlips.length,
     matchedCount: 0,
     ocrFrameMs,
     ocrConcurrency,

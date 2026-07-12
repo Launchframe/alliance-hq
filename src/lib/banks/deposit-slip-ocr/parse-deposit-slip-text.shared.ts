@@ -9,6 +9,14 @@ import type {
   DepositTermDays,
 } from "@/lib/banks/types.shared";
 import { DEPOSIT_TERMS } from "@/lib/banks/types.shared";
+import {
+  dedupeDepositSlips,
+  type DedupedDepositSlip,
+} from "@/lib/banks/deposit-slip-ocr/deposit-slip-dedupe.shared";
+import {
+  emptyDedupeReport,
+  type DedupeReport,
+} from "@/lib/video/dedupe/merge-report.shared";
 
 export const BANK_DEPOSIT_SLIP_HISTORY_SCORE_TARGET =
   "bank-deposit-slip-history" as const;
@@ -37,6 +45,11 @@ export type ParsedDepositSlipHistory = {
   depositPolicy: DepositPolicy | null;
   minimumDeposit: number | null;
   slips: ParsedDepositSlipDraft[];
+};
+
+export type MergeDepositSlipHistoryResult = {
+  history: ParsedDepositSlipHistory & { slips: DedupedDepositSlip[] };
+  dedupeReport: DedupeReport;
 };
 
 const TIMESTAMP_RE =
@@ -236,9 +249,13 @@ export function parseDepositSlipHistoryText(
   };
 }
 
+/**
+ * Merge per-frame parses, then fuzzy-dedupe across frames
+ * (commander + to-the-minute timestamp) with an officer-facing report.
+ */
 export function mergeDepositSlipHistoryParses(
   parts: readonly ParsedDepositSlipHistory[],
-): ParsedDepositSlipHistory {
+): MergeDepositSlipHistoryResult {
   let depositPolicy: DepositPolicy | null = null;
   let minimumDeposit: number | null = null;
   const slips: ParsedDepositSlipDraft[] = [];
@@ -247,9 +264,21 @@ export function mergeDepositSlipHistoryParses(
     minimumDeposit ??= part.minimumDeposit;
     slips.push(...part.slips);
   }
+
+  if (slips.length === 0) {
+    return {
+      history: { depositPolicy, minimumDeposit, slips: [] },
+      dedupeReport: emptyDedupeReport(0),
+    };
+  }
+
+  const { slips: deduped, report } = dedupeDepositSlips(slips);
   return {
-    depositPolicy,
-    minimumDeposit,
-    slips: dedupeAndSortSlips(slips),
+    history: {
+      depositPolicy,
+      minimumDeposit,
+      slips: deduped,
+    },
+    dedupeReport: report,
   };
 }

@@ -9,6 +9,7 @@ import {
   buildOcrDiagnostics,
   logOcrDiagnostics,
 } from "@/lib/ocr/ocr-diagnostics.shared";
+import type { DedupeReport } from "@/lib/video/dedupe/merge-report.shared";
 import { mapWithConcurrency } from "@/lib/video/map-with-concurrency";
 import { logPipelineStep } from "@/lib/video/pipeline-step-log";
 import type { PipelineTimer } from "@/lib/video/pipeline-timer";
@@ -26,6 +27,7 @@ export type NativeDepositSlipFrameTiming = {
 
 export type OcrDepositSlipNativeFramesResult = {
   history: ParsedDepositSlipHistory;
+  dedupeReport: DedupeReport;
   frameTimings: NativeDepositSlipFrameTiming[];
   concurrency: number;
 };
@@ -120,12 +122,13 @@ export async function ocrDepositSlipNativeFrames(
     },
   );
 
-  const history = mergeDepositSlipHistoryParses(
+  const merged = mergeDepositSlipHistoryParses(
     frameResults.map((frame) => frame.history),
   );
 
   return {
-    history,
+    history: merged.history,
+    dedupeReport: merged.dedupeReport,
     frameTimings: frameResults.map((frame) => ({
       frameIndex: frame.frameIndex,
       ms: frame.ms,
