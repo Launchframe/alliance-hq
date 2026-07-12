@@ -21,6 +21,14 @@ describe("score-target-nav", () => {
     );
   });
 
+  it("builds upload URL with optional boardKey", () => {
+    expect(
+      buildVideoUploadHref("seasonal", {
+        boardKey: "kills",
+      }),
+    ).toBe("/tools/video-upload?scoreTarget=seasonal&boardKey=kills");
+  });
+
   it("builds upload URL with optional bankId", () => {
     expect(
       buildVideoUploadHref("bank-deposit-slip-history", {

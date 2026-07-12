@@ -13,6 +13,7 @@ import {
   RosterSquadSummaryStrip,
 } from "@/components/members/RosterCommanderToolbar";
 import { RosterColumnVisibilityMenu } from "@/components/members/RosterColumnVisibilityMenu";
+import { MembersUploadVideoMenu } from "@/components/members/MembersUploadVideoMenu";
 import {
   rosterColumnHeaderLabel,
   RosterMemberRow,
@@ -51,9 +52,7 @@ import {
   toggleRosterColumnVisibility,
   writeStoredRosterColumnPrefs,
 } from "@/lib/members/roster-column-prefs.shared";
-import { MEMBER_ROSTER_VIDEO_SCORE_TARGET } from "@/lib/members/ashed-member-record";
 import { ashedUrlForPath } from "@/lib/nav/routes";
-import { buildVideoUploadHref } from "@/lib/video/score-target-nav";
 
 type Props = {
   initial: AllianceMembersPayload;
@@ -623,16 +622,9 @@ export function MembersListView({
             </button>
           )}
           {canUploadRosterVideo && (
-            <Link
-              href={buildVideoUploadHref(MEMBER_ROSTER_VIDEO_SCORE_TARGET)}
-              className="relative inline-flex w-full items-center justify-center rounded-lg border border-[#388bfd] bg-[#388bfd]/10 px-4 py-2 text-center text-sm text-hq-accent hover:bg-[#388bfd]/20 sm:w-auto"
-            >
-              {t("uploadRosterVideo")}
-              <NeedsAttentionBadge count={attention.rosterVideoUpload} />
-              {attention.rosterVideoUpload > 0 ? (
-                <span className="sr-only">{t("uploadRosterVideoAttention")}</span>
-              ) : null}
-            </Link>
+            <MembersUploadVideoMenu
+              rosterVideoAttentionCount={attention.rosterVideoUpload}
+            />
           )}
           {canEditRanks && (
             <Link

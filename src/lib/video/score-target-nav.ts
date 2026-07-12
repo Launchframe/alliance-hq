@@ -19,14 +19,25 @@ export function getScoreTargetIdForNavHref(href: string): string | null {
 
 export function buildVideoUploadHref(
   scoreTargetId: string,
-  options?: { bankId?: string | null },
+  options?: { bankId?: string | null; boardKey?: string | null },
 ): string {
   const params = new URLSearchParams({ scoreTarget: scoreTargetId });
   const bankId = options?.bankId?.trim();
   if (bankId) {
     params.set("bankId", bankId);
   }
+  const boardKey = options?.boardKey?.trim();
+  if (boardKey) {
+    params.set("boardKey", boardKey);
+  }
   return `/tools/video-upload?${params.toString()}`;
+}
+
+export function parseVideoUploadBoardKeyParam(
+  value: string | undefined,
+): string | null {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : null;
 }
 
 export function parseVideoUploadBankIdParam(
