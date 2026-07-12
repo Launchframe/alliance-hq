@@ -147,12 +147,12 @@ export async function handleWebVrCommand(input: {
     explicitInstituteLevel: input.explicitInstituteLevel ?? null,
     confirm: input.confirm ?? null,
   };
-  const { result, ashedMemberId } = await handleWebVrCommandCore(input);
+  const { result, commanderId } = await handleWebVrCommandCore(input);
   await auditWebVrCommand({
     sessionId: input.sessionId,
     allianceId: input.allianceId,
     hqUserId: input.hqUserId,
-    ashedMemberId,
+    commanderId,
     payload: auditPayload,
     result,
   });
@@ -162,6 +162,7 @@ export async function handleWebVrCommand(input: {
 type WebVrCommandCoreOutcome = {
   result: MyVrPostResponse | { code: "member_link_required" };
   ashedMemberId: string | null;
+  commanderId: string | null;
 };
 
 async function handleWebVrCommandCore(input: {
@@ -176,6 +177,7 @@ async function handleWebVrCommandCore(input: {
     return {
       result: { code: "member_link_required" },
       ashedMemberId: null,
+      commanderId: null,
     };
   }
 
@@ -183,6 +185,11 @@ async function handleWebVrCommandCore(input: {
     input.locale === "pt-BR" ? "pt-BR" : "en-US",
   );
   const season = await resolveVrSeasonContext(input.allianceId);
+  const commander = await getCommanderByAshedMemberId(
+    link.ashedMemberId,
+    input.allianceId,
+  );
+  const commanderId = commander?.commanderId ?? null;
 
   if (season.vrUpdatesLocked) {
     return {
@@ -191,6 +198,7 @@ async function handleWebVrCommandCore(input: {
         message: vrSeasonLockedMessage(translate),
       },
       ashedMemberId: link.ashedMemberId,
+      commanderId,
     };
   }
 
@@ -200,20 +208,21 @@ async function handleWebVrCommandCore(input: {
         allianceId: input.allianceId,
         hqUserId: input.hqUserId,
         ashedMemberId: link.ashedMemberId,
+        commanderId,
         seasonKey: season.seasonKey,
         answer: input.confirm,
         translate,
       }),
       ashedMemberId: link.ashedMemberId,
+      commanderId,
     };
   }
 
   const pending = await getHqVrPending(input.allianceId, input.hqUserId);
-  const [seasonHigh, reporterCount, seasonRows, commander] = await Promise.all([
+  const [seasonHigh, reporterCount, seasonRows] = await Promise.all([
     getMemberSeasonHigh(input.allianceId, link.ashedMemberId, season.seasonKey),
     countSeasonReporters(input.allianceId, season.seasonKey),
     listSeasonVrRows(input.allianceId, season.seasonKey),
-    getCommanderByAshedMemberId(link.ashedMemberId, input.allianceId),
   ]);
   const peerMax = peerMaxExcludingMember(seasonRows, link.ashedMemberId);
 
@@ -230,6 +239,7 @@ async function handleWebVrCommandCore(input: {
           message: formatInstituteLevelValidationError(validated),
         },
         ashedMemberId: link.ashedMemberId,
+        commanderId,
       };
     }
     explicitBaseVr = validated.baseVr;
@@ -239,7 +249,7 @@ async function handleWebVrCommandCore(input: {
     explicitLevel: explicitBaseVr,
     seasonHigh,
     ashedMemberId: link.ashedMemberId,
-    commanderId: commander?.commanderId ?? null,
+    commanderId,
     pending: pending as VrPendingState | null,
     reporterCount,
     peerMax,
@@ -253,7 +263,7 @@ async function handleWebVrCommandCore(input: {
     await upsertMemberSeasonVr({
       allianceId: input.allianceId,
       ashedMemberId: result.action.ashedMemberId || link.ashedMemberId,
-      commanderId: result.action.commanderId ?? commander?.commanderId,
+      commanderId: result.action.commanderId ?? commanderId,
       seasonKey: season.seasonKey,
       baseVr: result.action.vr,
       hqUserId: input.hqUserId,
@@ -279,6 +289,7 @@ async function handleWebVrCommandCore(input: {
         ),
       },
       ashedMemberId: link.ashedMemberId,
+      commanderId: result.action.commanderId ?? commanderId,
     };
   }
 
@@ -294,6 +305,7 @@ async function handleWebVrCommandCore(input: {
         ),
       },
       ashedMemberId: link.ashedMemberId,
+      commanderId,
     };
   }
 
@@ -303,6 +315,7 @@ async function handleWebVrCommandCore(input: {
       message: result.reply,
     },
     ashedMemberId: link.ashedMemberId,
+    commanderId,
   };
 }
 
@@ -310,6 +323,7 @@ async function handleWebVrConfirm(input: {
   allianceId: string;
   hqUserId: string;
   ashedMemberId: string;
+  commanderId: string | null;
   seasonKey: string;
   answer: "yes" | "no";
   translate: ReturnType<typeof createDiscordTranslator>;
@@ -342,7 +356,7 @@ async function handleWebVrConfirm(input: {
     await upsertMemberSeasonVr({
       allianceId: input.allianceId,
       ashedMemberId: result.action.ashedMemberId || input.ashedMemberId,
-      commanderId: result.action.commanderId,
+      commanderId: result.action.commanderId ?? input.commanderId,
       seasonKey: input.seasonKey,
       baseVr: result.action.vr,
       hqUserId: input.hqUserId,

@@ -627,26 +627,6 @@ export async function getCommanderSeasonVrRow(
   return row ?? null;
 }
 
-async function getLegacyMemberSeasonHigh(
-  allianceId: string,
-  ashedMemberId: string,
-  seasonKey: string,
-): Promise<number | null> {
-  const db = getDb();
-  const [row] = await db
-    .select({ highestBaseVr: schema.memberSeasonVr.highestBaseVr })
-    .from(schema.memberSeasonVr)
-    .where(
-      and(
-        eq(schema.memberSeasonVr.allianceId, allianceId),
-        eq(schema.memberSeasonVr.ashedMemberId, ashedMemberId),
-        eq(schema.memberSeasonVr.seasonKey, seasonKey),
-      ),
-    )
-    .limit(1);
-  return row?.highestBaseVr ?? null;
-}
-
 export async function getMemberSeasonHigh(
   allianceId: string,
   ashedMemberId: string,
@@ -656,11 +636,8 @@ export async function getMemberSeasonHigh(
     allianceId,
     ashedMemberId,
   );
-  if (commanderId) {
-    const commanderHigh = await getCommanderSeasonHigh(commanderId, seasonKey);
-    if (commanderHigh != null) return commanderHigh;
-  }
-  return getLegacyMemberSeasonHigh(allianceId, ashedMemberId, seasonKey);
+  if (!commanderId) return null;
+  return getCommanderSeasonHigh(commanderId, seasonKey);
 }
 
 export async function listAllianceSeasonVrForLeaderboard(
@@ -712,20 +689,7 @@ export async function countSeasonReporters(
     allianceId,
     seasonKey,
   );
-  if (allianceRows.length > 0) {
-    return allianceRows.length;
-  }
-  const db = getDb();
-  const [row] = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(schema.memberSeasonVr)
-    .where(
-      and(
-        eq(schema.memberSeasonVr.allianceId, allianceId),
-        eq(schema.memberSeasonVr.seasonKey, seasonKey),
-      ),
-    );
-  return row?.count ?? 0;
+  return allianceRows.length;
 }
 
 export async function listSeasonVrRows(allianceId: string, seasonKey: string) {
@@ -733,96 +697,20 @@ export async function listSeasonVrRows(allianceId: string, seasonKey: string) {
     allianceId,
     seasonKey,
   );
-  if (allianceRows.length > 0) {
-    return allianceRows.map((row) => ({
-      id: row.id,
-      allianceId: row.allianceId,
-      ashedMemberId: row.ashedMemberId,
-      seasonKey: row.seasonKey,
-      highestBaseVr: row.highestBaseVr,
-      instituteLevel: row.instituteLevel,
-      flaggedAt: row.flaggedAt,
-      flagReason: row.flagReason,
-      updatedByDiscordUserId: row.updatedByDiscordUserId,
-      updatedByHqUserId: row.updatedByHqUserId,
-      createdAt: row.createdAt,
-      updatedAt: row.updatedAt,
-    }));
-  }
-  const db = getDb();
-  return db
-    .select()
-    .from(schema.memberSeasonVr)
-    .where(
-      and(
-        eq(schema.memberSeasonVr.allianceId, allianceId),
-        eq(schema.memberSeasonVr.seasonKey, seasonKey),
-      ),
-    );
-}
-
-async function writeLegacyMemberSeasonVr(input: {
-  allianceId: string;
-  ashedMemberId: string;
-  seasonKey: string;
-  baseVr: number;
-  instituteLevel: number | null;
-  discordUserId?: string | null;
-  hqUserId?: string | null;
-  flagReason: string | null;
-  previousBaseVr: number | null;
-  eventSource?: VrEventSource;
-  now: Date;
-}): Promise<void> {
-  const db = getDb();
-  await db
-    .insert(schema.memberSeasonVr)
-    .values({
-      id: nanoid(),
-      allianceId: input.allianceId,
-      ashedMemberId: input.ashedMemberId,
-      seasonKey: input.seasonKey,
-      highestBaseVr: input.baseVr,
-      instituteLevel: input.instituteLevel,
-      updatedByDiscordUserId: input.discordUserId ?? null,
-      updatedByHqUserId: input.hqUserId ?? null,
-      flaggedAt: input.flagReason ? input.now : null,
-      flagReason: input.flagReason,
-      createdAt: input.now,
-      updatedAt: input.now,
-    })
-    .onConflictDoUpdate({
-      target: [
-        schema.memberSeasonVr.allianceId,
-        schema.memberSeasonVr.ashedMemberId,
-        schema.memberSeasonVr.seasonKey,
-      ],
-      set: {
-        highestBaseVr: input.baseVr,
-        instituteLevel: input.instituteLevel,
-        updatedByDiscordUserId: input.discordUserId ?? null,
-        updatedByHqUserId: input.hqUserId ?? null,
-        updatedAt: input.now,
-        flaggedAt: input.flagReason ? input.now : null,
-        flagReason: input.flagReason,
-      },
-    });
-
-  if (input.eventSource && input.previousBaseVr !== input.baseVr) {
-    await db.insert(schema.memberSeasonVrEvents).values({
-      id: nanoid(),
-      allianceId: input.allianceId,
-      seasonKey: input.seasonKey,
-      ashedMemberId: input.ashedMemberId,
-      baseVr: input.baseVr,
-      instituteLevel: input.instituteLevel,
-      previousBaseVr: input.previousBaseVr,
-      source: input.eventSource,
-      reportedByHqUserId: input.hqUserId ?? null,
-      reportedByDiscordUserId: input.discordUserId ?? null,
-      createdAt: input.now,
-    });
-  }
+  return allianceRows.map((row) => ({
+    id: row.id,
+    allianceId: row.allianceId,
+    ashedMemberId: row.ashedMemberId,
+    seasonKey: row.seasonKey,
+    highestBaseVr: row.highestBaseVr,
+    instituteLevel: row.instituteLevel,
+    flaggedAt: row.flaggedAt,
+    flagReason: row.flagReason,
+    updatedByDiscordUserId: row.updatedByDiscordUserId,
+    updatedByHqUserId: row.updatedByHqUserId,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  }));
 }
 
 export async function upsertCommanderSeasonVr(input: {
@@ -839,13 +727,10 @@ export async function upsertCommanderSeasonVr(input: {
 }): Promise<void> {
   const db = getDb();
   const now = new Date();
-  const previousBaseVr =
-    (await getCommanderSeasonHigh(input.commanderId, input.seasonKey)) ??
-    (await getLegacyMemberSeasonHigh(
-      input.allianceId,
-      input.ashedMemberId,
-      input.seasonKey,
-    ));
+  const previousBaseVr = await getCommanderSeasonHigh(
+    input.commanderId,
+    input.seasonKey,
+  );
   const instituteLevel =
     input.instituteLevel ??
     coerceInstituteLevelFromBaseVr(input.seasonKey, input.baseVr);
@@ -903,21 +788,6 @@ export async function upsertCommanderSeasonVr(input: {
       createdAt: now,
     });
   }
-
-  // Dual-write legacy roster-keyed tables for rollback / orphan coverage.
-  await writeLegacyMemberSeasonVr({
-    allianceId: input.allianceId,
-    ashedMemberId: input.ashedMemberId,
-    seasonKey: input.seasonKey,
-    baseVr: input.baseVr,
-    instituteLevel,
-    discordUserId: input.discordUserId,
-    hqUserId: input.hqUserId,
-    flagReason,
-    previousBaseVr,
-    eventSource: input.eventSource,
-    now,
-  });
 }
 
 export async function upsertMemberSeasonVr(input: {
@@ -935,43 +805,12 @@ export async function upsertMemberSeasonVr(input: {
   const commanderId =
     input.commanderId ??
     (await resolveCommanderIdForMember(input.allianceId, input.ashedMemberId));
-  if (commanderId) {
-    await upsertCommanderSeasonVr({
-      ...input,
-      commanderId,
-    });
-    return;
+  if (!commanderId) {
+    throw new Error("commander_required_for_vr");
   }
-
-  const now = new Date();
-  const previousBaseVr = await getLegacyMemberSeasonHigh(
-    input.allianceId,
-    input.ashedMemberId,
-    input.seasonKey,
-  );
-  const instituteLevel =
-    input.instituteLevel ??
-    coerceInstituteLevelFromBaseVr(input.seasonKey, input.baseVr);
-  const rows = await listSeasonVrRows(input.allianceId, input.seasonKey);
-  const peerMax = peerMaxExcludingMember(rows, input.ashedMemberId);
-  const flagReason =
-    input.flagReason ??
-    (input.baseVr >= peerMax + 750 || input.baseVr > 10250
-      ? buildFlagReason(input.baseVr, peerMax)
-      : null);
-
-  await writeLegacyMemberSeasonVr({
-    allianceId: input.allianceId,
-    ashedMemberId: input.ashedMemberId,
-    seasonKey: input.seasonKey,
-    baseVr: input.baseVr,
-    instituteLevel,
-    discordUserId: input.discordUserId,
-    hqUserId: input.hqUserId,
-    flagReason,
-    previousBaseVr,
-    eventSource: input.eventSource,
-    now,
+  await upsertCommanderSeasonVr({
+    ...input,
+    commanderId,
   });
 }
 
@@ -995,8 +834,6 @@ export async function listCommanderSeasonVrEvents(
 async function recomputeCommanderSeasonSummaryFromEvents(
   commanderId: string,
   seasonKey: string,
-  allianceId: string,
-  ashedMemberId: string | null,
   hqUserId: string | null,
 ): Promise<void> {
   const db = getDb();
@@ -1010,17 +847,6 @@ async function recomputeCommanderSeasonSummaryFromEvents(
           eq(schema.commanderSeasonVr.seasonKey, seasonKey),
         ),
       );
-    if (ashedMemberId) {
-      await db
-        .delete(schema.memberSeasonVr)
-        .where(
-          and(
-            eq(schema.memberSeasonVr.allianceId, allianceId),
-            eq(schema.memberSeasonVr.ashedMemberId, ashedMemberId),
-            eq(schema.memberSeasonVr.seasonKey, seasonKey),
-          ),
-        );
-    }
     return;
   }
 
@@ -1064,20 +890,6 @@ async function recomputeCommanderSeasonSummaryFromEvents(
         updatedAt: now,
       },
     });
-
-  if (ashedMemberId) {
-    await writeLegacyMemberSeasonVr({
-      allianceId,
-      ashedMemberId,
-      seasonKey,
-      baseVr: best.baseVr,
-      instituteLevel,
-      hqUserId,
-      flagReason: null,
-      previousBaseVr: best.baseVr,
-      now,
-    });
-  }
 }
 
 export async function updateCommanderSeasonVrEvent(input: {
@@ -1121,20 +933,9 @@ export async function updateCommanderSeasonVrEvent(input: {
     })
     .where(eq(schema.commanderSeasonVrEvents.id, input.eventId));
 
-  // Dual-write legacy event row when ids match (backfill preserved ids).
-  await db
-    .update(schema.memberSeasonVrEvents)
-    .set({
-      baseVr: input.baseVr,
-      instituteLevel: input.instituteLevel,
-    })
-    .where(eq(schema.memberSeasonVrEvents.id, input.eventId));
-
   await recomputeCommanderSeasonSummaryFromEvents(
     event.commanderId,
     event.seasonKey,
-    input.allianceId,
-    membership[0]?.ashedMemberId ?? null,
     input.hqUserId,
   );
   return { ok: true };
@@ -1174,15 +975,10 @@ export async function deleteCommanderSeasonVrEvent(input: {
   await db
     .delete(schema.commanderSeasonVrEvents)
     .where(eq(schema.commanderSeasonVrEvents.id, input.eventId));
-  await db
-    .delete(schema.memberSeasonVrEvents)
-    .where(eq(schema.memberSeasonVrEvents.id, input.eventId));
 
   await recomputeCommanderSeasonSummaryFromEvents(
     event.commanderId,
     event.seasonKey,
-    input.allianceId,
-    membership[0]?.ashedMemberId ?? null,
     input.hqUserId,
   );
   return { ok: true };
@@ -1215,40 +1011,25 @@ export async function listMemberSeasonVrEvents(
     allianceId,
     ashedMemberId,
   );
-  if (commanderId) {
-    const commanderEvents = await listCommanderSeasonVrEvents(
-      commanderId,
-      seasonKey,
-    );
-    if (commanderEvents.length > 0) {
-      return commanderEvents.map((event) => ({
-        id: event.id,
-        allianceId: event.allianceId ?? allianceId,
-        seasonKey: event.seasonKey,
-        ashedMemberId,
-        baseVr: event.baseVr,
-        instituteLevel: event.instituteLevel,
-        previousBaseVr: event.previousBaseVr,
-        source: event.source,
-        reportedByHqUserId: event.reportedByHqUserId,
-        reportedByDiscordUserId: event.reportedByDiscordUserId,
-        createdAt: event.createdAt,
-      }));
-    }
-  }
+  if (!commanderId) return [];
 
-  const db = getDb();
-  return db
-    .select()
-    .from(schema.memberSeasonVrEvents)
-    .where(
-      and(
-        eq(schema.memberSeasonVrEvents.allianceId, allianceId),
-        eq(schema.memberSeasonVrEvents.seasonKey, seasonKey),
-        eq(schema.memberSeasonVrEvents.ashedMemberId, ashedMemberId),
-      ),
-    )
-    .orderBy(asc(schema.memberSeasonVrEvents.createdAt));
+  const commanderEvents = await listCommanderSeasonVrEvents(
+    commanderId,
+    seasonKey,
+  );
+  return commanderEvents.map((event) => ({
+    id: event.id,
+    allianceId: event.allianceId ?? allianceId,
+    seasonKey: event.seasonKey,
+    ashedMemberId,
+    baseVr: event.baseVr,
+    instituteLevel: event.instituteLevel,
+    previousBaseVr: event.previousBaseVr,
+    source: event.source,
+    reportedByHqUserId: event.reportedByHqUserId,
+    reportedByDiscordUserId: event.reportedByDiscordUserId,
+    createdAt: event.createdAt,
+  }));
 }
 
 export async function getHqVrPending(
@@ -1328,33 +1109,20 @@ export async function listLeaderboardRows(allianceId: string, seasonKey: string)
     allianceId,
     seasonKey,
   );
-  if (allianceRows.length > 0) {
-    return allianceRows.map((row) => ({
-      id: row.id,
-      allianceId: row.allianceId,
-      ashedMemberId: row.ashedMemberId,
-      seasonKey: row.seasonKey,
-      highestBaseVr: row.highestBaseVr,
-      instituteLevel: row.instituteLevel,
-      flaggedAt: row.flaggedAt,
-      flagReason: row.flagReason,
-      updatedByDiscordUserId: row.updatedByDiscordUserId,
-      updatedByHqUserId: row.updatedByHqUserId,
-      createdAt: row.createdAt,
-      updatedAt: row.updatedAt,
-    }));
-  }
-  const db = getDb();
-  return db
-    .select()
-    .from(schema.memberSeasonVr)
-    .where(
-      and(
-        eq(schema.memberSeasonVr.allianceId, allianceId),
-        eq(schema.memberSeasonVr.seasonKey, seasonKey),
-      ),
-    )
-    .orderBy(desc(schema.memberSeasonVr.highestBaseVr));
+  return allianceRows.map((row) => ({
+    id: row.id,
+    allianceId: row.allianceId,
+    ashedMemberId: row.ashedMemberId,
+    seasonKey: row.seasonKey,
+    highestBaseVr: row.highestBaseVr,
+    instituteLevel: row.instituteLevel,
+    flaggedAt: row.flaggedAt,
+    flagReason: row.flagReason,
+    updatedByDiscordUserId: row.updatedByDiscordUserId,
+    updatedByHqUserId: row.updatedByHqUserId,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  }));
 }
 
 export async function listWeeklyPassActiveByAlliance(
@@ -1426,7 +1194,7 @@ export async function listFlaggedSeasonVr(allianceId: string, seasonKey: string)
     allianceId,
     seasonKey,
   );
-  const flagged = allianceRows
+  return allianceRows
     .filter((row) => row.flaggedAt != null)
     .sort(
       (a, b) =>
@@ -1446,21 +1214,6 @@ export async function listFlaggedSeasonVr(allianceId: string, seasonKey: string)
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     }));
-  if (flagged.length > 0 || allianceRows.length > 0) {
-    return flagged;
-  }
-  const db = getDb();
-  return db
-    .select()
-    .from(schema.memberSeasonVr)
-    .where(
-      and(
-        eq(schema.memberSeasonVr.allianceId, allianceId),
-        eq(schema.memberSeasonVr.seasonKey, seasonKey),
-        sql`${schema.memberSeasonVr.flaggedAt} IS NOT NULL`,
-      ),
-    )
-    .orderBy(desc(schema.memberSeasonVr.updatedAt));
 }
 
 export async function officerOverrideSeasonVr(input: {

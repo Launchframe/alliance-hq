@@ -42,22 +42,6 @@ export async function wipeVrSandboxData(
   }
 
   await db
-    .delete(schema.memberSeasonVrEvents)
-    .where(
-      and(
-        eq(schema.memberSeasonVrEvents.allianceId, allianceId),
-        eq(schema.memberSeasonVrEvents.seasonKey, seasonKey),
-      ),
-    );
-  await db
-    .delete(schema.memberSeasonVr)
-    .where(
-      and(
-        eq(schema.memberSeasonVr.allianceId, allianceId),
-        eq(schema.memberSeasonVr.seasonKey, seasonKey),
-      ),
-    );
-  await db
     .delete(schema.commanderSeasonVrEvents)
     .where(
       and(

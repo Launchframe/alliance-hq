@@ -17,7 +17,7 @@ export async function auditWebVrCommand(input: {
   sessionId: string;
   allianceId: string;
   hqUserId: string;
-  ashedMemberId?: string | null;
+  commanderId?: string | null;
   payload: WebVrAuditPayload;
   result: WebVrAuditResult;
 }): Promise<void> {
@@ -27,8 +27,8 @@ export async function auditWebVrCommand(input: {
       allianceId: input.allianceId,
       hqUserId: input.hqUserId,
       action: "vr.web.command",
-      resourceType: "member_season_vr",
-      resourceId: input.ashedMemberId ?? undefined,
+      resourceType: "commander_season_vr",
+      resourceId: input.commanderId ?? undefined,
       metadata: {
         command: "vr",
         channel: "web",

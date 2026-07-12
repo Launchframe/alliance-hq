@@ -95,7 +95,7 @@ describe("handleWebVrCommand", () => {
     expect(result).toEqual({ code: "member_link_required" });
     expect(auditWebVrCommand).toHaveBeenCalledWith(
       expect.objectContaining({
-        ashedMemberId: null,
+        commanderId: null,
         result: { code: "member_link_required" },
       }),
     );
@@ -114,7 +114,7 @@ describe("handleWebVrCommand", () => {
         sessionId: "session-1",
         allianceId: "alliance-1",
         hqUserId: "hq-1",
-        ashedMemberId: "member-1",
+        commanderId: "cmd-1",
         result: expect.objectContaining({ status: "set_vr", newVr: 100 }),
       }),
     );

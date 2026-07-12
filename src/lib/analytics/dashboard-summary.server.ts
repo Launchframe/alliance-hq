@@ -29,7 +29,10 @@ import { loadReminderInboxForUser } from "@/lib/eur/satisfaction";
 import { getRbacContext, sessionHasPermission } from "@/lib/rbac/context";
 import { getDb, schema } from "@/lib/db";
 import { getServerCalendarDate } from "@/lib/trains/game-time";
-import { resolveSeasonKey } from "@/lib/vr/repository";
+import {
+  listAllianceSeasonVrForLeaderboard,
+  resolveSeasonKey,
+} from "@/lib/vr/repository";
 import { loadSession, getAshedConnection } from "@/lib/session";
 
 import type { DashboardSummaryPayload } from "@/lib/analytics/dashboard-summary.shared";
@@ -230,18 +233,7 @@ export async function loadViralResistanceDashboard(
           eq(schema.allianceMembers.status, "active"),
         ),
       ),
-    db
-      .select({
-        ashedMemberId: schema.memberSeasonVr.ashedMemberId,
-        highestBaseVr: schema.memberSeasonVr.highestBaseVr,
-      })
-      .from(schema.memberSeasonVr)
-      .where(
-        and(
-          eq(schema.memberSeasonVr.allianceId, allianceId),
-          eq(schema.memberSeasonVr.seasonKey, seasonKey),
-        ),
-      ),
+    listAllianceSeasonVrForLeaderboard(allianceId, seasonKey),
   ]);
 
   const reporterValues = seasonRows
