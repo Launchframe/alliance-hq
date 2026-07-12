@@ -48,6 +48,10 @@ import {
 } from "@/lib/video/frame-video-seek";
 import { parsePodiumRankInput } from "@/lib/video/podium-rank-input";
 import { restoreVideoReviewDraftIfPresent } from "@/lib/video/review-extract-draft.shared";
+import {
+  isDedupeReport,
+  type DedupeReport,
+} from "@/lib/video/dedupe/merge-report.shared";
 import { isVideoJobReadyForSubmit } from "@/lib/video/submit-job-ready.shared";
 import { useVideoReviewExtractDraft } from "@/components/video/useVideoReviewExtractDraft";
 import { accountTodayCalendarDate } from "@/lib/timezone/format";
@@ -90,6 +94,8 @@ type ParsedRow = {
   matchConfidence: number | null;
   matchMethod: string | null;
   scoreConflict: number;
+  dedupeClusterId?: string | null;
+  dedupeFlag?: boolean;
   deleted: number;
   manuallyAdded?: number;
 };
@@ -235,6 +241,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   );
   const [success, setSuccess] = useState<string | null>(null);
   const [timings, setTimings] = useState<VideoProcessTimings | null>(null);
+  const [dedupeReport, setDedupeReport] = useState<DedupeReport | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   const [hasSourceVideo, setHasSourceVideo] = useState(false);
   const {
@@ -397,8 +404,18 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
             jobName?: string | null;
             stale?: boolean;
           };
-          parseSession?: { allianceId?: string | null };
-          rows?: Array<ParsedRow & { scoreConflict?: number }>;
+          parseSession?: {
+            allianceId?: string | null;
+            dedupeReport?: unknown;
+          };
+          dedupeReport?: unknown;
+          rows?: Array<
+            ParsedRow & {
+              scoreConflict?: number;
+              dedupeClusterId?: string | null;
+              dedupeFlag?: boolean;
+            }
+          >;
           members?: AshedMember[];
         };
         if (!res.ok) {
@@ -440,10 +457,15 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
             ? data.job.timingsJson
             : null,
         );
+        const loadedDedupe =
+          data.dedupeReport ?? data.parseSession?.dedupeReport ?? null;
+        setDedupeReport(isDedupeReport(loadedDedupe) ? loadedDedupe : null);
         setScoreTargetMeta(data.scoreTargetMeta ?? null);
         const serverRows = (data.rows ?? []).map((row) => ({
           ...row,
           scoreConflict: row.scoreConflict ?? 0,
+          dedupeClusterId: row.dedupeClusterId ?? null,
+          dedupeFlag: Boolean(row.dedupeFlag ?? row.dedupeClusterId),
         }));
         const restored = restoreVideoReviewDraftIfPresent(
           jobId,
@@ -957,8 +979,11 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
       allianceRankTitle: row.allianceRankTitle ?? null,
       rosterRankRaw: row.rosterRankRaw ?? null,
       frameIndex: row.frameIndex,
+      dedupeClusterId: row.dedupeClusterId ?? null,
+      dedupeFlag: row.dedupeFlag,
       deleted: row.deleted,
     })),
+    dedupeReport,
   );
 
   const scoreDuplicateRowIds = useMemo(
@@ -1054,6 +1079,20 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   async function handleSubmit() {
     if (hasDuplicateMembers || hasDuplicateOcrNames) {
       setActionError(t("duplicateMemberBlocked"));
+      return;
+    }
+    if (
+      scoreTargetMeta?.showDepositSlipColumns &&
+      depositSlipValidation.hasUnresolvedFlaggedClusters
+    ) {
+      setActionError(t("depositSlipFlaggedBlocked"));
+      return;
+    }
+    if (
+      scoreTargetMeta?.showDepositSlipColumns &&
+      depositSlipValidation.incompleteRowIds.size > 0
+    ) {
+      setActionError(t("depositSlipIncompleteBlocked"));
       return;
     }
 
@@ -1887,9 +1926,12 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
               allianceRankTitle: row.allianceRankTitle ?? null,
               rosterRankRaw: row.rosterRankRaw ?? null,
               frameIndex: row.frameIndex,
+              dedupeClusterId: row.dedupeClusterId ?? null,
+              dedupeFlag: row.dedupeFlag,
               deleted: row.deleted,
             }))}
             filterQuery={filterQuery}
+            dedupeReport={dedupeReport}
             onUpdateRow={(id, patch) => updateRow(id, patch)}
             onDeleteRow={deleteRow}
             onPreviewFrame={(frameIndex) => {
