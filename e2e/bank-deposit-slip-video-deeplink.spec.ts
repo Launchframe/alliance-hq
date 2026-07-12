@@ -7,6 +7,7 @@ import {
 import {
   authCookieHeader,
   attachAshedConnectionToSession,
+  createHqMemberLink,
   getE2eSql,
   playwrightAuthCookies,
 } from "./fixtures/db";
@@ -51,6 +52,11 @@ test.describe("Bank deposit slip video deep-link + OCR lock", () => {
     const sql = getE2eSql();
     const scenario = await createVideoProcessorScenario(sql, e2eBaseUrl());
     const bankId = await insertBank(sql, scenario.allianceId);
+    // Native invite accept leaves officers on /onboard until a commander is linked.
+    await createHqMemberLink(sql, {
+      allianceId: scenario.allianceId,
+      hqUserId: scenario.officer.hqUserId,
+    });
 
     await page.context().addCookies(playwrightAuthCookies(scenario.officer));
     await page.goto("/bank-management");
