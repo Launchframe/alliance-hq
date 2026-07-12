@@ -1,0 +1,48 @@
+# Fly.io app for Alliance HQ video OCR worker (Phase 2b).
+#
+# Always deploy from the **repository root** so the Dockerfile COPY paths resolve:
+#
+#   fly deploy \
+#     --config deploy/video-worker/fly.toml \
+#     --dockerfile deploy/video-worker/Dockerfile \
+#     --ha=false
+#
+# Secrets / create: see deploy/video-worker/README.md
+
+app = "alliance-hq-video-worker"
+primary_region = "iad"
+
+[build]
+  dockerfile = "deploy/video-worker/Dockerfile"
+  ignorefile = "deploy/video-worker/.dockerignore"
+
+[env]
+  NODE_ENV = "production"
+  PORT = "3000"
+  HOSTNAME = "0.0.0.0"
+  VIDEO_WORKER_MODE = "1"
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ["app"]
+
+  [http_service.concurrency]
+    type = "requests"
+    hard_limit = 25
+    soft_limit = 15
+
+  [[http_service.checks]]
+    interval = "15s"
+    timeout = "5s"
+    grace_period = "45s"
+    method = "GET"
+    path = "/api/internal/video-worker/health"
+
+[[vm]]
+  size = "shared-cpu-2x"
+  memory = "2gb"
+  cpus = 2
