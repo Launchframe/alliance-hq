@@ -24,6 +24,7 @@ const nextConfig: NextConfig = {
   outputFileTracingIncludes: {
     ...globalOutputFileTracingIncludes,
     "/guides/discord-train": ["./docs/guides/**/*"],
+    "/admin/guides/video-pipeline": ["./docs/guides/**/*"],
     ...videoOcrTracedRoutes,
   },
   outputFileTracingExcludes: {

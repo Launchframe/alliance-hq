@@ -229,6 +229,14 @@ export function AdminVideoAnalyticsView() {
         <div>
           <h1 className="text-xl font-semibold text-hq-fg">{t("title")}</h1>
           <p className="mt-1 text-sm text-hq-fg-muted">{t("subtitle")}</p>
+          <p className="mt-2 text-sm">
+            <Link
+              href="/admin/guides/video-pipeline"
+              className="text-hq-accent hover:underline"
+            >
+              Video pipeline configs and experiments guide
+            </Link>
+          </p>
         </div>
         <Link
           href="/admin/experiments"
