@@ -59,13 +59,18 @@ Default primary pass when nothing is assigned:
 
 ### How assignments apply
 
-When an upload finishes enqueue:
+When an upload finishes enqueue (`finalize` / `activate`):
 
-1. Look up **config assignment** for `(scoreTarget, boardKey)` — most specific wins: exact board → score target only → global.
-2. Otherwise use the default primary pass above.
-3. Store the chosen JSON on the job as `extractionConfigJson` (and a `passKey` label).
+1. Look up **standing config assignment** for `(scoreTarget, boardKey)` — most specific wins: exact board → score target only → global. Else use the default primary pass above.
+2. If an **active experiment** applies and traffic rolls in:
+   - **Variant arm** (has a scene/fps parse config) → stamp that config onto the **primary** job officers review.
+   - **Control arm** (`configId` null) → keep the standing assignment / default on primary.
+   - Roster-ocr arm configs are **not** applied as primary frame extraction (those stay on the roster OCR / Tesseract path).
+3. Store the chosen JSON on the primary job as `extractionConfigJson` (and a `passKey` label). Group gets `experimentCampaignId` / `experimentArmId` when assigned.
 
-**Reprocess uses the config already stamped on the job.** Changing `/admin/parse-configs` or promoting an experiment does **not** rewrite old jobs. To test a new recipe on an existing video: assign the config for new uploads, or re-upload / re-stamp (ops paths that re-finalize the job). Shadow / experiment arms create sibling jobs with their own stamped config.
+**Promote is not required** for an active experiment to change officer-facing OCR. Promote graduates a winner to the standing assignment for uploads outside experiment traffic (or after conclude).
+
+**Reprocess uses the config already stamped on the job.** Changing `/admin/parse-configs` or promoting an experiment does **not** rewrite old jobs. To test a new recipe on an existing video: assign the config for new uploads, or re-upload / re-stamp (ops paths that re-finalize the job).
 
 ### Cost and latency
 
@@ -102,15 +107,27 @@ OCR quality is largely owned by the Ashed OCR service when Ashed is the engine. 
 
 ## Experiments vs production assignment
 
+| Mechanism | When it applies | What it stamps |
+|-----------|-----------------|----------------|
+| **Config assignment** (`config_assignments`) | No active experiment traffic for this upload, or control arm | Primary job `passKey` + `extractionConfigJson` |
+| **Active experiment arm** | Upload rolls into campaign (`trafficPercent` + arm `trafficWeight`) | Primary job uses **variant** arm parse config; **control** arm uses standing assignment / default |
+| **Promote** | After conclude (or anytime) | Writes standing assignment for post-campaign default |
+
+**Officers always review the primary job.** Ratings (`thumbs_up` / `thumbs_down`) and quality scores attach to that primary. Experiment arm analytics aggregate from primary jobs only.
+
 | Goal | Use |
 |------|-----|
-| Compare two recipes safely | **Experiment** — control arm (current) + variant arm (denser fps / lower scene threshold); limited traffic percent |
+| Compare two recipes safely | **Experiment** — control arm (standing default) + variant arm (denser fps / lower scene threshold); limited traffic percent |
 | Make a winner the default for a target | **Promote** on the campaign detail page → writes a **config assignment** for that `scoreTarget` (+ optional `boardKey`) |
 | Permanent default without A/B | Create parse config → assign via promote / config-assignments API for that score target |
 
-Experiments are not ML training. They are traffic splits across named parse configs, with ratings and analytics to decide what to promote.
+Experiments are not ML training. They are traffic splits across named parse configs stamped onto the **primary** job officers experience.
 
-Shadow passes may also run an alternate extraction config on a sibling job for comparison without changing what the officer reviews as primary.
+### Shadow jobs
+
+Extraction shadows (`passRole: "shadow"`, default `scene_0.1`) are for **engine / pass comparison**, not for A/B of experiment arm configs. Variant arm `configId` does **not** drive shadow extraction.
+
+Roster video tandem OCR (Ashed primary vs Tesseract shadow) is a separate path (`tesseract_shadow` + `ocr_eval_snapshots`).
 
 ---
 
@@ -149,19 +166,17 @@ Do **not** set this as the global default. Scope to:
 - Score target: `bank-deposit-slip-history`
 - Board key: leave empty unless you intentionally split boards
 
-Promote from an experiment, or POST a config assignment for that score target only.
-
 ### Step 3 — Prefer an experiment first
 
 1. `/admin/experiments` → new campaign  
    - Score target: `bank-deposit-slip-history`  
    - Hypothesis: “4 fps reduces incomplete / missing rows vs scene 0.25 without blowing past OCR time budgets.”
 2. Arms:
-   - **Control** — current default (no override / existing scene_0.25)
+   - **Control** — standing default (no configId)
    - **Variant** — `fps_4_deposit_slip` (or scene_0.1)
-3. Start with partial traffic (for example 20–50%) if volume is high.
-4. Have officers process a handful of real uploads; inspect `/admin/video-jobs` for frame count, measured duration, average gap, and empty OCR lines.
-5. When the variant wins on completeness without timeouts, **Promote** it to a config assignment.
+3. Start with partial traffic (for example 20–50%) if volume is high, or 100% to temporarily A/B the whole target.
+4. New uploads’ **primary** jobs show `passKey` matching the assigned arm on `/admin/video-jobs`. Officers review/rate that primary — no Promote needed mid-experiment.
+5. When the variant wins on completeness without timeouts, **Promote** it to a config assignment (standing default after conclude / outside experiment traffic).
 
 ### Step 4 — What “good” looks like on the job detail page
 
@@ -206,6 +221,13 @@ If frames look sharp but individual cells are still blank:
 - [ ] You understand old jobs keep their old stamped config until re-uploaded or otherwise re-stamped
 
 ---
+
+## Code entry points
+
+- `resolvePrimaryExtractionForUpload` / `resolvePrimaryExtractionStamp` — `src/lib/video/experiment-assignment.ts`
+- Stamp at enqueue — `finalize-video-upload.ts`, `activate-pending-upload.ts`
+- Arm analytics — `experiment-detail-analytics.ts` (primary only)
+- Shadow enqueue — `enqueue-shadow-pass.ts` (fixed `SHADOW_PASS_AB`, not arm config)
 
 ## Related operator surfaces
 
