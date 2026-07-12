@@ -7,11 +7,96 @@ export type DepositSlipReviewValidationRow = {
   powerLevel: string | null | undefined;
   memberLevel: number | null | undefined;
   dedupeClusterId?: string | null;
+  profession?: string | null;
+  allianceRankTitle?: string | null;
+  rosterRankRaw?: string | null;
+  frameIndex?: number | null;
   deleted: number | boolean;
+};
+
+export type DepositSlipReviewSubmittedRow = {
+  id: string;
+  ocrName?: string | null;
+  memberName?: string | null;
+  score?: string | null;
+  powerLevel?: string | null;
+  memberLevel?: number | null;
+  profession?: string | null;
+  allianceRankTitle?: string | null;
+  rosterRankRaw?: string | null;
+  frameIndex?: number | null;
+  deleted?: number | boolean | null;
 };
 
 function isDeleted(row: DepositSlipReviewValidationRow): boolean {
   return row.deleted === true || row.deleted === 1;
+}
+
+export function mergeDepositSlipReviewRowsForSubmit<
+  TRow extends DepositSlipReviewValidationRow,
+  TSubmitted extends DepositSlipReviewSubmittedRow,
+>(
+  persistedRows: readonly TRow[],
+  submittedRows: readonly TSubmitted[],
+): {
+  rows: TRow[];
+  unknownRowIds: Set<string>;
+  duplicateRowIds: Set<string>;
+} {
+  const persistedById = new Map(persistedRows.map((row) => [row.id, row]));
+  const submittedById = new Map<string, TSubmitted>();
+  const unknownRowIds = new Set<string>();
+  const duplicateRowIds = new Set<string>();
+
+  for (const row of submittedRows) {
+    if (!persistedById.has(row.id)) {
+      unknownRowIds.add(row.id);
+      continue;
+    }
+    if (submittedById.has(row.id)) {
+      duplicateRowIds.add(row.id);
+      continue;
+    }
+    submittedById.set(row.id, row);
+  }
+
+  const rows = persistedRows.map((persisted) => {
+    const submitted = submittedById.get(persisted.id);
+    if (!submitted) return persisted;
+
+    return {
+      ...persisted,
+      ocrName:
+        submitted.ocrName != null
+          ? submitted.ocrName
+          : submitted.memberName != null
+            ? submitted.memberName
+            : persisted.ocrName,
+      score: "score" in submitted ? submitted.score : persisted.score,
+      powerLevel:
+        "powerLevel" in submitted ? submitted.powerLevel : persisted.powerLevel,
+      memberLevel:
+        "memberLevel" in submitted
+          ? submitted.memberLevel
+          : persisted.memberLevel,
+      profession:
+        "profession" in submitted ? submitted.profession : persisted.profession,
+      allianceRankTitle:
+        "allianceRankTitle" in submitted
+          ? submitted.allianceRankTitle
+          : persisted.allianceRankTitle,
+      rosterRankRaw:
+        "rosterRankRaw" in submitted
+          ? submitted.rosterRankRaw
+          : persisted.rosterRankRaw,
+      frameIndex:
+        "frameIndex" in submitted ? submitted.frameIndex : persisted.frameIndex,
+      deleted:
+        "deleted" in submitted ? Boolean(submitted.deleted) : persisted.deleted,
+    };
+  });
+
+  return { rows, unknownRowIds, duplicateRowIds };
 }
 
 export function incompleteDepositSlipReviewRowIds(

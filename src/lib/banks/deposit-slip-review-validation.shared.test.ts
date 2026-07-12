@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { validateDepositSlipReviewRows } from "@/lib/banks/deposit-slip-review-validation.shared";
+import {
+  mergeDepositSlipReviewRowsForSubmit,
+  validateDepositSlipReviewRows,
+} from "@/lib/banks/deposit-slip-review-validation.shared";
 import type { DedupeReport } from "@/lib/video/dedupe/merge-report.shared";
 
 const flaggedReport: DedupeReport = {
@@ -92,5 +95,37 @@ describe("validateDepositSlipReviewRows", () => {
       new Set(["missing-name", "missing-amount", "missing-date", "missing-term"]),
     );
     expect(result.canSubmitSlips).toBe(false);
+  });
+
+  it("keeps omitted persisted rows in server-side submit validation", () => {
+    const merged = mergeDepositSlipReviewRowsForSubmit(
+      [validRow("row-1", "flagged-1"), validRow("row-2", "flagged-1")],
+      [{ id: "row-1", score: "7000" }],
+    );
+    const result = validateDepositSlipReviewRows(merged.rows, flaggedReport);
+
+    expect(merged.unknownRowIds.size).toBe(0);
+    expect(result.unresolvedClusterIds).toEqual(new Set(["flagged-1"]));
+    expect(result.canSubmitSlips).toBe(false);
+  });
+
+  it("does not fall back to persisted values when an edit clears a required field", () => {
+    const merged = mergeDepositSlipReviewRowsForSubmit(
+      [validRow("row-1")],
+      [{ id: "row-1", ocrName: "" }],
+    );
+    const result = validateDepositSlipReviewRows(merged.rows, null);
+
+    expect(result.incompleteRowIds).toEqual(new Set(["row-1"]));
+    expect(result.canSubmitSlips).toBe(false);
+  });
+
+  it("rejects submitted row IDs outside the persisted parse session", () => {
+    const merged = mergeDepositSlipReviewRowsForSubmit(
+      [validRow("row-1")],
+      [{ id: "foreign-row", score: "7000" }],
+    );
+
+    expect(merged.unknownRowIds).toEqual(new Set(["foreign-row"]));
   });
 });

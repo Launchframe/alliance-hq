@@ -22,7 +22,10 @@ import {
 import { resolveHqAllianceIdFromStoredAllianceId } from "@/lib/video/video-job-alliance.server";
 import { commitRosterFromVideoJob } from "@/lib/members/roster-video-commit";
 import { commitDepositSlipsFromVideoJob } from "@/lib/banks/deposit-slip-ocr/deposit-slip-video-commit.server";
-import { validateDepositSlipReviewRows } from "@/lib/banks/deposit-slip-review-validation.shared";
+import {
+  mergeDepositSlipReviewRowsForSubmit,
+  validateDepositSlipReviewRows,
+} from "@/lib/banks/deposit-slip-review-validation.shared";
 import { listAllianceMembers } from "@/lib/members/roster.server";
 import {
   computeProjectedRosterRankCounts,
@@ -436,14 +439,6 @@ export async function POST(request: Request, { params }: Props) {
         );
       }
 
-      const activeRows = body.rows.filter((r) => !r.deleted);
-      if (activeRows.length === 0) {
-        return NextResponse.json(
-          { error: "No rows to submit." },
-          { status: 400 },
-        );
-      }
-
       const [parseSessionForReview] = await db
         .select({
           dedupeReportJson: schema.parseSessions.dedupeReportJson,
@@ -454,24 +449,61 @@ export async function POST(request: Request, { params }: Props) {
       const parsedRowsForReview = await db
         .select({
           id: schema.parsedRows.id,
+          ocrName: schema.parsedRows.ocrName,
+          score: schema.parsedRows.score,
+          powerLevel: schema.parsedRows.powerLevel,
+          memberLevel: schema.parsedRows.memberLevel,
+          profession: schema.parsedRows.profession,
+          allianceRankTitle: schema.parsedRows.allianceRankTitle,
+          rosterRankRaw: schema.parsedRows.rosterRankRaw,
+          frameIndex: schema.parsedRows.frameIndex,
           dedupeClusterId: schema.parsedRows.dedupeClusterId,
+          deleted: schema.parsedRows.deleted,
         })
         .from(schema.parsedRows)
         .where(eq(schema.parsedRows.parseSessionId, job.parseSessionId));
-      const dedupeClusterIdByRowId = new Map(
-        parsedRowsForReview.map((row) => [row.id, row.dedupeClusterId]),
-      );
-      const dedupeReportJson = parseSessionForReview?.dedupeReportJson;
-      const reviewValidation = validateDepositSlipReviewRows(
+      if (parsedRowsForReview.length === 0) {
+        return NextResponse.json(
+          { error: "No rows to submit." },
+          { status: 400 },
+        );
+      }
+
+      const reviewRowsForSubmit = mergeDepositSlipReviewRowsForSubmit(
+        parsedRowsForReview,
         body.rows.map((row) => ({
           id: row.id,
-          ocrName: row.ocrName?.trim() || row.memberName?.trim() || "",
+          ocrName: row.ocrName ?? null,
+          memberName: row.memberName ?? null,
           score: row.score ?? null,
           powerLevel: row.powerLevel ?? null,
           memberLevel: row.memberLevel ?? null,
-          dedupeClusterId: dedupeClusterIdByRowId.get(row.id) ?? null,
+          profession: row.profession ?? null,
+          allianceRankTitle: row.allianceRankTitle ?? null,
+          rosterRankRaw: row.rosterRankRaw ?? null,
+          frameIndex: row.frameIndex ?? null,
           deleted: row.deleted === true,
         })),
+      );
+      if (
+        reviewRowsForSubmit.unknownRowIds.size > 0 ||
+        reviewRowsForSubmit.duplicateRowIds.size > 0
+      ) {
+        return NextResponse.json({ error: "Submit failed" }, { status: 400 });
+      }
+
+      const reviewRows = reviewRowsForSubmit.rows;
+      const activeRows = reviewRows.filter((row) => !row.deleted);
+      if (activeRows.length === 0) {
+        return NextResponse.json(
+          { error: "No rows to submit." },
+          { status: 400 },
+        );
+      }
+
+      const dedupeReportJson = parseSessionForReview?.dedupeReportJson;
+      const reviewValidation = validateDepositSlipReviewRows(
+        reviewRows,
         isDedupeReport(dedupeReportJson) ? dedupeReportJson : null,
       );
       if (reviewValidation.hasUnresolvedFlaggedClusters) {
@@ -505,11 +537,11 @@ export async function POST(request: Request, { params }: Props) {
         errorMessage: null,
       });
 
-      for (const row of body.rows) {
+      for (const row of reviewRows) {
         await db
           .update(schema.parsedRows)
           .set({
-            ocrName: row.ocrName?.trim() || row.memberName?.trim() || "",
+            ocrName: row.ocrName.trim(),
             score: row.score ?? null,
             powerLevel: row.powerLevel ?? null,
             memberLevel:
@@ -523,16 +555,21 @@ export async function POST(request: Request, { params }: Props) {
             edited: row.deleted ? 0 : 1,
             updatedAt: new Date(),
           })
-          .where(eq(schema.parsedRows.id, row.id));
+          .where(
+            and(
+              eq(schema.parsedRows.id, row.id),
+              eq(schema.parsedRows.parseSessionId, job.parseSessionId),
+            ),
+          );
       }
 
       const result = await commitDepositSlipsFromVideoJob({
         allianceId,
         bankId,
         parseSessionId: job.parseSessionId,
-        rows: body.rows.map((row) => ({
+        rows: reviewRows.map((row) => ({
           id: row.id,
-          ocrName: row.ocrName?.trim() || row.memberName?.trim() || "",
+          ocrName: row.ocrName.trim(),
           score: row.score ?? null,
           powerLevel: row.powerLevel ?? null,
           memberLevel: row.memberLevel ?? null,
