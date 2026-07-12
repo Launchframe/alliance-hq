@@ -17,9 +17,9 @@ import {
 } from "@/lib/trains/train-price-is-right-tickets.shared";
 import {
   economyThresholdEnforcementEnabled,
-  isVsScoreEconomyEligible,
   normalizeTrainEconomyThresholdSettings,
   PRICE_IS_RIGHT_MIN_VS_SCORE,
+  tpirEligiblePoolEntries,
   type TrainEconomyThresholdSettings,
 } from "@/lib/trains/train-economy-threshold.shared";
 import { vsScoreReferenceDate } from "@/lib/trains/vs-week-days.shared";
@@ -171,20 +171,13 @@ export async function filterPoolByEconomyThreshold(input: {
     return input.candidates;
   }
 
-  const threshold = settings.thresholdPoints!;
   const scoreDate = vsScoreReferenceDate(input.trainDate);
   const vsScores = await fetchAlliancePriorDayVsScoresByMember(
     input.allianceId,
     scoreDate,
   );
 
-  return input.candidates.filter((candidate) =>
-    isVsScoreEconomyEligible(
-      vsScores.get(candidate.memberId) ?? 0,
-      threshold,
-      settings.fudgePct,
-    ),
-  );
+  return tpirEligiblePoolEntries(input.candidates, vsScores, settings);
 }
 
 export async function buildPriceIsRightWeightedCandidates(input: {
