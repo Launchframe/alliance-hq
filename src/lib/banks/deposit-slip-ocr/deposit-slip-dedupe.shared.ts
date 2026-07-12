@@ -86,6 +86,18 @@ function hasCoreConflict(slips: readonly ParsedDepositSlipDraft[]): boolean {
   return new Set(amounts).size > 1 || new Set(terms).size > 1;
 }
 
+function hasExplicitIdentityConflict(
+  slips: readonly ParsedDepositSlipDraft[],
+): boolean {
+  const allianceTags = slips
+    .map((s) => s.identity.allianceTag?.trim().toLowerCase())
+    .filter((tag): tag is string => Boolean(tag));
+  const serverNumbers = slips
+    .map((s) => s.identity.gameServerNumber)
+    .filter((server): server is number => server != null);
+  return new Set(allianceTags).size > 1 || new Set(serverNumbers).size > 1;
+}
+
 function minPairwiseNameSimilarity(
   slips: readonly ParsedDepositSlipDraft[],
 ): number {
@@ -243,6 +255,25 @@ export function dedupeDepositSlips(
 
     for (const group of autoClusters) {
       const clusterId = `c_${nextSlipId()}`;
+      if (hasExplicitIdentityConflict(group)) {
+        clusters.push({
+          clusterId,
+          disposition: "flagged",
+          reason: "same_commander_timestamp_conflicting_identity",
+          destinationSlipId: pickBestSlipId(group),
+          members: group.map((s) => ({
+            slipId: s.slipId,
+            snapshot: slipSnapshot(s),
+          })),
+        });
+        for (const s of group) {
+          output.push({ ...s, dedupeClusterId: clusterId });
+          consumed.add(s.slipId);
+          assignedInMinute.add(s.slipId);
+        }
+        continue;
+      }
+
       if (hasCoreConflict(group)) {
         clusters.push({
           clusterId,

@@ -274,6 +274,39 @@ describe("dedupeDepositSlips", () => {
     );
   });
 
+  it("flags same commander+minute with conflicting explicit identity", () => {
+    const { slips, report } = dedupeDepositSlips([
+      slip({
+        commanderName: "ShadowFox",
+        depositAt: "2026-07-11T13:22:39.000Z",
+        identity: {
+          gameServerNumber: 1203,
+          allianceTag: "LFgo",
+          commanderName: "ShadowFox",
+          rawIdentity: "#1203[LFgo]ShadowFox",
+        },
+      }),
+      slip({
+        commanderName: "ShadowFox",
+        depositAt: "2026-07-11T13:22:39.000Z",
+        identity: {
+          gameServerNumber: 1204,
+          allianceTag: "Roar",
+          commanderName: "ShadowFox",
+          rawIdentity: "#1204[Roar]ShadowFox",
+        },
+      }),
+    ]);
+
+    expect(slips).toHaveLength(2);
+    expect(report.autoMergedCount).toBe(0);
+    expect(report.flaggedCount).toBe(1);
+    expect(report.clusters[0]?.reason).toBe(
+      "same_commander_timestamp_conflicting_identity",
+    );
+    expect(slips.every((s) => s.dedupeClusterId)).toBe(true);
+  });
+
   it("flags transitive fuzzy chains instead of auto-merging endpoints", () => {
     const { slips, report } = dedupeDepositSlips([
       slip({
