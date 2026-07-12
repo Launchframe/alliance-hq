@@ -146,4 +146,27 @@ describe("POST /api/tools/video-upload/[jobId]/reprocess", () => {
     });
     expect(res.status).toBe(403);
   });
+
+  it("blocks reprocess while extracting or parsing", async () => {
+    getOrCreateSession.mockResolvedValue(SESSION);
+    sessionCanProcessVideo.mockResolvedValue(true);
+    selectLimit.mockResolvedValue([
+      {
+        id: "job-3",
+        allianceId: "ally-1",
+        scoreTarget: "bank-deposit-slip-history",
+        category: "bank-deposit-slip-history",
+        fileName: "slip.mp4",
+        enqueuedByHqUserId: "hq-uploader",
+        status: "extracting",
+      },
+    ]);
+
+    const res = await POST(new Request("http://localhost/reprocess"), {
+      params: Promise.resolve({ jobId: "job-3" }),
+    });
+    expect(res.status).toBe(409);
+    expect(resetVideoJobForReprocess).not.toHaveBeenCalled();
+    expect(dispatchVideoProcessing).not.toHaveBeenCalled();
+  });
 });

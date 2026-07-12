@@ -10,6 +10,7 @@ import {
   engineRequiresAshed,
   resolveVideoOcrEngineForJob,
 } from "@/lib/video/ocr-provider.shared";
+import { canReprocessVideoJob } from "@/lib/video/admin-job-actions";
 import { sessionCanProcessVideo } from "@/lib/video/processor-slots.server";
 import { resetVideoJobForReprocess } from "@/lib/video/reset-video-job-for-reprocess";
 import {
@@ -53,6 +54,15 @@ export async function POST(_request: Request, { params }: Props) {
       job.allianceId !== session.currentAllianceId
     ) {
       return NextResponse.json({ error: "Job not found" }, { status: 404 });
+    }
+
+    if (!canReprocessVideoJob(job.status)) {
+      return NextResponse.json(
+        {
+          error: `Cannot reprocess job in status "${job.status}" while processing is in flight.`,
+        },
+        { status: 409 },
+      );
     }
 
     const scoreTargetId = job.scoreTarget ?? job.category ?? "desert-storm";
