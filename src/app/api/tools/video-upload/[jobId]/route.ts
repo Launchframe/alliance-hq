@@ -23,9 +23,12 @@ import { isVideoProcessTimings } from "@/lib/video/pipeline-stats-display";
 import { resolveJobVideoStorageKey } from "@/lib/video/resolve-job-video-storage";
 import {
   getScoreTarget,
+  isBankDepositSlipHistoryTarget,
   isMemberRosterVideoTarget,
   toScoreTargetClientMeta,
 } from "@/lib/video/score-targets";
+import { BANK_READ_PERMISSION } from "@/lib/rbac/constants";
+import { requireAlliancePermission } from "@/lib/rbac/require-permission";
 
 type Props = {
   params: Promise<{ jobId: string }>;
@@ -43,8 +46,10 @@ export async function GET(_request: Request, { params }: Props) {
     const db = getDb();
 
     const scoreTargetId = job.scoreTarget ?? job.category ?? "desert-storm";
+    const target = getScoreTarget(scoreTargetId);
 
     let parseSession = null;
+    let parseSessionIdForRows: string | null = null;
     let rows: Array<{
       id: string;
       ocrName: string;
@@ -85,44 +90,65 @@ export async function GET(_request: Request, { params }: Props) {
             dedupeReport: ps.dedupeReportJson ?? null,
           }
         : null;
-
-      if (ps) {
-        const dbRows = await db
-          .select()
-          .from(schema.parsedRows)
-          .where(eq(schema.parsedRows.parseSessionId, ps.id))
-          .orderBy(
-            isMemberRosterVideoTarget(scoreTargetId)
-              ? asc(schema.parsedRows.allianceRank)
-              : asc(schema.parsedRows.rank),
-            asc(schema.parsedRows.frameIndex),
-          );
-        rows = dbRows.map((r) => ({
-          id: r.id,
-          ocrName: r.ocrName,
-          score: r.score,
-          rank: r.rank,
-          rosterRankRaw: r.rosterRankRaw,
-          allianceRank: r.allianceRank,
-          allianceRankTitle: r.allianceRankTitle,
-          powerLevel: r.powerLevel,
-          memberLevel: r.memberLevel,
-          profession: r.profession,
-          frameIndex: r.frameIndex,
-          memberId: r.memberId,
-          memberName: r.memberName,
-          matchConfidence: r.matchConfidence,
-          matchMethod: r.matchMethod,
-          scoreConflict: r.scoreConflict,
-          dedupeClusterId: r.dedupeClusterId ?? null,
-          dedupeFlag: Boolean(r.dedupeClusterId),
-          deleted: r.deleted,
-          manuallyAdded: r.manuallyAdded,
-        }));
-      }
+      parseSessionIdForRows = ps?.id ?? null;
     }
 
-    const target = getScoreTarget(scoreTargetId);
+    const storedAllianceId = job.allianceId ?? parseSession?.allianceId ?? null;
+    const allianceIdForJob =
+      await resolveHqAllianceIdFromStoredAllianceId(storedAllianceId);
+    if (storedAllianceId && !allianceIdForJob) {
+      return NextResponse.json(
+        {
+          error: VIDEO_JOB_ALLIANCE_UNRESOLVED_ERROR,
+          code: VIDEO_JOB_ALLIANCE_UNRESOLVED_CODE,
+        },
+        { status: 409 },
+      );
+    }
+
+    if (isBankDepositSlipHistoryTarget(scoreTargetId) && allianceIdForJob) {
+      const denied = await requireAlliancePermission(
+        session.id,
+        allianceIdForJob,
+        BANK_READ_PERMISSION,
+      );
+      if (denied) return denied;
+    }
+
+    if (parseSessionIdForRows) {
+      const dbRows = await db
+        .select()
+        .from(schema.parsedRows)
+        .where(eq(schema.parsedRows.parseSessionId, parseSessionIdForRows))
+        .orderBy(
+          isMemberRosterVideoTarget(scoreTargetId)
+            ? asc(schema.parsedRows.allianceRank)
+            : asc(schema.parsedRows.rank),
+          asc(schema.parsedRows.frameIndex),
+        );
+      rows = dbRows.map((r) => ({
+        id: r.id,
+        ocrName: r.ocrName,
+        score: r.score,
+        rank: r.rank,
+        rosterRankRaw: r.rosterRankRaw,
+        allianceRank: r.allianceRank,
+        allianceRankTitle: r.allianceRankTitle,
+        powerLevel: r.powerLevel,
+        memberLevel: r.memberLevel,
+        profession: r.profession,
+        frameIndex: r.frameIndex,
+        memberId: r.memberId,
+        memberName: r.memberName,
+        matchConfidence: r.matchConfidence,
+        matchMethod: r.matchMethod,
+        scoreConflict: r.scoreConflict,
+        dedupeClusterId: r.dedupeClusterId ?? null,
+        dedupeFlag: Boolean(r.dedupeClusterId),
+        deleted: r.deleted,
+        manuallyAdded: r.manuallyAdded,
+      }));
+    }
 
     const timingsJson = isVideoProcessTimings(job.timingsJson)
       ? (job.timingsJson as VideoProcessTimings)
@@ -156,18 +182,6 @@ export async function GET(_request: Request, { params }: Props) {
 
     let jobAllianceTag: string | null = session.allianceTag;
     let jobAllianceName: string | null = null;
-    const storedAllianceId = job.allianceId ?? parseSession?.allianceId ?? null;
-    const allianceIdForJob =
-      await resolveHqAllianceIdFromStoredAllianceId(storedAllianceId);
-    if (storedAllianceId && !allianceIdForJob) {
-      return NextResponse.json(
-        {
-          error: VIDEO_JOB_ALLIANCE_UNRESOLVED_ERROR,
-          code: VIDEO_JOB_ALLIANCE_UNRESOLVED_CODE,
-        },
-        { status: 409 },
-      );
-    }
     let members: AshedMember[] = [];
     if (allianceIdForJob) {
       const [allianceRow] = await db

@@ -3759,6 +3759,26 @@
       "warLeader": "War Leader"
     },
     "duplicateOcrNameRow": "Duplicate name — delete extra rows from repeated frames.",
+    "depositSlipSortBy": "Sort by",
+    "depositSlipSortCommander": "Commander",
+    "depositSlipSortDepositAt": "Deposit time",
+    "depositSlipIncompleteRow": "Incomplete — fill amount, term, and deposit time.",
+    "depositSlipIncompleteBlocked": "Fill every incomplete row before saving.",
+    "depositSlipAutoDedupeTitle": "{count, plural, one {# duplicate row was automatically merged.} other {# duplicate rows were automatically merged.}}",
+    "depositSlipAutoDedupeHint": "Expand to see which OCR rows were combined into each kept row.",
+    "depositSlipAutoDedupeToggleShow": "Show merged groups",
+    "depositSlipAutoDedupeToggleHide": "Hide merged groups",
+    "depositSlipAutoDedupeDestination": "Kept",
+    "depositSlipAutoDedupeSource": "Merged away",
+    "depositSlipFlaggedTitle": "{count, plural, one {# cluster still needs review.} other {# clusters still need review.}}",
+    "depositSlipFlaggedHint": "Edit or delete the highlighted rows so each deposit appears once, then save.",
+    "depositSlipFlaggedBlocked": "Resolve flagged duplicate clusters before saving.",
+    "depositSlipFlaggedRow": "Needs review.",
+    "depositSlipFlagReason": {
+      "same_commander_timestamp_conflicting_amount_or_term": "Same commander and time, but amount or term doesn’t match.",
+      "borderline_commander_name_same_minute": "Similar commander names at the same time — confirm they’re the same person.",
+      "timestamp_collision_different_commanders": "Different commanders share the same deposit minute — confirm these aren’t OCR mistakes."
+    },
     "statsNerds": {
       "button": "Stats for nerds",
       "title": "Stats for nerds",

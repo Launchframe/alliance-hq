@@ -3705,6 +3705,26 @@
       "warLeader": "Líder de guerra"
     },
     "duplicateOcrNameRow": "Nome duplicado — exclua linhas extras de frames repetidos.",
+    "depositSlipSortBy": "Ordenar por",
+    "depositSlipSortCommander": "Comandante",
+    "depositSlipSortDepositAt": "Horário do depósito",
+    "depositSlipIncompleteRow": "Incompleto — preencha valor, prazo e horário do depósito.",
+    "depositSlipIncompleteBlocked": "Preencha todas as linhas incompletas antes de salvar.",
+    "depositSlipAutoDedupeTitle": "{count, plural, one {# linha duplicada foi mesclada automaticamente.} other {# linhas duplicadas foram mescladas automaticamente.}}",
+    "depositSlipAutoDedupeHint": "Expanda para ver quais linhas do OCR foram combinadas em cada linha mantida.",
+    "depositSlipAutoDedupeToggleShow": "Mostrar grupos mesclados",
+    "depositSlipAutoDedupeToggleHide": "Ocultar grupos mesclados",
+    "depositSlipAutoDedupeDestination": "Mantida",
+    "depositSlipAutoDedupeSource": "Mesclada",
+    "depositSlipFlaggedTitle": "{count, plural, one {# agrupamento ainda precisa de revisão.} other {# agrupamentos ainda precisam de revisão.}}",
+    "depositSlipFlaggedHint": "Edite ou exclua as linhas destacadas para que cada depósito apareça uma vez e depois salve.",
+    "depositSlipFlaggedBlocked": "Resolva os agrupamentos duplicados sinalizados antes de salvar.",
+    "depositSlipFlaggedRow": "Precisa de revisão.",
+    "depositSlipFlagReason": {
+      "same_commander_timestamp_conflicting_amount_or_term": "Mesmo comandante e horário, mas o valor ou o prazo não coincidem.",
+      "borderline_commander_name_same_minute": "Nomes de comandante parecidos no mesmo horário — confirme se são a mesma pessoa.",
+      "timestamp_collision_different_commanders": "Comandantes diferentes compartilham o mesmo minuto de depósito — confirme se não são erros de OCR."
+    },
     "statsNerds": {
       "button": "Estatísticas avançadas",
       "title": "Estatísticas avançadas",
