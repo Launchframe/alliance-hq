@@ -2,7 +2,12 @@ import "server-only";
 
 import { assertAllianceAshedLinked } from "@/lib/alliance/ashed-write-guard";
 import type { ParsedConnection } from "@/lib/connectionString";
+import {
+  clearInboundStatConflict,
+  listInboundStatConflicts,
+} from "@/lib/hq-ashed-stat-sync/conflicts.server";
 import { killsStatSyncAdapter } from "@/lib/hq-ashed-stat-sync/kills.adapter";
+import { mergeStatSyncReviewRows } from "@/lib/hq-ashed-stat-sync/merge-review.shared";
 import { thpStatSyncAdapter } from "@/lib/hq-ashed-stat-sync/thp.adapter";
 import type {
   MonotonicStatId,
@@ -18,7 +23,11 @@ export async function listStatSyncReviewRows(
   allianceId: string,
   stat: MonotonicStatId,
 ): Promise<StatSyncReviewRow[]> {
-  return adapterFor(stat).listPendingOutbound(allianceId);
+  const [outbound, conflicts] = await Promise.all([
+    adapterFor(stat).listPendingOutbound(allianceId),
+    listInboundStatConflicts(allianceId, stat),
+  ]);
+  return mergeStatSyncReviewRows(outbound, conflicts);
 }
 
 export async function keepHqStatOnAshed(input: {
@@ -36,6 +45,11 @@ export async function keepHqStatOnAshed(input: {
   if (input.eventId) {
     await adapter.markEventSynced(input.eventId);
   }
+  await clearInboundStatConflict({
+    allianceId: input.allianceId,
+    stat: input.stat,
+    commanderId: input.commanderId,
+  });
 }
 
 export async function keepAshedStatOnHq(input: {
@@ -61,6 +75,11 @@ export async function keepAshedStatOnHq(input: {
   if (input.eventId) {
     await adapter.markEventSynced(input.eventId);
   }
+  await clearInboundStatConflict({
+    allianceId: input.allianceId,
+    stat: input.stat,
+    commanderId: input.commanderId,
+  });
 }
 
 export async function discardHqStatReport(input: {
@@ -86,4 +105,9 @@ export async function discardHqStatReport(input: {
     await assertAllianceAshedLinked(input.allianceId);
     await adapter.putToAshed(input.connection, input.ashedMemberId, restored);
   }
+  await clearInboundStatConflict({
+    allianceId: input.allianceId,
+    stat: input.stat,
+    commanderId: input.commanderId,
+  });
 }

@@ -4,6 +4,10 @@ import { and, desc, eq, isNull } from "drizzle-orm";
 
 import { getDb, schema } from "@/lib/db";
 import {
+  clearInboundStatConflict,
+  upsertInboundStatConflict,
+} from "@/lib/hq-ashed-stat-sync/conflicts.server";
+import {
   decideInboundStatApply,
   isProtectedHqStatSource,
 } from "@/lib/hq-ashed-stat-sync/policy";
@@ -77,6 +81,7 @@ export async function loadLatestNonDiscardedEventMeta(
 /**
  * Decide whether Ashed roster sync may overwrite HQ for a monotonic stat.
  * Callers must only call adapter.applyAshedOnHq when decision === "apply".
+ * Conflicts are persisted for officer review at `/stat-sync`.
  */
 export async function decideAndMaybeApplyInboundStat(input: {
   adapter: StatSyncAdapter;
@@ -107,6 +112,29 @@ export async function decideAndMaybeApplyInboundStat(input: {
       total: Math.round(input.ashedTotal),
       source: "ashed_sync",
       hqUserId: input.hqUserId,
+    });
+    await clearInboundStatConflict({
+      allianceId: input.allianceId,
+      stat: input.adapter.stat,
+      commanderId: input.commanderId,
+    });
+  } else if (decision === "conflict" && hq.total != null) {
+    await upsertInboundStatConflict({
+      allianceId: input.allianceId,
+      stat: input.adapter.stat,
+      commanderId: input.commanderId,
+      ashedMemberId: input.ashedMemberId,
+      memberName: input.memberName,
+      hqTotal: hq.total,
+      ashedTotal: Math.round(input.ashedTotal),
+      hqSource: hq.latestSource,
+      hqEventId: hq.latestEventId,
+    });
+  } else if (decision === "noop") {
+    await clearInboundStatConflict({
+      allianceId: input.allianceId,
+      stat: input.adapter.stat,
+      commanderId: input.commanderId,
     });
   }
 

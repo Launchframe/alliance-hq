@@ -98,7 +98,7 @@ export function StatSyncReviewClient({ initialStat, initialRows }: Props) {
         <ul className="divide-y rounded-md border">
           {rows.map((row) => (
             <li
-              key={`${row.commanderId}-${row.eventId}`}
+              key={`${row.stat}-${row.commanderId}-${row.reason}-${row.eventId ?? "none"}`}
               className="flex flex-col gap-2 p-3 sm:flex-row sm:items-center sm:justify-between"
             >
               <div className="text-sm">
@@ -107,6 +107,9 @@ export function StatSyncReviewClient({ initialStat, initialRows }: Props) {
                   {t("hqTotal", {
                     total: Math.round(row.hqTotal).toLocaleString(),
                   })}
+                  {row.ashedTotal != null
+                    ? ` · ${t("keepAshed")} ${Math.round(row.ashedTotal).toLocaleString()}`
+                    : ""}
                   {row.hqSource ? ` · ${row.hqSource}` : ""}
                   {row.reason === "pending_outbound"
                     ? ` · ${t("pendingOutbound")}`

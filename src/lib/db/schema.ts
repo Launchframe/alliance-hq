@@ -1143,6 +1143,48 @@ export const hqKillsPending = pgTable(
   ],
 );
 
+/**
+ * Officer-review queue when Ashed inbound sync would regress a protected HQ
+ * self-report (or other ambiguous lower remote). Cleared on Keep HQ / Keep Ashed / Discard.
+ */
+export const hqAshedStatSyncConflicts = pgTable(
+  "hq_ashed_stat_sync_conflicts",
+  {
+    id: text("id").primaryKey(),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    /** thp | kills */
+    stat: text("stat").notNull(),
+    commanderId: text("commander_id")
+      .notNull()
+      .references(() => commanders.id, { onDelete: "cascade" }),
+    ashedMemberId: text("ashed_member_id").notNull(),
+    memberName: text("member_name").notNull(),
+    hqTotal: doublePrecision("hq_total").notNull(),
+    ashedTotal: doublePrecision("ashed_total").notNull(),
+    hqSource: text("hq_source"),
+    hqEventId: text("hq_event_id"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    unique("hq_ashed_stat_sync_conflicts_alliance_stat_commander_unique").on(
+      table.allianceId,
+      table.stat,
+      table.commanderId,
+    ),
+    index("hq_ashed_stat_sync_conflicts_alliance_stat_idx").on(
+      table.allianceId,
+      table.stat,
+    ),
+  ],
+);
+
 /** Web VR anomaly confirm pending (parallel to discord_bot_pending). */
 export const hqVrPending = pgTable(
   "hq_vr_pending",

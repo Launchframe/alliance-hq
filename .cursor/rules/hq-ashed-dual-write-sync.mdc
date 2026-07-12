@@ -19,7 +19,7 @@ Dual-written fields (rank, name, THP, kills) must converge. Neither service may 
 2. **Monotonic fallbacks** — When timestamps are missing or tied:
    - **VR:** reject decreases within the active season.
    - **THP / kills:** treat decreases as suspect stale — do not auto-apply; queue for officer review. Never auto-regress a protected HQ self-report (`web` / `discord` / `screenshot_ocr` / `video_parse`).
-3. **Officer review when ambiguous** — Keep HQ (local) vs Keep Ashed (remote) vs Discard junk HQ; requires an Ashed-connected officer for outbound PUT.
+3. **Officer review when ambiguous** — Keep HQ (local) vs Keep Ashed (remote) vs Discard junk HQ; requires an Ashed-connected officer for outbound PUT. Inbound conflicts (Ashed would regress protected HQ) are persisted in `hq_ashed_stat_sync_conflicts` and listed on `/stat-sync` with `ashedTotal` so Keep Ashed works.
 4. **Native alliances** — No Ashed PUT; HQ-local only.
 5. **Auth** — Ashed remains optional for login ([ashed-optional-auth](ashed-optional-auth.mdc)); dual-write only applies when the alliance is Ashed-linked and an officer has a session connection.
 
