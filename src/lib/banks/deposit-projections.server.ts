@@ -5,7 +5,9 @@ import { nanoid } from "nanoid";
 
 import {
   buildDepositFalloffSeries,
+  parseSlipFingerprint,
   reconstructActualLockedSeries,
+  slipsForProjectionActualOverlay,
   summarizeProjectionVsActual,
 } from "@/lib/banks/optimization.shared";
 import { loadBanksWithSlips } from "@/lib/banks/repository.server";
@@ -232,11 +234,15 @@ export async function getDepositProjectionDetail(
 
   const projection = serializeDepositProjection(row);
   const banks = await loadBanksWithSlips(allianceId);
-  const slips =
+  const liveSlips =
     projection.bankId == null
       ? banks.flatMap((bank) => bank.depositSlips)
       : (banks.find((bank) => bank.id === projection.bankId)?.depositSlips ??
         []);
+  const slips = slipsForProjectionActualOverlay(
+    parseSlipFingerprint(row.assumptionsJson),
+    liveSlips,
+  );
 
   const from = new Date(projection.points[0]?.hourStartIso ?? row.asOf);
   const lastPoint = projection.points[projection.points.length - 1];

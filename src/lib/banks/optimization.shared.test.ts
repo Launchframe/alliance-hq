@@ -5,8 +5,10 @@ import {
   buildDepositFalloffSeries,
   buildRiskHeatmap,
   maturityOutflowAtHour,
+  parseSlipFingerprint,
   reconstructActualLockedSeries,
   recommendNextDrop,
+  slipsForProjectionActualOverlay,
   stopTakingDepositsAt,
   summarizeProjectionVsActual,
   valueAtRiskAtHour,
@@ -273,6 +275,89 @@ describe("reconstructActualLockedSeries", () => {
     expect(points.map((point) => point.lockedValue)).toEqual([3000, 1000, 0]);
     expect(points.map((point) => point.lockedCount)).toEqual([2, 1, 0]);
     expect(points.map((point) => point.maturingValue)).toEqual([0, 1000, 0]);
+  });
+});
+
+describe("parseSlipFingerprint", () => {
+  it("reads valid fingerprint entries and skips malformed rows", () => {
+    expect(
+      parseSlipFingerprint({
+        slipFingerprint: [
+          {
+            id: "a",
+            amount: 1000,
+            status: "locked",
+            depositAt: "2026-07-09T16:00:00.000Z",
+            maturesAt: "2026-07-10T16:00:00.000Z",
+            outcomeAt: null,
+          },
+          { id: "bad", amount: "nope" },
+        ],
+      }),
+    ).toEqual([
+      {
+        id: "a",
+        amount: 1000,
+        status: "locked",
+        depositAt: "2026-07-09T16:00:00.000Z",
+        maturesAt: "2026-07-10T16:00:00.000Z",
+        outcomeAt: null,
+      },
+    ]);
+    expect(parseSlipFingerprint(null)).toEqual([]);
+    expect(parseSlipFingerprint({})).toEqual([]);
+  });
+});
+
+describe("slipsForProjectionActualOverlay", () => {
+  it("freezes fingerprinted amount/deposit/maturity while overlaying live outcomes", () => {
+    const fingerprint = [
+      {
+        id: "a",
+        amount: 1000,
+        status: "locked" as const,
+        depositAt: "2026-07-09T16:00:00.000Z",
+        maturesAt: "2026-07-12T16:00:00.000Z",
+        outcomeAt: null,
+      },
+    ];
+    const current = [
+      slip({
+        id: "a",
+        amount: 9999,
+        depositAt: "2026-07-01T00:00:00.000Z",
+        maturesAt: "2026-07-20T00:00:00.000Z",
+        status: "looted",
+        outcomeAt: "2026-07-11T12:00:00.000Z",
+        bankId: "bank-1",
+        termDays: 3,
+      }),
+      slip({
+        id: "newcomer",
+        amount: 500,
+        depositAt: "2026-07-11T00:00:00.000Z",
+        maturesAt: "2026-07-14T00:00:00.000Z",
+      }),
+    ];
+
+    const overlay = slipsForProjectionActualOverlay(fingerprint, current);
+    expect(overlay).toHaveLength(2);
+    expect(overlay[0]).toMatchObject({
+      id: "a",
+      amount: 1000,
+      depositAt: "2026-07-09T16:00:00.000Z",
+      maturesAt: "2026-07-12T16:00:00.000Z",
+      status: "looted",
+      outcomeAt: "2026-07-11T12:00:00.000Z",
+      bankId: "bank-1",
+      termDays: 3,
+    });
+    expect(overlay[1]?.id).toBe("newcomer");
+  });
+
+  it("falls back to the live ledger when fingerprint is empty", () => {
+    const current = [slip({ id: "live" })];
+    expect(slipsForProjectionActualOverlay([], current)).toEqual(current);
   });
 });
 

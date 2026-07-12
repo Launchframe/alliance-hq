@@ -1,5 +1,6 @@
 import type {
   BankWithSlips,
+  DepositStatus,
   FalloffPoint,
   ProjectionVsActualSummary,
   RecommendedDropMetrics,
@@ -9,6 +10,7 @@ import type {
 import {
   DEFAULT_FALLOFF_HORIZON_HOURS,
   DEFAULT_FALLOFF_STEP_HOURS,
+  DEPOSIT_STATUSES,
   DEPOSIT_TERMS,
   type DepositTermDays,
 } from "@/lib/banks/types.shared";
@@ -273,6 +275,118 @@ function wasLockedAtHour(slip: SerializedDepositSlip, hourTs: Date): boolean {
   return (
     depositMs <= hourMs && maturesMs > hourMs && (outcomeMs == null || outcomeMs > hourMs)
   );
+}
+
+/**
+ * Frozen slip attributes captured when a falloff projection was saved.
+ * Amount / depositAt / maturesAt are the fingerprint; outcome may advance later.
+ */
+export type SlipFingerprintEntry = {
+  id: string;
+  amount: number;
+  status: DepositStatus;
+  depositAt: string;
+  maturesAt: string;
+  outcomeAt: string | null;
+};
+
+function isDepositStatus(value: unknown): value is DepositStatus {
+  return (
+    typeof value === "string" &&
+    (DEPOSIT_STATUSES as readonly string[]).includes(value)
+  );
+}
+
+/** Parse `assumptionsJson.slipFingerprint` from a saved projection row. */
+export function parseSlipFingerprint(
+  assumptionsJson: unknown,
+): SlipFingerprintEntry[] {
+  if (!assumptionsJson || typeof assumptionsJson !== "object") return [];
+  const raw = (assumptionsJson as { slipFingerprint?: unknown }).slipFingerprint;
+  if (!Array.isArray(raw)) return [];
+  const out: SlipFingerprintEntry[] = [];
+  for (const entry of raw) {
+    if (!entry || typeof entry !== "object") continue;
+    const row = entry as Record<string, unknown>;
+    if (
+      typeof row.id !== "string" ||
+      typeof row.amount !== "number" ||
+      typeof row.depositAt !== "string" ||
+      typeof row.maturesAt !== "string" ||
+      !isDepositStatus(row.status)
+    ) {
+      continue;
+    }
+    out.push({
+      id: row.id,
+      amount: row.amount,
+      status: row.status,
+      depositAt: row.depositAt,
+      maturesAt: row.maturesAt,
+      outcomeAt:
+        row.outcomeAt == null
+          ? null
+          : typeof row.outcomeAt === "string"
+            ? row.outcomeAt
+            : null,
+    });
+  }
+  return out;
+}
+
+function deriveTermDays(depositAt: string, maturesAt: string): DepositTermDays {
+  const ms =
+    new Date(maturesAt).getTime() - new Date(depositAt).getTime();
+  const days = Math.round(ms / (24 * 60 * 60 * 1000));
+  if ((DEPOSIT_TERMS as readonly number[]).includes(days)) {
+    return days as DepositTermDays;
+  }
+  return 3;
+}
+
+/**
+ * Builds the slip set used to reconstruct "actual" locked value for a saved
+ * projection overlay:
+ * - Fingerprinted slips keep frozen amount / depositAt / maturesAt (post-save
+ *   edits to those fields must not rewrite the comparison).
+ * - Live `outcomeAt` / `status` are overlaid by id so maturities and loots that
+ *   happened after save still appear.
+ * - Current slips absent from the fingerprint are appended (unexpected inflow).
+ * - If the fingerprint is empty (legacy rows), fall back to the live ledger.
+ */
+export function slipsForProjectionActualOverlay(
+  fingerprint: readonly SlipFingerprintEntry[],
+  currentSlips: readonly SerializedDepositSlip[],
+): SerializedDepositSlip[] {
+  if (fingerprint.length === 0) {
+    return [...currentSlips];
+  }
+
+  const currentById = new Map(currentSlips.map((slip) => [slip.id, slip]));
+  const fingerprintIds = new Set(fingerprint.map((entry) => entry.id));
+
+  const fromFingerprint: SerializedDepositSlip[] = fingerprint.map((entry) => {
+    const live = currentById.get(entry.id);
+    return {
+      id: entry.id,
+      bankId: live?.bankId ?? "",
+      depositAt: entry.depositAt,
+      termDays: live?.termDays ?? deriveTermDays(entry.depositAt, entry.maturesAt),
+      maturesAt: entry.maturesAt,
+      status: live?.status ?? entry.status,
+      outcomeAt: live?.outcomeAt ?? entry.outcomeAt,
+      amount: entry.amount,
+      depositAllianceTag: live?.depositAllianceTag ?? null,
+      depositAllianceId: live?.depositAllianceId ?? null,
+      commanderName: live?.commanderName ?? "",
+      commanderId: live?.commanderId ?? null,
+      createdAt: live?.createdAt ?? entry.depositAt,
+      updatedAt: live?.updatedAt ?? entry.depositAt,
+    };
+  });
+
+  const newcomers = currentSlips.filter((slip) => !fingerprintIds.has(slip.id));
+  return [...fromFingerprint, ...newcomers];
 }
 
 /**
