@@ -117,14 +117,22 @@ export function AdminExperimentsView() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex items-center justify-between gap-4">
+        <div className="min-w-0">
           <h1 className="text-xl font-semibold text-hq-fg">{t("title")}</h1>
           <p className="mt-1 text-sm text-hq-fg-muted">{t("subtitle")}</p>
+          <p className="mt-2 text-sm">
+            <Link
+              href="/admin/guides/video-pipeline"
+              className="text-hq-accent hover:underline"
+            >
+              Video pipeline configs and experiments guide
+            </Link>
+          </p>
         </div>
         <button
           onClick={() => setShowForm((v) => !v)}
-          className="rounded-md border border-hq-border bg-hq-surface-muted px-3 py-1.5 text-sm text-hq-fg hover:border-hq-accent hover:text-hq-accent transition-colors"
+          className="shrink-0 rounded-md border border-hq-border bg-hq-surface-muted px-3 py-1.5 text-sm text-hq-fg hover:border-hq-accent hover:text-hq-accent transition-colors"
         >
           {showForm ? t("cancel") : t("newCampaign")}
         </button>
