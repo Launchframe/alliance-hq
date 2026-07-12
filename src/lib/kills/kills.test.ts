@@ -61,6 +61,18 @@ describe("processKillsCommand", () => {
 });
 
 describe("buildKillsDiscordSuccessReply", () => {
+  it("uses first-report copy when no prior total", () => {
+    const reply = buildKillsDiscordSuccessReply(translate, {
+      commanderName: "Alpha",
+      total: 10_000,
+      previousTotal: null,
+      previousAt: null,
+    });
+    expect(reply).toContain("Alpha -- kill count");
+    expect(reply.endsWith(".")).toBe(true);
+    expect(reply).not.toContain("increased by");
+  });
+
   it("includes growth and kph when prior report exists", () => {
     const now = new Date("2026-07-11T12:00:00Z");
     const previousAt = new Date("2026-07-11T00:00:00Z");

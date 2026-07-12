@@ -78,6 +78,18 @@ describe("processThpCommand", () => {
 });
 
 describe("buildThpDiscordSuccessReply", () => {
+  it("uses first-report copy when no prior total", () => {
+    const reply = buildThpDiscordSuccessReply(translate, {
+      commanderName: "Bravo",
+      total: 150_000_000,
+      previousTotal: null,
+      previousAt: null,
+    });
+    expect(reply).toContain("Bravo -- total hero power");
+    expect(reply.endsWith(".")).toBe(true);
+    expect(reply).not.toContain("increase in power");
+  });
+
   it("includes growth over days when prior report exists", () => {
     const now = new Date("2026-07-11T12:00:00Z");
     const previousAt = new Date("2026-07-08T12:00:00Z");
