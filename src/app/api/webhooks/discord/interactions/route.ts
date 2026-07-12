@@ -17,6 +17,7 @@ import {
   buildLinkFuzzyButtons,
   buildLinkIdentityConfirmButtons,
   buildThpConfirmButtons,
+  buildKillsConfirmButtons,
   buildTrainConfirmButtons,
   buildTrainPickButtons,
   buildVrConfirmButtons,
@@ -51,6 +52,12 @@ import {
 } from "@/lib/thp/service";
 import { isDiscordThpSlashCommand } from "@/lib/thp/discord-command-names";
 import {
+  handleDiscordKillsButtonConfirm,
+  handleDiscordKillsCharacterPick,
+  handleDiscordKillsSlash,
+} from "@/lib/kills/service";
+import { isDiscordKillsSlashCommand } from "@/lib/kills/discord-command-names";
+import {
   handleDiscordHelp,
   handleDiscordLanguage,
   handleDiscordLinkAlliance,
@@ -70,6 +77,7 @@ import {
   handleDiscordWeeklyPass,
   handleDiscordWeeklyPassCharacterPick,
   handleDiscordWalkthroughDone,
+  handleDiscordWhatIsMyKills,
   handleDiscordWhatIsMyThp,
   handleDiscordWhatIsMyVr,
   resolveAllianceForGuild,
@@ -373,6 +381,35 @@ async function handleSlashCommand(payload: DiscordInteractionPayload) {
     return discordMessageResponse(result.reply, undefined, EPHEMERAL);
   }
 
+  if (isDiscordKillsSlashCommand(commandName)) {
+    const explicitTotal = parseSlashOptionInteger(payload, "total");
+    const result = await handleDiscordKillsSlash({
+      allianceId,
+      discordUserId,
+      explicitTotal,
+      locale,
+    });
+
+    if (result.characterPicker?.length) {
+      return discordMessageResponse(
+        result.reply,
+        buildCharacterPickerButtons(result.characterPicker, "kills"),
+        EPHEMERAL,
+      );
+    }
+    if (result.needsConfirmation && result.proposedTotal != null) {
+      return discordMessageResponse(
+        result.reply,
+        buildKillsConfirmButtons({
+          yes: t("buttons.yes"),
+          no: t("buttons.no"),
+        }),
+        EPHEMERAL,
+      );
+    }
+    return discordMessageResponse(result.reply, undefined, EPHEMERAL);
+  }
+
   if (commandName === "weekly-pass") {
     if (!guildId) {
       return discordMessageResponse(t("errors.guildNotRegistered"));
@@ -427,6 +464,15 @@ async function handleSlashCommand(payload: DiscordInteractionPayload) {
 
   if (commandName === "what-is-my-thp") {
     const result = await handleDiscordWhatIsMyThp({
+      allianceId,
+      discordUserId,
+      locale,
+    });
+    return discordMessageResponse(result.reply, undefined, { ephemeral: false });
+  }
+
+  if (commandName === "what-is-my-kill-count") {
+    const result = await handleDiscordWhatIsMyKills({
       allianceId,
       discordUserId,
       locale,
@@ -612,6 +658,16 @@ async function handleButton(payload: DiscordInteractionPayload) {
     return discordButtonResponse(result.reply, undefined, EPHEMERAL);
   }
 
+  if (parsed.kind === "kills_confirm") {
+    const result = await handleDiscordKillsButtonConfirm({
+      allianceId,
+      discordUserId,
+      answer: parsed.answer,
+      locale,
+    });
+    return discordButtonResponse(result.reply, undefined, EPHEMERAL);
+  }
+
   if (parsed.kind === "link_pick") {
     const result = await handleDiscordLinkFuzzyPick({
       allianceId,
@@ -669,6 +725,26 @@ async function handleButton(payload: DiscordInteractionPayload) {
       return discordButtonResponse(
         result.reply,
         buildThpConfirmButtons({
+          yes: t("buttons.yes"),
+          no: t("buttons.no"),
+        }),
+        EPHEMERAL,
+      );
+    }
+    return discordButtonResponse(result.reply, undefined, EPHEMERAL);
+  }
+
+  if (parsed.kind === "kills_character") {
+    const result = await handleDiscordKillsCharacterPick({
+      allianceId,
+      discordUserId,
+      linkId: parsed.linkId,
+      locale,
+    });
+    if (result.needsConfirmation && result.proposedTotal != null) {
+      return discordButtonResponse(
+        result.reply,
+        buildKillsConfirmButtons({
           yes: t("buttons.yes"),
           no: t("buttons.no"),
         }),

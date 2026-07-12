@@ -6,11 +6,23 @@ import { nanoid } from "nanoid";
 import { getDb, schema } from "@/lib/db";
 import { breakdownsEqual } from "@/lib/thp/breakdown.shared";
 import type { ThpEventSource } from "@/lib/thp/constants";
+import { isProtectedHqStatSource } from "@/lib/hq-ashed-stat-sync/policy";
 import type { ThpBreakdown } from "@/lib/thp/my-thp.shared";
 import { parseStoredThpPending } from "@/lib/thp/pending-state";
 import type { ThpPendingState } from "@/lib/thp/types";
 
 const PENDING_TTL_MS = 30 * 60 * 1000;
+
+function ashedSyncedAtForSource(source: ThpEventSource): Date | null {
+  if (source === "ashed_sync" || source === "officer_override") {
+    return new Date();
+  }
+  if (isProtectedHqStatSource(source)) {
+    return null;
+  }
+  // roster_import / manual / etc. — treat as HQ-local until officer syncs
+  return null;
+}
 
 export async function getCommanderIdForMember(
   allianceId: string,
@@ -135,6 +147,8 @@ export async function upsertCommanderThp(input: {
     allianceId: input.allianceId ?? null,
     reportedByHqUserId: input.hqUserId ?? null,
     reportedByDiscordUserId: input.discordUserId ?? null,
+    ashedSyncedAt: ashedSyncedAtForSource(input.source),
+    discardedAt: null,
     createdAt: now,
   });
 

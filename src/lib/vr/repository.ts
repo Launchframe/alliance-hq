@@ -25,6 +25,8 @@ import { loadAllianceMembersForBot } from "@/lib/vr/member-roster";
 import { getAllianceVrSandboxState } from "@/lib/vr/vr-sandbox.server";
 import type { VrSeasonContext } from "@/lib/vr/vr-season-lock.shared";
 import { resolveVrSeasonContextFromParts } from "@/lib/vr/vr-season-lock.shared";
+import type { KillsPendingState } from "@/lib/kills/types";
+import { parseStoredKillsPending } from "@/lib/kills/pending-state";
 import type { ThpPendingState } from "@/lib/thp/types";
 import { parseStoredThpPending } from "@/lib/thp/pending-state";
 import type { LinkPendingState, VrPendingState } from "@/lib/vr/types";
@@ -35,7 +37,8 @@ const PENDING_TTL_MS = 30 * 60 * 1000;
 export type DiscordBotPendingState =
   | VrPendingState
   | LinkPendingState
-  | ThpPendingState;
+  | ThpPendingState
+  | KillsPendingState;
 
 function parseVrPending(value: unknown): VrPendingState | null {
   return parseStoredVrPending(value);
@@ -223,9 +226,14 @@ function parseThpPending(value: unknown): ThpPendingState | null {
   return parseStoredThpPending(value);
 }
 
+function parseKillsPending(value: unknown): KillsPendingState | null {
+  return parseStoredKillsPending(value);
+}
+
 function parseDiscordBotPending(value: unknown): DiscordBotPendingState | null {
   return (
     parseThpPending(value) ??
+    parseKillsPending(value) ??
     parseVrPending(value) ??
     parseLinkPending(value)
   );

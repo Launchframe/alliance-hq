@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  isKillsConfirmPending,
   isThpConfirmPending,
   isVrAnomalyConfirmPending,
   thpConfirmEventSource,
@@ -19,6 +20,37 @@ describe("bot pending guards", () => {
         commanderId: "cmd-1",
       }),
     ).toBe(true);
+  });
+
+  it("rejects kills pending mistaken for THP", () => {
+    expect(
+      isThpConfirmPending({
+        kind: "anomaly_confirm",
+        proposedTotal: 150_000_000,
+        commanderId: "cmd-1",
+      }),
+    ).toBe(false);
+  });
+
+  it("accepts kills confirm pending without proposedBreakdown", () => {
+    expect(
+      isKillsConfirmPending({
+        kind: "anomaly_confirm",
+        proposedTotal: 150_000_000,
+        commanderId: "cmd-1",
+      }),
+    ).toBe(true);
+  });
+
+  it("rejects THP pending mistaken for kills", () => {
+    expect(
+      isKillsConfirmPending({
+        kind: "anomaly_confirm",
+        proposedTotal: 150_000_000,
+        proposedBreakdown: null,
+        commanderId: "cmd-1",
+      }),
+    ).toBe(false);
   });
 
   it("rejects VR anomaly pending mistaken for THP", () => {

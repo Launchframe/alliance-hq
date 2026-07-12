@@ -210,6 +210,15 @@ export const NAV_GROUPS: NavGroupDef[] = [
         requiresAllianceMemberLink: true,
       },
       {
+        id: "my-kills",
+        labelKey: "myKills",
+        href: "/my-kills",
+        kind: "native",
+        descriptionKey: "myKillsDescription",
+        hideWhenPermission: "members:write",
+        requiresAllianceMemberLink: true,
+      },
+      {
         id: "trains",
         labelKey: "trains",
         href: "/trains",

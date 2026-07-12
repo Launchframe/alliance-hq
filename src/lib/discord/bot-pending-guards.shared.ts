@@ -1,3 +1,4 @@
+import type { KillsPendingState } from "@/lib/kills/types";
 import type { ThpPendingState } from "@/lib/thp/types";
 import type { VrPendingState } from "@/lib/vr/types";
 
@@ -5,12 +6,20 @@ export type ThpConfirmPending =
   | Extract<ThpPendingState, { kind: "anomaly_confirm" }>
   | Extract<ThpPendingState, { kind: "ocr_confirm" }>;
 
+export type KillsConfirmPending = Extract<
+  KillsPendingState,
+  { kind: "anomaly_confirm" }
+>;
+
 export type VrAnomalyConfirmPending = Extract<
   VrPendingState,
   { kind: "anomaly_confirm" }
 >;
 
-/** THP and VR both use `anomaly_confirm`; distinguish by THP-specific fields. */
+/**
+ * THP / kills / VR can all use `anomaly_confirm`.
+ * THP always includes `proposedBreakdown` (nullable); kills never does.
+ */
 export function isThpConfirmPending(
   pending: unknown,
 ): pending is ThpConfirmPending {
@@ -19,6 +28,30 @@ export function isThpConfirmPending(
   }
   const row = pending as Record<string, unknown>;
   if (row.kind !== "anomaly_confirm" && row.kind !== "ocr_confirm") {
+    return false;
+  }
+  if (!("proposedBreakdown" in row)) {
+    return false;
+  }
+  return (
+    typeof row.proposedTotal === "number" &&
+    Number.isFinite(row.proposedTotal) &&
+    typeof row.commanderId === "string" &&
+    row.commanderId.trim().length > 0
+  );
+}
+
+export function isKillsConfirmPending(
+  pending: unknown,
+): pending is KillsConfirmPending {
+  if (!pending || typeof pending !== "object") {
+    return false;
+  }
+  const row = pending as Record<string, unknown>;
+  if (row.kind !== "anomaly_confirm") {
+    return false;
+  }
+  if ("proposedBreakdown" in row || "proposedVr" in row) {
     return false;
   }
   return (

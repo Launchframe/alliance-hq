@@ -102,6 +102,16 @@ const NAV_ACTIONS: HotkeyActionDef[] = [
     requiresAllianceMemberLink: true,
   },
   {
+    id: "nav.myKills",
+    labelKey: "actions.nav.myKills",
+    category: "navigation",
+    scope: "global",
+    kind: "navigate",
+    href: "/my-kills",
+    hideWhenPermission: "members:write",
+    requiresAllianceMemberLink: true,
+  },
+  {
     id: "nav.professions",
     labelKey: "actions.nav.professions",
     category: "navigation",

@@ -1,13 +1,53 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { upsertCommanderThp, getCommanderIdForMember } = vi.hoisted(() => ({
-  upsertCommanderThp: vi.fn(async () => true),
-  getCommanderIdForMember: vi.fn(),
-}));
+const { upsertCommanderThp, getCommanderIdForMember, getCommanderThpState } =
+  vi.hoisted(() => ({
+    upsertCommanderThp: vi.fn(async () => true),
+    getCommanderIdForMember: vi.fn(),
+    getCommanderThpState: vi.fn(async () => null),
+  }));
 
 vi.mock("@/lib/thp/repository", () => ({
   getCommanderIdForMember,
   upsertCommanderThp,
+  getCommanderThpState,
+}));
+
+vi.mock("@/lib/hq-ashed-stat-sync/inbound", () => ({
+  decideAndMaybeApplyInboundStat: vi.fn(
+    async (input: {
+      adapter: {
+        applyAshedOnHq: (args: {
+          commanderId: string;
+          allianceId: string;
+          ashedMemberId: string;
+          memberName: string;
+          total: number;
+          source: "ashed_sync";
+          hqUserId?: string | null;
+        }) => Promise<boolean>;
+      };
+      commanderId: string;
+      allianceId: string;
+      ashedMemberId: string;
+      memberName: string;
+      ashedTotal: number;
+      hqUserId?: string | null;
+    }) => {
+      await input.adapter.applyAshedOnHq({
+        commanderId: input.commanderId,
+        allianceId: input.allianceId,
+        ashedMemberId: input.ashedMemberId,
+        memberName: input.memberName,
+        total: Math.round(input.ashedTotal),
+        source: "ashed_sync",
+        hqUserId: input.hqUserId,
+      });
+      return "apply";
+    },
+  ),
+  loadLatestNonDiscardedEventMeta: vi.fn(),
+  pendingUnsyncedFromMeta: vi.fn(() => false),
 }));
 
 import {
@@ -21,6 +61,8 @@ describe("syncCommanderThpFromAllianceMember", () => {
   beforeEach(() => {
     upsertCommanderThp.mockClear();
     getCommanderIdForMember.mockReset();
+    getCommanderThpState.mockReset();
+    getCommanderThpState.mockResolvedValue(null);
   });
 
   it("skips invalid totals", async () => {

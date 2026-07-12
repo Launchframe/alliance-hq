@@ -27,6 +27,7 @@ import {
   UserCog,
   Users,
   Wallet,
+  Crosshair,
   Zap,
 } from "lucide-react";
 
@@ -46,6 +47,7 @@ export const NAV_PAGE_ICONS: Record<string, LucideIcon> = {
   "viral-resistance": Shield,
   "my-vr": Syringe,
   "my-thp": Zap,
+  "my-kills": Crosshair,
   trains: Train,
   "battle-plan": MapPinned,
   "desert-storm": TreePalm,

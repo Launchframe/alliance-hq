@@ -1006,6 +1006,8 @@ export const commanderThpEvents = pgTable(
       { onDelete: "set null" },
     ),
     reportedByDiscordUserId: text("reported_by_discord_user_id"),
+    ashedSyncedAt: timestamp("ashed_synced_at", { withTimezone: true }),
+    discardedAt: timestamp("discarded_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -1016,6 +1018,43 @@ export const commanderThpEvents = pgTable(
       table.createdAt,
     ),
     index("commander_thp_events_alliance_created_idx").on(
+      table.allianceId,
+      table.createdAt,
+    ),
+  ],
+);
+
+/** Commander-scoped total kills event history (append-only). */
+export const commanderKillsEvents = pgTable(
+  "commander_kills_events",
+  {
+    id: text("id").primaryKey(),
+    commanderId: text("commander_id")
+      .notNull()
+      .references(() => commanders.id, { onDelete: "cascade" }),
+    total: doublePrecision("total").notNull(),
+    previousTotal: doublePrecision("previous_total"),
+    source: text("source").notNull(),
+    allianceId: text("alliance_id").references(() => alliances.id, {
+      onDelete: "set null",
+    }),
+    reportedByHqUserId: text("reported_by_hq_user_id").references(
+      () => hqUsers.id,
+      { onDelete: "set null" },
+    ),
+    reportedByDiscordUserId: text("reported_by_discord_user_id"),
+    ashedSyncedAt: timestamp("ashed_synced_at", { withTimezone: true }),
+    discardedAt: timestamp("discarded_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("commander_kills_events_commander_created_idx").on(
+      table.commanderId,
+      table.createdAt,
+    ),
+    index("commander_kills_events_alliance_created_idx").on(
       table.allianceId,
       table.createdAt,
     ),
@@ -1077,6 +1116,72 @@ export const hqThpPending = pgTable(
       columns: [table.allianceId, table.hqUserId],
       name: "hq_thp_pending_alliance_hq_user_pk",
     }),
+  ],
+);
+
+/** Web kills anomaly confirm pending. */
+export const hqKillsPending = pgTable(
+  "hq_kills_pending",
+  {
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    hqUserId: text("hq_user_id")
+      .notNull()
+      .references(() => hqUsers.id, { onDelete: "cascade" }),
+    pendingJson: jsonb("pending_json").$type<Record<string, unknown>>().notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.allianceId, table.hqUserId],
+      name: "hq_kills_pending_alliance_hq_user_pk",
+    }),
+  ],
+);
+
+/**
+ * Officer-review queue when Ashed inbound sync would regress a protected HQ
+ * self-report (or other ambiguous lower remote). Cleared on Keep HQ / Keep Ashed / Discard.
+ */
+export const hqAshedStatSyncConflicts = pgTable(
+  "hq_ashed_stat_sync_conflicts",
+  {
+    id: text("id").primaryKey(),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    /** thp | kills */
+    stat: text("stat").notNull(),
+    commanderId: text("commander_id")
+      .notNull()
+      .references(() => commanders.id, { onDelete: "cascade" }),
+    ashedMemberId: text("ashed_member_id").notNull(),
+    memberName: text("member_name").notNull(),
+    hqTotal: doublePrecision("hq_total").notNull(),
+    ashedTotal: doublePrecision("ashed_total").notNull(),
+    hqSource: text("hq_source"),
+    hqEventId: text("hq_event_id"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    unique("hq_ashed_stat_sync_conflicts_alliance_stat_commander_unique").on(
+      table.allianceId,
+      table.stat,
+      table.commanderId,
+    ),
+    index("hq_ashed_stat_sync_conflicts_alliance_stat_idx").on(
+      table.allianceId,
+      table.stat,
+    ),
   ],
 );
 
@@ -1525,6 +1630,7 @@ export const commanders = pgTable(
     /** Latest self-reported or synced THP component breakdown. */
     currentThpBreakdown: jsonb("current_thp_breakdown"),
     thpUpdatedAt: timestamp("thp_updated_at", { withTimezone: true }),
+    killsUpdatedAt: timestamp("kills_updated_at", { withTimezone: true }),
     currentSquadPowerJson: jsonb("current_squad_power_json"),
     mainSquad: text("main_squad").$type<
       "aircraft" | "tank" | "missile" | null
