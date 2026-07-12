@@ -274,6 +274,30 @@ describe("dedupeDepositSlips", () => {
     );
   });
 
+  it("flags transitive fuzzy chains instead of auto-merging endpoints", () => {
+    const { slips, report } = dedupeDepositSlips([
+      slip({
+        commanderName: "AlphaPlayer00",
+        depositAt: "2026-07-11T13:22:39.000Z",
+      }),
+      slip({
+        commanderName: "AlphaPlaver00",
+        depositAt: "2026-07-11T13:22:39.000Z",
+      }),
+      slip({
+        commanderName: "BlphaPlaver00",
+        depositAt: "2026-07-11T13:22:39.000Z",
+      }),
+    ]);
+
+    expect(slips).toHaveLength(3);
+    expect(report.autoMergedCount).toBe(0);
+    expect(report.flaggedCount).toBe(1);
+    expect(report.clusters[0]?.disposition).toBe("flagged");
+    expect(report.clusters[0]?.reason).toBe("borderline_commander_name_same_minute");
+    expect(slips.every((s) => s.dedupeClusterId)).toBe(true);
+  });
+
   it("leaves distinct minutes alone", () => {
     const { slips, report } = dedupeDepositSlips([
       slip({

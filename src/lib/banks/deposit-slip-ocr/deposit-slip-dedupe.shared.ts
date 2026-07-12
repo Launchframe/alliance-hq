@@ -262,6 +262,26 @@ export function dedupeDepositSlips(
         continue;
       }
 
+      const minPair = minPairwiseNameSimilarity(group);
+      if (minPair < FUZZY_AUTO_MERGE_THRESHOLD) {
+        clusters.push({
+          clusterId,
+          disposition: "flagged",
+          reason: "borderline_commander_name_same_minute",
+          destinationSlipId: pickBestSlipId(group),
+          members: group.map((s) => ({
+            slipId: s.slipId,
+            snapshot: slipSnapshot(s),
+          })),
+        });
+        for (const s of group) {
+          output.push({ ...s, dedupeClusterId: clusterId });
+          consumed.add(s.slipId);
+          assignedInMinute.add(s.slipId);
+        }
+        continue;
+      }
+
       const merged = coalesceDepositSlips(group);
       const destinationSlipId = nextSlipId();
       const destination: IndexedSlip = {
