@@ -164,6 +164,9 @@ export function CityListImportModal({
   const showIncompleteWarning =
     snapshot?.capturedCount != null && rows.length < snapshot.capturedCount;
 
+  const isCompleteImport =
+    snapshot?.capturedCount != null && rows.length === snapshot.capturedCount;
+
   const extraHqBankCount = useMemo(
     () =>
       existingBanks.filter(
@@ -174,7 +177,7 @@ export function CityListImportModal({
       ).length,
     [existingBanks, rowKeys],
   );
-  const showExtraHqWarning = rows.length > 0 && extraHqBankCount > 0;
+  const showExtraHqWarning = isCompleteImport && extraHqBankCount > 0;
 
   const commit = useCallback(async () => {
     if (rows.length === 0 || importing) return;

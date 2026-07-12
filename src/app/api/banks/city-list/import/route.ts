@@ -48,6 +48,10 @@ function asNullableInt(value: unknown): number | null {
   return Math.trunc(n);
 }
 
+function bankKey(server: number, x: number, y: number): string {
+  return `${server}:${x}:${y}`;
+}
+
 function parseImportBanks(
   raw: ImportCityListBody["banks"],
 ): { banks: CityListBankUpsertInput[] } | { error: string } {
@@ -56,6 +60,7 @@ function parseImportBanks(
   }
 
   const banks: CityListBankUpsertInput[] = [];
+  const seenKeys = new Set<string>();
   for (const row of raw) {
     const gameServerNumber = asNullableInt(row.gameServerNumber);
     const coordX = asNullableInt(row.coordX);
@@ -73,6 +78,12 @@ function parseImportBanks(
           "Each bank requires gameServerNumber, coordX, coordY, and level ≥ 1.",
       };
     }
+
+    const key = bankKey(gameServerNumber, coordX, coordY);
+    if (seenKeys.has(key)) {
+      return { error: "Duplicate bank coordinates in import payload." };
+    }
+    seenKeys.add(key);
 
     const currentDepositValue =
       row.currentDepositValue === null || row.currentDepositValue === undefined
@@ -109,10 +120,6 @@ function parseImportBanks(
   }
 
   return { banks };
-}
-
-function bankKey(server: number, x: number, y: number): string {
-  return `${server}:${x}:${y}`;
 }
 
 export async function POST(request: Request) {
