@@ -81,14 +81,11 @@ export function CityListImportModal({
   const [parsing, setParsing] = useState(false);
   const [importing, setImporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [serverWarnings, setServerWarnings] = useState<string[]>([]);
-
   const reset = useCallback(() => {
     setStep("upload");
     setRows([]);
     setSnapshot(null);
     setError(null);
-    setServerWarnings([]);
     setParsing(false);
     setImporting(false);
   }, []);
@@ -129,7 +126,6 @@ export function CityListImportModal({
 
         setRows(parsedRows);
         setSnapshot(body.snapshot ?? null);
-        setServerWarnings(body.warnings ?? []);
         setStep("review");
       } catch (e) {
         setError(e instanceof Error ? e.message : t("cityListParseFailed"));
@@ -167,6 +163,16 @@ export function CityListImportModal({
   const isCompleteImport =
     snapshot?.capturedCount != null && rows.length === snapshot.capturedCount;
 
+  const hasDuplicateCoords = useMemo(() => {
+    const seen = new Set<string>();
+    for (const row of rows) {
+      const key = bankKey(row.gameServerNumber, row.coordX, row.coordY);
+      if (seen.has(key)) return true;
+      seen.add(key);
+    }
+    return false;
+  }, [rows]);
+
   const extraHqBankCount = useMemo(
     () =>
       existingBanks.filter(
@@ -180,7 +186,7 @@ export function CityListImportModal({
   const showExtraHqWarning = isCompleteImport && extraHqBankCount > 0;
 
   const commit = useCallback(async () => {
-    if (rows.length === 0 || importing) return;
+    if (rows.length === 0 || importing || hasDuplicateCoords) return;
     setImporting(true);
     setError(null);
 
@@ -218,7 +224,7 @@ export function CityListImportModal({
     } finally {
       setImporting(false);
     }
-  }, [handleOpenChange, importing, onImported, rows, snapshot, t]);
+  }, [handleOpenChange, hasDuplicateCoords, importing, onImported, rows, snapshot, t]);
 
   return (
     <Dialog
@@ -304,15 +310,6 @@ export function CityListImportModal({
                 {t("cityListExtraHqWarning")}
               </div>
             ) : null}
-            {serverWarnings.map((warning) => (
-              <div
-                key={warning}
-                className="rounded-lg border border-hq-warning/40 bg-hq-warning/10 px-3 py-2 text-sm text-hq-warning"
-              >
-                {warning}
-              </div>
-            ))}
-
             <div className="overflow-x-auto rounded-lg border border-hq-border">
               <table className="min-w-full text-left text-sm">
                 <thead className="bg-hq-canvas text-xs text-hq-fg-muted">
@@ -446,7 +443,7 @@ export function CityListImportModal({
               <button
                 type="submit"
                 className="rounded border border-hq-success bg-hq-success px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-                disabled={importing || rows.length === 0}
+                disabled={importing || rows.length === 0 || hasDuplicateCoords}
               >
                 {importing ? t("actions.saving") : t("cityListConfirmImport")}
               </button>
