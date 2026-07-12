@@ -74,15 +74,13 @@ export async function discardHqStatReport(input: {
   hqUserId?: string | null;
 }): Promise<void> {
   const adapter = adapterFor(input.stat);
-  if (input.eventId) {
-    await adapter.markEventDiscarded(input.eventId);
-  }
   const restored = await adapter.revertHqToPrevious({
     commanderId: input.commanderId,
     allianceId: input.allianceId,
     ashedMemberId: input.ashedMemberId,
     memberName: input.memberName,
     hqUserId: input.hqUserId,
+    eventIdToDiscard: input.eventId,
   });
   if (input.connection && restored != null && restored > 0) {
     await assertAllianceAshedLinked(input.allianceId);

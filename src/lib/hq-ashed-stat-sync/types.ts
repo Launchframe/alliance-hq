@@ -47,6 +47,8 @@ export type StatSyncAdapter = {
     ashedMemberId: string;
     memberName: string;
     hqUserId?: string | null;
+    /** When set, discard this event and restore from its previousTotal only. */
+    eventIdToDiscard?: string | null;
   }) => Promise<number | null>;
   listPendingOutbound: (allianceId: string) => Promise<StatSyncReviewRow[]>;
 };

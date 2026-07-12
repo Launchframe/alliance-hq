@@ -67,4 +67,43 @@ describe("decideInboundStatApply", () => {
       }),
     ).toBe("apply");
   });
+
+  it("no-ops on invalid or non-positive Ashed totals", () => {
+    expect(
+      decideInboundStatApply({
+        hqTotal: 100,
+        hqLatestSource: "ashed_sync",
+        hqPendingUnsyncedSelfReport: false,
+        hqUpdatedAt: new Date("2026-01-01"),
+        ashedTotal: 0,
+        ashedRecordedAt: new Date("2026-01-02"),
+      }),
+    ).toBe("noop");
+  });
+
+  it("no-ops when unprotected HQ is newer than lower Ashed", () => {
+    expect(
+      decideInboundStatApply({
+        hqTotal: 200,
+        hqLatestSource: "ashed_sync",
+        hqPendingUnsyncedSelfReport: false,
+        hqUpdatedAt: new Date("2026-01-05"),
+        ashedTotal: 100,
+        ashedRecordedAt: new Date("2026-01-01"),
+      }),
+    ).toBe("noop");
+  });
+
+  it("conflicts when unprotected HQ is older than lower Ashed", () => {
+    expect(
+      decideInboundStatApply({
+        hqTotal: 200,
+        hqLatestSource: "ashed_sync",
+        hqPendingUnsyncedSelfReport: false,
+        hqUpdatedAt: new Date("2026-01-01"),
+        ashedTotal: 100,
+        ashedRecordedAt: new Date("2026-01-05"),
+      }),
+    ).toBe("conflict");
+  });
 });

@@ -7,6 +7,7 @@ import {
   listStatSyncReviewRows,
 } from "@/lib/hq-ashed-stat-sync/review.server";
 import type { MonotonicStatId } from "@/lib/hq-ashed-stat-sync/types";
+import { getCommanderMembershipInAlliance } from "@/lib/thp/repository";
 import { getRbacContext, requireSessionPermission } from "@/lib/rbac/require-permission";
 import { getAshedConnection, getOrCreateSession } from "@/lib/session";
 
@@ -63,7 +64,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid body" }, { status: 400 });
   }
 
-  const memberName = body.memberName ?? body.ashedMemberId;
+  const membership = await getCommanderMembershipInAlliance(
+    body.commanderId,
+    allianceId,
+  );
+  if (!membership || membership.ashedMemberId !== body.ashedMemberId) {
+    return NextResponse.json({ error: "Invalid commander" }, { status: 403 });
+  }
+
+  const memberName = body.memberName ?? membership.memberName ?? body.ashedMemberId;
 
   if (body.action === "keep_hq") {
     const connection = await getAshedConnection(session.id);
