@@ -3,6 +3,10 @@ import {
   base44ExtractData,
   base44UploadFile,
 } from "@/lib/base44/fetch";
+import {
+  buildOcrDiagnostics,
+  logOcrDiagnostics,
+} from "@/lib/ocr/ocr-diagnostics.shared";
 import { mapWithConcurrency } from "@/lib/video/map-with-concurrency";
 import type { PipelineTimer } from "@/lib/video/pipeline-timer";
 import type { ScoreTargetDef } from "@/lib/video/score-targets";
@@ -79,11 +83,35 @@ export async function ocrFrameBuffer(
       entryCount: entries.length,
     });
 
+    logOcrDiagnostics(
+      buildOcrDiagnostics({
+        source: "video_frame_ashed",
+        durationMs: uploadMs + extractMs,
+        rawLineCount: 0,
+        parsedOk: entries.length > 0,
+        entryCount: entries.length,
+        frameIndex,
+        scoreTarget: target.id,
+      }),
+    );
+
     return { entries, uploadMs, extractMs, rawResult: result, error: null };
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "OCR frame failed";
     timer?.logStep("ashed.frame", 0, { frameIndex, error: message });
+    logOcrDiagnostics(
+      buildOcrDiagnostics({
+        source: "video_frame_ashed",
+        durationMs: 0,
+        rawLineCount: 0,
+        parsedOk: false,
+        entryCount: 0,
+        error: message,
+        frameIndex,
+        scoreTarget: target.id,
+      }),
+    );
     return {
       entries: [],
       uploadMs: 0,

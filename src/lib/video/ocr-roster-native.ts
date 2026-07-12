@@ -3,6 +3,10 @@ import "server-only";
 import { parseRosterImage } from "@/lib/members/roster-ocr/parse-roster-image";
 import type { ParsedRosterRow, RosterOcrConfig } from "@/lib/members/roster-ocr/types";
 import { DEFAULT_ROSTER_OCR_CONFIG } from "@/lib/members/roster-ocr/types";
+import {
+  buildOcrDiagnostics,
+  logOcrDiagnostics,
+} from "@/lib/ocr/ocr-diagnostics.shared";
 import { mapWithConcurrency } from "@/lib/video/map-with-concurrency";
 import { logPipelineStep } from "@/lib/video/pipeline-step-log";
 import type { PipelineTimer } from "@/lib/video/pipeline-timer";
@@ -81,19 +85,46 @@ export async function ocrRosterNativeFrames(
           config,
           configPassKey: passKey ?? undefined,
         });
+        const ms = Date.now() - started;
+        logOcrDiagnostics(
+          buildOcrDiagnostics({
+            source: "video_roster_native",
+            durationMs: ms,
+            rawLineCount: result.diagnostics.rawLineCount,
+            parsedOk: result.rows.length > 0,
+            entryCount: result.rows.length,
+            frameIndex: frame.index,
+            jobId: options?.jobId,
+            scoreTarget: "member-roster-video",
+          }),
+        );
         return {
           frameIndex: frame.index,
-          ms: Date.now() - started,
+          ms,
           rows: result.rows,
           error: null as string | null,
         };
       } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "Tesseract OCR failed";
+        logOcrDiagnostics(
+          buildOcrDiagnostics({
+            source: "video_roster_native",
+            durationMs: Date.now() - started,
+            rawLineCount: 0,
+            parsedOk: false,
+            entryCount: 0,
+            error: message,
+            frameIndex: frame.index,
+            jobId: options?.jobId,
+            scoreTarget: "member-roster-video",
+          }),
+        );
         return {
           frameIndex: frame.index,
           ms: Date.now() - started,
           rows: [] as ParsedRosterRow[],
-          error:
-            error instanceof Error ? error.message : "Tesseract OCR failed",
+          error: message,
         };
       }
     },
