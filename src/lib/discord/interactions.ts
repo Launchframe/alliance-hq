@@ -43,6 +43,9 @@ export function resolveDiscordPublicKey(): string | null {
 
 export type DiscordInteractionPayload = {
   type: number;
+  id?: string;
+  token?: string;
+  application_id?: string;
   guild_id?: string;
   channel_id?: string;
   locale?: string;
@@ -502,6 +505,37 @@ export function discordMessageResponse(
       ...(components ? { components } : {}),
     },
   };
+}
+
+/**
+ * ACK within Discord's ~3s window, then edit `@original` after slow work (OCR).
+ * `flags: 64` keeps the eventual reply ephemeral (THP is private).
+ */
+export function discordDeferredEphemeralResponse() {
+  return {
+    type: 5,
+    data: {
+      flags: 64,
+    },
+  };
+}
+
+export function interactionApplicationId(
+  payload: DiscordInteractionPayload,
+): string | null {
+  const fromPayload = payload.application_id?.trim();
+  if (fromPayload) return fromPayload;
+  return (
+    process.env.DISCORD_APPLICATION_ID?.trim() ||
+    process.env.AUTH_DISCORD_ID?.trim() ||
+    null
+  );
+}
+
+export function interactionToken(
+  payload: DiscordInteractionPayload,
+): string | null {
+  return payload.token?.trim() || null;
 }
 
 /** Update the message that contained the clicked button (required for walkthrough Done). */

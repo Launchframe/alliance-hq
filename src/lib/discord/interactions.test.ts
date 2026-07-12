@@ -6,6 +6,7 @@ import {
   buildLinkIdentityConfirmButtons,
   buildVrConfirmButtons,
   discordComponentMessageResponse,
+  discordDeferredEphemeralResponse,
   discordMessageResponse,
   parseButtonCustomId,
   parseLinkSlashOptions,
@@ -122,6 +123,13 @@ describe("discord interactions", () => {
 
   it("defaults discord responses to non-ephemeral", () => {
     expect(discordMessageResponse("hello").data.flags).toBeUndefined();
+  });
+
+  it("defers ephemeral screenshot work with type 5 + flags 64", () => {
+    expect(discordDeferredEphemeralResponse()).toEqual({
+      type: 5,
+      data: { flags: 64 },
+    });
   });
 
   it("uses UPDATE_MESSAGE for component replies", () => {

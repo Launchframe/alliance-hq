@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { waitUntil } from "@vercel/functions";
 
 import {
   createDiscordTranslator,
@@ -10,6 +11,7 @@ import {
   downloadDiscordAttachment,
   parseResolvedAttachment,
 } from "@/lib/discord/attachments";
+import { editDiscordOriginalInteraction } from "@/lib/discord/interaction-followup.server";
 import {
   DISCORD_PING_RESPONSE,
   buildCharacterPickerButtons,
@@ -23,11 +25,14 @@ import {
   buildVrConfirmButtons,
   buildWalkthroughDoneButton,
   discordComponentMessageResponse,
+  discordDeferredEphemeralResponse,
   discordMessageResponse,
+  interactionApplicationId,
   interactionDiscordUserId,
   interactionDiscordUsername,
   interactionChannelId,
   interactionGuildId,
+  interactionToken,
   parseButtonCustomId,
   parseLinkSlashOptions,
   parseSlashOptionBoolean,
@@ -50,6 +55,7 @@ import {
   handleDiscordThpCharacterPick,
   handleDiscordThpSlash,
 } from "@/lib/thp/service";
+import { buildThpSlashDiscordResponse } from "@/lib/thp/discord-slash-response";
 import { isDiscordThpSlashCommand } from "@/lib/thp/discord-command-names";
 import {
   handleDiscordKillsButtonConfirm,
@@ -110,9 +116,28 @@ import {
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
+/** Screenshot OCR can exceed Discord's 3s ACK; deferred work continues via waitUntil. */
+export const maxDuration = 60;
 
 /** Link flows may include UIDs; keep those replies ephemeral-only. */
 const EPHEMERAL = { ephemeral: true } as const;
+
+type BackgroundTask = () => Promise<void>;
+
+function scheduleBackgroundTask(
+  scheduleBackground: ((task: BackgroundTask) => void) | undefined,
+  task: BackgroundTask,
+) {
+  if (scheduleBackground) {
+    scheduleBackground(task);
+    return;
+  }
+  if (process.env.VERCEL) {
+    waitUntil(task());
+    return;
+  }
+  void task();
+}
 
 function discordButtonResponse(
   content: string,
@@ -168,7 +193,10 @@ async function handleLinkCommanderSlash(
   return discordMessageResponse(result.reply, undefined, EPHEMERAL);
 }
 
-async function handleSlashCommand(payload: DiscordInteractionPayload) {
+async function handleSlashCommand(
+  payload: DiscordInteractionPayload,
+  scheduleBackground?: (task: BackgroundTask) => void,
+) {
   const commandName = payload.data?.name;
   const { discordUserId, guildId, locale, allianceId } =
     await resolveInteractionContext(payload);
@@ -342,43 +370,74 @@ async function handleSlashCommand(payload: DiscordInteractionPayload) {
 
   if (isDiscordThpSlashCommand(commandName)) {
     const explicitTotal = parseSlashOptionInteger(payload, "total");
-    let screenshotBuffer: Buffer | null = null;
     const attachment = parseResolvedAttachment(payload, "screenshot");
+    const thpLabels = {
+      yes: t("buttons.yes"),
+      no: t("buttons.no"),
+    };
+
+    // Screenshot OCR regularly exceeds Discord's ~3s ACK window — defer, then edit.
     if (attachment) {
-      try {
-        screenshotBuffer = await downloadDiscordAttachment(attachment);
-      } catch (error) {
-        console.error("[discord-bot] thp screenshot download failed", error);
-        return discordMessageResponse(t("thp.ocrFailed"), undefined, EPHEMERAL);
+      const applicationId = interactionApplicationId(payload);
+      const token = interactionToken(payload);
+      if (!applicationId || !token) {
+        console.error("[discord-bot] thp screenshot missing application_id/token");
+        return discordMessageResponse(t("errors.serverError"), undefined, EPHEMERAL);
       }
+
+      scheduleBackgroundTask(scheduleBackground, async () => {
+        try {
+          let screenshotBuffer: Buffer;
+          try {
+            screenshotBuffer = await downloadDiscordAttachment(attachment);
+          } catch (error) {
+            console.error("[discord-bot] thp screenshot download failed", error);
+            await editDiscordOriginalInteraction({
+              applicationId,
+              interactionToken: token,
+              content: t("thp.ocrFailed"),
+              ephemeral: true,
+            });
+            return;
+          }
+
+          const result = await handleDiscordThpSlash({
+            allianceId,
+            discordUserId,
+            explicitTotal,
+            screenshotBuffer,
+            locale,
+          });
+          const response = buildThpSlashDiscordResponse(result, thpLabels);
+          await editDiscordOriginalInteraction({
+            applicationId,
+            interactionToken: token,
+            content: response.data.content,
+            components: response.data.components,
+            ephemeral: true,
+          });
+        } catch (error) {
+          console.error("[discord-bot] deferred thp screenshot failed", error);
+          await editDiscordOriginalInteraction({
+            applicationId,
+            interactionToken: token,
+            content: t("errors.serverError"),
+            ephemeral: true,
+          });
+        }
+      });
+
+      return discordDeferredEphemeralResponse();
     }
 
     const result = await handleDiscordThpSlash({
       allianceId,
       discordUserId,
       explicitTotal,
-      screenshotBuffer,
+      screenshotBuffer: null,
       locale,
     });
-
-    if (result.characterPicker?.length) {
-      return discordMessageResponse(
-        result.reply,
-        buildCharacterPickerButtons(result.characterPicker, "thp"),
-        EPHEMERAL,
-      );
-    }
-    if (result.needsConfirmation && result.proposedTotal != null) {
-      return discordMessageResponse(
-        result.reply,
-        buildThpConfirmButtons({
-          yes: t("buttons.yes"),
-          no: t("buttons.no"),
-        }),
-        EPHEMERAL,
-      );
-    }
-    return discordMessageResponse(result.reply, undefined, EPHEMERAL);
+    return buildThpSlashDiscordResponse(result, thpLabels);
   }
 
   if (isDiscordKillsSlashCommand(commandName)) {
@@ -933,7 +992,18 @@ export async function POST(request: Request) {
   }
   if (payload.type === 2) {
     try {
-      return NextResponse.json(await handleSlashCommand(payload));
+      const backgroundTasks: BackgroundTask[] = [];
+      const body = await handleSlashCommand(payload, (task) => {
+        backgroundTasks.push(task);
+      });
+      for (const task of backgroundTasks) {
+        if (process.env.VERCEL) {
+          waitUntil(task());
+        } else {
+          void task();
+        }
+      }
+      return NextResponse.json(body);
     } catch (error) {
       console.error("[discord] slash command failed", error);
       const t = createDiscordTranslator("en-US");
