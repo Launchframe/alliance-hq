@@ -33,6 +33,7 @@ export type MyKillsPayload = {
 export type MyKillsPostStatus =
   | "set_kills"
   | "anomaly_confirm"
+  | "ocr_confirm"
   | "anomaly_rejected"
   | "validation_error"
   | "error";

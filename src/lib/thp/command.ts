@@ -71,17 +71,22 @@ function applyProposed(
   confirmKind: "anomaly_confirm" | "ocr_confirm",
 ): ThpCommandResult {
   const { translate: t } = input;
-  if (
-    shouldThpAnomalyConfirm({
-      proposedTotal: proposed.total,
-      reporterCount: input.reporterCount,
-      peerMax: input.peerMax,
-    })
-  ) {
+  const isAnomaly = shouldThpAnomalyConfirm({
+    proposedTotal: proposed.total,
+    reporterCount: input.reporterCount,
+    peerMax: input.peerMax,
+  });
+
+  // Screenshot OCR always requires a read-back confirm (even when not anomalous).
+  if (confirmKind === "ocr_confirm" || isAnomaly) {
     return {
-      reply: t("thp.anomalyConfirm", {
-        total: formatThpTotalForDiscord(proposed.total),
-      }),
+      reply: isAnomaly
+        ? t("thp.anomalyConfirm", {
+            total: formatThpTotalForDiscord(proposed.total),
+          })
+        : t("thp.ocrConfirm", {
+            total: formatThpTotalForDiscord(proposed.total),
+          }),
       pending: {
         kind: confirmKind,
         proposedTotal: proposed.total,
@@ -134,6 +139,13 @@ export function processThpOcrResult(input: ProcessThpCommandInput): ThpCommandRe
   if (!proposed) {
     return {
       reply: input.translate("thp.ocrFailed"),
+      pending: null,
+      action: { type: "none" },
+    };
+  }
+  if (input.currentTotal != null && proposed.total === input.currentTotal) {
+    return {
+      reply: input.translate("thp.unchanged"),
       pending: null,
       action: { type: "none" },
     };

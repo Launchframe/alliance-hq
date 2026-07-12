@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { sumThpBreakdown, parseThpBreakdownInput } from "@/lib/thp/breakdown.shared";
 import { shouldThpAnomalyConfirm } from "@/lib/thp/anomaly";
-import { processThpCommand } from "@/lib/thp/command";
+import { processThpCommand, processThpOcrResult } from "@/lib/thp/command";
 import { buildThpDiscordSuccessReply } from "@/lib/thp/discord-success-reply";
 import { parsePowerDetailsLines } from "@/lib/thp/hero-power-ocr/parse-power-details";
 import { computeThpPercentileChange } from "@/lib/thp/percentile-change";
@@ -74,6 +74,24 @@ describe("processThpCommand", () => {
     });
     expect(result.needsConfirmation).toBe(true);
     expect(result.pending?.kind).toBe("anomaly_confirm");
+  });
+});
+
+describe("processThpOcrResult", () => {
+  it("always requires read-back confirm for non-anomalous OCR", () => {
+    const result = processThpOcrResult({
+      explicitTotal: 120_000_000,
+      currentTotal: 100_000_000,
+      commanderId: "cmd1",
+      pending: null,
+      reporterCount: 2,
+      peerMax: 100_000_000,
+      translate,
+    });
+    expect(result.needsConfirmation).toBe(true);
+    expect(result.pending?.kind).toBe("ocr_confirm");
+    expect(result.reply).toBe("thp.ocrConfirm");
+    expect(result.action.type).toBe("none");
   });
 });
 

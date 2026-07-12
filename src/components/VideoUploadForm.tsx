@@ -90,6 +90,8 @@ type Props = {
   contextScoreTarget?: string | null;
   /** Preferred bank for Deposit Slip History deep-links from bank management. */
   contextBankId?: string | null;
+  /** Preferred seasonal board (e.g. kills) from deep-links. */
+  contextBoardKey?: string | null;
   allianceTag?: string | null;
   allianceName?: string | null;
   /** When true, show inline process prompt after upload instead of a dead-end waiting message. */
@@ -123,6 +125,7 @@ export function VideoUploadForm({
   memberName = null,
   contextScoreTarget = null,
   contextBankId = null,
+  contextBoardKey = null,
   allianceTag = null,
   allianceName = null,
   canProcess = false,
@@ -154,7 +157,7 @@ export function VideoUploadForm({
   const [scoreTarget, setScoreTarget] = useState(
     contextScoreTarget ?? "desert-storm",
   );
-  const [boardKey, setBoardKey] = useState("");
+  const [boardKey, setBoardKey] = useState(contextBoardKey ?? "");
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<{
     loaded: number;
@@ -214,13 +217,17 @@ export function VideoUploadForm({
             (row) => row.id === contextScoreTarget,
           );
           if (target?.leaderboardModel === "multi-board") {
-            setBoardKey(target.boardTypes?.[0] ?? "");
+            setBoardKey(
+              contextBoardKey && target.boardTypes?.includes(contextBoardKey)
+                ? contextBoardKey
+                : (target.boardTypes?.[0] ?? ""),
+            );
           }
         },
       )
       .catch(() => undefined)
       .finally(() => setUploadConfigLoading(false));
-  }, [contextScoreTarget]);
+  }, [contextScoreTarget, contextBoardKey]);
 
   const selectedTarget = scoreTargets.find((t) => t.id === scoreTarget);
   const needsBoardPicker =
