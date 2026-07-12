@@ -144,6 +144,54 @@ describe("parseCityListBanks", () => {
       },
     ]);
   });
+
+  it("tolerates OCR-garbled coordinates and missing Lv lines", () => {
+    // Captured from a real Tesseract pass on bank-stronghold-city-list.png.
+    const banks = parseCityListBanks([
+      "Fo (/ 600.00K  o 4 600.00K © ( 600.00K",
+      "Q#1211x:699,v:399) ()#1211(X:699,V:299) (#1211 [X:699, V:99)",
+    ]);
+    expect(banks).toHaveLength(3);
+    expect(banks[0]).toMatchObject({
+      crystalGoldValue: 600_000,
+      gameServerNumber: 1211,
+      coordX: 699,
+      coordY: 399,
+      level: 1,
+      currentDepositCount: null,
+    });
+    expect(banks[1]).toMatchObject({
+      coordX: 699,
+      coordY: 299,
+    });
+    expect(banks[2]).toMatchObject({
+      coordX: 699,
+      coordY: 99,
+    });
+  });
+
+  it("accepts yen-symbol Y and restores lost decimals in K amounts", () => {
+    const banks = parseCityListBanks([
+      "600.00K 59996K 59726K",
+      "Q #1211 [X:598, Y¥:499) Q#1211 [X:699, ¥:539) Q #1211 [X:699, ¥:499]",
+    ]);
+    expect(banks).toHaveLength(3);
+    expect(banks[0]).toMatchObject({
+      crystalGoldValue: 600_000,
+      coordX: 598,
+      coordY: 499,
+    });
+    expect(banks[1]).toMatchObject({
+      crystalGoldValue: 599_960,
+      coordX: 699,
+      coordY: 539,
+    });
+    expect(banks[2]).toMatchObject({
+      crystalGoldValue: 597_260,
+      coordX: 699,
+      coordY: 499,
+    });
+  });
 });
 
 describe("parseCityListText", () => {
@@ -172,14 +220,30 @@ describe("parseCityListText", () => {
     expect(snapshot.isComplete).toBe(false);
   });
 
-  it("returns isComplete false when captured count is unavailable", () => {
+  it("recovers six tiles from a real noisy Tesseract pass", () => {
     const snapshot = parseCityListText([
-      "600.00K",
-      "Lv.2",
-      "#1211 (X:599, Y:499)",
-      "100/100",
+      "CITY LIST zl",
+      "City BankiStronghold] Trade Post",
+      "& sian dy Bank Strongholds captured: 6/8",
+      "© (Jeooook © (Je0000Kk © (J 600.00K",
+      "YY a YY YS ow",
+      "Q #1211 [X:598, Y¥:499) Q#1211 [X:699, ¥:539) Q #1211 [X:699, ¥:499]",
+      "© (Js9996k © (J59726K (J 486.00K",
+      "tS PRC PR",
+      "Q#1211(x:699,v:399) (#1211 (X:699,V:239] (#1211 [X:699, V:99)",
+      "Server Time: 2026-7-11 16:57:24",
+      "Bank Stronghold captures left today: 2/2",
     ]);
-    expect(snapshot.capturedCount).toBeNull();
-    expect(snapshot.isComplete).toBe(false);
+    expect(snapshot.capturedCount).toBe(6);
+    expect(snapshot.banks).toHaveLength(6);
+    expect(snapshot.isComplete).toBe(true);
+    expect(snapshot.banks.every((bank) => bank.gameServerNumber === 1211)).toBe(
+      true,
+    );
+    expect(
+      snapshot.banks.some(
+        (bank) => bank.coordX === 699 && bank.coordY === 99,
+      ),
+    ).toBe(true);
   });
 });

@@ -112,6 +112,8 @@ export async function POST(request: Request) {
       warnings,
       dedupeReport,
       imageCount: imageFiles.length,
+      /** Per-image OCR lines for officer/admin debugging of empty parses. */
+      rawLinesByImage: parts.map((part) => part.rawLines),
     });
   } catch (error) {
     const message =

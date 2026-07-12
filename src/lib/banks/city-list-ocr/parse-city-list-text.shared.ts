@@ -15,12 +15,17 @@
  * so parsing is done by scanning *all* lines for each token type (in reading
  * order) and zipping same-index matches back into per-tile banks, rather than
  * assuming one bank per line.
+ *
+ * Real OCR is noisier than the golden transcription: coordinates often lose
+ * parentheses (`#1211x:699,v:399)`), confuse `Y` with `V`, and skip `Lv.`
+ * lines entirely. Zip on value+coord (level optional) and tolerate those
+ * garble patterns.
  */
 
 export type ParsedCityListBank = {
   level: number;
-  /** CrystalGold value shown on the tile, e.g. 600000 for "600.00K". */
-  crystalGoldValue: number;
+  /** CrystalGold value shown on the tile, e.g. 600000 for "600.00K". Null if OCR missed it. */
+  crystalGoldValue: number | null;
   gameServerNumber: number;
   coordX: number;
   coordY: number;
@@ -46,6 +51,9 @@ export type ParsedCityListSnapshot = {
   isComplete: boolean;
 };
 
+/** Default level when OCR drops every `Lv.N` token for a tile. Officers can fix in review. */
+export const CITY_LIST_DEFAULT_LEVEL = 1;
+
 const HEADER_OR_FOOTER_RE =
   /total\s+crystalgold\s+deposited|bank\s+strongholds?\s+captured|bank\s+stronghold\s+captures\s+left|server\s*time/i;
 
@@ -55,15 +63,20 @@ const SUFFIX_MULTIPLIER: Record<string, number> = {
   B: 1_000_000_000,
 };
 
-/** Compact CrystalGold value token, e.g. "600.00K", "3.48M". */
-const VALUE_TOKEN_RE = /(\d[\d,]*(?:\.\d+)?)\s*([KMB])\b/gi;
+/** Compact CrystalGold value token, e.g. "600.00K", "3.48M", OCR "59726K". */
+const VALUE_TOKEN_RE = /(\d[\d.oO]*)\s*([KkMmBb])\b/g;
 
-/** Bank level token, e.g. "Lv.3", "Lv 2". */
-const LEVEL_TOKEN_RE = /\bLv\.?\s*(\d+)\b/gi;
+/** Bank level token, e.g. "Lv.3", "Lv 2", "LV.2". */
+const LEVEL_TOKEN_RE = /\bL\.?v\.?\s*(\d+)\b/gi;
 
-/** Bank coordinate token, e.g. "#1211 (X:599, Y:499)" or "#1211 [X:699, Y:599]". */
+/**
+ * Bank coordinate token.
+ * Accepts clean `#1211 (X:599, Y:499)` and OCR garbles like:
+ *   `#1211x:699,v:399)`  `#1211(X:699,V:299)`  `#1211 [X:699, ¥:499]`
+ * (`V`/`v`/`¥` are common Tesseract misreads of `Y`.)
+ */
 const COORD_TOKEN_RE =
-  /#\s*(\d{3,6})\s*[([]\s*X\s*:\s*(\d+)\s*,\s*Y\s*:\s*(\d+)\s*[)\]]/gi;
+  /#\s*(\d{3,6})\s*[([]?\s*[Xx]\s*:?\s*(\d+)\s*,\s*[^0-9]*(\d+)\s*[)\]]?/gi;
 
 /** Deposit slot usage token, e.g. "81/100". */
 const DEPOSIT_TOKEN_RE = /\b(\d{1,3})\s*\/\s*100\b/g;
@@ -84,7 +97,14 @@ export function parseCompactCrystalGoldValue(
   amount: string,
   suffix: string | undefined,
 ): number | null {
-  const base = Number(amount.replace(/,/g, ""));
+  // OCR often reads `0` as `O`/`o` inside amounts.
+  let cleaned = amount.replace(/,/g, "").replace(/[oO]/g, "0");
+  // Tile amounts are shown with two decimals (600.00K). When the decimal
+  // point is lost ("59726K"), re-insert it before the last two digits.
+  if (!cleaned.includes(".") && cleaned.length >= 5 && suffix) {
+    cleaned = `${cleaned.slice(0, -2)}.${cleaned.slice(-2)}`;
+  }
+  const base = Number(cleaned);
   if (!Number.isFinite(base)) return null;
   const multiplier = suffix ? SUFFIX_MULTIPLIER[suffix.toUpperCase()] ?? 1 : 1;
   return Math.round(base * multiplier);
@@ -107,7 +127,7 @@ function isHeaderOrFooterLine(line: string): boolean {
 function extractAll<T>(
   lines: readonly string[],
   regex: RegExp,
-  map: (match: RegExpExecArray) => T,
+  map: (match: RegExpExecArray) => T | null,
   options: { skipHeaderFooterLines?: boolean } = {},
 ): T[] {
   const results: T[] = [];
@@ -116,7 +136,8 @@ function extractAll<T>(
     const re = new RegExp(regex.source, regex.flags);
     let match: RegExpExecArray | null;
     while ((match = re.exec(line)) != null) {
-      results.push(map(match));
+      const mapped = map(match);
+      if (mapped != null) results.push(mapped);
     }
   }
   return results;
@@ -180,6 +201,10 @@ export function parseCityListFooter(lines: readonly string[]): {
  * level, coordinates, deposit usage) in reading order, then zipping matches
  * of the same index back together. This is robust whether OCR emits one line
  * per tile or merges whole tile-rows into single lines.
+ *
+ * Coordinates are the identity anchor — OCR often drops `Lv.` rows and some
+ * CrystalGold amounts on dark cards. Missing amounts stay null for officer
+ * review rather than discarding the whole tile.
  */
 export function parseCityListBanks(
   lines: readonly string[],
@@ -207,15 +232,18 @@ export function parseCityListBanks(
     skipHeaderFooterLines: true,
   });
 
-  const count = Math.min(values.length, levels.length, coords.length);
+  if (coords.length === 0) return [];
+
   const banks: ParsedCityListBank[] = [];
-  for (let i = 0; i < count; i += 1) {
-    const value = values[i];
+  for (let i = 0; i < coords.length; i += 1) {
+    const coord = coords[i]!;
     const level = levels[i];
-    const coord = coords[i];
-    if (value == null || level == null || !coord) continue;
+    const value = values[i] ?? null;
     banks.push({
-      level,
+      level:
+        level != null && Number.isFinite(level) && level > 0
+          ? level
+          : CITY_LIST_DEFAULT_LEVEL,
       crystalGoldValue: value,
       gameServerNumber: coord.gameServerNumber,
       coordX: coord.coordX,

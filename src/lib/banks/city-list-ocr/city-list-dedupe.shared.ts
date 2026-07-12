@@ -36,7 +36,7 @@ function bankSnapshot(bank: ParsedCityListBank): Record<string, unknown> {
 function completenessScore(bank: ParsedCityListBank): number {
   let score = 0;
   if (bank.level > 0) score += 1;
-  if (bank.crystalGoldValue > 0) score += 2;
+  if (bank.crystalGoldValue != null && bank.crystalGoldValue > 0) score += 2;
   if (bank.currentDepositCount != null) score += 2;
   return score;
 }
@@ -56,7 +56,11 @@ export function coalesceCityListBanks(
     if (dest.currentDepositCount == null && bank.currentDepositCount != null) {
       dest.currentDepositCount = bank.currentDepositCount;
     }
-    if (dest.crystalGoldValue <= 0 && bank.crystalGoldValue > 0) {
+    if (
+      (dest.crystalGoldValue == null || dest.crystalGoldValue <= 0) &&
+      bank.crystalGoldValue != null &&
+      bank.crystalGoldValue > 0
+    ) {
       dest.crystalGoldValue = bank.crystalGoldValue;
     }
     if (dest.level <= 0 && bank.level > 0) {
