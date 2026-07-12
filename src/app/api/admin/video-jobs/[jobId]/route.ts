@@ -66,6 +66,7 @@ export async function GET(_request: Request, { params }: RouteParams) {
       ocrEntryCount: schema.videoFrames.ocrEntryCount,
       ocrError: schema.videoFrames.ocrError,
       ocrRawJson: schema.videoFrames.ocrRawJson,
+      videoTimestampSeconds: schema.videoFrames.videoTimestampSeconds,
     })
     .from(schema.videoFrames)
     .where(eq(schema.videoFrames.jobId, jobId))

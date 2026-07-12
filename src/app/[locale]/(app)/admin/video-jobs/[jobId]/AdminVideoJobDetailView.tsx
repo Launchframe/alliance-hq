@@ -87,6 +87,7 @@ type FrameRow = {
   ocrEntryCount: number | null;
   ocrError: string | null;
   ocrRawJson: unknown;
+  videoTimestampSeconds: number | null;
 };
 
 type ParsedRow = {
@@ -201,6 +202,28 @@ function formatPct(value: number | null | undefined): string {
   return `${(value * 100).toFixed(1)}%`;
 }
 
+function formatFrameSeconds(seconds: number | null | undefined): string | null {
+  if (seconds == null || !Number.isFinite(seconds)) return null;
+  return Number.isInteger(seconds)
+    ? String(seconds)
+    : seconds.toFixed(2).replace(/\.?0+$/, "");
+}
+
+function averageFrameGapSeconds(
+  frames: readonly { videoTimestampSeconds: number | null }[],
+): number | null {
+  const stamps = frames
+    .map((frame) => frame.videoTimestampSeconds)
+    .filter((value): value is number => value != null && Number.isFinite(value))
+    .sort((a, b) => a - b);
+  if (stamps.length < 2) return null;
+  let sum = 0;
+  for (let i = 1; i < stamps.length; i += 1) {
+    sum += stamps[i]! - stamps[i - 1]!;
+  }
+  return sum / (stamps.length - 1);
+}
+
 function formatMs(ms: number | null | undefined): string {
   if (ms == null || !Number.isFinite(ms)) return "—";
   if (ms < 1000) return `${Math.round(ms)}ms`;
@@ -243,12 +266,18 @@ type FrameLegendProps = {
 };
 
 function GalleryFrameLegend({ frame, tDetail }: FrameLegendProps) {
+  const atSeconds = formatFrameSeconds(frame.videoTimestampSeconds);
   return (
     <div className="min-h-[4.5rem] shrink-0 border-t border-hq-border bg-hq-surface px-4 py-3">
       <p className="mb-2 text-xs font-medium text-hq-fg-muted">
         {tDetail("frameLabel", { index: frame.frameIndex })}
       </p>
       <div className="flex flex-wrap gap-2 text-xs">
+        {atSeconds != null ? (
+          <span className="rounded-full bg-hq-surface-muted px-2.5 py-1 text-hq-fg">
+            {tDetail("frameTimestamp", { seconds: atSeconds })}
+          </span>
+        ) : null}
         <span className="rounded-full bg-hq-surface-muted px-2.5 py-1 text-hq-fg">
           {tDetail("uploadMs", { ms: formatMs(frame.uploadMs) })}
         </span>
@@ -568,7 +597,6 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
     ? Math.min(videoModeIndex, frames.length - 1)
     : 0;
   const videoModeFrame = frames[safeVideoModeIndex];
-  const videoDurationEstimate = formatMs((frames.length / videoModeFps) * 1000);
 
   // Video slideshow interval — only advances; never side-effects inside the updater
   useEffect(() => {
@@ -637,6 +665,17 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
     ? (data.rosterTesseractEval as RosterTesseractEvalComparison)
     : null;
   const timings = job.timingsJson;
+  const avgFrameGap = averageFrameGapSeconds(frames);
+  const measuredDurationSeconds =
+    timings?.videoDurationSeconds != null &&
+    Number.isFinite(timings.videoDurationSeconds)
+      ? timings.videoDurationSeconds
+      : null;
+  const videoDurationEstimate = formatMs(
+    measuredDurationSeconds != null
+      ? measuredDurationSeconds * 1000
+      : (frames.length / videoModeFps) * 1000,
+  );
 
   return (
     <div className="min-w-0 space-y-4">
@@ -675,6 +714,20 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
           <p className="text-xs text-hq-fg-muted">{tDetail("frameCount")}</p>
           <p>{job.frameCount ?? frames.length}</p>
         </div>
+        <div>
+          <p className="text-xs text-hq-fg-muted">
+            {tDetail("videoDuration", { duration: videoDurationEstimate })}
+          </p>
+        </div>
+        {avgFrameGap != null ? (
+          <div>
+            <p className="text-xs text-hq-fg-muted">
+              {tDetail("avgFrameGap", {
+                seconds: formatFrameSeconds(avgFrameGap) ?? "—",
+              })}
+            </p>
+          </div>
+        ) : null}
         <div>
           <p className="text-xs text-hq-fg-muted">{tDetail("totalTime")}</p>
           <p>{formatMs(timings?.totalMs)}</p>
@@ -927,6 +980,19 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
                           {tDetail("frameLabel", { index: frame.frameIndex })}
                         </p>
                         <div className="flex flex-wrap gap-2 text-xs">
+                          {(() => {
+                            const atSeconds = formatFrameSeconds(
+                              frame.videoTimestampSeconds,
+                            );
+                            if (atSeconds == null) return null;
+                            return (
+                              <span className="rounded bg-hq-surface-muted px-2 py-0.5 text-hq-fg-muted">
+                                {tDetail("frameTimestamp", {
+                                  seconds: atSeconds,
+                                })}
+                              </span>
+                            );
+                          })()}
                           <span className="rounded bg-hq-surface-muted px-2 py-0.5 text-hq-fg-muted">
                             {tDetail("uploadMs", {
                               ms: formatMs(frame.uploadMs),

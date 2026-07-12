@@ -19,6 +19,7 @@ import path from "node:path";
 
 import { createWorker, type Worker } from "tesseract.js";
 
+import { extractOcrLinesFromTesseractData } from "@/lib/members/roster-ocr/tesseract-lines.shared";
 import type { RosterOcrConfig } from "@/lib/members/roster-ocr/types";
 import { DEFAULT_ROSTER_OCR_CONFIG } from "@/lib/members/roster-ocr/types";
 
@@ -127,6 +128,9 @@ export type OcrLineResult = {
  * Run Tesseract on a pre-processed PNG buffer and return individual text lines.
  *
  * PSM 6 (single uniform block of text) works well for roster screenshots.
+ *
+ * tesseract.js v7 defaults recognize() output to `text` only — we must request
+ * `blocks` or line iteration yields nothing even when OCR succeeded.
  */
 export async function runTesseract(
   imageBuffer: Buffer,
@@ -150,22 +154,13 @@ export async function runTesseract(
         : {}),
     });
 
-    const { data } = await worker.recognize(imageBuffer);
+    const { data } = await worker.recognize(
+      imageBuffer,
+      {},
+      { text: true, blocks: true },
+    );
 
-    const lines: OcrLineResult[] = [];
-    for (const block of data.blocks ?? []) {
-      for (const para of block.paragraphs ?? []) {
-        for (const line of para.lines ?? []) {
-          const text = line.text.replace(/\n/g, " ").trim();
-          if (!text) continue;
-          const conf = line.confidence ?? 0;
-          if (conf < minConf) continue;
-          lines.push({ text, confidence: conf });
-        }
-      }
-    }
-
-    return lines;
+    return extractOcrLinesFromTesseractData(data, minConf);
   };
 
   const result = recognizeChain.then(run, run);
