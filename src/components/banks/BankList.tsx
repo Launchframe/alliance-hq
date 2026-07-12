@@ -1,8 +1,9 @@
 "use client";
 
 import { useTranslations } from "next-intl";
+import { ImageUp, Pencil, Plus, Video } from "lucide-react";
+
 import { Link } from "@/i18n/navigation";
-import { Pencil, Plus, Video } from "lucide-react";
 
 import { BANK_DEPOSIT_SLIP_HISTORY_SCORE_TARGET } from "@/lib/banks/deposit-slip-ocr/parse-deposit-slip-text.shared";
 import { activeDeposits } from "@/lib/banks/optimization.shared";
@@ -22,6 +23,7 @@ type Props = {
   onSelect: (bankId: string) => void;
   onEdit: (bank: BankWithSlips) => void;
   onAdd: () => void;
+  onImportFromScreenshot: () => void;
 };
 
 function policyLabel(
@@ -41,22 +43,33 @@ export function BankList({
   onSelect,
   onEdit,
   onAdd,
+  onImportFromScreenshot,
 }: Props) {
   const t = useTranslations("bankManagement");
 
   return (
     <div className="min-w-0 space-y-3">
-      <div className="flex min-w-0 items-center justify-between gap-2">
+      <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
         <h2 className="min-w-0 text-sm font-semibold text-hq-fg">{t("banksTitle")}</h2>
         {canWrite ? (
-          <button
-            type="button"
-            className="inline-flex items-center gap-1.5 rounded border border-hq-success bg-hq-success px-3 py-1.5 text-xs font-medium text-white"
-            onClick={onAdd}
-          >
-            <Plus className="h-3.5 w-3.5" aria-hidden />
-            {t("addBank")}
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              className="inline-flex items-center gap-1.5 rounded border border-hq-border px-3 py-1.5 text-xs font-medium text-hq-fg hover:border-hq-accent"
+              onClick={onImportFromScreenshot}
+            >
+              <ImageUp className="h-3.5 w-3.5" aria-hidden />
+              {t("importBanksFromScreenshot")}
+            </button>
+            <button
+              type="button"
+              className="inline-flex items-center gap-1.5 rounded border border-hq-success bg-hq-success px-3 py-1.5 text-xs font-medium text-white"
+              onClick={onAdd}
+            >
+              <Plus className="h-3.5 w-3.5" aria-hidden />
+              {t("addBank")}
+            </button>
+          </div>
         ) : null}
       </div>
 

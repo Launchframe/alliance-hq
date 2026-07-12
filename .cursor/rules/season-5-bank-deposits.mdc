@@ -1,7 +1,8 @@
 ---
-description: Season 5 Bank Stronghold deposits & investments — in-game lifecycle, OCR pairing, synthetic blues
+description: Season 5 Bank Strongholds — ownership/capture lifecycle, deposit OCR pairing, drop optimization, City List OCR
 globs:
   - src/lib/banks/**
+  - src/lib/banks/city-list-ocr/**
   - src/components/banks/**
   - src/app/api/banks/**
   - src/lib/video/process-deposit-slip-job.ts
@@ -9,11 +10,30 @@ globs:
   - src/components/video/DepositSlipVideoReviewTable.tsx
 ---
 
-# Season 5 territory — deposits & investments
+# Season 5 territory — Bank Strongholds
 
-Last War **Season 5** introduces **Bank Strongholds**. Officers track deposits so they can choose when to drop a bank without stranding (or looting) investor CrystalGold. HQ Bank Management + Deposit Slip History video OCR must model the **in-game deposit lifecycle**, not treat every OCR row as an independent insert.
+Last War **Season 5** introduces **Bank Strongholds**. Officers track owned banks and deposits so they can choose when to drop a bank without stranding (or looting) investor CrystalGold. HQ Bank Management, Deposit Slip History video OCR, and City List still-image OCR must model **in-game ownership + deposit lifecycles**, not treat every OCR row as an independent insert.
 
-## In-game assets (Deposit Slip History UI)
+## Capture / ownership lifecycle
+
+Once an alliance captures a bank, it enters two phases:
+
+1. **Looting** — deposits already in the bank are vulnerable.
+   - **Wild bank** (`priorCaptureCount = 0`): never held by an alliance; loot pool is map stock.
+   - **Alliance bank** (`priorCaptureCount > 0`): previously alliance-held; loot targets commander deposits made under prior control.
+2. **Investible** — after looting finishes, the bank accepts new deposits per R4 **deposit policy**.
+
+| Policy | HQ value | Who may deposit |
+|--------|----------|-----------------|
+| Alliance members | `alliance` | Own alliance only |
+| Same warzone | `warzone` | Same state/server (warzone) |
+| Public | `public` | Any Season 5 commander |
+
+Capacity is **100** active deposit slots (`n/100` on City List tiles). Laxer policy → more inflow risk when dropping.
+
+Banks shown on **our** City List Bank Stronghold tab are already alliance-held → new City List inserts should use `priorCaptureCount = 1` (and leave `depositPolicy` null until officers set it).
+
+## Deposit lifecycle (Deposit Slip History)
 
 Rows in Deposit Slip History are color-coded:
 
@@ -25,7 +45,7 @@ Rows in Deposit Slip History are color-coded:
 
 Terms are **1, 3, or 5** days (`DEPOSIT_TERMS`).
 
-## Identity of a deposit
+### Identity of a deposit
 
 A deposit is unique on:
 
@@ -41,7 +61,7 @@ A deposit is unique on:
 
 Do **not** treat a green/orange row’s timestamp as a new deposit’s `depositAt`.
 
-## Lifecycle
+### State machine
 
 ```mermaid
 stateDiagram-v2
@@ -52,13 +72,13 @@ stateDiagram-v2
   looted --> [*]
 ```
 
-### Blue — initiate
+#### Blue — initiate
 
 - Creates (or confirms) the deposit under the unique key above.
 - Stores `termDays` ∈ {1, 3, 5}, `amount`, `status = locked`.
 - `maturesAt = depositAt + termDays` (calendar days per game rules; HQ uses the same interval for pairing).
 
-### Green — successful withdrawal
+#### Green — successful withdrawal
 
 When OCR sees a **green** row for Commander A:
 
@@ -68,7 +88,7 @@ When OCR sees a **green** row for Commander A:
 
 Green/orange rows are **terminal events**, not new deposits. They must correspond to a prior initiate.
 
-### Orange — looted (failure)
+#### Orange — looted (failure)
 
 When OCR sees an **orange** row for Commander A:
 
@@ -76,17 +96,17 @@ When OCR sees an **orange** row for Commander A:
 2. Mark that deposit **`looted`** (`outcomeAt` = orange row timestamp).
 3. Orange timestamp may be **any time ≥ blue** (early force-out when the bank drops / terminates). Do **not** require `termDays` alignment.
 
-## OCR miss → synthetic blue (initiate)
+### OCR miss → synthetic blue (initiate)
 
 If a terminal row arrives and no matching blue exists yet:
 
-### Green miss
+#### Green miss
 
 - Deduce `initialDepositTime = greenTimestamp − termDays`.
 - Create a **synthetic blue** deposit with that `depositAt`, same commander/bank/amount/term, then apply `matured` from the green row.
 - Synthetic time is **exact** under game rules (maturity is term-aligned).
 
-### Orange miss
+#### Orange miss
 
 - True initiate time is **unknown**; only know `initialDepositTime ≥ (outcomeAt − termDays)` (and ≤ `outcomeAt`).
 - Create a **synthetic blue** with `depositAt` marked as an **estimate** (schema: nullable estimate flag / provenance — e.g. `depositAtEstimated = true` when implemented).
@@ -97,9 +117,57 @@ If a terminal row arrives and no matching blue exists yet:
 
 Clear `depositAtEstimated` once a non-estimate source wins.
 
+## Drop optimization
+
+Officers drop a held bank to free capture capacity for a higher-priority stronghold, while minimizing reputational / CrystalGold loss to investors.
+
+Rules encoded in HQ (`recommendNextDrop`, heatmaps, falloff helpers):
+
+1. Prefer the **lowest held bank level** first (progress urgency beats protecting every deposit).
+2. Among same-level candidates, minimize **locked value-at-risk** (then count, then hours until clear).
+3. Only **`locked`** deposits enter risk math; `matured` / `looted` are closed.
+4. `stopTakingDepositsAt(targetCaptureTime)` gives per-term cutoffs so new deposits won’t still be locked at drop time.
+
+## City List OCR (still image)
+
+Officers import the in-game **City List → Bank Stronghold** tab via **Import banks from screenshot** (not video upload).
+
+### Tile fields
+
+| Tile cue | HQ field |
+|----------|----------|
+| `Lv.N` | `level` |
+| Compact CrystalGold (`600.00K`, `3.48M`) | `currentDepositValue` |
+| `#server (X:x, Y:y)` | `gameServerNumber`, `coordX`, `coordY` |
+| `n/100` | `currentDepositCount` (cap 100) |
+
+Receipt icon color (green vs white) means “screenshotting commander has a deposit here,” **not** “full.” Do not treat icon color as capacity.
+
+### Header / footer
+
+| Cue | Meaning |
+|-----|---------|
+| `Total CrystalGold Deposited: …` | Snapshot total (informational) |
+| `Bank Strongholds captured: N/M` | `capturedCount` / `capturedLimit` |
+| `Server Time: YYYY-M-D H:MM:SS` | Wall clock → store as UTC instant (`bankCityListServerTime`) |
+| `Bank Stronghold captures left today: a/b` | `bankCapturesRemainingToday` / `bankCapturesLimitToday` |
+
+### Completeness + sync
+
+- **Complete** when `tiles.length === capturedCount` (full held inventory pictured).
+- **Upsert** by unique `(allianceId, gameServerNumber, coordX, coordY)` — update level / deposit count / value.
+- **Never auto-delete** banks missing from the screenshot. When the import is complete and HQ has extras, warn only (`cityListExtraHqWarning`).
+- Incomplete screenshots: warn; still upsert pictured tiles; leave others unchanged.
+
+Score target / module: `bank-city-list` under `src/lib/banks/city-list-ocr/`.
+
+## Empty-slip nudge
+
+When a bank has **0** deposit slips in HQ, Bank Management should CTA officers (with `bank:write`) to **Upload deposit slip video** → Deposit Slip History video upload (`scoreTarget=bank-deposit-slip-history`, deep-link `bankId`).
+
 ## Agent / implementation checklist
 
-When changing bank deposit OCR, commit, or Bank Management:
+When changing bank deposit OCR, City List OCR, commit, or Bank Management:
 
 1. **Pair, don’t double-insert** — green/orange update an existing (or synthetic) initiate; never create a second deposit keyed only on the terminal timestamp.
 2. **Status map** — blue→`locked`, green→`matured`, orange→`looted` (`early_termination_refund` is looted, not matured).
@@ -107,9 +175,12 @@ When changing bank deposit OCR, commit, or Bank Management:
 4. **Estimates** — orange-only synthetics stay flagged until blue OCR or officer edit.
 5. **Risk / heatmap** — only `locked` deposits contribute to value-at-risk for drop timing; matured/looted are closed.
 6. **UID privacy** — do not display game UID; commander **name** (+ alliance tag from OCR) is the officer-facing identity.
+7. **City List upsert** — match on alliance+server+coords; never delete missing banks from OCR alone.
+8. **Ownership** — City List inserts are alliance-held (`priorCaptureCount = 1`); wild vs alliance loot semantics use `priorCaptureCount`.
 
 ## Related
 
-- Slice A Bank Management UI/API: `src/lib/banks/**`
+- Bank Management UI/API: `src/lib/banks/**`, `src/components/banks/**`, `src/app/api/banks/**`
+- City List OCR: `src/lib/banks/city-list-ocr/**`, `POST /api/banks/city-list/parse|import`
 - Deposit Slip History video OCR: `src/lib/banks/deposit-slip-ocr/**`, `process-deposit-slip-job.ts`
-- Score target id: `bank-deposit-slip-history`
+- Score targets: `bank-deposit-slip-history`, `bank-city-list`

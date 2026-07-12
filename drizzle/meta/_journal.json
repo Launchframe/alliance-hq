@@ -708,6 +708,13 @@
       "when": 1787913600000,
       "tag": "0101_hq_ashed_stat_sync_conflicts",
       "breakpoints": true
+    },
+    {
+      "idx": 101,
+      "version": "7",
+      "when": 1788000000000,
+      "tag": "0102_bank_city_list_snapshot",
+      "breakpoints": true
     }
   ]
 }

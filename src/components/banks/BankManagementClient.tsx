@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 
 import { BankEditorModal } from "@/components/banks/BankEditorModal";
 import { BankList } from "@/components/banks/BankList";
+import { CityListImportModal } from "@/components/banks/CityListImportModal";
 import { DepositFalloffChart } from "@/components/banks/DepositFalloffChart";
 import { DepositSlipEditorModal } from "@/components/banks/DepositSlipEditorModal";
 import { DepositSlipList } from "@/components/banks/DepositSlipList";
@@ -47,6 +48,16 @@ export function BankManagementClient({ initial }: Props) {
   const [allianceGameServerNumber, setAllianceGameServerNumber] = useState(
     initial.allianceGameServerNumber,
   );
+  const [bankCapturesRemainingToday, setBankCapturesRemainingToday] = useState(
+    initial.bankCapturesRemainingToday,
+  );
+  const [bankCapturesLimitToday, setBankCapturesLimitToday] = useState(
+    initial.bankCapturesLimitToday,
+  );
+  const [bankCityListServerTime, setBankCityListServerTime] = useState(
+    initial.bankCityListServerTime,
+  );
+  const [cityListModalOpen, setCityListModalOpen] = useState(false);
 
   const [selectedBankId, setSelectedBankId] = useState<string | null>(
     initial.recommendation?.bankId ?? initial.banks[0]?.id ?? null,
@@ -86,6 +97,9 @@ export function BankManagementClient({ initial }: Props) {
     setHeatmaps(dashboard.heatmaps);
     setCanWrite(dashboard.canWrite);
     setAllianceGameServerNumber(dashboard.allianceGameServerNumber);
+    setBankCapturesRemainingToday(dashboard.bankCapturesRemainingToday);
+    setBankCapturesLimitToday(dashboard.bankCapturesLimitToday);
+    setBankCityListServerTime(dashboard.bankCityListServerTime);
     setError(null);
   }, []);
 
@@ -94,13 +108,10 @@ export function BankManagementClient({ initial }: Props) {
       | { error?: string; dashboard?: BankManagementPayload }
       | null;
     if (data?.dashboard) {
-      setBanks(data.dashboard.banks);
-      setHeatmaps(data.dashboard.heatmaps);
-      setCanWrite(data.dashboard.canWrite);
-      setAllianceGameServerNumber(data.dashboard.allianceGameServerNumber);
+      applyDashboard(data.dashboard);
     }
     setError(data?.error ?? t("errors.saveFailed"));
-  }, [t]);
+  }, [applyDashboard, t]);
 
   const openCreateBankModal = () => {
     setEditingBank(null);
@@ -301,6 +312,28 @@ export function BankManagementClient({ initial }: Props) {
       <div className="min-w-0">
         <h1 className="text-2xl font-semibold text-hq-fg">{t("title")}</h1>
         <p className="mt-1 text-sm text-hq-fg-muted">{t("subtitle")}</p>
+        {bankCityListServerTime || bankCapturesRemainingToday != null ? (
+          <div className="mt-2 flex flex-wrap gap-2 text-xs text-hq-fg-muted">
+            {bankCityListServerTime ? (
+              <span className="rounded-full border border-hq-border px-2.5 py-1">
+                {t("cityListServerTime", {
+                  time: new Intl.DateTimeFormat(undefined, {
+                    dateStyle: "short",
+                    timeStyle: "short",
+                  }).format(new Date(bankCityListServerTime)),
+                })}
+              </span>
+            ) : null}
+            {bankCapturesRemainingToday != null && bankCapturesLimitToday != null ? (
+              <span className="rounded-full border border-hq-border px-2.5 py-1">
+                {t("capturesLeftToday", {
+                  remaining: bankCapturesRemainingToday,
+                  limit: bankCapturesLimitToday,
+                })}
+              </span>
+            ) : null}
+          </div>
+        ) : null}
       </div>
 
       {error ? (
@@ -323,6 +356,7 @@ export function BankManagementClient({ initial }: Props) {
             onSelect={setSelectedBankId}
             onEdit={openEditBankModal}
             onAdd={openCreateBankModal}
+            onImportFromScreenshot={() => setCityListModalOpen(true)}
           />
           <DepositSlipList
             bank={selectedBank}
@@ -354,6 +388,13 @@ export function BankManagementClient({ initial }: Props) {
           />
         </div>
       </div>
+
+      <CityListImportModal
+        open={cityListModalOpen}
+        onOpenChange={setCityListModalOpen}
+        existingBanks={banks}
+        onImported={(dashboard) => applyDashboard(dashboard)}
+      />
 
       <BankEditorModal
         key={bankModalToken}
