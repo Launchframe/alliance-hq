@@ -3,8 +3,9 @@ import "server-only";
 import { eq } from "drizzle-orm";
 
 import { getDb, schema } from "@/lib/db";
+import { listUnselectedPoolEntries } from "@/lib/trains/pool";
+import type { PoolType, RollCandidate } from "@/lib/trains/types";
 import { fetchAlliancePriorDayVsScoresByMember } from "@/lib/trains/vs-scores.server";
-import type { RollCandidate } from "@/lib/trains/types";
 import {
   buildPriceIsRightTicketBoard,
   isCliffValidForWeighting,
@@ -158,26 +159,46 @@ export async function loadPriceIsRightTicketSettings(
   };
 }
 
-export async function filterPoolByEconomyThreshold(input: {
+/** Pick from the alliance R3 pool at roll time — preserves generation across pivot days. */
+export async function pickTpirPoolEntry(input: {
   allianceId: string;
+  poolType: PoolType;
   trainDate: string;
-  candidates: RollCandidate[];
-  settings?: TrainEconomyThresholdSettings;
-}): Promise<RollCandidate[]> {
-  const settings =
-    input.settings ??
-    (await loadTrainEconomyThreshold(input.allianceId, false));
-  if (!economyThresholdEnforcementEnabled(settings)) {
-    return input.candidates;
+  useSequence: boolean;
+}): Promise<(typeof schema.conductorPoolEntries.$inferSelect) | null> {
+  const unselected = await listUnselectedPoolEntries(
+    input.allianceId,
+    input.poolType,
+  );
+  if (unselected.length === 0) {
+    return null;
   }
 
-  const scoreDate = vsScoreReferenceDate(input.trainDate);
-  const vsScores = await fetchAlliancePriorDayVsScoresByMember(
-    input.allianceId,
-    scoreDate,
-  );
+  const settings = await loadTrainEconomyThreshold(input.allianceId, false);
+  let pickFrom = unselected;
 
-  return tpirEligiblePoolEntries(input.candidates, vsScores, settings);
+  if (economyThresholdEnforcementEnabled(settings)) {
+    const scoreDate = vsScoreReferenceDate(input.trainDate);
+    const vsScores = await fetchAlliancePriorDayVsScoresByMember(
+      input.allianceId,
+      scoreDate,
+    );
+    pickFrom = tpirEligiblePoolEntries(unselected, vsScores, settings);
+  }
+
+  if (pickFrom.length === 0) {
+    return null;
+  }
+
+  if (input.useSequence) {
+    return (
+      [...pickFrom].sort(
+        (a, b) => (a.sequencePosition ?? 0) - (b.sequencePosition ?? 0),
+      )[0] ?? null
+    );
+  }
+
+  return pickFrom[Math.floor(Math.random() * pickFrom.length)] ?? null;
 }
 
 export async function buildPriceIsRightWeightedCandidates(input: {

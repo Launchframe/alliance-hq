@@ -45,12 +45,12 @@ describe("train-economy-threshold.shared", () => {
     expect(vsScoreForEconomyDisplay(null, "known")).toBeNull();
   });
 
-  it("keeps the last unselected member eligible (pool guarantee)", () => {
+  it("keeps the last unselected member eligible even when out of band", () => {
     const settings = normalizeTrainEconomyThresholdSettings({
       thresholdPoints: 10_000_000,
       fudgePct: 1,
     });
-    const scores = new Map<string, number>();
+    const scores = new Map<string, number>([["solo", 20_000_000]]);
     const only = [{ memberId: "solo" }];
     expect(tpirEligiblePoolEntries(only, scores, settings)).toEqual(only);
   });

@@ -156,14 +156,14 @@ export async function pickNextPoolEntry(
   return peekNextPoolEntry(allianceId, poolType);
 }
 
-export async function pickRandomPoolEntry(
+export async function listUnselectedPoolEntries(
   allianceId: string,
   poolType: PoolType,
-): Promise<(typeof schema.conductorPoolEntries.$inferSelect) | null> {
+): Promise<Array<(typeof schema.conductorPoolEntries.$inferSelect)>> {
   const db = getDb();
   const generation = await getCurrentPoolGeneration(allianceId, poolType);
 
-  const rows = await db
+  return db
     .select()
     .from(schema.conductorPoolEntries)
     .where(
@@ -173,8 +173,15 @@ export async function pickRandomPoolEntry(
         eq(schema.conductorPoolEntries.generation, generation),
         isNull(schema.conductorPoolEntries.selectedAt),
       ),
-    );
+    )
+    .orderBy(asc(schema.conductorPoolEntries.sequencePosition));
+}
 
+export async function pickRandomPoolEntry(
+  allianceId: string,
+  poolType: PoolType,
+): Promise<(typeof schema.conductorPoolEntries.$inferSelect) | null> {
+  const rows = await listUnselectedPoolEntries(allianceId, poolType);
   if (rows.length === 0) return null;
   return pickUniformPoolEntry(rows);
 }
@@ -216,21 +223,7 @@ export async function pickWeightedRandomPoolEntry(
   allianceId: string,
   poolType: PoolType,
 ): Promise<(typeof schema.conductorPoolEntries.$inferSelect) | null> {
-  const db = getDb();
-  const generation = await getCurrentPoolGeneration(allianceId, poolType);
-
-  const rows = await db
-    .select()
-    .from(schema.conductorPoolEntries)
-    .where(
-      and(
-        eq(schema.conductorPoolEntries.allianceId, allianceId),
-        eq(schema.conductorPoolEntries.poolType, poolType),
-        eq(schema.conductorPoolEntries.generation, generation),
-        isNull(schema.conductorPoolEntries.selectedAt),
-      ),
-    );
-
+  const rows = await listUnselectedPoolEntries(allianceId, poolType);
   return pickWeightedPoolEntryFromRows(rows);
 }
 
