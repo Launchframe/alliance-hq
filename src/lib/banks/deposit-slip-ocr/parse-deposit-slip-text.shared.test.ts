@@ -145,6 +145,6 @@ describe("parseDepositSlipHistoryText", () => {
     const a = parseDepositSlipHistoryText(MY_SLIPS_MIXED_LINES);
     const b = parseDepositSlipHistoryText(MY_SLIPS_MIXED_LINES.slice(4));
     const merged = mergeDepositSlipHistoryParses([a, b]);
-    expect(merged.slips).toHaveLength(2);
+    expect(merged.history.slips).toHaveLength(2);
   });
 });
