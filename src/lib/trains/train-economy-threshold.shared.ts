@@ -42,6 +42,24 @@ export function effectiveEconomyMaxVsScore(
   return Math.floor(threshold + threshold * (pct / 100));
 }
 
+/** Conductor draws: missing VS is treated as 0 (below the 7.2M floor). */
+export function vsScoreForEconomyDraw(
+  vsScore: number | null | undefined,
+): number {
+  return vsScore ?? 0;
+}
+
+/** API/UI: distinguish missing scores from a recorded zero. */
+export function vsScoreForEconomyDisplay(
+  scores: Map<string, number> | null | undefined,
+  memberId: string,
+): number | null {
+  if (!scores || !scores.has(memberId)) {
+    return null;
+  }
+  return scores.get(memberId) ?? null;
+}
+
 /** Prior-day VS must fall in [PRICE_IS_RIGHT_MIN_VS_SCORE, effective max]. */
 export function isVsScoreEconomyEligible(
   vsScore: number,
@@ -52,6 +70,35 @@ export function isVsScoreEconomyEligible(
   return (
     vsScore >= PRICE_IS_RIGHT_MIN_VS_SCORE &&
     vsScore <= max
+  );
+}
+
+/**
+ * TPIR pick-time filter over unselected pool rows. When only one member remains
+ * in the alliance pool generation, they are always eligible (pool guarantee).
+ */
+export function tpirEligiblePoolEntries<T extends { memberId: string }>(
+  unselected: T[],
+  scores: Map<string, number>,
+  settings: TrainEconomyThresholdSettings,
+): T[] {
+  if (unselected.length === 0) {
+    return [];
+  }
+  if (unselected.length === 1) {
+    return unselected;
+  }
+  if (!economyThresholdEnforcementEnabled(settings)) {
+    return unselected;
+  }
+
+  const threshold = settings.thresholdPoints!;
+  return unselected.filter((entry) =>
+    isVsScoreEconomyEligible(
+      vsScoreForEconomyDraw(scores.get(entry.memberId)),
+      threshold,
+      settings.fudgePct,
+    ),
   );
 }
 
