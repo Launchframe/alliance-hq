@@ -173,7 +173,7 @@ export async function processDepositSlipVideoParse(
         dedupedSlips.map((slip) => {
           const fields = depositSlipDraftToParsedRowFields(slip);
           return {
-            id: slip.slipId,
+            id: nanoid(16),
             parseSessionId,
             ocrName: fields.ocrName,
             score: fields.score,
