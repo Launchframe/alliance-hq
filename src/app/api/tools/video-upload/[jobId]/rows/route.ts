@@ -14,6 +14,10 @@ import {
   resolveVideoJobAccess,
   videoJobAccessErrorResponse,
 } from "@/lib/video/video-job-access.server";
+import { resolveHqAllianceIdFromStoredAllianceId } from "@/lib/video/video-job-alliance.server";
+import { isBankDepositSlipHistoryTarget } from "@/lib/video/score-targets";
+import { BANK_WRITE_PERMISSION } from "@/lib/rbac/constants";
+import { requireAlliancePermission } from "@/lib/rbac/require-permission";
 
 type Props = { params: Promise<{ jobId: string }> };
 
@@ -53,10 +57,31 @@ export async function POST(request: Request, { params }: Props) {
   }
 
   const [parseSession] = await db
-    .select({ scoreTarget: schema.parseSessions.scoreTarget })
+    .select({
+      allianceId: schema.parseSessions.allianceId,
+      scoreTarget: schema.parseSessions.scoreTarget,
+    })
     .from(schema.parseSessions)
     .where(eq(schema.parseSessions.id, job.parseSessionId))
     .limit(1);
+
+  if (isBankDepositSlipHistoryTarget(parseSession?.scoreTarget ?? "")) {
+    const allianceId = await resolveHqAllianceIdFromStoredAllianceId(
+      job.allianceId ?? parseSession?.allianceId ?? null,
+    );
+    if (!allianceId) {
+      return NextResponse.json(
+        { error: "Alliance context missing on job." },
+        { status: 400 },
+      );
+    }
+    const denied = await requireAlliancePermission(
+      session.id,
+      allianceId,
+      BANK_WRITE_PERMISSION,
+    );
+    if (denied) return denied;
+  }
 
   const rowId = nanoid(16);
   const now = new Date();
