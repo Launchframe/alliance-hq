@@ -5,6 +5,11 @@ export type KillsPendingState =
       commanderId: string;
     }
   | {
+      kind: "ocr_confirm";
+      proposedTotal: number;
+      commanderId: string;
+    }
+  | {
       kind: "pick_character";
       linkIds: string[];
       proposedTotal?: number | null;

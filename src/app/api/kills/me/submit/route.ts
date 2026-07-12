@@ -6,8 +6,10 @@ import { requireSessionPermission } from "@/lib/rbac/require-permission";
 import { getOrCreateSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
+/** Screenshot OCR can be slow on cold start. */
+export const maxDuration = 60;
 
-/** Mutations only — JSON total / confirm. */
+/** Mutations only — JSON total / confirm, or multipart screenshot. */
 export async function POST(request: Request) {
   const session = await getOrCreateSession();
   const denied = await requireSessionPermission(session.id, "members:read");
@@ -19,6 +21,35 @@ export async function POST(request: Request) {
   }
 
   const locale = await getLocale();
+  const contentType = request.headers.get("content-type") ?? "";
+
+  if (contentType.includes("multipart/form-data")) {
+    const form = await request.formData();
+    const screenshot = form.get("screenshot");
+    const confirmRaw = form.get("confirm");
+    const confirm =
+      confirmRaw === "yes" || confirmRaw === "no" ? confirmRaw : null;
+    const screenshotBuffer =
+      screenshot instanceof File
+        ? Buffer.from(await screenshot.arrayBuffer())
+        : null;
+
+    const result = await handleWebKillsCommand({
+      allianceId,
+      hqUserId: session.hqUserId,
+      locale,
+      confirm,
+      screenshotBuffer,
+    });
+    if ("code" in result && result.code === "member_link_required") {
+      return NextResponse.json(
+        { code: result.code, error: "Link your commander first." },
+        { status: 403 },
+      );
+    }
+    return NextResponse.json(result);
+  }
+
   const body = (await request.json()) as {
     total?: number | null;
     confirm?: "yes" | "no" | null;
