@@ -822,6 +822,16 @@ export async function POST(request: Request, { params }: Props) {
           commendationId: submitContext.commendationId,
         },
       });
+    }
+
+    await dispatchScoreSubmit(connection, target, payloads);
+
+    if (
+      target.eventEntity &&
+      !usesHqEventStore(target) &&
+      submitContext.eventId &&
+      target.submitMethod === "bulk"
+    ) {
       await markMatchingDataBatchesDeleted({
         allianceId,
         scoreTarget: target.id,
@@ -830,8 +840,6 @@ export async function POST(request: Request, { params }: Props) {
         team: submitContext.team ?? null,
       });
     }
-
-    await dispatchScoreSubmit(connection, target, payloads);
 
     if (submitContext.hqEventId) {
       for (const row of activeRows) {

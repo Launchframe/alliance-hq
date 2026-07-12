@@ -62,6 +62,22 @@ describe("resolveOrCreateAshedEvent", () => {
       { alliance_id: "ashed-1", event_date: "2026-07-10" },
     );
   });
+
+  it("does not reuse a wrong-date row from a loose date filter", async () => {
+    base44Json
+      .mockResolvedValueOnce([{ id: "wrong-day", event_date: "2026-07-01" }])
+      .mockResolvedValueOnce([{ id: "ev-existing", event_date: "2026-07-10" }]);
+
+    await expect(
+      resolveOrCreateAshedEvent({
+        connection: connection as never,
+        eventEntity: "DesertStormEvent",
+        ashedAllianceId: "ashed-1",
+        recordedDate: "2026-07-10",
+      }),
+    ).resolves.toEqual({ eventId: "ev-existing", created: false });
+    expect(base44EntityPost).not.toHaveBeenCalled();
+  });
 });
 
 describe("replaceAshedScoresForContext", () => {

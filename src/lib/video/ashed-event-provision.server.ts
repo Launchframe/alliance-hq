@@ -49,15 +49,10 @@ export async function resolveOrCreateAshedEvent(params: {
   >(connection, `/entities/${eventEntity}?q=${q}`);
 
   const list = Array.isArray(rows) ? rows : [];
-  const matched =
-    pickAshedEventMatchingDate(list, recordedDate) ??
-    list.find((row) => Boolean(row.id));
-  if (matched?.id) {
-    return { eventId: matched.id, created: false };
-  }
+  let matched = pickAshedEventMatchingDate(list, recordedDate);
 
-  // Broader list if date-filtered query returned nothing (loose Ashed filters).
-  if (list.length === 0) {
+  // Broader alliance list when the date filter missed (loose Ashed filters).
+  if (!matched?.id) {
     const allQ = encodeURIComponent(
       JSON.stringify({ alliance_id: ashedAllianceId }),
     );
@@ -72,10 +67,11 @@ export async function resolveOrCreateAshedEvent(params: {
       }>
     >(connection, `/entities/${eventEntity}?q=${allQ}`);
     const allList = Array.isArray(allRows) ? allRows : [];
-    const fromAll = pickAshedEventMatchingDate(allList, recordedDate);
-    if (fromAll?.id) {
-      return { eventId: fromAll.id, created: false };
-    }
+    matched = pickAshedEventMatchingDate(allList, recordedDate);
+  }
+
+  if (matched?.id) {
+    return { eventId: matched.id, created: false };
   }
 
   const created = (await base44EntityPost(
