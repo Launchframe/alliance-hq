@@ -27,6 +27,10 @@ import { isZeroScoreWarningDisabled } from "@/lib/video/score-targets";
 import type { VideoProcessTimings } from "@/lib/analytics/video-pipeline";
 import { buildMemberMatchSelectOptions } from "@/lib/video/member-select-options";
 import { shouldRefetchOnLiveJobStatus } from "@/lib/video/live-job-refresh.shared";
+import {
+  buildConnectHref,
+  stashConnectReturnPath,
+} from "@/lib/connect/connect-return-path.shared";
 import type { ManualRowPosition } from "@/lib/video/manual-row-position";
 import { mergeParsedRowInReviewOrder } from "@/lib/video/parsed-row-review-order";
 import { isVideoProcessTimings } from "@/lib/video/pipeline-stats-display";
@@ -1187,10 +1191,15 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         error?: string;
         code?: string;
         connectUrl?: string;
+        status?: string;
       };
       if (!res.ok) {
         if (data.code === "ashed_not_connected") {
-          router.push(data.connectUrl ?? "/connect");
+          const reviewPath = `/tools/video-upload/${jobId}/review`;
+          stashConnectReturnPath(reviewPath);
+          router.push(
+            data.connectUrl ?? buildConnectHref(reviewPath),
+          );
           return;
         }
         setActionError(data.error ?? tc("uploadFailed"), data.connectUrl);
@@ -1198,7 +1207,13 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
       }
       clearDraft();
       setRows([]);
-      setJobStatus("queued");
+      // Seed the live-status ref so SSE review after queued triggers a refetch
+      // (without this, a reconnect snapshot of review alone is ignored).
+      liveJobStatusRef.current = "queued";
+      setJobStatus(data.status === "review" ? "review" : "queued");
+      if (data.status === "review") {
+        void load();
+      }
     } catch (err) {
       setActionError(err instanceof Error ? err.message : tc("uploadFailed"));
     } finally {

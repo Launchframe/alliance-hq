@@ -418,5 +418,12 @@ describe("runTesseract", () => {
     ]);
 
     expect(recognizeState.maxConcurrent).toBe(1);
+    const { createWorker } = await import("tesseract.js");
+    const worker = await vi.mocked(createWorker).mock.results[0]!.value;
+    expect(worker.recognize).toHaveBeenCalledWith(
+      imageBuffer,
+      {},
+      { text: true, blocks: true },
+    );
   });
 });
