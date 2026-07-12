@@ -3,12 +3,22 @@ import { describe, expect, it } from "vitest";
 import { sumThpBreakdown, parseThpBreakdownInput } from "@/lib/thp/breakdown.shared";
 import { shouldThpAnomalyConfirm } from "@/lib/thp/anomaly";
 import { processThpCommand } from "@/lib/thp/command";
+import { buildThpDiscordSuccessReply } from "@/lib/thp/discord-success-reply";
 import { parsePowerDetailsLines } from "@/lib/thp/hero-power-ocr/parse-power-details";
 import { computeThpPercentileChange } from "@/lib/thp/percentile-change";
 
 const translate = (key: string, params?: Record<string, string | number>) => {
   if (key === "thp.success") {
-    return `saved ${params?.total}`;
+    return `${params?.name} -- total hero power ${params?.total}. That's a ${params?.delta} increase in power in the last ${params?.window}.`;
+  }
+  if (key === "thp.successFirst") {
+    return `${params?.name} -- total hero power ${params?.total}.`;
+  }
+  if (key === "thp.windowDay") {
+    return "1 day";
+  }
+  if (key === "thp.windowDays") {
+    return `${params?.count} days`;
   }
   return key;
 };
@@ -43,11 +53,13 @@ describe("processThpCommand", () => {
       reporterCount: 2,
       peerMax: 100_000_000,
       translate,
+      commanderName: "Bravo",
     });
     expect(result.action.type).toBe("set_thp");
     if (result.action.type === "set_thp") {
       expect(result.action.total).toBe(150_000_000);
     }
+    expect(result.reply).toContain("Bravo -- total hero power");
   });
 
   it("requires confirmation for large jumps", () => {
@@ -62,6 +74,35 @@ describe("processThpCommand", () => {
     });
     expect(result.needsConfirmation).toBe(true);
     expect(result.pending?.kind).toBe("anomaly_confirm");
+  });
+});
+
+describe("buildThpDiscordSuccessReply", () => {
+  it("uses first-report copy when no prior total", () => {
+    const reply = buildThpDiscordSuccessReply(translate, {
+      commanderName: "Bravo",
+      total: 150_000_000,
+      previousTotal: null,
+      previousAt: null,
+    });
+    expect(reply).toContain("Bravo -- total hero power");
+    expect(reply.endsWith(".")).toBe(true);
+    expect(reply).not.toContain("increase in power");
+  });
+
+  it("includes growth over days when prior report exists", () => {
+    const now = new Date("2026-07-11T12:00:00Z");
+    const previousAt = new Date("2026-07-08T12:00:00Z");
+    const reply = buildThpDiscordSuccessReply(translate, {
+      commanderName: "Bravo",
+      total: 160_000_000,
+      previousTotal: 150_000_000,
+      previousAt,
+      now,
+    });
+    expect(reply).toContain("Bravo -- total hero power");
+    expect(reply).toContain("That's a");
+    expect(reply).toContain("increase in power in the last 3 days.");
   });
 });
 

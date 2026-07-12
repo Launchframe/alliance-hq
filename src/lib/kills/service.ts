@@ -113,6 +113,9 @@ async function runKillsForLink(input: {
   const result = processKillsCommand({
     explicitTotal: input.explicitTotal ?? null,
     currentTotal: commander?.currentKills ?? null,
+    previousUpdatedAt: commander?.killsUpdatedAt ?? null,
+    commanderName:
+      input.memberDisplayName ?? commander?.primaryName ?? input.ashedMemberId,
     commanderId,
     pending,
     reporterCount,
@@ -267,12 +270,19 @@ export async function handleDiscordKillsButtonConfirm(input: {
     return result;
   }
 
-  const allianceRows = await listAllianceCommanderKillsRows(input.allianceId);
+  const [allianceRows, commander] = await Promise.all([
+    listAllianceCommanderKillsRows(input.allianceId),
+    getCommanderKillsState(pending.commanderId),
+  ]);
   const peerMax = peerMaxKillsExcludingCommander(
     allianceRows
       .filter((row) => row.total != null)
       .map((row) => ({ commanderId: row.commanderId, total: row.total! })),
     pending.commanderId,
+  );
+  const membership = await getCommanderMembershipInAlliance(
+    pending.commanderId,
+    input.allianceId,
   );
 
   const result = processKillsConfirmation({
@@ -280,14 +290,17 @@ export async function handleDiscordKillsButtonConfirm(input: {
     pending,
     translate,
     peerMax,
+    currentTotal: commander?.currentKills ?? null,
+    previousUpdatedAt: commander?.killsUpdatedAt ?? null,
+    commanderName:
+      membership?.memberName ??
+      commander?.primaryName ??
+      membership?.ashedMemberId ??
+      pending.commanderId,
   });
   await saveDiscordBotPending(input.allianceId, input.discordUserId, result.pending);
 
   if (result.action.type === "set_kills") {
-    const membership = await getCommanderMembershipInAlliance(
-      pending.commanderId,
-      input.allianceId,
-    );
     await upsertCommanderKills({
       commanderId: pending.commanderId,
       total: result.action.total,

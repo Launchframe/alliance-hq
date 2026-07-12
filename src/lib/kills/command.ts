@@ -5,11 +5,14 @@ import {
   shouldKillsAnomalyConfirm,
   buildKillsFlagReason,
 } from "@/lib/kills/anomaly";
+import { buildKillsDiscordSuccessReply } from "@/lib/kills/discord-success-reply";
 import type { KillsCommandResult, KillsPendingState } from "@/lib/kills/types";
 
 export type ProcessKillsCommandInput = {
   explicitTotal?: number | null;
   currentTotal: number | null;
+  previousUpdatedAt?: Date | null;
+  commanderName?: string | null;
   commanderId: string;
   pending: KillsPendingState | null;
   reporterCount: number;
@@ -22,7 +25,27 @@ export type ProcessKillsConfirmationInput = {
   pending: KillsPendingState;
   translate: DiscordTranslate;
   peerMax: number;
+  currentTotal: number | null;
+  previousUpdatedAt?: Date | null;
+  commanderName?: string | null;
 };
+
+function successReply(
+  t: DiscordTranslate,
+  total: number,
+  input: {
+    commanderName?: string | null;
+    currentTotal: number | null;
+    previousUpdatedAt?: Date | null;
+  },
+): string {
+  return buildKillsDiscordSuccessReply(t, {
+    commanderName: input.commanderName ?? "Commander",
+    total,
+    previousTotal: input.currentTotal,
+    previousAt: input.previousUpdatedAt ?? null,
+  });
+}
 
 function resolveProposed(input: ProcessKillsCommandInput): number | null {
   if (input.explicitTotal != null) {
@@ -60,7 +83,7 @@ function applyProposed(
   }
 
   return {
-    reply: t("kills.success", { total: formatKillsTotalForDiscord(proposedTotal) }),
+    reply: successReply(t, proposedTotal, input),
     pending: null,
     action: {
       type: "set_kills",
@@ -134,9 +157,7 @@ export function processKillsConfirmation(
     : null;
 
   return {
-    reply: t("kills.success", {
-      total: formatKillsTotalForDiscord(pending.proposedTotal),
-    }),
+    reply: successReply(t, pending.proposedTotal, input),
     pending: null,
     action: {
       type: "set_kills",

@@ -107,6 +107,7 @@ describe("processThpConfirmation", () => {
       } as never,
       translate,
       peerMax: 100_000_000,
+      currentTotal: null,
     });
 
     expect(result.reply).toBe("errors.noConfirm");
