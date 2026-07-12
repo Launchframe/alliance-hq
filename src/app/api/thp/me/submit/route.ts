@@ -1,12 +1,18 @@
 import { NextResponse } from "next/server";
 import { getLocale } from "next-intl/server";
 
+import {
+  MAX_SCREENSHOT_UPLOAD_BYTES,
+  SCREENSHOT_TOO_LARGE_ERROR,
+} from "@/lib/ocr/screenshot-upload.shared";
 import { parseThpBreakdownInput } from "@/lib/thp/breakdown.shared";
 import { handleWebThpCommand } from "@/lib/thp/web-thp.server";
 import { requireSessionPermission } from "@/lib/rbac/require-permission";
 import { getOrCreateSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
+/** Screenshot OCR can be slow on cold start. */
+export const maxDuration = 60;
 
 /** Mutations only — isolated from GET /api/thp/me so read routes avoid sharp/OCR bundle. */
 export async function POST(request: Request) {
@@ -28,8 +34,18 @@ export async function POST(request: Request) {
     const confirmRaw = form.get("confirm");
     const confirm =
       confirmRaw === "yes" || confirmRaw === "no" ? confirmRaw : null;
+
+    if (screenshot instanceof File && screenshot.size > MAX_SCREENSHOT_UPLOAD_BYTES) {
+      return NextResponse.json(
+        { error: SCREENSHOT_TOO_LARGE_ERROR },
+        { status: 413 },
+      );
+    }
+
     const screenshotBuffer =
-      screenshot instanceof File ? Buffer.from(await screenshot.arrayBuffer()) : null;
+      screenshot instanceof File
+        ? Buffer.from(await screenshot.arrayBuffer())
+        : null;
 
     const result = await handleWebThpCommand({
       allianceId,

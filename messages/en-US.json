@@ -2308,6 +2308,12 @@
     "onboardingReviewsAttention": "{count} onboarding reviews need attention",
     "memberLinkHelpRequestsAttention": "{count} ask-an-officer help requests need attention",
     "uploadRosterVideoAttention": "Roster video upload recommended",
+    "uploadVideoMenu": {
+      "trigger": "Upload video",
+      "rosterAttention": "Roster video upload recommended",
+      "memberRoster": "Member roster",
+      "kills": "Kills"
+    },
     "editRanksAttention": "{count} members need ranks assigned",
     "search": "Search",
     "searchPlaceholder": "Name, previous name, game UID, or Discord…",
@@ -3012,6 +3018,8 @@
     "tabNow": "Now",
     "tabHistory": "History",
     "setTotalButton": "Set Total",
+    "uploadScreenshotButton": "Upload Screenshot",
+    "uploadingScreenshot": "Uploading…",
     "setDialogTitle": "Set Total Kills",
     "setDialogDescription": "Enter your total kill count from Last War.",
     "setLabel": "Total kills",
@@ -3041,13 +3049,16 @@
     "source": {
       "web": "Web",
       "discord": "Discord",
-      "ashed_sync": "Ashed"
+      "ashed_sync": "Ashed",
+      "screenshot_ocr": "Screenshot"
     },
     "changeFrom": "{delta} (from {previous})",
     "changeSet": "Set",
     "anomalyTitle": "Confirm this kill total?",
+    "ocrConfirmTitle": "Confirm kills from screenshot?",
     "anomalyConfirm": "Yes, save it",
     "anomalyDecline": "No, cancel",
+    "screenshotUploadFailed": "Could not process screenshot.",
     "loadFailed": "Could not load your kills data.",
     "updateFailed": "Could not update kills.",
     "sectionsAriaLabel": "My Kills sections"
@@ -4230,6 +4241,7 @@
       "unchanged": "That matches your current total hero power — no change saved.",
       "declined": "No problem. Send `/thp` again when you're ready.",
       "anomalyConfirm": "Are you *sure* your total hero power is {total}? That's a big jump ahead of the pack. Tap Yes if you're serious.",
+      "ocrConfirm": "I read total hero power as **{total}**. Tap Yes to save, or No to cancel.",
       "ocrFailed": "Couldn't read that screenshot. Try a clearer Power Details capture or enter `/thp total:163460435` manually.",
       "invalidTotal": "Enter a valid total hero power between 1 and 1,000,000,000.",
       "commanderNotFound": "Could not find your commander in this alliance. Run `/link-commander` first."
@@ -4247,6 +4259,8 @@
       "unchanged": "That matches your current kill count — no change saved.",
       "declined": "No problem. Send `/kills` again when you're ready.",
       "anomalyConfirm": "Are you *sure* your kill count is {total}? That's a big jump ahead of the pack. Tap Yes if you're serious.",
+      "ocrConfirm": "I read kill count as **{total}**. Tap Yes to save, or No to cancel.",
+      "ocrFailed": "Couldn't read that screenshot. Try a clearer kill-count capture or enter `/kills total:123456789` manually.",
       "invalidTotal": "Enter a valid kill count between 1 and 50,000,000,000.",
       "commanderNotFound": "Could not find your commander in this alliance. Run `/link-commander` first."
     },

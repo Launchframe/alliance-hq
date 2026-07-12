@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { shouldKillsAnomalyConfirm } from "@/lib/kills/anomaly";
-import { processKillsCommand } from "@/lib/kills/command";
+import { processKillsCommand, processKillsOcrResult } from "@/lib/kills/command";
 import { buildKillsDiscordSuccessReply } from "@/lib/kills/discord-success-reply";
 
 const translate = (key: string, params?: Record<string, string | number>) => {
@@ -57,6 +57,39 @@ describe("processKillsCommand", () => {
     });
     expect(result.needsConfirmation).toBe(true);
     expect(result.pending?.kind).toBe("anomaly_confirm");
+  });
+});
+
+describe("processKillsOcrResult", () => {
+  it("always requires read-back confirm for non-anomalous OCR", () => {
+    const result = processKillsOcrResult({
+      explicitTotal: 120_000_000,
+      currentTotal: 100_000_000,
+      commanderId: "cmd1",
+      pending: null,
+      reporterCount: 2,
+      peerMax: 100_000_000,
+      translate,
+    });
+    expect(result.needsConfirmation).toBe(true);
+    expect(result.pending?.kind).toBe("ocr_confirm");
+    expect(result.reply).toBe("kills.ocrConfirm");
+    expect(result.action.type).toBe("none");
+  });
+
+  it("uses anomaly copy when OCR total is anomalous", () => {
+    const result = processKillsOcrResult({
+      explicitTotal: 200_000_000,
+      currentTotal: 100_000_000,
+      commanderId: "cmd1",
+      pending: null,
+      reporterCount: 12,
+      peerMax: 140_000_000,
+      translate,
+    });
+    expect(result.needsConfirmation).toBe(true);
+    expect(result.pending?.kind).toBe("ocr_confirm");
+    expect(result.reply).toBe("kills.anomalyConfirm");
   });
 });
 

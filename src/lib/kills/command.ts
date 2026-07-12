@@ -58,21 +58,27 @@ function resolveProposed(input: ProcessKillsCommandInput): number | null {
 function applyProposed(
   proposedTotal: number,
   input: ProcessKillsCommandInput,
+  confirmKind: "anomaly_confirm" | "ocr_confirm" = "anomaly_confirm",
 ): KillsCommandResult {
   const { translate: t } = input;
-  if (
-    shouldKillsAnomalyConfirm({
-      proposedTotal,
-      reporterCount: input.reporterCount,
-      peerMax: input.peerMax,
-    })
-  ) {
+  const isAnomaly = shouldKillsAnomalyConfirm({
+    proposedTotal,
+    reporterCount: input.reporterCount,
+    peerMax: input.peerMax,
+  });
+
+  // Screenshot OCR always requires a read-back confirm (even when not anomalous).
+  if (confirmKind === "ocr_confirm" || isAnomaly) {
     return {
-      reply: t("kills.anomalyConfirm", {
-        total: formatKillsTotalForDiscord(proposedTotal),
-      }),
+      reply: isAnomaly
+        ? t("kills.anomalyConfirm", {
+            total: formatKillsTotalForDiscord(proposedTotal),
+          })
+        : t("kills.ocrConfirm", {
+            total: formatKillsTotalForDiscord(proposedTotal),
+          }),
       pending: {
-        kind: "anomaly_confirm",
+        kind: confirmKind === "ocr_confirm" ? "ocr_confirm" : "anomaly_confirm",
         proposedTotal,
         commanderId: input.commanderId,
       },
@@ -114,14 +120,35 @@ export function processKillsCommand(
     };
   }
 
-  return applyProposed(proposed, input);
+  return applyProposed(proposed, input, "anomaly_confirm");
+}
+
+export function processKillsOcrResult(
+  input: ProcessKillsCommandInput,
+): KillsCommandResult {
+  const proposed = resolveProposed(input);
+  if (proposed == null) {
+    return {
+      reply: input.translate("kills.ocrFailed"),
+      pending: null,
+      action: { type: "none" },
+    };
+  }
+  if (input.currentTotal != null && proposed === input.currentTotal) {
+    return {
+      reply: input.translate("kills.unchanged"),
+      pending: null,
+      action: { type: "none" },
+    };
+  }
+  return applyProposed(proposed, input, "ocr_confirm");
 }
 
 export function processKillsConfirmation(
   input: ProcessKillsConfirmationInput,
 ): KillsCommandResult {
   const { translate: t, pending } = input;
-  if (pending.kind !== "anomaly_confirm") {
+  if (pending.kind !== "anomaly_confirm" && pending.kind !== "ocr_confirm") {
     return {
       reply: t("errors.noConfirm"),
       pending: null,

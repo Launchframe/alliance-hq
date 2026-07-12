@@ -6,10 +6,9 @@ export type ThpConfirmPending =
   | Extract<ThpPendingState, { kind: "anomaly_confirm" }>
   | Extract<ThpPendingState, { kind: "ocr_confirm" }>;
 
-export type KillsConfirmPending = Extract<
-  KillsPendingState,
-  { kind: "anomaly_confirm" }
->;
+export type KillsConfirmPending =
+  | Extract<KillsPendingState, { kind: "anomaly_confirm" }>
+  | Extract<KillsPendingState, { kind: "ocr_confirm" }>;
 
 export type VrAnomalyConfirmPending = Extract<
   VrPendingState,
@@ -48,7 +47,7 @@ export function isKillsConfirmPending(
     return false;
   }
   const row = pending as Record<string, unknown>;
-  if (row.kind !== "anomaly_confirm") {
+  if (row.kind !== "anomaly_confirm" && row.kind !== "ocr_confirm") {
     return false;
   }
   if ("proposedBreakdown" in row || "proposedVr" in row) {
@@ -87,4 +86,13 @@ export function thpConfirmEventSource(
     return "screenshot_ocr";
   }
   return "discord";
+}
+
+export function killsConfirmEventSource(
+  pending: KillsConfirmPending,
+): "screenshot_ocr" | "web" {
+  if (pending.kind === "ocr_confirm") {
+    return "screenshot_ocr";
+  }
+  return "web";
 }

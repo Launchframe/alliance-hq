@@ -5,6 +5,10 @@ import {
   mergeDepositSlipHistoryParses,
   type ParsedDepositSlipHistory,
 } from "@/lib/banks/deposit-slip-ocr/parse-deposit-slip-text.shared";
+import {
+  buildOcrDiagnostics,
+  logOcrDiagnostics,
+} from "@/lib/ocr/ocr-diagnostics.shared";
 import type { DedupeReport } from "@/lib/video/dedupe/merge-report.shared";
 import { mapWithConcurrency } from "@/lib/video/map-with-concurrency";
 import { logPipelineStep } from "@/lib/video/pipeline-step-log";
@@ -55,9 +59,23 @@ export async function ocrDepositSlipNativeFrames(
           ...slip,
           sourceFrameIndex: frame.index,
         }));
+        const ms = Date.now() - started;
+        logOcrDiagnostics(
+          buildOcrDiagnostics({
+            source: "video_deposit_slip_native",
+            durationMs: ms,
+            rawLineCount: result.rawLines.length,
+            // Omit OCR text lines — deposit slips can include member names / amounts (PII).
+            parsedOk: slips.length > 0,
+            entryCount: slips.length,
+            frameIndex: frame.index,
+            jobId: options?.jobId,
+            scoreTarget: "bank-deposit-slip-history",
+          }),
+        );
         return {
           frameIndex: frame.index,
-          ms: Date.now() - started,
+          ms,
           entryCount: slips.length,
           error: null as string | null,
           rawLines: result.rawLines,
@@ -75,6 +93,19 @@ export async function ocrDepositSlipNativeFrames(
           frameIndex: frame.index,
           error: message,
         });
+        logOcrDiagnostics(
+          buildOcrDiagnostics({
+            source: "video_deposit_slip_native",
+            durationMs: Date.now() - started,
+            rawLineCount: 0,
+            parsedOk: false,
+            entryCount: 0,
+            error: message,
+            frameIndex: frame.index,
+            jobId: options?.jobId,
+            scoreTarget: "bank-deposit-slip-history",
+          }),
+        );
         return {
           frameIndex: frame.index,
           ms: Date.now() - started,

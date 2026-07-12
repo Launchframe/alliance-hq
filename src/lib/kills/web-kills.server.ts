@@ -1,11 +1,15 @@
 import "server-only";
 
 import { createDiscordTranslator } from "@/lib/discord/i18n";
-import { isKillsConfirmPending } from "@/lib/discord/bot-pending-guards.shared";
+import {
+  isKillsConfirmPending,
+  killsConfirmEventSource,
+} from "@/lib/discord/bot-pending-guards.shared";
 import { peerMaxKillsExcludingCommander } from "@/lib/kills/anomaly";
 import {
   processKillsCommand,
   processKillsConfirmation,
+  processKillsOcrResult,
 } from "@/lib/kills/command";
 import { validateKillsTotal } from "@/lib/kills/constants";
 import type { MyKillsPostResponse } from "@/lib/kills/my-kills.shared";
@@ -27,6 +31,7 @@ export async function handleWebKillsCommand(input: {
   locale: string;
   total?: number | null;
   confirm?: "yes" | "no" | null;
+  screenshotBuffer?: Buffer | null;
 }): Promise<MyKillsPostResponse | { code: "member_link_required" }> {
   const link = await getHqMemberLinkForUser(input.allianceId, input.hqUserId);
   if (!link) {
@@ -57,7 +62,20 @@ export async function handleWebKillsCommand(input: {
     });
   }
 
-  const explicitTotal = input.total ?? null;
+  let explicitTotal = input.total ?? null;
+  if (input.screenshotBuffer) {
+    const { parseKillsDetailsImage } = await import(
+      "@/lib/kills/kill-count-ocr/parse-kills-details-image"
+    );
+    const ocr = await parseKillsDetailsImage(input.screenshotBuffer);
+    explicitTotal = ocr.totalKills;
+    if (explicitTotal == null) {
+      return {
+        status: "error",
+        message: translate("kills.ocrFailed"),
+      };
+    }
+  }
 
   if (explicitTotal != null && !validateKillsTotal(explicitTotal)) {
     return {
@@ -79,7 +97,7 @@ export async function handleWebKillsCommand(input: {
     commanderId,
   );
 
-  const result = processKillsCommand({
+  const commandInput = {
     explicitTotal,
     currentTotal: commander?.currentKills ?? null,
     previousUpdatedAt: commander?.killsUpdatedAt ?? null,
@@ -89,7 +107,11 @@ export async function handleWebKillsCommand(input: {
     reporterCount,
     peerMax,
     translate,
-  });
+  };
+
+  const result = input.screenshotBuffer
+    ? processKillsOcrResult(commandInput)
+    : processKillsCommand(commandInput);
 
   await saveHqKillsPending(input.allianceId, input.hqUserId, result.pending);
 
@@ -100,7 +122,7 @@ export async function handleWebKillsCommand(input: {
       allianceId: input.allianceId,
       ashedMemberId: link.ashedMemberId,
       memberName: link.memberDisplayName ?? link.ashedMemberId,
-      source: "web",
+      source: input.screenshotBuffer ? "screenshot_ocr" : "web",
       hqUserId: input.hqUserId,
     });
     await saveHqKillsPending(input.allianceId, input.hqUserId, null);
@@ -113,7 +135,7 @@ export async function handleWebKillsCommand(input: {
 
   if (result.needsConfirmation && result.proposedTotal != null) {
     return {
-      status: "anomaly_confirm",
+      status: input.screenshotBuffer ? "ocr_confirm" : "anomaly_confirm",
       message: result.reply,
       proposedKills: result.proposedTotal,
     };
@@ -179,7 +201,7 @@ async function handleWebKillsConfirm(input: {
       allianceId: input.allianceId,
       ashedMemberId: input.ashedMemberId,
       memberName: input.memberName,
-      source: "web",
+      source: killsConfirmEventSource(pending),
       hqUserId: input.hqUserId,
     });
     return {

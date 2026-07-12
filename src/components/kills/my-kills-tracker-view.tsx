@@ -1,7 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 
 import { fireCelebrationConfetti } from "@/lib/client/celebration-confetti";
 import {
@@ -23,6 +23,7 @@ import { KillsHistoryChart } from "./kills-history-chart";
 import { KillsProgressTable } from "./kills-progress-table";
 
 type TabId = "now" | "history";
+type ConfirmKind = "anomaly" | "ocr";
 
 type Props = {
   initial: MyKillsPayload;
@@ -39,11 +40,14 @@ export function MyKillsTrackerView({ initial }: Props) {
   const [setDialogOpen, setSetDialogOpen] = useState(false);
   const [setTotalDraft, setSetTotalDraft] = useState("");
 
-  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmKind, setConfirmKind] = useState<ConfirmKind | null>(null);
   const [confirmMessage, setConfirmMessage] = useState("");
   const [confirmProposedKills, setConfirmProposedKills] = useState<number | null>(
     null,
   );
+
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [uploadingScreenshot, setUploadingScreenshot] = useState(false);
 
   const showStaleReportHint = useMemo(() => {
     const lastReportedAt = resolveKillsLastReportedAt({
@@ -71,15 +75,18 @@ export function MyKillsTrackerView({ initial }: Props) {
 
       if (payload.status === "set_kills") {
         setSetDialogOpen(false);
-        setConfirmOpen(false);
+        setConfirmKind(null);
         setSetTotalDraft("");
         fireCelebrationConfetti();
         await refresh();
         return;
       }
 
-      if (payload.status === "anomaly_confirm" && payload.proposedKills != null) {
-        setConfirmOpen(true);
+      if (
+        (payload.status === "anomaly_confirm" || payload.status === "ocr_confirm") &&
+        payload.proposedKills != null
+      ) {
+        setConfirmKind(payload.status === "ocr_confirm" ? "ocr" : "anomaly");
         setConfirmMessage(payload.message);
         setConfirmProposedKills(payload.proposedKills);
         setSetDialogOpen(false);
@@ -92,7 +99,7 @@ export function MyKillsTrackerView({ initial }: Props) {
       }
 
       if (payload.status === "anomaly_rejected") {
-        setConfirmOpen(false);
+        setConfirmKind(null);
         return;
       }
 
@@ -119,6 +126,25 @@ export function MyKillsTrackerView({ initial }: Props) {
     }
   };
 
+  const uploadScreenshot = async (file: File) => {
+    setUploadingScreenshot(true);
+    setError(null);
+    try {
+      const form = new FormData();
+      form.set("screenshot", file);
+      const res = await fetch("/api/kills/me/submit", {
+        method: "POST",
+        body: form,
+      });
+      const payload = (await res.json()) as MyKillsPostResponse & { error?: string };
+      await handleResponse(payload, res.ok);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t("screenshotUploadFailed"));
+    } finally {
+      setUploadingScreenshot(false);
+    }
+  };
+
   const submitSetTotal = () => {
     const total = Number.parseInt(setTotalDraft, 10);
     if (!Number.isFinite(total) || total <= 0) {
@@ -130,6 +156,14 @@ export function MyKillsTrackerView({ initial }: Props) {
 
   const confirmProposal = (answer: "yes" | "no") => {
     void postKills({ confirm: answer });
+  };
+
+  const onFileSelected = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (file) {
+      void uploadScreenshot(file);
+    }
   };
 
   const currentKills = data.currentKills;
@@ -200,7 +234,7 @@ export function MyKillsTrackerView({ initial }: Props) {
           <div className="flex flex-col gap-2 sm:flex-row">
             <button
               type="button"
-              disabled={busy}
+              disabled={busy || uploadingScreenshot}
               onClick={() => {
                 setSetTotalDraft(hasReported ? String(currentKills) : "");
                 setSetDialogOpen(true);
@@ -210,6 +244,25 @@ export function MyKillsTrackerView({ initial }: Props) {
             >
               {t("setTotalButton")}
             </button>
+            <button
+              type="button"
+              disabled={busy || uploadingScreenshot}
+              onClick={() => fileInputRef.current?.click()}
+              className="min-w-0 flex-1 rounded-lg border border-hq-border bg-hq-surface-muted px-4 py-3 text-sm font-medium text-hq-fg disabled:opacity-50"
+              data-testid="my-kills-upload-screenshot"
+            >
+              {uploadingScreenshot
+                ? t("uploadingScreenshot")
+                : t("uploadScreenshotButton")}
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={onFileSelected}
+              data-testid="my-kills-screenshot-input"
+            />
           </div>
 
           {error ? <p className="text-sm text-hq-danger">{error}</p> : null}
@@ -321,14 +374,16 @@ export function MyKillsTrackerView({ initial }: Props) {
       </Dialog>
 
       <Dialog
-        open={confirmOpen}
+        open={confirmKind != null}
         onOpenChange={(open) => {
-          if (!open) setConfirmOpen(false);
+          if (!open) setConfirmKind(null);
         }}
-        title={t("anomalyTitle")}
+        title={confirmKind === "ocr" ? t("ocrConfirmTitle") : t("anomalyTitle")}
       >
         <div className="relative z-[101] w-full max-w-md space-y-4 rounded-xl border border-hq-border bg-hq-surface p-5 shadow-xl">
-          <h2 className="text-lg font-semibold text-hq-fg">{t("anomalyTitle")}</h2>
+          <h2 className="text-lg font-semibold text-hq-fg">
+            {confirmKind === "ocr" ? t("ocrConfirmTitle") : t("anomalyTitle")}
+          </h2>
           <p className="text-sm text-hq-fg-muted">{confirmMessage}</p>
           {confirmProposedKills != null ? (
             <p
