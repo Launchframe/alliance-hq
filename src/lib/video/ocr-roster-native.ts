@@ -90,7 +90,7 @@ export async function ocrRosterNativeFrames(
           buildOcrDiagnostics({
             source: "video_roster_native",
             durationMs: ms,
-            rawLineCount: result.diagnostics.rawLineCount,
+            rawLineCount: result.diagnostics?.rawLineCount ?? 0,
             parsedOk: result.rows.length > 0,
             entryCount: result.rows.length,
             frameIndex: frame.index,
