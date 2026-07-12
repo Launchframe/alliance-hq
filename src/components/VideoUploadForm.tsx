@@ -12,6 +12,10 @@ import { AppSelect } from "@/components/ui/AppSelect";
 import { useMergedVideoJobs } from "@/components/video/VideoJobEventsProvider";
 import { VideoSurveyDialog } from "@/components/video/VideoSurveyDialog";
 import { VideoProcessAfterUploadPanel } from "@/components/video/VideoProcessAfterUploadPanel";
+import {
+  clearPreferredDepositSlipBankId,
+  writePreferredDepositSlipBankId,
+} from "@/lib/banks/deposit-slip-upload-context.shared";
 import type { VideoJobRow } from "@/lib/types/video";
 import {
   uploadVideoFile,
@@ -84,6 +88,8 @@ type Props = {
   memberName?: string | null;
   /** When set (from event page link), pre-selects target and filters recent uploads. */
   contextScoreTarget?: string | null;
+  /** Preferred bank for Deposit Slip History deep-links from bank management. */
+  contextBankId?: string | null;
   allianceTag?: string | null;
   allianceName?: string | null;
   /** When true, show inline process prompt after upload instead of a dead-end waiting message. */
@@ -116,6 +122,7 @@ export function VideoUploadForm({
   initialJobs,
   memberName = null,
   contextScoreTarget = null,
+  contextBankId = null,
   allianceTag = null,
   allianceName = null,
   canProcess = false,
@@ -126,6 +133,14 @@ export function VideoUploadForm({
   const tNav = useTranslations("nav");
   const tc = useTranslations("common");
   const { push } = useShellNavigation();
+
+  useEffect(() => {
+    if (contextBankId) {
+      writePreferredDepositSlipBankId(contextBankId);
+      return;
+    }
+    clearPreferredDepositSlipBankId();
+  }, [contextBankId]);
 
   const [scoreTargets, setScoreTargets] = useState<ScoreTargetOption[]>([
     {

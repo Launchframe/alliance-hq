@@ -29,8 +29,10 @@ export type VideoProcessPreview = {
   experiment: VideoProcessExperimentOption | null;
   experimentOptions: VideoProcessExperimentOption[];
   hqOcrOnly: boolean;
-  /** When true, the alliance cannot disable in-house OCR (deploy has no Ashed). */
+  /** When true, the alliance cannot disable in-house OCR (deploy or score target). */
   hqOcrOnlyLocked: boolean;
+  /** Why the checkbox is locked; null when unlocked. */
+  hqOcrOnlyLockReason: "deploy" | "score_target" | null;
   requiresAshedConnection: boolean;
   canProcess: boolean;
 };

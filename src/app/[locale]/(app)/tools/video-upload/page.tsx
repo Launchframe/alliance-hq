@@ -8,6 +8,7 @@ import { sessionCanProcessVideo } from "@/lib/video/processor-slots.server";
 import type { VideoJobRow } from "@/lib/types/video";
 import {
   jobMatchesScoreTarget,
+  parseVideoUploadBankIdParam,
   parseVideoUploadScoreTargetParam,
 } from "@/lib/video/score-target-nav";
 import { resolveSurveyPlayerNameFromSources } from "@/lib/video/survey-player-name";
@@ -17,7 +18,7 @@ import { videoJobsOwnedByViewerWhere } from "@/lib/video/video-job-ownership.ser
 export const dynamic = "force-dynamic";
 
 type Props = {
-  searchParams: Promise<{ scoreTarget?: string }>;
+  searchParams: Promise<{ scoreTarget?: string; bankId?: string }>;
 };
 
 async function resolveSurveyMemberName(
@@ -50,8 +51,10 @@ async function resolveSurveyMemberName(
 }
 
 export default async function VideoUploadPage({ searchParams }: Props) {
-  const { scoreTarget: scoreTargetParam } = await searchParams;
+  const { scoreTarget: scoreTargetParam, bankId: bankIdParam } =
+    await searchParams;
   const contextScoreTarget = parseVideoUploadScoreTargetParam(scoreTargetParam);
+  const contextBankId = parseVideoUploadBankIdParam(bankIdParam);
   const session = await requirePageSession();
   const db = getDb();
   const [rows, memberName, canProcess, ashedConnection] = await Promise.all([
@@ -145,6 +148,7 @@ export default async function VideoUploadPage({ searchParams }: Props) {
       initialJobs={initialJobs}
       memberName={memberName}
       contextScoreTarget={contextScoreTarget}
+      contextBankId={contextBankId}
       allianceTag={allianceTag}
       allianceName={allianceName}
       canProcess={canProcess}

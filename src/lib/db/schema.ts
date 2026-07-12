@@ -3120,3 +3120,42 @@ export type WlTeam = typeof wlTeams.$inferSelect;
 export type WlEngAssignment = typeof wlEngAssignments.$inferSelect;
 export type WlTeamEvent = typeof wlTeamEvents.$inferSelect;
 export type ProfessionChannel = typeof professionChannels.$inferSelect;
+
+export const bankDepositProjections = pgTable(
+  "bank_deposit_projections",
+  {
+    id: text("id").primaryKey(),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    bankId: text("bank_id").references(() => banks.id, {
+      onDelete: "cascade",
+    }),
+    name: text("name").notNull(),
+    notes: text("notes"),
+    asOf: timestamp("as_of", { withTimezone: true }).notNull(),
+    horizonHours: integer("horizon_hours").notNull(),
+    stepHours: integer("step_hours").notNull().default(1),
+    createdByHqUserId: text("created_by_hq_user_id").references(
+      () => hqUsers.id,
+      { onDelete: "set null" },
+    ),
+    assumptionsJson: jsonb("assumptions_json").$type<Record<string, unknown>>(),
+    pointsJson: jsonb("points_json").$type<unknown>().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("bank_deposit_projections_alliance_created_idx").on(
+      table.allianceId,
+      table.createdAt,
+    ),
+    index("bank_deposit_projections_bank_created_idx").on(
+      table.bankId,
+      table.createdAt,
+    ),
+  ],
+);
+
+export type BankDepositProjection = typeof bankDepositProjections.$inferSelect;

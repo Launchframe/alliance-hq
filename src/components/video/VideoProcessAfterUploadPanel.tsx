@@ -315,9 +315,11 @@ export function VideoProcessAfterUploadPanel({
             </span>
           </label>
           <p className="text-xs text-hq-fg-muted">
-            {preview.hqOcrOnlyLocked
-              ? tQueue("hqOcrOnlyDeployLockedHint")
-              : tQueue("hqOcrOnlyHint")}
+            {preview.hqOcrOnlyLockReason === "score_target"
+              ? tQueue("hqOcrOnlyScoreTargetLockedHint")
+              : preview.hqOcrOnlyLocked
+                ? tQueue("hqOcrOnlyDeployLockedHint")
+                : tQueue("hqOcrOnlyHint")}
           </p>
         </div>
       ) : null}

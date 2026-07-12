@@ -156,12 +156,16 @@ export async function buildVideoProcessPreview(params: {
   const hqOcrOnly = allianceId
     ? await loadEffectiveAllianceHqOcrOnly(allianceId)
     : false;
-  const ocrContext = { allianceHqOcrOnly: hqOcrOnly };
+  const scoreTargetLocked = isNativeOnlyVideoTarget(scoreTargetId);
+  const deployLocked = isAllianceHqOcrOnlyLockedOnDeploy();
+  const hqOcrOnlyLocked = deployLocked || scoreTargetLocked;
+  const hqOcrOnlyEffective = hqOcrOnly || scoreTargetLocked || deployLocked;
+  const ocrContext = { allianceHqOcrOnly: hqOcrOnlyEffective };
   const primaryEngine = resolveVideoOcrEngineForJob(
     scoreTargetId,
     isRosterTarget,
     ocrContext,
-    { forceNative: isNativeOnlyVideoTarget(scoreTargetId) },
+    { forceNative: scoreTargetLocked },
   );
 
   const [{ experiment, armConfigId }, experimentOptions, canProcess] =
@@ -176,7 +180,10 @@ export async function buildVideoProcessPreview(params: {
 
   const envRequiresAshed = videoOcrRequiresAshedConnection();
   const requiresAshedConnection =
-    canProcess && !hqOcrOnly && envRequiresAshed && engineRequiresAshed(primaryEngine);
+    canProcess &&
+    !hqOcrOnlyEffective &&
+    envRequiresAshed &&
+    engineRequiresAshed(primaryEngine);
 
   return {
     jobId: params.job.id,
@@ -195,8 +202,13 @@ export async function buildVideoProcessPreview(params: {
     }),
     experiment,
     experimentOptions,
-    hqOcrOnly,
-    hqOcrOnlyLocked: isAllianceHqOcrOnlyLockedOnDeploy(),
+    hqOcrOnly: hqOcrOnlyEffective,
+    hqOcrOnlyLocked,
+    hqOcrOnlyLockReason: scoreTargetLocked
+      ? "score_target"
+      : deployLocked
+        ? "deploy"
+        : null,
     requiresAshedConnection,
     canProcess,
   };
