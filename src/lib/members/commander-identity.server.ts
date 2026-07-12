@@ -63,6 +63,7 @@ async function mirrorMemberThpToCommander(input: {
   thpSource?: ThpEventSource;
   thpHistory?: Array<{ value: number; recorded_date: string }>;
   powerLevelHistory?: Array<{ value: string; recorded_date: string }>;
+  killsHistory?: Array<{ value: number; recorded_date: string }>;
   hqUserId?: string | null;
 }): Promise<void> {
   const source = input.thpSource ?? "ashed_sync";
@@ -87,6 +88,27 @@ async function mirrorMemberThpToCommander(input: {
       memberName: input.memberName,
       total,
       source,
+      hqUserId: input.hqUserId,
+    });
+  }
+
+  const { syncCommanderKillsFromAllianceMember, seedCommanderKillsHistoryFromAshed } =
+    await import("@/lib/kills/sync-from-member.server");
+  await seedCommanderKillsHistoryFromAshed({
+    commanderId: input.commanderId,
+    allianceId: input.allianceId,
+    history: input.killsHistory,
+    source: source as "ashed_sync" | "roster_import" | "video_parse",
+  });
+  const kills = input.ashedStats?.currentKills;
+  if (kills != null && Number.isFinite(kills) && kills > 0) {
+    await syncCommanderKillsFromAllianceMember({
+      commanderId: input.commanderId,
+      allianceId: input.allianceId,
+      ashedMemberId: input.ashedMemberId,
+      memberName: input.memberName,
+      total: kills,
+      source: source as "ashed_sync" | "roster_import" | "video_parse",
       hqUserId: input.hqUserId,
     });
   }

@@ -231,9 +231,10 @@ describe("hotkey registry integrity", () => {
     expect(isHotkeyActionAllowed(viralResistance!, memberPerms)).toBe(false);
   });
 
-  it("hides my-vr and my-thp hotkeys without an alliance member link", () => {
+  it("hides my-vr, my-thp, and my-kills hotkeys without an alliance member link", () => {
     const myVr = getHotkeyAction("nav.myVr");
     const myThp = getHotkeyAction("nav.myThp");
+    const myKills = getHotkeyAction("nav.myKills");
     const memberPerms = new Set<string>();
 
     expect(
@@ -243,7 +244,13 @@ describe("hotkey registry integrity", () => {
       isHotkeyActionAllowed(myThp!, memberPerms, { hasAllianceMemberLink: false }),
     ).toBe(false);
     expect(
+      isHotkeyActionAllowed(myKills!, memberPerms, { hasAllianceMemberLink: false }),
+    ).toBe(false);
+    expect(
       isHotkeyActionAllowed(myVr!, memberPerms, { hasAllianceMemberLink: true }),
+    ).toBe(true);
+    expect(
+      isHotkeyActionAllowed(myKills!, memberPerms, { hasAllianceMemberLink: true }),
     ).toBe(true);
   });
 });

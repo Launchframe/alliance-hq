@@ -51,6 +51,19 @@ const thpOptions = [
   },
 ];
 
+const killsOptions = [
+  {
+    name: "total",
+    description: "Your total kill count from Last War",
+    description_localizations: {
+      "pt-BR": "Seu total de kills no Last War",
+    },
+    type: 4,
+    min_value: 1,
+    required: true,
+  },
+];
+
 const commanderLinkOptions = [
   {
     name: "replace",
@@ -156,6 +169,14 @@ const commandBody = [
       "pt-BR": "Atalho para /thp",
     },
     options: thpOptions,
+  },
+  {
+    name: "kills",
+    description: "Report your total kill count.",
+    description_localizations: {
+      "pt-BR": "Informe seu total de kills.",
+    },
+    options: killsOptions,
   },
   {
     name: "weekly-pass",
@@ -269,6 +290,13 @@ const commandBody = [
     description: "Show your current total hero power (channel-visible).",
     description_localizations: {
       "pt-BR": "Mostra seu poder total de heróis atual (visível no canal).",
+    },
+  },
+  {
+    name: "what-is-my-kill-count",
+    description: "Show your current total kill count (channel-visible).",
+    description_localizations: {
+      "pt-BR": "Mostra seu total de kills atual (visível no canal).",
     },
   },
   {

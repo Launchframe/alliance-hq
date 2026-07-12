@@ -27,6 +27,8 @@ const DEFAULT_HOTKEY_BINDINGS_IMPL = {
   "nav.viralResistance": seq("g", "i"),
   "nav.myVr": seq("g", "j"),
   "nav.myThp": seq("g", "f"),
+  // g+k is Connect Ashed; g+8 is free for My Kills
+  "nav.myKills": seq("g", "8"),
   "nav.professions": seq("g", "'"),
   "nav.trains": seq("g", "t"),
   "nav.battlePlan": seq("g", "h"),

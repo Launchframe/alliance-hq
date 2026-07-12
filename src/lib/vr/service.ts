@@ -88,6 +88,7 @@ export { handleDiscordVrReport } from "@/lib/vr/bot-vr-report";
 export {
   handleDiscordWhatIsMyVr,
   handleDiscordWhatIsMyThp,
+  handleDiscordWhatIsMyKills,
 } from "@/lib/vr/bot-status-query";
 export { resolveDiscordAllianceId, resolveAllianceForGuild } from "@/lib/vr/repository";
 

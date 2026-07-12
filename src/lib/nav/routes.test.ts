@@ -105,15 +105,19 @@ describe("filterNavGroupsForPermissions", () => {
     );
     const reporting = filtered.find((group) => group.id === "performance-reporting");
     expect(reporting?.pages.some((page) => page.id === "my-vr")).toBe(false);
+    expect(reporting?.pages.some((page) => page.id === "my-thp")).toBe(false);
+    expect(reporting?.pages.some((page) => page.id === "my-kills")).toBe(false);
     expect(reporting?.pages.some((page) => page.id === "viral-resistance")).toBe(
       true,
     );
   });
 
-  it("shows only my-vr for members without members:write", () => {
+  it("shows my-vr, my-thp, and my-kills for members without members:write", () => {
     const filtered = filterNavGroupsForPermissions(NAV_GROUPS, new Set());
     const reporting = filtered.find((group) => group.id === "performance-reporting");
     expect(reporting?.pages.some((page) => page.id === "my-vr")).toBe(true);
+    expect(reporting?.pages.some((page) => page.id === "my-thp")).toBe(true);
+    expect(reporting?.pages.some((page) => page.id === "my-kills")).toBe(true);
     expect(reporting?.pages.some((page) => page.id === "viral-resistance")).toBe(
       false,
     );
@@ -121,25 +125,27 @@ describe("filterNavGroupsForPermissions", () => {
 });
 
 describe("filterNavGroupsForAllianceMemberLink", () => {
-  it("hides my-vr and my-thp without an alliance member link", () => {
+  it("hides my-vr, my-thp, and my-kills without an alliance member link", () => {
     const filtered = filterNavGroupsForAllianceMemberLink(NAV_GROUPS, {
       hasAllianceMemberLink: false,
     });
     const reporting = filtered.find((group) => group.id === "performance-reporting");
     expect(reporting?.pages.some((page) => page.id === "my-vr")).toBe(false);
     expect(reporting?.pages.some((page) => page.id === "my-thp")).toBe(false);
+    expect(reporting?.pages.some((page) => page.id === "my-kills")).toBe(false);
     expect(reporting?.pages.some((page) => page.id === "viral-resistance")).toBe(
       true,
     );
   });
 
-  it("keeps my-vr and my-thp when the user has an alliance member link", () => {
+  it("keeps my-vr, my-thp, and my-kills when the user has an alliance member link", () => {
     const filtered = filterNavGroupsForAllianceMemberLink(NAV_GROUPS, {
       hasAllianceMemberLink: true,
     });
     const reporting = filtered.find((group) => group.id === "performance-reporting");
     expect(reporting?.pages.some((page) => page.id === "my-vr")).toBe(true);
     expect(reporting?.pages.some((page) => page.id === "my-thp")).toBe(true);
+    expect(reporting?.pages.some((page) => page.id === "my-kills")).toBe(true);
   });
 
   it("hides self-service pages for platform admins browsing another alliance", () => {
@@ -152,6 +158,7 @@ describe("filterNavGroupsForAllianceMemberLink", () => {
     const reporting = filtered.find((group) => group.id === "performance-reporting");
     expect(reporting?.pages.some((page) => page.id === "my-vr")).toBe(false);
     expect(reporting?.pages.some((page) => page.id === "my-thp")).toBe(false);
+    expect(reporting?.pages.some((page) => page.id === "my-kills")).toBe(false);
   });
 });
 

@@ -90,6 +90,8 @@
     "myVrDescription": "Track and update your season viral resistance",
     "myThp": "My THP",
     "myThpDescription": "Track and update your total hero power",
+    "myKills": "My Kills",
+    "myKillsDescription": "Track and update your total kill count",
     "trains": "Alliance Train",
     "trainsDescription": "Daily Conductor schedule, wheel rolls, and train lock-in",
     "battlePlan": "Battle Plan",
@@ -1434,6 +1436,7 @@
         "viralResistance": "Go to Viral Resistance",
         "myVr": "Go to My VR",
         "myThp": "Go to My THP",
+        "myKills": "Go to My Kills",
         "professions": "Go to Profession",
         "trains": "Go to Alliance Train",
         "battlePlan": "Go to Battle Plan",
@@ -2999,6 +3002,54 @@
     "screenshotUploadFailed": "Could not process screenshot.",
     "sectionsAriaLabel": "My THP sections"
   },
+  "myKills": {
+    "pageTitle": "My Kills",
+    "pageSubtitle": "Track and update your total kill count.",
+    "heroKillsLabel": "Your kills",
+    "notReportedYet": "Not reported yet",
+    "tabNow": "Now",
+    "tabHistory": "History",
+    "setTotalButton": "Set Total",
+    "setDialogTitle": "Set Total Kills",
+    "setDialogDescription": "Enter your total kill count from Last War.",
+    "setLabel": "Total kills",
+    "setSubmit": "Save",
+    "cancel": "Cancel",
+    "percentileTitle": "Alliance standing",
+    "percentileRank": "Rank {rank} of {count} reporters",
+    "percentileAtOrBelow": "{percentile}% of reporters are at or below your kill count",
+    "percentileNotEnough": "Not enough alliance reports yet for a rank.",
+    "percentileChangeTitle": "Percentile change",
+    "percentileChangeRangeAria": "Percentile change range",
+    "percentileChangeDays30": "30 days",
+    "percentileChangeDays90": "90 days",
+    "percentileChangeDays180": "180 days",
+    "percentileChangeSummary": "{percentileThen}% → {percentileNow}% ({delta})",
+    "percentileChangeNotEnough": "Not enough history yet for this range.",
+    "chartPlaceholder": "Report your kills at least twice to see your progress over time.",
+    "staleReportHint": "Your last kill count report was more than a week ago. Check your kills now to keep your progress accurate.",
+    "analyticsTitle": "Growth",
+    "totalGrowthLabel": "Total growth",
+    "totalGrowthNotEnough": "Report your kills at least twice to see growth stats.",
+    "tableDate": "Date",
+    "tableTotal": "Total kills",
+    "tableSource": "Source",
+    "tableChange": "Change",
+    "tableEmpty": "No kill updates yet.",
+    "source": {
+      "web": "Web",
+      "discord": "Discord",
+      "ashed_sync": "Ashed"
+    },
+    "changeFrom": "{delta} (from {previous})",
+    "changeSet": "Set",
+    "anomalyTitle": "Confirm this kill total?",
+    "anomalyConfirm": "Yes, save it",
+    "anomalyDecline": "No, cancel",
+    "loadFailed": "Could not load your kills data.",
+    "updateFailed": "Could not update kills.",
+    "sectionsAriaLabel": "My Kills sections"
+  },
   "trains": {
     "title": "Alliance Train",
     "subtitle": "Choo-choo, baby!",
@@ -4178,6 +4229,17 @@
       "invalidTotal": "Enter a valid total hero power between 1 and 1,000,000,000.",
       "commanderNotFound": "Could not find your commander in this alliance. Run `/link-commander` first."
     },
+    "kills": {
+      "notLinked": "First, run `/link-commander` on Discord to link your character, then report kills with `/kills total:123456789`.",
+      "pickCharacter": "Which character is this kill count for?",
+      "success": "Got it! Kill count recorded: {total}.",
+      "usage": "Report kills with `/kills total:123456789`.",
+      "unchanged": "That matches your current kill count — no change saved.",
+      "declined": "No problem. Send `/kills` again when you're ready.",
+      "anomalyConfirm": "Are you *sure* your kill count is {total}? That's a big jump ahead of the pack. Tap Yes if you're serious.",
+      "invalidTotal": "Enter a valid kill count between 1 and 50,000,000,000.",
+      "commanderNotFound": "Could not find your commander in this alliance. Run `/link-commander` first."
+    },
     "query": {
       "vrNotLinked": "You don't have a linked commander yet. Run `/link-commander` first, then ask again with `/what-is-my-vr`.",
       "vrNoReport": "**{name}** — no institute level reported this season.",
@@ -4186,7 +4248,11 @@
       "thpNotLinked": "You don't have a linked commander yet. Run `/link-commander` first, then ask again with `/what-is-my-thp`.",
       "thpNoReport": "**{name}** — no total hero power reported yet. Use `/thp` to report.",
       "thpStatus": "**{name}** — total hero power **{total}**.",
-      "thpHeader": "Your linked commanders:"
+      "thpHeader": "Your linked commanders:",
+      "killsNotLinked": "You don't have a linked commander yet. Run `/link-commander` first, then ask again with `/what-is-my-kill-count`.",
+      "killsNoReport": "**{name}** — no kill count reported yet. Use `/kills` to report.",
+      "killsStatus": "**{name}** — kill count **{total}**.",
+      "killsHeader": "Your linked commanders:"
     },
     "weeklyPass": {
       "pickCharacter": "Which commander do you want to apply this change to?",
@@ -5005,5 +5071,21 @@
       "nameRequired": "Name is required.",
       "deleteProjection": "Delete projection"
     }
+  },
+  "statSync": {
+    "title": "HQ ↔ Ashed sync",
+    "subtitle": "Resolve pending THP and kills reports that need to be pushed to Ashed, or keep Ashed when HQ is wrong.",
+    "tabs": {
+      "thp": "THP",
+      "kills": "Kills"
+    },
+    "empty": "No pending sync items for this stat.",
+    "loadFailed": "Failed to load sync review.",
+    "actionFailed": "Action failed.",
+    "hqTotal": "HQ {total}",
+    "pendingOutbound": "pending outbound",
+    "keepHq": "Keep HQ",
+    "keepAshed": "Keep Ashed",
+    "discard": "Discard HQ report"
   }
 }

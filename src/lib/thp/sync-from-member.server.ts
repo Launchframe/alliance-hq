@@ -61,6 +61,8 @@ async function backfillCommanderThpEvent(input: {
     allianceId: input.allianceId,
     reportedByHqUserId: null,
     reportedByDiscordUserId: null,
+    ashedSyncedAt: input.source === "ashed_sync" ? input.createdAt : null,
+    discardedAt: null,
     createdAt: input.createdAt,
   });
   return true;
@@ -116,6 +118,26 @@ export async function syncCommanderThpFromAllianceMember(input: {
 }): Promise<boolean> {
   if (input.total == null || !Number.isFinite(input.total) || input.total <= 0) {
     return false;
+  }
+
+  // Blind ashed_sync must respect monotonic dual-write policy.
+  if (input.source === "ashed_sync") {
+    const { decideAndMaybeApplyInboundStat } = await import(
+      "@/lib/hq-ashed-stat-sync/inbound"
+    );
+    const { thpStatSyncAdapter } = await import(
+      "@/lib/hq-ashed-stat-sync/thp.adapter"
+    );
+    const decision = await decideAndMaybeApplyInboundStat({
+      adapter: thpStatSyncAdapter,
+      commanderId: input.commanderId,
+      allianceId: input.allianceId,
+      ashedMemberId: input.ashedMemberId,
+      memberName: input.memberName,
+      ashedTotal: Math.round(input.total),
+      hqUserId: input.hqUserId,
+    });
+    return decision === "apply";
   }
 
   return upsertCommanderThp({

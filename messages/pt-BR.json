@@ -90,6 +90,8 @@
     "myVrDescription": "Acompanhe e atualize sua resistência viral da temporada",
     "myThp": "Meu THP",
     "myThpDescription": "Acompanhe e atualize seu poder total de heróis",
+    "myKills": "Meus Kills",
+    "myKillsDescription": "Acompanhe e atualize seu total de kills",
     "trains": "Trem da Aliança",
     "trainsDescription": "Agenda diária do Condutor, roleta e confirmação",
     "battlePlan": "Plano de Batalha",
@@ -1434,6 +1436,7 @@
         "viralResistance": "Ir para Resistência Viral",
         "myVr": "Ir para Meu VR",
         "myThp": "Ir para Meu THP",
+        "myKills": "Ir para Meus Kills",
         "professions": "Ir para Profissão",
         "trains": "Ir para Trem da Aliança",
         "battlePlan": "Ir para Plano de Batalha",
@@ -2945,6 +2948,54 @@
     "screenshotUploadFailed": "Não foi possível processar a captura de tela.",
     "sectionsAriaLabel": "Seções do Meu THP"
   },
+  "myKills": {
+    "pageTitle": "Meus Kills",
+    "pageSubtitle": "Acompanhe e atualize seu total de kills.",
+    "heroKillsLabel": "Seus kills",
+    "notReportedYet": "Ainda não informado",
+    "tabNow": "Agora",
+    "tabHistory": "Histórico",
+    "setTotalButton": "Definir Total",
+    "setDialogTitle": "Definir Total de Kills",
+    "setDialogDescription": "Informe seu total de kills do Last War.",
+    "setLabel": "Total de kills",
+    "setSubmit": "Salvar",
+    "cancel": "Cancelar",
+    "percentileTitle": "Posição na aliança",
+    "percentileRank": "Posição {rank} de {count} que reportaram",
+    "percentileAtOrBelow": "{percentile}% dos que reportaram estão no seu total de kills ou abaixo",
+    "percentileNotEnough": "Ainda não há relatórios suficientes na aliança para uma posição.",
+    "percentileChangeTitle": "Mudança de percentil",
+    "percentileChangeRangeAria": "Período de mudança de percentil",
+    "percentileChangeDays30": "30 dias",
+    "percentileChangeDays90": "90 dias",
+    "percentileChangeDays180": "180 dias",
+    "percentileChangeSummary": "{percentileThen}% → {percentileNow}% ({delta})",
+    "percentileChangeNotEnough": "Ainda não há histórico suficiente para este período.",
+    "chartPlaceholder": "Reporte seus kills pelo menos duas vezes para ver seu progresso ao longo do tempo.",
+    "staleReportHint": "Seu último relatório de kills foi há mais de uma semana. Confira seus kills agora para manter seu progresso preciso.",
+    "analyticsTitle": "Crescimento",
+    "totalGrowthLabel": "Crescimento total",
+    "totalGrowthNotEnough": "Reporte seus kills pelo menos duas vezes para ver estatísticas de crescimento.",
+    "tableDate": "Data",
+    "tableTotal": "Total de kills",
+    "tableSource": "Origem",
+    "tableChange": "Mudança",
+    "tableEmpty": "Nenhuma atualização de kills ainda.",
+    "source": {
+      "web": "Web",
+      "discord": "Discord",
+      "ashed_sync": "Ashed"
+    },
+    "changeFrom": "{delta} (de {previous})",
+    "changeSet": "Definido",
+    "anomalyTitle": "Confirmar este total de kills?",
+    "anomalyConfirm": "Sim, salvar",
+    "anomalyDecline": "Não, cancelar",
+    "loadFailed": "Não foi possível carregar seus dados de kills.",
+    "updateFailed": "Não foi possível atualizar os kills.",
+    "sectionsAriaLabel": "Seções de Meus Kills"
+  },
   "trains": {
     "title": "Trem da Aliança",
     "subtitle": "Gerencie o ritual diário do Condutor — agenda, roleta e confirmação.",
@@ -4124,6 +4175,17 @@
       "invalidTotal": "Informe um THP total válido entre 1 e 1.000.000.000.",
       "commanderNotFound": "Não foi possível encontrar seu comandante nesta aliança. Execute `/link-commander` primeiro."
     },
+    "kills": {
+      "notLinked": "Primeiro, execute `/link-commander` no Discord para vincular seu personagem; depois informe os kills com `/kills total:123456789`.",
+      "pickCharacter": "Para qual personagem é este total de kills?",
+      "success": "Entendido! Total de kills registrado: {total}.",
+      "usage": "Informe os kills com `/kills total:123456789`.",
+      "unchanged": "Isso corresponde ao seu total de kills atual — nenhuma alteração salva.",
+      "declined": "Sem problemas. Envie `/kills` novamente quando estiver pronto.",
+      "anomalyConfirm": "Tem *certeza* de que seu total de kills é {total}? Esse é um salto grande à frente do grupo. Toque Sim se for sério.",
+      "invalidTotal": "Informe um total de kills válido entre 1 e 50.000.000.000.",
+      "commanderNotFound": "Não foi possível encontrar seu comandante nesta aliança. Execute `/link-commander` primeiro."
+    },
     "query": {
       "vrNotLinked": "Você ainda não tem um comandante vinculado. Execute `/link-commander` e depois pergunte com `/what-is-my-vr`.",
       "vrNoReport": "**{name}** — nenhum nível do instituto informado nesta temporada.",
@@ -4132,7 +4194,11 @@
       "thpNotLinked": "Você ainda não tem um comandante vinculado. Execute `/link-commander` e depois pergunte com `/what-is-my-thp`.",
       "thpNoReport": "**{name}** — nenhum poder total de heróis informado ainda. Use `/thp` para informar.",
       "thpStatus": "**{name}** — poder total de heróis **{total}**.",
-      "thpHeader": "Seus comandantes vinculados:"
+      "thpHeader": "Seus comandantes vinculados:",
+      "killsNotLinked": "Você ainda não tem um comandante vinculado. Execute `/link-commander` e depois pergunte com `/what-is-my-kill-count`.",
+      "killsNoReport": "**{name}** — nenhum total de kills informado ainda. Use `/kills` para informar.",
+      "killsStatus": "**{name}** — total de kills **{total}**.",
+      "killsHeader": "Seus comandantes vinculados:"
     },
     "weeklyPass": {
       "pickCharacter": "Para qual comandante você quer aplicar esta alteração?",
@@ -5005,5 +5071,21 @@
       "nameRequired": "O nome é obrigatório.",
       "deleteProjection": "Excluir projeção"
     }
+  },
+  "statSync": {
+    "title": "Sincronização HQ ↔ Ashed",
+    "subtitle": "Resolva relatórios de THP e kills pendentes para enviar ao Ashed, ou mantenha o Ashed quando o HQ estiver errado.",
+    "tabs": {
+      "thp": "THP",
+      "kills": "Kills"
+    },
+    "empty": "Nenhum item pendente para este status.",
+    "loadFailed": "Falha ao carregar a revisão de sincronização.",
+    "actionFailed": "Ação falhou.",
+    "hqTotal": "HQ {total}",
+    "pendingOutbound": "saída pendente",
+    "keepHq": "Manter HQ",
+    "keepAshed": "Manter Ashed",
+    "discard": "Descartar relatório HQ"
   }
 }
