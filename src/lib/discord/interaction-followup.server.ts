@@ -1,3 +1,5 @@
+import "server-only";
+
 import { truncateDiscordContent } from "@/lib/discord/post-message.server";
 
 export type DiscordFollowupMessage = {
