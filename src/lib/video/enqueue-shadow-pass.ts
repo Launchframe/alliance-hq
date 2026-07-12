@@ -2,7 +2,6 @@ import { nanoid } from "nanoid";
 import { eq, and } from "drizzle-orm";
 
 import { getDb, schema } from "@/lib/db";
-import type { ExtractionConfig } from "@/lib/video/pass-definitions";
 import { dispatchVideoProcessing } from "@/lib/video/trigger-processing";
 import { SHADOW_PASS_AB } from "@/lib/video/pass-definitions";
 
@@ -28,6 +27,11 @@ export function isShadowEligible(params: {
   return { eligible: true, reason: "eligible" };
 }
 
+/**
+ * Optionally enqueue an extraction-engine shadow sibling (e.g. denser scene
+ * threshold for comparison). Experiment arm parse configs are NOT applied here —
+ * primary A/B stamps the officer-facing job at finalize/activate.
+ */
 export async function maybeEnqueueShadowPass(params: {
   job: {
     id: string;
@@ -76,45 +80,8 @@ export async function maybeEnqueueShadowPass(params: {
     return;
   }
 
-  // Determine shadow config from experiment arm, if assigned
-  let shadowConfig: ExtractionConfig = SHADOW_PASS_AB;
-  let resolvedShadowPassKey = "scene_0.1";
-
-  const [group] = await db
-    .select({ experimentArmId: schema.videoUploadGroups.experimentArmId })
-    .from(schema.videoUploadGroups)
-    .where(eq(schema.videoUploadGroups.id, job.groupId))
-    .limit(1);
-
-  if (group?.experimentArmId) {
-    const [arm] = await db
-      .select({ configId: schema.experimentArms.configId })
-      .from(schema.experimentArms)
-      .where(eq(schema.experimentArms.id, group.experimentArmId))
-      .limit(1);
-
-    if (arm) {
-      if (arm.configId === null) {
-        // Control arm with no configId — skip shadow pass
-        return;
-      }
-
-      const [parseConfig] = await db
-        .select({
-          passKey: schema.parseConfigs.passKey,
-          configJson: schema.parseConfigs.configJson,
-        })
-        .from(schema.parseConfigs)
-        .where(eq(schema.parseConfigs.id, arm.configId))
-        .limit(1);
-
-      if (parseConfig) {
-        shadowConfig = parseConfig.configJson as ExtractionConfig;
-        resolvedShadowPassKey = parseConfig.passKey;
-      }
-    }
-  }
-
+  const shadowConfig = SHADOW_PASS_AB;
+  const resolvedShadowPassKey = "scene_0.1";
   const shadowJobId = nanoid(16);
   const now = new Date();
 

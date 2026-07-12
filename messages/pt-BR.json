@@ -960,7 +960,7 @@
     },
     "experimentsPage": {
       "title": "Experimentos",
-      "subtitle": "Campanhas A/B para testar configurações de análise.",
+      "subtitle": "Campanhas A/B que aplicam configurações de análise no job principal revisado pelos oficiais.",
       "newCampaign": "Nova campanha",
       "cancel": "Cancelar",
       "create": "Criar campanha",
@@ -975,8 +975,8 @@
         "title": "Grupos",
         "add": "Adicionar grupo",
         "loadConfigs": "Carregando configurações…",
-        "configDefault": "Padrão (sem passagem shadow — comportamento do grupo controle)",
-        "configPickerLabel": "Configuração de análise",
+        "configDefault": "Primária de produção em vigor (controle — atribuição ou padrão)",
+        "configPickerLabel": "Configuração de análise (aplica no job principal deste grupo)",
         "deltaNote": "Δ de 👍 % é relativo ao grupo controle.",
         "form": {
           "name": "Nome do grupo",
@@ -1038,14 +1038,14 @@
         "noData": "Dados insuficientes para renderizar o gráfico."
       },
       "promote": {
-        "title": "Promover grupo vencedor como passagem principal",
-        "hint": "Criar uma atribuição de configuração torna a configuração do grupo selecionado o padrão para novos uploads com este score target. Vídeos já processados não serão reprocessados.",
+        "title": "Promover grupo vencedor como padrão permanente",
+        "hint": "Cria uma atribuição de configuração para que novos uploads usem esta análise quando não houver experimento ativo. Campanhas ativas ainda fazem A/B na primária; vídeos já processados não são reprocessados.",
         "selectArm": "Selecionar grupo para promover",
         "notes": "Notas (opcional)",
-        "notesPlaceholder": "ex.: scene_0.33 superou o controle em 12pp no zombie_siege",
+        "notesPlaceholder": "ex.: fps_3 superou o controle em 12pp no bank-deposit-slip-history",
         "confirmCta": "Criar atribuição",
         "successTitle": "Atribuição de configuração criada",
-        "successHint": "Novos uploads para este score target usarão a configuração promovida como passagem principal.",
+        "successHint": "Novos uploads para este score target usam a configuração promovida como primária permanente fora de experimentos ativos.",
         "conflictError": "Já existe uma atribuição para este escopo. Acesse Configurações de análise para atualizá-la.",
         "noVariantArms": "Nenhum grupo variante com configuração disponível para promover."
       },

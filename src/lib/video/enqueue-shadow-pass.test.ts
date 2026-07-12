@@ -79,9 +79,9 @@ beforeEach(() => {
   dispatchVideoProcessing.mockClear();
 });
 
-/** Default: no existing shadow, group has no experiment arm */
-function mockNoExperimentShadowPath() {
-  mockState.selectResults = [[], [{ experimentArmId: null }]];
+/** Default: no existing shadow */
+function mockNoExistingShadow() {
+  mockState.selectResults = [[]];
 }
 
 describe("isShadowEligible", () => {
@@ -160,7 +160,7 @@ describe("maybeEnqueueShadowPass", () => {
   });
 
   it("inserts shadow job and dispatches when all eligibility criteria are met", async () => {
-    mockNoExperimentShadowPath();
+    mockNoExistingShadow();
 
     await maybeEnqueueShadowPass({
       job: primaryJob,
@@ -179,6 +179,21 @@ describe("maybeEnqueueShadowPass", () => {
     // dispatch is fire-and-forget (void), so we just check it was called
     await Promise.resolve(); // flush microtasks
     expect(dispatchVideoProcessing).toHaveBeenCalledWith("shadow-job-id", { source: "shadow_pass" });
+  });
+
+  it("does not read experiment arm config for shadow extraction", async () => {
+    mockNoExistingShadow();
+
+    await maybeEnqueueShadowPass({
+      job: primaryJob,
+      totalMs: 5000,
+      frameCount: 5,
+    });
+
+    // Only one select: existing-shadow check. No group/arm/parseConfig lookups.
+    expect(mockDb.select).toHaveBeenCalledOnce();
+    const insertedValues = mockState.insertedValues[0] as Record<string, unknown>;
+    expect(insertedValues.passKey).toBe("scene_0.1");
   });
 
   it("skips insert when an existing shadow job already exists for the group", async () => {

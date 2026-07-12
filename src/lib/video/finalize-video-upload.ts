@@ -4,11 +4,7 @@ import { writeAuditLog } from "@/lib/bff/audit";
 import { emitVideoJobStatus } from "@/lib/events/video-jobs";
 import { videoJobStatusOwnerFields } from "@/lib/video/video-job-access.shared";
 import { getDb, schema } from "@/lib/db";
-import { DEFAULT_PRIMARY_PASS } from "@/lib/video/pass-definitions";
-import {
-  assignExperiment,
-  lookupConfigAssignment,
-} from "@/lib/video/experiment-assignment";
+import { resolvePrimaryExtractionForUpload } from "@/lib/video/experiment-assignment";
 
 export type FinalizeVideoUploadInput = {
   sessionId: string;
@@ -28,6 +24,9 @@ export type FinalizeVideoUploadInput = {
  * Persist an uploaded video as a job awaiting processor approval. OCR is not
  * dispatched here — a designated video processor must approve the job (which
  * binds their Ashed credential) before it runs. See the enqueue/process plan.
+ *
+ * When an active extraction experiment applies, the primary job is stamped with
+ * the assigned arm's parse config (control → standing assignment / default).
  */
 export async function finalizeVideoUploadEnqueue(
   input: FinalizeVideoUploadInput,
@@ -35,19 +34,10 @@ export async function finalizeVideoUploadEnqueue(
   const db = getDb();
   const now = new Date();
 
-  const [configAssignment, expAssignment] = await Promise.all([
-    lookupConfigAssignment({
-      scoreTarget: input.scoreTarget,
-      boardKey: input.boardKey,
-    }),
-    assignExperiment({
-      scoreTarget: input.scoreTarget,
-      boardKey: input.boardKey,
-    }),
-  ]);
-
-  const primaryConfig = configAssignment?.configJson ?? DEFAULT_PRIMARY_PASS;
-  const primaryPassKey = configAssignment?.passKey ?? "scene_0.25";
+  const primary = await resolvePrimaryExtractionForUpload({
+    scoreTarget: input.scoreTarget,
+    boardKey: input.boardKey,
+  });
 
   await db.insert(schema.videoUploadGroups).values({
     id: input.groupId,
@@ -63,8 +53,8 @@ export async function finalizeVideoUploadEnqueue(
     selectedJobId: input.jobId,
     accuracyJobId: null,
     comparisonJson: null,
-    experimentCampaignId: expAssignment?.campaignId ?? null,
-    experimentArmId: expAssignment?.armId ?? null,
+    experimentCampaignId: primary.experimentCampaignId,
+    experimentArmId: primary.experimentArmId,
     createdAt: now,
     updatedAt: now,
   });
@@ -87,10 +77,10 @@ export async function finalizeVideoUploadEnqueue(
     frameCount: null,
     uploadedFrameCount: 0,
     groupId: input.groupId,
-    passKey: primaryPassKey,
+    passKey: primary.passKey,
     passIndex: 0,
     passRole: "primary",
-    extractionConfigJson: primaryConfig,
+    extractionConfigJson: primary.configJson,
     r2UploadId: null,
     expectedFileSizeBytes: null,
     createdAt: now,

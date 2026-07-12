@@ -4,11 +4,7 @@ import { writeAuditLog } from "@/lib/bff/audit";
 import { emitVideoJobStatus } from "@/lib/events/video-jobs";
 import { videoJobStatusOwnerFields } from "@/lib/video/video-job-access.shared";
 import { getDb, schema } from "@/lib/db";
-import { DEFAULT_PRIMARY_PASS } from "@/lib/video/pass-definitions";
-import {
-  assignExperiment,
-  lookupConfigAssignment,
-} from "@/lib/video/experiment-assignment";
+import { resolvePrimaryExtractionForUpload } from "@/lib/video/experiment-assignment";
 
 export async function activatePendingVideoUpload(
   jobId: string,
@@ -35,13 +31,10 @@ export async function activatePendingVideoUpload(
   const scoreTarget = job.scoreTarget ?? job.category ?? "desert-storm";
   const boardKeyStr = job.boardKey ?? null;
 
-  const [configAssignment, expAssignment] = await Promise.all([
-    lookupConfigAssignment({ scoreTarget, boardKey: boardKeyStr }),
-    assignExperiment({ scoreTarget, boardKey: boardKeyStr }),
-  ]);
-
-  const primaryConfig = configAssignment?.configJson ?? DEFAULT_PRIMARY_PASS;
-  const primaryPassKey = configAssignment?.passKey ?? "scene_0.25";
+  const primary = await resolvePrimaryExtractionForUpload({
+    scoreTarget,
+    boardKey: boardKeyStr,
+  });
   const now = new Date();
 
   await db
@@ -50,8 +43,8 @@ export async function activatePendingVideoUpload(
       fileSizeBytes: fileSizeBytes,
       primaryJobId: jobId,
       selectedJobId: jobId,
-      experimentCampaignId: expAssignment?.campaignId ?? null,
-      experimentArmId: expAssignment?.armId ?? null,
+      experimentCampaignId: primary.experimentCampaignId,
+      experimentArmId: primary.experimentArmId,
       updatedAt: now,
     })
     .where(eq(schema.videoUploadGroups.id, job.groupId));
@@ -61,10 +54,10 @@ export async function activatePendingVideoUpload(
     .set({
       status: "pending_approval",
       fileSizeBytes: fileSizeBytes,
-      passKey: primaryPassKey,
+      passKey: primary.passKey,
       passIndex: 0,
       passRole: "primary",
-      extractionConfigJson: primaryConfig,
+      extractionConfigJson: primary.configJson,
       r2UploadId: null,
       expectedFileSizeBytes: null,
       updatedAt: now,
