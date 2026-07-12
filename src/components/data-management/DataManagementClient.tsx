@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { ArrowRight, Database, Trash2 } from "lucide-react";
 
@@ -16,6 +17,15 @@ type ScoreTargetOption = {
 
 type BatchRow = DataBatchRow & { canMove: boolean; canDelete: boolean };
 
+type BatchScoreRow = {
+  id: string | null;
+  memberId: string | null;
+  memberName: string | null;
+  score: number | string | null;
+  rank: number | null;
+  team: string | null;
+};
+
 type Props = {
   initialBatches: BatchRow[];
   scoreTargets: ScoreTargetOption[];
@@ -29,24 +39,44 @@ export function DataManagementClient({
 }: Props) {
   const t = useTranslations("dataManagement");
   const tNav = useTranslations("nav");
-  const [scoreTarget, setScoreTarget] = useState(initialScoreTarget);
-  const [batches, setBatches] = useState(initialBatches);
-  const [selectedId, setSelectedId] = useState<string | null>(
-    initialBatches[0]?.id ?? null,
+  const tReview = useTranslations("videoReview");
+  const searchParams = useSearchParams();
+  const queryTarget = searchParams.get("scoreTarget")?.trim();
+  const queryDate = searchParams.get("recordedDate")?.trim();
+
+  const [scoreTarget, setScoreTarget] = useState(
+    queryTarget && scoreTargets.some((target) => target.id === queryTarget)
+      ? queryTarget
+      : initialScoreTarget,
   );
+  const [batches, setBatches] = useState(initialBatches);
+  const [selectedId, setSelectedId] = useState<string | null>(() => {
+    if (queryDate) {
+      const match = initialBatches.find(
+        (batch) => batch.recordedDate === queryDate,
+      );
+      if (match) return match.id;
+    }
+    return initialBatches[0]?.id ?? null;
+  });
   const [moveDate, setMoveDate] = useState("");
   const [acting, setActing] = useState<"move" | "delete" | null>(null);
   const [pendingDelete, setPendingDelete] = useState<BatchRow | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [scores, setScores] = useState<BatchScoreRow[]>([]);
+  const [scoresLoading, setScoresLoading] = useState(false);
+  const [scoresError, setScoresError] = useState<string | null>(null);
 
   const selected = useMemo(
     () => batches.find((batch) => batch.id === selectedId) ?? null,
     [batches, selectedId],
   );
 
+  const displayedScores = selectedId ? scores : [];
+
   const refreshBatches = useCallback(
-    async (nextScoreTarget: string) => {
+    async (nextScoreTarget: string, preferDate?: string | null) => {
       setLoading(true);
       setError(null);
       try {
@@ -62,11 +92,17 @@ export function DataManagementClient({
         }
         const nextBatches = data.batches ?? [];
         setBatches(nextBatches);
-        setSelectedId((current) =>
-          nextBatches.some((batch) => batch.id === current)
+        setSelectedId((current) => {
+          if (preferDate) {
+            const byDate = nextBatches.find(
+              (batch) => batch.recordedDate === preferDate,
+            );
+            if (byDate) return byDate.id;
+          }
+          return nextBatches.some((batch) => batch.id === current)
             ? current
-            : (nextBatches[0]?.id ?? null),
-        );
+            : (nextBatches[0]?.id ?? null);
+        });
       } catch (err) {
         setError(err instanceof Error ? err.message : t("loadFailed"));
       } finally {
@@ -75,6 +111,48 @@ export function DataManagementClient({
     },
     [t],
   );
+
+  useEffect(() => {
+    if (!selectedId) return;
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        setScoresLoading(true);
+        setScoresError(null);
+        setScores([]);
+        try {
+          const res = await fetch(
+            `/api/data-management/batches/${selectedId}/scores`,
+            { signal: controller.signal },
+          );
+          const data = (await res.json()) as {
+            scores?: BatchScoreRow[];
+            error?: string;
+          };
+          if (!res.ok) {
+            throw new Error(data.error ?? t("scoresLoadFailed"));
+          }
+          if (!controller.signal.aborted) {
+            setScores(data.scores ?? []);
+          }
+        } catch (err) {
+          if (controller.signal.aborted) return;
+          setScores([]);
+          setScoresError(
+            err instanceof Error ? err.message : t("scoresLoadFailed"),
+          );
+        } finally {
+          if (!controller.signal.aborted) {
+            setScoresLoading(false);
+          }
+        }
+      })();
+    }, 0);
+    return () => {
+      controller.abort();
+      window.clearTimeout(timer);
+    };
+  }, [selectedId, t]);
 
   async function handleTargetChange(nextTarget: string) {
     setScoreTarget(nextTarget);
@@ -129,6 +207,12 @@ export function DataManagementClient({
     }
   }
 
+  function teamLabel(team: string | undefined): string | null {
+    if (team === "A") return tReview("teamA");
+    if (team === "B") return tReview("teamB");
+    return null;
+  }
+
   return (
     <div className="space-y-4">
       <div>
@@ -172,6 +256,7 @@ export function DataManagementClient({
             ) : (
               batches.map((batch) => {
                 const active = batch.id === selectedId;
+                const team = teamLabel(batch.contextJson.team);
                 return (
                   <button
                     key={batch.id}
@@ -189,6 +274,11 @@ export function DataManagementClient({
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <p className="font-medium">{batch.recordedDate}</p>
+                        {team ? (
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            {team}
+                          </p>
+                        ) : null}
                         <p className="mt-1 text-xs text-muted-foreground">
                           {t("uploadedAt")}:{" "}
                           <FormattedDateTime
@@ -231,11 +321,21 @@ export function DataManagementClient({
               <div className="flex items-center gap-2">
                 <Database className="h-5 w-5 text-muted-foreground" />
                 <h2 className="text-lg font-semibold">{selected.recordedDate}</h2>
+                {teamLabel(selected.contextJson.team) ? (
+                  <span className="rounded-full border border-border px-2 py-0.5 text-xs">
+                    {teamLabel(selected.contextJson.team)}
+                  </span>
+                ) : null}
               </div>
               <dl className="grid gap-3 text-sm sm:grid-cols-2">
                 <div>
                   <dt className="text-muted-foreground">{t("scoreTarget")}</dt>
-                  <dd>{tNav(scoreTargets.find((t) => t.id === selected.scoreTarget)?.labelKey ?? "desertStorm")}</dd>
+                  <dd>
+                    {tNav(
+                      scoreTargets.find((t) => t.id === selected.scoreTarget)
+                        ?.labelKey ?? "desertStorm",
+                    )}
+                  </dd>
                 </div>
                 <div>
                   <dt className="text-muted-foreground">{t("entity")}</dt>
@@ -257,12 +357,65 @@ export function DataManagementClient({
                 </div>
               </dl>
 
+              <div className="border-t border-border pt-4">
+                <h3 className="text-sm font-medium">{t("scoresHeading")}</h3>
+                {scoresLoading ? (
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    {t("scoresLoading")}
+                  </p>
+                ) : scoresError ? (
+                  <p className="mt-2 text-sm text-destructive">{scoresError}</p>
+                ) : displayedScores.length === 0 ? (
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    {t("scoresEmpty")}
+                  </p>
+                ) : (
+                  <div className="mt-3 max-h-80 overflow-auto rounded-lg border border-border">
+                    <table className="w-full text-left text-sm">
+                      <thead className="bg-muted/40 text-xs text-muted-foreground">
+                        <tr>
+                          <th className="px-3 py-2 font-medium">
+                            {t("scoresMember")}
+                          </th>
+                          <th className="px-3 py-2 font-medium">
+                            {t("scoresScore")}
+                          </th>
+                          <th className="px-3 py-2 font-medium">
+                            {t("scoresRank")}
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {displayedScores.map((row, index) => (
+                          <tr
+                            key={row.id ?? `${row.memberId}-${index}`}
+                            className="border-t border-border"
+                          >
+                            <td className="px-3 py-2">
+                              {row.memberName ?? "—"}
+                            </td>
+                            <td className="px-3 py-2 tabular-nums">
+                              {row.score ?? "—"}
+                            </td>
+                            <td className="px-3 py-2 tabular-nums">
+                              {row.rank ?? "—"}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
               {selected.canMove || selected.canDelete ? (
                 <div className="space-y-3 border-t border-border pt-4">
                   {selected.canMove ? (
                     <div className="flex flex-wrap items-end gap-2">
                       <label className="flex flex-col gap-1 text-sm">
-                        <span className="text-muted-foreground">{t("moveToDate")}</span>
+                        <span className="text-muted-foreground">
+                          {t("moveToDate")}
+                        </span>
                         <input
                           type="date"
                           value={moveDate}
@@ -294,7 +447,9 @@ export function DataManagementClient({
                   ) : null}
                 </div>
               ) : (
-                <p className="text-sm text-muted-foreground">{t("readOnlyBatch")}</p>
+                <p className="text-sm text-muted-foreground">
+                  {t("readOnlyBatch")}
+                </p>
               )}
             </div>
           ) : (

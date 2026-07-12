@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { resolveSessionAllianceId } from "@/lib/alliance/session-memberships";
+import { getAshedAllianceIdIfLinked } from "@/lib/alliance/ashed-write-guard";
 import { getAshedConnection, getOrCreateSession } from "@/lib/session";
 import { getScoreTargetOrThrow } from "@/lib/video/score-targets";
 import { isStormTeam } from "@/lib/video/storm-score-overlap.shared";
@@ -65,9 +66,11 @@ export async function GET(request: Request, { params }: Props) {
     }
 
     const connection = await getAshedConnection(session.id);
+    const ashedAllianceId = await getAshedAllianceIdIfLinked(allianceId);
     const result = await findStormScoreOverlap({
       connection,
       allianceId,
+      ashedAllianceId,
       scoreTargetId,
       eventId,
       team,

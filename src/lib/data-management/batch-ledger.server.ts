@@ -158,6 +158,34 @@ export async function markDataBatchDeleted(
     );
 }
 
+/** Soft-delete active ledger rows that match a replace-submit context. */
+export async function markMatchingDataBatchesDeleted(input: {
+  allianceId: string;
+  scoreTarget: string;
+  recordedDate: string;
+  eventId: string;
+  team: string | null;
+}): Promise<number> {
+  const rows = await listAllianceDataBatches({
+    allianceId: input.allianceId,
+    scoreTarget: input.scoreTarget,
+    status: "active",
+  });
+  const matching = rows.filter((batch) => {
+    if (batch.recordedDate !== input.recordedDate) return false;
+    if (batch.contextJson.eventId !== input.eventId) return false;
+    const batchTeam = batch.contextJson.team ?? null;
+    if (input.team == null) {
+      return batchTeam == null;
+    }
+    return batchTeam === input.team;
+  });
+  for (const batch of matching) {
+    await markDataBatchDeleted(batch.id, input.allianceId);
+  }
+  return matching.length;
+}
+
 export async function markDataBatchMoved(
   batchId: string,
   allianceId: string,

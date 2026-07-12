@@ -1309,7 +1309,14 @@
     "moveFailed": "Não foi possível mover o lote.",
     "selectDateTitle": "Selecione uma data",
     "selectDateBody": "Selecione uma data na lista para ver os detalhes do lote.",
-    "readOnlyBatch": "Você pode ver este lote, mas não pode movê-lo nem excluí-lo."
+    "readOnlyBatch": "Você pode ver este lote, mas não pode movê-lo nem excluí-lo.",
+    "scoresHeading": "Pontuações neste lote",
+    "scoresLoading": "Carregando pontuações…",
+    "scoresEmpty": "Nenhuma pontuação encontrada neste lote.",
+    "scoresLoadFailed": "Não foi possível carregar as pontuações.",
+    "scoresMember": "Membro",
+    "scoresScore": "Pontuação",
+    "scoresRank": "Colocação"
   },
   "videoQueue": {
     "title": "Fila de vídeos",
@@ -3603,7 +3610,8 @@
     "teamLabel": "Equipe",
     "teamA": "Equipe A",
     "teamB": "Equipe B",
-    "existingStormScoresWarning": "Parece que as pontuações já foram enviadas para {eventName} Equipe {team}. Confira as pontuações em ashed.online.",
+    "existingStormScoresWarning": "Já existem pontuações para {eventName} Equipe {team}. Salvar substitui esse lote no mesmo evento. Abra o Gerenciamento de Dados para revisar ou excluir o lote antes se precisar recomeçar do zero.",
+    "openDataManagement": "Abrir Gerenciamento de Dados",
     "dateLabel": "Data registrada",
     "colName": "Nome",
     "colMember": "Membro correspondido",
