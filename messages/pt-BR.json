@@ -4185,6 +4185,7 @@
       "unchanged": "Isso corresponde ao seu THP atual — nenhuma alteração salva.",
       "declined": "Sem problemas. Envie `/thp` novamente quando estiver pronto.",
       "anomalyConfirm": "Tem *certeza* de que seu THP total é {total}? Esse é um salto grande à frente do grupo. Toque Sim se for sério.",
+      "ocrConfirm": "Li o poder total de heróis como **{total}**. Toque Sim para salvar, ou Não para cancelar.",
       "ocrFailed": "Não foi possível ler essa captura. Tente uma imagem mais nítida da tela Power Details ou informe `/thp total:163460435` manualmente.",
       "invalidTotal": "Informe um THP total válido entre 1 e 1.000.000.000.",
       "commanderNotFound": "Não foi possível encontrar seu comandante nesta aliança. Execute `/link-commander` primeiro."
@@ -4202,6 +4203,7 @@
       "unchanged": "Isso corresponde ao seu total de kills atual — nenhuma alteração salva.",
       "declined": "Sem problemas. Envie `/kills` novamente quando estiver pronto.",
       "anomalyConfirm": "Tem *certeza* de que seu total de kills é {total}? Esse é um salto grande à frente do grupo. Toque Sim se for sério.",
+      "ocrConfirm": "Li o total de kills como **{total}**. Toque Sim para salvar, ou Não para cancelar.",
       "ocrFailed": "Não foi possível ler essa captura. Tente uma imagem mais nítida do total de kills ou informe `/kills total:123456789` manualmente.",
       "invalidTotal": "Informe um total de kills válido entre 1 e 50.000.000.000.",
       "commanderNotFound": "Não foi possível encontrar seu comandante nesta aliança. Execute `/link-commander` primeiro."

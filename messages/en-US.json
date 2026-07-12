@@ -4239,6 +4239,7 @@
       "unchanged": "That matches your current total hero power — no change saved.",
       "declined": "No problem. Send `/thp` again when you're ready.",
       "anomalyConfirm": "Are you *sure* your total hero power is {total}? That's a big jump ahead of the pack. Tap Yes if you're serious.",
+      "ocrConfirm": "I read total hero power as **{total}**. Tap Yes to save, or No to cancel.",
       "ocrFailed": "Couldn't read that screenshot. Try a clearer Power Details capture or enter `/thp total:163460435` manually.",
       "invalidTotal": "Enter a valid total hero power between 1 and 1,000,000,000.",
       "commanderNotFound": "Could not find your commander in this alliance. Run `/link-commander` first."
@@ -4256,6 +4257,7 @@
       "unchanged": "That matches your current kill count — no change saved.",
       "declined": "No problem. Send `/kills` again when you're ready.",
       "anomalyConfirm": "Are you *sure* your kill count is {total}? That's a big jump ahead of the pack. Tap Yes if you're serious.",
+      "ocrConfirm": "I read kill count as **{total}**. Tap Yes to save, or No to cancel.",
       "ocrFailed": "Couldn't read that screenshot. Try a clearer kill-count capture or enter `/kills total:123456789` manually.",
       "invalidTotal": "Enter a valid kill count between 1 and 50,000,000,000.",
       "commanderNotFound": "Could not find your commander in this alliance. Run `/link-commander` first."

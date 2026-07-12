@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import { getLocale } from "next-intl/server";
 
 import { handleWebKillsCommand } from "@/lib/kills/web-kills.server";
+import {
+  MAX_SCREENSHOT_UPLOAD_BYTES,
+  SCREENSHOT_TOO_LARGE_ERROR,
+} from "@/lib/ocr/screenshot-upload.shared";
 import { requireSessionPermission } from "@/lib/rbac/require-permission";
 import { getOrCreateSession } from "@/lib/session";
 
@@ -29,6 +33,14 @@ export async function POST(request: Request) {
     const confirmRaw = form.get("confirm");
     const confirm =
       confirmRaw === "yes" || confirmRaw === "no" ? confirmRaw : null;
+
+    if (screenshot instanceof File && screenshot.size > MAX_SCREENSHOT_UPLOAD_BYTES) {
+      return NextResponse.json(
+        { error: SCREENSHOT_TOO_LARGE_ERROR },
+        { status: 413 },
+      );
+    }
+
     const screenshotBuffer =
       screenshot instanceof File
         ? Buffer.from(await screenshot.arrayBuffer())

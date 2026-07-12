@@ -5,6 +5,7 @@ import {
   getScoreTargetIdForNavHref,
   jobMatchesScoreTarget,
   parseVideoUploadBankIdParam,
+  parseVideoUploadBoardKeyParam,
   parseVideoUploadScoreTargetParam,
 } from "@/lib/video/score-target-nav";
 
@@ -50,6 +51,14 @@ describe("score-target-nav", () => {
     expect(parseVideoUploadBankIdParam("  bank_abc  ")).toBe("bank_abc");
     expect(parseVideoUploadBankIdParam("")).toBeNull();
     expect(parseVideoUploadBankIdParam(undefined)).toBeNull();
+  });
+
+  it("parses boardKey only when allowed for the score target", () => {
+    expect(parseVideoUploadBoardKeyParam("kills", "seasonal")).toBe("kills");
+    expect(parseVideoUploadBoardKeyParam("nope", "seasonal")).toBeNull();
+    expect(parseVideoUploadBoardKeyParam("kills", "donations")).toBeNull();
+    expect(parseVideoUploadBoardKeyParam("kills")).toBe("kills");
+    expect(parseVideoUploadBoardKeyParam("")).toBeNull();
   });
 
   it("matches jobs on scoreTarget or legacy category", () => {

@@ -61,19 +61,24 @@ function applyProposed(
   confirmKind: "anomaly_confirm" | "ocr_confirm" = "anomaly_confirm",
 ): KillsCommandResult {
   const { translate: t } = input;
-  if (
-    shouldKillsAnomalyConfirm({
-      proposedTotal,
-      reporterCount: input.reporterCount,
-      peerMax: input.peerMax,
-    })
-  ) {
+  const isAnomaly = shouldKillsAnomalyConfirm({
+    proposedTotal,
+    reporterCount: input.reporterCount,
+    peerMax: input.peerMax,
+  });
+
+  // Screenshot OCR always requires a read-back confirm (even when not anomalous).
+  if (confirmKind === "ocr_confirm" || isAnomaly) {
     return {
-      reply: t("kills.anomalyConfirm", {
-        total: formatKillsTotalForDiscord(proposedTotal),
-      }),
+      reply: isAnomaly
+        ? t("kills.anomalyConfirm", {
+            total: formatKillsTotalForDiscord(proposedTotal),
+          })
+        : t("kills.ocrConfirm", {
+            total: formatKillsTotalForDiscord(proposedTotal),
+          }),
       pending: {
-        kind: confirmKind,
+        kind: confirmKind === "ocr_confirm" ? "ocr_confirm" : "anomaly_confirm",
         proposedTotal,
         commanderId: input.commanderId,
       },

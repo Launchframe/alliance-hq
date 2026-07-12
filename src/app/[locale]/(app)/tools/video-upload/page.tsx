@@ -60,7 +60,10 @@ export default async function VideoUploadPage({ searchParams }: Props) {
     await searchParams;
   const contextScoreTarget = parseVideoUploadScoreTargetParam(scoreTargetParam);
   const contextBankId = parseVideoUploadBankIdParam(bankIdParam);
-  const contextBoardKey = parseVideoUploadBoardKeyParam(boardKeyParam);
+  const contextBoardKey = parseVideoUploadBoardKeyParam(
+    boardKeyParam,
+    contextScoreTarget,
+  );
   const session = await requirePageSession();
   const db = getDb();
   const [rows, memberName, canProcess, ashedConnection] = await Promise.all([

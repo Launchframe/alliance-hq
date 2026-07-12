@@ -63,7 +63,7 @@ export async function ocrDepositSlipNativeFrames(
             source: "video_deposit_slip_native",
             durationMs: ms,
             rawLineCount: result.rawLines.length,
-            lines: result.rawLines,
+            // Omit OCR text lines — deposit slips can include member names / amounts (PII).
             parsedOk: slips.length > 0,
             entryCount: slips.length,
             frameIndex: frame.index,

@@ -35,9 +35,16 @@ export function buildVideoUploadHref(
 
 export function parseVideoUploadBoardKeyParam(
   value: string | undefined,
+  scoreTargetId?: string | null,
 ): string | null {
   const trimmed = value?.trim();
-  return trimmed ? trimmed : null;
+  if (!trimmed) return null;
+  if (!scoreTargetId) return trimmed;
+  const boardTypes = getScoreTarget(scoreTargetId)?.boardTypes;
+  if (!boardTypes?.length) return null;
+  return boardTypes.includes(trimmed as (typeof boardTypes)[number])
+    ? trimmed
+    : null;
 }
 
 export function parseVideoUploadBankIdParam(
