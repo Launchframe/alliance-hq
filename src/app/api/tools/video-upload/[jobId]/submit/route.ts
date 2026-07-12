@@ -22,6 +22,7 @@ import {
 import { resolveHqAllianceIdFromStoredAllianceId } from "@/lib/video/video-job-alliance.server";
 import { commitRosterFromVideoJob } from "@/lib/members/roster-video-commit";
 import { commitDepositSlipsFromVideoJob } from "@/lib/banks/deposit-slip-ocr/deposit-slip-video-commit.server";
+import { validateDepositSlipReviewRows } from "@/lib/banks/deposit-slip-review-validation.shared";
 import { listAllianceMembers } from "@/lib/members/roster.server";
 import {
   computeProjectedRosterRankCounts,
@@ -59,6 +60,7 @@ import {
   videoSubmitNotReadyError,
 } from "@/lib/video/submit-job-ready.shared";
 import { recordDataUploadBatch } from "@/lib/data-management/batch-ledger.server";
+import { isDedupeReport } from "@/lib/video/dedupe/merge-report.shared";
 
 type Props = {
   params: Promise<{ jobId: string }>;
@@ -438,6 +440,49 @@ export async function POST(request: Request, { params }: Props) {
       if (activeRows.length === 0) {
         return NextResponse.json(
           { error: "No rows to submit." },
+          { status: 400 },
+        );
+      }
+
+      const [parseSessionForReview] = await db
+        .select({
+          dedupeReportJson: schema.parseSessions.dedupeReportJson,
+        })
+        .from(schema.parseSessions)
+        .where(eq(schema.parseSessions.id, job.parseSessionId))
+        .limit(1);
+      const parsedRowsForReview = await db
+        .select({
+          id: schema.parsedRows.id,
+          dedupeClusterId: schema.parsedRows.dedupeClusterId,
+        })
+        .from(schema.parsedRows)
+        .where(eq(schema.parsedRows.parseSessionId, job.parseSessionId));
+      const dedupeClusterIdByRowId = new Map(
+        parsedRowsForReview.map((row) => [row.id, row.dedupeClusterId]),
+      );
+      const dedupeReportJson = parseSessionForReview?.dedupeReportJson;
+      const reviewValidation = validateDepositSlipReviewRows(
+        body.rows.map((row) => ({
+          id: row.id,
+          ocrName: row.ocrName?.trim() || row.memberName?.trim() || "",
+          score: row.score ?? null,
+          powerLevel: row.powerLevel ?? null,
+          memberLevel: row.memberLevel ?? null,
+          dedupeClusterId: dedupeClusterIdByRowId.get(row.id) ?? null,
+          deleted: row.deleted === true,
+        })),
+        isDedupeReport(dedupeReportJson) ? dedupeReportJson : null,
+      );
+      if (reviewValidation.hasUnresolvedFlaggedClusters) {
+        return NextResponse.json(
+          { error: "Resolve flagged duplicate clusters before saving." },
+          { status: 400 },
+        );
+      }
+      if (reviewValidation.incompleteRowIds.size > 0) {
+        return NextResponse.json(
+          { error: "Fill every incomplete row before saving." },
           { status: 400 },
         );
       }

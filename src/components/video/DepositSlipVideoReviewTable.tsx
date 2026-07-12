@@ -11,6 +11,7 @@ import {
   type DepositStatus,
   type DepositTermDays,
 } from "@/lib/banks/types.shared";
+import { validateDepositSlipReviewRows } from "@/lib/banks/deposit-slip-review-validation.shared";
 import {
   isDedupeReport,
   type DedupeCluster,
@@ -90,29 +91,6 @@ function formatSnapshotLine(snapshot: Record<string, unknown>): string {
   return `${name} · ${amount} · ${term}d · ${depositAt} · ${status}`;
 }
 
-function unresolvedFlaggedClusterIds(
-  rows: readonly DepositSlipVideoReviewRow[],
-  report: DedupeReport | null,
-): Set<string> {
-  const flaggedIds = new Set(
-    (report?.clusters ?? [])
-      .filter((c) => c.disposition === "flagged")
-      .map((c) => c.clusterId),
-  );
-  const counts = new Map<string, number>();
-  for (const row of rows) {
-    if (row.deleted === 1) continue;
-    const clusterId = row.dedupeClusterId;
-    if (!clusterId || !flaggedIds.has(clusterId)) continue;
-    counts.set(clusterId, (counts.get(clusterId) ?? 0) + 1);
-  }
-  const unresolved = new Set<string>();
-  for (const [clusterId, count] of counts) {
-    if (count >= 2) unresolved.add(clusterId);
-  }
-  return unresolved;
-}
-
 export function DepositSlipVideoReviewTable({
   rows,
   filterQuery,
@@ -134,27 +112,12 @@ export function DepositSlipVideoReviewTable({
     [rows],
   );
 
-  const incompleteRowIds = useMemo(() => {
-    return new Set(
-      activeRows
-        .filter((row) => {
-          const amount = row.score?.trim() ? Number(row.score) : NaN;
-          return (
-            !row.ocrName.trim() ||
-            !Number.isFinite(amount) ||
-            amount <= 0 ||
-            row.memberLevel == null ||
-            !row.powerLevel
-          );
-        })
-        .map((row) => row.id),
-    );
-  }, [activeRows]);
-
-  const unresolvedClusterIds = useMemo(
-    () => unresolvedFlaggedClusterIds(activeRows, report),
+  const validation = useMemo(
+    () => validateDepositSlipReviewRows(activeRows, report),
     [activeRows, report],
   );
+  const incompleteRowIds = validation.incompleteRowIds;
+  const unresolvedClusterIds = validation.unresolvedClusterIds;
 
   const flaggedReasonByClusterId = useMemo(() => {
     const map = new Map<string, string>();
@@ -493,32 +456,6 @@ export function useDepositSlipReviewValidation(
   rows: DepositSlipVideoReviewRow[],
   dedupeReport?: DedupeReport | null,
 ) {
-  const activeRows = rows.filter((row) => row.deleted !== 1);
-  const incompleteRowIds = new Set(
-    activeRows
-      .filter((row) => {
-        const amount = row.score?.trim() ? Number(row.score) : NaN;
-        return (
-          !row.ocrName.trim() ||
-          !Number.isFinite(amount) ||
-          amount <= 0 ||
-          row.memberLevel == null ||
-          !row.powerLevel
-        );
-      })
-      .map((row) => row.id),
-  );
   const report = isDedupeReport(dedupeReport) ? dedupeReport : null;
-  const unresolvedClusterIds = unresolvedFlaggedClusterIds(activeRows, report);
-  const hasUnresolvedFlaggedClusters = unresolvedClusterIds.size > 0;
-
-  return {
-    incompleteRowIds,
-    unresolvedClusterIds,
-    hasUnresolvedFlaggedClusters,
-    canSubmitSlips:
-      activeRows.length > 0 &&
-      incompleteRowIds.size === 0 &&
-      !hasUnresolvedFlaggedClusters,
-  };
+  return validateDepositSlipReviewRows(rows, report);
 }
