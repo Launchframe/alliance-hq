@@ -614,7 +614,9 @@ export function dedupeDepositSlips(
   for (const { group, matchedDestinations } of reconciliation.ambiguous) {
     // If every matched destination already belongs to one existing flagged
     // cluster (e.g. two near-identical names sharing a minute, already
-    // flagged as `borderline_commander_name_same_minute` against each other),
+    // flagged as `borderline_commander_name_same_minute` against each other —
+    // or even just one destination that's already part of a flagged cluster
+    // with *other* rows, e.g. a single fuzzy-but-field-conflicting match),
     // the anchorless row isn't a *new* ambiguity — it's more evidence for the
     // same disputed identity. Fold it into that cluster instead of opening a
     // redundant one, so officer review sees one grouped decision, not two.
@@ -622,7 +624,7 @@ export function dedupeDepositSlips(
       matchedDestinations.map((d) => d.dedupeClusterId).filter((id): id is string => !!id),
     );
     const existingCluster =
-      matchedDestinations.length > 1 &&
+      matchedDestinations.length > 0 &&
       destinationClusterIds.size === 1 &&
       matchedDestinations.every((d) => !!d.dedupeClusterId)
         ? clusters.find((c) => c.clusterId === [...destinationClusterIds][0])

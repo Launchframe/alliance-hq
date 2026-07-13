@@ -795,6 +795,29 @@ describe("dedupeDepositSlips — folding missing-timestamp rows into an already-
     expect(report.flaggedCount).toBe(1);
     expect(report.clusters[0]?.members).toHaveLength(3);
   });
+
+  it("folds an anchorless row into an already-flagged cluster even when it fuzzy-matches only one of that cluster's members", () => {
+    // "Commande" is a >=0.85 fuzzy match for "Commander" alone (not for
+    // "Commandersz", whose similarity to "Commande" falls below the
+    // auto-merge threshold) — so it has exactly one matched destination, not
+    // two. That destination is already part of a flagged borderline-name
+    // cluster with "Commandersz". Before the fix, `matchedDestinations.length
+    // > 1` excluded this single-match case, so the anchorless row opened a
+    // redundant second flagged cluster for the same disputed identity instead
+    // of joining the existing one.
+    const depositAt = "2026-07-12T01:12:31.000Z";
+    const { slips, report } = dedupeDepositSlips([
+      slip({ commanderName: "Commander", depositAt, amount: 6000 }),
+      slip({ commanderName: "Commandersz", depositAt, amount: 6000 }),
+      slip({ commanderName: "Commande", depositAt: null, amount: 9000 }),
+    ]);
+
+    expect(slips).toHaveLength(3);
+    const clusterIds = new Set(slips.map((s) => s.dedupeClusterId).filter(Boolean));
+    expect(clusterIds.size).toBe(1);
+    expect(report.flaggedCount).toBe(1);
+    expect(report.clusters[0]?.members).toHaveLength(3);
+  });
 });
 
 describe("dedupeDepositSlips — slipId uniqueness", () => {
