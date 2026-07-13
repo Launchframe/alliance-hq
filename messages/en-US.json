@@ -3772,6 +3772,7 @@
     "depositSlipSortDepositAt": "Deposit time",
     "depositSlipIncompleteRow": "Incomplete — fill amount, term, and deposit time.",
     "depositSlipIncompleteBlocked": "Fill every incomplete row before saving.",
+    "depositSlipGroupedPairLabel": "Locked deposit, grouped with its {status} outcome",
     "depositSlipAutoDedupeTitle": "{count, plural, one {# duplicate row was automatically merged.} other {# duplicate rows were automatically merged.}}",
     "depositSlipAutoDedupeHint": "Expand to see which OCR rows were combined into each kept row.",
     "depositSlipAutoDedupeToggleShow": "Show merged groups",

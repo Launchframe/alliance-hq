@@ -94,6 +94,19 @@ describe("validateDepositSlipReviewRows", () => {
     expect(result.incompleteRowIds).toEqual(
       new Set(["missing-name", "missing-amount", "missing-date", "missing-term"]),
     );
+    expect(result.incompleteFieldsByRowId.get("missing-name")).toEqual(
+      new Set(["ocrName"]),
+    );
+    expect(result.incompleteFieldsByRowId.get("missing-amount")).toEqual(
+      new Set(["score"]),
+    );
+    expect(result.incompleteFieldsByRowId.get("missing-date")).toEqual(
+      new Set(["powerLevel"]),
+    );
+    expect(result.incompleteFieldsByRowId.get("missing-term")).toEqual(
+      new Set(["memberLevel"]),
+    );
+    expect(result.incompleteFieldsByRowId.has("deleted-incomplete")).toBe(false);
     expect(result.canSubmitSlips).toBe(false);
   });
 

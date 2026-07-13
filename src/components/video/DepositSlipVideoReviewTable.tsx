@@ -11,7 +11,11 @@ import {
   type DepositStatus,
   type DepositTermDays,
 } from "@/lib/banks/types.shared";
-import { validateDepositSlipReviewRows } from "@/lib/banks/deposit-slip-review-validation.shared";
+import {
+  validateDepositSlipReviewRows,
+  type DepositSlipRequiredFieldKey,
+} from "@/lib/banks/deposit-slip-review-validation.shared";
+import { pairDepositSlipTerminalRows } from "@/lib/banks/deposit-slip-row-pairing.shared";
 import {
   isDedupeReport,
   type DedupeCluster,
@@ -90,6 +94,29 @@ type FlagReasonKey = (typeof FLAG_REASON_KEYS)[number];
 function isFlagReasonKey(reason: string): reason is FlagReasonKey {
   return (FLAG_REASON_KEYS as readonly string[]).includes(reason);
 }
+
+function normalizedRowStatus(profession: string | null): DepositStatus {
+  return profession === "matured" || profession === "looted"
+    ? profession
+    : "locked";
+}
+
+/** Row background, matching the deposit's in-game state: blue=locked, orange=looted, green=matured. */
+const STATUS_ROW_BG_CLASS: Record<DepositStatus, string> = {
+  locked: "bg-hq-accent/10",
+  looted: "bg-hq-orange/15",
+  matured: "bg-hq-green/15",
+};
+
+/** Thick group-wrapper border for a locked+terminal pair, colored by the terminal outcome. */
+const TERMINAL_GROUP_BORDER_CLASS: Record<"looted" | "matured", string> = {
+  looted: "border-hq-orange",
+  matured: "border-hq-green",
+};
+
+/** Shared column layout so the header and every row (grouped or standalone) line up. */
+const ROW_GRID_TEMPLATE =
+  "minmax(11rem,1.6fr) minmax(4.5rem,0.8fr) minmax(5.5rem,0.8fr) 5.5rem minmax(12rem,1.2fr) 8.5rem 7rem";
 
 function isoToDatetimeLocalValue(iso: string | null): string {
   if (!iso) return "";
@@ -193,6 +220,7 @@ export function DepositSlipVideoReviewTable({
     [activeRows, report],
   );
   const incompleteRowIds = validation.incompleteRowIds;
+  const incompleteFieldsByRowId = validation.incompleteFieldsByRowId;
   const unresolvedClusterIds = validation.unresolvedClusterIds;
 
   const flaggedReasonByClusterId = useMemo(() => {
@@ -249,6 +277,55 @@ export function DepositSlipVideoReviewTable({
       return bMs - aMs;
     });
   }, [activeRows, filterQuery, sortKey]);
+
+  // Pair on the visible subset only — if a filter hides one half of a pair, both
+  // rows render ungrouped rather than showing a misleading partial group.
+  const { pairs: terminalPairs } = useMemo(
+    () => pairDepositSlipTerminalRows(filteredRows),
+    [filteredRows],
+  );
+
+  const pairByRowId = useMemo(() => {
+    const map = new Map<
+      string,
+      { locked: DepositSlipVideoReviewRow; terminal: DepositSlipVideoReviewRow }
+    >();
+    for (const pair of terminalPairs) {
+      map.set(pair.locked.id, pair);
+      map.set(pair.terminal.id, pair);
+    }
+    return map;
+  }, [terminalPairs]);
+
+  /**
+   * Groups the sorted/filtered rows into standalone rows and locked+terminal
+   * pairs, preserving the current sort order for where each group appears
+   * (a pair surfaces wherever its earliest-sorted member would have).
+   */
+  const displayGroups = useMemo(() => {
+    const rendered = new Set<string>();
+    const groups: (
+      | { kind: "single"; row: DepositSlipVideoReviewRow }
+      | {
+          kind: "pair";
+          locked: DepositSlipVideoReviewRow;
+          terminal: DepositSlipVideoReviewRow;
+        }
+    )[] = [];
+    for (const row of filteredRows) {
+      if (rendered.has(row.id)) continue;
+      const pair = pairByRowId.get(row.id);
+      if (pair) {
+        rendered.add(pair.locked.id);
+        rendered.add(pair.terminal.id);
+        groups.push({ kind: "pair", locked: pair.locked, terminal: pair.terminal });
+      } else {
+        rendered.add(row.id);
+        groups.push({ kind: "single", row });
+      }
+    }
+    return groups;
+  }, [filteredRows, pairByRowId]);
 
   function flagReasonLabel(reason: string): string {
     if (isFlagReasonKey(reason)) {
@@ -417,173 +494,209 @@ export function DepositSlipVideoReviewTable({
         />
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-hq-border">
-        <table className="w-full min-w-[52rem] border-collapse text-left text-sm">
-          <thead className="bg-hq-surface-muted text-xs uppercase tracking-wide text-hq-fg-muted">
-            <tr>
-              <th className="px-3 py-2 font-medium">
-                {tBanks("fields.commanderName")}
-              </th>
-              <th className="px-3 py-2 font-medium">
-                {tBanks("fields.allianceTag")}
-              </th>
-              <th className="px-3 py-2 font-medium">{tBanks("fields.amount")}</th>
-              <th className="px-3 py-2 font-medium">
-                {tBanks("fields.termDays")}
-              </th>
-              <th className="px-3 py-2 font-medium">
-                {tBanks("fields.depositAt")}
-              </th>
-              <th className="px-3 py-2 font-medium">{tBanks("fields.status")}</th>
-              <th className="px-3 py-2 font-medium" />
-            </tr>
-          </thead>
-          <tbody>
-            {filteredRows.map((row) => {
-              const canPreview =
-                rowCanVideoPreview?.(row.frameIndex) && onPreviewFrame;
-              const isIncomplete = incompleteRowIds.has(row.id);
-              const isFlagged =
-                Boolean(row.dedupeClusterId) &&
-                unresolvedClusterIds.has(row.dedupeClusterId!);
-              const flagReason = row.dedupeClusterId
-                ? flaggedReasonByClusterId.get(row.dedupeClusterId)
-                : undefined;
-              const rowClass = isFlagged
-                ? "border-t border-hq-border bg-[#f8514910]"
-                : isIncomplete
-                  ? "border-t border-hq-border bg-[#d2992210]"
-                  : "border-t border-hq-border";
+      <div className="overflow-x-auto rounded-xl border border-hq-border" role="table">
+        <div className="min-w-[52rem]">
+          <div
+            role="row"
+            className="grid gap-x-2 bg-hq-surface-muted px-3 py-2 text-xs font-medium uppercase tracking-wide text-hq-fg-muted"
+            style={{ gridTemplateColumns: ROW_GRID_TEMPLATE }}
+          >
+            <span role="columnheader">{tBanks("fields.commanderName")}</span>
+            <span role="columnheader">{tBanks("fields.allianceTag")}</span>
+            <span role="columnheader">{tBanks("fields.amount")}</span>
+            <span role="columnheader">{tBanks("fields.termDays")}</span>
+            <span role="columnheader">{tBanks("fields.depositAt")}</span>
+            <span role="columnheader">{tBanks("fields.status")}</span>
+            <span role="columnheader" />
+          </div>
 
+          <div className="divide-y divide-hq-border">
+            {displayGroups.map((group) => {
+              if (group.kind === "single") {
+                return renderRow(group.row);
+              }
+              // Pairing only ever produces "matured"/"looted" terminal rows.
+              const terminalStatus: "matured" | "looted" =
+                group.terminal.profession === "looted" ? "looted" : "matured";
+              const borderClass = TERMINAL_GROUP_BORDER_CLASS[terminalStatus];
               return (
-                <tr key={row.id} className={rowClass}>
-                  <td className="px-3 py-2 align-top">
-                    <input
-                      type="text"
-                      value={row.ocrName}
-                      onChange={(e) =>
-                        onUpdateRow(row.id, { ocrName: e.target.value })
-                      }
-                      className="w-full min-w-[8rem] rounded-md border border-hq-border bg-hq-canvas px-2 py-1.5"
-                    />
-                    {isFlagged ? (
-                      <p className="mt-1 text-xs text-hq-danger">
-                        {flagReason
-                          ? flagReasonLabel(flagReason)
-                          : t("depositSlipFlaggedRow")}
-                      </p>
-                    ) : null}
-                    {isIncomplete ? (
-                      <p className="mt-1 text-xs text-[#d29922]">
-                        {t("depositSlipIncompleteRow")}
-                      </p>
-                    ) : null}
-                  </td>
-                  <td className="px-3 py-2 align-top">
-                    <input
-                      type="text"
-                      value={row.allianceRankTitle ?? ""}
-                      onChange={(e) =>
-                        onUpdateRow(row.id, {
-                          allianceRankTitle: e.target.value || null,
-                        })
-                      }
-                      className="w-full min-w-[4rem] rounded-md border border-hq-border bg-hq-canvas px-2 py-1.5"
-                    />
-                  </td>
-                  <td className="px-3 py-2 align-top">
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      value={row.score ?? ""}
-                      onChange={(e) =>
-                        onUpdateRow(row.id, { score: e.target.value || null })
-                      }
-                      className="w-full min-w-[5rem] rounded-md border border-hq-border bg-hq-canvas px-2 py-1.5 font-mono"
-                    />
-                  </td>
-                  <td className="px-3 py-2 align-top">
-                    <AppSelect
-                      value={
-                        row.memberLevel != null ? String(row.memberLevel) : ""
-                      }
-                      onChange={(next) => {
-                        const n = Number(next);
-                        onUpdateRow(row.id, {
-                          memberLevel:
-                            next &&
-                            (DEPOSIT_TERMS as readonly number[]).includes(n)
-                              ? (n as DepositTermDays)
-                              : null,
-                        });
-                      }}
-                      aria-label={tBanks("fields.termDays")}
-                      options={DEPOSIT_TERMS.map((term) => ({
-                        value: String(term),
-                        label: String(term),
-                      }))}
-                    />
-                  </td>
-                  <td className="px-3 py-2 align-top">
-                    <input
-                      type="datetime-local"
-                      value={isoToDatetimeLocalValue(row.powerLevel)}
-                      onChange={(e) =>
-                        onUpdateRow(row.id, {
-                          powerLevel: datetimeLocalToIso(e.target.value),
-                        })
-                      }
-                      className="w-full min-w-[11rem] rounded-md border border-hq-border bg-hq-canvas px-2 py-1.5"
-                    />
-                  </td>
-                  <td className="px-3 py-2 align-top">
-                    <AppSelect
-                      value={row.profession ?? "locked"}
-                      onChange={(next) =>
-                        onUpdateRow(row.id, {
-                          profession: (
-                            DEPOSIT_STATUSES as readonly string[]
-                          ).includes(next)
-                            ? (next as DepositStatus)
-                            : "locked",
-                        })
-                      }
-                      aria-label={tBanks("fields.status")}
-                      options={DEPOSIT_STATUSES.map((status) => ({
-                        value: status,
-                        label: tBanks(`status.${status}`),
-                      }))}
-                    />
-                  </td>
-                  <td className="px-3 py-2 align-top">
-                    <div className="flex items-center gap-2">
-                      {canPreview ? (
-                        <button
-                          type="button"
-                          onClick={() => onPreviewFrame?.(row.frameIndex)}
-                          className="rounded-md border border-hq-border p-1.5 text-hq-fg-muted hover:bg-hq-surface-muted hover:text-hq-fg"
-                          aria-label={t("rowVideoPreview")}
-                        >
-                          <Video className="h-4 w-4" />
-                        </button>
-                      ) : null}
-                      <button
-                        type="button"
-                        onClick={() => onDeleteRow(row.id)}
-                        className="rounded-md border border-hq-border px-2 py-1 text-xs text-hq-danger hover:bg-[#f8514910]"
-                      >
-                        {t("deleteRow")}
-                      </button>
-                    </div>
-                  </td>
-                </tr>
+                <div
+                  key={`pair-${group.locked.id}-${group.terminal.id}`}
+                  className="p-2"
+                >
+                  <div
+                    className={`space-y-1 rounded-xl border-4 p-1.5 ${borderClass}`}
+                  >
+                    <p className="px-2 text-xs font-medium uppercase tracking-wide text-hq-fg-muted">
+                      {t("depositSlipGroupedPairLabel", {
+                        status: tBanks(`status.${terminalStatus}`).toLowerCase(),
+                      })}
+                    </p>
+                    {renderRow(group.locked, { rounded: true })}
+                    {renderRow(group.terminal, { rounded: true })}
+                  </div>
+                </div>
               );
             })}
-          </tbody>
-        </table>
+          </div>
+        </div>
       </div>
     </div>
   );
+
+  function renderRow(
+    row: DepositSlipVideoReviewRow,
+    opts?: { rounded?: boolean },
+  ) {
+    const canPreview = rowCanVideoPreview?.(row.frameIndex) && onPreviewFrame;
+    const incompleteFields: Set<DepositSlipRequiredFieldKey> =
+      incompleteFieldsByRowId.get(row.id) ?? new Set();
+    const isIncomplete = incompleteFields.size > 0;
+    const isFlagged =
+      Boolean(row.dedupeClusterId) &&
+      unresolvedClusterIds.has(row.dedupeClusterId!);
+    const flagReason = row.dedupeClusterId
+      ? flaggedReasonByClusterId.get(row.dedupeClusterId)
+      : undefined;
+    const status = normalizedRowStatus(row.profession);
+
+    const fieldBorderClass = (key: DepositSlipRequiredFieldKey) =>
+      incompleteFields.has(key)
+        ? "border-hq-danger"
+        : "border-hq-border";
+
+    return (
+      <div
+        key={row.id}
+        role="row"
+        className={[
+          "grid gap-x-2 px-3 py-2",
+          STATUS_ROW_BG_CLASS[status],
+          opts?.rounded ? "rounded-lg" : "",
+          isFlagged ? "border-2 border-hq-danger" : "border-2 border-transparent",
+        ].join(" ")}
+        style={{ gridTemplateColumns: ROW_GRID_TEMPLATE }}
+      >
+        <div role="cell" className="align-top">
+          <input
+            type="text"
+            value={row.ocrName}
+            onChange={(e) => onUpdateRow(row.id, { ocrName: e.target.value })}
+            className={`w-full min-w-[8rem] rounded-md border bg-hq-canvas px-2 py-1.5 ${fieldBorderClass("ocrName")}`}
+          />
+          {isFlagged ? (
+            <p className="mt-1 text-xs text-hq-danger">
+              {flagReason ? flagReasonLabel(flagReason) : t("depositSlipFlaggedRow")}
+            </p>
+          ) : null}
+          {isIncomplete ? (
+            <p className="mt-1 text-xs text-[#d29922]">
+              {t("depositSlipIncompleteRow")}
+            </p>
+          ) : null}
+        </div>
+        <div role="cell" className="align-top">
+          <input
+            type="text"
+            value={row.allianceRankTitle ?? ""}
+            onChange={(e) =>
+              onUpdateRow(row.id, { allianceRankTitle: e.target.value || null })
+            }
+            className="w-full min-w-[4rem] rounded-md border border-hq-border bg-hq-canvas px-2 py-1.5"
+          />
+        </div>
+        <div role="cell" className="align-top">
+          <input
+            type="text"
+            inputMode="numeric"
+            value={row.score ?? ""}
+            onChange={(e) =>
+              onUpdateRow(row.id, { score: e.target.value || null })
+            }
+            className={`w-full min-w-[5rem] rounded-md border bg-hq-canvas px-2 py-1.5 font-mono ${fieldBorderClass("score")}`}
+          />
+        </div>
+        <div
+          role="cell"
+          className={
+            incompleteFields.has("memberLevel")
+              ? "align-top rounded-lg ring-2 ring-hq-danger"
+              : "align-top"
+          }
+        >
+          <AppSelect
+            value={row.memberLevel != null ? String(row.memberLevel) : ""}
+            onChange={(next) => {
+              const n = Number(next);
+              onUpdateRow(row.id, {
+                memberLevel:
+                  next && (DEPOSIT_TERMS as readonly number[]).includes(n)
+                    ? (n as DepositTermDays)
+                    : null,
+              });
+            }}
+            aria-label={tBanks("fields.termDays")}
+            options={DEPOSIT_TERMS.map((term) => ({
+              value: String(term),
+              label: String(term),
+            }))}
+          />
+        </div>
+        <div role="cell" className="align-top">
+          <input
+            type="datetime-local"
+            value={isoToDatetimeLocalValue(row.powerLevel)}
+            onChange={(e) =>
+              onUpdateRow(row.id, {
+                powerLevel: datetimeLocalToIso(e.target.value),
+              })
+            }
+            className={`w-full min-w-[11rem] rounded-md border bg-hq-canvas px-2 py-1.5 ${fieldBorderClass("powerLevel")}`}
+          />
+        </div>
+        <div role="cell" className="align-top">
+          <AppSelect
+            value={row.profession ?? "locked"}
+            onChange={(next) =>
+              onUpdateRow(row.id, {
+                profession: (DEPOSIT_STATUSES as readonly string[]).includes(
+                  next,
+                )
+                  ? (next as DepositStatus)
+                  : "locked",
+              })
+            }
+            aria-label={tBanks("fields.status")}
+            options={DEPOSIT_STATUSES.map((s) => ({
+              value: s,
+              label: tBanks(`status.${s}`),
+            }))}
+          />
+        </div>
+        <div role="cell" className="align-top">
+          <div className="flex items-center gap-2">
+            {canPreview ? (
+              <button
+                type="button"
+                onClick={() => onPreviewFrame?.(row.frameIndex)}
+                className="rounded-md border border-hq-border p-1.5 text-hq-fg-muted hover:bg-hq-surface-muted hover:text-hq-fg"
+                aria-label={t("rowVideoPreview")}
+              >
+                <Video className="h-4 w-4" />
+              </button>
+            ) : null}
+            <button
+              type="button"
+              onClick={() => onDeleteRow(row.id)}
+              className="rounded-md border border-hq-border px-2 py-1 text-xs text-hq-danger hover:bg-[#f8514910]"
+            >
+              {t("deleteRow")}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 }
 
 export function useDepositSlipReviewValidation(
