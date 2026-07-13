@@ -133,7 +133,9 @@ export function useVideoReviewFollowMe<TRow extends Row>({
         syncToViewportCenter();
       });
     };
-    window.addEventListener("scroll", onScroll, { passive: true });
+    // capture: true so nested scrollports (overflow ancestors) still drive
+    // follow-me — bubble-only window listeners miss those events.
+    window.addEventListener("scroll", onScroll, { passive: true, capture: true });
     window.addEventListener("resize", onScroll, { passive: true });
 
     const initialFrame = requestAnimationFrame(syncToViewportCenter);
@@ -141,7 +143,7 @@ export function useVideoReviewFollowMe<TRow extends Row>({
     return () => {
       cancelAnimationFrame(initialFrame);
       if (scrollFrame) cancelAnimationFrame(scrollFrame);
-      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("scroll", onScroll, true);
       window.removeEventListener("resize", onScroll);
       observer.disconnect();
     };

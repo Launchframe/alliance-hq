@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronDown, ChevronRight, Video } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useLayoutEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { AppSelect } from "@/components/ui/AppSelect";
@@ -12,6 +12,10 @@ import {
   type DepositTermDays,
 } from "@/lib/banks/types.shared";
 import { validateDepositSlipReviewRows } from "@/lib/banks/deposit-slip-review-validation.shared";
+import {
+  filterAndSortDepositSlipReviewRows,
+  type DepositSlipVisibleSortKey,
+} from "@/lib/banks/deposit-slip-review-visible-rows.shared";
 import {
   isDedupeReport,
   type DedupeCluster,
@@ -33,8 +37,6 @@ export type DepositSlipVideoReviewRow = {
   deleted: number;
 };
 
-type SortKey = "commander" | "depositAt";
-
 type Props = {
   rows: DepositSlipVideoReviewRow[];
   filterQuery: string;
@@ -43,6 +45,10 @@ type Props = {
   onDeleteRow: (id: string) => void;
   onPreviewFrame?: (frameIndex: number | null | undefined) => void;
   rowCanVideoPreview?: (frameIndex: number | null | undefined) => boolean;
+  /** Stable Follow-me callback ref factory keyed by row id. */
+  registerFollowAnchor?: (rowId: string) => (element: HTMLElement | null) => void;
+  /** Visible (filtered + sorted) row ids for Follow-me interpolation. */
+  onVisibleRowIdsChange?: (ids: readonly string[]) => void;
 };
 
 const FLAG_REASON_KEYS = [
@@ -175,10 +181,13 @@ export function DepositSlipVideoReviewTable({
   onDeleteRow,
   onPreviewFrame,
   rowCanVideoPreview,
+  registerFollowAnchor,
+  onVisibleRowIdsChange,
 }: Props) {
   const t = useTranslations("videoReview");
   const tBanks = useTranslations("bankManagement");
-  const [sortKey, setSortKey] = useState<SortKey>("depositAt");
+  const [sortKey, setSortKey] =
+    useState<DepositSlipVisibleSortKey>("depositAt");
   const [autoDedupeOpen, setAutoDedupeOpen] = useState(false);
 
   const report = isDedupeReport(dedupeReport) ? dedupeReport : null;
@@ -222,33 +231,18 @@ export function DepositSlipVideoReviewTable({
     [report, unresolvedClusterIds],
   );
 
-  const filteredRows = useMemo(() => {
-    const q = filterQuery.trim().toLowerCase();
-    let list = activeRows;
-    if (q) {
-      list = list.filter((row) => {
-        const haystack = [
-          row.ocrName,
-          row.allianceRankTitle ?? "",
-          row.score ?? "",
-          row.profession ?? "",
-        ]
-          .join(" ")
-          .toLowerCase();
-        return haystack.includes(q);
-      });
-    }
-    return [...list].sort((a, b) => {
-      if (sortKey === "commander") {
-        return a.ocrName.localeCompare(b.ocrName, undefined, {
-          sensitivity: "base",
-        });
-      }
-      const aMs = a.powerLevel ? Date.parse(a.powerLevel) : 0;
-      const bMs = b.powerLevel ? Date.parse(b.powerLevel) : 0;
-      return bMs - aMs;
-    });
-  }, [activeRows, filterQuery, sortKey]);
+  const filteredRows = useMemo(
+    () =>
+      filterAndSortDepositSlipReviewRows(activeRows, {
+        filterQuery,
+        sortKey,
+      }),
+    [activeRows, filterQuery, sortKey],
+  );
+
+  useLayoutEffect(() => {
+    onVisibleRowIdsChange?.(filteredRows.map((row) => row.id));
+  }, [filteredRows, onVisibleRowIdsChange]);
 
   function flagReasonLabel(reason: string): string {
     if (isFlagReasonKey(reason)) {
@@ -456,7 +450,12 @@ export function DepositSlipVideoReviewTable({
                   : "border-t border-hq-border";
 
               return (
-                <tr key={row.id} className={rowClass}>
+                <tr
+                  key={row.id}
+                  className={rowClass}
+                  ref={registerFollowAnchor?.(row.id)}
+                  data-video-follow-anchor={row.id}
+                >
                   <td className="px-3 py-2 align-top">
                     <input
                       type="text"
