@@ -145,13 +145,19 @@ export async function runTesseract(
 
     const worker = await getWorker();
 
+    // Empty whitelist means "allow nothing" in Tesseract — use a broad default
+    // when clearing so a prior THP whitelist cannot leak into roster OCR.
+    const OPEN_CHAR_WHITELIST =
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789" +
+      " .,:'`-_/\\|&()[]{}%!?#@+\"°";
+
     await worker.setParameters({
       tessedit_pageseg_mode: String(psm) as Parameters<
         typeof worker.setParameters
       >[0]["tessedit_pageseg_mode"],
-      ...(config.charWhitelist
-        ? { tessedit_char_whitelist: config.charWhitelist }
-        : {}),
+      tessedit_char_whitelist: config.charWhitelist?.trim()
+        ? config.charWhitelist
+        : OPEN_CHAR_WHITELIST,
     });
 
     const { data } = await worker.recognize(

@@ -31,7 +31,7 @@ export const THP_LABEL_ALIASES: ReadonlyArray<{
     patterns: [/^exclusive\s*weapons?$/i],
   },
   { key: "heroTier", patterns: [/^hero\s*tier$/i] },
-  { key: "heroSkill", patterns: [/^hero\s*skill$/i] },
+  { key: "heroSkill", patterns: [/^hero\s*skill$/i, /^hera\s*skill$/i] },
   { key: "wallOfHonor", patterns: [/^wall\s*of\s*honou?r$/i] },
 ];
 
