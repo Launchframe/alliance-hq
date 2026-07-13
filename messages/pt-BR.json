@@ -4951,6 +4951,7 @@
       "more": "+{count} mais"
     },
     "settings": {
+      "menuLabel": "Configurações do plano de batalha",
       "title": "Política de captura",
       "subtitle": "Em tempo de paz, use capturas rápidas de entrada e saída. Em guerra, avance sem freio.",
       "defaultPolicy": "Política padrão de captura",
@@ -4988,6 +4989,14 @@
       "scheduledAt": "Horário da captura",
       "scheduledDate": "Data",
       "scheduledTime": "Horário",
+      "scheduleModeLabel": "Agendar por",
+      "scheduleModeAbsolute": "Data e hora",
+      "scheduleModeRelative": "A partir de agora",
+      "relativeDuration": "Tempo a partir de agora",
+      "relativeDays": "Dias",
+      "relativeHours": "Horas",
+      "relativeMinutes": "Mins",
+      "relativeDurationHint": "Informe dias, horas e minutos a partir de agora (DD:HH:MM).",
       "territoryType": "Tipo de território",
       "stronghold": "Fortaleza",
       "city": "Cidade",

@@ -4951,6 +4951,7 @@
       "more": "+{count} more"
     },
     "settings": {
+      "menuLabel": "Battle plan settings",
       "title": "Capture policy",
       "subtitle": "Peace time uses in-and-out captures. War time pushes fast takedowns.",
       "defaultPolicy": "Default capture policy",
@@ -4988,6 +4989,14 @@
       "scheduledAt": "Capture time",
       "scheduledDate": "Date",
       "scheduledTime": "Time of day",
+      "scheduleModeLabel": "Schedule by",
+      "scheduleModeAbsolute": "Date & time",
+      "scheduleModeRelative": "From now",
+      "relativeDuration": "Time from now",
+      "relativeDays": "Days",
+      "relativeHours": "Hours",
+      "relativeMinutes": "Mins",
+      "relativeDurationHint": "Enter days, hours, and minutes from now (DD:HH:MM).",
       "territoryType": "Territory type",
       "stronghold": "Stronghold",
       "city": "City",
