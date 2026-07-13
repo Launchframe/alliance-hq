@@ -90,4 +90,38 @@ test.describe("Video process preview", () => {
     // Processors see approve first — survey opens only after Process now.
     await expect(page.getByRole("dialog")).toHaveCount(0);
   });
+
+  test("processor opens survey after Process now, then lands on review", async ({
+    page,
+  }) => {
+    const sql = getE2eSql();
+    const scenario = await createVideoProcessorScenario(sql, e2eBaseUrl());
+    const jobId = await insertPendingVideoJob(sql, {
+      allianceId: scenario.allianceId,
+      sessionId: scenario.officer.sessionId,
+      enqueuedByHqUserId: scenario.officer.hqUserId,
+      scoreTarget: "desert-storm",
+    });
+    await attachAshedConnectionToSession(sql, scenario.processor.sessionId);
+
+    await page.context().addCookies(playwrightAuthCookies(scenario.processor));
+    await page.goto(`/tools/video-upload?processJob=${jobId}`);
+
+    const panel = page.getByTestId("video-process-after-upload-panel");
+    await expect(panel).toBeVisible();
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+
+    await panel.getByRole("button", { name: /Process now/i }).click();
+
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).toBeVisible();
+    await expect(
+      dialog.getByRole("heading", { name: /While you wait/i }),
+    ).toBeVisible();
+
+    await page.keyboard.press("Escape");
+    await expect(page).toHaveURL(
+      new RegExp(`/tools/video-upload/${jobId}/review`),
+    );
+  });
 });
