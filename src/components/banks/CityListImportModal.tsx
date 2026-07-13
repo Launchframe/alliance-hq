@@ -9,6 +9,7 @@ import { Dialog } from "@/components/ui/dialog";
 import { ScreenshotLightbox } from "@/components/ui/ScreenshotLightbox";
 import { preventDefaultFormSubmit } from "@/lib/client/form-enter-submit.shared";
 import type { ParsedCityListBank } from "@/lib/banks/city-list-ocr/parse-city-list-text.shared";
+import { clampReviewIndexAfterRemove } from "@/lib/banks/city-list-import-review.shared";
 import { formatCityListServerTime } from "@/lib/banks/city-list-server-time.shared";
 import type { BankManagementPayload, BankWithSlips } from "@/lib/banks/types.shared";
 
@@ -207,6 +208,7 @@ export function CityListImportModal({
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [rows, setRows] = useState<ReviewRow[]>([]);
   const [reviewIndex, setReviewIndex] = useState(0);
+  const [previewIndex, setPreviewIndex] = useState(0);
   const [snapshot, setSnapshot] = useState<
     ParseCityListResponse["snapshot"] | null
   >(null);
@@ -236,6 +238,7 @@ export function CityListImportModal({
     setStep("upload");
     setRows([]);
     setReviewIndex(0);
+    setPreviewIndex(0);
     setSnapshot(null);
     setError(null);
     setParsing(false);
@@ -310,6 +313,7 @@ export function CityListImportModal({
 
       setRows(parsedRows);
       setReviewIndex(0);
+      setPreviewIndex(0);
       setSnapshot(body.snapshot ?? null);
       setStep("review");
     } catch (e) {
@@ -333,13 +337,10 @@ export function CityListImportModal({
       const index = prev.findIndex((row) => row.rowKey === rowKey);
       if (index < 0) return prev;
       const next = prev.filter((row) => row.rowKey !== rowKey);
-      // Clamp the mobile stepper after the row list shrinks.
       queueMicrotask(() => {
-        setReviewIndex((current) => {
-          if (next.length === 0) return 0;
-          if (current > index) return current - 1;
-          return Math.min(current, next.length - 1);
-        });
+        setReviewIndex((current) =>
+          clampReviewIndexAfterRemove(current, index, next.length),
+        );
       });
       return next;
     });
@@ -440,10 +441,15 @@ export function CityListImportModal({
     }
   }, [handleOpenChange, hasDuplicateCoords, importing, onImported, rows, snapshot, t]);
 
-  const openPreview = useCallback((index = 0) => {
-    if (screenshots.length === 0) return;
-    setLightboxIndex(Math.min(Math.max(index, 0), screenshots.length - 1));
-  }, [screenshots.length]);
+  const openPreview = useCallback(
+    (index = previewIndex) => {
+      if (screenshots.length === 0) return;
+      const clamped = Math.min(Math.max(index, 0), screenshots.length - 1);
+      setPreviewIndex(clamped);
+      setLightboxIndex(clamped);
+    },
+    [previewIndex, screenshots.length],
+  );
 
   const reviewMeta = (
     <>
@@ -515,12 +521,12 @@ export function CityListImportModal({
         <button
           type="button"
           className="block w-full overflow-hidden rounded-lg border border-hq-border bg-black"
-          onClick={() => openPreview(0)}
+          onClick={() => openPreview(previewIndex)}
           aria-label={t("cityListThumbnailPreview")}
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src={screenshots[0]!.previewUrl}
+            src={screenshots[previewIndex]!.previewUrl}
             alt=""
             className="mx-auto h-auto max-h-[min(78vh,42rem)] w-auto max-w-full object-contain"
           />
@@ -533,7 +539,7 @@ export function CityListImportModal({
                   type="button"
                   className={cn(
                     "block w-full overflow-hidden rounded border bg-hq-canvas",
-                    index === 0
+                    index === previewIndex
                       ? "border-hq-accent"
                       : "border-hq-border hover:border-hq-fg-muted",
                   )}
