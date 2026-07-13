@@ -3718,6 +3718,7 @@
     "depositSlipSortDepositAt": "Horário do depósito",
     "depositSlipIncompleteRow": "Incompleto — preencha valor, prazo e horário do depósito.",
     "depositSlipIncompleteBlocked": "Preencha todas as linhas incompletas antes de salvar.",
+    "depositSlipGroupedPairLabel": "Depósito bloqueado, agrupado com seu resultado {status}",
     "depositSlipAutoDedupeTitle": "{count, plural, one {# linha duplicada foi mesclada automaticamente.} other {# linhas duplicadas foram mescladas automaticamente.}}",
     "depositSlipAutoDedupeHint": "Expanda para ver quais linhas do OCR foram combinadas em cada linha mantida.",
     "depositSlipAutoDedupeToggleShow": "Mostrar grupos mesclados",

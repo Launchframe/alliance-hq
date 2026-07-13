@@ -99,24 +99,46 @@ export function mergeDepositSlipReviewRowsForSubmit<
   return { rows, unknownRowIds, duplicateRowIds };
 }
 
+export const DEPOSIT_SLIP_REQUIRED_FIELD_KEYS = [
+  "ocrName",
+  "score",
+  "memberLevel",
+  "powerLevel",
+] as const;
+
+export type DepositSlipRequiredFieldKey =
+  (typeof DEPOSIT_SLIP_REQUIRED_FIELD_KEYS)[number];
+
+/** Which required fields on a single row are missing/invalid, if any. */
+export function incompleteDepositSlipReviewRowFieldKeys(
+  row: DepositSlipReviewValidationRow,
+): Set<DepositSlipRequiredFieldKey> {
+  const missing = new Set<DepositSlipRequiredFieldKey>();
+  if (!row.ocrName.trim()) missing.add("ocrName");
+  const amount = row.score?.trim() ? Number(row.score) : NaN;
+  if (!Number.isFinite(amount) || amount <= 0) missing.add("score");
+  if (row.memberLevel == null) missing.add("memberLevel");
+  if (!row.powerLevel) missing.add("powerLevel");
+  return missing;
+}
+
+/** Per-row missing/invalid required field keys, keyed by row id (deleted rows excluded). */
+export function incompleteDepositSlipReviewRowFieldsById(
+  rows: readonly DepositSlipReviewValidationRow[],
+): Map<string, Set<DepositSlipRequiredFieldKey>> {
+  const map = new Map<string, Set<DepositSlipRequiredFieldKey>>();
+  for (const row of rows) {
+    if (isDeleted(row)) continue;
+    const missing = incompleteDepositSlipReviewRowFieldKeys(row);
+    if (missing.size > 0) map.set(row.id, missing);
+  }
+  return map;
+}
+
 export function incompleteDepositSlipReviewRowIds(
   rows: readonly DepositSlipReviewValidationRow[],
 ): Set<string> {
-  return new Set(
-    rows
-      .filter((row) => !isDeleted(row))
-      .filter((row) => {
-        const amount = row.score?.trim() ? Number(row.score) : NaN;
-        return (
-          !row.ocrName.trim() ||
-          !Number.isFinite(amount) ||
-          amount <= 0 ||
-          row.memberLevel == null ||
-          !row.powerLevel
-        );
-      })
-      .map((row) => row.id),
-  );
+  return new Set(incompleteDepositSlipReviewRowFieldsById(rows).keys());
 }
 
 export function unresolvedDepositSlipFlaggedClusterIds(
@@ -147,7 +169,8 @@ export function validateDepositSlipReviewRows(
   rows: readonly DepositSlipReviewValidationRow[],
   report: DedupeReport | null,
 ) {
-  const incompleteRowIds = incompleteDepositSlipReviewRowIds(rows);
+  const incompleteFieldsByRowId = incompleteDepositSlipReviewRowFieldsById(rows);
+  const incompleteRowIds = new Set(incompleteFieldsByRowId.keys());
   const unresolvedClusterIds = unresolvedDepositSlipFlaggedClusterIds(
     rows,
     report,
@@ -157,6 +180,7 @@ export function validateDepositSlipReviewRows(
 
   return {
     incompleteRowIds,
+    incompleteFieldsByRowId,
     unresolvedClusterIds,
     hasUnresolvedFlaggedClusters,
     canSubmitSlips:
