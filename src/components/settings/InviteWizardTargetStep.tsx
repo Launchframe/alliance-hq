@@ -90,6 +90,8 @@ export function InviteWizardTargetStep({
     [assignableRoles, t],
   );
 
+  const canCreateDiscordOfficerInvite = assignableRoles.includes("officer");
+
   const bulkSelectableCap = Math.min(commanders.length, MAX_BULK_CLAIM_INVITES);
   const bulkAllSelected =
     bulkSelectableCap > 0 &&
@@ -141,15 +143,24 @@ export function InviteWizardTargetStep({
             <span className="text-[#8b949e]">{t("inviteKind")}</span>
             <select
               value={targets.inviteLinkSubtype}
-              onChange={(e) =>
+              onChange={(e) => {
+                const inviteLinkSubtype = e.target.value as InviteLinkSubtype;
                 onChange({
-                  inviteLinkSubtype: e.target.value as InviteLinkSubtype,
-                })
-              }
+                  inviteLinkSubtype,
+                  ...(inviteLinkSubtype === "discord_officer"
+                    ? { inviteRole: "officer" }
+                    : {}),
+                });
+              }}
               className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
             >
               <option value="protected_link">{t("inviteKindProtected")}</option>
               <option value="email">{t("inviteKindEmail")}</option>
+              {canCreateDiscordOfficerInvite ? (
+                <option value="discord_officer">
+                  {t("inviteKindDiscordOfficer")}
+                </option>
+              ) : null}
             </select>
           </label>
           {targets.inviteLinkSubtype === "email" ? (
@@ -166,6 +177,36 @@ export function InviteWizardTargetStep({
                 {t("inviteEmailHint")}
               </span>
             </label>
+          ) : targets.inviteLinkSubtype === "discord_officer" ? (
+            <>
+              <label className="space-y-1 text-sm sm:col-span-2">
+                <span className="text-[#8b949e]">{t("inviteDiscordUserId")}</span>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  value={targets.inviteDiscordUserId}
+                  onChange={(e) =>
+                    onChange({ inviteDiscordUserId: e.target.value })
+                  }
+                  placeholder={t("inviteDiscordUserIdPlaceholder")}
+                  className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 font-mono text-sm"
+                />
+                <span className="block text-xs text-[#6e7681]">
+                  {t("inviteDiscordUserIdHint")}
+                </span>
+              </label>
+              <label className="space-y-1 text-sm sm:col-span-2">
+                <span className="text-[#8b949e]">{t("inviteAdminLabel")}</span>
+                <input
+                  type="text"
+                  value={targets.inviteAdminLabel}
+                  onChange={(e) => onChange({ inviteAdminLabel: e.target.value })}
+                  placeholder={t("inviteAdminLabelPlaceholder")}
+                  className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
+                />
+              </label>
+            </>
           ) : (
             <label className="space-y-1 text-sm sm:col-span-2">
               <span className="text-[#8b949e]">{t("inviteAdminLabel")}</span>
@@ -178,26 +219,32 @@ export function InviteWizardTargetStep({
               />
             </label>
           )}
-          <label className="space-y-1 text-sm">
-            <span className="text-[#8b949e]">{t("inviteRole")}</span>
-            <select
-              value={targets.inviteRole}
-              onChange={(e) =>
-                onChange({
-                  inviteRole: e.target.value as SystemRoleName | "",
-                })
-              }
-              className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
-            >
-              <option value="">{t("inviteRolePlaceholder")}</option>
-              {roleOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          {nearFullRoster && targets.inviteRole === "member" ? (
+          {targets.inviteLinkSubtype !== "discord_officer" ? (
+            <label className="space-y-1 text-sm">
+              <span className="text-[#8b949e]">{t("inviteRole")}</span>
+              <select
+                value={targets.inviteRole}
+                onChange={(e) =>
+                  onChange({
+                    inviteRole: e.target.value as SystemRoleName | "",
+                  })
+                }
+                className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
+              >
+                <option value="">{t("inviteRolePlaceholder")}</option>
+                {roleOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : (
+            <p className="text-sm text-[#8b949e]">{t("roleOfficer")}</p>
+          )}
+          {nearFullRoster &&
+          targets.inviteRole === "member" &&
+          targets.inviteLinkSubtype !== "discord_officer" ? (
             <p className="sm:col-span-2 text-xs text-[#e3b341]" role="status">
               {t("memberRoleNearFullWarning")}
             </p>
