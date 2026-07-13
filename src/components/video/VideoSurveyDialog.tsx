@@ -65,6 +65,10 @@ function emptyAccumulated(): SurveyAccumulated {
   };
 }
 
+function cn(...parts: Array<string | false | null | undefined>): string {
+  return parts.filter(Boolean).join(" ");
+}
+
 export function VideoSurveyDialog({
   jobId,
   file = null,
@@ -76,6 +80,7 @@ export function VideoSurveyDialog({
   const t = useTranslations("videoSurvey");
   const videoRef = useRef<HTMLVideoElement>(null);
   const [objectUrl, setObjectUrl] = useState<string | null>(null);
+  const [isPortrait, setIsPortrait] = useState(false);
   const [step, setStep] = useState(1);
   const [draft, setDraft] = useState<StepDraft>({
     rowCountEstimate: "",
@@ -130,6 +135,20 @@ export function VideoSurveyDialog({
     });
     return () => cancelAnimationFrame(raf);
   }, [open, jobId, initialSurvey]);
+
+  useEffect(() => {
+    if (open) return;
+    const raf = requestAnimationFrame(() => {
+      setIsPortrait(false);
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [open]);
+
+  function syncVideoOrientation() {
+    const video = videoRef.current;
+    if (!video || video.videoWidth <= 0 || video.videoHeight <= 0) return;
+    setIsPortrait(video.videoHeight > video.videoWidth);
+  }
 
   function stepHasValidAnswer(currentStep: number): boolean {
     if (currentStep === 1) return isValidRowCountInput(draft.rowCountEstimate);
@@ -256,6 +275,8 @@ export function VideoSurveyDialog({
 
   const nextEnabled = stepHasValidAnswer(step) && !submitting;
   const videoSrc = objectUrl ?? (file ? null : storedVideoSrc);
+  // Side-by-side only once we know it's portrait — avoids a layout flash for landscape.
+  const dualPane = Boolean(videoSrc) && isPortrait;
 
   useEffect(() => {
     if (!open || !videoSrc) return;
@@ -263,6 +284,7 @@ export function VideoSurveyDialog({
     if (!video) return;
 
     const tryPlay = () => {
+      syncVideoOrientation();
       void video.play().catch(() => {
         // Autoplay may be blocked; controls remain available.
       });
@@ -287,152 +309,190 @@ export function VideoSurveyDialog({
     handleNext();
   }
 
+  const surveyBody = (
+    <>
+      <div className="min-w-0">
+        <h2 className="text-base font-semibold text-hq-fg">{t("title")}</h2>
+        {step === 1 ? (
+          <p className="mt-1 text-xs text-hq-fg-muted">{t("processingNote")}</p>
+        ) : null}
+      </div>
+
+      <p className="text-xs font-medium text-hq-fg-muted">
+        {t("stepIndicator", { current: step, total: TOTAL_STEPS })}
+      </p>
+
+      <div className="min-w-0 space-y-4">
+        {step === 1 ? (
+          <label className="block text-sm">
+            <span className="mb-2 block font-medium text-hq-fg">
+              {t("q1Label")}
+            </span>
+            <input
+              type="number"
+              min={1}
+              max={9999}
+              enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT}
+              autoFocus
+              value={draft.rowCountEstimate}
+              onChange={(e) =>
+                setDraft((prev) => ({
+                  ...prev,
+                  rowCountEstimate: e.target.value,
+                }))
+              }
+              placeholder={t("q1Placeholder")}
+              className="w-full min-w-0 rounded-lg border border-hq-border bg-hq-canvas px-3 py-2.5 text-sm text-hq-fg placeholder:text-hq-fg-muted"
+            />
+          </label>
+        ) : null}
+
+        {step === 2 ? (
+          <fieldset className="min-w-0">
+            <legend className="mb-3 text-sm font-medium text-hq-fg">
+              {t("q2Label")}
+            </legend>
+            <div className="flex flex-col gap-2">
+              {SURVEY_SCROLL_STYLES.map((style) => {
+                const selected = draft.scrollStyle === style;
+                return (
+                  <button
+                    key={style}
+                    type="button"
+                    onClick={() =>
+                      setDraft((prev) => ({ ...prev, scrollStyle: style }))
+                    }
+                    className={`w-full rounded-xl border px-4 py-3 text-left text-sm transition-colors ${
+                      selected
+                        ? "border-hq-accent bg-hq-accent/10 text-hq-fg"
+                        : "border-hq-border bg-hq-canvas text-hq-fg hover:border-[#484f58]"
+                    }`}
+                  >
+                    {t(`scrollStyle.${style}`)}
+                  </button>
+                );
+              })}
+            </div>
+          </fieldset>
+        ) : null}
+
+        {step === 3 ? (
+          <fieldset className="min-w-0">
+            <legend className="mb-3 text-sm font-medium text-hq-fg">
+              {q3Label}
+            </legend>
+            <div className="flex flex-col gap-2">
+              {SURVEY_SCHOOLING_ANSWERS.map((answer) => {
+                const selected = draft.schoolingTuitionAnswer === answer;
+                const labelKey =
+                  answer === "yes"
+                    ? "q3Yes"
+                    : answer === "no"
+                      ? "q3No"
+                      : "q3Idk";
+                return (
+                  <button
+                    key={answer}
+                    type="button"
+                    onClick={() =>
+                      setDraft((prev) => ({
+                        ...prev,
+                        schoolingTuitionAnswer: answer,
+                      }))
+                    }
+                    className={`w-full rounded-xl border px-4 py-3 text-left text-sm transition-colors ${
+                      selected
+                        ? "border-hq-accent bg-hq-accent/10 text-hq-fg"
+                        : "border-hq-border bg-hq-canvas text-hq-fg hover:border-[#484f58]"
+                    }`}
+                  >
+                    {t(labelKey)}
+                  </button>
+                );
+              })}
+            </div>
+          </fieldset>
+        ) : null}
+      </div>
+
+      <div className="mt-auto flex items-center justify-between gap-3 pt-2">
+        <button
+          type="button"
+          onClick={handleSkip}
+          disabled={submitting}
+          className="rounded-lg border border-hq-border px-4 py-2 text-sm text-hq-fg hover:bg-hq-surface-muted disabled:opacity-50"
+        >
+          {t("skip")}
+        </button>
+        <button
+          type="submit"
+          disabled={!nextEnabled}
+          className="rounded-lg border border-hq-success bg-hq-success px-4 py-2 text-sm text-white disabled:opacity-50"
+        >
+          {submitting ? t("submitting") : t("next")}
+        </button>
+      </div>
+    </>
+  );
+
   return (
     <Dialog
       open={open}
       onOpenChange={handleOpenChange}
-      className="max-w-xl sm:max-w-2xl"
+      className={cn(
+        // Dialog omits its default max-w/max-h when these are present.
+        "min-h-[50vh] max-h-[90vh]",
+        dualPane
+          ? "max-w-xl sm:max-w-3xl md:max-w-5xl md:overflow-hidden"
+          : "max-w-xl sm:max-w-2xl md:max-w-3xl",
+      )}
     >
       <form
-        className="flex min-w-0 flex-col gap-6 p-1 sm:p-2"
+        className={cn(
+          "flex min-h-[calc(50vh-2.5rem)] min-w-0 gap-5 p-1 sm:gap-6 sm:p-2",
+          dualPane ? "flex-col md:flex-row md:items-stretch" : "flex-col",
+        )}
         onSubmit={(e) => {
           e.preventDefault();
           if (nextEnabled) handleNext();
         }}
         onKeyDownCapture={handleEnterAdvance}
       >
-        <div className="min-w-0">
-          <h2 className="text-base font-semibold text-hq-fg">{t("title")}</h2>
-          {step === 1 ? (
-            <p className="mt-1 text-xs text-hq-fg-muted">{t("processingNote")}</p>
-          ) : null}
-        </div>
-
         {videoSrc ? (
-          <video
-            ref={videoRef}
-            src={videoSrc}
-            controls
-            autoPlay
-            muted
-            playsInline
-            className="max-h-48 w-full min-w-0 rounded-lg border border-hq-border bg-black object-contain"
-          />
+          <div
+            className={cn(
+              "flex min-w-0 items-center justify-center",
+              dualPane
+                ? "md:w-[min(42%,22rem)] md:shrink-0 md:self-stretch"
+                : "w-full",
+            )}
+          >
+            <video
+              ref={videoRef}
+              src={videoSrc}
+              controls
+              autoPlay
+              muted
+              playsInline
+              onLoadedMetadata={syncVideoOrientation}
+              className={cn(
+                "rounded-lg border border-hq-border bg-black object-contain",
+                dualPane
+                  ? // Mobile stays stacked+short; md+ fills the left column height.
+                    "h-auto max-h-[min(42vh,24rem)] w-auto max-w-full md:h-full md:max-h-[min(78vh,42rem)] md:w-auto md:max-w-full"
+                  : "h-auto max-h-[min(45vh,28rem)] w-full",
+              )}
+            />
+          </div>
         ) : null}
 
-        <p className="text-xs font-medium text-hq-fg-muted">
-          {t("stepIndicator", { current: step, total: TOTAL_STEPS })}
-        </p>
-
-        <div className="min-w-0 space-y-4">
-          {step === 1 ? (
-            <label className="block text-sm">
-              <span className="mb-2 block font-medium text-hq-fg">
-                {t("q1Label")}
-              </span>
-              <input
-                type="number"
-                min={1}
-                max={9999}
-                enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT}
-                autoFocus
-                value={draft.rowCountEstimate}
-                onChange={(e) =>
-                  setDraft((prev) => ({
-                    ...prev,
-                    rowCountEstimate: e.target.value,
-                  }))
-                }
-                placeholder={t("q1Placeholder")}
-                className="w-full min-w-0 rounded-lg border border-hq-border bg-hq-canvas px-3 py-2.5 text-sm text-hq-fg placeholder:text-hq-fg-muted"
-              />
-            </label>
-          ) : null}
-
-          {step === 2 ? (
-            <fieldset className="min-w-0">
-              <legend className="mb-3 text-sm font-medium text-hq-fg">
-                {t("q2Label")}
-              </legend>
-              <div className="flex flex-col gap-2">
-                {SURVEY_SCROLL_STYLES.map((style) => {
-                  const selected = draft.scrollStyle === style;
-                  return (
-                    <button
-                      key={style}
-                      type="button"
-                      onClick={() =>
-                        setDraft((prev) => ({ ...prev, scrollStyle: style }))
-                      }
-                      className={`w-full rounded-xl border px-4 py-3 text-left text-sm transition-colors ${
-                        selected
-                          ? "border-hq-accent bg-hq-accent/10 text-hq-fg"
-                          : "border-hq-border bg-hq-canvas text-hq-fg hover:border-[#484f58]"
-                      }`}
-                    >
-                      {t(`scrollStyle.${style}`)}
-                    </button>
-                  );
-                })}
-              </div>
-            </fieldset>
-          ) : null}
-
-          {step === 3 ? (
-            <fieldset className="min-w-0">
-              <legend className="mb-3 text-sm font-medium text-hq-fg">
-                {q3Label}
-              </legend>
-              <div className="flex flex-col gap-2">
-                {SURVEY_SCHOOLING_ANSWERS.map((answer) => {
-                  const selected = draft.schoolingTuitionAnswer === answer;
-                  const labelKey =
-                    answer === "yes"
-                      ? "q3Yes"
-                      : answer === "no"
-                        ? "q3No"
-                        : "q3Idk";
-                  return (
-                    <button
-                      key={answer}
-                      type="button"
-                      onClick={() =>
-                        setDraft((prev) => ({
-                          ...prev,
-                          schoolingTuitionAnswer: answer,
-                        }))
-                      }
-                      className={`w-full rounded-xl border px-4 py-3 text-left text-sm transition-colors ${
-                        selected
-                          ? "border-hq-accent bg-hq-accent/10 text-hq-fg"
-                          : "border-hq-border bg-hq-canvas text-hq-fg hover:border-[#484f58]"
-                      }`}
-                    >
-                      {t(labelKey)}
-                    </button>
-                  );
-                })}
-              </div>
-            </fieldset>
-          ) : null}
-        </div>
-
-        <div className="flex items-center justify-between gap-3 pt-2">
-          <button
-            type="button"
-            onClick={handleSkip}
-            disabled={submitting}
-            className="rounded-lg border border-hq-border px-4 py-2 text-sm text-hq-fg hover:bg-hq-surface-muted disabled:opacity-50"
-          >
-            {t("skip")}
-          </button>
-          <button
-            type="submit"
-            disabled={!nextEnabled}
-            className="rounded-lg border border-hq-success bg-hq-success px-4 py-2 text-sm text-white disabled:opacity-50"
-          >
-            {submitting ? t("submitting") : t("next")}
-          </button>
+        <div
+          className={cn(
+            "flex min-w-0 flex-1 flex-col gap-4",
+            dualPane && "md:min-h-0 md:overflow-y-auto",
+          )}
+        >
+          {surveyBody}
         </div>
       </form>
     </Dialog>

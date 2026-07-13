@@ -73,7 +73,6 @@ export default async function VideoUploadPage({ searchParams }: Props) {
       .where(
         and(
           videoJobsOwnedByViewerWhere(session.id, session.hqUserId),
-          ne(schema.videoJobs.status, "discarded"),
           ne(schema.videoJobs.status, "pending_upload"),
           or(
             eq(schema.videoJobs.passRole, "primary"),
@@ -103,21 +102,31 @@ export default async function VideoUploadPage({ searchParams }: Props) {
       : [];
   const surveyByJobId = new Map(surveyRows.map((row) => [row.jobId, row]));
 
-  const filteredRows = contextScoreTarget
-    ? rows.filter((job) =>
-        jobMatchesScoreTarget(
-          {
-            scoreTarget: job.scoreTarget,
-            category: job.category,
-          },
-          contextScoreTarget,
-        ),
-      )
-    : rows;
+  const filteredRows = (
+    contextScoreTarget
+      ? rows.filter((job) =>
+          jobMatchesScoreTarget(
+            {
+              scoreTarget: job.scoreTarget,
+              category: job.category,
+            },
+            contextScoreTarget,
+          ),
+        )
+      : rows
+  ).filter(
+    // Keep processor rejects (discarded before approval) so uploaders can see
+    // "Rejected at". Hide self-discards after OCR (discarded with approvedAt).
+    (job) => job.status !== "discarded" || job.approvedAt == null,
+  );
 
   const initialJobs: VideoJobRow[] = filteredRows.map((job) => {
     const surveyRow = surveyByJobId.get(job.id);
     const surveyPayload = surveyRow ? surveyRowToPayload(surveyRow) : null;
+    const rejectedAt =
+      job.status === "discarded" && job.approvedAt == null
+        ? job.updatedAt.toISOString()
+        : null;
     return {
       id: job.id,
       status: job.status,
@@ -130,6 +139,8 @@ export default async function VideoUploadPage({ searchParams }: Props) {
       parseSessionId: job.parseSessionId,
       errorMessage: job.errorMessage,
       createdAt: job.createdAt.toISOString(),
+      approvedAt: job.approvedAt?.toISOString() ?? null,
+      rejectedAt,
       surveyComplete: isSurveyComplete(surveyPayload),
     };
   });

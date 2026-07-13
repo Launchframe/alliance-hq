@@ -3569,6 +3569,9 @@
     "surveyResumeLink": "Survey",
     "surveyResumeLoading": "Opening…",
     "eventLink": "Event scores",
+    "uploadedAtLabel": "Uploaded",
+    "approvedAtLabel": "Approved",
+    "rejectedAtLabel": "Rejected",
     "status": {
       "queued": "queued",
       "extracting": "extracting frames",
@@ -3580,7 +3583,8 @@
       "pending": "pending",
       "pending_upload": "awaiting upload",
       "pending_approval": "awaiting approval",
-      "processing": "processing"
+      "processing": "processing",
+      "discarded": "rejected"
     },
     "processAfterUpload": {
       "title": "Process this video?",

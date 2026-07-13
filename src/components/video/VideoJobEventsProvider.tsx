@@ -325,16 +325,35 @@ export function useMergedVideoJobs<T extends { id: string; status: string }>(
   const { jobsById } = useVideoJobEvents();
 
   return useMemo(() => {
+    const keepJob = (job: T) => {
+      if (job.status !== "discarded") return true;
+      // Processor rejects stay visible (no approvedAt). Self-discards after OCR hide.
+      const approvedAt =
+        "approvedAt" in job ? (job as { approvedAt?: string | null }).approvedAt : null;
+      return approvedAt == null;
+    };
+
     const merged = initialJobs
-      .filter((job) => job.status !== "discarded")
+      .filter(keepJob)
       .map((job) => {
       const live = jobsById[job.id];
       if (!live) {
         return job;
       }
+      const nextStatus = live.status;
+      const approvedAt =
+        "approvedAt" in job
+          ? (job as { approvedAt?: string | null }).approvedAt
+          : null;
+      const rejectedAt =
+        nextStatus === "discarded" && approvedAt == null
+          ? live.updatedAt
+          : "rejectedAt" in job
+            ? (job as { rejectedAt?: string | null }).rejectedAt
+            : null;
       return {
         ...job,
-        status: live.status,
+        status: nextStatus,
         fileName: live.fileName ?? ("fileName" in job ? job.fileName : undefined),
         scoreTarget:
           live.scoreTarget ??
@@ -347,9 +366,10 @@ export function useMergedVideoJobs<T extends { id: string; status: string }>(
         errorMessage:
           live.errorMessage ??
           ("errorMessage" in job ? job.errorMessage : null),
+        ...(rejectedAt !== undefined ? { rejectedAt } : {}),
       } as T;
     })
-      .filter((job) => job.status !== "discarded");
+      .filter(keepJob);
 
     for (const live of Object.values(jobsById)) {
       if (merged.some((job) => job.id === live.jobId)) {

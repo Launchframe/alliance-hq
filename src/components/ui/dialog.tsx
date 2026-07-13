@@ -14,6 +14,21 @@ type DialogProps = {
   presentationHidden?: boolean;
 };
 
+function dialogPanelClassName(className: string): string {
+  // Callers often pass max-w-* / max-h-*; those must replace defaults. Without
+  // twMerge, later HTML classes do not win — omit defaults when overridden.
+  const hasMaxWidth = /\bmax-w-/.test(className);
+  const hasMaxHeight = /\bmax-h-/.test(className);
+  return [
+    "relative z-[101] w-full overflow-y-auto rounded-xl border border-hq-border bg-hq-surface p-5 shadow-xl",
+    hasMaxWidth ? null : "max-w-lg",
+    hasMaxHeight ? null : "max-h-[min(90vh,720px)]",
+    className.trim() || null,
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
 export function Dialog({
   open,
   onOpenChange,
@@ -58,11 +73,7 @@ export function Dialog({
           if (!ignoreOutsideDismiss) onOpenChange(false);
         }}
       />
-      <div
-        className={`relative z-[101] max-h-[min(90vh,720px)] w-full max-w-lg overflow-y-auto rounded-xl border border-hq-border bg-hq-surface p-5 shadow-xl ${className}`}
-      >
-        {children}
-      </div>
+      <div className={dialogPanelClassName(className)}>{children}</div>
     </div>,
     document.body,
   );
