@@ -7,6 +7,7 @@ import { useMemo, useState } from "react";
 import { Dialog } from "@/components/ui/dialog";
 import { SERVER_TIME_IANA } from "@/lib/timezone/constants";
 import { formatServerCalendarDate } from "@/lib/trains/game-time";
+import { withTimeZoneLabel } from "@/lib/timezone/zone-label.shared";
 
 type Props = {
   showTakeTour?: boolean;
@@ -21,12 +22,13 @@ export function TrainsHelpPanel({ showTakeTour = false, onTakeTour }: Props) {
   const serverTimeLine = useMemo(() => {
     const now = new Date();
     const date = formatServerCalendarDate(now);
-    const time = new Intl.DateTimeFormat(undefined, {
+    const formatted = new Intl.DateTimeFormat(undefined, {
       timeZone: SERVER_TIME_IANA,
       hour: "numeric",
       minute: "2-digit",
       hour12: true,
     }).format(now);
+    const time = withTimeZoneLabel(formatted, "server", now, SERVER_TIME_IANA);
     return tServer("current", { date, time });
   }, [tServer]);
 

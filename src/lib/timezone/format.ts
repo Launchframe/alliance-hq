@@ -1,4 +1,5 @@
 import {
+  isServerTime,
   normalizeAccountTimezoneId,
   resolveAccountTimeZoneIana,
 } from "@/lib/timezone/account";
@@ -8,6 +9,11 @@ import {
   SERVER_TIME_UTC_OFFSET,
   type AccountTimezoneId,
 } from "@/lib/timezone/constants";
+import {
+  formatOptionsIncludeClockTime,
+  getBrowserTimeZoneIana,
+  withTimeZoneLabel,
+} from "@/lib/timezone/zone-label.shared";
 
 function getTimeZoneOffsetMs(timeZone: string, date: Date): number {
   const formatted = new Intl.DateTimeFormat("en-US", {
@@ -117,33 +123,71 @@ export function formatAccountDateTime(
   options: {
     locale: string;
     timezoneId?: AccountTimezoneId;
+    /** When false, skip the ST / Local (TZ) suffix. Default true for clock times. */
+    zoneLabel?: boolean;
   } & Intl.DateTimeFormatOptions,
 ): string {
-  const { locale, timezoneId = DEFAULT_ACCOUNT_TIMEZONE_ID, ...formatOptions } =
-    options;
+  const {
+    locale,
+    timezoneId = DEFAULT_ACCOUNT_TIMEZONE_ID,
+    zoneLabel,
+    ...formatOptions
+  } = options;
   const date = typeof value === "string" ? new Date(value) : value;
-  const timeZone = resolveAccountTimeZoneIana(
-    normalizeAccountTimezoneId(timezoneId),
-  );
+  const normalizedTimezoneId = normalizeAccountTimezoneId(timezoneId);
+  const timeZone = resolveAccountTimeZoneIana(normalizedTimezoneId);
   const usesStyleOption =
     formatOptions.dateStyle !== undefined ||
     formatOptions.timeStyle !== undefined;
 
-  return new Intl.DateTimeFormat(
-    locale,
-    usesStyleOption
-      ? { timeZone, ...formatOptions }
-      : {
-          timeZone,
-          year: "numeric",
-          month: "numeric",
-          day: "numeric",
-          hour: "numeric",
-          minute: "numeric",
-          second: "numeric",
-          ...formatOptions,
-        },
-  ).format(date);
+  const resolvedOptions: Intl.DateTimeFormatOptions = usesStyleOption
+    ? { timeZone, ...formatOptions }
+    : {
+        timeZone,
+        year: "numeric",
+        month: "numeric",
+        day: "numeric",
+        hour: "numeric",
+        minute: "numeric",
+        second: "numeric",
+        ...formatOptions,
+      };
+
+  const formatted = new Intl.DateTimeFormat(locale, resolvedOptions).format(
+    date,
+  );
+
+  const shouldLabel =
+    zoneLabel ?? formatOptionsIncludeClockTime(resolvedOptions);
+  if (!shouldLabel) {
+    return formatted;
+  }
+  return withTimeZoneLabel(
+    formatted,
+    isServerTime(normalizedTimezoneId) ? "server" : "local",
+    date,
+    timeZone,
+  );
+}
+
+/** Browser-local clock/datetime with a Local (TZ) suffix. */
+export function formatBrowserLocalDateTime(
+  value: Date | string,
+  options: Intl.DateTimeFormatOptions = {
+    dateStyle: "short",
+    timeStyle: "short",
+  },
+): string {
+  const date = typeof value === "string" ? new Date(value) : value;
+  const timeZone = getBrowserTimeZoneIana();
+  const formatted = new Intl.DateTimeFormat(undefined, {
+    timeZone,
+    ...options,
+  }).format(date);
+  if (!formatOptionsIncludeClockTime(options)) {
+    return formatted;
+  }
+  return withTimeZoneLabel(formatted, "local", date, timeZone);
 }
 
 export function formatAccountDate(

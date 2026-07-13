@@ -4,6 +4,7 @@ import {
   isCalendarDateOnOrAfter,
 } from "@/lib/trains/game-time";
 import { SERVER_TIME_IANA } from "@/lib/timezone/constants";
+import { withTimeZoneLabel } from "@/lib/timezone/zone-label.shared";
 
 export type TrainNextDepartureState =
   | "awaiting_selection"
@@ -50,13 +51,14 @@ export function resolveTrainNextDeparture(input: {
 }
 
 export function formatServerClockTime(now = new Date()): string {
-  return new Intl.DateTimeFormat("en-US", {
+  const formatted = new Intl.DateTimeFormat("en-US", {
     timeZone: SERVER_TIME_IANA,
     hour: "numeric",
     minute: "2-digit",
     second: "2-digit",
     hour12: true,
   }).format(now);
+  return withTimeZoneLabel(formatted, "server", now);
 }
 
 export function formatServerClockDate(now = new Date()): string {

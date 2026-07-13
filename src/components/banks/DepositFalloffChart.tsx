@@ -41,6 +41,7 @@ import {
   preventDefaultFormSubmit,
   FORM_SUBMIT_ENTER_KEY_HINT,
 } from "@/lib/client/form-enter-submit.shared";
+import { formatBrowserLocalDateTime } from "@/lib/timezone/format";
 
 const PROJECTED_LOCKED_COLOR = "#58a6ff";
 const MATURING_OUTFLOW_COLOR = "#ffa657";
@@ -71,18 +72,18 @@ function formatAmount(value: number): string {
 }
 
 function formatHourLabel(iso: string): string {
-  return new Intl.DateTimeFormat(undefined, {
+  return formatBrowserLocalDateTime(iso, {
     weekday: "short",
     hour: "numeric",
     minute: "2-digit",
-  }).format(new Date(iso));
+  });
 }
 
 function formatSavedAt(iso: string): string {
-  return new Intl.DateTimeFormat(undefined, {
+  return formatBrowserLocalDateTime(iso, {
     dateStyle: "medium",
     timeStyle: "short",
-  }).format(new Date(iso));
+  });
 }
 
 function nearestHourStartIso(

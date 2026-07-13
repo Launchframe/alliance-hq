@@ -2,6 +2,7 @@
 
 import { useTranslations } from "next-intl";
 
+import { formatBrowserLocalDateTime } from "@/lib/timezone/format";
 import { THP_BREAKDOWN_KEYS, type MyThpEvent } from "@/lib/thp/my-thp.shared";
 
 type Props = {
@@ -9,7 +10,7 @@ type Props = {
 };
 
 function formatDateTime(iso: string): string {
-  return new Date(iso).toLocaleString(undefined, {
+  return formatBrowserLocalDateTime(iso, {
     dateStyle: "medium",
     timeStyle: "short",
   });

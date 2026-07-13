@@ -4918,7 +4918,7 @@
       "policyPeace": "In-and-out with these Strongholds. We're not in a rush to take them.",
       "seasonDisclaimer": "📣 DO NOT LOOT GOLD until the map marker gives you the okay.\nResistance leaders loot first so they can upgrade faster, push harder, and help us reach team goals faster 💪💪",
       "empty": "No captures are scheduled in the next 24 hours.",
-      "dropLine": "We are dropping the Bank with marker {markerLabel} at {dropServerTime} ST. Please limit deposit terms on any new deposits with this bank."
+      "dropLine": "We are dropping the Bank with marker {markerLabel} at {dropServerTime}. Please limit deposit terms on any new deposits with this bank."
     },
     "calendar": {
       "viewDay": "Daily",

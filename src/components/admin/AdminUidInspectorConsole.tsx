@@ -11,6 +11,7 @@ import {
   validateAdminUidInspectorGameUid,
 } from "@/lib/admin/admin-uid-inspector-query.shared";
 import type { AdminUidInspectorResult } from "@/lib/admin/admin-uid-inspector.shared";
+import { formatBrowserLocalDateTime } from "@/lib/timezone/format";
 
 type AllianceOption = {
   id: string;
@@ -279,7 +280,7 @@ export function AdminUidInspectorConsole() {
                   </p>
                   <p className="text-xs text-hq-fg-subtle">
                     {t("linkedAt", {
-                      date: new Date(row.linkedAt).toLocaleString(),
+                      date: formatBrowserLocalDateTime(row.linkedAt),
                     })}
                   </p>
                 </li>
@@ -419,7 +420,7 @@ export function AdminUidInspectorConsole() {
                     {row.allianceTag ?? row.allianceId}
                   </p>
                   <p className="text-xs text-hq-fg-muted">
-                    {new Date(row.createdAt).toLocaleString()}
+                    {formatBrowserLocalDateTime(row.createdAt)}
                     {row.discordUserId ? ` · ${row.discordUserId}` : ""}
                   </p>
                   <p className="mt-1 flex flex-wrap gap-2 text-xs">

@@ -42,24 +42,29 @@ describe("battle plan time display", () => {
     );
   });
 
-  it("formats server times in 24-hour clock", () => {
+  it("formats server times in 24-hour clock with an ST label", () => {
     const iso = zonedDateTimeToIso("2026-07-10", "14:30", SERVER_TIME_IANA);
     expect(formatCaptureTime(iso, "server")).toMatch(/14:30/);
+    expect(formatCaptureTime(iso, "server")).toMatch(/\bST\b/);
     expect(formatCaptureTime(iso, "server")).not.toMatch(/AM|PM/i);
     expect(formatCaptureDateTime(iso, "server")).toMatch(/14:30/);
+    expect(formatCaptureDateTime(iso, "server")).toMatch(/\bST\b/);
     expect(formatCaptureDateTime(iso, "server")).not.toMatch(/AM|PM/i);
   });
 
-  it("maps a selected server calendar day to local display mode", () => {
+  it("keeps a selected calendar day in local display mode", () => {
     const now = new Date("2026-07-10T18:45:00.000Z");
     const localTz = resolveBattlePlanIana("local");
     const parts = buildDefaultCaptureDateTime("local", "2026-07-12", now);
-    const noonOnServerDay = zonedDateTimeToIso(
-      "2026-07-12",
-      "12:00",
-      SERVER_TIME_IANA,
-    );
-    expect(parts.date).toBe(getZonedDateTimeParts(noonOnServerDay, localTz).date);
+    expect(parts.date).toBe("2026-07-12");
     expect(parts.time).toBe(getZonedDateTimeParts(now, localTz).time);
+  });
+
+  it("formats calendar times in 24-hour clock with a Local label", () => {
+    const iso = zonedDateTimeToIso("2026-07-10", "22:00", SERVER_TIME_IANA);
+    const formatted = formatCaptureTime(iso, "local", { hour12: false });
+    expect(formatted).toMatch(/\d{1,2}:\d{2}/);
+    expect(formatted).toMatch(/Local \(/);
+    expect(formatted).not.toMatch(/AM|PM/i);
   });
 });

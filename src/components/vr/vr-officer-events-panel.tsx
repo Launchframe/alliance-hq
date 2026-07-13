@@ -11,6 +11,7 @@ import {
 import {
   FORM_SUBMIT_ENTER_KEY_HINT,
 } from "@/lib/client/form-enter-submit.shared";
+import { formatBrowserLocalDateTime } from "@/lib/timezone/format";
 
 type OfficerEvent = {
   id: string;
@@ -215,7 +216,7 @@ export function VrOfficerEventsPanel({
                     className="border-b border-hq-surface-muted last:border-0"
                   >
                     <td className="px-4 py-3 text-hq-fg-muted">
-                      {new Date(event.createdAt).toLocaleString()}
+                      {formatBrowserLocalDateTime(event.createdAt)}
                     </td>
                     <td className="px-4 py-3">
                       <input

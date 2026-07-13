@@ -27,7 +27,7 @@ const strings: BattlePlanAnnouncementStrings = {
     return preset;
   },
   dropLine: ({ markerLabel, dropServerTime }) =>
-    `We are dropping the Bank with marker ${markerLabel} at ${dropServerTime} ST. Please limit deposit terms on any new deposits with this bank.`,
+    `We are dropping the Bank with marker ${markerLabel} at ${dropServerTime}. Please limit deposit terms on any new deposits with this bank.`,
 };
 
 const baseEvent = (

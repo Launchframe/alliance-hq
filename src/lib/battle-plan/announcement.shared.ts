@@ -1,4 +1,5 @@
 import { SERVER_TIME_IANA } from "@/lib/timezone/constants";
+import { withTimeZoneLabel } from "@/lib/timezone/zone-label.shared";
 import {
   markerPresetI18nKey,
   type MarkerIconPreset,
@@ -24,12 +25,13 @@ export type BattlePlanAnnouncementStrings = {
 };
 
 export function formatServerCaptureTime(iso: string): string {
-  return new Intl.DateTimeFormat("en-GB", {
+  const formatted = new Intl.DateTimeFormat("en-GB", {
     timeZone: SERVER_TIME_IANA,
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
   }).format(new Date(iso));
+  return withTimeZoneLabel(formatted, "server", iso);
 }
 
 export function listCaptureEventsInNextHours(
@@ -73,7 +75,7 @@ function formatEventLine(
   const markerSuffix = event.iconPreset
     ? ` [${strings.markerLabel(event.iconPreset)}]`
     : "";
-  return `${time} ${strings.serverTimeSuffix} - ${territory}${markerSuffix}`;
+  return `${time} - ${territory}${markerSuffix}`;
 }
 
 function groupLinesByServerDate(

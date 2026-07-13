@@ -1,4 +1,5 @@
 import { SERVER_TIME_IANA } from "@/lib/timezone/constants";
+import { withTimeZoneLabel } from "@/lib/timezone/zone-label.shared";
 
 export type CoverageDisplayZone = "local" | "server";
 
@@ -38,12 +39,14 @@ export function formatCoverageHourLabel(
   zone: CoverageDisplayZone,
 ): string {
   const ref = new Date(Date.UTC(2024, 0, 1, hour, 0, 0));
-  return new Intl.DateTimeFormat("en-US", {
-    timeZone: zone === "server" ? SERVER_TIME_IANA : undefined,
+  const timeZone = zone === "server" ? SERVER_TIME_IANA : undefined;
+  const formatted = new Intl.DateTimeFormat("en-US", {
+    timeZone,
     hour: "numeric",
     minute: "2-digit",
     hour12: true,
   }).format(ref);
+  return withTimeZoneLabel(formatted, zone, ref, timeZone);
 }
 
 export function daysSince(iso: string | null): number | null {
