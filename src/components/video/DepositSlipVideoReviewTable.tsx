@@ -278,6 +278,8 @@ export function DepositSlipVideoReviewTable({
     });
   }, [activeRows, filterQuery, sortKey]);
 
+  // Pair on the visible subset only — if a filter hides one half of a pair, both
+  // rows render ungrouped rather than showing a misleading partial group.
   const { pairs: terminalPairs } = useMemo(
     () => pairDepositSlipTerminalRows(filteredRows),
     [filteredRows],

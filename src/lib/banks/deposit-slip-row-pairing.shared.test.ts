@@ -87,6 +87,45 @@ describe("pairDepositSlipTerminalRows", () => {
     expect(pairs).toEqual([]);
   });
 
+  it("does not pair rows with different amounts when both are present", () => {
+    const locked = row({ id: "locked-1", score: "6000" });
+    const matured = row({
+      id: "matured-1",
+      profession: "matured",
+      score: "5000",
+    });
+
+    const { pairs } = pairDepositSlipTerminalRows([locked, matured]);
+
+    expect(pairs).toEqual([]);
+  });
+
+  it("does not pair rows with different terms when both are present", () => {
+    const locked = row({ id: "locked-1", memberLevel: 3 });
+    const matured = row({
+      id: "matured-1",
+      profession: "matured",
+      memberLevel: 7,
+    });
+
+    const { pairs } = pairDepositSlipTerminalRows([locked, matured]);
+
+    expect(pairs).toEqual([]);
+  });
+
+  it("does not pair when the terminal row has an empty commander name", () => {
+    const locked = row({ id: "locked-1" });
+    const matured = row({
+      id: "matured-1",
+      profession: "matured",
+      ocrName: "   ",
+    });
+
+    const { pairs } = pairDepositSlipTerminalRows([locked, matured]);
+
+    expect(pairs).toEqual([]);
+  });
+
   it("still pairs when one side is missing amount or tag (best-effort)", () => {
     const locked = row({ id: "locked-1", score: null, allianceRankTitle: null });
     const matured = row({
