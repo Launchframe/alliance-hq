@@ -16,6 +16,7 @@ import type {
 } from "@/lib/battle-plan/types.shared";
 import {
   isoToRelativeDurationDigits,
+  isValidRelativeDurationDigits,
   relativeDurationDigitsToIso,
 } from "@/lib/battle-plan/relative-duration.shared";
 import {
@@ -180,6 +181,9 @@ function CaptureEventForm({
   const selectedMarkerLabel = values.iconPreset
     ? presetLabel(values.iconPreset)
     : t("event.marker");
+  const scheduleReady =
+    values.scheduleMode === "absolute" ||
+    isValidRelativeDurationDigits(values.relativeDuration);
 
   const switchScheduleMode = (mode: CaptureScheduleMode) => {
     setAwaitingConflictConfirmation(false);
@@ -551,14 +555,14 @@ function CaptureEventForm({
               </button>
             </div>
           ) : (
-            <button
-              type="submit"
-              className="rounded border border-hq-success bg-hq-success px-4 py-2 text-sm text-white disabled:opacity-50"
-              disabled={saving || values.iconPreset == null}
-              title={FORM_SUBMIT_ENTER_KEY_HINT}
-            >
-              {saving ? t("actions.saving") : t("actions.save")}
-            </button>
+              <button
+                type="submit"
+                className="rounded border border-hq-success bg-hq-success px-4 py-2 text-sm text-white disabled:opacity-50"
+                disabled={saving || values.iconPreset == null || !scheduleReady}
+                title={FORM_SUBMIT_ENTER_KEY_HINT}
+              >
+                {saving ? t("actions.saving") : t("actions.save")}
+              </button>
           )
         ) : (
           <button

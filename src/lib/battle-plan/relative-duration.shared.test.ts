@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   isoToRelativeDurationDigits,
+  isValidRelativeDurationDigits,
   parseRelativeDurationDigits,
   relativeDurationDigitsToIso,
 } from "@/lib/battle-plan/relative-duration.shared";
@@ -18,6 +19,15 @@ describe("relative duration helpers", () => {
       hours: 2,
       minutes: 30,
     });
+  });
+
+  it("rejects empty, zero, and out-of-range DD:HH:MM values", () => {
+    expect(isValidRelativeDurationDigits("")).toBe(false);
+    expect(isValidRelativeDurationDigits("000000")).toBe(false);
+    expect(isValidRelativeDurationDigits("000001")).toBe(true);
+    expect(isValidRelativeDurationDigits("002330")).toBe(true);
+    expect(isValidRelativeDurationDigits("002400")).toBe(false);
+    expect(isValidRelativeDurationDigits("002599")).toBe(false);
   });
 
   it("converts relative duration digits to an absolute ISO instant", () => {

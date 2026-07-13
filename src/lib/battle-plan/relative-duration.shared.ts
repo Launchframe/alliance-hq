@@ -22,6 +22,15 @@ export function relativeDurationPartsToTotalMinutes(
   return parts.days * 24 * 60 + parts.hours * 60 + parts.minutes;
 }
 
+/** True when digits form a positive DD:HH:MM duration (hours ≤ 23, minutes ≤ 59). */
+export function isValidRelativeDurationDigits(digits: string): boolean {
+  const parts = parseRelativeDurationDigits(digits);
+  if (parts.hours > 23 || parts.minutes > 59) {
+    return false;
+  }
+  return relativeDurationPartsToTotalMinutes(parts) > 0;
+}
+
 export function relativeDurationDigitsToIso(
   digits: string,
   now = new Date(),
