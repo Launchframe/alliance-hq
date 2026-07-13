@@ -15,7 +15,8 @@ export type ParseDepositSlipImageResult = ParsedDepositSlipHistory & {
 
 /**
  * Still-frame Deposit Slip History OCR: reuse roster preprocess + Tesseract,
- * then domain-parse the text lines.
+ * then domain-parse the text lines (preserving per-line confidence for dedupe
+ * pick-best).
  */
 export async function parseDepositSlipImage(
   imageBuffer: Buffer,
@@ -30,7 +31,12 @@ export async function parseDepositSlipImage(
     DEFAULT_ROSTER_OCR_CONFIG,
   );
   const rawLines = ocrLines.map((line) => line.text);
-  const parsed = parseDepositSlipHistoryText(rawLines);
+  const parsed = parseDepositSlipHistoryText(
+    ocrLines.map((line) => ({
+      text: line.text,
+      confidence: line.confidence,
+    })),
+  );
   return {
     ...parsed,
     rawLines,

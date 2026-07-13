@@ -54,6 +54,7 @@ function makeBank(id: string, amount: number): BankWithSlips {
         depositAllianceId: null,
         commanderName: "Cmdr",
         commanderId: null,
+        allianceMemberId: null,
         createdAt: now.toISOString(),
         updatedAt: now.toISOString(),
       },

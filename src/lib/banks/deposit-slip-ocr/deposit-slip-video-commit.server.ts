@@ -5,6 +5,7 @@ import { and, eq } from "drizzle-orm";
 import type { DepositSlipPayload } from "@/lib/banks/api.shared";
 import { validateDepositSlipPayload } from "@/lib/banks/api.shared";
 import { parsedRowFieldsToDepositSlipDraft } from "@/lib/banks/deposit-slip-ocr/draft-row.shared";
+import { resolveDepositSlipMemberLinks } from "@/lib/banks/deposit-slip-ocr/resolve-deposit-slip-member.server";
 import { createDepositSlip } from "@/lib/banks/repository.server";
 import { getDb, schema } from "@/lib/db";
 
@@ -95,6 +96,12 @@ export async function commitDepositSlipsFromVideoJob(
       continue;
     }
 
+    const links = await resolveDepositSlipMemberLinks({
+      bankAllianceId: input.allianceId,
+      depositAllianceTag: draft.identity.allianceTag,
+      commanderName: draft.identity.commanderName,
+    });
+
     const payload: DepositSlipPayload = {
       bankId: input.bankId,
       depositAt: draft.depositAt,
@@ -106,7 +113,10 @@ export async function commitDepositSlipsFromVideoJob(
           ? draft.depositAt
           : null,
       depositAllianceTag: draft.identity.allianceTag,
+      depositAllianceId: links.depositAllianceId,
       commanderName: draft.identity.commanderName,
+      commanderId: links.commanderId,
+      allianceMemberId: links.allianceMemberId,
     };
 
     const validationError = validateDepositSlipPayload(payload);

@@ -34,6 +34,7 @@ export type DepositSlipPayload = {
   depositAllianceId?: string | null;
   commanderName: string;
   commanderId?: string | null;
+  allianceMemberId?: string | null;
 };
 
 export function isDepositPolicy(value: string): value is DepositPolicy {
@@ -102,6 +103,7 @@ export function serializeDepositSlip(row: {
   depositAllianceId: string | null;
   commanderName: string;
   commanderId: string | null;
+  allianceMemberId: string | null;
   createdAt: Date;
   updatedAt: Date;
 }): SerializedDepositSlip {
@@ -119,6 +121,7 @@ export function serializeDepositSlip(row: {
     depositAllianceId: row.depositAllianceId,
     commanderName: row.commanderName,
     commanderId: row.commanderId,
+    allianceMemberId: row.allianceMemberId,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };

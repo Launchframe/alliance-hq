@@ -2,10 +2,18 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const createDepositSlip = vi.hoisted(() => vi.fn());
 const selectLimit = vi.hoisted(() => vi.fn());
+const resolveDepositSlipMemberLinks = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/banks/repository.server", () => ({
   createDepositSlip,
 }));
+
+vi.mock(
+  "@/lib/banks/deposit-slip-ocr/resolve-deposit-slip-member.server",
+  () => ({
+    resolveDepositSlipMemberLinks,
+  }),
+);
 
 vi.mock("@/lib/db", () => ({
   getDb: () => ({
@@ -29,6 +37,14 @@ describe("commitDepositSlipsFromVideoJob", () => {
     vi.clearAllMocks();
     selectLimit.mockResolvedValue([{ id: "bank-1" }]);
     createDepositSlip.mockResolvedValue({ id: "slip-1" });
+    resolveDepositSlipMemberLinks.mockResolvedValue({
+      depositAllianceId: "alliance-roar",
+      allianceMemberId: "am-1",
+      commanderId: "cmd-1",
+      ashedMemberId: "ashed-1",
+      matchMethod: "exact",
+      matchConfidence: 1,
+    });
   });
 
   it("rejects when the bank is not in the job alliance", async () => {
@@ -57,7 +73,7 @@ describe("commitDepositSlipsFromVideoJob", () => {
     ).rejects.toThrow("Bank not found.");
   });
 
-  it("creates locked and looted slips with terminal outcomeAt", async () => {
+  it("creates locked and looted slips with resolved member FKs", async () => {
     const result = await commitDepositSlipsFromVideoJob({
       allianceId: "alliance-a",
       bankId: "bank-1",
@@ -91,6 +107,12 @@ describe("commitDepositSlipsFromVideoJob", () => {
     });
 
     expect(result.createdCount).toBe(2);
+    expect(resolveDepositSlipMemberLinks).toHaveBeenCalledTimes(2);
+    expect(resolveDepositSlipMemberLinks).toHaveBeenNthCalledWith(1, {
+      bankAllianceId: "alliance-a",
+      depositAllianceTag: "Roar",
+      commanderName: "Blue Investor",
+    });
     expect(createDepositSlip).toHaveBeenCalledTimes(2);
     expect(createDepositSlip).toHaveBeenNthCalledWith(1, "alliance-a", {
       bankId: "bank-1",
@@ -100,7 +122,10 @@ describe("commitDepositSlipsFromVideoJob", () => {
       status: "locked",
       outcomeAt: null,
       depositAllianceTag: "Roar",
+      depositAllianceId: "alliance-roar",
       commanderName: "Blue Investor",
+      commanderId: "cmd-1",
+      allianceMemberId: "am-1",
     });
     expect(createDepositSlip).toHaveBeenNthCalledWith(2, "alliance-a", {
       bankId: "bank-1",
@@ -110,7 +135,10 @@ describe("commitDepositSlipsFromVideoJob", () => {
       status: "looted",
       outcomeAt: "2026-07-09T12:49:35.000Z",
       depositAllianceTag: "Roar",
+      depositAllianceId: "alliance-roar",
       commanderName: "Orange Investor",
+      commanderId: "cmd-1",
+      allianceMemberId: "am-1",
     });
   });
 
@@ -149,6 +177,7 @@ describe("commitDepositSlipsFromVideoJob", () => {
       }),
     ).rejects.toThrow("Row row-incomplete: missing commander");
     expect(createDepositSlip).not.toHaveBeenCalled();
+    expect(resolveDepositSlipMemberLinks).not.toHaveBeenCalled();
   });
 
   it("reports skipped rows while committing valid ones", async () => {
