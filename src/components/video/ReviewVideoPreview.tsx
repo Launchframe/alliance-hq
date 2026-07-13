@@ -121,8 +121,13 @@ export function ReviewVideoPreview({
   );
 
   useEffect(() => {
+    if (unavailable) {
+      pendingSeekSecondsRef.current = null;
+      return;
+    }
+
     const el = videoRef.current;
-    if (!el || unavailable) return;
+    if (!el) return;
 
     const flushPending = () => {
       const pending = pendingSeekSecondsRef.current;
@@ -135,7 +140,7 @@ export function ReviewVideoPreview({
       flushPending();
       return;
     }
-    el.addEventListener("loadedmetadata", flushPending);
+    el.addEventListener("loadedmetadata", flushPending, { once: true });
     return () => el.removeEventListener("loadedmetadata", flushPending);
   }, [unavailable, jobId]);
 
@@ -144,19 +149,12 @@ export function ReviewVideoPreview({
     const el = videoRef.current;
     if (!el) return;
 
-    const seekTo = seekRequest.seconds;
-    const applySeek = () => {
-      pendingSeekSecondsRef.current = null;
-      applyVideoSeek(el, seekTo);
-    };
-
+    pendingSeekSecondsRef.current = seekRequest.seconds;
     if (el.readyState >= 1) {
-      applySeek();
-      return;
+      const pending = pendingSeekSecondsRef.current;
+      pendingSeekSecondsRef.current = null;
+      if (pending != null) applyVideoSeek(el, pending);
     }
-    pendingSeekSecondsRef.current = seekTo;
-    el.addEventListener("loadedmetadata", applySeek, { once: true });
-    return () => el.removeEventListener("loadedmetadata", applySeek);
   }, [seekRequest]);
 
   useEffect(() => {
