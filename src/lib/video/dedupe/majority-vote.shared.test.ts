@@ -84,6 +84,36 @@ describe("resolveByMajority — tieBreak", () => {
     expect(result).toBeNull();
   });
 
+  it("does not trust a dominant score from a tiny batch", () => {
+    const result = resolveByMajority(
+      ["LFga", "LFgo"],
+      undefined,
+      scoreByBatchFrequency({ LFgo: 3, LFga: 1 }),
+    );
+    expect(result).toBeNull();
+  });
+
+  it("does not apply a tiebreaker to a plurality that is not locally tied", () => {
+    const result = resolveByMajority(
+      ["LFgo", "LFgo", "LFga", "LFgb"],
+      undefined,
+      scoreByBatchFrequency({ LFgo: 100, LFga: 2, LFgb: 1 }),
+    );
+    expect(result).toBeNull();
+  });
+
+  it("honors a domain guard that rejects the externally favored value", () => {
+    const result = resolveByMajority(
+      ["LFgo", "ROAR"],
+      undefined,
+      {
+        ...scoreByBatchFrequency({ LFgo: 49, ROAR: 1 }),
+        canResolve: () => false,
+      },
+    );
+    expect(result).toBeNull();
+  });
+
   it("only considers tiebreak among values tied for the local top count, not lower-count ones", () => {
     // 2 of 3 is already a strict majority — tieBreak should never even be consulted.
     const result = resolveByMajority(

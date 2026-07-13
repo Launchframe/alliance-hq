@@ -99,6 +99,18 @@ function normalizeTagForFrequency(tag: string | null | undefined): string | null
   return trimmed ? trimmed : null;
 }
 
+function areLikelyAllianceTagOcrVariants(a: unknown, b: unknown): boolean {
+  const normalizedA = normalizeTagForFrequency(typeof a === "string" ? a : null);
+  const normalizedB = normalizeTagForFrequency(typeof b === "string" ? b : null);
+  if (!normalizedA || !normalizedB) return false;
+
+  const maxLength = Math.max(normalizedA.length, normalizedB.length);
+  // The batch-frequency signal is only safe for a one-edit OCR variant. A
+  // wholly different tag can represent a real same-name identity collision and
+  // must remain flagged regardless of how common either tag is in the batch.
+  return stringSimilarity(normalizedA, normalizedB) >= 1 - 1 / maxLength;
+}
+
 /**
  * Counts how often each alliance tag appears across the *whole* batch. Used as
  * a tiebreaker when a cluster has a genuine local tie on `allianceTag` (e.g. a
@@ -136,8 +148,16 @@ function buildDepositSlipConflictFields(
       get: (s) => s.identity.allianceTag,
       isEqual: (a, b) =>
         String(a).trim().toLowerCase() === String(b).trim().toLowerCase(),
-      tieBreakerScore: (value) =>
-        tagFrequency.get(normalizeTagForFrequency(value as string) ?? "") ?? 0,
+      tieBreaker: {
+        score: (value) =>
+          tagFrequency.get(
+            normalizeTagForFrequency(typeof value === "string" ? value : null) ?? "",
+          ) ?? 0,
+        canResolve: (winner, alternatives) =>
+          alternatives.every((alternative) =>
+            areLikelyAllianceTagOcrVariants(winner, alternative),
+          ),
+      },
     },
     {
       key: "gameServerNumber",

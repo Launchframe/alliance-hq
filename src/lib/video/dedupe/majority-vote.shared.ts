@@ -24,6 +24,13 @@ export type MajorityTieBreak<T> = {
   score: (value: T) => number;
   minWinnerScore?: number;
   minRatio?: number;
+  /**
+   * Optional domain guard for deciding whether the winning external signal is
+   * actually relevant to every tied alternative. For example, an alliance-tag
+   * frequency should only correct a likely OCR variant, not overwrite a wholly
+   * different tag that may represent a real identity conflict.
+   */
+  canResolve?: (winner: T, alternatives: readonly T[]) => boolean;
 };
 
 /**
@@ -59,17 +66,25 @@ export function resolveByMajority<T>(
 
   if (tieBreak && groups.length >= 2) {
     const tiedForTop = groups.filter((g) => g.count === top.count);
+    // A plurality such as 2-1-1 has no strict majority, but it is not a tie.
+    // External evidence must not turn that existing plurality into an automatic
+    // correction; the tiebreaker is intentionally limited to tied local votes.
+    if (tiedForTop.length < 2) return null;
+
     const scored = tiedForTop
       .map((g) => ({ ...g, score: tieBreak.score(g.value) }))
       .sort((a, b) => b.score - a.score);
     const best = scored[0]!;
     const runnerUp = scored[1];
-    const minWinnerScore = tieBreak.minWinnerScore ?? 1;
+    const minWinnerScore = tieBreak.minWinnerScore ?? 5;
     const minRatio = tieBreak.minRatio ?? 3;
     const clearsRunnerUp =
       !runnerUp ||
       (runnerUp.score === 0 ? best.score > 0 : best.score / runnerUp.score >= minRatio);
-    if (best.score >= minWinnerScore && clearsRunnerUp) {
+    const alternatives = scored.slice(1).map((candidate) => candidate.value);
+    const domainAllowsResolution =
+      !tieBreak.canResolve || tieBreak.canResolve(best.value, alternatives);
+    if (best.score >= minWinnerScore && clearsRunnerUp && domainAllowsResolution) {
       return { value: best.value, agreeCount: best.count, totalCount: present.length };
     }
   }

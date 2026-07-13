@@ -28,13 +28,19 @@ export type TimestampPlausibilityOptions = {
    * With very few parsed timestamps, the median itself can be dragged far
    * away by a single bad outlier (e.g. 2 rows: one fine, one off by
    * centuries — the median sits between them, and *both* look "far from the
-   * median"). Skip outlier detection entirely below this many timestamps.
+   * median"). Skip median-based detection below this many timestamps. Absolute
+   * year bounds still apply, even to tiny batches.
    */
   minSampleSize?: number;
+  /** Earliest reasonable UTC year for an OCR-derived application timestamp. */
+  minYear?: number;
+  /** Latest reasonable UTC year. Defaults to one year beyond the current year. */
+  maxYear?: number;
 };
 
 const DEFAULT_MAX_DEVIATION_MS = 30 * 24 * 60 * 60 * 1000;
 const DEFAULT_MIN_SAMPLE_SIZE = 5;
+const DEFAULT_MIN_YEAR = 2000;
 
 function median(values: readonly number[]): number {
   const sorted = [...values].sort((a, b) => a - b);
@@ -48,8 +54,8 @@ function median(values: readonly number[]): number {
 /**
  * Splits `rows` into those whose timestamp is plausible (close to the batch's
  * median timestamp) and those whose timestamp is a parseable but wildly
- * implausible outlier. Rows with no parseable timestamp at all are left out
- * of both buckets — callers already have a separate path for those.
+ * implausible outlier. Rows with no parseable timestamp are returned as
+ * plausible; callers may separate them before invoking this helper.
  */
 export function partitionPlausibleTimestamps<T>(
   rows: readonly T[],
@@ -58,23 +64,42 @@ export function partitionPlausibleTimestamps<T>(
 ): { plausible: T[]; implausible: T[] } {
   const maxDeviationMs = options?.maxDeviationMs ?? DEFAULT_MAX_DEVIATION_MS;
   const minSampleSize = options?.minSampleSize ?? DEFAULT_MIN_SAMPLE_SIZE;
+  const minYear = options?.minYear ?? DEFAULT_MIN_YEAR;
+  const maxYear = options?.maxYear ?? new Date().getUTCFullYear() + 1;
 
   const parsedMs: number[] = [];
+  const absolutelyImplausible = new Set<T>();
   for (const row of rows) {
     const ts = getTs(row);
     if (!ts) continue;
     const ms = Date.parse(ts);
-    if (!Number.isNaN(ms)) parsedMs.push(ms);
+    if (Number.isNaN(ms)) continue;
+    const year = new Date(ms).getUTCFullYear();
+    if (year < minYear || year > maxYear) {
+      absolutelyImplausible.add(row);
+    } else {
+      // Hard-invalid years must not participate in the median: if systematic
+      // OCR noise produces several copies of the same bad year, it must not
+      // drag the baseline away from the valid observations.
+      parsedMs.push(ms);
+    }
   }
 
   if (parsedMs.length < minSampleSize) {
-    return { plausible: [...rows], implausible: [] };
+    return {
+      plausible: rows.filter((row) => !absolutelyImplausible.has(row)),
+      implausible: rows.filter((row) => absolutelyImplausible.has(row)),
+    };
   }
 
   const medianMs = median(parsedMs);
   const plausible: T[] = [];
   const implausible: T[] = [];
   for (const row of rows) {
+    if (absolutelyImplausible.has(row)) {
+      implausible.push(row);
+      continue;
+    }
     const ts = getTs(row);
     const ms = ts ? Date.parse(ts) : NaN;
     if (Number.isNaN(ms)) {

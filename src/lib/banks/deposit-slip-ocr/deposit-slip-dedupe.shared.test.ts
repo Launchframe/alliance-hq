@@ -604,9 +604,97 @@ describe("dedupeDepositSlips — batch-frequency tag tiebreak", () => {
       "same_commander_timestamp_conflicting_identity",
     );
   });
+
+  it("still flags wholly different alliance tags despite a dominant batch frequency", () => {
+    const depositAt = "2026-07-11T22:32:02.000Z";
+    const filler = Array.from({ length: 48 }, (_, i) =>
+      slip({
+        commanderName: `Filler${i}`,
+        depositAt: `2026-07-11T20:${String(i).padStart(2, "0")}:00.000Z`,
+        identity: {
+          gameServerNumber: 1203,
+          allianceTag: "LFgo",
+          commanderName: `Filler${i}`,
+          rawIdentity: `#1203[LFgo]Filler${i}`,
+        },
+      }),
+    );
+    const { slips, report } = dedupeDepositSlips([
+      ...filler,
+      slip({
+        commanderName: "SharedName",
+        depositAt,
+        identity: {
+          gameServerNumber: 1203,
+          allianceTag: "LFgo",
+          commanderName: "SharedName",
+          rawIdentity: "#1203[LFgo]SharedName",
+        },
+      }),
+      slip({
+        commanderName: "SharedName",
+        depositAt,
+        identity: {
+          gameServerNumber: 1203,
+          allianceTag: "ROAR",
+          commanderName: "SharedName",
+          rawIdentity: "#1203[ROAR]SharedName",
+        },
+      }),
+    ]);
+
+    expect(slips.filter((s) => s.identity.commanderName === "SharedName")).toHaveLength(
+      2,
+    );
+    expect(report.flaggedCount).toBe(1);
+    expect(report.clusters[0]?.reason).toBe(
+      "same_commander_timestamp_conflicting_identity",
+    );
+  });
+
+  it("still flags a lookalike-tag split when the batch signal is too small", () => {
+    const depositAt = "2026-07-11T22:32:02.000Z";
+    const { slips, report } = dedupeDepositSlips([
+      slip({ commanderName: "Filler1" }),
+      slip({ commanderName: "Filler2" }),
+      slip({
+        commanderName: "SmallBatch",
+        depositAt,
+        identity: {
+          gameServerNumber: 1203,
+          allianceTag: "LFga",
+          commanderName: "SmallBatch",
+          rawIdentity: "#1203[LFga]SmallBatch",
+        },
+      }),
+      slip({ commanderName: "SmallBatch", depositAt }),
+    ]);
+
+    expect(slips.filter((s) => s.identity.commanderName === "SmallBatch")).toHaveLength(
+      2,
+    );
+    expect(report.flaggedCount).toBe(1);
+  });
 });
 
 describe("dedupeDepositSlips — implausible timestamp outliers", () => {
+  it("reconciles an impossible-year timestamp in a tiny batch", () => {
+    const { slips, report } = dedupeDepositSlips([
+      slip({
+        commanderName: "EnganaRucas",
+        depositAt: "2026-07-12T04:16:48.000Z",
+      }),
+      slip({
+        commanderName: "EnganaRucas",
+        depositAt: "0256-07-12T04:16:48.000Z",
+      }),
+    ]);
+
+    expect(slips).toHaveLength(1);
+    expect(slips[0]?.depositAt).toBe("2026-07-12T04:16:48.000Z");
+    expect(report.autoMergedCount).toBe(1);
+  });
+
   it("reclassifies a wildly-off-year timestamp as anchorless and folds it into its real duplicate (EnganaRucas)", () => {
     // Five ordinary same-day rows establish a reliable batch median, plus the
     // EnganaRucas trio: one correctly timestamped, one with a garbled year
