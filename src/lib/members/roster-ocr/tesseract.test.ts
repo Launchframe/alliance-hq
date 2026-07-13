@@ -407,6 +407,34 @@ describe("runTesseract", () => {
     vi.resetModules();
   });
 
+  it("resets char whitelist to open default after a prior THP narrow whitelist", async () => {
+    const { runTesseract } = await import("@/lib/members/roster-ocr/tesseract");
+    const { POWER_DETAILS_OCR_CONFIG } = await import(
+      "@/lib/thp/hero-power-ocr/preprocess-power-details"
+    );
+    const imageBuffer = Buffer.from("fake-png");
+    const openWhitelist =
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789" +
+      " .,:'`-_/\\|&()[]{}%!?#@+\"°";
+
+    await runTesseract(imageBuffer, POWER_DETAILS_OCR_CONFIG);
+    await runTesseract(imageBuffer);
+
+    const { createWorker } = await import("tesseract.js");
+    const worker = await vi.mocked(createWorker).mock.results[0]!.value;
+    expect(worker.setParameters).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        tessedit_char_whitelist: openWhitelist,
+      }),
+    );
+    expect(worker.setParameters).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        tessedit_char_whitelist: POWER_DETAILS_OCR_CONFIG.charWhitelist,
+      }),
+    );
+  });
+
   it("serializes concurrent recognize() calls on the shared worker", async () => {
     const { runTesseract } = await import("@/lib/members/roster-ocr/tesseract");
     const imageBuffer = Buffer.from("fake-png");

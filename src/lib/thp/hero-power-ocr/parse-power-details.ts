@@ -30,7 +30,7 @@ const SECTION_STOP_RE =
  * Must not include letters so labels stay in the label half.
  */
 const TRAILING_NUMBER_BLOB_RE =
-  /(\d[\d\s,.'`´’′″/\\|_\-\[\](){}%!¥$€#@~+=?]*)/;
+  /(\d[\d\s,.'`´’′″/\\|_\-\[\](){}%!¥$€#@~+=?]*)/g;
 
 /** Digits that Tesseract commonly swaps on Power Details screenshots. */
 const DIGIT_CONFUSIONS: ReadonlyArray<readonly [string, string]> = [
@@ -58,11 +58,7 @@ const PREFIX_CONFUSIONS: ReadonlyArray<readonly [string, string]> = [
 
 function extractTrailingNumber(line: string): number | null {
   const trimmed = line.trim().replace(/[!?|]+$/g, "");
-  const matches = [
-    ...trimmed.matchAll(
-      /(\d[\d\s,.'`´’′″/\\|_\-\[\](){}%!¥$€#@~+=?]*)/g,
-    ),
-  ];
+  const matches = [...trimmed.matchAll(TRAILING_NUMBER_BLOB_RE)];
   if (matches.length === 0) return null;
   return parseIntegerToken(matches[matches.length - 1]![1]!);
 }
@@ -76,11 +72,7 @@ function splitLabelValue(line: string): { label: string; valuePart: string } {
       valuePart: trimmed.slice(colonIdx + 1),
     };
   }
-  const matches = [
-    ...trimmed.matchAll(
-      /(\d[\d\s,.'`´’′″/\\|_\-\[\](){}%!¥$€#@~+=?]*)/g,
-    ),
-  ];
+  const matches = [...trimmed.matchAll(TRAILING_NUMBER_BLOB_RE)];
   if (matches.length === 0) {
     return { label: trimmed, valuePart: "" };
   }
