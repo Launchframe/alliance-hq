@@ -329,14 +329,18 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   const formattedDraftSavedAt = useMemo(() => {
     if (!draftSavedAt) return "";
     try {
-      return formatBrowserLocalDateTime(draftSavedAt, {
-        dateStyle: "medium",
-        timeStyle: "short",
-      });
+      return formatBrowserLocalDateTime(
+        draftSavedAt,
+        {
+          dateStyle: "medium",
+          timeStyle: "short",
+        },
+        locale,
+      );
     } catch {
       return draftSavedAt;
     }
-  }, [draftSavedAt]);
+  }, [draftSavedAt, locale]);
 
   useEffect(() => {
     if (jobStatus === "loading") return;

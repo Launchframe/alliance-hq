@@ -177,10 +177,11 @@ export function formatBrowserLocalDateTime(
     dateStyle: "short",
     timeStyle: "short",
   },
+  locale?: string,
 ): string {
   const date = typeof value === "string" ? new Date(value) : value;
   const timeZone = getBrowserTimeZoneIana();
-  const formatted = new Intl.DateTimeFormat(undefined, {
+  const formatted = new Intl.DateTimeFormat(locale, {
     timeZone,
     ...options,
   }).format(date);

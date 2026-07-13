@@ -9,6 +9,7 @@ import {
   accountCalendarDateToUtcStart,
   formatAccountDate,
   formatAccountDateTime,
+  formatBrowserLocalDateTime,
 } from "@/lib/timezone/format";
 import { DEFAULT_ACCOUNT_TIMEZONE_ID } from "@/lib/timezone/constants";
 
@@ -82,6 +83,18 @@ describe("formatAccountDateTime", () => {
     });
     expect(formatted).not.toMatch(/\bST\b/);
     expect(formatted).not.toMatch(/Local \(/);
+  });
+});
+
+describe("formatBrowserLocalDateTime", () => {
+  it("respects an explicit locale for date formatting", () => {
+    const formatted = formatBrowserLocalDateTime(
+      "2026-06-11T18:30:00.000Z",
+      { dateStyle: "short", timeStyle: "short" },
+      "pt-BR",
+    );
+    expect(formatted).toMatch(/11\/06\/2026/);
+    expect(formatted).toMatch(/Local \(/);
   });
 });
 
