@@ -42,6 +42,11 @@ describe("parseCompactCrystalGoldValue", () => {
   it("parses M suffix", () => {
     expect(parseCompactCrystalGoldValue("3.48", "M")).toBe(3_480_000);
   });
+
+  it("restores a lost decimal before the K suffix", () => {
+    expect(parseCompactCrystalGoldValue("59726", "K")).toBe(597_260);
+    expect(parseCompactCrystalGoldValue("59996", "K")).toBe(599_960);
+  });
 });
 
 describe("parseCityListServerTime", () => {
@@ -217,6 +222,18 @@ describe("parseCityListText", () => {
     ]);
     expect(snapshot.banks).toHaveLength(1);
     expect(snapshot.capturedCount).toBe(6);
+    expect(snapshot.isComplete).toBe(false);
+  });
+
+  it("marks incomplete when captured count is unavailable", () => {
+    const snapshot = parseCityListText([
+      "600.00K",
+      "Lv.2",
+      "#1211 (X:599, Y:499)",
+      "100/100",
+    ]);
+    expect(snapshot.capturedCount).toBeNull();
+    expect(snapshot.banks).toHaveLength(1);
     expect(snapshot.isComplete).toBe(false);
   });
 

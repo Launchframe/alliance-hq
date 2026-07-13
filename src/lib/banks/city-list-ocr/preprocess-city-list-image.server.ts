@@ -1,3 +1,5 @@
+import "server-only";
+
 /**
  * City List Bank Stronghold screenshot pre-processing.
  *
