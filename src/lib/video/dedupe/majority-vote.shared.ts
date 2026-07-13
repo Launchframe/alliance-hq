@@ -12,14 +12,39 @@ export type MajorityResult<T> = {
 };
 
 /**
+ * External-signal tiebreaker used only when no strict local majority exists
+ * (e.g. a 1-of-2 or 2-of-4 split). `score` ranks the locally tied leaders —
+ * typically by the frequency count of each value elsewhere in the
+ * same batch (a poor man's "which reading is more plausible overall" signal).
+ * The winner must both clear `minWinnerScore` and beat the runner-up by
+ * `minRatio`, so a close call (e.g. 5 vs 4) still falls through to flagging —
+ * this is meant for clear-cut cases (e.g. 49 vs 3), not soft signals.
+ */
+export type MajorityTieBreak<T> = {
+  score: (value: T) => number;
+  minWinnerScore?: number;
+  minRatio?: number;
+  /**
+   * Optional domain guard for deciding whether the winning external signal is
+   * actually relevant to every other observed value, including alternatives
+   * below the tied leaders. For example, an alliance-tag frequency should only
+   * correct likely OCR variants, not overwrite a wholly different tag that may
+   * represent a real identity conflict.
+   */
+  canResolve?: (winner: T, alternatives: readonly T[]) => boolean;
+};
+
+/**
  * Groups the non-null `values` by `isEqual` and returns the largest group, but only
  * when it is a strict majority (more than half of the present values) *and* has at
  * least two members. A 1-of-2 or 1-of-3 split is not a majority — it still needs a
- * human to look at it.
+ * human to look at it, unless `tieBreak` finds one candidate overwhelmingly more
+ * plausible than the others (see `MajorityTieBreak`).
  */
 export function resolveByMajority<T>(
   values: readonly (T | null | undefined)[],
   isEqual: (a: T, b: T) => boolean = (a, b) => a === b,
+  tieBreak?: MajorityTieBreak<T>,
 ): MajorityResult<T> | null {
   const present = values.filter((v): v is T => v != null);
   if (present.length === 0) return null;
@@ -39,5 +64,37 @@ export function resolveByMajority<T>(
   if (top.count >= 2 && top.count > present.length / 2) {
     return { value: top.value, agreeCount: top.count, totalCount: present.length };
   }
+
+  if (tieBreak && groups.length >= 2) {
+    const tiedForTop = groups.filter((g) => g.count === top.count);
+    // A plurality such as 2-1-1 has no strict majority, but it is not a tie.
+    // External evidence must not turn that existing plurality into an automatic
+    // correction; the tiebreaker is intentionally limited to tied local votes.
+    if (tiedForTop.length < 2) return null;
+
+    const scored = tiedForTop
+      .map((g) => ({ ...g, score: tieBreak.score(g.value) }))
+      .sort((a, b) => b.score - a.score);
+    const best = scored[0]!;
+    const runnerUp = scored[1];
+    const minWinnerScore = tieBreak.minWinnerScore ?? 5;
+    const minRatio = tieBreak.minRatio ?? 3;
+    const clearsRunnerUp =
+      !runnerUp ||
+      (runnerUp.score === 0 ? best.score > 0 : best.score / runnerUp.score >= minRatio);
+    // The external score only chooses among locally tied leaders, but a domain
+    // guard must inspect every other observed value. Resolution overwrites the
+    // whole field, so ignoring a lower-count unrelated alternative could erase
+    // a genuine conflict (e.g. LFgo×2, LFga×2, ROAR×1).
+    const alternatives = groups
+      .filter((candidate) => !isEqual(candidate.value, best.value))
+      .map((candidate) => candidate.value);
+    const domainAllowsResolution =
+      !tieBreak.canResolve || tieBreak.canResolve(best.value, alternatives);
+    if (best.score >= minWinnerScore && clearsRunnerUp && domainAllowsResolution) {
+      return { value: best.value, agreeCount: best.count, totalCount: present.length };
+    }
+  }
+
   return null;
 }

@@ -6,13 +6,23 @@
  * for officer review).
  */
 
-import { resolveByMajority } from "@/lib/video/dedupe/majority-vote.shared";
+import {
+  resolveByMajority,
+  type MajorityTieBreak,
+} from "@/lib/video/dedupe/majority-vote.shared";
 
 export type ConflictFieldSpec<T> = {
   /** Stable identifier for this field, surfaced in corrections / flagged reasons. */
   key: string;
   get: (item: T) => unknown;
   isEqual?: (a: unknown, b: unknown) => boolean;
+  /**
+   * Optional tiebreaker for a genuine local tie (no majority) — e.g. score by how
+   * often this value appears elsewhere in the whole batch. Only consulted when
+   * majority vote fails outright; see `resolveByMajority`'s `tieBreak` for the
+   * "must clearly win" guardrail that keeps this from over-firing on soft calls.
+   */
+  tieBreaker?: MajorityTieBreak<unknown>;
 };
 
 export type FieldCorrection = {
@@ -59,7 +69,11 @@ export function resolveGroupConflicts<T>(
     const values = group.map((item) => field.get(item));
     if (!fieldHasDisagreement(values, isEqual)) continue;
 
-    const majority = resolveByMajority(values, isEqual);
+    const majority = resolveByMajority(
+      values,
+      isEqual,
+      field.tieBreaker,
+    );
     if (majority) {
       corrections.push({ key: field.key, value: majority.value });
     } else {
