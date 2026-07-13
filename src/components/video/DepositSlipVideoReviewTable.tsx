@@ -43,6 +43,8 @@ type Props = {
   onDeleteRow: (id: string) => void;
   onPreviewFrame?: (frameIndex: number | null | undefined) => void;
   rowCanVideoPreview?: (frameIndex: number | null | undefined) => boolean;
+  /** Stable Follow-me callback ref factory keyed by row id. */
+  registerFollowAnchor?: (rowId: string) => (element: HTMLElement | null) => void;
 };
 
 const FLAG_REASON_KEYS = [
@@ -175,6 +177,7 @@ export function DepositSlipVideoReviewTable({
   onDeleteRow,
   onPreviewFrame,
   rowCanVideoPreview,
+  registerFollowAnchor,
 }: Props) {
   const t = useTranslations("videoReview");
   const tBanks = useTranslations("bankManagement");
@@ -456,7 +459,12 @@ export function DepositSlipVideoReviewTable({
                   : "border-t border-hq-border";
 
               return (
-                <tr key={row.id} className={rowClass}>
+                <tr
+                  key={row.id}
+                  className={rowClass}
+                  ref={registerFollowAnchor?.(row.id)}
+                  data-video-follow-anchor={row.id}
+                >
                   <td className="px-3 py-2 align-top">
                     <input
                       type="text"

@@ -87,9 +87,21 @@ export function ReviewVideoPreview({
   const [draftDockHeight, setDraftDockHeight] = useState<number | null>(null);
   const draftSideWidthRef = useRef<number | null>(null);
   const draftDockHeightRef = useRef<number | null>(null);
+  // Follow-me can scrub before the <video> has metadata; queue the latest
+  // request and apply it on loadedmetadata so early seeks are not dropped.
+  const pendingSeekSecondsRef = useRef<number | null>(null);
 
   const zoomable = placement !== "side";
   const effectiveZoom: PreviewZoom = zoomable ? zoom : "fit";
+
+  const applyVideoSeek = (el: HTMLVideoElement, seconds: number) => {
+    try {
+      el.pause();
+      el.currentTime = Math.max(0, seconds);
+    } catch {
+      // ignore seek failures (e.g. unbuffered range)
+    }
+  };
 
   useImperativeHandle(
     seekControllerRef,
@@ -97,16 +109,35 @@ export function ReviewVideoPreview({
       seek: (seconds: number) => {
         const el = videoRef.current;
         if (!el || !Number.isFinite(seconds)) return;
-        try {
-          el.pause();
-          el.currentTime = Math.max(0, seconds);
-        } catch {
-          // ignore seek failures (e.g. unbuffered range)
+        if (el.readyState < 1) {
+          pendingSeekSecondsRef.current = seconds;
+          return;
         }
+        pendingSeekSecondsRef.current = null;
+        applyVideoSeek(el, seconds);
       },
     }),
     [],
   );
+
+  useEffect(() => {
+    const el = videoRef.current;
+    if (!el || unavailable) return;
+
+    const flushPending = () => {
+      const pending = pendingSeekSecondsRef.current;
+      if (pending == null) return;
+      pendingSeekSecondsRef.current = null;
+      applyVideoSeek(el, pending);
+    };
+
+    if (el.readyState >= 1) {
+      flushPending();
+      return;
+    }
+    el.addEventListener("loadedmetadata", flushPending);
+    return () => el.removeEventListener("loadedmetadata", flushPending);
+  }, [unavailable, jobId]);
 
   useEffect(() => {
     if (!seekRequest) return;
@@ -115,18 +146,15 @@ export function ReviewVideoPreview({
 
     const seekTo = seekRequest.seconds;
     const applySeek = () => {
-      try {
-        el.pause();
-        el.currentTime = seekTo;
-      } catch {
-        // ignore seek failures (e.g. unbuffered range)
-      }
+      pendingSeekSecondsRef.current = null;
+      applyVideoSeek(el, seekTo);
     };
 
     if (el.readyState >= 1) {
       applySeek();
       return;
     }
+    pendingSeekSecondsRef.current = seekTo;
     el.addEventListener("loadedmetadata", applySeek, { once: true });
     return () => el.removeEventListener("loadedmetadata", applySeek);
   }, [seekRequest]);

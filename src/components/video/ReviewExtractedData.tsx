@@ -943,6 +943,8 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     previewSeekControllerRef.current?.seek(seconds);
   }, []);
 
+  // Follow-me for any non-roster review table that registers row anchors
+  // (score leaderboards and deposit-slip history).
   const scoreTableFollowMeEnabled =
     hasSourceVideo &&
     !scoreTargetMeta?.showRosterColumns &&
@@ -1993,6 +1995,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
               hasSourceVideo &&
               previewSeekSecondsForFrame(frameIndex, frameTimestamps) != null
             }
+            registerFollowAnchor={registerFollowAnchor}
           />
         </>
       ) : (
@@ -2060,7 +2063,12 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                   : "border-t border-hq-border";
 
               return (
-              <tr key={row.id} className={rowClass}>
+              <tr
+                key={row.id}
+                className={rowClass}
+                ref={registerFollowAnchor(row.id)}
+                data-video-follow-anchor={row.id}
+              >
                 {scoreTargetMeta?.showRankColumn ? (
                   <td className="px-3 py-3 align-top">
                     <input
@@ -2168,8 +2176,6 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                   {rowCanVideoPreview ? (
                     <button
                       type="button"
-                      ref={registerFollowAnchor(row.id)}
-                      data-video-follow-anchor={row.id}
                       onClick={() => openRowVideoPreview(row)}
                       className="inline-flex h-8 w-8 items-center justify-center rounded-md text-hq-accent hover:bg-hq-surface-muted"
                       title={t("rowVideoPreview")}
