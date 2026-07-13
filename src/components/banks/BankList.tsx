@@ -8,6 +8,7 @@ import { Link } from "@/i18n/navigation";
 import { BANK_DEPOSIT_SLIP_HISTORY_SCORE_TARGET } from "@/lib/banks/deposit-slip-ocr/parse-deposit-slip-text.shared";
 import { activeDeposits } from "@/lib/banks/optimization.shared";
 import type { BankWithSlips } from "@/lib/banks/types.shared";
+import { formatBrowserLocalDateTime } from "@/lib/timezone/format";
 import { buildVideoUploadHref } from "@/lib/video/score-target-nav";
 
 function depositSlipUploadHref(bankId: string): string {
@@ -116,10 +117,10 @@ export function BankList({
                       {bank.dropByAt ? (
                         <span>
                           {t("fields.dropByAt")}:{" "}
-                          {new Intl.DateTimeFormat(undefined, {
+                          {formatBrowserLocalDateTime(bank.dropByAt, {
                             dateStyle: "short",
                             timeStyle: "short",
-                          }).format(new Date(bank.dropByAt))}
+                          })}
                         </span>
                       ) : null}
                     </div>

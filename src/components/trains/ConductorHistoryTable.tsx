@@ -1,6 +1,7 @@
 "use client";
 
 import type { WeekConductorRecordSummary } from "@/lib/trains/load-dashboard";
+import { formatBrowserLocalDateTime } from "@/lib/timezone/format";
 
 type Props = {
   rows: WeekConductorRecordSummary[];
@@ -101,7 +102,7 @@ export function ConductorHistoryTable({
                   </td>
                   <td className="px-2 py-2.5 text-xs text-hq-fg-muted">
                     {row.lockedAt
-                      ? new Date(row.lockedAt).toLocaleString()
+                      ? formatBrowserLocalDateTime(row.lockedAt)
                       : labels.noneYet}
                   </td>
                 </tr>

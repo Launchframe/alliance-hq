@@ -4918,7 +4918,7 @@
       "policyPeace": "Entrada e saída nessas fortalezas. Não temos pressa para capturá-las.",
       "seasonDisclaimer": "📣 NÃO SAQUE OURO até o marcador do mapa liberar.\nLíderes da Resistência saqueiam primeiro para evoluir mais rápido, avançar com força e ajudar a alcançar as metas do time 💪💪",
       "empty": "Nenhuma captura está agendada nas próximas 24 horas.",
-      "dropLine": "Vamos abandonar o Banco com o marcador {markerLabel} às {dropServerTime} HS. Limitem os prazos de novos depósitos neste banco."
+      "dropLine": "Vamos abandonar o Banco com o marcador {markerLabel} às {dropServerTime}. Limitem os prazos de novos depósitos neste banco."
     },
     "calendar": {
       "viewDay": "Diário",

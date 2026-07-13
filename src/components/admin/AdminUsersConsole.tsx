@@ -14,6 +14,7 @@ import {
   buildAdminUsersSearchParams,
   type AdminUsersQueryParams,
 } from "@/lib/rbac/admin-users-query.shared";
+import { formatBrowserLocalDateTime } from "@/lib/timezone/format";
 
 type RoleOption = {
   id: string;
@@ -579,7 +580,7 @@ export function AdminUsersConsole() {
                       </div>
                       <p className="text-xs text-hq-fg-muted">
                         {t("commanderLinkedAt", {
-                          time: new Date(commander.linkedAt).toLocaleString(),
+                          time: formatBrowserLocalDateTime(commander.linkedAt),
                         })}
                       </p>
                       <div className="space-y-1">

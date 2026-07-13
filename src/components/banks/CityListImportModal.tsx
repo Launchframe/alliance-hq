@@ -9,6 +9,7 @@ import { Dialog } from "@/components/ui/dialog";
 import { ScreenshotLightbox } from "@/components/ui/ScreenshotLightbox";
 import { preventDefaultFormSubmit } from "@/lib/client/form-enter-submit.shared";
 import type { ParsedCityListBank } from "@/lib/banks/city-list-ocr/parse-city-list-text.shared";
+import { formatCityListServerTime } from "@/lib/banks/city-list-server-time.shared";
 import type { BankManagementPayload, BankWithSlips } from "@/lib/banks/types.shared";
 
 type ReviewRow = {
@@ -409,10 +410,7 @@ export function CityListImportModal({
                 {snapshot?.serverTime ? (
                   <span className="rounded-full border border-hq-border px-2.5 py-1">
                     {t("cityListServerTime", {
-                      time: new Intl.DateTimeFormat(undefined, {
-                        dateStyle: "short",
-                        timeStyle: "short",
-                      }).format(new Date(snapshot.serverTime)),
+                      time: formatCityListServerTime(snapshot.serverTime),
                     })}
                   </span>
                 ) : null}

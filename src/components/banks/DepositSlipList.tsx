@@ -6,6 +6,7 @@ import { Pencil, Plus, Trash2, Video } from "lucide-react";
 
 import { BANK_DEPOSIT_SLIP_HISTORY_SCORE_TARGET } from "@/lib/banks/deposit-slip-ocr/parse-deposit-slip-text.shared";
 import type { BankWithSlips, SerializedDepositSlip } from "@/lib/banks/types.shared";
+import { formatBrowserLocalDateTime } from "@/lib/timezone/format";
 import { buildVideoUploadHref } from "@/lib/video/score-target-nav";
 
 type Props = {
@@ -23,10 +24,10 @@ const statusBadgeClass: Record<SerializedDepositSlip["status"], string> = {
 };
 
 function formatDateTime(iso: string): string {
-  return new Intl.DateTimeFormat(undefined, {
+  return formatBrowserLocalDateTime(iso, {
     dateStyle: "short",
     timeStyle: "short",
-  }).format(new Date(iso));
+  });
 }
 
 export function DepositSlipList({ bank, canWrite, onAdd, onEdit, onDelete }: Props) {

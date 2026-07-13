@@ -10,6 +10,7 @@ import {
   listVisibleHotkeyActions,
 } from "@/lib/hotkeys/actions.registry";
 import type { HotkeyCategory } from "@/lib/hotkeys/types";
+import { formatBrowserLocalDateTime } from "@/lib/timezone/format";
 
 type SortMode = "alphabetical" | "lastModified";
 
@@ -237,7 +238,7 @@ export function HotkeysSettingsClient({
                     {row.updatedAt ? (
                       <p className="mt-1 text-xs text-hq-fg-subtle">
                         {t("lastModified", {
-                          date: new Date(row.updatedAt).toLocaleString(),
+                          date: formatBrowserLocalDateTime(row.updatedAt),
                         })}
                       </p>
                     ) : null}

@@ -2,6 +2,7 @@
 
 import { useTranslations } from "next-intl";
 
+import { formatBrowserLocalDateTime } from "@/lib/timezone/format";
 import type { MyKillsEvent } from "@/lib/kills/my-kills.shared";
 
 type Props = {
@@ -9,7 +10,7 @@ type Props = {
 };
 
 function formatDateTime(iso: string): string {
-  return new Date(iso).toLocaleString(undefined, {
+  return formatBrowserLocalDateTime(iso, {
     dateStyle: "medium",
     timeStyle: "short",
   });

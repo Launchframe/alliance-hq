@@ -24,6 +24,7 @@ import {
   findDuplicateMemberAssignments,
 } from "@/lib/video/review-validation";
 import { isZeroScoreWarningDisabled } from "@/lib/video/score-targets";
+import { formatBrowserLocalDateTime } from "@/lib/timezone/format";
 import type { VideoProcessTimings } from "@/lib/analytics/video-pipeline";
 import { buildMemberMatchSelectOptions } from "@/lib/video/member-select-options";
 import { shouldRefetchOnLiveJobStatus } from "@/lib/video/live-job-refresh.shared";
@@ -328,10 +329,14 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   const formattedDraftSavedAt = useMemo(() => {
     if (!draftSavedAt) return "";
     try {
-      return new Intl.DateTimeFormat(locale, {
-        dateStyle: "medium",
-        timeStyle: "short",
-      }).format(new Date(draftSavedAt));
+      return formatBrowserLocalDateTime(
+        draftSavedAt,
+        {
+          dateStyle: "medium",
+          timeStyle: "short",
+        },
+        locale,
+      );
     } catch {
       return draftSavedAt;
     }

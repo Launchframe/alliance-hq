@@ -14,10 +14,12 @@ import {
   writeStoredBattlePlanCalendarView,
   type BattlePlanCalendarView,
 } from "@/lib/battle-plan/calendar-view.shared";
-import { groupEventsByServerDate } from "@/lib/battle-plan/display.shared";
+import { groupEventsByCalendarDate } from "@/lib/battle-plan/display.shared";
 import { capturePolicyBarClassName } from "@/lib/battle-plan/marker-colors.shared";
 import {
   formatCaptureTime,
+  getZonedDateTimeParts,
+  resolveBattlePlanIana,
   type BattlePlanTimeDisplay,
 } from "@/lib/battle-plan/time-display.shared";
 import type { SerializedCaptureEvent } from "@/lib/battle-plan/types.shared";
@@ -121,7 +123,9 @@ function DayCell({
                 <MarkerBadge iconPreset={event.iconPreset} size="sm" />
               ) : null}
               <span className={variant === "daily" ? "text-left" : "truncate"}>
-                {formatCaptureTime(event.scheduledAt, timeDisplay)}
+                {formatCaptureTime(event.scheduledAt, timeDisplay, {
+                  hour12: false,
+                })}
                 {" · "}
                 {variant === "daily"
                   ? territoryLabel(event)
@@ -176,7 +180,19 @@ export function BattlePlanCalendar({
   );
   const [anchorDate, setAnchorDate] = useState(todayServerDate);
   const [monthKey, setMonthKey] = useState(getMonthKey(todayServerDate));
-  const grouped = useMemo(() => groupEventsByServerDate(events), [events]);
+  const grouped = useMemo(
+    () => groupEventsByCalendarDate(events, timeDisplay),
+    [events, timeDisplay],
+  );
+  const todayDate = useMemo(() => {
+    if (timeDisplay === "server") {
+      return todayServerDate;
+    }
+    return getZonedDateTimeParts(
+      new Date(),
+      resolveBattlePlanIana("local"),
+    ).date;
+  }, [timeDisplay, todayServerDate]);
   const dailyGrid = useMemo(() => buildDailyGrid(anchorDate), [anchorDate]);
   const monthGrid = useMemo(() => buildMonthGrid(monthKey), [monthKey]);
 
@@ -188,12 +204,12 @@ export function BattlePlanCalendar({
       setPreferredView(view);
       writeStoredBattlePlanCalendarView(view);
       if (view === "day") {
-        setAnchorDate(todayServerDate);
+        setAnchorDate(todayDate);
         return;
       }
       setMonthKey(getMonthKey(anchorDate));
     },
-    [anchorDate, todayServerDate],
+    [anchorDate, todayDate],
   );
 
   const headerLabel =
@@ -272,7 +288,7 @@ export function BattlePlanCalendar({
           const scheduledEvents = dayEvents.filter(
             (event) => event.status === "scheduled",
           );
-          const isToday = cell.date === todayServerDate;
+          const isToday = cell.date === todayDate;
           const dimmed =
             calendarView === "month" &&
             "inMonth" in cell &&

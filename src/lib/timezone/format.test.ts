@@ -9,6 +9,7 @@ import {
   accountCalendarDateToUtcStart,
   formatAccountDate,
   formatAccountDateTime,
+  formatBrowserLocalDateTime,
 } from "@/lib/timezone/format";
 import { DEFAULT_ACCOUNT_TIMEZONE_ID } from "@/lib/timezone/constants";
 
@@ -44,22 +45,24 @@ describe("accountCalendarDateToUtcEnd", () => {
 });
 
 describe("formatAccountDateTime", () => {
-  it("displays UTC instants in Server Time", () => {
+  it("displays UTC instants in Server Time with an ST label", () => {
     const formatted = formatAccountDateTime("2026-06-11T02:00:00.000Z", {
       locale: "en-US",
       timezoneId: DEFAULT_ACCOUNT_TIMEZONE_ID,
     });
     expect(formatted).toContain("6/11/2026");
     expect(formatted).toMatch(/12:00/);
+    expect(formatted).toMatch(/\bST\b/);
   });
 
-  it("displays UTC instants in a selected IANA zone", () => {
+  it("displays UTC instants in a selected IANA zone with a Local label", () => {
     const formatted = formatAccountDateTime("2026-01-15T05:00:00.000Z", {
       locale: "en-US",
       timezoneId: "America/New_York",
     });
     expect(formatted).toContain("1/15/2026");
     expect(formatted).toMatch(/12:00/);
+    expect(formatted).toMatch(/Local \(/);
   });
 
   it("allows dateStyle without mixing granular date/time fields", () => {
@@ -70,6 +73,28 @@ describe("formatAccountDateTime", () => {
         dateStyle: "long",
       }),
     ).not.toThrow();
+  });
+
+  it("skips zone labels for date-only style", () => {
+    const formatted = formatAccountDateTime("2026-06-11T02:00:00.000Z", {
+      locale: "en-US",
+      timezoneId: DEFAULT_ACCOUNT_TIMEZONE_ID,
+      dateStyle: "short",
+    });
+    expect(formatted).not.toMatch(/\bST\b/);
+    expect(formatted).not.toMatch(/Local \(/);
+  });
+});
+
+describe("formatBrowserLocalDateTime", () => {
+  it("respects an explicit locale for date formatting", () => {
+    const formatted = formatBrowserLocalDateTime(
+      "2026-06-11T18:30:00.000Z",
+      { dateStyle: "short", timeStyle: "short" },
+      "pt-BR",
+    );
+    expect(formatted).toMatch(/11\/06\/2026/);
+    expect(formatted).toMatch(/Local \(/);
   });
 });
 

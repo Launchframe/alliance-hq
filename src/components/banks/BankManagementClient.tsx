@@ -13,6 +13,7 @@ import { InvestorRiskHeatmap } from "@/components/banks/InvestorRiskHeatmap";
 import { RecommendedDropCard } from "@/components/banks/RecommendedDropCard";
 import { fromDatetimeLocalValue } from "@/components/banks/datetime-local";
 import { Dialog } from "@/components/ui/dialog";
+import { formatCityListServerTime } from "@/lib/banks/city-list-server-time.shared";
 import type { BankPayload, DepositSlipPayload } from "@/lib/banks/api.shared";
 import { findNextAvailableMarkerPreset } from "@/lib/battle-plan/marker-conflict.shared";
 import { estimateDropSafeAtIso, recommendNextDrop } from "@/lib/banks/optimization.shared";
@@ -317,10 +318,7 @@ export function BankManagementClient({ initial }: Props) {
             {bankCityListServerTime ? (
               <span className="rounded-full border border-hq-border px-2.5 py-1">
                 {t("cityListServerTime", {
-                  time: new Intl.DateTimeFormat(undefined, {
-                    dateStyle: "short",
-                    timeStyle: "short",
-                  }).format(new Date(bankCityListServerTime)),
+                  time: formatCityListServerTime(bankCityListServerTime),
                 })}
               </span>
             ) : null}

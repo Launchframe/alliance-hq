@@ -2,6 +2,7 @@
 
 import { useTranslations } from "next-intl";
 
+import { formatBrowserLocalDateTime } from "@/lib/timezone/format";
 import type { MyVrEvent } from "@/lib/vr/my-vr.shared";
 import { instituteLevelForBaseVr } from "@/lib/vr/validation";
 
@@ -11,7 +12,7 @@ type Props = {
 };
 
 function formatDateTime(iso: string): string {
-  return new Date(iso).toLocaleString(undefined, {
+  return formatBrowserLocalDateTime(iso, {
     dateStyle: "medium",
     timeStyle: "short",
   });

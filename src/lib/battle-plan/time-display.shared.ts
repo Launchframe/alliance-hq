@@ -1,4 +1,5 @@
 import { SERVER_TIME_IANA } from "@/lib/timezone/constants";
+import { withTimeZoneLabel } from "@/lib/timezone/zone-label.shared";
 
 export type BattlePlanTimeDisplay = "local" | "server";
 
@@ -115,61 +116,74 @@ export function zonedDateTimeToIso(
   return new Date(localAsUtc - offsetMs).toISOString();
 }
 
-/** Defaults to now in the active zone; optional server calendar day from the grid. */
+/** Defaults to now in the active zone; optional calendar day from the grid. */
 export function buildDefaultCaptureDateTime(
   display: BattlePlanTimeDisplay,
-  preferredServerDate?: string | null,
+  preferredCalendarDate?: string | null,
   now = new Date(),
 ): ZonedDateTimeParts {
   const timeZone = resolveBattlePlanIana(display);
   const nowParts = getZonedDateTimeParts(now, timeZone);
-  if (!preferredServerDate) {
+  if (!preferredCalendarDate) {
     return nowParts;
   }
-  if (display === "server") {
-    return { date: preferredServerDate, time: nowParts.time };
-  }
-  const noonOnServerDay = zonedDateTimeToIso(
-    preferredServerDate,
-    "12:00",
-    SERVER_TIME_IANA,
-  );
-  return {
-    date: getZonedDateTimeParts(noonOnServerDay, timeZone).date,
-    time: nowParts.time,
-  };
+  // Calendar cells already use the active display zone's civil date.
+  return { date: preferredCalendarDate, time: nowParts.time };
 }
 
 export function formatCaptureTime(
   iso: string,
   display: BattlePlanTimeDisplay,
+  options?: { hour12?: boolean; zoneLabel?: boolean },
 ): string {
-  return new Intl.DateTimeFormat(undefined, {
-    timeZone: resolveBattlePlanIana(display),
+  const hour12 = options?.hour12 ?? display !== "server";
+  const timeZone = resolveBattlePlanIana(display);
+  const formatted = new Intl.DateTimeFormat(undefined, {
+    timeZone,
     hour: "numeric",
     minute: "2-digit",
-    hour12: display !== "server",
+    hour12,
   }).format(new Date(iso));
+  if (options?.zoneLabel === false) {
+    return formatted;
+  }
+  return withTimeZoneLabel(
+    formatted,
+    display === "server" ? "server" : "local",
+    iso,
+    timeZone,
+  );
 }
 
 export function formatCaptureDateTime(
   iso: string,
   display: BattlePlanTimeDisplay,
+  options?: { zoneLabel?: boolean },
 ): string {
-  if (display === "server") {
-    return new Intl.DateTimeFormat(undefined, {
-      timeZone: resolveBattlePlanIana(display),
-      year: "numeric",
-      month: "numeric",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    }).format(new Date(iso));
+  const timeZone = resolveBattlePlanIana(display);
+  const formatted =
+    display === "server"
+      ? new Intl.DateTimeFormat(undefined, {
+          timeZone,
+          year: "numeric",
+          month: "numeric",
+          day: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: false,
+        }).format(new Date(iso))
+      : new Intl.DateTimeFormat(undefined, {
+          timeZone,
+          dateStyle: "short",
+          timeStyle: "short",
+        }).format(new Date(iso));
+  if (options?.zoneLabel === false) {
+    return formatted;
   }
-  return new Intl.DateTimeFormat(undefined, {
-    timeZone: resolveBattlePlanIana(display),
-    dateStyle: "short",
-    timeStyle: "short",
-  }).format(new Date(iso));
+  return withTimeZoneLabel(
+    formatted,
+    display === "server" ? "server" : "local",
+    iso,
+    timeZone,
+  );
 }

@@ -14,6 +14,7 @@ import {
 } from "@/components/battle-plan/CaptureEventModal";
 import { UpcomingCapturesList } from "@/components/battle-plan/UpcomingCapturesList";
 import { extractHistoricalNotes } from "@/lib/battle-plan/notes-suggestions.shared";
+import { eventDisplayCalendarDate } from "@/lib/battle-plan/display.shared";
 import {
   readStoredBattlePlanTimeDisplay,
   writeStoredBattlePlanTimeDisplay,
@@ -81,7 +82,7 @@ export function BattlePlanClient({ initial }: Props) {
     const latest =
       dashboard.events.find((row) => row.id === event.id) ?? event;
     setEditingEvent(latest);
-    setSelectedServerDate(latest.serverCalendarDate);
+    setSelectedServerDate(eventDisplayCalendarDate(latest, timeDisplay));
     setModalOpen(true);
   };
 

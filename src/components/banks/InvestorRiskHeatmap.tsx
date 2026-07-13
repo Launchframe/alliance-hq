@@ -4,6 +4,7 @@ import type { CSSProperties } from "react";
 import { useTranslations } from "next-intl";
 
 import type { BankWithSlips, RiskHeatmapCell } from "@/lib/banks/types.shared";
+import { formatBrowserLocalDateTime } from "@/lib/timezone/format";
 
 type Props = {
   bank: BankWithSlips;
@@ -20,11 +21,11 @@ function cellStyle(intensity: number): CSSProperties {
 }
 
 function formatHour(iso: string): string {
-  return new Intl.DateTimeFormat(undefined, {
+  return formatBrowserLocalDateTime(iso, {
     weekday: "short",
     hour: "numeric",
     minute: "2-digit",
-  }).format(new Date(iso));
+  });
 }
 
 export function InvestorRiskHeatmap({ bank, cells }: Props) {

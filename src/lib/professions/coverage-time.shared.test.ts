@@ -17,8 +17,8 @@ describe("coverage-time.shared", () => {
   });
 
   it("formats coverage hour labels", () => {
-    expect(formatCoverageHourLabel(0, "server")).toMatch(/\d/);
-    expect(formatCoverageHourLabel(12, "local")).toMatch(/\d/);
+    expect(formatCoverageHourLabel(0, "server")).toMatch(/\d.* ST$/);
+    expect(formatCoverageHourLabel(12, "local")).toMatch(/\d.* (Local \(.+\)|ST)$/);
   });
 
   it("daysSince returns null for invalid input", () => {

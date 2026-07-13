@@ -11,6 +11,7 @@ import type {
   OfficerWlRow,
   Profession,
 } from "@/lib/professions/types";
+import { formatBrowserLocalDateTime } from "@/lib/timezone/format";
 
 type PortalData = {
   minEngsPerTeam: number;
@@ -399,7 +400,7 @@ export function OfficerPortal({ data, onRefresh }: Props) {
               >
                 <p className="text-sm text-hq-fg">{eventLabel(evt)}</p>
                 <p className="ml-4 shrink-0 text-xs text-hq-fg-muted">
-                  {new Date(evt.createdAt).toLocaleString(undefined, {
+                  {formatBrowserLocalDateTime(evt.createdAt, {
                     month: "short",
                     day: "numeric",
                     hour: "2-digit",
