@@ -10,6 +10,8 @@
  * same pattern.
  */
 
+import { nanoid } from "nanoid";
+
 import type { ParsedDepositSlipDraft } from "@/lib/banks/deposit-slip-ocr/parse-deposit-slip-text.shared";
 import {
   resolveGroupConflicts,
@@ -46,17 +48,18 @@ export type DedupeDepositSlipsResult = {
   report: DedupeReport;
 };
 
-let slipIdCounter = 0;
-
-/** Deterministic-ish provisional ids for tests; unique within a process. */
+/** Globally-unique provisional id — safe across concurrent serverless instances. */
 function nextSlipId(): string {
-  slipIdCounter += 1;
-  return `slip_${slipIdCounter.toString(36)}`;
+  return nanoid(16);
 }
 
-/** Reset counter between tests. */
+/**
+ * No-op retained for backward compatibility with existing test imports.
+ * IDs are now nanoid-based and require no per-test reset.
+ * @deprecated remove callers when convenient
+ */
 export function resetDepositSlipIdCounterForTests(): void {
-  slipIdCounter = 0;
+  // intentional no-op
 }
 
 function slipSnapshot(slip: ParsedDepositSlipDraft): Record<string, unknown> {
@@ -479,7 +482,11 @@ export function dedupeDepositSlips(
 
   // Rows with no parseable timestamp never joined a per-minute cluster above —
   // give them one more chance to fold into a matching commander by name alone.
-  const perMinuteDestinations = output.filter((s) => consumed.has(s.slipId));
+  // All rows in `output` at this point came from `withTs` (they have a valid
+  // timestamp), including auto-merged synthetic destinations whose slipId is
+  // NOT in `consumed`. Using the full output avoids incorrectly excluding those
+  // synthetic destinations as anchor targets.
+  const perMinuteDestinations = output.slice();
   const reconciliation = reconcileMissingAnchorRows(withoutTs, perMinuteDestinations, {
     getName: (s) => s.identity.commanderName,
     isCompatible: (rows) =>

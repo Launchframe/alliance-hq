@@ -489,4 +489,51 @@ describe("dedupeDepositSlips — missing-timestamp reconciliation", () => {
     expect(slips).toHaveLength(2);
     expect(report.clusters).toHaveLength(0);
   });
+
+  it("folds timestamp-less row into an auto-merged destination (not just singletons)", () => {
+    // GrandMaster has two same-minute readings that auto-merge into a synthetic
+    // destination. A third GrandMaster reading has no timestamp at all — it must
+    // still fold into the auto-merged destination rather than surviving as an
+    // orphan singleton (regression for the perMinuteDestinations filter bug that
+    // excluded auto-merged destinations from anchor candidates).
+    const depositAt = "2026-07-11T22:25:31.000Z";
+    const { slips, report } = dedupeDepositSlips([
+      slip({ commanderName: "GrandMaster", depositAt, amount: 6000, termDays: 1 }),
+      slip({ commanderName: "GrandMaster", depositAt, amount: 6000, termDays: 1 }),
+      slip({ commanderName: "GrandMaster", depositAt: null, amount: 6000, termDays: 1 }),
+    ]);
+
+    expect(slips).toHaveLength(1);
+    expect(report.autoMergedCount).toBeGreaterThanOrEqual(2);
+    expect(slips[0]?.identity.commanderName).toBe("GrandMaster");
+    expect(
+      report.clusters.some((c) => c.reason === "commander_match_missing_timestamp"),
+    ).toBe(true);
+  });
+});
+
+describe("dedupeDepositSlips — slipId uniqueness", () => {
+  it("assigns unique slipIds across independent dedupe calls (serverless-safe)", () => {
+    const input = [
+      slip({ commanderName: "Bravo", depositAt: "2026-07-11T10:00:00.000Z" }),
+    ];
+    const { slips: slips1 } = dedupeDepositSlips(input);
+    const { slips: slips2 } = dedupeDepositSlips(input);
+
+    const id1 = slips1[0]?.slipId;
+    const id2 = slips2[0]?.slipId;
+    expect(id1).toBeDefined();
+    expect(id2).toBeDefined();
+    expect(id1).not.toBe(id2);
+  });
+
+  it("persists all output slipIds as unique strings (no counter collisions)", () => {
+    const inputs = Array.from({ length: 5 }, (_, i) =>
+      slip({ commanderName: `Solo${i}`, depositAt: `2026-07-11T10:0${i}:00.000Z` }),
+    );
+    const { slips } = dedupeDepositSlips(inputs);
+    const ids = slips.map((s) => s.slipId);
+    const unique = new Set(ids);
+    expect(unique.size).toBe(ids.length);
+  });
 });
