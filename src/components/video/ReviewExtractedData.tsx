@@ -234,6 +234,9 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   );
   const [stormOverlapWarning, setStormOverlapWarning] = useState(false);
   const [filterQuery, setFilterQuery] = useState("");
+  const [depositSlipVisibleRowIds, setDepositSlipVisibleRowIds] = useState<
+    string[]
+  >([]);
   const [error, setError] = useState<string | null>(null);
   const [errorConnectUrl, setErrorConnectUrl] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -901,6 +904,38 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     [activeRows, filterQuery],
   );
 
+  const onDepositSlipVisibleRowIdsChange = useCallback(
+    (ids: readonly string[]) => {
+      setDepositSlipVisibleRowIds((prev) => {
+        if (
+          prev.length === ids.length &&
+          prev.every((id, index) => id === ids[index])
+        ) {
+          return prev;
+        }
+        return [...ids];
+      });
+    },
+    [],
+  );
+
+  // Deposit-slip table applies a broader filter + its own sort; Follow-me must
+  // interpolate over that visible order, not the parent name/member filter.
+  const followMeRows = useMemo(() => {
+    if (!scoreTargetMeta?.showDepositSlipColumns) {
+      return filteredRows;
+    }
+    const byId = new Map(activeRows.map((row) => [row.id, row]));
+    return depositSlipVisibleRowIds
+      .map((id) => byId.get(id))
+      .filter((row): row is ParsedRow => row != null);
+  }, [
+    scoreTargetMeta?.showDepositSlipColumns,
+    filteredRows,
+    activeRows,
+    depositSlipVisibleRowIds,
+  ]);
+
   const closePreview = useCallback(() => {
     setPreviewOpen(false);
     setPreviewFollowMe(false);
@@ -953,7 +988,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
 
   const { registerFollowAnchor } = useVideoReviewFollowMe({
     enabled: scoreTableFollowMeEnabled,
-    rows: filteredRows,
+    rows: followMeRows,
     secondsForRow: secondsForFollowRow,
     onSeekSeconds: seekFollowSeconds,
     previewOpen,
@@ -1954,7 +1989,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
             {filterQuery ? (
               <p className="shrink-0 text-xs text-hq-fg-muted">
                 {t("filterCount", {
-                  shown: filteredRows.length,
+                  shown: depositSlipVisibleRowIds.length,
                   total: activeRows.length,
                 })}
               </p>
@@ -1996,6 +2031,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
               previewSeekSecondsForFrame(frameIndex, frameTimestamps) != null
             }
             registerFollowAnchor={registerFollowAnchor}
+            onVisibleRowIdsChange={onDepositSlipVisibleRowIdsChange}
           />
         </>
       ) : (
