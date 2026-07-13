@@ -39,12 +39,12 @@ git fetch origin && git worktree add ../alliance-hq-<short-topic> -b feat/<topic
 | --- | --- |
 | Feature implementation | `../alliance-hq-<topic>/` on `feat/<topic>` |
 | Second parallel feature | `../alliance-hq-<other>/` on another branch |
-| Real Steel on PR *N* | `../alliance-hq-rs-pr-<N>/` — repo policy layered on `~/.cursor/skills/real-steel/SKILL.md` |
+| Real Steel on PR *N* | `../alliance-hq-<branch-leaf>/` via `./scripts/new-worktree.sh` (optional manual name: `../alliance-hq-rs-pr-<N>/`) — see [Real Steel overlay](../skills/real-steel/SKILL.md) |
 | Read-only explore | Primary clone OK if no concurrent writers |
 
 **Rules:**
 
-- Isolation is the **worktree directory + branch**, not moving the chat’s IDE root.
+- Isolation is the **worktree directory + branch**, not IDE-root location alone. **`/real-steel` writers:** still call `move_agent_to_root` once (see below).
 - **Never** `git checkout` a PR branch in the primary clone while another agent is editing there.
 - Keep the **primary clone on `main` (or idle)** when other agents are writing in worktrees.
 - **Remove worktrees** when the task ends: `git worktree remove --force <path> && git worktree prune`.
@@ -99,7 +99,7 @@ After a task is merged, abandoned, or handed back to the maintainer:
 
 ## Real Steel
 
-For this repo, run Real Steel in a dedicated worktree for the PR under review; do not rebase or commit on the maintainer’s primary checkout. The global **real-steel** skill (`~/.cursor/skills/real-steel/SKILL.md`) defines the review/pass workflow; [`.cursor/skills/real-steel/SKILL.md`](../skills/real-steel/SKILL.md) adds Alliance HQ completion steps (including the `real-steel-ready` label when the chain finishes cleanly).
+For this repo, run Real Steel in a dedicated worktree for the PR under review; call `move_agent_to_root` once into that worktree (see **Real Steel — move once** above). Do not rebase or commit on the maintainer’s primary checkout. The global **real-steel** skill (`~/.cursor/skills/real-steel/SKILL.md`) defines the review/pass workflow; [`.cursor/skills/real-steel/SKILL.md`](../skills/real-steel/SKILL.md) adds Alliance HQ completion steps (including the `real-steel-ready` label when the chain finishes cleanly).
 
 ## Multitask mode
 
