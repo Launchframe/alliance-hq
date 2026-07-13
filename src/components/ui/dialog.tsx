@@ -3,6 +3,8 @@
 import * as React from "react";
 import { createPortal } from "react-dom";
 
+import { dialogPanelClassName } from "@/components/ui/dialog-panel.shared";
+
 type DialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -58,11 +60,7 @@ export function Dialog({
           if (!ignoreOutsideDismiss) onOpenChange(false);
         }}
       />
-      <div
-        className={`relative z-[101] max-h-[min(90vh,720px)] w-full max-w-lg overflow-y-auto rounded-xl border border-hq-border bg-hq-surface p-5 shadow-xl ${className}`}
-      >
-        {children}
-      </div>
+      <div className={dialogPanelClassName(className)}>{children}</div>
     </div>,
     document.body,
   );

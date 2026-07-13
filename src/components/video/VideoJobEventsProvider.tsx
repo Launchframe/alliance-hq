@@ -15,6 +15,11 @@ import {
 import { Link, usePathname } from "@/i18n/navigation";
 import type { VideoJobStatusEvent } from "@/lib/events/video-jobs-types";
 import {
+  deriveApprovedAtFromLiveUpdate,
+  deriveRejectedAt,
+  shouldShowRecentUploadJob,
+} from "@/lib/video/recent-upload-jobs.shared";
+import {
   isActiveVideoJobStatus,
   isPendingApprovalStatus,
   isReviewReadyStatus,
@@ -325,16 +330,41 @@ export function useMergedVideoJobs<T extends { id: string; status: string }>(
   const { jobsById } = useVideoJobEvents();
 
   return useMemo(() => {
+    const keepJob = (job: T) =>
+      shouldShowRecentUploadJob({
+        status: job.status,
+        approvedAt:
+          "approvedAt" in job
+            ? (job as { approvedAt?: string | null }).approvedAt
+            : null,
+      });
+
     const merged = initialJobs
-      .filter((job) => job.status !== "discarded")
+      .filter(keepJob)
       .map((job) => {
       const live = jobsById[job.id];
       if (!live) {
         return job;
       }
+      const nextStatus = live.status;
+      const existingApprovedAt =
+        "approvedAt" in job
+          ? (job as { approvedAt?: string | null }).approvedAt
+          : null;
+      const approvedAt = deriveApprovedAtFromLiveUpdate({
+        previousStatus: job.status,
+        nextStatus,
+        existingApprovedAt,
+        liveUpdatedAt: live.updatedAt,
+      });
+      const rejectedAt = deriveRejectedAt({
+        status: nextStatus,
+        approvedAt: approvedAt ?? existingApprovedAt ?? null,
+        updatedAt: live.updatedAt,
+      });
       return {
         ...job,
-        status: live.status,
+        status: nextStatus,
         fileName: live.fileName ?? ("fileName" in job ? job.fileName : undefined),
         scoreTarget:
           live.scoreTarget ??
@@ -347,9 +377,11 @@ export function useMergedVideoJobs<T extends { id: string; status: string }>(
         errorMessage:
           live.errorMessage ??
           ("errorMessage" in job ? job.errorMessage : null),
+        ...(approvedAt !== undefined ? { approvedAt } : {}),
+        ...(rejectedAt !== undefined ? { rejectedAt } : {}),
       } as T;
     })
-      .filter((job) => job.status !== "discarded");
+      .filter(keepJob);
 
     for (const live of Object.values(jobsById)) {
       if (merged.some((job) => job.id === live.jobId)) {

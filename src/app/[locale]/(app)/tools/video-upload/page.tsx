@@ -13,6 +13,10 @@ import {
   parseVideoUploadScoreTargetParam,
 } from "@/lib/video/score-target-nav";
 import { resolveSurveyPlayerNameFromSources } from "@/lib/video/survey-player-name";
+import {
+  deriveRejectedAt,
+  shouldShowRecentUploadJob,
+} from "@/lib/video/recent-upload-jobs.shared";
 import { isSurveyComplete, surveyRowToPayload } from "@/lib/video/survey";
 import { videoJobsOwnedByViewerWhere } from "@/lib/video/video-job-ownership.server";
 
@@ -73,7 +77,6 @@ export default async function VideoUploadPage({ searchParams }: Props) {
       .where(
         and(
           videoJobsOwnedByViewerWhere(session.id, session.hqUserId),
-          ne(schema.videoJobs.status, "discarded"),
           ne(schema.videoJobs.status, "pending_upload"),
           or(
             eq(schema.videoJobs.passRole, "primary"),
@@ -103,21 +106,33 @@ export default async function VideoUploadPage({ searchParams }: Props) {
       : [];
   const surveyByJobId = new Map(surveyRows.map((row) => [row.jobId, row]));
 
-  const filteredRows = contextScoreTarget
-    ? rows.filter((job) =>
-        jobMatchesScoreTarget(
-          {
-            scoreTarget: job.scoreTarget,
-            category: job.category,
-          },
-          contextScoreTarget,
-        ),
-      )
-    : rows;
+  const filteredRows = (
+    contextScoreTarget
+      ? rows.filter((job) =>
+          jobMatchesScoreTarget(
+            {
+              scoreTarget: job.scoreTarget,
+              category: job.category,
+            },
+            contextScoreTarget,
+          ),
+        )
+      : rows
+  ).filter((job) =>
+    shouldShowRecentUploadJob({
+      status: job.status,
+      approvedAt: job.approvedAt?.toISOString() ?? null,
+    }),
+  );
 
   const initialJobs: VideoJobRow[] = filteredRows.map((job) => {
     const surveyRow = surveyByJobId.get(job.id);
     const surveyPayload = surveyRow ? surveyRowToPayload(surveyRow) : null;
+    const rejectedAt = deriveRejectedAt({
+      status: job.status,
+      approvedAt: job.approvedAt?.toISOString() ?? null,
+      updatedAt: job.updatedAt.toISOString(),
+    });
     return {
       id: job.id,
       status: job.status,
@@ -130,6 +145,8 @@ export default async function VideoUploadPage({ searchParams }: Props) {
       parseSessionId: job.parseSessionId,
       errorMessage: job.errorMessage,
       createdAt: job.createdAt.toISOString(),
+      approvedAt: job.approvedAt?.toISOString() ?? null,
+      rejectedAt,
       surveyComplete: isSurveyComplete(surveyPayload),
     };
   });

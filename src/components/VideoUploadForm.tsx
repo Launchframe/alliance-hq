@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { useShellNavigation } from "@/components/ashed-shell/useShellNavigation";
 import { Link } from "@/i18n/navigation";
+import { FormattedDateTime } from "@/components/timezone/TimezoneProvider";
 import { RosterAllianceBanner } from "@/components/video/RosterAllianceBanner";
 import { OcrAccuracyBadge } from "@/components/video/OcrAccuracyBadge";
 import { AppSelect } from "@/components/ui/AppSelect";
@@ -113,6 +114,7 @@ function statusLabel(
     "complete",
     "failed",
     "pending_approval",
+    "discarded",
   ] as const;
   if ((known as readonly string[]).includes(status)) {
     return t(`status.${status as (typeof known)[number]}`);
@@ -608,13 +610,28 @@ export function VideoUploadForm({
                     {job.scoreTarget ?? job.category} ·{" "}
                     {formatBytes(job.fileSizeBytes)}
                   </p>
+                  <p className="mt-1 text-xs text-hq-fg-muted">
+                    {t("uploadedAtLabel")}{" "}
+                    <FormattedDateTime value={job.createdAt} />
+                  </p>
+                  {job.approvedAt ? (
+                    <p className="text-xs text-hq-fg-muted">
+                      {t("approvedAtLabel")}{" "}
+                      <FormattedDateTime value={job.approvedAt} />
+                    </p>
+                  ) : job.rejectedAt ? (
+                    <p className="text-xs text-hq-fg-muted">
+                      {t("rejectedAtLabel")}{" "}
+                      <FormattedDateTime value={job.rejectedAt} />
+                    </p>
+                  ) : null}
                 </div>
                 <div className="flex flex-wrap items-center gap-2 sm:shrink-0">
                   <span
                     className={`rounded-full px-2 py-0.5 text-xs font-medium ${
                       job.status === "complete"
                         ? "bg-hq-success/15 text-hq-success"
-                        : job.status === "failed"
+                        : job.status === "failed" || job.status === "discarded"
                           ? "bg-hq-danger/15 text-hq-danger"
                           : "bg-hq-selected text-hq-selected-fg"
                     }`}

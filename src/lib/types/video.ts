@@ -10,5 +10,12 @@ export type VideoJobRow = {
   parseSessionId?: string | null;
   errorMessage: string | null;
   createdAt: string;
+  /** Set when a processor approves the job to run OCR. */
+  approvedAt?: string | null;
+  /**
+   * Set when a processor rejects a pending upload (discarded without approval).
+   * Derived from updatedAt until a dedicated column exists.
+   */
+  rejectedAt?: string | null;
   surveyComplete?: boolean;
 };

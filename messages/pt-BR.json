@@ -3515,6 +3515,9 @@
     "surveyResumeLink": "Pesquisa",
     "surveyResumeLoading": "Abrindo…",
     "eventLink": "Pontuações do evento",
+    "uploadedAtLabel": "Enviado",
+    "approvedAtLabel": "Aprovado",
+    "rejectedAtLabel": "Rejeitado",
     "status": {
       "queued": "na fila",
       "extracting": "extraindo frames",
@@ -3526,7 +3529,8 @@
       "pending": "pendente",
       "pending_upload": "aguardando envio",
       "pending_approval": "aguardando aprovação",
-      "processing": "processando"
+      "processing": "processando",
+      "discarded": "rejeitado"
     },
     "processAfterUpload": {
       "title": "Processar este vídeo?",
