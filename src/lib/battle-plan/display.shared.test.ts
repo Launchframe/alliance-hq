@@ -29,13 +29,15 @@ function baseEvent(
 
 describe("eventDisplayCalendarDate", () => {
   it("uses server calendar date in server display mode", () => {
-    expect(eventDisplayCalendarDate(baseEvent(), "server")).toBe("2026-07-12");
+    const event = baseEvent();
+    expect(eventDisplayCalendarDate(event, "server")).toBe("2026-07-12");
   });
 
   it("uses the local calendar date in local display mode", () => {
     // Jul 11 10:00 PM America/New_York == Jul 12 02:00 UTC == Jul 12 00:00 server
+    const event = baseEvent();
     expect(
-      eventDisplayCalendarDate(baseEvent(), "local", "America/New_York"),
+      eventDisplayCalendarDate(event, "local", "America/New_York"),
     ).toBe("2026-07-11");
   });
 });
@@ -49,6 +51,7 @@ describe("groupEventsByCalendarDate", () => {
       "America/New_York",
     );
     expect([...localGrouped.keys()]).toEqual(["2026-07-11"]);
+    expect(localGrouped.get("2026-07-11")).toEqual([event]);
 
     const serverGrouped = groupEventsByCalendarDate([event], "server");
     expect([...serverGrouped.keys()]).toEqual(["2026-07-12"]);

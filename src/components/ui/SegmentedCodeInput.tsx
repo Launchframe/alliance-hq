@@ -24,13 +24,20 @@ type FixedCodeProps = BaseProps & {
   charset?: "numeric" | "alphanumeric";
 };
 
-type Props = JoinCodeProps | FixedCodeProps;
+type DurationProps = BaseProps & {
+  format: "duration-dhhmm";
+  /** Optional labels under the day / hour / minute groups. */
+  groupLabels?: [string, string, string];
+};
+
+type Props = JoinCodeProps | FixedCodeProps | DurationProps;
 
 /** Alliance tag segment before the hyphen (e.g. LFgo). */
 const PREFIX_MAX = 10;
 /** Random suffix after the hyphen (6 hex chars in generated codes). */
 const SUFFIX_MAX = 6;
 const MIN_PREFIX_VISIBLE_SLOTS = 4;
+const DURATION_LENGTH = 6;
 
 type Cell = { char: string };
 
@@ -75,6 +82,11 @@ export function normalizeFixedCodeInput(
       ? raw.replace(/\D/g, "")
       : raw.toUpperCase().replace(/[^A-Z0-9]/g, "");
   return cleaned.slice(0, length);
+}
+
+/** Digits-only DDHHMM value for the duration segmented input (max 6). */
+export function normalizeDurationDhhmmInput(raw: string): string {
+  return normalizeFixedCodeInput(raw, DURATION_LENGTH, "numeric");
 }
 
 function visibleSlotCount(filledLen: number, max: number, min: number): number {
@@ -272,6 +284,94 @@ function FixedCodeLayout({
   );
 }
 
+/** Right-align typed digits in DDHHMM slots so "130" reads as 00:01:30. */
+function buildDurationCells(value: string): Cell[] {
+  const digits = value.replace(/\D/g, "").slice(0, DURATION_LENGTH);
+  if (!digits) {
+    return Array.from({ length: DURATION_LENGTH }, () => ({ char: "" }));
+  }
+  return digits
+    .padStart(DURATION_LENGTH, "0")
+    .split("")
+    .map((char) => ({ char }));
+}
+
+function DurationDhhmmLayout({
+  value,
+  onChange,
+  onSubmit,
+  id,
+  autoFocus,
+  "aria-label": ariaLabel,
+  autoComplete,
+  groupLabels,
+}: BaseProps & { groupLabels?: [string, string, string] }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const cells = buildDurationCells(value);
+  const typedLen = value.replace(/\D/g, "").length;
+  const cursorIdx = typedLen === 0 ? 0 : -1;
+  const groups = [
+    cells.slice(0, 2),
+    cells.slice(2, 4),
+    cells.slice(4, 6),
+  ] as const;
+
+  return (
+    <div className="relative">
+      <div className="pointer-events-none select-none" aria-hidden>
+        <div className="flex items-center gap-1.5">
+          {groups.map((group, groupIndex) => (
+            <div key={`group-${groupIndex}`} className="contents">
+              {groupIndex > 0 ? (
+                <span className="flex h-11 w-3 shrink-0 items-center justify-center font-mono text-lg font-bold text-hq-fg-muted">
+                  :
+                </span>
+              ) : null}
+              <div className="flex items-center gap-1.5">
+                {group.map((cell, cellIndex) => {
+                  const absoluteIndex = groupIndex * 2 + cellIndex;
+                  return (
+                    <div
+                      key={`duration-${absoluteIndex}`}
+                      className={cellClassName(cell, absoluteIndex === cursorIdx)}
+                    >
+                      {cell.char}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+        {groupLabels ? (
+          <div className="mt-1.5 flex items-start gap-1.5">
+            {groupLabels.map((label, groupIndex) => (
+              <div key={`label-${groupIndex}`} className="contents">
+                {groupIndex > 0 ? <span className="w-3 shrink-0" /> : null}
+                <div className="w-[4.75rem] text-center text-[10px] font-medium uppercase tracking-wide text-hq-fg-muted">
+                  {label}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : null}
+      </div>
+
+      <HiddenCodeInput
+        inputRef={inputRef}
+        value={value}
+        onChange={(e) => onChange(normalizeDurationDhhmmInput(e.target.value))}
+        onSubmit={onSubmit}
+        id={id}
+        autoFocus={autoFocus}
+        ariaLabel={ariaLabel}
+        autoComplete={autoComplete}
+        inputMode="numeric"
+      />
+    </div>
+  );
+}
+
 export function SegmentedCodeInput(props: Props) {
   if (props.format === "fixed") {
     return (
@@ -285,6 +385,21 @@ export function SegmentedCodeInput(props: Props) {
         autoComplete={props.autoComplete}
         length={props.length}
         charset={props.charset ?? "numeric"}
+      />
+    );
+  }
+
+  if (props.format === "duration-dhhmm") {
+    return (
+      <DurationDhhmmLayout
+        value={props.value}
+        onChange={props.onChange}
+        onSubmit={props.onSubmit}
+        id={props.id}
+        autoFocus={props.autoFocus}
+        aria-label={props["aria-label"]}
+        autoComplete={props.autoComplete}
+        groupLabels={props.groupLabels}
       />
     );
   }

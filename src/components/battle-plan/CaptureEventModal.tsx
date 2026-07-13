@@ -8,11 +8,17 @@ import { MarkerConflictNotice } from "@/components/battle-plan/MarkerConflictNot
 import { MarkerIconPalette } from "@/components/battle-plan/MarkerIconPalette";
 import { NotesAutocomplete } from "@/components/battle-plan/NotesAutocomplete";
 import { AppSelect } from "@/components/ui/AppSelect";
+import { SegmentedCodeInput } from "@/components/ui/SegmentedCodeInput";
 import type {
   CapturePolicy,
   SerializedCaptureEvent,
   TerritoryType,
 } from "@/lib/battle-plan/types.shared";
+import {
+  isoToRelativeDurationDigits,
+  isValidRelativeDurationDigits,
+  relativeDurationDigitsToIso,
+} from "@/lib/battle-plan/relative-duration.shared";
 import {
   buildDefaultCaptureDateTime,
   getZonedDateTimeParts,
@@ -35,9 +41,14 @@ import {
   FORM_SUBMIT_ENTER_KEY_HINT,
 } from "@/lib/client/form-enter-submit.shared";
 
+export type CaptureScheduleMode = "absolute" | "relative";
+
 export type CaptureEventFormValues = {
+  scheduleMode: CaptureScheduleMode;
   scheduledDate: string;
   scheduledTime: string;
+  /** Digits-only DDHHMM for "from now" mode. */
+  relativeDuration: string;
   territoryType: TerritoryType;
   iconPreset: MarkerIconPreset | null;
   capturePolicy: CapturePolicy;
@@ -69,8 +80,10 @@ function valuesFromEvent(
     resolveBattlePlanIana(timeDisplay),
   );
   return {
+    scheduleMode: "absolute",
     scheduledDate: parts.date,
     scheduledTime: parts.time,
+    relativeDuration: isoToRelativeDurationDigits(event.scheduledAt),
     territoryType: event.territoryType,
     iconPreset: event.iconPreset,
     capturePolicy: event.effectiveCapturePolicy,
@@ -98,8 +111,10 @@ function buildInitialValues(
   }
   const defaults = buildDefaultCaptureDateTime(timeDisplay, defaultServerDate);
   return {
+    scheduleMode: "absolute",
     scheduledDate: defaults.date,
     scheduledTime: defaults.time,
+    relativeDuration: "",
     territoryType: "stronghold",
     iconPreset: findNextAvailableMarkerPreset(events, markerOptions),
     capturePolicy: defaultCapturePolicy,
@@ -166,6 +181,40 @@ function CaptureEventForm({
   const selectedMarkerLabel = values.iconPreset
     ? presetLabel(values.iconPreset)
     : t("event.marker");
+  const scheduleReady =
+    values.scheduleMode === "absolute" ||
+    isValidRelativeDurationDigits(values.relativeDuration);
+
+  const switchScheduleMode = (mode: CaptureScheduleMode) => {
+    setAwaitingConflictConfirmation(false);
+    setValues((current) => {
+      if (mode === current.scheduleMode) {
+        return current;
+      }
+      if (mode === "relative") {
+        const iso = zonedDateTimeToIso(
+          current.scheduledDate,
+          current.scheduledTime,
+          resolveBattlePlanIana(timeDisplay),
+        );
+        return {
+          ...current,
+          scheduleMode: "relative",
+          relativeDuration: isoToRelativeDurationDigits(iso),
+        };
+      }
+      const parts = getZonedDateTimeParts(
+        relativeDurationDigitsToIso(current.relativeDuration),
+        resolveBattlePlanIana(timeDisplay),
+      );
+      return {
+        ...current,
+        scheduleMode: "absolute",
+        scheduledDate: parts.date,
+        scheduledTime: parts.time,
+      };
+    });
+  };
 
   const handleSubmit = () => {
     if (markerPickerView === "full") {
@@ -230,43 +279,112 @@ function CaptureEventForm({
         </div>
       ) : (
         <div className="mt-4 space-y-3">
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <label className="block space-y-1 text-sm">
-              <span className="text-hq-fg-muted">{t("event.scheduledDate")}</span>
-              <input
-                type="date"
-                required
-                className="w-full rounded border border-hq-border bg-hq-bg px-3 py-2"
-                value={values.scheduledDate}
-                onChange={(event) =>
-                  setValues((current) => ({
-                    ...current,
-                    scheduledDate: event.target.value,
-                  }))
-                }
-              />
-            </label>
-            <label className="block space-y-1 text-sm">
-              <span className="text-hq-fg-muted">{t("event.scheduledTime")}</span>
-              <input
-                type="time"
-                required
-                className="w-full rounded border border-hq-border bg-hq-bg px-3 py-2"
-                value={values.scheduledTime}
-                onChange={(event) =>
-                  setValues((current) => ({
-                    ...current,
-                    scheduledTime: event.target.value,
-                  }))
-                }
-              />
-            </label>
+          <div className="space-y-2">
+            <div
+              className="inline-flex rounded-lg border border-hq-border bg-hq-canvas p-0.5"
+              role="tablist"
+              aria-label={t("event.scheduleModeLabel")}
+            >
+              <button
+                type="button"
+                role="tab"
+                aria-selected={values.scheduleMode === "absolute"}
+                className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                  values.scheduleMode === "absolute"
+                    ? "bg-hq-surface text-hq-fg"
+                    : "text-hq-fg-muted hover:text-hq-fg"
+                }`}
+                onClick={() => switchScheduleMode("absolute")}
+              >
+                {t("event.scheduleModeAbsolute")}
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={values.scheduleMode === "relative"}
+                className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                  values.scheduleMode === "relative"
+                    ? "bg-hq-surface text-hq-fg"
+                    : "text-hq-fg-muted hover:text-hq-fg"
+                }`}
+                onClick={() => switchScheduleMode("relative")}
+              >
+                {t("event.scheduleModeRelative")}
+              </button>
+            </div>
+
+            {values.scheduleMode === "absolute" ? (
+              <>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <label className="block space-y-1 text-sm">
+                    <span className="text-hq-fg-muted">
+                      {t("event.scheduledDate")}
+                    </span>
+                    <input
+                      type="date"
+                      required
+                      className="w-full rounded border border-hq-border bg-hq-bg px-3 py-2"
+                      value={values.scheduledDate}
+                      onChange={(event) =>
+                        setValues((current) => ({
+                          ...current,
+                          scheduledDate: event.target.value,
+                        }))
+                      }
+                    />
+                  </label>
+                  <label className="block space-y-1 text-sm">
+                    <span className="text-hq-fg-muted">
+                      {t("event.scheduledTime")}
+                    </span>
+                    <input
+                      type="time"
+                      required
+                      className="w-full rounded border border-hq-border bg-hq-bg px-3 py-2"
+                      value={values.scheduledTime}
+                      onChange={(event) =>
+                        setValues((current) => ({
+                          ...current,
+                          scheduledTime: event.target.value,
+                        }))
+                      }
+                    />
+                  </label>
+                </div>
+                <p className="text-xs text-hq-fg-muted">
+                  {timeDisplay === "server"
+                    ? t("timeDisplay.editingServer")
+                    : t("timeDisplay.editingLocal")}
+                </p>
+              </>
+            ) : (
+              <div className="space-y-2">
+                <span className="block text-sm text-hq-fg-muted">
+                  {t("event.relativeDuration")}
+                </span>
+                <SegmentedCodeInput
+                  format="duration-dhhmm"
+                  value={values.relativeDuration}
+                  aria-label={t("event.relativeDuration")}
+                  groupLabels={[
+                    t("event.relativeDays"),
+                    t("event.relativeHours"),
+                    t("event.relativeMinutes"),
+                  ]}
+                  onChange={(relativeDuration) =>
+                    setValues((current) => ({
+                      ...current,
+                      relativeDuration,
+                    }))
+                  }
+                  onSubmit={handleSubmit}
+                />
+                <p className="text-xs text-hq-fg-muted">
+                  {t("event.relativeDurationHint")}
+                </p>
+              </div>
+            )}
           </div>
-          <p className="text-xs text-hq-fg-muted">
-            {timeDisplay === "server"
-              ? t("timeDisplay.editingServer")
-              : t("timeDisplay.editingLocal")}
-          </p>
 
           <label className="block space-y-1 text-sm">
             <span className="text-hq-fg-muted">{t("event.territoryType")}</span>
@@ -437,14 +555,14 @@ function CaptureEventForm({
               </button>
             </div>
           ) : (
-            <button
-              type="submit"
-              className="rounded border border-hq-success bg-hq-success px-4 py-2 text-sm text-white disabled:opacity-50"
-              disabled={saving || values.iconPreset == null}
-              title={FORM_SUBMIT_ENTER_KEY_HINT}
-            >
-              {saving ? t("actions.saving") : t("actions.save")}
-            </button>
+              <button
+                type="submit"
+                className="rounded border border-hq-success bg-hq-success px-4 py-2 text-sm text-white disabled:opacity-50"
+                disabled={saving || values.iconPreset == null || !scheduleReady}
+                title={FORM_SUBMIT_ENTER_KEY_HINT}
+              >
+                {saving ? t("actions.saving") : t("actions.save")}
+              </button>
           )
         ) : (
           <button
@@ -504,12 +622,16 @@ export function captureEventFormToPayload(
   values: CaptureEventFormValues,
   timeDisplay: BattlePlanTimeDisplay,
 ) {
+  const scheduledAt =
+    values.scheduleMode === "relative"
+      ? relativeDurationDigitsToIso(values.relativeDuration)
+      : zonedDateTimeToIso(
+          values.scheduledDate,
+          values.scheduledTime,
+          resolveBattlePlanIana(timeDisplay),
+        );
   return {
-    scheduledAt: zonedDateTimeToIso(
-      values.scheduledDate,
-      values.scheduledTime,
-      resolveBattlePlanIana(timeDisplay),
-    ),
+    scheduledAt,
     territoryType: values.territoryType,
     iconPreset: values.iconPreset,
     capturePolicy: values.capturePolicy,

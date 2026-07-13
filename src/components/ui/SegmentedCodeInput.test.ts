@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  normalizeDurationDhhmmInput,
   normalizeFixedCodeInput,
   normalizeJoinCodeInput,
   splitJoinCodeInput,
@@ -55,5 +56,12 @@ describe("normalizeFixedCodeInput", () => {
 
   it("uppercases alphanumeric codes", () => {
     expect(normalizeFixedCodeInput("ab12cd", 6, "alphanumeric")).toBe("AB12CD");
+  });
+});
+
+describe("normalizeDurationDhhmmInput", () => {
+  it("keeps only digits up to six characters", () => {
+    expect(normalizeDurationDhhmmInput("1a:2b:3c99")).toBe("12399");
+    expect(normalizeDurationDhhmmInput("1234567")).toBe("123456");
   });
 });

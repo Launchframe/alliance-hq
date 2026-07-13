@@ -1,0 +1,50 @@
+import { describe, expect, it, vi } from "vitest";
+
+import { captureEventFormToPayload } from "@/components/battle-plan/CaptureEventModal";
+import type { CaptureEventFormValues } from "@/components/battle-plan/CaptureEventModal";
+import { zonedDateTimeToIso } from "@/lib/battle-plan/time-display.shared";
+import { SERVER_TIME_IANA } from "@/lib/timezone/constants";
+
+function baseValues(
+  overrides: Partial<CaptureEventFormValues> = {},
+): CaptureEventFormValues {
+  return {
+    scheduleMode: "absolute",
+    scheduledDate: "2026-07-12",
+    scheduledTime: "14:30",
+    relativeDuration: "",
+    territoryType: "stronghold",
+    iconPreset: "hammer",
+    capturePolicy: "peace",
+    notes: "",
+    status: "scheduled",
+    ...overrides,
+  };
+}
+
+describe("captureEventFormToPayload", () => {
+  it("uses zoned date and time in absolute mode", () => {
+    const payload = captureEventFormToPayload(baseValues(), "server");
+    expect(payload.scheduledAt).toBe(
+      zonedDateTimeToIso("2026-07-12", "14:30", SERVER_TIME_IANA),
+    );
+  });
+
+  it("uses relative duration digits in from-now mode", () => {
+    const now = new Date("2026-07-10T12:00:00.000Z");
+    vi.useFakeTimers();
+    vi.setSystemTime(now);
+    try {
+      const payload = captureEventFormToPayload(
+        baseValues({
+          scheduleMode: "relative",
+          relativeDuration: "000130",
+        }),
+        "server",
+      );
+      expect(payload.scheduledAt).toBe("2026-07-10T13:30:00.000Z");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});

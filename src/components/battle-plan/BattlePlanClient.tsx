@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 
 import { BattlePlanAnnouncementDialog } from "@/components/battle-plan/BattlePlanAnnouncementDialog";
 import { BattlePlanCalendar } from "@/components/battle-plan/BattlePlanCalendar";
-import { BattlePlanSettingsPanel } from "@/components/battle-plan/BattlePlanSettingsPanel";
+import { BattlePlanSettingsMenu } from "@/components/battle-plan/BattlePlanSettingsMenu";
 import { BattlePlanTimeDisplayToggle } from "@/components/battle-plan/BattlePlanTimeDisplayToggle";
 import {
   CaptureEventModal,
@@ -193,6 +193,13 @@ export function BattlePlanClient({ initial }: Props) {
             serverLabel={t("timeDisplay.server")}
             onChange={handleTimeDisplayChange}
           />
+          <BattlePlanSettingsMenu
+            key={dashboard.settings.planRevision}
+            settings={dashboard.settings}
+            canWrite={dashboard.canWrite}
+            saving={saving}
+            onSaveSettings={saveSettings}
+          />
           {dashboard.canWrite ? (
             <button
               type="button"
@@ -220,30 +227,20 @@ export function BattlePlanClient({ initial }: Props) {
         </div>
       ) : null}
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(18rem,1fr)]">
-        <div className="space-y-6">
-          <UpcomingCapturesList
-            events={dashboard.events}
-            timeDisplay={timeDisplay}
-            canWrite={dashboard.canWrite}
-            onSelect={dashboard.canWrite ? openEditModal : undefined}
-          />
-          <BattlePlanCalendar
-            events={dashboard.events}
-            todayServerDate={dashboard.todayServerDate}
-            timeDisplay={timeDisplay}
-            canWrite={dashboard.canWrite}
-            onSelectDate={dashboard.canWrite ? openCreateModal : undefined}
-            onSelectEvent={dashboard.canWrite ? openEditModal : undefined}
-          />
-        </div>
-
-        <BattlePlanSettingsPanel
-          key={dashboard.settings.planRevision}
-          settings={dashboard.settings}
+      <div className="space-y-6">
+        <UpcomingCapturesList
+          events={dashboard.events}
+          timeDisplay={timeDisplay}
           canWrite={dashboard.canWrite}
-          saving={saving}
-          onSaveSettings={saveSettings}
+          onSelect={dashboard.canWrite ? openEditModal : undefined}
+        />
+        <BattlePlanCalendar
+          events={dashboard.events}
+          todayServerDate={dashboard.todayServerDate}
+          timeDisplay={timeDisplay}
+          canWrite={dashboard.canWrite}
+          onSelectDate={dashboard.canWrite ? openCreateModal : undefined}
+          onSelectEvent={dashboard.canWrite ? openEditModal : undefined}
         />
       </div>
 
