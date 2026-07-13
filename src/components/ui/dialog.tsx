@@ -3,6 +3,8 @@
 import * as React from "react";
 import { createPortal } from "react-dom";
 
+import { dialogPanelClassName } from "@/components/ui/dialog-panel.shared";
+
 type DialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -13,21 +15,6 @@ type DialogProps = {
   /** Keep children mounted but hide the dialog chrome (e.g. bug-report screenshot mode). */
   presentationHidden?: boolean;
 };
-
-function dialogPanelClassName(className: string): string {
-  // Callers often pass max-w-* / max-h-*; those must replace defaults. Without
-  // twMerge, later HTML classes do not win — omit defaults when overridden.
-  const hasMaxWidth = /\bmax-w-/.test(className);
-  const hasMaxHeight = /\bmax-h-/.test(className);
-  return [
-    "relative z-[101] w-full overflow-y-auto rounded-xl border border-hq-border bg-hq-surface p-5 shadow-xl",
-    hasMaxWidth ? null : "max-w-lg",
-    hasMaxHeight ? null : "max-h-[min(90vh,720px)]",
-    className.trim() || null,
-  ]
-    .filter(Boolean)
-    .join(" ");
-}
 
 export function Dialog({
   open,

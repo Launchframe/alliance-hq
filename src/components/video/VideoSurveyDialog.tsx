@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 
 import { Dialog } from "@/components/ui/dialog";
 import { FORM_SUBMIT_ENTER_KEY_HINT } from "@/lib/client/form-enter-submit.shared";
+import { isPortraitVideo } from "@/lib/video/survey-preview.shared";
 import {
   SURVEY_SCROLL_STYLES,
   SURVEY_SCHOOLING_ANSWERS,
@@ -146,8 +147,8 @@ export function VideoSurveyDialog({
 
   function syncVideoOrientation() {
     const video = videoRef.current;
-    if (!video || video.videoWidth <= 0 || video.videoHeight <= 0) return;
-    setIsPortrait(video.videoHeight > video.videoWidth);
+    if (!video) return;
+    setIsPortrait(isPortraitVideo(video.videoWidth, video.videoHeight));
   }
 
   function stepHasValidAnswer(currentStep: number): boolean {
@@ -439,6 +440,7 @@ export function VideoSurveyDialog({
     <Dialog
       open={open}
       onOpenChange={handleOpenChange}
+      title={t("title")}
       className={cn(
         // Dialog omits its default max-w/max-h when these are present.
         "min-h-[50vh] max-h-[90vh]",

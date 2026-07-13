@@ -15,6 +15,11 @@ import {
 import { Link, usePathname } from "@/i18n/navigation";
 import type { VideoJobStatusEvent } from "@/lib/events/video-jobs-types";
 import {
+  deriveApprovedAtFromLiveUpdate,
+  deriveRejectedAt,
+  shouldShowRecentUploadJob,
+} from "@/lib/video/recent-upload-jobs.shared";
+import {
   isActiveVideoJobStatus,
   isPendingApprovalStatus,
   isReviewReadyStatus,
@@ -325,13 +330,14 @@ export function useMergedVideoJobs<T extends { id: string; status: string }>(
   const { jobsById } = useVideoJobEvents();
 
   return useMemo(() => {
-    const keepJob = (job: T) => {
-      if (job.status !== "discarded") return true;
-      // Processor rejects stay visible (no approvedAt). Self-discards after OCR hide.
-      const approvedAt =
-        "approvedAt" in job ? (job as { approvedAt?: string | null }).approvedAt : null;
-      return approvedAt == null;
-    };
+    const keepJob = (job: T) =>
+      shouldShowRecentUploadJob({
+        status: job.status,
+        approvedAt:
+          "approvedAt" in job
+            ? (job as { approvedAt?: string | null }).approvedAt
+            : null,
+      });
 
     const merged = initialJobs
       .filter(keepJob)
@@ -341,16 +347,21 @@ export function useMergedVideoJobs<T extends { id: string; status: string }>(
         return job;
       }
       const nextStatus = live.status;
-      const approvedAt =
+      const existingApprovedAt =
         "approvedAt" in job
           ? (job as { approvedAt?: string | null }).approvedAt
           : null;
-      const rejectedAt =
-        nextStatus === "discarded" && approvedAt == null
-          ? live.updatedAt
-          : "rejectedAt" in job
-            ? (job as { rejectedAt?: string | null }).rejectedAt
-            : null;
+      const approvedAt = deriveApprovedAtFromLiveUpdate({
+        previousStatus: job.status,
+        nextStatus,
+        existingApprovedAt,
+        liveUpdatedAt: live.updatedAt,
+      });
+      const rejectedAt = deriveRejectedAt({
+        status: nextStatus,
+        approvedAt: approvedAt ?? existingApprovedAt ?? null,
+        updatedAt: live.updatedAt,
+      });
       return {
         ...job,
         status: nextStatus,
@@ -366,6 +377,7 @@ export function useMergedVideoJobs<T extends { id: string; status: string }>(
         errorMessage:
           live.errorMessage ??
           ("errorMessage" in job ? job.errorMessage : null),
+        ...(approvedAt !== undefined ? { approvedAt } : {}),
         ...(rejectedAt !== undefined ? { rejectedAt } : {}),
       } as T;
     })

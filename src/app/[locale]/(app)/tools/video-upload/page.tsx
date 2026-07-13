@@ -13,6 +13,10 @@ import {
   parseVideoUploadScoreTargetParam,
 } from "@/lib/video/score-target-nav";
 import { resolveSurveyPlayerNameFromSources } from "@/lib/video/survey-player-name";
+import {
+  deriveRejectedAt,
+  shouldShowRecentUploadJob,
+} from "@/lib/video/recent-upload-jobs.shared";
 import { isSurveyComplete, surveyRowToPayload } from "@/lib/video/survey";
 import { videoJobsOwnedByViewerWhere } from "@/lib/video/video-job-ownership.server";
 
@@ -114,19 +118,21 @@ export default async function VideoUploadPage({ searchParams }: Props) {
           ),
         )
       : rows
-  ).filter(
-    // Keep processor rejects (discarded before approval) so uploaders can see
-    // "Rejected at". Hide self-discards after OCR (discarded with approvedAt).
-    (job) => job.status !== "discarded" || job.approvedAt == null,
+  ).filter((job) =>
+    shouldShowRecentUploadJob({
+      status: job.status,
+      approvedAt: job.approvedAt?.toISOString() ?? null,
+    }),
   );
 
   const initialJobs: VideoJobRow[] = filteredRows.map((job) => {
     const surveyRow = surveyByJobId.get(job.id);
     const surveyPayload = surveyRow ? surveyRowToPayload(surveyRow) : null;
-    const rejectedAt =
-      job.status === "discarded" && job.approvedAt == null
-        ? job.updatedAt.toISOString()
-        : null;
+    const rejectedAt = deriveRejectedAt({
+      status: job.status,
+      approvedAt: job.approvedAt?.toISOString() ?? null,
+      updatedAt: job.updatedAt.toISOString(),
+    });
     return {
       id: job.id,
       status: job.status,
