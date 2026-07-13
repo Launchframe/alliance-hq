@@ -1,18 +1,33 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
-import { Pencil, Plus, Trash2, Video } from "lucide-react";
+import { Check, Copy, Pencil, Plus, Trash2, Video } from "lucide-react";
 
+import { AppSelect } from "@/components/ui/AppSelect";
 import { pickLatestDepositSlip } from "@/lib/banks/deposit-slip-ocr/deposit-slip-latest.shared";
 import { BANK_DEPOSIT_SLIP_HISTORY_SCORE_TARGET } from "@/lib/banks/deposit-slip-ocr/parse-deposit-slip-text.shared";
+import {
+  DEPOSIT_ALLIANCE_FILTER_ALL,
+  DEPOSIT_ALLIANCE_FILTER_UNTAGGED,
+  buildDepositAllianceSummary,
+  filterSlipsByDepositAlliance,
+  formatDepositAllianceReportPlaintext,
+  uniqueDepositAllianceTags,
+  type DepositAllianceFilter,
+} from "@/lib/banks/deposit-alliance-report.shared";
 import {
   computeDepositStats,
   depositSlipDisplayStatus,
   type DepositDisplayStatus,
 } from "@/lib/banks/optimization.shared";
-import type { BankWithSlips, SerializedDepositSlip } from "@/lib/banks/types.shared";
+import {
+  DEPOSIT_STATUSES,
+  DEPOSIT_TERMS,
+  type BankWithSlips,
+  type SerializedDepositSlip,
+} from "@/lib/banks/types.shared";
 import { formatBrowserLocalDateTime } from "@/lib/timezone/format";
 import { buildVideoUploadHref } from "@/lib/video/score-target-nav";
 
@@ -79,13 +94,57 @@ export function DepositSlipList({ bank, canWrite, onAdd, onEdit, onDelete }: Pro
     }
   }
 
-  const annotatedSlips = useMemo(() => {
+  const [allianceFilter, setAllianceFilter] = useState<DepositAllianceFilter>(
+    DEPOSIT_ALLIANCE_FILTER_ALL,
+  );
+  const [copied, setCopied] = useState(false);
+  const copiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const tags = useMemo(
+    () => (bank ? uniqueDepositAllianceTags(bank.depositSlips) : []),
+    [bank],
+  );
+
+  // Drop a stale tag selection without setState-in-effect (React Compiler).
+  const resolvedFilter: DepositAllianceFilter =
+    allianceFilter === DEPOSIT_ALLIANCE_FILTER_ALL ||
+    allianceFilter === DEPOSIT_ALLIANCE_FILTER_UNTAGGED ||
+    tags.includes(allianceFilter)
+      ? allianceFilter
+      : DEPOSIT_ALLIANCE_FILTER_ALL;
+
+  useEffect(() => {
+    return () => {
+      if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current);
+    };
+  }, []);
+
+  const filterOptions = useMemo(
+    () => [
+      { value: DEPOSIT_ALLIANCE_FILTER_ALL, label: t("filterAllianceAll") },
+      {
+        value: DEPOSIT_ALLIANCE_FILTER_UNTAGGED,
+        label: t("filterAllianceUntagged"),
+      },
+      ...tags.map((tag) => ({ value: tag, label: `[${tag}]` })),
+    ],
+    [t, tags],
+  );
+
+  // Alliance filter narrows the pool; the status tabs below then filter/sort within it.
+  const allianceFilteredSlips = useMemo(() => {
     if (!bank) return [];
-    return bank.depositSlips.map((slip) => ({
-      slip,
-      displayStatus: depositSlipDisplayStatus(slip),
-    }));
-  }, [bank]);
+    return filterSlipsByDepositAlliance(bank.depositSlips, resolvedFilter);
+  }, [bank, resolvedFilter]);
+
+  const annotatedSlips = useMemo(
+    () =>
+      allianceFilteredSlips.map((slip) => ({
+        slip,
+        displayStatus: depositSlipDisplayStatus(slip),
+      })),
+    [allianceFilteredSlips],
+  );
 
   const counts = useMemo(() => {
     const result: Record<DepositFilter, number> = {
@@ -147,9 +206,48 @@ export function DepositSlipList({ bank, canWrite, onAdd, onEdit, onDelete }: Pro
     [bank],
   );
 
+  const summary = useMemo(
+    () => buildDepositAllianceSummary(allianceFilteredSlips),
+    [allianceFilteredSlips],
+  );
+
   if (!bank) return null;
 
   const hasSlips = bank.depositSlips.length > 0;
+  const showFilterControls = hasSlips;
+  const bankLabel = t("coords", {
+    server: bank.gameServerNumber,
+    x: bank.coordX,
+    y: bank.coordY,
+  });
+
+  const allianceFilterLabel =
+    resolvedFilter === DEPOSIT_ALLIANCE_FILTER_ALL
+      ? t("filterAllianceAll")
+      : resolvedFilter === DEPOSIT_ALLIANCE_FILTER_UNTAGGED
+        ? t("filterAllianceUntagged")
+        : `[${resolvedFilter}]`;
+
+  async function handleCopyReport() {
+    const text = formatDepositAllianceReportPlaintext({
+      bankLabel,
+      allianceFilterLabel,
+      slips: allianceFilteredSlips,
+      summary,
+      statusLabel: (status) => t(`status.${status}`),
+      formatAmount: (n) => n.toLocaleString(),
+      formatDateTime,
+    });
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current);
+      copiedTimerRef.current = setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Clipboard permission denied — leave button label unchanged.
+    }
+  }
+
   const latestHero =
     latestSlip == null
       ? null
@@ -168,11 +266,7 @@ export function DepositSlipList({ bank, canWrite, onAdd, onEdit, onDelete }: Pro
     <div className="min-w-0 space-y-3">
       <div className="flex min-w-0 items-start justify-between gap-2">
         <h2 className="min-w-0 break-words text-sm font-semibold text-hq-fg">
-          {t("depositsTitle")} — {t("coords", {
-            server: bank.gameServerNumber,
-            x: bank.coordX,
-            y: bank.coordY,
-          })}
+          {t("depositsTitle")} — {bankLabel}
         </h2>
         {canWrite ? (
           <button
@@ -203,6 +297,68 @@ export function DepositSlipList({ bank, canWrite, onAdd, onEdit, onDelete }: Pro
         </div>
       ) : null}
 
+      {showFilterControls ? (
+        <div className="flex min-w-0 flex-wrap items-end gap-3">
+          <label className="min-w-[10rem] flex-1 space-y-1 text-xs text-hq-fg-muted">
+            <span>{t("filterAlliance")}</span>
+            <AppSelect
+              value={resolvedFilter}
+              onChange={setAllianceFilter}
+              options={filterOptions}
+              aria-label={t("filterAlliance")}
+            />
+          </label>
+          <button
+            type="button"
+            onClick={() => void handleCopyReport()}
+            className="inline-flex shrink-0 items-center gap-1.5 rounded border border-hq-border px-3 py-1.5 text-xs font-medium text-hq-fg hover:bg-hq-surface-muted"
+          >
+            {copied ? (
+              <Check className="h-3.5 w-3.5 text-hq-green" aria-hidden />
+            ) : (
+              <Copy className="h-3.5 w-3.5" aria-hidden />
+            )}
+            {copied ? t("copiedReport") : t("copyReport")}
+          </button>
+        </div>
+      ) : null}
+
+      {showFilterControls ? (
+        <div className="space-y-2 rounded-lg border border-hq-border bg-hq-surface p-3 text-xs text-hq-fg-muted">
+          <p className="font-medium text-hq-fg">{t("reportTitle")}</p>
+          <p>
+            {t("reportTotals", {
+              count: summary.total.count,
+              amount: summary.total.amount.toLocaleString(),
+            })}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <span className="text-hq-fg-muted">{t("reportByTerm")}</span>
+            {DEPOSIT_TERMS.map((term) => (
+              <span
+                key={term}
+                className="rounded-full border border-hq-border px-2 py-0.5"
+              >
+                {term}d · {summary.byTerm[term].count} ·{" "}
+                {summary.byTerm[term].amount.toLocaleString()}
+              </span>
+            ))}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <span className="text-hq-fg-muted">{t("reportByStatus")}</span>
+            {DEPOSIT_STATUSES.map((status) => (
+              <span
+                key={status}
+                className={`rounded-full border px-2 py-0.5 ${statusBadgeClass[status]}`}
+              >
+                {t(`status.${status}`)} · {summary.byStatus[status].count} ·{" "}
+                {summary.byStatus[status].amount.toLocaleString()}
+              </span>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
       {!hasSlips ? (
         <div className="min-w-0 space-y-3 rounded-lg border border-hq-border bg-hq-surface p-4 text-sm text-hq-fg-muted">
           <p>{t("emptyDeposits")}</p>
@@ -220,6 +376,10 @@ export function DepositSlipList({ bank, canWrite, onAdd, onEdit, onDelete }: Pro
               </Link>
             </>
           ) : null}
+        </div>
+      ) : allianceFilteredSlips.length === 0 ? (
+        <div className="rounded-lg border border-hq-border bg-hq-surface p-4 text-sm text-hq-fg-muted">
+          {t("emptyFilteredDeposits")}
         </div>
       ) : (
         <>
