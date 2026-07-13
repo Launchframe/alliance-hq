@@ -3507,8 +3507,8 @@
       "resources": "Recursos",
       "points": "Pontos"
     },
-    "queuedSuccess": "Vídeo enviado. Aguardando um processador de vídeo revisar e executar.",
-    "pendingApprovalHint": "Vídeos enviados ficam na fila até um processador designado ou o dono da aliança aprovar.",
+    "queuedSuccess": "Vídeo enviado. Conclua a pesquisa curta enquanto espera — um oficial aprovará e executará o OCR.",
+    "pendingApprovalHint": "Vídeos enviados ficam na fila até um processador designado ou o dono da aliança aprovar. Você pode concluir a pesquisa do envio enquanto espera.",
     "recentUploads": "Envios recentes",
     "viewAllUploads": "Ver todos os envios",
     "reviewLink": "Revisar",
@@ -3530,7 +3530,7 @@
     },
     "processAfterUpload": {
       "title": "Processar este vídeo?",
-      "subtitle": "Revise como este envio será processado antes do OCR começar.",
+      "subtitle": "Aprove para iniciar o OCR e, em seguida, preencha a pesquisa curta enquanto ele roda.",
       "loading": "Carregando detalhes do processamento…",
       "loadFailed": "Não foi possível carregar os detalhes do processamento.",
       "statFile": "Arquivo",

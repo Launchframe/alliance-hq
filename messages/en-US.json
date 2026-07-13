@@ -3561,8 +3561,8 @@
       "resources": "Resources",
       "points": "Points"
     },
-    "queuedSuccess": "Video uploaded. Waiting for a video processor to review and run it.",
-    "pendingApprovalHint": "Uploaded videos wait in the queue until a designated processor or alliance owner approves them.",
+    "queuedSuccess": "Video uploaded. Complete the short survey while you wait — an officer will approve and run OCR.",
+    "pendingApprovalHint": "Uploaded videos wait in the queue until a designated processor or alliance owner approves them. You can finish the upload survey while you wait.",
     "recentUploads": "Recent uploads",
     "viewAllUploads": "View all uploads",
     "reviewLink": "Review",
@@ -3584,7 +3584,7 @@
     },
     "processAfterUpload": {
       "title": "Process this video?",
-      "subtitle": "Review how this upload will be processed before OCR starts.",
+      "subtitle": "Approve to start OCR, then fill out the short survey while it runs.",
       "loading": "Loading processing details…",
       "loadFailed": "Could not load processing details.",
       "statFile": "File",
