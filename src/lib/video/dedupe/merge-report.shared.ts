@@ -19,6 +19,12 @@ export type DedupeCluster = {
   /** Surviving / preferred row id (always present for auto_merged; also set for flagged). */
   destinationSlipId: string;
   members: DedupeClusterMemberSnapshot[];
+  /**
+   * Field keys that were majority-vote corrected during an auto-merge (e.g. one
+   * outlier reading among several agreeing rows). Absent/empty when the cluster's
+   * rows already agreed on every field.
+   */
+  correctedFields?: string[];
 };
 
 export type DedupeReport = {

@@ -3778,14 +3778,18 @@
     "depositSlipAutoDedupeToggleHide": "Hide merged groups",
     "depositSlipAutoDedupeDestination": "Kept",
     "depositSlipAutoDedupeSource": "Merged away",
+    "depositSlipAutoDedupeMajorityCorrected": "Corrected {fields} using the majority reading across merged rows.",
     "depositSlipFlaggedTitle": "{count, plural, one {# cluster still needs review.} other {# clusters still need review.}}",
     "depositSlipFlaggedHint": "Edit or delete the highlighted rows so each deposit appears once, then save.",
     "depositSlipFlaggedBlocked": "Resolve flagged duplicate clusters before saving.",
     "depositSlipFlaggedRow": "Needs review.",
+    "depositSlipFlaggedKeepThisOne": "Keep this one, delete the rest",
     "depositSlipFlagReason": {
       "same_commander_timestamp_conflicting_amount_or_term": "Same commander and time, but amount or term doesn’t match.",
       "borderline_commander_name_same_minute": "Similar commander names at the same time — confirm they’re the same person.",
-      "timestamp_collision_different_commanders": "Different commanders share the same deposit minute — confirm these aren’t OCR mistakes."
+      "timestamp_collision_different_commanders": "Different commanders share the same deposit minute — confirm these aren’t OCR mistakes.",
+      "same_commander_timestamp_conflicting_identity": "Same commander and time, but alliance tag or server doesn’t match.",
+      "commander_match_missing_timestamp_ambiguous": "Matches a commander with no deposit time recorded, but the details don’t line up — confirm which one is correct."
     },
     "statsNerds": {
       "button": "Stats for nerds",

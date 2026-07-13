@@ -1,0 +1,140 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const mockResolveHqAllianceIdFromSession = vi.fn();
+const mockInsertValues = vi.fn();
+const mockUpdateWhere = vi.fn();
+
+vi.mock("server-only", () => ({}));
+
+vi.mock("nanoid", () => ({
+  nanoid: () => "generated-id",
+}));
+
+vi.mock("@/lib/members/resolve-hq-alliance", () => ({
+  resolveHqAllianceIdFromSession: (sessionId: string) =>
+    mockResolveHqAllianceIdFromSession(sessionId),
+}));
+
+vi.mock("@/lib/video/ocr-deposit-slip-native", () => ({
+  ocrDepositSlipNativeFrames: vi.fn(),
+}));
+
+vi.mock("@/lib/db", () => ({
+  getDb: () => ({
+    insert: (table: unknown) => ({
+      values: (payload: unknown) => mockInsertValues(table, payload),
+    }),
+    update: (table: unknown) => ({
+      set: (payload: unknown) => ({
+        where: (condition: unknown) => mockUpdateWhere(table, payload, condition),
+      }),
+    }),
+  }),
+  schema: {
+    parseSessions: { id: "parseSessions.id" },
+    parsedRows: { id: "parsedRows.id" },
+    videoFrames: {
+      jobId: "videoFrames.jobId",
+      frameIndex: "videoFrames.frameIndex",
+    },
+    videoJobs: { id: "videoJobs.id" },
+  },
+}));
+
+import { processDepositSlipVideoParse } from "@/lib/video/process-deposit-slip-job";
+import type { ParsedDepositSlipHistory } from "@/lib/banks/deposit-slip-ocr/parse-deposit-slip-text.shared";
+import type { PipelineTimer } from "@/lib/video/pipeline-timer";
+
+const timer = {
+  measureStep: async <T,>(
+    _name: string,
+    fn: () => T | Promise<T>,
+  ): Promise<T> => fn(),
+} as PipelineTimer;
+
+describe("processDepositSlipVideoParse", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockResolveHqAllianceIdFromSession.mockResolvedValue("alliance-1");
+    mockInsertValues.mockResolvedValue(undefined);
+    mockUpdateWhere.mockResolvedValue(undefined);
+  });
+
+  it("persists parsed rows with dedupe slip IDs so review actions match report members", async () => {
+    const mockHistory = {
+      depositPolicy: null,
+      minimumDeposit: null,
+      slips: [
+        {
+          slipId: "slip_keep",
+          dedupeClusterId: "cluster-1",
+          depositAt: "2026-07-11T10:00:00.000Z",
+          termDays: 1,
+          amount: 6000,
+          status: "locked",
+          outcomeAmount: null,
+          outcomeKind: null,
+          identity: {
+            gameServerNumber: 1203,
+            allianceTag: "LFgo",
+            commanderName: "Alpha",
+            rawIdentity: "#1203[LFgo]Alpha",
+          },
+          sourceFrameIndex: 0,
+        },
+        {
+          slipId: "slip_delete",
+          dedupeClusterId: "cluster-1",
+          depositAt: "2026-07-11T10:00:00.000Z",
+          termDays: 1,
+          amount: 5000,
+          status: "locked",
+          outcomeAmount: null,
+          outcomeKind: null,
+          identity: {
+            gameServerNumber: 1203,
+            allianceTag: "LFgo",
+            commanderName: "Alpha",
+            rawIdentity: "#1203[LFgo]Alpha",
+          },
+          sourceFrameIndex: 1,
+        },
+      ],
+    } as unknown as ParsedDepositSlipHistory;
+
+    await processDepositSlipVideoParse({
+      jobId: "job-1",
+      sessionId: "session-1",
+      scoreTargetId: "bank-deposit-slip-history",
+      target: { id: "bank-deposit-slip-history" } as never,
+      engine: "mock",
+      frames: [
+        { index: 0, buffer: Buffer.from("") },
+        { index: 1, buffer: Buffer.from("") },
+      ],
+      timer,
+      now: new Date("2026-07-12T00:00:00.000Z"),
+      mockHistory,
+    });
+
+    const parsedRowsInsert = mockInsertValues.mock.calls.find(
+      ([table]) =>
+        typeof table === "object" &&
+        table != null &&
+        "id" in table &&
+        table.id === "parsedRows.id",
+    );
+    expect(parsedRowsInsert?.[1]).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "slip_keep",
+          dedupeClusterId: "cluster-1",
+        }),
+        expect.objectContaining({
+          id: "slip_delete",
+          dedupeClusterId: "cluster-1",
+        }),
+      ]),
+    );
+  });
+});
