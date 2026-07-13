@@ -168,6 +168,7 @@ export function VideoUploadForm({
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [activeSurvey, setActiveSurvey] = useState<ActiveSurvey | null>(null);
+  const [pendingSurveyFile, setPendingSurveyFile] = useState<File | null>(null);
   const [surveyCompleteByJobId, setSurveyCompleteByJobId] = useState<
     Record<string, boolean>
   >(() =>
@@ -281,12 +282,18 @@ export function VideoUploadForm({
     setSuccess(null);
 
     const uploadFile = file;
-    setActiveSurvey({
-      jobId: "",
-      file: uploadFile,
-      initialSurvey: null,
-      navigateOnClose: false,
-    });
+    // Processors approve first, then survey while OCR runs. Non-processors get
+    // the survey immediately after upload (with a pending-approval hint).
+    if (!canProcess) {
+      setActiveSurvey({
+        jobId: "",
+        file: uploadFile,
+        initialSurvey: null,
+        navigateOnClose: false,
+      });
+    } else {
+      setPendingSurveyFile(uploadFile);
+    }
     setFile(null);
 
     try {
@@ -299,36 +306,54 @@ export function VideoUploadForm({
           setUploadProgress({ loaded, total });
         },
         onJobCreated: (jobId) => {
-          setActiveSurvey((prev) => (prev ? { ...prev, jobId } : null));
+          if (!canProcess) {
+            setActiveSurvey((prev) => (prev ? { ...prev, jobId } : null));
+          }
         },
       });
 
-      setSuccess(
-        canProcess ? null : (data.message ?? t("queuedSuccess")),
-      );
-      if (canProcess) {
-        setProcessPromptJobId(data.jobId);
-      }
       setSurveyCompleteByJobId((prev) => ({
         ...prev,
         [data.jobId]: false,
       }));
-      setActiveSurvey((prev) =>
-        prev
-          ? {
-              ...prev,
-              jobId: data.jobId,
-              navigateOnClose: data.status !== "pending_approval",
-            }
-          : null,
-      );
+
+      if (canProcess) {
+        setSuccess(null);
+        setProcessPromptJobId(data.jobId);
+      } else {
+        setSuccess(data.message ?? t("queuedSuccess"));
+        setActiveSurvey((prev) =>
+          prev
+            ? {
+                ...prev,
+                jobId: data.jobId,
+                navigateOnClose: data.status !== "pending_approval",
+              }
+            : null,
+        );
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : tc("uploadFailed"));
       setActiveSurvey(null);
+      setPendingSurveyFile(null);
     } finally {
       setUploading(false);
       setUploadProgress(null);
     }
+  }
+
+  function openSurveyAfterApprove(jobId: string) {
+    setProcessPromptJobId(null);
+    if (processJobQueryId) {
+      setDismissedProcessJobId(processJobQueryId);
+    }
+    setActiveSurvey({
+      jobId,
+      file: pendingSurveyFile,
+      initialSurvey: null,
+      navigateOnClose: true,
+    });
+    setPendingSurveyFile(null);
   }
 
   function handleSurveyClose(result: { complete: boolean }) {
@@ -339,15 +364,8 @@ export function VideoUploadForm({
         ...prev,
         [session.jobId]: result.complete,
       }));
-      if (canProcess) {
-        setProcessPromptJobId(session.jobId);
-      }
     }
-    if (
-      session?.navigateOnClose &&
-      session.jobId &&
-      !canProcess
-    ) {
+    if (session?.navigateOnClose && session.jobId) {
       push(`/tools/video-upload/${session.jobId}/review`);
     }
   }
@@ -392,7 +410,9 @@ export function VideoUploadForm({
       <div className="min-w-0">
         <h1 className="text-2xl font-semibold">{t("title")}</h1>
         <p className="mt-1 text-sm text-hq-fg-muted">{t("subtitle")}</p>
-        <p className="mt-2 text-xs text-hq-fg-muted">{t("pendingApprovalHint")}</p>
+        {!canProcess ? (
+          <p className="mt-2 text-xs text-hq-fg-muted">{t("pendingApprovalHint")}</p>
+        ) : null}
       </div>
 
       <form
@@ -552,10 +572,12 @@ export function VideoUploadForm({
           connectUrl={connectUrl}
           onDismiss={() => {
             setProcessPromptJobId(null);
+            setPendingSurveyFile(null);
             if (processJobQueryId) {
               setDismissedProcessJobId(processJobQueryId);
             }
           }}
+          onApproved={openSurveyAfterApprove}
         />
       ) : null}
 

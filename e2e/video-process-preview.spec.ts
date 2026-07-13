@@ -87,5 +87,7 @@ test.describe("Video process preview", () => {
       panel.getByRole("button", { name: /Process now/i }),
     ).toBeVisible();
     await expect(panel.getByText(/desert-storm/i)).toBeVisible();
+    // Processors see approve first — survey opens only after Process now.
+    await expect(page.getByRole("dialog")).toHaveCount(0);
   });
 });

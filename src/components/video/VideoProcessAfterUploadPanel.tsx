@@ -22,6 +22,8 @@ type Props = {
   ashedConnected: boolean;
   connectUrl: string;
   onDismiss: () => void;
+  /** Called after approve succeeds so the parent can open the survey while OCR runs. */
+  onApproved: (jobId: string) => void;
 };
 
 export function VideoProcessAfterUploadPanel({
@@ -29,6 +31,7 @@ export function VideoProcessAfterUploadPanel({
   ashedConnected,
   connectUrl,
   onDismiss,
+  onApproved,
 }: Props) {
   const t = useTranslations("video.processAfterUpload");
   const tQueue = useTranslations("videoQueue");
@@ -174,7 +177,7 @@ export function VideoProcessAfterUploadPanel({
   async function processNow() {
     setActing(true);
     setError(null);
-    let navigated = false;
+    let handedOff = false;
     try {
       const res = await fetch(`/api/tools/video-upload/${jobId}/approve`, {
         method: "POST",
@@ -184,18 +187,19 @@ export function VideoProcessAfterUploadPanel({
         if (data.code === "ashed_not_connected") {
           beginNavigation();
           push(connectUrl);
-          navigated = true;
+          handedOff = true;
           return;
         }
         throw new Error(data.error ?? tQueue("approveFailed"));
       }
-      beginNavigation();
-      push(`/tools/video-upload/${jobId}/review`);
-      navigated = true;
+      // OCR is running — parent opens the survey so the processor can fill it
+      // while frames extract, then navigates to review on survey close.
+      handedOff = true;
+      onApproved(jobId);
     } catch (err) {
       setError(err instanceof Error ? err.message : tQueue("approveFailed"));
     } finally {
-      if (!navigated) {
+      if (!handedOff) {
         setActing(false);
       }
     }
