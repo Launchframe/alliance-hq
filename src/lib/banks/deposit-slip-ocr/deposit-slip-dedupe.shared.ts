@@ -1,8 +1,21 @@
 /**
  * Deposit-slip cross-frame dedupe: fuzzy commander + to-the-minute timestamp.
+ *
+ * This module is a thin domain adapter over the generic helpers in
+ * `src/lib/video/dedupe/`: it supplies deposit-slip field specs (amount, term,
+ * alliance tag, server number) and coalescing policy (status/outcome merge), and
+ * delegates clustering, majority-vote conflict resolution, and missing-timestamp
+ * reconciliation to the shared, domain-agnostic engine pieces. Future OCR history
+ * dedupe (bank stronghold lists, event scores, train cargo, ...) can follow the
+ * same pattern.
  */
 
 import type { ParsedDepositSlipDraft } from "@/lib/banks/deposit-slip-ocr/parse-deposit-slip-text.shared";
+import {
+  resolveGroupConflicts,
+  type ConflictFieldSpec,
+  type FieldCorrection,
+} from "@/lib/video/dedupe/conflict-resolution.shared";
 import {
   clusterByFuzzyName,
   FUZZY_AUTO_MERGE_THRESHOLD,
@@ -14,6 +27,7 @@ import {
   type DedupeCluster,
   type DedupeReport,
 } from "@/lib/video/dedupe/merge-report.shared";
+import { reconcileMissingAnchorRows } from "@/lib/video/dedupe/missing-anchor-reconciliation.shared";
 import {
   groupByMinuteTimestamp,
   toMinuteTimestampKey,
@@ -76,26 +90,70 @@ function completenessScore(slip: ParsedDepositSlipDraft): number {
   return score;
 }
 
-function hasCoreConflict(slips: readonly ParsedDepositSlipDraft[]): boolean {
-  const amounts = slips
-    .map((s) => s.amount)
-    .filter((a): a is number => a != null);
-  const terms = slips
-    .map((s) => s.termDays)
-    .filter((t): t is NonNullable<typeof t> => t != null);
-  return new Set(amounts).size > 1 || new Set(terms).size > 1;
+/**
+ * Fields checked for cross-frame conflicts within a matched commander+minute
+ * (or matched-by-name-only) group. A single OCR-garbled character (e.g. an
+ * alliance tag `o`/`a` mix-up) shouldn't flag an entire cluster when the rest of
+ * the group clearly agrees — that's what `resolveGroupConflicts` + majority vote
+ * is for. Genuine ties (no majority) still fall through to flagging.
+ */
+const DEPOSIT_SLIP_CONFLICT_FIELDS: readonly ConflictFieldSpec<ParsedDepositSlipDraft>[] =
+  [
+    {
+      key: "allianceTag",
+      get: (s) => s.identity.allianceTag,
+      isEqual: (a, b) =>
+        String(a).trim().toLowerCase() === String(b).trim().toLowerCase(),
+    },
+    {
+      key: "gameServerNumber",
+      get: (s) => s.identity.gameServerNumber,
+    },
+    {
+      key: "amount",
+      get: (s) => s.amount,
+    },
+    {
+      key: "termDays",
+      get: (s) => s.termDays,
+    },
+  ];
+
+const IDENTITY_CONFLICT_FIELD_KEYS = new Set(["allianceTag", "gameServerNumber"]);
+
+/** Mirrors the historical two-reason split so existing UI copy keeps working. */
+function pickConflictFlagReason(conflictingFields: readonly string[]): string {
+  if (conflictingFields.some((key) => IDENTITY_CONFLICT_FIELD_KEYS.has(key))) {
+    return "same_commander_timestamp_conflicting_identity";
+  }
+  return "same_commander_timestamp_conflicting_amount_or_term";
 }
 
-function hasExplicitIdentityConflict(
-  slips: readonly ParsedDepositSlipDraft[],
-): boolean {
-  const allianceTags = slips
-    .map((s) => s.identity.allianceTag?.trim().toLowerCase())
-    .filter((tag): tag is string => Boolean(tag));
-  const serverNumbers = slips
-    .map((s) => s.identity.gameServerNumber)
-    .filter((server): server is number => server != null);
-  return new Set(allianceTags).size > 1 || new Set(serverNumbers).size > 1;
+function applyDepositSlipCorrections(
+  slip: ParsedDepositSlipDraft,
+  corrections: readonly FieldCorrection[],
+): ParsedDepositSlipDraft {
+  if (corrections.length === 0) return slip;
+  const next: ParsedDepositSlipDraft = { ...slip, identity: { ...slip.identity } };
+  for (const correction of corrections) {
+    switch (correction.key) {
+      case "amount":
+        next.amount = correction.value as ParsedDepositSlipDraft["amount"];
+        break;
+      case "termDays":
+        next.termDays = correction.value as ParsedDepositSlipDraft["termDays"];
+        break;
+      case "allianceTag":
+        next.identity.allianceTag = correction.value as string;
+        break;
+      case "gameServerNumber":
+        next.identity.gameServerNumber = correction.value as number;
+        break;
+      default:
+        break;
+    }
+  }
+  return next;
 }
 
 function minPairwiseNameSimilarity(
@@ -208,9 +266,14 @@ function pickBestSlipId(group: readonly IndexedSlip[]): string {
 /**
  * Collapse cross-frame deposit-slip OCR duplicates.
  *
- * Auto-merge: same fuzzy commander + same to-the-minute timestamp, compatible cores.
+ * Auto-merge: same fuzzy commander + same to-the-minute timestamp, and either
+ * every field agrees or every disagreeing field has a clear majority (the
+ * minority reading is treated as OCR noise and corrected).
  * Flag: timestamp collision across different commanders, borderline fuzzy names,
- * or strong name+time match with conflicting amount/term.
+ * or a genuine field conflict with no majority (e.g. a 2-2 split).
+ * Rows with no parseable timestamp get one more pass: fold into a matching
+ * same-named cluster/row if one exists (or merge with each other), otherwise
+ * flag as ambiguous, otherwise pass through unchanged.
  */
 export function dedupeDepositSlips(
   slips: readonly ParsedDepositSlipDraft[],
@@ -255,30 +318,16 @@ export function dedupeDepositSlips(
 
     for (const group of autoClusters) {
       const clusterId = `c_${nextSlipId()}`;
-      if (hasExplicitIdentityConflict(group)) {
-        clusters.push({
-          clusterId,
-          disposition: "flagged",
-          reason: "same_commander_timestamp_conflicting_identity",
-          destinationSlipId: pickBestSlipId(group),
-          members: group.map((s) => ({
-            slipId: s.slipId,
-            snapshot: slipSnapshot(s),
-          })),
-        });
-        for (const s of group) {
-          output.push({ ...s, dedupeClusterId: clusterId });
-          consumed.add(s.slipId);
-          assignedInMinute.add(s.slipId);
-        }
-        continue;
-      }
+      const conflictResolution = resolveGroupConflicts(
+        group,
+        DEPOSIT_SLIP_CONFLICT_FIELDS,
+      );
 
-      if (hasCoreConflict(group)) {
+      if (!conflictResolution.resolved) {
         clusters.push({
           clusterId,
           disposition: "flagged",
-          reason: "same_commander_timestamp_conflicting_amount_or_term",
+          reason: pickConflictFlagReason(conflictResolution.conflictingFields),
           destinationSlipId: pickBestSlipId(group),
           members: group.map((s) => ({
             slipId: s.slipId,
@@ -313,7 +362,11 @@ export function dedupeDepositSlips(
         continue;
       }
 
-      const merged = coalesceDepositSlips(group);
+      const corrections = conflictResolution.corrections;
+      const merged = applyDepositSlipCorrections(
+        coalesceDepositSlips(group),
+        corrections,
+      );
       const destinationSlipId = nextSlipId();
       const destination: IndexedSlip = {
         ...merged,
@@ -323,8 +376,14 @@ export function dedupeDepositSlips(
       clusters.push({
         clusterId,
         disposition: "auto_merged",
-        reason: "same_commander_and_minute_timestamp",
+        reason:
+          corrections.length > 0
+            ? "same_commander_and_minute_timestamp_majority_corrected"
+            : "same_commander_and_minute_timestamp",
         destinationSlipId,
+        ...(corrections.length > 0
+          ? { correctedFields: corrections.map((c) => c.key) }
+          : {}),
         members: [
           ...group.map((s) => ({
             slipId: s.slipId,
@@ -418,7 +477,104 @@ export function dedupeDepositSlips(
     }
   }
 
-  for (const s of withoutTs) {
+  // Rows with no parseable timestamp never joined a per-minute cluster above —
+  // give them one more chance to fold into a matching commander by name alone.
+  const perMinuteDestinations = output.filter((s) => consumed.has(s.slipId));
+  const reconciliation = reconcileMissingAnchorRows(withoutTs, perMinuteDestinations, {
+    getName: (s) => s.identity.commanderName,
+    isCompatible: (rows) =>
+      resolveGroupConflicts(rows, DEPOSIT_SLIP_CONFLICT_FIELDS).resolved,
+  });
+
+  for (const { destination, anchorlessRows } of reconciliation.mergedIntoDestination) {
+    const conflictResolution = resolveGroupConflicts(
+      [...anchorlessRows, destination],
+      DEPOSIT_SLIP_CONFLICT_FIELDS,
+    );
+    const corrections = conflictResolution.resolved
+      ? conflictResolution.corrections
+      : [];
+    const merged = applyDepositSlipCorrections(
+      coalesceDepositSlips([...anchorlessRows, destination]),
+      corrections,
+    );
+    const rebuilt: IndexedSlip = {
+      ...merged,
+      identity: { ...merged.identity },
+      slipId: destination.slipId,
+    };
+    const outputIndex = output.findIndex((o) => o.slipId === destination.slipId);
+    if (outputIndex >= 0) output[outputIndex] = rebuilt;
+
+    const clusterId = `c_${nextSlipId()}`;
+    clusters.push({
+      clusterId,
+      disposition: "auto_merged",
+      reason: "commander_match_missing_timestamp",
+      destinationSlipId: destination.slipId,
+      ...(corrections.length > 0
+        ? { correctedFields: corrections.map((c) => c.key) }
+        : {}),
+      members: [
+        ...anchorlessRows.map((s) => ({
+          slipId: s.slipId,
+          snapshot: slipSnapshot(s),
+        })),
+        { slipId: destination.slipId, snapshot: slipSnapshot(rebuilt) },
+      ],
+    });
+    for (const s of anchorlessRows) consumed.add(s.slipId);
+  }
+
+  for (const group of reconciliation.mergedAmongThemselves) {
+    const conflictResolution = resolveGroupConflicts(
+      group,
+      DEPOSIT_SLIP_CONFLICT_FIELDS,
+    );
+    const corrections = conflictResolution.resolved
+      ? conflictResolution.corrections
+      : [];
+    const merged = applyDepositSlipCorrections(coalesceDepositSlips(group), corrections);
+    const destinationSlipId = nextSlipId();
+    const destination: IndexedSlip = {
+      ...merged,
+      identity: { ...merged.identity },
+      slipId: destinationSlipId,
+    };
+    const clusterId = `c_${nextSlipId()}`;
+    clusters.push({
+      clusterId,
+      disposition: "auto_merged",
+      reason: "commander_match_missing_timestamp",
+      destinationSlipId,
+      ...(corrections.length > 0
+        ? { correctedFields: corrections.map((c) => c.key) }
+        : {}),
+      members: [
+        ...group.map((s) => ({ slipId: s.slipId, snapshot: slipSnapshot(s) })),
+        { slipId: destinationSlipId, snapshot: slipSnapshot(destination) },
+      ],
+    });
+    output.push(destination);
+    for (const s of group) consumed.add(s.slipId);
+  }
+
+  for (const group of reconciliation.ambiguous) {
+    const clusterId = `c_${nextSlipId()}`;
+    clusters.push({
+      clusterId,
+      disposition: "flagged",
+      reason: "commander_match_missing_timestamp_ambiguous",
+      destinationSlipId: pickBestSlipId(group),
+      members: group.map((s) => ({ slipId: s.slipId, snapshot: slipSnapshot(s) })),
+    });
+    for (const s of group) {
+      output.push({ ...s, dedupeClusterId: clusterId });
+      consumed.add(s.slipId);
+    }
+  }
+
+  for (const s of reconciliation.untouched) {
     if (!consumed.has(s.slipId)) {
       output.push(s);
       consumed.add(s.slipId);
@@ -432,13 +588,12 @@ export function dedupeDepositSlips(
     }
   }
 
-  const autoMergedRemoved = clusters
-    .filter((c) => c.disposition === "auto_merged")
-    .reduce((sum, c) => {
-      // members = sources + destination snapshot
-      const sourceCount = Math.max(0, c.members.length - 1);
-      return sum + Math.max(0, sourceCount - 1);
-    }, 0);
+  // Every input row ends up either as its own output row or folded into another
+  // one; the exact "removed by merge" count is simply the size delta. (A
+  // cluster-by-cluster tally is fragile once a cluster's "destination" can be a
+  // pre-existing row rather than a freshly synthesized one, as happens in the
+  // missing-timestamp reconciliation pass above.)
+  const autoMergedRemoved = Math.max(0, input.length - output.length);
 
   const report: DedupeReport = {
     clusters,

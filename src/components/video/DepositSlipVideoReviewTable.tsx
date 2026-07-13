@@ -49,7 +49,41 @@ const FLAG_REASON_KEYS = [
   "same_commander_timestamp_conflicting_amount_or_term",
   "borderline_commander_name_same_minute",
   "timestamp_collision_different_commanders",
+  "same_commander_timestamp_conflicting_identity",
+  "commander_match_missing_timestamp_ambiguous",
 ] as const;
+
+/** Snapshot keys ever worth diffing/highlighting in the flagged-cluster panel. */
+const DIFFABLE_SNAPSHOT_KEYS = [
+  "allianceTag",
+  "amount",
+  "termDays",
+  "depositAt",
+  "status",
+] as const;
+
+/** Field keys whose values disagree across a cluster's members (for bolding in the panel). */
+export function clusterDiffKeys(cluster: DedupeCluster): Set<string> {
+  const diffKeys = new Set<string>();
+  for (const key of DIFFABLE_SNAPSHOT_KEYS) {
+    const present = cluster.members
+      .map((m) => m.snapshot[key])
+      .filter((v) => v != null);
+    const distinct = new Set(present.map((v) => JSON.stringify(v)));
+    if (distinct.size > 1) diffKeys.add(key);
+  }
+  return diffKeys;
+}
+
+/** Every other member's slipId in the cluster — used by "keep this one, delete the rest". */
+export function otherClusterMemberSlipIds(
+  cluster: DedupeCluster,
+  keepSlipId: string,
+): string[] {
+  return cluster.members
+    .map((m) => m.slipId)
+    .filter((slipId) => slipId !== keepSlipId);
+}
 
 type FlagReasonKey = (typeof FLAG_REASON_KEYS)[number];
 
@@ -89,6 +123,48 @@ function formatSnapshotLine(snapshot: Record<string, unknown>): string {
       ? isoToDatetimeLocalValue(snapshot.depositAt).replace("T", " ")
       : "—";
   return `${name} · ${amount} · ${term}d · ${depositAt} · ${status}`;
+}
+
+/** Same fields as `formatSnapshotLine`, rendered per-field so conflicting ones can be bolded. */
+function SnapshotFields({
+  snapshot,
+  diffKeys,
+}: {
+  snapshot: Record<string, unknown>;
+  diffKeys: Set<string>;
+}) {
+  const name =
+    typeof snapshot.commanderName === "string" ? snapshot.commanderName : "—";
+  const allianceTag =
+    typeof snapshot.allianceTag === "string" ? snapshot.allianceTag : "—";
+  const amount =
+    typeof snapshot.amount === "number" ? String(snapshot.amount) : "—";
+  const term =
+    typeof snapshot.termDays === "number" ? `${snapshot.termDays}d` : "—";
+  const status = typeof snapshot.status === "string" ? snapshot.status : "—";
+  const depositAt =
+    typeof snapshot.depositAt === "string"
+      ? isoToDatetimeLocalValue(snapshot.depositAt).replace("T", " ")
+      : "—";
+
+  const fieldClass = (key: string) =>
+    diffKeys.has(key) ? "font-semibold text-hq-danger" : undefined;
+
+  return (
+    <span className="inline-flex flex-wrap items-center gap-1">
+      <span>{name}</span>
+      <span aria-hidden>·</span>
+      <span className={fieldClass("allianceTag")}>{allianceTag}</span>
+      <span aria-hidden>·</span>
+      <span className={fieldClass("amount")}>{amount}</span>
+      <span aria-hidden>·</span>
+      <span className={fieldClass("termDays")}>{term}</span>
+      <span aria-hidden>·</span>
+      <span className={fieldClass("depositAt")}>{depositAt}</span>
+      <span aria-hidden>·</span>
+      <span className={fieldClass("status")}>{status}</span>
+    </span>
+  );
 }
 
 export function DepositSlipVideoReviewTable({
@@ -135,6 +211,15 @@ export function DepositSlipVideoReviewTable({
         (c): c is DedupeCluster => c.disposition === "auto_merged",
       ),
     [report],
+  );
+
+  const unresolvedFlaggedClusters = useMemo(
+    () =>
+      (report?.clusters ?? []).filter(
+        (c): c is DedupeCluster =>
+          c.disposition === "flagged" && unresolvedClusterIds.has(c.clusterId),
+      ),
+    [report, unresolvedClusterIds],
   );
 
   const filteredRows = useMemo(() => {
@@ -224,6 +309,13 @@ export function DepositSlipVideoReviewTable({
                         {formatSnapshotLine(destination.snapshot)}
                       </p>
                     ) : null}
+                    {cluster.correctedFields && cluster.correctedFields.length > 0 ? (
+                      <p className="mt-1 text-xs text-hq-fg-muted">
+                        {t("depositSlipAutoDedupeMajorityCorrected", {
+                          fields: cluster.correctedFields.join(", "),
+                        })}
+                      </p>
+                    ) : null}
                     <ul className="mt-2 space-y-1 text-hq-fg-muted">
                       {sources.map((source) => (
                         <li key={source.slipId}>
@@ -242,14 +334,56 @@ export function DepositSlipVideoReviewTable({
         </div>
       ) : null}
 
-      {unresolvedClusterIds.size > 0 ? (
+      {unresolvedFlaggedClusters.length > 0 ? (
         <div className="rounded-xl border border-hq-danger/40 bg-[#f8514915] p-4 text-sm text-hq-danger">
           <p className="font-medium">
             {t("depositSlipFlaggedTitle", {
-              count: unresolvedClusterIds.size,
+              count: unresolvedFlaggedClusters.length,
             })}
           </p>
           <p className="mt-2 text-hq-fg">{t("depositSlipFlaggedHint")}</p>
+          <ul className="mt-3 space-y-3">
+            {unresolvedFlaggedClusters.map((cluster) => {
+              const diffKeys = clusterDiffKeys(cluster);
+              return (
+                <li
+                  key={cluster.clusterId}
+                  className="rounded-lg border border-hq-danger/30 bg-hq-canvas p-3 text-hq-fg"
+                >
+                  <p className="text-xs font-medium uppercase tracking-wide text-hq-danger">
+                    {flagReasonLabel(cluster.reason)}
+                  </p>
+                  <ul className="mt-2 space-y-1.5">
+                    {cluster.members.map((member) => (
+                      <li
+                        key={member.slipId}
+                        className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-hq-surface-muted/40 px-2 py-1.5"
+                      >
+                        <SnapshotFields
+                          snapshot={member.snapshot}
+                          diffKeys={diffKeys}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            for (const slipId of otherClusterMemberSlipIds(
+                              cluster,
+                              member.slipId,
+                            )) {
+                              onDeleteRow(slipId);
+                            }
+                          }}
+                          className="whitespace-nowrap rounded-md border border-hq-border px-2 py-1 text-xs text-hq-fg hover:bg-hq-surface-muted"
+                        >
+                          {t("depositSlipFlaggedKeepThisOne")}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </li>
+              );
+            })}
+          </ul>
         </div>
       ) : null}
 

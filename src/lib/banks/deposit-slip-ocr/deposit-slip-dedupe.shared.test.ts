@@ -23,7 +23,10 @@ function slip(
   },
 ): ParsedDepositSlipDraft {
   return {
-    depositAt: partial.depositAt ?? "2026-07-11T13:18:26.000Z",
+    depositAt:
+      "depositAt" in partial
+        ? (partial.depositAt ?? null)
+        : "2026-07-11T13:18:26.000Z",
     termDays: partial.termDays ?? 1,
     amount: partial.amount === undefined ? 6000 : partial.amount,
     status: partial.status ?? "locked",
@@ -342,6 +345,147 @@ describe("dedupeDepositSlips", () => {
         depositAt: "2026-07-10T13:18:26.000Z",
       }),
     ]);
+    expect(slips).toHaveLength(2);
+    expect(report.clusters).toHaveLength(0);
+  });
+});
+
+// Regression fixtures modeled directly on job O3DSiQGyvAGG6iM6, where the old
+// boolean conflict gates flagged whole clusters instead of correcting an
+// obvious OCR outlier, and rows with no parseable timestamp never got a chance
+// to match their otherwise-identical duplicates.
+describe("dedupeDepositSlips — majority-vote conflict resolution", () => {
+  beforeEach(() => {
+    resetDepositSlipIdCounterForTests();
+  });
+
+  it("auto-merges Tanker KM with a 5-of-6 amount majority and a 4-of-6 tag majority", () => {
+    const depositAt = "2026-07-12T04:30:17.000Z";
+    const { slips, report } = dedupeDepositSlips([
+      slip({ commanderName: "Tanker KM", depositAt, amount: 6000, identity: { gameServerNumber: 1203, allianceTag: "LFgo", commanderName: "Tanker KM", rawIdentity: "#1203[LFgo]Tanker KM" } }),
+      slip({ commanderName: "Tanker KM", depositAt, amount: 5000, identity: { gameServerNumber: 1203, allianceTag: "LFgo", commanderName: "Tanker KM", rawIdentity: "#1203[LFgo]Tanker KM" } }),
+      slip({ commanderName: "Tanker KM", depositAt, amount: 6000, identity: { gameServerNumber: 1203, allianceTag: "LFgo", commanderName: "Tanker KM", rawIdentity: "#1203[LFgo]Tanker KM" } }),
+      slip({ commanderName: "Tanker KM", depositAt, amount: 6000, identity: { gameServerNumber: 1203, allianceTag: "LFga", commanderName: "Tanker KM", rawIdentity: "#1203[LFga]Tanker KM" } }),
+      slip({ commanderName: "Tanker KM", depositAt, amount: 6000, identity: { gameServerNumber: 1203, allianceTag: "LFga", commanderName: "Tanker KM", rawIdentity: "#1203[LFga]Tanker KM" } }),
+      slip({ commanderName: "Tanker KM", depositAt, amount: 6000, identity: { gameServerNumber: 1203, allianceTag: "LFgo", commanderName: "Tanker KM", rawIdentity: "#1203[LFgo]Tanker KM" } }),
+    ]);
+
+    expect(slips).toHaveLength(1);
+    expect(slips[0]?.amount).toBe(6000);
+    expect(slips[0]?.identity.allianceTag).toBe("LFgo");
+    expect(report.autoMergedCount).toBe(5);
+    expect(report.flaggedCount).toBe(0);
+    expect(report.clusters[0]?.disposition).toBe("auto_merged");
+    expect(report.clusters[0]?.reason).toBe(
+      "same_commander_and_minute_timestamp_majority_corrected",
+    );
+    expect(report.clusters[0]?.correctedFields).toEqual(
+      expect.arrayContaining(["amount", "allianceTag"]),
+    );
+  });
+
+  it("auto-merges Bat Pig with a 4-of-5 termDays majority", () => {
+    const depositAt = "2026-07-11T22:25:32.000Z";
+    const { slips, report } = dedupeDepositSlips([
+      slip({ commanderName: "Bat Pig", depositAt, amount: 6000, termDays: 1 }),
+      slip({ commanderName: "Bat Pig", depositAt, amount: 6000, termDays: 1 }),
+      slip({ commanderName: "Bat Pig", depositAt, amount: 6000, termDays: 1 }),
+      slip({ commanderName: "Bat Pig", depositAt, amount: 6000, termDays: 1 }),
+      slip({ commanderName: "Bat Pig", depositAt, amount: 6000, termDays: 3 }),
+    ]);
+
+    expect(slips).toHaveLength(1);
+    expect(slips[0]?.termDays).toBe(1);
+    expect(report.autoMergedCount).toBe(4);
+    expect(report.clusters[0]?.reason).toBe(
+      "same_commander_and_minute_timestamp_majority_corrected",
+    );
+    expect(report.clusters[0]?.correctedFields).toEqual(["termDays"]);
+  });
+
+  it("still flags a genuine 2-2 amount split with no majority", () => {
+    const depositAt = "2026-07-11T13:22:39.000Z";
+    const { slips, report } = dedupeDepositSlips([
+      slip({ commanderName: "TieBreaker", depositAt, amount: 6000 }),
+      slip({ commanderName: "TieBreaker", depositAt, amount: 6000 }),
+      slip({ commanderName: "TieBreaker", depositAt, amount: 5000 }),
+      slip({ commanderName: "TieBreaker", depositAt, amount: 5000 }),
+    ]);
+
+    expect(slips).toHaveLength(4);
+    expect(report.autoMergedCount).toBe(0);
+    expect(report.flaggedCount).toBe(1);
+    expect(report.clusters[0]?.reason).toBe(
+      "same_commander_timestamp_conflicting_amount_or_term",
+    );
+    expect(slips.every((s) => s.dedupeClusterId)).toBe(true);
+  });
+});
+
+describe("dedupeDepositSlips — missing-timestamp reconciliation", () => {
+  beforeEach(() => {
+    resetDepositSlipIdCounterForTests();
+  });
+
+  it("folds EagleTN's timestamp-less duplicates into the one timestamped row", () => {
+    const { slips, report } = dedupeDepositSlips([
+      slip({
+        commanderName: "EagleTN",
+        depositAt: "2026-07-11T22:25:31.000Z",
+        amount: 6000,
+        termDays: 1,
+      }),
+      slip({ commanderName: "EagleTN", depositAt: null, amount: 6000, termDays: 1 }),
+      slip({ commanderName: "EagleTN", depositAt: null, amount: 6000, termDays: 1 }),
+      slip({ commanderName: "EagleTN", depositAt: null, amount: 6000, termDays: 1 }),
+    ]);
+
+    expect(slips).toHaveLength(1);
+    expect(slips[0]?.depositAt).toBe("2026-07-11T22:25:31.000Z");
+    expect(report.autoMergedCount).toBe(3);
+    expect(
+      report.clusters.some((c) => c.reason === "commander_match_missing_timestamp"),
+    ).toBe(true);
+  });
+
+  it("merges timestamp-less duplicates with each other when no anchored row exists", () => {
+    const { slips, report } = dedupeDepositSlips([
+      slip({ commanderName: "EnganaRuca$", depositAt: null, amount: 6000, termDays: 1 }),
+      slip({ commanderName: "EnganaRucas", depositAt: null, amount: 6000, termDays: 1 }),
+    ]);
+
+    expect(slips).toHaveLength(1);
+    expect(report.autoMergedCount).toBe(1);
+    expect(report.clusters[0]?.reason).toBe("commander_match_missing_timestamp");
+  });
+
+  it("flags a timestamp-less row as ambiguous when it conflicts with its best name match", () => {
+    const { slips, report } = dedupeDepositSlips([
+      slip({
+        commanderName: "CAIPIRA",
+        depositAt: "2026-07-11T22:25:32.000Z",
+        amount: 6000,
+      }),
+      slip({ commanderName: "CAIPIRA", depositAt: null, amount: 9000 }),
+    ]);
+
+    expect(slips).toHaveLength(2);
+    expect(report.flaggedCount).toBe(1);
+    expect(report.clusters[0]?.reason).toBe(
+      "commander_match_missing_timestamp_ambiguous",
+    );
+  });
+
+  it("leaves a truly unique timestamp-less commander untouched", () => {
+    const { slips, report } = dedupeDepositSlips([
+      slip({
+        commanderName: "SomeoneElse",
+        depositAt: "2026-07-11T22:25:32.000Z",
+        amount: 6000,
+      }),
+      slip({ commanderName: "CompletelyDifferentNameXYZ", depositAt: null, amount: 6000 }),
+    ]);
+
     expect(slips).toHaveLength(2);
     expect(report.clusters).toHaveLength(0);
   });
