@@ -18,13 +18,24 @@ export type MissingAnchorMatch<T> = {
   anchorlessRows: T[];
 };
 
+export type MissingAnchorAmbiguousGroup<T> = {
+  group: T[];
+  /**
+   * Anchored destinations that fuzzy-matched this group's name closely enough
+   * to be considered, but the match was ambiguous (multiple candidates, or one
+   * candidate with a field conflict). Empty when the group's own members
+   * conflict with each other and no destination was involved at all.
+   */
+  matchedDestinations: T[];
+};
+
 export type MissingAnchorReconciliation<T> = {
   /** Anchor-less rows that matched exactly one anchored destination with compatible fields. */
   mergedIntoDestination: MissingAnchorMatch<T>[];
   /** Anchor-less rows that matched each other but no anchored destination — collapse into one. */
   mergedAmongThemselves: T[][];
   /** Matched a destination (or more than one) but fields conflict, or the match is ambiguous. */
-  ambiguous: T[][];
+  ambiguous: MissingAnchorAmbiguousGroup<T>[];
   /** No name match found anywhere — leave as a normal singleton. */
   untouched: T[];
 };
@@ -65,13 +76,13 @@ export function reconcileMissingAnchorRows<T>(
       if (opts.isCompatible([...group, destination])) {
         result.mergedIntoDestination.push({ destination, anchorlessRows: group });
       } else {
-        result.ambiguous.push(group);
+        result.ambiguous.push({ group, matchedDestinations });
       }
       continue;
     }
 
     if (matchedDestinations.length > 1) {
-      result.ambiguous.push(group);
+      result.ambiguous.push({ group, matchedDestinations });
       continue;
     }
 
@@ -79,7 +90,7 @@ export function reconcileMissingAnchorRows<T>(
       if (opts.isCompatible(group)) {
         result.mergedAmongThemselves.push(group);
       } else {
-        result.ambiguous.push(group);
+        result.ambiguous.push({ group, matchedDestinations: [] });
       }
       continue;
     }

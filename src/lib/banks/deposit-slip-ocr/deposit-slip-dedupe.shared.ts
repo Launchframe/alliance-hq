@@ -34,6 +34,7 @@ import {
   groupByMinuteTimestamp,
   toMinuteTimestampKey,
 } from "@/lib/video/dedupe/timestamp-collision.shared";
+import { partitionPlausibleTimestamps } from "@/lib/video/dedupe/timestamp-plausibility.shared";
 import { stringSimilarity } from "@/lib/video/member-matcher";
 
 export type DedupedDepositSlip = ParsedDepositSlipDraft & {
@@ -93,20 +94,50 @@ function completenessScore(slip: ParsedDepositSlipDraft): number {
   return score;
 }
 
+function normalizeTagForFrequency(tag: string | null | undefined): string | null {
+  const trimmed = tag?.trim().toLowerCase();
+  return trimmed ? trimmed : null;
+}
+
+/**
+ * Counts how often each alliance tag appears across the *whole* batch. Used as
+ * a tiebreaker when a cluster has a genuine local tie on `allianceTag` (e.g. a
+ * 1-of-2 split) — a tag that shows up 49 times elsewhere in the same job is
+ * almost certainly correct next to a lookalike that shows up once or twice
+ * (single-character OCR noise, e.g. "LFgo" vs "LFga").
+ */
+function buildAllianceTagFrequency(
+  slips: readonly ParsedDepositSlipDraft[],
+): Map<string, number> {
+  const freq = new Map<string, number>();
+  for (const s of slips) {
+    const tag = normalizeTagForFrequency(s.identity.allianceTag);
+    if (!tag) continue;
+    freq.set(tag, (freq.get(tag) ?? 0) + 1);
+  }
+  return freq;
+}
+
 /**
  * Fields checked for cross-frame conflicts within a matched commander+minute
  * (or matched-by-name-only) group. A single OCR-garbled character (e.g. an
  * alliance tag `o`/`a` mix-up) shouldn't flag an entire cluster when the rest of
  * the group clearly agrees — that's what `resolveGroupConflicts` + majority vote
- * is for. Genuine ties (no majority) still fall through to flagging.
+ * is for. Genuine ties (no majority) fall back to the tag-frequency tiebreaker
+ * for `allianceTag` (see `buildAllianceTagFrequency`), and still flag if that
+ * doesn't clearly resolve it either.
  */
-const DEPOSIT_SLIP_CONFLICT_FIELDS: readonly ConflictFieldSpec<ParsedDepositSlipDraft>[] =
-  [
+function buildDepositSlipConflictFields(
+  tagFrequency: Map<string, number>,
+): readonly ConflictFieldSpec<ParsedDepositSlipDraft>[] {
+  return [
     {
       key: "allianceTag",
       get: (s) => s.identity.allianceTag,
       isEqual: (a, b) =>
         String(a).trim().toLowerCase() === String(b).trim().toLowerCase(),
+      tieBreakerScore: (value) =>
+        tagFrequency.get(normalizeTagForFrequency(value as string) ?? "") ?? 0,
     },
     {
       key: "gameServerNumber",
@@ -121,6 +152,7 @@ const DEPOSIT_SLIP_CONFLICT_FIELDS: readonly ConflictFieldSpec<ParsedDepositSlip
       get: (s) => s.termDays,
     },
   ];
+}
 
 const IDENTITY_CONFLICT_FIELD_KEYS = new Set(["allianceTag", "gameServerNumber"]);
 
@@ -270,13 +302,19 @@ function pickBestSlipId(group: readonly IndexedSlip[]): string {
  * Collapse cross-frame deposit-slip OCR duplicates.
  *
  * Auto-merge: same fuzzy commander + same to-the-minute timestamp, and either
- * every field agrees or every disagreeing field has a clear majority (the
- * minority reading is treated as OCR noise and corrected).
- * Flag: timestamp collision across different commanders, borderline fuzzy names,
- * or a genuine field conflict with no majority (e.g. a 2-2 split).
- * Rows with no parseable timestamp get one more pass: fold into a matching
- * same-named cluster/row if one exists (or merge with each other), otherwise
- * flag as ambiguous, otherwise pass through unchanged.
+ * every field agrees or every disagreeing field has a clear majority — or, for
+ * `allianceTag` specifically, a batch-wide frequency tiebreak on a genuine
+ * local tie (the minority/rare reading is treated as OCR noise and corrected).
+ * Flag: borderline fuzzy names sharing a minute, or a genuine field conflict
+ * with no majority and no decisive tiebreak (e.g. a 2-2 split). Distinct,
+ * dissimilar commanders that merely share a deposit minute are *not* flagged —
+ * that's normal during a deposit flood wave, not evidence of duplication.
+ * A parseable-but-implausible timestamp (e.g. a garbled year) is treated like
+ * a missing one. Rows with no usable timestamp get one more pass: fold into a
+ * matching same-named cluster/row if exactly one exists (or merge with each
+ * other), fold into an already-flagged cluster if all matching candidates
+ * already dispute the same identity, otherwise flag as ambiguous, otherwise
+ * pass through unchanged.
  */
 export function dedupeDepositSlips(
   slips: readonly ParsedDepositSlipDraft[],
@@ -289,14 +327,26 @@ export function dedupeDepositSlips(
     };
   }
 
+  const conflictFields = buildDepositSlipConflictFields(
+    buildAllianceTagFrequency(slips),
+  );
+
   const clusters: DedupeCluster[] = [];
   const consumed = new Set<string>();
   const output: IndexedSlip[] = [];
 
-  const withTs = input.filter((s) => toMinuteTimestampKey(s.depositAt) != null);
-  const withoutTs = input.filter(
+  const parseable = input.filter((s) => toMinuteTimestampKey(s.depositAt) != null);
+  const neverTimestamped = input.filter(
     (s) => toMinuteTimestampKey(s.depositAt) == null,
   );
+  // A parseable timestamp can still be an OCR digit-transposition outlier (e.g.
+  // "2026" misread as "0256") — that row would otherwise anchor its own,
+  // unrelated per-minute bucket and never get compared against its actual
+  // duplicate. Route implausible outliers through the same missing-anchor
+  // reconciliation pass as rows with no timestamp at all.
+  const { plausible: withTs, implausible: implausibleTs } =
+    partitionPlausibleTimestamps(parseable, (s) => s.depositAt);
+  const withoutTs = [...neverTimestamped, ...implausibleTs];
 
   const byMinute = groupByMinuteTimestamp(withTs, (s) => s.depositAt);
 
@@ -321,10 +371,7 @@ export function dedupeDepositSlips(
 
     for (const group of autoClusters) {
       const clusterId = `c_${nextSlipId()}`;
-      const conflictResolution = resolveGroupConflicts(
-        group,
-        DEPOSIT_SLIP_CONFLICT_FIELDS,
-      );
+      const conflictResolution = resolveGroupConflicts(group, conflictFields);
 
       if (!conflictResolution.resolved) {
         clusters.push({
@@ -437,45 +484,20 @@ export function dedupeDepositSlips(
       }
     }
 
-    // Remaining rows in this minute with distinct commanders → timestamp collision.
+    // Remaining rows in this minute weren't fuzzy-similar enough (not even at
+    // the lenient borderline threshold) to any other row in the same minute —
+    // they're just distinct commanders whose deposits happened to land in the
+    // same minute, which is completely normal during a deposit flood wave.
+    // Sharing a minute alone is not suspicious; only similar-looking names
+    // sharing a minute are (handled by the auto/borderline passes above), so
+    // these pass straight through unflagged.
     const stillLeft = minuteGroup.filter(
       (s) => !assignedInMinute.has(s.slipId),
     );
-    if (stillLeft.length >= 2) {
-      const entityKeys = new Set(
-        stillLeft.map((s) => normalizeEntityName(s.identity.commanderName)),
-      );
-      if (entityKeys.size > 1) {
-        const clusterId = `c_${nextSlipId()}`;
-        clusters.push({
-          clusterId,
-          disposition: "flagged",
-          reason: "timestamp_collision_different_commanders",
-          destinationSlipId: pickBestSlipId(stillLeft),
-          members: stillLeft.map((s) => ({
-            slipId: s.slipId,
-            snapshot: slipSnapshot(s),
-          })),
-        });
-        for (const s of stillLeft) {
-          output.push({ ...s, dedupeClusterId: clusterId });
-          consumed.add(s.slipId);
-          assignedInMinute.add(s.slipId);
-        }
-      } else {
-        for (const s of stillLeft) {
-          if (!consumed.has(s.slipId)) {
-            output.push(s);
-            consumed.add(s.slipId);
-          }
-        }
-      }
-    } else {
-      for (const s of stillLeft) {
-        if (!consumed.has(s.slipId)) {
-          output.push(s);
-          consumed.add(s.slipId);
-        }
+    for (const s of stillLeft) {
+      if (!consumed.has(s.slipId)) {
+        output.push(s);
+        consumed.add(s.slipId);
       }
     }
   }
@@ -489,14 +511,13 @@ export function dedupeDepositSlips(
   const perMinuteDestinations = output.slice();
   const reconciliation = reconcileMissingAnchorRows(withoutTs, perMinuteDestinations, {
     getName: (s) => s.identity.commanderName,
-    isCompatible: (rows) =>
-      resolveGroupConflicts(rows, DEPOSIT_SLIP_CONFLICT_FIELDS).resolved,
+    isCompatible: (rows) => resolveGroupConflicts(rows, conflictFields).resolved,
   });
 
   for (const { destination, anchorlessRows } of reconciliation.mergedIntoDestination) {
     const conflictResolution = resolveGroupConflicts(
       [...anchorlessRows, destination],
-      DEPOSIT_SLIP_CONFLICT_FIELDS,
+      conflictFields,
     );
     const corrections = conflictResolution.resolved
       ? conflictResolution.corrections
@@ -507,6 +528,13 @@ export function dedupeDepositSlips(
     );
     const rebuilt: IndexedSlip = {
       ...merged,
+      // `destination` is the anchored row by construction — its timestamp is
+      // the reconciled group's source of truth. An anchorless row can still
+      // carry a *parseable* timestamp (e.g. one just demoted for being an
+      // implausible outlier), which would otherwise outrank the real anchor
+      // in `coalesceDepositSlips`'s generic completeness ranking and clobber
+      // the correct depositAt.
+      depositAt: destination.depositAt,
       identity: { ...merged.identity },
       slipId: destination.slipId,
     };
@@ -534,10 +562,7 @@ export function dedupeDepositSlips(
   }
 
   for (const group of reconciliation.mergedAmongThemselves) {
-    const conflictResolution = resolveGroupConflicts(
-      group,
-      DEPOSIT_SLIP_CONFLICT_FIELDS,
-    );
+    const conflictResolution = resolveGroupConflicts(group, conflictFields);
     const corrections = conflictResolution.resolved
       ? conflictResolution.corrections
       : [];
@@ -566,7 +591,34 @@ export function dedupeDepositSlips(
     for (const s of group) consumed.add(s.slipId);
   }
 
-  for (const group of reconciliation.ambiguous) {
+  for (const { group, matchedDestinations } of reconciliation.ambiguous) {
+    // If every matched destination already belongs to one existing flagged
+    // cluster (e.g. two near-identical names sharing a minute, already
+    // flagged as `borderline_commander_name_same_minute` against each other),
+    // the anchorless row isn't a *new* ambiguity — it's more evidence for the
+    // same disputed identity. Fold it into that cluster instead of opening a
+    // redundant one, so officer review sees one grouped decision, not two.
+    const destinationClusterIds = new Set(
+      matchedDestinations.map((d) => d.dedupeClusterId).filter((id): id is string => !!id),
+    );
+    const existingCluster =
+      matchedDestinations.length > 1 &&
+      destinationClusterIds.size === 1 &&
+      matchedDestinations.every((d) => !!d.dedupeClusterId)
+        ? clusters.find((c) => c.clusterId === [...destinationClusterIds][0])
+        : undefined;
+
+    if (existingCluster) {
+      existingCluster.members.push(
+        ...group.map((s) => ({ slipId: s.slipId, snapshot: slipSnapshot(s) })),
+      );
+      for (const s of group) {
+        output.push({ ...s, dedupeClusterId: existingCluster.clusterId });
+        consumed.add(s.slipId);
+      }
+      continue;
+    }
+
     const clusterId = `c_${nextSlipId()}`;
     clusters.push({
       clusterId,

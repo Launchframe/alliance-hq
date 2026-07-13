@@ -67,6 +67,10 @@ describe("reconcileMissingAnchorRows", () => {
 
     expect(result.ambiguous).toHaveLength(1);
     expect(result.mergedIntoDestination).toHaveLength(0);
+    expect(result.ambiguous[0]?.matchedDestinations.map((d) => d.id).sort()).toEqual([
+      "d1",
+      "d2",
+    ]);
   });
 
   it("flags as ambiguous when the match has an incompatible field", () => {
@@ -80,6 +84,7 @@ describe("reconcileMissingAnchorRows", () => {
 
     expect(result.ambiguous).toHaveLength(1);
     expect(result.mergedIntoDestination).toHaveLength(0);
+    expect(result.ambiguous[0]?.matchedDestinations.map((d) => d.id)).toEqual(["d1"]);
   });
 
   it("leaves a row untouched when no name match exists anywhere", () => {

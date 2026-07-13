@@ -51,3 +51,50 @@ describe("resolveByMajority", () => {
     expect(result).toEqual({ value: 1, agreeCount: 2, totalCount: 3 });
   });
 });
+
+describe("resolveByMajority — tieBreak", () => {
+  const scoreByBatchFrequency = (freq: Record<string, number>) => ({
+    score: (value: string) => freq[value] ?? 0,
+  });
+
+  it("breaks a 1-of-2 tie when one candidate overwhelmingly dominates an external score", () => {
+    const result = resolveByMajority(
+      ["LFga", "LFgo"],
+      undefined,
+      scoreByBatchFrequency({ LFgo: 49, LFga: 3 }),
+    );
+    expect(result).toEqual({ value: "LFgo", agreeCount: 1, totalCount: 2 });
+  });
+
+  it("does not break the tie when the scores are close (not a clear win)", () => {
+    const result = resolveByMajority(
+      ["AAAA", "BBBB"],
+      undefined,
+      scoreByBatchFrequency({ AAAA: 5, BBBB: 4 }),
+    );
+    expect(result).toBeNull();
+  });
+
+  it("does not break the tie when neither candidate has any external signal", () => {
+    const result = resolveByMajority(
+      ["AAAA", "BBBB"],
+      undefined,
+      scoreByBatchFrequency({}),
+    );
+    expect(result).toBeNull();
+  });
+
+  it("only considers tiebreak among values tied for the local top count, not lower-count ones", () => {
+    // 2 of 3 is already a strict majority — tieBreak should never even be consulted.
+    const result = resolveByMajority(
+      [1, 1, 2],
+      undefined,
+      { score: (v) => (v === 2 ? 1000 : 0) },
+    );
+    expect(result).toEqual({ value: 1, agreeCount: 2, totalCount: 3 });
+  });
+
+  it("does not break a tie when no tieBreak is supplied", () => {
+    expect(resolveByMajority(["LFga", "LFgo"])).toBeNull();
+  });
+});

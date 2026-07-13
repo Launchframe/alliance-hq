@@ -236,7 +236,11 @@ describe("dedupeDepositSlips", () => {
     expect(slips[0]?.termDays).toBe(1);
   });
 
-  it("flags timestamp collisions across different commanders", () => {
+  it("does not flag distinct, dissimilar commanders that merely share a deposit minute", () => {
+    // Bank-capture flood waves routinely land many unrelated depositors in the
+    // same minute — that alone isn't suspicious. Only similar-looking names
+    // sharing a minute warrant review (covered by the borderline-fuzzy tests
+    // below), so two clearly different commanders should pass through untouched.
     const { slips, report } = dedupeDepositSlips([
       slip({
         commanderName: "AlphaPlayer",
@@ -248,11 +252,9 @@ describe("dedupeDepositSlips", () => {
       }),
     ]);
     expect(slips).toHaveLength(2);
-    expect(report.flaggedCount).toBe(1);
-    expect(report.clusters[0]?.reason).toBe(
-      "timestamp_collision_different_commanders",
-    );
-    expect(slips.every((s) => s.dedupeClusterId)).toBe(true);
+    expect(report.flaggedCount).toBe(0);
+    expect(report.clusters).toHaveLength(0);
+    expect(slips.every((s) => !s.dedupeClusterId)).toBe(true);
   });
 
   it("flags same commander+minute with conflicting amounts", () => {
@@ -509,6 +511,201 @@ describe("dedupeDepositSlips — missing-timestamp reconciliation", () => {
     expect(
       report.clusters.some((c) => c.reason === "commander_match_missing_timestamp"),
     ).toBe(true);
+  });
+});
+
+// Regression fixtures modeled directly on job JenznlPcbHrlpkyU, where phase-3's
+// heuristics still missed several real duplicates and over-flagged unrelated
+// commanders that merely shared a deposit minute during a flood wave.
+describe("dedupeDepositSlips — batch-frequency tag tiebreak", () => {
+  it("auto-merges a 1-of-2 alliance-tag split when one tag dominates the whole batch (Lady Raider)", () => {
+    const depositAt = "2026-07-11T22:32:02.000Z";
+    // 49 other rows carry the common tag; only this one pair disagrees.
+    const filler = Array.from({ length: 49 }, (_, i) =>
+      slip({
+        commanderName: `Filler${i}`,
+        depositAt: `2026-07-11T20:${String(i % 60).padStart(2, "0")}:00.000Z`,
+        identity: {
+          gameServerNumber: 1203,
+          allianceTag: "LFgo",
+          commanderName: `Filler${i}`,
+          rawIdentity: `#1203[LFgo]Filler${i}`,
+        },
+      }),
+    );
+
+    const { slips, report } = dedupeDepositSlips([
+      ...filler,
+      slip({
+        commanderName: "Lady Raider",
+        depositAt,
+        termDays: 3,
+        identity: {
+          gameServerNumber: 1203,
+          allianceTag: "LFga",
+          commanderName: "Lady Raider",
+          rawIdentity: "Fo #1203[LFga]Lady Raider",
+        },
+      }),
+      slip({
+        commanderName: "Lady Raider",
+        depositAt,
+        termDays: 3,
+        identity: {
+          gameServerNumber: 1203,
+          allianceTag: "LFgo",
+          commanderName: "Lady Raider",
+          rawIdentity: "Fats 1 #1203[LFgo]Lady Raider",
+        },
+      }),
+    ]);
+
+    const ladyRaider = slips.find((s) => s.identity.commanderName === "Lady Raider");
+    expect(ladyRaider).toBeDefined();
+    expect(ladyRaider?.identity.allianceTag).toBe("LFgo");
+    expect(
+      report.clusters.find((c) => c.destinationSlipId === ladyRaider?.slipId)
+        ?.disposition,
+    ).toBe("auto_merged");
+    expect(
+      report.clusters.find((c) => c.destinationSlipId === ladyRaider?.slipId)
+        ?.correctedFields,
+    ).toEqual(["allianceTag"]);
+  });
+
+  it("still flags an alliance-tag split when neither tag has a clear batch majority", () => {
+    const depositAt = "2026-07-11T22:32:02.000Z";
+    const { slips, report } = dedupeDepositSlips([
+      slip({
+        commanderName: "EvenSplit",
+        depositAt,
+        identity: {
+          gameServerNumber: 1203,
+          allianceTag: "AAAA",
+          commanderName: "EvenSplit",
+          rawIdentity: "#1203[AAAA]EvenSplit",
+        },
+      }),
+      slip({
+        commanderName: "EvenSplit",
+        depositAt,
+        identity: {
+          gameServerNumber: 1203,
+          allianceTag: "BBBB",
+          commanderName: "EvenSplit",
+          rawIdentity: "#1203[BBBB]EvenSplit",
+        },
+      }),
+    ]);
+
+    expect(slips).toHaveLength(2);
+    expect(report.flaggedCount).toBe(1);
+    expect(report.clusters[0]?.reason).toBe(
+      "same_commander_timestamp_conflicting_identity",
+    );
+  });
+});
+
+describe("dedupeDepositSlips — implausible timestamp outliers", () => {
+  it("reclassifies a wildly-off-year timestamp as anchorless and folds it into its real duplicate (EnganaRucas)", () => {
+    // Five ordinary same-day rows establish a reliable batch median, plus the
+    // EnganaRucas trio: one correctly timestamped, one with a garbled year
+    // (0256 instead of 2026 — a single OCR digit swap), one with no timestamp
+    // at all.
+    const filler = Array.from({ length: 5 }, (_, i) =>
+      slip({
+        commanderName: `Filler${i}`,
+        depositAt: `2026-07-12T0${i}:16:48.000Z`,
+      }),
+    );
+
+    const { slips, report } = dedupeDepositSlips([
+      ...filler,
+      slip({
+        commanderName: "EnganaRucas",
+        depositAt: "2026-07-12T04:16:48.000Z",
+        termDays: 1,
+      }),
+      slip({
+        commanderName: "EnganaRucas",
+        depositAt: "0256-07-12T04:16:48.000Z",
+        termDays: 1,
+      }),
+      slip({
+        commanderName: "EnganaRuca$",
+        depositAt: null,
+        termDays: 1,
+      }),
+    ]);
+
+    const enganaRucas = slips.filter((s) =>
+      s.identity.commanderName.toLowerCase().startsWith("enganaruc"),
+    );
+    expect(enganaRucas).toHaveLength(1);
+    expect(enganaRucas[0]?.depositAt).toBe("2026-07-12T04:16:48.000Z");
+    expect(
+      report.clusters.some((c) => c.reason === "commander_match_missing_timestamp"),
+    ).toBe(true);
+  });
+
+  it("leaves plausible timestamps in distinct per-minute buckets alone", () => {
+    const filler = Array.from({ length: 5 }, (_, i) =>
+      slip({
+        commanderName: `Filler${i}`,
+        depositAt: `2026-07-12T0${i}:16:48.000Z`,
+      }),
+    );
+    const { slips, report } = dedupeDepositSlips([...filler]);
+    expect(slips).toHaveLength(5);
+    expect(report.clusters).toHaveLength(0);
+  });
+});
+
+describe("dedupeDepositSlips — folding missing-timestamp rows into an already-flagged cluster", () => {
+  it("folds a third fuzzy-matching name into an existing borderline cluster instead of opening a redundant one (ND/NO/IND 770320)", () => {
+    const depositAt = "2026-07-12T01:12:31.000Z";
+    const { slips, report } = dedupeDepositSlips([
+      slip({
+        commanderName: "NO 770320",
+        depositAt,
+        termDays: 3,
+        identity: {
+          gameServerNumber: 1203,
+          allianceTag: "S2BY",
+          commanderName: "NO 770320",
+          rawIdentity: "| i #1203[S2BY]NO 770320",
+        },
+      }),
+      slip({
+        commanderName: "IND 770320",
+        depositAt,
+        termDays: 3,
+        identity: {
+          gameServerNumber: 1203,
+          allianceTag: "S2BY",
+          commanderName: "IND 770320",
+          rawIdentity: "| °F #1203[S2BY]IND 770320",
+        },
+      }),
+      slip({
+        commanderName: "ND 770320",
+        depositAt: null,
+        termDays: 3,
+        identity: {
+          gameServerNumber: 1203,
+          allianceTag: "S2BY",
+          commanderName: "ND 770320",
+          rawIdentity: "bi #1203[S2BY]ND 770320",
+        },
+      }),
+    ]);
+
+    expect(slips).toHaveLength(3);
+    const clusterIds = new Set(slips.map((s) => s.dedupeClusterId).filter(Boolean));
+    // All three should land in exactly one shared flagged cluster, not two.
+    expect(clusterIds.size).toBe(1);
+    expect(report.flaggedCount).toBe(1);
+    expect(report.clusters[0]?.members).toHaveLength(3);
   });
 });
 
