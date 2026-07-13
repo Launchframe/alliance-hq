@@ -39,15 +39,27 @@ git fetch origin && git worktree add ../alliance-hq-<short-topic> -b feat/<topic
 | --- | --- |
 | Feature implementation | `../alliance-hq-<topic>/` on `feat/<topic>` |
 | Second parallel feature | `../alliance-hq-<other>/` on another branch |
-| Real Steel on PR *N* | `../alliance-hq-rs-pr-<N>/` — repo policy layered on `~/.cursor/skills/real-steel/SKILL.md` |
+| Real Steel on PR *N* | `../alliance-hq-<branch-leaf>/` via `./scripts/new-worktree.sh` (optional manual name: `../alliance-hq-rs-pr-<N>/`) — see [Real Steel overlay](../skills/real-steel/SKILL.md) |
 | Read-only explore | Primary clone OK if no concurrent writers |
 
 **Rules:**
 
-- Point the agent at the **worktree path** as its workspace root when possible.
+- Isolation is the **worktree directory + branch**, not IDE-root location alone. **`/real-steel` writers:** still call `move_agent_to_root` once (see below).
 - **Never** `git checkout` a PR branch in the primary clone while another agent is editing there.
+- Keep the **primary clone on `main` (or idle)** when other agents are writing in worktrees.
 - **Remove worktrees** when the task ends: `git worktree remove --force <path> && git worktree prune`.
 - Do **not** delete the PR’s remote feature branch unless the maintainer asks.
+
+### Real Steel — move once into the worktree
+
+For `/real-steel` (and any pass that writes product code in a PR worktree):
+
+- Create/refresh the worktree with `./scripts/new-worktree.sh`.
+- Call **`move_agent_to_root` once** to that worktree path so the chat’s IDE root is the PR tree. Cursor auto-approves **in-workspace** file edits; edits under a **sibling** worktree while the chat is rooted elsewhere prompt on **every** `Edit`/`Write` (Auto-review “outside project”).
+- Accept one move approval if Smart Mode asks; that is cheaper than per-file approval spam.
+- Launch each pass `Task` with that same worktree as cwd.
+- Keep the **primary clone on `main`/idle** — do not leave Real Steel writing in the primary checkout.
+- Optional: `SetActiveBranch` for UI metadata.
 
 ## Worktree env (`.env.local`) — copy, never read
 
@@ -87,7 +99,7 @@ After a task is merged, abandoned, or handed back to the maintainer:
 
 ## Real Steel
 
-For this repo, run Real Steel in a dedicated worktree for the PR under review; do not rebase or commit on the maintainer’s primary checkout. The global **real-steel** skill (`~/.cursor/skills/real-steel/SKILL.md`) defines the review/pass workflow; [`.cursor/skills/real-steel/SKILL.md`](../skills/real-steel/SKILL.md) adds Alliance HQ completion steps (including the `real-steel-ready` label when the chain finishes cleanly).
+For this repo, run Real Steel in a dedicated worktree for the PR under review; call `move_agent_to_root` once into that worktree (see **Real Steel — move once** above). Do not rebase or commit on the maintainer’s primary checkout. The global **real-steel** skill (`~/.cursor/skills/real-steel/SKILL.md`) defines the review/pass workflow; [`.cursor/skills/real-steel/SKILL.md`](../skills/real-steel/SKILL.md) adds Alliance HQ completion steps (including the `real-steel-ready` label when the chain finishes cleanly).
 
 ## Multitask mode
 

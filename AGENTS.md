@@ -144,6 +144,7 @@ Detail: [`.cursor/rules/discord-identity-auth-layers.mdc`](.cursor/rules/discord
 - Propagate Drizzle renumbers parent→child in stacked work; never drop migration SQL or `_journal.json` entries on rebase or force-push.
 - Maintainer must review and approve release notes before `release:ship`; set note frontmatter `status: ready` only after approval.
 - Real Steel: when Discord or onboarding hosted-guide copy changes, verify operator guides and `e2e/discord-bot-guide.spec.ts`.
+- Real Steel: `move_agent_to_root` once into the PR worktree so edits are in-workspace (skipping the move causes per-file approval spam on sibling paths).
 - Start feature work from new git worktrees off `origin/main`.
 - Hotkey changes need fault isolation and compile-time target validation for navigable pages.
 - Member-facing copy must never mention platform admins or maintainers; say alliance officers were notified instead.

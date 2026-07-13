@@ -8,7 +8,21 @@ disable-model-invocation: true
 
 This repo extends the global Real Steel skill at `~/.cursor/skills/real-steel/SKILL.md`. Follow the global skill for the full workflow (Task chain, run log, PR comments, per-pass commits, worktree isolation per [`.cursor/rules/agent-git-hygiene.mdc`](../rules/agent-git-hygiene.mdc)).
 
-**This file adds Alliance HQ completion requirements only.**
+**This file adds Alliance HQ completion requirements and orchestrator isolation rules.**
+
+## Worktree isolation — move once into the PR worktree
+
+Maintainer preference (updated 2026-07-12): **do** call `move_agent_to_root` **once** into the Real Steel worktree at the start of the run.
+
+| Do | Don't |
+| --- | --- |
+| `./scripts/new-worktree.sh` (or refresh) for the PR branch | Leave the chat rooted in primary / another worktree while editing the PR tree |
+| `move_agent_to_root` **once** → PR worktree (accept one Smart Mode approval if needed) | Skip the move and `Edit`/`Write` absolute paths under a sibling worktree (causes **per-file** approval spam) |
+| Launch each pass `Task` with that worktree as cwd | Parent `git checkout` of the PR branch in the primary clone |
+
+**Why:** Cursor auto-approves edits **inside** the current workspace. Edits **outside** it (sibling `../alliance-hq-*` paths) require approval on every file. Skipping the move avoided one MCP prompt but made ordinary coding unusable.
+
+Parallel agents stay isolated via **separate worktree dirs + branches**. The move is so *this* chat’s write surface matches the PR worktree.
 
 ## PR completion label (`real-steel-ready`)
 
