@@ -13,8 +13,8 @@ export type MajorityResult<T> = {
 
 /**
  * External-signal tiebreaker used only when no strict local majority exists
- * (e.g. a 1-of-2 or 2-of-2 split). `score` ranks each *distinct* value seen in
- * the tied group — typically a frequency count of that value elsewhere in the
+ * (e.g. a 1-of-2 or 2-of-4 split). `score` ranks the locally tied leaders —
+ * typically by the frequency count of each value elsewhere in the
  * same batch (a poor man's "which reading is more plausible overall" signal).
  * The winner must both clear `minWinnerScore` and beat the runner-up by
  * `minRatio`, so a close call (e.g. 5 vs 4) still falls through to flagging —
@@ -26,9 +26,10 @@ export type MajorityTieBreak<T> = {
   minRatio?: number;
   /**
    * Optional domain guard for deciding whether the winning external signal is
-   * actually relevant to every tied alternative. For example, an alliance-tag
-   * frequency should only correct a likely OCR variant, not overwrite a wholly
-   * different tag that may represent a real identity conflict.
+   * actually relevant to every other observed value, including alternatives
+   * below the tied leaders. For example, an alliance-tag frequency should only
+   * correct likely OCR variants, not overwrite a wholly different tag that may
+   * represent a real identity conflict.
    */
   canResolve?: (winner: T, alternatives: readonly T[]) => boolean;
 };
@@ -81,7 +82,13 @@ export function resolveByMajority<T>(
     const clearsRunnerUp =
       !runnerUp ||
       (runnerUp.score === 0 ? best.score > 0 : best.score / runnerUp.score >= minRatio);
-    const alternatives = scored.slice(1).map((candidate) => candidate.value);
+    // The external score only chooses among locally tied leaders, but a domain
+    // guard must inspect every other observed value. Resolution overwrites the
+    // whole field, so ignoring a lower-count unrelated alternative could erase
+    // a genuine conflict (e.g. LFgo×2, LFga×2, ROAR×1).
+    const alternatives = groups
+      .filter((candidate) => !isEqual(candidate.value, best.value))
+      .map((candidate) => candidate.value);
     const domainAllowsResolution =
       !tieBreak.canResolve || tieBreak.canResolve(best.value, alternatives);
     if (best.score >= minWinnerScore && clearsRunnerUp && domainAllowsResolution) {

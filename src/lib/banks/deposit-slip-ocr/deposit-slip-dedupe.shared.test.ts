@@ -652,6 +652,44 @@ describe("dedupeDepositSlips — batch-frequency tag tiebreak", () => {
     );
   });
 
+  it("still flags a lower-count unrelated tag beside a tied pair of OCR variants", () => {
+    const depositAt = "2026-07-11T22:32:02.000Z";
+    const filler = Array.from({ length: 45 }, (_, i) =>
+      slip({
+        commanderName: `Filler${i}`,
+        depositAt: `2026-07-11T20:${String(i).padStart(2, "0")}:00.000Z`,
+      }),
+    );
+    const shared = (allianceTag: string) =>
+      slip({
+        commanderName: "SharedName",
+        depositAt,
+        identity: {
+          gameServerNumber: 1203,
+          allianceTag,
+          commanderName: "SharedName",
+          rawIdentity: `#1203[${allianceTag}]SharedName`,
+        },
+      });
+
+    const { slips, report } = dedupeDepositSlips([
+      ...filler,
+      shared("LFgo"),
+      shared("LFgo"),
+      shared("LFga"),
+      shared("LFga"),
+      shared("ROAR"),
+    ]);
+
+    expect(slips.filter((s) => s.identity.commanderName === "SharedName")).toHaveLength(
+      5,
+    );
+    expect(report.flaggedCount).toBe(1);
+    expect(report.clusters[0]?.reason).toBe(
+      "same_commander_timestamp_conflicting_identity",
+    );
+  });
+
   it("still flags a lookalike-tag split when the batch signal is too small", () => {
     const depositAt = "2026-07-11T22:32:02.000Z";
     const { slips, report } = dedupeDepositSlips([
@@ -818,9 +856,58 @@ describe("dedupeDepositSlips — folding missing-timestamp rows into an already-
     expect(report.flaggedCount).toBe(1);
     expect(report.clusters[0]?.members).toHaveLength(3);
   });
+
+  it("folds a compatible anchorless match into its destination's existing flagged cluster", () => {
+    const depositAt = "2026-07-12T01:12:31.000Z";
+    const { slips, report } = dedupeDepositSlips([
+      slip({ commanderName: "Commander", depositAt, amount: 6000 }),
+      slip({ commanderName: "Commandersz", depositAt, amount: 6000 }),
+      slip({
+        commanderName: "Commande",
+        depositAt: null,
+        amount: 6000,
+        status: "matured",
+        outcomeKind: "total_return",
+        outcomeAmount: 6840,
+      }),
+    ]);
+
+    expect(slips).toHaveLength(2);
+    expect(report.clusters).toHaveLength(1);
+    expect(report.flaggedCount).toBe(1);
+    expect(report.clusters[0]?.disposition).toBe("flagged");
+    expect(report.clusters[0]?.members).toHaveLength(3);
+    const clusterId = report.clusters[0]?.clusterId;
+    expect(clusterId).toBeDefined();
+    expect(slips.every((s) => s.dedupeClusterId === clusterId)).toBe(true);
+  });
 });
 
 describe("dedupeDepositSlips — slipId uniqueness", () => {
+  it("is semantically idempotent when run again on already-deduped output", () => {
+    const input = [
+      slip({ commanderName: "Repeatable", amount: 6000 }),
+      slip({ commanderName: "Repeatable", amount: 6000 }),
+      slip({
+        commanderName: "Independent",
+        depositAt: "2026-07-11T10:01:00.000Z",
+      }),
+    ];
+    const first = dedupeDepositSlips(input);
+    const second = dedupeDepositSlips(first.slips);
+    const withoutRuntimeIds = (rows: typeof first.slips) =>
+      rows.map((row) => {
+        const copy: Partial<(typeof rows)[number]> = { ...row };
+        delete copy.slipId;
+        delete copy.dedupeClusterId;
+        return copy;
+      });
+
+    expect(withoutRuntimeIds(second.slips)).toEqual(withoutRuntimeIds(first.slips));
+    expect(second.report.autoMergedCount).toBe(0);
+    expect(second.report.clusters).toHaveLength(0);
+  });
+
   it("assigns unique slipIds across independent dedupe calls (serverless-safe)", () => {
     const input = [
       slip({ commanderName: "Bravo", depositAt: "2026-07-11T10:00:00.000Z" }),

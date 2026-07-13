@@ -114,6 +114,18 @@ describe("resolveByMajority — tieBreak", () => {
     expect(result).toBeNull();
   });
 
+  it("checks the domain guard against lower-count alternatives too", () => {
+    const result = resolveByMajority(
+      ["LFgo", "LFgo", "LFga", "LFga", "ROAR"],
+      undefined,
+      {
+        ...scoreByBatchFrequency({ LFgo: 49, LFga: 3, ROAR: 1 }),
+        canResolve: (_winner, alternatives) => !alternatives.includes("ROAR"),
+      },
+    );
+    expect(result).toBeNull();
+  });
+
   it("only considers tiebreak among values tied for the local top count, not lower-count ones", () => {
     // 2 of 3 is already a strict majority — tieBreak should never even be consulted.
     const result = resolveByMajority(

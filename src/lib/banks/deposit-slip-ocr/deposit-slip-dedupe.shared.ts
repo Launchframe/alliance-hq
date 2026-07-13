@@ -557,9 +557,35 @@ export function dedupeDepositSlips(
       depositAt: destination.depositAt,
       identity: { ...merged.identity },
       slipId: destination.slipId,
+      // The destination remains the same review row after enrichment. Preserve
+      // its flagged-cluster membership even when a more-complete anchorless row
+      // won `coalesceDepositSlips`'s base-object ranking.
+      dedupeClusterId: destination.dedupeClusterId,
     };
     const outputIndex = output.findIndex((o) => o.slipId === destination.slipId);
     if (outputIndex >= 0) output[outputIndex] = rebuilt;
+
+    // A compatible single destination can itself already belong to a flagged
+    // name cluster. Keep the newly folded evidence in that one review decision
+    // instead of creating an overlapping auto-merge cluster that reuses the
+    // same destination slip id.
+    const existingFlaggedCluster = destination.dedupeClusterId
+      ? clusters.find(
+          (cluster) =>
+            cluster.clusterId === destination.dedupeClusterId &&
+            cluster.disposition === "flagged",
+        )
+      : undefined;
+    if (existingFlaggedCluster) {
+      existingFlaggedCluster.members.push(
+        ...anchorlessRows.map((s) => ({
+          slipId: s.slipId,
+          snapshot: slipSnapshot(s),
+        })),
+      );
+      for (const s of anchorlessRows) consumed.add(s.slipId);
+      continue;
+    }
 
     const clusterId = `c_${nextSlipId()}`;
     clusters.push({
