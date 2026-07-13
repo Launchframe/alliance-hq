@@ -197,6 +197,84 @@ describe("parseCityListBanks", () => {
       coordY: 499,
     });
   });
+
+  it("keeps value/coord zip row-local when the first row misses a K amount", () => {
+    // Global index-zip would assign 599.96K to the third tile of row 1.
+    const banks = parseCityListBanks([
+      "600.00K 600.00K",
+      "Lv.3 Lv.2 Lv.2",
+      "#1211 (X:1, Y:1) #1211 (X:2, Y:2) #1211 (X:3, Y:3)",
+      "100/100 100/100 100/100",
+      "599.96K 597.26K 486.00K",
+      "Lv.2 Lv.2 Lv.2",
+      "#1211 (X:4, Y:4) #1211 (X:5, Y:5) #1211 (X:6, Y:6)",
+      "100/100 100/100 81/100",
+    ]);
+    expect(banks).toHaveLength(6);
+    expect(banks[0]).toMatchObject({
+      crystalGoldValue: 600_000,
+      coordX: 1,
+      coordY: 1,
+      level: 3,
+      currentDepositCount: 100,
+    });
+    expect(banks[1]).toMatchObject({
+      crystalGoldValue: 600_000,
+      coordX: 2,
+      coordY: 2,
+      level: 2,
+    });
+    expect(banks[2]).toMatchObject({
+      crystalGoldValue: null,
+      coordX: 3,
+      coordY: 3,
+      level: 2,
+      currentDepositCount: 100,
+    });
+    expect(banks[3]).toMatchObject({
+      crystalGoldValue: 599_960,
+      coordX: 4,
+      coordY: 4,
+    });
+    expect(banks[4]).toMatchObject({
+      crystalGoldValue: 597_260,
+      coordX: 5,
+      coordY: 5,
+    });
+    expect(banks[5]).toMatchObject({
+      crystalGoldValue: 486_000,
+      coordX: 6,
+      coordY: 6,
+      currentDepositCount: 81,
+    });
+  });
+
+  it("does not carry a leftover first-row amount into the next coord row", () => {
+    // Three amounts recovered for a two-tile coord row — extra amount stays
+    // local to that row (dropped), not shifted onto the following tile.
+    const banks = parseCityListBanks([
+      "600.00K 500.00K 400.00K",
+      "#1211 (X:1, Y:1) #1211 (X:2, Y:2)",
+      "300.00K",
+      "#1211 (X:3, Y:3)",
+    ]);
+    expect(banks).toHaveLength(3);
+    expect(banks[0]).toMatchObject({
+      crystalGoldValue: 600_000,
+      coordX: 1,
+      coordY: 1,
+    });
+    expect(banks[1]).toMatchObject({
+      crystalGoldValue: 500_000,
+      coordX: 2,
+      coordY: 2,
+    });
+    expect(banks[2]).toMatchObject({
+      crystalGoldValue: 300_000,
+      coordX: 3,
+      coordY: 3,
+    });
+  });
 });
 
 describe("parseCityListText", () => {
