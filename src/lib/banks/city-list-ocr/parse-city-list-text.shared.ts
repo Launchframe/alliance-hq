@@ -12,15 +12,20 @@
  *   "Lv.3 Lv.2 Lv.2"
  *   "#1211 (X:599, Y:499) #1211 (X:699, Y:599) #1211 (X:699, Y:499)"
  *   "100/100 100/100 100/100"
- * so parsing is done by scanning *all* lines for each token type (in reading
- * order) and zipping same-index matches back into per-tile banks, rather than
- * assuming one bank per line.
+ * so parsing groups tokens **per grid row** (coord line as the anchor), then
+ * zips same-index matches within that row — not across the whole screenshot.
+ * A global index-zip would mis-assign amounts when one row recovers fewer
+ * K-tokens than coord anchors.
+ *
+ * Real OCR is noisier than the golden transcription: coordinates often lose
+ * parentheses (`#1211x:699,v:399)`), confuse `Y` with `V`, and skip `Lv.`
+ * lines entirely. Levels/deposits are optional; missing amounts stay null.
  */
 
 export type ParsedCityListBank = {
   level: number;
-  /** CrystalGold value shown on the tile, e.g. 600000 for "600.00K". */
-  crystalGoldValue: number;
+  /** CrystalGold value shown on the tile, e.g. 600000 for "600.00K". Null if OCR missed it. */
+  crystalGoldValue: number | null;
   gameServerNumber: number;
   coordX: number;
   coordY: number;
@@ -46,6 +51,9 @@ export type ParsedCityListSnapshot = {
   isComplete: boolean;
 };
 
+/** Default level when OCR drops every `Lv.N` token for a tile. Officers can fix in review. */
+export const CITY_LIST_DEFAULT_LEVEL = 1;
+
 const HEADER_OR_FOOTER_RE =
   /total\s+crystalgold\s+deposited|bank\s+strongholds?\s+captured|bank\s+stronghold\s+captures\s+left|server\s*time/i;
 
@@ -55,15 +63,20 @@ const SUFFIX_MULTIPLIER: Record<string, number> = {
   B: 1_000_000_000,
 };
 
-/** Compact CrystalGold value token, e.g. "600.00K", "3.48M". */
-const VALUE_TOKEN_RE = /(\d[\d,]*(?:\.\d+)?)\s*([KMB])\b/gi;
+/** Compact CrystalGold value token, e.g. "600.00K", "3.48M", OCR "59726K". */
+const VALUE_TOKEN_RE = /(\d[\d.oO]*)\s*([KkMmBb])\b/g;
 
-/** Bank level token, e.g. "Lv.3", "Lv 2". */
-const LEVEL_TOKEN_RE = /\bLv\.?\s*(\d+)\b/gi;
+/** Bank level token, e.g. "Lv.3", "Lv 2", "LV.2". */
+const LEVEL_TOKEN_RE = /\bL\.?v\.?\s*(\d+)\b/gi;
 
-/** Bank coordinate token, e.g. "#1211 (X:599, Y:499)" or "#1211 [X:699, Y:599]". */
+/**
+ * Bank coordinate token.
+ * Accepts clean `#1211 (X:599, Y:499)` and OCR garbles like:
+ *   `#1211x:699,v:399)`  `#1211(X:699,V:299)`  `#1211 [X:699, ¥:499]`
+ * (`V`/`v`/`¥` are common Tesseract misreads of `Y`.)
+ */
 const COORD_TOKEN_RE =
-  /#\s*(\d{3,6})\s*[([]\s*X\s*:\s*(\d+)\s*,\s*Y\s*:\s*(\d+)\s*[)\]]/gi;
+  /#\s*(\d{3,6})\s*[([]?\s*[Xx]\s*:?\s*(\d+)\s*,\s*[^0-9]*(\d+)\s*[)\]]?/gi;
 
 /** Deposit slot usage token, e.g. "81/100". */
 const DEPOSIT_TOKEN_RE = /\b(\d{1,3})\s*\/\s*100\b/g;
@@ -84,7 +97,14 @@ export function parseCompactCrystalGoldValue(
   amount: string,
   suffix: string | undefined,
 ): number | null {
-  const base = Number(amount.replace(/,/g, ""));
+  // OCR often reads `0` as `O`/`o` inside amounts.
+  let cleaned = amount.replace(/,/g, "").replace(/[oO]/g, "0");
+  // Tile amounts are shown with two decimals (600.00K). When the decimal
+  // point is lost ("59726K"), re-insert it before the last two digits.
+  if (!cleaned.includes(".") && cleaned.length >= 5 && suffix) {
+    cleaned = `${cleaned.slice(0, -2)}.${cleaned.slice(-2)}`;
+  }
+  const base = Number(cleaned);
   if (!Number.isFinite(base)) return null;
   const multiplier = suffix ? SUFFIX_MULTIPLIER[suffix.toUpperCase()] ?? 1 : 1;
   return Math.round(base * multiplier);
@@ -104,22 +124,68 @@ function isHeaderOrFooterLine(line: string): boolean {
   return HEADER_OR_FOOTER_RE.test(line);
 }
 
-function extractAll<T>(
-  lines: readonly string[],
+function extractFromLine<T>(
+  line: string,
   regex: RegExp,
-  map: (match: RegExpExecArray) => T,
-  options: { skipHeaderFooterLines?: boolean } = {},
+  map: (match: RegExpExecArray) => T | null,
 ): T[] {
   const results: T[] = [];
-  for (const line of lines) {
-    if (options.skipHeaderFooterLines && isHeaderOrFooterLine(line)) continue;
-    const re = new RegExp(regex.source, regex.flags);
-    let match: RegExpExecArray | null;
-    while ((match = re.exec(line)) != null) {
-      results.push(map(match));
-    }
+  const re = new RegExp(regex.source, regex.flags);
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(line)) != null) {
+    const mapped = map(match);
+    if (mapped != null) results.push(mapped);
   }
   return results;
+}
+
+type LineTokens = {
+  values: Array<number | null>;
+  levels: number[];
+  coords: Array<{
+    gameServerNumber: number;
+    coordX: number;
+    coordY: number;
+  }>;
+  deposits: number[];
+  isHeaderFooter: boolean;
+};
+
+function tokenizeCityListLine(line: string): LineTokens {
+  const isHeaderFooter = isHeaderOrFooterLine(line);
+  if (isHeaderFooter) {
+    return {
+      values: [],
+      levels: [],
+      coords: [],
+      deposits: [],
+      isHeaderFooter: true,
+    };
+  }
+  return {
+    values: extractFromLine(line, VALUE_TOKEN_RE, (m) =>
+      parseCompactCrystalGoldValue(m[1]!, m[2]),
+    ),
+    levels: extractFromLine(line, LEVEL_TOKEN_RE, (m) => Number(m[1])),
+    coords: extractFromLine(line, COORD_TOKEN_RE, (m) => ({
+      gameServerNumber: Number(m[1]),
+      coordX: Number(m[2]),
+      coordY: Number(m[3]),
+    })),
+    deposits: extractFromLine(line, DEPOSIT_TOKEN_RE, (m) => Number(m[1])),
+    isHeaderFooter: false,
+  };
+}
+
+/** True when the line is only deposit progress (previous row's trailing line). */
+function isDepositOnlyLine(tokens: LineTokens): boolean {
+  return (
+    !tokens.isHeaderFooter &&
+    tokens.deposits.length > 0 &&
+    tokens.values.length === 0 &&
+    tokens.levels.length === 0 &&
+    tokens.coords.length === 0
+  );
 }
 
 /** Parse header fields: total CrystalGold deposited + captured count/limit. */
@@ -176,52 +242,81 @@ export function parseCityListFooter(lines: readonly string[]): {
 }
 
 /**
- * Parse per-tile bank data by scanning every line for each token type (value,
- * level, coordinates, deposit usage) in reading order, then zipping matches
- * of the same index back together. This is robust whether OCR emits one line
- * per tile or merges whole tile-rows into single lines.
+ * Parse per-tile bank data by grouping tokens around each coordinate line
+ * (one grid row), then zipping value/level/deposit with coords **within that
+ * row**. Coordinates are the identity anchor — OCR often drops `Lv.` rows and
+ * some CrystalGold amounts on dark cards. Missing amounts stay null for
+ * officer review rather than discarding the whole tile or borrowing amounts
+ * from the next row.
  */
 export function parseCityListBanks(
   lines: readonly string[],
 ): ParsedCityListBank[] {
-  const values = extractAll(
-    lines,
-    VALUE_TOKEN_RE,
-    (m) => parseCompactCrystalGoldValue(m[1]!, m[2]),
-    { skipHeaderFooterLines: true },
-  );
-  const levels = extractAll(lines, LEVEL_TOKEN_RE, (m) => Number(m[1]), {
-    skipHeaderFooterLines: true,
-  });
-  const coords = extractAll(
-    lines,
-    COORD_TOKEN_RE,
-    (m) => ({
-      gameServerNumber: Number(m[1]),
-      coordX: Number(m[2]),
-      coordY: Number(m[3]),
-    }),
-    { skipHeaderFooterLines: true },
-  );
-  const deposits = extractAll(lines, DEPOSIT_TOKEN_RE, (m) => Number(m[1]), {
-    skipHeaderFooterLines: true,
-  });
+  const tokenized = lines.map(tokenizeCityListLine);
+  const coordLineIndices: number[] = [];
+  for (let i = 0; i < tokenized.length; i += 1) {
+    if (tokenized[i]!.coords.length > 0) coordLineIndices.push(i);
+  }
+  if (coordLineIndices.length === 0) return [];
 
-  const count = Math.min(values.length, levels.length, coords.length);
   const banks: ParsedCityListBank[] = [];
-  for (let i = 0; i < count; i += 1) {
-    const value = values[i];
-    const level = levels[i];
-    const coord = coords[i];
-    if (value == null || level == null || !coord) continue;
-    banks.push({
-      level,
-      crystalGoldValue: value,
-      gameServerNumber: coord.gameServerNumber,
-      coordX: coord.coordX,
-      coordY: coord.coordY,
-      currentDepositCount: deposits[i] ?? null,
-    });
+  for (let row = 0; row < coordLineIndices.length; row += 1) {
+    const coordLineIndex = coordLineIndices[row]!;
+    const prevCoordLineIndex =
+      row > 0 ? coordLineIndices[row - 1]! : -1;
+    const nextCoordLineIndex =
+      row + 1 < coordLineIndices.length
+        ? coordLineIndices[row + 1]!
+        : tokenized.length;
+
+    // Skip trailing deposit-only lines that belong to the previous row.
+    let preStart = prevCoordLineIndex + 1;
+    while (
+      preStart < coordLineIndex &&
+      isDepositOnlyLine(tokenized[preStart]!)
+    ) {
+      preStart += 1;
+    }
+
+    const values: Array<number | null> = [];
+    const levels: number[] = [];
+    for (let i = preStart; i < coordLineIndex; i += 1) {
+      const tokens = tokenized[i]!;
+      if (tokens.isHeaderFooter) continue;
+      values.push(...tokens.values);
+      levels.push(...tokens.levels);
+    }
+
+    const coordLine = tokenized[coordLineIndex]!;
+    // Rare: value/level tokens on the same line as coordinates.
+    values.push(...coordLine.values);
+    levels.push(...coordLine.levels);
+    const coords = coordLine.coords;
+
+    const deposits: number[] = [...coordLine.deposits];
+    for (let i = coordLineIndex + 1; i < nextCoordLineIndex; i += 1) {
+      const tokens = tokenized[i]!;
+      if (tokens.isHeaderFooter) continue;
+      // A value line starts the next grid row (deposits already ended).
+      if (tokens.values.length > 0 && tokens.coords.length === 0) break;
+      deposits.push(...tokens.deposits);
+    }
+
+    for (let i = 0; i < coords.length; i += 1) {
+      const coord = coords[i]!;
+      const level = levels[i];
+      banks.push({
+        level:
+          level != null && Number.isFinite(level) && level > 0
+            ? level
+            : CITY_LIST_DEFAULT_LEVEL,
+        crystalGoldValue: values[i] ?? null,
+        gameServerNumber: coord.gameServerNumber,
+        coordX: coord.coordX,
+        coordY: coord.coordY,
+        currentDepositCount: deposits[i] ?? null,
+      });
+    }
   }
   return banks;
 }

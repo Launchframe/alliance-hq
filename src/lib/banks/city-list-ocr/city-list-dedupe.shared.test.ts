@@ -13,7 +13,10 @@ function bank(
 ): ParsedCityListBank {
   return {
     level: partial.level ?? 2,
-    crystalGoldValue: partial.crystalGoldValue ?? 600_000,
+    crystalGoldValue:
+      partial.crystalGoldValue === undefined
+        ? 600_000
+        : partial.crystalGoldValue,
     gameServerNumber: partial.gameServerNumber ?? 1211,
     coordX: partial.coordX,
     coordY: partial.coordY,
@@ -31,6 +34,14 @@ describe("coalesceCityListBanks", () => {
       bank({ coordX: 599, coordY: 499, currentDepositCount: 81 }),
     ]);
     expect(merged.currentDepositCount).toBe(81);
+  });
+
+  it("fills null crystalGoldValue from a sibling tile", () => {
+    const merged = coalesceCityListBanks([
+      bank({ coordX: 699, coordY: 499, crystalGoldValue: null }),
+      bank({ coordX: 699, coordY: 499, crystalGoldValue: 486_000 }),
+    ]);
+    expect(merged.crystalGoldValue).toBe(486_000);
   });
 });
 
