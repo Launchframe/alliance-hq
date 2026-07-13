@@ -13,7 +13,10 @@ import {
   resolveVideoJobAccess,
   videoJobAccessErrorResponse,
 } from "@/lib/video/video-job-access.server";
-import { resolveHqAllianceIdFromStoredAllianceId } from "@/lib/video/video-job-alliance.server";
+import { getAshedAllianceIdIfLinked } from "@/lib/alliance/ashed-write-guard";
+import {
+  resolveHqAllianceIdFromStoredAllianceId,
+} from "@/lib/video/video-job-alliance.server";
 import {
   isVideoJobAllianceStale,
   VIDEO_JOB_ALLIANCE_UNRESOLVED_CODE,
@@ -183,7 +186,9 @@ export async function GET(_request: Request, { params }: Props) {
     let jobAllianceTag: string | null = session.allianceTag;
     let jobAllianceName: string | null = null;
     let members: AshedMember[] = [];
+    let ashedAllianceId: string | null = null;
     if (allianceIdForJob) {
+      ashedAllianceId = await getAshedAllianceIdIfLinked(allianceIdForJob);
       const [allianceRow] = await db
         .select({
           tag: schema.alliances.tag,
@@ -234,6 +239,7 @@ export async function GET(_request: Request, { params }: Props) {
         currentTag: session.allianceTag,
         jobTag: jobAllianceTag,
         jobName: jobAllianceName,
+        ashedAllianceId,
         stale: isVideoJobAllianceStale({
           jobHqAllianceId: allianceIdForJob,
           sessionCurrentAllianceId: session.currentAllianceId,

@@ -22,7 +22,10 @@ export type StormScoreOverlapResult = {
  */
 export async function findStormScoreOverlap(params: {
   connection: ParsedConnection | null;
+  /** HQ alliance id — used for local video_jobs history. */
   allianceId: string;
+  /** Ashed alliance id for Base44 score queries (falls back to allianceId). */
+  ashedAllianceId?: string | null;
   scoreTargetId: string;
   eventId: string | null;
   team: StormTeam;
@@ -34,11 +37,13 @@ export async function findStormScoreOverlap(params: {
     return { overlaps: false, source: null };
   }
 
+  const ashedAllianceId = params.ashedAllianceId?.trim() || params.allianceId;
+
   if (params.connection && params.eventId) {
     try {
       const q = encodeURIComponent(
         JSON.stringify({
-          alliance_id: params.allianceId,
+          alliance_id: ashedAllianceId,
           event_id: params.eventId,
         }),
       );

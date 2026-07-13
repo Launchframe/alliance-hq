@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { getTranslations } from "next-intl/server";
 
 import { DataManagementClient } from "@/components/data-management/DataManagementClient";
@@ -20,7 +21,11 @@ export async function generateMetadata() {
   return { title: t("title") };
 }
 
-export default async function DataManagementPage() {
+type PageProps = {
+  searchParams: Promise<{ scoreTarget?: string; recordedDate?: string }>;
+};
+
+export default async function DataManagementPage({ searchParams }: PageProps) {
   const session = await requirePageSession("/data-management");
   await requirePagePermission(session.id, "data:read", "/members");
 
@@ -28,6 +33,8 @@ export default async function DataManagementPage() {
   if (!allianceId) {
     return null;
   }
+
+  const params = await searchParams;
 
   const [rbac, canUseAshedEmbeds] = await Promise.all([
     resolveDataManagementRbac(session.id, allianceId),
@@ -44,7 +51,13 @@ export default async function DataManagementPage() {
       submitEntity: target.submitEntity,
     }),
   );
-  const initialScoreTarget = scoreTargets[0]?.id ?? "desert-storm";
+  const requestedTarget = params.scoreTarget?.trim();
+  const initialScoreTarget =
+    (requestedTarget &&
+      scoreTargets.some((target) => target.id === requestedTarget) &&
+      requestedTarget) ||
+    scoreTargets[0]?.id ||
+    "desert-storm";
   const batches = await listAllianceDataBatches({
     allianceId,
     scoreTarget: initialScoreTarget,
@@ -57,13 +70,15 @@ export default async function DataManagementPage() {
       canUseAshedPane={canUseAshedEmbeds}
     >
       <div className="px-4 py-6 md:px-0">
-        <DataManagementClient
-          initialBatches={batches.map((batch) =>
-            decorateBatchForViewer(batch, rbac),
-          )}
-          scoreTargets={scoreTargets}
-          initialScoreTarget={initialScoreTarget}
-        />
+        <Suspense fallback={null}>
+          <DataManagementClient
+            initialBatches={batches.map((batch) =>
+              decorateBatchForViewer(batch, rbac),
+            )}
+            scoreTargets={scoreTargets}
+            initialScoreTarget={initialScoreTarget}
+          />
+        </Suspense>
       </div>
     </HybridAshedPageShell>
   );

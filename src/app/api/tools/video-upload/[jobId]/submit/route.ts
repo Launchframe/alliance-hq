@@ -5,7 +5,6 @@ import { writeAuditLog } from "@/lib/bff/audit";
 import { emitVideoJobStatus } from "@/lib/events/video-jobs";
 import { videoJobStatusOwnerFields } from "@/lib/video/video-job-access.shared";
 import { getDb, schema } from "@/lib/db";
-import { base44EntityPost } from "@/lib/base44/fetch";
 import {
   resolveAshedEventId,
   upsertHqEventMemberMetadata,
@@ -48,7 +47,10 @@ import {
 import { dispatchScoreSubmit } from "@/lib/video/submit-dispatch";
 import { notifyEurVideoEvidence } from "@/lib/eur/satisfaction";
 import { announcePriceIsRightLeaderboardAfterVsUpload } from "@/lib/trains/price-is-right-leaderboard-discord.server";
-import { buildAshedEventProvisionBody } from "@/lib/video/ashed-event-provision";
+import {
+  replaceAshedScoresForContext,
+  resolveOrCreateAshedEvent,
+} from "@/lib/video/ashed-event-provision.server";
 import {
   buildSubmitPayloads,
   validateSubmitContext,
@@ -62,7 +64,10 @@ import {
   videoSubmitClaimLostError,
   videoSubmitNotReadyError,
 } from "@/lib/video/submit-job-ready.shared";
-import { recordDataUploadBatch } from "@/lib/data-management/batch-ledger.server";
+import {
+  markMatchingDataBatchesDeleted,
+  recordDataUploadBatch,
+} from "@/lib/data-management/batch-ledger.server";
 import { isDedupeReport } from "@/lib/video/dedupe/merge-report.shared";
 
 type Props = {
@@ -673,29 +678,17 @@ export async function POST(request: Request, { params }: Props) {
       commendationId: body.commendationId ?? job.commendationId ?? undefined,
     };
 
-    // Auto-provision an Ashed event entity when the target needs one but the
-    // client did not (or could not) select one from the dropdown because none
-    // exist yet.  This handles recurring types like alliance-exercise that
-    // have no pre-existing events for new alliances, and event types like
-    // zombie-siege where the user has no prior events in Ashed.
-    if (
-      target.eventEntity &&
-      !usesHqEventStore(target) &&
-      !submitContext.eventId
-    ) {
-      const provisionBody = buildAshedEventProvisionBody(
-        target.eventEntity,
-        ashedAllianceId,
-        submitContext.recordedDate,
-      );
-      const newEvent = (await base44EntityPost(
+    // Resolve-or-create Ashed event (alliance + date). Prefer an existing event
+    // for that day so re-uploads never create duplicates — even if the client
+    // sent a stale or empty eventId.
+    if (target.eventEntity && !usesHqEventStore(target)) {
+      const resolved = await resolveOrCreateAshedEvent({
         connection,
-        target.eventEntity,
-        provisionBody,
-      )) as { id?: string };
-      if (newEvent?.id) {
-        submitContext = { ...submitContext, eventId: newEvent.id };
-      }
+        eventEntity: target.eventEntity,
+        ashedAllianceId,
+        recordedDate: submitContext.recordedDate,
+      });
+      submitContext = { ...submitContext, eventId: resolved.eventId };
     }
 
     const contextError = validateSubmitContext(
@@ -809,7 +802,44 @@ export async function POST(request: Request, { params }: Props) {
       errorMessage: null,
     });
 
+    // Batch-update: clear prior scores for this event/team/date, then insert.
+    if (
+      target.eventEntity &&
+      !usesHqEventStore(target) &&
+      submitContext.eventId &&
+      target.submitMethod === "bulk"
+    ) {
+      await replaceAshedScoresForContext({
+        connection,
+        target,
+        ashedAllianceId,
+        recordedDate: submitContext.recordedDate,
+        context: {
+          eventId: submitContext.eventId,
+          team: submitContext.team,
+          boardKey: submitContext.boardKey,
+          hqEventId: submitContext.hqEventId,
+          commendationId: submitContext.commendationId,
+        },
+      });
+    }
+
     await dispatchScoreSubmit(connection, target, payloads);
+
+    if (
+      target.eventEntity &&
+      !usesHqEventStore(target) &&
+      submitContext.eventId &&
+      target.submitMethod === "bulk"
+    ) {
+      await markMatchingDataBatchesDeleted({
+        allianceId,
+        scoreTarget: target.id,
+        recordedDate: submitContext.recordedDate,
+        eventId: submitContext.eventId,
+        team: submitContext.team ?? null,
+      });
+    }
 
     if (submitContext.hqEventId) {
       for (const row of activeRows) {

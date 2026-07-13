@@ -1309,7 +1309,14 @@
     "moveFailed": "Could not move batch.",
     "selectDateTitle": "Select a date",
     "selectDateBody": "Select a date from the list to view batch details.",
-    "readOnlyBatch": "You can view this batch but cannot move or delete it."
+    "readOnlyBatch": "You can view this batch but cannot move or delete it.",
+    "scoresHeading": "Scores in this batch",
+    "scoresLoading": "Loading scores…",
+    "scoresEmpty": "No scores found for this batch.",
+    "scoresLoadFailed": "Could not load scores.",
+    "scoresMember": "Member",
+    "scoresScore": "Score",
+    "scoresRank": "Rank"
   },
   "videoQueue": {
     "title": "Video queue",
@@ -3657,7 +3664,8 @@
     "teamLabel": "Team",
     "teamA": "Team A",
     "teamB": "Team B",
-    "existingStormScoresWarning": "It looks like scores were already uploaded for {eventName} Team {team}. Check ashed.online for scores.",
+    "existingStormScoresWarning": "Scores already exist for {eventName} Team {team}. Saving replaces that batch on the same event. Open Data Management to review or delete the batch first if you need a clean slate.",
+    "openDataManagement": "Open Data Management",
     "dateLabel": "Recorded date",
     "colName": "Name",
     "colMember": "Matched member",

@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { buildAshedEventProvisionBody } from "@/lib/video/ashed-event-provision";
+import {
+  ashedEventCalendarDate,
+  buildAshedEventLookupQuery,
+  buildAshedEventProvisionBody,
+  pickAshedEventMatchingDate,
+  usesEventDateField,
+} from "@/lib/video/ashed-event-provision";
 import { SCORE_TARGETS, usesHqEventStore } from "@/lib/video/score-targets";
 
 describe("buildAshedEventProvisionBody", () => {
@@ -61,5 +67,33 @@ describe("buildAshedEventProvisionBody", () => {
         });
       }
     }
+  });
+});
+
+describe("ashed event date matching", () => {
+  it("builds lookup queries by entity date field", () => {
+    expect(
+      buildAshedEventLookupQuery("DesertStormEvent", "a1", "2026-07-10"),
+    ).toEqual({ alliance_id: "a1", event_date: "2026-07-10" });
+    expect(
+      buildAshedEventLookupQuery("AllianceExercise", "a1", "2026-07-10"),
+    ).toEqual({ alliance_id: "a1", start_date: "2026-07-10" });
+    expect(usesEventDateField("DesertStormEvent")).toBe(true);
+    expect(usesEventDateField("AllianceExercise")).toBe(false);
+  });
+
+  it("picks the event whose calendar date matches recordedDate", () => {
+    expect(
+      pickAshedEventMatchingDate(
+        [
+          { id: "old", event_date: "2026-07-09" },
+          { id: "hit", event_date: "2026-07-10T00:00:00.000Z" },
+        ],
+        "2026-07-10",
+      )?.id,
+    ).toBe("hit");
+    expect(ashedEventCalendarDate({ start_date: "2026-07-10" })).toBe(
+      "2026-07-10",
+    );
   });
 });

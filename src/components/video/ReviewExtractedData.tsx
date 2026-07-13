@@ -17,8 +17,10 @@ import {
   formatAshedEventOptionLabel,
   formatEventOptionLabel,
   formatHqEventOptionLabel,
+  resolveAshedEventDate,
   type AshedEventLike,
 } from "@/lib/video/event-option-label";
+import { pickAshedEventMatchingDate } from "@/lib/video/ashed-event-provision";
 import {
   duplicateMemberRowIds,
   findDuplicateMemberAssignments,
@@ -222,6 +224,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     useState<ScoreTargetMeta | null>(null);
   const [jobStatus, setJobStatus] = useState<string>("loading");
   const [allianceId, setAllianceId] = useState<string | null>(null);
+  const [ashedAllianceId, setAshedAllianceId] = useState<string | null>(null);
   const [eventId, setEventId] = useState("");
   const [hqEventId, setHqEventId] = useState("");
   const [boardKey, setBoardKey] = useState("");
@@ -407,6 +410,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
             currentTag?: string | null;
             jobTag?: string | null;
             jobName?: string | null;
+            ashedAllianceId?: string | null;
             stale?: boolean;
           };
           parseSession?: {
@@ -503,6 +507,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
             data.parseSession?.allianceId ??
             null,
         );
+        setAshedAllianceId(data.alliance?.ashedAllianceId ?? null);
         setAllianceTag(
           data.alliance?.jobTag ?? data.alliance?.currentTag ?? null,
         );
@@ -613,9 +618,10 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
 
   useEffect(() => {
     async function fetchEvents() {
-      if (!allianceId || !scoreTargetMeta) return;
+      if (!scoreTargetMeta) return;
 
       if (scoreTargetMeta.usesHqEvents) {
+        if (!allianceId) return;
         const res = await fetch(
           `/api/hq-events?scoreTarget=${encodeURIComponent(scoreTargetMeta.id)}`,
         );
@@ -650,7 +656,16 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         return;
       }
 
-      const q = encodeURIComponent(JSON.stringify({ alliance_id: allianceId }));
+      // Ashed entity queries must use the Ashed alliance id, not the HQ pk.
+      const queryAllianceId = ashedAllianceId;
+      if (!queryAllianceId) {
+        setEvents([]);
+        return;
+      }
+
+      const q = encodeURIComponent(
+        JSON.stringify({ alliance_id: queryAllianceId }),
+      );
       const res = await fetch(
         `/api/bff/v1/entities/${scoreTargetMeta.eventEntity}?q=${q}`,
       );
@@ -664,22 +679,35 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
             locale,
             timezoneId,
           }),
+          eventDate: resolveAshedEventDate(ev),
         }));
-        setEvents(list);
-        if (list[0] && !eventId) {
-          setEventId(list[0].id);
+        setEvents(
+          list.map(({ id, label }) => ({
+            id,
+            label,
+          })),
+        );
+        if (!eventId) {
+          const matched = pickAshedEventMatchingDate(data, recordedDate);
+          if (matched?.id) {
+            setEventId(matched.id);
+          } else if (list[0]) {
+            setEventId(list[0].id);
+          }
         }
       }
     }
     void fetchEvents();
   }, [
     allianceId,
+    ashedAllianceId,
     scoreTargetMeta,
     eventId,
     hqEventId,
     eventTypeLabel,
     locale,
     timezoneId,
+    recordedDate,
   ]);
 
   useEffect(() => {
@@ -1791,13 +1819,23 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           role="status"
           className="rounded-xl border border-hq-warning/40 bg-hq-warning/10 px-4 py-3 text-sm text-hq-warning"
         >
-          {t("existingStormScoresWarning", {
-            eventName:
-              events.find((ev) => ev.id === eventId)?.label ??
-              eventTypeLabel ??
-              t("eventLabel"),
-            team: team === "B" ? "B" : "A",
-          })}
+          <p>
+            {t("existingStormScoresWarning", {
+              eventName:
+                events.find((ev) => ev.id === eventId)?.label ??
+                eventTypeLabel ??
+                t("eventLabel"),
+              team: team === "B" ? "B" : "A",
+            })}
+          </p>
+          <p className="mt-2">
+            <Link
+              href={`/data-management?scoreTarget=${encodeURIComponent(scoreTargetMeta.id)}&recordedDate=${encodeURIComponent(recordedDate)}`}
+              className="font-medium underline underline-offset-2"
+            >
+              {t("openDataManagement")}
+            </Link>
+          </p>
         </div>
       ) : null}
 

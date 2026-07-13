@@ -7,6 +7,7 @@ const resolveVideoJobAccessMock = vi.fn();
 const videoJobAccessErrorResponseMock = vi.fn();
 const findStormScoreOverlapMock = vi.fn();
 const resolveSessionAllianceIdMock = vi.fn();
+const getAshedAllianceIdIfLinkedMock = vi.fn();
 
 vi.mock("@/lib/session", () => ({
   getOrCreateSession: () => getOrCreateSessionMock(),
@@ -16,6 +17,11 @@ vi.mock("@/lib/session", () => ({
 vi.mock("@/lib/alliance/session-memberships", () => ({
   resolveSessionAllianceId: (session: unknown) =>
     resolveSessionAllianceIdMock(session),
+}));
+
+vi.mock("@/lib/alliance/ashed-write-guard", () => ({
+  getAshedAllianceIdIfLinked: (hqAllianceId: string) =>
+    getAshedAllianceIdIfLinkedMock(hqAllianceId),
 }));
 
 vi.mock("@/lib/video/video-job-access.server", () => ({
@@ -67,6 +73,7 @@ describe("GET /api/tools/video-upload/[jobId]/score-overlap", () => {
     getOrCreateSessionMock.mockResolvedValue(session);
     getAshedConnectionMock.mockResolvedValue(null);
     resolveSessionAllianceIdMock.mockReturnValue("alliance-1");
+    getAshedAllianceIdIfLinkedMock.mockResolvedValue("ashed-alliance-1");
     resolveVideoJobAccessMock.mockResolvedValue({ ok: true, job: stormJob });
     videoJobAccessErrorResponseMock.mockImplementation(
       (result: { ok: false; status: 403 | 404 }) =>
@@ -161,6 +168,7 @@ describe("GET /api/tools/video-upload/[jobId]/score-overlap", () => {
     expect(findStormScoreOverlapMock).toHaveBeenCalledWith({
       connection,
       allianceId: "alliance-1",
+      ashedAllianceId: "ashed-alliance-1",
       scoreTargetId: "desert-storm",
       eventId: "event-1",
       team: "B",
