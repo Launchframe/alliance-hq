@@ -58,7 +58,9 @@ describe("parsePowerDetailsLines", () => {
       "Wall of Honor 4502300",
     ];
     const parsed = parsePowerDetailsLines(lines);
-    expect(parsed.complete).toBe(true);
+    // No Hero Power header → not submission-ready (separator glue can inflate rows).
+    expect(parsed.complete).toBe(false);
+    expect(parsed.heroPowerTotal).toBeNull();
     expect(parsed.breakdown).toEqual({
       heroLevel: 85_857_448,
       decorationsAndBuildings: 37_282_702,
@@ -68,8 +70,40 @@ describe("parsePowerDetailsLines", () => {
       heroSkill: 6_574_310,
       wallOfHonor: 4_502_300,
     });
-    // No header total in this capture — fall back to component sum.
-    expect(parsed.heroPowerTotal).toBe(sumThpBreakdown(parsed.breakdown as never));
+  });
+
+  it("rejects complete when header and components cannot be reconciled", () => {
+    const lines = [
+      "Hero Power 100,000,000",
+      "Hero Level 50,000,000",
+      "Decorations & Building Stats 20,000,000",
+      "Gear 10,000,000",
+      "Exclusive Weapon 10,000,000",
+      "Hero Tier 5,000,000",
+      "Hero Skill 5,000,000",
+      "Wall of Honor 9,999,999",
+    ];
+    const parsed = parsePowerDetailsLines(lines);
+    expect(parsed.complete).toBe(false);
+    // Keep the header for total-only fallback; do not invent a matching sum.
+    expect(parsed.heroPowerTotal).toBe(100_000_000);
+    expect(sumThpBreakdown(parsed.breakdown as never)).toBe(109_999_999);
+  });
+
+  it("rejects complete when two destroyed stubs block reconciliation", () => {
+    const lines = [
+      "Hero Power 163,674,445",
+      "Hero Level 85,857,448",
+      "Decorations & Building Stats 37,282,702",
+      "Gear 13,118,094",
+      "Exclusive Weapon 9,085,358",
+      "Hero Tier 7,053,833",
+      "Hero Skill 123",
+      "Wall of Honor 456",
+    ];
+    const parsed = parsePowerDetailsLines(lines);
+    expect(parsed.complete).toBe(false);
+    expect(parsed.heroPowerTotal).toBe(163_674_445);
   });
 
   it("repairs confusable 7 digits when header total is present", () => {
