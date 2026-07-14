@@ -19,6 +19,7 @@ import {
 import {
   economyThresholdEnforcementEnabled,
   normalizeTrainEconomyThresholdSettings,
+  PRICE_IS_RIGHT_DEFAULT_ECONOMY_THRESHOLD_POINTS,
   PRICE_IS_RIGHT_MIN_VS_SCORE,
   tpirEligiblePoolEntries,
   type TrainEconomyThresholdSettings,
@@ -31,7 +32,10 @@ export type TrainEconomyThresholdRow = TrainEconomyThresholdSettings &
     effectiveCliffPoints: number | null;
   };
 
-export { PRICE_IS_RIGHT_MIN_VS_SCORE };
+export {
+  PRICE_IS_RIGHT_DEFAULT_ECONOMY_THRESHOLD_POINTS,
+  PRICE_IS_RIGHT_MIN_VS_SCORE,
+};
 
 function allianceRowToPriceIsRightSettings(row: {
   trainPriceIsRightWeightingEnabled?: number | null;
@@ -183,7 +187,12 @@ export async function pickTpirPoolEntry(input: {
       input.allianceId,
       scoreDate,
     );
-    pickFrom = tpirEligiblePoolEntries(unselected, vsScores, settings);
+    pickFrom = tpirEligiblePoolEntries(
+      unselected,
+      vsScores,
+      settings,
+      settings.maxTicketMemberIds,
+    );
   }
 
   if (pickFrom.length === 0) {

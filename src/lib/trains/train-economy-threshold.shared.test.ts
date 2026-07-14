@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  PRICE_IS_RIGHT_DEFAULT_ECONOMY_THRESHOLD_POINTS,
   PRICE_IS_RIGHT_MIN_VS_SCORE,
+  economyThresholdEnforcementEnabled,
   effectiveEconomyMaxVsScore,
   isVsScoreEconomyEligible,
   normalizeTrainEconomyThresholdSettings,
@@ -17,6 +19,24 @@ describe("train-economy-threshold.shared", () => {
       thresholdPoints: null,
       fudgePct: 1,
     });
+  });
+
+  it("exposes 8.5M as the alliance create default threshold", () => {
+    expect(PRICE_IS_RIGHT_DEFAULT_ECONOMY_THRESHOLD_POINTS).toBe(8_500_000);
+  });
+
+  it("disables VS filtering when threshold is null (not a 7.2M floor)", () => {
+    const settings = normalizeTrainEconomyThresholdSettings({
+      thresholdPoints: null,
+      fudgePct: 1,
+    });
+    expect(economyThresholdEnforcementEnabled(settings)).toBe(false);
+    const scores = new Map<string, number>([
+      ["low", 1_000_000],
+      ["mid", 8_000_000],
+    ]);
+    const pool = [{ memberId: "low" }, { memberId: "mid" }];
+    expect(tpirEligiblePoolEntries(pool, scores, settings)).toEqual(pool);
   });
 
   it("computes max as threshold + threshold × fudge%", () => {
@@ -73,5 +93,20 @@ describe("train-economy-threshold.shared", () => {
     expect(tpirEligiblePoolEntries(pool, scores, settings)).toEqual([
       { memberId: "in" },
     ]);
+  });
+
+  it("keeps takedown overrides eligible above the economy band", () => {
+    const settings = normalizeTrainEconomyThresholdSettings({
+      thresholdPoints: 8_500_000,
+      fudgePct: 1,
+    });
+    const scores = new Map<string, number>([
+      ["in", 8_000_000],
+      ["high", 20_000_000],
+    ]);
+    const pool = [{ memberId: "in" }, { memberId: "high" }];
+    expect(
+      tpirEligiblePoolEntries(pool, scores, settings, ["high"]),
+    ).toEqual([{ memberId: "in" }, { memberId: "high" }]);
   });
 });

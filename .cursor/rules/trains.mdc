@@ -63,8 +63,10 @@ Two alliance-configurable modes (settings → **The Price Is Freight**):
 
 | Mode | Pool filter | Draw |
 |------|-------------|------|
-| **Legacy band** (`weightingEnabled = 0`) | Prior-day VS in `[7.2M, threshold + fudge%]` when threshold set | Uniform random |
+| **Legacy band** (`weightingEnabled = 0`) | Prior-day VS in `[7.2M, threshold + fudge%]` when threshold set (**takedown overrides stay eligible above the band**); **null threshold = no VS filter** (equal odds among remaining R3) | Uniform random |
 | **Ticket weighting** (`weightingEnabled = 1`) | R3 rank only; members with `ticketCount === 0` excluded | Weighted random by `ticket_count` |
+
+New alliances default `train_economy_threshold_points` to **8,500,000** (`PRICE_IS_RIGHT_DEFAULT_ECONOMY_THRESHOLD_POINTS`). Officers may clear it to disable VS filtering.
 
 **Saturday** uses a separate `heavy_hitter` pool: only members in `train_price_is_right_max_ticket_member_ids` (takedown / heavy-hitter overrides), each with equal max chance. Changing that list in Settings → Trains reseeds the pool immediately.
 

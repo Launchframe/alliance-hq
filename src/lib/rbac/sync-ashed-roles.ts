@@ -23,6 +23,8 @@ import { base44ListAlliances } from "@/lib/base44/fetch";
 import type { ParsedConnection } from "@/lib/connectionString";
 import { getDb, schema } from "@/lib/db";
 
+import { PRICE_IS_RIGHT_DEFAULT_ECONOMY_THRESHOLD_POINTS } from "@/lib/trains/train-economy-threshold.shared";
+
 import { ROLE_IDS, type SystemRoleName } from "./constants";
 import { resolveAshedConnectRole } from "./resolve-ashed-connect-role";
 import { resolveCanonicalHqUserForAshedConnect } from "./resolve-canonical-hq-user";
@@ -210,6 +212,7 @@ async function upsertAllianceFromAshed(
     rolesSyncedAt: now,
     gameServerNumber,
     gameServerId,
+    trainEconomyThresholdPoints: PRICE_IS_RIGHT_DEFAULT_ECONOMY_THRESHOLD_POINTS,
     createdAt: now,
     updatedAt: now,
   });

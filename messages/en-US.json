@@ -2098,10 +2098,12 @@
       "hardCutoffLabel": "Hard cutoff above cliff",
       "hardCutoffHint": "Members who score above this cutoff value will be excluded from the draw.",
       "takedownLabel": "Takedown team (max tickets)",
-      "takedownHint": "Members who always receive maximum tickets. On Price Is Freight Saturdays, the conductor lottery is drawn only from this list (equal max chance).",
+      "takedownHint": "Members who stay eligible even above the economy range, and always get max tickets in raffle mode — so they can push well past 7.2M without losing conductor draw access. On Price Is Freight Saturdays, the conductor lottery is drawn only from this list (equal chance).",
       "takedownSearchPlaceholder": "Search roster to add members…",
       "takedownEmpty": "No matching roster members.",
       "chartCaption": "Ticket and win-chance curve for your cliff setting. Dots show yesterday's R3 scores (if available).",
+      "chartCaptionUniform": "Equal chance for scores in the economy range. Takedown members stay eligible above the upper cap. Dots show yesterday's R3 scores (if available).",
+      "chartCaptionNoFilter": "VS filtering is off — every remaining R3 has equal chance. Set an economy threshold to preview the band.",
       "save": "Save economy threshold",
       "saving": "Saving…",
       "saveFailed": "Could not save economy threshold settings.",
@@ -3207,6 +3209,7 @@
       "wheelSpeed_slow": "Slow",
       "wheelSpeed_regular": "Regular",
       "wheelSpeed_fast": "Fast",
+      "advancedSettings": "Advanced Settings",
       "saveFailed": "Could not save train preferences."
     },
     "help": {
@@ -3316,6 +3319,10 @@
       "nextInSequence": "Next in sequence: {name}",
       "poolExhausted": "· exhausted",
       "liveLeaderboardHint": "Drawn from live scores, not the member pool.",
+      "priceIsRightRaffle": "R3 Lottery: The Price Is Freight",
+      "priceIsRightRaffleHint": "Daily draw — winners stay eligible for later days.",
+      "priceIsRightHeavyHitter": "Heavy-hitter lottery: The Price Is Freight",
+      "priceIsRightHeavyHitterHint": "Saturday draw among the takedown team — equal chance; winners stay eligible.",
       "poolTypes": {
         "r3": "R3 lottery pool",
         "r4_plus": "R4 officer sequence pool",

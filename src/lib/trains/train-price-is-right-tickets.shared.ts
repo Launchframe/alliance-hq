@@ -1,4 +1,9 @@
-import { PRICE_IS_RIGHT_MIN_VS_SCORE } from "@/lib/trains/train-economy-threshold.shared";
+import {
+  effectiveEconomyMaxVsScore,
+  economyThresholdEnforcementEnabled,
+  PRICE_IS_RIGHT_MIN_VS_SCORE,
+  type TrainEconomyThresholdSettings,
+} from "@/lib/trains/train-economy-threshold.shared";
 
 /** Default decay cliff when ticket weighting is on and officer has not set a value. */
 export const PRICE_IS_RIGHT_DEFAULT_CLIFF_POINTS = 9_000_000;
@@ -237,6 +242,43 @@ export function samplePriceIsRightTicketCurve(
     tickets: point.ticketCount,
     winProbability:
       totalTickets > 0 ? point.ticketCount / totalTickets : 0,
+  }));
+}
+
+/**
+ * Uniform economy-band curve for non-raffle TPIF: eligibility 1 inside the band,
+ * 0 outside (extended past the upper cap so the cutoff is visible).
+ * Win probability among eligible sample points is equal (illustrative density).
+ */
+export function samplePriceIsRightUniformCurve(
+  economy: TrainEconomyThresholdSettings,
+  pointCount = 48,
+): PriceIsRightChartPoint[] {
+  if (!economyThresholdEnforcementEnabled(economy) || pointCount < 2) {
+    return [];
+  }
+
+  const threshold = economy.thresholdPoints!;
+  const bandMax = effectiveEconomyMaxVsScore(threshold, economy.fudgePct);
+  const min = PRICE_IS_RIGHT_MIN_VS_SCORE;
+  const max = Math.max(
+    Math.floor(bandMax + Math.max(bandMax - min, 1) * 0.15),
+    bandMax + 1,
+  );
+  const span = Math.max(max - min, 1);
+  const samples = Array.from({ length: pointCount }, (_, index) => {
+    const score = Math.round(min + (index / (pointCount - 1)) * span);
+    const inBand =
+      score >= PRICE_IS_RIGHT_MIN_VS_SCORE && score <= bandMax;
+    return { score, tickets: inBand ? 1 : 0 };
+  });
+  const eligibleCount = samples.filter((point) => point.tickets > 0).length;
+
+  return samples.map((point) => ({
+    score: point.score,
+    tickets: point.tickets,
+    winProbability:
+      point.tickets > 0 && eligibleCount > 0 ? 1 / eligibleCount : 0,
   }));
 }
 

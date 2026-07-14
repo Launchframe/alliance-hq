@@ -12,6 +12,8 @@ import {
   type SystemRoleName,
 } from "@/lib/rbac/constants";
 
+import { PRICE_IS_RIGHT_DEFAULT_ECONOMY_THRESHOLD_POINTS } from "@/lib/trains/train-economy-threshold.shared";
+
 import { NATIVE_ROSTER_ASHED_ALLIANCE_ID } from "./constants";
 
 export function slugifyNativeAlliance(name: string, tag: string): string {
@@ -118,6 +120,7 @@ export async function createNativeAlliance(
     ownerEmail: ownerEmail ? normalizeAshedEmail(ownerEmail) : null,
     gameServerNumber,
     gameServerId,
+    trainEconomyThresholdPoints: PRICE_IS_RIGHT_DEFAULT_ECONOMY_THRESHOLD_POINTS,
     createdAt: now,
     updatedAt: now,
   });

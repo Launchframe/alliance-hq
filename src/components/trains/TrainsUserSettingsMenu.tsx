@@ -5,6 +5,7 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslations } from "next-intl";
 
+import { Link } from "@/i18n/navigation";
 import {
   TRAINS_DISPLAY_WEEK_STARTS,
   type TrainsDisplayWeekStartDow,
@@ -13,6 +14,10 @@ import {
   TRAINS_WHEEL_SPIN_SPEEDS,
   type TrainsWheelSpinSpeed,
 } from "@/lib/trains/trains-wheel-speed.shared";
+
+/** Deep-link target on `/settings/trains` (Price Is Freight section). */
+export const TRAINS_ADVANCED_SETTINGS_HREF =
+  "/settings/trains#price-is-freight" as const;
 
 type Props = {
   displayWeekStartDow: TrainsDisplayWeekStartDow;
@@ -235,6 +240,18 @@ export function TrainsUserSettingsMenu({
                 </div>
               </div>
             </fieldset>
+
+            <div className="mt-3 border-t border-hq-border pt-3">
+              <Link
+                href={TRAINS_ADVANCED_SETTINGS_HREF}
+                role="menuitem"
+                onClick={closeMenu}
+                className="block rounded-lg px-2 py-1.5 text-sm font-medium text-hq-accent hover:bg-hq-surface-muted hover:underline"
+                data-testid="trains-advanced-settings-link"
+              >
+                {t("advancedSettings")}
+              </Link>
+            </div>
           </div>,
           document.body,
         )

@@ -6,15 +6,21 @@ import { useTranslations } from "next-intl";
 import {
   formatPriceIsRightVsScore,
   samplePriceIsRightTicketCurve,
+  samplePriceIsRightUniformCurve,
   type PriceIsRightChartPoint,
   type PriceIsRightTicketSettings,
 } from "@/lib/trains/train-price-is-right-tickets.shared";
-import { PRICE_IS_RIGHT_MIN_VS_SCORE } from "@/lib/trains/train-economy-threshold.shared";
+import {
+  PRICE_IS_RIGHT_MIN_VS_SCORE,
+  type TrainEconomyThresholdSettings,
+} from "@/lib/trains/train-economy-threshold.shared";
 
 type YMode = "tickets" | "probability";
 
 type Props = {
   settings: PriceIsRightTicketSettings;
+  /** Required for non-raffle (uniform band) curve preview. */
+  economy?: TrainEconomyThresholdSettings | null;
   memberPoints?: PriceIsRightChartPoint[];
   className?: string;
   caption?: string;
@@ -37,30 +43,39 @@ function formatYValue(value: number, mode: YMode): string {
 
 export function PriceIsRightTicketDistributionChart({
   settings,
+  economy = null,
   memberPoints = [],
   className,
   caption,
   "data-testid": dataTestId,
 }: Props) {
   const t = useTranslations("trains.priceIsRight.chart");
-  const [yMode, setYMode] = useState<YMode>("tickets");
+  const weighted = settings.weightingEnabled;
+  const [yMode, setYMode] = useState<YMode>(weighted ? "tickets" : "probability");
   const [hovered, setHovered] = useState<PriceIsRightChartPoint | null>(null);
   const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(
     null,
   );
 
-  const theoreticalPoints = useMemo(
-    () => samplePriceIsRightTicketCurve(settings, 48),
-    [settings],
-  );
+  const theoreticalPoints = useMemo(() => {
+    if (weighted) return samplePriceIsRightTicketCurve(settings, 48);
+    if (!economy) return [];
+    return samplePriceIsRightUniformCurve(economy, 48);
+  }, [economy, settings, weighted]);
 
   const allPoints = useMemo(
     () => [...theoreticalPoints, ...memberPoints],
     [memberPoints, theoreticalPoints],
   );
 
-  if (!settings.weightingEnabled || theoreticalPoints.length < 2) {
-    return null;
+  const effectiveYMode: YMode = weighted ? yMode : "probability";
+
+  if (theoreticalPoints.length < 2) {
+    return caption ? (
+      <div className={className ?? "relative w-full"} data-testid={dataTestId}>
+        <p className="text-xs text-hq-fg-muted">{caption}</p>
+      </div>
+    ) : null;
   }
 
   const innerW = CHART_WIDTH - PAD.left - PAD.right;
@@ -70,11 +85,14 @@ export function PriceIsRightTicketDistributionChart({
   const xSpan = Math.max(maxX - minX, 1);
 
   const yValues = allPoints.map((point) =>
-    yMode === "tickets" ? point.tickets : point.winProbability,
+    effectiveYMode === "tickets" ? point.tickets : point.winProbability,
   );
   const minY = 0;
-  const maxY = Math.max(...yValues, yMode === "tickets" ? 1 : 0.0001);
-  const ySpan = Math.max(maxY - minY, yMode === "tickets" ? 1 : 0.0001);
+  const maxY = Math.max(...yValues, effectiveYMode === "tickets" ? 1 : 0.0001);
+  const ySpan = Math.max(
+    maxY - minY,
+    effectiveYMode === "tickets" ? 1 : 0.0001,
+  );
 
   const mapX = (score: number) =>
     PAD.left + ((score - minX) / xSpan) * innerW;
@@ -83,7 +101,8 @@ export function PriceIsRightTicketDistributionChart({
 
   const curvePolyline = theoreticalPoints
     .map((point) => {
-      const yValue = yMode === "tickets" ? point.tickets : point.winProbability;
+      const yValue =
+        effectiveYMode === "tickets" ? point.tickets : point.winProbability;
       return `${mapX(point.score)},${mapY(yValue)}`;
     })
     .join(" ");
@@ -111,36 +130,38 @@ export function PriceIsRightTicketDistributionChart({
 
   return (
     <div className={className ?? "relative w-full"} data-testid={dataTestId}>
-      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-        <div
-          className="inline-flex rounded-lg border border-hq-border bg-hq-canvas p-0.5"
-          role="group"
-          aria-label={t("yToggleLabel")}
-        >
-          <button
-            type="button"
-            onClick={() => setYMode("tickets")}
-            className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
-              yMode === "tickets"
-                ? "bg-cyan-500/20 text-cyan-200"
-                : "text-hq-fg-muted hover:text-hq-fg"
-            }`}
+      {weighted ? (
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+          <div
+            className="inline-flex rounded-lg border border-hq-border bg-hq-canvas p-0.5"
+            role="group"
+            aria-label={t("yToggleLabel")}
           >
-            {t("yTickets")}
-          </button>
-          <button
-            type="button"
-            onClick={() => setYMode("probability")}
-            className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
-              yMode === "probability"
-                ? "bg-cyan-500/20 text-cyan-200"
-                : "text-hq-fg-muted hover:text-hq-fg"
-            }`}
-          >
-            {t("yProbability")}
-          </button>
+            <button
+              type="button"
+              onClick={() => setYMode("tickets")}
+              className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
+                yMode === "tickets"
+                  ? "bg-cyan-500/20 text-cyan-200"
+                  : "text-hq-fg-muted hover:text-hq-fg"
+              }`}
+            >
+              {t("yTickets")}
+            </button>
+            <button
+              type="button"
+              onClick={() => setYMode("probability")}
+              className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
+                yMode === "probability"
+                  ? "bg-cyan-500/20 text-cyan-200"
+                  : "text-hq-fg-muted hover:text-hq-fg"
+              }`}
+            >
+              {t("yProbability")}
+            </button>
+          </div>
         </div>
-      </div>
+      ) : null}
 
       <div className="relative">
         <svg
@@ -176,7 +197,7 @@ export function PriceIsRightTicketDistributionChart({
             fontSize={10}
             textAnchor="end"
           >
-            {formatYValue(maxY, yMode)}
+            {formatYValue(maxY, effectiveYMode)}
           </text>
           <text
             x={PAD.left - 8}
@@ -186,7 +207,7 @@ export function PriceIsRightTicketDistributionChart({
             textAnchor="end"
             dominantBaseline="hanging"
           >
-            {formatYValue(minY, yMode)}
+            {formatYValue(minY, effectiveYMode)}
           </text>
           {xTicks.map((tick) => (
             <text
@@ -211,7 +232,9 @@ export function PriceIsRightTicketDistributionChart({
           />
           {memberPoints.map((point) => {
             const yValue =
-              yMode === "tickets" ? point.tickets : point.winProbability;
+              effectiveYMode === "tickets"
+                ? point.tickets
+                : point.winProbability;
             const fill = point.isViewer
               ? "#fbbf24"
               : point.isTakedownOverride

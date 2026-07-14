@@ -95,7 +95,7 @@ export function AllianceTrainEconomyThresholdSettings({ allianceTag }: Props) {
   }, [allianceTag, t]);
 
   useEffect(() => {
-    if (!weightingEnabled || !displaySettings?.canManage) return;
+    if (!displaySettings?.canManage) return;
     let cancelled = false;
     void (async () => {
       try {
@@ -119,7 +119,7 @@ export function AllianceTrainEconomyThresholdSettings({ allianceTag }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [displaySettings?.canManage, weightingEnabled]);
+  }, [displaySettings?.canManage]);
 
   const parseOptionalThreshold = (raw: string): number | null => {
     const trimmed = raw.trim();
@@ -137,6 +137,23 @@ export function AllianceTrainEconomyThresholdSettings({ allianceTag }: Props) {
     }),
     [hardCutoffEnabled, maxTicketMemberIds, thresholdPoints, weightingEnabled],
   );
+
+  const previewEconomy = useMemo(
+    () => ({
+      thresholdPoints: parseOptionalThreshold(thresholdPoints),
+      fudgePct: (() => {
+        const fudge = Number.parseInt(fudgePct, 10);
+        return Number.isFinite(fudge) ? Math.min(100, Math.max(0, fudge)) : 1;
+      })(),
+    }),
+    [fudgePct, thresholdPoints],
+  );
+
+  const chartCaption = weightingEnabled
+    ? t("chartCaption")
+    : previewEconomy.thresholdPoints != null
+      ? t("chartCaptionUniform")
+      : t("chartCaptionNoFilter");
 
   const filteredRoster = useMemo(() => {
     const q = takedownQuery.trim().toLowerCase();
@@ -209,7 +226,10 @@ export function AllianceTrainEconomyThresholdSettings({ allianceTag }: Props) {
 
   if (loading) {
     return (
-      <section className="rounded-xl border border-hq-border bg-hq-surface p-5">
+      <section
+        id="price-is-freight"
+        className="scroll-mt-6 rounded-xl border border-hq-border bg-hq-surface p-5"
+      >
         <p className="text-sm text-hq-fg-muted">{t("loading")}</p>
       </section>
     );
@@ -217,14 +237,20 @@ export function AllianceTrainEconomyThresholdSettings({ allianceTag }: Props) {
 
   if (!displaySettings) {
     return error ? (
-      <section className="rounded-xl border border-hq-border bg-hq-surface p-5">
+      <section
+        id="price-is-freight"
+        className="scroll-mt-6 rounded-xl border border-hq-border bg-hq-surface p-5"
+      >
         <p className="text-sm text-hq-danger">{error}</p>
       </section>
     ) : null;
   }
 
   return (
-    <section className="rounded-xl border border-hq-border bg-hq-surface p-5">
+    <section
+      id="price-is-freight"
+      className="scroll-mt-6 rounded-xl border border-hq-border bg-hq-surface p-5"
+    >
       <h2 className="text-base font-semibold text-hq-fg">{t("sectionTitle")}</h2>
       <p className="mt-1 text-sm text-hq-fg-muted">
         {weightingEnabled ? t("sectionBodyWeighting") : t("sectionBody")}
@@ -250,7 +276,11 @@ export function AllianceTrainEconomyThresholdSettings({ allianceTag }: Props) {
           </span>
         </label>
 
-        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+        <div
+          className={`mt-4 grid gap-4 ${
+            weightingEnabled ? "grid-cols-1" : "sm:grid-cols-2"
+          }`}
+        >
           <label className="block text-sm">
             <span className="text-hq-fg-muted">
               {weightingEnabled ? t("cliffLabel") : t("thresholdLabel")}
@@ -294,92 +324,88 @@ export function AllianceTrainEconomyThresholdSettings({ allianceTag }: Props) {
                 {t("fudgeHint")}
               </span>
             </label>
-          ) : (
-            <div className="flex items-end text-xs text-hq-fg-muted">
-              {t("fudgeNotUsed")}
-            </div>
-          )}
+          ) : null}
         </div>
 
         {weightingEnabled ? (
-          <>
-            <label className="mt-4 flex items-start gap-3 text-sm">
-              <input
-                type="checkbox"
-                checked={hardCutoffEnabled}
-                onChange={(event) => setHardCutoffEnabled(event.target.checked)}
-                disabled={!displaySettings.canManage || busy}
-                className="mt-1"
-              />
-              <span>
-                <span className="font-medium text-hq-fg">{t("hardCutoffLabel")}</span>
-                <span className="mt-0.5 block text-hq-fg-muted">
-                  {t("hardCutoffHint")}
-                </span>
+          <label className="mt-4 flex items-start gap-3 text-sm">
+            <input
+              type="checkbox"
+              checked={hardCutoffEnabled}
+              onChange={(event) => setHardCutoffEnabled(event.target.checked)}
+              disabled={!displaySettings.canManage || busy}
+              className="mt-1"
+            />
+            <span>
+              <span className="font-medium text-hq-fg">{t("hardCutoffLabel")}</span>
+              <span className="mt-0.5 block text-hq-fg-muted">
+                {t("hardCutoffHint")}
               </span>
-            </label>
+            </span>
+          </label>
+        ) : null}
 
-            <div className="mt-4">
-              <p className="text-sm font-medium text-hq-fg">{t("takedownLabel")}</p>
-              <p className="mt-0.5 text-xs text-hq-fg-muted">{t("takedownHint")}</p>
-              {selectedMembers.length > 0 ? (
-                <ul className="mt-2 flex flex-wrap gap-2">
-                  {selectedMembers.map((member) => (
+        <div className="mt-4">
+          <p className="text-sm font-medium text-hq-fg">{t("takedownLabel")}</p>
+          <p className="mt-0.5 text-xs text-hq-fg-muted">{t("takedownHint")}</p>
+          {selectedMembers.length > 0 ? (
+            <ul className="mt-2 flex flex-wrap gap-2">
+              {selectedMembers.map((member) => (
+                <li key={member.ashedMemberId}>
+                  <button
+                    type="button"
+                    onClick={() => toggleTakedownMember(member.ashedMemberId)}
+                    disabled={!displaySettings.canManage || busy}
+                    className="rounded-full border border-violet-500/40 bg-violet-500/15 px-3 py-1 text-xs font-medium text-violet-100 hover:bg-violet-500/25 disabled:opacity-60"
+                  >
+                    {member.currentName} ×
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          {displaySettings.canManage ? (
+            <>
+              <input
+                type="search"
+                value={takedownQuery}
+                onChange={(event) => setTakedownQuery(event.target.value)}
+                placeholder={t("takedownSearchPlaceholder")}
+                disabled={busy}
+                className="mt-3 w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 text-sm text-hq-fg disabled:opacity-60"
+              />
+              <ul className="mt-2 max-h-40 space-y-1 overflow-y-auto rounded-lg border border-hq-border bg-hq-canvas/60 p-2">
+                {filteredRoster.length === 0 ? (
+                  <li className="px-2 py-1 text-xs text-hq-fg-muted">
+                    {t("takedownEmpty")}
+                  </li>
+                ) : (
+                  filteredRoster.slice(0, 12).map((member) => (
                     <li key={member.ashedMemberId}>
                       <button
                         type="button"
                         onClick={() => toggleTakedownMember(member.ashedMemberId)}
-                        disabled={!displaySettings.canManage || busy}
-                        className="rounded-full border border-violet-500/40 bg-violet-500/15 px-3 py-1 text-xs font-medium text-violet-100 hover:bg-violet-500/25 disabled:opacity-60"
+                        disabled={busy}
+                        className="w-full rounded-md px-2 py-1.5 text-left text-sm text-hq-fg hover:bg-hq-surface"
                       >
-                        {member.currentName} ×
+                        {member.currentName}
                       </button>
                     </li>
-                  ))}
-                </ul>
-              ) : null}
-              {displaySettings.canManage ? (
-                <>
-                  <input
-                    type="search"
-                    value={takedownQuery}
-                    onChange={(event) => setTakedownQuery(event.target.value)}
-                    placeholder={t("takedownSearchPlaceholder")}
-                    disabled={busy}
-                    className="mt-3 w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 text-sm text-hq-fg disabled:opacity-60"
-                  />
-                  <ul className="mt-2 max-h-40 space-y-1 overflow-y-auto rounded-lg border border-hq-border bg-hq-canvas/60 p-2">
-                    {filteredRoster.length === 0 ? (
-                      <li className="px-2 py-1 text-xs text-hq-fg-muted">
-                        {t("takedownEmpty")}
-                      </li>
-                    ) : (
-                      filteredRoster.slice(0, 12).map((member) => (
-                        <li key={member.ashedMemberId}>
-                          <button
-                            type="button"
-                            onClick={() => toggleTakedownMember(member.ashedMemberId)}
-                            disabled={busy}
-                            className="w-full rounded-md px-2 py-1.5 text-left text-sm text-hq-fg hover:bg-hq-surface"
-                          >
-                            {member.currentName}
-                          </button>
-                        </li>
-                      ))
-                    )}
-                  </ul>
-                </>
-              ) : null}
-            </div>
+                  ))
+                )}
+              </ul>
+            </>
+          ) : null}
+        </div>
 
-            <PriceIsRightTicketDistributionChart
-              className="mt-5"
-              settings={previewSettings}
-              caption={t("chartCaption")}
-              data-testid="price-is-right-settings-chart"
-            />
-          </>
-        ) : null}
+        <PriceIsRightTicketDistributionChart
+          key={weightingEnabled ? "weighted" : "uniform"}
+          className="mt-5"
+          settings={previewSettings}
+          economy={previewEconomy}
+          caption={chartCaption}
+          data-testid="price-is-right-settings-chart"
+        />
 
         {error ? <p className="mt-3 text-sm text-hq-danger">{error}</p> : null}
 

@@ -6,6 +6,12 @@ export type TrainEconomyThresholdSettings = {
 /** Prior-day VS floor for The Price Is Right conductor pool (inclusive). */
 export const PRICE_IS_RIGHT_MIN_VS_SCORE = 7_200_000;
 
+/**
+ * Default economy threshold for new alliances (upper band before fudge).
+ * Null in DB still means "VS filtering off" for non-raffle draws.
+ */
+export const PRICE_IS_RIGHT_DEFAULT_ECONOMY_THRESHOLD_POINTS = 8_500_000;
+
 export function normalizeTrainEconomyThresholdSettings(input: {
   thresholdPoints?: number | null;
   fudgePct?: number | null;
@@ -76,11 +82,13 @@ export function isVsScoreEconomyEligible(
 /**
  * TPIR pick-time filter over unselected pool rows. When only one member remains
  * in the alliance pool generation, they are always eligible (pool guarantee).
+ * Takedown / max-ticket overrides stay eligible even above the economy band.
  */
 export function tpirEligiblePoolEntries<T extends { memberId: string }>(
   unselected: T[],
   scores: Map<string, number>,
   settings: TrainEconomyThresholdSettings,
+  maxTicketMemberIds: readonly string[] = [],
 ): T[] {
   if (unselected.length === 0) {
     return [];
@@ -93,13 +101,15 @@ export function tpirEligiblePoolEntries<T extends { memberId: string }>(
   }
 
   const threshold = settings.thresholdPoints!;
-  return unselected.filter((entry) =>
-    isVsScoreEconomyEligible(
+  const overrides = new Set(maxTicketMemberIds);
+  return unselected.filter((entry) => {
+    if (overrides.has(entry.memberId)) return true;
+    return isVsScoreEconomyEligible(
       vsScoreForEconomyDraw(scores.get(entry.memberId)),
       threshold,
       settings.fudgePct,
-    ),
-  );
+    );
+  });
 }
 
 export function priceIsRightVsScoreRange(

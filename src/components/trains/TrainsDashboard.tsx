@@ -1767,9 +1767,10 @@ export function TrainsDashboard({ initial }: Props) {
                 ) : null}
               </div>
 
-              {conductorMech === "r3_lottery" ||
-              conductorMech === "heavy_hitter_lottery" ||
-              conductorMech === "r4_sequence" ? (
+              {conductorPaint !== "price_is_right" &&
+              (conductorMech === "r3_lottery" ||
+                conductorMech === "heavy_hitter_lottery" ||
+                conductorMech === "r4_sequence") ? (
                 <div className="flex items-center gap-1.5 self-start">
                   <button
                     type="button"
