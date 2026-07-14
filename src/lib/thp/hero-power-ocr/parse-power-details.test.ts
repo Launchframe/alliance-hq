@@ -4,8 +4,27 @@ import {
   coalescePowerDetailsLines,
   parsePowerDetailsLines,
   reconcileBreakdownToTotal,
+  stripOcrCommaSevens,
 } from "@/lib/thp/hero-power-ocr/parse-power-details";
 import { sumThpBreakdown } from "@/lib/thp/breakdown.shared";
+
+describe("stripOcrCommaSevens", () => {
+  it("removes 7s that sit in thousand-separator slots", () => {
+    expect(stripOcrCommaSevens("1478337300")).toBe("14833300");
+    expect(stripOcrCommaSevens("16373817480")).toBe("163381480");
+    expect(stripOcrCommaSevens("8577957832")).toBe("85795832");
+    expect(stripOcrCommaSevens("1278887896")).toBe("12888896");
+    expect(stripOcrCommaSevens("970857358")).toBe("9085358");
+    expect(stripOcrCommaSevens("477027700")).toBe("4702700");
+  });
+
+  it("does not strip real component values that contain 7s", () => {
+    expect(stripOcrCommaSevens("7053833")).toBeNull();
+    expect(stripOcrCommaSevens("4702700")).toBeNull();
+    expect(stripOcrCommaSevens("6574310")).toBeNull();
+    expect(stripOcrCommaSevens("85857448")).toBeNull();
+  });
+});
 
 describe("parsePowerDetailsLines", () => {
   it("parses clean hero power total and all seven components", () => {
@@ -143,6 +162,56 @@ describe("parsePowerDetailsLines", () => {
     expect(parsed.complete).toBe(false);
     expect(parsed.breakdown.heroTier).toBeUndefined();
     expect(parsed.heroPowerTotal).toBeNull();
+  });
+
+  it("parses the Jul 14 screenshot when commas were OCR'd as 7s", () => {
+    const lines = [
+      "Hero Power 16373817480",
+      "Hero Level 8577957832",
+      "Decorations & Building",
+      "Stats 37293172",
+      "Gear 1278887896",
+      "Exclusive Weapon 970857358",
+      "Hero Tier 770417212",
+      "Hero Skill 6574310",
+      "Wall of Honor 477027700",
+      "Drone Level 5346950",
+      "Buildings 1478337300",
+    ];
+    const parsed = parsePowerDetailsLines(lines);
+    expect(parsed.complete).toBe(true);
+    expect(parsed.heroPowerTotal).toBe(163_381_480);
+    expect(parsed.breakdown).toEqual({
+      heroLevel: 85_795_832,
+      decorationsAndBuildings: 37_293_172,
+      gear: 12_888_896,
+      exclusiveWeapons: 9_085_358,
+      heroTier: 7_041_212,
+      heroSkill: 6_574_310,
+      wallOfHonor: 4_702_700,
+    });
+  });
+
+  it("recovers Hero Power total from live dual-pass OCR lines", () => {
+    // Real dual-pass output from the Jul 14 screenshot: header commas→digits mix,
+    // body still drops/duplicates glyphs on some rows.
+    const lines = [
+      "POWER DETAILS",
+      "{E)[Herolpower, 163}381/480] v/",
+      "Hero Level B85%95'832",
+      "Decorations & Building",
+      "Stats 37293172",
+      "Gear 12/8881896",
+      "Exclusive Weapon 9085358",
+      "Hero Tier 1710414212,",
+      "Hero Skill 61574310]",
+      "Wall of Honor 40200",
+      "Drone Level 513461950",
+    ];
+    const parsed = parsePowerDetailsLines(lines);
+    expect(parsed.heroPowerTotal).toBe(163_381_480);
+    expect(parsed.breakdown.decorationsAndBuildings).toBe(37_293_172);
+    expect(parsed.breakdown.exclusiveWeapons).toBe(9_085_358);
   });
 });
 

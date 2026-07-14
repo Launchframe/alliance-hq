@@ -2,8 +2,9 @@
  * Parse OCR text lines from the in-game Power Details screen.
  *
  * Tesseract often turns thousand-separators into apostrophes, dashes, slashes,
- * brackets, or currency glyphs (`85'857244 8!`, `4%,02¥,00`). Value extraction
- * must tolerate that junk and strip to digits. Drone/Building sections are ignored.
+ * brackets, currency glyphs, or the digit `7` (`14,833,300` → `1478337300`).
+ * Value extraction must tolerate that junk and strip separator-`7`s. Drone /
+ * Building sections are ignored.
  */
 
 import {
@@ -68,13 +69,64 @@ function normalizePowerDetailsNumberBlob(blob: string): string {
     .replace(/[!?|]+$/g, "");
 }
 
+/**
+ * Tesseract often reads thin thousand-commas as the digit `7`
+ * (`14,833,300` → `1478337300`). Walk right-to-left in groups of three digits
+ * and drop a `7` sitting in each separator slot — but only when the number of
+ * dropped `7`s matches the expected comma count for the remaining value
+ * (avoids eating a real `7` in `85,857,448`).
+ */
+export function stripOcrCommaSevens(digits: string): string | null {
+  const chars = digits.replace(/\D/g, "");
+  if (chars.length < 5) return null;
+
+  let i = chars.length - 1;
+  const kept: string[] = [];
+  let skipped = 0;
+
+  while (i >= 0) {
+    let taken = 0;
+    while (taken < 3 && i >= 0) {
+      kept.push(chars[i]!);
+      i -= 1;
+      taken += 1;
+    }
+    if (i < 0) break;
+    if (chars[i] === "7") {
+      i -= 1;
+      skipped += 1;
+      continue;
+    }
+    // Separator slot was not a 7 — only valid when the leftover is a short head.
+    if (i >= 3) return null;
+  }
+
+  if (skipped === 0) return null;
+  const next = kept.reverse().join("");
+  if (!next || next.startsWith("0")) return null;
+  const expectedCommas = Math.floor((next.length - 1) / 3);
+  if (skipped !== expectedCommas) return null;
+  if (chars.length !== next.length + skipped) return null;
+  return next;
+}
+
+function parsePowerDetailsInteger(token: string): number | null {
+  const normalized = normalizePowerDetailsNumberBlob(token);
+  const raw = parseIntegerToken(normalized);
+  if (raw == null) return null;
+  const stripped = stripOcrCommaSevens(String(raw));
+  if (stripped != null) {
+    const value = Number.parseInt(stripped, 10);
+    if (Number.isFinite(value)) return value;
+  }
+  return raw;
+}
+
 function extractTrailingNumber(line: string): number | null {
   const trimmed = line.trim().replace(/[!?|]+$/g, "");
   const matches = [...trimmed.matchAll(TRAILING_NUMBER_BLOB_RE)];
   if (matches.length === 0) return null;
-  return parseIntegerToken(
-    normalizePowerDetailsNumberBlob(matches[matches.length - 1]![1]!),
-  );
+  return parsePowerDetailsInteger(matches[matches.length - 1]![1]!);
 }
 
 function splitLabelValue(line: string): { label: string; valuePart: string } {
@@ -111,6 +163,9 @@ function candidateDigitRepairs(value: number): number[] {
     if (Number.isFinite(nextValue) && nextValue !== value) out.add(nextValue);
   };
 
+  const commaStripped = stripOcrCommaSevens(digits);
+  if (commaStripped) add(commaStripped);
+
   const swapsAt = (input: string, index: number): string[] => {
     const ch = input[index]!;
     const variants: string[] = [];
@@ -132,6 +187,13 @@ function candidateDigitRepairs(value: number): number[] {
       }
     }
     add(`${digits.slice(0, i)}${digits.slice(i + 1)}`);
+  }
+
+  // OCR sometimes drops a real `7` (85%95'832 → 8595832 instead of 85795832).
+  if (digits.length >= 6 && digits.length <= 8) {
+    for (let i = 1; i < digits.length; i += 1) {
+      add(`${digits.slice(0, i)}7${digits.slice(i)}`);
+    }
   }
 
   for (const [from, to] of PREFIX_CONFUSIONS) {
@@ -199,6 +261,16 @@ function repairEditCost(from: number, to: number): number {
       if (`${fromDigits.slice(0, i)}${fromDigits.slice(i + 1)}` === toDigits) {
         // Prefer dropping an interior/trailing glyph over the leading digit.
         return i === 0 ? 4 : 1;
+      }
+    }
+  }
+  if (toDigits.length === fromDigits.length + 1) {
+    for (let i = 0; i < toDigits.length; i += 1) {
+      if (
+        toDigits[i] === "7" &&
+        `${toDigits.slice(0, i)}${toDigits.slice(i + 1)}` === fromDigits
+      ) {
+        return 1;
       }
     }
   }
@@ -283,18 +355,30 @@ function lengthReduceQuality(from: number, to: number): number {
   }
   return longestCommonPrefixLength(a, b);
 }
+function minLenForKey(key: ThpBreakdownKey): number {
+  return key === "heroLevel" ||
+    key === "decorationsAndBuildings" ||
+    key === "gear"
+    ? 7
+    : 6;
+}
+
+function maxLenForKey(key: ThpBreakdownKey): number {
+  return key === "heroLevel" ||
+    key === "decorationsAndBuildings" ||
+    key === "gear"
+    ? 8
+    : 7;
+}
+
 function ocrSuspicion(key: ThpBreakdownKey, value: number): number {
   const digits = String(Math.trunc(value));
   let score = 0;
   if (PREFIX_CONFUSIONS.some(([prefix]) => digits.startsWith(prefix))) score += 10;
-  // Typical component widths at mid/high power: level/deco/gear ≤8, others ≤7.
-  const maxLen =
-    key === "heroLevel" ||
-    key === "decorationsAndBuildings" ||
-    key === "gear"
-      ? 8
-      : 7;
-  if (digits.length > maxLen) score += 8;
+  // Typical component widths at mid/high power: level/deco/gear = 8, others = 7.
+  const expectedLen = maxLenForKey(key);
+  if (digits.length > expectedLen) score += 8;
+  if (digits.length < expectedLen) score += 8;
   if (digits.length > 9) score += 4;
   if (key === "wallOfHonor") score += 4;
   return score;
@@ -324,26 +408,43 @@ function optionAllowedForKey(
     return true;
   }
 
+  const maxLen = maxLenForKey(key);
   // Oversized OCR blobs: only same-leading length reductions.
-  const maxLen =
-    key === "heroLevel" ||
-    key === "decorationsAndBuildings" ||
-    key === "gear"
-      ? 8
-      : 7;
   if (fromText.length > maxLen) {
     return (
       toText.length < fromText.length &&
-      toText.length >= 7 &&
+      toText.length >= minLenForKey(key) &&
       toText.length <= maxLen &&
       toText[0] === fromText[0]
     );
   }
 
+  // Exactly one digit short: only allow single `7` insertions to expected width.
+  if (fromText.length === maxLen - 1) {
+    if (toText.length !== maxLen || cost !== 1) return false;
+    for (let i = 0; i < toText.length; i += 1) {
+      if (
+        toText[i] === "7" &&
+        `${toText.slice(0, i)}${toText.slice(i + 1)}` === fromText
+      ) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // Other undersized OCR blobs: allow cost≤2 edits toward expected width.
+  if (fromText.length < maxLen) {
+    return (
+      cost <= 2 &&
+      toText.length >= minLenForKey(key) &&
+      toText.length <= maxLen
+    );
+  }
   if (toText.length === fromText.length) return cost <= 2;
   return (
     toText.length < fromText.length &&
-    toText.length >= 7 &&
+    toText.length >= minLenForKey(key) &&
     toText.length <= maxLen &&
     toText[0] === fromText[0]
   );
@@ -393,21 +494,14 @@ export function reconcileBreakdownToTotal(
     );
 
     // Force repair of clearly mangled OCR blobs: drop the raw value when a
-    // constrained alternative exists (leading 12→7, or oversized digit stubs).
+    // constrained alternative exists (leading 12→7, over/undersized digit stubs).
     const forcedOptions = (() => {
       const original = breakdown[key];
       const text = String(original);
-      const maxLen =
-        key === "heroLevel" ||
-        key === "decorationsAndBuildings" ||
-        key === "gear"
-          ? 8
-          : 7;
+      const maxLen = maxLenForKey(key);
       const hasAlt = healthyOptions.some((value) => value !== original);
       if (!hasAlt) return healthyOptions;
-      if (text.length > maxLen) {
-        return healthyOptions.filter((value) => value !== original);
-      }
+      // Prefer prefix 12→7 over generic length reduction when both apply.
       if (PREFIX_CONFUSIONS.some(([prefix]) => text.startsWith(prefix))) {
         const prefixHits = healthyOptions.filter((value) => {
           const to = String(value);
@@ -418,6 +512,13 @@ export function reconcileBreakdownToTotal(
           );
         });
         if (prefixHits.length > 0) return prefixHits;
+      }
+      if (text.length > maxLen) {
+        return healthyOptions.filter((value) => value !== original);
+      }
+      // Exactly one digit short (often a dropped `7`) — force a lengthening repair.
+      if (text.length === maxLen - 1) {
+        return healthyOptions.filter((value) => value !== original);
       }
       return healthyOptions;
     })();
@@ -882,7 +983,7 @@ export function parsePowerDetailsLines(lines: string[]): ParsePowerDetailsResult
     const key = matchThpLabel(labelPart);
     if (!key) continue;
     const value =
-      parseIntegerToken(valuePart) ?? extractTrailingNumber(line);
+      parsePowerDetailsInteger(valuePart) ?? extractTrailingNumber(line);
     if (value != null) {
       breakdown[key] = value;
     }

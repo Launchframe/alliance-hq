@@ -35,6 +35,10 @@ function mergeOcrLines(primary: string[], secondary: string[]): string[] {
   return out;
 }
 
+function isUsefulHeaderLine(line: string): boolean {
+  return /hero\s*l?\s*powers?/i.test(line) || /power\s*details/i.test(line);
+}
+
 function parseScore(parsed: ParsePowerDetailsResult): number {
   let score = 0;
   if (parsed.heroPowerTotal != null) score += 100;
@@ -58,7 +62,9 @@ export async function parsePowerDetailsImage(
   const headerPre = await preprocessPowerDetailsHeaderBand(imageBuffer);
   const headerLines = (
     await runTesseract(headerPre.buffer, POWER_DETAILS_HEADER_OCR_CONFIG)
-  ).map((line) => line.text);
+  )
+    .map((line) => line.text)
+    .filter(isUsefulHeaderLine);
 
   const mergedLines = mergeOcrLines(headerLines, bodyLines);
   const bodyOnly = parsePowerDetailsLines(bodyLines);

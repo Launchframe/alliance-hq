@@ -17,30 +17,30 @@ export const THP_LABEL_ALIASES: ReadonlyArray<{
   key: ThpBreakdownKey;
   patterns: RegExp[];
 }> = [
-  { key: "heroLevel", patterns: [/^hero\s*level$/i] },
+  { key: "heroLevel", patterns: [/^hero\s*level\b/i] },
   {
     key: "decorationsAndBuildings",
     patterns: [
-      /^decorations?\s*(?:&|and)\s*building(?:\s*stats?)?$/i,
-      /^decorations?\s*and\s*buildings?$/i,
+      /^decorations?\s*(?:&|and)\s*building(?:\s*stats?)?\b/i,
+      /^decorations?\s*and\s*buildings?\b/i,
     ],
   },
-  { key: "gear", patterns: [/^gear$/i] },
+  { key: "gear", patterns: [/^gear\b/i] },
   {
     key: "exclusiveWeapons",
-    patterns: [/^exclusive\s*weapons?$/i],
+    patterns: [/^exclusive\s*weapons?\b/i],
   },
   {
     key: "heroTier",
     patterns: [
-      /^hero\s*tier$/i,
-      /^her[o0]\s*t[il1]er$/i,
-      /^hero\s*tief$/i,
-      /^hero\s*tie[rn]$/i,
+      /^hero\s*tier\b/i,
+      /^her[o0]\s*t[il1]er\b/i,
+      /^hero\s*tief\b/i,
+      /^hero\s*tie[rn]\b/i,
     ],
   },
-  { key: "heroSkill", patterns: [/^hero\s*skill$/i, /^hera\s*skill$/i] },
-  { key: "wallOfHonor", patterns: [/^wall\s*of\s*honou?r$/i] },
+  { key: "heroSkill", patterns: [/^hero\s*skill\b/i, /^hera\s*skill\b/i] },
+  { key: "wallOfHonor", patterns: [/^wall\s*of\s*honou?r\b/i] },
 ];
 
 export function sumThpBreakdown(breakdown: ThpBreakdown): number {

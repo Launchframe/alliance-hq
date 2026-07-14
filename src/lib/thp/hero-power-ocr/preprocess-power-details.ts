@@ -24,8 +24,8 @@ const POWER_DETAILS_CHAR_WHITELIST =
 export const POWER_DETAILS_BODY_OCR_CONFIG: Partial<RosterOcrConfig> = {
   mode: "roster-ocr",
   preprocessScale: 2.75,
-  // Single column of label/value rows.
-  tesseractPsm: 4,
+  // Uniform block works better for the light-bg label/value list than PSM 4.
+  tesseractPsm: 6,
   charWhitelist: POWER_DETAILS_CHAR_WHITELIST,
   // Keep weak rows (Hero Tier is often low-confidence).
   minWordConfidence: 0,
@@ -77,9 +77,8 @@ export async function preprocessPowerDetailsImage(
     .extract(crop)
     .resize(targetWidth, targetHeight, { kernel: sharp.kernel.lanczos3 })
     .greyscale()
-    .normalize({ lower: 1, upper: 99 })
-    .linear(1.15, -12)
-    .sharpen({ sigma: 0.5 })
+    .normalize({ lower: 2, upper: 98 })
+    .sharpen({ sigma: 0.55 })
     .png()
     .toBuffer();
 
