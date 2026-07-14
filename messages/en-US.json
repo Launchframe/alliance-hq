@@ -1938,6 +1938,9 @@
     "trainsSectionTitle": "Trains",
     "trainsSectionBody": "Configure train week start, Discord announcements, and conductor minimums.",
     "trainsSectionLink": "Open train settings",
+    "gameSeasonsSectionTitle": "Game season",
+    "gameSeasonsSectionBody": "Last War season used for train records and scoring, plus VR sandbox practice mode.",
+    "gameSeasonsSectionLink": "Open game season settings",
     "memberOnboardingSection": {
       "title": "Member onboarding",
       "body": "Control how new members join, who can send invites, and who reviews commander links.",
@@ -1953,6 +1956,10 @@
     "trains": {
       "title": "Trains",
       "subtitle": "Train configuration for {tag}."
+    },
+    "gameSeasons": {
+      "title": "Game season",
+      "subtitle": "Season and VR sandbox settings for {tag}."
     },
     "allianceContext": {
       "title": "Choose an alliance",

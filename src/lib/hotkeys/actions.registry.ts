@@ -14,6 +14,7 @@ const NATIVE_MODE_EXTRA_HREFS = new Set([
   "/settings/team",
   "/settings/discord",
   "/settings/trains",
+  "/settings/game-seasons",
   "/settings/upload-reminders",
   "/settings/hotkeys",
   "/tools/video-upload/queue",

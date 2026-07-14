@@ -1884,6 +1884,9 @@
     "trainsSectionTitle": "Trens",
     "trainsSectionBody": "Configure o início da semana de trem, anúncios no Discord e mínimos do condutor.",
     "trainsSectionLink": "Abrir configurações de trem",
+    "gameSeasonsSectionTitle": "Temporada do jogo",
+    "gameSeasonsSectionBody": "Temporada de Last War usada em registros de trem e pontuação, além do modo sandbox de VR.",
+    "gameSeasonsSectionLink": "Abrir configurações de temporada",
     "backToAllianceSettings": "Configurações da aliança",
     "discord": {
       "title": "Integração com Discord",
@@ -1894,6 +1897,10 @@
     "trains": {
       "title": "Trens",
       "subtitle": "Configuração de trem para {tag}."
+    },
+    "gameSeasons": {
+      "title": "Temporada do jogo",
+      "subtitle": "Configurações de temporada e sandbox de VR para {tag}."
     },
     "allianceContext": {
       "title": "Escolha uma aliança",
