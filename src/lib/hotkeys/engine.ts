@@ -76,17 +76,37 @@ export function isTypingTarget(target: EventTarget | null): boolean {
   return Boolean(target.closest("[data-hotkey-ignore]"));
 }
 
+/**
+ * Visible modal dialogs only. `Dialog` uses `invisible` while
+ * `presentationHidden` (bug-report screenshot) — those must not suppress the
+ * global hotkey registry.
+ */
+export const OPEN_MODAL_DIALOG_SELECTOR =
+  '[role="dialog"][aria-modal="true"]:not(.invisible)';
+
 function isOpenModalDialog(target: EventTarget | null): boolean {
   if (typeof document === "undefined") return false;
   // Allow typing-target check to own focus-inside-dialog handling; this catches
   // page hotkeys (spin, etc.) firing while a modal is open in the background.
   if (
     target instanceof Element &&
-    target.closest('[role="dialog"][aria-modal="true"]')
+    target.closest(OPEN_MODAL_DIALOG_SELECTOR)
   ) {
     return true;
   }
-  return Boolean(document.querySelector('[role="dialog"][aria-modal="true"]'));
+  return Boolean(document.querySelector(OPEN_MODAL_DIALOG_SELECTOR));
+}
+
+function isPaletteOpenChord(
+  event: KeyboardEvent,
+  allowPaletteChord: boolean | undefined,
+): boolean {
+  if (!allowPaletteChord) return false;
+  const parsed = parseKeyboardEvent(event);
+  return (
+    parsed.key === "k" &&
+    (parsed.modifiers.includes("meta") || parsed.modifiers.includes("ctrl"))
+  );
 }
 
 export function shouldIgnoreHotkeysForEvent(
@@ -101,16 +121,12 @@ export function shouldIgnoreHotkeysForEvent(
   }
 
   if (isTypingTarget(event.target)) {
-    const parsed = parseKeyboardEvent(event);
-    const isPaletteChord =
-      options.allowPaletteChord &&
-      parsed.key === "k" &&
-      (parsed.modifiers.includes("meta") || parsed.modifiers.includes("ctrl"));
-    return !isPaletteChord;
+    return !isPaletteOpenChord(event, options.allowPaletteChord);
   }
 
   if (isOpenModalDialog(event.target)) {
-    return true;
+    // Keep Cmd/Ctrl+K available over modals; suppress page actions (spin, etc.).
+    return !isPaletteOpenChord(event, options.allowPaletteChord);
   }
 
   return false;
