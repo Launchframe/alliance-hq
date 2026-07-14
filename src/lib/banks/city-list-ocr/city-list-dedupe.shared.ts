@@ -3,9 +3,10 @@
  * Banks are keyed by exact server + coordinates (unique tile identity).
  */
 
-import type {
-  ParsedCityListBank,
-  ParsedCityListSnapshot,
+import {
+  CITY_LIST_DEFAULT_LEVEL,
+  type ParsedCityListBank,
+  type ParsedCityListSnapshot,
 } from "@/lib/banks/city-list-ocr/parse-city-list-text.shared";
 import {
   emptyDedupeReport,
@@ -65,8 +66,13 @@ export function coalesceCityListBanks(
     ) {
       dest.crystalGoldValue = bank.crystalGoldValue;
     }
-    // Default level is 1 when OCR misses Lv — prefer any higher recovered level.
-    if (bank.level > dest.level) {
+    // Default level is 1 when OCR misses Lv — prefer a recovered level.
+    // Do not escalate between two non-default OCR readings (avoids inventing
+    // a higher Lv from a noisier pass).
+    if (
+      dest.level <= CITY_LIST_DEFAULT_LEVEL &&
+      bank.level > dest.level
+    ) {
       dest.level = bank.level;
     }
   }
@@ -99,6 +105,33 @@ function firstNonNullString(
 export const CITY_LIST_OCR_PASS_COORD_TOLERANCE = 2;
 
 /**
+ * Index of the nearest primary bank within coord tolerance, or -1.
+ * Prefer nearest over first-match so a candidate that sits in two tiles'
+ * windows attaches to the closer physical bank.
+ */
+function findNearestPassBankIndex(
+  banks: readonly ParsedCityListBank[],
+  candidate: ParsedCityListBank,
+  tolerance: number,
+): number {
+  let bestIdx = -1;
+  let bestDist = Number.POSITIVE_INFINITY;
+  for (let i = 0; i < banks.length; i += 1) {
+    const bank = banks[i]!;
+    if (bank.gameServerNumber !== candidate.gameServerNumber) continue;
+    const dx = Math.abs(bank.coordX - candidate.coordX);
+    const dy = Math.abs(bank.coordY - candidate.coordY);
+    if (dx > tolerance || dy > tolerance) continue;
+    const dist = dx * dx + dy * dy;
+    if (dist < bestDist) {
+      bestDist = dist;
+      bestIdx = i;
+    }
+  }
+  return bestIdx;
+}
+
+/**
  * Merge primary + secondary OCR passes from one screenshot.
  * Keeps primary coordinates when a secondary tile is within tolerance;
  * appends secondary tiles that are genuinely new (e.g. a recovered top row).
@@ -110,13 +143,10 @@ export function mergeCityListOcrPasses(
   const banks: ParsedCityListBank[] = primary.banks.map((bank) => ({ ...bank }));
 
   for (const candidate of secondary.banks) {
-    const idx = banks.findIndex(
-      (bank) =>
-        bank.gameServerNumber === candidate.gameServerNumber &&
-        Math.abs(bank.coordX - candidate.coordX) <=
-          CITY_LIST_OCR_PASS_COORD_TOLERANCE &&
-        Math.abs(bank.coordY - candidate.coordY) <=
-          CITY_LIST_OCR_PASS_COORD_TOLERANCE,
+    const idx = findNearestPassBankIndex(
+      banks,
+      candidate,
+      CITY_LIST_OCR_PASS_COORD_TOLERANCE,
     );
     if (idx >= 0) {
       const kept = banks[idx]!;

@@ -326,6 +326,42 @@ describe("parseCityListBanks", () => {
     ]);
   });
 
+  it("prefers a 3-digit server split for short glued server+X tokens", () => {
+    const banks = parseCityListBanks([
+      "500.00K",
+      "Lv.2",
+      "(#999599, V:100)",
+    ]);
+    expect(banks).toEqual([
+      {
+        level: 2,
+        crystalGoldValue: 500_000,
+        gameServerNumber: 999,
+        coordX: 599,
+        coordY: 100,
+        currentDepositCount: null,
+      },
+    ]);
+  });
+
+  it("keeps 4-digit server when glued X matches a 2-digit Y magnitude", () => {
+    const banks = parseCityListBanks([
+      "486.00K",
+      "Lv.2",
+      "(#121199, V:99)",
+    ]);
+    expect(banks).toEqual([
+      {
+        level: 2,
+        crystalGoldValue: 486_000,
+        gameServerNumber: 1211,
+        coordX: 99,
+        coordY: 99,
+        currentDepositCount: null,
+      },
+    ]);
+  });
+
   it("keeps both grid rows when soft OCR recovers Lv: and bracket coords", () => {
     // Captured from soft-greyscale Tesseract on bank-stronghold-city-list.png.
     const banks = parseCityListBanks([
