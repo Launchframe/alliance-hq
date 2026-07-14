@@ -14,6 +14,7 @@ import {
   buildDepositAllianceSummary,
   filterSlipsByDepositAlliance,
   formatDepositAllianceReportPlaintext,
+  resolveDepositAllianceFilter,
   uniqueDepositAllianceTags,
   type DepositAllianceFilter,
 } from "@/lib/banks/deposit-alliance-report.shared";
@@ -106,12 +107,8 @@ export function DepositSlipList({ bank, canWrite, onAdd, onEdit, onDelete }: Pro
   );
 
   // Drop a stale tag selection without setState-in-effect (React Compiler).
-  const resolvedFilter: DepositAllianceFilter =
-    allianceFilter === DEPOSIT_ALLIANCE_FILTER_ALL ||
-    allianceFilter === DEPOSIT_ALLIANCE_FILTER_UNTAGGED ||
-    tags.includes(allianceFilter)
-      ? allianceFilter
-      : DEPOSIT_ALLIANCE_FILTER_ALL;
+  // Rematch case-insensitively so OCR casing drift does not reset to All.
+  const resolvedFilter = resolveDepositAllianceFilter(allianceFilter, tags);
 
   useEffect(() => {
     return () => {

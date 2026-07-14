@@ -36,18 +36,42 @@ function normalizeTag(tag: string | null | undefined): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
-/** Sorted distinct non-empty depositor alliance tags. */
+/** Sorted distinct non-empty depositor alliance tags (case-insensitive dedupe). */
 export function uniqueDepositAllianceTags(
   slips: readonly Pick<SerializedDepositSlip, "depositAllianceTag">[],
 ): string[] {
-  const tags = new Set<string>();
+  /** Lowercase → first-seen casing. */
+  const byLower = new Map<string, string>();
   for (const slip of slips) {
     const tag = normalizeTag(slip.depositAllianceTag);
-    if (tag) tags.add(tag);
+    if (!tag) continue;
+    const key = tag.toLowerCase();
+    if (!byLower.has(key)) byLower.set(key, tag);
   }
-  return [...tags].sort((a, b) =>
+  return [...byLower.values()].sort((a, b) =>
     a.localeCompare(b, undefined, { sensitivity: "base" }),
   );
+}
+
+/**
+ * Map a stored filter selection onto the current tag list. Sentinels pass
+ * through; tag selections rematch case-insensitively so OCR casing drift does
+ * not silently reset the filter to All.
+ */
+export function resolveDepositAllianceFilter(
+  filter: DepositAllianceFilter,
+  tags: readonly string[],
+): DepositAllianceFilter {
+  if (
+    filter === DEPOSIT_ALLIANCE_FILTER_ALL ||
+    filter === DEPOSIT_ALLIANCE_FILTER_UNTAGGED
+  ) {
+    return filter;
+  }
+  const wanted = filter.trim().toLowerCase();
+  if (!wanted) return DEPOSIT_ALLIANCE_FILTER_ALL;
+  const match = tags.find((tag) => tag.toLowerCase() === wanted);
+  return match ?? DEPOSIT_ALLIANCE_FILTER_ALL;
 }
 
 export function filterSlipsByDepositAlliance<
