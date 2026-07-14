@@ -22,6 +22,13 @@ export async function POST(_request: Request, { params }: Props) {
       return videoJobAccessErrorResponse(access);
     }
 
+    if (access.job.status === "complete" || access.job.status === "submitting") {
+      return NextResponse.json(
+        { error: "Cannot rematch members after scores have been submitted." },
+        { status: 409 },
+      );
+    }
+
     const result = await rematchVideoJobMembers(jobId, {
       callerSessionId: session.id,
     });

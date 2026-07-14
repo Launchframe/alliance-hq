@@ -51,14 +51,18 @@ import {
   replaceAshedScoresForContext,
   resolveOrCreateAshedEvent,
 } from "@/lib/video/ashed-event-provision.server";
+import { shouldReplaceAshedScoresOnSubmit } from "@/lib/video/ashed-score-replace.shared";
+import { withAshedScoreReplaceLock } from "@/lib/video/ashed-score-replace-lock.server";
 import {
   buildSubmitPayloads,
   validateSubmitContext,
   type SubmitContext,
 } from "@/lib/video/submit-schemas";
+import { isValidVsPerformanceRecordedDate } from "@/lib/video/vs-recorded-date.shared";
 import { computeQualityScore } from "@/lib/video/quality-score";
 import {
   isVideoJobReadyForSubmit,
+  resolveVideoSubmitRollbackStatus,
   VIDEO_SUBMIT_IN_PROGRESS_ERROR,
   VIDEO_SUBMIT_READY_STATUSES,
   videoSubmitClaimLostError,
@@ -168,11 +172,13 @@ export async function POST(request: Request, { params }: Props) {
   const session = await getOrCreateSession();
   const { jobId } = await params;
   let advancedToSubmitting = false;
+  /** True only after bulkDeleteByDate succeeded — insert may still fail. */
+  let clearedPriorAshedScores = false;
   let jobSnapshot: {
     fileName: string | null;
     scoreTarget: string | null;
     category: string | null;
-    /** Status before we wrote "submitting" — used for rollback so event-view re-submits roll back to "complete", not "review". */
+    /** Status before we wrote "submitting" — used for rollback when Ashed was not wiped. */
     originalStatus: string;
     uploaderSessionId: string;
     enqueuedByHqUserId: string | null;
@@ -700,6 +706,19 @@ export async function POST(request: Request, { params }: Props) {
       return NextResponse.json({ error: contextError }, { status: 400 });
     }
 
+    if (
+      scoreTargetId === "vs-performance" &&
+      !isValidVsPerformanceRecordedDate(submitContext.recordedDate)
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "VS has no Sunday match day. Pick a Monday–Saturday recorded date.",
+        },
+        { status: 400 },
+      );
+    }
+
     const duplicateMembers = findDuplicateMemberAssignments(
       activeRows.map((row) => ({
         id: row.id,
@@ -802,36 +821,40 @@ export async function POST(request: Request, { params }: Props) {
       errorMessage: null,
     });
 
-    // Batch-update: clear prior scores for this event/team/date, then insert.
-    if (
-      target.eventEntity &&
-      !usesHqEventStore(target) &&
-      submitContext.eventId &&
-      target.submitMethod === "bulk"
-    ) {
-      await replaceAshedScoresForContext({
-        connection,
-        target,
-        ashedAllianceId,
-        recordedDate: submitContext.recordedDate,
-        context: {
-          eventId: submitContext.eventId,
-          team: submitContext.team,
-          boardKey: submitContext.boardKey,
-          hqEventId: submitContext.hqEventId,
-          commendationId: submitContext.commendationId,
+    // Clear prior Ashed rows for this day/event before insert so re-submit
+    // (Update scores) replaces instead of stacking to 2×. Serialize concurrent
+    // same-alliance/date replaces so two officers cannot interleave delete/insert.
+    const replaceScores = shouldReplaceAshedScoresOnSubmit(target, {
+      eventId: submitContext.eventId,
+    });
+    const runReplaceAndInsert = async () => {
+      if (replaceScores) {
+        await replaceAshedScoresForContext({
+          connection,
+          target,
+          ashedAllianceId,
+          recordedDate: submitContext.recordedDate,
+          context: {
+            eventId: submitContext.eventId,
+            team: submitContext.team,
+            boardKey: submitContext.boardKey,
+            hqEventId: submitContext.hqEventId,
+            commendationId: submitContext.commendationId,
+          },
+        });
+        clearedPriorAshedScores = true;
+      }
+      await dispatchScoreSubmit(connection, target, payloads);
+    };
+    if (replaceScores) {
+      await withAshedScoreReplaceLock(
+        {
+          allianceId,
+          scoreTarget: target.id,
+          recordedDate: submitContext.recordedDate,
         },
-      });
-    }
-
-    await dispatchScoreSubmit(connection, target, payloads);
-
-    if (
-      target.eventEntity &&
-      !usesHqEventStore(target) &&
-      submitContext.eventId &&
-      target.submitMethod === "bulk"
-    ) {
+        runReplaceAndInsert,
+      );
       await markMatchingDataBatchesDeleted({
         allianceId,
         scoreTarget: target.id,
@@ -839,6 +862,8 @@ export async function POST(request: Request, { params }: Props) {
         eventId: submitContext.eventId,
         team: submitContext.team ?? null,
       });
+    } else {
+      await runReplaceAndInsert();
     }
 
     if (submitContext.hqEventId) {
@@ -988,9 +1013,10 @@ export async function POST(request: Request, { params }: Props) {
     if (advancedToSubmitting && jobSnapshot) {
       try {
         const db = getDb();
-        const rollbackStatus = jobSnapshot.originalStatus === "complete"
-          ? "complete"
-          : "review";
+        const rollbackStatus = resolveVideoSubmitRollbackStatus({
+          originalStatus: jobSnapshot.originalStatus,
+          clearedPriorAshedScores,
+        });
         await db
           .update(schema.videoJobs)
           .set({ status: rollbackStatus, updatedAt: new Date() })

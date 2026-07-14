@@ -38,6 +38,10 @@ export async function rematchVideoJobMembers(
     throw new Error("Job has no parsed rows to rematch.");
   }
 
+  if (job.status === "complete" || job.status === "submitting") {
+    throw new Error("Cannot rematch members after scores have been submitted.");
+  }
+
   const { callerSessionId } = options;
   const connection = await getAshedConnection(callerSessionId);
   if (!connection) {

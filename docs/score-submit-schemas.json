@@ -59,7 +59,7 @@
       ]
     },
     "VSScore": {
-      "method": "upsert",
+      "method": "bulk",
       "fields": [
         "alliance_id",
         "member_id",
