@@ -3328,6 +3328,13 @@
     "priceIsRight": {
       "title": "Tickets de rifa",
       "decayHint": "Mais perto de 7,2M → mais tickets.",
+      "oddsTitleUniform": "Chances do sorteio do condutor",
+      "oddsSubtitleUniform": "Chance igual entre R3 com VS do dia anterior na faixa econômica. Ordenado por nome.",
+      "oddsTitleHeavyHitter": "Chances do sorteio heavy-hitter",
+      "oddsSubtitleHeavyHitter": "Chance igual entre os heavy hitters configurados.",
+      "oddsEmptyUniform": "Nenhum membro R3 está na faixa de VS econômica deste dia ainda.",
+      "oddsEmptyHeavyHitter": "Nenhum heavy hitter está configurado para o sorteio de sábado.",
+      "oddsHeroEqual": "Sua chance no sorteio de hoje: {probability}",
       "loading": "Carregando tickets de rifa…",
       "loadFailed": "Não foi possível carregar os tickets de rifa.",
       "noScore": "—",
@@ -3358,12 +3365,15 @@
         "chance": "Chance",
         "takedownBadge": "Takedown",
         "rowMeta": "VS {score} · {probability} de chance",
+        "chanceOnlyMeta": "{probability} de chance",
         "expand": "Mostrar pool completo",
         "collapse": "Mostrar menos linhas"
       },
       "missedFloor": {
         "title": "Membros que não passaram",
         "subtitle": "Comandantes R3 abaixo de 7,2M no VS do dia anterior — sem elegibilidade na rifa de hoje.",
+        "titleUniform": "Fora do sorteio de hoje",
+        "subtitleUniform": "Comandantes R3 cujo VS do dia anterior está fora da faixa econômica — não entram no sorteio de chance igual de hoje.",
         "member": "Comandante",
         "vs": "VS do dia anterior"
       }
