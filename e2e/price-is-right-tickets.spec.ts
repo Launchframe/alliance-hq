@@ -95,7 +95,8 @@ test.describe("Price Is Freight raffle tickets", () => {
     });
 
     await page.goto("/trains");
-    await expect(page.getByTestId("trains-conductor-card")).toBeVisible({
+    // Simple Mode hides the conductor card until All Set; wait on schedule instead.
+    await expect(page.getByTestId("trains-schedule-section")).toBeVisible({
       timeout: 15_000,
     });
 
