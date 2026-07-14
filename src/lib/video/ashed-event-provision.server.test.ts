@@ -96,11 +96,35 @@ describe("replaceAshedScoresForContext", () => {
       connection,
       "bulkDeleteByDate",
       {
-        entity: "DesertStormScore",
-        recorded_date: "2026-07-10",
         alliance_id: "ashed-1",
+        entity_type: "DesertStormScore",
+        recorded_date: "2026-07-10",
+        confirm: true,
         event_id: "ev-1",
         team: "A",
+      },
+    );
+  });
+
+  it("calls bulkDeleteByDate with alliance + date for VS (no event)", async () => {
+    base44CallFunction.mockResolvedValueOnce({});
+    await replaceAshedScoresForContext({
+      connection: connection as never,
+      target: {
+        submitEntity: "VSScore",
+      } as never,
+      ashedAllianceId: "ashed-1",
+      recordedDate: "2026-07-10",
+      context: {},
+    });
+    expect(base44CallFunction).toHaveBeenCalledWith(
+      connection,
+      "bulkDeleteByDate",
+      {
+        alliance_id: "ashed-1",
+        entity_type: "VSScore",
+        recorded_date: "2026-07-10",
+        confirm: true,
       },
     );
   });

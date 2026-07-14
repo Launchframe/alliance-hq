@@ -279,6 +279,8 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   const [frameTimestamps, setFrameTimestamps] = useState<FrameTimestampMap>({});
   const [showRatingPrompt, setShowRatingPrompt] = useState(false);
   const [jobRating, setJobRating] = useState<"thumbs_up" | "thumbs_down" | null>(null);
+  /** Hold review→event redirect while success/rating UI is on screen. */
+  const [holdEventRedirect, setHoldEventRedirect] = useState(false);
   const [discarding, setDiscarding] = useState(false);
   const [groupInfo, setGroupInfo] = useState<GroupInfo | null>(null);
   const [showComparisonPrompt, setShowComparisonPrompt] = useState(false);
@@ -350,6 +352,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
 
   useEffect(() => {
     if (jobStatus === "loading") return;
+    if (holdEventRedirect) return;
     const search = window.location.search;
     if (viewMode === "review" && jobStatus === "complete") {
       router.replace(`/tools/video-upload/${jobId}/event${search}`);
@@ -362,7 +365,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     ) {
       router.replace(`/tools/video-upload/${jobId}/review${search}`);
     }
-  }, [jobId, jobStatus, router, viewMode]);
+  }, [holdEventRedirect, jobId, jobStatus, router, viewMode]);
 
   const rematchMembers = useCallback(async () => {
     setRematching(true);
@@ -436,7 +439,12 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           return;
         }
 
-        if (data.alliance?.stale && !options?.skipRematch) {
+        if (
+          data.alliance?.stale &&
+          !options?.skipRematch &&
+          data.job?.status !== "complete" &&
+          data.job?.status !== "submitting"
+        ) {
           const ok = await rematchMembers();
           if (ok) {
             await loadRef.current({ skipRematch: true });
@@ -1241,6 +1249,10 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
               ? t("depositSlipSubmitSuccess", { count: data.submitted ?? 0 })
               : t("submitSuccess", { count: data.submitted ?? 0 }),
       );
+      // Stay on review through success + OCR rating; event redirect resumes after.
+      if (!isEventView) {
+        setHoldEventRedirect(true);
+      }
       setJobStatus("complete");
       if (
         !isEventView &&
@@ -1253,8 +1265,13 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           isSolicited: true,
           delayMs: 1500,
         });
-      } else if (!jobRating) {
+      }
+      if (!isEventView && !jobRating) {
         setShowRatingPrompt(true);
+      } else if (!isEventView) {
+        window.setTimeout(() => {
+          setHoldEventRedirect(false);
+        }, 1500);
       }
     } catch (err) {
       setActionError(err instanceof Error ? err.message : tc("uploadFailed"));
@@ -2294,7 +2311,10 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
 
       {showRatingPrompt ? (
         <OcrRatingPrompt
-          onClose={() => setShowRatingPrompt(false)}
+          onClose={() => {
+            setShowRatingPrompt(false);
+            setHoldEventRedirect(false);
+          }}
           onRate={persistJobRating}
         />
       ) : null}

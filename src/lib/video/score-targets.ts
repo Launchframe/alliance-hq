@@ -204,7 +204,9 @@ export const SCORE_TARGETS: ScoreTargetDef[] = [
     leaderboardModel: "linear-full",
     eventEntity: null,
     seriesEntity: null,
-    submitMethod: "upsert",
+    // bulk + delete-by-date: true Ashed upsert was never wired; per-row POST
+    // created duplicates on re-submit and was ~10s for ~100 rows.
+    submitMethod: "bulk",
     submitContext: ["recordedDate"],
     inHouseOcrAccuracy: "low",
   },

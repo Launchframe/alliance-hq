@@ -51,6 +51,7 @@ import {
   replaceAshedScoresForContext,
   resolveOrCreateAshedEvent,
 } from "@/lib/video/ashed-event-provision.server";
+import { shouldReplaceAshedScoresOnSubmit } from "@/lib/video/ashed-score-replace.shared";
 import {
   buildSubmitPayloads,
   validateSubmitContext,
@@ -802,13 +803,12 @@ export async function POST(request: Request, { params }: Props) {
       errorMessage: null,
     });
 
-    // Batch-update: clear prior scores for this event/team/date, then insert.
-    if (
-      target.eventEntity &&
-      !usesHqEventStore(target) &&
-      submitContext.eventId &&
-      target.submitMethod === "bulk"
-    ) {
+    // Clear prior Ashed rows for this day/event before insert so re-submit
+    // (Update scores) replaces instead of stacking to 2×.
+    const replaceScores = shouldReplaceAshedScoresOnSubmit(target, {
+      eventId: submitContext.eventId,
+    });
+    if (replaceScores) {
       await replaceAshedScoresForContext({
         connection,
         target,
@@ -826,12 +826,7 @@ export async function POST(request: Request, { params }: Props) {
 
     await dispatchScoreSubmit(connection, target, payloads);
 
-    if (
-      target.eventEntity &&
-      !usesHqEventStore(target) &&
-      submitContext.eventId &&
-      target.submitMethod === "bulk"
-    ) {
+    if (replaceScores) {
       await markMatchingDataBatchesDeleted({
         allianceId,
         scoreTarget: target.id,

@@ -62,6 +62,7 @@ export function DataManagementClient({
   const [moveDate, setMoveDate] = useState("");
   const [acting, setActing] = useState<"move" | "delete" | null>(null);
   const [pendingDelete, setPendingDelete] = useState<BatchRow | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [scores, setScores] = useState<BatchScoreRow[]>([]);
@@ -161,6 +162,7 @@ export function DataManagementClient({
 
   async function handleDelete(batch: BatchRow) {
     setActing("delete");
+    setDeleteError(null);
     setError(null);
     try {
       const res = await fetch(`/api/data-management/batches/${batch.id}/delete`, {
@@ -171,10 +173,13 @@ export function DataManagementClient({
         throw new Error(data.error ?? t("deleteFailed"));
       }
       setPendingDelete(null);
+      setDeleteError(null);
       await refreshBatches(scoreTarget);
       setSelectedId(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : t("deleteFailed"));
+      const message = err instanceof Error ? err.message : t("deleteFailed");
+      setDeleteError(message);
+      setError(message);
     } finally {
       setActing(null);
     }
@@ -438,7 +443,10 @@ export function DataManagementClient({
                     <button
                       type="button"
                       disabled={acting !== null}
-                      onClick={() => setPendingDelete(selected)}
+                      onClick={() => {
+                        setDeleteError(null);
+                        setPendingDelete(selected);
+                      }}
                       className="inline-flex items-center gap-2 rounded-lg border border-destructive/40 px-3 py-2 text-sm text-destructive hover:bg-destructive/10 disabled:opacity-60"
                     >
                       <Trash2 className="h-4 w-4" />
@@ -467,17 +475,32 @@ export function DataManagementClient({
       <Dialog
         open={pendingDelete !== null}
         onOpenChange={(open) => {
-          if (!open) setPendingDelete(null);
+          if (!open && acting === "delete") return;
+          if (!open) {
+            setPendingDelete(null);
+            setDeleteError(null);
+          }
         }}
         title={t("delete")}
       >
         <div className="space-y-4">
           <p className="text-sm text-muted-foreground">{t("deleteConfirm")}</p>
+          {deleteError ? (
+            <p
+              role="alert"
+              className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+            >
+              {deleteError}
+            </p>
+          ) : null}
           <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
             <button
               type="button"
               disabled={acting === "delete"}
-              onClick={() => setPendingDelete(null)}
+              onClick={() => {
+                setPendingDelete(null);
+                setDeleteError(null);
+              }}
               className="rounded-lg border border-border px-4 py-2 text-sm hover:bg-muted disabled:opacity-60"
             >
               {t("deleteCancel")}
