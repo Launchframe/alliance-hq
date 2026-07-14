@@ -3086,7 +3086,8 @@
     "emptyRosterCta": "Go to Members",
     "planWeekBanner": {
       "title": "Plan this train week",
-      "body": "This week is a draft from your default template. Pick a template, paint days, or roll today's conductor — your plan saves when you take action."
+      "body": "This week is a draft from your default template. Pick a template, paint days, or roll today's conductor — your plan saves when you take action.",
+      "chooseTemplate": "Choose a template"
     },
     "previewLegend": "Faded days are drafts; they save when an officer updates the schedule.",
     "previewDraftAriaLabel": "Draft schedule",
@@ -3131,9 +3132,14 @@
     "templateSelectAria": "Week schedule template",
     "templatePicker": {
       "title": "Choose a week template",
-      "subtitle": "Tap a template to see how conductors and VIPs are chosen that week.",
       "apply": "Use this template",
-      "cancel": "Cancel"
+      "cancel": "Cancel",
+      "drawModeLabel": "Draw mode",
+      "equalChance": "Equal chance",
+      "closerIsBetter": "Closer is Better",
+      "equalChanceHint": "Every eligible VS score has the same odds (1/n). Excludes R4+.",
+      "closerIsBetterHint": "Scores closest to 7.2M get better shot at winning. Excludes R4+.",
+      "weekShapeAria": "Preview of each day's color for this template"
     },
     "todayConductor": "Today's Conductor",
     "todayVip": "VIP",
@@ -3440,6 +3446,9 @@
       "oddsSubtitleHeavyHitter": "Equal chance among configured heavy hitters.",
       "oddsEmptyUniform": "No R3 members fall in the economy VS range for this day yet.",
       "oddsEmptyHeavyHitter": "No heavy hitters are configured for Saturday's draw.",
+      "oddsEmptyUniformCta": "Upload score video",
+      "oddsEmptyHeavyHitterCta": "Open train settings",
+      "retryLoad": "Retry",
       "oddsHeroEqual": "Your chance in today's draw: {probability}",
       "loading": "Loading raffle tickets…",
       "loadFailed": "Could not load raffle tickets.",
@@ -3499,7 +3508,7 @@
       "poolEmptyHeavyHitter": "No heavy hitters are configured for Saturday's Price Is Freight lottery. Add members under Settings → Trains (Takedown team / max tickets), then try again.",
       "poolEmptyGeneric": "No eligible members were found for this pool. Check member ranks on the Members page, then try again.",
       "poolExhausted": "Everyone eligible for this pool has already been picked in the current generation. Re-seed the pool to start a fresh rotation.",
-      "poolUnavailable": "The wheel pool isn't ready yet. Try re-seeding the pool or check member ranks on the Members page.",
+      "poolUnavailable": "The wheel pool isn't ready yet. Re-seed it to rebuild the eligible members, then we'll spin again.",
       "noVsScores": "There aren't enough VS scores to fill the wheel yet. Enter VS scores for this week, then try again.",
       "noEventScores": "There aren't enough event scores to fill the VIP wheel yet. Enter scores for this event, then try again.",
       "noDonationScores": "Donation scores aren't tracked in Alliance HQ yet. Pick the donor manually from your roster.",
@@ -3507,7 +3516,23 @@
       "ashedRequired": "This roll needs an Ashed connection to read live scores. Connect Ashed in Settings, or use a roster-based mechanism instead.",
       "generic": "The wheel can't spin right now. Fix the underlying issue and try again.",
       "goToMembers": "Go to Members",
+      "goToTrainSettings": "Open train settings",
+      "goToSettings": "Go to Settings",
+      "uploadScoreVideo": "Upload score video",
+      "pickManually": "Pick manually",
+      "retrySpin": "Try spinning again",
       "reseedPool": "Re-seed pool",
+      "reseedAndRespin": "Re-seed pool & re-spin",
+      "reseedAndRespinBusy": "Re-seeding…",
+      "close": "Close"
+    },
+    "errorBanner": {
+      "dismiss": "Dismiss"
+    },
+    "autoDq": {
+      "spinAgain": "Spin again",
+      "pickManually": "Pick manually",
+      "override": "Override & keep",
       "close": "Close"
     },
     "mechanisms": {
@@ -3543,6 +3568,8 @@
       "r4_event_vip": "R4 & Event VIP",
       "economy_week": "Economy week",
       "price_is_right": "The Price Is Freight",
+      "price_is_right_weekdays": "Eligible VS scores",
+      "takedown_week": "Takedown week",
       "r3_recognition": "R3 recognition",
       "r4_train_week": "R4 Week",
       "donations_week": "Donations week",
@@ -3551,18 +3578,31 @@
     "templatesShort": {
       "vs_push_weekdays": "VS Push",
       "r4_event_vip": "R4 & Event VIP",
-      "price_is_right": "Closest to 7.2M"
+      "price_is_right": "Closest to 7.2M",
+      "price_is_right_weekdays": "Eligible VS",
+      "takedown_week": "Takedown pool"
+    },
+    "templateShapeLegend": {
+      "economy_week": "R3 pool",
+      "price_is_right_weekdays": "Eligible VS scores",
+      "takedown_week": "Takedown team pool",
+      "custom": "Custom",
+      "r3_recognition": "R3 Conductor award",
+      "r4_train_week": "R4 random draw",
+      "donations_week": "Top donors"
     },
     "templateDetails": {
-      "vs_push_week": "Conductor: Tue and Fri = prior-day VS #1 (auto); Wed, Thu, and Sat = random draw from VS top 10; Sun–Mon = R4+ officer rotation. VIP: Conductor picks VIP on VS weekdays; event top-10 lottery Sun–Mon.",
-      "vs_push_weekdays": "Conductor: Mon = top donor; Tue and Fri = prior-day VS #1; Wed, Thu, and Sat = random from VS top 10. VIP: Mon = 2nd donor; Tue–Sat = conductor free pick.",
-      "r4_event_vip": "Conductor: R4+ officer rotation. VIP: Event top-10 lottery wheel (default event: Capitol War). Typical for weekend train days.",
-      "economy_week": "Conductor: R3 wheel every day — full R3 pool, no VS score band. VIP: Today's conductor picks VIP directly (free pick). Use to pivot mid-week when pushing less VS.",
-      "price_is_right": "Conductor: Tue–Fri and Sun–Mon = R3 raffle wheel (ticket weighting or legacy VS band). Saturday = heavy-hitter lottery among the max-ticket / takedown overrides (equal max chance). VIP: Today's conductor picks VIP directly (free pick).",
-      "r3_recognition": "Conductor: R3 wheel every day — full R3 pool (same draw as Economy week, without VS filtering). VIP: Today's conductor picks VIP directly (free pick).",
-      "r4_train_week": "Conductor: R4+ officer rotation — walks the pool in order, one conductor per day. VIP: Today's conductor picks VIP directly (free pick).",
-      "donations_week": "Conductor: Top alliance donor (auto). VIP: Second-place donor (auto; officers can override if leaderboard data is wrong).",
-      "custom": "Conductor / VIP: No preset rules — set each day's mechanisms on the calendar or pick manually when you roll."
+      "vs_push_week": "Conductor: Radar Training and Train Heroes days top-scores get Conductor at Reset. Other VS days, except Enemy Buster, draw Conductor from VS top 10. Sun & Mon are R4+ officer rotation days. VIP: Conductor picks VIP on VS weekdays; custom event top-10 lottery Sun & Mon.",
+      "vs_push_weekdays": "Conductor: Mon = top weekly donations; Tue and Fri = prior-day VS #1; Wed, Thu, and Sat = random from VS top 10. VIP: Mon = 2nd donor; Tue–Sat = conductor free pick.",
+      "r4_event_vip": "Conductor: R4+ officer rotation. VIP: Custom event top-10 lottery wheel (Capitol War, Meteorite, etc). Typical for weekend train days.",
+      "economy_week": "Conductor: R3 wheel every day. VIP: Conductor's pick.",
+      "price_is_right": "Conductor: Tue–Fri = raffle from eligible prior-day VS scores. Saturday = random draw from the takedown team pool. Sun–Mon = Custom (manual). VIP: Conductor's pick on raffle/takedown days.",
+      "price_is_right_weekdays": "Conductor: raffle from eligible prior-day VS scores (Equal chance or Closer is Better). VIP: Conductor's pick.",
+      "takedown_week": "Conductor: random draw from the takedown team roster every day (depleting pool). VIP: Conductor's pick.",
+      "r3_recognition": "Conductor: manual pick from the R3 pool every day — selected members are depleted from the pool. VIP: Conductor's pick.",
+      "r4_train_week": "Conductor: Random R4 officer rotation. VIP: Conductor's pick.",
+      "donations_week": "Conductor: Priod day top donor. VIP: Second-place donor.",
+      "custom": "Conductor / VIP: No preset rules. Choose each day's conductor template on the calendar, or pick manually ."
     },
     "wheel": {
       "title": "All aboard!",
@@ -3572,6 +3612,7 @@
       "vsShortfall": "VS: {score} pts (need {required}; short by {shortfall})",
       "donationShortfall": "Donations: {score} pts (need {required}; short by {shortfall})",
       "spinAgain": "Spin again",
+      "cancel": "Cancel",
       "override": "Override disqualification",
       "overrideReasonLabel": "Reason for override (optional)",
       "overrideReasonPlaceholder": "e.g. excused absence, makeup week",
