@@ -5,6 +5,7 @@ import {
   validateDepositSlipPayload,
   type DepositSlipPayload,
 } from "@/lib/banks/api.shared";
+import { resolveDepositSlipMemberLinks } from "@/lib/banks/deposit-slip-ocr/resolve-deposit-slip-member.server";
 import { createDepositSlip } from "@/lib/banks/repository.server";
 import { reloadBankManagementDashboard } from "@/lib/banks/reload-dashboard.server";
 import {
@@ -31,7 +32,26 @@ export async function POST(request: Request) {
   }
 
   try {
-    const row = await createDepositSlip(allianceId, body);
+    let payload = body;
+    const needsMemberResolve =
+      body.allianceMemberId == null ||
+      body.commanderId == null ||
+      body.depositAllianceId == null;
+    if (needsMemberResolve) {
+      const links = await resolveDepositSlipMemberLinks({
+        bankAllianceId: allianceId,
+        depositAllianceTag: body.depositAllianceTag,
+        commanderName: body.commanderName,
+      });
+      payload = {
+        ...body,
+        depositAllianceId: body.depositAllianceId ?? links.depositAllianceId,
+        commanderId: body.commanderId ?? links.commanderId,
+        allianceMemberId: body.allianceMemberId ?? links.allianceMemberId,
+      };
+    }
+
+    const row = await createDepositSlip(allianceId, payload);
     const dashboard = await reloadBankManagementDashboard(allianceId, sessionId);
     return NextResponse.json({
       depositSlip: serializeDepositSlip(row),

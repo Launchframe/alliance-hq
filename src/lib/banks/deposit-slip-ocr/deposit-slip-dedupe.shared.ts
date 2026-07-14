@@ -94,6 +94,16 @@ function completenessScore(slip: ParsedDepositSlipDraft): number {
   return score;
 }
 
+/** Prefer higher completeness; break ties with OCR confidence when present. */
+function compareSlipQuality(
+  a: ParsedDepositSlipDraft,
+  b: ParsedDepositSlipDraft,
+): number {
+  const completeness = completenessScore(b) - completenessScore(a);
+  if (completeness !== 0) return completeness;
+  return (b.confidence ?? -1) - (a.confidence ?? -1);
+}
+
 function normalizeTagForFrequency(tag: string | null | undefined): string | null {
   const trimmed = tag?.trim().toLowerCase();
   return trimmed ? trimmed : null;
@@ -248,9 +258,7 @@ export function coalesceDepositSlips(
   if (slips.length === 0) {
     throw new Error("coalesceDepositSlips requires at least one slip");
   }
-  const ranked = [...slips].sort(
-    (a, b) => completenessScore(b) - completenessScore(a),
-  );
+  const ranked = [...slips].sort(compareSlipQuality);
   const dest: ParsedDepositSlipDraft = {
     ...ranked[0]!,
     identity: { ...ranked[0]!.identity },
@@ -289,6 +297,12 @@ export function coalesceDepositSlips(
     if (dest.sourceFrameIndex == null && s.sourceFrameIndex != null) {
       dest.sourceFrameIndex = s.sourceFrameIndex;
     }
+    if (
+      typeof s.confidence === "number" &&
+      (dest.confidence == null || s.confidence > dest.confidence)
+    ) {
+      dest.confidence = s.confidence;
+    }
   }
 
   return dest;
@@ -313,9 +327,7 @@ function makeIndexed(slips: readonly ParsedDepositSlipDraft[]): IndexedSlip[] {
 }
 
 function pickBestSlipId(group: readonly IndexedSlip[]): string {
-  return group
-    .slice()
-    .sort((a, b) => completenessScore(b) - completenessScore(a))[0]!.slipId;
+  return group.slice().sort(compareSlipQuality)[0]!.slipId;
 }
 
 /**

@@ -380,6 +380,7 @@ export function slipsForProjectionActualOverlay(
       depositAllianceId: live?.depositAllianceId ?? null,
       commanderName: live?.commanderName ?? "",
       commanderId: live?.commanderId ?? null,
+      allianceMemberId: live?.allianceMemberId ?? null,
       createdAt: live?.createdAt ?? entry.depositAt,
       updatedAt: live?.updatedAt ?? entry.depositAt,
     };

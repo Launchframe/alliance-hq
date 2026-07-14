@@ -40,6 +40,7 @@ export type SerializedDepositSlip = {
   depositAllianceId: string | null;
   commanderName: string;
   commanderId: string | null;
+  allianceMemberId: string | null;
   createdAt: string;
   updatedAt: string;
 };

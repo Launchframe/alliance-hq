@@ -147,4 +147,19 @@ describe("parseDepositSlipHistoryText", () => {
     const merged = mergeDepositSlipHistoryParses([a, b]);
     expect(merged.history.slips).toHaveLength(2);
   });
+
+  it("attaches mean Tesseract confidence from contributing OCR lines", () => {
+    const parsed = parseDepositSlipHistoryText([
+      { text: "Deposit Slip History", confidence: 99 },
+      { text: "2026-7-10 12:14:34", confidence: 80 },
+      { text: "#1211[Roar]Capt Grim", confidence: 90 },
+      {
+        text: "Deposit: CrystalGold x 6000, Term: 1 days.",
+        confidence: 70,
+      },
+    ]);
+
+    expect(parsed.slips).toHaveLength(1);
+    expect(parsed.slips[0]?.confidence).toBeCloseTo((80 + 90 + 70) / 3);
+  });
 });

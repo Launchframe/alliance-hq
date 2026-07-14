@@ -334,6 +334,7 @@ export async function createDepositSlip(
       depositAllianceId: body.depositAllianceId ?? null,
       commanderName: body.commanderName.trim(),
       commanderId: body.commanderId ?? null,
+      allianceMemberId: body.allianceMemberId ?? null,
     })
     .returning();
   return inserted[0]!;
@@ -376,6 +377,7 @@ export async function updateDepositSlip(
       depositAllianceId: body.depositAllianceId ?? null,
       commanderName: body.commanderName.trim(),
       commanderId: body.commanderId ?? null,
+      allianceMemberId: body.allianceMemberId ?? null,
       updatedAt: new Date(),
     })
     .where(

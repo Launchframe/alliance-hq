@@ -37,6 +37,7 @@ function slip(
     depositAllianceId: null,
     commanderName: "snapz a saurus",
     commanderId: null,
+    allianceMemberId: null,
     createdAt: "2026-07-09T16:00:00.000Z",
     updatedAt: "2026-07-09T16:00:00.000Z",
     ...overrides,

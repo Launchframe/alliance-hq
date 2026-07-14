@@ -3095,6 +3095,14 @@ export const bankDepositSlips = pgTable(
     commanderId: text("commander_id").references(() => commanders.id, {
       onDelete: "set null",
     }),
+    /**
+     * Roster row for the depositor when OCR identity resolves to a known
+     * alliance member. Enables filtered "my deposits" queries later.
+     */
+    allianceMemberId: text("alliance_member_id").references(
+      () => allianceMembers.id,
+      { onDelete: "set null" },
+    ),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -3107,6 +3115,9 @@ export const bankDepositSlips = pgTable(
     index("bank_deposit_slips_alliance_matures_idx").on(
       table.allianceId,
       table.maturesAt,
+    ),
+    index("bank_deposit_slips_alliance_member_id_idx").on(
+      table.allianceMemberId,
     ),
   ],
 );

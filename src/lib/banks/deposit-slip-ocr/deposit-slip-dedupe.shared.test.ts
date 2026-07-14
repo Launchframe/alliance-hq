@@ -41,6 +41,7 @@ function slip(
         `#1203[LFgo]${partial.commanderName}`,
     },
     sourceFrameIndex: partial.sourceFrameIndex,
+    confidence: partial.confidence,
   };
 }
 
@@ -930,5 +931,36 @@ describe("dedupeDepositSlips — slipId uniqueness", () => {
     const ids = slips.map((s) => s.slipId);
     const unique = new Set(ids);
     expect(unique.size).toBe(ids.length);
+  });
+
+  it("prefers the higher-confidence duplicate when completeness is equal", () => {
+    const { slips, report } = dedupeDepositSlips([
+      slip({
+        commanderName: "ConfidencePick",
+        depositAt: "2026-07-11T13:18:26.000Z",
+        confidence: 55,
+        identity: {
+          gameServerNumber: 1203,
+          allianceTag: "LFgo",
+          commanderName: "ConfidencePick",
+          rawIdentity: "#1203[LFgo]ConfidencePick",
+        },
+      }),
+      slip({
+        commanderName: "ConfidencePick",
+        depositAt: "2026-07-11T13:18:40.000Z",
+        confidence: 92,
+        identity: {
+          gameServerNumber: 1203,
+          allianceTag: "LFgo",
+          commanderName: "ConfidencePick",
+          rawIdentity: "#1203[LFgo]ConfidencePick",
+        },
+      }),
+    ]);
+
+    expect(slips).toHaveLength(1);
+    expect(slips[0]?.confidence).toBe(92);
+    expect(report.autoMergedCount).toBe(1);
   });
 });

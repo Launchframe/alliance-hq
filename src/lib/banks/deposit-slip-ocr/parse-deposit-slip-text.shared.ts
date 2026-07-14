@@ -39,7 +39,42 @@ export type ParsedDepositSlipDraft = {
   identity: ParsedDepositSlipIdentity;
   /** Source frame index when known (video stitch). */
   sourceFrameIndex?: number;
+  /**
+   * Mean Tesseract line confidence (0–100) for lines that contributed to this
+   * slip, when available. Used by dedupe pick-best as a tiebreaker after
+   * completeness.
+   */
+  confidence?: number | null;
 };
+
+/** OCR line input for parsers that optionally carry Tesseract confidence. */
+export type DepositSlipOcrLine = {
+  text: string;
+  confidence?: number | null;
+};
+
+function normalizeOcrLines(
+  lines: readonly string[] | readonly DepositSlipOcrLine[],
+): Array<{ text: string; confidence: number | null }> {
+  return lines.map((line) => {
+    if (typeof line === "string") {
+      return { text: line, confidence: null };
+    }
+    const confidence =
+      typeof line.confidence === "number" && Number.isFinite(line.confidence)
+        ? line.confidence
+        : null;
+    return { text: line.text, confidence };
+  });
+}
+
+function meanConfidence(values: readonly (number | null)[]): number | null {
+  const present = values.filter(
+    (value): value is number => typeof value === "number",
+  );
+  if (present.length === 0) return null;
+  return present.reduce((sum, value) => sum + value, 0) / present.length;
+}
 
 export type ParsedDepositSlipHistory = {
   depositPolicy: DepositPolicy | null;
@@ -172,29 +207,42 @@ export function parseMinimumDeposit(lines: readonly string[]): number | null {
  * Parse OCR lines from Deposit Slip History into drafts.
  * Duplicate slips (scroll overlap across frames) should be merged via
  * {@link mergeDepositSlipHistoryParses}.
+ *
+ * When lines include Tesseract confidence, each draft carries the mean
+ * confidence of the identity / timestamp / deposit / outcome lines that
+ * contributed to it (used by dedupe pick-best).
  */
 export function parseDepositSlipHistoryText(
-  lines: readonly string[],
+  lines: readonly string[] | readonly DepositSlipOcrLine[],
 ): ParsedDepositSlipHistory {
-  const depositPolicy = parseDepositPolicyFromHeader(lines);
-  const minimumDeposit = parseMinimumDeposit(lines);
+  const normalized = normalizeOcrLines(lines);
+  const textLines = normalized.map((line) => line.text);
+  const depositPolicy = parseDepositPolicyFromHeader(textLines);
+  const minimumDeposit = parseMinimumDeposit(textLines);
 
   const slips: ParsedDepositSlipDraft[] = [];
 
   // Find identity lines; associate nearby timestamp + deposit/outcome lines.
-  for (let i = 0; i < lines.length; i += 1) {
-    const line = lines[i]!.trim();
+  for (let i = 0; i < normalized.length; i += 1) {
+    const line = normalized[i]!.text.trim();
     if (!line) continue;
 
     const identity = parseDepositSlipIdentity(line);
     if (!identity) continue;
 
+    const confidenceParts: Array<number | null> = [normalized[i]!.confidence];
+
     // Timestamp is usually on the same visual row — search nearby lines.
     let depositAt: string | null = null;
-    for (let j = Math.max(0, i - 2); j <= Math.min(lines.length - 1, i + 1); j += 1) {
-      const ts = parseDepositSlipTimestamp(lines[j]!.trim());
+    for (
+      let j = Math.max(0, i - 2);
+      j <= Math.min(normalized.length - 1, i + 1);
+      j += 1
+    ) {
+      const ts = parseDepositSlipTimestamp(normalized[j]!.text.trim());
       if (ts) {
         depositAt = ts;
+        confidenceParts.push(normalized[j]!.confidence);
         break;
       }
     }
@@ -205,8 +253,8 @@ export function parseDepositSlipHistoryText(
     let outcomeAmount: number | null = null;
     let outcomeKind: ParsedDepositSlipDraft["outcomeKind"] = null;
 
-    for (let j = i; j < Math.min(lines.length, i + 5); j += 1) {
-      const probe = lines[j]!.trim();
+    for (let j = i; j < Math.min(normalized.length, i + 5); j += 1) {
+      const probe = normalized[j]!.text.trim();
       // Stop if we hit another identity (next slip)
       if (j > i && parseDepositSlipIdentity(probe)) break;
 
@@ -214,18 +262,21 @@ export function parseDepositSlipHistoryText(
       if (depositMatch) {
         amount = parseIntAmount(depositMatch[1]!);
         termDays = toDepositTermDays(Number(depositMatch[2]));
+        confidenceParts.push(normalized[j]!.confidence);
       }
       const totalMatch = probe.match(TOTAL_RETURN_RE);
       if (totalMatch) {
         outcomeAmount = parseIntAmount(totalMatch[1]!);
         outcomeKind = "total_return";
         status = "matured";
+        confidenceParts.push(normalized[j]!.confidence);
       }
       const earlyMatch = probe.match(EARLY_REFUND_RE);
       if (earlyMatch) {
         outcomeAmount = parseIntAmount(earlyMatch[1]!);
         outcomeKind = "early_termination_refund";
         status = "looted";
+        confidenceParts.push(normalized[j]!.confidence);
       }
     }
 
@@ -239,6 +290,7 @@ export function parseDepositSlipHistoryText(
       outcomeAmount,
       outcomeKind,
       identity,
+      confidence: meanConfidence(confidenceParts),
     });
   }
 
