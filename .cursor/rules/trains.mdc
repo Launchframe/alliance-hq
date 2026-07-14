@@ -59,14 +59,18 @@ Do **not** use whole-week `setWeekTemplate` for pivot — it clears overrides.
 
 ### Price Is Freight (`price_is_right`)
 
+TPIF conductor rolls are **with-replacement** daily draws (`rollPriceIsFreightConductor`). They do **not** seed, mark, or reseed `conductor_pool_entries`. The same member may win consecutive days. Non-TPIF `r3_lottery` / `heavy_hitter_lottery` (e.g. `economy_week`, `r3_recognition`) still use depleting pools.
+
 Two alliance-configurable modes (settings → **The Price Is Freight**):
 
-| Mode | Pool filter | Draw |
+| Mode | Eligibility | Draw |
 |------|-------------|------|
-| **Legacy band** (`weightingEnabled = 0`) | Prior-day VS in `[7.2M, threshold + fudge%]` when threshold set | Uniform random |
-| **Ticket weighting** (`weightingEnabled = 1`) | R3 rank only; members with `ticketCount === 0` excluded | Weighted random by `ticket_count` |
+| **Legacy band** (`weightingEnabled = 0`) | Prior-day VS in `[7.2M, threshold + fudge%]` when threshold set (**takedown overrides stay eligible above the band**); **null threshold = no VS filter** (equal odds among R3) | Uniform random among live eligible set |
+| **Ticket weighting** (`weightingEnabled = 1`) | R3 with `ticketCount > 0` | Weighted random by tickets |
 
-**Saturday** uses a separate `heavy_hitter` pool: only members in `train_price_is_right_max_ticket_member_ids` (takedown / heavy-hitter overrides), each with equal max chance. Changing that list in Settings → Trains reseeds the pool immediately.
+New alliances default `train_economy_threshold_points` to **8,500,000** (`PRICE_IS_RIGHT_DEFAULT_ECONOMY_THRESHOLD_POINTS`). Officers may clear it to disable VS filtering.
+
+**Saturday** draws uniformly among members in `train_price_is_right_max_ticket_member_ids` (also with-replacement). Settings updates may still sync a legacy `heavy_hitter` pool row for non-TPIF use, but TPIF Saturday rolls do not consume it.
 
 **Ticket weighting rules:**
 
@@ -75,10 +79,10 @@ Two alliance-configurable modes (settings → **The Price Is Freight**):
 - **Cliff** (`train_economy_threshold_points`): decay scale; defaults to **9M** when unset.
 - **Hard cutoff** (optional): VS > cliff → 0 tickets; fudge % ignored.
 - **Takedown / heavy-hitter override** (`train_price_is_right_max_ticket_member_ids`): listed members always get max tickets on weekday raffles; Saturday lottery is drawn only from this list.
-- Member-visible **raffle panel** on `/trains` when weighting on (hero + chart + ticket board) — **hidden on Saturday** (heavy-hitter draw does not use VS ticket weights).
+- Member-visible **odds panel** on `/trains` for **every** TPIF day (`GET /api/trains/price-is-right/tickets`): `mode` = `weighted` \| `uniform` \| `heavy_hitter` (equal `1/N` when not weighted).
 - **Prior-day VS podium** on all `price_is_right` days (`GET /api/trains/price-is-right/leaderboard`): ranks R3 members with prior-day VS ≥ 7.2M by distance above 7.2M (not VR). Discord announcement fires after **vs-performance** video submit when the next train day is PIF (`announcePriceIsRightLeaderboardAfterVsUpload`); manual/worker trigger at `/api/internal/train/price-is-right-leaderboard` (not cron-scheduled).
 
-Schema: `train_price_is_right_*` on `alliances`; `ticket_count` / `prior_day_vs_score` on `conductor_pool_entries`.
+Schema: `train_price_is_right_*` on `alliances`.
 
 ## RBAC
 

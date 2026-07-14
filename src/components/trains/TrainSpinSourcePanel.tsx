@@ -4,7 +4,10 @@ import type { ReactNode } from "react";
 import { useTranslations } from "next-intl";
 
 import type { SpinSource } from "@/lib/trains/spin-source.shared";
-import { isPoolSpinSource } from "@/lib/trains/spin-source.shared";
+import {
+  isPoolSpinSource,
+  isPriceIsRightSpinSource,
+} from "@/lib/trains/spin-source.shared";
 import type { PoolType } from "@/lib/trains/types";
 
 type PoolSummary = {
@@ -32,6 +35,10 @@ function sourceLabel(
   switch (source.kind) {
     case "pool":
       return t(`poolTypes.${source.poolType}`);
+    case "price_is_right_raffle":
+      return t("priceIsRightRaffle");
+    case "price_is_right_heavy_hitter":
+      return t("priceIsRightHeavyHitter");
     case "vs_leaderboard":
       return source.topN === 1
         ? t("vsLeaderboardTop1")
@@ -45,6 +52,23 @@ function sourceLabel(
     default:
       return null;
   }
+}
+
+function sourceHint(
+  source: SpinSource,
+  t: ReturnType<typeof useTranslations<"trains.spinSource">>,
+): string | null {
+  if (!source) return null;
+  if (source.kind === "price_is_right_raffle") {
+    return t("priceIsRightRaffleHint");
+  }
+  if (source.kind === "price_is_right_heavy_hitter") {
+    return t("priceIsRightHeavyHitterHint");
+  }
+  if (!isPoolSpinSource(source)) {
+    return t("liveLeaderboardHint");
+  }
+  return null;
 }
 
 function SpinSourceRow({
@@ -63,6 +87,8 @@ function SpinSourceRow({
   if (!label) return null;
 
   const isPool = isPoolSpinSource(source);
+  const isPir = isPriceIsRightSpinSource(source);
+  const hint = sourceHint(source, t);
 
   return (
     <div className="flex min-w-0 flex-col gap-2 rounded-lg border border-hq-border bg-hq-canvas/50 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between">
@@ -96,8 +122,8 @@ function SpinSourceRow({
         {isPool && !poolSummary ? (
           <div className="mt-1 text-xs text-hq-fg-muted">{t("poolNotSeeded")}</div>
         ) : null}
-        {!isPool ? (
-          <div className="mt-1 text-xs text-hq-fg-muted">{t("liveLeaderboardHint")}</div>
+        {hint && (isPir || !isPool) ? (
+          <div className="mt-1 text-xs text-hq-fg-muted">{hint}</div>
         ) : null}
       </div>
       {isPool ? (

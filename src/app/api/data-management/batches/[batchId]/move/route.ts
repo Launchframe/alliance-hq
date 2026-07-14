@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { getAshedAllianceIdIfLinked } from "@/lib/alliance/ashed-write-guard";
 import { writeAuditLog } from "@/lib/bff/audit";
 import { forwardBulkMoveBatch } from "@/lib/data-management/batch-actions.server";
 import { canManageDataBatch } from "@/lib/data-management/batch-authorization.shared";
@@ -60,11 +61,19 @@ export async function POST(request: Request, { params }: Props) {
     return NextResponse.json({ error: "Ashed not connected" }, { status: 503 });
   }
 
+  const ashedAllianceId = await getAshedAllianceIdIfLinked(ctx.allianceId);
+  if (!ashedAllianceId) {
+    return NextResponse.json(
+      { error: "Alliance is not linked to Ashed." },
+      { status: 409 },
+    );
+  }
+
   try {
     await forwardBulkMoveBatch(
       connection,
       batch,
-      ctx.allianceId,
+      ashedAllianceId,
       newRecordedDate,
     );
   } catch (error) {

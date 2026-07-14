@@ -6,7 +6,7 @@ import {
 } from "./bulk-function-payload.shared";
 
 describe("bulk function payloads", () => {
-  it("builds delete payload with optional context fields", () => {
+  it("builds delete payload with Ashed field names and optional context", () => {
     expect(
       buildBulkDeletePayload({
         submitEntity: "DesertStormScore",
@@ -19,9 +19,10 @@ describe("bulk function payloads", () => {
         },
       }),
     ).toEqual({
-      entity: "DesertStormScore",
-      recorded_date: "2026-05-29",
       alliance_id: "alliance-1",
+      entity_type: "DesertStormScore",
+      recorded_date: "2026-05-29",
+      confirm: true,
       event_id: "event-1",
       team: "A",
       board_key: "board-1",
@@ -31,19 +32,20 @@ describe("bulk function payloads", () => {
   it("omits empty optional context fields from delete payload", () => {
     expect(
       buildBulkDeletePayload({
-        submitEntity: "KillScore",
+        submitEntity: "VSScore",
         recordedDate: "2026-06-01",
         allianceId: "alliance-2",
         contextJson: {},
       }),
     ).toEqual({
-      entity: "KillScore",
-      recorded_date: "2026-06-01",
       alliance_id: "alliance-2",
+      entity_type: "VSScore",
+      recorded_date: "2026-06-01",
+      confirm: true,
     });
   });
 
-  it("extends delete payload with new_recorded_date for move", () => {
+  it("builds move payload with from_date / to_date", () => {
     expect(
       buildBulkMovePayload({
         submitEntity: "DesertStormScore",
@@ -53,12 +55,12 @@ describe("bulk function payloads", () => {
         contextJson: { eventId: "event-1", team: "B" },
       }),
     ).toEqual({
-      entity: "DesertStormScore",
-      recorded_date: "2026-05-29",
       alliance_id: "alliance-1",
+      entity_type: "DesertStormScore",
+      from_date: "2026-05-29",
+      to_date: "2026-05-30",
       event_id: "event-1",
       team: "B",
-      new_recorded_date: "2026-05-30",
     });
   });
 });

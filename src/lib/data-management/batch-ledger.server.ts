@@ -163,7 +163,8 @@ export async function markMatchingDataBatchesDeleted(input: {
   allianceId: string;
   scoreTarget: string;
   recordedDate: string;
-  eventId: string;
+  /** Absent for date-keyed targets (VS, donations). */
+  eventId?: string | null;
   team: string | null;
 }): Promise<number> {
   const rows = await listAllianceDataBatches({
@@ -171,9 +172,10 @@ export async function markMatchingDataBatchesDeleted(input: {
     scoreTarget: input.scoreTarget,
     status: "active",
   });
+  const wantEventId = input.eventId ?? null;
   const matching = rows.filter((batch) => {
     if (batch.recordedDate !== input.recordedDate) return false;
-    if (batch.contextJson.eventId !== input.eventId) return false;
+    if ((batch.contextJson.eventId ?? null) !== wantEventId) return false;
     const batchTeam = batch.contextJson.team ?? null;
     if (input.team == null) {
       return batchTeam == null;

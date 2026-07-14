@@ -960,7 +960,7 @@
     },
     "experimentsPage": {
       "title": "Experiments",
-      "subtitle": "A/B campaigns for testing parse configurations against a baseline.",
+      "subtitle": "A/B campaigns that stamp parse configs onto the officer-facing primary job.",
       "newCampaign": "New campaign",
       "cancel": "Cancel",
       "create": "Create campaign",
@@ -975,8 +975,8 @@
         "title": "Arms",
         "add": "Add arm",
         "loadConfigs": "Loading configs…",
-        "configDefault": "Default (no extra shadow pass — control arm behavior)",
-        "configPickerLabel": "Parse config",
+        "configDefault": "Standing production primary (control — assignment or default)",
+        "configPickerLabel": "Parse config (stamps primary for this arm)",
         "deltaNote": "Δ thumbs-up % is relative to the control arm.",
         "form": {
           "name": "Arm name",
@@ -1038,14 +1038,14 @@
         "noData": "Not enough data points to render a timeline yet."
       },
       "promote": {
-        "title": "Promote winning arm to primary pass",
-        "hint": "Creating a config assignment makes the selected arm's parse config the default for new uploads with this score target. Existing uploaded videos are not re-processed.",
+        "title": "Promote winning arm to standing default",
+        "hint": "Creates a config assignment so new uploads use this parse config when no active experiment applies. Active campaigns still A/B the primary for their traffic; existing videos are not re-processed.",
         "selectArm": "Select arm to promote",
         "notes": "Notes (optional)",
-        "notesPlaceholder": "e.g. scene_0.33 outperformed baseline by 12pp on zombie_siege — promoting for production use",
+        "notesPlaceholder": "e.g. fps_3 outperformed baseline by 12pp on bank-deposit-slip-history — promoting for production use",
         "confirmCta": "Create assignment",
         "successTitle": "Config assignment created",
-        "successHint": "New uploads for this score target will now use the promoted config as their primary pass.",
+        "successHint": "New uploads for this score target use the promoted config as the standing primary when not in an active experiment.",
         "conflictError": "An assignment already exists for this scope. Go to Parse Configs to update it.",
         "noVariantArms": "No variant arms with a config are available to promote."
       },
@@ -1938,6 +1938,9 @@
     "trainsSectionTitle": "Trains",
     "trainsSectionBody": "Configure train week start, Discord announcements, and conductor minimums.",
     "trainsSectionLink": "Open train settings",
+    "gameSeasonsSectionTitle": "Game season",
+    "gameSeasonsSectionBody": "Last War season used for train records and scoring, plus VR sandbox practice mode.",
+    "gameSeasonsSectionLink": "Open game season settings",
     "memberOnboardingSection": {
       "title": "Member onboarding",
       "body": "Control how new members join, who can send invites, and who reviews commander links.",
@@ -1953,6 +1956,10 @@
     "trains": {
       "title": "Trains",
       "subtitle": "Train configuration for {tag}."
+    },
+    "gameSeasons": {
+      "title": "Game season",
+      "subtitle": "Season and VR sandbox settings for {tag}."
     },
     "allianceContext": {
       "title": "Choose an alliance",
@@ -2098,10 +2105,12 @@
       "hardCutoffLabel": "Hard cutoff above cliff",
       "hardCutoffHint": "Members who score above this cutoff value will be excluded from the draw.",
       "takedownLabel": "Takedown team (max tickets)",
-      "takedownHint": "Members who always receive maximum tickets. On Price Is Freight Saturdays, the conductor lottery is drawn only from this list (equal max chance).",
+      "takedownHint": "Members who stay eligible even above the economy range, and always get max tickets in raffle mode — so they can push well past 7.2M without losing conductor draw access. On Price Is Freight Saturdays, the conductor lottery is drawn only from this list (equal chance).",
       "takedownSearchPlaceholder": "Search roster to add members…",
       "takedownEmpty": "No matching roster members.",
       "chartCaption": "Ticket and win-chance curve for your cliff setting. Dots show yesterday's R3 scores (if available).",
+      "chartCaptionUniform": "Equal chance for scores in the economy range. Takedown members stay eligible above the upper cap. Dots show yesterday's R3 scores (if available).",
+      "chartCaptionNoFilter": "VS filtering is off — every remaining R3 has equal chance. Set an economy threshold to preview the band.",
       "save": "Save economy threshold",
       "saving": "Saving…",
       "saveFailed": "Could not save economy threshold settings.",
@@ -3207,6 +3216,7 @@
       "wheelSpeed_slow": "Slow",
       "wheelSpeed_regular": "Regular",
       "wheelSpeed_fast": "Fast",
+      "advancedSettings": "Advanced Settings",
       "saveFailed": "Could not save train preferences."
     },
     "help": {
@@ -3316,6 +3326,10 @@
       "nextInSequence": "Next in sequence: {name}",
       "poolExhausted": "· exhausted",
       "liveLeaderboardHint": "Drawn from live scores, not the member pool.",
+      "priceIsRightRaffle": "R3 Lottery: The Price Is Freight",
+      "priceIsRightRaffleHint": "Daily draw — winners stay eligible for later days.",
+      "priceIsRightHeavyHitter": "Heavy-hitter lottery: The Price Is Freight",
+      "priceIsRightHeavyHitterHint": "Saturday draw among the takedown team — equal chance; winners stay eligible.",
       "poolTypes": {
         "r3": "R3 lottery pool",
         "r4_plus": "R4 officer sequence pool",
@@ -3368,6 +3382,13 @@
     "priceIsRight": {
       "title": "Raffle tickets",
       "decayHint": "Closer to 7.2M → more tickets.",
+      "oddsTitleUniform": "Conductor draw odds",
+      "oddsSubtitleUniform": "Equal chance among R3 with prior-day VS in the economy range. Sorted by name.",
+      "oddsTitleHeavyHitter": "Heavy-hitter draw odds",
+      "oddsSubtitleHeavyHitter": "Equal chance among configured heavy hitters.",
+      "oddsEmptyUniform": "No R3 members fall in the economy VS range for this day yet.",
+      "oddsEmptyHeavyHitter": "No heavy hitters are configured for Saturday's draw.",
+      "oddsHeroEqual": "Your chance in today's draw: {probability}",
       "loading": "Loading raffle tickets…",
       "loadFailed": "Could not load raffle tickets.",
       "noScore": "—",
@@ -3395,15 +3416,18 @@
         "member": "Commander",
         "vs": "Prior-day VS",
         "tickets": "Tickets",
-        "chance": "Win chance",
+        "chance": "Chance",
         "takedownBadge": "Takedown",
         "rowMeta": "VS {score} · {probability} chance",
+        "chanceOnlyMeta": "{probability} chance",
         "expand": "Show full raffle pool",
         "collapse": "Show fewer rows"
       },
       "missedFloor": {
         "title": "Members didn't make it",
         "subtitle": "R3 commanders below 7.2M on the prior VS day — not eligible for today's raffle.",
+        "titleUniform": "Outside today's draw",
+        "subtitleUniform": "R3 commanders whose prior-day VS is outside the economy range — not in today's equal-chance draw.",
         "member": "Commander",
         "vs": "Prior-day VS"
       }
@@ -3671,6 +3695,16 @@
     "existingStormScoresWarning": "Scores already exist for {eventName} Team {team}. Saving replaces that batch on the same event. Open Data Management to review or delete the batch first if you need a clean slate.",
     "openDataManagement": "Open Data Management",
     "dateLabel": "Recorded date",
+    "vsDayOption": "Day {dayNumber} - {dayName} · {date}",
+    "vsSundayInvalid": "VS has no Sunday match day. Pick Monday–Saturday.",
+    "vsDays": {
+      "radarTraining": "Radar Training",
+      "baseExpansion": "Base Expansion",
+      "ageOfScience": "Age of Science",
+      "trainHeroes": "Train Heroes",
+      "totalMobilization": "Total Mobilization",
+      "enemyBuster": "Enemy Buster"
+    },
     "colName": "Name",
     "colMember": "Matched member",
     "colRank": "Rank",
@@ -5061,6 +5095,10 @@
     "cityListThumbnailPreview": "Preview screenshot",
     "cityListRemoveScreenshot": "Remove",
     "cityListClosePreview": "Close preview",
+    "cityListReviewBankProgress": "New Bank {current} of {total}",
+    "cityListPreviewScreenshots": "Preview screenshots",
+    "cityListPreviousBank": "Previous",
+    "cityListNextBank": "Next",
     "capturesLeftToday": "Captures left today: {remaining}/{limit}",
     "cityListServerTime": "Screenshot server time: {time}",
     "editBank": "Edit bank",

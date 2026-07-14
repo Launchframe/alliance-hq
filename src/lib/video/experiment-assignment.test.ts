@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   pickExperimentArm,
   pickExperimentCampaign,
+  resolvePrimaryExtractionStamp,
 } from "@/lib/video/experiment-assignment";
 
 describe("pickExperimentCampaign", () => {
@@ -64,5 +65,87 @@ describe("pickExperimentArm", () => {
     ];
 
     expect(pickExperimentArm(arms, 0)?.id).toBe("valid");
+  });
+});
+
+describe("resolvePrimaryExtractionStamp", () => {
+  const standing = {
+    passKey: "scene_0.25",
+    configJson: { mode: "scene" as const, sceneThreshold: 0.25, sampleFps: 1 },
+  };
+  const fps3 = {
+    passKey: "fps_3",
+    configJson: { mode: "fps" as const, sampleFps: 3 },
+  };
+
+  it("uses standing assignment when no experiment applies", () => {
+    expect(
+      resolvePrimaryExtractionStamp({ standing, experiment: null }),
+    ).toEqual({
+      passKey: "scene_0.25",
+      configJson: standing.configJson,
+      experimentCampaignId: null,
+      experimentArmId: null,
+    });
+  });
+
+  it("stamps variant arm extraction config onto the primary", () => {
+    expect(
+      resolvePrimaryExtractionStamp({
+        standing,
+        experiment: {
+          campaignId: "camp-1",
+          armId: "arm-variant",
+          configId: "cfg-fps-3",
+          armConfig: fps3,
+        },
+      }),
+    ).toEqual({
+      passKey: "fps_3",
+      configJson: fps3.configJson,
+      experimentCampaignId: "camp-1",
+      experimentArmId: "arm-variant",
+    });
+  });
+
+  it("keeps standing config for control arms (null configId)", () => {
+    expect(
+      resolvePrimaryExtractionStamp({
+        standing,
+        experiment: {
+          campaignId: "camp-1",
+          armId: "arm-control",
+          configId: null,
+          armConfig: null,
+        },
+      }),
+    ).toEqual({
+      passKey: "scene_0.25",
+      configJson: standing.configJson,
+      experimentCampaignId: "camp-1",
+      experimentArmId: "arm-control",
+    });
+  });
+
+  it("ignores roster-ocr arm configs for primary frame extraction", () => {
+    expect(
+      resolvePrimaryExtractionStamp({
+        standing,
+        experiment: {
+          campaignId: "camp-1",
+          armId: "arm-roster",
+          configId: "cfg-roster",
+          armConfig: {
+            passKey: "roster_ocr_scale_2_psm_6",
+            configJson: { mode: "roster-ocr", preprocessScale: 2, tesseractPsm: 6 },
+          },
+        },
+      }),
+    ).toEqual({
+      passKey: "scene_0.25",
+      configJson: standing.configJson,
+      experimentCampaignId: "camp-1",
+      experimentArmId: "arm-roster",
+    });
   });
 });

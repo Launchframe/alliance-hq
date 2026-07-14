@@ -120,8 +120,8 @@ export async function GET(request: Request) {
       scoreTarget: schema.videoJobs.scoreTarget,
       total: sql<number>`count(*)::int`,
       rated: sql<number>`count(*) filter (where ${schema.videoJobs.rating} is not null)::int`,
-      thumbsUp: sql<number>`count(*) filter (where ${schema.videoJobs.rating} = 'up')::int`,
-      thumbsDown: sql<number>`count(*) filter (where ${schema.videoJobs.rating} = 'down')::int`,
+      thumbsUp: sql<number>`count(*) filter (where ${schema.videoJobs.rating} = 'thumbs_up')::int`,
+      thumbsDown: sql<number>`count(*) filter (where ${schema.videoJobs.rating} = 'thumbs_down')::int`,
       avgQualityScore: sql<number | null>`avg(${schema.videoJobs.qualityScore})::real`,
       userSelected: sql<number>`count(*) filter (where ${schema.videoUploadGroups.selectedJobId} = ${schema.videoJobs.id})::int`,
       sysRecommended: sql<number>`count(*) filter (where ${recommendedJobIdExpr} = ${schema.videoJobs.id})::int`,
@@ -184,7 +184,7 @@ export async function GET(request: Request) {
       scoreTarget: schema.videoJobs.scoreTarget,
       total: sql<number>`count(*)::int`,
       rated: sql<number>`count(*) filter (where ${schema.videoJobs.rating} is not null)::int`,
-      thumbsUp: sql<number>`count(*) filter (where ${schema.videoJobs.rating} = 'up')::int`,
+      thumbsUp: sql<number>`count(*) filter (where ${schema.videoJobs.rating} = 'thumbs_up')::int`,
     })
     .from(schema.videoJobs)
     .where(
@@ -233,7 +233,7 @@ export async function GET(request: Request) {
       scoreTarget: schema.videoJobs.scoreTarget,
       passKey: schema.videoJobs.passKey,
       rated: sql<number>`count(*) filter (where ${schema.videoJobs.rating} is not null)::int`,
-      thumbsUp: sql<number>`count(*) filter (where ${schema.videoJobs.rating} = 'up')::int`,
+      thumbsUp: sql<number>`count(*) filter (where ${schema.videoJobs.rating} = 'thumbs_up')::int`,
     })
     .from(schema.videoJobs)
     .where(
@@ -262,8 +262,8 @@ export async function GET(request: Request) {
     .select({
       totalJobs: sql<number>`count(*)::int`,
       ratedJobs: sql<number>`count(*) filter (where ${schema.videoJobs.rating} is not null)::int`,
-      thumbsUp: sql<number>`count(*) filter (where ${schema.videoJobs.rating} = 'up')::int`,
-      thumbsDown: sql<number>`count(*) filter (where ${schema.videoJobs.rating} = 'down')::int`,
+      thumbsUp: sql<number>`count(*) filter (where ${schema.videoJobs.rating} = 'thumbs_up')::int`,
+      thumbsDown: sql<number>`count(*) filter (where ${schema.videoJobs.rating} = 'thumbs_down')::int`,
     })
     .from(schema.videoJobs)
     .where(

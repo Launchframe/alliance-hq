@@ -186,10 +186,14 @@ describe("navLinkActive", () => {
   it("highlights /settings on alliance settings sub-pages", () => {
     expect(navLinkActive("/settings/discord", "/settings")).toBe(true);
     expect(navLinkActive("/settings/trains", "/settings")).toBe(true);
+    expect(navLinkActive("/settings/game-seasons", "/settings")).toBe(true);
     expect(navLinkActive("/settings/upload-reminders", "/settings")).toBe(true);
     expect(navLinkActive("/settings/team", "/settings")).toBe(true);
     expect(navLinkActive("/settings/discord", "/settings/discord")).toBe(true);
     expect(navLinkActive("/settings/trains", "/settings/trains")).toBe(true);
+    expect(navLinkActive("/settings/game-seasons", "/settings/game-seasons")).toBe(
+      true,
+    );
   });
 
   it("does not highlight /settings on account or hotkeys routes", () => {
@@ -262,6 +266,11 @@ describe("findActiveNavGroupId alliance-management extras", () => {
     ).toBe("alliance-management");
     expect(
       findActiveNavGroupId("/settings/trains", {
+        showAllianceSettings: true,
+      }),
+    ).toBe("alliance-management");
+    expect(
+      findActiveNavGroupId("/settings/game-seasons", {
         showAllianceSettings: true,
       }),
     ).toBe("alliance-management");

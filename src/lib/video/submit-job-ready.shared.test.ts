@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   isVideoJobReadyForSubmit,
+  resolveVideoSubmitRollbackStatus,
   VIDEO_SUBMIT_IN_PROGRESS_ERROR,
   videoSubmitClaimLostError,
   videoSubmitNotReadyError,
@@ -29,5 +30,34 @@ describe("submit readiness error copy", () => {
       `Couldn't start submit — this job's status is now "submitting". Refresh the page and try again.`,
     );
     expect(VIDEO_SUBMIT_IN_PROGRESS_ERROR).toBe("Submit already in progress.");
+  });
+});
+
+describe("resolveVideoSubmitRollbackStatus", () => {
+  it("keeps complete when Update scores fails before Ashed wipe", () => {
+    expect(
+      resolveVideoSubmitRollbackStatus({
+        originalStatus: "complete",
+        clearedPriorAshedScores: false,
+      }),
+    ).toBe("complete");
+  });
+
+  it("forces review after Ashed wipe so the user must re-submit", () => {
+    expect(
+      resolveVideoSubmitRollbackStatus({
+        originalStatus: "complete",
+        clearedPriorAshedScores: true,
+      }),
+    ).toBe("review");
+  });
+
+  it("rolls first-submit failures back to review", () => {
+    expect(
+      resolveVideoSubmitRollbackStatus({
+        originalStatus: "review",
+        clearedPriorAshedScores: false,
+      }),
+    ).toBe("review");
   });
 });

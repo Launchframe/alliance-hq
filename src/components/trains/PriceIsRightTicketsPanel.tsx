@@ -10,7 +10,10 @@ import {
   type PriceIsRightTicketBoardEntry,
 } from "@/lib/trains/train-price-is-right-tickets.shared";
 
+type OddsMode = "weighted" | "uniform" | "heavy_hitter";
+
 type TicketBoardPayload = {
+  mode?: OddsMode;
   trainDate: string;
   scoreDate: string;
   settings: {
@@ -89,6 +92,9 @@ export function PriceIsRightTicketsPanel({ trainDate }: Props) {
     };
   }, [t, trainDate]);
 
+  const mode: OddsMode = payload?.mode ?? "weighted";
+  const isWeighted = mode === "weighted";
+
   const collapsedRows = useMemo(() => {
     if (!payload) return [];
     const board = payload.board;
@@ -116,7 +122,38 @@ export function PriceIsRightTicketsPanel({ trainDate }: Props) {
     );
   }
 
-  if (error || !payload) return null;
+  if (error || !payload) {
+    return (
+      <section
+        className="rounded-xl border border-cyan-500/30 bg-cyan-500/5 p-5"
+        data-testid="price-is-right-tickets-panel"
+      >
+        <p className="text-sm text-hq-fg-muted">{error ?? t("loadFailed")}</p>
+      </section>
+    );
+  }
+
+  // Weighted mode keeps the ticket hero + chart even with an empty board
+  // (common in e2e / no prior-day VS). Equal-chance modes use a dedicated empty state.
+  if (payload.board.length === 0 && !isWeighted) {
+    return (
+      <section
+        className="rounded-xl border border-cyan-500/30 bg-cyan-500/5 p-5"
+        data-testid="price-is-right-tickets-panel"
+      >
+        <h3 className="text-base font-semibold text-cyan-100">
+          {mode === "heavy_hitter"
+            ? t("oddsTitleHeavyHitter")
+            : t("oddsTitleUniform")}
+        </h3>
+        <p className="mt-2 text-sm text-hq-fg-muted">
+          {mode === "heavy_hitter"
+            ? t("oddsEmptyHeavyHitter")
+            : t("oddsEmptyUniform")}
+        </p>
+      </section>
+    );
+  }
 
   const viewerTickets = payload.viewer?.ticketCount ?? 0;
   const viewerScore = payload.viewer?.priorDayVsScore;
@@ -128,39 +165,66 @@ export function PriceIsRightTicketsPanel({ trainDate }: Props) {
       data-testid="price-is-right-tickets-panel"
     >
       <div className="flex flex-col gap-1">
-        <h3 className="text-base font-semibold text-cyan-100">{t("title")}</h3>
-        <p className="text-sm text-hq-fg-muted">{t("decayHint")}</p>
-      </div>
-
-      <div
-        className="mt-4 rounded-lg border border-hq-border bg-hq-surface/80 px-4 py-3"
-        data-testid="price-is-right-tickets-hero"
-      >
-        <p className="text-lg font-semibold text-hq-fg">
-          {t("hero", {
-            count: viewerTickets,
-            dayOfWeek: formatDayOfWeek(payload.scoreDate),
-            score:
-              viewerScore != null
-                ? formatPriceIsRightVsScore(viewerScore)
-                : t("noScore"),
-          })}
+        <h3 className="text-base font-semibold text-cyan-100">
+          {mode === "heavy_hitter"
+            ? t("oddsTitleHeavyHitter")
+            : mode === "uniform"
+              ? t("oddsTitleUniform")
+              : t("title")}
+        </h3>
+        <p className="text-sm text-hq-fg-muted">
+          {mode === "heavy_hitter"
+            ? t("oddsSubtitleHeavyHitter")
+            : mode === "uniform"
+              ? t("oddsSubtitleUniform")
+              : t("decayHint")}
         </p>
       </div>
 
-      <PriceIsRightTicketDistributionChart
-        className="mt-5"
-        settings={{
-          weightingEnabled: true,
-          cliffPoints: payload.settings.cliffPoints,
-          hardCutoffEnabled: payload.settings.hardCutoffEnabled,
-          maxTicketMemberIds: payload.board
-            .filter((row) => row.isTakedownOverride)
-            .map((row) => row.memberId),
-        }}
-        memberPoints={chartPoints}
-        data-testid="price-is-right-tickets-chart"
-      />
+      {isWeighted ? (
+        <div
+          className="mt-4 rounded-lg border border-hq-border bg-hq-surface/80 px-4 py-3"
+          data-testid="price-is-right-tickets-hero"
+        >
+          <p className="text-lg font-semibold text-hq-fg">
+            {t("hero", {
+              count: viewerTickets,
+              dayOfWeek: formatDayOfWeek(payload.scoreDate),
+              score:
+                viewerScore != null
+                  ? formatPriceIsRightVsScore(viewerScore)
+                  : t("noScore"),
+            })}
+          </p>
+        </div>
+      ) : payload.viewer && !payload.viewer.missedFloor ? (
+        <div
+          className="mt-4 rounded-lg border border-hq-border bg-hq-surface/80 px-4 py-3"
+          data-testid="price-is-right-tickets-hero"
+        >
+          <p className="text-lg font-semibold text-hq-fg">
+            {t("oddsHeroEqual", {
+              probability: formatProbability(payload.viewer.winProbability),
+            })}
+          </p>
+        </div>
+      ) : null}
+
+      {isWeighted ? (
+        <PriceIsRightTicketDistributionChart
+          className="mt-5"
+          settings={{
+            weightingEnabled: true,
+            cliffPoints: payload.settings.cliffPoints,
+            hardCutoffEnabled: payload.settings.hardCutoffEnabled,
+            maxTicketMemberIds: payload.board
+              .filter((row) => row.isTakedownOverride)
+              .map((row) => row.memberId),
+          }}
+          memberPoints={chartPoints}
+          data-testid="price-is-right-tickets-chart"
+        />
+      ) : null}
 
       <div className="mt-5">
         {expanded ? (
@@ -169,8 +233,12 @@ export function PriceIsRightTicketsPanel({ trainDate }: Props) {
               <thead className="bg-hq-canvas/80 text-xs uppercase tracking-wide text-hq-fg-muted">
                 <tr>
                   <th className="px-3 py-2 font-medium">{t("board.member")}</th>
-                  <th className="px-3 py-2 font-medium">{t("board.vs")}</th>
-                  <th className="px-3 py-2 font-medium">{t("board.tickets")}</th>
+                  {mode !== "heavy_hitter" ? (
+                    <th className="px-3 py-2 font-medium">{t("board.vs")}</th>
+                  ) : null}
+                  {isWeighted ? (
+                    <th className="px-3 py-2 font-medium">{t("board.tickets")}</th>
+                  ) : null}
                   <th className="px-3 py-2 font-medium">{t("board.chance")}</th>
                 </tr>
               </thead>
@@ -190,10 +258,14 @@ export function PriceIsRightTicketsPanel({ trainDate }: Props) {
                         </span>
                       ) : null}
                     </td>
-                    <td className="px-3 py-2 text-hq-fg-muted">
-                      {formatPriceIsRightVsScore(row.priorDayVsScore)}
-                    </td>
-                    <td className="px-3 py-2 text-hq-fg">{row.ticketCount}</td>
+                    {mode !== "heavy_hitter" ? (
+                      <td className="px-3 py-2 text-hq-fg-muted">
+                        {formatPriceIsRightVsScore(row.priorDayVsScore)}
+                      </td>
+                    ) : null}
+                    {isWeighted ? (
+                      <td className="px-3 py-2 text-hq-fg">{row.ticketCount}</td>
+                    ) : null}
                     <td className="px-3 py-2 text-hq-fg-muted">
                       {formatProbability(row.winProbability)}
                     </td>
@@ -222,14 +294,20 @@ export function PriceIsRightTicketsPanel({ trainDate }: Props) {
                       ) : null}
                     </p>
                     <p className="text-xs text-hq-fg-muted">
-                      {t("board.rowMeta", {
-                        score: formatPriceIsRightVsScore(row.priorDayVsScore),
-                        probability: formatProbability(row.winProbability),
-                      })}
+                      {mode === "heavy_hitter"
+                        ? t("board.chanceOnlyMeta", {
+                            probability: formatProbability(row.winProbability),
+                          })
+                        : t("board.rowMeta", {
+                            score: formatPriceIsRightVsScore(row.priorDayVsScore),
+                            probability: formatProbability(row.winProbability),
+                          })}
                     </p>
                   </div>
                   <p className="shrink-0 text-sm font-semibold text-cyan-200">
-                    {row.ticketCount}
+                    {isWeighted
+                      ? row.ticketCount
+                      : formatProbability(row.winProbability)}
                   </p>
                 </li>
               ))}
@@ -271,9 +349,15 @@ export function PriceIsRightTicketsPanel({ trainDate }: Props) {
         <div className="mt-6 border-t border-cyan-500/20 pt-5">
           <div className="flex flex-col gap-1">
             <h4 className="text-sm font-semibold text-hq-fg">
-              {t("missedFloor.title")}
+              {mode === "uniform"
+                ? t("missedFloor.titleUniform")
+                : t("missedFloor.title")}
             </h4>
-            <p className="text-xs text-hq-fg-muted">{t("missedFloor.subtitle")}</p>
+            <p className="text-xs text-hq-fg-muted">
+              {mode === "uniform"
+                ? t("missedFloor.subtitleUniform")
+                : t("missedFloor.subtitle")}
+            </p>
           </div>
           <div
             className="mt-3 overflow-x-auto rounded-lg border border-hq-border"

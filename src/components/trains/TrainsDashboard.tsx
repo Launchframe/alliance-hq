@@ -63,7 +63,6 @@ import type {
   WeekSchedulePagePayload,
 } from "@/lib/trains/load-dashboard";
 import { effectiveConductorMechanism } from "@/lib/trains/conductor-mechanism.shared";
-import { isPriceIsRightHeavyHitterSaturday } from "@/lib/trains/heavy-hitter-pool.shared";
 import {
   conductorSpinSource,
   isPoolSpinSource,
@@ -1554,9 +1553,7 @@ export function TrainsDashboard({ initial }: Props) {
             <PriceIsRightPodiumLeaderboard trainDate={selectedDate} />
           ) : null}
 
-          {conductorPaint === "price_is_right" &&
-          data.priceIsRightWeightingEnabled &&
-          !isPriceIsRightHeavyHitterSaturday(conductorPaint, selectedDate) ? (
+          {conductorPaint === "price_is_right" ? (
             <PriceIsRightTicketsPanel trainDate={selectedDate} />
           ) : null}
 
@@ -1767,9 +1764,10 @@ export function TrainsDashboard({ initial }: Props) {
                 ) : null}
               </div>
 
-              {conductorMech === "r3_lottery" ||
-              conductorMech === "heavy_hitter_lottery" ||
-              conductorMech === "r4_sequence" ? (
+              {conductorPaint !== "price_is_right" &&
+              (conductorMech === "r3_lottery" ||
+                conductorMech === "heavy_hitter_lottery" ||
+                conductorMech === "r4_sequence") ? (
                 <div className="flex items-center gap-1.5 self-start">
                   <button
                     type="button"

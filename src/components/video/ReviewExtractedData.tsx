@@ -26,6 +26,12 @@ import {
   findDuplicateMemberAssignments,
 } from "@/lib/video/review-validation";
 import { isZeroScoreWarningDisabled } from "@/lib/video/score-targets";
+import {
+  isValidVsPerformanceRecordedDate,
+  listRecentVsPerformanceDates,
+  nearestValidVsPerformanceDate,
+  vsPerformanceDayMetaForDate,
+} from "@/lib/video/vs-recorded-date.shared";
 import { formatBrowserLocalDateTime } from "@/lib/timezone/format";
 import type { VideoProcessTimings } from "@/lib/analytics/video-pipeline";
 import { buildMemberMatchSelectOptions } from "@/lib/video/member-select-options";
@@ -279,6 +285,9 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   const [frameTimestamps, setFrameTimestamps] = useState<FrameTimestampMap>({});
   const [showRatingPrompt, setShowRatingPrompt] = useState(false);
   const [jobRating, setJobRating] = useState<"thumbs_up" | "thumbs_down" | null>(null);
+  /** Hold review→event redirect while success/rating UI is on screen. */
+  const [holdEventRedirect, setHoldEventRedirect] = useState(false);
+  const holdEventRedirectTimeoutRef = useRef<number | null>(null);
   const [discarding, setDiscarding] = useState(false);
   const [groupInfo, setGroupInfo] = useState<GroupInfo | null>(null);
   const [showComparisonPrompt, setShowComparisonPrompt] = useState(false);
@@ -350,6 +359,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
 
   useEffect(() => {
     if (jobStatus === "loading") return;
+    if (holdEventRedirect) return;
     const search = window.location.search;
     if (viewMode === "review" && jobStatus === "complete") {
       router.replace(`/tools/video-upload/${jobId}/event${search}`);
@@ -362,7 +372,55 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     ) {
       router.replace(`/tools/video-upload/${jobId}/review${search}`);
     }
-  }, [jobId, jobStatus, router, viewMode]);
+  }, [holdEventRedirect, jobId, jobStatus, router, viewMode]);
+
+  useEffect(() => {
+    return () => {
+      if (holdEventRedirectTimeoutRef.current != null) {
+        window.clearTimeout(holdEventRedirectTimeoutRef.current);
+        holdEventRedirectTimeoutRef.current = null;
+      }
+    };
+  }, []);
+
+  const isVsPerformanceTarget = scoreTargetMeta?.id === "vs-performance";
+
+  const vsSafeRecordedDate = useMemo(() => {
+    if (!isVsPerformanceTarget) return recordedDate;
+    if (isValidVsPerformanceRecordedDate(recordedDate)) return recordedDate;
+    return nearestValidVsPerformanceDate(recordedDate);
+  }, [isVsPerformanceTarget, recordedDate]);
+
+  const vsRecordedDateOptions = useMemo(() => {
+    if (!isVsPerformanceTarget) return [];
+    return listRecentVsPerformanceDates({
+      includeDate: vsSafeRecordedDate,
+    }).map((date) => {
+      const meta = vsPerformanceDayMetaForDate(date);
+      const dayName = meta
+        ? t(
+            `vsDays.${meta.vsDayKey}` as
+              | "vsDays.radarTraining"
+              | "vsDays.baseExpansion"
+              | "vsDays.ageOfScience"
+              | "vsDays.trainHeroes"
+              | "vsDays.totalMobilization"
+              | "vsDays.enemyBuster",
+          )
+        : date;
+      return {
+        value: date,
+        label: meta
+          ? t("vsDayOption", {
+              dayNumber: meta.vsDayNumber,
+              dayName,
+              date,
+            })
+          : date,
+        searchText: `${date} ${dayName}`,
+      };
+    });
+  }, [isVsPerformanceTarget, vsSafeRecordedDate, t]);
 
   const rematchMembers = useCallback(async () => {
     setRematching(true);
@@ -436,7 +494,12 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           return;
         }
 
-        if (data.alliance?.stale && !options?.skipRematch) {
+        if (
+          data.alliance?.stale &&
+          !options?.skipRematch &&
+          data.job?.status !== "complete" &&
+          data.job?.status !== "submitting"
+        ) {
           const ok = await rematchMembers();
           if (ok) {
             await loadRef.current({ skipRematch: true });
@@ -485,12 +548,17 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           serverRows,
         );
         setRows(restored.rows);
+        const loadedIsVs = data.scoreTargetMeta?.id === "vs-performance";
         if (restored.form) {
           setEventId(restored.form.eventId);
           setHqEventId(restored.form.hqEventId);
           setBoardKey(restored.form.boardKey);
           setTeam(restored.form.team);
-          setRecordedDate(restored.form.recordedDate);
+          setRecordedDate(
+            loadedIsVs
+              ? nearestValidVsPerformanceDate(restored.form.recordedDate)
+              : restored.form.recordedDate,
+          );
           if (restored.form.bankId) {
             setBankId(restored.form.bankId);
           }
@@ -500,6 +568,9 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           }
           if (data.job?.boardKey) {
             setBoardKey(data.job.boardKey);
+          }
+          if (loadedIsVs) {
+            setRecordedDate((prev) => nearestValidVsPerformanceDate(prev));
           }
         }
         setDraftRestored(restored.restored);
@@ -1165,6 +1236,13 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
       setActionError(t("depositSlipIncompleteBlocked"));
       return;
     }
+    if (
+      scoreTargetMeta?.id === "vs-performance" &&
+      !isValidVsPerformanceRecordedDate(vsSafeRecordedDate)
+    ) {
+      setActionError(t("vsSundayInvalid"));
+      return;
+    }
 
     setSubmitting(true);
     clearActionError();
@@ -1180,7 +1258,9 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           hqEventId: scoreTargetMeta?.usesHqEvents ? hqEventId : undefined,
           boardKey: needsBoardPicker ? boardKey : undefined,
           team: scoreTargetMeta?.showTeamSelector ? team : undefined,
-          recordedDate,
+          recordedDate: isVsPerformanceTarget
+            ? vsSafeRecordedDate
+            : recordedDate,
           bankId: scoreTargetMeta?.showBankSelector ? bankId : undefined,
           rows: rows.map((r) =>
             isRoster
@@ -1241,6 +1321,10 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
               ? t("depositSlipSubmitSuccess", { count: data.submitted ?? 0 })
               : t("submitSuccess", { count: data.submitted ?? 0 }),
       );
+      // Stay on review through success + OCR rating; event redirect resumes after.
+      if (!isEventView) {
+        setHoldEventRedirect(true);
+      }
       setJobStatus("complete");
       if (
         !isEventView &&
@@ -1253,8 +1337,17 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           isSolicited: true,
           delayMs: 1500,
         });
-      } else if (!jobRating) {
+      }
+      if (!isEventView && !jobRating) {
         setShowRatingPrompt(true);
+      } else if (!isEventView) {
+        if (holdEventRedirectTimeoutRef.current != null) {
+          window.clearTimeout(holdEventRedirectTimeoutRef.current);
+        }
+        holdEventRedirectTimeoutRef.current = window.setTimeout(() => {
+          holdEventRedirectTimeoutRef.current = null;
+          setHoldEventRedirect(false);
+        }, 1500);
       }
     } catch (err) {
       setActionError(err instanceof Error ? err.message : tc("uploadFailed"));
@@ -1835,16 +1928,35 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         ) : null}
         <label className="block text-sm">
           <span className="mb-1 block text-hq-fg-muted">{t("dateLabel")}</span>
-          <input
-            type="date"
-            value={recordedDate}
-            onChange={(e) => {
-              markDraftDirty();
-              setRecordedDate(e.target.value);
-            }}
-            enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT}
-            className="w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2"
-          />
+          {isVsPerformanceTarget ? (
+            <AppSelect
+              value={vsSafeRecordedDate}
+              onChange={(next) => {
+                if (!isValidVsPerformanceRecordedDate(next)) {
+                  setActionError(t("vsSundayInvalid"));
+                  return;
+                }
+                markDraftDirty();
+                setRecordedDate(next);
+              }}
+              options={vsRecordedDateOptions}
+              searchable
+              placeholder={t("dateLabel")}
+              aria-label={t("dateLabel")}
+              noSearchResultsLabel={t("memberSearchNoResults")}
+            />
+          ) : (
+            <input
+              type="date"
+              value={recordedDate}
+              onChange={(e) => {
+                markDraftDirty();
+                setRecordedDate(e.target.value);
+              }}
+              enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT}
+              className="w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2"
+            />
+          )}
         </label>
       </div>
       ) : null}
@@ -2298,7 +2410,14 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
 
       {showRatingPrompt ? (
         <OcrRatingPrompt
-          onClose={() => setShowRatingPrompt(false)}
+          onClose={() => {
+            setShowRatingPrompt(false);
+            if (holdEventRedirectTimeoutRef.current != null) {
+              window.clearTimeout(holdEventRedirectTimeoutRef.current);
+              holdEventRedirectTimeoutRef.current = null;
+            }
+            setHoldEventRedirect(false);
+          }}
           onRate={persistJobRating}
         />
       ) : null}

@@ -960,7 +960,7 @@
     },
     "experimentsPage": {
       "title": "Experimentos",
-      "subtitle": "Campanhas A/B para testar configurações de análise.",
+      "subtitle": "Campanhas A/B que aplicam configurações de análise no job principal revisado pelos oficiais.",
       "newCampaign": "Nova campanha",
       "cancel": "Cancelar",
       "create": "Criar campanha",
@@ -975,8 +975,8 @@
         "title": "Grupos",
         "add": "Adicionar grupo",
         "loadConfigs": "Carregando configurações…",
-        "configDefault": "Padrão (sem passagem shadow — comportamento do grupo controle)",
-        "configPickerLabel": "Configuração de análise",
+        "configDefault": "Primária de produção em vigor (controle — atribuição ou padrão)",
+        "configPickerLabel": "Configuração de análise (aplica no job principal deste grupo)",
         "deltaNote": "Δ de 👍 % é relativo ao grupo controle.",
         "form": {
           "name": "Nome do grupo",
@@ -1038,14 +1038,14 @@
         "noData": "Dados insuficientes para renderizar o gráfico."
       },
       "promote": {
-        "title": "Promover grupo vencedor como passagem principal",
-        "hint": "Criar uma atribuição de configuração torna a configuração do grupo selecionado o padrão para novos uploads com este score target. Vídeos já processados não serão reprocessados.",
+        "title": "Promover grupo vencedor como padrão permanente",
+        "hint": "Cria uma atribuição de configuração para que novos uploads usem esta análise quando não houver experimento ativo. Campanhas ativas ainda fazem A/B na primária; vídeos já processados não são reprocessados.",
         "selectArm": "Selecionar grupo para promover",
         "notes": "Notas (opcional)",
-        "notesPlaceholder": "ex.: scene_0.33 superou o controle em 12pp no zombie_siege",
+        "notesPlaceholder": "ex.: fps_3 superou o controle em 12pp no bank-deposit-slip-history",
         "confirmCta": "Criar atribuição",
         "successTitle": "Atribuição de configuração criada",
-        "successHint": "Novos uploads para este score target usarão a configuração promovida como passagem principal.",
+        "successHint": "Novos uploads para este score target usam a configuração promovida como primária permanente fora de experimentos ativos.",
         "conflictError": "Já existe uma atribuição para este escopo. Acesse Configurações de análise para atualizá-la.",
         "noVariantArms": "Nenhum grupo variante com configuração disponível para promover."
       },
@@ -1884,6 +1884,9 @@
     "trainsSectionTitle": "Trens",
     "trainsSectionBody": "Configure o início da semana de trem, anúncios no Discord e mínimos do condutor.",
     "trainsSectionLink": "Abrir configurações de trem",
+    "gameSeasonsSectionTitle": "Temporada do jogo",
+    "gameSeasonsSectionBody": "Temporada de Last War usada em registros de trem e pontuação, além do modo sandbox de VR.",
+    "gameSeasonsSectionLink": "Abrir configurações de temporada",
     "backToAllianceSettings": "Configurações da aliança",
     "discord": {
       "title": "Integração com Discord",
@@ -1894,6 +1897,10 @@
     "trains": {
       "title": "Trens",
       "subtitle": "Configuração de trem para {tag}."
+    },
+    "gameSeasons": {
+      "title": "Temporada do jogo",
+      "subtitle": "Configurações de temporada e sandbox de VR para {tag}."
     },
     "allianceContext": {
       "title": "Escolha uma aliança",
@@ -2012,10 +2019,12 @@
       "hardCutoffLabel": "Corte rígido acima do cliff",
       "hardCutoffHint": "Membros com pontuação acima deste valor serão excluídos do sorteio.",
       "takedownLabel": "Equipe takedown (tickets máximos)",
-      "takedownHint": "Membros que sempre recebem o máximo de tickets. Nos sábados do Price Is Freight, a loteria do condutor sorteia só desta lista (chance máxima igual).",
+      "takedownHint": "Membros que continuam elegíveis mesmo acima da faixa de economia e sempre recebem o máximo de tickets no modo rifa — assim podem subir bem além de 7,2M sem perder acesso ao sorteio de condutor. Nos sábados do Price Is Freight, a loteria do condutor sorteia só desta lista (chance igual).",
       "takedownSearchPlaceholder": "Buscar no roster para adicionar membros…",
       "takedownEmpty": "Nenhum membro correspondente no roster.",
-      "chartCaption": "Curva de tickets e chance de vitória para o cliff configurado.",
+      "chartCaption": "Curva de tickets e chance de vitória para o cliff configurado. Os pontos mostram as pontuações R3 do dia anterior (se disponíveis).",
+      "chartCaptionUniform": "Chance igual para pontuações na faixa de economia. Membros da equipe takedown seguem elegíveis acima do teto. Os pontos mostram as pontuações R3 do dia anterior (se disponíveis).",
+      "chartCaptionNoFilter": "O filtro de VS está desligado — todo R3 restante tem chance igual. Defina um limiar de economia para visualizar a faixa.",
       "save": "Salvar limite de economia",
       "saving": "Salvando…",
       "saveFailed": "Não foi possível salvar as configurações de limite de economia.",
@@ -3153,6 +3162,7 @@
       "wheelSpeed_slow": "Lenta",
       "wheelSpeed_regular": "Normal",
       "wheelSpeed_fast": "Rápida",
+      "advancedSettings": "Configurações avançadas",
       "saveFailed": "Não foi possível salvar as preferências de trens."
     },
     "help": {
@@ -3262,6 +3272,10 @@
       "nextInSequence": "Próximo na sequência: {name}",
       "poolExhausted": "· esgotado",
       "liveLeaderboardHint": "Sorteado dos placares ao vivo, não do pool de membros.",
+      "priceIsRightRaffle": "Loteria R3: The Price Is Freight",
+      "priceIsRightRaffleHint": "Sorteio diário — os ganhadores continuam elegíveis nos dias seguintes.",
+      "priceIsRightHeavyHitter": "Loteria heavy-hitter: The Price Is Freight",
+      "priceIsRightHeavyHitterHint": "Sorteio de sábado entre o time de takedown — chance igual; os ganhadores continuam elegíveis.",
       "poolTypes": {
         "r3": "Pool loteria R3",
         "r4_plus": "Pool sequência R4",
@@ -3314,6 +3328,13 @@
     "priceIsRight": {
       "title": "Tickets de rifa",
       "decayHint": "Mais perto de 7,2M → mais tickets.",
+      "oddsTitleUniform": "Chances do sorteio do condutor",
+      "oddsSubtitleUniform": "Chance igual entre R3 com VS do dia anterior na faixa econômica. Ordenado por nome.",
+      "oddsTitleHeavyHitter": "Chances do sorteio heavy-hitter",
+      "oddsSubtitleHeavyHitter": "Chance igual entre os heavy hitters configurados.",
+      "oddsEmptyUniform": "Nenhum membro R3 está na faixa de VS econômica deste dia ainda.",
+      "oddsEmptyHeavyHitter": "Nenhum heavy hitter está configurado para o sorteio de sábado.",
+      "oddsHeroEqual": "Sua chance no sorteio de hoje: {probability}",
       "loading": "Carregando tickets de rifa…",
       "loadFailed": "Não foi possível carregar os tickets de rifa.",
       "noScore": "—",
@@ -3344,12 +3365,15 @@
         "chance": "Chance",
         "takedownBadge": "Takedown",
         "rowMeta": "VS {score} · {probability} de chance",
+        "chanceOnlyMeta": "{probability} de chance",
         "expand": "Mostrar pool completo",
         "collapse": "Mostrar menos linhas"
       },
       "missedFloor": {
         "title": "Membros que não passaram",
         "subtitle": "Comandantes R3 abaixo de 7,2M no VS do dia anterior — sem elegibilidade na rifa de hoje.",
+        "titleUniform": "Fora do sorteio de hoje",
+        "subtitleUniform": "Comandantes R3 cujo VS do dia anterior está fora da faixa econômica — não entram no sorteio de chance igual de hoje.",
         "member": "Comandante",
         "vs": "VS do dia anterior"
       }
@@ -3617,6 +3641,16 @@
     "existingStormScoresWarning": "Já existem pontuações para {eventName} Equipe {team}. Salvar substitui esse lote no mesmo evento. Abra o Gerenciamento de Dados para revisar ou excluir o lote antes se precisar recomeçar do zero.",
     "openDataManagement": "Abrir Gerenciamento de Dados",
     "dateLabel": "Data registrada",
+    "vsDayOption": "Dia {dayNumber} - {dayName} · {date}",
+    "vsSundayInvalid": "Não há dia de VS no domingo. Escolha de segunda a sábado.",
+    "vsDays": {
+      "radarTraining": "Treinamento de Radar",
+      "baseExpansion": "Expansão de Base",
+      "ageOfScience": "Era da Ciência",
+      "trainHeroes": "Treinar Heróis",
+      "totalMobilization": "Mobilização Total",
+      "enemyBuster": "Destruidor de Inimigos"
+    },
     "colName": "Nome",
     "colMember": "Membro correspondido",
     "colRank": "Posição",
@@ -5061,6 +5095,10 @@
     "cityListThumbnailPreview": "Pré-visualizar captura",
     "cityListRemoveScreenshot": "Remover",
     "cityListClosePreview": "Fechar pré-visualização",
+    "cityListReviewBankProgress": "Novo banco {current} de {total}",
+    "cityListPreviewScreenshots": "Pré-visualizar capturas",
+    "cityListPreviousBank": "Anterior",
+    "cityListNextBank": "Próximo",
     "capturesLeftToday": "Capturas restantes hoje: {remaining}/{limit}",
     "cityListServerTime": "Horário do servidor na captura: {time}",
     "editBank": "Editar banco",

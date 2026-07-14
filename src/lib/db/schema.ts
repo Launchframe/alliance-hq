@@ -56,8 +56,14 @@ export const alliances = pgTable("alliances", {
   trainConductorMinimumsWindow: text("train_conductor_minimums_window")
     .notNull()
     .default("weekly"),
-  /** Max prior-day VS score for Price Is Right pool eligibility (null = off). */
-  trainEconomyThresholdPoints: integer("train_economy_threshold_points"),
+  /**
+   * Max prior-day VS for Price Is Freight economy-band eligibility (before fudge).
+   * Null = VS filtering off for non-raffle draws.
+   * Default matches PRICE_IS_RIGHT_DEFAULT_ECONOMY_THRESHOLD_POINTS (8.5M).
+   */
+  trainEconomyThresholdPoints: integer("train_economy_threshold_points").default(
+    8500000,
+  ),
   /** Fudge % above economy threshold still eligible (default 1). */
   trainEconomyThresholdFudgePct: integer("train_economy_threshold_fudge_pct")
     .notNull()
@@ -2733,7 +2739,7 @@ export const experimentArms = pgTable("experiment_arms", {
     .references(() => experimentCampaigns.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   isControl: boolean("is_control").notNull().default(false),
-  /** null = arm uses default shadow behavior (no extra shadow pass) */
+  /** null = control arm uses standing production primary (assignment / default) */
   configId: text("config_id").references(() => parseConfigs.id, {
     onDelete: "set null",
   }),

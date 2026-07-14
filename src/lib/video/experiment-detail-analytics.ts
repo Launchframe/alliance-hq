@@ -52,22 +52,18 @@ function dateKey(value: Date | string): string {
   return new Date(value).toISOString().slice(0, 10);
 }
 
-function selectEvaluatedJob(
-  arm: ExperimentDetailArm,
+/** Officer ratings persist as thumbs_up / thumbs_down; accept legacy up/down. */
+export function isThumbsUpRating(rating: string | null | undefined): boolean {
+  return rating === "thumbs_up" || rating === "up";
+}
+
+/**
+ * Evaluate the officer-facing primary job for an arm's upload group.
+ * Extraction experiments A/B the primary; shadows are engine-comparison only.
+ */
+export function selectEvaluatedJob(
   jobs: ExperimentDetailJob[],
 ): ExperimentDetailJob | null {
-  const expectedPassKey = arm.config?.passKey ?? null;
-
-  if (expectedPassKey) {
-    return (
-      jobs.find(
-        (job) => job.passRole === "shadow" && job.passKey === expectedPassKey,
-      ) ??
-      jobs.find((job) => job.passKey === expectedPassKey) ??
-      null
-    );
-  }
-
   return jobs.find((job) => job.passRole === "primary") ?? jobs[0] ?? null;
 }
 
@@ -107,12 +103,12 @@ export function buildExperimentDetailAnalytics(params: {
     const qualityBuckets: Record<string, number> = {};
 
     for (const group of armGroups) {
-      const evaluatedJob = selectEvaluatedJob(arm, jobsByGroup.get(group.id) ?? []);
+      const evaluatedJob = selectEvaluatedJob(jobsByGroup.get(group.id) ?? []);
       if (!evaluatedJob) continue;
 
       if (evaluatedJob.rating != null) {
         ratedCount += 1;
-        if (evaluatedJob.rating === "up") thumbsUpCount += 1;
+        if (isThumbsUpRating(evaluatedJob.rating)) thumbsUpCount += 1;
 
         const key = `${dateKey(evaluatedJob.createdAt)}::${arm.id}`;
         const point = dailyByKey.get(key) ?? {
@@ -122,7 +118,7 @@ export function buildExperimentDetailAnalytics(params: {
           thumbsUp: 0,
         };
         point.rated += 1;
-        if (evaluatedJob.rating === "up") point.thumbsUp += 1;
+        if (isThumbsUpRating(evaluatedJob.rating)) point.thumbsUp += 1;
         dailyByKey.set(key, point);
       }
 
