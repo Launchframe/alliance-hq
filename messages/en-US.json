@@ -3216,8 +3216,54 @@
       "wheelSpeed_slow": "Slow",
       "wheelSpeed_regular": "Regular",
       "wheelSpeed_fast": "Fast",
+      "simpleMode": {
+        "label": "Simple Mode",
+        "hint": "Guided steps for picking today’s conductor instead of the full quick-actions grid."
+      },
       "advancedSettings": "Advanced Settings",
       "saveFailed": "Could not save train preferences."
+    },
+    "guidedFlow": {
+      "heading": "Today’s conductor setup",
+      "steps": {
+        "prerequisites": {
+          "title": "Score data",
+          "bodyReady": "{count} commanders have scores ready for this day.",
+          "bodyMissing": "No scores found yet for this day’s VS / Price Is Freight check.",
+          "uploadLink": "Upload score video"
+        },
+        "template": {
+          "title": "Week template",
+          "change": "Change template"
+        },
+        "conductor": {
+          "title": "Conductor",
+          "spin": "Spin for conductor",
+          "pickTop": "Pick top scorer",
+          "pickManual": "Pick conductor manually",
+          "assigned": "Conductor: {name}",
+          "change": "Change"
+        },
+        "vip": {
+          "title": "VIP / Guardian",
+          "spin": "Spin for VIP",
+          "pickManual": "Pick VIP manually",
+          "assigned": "VIP: {name}",
+          "change": "Change",
+          "skipped": "VIP not used for this day"
+        },
+        "lock": {
+          "title": "Lock",
+          "lockCta": "Lock conductor",
+          "ready": "Ready to lock and spawn today’s train"
+        },
+        "done": {
+          "title": "All set",
+          "summary": "Conductor locked. Advanced actions are available if you need them.",
+          "showAdvanced": "Show advanced actions",
+          "hideAdvanced": "Hide advanced actions"
+        }
+      }
     },
     "help": {
       "openLabel": "Train help",
