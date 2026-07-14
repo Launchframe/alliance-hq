@@ -225,8 +225,8 @@ export default function AdminVideoJobsPage() {
             className="rounded-lg border border-hq-border bg-hq-surface px-2 py-1 text-xs text-hq-fg"
           >
             <option value="">{tJobs("allRatings")}</option>
-            <option value="up">👍</option>
-            <option value="down">👎</option>
+            <option value="thumbs_up">👍</option>
+            <option value="thumbs_down">👎</option>
           </select>
         </div>
         {availablePassKeys.length > 0 && (
@@ -406,10 +406,10 @@ export default function AdminVideoJobsPage() {
                         </div>
                       </td>
                       <td className="px-4 py-2 whitespace-nowrap text-sm">
-                        {job.rating === "up" && (
+                        {(job.rating === "thumbs_up" || job.rating === "up") && (
                           <span title={job.ratingReason ?? undefined}>👍</span>
                         )}
-                        {job.rating === "down" && (
+                        {(job.rating === "thumbs_down" || job.rating === "down") && (
                           <span className="text-hq-fg-muted" title={job.ratingReason ?? undefined}>
                             👎{job.ratingReason ? ` ${job.ratingReason}` : ""}
                           </span>

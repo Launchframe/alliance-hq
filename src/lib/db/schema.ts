@@ -2733,7 +2733,7 @@ export const experimentArms = pgTable("experiment_arms", {
     .references(() => experimentCampaigns.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   isControl: boolean("is_control").notNull().default(false),
-  /** null = arm uses default shadow behavior (no extra shadow pass) */
+  /** null = control arm uses standing production primary (assignment / default) */
   configId: text("config_id").references(() => parseConfigs.id, {
     onDelete: "set null",
   }),
