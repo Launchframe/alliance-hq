@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const createDepositSlip = vi.hoisted(() => vi.fn());
 const selectLimit = vi.hoisted(() => vi.fn());
+const selectWhereRows = vi.hoisted(() => vi.fn());
 const resolveDepositSlipMemberLinks = vi.hoisted(() => vi.fn());
 const createDepositSlipMemberResolverCache = vi.hoisted(() => vi.fn());
 
@@ -21,14 +22,22 @@ vi.mock("@/lib/db", () => ({
   getDb: () => ({
     select: () => ({
       from: () => ({
-        where: () => ({
-          limit: selectLimit,
-        }),
+        where: () => {
+          const linkMeta = Promise.resolve(selectWhereRows());
+          return Object.assign(linkMeta, { limit: selectLimit });
+        },
       }),
     }),
   }),
   schema: {
     banks: { id: "banks.id", allianceId: "banks.allianceId" },
+    parsedRows: {
+      id: "parsedRows.id",
+      memberId: "parsedRows.memberId",
+      matchMethod: "parsedRows.matchMethod",
+      parseSessionId: "parsedRows.parseSessionId",
+      deleted: "parsedRows.deleted",
+    },
   },
 }));
 
@@ -38,6 +47,7 @@ describe("commitDepositSlipsFromVideoJob", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     selectLimit.mockResolvedValue([{ id: "bank-1" }]);
+    selectWhereRows.mockReturnValue([]);
     createDepositSlip.mockResolvedValue({ id: "slip-1" });
     createDepositSlipMemberResolverCache.mockReturnValue({});
     resolveDepositSlipMemberLinks.mockResolvedValue({
@@ -52,6 +62,7 @@ describe("commitDepositSlipsFromVideoJob", () => {
       candidateMatchMethod: "exact",
       candidateConfidence: 1,
       tagMatchMethod: "exact",
+      tagMatchConfidence: 1,
     });
   });
 
@@ -123,6 +134,7 @@ describe("commitDepositSlipsFromVideoJob", () => {
         bankAllianceId: "alliance-a",
         depositAllianceTag: "Roar",
         commanderName: "Blue Investor",
+        preferredAshedMemberId: null,
       },
       createDepositSlipMemberResolverCache.mock.results[0]!.value,
     );
@@ -153,6 +165,81 @@ describe("commitDepositSlipsFromVideoJob", () => {
       commanderId: "cmd-1",
       allianceMemberId: "am-1",
     });
+  });
+
+  it("prefers parse-time auto-linked memberId over name rematch", async () => {
+    selectWhereRows.mockReturnValue([
+      {
+        id: "row-locked",
+        memberId: "ashed-preferred",
+        matchMethod: "exact",
+      },
+    ]);
+
+    await commitDepositSlipsFromVideoJob({
+      allianceId: "alliance-a",
+      bankId: "bank-1",
+      parseSessionId: "parse-1",
+      rows: [
+        {
+          id: "row-locked",
+          ocrName: "Blue Investor",
+          score: "6000",
+          powerLevel: "2026-07-10T12:14:34.000Z",
+          memberLevel: 3,
+          profession: "locked",
+          allianceRankTitle: "Roar",
+          rosterRankRaw: null,
+          frameIndex: 0,
+          deleted: false,
+        },
+      ],
+    });
+
+    expect(resolveDepositSlipMemberLinks).toHaveBeenCalledWith(
+      {
+        bankAllianceId: "alliance-a",
+        depositAllianceTag: "Roar",
+        commanderName: "Blue Investor",
+        preferredAshedMemberId: "ashed-preferred",
+      },
+      expect.anything(),
+    );
+  });
+
+  it("does not prefer near-miss candidate memberIds (matchMethod none)", async () => {
+    selectWhereRows.mockReturnValue([
+      {
+        id: "row-locked",
+        memberId: "ashed-near",
+        matchMethod: "none",
+      },
+    ]);
+
+    await commitDepositSlipsFromVideoJob({
+      allianceId: "alliance-a",
+      bankId: "bank-1",
+      parseSessionId: "parse-1",
+      rows: [
+        {
+          id: "row-locked",
+          ocrName: "Blue Investor",
+          score: "6000",
+          powerLevel: "2026-07-10T12:14:34.000Z",
+          memberLevel: 3,
+          profession: "locked",
+          allianceRankTitle: "Roar",
+          rosterRankRaw: null,
+          frameIndex: 0,
+          deleted: false,
+        },
+      ],
+    });
+
+    expect(resolveDepositSlipMemberLinks).toHaveBeenCalledWith(
+      expect.objectContaining({ preferredAshedMemberId: null }),
+      expect.anything(),
+    );
   });
 
   it("skips deleted and incomplete rows then throws when nothing valid remains", async () => {

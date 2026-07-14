@@ -2,7 +2,10 @@ import "server-only";
 
 import { and, eq, ne } from "drizzle-orm";
 
-import { DEPOSIT_SLIP_MEMBER_AUTO_LINK_MIN } from "@/lib/banks/deposit-slip-ocr/deposit-slip-member-match.shared";
+import {
+  DEPOSIT_SLIP_MEMBER_AUTO_LINK_MIN,
+  depositSlipReviewMatchConfidence,
+} from "@/lib/banks/deposit-slip-ocr/deposit-slip-member-match.shared";
 import { getDb, schema } from "@/lib/db";
 import { allianceMemberRowToAshedMember } from "@/lib/members/roster.shared";
 import {
@@ -23,7 +26,7 @@ import { resolveCommanderIdForMember } from "@/lib/vr/repository";
  * `deposit-slip-member-match.shared.ts` so the `"use client"` review table can
  * import the same value without pulling in this `server-only` module.
  */
-export { DEPOSIT_SLIP_MEMBER_AUTO_LINK_MIN };
+export { DEPOSIT_SLIP_MEMBER_AUTO_LINK_MIN, depositSlipReviewMatchConfidence };
 
 /**
  * When exact tag lookup misses, allow a unique fuzzy tag hit at/above this
@@ -56,8 +59,14 @@ export type ResolvedDepositSlipLinks = {
   candidateAshedMemberId: string | null;
   candidateMemberName: string | null;
   candidateMatchMethod: MemberMatch["matchMethod"];
+  /**
+   * Review display confidence (name confidence, capped by fuzzy-tag score
+   * when the alliance was only a fuzzy guess).
+   */
   candidateConfidence: number;
   tagMatchMethod: DepositSlipTagMatchMethod;
+  /** 1 for exact tag, fuzzy similarity when tag was fuzzy, else 0. */
+  tagMatchConfidence: number;
 };
 
 export type ResolveDepositSlipMemberLinksDeps = {
@@ -166,7 +175,7 @@ export function createDepositSlipMemberResolverCache(
 export function pickUniqueFuzzyAllianceTag(
   ocrTag: string,
   candidates: readonly HqAllianceCandidate[],
-): HqAllianceCandidate | null {
+): { candidate: HqAllianceCandidate; score: number } | null {
   const needle = ocrTag.trim();
   if (needle.length < 3) return null;
 
@@ -187,7 +196,7 @@ export function pickUniqueFuzzyAllianceTag(
       row.score >= best.score - DEPOSIT_SLIP_TAG_FUZZY_MARGIN,
   );
   if (runnerUp) return null;
-  return best.candidate;
+  return best;
 }
 
 function canAutoLinkMember(match: MemberMatch): boolean {
@@ -207,12 +216,17 @@ function canAutoLinkMember(match: MemberMatch): boolean {
  * - commander name match against that alliance's roster (falling back to the
  *   bank-owning alliance when the tag is missing/ambiguous) →
  *   `allianceMemberId` + `commanderId` when confidence clears the auto-link gate
+ *
+ * When `preferredAshedMemberId` is set (parse-time auto-link), skip name matching
+ * and link that roster member on the tag-resolved alliance when present.
  */
 export async function resolveDepositSlipMemberLinks(
   input: {
     bankAllianceId: string;
     depositAllianceTag: string | null | undefined;
     commanderName: string;
+    /** Parse-time auto-linked ashed member — preferred over name rematch. */
+    preferredAshedMemberId?: string | null;
   },
   deps: ResolveDepositSlipMemberLinksDeps = {},
 ): Promise<ResolvedDepositSlipLinks> {
@@ -228,6 +242,7 @@ export async function resolveDepositSlipMemberLinks(
   const empty = (
     depositAllianceId: string | null,
     tagMatchMethod: DepositSlipTagMatchMethod,
+    tagMatchConfidence: number,
   ): ResolvedDepositSlipLinks => ({
     depositAllianceId,
     allianceMemberId: null,
@@ -240,35 +255,74 @@ export async function resolveDepositSlipMemberLinks(
     candidateMatchMethod: "none",
     candidateConfidence: 0,
     tagMatchMethod,
+    tagMatchConfidence,
   });
 
   const tag = input.depositAllianceTag?.trim() || null;
   let depositAllianceId: string | null = null;
   let tagMatchMethod: DepositSlipTagMatchMethod = "none";
+  let tagMatchConfidence = 0;
 
   if (tag) {
     const exact = await listAlliancesByTag(tag);
     if (exact.length === 1) {
       depositAllianceId = exact[0]!.id;
       tagMatchMethod = "exact";
+      tagMatchConfidence = 1;
     } else if (exact.length > 1) {
       tagMatchMethod = "ambiguous";
+      tagMatchConfidence = 0;
     } else {
       const fuzzyHit = pickUniqueFuzzyAllianceTag(
         tag,
         await listAlliancesWithTags(),
       );
       if (fuzzyHit) {
-        depositAllianceId = fuzzyHit.id;
+        depositAllianceId = fuzzyHit.candidate.id;
         tagMatchMethod = "fuzzy";
+        tagMatchConfidence = fuzzyHit.score;
       }
     }
   }
 
   const rosterAllianceId = depositAllianceId ?? input.bankAllianceId;
   const members = await loadRosterMembers(rosterAllianceId);
-  if (members.length === 0 || !input.commanderName.trim()) {
-    return empty(depositAllianceId, tagMatchMethod);
+  if (members.length === 0) {
+    return empty(depositAllianceId, tagMatchMethod, tagMatchConfidence);
+  }
+
+  const preferredId = input.preferredAshedMemberId?.trim() || null;
+  if (preferredId) {
+    const preferred = members.find((member) => member.id === preferredId);
+    if (preferred) {
+      const [allianceMemberId, commanderId] = await Promise.all([
+        findAllianceMemberId(rosterAllianceId, preferred.id),
+        resolveCommanderId(rosterAllianceId, preferred.id),
+      ]);
+      const reviewConfidence = depositSlipReviewMatchConfidence(
+        1,
+        tagMatchMethod,
+        tagMatchConfidence,
+      );
+      return {
+        depositAllianceId,
+        allianceMemberId,
+        commanderId,
+        ashedMemberId: preferred.id,
+        matchMethod: "exact",
+        matchConfidence: reviewConfidence,
+        candidateAshedMemberId: preferred.id,
+        candidateMemberName: preferred.current_name,
+        candidateMatchMethod: "exact",
+        candidateConfidence: reviewConfidence,
+        tagMatchMethod,
+        tagMatchConfidence,
+      };
+    }
+  }
+
+  if (!input.commanderName.trim()) {
+    return empty(depositAllianceId, tagMatchMethod, tagMatchConfidence);
   }
 
   const match = matchMemberName(
@@ -280,7 +334,11 @@ export async function resolveDepositSlipMemberLinks(
   const candidateAshedMemberId = match.memberId;
   const candidateMemberName = match.memberName;
   const candidateMatchMethod = match.matchMethod;
-  const candidateConfidence = match.confidence;
+  const candidateConfidence = depositSlipReviewMatchConfidence(
+    match.confidence,
+    tagMatchMethod,
+    tagMatchConfidence,
+  );
 
   if (!canAutoLinkMember(match)) {
     return {
@@ -295,6 +353,7 @@ export async function resolveDepositSlipMemberLinks(
       candidateMatchMethod,
       candidateConfidence,
       tagMatchMethod,
+      tagMatchConfidence,
     };
   }
 
@@ -309,11 +368,12 @@ export async function resolveDepositSlipMemberLinks(
     commanderId,
     ashedMemberId: match.memberId,
     matchMethod: match.matchMethod,
-    matchConfidence: match.confidence,
+    matchConfidence: candidateConfidence,
     candidateAshedMemberId,
     candidateMemberName,
     candidateMatchMethod,
     candidateConfidence,
     tagMatchMethod,
+    tagMatchConfidence,
   };
 }

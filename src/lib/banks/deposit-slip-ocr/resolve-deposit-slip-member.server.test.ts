@@ -39,9 +39,9 @@ describe("pickUniqueFuzzyAllianceTag", () => {
   ];
 
   it("accepts a unique high-similarity OCR glitch on the tag", () => {
-    expect(pickUniqueFuzzyAllianceTag("Roa", candidates)?.id).toBe(
-      "alliance-roar",
-    );
+    const hit = pickUniqueFuzzyAllianceTag("Roa", candidates);
+    expect(hit?.candidate.id).toBe("alliance-roar");
+    expect(hit?.score).toBe(0.75);
   });
 
   it("rejects short tags and ambiguous near-ties", () => {
@@ -83,6 +83,7 @@ describe("resolveDepositSlipMemberLinks", () => {
       candidateAshedMemberId: "ashed-blue",
       candidateMemberName: "Blue Investor",
       tagMatchMethod: "exact",
+      tagMatchConfidence: 1,
     });
   });
 
@@ -114,8 +115,42 @@ describe("resolveDepositSlipMemberLinks", () => {
     expect(loadRosterMembers).toHaveBeenCalledWith("alliance-roar");
     expect(result.depositAllianceId).toBe("alliance-roar");
     expect(result.tagMatchMethod).toBe("fuzzy");
+    expect(result.tagMatchConfidence).toBe(0.75);
     expect(result.allianceMemberId).toBe("am-blue");
     expect(result.matchMethod).toBe("exact");
+    // Exact name + fuzzy tag must not display as 100% in review.
+    expect(result.candidateConfidence).toBe(0.75);
+    expect(result.matchConfidence).toBe(0.75);
+  });
+
+  it("prefers preferredAshedMemberId over commander name rematch", async () => {
+    const findAllianceMemberId = vi.fn().mockResolvedValue("am-orange");
+    const resolveCommanderId = vi.fn().mockResolvedValue("cmd-orange");
+
+    const result = await resolveDepositSlipMemberLinks(
+      {
+        bankAllianceId: "alliance-bank",
+        depositAllianceTag: "Roar",
+        commanderName: "Blue Investor",
+        preferredAshedMemberId: "ashed-orange",
+      },
+      {
+        listAlliancesByTag: vi.fn().mockResolvedValue([
+          { id: "alliance-roar", tag: "Roar", name: "Roar", ownerAshedUserId: null },
+        ]),
+        loadRosterMembers: vi.fn().mockResolvedValue(members),
+        findAllianceMemberId,
+        resolveCommanderId,
+      },
+    );
+
+    expect(result.ashedMemberId).toBe("ashed-orange");
+    expect(result.allianceMemberId).toBe("am-orange");
+    expect(result.commanderId).toBe("cmd-orange");
+    expect(findAllianceMemberId).toHaveBeenCalledWith(
+      "alliance-roar",
+      "ashed-orange",
+    );
   });
 
   it("leaves depositAllianceId null when the tag is ambiguous and matches against the bank alliance roster", async () => {

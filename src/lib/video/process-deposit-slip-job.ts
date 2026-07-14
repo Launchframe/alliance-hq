@@ -216,6 +216,8 @@ export async function processDepositSlipVideoParse(
             memberLevel: fields.memberLevel,
             profession: fields.profession,
             // Surface auto-link and below-threshold near-miss candidates for review.
+            // matchMethod is "none" for near-miss-only rows so commit can prefer
+            // parse-time auto-links without treating weak candidates as confirmed.
             memberId: links.candidateAshedMemberId,
             memberName: links.candidateMemberName,
             matchConfidence:
@@ -223,9 +225,7 @@ export async function processDepositSlipVideoParse(
                 ? links.candidateConfidence
                 : null,
             matchMethod:
-              links.candidateAshedMemberId != null
-                ? links.candidateMatchMethod
-                : "none",
+              links.ashedMemberId != null ? links.matchMethod : "none",
             scoreConflict: 0,
             frameIndex: fields.frameIndex,
             dedupeClusterId: slip.dedupeClusterId ?? null,

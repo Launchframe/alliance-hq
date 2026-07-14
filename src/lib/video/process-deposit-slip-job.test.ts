@@ -81,6 +81,7 @@ describe("processDepositSlipVideoParse", () => {
       candidateMatchMethod: "exact",
       candidateConfidence: 1,
       tagMatchMethod: "exact",
+      tagMatchConfidence: 1,
     });
     mockInsertValues.mockResolvedValue(undefined);
     mockUpdateWhere.mockResolvedValue(undefined);
@@ -183,6 +184,7 @@ describe("processDepositSlipVideoParse", () => {
       candidateMatchMethod: "fuzzy",
       candidateConfidence: 0.72,
       tagMatchMethod: "none",
+      tagMatchConfidence: 0,
     });
 
     const mockHistory = {
@@ -235,7 +237,7 @@ describe("processDepositSlipVideoParse", () => {
         memberId: "ashed-near",
         memberName: "Almost Alpha",
         matchConfidence: 0.72,
-        matchMethod: "fuzzy",
+        matchMethod: "none",
       }),
     ]);
   });
