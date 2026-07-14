@@ -69,6 +69,7 @@ import {
   vipSpinSource,
 } from "@/lib/trains/spin-source.shared";
 import { canStartConductorSwap } from "@/lib/trains/conductor-swap.shared";
+import { currentGuidedStep } from "@/lib/trains/guided-flow.shared";
 import type { PoolRefreshedInfo, PoolType, RollResult, WeekTemplateType } from "@/lib/trains/types";
 import type { MemberQualificationPayload } from "@/lib/trains/train-conductor-minimums.shared";
 import {
@@ -1210,6 +1211,15 @@ export function TrainsDashboard({ initial }: Props) {
   const canSpinVipWheel = canRoll && canSpinVip(vipMech, locked);
   const guidedVipNeeded = Boolean(vipMech) && vipMech !== "none";
   const guidedHasVip = Boolean(selectedRecord?.vipMemberId);
+  const guidedStep = currentGuidedStep({
+    schedulePersisted: data.schedulePersisted,
+    hasConductor: Boolean(selectedRecord?.conductorMemberId),
+    vipNeeded: guidedVipNeeded,
+    hasVip: guidedHasVip,
+    locked,
+  });
+  const showConductorCard =
+    !data.simpleModeEnabled || guidedStep === "done";
   const selectedConductorSpinSource = conductorSpinSource(
     selectedDayConfig?.conductorMechanism,
     conductorPaint,
@@ -1506,35 +1516,37 @@ export function TrainsDashboard({ initial }: Props) {
             />
           )}
 
-          <TodayConductorCard
-            record={selectedRecord}
-            stats={selectedStats}
-            dayLabel={
-              selectedDate === data.today
-                ? t("todayConductor")
-                : t("selectedDayConductor", { date: selectedDate.slice(5) })
-            }
-            labels={{
-              awaiting: t("awaitingConductor"),
-              vip: t("todayVip"),
-              guardian: t("guardian"),
-              guardianIsVip: t("guardianIsVipHint"),
-              guardianIsConductor: t("guardianIsConductorHint"),
-              locked: t("locked"),
-              unlocked: t("unlocked"),
-              lastConducted: t("lastConducted"),
-              conductsThisYear: t("conductsThisYear"),
-              noneYet: t("noneYet"),
-            }}
-            substituteBadge={
-              selectedRecord?.substituteForMemberName
-                ? t("swap.substitutingFor", {
-                    name: selectedRecord.substituteForMemberName,
-                  })
-                : null
-            }
-            data-testid="trains-conductor-card"
-          />
+          {showConductorCard ? (
+            <TodayConductorCard
+              record={selectedRecord}
+              stats={selectedStats}
+              dayLabel={
+                selectedDate === data.today
+                  ? t("todayConductor")
+                  : t("selectedDayConductor", { date: selectedDate.slice(5) })
+              }
+              labels={{
+                awaiting: t("awaitingConductor"),
+                vip: t("todayVip"),
+                guardian: t("guardian"),
+                guardianIsVip: t("guardianIsVipHint"),
+                guardianIsConductor: t("guardianIsConductorHint"),
+                locked: t("locked"),
+                unlocked: t("unlocked"),
+                lastConducted: t("lastConducted"),
+                conductsThisYear: t("conductsThisYear"),
+                noneYet: t("noneYet"),
+              }}
+              substituteBadge={
+                selectedRecord?.substituteForMemberName
+                  ? t("swap.substitutingFor", {
+                      name: selectedRecord.substituteForMemberName,
+                    })
+                  : null
+              }
+              data-testid="trains-conductor-card"
+            />
+          ) : null}
 
           {conductorPaint === "price_is_right" ? (
             <PriceIsRightPodiumLeaderboard trainDate={selectedDate} />
