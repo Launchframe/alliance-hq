@@ -13,9 +13,15 @@ import {
   resolveMemberAllianceRankAsOf,
 } from "@/lib/trains/rank-history";
 import {
+  listPoolEntries,
+  listUnselectedPoolEntries,
   markPoolMemberSelectedForDate,
   releasePoolSelectionForDate,
 } from "@/lib/trains/pool";
+import {
+  depletingManualPickErrorMessage,
+  evaluateDepletingManualPick,
+} from "@/lib/trains/depleting-manual-pick.shared";
 import { isPriceIsRightPaintTemplate } from "@/lib/trains/heavy-hitter-pool.shared";
 import {
   ensureConductorPoolSeeded,
@@ -134,6 +140,24 @@ export async function POST(request: Request) {
         paintTemplate: dayConfig.paintTemplate,
         respectConductorMinimums: false,
       });
+      // After releasing today's prior pick (if any), the member must still be an
+      // unselected slot — otherwise R3 recognition / lottery "depleting" awards
+      // can re-award the same commander every day.
+      const [unselected, poolEntries] = await Promise.all([
+        listUnselectedPoolEntries(ctx.allianceId, poolType),
+        listPoolEntries(ctx.allianceId, poolType),
+      ]);
+      const gate = evaluateDepletingManualPick({
+        memberId,
+        unselectedMemberIds: unselected.map((row) => row.memberId),
+        poolMemberIds: poolEntries.map((row) => row.memberId),
+      });
+      if (!gate.ok) {
+        return NextResponse.json(
+          { error: depletingManualPickErrorMessage(gate.reason) },
+          { status: 400 },
+        );
+      }
       await markPoolMemberSelectedForDate(
         ctx.allianceId,
         poolType,
