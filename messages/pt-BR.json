@@ -3617,6 +3617,16 @@
     "existingStormScoresWarning": "Já existem pontuações para {eventName} Equipe {team}. Salvar substitui esse lote no mesmo evento. Abra o Gerenciamento de Dados para revisar ou excluir o lote antes se precisar recomeçar do zero.",
     "openDataManagement": "Abrir Gerenciamento de Dados",
     "dateLabel": "Data registrada",
+    "vsDayOption": "Dia {dayNumber} - {dayName} · {date}",
+    "vsSundayInvalid": "Não há dia de VS no domingo. Escolha de segunda a sábado.",
+    "vsDays": {
+      "radarTraining": "Treinamento de Radar",
+      "baseExpansion": "Expansão de Base",
+      "ageOfScience": "Era da Ciência",
+      "trainHeroes": "Treinar Heróis",
+      "totalMobilization": "Mobilização Total",
+      "enemyBuster": "Destruidor de Inimigos"
+    },
     "colName": "Nome",
     "colMember": "Membro correspondido",
     "colRank": "Posição",

@@ -3671,6 +3671,16 @@
     "existingStormScoresWarning": "Scores already exist for {eventName} Team {team}. Saving replaces that batch on the same event. Open Data Management to review or delete the batch first if you need a clean slate.",
     "openDataManagement": "Open Data Management",
     "dateLabel": "Recorded date",
+    "vsDayOption": "Day {dayNumber} - {dayName} · {date}",
+    "vsSundayInvalid": "VS has no Sunday match day. Pick Monday–Saturday.",
+    "vsDays": {
+      "radarTraining": "Radar Training",
+      "baseExpansion": "Base Expansion",
+      "ageOfScience": "Age of Science",
+      "trainHeroes": "Train Heroes",
+      "totalMobilization": "Total Mobilization",
+      "enemyBuster": "Enemy Buster"
+    },
     "colName": "Name",
     "colMember": "Matched member",
     "colRank": "Rank",

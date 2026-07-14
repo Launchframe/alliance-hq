@@ -52,11 +52,13 @@ import {
   resolveOrCreateAshedEvent,
 } from "@/lib/video/ashed-event-provision.server";
 import { shouldReplaceAshedScoresOnSubmit } from "@/lib/video/ashed-score-replace.shared";
+import { withAshedScoreReplaceLock } from "@/lib/video/ashed-score-replace-lock.server";
 import {
   buildSubmitPayloads,
   validateSubmitContext,
   type SubmitContext,
 } from "@/lib/video/submit-schemas";
+import { isValidVsPerformanceRecordedDate } from "@/lib/video/vs-recorded-date.shared";
 import { computeQualityScore } from "@/lib/video/quality-score";
 import {
   isVideoJobReadyForSubmit,
@@ -704,6 +706,19 @@ export async function POST(request: Request, { params }: Props) {
       return NextResponse.json({ error: contextError }, { status: 400 });
     }
 
+    if (
+      scoreTargetId === "vs-performance" &&
+      !isValidVsPerformanceRecordedDate(submitContext.recordedDate)
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "VS has no Sunday match day. Pick a Monday–Saturday recorded date.",
+        },
+        { status: 400 },
+      );
+    }
+
     const duplicateMembers = findDuplicateMemberAssignments(
       activeRows.map((row) => ({
         id: row.id,
@@ -807,30 +822,39 @@ export async function POST(request: Request, { params }: Props) {
     });
 
     // Clear prior Ashed rows for this day/event before insert so re-submit
-    // (Update scores) replaces instead of stacking to 2×.
+    // (Update scores) replaces instead of stacking to 2×. Serialize concurrent
+    // same-alliance/date replaces so two officers cannot interleave delete/insert.
     const replaceScores = shouldReplaceAshedScoresOnSubmit(target, {
       eventId: submitContext.eventId,
     });
+    const runReplaceAndInsert = async () => {
+      if (replaceScores) {
+        await replaceAshedScoresForContext({
+          connection,
+          target,
+          ashedAllianceId,
+          recordedDate: submitContext.recordedDate,
+          context: {
+            eventId: submitContext.eventId,
+            team: submitContext.team,
+            boardKey: submitContext.boardKey,
+            hqEventId: submitContext.hqEventId,
+            commendationId: submitContext.commendationId,
+          },
+        });
+        clearedPriorAshedScores = true;
+      }
+      await dispatchScoreSubmit(connection, target, payloads);
+    };
     if (replaceScores) {
-      await replaceAshedScoresForContext({
-        connection,
-        target,
-        ashedAllianceId,
-        recordedDate: submitContext.recordedDate,
-        context: {
-          eventId: submitContext.eventId,
-          team: submitContext.team,
-          boardKey: submitContext.boardKey,
-          hqEventId: submitContext.hqEventId,
-          commendationId: submitContext.commendationId,
+      await withAshedScoreReplaceLock(
+        {
+          allianceId,
+          scoreTarget: target.id,
+          recordedDate: submitContext.recordedDate,
         },
-      });
-      clearedPriorAshedScores = true;
-    }
-
-    await dispatchScoreSubmit(connection, target, payloads);
-
-    if (replaceScores) {
+        runReplaceAndInsert,
+      );
       await markMatchingDataBatchesDeleted({
         allianceId,
         scoreTarget: target.id,
@@ -838,6 +862,8 @@ export async function POST(request: Request, { params }: Props) {
         eventId: submitContext.eventId,
         team: submitContext.team ?? null,
       });
+    } else {
+      await runReplaceAndInsert();
     }
 
     if (submitContext.hqEventId) {
