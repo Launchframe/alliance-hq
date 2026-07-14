@@ -133,7 +133,9 @@ export function PriceIsRightTicketsPanel({ trainDate }: Props) {
     );
   }
 
-  if (payload.board.length === 0) {
+  // Weighted mode keeps the ticket hero + chart even with an empty board
+  // (common in e2e / no prior-day VS). Equal-chance modes use a dedicated empty state.
+  if (payload.board.length === 0 && !isWeighted) {
     return (
       <section
         className="rounded-xl border border-cyan-500/30 bg-cyan-500/5 p-5"
@@ -142,16 +144,12 @@ export function PriceIsRightTicketsPanel({ trainDate }: Props) {
         <h3 className="text-base font-semibold text-cyan-100">
           {mode === "heavy_hitter"
             ? t("oddsTitleHeavyHitter")
-            : mode === "uniform"
-              ? t("oddsTitleUniform")
-              : t("title")}
+            : t("oddsTitleUniform")}
         </h3>
         <p className="mt-2 text-sm text-hq-fg-muted">
           {mode === "heavy_hitter"
             ? t("oddsEmptyHeavyHitter")
-            : mode === "uniform"
-              ? t("oddsEmptyUniform")
-              : t("loadFailed")}
+            : t("oddsEmptyUniform")}
         </p>
       </section>
     );
