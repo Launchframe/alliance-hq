@@ -91,62 +91,46 @@ const COORD_TOKEN_RE =
 /**
  * Fallback when OCR glues server+X and drops the X label:
  *   `(#1211599, V:499)` → server 1211, X 599, Y 499
- * Digit split is ambiguous (`#999599` could be 9995/99 or 999/599); score
- * candidates so typical 4-digit servers and X/Y magnitude agreement win.
+ *
+ * Digit split is ambiguous (`#999599` → 9995/99 vs 999/599). Try a 4-digit
+ * server first, then 3-digit. Map coords are always in [0, 1000), so X never
+ * has 4 digits. When both splits are plausible, prefer the one whose X digit
+ * length matches Y (typical OCR of nearby map coords).
  */
 const COORD_GLUED_RE =
-  /#\s*(\d{5,8})\s*,\s*[^0-9]*(\d{1,4})\s*[)\]]?/gi;
+  /#\s*(\d{5,8})\s*,\s*[^0-9]*(\d{1,3})\s*[)\]]?/gi;
 
 function digitLength(n: number): number {
   if (!Number.isFinite(n) || n === 0) return 1;
   return Math.floor(Math.abs(n)).toString().length;
 }
 
-function scoreGluedCoordSplit(
-  gameServerNumber: number,
-  coordX: number,
-  coordY: number,
-): number {
-  let score = 0;
-  // Last War City List servers are usually 4-digit; keep a smaller score for
-  // rare 3-digit servers so magnitude agreement can still override.
-  if (gameServerNumber >= 1000 && gameServerNumber <= 9999) score += 5;
-  else if (gameServerNumber >= 100 && gameServerNumber <= 999) score += 3;
-  if (digitLength(coordX) === digitLength(coordY)) score += 6;
-  if (coordX >= 100) score += 1;
-  return score;
-}
-
 function parseGluedServerAndX(
   serverAndX: string,
   coordY: number,
 ): { gameServerNumber: number; coordX: number; coordY: number } | null {
-  let best: {
+  const candidates: Array<{
     gameServerNumber: number;
     coordX: number;
     coordY: number;
-    score: number;
-  } | null = null;
+  }> = [];
 
   for (const serverLen of [4, 3] as const) {
-    if (serverAndX.length < serverLen + 2) continue;
+    if (serverAndX.length <= serverLen) continue;
     const gameServerNumber = Number(serverAndX.slice(0, serverLen));
     const coordX = Number(serverAndX.slice(serverLen));
     if (!Number.isInteger(coordX)) continue;
+    // X is at most 3 digits on the map ([0, 1000)).
+    if (serverAndX.length - serverLen > 3) continue;
     if (!isPlausibleCityListCoord(gameServerNumber, coordX, coordY)) continue;
-    const score = scoreGluedCoordSplit(gameServerNumber, coordX, coordY);
-    if (best == null || score > best.score) {
-      best = { gameServerNumber, coordX, coordY, score };
-    }
+    candidates.push({ gameServerNumber, coordX, coordY });
   }
 
-  return best == null
-    ? null
-    : {
-        gameServerNumber: best.gameServerNumber,
-        coordX: best.coordX,
-        coordY: best.coordY,
-      };
+  if (candidates.length === 0) return null;
+  const matchingMagnitude = candidates.find(
+    (c) => digitLength(c.coordX) === digitLength(c.coordY),
+  );
+  return matchingMagnitude ?? candidates[0]!;
 }
 
 /** Deposit slot usage token, e.g. "81/100". */
@@ -188,6 +172,9 @@ export function parseCompactCrystalGoldValue(
   return Math.round(base * multiplier);
 }
 
+/** Last War City List map coords are always in [0, 1000). */
+const CITY_LIST_COORD_MAX_EXCLUSIVE = 1000;
+
 function isPlausibleCityListCoord(
   gameServerNumber: number,
   coordX: number,
@@ -199,10 +186,12 @@ function isPlausibleCityListCoord(
     Number.isFinite(coordY) &&
     gameServerNumber >= 100 &&
     gameServerNumber <= 999_999 &&
+    Number.isInteger(coordX) &&
+    Number.isInteger(coordY) &&
     coordX >= 0 &&
-    coordX <= 1_200 &&
+    coordX < CITY_LIST_COORD_MAX_EXCLUSIVE &&
     coordY >= 0 &&
-    coordY <= 1_200
+    coordY < CITY_LIST_COORD_MAX_EXCLUSIVE
   );
 }
 

@@ -105,6 +105,16 @@ function firstNonNullString(
 export const CITY_LIST_OCR_PASS_COORD_TOLERANCE = 2;
 
 /**
+ * Skip the green-channel OCR pass when greyscale already recovered every
+ * captured tile — halves Tesseract latency on clean screenshots.
+ */
+export function shouldRunCityListGreenOcrPass(
+  primary: Pick<ParsedCityListSnapshot, "isComplete">,
+): boolean {
+  return !primary.isComplete;
+}
+
+/**
  * Index of the nearest primary bank within coord tolerance, or -1.
  * Prefer nearest over first-match so a candidate that sits in two tiles'
  * windows attaches to the closer physical bank.

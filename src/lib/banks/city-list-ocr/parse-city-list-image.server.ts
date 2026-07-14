@@ -1,6 +1,9 @@
 import "server-only";
 
-import { mergeCityListOcrPasses } from "@/lib/banks/city-list-ocr/city-list-dedupe.shared";
+import {
+  mergeCityListOcrPasses,
+  shouldRunCityListGreenOcrPass,
+} from "@/lib/banks/city-list-ocr/city-list-dedupe.shared";
 import {
   parseCityListText,
   type ParsedCityListSnapshot,
@@ -35,10 +38,10 @@ async function ocrLinesFromBuffer(buffer: Buffer): Promise<string[]> {
 }
 
 /**
- * Still-frame City List "Bank Stronghold" tab OCR: soft greyscale + green
- * emphasis passes (sequential — tesseract worker is not concurrent-safe), then
- * proximity-merge so a pass that only recovers one grid row still contributes
- * tiles without spawning ±1 coordinate duplicates.
+ * Still-frame City List "Bank Stronghold" tab OCR: soft greyscale, then an
+ * optional green-emphasis pass when the primary parse is incomplete
+ * (sequential — tesseract worker is not concurrent-safe). Proximity-merge
+ * fills missing tiles without spawning ±1 coordinate duplicates.
  */
 export async function parseCityListImage(
   imageBuffer: Buffer,
@@ -48,6 +51,14 @@ export async function parseCityListImage(
   const primaryPre = await preprocessCityListImage(imageBuffer);
   const primaryLines = await ocrLinesFromBuffer(primaryPre.buffer);
   const primaryParsed = parseCityListText(primaryLines);
+
+  if (!shouldRunCityListGreenOcrPass(primaryParsed)) {
+    return {
+      ...primaryParsed,
+      rawLines: primaryLines,
+      durationMs: Date.now() - t0,
+    };
+  }
 
   const greenPre = await preprocessCityListGreenChannel(imageBuffer);
   const greenLines = await ocrLinesFromBuffer(greenPre.buffer);

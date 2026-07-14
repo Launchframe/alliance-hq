@@ -4,6 +4,7 @@ import {
   coalesceCityListBanks,
   mergeCityListOcrPasses,
   mergeCityListParses,
+  shouldRunCityListGreenOcrPass,
 } from "@/lib/banks/city-list-ocr/city-list-dedupe.shared";
 import type { ParsedCityListBank } from "@/lib/banks/city-list-ocr/parse-city-list-text.shared";
 import { parseCityListText } from "@/lib/banks/city-list-ocr/parse-city-list-text.shared";
@@ -78,6 +79,13 @@ describe("coalesceCityListBanks", () => {
     ]);
     expect(merged.level).toBe(2);
     expect(merged.crystalGoldValue).toBe(600_000);
+  });
+});
+
+describe("shouldRunCityListGreenOcrPass", () => {
+  it("skips the green pass when the primary parse is already complete", () => {
+    expect(shouldRunCityListGreenOcrPass({ isComplete: true })).toBe(false);
+    expect(shouldRunCityListGreenOcrPass({ isComplete: false })).toBe(true);
   });
 });
 
