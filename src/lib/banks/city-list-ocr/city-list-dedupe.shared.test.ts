@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   coalesceCityListBanks,
+  mergeCityListOcrPasses,
   mergeCityListParses,
 } from "@/lib/banks/city-list-ocr/city-list-dedupe.shared";
 import type { ParsedCityListBank } from "@/lib/banks/city-list-ocr/parse-city-list-text.shared";
@@ -42,6 +43,69 @@ describe("coalesceCityListBanks", () => {
       bank({ coordX: 699, coordY: 499, crystalGoldValue: 486_000 }),
     ]);
     expect(merged.crystalGoldValue).toBe(486_000);
+  });
+
+  it("prefers a recovered level over the default placeholder level 1", () => {
+    const merged = coalesceCityListBanks([
+      bank({ coordX: 499, coordY: 799, level: 1, crystalGoldValue: null }),
+      bank({
+        coordX: 499,
+        coordY: 799,
+        level: 3,
+        crystalGoldValue: 588_000,
+      }),
+    ]);
+    expect(merged.level).toBe(3);
+    expect(merged.crystalGoldValue).toBe(588_000);
+  });
+});
+
+describe("mergeCityListOcrPasses", () => {
+  it("absorbs ±1 coordinate drift from the green pass without extra tiles", () => {
+    const primary = parseCityListText([
+      "Bank Strongholds captured: 2/8",
+      "600.00K 486.00K",
+      "Lv.2 Lv.2",
+      "#1211 (X:699, Y:299) #1211 (X:699, Y:99)",
+    ]);
+    const green = parseCityListText([
+      "600.00K 486.00K",
+      "Lv.3 Lv.2",
+      "#1211 (X:699, Y:298) #1211 (X:699, Y:99)",
+    ]);
+    const merged = mergeCityListOcrPasses(primary, green);
+    expect(merged.banks).toHaveLength(2);
+    expect(
+      merged.banks.find((b) => b.coordX === 699 && b.coordY === 299),
+    ).toMatchObject({
+      level: 3,
+      crystalGoldValue: 600_000,
+    });
+    expect(
+      merged.banks.some((b) => b.coordX === 699 && b.coordY === 99),
+    ).toBe(true);
+  });
+
+  it("appends a top-row tile the greyscale pass missed", () => {
+    const primary = parseCityListText([
+      "Bank Strongholds captured: 6/8",
+      "492.00K 357.62K 354.00K",
+      "Lv.3 Lv.3 Lv.3",
+      "#1203 [X:499, Y:599] #1203 [X:599, Y:499] #1203 [X:599, Y:399]",
+    ]);
+    const green = parseCityListText([
+      "588.00K 447.38K 522.00K",
+      "Lv.3 Lv.3 Lv.3",
+      "#1203 [X:499, Y:799] #1203 [X:499, Y:699] #1203 [X:599, Y:599]",
+      "492.00K 357.62K 354.00K",
+      "#1203 [X:499, Y:599] #1203 [X:599, Y:499] #1203 [X:599, Y:399]",
+    ]);
+    const merged = mergeCityListOcrPasses(primary, green);
+    expect(merged.banks).toHaveLength(6);
+    expect(
+      merged.banks.some((b) => b.coordX === 499 && b.coordY === 799),
+    ).toBe(true);
+    expect(merged.isComplete).toBe(true);
   });
 });
 

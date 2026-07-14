@@ -275,6 +275,109 @@ describe("parseCityListBanks", () => {
       coordY: 3,
     });
   });
+
+  it("recovers Lv:3 / Lvi3 tokens and hashless coordinate labels", () => {
+    const banks = parseCityListBanks([
+      "588.00K 447 38K 522 00N",
+      "Lv:3 Lvi3 Lv.3",
+      "1203 [X:499, Y:799] 1203 [X:499, Y:699] #1203 [X:599, Y:599]",
+      "98/100 75/100 87/100",
+    ]);
+    expect(banks).toHaveLength(3);
+    expect(banks[0]).toMatchObject({
+      level: 3,
+      crystalGoldValue: 588_000,
+      gameServerNumber: 1203,
+      coordX: 499,
+      coordY: 799,
+      currentDepositCount: 98,
+    });
+    expect(banks[1]).toMatchObject({
+      level: 3,
+      crystalGoldValue: 447_380,
+      coordX: 499,
+      coordY: 699,
+      currentDepositCount: 75,
+    });
+    expect(banks[2]).toMatchObject({
+      level: 3,
+      crystalGoldValue: 522_000,
+      coordX: 599,
+      coordY: 599,
+      currentDepositCount: 87,
+    });
+  });
+
+  it("recovers glued server+X coordinates when the X label is dropped", () => {
+    const banks = parseCityListBanks([
+      "600.00K",
+      "Lv 3",
+      "(#1211599, V:499)",
+    ]);
+    expect(banks).toEqual([
+      {
+        level: 3,
+        crystalGoldValue: 600_000,
+        gameServerNumber: 1211,
+        coordX: 599,
+        coordY: 499,
+        currentDepositCount: null,
+      },
+    ]);
+  });
+
+  it("keeps both grid rows when soft OCR recovers Lv: and bracket coords", () => {
+    // Captured from soft-greyscale Tesseract on bank-stronghold-city-list.png.
+    const banks = parseCityListBanks([
+      "8 (Jeo000k B (J 60000K B & 600.00K",
+      "Lv:3 (573 Lv 2!",
+      "Q #1211 [X:598, Y:499) Q#1211 [X:699, Y:539) Q #1211 [X:699, Y:499]",
+      "& (Js9996k @ (J59726K (J 486.00K",
+      "Lv 2 Lv:2 Lv:2",
+      "Q#1211[x:699,v:399)  Q)#1211(X:699,V:299) (#1211 [X:698, V:99)",
+    ]);
+    expect(banks).toHaveLength(6);
+    expect(banks[0]).toMatchObject({
+      level: 3,
+      gameServerNumber: 1211,
+      coordX: 598,
+      coordY: 499,
+    });
+    expect(banks[1]).toMatchObject({ level: 2, coordX: 699, coordY: 539 });
+    expect(banks[3]).toMatchObject({ level: 2, coordX: 699, coordY: 399 });
+    expect(banks[5]).toMatchObject({
+      level: 2,
+      crystalGoldValue: 486_000,
+      coordX: 698,
+      coordY: 99,
+    });
+  });
+
+  it("recovers a top row that only appears as hashless coords (bottom-row regression)", () => {
+    // Live review UI lost the top row while keeping bottom-row #1203 tiles.
+    const banks = parseCityListBanks([
+      "588.00K 447.38K 522.00K",
+      "Lv.3 Lv.3 Lv.3",
+      "1203 [X:499, Y:799] 1203 [X:499, Y:699] 1203 [X:599, Y:599]",
+      "98/100 75/100 87/100",
+      "492.00K 357.62K 354.00K",
+      "Lv.3 Lv.3 Lv.3",
+      "#1203 [X:499, Y:599] #1203 [X:599, Y:499] #1203 [X:599, Y:399]",
+      "82/100 60/100 59/100",
+    ]);
+    expect(banks).toHaveLength(6);
+    expect(banks.map((b) => `${b.coordX},${b.coordY}`)).toEqual([
+      "499,799",
+      "499,699",
+      "599,599",
+      "499,599",
+      "599,499",
+      "599,399",
+    ]);
+    expect(banks.every((b) => b.level === 3)).toBe(true);
+    expect(banks[0]?.crystalGoldValue).toBe(588_000);
+    expect(banks[5]?.crystalGoldValue).toBe(354_000);
+  });
 });
 
 describe("parseCityListText", () => {

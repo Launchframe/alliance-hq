@@ -18,8 +18,9 @@
  * K-tokens than coord anchors.
  *
  * Real OCR is noisier than the golden transcription: coordinates often lose
- * parentheses (`#1211x:699,v:399)`), confuse `Y` with `V`, and skip `Lv.`
- * lines entirely. Levels/deposits are optional; missing amounts stay null.
+ * parentheses (`#1211x:699,v:399)`), confuse `Y` with `V`, drop the leading
+ * `#`, glue server+X (`#1211599, V:499)`), and mangle levels into `Lv:3` /
+ * `Lvi3`. Levels/deposits are optional; missing amounts stay null.
  */
 
 export type ParsedCityListBank = {
@@ -63,20 +64,36 @@ const SUFFIX_MULTIPLIER: Record<string, number> = {
   B: 1_000_000_000,
 };
 
-/** Compact CrystalGold value token, e.g. "600.00K", "3.48M", OCR "59726K". */
-const VALUE_TOKEN_RE = /(\d[\d.oO]*)\s*([KkMmBb])\b/g;
+/**
+ * Compact CrystalGold value token, e.g. "600.00K", "3.48M", OCR "59726K",
+ * spaced decimals ("447 38K", "588. 00K"), and K→N misreads ("522 00N").
+ */
+const VALUE_TOKEN_RE =
+  /(\d[\d.oO]*)(?:\s*[.\s]\s*(\d{2}))?\s*([KkMmBbNn])\b/g;
 
-/** Bank level token, e.g. "Lv.3", "Lv 2", "LV.2". */
-const LEVEL_TOKEN_RE = /\bL\.?v\.?\s*(\d+)\b/gi;
+/**
+ * Bank level token. Real OCR often inserts punctuation or an extra `i`:
+ *   "Lv.3" "Lv 2" "Lv:3" "Lv'3" "Lvi3" "LvI2" "LV.2"
+ */
+const LEVEL_TOKEN_RE = /\bL\.?v\.?i?[.:']?\s*(\d+)\b/gi;
 
 /**
  * Bank coordinate token.
  * Accepts clean `#1211 (X:599, Y:499)` and OCR garbles like:
  *   `#1211x:699,v:399)`  `#1211(X:699,V:299)`  `#1211 [X:699, ¥:499]`
+ *   `1203 [X:499, Y:799]` (hash dropped)
  * (`V`/`v`/`¥` are common Tesseract misreads of `Y`.)
+ * `#` is optional when an X-label is present.
  */
 const COORD_TOKEN_RE =
-  /#\s*(\d{3,6})\s*[([]?\s*[Xx]\s*:?\s*(\d+)\s*,\s*[^0-9]*(\d+)\s*[)\]]?/gi;
+  /#?\s*(\d{3,6})\s*[([]?\s*[Xx]\s*:?\s*(\d+)\s*,\s*[^0-9]*(\d+)\s*[)\]]?/gi;
+
+/**
+ * Fallback when OCR glues server+X and drops the X label:
+ *   `(#1211599, V:499)` → server 1211, X 599, Y 499
+ */
+const COORD_GLUED_RE =
+  /#\s*(\d{3,4})(\d{2,4})\s*,\s*[^0-9]*(\d{1,4})\s*[)\]]?/gi;
 
 /** Deposit slot usage token, e.g. "81/100". */
 const DEPOSIT_TOKEN_RE = /\b(\d{1,3})\s*\/\s*100\b/g;
@@ -99,6 +116,8 @@ export function parseCompactCrystalGoldValue(
 ): number | null {
   // OCR often reads `0` as `O`/`o` inside amounts.
   let cleaned = amount.replace(/,/g, "").replace(/[oO]/g, "0");
+  // Trailing decimal from spaced OCR ("588." + "00K").
+  if (cleaned.endsWith(".")) cleaned = cleaned.slice(0, -1);
   // Tile amounts are shown with two decimals (600.00K). When the decimal
   // point is lost ("59726K"), re-insert it before the last two digits.
   if (!cleaned.includes(".") && cleaned.length >= 5 && suffix) {
@@ -106,8 +125,69 @@ export function parseCompactCrystalGoldValue(
   }
   const base = Number(cleaned);
   if (!Number.isFinite(base)) return null;
-  const multiplier = suffix ? SUFFIX_MULTIPLIER[suffix.toUpperCase()] ?? 1 : 1;
+  // Soft OCR often misreads the K suffix as N ("522 00N").
+  const normalizedSuffix =
+    suffix && /^n$/i.test(suffix) ? "K" : suffix?.toUpperCase();
+  const multiplier = normalizedSuffix
+    ? SUFFIX_MULTIPLIER[normalizedSuffix] ?? 1
+    : 1;
   return Math.round(base * multiplier);
+}
+
+function isPlausibleCityListCoord(
+  gameServerNumber: number,
+  coordX: number,
+  coordY: number,
+): boolean {
+  return (
+    Number.isFinite(gameServerNumber) &&
+    Number.isFinite(coordX) &&
+    Number.isFinite(coordY) &&
+    gameServerNumber >= 100 &&
+    gameServerNumber <= 999_999 &&
+    coordX >= 0 &&
+    coordX <= 1_200 &&
+    coordY >= 0 &&
+    coordY <= 1_200
+  );
+}
+
+function extractCoordsFromLine(line: string): Array<{
+  gameServerNumber: number;
+  coordX: number;
+  coordY: number;
+}> {
+  const labeled = extractFromLine(line, COORD_TOKEN_RE, (m) => {
+    const gameServerNumber = Number(m[1]);
+    const coordX = Number(m[2]);
+    const coordY = Number(m[3]);
+    if (!isPlausibleCityListCoord(gameServerNumber, coordX, coordY)) {
+      return null;
+    }
+    return { gameServerNumber, coordX, coordY };
+  });
+  if (labeled.length > 0) return labeled;
+
+  // Only use glued server+X when no labeled X: tokens matched.
+  return extractFromLine(line, COORD_GLUED_RE, (m) => {
+    const gameServerNumber = Number(m[1]);
+    const coordX = Number(m[2]);
+    const coordY = Number(m[3]);
+    if (!isPlausibleCityListCoord(gameServerNumber, coordX, coordY)) {
+      return null;
+    }
+    return { gameServerNumber, coordX, coordY };
+  });
+}
+
+function extractValuesFromLine(line: string): Array<number | null> {
+  return extractFromLine(line, VALUE_TOKEN_RE, (m) => {
+    const whole = m[1]!;
+    const decimals = m[2];
+    const suffix = m[3];
+    const amount = decimals != null ? `${whole.replace(/\.$/, "")}.${decimals}` : whole;
+    return parseCompactCrystalGoldValue(amount, suffix);
+  });
 }
 
 /** Game server timestamps are wall-clock without TZ; treat as UTC for storage. */
@@ -163,15 +243,9 @@ function tokenizeCityListLine(line: string): LineTokens {
     };
   }
   return {
-    values: extractFromLine(line, VALUE_TOKEN_RE, (m) =>
-      parseCompactCrystalGoldValue(m[1]!, m[2]),
-    ),
+    values: extractValuesFromLine(line),
     levels: extractFromLine(line, LEVEL_TOKEN_RE, (m) => Number(m[1])),
-    coords: extractFromLine(line, COORD_TOKEN_RE, (m) => ({
-      gameServerNumber: Number(m[1]),
-      coordX: Number(m[2]),
-      coordY: Number(m[3]),
-    })),
+    coords: extractCoordsFromLine(line),
     deposits: extractFromLine(line, DEPOSIT_TOKEN_RE, (m) => Number(m[1])),
     isHeaderFooter: false,
   };
@@ -305,12 +379,15 @@ export function parseCityListBanks(
     for (let i = 0; i < coords.length; i += 1) {
       const coord = coords[i]!;
       const level = levels[i];
+      const rawValue = values[i];
       banks.push({
         level:
           level != null && Number.isFinite(level) && level > 0
             ? level
             : CITY_LIST_DEFAULT_LEVEL,
-        crystalGoldValue: values[i] ?? null,
+        // OCR junk like "000k" parses to 0 — treat as missing for review.
+        crystalGoldValue:
+          rawValue != null && rawValue > 0 ? rawValue : null,
         gameServerNumber: coord.gameServerNumber,
         coordX: coord.coordX,
         coordY: coord.coordY,
