@@ -76,6 +76,19 @@ export function isTypingTarget(target: EventTarget | null): boolean {
   return Boolean(target.closest("[data-hotkey-ignore]"));
 }
 
+function isOpenModalDialog(target: EventTarget | null): boolean {
+  if (typeof document === "undefined") return false;
+  // Allow typing-target check to own focus-inside-dialog handling; this catches
+  // page hotkeys (spin, etc.) firing while a modal is open in the background.
+  if (
+    target instanceof Element &&
+    target.closest('[role="dialog"][aria-modal="true"]')
+  ) {
+    return true;
+  }
+  return Boolean(document.querySelector('[role="dialog"][aria-modal="true"]'));
+}
+
 export function shouldIgnoreHotkeysForEvent(
   event: KeyboardEvent,
   options: {
@@ -94,6 +107,10 @@ export function shouldIgnoreHotkeysForEvent(
       parsed.key === "k" &&
       (parsed.modifiers.includes("meta") || parsed.modifiers.includes("ctrl"));
     return !isPaletteChord;
+  }
+
+  if (isOpenModalDialog(event.target)) {
+    return true;
   }
 
   return false;
