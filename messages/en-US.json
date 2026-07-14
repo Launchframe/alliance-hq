@@ -3129,6 +3129,12 @@
     "templateBadge": "Template: {template}",
     "templateSelectLabel": "Week template",
     "templateSelectAria": "Week schedule template",
+    "templatePicker": {
+      "title": "Choose a week template",
+      "subtitle": "Tap a template to see how conductors and VIPs are chosen that week.",
+      "apply": "Use this template",
+      "cancel": "Cancel"
+    },
     "todayConductor": "Today's Conductor",
     "todayVip": "VIP",
     "awaitingConductor": "Awaiting selection",

@@ -3075,6 +3075,12 @@
     "templateBadge": "Modelo: {template}",
     "templateSelectLabel": "Modelo da semana",
     "templateSelectAria": "Modelo de agenda da semana",
+    "templatePicker": {
+      "title": "Escolher modelo da semana",
+      "subtitle": "Toque em um modelo para ver como os condutores e VIPs são escolhidos na semana.",
+      "apply": "Usar este modelo",
+      "cancel": "Cancelar"
+    },
     "todayConductor": "Condutor de hoje",
     "todayVip": "VIP",
     "awaitingConductor": "Aguardando seleção",

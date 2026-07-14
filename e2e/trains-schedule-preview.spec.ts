@@ -68,7 +68,12 @@ test.describe("Trains schedule preview (no blank state)", () => {
     await expect(page.getByTestId("trains-no-schedule-section")).toHaveCount(0);
     await expect(page.getByTestId("trains-plan-week-banner")).toBeVisible();
     await expect(page.getByTestId("trains-template-selector")).toBeVisible();
-    await expect(page.getByTestId("trains-template-detail-hint")).toBeVisible();
+    await expect(page.getByTestId("trains-week-template-button")).toBeVisible();
+    // Template explanations live in the picker dialog (scrollable on small screens).
+    await page.getByTestId("trains-week-template-button").click();
+    await expect(page.getByTestId("trains-template-picker-list")).toBeVisible();
+    await expect(page.getByTestId("trains-template-picker-detail")).toBeVisible();
+    await page.keyboard.press("Escape");
     // Simple Mode defaults on for officers — guided flow replaces dense quick-actions.
     await expect(page.getByTestId("trains-guided-conductor-flow")).toBeVisible();
     await expect(page.getByTestId("trains-guided-primary-cta")).toBeVisible();
