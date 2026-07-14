@@ -52,26 +52,33 @@ export async function parsePowerDetailsImage(
 ): Promise<ParsePowerDetailsImageResult> {
   const t0 = Date.now();
 
-  // Body first (component rows), then inverted header band (Hero Power total).
-  // Sequential: shared Tesseract worker is serialized anyway.
+  // Body first (component rows). Only fall back to the inverted header-band
+  // pass (extra Tesseract call) when the body alone didn't already produce a
+  // header-reconciled result — keeps the common case single-pass.
   const bodyPre = await preprocessPowerDetailsImage(imageBuffer);
   const bodyLines = (
     await runTesseract(bodyPre.buffer, POWER_DETAILS_BODY_OCR_CONFIG)
   ).map((line) => line.text);
-
-  const headerPre = await preprocessPowerDetailsHeaderBand(imageBuffer);
-  const headerLines = (
-    await runTesseract(headerPre.buffer, POWER_DETAILS_HEADER_OCR_CONFIG)
-  )
-    .map((line) => line.text)
-    .filter(isUsefulHeaderLine);
-
-  const mergedLines = mergeOcrLines(headerLines, bodyLines);
   const bodyOnly = parsePowerDetailsLines(bodyLines);
-  const merged = parsePowerDetailsLines(mergedLines);
-  const parsed = parseScore(merged) >= parseScore(bodyOnly) ? merged : bodyOnly;
-  const textLines =
-    parseScore(merged) >= parseScore(bodyOnly) ? mergedLines : bodyLines;
+
+  let parsed: ParsePowerDetailsResult = bodyOnly;
+  let textLines = bodyLines;
+
+  if (!bodyOnly.complete || bodyOnly.heroPowerTotal == null) {
+    const headerPre = await preprocessPowerDetailsHeaderBand(imageBuffer);
+    const headerLines = (
+      await runTesseract(headerPre.buffer, POWER_DETAILS_HEADER_OCR_CONFIG)
+    )
+      .map((line) => line.text)
+      .filter(isUsefulHeaderLine);
+
+    const mergedLines = mergeOcrLines(headerLines, bodyLines);
+    const merged = parsePowerDetailsLines(mergedLines);
+    if (parseScore(merged) >= parseScore(bodyOnly)) {
+      parsed = merged;
+      textLines = mergedLines;
+    }
+  }
 
   const durationMs = Date.now() - t0;
   const diagnostics = buildOcrDiagnostics({
