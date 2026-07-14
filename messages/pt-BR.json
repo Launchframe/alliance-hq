@@ -3032,7 +3032,8 @@
     "emptyRosterCta": "Ir para Membros",
     "planWeekBanner": {
       "title": "Planeje esta semana de trem",
-      "body": "Esta semana é um rascunho do seu modelo padrão. Escolha um modelo, pinte dias ou sorteie o condutor de hoje — seu plano é salvo quando você age."
+      "body": "Esta semana é um rascunho do seu modelo padrão. Escolha um modelo, pinte dias ou sorteie o condutor de hoje — seu plano é salvo quando você age.",
+      "chooseTemplate": "Escolher um modelo"
     },
     "previewLegend": "Dias esmaecidos são rascunhos; eles são salvos quando um oficial atualiza a agenda.",
     "previewDraftAriaLabel": "Agenda em rascunho",
@@ -3077,9 +3078,14 @@
     "templateSelectAria": "Modelo de agenda da semana",
     "templatePicker": {
       "title": "Escolher modelo da semana",
-      "subtitle": "Toque em um modelo para ver como os condutores e VIPs são escolhidos na semana.",
       "apply": "Usar este modelo",
-      "cancel": "Cancelar"
+      "cancel": "Cancelar",
+      "drawModeLabel": "Modo do sorteio",
+      "equalChance": "Chance igual",
+      "closerIsBetter": "Mais perto é melhor",
+      "equalChanceHint": "Todo R3 elegível tem a mesma chance (1/N).",
+      "closerIsBetterHint": "Pontuações mais próximas de 7,2M recebem mais bilhetes e maior chance de ganhar.",
+      "weekShapeAria": "Pré-visualização da cor de cada dia neste modelo"
     },
     "todayConductor": "Condutor de hoje",
     "todayVip": "VIP",
@@ -3386,6 +3392,9 @@
       "oddsSubtitleHeavyHitter": "Chance igual entre os heavy hitters configurados.",
       "oddsEmptyUniform": "Nenhum membro R3 está na faixa de VS econômica deste dia ainda.",
       "oddsEmptyHeavyHitter": "Nenhum heavy hitter está configurado para o sorteio de sábado.",
+      "oddsEmptyUniformCta": "Enviar vídeo de placar",
+      "oddsEmptyHeavyHitterCta": "Abrir config. de trens",
+      "retryLoad": "Tentar de novo",
       "oddsHeroEqual": "Sua chance no sorteio de hoje: {probability}",
       "loading": "Carregando tickets de rifa…",
       "loadFailed": "Não foi possível carregar os tickets de rifa.",
@@ -3445,7 +3454,7 @@
       "poolEmptyHeavyHitter": "Nenhum heavy hitter está configurado para a loteria de sábado do Price Is Freight. Adicione membros em Configurações → Trens (equipe takedown / tickets máximos) e tente de novo.",
       "poolEmptyGeneric": "Nenhum membro elegível foi encontrado para este pool. Confira os ranks na página Membros e tente de novo.",
       "poolExhausted": "Todos os elegíveis deste pool já foram sorteados nesta geração. Recrie o pool para iniciar uma nova rodada.",
-      "poolUnavailable": "O pool da roleta ainda não está pronto. Tente recriar o pool ou confira os ranks na página Membros.",
+      "poolUnavailable": "O pool da roleta ainda não está pronto. Recrie o pool para remontar os elegíveis — em seguida giramos de novo.",
       "noVsScores": "Ainda não há pontuações VS suficientes para preencher a roleta. Informe as pontuações VS desta semana e tente de novo.",
       "noEventScores": "Ainda não há pontuações de evento suficientes para a roleta VIP. Informe as pontuações do evento e tente de novo.",
       "noDonationScores": "Doações ainda não são registradas no Alliance HQ. Escolha o doador manualmente na lista.",
@@ -3453,7 +3462,23 @@
       "ashedRequired": "Este sorteio precisa de conexão com o Ashed para ler pontuações ao vivo. Conecte o Ashed em Configurações ou use um mecanismo baseado na lista.",
       "generic": "A roleta não pode girar agora. Corrija o problema e tente de novo.",
       "goToMembers": "Ir para Membros",
+      "goToTrainSettings": "Abrir config. de trens",
+      "goToSettings": "Ir para Configurações",
+      "uploadScoreVideo": "Enviar vídeo de placar",
+      "pickManually": "Escolher manualmente",
+      "retrySpin": "Tentar girar de novo",
       "reseedPool": "Recriar pool",
+      "reseedAndRespin": "Recriar pool e girar de novo",
+      "reseedAndRespinBusy": "Recriando…",
+      "close": "Fechar"
+    },
+    "errorBanner": {
+      "dismiss": "Dispensar"
+    },
+    "autoDq": {
+      "spinAgain": "Girar de novo",
+      "pickManually": "Escolher manualmente",
+      "override": "Anular e manter",
       "close": "Fechar"
     },
     "mechanisms": {
@@ -3489,6 +3514,8 @@
       "r4_event_vip": "R4 e VIP de evento",
       "economy_week": "Semana economia",
       "price_is_right": "The Price Is Freight",
+      "price_is_right_weekdays": "Pontuações VS elegíveis",
+      "takedown_week": "Semana takedown",
       "r3_recognition": "Reconhecimento R3",
       "r4_train_week": "Semana R4",
       "donations_week": "Semana doações",
@@ -3497,15 +3524,28 @@
     "templatesShort": {
       "vs_push_weekdays": "Push VS",
       "r4_event_vip": "R4 e VIP evento",
-      "price_is_right": "Mais perto de 7,2M"
+      "price_is_right": "Mais perto de 7,2M",
+      "price_is_right_weekdays": "VS elegível",
+      "takedown_week": "Pool takedown"
+    },
+    "templateShapeLegend": {
+      "economy_week": "Pool R3",
+      "price_is_right_weekdays": "Pontuações VS elegíveis",
+      "takedown_week": "Pool do time takedown",
+      "custom": "Personalizado",
+      "r3_recognition": "Prêmio Condutor R3",
+      "r4_train_week": "Sorteio aleatório R4",
+      "donations_week": "Maiores doadores"
     },
     "templateDetails": {
       "vs_push_week": "Condutor: ter e sex = VS #1 do dia anterior (automático); qua, qui e sáb = sorteio aleatório entre o top 10 de VS; dom–seg = rodízio de oficiais R4+. VIP: condutor escolhe o VIP nos dias de VS; loteria top 10 de evento dom–seg.",
       "vs_push_weekdays": "Condutor: seg = maior doador; ter e sex = VS #1 do dia anterior; qua, qui e sáb = sorteio no top 10 de VS. VIP: seg = 2º doador; ter–sáb = escolha livre do condutor.",
       "r4_event_vip": "Condutor: rodízio de oficiais R4+. VIP: roleta loteria top 10 do evento (padrão: Capitol War). Típico para dias de fim de semana.",
       "economy_week": "Condutor: roleta R3 todos os dias — pool R3 completo, sem faixa de pontuação VS. VIP: o condutor do dia escolhe o VIP diretamente (escolha livre). Use para pivotar no meio da semana quando empurrar menos VS.",
-      "price_is_right": "Condutor: ter–sex e dom–seg = roleta R3 (tickets por VS ou faixa legada). Sábado = loteria heavy-hitter entre os overrides de tickets máximos / takedown (chance máxima igual). VIP: o condutor do dia escolhe o VIP diretamente (escolha livre).",
-      "r3_recognition": "Condutor: roleta R3 todos os dias — pool R3 completo (mesmo sorteio da Semana economia, sem filtro VS). VIP: o condutor do dia escolhe o VIP diretamente (escolha livre).",
+      "price_is_right": "Condutor: ter–sex = sorteio entre pontuações VS elegíveis. Sábado = sorteio do pool do time takedown. Dom–seg = Personalizado (manual). VIP: escolha do condutor nos dias de sorteio/takedown.",
+      "price_is_right_weekdays": "Condutor: sorteio entre pontuações VS elegíveis do dia anterior (Chance igual ou Mais perto é melhor). VIP: escolha do condutor.",
+      "takedown_week": "Condutor: sorteio aleatório do roster do time takedown todos os dias (pool que se esgota). VIP: escolha do condutor.",
+      "r3_recognition": "Condutor: escolha manual no pool R3 todos os dias — o membro escolhido sai do pool. VIP: escolha do condutor.",
       "r4_train_week": "Condutor: rodízio de oficiais R4+ — percorre o pool em ordem, um condutor por dia. VIP: o condutor do dia escolhe o VIP diretamente (escolha livre).",
       "donations_week": "Condutor: maior doador da aliança (automático). VIP: segundo doador (automático; oficiais podem corrigir manualmente se o placar estiver errado).",
       "custom": "Condutor / VIP: sem regras predefinidas — defina os mecanismos de cada dia no calendário ou escolha manualmente ao sortear."
@@ -3518,6 +3558,7 @@
       "vsShortfall": "VS: {score} pts (precisa {required}; faltam {shortfall})",
       "donationShortfall": "Doações: {score} pts (precisa {required}; faltam {shortfall})",
       "spinAgain": "Girar novamente",
+      "cancel": "Cancelar",
       "override": "Anular desqualificação",
       "overrideReasonLabel": "Motivo da anulação (opcional)",
       "overrideReasonPlaceholder": "ex.: ausência justificada, semana de compensação",

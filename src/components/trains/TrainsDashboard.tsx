@@ -63,6 +63,7 @@ import type {
   WeekSchedulePagePayload,
 } from "@/lib/trains/load-dashboard";
 import { effectiveConductorMechanism } from "@/lib/trains/conductor-mechanism.shared";
+import { isPriceIsRightPaintTemplate } from "@/lib/trains/heavy-hitter-pool.shared";
 import {
   conductorSpinSource,
   isPoolSpinSource,
@@ -202,6 +203,9 @@ export function TrainsDashboard({ initial }: Props) {
   const [wheelBlocked, setWheelBlocked] = useState<TrainRollErrorDetails | null>(
     null,
   );
+  const [wheelBlockedRole, setWheelBlockedRole] = useState<
+    "conductor" | "vip"
+  >("conductor");
   const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
   const [pendingTemplateChange, setPendingTemplateChange] = useState<{
     templateType: WeekTemplateType;
@@ -356,6 +360,50 @@ export function TrainsDashboard({ initial }: Props) {
     setViewedWeek(page);
   }, []);
 
+  const handleWeekLoadError = useCallback(
+    (_message?: string) => {
+      setError(t("weekLoadFailed"));
+    },
+    [t],
+  );
+
+  const handleWeightingEnabledChange = useCallback(
+    async (nextWeightingEnabled: boolean) => {
+      const previous = data.priceIsRightWeightingEnabled;
+      if (previous === nextWeightingEnabled) return;
+      setData((prev) => ({
+        ...prev,
+        priceIsRightWeightingEnabled: nextWeightingEnabled,
+      }));
+      try {
+        const res = await fetch("/api/trains/price-is-right/weighting", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ weightingEnabled: nextWeightingEnabled }),
+        });
+        if (!res.ok) {
+          const body = (await res.json().catch(() => ({}))) as {
+            error?: string;
+          };
+          setData((prev) => ({
+            ...prev,
+            priceIsRightWeightingEnabled: previous,
+          }));
+          setError(body.error ?? t("scheduleFailed"));
+          return;
+        }
+        setError(null);
+      } catch {
+        setData((prev) => ({
+          ...prev,
+          priceIsRightWeightingEnabled: previous,
+        }));
+        setError(t("scheduleFailed"));
+      }
+    },
+    [data.priceIsRightWeightingEnabled, t],
+  );
+
   const handleMonthChange = useCallback((page: MonthSchedulePagePayload) => {
     viewedMonthKeyRef.current = page.monthKey;
     setViewedMonth(page);
@@ -508,6 +556,8 @@ export function TrainsDashboard({ initial }: Props) {
       r4_event_vip: t("templates.r4_event_vip"),
       economy_week: t("templates.economy_week"),
       price_is_right: t("templates.price_is_right"),
+      price_is_right_weekdays: t("templates.price_is_right_weekdays"),
+      takedown_week: t("templates.takedown_week"),
       r3_recognition: t("templates.r3_recognition"),
       r4_train_week: t("templates.r4_train_week"),
       donations_week: t("templates.donations_week"),
@@ -521,6 +571,8 @@ export function TrainsDashboard({ initial }: Props) {
       vs_push_weekdays: t("templatesShort.vs_push_weekdays"),
       r4_event_vip: t("templatesShort.r4_event_vip"),
       price_is_right: t("templatesShort.price_is_right"),
+      price_is_right_weekdays: t("templatesShort.price_is_right_weekdays"),
+      takedown_week: t("templatesShort.takedown_week"),
     }),
     [t],
   );
@@ -616,6 +668,8 @@ export function TrainsDashboard({ initial }: Props) {
 
   const runRoll = async (role: "conductor" | "vip") => {
     if (rollingRole || reseedingPool || conductorLockBusy) return;
+    // Don't let page hotkeys / spin run "behind" open schedule dialogs.
+    setTemplatePickerOpen(false);
     setError(null);
     setWheelBlocked(null);
     setRollingRole(role);
@@ -630,6 +684,7 @@ export function TrainsDashboard({ initial }: Props) {
         const blocked = parseTrainRollError(body);
         if (isWheelBlockedError(blocked)) {
           setWheelBlocked(blocked);
+          setWheelBlockedRole(role);
           return;
         }
         setError(body.error ?? t("rollFailed"));
@@ -659,6 +714,11 @@ export function TrainsDashboard({ initial }: Props) {
           body.result.qualification &&
           !body.result.qualification.qualified
         ) {
+          pendingWheelRollRef.current = {
+            date: selectedDate,
+            role,
+            result: body.result,
+          };
           setConductorDisqualified(body.result);
           return;
         }
@@ -761,6 +821,7 @@ export function TrainsDashboard({ initial }: Props) {
         pendingWheelRollRef.current = null;
         setWheelOpen(false);
         setWheelQualification(null);
+        setConductorDisqualified(null);
         void refreshRef.current();
       } catch (e) {
         setError(e instanceof Error ? e.message : t("overrideFailed"));
@@ -1159,7 +1220,10 @@ export function TrainsDashboard({ initial }: Props) {
     trainTemplateHotkeyIds,
   ]);
 
-  const reseedPool = async (poolType: PoolType) => {
+  const reseedPool = async (
+    poolType: PoolType,
+    options?: { respin?: "conductor" | "vip" },
+  ) => {
     if (rollingRole || reseedingPool || conductorLockBusy) return;
     setError(null);
     setReseedingPool(poolType);
@@ -1167,21 +1231,29 @@ export function TrainsDashboard({ initial }: Props) {
       const res = await fetch("/api/trains/pool", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ poolType }),
+        body: JSON.stringify({ poolType, date: selectedDate }),
       });
       const body = (await res.json()) as TrainRollErrorResponse;
       if (!res.ok) {
         const blocked = parseTrainRollError(body);
         if (isWheelBlockedError(blocked)) {
           setWheelBlocked(blocked);
+          if (options?.respin) setWheelBlockedRole(options.respin);
           return;
         }
         setError(body.error ?? t("poolFailed"));
+        setWheelBlocked(null);
         return;
       }
+      setWheelBlocked(null);
       void refreshRef.current();
+      if (options?.respin) {
+        setReseedingPool(null);
+        await runRollRef.current(options.respin);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : t("poolFailed"));
+      if (options?.respin) setWheelBlocked(null);
     } finally {
       setReseedingPool(null);
     }
@@ -1408,9 +1480,20 @@ export function TrainsDashboard({ initial }: Props) {
       </header>
 
       {error ? (
-        <p className="rounded-lg border border-hq-danger/40 bg-hq-danger/10 px-3 py-2 text-sm text-hq-danger">
-          {error}
-        </p>
+        <div
+          className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-hq-danger/40 bg-hq-danger/10 px-3 py-2 text-sm text-hq-danger"
+          role="alert"
+          data-testid="trains-error-banner"
+        >
+          <p className="min-w-0 flex-1">{error}</p>
+          <button
+            type="button"
+            className="shrink-0 text-xs underline opacity-80 hover:opacity-100"
+            onClick={() => setError(null)}
+          >
+            {t("errorBanner.dismiss")}
+          </button>
+        </div>
       ) : null}
 
       {autoRollNotice && autoRollNotice.date === selectedDate ? (
@@ -1432,7 +1515,11 @@ export function TrainsDashboard({ initial }: Props) {
         </p>
       ) : null}
 
-      {showPlanWeekBanner ? <TrainPlanWeekBanner /> : null}
+      {showPlanWeekBanner ? (
+        <TrainPlanWeekBanner
+          onChooseTemplate={() => setTemplatePickerOpen(true)}
+        />
+      ) : null}
 
       {showPivotBanner ? (
         <TrainPivotBanner onPivot={handlePivotToEconomy} busy={pivotBusy} />
@@ -1502,7 +1589,7 @@ export function TrainsDashboard({ initial }: Props) {
               externalWeek={viewedWeek}
               onSelectDate={setSelectedDate}
               onWeekChange={handleWeekChange}
-              onWeekLoadError={() => setError(t("weekLoadFailed"))}
+              onWeekLoadError={handleWeekLoadError}
             />
           ) : (
             <TrainMonthCalendar
@@ -1565,11 +1652,11 @@ export function TrainsDashboard({ initial }: Props) {
             />
           ) : null}
 
-          {conductorPaint === "price_is_right" ? (
+          {isPriceIsRightPaintTemplate(conductorPaint) ? (
             <PriceIsRightPodiumLeaderboard trainDate={selectedDate} />
           ) : null}
 
-          {conductorPaint === "price_is_right" ? (
+          {isPriceIsRightPaintTemplate(conductorPaint) ? (
             <PriceIsRightTicketsPanel trainDate={selectedDate} />
           ) : null}
 
@@ -1633,6 +1720,10 @@ export function TrainsDashboard({ initial }: Props) {
                       withOptimisticMutation={withOptimisticMutation}
                       presentPoolRefreshedHints={presentPoolRefreshedHints}
                       onError={setError}
+                      onWheelBlocked={(details) => {
+                        setWheelBlocked(details);
+                        setWheelBlockedRole("conductor");
+                      }}
                       onRefresh={refresh}
                     />
                     {canStartConductorSwap(selectedRecord) &&
@@ -1684,7 +1775,7 @@ export function TrainsDashboard({ initial }: Props) {
                         </button>
                       )
                     ) : null}
-                    {conductorPaint !== "price_is_right" &&
+                    {!isPriceIsRightPaintTemplate(conductorPaint) &&
                     (conductorMech === "r3_lottery" ||
                       conductorMech === "heavy_hitter_lottery" ||
                       conductorMech === "r4_sequence") ? (
@@ -1787,6 +1878,10 @@ export function TrainsDashboard({ initial }: Props) {
                   withOptimisticMutation={withOptimisticMutation}
                   presentPoolRefreshedHints={presentPoolRefreshedHints}
                   onError={setError}
+                  onWheelBlocked={(details) => {
+                    setWheelBlocked(details);
+                    setWheelBlockedRole("conductor");
+                  }}
                   onRefresh={refresh}
                 />
                 {canRoll &&
@@ -1959,7 +2054,7 @@ export function TrainsDashboard({ initial }: Props) {
                 ) : null}
               </div>
 
-              {conductorPaint !== "price_is_right" &&
+              {!isPriceIsRightPaintTemplate(conductorPaint) &&
               (conductorMech === "r3_lottery" ||
                 conductorMech === "heavy_hitter_lottery" ||
                 conductorMech === "r4_sequence") ? (
@@ -2019,7 +2114,11 @@ export function TrainsDashboard({ initial }: Props) {
 
       <ConductorPickModal
         open={pickOpen}
-        members={data.roster}
+        members={
+          pickRole === "conductor" && conductorPaint === "r3_recognition"
+            ? data.roster.filter((member) => member.allianceRank === 3)
+            : data.roster
+        }
         title={
           pickRole === "vip"
             ? t("pickVipTitle", { date: selectedDate.slice(5) })
@@ -2067,40 +2166,91 @@ export function TrainsDashboard({ initial }: Props) {
       <Dialog
         open={conductorDisqualified != null}
         onOpenChange={(open) => {
-          if (!open) setConductorDisqualified(null);
+          if (!open) {
+            setConductorDisqualified(null);
+            pendingWheelRollRef.current = null;
+          }
         }}
         title={t("wheel.disqualifiedTitle")}
       >
         {conductorDisqualified?.qualification ? (
-          <div className="space-y-2 text-sm text-hq-fg">
-            <p>
-              <span className="font-medium text-hq-danger">
-                {conductorDisqualified.memberName}
-              </span>{" "}
-              {t("wheel.disqualifiedBody")}
-            </p>
-            {conductorDisqualified.qualification.vs.minimum > 0 ? (
-              <p className="text-xs text-hq-fg-muted">
-                {t("wheel.vsShortfall", {
-                  score: conductorDisqualified.qualification.vs.score,
-                  required:
-                    conductorDisqualified.qualification.vs.effectiveMinimum,
-                  shortfall: conductorDisqualified.qualification.vs.shortfall,
-                })}
+          <div className="flex flex-col gap-4">
+            <div className="space-y-2 text-sm text-hq-fg">
+              <p>
+                <span className="font-medium text-hq-danger">
+                  {conductorDisqualified.memberName}
+                </span>{" "}
+                {t("wheel.disqualifiedBody")}
               </p>
-            ) : null}
-            {conductorDisqualified.qualification.donation.minimum > 0 ? (
-              <p className="text-xs text-hq-fg-muted">
-                {t("wheel.donationShortfall", {
-                  score: conductorDisqualified.qualification.donation.score,
-                  required:
-                    conductorDisqualified.qualification.donation
-                      .effectiveMinimum,
-                  shortfall:
-                    conductorDisqualified.qualification.donation.shortfall,
-                })}
-              </p>
-            ) : null}
+              {conductorDisqualified.qualification.vs.minimum > 0 ? (
+                <p className="text-xs text-hq-fg-muted">
+                  {t("wheel.vsShortfall", {
+                    score: conductorDisqualified.qualification.vs.score,
+                    required:
+                      conductorDisqualified.qualification.vs.effectiveMinimum,
+                    shortfall: conductorDisqualified.qualification.vs.shortfall,
+                  })}
+                </p>
+              ) : null}
+              {conductorDisqualified.qualification.donation.minimum > 0 ? (
+                <p className="text-xs text-hq-fg-muted">
+                  {t("wheel.donationShortfall", {
+                    score: conductorDisqualified.qualification.donation.score,
+                    required:
+                      conductorDisqualified.qualification.donation
+                        .effectiveMinimum,
+                    shortfall:
+                      conductorDisqualified.qualification.donation.shortfall,
+                  })}
+                </p>
+              ) : null}
+            </div>
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
+              <button
+                type="button"
+                onClick={() => {
+                  setConductorDisqualified(null);
+                  pendingWheelRollRef.current = null;
+                }}
+                className="rounded-lg border border-hq-border px-4 py-2 text-sm font-medium text-hq-fg hover:bg-hq-canvas"
+              >
+                {t("autoDq.close")}
+              </button>
+              {canManualPick ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setConductorDisqualified(null);
+                    pendingWheelRollRef.current = null;
+                    setPickRole("conductor");
+                    setPickOpen(true);
+                  }}
+                  className="rounded-lg border border-hq-border bg-hq-canvas px-4 py-2 text-sm font-medium text-hq-fg hover:bg-hq-surface"
+                >
+                  {t("autoDq.pickManually")}
+                </button>
+              ) : null}
+              <button
+                type="button"
+                disabled={trainQuickActionBusy}
+                onClick={() => {
+                  setConductorDisqualified(null);
+                  pendingWheelRollRef.current = null;
+                  void runRollRef.current("conductor");
+                }}
+                className="rounded-lg border border-cyan-500/40 bg-cyan-500/10 px-4 py-2 text-sm font-medium text-cyan-100 hover:bg-cyan-500/20 disabled:opacity-50"
+              >
+                {t("autoDq.spinAgain")}
+              </button>
+              <button
+                type="button"
+                disabled={trainQuickActionBusy}
+                onClick={() => void handleWheelOverride("")}
+                className="rounded-lg bg-cyan-500 px-4 py-2 text-sm font-medium text-white hover:bg-cyan-400 disabled:opacity-50"
+              >
+                {t("autoDq.override")}
+              </button>
+            </div>
           </div>
         ) : null}
       </Dialog>
@@ -2108,8 +2258,31 @@ export function TrainsDashboard({ initial }: Props) {
       <WheelBlockedDialog
         open={wheelBlocked != null}
         details={wheelBlocked}
-        onClose={() => setWheelBlocked(null)}
-        onReseedPool={(poolType) => void reseedPool(poolType)}
+        fallbackPoolType={
+          wheelBlockedRole === "vip" &&
+          isPoolSpinSource(selectedVipSpinSource)
+            ? selectedVipSpinSource.poolType
+            : isPoolSpinSource(selectedConductorSpinSource)
+              ? selectedConductorSpinSource.poolType
+              : isPoolSpinSource(selectedVipSpinSource)
+                ? selectedVipSpinSource.poolType
+                : null
+        }
+        busy={reseedingPool != null}
+        canPickManually={
+          wheelBlockedRole === "vip" ? canManualPickVip : canManualPick
+        }
+        onClose={() => {
+          if (reseedingPool == null) setWheelBlocked(null);
+        }}
+        onReseedAndRespin={(poolType) =>
+          void reseedPool(poolType, { respin: wheelBlockedRole })
+        }
+        onPickManually={() => {
+          setPickRole(wheelBlockedRole);
+          setPickOpen(true);
+        }}
+        onRetrySpin={() => void runRollRef.current(wheelBlockedRole)}
       />
 
       <TrainPoolDetailsDialog
@@ -2131,7 +2304,10 @@ export function TrainsDashboard({ initial }: Props) {
         }
         open={templatePickerOpen}
         currentTemplate={activeWeekTemplate}
+        weekStart={targetTrainWeekStart}
         disabled={!data.canManageTrains}
+        weightingEnabled={data.priceIsRightWeightingEnabled}
+        onWeightingEnabledChange={handleWeightingEnabledChange}
         onClose={() => setTemplatePickerOpen(false)}
         onSelect={(templateType) => {
           setTemplatePickerOpen(false);
