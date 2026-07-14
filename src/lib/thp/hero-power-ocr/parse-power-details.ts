@@ -922,12 +922,13 @@ export function parsePowerDetailsLines(lines: string[]): ParsePowerDetailsResult
         }
       }
       if (reconciled && matchedTotal != null) {
+        // Covers the already-consistent case too: headerCandidates always
+        // includes the raw header total at cost 0, tried first, and
+        // reconcileBreakdownToTotal short-circuits when the sum already
+        // matches — so an exact match never falls through to the `else`.
         Object.assign(breakdown, reconciled);
         full = reconciled;
         heroPowerTotal = matchedTotal;
-        complete = true;
-      } else if (sumThpBreakdown(full) === heroPowerTotal) {
-        // Already consistent with the header — no repair needed.
         complete = true;
       }
       // else: keep header total for total-only fallback, but do not mark
