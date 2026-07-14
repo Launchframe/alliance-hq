@@ -40,16 +40,17 @@ import {
   pickTpirPoolEntry,
 } from "@/lib/trains/train-economy-threshold.server";
 import { buildHeavyHitterPoolCandidates } from "@/lib/trains/heavy-hitter-pool.server";
+import { isPriceIsRightPaintTemplate } from "@/lib/trains/heavy-hitter-pool.shared";
 import { rollPriceIsFreightConductor } from "@/lib/trains/price-is-freight-roll.server";
 import { priceIsRightWeightingActive } from "@/lib/trains/train-price-is-right-tickets.shared";
 import {
   getPoolSummary,
   listPoolEntries,
+  listUnselectedPoolEntries,
   markPoolEntrySelected,
   markPoolMemberSelectedForDate,
-  pickNextPoolEntry,
-  pickRandomPoolEntry,
-  pickWeightedRandomPoolEntry,
+  pickUniformPoolEntry,
+  pickWeightedPoolEntryFromRows,
   poolHasEntries,
   releasePoolSelectionForDate,
   seedPool,
@@ -57,6 +58,7 @@ import {
 } from "@/lib/trains/pool";
 import {
   evaluateConductorQualification,
+  filterMemberIdsByConductorMinimums,
   loadTrainConductorMinimums,
 } from "@/lib/trains/train-conductor-minimums.server";
 import {
@@ -173,6 +175,8 @@ async function buildPoolCandidates(input: {
   date: string;
   eventTopN?: number;
   paintTemplate?: WeekTemplateType | null;
+  /** When true, drop members who fail alliance conductor minimums. */
+  respectConductorMinimums?: boolean;
 }): Promise<RollCandidate[]> {
   if (input.poolType === "event_top_x") {
     const limit = input.eventTopN ?? 10;
@@ -205,7 +209,8 @@ async function buildPoolCandidates(input: {
     });
   }
 
-  if (input.paintTemplate === "price_is_right") {
+  let poolCandidates = candidates;
+  if (isPriceIsRightPaintTemplate(input.paintTemplate)) {
     const ticketSettings = await loadPriceIsRightTicketSettings(
       input.hqAllianceId,
     );
@@ -216,20 +221,35 @@ async function buildPoolCandidates(input: {
         candidates,
         settings: ticketSettings,
       });
-      return weighted.candidates;
+      poolCandidates = weighted.candidates;
     }
   }
 
-  return candidates;
+  if (!input.respectConductorMinimums) {
+    return poolCandidates;
+  }
+
+  const qualifiedIds = await filterMemberIdsByConductorMinimums(
+    input.hqAllianceId,
+    input.date,
+    poolCandidates.map((candidate) => candidate.memberId),
+  );
+  if (qualifiedIds == null) {
+    return poolCandidates;
+  }
+  const qualified = new Set(qualifiedIds);
+  return poolCandidates.filter((candidate) => qualified.has(candidate.memberId));
 }
 
-async function ensurePool(input: {
+/** Seed a conductor pool if it has no entries yet (used by rolls and manual picks). */
+export async function ensureConductorPoolSeeded(input: {
   hqAllianceId: string;
   poolType: PoolType;
   date: string;
   useSequence: boolean;
   eventTopN?: number;
   paintTemplate?: WeekTemplateType | null;
+  respectConductorMinimums?: boolean;
 }): Promise<void> {
   const has = await poolHasEntries(input.hqAllianceId, input.poolType);
   if (has) return;
@@ -240,6 +260,7 @@ async function ensurePool(input: {
     date: input.date,
     eventTopN: input.eventTopN,
     paintTemplate: input.paintTemplate,
+    respectConductorMinimums: input.respectConductorMinimums,
   });
   if (candidates.length === 0) {
     throwPoolEmpty(input.poolType);
@@ -260,36 +281,71 @@ async function rollFromPool(
   mechanism: ConductorMechanismType | VipMechanismType,
   useWeightedPick = false,
   paintTemplate?: WeekTemplateType | null,
+  respectConductorMinimums = false,
 ): Promise<RollResult> {
   const summary = await getPoolSummary(allianceId, poolType);
   const useTpirPick =
-    poolType === "r3" && paintTemplate === "price_is_right" && !useWeightedPick;
-  const entry = useTpirPick
-    ? await pickTpirPoolEntry({
+    poolType === "r3" &&
+    isPriceIsRightPaintTemplate(paintTemplate) &&
+    !useWeightedPick;
+
+  let unselected = await listUnselectedPoolEntries(allianceId, poolType);
+  const qualifiedIds = respectConductorMinimums
+    ? await filterMemberIdsByConductorMinimums(
+        allianceId,
+        date,
+        unselected.map((row) => row.memberId),
+      )
+    : null;
+  if (qualifiedIds != null) {
+    const qualified = new Set(qualifiedIds);
+    unselected = unselected.filter((row) => qualified.has(row.memberId));
+  }
+
+  let entry: (typeof unselected)[number] | null = null;
+  if (unselected.length > 0) {
+    if (useTpirPick) {
+      const picked = await pickTpirPoolEntry({
         allianceId,
         poolType,
         trainDate: date,
         useSequence,
-      })
-    : useSequence
-      ? await pickNextPoolEntry(allianceId, poolType)
-      : useWeightedPick
-        ? await pickWeightedRandomPoolEntry(allianceId, poolType)
-        : await pickRandomPoolEntry(allianceId, poolType);
+      });
+      // pickTpirPoolEntry re-lists the pool; keep conductor-minimum winners only.
+      entry =
+        picked &&
+        (qualifiedIds == null || qualifiedIds.includes(picked.memberId))
+          ? picked
+          : pickUniformPoolEntry(unselected);
+    } else if (useSequence) {
+      entry =
+        [...unselected].sort(
+          (a, b) => (a.sequencePosition ?? 0) - (b.sequencePosition ?? 0),
+        )[0] ?? null;
+    } else if (useWeightedPick) {
+      entry = pickWeightedPoolEntryFromRows(unselected);
+    } else {
+      entry = pickUniformPoolEntry(unselected);
+    }
+  }
 
   if (!entry && summary.exhausted) {
     throwPoolExhausted(poolType);
   }
 
   if (!entry) {
-    throwPoolUnavailable();
+    throwPoolUnavailable(poolType);
   }
 
   await markPoolEntrySelected(entry.id, date);
 
   const generationEntries = await listPoolEntries(allianceId, poolType);
+  const reelMemberIds =
+    qualifiedIds ?? generationEntries.map((row) => row.memberId);
+  const reelAllowed = new Set(reelMemberIds);
   const seenMemberIds = new Set<string>();
   const wheelCandidates = generationEntries.flatMap((row) => {
+    if (!reelAllowed.has(row.memberId)) return [];
     if (seenMemberIds.has(row.memberId)) return [];
     seenMemberIds.add(row.memberId);
     return [
@@ -413,10 +469,9 @@ export async function confirmConductorMinimumOverride(input: {
     seasonKey,
   );
 
-  const poolType =
-    dayConfig.paintTemplate === "price_is_right"
-      ? null
-      : conductorMechanismPoolType(input.mechanism);
+  const poolType = isPriceIsRightPaintTemplate(dayConfig.paintTemplate)
+    ? null
+    : conductorMechanismPoolType(input.mechanism);
   if (poolType) {
     await markPoolMemberSelectedForDate(
       input.allianceId,
@@ -743,8 +798,14 @@ export async function rollForConductor(input: {
     case "r3_lottery":
     case "heavy_hitter_lottery":
     case "r4_sequence": {
+      if (dayConfig.paintTemplate === "r3_recognition") {
+        throw new Error(
+          "R3 recognition conductors are awarded by manual pick, not the wheel.",
+        );
+      }
+
       if (
-        dayConfig.paintTemplate === "price_is_right" &&
+        isPriceIsRightPaintTemplate(dayConfig.paintTemplate) &&
         (mechanism === "r3_lottery" || mechanism === "heavy_hitter_lottery")
       ) {
         // Clear any historical depleting-pool marks from older TPIF rolls.
@@ -772,12 +833,13 @@ export async function rollForConductor(input: {
           record.conductorMemberId,
         );
       }
-      await ensurePool({
+      await ensureConductorPoolSeeded({
         hqAllianceId: input.allianceId,
         poolType,
         date: input.date,
         useSequence: mechanism === "r4_sequence",
         paintTemplate: dayConfig.paintTemplate,
+        respectConductorMinimums: true,
       });
       const useWeightedPick = false;
       result = await rollFromPool(
@@ -788,6 +850,7 @@ export async function rollForConductor(input: {
         mechanism,
         useWeightedPick,
         dayConfig.paintTemplate,
+        true,
       );
       const poolRefreshed = await refreshExhaustedPoolIfNeeded({
         allianceId: input.allianceId,
@@ -874,7 +937,7 @@ export async function rollForVip(input: {
           record.vipMemberId,
         );
       }
-      await ensurePool({
+      await ensureConductorPoolSeeded({
         hqAllianceId: input.allianceId,
         poolType,
         date: input.date,
@@ -931,13 +994,20 @@ export async function reseedPool(input: {
   useSequence?: boolean;
   eventTopN?: number;
   paintTemplate?: WeekTemplateType | null;
+  respectConductorMinimums?: boolean;
 }): Promise<{ generation: number; count: number }> {
+  const respectConductorMinimums =
+    input.respectConductorMinimums ??
+    (input.poolType === "r3" ||
+      input.poolType === "r4_plus" ||
+      input.poolType === "heavy_hitter");
   const candidates = await buildPoolCandidates({
     hqAllianceId: input.allianceId,
     poolType: input.poolType,
     date: input.date,
     eventTopN: input.eventTopN,
     paintTemplate: input.paintTemplate,
+    respectConductorMinimums,
   });
   if (candidates.length === 0) {
     throwPoolEmpty(input.poolType);

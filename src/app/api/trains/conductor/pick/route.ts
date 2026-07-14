@@ -7,12 +7,20 @@ import {
   getConductorRecord,
   upsertConductorDraft,
 } from "@/lib/trains/repository";
-import { getMemberRankAsOf } from "@/lib/trains/rank-history";
+import {
+  getMemberRankAsOf,
+  isMemberEligibleForPool,
+  resolveMemberAllianceRankAsOf,
+} from "@/lib/trains/rank-history";
 import {
   markPoolMemberSelectedForDate,
   releasePoolSelectionForDate,
 } from "@/lib/trains/pool";
-import { getServerCalendarDate } from "@/lib/trains/service";
+import { isPriceIsRightPaintTemplate } from "@/lib/trains/heavy-hitter-pool.shared";
+import {
+  ensureConductorPoolSeeded,
+  getServerCalendarDate,
+} from "@/lib/trains/service";
 import {
   conductorMechanismPoolType,
   supportsManualConductorPick,
@@ -36,7 +44,9 @@ export async function POST(request: Request) {
     memberName?: string;
   };
 
-  if (!body.memberId?.trim() || !body.memberName?.trim()) {
+  const memberId = body.memberId?.trim();
+  const memberName = body.memberName?.trim();
+  if (!memberId || !memberName) {
     return NextResponse.json(
       { error: "memberId and memberName are required." },
       { status: 400 },
@@ -70,7 +80,7 @@ export async function POST(request: Request) {
     }
 
     const depletingPool =
-      dayConfig.paintTemplate !== "price_is_right" &&
+      !isPriceIsRightPaintTemplate(dayConfig.paintTemplate) &&
       Boolean(conductorMechanismPoolType(mechanism));
 
     if (existing?.conductorMemberId && depletingPool) {
@@ -83,18 +93,51 @@ export async function POST(request: Request) {
 
     const rankEvent = await getMemberRankAsOf(
       ctx.allianceId,
-      body.memberId.trim(),
+      memberId,
       date,
     );
+
+    if (dayConfig.paintTemplate === "r3_recognition") {
+      const { loadActiveAlliancePoolMembers } = await import(
+        "@/lib/members/game-roster"
+      );
+      const members = await loadActiveAlliancePoolMembers({
+        allianceId: ctx.allianceId,
+      });
+      const rosterMember = members.find(
+        (m) => m.ashedMemberId === memberId,
+      );
+      const resolvedRank = await resolveMemberAllianceRankAsOf(
+        ctx.allianceId,
+        memberId,
+        date,
+        rosterMember?.allianceRank ?? null,
+        rosterMember?.allianceRankTitle ?? null,
+      );
+      if (!isMemberEligibleForPool("r3", resolvedRank.rank)) {
+        return NextResponse.json(
+          { error: "R3 recognition awards must pick an R3 member." },
+          { status: 400 },
+        );
+      }
+    }
 
     const poolType = depletingPool
       ? conductorMechanismPoolType(mechanism)
       : null;
     if (poolType) {
+      await ensureConductorPoolSeeded({
+        hqAllianceId: ctx.allianceId,
+        poolType,
+        date,
+        useSequence: mechanism === "r4_sequence",
+        paintTemplate: dayConfig.paintTemplate,
+        respectConductorMinimums: false,
+      });
       await markPoolMemberSelectedForDate(
         ctx.allianceId,
         poolType,
-        body.memberId.trim(),
+        memberId,
         date,
       );
     }
@@ -103,8 +146,8 @@ export async function POST(request: Request) {
       allianceId: ctx.allianceId,
       date,
       seasonKey,
-      conductorMemberId: body.memberId.trim(),
-      conductorMemberName: body.memberName.trim(),
+      conductorMemberId: memberId,
+      conductorMemberName: memberName,
       conductorRankEventId: rankEvent?.id ?? null,
       conductorMechanism: mechanism,
       vipMechanism: dayConfig.vipMechanism ?? null,

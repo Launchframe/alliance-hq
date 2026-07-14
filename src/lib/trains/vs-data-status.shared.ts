@@ -3,6 +3,8 @@
  * Server loaders fetch scores; these classify need and build the payload shape.
  */
 
+import { isPriceIsRightPaintTemplate } from "@/lib/trains/heavy-hitter-pool.shared";
+
 export type TrainsVsDataStatusKind = "vr" | "prior_day_vs" | "none";
 
 export type TrainsVsDataStatus = {
@@ -31,7 +33,7 @@ export function classifyVsDataNeed(
   if (mech === "vs_high_score" || mech === "vs_top_10") {
     return { kind: "vr", required: true };
   }
-  if (input.paintTemplate === "price_is_right") {
+  if (isPriceIsRightPaintTemplate(input.paintTemplate)) {
     return { kind: "prior_day_vs", required: true };
   }
   return { kind: "none", required: false };

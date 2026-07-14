@@ -182,7 +182,11 @@ export type TrainsDashboardPayload = {
     paintTemplate?: WeekTemplateType | null;
   }>;
   weekRecords: WeekConductorRecordSummary[];
-  roster: Array<{ memberId: string; memberName: string }>;
+  roster: Array<{
+    memberId: string;
+    memberName: string;
+    allianceRank?: number | null;
+  }>;
   conductorRecord: WeekConductorRecordSummary | null;
   todayDayConfig: {
     conductorMechanism: string;
@@ -423,6 +427,7 @@ export async function loadTrainsDashboard(
     roster: members.map((m) => ({
       memberId: m.ashedMemberId,
       memberName: m.currentName,
+      allianceRank: m.allianceRank ?? null,
     })),
     conductorRecord: record,
     todayDayConfig: todayDayConfig

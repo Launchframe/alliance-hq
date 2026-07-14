@@ -10,6 +10,8 @@ import {
 describe("week template registry", () => {
   it("marks segment templates that are not whole-week presets", () => {
     expect(isWeekTemplateSegment("r4_event_vip")).toBe(true);
+    expect(isWeekTemplateSegment("price_is_right_weekdays")).toBe(true);
+    expect(isWeekTemplateSegment("takedown_week")).toBe(false);
     expect(isWeekTemplateSegment("vs_push_week")).toBe(false);
   });
 
@@ -37,8 +39,26 @@ describe("week template registry", () => {
     );
   });
 
-  it("uses combined segment labels for price_is_right days", () => {
+  it("maps price_is_right composite days to weekday / takedown / custom segments", () => {
+    const weekStart = "2026-06-09";
+    expect(resolvePaintTemplateForDay("price_is_right", "2026-06-10", weekStart)).toBe(
+      "price_is_right_weekdays",
+    );
+    expect(resolvePaintTemplateForDay("price_is_right", "2026-06-13", weekStart)).toBe(
+      "takedown_week",
+    );
+    expect(resolvePaintTemplateForDay("price_is_right", "2026-06-14", weekStart)).toBe(
+      "custom",
+    );
+    expect(resolvePaintTemplateForDay("price_is_right", "2026-06-15", weekStart)).toBe(
+      "custom",
+    );
+  });
+
+  it("uses combined segment labels for price is freight paints", () => {
     expect(usesCombinedSegmentDisplay("price_is_right")).toBe(true);
+    expect(usesCombinedSegmentDisplay("price_is_right_weekdays")).toBe(true);
+    expect(usesCombinedSegmentDisplay("takedown_week")).toBe(true);
     expect(usesCombinedSegmentDisplay("economy_week")).toBe(false);
   });
 });

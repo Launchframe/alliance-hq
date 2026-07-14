@@ -18,6 +18,7 @@ import {
   loadTrainEconomyThreshold,
 } from "@/lib/trains/train-economy-threshold.server";
 import { tpirEligibleLiveCandidates } from "@/lib/trains/train-economy-threshold.shared";
+import { filterMemberIdsByConductorMinimums } from "@/lib/trains/train-conductor-minimums.server";
 import { priceIsRightWeightingActive } from "@/lib/trains/train-price-is-right-tickets.shared";
 import type {
   ConductorMechanismType,
@@ -27,6 +28,21 @@ import type {
 } from "@/lib/trains/types";
 import { fetchAlliancePriorDayVsScoresByMember } from "@/lib/trains/vs-scores.server";
 import { vsScoreReferenceDate } from "@/lib/trains/vs-week-days.shared";
+
+async function applyConductorMinimumsFilter(
+  allianceId: string,
+  trainDate: string,
+  candidates: RollCandidate[],
+): Promise<RollCandidate[]> {
+  const qualifiedIds = await filterMemberIdsByConductorMinimums(
+    allianceId,
+    trainDate,
+    candidates.map((candidate) => candidate.memberId),
+  );
+  if (qualifiedIds == null) return candidates;
+  const qualified = new Set(qualifiedIds);
+  return candidates.filter((candidate) => qualified.has(candidate.memberId));
+}
 
 export async function loadPriceIsFreightR3Candidates(input: {
   allianceId: string;
@@ -51,7 +67,7 @@ export async function loadPriceIsFreightR3Candidates(input: {
       allianceRank: rank,
     });
   }
-  return candidates;
+  return applyConductorMinimumsFilter(input.allianceId, input.date, candidates);
 }
 
 /**
@@ -70,9 +86,10 @@ export async function rollPriceIsFreightConductor(input: {
   );
 
   if (isSaturday || input.mechanism === "heavy_hitter_lottery") {
-    const wheelCandidates = await buildHeavyHitterPoolCandidates(
+    const wheelCandidates = await applyConductorMinimumsFilter(
       input.allianceId,
       input.date,
+      await buildHeavyHitterPoolCandidates(input.allianceId, input.date),
     );
     if (wheelCandidates.length === 0) {
       throwPoolEmpty("heavy_hitter");
