@@ -6,6 +6,7 @@ import {
   buildDepositAllianceSummary,
   filterSlipsByDepositAlliance,
   formatDepositAllianceReportPlaintext,
+  resolveDepositAllianceFilter,
   uniqueDepositAllianceTags,
 } from "@/lib/banks/deposit-alliance-report.shared";
 import type { SerializedDepositSlip } from "@/lib/banks/types.shared";
@@ -43,6 +44,40 @@ describe("uniqueDepositAllianceTags", () => {
         { depositAllianceTag: " Zoo " },
       ]),
     ).toEqual(["aaa", "Boom", "Zoo"]);
+  });
+
+  it("dedupes tags case-insensitively and keeps first-seen casing", () => {
+    expect(
+      uniqueDepositAllianceTags([
+        { depositAllianceTag: "Boom" },
+        { depositAllianceTag: "boom" },
+        { depositAllianceTag: "BOOM" },
+        { depositAllianceTag: "Zoo" },
+      ]),
+    ).toEqual(["Boom", "Zoo"]);
+  });
+});
+
+describe("resolveDepositAllianceFilter", () => {
+  const tags = ["Boom", "Zoo"];
+
+  it("passes sentinels through", () => {
+    expect(resolveDepositAllianceFilter(DEPOSIT_ALLIANCE_FILTER_ALL, tags)).toBe(
+      DEPOSIT_ALLIANCE_FILTER_ALL,
+    );
+    expect(
+      resolveDepositAllianceFilter(DEPOSIT_ALLIANCE_FILTER_UNTAGGED, tags),
+    ).toBe(DEPOSIT_ALLIANCE_FILTER_UNTAGGED);
+  });
+
+  it("rematches tag casing to the canonical list entry", () => {
+    expect(resolveDepositAllianceFilter("BOOM", tags)).toBe("Boom");
+  });
+
+  it("falls back to all when the tag is gone", () => {
+    expect(resolveDepositAllianceFilter("Gone", tags)).toBe(
+      DEPOSIT_ALLIANCE_FILTER_ALL,
+    );
   });
 });
 
@@ -135,12 +170,14 @@ describe("formatDepositAllianceReportPlaintext", () => {
   it("formats a pasteable report with rollups and slip lines", () => {
     const slips = [
       slip({
-        id: "1",
+        id: "slip-secret-id",
         amount: 1000,
         termDays: 3,
         status: "locked",
         commanderName: "BabyMoo",
         depositAllianceTag: "Boom",
+        depositAllianceId: "alliance-uuid-should-not-leak",
+        commanderId: "commander-uuid-should-not-leak",
         depositAt: "2026-07-02T15:00:00.000Z",
       }),
     ];
@@ -162,5 +199,9 @@ describe("formatDepositAllianceReportPlaintext", () => {
     expect(text).toContain(
       "$1000 · 3d · LOCKED · BabyMoo [Boom] · Jul 2",
     );
+    expect(text).not.toContain("slip-secret-id");
+    expect(text).not.toContain("alliance-uuid-should-not-leak");
+    expect(text).not.toContain("commander-uuid-should-not-leak");
+    expect(text).not.toMatch(/\b\d{12,16}\b/);
   });
 });
