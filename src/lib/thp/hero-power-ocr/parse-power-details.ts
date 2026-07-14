@@ -22,9 +22,10 @@ export type ParsePowerDetailsResult = {
   complete: boolean;
 };
 
-const HERO_POWER_HEADER_RE = /hero\s*l?\s*powers?/i;
+const HERO_POWER_HEADER_RE =
+  /hero\s*l?\s*powers?|helden\s*kampf\s*kraft/i;
 const SECTION_STOP_RE =
-  /^(drone\s*power|drone\s*level|skill\s*chip|drone\s*component|building\s*power|buildings?\b)/i;
+  /^(drone\s*power|drone\s*level|skill\s*chip|drone\s*component|building\s*power|buildings?\b|drohnen[\s-]*kampf\s*kraft|drohnen[\s-]*level|f[äa]higkeits?\s*chip|drohnen\s*komponente|geb[äa]ude[\s-]*kampf\s*kraft)/i;
 
 /**
  * Trailing numeric blob: digits plus common OCR substitutes for commas / noise.
@@ -66,6 +67,7 @@ function normalizePowerDetailsNumberBlob(blob: string): string {
   return blob
     .replace(/%/g, ",")
     .replace(/[¥€$]/g, ",")
+    .replace(/:/g, ",")
     .replace(/[!?|]+$/g, "");
 }
 
@@ -919,8 +921,8 @@ export function coalescePowerDetailsLines(lines: string[]): string[] {
     }
 
     const { label, valuePart } = splitLabelValue(line);
-    const hasValue =
-      parseIntegerToken(valuePart) != null || extractTrailingNumber(line) != null;
+    const parsedVal = parseIntegerToken(valuePart) ?? extractTrailingNumber(line);
+    const hasValue = parsedVal != null && parsedVal >= 10_000;
     const key = matchThpLabel(label);
 
     if (key && !hasValue && i + 1 < lines.length) {
@@ -984,7 +986,7 @@ export function parsePowerDetailsLines(lines: string[]): ParsePowerDetailsResult
     if (!key) continue;
     const value =
       parsePowerDetailsInteger(valuePart) ?? extractTrailingNumber(line);
-    if (value != null) {
+    if (value != null && value >= 10_000) {
       breakdown[key] = value;
     }
   }
