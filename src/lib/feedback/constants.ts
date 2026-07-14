@@ -137,6 +137,7 @@ function buildNavPathBugAreaEntries(): Array<[string, BugReportArea]> {
   entries.push(["/settings/alliance", "settings"]);
   entries.push(["/settings/discord", "settings"]);
   entries.push(["/settings/trains", "settings"]);
+  entries.push(["/settings/game-seasons", "settings"]);
   entries.push(["/settings/upload-reminders", "settings"]);
   entries.push(["/settings/team", "settings"]);
 

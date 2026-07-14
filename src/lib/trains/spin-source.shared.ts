@@ -1,4 +1,5 @@
 import { effectiveConductorMechanism } from "@/lib/trains/conductor-mechanism.shared";
+import { isPriceIsRightHeavyHitterSaturday } from "@/lib/trains/heavy-hitter-pool.shared";
 import {
   conductorMechanismPoolType,
   vipMechanismPoolType,
@@ -24,11 +25,23 @@ export type EventLeaderboardSpinSource = {
   kind: "event_leaderboard";
 };
 
+/** Price Is Freight weekday raffle / uniform draw (not a depleting pool UI). */
+export type PriceIsRightWeekdaySpinSource = {
+  kind: "price_is_right_raffle";
+};
+
+/** Price Is Freight Saturday heavy-hitter draw (not a depleting pool UI). */
+export type PriceIsRightHeavyHitterSpinSource = {
+  kind: "price_is_right_heavy_hitter";
+};
+
 export type SpinSource =
   | PoolSpinSource
   | VsLeaderboardSpinSource
   | DonationsLeaderboardSpinSource
   | EventLeaderboardSpinSource
+  | PriceIsRightWeekdaySpinSource
+  | PriceIsRightHeavyHitterSpinSource
   | null;
 
 export function conductorSpinSource(
@@ -36,6 +49,13 @@ export function conductorSpinSource(
   paintTemplate?: WeekTemplateType | null,
   date?: string | null,
 ): SpinSource {
+  if (paintTemplate === "price_is_right") {
+    if (isPriceIsRightHeavyHitterSaturday(paintTemplate, date)) {
+      return { kind: "price_is_right_heavy_hitter" };
+    }
+    return { kind: "price_is_right_raffle" };
+  }
+
   const mechanism = effectiveConductorMechanism(
     conductorMechanism,
     paintTemplate,
@@ -81,4 +101,13 @@ export function isPoolSpinSource(
   source: SpinSource,
 ): source is PoolSpinSource {
   return source?.kind === "pool";
+}
+
+export function isPriceIsRightSpinSource(
+  source: SpinSource,
+): source is PriceIsRightWeekdaySpinSource | PriceIsRightHeavyHitterSpinSource {
+  return (
+    source?.kind === "price_is_right_raffle" ||
+    source?.kind === "price_is_right_heavy_hitter"
+  );
 }

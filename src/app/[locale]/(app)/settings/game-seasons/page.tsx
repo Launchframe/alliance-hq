@@ -3,32 +3,29 @@ import { getTranslations } from "next-intl/server";
 import { redirect } from "@/i18n/navigation";
 
 import { Link } from "@/i18n/navigation";
-import { AllianceTrainDiscordSettings } from "@/components/settings/AllianceTrainDiscordSettings";
-import { AllianceTrainEconomyThresholdSettings } from "@/components/settings/AllianceTrainEconomyThresholdSettings";
-import { AllianceTrainMinimumsSettings } from "@/components/settings/AllianceTrainMinimumsSettings";
-import { AllianceTrainWeekSettings } from "@/components/settings/AllianceTrainWeekSettings";
+import { AllianceSeasonSettings } from "@/components/settings/AllianceSeasonSettings";
+import { AllianceVrSandboxSettings } from "@/components/settings/AllianceVrSandboxSettings";
 import { AllianceContextRequired } from "@/components/settings/AllianceContextRequired";
-import { isDiscordBotInstallConfigured } from "@/lib/discord/bot-install-url.server";
 import { getDb, schema } from "@/lib/db";
 import { requireAllianceSettingsSession } from "@/lib/settings/alliance-settings-access.server";
 import { requirePageSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
-export default async function SettingsTrainsPage({
+export default async function SettingsGameSeasonsPage({
   params,
 }: {
   params: Promise<{ locale: string }>;
 }) {
   const { locale } = await params;
-  const session = await requirePageSession("/settings/trains");
+  const session = await requirePageSession("/settings/game-seasons");
   const access = await requireAllianceSettingsSession(session, locale);
 
   if ("pickAlliance" in access) {
     return <AllianceContextRequired alliances={access.pickAlliance} />;
   }
 
-  const t = await getTranslations("settings.trains");
+  const t = await getTranslations("settings.gameSeasons");
   const tSettings = await getTranslations("settings");
 
   if (access.allianceId === null) {
@@ -63,13 +60,8 @@ export default async function SettingsTrainsPage({
         </p>
       </div>
 
-      <AllianceTrainWeekSettings allianceTag={allianceTag} />
-      <AllianceTrainMinimumsSettings allianceTag={allianceTag} />
-      <AllianceTrainEconomyThresholdSettings allianceTag={allianceTag} />
-      <AllianceTrainDiscordSettings
-        allianceTag={allianceTag}
-        installConfigured={isDiscordBotInstallConfigured()}
-      />
+      <AllianceSeasonSettings allianceTag={allianceTag} />
+      <AllianceVrSandboxSettings allianceTag={allianceTag} />
     </div>
   );
 }

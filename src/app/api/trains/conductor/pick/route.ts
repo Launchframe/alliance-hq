@@ -69,10 +69,11 @@ export async function POST(request: Request) {
       );
     }
 
-    if (
-      existing?.conductorMemberId &&
-      conductorMechanismPoolType(mechanism)
-    ) {
+    const depletingPool =
+      dayConfig.paintTemplate !== "price_is_right" &&
+      Boolean(conductorMechanismPoolType(mechanism));
+
+    if (existing?.conductorMemberId && depletingPool) {
       await releasePoolSelectionForDate(
         ctx.allianceId,
         date,
@@ -86,7 +87,9 @@ export async function POST(request: Request) {
       date,
     );
 
-    const poolType = conductorMechanismPoolType(mechanism);
+    const poolType = depletingPool
+      ? conductorMechanismPoolType(mechanism)
+      : null;
     if (poolType) {
       await markPoolMemberSelectedForDate(
         ctx.allianceId,

@@ -421,6 +421,7 @@ export function isNavActive(pathname: string, href: string): boolean {
 const ALLIANCE_SETTINGS_HUB_CHILDREN = [
   "/settings/discord",
   "/settings/trains",
+  "/settings/game-seasons",
   "/settings/upload-reminders",
   "/settings/team",
   "/settings/alliance",
@@ -517,6 +518,7 @@ export function findActiveNavGroupId(
         extraHrefs.push(
           "/settings/discord",
           "/settings/trains",
+          "/settings/game-seasons",
           "/settings/upload-reminders",
         );
       }

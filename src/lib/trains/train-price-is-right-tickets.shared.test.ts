@@ -9,6 +9,7 @@ import {
   computeWinProbabilities,
   resolveCliffPoints,
   samplePriceIsRightTicketCurve,
+  samplePriceIsRightUniformCurve,
 } from "@/lib/trains/train-price-is-right-tickets.shared";
 
 const baseSettings = {
@@ -119,5 +120,30 @@ describe("train-price-is-right-tickets.shared", () => {
     const curve = samplePriceIsRightTicketCurve(baseSettings, 16);
     expect(curve.length).toBeGreaterThan(0);
     expect(curve[0]!.score).toBeGreaterThanOrEqual(PRICE_IS_RIGHT_MIN_VS_SCORE);
+  });
+
+  it("samples a flat equal-odds curve inside the economy band", () => {
+    const curve = samplePriceIsRightUniformCurve(
+      { thresholdPoints: 8_500_000, fudgePct: 1 },
+      32,
+    );
+    expect(curve.length).toBe(32);
+    const inBand = curve.filter((point) => point.tickets === 1);
+    const outOfBand = curve.filter((point) => point.tickets === 0);
+    expect(inBand.length).toBeGreaterThan(0);
+    expect(outOfBand.length).toBeGreaterThan(0);
+    const expectedP = 1 / inBand.length;
+    for (const point of inBand) {
+      expect(point.winProbability).toBeCloseTo(expectedP, 8);
+    }
+    for (const point of outOfBand) {
+      expect(point.winProbability).toBe(0);
+    }
+  });
+
+  it("returns no uniform curve when threshold filtering is off", () => {
+    expect(
+      samplePriceIsRightUniformCurve({ thresholdPoints: null, fudgePct: 1 }),
+    ).toEqual([]);
   });
 });

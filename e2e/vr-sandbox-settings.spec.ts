@@ -62,7 +62,7 @@ test.describe("Alliance VR sandbox settings", () => {
       }),
     );
 
-    await page.goto("/settings/trains");
+    await page.goto("/settings/game-seasons");
 
     await expect(
       page.getByRole("heading", { name: /VR sandbox mode/i }),
@@ -133,7 +133,7 @@ test.describe("Alliance VR sandbox settings", () => {
       }),
     );
 
-    await page.goto("/settings/trains");
+    await page.goto("/settings/game-seasons");
 
     const toggle = page.getByRole("checkbox", {
       name: /Enable VR sandbox for this alliance/i,
