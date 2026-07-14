@@ -160,17 +160,18 @@ export function generateWeekDayConfigs(
         conductorMechanism: "r3_lottery" as ConductorMechanismType,
         vipMechanism: "conductor_pick" as VipMechanismType,
       }));
-    case "price_is_right":
-      return dates.map((date) => {
-        const isSaturday = getServerDayOfWeek(date) === 6;
-        return {
-          date,
-          conductorMechanism: (isSaturday
-            ? "heavy_hitter_lottery"
-            : "r3_lottery") as ConductorMechanismType,
-          vipMechanism: "conductor_pick" as VipMechanismType,
-        };
-      });
+    case "price_is_right_weekdays":
+      return dates.map((date) => ({
+        date,
+        conductorMechanism: "r3_lottery" as ConductorMechanismType,
+        vipMechanism: "conductor_pick" as VipMechanismType,
+      }));
+    case "takedown_week":
+      return dates.map((date) => ({
+        date,
+        conductorMechanism: "heavy_hitter_lottery" as ConductorMechanismType,
+        vipMechanism: "conductor_pick" as VipMechanismType,
+      }));
     case "r4_train_week":
       return dates.map((date) => ({
         date,

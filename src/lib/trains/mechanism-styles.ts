@@ -36,6 +36,14 @@ export const TEMPLATE_PALETTE_STYLES: Record<
     swatch: "bg-cyan-500",
     ring: "ring-cyan-500",
   },
+  price_is_right_weekdays: {
+    swatch: "bg-cyan-500",
+    ring: "ring-cyan-500",
+  },
+  takedown_week: {
+    swatch: "bg-cyan-400",
+    ring: "ring-cyan-400",
+  },
   r3_recognition: {
     swatch: "bg-emerald-400",
     ring: "ring-emerald-400",

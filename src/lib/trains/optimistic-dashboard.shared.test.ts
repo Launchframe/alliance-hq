@@ -168,10 +168,11 @@ describe("optimistic dashboard state", () => {
     expect(painted.viewedWeek.templateType).toBe("price_is_right");
     expect(painted.data.schedule?.templateType).toBe("price_is_right");
     expect(painted.data.schedulePersisted).toBe(true);
+    // Composite PIR week: Tue–Fri paint as the weekday segment, not the parent.
     expect(
       painted.viewedWeek.dayConfigs.find((d) => d.date === "2026-06-10")
         ?.paintTemplate,
-    ).toBe("price_is_right");
+    ).toBe("price_is_right_weekdays");
   });
 
   it("marks schedulePersisted when creating an optimistic schedule from draft", () => {

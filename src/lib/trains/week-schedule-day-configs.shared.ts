@@ -2,6 +2,7 @@ import { paintTemplateFromConductorConfig } from "@/lib/trains/calendar-cell-sty
 import { effectiveConductorMechanism } from "@/lib/trains/conductor-mechanism.shared";
 import { generateWeekDayConfigs } from "@/lib/trains/templates";
 import type { WeekTemplateType } from "@/lib/trains/types";
+import { resolvePaintTemplateForDay } from "@/lib/trains/week-template-registry.shared";
 
 export const PROVISIONAL_DAY_CONFIG_ID_PREFIX = "preview-";
 
@@ -72,7 +73,11 @@ export function resolveWeekDisplayDayConfigs(
     vipMechanism: generated.vipMechanism ?? null,
     vipConfig: generated.vipConfig ?? null,
     isOverride: false,
-    paintTemplate: templateType,
+    paintTemplate: resolvePaintTemplateForDay(
+      templateType,
+      generated.date,
+      weekStart,
+    ),
   }));
 }
 
@@ -97,7 +102,11 @@ export function buildWeekScheduleDayConfigs(
       vipMechanism: generated.vipMechanism ?? null,
       vipConfig: generated.vipConfig ?? null,
       isOverride: false,
-      paintTemplate: templateType,
+      paintTemplate: resolvePaintTemplateForDay(
+        templateType,
+        generated.date,
+        weekStart,
+      ),
     };
   });
 }

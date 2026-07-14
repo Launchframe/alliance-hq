@@ -1,5 +1,8 @@
 import { effectiveConductorMechanism } from "@/lib/trains/conductor-mechanism.shared";
-import { isPriceIsRightHeavyHitterSaturday } from "@/lib/trains/heavy-hitter-pool.shared";
+import {
+  isPriceIsRightHeavyHitterSaturday,
+  isPriceIsRightPaintTemplate,
+} from "@/lib/trains/heavy-hitter-pool.shared";
 import {
   conductorMechanismPoolType,
   vipMechanismPoolType,
@@ -49,7 +52,7 @@ export function conductorSpinSource(
   paintTemplate?: WeekTemplateType | null,
   date?: string | null,
 ): SpinSource {
-  if (paintTemplate === "price_is_right") {
+  if (isPriceIsRightPaintTemplate(paintTemplate)) {
     if (isPriceIsRightHeavyHitterSaturday(paintTemplate, date)) {
       return { kind: "price_is_right_heavy_hitter" };
     }
