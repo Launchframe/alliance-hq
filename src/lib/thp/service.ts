@@ -106,7 +106,9 @@ async function runThpForLink(input: {
       "@/lib/thp/hero-power-ocr/parse-power-details-image"
     );
     const ocr = await parsePowerDetailsImage(input.screenshotBuffer);
-    explicitBreakdown = toThpBreakdown(ocr.breakdown);
+    // Only trust a full breakdown when rows reconcile to the Hero Power header.
+    // Unreconciled rows must not feed resolveProposed (it prefers breakdown sum).
+    explicitBreakdown = ocr.complete ? toThpBreakdown(ocr.breakdown) : null;
     explicitTotal = ocr.heroPowerTotal;
     if (explicitTotal == null && explicitBreakdown) {
       explicitTotal = Object.values(explicitBreakdown).reduce((a, b) => a + b, 0);
