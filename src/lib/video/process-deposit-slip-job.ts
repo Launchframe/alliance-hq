@@ -6,6 +6,7 @@ import { nanoid } from "nanoid";
 import type { DedupedDepositSlip } from "@/lib/banks/deposit-slip-ocr/deposit-slip-dedupe.shared";
 import { depositSlipDraftToParsedRowFields } from "@/lib/banks/deposit-slip-ocr/draft-row.shared";
 import type { ParsedDepositSlipHistory } from "@/lib/banks/deposit-slip-ocr/parse-deposit-slip-text.shared";
+import { resolveDepositSlipMemberLinks } from "@/lib/banks/deposit-slip-ocr/resolve-deposit-slip-member.server";
 import { getDb, schema } from "@/lib/db";
 import { resolveHqAllianceIdFromSession } from "@/lib/members/resolve-hq-alliance";
 import {
@@ -150,6 +151,25 @@ export async function processDepositSlipVideoParse(
 
   const dedupedSlips = asDedupedSlips(history.slips);
   const parseSessionId = nanoid(16);
+
+  const resolvedLinks = await input.timer.measureStep(
+    "deposit_slip.resolve_members",
+    async () =>
+      Promise.all(
+        dedupedSlips.map((slip) =>
+          resolveDepositSlipMemberLinks({
+            bankAllianceId: hqAllianceId,
+            depositAllianceTag: slip.identity.allianceTag,
+            commanderName: slip.identity.commanderName,
+          }),
+        ),
+      ),
+  );
+
+  const matchedCount = resolvedLinks.filter(
+    (links) => links.candidateAshedMemberId != null,
+  ).length;
+
   await input.timer.measureStep("db.create_parse_session", async () => {
     await db.insert(schema.parseSessions).values({
       id: parseSessionId,
@@ -158,7 +178,7 @@ export async function processDepositSlipVideoParse(
       scoreTarget: input.scoreTargetId,
       allianceId: hqAllianceId,
       rowCount: dedupedSlips.length,
-      matchedCount: 0,
+      matchedCount,
       status: "open",
       rawExtractJson: { ...history, slips: dedupedSlips },
       dedupeReportJson: dedupeReport,
@@ -170,8 +190,9 @@ export async function processDepositSlipVideoParse(
   if (dedupedSlips.length > 0) {
     await input.timer.measureStep("db.insert_parsed_rows", async () => {
       await db.insert(schema.parsedRows).values(
-        dedupedSlips.map((slip) => {
+        dedupedSlips.map((slip, index) => {
           const fields = depositSlipDraftToParsedRowFields(slip);
+          const links = resolvedLinks[index]!;
           return {
             id: slip.slipId,
             parseSessionId,
@@ -184,10 +205,17 @@ export async function processDepositSlipVideoParse(
             powerLevel: fields.powerLevel,
             memberLevel: fields.memberLevel,
             profession: fields.profession,
-            memberId: null,
-            memberName: null,
-            matchConfidence: null,
-            matchMethod: null,
+            // Surface auto-link and below-threshold near-miss candidates for review.
+            memberId: links.candidateAshedMemberId,
+            memberName: links.candidateMemberName,
+            matchConfidence:
+              links.candidateAshedMemberId != null
+                ? links.candidateConfidence
+                : null,
+            matchMethod:
+              links.candidateAshedMemberId != null
+                ? links.candidateMatchMethod
+                : "none",
             scoreConflict: 0,
             frameIndex: fields.frameIndex,
             dedupeClusterId: slip.dedupeClusterId ?? null,
@@ -215,7 +243,7 @@ export async function processDepositSlipVideoParse(
     parseSessionId,
     hqAllianceId,
     rowCount: dedupedSlips.length,
-    matchedCount: 0,
+    matchedCount,
     ocrFrameMs,
     ocrConcurrency,
     totalRawOcrRows,

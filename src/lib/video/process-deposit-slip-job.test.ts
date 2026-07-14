@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockResolveHqAllianceIdFromSession = vi.fn();
+const mockResolveDepositSlipMemberLinks = vi.fn();
 const mockInsertValues = vi.fn();
 const mockUpdateWhere = vi.fn();
 
@@ -14,6 +15,14 @@ vi.mock("@/lib/members/resolve-hq-alliance", () => ({
   resolveHqAllianceIdFromSession: (sessionId: string) =>
     mockResolveHqAllianceIdFromSession(sessionId),
 }));
+
+vi.mock(
+  "@/lib/banks/deposit-slip-ocr/resolve-deposit-slip-member.server",
+  () => ({
+    resolveDepositSlipMemberLinks: (...args: unknown[]) =>
+      mockResolveDepositSlipMemberLinks(...args),
+  }),
+);
 
 vi.mock("@/lib/video/ocr-deposit-slip-native", () => ({
   ocrDepositSlipNativeFrames: vi.fn(),
@@ -56,6 +65,19 @@ describe("processDepositSlipVideoParse", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockResolveHqAllianceIdFromSession.mockResolvedValue("alliance-1");
+    mockResolveDepositSlipMemberLinks.mockResolvedValue({
+      depositAllianceId: "alliance-1",
+      allianceMemberId: "am-1",
+      commanderId: "cmd-1",
+      ashedMemberId: "ashed-1",
+      matchMethod: "exact",
+      matchConfidence: 1,
+      candidateAshedMemberId: "ashed-1",
+      candidateMemberName: "Alpha",
+      candidateMatchMethod: "exact",
+      candidateConfidence: 1,
+      tagMatchMethod: "exact",
+    });
     mockInsertValues.mockResolvedValue(undefined);
     mockUpdateWhere.mockResolvedValue(undefined);
   });
@@ -129,12 +151,88 @@ describe("processDepositSlipVideoParse", () => {
         expect.objectContaining({
           id: "slip_keep",
           dedupeClusterId: "cluster-1",
+          memberId: "ashed-1",
+          memberName: "Alpha",
+          matchConfidence: 1,
+          matchMethod: "exact",
         }),
         expect.objectContaining({
           id: "slip_delete",
           dedupeClusterId: "cluster-1",
+          memberId: "ashed-1",
         }),
       ]),
     );
+    expect(mockResolveDepositSlipMemberLinks).toHaveBeenCalledTimes(2);
+  });
+
+  it("persists below-threshold fuzzy candidates for review without claiming auto-link FKs", async () => {
+    mockResolveDepositSlipMemberLinks.mockResolvedValue({
+      depositAllianceId: null,
+      allianceMemberId: null,
+      commanderId: null,
+      ashedMemberId: null,
+      matchMethod: "none",
+      matchConfidence: 0,
+      candidateAshedMemberId: "ashed-near",
+      candidateMemberName: "Almost Alpha",
+      candidateMatchMethod: "fuzzy",
+      candidateConfidence: 0.72,
+      tagMatchMethod: "none",
+    });
+
+    const mockHistory = {
+      depositPolicy: null,
+      minimumDeposit: null,
+      slips: [
+        {
+          slipId: "slip_near",
+          dedupeClusterId: null,
+          depositAt: "2026-07-11T10:00:00.000Z",
+          termDays: 1,
+          amount: 6000,
+          status: "locked",
+          outcomeAmount: null,
+          outcomeKind: null,
+          identity: {
+            gameServerNumber: 1203,
+            allianceTag: "LFgo",
+            commanderName: "Alpa",
+            rawIdentity: "#1203[LFgo]Alpa",
+          },
+          sourceFrameIndex: 0,
+        },
+      ],
+    } as unknown as ParsedDepositSlipHistory;
+
+    const result = await processDepositSlipVideoParse({
+      jobId: "job-1",
+      sessionId: "session-1",
+      scoreTargetId: "bank-deposit-slip-history",
+      target: { id: "bank-deposit-slip-history" } as never,
+      engine: "mock",
+      frames: [{ index: 0, buffer: Buffer.from("") }],
+      timer,
+      now: new Date("2026-07-12T00:00:00.000Z"),
+      mockHistory,
+    });
+
+    expect(result.matchedCount).toBe(1);
+    const parsedRowsInsert = mockInsertValues.mock.calls.find(
+      ([table]) =>
+        typeof table === "object" &&
+        table != null &&
+        "id" in table &&
+        table.id === "parsedRows.id",
+    );
+    expect(parsedRowsInsert?.[1]).toEqual([
+      expect.objectContaining({
+        id: "slip_near",
+        memberId: "ashed-near",
+        memberName: "Almost Alpha",
+        matchConfidence: 0.72,
+        matchMethod: "fuzzy",
+      }),
+    ]);
   });
 });

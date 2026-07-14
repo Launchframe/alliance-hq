@@ -44,6 +44,11 @@ describe("commitDepositSlipsFromVideoJob", () => {
       ashedMemberId: "ashed-1",
       matchMethod: "exact",
       matchConfidence: 1,
+      candidateAshedMemberId: "ashed-1",
+      candidateMemberName: "Blue Investor",
+      candidateMatchMethod: "exact",
+      candidateConfidence: 1,
+      tagMatchMethod: "exact",
     });
   });
 

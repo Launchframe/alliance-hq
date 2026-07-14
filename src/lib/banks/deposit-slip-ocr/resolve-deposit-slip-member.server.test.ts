@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { resolveDepositSlipMemberLinks } from "@/lib/banks/deposit-slip-ocr/resolve-deposit-slip-member.server";
+import {
+  DEPOSIT_SLIP_MEMBER_AUTO_LINK_MIN,
+  pickUniqueFuzzyAllianceTag,
+  resolveDepositSlipMemberLinks,
+} from "@/lib/banks/deposit-slip-ocr/resolve-deposit-slip-member.server";
 import type { AshedMember } from "@/lib/video/member-matcher";
 
 const members: AshedMember[] = [
@@ -16,6 +20,39 @@ const members: AshedMember[] = [
     status: "active",
   },
 ];
+
+describe("pickUniqueFuzzyAllianceTag", () => {
+  const candidates = [
+    {
+      id: "alliance-roar",
+      tag: "Roar",
+      name: "Roar",
+      ownerAshedUserId: null,
+    },
+    {
+      id: "alliance-grow",
+      tag: "GRoW",
+      name: "Grow",
+      ownerAshedUserId: null,
+    },
+  ];
+
+  it("accepts a unique high-similarity OCR glitch on the tag", () => {
+    expect(pickUniqueFuzzyAllianceTag("Roa", candidates)?.id).toBe(
+      "alliance-roar",
+    );
+  });
+
+  it("rejects short tags and ambiguous near-ties", () => {
+    expect(pickUniqueFuzzyAllianceTag("Ro", candidates)).toBeNull();
+    expect(
+      pickUniqueFuzzyAllianceTag("xx", [
+        { id: "a", tag: "aa", name: "A", ownerAshedUserId: null },
+        { id: "b", tag: "ab", name: "B", ownerAshedUserId: null },
+      ]),
+    ).toBeNull();
+  });
+});
 
 describe("resolveDepositSlipMemberLinks", () => {
   it("resolves a unique tag and exact commander name into all three FKs", async () => {
@@ -35,14 +72,49 @@ describe("resolveDepositSlipMemberLinks", () => {
       },
     );
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       depositAllianceId: "alliance-roar",
       allianceMemberId: "am-blue",
       commanderId: "cmd-blue",
       ashedMemberId: "ashed-blue",
       matchMethod: "exact",
       matchConfidence: 1,
+      candidateAshedMemberId: "ashed-blue",
+      candidateMemberName: "Blue Investor",
+      tagMatchMethod: "exact",
     });
+  });
+
+  it("fuzzy-resolves a unique OCR-glitched tag then exact-matches the name", async () => {
+    const listAlliancesByTag = vi.fn().mockResolvedValue([]);
+    const listAlliancesWithTags = vi.fn().mockResolvedValue([
+      { id: "alliance-roar", tag: "Roar", name: "Roar", ownerAshedUserId: null },
+      { id: "alliance-grow", tag: "GRoW", name: "Grow", ownerAshedUserId: null },
+    ]);
+    const loadRosterMembers = vi.fn().mockResolvedValue(members);
+
+    const result = await resolveDepositSlipMemberLinks(
+      {
+        bankAllianceId: "alliance-bank",
+        depositAllianceTag: "Roa",
+        commanderName: "Blue Investor",
+      },
+      {
+        listAlliancesByTag,
+        listAlliancesWithTags,
+        loadRosterMembers,
+        findAllianceMemberId: vi.fn().mockResolvedValue("am-blue"),
+        resolveCommanderId: vi.fn().mockResolvedValue("cmd-blue"),
+      },
+    );
+
+    expect(listAlliancesByTag).toHaveBeenCalledWith("Roa");
+    expect(listAlliancesWithTags).toHaveBeenCalled();
+    expect(loadRosterMembers).toHaveBeenCalledWith("alliance-roar");
+    expect(result.depositAllianceId).toBe("alliance-roar");
+    expect(result.tagMatchMethod).toBe("fuzzy");
+    expect(result.allianceMemberId).toBe("am-blue");
+    expect(result.matchMethod).toBe("exact");
   });
 
   it("leaves depositAllianceId null when the tag is ambiguous and matches against the bank alliance roster", async () => {
@@ -68,6 +140,7 @@ describe("resolveDepositSlipMemberLinks", () => {
     );
 
     expect(result.depositAllianceId).toBeNull();
+    expect(result.tagMatchMethod).toBe("ambiguous");
     expect(loadRosterMembers).toHaveBeenCalledWith("alliance-bank");
     expect(findAllianceMemberId).toHaveBeenCalledWith(
       "alliance-bank",
@@ -103,6 +176,45 @@ describe("resolveDepositSlipMemberLinks", () => {
     expect(result.matchMethod).toBe("previous_name");
   });
 
+  it("surfaces weak fuzzy candidates without auto-linking FKs", async () => {
+    const weakMembers: AshedMember[] = [
+      {
+        id: "ashed-close",
+        // "Blue Investor" vs "Blu Investar" is fuzzy but typically < 0.85
+        current_name: "Blu Investar",
+        status: "active",
+      },
+    ];
+
+    const result = await resolveDepositSlipMemberLinks(
+      {
+        bankAllianceId: "alliance-bank",
+        depositAllianceTag: "Roar",
+        commanderName: "Blue Investor",
+      },
+      {
+        listAlliancesByTag: vi.fn().mockResolvedValue([
+          { id: "alliance-roar", tag: "Roar", name: "Roar", ownerAshedUserId: null },
+        ]),
+        loadRosterMembers: vi.fn().mockResolvedValue(weakMembers),
+        findAllianceMemberId: vi.fn(),
+        resolveCommanderId: vi.fn(),
+      },
+    );
+
+    expect(result.candidateMatchMethod).toBe("fuzzy");
+    expect(result.candidateAshedMemberId).toBe("ashed-close");
+    expect(result.candidateConfidence).toBeGreaterThan(0);
+    expect(result.candidateConfidence).toBeLessThan(
+      DEPOSIT_SLIP_MEMBER_AUTO_LINK_MIN,
+    );
+    expect(result.allianceMemberId).toBeNull();
+    expect(result.commanderId).toBeNull();
+    expect(result.ashedMemberId).toBeNull();
+    expect(result.matchMethod).toBe("none");
+    expect(result.matchConfidence).toBe(0);
+  });
+
   it("returns null member FKs when the commander name does not match", async () => {
     const result = await resolveDepositSlipMemberLinks(
       {
@@ -120,13 +232,15 @@ describe("resolveDepositSlipMemberLinks", () => {
       },
     );
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       depositAllianceId: "alliance-roar",
       allianceMemberId: null,
       commanderId: null,
       ashedMemberId: null,
       matchMethod: "none",
       matchConfidence: 0,
+      candidateAshedMemberId: null,
+      tagMatchMethod: "exact",
     });
   });
 });

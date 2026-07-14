@@ -31,11 +31,22 @@ export type DepositSlipVideoReviewRow = {
   profession: string | null;
   allianceRankTitle: string | null;
   rosterRankRaw: string | null;
+  memberId?: string | null;
+  memberName?: string | null;
+  matchConfidence?: number | null;
+  matchMethod?: string | null;
   frameIndex?: number | null;
   dedupeClusterId?: string | null;
   dedupeFlag?: boolean;
   deleted: number;
 };
+
+function matchConfidenceClass(confidence: number | null | undefined): string {
+  if (confidence == null || confidence === 0) return "border-hq-border text-hq-fg-muted";
+  if (confidence >= 0.85) return "border-hq-green text-hq-fg";
+  if (confidence >= 0.6) return "border-[#d29922] text-[#d29922]";
+  return "border-hq-border text-hq-fg-muted";
+}
 
 type Props = {
   rows: DepositSlipVideoReviewRow[];
@@ -421,6 +432,7 @@ export function DepositSlipVideoReviewTable({
               <th className="px-3 py-2 font-medium">
                 {tBanks("fields.allianceTag")}
               </th>
+              <th className="px-3 py-2 font-medium">{t("colMember")}</th>
               <th className="px-3 py-2 font-medium">{tBanks("fields.amount")}</th>
               <th className="px-3 py-2 font-medium">
                 {tBanks("fields.termDays")}
@@ -489,6 +501,29 @@ export function DepositSlipVideoReviewTable({
                       }
                       className="w-full min-w-[4rem] rounded-md border border-hq-border bg-hq-canvas px-2 py-1.5"
                     />
+                  </td>
+                  <td className="px-3 py-2 align-top">
+                    {row.memberId && row.memberName ? (
+                      <div
+                        className={`rounded-md border bg-hq-canvas px-2 py-1.5 text-sm ${matchConfidenceClass(row.matchConfidence)}`}
+                        title={
+                          row.matchConfidence != null
+                            ? `${Math.round(row.matchConfidence * 100)}%`
+                            : undefined
+                        }
+                      >
+                        <span className="block truncate">{row.memberName}</span>
+                        {row.matchConfidence != null ? (
+                          <span className="mt-0.5 block text-xs opacity-80">
+                            {Math.round(row.matchConfidence * 100)}%
+                          </span>
+                        ) : null}
+                      </div>
+                    ) : (
+                      <span className="text-sm text-hq-fg-muted">
+                        {t("unmatched")}
+                      </span>
+                    )}
                   </td>
                   <td className="px-3 py-2 align-top">
                     <input
