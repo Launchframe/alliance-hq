@@ -121,6 +121,16 @@ export function AllianceTrainEconomyThresholdSettings({ allianceTag }: Props) {
     };
   }, [displaySettings?.canManage]);
 
+  // Deep-link from trains gear → Advanced Settings (`#price-is-freight`).
+  // Scroll after the async settings load so the target section is mounted.
+  useEffect(() => {
+    if (loading || typeof window === "undefined") return;
+    if (window.location.hash !== "#price-is-freight") return;
+    document
+      .getElementById("price-is-freight")
+      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [loading, displaySettings]);
+
   const parseOptionalThreshold = (raw: string): number | null => {
     const trimmed = raw.trim();
     if (!trimmed) return null;
@@ -291,6 +301,9 @@ export function AllianceTrainEconomyThresholdSettings({ allianceTag }: Props) {
               step={1}
               value={thresholdPoints}
               onChange={(e) => setThresholdPoints(e.target.value)}
+              enterKeyHint={
+                weightingEnabled ? FORM_SUBMIT_ENTER_KEY_HINT : undefined
+              }
               disabled={!displaySettings.canManage || busy}
               placeholder={
                 weightingEnabled

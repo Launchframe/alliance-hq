@@ -65,12 +65,12 @@ export default async function SettingsTrainsPage({
       </div>
 
       <AllianceTrainWeekSettings allianceTag={allianceTag} />
+      <AllianceTrainMinimumsSettings allianceTag={allianceTag} />
+      <AllianceTrainEconomyThresholdSettings allianceTag={allianceTag} />
       <AllianceTrainDiscordSettings
         allianceTag={allianceTag}
         installConfigured={isDiscordBotInstallConfigured()}
       />
-      <AllianceTrainMinimumsSettings allianceTag={allianceTag} />
-      <AllianceTrainEconomyThresholdSettings allianceTag={allianceTag} />
       <AllianceVrSandboxSettings allianceTag={allianceTag} />
     </div>
   );
