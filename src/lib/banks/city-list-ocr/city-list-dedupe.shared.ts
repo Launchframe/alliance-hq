@@ -3,9 +3,10 @@
  * Banks are keyed by exact server + coordinates (unique tile identity).
  */
 
-import type {
-  ParsedCityListBank,
-  ParsedCityListSnapshot,
+import {
+  CITY_LIST_DEFAULT_LEVEL,
+  type ParsedCityListBank,
+  type ParsedCityListSnapshot,
 } from "@/lib/banks/city-list-ocr/parse-city-list-text.shared";
 import {
   emptyDedupeReport,
@@ -35,7 +36,9 @@ function bankSnapshot(bank: ParsedCityListBank): Record<string, unknown> {
 
 function completenessScore(bank: ParsedCityListBank): number {
   let score = 0;
-  if (bank.level > 0) score += 1;
+  // Prefer a recovered Lv.N over the default placeholder (1).
+  if (bank.level > 1) score += 2;
+  else if (bank.level > 0) score += 1;
   if (bank.crystalGoldValue != null && bank.crystalGoldValue > 0) score += 2;
   if (bank.currentDepositCount != null) score += 2;
   return score;
@@ -63,7 +66,13 @@ export function coalesceCityListBanks(
     ) {
       dest.crystalGoldValue = bank.crystalGoldValue;
     }
-    if (dest.level <= 0 && bank.level > 0) {
+    // Default level is 1 when OCR misses Lv — prefer a recovered level.
+    // Do not escalate between two non-default OCR readings (avoids inventing
+    // a higher Lv from a noisier pass).
+    if (
+      dest.level <= CITY_LIST_DEFAULT_LEVEL &&
+      bank.level > dest.level
+    ) {
       dest.level = bank.level;
     }
   }
@@ -87,6 +96,117 @@ function firstNonNullString(
     if (value != null && value !== "") return value;
   }
   return null;
+}
+
+/**
+ * Same-image dual-pass OCR often drifts X/Y by 1–2 vs the greyscale pass.
+ * Match within this tolerance before treating a tile as new.
+ */
+export const CITY_LIST_OCR_PASS_COORD_TOLERANCE = 2;
+
+/**
+ * Skip the green-channel OCR pass when greyscale already recovered every
+ * captured tile — halves Tesseract latency on clean screenshots.
+ */
+export function shouldRunCityListGreenOcrPass(
+  primary: Pick<ParsedCityListSnapshot, "isComplete">,
+): boolean {
+  return !primary.isComplete;
+}
+
+/**
+ * Index of the nearest primary bank within coord tolerance, or -1.
+ * Prefer nearest over first-match so a candidate that sits in two tiles'
+ * windows attaches to the closer physical bank.
+ */
+function findNearestPassBankIndex(
+  banks: readonly ParsedCityListBank[],
+  candidate: ParsedCityListBank,
+  tolerance: number,
+): number {
+  let bestIdx = -1;
+  let bestDist = Number.POSITIVE_INFINITY;
+  for (let i = 0; i < banks.length; i += 1) {
+    const bank = banks[i]!;
+    if (bank.gameServerNumber !== candidate.gameServerNumber) continue;
+    const dx = Math.abs(bank.coordX - candidate.coordX);
+    const dy = Math.abs(bank.coordY - candidate.coordY);
+    if (dx > tolerance || dy > tolerance) continue;
+    const dist = dx * dx + dy * dy;
+    if (dist < bestDist) {
+      bestDist = dist;
+      bestIdx = i;
+    }
+  }
+  return bestIdx;
+}
+
+/**
+ * Merge primary + secondary OCR passes from one screenshot.
+ * Keeps primary coordinates when a secondary tile is within tolerance;
+ * appends secondary tiles that are genuinely new (e.g. a recovered top row).
+ */
+export function mergeCityListOcrPasses(
+  primary: ParsedCityListSnapshot,
+  secondary: ParsedCityListSnapshot,
+): ParsedCityListSnapshot {
+  const banks: ParsedCityListBank[] = primary.banks.map((bank) => ({ ...bank }));
+
+  for (const candidate of secondary.banks) {
+    const idx = findNearestPassBankIndex(
+      banks,
+      candidate,
+      CITY_LIST_OCR_PASS_COORD_TOLERANCE,
+    );
+    if (idx >= 0) {
+      const kept = banks[idx]!;
+      const merged = coalesceCityListBanks([kept, candidate]);
+      banks[idx] = {
+        ...merged,
+        gameServerNumber: kept.gameServerNumber,
+        coordX: kept.coordX,
+        coordY: kept.coordY,
+      };
+    } else {
+      banks.push({ ...candidate });
+    }
+  }
+
+  banks.sort((a, b) => {
+    if (a.gameServerNumber !== b.gameServerNumber) {
+      return a.gameServerNumber - b.gameServerNumber;
+    }
+    if (a.coordX !== b.coordX) return a.coordX - b.coordX;
+    return a.coordY - b.coordY;
+  });
+
+  const capturedCount = firstNonNullNumber([
+    primary.capturedCount,
+    secondary.capturedCount,
+  ]);
+
+  return {
+    banks,
+    totalCrystalGoldDeposited: firstNonNullNumber([
+      primary.totalCrystalGoldDeposited,
+      secondary.totalCrystalGoldDeposited,
+    ]),
+    capturedCount,
+    capturedLimit: firstNonNullNumber([
+      primary.capturedLimit,
+      secondary.capturedLimit,
+    ]),
+    capturesRemainingToday: firstNonNullNumber([
+      primary.capturesRemainingToday,
+      secondary.capturesRemainingToday,
+    ]),
+    capturesLimitToday: firstNonNullNumber([
+      primary.capturesLimitToday,
+      secondary.capturesLimitToday,
+    ]),
+    serverTime: firstNonNullString([primary.serverTime, secondary.serverTime]),
+    isComplete: capturedCount != null && banks.length === capturedCount,
+  };
 }
 
 /**
