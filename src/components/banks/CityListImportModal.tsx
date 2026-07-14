@@ -2,13 +2,14 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
-import { Trash2, Upload, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Eye, Trash2, Upload, X } from "lucide-react";
 import type { Slide } from "yet-another-react-lightbox";
 
 import { Dialog } from "@/components/ui/dialog";
 import { ScreenshotLightbox } from "@/components/ui/ScreenshotLightbox";
 import { preventDefaultFormSubmit } from "@/lib/client/form-enter-submit.shared";
 import type { ParsedCityListBank } from "@/lib/banks/city-list-ocr/parse-city-list-text.shared";
+import { clampReviewIndexAfterRemove } from "@/lib/banks/city-list-import-review.shared";
 import { formatCityListServerTime } from "@/lib/banks/city-list-server-time.shared";
 import type { BankManagementPayload, BankWithSlips } from "@/lib/banks/types.shared";
 
@@ -55,6 +56,10 @@ type Props = {
   onImported: (dashboard: BankManagementPayload) => void;
 };
 
+function cn(...parts: Array<string | false | null | undefined>): string {
+  return parts.filter(Boolean).join(" ");
+}
+
 function newRowKey(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
@@ -79,6 +84,118 @@ function bankKey(server: number, x: number, y: number): string {
   return `${server}:${x}:${y}`;
 }
 
+type FieldLabels = {
+  level: string;
+  server: string;
+  coordX: string;
+  coordY: string;
+  amount: string;
+  deposits: string;
+};
+
+function BankReviewCardFields({
+  row,
+  labels,
+  onChange,
+}: {
+  row: ReviewRow;
+  labels: FieldLabels;
+  onChange: (patch: Partial<ReviewRow>) => void;
+}) {
+  const inputClass =
+    "w-full min-w-0 rounded border border-hq-border bg-hq-canvas px-3 py-2 text-sm text-hq-fg";
+
+  return (
+    <div className="grid grid-cols-2 gap-3">
+      <label className="block space-y-1 text-xs text-hq-fg-muted">
+        <span>{labels.level}</span>
+        <input
+          type="number"
+          min={1}
+          step={1}
+          className={inputClass}
+          value={row.level}
+          onChange={(event) =>
+            onChange({ level: Number(event.target.value) || 0 })
+          }
+        />
+      </label>
+      <label className="block space-y-1 text-xs text-hq-fg-muted">
+        <span>{labels.server}</span>
+        <input
+          type="number"
+          min={1}
+          step={1}
+          className={inputClass}
+          value={row.gameServerNumber}
+          onChange={(event) =>
+            onChange({ gameServerNumber: Number(event.target.value) || 0 })
+          }
+        />
+      </label>
+      <label className="block space-y-1 text-xs text-hq-fg-muted">
+        <span>{labels.coordX}</span>
+        <input
+          type="number"
+          step={1}
+          className={inputClass}
+          value={row.coordX}
+          onChange={(event) =>
+            onChange({ coordX: Number(event.target.value) || 0 })
+          }
+        />
+      </label>
+      <label className="block space-y-1 text-xs text-hq-fg-muted">
+        <span>{labels.coordY}</span>
+        <input
+          type="number"
+          step={1}
+          className={inputClass}
+          value={row.coordY}
+          onChange={(event) =>
+            onChange({ coordY: Number(event.target.value) || 0 })
+          }
+        />
+      </label>
+      <label className="block space-y-1 text-xs text-hq-fg-muted">
+        <span>{labels.amount}</span>
+        <input
+          type="number"
+          min={0}
+          step={1}
+          className={inputClass}
+          value={row.currentDepositValue ?? ""}
+          onChange={(event) =>
+            onChange({
+              currentDepositValue: event.target.value
+                ? Number(event.target.value)
+                : null,
+            })
+          }
+        />
+      </label>
+      <label className="block space-y-1 text-xs text-hq-fg-muted">
+        <span>{labels.deposits}</span>
+        <input
+          type="number"
+          min={0}
+          max={100}
+          step={1}
+          className={inputClass}
+          value={row.currentDepositCount ?? ""}
+          onChange={(event) =>
+            onChange({
+              currentDepositCount: event.target.value
+                ? Number(event.target.value)
+                : null,
+            })
+          }
+        />
+      </label>
+    </div>
+  );
+}
+
 export function CityListImportModal({
   open,
   onOpenChange,
@@ -90,6 +207,8 @@ export function CityListImportModal({
   const [screenshots, setScreenshots] = useState<SelectedScreenshot[]>([]);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [rows, setRows] = useState<ReviewRow[]>([]);
+  const [reviewIndex, setReviewIndex] = useState(0);
+  const [previewIndex, setPreviewIndex] = useState(0);
   const [snapshot, setSnapshot] = useState<
     ParseCityListResponse["snapshot"] | null
   >(null);
@@ -118,6 +237,8 @@ export function CityListImportModal({
   const reset = useCallback(() => {
     setStep("upload");
     setRows([]);
+    setReviewIndex(0);
+    setPreviewIndex(0);
     setSnapshot(null);
     setError(null);
     setParsing(false);
@@ -191,6 +312,8 @@ export function CityListImportModal({
       }
 
       setRows(parsedRows);
+      setReviewIndex(0);
+      setPreviewIndex(0);
       setSnapshot(body.snapshot ?? null);
       setStep("review");
     } catch (e) {
@@ -210,7 +333,17 @@ export function CityListImportModal({
   );
 
   const removeRow = useCallback((rowKey: string) => {
-    setRows((prev) => prev.filter((row) => row.rowKey !== rowKey));
+    setRows((prev) => {
+      const index = prev.findIndex((row) => row.rowKey === rowKey);
+      if (index < 0) return prev;
+      const next = prev.filter((row) => row.rowKey !== rowKey);
+      queueMicrotask(() => {
+        setReviewIndex((current) =>
+          clampReviewIndexAfterRemove(current, index, next.length),
+        );
+      });
+      return next;
+    });
   }, []);
 
   const rowKeys = useMemo(
@@ -254,6 +387,19 @@ export function CityListImportModal({
     [screenshots],
   );
 
+  const activeRow = rows[reviewIndex] ?? null;
+  const progressPercent =
+    rows.length > 0 ? ((reviewIndex + 1) / rows.length) * 100 : 0;
+
+  const fieldLabels: FieldLabels = {
+    level: t("fields.level"),
+    server: t("fields.server"),
+    coordX: t("fields.coordX"),
+    coordY: t("fields.coordY"),
+    amount: t("fields.amount"),
+    deposits: t("depositsTitle"),
+  };
+
   const commit = useCallback(async () => {
     if (rows.length === 0 || importing || hasDuplicateCoords) return;
     setImporting(true);
@@ -295,12 +441,136 @@ export function CityListImportModal({
     }
   }, [handleOpenChange, hasDuplicateCoords, importing, onImported, rows, snapshot, t]);
 
+  const openPreview = useCallback(
+    (index = previewIndex) => {
+      if (screenshots.length === 0) return;
+      const clamped = Math.min(Math.max(index, 0), screenshots.length - 1);
+      setPreviewIndex(clamped);
+      setLightboxIndex(clamped);
+    },
+    [previewIndex, screenshots.length],
+  );
+
+  const reviewMeta = (
+    <>
+      {snapshot?.serverTime || snapshot?.capturesRemainingToday != null ? (
+        <div className="flex flex-wrap gap-2 text-xs text-hq-fg-muted">
+          {snapshot?.serverTime ? (
+            <span className="rounded-full border border-hq-border px-2.5 py-1">
+              {t("cityListServerTime", {
+                time: formatCityListServerTime(snapshot.serverTime),
+              })}
+            </span>
+          ) : null}
+          {snapshot?.capturesRemainingToday != null &&
+          snapshot?.capturesLimitToday != null ? (
+            <span className="rounded-full border border-hq-border px-2.5 py-1">
+              {t("capturesLeftToday", {
+                remaining: snapshot.capturesRemainingToday,
+                limit: snapshot.capturesLimitToday,
+              })}
+            </span>
+          ) : null}
+        </div>
+      ) : null}
+
+      {showIncompleteWarning ? (
+        <div className="rounded-lg border border-hq-warning/40 bg-hq-warning/10 px-3 py-2 text-sm text-hq-warning">
+          {t("cityListIncompleteWarning")}
+        </div>
+      ) : null}
+      {showExtraHqWarning ? (
+        <div className="rounded-lg border border-hq-warning/40 bg-hq-warning/10 px-3 py-2 text-sm text-hq-warning">
+          {t("cityListExtraHqWarning")}
+        </div>
+      ) : null}
+    </>
+  );
+
+  const reviewActions = (
+    <div className="flex flex-wrap justify-end gap-2 pt-2">
+      <button
+        type="button"
+        className="rounded border border-hq-border px-3 py-2 text-sm text-hq-fg"
+        onClick={() => {
+          setStep("upload");
+          setReviewIndex(0);
+        }}
+        disabled={importing}
+      >
+        {t("actions.cancel")}
+      </button>
+      <button
+        type="submit"
+        className="rounded border border-hq-success bg-hq-success px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+        disabled={importing || rows.length === 0 || hasDuplicateCoords}
+      >
+        {importing ? t("actions.saving") : t("cityListConfirmImport")}
+      </button>
+    </div>
+  );
+
+  const desktopPreviewPane =
+    screenshots.length > 0 ? (
+      <div
+        className={cn(
+          "hidden min-w-0 flex-col items-center justify-start gap-3 md:flex",
+          "md:w-[min(42%,22rem)] md:shrink-0 md:self-stretch",
+        )}
+      >
+        <button
+          type="button"
+          className="block w-full overflow-hidden rounded-lg border border-hq-border bg-black"
+          onClick={() => openPreview(previewIndex)}
+          aria-label={t("cityListThumbnailPreview")}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={screenshots[previewIndex]!.previewUrl}
+            alt=""
+            className="mx-auto h-auto max-h-[min(78vh,42rem)] w-auto max-w-full object-contain"
+          />
+        </button>
+        {screenshots.length > 1 ? (
+          <ul className="flex w-full flex-wrap gap-2">
+            {screenshots.map((shot, index) => (
+              <li key={shot.id} className="w-14 shrink-0">
+                <button
+                  type="button"
+                  className={cn(
+                    "block w-full overflow-hidden rounded border bg-hq-canvas",
+                    index === previewIndex
+                      ? "border-hq-accent"
+                      : "border-hq-border hover:border-hq-fg-muted",
+                  )}
+                  onClick={() => openPreview(index)}
+                  aria-label={t("cityListThumbnailPreview")}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={shot.previewUrl}
+                    alt=""
+                    className="aspect-[3/4] w-full object-cover"
+                  />
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </div>
+    ) : null;
+
   return (
     <Dialog
       open={open}
       onOpenChange={handleOpenChange}
       title={t("cityListImportTitle")}
-      className="w-full max-w-[min(96vw,52rem)]"
+      className={cn(
+        "w-full max-w-[min(96vw,52rem)]",
+        step === "review" &&
+          screenshots.length > 0 &&
+          "md:max-h-[min(90vh,820px)] md:max-w-5xl md:overflow-hidden",
+      )}
     >
       <div className="min-w-0 space-y-4">
         <h2 className="text-lg font-semibold text-hq-fg">
@@ -399,180 +669,253 @@ export function CityListImportModal({
           </div>
         ) : (
           <form
-            className="min-w-0 space-y-4"
+            className={cn(
+              "min-w-0 gap-5",
+              screenshots.length > 0
+                ? "flex flex-col md:flex-row md:items-stretch md:min-h-[min(70vh,36rem)]"
+                : "space-y-4",
+            )}
             onSubmit={(event) => {
               preventDefaultFormSubmit(event);
               void commit();
             }}
           >
-            {snapshot?.serverTime || snapshot?.capturesRemainingToday != null ? (
-              <div className="flex flex-wrap gap-2 text-xs text-hq-fg-muted">
-                {snapshot?.serverTime ? (
-                  <span className="rounded-full border border-hq-border px-2.5 py-1">
-                    {t("cityListServerTime", {
-                      time: formatCityListServerTime(snapshot.serverTime),
-                    })}
-                  </span>
-                ) : null}
-                {snapshot?.capturesRemainingToday != null &&
-                snapshot?.capturesLimitToday != null ? (
-                  <span className="rounded-full border border-hq-border px-2.5 py-1">
-                    {t("capturesLeftToday", {
-                      remaining: snapshot.capturesRemainingToday,
-                      limit: snapshot.capturesLimitToday,
-                    })}
-                  </span>
-                ) : null}
-              </div>
-            ) : null}
+            {desktopPreviewPane}
 
-            {showIncompleteWarning ? (
-              <div className="rounded-lg border border-hq-warning/40 bg-hq-warning/10 px-3 py-2 text-sm text-hq-warning">
-                {t("cityListIncompleteWarning")}
+            <div
+              className={cn(
+                "flex min-w-0 flex-1 flex-col gap-4",
+                screenshots.length > 0 && "md:min-h-0 md:overflow-y-auto",
+              )}
+            >
+              {reviewMeta}
+
+              {/* Mobile: card stepper */}
+              <div className="space-y-3 md:hidden">
+                {rows.length > 0 ? (
+                  <>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-sm font-medium text-hq-fg">
+                          {t("cityListReviewBankProgress", {
+                            current: reviewIndex + 1,
+                            total: rows.length,
+                          })}
+                        </p>
+                        {screenshots.length > 0 ? (
+                          <button
+                            type="button"
+                            className="inline-flex items-center gap-1.5 rounded border border-hq-border px-2.5 py-1.5 text-xs text-hq-fg hover:border-hq-accent"
+                            onClick={() => openPreview(0)}
+                          >
+                            <Eye className="h-3.5 w-3.5" aria-hidden />
+                            {t("cityListPreviewScreenshots")}
+                          </button>
+                        ) : null}
+                      </div>
+                      <div
+                        className="h-1.5 w-full overflow-hidden rounded-full bg-hq-border"
+                        role="progressbar"
+                        aria-valuemin={1}
+                        aria-valuemax={rows.length}
+                        aria-valuenow={reviewIndex + 1}
+                        aria-label={t("cityListReviewBankProgress", {
+                          current: reviewIndex + 1,
+                          total: rows.length,
+                        })}
+                      >
+                        <div
+                          className="h-full rounded-full bg-hq-accent transition-[width] duration-200"
+                          style={{ width: `${progressPercent}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    {activeRow ? (
+                      <div className="space-y-3 rounded-xl border border-hq-border bg-hq-canvas p-4">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-xs font-medium uppercase tracking-wide text-hq-fg-muted">
+                            {t("coords", {
+                              server: activeRow.gameServerNumber,
+                              x: activeRow.coordX,
+                              y: activeRow.coordY,
+                            })}
+                          </p>
+                          <button
+                            type="button"
+                            aria-label={t("actions.delete")}
+                            className="rounded border border-hq-border p-1.5 text-hq-fg-muted hover:border-hq-danger hover:text-hq-danger"
+                            onClick={() => removeRow(activeRow.rowKey)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" aria-hidden />
+                          </button>
+                        </div>
+                        <BankReviewCardFields
+                          row={activeRow}
+                          labels={fieldLabels}
+                          onChange={(patch) =>
+                            updateRow(activeRow.rowKey, patch)
+                          }
+                        />
+                      </div>
+                    ) : null}
+
+                    <div className="flex items-center justify-between gap-2">
+                      <button
+                        type="button"
+                        className="inline-flex items-center gap-1 rounded border border-hq-border px-3 py-2 text-sm text-hq-fg disabled:opacity-40"
+                        onClick={() =>
+                          setReviewIndex((prev) => Math.max(0, prev - 1))
+                        }
+                        disabled={reviewIndex <= 0}
+                      >
+                        <ChevronLeft className="h-4 w-4" aria-hidden />
+                        {t("cityListPreviousBank")}
+                      </button>
+                      <button
+                        type="button"
+                        className="inline-flex items-center gap-1 rounded border border-hq-border px-3 py-2 text-sm text-hq-fg disabled:opacity-40"
+                        onClick={() =>
+                          setReviewIndex((prev) =>
+                            Math.min(rows.length - 1, prev + 1),
+                          )
+                        }
+                        disabled={reviewIndex >= rows.length - 1}
+                      >
+                        {t("cityListNextBank")}
+                        <ChevronRight className="h-4 w-4" aria-hidden />
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-sm text-hq-fg-muted">{t("emptyBanks")}</p>
+                )}
               </div>
-            ) : null}
-            {showExtraHqWarning ? (
-              <div className="rounded-lg border border-hq-warning/40 bg-hq-warning/10 px-3 py-2 text-sm text-hq-warning">
-                {t("cityListExtraHqWarning")}
-              </div>
-            ) : null}
-            <div className="overflow-x-auto rounded-lg border border-hq-border">
-              <table className="min-w-full text-left text-sm">
-                <thead className="bg-hq-canvas text-xs text-hq-fg-muted">
-                  <tr>
-                    <th className="px-3 py-2">{t("fields.level")}</th>
-                    <th className="px-3 py-2">{t("fields.server")}</th>
-                    <th className="px-3 py-2">{t("fields.coordX")}</th>
-                    <th className="px-3 py-2">{t("fields.coordY")}</th>
-                    <th className="px-3 py-2">{t("fields.amount")}</th>
-                    <th className="px-3 py-2">{t("depositsTitle")}</th>
-                    <th className="px-3 py-2" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((row) => (
-                    <tr key={row.rowKey} className="border-t border-hq-border">
-                      <td className="px-3 py-2">
-                        <input
-                          type="number"
-                          min={1}
-                          step={1}
-                          className="w-16 min-w-0 rounded border border-hq-border bg-hq-canvas px-2 py-1"
-                          value={row.level}
-                          onChange={(event) =>
-                            updateRow(row.rowKey, {
-                              level: Number(event.target.value) || 0,
-                            })
-                          }
-                        />
-                      </td>
-                      <td className="px-3 py-2">
-                        <input
-                          type="number"
-                          min={1}
-                          step={1}
-                          className="w-20 min-w-0 rounded border border-hq-border bg-hq-canvas px-2 py-1"
-                          value={row.gameServerNumber}
-                          onChange={(event) =>
-                            updateRow(row.rowKey, {
-                              gameServerNumber: Number(event.target.value) || 0,
-                            })
-                          }
-                        />
-                      </td>
-                      <td className="px-3 py-2">
-                        <input
-                          type="number"
-                          step={1}
-                          className="w-20 min-w-0 rounded border border-hq-border bg-hq-canvas px-2 py-1"
-                          value={row.coordX}
-                          onChange={(event) =>
-                            updateRow(row.rowKey, {
-                              coordX: Number(event.target.value) || 0,
-                            })
-                          }
-                        />
-                      </td>
-                      <td className="px-3 py-2">
-                        <input
-                          type="number"
-                          step={1}
-                          className="w-20 min-w-0 rounded border border-hq-border bg-hq-canvas px-2 py-1"
-                          value={row.coordY}
-                          onChange={(event) =>
-                            updateRow(row.rowKey, {
-                              coordY: Number(event.target.value) || 0,
-                            })
-                          }
-                        />
-                      </td>
-                      <td className="px-3 py-2">
-                        <input
-                          type="number"
-                          min={0}
-                          step={1}
-                          className="w-28 min-w-0 rounded border border-hq-border bg-hq-canvas px-2 py-1"
-                          value={row.currentDepositValue ?? ""}
-                          onChange={(event) =>
-                            updateRow(row.rowKey, {
-                              currentDepositValue: event.target.value
-                                ? Number(event.target.value)
-                                : null,
-                            })
-                          }
-                        />
-                      </td>
-                      <td className="px-3 py-2">
-                        <input
-                          type="number"
-                          min={0}
-                          max={100}
-                          step={1}
-                          className="w-16 min-w-0 rounded border border-hq-border bg-hq-canvas px-2 py-1"
-                          value={row.currentDepositCount ?? ""}
-                          onChange={(event) =>
-                            updateRow(row.rowKey, {
-                              currentDepositCount: event.target.value
-                                ? Number(event.target.value)
-                                : null,
-                            })
-                          }
-                        />
-                      </td>
-                      <td className="px-3 py-2">
-                        <button
-                          type="button"
-                          aria-label={t("actions.delete")}
-                          className="rounded border border-hq-border p-1.5 text-hq-fg-muted hover:border-hq-danger hover:text-hq-danger"
-                          onClick={() => removeRow(row.rowKey)}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" aria-hidden />
-                        </button>
-                      </td>
+
+              {/* Desktop: row-based table */}
+              <div className="hidden overflow-x-auto rounded-lg border border-hq-border md:block">
+                <table className="min-w-full text-left text-sm">
+                  <thead className="bg-hq-canvas text-xs text-hq-fg-muted">
+                    <tr>
+                      <th className="px-3 py-2">{t("fields.level")}</th>
+                      <th className="px-3 py-2">{t("fields.server")}</th>
+                      <th className="px-3 py-2">{t("fields.coordX")}</th>
+                      <th className="px-3 py-2">{t("fields.coordY")}</th>
+                      <th className="px-3 py-2">{t("fields.amount")}</th>
+                      <th className="px-3 py-2">{t("depositsTitle")}</th>
+                      <th className="px-3 py-2" />
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {rows.map((row) => (
+                      <tr key={row.rowKey} className="border-t border-hq-border">
+                        <td className="px-3 py-2">
+                          <input
+                            type="number"
+                            min={1}
+                            step={1}
+                            className="w-16 min-w-0 rounded border border-hq-border bg-hq-canvas px-2 py-1"
+                            value={row.level}
+                            onChange={(event) =>
+                              updateRow(row.rowKey, {
+                                level: Number(event.target.value) || 0,
+                              })
+                            }
+                          />
+                        </td>
+                        <td className="px-3 py-2">
+                          <input
+                            type="number"
+                            min={1}
+                            step={1}
+                            className="w-20 min-w-0 rounded border border-hq-border bg-hq-canvas px-2 py-1"
+                            value={row.gameServerNumber}
+                            onChange={(event) =>
+                              updateRow(row.rowKey, {
+                                gameServerNumber:
+                                  Number(event.target.value) || 0,
+                              })
+                            }
+                          />
+                        </td>
+                        <td className="px-3 py-2">
+                          <input
+                            type="number"
+                            step={1}
+                            className="w-20 min-w-0 rounded border border-hq-border bg-hq-canvas px-2 py-1"
+                            value={row.coordX}
+                            onChange={(event) =>
+                              updateRow(row.rowKey, {
+                                coordX: Number(event.target.value) || 0,
+                              })
+                            }
+                          />
+                        </td>
+                        <td className="px-3 py-2">
+                          <input
+                            type="number"
+                            step={1}
+                            className="w-20 min-w-0 rounded border border-hq-border bg-hq-canvas px-2 py-1"
+                            value={row.coordY}
+                            onChange={(event) =>
+                              updateRow(row.rowKey, {
+                                coordY: Number(event.target.value) || 0,
+                              })
+                            }
+                          />
+                        </td>
+                        <td className="px-3 py-2">
+                          <input
+                            type="number"
+                            min={0}
+                            step={1}
+                            className="w-28 min-w-0 rounded border border-hq-border bg-hq-canvas px-2 py-1"
+                            value={row.currentDepositValue ?? ""}
+                            onChange={(event) =>
+                              updateRow(row.rowKey, {
+                                currentDepositValue: event.target.value
+                                  ? Number(event.target.value)
+                                  : null,
+                              })
+                            }
+                          />
+                        </td>
+                        <td className="px-3 py-2">
+                          <input
+                            type="number"
+                            min={0}
+                            max={100}
+                            step={1}
+                            className="w-16 min-w-0 rounded border border-hq-border bg-hq-canvas px-2 py-1"
+                            value={row.currentDepositCount ?? ""}
+                            onChange={(event) =>
+                              updateRow(row.rowKey, {
+                                currentDepositCount: event.target.value
+                                  ? Number(event.target.value)
+                                  : null,
+                              })
+                            }
+                          />
+                        </td>
+                        <td className="px-3 py-2">
+                          <button
+                            type="button"
+                            aria-label={t("actions.delete")}
+                            className="rounded border border-hq-border p-1.5 text-hq-fg-muted hover:border-hq-danger hover:text-hq-danger"
+                            onClick={() => removeRow(row.rowKey)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" aria-hidden />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
 
-            {error ? <p className="text-sm text-hq-danger">{error}</p> : null}
+              {error ? <p className="text-sm text-hq-danger">{error}</p> : null}
 
-            <div className="flex flex-wrap justify-end gap-2 pt-2">
-              <button
-                type="button"
-                className="rounded border border-hq-border px-3 py-2 text-sm text-hq-fg"
-                onClick={() => setStep("upload")}
-                disabled={importing}
-              >
-                {t("actions.cancel")}
-              </button>
-              <button
-                type="submit"
-                className="rounded border border-hq-success bg-hq-success px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-                disabled={importing || rows.length === 0 || hasDuplicateCoords}
-              >
-                {importing ? t("actions.saving") : t("cityListConfirmImport")}
-              </button>
+              {reviewActions}
             </div>
           </form>
         )}
