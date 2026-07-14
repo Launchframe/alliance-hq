@@ -1,6 +1,6 @@
 "use client";
 
-import { Info } from "lucide-react";
+import { ChevronDown, Info } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 
@@ -25,6 +25,7 @@ import { PriceIsRightPodiumLeaderboard } from "@/components/trains/PriceIsRightP
 import { PriceIsRightTicketsPanel } from "@/components/trains/PriceIsRightTicketsPanel";
 import { TodayConductorCard } from "@/components/trains/TodayConductorCard";
 import { WeekTemplateChangeDialog } from "@/components/trains/WeekTemplateChangeDialog";
+import { WeekTemplatePickerDialog } from "@/components/trains/WeekTemplatePickerDialog";
 import { useHotkeys } from "@/components/hotkeys/HotkeyProvider";
 import {
   TRAINS_HOTKEY_ACTION_IDS,
@@ -37,7 +38,6 @@ import {
 } from "@/components/trains/TrainPoolDetailsDialog";
 import { TrainSpinSourcePanel } from "@/components/trains/TrainSpinSourcePanel";
 import { TrainMonthCalendar, PAINT_TEMPLATES } from "@/components/trains/TrainMonthCalendar";
-import { TemplatePaletteOptionLabel } from "@/components/trains/TemplatePaletteBadge";
 import {
   TrainScheduleViewToggle,
   type ScheduleView,
@@ -48,7 +48,6 @@ import {
   canSpinVip,
 } from "@/components/trains/WeekScheduleStrip";
 import { Dialog } from "@/components/ui/dialog";
-import { AppSelect } from "@/components/ui/AppSelect";
 import { Link } from "@/i18n/navigation";
 import { buildProvisionalWeekPage } from "@/lib/client/week-schedule-provisional";
 import {
@@ -72,10 +71,6 @@ import {
 import { canStartConductorSwap } from "@/lib/trains/conductor-swap.shared";
 import type { PoolRefreshedInfo, PoolType, RollResult, WeekTemplateType } from "@/lib/trains/types";
 import type { MemberQualificationPayload } from "@/lib/trains/train-conductor-minimums.shared";
-import {
-  SELECTABLE_WEEK_TEMPLATES,
-  WEEK_TEMPLATES_WITH_DETAIL_HINTS,
-} from "@/lib/trains/week-template-registry.shared";
 import {
   applyOptimisticConductorPick,
   applyOptimisticConductorRoll,
@@ -127,8 +122,6 @@ type RollResponse = TrainRollErrorResponse & {
 type PoolRefreshedHint = PoolRefreshedInfo & {
   role: "conductor" | "vip";
 };
-
-const TEMPLATE_OPTIONS = SELECTABLE_WEEK_TEMPLATES;
 
 function inferWeekTemplateFromDayConfigs(
   dayConfigs: Array<{ paintTemplate?: WeekTemplateType | null }>,
@@ -207,6 +200,7 @@ export function TrainsDashboard({ initial }: Props) {
   const [wheelBlocked, setWheelBlocked] = useState<TrainRollErrorDetails | null>(
     null,
   );
+  const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
   const [pendingTemplateChange, setPendingTemplateChange] = useState<{
     templateType: WeekTemplateType;
     weekStart: string;
@@ -527,20 +521,6 @@ export function TrainsDashboard({ initial }: Props) {
       price_is_right: t("templatesShort.price_is_right"),
     }),
     [t],
-  );
-
-  const templateSelectOptions = useMemo(
-    () =>
-      TEMPLATE_OPTIONS.map((template) => ({
-        value: template,
-        label: (
-          <TemplatePaletteOptionLabel
-            template={template}
-            label={templateLabels[template]}
-          />
-        ),
-      })),
-    [templateLabels],
   );
 
   const activeWeekTemplate = useMemo((): WeekTemplateType => {
@@ -1376,41 +1356,29 @@ export function TrainsDashboard({ initial }: Props) {
               >
                 {t("templateSelectLabel")}
               </span>
-              <AppSelect
+              <button
+                type="button"
                 id="trains-week-template-select"
-                value={activeWeekTemplate}
-                onChange={(value) =>
-                  handleTemplateClick(value as WeekTemplateType)
-                }
-                options={templateSelectOptions}
                 disabled={!data.canManageTrains}
-                aria-label={t("templateSelectAria")}
-                triggerClassName="rounded-xl border-hq-border bg-hq-surface"
-                className="w-full"
-              />
-              {activeWeekTemplate === "price_is_right" ? (
-                <p
-                  className="text-xs leading-relaxed text-[#8b949e]"
-                  data-testid="trains-template-detail-hint"
-                >
-                  {t("templateDetails.price_is_right")}
-                </p>
-              ) : null}
+                aria-labelledby="trains-week-template-label"
+                aria-haspopup="dialog"
+                aria-expanded={templatePickerOpen}
+                data-testid="trains-week-template-button"
+                onClick={() => setTemplatePickerOpen(true)}
+                className="flex w-full items-center justify-between gap-2 rounded-xl border border-hq-border bg-hq-surface px-3 py-2 text-left text-sm text-hq-fg hover:bg-hq-canvas disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <span className="min-w-0 truncate font-medium">
+                  {templateLabels[activeWeekTemplate]}
+                </span>
+                <ChevronDown
+                  className="h-4 w-4 shrink-0 text-hq-fg-muted"
+                  aria-hidden
+                />
+              </button>
             </div>
           ) : null}
         </div>
       </header>
-
-      {data.canManageTrains &&
-      data.activeMemberCount > 0 &&
-      WEEK_TEMPLATES_WITH_DETAIL_HINTS.includes(activeWeekTemplate) ? (
-        <p
-          className="text-xs leading-relaxed text-[#8b949e]"
-          data-testid="trains-template-detail-hint"
-        >
-          {t(`templateDetails.${activeWeekTemplate}`)}
-        </p>
-      ) : null}
 
       {error ? (
         <p className="rounded-lg border border-hq-danger/40 bg-hq-danger/10 px-3 py-2 text-sm text-hq-danger">
@@ -1599,11 +1567,7 @@ export function TrainsDashboard({ initial }: Props) {
                 conductorMech={conductorMech}
                 vipMech={vipMech}
                 busy={trainQuickActionBusy}
-                onChangeTemplate={() =>
-                  document
-                    .getElementById("trains-week-template-select")
-                    ?.click()
-                }
+                onChangeTemplate={() => setTemplatePickerOpen(true)}
                 onRollConductor={() => void runRoll("conductor")}
                 onPickTopScorer={() => void runRoll("conductor")}
                 onPickConductorManual={() => {
@@ -2125,6 +2089,22 @@ export function TrainsDashboard({ initial }: Props) {
         onClose={() => {
           setPoolDetailsOpen(false);
           setPoolDetailsInitialType(null);
+        }}
+      />
+
+      <WeekTemplatePickerDialog
+        key={
+          templatePickerOpen
+            ? `open:${activeWeekTemplate}`
+            : "closed"
+        }
+        open={templatePickerOpen}
+        currentTemplate={activeWeekTemplate}
+        disabled={!data.canManageTrains}
+        onClose={() => setTemplatePickerOpen(false)}
+        onSelect={(templateType) => {
+          setTemplatePickerOpen(false);
+          handleTemplateClick(templateType);
         }}
       />
 
