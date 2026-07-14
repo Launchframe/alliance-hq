@@ -34,4 +34,21 @@ describe("shouldReplaceAshedScoresOnSubmit", () => {
       shouldReplaceAshedScoresOnSubmit(getScoreTargetOrThrow("donations"), {}),
     ).toBe(true);
   });
+
+  it("does not replace HQ-event-store seasonal targets", () => {
+    expect(
+      shouldReplaceAshedScoresOnSubmit(getScoreTargetOrThrow("seasonal"), {
+        eventId: "ev-1",
+      }),
+    ).toBe(false);
+  });
+
+  it("does not replace row-post frontline targets", () => {
+    expect(
+      shouldReplaceAshedScoresOnSubmit(
+        getScoreTargetOrThrow("frontline-breakthrough"),
+        { eventId: "ev-1" },
+      ),
+    ).toBe(false);
+  });
 });

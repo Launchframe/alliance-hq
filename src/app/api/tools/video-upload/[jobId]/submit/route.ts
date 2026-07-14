@@ -60,6 +60,7 @@ import {
 import { computeQualityScore } from "@/lib/video/quality-score";
 import {
   isVideoJobReadyForSubmit,
+  resolveVideoSubmitRollbackStatus,
   VIDEO_SUBMIT_IN_PROGRESS_ERROR,
   VIDEO_SUBMIT_READY_STATUSES,
   videoSubmitClaimLostError,
@@ -169,11 +170,13 @@ export async function POST(request: Request, { params }: Props) {
   const session = await getOrCreateSession();
   const { jobId } = await params;
   let advancedToSubmitting = false;
+  /** True only after bulkDeleteByDate succeeded — insert may still fail. */
+  let clearedPriorAshedScores = false;
   let jobSnapshot: {
     fileName: string | null;
     scoreTarget: string | null;
     category: string | null;
-    /** Status before we wrote "submitting" — used for rollback so event-view re-submits roll back to "complete", not "review". */
+    /** Status before we wrote "submitting" — used for rollback when Ashed was not wiped. */
     originalStatus: string;
     uploaderSessionId: string;
     enqueuedByHqUserId: string | null;
@@ -822,6 +825,7 @@ export async function POST(request: Request, { params }: Props) {
           commendationId: submitContext.commendationId,
         },
       });
+      clearedPriorAshedScores = true;
     }
 
     await dispatchScoreSubmit(connection, target, payloads);
@@ -983,9 +987,10 @@ export async function POST(request: Request, { params }: Props) {
     if (advancedToSubmitting && jobSnapshot) {
       try {
         const db = getDb();
-        const rollbackStatus = jobSnapshot.originalStatus === "complete"
-          ? "complete"
-          : "review";
+        const rollbackStatus = resolveVideoSubmitRollbackStatus({
+          originalStatus: jobSnapshot.originalStatus,
+          clearedPriorAshedScores,
+        });
         await db
           .update(schema.videoJobs)
           .set({ status: rollbackStatus, updatedAt: new Date() })

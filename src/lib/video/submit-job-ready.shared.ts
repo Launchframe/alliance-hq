@@ -17,3 +17,20 @@ export function videoSubmitNotReadyError(jobStatus: string): string {
 export function videoSubmitClaimLostError(jobStatus: string): string {
   return `Couldn't start submit — this job's status is now "${jobStatus}". Refresh the page and try again.`;
 }
+
+/**
+ * After claim("submitting"), choose the status to restore on failure.
+ *
+ * When prior Ashed rows were already cleared (delete-by-date succeeded) but
+ * insert/bookkeeping failed, force `review` so Update-scores does not look
+ * complete while Ashed may be empty for that day/event.
+ */
+export function resolveVideoSubmitRollbackStatus(input: {
+  originalStatus: string;
+  clearedPriorAshedScores: boolean;
+}): "review" | "complete" {
+  if (input.clearedPriorAshedScores) {
+    return "review";
+  }
+  return input.originalStatus === "complete" ? "complete" : "review";
+}
