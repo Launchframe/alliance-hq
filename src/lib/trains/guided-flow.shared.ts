@@ -47,8 +47,10 @@ export type GuidedFlowInput = {
 /**
  * Whether the UI should surface the VS/PIF prerequisites banner.
  * Non-blocking — does not change {@link currentGuidedStep}.
+ * Hidden once locked (All Set) so missing scores do not nag after the ritual.
  */
 export function guidedFlowShowPrerequisites(input: GuidedFlowInput): boolean {
+  if (input.locked) return false;
   return Boolean(input.vsDataRequired) && !input.vsDataReady;
 }
 

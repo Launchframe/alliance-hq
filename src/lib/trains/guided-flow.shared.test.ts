@@ -85,6 +85,7 @@ describe("guidedFlowShowPrerequisites", () => {
     expect(
       guidedFlowShowPrerequisites({
         ...base,
+        locked: false,
         vsDataRequired: true,
         vsDataReady: false,
       }),
@@ -95,6 +96,7 @@ describe("guidedFlowShowPrerequisites", () => {
     expect(
       guidedFlowShowPrerequisites({
         ...base,
+        locked: false,
         vsDataRequired: true,
         vsDataReady: true,
       }),
@@ -105,7 +107,19 @@ describe("guidedFlowShowPrerequisites", () => {
     expect(
       guidedFlowShowPrerequisites({
         ...base,
+        locked: false,
         vsDataRequired: false,
+        vsDataReady: false,
+      }),
+    ).toBe(false);
+  });
+
+  it("is false when locked even if scores are missing", () => {
+    expect(
+      guidedFlowShowPrerequisites({
+        ...base,
+        locked: true,
+        vsDataRequired: true,
         vsDataReady: false,
       }),
     ).toBe(false);
