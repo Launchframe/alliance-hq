@@ -108,6 +108,42 @@ describe("parsePowerDetailsLines", () => {
       wallOfHonor: 4_702_700,
     });
   });
+
+  it("treats % and currency glyphs as thousand-separators in component values", () => {
+    const lines = [
+      "Hero Power 163,674,445",
+      "Hero Level 85%857'448",
+      "Decorations & Building Stats 37282702",
+      "Gear 13,118'094",
+      "Exclusive Weapon 9,085'358",
+      "Hero Tier 7,053'833",
+      "Hero Skill 6!574'310",
+      "Wall of Honor 4%,02¥,00",
+    ];
+    const parsed = parsePowerDetailsLines(lines);
+    expect(parsed.complete).toBe(true);
+    expect(parsed.breakdown.heroLevel).toBe(85_857_448);
+    expect(parsed.breakdown.heroSkill).toBe(6_574_310);
+    expect(parsed.breakdown.wallOfHonor).toBe(4_702_700);
+  });
+
+  it("marks incomplete when Hero Power header and Hero Tier are both missing", () => {
+    // Live Discord sample: body rows only — dual-pass OCR must recover header/tier.
+    const lines = [
+      "Hero Level 85%95'832",
+      "Decorations & Building",
+      "Stats 37283472",
+      "Gear 12,888'896",
+      "Exclusive Weapon 91085358",
+      "Hero Skill 6!5743310",
+      "Wall of Honor 40200",
+      "Drone Level 513467950",
+    ];
+    const parsed = parsePowerDetailsLines(lines);
+    expect(parsed.complete).toBe(false);
+    expect(parsed.breakdown.heroTier).toBeUndefined();
+    expect(parsed.heroPowerTotal).toBeNull();
+  });
 });
 
 describe("coalescePowerDetailsLines", () => {

@@ -56,11 +56,25 @@ const PREFIX_CONFUSIONS: ReadonlyArray<readonly [string, string]> = [
   ["15", "7"],
 ];
 
+/**
+ * Map OCR glyphs that commonly stand in for thousand-separators on this screen.
+ * Crossed `7` sometimes becomes `%`, but `%` also replaces commas — treat as a
+ * separator so `4%,02¥,00` stays a destroyed stub and `85%857'448` keeps 8 digits.
+ */
+function normalizePowerDetailsNumberBlob(blob: string): string {
+  return blob
+    .replace(/%/g, ",")
+    .replace(/[¥€$]/g, ",")
+    .replace(/[!?|]+$/g, "");
+}
+
 function extractTrailingNumber(line: string): number | null {
   const trimmed = line.trim().replace(/[!?|]+$/g, "");
   const matches = [...trimmed.matchAll(TRAILING_NUMBER_BLOB_RE)];
   if (matches.length === 0) return null;
-  return parseIntegerToken(matches[matches.length - 1]![1]!);
+  return parseIntegerToken(
+    normalizePowerDetailsNumberBlob(matches[matches.length - 1]![1]!),
+  );
 }
 
 function splitLabelValue(line: string): { label: string; valuePart: string } {
@@ -69,7 +83,7 @@ function splitLabelValue(line: string): { label: string; valuePart: string } {
   if (colonIdx >= 0) {
     return {
       label: trimmed.slice(0, colonIdx).trim(),
-      valuePart: trimmed.slice(colonIdx + 1),
+      valuePart: normalizePowerDetailsNumberBlob(trimmed.slice(colonIdx + 1)),
     };
   }
   const matches = [...trimmed.matchAll(TRAILING_NUMBER_BLOB_RE)];
@@ -83,7 +97,7 @@ function splitLabelValue(line: string): { label: string; valuePart: string } {
   }
   return {
     label: trimmed.slice(0, index).trim(),
-    valuePart: last[1]!,
+    valuePart: normalizePowerDetailsNumberBlob(last[1]!),
   };
 }
 
