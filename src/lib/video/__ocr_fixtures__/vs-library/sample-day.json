@@ -1,0 +1,20 @@
+{
+  "id": "sample-day-2026-07-12",
+  "name": "Sample VS Day",
+  "tags": ["sample", "seed"],
+  "kind": "day",
+  "sourceRecordedDate": "2026-07-12",
+  "scrapedAt": "2026-07-13T00:00:00.000Z",
+  "rows": [
+    { "name": "CommanderAlpha", "score": 1250000, "rank": 1 },
+    { "name": "BravoBravo", "score": 1100000, "rank": 2 },
+    { "name": "CharlieGaming", "score": 980000, "rank": 3 },
+    { "name": "DeltaForce99", "score": 870000, "rank": 4 },
+    { "name": "EchoEcho", "score": 750000, "rank": 5 },
+    { "name": "FoxtrotFox", "score": 620000, "rank": 6 },
+    { "name": "GolfPlayer", "score": 510000, "rank": 7 },
+    { "name": "HotelHawk", "score": 405000, "rank": 8 },
+    { "name": "IndiaInk", "score": 310000, "rank": 9 },
+    { "name": "JulietJuice", "score": 220000, "rank": 10 }
+  ]
+}

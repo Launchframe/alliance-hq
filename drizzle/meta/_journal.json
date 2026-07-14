@@ -743,6 +743,13 @@
       "when": 1788345600000,
       "tag": "0106_trains_simple_mode",
       "breakpoints": true
+    },
+    {
+      "idx": 106,
+      "version": "7",
+      "when": 1788345600000,
+      "tag": "0107_vs_score_fixtures",
+      "breakpoints": true
     }
   ]
 }

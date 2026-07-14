@@ -5,6 +5,7 @@ import { verifyBase44Connection } from "@/lib/base44/server";
 import { getDb, schema } from "@/lib/db";
 import { getAshedConnection, requirePageSession } from "@/lib/session";
 import { sessionCanProcessVideo } from "@/lib/video/processor-slots.server";
+import { isDevOrPreviewEnvironment } from "@/lib/dev/env-guard";
 import type { VideoJobRow } from "@/lib/types/video";
 import {
   jobMatchesScoreTarget,
@@ -181,6 +182,7 @@ export default async function VideoUploadPage({ searchParams }: Props) {
       canProcess={canProcess}
       ashedConnected={Boolean(ashedConnection)}
       connectUrl={`/connect?next=${encodeURIComponent("/tools/video-upload")}`}
+      isDevEnvironment={isDevOrPreviewEnvironment()}
     />
   );
 }

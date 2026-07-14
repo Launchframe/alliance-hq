@@ -73,6 +73,8 @@ import {
   recordDataUploadBatch,
 } from "@/lib/data-management/batch-ledger.server";
 import { isDedupeReport } from "@/lib/video/dedupe/merge-report.shared";
+import { isDevOrPreviewEnvironment } from "@/lib/dev/env-guard";
+import { upsertLocalVsScores } from "@/lib/video/vs-fixture-submit.server";
 
 type Props = {
   params: Promise<{ jobId: string }>;
@@ -643,8 +645,15 @@ export async function POST(request: Request, { params }: Props) {
       );
     }
 
-    const connection = await getAshedConnection(session.id);
-    if (!connection) {
+    const fixtureMode =
+      Boolean(job.fixtureId) &&
+      scoreTargetId === "vs-performance" &&
+      isDevOrPreviewEnvironment();
+
+    const connection = fixtureMode
+      ? null
+      : await getAshedConnection(session.id);
+    if (!connection && !fixtureMode) {
       return NextResponse.json({ error: "Ashed not connected" }, { status: 503 });
     }
 
@@ -657,7 +666,12 @@ export async function POST(request: Request, { params }: Props) {
         { status: 400 },
       );
     }
-    const { ashedAllianceId } = await assertAllianceAshedLinked(hqAllianceId);
+
+    let ashedAllianceId: string | undefined;
+    if (!fixtureMode) {
+      const linked = await assertAllianceAshedLinked(hqAllianceId);
+      ashedAllianceId = linked.ashedAllianceId;
+    }
     const allianceId = hqAllianceId;
 
     const activeRows = body.rows.filter(
@@ -684,14 +698,11 @@ export async function POST(request: Request, { params }: Props) {
       commendationId: body.commendationId ?? job.commendationId ?? undefined,
     };
 
-    // Resolve-or-create Ashed event (alliance + date). Prefer an existing event
-    // for that day so re-uploads never create duplicates — even if the client
-    // sent a stale or empty eventId.
-    if (target.eventEntity && !usesHqEventStore(target)) {
+    if (!fixtureMode && target.eventEntity && !usesHqEventStore(target)) {
       const resolved = await resolveOrCreateAshedEvent({
-        connection,
+        connection: connection!,
         eventEntity: target.eventEntity,
-        ashedAllianceId,
+        ashedAllianceId: ashedAllianceId!,
         recordedDate: submitContext.recordedDate,
       });
       submitContext = { ...submitContext, eventId: resolved.eventId };
@@ -738,14 +749,14 @@ export async function POST(request: Request, { params }: Props) {
     }
 
     let ashedEventId = submitContext.eventId;
-    if (usesHqEventStore(target)) {
+    if (!fixtureMode && usesHqEventStore(target)) {
       if (!submitContext.hqEventId) {
         return NextResponse.json(
           { error: "hqEventId is required for this score target." },
           { status: 400 },
         );
       }
-      const provisioned = await resolveAshedEventId(connection, {
+      const provisioned = await resolveAshedEventId(connection!, {
         allianceId,
         scoreTargetId: target.id,
         hqEventId: submitContext.hqEventId,
@@ -790,18 +801,25 @@ export async function POST(request: Request, { params }: Props) {
       return original?.manuallyAdded === 1;
     }).length;
 
-    const payloads = buildSubmitPayloads(
-      target,
-      ashedAllianceId,
-      submitContext,
-      activeRows.map((row) => ({
-        memberId: row.memberId,
-        memberName: row.memberName,
-        score: row.score ?? "",
-        rank: row.rank,
-      })),
-      ashedEventId,
-    );
+    const payloads = fixtureMode
+      ? []
+      : buildSubmitPayloads(
+          target,
+          ashedAllianceId!,
+          submitContext,
+          activeRows.map((row) => ({
+            memberId: row.memberId,
+            memberName: row.memberName,
+            score: row.score ?? "",
+            rank: row.rank,
+          })),
+          ashedEventId,
+        );
+
+    const isFixtureSubmit =
+      Boolean(job.fixtureId) &&
+      scoreTargetId === "vs-performance" &&
+      isDevOrPreviewEnvironment();
 
     const claim = await claimVideoJobForSubmit(db, jobId, job.status);
     if (!claim.ok) {
@@ -821,6 +839,18 @@ export async function POST(request: Request, { params }: Props) {
       errorMessage: null,
     });
 
+    if (isFixtureSubmit) {
+      await upsertLocalVsScores({
+        allianceId,
+        recordedDate: submitContext.recordedDate,
+        rows: activeRows.map((row) => ({
+          memberId: row.memberId,
+          memberName: row.memberName,
+          score: Number(row.score ?? 0),
+          rank: row.rank ?? null,
+        })),
+      });
+    } else {
     // Clear prior Ashed rows for this day/event before insert so re-submit
     // (Update scores) replaces instead of stacking to 2×. Serialize concurrent
     // same-alliance/date replaces so two officers cannot interleave delete/insert.
@@ -830,9 +860,9 @@ export async function POST(request: Request, { params }: Props) {
     const runReplaceAndInsert = async () => {
       if (replaceScores) {
         await replaceAshedScoresForContext({
-          connection,
+          connection: connection!,
           target,
-          ashedAllianceId,
+          ashedAllianceId: ashedAllianceId!,
           recordedDate: submitContext.recordedDate,
           context: {
             eventId: submitContext.eventId,
@@ -844,7 +874,7 @@ export async function POST(request: Request, { params }: Props) {
         });
         clearedPriorAshedScores = true;
       }
-      await dispatchScoreSubmit(connection, target, payloads);
+      await dispatchScoreSubmit(connection!, target, payloads);
     };
     if (replaceScores) {
       await withAshedScoreReplaceLock(
@@ -864,6 +894,7 @@ export async function POST(request: Request, { params }: Props) {
       });
     } else {
       await runReplaceAndInsert();
+    }
     }
 
     if (submitContext.hqEventId) {
@@ -995,7 +1026,12 @@ export async function POST(request: Request, { params }: Props) {
 
     void notifyEurVideoEvidence(allianceId).catch(() => {});
 
-    if (scoreTargetId === "vs-performance" && allianceId && submitContext.recordedDate) {
+    if (
+      scoreTargetId === "vs-performance" &&
+      allianceId &&
+      submitContext.recordedDate &&
+      !isFixtureSubmit
+    ) {
       void announcePriceIsRightLeaderboardAfterVsUpload({
         allianceId,
         vsRecordedDate: submitContext.recordedDate,

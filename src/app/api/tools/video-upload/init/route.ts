@@ -32,6 +32,8 @@ type InitBody = {
   scoreTarget?: string;
   boardKey?: string | null;
   hqEventId?: string | null;
+  fixtureId?: string | null;
+  fixtureDayIndex?: number | null;
 };
 
 export async function POST(request: Request) {
@@ -86,6 +88,8 @@ export async function POST(request: Request) {
       videoContentTypeFromFileName(fileName);
     const boardKeyStr = body.boardKey ? String(body.boardKey) : null;
     const hqEventIdStr = body.hqEventId ? String(body.hqEventId) : null;
+    const fixtureIdStr = body.fixtureId ? String(body.fixtureId) : null;
+    const fixtureDayIndexNum = body.fixtureDayIndex != null ? Number(body.fixtureDayIndex) : null;
     const now = new Date();
 
     const db = getDb();
@@ -133,6 +137,8 @@ export async function POST(request: Request) {
       extractionConfigJson: null,
       r2UploadId: null,
       expectedFileSizeBytes: fileSize,
+      fixtureId: fixtureIdStr,
+      fixtureDayIndex: fixtureDayIndexNum,
       createdAt: now,
       updatedAt: now,
     });

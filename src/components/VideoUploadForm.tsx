@@ -33,6 +33,7 @@ import {
 } from "@/lib/video/upload-limit";
 import { jobMatchesScoreTarget } from "@/lib/video/score-target-nav";
 import { isMemberRosterVideoTarget } from "@/lib/video/score-targets";
+import { VsFixturePicker } from "@/components/video/VsFixturePicker";
 
 function formatBytes(bytes: number | null): string {
   if (!bytes) return "—";
@@ -99,6 +100,8 @@ type Props = {
   canProcess?: boolean;
   ashedConnected?: boolean;
   connectUrl?: string;
+  /** When true, show the dev fixture picker for vs-performance uploads. */
+  isDevEnvironment?: boolean;
 };
 
 function statusLabel(
@@ -133,6 +136,7 @@ export function VideoUploadForm({
   canProcess = false,
   ashedConnected = false,
   connectUrl = "/connect?next=%2Ftools%2Fvideo-upload",
+  isDevEnvironment = false,
 }: Props) {
   const t = useTranslations("video");
   const tNav = useTranslations("nav");
@@ -182,6 +186,17 @@ export function VideoUploadForm({
     null,
   );
   const searchParams = useSearchParams();
+  const queryFixtureId = searchParams.get("fixtureId") ?? null;
+
+  const [fixtureIdOverride, setFixtureIdOverride] = useState<string | null>(null);
+  const [fixtureDayIndex, setFixtureDayIndex] = useState<number | null>(null);
+
+  const fixtureId = fixtureIdOverride ?? queryFixtureId;
+  const setFixtureId = setFixtureIdOverride;
+
+  const showFixturePicker =
+    isDevEnvironment && scoreTarget === "vs-performance";
+
   const processJobQueryId = useMemo(() => {
     if (!canProcess) return null;
     return searchParams.get("processJob")?.trim() || null;
@@ -303,6 +318,8 @@ export function VideoUploadForm({
         file: uploadFile,
         scoreTarget,
         boardKey: effectiveBoardKey || undefined,
+        fixtureId: fixtureId || undefined,
+        fixtureDayIndex: fixtureDayIndex ?? undefined,
         uploadConfig,
         onProgress: (loaded, total) => {
           setUploadProgress({ loaded, total });
@@ -490,6 +507,22 @@ export function VideoUploadForm({
               }))}
             />
           </label>
+        ) : null}
+
+        {showFixturePicker ? (
+          <div className="mt-4 rounded-lg border border-dashed border-hq-border bg-hq-surface-muted/50 p-3">
+            <span className="mb-2 block text-xs font-medium uppercase tracking-wider text-hq-fg-muted">
+              Dev: VS Score Fixture
+            </span>
+            <VsFixturePicker
+              value={fixtureId}
+              dayIndex={fixtureDayIndex}
+              onChange={(id, idx) => {
+                setFixtureId(id);
+                setFixtureDayIndex(idx);
+              }}
+            />
+          </div>
         ) : null}
 
         <label className="mt-4 block">

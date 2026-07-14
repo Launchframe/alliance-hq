@@ -53,6 +53,8 @@ export async function POST(request: Request) {
     );
     const boardKey = formData.get("boardKey");
     const hqEventId = formData.get("hqEventId");
+    const fixtureIdParam = formData.get("fixtureId");
+    const fixtureDayIndexParam = formData.get("fixtureDayIndex");
     const target = getScoreTarget(scoreTarget);
     if (!target?.enabled) {
       return NextResponse.json(
@@ -97,6 +99,8 @@ export async function POST(request: Request) {
       hqEventId: hqEventId ? String(hqEventId) : null,
       allianceId: session.currentAllianceId,
       enqueuedByHqUserId: session.hqUserId,
+      fixtureId: fixtureIdParam ? String(fixtureIdParam) : null,
+      fixtureDayIndex: fixtureDayIndexParam != null ? Number(fixtureDayIndexParam) : null,
     });
 
     return NextResponse.json({

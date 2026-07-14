@@ -32,7 +32,7 @@ import {
   type AshedMember,
 } from "@/lib/video/member-matcher";
 import { ocrAllFrames, defaultAshFrameConcurrency } from "@/lib/video/ocr-pipeline";
-import { collapseEntriesBySanitizedName } from "@/lib/video/normalize-rows";
+import { collapseEntriesBySanitizedName, type OcrEntry } from "@/lib/video/normalize-rows";
 import { dedupeMatchedParseEntries } from "@/lib/video/parse-row-dedup";
 import { PipelineTimer } from "@/lib/video/pipeline-timer";
 import {
@@ -55,6 +55,7 @@ import {
   mockOcrDepositSlipFrames,
   mockOcrScoreFrames,
 } from "@/lib/video/ocr-mock";
+import { loadFixtureAsOcrEntries } from "@/lib/video/vs-fixture-ocr-inject.server";
 import {
   engineRequiresAshed,
   resolveVideoJobAshedConnection,
@@ -373,21 +374,34 @@ export async function processVideoJob(
 
       await setStatus("parsing", { uploadedFrameCount: frames.length });
     } else {
-      if (ocrEngine === "mock") {
+      const jobFixtureId = job.fixtureId ?? null;
+      const jobFixtureDayIndex = job.fixtureDayIndex ?? null;
+
+      if (ocrEngine === "mock" || jobFixtureId) {
         allianceId = await timer.measureStep("alliance.resolve_hq", () =>
           resolveHqAllianceIdFromSession(processingSessionId),
         );
 
-        const rawEntries = await timer.measureStep(
-          "mock.ocr_total",
-          () =>
-            mockOcrScoreFrames(
-              scoreTargetId,
-              frames.map((f) => ({ index: f.index })),
-              { allianceId },
-            ),
-          (entries) => ({ rowCount: entries.length }),
-        );
+        let rawEntries: OcrEntry[];
+        if (jobFixtureId) {
+          const fixtureEntries = await timer.measureStep(
+            "fixture.load_template",
+            () => loadFixtureAsOcrEntries(jobFixtureId, jobFixtureDayIndex),
+            (entries) => ({ rowCount: entries?.length ?? 0 }),
+          );
+          rawEntries = fixtureEntries ?? [];
+        } else {
+          rawEntries = await timer.measureStep(
+            "mock.ocr_total",
+            () =>
+              mockOcrScoreFrames(
+                scoreTargetId,
+                frames.map((f) => ({ index: f.index })),
+                { allianceId },
+              ),
+            (entries) => ({ rowCount: entries.length }),
+          );
+        }
 
         ocrFrameMs = frames.map(() => 1);
         ocrConcurrency = 1;

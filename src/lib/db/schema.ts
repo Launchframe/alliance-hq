@@ -489,6 +489,10 @@ export const videoJobs = pgTable("video_jobs", {
     () => sessions.id,
     { onDelete: "set null" },
   ),
+  /** Dev fixture template id — when set, OCR uses fixture rows and submit writes local ledger only. */
+  fixtureId: text("fixture_id"),
+  /** Day index within a week fixture template (null for day templates). */
+  fixtureDayIndex: integer("fixture_day_index"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
     .notNull(),
@@ -3306,3 +3310,68 @@ export const bankDepositProjections = pgTable(
 );
 
 export type BankDepositProjection = typeof bankDepositProjections.$inferSelect;
+
+// ---------------------------------------------------------------------------
+// Dev VS score fixture library (workspace templates scraped from Ashed)
+// ---------------------------------------------------------------------------
+
+export const hqVsScoreFixtureTemplates = pgTable(
+  "hq_vs_score_fixture_templates",
+  {
+    id: text("id").primaryKey(),
+    name: text("name").notNull(),
+    tags: jsonb("tags").$type<string[]>().default([]).notNull(),
+    kind: text("kind").notNull(), // "day" | "week"
+    payload: jsonb("payload").$type<Record<string, unknown>>().notNull(),
+    allianceTag: text("alliance_tag"),
+    createdByHqUserId: text("created_by_hq_user_id").references(
+      () => hqUsers.id,
+      { onDelete: "set null" },
+    ),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+);
+
+export type HqVsScoreFixtureTemplate =
+  typeof hqVsScoreFixtureTemplates.$inferSelect;
+
+// ---------------------------------------------------------------------------
+// Local VS score ledger (fixture-mode submit writes here instead of Ashed)
+// ---------------------------------------------------------------------------
+
+export const hqVsScores = pgTable(
+  "hq_vs_scores",
+  {
+    id: text("id").primaryKey(),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    recordedDate: text("recorded_date").notNull(),
+    memberId: text("member_id").notNull(),
+    memberName: text("member_name").notNull(),
+    score: integer("score").notNull(),
+    rank: integer("rank"),
+    source: text("source").notNull().default("fixture_submit"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    unique("hq_vs_scores_alliance_date_member_unique").on(
+      table.allianceId,
+      table.recordedDate,
+      table.memberId,
+    ),
+    index("hq_vs_scores_alliance_date_idx").on(
+      table.allianceId,
+      table.recordedDate,
+    ),
+  ],
+);
+
+export type HqVsScore = typeof hqVsScores.$inferSelect;
