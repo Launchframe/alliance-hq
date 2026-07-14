@@ -269,6 +269,7 @@ function lengthReduceQuality(from: number, to: number): number {
   }
   return longestCommonPrefixLength(a, b);
 }
+
 function ocrSuspicion(key: ThpBreakdownKey, value: number): number {
   const digits = String(Math.trunc(value));
   let score = 0;
@@ -621,6 +622,8 @@ export function reconcileBreakdownToTotal(
     const lockedKeys = trustedKeys.filter((key) => !variableKeys.includes(key));
     const lockedSum = lockedKeys.reduce((sum, key) => sum + baseline[key], 0);
 
+    // Soft prior from mid/high-power samples (~2.9% of Hero Power). Biases
+    // destroyed Wall-of-Honor remainder search only — not a hard game rule.
     const expectedWall = heroPowerTotal * 0.029;
     let bestDeferred: { values: ThpBreakdown; score: number } | null = null;
 
@@ -878,11 +881,12 @@ export function parsePowerDetailsLines(lines: string[]): ParsePowerDetailsResult
     Object.assign(breakdown, fillMissingFromTotal(breakdown, heroPowerTotal));
   }
 
-  let complete = THP_BREAKDOWN_KEYS.every(
+  const allRowsPresent = THP_BREAKDOWN_KEYS.every(
     (key) => typeof breakdown[key] === "number",
   );
+  let complete = false;
 
-  if (complete) {
+  if (allRowsPresent) {
     let full = breakdown as ThpBreakdown;
     if (heroPowerTotal != null) {
       const headerTotal = heroPowerTotal;
@@ -918,17 +922,22 @@ export function parsePowerDetailsLines(lines: string[]): ParsePowerDetailsResult
         }
       }
       if (reconciled && matchedTotal != null) {
+        // Covers the already-consistent case too: headerCandidates always
+        // includes the raw header total at cost 0, tried first, and
+        // reconcileBreakdownToTotal short-circuits when the sum already
+        // matches — so an exact match never falls through to the `else`.
         Object.assign(breakdown, reconciled);
         full = reconciled;
         heroPowerTotal = matchedTotal;
+        complete = true;
       }
+      // else: keep header total for total-only fallback, but do not mark
+      // complete. Callers must not trust an unreconciled component set
+      // (resolveProposed prefers breakdown sum over the header).
     }
-    if (heroPowerTotal == null) {
-      heroPowerTotal = sumThpBreakdown(full);
-    }
-    complete = THP_BREAKDOWN_KEYS.every(
-      (key) => typeof breakdown[key] === "number",
-    );
+    // No Hero Power header: do not treat component-only OCR as submission-
+    // ready. Separator noise can glue digits (e.g. gear 133M) with no
+    // reconciliation anchor. Expose raw rows for diagnostics only.
   }
 
   return { heroPowerTotal, breakdown, complete };
