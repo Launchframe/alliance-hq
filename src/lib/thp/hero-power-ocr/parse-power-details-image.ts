@@ -36,7 +36,13 @@ function mergeOcrLines(primary: string[], secondary: string[]): string[] {
 }
 
 function isUsefulHeaderLine(line: string): boolean {
-  return /hero\s*l?\s*powers?/i.test(line) || /power\s*details/i.test(line);
+  return (
+    /hero\s*l?\s*powers?/i.test(line) ||
+    /power\s*details/i.test(line) ||
+    /helden\s*kampf\s*kraft/i.test(line) ||
+    /kampf\s*kraft/i.test(line) ||
+    /details\s*der\s*kampf/i.test(line)
+  );
 }
 
 function parseScore(parsed: ParsePowerDetailsResult): number {

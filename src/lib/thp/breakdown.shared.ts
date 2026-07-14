@@ -17,18 +17,41 @@ export const THP_LABEL_ALIASES: ReadonlyArray<{
   key: ThpBreakdownKey;
   patterns: RegExp[];
 }> = [
-  { key: "heroLevel", patterns: [/^hero\s*level\b/i] },
+  {
+    key: "heroLevel",
+    patterns: [
+      /^hero\s*level\b/i,
+      // German: "Heldenlevel".
+      /^helden\s*level\b/i,
+    ],
+  },
   {
     key: "decorationsAndBuildings",
     patterns: [
       /^decorations?\s*(?:&|and)\s*building(?:\s*stats?)?\b/i,
       /^decorations?\s*and\s*buildings?\b/i,
+      // German: "Dekorationen und Gebäudestatistiken" — the label often wraps
+      // across two OCR lines, so match on the (more legible) second half too.
+      /^dekorationen\b/i,
+      /geb[äa]udestatistiken/i,
     ],
   },
-  { key: "gear", patterns: [/^gear\b/i] },
+  {
+    key: "gear",
+    patterns: [
+      /^gear\b/i,
+      // German: "Ausrüstung" — OCR often drops diacritics or doubles i→ii.
+      /^ausr[uü]stung\b/i,
+      /^ausriistung\b/i,
+    ],
+  },
   {
     key: "exclusiveWeapons",
-    patterns: [/^exclusive\s*weapons?\b/i],
+    patterns: [
+      /^exclusive\s*weapons?\b/i,
+      // German: "Exklusive Waffe".
+      /^exklusive\s*waffen?\b/i,
+    ],
   },
   {
     key: "heroTier",
@@ -37,10 +60,29 @@ export const THP_LABEL_ALIASES: ReadonlyArray<{
       /^her[o0]\s*t[il1]er\b/i,
       /^hero\s*tief\b/i,
       /^hero\s*tie[rn]\b/i,
+      // German: "Heldenrang".
+      /^helden\s*rang\b/i,
     ],
   },
-  { key: "heroSkill", patterns: [/^hero\s*skill\b/i, /^hera\s*skill\b/i] },
-  { key: "wallOfHonor", patterns: [/^wall\s*of\s*honou?r\b/i] },
+  {
+    key: "heroSkill",
+    patterns: [
+      /^hero\s*skill\b/i,
+      /^hera\s*skill\b/i,
+      // German: "Helden-Fähigkeit" — the umlaut is often dropped (ascii-fold)
+      // or misread as a doubled "ii".
+      /^helden[\s-]*f[äa]higkeit\b/i,
+      /^helden[\s-]*fiihigkeit\b/i,
+    ],
+  },
+  {
+    key: "wallOfHonor",
+    patterns: [
+      /^wall\s*of\s*honou?r\b/i,
+      // German: "Ehrenwand".
+      /^ehrenwand\b/i,
+    ],
+  },
 ];
 
 export function sumThpBreakdown(breakdown: ThpBreakdown): number {

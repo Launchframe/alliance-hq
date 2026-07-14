@@ -226,6 +226,61 @@ describe("parsePowerDetailsLines", () => {
     });
   });
 
+  it("parses German (DE) screenshot with period/apostrophe separators", () => {
+    // Diagnostics from German-locale Power Details ("Details der Kampfkraft").
+    // German uses periods as thousand-separators and labels like "Heldenlevel",
+    // "Ausrüstung", "Heldenrang", "Helden-Fähigkeit", "Ehrenwand".
+    const lines = [
+      "Heldenkampfkraft 163'766'614",
+      "Heldenlevel 85'868'512",
+      "Dekorationen und",
+      "Gebaudestatistiken 37'293'177",
+      "Ausriistung 13'190'850",
+      "Exklusive Waffe 9'085'358",
+      "Heldenrang 7'051'707",
+      "Helden-Fahigkeit 6'574'310",
+      "Ehrenwand 4'702'700",
+      "Drohnen-Kampfkraft 11'803'262",
+    ];
+    const parsed = parsePowerDetailsLines(lines);
+    expect(parsed.heroPowerTotal).toBe(163_766_614);
+    expect(parsed.complete).toBe(true);
+    expect(parsed.breakdown).toEqual({
+      heroLevel: 85_868_512,
+      decorationsAndBuildings: 37_293_177,
+      gear: 13_190_850,
+      exclusiveWeapons: 9_085_358,
+      heroTier: 7_051_707,
+      heroSkill: 6_574_310,
+      wallOfHonor: 4_702_700,
+    });
+  });
+
+  it("parses noisy German OCR with mixed separators and digit confusion", () => {
+    // Real OCR diagnostics from German screenshot — note the mix of apostrophes,
+    // periods, colons, exclamation marks, and brackets in number positions.
+    const lines = [
+      "Heldenkampfkraft 163'766%614",
+      "Heldenlevel 85'868!512",
+      "Dekorationen und 293",
+      "Gebaudestatistiken 37293177",
+      "Ausriistung 13190'850",
+      "Exklusive Waffe 9'085'358",
+      "Heldenrang 7.051707",
+      "Helden-Fahigkeit 6'574'310",
+      "Ehrenwand 4702700",
+      "Drohnen-Level 5'349'852",
+    ];
+    const parsed = parsePowerDetailsLines(lines);
+    expect(parsed.heroPowerTotal).toBe(163_766_614);
+    expect(parsed.complete).toBe(true);
+    expect(parsed.breakdown.heroLevel).toBe(85_868_512);
+    expect(parsed.breakdown.gear).toBe(13_190_850);
+    expect(parsed.breakdown.heroTier).toBe(7_051_707);
+    expect(parsed.breakdown.heroSkill).toBe(6_574_310);
+    expect(parsed.breakdown.wallOfHonor).toBe(4_702_700);
+  });
+
   it("recovers Hero Power total from live dual-pass OCR lines", () => {
     // Real dual-pass output from the Jul 14 screenshot: header commas→digits mix,
     // body still drops/duplicates glyphs on some rows.
