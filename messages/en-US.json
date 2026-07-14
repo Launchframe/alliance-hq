@@ -3375,6 +3375,13 @@
     "priceIsRight": {
       "title": "Raffle tickets",
       "decayHint": "Closer to 7.2M → more tickets.",
+      "oddsTitleUniform": "Conductor draw odds",
+      "oddsSubtitleUniform": "Equal chance among R3 with prior-day VS in the economy range. Sorted by name.",
+      "oddsTitleHeavyHitter": "Heavy-hitter draw odds",
+      "oddsSubtitleHeavyHitter": "Equal chance among configured heavy hitters.",
+      "oddsEmptyUniform": "No R3 members fall in the economy VS range for this day yet.",
+      "oddsEmptyHeavyHitter": "No heavy hitters are configured for Saturday's draw.",
+      "oddsHeroEqual": "Your chance in today's draw: {probability}",
       "loading": "Loading raffle tickets…",
       "loadFailed": "Could not load raffle tickets.",
       "noScore": "—",
@@ -3402,15 +3409,18 @@
         "member": "Commander",
         "vs": "Prior-day VS",
         "tickets": "Tickets",
-        "chance": "Win chance",
+        "chance": "Chance",
         "takedownBadge": "Takedown",
         "rowMeta": "VS {score} · {probability} chance",
+        "chanceOnlyMeta": "{probability} chance",
         "expand": "Show full raffle pool",
         "collapse": "Show fewer rows"
       },
       "missedFloor": {
         "title": "Members didn't make it",
         "subtitle": "R3 commanders below 7.2M on the prior VS day — not eligible for today's raffle.",
+        "titleUniform": "Outside today's draw",
+        "subtitleUniform": "R3 commanders whose prior-day VS is outside the economy range — not in today's equal-chance draw.",
         "member": "Commander",
         "vs": "Prior-day VS"
       }

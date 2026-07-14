@@ -80,9 +80,42 @@ export function isVsScoreEconomyEligible(
 }
 
 /**
+ * Live Price Is Freight eligibility (with-replacement draws). No depleting-pool
+ * “last remaining member” guarantee — every R3 is filtered by the VS band when
+ * enforcement is on. Takedown / max-ticket overrides stay eligible above band.
+ */
+export function tpirEligibleLiveCandidates<T extends { memberId: string }>(
+  candidates: T[],
+  scores: Map<string, number>,
+  settings: TrainEconomyThresholdSettings,
+  maxTicketMemberIds: readonly string[] = [],
+): T[] {
+  if (candidates.length === 0) {
+    return [];
+  }
+  if (!economyThresholdEnforcementEnabled(settings)) {
+    return candidates;
+  }
+
+  const threshold = settings.thresholdPoints!;
+  const overrides = new Set(maxTicketMemberIds);
+  return candidates.filter((entry) => {
+    if (overrides.has(entry.memberId)) return true;
+    return isVsScoreEconomyEligible(
+      vsScoreForEconomyDraw(scores.get(entry.memberId)),
+      threshold,
+      settings.fudgePct,
+    );
+  });
+}
+
+/**
  * TPIR pick-time filter over unselected pool rows. When only one member remains
  * in the alliance pool generation, they are always eligible (pool guarantee).
  * Takedown / max-ticket overrides stay eligible even above the economy band.
+ *
+ * Used by depleting-pool paths (`economy_week` / legacy pool picks). Prefer
+ * {@link tpirEligibleLiveCandidates} for Price Is Freight with-replacement rolls.
  */
 export function tpirEligiblePoolEntries<T extends { memberId: string }>(
   unselected: T[],
@@ -96,20 +129,12 @@ export function tpirEligiblePoolEntries<T extends { memberId: string }>(
   if (unselected.length === 1) {
     return unselected;
   }
-  if (!economyThresholdEnforcementEnabled(settings)) {
-    return unselected;
-  }
-
-  const threshold = settings.thresholdPoints!;
-  const overrides = new Set(maxTicketMemberIds);
-  return unselected.filter((entry) => {
-    if (overrides.has(entry.memberId)) return true;
-    return isVsScoreEconomyEligible(
-      vsScoreForEconomyDraw(scores.get(entry.memberId)),
-      threshold,
-      settings.fudgePct,
-    );
-  });
+  return tpirEligibleLiveCandidates(
+    unselected,
+    scores,
+    settings,
+    maxTicketMemberIds,
+  );
 }
 
 export function priceIsRightVsScoreRange(

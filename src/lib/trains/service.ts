@@ -40,6 +40,7 @@ import {
   pickTpirPoolEntry,
 } from "@/lib/trains/train-economy-threshold.server";
 import { buildHeavyHitterPoolCandidates } from "@/lib/trains/heavy-hitter-pool.server";
+import { rollPriceIsFreightConductor } from "@/lib/trains/price-is-freight-roll.server";
 import { priceIsRightWeightingActive } from "@/lib/trains/train-price-is-right-tickets.shared";
 import {
   getPoolSummary,
@@ -53,7 +54,6 @@ import {
   releasePoolSelectionForDate,
   seedPool,
   startNewPoolGeneration,
-  updateCurrentPoolEntryTicketWeights,
 } from "@/lib/trains/pool";
 import {
   evaluateConductorQualification,
@@ -252,39 +252,6 @@ async function ensurePool(input: {
   }
 }
 
-async function refreshPriceIsRightPoolTicketWeights(input: {
-  allianceId: string;
-  poolType: PoolType;
-  date: string;
-}): Promise<void> {
-  const entries = await listPoolEntries(input.allianceId, input.poolType);
-  if (entries.length === 0) return;
-
-  const settings = await loadPriceIsRightTicketSettings(input.allianceId);
-  if (!priceIsRightWeightingActive(settings)) return;
-
-  const weighted = await buildPriceIsRightWeightedCandidates({
-    allianceId: input.allianceId,
-    trainDate: input.date,
-    candidates: entries.map((entry) => ({
-      memberId: entry.memberId,
-      memberName: entry.memberName,
-      allianceRank: entry.allianceRank,
-    })),
-    settings,
-  });
-
-  await updateCurrentPoolEntryTicketWeights(
-    input.allianceId,
-    input.poolType,
-    weighted.candidates.map((candidate) => ({
-      memberId: candidate.memberId,
-      ticketCount: candidate.ticketCount ?? 0,
-      priorDayVsScore: candidate.priorDayVsScore ?? null,
-    })),
-  );
-}
-
 async function rollFromPool(
   allianceId: string,
   poolType: PoolType,
@@ -446,7 +413,10 @@ export async function confirmConductorMinimumOverride(input: {
     seasonKey,
   );
 
-  const poolType = conductorMechanismPoolType(input.mechanism);
+  const poolType =
+    dayConfig.paintTemplate === "price_is_right"
+      ? null
+      : conductorMechanismPoolType(input.mechanism);
   if (poolType) {
     await markPoolMemberSelectedForDate(
       input.allianceId,
@@ -773,6 +743,27 @@ export async function rollForConductor(input: {
     case "r3_lottery":
     case "heavy_hitter_lottery":
     case "r4_sequence": {
+      if (
+        dayConfig.paintTemplate === "price_is_right" &&
+        (mechanism === "r3_lottery" || mechanism === "heavy_hitter_lottery")
+      ) {
+        // Clear any historical depleting-pool marks from older TPIF rolls.
+        if (record?.conductorMemberId) {
+          await releasePoolSelectionForDate(
+            input.allianceId,
+            input.date,
+            record.conductorMemberId,
+          );
+        }
+        result = await rollPriceIsFreightConductor({
+          allianceId: input.allianceId,
+          date: input.date,
+          paintTemplate: dayConfig.paintTemplate,
+          mechanism,
+        });
+        break;
+      }
+
       const poolType = conductorMechanismPoolType(mechanism)!;
       if (record?.conductorMemberId) {
         await releasePoolSelectionForDate(
@@ -788,20 +779,7 @@ export async function rollForConductor(input: {
         useSequence: mechanism === "r4_sequence",
         paintTemplate: dayConfig.paintTemplate,
       });
-      const pirSettings =
-        mechanism === "r3_lottery" &&
-        dayConfig.paintTemplate === "price_is_right"
-          ? await loadPriceIsRightTicketSettings(input.allianceId)
-          : null;
-      const useWeightedPick =
-        pirSettings != null && priceIsRightWeightingActive(pirSettings);
-      if (useWeightedPick) {
-        await refreshPriceIsRightPoolTicketWeights({
-          allianceId: input.allianceId,
-          poolType,
-          date: input.date,
-        });
-      }
+      const useWeightedPick = false;
       result = await rollFromPool(
         input.allianceId,
         poolType,

@@ -25,15 +25,19 @@ vi.mock("@/lib/trains/day-config-resolve.server", () => ({
 vi.mock("@/lib/trains/train-economy-threshold.server", () => ({
   loadPriceIsRightTicketSettings: vi.fn(),
   buildPriceIsRightWeightedCandidates: vi.fn(),
+  loadTrainEconomyThreshold: vi.fn(),
 }));
 
-vi.mock("@/lib/members/game-roster", () => ({
-  loadActiveAlliancePoolMembers: vi.fn(),
+vi.mock("@/lib/trains/price-is-freight-roll.server", () => ({
+  loadPriceIsFreightR3Candidates: vi.fn(),
 }));
 
-vi.mock("@/lib/trains/rank-history", () => ({
-  getAllianceRanksAsOf: vi.fn(),
-  isMemberEligibleForPool: vi.fn(() => true),
+vi.mock("@/lib/trains/heavy-hitter-pool.server", () => ({
+  buildHeavyHitterPoolCandidates: vi.fn(),
+}));
+
+vi.mock("@/lib/trains/vs-scores.server", () => ({
+  fetchAlliancePriorDayVsScoresByMember: vi.fn(),
 }));
 
 vi.mock("@/lib/member-link/repository.server", () => ({
@@ -83,15 +87,25 @@ describe("price-is-right tickets GET", () => {
     expect(body.error).toMatch(/Price Is Freight/i);
   });
 
-  it("400s when exponential ticket weighting is disabled", async () => {
+  it("returns uniform mode with equal probabilities when weighting is off", async () => {
     const { resolveTrainRequestContext } = await import(
       "@/lib/trains/api-context"
     );
     const { resolveRollDayConfig } = await import(
       "@/lib/trains/day-config-resolve.server"
     );
-    const { loadPriceIsRightTicketSettings } = await import(
-      "@/lib/trains/train-economy-threshold.server"
+    const {
+      loadPriceIsRightTicketSettings,
+      loadTrainEconomyThreshold,
+    } = await import("@/lib/trains/train-economy-threshold.server");
+    const { loadPriceIsFreightR3Candidates } = await import(
+      "@/lib/trains/price-is-freight-roll.server"
+    );
+    const { fetchAlliancePriorDayVsScoresByMember } = await import(
+      "@/lib/trains/vs-scores.server"
+    );
+    const { getHqMemberLinkForUser } = await import(
+      "@/lib/member-link/repository.server"
     );
     vi.mocked(resolveTrainRequestContext).mockResolvedValue(BASE_CTX);
     vi.mocked(resolveRollDayConfig).mockResolvedValue({
@@ -99,22 +113,43 @@ describe("price-is-right tickets GET", () => {
     } as never);
     vi.mocked(loadPriceIsRightTicketSettings).mockResolvedValue({
       weightingEnabled: false,
-      cliffPoints: null,
+      cliffPoints: 8_500_000,
       hardCutoffEnabled: false,
       maxTicketMemberIds: [],
     });
+    vi.mocked(loadTrainEconomyThreshold).mockResolvedValue({
+      thresholdPoints: 8_500_000,
+      fudgePct: 1,
+    } as never);
+    vi.mocked(loadPriceIsFreightR3Candidates).mockResolvedValue([
+      { memberId: "a", memberName: "Alpha" },
+      { memberId: "b", memberName: "Bravo" },
+    ]);
+    vi.mocked(fetchAlliancePriorDayVsScoresByMember).mockResolvedValue(
+      new Map([
+        ["a", 7_500_000],
+        ["b", 7_600_000],
+      ]),
+    );
+    vi.mocked(getHqMemberLinkForUser).mockResolvedValue(null as never);
 
     const res = await GET(
       new Request(
         "http://localhost/api/trains/price-is-right/tickets?date=2026-07-09",
       ),
     );
-    expect(res.status).toBe(400);
-    const body = await res.json();
-    expect(body.error).toMatch(/weighting/i);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      mode: string;
+      board: Array<{ winProbability: number }>;
+    };
+    expect(body.mode).toBe("uniform");
+    expect(body.board).toHaveLength(2);
+    const sum = body.board.reduce((n, row) => n + row.winProbability, 0);
+    expect(sum).toBeCloseTo(1, 8);
   });
 
-  it("returns board and missedFloor as separate lists", async () => {
+  it("returns board and missedFloor as separate lists in weighted mode", async () => {
     const { resolveTrainRequestContext } = await import(
       "@/lib/trains/api-context"
     );
@@ -125,10 +160,9 @@ describe("price-is-right tickets GET", () => {
       loadPriceIsRightTicketSettings,
       buildPriceIsRightWeightedCandidates,
     } = await import("@/lib/trains/train-economy-threshold.server");
-    const { loadActiveAlliancePoolMembers } = await import(
-      "@/lib/members/game-roster"
+    const { loadPriceIsFreightR3Candidates } = await import(
+      "@/lib/trains/price-is-freight-roll.server"
     );
-    const { getAllianceRanksAsOf } = await import("@/lib/trains/rank-history");
     const { getHqMemberLinkForUser } = await import(
       "@/lib/member-link/repository.server"
     );
@@ -142,19 +176,10 @@ describe("price-is-right tickets GET", () => {
       hardCutoffEnabled: false,
       maxTicketMemberIds: [],
     });
-    vi.mocked(loadActiveAlliancePoolMembers).mockResolvedValue([
-      {
-        ashedMemberId: "a",
-        currentName: "Alpha",
-        allianceRank: 3,
-      },
-      {
-        ashedMemberId: "b",
-        currentName: "Bravo",
-        allianceRank: 3,
-      },
-    ] as never);
-    vi.mocked(getAllianceRanksAsOf).mockResolvedValue([]);
+    vi.mocked(loadPriceIsFreightR3Candidates).mockResolvedValue([
+      { memberId: "a", memberName: "Alpha" },
+      { memberId: "b", memberName: "Bravo" },
+    ]);
     vi.mocked(getHqMemberLinkForUser).mockResolvedValue(null as never);
     vi.mocked(buildPriceIsRightWeightedCandidates).mockResolvedValue({
       scoreDate: "2026-07-08",
@@ -185,9 +210,11 @@ describe("price-is-right tickets GET", () => {
     );
     expect(res.status).toBe(200);
     const body = (await res.json()) as {
+      mode: string;
       board: Array<{ memberId: string }>;
       missedFloor: Array<{ memberId: string }>;
     };
+    expect(body.mode).toBe("weighted");
     expect(body.board).toHaveLength(1);
     expect(body.missedFloor).toHaveLength(1);
     expect(body.board[0]?.memberId).toBe("a");
