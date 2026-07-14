@@ -180,6 +180,17 @@ export function ConductorWheelModal({
     onAutomatedRevealComplete,
   ]);
 
+  useEffect(() => {
+    if (!open || phase !== "revealed") return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      onClose();
+    };
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
+  }, [open, phase, onClose]);
+
   if (!open || !winner || !reelSession) return null;
 
   const { items: reelItems, winnerIdx } = reelSession;
@@ -318,6 +329,14 @@ export function ConductorWheelModal({
               />
             </label>
             <div className="flex flex-wrap justify-center gap-2">
+              <button
+                type="button"
+                onClick={onClose}
+                data-testid="trains-wheel-cancel"
+                className="rounded-lg border border-hq-border px-4 py-2 text-sm font-medium text-hq-fg hover:bg-hq-canvas"
+              >
+                {t("cancel")}
+              </button>
               <button
                 type="button"
                 onClick={() => onSpinAgain?.()}
